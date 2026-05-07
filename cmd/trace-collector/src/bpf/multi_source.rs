@@ -395,8 +395,17 @@ impl MultiSourceReader {
             let poll_timeout = self.config.poll_timeout_ms;
 
             let handle = tokio::spawn(async move {
-                run_source_reader(source, path, size, stats, global_stats, shutdown, tx, poll_timeout)
-                    .await
+                run_source_reader(
+                    source,
+                    path,
+                    size,
+                    stats,
+                    global_stats,
+                    shutdown,
+                    tx,
+                    poll_timeout,
+                )
+                .await
             });
 
             handles.push((source, handle));
@@ -487,7 +496,8 @@ impl MultiSourceReaderBuilder {
     pub fn with_base_path(mut self, base: impl AsRef<Path>) -> Self {
         let base = base.as_ref();
         for source in &mut self.config.sources {
-            source.ringbuf_path = base.join(format!("{}_events", source.source.name().replace('-', "_")));
+            source.ringbuf_path =
+                base.join(format!("{}_events", source.source.name().replace('-', "_")));
         }
         self
     }
@@ -512,7 +522,11 @@ impl MultiSourceReaderBuilder {
     }
 
     /// Configure a specific source
-    pub fn configure_source(mut self, source: EventSource, f: impl FnOnce(SourceConfig) -> SourceConfig) -> Self {
+    pub fn configure_source(
+        mut self,
+        source: EventSource,
+        f: impl FnOnce(SourceConfig) -> SourceConfig,
+    ) -> Self {
         if let Some(config) = self.config.sources.iter_mut().find(|s| s.source == source) {
             *config = f(config.clone());
         }

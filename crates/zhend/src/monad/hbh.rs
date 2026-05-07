@@ -86,14 +86,16 @@ pub fn parse_zhen_option(data: &[u8]) -> Option<ZhenHbhOption> {
 }
 
 /// Serialize a Zhen HbH option for insertion into outgoing packets.
-pub fn encode_zhen_option(hash: &[u8; 32], embedding_dim: Option<u8>, payload_len: Option<u16>) -> Vec<u8> {
+pub fn encode_zhen_option(
+    hash: &[u8; 32],
+    embedding_dim: Option<u8>,
+    payload_len: Option<u16>,
+) -> Vec<u8> {
     let mut buf = Vec::with_capacity(ZHEN_OPTION_MIN_LEN + 3);
 
     buf.push(ZHEN_OPTION_TYPE);
 
-    let data_len = BLAKE3_HASH_LEN
-        + embedding_dim.map_or(0, |_| 1)
-        + payload_len.map_or(0, |_| 2);
+    let data_len = BLAKE3_HASH_LEN + embedding_dim.map_or(0, |_| 1) + payload_len.map_or(0, |_| 2);
     buf.push(data_len as u8);
 
     buf.extend_from_slice(hash);

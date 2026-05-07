@@ -209,10 +209,10 @@ impl PerfEventReader {
             libc::syscall(
                 libc::SYS_perf_event_open,
                 &attr as *const _,
-                -1i32,        // pid (-1 = all processes)
-                cpu as i32,   // cpu
-                -1i32,        // group_fd
-                0u64,         // flags
+                -1i32,      // pid (-1 = all processes)
+                cpu as i32, // cpu
+                -1i32,      // group_fd
+                0u64,       // flags
             )
         };
 
@@ -357,14 +357,12 @@ impl PerfEventReader {
                 9 => {
                     // PERF_RECORD_SAMPLE
                     // Skip header, read sample size
-                    let sample_header_data =
-                        self.read_data((tail + 8) % self.buffer_size, 4);
+                    let sample_header_data = self.read_data((tail + 8) % self.buffer_size, 4);
                     let sample_size =
                         unsafe { *(sample_header_data.as_ptr() as *const u32) } as usize;
 
                     // Read the actual sample data
-                    let sample_data =
-                        self.read_data((tail + 12) % self.buffer_size, sample_size);
+                    let sample_data = self.read_data((tail + 12) % self.buffer_size, sample_size);
 
                     match Event::from_bytes(&sample_data) {
                         Ok(event) => {
@@ -423,18 +421,16 @@ impl PerfEventReader {
 
         while !shutdown.load(Ordering::Relaxed) {
             match self.poll_wait(100) {
-                Ok(true) => {
-                    match self.read_events(&sender) {
-                        Ok(count) => {
-                            if count > 0 {
-                                trace!(cpu = self.cpu, events = count, "Read perf events");
-                            }
-                        }
-                        Err(e) => {
-                            warn!(cpu = self.cpu, error = %e, "Error reading perf events");
+                Ok(true) => match self.read_events(&sender) {
+                    Ok(count) => {
+                        if count > 0 {
+                            trace!(cpu = self.cpu, events = count, "Read perf events");
                         }
                     }
-                }
+                    Err(e) => {
+                        warn!(cpu = self.cpu, error = %e, "Error reading perf events");
+                    }
+                },
                 Ok(false) => continue,
                 Err(e) => {
                     warn!(cpu = self.cpu, error = %e, "Perf poll error");

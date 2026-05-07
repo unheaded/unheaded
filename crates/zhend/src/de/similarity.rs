@@ -37,7 +37,11 @@ pub fn cosine_similarity(a: &[u8], b: &[u8]) -> f32 {
 /// Score and rank fragments by relevance to a context vector.
 ///
 /// Returns (fragment, de_score) pairs sorted by descending De.
-pub fn rank_by_de<'a>(context: &[u8], fragments: &'a [Fragment], top_k: usize) -> Vec<(&'a Fragment, f32)> {
+pub fn rank_by_de<'a>(
+    context: &[u8],
+    fragments: &'a [Fragment],
+    top_k: usize,
+) -> Vec<(&'a Fragment, f32)> {
     let mut scored: Vec<_> = fragments
         .iter()
         .map(|f| {
@@ -60,7 +64,10 @@ mod tests {
     fn test_cosine_identical() {
         let a = vec![100u8, 200, 50, 150];
         let sim = cosine_similarity(&a, &a);
-        assert!((sim - 1.0).abs() < 1e-5, "identical vectors should have similarity ~1.0");
+        assert!(
+            (sim - 1.0).abs() < 1e-5,
+            "identical vectors should have similarity ~1.0"
+        );
     }
 
     #[test]
@@ -69,7 +76,10 @@ mod tests {
         let a = vec![255u8, 0, 0, 0];
         let b = vec![0u8, 255, 0, 0];
         let sim = cosine_similarity(&a, &b);
-        assert!(sim.abs() < 0.01, "orthogonal vectors should have ~0 similarity");
+        assert!(
+            sim.abs() < 0.01,
+            "orthogonal vectors should have ~0 similarity"
+        );
     }
 
     #[test]

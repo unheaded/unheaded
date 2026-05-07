@@ -5,17 +5,13 @@ fn bench_fragment_creation(c: &mut Criterion) {
 
     c.bench_function("fragment_new_1kb", |b| {
         let payload = vec![0xAB_u8; 1024];
-        b.iter(|| {
-            Fragment::new(black_box(payload.clone()), vec![], None)
-        });
+        b.iter(|| Fragment::new(black_box(payload.clone()), vec![], None));
     });
 
     c.bench_function("fragment_verify_1kb", |b| {
         let payload = vec![0xAB_u8; 1024];
         let frag = Fragment::new(payload, vec![], None);
-        b.iter(|| {
-            black_box(frag.verify())
-        });
+        b.iter(|| black_box(frag.verify()));
     });
 }
 
@@ -25,15 +21,13 @@ fn bench_cosine_similarity(c: &mut Criterion) {
     c.bench_function("cosine_384d", |b| {
         let a: Vec<u8> = (0..384).map(|i| (i % 256) as u8).collect();
         let b_vec: Vec<u8> = (0..384).map(|i| ((i + 50) % 256) as u8).collect();
-        b.iter(|| {
-            cosine_similarity(black_box(&a), black_box(&b_vec))
-        });
+        b.iter(|| cosine_similarity(black_box(&a), black_box(&b_vec)));
     });
 }
 
 fn bench_codec_roundtrip(c: &mut Criterion) {
-    use zhend::pu::fragment::Fragment;
     use zhend::pu::codec;
+    use zhend::pu::fragment::Fragment;
 
     c.bench_function("codec_roundtrip_1kb", |b| {
         let frag = Fragment::new(vec![0xCD_u8; 1024], vec![1, 2, 3, 4], None);
@@ -45,9 +39,9 @@ fn bench_codec_roundtrip(c: &mut Criterion) {
 }
 
 fn bench_sustained_ingest(c: &mut Criterion) {
+    use tempfile::TempDir;
     use zhend::pu::fragment::Fragment;
     use zhend::pu::store::TieredStore;
-    use tempfile::TempDir;
 
     let mut group = c.benchmark_group("sustained_ingest");
     group.sample_size(10); // fewer samples since each iteration is 1000 fragments

@@ -18,10 +18,7 @@ use zeroize::Zeroize;
 #[cfg(feature = "pq")]
 use pqcrypto_dilithium::dilithium3;
 #[cfg(feature = "pq")]
-use pqcrypto_traits::sign::{
-    PublicKey as SignPk, SecretKey as SignSk,
-    DetachedSignature,
-};
+use pqcrypto_traits::sign::{DetachedSignature, PublicKey as SignPk, SecretKey as SignSk};
 
 /// ML-DSA-65 signing keypair for peer authentication.
 pub struct PqSigningKeypair {
@@ -175,7 +172,9 @@ mod tests {
             .expect("identity creation should succeed");
 
         assert!(
-            identity.verify_self().expect("self-verification should not error"),
+            identity
+                .verify_self()
+                .expect("self-verification should not error"),
             "self-attestation must verify"
         );
     }

@@ -10,8 +10,8 @@ use std::sync::Arc;
 use tempfile::TempDir;
 
 use zhend::api::quic::{
-    build_client_config_insecure, build_server_config, send_request, QuicServer,
-    OP_INGEST, OP_STATUS, OP_SURFACE, STATUS_BAD_REQUEST, STATUS_OK,
+    build_client_config_insecure, build_server_config, send_request, QuicServer, OP_INGEST,
+    OP_STATUS, OP_SURFACE, STATUS_BAD_REQUEST, STATUS_OK,
 };
 use zhend::de::embedder::Embedder;
 use zhend::pu::TieredStore;
@@ -55,8 +55,7 @@ async fn setup() -> (quinn::Endpoint, SocketAddr, TempDir) {
     });
 
     // Build client endpoint (no server config needed).
-    let mut client_endpoint =
-        quinn::Endpoint::client("127.0.0.1:0".parse().unwrap()).unwrap();
+    let mut client_endpoint = quinn::Endpoint::client("127.0.0.1:0".parse().unwrap()).unwrap();
     client_endpoint.set_default_client_config(build_client_config_insecure());
 
     // Give server a moment.
@@ -120,7 +119,10 @@ async fn test_quic_ingest_empty_rejected() {
         .await
         .unwrap();
 
-    assert_eq!(status, STATUS_BAD_REQUEST, "empty payload should be rejected");
+    assert_eq!(
+        status, STATUS_BAD_REQUEST,
+        "empty payload should be rejected"
+    );
 
     conn.close(0u32.into(), b"done");
 }
@@ -203,9 +205,7 @@ async fn test_quic_unknown_op_rejected() {
     let conn = connect(&client_ep, addr).await;
 
     let (mut send, mut recv) = conn.open_bi().await.unwrap();
-    let (status, resp) = send_request(&mut send, &mut recv, 255, b"")
-        .await
-        .unwrap();
+    let (status, resp) = send_request(&mut send, &mut recv, 255, b"").await.unwrap();
 
     assert_eq!(status, STATUS_BAD_REQUEST);
     assert_eq!(&resp, b"unknown op code");
@@ -226,10 +226,9 @@ async fn test_quic_multiple_streams_one_connection() {
         handles.push(tokio::spawn(async move {
             let (mut send, mut recv) = conn.open_bi().await.unwrap();
             let payload = format!("parallel fragment {i}").into_bytes();
-            let (status, resp) =
-                send_request(&mut send, &mut recv, OP_INGEST, &payload)
-                    .await
-                    .unwrap();
+            let (status, resp) = send_request(&mut send, &mut recv, OP_INGEST, &payload)
+                .await
+                .unwrap();
             assert_eq!(status, STATUS_OK);
             assert_eq!(resp.len(), 33);
             assert_eq!(resp[32], 1, "each unique fragment should be novel");
@@ -247,7 +246,10 @@ async fn test_quic_multiple_streams_one_connection() {
         .unwrap();
     assert_eq!(status, STATUS_OK);
     let json: serde_json::Value = serde_json::from_slice(&resp).unwrap();
-    assert_eq!(json["l1_count"], 3, "should have 3 fragments after parallel ingest");
+    assert_eq!(
+        json["l1_count"], 3,
+        "should have 3 fragments after parallel ingest"
+    );
 
     conn.close(0u32.into(), b"done");
 }

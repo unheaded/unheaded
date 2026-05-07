@@ -6,5 +6,5 @@
 //! - Piggybacking Pu fragments onto outgoing Monad packets (Qi transport)
 //! - Constructing context vectors from Monad flow metadata (De input)
 
-pub mod hbh;
 pub mod bridge;
+pub mod hbh;

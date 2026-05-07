@@ -490,7 +490,8 @@ impl TraceEventBatch {
 
     /// Get batch duration in nanoseconds
     pub fn duration_ns(&self) -> u64 {
-        self.last_timestamp_ns.saturating_sub(self.first_timestamp_ns)
+        self.last_timestamp_ns
+            .saturating_sub(self.first_timestamp_ns)
     }
 
     /// Check if batch is empty

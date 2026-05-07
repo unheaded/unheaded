@@ -20,15 +20,13 @@ use trace_collector::correlation::{
     CorrelationConfig, CorrelationEngine, FlowKey, TraceId, TraceQuery, TraceStore,
     TraceStoreConfig, TraceSummary,
 };
-use trace_collector::events::{
-    Event, EventBatch, EventData, EventType, LatencyEvent, PacketEvent, SyscallEvent,
-};
 use trace_collector::events::latency::{LatencyBucket, ProbeType};
 use trace_collector::events::packet::{IpProtocol, PacketDirection};
 use trace_collector::events::syscall::SyscallCategory;
-use trace_collector::publisher::batch::{
-    BatchPayload, BatchState, EventBatcher,
+use trace_collector::events::{
+    Event, EventBatch, EventData, EventType, LatencyEvent, PacketEvent, SyscallEvent,
 };
+use trace_collector::publisher::batch::{BatchPayload, BatchState, EventBatcher};
 use trace_collector::websocket::{
     ClientMessage, ServerMessage, Subscription, TraceUpdate, WebSocketConfig, WebSocketServer,
 };
@@ -73,12 +71,7 @@ fn mock_packet_event(
 }
 
 /// Create a mock latency event.
-fn mock_latency_event(
-    pid: u32,
-    comm: &str,
-    latency_ns: u64,
-    timestamp_ns: u64,
-) -> Event {
+fn mock_latency_event(pid: u32, comm: &str, latency_ns: u64, timestamp_ns: u64) -> Event {
     Event::new(
         EventType::Latency,
         0,
@@ -102,12 +95,7 @@ fn mock_latency_event(
 }
 
 /// Create a mock syscall event.
-fn mock_syscall_event(
-    pid: u32,
-    comm: &str,
-    syscall_nr: u32,
-    timestamp_ns: u64,
-) -> Event {
+fn mock_syscall_event(pid: u32, comm: &str, syscall_nr: u32, timestamp_ns: u64) -> Event {
     Event::new(
         EventType::Syscall,
         0,
@@ -219,7 +207,10 @@ fn correlation_engine_groups_same_flow_into_one_trace() {
 
     // Verify the trace context accumulated data
     let ctx = engine.get_trace(t1).unwrap();
-    assert!(ctx.spans.len() >= 1, "Trace should have at least 1 span (root)");
+    assert!(
+        ctx.spans.len() >= 1,
+        "Trace should have at least 1 span (root)"
+    );
     assert!(ctx.packet_count >= 2, "Packet count should reflect updates");
 }
 
@@ -403,20 +394,32 @@ fn correlation_engine_completed_trace_subscription() {
 
     // Fill up to max_active_traces
     let ev1 = mock_packet_event(
-        100, "svc-a",
-        Ipv4Addr::new(10, 0, 0, 1), Ipv4Addr::new(10, 0, 0, 2),
-        1000, 80, 1_000_000,
+        100,
+        "svc-a",
+        Ipv4Addr::new(10, 0, 0, 1),
+        Ipv4Addr::new(10, 0, 0, 2),
+        1000,
+        80,
+        1_000_000,
     );
     let ev2 = mock_packet_event(
-        200, "svc-b",
-        Ipv4Addr::new(172, 16, 0, 1), Ipv4Addr::new(172, 16, 0, 2),
-        2000, 443, 2_000_000,
+        200,
+        "svc-b",
+        Ipv4Addr::new(172, 16, 0, 1),
+        Ipv4Addr::new(172, 16, 0, 2),
+        2000,
+        443,
+        2_000_000,
     );
     // Third event on a new flow forces eviction of oldest
     let ev3 = mock_packet_event(
-        300, "svc-c",
-        Ipv4Addr::new(192, 168, 0, 1), Ipv4Addr::new(192, 168, 0, 2),
-        3000, 8080, 3_000_000,
+        300,
+        "svc-c",
+        Ipv4Addr::new(192, 168, 0, 1),
+        Ipv4Addr::new(192, 168, 0, 2),
+        3000,
+        8080,
+        3_000_000,
     );
 
     engine.process_event(&ev1);
@@ -470,8 +473,7 @@ fn batcher_collects_events_and_tracks_state() {
 
 #[test]
 fn batcher_transitions_to_ready_at_capacity() {
-    let mut batcher =
-        EventBatcher::new("integration-test".to_string(), 3, Duration::from_secs(60));
+    let mut batcher = EventBatcher::new("integration-test".to_string(), 3, Duration::from_secs(60));
 
     for i in 0..3 {
         let event = mock_packet_event(
@@ -493,8 +495,7 @@ fn batcher_transitions_to_ready_at_capacity() {
 
 #[test]
 fn batcher_flush_produces_valid_payload() {
-    let mut batcher =
-        EventBatcher::new("integration-test".to_string(), 5, Duration::from_secs(60));
+    let mut batcher = EventBatcher::new("integration-test".to_string(), 5, Duration::from_secs(60));
 
     for i in 0..5 {
         let event = mock_packet_event(
@@ -536,25 +537,39 @@ fn batcher_flush_on_empty_returns_none() {
 
 #[test]
 fn batcher_sequence_increments_across_flushes() {
-    let mut batcher =
-        EventBatcher::new("integration-test".to_string(), 2, Duration::from_secs(60));
+    let mut batcher = EventBatcher::new("integration-test".to_string(), 2, Duration::from_secs(60));
 
     // First batch
     batcher.add(mock_packet_event(
-        100, "a", Ipv4Addr::new(10, 0, 0, 1), Ipv4Addr::new(10, 0, 0, 2),
-        1000, 80, 1_000_000,
+        100,
+        "a",
+        Ipv4Addr::new(10, 0, 0, 1),
+        Ipv4Addr::new(10, 0, 0, 2),
+        1000,
+        80,
+        1_000_000,
     ));
     batcher.add(mock_packet_event(
-        100, "a", Ipv4Addr::new(10, 0, 0, 1), Ipv4Addr::new(10, 0, 0, 2),
-        1001, 80, 2_000_000,
+        100,
+        "a",
+        Ipv4Addr::new(10, 0, 0, 1),
+        Ipv4Addr::new(10, 0, 0, 2),
+        1001,
+        80,
+        2_000_000,
     ));
     let p1 = batcher.flush().unwrap();
     assert_eq!(p1.sequence, 0);
 
     // Second batch
     batcher.add(mock_packet_event(
-        200, "b", Ipv4Addr::new(10, 0, 0, 3), Ipv4Addr::new(10, 0, 0, 4),
-        2000, 443, 3_000_000,
+        200,
+        "b",
+        Ipv4Addr::new(10, 0, 0, 3),
+        Ipv4Addr::new(10, 0, 0, 4),
+        2000,
+        443,
+        3_000_000,
     ));
     let p2 = batcher.flush().unwrap();
     assert_eq!(p2.sequence, 1);
@@ -567,9 +582,13 @@ fn batcher_stats_accumulate_correctly() {
 
     for i in 0..20 {
         batcher.add(mock_packet_event(
-            100, "test",
-            Ipv4Addr::new(10, 0, 0, 1), Ipv4Addr::new(10, 0, 0, 2),
-            (1000 + i) as u16, 80, (i as u64) * 1000,
+            100,
+            "test",
+            Ipv4Addr::new(10, 0, 0, 1),
+            Ipv4Addr::new(10, 0, 0, 2),
+            (1000 + i) as u16,
+            80,
+            (i as u64) * 1000,
         ));
     }
 
@@ -586,9 +605,13 @@ fn batcher_serializes_diverse_event_types() {
 
     // Add one of each type
     batcher.add(mock_packet_event(
-        100, "nginx",
-        Ipv4Addr::new(10, 0, 0, 1), Ipv4Addr::new(10, 0, 0, 2),
-        8080, 80, 1_000_000,
+        100,
+        "nginx",
+        Ipv4Addr::new(10, 0, 0, 1),
+        Ipv4Addr::new(10, 0, 0, 2),
+        8080,
+        80,
+        1_000_000,
     ));
     batcher.add(mock_latency_event(200, "envoy", 500_000, 2_000_000));
     batcher.add(mock_syscall_event(300, "curl", 42, 3_000_000));
@@ -695,12 +718,22 @@ fn event_batch_tracks_timestamps_and_bytes() {
     assert_eq!(batch.duration_ns(), 0);
 
     batch.push(mock_packet_event(
-        1, "a", Ipv4Addr::new(1, 1, 1, 1), Ipv4Addr::new(2, 2, 2, 2),
-        80, 80, 100,
+        1,
+        "a",
+        Ipv4Addr::new(1, 1, 1, 1),
+        Ipv4Addr::new(2, 2, 2, 2),
+        80,
+        80,
+        100,
     ));
     batch.push(mock_packet_event(
-        2, "b", Ipv4Addr::new(3, 3, 3, 3), Ipv4Addr::new(4, 4, 4, 4),
-        443, 443, 500,
+        2,
+        "b",
+        Ipv4Addr::new(3, 3, 3, 3),
+        Ipv4Addr::new(4, 4, 4, 4),
+        443,
+        443,
+        500,
     ));
 
     assert_eq!(batch.len(), 2);
@@ -938,11 +971,8 @@ async fn websocket_server_binds_and_accepts_tcp() {
     tokio::time::sleep(Duration::from_millis(50)).await;
 
     // Connect to the server
-    let connect_result = tokio::time::timeout(
-        Duration::from_secs(2),
-        tokio::net::TcpStream::connect(addr),
-    )
-    .await;
+    let connect_result =
+        tokio::time::timeout(Duration::from_secs(2), tokio::net::TcpStream::connect(addr)).await;
 
     assert!(connect_result.is_ok(), "Connection should not time out");
     assert!(
@@ -977,7 +1007,10 @@ async fn websocket_server_full_handshake() {
     )
     .await;
 
-    assert!(client_result.is_ok(), "Client connection should not time out");
+    assert!(
+        client_result.is_ok(),
+        "Client connection should not time out"
+    );
     let (ws_stream, _response) = client_result.unwrap().unwrap();
 
     // Both sides should have a successful WebSocket connection
@@ -1068,7 +1101,12 @@ fn websocket_server_message_connected_serialization() {
     assert!(json.contains("ws-test-123"));
 
     let parsed: ServerMessage = serde_json::from_str(&json).unwrap();
-    if let ServerMessage::Connected { version, connection_id, capabilities } = parsed {
+    if let ServerMessage::Connected {
+        version,
+        connection_id,
+        capabilities,
+    } = parsed
+    {
         assert_eq!(version, "0.1.0");
         assert_eq!(connection_id, "ws-test-123");
         assert_eq!(capabilities.len(), 2);
@@ -1119,20 +1157,32 @@ fn e2e_mock_events_through_correlation_to_store() {
     let events = vec![
         // Flow A: nginx -> backend
         mock_packet_event(
-            100, "nginx",
-            Ipv4Addr::new(10, 0, 0, 1), Ipv4Addr::new(10, 0, 0, 10),
-            8080, 3000, 1_000_000,
+            100,
+            "nginx",
+            Ipv4Addr::new(10, 0, 0, 1),
+            Ipv4Addr::new(10, 0, 0, 10),
+            8080,
+            3000,
+            1_000_000,
         ),
         mock_packet_event(
-            100, "nginx",
-            Ipv4Addr::new(10, 0, 0, 1), Ipv4Addr::new(10, 0, 0, 10),
-            8080, 3000, 1_001_000,
+            100,
+            "nginx",
+            Ipv4Addr::new(10, 0, 0, 1),
+            Ipv4Addr::new(10, 0, 0, 10),
+            8080,
+            3000,
+            1_001_000,
         ),
         // Flow B: client -> gateway
         mock_packet_event(
-            200, "envoy",
-            Ipv4Addr::new(172, 16, 0, 1), Ipv4Addr::new(172, 16, 0, 100),
-            54321, 443, 1_500_000,
+            200,
+            "envoy",
+            Ipv4Addr::new(172, 16, 0, 1),
+            Ipv4Addr::new(172, 16, 0, 100),
+            54321,
+            443,
+            1_500_000,
         ),
         // Latency event for PID 100 (should try to correlate with flow A trace)
         mock_latency_event(100, "nginx", 500_000, 2_000_000),
@@ -1180,8 +1230,7 @@ fn e2e_mock_events_through_correlation_to_store() {
 fn e2e_mock_events_through_correlation_to_batcher() {
     // Pipeline: events -> correlation engine -> batcher -> serialized payload
     let engine = CorrelationEngine::new(CorrelationConfig::default());
-    let mut batcher =
-        EventBatcher::new("e2e-test".to_string(), 10, Duration::from_secs(60));
+    let mut batcher = EventBatcher::new("e2e-test".to_string(), 10, Duration::from_secs(60));
     // Disable compression so we can decode the raw protobuf directly
     batcher.set_compression(false);
 
@@ -1236,19 +1285,31 @@ fn e2e_correlation_to_websocket_broadcast() {
 
     // Process events that will fill and evict traces
     let ev1 = mock_packet_event(
-        100, "svc-a",
-        Ipv4Addr::new(10, 0, 0, 1), Ipv4Addr::new(10, 0, 0, 2),
-        1000, 80, 1_000_000,
+        100,
+        "svc-a",
+        Ipv4Addr::new(10, 0, 0, 1),
+        Ipv4Addr::new(10, 0, 0, 2),
+        1000,
+        80,
+        1_000_000,
     );
     let ev2 = mock_packet_event(
-        200, "svc-b",
-        Ipv4Addr::new(172, 16, 0, 1), Ipv4Addr::new(172, 16, 0, 2),
-        2000, 443, 2_000_000,
+        200,
+        "svc-b",
+        Ipv4Addr::new(172, 16, 0, 1),
+        Ipv4Addr::new(172, 16, 0, 2),
+        2000,
+        443,
+        2_000_000,
     );
     let ev3 = mock_packet_event(
-        300, "svc-c",
-        Ipv4Addr::new(192, 168, 0, 1), Ipv4Addr::new(192, 168, 0, 2),
-        3000, 8080, 3_000_000,
+        300,
+        "svc-c",
+        Ipv4Addr::new(192, 168, 0, 1),
+        Ipv4Addr::new(192, 168, 0, 2),
+        3000,
+        8080,
+        3_000_000,
     );
 
     engine.process_event(&ev1);
@@ -1269,7 +1330,10 @@ fn e2e_correlation_to_websocket_broadcast() {
     }
 
     // Verify the store was updated
-    assert!(store.trace_count() >= 1, "Store should have at least one trace");
+    assert!(
+        store.trace_count() >= 1,
+        "Store should have at least one trace"
+    );
 }
 
 #[test]
@@ -1277,8 +1341,7 @@ fn e2e_full_pipeline_with_diverse_events() {
     // Full pipeline test: mixed events -> correlation -> store + batcher + WebSocket
     let engine = CorrelationEngine::new(CorrelationConfig::default());
     let store = TraceStore::new(TraceStoreConfig::default()).unwrap();
-    let mut batcher =
-        EventBatcher::new("full-e2e".to_string(), 50, Duration::from_secs(60));
+    let mut batcher = EventBatcher::new("full-e2e".to_string(), 50, Duration::from_secs(60));
     let ws_server = WebSocketServer::new(WebSocketConfig::default());
     let mut ws_rx = ws_server.subscribe_updates();
 
@@ -1328,18 +1391,9 @@ fn e2e_full_pipeline_with_diverse_events() {
     let payload = batcher.flush().unwrap();
 
     // Verify all stages produced output
-    assert_eq!(
-        engine.stats().events_processed.load(Ordering::Relaxed),
-        100
-    );
-    assert!(
-        created_trace_count > 0,
-        "Should have created traces"
-    );
-    assert!(
-        store.trace_count() > 0,
-        "Store should have traces"
-    );
+    assert_eq!(engine.stats().events_processed.load(Ordering::Relaxed), 100);
+    assert!(created_trace_count > 0, "Should have created traces");
+    assert!(store.trace_count() > 0, "Store should have traces");
     assert_eq!(payload.event_count, 100);
     assert!(payload.payload_bytes > 0);
 
@@ -1424,7 +1478,10 @@ fn websocket_handler_subscribe_and_match() {
         id: "sub-1".to_string(),
         subscription: Subscription::for_service("backend"),
     });
-    assert!(matches!(resp, Some(ServerMessage::Subscribed { success: true, .. })));
+    assert!(matches!(
+        resp,
+        Some(ServerMessage::Subscribed { success: true, .. })
+    ));
     assert_eq!(handler.subscription_count(), 1);
 
     // Subscribe to all events
@@ -1432,7 +1489,10 @@ fn websocket_handler_subscribe_and_match() {
         id: "sub-2".to_string(),
         subscription: Subscription::all_events(),
     });
-    assert!(matches!(resp, Some(ServerMessage::Subscribed { success: true, .. })));
+    assert!(matches!(
+        resp,
+        Some(ServerMessage::Subscribed { success: true, .. })
+    ));
     assert_eq!(handler.subscription_count(), 2);
 
     // Test matching
@@ -1442,7 +1502,11 @@ fn websocket_handler_subscribe_and_match() {
         ..TraceUpdate::new("trace-1", "packet")
     };
     let matching = handler.matching_subscriptions(&backend_update);
-    assert_eq!(matching.len(), 2, "Both subscriptions should match backend events");
+    assert_eq!(
+        matching.len(),
+        2,
+        "Both subscriptions should match backend events"
+    );
 
     let frontend_update = TraceUpdate {
         services: vec!["frontend".to_string()],
@@ -1450,7 +1514,11 @@ fn websocket_handler_subscribe_and_match() {
         ..TraceUpdate::new("trace-2", "packet")
     };
     let matching = handler.matching_subscriptions(&frontend_update);
-    assert_eq!(matching.len(), 1, "Only all-events subscription should match frontend");
+    assert_eq!(
+        matching.len(),
+        1,
+        "Only all-events subscription should match frontend"
+    );
 
     // Unsubscribe
     handler.handle_message(ClientMessage::Unsubscribe {
@@ -1469,7 +1537,11 @@ fn websocket_handler_ping_pong() {
         timestamp: 1234567890,
     });
 
-    if let Some(ServerMessage::Pong { client_timestamp, server_timestamp }) = resp {
+    if let Some(ServerMessage::Pong {
+        client_timestamp,
+        server_timestamp,
+    }) = resp
+    {
         assert_eq!(client_timestamp, 1234567890);
         assert!(server_timestamp > 0);
     } else {
@@ -1488,7 +1560,12 @@ fn websocket_handler_query_without_store_returns_empty() {
         trace_id: "nonexistent".to_string(),
     });
 
-    if let Some(ServerMessage::TraceDetails { request_id, trace, error: _ }) = resp {
+    if let Some(ServerMessage::TraceDetails {
+        request_id,
+        trace,
+        error: _,
+    }) = resp
+    {
         assert_eq!(request_id, "req-1");
         assert!(trace.is_none(), "No trace store means no results");
     } else {
@@ -1516,15 +1593,19 @@ fn websocket_handler_query_with_store() {
         error_count: 0,
     });
 
-    let handler = WebSocketHandler::new("store-handler")
-        .with_trace_store(Arc::clone(&store));
+    let handler = WebSocketHandler::new("store-handler").with_trace_store(Arc::clone(&store));
 
     let resp = handler.handle_message(ClientMessage::GetTrace {
         request_id: "req-2".to_string(),
         trace_id: "findable-trace".to_string(),
     });
 
-    if let Some(ServerMessage::TraceDetails { request_id, trace, error: _ }) = resp {
+    if let Some(ServerMessage::TraceDetails {
+        request_id,
+        trace,
+        error: _,
+    }) = resp
+    {
         assert_eq!(request_id, "req-2");
         assert!(trace.is_some(), "Should find the trace in the store");
         let detail = trace.unwrap();

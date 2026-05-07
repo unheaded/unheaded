@@ -256,12 +256,8 @@ fn try_firewall_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     let flow_label = vtf & 0x000F_FFFF;
 
     // Extract source and destination IPv6 addresses (last 4 bytes each).
-    let src_addr = unsafe {
-        core::ptr::read_volatile((ip_start + 24) as *const u32)
-    };
-    let dst_addr = unsafe {
-        core::ptr::read_volatile((ip_start + 36) as *const u32)
-    };
+    let src_addr = unsafe { core::ptr::read_volatile((ip_start + 24) as *const u32) };
+    let dst_addr = unsafe { core::ptr::read_volatile((ip_start + 36) as *const u32) };
 
     // ── Hop-by-Hop Header ─────────────────────────────────────────────────────
     let hbh_start = ip_start + IPV6_FIXED_HDR_LEN;
@@ -319,28 +315,23 @@ fn try_firewall_xdp(ctx: &XdpContext) -> Result<u32, ()> {
             return Ok(xdp_action::XDP_PASS);
         }
         let tcp = unsafe { &*(transport_start as *const TcpHdr) };
-        src_port = u16::from_be(unsafe {
-            core::ptr::read_unaligned(core::ptr::addr_of!(tcp.src_port))
-        });
-        dst_port = u16::from_be(unsafe {
-            core::ptr::read_unaligned(core::ptr::addr_of!(tcp.dst_port))
-        });
+        src_port =
+            u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(tcp.src_port)) });
+        dst_port =
+            u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(tcp.dst_port)) });
         // TCP flags are in the low 8 bits of the off_flags field.
-        let off_flags = u16::from_be(unsafe {
-            core::ptr::read_unaligned(core::ptr::addr_of!(tcp.off_flags))
-        });
+        let off_flags =
+            u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(tcp.off_flags)) });
         tcp_flags_byte = (off_flags & 0x3F) as u8;
     } else if transport_proto == IPPROTO_UDP {
         if transport_start + UDP_HDR_LEN > data_end {
             return Ok(xdp_action::XDP_PASS);
         }
         let udp = unsafe { &*(transport_start as *const UdpHdr) };
-        src_port = u16::from_be(unsafe {
-            core::ptr::read_unaligned(core::ptr::addr_of!(udp.src_port))
-        });
-        dst_port = u16::from_be(unsafe {
-            core::ptr::read_unaligned(core::ptr::addr_of!(udp.dst_port))
-        });
+        src_port =
+            u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(udp.src_port)) });
+        dst_port =
+            u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(udp.dst_port)) });
     } else {
         // Non-TCP/UDP: pass through without firewall processing.
         increment_stat(STAT_ALLOWED);
@@ -380,9 +371,7 @@ fn try_firewall_xdp(ctx: &XdpContext) -> Result<u32, ()> {
             increment_stat(STAT_CONNTRACK_MISSES);
         } else {
             // Existing established connection — allow.
-            if conn_ref.state == TcpConnState::Established as u8
-                || transport_proto == IPPROTO_UDP
-            {
+            if conn_ref.state == TcpConnState::Established as u8 || transport_proto == IPPROTO_UDP {
                 increment_stat(STAT_ALLOWED);
                 return Ok(xdp_action::XDP_PASS);
             }

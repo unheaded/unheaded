@@ -137,7 +137,10 @@ fn test_assemble_gradient() {
     println!("=== Gradient Listing ===\n{}", listing);
     assert!(listing.contains("MOVI"), "listing should contain MOVI");
     assert!(listing.contains("STB"), "listing should contain STB");
-    assert!(listing.contains("DRAW_FRAME"), "listing should contain DRAW_FRAME");
+    assert!(
+        listing.contains("DRAW_FRAME"),
+        "listing should contain DRAW_FRAME"
+    );
     assert!(listing.contains("HALT"), "listing should contain HALT");
 }
 

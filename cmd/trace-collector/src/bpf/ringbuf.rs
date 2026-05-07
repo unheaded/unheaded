@@ -115,7 +115,9 @@ impl RingBufReader {
                 .len(PAGE_SIZE)
                 .offset(PAGE_SIZE as u64)
                 .map(&*file)
-                .map_err(|e| BpfError::Mmap(format!("producer mmap (offset {}): {}", PAGE_SIZE, e)))?
+                .map_err(|e| {
+                    BpfError::Mmap(format!("producer mmap (offset {}): {}", PAGE_SIZE, e))
+                })?
         };
 
         // Data pages at offset 2*PAGE_SIZE (read-only, mapped twice for wrap-around)
@@ -124,7 +126,9 @@ impl RingBufReader {
                 .len(data_size * 2)
                 .offset((2 * PAGE_SIZE) as u64)
                 .map(&*file)
-                .map_err(|e| BpfError::Mmap(format!("data mmap (offset {}): {}", 2 * PAGE_SIZE, e)))?
+                .map_err(|e| {
+                    BpfError::Mmap(format!("data mmap (offset {}): {}", 2 * PAGE_SIZE, e))
+                })?
         };
 
         Ok(Self {
@@ -190,7 +194,8 @@ impl RingBufReader {
     fn parse_anamnesis_event(data: &[u8]) -> Result<Event, BpfError> {
         if data.len() < 32 {
             return Err(BpfError::Syscall(format!(
-                "AnamnesisEvent too short: {} < 32", data.len()
+                "AnamnesisEvent too short: {} < 32",
+                data.len()
             )));
         }
 
@@ -211,8 +216,8 @@ impl RingBufReader {
 
         // Map Shield event types to trace-collector EventType
         let event_type = match event_type_raw {
-            1 | 2 | 3 => EventType::Packet,   // Birth/Hop/Death → Packet
-            4 | 5 => EventType::Custom,        // Anomaly/Chaos → Custom
+            1 | 2 | 3 => EventType::Packet, // Birth/Hop/Death → Packet
+            4 | 5 => EventType::Custom,     // Anomaly/Chaos → Custom
             _ => EventType::Custom,
         };
 
@@ -230,8 +235,6 @@ impl RingBufReader {
 
     /// Poll for available data
     fn poll_wait(&self, timeout_ms: i32) -> Result<bool, BpfError> {
-        
-
         let mut pollfd = libc::pollfd {
             fd: self.fd,
             events: libc::POLLIN,
@@ -278,9 +281,7 @@ impl RingBufReader {
                 let data = self.record_data(cons_pos as usize, len as usize);
 
                 // Try generic Event format first, fall back to AnamnesisEvent (32 bytes)
-                let event = Event::from_bytes(data).or_else(|_| {
-                    Self::parse_anamnesis_event(data)
-                });
+                let event = Event::from_bytes(data).or_else(|_| Self::parse_anamnesis_event(data));
 
                 match event {
                     Ok(ev) => {
@@ -326,7 +327,10 @@ impl RingBufReader {
         // but the producer can't write because the buffer is full.
         match self.read_events(&sender) {
             Ok(count) if count > 0 => {
-                debug!(events = count, "Drained existing ring buffer data on startup");
+                debug!(
+                    events = count,
+                    "Drained existing ring buffer data on startup"
+                );
             }
             Err(e) => {
                 warn!(error = %e, "Error draining existing ring buffer data");

@@ -96,10 +96,15 @@ fn exit_gate_fragments_survive_restart() {
             assert!(
                 frag.is_some(),
                 "fragment {} (index {}) lost after restart",
-                id, i
+                id,
+                i
             );
             let frag = frag.unwrap();
-            assert!(frag.verify(), "fragment {} failed integrity after restart", id);
+            assert!(
+                frag.verify(),
+                "fragment {} failed integrity after restart",
+                id
+            );
             assert_eq!(&frag.payload, &payloads[i]);
             found += 1;
         }
@@ -129,9 +134,15 @@ fn exit_gate_tier_isolation() {
         let store = TieredStore::open(tmp.path()).unwrap();
 
         // Ingest all 3.
-        store.ingest(Fragment::new(p_l1.clone(), vec![], None)).unwrap();
-        store.ingest(Fragment::new(p_l2.clone(), vec![], None)).unwrap();
-        store.ingest(Fragment::new(p_l3.clone(), vec![], None)).unwrap();
+        store
+            .ingest(Fragment::new(p_l1.clone(), vec![], None))
+            .unwrap();
+        store
+            .ingest(Fragment::new(p_l2.clone(), vec![], None))
+            .unwrap();
+        store
+            .ingest(Fragment::new(p_l3.clone(), vec![], None))
+            .unwrap();
 
         // Sediment all to L2.
         store.sediment(0).unwrap();

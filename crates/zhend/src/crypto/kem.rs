@@ -19,7 +19,9 @@ use zeroize::Zeroize;
 #[cfg(feature = "pq")]
 use pqcrypto_kyber::kyber768;
 #[cfg(feature = "pq")]
-use pqcrypto_traits::kem::{PublicKey as KemPk, SecretKey as KemSk, Ciphertext as KemCt, SharedSecret as KemSs};
+use pqcrypto_traits::kem::{
+    Ciphertext as KemCt, PublicKey as KemPk, SecretKey as KemSk, SharedSecret as KemSs,
+};
 
 /// Hybrid KEM keypair: ML-KEM-768 + X25519.
 pub struct HybridKemKeypair {
@@ -208,7 +210,8 @@ mod tests {
         let pub_bytes = recipient.public_bytes();
 
         let encap = encapsulate(&pub_bytes).expect("encapsulation should succeed");
-        let decap = decapsulate(&recipient, &encap.ciphertext).expect("decapsulation should succeed");
+        let decap =
+            decapsulate(&recipient, &encap.ciphertext).expect("decapsulation should succeed");
 
         assert_eq!(
             encap.shared_secret.as_bytes(),

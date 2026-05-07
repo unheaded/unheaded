@@ -71,10 +71,7 @@ impl Zhen for ZhenService {
         let fragment_id = fragment.id.0.to_vec();
 
         match self.store.ingest(fragment) {
-            Ok(novel) => Ok(Response::new(pb::IngestResponse {
-                fragment_id,
-                novel,
-            })),
+            Ok(novel) => Ok(Response::new(pb::IngestResponse { fragment_id, novel })),
             Err(e) => Err(Status::internal(format!("ingest failed: {e}"))),
         }
     }
@@ -86,13 +83,18 @@ impl Zhen for ZhenService {
     ) -> Result<Response<pb::SurfaceResponse>, Status> {
         let req = request.into_inner();
 
-        let top_k = if req.top_k == 0 { 10 } else { req.top_k as usize };
+        let top_k = if req.top_k == 0 {
+            10
+        } else {
+            req.top_k as usize
+        };
         let min_de = req.min_de;
 
         // Get all L1 fragments for ranking.
-        let fragments = self.store.l1_fragments().map_err(|e| {
-            Status::internal(format!("failed to read fragments: {e}"))
-        })?;
+        let fragments = self
+            .store
+            .l1_fragments()
+            .map_err(|e| Status::internal(format!("failed to read fragments: {e}")))?;
 
         let ranked = rank_by_de(&req.context_embedding, &fragments, top_k);
 
@@ -120,16 +122,20 @@ impl Zhen for ZhenService {
         &self,
         _request: Request<pb::StatusRequest>,
     ) -> Result<Response<pb::StatusResponse>, Status> {
-        let l1 = self.store.l1_count().map_err(|e| {
-            Status::internal(format!("failed to read L1 count: {e}"))
-        })? as u64;
+        let l1 = self
+            .store
+            .l1_count()
+            .map_err(|e| Status::internal(format!("failed to read L1 count: {e}")))?
+            as u64;
 
         // L2 count from sled.
         let l2 = self.store.l2_count() as u64;
 
-        let l3 = self.store.l3_count().map_err(|e| {
-            Status::internal(format!("failed to read L3 count: {e}"))
-        })? as u64;
+        let l3 = self
+            .store
+            .l3_count()
+            .map_err(|e| Status::internal(format!("failed to read L3 count: {e}")))?
+            as u64;
 
         let uptime = self.started_at.elapsed().as_secs();
 
@@ -153,7 +159,8 @@ impl Zhen for ZhenService {
     }
 
     /// Pilgrimage — deep Jing retrieval. Streams progress.
-    type PilgrimageStream = tokio_stream::wrappers::ReceiverStream<Result<pb::PilgrimageUpdate, Status>>;
+    type PilgrimageStream =
+        tokio_stream::wrappers::ReceiverStream<Result<pb::PilgrimageUpdate, Status>>;
 
     async fn pilgrimage(
         &self,
@@ -166,18 +173,22 @@ impl Zhen for ZhenService {
 
         tokio::spawn(async move {
             // Try to find the fragment.
-            let _ = tx.send(Ok(pb::PilgrimageUpdate {
-                state: pb::PilgrimageState::Scanning as i32,
-                entries_scanned: 0,
-                payload: vec![],
-            })).await;
-
-            if req.fragment_id.len() != 32 {
-                let _ = tx.send(Ok(pb::PilgrimageUpdate {
-                    state: pb::PilgrimageState::Failed as i32,
+            let _ = tx
+                .send(Ok(pb::PilgrimageUpdate {
+                    state: pb::PilgrimageState::Scanning as i32,
                     entries_scanned: 0,
                     payload: vec![],
-                })).await;
+                }))
+                .await;
+
+            if req.fragment_id.len() != 32 {
+                let _ = tx
+                    .send(Ok(pb::PilgrimageUpdate {
+                        state: pb::PilgrimageState::Failed as i32,
+                        entries_scanned: 0,
+                        payload: vec![],
+                    }))
+                    .await;
                 return;
             }
 
@@ -187,30 +198,38 @@ impl Zhen for ZhenService {
 
             match store.get(&id) {
                 Ok(Some(frag)) => {
-                    let _ = tx.send(Ok(pb::PilgrimageUpdate {
-                        state: pb::PilgrimageState::Found as i32,
-                        entries_scanned: 1,
-                        payload: frag.payload,
-                    })).await;
+                    let _ = tx
+                        .send(Ok(pb::PilgrimageUpdate {
+                            state: pb::PilgrimageState::Found as i32,
+                            entries_scanned: 1,
+                            payload: frag.payload,
+                        }))
+                        .await;
                 }
                 Ok(None) => {
-                    let _ = tx.send(Ok(pb::PilgrimageUpdate {
-                        state: pb::PilgrimageState::NotFoundLocally as i32,
-                        entries_scanned: 1,
-                        payload: vec![],
-                    })).await;
+                    let _ = tx
+                        .send(Ok(pb::PilgrimageUpdate {
+                            state: pb::PilgrimageState::NotFoundLocally as i32,
+                            entries_scanned: 1,
+                            payload: vec![],
+                        }))
+                        .await;
                 }
                 Err(_) => {
-                    let _ = tx.send(Ok(pb::PilgrimageUpdate {
-                        state: pb::PilgrimageState::Failed as i32,
-                        entries_scanned: 0,
-                        payload: vec![],
-                    })).await;
+                    let _ = tx
+                        .send(Ok(pb::PilgrimageUpdate {
+                            state: pb::PilgrimageState::Failed as i32,
+                            entries_scanned: 0,
+                            payload: vec![],
+                        }))
+                        .await;
                 }
             }
         });
 
-        Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(rx)))
+        Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(
+            rx,
+        )))
     }
 
     /// SyncDigests — gossip sync. Bidirectional streaming.
@@ -237,21 +256,24 @@ impl Zhen for ZhenService {
                         }
                     }
                 }
-                if tx.send(Ok(pb::WantBatch { wanted_ids: wanted })).await.is_err() {
+                if tx
+                    .send(Ok(pb::WantBatch { wanted_ids: wanted }))
+                    .await
+                    .is_err()
+                {
                     break;
                 }
             }
         });
 
-        Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(rx)))
+        Ok(Response::new(tokio_stream::wrappers::ReceiverStream::new(
+            rx,
+        )))
     }
 }
 
 /// Start the gRPC server on the given address.
-pub async fn serve(
-    service: ZhenService,
-    addr: &str,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub async fn serve(service: ZhenService, addr: &str) -> Result<(), Box<dyn std::error::Error>> {
     let addr: std::net::SocketAddr = addr.parse()?;
 
     tracing::info!(%addr, "zhend gRPC server starting");

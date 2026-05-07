@@ -15,14 +15,14 @@
 //!
 //! GPL-3.0-only
 
-use std::sync::Arc;
 use clap::Parser;
+use std::sync::Arc;
 use tokio::sync::mpsc;
-use zhend::ZhenConfig;
-use zhend::pu::TieredStore;
-use zhend::qi::GossipEngine;
 use zhend::de::embedder::Embedder;
 use zhend::li::strata::StrataHistory;
+use zhend::pu::TieredStore;
+use zhend::qi::GossipEngine;
+use zhend::ZhenConfig;
 
 /// Zhen Layer 0 — Anti-fragile knowledge substrate.
 #[derive(Parser, Debug)]
@@ -144,7 +144,7 @@ async fn main() -> anyhow::Result<()> {
     let sediment_interval = config.l1_to_l2_secs;
     let sediment_handle = tokio::spawn(async move {
         let interval = tokio::time::Duration::from_secs(
-            std::cmp::max(sediment_interval / 10, 60) // check every 1/10th of threshold, min 60s
+            std::cmp::max(sediment_interval / 10, 60), // check every 1/10th of threshold, min 60s
         );
 
         loop {
@@ -174,9 +174,8 @@ async fn main() -> anyhow::Result<()> {
     let (deep_tx, mut deep_rx) = mpsc::channel::<()>(1);
     let deep_handle = tokio::spawn(async move {
         // Check every 1/10th of threshold, minimum 600s (10 min).
-        let interval = tokio::time::Duration::from_secs(
-            std::cmp::max(deep_interval_secs / 10, 600)
-        );
+        let interval =
+            tokio::time::Duration::from_secs(std::cmp::max(deep_interval_secs / 10, 600));
 
         loop {
             tokio::select! {
@@ -225,7 +224,9 @@ async fn main() -> anyhow::Result<()> {
     // Snapshot L1 to disk before shutting down subsystems.
     match store.snapshot() {
         Ok(n) => tracing::info!(fragments = n, "L1 snapshot persisted to disk"),
-        Err(e) => tracing::error!(error = %e, "L1 snapshot FAILED — hot fragments may be lost on restart"),
+        Err(e) => {
+            tracing::error!(error = %e, "L1 snapshot FAILED — hot fragments may be lost on restart")
+        }
     }
 
     // Signal all subsystems.
@@ -237,14 +238,12 @@ async fn main() -> anyhow::Result<()> {
     grpc_handle.abort();
 
     // Wait for subsystems.
-    let _ = tokio::time::timeout(
-        tokio::time::Duration::from_secs(5),
-        async {
-            let _ = gossip_handle.await;
-            let _ = sediment_handle.await;
-            let _ = deep_handle.await;
-        }
-    ).await;
+    let _ = tokio::time::timeout(tokio::time::Duration::from_secs(5), async {
+        let _ = gossip_handle.await;
+        let _ = sediment_handle.await;
+        let _ = deep_handle.await;
+    })
+    .await;
 
     tracing::info!("真 zhend shutdown complete — the library endures");
     Ok(())
@@ -253,8 +252,7 @@ async fn main() -> anyhow::Result<()> {
 fn init_tracing(format: &str) {
     use tracing_subscriber::EnvFilter;
 
-    let filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new("zhend=info"));
+    let filter = EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("zhend=info"));
 
     match format {
         "json" => {
@@ -264,9 +262,7 @@ fn init_tracing(format: &str) {
                 .init();
         }
         _ => {
-            tracing_subscriber::fmt()
-                .with_env_filter(filter)
-                .init();
+            tracing_subscriber::fmt().with_env_filter(filter).init();
         }
     }
 }

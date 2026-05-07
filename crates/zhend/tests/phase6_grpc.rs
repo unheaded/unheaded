@@ -70,7 +70,11 @@ async fn test_ingest_returns_fragment_id_and_novel() {
         .unwrap()
         .into_inner();
 
-    assert_eq!(resp.fragment_id.len(), 32, "fragment_id must be 32 bytes (BLAKE3)");
+    assert_eq!(
+        resp.fragment_id.len(),
+        32,
+        "fragment_id must be 32 bytes (BLAKE3)"
+    );
     assert!(resp.novel, "first ingest must be novel");
 
     // Duplicate ingest.
@@ -85,7 +89,10 @@ async fn test_ingest_returns_fragment_id_and_novel() {
         .into_inner();
 
     assert!(!resp2.novel, "duplicate ingest must not be novel");
-    assert_eq!(resp.fragment_id, resp2.fragment_id, "same payload = same id");
+    assert_eq!(
+        resp.fragment_id, resp2.fragment_id,
+        "same payload = same id"
+    );
 }
 
 #[tokio::test]
@@ -138,7 +145,10 @@ async fn test_surface_returns_ingested_fragment() {
 
     assert_eq!(surface_resp.fragments.len(), 1);
     assert_eq!(surface_resp.fragments[0].payload, payload);
-    assert!(surface_resp.fragments[0].de_score > 0.99, "identical embedding should score ~1.0");
+    assert!(
+        surface_resp.fragments[0].de_score > 0.99,
+        "identical embedding should score ~1.0"
+    );
 }
 
 #[tokio::test]
@@ -146,11 +156,7 @@ async fn test_status_returns_strata_snapshot() {
     let (mut client, _tmp) = setup().await;
 
     // Status on empty store.
-    let resp = client
-        .status(StatusRequest {})
-        .await
-        .unwrap()
-        .into_inner();
+    let resp = client.status(StatusRequest {}).await.unwrap().into_inner();
 
     assert!(resp.strata.is_some());
     let strata = resp.strata.unwrap();
@@ -170,14 +176,13 @@ async fn test_status_returns_strata_snapshot() {
         .await
         .unwrap();
 
-    let resp2 = client
-        .status(StatusRequest {})
-        .await
-        .unwrap()
-        .into_inner();
+    let resp2 = client.status(StatusRequest {}).await.unwrap().into_inner();
 
     let strata2 = resp2.strata.unwrap();
-    assert_eq!(strata2.l1_count, 1, "should have 1 fragment in L1 after ingest");
+    assert_eq!(
+        strata2.l1_count, 1,
+        "should have 1 fragment in L1 after ingest"
+    );
 }
 
 #[tokio::test]
@@ -199,11 +204,7 @@ async fn test_full_ingest_surface_status_cycle() {
     }
 
     // Status should show 3 in L1.
-    let status = client
-        .status(StatusRequest {})
-        .await
-        .unwrap()
-        .into_inner();
+    let status = client.status(StatusRequest {}).await.unwrap().into_inner();
     assert_eq!(status.strata.unwrap().l1_count, 3);
 
     // Surface with top_k=2 to test limiting.

@@ -291,14 +291,13 @@ fn update_circuit_state(endpoint_key: u32, health_score: u8, now: u64) -> u8 {
                 if health_score < HEALTH_OPEN_THRESHOLD {
                     // Read fail_count from ENDPOINT_HEALTH
                     if let Some(health) = unsafe { ENDPOINT_HEALTH.get(&endpoint_key) } {
-                        let fail_count =
-                            unsafe { core::ptr::read_volatile(&health[1]) };
+                        let fail_count = unsafe { core::ptr::read_volatile(&health[1]) };
                         if fail_count as u32 > FAIL_COUNT_THRESHOLD {
                             // Transition to OPEN
                             unsafe {
                                 core::ptr::write_volatile(entry, CB_OPEN);
                                 core::ptr::write_volatile(entry.add(1), 0); // reset success_count
-                                // last_transition_ns at bytes 4..12
+                                                                            // last_transition_ns at bytes 4..12
                                 core::ptr::write_volatile(entry.add(4) as *mut u64, now);
                             }
                             increment_stat(STAT_CIRCUIT_OPENS);
@@ -361,12 +360,7 @@ fn update_circuit_state(endpoint_key: u32, health_score: u8, now: u64) -> u8 {
 
 /// Redirect to the healthiest backup endpoint.  Returns true if redirect succeeded.
 #[inline(always)]
-fn redirect_to_backup(
-    _ctx: &XdpContext,
-    data: usize,
-    data_end: usize,
-    primary_key: u32,
-) -> bool {
+fn redirect_to_backup(_ctx: &XdpContext, data: usize, data_end: usize, primary_key: u32) -> bool {
     if let Some(backup_list) = unsafe { BACKUP_MAP.get(&primary_key) } {
         // count at byte 12
         let count = unsafe { core::ptr::read_volatile(&backup_list[12]) };
@@ -410,8 +404,7 @@ fn redirect_to_backup(
             if data + 6 <= data_end {
                 let eth_dst = data as *mut u8;
                 for i in 0..6usize {
-                    let mac_byte =
-                        unsafe { core::ptr::read_volatile(&health[8 + i]) };
+                    let mac_byte = unsafe { core::ptr::read_volatile(&health[8 + i]) };
                     unsafe {
                         core::ptr::write_volatile(eth_dst.add(i), mac_byte);
                     }

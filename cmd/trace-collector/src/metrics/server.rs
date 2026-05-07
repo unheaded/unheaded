@@ -18,8 +18,8 @@ use hyper::{body::Incoming, Request, Response, StatusCode};
 use hyper_util::rt::TokioIo;
 use once_cell::sync::Lazy;
 use prometheus::{
-    Counter, CounterVec, Gauge, GaugeVec, Histogram, HistogramOpts, HistogramVec, Opts,
-    Registry, TextEncoder,
+    Counter, CounterVec, Gauge, GaugeVec, Histogram, HistogramOpts, HistogramVec, Opts, Registry,
+    TextEncoder,
 };
 use tokio::net::TcpListener;
 use tokio::sync::broadcast;
@@ -58,12 +58,11 @@ static EVENTS_PUBLISHED_TOTAL: Lazy<CounterVec> = Lazy::new(|| {
 
 /// Batch size histogram
 static BATCH_SIZE: Lazy<Histogram> = Lazy::new(|| {
-    let opts = HistogramOpts::new(
-        "trace_collector_batch_size",
-        "Event batch sizes",
-    )
-    .namespace("whispering_void")
-    .buckets(vec![1.0, 10.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0]);
+    let opts = HistogramOpts::new("trace_collector_batch_size", "Event batch sizes")
+        .namespace("whispering_void")
+        .buckets(vec![
+            1.0, 10.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 2500.0, 5000.0,
+        ]);
     let histogram = Histogram::with_opts(opts).unwrap();
     REGISTRY.register(Box::new(histogram.clone())).unwrap();
     histogram
@@ -140,8 +139,11 @@ static CONNECTION_STATE: Lazy<GaugeVec> = Lazy::new(|| {
 
 /// Uptime gauge
 static UPTIME_SECONDS: Lazy<Gauge> = Lazy::new(|| {
-    let opts = Opts::new("trace_collector_uptime_seconds", "Collector uptime in seconds")
-        .namespace("whispering_void");
+    let opts = Opts::new(
+        "trace_collector_uptime_seconds",
+        "Collector uptime in seconds",
+    )
+    .namespace("whispering_void");
     let gauge = Gauge::with_opts(opts).unwrap();
     REGISTRY.register(Box::new(gauge.clone())).unwrap();
     gauge
@@ -149,8 +151,8 @@ static UPTIME_SECONDS: Lazy<Gauge> = Lazy::new(|| {
 
 /// Build info
 static BUILD_INFO: Lazy<GaugeVec> = Lazy::new(|| {
-    let opts = Opts::new("trace_collector_build_info", "Build information")
-        .namespace("whispering_void");
+    let opts =
+        Opts::new("trace_collector_build_info", "Build information").namespace("whispering_void");
     let gauge = GaugeVec::new(opts, &["version", "rust_version"]).unwrap();
     REGISTRY.register(Box::new(gauge.clone())).unwrap();
     gauge
@@ -321,10 +323,7 @@ impl MetricsHttpServer {
     }
 
     /// Run with shutdown signal
-    pub async fn run_with_shutdown(
-        &self,
-        mut shutdown: broadcast::Receiver<()>,
-    ) -> Result<()> {
+    pub async fn run_with_shutdown(&self, mut shutdown: broadcast::Receiver<()>) -> Result<()> {
         let listener = TcpListener::bind(self.config.addr).await?;
         info!(addr = %self.config.addr, "Metrics server listening");
 
@@ -398,13 +397,11 @@ async fn handle_request(
                 .unwrap())
         }
 
-        path if path == config.health_path || path == "/healthz" => {
-            Ok(Response::builder()
-                .status(StatusCode::OK)
-                .header("Content-Type", "application/json")
-                .body(Full::new(Bytes::from(r#"{"status":"healthy"}"#)))
-                .unwrap())
-        }
+        path if path == config.health_path || path == "/healthz" => Ok(Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", "application/json")
+            .body(Full::new(Bytes::from(r#"{"status":"healthy"}"#)))
+            .unwrap()),
 
         path if path == config.ready_path || path == "/readyz" => {
             // Check readiness (e.g., connected to Wotan)

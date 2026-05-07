@@ -88,7 +88,11 @@ struct Cli {
     json_log: bool,
 
     /// Metrics bind address (Prometheus endpoint)
-    #[arg(long, default_value = "0.0.0.0:9090", env = "TRACE_COLLECTOR_METRICS_ADDR")]
+    #[arg(
+        long,
+        default_value = "0.0.0.0:9090",
+        env = "TRACE_COLLECTOR_METRICS_ADDR"
+    )]
     metrics_addr: String,
 
     /// Wotan gRPC endpoint for event publishing
@@ -270,9 +274,7 @@ async fn main() -> Result<()> {
             print_version(cli.output_format);
             Ok(())
         }
-        Some(Commands::Status { bpffs_path }) => {
-            check_status(&bpffs_path, cli.output_format).await
-        }
+        Some(Commands::Status { bpffs_path }) => check_status(&bpffs_path, cli.output_format).await,
         Some(Commands::Dump {
             ringbuf_path,
             max_events,
@@ -393,13 +395,14 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
     // Initialize Correlation Engine and Trace Store
     // =========================================================================
 
-    use trace_collector::correlation::{CorrelationConfig, CorrelationEngine, TraceStore, TraceStoreConfig};
+    use trace_collector::correlation::{
+        CorrelationConfig, CorrelationEngine, TraceStore, TraceStoreConfig,
+    };
     use trace_collector::websocket::{WebSocketConfig, WebSocketServer};
 
     // Create trace store
     let trace_store = Arc::new(
-        TraceStore::new(TraceStoreConfig::default())
-            .context("Failed to create trace store")?
+        TraceStore::new(TraceStoreConfig::default()).context("Failed to create trace store")?,
     );
     info!("Trace store initialized");
 
@@ -450,7 +453,7 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
     let ws_server = Arc::new(
         WebSocketServer::new(ws_config)
             .with_trace_store(Arc::clone(&trace_store))
-            .with_correlation_engine(Arc::clone(&correlation_engine))
+            .with_correlation_engine(Arc::clone(&correlation_engine)),
     );
 
     // Forward completed traces to WebSocket clients
@@ -535,7 +538,8 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
     // =========================================================================
 
     // Create a channel for correlated events
-    let (correlated_tx, correlated_rx) = crossbeam::channel::bounded(run_config.config.event_queue_size);
+    let (correlated_tx, correlated_rx) =
+        crossbeam::channel::bounded(run_config.config.event_queue_size);
 
     // Correlation processor: reads raw events, correlates them, forwards to publisher
     let correlation_engine_for_proc = Arc::clone(&correlation_engine);
@@ -881,8 +885,12 @@ fn print_version(format: OutputFormat) {
         version: env!("CARGO_PKG_VERSION").to_string(),
         description: "THE WHISPERING VOID - Ultra-lean eBPF event collector".to_string(),
         project: "Unheaded Kingdom Infrastructure".to_string(),
-        rust_version: option_env!("RUSTC_VERSION").unwrap_or("unknown").to_string(),
-        target: option_env!("TARGET").unwrap_or(std::env::consts::ARCH).to_string(),
+        rust_version: option_env!("RUSTC_VERSION")
+            .unwrap_or("unknown")
+            .to_string(),
+        target: option_env!("TARGET")
+            .unwrap_or(std::env::consts::ARCH)
+            .to_string(),
     };
 
     match format {
@@ -943,11 +951,8 @@ async fn check_status(bpffs_path: &PathBuf, format: OutputFormat) -> Result<()> 
                     // Recurse into subdirectories
                     if let Ok(sub_entries) = fs::read_dir(&path) {
                         for sub_entry in sub_entries.flatten() {
-                            let sub_name = format!(
-                                "{}/{}",
-                                name,
-                                sub_entry.file_name().to_string_lossy()
-                            );
+                            let sub_name =
+                                format!("{}/{}", name, sub_entry.file_name().to_string_lossy());
                             status.maps.push(BpfMapStatus {
                                 name: sub_name,
                                 path: sub_entry.path().display().to_string(),
@@ -1013,8 +1018,6 @@ struct BpfProgramStatus {
 }
 
 async fn dump_events(ringbuf_path: &PathBuf, max_events: usize, raw: bool) -> Result<()> {
-    
-
     if !ringbuf_path.exists() {
         anyhow::bail!(
             "Ring buffer path does not exist: {}",
@@ -1258,7 +1261,12 @@ mod tests {
         ])
         .unwrap();
 
-        if let Some(Commands::Run { workers, batch_size, .. }) = cli.command {
+        if let Some(Commands::Run {
+            workers,
+            batch_size,
+            ..
+        }) = cli.command
+        {
             assert_eq!(workers, 8);
             assert_eq!(batch_size, 500);
         } else {

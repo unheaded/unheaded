@@ -141,10 +141,7 @@ pub fn plan(config: TailCallConfig) -> Result<TailCallPlan> {
 /// Call this AFTER loading and calling `program.load()` on monad_cpu.
 ///
 /// Returns the actual chain depth configured.
-pub fn setup_tail_calls(
-    ebpf: &mut aya::Ebpf,
-    plan: &TailCallPlan,
-) -> Result<usize> {
+pub fn setup_tail_calls(ebpf: &mut aya::Ebpf, plan: &TailCallPlan) -> Result<usize> {
     use aya::maps::ProgramArray;
     use aya::programs::Xdp;
 

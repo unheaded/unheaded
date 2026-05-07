@@ -62,8 +62,10 @@ pub mod websocket;
 
 // Re-export commonly used types
 pub use config::Config;
-pub use events::{Event, EventBatch, EventData, EventType, LatencyEvent, PacketEvent, SyscallEvent};
-pub use publisher::{WotanPublisher, PublisherState, PublisherStats};
+pub use events::{
+    Event, EventBatch, EventData, EventType, LatencyEvent, PacketEvent, SyscallEvent,
+};
+pub use publisher::{PublisherState, PublisherStats, WotanPublisher};
 
 // Re-export collector types
 pub use collector::{
@@ -76,9 +78,8 @@ pub use metrics::{AtomicMetrics, MetricsHttpServer, MetricsServer, ServerConfig,
 
 // Re-export correlation types
 pub use correlation::{
-    CorrelationConfig, CorrelationEngine, CorrelationStats,
-    Span, SpanKind, SpanStatus, TraceContext, TraceSummary,
-    TraceQuery, TraceQueryResult, TraceStore, TraceStoreConfig,
+    CorrelationConfig, CorrelationEngine, CorrelationStats, Span, SpanKind, SpanStatus,
+    TraceContext, TraceQuery, TraceQueryResult, TraceStore, TraceStoreConfig, TraceSummary,
 };
 
 // Re-export BPF multi-source types

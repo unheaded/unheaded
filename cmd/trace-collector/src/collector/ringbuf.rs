@@ -92,10 +92,12 @@ impl RingBufCollector {
     /// Create a new ring buffer collector
     pub fn new(path: PathBuf, _expected_size: usize, stats: Arc<CollectorStats>) -> Result<Self> {
         // Open the pinned BPF map
-        let fd = bpf_obj_get(&path).map_err(|e| anyhow::anyhow!("Failed to open BPF map: {}", e))?;
+        let fd =
+            bpf_obj_get(&path).map_err(|e| anyhow::anyhow!("Failed to open BPF map: {}", e))?;
 
         // Get map info to verify type and size
-        let info = bpf_map_info(fd).map_err(|e| anyhow::anyhow!("Failed to get map info: {}", e))?;
+        let info =
+            bpf_map_info(fd).map_err(|e| anyhow::anyhow!("Failed to get map info: {}", e))?;
 
         if info.map_type != BpfMapType::RingBuf as u32 {
             unsafe { libc::close(fd) };
@@ -263,10 +265,8 @@ impl RingBufCollector {
                 match Event::from_bytes(data) {
                     Ok(event) => {
                         // Apply filter if configured
-                        let should_send = filter
-                            .as_ref()
-                            .map(|f| f.matches(&event))
-                            .unwrap_or(true);
+                        let should_send =
+                            filter.as_ref().map(|f| f.matches(&event)).unwrap_or(true);
 
                         if should_send {
                             match sender.try_send(event) {
@@ -302,7 +302,8 @@ impl RingBufCollector {
 
         // Record statistics
         if events_read > 0 {
-            self.stats.record_read(events_read as u64, bytes_read as u64, "ringbuf");
+            self.stats
+                .record_read(events_read as u64, bytes_read as u64, "ringbuf");
         }
 
         Ok(events_read)

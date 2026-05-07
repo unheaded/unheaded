@@ -3,7 +3,7 @@
 //! This module provides validated instruction encoding/decoding with comprehensive
 //! error handling and testing capabilities.
 
-use monad_common::{MbcInsn, mbc_opcodes as op};
+use monad_common::{mbc_opcodes as op, MbcInsn};
 use std::fmt;
 
 /// Error types for instruction decoding operations.
@@ -95,7 +95,7 @@ pub fn is_valid_opcode(opcode: u8) -> bool {
 pub fn decode_checked(insn_word: u32) -> Result<MbcInsn, DecodeError> {
     let insn = MbcInsn(insn_word);
     let opcode = insn.opcode();
-    
+
     if is_valid_opcode(opcode) {
         Ok(insn)
     } else {
@@ -611,33 +611,73 @@ mod tests {
     fn test_is_valid_opcode_all_valid() {
         let valid_opcodes = vec![
             op::NOP,
-            op::ADD, op::SUB, op::MUL, op::DIV, op::MOD, op::NEG,
-            op::AND, op::OR, op::XOR, op::NOT, op::SHL, op::SHR, op::SAR,
-            op::PUSH, op::POP, op::LOAD_IMM32, op::ADDI,
-            op::SHLR, op::SHRR, op::SARR, op::MULH,
-            op::MOV, op::MOVI, op::CMP,
-            op::JMP, op::JZ, op::JNZ, op::JN, op::JP, op::JC, op::JNC,
-            op::CALL, op::RET, op::JMPR, op::CALLR,
-            op::LD, op::ST, op::LDB, op::STB, op::LDH, op::STH,
-            op::SYSCALL, op::HALT,
+            op::ADD,
+            op::SUB,
+            op::MUL,
+            op::DIV,
+            op::MOD,
+            op::NEG,
+            op::AND,
+            op::OR,
+            op::XOR,
+            op::NOT,
+            op::SHL,
+            op::SHR,
+            op::SAR,
+            op::PUSH,
+            op::POP,
+            op::LOAD_IMM32,
+            op::ADDI,
+            op::SHLR,
+            op::SHRR,
+            op::SARR,
+            op::MULH,
+            op::MOV,
+            op::MOVI,
+            op::CMP,
+            op::JMP,
+            op::JZ,
+            op::JNZ,
+            op::JN,
+            op::JP,
+            op::JC,
+            op::JNC,
+            op::CALL,
+            op::RET,
+            op::JMPR,
+            op::CALLR,
+            op::LD,
+            op::ST,
+            op::LDB,
+            op::STB,
+            op::LDH,
+            op::STH,
+            op::SYSCALL,
+            op::HALT,
         ];
 
         for opcode in valid_opcodes {
-            assert!(is_valid_opcode(opcode), "Opcode 0x{:02X} should be valid", opcode);
+            assert!(
+                is_valid_opcode(opcode),
+                "Opcode 0x{:02X} should be valid",
+                opcode
+            );
         }
     }
 
     #[test]
     fn test_is_valid_opcode_all_invalid() {
         let invalid_opcodes: Vec<u8> = vec![
-            0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1E, 0x1F,
-            0x2B, 0x2C, 0x2D, 0x2E, 0x2F,
-            0x3A, 0x3F,
-            0x41, 0x42, 0x50, 0xFE,
+            0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1E, 0x1F, 0x2B, 0x2C, 0x2D,
+            0x2E, 0x2F, 0x3A, 0x3F, 0x41, 0x42, 0x50, 0xFE,
         ];
 
         for opcode in invalid_opcodes {
-            assert!(!is_valid_opcode(opcode), "Opcode 0x{:02X} should be invalid", opcode);
+            assert!(
+                !is_valid_opcode(opcode),
+                "Opcode 0x{:02X} should be invalid",
+                opcode
+            );
         }
     }
 
@@ -652,7 +692,11 @@ mod tests {
         for imm in immediates {
             let insn = MbcInsn::encode(op::MOVI, 5, 0, imm);
             let decoded = decode_checked(insn.0).expect("Valid opcode");
-            assert_eq!(decoded.imm16(), imm, "Immediate should round-trip correctly");
+            assert_eq!(
+                decoded.imm16(),
+                imm,
+                "Immediate should round-trip correctly"
+            );
         }
     }
 

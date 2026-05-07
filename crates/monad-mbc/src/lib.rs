@@ -29,7 +29,7 @@ pub use cpu::Cpu;
 pub use disasm::{disasm_insn, disasm_listing, disasm_program};
 pub use execute::{Cpu as ExecCpu, ExecError};
 pub use instruction::{decode_checked, is_valid_opcode, DecodeError};
-pub use translator::{Translator, TranslateError};
+pub use translator::{TranslateError, Translator};
 
 /// A compiled MBC program as a vector of 32-bit instruction words.
 pub type Assembly = Vec<u32>;

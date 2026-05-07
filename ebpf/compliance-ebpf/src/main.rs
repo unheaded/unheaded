@@ -38,8 +38,8 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN,
-    IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
+    flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
+    MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
 // ── Classification levels (K1|K0 bits) ──────────────────────────────────────

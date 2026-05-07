@@ -88,7 +88,14 @@ fn ip_netns_exec(ns: &str, args: &[&str]) -> Result<String> {
 /// Run a sysctl inside a network namespace.
 fn sysctl_in_ns(ns: &str, key: &str, value: &str) -> Result<()> {
     let output = Command::new("ip")
-        .args(["netns", "exec", ns, "sysctl", "-qw", &format!("{key}={value}")])
+        .args([
+            "netns",
+            "exec",
+            ns,
+            "sysctl",
+            "-qw",
+            &format!("{key}={value}"),
+        ])
         .output()
         .context("failed to execute sysctl")?;
 
@@ -145,7 +152,9 @@ pub fn setup(config: &RingConfig) -> Result<()> {
         }
 
         // Create veth pair in default namespace, then move to target namespaces
-        ip_cmd(&["link", "add", &veth_src, "type", "veth", "peer", "name", &veth_dst])?;
+        ip_cmd(&[
+            "link", "add", &veth_src, "type", "veth", "peer", "name", &veth_dst,
+        ])?;
         ip_cmd(&["link", "set", &veth_src, "netns", &ns_src])?;
         ip_cmd(&["link", "set", &veth_dst, "netns", &ns_dst])?;
 
@@ -177,8 +186,20 @@ pub fn setup(config: &RingConfig) -> Result<()> {
         let via = format!("{}:{i}::2", config.ipv6_prefix);
 
         // Try replace first, then add
-        if ip_netns_exec(&ns, &["-6", "route", "replace", "default", "via", &via, "dev", &veth_out]).is_err() {
-            let _ = ip_netns_exec(&ns, &["-6", "route", "add", "default", "via", &via, "dev", &veth_out]);
+        if ip_netns_exec(
+            &ns,
+            &[
+                "-6", "route", "replace", "default", "via", &via, "dev", &veth_out,
+            ],
+        )
+        .is_err()
+        {
+            let _ = ip_netns_exec(
+                &ns,
+                &[
+                    "-6", "route", "add", "default", "via", &via, "dev", &veth_out,
+                ],
+            );
         }
 
         debug!("route: {ns} -> {}{j} via {veth_out}", config.ns_prefix);
@@ -204,7 +225,18 @@ pub fn setup(config: &RingConfig) -> Result<()> {
                 let neigh_addr = format!("{}:{i}::2", config.ipv6_prefix);
                 let _ = ip_netns_exec(
                     &ns_src,
-                    &["-6", "neigh", "replace", &neigh_addr, "lladdr", &mac, "dev", &veth_src, "nud", "permanent"],
+                    &[
+                        "-6",
+                        "neigh",
+                        "replace",
+                        &neigh_addr,
+                        "lladdr",
+                        &mac,
+                        "dev",
+                        &veth_src,
+                        "nud",
+                        "permanent",
+                    ],
                 );
             }
         }
@@ -251,8 +283,7 @@ pub fn teardown(config: &RingConfig) -> Result<()> {
 
 /// Ensure bpffs is mounted.
 fn ensure_bpffs() -> Result<()> {
-    let mounts = std::fs::read_to_string("/proc/mounts")
-        .context("failed to read /proc/mounts")?;
+    let mounts = std::fs::read_to_string("/proc/mounts").context("failed to read /proc/mounts")?;
 
     if !mounts.contains("type bpf") && !mounts.contains("bpf /sys/fs/bpf") {
         info!("mounting bpffs at /sys/fs/bpf");

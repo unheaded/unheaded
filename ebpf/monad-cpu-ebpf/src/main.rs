@@ -53,11 +53,9 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, mbc_block as blk, mbc_flags as mf, mbc_interrupts as intr,
-    mbc_linux_syscalls as lsys, mbc_mmap as mmap, mbc_mmu as mmu,
-    mbc_opcodes as op, mbc_syscalls as sys,
-    ComputeHopEvent, MbcCpuState, MbcInsn, Monad, DEFAULT_PROGRAM_BREAK,
-    EVENT_CACHE_MISS, EVENT_COMPUTE_HALT,
+    flags, mbc_block as blk, mbc_flags as mf, mbc_interrupts as intr, mbc_linux_syscalls as lsys,
+    mbc_mmap as mmap, mbc_mmu as mmu, mbc_opcodes as op, mbc_syscalls as sys, ComputeHopEvent,
+    MbcCpuState, MbcInsn, Monad, DEFAULT_PROGRAM_BREAK, EVENT_CACHE_MISS, EVENT_COMPUTE_HALT,
     EVENT_CONTEXT_SWITCH, EVENT_SCREEN_WRITE, EVENT_TTY_WRITE, IPV6_FIXED_HDR_LEN,
     IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
@@ -368,7 +366,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     }
 
     // ── Execute loop ──────────────────────────────────────────────────────────
-    let mut prev_pc: u32 = cpu.pc;  // Track last valid PC for post-mortem
+    let mut prev_pc: u32 = cpu.pc; // Track last valid PC for post-mortem
     let mut i = 0usize;
     while i < MAX_INSN_PER_TICK {
         if cpu.halted != 0 {
@@ -400,7 +398,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         if cpu.pc >= 262_144_u32 {
             // PC out of ROM range — record bad PC AND last valid PC
             if let Some(ptr) = STATS.get_ptr_mut(&STAT_ROM_FAULT) {
-                unsafe { *ptr = ((cpu.pc as u64) << 32) | (prev_pc as u64); }
+                unsafe {
+                    *ptr = ((cpu.pc as u64) << 32) | (prev_pc as u64);
+                }
             }
             cpu.halted = 1;
             break;
@@ -423,20 +423,48 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         // DIAGNOSTIC: Check if PC enters key render chain functions
         {
             let m = 0xE3000u32 >> 2;
-            if cpu.pc == 13351 { mem_write_word(m, 0x0001); }     // D_Display
-            if cpu.pc == 12746 { mem_write_word(m + 11, 0x000C); } // D_Display.part.0
-            if cpu.pc == 13034 { mem_write_word(m + 12, 0x000D); } // CALL to R_RenderPlayerView
-            if cpu.pc == 13035 { mem_write_word(m + 13, 0x000E); } // After CALL returns
-            if cpu.pc == 13678 { mem_write_word(m + 8, 0x0009); }  // D_DoomLoop
-            if cpu.pc == 14568 { mem_write_word(m + 9, 0x000A); }  // D_DoomMain
-            if cpu.pc == 20    { mem_write_word(m + 10, 0x000B); } // main
-            if cpu.pc == 67345 { mem_write_word(m + 1, 0x0002); } // R_RenderPlayerView
-            if cpu.pc == 62099 { mem_write_word(m + 2, 0x0003); } // R_RenderBSPNode
-            if cpu.pc == 61968 { mem_write_word(m + 3, 0x0004); } // R_Subsector
-            if cpu.pc == 61628 { mem_write_word(m + 4, 0x0005); } // R_AddLine
-            if cpu.pc == 68648 { mem_write_word(m + 5, 0x0006); } // R_RenderSegLoop
-            if cpu.pc == 67979 { mem_write_word(m + 6, 0x0007); } // R_DrawPlanes
-            if cpu.pc == 69122 { mem_write_word(m + 7, 0x0008); } // R_StoreWallRange
+            if cpu.pc == 13351 {
+                mem_write_word(m, 0x0001);
+            } // D_Display
+            if cpu.pc == 12746 {
+                mem_write_word(m + 11, 0x000C);
+            } // D_Display.part.0
+            if cpu.pc == 13034 {
+                mem_write_word(m + 12, 0x000D);
+            } // CALL to R_RenderPlayerView
+            if cpu.pc == 13035 {
+                mem_write_word(m + 13, 0x000E);
+            } // After CALL returns
+            if cpu.pc == 13678 {
+                mem_write_word(m + 8, 0x0009);
+            } // D_DoomLoop
+            if cpu.pc == 14568 {
+                mem_write_word(m + 9, 0x000A);
+            } // D_DoomMain
+            if cpu.pc == 20 {
+                mem_write_word(m + 10, 0x000B);
+            } // main
+            if cpu.pc == 67345 {
+                mem_write_word(m + 1, 0x0002);
+            } // R_RenderPlayerView
+            if cpu.pc == 62099 {
+                mem_write_word(m + 2, 0x0003);
+            } // R_RenderBSPNode
+            if cpu.pc == 61968 {
+                mem_write_word(m + 3, 0x0004);
+            } // R_Subsector
+            if cpu.pc == 61628 {
+                mem_write_word(m + 4, 0x0005);
+            } // R_AddLine
+            if cpu.pc == 68648 {
+                mem_write_word(m + 5, 0x0006);
+            } // R_RenderSegLoop
+            if cpu.pc == 67979 {
+                mem_write_word(m + 6, 0x0007);
+            } // R_DrawPlanes
+            if cpu.pc == 69122 {
+                mem_write_word(m + 7, 0x0008);
+            } // R_StoreWallRange
         }
         let imm = insn.imm16() as u32;
         let simm = insn.imm16_signed() as i32;
@@ -681,8 +709,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         } else if opc == op::CALLR || (insn_word >> 24) == 0x2A {
             // GLOBAL CALLR COUNTER at STAT slot 20
             // Also log which path matched
-            if opc == op::CALLR { increment_stat(20); }
-            if (insn_word >> 24) == 0x2A { increment_stat(21); }
+            if opc == op::CALLR {
+                increment_stat(20);
+            }
+            if (insn_word >> 24) == 0x2A {
+                increment_stat(21);
+            }
 
             // Indirect call with RV32I→MBC address translation.
             let old_pc = cpu.pc.wrapping_sub(1);
@@ -703,7 +735,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     mem_write_word(callr_log_base + 4, *mbc_idx);
                     mem_write_word(callr_log_base + 5, 0xCA110001); // success marker
                     *mbc_idx
-                },
+                }
                 None => {
                     // Unmapped CALLR — skip
                     mem_write_word(callr_log_base + 4, 0xDEAD0003);
@@ -854,7 +886,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.exit_code = cpu.regs[1];
                     // Unsuspend any parent waiting via vfork
                     if let Some(p) = SCHED_STATE.get_ptr_mut(2) {
-                        unsafe { *p = 0; } // clear all suspended bits
+                        unsafe {
+                            *p = 0;
+                        } // clear all suspended bits
                     }
                     cpu.halted = 1;
                     increment_stat(STAT_HALTED);
@@ -880,7 +914,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                             let byte_val = mem_read_byte(buf_addr.wrapping_add(b));
                             let tty_idx = h % 4096;
                             if let Some(p) = TTY_MAP.get_ptr_mut(tty_idx) {
-                                unsafe { *p = byte_val; }
+                                unsafe {
+                                    *p = byte_val;
+                                }
                             }
                             h = h.wrapping_add(1);
                             written += 1;
@@ -888,7 +924,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         }
                         // Update TTY head
                         if let Some(p) = TTY_HEAD.get_ptr_mut(0) {
-                            unsafe { *p = h; }
+                            unsafe {
+                                *p = h;
+                            }
                         }
                         increment_stat(STAT_TTY_WRITES);
                         // Emit ring buffer event so userspace can pick up output
@@ -954,12 +992,16 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         child_state[0] = 0;
                         // Write child state to PROC_TABLE
                         if let Some(p) = PROC_TABLE.get_ptr_mut(child_pid) {
-                            unsafe { *p = child_state; }
+                            unsafe {
+                                *p = child_state;
+                            }
                         }
                         cpu.num_processes += 1;
                         // Update SCHED_STATE[1] = num_processes
                         if let Some(p) = SCHED_STATE.get_ptr_mut(1) {
-                            unsafe { *p = cpu.num_processes as u32; }
+                            unsafe {
+                                *p = cpu.num_processes as u32;
+                            }
                         }
                         increment_stat(STAT_FORKS);
                         // Parent gets child_pid in r0
@@ -985,11 +1027,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         child_state[19] = cpu.program_break;
                         child_state[0] = 0; // child gets 0
                         if let Some(p) = PROC_TABLE.get_ptr_mut(child_pid) {
-                            unsafe { *p = child_state; }
+                            unsafe {
+                                *p = child_state;
+                            }
                         }
                         cpu.num_processes += 1;
                         if let Some(p) = SCHED_STATE.get_ptr_mut(1) {
-                            unsafe { *p = cpu.num_processes as u32; }
+                            unsafe {
+                                *p = cpu.num_processes as u32;
+                            }
                         }
                         // Suspend parent: set bit in SCHED_STATE[2] (suspended_mask)
                         let suspended = match SCHED_STATE.get(2) {
@@ -997,7 +1043,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                             None => 0,
                         };
                         if let Some(p) = SCHED_STATE.get_ptr_mut(2) {
-                            unsafe { *p = suspended | (1 << parent_pid); }
+                            unsafe {
+                                *p = suspended | (1 << parent_pid);
+                            }
                         }
                         increment_stat(STAT_FORKS);
                         cpu.regs[0] = child_pid;
@@ -1018,7 +1066,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     let buf_addr = cpu.regs[2];
                     let progress = cpu.regs[3]; // word offset within block (0..128)
                     if block_num < blk::TOTAL_BLOCKS {
-                        let src_base = blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK + progress;
+                        let src_base =
+                            blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK + progress;
                         let dst_base = (buf_addr >> 2) + progress;
                         let mut w: u32 = 0;
                         while w < 16 {
@@ -1027,7 +1076,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                                 None => 0,
                             };
                             if let Some(ptr) = RAM_MAP.get_ptr_mut(dst_base + w) {
-                                unsafe { *ptr = val; }
+                                unsafe {
+                                    *ptr = val;
+                                }
                             }
                             w += 1;
                         }
@@ -1053,7 +1104,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     let buf_addr = cpu.regs[2];
                     let progress = cpu.regs[3];
                     if block_num < blk::TOTAL_BLOCKS {
-                        let dst_base = blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK + progress;
+                        let dst_base =
+                            blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK + progress;
                         let src_base = (buf_addr >> 2) + progress;
                         let mut w: u32 = 0;
                         while w < 16 {
@@ -1062,7 +1114,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                                 None => 0,
                             };
                             if let Some(ptr) = RAM_MAP.get_ptr_mut(dst_base + w) {
-                                unsafe { *ptr = val; }
+                                unsafe {
+                                    *ptr = val;
+                                }
                             }
                             w += 1;
                         }
@@ -1106,16 +1160,20 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                                     let ch = ((kv >> 1) & 0xFF) as u8;
                                     // Write byte to destination buffer.
                                     let dst_word = buf_addr.wrapping_add(read_count) >> 2;
-                                    let dst_byte_off = (buf_addr.wrapping_add(read_count) & 3) as u32;
+                                    let dst_byte_off =
+                                        (buf_addr.wrapping_add(read_count) & 3) as u32;
                                     let existing = mem_read_word(dst_word);
                                     let mask = !(0xFFu32 << (dst_byte_off * 8));
-                                    let new_val = (existing & mask) | ((ch as u32) << (dst_byte_off * 8));
+                                    let new_val =
+                                        (existing & mask) | ((ch as u32) << (dst_byte_off * 8));
                                     mem_write_word(dst_word, new_val);
                                     read_count += 1;
                                 }
                                 // Consume the event (clear slot).
                                 if let Some(p) = KBD_MAP.get_ptr_mut(slot) {
-                                    unsafe { *p = 0; }
+                                    unsafe {
+                                        *p = 0;
+                                    }
                                 }
                             }
                             slot += 1;
@@ -1225,7 +1283,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
                     // Unsuspend any parent waiting via vfork
                     if let Some(p) = SCHED_STATE.get_ptr_mut(2) {
-                        unsafe { *p = 0; } // clear all suspended bits
+                        unsafe {
+                            *p = 0;
+                        } // clear all suspended bits
                     }
 
                     increment_stat(STAT_SYSCALLS);
@@ -1233,11 +1293,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // ── Trivial FUZIX syscall stubs (Level 5c) ───────────────
                 // UID/GID family: always root (0)
                 } else if syscall_nr == lsys::SYS_GETUID
-                       || syscall_nr == lsys::SYS_GETGID
-                       || syscall_nr == lsys::SYS_GETEUID
-                       || syscall_nr == lsys::SYS_GETEGID
-                       || syscall_nr == lsys::SYS_SETUID
-                       || syscall_nr == lsys::SYS_SETGID {
+                    || syscall_nr == lsys::SYS_GETGID
+                    || syscall_nr == lsys::SYS_GETEUID
+                    || syscall_nr == lsys::SYS_GETEGID
+                    || syscall_nr == lsys::SYS_SETUID
+                    || syscall_nr == lsys::SYS_SETGID
+                {
                     cpu.regs[0] = 0;
                     increment_stat(STAT_TRIVIAL_SYSCALLS);
                 } else if syscall_nr == lsys::SYS_DUP {
@@ -1270,9 +1331,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // SYS_STAT(106) / SYS_FSTAT(108): return minimal stat struct.
                     let buf = cpu.regs[2];
                     let buf_word = buf >> 2;
-                    mem_write_word(buf_word, 0o100644);     // st_mode (regular file)
-                    mem_write_word(buf_word + 1, 4096);     // st_size
-                    mem_write_word(buf_word + 2, 512);      // st_blksize
+                    mem_write_word(buf_word, 0o100644); // st_mode (regular file)
+                    mem_write_word(buf_word + 1, 4096); // st_size
+                    mem_write_word(buf_word + 2, 512); // st_blksize
                     cpu.regs[0] = 0;
                     increment_stat(STAT_MODERATE_SYSCALLS);
                 } else if syscall_nr == lsys::SYS_LSEEK {
@@ -1311,7 +1372,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // SYS_PIPE(42): r1=pipefd[2] array address.
                     // Allocate stub fd numbers (10=read, 11=write). No actual pipe buffer.
                     let pipefd_addr = cpu.regs[1];
-                    mem_write_word(pipefd_addr >> 2, 10);       // read end
+                    mem_write_word(pipefd_addr >> 2, 10); // read end
                     mem_write_word((pipefd_addr >> 2) + 1, 11); // write end
                     cpu.regs[0] = 0;
                     increment_stat(STAT_MODERATE_SYSCALLS);
@@ -1405,7 +1466,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         // Pack for I_StartTic: bit 31 = pressed, bits 0-7 = scancode
                         cpu.regs[8] = key_code | (pressed << 31);
                         cpu.regs[9] = pressed;
-                                              // Consume: clear slot
+                        // Consume: clear slot
                         if let Some(p) = KBD_MAP.get_ptr_mut(slot) {
                             unsafe {
                                 *p = 0;
@@ -1438,7 +1499,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let sp_key: u32 = 24;
             if let Some(ptr) = STATS.get_ptr_mut(&sp_key) {
                 // Pack: high32 = r15 (SP), low32 = PC at halt
-                unsafe { *ptr = ((cpu.regs[15] as u64) << 32) | (cpu.pc as u64); }
+                unsafe {
+                    *ptr = ((cpu.regs[15] as u64) << 32) | (cpu.pc as u64);
+                }
             }
             emit_compute_halt(flow_label, cpu.insn_count, hop_id);
             break;
@@ -1612,7 +1675,9 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
     save_state[19] = cpu.program_break;
 
     if let Some(p) = PROC_TABLE.get_ptr_mut(old_pid) {
-        unsafe { *p = save_state; }
+        unsafe {
+            *p = save_state;
+        }
     }
 
     // 2. Find next runnable process (round-robin, skip halted and suspended)
@@ -1665,7 +1730,9 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
 
     // Update SCHED_STATE[0] = new current_pid
     if let Some(p) = SCHED_STATE.get_ptr_mut(0) {
-        unsafe { *p = next_pid; }
+        unsafe {
+            *p = next_pid;
+        }
     }
 
     increment_stat(STAT_CONTEXT_SWITCHES);
@@ -1683,8 +1750,8 @@ fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) 
             hop_id,
             _pad: [0; 2],
             flow_label,
-            pc: from_pid,              // reuse pc field for source pid
-            instruction: to_pid,       // reuse instruction field for dest pid
+            pc: from_pid,        // reuse pc field for source pid
+            instruction: to_pid, // reuse instruction field for dest pid
             regs: [0; 16],
             flags: 0,
             cache_hit: 0,

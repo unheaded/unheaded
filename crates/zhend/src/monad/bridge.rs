@@ -10,8 +10,8 @@
 //! The bridge is one-way upward: Zhen observes Monad. Monad doesn't
 //! know Zhen exists. The substrate is invisible to the protocol.
 
-use crate::de::{self, ContextVector, Embedder};
 use crate::de::similarity::rank_by_de;
+use crate::de::{self, ContextVector, Embedder};
 use crate::monad::hbh::{self, ZhenHbhOption};
 use crate::pu::{Fragment, TieredStore};
 use crate::ZhenResult;
@@ -104,9 +104,7 @@ impl MonadContext {
 #[derive(Debug, Clone)]
 pub enum BridgeEvent {
     /// A Monad packet was observed and context extracted.
-    PacketSeen {
-        context: MonadContext,
-    },
+    PacketSeen { context: MonadContext },
     /// A Zhen fragment digest was found piggybacked on a packet.
     FragmentPiggybacked {
         option: ZhenHbhOption,
@@ -156,12 +154,7 @@ impl MonadBridge {
     /// `register`: raw 20-byte Monad register.
     /// `hbh_options`: raw bytes from IPv6 Hop-by-Hop extension header
     ///                (may be empty if no HbH header present).
-    pub fn on_packet(
-        &self,
-        register: &[u8],
-        hbh_options: &[u8],
-        top_k: usize,
-    ) -> OnPacketResult {
+    pub fn on_packet(&self, register: &[u8], hbh_options: &[u8], top_k: usize) -> OnPacketResult {
         let context = match MonadContext::from_register(register) {
             Some(ctx) => ctx,
             None => return Ok((None, vec![])),
@@ -204,10 +197,7 @@ impl MonadBridge {
     /// - No fragments in store
     /// - No fragments have embeddings
     /// - Context produces no matches
-    pub fn select_piggyback(
-        &self,
-        context: &MonadContext,
-    ) -> ZhenResult<Option<ZhenHbhOption>> {
+    pub fn select_piggyback(&self, context: &MonadContext) -> ZhenResult<Option<ZhenHbhOption>> {
         let ctx_vec = context.to_context_vector(&self.embedder);
         if ctx_vec.is_empty() {
             return Ok(None);
@@ -378,9 +368,14 @@ mod tests {
         bridge.on_packet(&reg, &hbh_bytes, 10).unwrap();
 
         let events = bridge.drain_events();
-        assert!(events.len() >= 2, "should have PacketSeen + FragmentPiggybacked");
+        assert!(
+            events.len() >= 2,
+            "should have PacketSeen + FragmentPiggybacked"
+        );
 
-        let has_piggyback = events.iter().any(|e| matches!(e, BridgeEvent::FragmentPiggybacked { .. }));
+        let has_piggyback = events
+            .iter()
+            .any(|e| matches!(e, BridgeEvent::FragmentPiggybacked { .. }));
         assert!(has_piggyback, "should emit FragmentPiggybacked event");
     }
 
@@ -395,7 +390,13 @@ mod tests {
         assert_eq!(events.len(), 2, "should emit PacketSeen + ContextUpdated");
 
         assert!(matches!(&events[0], BridgeEvent::PacketSeen { .. }));
-        assert!(matches!(&events[1], BridgeEvent::ContextUpdated { surfaced_count: 0, .. }));
+        assert!(matches!(
+            &events[1],
+            BridgeEvent::ContextUpdated {
+                surfaced_count: 0,
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -531,9 +532,9 @@ mod tests {
         bridge.on_packet(&reg, &hbh_bytes, 5).unwrap();
 
         let events = bridge.drain_events();
-        let piggyback_event = events.iter().find(|e| {
-            matches!(e, BridgeEvent::FragmentPiggybacked { .. })
-        });
+        let piggyback_event = events
+            .iter()
+            .find(|e| matches!(e, BridgeEvent::FragmentPiggybacked { .. }));
 
         let piggyback_event = piggyback_event.expect("should detect piggybacked option");
         if let BridgeEvent::FragmentPiggybacked { option, context } = piggyback_event {

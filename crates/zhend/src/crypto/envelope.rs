@@ -25,12 +25,12 @@
 //! unsealed counterpart share the same FragmentId. Content identity
 //! transcends encryption.
 
+use super::kem;
+use crate::{ZhenError, ZhenResult};
 use aes_gcm::{
     aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
-use super::kem;
-use crate::{ZhenError, ZhenResult};
 
 /// Current envelope version.
 const ENVELOPE_VERSION: u8 = 0x01;
@@ -54,10 +54,7 @@ pub struct SealedFragment {
 /// derives AES-256-GCM key via HKDF, encrypts payload.
 ///
 /// The recipient's hybrid public key must be [ML-KEM-768 pk || X25519 pk].
-pub fn seal(
-    plaintext: &[u8],
-    recipient_public: &[u8],
-) -> ZhenResult<SealedFragment> {
+pub fn seal(plaintext: &[u8], recipient_public: &[u8]) -> ZhenResult<SealedFragment> {
     // Hybrid KEM: derive shared secret.
     let encap = kem::encapsulate(recipient_public)?;
 
@@ -89,10 +86,7 @@ pub fn seal(
 /// decrypts and authenticates payload.
 ///
 /// Returns the plaintext payload on success. ALL INPUTS HOSTILE.
-pub fn unseal(
-    sealed: &SealedFragment,
-    keypair: &kem::HybridKemKeypair,
-) -> ZhenResult<Vec<u8>> {
+pub fn unseal(sealed: &SealedFragment, keypair: &kem::HybridKemKeypair) -> ZhenResult<Vec<u8>> {
     // Version check.
     if sealed.version != ENVELOPE_VERSION {
         return Err(ZhenError::Transport(format!(
@@ -133,7 +127,7 @@ pub const fn envelope_overhead() -> usize {
     + 1120  // ML-KEM-768 ct (1088) + X25519 eph pk (32)
     + 12    // nonce
     + 16    // AES-GCM tag (included in ciphertext by aes-gcm crate)
-    + 4     // length prefix
+    + 4 // length prefix
 }
 
 #[cfg(test)]
@@ -146,11 +140,9 @@ mod tests {
         let recipient = HybridKemKeypair::generate();
         let plaintext = b"the dao that can be named is not the eternal dao";
 
-        let sealed = seal(plaintext, &recipient.public_bytes())
-            .expect("seal should succeed");
+        let sealed = seal(plaintext, &recipient.public_bytes()).expect("seal should succeed");
 
-        let recovered = unseal(&sealed, &recipient)
-            .expect("unseal should succeed");
+        let recovered = unseal(&sealed, &recipient).expect("unseal should succeed");
 
         assert_eq!(&recovered, plaintext);
     }
@@ -178,7 +170,10 @@ mod tests {
         }
 
         let result = unseal(&sealed, &kp);
-        assert!(result.is_err(), "tampered ciphertext must fail authentication");
+        assert!(
+            result.is_err(),
+            "tampered ciphertext must fail authentication"
+        );
     }
 
     #[test]
@@ -221,7 +216,13 @@ mod tests {
     #[test]
     fn test_envelope_overhead_constant() {
         // Sanity check the overhead constant.
-        assert!(envelope_overhead() > 1100, "overhead must include KEM ciphertext");
-        assert!(envelope_overhead() < 1200, "overhead should not be unreasonably large");
+        assert!(
+            envelope_overhead() > 1100,
+            "overhead must include KEM ciphertext"
+        );
+        assert!(
+            envelope_overhead() < 1200,
+            "overhead should not be unreasonably large"
+        );
     }
 }

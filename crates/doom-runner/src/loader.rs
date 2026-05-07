@@ -105,9 +105,7 @@ pub fn parse_elf(elf_path: &Path) -> Result<ParsedSections> {
                     );
                 }
                 let data = elf_bytes[file_offset..end].to_vec();
-                info!(
-                    "section {name}: addr=0x{addr:08x} size={size} ({size:#x}) bytes",
-                );
+                info!("section {name}: addr=0x{addr:08x} size={size} ({size:#x}) bytes",);
                 data_sections.push(RamRegion {
                     name: name.to_string(),
                     addr,
@@ -115,7 +113,9 @@ pub fn parse_elf(elf_path: &Path) -> Result<ParsedSections> {
                 });
             }
             ".bss" | ".sbss" => {
-                info!("section {name}: addr=0x{addr:08x} size={size} ({size:#x}) bytes (zero-init)");
+                info!(
+                    "section {name}: addr=0x{addr:08x} size={size} ({size:#x}) bytes (zero-init)"
+                );
                 match bss_start {
                     None => {
                         bss_start = Some(addr);
@@ -195,7 +195,10 @@ pub fn load_mbc_rom(mbc_path: &Path) -> Result<Vec<u32>> {
         rom.push(cursor.read_u32::<LittleEndian>()?);
     }
 
-    info!("loaded {num_insns} MBC instructions from {}", mbc_path.display());
+    info!(
+        "loaded {num_insns} MBC instructions from {}",
+        mbc_path.display()
+    );
     Ok(rom)
 }
 
@@ -208,10 +211,7 @@ pub fn load_rv2mbc(rv2mbc_path: &Path) -> Result<Vec<u32>> {
         .with_context(|| format!("failed to read rv2mbc: {}", rv2mbc_path.display()))?;
 
     if bytes.len() % 4 != 0 {
-        bail!(
-            "rv2mbc file size ({}) is not a multiple of 4",
-            bytes.len()
-        );
+        bail!("rv2mbc file size ({}) is not a multiple of 4", bytes.len());
     }
 
     let count = bytes.len() / 4;
@@ -229,7 +229,10 @@ pub fn load_rv2mbc(rv2mbc_path: &Path) -> Result<Vec<u32>> {
         table.push(cursor.read_u32::<LittleEndian>()?);
     }
 
-    info!("loaded {count} rv2mbc entries from {}", rv2mbc_path.display());
+    info!(
+        "loaded {count} rv2mbc entries from {}",
+        rv2mbc_path.display()
+    );
     Ok(table)
 }
 
@@ -286,7 +289,7 @@ impl InitialCpuState {
     pub fn new(entry_pc: u32) -> Self {
         let mut regs = [0u32; 16];
         regs[15] = memory::STACK_TOP; // r15 = SP
-        // r10 (a0) = heap start address (Doom's Z_Init argument)
+                                      // r10 (a0) = heap start address (Doom's Z_Init argument)
         regs[10] = memory::HEAP_START;
         // r11 (a1) = heap size
         regs[11] = memory::HEAP_SIZE;
@@ -305,10 +308,7 @@ impl InitialCpuState {
 /// This is the "staging" step — we build a complete RAM image in userspace,
 /// then bulk-write it to the BPF map. This avoids thousands of individual
 /// map update syscalls.
-pub fn stage_ram_image(
-    sections: &[RamRegion],
-    wad_data: Option<&[u8]>,
-) -> Result<Vec<(u32, u32)>> {
+pub fn stage_ram_image(sections: &[RamRegion], wad_data: Option<&[u8]>) -> Result<Vec<(u32, u32)>> {
     let mut updates: Vec<(u32, u32)> = Vec::new();
 
     for region in sections {

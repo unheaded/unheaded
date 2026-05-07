@@ -14,7 +14,11 @@ use zhend::qi::GossipEngine;
 use zhend::ZhenConfig;
 
 /// Helper to create a test config bound to a specific port.
-fn test_config(gossip_port: u16, seed_peer: Option<String>, data_dir: &std::path::Path) -> ZhenConfig {
+fn test_config(
+    gossip_port: u16,
+    seed_peer: Option<String>,
+    data_dir: &std::path::Path,
+) -> ZhenConfig {
     ZhenConfig {
         data_dir: data_dir.to_path_buf(),
         grpc_addr: "[::1]:0".into(),
@@ -96,12 +100,21 @@ async fn test_authenticated_gossip_works() {
     drop(engine_a);
     drop(engine_b);
 
-    assert!(found, "fragment should gossip between authenticated peers within 30 seconds");
+    assert!(
+        found,
+        "fragment should gossip between authenticated peers within 30 seconds"
+    );
 
     // Verify content integrity.
-    let frag_b = store_b.get(&fragment_id).unwrap().expect("fragment should exist on node B");
+    let frag_b = store_b
+        .get(&fragment_id)
+        .unwrap()
+        .expect("fragment should exist on node B");
     assert_eq!(frag_b.payload, payload);
-    assert!(frag_b.verify(), "fragment integrity must hold after authenticated gossip");
+    assert!(
+        frag_b.verify(),
+        "fragment integrity must hold after authenticated gossip"
+    );
 }
 
 #[tokio::test]

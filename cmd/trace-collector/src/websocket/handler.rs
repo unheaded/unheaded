@@ -15,7 +15,7 @@ use super::protocol::{
     ClientMessage, ServerMessage, SpanEventInfo, SpanInfo, Subscription, TraceDetailsResponse,
     TraceQueryRequest, TraceUpdate,
 };
-use crate::correlation::{CorrelationEngine, Span, TraceSummary, TraceStore};
+use crate::correlation::{CorrelationEngine, Span, TraceStore, TraceSummary};
 
 /// Handler state for a single WebSocket connection
 pub struct WebSocketHandler {
@@ -156,7 +156,10 @@ impl WebSocketHandler {
                 })
             }
 
-            ClientMessage::GetTrace { request_id, trace_id } => {
+            ClientMessage::GetTrace {
+                request_id,
+                trace_id,
+            } => {
                 debug!(
                     connection = %self.connection_id,
                     trace_id = %trace_id,
@@ -376,7 +379,10 @@ mod tests {
         };
 
         let response = handler.handle_message(subscribe_msg);
-        assert!(matches!(response, Some(ServerMessage::Subscribed { success: true, .. })));
+        assert!(matches!(
+            response,
+            Some(ServerMessage::Subscribed { success: true, .. })
+        ));
         assert_eq!(handler.subscription_count(), 1);
 
         let unsubscribe_msg = ClientMessage::Unsubscribe {

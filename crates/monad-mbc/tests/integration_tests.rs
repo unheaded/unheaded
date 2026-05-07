@@ -4,8 +4,8 @@
 //! plus disassemble roundtrips, screen rendering, keyboard input,
 //! timer syscalls, cycle budget exhaustion, and stress tests.
 
-use monad_mbc::{assemble, disasm_listing, ExecCpu, ExecError, Translator};
 use monad_common::{mbc_opcodes as op, MbcInsn, REG_SP};
+use monad_mbc::{assemble, disasm_listing, ExecCpu, ExecError, Translator};
 
 // ═══════════════════════════════════════════════════════════════════════════
 // Helper: create ExecCpu with SP set to 0x1000 (safe for userspace RAM)
@@ -176,7 +176,10 @@ fn step98_nested_call_ret() {
     cpu.load_rom(&rom);
     let result = cpu.run(200);
     assert!(result.is_ok(), "should halt: {:?}", result.err());
-    assert_eq!(cpu.state.regs[0], 11, "outer should set r0=10, then ADDI +1 = 11");
+    assert_eq!(
+        cpu.state.regs[0], 11,
+        "outer should set r0=10, then ADDI +1 = 11"
+    );
     assert_eq!(cpu.state.regs[1], 50, "inner should set r1=50");
     assert_eq!(cpu.state.halted, 1);
 }
@@ -271,10 +274,26 @@ fn step99_disasm_listing_contains_expected_mnemonics() {
     let rom = assemble(src).unwrap();
     let listing = disasm_listing(&rom);
 
-    assert!(listing.contains("MOVI"), "listing should contain MOVI: {}", listing);
-    assert!(listing.contains("ADD"), "listing should contain ADD: {}", listing);
-    assert!(listing.contains("STB"), "listing should contain STB: {}", listing);
-    assert!(listing.contains("HALT"), "listing should contain HALT: {}", listing);
+    assert!(
+        listing.contains("MOVI"),
+        "listing should contain MOVI: {}",
+        listing
+    );
+    assert!(
+        listing.contains("ADD"),
+        "listing should contain ADD: {}",
+        listing
+    );
+    assert!(
+        listing.contains("STB"),
+        "listing should contain STB: {}",
+        listing
+    );
+    assert!(
+        listing.contains("HALT"),
+        "listing should contain HALT: {}",
+        listing
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -290,7 +309,11 @@ fn step100_translator_roundtrip_addi() {
     let ebreak = 0x00100073u32;
 
     let result = Translator::translate_program(&[addi, ebreak]);
-    assert!(result.is_ok(), "translator should succeed: {:?}", result.err());
+    assert!(
+        result.is_ok(),
+        "translator should succeed: {:?}",
+        result.err()
+    );
     let mbc = result.unwrap();
     assert!(!mbc.is_empty());
 
@@ -489,7 +512,10 @@ fn step103_sleep_syscall() {
     let result = cpu.run(100);
     assert!(result.is_ok());
     assert_eq!(cpu.ticks_ms, 600, "ticks_ms should advance from 500 to 600");
-    assert_eq!(cpu.state.regs[2], 600, "r2 should read updated ticks_ms = 600");
+    assert_eq!(
+        cpu.state.regs[2], 600,
+        "r2 should read updated ticks_ms = 600"
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -513,8 +539,11 @@ fn step104_infinite_loop_budget_exhaustion() {
     let mut cpu = ExecCpu::new();
     cpu.load_rom(&rom);
     let result = cpu.run(500);
-    assert_eq!(result, Err(ExecError::CycleBudgetExhausted),
-        "infinite loop should exhaust cycle budget");
+    assert_eq!(
+        result,
+        Err(ExecError::CycleBudgetExhausted),
+        "infinite loop should exhaust cycle budget"
+    );
 }
 
 #[test]
@@ -535,7 +564,11 @@ fn step104_long_loop_budget_exhaustion() {
     assert_eq!(result, Err(ExecError::CycleBudgetExhausted));
     // r0 should have been incremented roughly (500 - 2) / 2 = 249 times
     // (2 setup instructions, then 2 per iteration: ADD + JMP)
-    assert!(cpu.state.regs[0] > 200, "r0 should have been incremented many times, got {}", cpu.state.regs[0]);
+    assert!(
+        cpu.state.regs[0] > 200,
+        "r0 should have been incremented many times, got {}",
+        cpu.state.regs[0]
+    );
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -562,7 +595,10 @@ fn step105_halt_in_subroutine() {
     assert!(result.is_ok(), "should halt: {:?}", result.err());
     assert_eq!(cpu.state.halted, 1, "CPU should be halted");
     assert_eq!(cpu.state.regs[0], 42, "r0 should be 42 from subroutine");
-    assert_eq!(cpu.state.regs[1], 0, "r1 should NOT be set (code after CALL not reached)");
+    assert_eq!(
+        cpu.state.regs[1], 0,
+        "r1 should NOT be set (code after CALL not reached)"
+    );
 }
 
 #[test]
@@ -593,8 +629,8 @@ fn step105_halt_preserves_registers() {
 
 #[test]
 fn step106_doom_mbc_smoke_test() {
-    let doom_path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../doom/doomgeneric/doom.mbc");
+    let doom_path =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../doom/doomgeneric/doom.mbc");
 
     if !doom_path.exists() {
         eprintln!(
@@ -634,7 +670,10 @@ fn step106_doom_mbc_smoke_test() {
             eprintln!("doom.mbc halted (exit() reached)")
         }
         Err(e) => {
-            eprintln!("doom.mbc error after some cycles: {:?} (non-fatal for smoke test)", e)
+            eprintln!(
+                "doom.mbc error after some cycles: {:?} (non-fatal for smoke test)",
+                e
+            )
         }
     }
     // Success = no panic
@@ -668,11 +707,17 @@ fn step109_max_size_rom() {
     // Execute enough cycles to run through some of the ROM
     // (we won't run all 262K cycles, just verify it doesn't panic)
     let result = cpu.run(10000);
-    assert_eq!(result, Err(ExecError::CycleBudgetExhausted),
-        "should exhaust budget before reaching end of large ROM");
+    assert_eq!(
+        result,
+        Err(ExecError::CycleBudgetExhausted),
+        "should exhaust budget before reaching end of large ROM"
+    );
 
     // Verify PC advanced correctly
-    assert_eq!(cpu.state.pc, 10000, "PC should be at 10000 after 10000 NOPs");
+    assert_eq!(
+        cpu.state.pc, 10000,
+        "PC should be at 10000 after 10000 NOPs"
+    );
 }
 
 #[test]
@@ -867,7 +912,10 @@ fn integration_draw_frame_syscall() {
     cpu.load_rom(&rom);
     let result = cpu.run(100);
     assert!(result.is_ok());
-    assert_eq!(cpu.state.regs[1], 42, "execution should continue after DRAW_FRAME");
+    assert_eq!(
+        cpu.state.regs[1], 42,
+        "execution should continue after DRAW_FRAME"
+    );
 }
 
 #[test]
@@ -1056,7 +1104,10 @@ fn integration_memory_byte_alignment() {
     cpu.load_rom(&rom);
     let result = cpu.run(200);
     assert!(result.is_ok());
-    assert_eq!(cpu.state.regs[2], 0x78563412, "word read should be LE: 0x78563412");
+    assert_eq!(
+        cpu.state.regs[2], 0x78563412,
+        "word read should be LE: 0x78563412"
+    );
     assert_eq!(cpu.state.regs[3], 0x12);
     assert_eq!(cpu.state.regs[4], 0x34);
     assert_eq!(cpu.state.regs[5], 0x56);
@@ -1079,7 +1130,10 @@ fn integration_halfword_operations() {
     cpu.load_rom(&rom);
     let result = cpu.run(100);
     assert!(result.is_ok());
-    assert_eq!(cpu.state.regs[2], 0xABCD, "halfword roundtrip should preserve value");
+    assert_eq!(
+        cpu.state.regs[2], 0xABCD,
+        "halfword roundtrip should preserve value"
+    );
 }
 
 #[test]
@@ -1095,7 +1149,11 @@ fn integration_neg_operation() {
     cpu.load_rom(&rom);
     let result = cpu.run(100);
     assert!(result.is_ok());
-    assert_eq!(cpu.state.regs[0], u32::wrapping_neg(5), "NEG(5) = 0 - 5 = 0xFFFFFFFB");
+    assert_eq!(
+        cpu.state.regs[0],
+        u32::wrapping_neg(5),
+        "NEG(5) = 0 - 5 = 0xFFFFFFFB"
+    );
 }
 
 #[test]
@@ -1138,7 +1196,16 @@ fn integration_end_to_end_all_syscalls() {
     assert!(result.is_ok());
 
     assert_eq!(cpu.state.regs[5], 0xBEEF, "GET_KEY should return kbd value");
-    assert_eq!(cpu.state.regs[6], 1000, "GET_TICKS before sleep should be 1000");
-    assert_eq!(cpu.ticks_ms, 1050, "SLEEP(50) should advance ticks from 1000 to 1050");
-    assert_eq!(cpu.state.regs[7], 1050, "GET_TICKS after sleep should be 1050");
+    assert_eq!(
+        cpu.state.regs[6], 1000,
+        "GET_TICKS before sleep should be 1000"
+    );
+    assert_eq!(
+        cpu.ticks_ms, 1050,
+        "SLEEP(50) should advance ticks from 1000 to 1050"
+    );
+    assert_eq!(
+        cpu.state.regs[7], 1050,
+        "GET_TICKS after sleep should be 1050"
+    );
 }

@@ -4,9 +4,9 @@
 //! in userspace for testing and validation.
 
 use monad_common::{
-    MbcCpuState, MbcInsn, mbc_block as blk, mbc_opcodes as op, mbc_flags as mf,
-    mbc_syscalls as sys, mbc_linux_syscalls as lsys, mbc_interrupts as intr,
-    mbc_mmap as mmap, mbc_mmu as mmu, REG_SP,
+    mbc_block as blk, mbc_flags as mf, mbc_interrupts as intr, mbc_linux_syscalls as lsys,
+    mbc_mmap as mmap, mbc_mmu as mmu, mbc_opcodes as op, mbc_syscalls as sys, MbcCpuState, MbcInsn,
+    REG_SP,
 };
 
 /// Execution errors.
@@ -24,7 +24,7 @@ pub const MAX_CYCLES_PER_TICK: u32 = 1000;
 /// Userspace MBC CPU emulator.
 pub struct Cpu {
     pub state: MbcCpuState,
-    pub ram: Vec<u32>,   // word-addressed
+    pub ram: Vec<u32>, // word-addressed
     pub rom: Vec<u32>,
     pub screen: Vec<u8>, // 320x200 = 64000 bytes
     pub kbd: u32,
@@ -54,9 +54,9 @@ impl Cpu {
 
         Cpu {
             state,
-            ram: vec![0; 0x300000],     // 3M words — covers ramdisk at 0x200000 + 1M words
+            ram: vec![0; 0x300000], // 3M words — covers ramdisk at 0x200000 + 1M words
             rom: Vec::new(),
-            screen: vec![0; 64000],     // 320x200
+            screen: vec![0; 64000], // 320x200
             kbd: 0,
             ticks_ms: 0,
             tty_output: Vec::new(),
@@ -215,7 +215,11 @@ impl Cpu {
             && byte_addr < (mmap::SCREEN_BASE + mmap::SCREEN_SIZE) as usize
         {
             let px = byte_addr - mmap::SCREEN_BASE as usize;
-            return if px < self.screen.len() { self.screen[px] } else { 0 };
+            return if px < self.screen.len() {
+                self.screen[px]
+            } else {
+                0
+            };
         }
         let word_addr = byte_addr >> 2;
         let byte_shift = (byte_addr & 3) * 8;
@@ -458,7 +462,8 @@ impl Cpu {
                 let sp = self.state.regs[REG_SP as usize] as usize;
                 if sp < self.ram.len() {
                     self.ram[sp] = self.state.regs[dst];
-                    self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(1);
+                    self.state.regs[REG_SP as usize] =
+                        self.state.regs[REG_SP as usize].wrapping_sub(1);
                 }
             }
             op::POP => {
@@ -539,7 +544,8 @@ impl Cpu {
                 let sp = self.state.regs[REG_SP as usize] as usize;
                 if sp < self.ram.len() {
                     self.ram[sp] = self.state.pc;
-                    self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(1);
+                    self.state.regs[REG_SP as usize] =
+                        self.state.regs[REG_SP as usize].wrapping_sub(1);
                 }
                 self.state.pc = target;
             }
@@ -557,7 +563,8 @@ impl Cpu {
                 let sp = self.state.regs[REG_SP as usize] as usize;
                 if sp < self.ram.len() {
                     self.ram[sp] = self.state.pc;
-                    self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(1);
+                    self.state.regs[REG_SP as usize] =
+                        self.state.regs[REG_SP as usize].wrapping_sub(1);
                 }
                 self.state.pc = self.state.regs[src];
             }
@@ -671,7 +678,8 @@ impl Cpu {
                             let mut written: u32 = 0;
                             let mut b: u32 = 0;
                             while b < max_write {
-                                let byte_val = self.mem_read_byte(buf_addr.wrapping_add(b) as usize);
+                                let byte_val =
+                                    self.mem_read_byte(buf_addr.wrapping_add(b) as usize);
                                 self.tty_output.push(byte_val);
                                 written += 1;
                                 b += 1;
@@ -711,7 +719,9 @@ impl Cpu {
                         let block_num = self.state.regs[1];
                         let buf_addr = self.state.regs[2];
                         if block_num < blk::TOTAL_BLOCKS {
-                            let src_base = (blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK) as usize;
+                            let src_base = (blk::RAMDISK_BASE_WORD
+                                + block_num * blk::WORDS_PER_BLOCK)
+                                as usize;
                             let dst_base = (buf_addr >> 2) as usize;
                             for w in 0..128usize {
                                 let val = if src_base + w < self.ram.len() {
@@ -733,7 +743,9 @@ impl Cpu {
                         let block_num = self.state.regs[1];
                         let buf_addr = self.state.regs[2];
                         if block_num < blk::TOTAL_BLOCKS {
-                            let dst_base = (blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK) as usize;
+                            let dst_base = (blk::RAMDISK_BASE_WORD
+                                + block_num * blk::WORDS_PER_BLOCK)
+                                as usize;
                             let src_base = (buf_addr >> 2) as usize;
                             for w in 0..128usize {
                                 let val = if src_base + w < self.ram.len() {
@@ -823,8 +835,8 @@ impl Cpu {
                                     if dst_word < self.ram.len() {
                                         let existing = self.ram[dst_word];
                                         let mask = !(0xFFu32 << (dst_byte_off * 8));
-                                        let new_val = (existing & mask)
-                                            | ((ch as u32) << (dst_byte_off * 8));
+                                        let new_val =
+                                            (existing & mask) | ((ch as u32) << (dst_byte_off * 8));
                                         self.ram[dst_word] = new_val;
                                     }
                                     self.kbd = 0; // consume
@@ -916,11 +928,12 @@ impl Cpu {
                     // ── Trivial FUZIX syscall stubs (Level 5c) ───────────────
                     // UID/GID family: always root (0)
                     } else if syscall_nr == lsys::SYS_GETUID
-                           || syscall_nr == lsys::SYS_GETGID
-                           || syscall_nr == lsys::SYS_GETEUID
-                           || syscall_nr == lsys::SYS_GETEGID
-                           || syscall_nr == lsys::SYS_SETUID
-                           || syscall_nr == lsys::SYS_SETGID {
+                        || syscall_nr == lsys::SYS_GETGID
+                        || syscall_nr == lsys::SYS_GETEUID
+                        || syscall_nr == lsys::SYS_GETEGID
+                        || syscall_nr == lsys::SYS_SETUID
+                        || syscall_nr == lsys::SYS_SETGID
+                    {
                         self.state.regs[0] = 0;
                     } else if syscall_nr == lsys::SYS_DUP {
                         // SYS_DUP(41): r1=oldfd. Return oldfd (stub).
@@ -948,9 +961,9 @@ impl Cpu {
                         // SYS_STAT(106) / SYS_FSTAT(108): return minimal stat struct.
                         let buf = self.state.regs[2];
                         let buf_word = (buf >> 2) as usize;
-                        self.mem_write_word(buf_word, 0o100644);     // st_mode (regular file)
-                        self.mem_write_word(buf_word + 1, 4096);     // st_size
-                        self.mem_write_word(buf_word + 2, 512);      // st_blksize
+                        self.mem_write_word(buf_word, 0o100644); // st_mode (regular file)
+                        self.mem_write_word(buf_word + 1, 4096); // st_size
+                        self.mem_write_word(buf_word + 2, 512); // st_blksize
                         self.state.regs[0] = 0;
                     } else if syscall_nr == lsys::SYS_LSEEK {
                         // SYS_LSEEK(19): stub — pretend seek succeeded.
@@ -975,14 +988,15 @@ impl Cpu {
                         if self.state.regs[2] == 0x5413 {
                             let argp = self.state.regs[3];
                             // struct winsize: rows(u16) | cols(u16) packed into one word
-                            self.mem_write_word((argp >> 2) as usize, 24 | (80 << 16)); // 24 rows, 80 cols
+                            self.mem_write_word((argp >> 2) as usize, 24 | (80 << 16));
+                            // 24 rows, 80 cols
                         }
                         self.state.regs[0] = 0;
                     } else if syscall_nr == lsys::SYS_PIPE {
                         // SYS_PIPE(42): r1=pipefd[2] array address.
                         // Allocate stub fd numbers (10=read, 11=write). No actual pipe buffer.
                         let pipefd_addr = self.state.regs[1];
-                        self.mem_write_word((pipefd_addr >> 2) as usize, 10);       // read end
+                        self.mem_write_word((pipefd_addr >> 2) as usize, 10); // read end
                         self.mem_write_word(((pipefd_addr >> 2) + 1) as usize, 11); // write end
                         self.state.regs[0] = 0;
                     } else if syscall_nr == lsys::SYS_FCNTL {
@@ -1007,13 +1021,15 @@ impl Cpu {
                 } else {
                     // Non-0x80 software interrupt: standard IVT dispatch.
                     // Push flags (SP is byte address, 4 bytes per entry)
-                    self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(4);
+                    self.state.regs[REG_SP as usize] =
+                        self.state.regs[REG_SP as usize].wrapping_sub(4);
                     let sp_flags = (self.state.regs[REG_SP as usize] >> 2) as usize;
                     if sp_flags < self.ram.len() {
                         self.ram[sp_flags] = self.state.flags as u32;
                     }
                     // Push PC (already advanced = return address)
-                    self.state.regs[REG_SP as usize] = self.state.regs[REG_SP as usize].wrapping_sub(4);
+                    self.state.regs[REG_SP as usize] =
+                        self.state.regs[REG_SP as usize].wrapping_sub(4);
                     let sp_pc = (self.state.regs[REG_SP as usize] >> 2) as usize;
                     if sp_pc < self.ram.len() {
                         self.ram[sp_pc] = self.state.pc;
@@ -1605,7 +1621,8 @@ mod tests {
         cpu.state.regs[3] = 0xDEADBEEF;
 
         // PUSH r3
-        cpu.execute_insn(MbcInsn::encode(op::PUSH, 3, 0, 0)).unwrap();
+        cpu.execute_insn(MbcInsn::encode(op::PUSH, 3, 0, 0))
+            .unwrap();
         assert_eq!(cpu.state.regs[REG_SP as usize], 0xFFF);
         assert_eq!(cpu.ram[0x1000], 0xDEADBEEF);
 
@@ -1626,8 +1643,10 @@ mod tests {
         cpu.state.regs[1] = 222;
 
         // Push r0, r1
-        cpu.execute_insn(MbcInsn::encode(op::PUSH, 0, 0, 0)).unwrap();
-        cpu.execute_insn(MbcInsn::encode(op::PUSH, 1, 0, 0)).unwrap();
+        cpu.execute_insn(MbcInsn::encode(op::PUSH, 0, 0, 0))
+            .unwrap();
+        cpu.execute_insn(MbcInsn::encode(op::PUSH, 1, 0, 0))
+            .unwrap();
         assert_eq!(cpu.state.regs[REG_SP as usize], 0xFFE);
 
         // Pop into reversed registers (LIFO order)
@@ -1670,7 +1689,8 @@ mod tests {
         let mut cpu = Cpu::new();
         cpu.state.regs[0] = 100;
         // -10 as u16 = 0xFFF6
-        cpu.execute_insn(imm(op::ADDI, 0, (-10_i16) as u16)).unwrap();
+        cpu.execute_insn(imm(op::ADDI, 0, (-10_i16) as u16))
+            .unwrap();
         assert_eq!(cpu.state.regs[0], 90);
     }
 
@@ -1712,15 +1732,15 @@ mod tests {
         // to (instruction_position + 1). To jump from index 7 back to index 3,
         // we need offset = 3 - (7+1) = -5 → 24-bit two's complement = 0xFFFFFB.
         let program = vec![
-            MbcInsn::encode(op::MOVI, 0, 0, 0).0,       // 0: MOVI r0, 0
-            MbcInsn::encode(op::MOVI, 1, 0, 1).0,       // 1: MOVI r1, 1
-            MbcInsn::encode(op::MOVI, 2, 0, 11).0,      // 2: MOVI r2, 11 (loop until counter==11)
-            MbcInsn::encode(op::ADD, 0, 1, 0).0,         // 3: ADD r0, r1
-            MbcInsn::encode(op::MOVI, 3, 0, 1).0,       // 4: MOVI r3, 1
-            MbcInsn::encode(op::ADD, 1, 3, 0).0,         // 5: ADD r1, r3
-            MbcInsn::encode(op::CMP, 1, 2, 0).0,         // 6: CMP r1, r2
-            branch(op::JNZ, 0xFFFFFB).0,                 // 7: JNZ -5 (→ PC 8-5=3)
-            MbcInsn::encode(op::HALT, 0, 0, 0).0,        // 8: HALT
+            MbcInsn::encode(op::MOVI, 0, 0, 0).0,  // 0: MOVI r0, 0
+            MbcInsn::encode(op::MOVI, 1, 0, 1).0,  // 1: MOVI r1, 1
+            MbcInsn::encode(op::MOVI, 2, 0, 11).0, // 2: MOVI r2, 11 (loop until counter==11)
+            MbcInsn::encode(op::ADD, 0, 1, 0).0,   // 3: ADD r0, r1
+            MbcInsn::encode(op::MOVI, 3, 0, 1).0,  // 4: MOVI r3, 1
+            MbcInsn::encode(op::ADD, 1, 3, 0).0,   // 5: ADD r1, r3
+            MbcInsn::encode(op::CMP, 1, 2, 0).0,   // 6: CMP r1, r2
+            branch(op::JNZ, 0xFFFFFB).0,           // 7: JNZ -5 (→ PC 8-5=3)
+            MbcInsn::encode(op::HALT, 0, 0, 0).0,  // 8: HALT
         ];
 
         cpu.load_rom(&program);
@@ -1893,15 +1913,15 @@ mod tests {
         // 8: RET         → pop 5, PC=5 → RET again
 
         let program = vec![
-            branch(op::CALL, 4).0,                        // 0: CALL 4
-            MbcInsn::encode(op::HALT, 0, 0, 0).0,        // 1: HALT (final)
-            MbcInsn::encode(op::NOP, 0, 0, 0).0,         // 2: NOP
-            MbcInsn::encode(op::NOP, 0, 0, 0).0,         // 3: NOP
-            branch(op::CALL, 7).0,                        // 4: CALL 7
-            MbcInsn::encode(op::RET, 0, 0, 0).0,         // 5: RET
-            MbcInsn::encode(op::NOP, 0, 0, 0).0,         // 6: NOP
-            MbcInsn::encode(op::MOVI, 0, 0, 99).0,       // 7: MOVI r0, 99
-            MbcInsn::encode(op::RET, 0, 0, 0).0,         // 8: RET
+            branch(op::CALL, 4).0,                 // 0: CALL 4
+            MbcInsn::encode(op::HALT, 0, 0, 0).0,  // 1: HALT (final)
+            MbcInsn::encode(op::NOP, 0, 0, 0).0,   // 2: NOP
+            MbcInsn::encode(op::NOP, 0, 0, 0).0,   // 3: NOP
+            branch(op::CALL, 7).0,                 // 4: CALL 7
+            MbcInsn::encode(op::RET, 0, 0, 0).0,   // 5: RET
+            MbcInsn::encode(op::NOP, 0, 0, 0).0,   // 6: NOP
+            MbcInsn::encode(op::MOVI, 0, 0, 99).0, // 7: MOVI r0, 99
+            MbcInsn::encode(op::RET, 0, 0, 0).0,   // 8: RET
         ];
 
         let mut cpu = Cpu::new();
@@ -1981,18 +2001,18 @@ mod tests {
     fn test_fibonacci() {
         // fib(10) = 55: r0=fib(n-1), r1=fib(n-2), r2=counter, r3=max, r4=temp
         let program = vec![
-            MbcInsn::encode(op::MOVI, 0, 0, 1).0,       // 0: r0 = 1 (fib(1))
-            MbcInsn::encode(op::MOVI, 1, 0, 0).0,       // 1: r1 = 0 (fib(0))
-            MbcInsn::encode(op::MOVI, 2, 0, 2).0,       // 2: r2 = 2 (counter)
-            MbcInsn::encode(op::MOVI, 3, 0, 11).0,      // 3: r3 = 11 (loop until counter==11, computing fib(10))
+            MbcInsn::encode(op::MOVI, 0, 0, 1).0,  // 0: r0 = 1 (fib(1))
+            MbcInsn::encode(op::MOVI, 1, 0, 0).0,  // 1: r1 = 0 (fib(0))
+            MbcInsn::encode(op::MOVI, 2, 0, 2).0,  // 2: r2 = 2 (counter)
+            MbcInsn::encode(op::MOVI, 3, 0, 11).0, // 3: r3 = 11 (loop until counter==11, computing fib(10))
             // loop:
-            MbcInsn::encode(op::MOV, 4, 0, 0).0,        // 4: r4 = r0
-            MbcInsn::encode(op::ADD, 0, 1, 0).0,         // 5: r0 = r0 + r1
-            MbcInsn::encode(op::MOV, 1, 4, 0).0,         // 6: r1 = r4 (old r0)
-            MbcInsn::encode(op::ADDI, 2, 0, 1).0,        // 7: r2 += 1
-            MbcInsn::encode(op::CMP, 2, 3, 0).0,         // 8: cmp r2, r3
-            branch(op::JNZ, 0xFFFFFA).0,                 // 9: JNZ -6 → PC 10-6=4 (back to MOV r4,r0)
-            MbcInsn::encode(op::HALT, 0, 0, 0).0,        // 10: HALT
+            MbcInsn::encode(op::MOV, 4, 0, 0).0,  // 4: r4 = r0
+            MbcInsn::encode(op::ADD, 0, 1, 0).0,  // 5: r0 = r0 + r1
+            MbcInsn::encode(op::MOV, 1, 4, 0).0,  // 6: r1 = r4 (old r0)
+            MbcInsn::encode(op::ADDI, 2, 0, 1).0, // 7: r2 += 1
+            MbcInsn::encode(op::CMP, 2, 3, 0).0,  // 8: cmp r2, r3
+            branch(op::JNZ, 0xFFFFFA).0,          // 9: JNZ -6 → PC 10-6=4 (back to MOV r4,r0)
+            MbcInsn::encode(op::HALT, 0, 0, 0).0, // 10: HALT
         ];
 
         let mut cpu = Cpu::new();
@@ -2012,18 +2032,18 @@ mod tests {
         cpu.ram[(0x100 + 12) >> 2] = 0xDDDD;
 
         let program = vec![
-            MbcInsn::encode(op::MOVI, 1, 0, 0x0100 as u16).0,  // 0: r1 = src addr
-            MbcInsn::encode(op::MOVI, 2, 0, 0x0200 as u16).0,  // 1: r2 = dst addr
-            MbcInsn::encode(op::MOVI, 3, 0, 4).0,               // 2: r3 = count
+            MbcInsn::encode(op::MOVI, 1, 0, 0x0100 as u16).0, // 0: r1 = src addr
+            MbcInsn::encode(op::MOVI, 2, 0, 0x0200 as u16).0, // 1: r2 = dst addr
+            MbcInsn::encode(op::MOVI, 3, 0, 4).0,             // 2: r3 = count
             // loop:
-            MbcInsn::encode(op::LD, 0, 1, 0).0,                 // 3: r0 = RAM[r1]
-            MbcInsn::encode(op::ST, 2, 0, 0).0,                 // 4: RAM[r2] = r0
-            MbcInsn::encode(op::ADDI, 1, 0, 4).0,               // 5: r1 += 4
-            MbcInsn::encode(op::ADDI, 2, 0, 4).0,               // 6: r2 += 4
-            MbcInsn::encode(op::ADDI, 3, 0, 0xFFFF).0,          // 7: r3 += -1 (sign extend)
-            MbcInsn::encode(op::CMP, 3, 4, 0).0,                // 8: cmp r3, r4 (r4=0)
-            branch(op::JNZ, 0xFFFFF9).0,                        // 9: JNZ -7 → 10-7=3 (back to LD)
-            MbcInsn::encode(op::HALT, 0, 0, 0).0,               // 10: HALT
+            MbcInsn::encode(op::LD, 0, 1, 0).0, // 3: r0 = RAM[r1]
+            MbcInsn::encode(op::ST, 2, 0, 0).0, // 4: RAM[r2] = r0
+            MbcInsn::encode(op::ADDI, 1, 0, 4).0, // 5: r1 += 4
+            MbcInsn::encode(op::ADDI, 2, 0, 4).0, // 6: r2 += 4
+            MbcInsn::encode(op::ADDI, 3, 0, 0xFFFF).0, // 7: r3 += -1 (sign extend)
+            MbcInsn::encode(op::CMP, 3, 4, 0).0, // 8: cmp r3, r4 (r4=0)
+            branch(op::JNZ, 0xFFFFF9).0,        // 9: JNZ -7 → 10-7=3 (back to LD)
+            MbcInsn::encode(op::HALT, 0, 0, 0).0, // 10: HALT
         ];
 
         cpu.load_rom(&program);

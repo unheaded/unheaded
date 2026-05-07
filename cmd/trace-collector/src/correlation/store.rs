@@ -516,9 +516,7 @@ impl TraceStore {
         *self.last_flush.write() = Instant::now();
 
         // Check if we need to rotate
-        let file_size = fs::metadata(&file_path)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let file_size = fs::metadata(&file_path).map(|m| m.len()).unwrap_or(0);
 
         if file_size > self.config.max_file_size {
             self.rotate_files()?;
@@ -711,7 +709,10 @@ mod tests {
         let store = TraceStore::new(TraceStoreConfig::default()).unwrap();
 
         for i in 0..5 {
-            store.store_summary(create_test_summary(&format!("trace-{}", i), 1000 * i as u64));
+            store.store_summary(create_test_summary(
+                &format!("trace-{}", i),
+                1000 * i as u64,
+            ));
         }
 
         let recent = store.recent(3);

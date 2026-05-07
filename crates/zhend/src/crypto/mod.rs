@@ -20,16 +20,16 @@
 //! whose encryption has an expiration date. Unacceptable.
 
 #[cfg(feature = "pq")]
+pub mod envelope;
+#[cfg(feature = "pq")]
 pub mod kem;
 #[cfg(feature = "pq")]
 pub mod sign;
-#[cfg(feature = "pq")]
-pub mod envelope;
 
 // Re-export key types when PQ is enabled.
+#[cfg(feature = "pq")]
+pub use envelope::SealedFragment;
 #[cfg(feature = "pq")]
 pub use kem::HybridKemKeypair;
 #[cfg(feature = "pq")]
 pub use sign::PqSigningKeypair;
-#[cfg(feature = "pq")]
-pub use envelope::SealedFragment;

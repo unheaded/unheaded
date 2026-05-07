@@ -260,7 +260,8 @@ fn try_anomaly_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     features[FEAT_INTER_ARRIVAL as usize] = extract_inter_arrival_feature(flow_key, now);
 
     // Feature 2: Flow entropy estimate (byte frequency in 16-byte window)
-    features[FEAT_ENTROPY as usize] = extract_entropy_feature(data, data_end, hbh_start + hbh_total);
+    features[FEAT_ENTROPY as usize] =
+        extract_entropy_feature(data, data_end, hbh_start + hbh_total);
 
     // Feature 3: Connection pattern (SYN/ACK ratio approximation from Monad)
     features[FEAT_CONN_PATTERN as usize] = extract_conn_pattern_feature(&monad);
@@ -325,10 +326,18 @@ fn extract_pkt_size_feature(payload_len: u16, service_id: u32) -> i16 {
     // Multiply by 100 for precision before dividing
     // BPF doesn't support signed division — use unsigned with sign tracking
     let is_negative = diff < 0;
-    let abs_diff = if diff < 0 { (-diff) as u32 } else { diff as u32 };
+    let abs_diff = if diff < 0 {
+        (-diff) as u32
+    } else {
+        diff as u32
+    };
     let abs_stddev = if stddev == 0 { 1u32 } else { stddev as u32 };
     let z_abs = (abs_diff * 100) / abs_stddev;
-    let z_score_scaled = if is_negative { -(z_abs as i32) } else { z_abs as i32 };
+    let z_score_scaled = if is_negative {
+        -(z_abs as i32)
+    } else {
+        z_abs as i32
+    };
     z_score_scaled.clamp(-32768, 32767) as i16
 }
 
@@ -363,9 +372,7 @@ fn extract_entropy_feature(data: usize, data_end: usize, payload_start: usize) -
 
     for i in 0..16usize {
         let byte_val = unsafe {
-            core::ptr::read_volatile(
-                core::hint::black_box((payload_start + i) as *const u8),
-            )
+            core::ptr::read_volatile(core::hint::black_box((payload_start + i) as *const u8))
         };
 
         // Check if we have seen this value before (bounded scan)
@@ -456,7 +463,11 @@ fn extract_proto_deviation_feature(monad: &Monad) -> i16 {
 #[inline(always)]
 fn run_decision_tree(features: &[i16; NUM_FEATURES]) -> i16 {
     let max_depth = cfg(CFG_MAX_TREE_DEPTH) as u32;
-    let max_depth = if max_depth == 0 || max_depth > 12 { 12 } else { max_depth };
+    let max_depth = if max_depth == 0 || max_depth > 12 {
+        12
+    } else {
+        max_depth
+    };
 
     let mut node_idx: u32 = 0; // start at root
 
@@ -471,12 +482,9 @@ fn run_decision_tree(features: &[i16; NUM_FEATURES]) -> i16 {
         let threshold = unsafe { core::ptr::read_volatile(node.as_ptr() as *const i16) };
         let feature_idx = unsafe { core::ptr::read_volatile(node.as_ptr().add(2)) };
         let node_flags = unsafe { core::ptr::read_volatile(node.as_ptr().add(3)) };
-        let left_child =
-            unsafe { core::ptr::read_volatile(node.as_ptr().add(4) as *const u16) };
-        let right_child =
-            unsafe { core::ptr::read_volatile(node.as_ptr().add(6) as *const u16) };
-        let leaf_score =
-            unsafe { core::ptr::read_volatile(node.as_ptr().add(8) as *const i16) };
+        let left_child = unsafe { core::ptr::read_volatile(node.as_ptr().add(4) as *const u16) };
+        let right_child = unsafe { core::ptr::read_volatile(node.as_ptr().add(6) as *const u16) };
+        let leaf_score = unsafe { core::ptr::read_volatile(node.as_ptr().add(8) as *const i16) };
 
         // Check if leaf node (bit 0 of flags)
         let is_leaf = (node_flags & 0x01) != 0;
@@ -561,15 +569,9 @@ fn update_flow_state(flow_key: u32, inferred_score: i16, now: u64, payload_len: 
             // last_seen_ns
             core::ptr::write_volatile(state.as_mut_ptr().add(6) as *mut u64, now);
             // byte_total
-            core::ptr::write_volatile(
-                state.as_mut_ptr().add(14) as *mut u64,
-                payload_len as u64,
-            );
+            core::ptr::write_volatile(state.as_mut_ptr().add(14) as *mut u64, payload_len as u64);
             // pkt_size_sum
-            core::ptr::write_volatile(
-                state.as_mut_ptr().add(22) as *mut u32,
-                payload_len as u32,
-            );
+            core::ptr::write_volatile(state.as_mut_ptr().add(22) as *mut u32, payload_len as u32);
         }
         let _ = FLOW_STATE.insert(&flow_key, &state, 0);
         increment_stat(STAT_FLOWS_NEW);
@@ -594,7 +596,11 @@ fn get_threshold(service_id: u32) -> i16 {
         unsafe { core::ptr::read_volatile(thresh.as_ptr().add(4) as *const i16) }
     } else {
         let default = cfg(CFG_DEFAULT_THRESHOLD) as i16;
-        if default == 0 { 50 } else { default }
+        if default == 0 {
+            50
+        } else {
+            default
+        }
     }
 }
 

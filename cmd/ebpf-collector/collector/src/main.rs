@@ -19,9 +19,9 @@ use tokio::signal;
 use tokio::sync::Notify;
 
 use ebpf_common::{
-    LatencyEvent, PacketEvent, AF_INET, AF_INET6, FLOW_FLAG_EST, FLOW_FLAG_FIN_SEEN,
-    FLOW_FLAG_OOO, FLOW_FLAG_RETRANSMIT, FLOW_FLAG_RST, FLOW_FLAG_SYN_SEEN,
-    NAT_DNAT, NAT_MASQUERADE, NAT_SNAT, OP_TCP_CONNECT, OP_TCP_RECV, OP_TCP_SEND,
+    LatencyEvent, PacketEvent, AF_INET, AF_INET6, FLOW_FLAG_EST, FLOW_FLAG_FIN_SEEN, FLOW_FLAG_OOO,
+    FLOW_FLAG_RETRANSMIT, FLOW_FLAG_RST, FLOW_FLAG_SYN_SEEN, NAT_DNAT, NAT_MASQUERADE, NAT_SNAT,
+    OP_TCP_CONNECT, OP_TCP_RECV, OP_TCP_SEND,
 };
 
 pub mod wotan_proto {
@@ -51,11 +51,17 @@ struct Args {
     wotan_grpc: String,
 
     /// Path to compiled XDP program ELF
-    #[arg(long, default_value = "../ebpf-programs/target/bpfel-unknown-none/release/packet-counter")]
+    #[arg(
+        long,
+        default_value = "../ebpf-programs/target/bpfel-unknown-none/release/packet-counter"
+    )]
     xdp_program: String,
 
     /// Path to compiled kprobe program ELF
-    #[arg(long, default_value = "../ebpf-programs/target/bpfel-unknown-none/release/tcp-latency")]
+    #[arg(
+        long,
+        default_value = "../ebpf-programs/target/bpfel-unknown-none/release/tcp-latency"
+    )]
     kprobe_program: String,
 
     /// Rate limit: max events per second per topic
@@ -445,8 +451,7 @@ fn extract_mesh_meta(src_addr: &[u8; 16], dst_addr: &[u8; 16]) -> Option<serde_j
         _ => "none",
     };
 
-    let latency_hint_ns =
-        u32::from_be_bytes([dst_addr[4], dst_addr[5], dst_addr[6], dst_addr[7]]);
+    let latency_hint_ns = u32::from_be_bytes([dst_addr[4], dst_addr[5], dst_addr[6], dst_addr[7]]);
 
     Some(serde_json::json!({
         "version": version,

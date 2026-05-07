@@ -39,14 +39,14 @@
 //!
 //! GPL-3.0-only — The Library cannot be enclosed.
 
+pub mod api;
+pub mod crypto;
+pub mod de;
+pub mod jing;
+pub mod li;
+pub mod monad;
 pub mod pu;
 pub mod qi;
-pub mod de;
-pub mod li;
-pub mod jing;
-pub mod api;
-pub mod monad;
-pub mod crypto;
 
 /// Generated protobuf / tonic types from `proto/zhen.proto`.
 pub mod proto {
@@ -131,10 +131,10 @@ impl Default for ZhenConfig {
             quic_addr: "[::1]:7301".into(),
             gossip_addr: "[::]:7302".into(),
             seed_peers: vec![],
-            l1_to_l2_secs: 3600,       // 1 hour
-            l2_to_l3_secs: 86400 * 7,  // 1 week
+            l1_to_l2_secs: 3600,      // 1 hour
+            l2_to_l3_secs: 86400 * 7, // 1 week
             embedding_model: None,
-            embedding_dims: 384,        // MiniLM default
+            embedding_dims: 384, // MiniLM default
             gossip_fanout: 3,
             gossip_interval_ms: 1000,
         }

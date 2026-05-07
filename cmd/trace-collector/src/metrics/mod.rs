@@ -19,18 +19,15 @@ pub mod server;
 
 // Re-export server types
 pub use server::{
-    record_batch_size, record_events_published, set_connection_state,
-    set_queue_depth, MetricsHttpServer, ServerConfig,
+    record_batch_size, record_events_published, set_connection_state, set_queue_depth,
+    MetricsHttpServer, ServerConfig,
 };
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use anyhow::Result;
 use once_cell::sync::Lazy;
-use prometheus::{
-    Gauge, GaugeVec, Histogram, HistogramOpts, Opts,
-    Registry,
-};
+use prometheus::{Gauge, GaugeVec, Histogram, HistogramOpts, Opts, Registry};
 
 /// Global metrics registry (shared with server module)
 pub(crate) static REGISTRY: Lazy<Registry> = Lazy::new(Registry::new);

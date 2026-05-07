@@ -91,10 +91,7 @@ fn main() {
             }
 
             // Write output.
-            let mbc_bytes: Vec<u8> = mbc_words
-                .iter()
-                .flat_map(|w| w.to_le_bytes())
-                .collect();
+            let mbc_bytes: Vec<u8> = mbc_words.iter().flat_map(|w| w.to_le_bytes()).collect();
 
             if let Some(path) = output_path {
                 if let Err(e) = fs::write(path, &mbc_bytes) {

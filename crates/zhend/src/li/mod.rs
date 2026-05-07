@@ -6,8 +6,8 @@
 //!
 //! Li modules observe but never impose.
 
-pub mod topology;
 pub mod strata;
+pub mod topology;
 
-pub use topology::{TopologyTracker, TopologySnapshot, TopologyNode, TopologyEdge};
-pub use strata::{StrataSnapshot, StrataHistory, GeologicalTrend};
+pub use strata::{GeologicalTrend, StrataHistory, StrataSnapshot};
+pub use topology::{TopologyEdge, TopologyNode, TopologySnapshot, TopologyTracker};

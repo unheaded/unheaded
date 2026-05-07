@@ -258,7 +258,10 @@ mod tests {
     #[test]
     fn test_latency_bucket() {
         assert_eq!(LatencyBucket::from_ns(500), LatencyBucket::SubMicrosecond);
-        assert_eq!(LatencyBucket::from_ns(5000), LatencyBucket::Microseconds1_10);
+        assert_eq!(
+            LatencyBucket::from_ns(5000),
+            LatencyBucket::Microseconds1_10
+        );
         assert_eq!(
             LatencyBucket::from_ns(50000),
             LatencyBucket::Microseconds10_100

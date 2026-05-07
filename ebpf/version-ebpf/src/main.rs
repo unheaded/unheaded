@@ -208,7 +208,11 @@ fn try_version_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
         None => {
             // No service version info — use default
             let default_ver = cfg(CFG_DEFAULT_VERSION) as u8;
-            if default_ver == 0 { 0x01 } else { default_ver }
+            if default_ver == 0 {
+                0x01
+            } else {
+                default_ver
+            }
         }
     };
 
@@ -228,7 +232,13 @@ fn try_version_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
             // No translation rule — strict mode drops, permissive passes
             if cfg(CFG_STRICT_MODE) != 0 {
                 increment_stat(STAT_ERRORS);
-                emit_translation_event(TRANS_EVENT_ERROR, src_version, dst_version, dst_svc_id as u8, 0);
+                emit_translation_event(
+                    TRANS_EVENT_ERROR,
+                    src_version,
+                    dst_version,
+                    dst_svc_id as u8,
+                    0,
+                );
                 return Ok(xdp_action::XDP_DROP);
             }
             increment_stat(STAT_TRANSLATIONS_SKIPPED);
@@ -254,7 +264,13 @@ fn try_version_xdp_ingress(ctx: &XdpContext) -> Result<u32, ()> {
     write_monad_to_pkt(monad_data_off, data_end, &m)?;
 
     increment_stat(STAT_TRANSLATIONS_APPLIED);
-    emit_translation_event(TRANS_EVENT_INGRESS, src_version, dst_version, dst_svc_id as u8, fields_translated);
+    emit_translation_event(
+        TRANS_EVENT_INGRESS,
+        src_version,
+        dst_version,
+        dst_svc_id as u8,
+        fields_translated,
+    );
 
     Ok(xdp_action::XDP_PASS)
 }
@@ -363,7 +379,13 @@ fn try_version_tc_egress(ctx: &XdpContext) -> Result<u32, ()> {
     write_monad_to_pkt(monad_data_off, data_end, &m)?;
 
     increment_stat(STAT_EGRESS_TRANSLATIONS);
-    emit_translation_event(TRANS_EVENT_EGRESS, current_version, expected_version, dst_svc_id as u8, fields_translated);
+    emit_translation_event(
+        TRANS_EVENT_EGRESS,
+        current_version,
+        expected_version,
+        dst_svc_id as u8,
+        fields_translated,
+    );
 
     Ok(xdp_action::XDP_PASS)
 }
@@ -393,12 +415,12 @@ fn apply_translation_rule(m: &mut Monad, rule: &[u8; 48], dst_version: u8) -> u3
             break;
         }
 
-        let src_off = unsafe {
-            core::ptr::read_volatile(rule.as_ptr().add(entry_offset) as *const u16)
-        } as usize;
-        let dst_off = unsafe {
-            core::ptr::read_volatile(rule.as_ptr().add(entry_offset + 2) as *const u16)
-        } as usize;
+        let src_off =
+            unsafe { core::ptr::read_volatile(rule.as_ptr().add(entry_offset) as *const u16) }
+                as usize;
+        let dst_off =
+            unsafe { core::ptr::read_volatile(rule.as_ptr().add(entry_offset + 2) as *const u16) }
+                as usize;
 
         // Bounds check: both offsets must be within the 20-byte Monad
         if src_off < MONAD_SIZE && dst_off < MONAD_SIZE {
@@ -421,13 +443,11 @@ fn apply_translation_rule(m: &mut Monad, rule: &[u8; 48], dst_version: u8) -> u3
         if delta_offset + 2 > 48 {
             break;
         }
-        let target_off = unsafe {
-            core::ptr::read_volatile(rule.as_ptr().add(delta_offset) as *const u16)
-        } as usize;
+        let target_off =
+            unsafe { core::ptr::read_volatile(rule.as_ptr().add(delta_offset) as *const u16) }
+                as usize;
 
-        let default_val = unsafe {
-            core::ptr::read_volatile(rule.as_ptr().add(44 + i))
-        };
+        let default_val = unsafe { core::ptr::read_volatile(rule.as_ptr().add(44 + i)) };
 
         if target_off < MONAD_SIZE {
             bytes[target_off] = default_val;

@@ -6,10 +6,10 @@
 //! Incarnation numbers disambiguate stale state: a peer that rejoins
 //! with a higher incarnation supersedes any prior Suspect/Dead state.
 
-use std::collections::HashMap;
-use std::net::SocketAddr;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::net::SocketAddr;
 
 #[cfg(feature = "pq")]
 use crate::crypto::sign::PeerIdentity;
@@ -186,7 +186,10 @@ impl PeerList {
     /// Get all alive AND authenticated peers (for fragment data exchange).
     #[cfg(feature = "pq")]
     pub fn authenticated_alive_peers(&self) -> Vec<&Peer> {
-        self.peers.values().filter(|p| p.is_alive() && p.authenticated).collect()
+        self.peers
+            .values()
+            .filter(|p| p.is_alive() && p.authenticated)
+            .collect()
     }
 
     /// Get a mutable reference to a peer by address.
@@ -196,7 +199,10 @@ impl PeerList {
 
     /// Get all non-dead peers (alive + suspect — still worth trying).
     pub fn active_peers(&self) -> Vec<&Peer> {
-        self.peers.values().filter(|p| p.state != PeerState::Dead).collect()
+        self.peers
+            .values()
+            .filter(|p| p.state != PeerState::Dead)
+            .collect()
     }
 
     /// Record a missed ping for a peer. Handles state transitions.
@@ -268,7 +274,8 @@ mod tests {
             let kp = PqSigningKeypair::generate();
             let identity = PeerIdentity::new(&kp, Some("legit-node".into())).unwrap();
 
-            peer.set_identity(identity).expect("valid identity should succeed");
+            peer.set_identity(identity)
+                .expect("valid identity should succeed");
             assert!(peer.authenticated);
             assert!(peer.identity.is_some());
         }
