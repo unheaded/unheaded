@@ -1,0 +1,14 @@
+# Cargo Audit Configuration — crates/zhend
+#
+# Per ADR-052 + docs/security/cargo-audit-wave-d-rand-disposition-2026-05-07.md.
+# Wave D of docs/security/cargo-audit-2026-05-07.md.
+#
+# RUSTSEC-2026-0097 is N/A for this workspace because:
+# - rand::rng() is never called from any custom global logger.
+# - tracing-subscriber is the rust logger; it does not invoke rand during emission.
+# - Empirical sweep (2026-05-07) confirmed zero `rand::rng()` call sites in our code.
+
+[advisories]
+ignore = [
+    "RUSTSEC-2026-0097",  # rand unsoundness with custom logger — N/A; see disposition doc 2026-05-07
+]
