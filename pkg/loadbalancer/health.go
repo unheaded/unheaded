@@ -54,7 +54,12 @@ func NewHealthChecker(config HealthCheckConfig, pool *BackendPool) *HealthChecke
 		MaxIdleConnsPerHost: 10,
 		IdleConnTimeout:     90 * time.Second,
 		TLSClientConfig: &tls.Config{
-			InsecureSkipVerify: true, // Health checks may use self-signed certs
+			// Health probes target backends inside the kingdom mesh — these
+			// may legitimately serve self-signed or short-lived certs. mTLS
+			// for actual proxy traffic is enforced upstream via pkg/mesh/mtls.
+			// Health probes do NOT carry user data; the trade-off is acceptable.
+			MinVersion:         tls.VersionTLS12,
+			InsecureSkipVerify: true, //nolint:gosec // G402: health-probe-only path; see comment above
 		},
 		DialContext: (&net.Dialer{
 			Timeout:   config.Timeout,

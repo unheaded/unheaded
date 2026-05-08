@@ -391,6 +391,9 @@ func (p *Provider) buildTLSConfigs() {
 			return p.cert, nil
 		},
 		VerifyPeerCertificate: p.verifyPeerCertificate,
+		// SessionTicketsDisabled prevents resumed sessions from bypassing
+		// the VerifyPeerCertificate callback (gosec G123 / CWE-295).
+		SessionTicketsDisabled: true,
 	}
 
 	if p.config.VerifyClient {
@@ -399,7 +402,7 @@ func (p *Provider) buildTLSConfigs() {
 		p.serverConfig.ClientAuth = tls.NoClientCert
 	}
 
-	// Client config for outbound mTLS connections
+	// Client config for outbound mTLS connections.
 	p.clientConfig = &tls.Config{
 		MinVersion:   p.config.MinVersion,
 		MaxVersion:   p.config.MaxVersion,
@@ -410,8 +413,9 @@ func (p *Provider) buildTLSConfigs() {
 			defer p.mu.RUnlock()
 			return p.cert, nil
 		},
-		VerifyPeerCertificate: p.verifyPeerCertificate,
-		InsecureSkipVerify:    p.config.SkipVerify,
+		VerifyPeerCertificate:  p.verifyPeerCertificate,
+		InsecureSkipVerify:     p.config.SkipVerify, //nolint:gosec // gated behind opt-in config field
+		SessionTicketsDisabled: true,
 	}
 }
 
