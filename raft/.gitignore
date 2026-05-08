@@ -10,3 +10,15 @@ __pycache__/
 
 # Logs
 *.log
+
+# zhenai-forge LoRA training checkpoint dirs.
+# Each can be hundreds of MB; we keep them on the filesystem (or symlink to
+# /var/zhen) but never commit them.
+# kingdom-w12/ remains tracked as the historical reference; later generations
+# (w14*, w15*, ...) and all coding-* training runs are gitignored.
+# Patterns without trailing-slash so they match BOTH real directories AND
+# symlinks (the relocated-to-/var/zhen layout).
+kingdom-w14*
+kingdom-w15*
+kingdom-w16*
+coding-w*
