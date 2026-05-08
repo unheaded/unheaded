@@ -1,5 +1,6 @@
-crates/xv6-mbc/upstream/kernel/*.o
-crates/xv6-mbc/upstream/kernel/*.elf
-crates/xv6-mbc/upstream/kernel/*.asm
-crates/xv6-mbc/adapters/*.o
-crates/xv6-mbc/target/
+# Build artifacts
+upstream/kernel/*.o
+upstream/kernel/*.elf
+upstream/kernel/*.asm
+adapters/*.o
+target/
