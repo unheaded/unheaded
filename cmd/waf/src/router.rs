@@ -15,7 +15,7 @@ use crate::rules::actions::BlockResponse;
 use crate::rules::matcher::RequestData;
 use crate::rules::{EvaluationResult, RuleDecision, RuleEngine};
 use http_body_util::{BodyExt, Full};
-use hyper::body::{Bytes, Incoming};
+use hyper::body::{Body, Bytes, Incoming};
 use hyper::{Method, Request, Response, StatusCode};
 use std::collections::HashMap;
 use std::net::IpAddr;
@@ -244,58 +244,39 @@ impl Router {
             }
         }
 
-        // Step 4: Forward to backend
-        // Rebuild the request
-        let mut forward_request = Request::builder()
+        // Step 4: Forward to backend.
+        // The body has already been buffered into body_bytes (line 159). Hyper 1.x
+        // doesn't allow user code to construct Request<Incoming>, so we hand the
+        // proxy a Request<Full<Bytes>> instead — proxy::forward signature was
+        // changed to match.
+        let body_for_forward = Full::new(Bytes::from(body_bytes.clone().unwrap_or_default()));
+
+        let mut forward_builder = Request::builder()
             .method(method)
             .uri(parts.uri);
 
-        // Copy headers
         for (name, value) in parts.headers.iter() {
-            forward_request = forward_request.header(name, value);
+            forward_builder = forward_builder.header(name, value);
         }
 
-        // Add client IP to extension for proxy
-        let mut forward_request = forward_request
-            .body(hyper::body::Incoming::from(
-                http_body_util::Full::new(Bytes::from(body_bytes.unwrap_or_default()))
-            ))
-            .unwrap_or_else(|_| {
-                Request::new(hyper::body::Incoming::from(
-                    http_body_util::Full::new(Bytes::new())
-                ))
-            });
-
-        if let Some(ip) = client_ip {
-            forward_request.extensions_mut().insert(std::net::SocketAddr::new(ip, 0));
-        }
-
-        // For now, since we consumed the body, we'll need to recreate the request
-        // In a production system, you'd use a streaming approach
-        let forward_request = Request::builder()
-            .method(parts.method)
-            .uri(parts.uri)
-            .body(hyper::body::Incoming::from(
-                http_body_util::Full::new(Bytes::from(body_bytes.clone().unwrap_or_default()))
-            ));
-
-        match forward_request {
-            Ok(req) => {
-                match self.proxy.forward(req).await {
-                    Ok(response) => {
-                        self.metrics.bytes_sent.add(
-                            response.body().size_hint().lower() as u64
-                        );
-                        response
-                    }
-                    Err(e) => {
-                        ReverseProxy::error_response(&e)
-                    }
+        let forward_request = match forward_builder.body(body_for_forward) {
+            Ok(mut req) => {
+                if let Some(ip) = client_ip {
+                    req.extensions_mut().insert(std::net::SocketAddr::new(ip, 0));
                 }
+                req
             }
-            Err(_) => {
-                error_response(500, "Failed to build request")
+            Err(_) => return error_response(500, "Failed to build request"),
+        };
+
+        match self.proxy.forward(forward_request).await {
+            Ok(response) => {
+                self.metrics
+                    .bytes_sent
+                    .add(response.body().size_hint().lower() as u64);
+                response
             }
+            Err(e) => ReverseProxy::error_response(&e),
         }
     }
 

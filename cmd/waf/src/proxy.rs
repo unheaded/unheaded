@@ -325,10 +325,14 @@ impl ReverseProxy {
         }
     }
 
-    /// Forward a request to a backend
+    /// Forward a request to a backend.
+    /// Body type is `Full<Bytes>` because the router has already buffered
+    /// the request body before calling here (router.rs constructs the
+    /// forward Request<Full<Bytes>>); hyper 1.x doesn't allow user code
+    /// to construct Request<Incoming>, only the server side does.
     pub async fn forward(
         &self,
-        mut request: Request<Incoming>,
+        mut request: Request<Full<Bytes>>,
     ) -> Result<Response<Full<Bytes>>, ProxyError> {
         // Select a backend
         let backend = self
