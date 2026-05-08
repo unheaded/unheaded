@@ -247,8 +247,8 @@ func WritePKI(pkiDir string, caCertPEM, caKeyPEM []byte, services []string, vali
 		return fmt.Errorf("mtls: create pki dir: %w", err)
 	}
 
-	// Write root CA.
-	if err := os.WriteFile(filepath.Join(pkiDir, "root-ca.crt"), caCertPEM, 0644); err != nil {
+	// Write root CA. Cert files are public material; 0644 is correct.
+	if err := os.WriteFile(filepath.Join(pkiDir, "root-ca.crt"), caCertPEM, 0644); err != nil { //nolint:gosec // public cert
 		return fmt.Errorf("mtls: write CA cert: %w", err)
 	}
 	if err := os.WriteFile(filepath.Join(pkiDir, "root-ca.key"), caKeyPEM, 0600); err != nil {
@@ -261,7 +261,7 @@ func WritePKI(pkiDir string, caCertPEM, caKeyPEM []byte, services []string, vali
 		if err != nil {
 			return fmt.Errorf("mtls: generate cert for %s: %w", svc, err)
 		}
-		if err := os.WriteFile(filepath.Join(pkiDir, svc+".crt"), certPEM, 0644); err != nil {
+		if err := os.WriteFile(filepath.Join(pkiDir, svc+".crt"), certPEM, 0644); err != nil { //nolint:gosec // public cert
 			return fmt.Errorf("mtls: write cert for %s: %w", svc, err)
 		}
 		if err := os.WriteFile(filepath.Join(pkiDir, svc+".key"), keyPEM, 0600); err != nil {

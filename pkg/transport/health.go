@@ -118,7 +118,7 @@ func (h *HealthServer) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	case StatusDown:
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
-	json.NewEncoder(w).Encode(resp)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // handleReady implements the HTTP /ready endpoint.
@@ -129,9 +129,9 @@ func (h *HealthServer) handleReady(w http.ResponseWriter, _ *http.Request) {
 
 	if status == StatusDown {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte(`{"ready":false}`))
+		_, _ = w.Write([]byte(`{"ready":false}`))
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"ready":true}`))
+	_, _ = w.Write([]byte(`{"ready":true}`))
 }
