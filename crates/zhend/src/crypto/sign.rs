@@ -16,7 +16,8 @@
 use zeroize::Zeroize;
 
 #[cfg(feature = "pq")]
-use pqcrypto_dilithium::dilithium3;
+// 2026-05-08 (Wave B): pqcrypto-dilithium → pqcrypto-mldsa (FIPS 205 standardized name).
+use pqcrypto_mldsa::mldsa65 as dilithium3;
 #[cfg(feature = "pq")]
 use pqcrypto_traits::sign::{DetachedSignature, PublicKey as SignPk, SecretKey as SignSk};
 
