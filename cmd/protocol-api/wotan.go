@@ -23,7 +23,9 @@ type wotanServer struct {
 var (
 	// Global Wotan instance
 	wotanInstance *wotanServer
-	wotanOnce     sync.Once
+	// wotanOnce is a *sync.Once so test setup can swap a fresh instance
+	// without copying the lock value (see handlers_extended_test.go).
+	wotanOnce = &sync.Once{}
 )
 
 // getWotanServer returns the singleton Wotan server instance
