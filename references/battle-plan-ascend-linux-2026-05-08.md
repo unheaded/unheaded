@@ -53,11 +53,13 @@ All three modes converge on the same kernel + userspace; they're just different 
 
 | Phase | Window | Goal | Gate (ship or defer decision) | Demo modes available | Autonomy |
 |-------|--------|------|------------------------------|----------------------|----------|
-| **0 — Pre-flight** | Weeks 1-2 | Toolchain green, ISA gaps audited, ABI frozen | All Phase 0 verifications PASS; no MBC ISA additions blocked | none yet | Mostly unattended |
-| **1 — L5 xv6-on-MBC** | Weeks 3-8 (Q1 close) | xv6-riscv kernel boots on UPC; shell + ls/cat/echo/uname/ps work | xv6 shell prompt visible in browser; 5 commands respond <50ms | **A** (xterm browser) + **B** (host pty) | Hybrid |
-| **2 — L6a uClinux nommu** | Weeks 9-16 (Q2 mid) | uClinux 6.x CONFIG_MMU=n boots; busybox shell + 10 commands | uClinux init reaches `/bin/sh`; busybox `ls /proc` enumerates kernel state | A + B | Hybrid |
-| **3 — L6b Full Linux + MMU** | Weeks 17-26 (Q3 close) | Linux 6.x with MMU; musl userspace; multi-process | `/proc/cpuinfo` reads correct fields; two `cat` processes don't trample each other | A + B | Pair (design-heavy) |
-| **4 — IPv6 networking + SSH** | Weeks 27-36 (Q4 close) | IPv6-in-Monad: `ping6` + SSH between two UPC instances and from host | `ssh -6 root@fd00:dead:beef:dada::de` from host succeeds | A + B + **C** (SSH over IPv6) | Pair (design-heavy) |
+| **0 — Pre-flight (REVISED 2026-05-08)** | Weeks 1-5 | ABI v1 + ISA v2 frozen per ADR-067; multi-ring + SMP-aware ABI shipped; 5 new opcodes (FENCE/MRET/SRET/LR.W/SC.W) impl+verified | All Phase 0 verifications PASS; verifier budget ≤ 25%; no Doom regression | none yet | Pair call done; impl mostly unattended |
+| **1 — L5 xv6-on-MBC** | Weeks 6-11 (Q1 close) | xv6-riscv kernel boots on UPC; shell + ls/cat/echo/uname/ps work | xv6 shell prompt visible in browser; 5 commands respond <50ms | **A** (xterm browser) + **B** (host pty) | Hybrid |
+| **2 — L6a uClinux nommu** | Weeks 12-19 (Q2 mid) | uClinux 6.x CONFIG_MMU=n boots; busybox shell + 10 commands | uClinux init reaches `/bin/sh`; busybox `ls /proc` enumerates kernel state | A + B | Hybrid |
+| **3 — L6b Full Linux + MMU** | Weeks 20-29 (Q3 close) | Linux 6.x with MMU; musl userspace; multi-process | `/proc/cpuinfo` reads correct fields; two `cat` processes don't trample each other | A + B | Pair (design-heavy) |
+| **4 — IPv6 networking + SSH** | Weeks 30-40 (Q4 close) | IPv6-in-Monad: `ping6` + SSH between two UPC instances and from host | `ssh -6 root@fd00:dead:beef:dada::de` from host succeeds | A + B + **C** (SSH over IPv6) | Pair (design-heavy) |
+
+**Revised total campaign: ~10 months** (was 9 pre-pair-call). Phase 0 grew from 2 weeks → 5 weeks because Stevie's 2026-05-08 pair-call chose maximalist multi-ring + SMP-aware ABI + 5 new opcodes (vs. the recommended single-ring + single-CPU + zero new opcodes). See ADR-067 for the seven design decisions and their schedule cost.
 
 **Cut points** are explicit. After each phase gate the user can say "ship as-is, stop here" — and the demo artifact for that phase becomes the deliverable. The plan must produce a usable artifact at every gate, not just the final gate.
 
