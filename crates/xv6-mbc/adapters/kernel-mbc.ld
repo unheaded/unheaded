@@ -79,6 +79,7 @@ SECTIONS
         *(.bss .bss.*)
         *(COMMON)
         PROVIDE(_bss_end = .);
+        PROVIDE(end = .);  /* xv6 kalloc.c expects this symbol = end of .bss = start of heap */
     } > RAM
 
     /* Stack grows down from end of RAM region. xv6's main() relies on

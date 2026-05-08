@@ -67,7 +67,7 @@ virtio_disk_rw(struct buf *b, int write)
     // xv6 block index → UPC sector indices. BSIZE=1024 = 2 × 512.
     uint32 sector0 = b->blockno * 2;
     uint32 sector1 = sector0 + 1;
-    uint32 buf_addr = (uint32)(uintptr_t)&b->data[0];
+    uint32 buf_addr = (uint32)&b->data[0];
     uint32 buf_addr_2nd = buf_addr + 512;
 
     if (write) {
