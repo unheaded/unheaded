@@ -1019,6 +1019,20 @@ pub struct MbcCpuState {
     pub _pad3: u8,
     /// Physical address of page directory (base of two-level page table). Level 4d.
     pub page_dir_base: u32,
+    // ── ASCEND-LINUX additions (ADR-067) ─────────────────────────────────
+    /// Current privilege level (RV32 standard): 0=M, 1=S, 3=U. Multi-ring
+    /// kingdom per ADR-067 Decision 1. Single-ring kingdoms set this to S.
+    pub priv_level: u8,
+    /// Padding for alignment before reservation_address (1 of 3).
+    pub _pad4: u8,
+    /// Padding for alignment before reservation_address (2 of 3).
+    pub _pad5: u8,
+    /// Padding for alignment before reservation_address (3 of 3).
+    pub _pad6: u8,
+    /// LR.W reservation address (per-CPU). 0xFFFF_FFFF = no active
+    /// reservation. Cleared by IRQ entry, context switch, or any write
+    /// to the reserved address by any CPU. ADR-067 Decision 4.
+    pub reservation_address: u32,
 }
 
 /// Default initial program break address (4 MiB).
@@ -1049,6 +1063,12 @@ impl Default for MbcCpuState {
             mmu_enabled: 0,
             _pad3: 0,
             page_dir_base: 0,
+            // ASCEND-LINUX defaults (ADR-067)
+            priv_level: 0, // M-mode at boot per UPC Boot Protocol v2
+            _pad4: 0,
+            _pad5: 0,
+            _pad6: 0,
+            reservation_address: 0xFFFF_FFFF, // no active reservation
         }
     }
 }
@@ -1252,9 +1272,36 @@ pub mod mbc_opcodes {
     /// `old = RAM[r1]; if old == r0 then RAM[r1] = r2, set Z; r0 = old`
     pub const CAS: u8 = 0x3E;
 
+    // ── Memory ordering (ASCEND-LINUX, ADR-067 Decision 5) ─────
+    /// `FENCE` — Full memory barrier. Ensures all preceding loads/stores
+    /// complete before any subsequent loads/stores. RV32 `FENCE.I` aliases
+    /// to this opcode; MBC has no separate I-cache.
+    pub const FENCE: u8 = 0x3F;
+
     // ── System ─────────────────────────────────────────────────
     /// Invoke I/O callback.  `imm16` = syscall number (see `mbc_syscalls`).
     pub const SYSCALL: u8 = 0x40;
+
+    // ── Privilege transitions (ASCEND-LINUX, ADR-067 Decision 1) ──
+    /// `MRET` — Machine-mode return. Pops MEPC into PC, restores prior
+    /// privilege from MSTATUS.MPP. Used by Linux when M-mode trap handler
+    /// returns to S-mode kernel.
+    pub const MRET: u8 = 0x47;
+    /// `SRET` — Supervisor-mode return. Pops SEPC into PC, restores prior
+    /// privilege from SSTATUS.SPP. Used on every syscall return + IRQ
+    /// return when the prior context was U-mode userspace.
+    pub const SRET: u8 = 0x48;
+
+    // ── Atomic LR/SC (ASCEND-LINUX, ADR-067 Decision 4) ────────
+    /// `LR.W rd, rs1` — Load-Reserved Word. `rd = RAM[rs1]`; mark `rs1`
+    /// as reserved on this CPU. Reservation cleared on context switch,
+    /// IRQ, or any CPU's write to `rs1`.
+    pub const LR_W: u8 = 0x49;
+    /// `SC.W rd, rs1, rs2` — Store-Conditional Word. If reservation on
+    /// `rs1` still valid: `RAM[rs1] = rs2; rd = 0` (success). Else
+    /// `rd = 1` (failure). RV32-A standard atomic primitive.
+    pub const SC_W: u8 = 0x4A;
+
     /// Halt execution.  Sets `MbcCpuState.halted = 1`.
     pub const HALT: u8 = 0xFF;
 }
