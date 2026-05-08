@@ -65,44 +65,43 @@ Seven decisions made 2026-05-08. **Stevie chose the maximalist path** (multi-rin
 
 ---
 
-## Phase 1 — L5 xv6-on-MBC (sub-phase 1.1 OPEN)
+## Phase 1 — L5 xv6-on-MBC (sub-phase 1.1 IN PROGRESS — 3 of 3 adapters drafted)
 
-### What landed in 1.1
+### What landed in 1.1 — kickoff segment
 - `crates/xv6-mbc/` workspace skeleton — Cargo.toml + lib.rs shim + README.md.
 - `crates/xv6-mbc/upstream/` vendored: MIT-PDOS xv6-riscv at commit `5474d4bf72fd95a6e5c735c2d7f208f58990ceab` (riscv branch HEAD 2026-05-08).
 - `crates/xv6-mbc/scripts/vendor-xv6.sh` — re-runnable vendoring script with pinned-commit attestation.
-- `crates/xv6-mbc/adapters/` directory created (empty; awaits start_mbc.c / console-mmio.c / blk-ramdisk.c).
 - THIRD_PARTY.md — new "MIT-Licensed Components" section documents xv6-riscv per ADR-052.
 - xv6-mbc shim crate compiles green.
 
-### What does NOT land in 1.1 (deferred to next shift)
-- `adapters/start_mbc.c` — replaces upstream/kernel/start.c.
-  - upstream/kernel/start.c uses RV64 CSR intrinsics (r_mstatus, w_mepc, etc.) — must rewrite to memory-mapped CSR access at 0x000_F000+.
-  - xv6 is RV64-targeted; we need RV32. Pointer-size + integer-width adaptation throughout.
-  - Read BootParams v2 (per UPC_BOOT_PROTOCOL_V2.md), set up S-mode CSRs, MRET to start_kernel.
-- `adapters/console-mmio.c` — replaces upstream/kernel/uart.c.
-  - 161 lines targeting QEMU virt 0x10000000 UART; replace with MMIO 0xC001 writes.
-- `adapters/blk-ramdisk.c` — replaces upstream/kernel/virtio_disk.c.
-  - 327 lines targeting QEMU virtio-blk; replace with SYS_READ_BLOCK / SYS_WRITE_BLOCK syscalls.
-- Patched `Makefile` to use `riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32`.
-- Adapt `entry.S`, `kernel.ld` for RV32 + UPC memory layout.
-- Patches to `kernel/{vm,proc,trap}.c` to call our L4 syscalls instead of inline assembly.
+### What landed in 1.1 — adapter segment (post-kickoff)
+- `crates/xv6-mbc/adapters/start_mbc.c` (147 LOC) — boot stub: BootParams v2 magic check, "xv6 booting..." print to MMIO 0xC001, M→S transition via memory-mapped CSRs, MRET to xv6 main(). Replaces upstream/kernel/start.c.
+- `crates/xv6-mbc/adapters/console-mmio.c` (87 LOC) — UART → MMIO console. Exports uartinit / uartputc_sync / uartwrite / uartgetc / uartintr matching xv6's defs.h. Writes to 0xC001/0xC002, reads from 0xFFFF.
+- `crates/xv6-mbc/adapters/blk-ramdisk.c` (92 LOC) — virtio-blk → SYS_READ_BLOCK/WRITE_BLOCK. Exports virtio_disk_init / virtio_disk_rw / virtio_disk_intr. xv6 1024B block → 2 UPC 512B sectors per call.
+
+### What does NOT land in 1.1 (next shift)
+- `adapters/syscall_shims.S` — translator-recognized externs `__upc_sys_read_block`, `__upc_sys_write_block` (used by blk-ramdisk.c). MBC body is `MOVI r0, syscall_nr` + `MOV r1, a1` + `MOV r2, a2` + `SYSCALL` + `RET`.
+- `adapters/Makefile.mbc` — patched build using `riscv64-unknown-elf-gcc -march=rv32i -mabi=ilp32`. Replaces upstream/Makefile's QEMU-targeted flags. Drops kernel/{plic,virtio_disk}.c from `OBJS`; adds our adapters.
+- Patches to `upstream/kernel/main.c` to skip `plicinit()`, `plicinithart()`, `timerinit()` — UPC has no PLIC + uses BootParams.tick_rate_hz instead.
+- Patches to `upstream/kernel/{vm,proc,trap}.c` for RV32 pointer width + L4 syscall dispatch instead of inline assembly.
+- First end-to-end build: kernel.elf → rv32i-to-mbc → kernel.mbc → doom-runner load → "xv6 booting..." then HALT (HALT expected because main() will fault on un-ported code paths; the proof we want is boot-handoff works).
 
 ### Estimated remaining Phase 1.1 budget
-~5 days mechanical port work (xv6-riscv is well-documented; the ISA + memory-layout deltas are the main effort). Mostly unattended; one pair-call needed at "Sv32 page-table model confirms with our L4d MMU emulation."
+~3 days mechanical port work (down from ~5 — adapters are 326 LOC of code already in-tree). The first end-to-end build attempt will surface dozens of RV32 / pointer-width / xv6-RV64-isms; iterate. Pair call needed at "Sv32 page-table model confirms with our L4d MMU emulation" (battle plan §4 1.2 day 1).
 
 ---
 
 ## Numbers
 
-- **11 commits** in this kickoff shift (after pair-call).
+- **15 commits** in this kickoff shift (after pair-call).
 - **Phase 0 design decisions: 7 of 7 frozen** in ADR-067.
 - **5 new MBC opcodes** implemented + tested at 9/9 PASS.
 - **MbcCpuState size: 128 → 136 bytes** (+8: priv_level + 3 pad + reservation_address).
 - **BPF verifier budget: 7%** (no change vs baseline; 5 opcodes added only +301 BPF instructions).
 - **xv6-riscv vendored**: 79 files, MIT, pinned `5474d4bf72fd`.
+- **Phase 1.1 adapters drafted**: 3 of 3 — 326 LOC across start_mbc.c (147), console-mmio.c (87), blk-ramdisk.c (92).
 - **Test coverage added**: 9 new ASCEND tests; total OS-primitive integration tests now 55 (was 46).
-- **Total ASCEND-LINUX commits across this conversation**: 11 (post-pair-call) + 4 (pre-pair-call docs) = **15**.
+- **Total ASCEND-LINUX commits across this conversation**: 15 (4 pre-pair-call docs + 11 post-pair-call).
 
 ## What the next shift owns
 
