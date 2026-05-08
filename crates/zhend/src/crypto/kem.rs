@@ -17,7 +17,8 @@
 use zeroize::Zeroize;
 
 #[cfg(feature = "pq")]
-use pqcrypto_kyber::kyber768;
+// 2026-05-08 (Wave B): pqcrypto-kyber → pqcrypto-mlkem (FIPS 203 standardized name).
+use pqcrypto_mlkem::mlkem768 as kyber768;
 #[cfg(feature = "pq")]
 use pqcrypto_traits::kem::{
     Ciphertext as KemCt, PublicKey as KemPk, SecretKey as KemSk, SharedSecret as KemSs,
