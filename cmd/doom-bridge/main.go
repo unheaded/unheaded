@@ -137,12 +137,15 @@ func main() {
 	static := *staticDir
 	if static == "" {
 		// Try relative to working directory first
+		// Static asset directory candidates — hardcoded relative paths,
+		// not user-supplied; the os.Args[0] derivation is the binary's own
+		// install location.
 		candidates := []string{
 			"demos/doom",
 			filepath.Join(filepath.Dir(os.Args[0]), "..", "..", "demos", "doom"),
 		}
 		for _, c := range candidates {
-			if info, err := os.Stat(c); err == nil && info.IsDir() {
+			if info, err := os.Stat(c); err == nil && info.IsDir() { //nolint:gosec // G703: hardcoded candidate paths
 				static = c
 				break
 			}

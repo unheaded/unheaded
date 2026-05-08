@@ -351,7 +351,8 @@ func loadServiceEndpoints(path string) (map[string]string, error) {
 		return nil, nil
 	}
 
-	f, err := os.Open(path)
+	// path is the configured SERVICES_FILE env var — operator-controlled.
+	f, err := os.Open(path) //nolint:gosec // G703: operator-controlled config path
 	if err != nil {
 		return nil, fmt.Errorf("open services file: %w", err)
 	}

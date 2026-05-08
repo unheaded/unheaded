@@ -35,8 +35,10 @@ func NewFileStorage(basePath string) (*FileStorage, error) {
 		return nil, errors.New("base path too long")
 	}
 
-	// Create directory if it doesn't exist
-	if err := os.MkdirAll(basePath, 0700); err != nil {
+	// Create directory if it doesn't exist. basePath comes from
+	// CAPTAIN_DATA_DIR env var or hardcoded /var/lib/unheaded/captain — both
+	// operator-controlled, not user-supplied per request.
+	if err := os.MkdirAll(basePath, 0700); err != nil { //nolint:gosec // G703: operator-controlled basePath
 		return nil, fmt.Errorf("create directory: %w", err)
 	}
 
@@ -85,15 +87,18 @@ func (fs *FileStorage) SaveDecision(ctx context.Context, d *Decision) error {
 		return errors.New("decision too large (>1MB)")
 	}
 
-	// Write to temporary file first (atomic operation)
+	// Write to temporary file first (atomic operation).
+	// filePath is the output of fs.safeFilePath which validates the ID for
+	// length, traversal markers (`.`, `..`, `/`), and alphanumeric+underscore+
+	// hyphen-only characters.
 	tmpPath := filePath + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0600); err != nil {
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil { //nolint:gosec // G703: validated by safeFilePath
 		return fmt.Errorf("write temporary file: %w", err)
 	}
 
-	// Atomic rename
-	if err := os.Rename(tmpPath, filePath); err != nil {
-		os.Remove(tmpPath) // Clean up temp file
+	// Atomic rename (same path-validation guarantee).
+	if err := os.Rename(tmpPath, filePath); err != nil { //nolint:gosec // G703: validated by safeFilePath
+		_ = os.Remove(tmpPath) //nolint:gosec // G703: validated by safeFilePath
 		return fmt.Errorf("rename file: %w", err)
 	}
 
@@ -126,7 +131,8 @@ func (fs *FileStorage) GetDecision(ctx context.Context, id string) (*Decision, e
 		return nil, err
 	}
 
-	data, err := os.ReadFile(filePath)
+	// filePath validated by fs.safeFilePath above.
+	data, err := os.ReadFile(filePath) //nolint:gosec // G703: validated by safeFilePath
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, errors.New("decision not found")
