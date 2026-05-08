@@ -134,7 +134,9 @@ start(void)
     // MEPC = main(); the address translator places main() somewhere in the
     // MBC text region, and we encode the byte address here. The compiled MBC
     // MRET (0x47) reads MEPC>>2 and sets PC to that word index.
-    CSR_REG(CSR_MEPC) = (uint32)(uintptr_t)main;
+    // (uint32) cast directly — main is a function pointer; in RV32 it's already
+    // 32-bit so we don't need uintptr_t.
+    CSR_REG(CSR_MEPC) = (uint32)(uint64)main;
 
     // Step 4: MRET. The MBC compiler emits opcode 0x47 here.
     // (We can't use `mret` — that's RISC-V machine code. Translator handles it.)

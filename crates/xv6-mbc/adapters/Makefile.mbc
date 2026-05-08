@@ -19,20 +19,25 @@ A = ../adapters
 
 TOOLPREFIX = riscv64-unknown-elf-
 CC = $(TOOLPREFIX)gcc
-AS = $(TOOLPREFIX)gas
+AS = $(TOOLPREFIX)as
 LD = $(TOOLPREFIX)ld
 OBJCOPY = $(TOOLPREFIX)objcopy
 OBJDUMP = $(TOOLPREFIX)objdump
 
 # RV32I flags — matches demos/doom/Makefile.
-CFLAGS = -march=rv32i -mabi=ilp32 -nostdlib -nostdinc -static -ffreestanding \
+GCC_INCLUDE = $(shell $(CC) -print-file-name=include)
+CFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32 -nostdlib -nostdinc -static -ffreestanding \
          -fno-builtin -O2 \
          -ffixed-x16 -ffixed-x17 -ffixed-x18 -ffixed-x19 \
          -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 \
          -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 \
          -ffixed-x28 -ffixed-x29 -ffixed-x30 -ffixed-x31 \
-         -I$(K) -I$A
-ASFLAGS = -march=rv32i -mabi=ilp32
+         -I$(K) -I$A -isystem $(GCC_INCLUDE)
+ASFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32
+# zicsr is needed because xv6's entry.S uses csrr (the rv32i-to-mbc translator
+# rewrites these to memory-mapped loads at the 0x000_F000 region per ADR-067
+# Decision 2). zmmul covers the multiply ops xv6 emits — these compile to
+# MBC's MUL/MULH/MULHU at 0x03/0x39/0x3A.
 
 LDFLAGS = -z max-page-size=4096
 
