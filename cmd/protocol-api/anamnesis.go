@@ -25,7 +25,9 @@ type anamnesisServer struct {
 var (
 	// Global Anamnesis instance
 	anamnesisInstance *anamnesisServer
-	anamnesisOnce     sync.Once
+	// anamnesisOnce is a *sync.Once so test setup can swap a fresh instance
+	// without copying the lock value (see handlers_extended_test.go).
+	anamnesisOnce = &sync.Once{}
 )
 
 // getAnamnesisServer returns the singleton Anamnesis server instance

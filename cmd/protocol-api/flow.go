@@ -23,7 +23,9 @@ type flowServer struct {
 var (
 	// Global Flow instance
 	flowInstance *flowServer
-	flowOnce     sync.Once
+	// flowOnce is a *sync.Once so test setup can swap a fresh instance
+	// without copying the lock value (see handlers_extended_test.go).
+	flowOnce = &sync.Once{}
 )
 
 // getFlowServer returns the singleton Flow server instance

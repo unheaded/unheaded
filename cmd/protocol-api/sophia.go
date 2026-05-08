@@ -22,7 +22,9 @@ type sophiaServer struct {
 var (
 	// Global Sophia instance with mock dictionaries
 	sophiaInstance *sophiaServer
-	sophiaOnce     sync.Once
+	// sophiaOnce is a *sync.Once so test setup can swap a fresh instance
+	// without copying the lock value (see handlers_extended_test.go).
+	sophiaOnce = &sync.Once{}
 )
 
 // getSophiaServer returns the singleton Sophia server instance

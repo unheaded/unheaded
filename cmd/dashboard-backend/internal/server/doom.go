@@ -75,12 +75,13 @@ func (ds *DoomState) UpdateScreen(data []byte) {
 	ds.LastUpdate = time.Now()
 }
 
-// snapshot returns a copy of the current state under read lock.
-// Returns a new DoomState with all fields copied (excluding the mutex).
-func (ds *DoomState) snapshot() DoomState {
+// snapshot returns a pointer to a copy of the current state under read lock.
+// The returned *DoomState has a fresh zero-value mutex; callers MUST NOT lock it.
+// Returning by pointer avoids the go-vet "return copies lock value" warning.
+func (ds *DoomState) snapshot() *DoomState {
 	ds.mu.RLock()
 	defer ds.mu.RUnlock()
-	var s DoomState
+	s := &DoomState{}
 	s.PC = ds.PC
 	s.Regs = ds.Regs
 	s.Flags = ds.Flags

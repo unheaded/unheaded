@@ -54,14 +54,14 @@ func resetSingletons(t *testing.T) {
 	savedAnamnesisOnce := anamnesisOnce
 	savedAnamnesisInstance := anamnesisInstance
 
-	// Reset
-	flowOnce = sync.Once{}
+	// Reset (Once vars are pointers — swap to fresh instances)
+	flowOnce = &sync.Once{}
 	flowInstance = nil
-	sophiaOnce = sync.Once{}
+	sophiaOnce = &sync.Once{}
 	sophiaInstance = nil
-	wotanOnce = sync.Once{}
+	wotanOnce = &sync.Once{}
 	wotanInstance = nil
-	anamnesisOnce = sync.Once{}
+	anamnesisOnce = &sync.Once{}
 	anamnesisInstance = nil
 
 	t.Cleanup(func() {
