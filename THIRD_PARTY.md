@@ -65,6 +65,14 @@ The DOOM engine (GPL v2.0) is compiled to MBC bytecode and executed inside the L
 
 **Result:** The GPL v2 license applies exclusively to the files in the `doom/` directory. The main codebase (GPL-3.0-or-later) has no GPL v2 obligations from DOOM.
 
+### MIT-Licensed Components (inside kingdom, GPL-3.0-compat)
+
+| Path | Description | License | Origin | Pinned commit |
+|------|-------------|---------|--------|---------------|
+| `crates/xv6-mbc/upstream/` | xv6-riscv — MIT-PDOS pedagogical Unix-like teaching OS. Used as ASCEND-LINUX Phase 1 L5 MiniKernel rung (per `references/battle-plan-ascend-linux-2026-05-08.md`). Adapter code in `crates/xv6-mbc/adapters/` is GPL-3.0-or-later (kingdom side). | MIT | https://github.com/mit-pdos/xv6-riscv | `5474d4bf72fd95a6e5c735c2d7f208f58990ceab` (riscv branch HEAD, 2026-05-08) |
+
+**License compatibility:** MIT is GPL-3.0-compat in both directions. xv6-riscv `LICENSE` file preserved verbatim at `crates/xv6-mbc/upstream/LICENSE`.
+
 ### GPL v2 Licensed Components (inside the boundary)
 
 | Path | Description | License | Notes |

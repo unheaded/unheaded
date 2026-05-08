@@ -1,0 +1,27 @@
+# crates/xv6-mbc — xv6-riscv ported to MBC for ASCEND-LINUX Phase 1
+#
+# This is a Rust workspace member that BUILDS the C source under upstream/
+# rather than hosting Rust code itself. The `[lib]` is a thin Rust shim that
+# re-exports build artifact paths so doom-runner can locate xv6.mbc.
+#
+# License: GPL-3.0-or-later (this Cargo.toml + adapter shim).
+# Upstream xv6-riscv is MIT — see upstream/LICENSE; both are GPL-compat.
+#
+# ASCEND-LINUX Phase 1.1 — vendor xv6-riscv into upstream/ (NOT YET DONE).
+# Vendoring procedure: scripts/vendor-xv6.sh (run when network access available).
+
+[package]
+name = "xv6-mbc"
+version = "0.1.0"
+edition = "2021"
+authors = ["Unheaded Kingdom Infrastructure Team"]
+description = "xv6-riscv kernel ported to MBC ISA for UPC (ASCEND-LINUX Phase 1)"
+license = "GPL-3.0-or-later"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
+monad-common = { path = "../../ebpf/monad-common" }
+monad-mbc = { path = "../monad-mbc" }
