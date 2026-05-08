@@ -34,7 +34,7 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    circuit_state as cs, flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN,
+    circuit_state as cs, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN,
     IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
@@ -269,8 +269,8 @@ fn try_failover_xdp(ctx: &XdpContext) -> Result<u32, ()> {
 fn calculate_health_score(endpoint_key: u32) -> u8 {
     if let Some(health) = unsafe { ENDPOINT_HEALTH.get(&endpoint_key) } {
         // score is at byte 0 — directly stored by userspace health monitor
-        let score = unsafe { core::ptr::read_volatile(&health[0]) };
-        score
+        
+        unsafe { core::ptr::read_volatile(&health[0]) }
     } else {
         // No health data — assume healthy (default 100)
         100

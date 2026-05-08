@@ -83,8 +83,8 @@ pub fn xdp_redirect(ctx: XdpContext) -> u32 {
 
 #[inline(always)]
 fn try_redirect(ctx: &XdpContext) -> Result<u32, u64> {
-    let data = ctx.data() as usize;
-    let data_end = ctx.data_end() as usize;
+    let data = ctx.data();
+    let data_end = ctx.data_end();
 
     // ── Parse Ethernet ───────────────────────────────────────────────────
     if data + ETH_HLEN > data_end {

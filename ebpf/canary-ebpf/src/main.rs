@@ -255,7 +255,7 @@ fn try_canary_xdp(ctx: &XdpContext) -> Result<u32, ()> {
 /// Rewrite L2 headers to route to the endpoint for the given version.
 #[inline(always)]
 fn route_to_version(_ctx: &XdpContext, data: usize, data_end: usize, service_id: u32, version: u8) {
-    let key = ((service_id as u32) & 0xFFFF) | ((version as u32) << 16);
+    let key = (service_id & 0xFFFF) | ((version as u32) << 16);
     if let Some(endpoint) = unsafe { VERSION_ENDPOINTS.get(&key) } {
         // endpoint layout: dst_ip[16], dst_port[2], mac_dst[6]
         // Rewrite Ethernet destination MAC (bytes 18..24 of endpoint)

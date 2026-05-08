@@ -299,7 +299,7 @@ fn try_anomaly_xdp(ctx: &XdpContext) -> Result<u32, ()> {
 
         // Use packet_count from flow state for sampling
         let pkt_count = get_flow_packet_count(flow_key);
-        if pkt_count % rate == 0 {
+        if pkt_count.is_multiple_of(rate) {
             emit_anomaly_event(flow_key, current_score, service_id as u8, &features);
         }
     }
@@ -359,7 +359,7 @@ fn extract_inter_arrival_feature(flow_key: u32, now: u64) -> i16 {
 /// Extract entropy estimate from a 16-byte window after the HBH header.
 /// Uses a simplified byte frequency approximation.
 #[inline(always)]
-fn extract_entropy_feature(data: usize, data_end: usize, payload_start: usize) -> i16 {
+fn extract_entropy_feature(_data: usize, data_end: usize, payload_start: usize) -> i16 {
     let window_size: usize = 16;
 
     if payload_start + window_size > data_end {
@@ -395,7 +395,7 @@ fn extract_entropy_feature(data: usize, data_end: usize, payload_start: usize) -
 
     // Normalize: 0 unique = 0 entropy, 16 unique = max entropy
     // Scale to 0-1000 range (i16)
-    ((unique_count as i16) * 62) // 16 * 62 ~= 1000
+    (unique_count as i16) * 62 // 16 * 62 ~= 1000
 }
 
 /// Extract connection pattern feature from Monad fields.
@@ -463,7 +463,7 @@ fn extract_proto_deviation_feature(monad: &Monad) -> i16 {
 #[inline(always)]
 fn run_decision_tree(features: &[i16; NUM_FEATURES]) -> i16 {
     let max_depth = cfg(CFG_MAX_TREE_DEPTH) as u32;
-    let max_depth = if max_depth == 0 || max_depth > 12 {
+    let _max_depth = if max_depth == 0 || max_depth > 12 {
         12
     } else {
         max_depth

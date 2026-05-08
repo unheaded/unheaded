@@ -31,7 +31,7 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, AnamnesisEvent, EventType, Monad, SophiaEntry, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN,
+    flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN,
     IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
@@ -467,13 +467,12 @@ fn update_tcp_state(conn: &mut ConnState, tcp_flags: u8) {
             // Final ACK of 3-way handshake — ESTABLISHED.
             conn.state = TcpConnState::Established as u8;
         }
-    } else if current == TcpConnState::Established as u8 {
-        if tcp_flags & TCP_FIN != 0 {
+    } else if current == TcpConnState::Established as u8
+        && tcp_flags & TCP_FIN != 0 {
             // FIN received — begin closing.
             conn.state = TcpConnState::Closing as u8;
             increment_stat(STAT_TCP_FIN);
         }
-    }
     // CLOSING state: stays closing until entry is reaped by timeout.
 }
 

@@ -86,10 +86,7 @@ const STAT_MAP_UPDATES: u32 = 8;
 /// Signature: int tcp_sendmsg(struct sock *sk, struct msghdr *msg, size_t size)
 #[kprobe]
 pub fn tcp_sendmsg_enter(ctx: ProbeContext) -> u32 {
-    match try_tcp_sendmsg_enter(&ctx) {
-        Ok(ret) => ret,
-        Err(_) => 0,
-    }
+    try_tcp_sendmsg_enter(&ctx).unwrap_or_default()
 }
 
 #[inline(always)]
@@ -100,10 +97,7 @@ fn try_tcp_sendmsg_enter(ctx: &ProbeContext) -> Result<u32, ()> {
     let now = unsafe { bpf_ktime_get_ns() };
 
     // Get socket pointer from first argument
-    let sock_ptr: u64 = match ctx.arg(0) {
-        Some(ptr) => ptr,
-        None => 0,
-    };
+    let sock_ptr: u64 = ctx.arg(0).unwrap_or_default();
 
     let key = InflightKey {
         pid_tgid,
@@ -124,10 +118,7 @@ fn try_tcp_sendmsg_enter(ctx: &ProbeContext) -> Result<u32, ()> {
 /// Kretprobe on tcp_sendmsg exit.
 #[kretprobe]
 pub fn tcp_sendmsg_exit(ctx: RetProbeContext) -> u32 {
-    match try_tcp_sendmsg_exit(&ctx) {
-        Ok(ret) => ret,
-        Err(_) => 0,
-    }
+    try_tcp_sendmsg_exit(&ctx).unwrap_or_default()
 }
 
 #[inline(always)]
@@ -171,10 +162,7 @@ fn try_tcp_sendmsg_exit(_ctx: &RetProbeContext) -> Result<u32, ()> {
 /// Signature varies by kernel version but first arg is usually struct sock *
 #[kprobe]
 pub fn tcp_recvmsg_enter(ctx: ProbeContext) -> u32 {
-    match try_tcp_recvmsg_enter(&ctx) {
-        Ok(ret) => ret,
-        Err(_) => 0,
-    }
+    try_tcp_recvmsg_enter(&ctx).unwrap_or_default()
 }
 
 #[inline(always)]
@@ -184,10 +172,7 @@ fn try_tcp_recvmsg_enter(ctx: &ProbeContext) -> Result<u32, ()> {
     let pid_tgid = bpf_get_current_pid_tgid();
     let now = unsafe { bpf_ktime_get_ns() };
 
-    let sock_ptr: u64 = match ctx.arg(0) {
-        Some(ptr) => ptr,
-        None => 0,
-    };
+    let sock_ptr: u64 = ctx.arg(0).unwrap_or_default();
 
     let key = InflightKey {
         pid_tgid,
@@ -208,10 +193,7 @@ fn try_tcp_recvmsg_enter(ctx: &ProbeContext) -> Result<u32, ()> {
 /// Kretprobe on tcp_recvmsg exit.
 #[kretprobe]
 pub fn tcp_recvmsg_exit(ctx: RetProbeContext) -> u32 {
-    match try_tcp_recvmsg_exit(&ctx) {
-        Ok(ret) => ret,
-        Err(_) => 0,
-    }
+    try_tcp_recvmsg_exit(&ctx).unwrap_or_default()
 }
 
 #[inline(always)]
@@ -249,10 +231,7 @@ fn try_tcp_recvmsg_exit(_ctx: &RetProbeContext) -> Result<u32, ()> {
 /// Kprobe on tcp_v4_connect entry (for connection establishment latency).
 #[kprobe]
 pub fn tcp_connect_enter(ctx: ProbeContext) -> u32 {
-    match try_tcp_connect_enter(&ctx) {
-        Ok(ret) => ret,
-        Err(_) => 0,
-    }
+    try_tcp_connect_enter(&ctx).unwrap_or_default()
 }
 
 #[inline(always)]
@@ -262,10 +241,7 @@ fn try_tcp_connect_enter(ctx: &ProbeContext) -> Result<u32, ()> {
     let pid_tgid = bpf_get_current_pid_tgid();
     let now = unsafe { bpf_ktime_get_ns() };
 
-    let sock_ptr: u64 = match ctx.arg(0) {
-        Some(ptr) => ptr,
-        None => 0,
-    };
+    let sock_ptr: u64 = ctx.arg(0).unwrap_or_default();
 
     let key = InflightKey {
         pid_tgid,
@@ -286,10 +262,7 @@ fn try_tcp_connect_enter(ctx: &ProbeContext) -> Result<u32, ()> {
 /// Kretprobe on tcp_v4_connect exit.
 #[kretprobe]
 pub fn tcp_connect_exit(ctx: RetProbeContext) -> u32 {
-    match try_tcp_connect_exit(&ctx) {
-        Ok(ret) => ret,
-        Err(_) => 0,
-    }
+    try_tcp_connect_exit(&ctx).unwrap_or_default()
 }
 
 #[inline(always)]

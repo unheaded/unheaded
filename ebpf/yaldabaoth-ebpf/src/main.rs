@@ -129,7 +129,7 @@ const MONAD_FLIP_LAST_BYTE: usize = MONAD_SIZE - 3; // = 17
 pub fn yaldabaoth_tc(mut ctx: TcContext) -> i32 {
     match try_yaldabaoth(&mut ctx) {
         Ok(action) => action,
-        Err(_) => TC_ACT_OK as i32,
+        Err(_) => TC_ACT_OK,
     }
 }
 
@@ -140,14 +140,14 @@ fn try_yaldabaoth(ctx: &mut TcContext) -> Result<i32, ()> {
     // ── Check EtherType ───────────────────────────────────────────────────────
     let eth_proto: u16 = ctx.load(12).map_err(|_| ())?;
     if u16::from_be(eth_proto) != ETH_P_IPV6 {
-        return Ok(TC_ACT_OK as i32);
+        return Ok(TC_ACT_OK);
     }
     increment_stat(STAT_PACKETS_IPV6);
 
     // ── Check IPv6 Next Header (offset 14 + 6 = 20) ───────────────────────────
     let next_hdr: u8 = ctx.load(ETH_HLEN + 6).map_err(|_| ())?;
     if next_hdr != IPV6_NEXTHDR_HBH {
-        return Ok(TC_ACT_OK as i32);
+        return Ok(TC_ACT_OK);
     }
     increment_stat(STAT_PACKETS_HBH);
 
@@ -158,7 +158,7 @@ fn try_yaldabaoth(ctx: &mut TcContext) -> Result<i32, ()> {
 
     if opt_type != MONAD_OPT_TYPE || opt_data_len != MONAD_OPT_DATA_LEN {
         // Not our packet format — pass without chaos.
-        return Ok(TC_ACT_OK as i32);
+        return Ok(TC_ACT_OK);
     }
 
     // ── Extract Flow Label from IPv6 header ───────────────────────────────────
@@ -170,7 +170,7 @@ fn try_yaldabaoth(ctx: &mut TcContext) -> Result<i32, ()> {
     // ── Check CHAOS_TARGETS map ───────────────────────────────────────────────
     let target = match unsafe { CHAOS_TARGETS.get(&flow_label) } {
         Some(t) => *t,
-        None => return Ok(TC_ACT_OK as i32), // flow not enrolled for chaos
+        None => return Ok(TC_ACT_OK), // flow not enrolled for chaos
     };
     increment_stat(STAT_TARGETS_HIT);
 
@@ -188,7 +188,7 @@ fn try_yaldabaoth(ctx: &mut TcContext) -> Result<i32, ()> {
     let hop_id = cfg(CFG_HOP_ID) as u8;
     emit_event(EventType::Chaos as u8, hop_id, flow_label, &monad);
 
-    Ok(TC_ACT_OK as i32)
+    Ok(TC_ACT_OK)
 }
 
 // ── Chaos mode dispatch ───────────────────────────────────────────────────────
