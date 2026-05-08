@@ -63,12 +63,36 @@ run_step "SPDX Headers" bash -c '
     fi
 '
 
-# 5. Rust Check (monad-mbc)
-if command -v cargo &>/dev/null && [ -f crates/monad-mbc/Cargo.toml ]; then
-    run_step "Rust Check (monad-mbc)" cargo check --manifest-path crates/monad-mbc/Cargo.toml
-    run_step "Rust Test (monad-mbc)" cargo test --manifest-path crates/monad-mbc/Cargo.toml
+# 5. Rust Check + Build across all kingdom workspaces.
+#    Pre-2026-05-08: only crates/monad-mbc was wired (cmd/waf had AI-slop
+#    parse blockers). After commits 2b055608 + ac73e8e7 closed the cmd/waf
+#    raw-string + hyper API drift, the workspace is buildable; extend CI
+#    coverage so future regressions are caught before they accumulate.
+RUST_WORKSPACES=(
+    crates/monad-mbc
+    crates/zhend
+    crates/doom-runner
+    crates/zhenai-forge
+    cmd/trace-collector
+    cmd/ebpf-loader
+    cmd/waf
+)
+if command -v cargo &>/dev/null; then
+    for ws in "${RUST_WORKSPACES[@]}"; do
+        if [ -f "${ws}/Cargo.toml" ]; then
+            run_step "Rust Check (${ws})" cargo check --manifest-path "${ws}/Cargo.toml"
+        else
+            skip_step "Rust Check (${ws})" "Cargo.toml not present"
+        fi
+    done
+    # Run tests on a curated subset (faster CI; full sweep happens in Jenkins).
+    for ws in crates/monad-mbc crates/zhend cmd/trace-collector; do
+        if [ -f "${ws}/Cargo.toml" ]; then
+            run_step "Rust Test (${ws})" cargo test --manifest-path "${ws}/Cargo.toml" --release
+        fi
+    done
 else
-    skip_step "Rust Check" "cargo not installed or crates/monad-mbc/Cargo.toml not found"
+    skip_step "Rust Check" "cargo not installed"
 fi
 
 # 6. gosec (optional)
