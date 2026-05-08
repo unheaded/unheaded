@@ -872,6 +872,53 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             }
             cpu.regs[0] = old;
 
+        // ── ASCEND-LINUX (ADR-067) ────────────────────────────────────────────
+        } else if opc == op::FENCE {
+            // Full memory barrier. On single-CPU MBC this is a no-op at the
+            // dispatch level; the BPF map writes already see strict ordering
+            // from the eBPF verifier's instruction sequencing.
+            //
+            // ADR-067 Decision 5.
+        } else if opc == op::MRET {
+            // Machine-mode return. Pop MEPC + restore priv from MSTATUS.MPP.
+            // CSR memory region per ADR-067 Decision 2: 0x000_F000 + csr*4.
+            let mepc = mem_read_word((0xF000 + 0x341 * 4) >> 2);
+            let mstatus = mem_read_word((0xF000 + 0x300 * 4) >> 2);
+            let mpp = ((mstatus >> 11) & 0b11) as u8;
+            cpu.priv_level = mpp;
+            cpu.pc = mepc >> 2;
+            cpu.reservation_address = 0xFFFF_FFFF;
+            // Skip the trailing pc+=1 below since MRET sets PC explicitly.
+            continue;
+        } else if opc == op::SRET {
+            // Supervisor-mode return. SEPC + SSTATUS.SPP.
+            let sepc = mem_read_word((0xF000 + 0x141 * 4) >> 2);
+            let sstatus = mem_read_word((0xF000 + 0x100 * 4) >> 2);
+            let spp = ((sstatus >> 8) & 0b1) as u8;
+            cpu.priv_level = if spp == 0 { 3 } else { 1 };
+            cpu.pc = sepc >> 2;
+            cpu.reservation_address = 0xFFFF_FFFF;
+            continue;
+        } else if opc == op::LR_W {
+            // Load-Reserved Word: rd = RAM[rs1]; reserve rs1.
+            let addr = cpu.regs[s];
+            let word_addr = addr >> 2;
+            cpu.regs[d] = mem_read_word(word_addr);
+            cpu.reservation_address = addr;
+        } else if opc == op::SC_W {
+            // Store-Conditional Word: if reservation valid on rs1,
+            // RAM[rs1] = rs2 (value reg = imm[3:0]); rd = 0 success / 1 failure.
+            let addr = cpu.regs[s];
+            let value_reg = (imm & 0xF) as usize;
+            let word_addr = addr >> 2;
+            if cpu.reservation_address == addr {
+                mem_write_word(word_addr, cpu.regs[value_reg]);
+                cpu.regs[d] = 0;
+            } else {
+                cpu.regs[d] = 1;
+            }
+            cpu.reservation_address = 0xFFFF_FFFF;
+
         // ── Interrupts ────────────────────────────────────────────────────────
         } else if opc == op::INT {
             let vector = imm as u8;
