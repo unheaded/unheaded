@@ -1,0 +1,95 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Makefile.mbc — RV32I + MBC build for xv6-on-UPC.
+# ASCEND-LINUX Phase 1.1.
+#
+# Usage (from crates/xv6-mbc/upstream/):
+#   make -f ../adapters/Makefile.mbc kernel
+#
+# Differences from upstream/Makefile (RV64 + QEMU virt):
+#   - TOOLPREFIX hardcoded to riscv64-unknown-elf- (already on WEST per Doom).
+#   - CFLAGS use -march=rv32i -mabi=ilp32 (matches Doom's pipeline).
+#   - OBJS replaces start.o / uart.o / virtio_disk.o with our adapters.
+#   - Drops plic.o (no PLIC on UPC; trap routing via MBC IVT).
+#   - Linker script kernel-mbc.ld places sections per UPC memory layout.
+#   - Final step runs rv32i-to-mbc translator → kernel.mbc.
+
+K = kernel
+A = ../adapters
+
+TOOLPREFIX = riscv64-unknown-elf-
+CC = $(TOOLPREFIX)gcc
+AS = $(TOOLPREFIX)gas
+LD = $(TOOLPREFIX)ld
+OBJCOPY = $(TOOLPREFIX)objcopy
+OBJDUMP = $(TOOLPREFIX)objdump
+
+# RV32I flags — matches demos/doom/Makefile.
+CFLAGS = -march=rv32i -mabi=ilp32 -nostdlib -nostdinc -static -ffreestanding \
+         -fno-builtin -O2 \
+         -ffixed-x16 -ffixed-x17 -ffixed-x18 -ffixed-x19 \
+         -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 \
+         -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 \
+         -ffixed-x28 -ffixed-x29 -ffixed-x30 -ffixed-x31 \
+         -I$(K) -I$A
+ASFLAGS = -march=rv32i -mabi=ilp32
+
+LDFLAGS = -z max-page-size=4096
+
+OBJS = \
+  $K/entry.o \
+  $A/start_mbc.o \
+  $K/console.o \
+  $K/printf.o \
+  $A/console-mmio.o \
+  $A/syscall_shims.o \
+  $K/kalloc.o \
+  $K/spinlock.o \
+  $K/string.o \
+  $K/main.o \
+  $K/vm.o \
+  $K/proc.o \
+  $K/swtch.o \
+  $K/trampoline.o \
+  $K/trap.o \
+  $K/syscall.o \
+  $K/sysproc.o \
+  $K/bio.o \
+  $K/fs.o \
+  $K/log.o \
+  $K/sleeplock.o \
+  $K/file.o \
+  $K/pipe.o \
+  $K/exec.o \
+  $K/sysfile.o \
+  $K/kernelvec.o \
+  $A/blk-ramdisk.o
+# DROPPED from upstream OBJS:
+#   $K/start.o          → replaced by $A/start_mbc.o
+#   $K/uart.o           → replaced by $A/console-mmio.o
+#   $K/plic.o           → no PLIC on UPC; trap routing via IVT
+#   $K/virtio_disk.o    → replaced by $A/blk-ramdisk.o
+
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+%.o: %.S
+	$(AS) $(ASFLAGS) -c -o $@ $<
+
+kernel/kernel.elf: $(OBJS) $A/kernel-mbc.ld
+	$(LD) $(LDFLAGS) -T $A/kernel-mbc.ld -o $@ $(OBJS)
+	$(OBJDUMP) -d $@ > kernel/kernel.asm
+
+# Final translation: RV32I ELF → MBC bytecode.
+# rv32i-to-mbc lives in crates/monad-mbc/ (built separately).
+target/xv6-mbc.mbc: kernel/kernel.elf
+	mkdir -p target
+	../../../target/release/rv32i-to-mbc kernel/kernel.elf -o target/xv6-mbc.mbc
+
+kernel: target/xv6-mbc.mbc
+
+clean:
+	rm -f $K/*.o $K/*.elf $K/*.asm $A/*.o
+	rm -rf target
+
+.PHONY: clean kernel
