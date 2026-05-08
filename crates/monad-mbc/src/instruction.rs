@@ -56,6 +56,8 @@ pub fn is_valid_opcode(opcode: u8) -> bool {
         op::LD | op::ST | op::LDB | op::STB | op::LDH | op::STH |
         // Atomic operations (Level 6)
         op::CLI | op::STI | op::XCHG | op::CAS |
+        // ASCEND-LINUX (ADR-067): memory ordering + privilege + LR/SC
+        op::FENCE | op::MRET | op::SRET | op::LR_W | op::SC_W |
         // System operations
         op::SYSCALL | op::HALT
     )

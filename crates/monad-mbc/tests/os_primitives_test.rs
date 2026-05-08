@@ -1535,3 +1535,191 @@ fn test_cas_failure() {
         "CAS failure: Z flag should be clear"
     );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// 8. ASCEND-LINUX (ADR-067) — FENCE / MRET / SRET / LR.W / SC.W
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// FENCE is a logical no-op on the single-CPU MBC interpreter.
+#[test]
+fn ascend_fence_executes_and_halts() {
+    let mut cpu = cpu_with_safe_sp();
+    let rom = vec![enc(op::FENCE, 0, 0, 0), enc(op::HALT, 0, 0, 0)];
+    cpu.load_rom(&rom);
+    let _ = cpu.run(100);
+    assert_eq!(cpu.state.halted, 1, "FENCE+HALT should halt cleanly");
+}
+
+/// LR.W loads a word and records the reservation address.
+#[test]
+fn ascend_lr_w_loads_word_and_sets_reservation() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.ram[0x100] = 0xCAFEBABE;
+    cpu.state.regs[1] = 0x400; // byte address (word 0x100)
+
+    let rom = vec![enc(op::LR_W, 2, 1, 0), enc(op::HALT, 0, 0, 0)];
+    cpu.load_rom(&rom);
+    let _ = cpu.run(100);
+
+    assert_eq!(cpu.state.regs[2], 0xCAFEBABE, "r2 must hold loaded value");
+    assert_eq!(
+        cpu.state.reservation_address, 0x400,
+        "reservation_address must equal LR.W rs1"
+    );
+}
+
+/// SC.W succeeds when the reservation matches; rd=0; memory updated.
+#[test]
+fn ascend_sc_w_success_when_reservation_valid() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.state.regs[1] = 0x400;
+    cpu.state.regs[3] = 0xDEADBEEF;
+    cpu.state.reservation_address = 0x400;
+
+    let rom = vec![enc(op::SC_W, 2, 1, 3), enc(op::HALT, 0, 0, 0)];
+    cpu.load_rom(&rom);
+    let _ = cpu.run(100);
+
+    assert_eq!(cpu.state.regs[2], 0, "SC.W success: rd must be 0");
+    assert_eq!(cpu.ram[0x100], 0xDEADBEEF, "memory must be updated on SC.W success");
+    assert_eq!(
+        cpu.state.reservation_address, 0xFFFF_FFFF,
+        "reservation cleared after SC.W"
+    );
+}
+
+/// SC.W fails when no reservation; rd=1; memory unchanged.
+#[test]
+fn ascend_sc_w_failure_when_no_reservation() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.state.regs[1] = 0x400;
+    cpu.state.regs[3] = 0xDEADBEEF;
+    cpu.ram[0x100] = 0x12345678;
+
+    let rom = vec![enc(op::SC_W, 2, 1, 3), enc(op::HALT, 0, 0, 0)];
+    cpu.load_rom(&rom);
+    let _ = cpu.run(100);
+
+    assert_eq!(cpu.state.regs[2], 1, "SC.W failure: rd must be 1");
+    assert_eq!(cpu.ram[0x100], 0x12345678, "memory must NOT be updated");
+}
+
+/// SC.W fails when reservation is for a different address.
+#[test]
+fn ascend_sc_w_failure_when_reservation_address_mismatches() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.state.regs[1] = 0x400;
+    cpu.state.regs[3] = 0xDEADBEEF;
+    cpu.ram[0x100] = 0x42;
+    cpu.state.reservation_address = 0x800;
+
+    let rom = vec![enc(op::SC_W, 2, 1, 3), enc(op::HALT, 0, 0, 0)];
+    cpu.load_rom(&rom);
+    let _ = cpu.run(100);
+
+    assert_eq!(cpu.state.regs[2], 1, "stale reservation must produce SC.W failure");
+    assert_eq!(cpu.ram[0x100], 0x42, "memory unchanged");
+}
+
+/// LR.W → SC.W round-trip: classic atomic spinlock primitive.
+#[test]
+fn ascend_lr_sc_roundtrip_atomic_increment() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.ram[0x100] = 7;
+    cpu.state.regs[1] = 0x400;
+
+    let rom = vec![
+        enc(op::LR_W, 2, 1, 0),
+        enc(op::ADDI, 2, 0, 1),
+        enc(op::MOV, 3, 2, 0),
+        enc(op::SC_W, 4, 1, 3),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    let _ = cpu.run(100);
+
+    assert_eq!(cpu.state.regs[4], 0, "SC.W must succeed");
+    assert_eq!(cpu.ram[0x100], 8, "counter must be 8 (atomic increment)");
+}
+
+/// MRET reads MEPC + MSTATUS from the CSR memory region and jumps.
+/// Targets a HALT at the destination so `run` completes naturally.
+#[test]
+fn ascend_mret_pops_mepc_and_restores_priv() {
+    let mut cpu = cpu_with_safe_sp();
+    let mepc_word = ((0xF000 + 0x341 * 4) >> 2) as usize;
+    let mstatus_word = ((0xF000 + 0x300 * 4) >> 2) as usize;
+    // MEPC = 20 (byte) → PC = 5 (word). ROM[5] is HALT.
+    cpu.ram[mepc_word] = 20;
+    // MSTATUS.MPP = 0b01 (S-mode) at bits [12:11].
+    cpu.ram[mstatus_word] = 0b01 << 11;
+
+    cpu.state.priv_level = 0;
+    cpu.state.reservation_address = 0xABCD;
+
+    let rom = vec![
+        enc(op::MRET, 0, 0, 0),
+        enc(op::ADDI, 0, 0, 1),
+        enc(op::ADDI, 0, 0, 1),
+        enc(op::ADDI, 0, 0, 1),
+        enc(op::ADDI, 0, 0, 1),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    let _ = cpu.run(100);
+
+    assert_eq!(cpu.state.halted, 1, "MRET should land on HALT");
+    assert_eq!(cpu.state.priv_level, 1, "MRET must restore priv to S (MPP=01)");
+    assert_eq!(
+        cpu.state.reservation_address, 0xFFFF_FFFF,
+        "MRET must clear reservation"
+    );
+    assert_eq!(cpu.state.regs[0], 0, "MRET must skip filler instructions");
+}
+
+/// SRET reads SEPC + SSTATUS and transitions to U-mode.
+#[test]
+fn ascend_sret_pops_sepc_and_returns_to_u_mode() {
+    let mut cpu = cpu_with_safe_sp();
+    let sepc_word = ((0xF000 + 0x141 * 4) >> 2) as usize;
+    let sstatus_word = ((0xF000 + 0x100 * 4) >> 2) as usize;
+    cpu.ram[sepc_word] = 20;
+    cpu.ram[sstatus_word] = 0; // SSTATUS.SPP = 0 → U-mode
+
+    cpu.state.priv_level = 1;
+    cpu.state.reservation_address = 0x1234;
+
+    let rom = vec![
+        enc(op::SRET, 0, 0, 0),
+        enc(op::ADDI, 0, 0, 1),
+        enc(op::ADDI, 0, 0, 1),
+        enc(op::ADDI, 0, 0, 1),
+        enc(op::ADDI, 0, 0, 1),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    let _ = cpu.run(100);
+
+    assert_eq!(cpu.state.halted, 1);
+    assert_eq!(cpu.state.priv_level, 3, "SRET with SPP=0 must return to U-mode");
+    assert_eq!(cpu.state.reservation_address, 0xFFFF_FFFF);
+    assert_eq!(cpu.state.regs[0], 0);
+}
+
+/// SRET with SPP=1 returns to S-mode (nested S-mode trap).
+#[test]
+fn ascend_sret_with_spp_1_returns_to_s_mode() {
+    let mut cpu = cpu_with_safe_sp();
+    let sepc_word = ((0xF000 + 0x141 * 4) >> 2) as usize;
+    let sstatus_word = ((0xF000 + 0x100 * 4) >> 2) as usize;
+    cpu.ram[sepc_word] = 4; // PC=1 (HALT)
+    cpu.ram[sstatus_word] = 1 << 8; // SPP=1
+
+    cpu.state.priv_level = 1;
+    let rom = vec![enc(op::SRET, 0, 0, 0), enc(op::HALT, 0, 0, 0)];
+    cpu.load_rom(&rom);
+    let _ = cpu.run(100);
+
+    assert_eq!(cpu.state.halted, 1);
+    assert_eq!(cpu.state.priv_level, 1, "SRET with SPP=1 must stay in S-mode");
+}

@@ -629,6 +629,67 @@ impl Cpu {
                 self.state.regs[0] = old;
             }
 
+            // === ASCEND-LINUX (ADR-067) ===
+            op::FENCE => {
+                // Full memory barrier. On the single-CPU MBC interpreter this
+                // is a logical no-op (no out-of-order execution); the eBPF
+                // interpreter will additionally emit a compiler_fence + per-CPU
+                // map flush. Per ADR-067 Decision 5.
+            }
+            op::MRET => {
+                // Machine-mode return. Pop MEPC into PC, restore prior priv
+                // from MSTATUS.MPP. CSR memory region per ADR-067 Decision 2.
+                // CSR addresses: MEPC = 0x341, MSTATUS = 0x300.
+                // Memory-mapped CSR base: 0x000_F000 + csr_index * 4.
+                let mepc = self.mem_read_word((0xF000 + 0x341 * 4) >> 2);
+                let mstatus = self.mem_read_word((0xF000 + 0x300 * 4) >> 2);
+                // MPP is bits [12:11] of MSTATUS (RV32 standard).
+                let mpp = ((mstatus >> 11) & 0b11) as u8;
+                self.state.priv_level = mpp;
+                self.state.pc = mepc >> 2; // pc is word-indexed in MBC
+                // Reservation cleared on privilege transition.
+                self.state.reservation_address = 0xFFFF_FFFF;
+                return Ok(());
+            }
+            op::SRET => {
+                // Supervisor-mode return. Pop SEPC into PC, restore prior priv
+                // from SSTATUS.SPP. CSR addresses: SEPC=0x141, SSTATUS=0x100.
+                let sepc = self.mem_read_word((0xF000 + 0x141 * 4) >> 2);
+                let sstatus = self.mem_read_word((0xF000 + 0x100 * 4) >> 2);
+                // SPP is bit 8 of SSTATUS (RV32 standard).
+                let spp = ((sstatus >> 8) & 0b1) as u8;
+                // SPP=0 → return to U-mode (priv=3 in our packed encoding);
+                // SPP=1 → return to S-mode (priv=1).
+                self.state.priv_level = if spp == 0 { 3 } else { 1 };
+                self.state.pc = sepc >> 2;
+                self.state.reservation_address = 0xFFFF_FFFF;
+                return Ok(());
+            }
+            op::LR_W => {
+                // Load-Reserved Word: rd = RAM[rs1]; mark rs1 as reserved.
+                // imm16 not used (RV32-A defines aq/rl bits we currently ignore).
+                let addr = self.state.regs[src];
+                let word_addr = (addr >> 2) as usize;
+                self.state.regs[dst] = self.mem_read_word(word_addr);
+                self.state.reservation_address = addr;
+            }
+            op::SC_W => {
+                // Store-Conditional Word: if reservation on rs1 valid,
+                // RAM[rs1] = rs2; rd = 0 (success). Else rd = 1 (failure).
+                // src holds rs1 (address); imm16 holds rs2 (value source reg, 4 bits).
+                let addr = self.state.regs[src];
+                let value_reg = (imm & 0xF) as usize;
+                let word_addr = (addr >> 2) as usize;
+                if self.state.reservation_address == addr {
+                    self.mem_write_word(word_addr, self.state.regs[value_reg]);
+                    self.state.regs[dst] = 0; // success
+                } else {
+                    self.state.regs[dst] = 1; // failure
+                }
+                // SC always clears the reservation regardless of outcome.
+                self.state.reservation_address = 0xFFFF_FFFF;
+            }
+
             // === System calls ===
             op::SYSCALL => {
                 let syscall_id = self.state.regs[0];
