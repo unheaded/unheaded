@@ -1,0 +1,9 @@
+# Cargo Audit Configuration — cmd/trace-collector
+#
+# Per ADR-052 + docs/security/cargo-audit-wave-d-rand-disposition-2026-05-07.md.
+# RUSTSEC-2026-0097 N/A: trace-collector uses tracing-subscriber; no rand::rng() calls in logger path.
+
+[advisories]
+ignore = [
+    "RUSTSEC-2026-0097",  # rand unsoundness with custom logger — N/A
+]

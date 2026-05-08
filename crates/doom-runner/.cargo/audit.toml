@@ -1,0 +1,9 @@
+# Cargo Audit Configuration — crates/doom-runner
+#
+# Per ADR-052 + docs/security/cargo-audit-wave-d-rand-disposition-2026-05-07.md.
+# RUSTSEC-2026-0097 N/A: doom-runner has no custom logger that calls rand::rng().
+
+[advisories]
+ignore = [
+    "RUSTSEC-2026-0097",  # rand unsoundness with custom logger — N/A
+]
