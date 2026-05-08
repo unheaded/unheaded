@@ -126,6 +126,8 @@ The current boot protocol (UPC_BOOT_PROTOCOL.md v1) loads at 0x10000, expects pr
 
 **Cut point check:** if Phase 0 reveals the MBC ISA needs >5 new opcodes that push verifier budget past 25%, STOP — convene Round Table on whether to fork the program into two BPF programs (one per phase of execution).
 
+**🎖️ Marshal handoff → Phase 1:** when 17-20 are green, invoke `/unheaded-marshal` with the prompt *"Phase 0 ASCEND-LINUX complete. Verifier budget at <X>%. ABI v1 + ISA v2 frozen per ADR-067. Advance to Phase 1 — vendor xv6-riscv into `crates/xv6-mbc/upstream/`, port kernel/start.c to MBC, owners Developer + Computermancer."* Marshal opens the Phase 1 work queue and dispatches the first Developer agent.
+
 ---
 
 ## 4. Phase 1 — L5 xv6-riscv on MBC (Weeks 3-8, Q1 close)
@@ -191,6 +193,8 @@ The current boot protocol (UPC_BOOT_PROTOCOL.md v1) loads at 0x10000, expects pr
 
 **Cut point:** if at week 6 we don't have a shell yet, drop Phase 1.5 (commands 42-44) and ship "kernel boots, prints hello, HLTs" as the L5 deliverable. Defer shell to Phase 2's uClinux build.
 
+**🎖️ Marshal handoff → Phase 2:** invoke `/unheaded-marshal` with *"Phase 1 ASCEND-LINUX complete. xv6 shell live with Mode A (browser xterm) + Mode B (host pty). Verifier budget at <X>%. Advance to Phase 2 — vendor Linux 6.x LTS into `crates/uclinux-mbc/upstream/`, create arch/mbc by copying arch/h8300, owner Architect + Developer."* Marshal scopes Phase 2.1 (kernel source bring-up) as the next dispatch.
+
 ---
 
 ## 5. Phase 2 — L6a uClinux nommu (Weeks 9-16, Q2 mid)
@@ -246,6 +250,8 @@ The current boot protocol (UPC_BOOT_PROTOCOL.md v1) loads at 0x10000, expects pr
 
 **Cut point:** if at week 14 we don't have busybox booting, ship "Linux kernel prints version + halts cleanly" as the L6a deliverable. Defer busybox shell to Phase 3 alongside the MMU work.
 
+**🎖️ Marshal handoff → Phase 3:** invoke `/unheaded-marshal` with *"Phase 2 ASCEND-LINUX complete. uClinux + busybox shell live. /proc enumerates. Verifier budget at <X>%. Advance to Phase 3 — flip CONFIG_MMU=y, port arch/mbc/mm/init.c, fork-safety stress test is the hard gate. Owner Architect + Developer + BlackMage; PAIR-HEAVY phase."* Marshal pauses for the Stevie pair-call before scheduling 3.1 design work.
+
 ---
 
 ## 6. Phase 3 — L6b Full Linux + MMU (Weeks 17-26, Q3 close)
@@ -296,6 +302,8 @@ The current boot protocol (UPC_BOOT_PROTOCOL.md v1) loads at 0x10000, expects pr
 105. Ship gate: **ADR-070 "L6b Full Linux + MMU ships"** authored. PERF doc landed.
 
 **Cut point:** if at week 24 dynamic linking isn't working, ship static-only and defer dynamic to a Phase 5 follow-up. The static-userspace deliverable is still a real Linux on UPC.
+
+**🎖️ Marshal handoff → Phase 4:** invoke `/unheaded-marshal` with *"Phase 3 ASCEND-LINUX complete. Full Linux + MMU live. multi-process verified. TLB hit rate <X>%. Verifier budget at <Y>%. Advance to Phase 4 — IPv6 networking inception. Owners Architect + RFC Editor + Developer + BlackMage; PAIR-HEAVY (netdev model + ND analog are Stevie design calls)."* Marshal pauses for two pair-calls (netdev model 4.1, ND analog 4.2) before dispatching 4.3 hardware setup.
 
 ---
 
@@ -352,6 +360,8 @@ The current boot protocol (UPC_BOOT_PROTOCOL.md v1) loads at 0x10000, expects pr
 132. **Mode C SSH demo**: `ssh -6 root@fd00:dead:beef:dada::de` from the host successfully logs into a Linux shell. `uname -a`, `ls /`, `ps` all work over the SSH session.
 133. **All three demo modes are functional simultaneously** — Browser xterm (Mode A) + direct console (Mode B) + SSH over IPv6 (Mode C). `MBC_LINUX_DEMO.md` updated with all three scenes.
 134. Ship gate: **ADR-071 "L6 Full Linux + IPv6 Networking + SSH ships"** authored.
+
+**🎖️ Marshal handoff → Phase 5 (stretch / wind-down):** invoke `/unheaded-marshal` with *"Phase 4 ASCEND-LINUX complete. Linux on UPC ships. All three demo surfaces (A browser, B host pty, C SSH over IPv6) live. ADR-071 authored. Decide Phase 5 disposition: (a) wind down — campaign deliverable shipped; (b) Phase 5 stretch — multi-process scaling, dynamic linking polish, conference-talk artifact for `docs/doom/MBC_LINUX_DEMO.md` final cut. Stevie's call."* Marshal opens a Round Table for the wind-down vs. Phase 5 decision.
 
 **Cut points:**
 - If at week 32 ICMPv6 works but TCP doesn't, ship ICMPv6+ping6-only — that's still a real Linux IPv6 stack carried inside Monad. TCP+SSH (Mode C) defers to a Phase 5.
