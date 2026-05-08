@@ -374,7 +374,10 @@ impl ReverseProxy {
 
         // Add X-Forwarded headers
         // Note: In production, you'd want to preserve existing values
-        if let Some(addr) = request.extensions().get::<SocketAddr>() {
+        // Copy the SocketAddr out so the immutable extensions() borrow is dropped
+        // before headers_mut() mutates the same request.
+        let client_addr = request.extensions().get::<SocketAddr>().copied();
+        if let Some(addr) = client_addr {
             request.headers_mut().insert(
                 "X-Forwarded-For",
                 addr.ip().to_string().parse().unwrap(),

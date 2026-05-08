@@ -140,7 +140,7 @@ impl RuleEngine {
             // Union-based injection
             r"(?i)\bunion\s+(all\s+)?select\b",
             // Classic OR injection
-            r"(?i)\bor\s+[\d\w'\"]+\s*=\s*[\d\w'\"]+",
+            r#"(?i)\bor\s+[\d\w'"]+\s*=\s*[\d\w'"]+"#,
             // Comment injection
             r"(?i)(--|#|/\*)\s*$",
             // Stacked queries
@@ -150,7 +150,7 @@ impl RuleEngine {
             // Error-based injection
             r"(?i)\b(extractvalue|updatexml|xmltype)\s*\(",
             // Boolean-based blind injection
-            r"(?i)\band\s+[\d\w'\"]+\s*=\s*[\d\w'\"]+",
+            r#"(?i)\band\s+[\d\w'"]+\s*=\s*[\d\w'"]+"#,
             // Common SQL keywords in suspicious contexts
             r"(?i)'\s*(or|and)\s+'",
             // Hex encoding bypass
@@ -187,7 +187,7 @@ impl RuleEngine {
             // Form hijacking
             r"(?i)<\s*form[^>]*action\s*=",
             // Meta refresh
-            r"(?i)<\s*meta[^>]*http-equiv\s*=\s*['\"]?refresh",
+            r#"(?i)<\s*meta[^>]*http-equiv\s*=\s*['"]?refresh"#,
             // Base tag hijacking
             r"(?i)<\s*base[^>]*href\s*=",
         ];
