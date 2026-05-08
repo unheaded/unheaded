@@ -99,8 +99,12 @@ func DefaultPoolConfig(address string) *PoolConfig {
 func NewConnectionPool(config *PoolConfig) *ConnectionPool {
 	dial := config.Dial
 	if dial == nil {
+		// Default dialer for the connection pool. The address is the
+		// configured backend address — operator-supplied via PoolConfig,
+		// not user-supplied at request time. SSRF surface is gated upstream
+		// at the load-balancer / mesh-policy layer, not here.
 		dial = func(network, address string, timeout time.Duration) (net.Conn, error) {
-			return net.DialTimeout(network, address, timeout)
+			return net.DialTimeout(network, address, timeout) //nolint:gosec // G704: configured backend address, not user-controlled
 		}
 	}
 

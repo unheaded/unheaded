@@ -288,7 +288,9 @@ func (m *Manager) buildTLSConfigs() {
 		rootPool = m.bundle.CertPool()
 	}
 
-	// Server config
+	// Server config.
+	// SessionTicketsDisabled = true so that resumed sessions cannot bypass
+	// the VerifyPeerCertificate callback (gosec G123 / CWE-295).
 	m.serverConfig = &tls.Config{
 		MinVersion:   m.config.MinVersion,
 		MaxVersion:   m.config.MaxVersion,
@@ -298,10 +300,11 @@ func (m *Manager) buildTLSConfigs() {
 		GetCertificate: func(*tls.ClientHelloInfo) (*tls.Certificate, error) {
 			return m.getTLSCertificate()
 		},
-		VerifyPeerCertificate: m.verifier.VerifyPeerCertificate,
+		VerifyPeerCertificate:  m.verifier.VerifyPeerCertificate,
+		SessionTicketsDisabled: true,
 	}
 
-	// Client config
+	// Client config. Same session-ticket guard.
 	m.clientConfig = &tls.Config{
 		MinVersion:   m.config.MinVersion,
 		MaxVersion:   m.config.MaxVersion,
@@ -310,8 +313,9 @@ func (m *Manager) buildTLSConfigs() {
 		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 			return m.getTLSCertificate()
 		},
-		VerifyPeerCertificate: m.verifier.VerifyPeerCertificate,
-		InsecureSkipVerify:    m.config.SkipVerify,
+		VerifyPeerCertificate:  m.verifier.VerifyPeerCertificate,
+		InsecureSkipVerify:     m.config.SkipVerify, //nolint:gosec // gated behind opt-in config field
+		SessionTicketsDisabled: true,
 	}
 }
 
