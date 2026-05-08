@@ -1,7 +1,7 @@
 # ADR-065 — aya 0.1.x → 0.13.x Major-Version Migration Plan
 
-**Status:** Proposed (migration plan only; implementation gated on Captain approval + Linux verification host)
-**Date:** 2026-05-07
+**Status:** Superseded by Phase-A finding 2026-05-08 — see addendum below. No migration needed.
+**Date:** 2026-05-07 (original); 2026-05-08 (superseded)
 **Deciders:** unheaded-architect (BPF target / verifier impact) + unheaded-developer (impl + smoke recipe) + unheaded-marshal (gate enforcement)
 **Aligns with:** ADR-003 (eBPF Rust + Aya framework choice), ADR-012 (BPF verifier risk mitigation), ADR-052 (timeline + battle-plan source-of-truth policy)
 
@@ -128,3 +128,64 @@ cd ebpf && cargo build --release 2>&1 | tee /tmp/aya-build-1.log
 ## Compliance
 
 This ADR satisfies ADR-052 Rule 3: *no Cargo.toml edit without an in-tree ADR or battle-plan of record.* The migration itself, when it lands, will be cross-referenced from this ADR and from `references/timeline.md` per Rule 5.
+
+---
+
+## Phase-A Finding Addendum (2026-05-08) — Migration NOT needed
+
+**Author:** Marshal drain shift 2026-05-08, executing Phase A pre-flight per the procedure above.
+**Outcome:** ADR-065 is **superseded — no migration is required**.
+
+### Empirical evidence
+
+```bash
+$ cargo search aya-ebpf
+aya-ebpf = "0.1.1"             # A library for writing eBPF programs       ← latest published
+aya-ebpf-macros = "0.1.2"
+aya-ebpf-bindings = "0.1.2"
+aya-ebpf-cty = "0.2.3"
+
+$ cargo search aya-log-ebpf
+aya-log-ebpf = "0.1.0"         # Logging for eBPF programs                  ← latest published
+```
+
+There is **no `aya-ebpf 0.13`** on crates.io. The 0.13.x major-version line exists only for the **userspace** `aya` crate (`cmd/ebpf-loader/Cargo.toml`). The kernel-side `aya-ebpf` crate is on its own version trajectory and `0.1.1` IS the current major.
+
+### Why this happened
+
+The upstream aya project versions its userspace and kernel-side crates **independently**. This is a deliberate split:
+- `aya` (userspace) hit 0.13 because the loader API has churned heavily as kernel features expand.
+- `aya-ebpf` (kernel programs) stays at 0.1.x because the BPF helper surface and program-type macros have been stable.
+
+The original ADR-065 assumed the two would migrate in lockstep at the same major version. They do not.
+
+### Phase-A inventory results (collected 2026-05-08)
+
+| Metric | Count | Status |
+|--------|-------|--------|
+| `aya_bpf::` import paths | 0 | Already migrated (was the legacy module path) |
+| `aya_ebpf::` import paths | 32 | Current; no rewrite needed |
+| `BPF_MAP_TYPE_*` declarations | 14 (8 HASH, 4 XSKMAP, 1 ARRAY) | Current generic shape |
+| Program-type macros | ~25 across 14 programs (#[xdp]×17, #[kprobe]×3, #[raw_tracepoint]×2, others) | Current attribute syntax |
+| `cargo update -p aya-ebpf -p aya-log-ebpf` | NO-OP | Already at latest within `^0.1` |
+
+### Resolution
+
+Close the kanban item `ebpf-aya-upgrade-mn05` as **NOT REQUIRED**. The userspace `aya = "0.13"` and kernel-side `aya-ebpf = "0.1"` are both at their respective latest majors. The asymmetry is by design.
+
+### What to watch for
+
+- A future upstream release of `aya-ebpf 0.2` (or 1.0) WOULD trigger a real migration; if it ships, re-open this ADR or author ADR-068.
+- The userspace `aya 0.14+` may carry compatibility expectations for the kernel-side; track via the aya release cadence in `references/timeline.md`.
+- `bpftool` and `libbpf` versions are independent of the aya crate and continue to be tracked separately (currently `bpftool ≥ 7.7`, `libbpf ≥ 1.7` confirmed on WEST).
+
+### What we keep from this ADR
+
+- The Phase A → F migration recipe stays useful as a **template** for any future major-version aya upgrade. Don't delete it.
+- The verifier-budget regression baseline procedure (Phase A4) is the canonical recipe for any BPF-touching dep change.
+
+### Cross-reference
+
+- Phase A inventory commands: see "Smoke-test recipe" section above.
+- Marshal drain shift `references/battle-plan-marshal-drain-2026-05-08.md` Wave aya-0.13.x.
+- Closes parking-lot entry `[STUCK-RENEW] aya 0.13.x major-version migration` from `references/marshal-parked-2026-05-07.md`.
