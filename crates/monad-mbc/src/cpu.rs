@@ -65,6 +65,12 @@ impl Cpu {
             mmu_enabled: 0,
             _pad3: 0,
             page_dir_base: 0,
+            // ASCEND-LINUX defaults (ADR-067)
+            priv_level: 0,
+            _pad4: 0,
+            _pad5: 0,
+            _pad6: 0,
+            reservation_address: 0xFFFF_FFFF,
         };
 
         // Initialize stack pointer to default value
@@ -287,12 +293,14 @@ mod tests {
     //   + u64 sleep_until_ns + u64 insn_count + u64 cache_hits + u64 cache_misses
     //   + u8×4 (interrupt_pending/vector/enabled/_pad2) + u32 tick_counter
     //   + u32 program_break + u32 exit_code + u8 current_pid + u8 num_processes
-    //   + [u8; 6] _pad3 = 128 bytes
-    const _: [u8; 128] = [0u8; std::mem::size_of::<MbcCpuState>()];
+    //   + u8 mmu_enabled + u8 _pad3 + u32 page_dir_base = 128 bytes (v1)
+    // ASCEND-LINUX (ADR-067): + u8 priv_level + u8×3 _pad4-6 + u32 reservation_address
+    //   = 136 bytes (v2). The +8 bytes are the multi-ring + LR/SC reservation cost.
+    const _: [u8; 136] = [0u8; std::mem::size_of::<MbcCpuState>()];
 
     #[test]
     fn test_mbccpustate_size() {
-        assert_eq!(std::mem::size_of::<MbcCpuState>(), 128);
+        assert_eq!(std::mem::size_of::<MbcCpuState>(), 136);
     }
 
     #[test]
