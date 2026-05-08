@@ -472,7 +472,7 @@ fn isqrt(n: u32) -> u32 {
         return n;
     }
     let mut x = n;
-    let mut y = (x + 1) / 2;
+    let mut y = x.div_ceil(2);
     // Bounded to 16 iterations — sufficient for u32.
     for _ in 0..16u32 {
         if y >= x {

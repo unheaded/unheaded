@@ -38,7 +38,7 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
+    flags, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
     MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
@@ -280,14 +280,13 @@ fn try_compliance_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     // ── Classification-based enforcement ─────────────────────────────────────
     if decision == ACTION_ALLOW {
         match classification {
-            CLASS_SENSITIVE | CLASS_SOVEREIGN_PII => {
+            CLASS_SENSITIVE | CLASS_SOVEREIGN_PII
                 // SENSITIVE and SOVEREIGN_PII require encryption (E bit)
-                if !monad.has_flag(flags::ENCRYPT) {
+                if !monad.has_flag(flags::ENCRYPT) => {
                     decision = ACTION_BLOCK;
                     violation = VIOLATION_ENCRYPTION_REQUIRED;
                     increment_stat(STAT_ENCRYPTION_VIOLATIONS);
                 }
-            }
             _ => {
                 // PUBLIC and INTERNAL: no encryption requirement
             }

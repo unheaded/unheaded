@@ -102,10 +102,7 @@ struct SysExitArgs {
 /// Raw tracepoint for syscall entry.
 #[raw_tracepoint]
 pub fn sys_enter(ctx: RawTracePointContext) -> u32 {
-    match try_sys_enter(&ctx) {
-        Ok(ret) => ret,
-        Err(_) => 0,
-    }
+    try_sys_enter(&ctx).unwrap_or_default()
 }
 
 #[inline(always)]
@@ -138,10 +135,7 @@ fn try_sys_enter(ctx: &RawTracePointContext) -> Result<u32, ()> {
     let _ = INFLIGHT_SYSCALLS.insert(&pid_tgid, &syscall_nr, 0);
 
     // Get process name
-    let comm = match bpf_get_current_comm() {
-        Ok(c) => c,
-        Err(_) => [0u8; 16],
-    };
+    let comm = bpf_get_current_comm().unwrap_or_default();
 
     // Send event
     send_syscall_event(
@@ -162,10 +156,7 @@ fn try_sys_enter(ctx: &RawTracePointContext) -> Result<u32, ()> {
 /// Raw tracepoint for syscall exit.
 #[raw_tracepoint]
 pub fn sys_exit(ctx: RawTracePointContext) -> u32 {
-    match try_sys_exit(&ctx) {
-        Ok(ret) => ret,
-        Err(_) => 0,
-    }
+    try_sys_exit(&ctx).unwrap_or_default()
 }
 
 #[inline(always)]
@@ -197,10 +188,7 @@ fn try_sys_exit(ctx: &RawTracePointContext) -> Result<u32, ()> {
     let _ = INFLIGHT_SYSCALLS.remove(&pid_tgid);
 
     // Get process name
-    let comm = match bpf_get_current_comm() {
-        Ok(c) => c,
-        Err(_) => [0u8; 16],
-    };
+    let comm = bpf_get_current_comm().unwrap_or_default();
 
     // Send exit event (args are not available at exit, use zeros)
     send_syscall_event(
@@ -257,7 +245,7 @@ fn should_trace(syscall_nr: i64, pid: u32, uid: u32) -> bool {
     }
 
     // Check syscall bitmap filter
-    if syscall_nr >= 0 && syscall_nr < 512 {
+    if (0..512).contains(&syscall_nr) {
         let idx = (syscall_nr / 64) as u32;
         let bit = syscall_nr % 64;
 

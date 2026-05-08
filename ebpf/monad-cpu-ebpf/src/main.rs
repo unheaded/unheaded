@@ -785,7 +785,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         } else if opc == op::LD {
             // dst = RAM[src + simm16]  (32-bit word load)
             let raw_addr = cpu.regs[s].wrapping_add(simm as u32);
-            let addr = translate_address(&cpu, raw_addr);
+            let addr = translate_address(cpu, raw_addr);
             let word_addr = addr >> 2;
             let val = match RAM_MAP.get(word_addr) {
                 Some(v) => *v,
@@ -797,7 +797,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         } else if opc == op::ST {
             // RAM[dst + simm16] = src  (32-bit word store)
             let raw_addr = cpu.regs[d].wrapping_add(simm as u32);
-            let addr = translate_address(&cpu, raw_addr);
+            let addr = translate_address(cpu, raw_addr);
             let val = cpu.regs[s];
             mem_write_word(addr >> 2, val);
             cpu.cache_hits += 1; // mem_stores counter (legacy field name)
@@ -805,7 +805,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         } else if opc == op::LDB {
             // dst = zero_extend(RAM[src + simm16])  (byte load)
             let raw_addr = cpu.regs[s].wrapping_add(simm as u32);
-            let addr = translate_address(&cpu, raw_addr);
+            let addr = translate_address(cpu, raw_addr);
             let word_addr = addr >> 2;
             let byte_shift = (addr & 3) * 8;
             let word = match RAM_MAP.get(word_addr) {
@@ -818,7 +818,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         } else if opc == op::STB {
             // RAM[dst + simm16] = src & 0xFF  (byte store)
             let raw_addr = cpu.regs[d].wrapping_add(simm as u32);
-            let addr = translate_address(&cpu, raw_addr);
+            let addr = translate_address(cpu, raw_addr);
             let val = (cpu.regs[s] & 0xFF) as u8;
             mem_write_byte(addr, val);
             cpu.cache_hits += 1;
@@ -826,7 +826,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         } else if opc == op::LDH {
             // dst = zero_extend(RAM[src + simm16])  (16-bit halfword load)
             let raw_addr = cpu.regs[s].wrapping_add(simm as u32);
-            let addr = translate_address(&cpu, raw_addr);
+            let addr = translate_address(cpu, raw_addr);
             let word_addr = addr >> 2;
             let half_shift = (addr & 2) * 8;
             let word = match RAM_MAP.get(word_addr) {
@@ -839,7 +839,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         } else if opc == op::STH {
             // RAM[dst + simm16] = src & 0xFFFF  (16-bit halfword store)
             let raw_addr = cpu.regs[d].wrapping_add(simm as u32);
-            let addr = translate_address(&cpu, raw_addr);
+            let addr = translate_address(cpu, raw_addr);
             let val = (cpu.regs[s] & 0xFFFF) as u16;
             mem_write_half(addr, val);
             cpu.cache_hits += 1;
@@ -1543,7 +1543,6 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
 /// Emit a CACHE_MISS event to the ring buffer.
 #[allow(dead_code)]
-#[inline(always)]
 fn emit_cache_miss(flow_label: u32, miss_addr: u32, hop_id: u8) {
     if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
         let event = ComputeHopEvent {
@@ -1567,7 +1566,6 @@ fn emit_cache_miss(flow_label: u32, miss_addr: u32, hop_id: u8) {
 }
 
 /// Emit a SCREEN_WRITE event to the ring buffer.
-#[inline(always)]
 #[inline(always)]
 fn emit_screen_write(flow_label: u32, fb_addr: u32, hop_id: u8) {
     if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
@@ -1593,7 +1591,6 @@ fn emit_screen_write(flow_label: u32, fb_addr: u32, hop_id: u8) {
 
 /// Emit a COMPUTE_HALT event to the ring buffer.
 #[inline(always)]
-#[inline(always)]
 fn emit_compute_halt(flow_label: u32, insn_count: u64, hop_id: u8) {
     if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
         let event = ComputeHopEvent {
@@ -1617,7 +1614,6 @@ fn emit_compute_halt(flow_label: u32, insn_count: u64, hop_id: u8) {
 }
 
 /// Emit a TTY_WRITE event to the ring buffer (Level 4f console I/O).
-#[inline(always)]
 #[inline(always)]
 fn emit_tty_write(flow_label: u32, bytes_written: u32, hop_id: u8) {
     if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
@@ -1651,7 +1647,6 @@ fn emit_tty_write(flow_label: u32, bytes_written: u32, hop_id: u8) {
 /// 4. Update current_pid in cpu state and SCHED_STATE
 ///
 /// All loops bounded to MAX_PROCESSES (4) for BPF verifier.
-#[inline(always)]
 #[inline(always)]
 fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) {
     let old_pid = cpu.current_pid as u32;
@@ -1741,7 +1736,6 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
 
 /// Emit a CONTEXT_SWITCH event to the ring buffer (Level 4c scheduler).
 #[inline(always)]
-#[inline(always)]
 fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) {
     if let Some(mut entry) = COMPUTE_EVENTS.reserve::<ComputeHopEvent>(0) {
         let event = ComputeHopEvent {
@@ -1777,8 +1771,6 @@ fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) 
 ///
 /// BPF verifier: this function is #[inline(always)] to avoid call overhead.
 /// The page table walk is bounded (2 reads), TLB access is 1 Array lookup.
-#[inline(always)]
-#[inline(always)]
 fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     if cpu.mmu_enabled == 0 {
         return vaddr; // Flat mode — no translation (Doom, backward compat)
@@ -1853,7 +1845,6 @@ fn set_flags(cpu: &mut MbcCpuState, result: u32, carry: bool) {
 /// Read a 32-bit word from the MBC address space.
 /// `word_addr` = byte_addr >> 2 for word-aligned operations.
 #[inline(always)]
-#[inline(always)]
 fn mem_read_word(word_addr: u32) -> u32 {
     // KBD register: word address of 0xFFFF/4 = 0x3FFF (nearest word).
     let kbd_word = mmap::KBD_ADDR >> 2;
@@ -1871,7 +1862,6 @@ fn mem_read_word(word_addr: u32) -> u32 {
 
 /// Write a 32-bit word to the MBC address space.
 /// Handles screen framebuffer and general RAM.
-#[inline(always)]
 #[inline(always)]
 fn mem_write_word(word_addr: u32, value: u32) {
     // Bug 24 fix: Do NOT write to SCREEN_MAP from word stores (ST).
@@ -1898,10 +1888,9 @@ fn mem_write_word(word_addr: u32, value: u32) {
 /// Read a single byte from the MBC address space.
 #[allow(dead_code)]
 #[inline(always)]
-#[inline(always)]
 fn mem_read_byte(byte_addr: u32) -> u8 {
     // Screen region: direct SCREEN_MAP read.
-    if byte_addr >= mmap::SCREEN_BASE && byte_addr < mmap::SCREEN_BASE + mmap::SCREEN_SIZE {
+    if (mmap::SCREEN_BASE..mmap::SCREEN_BASE + mmap::SCREEN_SIZE).contains(&byte_addr) {
         let px = byte_addr - mmap::SCREEN_BASE;
         return match SCREEN_MAP.get(px) {
             Some(v) => *v,
@@ -1917,10 +1906,9 @@ fn mem_read_byte(byte_addr: u32) -> u8 {
 
 /// Write a single byte to the MBC address space.
 #[inline(always)]
-#[inline(always)]
 fn mem_write_byte(byte_addr: u32, value: u8) {
     // Screen region: direct SCREEN_MAP write.
-    if byte_addr >= mmap::SCREEN_BASE && byte_addr < mmap::SCREEN_BASE + mmap::SCREEN_SIZE {
+    if (mmap::SCREEN_BASE..mmap::SCREEN_BASE + mmap::SCREEN_SIZE).contains(&byte_addr) {
         let px = byte_addr - mmap::SCREEN_BASE;
         if let Some(p) = SCREEN_MAP.get_ptr_mut(px) {
             unsafe {
@@ -1943,7 +1931,6 @@ fn mem_write_byte(byte_addr: u32, value: u8) {
 /// Read a 16-bit halfword from the MBC address space (little-endian).
 #[allow(dead_code)]
 #[inline(always)]
-#[inline(always)]
 fn mem_read_half(byte_addr: u32) -> u16 {
     let word_addr = byte_addr >> 2;
     let half_shift = (byte_addr & 2) * 8; // 0 for low half, 16 for high half
@@ -1952,7 +1939,6 @@ fn mem_read_half(byte_addr: u32) -> u16 {
 }
 
 /// Write a 16-bit halfword to the MBC address space (little-endian).
-#[inline(always)]
 #[inline(always)]
 fn mem_write_half(byte_addr: u32, value: u16) {
     let word_addr = byte_addr >> 2;
@@ -1976,7 +1962,6 @@ fn mem_write_half(byte_addr: u32, value: u16) {
 ///   (a) BPF tail call to a dedicated copy program, or
 ///   (b) Userspace poller that bulk-copies RAM_MAP → SCREEN_MAP on event.
 #[inline(always)]
-#[inline(always)]
 fn copy_fb_to_screen(_fb_ptr: u32) {
     // No-op: verifier cannot handle 16K iterations.
     // Screen writes via mem_write_word/mem_write_byte still work individually.
@@ -1985,7 +1970,6 @@ fn copy_fb_to_screen(_fb_ptr: u32) {
 // ── Monad XDP read ────────────────────────────────────────────────────────────
 
 /// Read 20 Monad bytes from XDP packet memory.
-#[inline(always)]
 #[inline(always)]
 fn read_monad_xdp(start: usize, data_end: usize) -> Result<Monad, ()> {
     if start + MONAD_SIZE > data_end {
@@ -2000,7 +1984,6 @@ fn read_monad_xdp(start: usize, data_end: usize) -> Result<Monad, ()> {
 
 // ── Stats helper ──────────────────────────────────────────────────────────────
 
-#[inline(always)]
 #[inline(always)]
 fn increment_stat(key: u32) {
     if let Some(v) = STATS.get_ptr_mut(&key) {
