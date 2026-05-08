@@ -86,7 +86,7 @@ func (h *httpConnection) Close() error {
 		return nil
 	}
 	h.healthy.Store(false)
-	h.client.Close()
+	_ = h.client.Close()
 	h.client = nil
 	return nil
 }

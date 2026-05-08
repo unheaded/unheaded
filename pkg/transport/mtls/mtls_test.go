@@ -346,8 +346,9 @@ func TestMTLSRejectWithoutCert(t *testing.T) {
 		},
 	}
 
-	_, err = client.Get("https://" + ln.Addr().String() + "/api/v1/test")
+	resp, err := client.Get("https://" + ln.Addr().String() + "/api/v1/test")
 	if err == nil {
+		_ = resp.Body.Close()
 		t.Fatal("expected handshake error without client cert, but request succeeded")
 	}
 }

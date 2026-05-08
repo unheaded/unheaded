@@ -115,6 +115,6 @@ func isPortOpen(addr string) bool {
 	if err != nil {
 		return false
 	}
-	conn.Close()
+	_ = conn.Close()
 	return true
 }
