@@ -30,6 +30,11 @@
 // HALTs cleanly, sub-phase 1.1 ships.
 
 #include "types.h"
+#include "param.h"  /* NCPU */
+
+// entry.S needs one stack per CPU; lives in .bss because we need
+// the symbol resolvable by the linker. 4 KB per CPU, NCPU CPUs.
+__attribute__((aligned(16))) char stack0[4096 * NCPU];
 
 // ── BootParams v2 layout (at byte address 0x100) ───────────────────────────
 // See docs/doom/UPC_BOOT_PROTOCOL_V2.md.

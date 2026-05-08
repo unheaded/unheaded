@@ -22,12 +22,12 @@ main()
     procinit();      // process table
     trapinit();      // trap vectors
     trapinithart();  // install kernel trap vector
-    plicinit();      // set up interrupt controller
-    plicinithart();  // ask PLIC for device interrupts
+    /* plicinit(): no PLIC on UPC */      // set up interrupt controller
+    /* plicinithart(): no PLIC on UPC */  // ask PLIC for device interrupts
     binit();         // buffer cache
     iinit();         // inode table
     fileinit();      // file table
-    virtio_disk_init(); // emulated hard disk
+    /* virtio_disk_init(): handled by blk-ramdisk.c */ // emulated hard disk
     userinit();      // first user process
     __sync_synchronize();
     started = 1;
@@ -38,7 +38,7 @@ main()
     printf("hart %d starting\n", cpuid());
     kvminithart();    // turn on paging
     trapinithart();   // install kernel trap vector
-    plicinithart();   // ask PLIC for device interrupts
+    /* plicinithart(): no PLIC on UPC */   // ask PLIC for device interrupts
   }
 
   scheduler();        

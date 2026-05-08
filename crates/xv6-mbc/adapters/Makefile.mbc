@@ -39,7 +39,7 @@ ASFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32
 # Decision 2). zmmul covers the multiply ops xv6 emits — these compile to
 # MBC's MUL/MULH/MULHU at 0x03/0x39/0x3A.
 
-LDFLAGS = -z max-page-size=4096
+LDFLAGS = -z max-page-size=4096 -melf32lriscv
 
 OBJS = \
   $K/entry.o \
@@ -54,8 +54,8 @@ OBJS = \
   $K/main.o \
   $K/vm.o \
   $K/proc.o \
-  $K/swtch.o \
-  $K/trampoline.o \
+  $A/swtch_mbc.o \
+  $A/trampoline_mbc.o \
   $K/trap.o \
   $K/syscall.o \
   $K/sysproc.o \
@@ -67,8 +67,9 @@ OBJS = \
   $K/pipe.o \
   $K/exec.o \
   $K/sysfile.o \
-  $K/kernelvec.o \
-  $A/blk-ramdisk.o
+  $A/kernelvec_mbc.o \
+  $A/blk-ramdisk.o \
+  $A/libgcc_stubs.o
 # DROPPED from upstream OBJS:
 #   $K/start.o          → replaced by $A/start_mbc.o
 #   $K/uart.o           → replaced by $A/console-mmio.o
@@ -79,7 +80,9 @@ OBJS = \
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 %.o: %.S
-	$(AS) $(ASFLAGS) -c -o $@ $<
+	# Use $(CC) so the C preprocessor expands #include + macros (xv6's
+	# trampoline.S includes memlayout.h which expands MAXVA / TRAPFRAME).
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 kernel/kernel.elf: $(OBJS) $A/kernel-mbc.ld
 	$(LD) $(LDFLAGS) -T $A/kernel-mbc.ld -o $@ $(OBJS)
@@ -89,7 +92,7 @@ kernel/kernel.elf: $(OBJS) $A/kernel-mbc.ld
 # rv32i-to-mbc lives in crates/monad-mbc/ (built separately).
 target/xv6-mbc.mbc: kernel/kernel.elf
 	mkdir -p target
-	../../../target/release/rv32i-to-mbc kernel/kernel.elf -o target/xv6-mbc.mbc
+	../../monad-mbc/target/release/rv32i-to-mbc kernel/kernel.elf -o target/xv6-mbc.mbc
 
 kernel: target/xv6-mbc.mbc
 
