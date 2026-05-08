@@ -11,9 +11,10 @@ license = "MIT"
 tokio = { version = "1.35", features = ["full", "rt-multi-thread", "sync", "time", "signal", "macros"] }
 
 # gRPC
-tonic = { version = "0.10", features = ["gzip", "tls"] }
-prost = "0.12"
-prost-types = "0.12"
+# ADR-066 (2026-05-08): tonic 0.10 → 0.12 closes RUSTSEC-2026-0098/0099/0104 + RUSTSEC-2024-0437.
+tonic = { version = "0.12", features = ["gzip", "tls"] }
+prost = "0.13"
+prost-types = "0.13"
 
 # Logging and tracing
 tracing = "0.1"
@@ -28,7 +29,9 @@ serde_json = "1.0"
 toml = "0.8"
 
 # Metrics
-prometheus = "0.13"
+# ADR-066: bumped 0.13 → 0.14 to drop legacy protobuf 2.28 (RUSTSEC-2024-0437);
+# default-features = false disables the protobuf encoder we don't use (text format only).
+prometheus = { version = "0.14", default-features = false, features = ["process"] }
 hyper = { version = "1.1", features = ["server", "http1"] }
 hyper-util = { version = "0.1", features = ["tokio"] }
 http-body-util = "0.1"
@@ -60,7 +63,7 @@ tokio-tungstenite = "0.21"
 futures-util = "0.3"
 
 [build-dependencies]
-tonic-build = "0.10"
+tonic-build = "0.12"
 
 [profile.release]
 lto = true
