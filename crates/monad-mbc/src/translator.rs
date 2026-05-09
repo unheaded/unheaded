@@ -1744,6 +1744,78 @@ mod tests {
 
     // ── Call/return roundtrip ────────────────────────────────────────────────
 
+    // ── map_register: ABI mapping + ASCEND-LINUX x16-x31 spill-shadow ────
+
+    #[test]
+    fn test_map_register_zero() {
+        // x0 (zero) → r0 (always zero in MBC ABI)
+        assert_eq!(Translator::new().map_register(0).unwrap(), 0);
+    }
+
+    #[test]
+    fn test_map_register_canonical_rv32i_abi() {
+        // Spot-check the documented x1..=x15 → r{ra=14,sp=15,gp=1,...} mapping.
+        let t = Translator::new();
+        assert_eq!(t.map_register(1).unwrap(), 14, "x1 (ra) → r14");
+        assert_eq!(t.map_register(2).unwrap(), 15, "x2 (sp) → r15");
+        assert_eq!(t.map_register(3).unwrap(), 1,  "x3 (gp) → r1");
+        assert_eq!(t.map_register(10).unwrap(), 8, "x10 (a0) → r8");
+        assert_eq!(t.map_register(15).unwrap(), 13, "x15 (a5) → r13");
+    }
+
+    #[test]
+    fn test_map_register_x16_x17_argument_overflow_spills() {
+        // x16 (a6) and x17 (a7) are RV32I argument-overflow registers.
+        // Pre-ASCEND-LINUX they spill onto x4 (tp) and x3 (gp) respectively.
+        let t = Translator::new();
+        assert_eq!(t.map_register(16).unwrap(), 2, "x16 (a6) spills onto r2 (tp)");
+        assert_eq!(t.map_register(17).unwrap(), 1, "x17 (a7) spills onto r1 (gp)");
+    }
+
+    #[test]
+    fn test_map_register_x18_x31_ascend_linux_aliasing() {
+        // ASCEND-LINUX Phase 1.1 super-sprint added best-effort spill-shadowing
+        // for s2-s11 + t3-t6 onto the existing 16-reg file. Pin the exact
+        // mapping so any drift is intentional. See translator.rs:289-300.
+        let t = Translator::new();
+        // s2-s5 → r6-r9 (shadowing s0/s1/a0/a1 — runtime overlap caveat)
+        assert_eq!(t.map_register(18).unwrap(), 6, "x18 (s2) → r6");
+        assert_eq!(t.map_register(21).unwrap(), 9, "x21 (s5) → r9");
+        // s6-s9 → r10-r13
+        assert_eq!(t.map_register(22).unwrap(), 10, "x22 (s6) → r10");
+        assert_eq!(t.map_register(25).unwrap(), 13, "x25 (s9) → r13");
+        // s10/s11 → r12/r13 (collide with s8/s9 mapping above — Phase 1.1 hack)
+        assert_eq!(t.map_register(26).unwrap(), 12, "x26 (s10) → r12");
+        assert_eq!(t.map_register(27).unwrap(), 13, "x27 (s11) → r13");
+        // t3-t6 → r3-r6 (collide with t0-t1+s0+s2 — Phase 1.1 hack)
+        assert_eq!(t.map_register(28).unwrap(), 3, "x28 (t3) → r3");
+        assert_eq!(t.map_register(29).unwrap(), 4, "x29 (t4) → r4");
+        assert_eq!(t.map_register(30).unwrap(), 5, "x30 (t5) → r5");
+        assert_eq!(t.map_register(31).unwrap(), 6, "x31 (t6) → r6");
+    }
+
+    #[test]
+    fn test_map_register_out_of_range_errors() {
+        // RV32I has 32 registers (x0-x31). 32+ should fail.
+        let t = Translator::new();
+        let err = t.map_register(32).unwrap_err();
+        match err {
+            TranslateError::UnsupportedRegister { register } => {
+                assert_eq!(register, 32);
+            }
+            other => panic!("expected UnsupportedRegister, got {:?}", other),
+        }
+        let err = t.map_register(255).unwrap_err();
+        match err {
+            TranslateError::UnsupportedRegister { register } => {
+                assert_eq!(register, 255);
+            }
+            other => panic!("expected UnsupportedRegister, got {:?}", other),
+        }
+    }
+
+    // ── Call/return roundtrip ────────────────────────────────────────────────
+
     #[test]
     fn test_call_return_roundtrip() {
         // Program:
