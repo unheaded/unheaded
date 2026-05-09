@@ -202,11 +202,9 @@ func (db *DirtyBitmap) FlushAll() map[uint32]map[uint32][64]byte {
 // CacheMissHandler handles CACHE_MISS events from BPF (D-006).
 // It stages cache lines from L2 into the BPF L1 LRU map.
 type CacheMissHandler struct {
-	ms              *MemoryService
-	config          Config
-	eventCh         <-chan *CacheMissEvent
-	stagedEventCh   chan<- *MemStagedEvent
-	prefetchCounter uint64
+	ms      *MemoryService
+	config  Config
+	eventCh <-chan *CacheMissEvent
 }
 
 // NewCacheMissHandler creates a cache miss handler.
@@ -232,15 +230,14 @@ type MemStagedEvent struct {
 
 // DirtyWritebackHandler batches dirty writes and flushes them periodically (D-007).
 type DirtyWritebackHandler struct {
-	ms             *MemoryService
-	dirtyBitmap    *DirtyBitmap
-	config         Config
-	writeCh        <-chan *CacheWriteEvent
-	flushedEventCh chan<- *MemFlushedEvent
-	flushTicker    *time.Ticker
-	lastFlush      time.Time
-	writeCounter   uint64
-	flushCounter   uint64
+	ms           *MemoryService
+	dirtyBitmap  *DirtyBitmap
+	config       Config
+	writeCh      <-chan *CacheWriteEvent
+	flushTicker  *time.Ticker
+	lastFlush    time.Time
+	writeCounter uint64
+	flushCounter uint64
 }
 
 // NewDirtyWritebackHandler creates a dirty writeback handler.
