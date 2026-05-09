@@ -12,7 +12,6 @@ package telemetry
 
 import (
 	"context"
-	"sync"
 )
 
 // MetricType represents the type of metric.
@@ -45,9 +44,7 @@ type Publisher interface {
 }
 
 // NoOpPublisher is a no-op telemetry publisher for development/testing.
-type NoOpPublisher struct {
-	mu sync.Mutex
-}
+type NoOpPublisher struct{}
 
 // Publish is a no-op that returns nil.
 func (n *NoOpPublisher) Publish(_ context.Context, _ *Metric) error {
