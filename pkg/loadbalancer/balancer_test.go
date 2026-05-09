@@ -4,6 +4,7 @@
 package loadbalancer
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -687,7 +688,7 @@ func TestAPIHandler_NotFound(t *testing.T) {
 func TestBalancer_Select(t *testing.T) {
 	b := makeTestBalancer(t, "test")
 
-	backend, err := b.Select(nil, "key")
+	backend, err := b.Select(context.TODO(), "key")
 	if err != nil {
 		t.Fatalf("Select failed: %v", err)
 	}
