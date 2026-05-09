@@ -97,7 +97,7 @@ git status --short                                                              
 
 **Marshal continuation shift complete 2026-05-09.** Defensive maintenance + parking-lot drain — Phase 1.1 boot-path code correctly NOT touched.
 
-**13 commits this shift** (continued past v3 in response to Stevie's "what's up you working or what?" prompt):
+**24 commits this shift** (continued through 4 user prompts: initial okcontinue, push it, you-working-or-what?, fix-now, continue-till-all-phases):
 - `2a3d4b65` chore(hygiene,marshal): cleanup stray upc-tty-bridge + 2026-05-09 continuation shift
 - `410bde3c` fix(monad-mbc): update 3 screen tests to current SCREEN_BASE — **65-day regression closed**
 - `ba548ce5` fix(upc-tty-bridge): remove unreachable `_ = done` after infinite reader loop
@@ -110,7 +110,17 @@ git status --short                                                              
 - `ca662873` test(monad-mbc/translator): pin map_register ABI + ASCEND-LINUX x16-x31 spill mappings (**5 tests**)
 - `0a111d2a` test(monad-mbc/translator): pin RV32I privileged-op translations MRET/SRET/WFI/SFENCE.VMA/ECALL/EBREAK (**6 tests**)
 - `8268c2ec` test(monad-mbc/translator): pin CSRRW/CSRRS memory-mapped CSR translation (**4 tests**)
-- (this v4 amend)
+- `f8e2caf6` test(pkg/ports): close 18-port test-coverage drift + 2 ASCEND-LINUX checks
+- `e481d4b7` build(make): wire ASCEND-LINUX into build-services + test-rust + park ebpf test
+- `5f311181` style(upc-bootctl): replace `len() % 4 != 0` with `!len().is_multiple_of(4)` (clippy)
+- `d779bda3` fix(make,monad-common): unbreak `make test-rust` for ebpf host-runnable + 2 real fails
+- `2beeac97` test(make): unblock ebpf/af-xdp-common (26 more host-runnable tests)
+- `58cc9788` test(make): wire zhend + doom-runner + ebpf/af-xdp into test-rust (~854 tests/9 crates)
+- `1d9995e1` test(monad-mbc): host-runnable coverage for tests/mbc-pipeline/*.asm fixtures (**3 tests**)
+- `0a8ab957` test(pkg/database): add **7 unit tests** for ValidateConfig + isPrivateHost + DSN
+- `dc5c99ae` test(pqc-verifier): add **8 unit tests** for DefaultConfig + LoadFromEnv
+- `89da89b0` test(lich-security): add **8 unit tests** for Runner + GenerateReport
+- (this v5 amend)
 
 **Net effect on the kingdom:**
 - Working tree returned to clean state (raft/ + `cmd/waf/Cargo.lock` untracked carry-over only).
@@ -129,5 +139,19 @@ git status --short                                                              
 - `crates/monad-mbc/src/translator.rs`: **+15 tests** total (lib 251 → 266) covering the entire ASCEND-LINUX translator-extension surface that shipped in iter 11/12 of the supersprint without test coverage.
 
 **Aggregate net new test count this shift: +35 (across 5 components).**
+
+**Post-push test push (after Stevie's 1st `push it` + `continue till all phases are complete`):**
+- `pkg/ports`: dup-detect + Doom-Range maps closed 18-port drift (22 → 40 ports covered) + 2 ASCEND-LINUX-band checks (4 new tests)
+- `Makefile`: wired ASCEND-LINUX (build-upc-bootctl + build-upc-tty-bridge); rebuilt test-rust as 8 named sub-targets aggregating ~854 tests across 9 crates; previously totally broken since 2026-02-25
+- ebpf/monad-common: 2 real test failures fixed (screen/kbd overlap direction post-2026-03-03 SCREEN_BASE move; mem_write_event_size repr-C alignment from 28 → 32 bytes for u64 alignment)
+- `cmd/upc-bootctl`: clippy `is_multiple_of` modernization
+- `crates/monad-mbc`: **3 new tests** validating the 11 host-unrunnable .asm fixtures in tests/mbc-pipeline/ (previously sudo+BPF-script only)
+- `pkg/database`: **7 new tests** for the security-critical pure-function surface (ValidateConfig + isPrivateHost + DSN); was 9 .go files, 0 _test.go
+- `cmd/pqc-verifier`: **8 new tests** for DefaultConfig + LoadFromEnv (env-mutation isolated via t.Setenv); was 4 .go, 0 tests
+- `cmd/lich-security/campaigns`: **8 new tests** for Runner + GenerateReport (pure markdown gen, no live target needed); was 7 .go, 0 tests
+
+**Aggregate net new test count post-push: +30 (across 6 components).**
+
+**Grand total this shift: +65 unit tests across 11 components, +535 tests previously dark and now exercised by `make test-rust`.**
 
 **Marshal off-duty. Badge stays on for the supersprint's BPF integration when Developer + Computermancer are next available.**
