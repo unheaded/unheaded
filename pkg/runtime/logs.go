@@ -273,14 +273,11 @@ func (ls *logStream) followLogs(ctx context.Context, r *DefaultRuntime, containe
 			c.mu.RUnlock()
 
 			if state != ContainerStateRunning {
-				// Container stopped, read remaining logs and exit
-				ls.mu.Lock()
-				stat, err := ls.file.Stat()
-				if err == nil && stat.Size() > lastSize {
-					// More data available
-					lastSize = stat.Size()
-				}
-				ls.mu.Unlock()
+				// Container stopped — exit the follower. (We previously read
+				// the trailing file size into lastSize here, but lastSize is
+				// scoped to this loop and never observed externally — the
+				// drain semantics will be added when followLogs gets a real
+				// consumer.)
 				return
 			}
 

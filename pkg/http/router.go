@@ -642,7 +642,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 		// Handle trailing slash redirect
 		if r.RedirectTrailingSlash && tsr {
-			redirectPath := path
+			var redirectPath string
 			if len(path) > 1 && path[len(path)-1] == '/' {
 				redirectPath = path[:len(path)-1]
 			} else {

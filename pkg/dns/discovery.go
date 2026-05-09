@@ -573,13 +573,13 @@ func (hc *HealthChecker) tcpCheck(addr net.IP, port uint16, timeout time.Duratio
 	return true
 }
 
-// httpCheck performs an HTTP health check
-func (hc *HealthChecker) httpCheck(addr net.IP, port uint16, timeout time.Duration, path string) bool {
-	if path == "" {
-		path = "/health"
-	}
-
-	// Simple TCP check for now (full HTTP would need http package)
+// httpCheck performs an HTTP health check.
+//
+// TODO: this currently degrades to a TCP check — the path argument is
+// reserved for the eventual real HTTP implementation but is intentionally
+// unused today (kept on the signature so callers don't need to change when
+// HTTP support lands).
+func (hc *HealthChecker) httpCheck(addr net.IP, port uint16, timeout time.Duration, _ string) bool {
 	return hc.tcpCheck(addr, port, timeout)
 }
 
