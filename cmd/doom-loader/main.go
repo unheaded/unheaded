@@ -28,8 +28,6 @@ import (
 )
 
 const (
-	batchSize = 10000
-
 	// Default BPF map paths
 	defaultROMMapPath = "/sys/fs/bpf/unheaded/doom-ring/maps/ROM_MAP"
 	defaultRAMMapPath = "/sys/fs/bpf/unheaded/doom-ring/maps/RAM_MAP"
