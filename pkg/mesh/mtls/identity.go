@@ -80,9 +80,6 @@ type IdentityManager struct {
 	// Current identity
 	identity *WorkloadIdentity
 
-	// Identity source
-	source IdentitySource
-
 	// Authorization policies
 	policies *PolicyStore
 

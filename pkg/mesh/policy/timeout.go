@@ -273,7 +273,6 @@ func (it *IdleTracker) GetIdleConnections() []string {
 type TimeoutReader struct {
 	r       io.Reader
 	timeout time.Duration
-	cancel  context.CancelFunc
 }
 
 // NewTimeoutReader creates a new timeout reader.
