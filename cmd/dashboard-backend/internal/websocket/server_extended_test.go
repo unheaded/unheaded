@@ -55,7 +55,10 @@ func wsURL(hs *httptest.Server) string {
 
 func dialWS(t *testing.T, url string) *gorillaWS.Conn {
 	t.Helper()
-	conn, _, err := gorillaWS.DefaultDialer.Dial(url, nil)
+	conn, dialResp, err := gorillaWS.DefaultDialer.Dial(url, nil)
+	if dialResp != nil {
+		_ = dialResp.Body.Close()
+	}
 	if err != nil {
 		t.Fatalf("Dial: %v", err)
 	}
