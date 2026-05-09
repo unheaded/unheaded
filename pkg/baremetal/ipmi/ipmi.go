@@ -87,7 +87,6 @@ type Client struct {
 
 	// Session info
 	sessionID uint32
-	authType  uint8
 }
 
 // NewClient creates a new IPMI client.
