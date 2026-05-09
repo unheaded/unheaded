@@ -191,20 +191,33 @@ test-go: ## Run Go tests
 	@echo "Running Go tests..."
 	go test -v -race -cover ./...
 
-test-rust: ## Run Rust tests
-	@echo "Running Rust tests..."
-	# NOTE (2026-05-09 Marshal): the ebpf/ workspace targets bpfel-unknown-none
-	# and has no host test runtime — `cargo test` errors out with duplicate
-	# `core` lang items. Pre-existing breakage since this Makefile target
-	# landed in 7b16ba9d (2026-02-25). Daytime fix-up: either move host-runnable
-	# unit tests for ebpf programs into a separate workspace member with the
-	# host target configured, or invoke a curated subset via --manifest-path
-	# per-program. Leaving commented out so test-rust completes for the
-	# downstream crates.
-	# cd $(EBPF_DIR) && cargo test
+test-rust: test-rust-ebpf-common test-rust-trace-collector test-rust-upc-bootctl test-rust-monad-mbc test-rust-xv6-mbc ## Run Rust tests across all host-runnable crates
+	@echo "✓ All Rust test suites passed"
+
+# ebpf/ workspace targets bpfel-unknown-none — `cd ebpf && cargo test` fails
+# with duplicate `core` lang items because the workspace's .cargo/config.toml
+# forces the BPF target. Recipe: run from repo root with --manifest-path and
+# a dedicated CARGO_TARGET_DIR so cargo escapes the parent .cargo/config.toml
+# inheritance. Verified 2026-05-09 — discovered + fixed 2 real test failures
+# (mbc_mmap_screen_and_kbd_overlap, mem_write_event_size repr-C alignment).
+EBPF_HOST_TARGET_DIR := /tmp/unheaded-ebpf-host-test
+test-rust-ebpf-common: ## Run host-runnable tests in ebpf/{common,monad-common,pqc-common}
+	@echo "Running ebpf/ host-runnable common-crate tests..."
+	@for crate in common monad-common pqc-common; do \
+		echo "  $$crate:"; \
+		CARGO_TARGET_DIR=$(EBPF_HOST_TARGET_DIR) cargo test --quiet --manifest-path ebpf/$$crate/Cargo.toml || exit 1; \
+	done
+
+test-rust-trace-collector: ## Run trace-collector tests
 	cd cmd/trace-collector && cargo test
+
+test-rust-upc-bootctl: ## Run upc-bootctl tests (ASCEND-LINUX)
 	cd cmd/upc-bootctl && cargo test
+
+test-rust-monad-mbc: ## Run monad-mbc tests (CPU/translator)
 	cd crates/monad-mbc && cargo test
+
+test-rust-xv6-mbc: ## Run xv6-mbc tests (ASCEND-LINUX kernel adapter)
 	cd crates/xv6-mbc && cargo test
 
 test-e2e: ## Run E2E integration tests (auth, pipeline, security, message delivery)

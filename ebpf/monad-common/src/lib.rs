@@ -2112,10 +2112,21 @@ mod tests {
     }
 
     #[test]
-    fn mbc_mmap_screen_base_plus_size_is_kbd_addr() {
-        // Screen region ends before keyboard address
+    fn mbc_mmap_screen_and_kbd_do_not_overlap() {
+        // KBD_ADDR is a single-byte MMIO register and must not fall inside the
+        // SCREEN region. Pre-2026-03-03 (commit c7831cad) SCREEN_BASE was
+        // 0x0000_C000 (below KBD_ADDR 0x0006_8000), so the original assertion
+        // `screen_end <= KBD_ADDR` held. Post-reshuffle SCREEN_BASE is
+        // 0x0007_0000 (above KBD_ADDR), so the relationship flipped. The
+        // invariant we actually care about is no-overlap, not direction.
+        let screen_start = mbc_mmap::SCREEN_BASE;
         let screen_end = mbc_mmap::SCREEN_BASE + mbc_mmap::SCREEN_SIZE;
-        assert!(screen_end <= mbc_mmap::KBD_ADDR);
+        let kbd = mbc_mmap::KBD_ADDR;
+        assert!(
+            kbd < screen_start || kbd >= screen_end,
+            "KBD_ADDR=0x{:X} overlaps SCREEN region [0x{:X}, 0x{:X})",
+            kbd, screen_start, screen_end
+        );
     }
 
     // ── Ring buffer sizing ─────────────────────────────────────────────────
@@ -2202,8 +2213,23 @@ mod tests {
 
     #[test]
     fn mem_write_event_size() {
-        // 8+1+[3 pad]+4+4+1+[3 pad]+4 = 28 bytes
-        assert_eq!(core::mem::size_of::<MemWriteEvent>(), 28);
+        // Field layout (#[repr(C)]):
+        //   timestamp_ns u64    @ 0..8
+        //   event_type   u8     @ 8
+        //   _pad         [u8;3] @ 9..12
+        //   flow_label   u32    @ 12..16
+        //   addr         u32    @ 16..20
+        //   size         u8     @ 20
+        //   _pad2        [u8;3] @ 21..24
+        //   value        u32    @ 24..28
+        //
+        // Sum-of-fields = 28 bytes, but #[repr(C)] aligns the struct to its
+        // largest member's alignment — u64 is 8-byte-aligned, so the trailing
+        // 4 bytes after `value` are padding to round 28 up to 32. The wire
+        // protocol carries the full 32-byte record over Anamnesis events.
+        assert_eq!(core::mem::size_of::<MemWriteEvent>(), 32);
+        // align matches the u64 field's alignment.
+        assert_eq!(core::mem::align_of::<MemWriteEvent>(), 8);
     }
 
     #[test]
