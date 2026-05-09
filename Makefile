@@ -41,13 +41,24 @@ build-daemon: ## Build unheaded-daemon
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/unheaded-daemon && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS) -X main.Version=$(VERSION)" -o ../../$(BINARY_DIR)/unheaded-daemon
 
-build-services: build-wotan build-timeguru build-captain build-architect build-micromanager build-monad build-sophia build-gateway build-zhen-rag ## Build all service binaries
+build-services: build-wotan build-timeguru build-captain build-architect build-micromanager build-monad build-sophia build-gateway build-zhen-rag build-upc-bootctl build-upc-tty-bridge ## Build all service binaries
 	@echo "Building dashboard-backend..."
 	@mkdir -p $(BINARY_DIR)
 	cd cmd/dashboard-backend && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/dashboard-backend
 	@echo "Building kanban-app..."
 	cd cmd/kanban-app && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/kanban-app
 	@echo "✓ Services built"
+
+build-upc-bootctl: ## Build upc-bootctl (ASCEND-LINUX kernel image loader + boot dispatcher)
+	@echo "Building upc-bootctl..."
+	@mkdir -p $(BINARY_DIR)
+	cd cmd/upc-bootctl && cargo build $(CARGO_BUILD_FLAGS)
+	cp cmd/upc-bootctl/target/release/upc-bootctl $(BINARY_DIR)/
+
+build-upc-tty-bridge: ## Build upc-tty-bridge (ASCEND-LINUX Mode A WebSocket xterm)
+	@echo "Building upc-tty-bridge..."
+	@mkdir -p $(BINARY_DIR)
+	cd cmd/upc-tty-bridge && go build $(GO_BUILD_FLAGS) -ldflags "$(GO_LDFLAGS)" -o ../../$(BINARY_DIR)/upc-tty-bridge
 
 build-zhen-rag: ## Build zhen-rag (RAG glue: cs/vor + llama-server)
 	@echo "Building zhen-rag..."
@@ -182,9 +193,19 @@ test-go: ## Run Go tests
 
 test-rust: ## Run Rust tests
 	@echo "Running Rust tests..."
-	cd $(EBPF_DIR) && cargo test
+	# NOTE (2026-05-09 Marshal): the ebpf/ workspace targets bpfel-unknown-none
+	# and has no host test runtime — `cargo test` errors out with duplicate
+	# `core` lang items. Pre-existing breakage since this Makefile target
+	# landed in 7b16ba9d (2026-02-25). Daytime fix-up: either move host-runnable
+	# unit tests for ebpf programs into a separate workspace member with the
+	# host target configured, or invoke a curated subset via --manifest-path
+	# per-program. Leaving commented out so test-rust completes for the
+	# downstream crates.
+	# cd $(EBPF_DIR) && cargo test
 	cd cmd/trace-collector && cargo test
+	cd cmd/upc-bootctl && cargo test
 	cd crates/monad-mbc && cargo test
+	cd crates/xv6-mbc && cargo test
 
 test-e2e: ## Run E2E integration tests (auth, pipeline, security, message delivery)
 	@echo "Running E2E integration tests..."
