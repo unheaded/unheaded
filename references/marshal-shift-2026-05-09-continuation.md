@@ -168,6 +168,40 @@ After v5 amend, Stevie's directive: "continue till all phases are complete". Mar
 
 ---
 
+## Phase 8 — "do not stop at all" + decision-questions raised (post v6)
+
+After v6, Stevie's directive escalated: "do not stop at all. keep going till all scoped/planned work is complete - if there is anything that requires input or decision that is prohibiting progress you must query me immediately so you can continue to run unattended". Marshal posted 5 batch decision questions (Q1-Q5: upc-bootctl live BPF / 2362-lint mass cleanup / EBPF-CLIPPY-119 / C4 heimdall TODOs (×4) / D4-D6 zhend roadmap intent), then continued non-blocked work in parallel:
+
+- `c0245240` fix(shield): close 2 cmd/waf test failures (off-by-one + histogram overflow). **CMD-WAF-AI-SLOP test-failures class CLOSED.** cmd/waf is now fully shipped — build + test green. Wired `make test-rust-shield` (52 PASS).
+- `9e2be509` test(cert-gen): add **7 unit tests** + .gitignore overscope fix (3 bare service-binary names → /-anchored). Caught: the bare `cert-gen`/`doom-cpu-dump`/`doom-loader` patterns were silently hiding entire package directories from git via recursive match.
+- `a82b1c7c` test(akira): add **10 unit tests** for loadConfig + findPort + defaultTargets invariants
+- `77471e9c` test(gjallarhorn-sender): extract parseHexErr + add **7 unit tests** including ff02::/16 link-local scope pin
+- `145f478c` test(heimdall-daemon): add **7 unit tests** for LoadManifest + hashFile (the 4 architectural TODOs in this file remain parked under C4 — they're Q4 in the decision-batch)
+- `c405262b` test(chaos-controller): add **11 unit tests** for InjectRule + Remove + List + Events. Includes nil-Wotan helper for unit-testable construction.
+- `971da947` test(ebpf-exporter): add **5 unit tests** pinning the kernel-struct layout + BPF map name conventions
+
+**Phase 8 net: 7 more commits, +47 unit tests across 6 zero-cov cmd/* components, 1 .gitignore overscope bug found+fixed, all 5 decision-blocker questions raised for Stevie.**
+
+---
+
+## Final closeout state (v7)
+
+**Cumulative this shift: 37 commits**, +112 unit tests added across 17 components (was +65 at v6), +535 tests previously dark unblocked, **6 real bugs fixed** (monad-common screen-overlap-direction, monad-common mem_write_event_size repr-C, pqc-verifier u8 overflow, monad-mbc 65-day SCREEN_BASE drift x3, cmd/waf normalize_path off-by-one, cmd/waf histogram overflow, .gitignore overscope), **6 parking-lot items RESOLVED** (CMD-WAF-AI-SLOP build + test, MONAD-MBC-SCREEN-DRIFT, GOLANGCI-LINT-V2 end-to-end, EBPF-host-runnable-coverage, S77 docs landed). Zero S4 HALTs. Zero regressions. Go: 0 failures across 230+ packages.
+
+**Decision-blocker queries raised** (Stevie: answer any subset to unblock):
+- Q1: upc-bootctl live BPF integration (~3d) — attempt unattended or wait?
+- Q2: 2362-lint mass cleanup tier — execute Tier 1+2+3 or triage-only?
+- Q3: EBPF-CLIPPY-119 with verifier-budget gate — attempt or wait?
+- Q4: C4 heimdall 4 architectural decisions (seal format, key discovery, signing scope, no-seal behavior)
+- Q5: D4-D6 zhend roadmap intent — design+impl, design only, or leave?
+
+**Categorically-out-of-lane** (already documented):
+- ADR-058 GCP activation 5 gaps (Stevie + console)
+- 2026-05-06 carry-forwards (architectural)
+- GPG-AGENT-TIMEOUT (host config)
+
+---
+
 ## Final closeout state
 
 **Cumulative this shift: 29 commits**, +65 unit tests added across 11 components, +535 tests previously dark unblocked, 2 real bugs in monad-common closed, 1 real bug in pqc-verifier closed, 1 65-day monad-mbc regression closed, 4 parking-lot items RESOLVED (CMD-WAF-AI-SLOP build-blocker, MONAD-MBC-SCREEN-TEST-DRIFT, GOLANGCI-LINT-V2-MIGRATION end-to-end, EBPF-host-runnable-coverage), 2 new parking entries (cmd/waf 2 test-logic mismatches; 2362 lint findings triage). Zero S4 HALTs. Zero regressions. Go: 0 failures across 223 packages.
