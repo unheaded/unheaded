@@ -1192,6 +1192,7 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | zhen-web-ui | 20103 | HTTP | Zhen web UI (Flask RAG) |
 | AI Services | 20101-20106 | HTTP | Reserved AI services |
 | User Apps | 26000-26666 | HTTP/HTTPS | Reserved |
+| upc-tty-bridge | 26100 | HTTP/WS | ASCEND-LINUX Mode A (browser xterm for UPC console) |
 
 ---
 
@@ -1221,3 +1222,27 @@ router.Use(auth.Middleware(authenticator))
 **Version**: Alpha (✅ COMPLETE) → Age 2 (✅ COMPLETE) → Age 3 IN PROGRESS — Wire Format FROZEN, Dual Bare Metal Online, Zhen AI Online, Public Launch Ready
 **Status**: WEST + EAST bare metal online. Zhen AI operational (1.52M vectors, Mistral-7B inference). UPC Level 6 built. The Well (PostgreSQL multi-DB). SBOM audited. All P1 bugs fixed. 96 commits March 15-19. RFC blockers cleared across Foundation-06, Sophia-03, Wotan-03. Sleipnir (BGP) + Yggdrasil (Hardened OS) vision documented in ADR-69420.
 **LOC**: ~385K production, ~941K total. 34 services, 23 eBPF programs.
+
+---
+
+## ASCEND-LINUX (Linux on UPC) — Phase 0 ✓ Phase 1.1 ~80% (2026-05-08 → 2026-05-09)
+
+The Dream Ladder summit per `references/battle-plan-ascend-linux-2026-05-08.md`.
+
+**Phase 0 (DONE):** ABI v1 + ISA v2 frozen per `docs/adr/ADR-067-mbc-isa-v2-and-upc-abi-v1.md`. 5 new MBC opcodes (FENCE 0x3F, MRET 0x47, SRET 0x48, LR.W 0x49, SC.W 0x4A) implemented in monad-mbc + monad-cpu-ebpf. MbcCpuState 128 → 136 bytes (priv_level + reservation_address). UPC Boot Protocol v2 spec (`docs/doom/UPC_BOOT_PROTOCOL_V2.md`) — two-stage boot, 256B BootParams, memory-mapped CSR region 0x000_F000+. BPF verifier still 7%/900K budget.
+
+**Phase 1.1 (~80% complete):**
+- xv6-riscv vendored at `crates/xv6-mbc/upstream/` (commit `5474d4bf`, MIT).
+- 7 adapter files in `crates/xv6-mbc/adapters/` (start_mbc.c, console-mmio.c, blk-ramdisk.c, syscall_shims.S, swtch_mbc.S, trampoline_mbc.S, kernelvec_mbc.S, libgcc_stubs.c, kernel-mbc.ld, Makefile.mbc).
+- Translator extensions in `crates/monad-mbc/src/translator.rs`: CSR opcodes via memory-mapped LD/ST; MRET/SRET/WFI/SFENCE.VMA recognized; opcode=0 NOP; x18-x31 register aliasing.
+- **kernel.elf LINKS GREEN. xv6-mbc.mbc EMITS — 11,721 MBC instructions, 46 KB.**
+- Boot tools shipped:
+  - `cmd/upc-bootctl/` — `validate` + `boot --dry-run` + `console` skeleton.
+  - `cmd/upc-tty-bridge/` — Go WebSocket bridge for Mode A demo (port 26100).
+  - `dashboard/upc-console.html` — Browser xterm.js client.
+
+**Remaining for Phase 1.1 first milestone:** wire upc-bootctl `boot` to actual aya BPF map population (~3 days, pattern after `crates/doom-runner/`), then `cargo run -p upc-bootctl -- boot --kernel xv6-mbc.mbc --instance 222` should print "xv6 booting..." to upc-tty-bridge and HALT cleanly.
+
+**Demo surfaces (per battle plan):** A=browser xterm (scaffolded), B=direct host pty (skeleton), C=SSH over IPv6 (Phase 4). Mode A unblocks at end of Phase 1; Mode C at end of Phase 4.
+
+**Key shift logs:** `references/marshal-shift-2026-05-08-ascend-linux-kickoff.md`, `references/marshal-shift-2026-05-09-ascend-linux-supersprint.md`.
