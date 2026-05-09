@@ -42,9 +42,12 @@ use tracing_subscriber::EnvFilter;
 
 // ── MbcCpuState replica ─────────────────────────────────────────────────────
 //
-// Must match monad-common's MbcCpuState exactly: 128 bytes, #[repr(C)].
-// We define it here to avoid pulling monad-common (which targets both
-// bpfel-unknown-none and host). Verified by size_of assertion below.
+// Must match monad-common's MbcCpuState exactly: 136 bytes (ABI v2),
+// #[repr(C)]. We define it here to avoid pulling monad-common (which
+// targets both bpfel-unknown-none and host). Verified by size_of assertion.
+//
+// ABI v2 (ASCEND-LINUX, ADR-067) added priv_level + reservation_address;
+// Doom doesn't use these but the BPF map shape must match the eBPF program.
 
 /// CPU state for the MBC virtual machine — must match monad-common exactly.
 #[repr(C)]
@@ -71,13 +74,19 @@ pub struct MbcCpuState {
     pub num_processes: u8,      // 1
     pub mmu_enabled: u8,        // 1
     pub _pad3: u8,              // 1
-    pub page_dir_base: u32,     // 4
-} // total: 128
+    pub page_dir_base: u32,     // 4 (offset 124)
+    // ── ASCEND-LINUX ABI v2 (ADR-067) ───────────────────────────────────
+    pub priv_level: u8,         // 1 (offset 128) M=0/S=1/U=3
+    pub _pad4: u8,              // 1
+    pub _pad5: u8,              // 1
+    pub _pad6: u8,              // 1
+    pub reservation_address: u32, // 4 (offset 132) LR.W reservation tracker
+} // total: 136 (was 128 in ABI v1)
 
 // Safety: MbcCpuState is #[repr(C)], Copy, contains only primitives.
 unsafe impl aya::Pod for MbcCpuState {}
 
-const _: () = assert!(std::mem::size_of::<MbcCpuState>() == 128);
+const _: () = assert!(std::mem::size_of::<MbcCpuState>() == 136);
 
 /// CPU instance ID for Doom (0xDE — matches Go loader convention).
 const CPU_INSTANCE_ID: u32 = 0xDE;
@@ -480,6 +489,13 @@ async fn cmd_run(
             mmu_enabled: 0,
             _pad3: 0,
             page_dir_base: 0,
+            // ABI v2 (ASCEND-LINUX, ADR-067) — Doom runs in single-ring mode
+            // with no LR/SC active.
+            priv_level: 1, // S-mode (Doom doesn't distinguish; 1 is harmless)
+            _pad4: 0,
+            _pad5: 0,
+            _pad6: 0,
+            reservation_address: 0xFFFF_FFFF,
         };
         // SP = stack top (used directly as word address by CALL/RET)
         cpu.regs[15] = DEFAULT_SP;
