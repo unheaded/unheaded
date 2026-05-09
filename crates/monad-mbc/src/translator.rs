@@ -1840,6 +1840,93 @@ mod tests {
         );
     }
 
+    // ── CSR translation (memory-mapped per ADR-067) ──────────────────────
+
+    /// Encode a CSRRW instruction: opcode=0x73, funct3=1.
+    /// CSRRW rd, csr, rs1 — atomically swap csr ↔ rs1, old csr → rd.
+    fn rv32i_csrrw(csr: u32, rs1: u32, rd: u32) -> u32 {
+        rv32i_i_type(csr as i32, rs1, 1, rd, 0x73)
+    }
+
+    /// Encode a CSRRS instruction: opcode=0x73, funct3=2.
+    /// CSRRS rd, csr, rs1 — read csr → rd, then csr |= rs1.
+    fn rv32i_csrrs(csr: u32, rs1: u32, rd: u32) -> u32 {
+        rv32i_i_type(csr as i32, rs1, 2, rd, 0x73)
+    }
+
+    /// True if the opcode list contains an address-load (MOVI for ≤16-bit
+    /// addresses, MOVI+LOAD_IMM32 for full 32-bit, or MOVI+SHL for upper-only).
+    fn contains_addr_load(opcodes: &[u8]) -> bool {
+        opcodes.contains(&op::LOAD_IMM32) || opcodes.contains(&op::MOVI)
+    }
+
+    #[test]
+    fn test_translate_csrrw_emits_load_then_store_at_csr_addr() {
+        // CSRRW x10, mstatus(0x300), x11 — write x11 to mstatus, old mstatus → x10.
+        // Per ADR-067 Decision 2, CSRs are memory-mapped at 0xF000 + csr*4.
+        // mstatus = 0x300 → byte addr 0xF000 + 0x300*4 = 0xFC00.
+        let csrrw = rv32i_csrrw(0x300, 11, 10);
+        let result = Translator::translate_program(&[csrrw]);
+        assert!(result.is_ok(), "CSRRW translate: {:?}", result.err());
+        let mbc = result.unwrap();
+        let opcodes: Vec<u8> = mbc.iter().map(|w| MbcInsn(*w).opcode()).collect();
+        // Must contain: address-load (MOVI for ≤16-bit, MOVI+LOAD_IMM32 for
+        // full 32-bit) + LD (read CSR into rd) + ST (write src to CSR).
+        assert!(contains_addr_load(&opcodes),
+            "CSRRW should emit MOVI/LOAD_IMM32 for CSR base address; got {:?}", opcodes);
+        assert!(opcodes.contains(&op::LD),
+            "CSRRW with rd!=x0 should emit LD to read old CSR value; got {:?}", opcodes);
+        assert!(opcodes.contains(&op::ST),
+            "CSRRW should emit ST to write new CSR value; got {:?}", opcodes);
+    }
+
+    #[test]
+    fn test_translate_csrrw_with_x0_rd_skips_csr_read() {
+        // CSRRW x0, mstatus, x11 — discard read result; only writes are observable.
+        // The translator's optimization: skip LD when rd==x0.
+        let csrrw = rv32i_csrrw(0x300, 11, 0);
+        let result = Translator::translate_program(&[csrrw]);
+        assert!(result.is_ok(), "CSRRW (rd=x0) translate: {:?}", result.err());
+        let mbc = result.unwrap();
+        let opcodes: Vec<u8> = mbc.iter().map(|w| MbcInsn(*w).opcode()).collect();
+        // ST is required.
+        assert!(opcodes.contains(&op::ST), "ST still required, got {:?}", opcodes);
+        // Address load still needed.
+        assert!(contains_addr_load(&opcodes), "address load still required, got {:?}", opcodes);
+        // LD should be elided since rd==x0.
+        let ld_count = opcodes.iter().filter(|&&o| o == op::LD).count();
+        assert_eq!(ld_count, 0, "CSRRW with rd=x0 should NOT emit LD; got {:?}", opcodes);
+    }
+
+    #[test]
+    fn test_translate_csrrw_high_csr_uses_full_load_imm32() {
+        // hpmcounter3 = 0xC03 → byte addr 0xF000 + 0xC03*4 = 0x1_2C0C, requires
+        // full 32-bit load (MOVI low + LOAD_IMM32 high). Verifies the address-
+        // load path for CSRs above the 16-bit byte-address boundary.
+        let csrrw = rv32i_csrrw(0xC03, 11, 10);
+        let result = Translator::translate_program(&[csrrw]);
+        assert!(result.is_ok(), "CSRRW (high CSR) translate: {:?}", result.err());
+        let mbc = result.unwrap();
+        let opcodes: Vec<u8> = mbc.iter().map(|w| MbcInsn(*w).opcode()).collect();
+        assert!(opcodes.contains(&op::LOAD_IMM32),
+            "CSRRW for high CSR (>16-bit byte addr) requires LOAD_IMM32; got {:?}", opcodes);
+    }
+
+    #[test]
+    fn test_translate_csrrs_emits_or_into_csr() {
+        // CSRRS x10, mstatus, x11 — read mstatus → x10, then mstatus |= x11.
+        // Translator emits LOAD_IMM32 + LD + LD + OR + ST sequence for the RMW.
+        let csrrs = rv32i_csrrs(0x300, 11, 10);
+        let result = Translator::translate_program(&[csrrs]);
+        assert!(result.is_ok(), "CSRRS translate: {:?}", result.err());
+        let mbc = result.unwrap();
+        let opcodes: Vec<u8> = mbc.iter().map(|w| MbcInsn(*w).opcode()).collect();
+        assert!(opcodes.contains(&op::OR),
+            "CSRRS should emit OR for the bit-set RMW; got {:?}", opcodes);
+        assert!(opcodes.contains(&op::ST),
+            "CSRRS should emit ST to write back the OR'd value; got {:?}", opcodes);
+    }
+
     // ── map_register: ABI mapping + ASCEND-LINUX x16-x31 spill-shadow ────
 
     #[test]
