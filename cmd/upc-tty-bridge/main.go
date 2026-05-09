@@ -91,17 +91,27 @@ func (h *Hub) broadcastTty(instance uint8, data []byte) {
 	}
 }
 
-func (h *Hub) handleWs(w http.ResponseWriter, r *http.Request) {
-	// Query param: ?instance=222 (decimal)
-	instStr := r.URL.Query().Get("instance")
-	var instance uint8 = 0xDE
-	if instStr != "" {
-		var n int
-		_, err := fmt.Sscanf(instStr, "%d", &n)
-		if err == nil && n >= 0 && n <= 255 {
-			instance = uint8(n)
-		}
+// parseInstanceParam decodes the ?instance=<decimal> query value into a UPC
+// instance ID (low byte of CPU_MAP key). Returns the default 0xDE (xv6
+// first-boot target) for: empty input, non-numeric input, or out-of-range
+// values (<0 or >255). Pure function — unit-testable.
+func parseInstanceParam(raw string) uint8 {
+	const defaultInstance uint8 = 0xDE
+	if raw == "" {
+		return defaultInstance
 	}
+	var n int
+	if _, err := fmt.Sscanf(raw, "%d", &n); err != nil {
+		return defaultInstance
+	}
+	if n < 0 || n > 255 {
+		return defaultInstance
+	}
+	return uint8(n)
+}
+
+func (h *Hub) handleWs(w http.ResponseWriter, r *http.Request) {
+	instance := parseInstanceParam(r.URL.Query().Get("instance"))
 
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
