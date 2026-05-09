@@ -1744,6 +1744,102 @@ mod tests {
 
     // ── Call/return roundtrip ────────────────────────────────────────────────
 
+    // ── ASCEND-LINUX privileged ops: MRET / SRET / WFI / SFENCE.VMA ──────
+
+    /// Encode a SYSTEM-class instruction (opcode 0x73, funct3=0).
+    /// imm_bits is the 12-bit immediate that disambiguates ECALL/EBREAK/MRET/etc.
+    fn rv32i_system(imm_bits: u32, funct7: u32) -> u32 {
+        // funct3=0, rs1=0, rd=0
+        (funct7 << 25) | (imm_bits << 20) | 0x73
+    }
+
+    #[test]
+    fn test_translate_mret_emits_mret_opcode() {
+        // MRET is encoded as opcode=0x73, funct3=0, imm=0x302.
+        let mret = rv32i_system(0x302, 0);
+        let result = Translator::translate_program(&[mret]);
+        assert!(result.is_ok(), "MRET should translate: {:?}", result.err());
+        let mbc = result.unwrap();
+        assert!(
+            mbc.iter().any(|w| MbcInsn(*w).opcode() == op::MRET),
+            "expected MRET opcode in output, got {:?}",
+            mbc.iter().map(|w| MbcInsn(*w).opcode()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_translate_sret_emits_sret_opcode() {
+        // SRET is encoded as opcode=0x73, funct3=0, imm=0x102.
+        let sret = rv32i_system(0x102, 0);
+        let result = Translator::translate_program(&[sret]);
+        assert!(result.is_ok(), "SRET should translate: {:?}", result.err());
+        let mbc = result.unwrap();
+        assert!(
+            mbc.iter().any(|w| MbcInsn(*w).opcode() == op::SRET),
+            "expected SRET opcode in output, got {:?}",
+            mbc.iter().map(|w| MbcInsn(*w).opcode()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_translate_wfi_emits_nothing() {
+        // WFI (Wait For Interrupt) is encoded as opcode=0x73, funct3=0, imm=0x105.
+        // Translator emits nothing — busy-wait equivalent — but the input must
+        // be accepted without error.
+        let wfi = rv32i_system(0x105, 0);
+        let result = Translator::translate_program(&[wfi]);
+        assert!(result.is_ok(), "WFI should translate: {:?}", result.err());
+        let mbc = result.unwrap();
+        // No MRET/SRET/SYSCALL/HALT — WFI just consumes the slot.
+        assert!(
+            !mbc.iter().any(|w| matches!(MbcInsn(*w).opcode(), x if x == op::MRET || x == op::SRET || x == op::SYSCALL || x == op::HALT)),
+            "WFI should not emit privileged opcodes, got {:?}",
+            mbc.iter().map(|w| MbcInsn(*w).opcode()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_translate_sfence_vma_emits_fence() {
+        // SFENCE.VMA is encoded as opcode=0x73, funct3=0, funct7=0x09.
+        let sfence = rv32i_system(0, 0x09);
+        let result = Translator::translate_program(&[sfence]);
+        assert!(result.is_ok(), "SFENCE.VMA should translate: {:?}", result.err());
+        let mbc = result.unwrap();
+        assert!(
+            mbc.iter().any(|w| MbcInsn(*w).opcode() == op::FENCE),
+            "expected FENCE opcode (SFENCE.VMA → FENCE), got {:?}",
+            mbc.iter().map(|w| MbcInsn(*w).opcode()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_translate_ecall_emits_syscall() {
+        // ECALL is encoded as opcode=0x73, funct3=0, imm=0x000. Maps to SYSCALL.
+        let ecall = rv32i_system(0x000, 0);
+        let result = Translator::translate_program(&[ecall]);
+        assert!(result.is_ok(), "ECALL should translate: {:?}", result.err());
+        let mbc = result.unwrap();
+        assert!(
+            mbc.iter().any(|w| MbcInsn(*w).opcode() == op::SYSCALL),
+            "expected SYSCALL opcode (ECALL → SYSCALL), got {:?}",
+            mbc.iter().map(|w| MbcInsn(*w).opcode()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_translate_ebreak_emits_halt() {
+        // EBREAK is encoded as opcode=0x73, funct3=0, imm=0x001. Maps to HALT.
+        let ebreak = rv32i_system(0x001, 0);
+        let result = Translator::translate_program(&[ebreak]);
+        assert!(result.is_ok(), "EBREAK should translate: {:?}", result.err());
+        let mbc = result.unwrap();
+        assert!(
+            mbc.iter().any(|w| MbcInsn(*w).opcode() == op::HALT),
+            "expected HALT opcode (EBREAK → HALT), got {:?}",
+            mbc.iter().map(|w| MbcInsn(*w).opcode()).collect::<Vec<_>>()
+        );
+    }
+
     // ── map_register: ABI mapping + ASCEND-LINUX x16-x31 spill-shadow ────
 
     #[test]
