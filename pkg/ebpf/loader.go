@@ -1019,7 +1019,6 @@ type loadedProgram struct {
 	linkFDs   []int                 // Link file descriptors
 	perfFDs   []int                 // Perf event FDs (for kprobes)
 	cancelFns []context.CancelFunc  // Cancel functions for readers
-	mu        sync.RWMutex
 }
 
 // ============================================================================
