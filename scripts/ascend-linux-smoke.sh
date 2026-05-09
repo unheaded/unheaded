@@ -86,6 +86,14 @@ step "upc-tty-bridge Go build" \
 step "doom-runner builds with ABI v2 (regression)" \
     bash -c 'cd crates/doom-runner && cargo build --release 2>&1 | tail -1 | grep -q "Finished"'
 
+# 11. GPL boundary check passes (no contamination from new ASCEND-LINUX crates)
+step "GPL boundary check (no contamination from new code)" \
+    bash -c 'bash scripts/verify-gpl-boundary.sh 2>&1 | grep -q "RESULT: PASS"'
+
+# 12. govulncheck — zero kingdom vulns
+step "govulncheck (zero kingdom vulnerabilities)" \
+    bash -c '~/go/bin/govulncheck ./... 2>&1 | grep -q "affected by 0 vulnerabilities"'
+
 printf "\n════════════════════════════════════════\n"
 printf "  ASCEND-LINUX smoke test summary\n"
 printf "    PASS: %d\n" "$PASS"
