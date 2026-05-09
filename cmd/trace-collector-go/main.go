@@ -321,7 +321,6 @@ type WotanPublisher struct {
 	batchTime  time.Duration
 	connected  atomic.Bool
 	published  uint64
-	errors     uint64
 	tsc        *wotanClient.TopicStreamClient
 	httpClient *http.Client
 }
