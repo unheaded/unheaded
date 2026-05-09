@@ -241,10 +241,9 @@ func NormalizeLineEndings(data []byte) []byte {
 
 // GoldenDir manages golden files in a directory.
 type GoldenDir struct {
-	t       *testing.T
-	dir     string
-	opts    []GoldenOption
-	cleanup bool
+	t    *testing.T
+	dir  string
+	opts []GoldenOption
 }
 
 // NewGoldenDir creates a new golden directory manager.

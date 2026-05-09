@@ -23,7 +23,6 @@ type queueItem struct {
 	workload    *Workload
 	index       int
 	enqueueTime time.Time
-	retryCount  int
 }
 
 // workloadHeap implements heap.Interface for priority-based scheduling.

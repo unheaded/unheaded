@@ -569,7 +569,6 @@ type SamplerConfig struct {
 // Sampler implements trace sampling logic
 type Sampler struct {
 	config     SamplerConfig
-	counter    uint64
 	lastReset  time.Time
 	traceCount uint64
 	mu         sync.Mutex
