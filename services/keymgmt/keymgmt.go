@@ -199,8 +199,17 @@ func (s *Service) GenerateKey(algoID, paramSet uint8, serviceID uint16) (*KeyRec
 		return nil, fmt.Errorf("keymgmt: service %d has reached max key limit (%d)", serviceID, s.config.MaxKeysPerService)
 	}
 
-	// Allocate KeyRef
-	ref := uint16(atomic.AddUint32(&s.nextKeyRef, 1))
+	// Allocate KeyRef (16-bit wire-format field). nextKeyRef is u32 to avoid
+	// CAS-vs-overflow races, but the wire only carries 16 bits — fail loudly
+	// when the counter exceeds the u16 ceiling rather than silently wrapping
+	// back to 0 (which would collide with the first-issued KeyRef).
+	next := atomic.AddUint32(&s.nextKeyRef, 1)
+	if next > 0xFFFF {
+		// Roll back the increment so subsequent calls see the same overflow.
+		atomic.AddUint32(&s.nextKeyRef, ^uint32(0)) // -1 via two's-complement
+		return nil, fmt.Errorf("keymgmt: KeyRef counter exhausted (>65535 keys issued); rotate or compact required")
+	}
+	ref := uint16(next)
 
 	now := time.Now()
 	record := &KeyRecord{
@@ -254,8 +263,13 @@ func (s *Service) RotateKey(keyID string) (*KeyRecord, error) {
 	old.Status = KeyRotating
 	old.RotatedAt = &now
 
-	// Generate replacement
-	ref := uint16(atomic.AddUint32(&s.nextKeyRef, 1))
+	// Generate replacement KeyRef (same overflow guard as IssueKey).
+	nextRef := atomic.AddUint32(&s.nextKeyRef, 1)
+	if nextRef > 0xFFFF {
+		atomic.AddUint32(&s.nextKeyRef, ^uint32(0))
+		return nil, fmt.Errorf("keymgmt: KeyRef counter exhausted on rotate (>65535 keys issued)")
+	}
+	ref := uint16(nextRef)
 	newRecord := &KeyRecord{
 		ID:        fmt.Sprintf("key-%d-%d", now.UnixNano(), ref),
 		AlgoID:    old.AlgoID,
