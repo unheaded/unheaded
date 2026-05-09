@@ -934,7 +934,6 @@ type HealthChecker struct {
 	health             map[string]*endpointHealth
 	serviceToEndpoints map[string][]string // service name -> endpoint IDs
 	stopCh             chan struct{}
-	wg                 sync.WaitGroup
 	running            bool
 }
 
@@ -962,10 +961,8 @@ type endpointHealth struct {
 	healthy         bool
 	consecutiveOK   int
 	consecutiveFail int
-	lastCheck       time.Time
 	lastSuccess     time.Time
 	lastFailure     time.Time
-	totalChecks     uint64
 	totalSuccesses  uint64
 	totalFailures   uint64
 }

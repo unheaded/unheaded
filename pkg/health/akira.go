@@ -67,9 +67,8 @@ type Akira struct {
 	client  *http.Client
 	logger  zerolog.Logger
 
-	mu      sync.RWMutex
-	states  map[string]*ConsensusState // service name → state
-	reports []HealthReport             // recent reports buffer
+	mu     sync.RWMutex
+	states map[string]*ConsensusState // service name → state
 
 	// Callbacks
 	onReport func(HealthReport)   // called for each health check
