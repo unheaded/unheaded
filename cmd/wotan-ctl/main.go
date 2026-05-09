@@ -46,7 +46,6 @@ type Command struct {
 	Flags       *flag.FlagSet
 	SubCommands map[string]*Command
 	RunFunc     func(ctx *Context, args []string) error
-	parent      *Command
 }
 
 // Context holds the runtime context for command execution.
