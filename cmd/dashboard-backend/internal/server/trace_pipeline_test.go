@@ -73,7 +73,10 @@ func TestTracePipelineE2E(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
 
 	// Connect a WebSocket client
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if dialResp != nil {
+		_ = dialResp.Body.Close() // 101 Switching Protocols handshake response
+	}
 	if err != nil {
 		t.Fatalf("WebSocket dial failed: %v", err)
 	}
@@ -284,7 +287,10 @@ func TestTracePipelineMultipleWebSocketClients(t *testing.T) {
 	const numClients = 3
 	clients := make([]*websocket.Conn, numClients)
 	for i := 0; i < numClients; i++ {
-		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		if dialResp != nil {
+			_ = dialResp.Body.Close()
+		}
 		if err != nil {
 			t.Fatalf("client %d: Dial failed: %v", i, err)
 		}
