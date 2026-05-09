@@ -359,13 +359,15 @@ fn step100_translator_roundtrip_add() {
 #[test]
 fn step101_screen_gradient_pattern() {
     // Write a gradient pattern to the screen buffer using STB.
-    // Screen base = 0xC000, size = 64000 bytes (320x200).
+    // Screen base = 0x0007_0000 per ebpf/monad-common SCREEN_BASE
+    // (moved from 0xC000 on 2026-03-03 in c7831cad). Size = 64000 bytes (320x200).
     // Write bytes 0..255 cycling across the first 256 pixels.
     let src = r#"
-        MOVI r1, 0xC000    ; screen base
-        MOVI r2, 0         ; counter / pixel value
-        MOVI r3, 256       ; limit
-        MOVI r4, 1         ; increment
+        MOVI r1, 0          ; screen base low half
+        LOAD_IMM32 r1, 0x0007 ; screen base high half → r1 = 0x0007_0000
+        MOVI r2, 0          ; counter / pixel value
+        MOVI r3, 256        ; limit
+        MOVI r4, 1          ; increment
     loop:
         ; addr = screen_base + counter
         MOV  r5, r1
@@ -397,21 +399,25 @@ fn step101_screen_gradient_pattern() {
 
 #[test]
 fn step101_screen_write_and_readback() {
-    // Write specific bytes to screen, read them back via LDB
+    // Write specific bytes to screen, read them back via LDB.
+    // Screen base = 0x0007_0000 per ebpf/monad-common SCREEN_BASE (moved
+    // from 0xC000 on 2026-03-03 in c7831cad).
     let src = r#"
-        MOVI r0, 0xAB         ; value
-        MOVI r1, 0xC000        ; screen base + offset 0
-        STB  [r1+0], r0        ; screen[0] = 0xAB
+        MOVI r0, 0xAB              ; value
+        MOVI r1, 0                 ; screen base low half
+        LOAD_IMM32 r1, 0x0007      ; screen base high half → r1 = 0x0007_0000
+        STB  [r1+0], r0            ; screen[0] = 0xAB
 
         MOVI r0, 0xCD
-        ADDI r1, 1             ; screen base + 1
-        STB  [r1+0], r0        ; screen[1] = 0xCD
+        ADDI r1, 1                 ; screen base + 1
+        STB  [r1+0], r0            ; screen[1] = 0xCD
 
         ; Read back
-        MOVI r1, 0xC000
-        LDB  r2, [r1+0]        ; r2 = screen[0]
+        MOVI r1, 0
+        LOAD_IMM32 r1, 0x0007      ; r1 = 0x0007_0000 again
+        LDB  r2, [r1+0]            ; r2 = screen[0]
         ADDI r1, 1
-        LDB  r3, [r1+0]        ; r3 = screen[1]
+        LDB  r3, [r1+0]            ; r3 = screen[1]
         HALT
     "#;
     let rom = assemble(src).unwrap();
@@ -920,17 +926,20 @@ fn integration_draw_frame_syscall() {
 
 #[test]
 fn integration_byte_store_load_screen() {
-    // Write a specific pattern to the screen using STB, read back via LDB
+    // Write a specific pattern to the screen using STB, read back via LDB.
+    // Screen base = 0x0007_0000 per ebpf/monad-common SCREEN_BASE (moved
+    // from 0xC000 on 2026-03-03 in c7831cad).
     let src = r#"
-        MOVI r0, 0xC000     ; screen base
+        MOVI r0, 0                  ; screen base low half
+        LOAD_IMM32 r0, 0x0007       ; screen base high half → r0 = 0x0007_0000
         MOVI r1, 0xDE
-        STB  [r0+0], r1     ; screen[0] = 0xDE
+        STB  [r0+0], r1             ; screen[0] = 0xDE
         MOVI r1, 0xAD
-        STB  [r0+1], r1     ; screen[1] = 0xAD
+        STB  [r0+1], r1             ; screen[1] = 0xAD
         MOVI r1, 0xBE
-        STB  [r0+2], r1     ; screen[2] = 0xBE
+        STB  [r0+2], r1             ; screen[2] = 0xBE
         MOVI r1, 0xEF
-        STB  [r0+3], r1     ; screen[3] = 0xEF
+        STB  [r0+3], r1             ; screen[3] = 0xEF
         ; Read back
         LDB  r2, [r0+0]
         LDB  r3, [r0+1]
