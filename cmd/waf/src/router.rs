@@ -299,7 +299,9 @@ fn normalize_path(path: &str) -> String {
         .map(|part| {
             if part.chars().all(|c| c.is_ascii_digit()) && !part.is_empty() {
                 "{id}".to_string()
-            } else if part.len() > 32 && part.chars().all(|c| c.is_ascii_hexdigit()) {
+            } else if part.len() >= 32 && part.chars().all(|c| c.is_ascii_hexdigit()) {
+                // Off-by-one fix 2026-05-09: standard UUID hex (no dashes) is
+                // exactly 32 chars; the previous `> 32` check rejected them.
                 "{uuid}".to_string()
             } else {
                 part.to_string()
