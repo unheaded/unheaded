@@ -24,11 +24,8 @@ const (
 // Map wraps a pinned BPF map file descriptor with typed operations.
 // All reads and writes are thread-safe.
 type Map struct {
-	fd         int
-	keySize    int
-	valueSize  int
-	maxEntries int
-	path       string
+	fd   int
+	path string
 }
 
 // Open opens a pinned BPF map and validates its dimensions.

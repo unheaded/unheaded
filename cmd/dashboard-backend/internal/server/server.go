@@ -251,8 +251,7 @@ type Server struct {
 	hostProcesses      *metrics.GaugeVec
 
 	// Service config management
-	configLoader  *discovery.ServiceConfigLoader
-	configWatcher *discovery.ConfigWatcher
+	configLoader *discovery.ServiceConfigLoader
 
 	// Doom compute state (populated by compute.* events from ingestor)
 	doomState *DoomState
