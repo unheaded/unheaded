@@ -329,7 +329,6 @@ func (q *DeadLetterQueue) RetryWithFilter(bus *Bus, filter func(DeadLetter) bool
 type TimeBasedStore struct {
 	store     Store
 	retention time.Duration
-	mu        sync.Mutex
 	stop      chan struct{}
 }
 
