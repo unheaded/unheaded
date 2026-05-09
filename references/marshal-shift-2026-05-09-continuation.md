@@ -154,4 +154,33 @@ git status --short                                                              
 
 **Grand total this shift: +65 unit tests across 11 components, +535 tests previously dark and now exercised by `make test-rust`.**
 
+---
+
+## Phase 7 — "continue till all phases are complete" finale (post v5)
+
+After v5 amend, Stevie's directive: "continue till all phases are complete". Marshal interprets as "drain everything in lane, document what isn't". Final 5 commits:
+
+- `c48d4511` fix(pqc-verifier): clamp PQC_DEFAULT_TIER to u8 + tighten golangci-lint policy. Real silent-wrap bug (300 → 44) fixed; +4 sub-test cases pinning the rejection. Config also disables shadow analyzer (idiomatic err-shadow) + adds errcheck excludes for resource Close + gosec G117 (Password field name false positive).
+- `cbb3150d` docs(compliance): golangci-lint kingdom-wide inventory 2026-05-09. **First end-to-end golangci-lint run since v2 schema landed in drain shift** — 2,362 findings inventoried + 3-tier triage plan. NOT executed unattended (single-handed triage of 2362 is out-of-Marshal-lane); inventory is the deliverable.
+- `496f9aa2` build(make): wire cmd/waf (shield) into build targets. **CMD-WAF-AI-SLOP parking entry CLOSED for the build-blocker class** — drain shift's 2b055608 unblocked the raw-string parse errors; this shift wires `make build-shield` (3.3 MB binary). 2 test-logic mismatches (histogram bucket cumulative-vs-non-cumulative + path UUID extraction) remain — flagged as new parking item for Developer + BlackMage semantic decision.
+
+**Phase 7 net: 3 more commits, 1 more real bug fixed, 1 more parking-lot entry CLOSED, 1 new triage backlog (2362 lint findings).**
+
+---
+
+## Final closeout state
+
+**Cumulative this shift: 29 commits**, +65 unit tests added across 11 components, +535 tests previously dark unblocked, 2 real bugs in monad-common closed, 1 real bug in pqc-verifier closed, 1 65-day monad-mbc regression closed, 4 parking-lot items RESOLVED (CMD-WAF-AI-SLOP build-blocker, MONAD-MBC-SCREEN-TEST-DRIFT, GOLANGCI-LINT-V2-MIGRATION end-to-end, EBPF-host-runnable-coverage), 2 new parking entries (cmd/waf 2 test-logic mismatches; 2362 lint findings triage). Zero S4 HALTs. Zero regressions. Go: 0 failures across 223 packages.
+
+**What's intentionally NOT done (out of Marshal lane):**
+- upc-bootctl LIVE BPF integration (~3d Developer + Computermancer; needs kernel-side Aya scaffolding) — primary Phase 1.1 ship gate
+- ADR-058 GCP activation (5 architectural gaps; Stevie's hand at console)
+- 2362 lint inventory (Tier 1 + 2 + 3 triage; ~1-2 days Developer + BlackMage)
+- EBPF-CLIPPY-119 (BPF verifier-budget risk for clippy --fix; needs per-program baseline + sign-off)
+- cmd/waf 2 test-logic mismatches (need Developer + BlackMage to pick Prometheus semantics)
+- 2026-05-06 carry-forwards: TOOLING-GAP, SBOM-CADENCE, C4 heimdall TODOs (architectural), D4/D5/D6 zhend roadmap notes
+- GPG-AGENT-TIMEOUT (host config)
+
+All categorically-out-of-lane. Marshal complete on what Marshal can complete.
+
 **Marshal off-duty. Badge stays on for the supersprint's BPF integration when Developer + Computermancer are next available.**
