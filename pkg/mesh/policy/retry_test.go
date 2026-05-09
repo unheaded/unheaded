@@ -12,6 +12,13 @@ import (
 	"time"
 )
 
+// stubResp returns a synthesized response with a non-nil closeable body so
+// callers can `defer resp.Body.Close()` without nil-deref. Mirrors
+// http.NoBody which is also fine but lacks Status field semantics.
+func stubResp(code int) *http.Response {
+	return &http.Response{StatusCode: code, Body: http.NoBody}
+}
+
 // ==================== Retryer Tests ====================
 
 func TestNewRetryer(t *testing.T) {
@@ -170,8 +177,13 @@ func TestRetryer_DoWithResponse_Success(t *testing.T) {
 	ctx := context.Background()
 
 	resp, err := r.DoWithResponse(ctx, func(ctx context.Context) (*http.Response, error) {
-		return &http.Response{StatusCode: 200}, nil
+		return stubResp(200), nil
 	})
+	defer func() {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+	}()
 
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -195,10 +207,15 @@ func TestRetryer_DoWithResponse_Retry5xx(t *testing.T) {
 	resp, err := r.DoWithResponse(ctx, func(ctx context.Context) (*http.Response, error) {
 		attempts++
 		if attempts < 3 {
-			return &http.Response{StatusCode: 503}, nil
+			return stubResp(503), nil
 		}
-		return &http.Response{StatusCode: 200}, nil
+		return stubResp(200), nil
 	})
+	defer func() {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+	}()
 
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -225,10 +242,15 @@ func TestRetryer_DoWithResponse_RetryRetriable4xx(t *testing.T) {
 	resp, err := r.DoWithResponse(ctx, func(ctx context.Context) (*http.Response, error) {
 		attempts++
 		if attempts < 3 {
-			return &http.Response{StatusCode: 429}, nil // Too Many Requests
+			return stubResp(429), nil // Too Many Requests
 		}
-		return &http.Response{StatusCode: 200}, nil
+		return stubResp(200), nil
 	})
+	defer func() {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+	}()
 
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -255,10 +277,15 @@ func TestRetryer_DoWithResponse_RetrySpecificStatus(t *testing.T) {
 	resp, err := r.DoWithResponse(ctx, func(ctx context.Context) (*http.Response, error) {
 		attempts++
 		if attempts < 2 {
-			return &http.Response{StatusCode: 502}, nil
+			return stubResp(502), nil
 		}
-		return &http.Response{StatusCode: 200}, nil
+		return stubResp(200), nil
 	})
+	defer func() {
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+	}()
 
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
@@ -349,58 +376,60 @@ func TestRetryer_isRetryable(t *testing.T) {
 }
 
 func TestRetryer_shouldRetryResponse(t *testing.T) {
+	// Use status code (0 = nil response) to keep table values trivially copyable
+	// and avoid bodyclose false positives on stubResp() in struct literals.
 	tests := []struct {
 		name     string
 		policy   *RetryPolicy
-		resp     *http.Response
+		status   int // 0 = pass nil response
 		expected bool
 	}{
 		{
 			name:     "NilResponse",
 			policy:   &RetryPolicy{RetryOn: []string{"5xx"}},
-			resp:     nil,
+			status:   0,
 			expected: true,
 		},
 		{
 			name:     "5xx_Match",
 			policy:   &RetryPolicy{RetryOn: []string{"5xx"}},
-			resp:     &http.Response{StatusCode: 503},
+			status:   503,
 			expected: true,
 		},
 		{
 			name:     "5xx_NoMatch",
 			policy:   &RetryPolicy{RetryOn: []string{"5xx"}},
-			resp:     &http.Response{StatusCode: 200},
+			status:   200,
 			expected: false,
 		},
 		{
 			name:     "Retriable4xx_408",
 			policy:   &RetryPolicy{RetryOn: []string{"retriable-4xx"}},
-			resp:     &http.Response{StatusCode: 408}, // Request Timeout
+			status:   408, // Request Timeout
 			expected: true,
 		},
 		{
 			name:     "Retriable4xx_429",
 			policy:   &RetryPolicy{RetryOn: []string{"retriable-4xx"}},
-			resp:     &http.Response{StatusCode: 429}, // Too Many Requests
+			status:   429, // Too Many Requests
 			expected: true,
 		},
 		{
 			name:     "Retriable4xx_NoMatch",
 			policy:   &RetryPolicy{RetryOn: []string{"retriable-4xx"}},
-			resp:     &http.Response{StatusCode: 400}, // Bad Request
+			status:   400, // Bad Request
 			expected: false,
 		},
 		{
 			name:     "SpecificStatus",
 			policy:   &RetryPolicy{RetryableStatus: []int{502}},
-			resp:     &http.Response{StatusCode: 502},
+			status:   502,
 			expected: true,
 		},
 		{
 			name:     "SpecificStatus_NoMatch",
 			policy:   &RetryPolicy{RetryableStatus: []int{502}},
-			resp:     &http.Response{StatusCode: 503},
+			status:   503,
 			expected: false,
 		},
 	}
@@ -408,7 +437,12 @@ func TestRetryer_shouldRetryResponse(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			r := NewRetryer(tt.policy)
-			result := r.shouldRetryResponse(tt.resp)
+			var resp *http.Response
+			if tt.status != 0 {
+				resp = stubResp(tt.status)
+				defer func() { _ = resp.Body.Close() }()
+			}
+			result := r.shouldRetryResponse(resp)
 			if result != tt.expected {
 				t.Errorf("shouldRetryResponse() = %v, expected %v", result, tt.expected)
 			}
