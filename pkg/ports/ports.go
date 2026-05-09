@@ -73,6 +73,10 @@ const (
 	// Customer Apps (26000-26666)
 	CustomerStart = 26000
 	CustomerEnd   = 26666
+
+	// ASCEND-LINUX (per references/battle-plan-ascend-linux-2026-05-08.md):
+	// UPC TTY bridge for Mode A demo surface (browser xterm).
+	UPCTtyBridge = 26100
 )
 
 // DefaultAddr returns ":<port>" string for net.Listen.
