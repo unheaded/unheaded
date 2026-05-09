@@ -203,10 +203,9 @@ func ValidateBlock(block TLVBlock) error {
 			return fmt.Errorf("TLV at index %d: length mismatch (declared %d, actual %d)",
 				i, tlv.Length, len(tlv.Value))
 		}
-
-		if tlv.Length > 255 {
-			return fmt.Errorf("TLV at index %d: value too long (%d bytes)", i, tlv.Length)
-		}
+		// Note: Length is u8, so > 255 is structurally impossible — that
+		// check (SA4003) was removed. If TLV.Length ever widens beyond
+		// uint8, restore an upper-bound check here.
 	}
 
 	return nil

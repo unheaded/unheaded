@@ -198,9 +198,11 @@ func (p PortRange) String() string {
 	return fmt.Sprintf("%d:%d", p.Start, p.End)
 }
 
-// IsValid checks if port range is valid
+// IsValid checks if port range is valid. Note: Start/End are uint16 so
+// the upper-bound 65535 check (SA4003) is structurally satisfied; only
+// the non-zero-Start and End>=Start invariants need explicit checks.
 func (p PortRange) IsValid() bool {
-	return p.Start > 0 && p.End >= p.Start && p.End <= 65535
+	return p.Start > 0 && p.End >= p.Start
 }
 
 // ============================================================================
