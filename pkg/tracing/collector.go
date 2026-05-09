@@ -1705,8 +1705,12 @@ func (c *Collector) serveHTTP() {
 		MaxHeaderBytes: 1 << 20, // 1 MB
 	}
 
+	// ListenAndServe blocks until shutdown. ErrServerClosed is expected on
+	// graceful shutdown; any other error is best-effort logged via the
+	// caller's error channel rather than re-thrown here (this fn runs in a
+	// goroutine and has no error return). See Collector.Stop for shutdown.
 	if err := c.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		// Log error
+		fmt.Fprintf(os.Stderr, "tracing collector httpServer error: %v\n", err)
 	}
 }
 

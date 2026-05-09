@@ -93,10 +93,9 @@ func NewCgroupManager(driver, parentPath string) (*CgroupManager, error) {
 		return nil, fmt.Errorf("failed to create parent cgroup: %w", err)
 	}
 
-	// Enable controllers in parent
-	if err := mgr.enableControllers(parentFullPath); err != nil {
-		// Log but don't fail - some controllers may not be available
-	}
+	// Enable controllers in parent. Some controllers may not be available
+	// on this kernel — best-effort: ignore the error rather than fail init.
+	_ = mgr.enableControllers(parentFullPath)
 
 	// Initialize enhanced v2 manager
 	v2Mgr, err := NewCgroupV2Manager(parentPath)
@@ -198,10 +197,9 @@ func (m *CgroupManager) applyResources(cgroupPath string, resources *ResourceCon
 		return err
 	}
 
-	// Apply hugepage limits
-	if err := m.applyHugepageResources(cgroupPath, resources); err != nil {
-		// Hugepages might not be available
-	}
+	// Apply hugepage limits. Hugepages might not be available on this
+	// kernel — best-effort: ignore the error.
+	_ = m.applyHugepageResources(cgroupPath, resources)
 
 	return nil
 }
