@@ -67,8 +67,10 @@ func (d *D2Injection) testSQLInjection(ctx context.Context, cfg Config) *Finding
 		if err != nil {
 			continue
 		}
+		status := resp.StatusCode
+		_ = resp.Body.Close()
 		// 500 with SQL error in body would indicate SQL injection.
-		if resp.StatusCode == http.StatusInternalServerError {
+		if status == http.StatusInternalServerError {
 			return &Finding{
 				Severity:    "critical",
 				Title:       "Possible SQL injection",
@@ -93,8 +95,10 @@ func (d *D2Injection) testJSONInjection(ctx context.Context, cfg Config) *Findin
 		if err != nil {
 			continue
 		}
+		status := resp.StatusCode
+		_ = resp.Body.Close()
 		// Invalid JSON should get 400, not 500.
-		if resp.StatusCode == http.StatusInternalServerError {
+		if status == http.StatusInternalServerError {
 			return &Finding{
 				Severity:    "high",
 				Title:       "JSON parsing error causes 500",
@@ -110,10 +114,11 @@ func (d *D2Injection) testLogInjection(ctx context.Context, cfg Config) *Finding
 	// Log injection: newlines in user input that could forge log entries.
 	payload := "normal\n[ERROR] FAKE LOG ENTRY injected=true"
 	headers := map[string]string{"X-Request-ID": payload}
-	_, err := doHTTPRequest(ctx, cfg.GatewayAddr+"/health", "GET", headers, nil)
+	resp, err := doHTTPRequest(ctx, cfg.GatewayAddr+"/health", "GET", headers, nil)
 	if err != nil {
 		return nil
 	}
+	_ = resp.Body.Close()
 	// Can't easily detect log injection remotely — this is a code audit finding.
 	// Structured logging (zerolog) should prevent it.
 	return nil
