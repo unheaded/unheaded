@@ -423,8 +423,9 @@ func TestSecurity_mTLS_RequiredBetweenServices(t *testing.T) {
 			t.Fatalf("Failed to create no-cert client: %v", err)
 		}
 
-		_, err = noClientCert.Get(server.URL + "/api/v1/data")
+		resp, err := noClientCert.Get(server.URL + "/api/v1/data")
 		if err == nil {
+			_ = resp.Body.Close()
 			t.Error("Expected connection to fail without client certificate")
 		} else {
 			t.Logf("Correctly rejected (no client cert): %v", err)
@@ -479,8 +480,9 @@ func TestSecurity_mTLS_RequiredBetweenServices(t *testing.T) {
 			t.Fatalf("Failed to create wrong-CA client: %v", err)
 		}
 
-		_, err = wrongClient.Get(server.URL + "/api/v1/data")
+		resp, err := wrongClient.Get(server.URL + "/api/v1/data")
 		if err == nil {
+			_ = resp.Body.Close()
 			t.Error("Expected connection to fail with cert from wrong CA")
 		} else {
 			t.Logf("Correctly rejected (wrong CA cert): %v", err)

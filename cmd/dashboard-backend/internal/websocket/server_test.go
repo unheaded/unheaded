@@ -230,6 +230,9 @@ func TestServer_MaxConnections(t *testing.T) {
 
 	// Try to exceed limit
 	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	if err == nil {
 		conn.Close()
 		t.Error("expected connection to fail, but succeeded")

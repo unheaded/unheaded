@@ -45,6 +45,7 @@ func TestNewResponseInspector(t *testing.T) {
 
 func TestResponseInspector_InspectCleanResponse(t *testing.T) {
 	ri := NewResponseInspector()
+	//nolint:bodyclose // body closed via t.Cleanup in helper
 	resp := newTestResponse(t, 200, map[string]string{
 		"Content-Type":              "application/json",
 		"X-Content-Type-Options":    "nosniff",
@@ -83,6 +84,7 @@ func TestResponseInspector_DetectStackTrace(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			//nolint:bodyclose // body closed via t.Cleanup in helper
 			resp := newTestResponse(t, 500, map[string]string{"Content-Type": "text/html"}, tt.body)
 			result, err := ri.Inspect(resp)
 			if err != nil {
@@ -97,6 +99,7 @@ func TestResponseInspector_DetectStackTrace(t *testing.T) {
 
 func TestResponseInspector_DetectVersionDisclosure(t *testing.T) {
 	ri := NewResponseInspector()
+	//nolint:bodyclose // body closed via t.Cleanup in helper
 	resp := newTestResponse(t, 200, map[string]string{
 		"Content-Type": "text/html",
 		"Server":       "Apache/2.4.51",
@@ -126,6 +129,7 @@ func TestResponseInspector_DetectSensitiveData(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			//nolint:bodyclose // body closed via t.Cleanup in helper
 			resp := newTestResponse(t, 200, map[string]string{"Content-Type": "application/json"}, tt.body)
 			result, err := ri.Inspect(resp)
 			if err != nil {
@@ -146,6 +150,7 @@ func TestResponseInspector_DetectSensitiveData(t *testing.T) {
 
 func TestResponseInspector_DetectSQLError(t *testing.T) {
 	ri := NewResponseInspector()
+	//nolint:bodyclose // body closed via t.Cleanup in helper
 	resp := newTestResponse(t, 500, map[string]string{"Content-Type": "text/html"},
 		`<html>SQL error: syntax error near "SELECT" at line 1</html>`)
 
@@ -160,6 +165,7 @@ func TestResponseInspector_DetectSQLError(t *testing.T) {
 
 func TestResponseInspector_DetectPathDisclosure(t *testing.T) {
 	ri := NewResponseInspector()
+	//nolint:bodyclose // body closed via t.Cleanup in helper
 	resp := newTestResponse(t, 500, map[string]string{"Content-Type": "text/html"},
 		`Error: file not found at /var/www/html/config.php`)
 
@@ -174,6 +180,7 @@ func TestResponseInspector_DetectPathDisclosure(t *testing.T) {
 
 func TestResponseInspector_MissingSecurityHeaders(t *testing.T) {
 	ri := NewResponseInspector()
+	//nolint:bodyclose // body closed via t.Cleanup in helper
 	resp := newTestResponse(t, 200, map[string]string{
 		"Content-Type": "text/html",
 	}, `<html>ok</html>`)
@@ -198,6 +205,7 @@ func TestResponseInspector_MissingSecurityHeaders(t *testing.T) {
 
 func TestResponseInspector_ServerVersionHeader(t *testing.T) {
 	ri := NewResponseInspector()
+	//nolint:bodyclose // body closed via t.Cleanup in helper
 	resp := newTestResponse(t, 200, map[string]string{
 		"Content-Type": "text/html",
 		"Server":       "Apache/2.4.51",
@@ -241,6 +249,7 @@ func TestResponseInspector_DisabledStatusCode(t *testing.T) {
 	ri := NewResponseInspector()
 	ri.DisableStatusCode(200)
 
+	//nolint:bodyclose // body closed via t.Cleanup in helper
 	resp := newTestResponse(t, 200, map[string]string{"Content-Type": "text/html"},
 		`goroutine 1 [running]:`) // would normally be detected
 
@@ -257,6 +266,7 @@ func TestResponseInspector_SetMaxResponseSize(t *testing.T) {
 	ri := NewResponseInspector()
 	ri.SetMaxResponseSize(10)
 
+	//nolint:bodyclose // body closed via t.Cleanup in helper
 	resp := newTestResponse(t, 200, map[string]string{"Content-Type": "text/html"},
 		`This is a long body that should be truncated to 10 bytes`)
 
@@ -276,6 +286,7 @@ func TestResponseInspector_SetInspectErrors(t *testing.T) {
 	ri := NewResponseInspector()
 	ri.SetInspectErrors(false)
 
+	//nolint:bodyclose // body closed via t.Cleanup in helper
 	resp := newTestResponse(t, 500, map[string]string{"Content-Type": "text/html"},
 		`SQL error: syntax error near "DROP"`)
 
@@ -302,6 +313,7 @@ func TestResponseInspector_AddPattern(t *testing.T) {
 		t.Fatalf("AddPattern: %v", err)
 	}
 
+	//nolint:bodyclose // body closed via t.Cleanup in helper
 	resp := newTestResponse(t, 200, map[string]string{"Content-Type": "text/plain"},
 		`Your token is CUSTOM_TOKEN_ABCDEF`)
 
@@ -331,6 +343,7 @@ func TestResponseInspector_AddPattern_InvalidRegex(t *testing.T) {
 
 func TestResponseInspector_GetStats(t *testing.T) {
 	ri := NewResponseInspector()
+	//nolint:bodyclose // body closed via t.Cleanup in helper
 	resp := newTestResponse(t, 200, map[string]string{"Content-Type": "text/plain"},
 		`goroutine 1 [running]:`)
 
@@ -365,6 +378,7 @@ func TestResponseInspector_ContentTypeDetection(t *testing.T) {
 			if tt.contentType != "" {
 				headers["Content-Type"] = tt.contentType
 			}
+			//nolint:bodyclose // body closed via t.Cleanup in helper
 			resp := newTestResponse(t, 200, headers, "body")
 			result, err := ri.Inspect(resp)
 			if err != nil {
@@ -382,6 +396,7 @@ func TestResponseInspector_EnableStatusCode(t *testing.T) {
 	ri.DisableStatusCode(200)
 	ri.EnableStatusCode(200)
 
+	//nolint:bodyclose // body closed via t.Cleanup in helper
 	resp := newTestResponse(t, 200, map[string]string{"Content-Type": "text/html"},
 		`goroutine 1 [running]:`)
 

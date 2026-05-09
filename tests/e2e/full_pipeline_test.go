@@ -780,8 +780,9 @@ func TestFullPipeline_mTLSEndToEnd(t *testing.T) {
 		Timeout: 5 * time.Second,
 	}
 
-	_, err := client.Get(server.URL + "/api/v1/data")
+	resp, err := client.Get(server.URL + "/api/v1/data")
 	if err == nil {
+		_ = resp.Body.Close()
 		t.Error("Expected connection to fail without client certificate, but it succeeded")
 	} else {
 		t.Logf("mTLS correctly rejected connection without client cert: %v", err)

@@ -239,8 +239,9 @@ func TestMTLS_TLS12Rejected(t *testing.T) {
 	}
 
 	client := buildClient(t, tlsCfg)
-	_, err = client.Get("https://" + addr + "/health")
+	resp, err := client.Get("https://" + addr + "/health")
 	if err == nil {
+		_ = resp.Body.Close()
 		t.Fatal("expected error when client uses TLS 1.2 (server requires 1.3)")
 	}
 }
