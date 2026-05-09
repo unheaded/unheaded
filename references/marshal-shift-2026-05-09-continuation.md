@@ -97,18 +97,22 @@ git status --short                                                              
 
 **Marshal continuation shift complete 2026-05-09.** Defensive maintenance + parking-lot drain — Phase 1.1 boot-path code correctly NOT touched.
 
-**4 commits this shift:**
+**6 commits this shift:**
 - `2a3d4b65` chore(hygiene,marshal): cleanup stray upc-tty-bridge + 2026-05-09 continuation shift
 - `410bde3c` fix(monad-mbc): update 3 screen tests to current SCREEN_BASE — **65-day regression closed**
 - `ba548ce5` fix(upc-tty-bridge): remove unreachable `_ = done` after infinite reader loop
-- (final shift-report-amend commit follows)
+- `87a79c83` docs(marshal): 2026-05-09 continuation shift report v2 — parking-lot deep refresh
+- `fcd7829a` docs(timeline): sync references/timeline.md to 2026-05-09 (4d → 0d, ADR-052 fresh)
+- (this v3 amend)
 
 **Net effect on the kingdom:**
-- Working tree returned to clean state (raft/ untracked carry-over only).
+- Working tree returned to clean state (raft/ + `cmd/waf/Cargo.lock` untracked carry-over only).
 - monad-mbc: 348 PASS / 3 FAIL → **351 PASS / 0 FAIL** (test-only change, no production code touched).
 - go vet: 4 warnings → **2 warnings** (both pre-documented unsafe.Pointer false-positives in `pkg/ebpf/loader.go`).
-- Parking-lot: 7 entries RESOLVED (1 by this shift's monad-mbc fix, 1 by this shift's vet fix, 5 by drain shift 2026-05-08), 1 NEW (paste unmaintained), 6 OPEN.
+- Parking-lot: 7 entries RESOLVED (1 by this shift's monad-mbc fix, 1 by this shift's vet fix, 5 by drain shift 2026-05-08), 1 NEW (paste unmaintained — transitive via pqcrypto-mldsa, upstream-watch), 6 OPEN.
 - Pre-commit hook T1-T6 audit harness re-verified PASS.
 - SPDX coverage: **1191/1191 = 100.00%** (one Go file added since 2026-05-07; hook held).
+- Timeline drift: 4d → **0d** (ADR-052 gate fully fresh; 7 milestone bullets appended covering NORTH-STAR Appendix A, drain shift, ASCEND-LINUX kickoff, super-sprint, this continuation).
+- cargo audit (refresh): zhend **0 vulns** (was 3), trace-collector **0 vulns** (was 4), 4 unmaintained warnings remain (bincode 1.3, fxhash, instant 0.1, paste 1.0) — all Wave C upstream-watch.
 
 **Marshal off-duty. Badge stays on for the supersprint's BPF integration when Developer + Computermancer are next available.**
