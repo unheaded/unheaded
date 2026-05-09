@@ -122,7 +122,6 @@ func (s *MemoryStorage) Exists(ctx context.Context, ref string) (bool, error) {
 // FileStorage implements file-based artifact storage.
 type FileStorage struct {
 	basePath string
-	mu       sync.RWMutex
 }
 
 // NewFileStorage creates a new file storage.
@@ -383,7 +382,6 @@ func (s *CachingStorage) Exists(ctx context.Context, ref string) (bool, error) {
 type ReplicatedStorage struct {
 	primary  Storage
 	replicas []Storage
-	mu       sync.RWMutex
 }
 
 // NewReplicatedStorage creates a new replicated storage.

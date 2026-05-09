@@ -113,10 +113,9 @@ type BackendGroup struct {
 	Zone     string   // Optional zone assignment
 
 	// Runtime state
-	mu             sync.RWMutex
-	healthyCount   int
-	isDraining     bool
-	drainStartTime time.Time
+	mu           sync.RWMutex
+	healthyCount int
+	isDraining   bool
 }
 
 // FailoverMetrics tracks failover statistics.
