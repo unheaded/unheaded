@@ -36,9 +36,6 @@ const (
 
 	// pollInterval is how often to poll eve.json when inotify is unavailable.
 	pollInterval = 500 * time.Millisecond
-
-	// maxSkipBytes is how far to skip ahead in the file if it is truncated/rotated.
-	maxSkipBytes = 10 * 1024 * 1024 // 10MB
 )
 
 // EVEEvent represents a parsed Suricata EVE JSON event.
