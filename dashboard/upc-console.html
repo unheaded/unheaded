@@ -1,0 +1,150 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!--
+  upc-console.html — Mode A demo surface for ASCEND-LINUX.
+  Browser xterm.js client connecting to upc-tty-bridge.
+  Per references/battle-plan-ascend-linux-2026-05-08.md Phase 1.
+
+  Endpoint default: ws://<host>/console?instance=222 (decimal 0xDE)
+  Pair with `cmd/upc-tty-bridge` running on port 26100.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>UPC Console — ASCEND-LINUX</title>
+<!--
+  xterm.js loaded from CDN for the skeleton; production deploy vendors
+  this under dashboard/vendor/xterm/ per battle-plan §9 risk register.
+  jsdelivr offers MIT-licensed xterm + xterm-css.
+-->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+<style>
+  :root {
+    --bg: #0a0a0a;
+    --fg: #d4d4d4;
+    --accent: #61afef;
+    --warn: #e5c07b;
+    --pad: 16px;
+    --mono: 'JetBrains Mono', 'Fira Code', 'Menlo', monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--bg); color: var(--fg);
+               font: 14px/1.5 var(--mono); }
+  header { padding: var(--pad); border-bottom: 1px solid #222;
+           display: flex; gap: 16px; align-items: center; }
+  header h1 { margin: 0; font-size: 16px; font-weight: 500; color: var(--accent); }
+  header .status { color: var(--warn); }
+  header .status.ok { color: #98c379; }
+  header label { color: #777; font-size: 12px; }
+  header input { background: #161616; color: var(--fg); border: 1px solid #333;
+                 padding: 4px 8px; font: inherit; width: 80px; }
+  header button { background: var(--accent); color: #000; border: 0; padding: 4px 12px;
+                  font: inherit; cursor: pointer; }
+  header button:hover { background: #79beff; }
+  #term { padding: var(--pad); height: calc(100vh - 60px); }
+  footer { position: fixed; bottom: 6px; right: 12px; color: #555; font-size: 11px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🐉 UPC Console</h1>
+  <label>instance: <input id="instance" type="text" value="222"></label>
+  <button id="connect">connect</button>
+  <span id="status" class="status">disconnected</span>
+</header>
+
+<div id="term"></div>
+<footer>ASCEND-LINUX Mode A · upc-tty-bridge → xterm.js</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script>
+(function() {
+  'use strict';
+
+  const term = new Terminal({
+    cursorBlink: true,
+    fontFamily: "'JetBrains Mono', 'Fira Code', 'Menlo', monospace",
+    fontSize: 14,
+    theme: {
+      background: '#0a0a0a',
+      foreground: '#d4d4d4',
+      cursor: '#61afef',
+      black: '#1a1a1a',
+      red: '#e06c75',
+      green: '#98c379',
+      yellow: '#e5c07b',
+      blue: '#61afef',
+      magenta: '#c678dd',
+      cyan: '#56b6c2',
+      white: '#d4d4d4',
+    },
+  });
+  const fit = new FitAddon.FitAddon();
+  term.loadAddon(fit);
+  term.open(document.getElementById('term'));
+  fit.fit();
+  window.addEventListener('resize', () => fit.fit());
+
+  term.writeln('\x1b[1;36m  ╔══════════════════════════════════════════════╗\x1b[0m');
+  term.writeln('\x1b[1;36m  ║  UPC Console — waiting to connect            ║\x1b[0m');
+  term.writeln('\x1b[1;36m  ╚══════════════════════════════════════════════╝\x1b[0m');
+  term.writeln('');
+  term.writeln('  Click \x1b[33mconnect\x1b[0m above (default instance 222 = 0xDE).');
+  term.writeln('');
+
+  const $ = (id) => document.getElementById(id);
+  let ws = null;
+
+  const setStatus = (s, ok) => {
+    const el = $('status');
+    el.textContent = s;
+    el.className = 'status' + (ok ? ' ok' : '');
+  };
+
+  $('connect').addEventListener('click', () => {
+    if (ws) {
+      ws.close();
+      ws = null;
+      return;
+    }
+    const inst = $('instance').value || '222';
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const url = `${proto}://${location.host}/console?instance=${encodeURIComponent(inst)}`;
+    setStatus('connecting…');
+    ws = new WebSocket(url);
+    ws.binaryType = 'arraybuffer';
+
+    ws.onopen = () => {
+      setStatus(`connected → instance ${inst}`, true);
+      $('connect').textContent = 'disconnect';
+    };
+    ws.onmessage = (ev) => {
+      if (ev.data instanceof ArrayBuffer) {
+        term.write(new Uint8Array(ev.data));
+      } else {
+        term.write(ev.data);
+      }
+    };
+    ws.onclose = () => {
+      setStatus('disconnected');
+      $('connect').textContent = 'connect';
+      ws = null;
+    };
+    ws.onerror = (e) => {
+      setStatus('error');
+    };
+  });
+
+  // Keystrokes → WebSocket → upc-tty-bridge → KBD_MAP.
+  term.onData((data) => {
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(new TextEncoder().encode(data));
+    }
+  });
+})();
+</script>
+</body>
+</html>
