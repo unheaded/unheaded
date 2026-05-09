@@ -201,9 +201,13 @@ test-rust: test-rust-ebpf-common test-rust-trace-collector test-rust-upc-bootctl
 # inheritance. Verified 2026-05-09 — discovered + fixed 2 real test failures
 # (mbc_mmap_screen_and_kbd_overlap, mem_write_event_size repr-C alignment).
 EBPF_HOST_TARGET_DIR := /tmp/unheaded-ebpf-host-test
-test-rust-ebpf-common: ## Run host-runnable tests in ebpf/{common,monad-common,pqc-common}
+test-rust-ebpf-common: ## Run host-runnable tests in ebpf/{common,monad-common,pqc-common,af-xdp-common}
 	@echo "Running ebpf/ host-runnable common-crate tests..."
-	@for crate in common monad-common pqc-common; do \
+	@# Loop covers the [lib] crates that share types between userspace and
+	@# kernel. Excludes [[bin]] BPF programs (packet-marker, latency-probe,
+	@# etc.) — they define their own panic_impl for the BPF target which
+	@# collides with std on host.
+	@for crate in common monad-common pqc-common af-xdp-common; do \
 		echo "  $$crate:"; \
 		CARGO_TARGET_DIR=$(EBPF_HOST_TARGET_DIR) cargo test --quiet --manifest-path ebpf/$$crate/Cargo.toml || exit 1; \
 	done
