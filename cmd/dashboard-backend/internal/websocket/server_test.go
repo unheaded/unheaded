@@ -99,7 +99,10 @@ func TestServer_HandleConnection(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
 
 	// Connect client
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if dialResp != nil {
+		_ = dialResp.Body.Close()
+	}
 	if err != nil {
 		t.Fatalf("websocket.Dial() failed: %v", err)
 	}
@@ -150,7 +153,10 @@ func TestServer_Broadcast(t *testing.T) {
 	// Connect 3 clients
 	clients := make([]*websocket.Conn, 3)
 	for i := 0; i < 3; i++ {
-		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		if dialResp != nil {
+			_ = dialResp.Body.Close()
+		}
 		if err != nil {
 			t.Fatalf("client %d: Dial() failed: %v", i, err)
 		}
@@ -209,7 +215,10 @@ func TestServer_MaxConnections(t *testing.T) {
 	// Connect max clients
 	clients := make([]*websocket.Conn, 2)
 	for i := 0; i < 2; i++ {
-		conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		if dialResp != nil {
+			_ = dialResp.Body.Close()
+		}
 		if err != nil {
 			t.Fatalf("client %d: Dial() failed: %v", i, err)
 		}
@@ -257,7 +266,10 @@ func TestServer_Shutdown(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
 
 	// Connect client
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if dialResp != nil {
+		_ = dialResp.Body.Close()
+	}
 	if err != nil {
 		t.Fatalf("Dial() failed: %v", err)
 	}
@@ -307,7 +319,10 @@ func TestServer_ConcurrentBroadcast(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
 
 	// Connect client
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if dialResp != nil {
+		_ = dialResp.Body.Close()
+	}
 	if err != nil {
 		t.Fatalf("Dial() failed: %v", err)
 	}
