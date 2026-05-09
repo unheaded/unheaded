@@ -55,6 +55,12 @@ build-upc-bootctl: ## Build upc-bootctl (ASCEND-LINUX kernel image loader + boot
 	cd cmd/upc-bootctl && cargo build $(CARGO_BUILD_FLAGS)
 	cp cmd/upc-bootctl/target/release/upc-bootctl $(BINARY_DIR)/
 
+build-shield: ## Build shield (cmd/waf — WAF / Zero-Trust gateway)
+	@echo "Building shield (cmd/waf)..."
+	@mkdir -p $(BINARY_DIR)
+	cd cmd/waf && cargo build $(CARGO_BUILD_FLAGS)
+	cp cmd/waf/target/release/shield $(BINARY_DIR)/
+
 build-upc-tty-bridge: ## Build upc-tty-bridge (ASCEND-LINUX Mode A WebSocket xterm)
 	@echo "Building upc-tty-bridge..."
 	@mkdir -p $(BINARY_DIR)
