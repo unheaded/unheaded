@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# cmd/upc-bootctl — UPC kernel image loader + boot dispatcher.
+# ASCEND-LINUX Phase 1.1 deliverable per
+# references/battle-plan-ascend-linux-2026-05-08.md.
+
+[package]
+name = "upc-bootctl"
+version = "0.1.0"
+edition = "2021"
+authors = ["Unheaded Kingdom Infrastructure Team"]
+description = "Boot kernel images (xv6, uClinux, full Linux) into the UPC"
+license = "GPL-3.0-or-later"
+publish = false
+
+[[bin]]
+name = "upc-bootctl"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.4", features = ["derive"] }
+anyhow = "1.0"
+monad-common = { path = "../../ebpf/monad-common" }
+xv6-mbc = { path = "../../crates/xv6-mbc" }
