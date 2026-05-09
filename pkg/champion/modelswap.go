@@ -112,9 +112,6 @@ func hashFile(path string) (string, error) {
 	}
 	defer f.Close()
 	h := sha256.New()
-	if _, err := f.Read(make([]byte, 0)); err != nil && err.Error() != "EOF" {
-		// no-op; just to give the linter something
-	}
 	buf := make([]byte, 64*1024)
 	for {
 		n, err := f.Read(buf)
