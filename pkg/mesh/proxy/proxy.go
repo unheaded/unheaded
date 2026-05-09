@@ -420,9 +420,14 @@ func (p *Proxy) proxyHTTP(clientConn net.Conn, reader *bufio.Reader, inbound boo
 			onResponse(response)
 		}
 
-		// Forward response
+		// Forward response. resp.Write fully consumes resp.Body, but we still
+		// need to close it to release any internal resources (chunked-reader
+		// state, etc) before either returning the conn to the pool or closing
+		// it. We sequence: Write → Close(body) → pool/close decision.
 		clientConn.SetWriteDeadline(time.Now().Add(p.config.WriteTimeout))
-		if err := resp.Write(clientConn); err != nil {
+		writeErr := resp.Write(clientConn)
+		_ = resp.Body.Close()
+		if writeErr != nil {
 			backendConn.Close()
 			return
 		}
