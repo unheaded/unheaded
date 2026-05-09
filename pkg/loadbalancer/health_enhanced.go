@@ -914,7 +914,6 @@ type HealthCheckCoordinator struct {
 	checkers map[string]*EnhancedHealthChecker
 	running  int32
 	stopCh   chan struct{}
-	wg       sync.WaitGroup
 }
 
 // NewHealthCheckCoordinator creates a new health check coordinator.

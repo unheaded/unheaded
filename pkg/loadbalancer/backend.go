@@ -92,9 +92,6 @@ type Backend struct {
 	// tlsConfig is the TLS configuration for backend connections.
 	tlsConfig *tls.Config
 
-	// pool is the connection pool for this backend.
-	pool *ConnectionPool
-
 	// metrics for this backend.
 	metrics *BackendMetrics
 }

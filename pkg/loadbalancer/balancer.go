@@ -889,7 +889,6 @@ type ConfigWatcher struct {
 	balancer     *Balancer
 	configPath   string
 	pollInterval time.Duration
-	lastModified time.Time
 	stopCh       chan struct{}
 	running      int32
 }

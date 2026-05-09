@@ -462,7 +462,6 @@ type RegistryDiscovery struct {
 	cancel    context.CancelFunc
 	wg        sync.WaitGroup
 	endpoints []string
-	epIndex   uint32
 }
 
 type registryCache struct {
