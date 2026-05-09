@@ -191,7 +191,7 @@ test-go: ## Run Go tests
 	@echo "Running Go tests..."
 	go test -v -race -cover ./...
 
-test-rust: test-rust-ebpf-common test-rust-trace-collector test-rust-upc-bootctl test-rust-monad-mbc test-rust-xv6-mbc ## Run Rust tests across all host-runnable crates
+test-rust: test-rust-ebpf-common test-rust-ebpf-af-xdp test-rust-trace-collector test-rust-upc-bootctl test-rust-monad-mbc test-rust-xv6-mbc test-rust-zhend test-rust-doom-runner ## Run Rust tests across all host-runnable crates
 	@echo "✓ All Rust test suites passed"
 
 # ebpf/ workspace targets bpfel-unknown-none — `cd ebpf && cargo test` fails
@@ -223,6 +223,15 @@ test-rust-monad-mbc: ## Run monad-mbc tests (CPU/translator)
 
 test-rust-xv6-mbc: ## Run xv6-mbc tests (ASCEND-LINUX kernel adapter)
 	cd crates/xv6-mbc && cargo test
+
+test-rust-zhend: ## Run zhend tests (Layer 0 anti-fragile gossip substrate)
+	cd crates/zhend && cargo test --lib
+
+test-rust-doom-runner: ## Run doom-runner tests (Aya BPF runtime for Doom-on-Monad)
+	cd crates/doom-runner && cargo test
+
+test-rust-ebpf-af-xdp: ## Run ebpf/af-xdp tests (excluded crate with own host config)
+	cd ebpf/af-xdp && cargo test
 
 test-e2e: ## Run E2E integration tests (auth, pipeline, security, message delivery)
 	@echo "Running E2E integration tests..."
