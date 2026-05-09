@@ -59,17 +59,26 @@ enum Cmd {
     },
 }
 
-fn cmd_validate(kernel: PathBuf) -> Result<()> {
-    let bytes = std::fs::read(&kernel)
-        .with_context(|| format!("read kernel: {}", kernel.display()))?;
-
+/// Validate that a kernel image's byte buffer is 4-byte aligned and return the
+/// instruction count. Pure function — no I/O — so it is unit-testable.
+///
+/// Errors with the byte-count in the message when the buffer length is not a
+/// multiple of 4 (an MBC instruction is always one 32-bit word).
+fn check_image_alignment(bytes: &[u8]) -> Result<usize> {
     if bytes.len() % 4 != 0 {
         bail!(
             "kernel image not 4-byte aligned ({} bytes)",
             bytes.len()
         );
     }
-    let n_insns = bytes.len() / 4;
+    Ok(bytes.len() / 4)
+}
+
+fn cmd_validate(kernel: PathBuf) -> Result<()> {
+    let bytes = std::fs::read(&kernel)
+        .with_context(|| format!("read kernel: {}", kernel.display()))?;
+
+    let n_insns = check_image_alignment(&bytes)?;
 
     println!("kernel:        {}", kernel.display());
     println!("size:          {} bytes", bytes.len());
@@ -187,5 +196,45 @@ fn main() -> Result<()> {
             dry_run,
         } => cmd_boot(kernel, initramfs, instance, dry_run),
         Cmd::Console { instance } => cmd_console(instance),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn alignment_4_bytes_is_one_instruction() {
+        assert_eq!(check_image_alignment(&[0; 4]).unwrap(), 1);
+    }
+
+    #[test]
+    fn alignment_8_bytes_is_two_instructions() {
+        assert_eq!(check_image_alignment(&[0xAA; 8]).unwrap(), 2);
+    }
+
+    #[test]
+    fn alignment_empty_is_zero_instructions() {
+        // Empty image is technically aligned (0 % 4 == 0). cmd_validate's
+        // higher-level checks (boot magic etc.) would reject it later, but
+        // the alignment gate alone passes.
+        assert_eq!(check_image_alignment(&[]).unwrap(), 0);
+    }
+
+    #[test]
+    fn alignment_5_bytes_errors_with_byte_count() {
+        let err = check_image_alignment(&[0; 5]).unwrap_err();
+        let msg = err.to_string();
+        assert!(msg.contains("4-byte aligned"), "got: {}", msg);
+        assert!(msg.contains("5 bytes"), "got: {}", msg);
+    }
+
+    #[test]
+    fn alignment_realistic_xv6_size_resolves_to_word_count() {
+        // xv6-mbc.mbc as of ASCEND-LINUX Phase 1.1 super-sprint = 11_721 MBC
+        // instructions = 46_884 bytes. Spot-check that ratio.
+        const XV6_MBC_BYTES: usize = 11_721 * 4;
+        let buf = vec![0u8; XV6_MBC_BYTES];
+        assert_eq!(check_image_alignment(&buf).unwrap(), 11_721);
     }
 }
