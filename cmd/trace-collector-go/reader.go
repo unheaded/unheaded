@@ -16,7 +16,6 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -104,7 +103,6 @@ type TraceReader struct {
 	config    TraceReaderConfig
 	stats     TraceReaderStats
 	eventCh   chan *TraceEntry
-	mu        sync.Mutex
 }
 
 // NewTraceReader creates a trace reader with the given loader, publisher, and config.

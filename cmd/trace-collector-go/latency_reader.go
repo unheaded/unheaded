@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -247,7 +246,6 @@ type LatencyReader struct {
 	config    LatencyReaderConfig
 	stats     LatencyReaderStats
 	sampleCh  chan *LatencySample
-	mu        sync.Mutex
 }
 
 // NewLatencyReader creates a latency reader with the given loader, publisher, and config.
