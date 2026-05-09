@@ -173,7 +173,9 @@ func (d *D4Secrets) testSecretsInDebug(ctx context.Context, cfg Config) *Finding
 		if err != nil {
 			continue
 		}
-		if resp.StatusCode == 200 {
+		status := resp.StatusCode
+		_ = resp.Body.Close()
+		if status == 200 {
 			return &Finding{
 				Severity:    "medium",
 				Title:       "Debug endpoint publicly accessible",

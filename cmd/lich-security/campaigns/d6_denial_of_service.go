@@ -64,6 +64,7 @@ func (d *D6DenialOfService) testLargePayload(ctx context.Context, cfg Config) *F
 	if err != nil {
 		return nil // Connection reset/timeout is acceptable.
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
 		return &Finding{
 			Severity:    "high",
@@ -141,7 +142,9 @@ func (d *D6DenialOfService) testRateLimiting(ctx context.Context, cfg Config) *F
 		if err != nil {
 			continue
 		}
-		if resp.StatusCode == http.StatusTooManyRequests {
+		status := resp.StatusCode
+		_ = resp.Body.Close()
+		if status == http.StatusTooManyRequests {
 			rateLimited = true
 			break
 		}
