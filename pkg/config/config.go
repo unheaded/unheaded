@@ -572,10 +572,19 @@ func setFieldValue(field reflect.Value, val any) error {
 		var uintVal uint64
 		switch v := val.(type) {
 		case int:
+			if v < 0 {
+				return fmt.Errorf("negative value %d cannot be assigned to unsigned field", v)
+			}
 			uintVal = uint64(v)
 		case int64:
+			if v < 0 {
+				return fmt.Errorf("negative value %d cannot be assigned to unsigned field", v)
+			}
 			uintVal = uint64(v)
 		case float64:
+			if v < 0 {
+				return fmt.Errorf("negative value %g cannot be assigned to unsigned field", v)
+			}
 			uintVal = uint64(v)
 		case string:
 			var err error
