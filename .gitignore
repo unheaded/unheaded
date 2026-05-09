@@ -69,6 +69,8 @@ coverage.html
 /yaldabaoth
 /chaos-controller
 /busboy
+/upc-tty-bridge
+/upc-bootctl
 # Go binaries in subdirectories (extensionless ELF)
 ebpf/trace-collector-go
 cmd/doom-injector-c/injector
