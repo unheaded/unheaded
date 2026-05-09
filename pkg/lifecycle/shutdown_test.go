@@ -103,8 +103,9 @@ func TestWaitForShutdown_SIGINT(t *testing.T) {
 	}
 
 	// Server should no longer accept connections.
-	_, err = http.Get("http://" + addr + "/health")
-	if err == nil {
+	resp, getErr := http.Get("http://" + addr + "/health")
+	if getErr == nil {
+		_ = resp.Body.Close()
 		t.Error("expected error connecting to shut-down server")
 	}
 }
@@ -255,8 +256,13 @@ func TestWaitForShutdown_TimeoutExceeded(t *testing.T) {
 	// Start a long-running request to keep a connection active during shutdown.
 	go func() {
 		client := &http.Client{Timeout: 0}
-		//nolint:errcheck
-		client.Get("http://" + addr + "/slow")
+		//nolint:errcheck,bodyclose // body close is irrelevant — connection
+		// is killed by server shutdown, and this goroutine intentionally
+		// has no synchronization back to the test
+		resp, err := client.Get("http://" + addr + "/slow")
+		if err == nil && resp != nil {
+			_ = resp.Body.Close()
+		}
 	}()
 	// Give the request time to reach the handler.
 	time.Sleep(100 * time.Millisecond)
