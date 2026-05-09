@@ -501,6 +501,9 @@ func TestHandleWebSocket_ServerShutdown(t *testing.T) {
 
 	// Attempt a new WS connection — should be rejected
 	_, resp, err := gorillaWS.DefaultDialer.Dial(wsURL(hs), nil)
+	if resp != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	if err == nil {
 		t.Error("expected dial to fail after shutdown")
 	}
