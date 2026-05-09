@@ -104,9 +104,15 @@ func main() {
 	fmt.Printf("Sent %d bytes to %s\n", n, addr)
 }
 
+// parseHexErr is the pure-function variant of parseHex — returns (value, error)
+// without process-exiting. Extracted for unit testability.
+func parseHexErr(s string) (uint64, error) {
+	stripped := strings.TrimPrefix(strings.TrimPrefix(s, "0x"), "0X")
+	return strconv.ParseUint(stripped, 16, 64)
+}
+
 func parseHex(s string) uint64 {
-	s = strings.TrimPrefix(strings.TrimPrefix(s, "0x"), "0X")
-	v, err := strconv.ParseUint(s, 16, 64)
+	v, err := parseHexErr(s)
 	if err != nil {
 		fatal("parse hex %q: %v", s, err)
 	}
