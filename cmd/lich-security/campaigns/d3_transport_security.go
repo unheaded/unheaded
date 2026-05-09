@@ -139,9 +139,9 @@ func (d *D3TransportSecurity) testHTTPRedirect(ctx context.Context, cfg Config) 
 	if err != nil {
 		return nil
 	}
+	_ = resp.Body.Close()
 	// For non-TLS gateway, we just check it responds.
 	// Real test: ensure HTTP 21000 redirects to HTTPS 21443.
-	_ = resp
 	return nil
 }
 
@@ -151,6 +151,7 @@ func (d *D3TransportSecurity) testHSTSHeader(ctx context.Context, cfg Config) *F
 	if err != nil {
 		return nil
 	}
+	defer func() { _ = resp.Body.Close() }()
 	hsts := resp.Header.Get("Strict-Transport-Security")
 	if hsts == "" {
 		// Only flag if running over HTTPS.

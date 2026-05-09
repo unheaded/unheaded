@@ -138,7 +138,9 @@ func (d *D2Injection) testCommandInjection(ctx context.Context, cfg Config) *Fin
 		if err != nil {
 			continue
 		}
-		if resp.StatusCode == http.StatusInternalServerError {
+		status := resp.StatusCode
+		_ = resp.Body.Close()
+		if status == http.StatusInternalServerError {
 			return &Finding{
 				Severity:    "critical",
 				Title:       "Possible command injection",
@@ -161,7 +163,9 @@ func (d *D2Injection) testPathTraversal(ctx context.Context, cfg Config) *Findin
 		if err != nil {
 			continue
 		}
-		if resp.StatusCode == http.StatusOK {
+		status := resp.StatusCode
+		_ = resp.Body.Close()
+		if status == http.StatusOK {
 			return &Finding{
 				Severity:    "critical",
 				Title:       "Path traversal vulnerability",
@@ -177,10 +181,11 @@ func (d *D2Injection) testHeaderInjection(ctx context.Context, cfg Config) *Find
 	headers := map[string]string{
 		"X-Injected": "value\r\nX-Fake-Header: injected",
 	}
-	_, err := doHTTPRequest(ctx, cfg.GatewayAddr+"/health", "GET", headers, nil)
+	resp, err := doHTTPRequest(ctx, cfg.GatewayAddr+"/health", "GET", headers, nil)
 	if err != nil {
 		return nil
 	}
+	_ = resp.Body.Close()
 	// Go's net/http rejects CRLF in headers by default.
 	return nil
 }
@@ -193,6 +198,7 @@ func (d *D2Injection) testNullByteInjection(ctx context.Context, cfg Config) *Fi
 	if err != nil {
 		return nil
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusInternalServerError {
 		return &Finding{
 			Severity:    "medium",
@@ -213,6 +219,7 @@ func (d *D2Injection) testOversizedPayload(ctx context.Context, cfg Config) *Fin
 	if err != nil {
 		return nil // Connection reset is acceptable for oversized payloads.
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
 		return &Finding{
 			Severity:    "high",

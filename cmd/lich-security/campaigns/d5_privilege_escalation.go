@@ -62,7 +62,9 @@ func (d *D5PrivilegeEscalation) testGuestAdminAccess(ctx context.Context, cfg Co
 		if err != nil {
 			continue
 		}
-		if resp.StatusCode == http.StatusOK {
+		status := resp.StatusCode
+		_ = resp.Body.Close()
+		if status == http.StatusOK {
 			return &Finding{
 				Severity:    "critical",
 				Title:       "Admin endpoint accessible without admin role",
@@ -86,7 +88,9 @@ func (d *D5PrivilegeEscalation) testObserverOperatorAccess(ctx context.Context, 
 		if err != nil {
 			continue
 		}
-		if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusCreated {
+		status := resp.StatusCode
+		_ = resp.Body.Close()
+		if status == http.StatusOK || status == http.StatusCreated {
 			return &Finding{
 				Severity:    "high",
 				Title:       "Write endpoint accessible without operator role",
@@ -119,7 +123,9 @@ func (d *D5PrivilegeEscalation) testMissingRBACCheck(ctx context.Context, cfg Co
 		if err != nil {
 			continue
 		}
-		if resp.StatusCode == http.StatusOK {
+		status := resp.StatusCode
+		_ = resp.Body.Close()
+		if status == http.StatusOK {
 			return &Finding{
 				Severity:    "high",
 				Title:       "API endpoint missing RBAC check",
