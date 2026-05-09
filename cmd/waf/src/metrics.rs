@@ -120,18 +120,20 @@ impl Histogram {
         let micros = (value * 1_000_000.0) as u64;
         self.sum.fetch_add(micros, Ordering::Relaxed);
 
-        // Find the appropriate bucket
+        // Find the appropriate bucket. Each observation lands in EXACTLY
+        // one bucket (non-cumulative). Values that exceed all bucket
+        // boundaries are not added to any bucket — they are still counted
+        // by `count()` and `sum()`, which gives the implicit +Inf-bucket
+        // value as `count - sum(buckets)` (Prometheus convention). A future
+        // `buckets()` extension to surface the +Inf bucket explicitly is
+        // the right next step.
         for (i, boundary) in self.buckets.iter().enumerate() {
             if value <= *boundary {
                 self.bucket_counts[i].fetch_add(1, Ordering::Relaxed);
                 return;
             }
         }
-
-        // Value exceeds all buckets - add to last bucket
-        if let Some(last) = self.bucket_counts.last() {
-            last.fetch_add(1, Ordering::Relaxed);
-        }
+        // Overflow: tracked only in count + sum, not in any user bucket.
     }
 
     /// Observe a duration
