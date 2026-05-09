@@ -65,7 +65,7 @@ enum Cmd {
 /// Errors with the byte-count in the message when the buffer length is not a
 /// multiple of 4 (an MBC instruction is always one 32-bit word).
 fn check_image_alignment(bytes: &[u8]) -> Result<usize> {
-    if bytes.len() % 4 != 0 {
+    if !bytes.len().is_multiple_of(4) {
         bail!(
             "kernel image not 4-byte aligned ({} bytes)",
             bytes.len()
