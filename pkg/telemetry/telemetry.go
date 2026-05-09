@@ -463,7 +463,6 @@ type Tracer struct {
 	serviceName string
 	resource    map[string]string
 	exporter    SpanExporter
-	closed      int32
 }
 
 // StartSpan creates a new span. If the context already carries a span, the
