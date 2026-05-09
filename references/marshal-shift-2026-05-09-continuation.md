@@ -47,24 +47,26 @@ Likely authored by the 2026-05-08 Marshal drain shift or in-between Developer wo
 
 ---
 
-## Carry-forward parking-lot status (from 2026-05-07)
+## Carry-forward parking-lot status (from 2026-05-07, refreshed mid-shift after deeper dive)
 
 | Entry | Status | Notes |
 |-------|--------|-------|
 | `[STUCK-RENEW] aya 0.13.x major-version migration` | **RESOLVED** | Per ADR-065 Phase-A Finding Addendum 2026-05-08: aya splits userspace/kernel independently — no migration needed |
-| `[VET-FINDINGS] 4 pre-existing go vet warnings` | OPEN | unsafe.Pointer x2 closed (commit `7c48846f` — doc comments). sync.Once x8 + DoomState mutex copy still open |
+| `[VET-FINDINGS] 4 pre-existing go vet warnings` | **RESOLVED** | sync.Once x8 fixed (drain shift); DoomState mutex copy fixed (drain shift, doom.go:81 returns *DoomState now); unsafe.Pointer x2 documented as false-positives (`7c48846f`). Net: 4/4 closed |
+| `[VET-NEW-2026-05-09] upc-tty-bridge unreachable code` | **RESOLVED** | This shift, commit `ba548ce5` — removed dead `_ = done` after infinite reader loop |
 | `[ADR-058 ACTIVATION GAPS] 5 architectural gaps` | OPEN | Stevie + console hands needed |
 | `[GPG-AGENT-TIMEOUT]` | OPEN | dev-host config |
 | `[CMD-WAF-AI-SLOP]` | OPEN | needs human pass; `cmd/waf/Cargo.lock` continues to be untracked-as-side-effect |
-| `[TONIC-BUMP-NEEDED] cmd/trace-collector tonic 0.10` | OPEN | needs ADR-066 + Cargo.toml edit |
-| `[MONAD-MBC-SCREEN-TEST-DRIFT]` | **CARRY-FORWARD** | 3 tests still fail at HEAD `f6d61246`. ABI v2 (128→136 bytes) didn't fix them; root cause is the test fixtures' expected `MbcCpuState` shape, not doom-runner's replica |
-| `[CARGO-AUDIT-WAVE-B] pqcrypto FIPS 205/203 migration` | OPEN | ~1 day Architect+Developer |
-| `[CARGO-AUDIT-WAVE-D] rand RUSTSEC-2026-0097 unsoundness` | OPEN | disposition is N/A but daytime ratification needed |
-| `[EBPF-CLIPPY-119] 119 warnings in ebpf/` | OPEN | verifier-budget risk; daytime task |
+| `[TONIC-BUMP-NEEDED] cmd/trace-collector tonic 0.10` | **RESOLVED** | Drain shift commit `1f3044a5` bumped tonic 0.10 → 0.12 + prometheus 0.13 → 0.14, closes ADR-066 + 4 CVEs |
+| `[MONAD-MBC-SCREEN-TEST-DRIFT]` | **RESOLVED** | This shift, commit `410bde3c` — 65-day regression closed. SCREEN_BASE moved 0xC000→0x70000 on 2026-03-03 (`c7831cad`); 4 test occurrences updated to MOVI+LOAD_IMM32 sequence |
+| `[CARGO-AUDIT-WAVE-B] pqcrypto FIPS 205/203 migration` | **RESOLVED** | Drain shift commit migrated pqcrypto-{kyber→mlkem,dilithium→mldsa} per ML-KEM-768 / ML-DSA-65. zhend Cargo.toml lines 64-67 |
+| `[CARGO-AUDIT-WAVE-D] rand RUSTSEC-2026-0097 unsoundness` | **RESOLVED** | Drain shift commit `43380f10` ratified disposition via cargo audit ignore |
+| `[EBPF-CLIPPY-119] 119 warnings in ebpf/` | OPEN | verifier-budget risk; daytime task; entry intact |
 | `[GOLANGCI-LINT-V2-MIGRATION]` | OPEN | schema migration ~30-60 min Developer |
 | Carry-forward from 2026-05-06 | OPEN | TOOLING-GAP, SBOM-CADENCE, C4 heimdall TODOs, D4/D5/D6 zhend roadmap notes |
+| `[CARGO-AUDIT-WAVE-C-PASTE-NEW]` | NEW | `paste 1.0.15` (proc-macro) flagged unmaintained as RUSTSEC-2024-0436 since prior audit. Wave C (drop-in replacement) candidate — pastey or manual macro_rules! rewrite |
 
-**Net:** 1 RESOLVED (aya 0.13), 1 RESOLVED (S77 docs landed), 11 OPEN — all daytime / ADR-gated / Captain-gated.
+**Net (after deeper sweep):** 7 RESOLVED (aya, S77, vet x2, tonic, monad-mbc, Wave B, Wave D), 6 OPEN, 1 NEW. The kingdom's open security/tech-debt surface is dramatically smaller than I had in the carry-forward column at shift-start.
 
 ---
 
@@ -93,6 +95,20 @@ git status --short                                                              
 
 ## The badge
 
-**Marshal continuation shift complete 2026-05-09.** Defensive maintenance only — no Phase 1.1 boot-path code touched (correctly outside Marshal lane). 1 small commit (cleanup + .gitignore guard + this report). Regression baseline confirmed clean for the SUPERSPRINT handoff.
+**Marshal continuation shift complete 2026-05-09.** Defensive maintenance + parking-lot drain — Phase 1.1 boot-path code correctly NOT touched.
 
-**Marshal off-duty. Badge stays on.**
+**4 commits this shift:**
+- `2a3d4b65` chore(hygiene,marshal): cleanup stray upc-tty-bridge + 2026-05-09 continuation shift
+- `410bde3c` fix(monad-mbc): update 3 screen tests to current SCREEN_BASE — **65-day regression closed**
+- `ba548ce5` fix(upc-tty-bridge): remove unreachable `_ = done` after infinite reader loop
+- (final shift-report-amend commit follows)
+
+**Net effect on the kingdom:**
+- Working tree returned to clean state (raft/ untracked carry-over only).
+- monad-mbc: 348 PASS / 3 FAIL → **351 PASS / 0 FAIL** (test-only change, no production code touched).
+- go vet: 4 warnings → **2 warnings** (both pre-documented unsafe.Pointer false-positives in `pkg/ebpf/loader.go`).
+- Parking-lot: 7 entries RESOLVED (1 by this shift's monad-mbc fix, 1 by this shift's vet fix, 5 by drain shift 2026-05-08), 1 NEW (paste unmaintained), 6 OPEN.
+- Pre-commit hook T1-T6 audit harness re-verified PASS.
+- SPDX coverage: **1191/1191 = 100.00%** (one Go file added since 2026-05-07; hook held).
+
+**Marshal off-duty. Badge stays on for the supersprint's BPF integration when Developer + Computermancer are next available.**
