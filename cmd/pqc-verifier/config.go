@@ -51,7 +51,10 @@ func (c *Config) LoadFromEnv() {
 		c.PolicyFile = v
 	}
 	if v := os.Getenv("PQC_DEFAULT_TIER"); v != "" {
-		if t, err := strconv.Atoi(v); err == nil {
+		if t, err := strconv.Atoi(v); err == nil && t >= 0 && t <= 255 {
+			// Range-checked before narrowing — a u8 overflow here would
+			// silently wrap (e.g. PQC_DEFAULT_TIER=300 → tier=44) which
+			// would route packets to a tier the operator did not choose.
 			c.DefaultTier = uint8(t)
 		}
 	}

@@ -83,6 +83,24 @@ func TestLoadFromEnv_DefaultTierRespectsByteWidth(t *testing.T) {
 	}
 }
 
+func TestLoadFromEnv_DefaultTierOutOfRangeIsRejected(t *testing.T) {
+	// 300 doesn't fit in u8. Pre-fix: silently wrapped to 44. Post-fix:
+	// rejected (left at default 0x01). Pinning the rejection so any future
+	// re-introduction of the silent-wrap bug fails CI.
+	for _, val := range []string{"256", "300", "-1", "9999"} {
+		t.Run("val="+val, func(t *testing.T) {
+			t.Setenv("PQC_DEFAULT_TIER", val)
+			c := DefaultConfig()
+			before := c.DefaultTier
+			c.LoadFromEnv()
+			if c.DefaultTier != before {
+				t.Errorf("PQC_DEFAULT_TIER=%q should be rejected; got 0x%02X, want unchanged 0x%02X",
+					val, c.DefaultTier, before)
+			}
+		})
+	}
+}
+
 func TestLoadFromEnv_AuthEnabledAcceptsTrueAndOne(t *testing.T) {
 	for _, val := range []string{"true", "1"} {
 		t.Run("val="+val, func(t *testing.T) {

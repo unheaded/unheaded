@@ -56,12 +56,25 @@ linters:
         - "fmt.Fprint"
         - "fmt.Fprintf"
         - "fmt.Fprintln"
+        # Idiomatic resource cleanup — error from Close() is rarely actionable,
+        # commonly used as `defer rows.Close()` without check.
+        - "(*database/sql.Rows).Close"
+        - "(*database/sql.Stmt).Close"
+        - "(*database/sql.DB).Close"
+        - "(io.Closer).Close"
+        # JSON encode to an HTTP response writer — error means client disconnected
+        # mid-write; headers already flushed, no recovery path.
+        - "(*encoding/json.Encoder).Encode"
 
     govet:
       # Enable all analyzers
       enable-all: true
       disable:
         - fieldalignment  # Noisy, handle in Age 2 performance pass
+        - shadow          # Flags the idiomatic `if err := f(); err != nil`
+                          # pattern — too noisy for the kingdom's err-scoped
+                          # convention. Re-enable in Age 2 if Developer
+                          # decides to standardize on outer-err-only style.
 
     staticcheck:
       # Use latest checks
@@ -79,6 +92,10 @@ linters:
       excludes:
         - G104  # Audit errors not checked — covered by errcheck
         - G304  # File path from variable — we validate paths architecturally
+        - G117  # Exported struct field named "Password" matches secret pattern
+                # — false positive on Config.Password type fields
+                # (legitimate naming for credentials struct in
+                # pkg/database/config.go and similar).
       severity: medium
       confidence: medium
 
