@@ -66,13 +66,6 @@ func (t *Table) Render() {
 		return
 	}
 
-	// Calculate total width
-	totalWidth := 0
-	for _, w := range t.widths {
-		totalWidth += w + 3 // cell + padding + separator
-	}
-	totalWidth++ // final separator
-
 	// Print headers
 	if t.Color {
 		fmt.Fprint(t.out, ColorBold)

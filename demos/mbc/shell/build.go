@@ -358,27 +358,16 @@ func main() {
 	for i, cmd := range commands {
 		cp := cmdPatches[i]
 
-		// Compute the next command's start or the unknown target
+		// Determine skip target: for the last command, jump to unknownTarget.
+		// For other commands, the next command's check starts 2 instructions
+		// before its notMatchLen patch (the len-check sits there).
 		var nextTarget int
 		if i+1 < len(commands) {
-			// The next command check starts right after this command's code block.
-			// Each command block layout: 2 (len check) + JNZ + LD + LOAD32 + NOP + CMP + JNZ
-			// + fork/exec/wait block. We need the instruction index of the next block.
-			nextTarget = cp.notMatchLen + 1 // will be recomputed below
-		}
-		// Actually, we need to find the target for the JNZ (skip on mismatch).
-		// For the last command, skip to unknownTarget; for others, skip to next cmd check.
-
-		// Determine skip target: for the last command, jump to unknownTarget.
-		// For other commands, the next command's check starts after the current
-		// command's child execve/exit block. We stored the instruction indices
-		// of the JNZ instructions, so we can compute forward.
-		if i+1 < len(commands) {
-			// Next command's len check is 2 instructions before its notMatchLen
 			nextTarget = cmdPatches[i+1].notMatchLen - 2
 		} else {
 			nextTarget = unknownTarget
 		}
+		_ = cp.notMatchLen // kept on local for future debug printing
 
 		code[cp.notMatchLen] = encode(JNZ, 0, 0, uint16(int16(nextTarget-(cp.notMatchLen+1))))
 		code[cp.notMatchCmp] = encode(JNZ, 0, 0, uint16(int16(nextTarget-(cp.notMatchCmp+1))))

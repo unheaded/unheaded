@@ -171,12 +171,11 @@ func NewService(cfg Config) (*Service, error) {
 	return s, nil
 }
 
-// GetVision returns the project vision
-func (s *Service) GetVision(ctx context.Context) (*Vision, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
+// GetVision returns the project vision.
+//
+// ctx is accepted for API symmetry with future deadline/cancel support but is
+// not currently observed — the read is bounded by an in-memory RLock.
+func (s *Service) GetVision(_ context.Context) (*Vision, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
