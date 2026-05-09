@@ -65,11 +65,13 @@ func (d *D1AuthBypass) testMissingAuthHeader(ctx context.Context, cfg Config) *F
 		if err != nil {
 			continue // Service not reachable — skip, don't flag.
 		}
-		if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
+		status := resp.StatusCode
+		_ = resp.Body.Close()
+		if status != http.StatusUnauthorized && status != http.StatusForbidden {
 			return &Finding{
 				Severity:    "critical",
 				Title:       "Endpoint accessible without authentication",
-				Description: fmt.Sprintf("%s returned %d without auth header", ep, resp.StatusCode),
+				Description: fmt.Sprintf("%s returned %d without auth header", ep, status),
 				Endpoint:    ep,
 				Remediation: "Add auth middleware to all non-public endpoints",
 			}
@@ -91,11 +93,13 @@ func (d *D1AuthBypass) testMalformedJWT(ctx context.Context, cfg Config) *Findin
 		if err != nil {
 			continue
 		}
-		if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
+		status := resp.StatusCode
+		_ = resp.Body.Close()
+		if status != http.StatusUnauthorized && status != http.StatusForbidden {
 			return &Finding{
 				Severity:    "critical",
 				Title:       "Malformed JWT accepted",
-				Description: fmt.Sprintf("Malformed token %q returned %d", token[:20], resp.StatusCode),
+				Description: fmt.Sprintf("Malformed token %q returned %d", token[:20], status),
 				Remediation: "Validate JWT structure and signature before accepting",
 			}
 		}
@@ -123,6 +127,7 @@ func (d *D1AuthBypass) testEmptyAPIKey(ctx context.Context, cfg Config) *Finding
 	if err != nil {
 		return nil
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
 		return &Finding{
 			Severity:    "critical",
@@ -140,6 +145,7 @@ func (d *D1AuthBypass) testInvalidAPIKey(ctx context.Context, cfg Config) *Findi
 	if err != nil {
 		return nil
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
 		return &Finding{
 			Severity:    "critical",
@@ -165,6 +171,7 @@ func (d *D1AuthBypass) testBearerWithoutToken(ctx context.Context, cfg Config) *
 	if err != nil {
 		return nil
 	}
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode != http.StatusUnauthorized && resp.StatusCode != http.StatusForbidden {
 		return &Finding{
 			Severity:    "high",
