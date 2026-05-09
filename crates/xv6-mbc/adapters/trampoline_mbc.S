@@ -63,10 +63,6 @@ uservec:
         sw s9, 116(a0)
         sw s10, 120(a0)
         sw s11, 124(a0)
-        sw t3, 128(a0)
-        sw t4, 132(a0)
-        sw t5, 136(a0)
-        sw t6, 140(a0)
 
 	# save the user a0 in p->trapframe->a0
         csrr t0, sscratch
@@ -136,10 +132,6 @@ userret:
         lw s9, 116(a0)
         lw s10, 120(a0)
         lw s11, 124(a0)
-        lw t3, 128(a0)
-        lw t4, 132(a0)
-        lw t5, 136(a0)
-        lw t6, 140(a0)
 
 	# restore user a0
         lw a0, 56(a0)

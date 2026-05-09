@@ -8,7 +8,7 @@
 #
 # Differences from upstream/Makefile (RV64 + QEMU virt):
 #   - TOOLPREFIX hardcoded to riscv64-unknown-elf- (already on WEST per Doom).
-#   - CFLAGS use -march=rv32i -mabi=ilp32 (matches Doom's pipeline).
+#   - CFLAGS use -march=rv32i -mabi=ilp32e (matches Doom's pipeline).
 #   - OBJS replaces start.o / uart.o / virtio_disk.o with our adapters.
 #   - Drops plic.o (no PLIC on UPC; trap routing via MBC IVT).
 #   - Linker script kernel-mbc.ld places sections per UPC memory layout.
@@ -26,14 +26,14 @@ OBJDUMP = $(TOOLPREFIX)objdump
 
 # RV32I flags — matches demos/doom/Makefile.
 GCC_INCLUDE = $(shell $(CC) -print-file-name=include)
-CFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32 -nostdlib -nostdinc -static -ffreestanding \
+CFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32e -nostdlib -nostdinc -static -ffreestanding \
          -fno-builtin -O2 \
          -ffixed-x16 -ffixed-x17 -ffixed-x18 -ffixed-x19 \
          -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 \
          -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 \
          -ffixed-x28 -ffixed-x29 -ffixed-x30 -ffixed-x31 \
          -I$(K) -I$A -isystem $(GCC_INCLUDE)
-ASFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32
+ASFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32e
 # zicsr is needed because xv6's entry.S uses csrr (the rv32i-to-mbc translator
 # rewrites these to memory-mapped loads at the 0x000_F000 region per ADR-067
 # Decision 2). zmmul covers the multiply ops xv6 emits — these compile to

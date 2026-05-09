@@ -54,7 +54,7 @@ __sync_lock_test_and_set_4(volatile void *ptr, unsigned int newval)
     unsigned int old = *p;
     *p = newval;
     // MBC FENCE opcode (0x3F) emitted via inline asm word.
-    __asm__ volatile (".word 0x3F000000" ::: "memory");
+    __asm__ volatile ("fence" ::: "memory");
     return old;
 }
 
@@ -64,12 +64,12 @@ __sync_lock_release_4(volatile void *ptr)
 {
     volatile unsigned int *p = (volatile unsigned int *)ptr;
     *p = 0;
-    __asm__ volatile (".word 0x3F000000" ::: "memory");
+    __asm__ volatile ("fence" ::: "memory");
 }
 
 // __sync_synchronize: full memory barrier.
 void
 __sync_synchronize(void)
 {
-    __asm__ volatile (".word 0x3F000000" ::: "memory");
+    __asm__ volatile ("fence" ::: "memory");
 }
