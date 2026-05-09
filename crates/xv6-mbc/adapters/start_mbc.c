@@ -117,12 +117,12 @@ start(void)
     if (bp->magic != BOOT_MAGIC) {
         mmio_puts("BOOT FAIL: bad magic\n");
         // MBC HALT opcode encoded inline. Translator emits 0xFF.
-        __asm__ volatile (".word 0xFF000000");
+        __asm__ volatile ("ebreak"); /* translator emits MBC HALT for ebreak */
         while (1) {}
     }
     if (bp->version != BOOT_VERSION_V2) {
         mmio_puts("BOOT FAIL: bad version\n");
-        __asm__ volatile (".word 0xFF000000");
+        __asm__ volatile ("ebreak"); /* translator emits MBC HALT for ebreak */
         while (1) {}
     }
 
@@ -143,12 +143,13 @@ start(void)
     // 32-bit so we don't need uintptr_t.
     CSR_REG(CSR_MEPC) = (uint32)(uint64)main;
 
-    // Step 4: MRET. The MBC compiler emits opcode 0x47 here.
-    // (We can't use `mret` — that's RISC-V machine code. Translator handles it.)
-    __asm__ volatile (".word 0x47000000");
+    // Step 4: MRET. RV32's `mret` mnemonic (encoding 0x30200073). The
+    // translator (post-Phase-0.4-CSR-extension) recognizes this and emits
+    // MBC opcode 0x47.
+    __asm__ volatile ("mret");
 
     // If we ever reach here, MRET failed somehow.
     mmio_puts("BOOT FAIL: MRET fall-through\n");
-    __asm__ volatile (".word 0xFF000000");
+    __asm__ volatile ("ebreak"); /* translator emits MBC HALT for ebreak */
     while (1) {}
 }

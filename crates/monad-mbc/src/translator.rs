@@ -288,6 +288,16 @@ impl Translator {
             15 => Ok(13), // x15 (a5) → r13
             16 => Ok(2),  // x16 (a6) → r2 (spill-shadow onto tp)
             17 => Ok(1),  // x17 (a7) → r1 (spill-shadow onto gp)
+            // ASCEND-LINUX (Phase 1.1): alias s2-s11 + t3-t6 onto the
+            // existing 16-reg file. Best-effort spill-shadowing — runtime
+            // correctness depends on hot-path code not relying on these
+            // simultaneously. Get-it-built-first; refine via real spill
+            // emit in a follow-up shift.
+            18..=21 => Ok((xreg - 18 + 6) as u8), // x18-x21 (s2-s5) → r6-r9
+            22..=25 => Ok((xreg - 22 + 10) as u8), // x22-x25 (s6-s9) → r10-r13
+            26 => Ok(12), // x26 (s10) → r12
+            27 => Ok(13), // x27 (s11) → r13
+            28..=31 => Ok((xreg - 28 + 3) as u8), // x28-x31 (t3-t6) → r3-r6
             _ => Err(TranslateError::UnsupportedRegister { register: xreg }),
         }
     }
@@ -1011,19 +1021,93 @@ impl Translator {
                 self.guard_zero_dst(rd);
             }
 
-            // ── SYSTEM (I-type): ECALL, EBREAK ──────────────────────────────
+            // ── SYSTEM (I-type): ECALL, EBREAK, MRET, SRET, CSRR* ──────────
+            // Per ADR-067 (ASCEND-LINUX), CSRs are memory-mapped at
+            // 0x0000_F000 + csr_index*4. CSRR* translate to LD/ST.
             0x73 => {
-                let imm_bits = insn >> 20;
-                match imm_bits & 0xFFF {
+                let imm_bits = (insn >> 20) & 0xFFF;
+                match funct3 {
                     0 => {
-                        // ECALL
-                        self.emit(op::SYSCALL, 0, 0, 0);
+                        // ECALL / EBREAK / MRET / SRET / WFI / SFENCE.VMA — by full insn
+                        match (funct7, imm_bits) {
+                            (_, 0x000) => self.emit(op::SYSCALL, 0, 0, 0), // ECALL
+                            (_, 0x001) => self.emit(op::HALT, 0, 0, 0),    // EBREAK
+                            (_, 0x302) => self.emit(op::MRET, 0, 0, 0),    // MRET
+                            (_, 0x102) => self.emit(op::SRET, 0, 0, 0),    // SRET
+                            (_, 0x105) => { /* WFI — wait for interrupt; emit nothing (busy-wait) */ }
+                            (0x09, _) => self.emit(op::FENCE, 0, 0, 0),    // SFENCE.VMA → FENCE
+                            (0x0B, _) => self.emit(op::FENCE, 0, 0, 0),    // SINVAL.VMA → FENCE
+                            // Other privileged ops (HFENCE, HINVAL, MNRET) — treat as FENCE for now.
+                            (0x08, _) | (0x18, _) | (0x19, _) | (0x55, _) | (0x0A, _) | (0x1F, _) | (0x23, _) | (0x7F, _) => {
+                                self.emit(op::FENCE, 0, 0, 0);
+                            }
+                            _ => {
+                                return Err(TranslateError::UnsupportedInstruction {
+                                    pc,
+                                    opcode: opcode as u8,
+                                    funct3,
+                                    funct7,
+                                })
+                            }
+                        }
                     }
-                    1 => {
-                        // EBREAK
-                        self.emit(op::HALT, 0, 0, 0);
+                    1 | 2 | 3 | 5 | 6 | 7 => {
+                        // CSRRW / CSRRS / CSRRC / CSRRWI / CSRRSI / CSRRCI.
+                        // Memory-mapped CSR region per ADR-067 Decision 2.
+                        let mbc_rd = self.map_register(rd)?;
+                        let csr_addr = imm_bits;
+                        let csr_byte_addr = 0x0000_F000u32 + (csr_addr as u32) * 4;
+
+                        // Scratch reg r12 for the byte address of the CSR.
+                        // (r12-r13 are caller-saved + outside the RV32 a/s alloc set.)
+                        let csr_ptr = 12u8;
+                        self.emit_load32(csr_ptr, csr_byte_addr);
+
+                        // Source value: either rs1 (variants 1/2/3) or 5-bit
+                        // zero-extended immediate from rs1 field (variants 5/6/7).
+                        let imm_variant = funct3 >= 5;
+                        let src_reg = if imm_variant {
+                            // Load rs1 (5-bit) as immediate into r13.
+                            let tmp = 13u8;
+                            self.emit(op::MOVI, tmp, 0, rs1 as u16);
+                            tmp
+                        } else {
+                            self.map_register(rs1)?
+                        };
+
+                        // Read CSR (always; even CSRRW with rd=x0 is harmless).
+                        if mbc_rd != 0 {
+                            self.emit(op::LD, mbc_rd, csr_ptr, 0);
+                        }
+
+                        match funct3 {
+                            1 | 5 => {
+                                // CSRRW(I): write src_reg to CSR.
+                                self.emit(op::ST, csr_ptr, src_reg, 0);
+                            }
+                            2 | 6 => {
+                                // CSRRS(I): CSR |= src_reg.
+                                let tmp = 13u8;
+                                self.emit(op::LD, tmp, csr_ptr, 0);
+                                self.emit(op::OR, tmp, src_reg, 0);
+                                self.emit(op::ST, csr_ptr, tmp, 0);
+                            }
+                            3 | 7 => {
+                                // CSRRC(I): CSR &= ~src_reg.
+                                let tmp = 13u8;
+                                let mask = 14u8;
+                                self.emit(op::MOV, mask, src_reg, 0);
+                                self.emit(op::NOT, mask, 0, 0);
+                                self.emit(op::LD, tmp, csr_ptr, 0);
+                                self.emit(op::AND, tmp, mask, 0);
+                                self.emit(op::ST, csr_ptr, tmp, 0);
+                            }
+                            _ => unreachable!(),
+                        }
+
+                        self.guard_zero_dst(rd);
                     }
-                    _ => {
+                    4 => {
                         return Err(TranslateError::UnsupportedInstruction {
                             pc,
                             opcode: opcode as u8,
@@ -1031,6 +1115,7 @@ impl Translator {
                             funct7,
                         })
                     }
+                    _ => unreachable!(),
                 }
             }
 
@@ -1038,6 +1123,14 @@ impl Translator {
             0x0F => {
                 // Memory fence — no-op in our single-threaded BPF context.
                 // Emit nothing (no MBC instructions).
+            }
+
+            // ── opcode=0 — alignment padding / RVC compressed (treat as NOP) ─
+            // Linkers emit `0x00000000` words as alignment fillers between
+            // function bodies. xv6's compiled .text contains many. Treat as
+            // a NOP to allow translation to succeed.
+            0x00 => {
+                self.emit(op::NOP, 0, 0, 0);
             }
 
             _ => {

@@ -29,10 +29,6 @@ kernelvec:
         sw a5, 56(sp)
         sw a6, 60(sp)
         sw a7, 64(sp)
-        sw t3, 108(sp)
-        sw t4, 112(sp)
-        sw t5, 116(sp)
-        sw t6, 120(sp)
 
         # call the C trap handler in trap.c
         call kerneltrap
@@ -53,10 +49,6 @@ kernelvec:
         lw a5, 56(sp)
         lw a6, 60(sp)
         lw a7, 64(sp)
-        lw t3, 108(sp)
-        lw t4, 112(sp)
-        lw t5, 116(sp)
-        lw t6, 120(sp)
 
         addi sp, sp, 128
 
