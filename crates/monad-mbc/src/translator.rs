@@ -1330,11 +1330,17 @@ mod tests {
     }
 
     #[test]
-    fn test_translate_register_out_of_range() {
-        // ADD x1, x2, x20 (x20 is out of range)
+    fn test_translate_register_aliased_after_abi_v2() {
+        // ADD x1, x2, x20 — post ASCEND-LINUX (ADR-067), x20 aliases to r8
+        // (best-effort spill-shadow). Translation must succeed; runtime
+        // correctness depends on hot-paths not relying on x20 simultaneously
+        // with the aliased register. Was UnsupportedRegister before ABI v2.
         let insn = rv32i_r_type(0, 20, 2, 0, 1, 0x33);
         let result = Translator::translate_program(&[insn]);
-        assert!(result.is_err());
+        assert!(
+            result.is_ok(),
+            "x20 should map to r8 (alias) post ASCEND-LINUX"
+        );
     }
 
     #[test]
