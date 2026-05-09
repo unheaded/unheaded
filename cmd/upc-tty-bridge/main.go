@@ -136,7 +136,6 @@ func (h *Hub) handleWs(w http.ResponseWriter, r *http.Request) {
 		// Placeholder: log it.
 		fmt.Fprintf(os.Stderr, "[upc-tty-bridge] kbd input from instance 0x%02X: %d bytes\n", instance, len(msg))
 	}
-	_ = done
 }
 
 // pollTtyStream is the placeholder for the actual BPF-map-read /
