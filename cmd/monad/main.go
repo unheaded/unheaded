@@ -399,10 +399,12 @@ func (hs *HTTPServer) loggingMiddleware(next http.Handler) http.Handler {
 		// Create a response writer wrapper to capture status code
 		wrapped := &responseWriter{ResponseWriter: w, statusCode: http.StatusOK}
 
-		// Add request ID to context
-		ctx := context.WithValue(r.Context(), "request_id", fmt.Sprintf("req_%d", reqID))
-		r = r.WithContext(ctx)
-
+		// Note: request ID is propagated via the JSON RequestID field in
+		// MetaInfo (set at handler-time from atomic.LoadInt64(&hs.requestID))
+		// and via the structured-log "request_id" field below — no
+		// context-value plumbing needed here. The earlier
+		// `context.WithValue(r.Context(), "request_id", ...)` was never
+		// retrieved (SA1029 bare-string key + dead value).
 		next.ServeHTTP(wrapped, r)
 
 		duration := time.Since(start)
