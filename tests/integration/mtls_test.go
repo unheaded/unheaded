@@ -138,8 +138,9 @@ func TestMTLS_NoCert_Rejected(t *testing.T) {
 	}
 
 	client := buildClient(t, tlsCfg)
-	_, err := client.Get("https://" + addr + "/health")
+	resp, err := client.Get("https://" + addr + "/health")
 	if err == nil {
+		_ = resp.Body.Close()
 		t.Fatal("expected error when client presents no certificate")
 	}
 }
@@ -171,8 +172,9 @@ func TestMTLS_WrongCA_Rejected(t *testing.T) {
 	}
 
 	client := buildClient(t, tlsCfg)
-	_, err = client.Get("https://" + addr + "/health")
+	resp, err := client.Get("https://" + addr + "/health")
 	if err == nil {
+		_ = resp.Body.Close()
 		t.Fatal("expected error when client cert is signed by wrong CA")
 	}
 }
@@ -202,8 +204,9 @@ func TestMTLS_ExpiredCert_Rejected(t *testing.T) {
 	}
 
 	client := buildClient(t, tlsCfg)
-	_, err = client.Get("https://" + addr + "/health")
+	resp, err := client.Get("https://" + addr + "/health")
 	if err == nil {
+		_ = resp.Body.Close()
 		t.Fatal("expected error when client cert is expired")
 	}
 }
