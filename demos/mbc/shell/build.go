@@ -435,17 +435,6 @@ func main() {
 	fmt.Println("This binary becomes /bin/sh in the UNFS filesystem.")
 }
 
-func writeLE32(f *os.File, words []uint32) error {
-	buf := make([]byte, 4)
-	for _, w := range words {
-		binary.LittleEndian.PutUint32(buf, w)
-		if _, err := f.Write(buf); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 // ── UPCFlat format helpers ──────────────────────────────────────────
 // These mirror pkg/upc.CreateUPCFlat but are duplicated here because
 // this is a standalone build tool (package main).
