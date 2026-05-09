@@ -3351,8 +3351,7 @@ func parsePrometheusText(text string) map[string]float64 {
 			continue
 		}
 		// Strip labels if present: metric_name{...} value
-		name := line
-		valueStr := ""
+		var name, valueStr string
 		if idx := strings.IndexByte(line, '{'); idx != -1 {
 			name = line[:idx]
 			end := strings.IndexByte(line, '}')

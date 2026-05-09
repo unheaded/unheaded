@@ -1601,14 +1601,11 @@ func (pc *PolicyController) buildIPTablesArgs(rule generatedRule, chainName stri
 		args = append(args, "-m", "comment", "--comment", rule.Comment)
 	}
 
-	// Add logging before action if enabled
-	if rule.Logging && rule.Action != ActionLog {
-		// Create a separate log rule
-		logArgs := make([]string, len(args))
-		copy(logArgs, args)
-		logArgs = append(logArgs, "-j", "LOG", "--log-prefix", fmt.Sprintf("[%s] ", rule.Comment))
-		// Note: log rule should be applied separately
-	}
+	// TODO: rule.Logging requires emitting a *separate* iptables -j LOG rule
+	// before the terminal action. buildIPTablesArgs returns a single rule
+	// slice today, so the caller (applyIPTablesRules) needs a second pass to
+	// install the LOG rule. Leaving the field on the policy spec — the
+	// emission path is not yet wired.
 
 	args = append(args, "-j", rule.Action.ToIPTablesTarget())
 

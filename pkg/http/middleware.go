@@ -162,8 +162,7 @@ func LoggerWithConfig(config LoggerConfig) MiddlewareFunc {
 
 		// Get response writer to access status code
 		rw, ok := c.Writer.(*ResponseWriter)
-		statusCode := http.StatusOK
-		bodySize := 0
+		var statusCode, bodySize int
 		if ok {
 			statusCode = rw.Status()
 			bodySize = rw.Size()

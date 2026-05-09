@@ -211,7 +211,6 @@ func (b *BareMetalCollector) parseProcLoadavg(content string) []float64 {
 // collectCPU reads CPU metrics from /proc/stat.
 func (b *BareMetalCollector) collectCPU() []Sample {
 	var samples []Sample
-	baseLabels := map[string]string{"collector": "baremetal"}
 
 	path := filepath.Join(b.procRoot, "stat")
 	data, err := ioutil.ReadFile(path)
@@ -224,24 +223,19 @@ func (b *BareMetalCollector) collectCPU() []Sample {
 	modeNames := []string{"user", "nice", "system", "idle", "iowait", "irq", "softirq"}
 
 	for i, modeName := range modeNames {
-		if i < len(cpuTimes) {
-			labels := baseLabels
-			if labels == nil {
-				labels = make(map[string]string)
-			}
-			labels = map[string]string{
+		if i >= len(cpuTimes) {
+			continue
+		}
+		samples = append(samples, Sample{
+			Name: "unheaded_cpu_seconds_total",
+			Help: "CPU time by mode",
+			Type: TypeCounter,
+			Labels: map[string]string{
 				"collector": "baremetal",
 				"mode":      modeName,
-			}
-
-			samples = append(samples, Sample{
-				Name:   "unheaded_cpu_seconds_total",
-				Help:   "CPU time by mode",
-				Type:   TypeCounter,
-				Labels: labels,
-				Value:  cpuTimes[i],
-			})
-		}
+			},
+			Value: cpuTimes[i],
+		})
 	}
 
 	return samples
