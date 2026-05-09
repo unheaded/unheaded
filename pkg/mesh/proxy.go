@@ -552,7 +552,6 @@ type ConnectionPool struct {
 
 	mu    sync.Mutex
 	conns chan *pooledConn
-	size  int
 
 	// Stats
 	activeConns int64
