@@ -135,7 +135,7 @@ func (f *FilesystemStore) Put(ctx context.Context, bucket, key string, reader io
 
 	// Store metadata
 	etag := hex.EncodeToString(hash.Sum(nil))
-	contentType := "application/octet-stream"
+	var contentType string
 	if opts != nil && opts.ContentType != "" {
 		contentType = opts.ContentType
 	} else {
