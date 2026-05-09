@@ -589,7 +589,7 @@ func TestRule_Match(t *testing.T) {
 		req := &Request{Path: "/api/v1/users"}
 		match := rule.Match(req)
 		if match == nil {
-			t.Error("expected rule to match")
+			t.Fatal("expected rule to match") // Fatal — next assertion derefs match
 		}
 		if match.Destination.Service != "api-svc" {
 			t.Errorf("expected destination api-svc, got %s", match.Destination.Service)

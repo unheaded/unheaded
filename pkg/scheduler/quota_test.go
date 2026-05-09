@@ -229,7 +229,7 @@ func TestQuotaManager_SetQuota(t *testing.T) {
 
 	retrieved := qm.GetQuota("default")
 	if retrieved == nil {
-		t.Error("expected to get quota")
+		t.Fatal("expected to get quota") // Fatal — next assertion derefs retrieved
 	}
 	if retrieved.Hard.CPU != 4000 {
 		t.Errorf("expected CPU 4000, got %d", retrieved.Hard.CPU)

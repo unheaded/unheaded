@@ -606,7 +606,7 @@ func TestActiveQueue_Pop(t *testing.T) {
 
 	popped := aq.Pop()
 	if popped == nil {
-		t.Error("expected workload")
+		t.Fatal("expected workload") // Fatal — next assertion derefs popped
 	}
 	if popped.ID != "w1" {
 		t.Errorf("expected w1, got %s", popped.ID)

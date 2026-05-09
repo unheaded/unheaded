@@ -190,7 +190,7 @@ func TestService_GetVision(t *testing.T) {
 			t.Errorf("GetVision failed: %v", err)
 		}
 		if vision == nil {
-			t.Error("vision should not be nil")
+			t.Fatal("vision should not be nil") // Fatal — subsequent assertions deref vision
 		}
 		if vision.Title == "" {
 			t.Error("vision title should not be empty")
@@ -230,7 +230,7 @@ func TestService_GetStrategy(t *testing.T) {
 			t.Errorf("GetStrategy failed: %v", err)
 		}
 		if strategy == nil {
-			t.Error("strategy should not be nil")
+			t.Fatal("strategy should not be nil") // Fatal — subsequent assertions deref strategy
 		}
 		if strategy.Title == "" {
 			t.Error("strategy title should not be empty")
