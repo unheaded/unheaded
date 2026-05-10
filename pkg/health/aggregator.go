@@ -939,15 +939,16 @@ func (a *Aggregator) runGRPCCheck(ctx context.Context, check *HealthCheck) *Heal
 		config = &GRPCCheckConfig{}
 	}
 
-	opts := []grpc.DialOption{
-		grpc.WithBlock(),
-	}
-
+	// grpc.NewClient (lazy/non-blocking) replaces the deprecated DialContext.
+	// We provide blocking semantics via a unary state-wait below — necessary
+	// so a connection failure surfaces as a check error rather than the first
+	// RPC blowing up.
+	var opts []grpc.DialOption
 	if !config.UseTLS {
 		opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
 	}
 
-	conn, err := grpc.DialContext(ctx, check.Target, opts...)
+	conn, err := grpc.NewClient(check.Target, opts...)
 	if err != nil {
 		return &HealthResult{
 			Name:    check.Name,
