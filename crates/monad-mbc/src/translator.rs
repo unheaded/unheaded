@@ -293,11 +293,11 @@ impl Translator {
             // correctness depends on hot-path code not relying on these
             // simultaneously. Get-it-built-first; refine via real spill
             // emit in a follow-up shift.
-            18..=21 => Ok((xreg - 18 + 6) as u8), // x18-x21 (s2-s5) → r6-r9
-            22..=25 => Ok((xreg - 22 + 10) as u8), // x22-x25 (s6-s9) → r10-r13
+            18..=21 => Ok(xreg - 18 + 6), // x18-x21 (s2-s5) → r6-r9
+            22..=25 => Ok(xreg - 22 + 10), // x22-x25 (s6-s9) → r10-r13
             26 => Ok(12), // x26 (s10) → r12
             27 => Ok(13), // x27 (s11) → r13
-            28..=31 => Ok((xreg - 28 + 3) as u8), // x28-x31 (t3-t6) → r3-r6
+            28..=31 => Ok(xreg - 28 + 3), // x28-x31 (t3-t6) → r3-r6
             _ => Err(TranslateError::UnsupportedRegister { register: xreg }),
         }
     }
@@ -1056,7 +1056,7 @@ impl Translator {
                         // Memory-mapped CSR region per ADR-067 Decision 2.
                         let mbc_rd = self.map_register(rd)?;
                         let csr_addr = imm_bits;
-                        let csr_byte_addr = 0x0000_F000u32 + (csr_addr as u32) * 4;
+                        let csr_byte_addr = 0x0000_F000u32 + csr_addr * 4;
 
                         // Scratch reg r12 for the byte address of the CSR.
                         // (r12-r13 are caller-saved + outside the RV32 a/s alloc set.)
