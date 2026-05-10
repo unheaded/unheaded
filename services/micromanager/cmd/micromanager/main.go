@@ -54,13 +54,11 @@ var (
 		[]string{"method", "path"},
 	)
 
-	tasksTotal = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
-			Name: "micromanager_tasks_total",
-			Help: "Total number of tasks",
-		},
-		[]string{"status"},
-	)
+	// (tasksTotal gauge previously declared here was never updated by any
+	// code path — the API/Service layer doesn't surface task counts to
+	// Prometheus today. Removed to avoid registering a perpetually-zero
+	// metric. When task accounting lands, re-declare alongside the
+	// counter increments.)
 )
 
 func init() {
@@ -228,19 +226,7 @@ func (w *responseWriter) WriteHeader(code int) {
 	w.ResponseWriter.WriteHeader(code)
 }
 
-// readinessProbe returns a readiness check handler
-func readinessProbe(service *micromanager.Service) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Simple readiness check - if service is running, we're ready
-		status := service.HealthStatus()
-		w.Header().Set("Content-Type", "application/json")
-
-		if status["status"] == "healthy" {
-			w.WriteHeader(http.StatusOK)
-		} else {
-			w.WriteHeader(http.StatusServiceUnavailable)
-		}
-
-		fmt.Fprintf(w, `{"status":"ready","timestamp":%d}`, time.Now().Unix())
-	}
-}
+// (readinessProbe was dead: healthSrv.RegisterHTTP(mux) on line 148 owns
+// /health and /ready. The local handler was never wired and would have
+// competed with the transport-aware version. Removed; resurrect via
+// healthSrv if richer probe logic is needed.)

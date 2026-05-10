@@ -50,12 +50,10 @@ func RetireFlow(oldSeq uint16) {
 	_ = oldSeq
 }
 
-// ShieldRetryToken represents an HMAC-SHA256 based retry token for address validation.
-// Token format: HMAC-SHA256(shield_secret, src_ip || timestamp)[0:16]
-type ShieldRetryToken struct {
-	token     []byte
-	timestamp int64
-}
+// (ShieldRetryToken struct previously declared here held token + timestamp
+// fields but was never referenced — GenerateRetryToken returns the token
+// bytes directly. Removed; reintroduce as a wire-shape struct when
+// retry-token state needs to be marshalled across processes.)
 
 // GenerateRetryToken generates a shield retry token using HMAC-SHA256.
 // Input: shieldSecret (symmetric key), srcIP (source IP address)

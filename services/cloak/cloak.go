@@ -10,7 +10,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -157,7 +156,6 @@ type Service struct {
 	dashboards    map[string]*Dashboard
 	sessions      map[string]*Session
 	notifications map[string][]*Notification // userID -> notifications
-	templates     *template.Template
 	broadcasts    chan *Broadcast
 
 	idCounter int64
