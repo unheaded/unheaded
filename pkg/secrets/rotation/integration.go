@@ -76,12 +76,13 @@ func initIntegrationMetrics() {
 }
 
 // CertificateIntegration handles certificate rotation integration.
+// Concurrency is bounded by manager.mu inside RotationManager — the local
+// mu sync.RWMutex was never observed.
 type CertificateIntegration struct {
 	manager  *RotationManager
 	store    secrets.SecretStore
 	log      *logger.Logger
 	caConfig *CAConfig
-	mu       sync.RWMutex
 }
 
 // CAConfig configures the certificate authority for issuing certificates.

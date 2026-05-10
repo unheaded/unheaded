@@ -449,10 +449,12 @@ func (b *BoltStore) UseBucket(name string) *BoltStore {
 }
 
 // boltTxn wraps a BoltDB transaction.
+//
+// In the future bbolt-backed implementation this will hold a *bbolt.Tx and
+// the bucket name. Today the path goes through the in-memory store, so we
+// don't carry the bucket on the txn.
 type boltTxn struct {
-	// In production: tx *bbolt.Tx
 	memTxn storage.Transaction
-	bucket []byte
 	update bool
 	closed bool
 }
