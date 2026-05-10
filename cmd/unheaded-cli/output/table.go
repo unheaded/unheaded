@@ -12,13 +12,11 @@ import (
 
 // Table renders data in a formatted table.
 type Table struct {
-	out      io.Writer
-	headers  []string
-	rows     [][]string
-	widths   []int
-	Color    bool
-	sortCol  int
-	sortDesc bool
+	out     io.Writer
+	headers []string
+	rows    [][]string
+	widths  []int
+	Color   bool
 }
 
 // NewTable creates a new Table writer.

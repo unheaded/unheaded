@@ -766,6 +766,11 @@ func (d *Daemon) registerHandlers(mux *http.ServeMux) {
 	// Metrics
 	mux.HandleFunc("/metrics", d.handleMetrics)
 
+	// Health + Readiness (per CLAUDE.md "every service must expose
+	// /health and /ready endpoints").
+	mux.HandleFunc("/health", d.handleHealth)
+	mux.HandleFunc("/ready", d.handleReady)
+
 	// Info
 	mux.HandleFunc("/api/v1/info", d.handleInfo)
 }
