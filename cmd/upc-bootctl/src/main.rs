@@ -16,6 +16,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod bootparams;
 mod runner;
 
 #[derive(Parser, Debug)]
