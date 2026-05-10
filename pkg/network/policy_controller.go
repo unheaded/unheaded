@@ -1178,7 +1178,7 @@ func (pc *PolicyController) WatchPolicies(ctx context.Context, path string) erro
 
 	// Add path to watcher
 	if err := watcher.Add(path); err != nil {
-		watcher.Close()
+		_ = watcher.Close()
 		return fmt.Errorf("watch path %s: %w", path, err)
 	}
 
@@ -1193,7 +1193,7 @@ func (pc *PolicyController) WatchPolicies(ctx context.Context, path string) erro
 
 // watchLoop handles file system events
 func (pc *PolicyController) watchLoop(basePath string) {
-	defer pc.watcher.Close()
+	defer func() { _ = pc.watcher.Close() }()
 
 	for {
 		select {
@@ -1814,7 +1814,7 @@ func (pc *PolicyController) auditLog(operation, policy, result string, details m
 			Msg("failed to open audit log")
 		return
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := f.Write(append(data, '\n')); err != nil {
 		pc.logger.Error().
