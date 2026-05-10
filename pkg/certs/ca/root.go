@@ -139,8 +139,11 @@ func VerifyRootCA(cert *x509.Certificate) error {
 	if cert.KeyUsage&x509.KeyUsageCertSign == 0 {
 		return ErrInvalidCertificate
 	}
+	// Root must allow at least one intermediate. MaxPathLenZero distinguishes
+	// "explicitly zero" from "unset"; only the explicitly-restrictive case is
+	// rejected.
 	if cert.MaxPathLen < 1 && !cert.MaxPathLenZero {
-		// Root should allow at least one intermediate
+		return ErrInvalidCertificate
 	}
 	return nil
 }

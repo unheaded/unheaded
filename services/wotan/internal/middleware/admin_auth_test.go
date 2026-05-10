@@ -338,7 +338,7 @@ func TestSecureCompare_TimingConsistency(t *testing.T) {
 // ============================================================================
 
 func TestIsAdminAuthenticated_NilContext(t *testing.T) {
-	if IsAdminAuthenticated(nil) {
+	if IsAdminAuthenticated(nil) { //nolint:staticcheck // intentional nil-context coverage
 		t.Error("expected false for nil context")
 	}
 }

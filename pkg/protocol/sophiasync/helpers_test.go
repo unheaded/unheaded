@@ -4,6 +4,7 @@
 package sophiasync
 
 import (
+	"context"
 	"encoding/binary"
 	"io"
 	"testing"
@@ -133,7 +134,7 @@ func TestDistributeDelta_NilDelta(t *testing.T) {
 		t.Fatalf("NewEncoderStream: %v", err)
 	}
 
-	err = es.DistributeDelta(nil, nil)
+	err = es.DistributeDelta(context.Background(), nil)
 	if err == nil {
 		t.Error("expected error for nil delta")
 	}

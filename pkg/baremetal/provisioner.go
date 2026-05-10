@@ -612,15 +612,12 @@ func (p *bareMetalProvisioner) Deprovision(ctx context.Context, machineID string
 		return fmt.Errorf("machine not found: %s", machineID)
 	}
 
-	// Power off the machine
-	if err := p.powerOffMachine(ctx, machine); err != nil {
-		// Log but don't fail
-	}
-
-	// Remove PXE configuration
-	if err := p.pxeServer.RemoveClient(ctx, machine.Spec.MACAddress); err != nil {
-		// Log but don't fail
-	}
+	// Best-effort power-off and PXE cleanup. Errors are swallowed because
+	// Deprovision must be idempotent against partially-provisioned or
+	// already-offline machines; surfacing them would block the inventory
+	// delete below.
+	_ = p.powerOffMachine(ctx, machine)
+	_ = p.pxeServer.RemoveClient(ctx, machine.Spec.MACAddress)
 
 	// Remove from inventory
 	delete(p.machines, machineID)

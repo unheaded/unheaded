@@ -110,7 +110,7 @@ func TestService_GetVision_NilContext(t *testing.T) {
 	svc, _ := NewService(Config{Storage: newMockStorage(), Wotan: newMockWotan()})
 	defer svc.Close()
 
-	v, err := svc.GetVision(nil)
+	v, err := svc.GetVision(nil) //nolint:staticcheck // intentional nil-context coverage
 	if err != nil {
 		t.Fatalf("GetVision(nil) failed: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestService_LogDecision_NilContext(t *testing.T) {
 	defer svc.Close()
 
 	d := &Decision{Title: "t", Content: "c", Owner: "o", Priority: PriorityMedium}
-	if err := svc.LogDecision(nil, d); err != nil {
+	if err := svc.LogDecision(nil, d); err != nil { //nolint:staticcheck // intentional nil-context coverage
 		t.Errorf("LogDecision(nil ctx) failed: %v", err)
 	}
 }
@@ -250,7 +250,7 @@ func TestService_GetDecision_NilContext(t *testing.T) {
 	svc, _ := NewService(Config{Storage: ms, Wotan: newMockWotan()})
 	defer svc.Close()
 
-	d, err := svc.GetDecision(nil, "abc")
+	d, err := svc.GetDecision(nil, "abc") //nolint:staticcheck // intentional nil-context coverage
 	if err != nil {
 		t.Fatalf("GetDecision(nil ctx) failed: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestService_ListDecisions_NilContext(t *testing.T) {
 	svc, _ := NewService(Config{Storage: newMockStorage(), Wotan: newMockWotan()})
 	defer svc.Close()
 
-	list, err := svc.ListDecisions(nil, 10, 0)
+	list, err := svc.ListDecisions(nil, 10, 0) //nolint:staticcheck // intentional nil-context coverage
 	if err != nil {
 		t.Fatalf("ListDecisions(nil ctx) failed: %v", err)
 	}
@@ -310,7 +310,7 @@ func TestService_UpdateDecisionStatus_NilContext(t *testing.T) {
 	svc, _ := NewService(Config{Storage: ms, Wotan: newMockWotan()})
 	defer svc.Close()
 
-	err := svc.UpdateDecisionStatus(nil, "d1", "approved")
+	err := svc.UpdateDecisionStatus(nil, "d1", "approved") //nolint:staticcheck // intentional nil-context coverage
 	if err != nil {
 		t.Errorf("UpdateDecisionStatus(nil ctx) failed: %v", err)
 	}

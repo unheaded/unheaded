@@ -5,6 +5,7 @@ package compliance
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -96,7 +97,7 @@ func TestComplianceScore(t *testing.T) {
 			svc.RecordAllowed()
 		}
 
-		svc.aggregateViolations(nil)
+		svc.aggregateViolations(context.Background())
 		score := svc.GetScore()
 
 		if score.TotalPackets != 100 {
@@ -130,7 +131,7 @@ func TestComplianceScore(t *testing.T) {
 			})
 		}
 
-		svc.aggregateViolations(nil)
+		svc.aggregateViolations(context.Background())
 		score := svc.GetScore()
 
 		if score.TotalPackets != 100 {
@@ -147,7 +148,7 @@ func TestComplianceScore(t *testing.T) {
 
 	t.Run("empty service has 100% score", func(t *testing.T) {
 		svc := newTestService(t)
-		svc.aggregateViolations(nil)
+		svc.aggregateViolations(context.Background())
 		score := svc.GetScore()
 
 		if score.ScorePct != 100.0 {
@@ -242,7 +243,7 @@ func TestViolationAggregation(t *testing.T) {
 			})
 		}
 
-		svc.aggregateViolations(nil)
+		svc.aggregateViolations(context.Background())
 
 		violations := svc.ListViolations()
 		if len(violations) > 5 {
@@ -267,7 +268,7 @@ func TestViolationAggregation(t *testing.T) {
 			})
 		}
 
-		svc.aggregateViolations(nil)
+		svc.aggregateViolations(context.Background())
 		score := svc.GetScore()
 
 		// 50% violation rate -> 50% score
@@ -379,7 +380,7 @@ func TestHTTPComplianceScore(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		svc.RecordAllowed()
 	}
-	svc.aggregateViolations(nil)
+	svc.aggregateViolations(context.Background())
 
 	mux := http.NewServeMux()
 	svc.registerRoutes(mux)
