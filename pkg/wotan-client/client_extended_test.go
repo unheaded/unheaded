@@ -428,9 +428,8 @@ func setupGRPCBufconn(t *testing.T) (*mockTopicStreamServer, *GRPCClient) {
 	chatpb.RegisterTopicStreamServer(srv, mockSrv)
 
 	go func() {
-		if err := srv.Serve(lis); err != nil {
-			// expected during cleanup
-		}
+		// Best-effort: srv.Stop() in t.Cleanup makes Serve return ErrServerStopped.
+		_ = srv.Serve(lis)
 	}()
 	t.Cleanup(func() { srv.Stop() })
 

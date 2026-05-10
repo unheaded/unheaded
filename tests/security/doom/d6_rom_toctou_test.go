@@ -62,10 +62,8 @@ func TestD6_TOCTOUWindowExists(t *testing.T) {
 				value := rom[pc].value
 				rom[pc].mu.Unlock()
 
-				// Check if value was modified from expected
-				if value != uint32(pc) && value != 0xDEADBEEF {
-					// Saw a partial write or unexpected value
-				}
+				// Partial-write / unexpected-value path is documentary only;
+				// only the explicit 0xDEADBEEF marker counts as a detected race.
 				if value == 0xDEADBEEF {
 					racesDetected.Add(1)
 				}

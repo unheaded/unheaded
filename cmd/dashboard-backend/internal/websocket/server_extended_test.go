@@ -859,10 +859,9 @@ func TestContextCancelStopsRunLoop(t *testing.T) {
 
 	cancel() // cancel the context
 
-	// Wait for clients to be cleaned up
-	if !waitForCount(srv, 0) {
-		// Not fatal — context cancel races with connection cleanup
-	}
+	// Wait for clients to be cleaned up. Not fatal if it returns false —
+	// context cancel races with connection cleanup.
+	_ = waitForCount(srv, 0)
 }
 
 // ---------- NewServer with nil logger ----------

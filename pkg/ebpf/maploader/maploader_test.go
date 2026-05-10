@@ -421,11 +421,10 @@ func TestLoadMapLogic(t *testing.T) {
 				t.Error("value serialized to empty buffer")
 			}
 
-			// Verify endianness (first few bytes should match)
-			keyBytes := keyBuf.Bytes()
-			if keyBytes[0] == 0 && len(keyBytes) > 1 {
-				// Expected for big-endian encoding of non-zero values
-			}
+			// Endianness sanity: leading-zero bytes are expected for big-endian
+			// encoding of small non-zero values; we only assert the buffer is
+			// non-empty.
+			_ = keyBuf.Bytes()
 		})
 	}
 }
@@ -578,9 +577,8 @@ func TestConcurrentSerialization(t *testing.T) {
 					return
 				}
 
-				if buf.Len() != 8 {
-					// Size check passed - don't send error
-				}
+				// Size assertion is informational only in this concurrency test.
+				_ = buf.Len()
 			}
 		}(g)
 	}

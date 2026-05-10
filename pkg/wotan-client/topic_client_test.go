@@ -179,9 +179,8 @@ func setupBufconn(t *testing.T) (*mockTopicStreamServer, *TopicStreamClient, *bu
 	chatpb.RegisterTopicStreamServer(srv, mockSrv)
 
 	go func() {
-		if err := srv.Serve(lis); err != nil {
-			// Server stopped — expected during test cleanup
-		}
+		// Best-effort: srv.Stop() in t.Cleanup makes Serve return ErrServerStopped.
+		_ = srv.Serve(lis)
 	}()
 	t.Cleanup(func() { srv.Stop() })
 

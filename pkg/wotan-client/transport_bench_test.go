@@ -211,9 +211,8 @@ func TestMain(m *testing.M) {
 	chatpb.RegisterTopicStreamServer(sharedGRPCServer, &mockTopicServer{})
 
 	go func() {
-		if err := sharedGRPCServer.Serve(sharedGRPCLis); err != nil {
-			// Stopped is normal on teardown
-		}
+		// Best-effort: sharedGRPCServer.Stop() on teardown returns ErrServerStopped.
+		_ = sharedGRPCServer.Serve(sharedGRPCLis)
 	}()
 
 	code := m.Run()

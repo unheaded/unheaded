@@ -303,11 +303,10 @@ func TestExceptionRule_MatchesMethod(t *testing.T) {
 		t.Error("GET should match")
 	}
 
+	// matches() reads req.Method (not data.Method) — both call shapes are
+	// exercised; assert on the GET case above only.
 	req = httptest.NewRequest("POST", "http://example.com/", nil)
-	if exc.matches(req, data) {
-		// The method check uses req.Method, not data.Method
-		// Let's check both
-	}
+	_ = exc.matches(req, data)
 }
 
 func TestExceptionRule_MatchesHeaders(t *testing.T) {

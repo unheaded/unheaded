@@ -426,12 +426,10 @@ func TestLeastConn(t *testing.T) {
 		// Increment connections for first endpoint
 		lc.IncrementConnections(ep1)
 
-		// Second pick should be different
-		ep2 := lc.Pick(endpoints)
-		if ep2.Address == ep1.Address {
-			// Might still pick same if connections are equal
-			// This is expected behavior
-		}
+		// Second pick may equal the first when connection counts are tied —
+		// least-connections doesn't guarantee strict alternation in that case.
+		_ = lc.Pick(endpoints)
+		_ = ep1
 	})
 
 	t.Run("IncrementConnections", func(t *testing.T) {

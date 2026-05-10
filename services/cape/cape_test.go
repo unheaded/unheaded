@@ -353,12 +353,10 @@ func TestGroupOverwrite(t *testing.T) {
 	t.Parallel()
 	svc := newTestService(t)
 
-	g1 := svc.Group("/api")
+	// Both calls return distinct pointer allocations stored under the same
+	// key; the second overwrites the first.
+	_ = svc.Group("/api")
 	g2 := svc.Group("/api")
-	if g1 == g2 {
-		// They are different pointer allocations but both stored under the same key.
-		// The second overwrites the first.
-	}
 	svc.mu.RLock()
 	stored := svc.groups["/api"]
 	svc.mu.RUnlock()
