@@ -408,9 +408,10 @@ func (p *bareMetalProvisioner) updateProvisioningPhase(machineID string, phase P
 	status.UpdatedAt = now
 	status.PhaseHistory = append(status.PhaseHistory, entry)
 
-	if phase == PhaseFailed {
+	switch phase {
+	case PhaseFailed:
 		status.State = MachineStateFailed
-	} else if phase == PhaseComplete {
+	case PhaseComplete:
 		status.State = MachineStateReady
 		status.Progress = 100
 	}

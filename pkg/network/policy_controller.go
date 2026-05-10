@@ -832,11 +832,12 @@ func NewPolicyController(cfg PolicyControllerConfig) (*PolicyController, error) 
 	}
 
 	// Check if backend is available
-	if cfg.Backend == BackendIPTables {
+	switch cfg.Backend {
+	case BackendIPTables:
 		if _, err := exec.LookPath("iptables"); err != nil {
 			return nil, fmt.Errorf("%w: iptables not found", ErrBackendNotSupported)
 		}
-	} else if cfg.Backend == BackendNFTables {
+	case BackendNFTables:
 		if _, err := exec.LookPath("nft"); err != nil {
 			return nil, fmt.Errorf("%w: nft not found", ErrBackendNotSupported)
 		}

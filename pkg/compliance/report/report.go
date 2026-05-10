@@ -302,9 +302,10 @@ func (g *ReportGenerator) GenerateGapAnalysisReport(ctx context.Context, assessm
 		}
 		categoryStats[item.Category].TotalControls++
 
-		if item.Status == controls.StatusCompliant {
+		switch item.Status {
+		case controls.StatusCompliant:
 			categoryStats[item.Category].Compliant++
-		} else if item.Status == controls.StatusNonCompliant || item.Status == controls.StatusPartial {
+		case controls.StatusNonCompliant, controls.StatusPartial:
 			categoryStats[item.Category].Gaps++
 
 			gap := &Gap{
@@ -324,9 +325,10 @@ func (g *ReportGenerator) GenerateGapAnalysisReport(ctx context.Context, assessm
 			gapAnalysis.Gaps = append(gapAnalysis.Gaps, gap)
 			gapAnalysis.TotalGaps++
 
-			if item.Severity == controls.SeverityCritical {
+			switch item.Severity {
+			case controls.SeverityCritical:
 				gapAnalysis.CriticalGaps++
-			} else if item.Severity == controls.SeverityHigh {
+			case controls.SeverityHigh:
 				gapAnalysis.HighPriorityGaps++
 			}
 		}

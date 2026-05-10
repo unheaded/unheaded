@@ -252,9 +252,10 @@ func (h *History) GetStats(serviceName string) *HistoryStats {
 	if deployments, exists := h.deployments[serviceName]; exists {
 		stats.TotalDeployments = len(deployments)
 		for _, entry := range deployments {
-			if entry.State == "completed" {
+			switch entry.State {
+			case "completed":
 				stats.SuccessfulDeployments++
-			} else if entry.State == "failed" {
+			case "failed":
 				stats.FailedDeployments++
 			}
 		}
@@ -264,9 +265,10 @@ func (h *History) GetStats(serviceName string) *HistoryStats {
 	if rollbacks, exists := h.rollbacks[serviceName]; exists {
 		stats.TotalRollbacks = len(rollbacks)
 		for _, rollback := range rollbacks {
-			if rollback.State == RollbackStateCompleted {
+			switch rollback.State {
+			case RollbackStateCompleted:
 				stats.SuccessfulRollbacks++
-			} else if rollback.State == RollbackStateFailed {
+			case RollbackStateFailed:
 				stats.FailedRollbacks++
 			}
 

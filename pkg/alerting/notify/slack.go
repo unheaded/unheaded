@@ -136,9 +136,10 @@ func (s *SlackChannel) buildMessage(alerts []*alerting.Alert) SlackMessage {
 	firingCount := 0
 	resolvedCount := 0
 	for _, alert := range alerts {
-		if alert.State == alerting.AlertStateFiring {
+		switch alert.State {
+		case alerting.AlertStateFiring:
 			firingCount++
-		} else if alert.State == alerting.AlertStateResolved {
+		case alerting.AlertStateResolved:
 			resolvedCount++
 		}
 	}
