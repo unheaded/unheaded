@@ -19,13 +19,13 @@ import (
 // SigRefRateLimiter, FlowSeqTracker) with new protections (PacketBitmapWindow,
 // EntropyMonitor, TOCTOUCache).
 type SecurityHardening struct {
-	mu sync.RWMutex
-
 	algoGuard      *pqc.AlgoConfusionGuard
 	sigRefLimiter  *pqc.SigRefRateLimiter
 	replayWindow   *PacketBitmapWindow
 	entropyMonitor *EntropyMonitor
 	toctouCache    *TOCTOUCache
+	// (mu sync.RWMutex previously here; each sub-component owns its own
+	// concurrency primitive so the wrapping struct is purely a router.)
 }
 
 // NewSecurityHardening creates a new security hardening module with
