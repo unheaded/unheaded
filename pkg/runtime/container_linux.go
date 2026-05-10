@@ -268,16 +268,11 @@ func (r *DefaultRuntime) StartContainer(ctx context.Context, containerID string)
 	c.info.State = ContainerStateRunning
 	c.info.StartedAt = time.Now()
 
-	// Write PID file
-	if err := os.WriteFile(c.pidFile, []byte(fmt.Sprintf("%d", proc.Process.Pid)), 0644); err != nil {
-		// Non-fatal error
-	}
-
-	// Add process to cgroup
+	// Best-effort: PID file is informational; cgroup attach may race
+	// with cgroup teardown if the runtime restarted concurrently.
+	_ = os.WriteFile(c.pidFile, []byte(fmt.Sprintf("%d", proc.Process.Pid)), 0644)
 	if c.cgroupPath != "" {
-		if err := r.cgroups.AddProcess(c.cgroupPath, proc.Process.Pid); err != nil {
-			// Log but don't fail
-		}
+		_ = r.cgroups.AddProcess(c.cgroupPath, proc.Process.Pid)
 	}
 
 	// Wait for process in background

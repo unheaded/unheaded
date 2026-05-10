@@ -276,30 +276,18 @@ func (r *DefaultRuntime) CreateSandbox(ctx context.Context, config *SandboxConfi
 		sandbox.cgroupPath = cgroupPath
 	}
 
-	// Setup DNS configuration
+	// Best-effort sandbox setup. Each step is optional — DNS may be
+	// read-only, the host's UTS namespace may already be set, the netns
+	// may not exist if CNI isn't installed.
 	if config.DNSConfig != nil {
-		if err := r.setupSandboxDNS(sandboxRoot, config.DNSConfig); err != nil {
-			// Log but don't fail
-		}
+		_ = r.setupSandboxDNS(sandboxRoot, config.DNSConfig)
 	}
-
-	// Setup hostname
 	if config.Hostname != "" && sandbox.UTSNS != "" {
-		if err := r.namespaces.SetHostname(sandbox.UTSNS, config.Hostname); err != nil {
-			// Log but don't fail
-		}
+		_ = r.namespaces.SetHostname(sandbox.UTSNS, config.Hostname)
 	}
-
-	// Configure network namespace
 	if sandbox.NetNS != "" {
-		if err := r.namespaces.ConfigureNetworkNamespace(sandbox.NetNS); err != nil {
-			// Log but don't fail
-		}
-
-		// Setup network using CNI or basic configuration
-		if err := r.setupSandboxNetwork(sandbox, config); err != nil {
-			// Log but don't fail
-		}
+		_ = r.namespaces.ConfigureNetworkNamespace(sandbox.NetNS)
+		_ = r.setupSandboxNetwork(sandbox, config)
 	}
 
 	now := time.Now()
@@ -441,11 +429,10 @@ func (r *DefaultRuntime) StopSandbox(ctx context.Context, sandboxID string) erro
 	sandbox.mu.Lock()
 	defer sandbox.mu.Unlock()
 
-	// Stop all containers in the sandbox
+	// Best-effort: stop every container in the sandbox; failures don't
+	// block teardown of the rest.
 	for _, containerID := range sandbox.containers {
-		if err := r.StopContainer(ctx, containerID, 30*time.Second); err != nil {
-			// Log but continue
-		}
+		_ = r.StopContainer(ctx, containerID, 30*time.Second)
 	}
 
 	// Stop pause container if exists
