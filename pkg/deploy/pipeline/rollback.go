@@ -610,7 +610,9 @@ func (m *RollbackManager) executeInstantRollback(ctx context.Context, rollback *
 		rollback.Progress.Message = "Stopping current version instances"
 
 		if err := m.instanceManager.DeleteInstances(ctx, rollback.ServiceName, rollback.FromVersion); err != nil {
-			// Log but continue - traffic already shifted
+			// Traffic has already been shifted to the rollback version, so we
+			// log + continue rather than failing the rollback.
+			rollback.Progress.Message = fmt.Sprintf("DeleteInstances(%s) failed (continuing): %v", rollback.FromVersion, err)
 		}
 	}
 
@@ -621,8 +623,13 @@ func (m *RollbackManager) executeInstantRollback(ctx context.Context, rollback *
 
 		instances, err := m.instanceManager.GetInstances(ctx, rollback.ServiceName, rollback.ToVersion)
 		if err != nil || len(instances) == 0 {
-			// Need to create instances for old version
-			// This would require artifact reference, skipping in simulation
+			// Real path needs to materialize the rollback target from artifact
+			// storage; this manager doesn't carry that handle today, so we
+			// surface the gap in the rollback message rather than silently
+			// "succeeding" with zero instances.
+			rollback.Progress.Message = fmt.Sprintf(
+				"RestartPrevious requested but no previous-version instances exist (err=%v); artifact materialization not wired",
+				err)
 		}
 	}
 

@@ -200,14 +200,18 @@ func (e *AgeEncryptor) Encrypt(plaintext []byte) ([]byte, error) {
 		var ephemeralPublic [32]byte
 		curve25519.ScalarBaseMult(&ephemeralPublic, (*[32]byte)(ephemeralSecret))
 
-		// Compute shared secret
-		var sharedSecret [32]byte
-		curve25519.ScalarMult(&sharedSecret, (*[32]byte)(ephemeralSecret), &recipient.publicKey)
+		// Compute shared secret. X25519 (replaces deprecated ScalarMult)
+		// rejects low-order recipient points instead of silently zeroing
+		// the shared secret.
+		sharedSecretBytes, err := curve25519.X25519(ephemeralSecret, recipient.publicKey[:])
+		if err != nil {
+			return nil, fmt.Errorf("X25519 shared secret: %w", err)
+		}
 
 		// Derive wrap key using HKDF
 		salt := append(ephemeralPublic[:], recipient.publicKey[:]...)
 		wrapKey := make([]byte, 32)
-		hkdf := hkdf.New(sha3.New256, sharedSecret[:], salt, []byte("age-encryption.org/v1/X25519"))
+		hkdf := hkdf.New(sha3.New256, sharedSecretBytes, salt, []byte("age-encryption.org/v1/X25519"))
 		if _, err := io.ReadFull(hkdf, wrapKey); err != nil {
 			return nil, err
 		}
@@ -292,13 +296,17 @@ func (e *AgeEncryptor) Decrypt(ciphertext []byte) ([]byte, error) {
 				continue
 			}
 
-			// Try to decrypt with our identity
-			var sharedSecret [32]byte
-			curve25519.ScalarMult(&sharedSecret, &e.identity.secretKey, (*[32]byte)(ephemeralPub))
+			// Try to decrypt with our identity. X25519 (replaces deprecated
+			// ScalarMult) rejects low-order ephemeral points instead of
+			// silently producing a zeroed shared secret.
+			sharedSecretBytes, err := curve25519.X25519(e.identity.secretKey[:], ephemeralPub)
+			if err != nil {
+				continue
+			}
 
 			salt := append(ephemeralPub, e.identity.publicKey[:]...)
 			wrapKey := make([]byte, 32)
-			hkdf := hkdf.New(sha3.New256, sharedSecret[:], salt, []byte("age-encryption.org/v1/X25519"))
+			hkdf := hkdf.New(sha3.New256, sharedSecretBytes, salt, []byte("age-encryption.org/v1/X25519"))
 			if _, err := io.ReadFull(hkdf, wrapKey); err != nil {
 				continue
 			}
