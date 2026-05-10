@@ -247,10 +247,11 @@ fn cmd_boot(
         }
     }
 
-    // Send trigger packets to advance PC
-    println!("\n[sending 5 trigger packets to advance the CPU]");
-    netns::send_trigger(5)?;
-    std::thread::sleep(std::time::Duration::from_millis(200));
+    // Send Monad-format trigger packets via doom-tick.py. flow_label =
+    // instance ID; eBPF dispatches on (flow_label & 0xFF).
+    println!("\n[sending 50 Monad trigger packets to advance the CPU (each = up to 16 insns)]");
+    netns::send_trigger(50, instance)?;
+    std::thread::sleep(std::time::Duration::from_millis(500));
 
     // Read CPU state after trigger
     let cpu_after = runner.cpu_state()?;
@@ -264,6 +265,19 @@ fn cmd_boot(
         println!("  ✓ FIRST HEARTBEAT — eBPF interpreter advanced the CPU");
     } else {
         println!("  ⚠ no PC advance — XDP may not have fired (debug needed)");
+    }
+
+    // Drain TTY_MAP — did the kernel print the banner?
+    let mut head_cursor = 0u32;
+    let tty_bytes = runner.read_tty(&mut head_cursor).unwrap_or_default();
+    if !tty_bytes.is_empty() {
+        let s = String::from_utf8_lossy(&tty_bytes);
+        println!("\n=== TTY OUTPUT ({} bytes) ===\n{}", tty_bytes.len(), s);
+        if s.contains("xv6 booting") {
+            println!("\n  🎉 PHASE 1.1 GATE BANNER VISIBLE: \"xv6 booting...\"");
+        }
+    } else {
+        println!("\n[TTY_MAP empty — kernel hasn't reached mmio_puts yet; try more triggers]");
     }
 
     // Cleanup

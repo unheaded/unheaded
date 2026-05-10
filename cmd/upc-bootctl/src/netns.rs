@@ -64,7 +64,23 @@ pub fn setup_upc0() -> Result<&'static str> {
         .status()
         .context("ip link set lo up in upc0")?;
 
-    tracing::info!("upc0 ns + veth pair ready");
+    // Assign IPv6 link-local addresses so ping6 can route across the pair.
+    // Host-side: fd00:dead:beef:dada::1, namespace-side: ::de
+    Command::new("ip")
+        .args(["addr", "add", "fd00:dead:beef:dada::1/64", "dev", VETH_HOST])
+        .status()
+        .context("ip addr add host-side")?;
+    Command::new("ip")
+        .args([
+            "netns", "exec", NS_NAME, "ip", "addr", "add",
+            "fd00:dead:beef:dada::de/64", "dev", VETH_INSIDE,
+        ])
+        .status()
+        .context("ip addr add ns-side")?;
+    // Brief settle for SLAAC + DAD
+    std::thread::sleep(std::time::Duration::from_millis(100));
+
+    tracing::info!("upc0 ns + veth pair ready (host=::1, ns=::de)");
     Ok(VETH_INSIDE)
 }
 
@@ -75,21 +91,53 @@ pub fn teardown_upc0() {
     tracing::info!("upc0 ns + veth pair torn down");
 }
 
-/// Send a single trigger packet from default ns into the veth.
-/// Doesn't matter what packet — XDP intercepts everything that arrives
-/// on the inside iface. Use a UDP packet to fd00:dead:beef:dada::de
-/// (the IPv6 address conventionally assigned to the xv6-first-boot
-/// instance per the parent ASCEND-LINUX battle plan).
-pub fn send_trigger(count: u32) -> Result<()> {
-    // Simplest: ping6 the inside namespace from the outside.
-    // We don't need the ping to succeed; we just need a packet to ARRIVE
-    // at veth-upc0p which fires XDP.
-    for _ in 0..count {
-        let _ = Command::new("ip")
-            .args([
-                "netns", "exec", NS_NAME, "ping6", "-c", "1", "-W", "1", "::1",
-            ])
-            .output();
+/// Send `count` Monad-format trigger packets via scripts/doom-tick.py.
+/// This is the canonical UPC tick format: IPv6 + Hop-by-Hop + Monad
+/// register, with flow_label = instance ID. The eBPF program dispatches
+/// on `flow_label & 0xFF` so flow_label=0xDE selects CPU instance 0xDE.
+///
+/// Plain ping6 would have flow_label=0 → no match in CPU_MAP → XDP_DROP.
+pub fn send_trigger(count: u32, instance: u8) -> Result<()> {
+    let flow_label = format!("0x{:X}", instance);
+    let count_str = count.to_string();
+    // Resolve absolute path so cwd (cargo subdir) doesn't matter.
+    let script = std::env::var("UPC_DOOM_TICK").unwrap_or_else(|_| {
+        // Walk up to repo root by looking for the .git dir
+        let mut cur = std::env::current_dir().expect("cwd");
+        for _ in 0..10 {
+            if cur.join(".git").exists() {
+                break;
+            }
+            if !cur.pop() { break; }
+        }
+        cur.join("scripts/doom-tick.py").to_string_lossy().into_owned()
+    });
+    // doom-tick.py reads --interface and uses AF_PACKET. We send into
+    // upc0 namespace (the inside of the veth, where XDP is attached
+    // host-side at the OTHER end). This makes packets traverse
+    // veth-upc0p → veth-upc0 = XDP ingress.
+    let out = Command::new("ip")
+        .args([
+            "netns", "exec", NS_NAME, "python3",
+            &script,
+            "--flow-label", &flow_label,
+            "--count", &count_str,
+            "--burst",
+            "--interface", VETH_INSIDE,
+        ])
+        .output()
+        .context("invoke scripts/doom-tick.py")?;
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    if !out.status.success() {
+        eprintln!("doom-tick.py FAILED ({}):\nstdout: {}\nstderr: {}",
+            out.status, stdout, stderr);
+    } else if !stderr.is_empty() {
+        eprintln!("doom-tick.py stderr: {}", stderr);
+    } else {
+        // Show last line of stdout for visibility
+        let last = stdout.lines().rev().next().unwrap_or("");
+        eprintln!("doom-tick.py: {}", last);
     }
     Ok(())
 }
