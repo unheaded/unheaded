@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"time"
@@ -105,7 +106,7 @@ func (hs *HTTPServer) Start() error {
 
 	go func() {
 		if err := hs.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			// Log error but don't crash
+			fmt.Fprintf(os.Stderr, "captain api: ListenAndServe: %v\n", err)
 		}
 	}()
 
