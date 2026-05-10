@@ -32,16 +32,6 @@ func testTempDir(t *testing.T) string {
 	return dir
 }
 
-// mockImageStore creates a minimal image store for testing.
-func mockImageStore(t *testing.T, root string) *ImageStore {
-	t.Helper()
-	store, err := NewImageStore(root, nil)
-	if err != nil {
-		t.Fatalf("Failed to create image store: %v", err)
-	}
-	return store
-}
-
 // addMockImage adds a mock image to the store for testing.
 func addMockImage(t *testing.T, store *ImageStore, imageID, tag string) {
 	t.Helper()

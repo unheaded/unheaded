@@ -722,20 +722,6 @@ func (m *mockWotanClient) StreamMessages(ctx context.Context, topic string) (<-c
 	return m.messageCh, nil
 }
 
-func (m *mockWotanClient) getPublished(topic string) [][]byte {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.publishedMessages[topic]
-}
-
-func (m *mockWotanClient) sendMessage(msg *wotanClient.Message) {
-	m.messageCh <- msg
-}
-
-func (m *mockWotanClient) closeCh() {
-	close(m.messageCh)
-}
-
 // ============================================================================
 // SERVICE LIFECYCLE TESTS
 // ============================================================================

@@ -4,9 +4,7 @@
 package inspection
 
 import (
-	"bytes"
 	"io"
-	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
@@ -615,11 +613,3 @@ func BenchmarkBodyInspector_InspectLargeBody(b *testing.B) {
 	}
 }
 
-// Helper to create request with body
-func createRequestWithBody(method, url, contentType, body string) *http.Request {
-	req := httptest.NewRequest(method, url, bytes.NewBufferString(body))
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
-	return req
-}

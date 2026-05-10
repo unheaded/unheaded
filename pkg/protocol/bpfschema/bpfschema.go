@@ -299,7 +299,7 @@ type PrefetchHintValue struct {
 	_         [2]byte
 	IssuedAt  uint32 // Unix timestamp.
 	ExpiresAt uint32 // Unix timestamp.
-	_2        [4]byte
+	_         [4]byte
 }
 
 // === H10: Hop Validators (intermediary package) ===

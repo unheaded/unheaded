@@ -42,14 +42,6 @@ func (m *mockConnection) Close() error { return nil }
 
 func (m *mockConnection) Healthy() bool { return m.healthy }
 
-func (m *mockConnection) getPublished() []publishedMsg {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	result := make([]publishedMsg, len(m.published))
-	copy(result, m.published)
-	return result
-}
-
 func TestPublisher_NilConnection(t *testing.T) {
 	p := NewPublisher("test", nil)
 	if p.Enabled() {

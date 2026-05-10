@@ -125,21 +125,6 @@ func (fw *fakeWotan) addr() string {
 	return strings.TrimPrefix(fw.server.URL, "http://")
 }
 
-// inject publishes a message directly into the fake for polling retrieval.
-func (fw *fakeWotan) inject(topic string, payload string) {
-	fw.mu.Lock()
-	defer fw.mu.Unlock()
-	seq := atomic.AddInt64(&fw.seq, 1)
-	fw.messages[topic] = append(fw.messages[topic], &wotanClient.Message{
-		MessageID: fmt.Sprintf("msg-%d", seq),
-		Topic:     topic,
-		SenderID:  "injector",
-		Payload:   payload,
-		Seq:       seq,
-		CreatedAt: time.Now(),
-	})
-}
-
 // ---------------------------------------------------------------------------
 // Tests for Start (covers the nil-wotan and with-wotan branches).
 // ---------------------------------------------------------------------------

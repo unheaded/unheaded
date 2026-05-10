@@ -4,14 +4,9 @@
 package mtls
 
 import (
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
 	"crypto/tls"
 	"crypto/x509"
-	"crypto/x509/pkix"
 	"encoding/pem"
-	"math/big"
 	"os"
 	"path/filepath"
 	"testing"
@@ -582,23 +577,6 @@ func TestCompareCertificates(t *testing.T) {
 			t.Error("nil vs cert should be false")
 		}
 	})
-}
-
-// helper: generate an RSA-signed cert to test weak signature detection code path
-func generateTestCertWithWeakSig() *x509.Certificate {
-	// We can't easily create MD5/SHA1 signed certs in Go's stdlib,
-	// but we can test the function with a normal cert
-	key, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	serial, _ := rand.Int(rand.Reader, new(big.Int).Lsh(big.NewInt(1), 128))
-	template := &x509.Certificate{
-		SerialNumber: serial,
-		Subject:      pkix.Name{CommonName: "test"},
-		NotBefore:    time.Now().Add(-time.Hour),
-		NotAfter:     time.Now().Add(time.Hour),
-	}
-	certDER, _ := x509.CreateCertificate(rand.Reader, template, template, &key.PublicKey, key)
-	cert, _ := x509.ParseCertificate(certDER)
-	return cert
 }
 
 func TestHealthStatus_Constants(t *testing.T) {

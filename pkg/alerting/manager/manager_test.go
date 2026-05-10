@@ -75,16 +75,6 @@ func (m *mockNotificationChannel) sentCount() int {
 	return len(m.sent)
 }
 
-func (m *mockNotificationChannel) allSentAlerts() []*alerting.Alert {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	var all []*alerting.Alert
-	for _, batch := range m.sent {
-		all = append(all, batch...)
-	}
-	return all
-}
-
 // newTestManager creates a Manager wired with a mock provider for unit tests.
 func newTestManager() (*Manager, *mockMetricProvider) {
 	provider := &mockMetricProvider{}

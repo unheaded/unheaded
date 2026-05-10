@@ -294,9 +294,7 @@ func TestD2_ScreenMapAccessFromBPF(t *testing.T) {
 	cfg := productionScreenConfig()
 
 	// SCREEN_MAP should be writable by BPF but read-only from userspace
-	// BPF_F_RDONLY flag (0x08) restricts userspace to read-only access
-	const BPF_F_RDONLY = 0x08
-
+	// (BPF_F_RDONLY = 0x08 restricts userspace to read-only access).
 	// In the current design, SCREEN_MAP is NOT marked read-only for userspace
 	// because the Wotan bridge needs to read it. This is acceptable because:
 	// 1. Screen data is non-sensitive (game pixels)
