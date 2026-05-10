@@ -1234,10 +1234,13 @@ func (r *Reconciler) executeAction(ctx context.Context, action *ReconciliationAc
 			action.Status = ActionStatusRetrying
 			action.Retries = attempt
 
+			// Bail early if ctx is cancelled — the bare `break` only escaped
+			// the select before this fix, so executeActionOnce would still
+			// be invoked and overwrite lastErr.
 			select {
 			case <-ctx.Done():
 				lastErr = ctx.Err()
-				break
+				goto exhausted
 			case <-time.After(r.config.RetryBackoff * time.Duration(attempt)):
 			}
 		}
@@ -1290,7 +1293,8 @@ func (r *Reconciler) executeAction(ctx context.Context, action *ReconciliationAc
 		})
 	}
 
-	// All retries exhausted
+	// All retries exhausted (or ctx cancelled mid-backoff via goto)
+exhausted:
 	action.Status = ActionStatusFailed
 	action.Error = lastErr.Error()
 	completedAt := time.Now()
