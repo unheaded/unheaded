@@ -910,7 +910,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 
 	// Auth middleware (activated via AUTH_ENABLED=true)
 	unifiedAuthCfg := auth.LoadServiceAuthConfig("trace-collector")
-	var unifiedHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(unifiedAuthCfg))
+	unifiedHandler := auth.WrapHandler(mux, auth.SetupMiddleware(unifiedAuthCfg))
 
 	httpServer := &http.Server{
 		Addr:           *metricsAddr,
@@ -989,7 +989,7 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer) {
 
 	// Auth middleware (activated via AUTH_ENABLED=true)
 	anamnesisAuthCfg := auth.LoadServiceAuthConfig("trace-collector")
-	var anamnesisHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(anamnesisAuthCfg))
+	anamnesisHandler := auth.WrapHandler(mux, auth.SetupMiddleware(anamnesisAuthCfg))
 
 	httpServer := &http.Server{
 		Addr:           *httpAddr,

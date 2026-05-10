@@ -469,7 +469,7 @@ func (d *Daemon) Start() error {
 
 	// Auth middleware (activated via AUTH_ENABLED=true)
 	authCfg := auth.LoadServiceAuthConfig("unheaded-daemon")
-	var httpHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
+	httpHandler := auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
 
 	d.httpServer = &http.Server{
 		Addr:           d.config.HTTPAddr,

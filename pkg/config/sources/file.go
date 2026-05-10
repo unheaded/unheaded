@@ -121,7 +121,7 @@ func (p *TOMLParser) Parse() (map[string]any, error) {
 	currentSection := result
 	var currentSectionPath []string
 	var arrayOfTables string
-	var arrayIndex int = -1
+	arrayIndex := -1
 
 	for p.pos < len(p.input) {
 		p.skipWhitespaceAndComments()

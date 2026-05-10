@@ -188,7 +188,7 @@ func main() {
 
 	// Auth middleware (activated via AUTH_ENABLED=true)
 	authCfg := auth.LoadServiceAuthConfig("doom-bridge")
-	var httpHandler http.Handler = auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
+	httpHandler := auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
 
 	server := &http.Server{
 		Addr:           fmt.Sprintf(":%d", b.port),
