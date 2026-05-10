@@ -452,13 +452,16 @@ func TestZoneManager_Lookup(t *testing.T) {
 		t.Errorf("Expected 1 record, got %d", len(records))
 	}
 
-	// Non-existent
+	// Non-existent — should return zero-value records, nil zone, exists=false.
 	records, returnedZone, exists = zm.Lookup("www.other.local", TypeA)
 	if exists {
 		t.Error("Lookup should return exists=false for unknown domain")
 	}
 	if returnedZone != nil {
 		t.Error("Lookup should return nil zone for unknown domain")
+	}
+	if len(records) != 0 {
+		t.Errorf("Lookup of unknown domain should return zero records, got %d", len(records))
 	}
 }
 
