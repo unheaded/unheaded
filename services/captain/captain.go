@@ -192,12 +192,11 @@ func (s *Service) GetVision(_ context.Context) (*Vision, error) {
 	return &vision, nil
 }
 
-// GetStrategy returns the strategic plan
-func (s *Service) GetStrategy(ctx context.Context) (*Strategy, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-
+// GetStrategy returns the strategic plan.
+//
+// ctx is accepted for API symmetry but not currently observed (see note on
+// GetVision).
+func (s *Service) GetStrategy(_ context.Context) (*Strategy, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
