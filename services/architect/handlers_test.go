@@ -374,7 +374,7 @@ func TestHTTPHandler_SuccessResponse_HasTimestamp(t *testing.T) {
 func TestNewHTTPHandler_WithNilService(t *testing.T) {
 	handler := NewHTTPHandler(nil)
 	if handler == nil {
-		t.Errorf("NewHTTPHandler(nil) = nil, want non-nil")
+		t.Fatal("NewHTTPHandler(nil) = nil, want non-nil")
 	}
 	if handler.service == nil {
 		t.Errorf("handler.service = nil, want non-nil")
@@ -385,7 +385,7 @@ func TestNewHTTPHandler_WithService(t *testing.T) {
 	service := createTestService(t)
 	handler := NewHTTPHandler(service)
 	if handler == nil {
-		t.Errorf("NewHTTPHandler() = nil, want non-nil")
+		t.Fatal("NewHTTPHandler() = nil, want non-nil")
 	}
 	if handler.service != service {
 		t.Errorf("handler.service != service")

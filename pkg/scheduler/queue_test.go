@@ -492,7 +492,7 @@ func TestBackoffQueue_PopReady_Ready(t *testing.T) {
 
 	ready := bq.PopReady()
 	if ready == nil {
-		t.Error("expected workload to be ready")
+		t.Fatal("expected workload to be ready")
 	}
 	if ready.ID != "w1" {
 		t.Errorf("expected w1, got %s", ready.ID)
