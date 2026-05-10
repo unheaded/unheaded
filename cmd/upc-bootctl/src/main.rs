@@ -16,6 +16,8 @@ use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
+mod runner;
+
 #[derive(Parser, Debug)]
 #[command(name = "upc-bootctl", version, about)]
 struct Cli {
