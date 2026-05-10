@@ -753,13 +753,13 @@ func (h *Handler) generateMarkdown(tl *timeline.Timeline) string {
 
 	sb.WriteString("# The Unheaded Chronicles\n\n")
 	sb.WriteString("## A Living Grimoire of the Kingdom's Journey\n\n")
-	sb.WriteString(fmt.Sprintf("**STATUS:** %s\n", cases.Title(language.English).String(tl.Status)))
-	sb.WriteString(fmt.Sprintf("**LAST UPDATED:** %s\n\n", tl.LastUpdated.Format("January 2, 2006")))
+	fmt.Fprintf(&sb, "**STATUS:** %s\n", cases.Title(language.English).String(tl.Status))
+	fmt.Fprintf(&sb, "**LAST UPDATED:** %s\n\n", tl.LastUpdated.Format("January 2, 2006"))
 	sb.WriteString("---\n\n")
 
 	if tl.Vision != "" {
 		sb.WriteString("## The Founding Vision\n\n")
-		sb.WriteString(fmt.Sprintf("*%s*\n\n", tl.Vision))
+		fmt.Fprintf(&sb, "*%s*\n\n", tl.Vision)
 		sb.WriteString("---\n\n")
 	}
 
@@ -775,15 +775,15 @@ func (h *Handler) generateMarkdown(tl *timeline.Timeline) string {
 			statusEmoji = "🚫"
 		}
 
-		sb.WriteString(fmt.Sprintf("### Age %d: %s (%s %s)\n\n",
-			i, phase.Name, statusEmoji, strings.ToUpper(phase.Status)))
+		fmt.Fprintf(&sb, "### Age %d: %s (%s %s)\n\n",
+			i, phase.Name, statusEmoji, strings.ToUpper(phase.Status))
 
 		if phase.Description != "" {
-			sb.WriteString(fmt.Sprintf("%s\n\n", phase.Description))
+			fmt.Fprintf(&sb, "%s\n\n", phase.Description)
 		}
 
 		if phase.Progress > 0 {
-			sb.WriteString(fmt.Sprintf("**Progress:** %d%%\n\n", phase.Progress))
+			fmt.Fprintf(&sb, "**Progress:** %d%%\n\n", phase.Progress)
 		}
 	}
 
@@ -802,24 +802,24 @@ func (h *Handler) generateMarkdown(tl *timeline.Timeline) string {
 				statusEmoji = "🚫"
 			}
 
-			sb.WriteString(fmt.Sprintf("### %s %s\n\n", statusEmoji, m.Name))
+			fmt.Fprintf(&sb, "### %s %s\n\n", statusEmoji, m.Name)
 
 			if m.Description != "" {
-				sb.WriteString(fmt.Sprintf("%s\n\n", m.Description))
+				fmt.Fprintf(&sb, "%s\n\n", m.Description)
 			}
 
 			// Metadata
 			if !m.ETA.IsZero() {
-				sb.WriteString(fmt.Sprintf("**ETA:** %s\n", m.ETA.Format("Jan 2, 2006")))
+				fmt.Fprintf(&sb, "**ETA:** %s\n", m.ETA.Format("Jan 2, 2006"))
 			}
 			if m.Owner != "" {
-				sb.WriteString(fmt.Sprintf("**Owner:** %s\n", m.Owner))
+				fmt.Fprintf(&sb, "**Owner:** %s\n", m.Owner)
 			}
 			if m.Risk != "" {
-				sb.WriteString(fmt.Sprintf("**Risk:** %s\n", cases.Title(language.English).String(m.Risk)))
+				fmt.Fprintf(&sb, "**Risk:** %s\n", cases.Title(language.English).String(m.Risk))
 			}
-			sb.WriteString(fmt.Sprintf("**Progress:** %d%%\n", m.Progress))
-			sb.WriteString(fmt.Sprintf("**Status:** %s\n\n", m.Status))
+			fmt.Fprintf(&sb, "**Progress:** %d%%\n", m.Progress)
+			fmt.Fprintf(&sb, "**Status:** %s\n\n", m.Status)
 
 			// Tasks
 			if len(m.Tasks) > 0 {
@@ -830,7 +830,7 @@ func (h *Handler) generateMarkdown(tl *timeline.Timeline) string {
 					if m.Progress == 100 {
 						checkbox = "[x]"
 					}
-					sb.WriteString(fmt.Sprintf("- %s %s\n", checkbox, task))
+					fmt.Fprintf(&sb, "- %s %s\n", checkbox, task)
 				}
 				sb.WriteString("\n")
 			}
@@ -840,7 +840,7 @@ func (h *Handler) generateMarkdown(tl *timeline.Timeline) string {
 	sb.WriteString("---\n\n")
 	sb.WriteString("**THE TIMEGURU KNOWS ALL.**\n")
 	sb.WriteString("**THE CIRCLE NEVER BREAKS.**\n\n")
-	sb.WriteString(fmt.Sprintf("*Generated: %s*\n", tl.LastUpdated.Format("2006-01-02 15:04:05")))
+	fmt.Fprintf(&sb, "*Generated: %s*\n", tl.LastUpdated.Format("2006-01-02 15:04:05"))
 
 	return sb.String()
 }

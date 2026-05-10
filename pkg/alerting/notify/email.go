@@ -152,9 +152,9 @@ func (e *EmailChannel) buildBody(alerts []*alerting.Alert) (string, error) {
 func (e *EmailChannel) buildMessage(subject, body string) []byte {
 	var msg bytes.Buffer
 
-	msg.WriteString(fmt.Sprintf("From: %s\r\n", e.config.From))
-	msg.WriteString(fmt.Sprintf("To: %s\r\n", strings.Join(e.config.To, ", ")))
-	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	fmt.Fprintf(&msg, "From: %s\r\n", e.config.From)
+	fmt.Fprintf(&msg, "To: %s\r\n", strings.Join(e.config.To, ", "))
+	fmt.Fprintf(&msg, "Subject: %s\r\n", subject)
 	msg.WriteString("MIME-Version: 1.0\r\n")
 
 	if e.config.HTML {

@@ -68,7 +68,7 @@ func (c *CpuState) FormatTable() string {
 	var sb strings.Builder
 
 	sb.WriteString("CPU State:\n")
-	sb.WriteString(fmt.Sprintf("  PC:       0x%08X (%d)\n", c.PC, c.PC))
+	fmt.Fprintf(&sb, "  PC:       0x%08X (%d)\n", c.PC, c.PC)
 
 	// Flags
 	flagStr := ""
@@ -87,7 +87,7 @@ func (c *CpuState) FormatTable() string {
 	} else {
 		flagStr += "-"
 	}
-	sb.WriteString(fmt.Sprintf("  Flags:    0x%02X [%s]\n", c.Flags, flagStr))
+	fmt.Fprintf(&sb, "  Flags:    0x%02X [%s]\n", c.Flags, flagStr)
 
 	// Status
 	status := "running"
@@ -96,20 +96,20 @@ func (c *CpuState) FormatTable() string {
 	} else if c.IsStalled() {
 		status = "STALLED"
 	}
-	sb.WriteString(fmt.Sprintf("  Status:   %s\n", status))
+	fmt.Fprintf(&sb, "  Status:   %s\n", status)
 
 	// Counters
-	sb.WriteString(fmt.Sprintf("  Insns:    %d\n", c.InsnCount))
-	sb.WriteString(fmt.Sprintf("  Cache:    %d hits, %d misses", c.CacheHits, c.CacheMisses))
+	fmt.Fprintf(&sb, "  Insns:    %d\n", c.InsnCount)
+	fmt.Fprintf(&sb, "  Cache:    %d hits, %d misses", c.CacheHits, c.CacheMisses)
 	total := c.CacheHits + c.CacheMisses
 	if total > 0 {
 		hitRate := float64(c.CacheHits) / float64(total) * 100.0
-		sb.WriteString(fmt.Sprintf(" (%.1f%% hit rate)", hitRate))
+		fmt.Fprintf(&sb, " (%.1f%% hit rate)", hitRate)
 	}
 	sb.WriteString("\n")
 
 	if c.SleepUntil > 0 {
-		sb.WriteString(fmt.Sprintf("  Sleep:    until %d ns\n", c.SleepUntil))
+		fmt.Fprintf(&sb, "  Sleep:    until %d ns\n", c.SleepUntil)
 	}
 
 	// Registers
@@ -119,7 +119,7 @@ func (c *CpuState) FormatTable() string {
 		if i == RegSP {
 			name = "SP"
 		}
-		sb.WriteString(fmt.Sprintf("    %-4s = 0x%08X (%d)\n", name, c.Regs[i], c.Regs[i]))
+		fmt.Fprintf(&sb, "    %-4s = 0x%08X (%d)\n", name, c.Regs[i], c.Regs[i])
 	}
 
 	return sb.String()

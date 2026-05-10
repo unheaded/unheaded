@@ -432,7 +432,7 @@ func TestVaultStore_ServerError(t *testing.T) {
 			return
 		}
 		w.WriteHeader(http.StatusInternalServerError)
-		w.Write([]byte(fmt.Sprintf(`{"errors":["internal error for %s"]}`, r.URL.Path)))
+		fmt.Fprintf(w, `{"errors":["internal error for %s"]}`, r.URL.Path)
 	}))
 	defer server.Close()
 
