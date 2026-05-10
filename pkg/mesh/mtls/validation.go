@@ -5,6 +5,7 @@
 package mtls
 
 import (
+	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
@@ -277,17 +278,16 @@ func ValidateCertificate(cert *x509.Certificate, opts *ValidationOptions) *Valid
 	return result
 }
 
-// checkKeyStrength checks for weak key sizes.
+// checkKeyStrength checks for weak key sizes. RSA keys below 2048 bits are
+// rejected per NIST SP 800-131A; ECDSA is assumed adequate (the curve is set
+// at issuance time and stdlib won't accept curves shorter than P-224).
 func checkKeyStrength(cert *x509.Certificate) string {
-	switch cert.PublicKeyAlgorithm {
-	case x509.RSA:
-		if cert.PublicKey != nil {
-			// RSA key size is typically checked via bits
-			// For simplicity, we check if it's less than 2048 bits
-			// In practice, this would use rsa.PublicKey.Size()
+	if cert.PublicKeyAlgorithm == x509.RSA {
+		if pub, ok := cert.PublicKey.(*rsa.PublicKey); ok {
+			if bits := pub.N.BitLen(); bits < 2048 {
+				return fmt.Sprintf("weak RSA key: %d bits (require >= 2048)", bits)
+			}
 		}
-	case x509.ECDSA:
-		// ECDSA P-256 or higher is generally acceptable
 	}
 	return ""
 }
