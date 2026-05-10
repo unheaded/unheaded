@@ -13,7 +13,7 @@ use hyper::body::{Bytes, Incoming};
 use hyper::server::conn::http1;
 use hyper::service::service_fn;
 use hyper::{Request, Response};
-use std::net::{IpAddr, SocketAddr};
+use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::net::{TcpListener, TcpStream};
@@ -69,7 +69,7 @@ impl Server {
         let connection_semaphore = Arc::new(Semaphore::new(self.max_connections));
 
         // Start metrics server
-        let metrics_handle = self.start_metrics_server().await?;
+        let _metrics_handle = self.start_metrics_server().await?;
 
         // Start HTTP server
         let http_handle = self.start_http_server(connection_semaphore.clone()).await?;
@@ -267,7 +267,7 @@ async fn handle_http_connection(
     stream: TcpStream,
     addr: SocketAddr,
     router: Arc<Router>,
-    timeout: Duration,
+    _timeout: Duration,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let io = TokioIo::new(stream);
     let client_ip = Some(addr.ip());
@@ -299,7 +299,7 @@ async fn handle_https_connection<S>(
     stream: tokio_rustls::server::TlsStream<S>,
     addr: SocketAddr,
     router: Arc<Router>,
-    timeout: Duration,
+    _timeout: Duration,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
 where
     S: tokio::io::AsyncRead + tokio::io::AsyncWrite + Unpin + Send + 'static,

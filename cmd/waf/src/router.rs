@@ -7,9 +7,8 @@
 //! 4. Evaluate WAF rules
 //! 5. Forward to backend (if allowed)
 
-use crate::config::Config;
 use crate::metrics::{MetricsRegistry, Timer};
-use crate::proxy::{ProxyError, ReverseProxy};
+use crate::proxy::ReverseProxy;
 use crate::ratelimit::{RateLimitManager, RateLimitResult};
 use crate::rules::actions::BlockResponse;
 use crate::rules::matcher::RequestData;
@@ -17,7 +16,6 @@ use crate::rules::{EvaluationResult, RuleDecision, RuleEngine};
 use http_body_util::{BodyExt, Full};
 use hyper::body::{Body, Bytes, Incoming};
 use hyper::{Method, Request, Response, StatusCode};
-use std::collections::HashMap;
 use std::net::IpAddr;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -69,7 +67,7 @@ impl Router {
         client_ip: Option<IpAddr>,
     ) -> Response<Full<Bytes>> {
         let start = Instant::now();
-        let timer = Timer::start();
+        let _timer = Timer::start();
 
         // Track request in flight
         self.metrics.requests_in_flight.inc();
@@ -207,7 +205,7 @@ impl Router {
             RuleDecision::RateLimit { requests, period } => {
                 // Apply rule-specific rate limit
                 if let Some(ip) = client_ip {
-                    let key = format!("{}:{}", ip, normalize_path(&path));
+                    let _key = format!("{}:{}", ip, normalize_path(&path));
                     let result = self
                         .rate_limiter
                         .ip_path_limiter
@@ -273,7 +271,7 @@ impl Router {
             Ok(response) => {
                 self.metrics
                     .bytes_sent
-                    .add(response.body().size_hint().lower() as u64);
+                    .add(response.body().size_hint().lower());
                 response
             }
             Err(e) => ReverseProxy::error_response(&e),
@@ -325,7 +323,7 @@ fn block_response(status: u16, message: &str, rule_id: Option<&str>) -> Response
 
 /// Create a rate limit response
 fn rate_limit_response(retry_after_ms: u64) -> Response<Full<Bytes>> {
-    let retry_after = (retry_after_ms + 999) / 1000; // Round up to seconds
+    let retry_after = retry_after_ms.div_ceil(1000); // Round up to seconds
 
     let body = format!(
         r#"{{"error":"rate_limited","message":"Too many requests","retry_after":{}}}"#,

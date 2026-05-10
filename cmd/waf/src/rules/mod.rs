@@ -9,12 +9,11 @@ pub mod matcher;
 pub mod parser;
 
 use crate::config::RuleConfig;
-use matcher::{CompiledRule, MatchTarget, RequestData};
+use matcher::{CompiledRule, RequestData};
 use std::collections::HashMap;
 use std::net::IpAddr;
-use std::sync::Arc;
 
-pub use actions::{Action, RuleAction, RuleDecision};
+pub use actions::RuleDecision;
 pub use matcher::PatternMatcher;
 
 /// The rule engine that evaluates requests against security rules
@@ -393,11 +392,10 @@ impl RuleEngine {
             if matches!(
                 name_lower.as_str(),
                 "referer" | "user-agent" | "cookie" | "x-forwarded-for" | "content-type"
-            ) {
-                if matcher.is_match(value) {
+            )
+                && matcher.is_match(value) {
                     return true;
                 }
-            }
         }
 
         false

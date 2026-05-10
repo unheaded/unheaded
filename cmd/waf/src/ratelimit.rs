@@ -285,7 +285,7 @@ impl RateLimitResult {
     /// Get retry-after value in seconds (for HTTP header)
     pub fn retry_after_secs(&self) -> Option<u64> {
         match self {
-            RateLimitResult::Limited { retry_after_ms } => Some((*retry_after_ms + 999) / 1000),
+            RateLimitResult::Limited { retry_after_ms } => Some((*retry_after_ms).div_ceil(1000)),
             RateLimitResult::Allowed { .. } => None,
         }
     }

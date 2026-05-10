@@ -3,14 +3,13 @@
 //! High-performance reverse proxy with connection pooling.
 //! Designed for minimal latency and maximum throughput.
 
-use crate::circuit::{CircuitBreaker, CircuitBreakerManager, CircuitState};
+use crate::circuit::{CircuitBreakerManager, CircuitState};
 use crate::config::BackendConfig;
 use crate::metrics::MetricsRegistry;
 use http_body_util::{BodyExt, Full};
-use hyper::body::{Bytes, Incoming};
+use hyper::body::Bytes;
 use hyper::client::conn::http1;
 use hyper::{Request, Response, StatusCode};
-use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
