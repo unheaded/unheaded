@@ -2272,17 +2272,11 @@ func (l *NativeLoader) Unload(ctx context.Context, name string) error {
 		unix.Close(fd)
 	}
 
-	// Unmap ring buffers.
-	// m.mmapAddr is a kernel-given mmap return value (uintptr from mmap syscall),
-	// not a Go-managed object, so GC reachability does not apply. We use
-	// unsafe.Slice to construct the byte slice for Munmap — this is the
-	// idiom blessed by `go vet` post-Go-1.20.
+	// Unmap ring buffers + close map FDs. The unsafe-pointer conversion
+	// lives in munmapKernelRegion (munmap_linux.go) so vet sees one
+	// documented site rather than two.
 	for _, m := range loaded.maps {
-		if m.mmapAddr != 0 {
-			//nolint:govet,gosec // m.mmapAddr is a kernel mmap return; vet's unsafeptr check is a known false-positive for kernel-owned memory.
-			mem := unsafe.Slice((*byte)(unsafe.Pointer(m.mmapAddr)), m.mmapSize)
-			_ = unix.Munmap(mem)
-		}
+		_ = munmapKernelRegion(m.mmapAddr, m.mmapSize)
 		unix.Close(m.fd)
 	}
 
@@ -4025,15 +4019,9 @@ func (l *NativeLoader) Close() error {
 			}
 		}
 
-		// Unmap and close maps. m.mmapAddr is a kernel mmap address, not a
-		// Go-managed object. unsafe.Slice (Go 1.20+) is the vet-clean idiom
-		// for constructing a byte slice over a kernel-owned region.
+		// Unmap + close — see munmap_linux.go for the kernel-mmap helper.
 		for _, m := range loaded.maps {
-			if m.mmapAddr != 0 {
-				//nolint:govet,gosec // see same idiom at ~line 2283; kernel mmap address, GC-irrelevant.
-				mem := unsafe.Slice((*byte)(unsafe.Pointer(m.mmapAddr)), m.mmapSize)
-				_ = unix.Munmap(mem)
-			}
+			_ = munmapKernelRegion(m.mmapAddr, m.mmapSize)
 			unix.Close(m.fd)
 		}
 
