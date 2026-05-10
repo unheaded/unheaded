@@ -53,16 +53,10 @@ uservec:
         sw a5, 76(a0)
         sw a6, 80(a0)
         sw a7, 84(a0)
-        sw s2, 88(a0)
-        sw s3, 92(a0)
-        sw s4, 96(a0)
-        sw s5, 100(a0)
-        sw s6, 104(a0)
-        sw s7, 108(a0)
-        sw s8, 112(a0)
-        sw s9, 116(a0)
-        sw s10, 120(a0)
-        sw s11, 124(a0)
+        # s2-s11 stripped: MBC exposes only x0-x15, and Makefile.mbc CFLAGS pin
+        # -ffixed-x18 ... -ffixed-x27 so user code never assigns to s2-s11.
+        # Trapframe offsets 88..124 remain reserved (struct field comments
+        # in proc.h preserve the layout); they're never read or written here.
 
 	# save the user a0 in p->trapframe->a0
         csrr t0, sscratch
@@ -122,16 +116,8 @@ userret:
         lw a5, 76(a0)
         lw a6, 80(a0)
         lw a7, 84(a0)
-        lw s2, 88(a0)
-        lw s3, 92(a0)
-        lw s4, 96(a0)
-        lw s5, 100(a0)
-        lw s6, 104(a0)
-        lw s7, 108(a0)
-        lw s8, 112(a0)
-        lw s9, 116(a0)
-        lw s10, 120(a0)
-        lw s11, 124(a0)
+        # s2-s11 stripped per the save path above; the trapframe slots remain
+        # reserved but are never restored to physical registers.
 
 	# restore user a0
         lw a0, 56(a0)
