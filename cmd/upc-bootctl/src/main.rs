@@ -249,9 +249,9 @@ fn cmd_boot(
 
     // Send Monad-format trigger packets via doom-tick.py. flow_label =
     // instance ID; eBPF dispatches on (flow_label & 0xFF).
-    println!("\n[sending 50 Monad trigger packets to advance the CPU (each = up to 16 insns)]");
-    netns::send_trigger(50, instance)?;
-    std::thread::sleep(std::time::Duration::from_millis(500));
+    println!("\n[sending 500 Monad trigger packets to advance the CPU (each = up to 16 insns)]");
+    netns::send_trigger(500, instance)?;
+    std::thread::sleep(std::time::Duration::from_millis(1500));
 
     // Read CPU state after trigger
     let cpu_after = runner.cpu_state()?;
@@ -271,10 +271,32 @@ fn cmd_boot(
     let mut head_cursor = 0u32;
     let tty_bytes = runner.read_tty(&mut head_cursor).unwrap_or_default();
     if !tty_bytes.is_empty() {
+        // Render as both readable string AND hex for diagnosability —
+        // null bytes / non-ASCII can hide what really happened.
+        let printable: String = tty_bytes
+            .iter()
+            .map(|&b| if (32..127).contains(&b) { b as char } else { '·' })
+            .collect();
+        let hex: String = tty_bytes
+            .iter()
+            .map(|b| format!("{:02x}", b))
+            .collect::<Vec<_>>()
+            .join(" ");
+        println!(
+            "\n=== TTY OUTPUT ({} bytes) ===\n  ascii: \"{}\"\n  hex:   {}",
+            tty_bytes.len(),
+            printable,
+            hex
+        );
+        // Try to find "xv6 booting" anywhere in the captured bytes.
         let s = String::from_utf8_lossy(&tty_bytes);
-        println!("\n=== TTY OUTPUT ({} bytes) ===\n{}", tty_bytes.len(), s);
         if s.contains("xv6 booting") {
             println!("\n  🎉 PHASE 1.1 GATE BANNER VISIBLE: \"xv6 booting...\"");
+        } else if s.contains("BOOT FAIL") {
+            println!("\n  ⚠ start_mbc.c HIT 'BOOT FAIL' branch — magic or version mismatch.");
+            println!("    Likely cause: BootParams address mismatch OR translator skipped LD insns.");
+        } else {
+            println!("\n  ⚠ TTY captured non-banner output. Path through start_mbc.c unclear.");
         }
     } else {
         println!("\n[TTY_MAP empty — kernel hasn't reached mmio_puts yet; try more triggers]");
