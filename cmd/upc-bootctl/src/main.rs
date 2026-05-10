@@ -166,11 +166,69 @@ fn cmd_boot(
         return Ok(());
     }
 
-    Err(anyhow!(
-        "live boot path not yet implemented — use --dry-run for now\n\
-         Next shift work: integrate with crates/doom-runner-style aya BPF\n\
-         loader, populate ROM_MAP/RAM_MAP/PerCPU<MbcCpuState>"
-    ))
+    // ── LIVE BOOT PATH (Phase 1.1 SHIP per battle-plan-phase11-ship-2026-05-10.md) ──
+    let kernel_bytes = std::fs::read(&kernel)
+        .with_context(|| format!("read kernel: {}", kernel.display()))?;
+    let _ = check_image_alignment(&kernel_bytes)?;
+    let mbc_words: Vec<u32> = kernel_bytes
+        .chunks_exact(4)
+        .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .collect();
+
+    let bp = bootparams::BootParamsV2::for_xv6(kernel_bytes.len() as u32, 0);
+    let bp_bytes = bp.to_bytes();
+
+    let ebpf_obj = std::env::var("MONAD_CPU_EBPF_OBJ").unwrap_or_else(|_| {
+        "target/bpfel-unknown-none/release/monad-cpu-ebpf".to_string()
+    });
+    let ebpf_obj = std::path::PathBuf::from(ebpf_obj);
+    if !ebpf_obj.exists() {
+        bail!(
+            "monad-cpu-ebpf object not found at {}\n\
+             Build it first: make ebpf",
+            ebpf_obj.display()
+        );
+    }
+
+    let mut runner = runner::BootRunner::open(&ebpf_obj, instance as u32)?;
+
+    // Memory writes per Boot Protocol v2 §"Boot Sequence" (zero IVT,
+    // BootParams at 0x0100, zero CSR region).
+    runner.populate_ram(&[
+        (bootparams::ADDR_IVT, &[0u8; 1024]),
+        (bootparams::ADDR_BOOTPARAMS, &bp_bytes),
+        (bootparams::ADDR_CSR_REGION, &[0u8; 256]),
+    ])?;
+
+    // Load the kernel image into ROM_MAP. xv6-mbc.mbc is laid out so that
+    // slot 0 of ROM_MAP corresponds to MBC PC index 0, which matches our
+    // kernel-mbc.ld layout (.stage1 starts at byte 0x10000 = word index
+    // 0x4000 — but the .mbc file packs from offset 0). The eBPF interpreter
+    // uses CPU.pc as the ROM_MAP index, and we initialize CPU.pc=0x4000.
+    runner.populate_rom(&mbc_words)?;
+
+    // Initial CPU state: PC=0x4000 (word index of byte 0x10000), SP=0x03F00000,
+    // priv_level=0 M-mode, reservation_address=0xFFFFFFFF.
+    runner.populate_cpu(runner::xv6_initial_cpu_state())?;
+
+    // Read back the CPU state to confirm the write took.
+    let cpu = runner.cpu_state()?;
+    println!(
+        "\n✓ live BPF maps populated for instance 0x{:02X}\n  \
+         CPU_MAP[0x{:X}]: PC=0x{:08X} SP=0x{:08X} priv={} halted={}",
+        instance, instance, cpu.pc, cpu.regs[15], cpu.priv_level, cpu.halted
+    );
+    println!(
+        "  ROM_MAP: {} MBC words loaded ({} bytes)",
+        mbc_words.len(),
+        kernel_bytes.len()
+    );
+
+    // Phase 4 will continue here with XDP attach + trigger packet.
+    // Phase 5 adds TTY pipeline. Phase 6 adds halt-cleanup.
+    println!("\n[Phase 3 complete; XDP attach + trigger come in Phase 4]");
+
+    Ok(())
 }
 
 fn cmd_console(instance: u8) -> Result<()> {
