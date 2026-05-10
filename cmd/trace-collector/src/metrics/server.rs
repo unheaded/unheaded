@@ -284,8 +284,10 @@ impl MetricsHttpServer {
     /// Create from address string
     pub fn from_addr(addr: &str) -> Result<Self> {
         let socket_addr: SocketAddr = addr.parse()?;
-        let mut config = ServerConfig::default();
-        config.addr = socket_addr;
+        let config = ServerConfig {
+            addr: socket_addr,
+            ..ServerConfig::default()
+        };
         Ok(Self::new(config))
     }
 
