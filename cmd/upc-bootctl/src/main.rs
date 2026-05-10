@@ -212,6 +212,32 @@ fn cmd_boot(
     // uses CPU.pc as the ROM_MAP index, and we initialize CPU.pc=0x4000.
     runner.populate_rom(&mbc_words)?;
 
+    // Load the data-section image into RAM_MAP at byte-VMA addresses, so
+    // xv6's compiled `lui rd, hi; addi rd, lo` patterns can dereference
+    // .rodata strings + .data globals. The translator emits this file as a
+    // sibling to the .mbc (e.g. xv6-mbc.mbc -> xv6-mbc.data). Optional —
+    // if missing, the boot will still progress but may halt on the first
+    // string load. Task #61 closure.
+    let data_path = kernel.with_extension("data");
+    if data_path.exists() {
+        match runner.load_data_image(&data_path) {
+            Ok(()) => println!(
+                "  Data image: loaded {} (.rodata/.data into RAM_MAP)",
+                data_path.display()
+            ),
+            Err(e) => println!(
+                "  ⚠ data image at {} failed to load: {} (boot may halt early)",
+                data_path.display(),
+                e
+            ),
+        }
+    } else {
+        println!(
+            "  ⚠ no data image at {} — .rodata reads will return zero",
+            data_path.display()
+        );
+    }
+
     // Initial CPU state: PC=0x4000 (word index of byte 0x10000), SP=0x03F00000,
     // priv_level=0 M-mode, reservation_address=0xFFFFFFFF.
     runner.populate_cpu(runner::xv6_initial_cpu_state())?;
@@ -297,10 +323,19 @@ fn cmd_boot(
         // xterm sees them. Best-effort — bridge unreachable is OK in dev.
         tty_bridge::post_ingest(instance, &tty_bytes);
         // Try to find "xv6 booting" anywhere in the captured bytes.
+        // The MMIO 0xC001 unaligned word store splits into 3 byte writes per
+        // call (char + 2 nulls), so the wire bytes look like
+        // 'x','\0','\0','v','\0','\0',... — strip the nulls before the
+        // banner-detection contains() so the gate fires correctly.
+        let stripped: String = tty_bytes
+            .iter()
+            .filter(|&&b| b != 0)
+            .map(|&b| b as char)
+            .collect();
         let s = String::from_utf8_lossy(&tty_bytes);
-        if s.contains("xv6 booting") {
+        if stripped.contains("xv6 booting") || s.contains("xv6 booting") {
             println!("\n  🎉 PHASE 1.1 GATE BANNER VISIBLE: \"xv6 booting...\"");
-        } else if s.contains("BOOT FAIL") {
+        } else if stripped.contains("BOOT FAIL") || s.contains("BOOT FAIL") {
             println!("\n  ⚠ start_mbc.c HIT 'BOOT FAIL' branch — magic or version mismatch.");
             println!("    Likely cause: BootParams address mismatch OR translator skipped LD insns.");
         } else {

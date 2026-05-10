@@ -217,6 +217,73 @@ fn main() {
                     rv2mbc_map.len(),
                     rv2mbc_bytes.len(),
                 );
+
+                // Emit data-section image. xv6's compiled C code reads
+                // .rodata strings + .data globals at their linker-byte VMA
+                // addresses (e.g. `lui a3, 0x27` for byte 0x27000+). MBC
+                // executes from ROM_MAP (instruction-indexed) so those
+                // bytes need to also reach RAM_MAP at byte_addr/4 word
+                // indices. We emit a TLV file: [count u32 LE]
+                // [(byte_addr u32, len u32, bytes (len bytes, padded to
+                // 4-byte alignment))]+ — upc-bootctl loads this alongside
+                // the .mbc file and bulk-writes to RAM_MAP.
+                //
+                // Sections included: every ALLOC PROGBITS section that
+                // is NOT executable (filters out .text + .text.* but keeps
+                // .rodata, .srodata, .data, .sdata, etc).
+                let data_path = if path.ends_with(".mbc") {
+                    path.replace(".mbc", ".data")
+                } else {
+                    format!("{path}.data")
+                };
+                let mut data_records: Vec<(u32, Vec<u8>)> = Vec::new();
+                for sh in elf.section_headers.iter() {
+                    if sh.sh_type != goblin::elf::section_header::SHT_PROGBITS {
+                        continue;
+                    }
+                    if (sh.sh_flags & goblin::elf::section_header::SHF_ALLOC as u64) == 0 {
+                        continue;
+                    }
+                    if (sh.sh_flags & goblin::elf::section_header::SHF_EXECINSTR as u64) != 0
+                    {
+                        continue;
+                    }
+                    if sh.sh_size == 0 {
+                        continue;
+                    }
+                    let off = sh.sh_offset as usize;
+                    let sz = sh.sh_size as usize;
+                    if off + sz > elf_data.len() {
+                        eprintln!(
+                            "Warning: data section out of bounds (off=0x{off:x} sz=0x{sz:x}); skipping"
+                        );
+                        continue;
+                    }
+                    let vma = sh.sh_addr as u32;
+                    let bytes = elf_data[off..off + sz].to_vec();
+                    data_records.push((vma, bytes));
+                }
+                let mut data_blob: Vec<u8> = Vec::new();
+                data_blob.extend_from_slice(&(data_records.len() as u32).to_le_bytes());
+                for (vma, bytes) in &data_records {
+                    data_blob.extend_from_slice(&vma.to_le_bytes());
+                    data_blob.extend_from_slice(&(bytes.len() as u32).to_le_bytes());
+                    data_blob.extend_from_slice(bytes);
+                    // Pad to 4-byte alignment so subsequent record headers
+                    // are naturally aligned.
+                    while data_blob.len() % 4 != 0 {
+                        data_blob.push(0);
+                    }
+                }
+                if let Err(e) = fs::write(&data_path, &data_blob) {
+                    eprintln!("Error writing data image: {e}");
+                    process::exit(1);
+                }
+                eprintln!(
+                    "Wrote {} data records ({} bytes) to {data_path}",
+                    data_records.len(),
+                    data_blob.len(),
+                );
             } else {
                 let stdout = io::stdout();
                 let mut handle = stdout.lock();
