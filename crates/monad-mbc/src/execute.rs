@@ -46,6 +46,12 @@ pub struct Cpu {
     pub tlb: [[u32; 3]; 64],
 }
 
+impl Default for Cpu {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Cpu {
     /// Create a new CPU with SP initialized to 0xFFFF_0000.
     pub fn new() -> Self {
@@ -824,9 +830,7 @@ impl Cpu {
                             let child_pid = self.state.num_processes as usize;
                             // Save child state: copy parent's regs + PC + flags + SP + brk
                             let mut child_state = [0u32; 20];
-                            for r in 0..16 {
-                                child_state[r] = self.state.regs[r];
-                            }
+                            child_state[..16].copy_from_slice(&self.state.regs[..16]);
                             child_state[16] = self.state.pc;
                             child_state[17] = self.state.flags as u32;
                             child_state[18] = self.state.regs[REG_SP];
@@ -849,9 +853,7 @@ impl Cpu {
                             let child_pid = self.state.num_processes as usize;
                             // Save child state: copy parent's regs + PC + flags + SP + brk
                             let mut child_state = [0u32; 20];
-                            for r in 0..16 {
-                                child_state[r] = self.state.regs[r];
-                            }
+                            child_state[..16].copy_from_slice(&self.state.regs[..16]);
                             child_state[16] = self.state.pc;
                             child_state[17] = self.state.flags as u32;
                             child_state[18] = self.state.regs[REG_SP];
@@ -1151,9 +1153,7 @@ impl Cpu {
 
         // 1. Save current process state
         let mut save = [0u32; 20];
-        for r in 0..16 {
-            save[r] = self.state.regs[r];
-        }
+        save[..16].copy_from_slice(&self.state.regs[..16]);
         save[16] = self.state.pc;
         save[17] = self.state.flags as u32;
         save[18] = self.state.regs[REG_SP];
@@ -1176,9 +1176,7 @@ impl Cpu {
 
         // 3. Load next process state
         let load = self.proc_table[next_pid];
-        for r in 0..16 {
-            self.state.regs[r] = load[r];
-        }
+        self.state.regs[..16].copy_from_slice(&load[..16]);
         self.state.pc = load[16];
         self.state.flags = load[17] as u8;
         self.state.program_break = load[19];
