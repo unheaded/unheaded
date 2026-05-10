@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"sync"
 	"syscall"
 	"time"
 
@@ -43,8 +42,6 @@ type SophiaGateway struct {
 
 	// Track registration state for readiness checks
 	registered bool
-
-	mu sync.RWMutex
 }
 
 // SophiaServiceEntry represents a service in the Sophia dictionary

@@ -177,7 +177,6 @@ type FlagSet struct {
 	flags   map[string]*Flag
 	values  map[string]any
 	parsed  bool
-	usage   string
 	errorFn func(string)
 }
 
