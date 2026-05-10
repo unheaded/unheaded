@@ -339,11 +339,12 @@ func TestFullBootWithForkAndExec(t *testing.T) {
 	var code []uint32 // accumulates all words
 
 	// ── Init code ────────────────────────────────────────────────
-	// Instruction indices for later patching:
-	bootMsgAddrIdx := -1
-	exitMsgAddrIdx := -1
-	shellEntryIdx := -1
-	childJmpIdx := -1
+	// Instruction indices for later patching. (The -1 sentinel pattern was
+	// inert since each is unconditionally reassigned to len(code) below; if
+	// we ever take a branch that skips assignment, the patcher will use 0
+	// which is more easily caught than -1 since 0 is a valid code index.
+	// Keeping the variables but dropping the dead init.)
+	var bootMsgAddrIdx, exitMsgAddrIdx, shellEntryIdx, childJmpIdx int
 
 	// Print boot banner: SYS_WRITE(1, &bootMsg, len)
 	code = append(code, mbcEncode(mbcMOVI, 0, 0, mbcSysWrite)) // 0
@@ -568,12 +569,11 @@ func TestBootInitProgramStructure(t *testing.T) {
 	foundExit := false
 	for i := 0; i < len(words)-1; i++ {
 		op1, d1, _, im1 := decodeMBCInsn(words[i])
-		op2, _, _, im2 := decodeMBCInsn(words[i+1])
 		_ = d1
 		if op1 == mbcMOVI && im1 == mbcSysExit {
 			// Check for INT 0x80 within next 2 instructions
 			for j := i + 1; j < len(words) && j <= i+3; j++ {
-				op2, _, _, im2 = decodeMBCInsn(words[j])
+				op2, _, _, im2 := decodeMBCInsn(words[j])
 				if op2 == mbcINT && im2 == 0x80 {
 					foundExit = true
 					break
