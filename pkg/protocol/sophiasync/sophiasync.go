@@ -77,11 +77,14 @@ type DecoderStream struct {
 }
 
 // SyncManager tracks table version per endpoint and validates state changes.
+//
+// (decoder *DecoderStream was previously held here but never used — incoming
+// QPACK frames are decoded ad-hoc per receive callback. Re-add when there's
+// a long-lived decoder state to attach.)
 type SyncManager struct {
 	mu               sync.RWMutex
 	endpointVersions map[string]TableVersion
 	encoder          *EncoderStream
-	decoder          *DecoderStream
 	gracePeriod      time.Duration
 	expiredVersions  map[TableVersion]time.Time
 	currentVersion   TableVersion
