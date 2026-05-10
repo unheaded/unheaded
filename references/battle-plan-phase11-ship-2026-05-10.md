@@ -839,7 +839,33 @@ Three Phase 1.1 design decisions made + documented:
   find target -name "monad-cpu-ebpf" -type f
   ```
 
-- [ ] **Step 65** [S][B] ~30s: **FIRST BOOT ATTEMPT** — populate maps + attach XDP + observe
+- [x] **Step 65** [STUCK]: **FIRST BOOT ATTEMPT** — kernel verifier rejects monad-cpu-ebpf
+  - SKIPPED via Skip Protocol after 2 debug attempts.
+  - Symptom: kernel 6.17.0-22-generic BPF verifier output "infinite loop
+    detected at insn 344" during Ebpf::load_file(). 41001 insns processed,
+    162ms verification time. The static `bpf-verifier-check.sh` PASS in
+    Phase 0 Step 8 was misleading — that script does a different (lighter)
+    analysis that did NOT exercise the kernel's full per-instruction loop-bound
+    inference.
+  - Tried: 1) full upc-bootctl boot path → load fails, 2) doom-runner sanity
+    (binary works for layout subcommand; full run needs doom.mbc + doom.elf +
+    WAD which aren't built here so couldn't isolate fast).
+  - Class: pre-existing — same family as parking-lot P-LOT-3 (BPF
+    verifier-budget revalidation) and decision query Q3 from
+    session-summary-2026-05-10.md (EBPF-CLIPPY-119 verifier-budget gate).
+    Not introduced by this sprint. Was always going to surface on first
+    real load against a 6.x kernel; Phase 0 verifier check missed it.
+  - Needs: Computermancer + BlackMage to (a) annotate the loop bound in
+    monad-cpu-ebpf so the verifier can prove termination, OR (b) restructure
+    the per-PC dispatch as a tail-call chain (doom-runner pattern), OR
+    (c) split the program into smaller XDP entries.
+  - Estimate: 0.5-2 days, requires expert eBPF work + iterative load testing.
+  - Downstream impact: Steps 66-72 (Phase 4 GATE), 85-86 (Phase 5 GATE
+    banner), all of Phase 6, all of Phase 7. Phase 5 partial (Steps 73-77 —
+    HTTP /api/v1/tty/ingest endpoint) CAN proceed because it doesn't depend
+    on a live CPU.
+
+- [ ] **Step 66-72** [BLOCKED]: All blocked by Step 65 STUCK.
   ```bash
   sudo -E env "PATH=$PATH" cargo run -p upc-bootctl -- boot --kernel crates/xv6-mbc/build/xv6-mbc.mbc --instance 222 2>&1 | tee /tmp/upc-first-boot.log | tail -30
   ```
