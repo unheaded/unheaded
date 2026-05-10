@@ -92,13 +92,13 @@ func (s *FNDSASigner) ParameterSetID() ParameterSet {
 }
 
 // FNDSAVerifier is a stub implementation of the Verifier interface for FN-DSA.
-type FNDSAVerifier struct {
-	params ParameterSet
-}
+// (No fields — the params would be stored once a real circl-backed
+// implementation lands. Today every method returns ErrAlgorithmNotAvailable.)
+type FNDSAVerifier struct{}
 
 // NewFNDSAVerifier creates a new FN-DSA verifier stub for the given parameter
 // set. Returns ErrAlgorithmNotAvailable.
-func NewFNDSAVerifier(params ParameterSet) (*FNDSAVerifier, error) {
+func NewFNDSAVerifier(_ ParameterSet) (*FNDSAVerifier, error) {
 	return nil, ErrAlgorithmNotAvailable
 }
 
