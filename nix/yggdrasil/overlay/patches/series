@@ -1,0 +1,15 @@
+# Yggdrasil overlay patch series
+#
+# Per OS-FORK-DISCIPLINE.md §"Pillar 2 — Overlay patch format", every
+# divergence from upstream Debian is a numbered, headed, reviewed patch
+# applied via `quilt push -a`. This file lists patches in apply order.
+#
+# Format: NNNN-short-description.patch (one per line, in numeric order).
+# Empty during P0 scaffolding; populated as Phase 1 (task #65) lands the
+# CIS/STIG hardening rules and the Kingdom-specific configs.
+#
+# Discipline gates (per OS-FORK-DISCIPLINE.md §8 + §"Pillar 4 — Divergence budget"):
+#   - patch count <= 50
+#   - total LOC delta <= 5,000
+#   - no upstream file with > 3 patches against it
+#   - every patch has SPDX + Subject/Reason/Upstream-status/Authored headers
