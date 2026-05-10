@@ -742,17 +742,28 @@ func TestStructSizes(t *testing.T) {
 		t.Errorf("FlowEventSize = %d, want 104", FlowEventSize)
 	}
 
-	// Verify encode produces correct sizes
-	fk := FlowKey{}
+	// Verify encode round-trips through decode without loss. (The previous
+	// shape of this test compared len(Encode()) to FlowKeySize / FlowStateSize
+	// which is tautological because Encode returns a fixed-size array — the
+	// comparison is constant-folded at compile time.)
+	fk := FlowKey{SrcAddr: 0x0a000001, DstAddr: 0x0a000002, SrcPort: 1234, DstPort: 80, Protocol: 6}
 	fkBytes := fk.Encode()
-	if len(fkBytes) != FlowKeySize {
-		t.Errorf("FlowKey.Encode() len = %d, want %d", len(fkBytes), FlowKeySize)
+	fkRound, err := DecodeFlowKey(fkBytes[:])
+	if err != nil {
+		t.Fatalf("DecodeFlowKey: %v", err)
+	}
+	if *fkRound != fk {
+		t.Errorf("FlowKey round-trip lost data: got %+v, want %+v", *fkRound, fk)
 	}
 
-	fs := FlowStateEntry{}
+	fs := FlowStateEntry{State: 1, BytesIn: 100, BytesOut: 200, PacketsIn: 1, PacketsOut: 2}
 	fsBytes := fs.Encode()
-	if len(fsBytes) != FlowStateSize {
-		t.Errorf("FlowStateEntry.Encode() len = %d, want %d", len(fsBytes), FlowStateSize)
+	fsRound, err := DecodeFlowState(fsBytes[:])
+	if err != nil {
+		t.Fatalf("DecodeFlowState: %v", err)
+	}
+	if fsRound.BytesIn != fs.BytesIn || fsRound.BytesOut != fs.BytesOut || fsRound.State != fs.State {
+		t.Errorf("FlowStateEntry round-trip lost data: got %+v, want %+v", *fsRound, fs)
 	}
 }
 
