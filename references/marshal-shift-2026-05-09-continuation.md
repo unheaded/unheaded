@@ -297,3 +297,47 @@ Continued churn after the shift summary above, targeting the 2362-finding lint i
 
 **Decision queries Q1-Q5 still unanswered.** Next push opportunity: Stevie SSH-add + git push origin main when ready.
 
+---
+
+## v9 round (2026-05-10 continuation) — Rust clippy + parking-lot drain + production staticcheck
+
+**Production bugs found+fixed — 4**:
+- `pkg/state/reconciler.go` — SA4006 'lastErr never used' was masking a real bug. The bare `break` in the retry-backoff select escaped the SELECT, not the for loop, so executeActionOnce would still run with a cancelled ctx and overwrite lastErr with a different error. Fixed with labeled `goto exhausted`.
+- `pkg/secrets/encryption/age.go` — 2 sites used deprecated `curve25519.ScalarMult` which silently zeros the shared secret on low-order recipient points. Migrated to `curve25519.X25519` which **returns an error** in that case. Genuine security improvement, not just deprecation cleanup.
+- `pkg/deploy/pipeline/rollback.go` — 2 SA9003 empty-branch sites in `executeRollback` masked operational gaps:
+  - DeleteInstances failure swallowed silently → now surfaced in `rollback.Progress.Message`.
+  - RestartPrevious with no instances silently treated as success → now records that artifact materialization isn't wired.
+- `pkg/ebpf/loader.go` — Extracted the two unsafe-mmap-Munmap idioms into `pkg/ebpf/munmap_linux.go::munmapKernelRegion` with documented safety contract. go vet `unsafeptr` warning now lives in one explicit site instead of two.
+
+**Rust clippy drained**:
+- `crates/monad-mbc`: 12 warnings → 2 (Default impl, copy_from_slice migrations, snake_case test names, unnecessary casts). 266 unit tests still green.
+- `cmd/trace-collector`: 1 error + 3 warnings → 1 warning. Marked `bpf_syscall` as `unsafe pub fn` with proper safety doc + propagated to two intra-package callers via SAFETY-commented unsafe blocks. Migrated `sort_by(|a,b| b.cmp(&a))` → `sort_by_key(|a| Reverse(a))`. Replaced default-then-mutate with struct-update syntax. 105 unit tests still green.
+- `crates/zhend`, `crates/xv6-mbc`, `crates/doom-runner`, `crates/zhenai-forge`, `cmd/upc-bootctl`, `cmd/ebpf-loader`, `cmd/ebpf-collector`: clippy-clean (0 warnings).
+
+**Unused field/decl drained 36 → 22 (cumulative this session 48 → 22)**:
+- `services/{micromanager, gateway, hauberk, shield, cloak, architect}` — wrapper-struct mu fields where embedded sub-components carry their own concurrency primitives.
+- `pkg/{secrets/encryption, secrets/rotation, mesh/circuit, protocol/sophiasync, protocol/migration, storage/kv, waf/detection}` — unused mu, decoder, bucket, normalize, and ShieldRetryToken fields.
+- `cmd/{unheaded-cli, protocol-api, zhen-cli}`, `deploy/sophia-eye/sophia-gateway`: unused fields, vars, helpers.
+- `pkg/{champion, config/sources, crypto/pqc}`: unused helpers + dead PQC stub fields.
+- `services/micromanager`: surfaced **real bug** that `handleHealth` and `handleReady` were defined but never registered; wired to mux per CLAUDE.md.
+
+**Misc**:
+- `cmd/waf/Cargo.lock` tracked (binary-crate convention)
+- 2 stray root-level files cleaned (`0xFFFF` empty file, accidental `shell` ELF)
+
+**v9 net: 21 commits this round, 96 commits cumulative this shift since v7**, 11 cumulative production bugs found+closed, 0 Go test failures across 242 packages, 854+ Rust tests still green, regression baseline pristine.
+
+**Lint trajectory final** (this shift):
+- bodyclose: 13 → 0 (full repo)
+- ineffassign: 32 → 21 (all production drained; remainder in tests)
+- staticcheck: 50+ real-bug items closed (SA1019, SA1029, SA4006, SA4023, SA9003, SA6001)
+- unused: 48 → 22 (production-side drained)
+- errcheck: production-code drained (test-cleanup leaks remain at 1494 — low-ROI)
+- go vet: 2 → 1 (consolidated to single documented site)
+- Rust clippy: monad-mbc 12 → 2, trace-collector 4 → 1, all other crates 0
+
+**`make build-services` green. `make test-rust` green. `go test -short ./...` 0/242 failures.**
+
+Marshal **off-duty** for the v9 round. 96 commits await Stevie's SSH-add + push. Next: any of Q1-Q5 unblocks the sprint's remaining structural items.
+
+
