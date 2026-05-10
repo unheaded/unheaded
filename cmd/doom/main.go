@@ -218,7 +218,9 @@ func cmdInjectTick(args []string) error {
 		if args[i] == "--count" || args[i] == "-count" {
 			if i+1 < len(args) {
 				i++
-				fmt.Sscanf(args[i], "%d", &count)
+				if _, err := fmt.Sscanf(args[i], "%d", &count); err != nil {
+					return fmt.Errorf("--count %q: %w", args[i], err)
+				}
 			}
 		}
 	}
