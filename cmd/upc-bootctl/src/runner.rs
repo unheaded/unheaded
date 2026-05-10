@@ -61,13 +61,15 @@ unsafe impl aya::Pod for MbcCpuState {}
 
 const _: () = assert!(std::mem::size_of::<MbcCpuState>() == 136);
 
-/// Initial CPU state for an xv6 boot. PC=word_index(0x10000)=0x4000;
+/// Initial CPU state for an xv6 boot. PC=0 (slot 0 of ROM_MAP = first
+/// MBC instruction of xv6-mbc.mbc = start_mbc.c::start entry — the .mbc
+/// file packs from offset 0, NOT from kernel.ld's byte-address layout);
 /// SP=0x03F0_0000 (byte address; MBC SP is byte-addressed for CALL/RET).
 /// priv_level=0 (M-mode); reservation_address=0xFFFFFFFF (no LR pending).
 pub fn xv6_initial_cpu_state() -> MbcCpuState {
     let mut state = MbcCpuState {
         regs: [0u32; 16],
-        pc: 0x10000 / 4, // word index of byte address 0x10000
+        pc: 0, // slot 0 of ROM_MAP — first instruction of start_mbc.c
         flags: 0,
         halted: 0,
         stalled: 0,
