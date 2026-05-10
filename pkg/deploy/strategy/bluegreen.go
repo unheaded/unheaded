@@ -7,6 +7,7 @@ package strategy
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 )
@@ -327,10 +328,15 @@ func (s *BlueGreenStrategy) Rollback(ctx context.Context, params *RollbackParams
 			}
 			deployment.trafficState = "blue"
 
-			// Terminate green instances
+			// Terminate green instances. We surface any callback errors to
+			// stderr but don't fail rollback — the user's callback may
+			// legitimately report partial failure (some instances already
+			// gone) and we want to keep tearing down the rest.
 			for _, inst := range deployment.greenInstances {
 				if params.Callbacks != nil && params.Callbacks.OnInstanceDelete != nil {
-					params.Callbacks.OnInstanceDelete(ctx, inst.ID)
+					if err := params.Callbacks.OnInstanceDelete(ctx, inst.ID); err != nil {
+						fmt.Fprintf(os.Stderr, "bluegreen: rollback delete %s: %v\n", inst.ID, err)
+					}
 				}
 			}
 
