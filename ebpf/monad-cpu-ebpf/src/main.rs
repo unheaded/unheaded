@@ -1935,10 +1935,40 @@ fn mem_write_word(word_addr: u32, value: u32) {
     // SCREEN_MAP writes from word stores, only intentional pixel writes reach
     // the display.
 
+    // MMIO TTY intercept (UPC L4f convention, byte addr 0xC000-0xC003).
+    // start_mbc.c::mmio_putc writes via word-store; the low byte of `value`
+    // is the character. Push it to the TTY ring so userspace bridges see it.
+    // Phase 1.1 SHIP enabler 2026-05-10.
+    if word_addr == 0x3000 {
+        tty_push_byte(value as u8);
+    }
+
     // Write to RAM_MAP only.
     if let Some(ptr) = RAM_MAP.get_ptr_mut(word_addr) {
         unsafe {
             *ptr = value;
+        }
+    }
+}
+
+/// Append a single byte to the TTY ring buffer (4 KB circular).
+/// Called from mem_write_word/mem_write_byte on writes to MMIO 0xC000-0xC003.
+#[inline(always)]
+fn tty_push_byte(b: u8) {
+    let head = match TTY_HEAD.get(0) {
+        Some(v) => *v,
+        None => 0,
+    };
+    let head_bounded = head & 0xFFF; // 0..4095, helps verifier prove the index bound
+    if let Some(slot) = TTY_MAP.get_ptr_mut(head_bounded) {
+        unsafe {
+            *slot = b;
+        }
+    }
+    let new_head = (head_bounded + 1) & 0xFFF;
+    if let Some(h) = TTY_HEAD.get_ptr_mut(0) {
+        unsafe {
+            *h = new_head;
         }
     }
 }
@@ -1965,6 +1995,12 @@ fn mem_read_byte(byte_addr: u32) -> u8 {
 /// Write a single byte to the MBC address space.
 #[inline(always)]
 fn mem_write_byte(byte_addr: u32, value: u8) {
+    // MMIO TTY intercept (UPC L4f convention, byte addr 0xC000-0xC003).
+    // Some compilers emit STB for char writes — handle the byte-store
+    // path too. Phase 1.1 SHIP enabler 2026-05-10.
+    if byte_addr >= 0xC000 && byte_addr <= 0xC003 {
+        tty_push_byte(value);
+    }
     // Screen region: direct SCREEN_MAP write.
     if (mmap::SCREEN_BASE..mmap::SCREEN_BASE + mmap::SCREEN_SIZE).contains(&byte_addr) {
         let px = byte_addr - mmap::SCREEN_BASE;
