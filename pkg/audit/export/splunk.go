@@ -199,7 +199,7 @@ func (e *SplunkExporter) sendEvents(events []*audit.AuditEvent) error {
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
 		e.errorCount += int64(len(events))
-		return fmt.Errorf("Splunk returned status %d: %s", resp.StatusCode, string(body))
+		return fmt.Errorf("splunk returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	e.sentCount += int64(len(events))
@@ -370,7 +370,7 @@ func (c *SplunkSearchClient) SearchAuditEvents(ctx context.Context, query string
 
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
-		return nil, fmt.Errorf("Splunk search failed with status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("splunk search failed with status %d: %s", resp.StatusCode, string(body))
 	}
 
 	var results []map[string]interface{}

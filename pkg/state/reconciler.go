@@ -30,7 +30,7 @@ var (
 	ErrRateLimited         = errors.New("rate limited")
 	ErrDryRunMode          = errors.New("action skipped in dry-run mode")
 	ErrLXDClientNil        = errors.New("LXD client is nil")
-	ErrWotanClientNil      = errors.New("Wotan client is nil")
+	ErrWotanClientNil      = errors.New("wotan client is nil")
 	ErrInvalidStatePath    = errors.New("invalid state file path")
 	ErrContainerNotFound   = errors.New("container not found")
 	ErrMaxRetriesExceeded  = errors.New("max retries exceeded")
