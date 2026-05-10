@@ -311,16 +311,14 @@ func (m *CgroupManager) applyMemoryResources(cgroupPath string, resources *Resou
 				swapLimit = 0
 			}
 		}
-		if err := writeFile(cgroupPath, "memory.swap.max", fmt.Sprintf("%d", swapLimit)); err != nil {
-			// Swap might not be enabled
-		}
+		// Best-effort: swap controller may not be enabled.
+		_ = writeFile(cgroupPath, "memory.swap.max", fmt.Sprintf("%d", swapLimit))
 	}
 
 	// OOM group behavior (memory.oom.group)
 	if resources.OOMGroup {
-		if err := writeFile(cgroupPath, "memory.oom.group", "1"); err != nil {
-			// OOM group might not be supported
-		}
+		// Best-effort: oom.group may not be supported on older kernels.
+		_ = writeFile(cgroupPath, "memory.oom.group", "1")
 	}
 
 	return nil
@@ -337,18 +335,17 @@ func (m *CgroupManager) applyIOResources(cgroupPath string, resources *ResourceC
 		if weight > 10000 {
 			weight = 10000
 		}
-		if err := writeFile(cgroupPath, "io.weight", fmt.Sprintf("default %d", weight)); err != nil {
-			// IO controller might not be enabled
-		}
+		// Best-effort: IO controller may not be enabled in the cgroup.
+		_ = writeFile(cgroupPath, "io.weight", fmt.Sprintf("default %d", weight))
 	}
 
 	// IO limits (io.max) - per-device bandwidth and IOPS limits
 	for _, limit := range resources.IOLimits {
 		content := m.buildIOMaxString(limit)
 		if content != "" {
-			if err := writeFile(cgroupPath, "io.max", content); err != nil {
-				// IO controller might not be enabled or device not found
-			}
+			// Best-effort: IO controller may not be enabled or the device may
+			// be absent from the host's block layer.
+			_ = writeFile(cgroupPath, "io.max", content)
 		}
 	}
 
@@ -412,9 +409,8 @@ func (m *CgroupManager) applyPidsResources(cgroupPath string, resources *Resourc
 func (m *CgroupManager) applyHugepageResources(cgroupPath string, resources *ResourceConfig) error {
 	for size, limit := range resources.HugepageLimits {
 		filename := fmt.Sprintf("hugetlb.%s.max", size)
-		if err := writeFile(cgroupPath, filename, fmt.Sprintf("%d", limit)); err != nil {
-			// Hugepage controller might not be available for this size
-		}
+		// Best-effort: hugepage controller may not be available for this size.
+		_ = writeFile(cgroupPath, filename, fmt.Sprintf("%d", limit))
 	}
 	return nil
 }

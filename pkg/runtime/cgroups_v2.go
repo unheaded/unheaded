@@ -311,10 +311,9 @@ func NewCgroupV2Manager(parentPath string) (*CgroupV2Manager, error) {
 		return nil, fmt.Errorf("failed to create parent cgroup: %w", err)
 	}
 
-	// Enable controllers in parent
-	if err := mgr.enableControllersInSubtree(parentFullPath); err != nil {
-		// Log but don't fail - some controllers may not be available
-	}
+	// Best-effort: enable controllers in parent. Some controllers may not
+	// be available on this host.
+	_ = mgr.enableControllersInSubtree(parentFullPath)
 
 	return mgr, nil
 }
@@ -410,10 +409,8 @@ func (m *CgroupV2Manager) applyV2Config(fullPath string, config *CgroupV2Config)
 		return fmt.Errorf("pids config: %w", err)
 	}
 
-	// Apply hugetlb configuration
-	if err := m.applyHugetlbConfigV2(fullPath, config); err != nil {
-		// Hugetlb might not be available
-	}
+	// Best-effort: hugetlb controller may not be enabled.
+	_ = m.applyHugetlbConfigV2(fullPath, config)
 
 	return nil
 }
@@ -471,9 +468,8 @@ func (m *CgroupV2Manager) applyCPUConfigV2(fullPath string, config *CgroupV2Conf
 
 	// cpuset.cpus.partition
 	if config.CPUSetPartition != "" {
-		if err := writeCgroupFile(fullPath, "cpuset.cpus.partition", config.CPUSetPartition); err != nil {
-			// Partition mode might not be supported
-		}
+		// Best-effort: cpuset partition mode may not be supported.
+		_ = writeCgroupFile(fullPath, "cpuset.cpus.partition", config.CPUSetPartition)
 	}
 
 	return nil
@@ -529,16 +525,14 @@ func (m *CgroupV2Manager) applyMemoryConfigV2(fullPath string, config *CgroupV2C
 		} else {
 			content = fmt.Sprintf("%d", config.MemorySwapMax)
 		}
-		if err := writeCgroupFile(fullPath, "memory.swap.max", content); err != nil {
-			// Swap controller might not be enabled
-		}
+		// Best-effort: swap controller may not be enabled.
+		_ = writeCgroupFile(fullPath, "memory.swap.max", content)
 	}
 
 	// memory.oom.group
 	if config.MemoryOOMGroup {
-		if err := writeCgroupFile(fullPath, "memory.oom.group", "1"); err != nil {
-			// OOM group might not be supported
-		}
+		// Best-effort: oom.group may not be supported on older kernels.
+		_ = writeCgroupFile(fullPath, "memory.oom.group", "1")
 	}
 
 	return nil
