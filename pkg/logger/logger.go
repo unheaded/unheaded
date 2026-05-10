@@ -931,7 +931,7 @@ func (e *Event) formatConsole(config Config) []byte {
 	if config.ColorEnabled {
 		buf.WriteString(levelColors[e.level])
 	}
-	buf.WriteString(fmt.Sprintf("%-5s", level))
+	fmt.Fprintf(buf, "%-5s", level)
 	if config.ColorEnabled {
 		buf.WriteString(colorReset)
 	}
@@ -1422,7 +1422,7 @@ func (cw *ConsoleWriter) Write(p []byte) (n int, err error) {
 		if !cw.NoColor {
 			buf.WriteString(levelColors[level])
 		}
-		buf.WriteString(fmt.Sprintf("%-5s", lvl))
+		fmt.Fprintf(buf, "%-5s", lvl)
 		if !cw.NoColor {
 			buf.WriteString(colorReset)
 		}

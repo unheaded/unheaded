@@ -812,7 +812,7 @@ func mapToTOML(data map[string]any, section string) string {
 		if _, ok := v.(map[string]any); ok {
 			continue
 		}
-		sb.WriteString(fmt.Sprintf("%s = %s\n", k, toTOMLValue(v)))
+		fmt.Fprintf(&sb, "%s = %s\n", k, toTOMLValue(v))
 	}
 
 	// Write sections
@@ -822,7 +822,7 @@ func mapToTOML(data map[string]any, section string) string {
 			if section != "" {
 				sectionName = section + "." + k
 			}
-			sb.WriteString(fmt.Sprintf("\n[%s]\n", sectionName))
+			fmt.Fprintf(&sb, "\n[%s]\n", sectionName)
 			sb.WriteString(mapToTOML(m, sectionName))
 		}
 	}
@@ -858,20 +858,20 @@ func mapToYAML(data map[string]any, indent int) string {
 	for k, v := range data {
 		switch val := v.(type) {
 		case map[string]any:
-			sb.WriteString(fmt.Sprintf("%s%s:\n", prefix, k))
+			fmt.Fprintf(&sb, "%s%s:\n", prefix, k)
 			sb.WriteString(mapToYAML(val, indent+1))
 		case []any:
-			sb.WriteString(fmt.Sprintf("%s%s:\n", prefix, k))
+			fmt.Fprintf(&sb, "%s%s:\n", prefix, k)
 			for _, item := range val {
 				if m, ok := item.(map[string]any); ok {
-					sb.WriteString(fmt.Sprintf("%s  -\n", prefix))
+					fmt.Fprintf(&sb, "%s  -\n", prefix)
 					sb.WriteString(mapToYAML(m, indent+2))
 				} else {
-					sb.WriteString(fmt.Sprintf("%s  - %v\n", prefix, item))
+					fmt.Fprintf(&sb, "%s  - %v\n", prefix, item)
 				}
 			}
 		default:
-			sb.WriteString(fmt.Sprintf("%s%s: %v\n", prefix, k, v))
+			fmt.Fprintf(&sb, "%s%s: %v\n", prefix, k, v)
 		}
 	}
 

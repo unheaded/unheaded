@@ -209,7 +209,7 @@ func (l *AccessLogger) formatJSON(entry *AccessLogEntry) {
 	l.buffer.WriteString(`,"response_size":`)
 	l.buffer.WriteString(itoa64(entry.ResponseSize))
 	l.buffer.WriteString(`,"latency_ms":`)
-	l.buffer.WriteString(fmt.Sprintf("%.3f", float64(entry.Latency.Microseconds())/1000.0))
+	fmt.Fprintf(l.buffer, "%.3f", float64(entry.Latency.Microseconds())/1000.0)
 
 	if entry.UpstreamService != "" {
 		l.buffer.WriteString(`,"upstream_service":"`)
@@ -231,7 +231,7 @@ func (l *AccessLogger) formatJSON(entry *AccessLogEntry) {
 
 	if entry.UpstreamLatency > 0 {
 		l.buffer.WriteString(`,"upstream_latency_ms":`)
-		l.buffer.WriteString(fmt.Sprintf("%.3f", float64(entry.UpstreamLatency.Microseconds())/1000.0))
+		fmt.Fprintf(l.buffer, "%.3f", float64(entry.UpstreamLatency.Microseconds())/1000.0)
 	}
 
 	if entry.PeerSPIFFEID != "" {

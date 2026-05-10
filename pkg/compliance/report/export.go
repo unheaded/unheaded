@@ -336,41 +336,41 @@ func (e *MarkdownExporter) Export(ctx context.Context, report *Report, w io.Writ
 	var buf bytes.Buffer
 
 	// Title and metadata
-	buf.WriteString(fmt.Sprintf("# %s\n\n", report.Title))
-	buf.WriteString(fmt.Sprintf("**Standard:** %s (%s)\n", report.Standard, report.Version))
-	buf.WriteString(fmt.Sprintf("**Generated:** %s\n", report.GeneratedAt.Format("January 2, 2006")))
-	buf.WriteString(fmt.Sprintf("**Period:** %s - %s\n\n",
+	fmt.Fprintf(&buf, "# %s\n\n", report.Title)
+	fmt.Fprintf(&buf, "**Standard:** %s (%s)\n", report.Standard, report.Version)
+	fmt.Fprintf(&buf, "**Generated:** %s\n", report.GeneratedAt.Format("January 2, 2006"))
+	fmt.Fprintf(&buf, "**Period:** %s - %s\n\n",
 		report.Period.Start.Format("January 2, 2006"),
-		report.Period.End.Format("January 2, 2006")))
+		report.Period.End.Format("January 2, 2006"))
 
 	// Summary
 	buf.WriteString("## Executive Summary\n\n")
-	buf.WriteString(fmt.Sprintf("- **Compliance Rate:** %.1f%%\n", report.Summary.ComplianceRate*100))
-	buf.WriteString(fmt.Sprintf("- **Total Controls:** %d\n", report.Summary.TotalControls))
-	buf.WriteString(fmt.Sprintf("- **Compliant:** %d\n", report.Summary.Compliant))
-	buf.WriteString(fmt.Sprintf("- **Non-Compliant:** %d\n", report.Summary.NonCompliant))
-	buf.WriteString(fmt.Sprintf("- **Partial:** %d\n", report.Summary.Partial))
-	buf.WriteString(fmt.Sprintf("- **Risk Score:** %.1f\n\n", report.Summary.RiskScore))
+	fmt.Fprintf(&buf, "- **Compliance Rate:** %.1f%%\n", report.Summary.ComplianceRate*100)
+	fmt.Fprintf(&buf, "- **Total Controls:** %d\n", report.Summary.TotalControls)
+	fmt.Fprintf(&buf, "- **Compliant:** %d\n", report.Summary.Compliant)
+	fmt.Fprintf(&buf, "- **Non-Compliant:** %d\n", report.Summary.NonCompliant)
+	fmt.Fprintf(&buf, "- **Partial:** %d\n", report.Summary.Partial)
+	fmt.Fprintf(&buf, "- **Risk Score:** %.1f\n\n", report.Summary.RiskScore)
 
 	buf.WriteString("### Findings Summary\n\n")
-	buf.WriteString(fmt.Sprintf("| Severity | Count |\n"))
+	fmt.Fprintf(&buf, "| Severity | Count |\n")
 	buf.WriteString("|----------|-------|\n")
-	buf.WriteString(fmt.Sprintf("| Critical | %d |\n", report.Summary.CriticalFindings))
-	buf.WriteString(fmt.Sprintf("| High | %d |\n", report.Summary.HighFindings))
-	buf.WriteString(fmt.Sprintf("| Medium | %d |\n", report.Summary.MediumFindings))
-	buf.WriteString(fmt.Sprintf("| Low | %d |\n\n", report.Summary.LowFindings))
+	fmt.Fprintf(&buf, "| Critical | %d |\n", report.Summary.CriticalFindings)
+	fmt.Fprintf(&buf, "| High | %d |\n", report.Summary.HighFindings)
+	fmt.Fprintf(&buf, "| Medium | %d |\n", report.Summary.MediumFindings)
+	fmt.Fprintf(&buf, "| Low | %d |\n\n", report.Summary.LowFindings)
 
 	// Control Results
 	buf.WriteString("## Control Results\n\n")
 	buf.WriteString("| Control ID | Name | Status | Score | Findings |\n")
 	buf.WriteString("|------------|------|--------|-------|----------|\n")
 	for _, item := range report.ControlResults {
-		buf.WriteString(fmt.Sprintf("| %s | %s | %s | %.0f%% | %d |\n",
+		fmt.Fprintf(&buf, "| %s | %s | %s | %.0f%% | %d |\n",
 			item.ControlID,
 			truncate(item.ControlName, 30),
 			item.Status,
 			item.Score*100,
-			item.FindingsCount))
+			item.FindingsCount)
 	}
 	buf.WriteString("\n")
 
@@ -378,24 +378,24 @@ func (e *MarkdownExporter) Export(ctx context.Context, report *Report, w io.Writ
 	if len(report.Findings) > 0 {
 		buf.WriteString("## Findings\n\n")
 		for _, finding := range report.Findings {
-			buf.WriteString(fmt.Sprintf("### %s\n\n", finding.Title))
-			buf.WriteString(fmt.Sprintf("- **Control:** %s\n", finding.ControlID))
-			buf.WriteString(fmt.Sprintf("- **Severity:** %s\n", finding.Severity))
-			buf.WriteString(fmt.Sprintf("- **Description:** %s\n", finding.Description))
-			buf.WriteString(fmt.Sprintf("- **Remediation:** %s\n\n", finding.Remediation))
+			fmt.Fprintf(&buf, "### %s\n\n", finding.Title)
+			fmt.Fprintf(&buf, "- **Control:** %s\n", finding.ControlID)
+			fmt.Fprintf(&buf, "- **Severity:** %s\n", finding.Severity)
+			fmt.Fprintf(&buf, "- **Description:** %s\n", finding.Description)
+			fmt.Fprintf(&buf, "- **Remediation:** %s\n\n", finding.Remediation)
 		}
 	}
 
 	// Gap Analysis
 	if report.GapAnalysis != nil {
 		buf.WriteString("## Gap Analysis\n\n")
-		buf.WriteString(fmt.Sprintf("- **Total Gaps:** %d\n", report.GapAnalysis.TotalGaps))
-		buf.WriteString(fmt.Sprintf("- **Critical Gaps:** %d\n", report.GapAnalysis.CriticalGaps))
-		buf.WriteString(fmt.Sprintf("- **High Priority Gaps:** %d\n\n", report.GapAnalysis.HighPriorityGaps))
+		fmt.Fprintf(&buf, "- **Total Gaps:** %d\n", report.GapAnalysis.TotalGaps)
+		fmt.Fprintf(&buf, "- **Critical Gaps:** %d\n", report.GapAnalysis.CriticalGaps)
+		fmt.Fprintf(&buf, "- **High Priority Gaps:** %d\n\n", report.GapAnalysis.HighPriorityGaps)
 
 		buf.WriteString("### Recommendations\n\n")
 		for _, rec := range report.GapAnalysis.Recommendations {
-			buf.WriteString(fmt.Sprintf("- %s\n", rec))
+			fmt.Fprintf(&buf, "- %s\n", rec)
 		}
 	}
 

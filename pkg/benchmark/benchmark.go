@@ -218,24 +218,24 @@ func (s *BenchmarkSuite) SummaryReport() string {
 	var b strings.Builder
 	b.WriteString("==========================================================\n")
 	b.WriteString(" Unheaded Performance Benchmark Report\n")
-	b.WriteString(fmt.Sprintf(" Generated: %s\n", time.Now().Format(time.RFC3339)))
+	fmt.Fprintf(&b, " Generated: %s\n", time.Now().Format(time.RFC3339))
 	b.WriteString("==========================================================\n\n")
 
 	for _, r := range s.results {
-		b.WriteString(fmt.Sprintf("--- %s ---\n", r.Name))
+		fmt.Fprintf(&b, "--- %s ---\n", r.Name)
 		if r.Error != "" {
-			b.WriteString(fmt.Sprintf("  ERROR: %s\n\n", r.Error))
+			fmt.Fprintf(&b, "  ERROR: %s\n\n", r.Error)
 			continue
 		}
-		b.WriteString(fmt.Sprintf("  Iterations: %d\n", r.Iterations))
-		b.WriteString(fmt.Sprintf("  Min:        %s\n", r.Min))
-		b.WriteString(fmt.Sprintf("  Max:        %s\n", r.Max))
-		b.WriteString(fmt.Sprintf("  Avg:        %s\n", r.Avg))
-		b.WriteString(fmt.Sprintf("  Median:     %s\n", r.Median))
-		b.WriteString(fmt.Sprintf("  P95:        %s\n", r.P95))
-		b.WriteString(fmt.Sprintf("  P99:        %s\n", r.P99))
-		b.WriteString(fmt.Sprintf("  StdDev:     %s\n", r.StdDev))
-		b.WriteString(fmt.Sprintf("  Total:      %s\n", r.TotalTime))
+		fmt.Fprintf(&b, "  Iterations: %d\n", r.Iterations)
+		fmt.Fprintf(&b, "  Min:        %s\n", r.Min)
+		fmt.Fprintf(&b, "  Max:        %s\n", r.Max)
+		fmt.Fprintf(&b, "  Avg:        %s\n", r.Avg)
+		fmt.Fprintf(&b, "  Median:     %s\n", r.Median)
+		fmt.Fprintf(&b, "  P95:        %s\n", r.P95)
+		fmt.Fprintf(&b, "  P99:        %s\n", r.P99)
+		fmt.Fprintf(&b, "  StdDev:     %s\n", r.StdDev)
+		fmt.Fprintf(&b, "  Total:      %s\n", r.TotalTime)
 		b.WriteString("\n")
 	}
 

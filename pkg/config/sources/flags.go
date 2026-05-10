@@ -516,7 +516,7 @@ func (fs *FlagSet) Usage() string {
 			case []string:
 				sb.WriteString("[" + strings.Join(v, ",") + "]")
 			default:
-				sb.WriteString(fmt.Sprintf("%v", v))
+				fmt.Fprintf(&sb, "%v", v)
 			}
 			sb.WriteString(")")
 		}

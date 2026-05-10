@@ -1756,24 +1756,24 @@ func (pc *PolicyController) applyBGPConfig(ctx context.Context, policy *NetworkP
 func (pc *PolicyController) generateBGPConfig(bgp *BGPConfig) string {
 	var sb strings.Builder
 
-	sb.WriteString(fmt.Sprintf("router bgp %d\n", bgp.ASN))
+	fmt.Fprintf(&sb, "router bgp %d\n", bgp.ASN)
 	if bgp.RouterID != "" {
-		sb.WriteString(fmt.Sprintf("  bgp router-id %s\n", bgp.RouterID))
+		fmt.Fprintf(&sb, "  bgp router-id %s\n", bgp.RouterID)
 	}
 
 	for _, peer := range bgp.Peers {
-		sb.WriteString(fmt.Sprintf("  neighbor %s remote-as %d\n", peer.Address, peer.ASN))
+		fmt.Fprintf(&sb, "  neighbor %s remote-as %d\n", peer.Address, peer.ASN)
 		if peer.Password != "" {
-			sb.WriteString(fmt.Sprintf("  neighbor %s password %s\n", peer.Address, peer.Password))
+			fmt.Fprintf(&sb, "  neighbor %s password %s\n", peer.Address, peer.Password)
 		}
 		if peer.HoldTime > 0 {
-			sb.WriteString(fmt.Sprintf("  neighbor %s timers connect %d\n", peer.Address, peer.HoldTime))
+			fmt.Fprintf(&sb, "  neighbor %s timers connect %d\n", peer.Address, peer.HoldTime)
 		}
 	}
 
 	sb.WriteString("  address-family ipv4 unicast\n")
 	for _, route := range bgp.AdvertiseRoutes {
-		sb.WriteString(fmt.Sprintf("    network %s\n", route))
+		fmt.Fprintf(&sb, "    network %s\n", route)
 	}
 	sb.WriteString("  exit-address-family\n")
 

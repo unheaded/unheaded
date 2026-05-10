@@ -91,7 +91,7 @@ func GenerateReport(results []CampaignResult) string {
 	var b strings.Builder
 
 	b.WriteString("# Lich Security Audit Report\n\n")
-	b.WriteString(fmt.Sprintf("**Generated:** %s\n\n", time.Now().UTC().Format(time.RFC3339)))
+	fmt.Fprintf(&b, "**Generated:** %s\n\n", time.Now().UTC().Format(time.RFC3339))
 
 	// Executive summary.
 	totalTests := 0
@@ -104,10 +104,10 @@ func GenerateReport(results []CampaignResult) string {
 	}
 
 	b.WriteString("## Executive Summary\n\n")
-	b.WriteString(fmt.Sprintf("- **Campaigns run:** %d\n", len(results)))
-	b.WriteString(fmt.Sprintf("- **Total tests:** %d\n", totalTests))
-	b.WriteString(fmt.Sprintf("- **Tests passed:** %d\n", totalPassed))
-	b.WriteString(fmt.Sprintf("- **Total findings:** %d\n\n", totalFindings))
+	fmt.Fprintf(&b, "- **Campaigns run:** %d\n", len(results))
+	fmt.Fprintf(&b, "- **Total tests:** %d\n", totalTests)
+	fmt.Fprintf(&b, "- **Tests passed:** %d\n", totalPassed)
+	fmt.Fprintf(&b, "- **Total findings:** %d\n\n", totalFindings)
 
 	// Campaign results.
 	b.WriteString("## Campaign Results\n\n")
@@ -121,9 +121,9 @@ func GenerateReport(results []CampaignResult) string {
 		if r.Error != "" {
 			status = "ERROR"
 		}
-		b.WriteString(fmt.Sprintf("| %s | %s | %d | %d | %d | %s |\n",
+		fmt.Fprintf(&b, "| %s | %s | %d | %d | %d | %s |\n",
 			r.Campaign, status, r.TestsRun, r.TestsPassed, len(r.Findings),
-			r.Duration.Round(time.Millisecond)))
+			r.Duration.Round(time.Millisecond))
 	}
 	b.WriteString("\n")
 
@@ -132,14 +132,14 @@ func GenerateReport(results []CampaignResult) string {
 		b.WriteString("## Detailed Findings\n\n")
 		for _, r := range results {
 			for _, f := range r.Findings {
-				b.WriteString(fmt.Sprintf("### %s — %s\n\n", f.ID, f.Title))
-				b.WriteString(fmt.Sprintf("- **Severity:** %s\n", f.Severity))
-				b.WriteString(fmt.Sprintf("- **Campaign:** %s\n", r.Campaign))
+				fmt.Fprintf(&b, "### %s — %s\n\n", f.ID, f.Title)
+				fmt.Fprintf(&b, "- **Severity:** %s\n", f.Severity)
+				fmt.Fprintf(&b, "- **Campaign:** %s\n", r.Campaign)
 				if f.Endpoint != "" {
-					b.WriteString(fmt.Sprintf("- **Endpoint:** %s\n", f.Endpoint))
+					fmt.Fprintf(&b, "- **Endpoint:** %s\n", f.Endpoint)
 				}
-				b.WriteString(fmt.Sprintf("- **Description:** %s\n", f.Description))
-				b.WriteString(fmt.Sprintf("- **Remediation:** %s\n\n", f.Remediation))
+				fmt.Fprintf(&b, "- **Description:** %s\n", f.Description)
+				fmt.Fprintf(&b, "- **Remediation:** %s\n\n", f.Remediation)
 			}
 		}
 	} else {
