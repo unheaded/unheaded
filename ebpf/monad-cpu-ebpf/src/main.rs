@@ -894,22 +894,24 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // ADR-067 Decision 5.
         } else if cfg!(feature = "ascend-linux") && opc == op::MRET {
             // Machine-mode return. Pop MEPC + restore priv from MSTATUS.MPP.
+            // Mask PC to ROM_MAP's actual index range (65536 entries) so the
+            // BPF verifier can prove the loop converges; without the mask the
+            // post-MRET cpu.pc has scalar range 0..0x3FFFFFFF and the next
+            // iteration's fetch trips "infinite loop detected" on kernel 6.17.
             let mepc = mem_read_word((0xF000 + 0x341 * 4) >> 2);
             let mstatus = mem_read_word((0xF000 + 0x300 * 4) >> 2);
             let mpp = ((mstatus >> 11) & 0b11) as u8;
             cpu.priv_level = mpp;
-            cpu.pc = mepc >> 2;
+            cpu.pc = (mepc >> 2) & 0xFFFF;
             cpu.reservation_address = 0xFFFF_FFFF;
-            continue;
         } else if cfg!(feature = "ascend-linux") && opc == op::SRET {
-            // Supervisor-mode return. SEPC + SSTATUS.SPP.
+            // Supervisor-mode return. SEPC + SSTATUS.SPP. Same range-mask as MRET.
             let sepc = mem_read_word((0xF000 + 0x141 * 4) >> 2);
             let sstatus = mem_read_word((0xF000 + 0x100 * 4) >> 2);
             let spp = ((sstatus >> 8) & 0b1) as u8;
             cpu.priv_level = if spp == 0 { 3 } else { 1 };
-            cpu.pc = sepc >> 2;
+            cpu.pc = (sepc >> 2) & 0xFFFF;
             cpu.reservation_address = 0xFFFF_FFFF;
-            continue;
         } else if cfg!(feature = "ascend-linux") && opc == op::LR_W {
             // Load-Reserved Word: rd = RAM[rs1]; reserve rs1.
             let addr = cpu.regs[s];
