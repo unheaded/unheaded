@@ -120,10 +120,11 @@ type InfrastructureState struct {
 	Decisions []ArchitectureDecision `json:"decisions"`
 }
 
-// NetworkTopology represents the network topology
+// NetworkTopology represents the network topology.
+// Same pattern as InfrastructureState — concurrency is bounded by the
+// enclosing ArchitectService.mu.
 type NetworkTopology struct {
 	Nodes map[string]*NetworkNode `json:"nodes"`
-	mu    sync.RWMutex
 }
 
 // ArchitectService provides infrastructure and design tracking

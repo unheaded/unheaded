@@ -592,10 +592,10 @@ func (d *PathTraversalDetector) normalizeMultiLayer(input string) string {
 	return result
 }
 
-// normalize normalizes the input for detection (compatibility method)
-func (d *PathTraversalDetector) normalize(input string) string {
-	return d.normalizeMultiLayer(input)
-}
+// (compatibility shim 'normalize' previously delegated to normalizeMultiLayer
+// but was never called — the other detectors have their own normalize methods
+// on different receivers. Removed; callers within this package use
+// normalizeMultiLayer directly.)
 
 // calculateScore calculates the anomaly score
 func (d *PathTraversalDetector) calculateScore(matchCount, pathRisk, fileRisk, encodingRisk int) int {

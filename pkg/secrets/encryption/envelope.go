@@ -28,7 +28,9 @@ type EnvelopeEncryptor struct {
 	kekProvider KEKProvider
 	cache       *dekCache
 	log         *logger.Logger
-	mu          sync.RWMutex
+	// (mu sync.RWMutex previously here — DEK cache holds its own mutex,
+	// kekProvider implementations are responsible for their own locking,
+	// so EnvelopeEncryptor itself has no shared mutable state.)
 }
 
 // KEKProvider provides Key Encryption Keys.
