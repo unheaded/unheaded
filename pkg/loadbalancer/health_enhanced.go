@@ -6,7 +6,6 @@ package loadbalancer
 import (
 	"bufio"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -436,66 +435,14 @@ func (ehc *EnhancedHealthChecker) CheckWithCircuitBreaker(backend *Backend) erro
 	return nil
 }
 
-// checkGRPC performs a gRPC health check.
-func (ehc *EnhancedHealthChecker) checkGRPC(ctx context.Context, backend *Backend) error {
-	// Connect to the backend
-	var d net.Dialer
-	conn, err := d.DialContext(ctx, "tcp", backend.Config.Address)
-	if err != nil {
-		return fmt.Errorf("dial: %w", err)
-	}
-	defer conn.Close()
-
-	// Set deadline
-	if deadline, ok := ctx.Deadline(); ok {
-		conn.SetDeadline(deadline)
-	}
-
-	// Send gRPC health check request (simplified HTTP/2 + gRPC)
-	// This is a basic implementation that sends the gRPC health check preface
-	// For full gRPC support, you'd want to use the actual gRPC health checking protocol
-
-	// HTTP/2 connection preface
-	preface := []byte("PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n")
-	if _, err := conn.Write(preface); err != nil {
-		return fmt.Errorf("write preface: %w", err)
-	}
-
-	// Send SETTINGS frame
-	settingsFrame := makeHTTP2SettingsFrame()
-	if _, err := conn.Write(settingsFrame); err != nil {
-		return fmt.Errorf("write settings: %w", err)
-	}
-
-	// Read response (expect SETTINGS frame back)
-	buf := make([]byte, 1024)
-	n, err := conn.Read(buf)
-	if err != nil && err != io.EOF {
-		return fmt.Errorf("read response: %w", err)
-	}
-
-	// Very basic validation - just check we got some HTTP/2 response
-	if n < 9 {
-		return errors.New("invalid HTTP/2 response")
-	}
-
-	return nil
-}
-
-// makeHTTP2SettingsFrame creates a basic HTTP/2 SETTINGS frame.
-func makeHTTP2SettingsFrame() []byte {
-	// Frame header: length (3 bytes) + type (1 byte) + flags (1 byte) + stream ID (4 bytes)
-	frame := make([]byte, 9)
-	// Length: 0 (empty settings)
-	frame[0], frame[1], frame[2] = 0, 0, 0
-	// Type: SETTINGS (4)
-	frame[3] = 4
-	// Flags: 0
-	frame[4] = 0
-	// Stream ID: 0
-	binary.BigEndian.PutUint32(frame[5:], 0)
-	return frame
-}
+// (Note: a half-baked checkGRPC + makeHTTP2SettingsFrame helper used to live
+// here, but they were never wired into the dispatch on the embedded
+// HealthChecker — health.go's switch on HealthCheckType has cases only for
+// TCP/HTTP/HTTPS/Exec. The grpc-health-probe path needs a structural change
+// to either move the dispatch onto EnhancedHealthChecker or split the
+// underlying HealthChecker, which is out of scope for the current cleanup.
+// HealthCheckGRPC + GRPCHealthCheckConfig are kept as the public API surface
+// for that future wiring.)
 
 // GetBackendHealth returns comprehensive health info for a backend.
 func (ehc *EnhancedHealthChecker) GetBackendHealth(name string) BackendHealthInfo {
