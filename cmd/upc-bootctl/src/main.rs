@@ -19,6 +19,7 @@ use std::path::PathBuf;
 mod bootparams;
 mod netns;
 mod runner;
+mod tty_bridge;
 
 #[derive(Parser, Debug)]
 #[command(name = "upc-bootctl", version, about)]
@@ -291,6 +292,10 @@ fn cmd_boot(
             printable,
             hex
         );
+        // Phase 1 SHIP §"TTY transport is HTTP loopback": forward captured
+        // bytes to the upc-tty-bridge ingest endpoint so any attached browser
+        // xterm sees them. Best-effort — bridge unreachable is OK in dev.
+        tty_bridge::post_ingest(instance, &tty_bytes);
         // Try to find "xv6 booting" anywhere in the captured bytes.
         let s = String::from_utf8_lossy(&tty_bytes);
         if s.contains("xv6 booting") {
