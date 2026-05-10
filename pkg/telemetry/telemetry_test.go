@@ -1609,7 +1609,7 @@ func TestExportSpanData_EmptyEvents(t *testing.T) {
 	span.End()
 
 	data := span.ToExportData()
-	if data.Events != nil && len(data.Events) != 0 {
+	if len(data.Events) != 0 {
 		t.Error("expected nil or empty events slice")
 	}
 }

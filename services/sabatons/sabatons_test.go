@@ -382,7 +382,7 @@ func TestListMachines_Empty(t *testing.T) {
 	t.Parallel()
 	svc := newTestServiceDefault()
 	machines := svc.ListMachines("")
-	if machines != nil && len(machines) != 0 {
+	if len(machines) != 0 {
 		t.Errorf("expected empty list, got %d", len(machines))
 	}
 }

@@ -1300,7 +1300,7 @@ func TestQueryGraphEdgeCases(t *testing.T) {
 		if err != nil {
 			t.Fatalf("Query failed: %v", err)
 		}
-		if results != nil && len(results) > 0 {
+		if len(results) > 0 {
 			t.Error("Expected nil or empty results for empty subject")
 		}
 	})
