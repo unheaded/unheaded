@@ -17,6 +17,7 @@ use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
 mod bootparams;
+mod netns;
 mod runner;
 
 #[derive(Parser, Debug)]
@@ -212,11 +213,11 @@ fn cmd_boot(
     runner.populate_cpu(runner::xv6_initial_cpu_state())?;
 
     // Read back the CPU state to confirm the write took.
-    let cpu = runner.cpu_state()?;
+    let cpu_initial = runner.cpu_state()?;
     println!(
         "\n✓ live BPF maps populated for instance 0x{:02X}\n  \
          CPU_MAP[0x{:X}]: PC=0x{:08X} SP=0x{:08X} priv={} halted={}",
-        instance, instance, cpu.pc, cpu.regs[15], cpu.priv_level, cpu.halted
+        instance, instance, cpu_initial.pc, cpu_initial.regs[15], cpu_initial.priv_level, cpu_initial.halted
     );
     println!(
         "  ROM_MAP: {} MBC words loaded ({} bytes)",
@@ -224,9 +225,50 @@ fn cmd_boot(
         kernel_bytes.len()
     );
 
-    // Phase 4 will continue here with XDP attach + trigger packet.
-    // Phase 5 adds TTY pipeline. Phase 6 adds halt-cleanup.
-    println!("\n[Phase 3 complete; XDP attach + trigger come in Phase 4]");
+    // ── Phase 4: netns + XDP attach + trigger packet ──
+    let attach_iface = netns::setup_upc0()?;
+    // Attach XDP to veth inside upc0 namespace. aya's `attach` looks up
+    // the iface by name in the calling process's namespace, so we run
+    // the attach via `ip netns exec` semantically by... actually aya
+    // uses if_nametoindex which scans the current namespace. The
+    // simplest approach: don't move the iface into a netns, attach to
+    // the host-side veth-upc0 instead. (Phase 1.1 Mode A doesn't need
+    // network isolation; isolation is for Phase 4 multi-host.)
+    //
+    // Alternative simpler path: skip namespace, just use the veth host-side.
+    // For Phase 1.1 first boot, host-side attach is sufficient.
+    println!("\n[netns ready; attempting XDP attach to {}]", attach_iface);
+    match runner.attach_xdp("veth-upc0") {
+        Ok(()) => println!("  ✓ XDP attached to veth-upc0"),
+        Err(e) => {
+            println!("  ✗ XDP attach failed: {}", e);
+            netns::teardown_upc0();
+            return Err(e);
+        }
+    }
+
+    // Send trigger packets to advance PC
+    println!("\n[sending 5 trigger packets to advance the CPU]");
+    netns::send_trigger(5)?;
+    std::thread::sleep(std::time::Duration::from_millis(200));
+
+    // Read CPU state after trigger
+    let cpu_after = runner.cpu_state()?;
+    println!(
+        "\n=== AFTER TRIGGER ===\n  \
+         CPU_MAP[0x{:X}]: PC=0x{:08X} SP=0x{:08X} priv={} halted={} insn_count={}",
+        instance, cpu_after.pc, cpu_after.regs[15], cpu_after.priv_level,
+        cpu_after.halted, cpu_after.insn_count
+    );
+    if cpu_after.pc != cpu_initial.pc || cpu_after.insn_count > 0 {
+        println!("  ✓ FIRST HEARTBEAT — eBPF interpreter advanced the CPU");
+    } else {
+        println!("  ⚠ no PC advance — XDP may not have fired (debug needed)");
+    }
+
+    // Cleanup
+    runner.cleanup()?;
+    netns::teardown_upc0();
 
     Ok(())
 }
