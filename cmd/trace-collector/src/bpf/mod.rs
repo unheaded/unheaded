@@ -134,9 +134,19 @@ pub enum BpfCmd {
     ProgBindMap = 35,
 }
 
-/// bpf() syscall wrapper
+/// bpf() syscall wrapper.
+///
+/// # Safety
+///
+/// `attr` must point to a properly initialized BPF attribute struct of at
+/// least `size` bytes corresponding to `cmd`. The kernel reads from this
+/// pointer; an invalid or short pointer can cause kernel-side faults.
 #[inline]
-pub fn bpf_syscall(cmd: BpfCmd, attr: *const libc::c_void, size: u32) -> Result<RawFd, BpfError> {
+pub unsafe fn bpf_syscall(
+    cmd: BpfCmd,
+    attr: *const libc::c_void,
+    size: u32,
+) -> Result<RawFd, BpfError> {
     let ret = unsafe { libc::syscall(libc::SYS_bpf, cmd as u32, attr, size) };
 
     if ret < 0 {
@@ -171,11 +181,15 @@ pub fn bpf_obj_get(path: &std::path::Path) -> Result<RawFd, BpfError> {
         file_flags: 0,
     };
 
-    bpf_syscall(
-        BpfCmd::ObjGet,
-        &attr as *const _ as *const libc::c_void,
-        std::mem::size_of_val(&attr) as u32,
-    )
+    // SAFETY: attr is a fully initialized BpfObjGetAttr on the stack and
+    // its size matches what the kernel expects for ObjGet.
+    unsafe {
+        bpf_syscall(
+            BpfCmd::ObjGet,
+            &attr as *const _ as *const libc::c_void,
+            std::mem::size_of_val(&attr) as u32,
+        )
+    }
 }
 
 /// Get information about a BPF map
@@ -194,11 +208,15 @@ pub fn bpf_map_info(fd: RawFd) -> Result<BpfMapInfo, BpfError> {
         info: &mut info as *mut _ as u64,
     };
 
-    bpf_syscall(
-        BpfCmd::ObjGetInfoByFd,
-        &attr as *const _ as *const libc::c_void,
-        std::mem::size_of_val(&attr) as u32,
-    )?;
+    // SAFETY: attr is fully initialized; info_len matches the kernel's
+    // expected size for BpfMapInfo.
+    unsafe {
+        bpf_syscall(
+            BpfCmd::ObjGetInfoByFd,
+            &attr as *const _ as *const libc::c_void,
+            std::mem::size_of_val(&attr) as u32,
+        )?;
+    }
 
     Ok(info)
 }
