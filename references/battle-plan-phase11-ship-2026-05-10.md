@@ -52,8 +52,12 @@
 
 ```
 PROJECT_ROOT     = git rev-parse --show-toplevel  (resolved Step 1)
-KERNEL_MBC       = $PROJECT_ROOT/crates/xv6-mbc/build/xv6-mbc.mbc
-KERNEL_ELF       = $PROJECT_ROOT/crates/xv6-mbc/build/kernel.elf
+KERNEL_MBC       = $PROJECT_ROOT/crates/xv6-mbc/upstream/target/xv6-mbc.mbc
+KERNEL_ELF       = $PROJECT_ROOT/crates/xv6-mbc/upstream/target/kernel.elf
+                   (Marshal amendment 2026-05-10 Step 3: actual location is
+                   under upstream/target/, not build/. The Warmonger drafted
+                   from outdated assumption; corrected here without changing
+                   any step semantics.)
 INSTANCE_ID      = 222 (decimal) = 0xDE (hex) — the xv6-first-boot target
 TTY_BRIDGE_PORT  = 26100
 EBPF_OBJ         = $PROJECT_ROOT/target/bpfel-unknown-none/release/monad-cpu-ebpf
