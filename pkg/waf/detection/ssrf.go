@@ -834,7 +834,7 @@ func ParseIPFromOctal(octal string) net.IP {
 	var ip [4]byte
 	for i, part := range parts {
 		// Parse each octet, handling octal if it starts with 0
-		var base int = 10
+		base := 10
 		if strings.HasPrefix(part, "0") && len(part) > 1 {
 			base = 8
 		}

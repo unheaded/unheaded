@@ -694,7 +694,7 @@ func (a *Aggregator) UnregisterCheck(name string) error {
 	a.cbMu.Unlock()
 
 	// Emit event
-	var lastStatus HealthStatus = StatusUnknown
+	lastStatus := StatusUnknown
 	if lastResult != nil {
 		lastStatus = lastResult.Status
 	}
@@ -1174,7 +1174,7 @@ func (a *Aggregator) storeResultAndCheckStateChange(check *HealthCheck, result *
 	// Get previous result
 	a.resultsMu.RLock()
 	prev, exists := a.results[check.Name]
-	var prevStatus HealthStatus = StatusUnknown
+	prevStatus := StatusUnknown
 	if exists && prev != nil {
 		prevStatus = prev.Status
 	}

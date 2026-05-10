@@ -1797,7 +1797,7 @@ func resolveMapNames(f *elf.File, mapSection *elf.Section, defSize int, result *
 	}
 
 	// Find the section index of our maps section
-	var mapSectionIdx int = -1
+	mapSectionIdx := -1
 	for idx, s := range f.Sections {
 		if s == mapSection {
 			mapSectionIdx = idx
@@ -2203,7 +2203,7 @@ func (l *NativeLoader) applyRelocations(insns []byte, relocs []elfRelocation,
 			// Map FD reference: patch ld_imm64 instruction
 			mapName := reloc.SymbolName
 
-			var mapFD int = -1
+			mapFD := -1
 			if m, ok := maps[mapName]; ok {
 				mapFD = m.fd
 			}
