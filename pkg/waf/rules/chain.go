@@ -498,7 +498,7 @@ func (cr *ChainedRule) evaluateXOR(ctx context.Context, req *http.Request, data 
 
 // evaluateSingle evaluates just this rule (not children)
 func (cr *ChainedRule) evaluateSingle(ctx context.Context, req *http.Request, data *requestData, result *ChainEvaluationResult) bool {
-	if cr.Rule == nil || !cr.Rule.IsEnabled() {
+	if cr.Rule == nil || !cr.IsEnabled() {
 		return false
 	}
 
@@ -506,7 +506,7 @@ func (cr *ChainedRule) evaluateSingle(ctx context.Context, req *http.Request, da
 	for _, target := range cr.Targets {
 		inputs := getTargetInputs(target, data)
 		for _, input := range inputs {
-			if cr.Rule.Match(input) {
+			if cr.Match(input) {
 				return true
 			}
 		}

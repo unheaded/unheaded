@@ -521,7 +521,7 @@ func NewTestServerTLS(t *testing.T, handler http.Handler) *TestServer {
 // Client returns an HTTPClient configured for this server.
 func (s *TestServer) Client() *HTTPClient {
 	client := NewHTTPClient(s.URL)
-	if s.Server.TLS != nil {
+	if s.TLS != nil {
 		client.WithClient(s.Server.Client())
 	}
 	return client
