@@ -136,10 +136,8 @@ func NewImageStore(root string, registryConfig *RegistryConfig) (*ImageStore, er
 		},
 	}
 
-	// Load existing images
-	if err := store.loadImages(); err != nil {
-		// Log but don't fail
-	}
+	// Best-effort: image manifest may be missing on first boot.
+	_ = store.loadImages()
 
 	return store, nil
 }
@@ -841,10 +839,8 @@ func (s *ImageStore) fetchBlob(ctx context.Context, ref *imageReference, digest 
 		return nil, fmt.Errorf("digest mismatch: expected %s, got %s", digest, computedDigest)
 	}
 
-	// Cache blob
-	if err := os.WriteFile(blobPath, data, 0644); err != nil {
-		// Non-fatal
-	}
+	// Best-effort: blob cache write; the data is already in memory.
+	_ = os.WriteFile(blobPath, data, 0644)
 
 	return data, nil
 }

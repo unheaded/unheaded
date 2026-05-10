@@ -320,10 +320,8 @@ func (m *NamespaceManager) ConfigureNetworkNamespace(nsPath string) error {
 			return
 		}
 
-		// Bring up loopback interface
-		if err := bringUpLoopback(); err != nil {
-			// Log but don't fail
-		}
+		// Best-effort: loopback may already be up in this netns.
+		_ = bringUpLoopback()
 
 		// Return to original namespace
 		if err := unix.Setns(origNsFd, unix.CLONE_NEWNET); err != nil {
@@ -467,10 +465,8 @@ func (m *NamespaceManager) CreateUserNamespace(id string, uidMappings, gidMappin
 			}
 		}
 
-		// Write "deny" to setgroups before writing gid_map
-		if err := os.WriteFile("/proc/self/setgroups", []byte("deny"), 0); err != nil {
-			// Might not exist on older kernels
-		}
+		// Best-effort: setgroups may not exist on pre-3.19 kernels.
+		_ = os.WriteFile("/proc/self/setgroups", []byte("deny"), 0)
 
 		// Write GID mappings
 		if len(gidMappings) > 0 {

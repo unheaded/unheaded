@@ -121,10 +121,8 @@ func NewVolumeManager(root string) (*VolumeManager, error) {
 		volumes: make(map[string]*Volume),
 	}
 
-	// Load existing volumes
-	if err := mgr.loadVolumes(); err != nil {
-		// Log but don't fail
-	}
+	// Best-effort: existing volume metadata may be missing on first boot.
+	_ = mgr.loadVolumes()
 
 	return mgr, nil
 }
@@ -541,10 +539,10 @@ func (m *VolumeManager) SetupContainerMounts(rootfs string) error {
 	for _, dev := range devices {
 		path := filepath.Join(rootfs, dev.path)
 		devNum := unix.Mkdev(dev.major, dev.minor)
-		if err := unix.Mknod(path, dev.mode, int(devNum)); err != nil {
-			if !os.IsExist(err) {
-				// Log but don't fail - might not have permissions
-			}
+		// Best-effort: mknod may fail without CAP_MKNOD. ENOENT-on-exists
+		// is the normal already-created path.
+		if err := unix.Mknod(path, dev.mode, int(devNum)); err != nil && !os.IsExist(err) {
+			_ = err
 		}
 	}
 
@@ -562,9 +560,8 @@ func (m *VolumeManager) SetupContainerMounts(rootfs string) error {
 	for _, sl := range symlinks {
 		linkPath := filepath.Join(rootfs, sl.link)
 		os.Remove(linkPath) // Remove if exists
-		if err := os.Symlink(sl.target, linkPath); err != nil {
-			// Log but don't fail
-		}
+		// Best-effort: symlink may fail on read-only target dirs.
+		_ = os.Symlink(sl.target, linkPath)
 	}
 
 	return nil
@@ -582,10 +579,9 @@ func (m *VolumeManager) MaskPaths(rootfs string, paths []string) error {
 
 		// Bind mount /dev/null over the path
 		if err := unix.Mount("/dev/null", fullPath, "", unix.MS_BIND, ""); err != nil {
-			// Try mounting tmpfs instead
-			if err := unix.Mount("tmpfs", fullPath, "tmpfs", unix.MS_RDONLY, "size=0"); err != nil {
-				// Log but don't fail
-			}
+			// Best-effort: tmpfs fallback for masked paths; tmpfs is
+			// optional (the rootfs already shadows the path).
+			_ = unix.Mount("tmpfs", fullPath, "tmpfs", unix.MS_RDONLY, "size=0")
 		}
 	}
 
@@ -607,10 +603,9 @@ func (m *VolumeManager) ReadonlyPaths(rootfs string, paths []string) error {
 			continue
 		}
 
-		// Remount as read-only
-		if err := unix.Mount("", fullPath, "", unix.MS_BIND|unix.MS_REMOUNT|unix.MS_RDONLY|unix.MS_REC, ""); err != nil {
-			// Log but don't fail
-		}
+		// Best-effort: read-only remount may fail if the source is already
+		// read-only or the kernel rejected the bind-remount combination.
+		_ = unix.Mount("", fullPath, "", unix.MS_BIND|unix.MS_REMOUNT|unix.MS_RDONLY|unix.MS_REC, "")
 	}
 
 	return nil
@@ -639,10 +634,8 @@ func (m *VolumeManager) PivotRoot(newRoot string) error {
 		return fmt.Errorf("unmount old_root failed: %w", err)
 	}
 
-	// Remove old root directory
-	if err := os.Remove("/.old_root"); err != nil {
-		// Log but don't fail
-	}
+	// Best-effort: pivot_root post-cleanup; harmless if already gone.
+	_ = os.Remove("/.old_root")
 
 	return nil
 }

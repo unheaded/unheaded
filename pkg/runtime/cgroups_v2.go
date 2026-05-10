@@ -627,9 +627,8 @@ func (m *CgroupV2Manager) applyPIDsConfigV2(fullPath string, config *CgroupV2Con
 func (m *CgroupV2Manager) applyHugetlbConfigV2(fullPath string, config *CgroupV2Config) error {
 	for size, max := range config.HugetlbMax {
 		filename := fmt.Sprintf("hugetlb.%s.max", size)
-		if err := writeCgroupFile(fullPath, filename, fmt.Sprintf("%d", max)); err != nil {
-			// Continue on error - hugetlb might not be supported
-		}
+		// Best-effort: hugetlb size may not be supported on this host.
+		_ = writeCgroupFile(fullPath, filename, fmt.Sprintf("%d", max))
 	}
 	return nil
 }
@@ -693,25 +692,17 @@ func (m *CgroupV2Manager) GetStatsV2(containerID string) (*CgroupV2Stats, error)
 	fullPath := filepath.Join(m.root, cgroupPath)
 	stats := &CgroupV2Stats{}
 
-	// Read CPU stats
-	if err := m.readCPUStats(fullPath, &stats.CPU); err != nil {
-		// CPU stats might not be available
-	}
+	// Best-effort: CPU stats may be unavailable on this controller.
+	_ = m.readCPUStats(fullPath, &stats.CPU)
 
-	// Read memory stats
-	if err := m.readMemoryStats(fullPath, &stats.Memory); err != nil {
-		// Memory stats might not be available
-	}
+	// Best-effort: memory stats may be unavailable.
+	_ = m.readMemoryStats(fullPath, &stats.Memory)
 
-	// Read IO stats
-	if err := m.readIOStats(fullPath, &stats.IO); err != nil {
-		// IO stats might not be available
-	}
+	// Best-effort: IO stats may be unavailable.
+	_ = m.readIOStats(fullPath, &stats.IO)
 
-	// Read PIDs stats
-	if err := m.readPIDsStats(fullPath, &stats.PIDs); err != nil {
-		// PIDs stats might not be available
-	}
+	// Best-effort: PIDs stats may be unavailable.
+	_ = m.readPIDsStats(fullPath, &stats.PIDs)
 
 	// Read pressure stats
 	m.readPressureStats(fullPath, &stats.Pressure)
