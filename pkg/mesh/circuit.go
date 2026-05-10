@@ -553,7 +553,6 @@ type Bulkhead struct {
 	semaphore       chan struct{}
 	waitQueue       chan struct{}
 	timeout         time.Duration
-	mu              sync.RWMutex
 	activeRequests  int64
 	waitingRequests int64
 	totalRequests   uint64

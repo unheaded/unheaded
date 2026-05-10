@@ -112,11 +112,12 @@ func (a *ArchitectureDecision) Validate() error {
 	return nil
 }
 
-// InfrastructureState represents the complete infrastructure state
+// InfrastructureState represents the complete infrastructure state.
+// Concurrency is bounded by the enclosing ArchitectService.mu — the embedded
+// mu field on this struct was never observed.
 type InfrastructureState struct {
 	Services  map[string]*Service    `json:"services"`
 	Decisions []ArchitectureDecision `json:"decisions"`
-	mu        sync.RWMutex
 }
 
 // NetworkTopology represents the network topology
