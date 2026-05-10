@@ -63,13 +63,11 @@ var hqcParamInfo = map[ParameterSet]struct {
 // HQCEncapsulator is a stub implementation of the KEMEncapsulator interface
 // for HQC. Returns ErrAlgorithmNotAvailable for all operations until a Go
 // implementation of HQC becomes available.
-type HQCEncapsulator struct {
-	params ParameterSet
-}
+type HQCEncapsulator struct{}
 
 // NewHQCEncapsulator creates a new HQC encapsulator stub. Returns
 // ErrAlgorithmNotAvailable.
-func NewHQCEncapsulator(params ParameterSet) (*HQCEncapsulator, error) {
+func NewHQCEncapsulator(_ ParameterSet) (*HQCEncapsulator, error) {
 	return nil, ErrAlgorithmNotAvailable
 }
 
@@ -87,13 +85,11 @@ func (e *HQCEncapsulator) AlgoID() AlgoID {
 // HQCDecapsulator is a stub implementation of the KEMDecapsulator interface
 // for HQC. Returns ErrAlgorithmNotAvailable for all operations until a Go
 // implementation of HQC becomes available.
-type HQCDecapsulator struct {
-	params ParameterSet
-}
+type HQCDecapsulator struct{}
 
 // NewHQCDecapsulator creates a new HQC decapsulator stub. Returns
 // ErrAlgorithmNotAvailable.
-func NewHQCDecapsulator(params ParameterSet) (*HQCDecapsulator, error) {
+func NewHQCDecapsulator(_ ParameterSet) (*HQCDecapsulator, error) {
 	return nil, ErrAlgorithmNotAvailable
 }
 
