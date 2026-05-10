@@ -337,4 +337,3 @@ SOMETHING_ELSE=foo
 // spinSleep1ms uses time.Sleep for a 1 ms tick. Trivial helper kept
 // separate so other test files can call it if they need the same shape.
 func spinSleep1ms() { time.Sleep(time.Millisecond) }
-func timeSleep1ms() { time.Sleep(time.Millisecond) }

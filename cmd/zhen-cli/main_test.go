@@ -21,7 +21,6 @@ import (
 // assert the CLI sent the expected wire shape, and replies with the
 // canonical response shape.
 type fakeAgentd struct {
-	mu       *struct{}
 	srv      *httptest.Server
 	captured []toolExecRequest
 	respond  func(req toolExecRequest) toolExecResponse
