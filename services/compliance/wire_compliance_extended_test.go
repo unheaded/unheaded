@@ -5,6 +5,7 @@ package compliance
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"io"
 	"net/http"
@@ -165,10 +166,10 @@ func TestHandleCriticalAlert(t *testing.T) {
 	svc := NewService(logger.New(io.Discard), nil, nil)
 
 	// nil message should not panic
-	svc.handleCriticalAlert(nil, nil)
+	svc.handleCriticalAlert(context.Background(), nil)
 
 	// Valid message should not panic
-	svc.handleCriticalAlert(nil, &wotanClient.Message{
+	svc.handleCriticalAlert(context.Background(), &wotanClient.Message{
 		MessageID: "msg-001",
 		Topic:     "alerts.critical",
 	})
@@ -178,7 +179,7 @@ func TestPublishEventNilWotan(t *testing.T) {
 	svc := NewService(logger.New(io.Discard), nil, nil)
 
 	initialDrops := svc.WotanDrops()
-	svc.publishEvent(nil, "test.topic", map[string]interface{}{
+	svc.publishEvent(context.Background(), "test.topic", map[string]interface{}{
 		"key": "value",
 	})
 
@@ -514,7 +515,7 @@ func TestHTTPMetricsWithData(t *testing.T) {
 		ViolationType: ViolationPolicy,
 		ActionTaken:   ActionBlock,
 	})
-	svc.aggregateViolations(nil)
+	svc.aggregateViolations(context.Background())
 
 	mux := http.NewServeMux()
 	svc.registerRoutes(mux)
@@ -635,7 +636,7 @@ func TestAggregateViolationsAuditCompleteness(t *testing.T) {
 		TraceID:       "trace-audit",
 	})
 
-	svc.aggregateViolations(nil)
+	svc.aggregateViolations(context.Background())
 	score := svc.GetScore()
 
 	// 1 audit entry out of 11 total packets
@@ -663,7 +664,7 @@ func TestAggregateViolationsAuditCompletenessCap(t *testing.T) {
 	}
 	svc.mu.Unlock()
 
-	svc.aggregateViolations(nil)
+	svc.aggregateViolations(context.Background())
 	score := svc.GetScore()
 
 	if score.AuditCompleteness > 1.0 {
@@ -691,7 +692,7 @@ func TestAggregateViolationsTrimsAuditLog(t *testing.T) {
 		})
 	}
 
-	svc.aggregateViolations(nil)
+	svc.aggregateViolations(context.Background())
 
 	svc.mu.RLock()
 	auditCount := len(svc.auditLog)
@@ -748,7 +749,7 @@ func TestAggregateViolationsScoreFloor(t *testing.T) {
 	}
 	svc.mu.Unlock()
 
-	svc.aggregateViolations(nil)
+	svc.aggregateViolations(context.Background())
 	score := svc.GetScore()
 
 	if score.ScorePct < 0 {
@@ -763,7 +764,7 @@ func TestAggregateViolationsScoreFloor(t *testing.T) {
 func TestListenForAlertsNilWotan(t *testing.T) {
 	svc := NewService(logger.New(io.Discard), nil, nil)
 	// Should return immediately without panicking
-	svc.listenForAlerts(nil)
+	svc.listenForAlerts(context.Background())
 }
 
 // ---------------------------------------------------------------------------
@@ -812,7 +813,7 @@ func TestHTTPComplianceScoreResponse(t *testing.T) {
 		ViolationType: ViolationPolicy,
 		ActionTaken:   ActionBlock,
 	})
-	svc.aggregateViolations(nil)
+	svc.aggregateViolations(context.Background())
 
 	mux := http.NewServeMux()
 	svc.registerRoutes(mux)

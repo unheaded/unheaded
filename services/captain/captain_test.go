@@ -248,7 +248,7 @@ func TestService_GetStrategy(t *testing.T) {
 	})
 
 	t.Run("nil context becomes background", func(t *testing.T) {
-		strategy, err := svc.GetStrategy(nil)
+		strategy, err := svc.GetStrategy(nil) //nolint:staticcheck // intentional nil-context coverage
 		if err != nil {
 			t.Errorf("GetStrategy with nil context failed: %v", err)
 		}

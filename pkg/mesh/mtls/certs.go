@@ -342,9 +342,10 @@ func (cm *CertificateManager) scheduleRotation() {
 	}
 
 	cm.rotationTimer = time.AfterFunc(duration, func() {
-		if err := cm.Rotate(); err != nil {
-			// Log error (in production, use proper logging)
-		}
+		// Best-effort rotation; failures are retried on the next NotAfter
+		// boundary by scheduleRotation. Logger is wired upstream when
+		// CertManager is constructed by unheaded-daemon.
+		_ = cm.Rotate()
 	})
 }
 

@@ -348,7 +348,7 @@ func TestArchitectService_publishStateChange_WithoutTraceID(t *testing.T) {
 
 func TestArchitectService_GetNetworkNode_NilContext(t *testing.T) {
 	svc := New()
-	_, err := svc.GetNetworkNode(nil, "node-1")
+	_, err := svc.GetNetworkNode(nil, "node-1") //nolint:staticcheck // intentional nil-context coverage
 	if err != ErrNilContext {
 		t.Errorf("GetNetworkNode(nil ctx) = %v, want ErrNilContext", err)
 	}
@@ -379,7 +379,7 @@ func TestArchitectService_GetNetworkNode_NotFound(t *testing.T) {
 func TestArchitectService_AddNetworkNode_NilContext(t *testing.T) {
 	svc := New()
 	node := createValidNetworkNode()
-	err := svc.AddNetworkNode(nil, node)
+	err := svc.AddNetworkNode(nil, node) //nolint:staticcheck // intentional nil-context coverage
 	if err != ErrNilContext {
 		t.Errorf("AddNetworkNode(nil ctx) = %v, want ErrNilContext", err)
 	}
@@ -415,7 +415,7 @@ func TestArchitectService_AddNetworkNode_TimestampsSet(t *testing.T) {
 
 func TestArchitectService_ListNetworkNodes_NilContext(t *testing.T) {
 	svc := New()
-	_, err := svc.ListNetworkNodes(nil)
+	_, err := svc.ListNetworkNodes(nil) //nolint:staticcheck // intentional nil-context coverage
 	if err != ErrNilContext {
 		t.Errorf("ListNetworkNodes(nil ctx) = %v, want ErrNilContext", err)
 	}
@@ -439,7 +439,7 @@ func TestArchitectService_ListNetworkNodes_Empty(t *testing.T) {
 
 func TestArchitectService_GetNetworkTopology_NilContext(t *testing.T) {
 	svc := New()
-	_, err := svc.GetNetworkTopology(nil)
+	_, err := svc.GetNetworkTopology(nil) //nolint:staticcheck // intentional nil-context coverage
 	if err != ErrNilContext {
 		t.Errorf("GetNetworkTopology(nil ctx) = %v, want ErrNilContext", err)
 	}
@@ -452,7 +452,7 @@ func TestArchitectService_GetNetworkTopology_NilContext(t *testing.T) {
 func TestArchitectService_LogDecision_NilContext(t *testing.T) {
 	svc := New()
 	decision := createValidDecision()
-	err := svc.LogDecision(nil, decision)
+	err := svc.LogDecision(nil, decision) //nolint:staticcheck // intentional nil-context coverage
 	if err != ErrNilContext {
 		t.Errorf("LogDecision(nil ctx) = %v, want ErrNilContext", err)
 	}
@@ -512,7 +512,7 @@ func TestArchitectService_LogDecision_MultipleDecisions(t *testing.T) {
 
 func TestArchitectService_ListDecisions_NilContext(t *testing.T) {
 	svc := New()
-	_, err := svc.ListDecisions(nil)
+	_, err := svc.ListDecisions(nil) //nolint:staticcheck // intentional nil-context coverage
 	if err != ErrNilContext {
 		t.Errorf("ListDecisions(nil ctx) = %v, want ErrNilContext", err)
 	}

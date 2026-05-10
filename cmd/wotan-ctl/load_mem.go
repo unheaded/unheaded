@@ -71,9 +71,9 @@ Examples:
 				os.Exit(1)
 			}
 
-			if verbose {
-				// Note: logger not imported, would use ctx.Logger.SetLevel
-			}
+			// TODO(wotan-ctl): wire pkg/logger here so --verbose flips
+			// the global level. Today the flag is parsed but inert.
+			_ = verbose
 
 			return loadMem(ctx, flowLabel, baseAddr, file, wotanAddr, mapPinPath, warm, verify)
 		},

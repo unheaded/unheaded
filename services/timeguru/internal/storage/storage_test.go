@@ -158,7 +158,7 @@ func TestStore_SaveTimeline_NilContext(t *testing.T) {
 	tl := createTestTimeline()
 
 	// nil context should use background context internally
-	err = store.SaveTimeline(nil, tl)
+	err = store.SaveTimeline(nil, tl) //nolint:staticcheck // intentional nil-context coverage
 	if err != nil {
 		t.Errorf("SaveTimeline() should handle nil context, error = %v", err)
 	}

@@ -4,6 +4,7 @@
 package http
 
 import (
+	"context"
 	"encoding/json"
 	"encoding/xml"
 	"fmt"
@@ -956,7 +957,7 @@ func TestServerShutdownWhenNotRunning(t *testing.T) {
 	s := NewServer(r)
 
 	// Shutdown on a server that never started should be no-op
-	err := s.Shutdown(nil)
+	err := s.Shutdown(context.Background())
 	if err != nil {
 		t.Errorf("expected nil error, got %v", err)
 	}

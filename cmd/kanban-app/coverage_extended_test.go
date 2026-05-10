@@ -2220,7 +2220,7 @@ func TestTaskManager_UpdateTask_NilContext(t *testing.T) {
 	tm.addTask(task)
 
 	task.Title = "Updated"
-	err := tm.UpdateTask(nil, task)
+	err := tm.UpdateTask(nil, task) //nolint:staticcheck // intentional nil-context coverage
 	if err != nil {
 		t.Fatalf("expected no error with nil context, got %v", err)
 	}
@@ -2231,7 +2231,7 @@ func TestTaskManager_DeleteTask_NilContext(t *testing.T) {
 	task := createTestTask("nil-ctx-del")
 	tm.addTask(task)
 
-	err := tm.DeleteTask(nil, "nil-ctx-del")
+	err := tm.DeleteTask(nil, "nil-ctx-del") //nolint:staticcheck // intentional nil-context coverage
 	if err != nil {
 		t.Fatalf("expected no error with nil context, got %v", err)
 	}
@@ -2241,7 +2241,7 @@ func TestTaskManager_CreateTask_NilContext(t *testing.T) {
 	tm, _ := createTestTaskManager(t)
 	task := createTestTask("nil-ctx-create")
 
-	err := tm.CreateTask(nil, task)
+	err := tm.CreateTask(nil, task) //nolint:staticcheck // intentional nil-context coverage
 	if err != nil {
 		t.Fatalf("expected no error with nil context, got %v", err)
 	}

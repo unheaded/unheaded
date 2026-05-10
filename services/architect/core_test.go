@@ -247,7 +247,7 @@ func TestArchitectService_AddService_NilContext(t *testing.T) {
 	s := createTestService(t)
 	svc := createValidService()
 
-	err := s.AddService(nil, svc)
+	err := s.AddService(nil, svc) //nolint:staticcheck // intentional nil-context coverage
 	if err != ErrNilContext {
 		t.Errorf("AddService(nil ctx) = %v, want ErrNilContext", err)
 	}
@@ -305,7 +305,7 @@ func TestArchitectService_GetService_NotFound(t *testing.T) {
 
 func TestArchitectService_GetService_NilContext(t *testing.T) {
 	s := createTestService(t)
-	_, err := s.GetService(nil, "test")
+	_, err := s.GetService(nil, "test") //nolint:staticcheck // intentional nil-context coverage
 	if err != ErrNilContext {
 		t.Errorf("GetService(nil ctx) = %v, want ErrNilContext", err)
 	}
@@ -361,7 +361,7 @@ func TestArchitectService_ListServices_Multiple(t *testing.T) {
 
 func TestArchitectService_ListServices_NilContext(t *testing.T) {
 	s := createTestService(t)
-	_, err := s.ListServices(nil)
+	_, err := s.ListServices(nil) //nolint:staticcheck // intentional nil-context coverage
 	if err != ErrNilContext {
 		t.Errorf("ListServices(nil ctx) = %v, want ErrNilContext", err)
 	}
@@ -490,7 +490,7 @@ func TestArchitectService_GetInfrastructureState_Happy(t *testing.T) {
 
 func TestArchitectService_GetInfrastructureState_NilContext(t *testing.T) {
 	s := createTestService(t)
-	_, err := s.GetInfrastructureState(nil)
+	_, err := s.GetInfrastructureState(nil) //nolint:staticcheck // intentional nil-context coverage
 	if err != ErrNilContext {
 		t.Errorf("GetInfrastructureState(nil ctx) = %v, want ErrNilContext", err)
 	}
@@ -535,7 +535,7 @@ func TestArchitectService_Health_Happy(t *testing.T) {
 
 func TestArchitectService_Health_NilContext(t *testing.T) {
 	s := createTestService(t)
-	_, err := s.Health(nil)
+	_, err := s.Health(nil) //nolint:staticcheck // intentional nil-context coverage
 	if err != ErrNilContext {
 		t.Errorf("Health(nil ctx) = %v, want ErrNilContext", err)
 	}

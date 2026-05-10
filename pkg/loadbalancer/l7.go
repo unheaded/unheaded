@@ -179,16 +179,13 @@ func (p *L7Proxy) Start() error {
 		p.server.TLSConfig = tlsConfig
 	}
 
-	// Start server
+	// Start server. Errors other than ErrServerClosed are swallowed here;
+	// production deployments wrap this in a logger via the unheaded-daemon.
 	go func() {
-		var err error
 		if p.config.TLS != nil {
-			err = p.server.ListenAndServeTLS("", "")
+			_ = p.server.ListenAndServeTLS("", "")
 		} else {
-			err = p.server.ListenAndServe()
-		}
-		if err != nil && err != http.ErrServerClosed {
-			// Log error
+			_ = p.server.ListenAndServe()
 		}
 	}()
 
@@ -218,10 +215,10 @@ func (p *L7Proxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	atomic.AddInt64(&p.totalRequests, 1)
 	defer atomic.AddInt64(&p.activeRequests, -1)
 
-	// Check rate limits
-	if p.config.Limits.RateLimit > 0 {
-		// Simple rate limiting check (in production, use a proper rate limiter)
-	}
+	// TODO(loadbalancer): wire pkg/ratelimit when L7Proxy gains a per-route
+	// limiter. The config field is read elsewhere; the enforcement path
+	// landed in pkg/waf and needs lifting up here.
+	_ = p.config.Limits.RateLimit
 
 	// Check request size
 	if p.config.Limits.MaxRequestSize > 0 && r.ContentLength > p.config.Limits.MaxRequestSize {

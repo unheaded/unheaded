@@ -136,7 +136,7 @@ func TestTaskManager_Initialize_NilContext_UsesBackground(t *testing.T) {
 	tm, _ := createTestTaskManager(t)
 
 	// Pass nil context - should not panic
-	if err := tm.Initialize(nil); err != nil {
+	if err := tm.Initialize(nil); err != nil { //nolint:staticcheck // intentional nil-context coverage
 		t.Fatalf("Initialize with nil context failed: %v", err)
 	}
 }
