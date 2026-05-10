@@ -406,11 +406,10 @@ func TestActiveHealthChecker(t *testing.T) {
 	t.Run("NewActiveHealthChecker", func(t *testing.T) {
 		config := DefaultHealthCheckConfig()
 		ahc := NewActiveHealthChecker(config)
-		defer ahc.Close()
-
 		if ahc == nil {
 			t.Fatal("expected non-nil active health checker")
 		}
+		defer ahc.Close()
 	})
 
 	t.Run("RegisterProbe", func(t *testing.T) {

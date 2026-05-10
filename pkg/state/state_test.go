@@ -2112,7 +2112,7 @@ func TestGetActualStateSnapshot(t *testing.T) {
 	_, _ = r.GetActualState(context.Background())
 	snap := r.GetActualStateSnapshot()
 	if snap == nil {
-		t.Error("expected non-nil snapshot after GetActualState")
+		t.Fatal("expected non-nil snapshot after GetActualState")
 	}
 	if len(snap.Containers) != 1 {
 		t.Errorf("containers = %d, want 1", len(snap.Containers))

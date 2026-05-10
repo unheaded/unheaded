@@ -788,7 +788,7 @@ func TestPriorityClassManager_AddClass_GlobalDefault(t *testing.T) {
 
 	defaultClass := pcm.GetDefaultClass()
 	if defaultClass == nil {
-		t.Error("expected default class to be set")
+		t.Fatal("expected default class to be set")
 	}
 	if defaultClass.Name != "default-class" {
 		t.Errorf("expected default-class, got %s", defaultClass.Name)

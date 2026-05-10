@@ -203,7 +203,7 @@ func TestArchitectureDecision_Validate_EmptyDescription(t *testing.T) {
 func TestArchitectService_New(t *testing.T) {
 	s := New()
 	if s == nil {
-		t.Errorf("New() = nil, want non-nil service")
+		t.Fatal("New() = nil, want non-nil service")
 	}
 	if s.infra == nil {
 		t.Errorf("infra = nil, want non-nil")
