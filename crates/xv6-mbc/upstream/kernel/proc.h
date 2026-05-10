@@ -1,21 +1,17 @@
 // Saved registers for kernel context switches.
+//
+// MBC-trimmed: full RV32 callee-saved set is ra, sp, s0-s11. MBC exposes
+// only x0-x15, and Makefile.mbc CFLAGS pin -ffixed-x18 ... -ffixed-x27 so
+// the C compiler cannot assign code to s2-s11. Those registers therefore
+// cannot hold live values across a swtch() call site; struct context omits
+// them. See crates/xv6-mbc/adapters/swtch_mbc.S for the matching assembly.
 struct context {
   uint32 ra;
   uint32 sp;
 
-  // callee-saved
+  // callee-saved (MBC-mappable subset)
   uint32 s0;
   uint32 s1;
-  uint32 s2;
-  uint32 s3;
-  uint32 s4;
-  uint32 s5;
-  uint32 s6;
-  uint32 s7;
-  uint32 s8;
-  uint32 s9;
-  uint32 s10;
-  uint32 s11;
 };
 
 // Per-CPU state.
