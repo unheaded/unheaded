@@ -275,7 +275,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if err := writeLE32(f, bin); err != nil {
 		fmt.Fprintf(os.Stderr, "write error: %v\n", err)

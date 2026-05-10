@@ -7,6 +7,7 @@ package strategy
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"time"
 )
@@ -326,13 +327,18 @@ func (s *CanaryStrategy) Execute(ctx context.Context, params *ExecuteParams) (*R
 		return s.buildFailedResult(deployment, startTime, err)
 	}
 
-	// Shift 100% traffic to canary
+	// Shift 100% traffic to canary. Errors here are recorded but do not
+	// abort the deployment — at this point we've already proved the new
+	// version healthy and the user-supplied callback may legitimately
+	// signal partial success (e.g. mesh sync lag).
 	if params.Callbacks != nil && params.Callbacks.OnTrafficShift != nil {
-		params.Callbacks.OnTrafficShift(ctx, &TrafficShiftParams{
+		if err := params.Callbacks.OnTrafficShift(ctx, &TrafficShiftParams{
 			OldVersion: params.CurrentVersion,
 			NewVersion: params.TargetVersion,
 			Weight:     100,
-		})
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "canary: 100%% shift callback: %v\n", err)
+		}
 		deployment.result.Metrics.TrafficShifts++
 	}
 

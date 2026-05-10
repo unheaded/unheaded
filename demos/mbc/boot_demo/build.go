@@ -332,7 +332,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
-	defer kernelFile.Close()
+	defer func() { _ = kernelFile.Close() }()
 
 	if err := writeLE32(kernelFile, combined); err != nil {
 		fmt.Fprintf(os.Stderr, "write error: %v\n", err)
@@ -354,7 +354,7 @@ func main() {
 		fmt.Fprintf(os.Stderr, "error creating ramdisk: %v\n", err)
 		os.Exit(1)
 	}
-	defer ramdiskFile.Close()
+	defer func() { _ = ramdiskFile.Close() }()
 
 	if err := writeLE32(ramdiskFile, fs); err != nil {
 		fmt.Fprintf(os.Stderr, "ramdisk write error: %v\n", err)
