@@ -233,11 +233,12 @@ func instrument(h http.HandlerFunc, operation string) http.HandlerFunc {
 // handleDesign handles both GET and POST for /design endpoint
 func handleDesign(h *architect.HTTPHandler, operation string) http.HandlerFunc {
 	return instrument(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodPost {
+		switch r.Method {
+		case http.MethodPost:
 			h.LogDesign(w, r)
-		} else if r.Method == http.MethodGet {
+		case http.MethodGet:
 			h.GetDesignDecisions(w, r)
-		} else {
+		default:
 			w.WriteHeader(http.StatusMethodNotAllowed)
 		}
 	}, operation)

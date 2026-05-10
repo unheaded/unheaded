@@ -995,11 +995,12 @@ func (m *RollbackManager) GetStats(ctx context.Context) *RollbackStats {
 			stats.ByTrigger[r.Trigger]++
 			stats.ByState[r.State]++
 
-			if r.State == RollbackStateCompleted {
+			switch r.State {
+			case RollbackStateCompleted:
 				stats.Successful++
 				totalDuration += r.Duration
 				completed++
-			} else if r.State == RollbackStateFailed {
+			case RollbackStateFailed:
 				stats.Failed++
 			}
 		}

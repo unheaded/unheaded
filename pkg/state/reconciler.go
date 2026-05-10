@@ -793,9 +793,10 @@ func (r *Reconciler) GetActualState(ctx context.Context) (*ActualState, error) {
 	healthy := 0
 	unhealthy := 0
 	for _, c := range state.Containers {
-		if c.Health == HealthHealthy {
+		switch c.Health {
+		case HealthHealthy:
 			healthy++
-		} else if c.Health == HealthUnhealthy {
+		case HealthUnhealthy:
 			unhealthy++
 		}
 	}
