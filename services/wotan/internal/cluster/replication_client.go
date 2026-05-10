@@ -49,7 +49,12 @@ func NewReplicationClient(peerAddr, nodeID, pkiDir string, epoch int64) *Replica
 
 // Connect establishes gRPC connection to the primary.
 // Uses mTLS if pkiDir is set, falls back to insecure for development.
-func (c *ReplicationClient) Connect(ctx context.Context) error {
+//
+// ctx is accepted for callers that previously relied on DialContext's
+// dial-deadline semantics. With grpc.NewClient connection is lazy, so the
+// ctx is now consumed by downstream RPCs (CatchUp / StartReplication
+// loop) rather than the dial itself.
+func (c *ReplicationClient) Connect(_ context.Context) error {
 	var dialOpt grpc.DialOption
 	if c.pkiDir != "" {
 		tlsCfg, err := mtls.SetupServiceClientTLS("wotan", c.pkiDir)
@@ -63,7 +68,10 @@ func (c *ReplicationClient) Connect(ctx context.Context) error {
 		dialOpt = grpc.WithTransportCredentials(insecure.NewCredentials())
 	}
 
-	conn, err := grpc.DialContext(ctx, c.peerAddr, dialOpt, grpc.WithBlock())
+	// grpc.NewClient (lazy/non-blocking) replaces deprecated DialContext +
+	// WithBlock. The first RPC will surface any connection errors; the
+	// outer reconnection loop in StartReplication handles retries.
+	conn, err := grpc.NewClient(c.peerAddr, dialOpt)
 	if err != nil {
 		return fmt.Errorf("replication_client: connect %s: %w", c.peerAddr, err)
 	}
