@@ -38,17 +38,24 @@ pub fn image_path() -> Option<PathBuf> {
 /// Re-export the UPC Boot Protocol v2 magic for callers that need to verify
 /// the built image is well-formed before booting.
 ///
-/// Per `docs/doom/UPC_BOOT_PROTOCOL.md` ("encodes UNHD in ASCII") and
-/// `docs/doom/UPC_BOOT_PROTOCOL_V2.md:113` (`u32 magic; /* 'UNHD' = 0x554E4844 */`).
+/// **Canonical form:** `0x554E4844` — the u32 hex constant, brand-spelled
+/// `'UNHD'` when read MSB-first (the form used in spec text, equality
+/// comparisons, and human conversation).
 ///
-/// **Display caveat (Marshal note 2026-05-09):** when this u32 is rendered as
-/// little-endian bytes (e.g. via `cmd/upc-bootctl validate`'s
-/// `BOOT_MAGIC.to_le_bytes()` call) the visible string is `"DHNU"`, not
-/// `"UNHD"` — the spec's "UNHD" framing reads the bytes in big-endian order.
-/// Either the spec needs an endianness clarification or the in-memory layout
-/// should be byte-swapped to `0x44484E55`. Surfaced for daytime resolution;
-/// the constant value itself is left at the spec-pinned `0x554E4844`.
-pub const BOOT_MAGIC: u32 = 0x554E4844; // 'UNHD' per spec, 'DHNU' if read le
+/// **Wire/memory form:** stored as a single little-endian u32, so the four
+/// bytes at increasing memory addresses are `D, H, N, U` (`0x44, 0x48, 0x4E,
+/// 0x55`). A debugger or hex-dump of the BootParams region shows `DHNU`;
+/// kernel code reading the field as a u32 (RV32 LW) sees `0x554E4844` and
+/// matches against the canonical hex.
+///
+/// Both representations describe the same 32-bit constant. This is the same
+/// pattern as ELF's `\x7fELF` magic, which is `0x464C457F` as a host-endian
+/// u32 on LE systems.
+///
+/// Resolved 2026-05-10 per ADR-072 ("BOOT_MAGIC byte-ordering convention");
+/// see `docs/doom/UPC_BOOT_PROTOCOL.md` §"Magic Value" and
+/// `docs/doom/UPC_BOOT_PROTOCOL_V2.md` line 113 for the spec-side framing.
+pub const BOOT_MAGIC: u32 = 0x554E4844;
 
 #[cfg(test)]
 mod tests {
@@ -64,9 +71,11 @@ mod tests {
 
     #[test]
     fn boot_magic_le_bytes_visual_is_dhnu() {
-        // Pin the *actual* observable byte order so any future endianness
-        // change is an intentional, reviewed edit rather than silent drift.
-        // See the BOOT_MAGIC docstring for the ongoing spec-clarity question.
+        // Intentional pin per ADR-072: the canonical hex 0x554E4844, when
+        // serialized as little-endian bytes for the BootParams.magic field,
+        // produces D,H,N,U at increasing memory addresses. Any future change
+        // to the BOOT_MAGIC constant must be an intentional, reviewed edit
+        // (ADR amendment + spec doc update).
         let bytes = BOOT_MAGIC.to_le_bytes();
         assert_eq!(&bytes, b"DHNU");
     }

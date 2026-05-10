@@ -70,11 +70,28 @@ Offset  Field           Type    Description
 
 ### Magic Value
 
-The magic value `0x554E4844` encodes "UNHD" (Unheaded) in ASCII:
-- `U` = 0x55, `N` = 0x4E, `H` = 0x48, `D` = 0x44
-- Stored as a single little-endian u32
+The magic is the canonical 32-bit constant `0x554E4844`, written as a u32
+in MSB-first hex notation as `'U','N','H','D'` (Unheaded) — the brand spelling.
 
-A kernel should verify this magic before trusting the BootParams.
+**Wire/memory representation (per ADR-072):** stored as a single little-endian
+u32, so the four bytes at increasing memory addresses are:
+
+| Byte offset | Value  | ASCII |
+|-------------|--------|-------|
+| 0x00        | `0x44` | `D`   |
+| 0x01        | `0x48` | `H`   |
+| 0x02        | `0x4E` | `N`   |
+| 0x03        | `0x55` | `U`   |
+
+Both views describe the same 32-bit constant — `0x554E4844` is the canonical
+hex form for spec text and equality comparisons; the memory-order string is
+`D,H,N,U` ("DHNU"). A kernel comparing the field as a u32 (e.g. RV32 LW) sees
+the canonical hex and matches against `0x554E4844`. A debugger byte-dumping
+the BootParams region sees `D H N U` at increasing addresses. Both are
+correct; this is identical in form to ELF's `\x7fELF` magic which is
+`0x464C457F` as a host-endian u32 on LE systems.
+
+Kernels MUST verify this magic before trusting the BootParams.
 
 ## Interrupt Vector Table (IVT)
 
