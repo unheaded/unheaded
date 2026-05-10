@@ -52,9 +52,12 @@ func TestInterfaceCompliance(t *testing.T) {
 	// but we verify at runtime that both constructors return a Client.
 
 	t.Run("MockClient implements Client", func(t *testing.T) {
+		// SA4023: c == nil is always false because *MockClient sets the
+		// interface's concrete type. Validate compliance via Connect (which
+		// the mock supports without prior wiring).
 		var c Client = NewMockClient()
-		if c == nil {
-			t.Fatal("NewMockClient returned nil")
+		if err := c.Connect(context.Background()); err != nil {
+			t.Errorf("MockClient.Connect: %v", err)
 		}
 	})
 
