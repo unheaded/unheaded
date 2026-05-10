@@ -774,13 +774,17 @@ func TestContextSetGetConcurrent(t *testing.T) {
 
 // --- Standard Context Interface Tests ---
 
+type ctxTestKey string
+
+const ctxTestKeyName ctxTestKey = "key"
+
 func TestContextContext(t *testing.T) {
-	ctx := context.WithValue(context.Background(), "key", "value")
+	ctx := context.WithValue(context.Background(), ctxTestKeyName, "value")
 	req := httptest.NewRequest(http.MethodGet, "/test", nil).WithContext(ctx)
 	c := &Context{Request: req}
 
 	stdCtx := c.Context()
-	if stdCtx.Value("key") != "value" {
+	if stdCtx.Value(ctxTestKeyName) != "value" {
 		t.Error("Context() should return request's context")
 	}
 }
@@ -789,10 +793,10 @@ func TestContextWithContext(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	c := &Context{Request: req}
 
-	newCtx := context.WithValue(context.Background(), "key", "value")
+	newCtx := context.WithValue(context.Background(), ctxTestKeyName, "value")
 	c2 := c.WithContext(newCtx)
 
-	if c2.Request.Context().Value("key") != "value" {
+	if c2.Request.Context().Value(ctxTestKeyName) != "value" {
 		t.Error("WithContext should update request's context")
 	}
 }
@@ -855,13 +859,14 @@ func TestContextErr(t *testing.T) {
 }
 
 func TestContextValue(t *testing.T) {
+	const ctxKeyName ctxTestKey = "contextkey"
 	// Test context keys
 	c := &Context{
 		keys: map[string]any{
 			"local": "localvalue",
 		},
 	}
-	ctx := context.WithValue(context.Background(), "contextkey", "contextvalue")
+	ctx := context.WithValue(context.Background(), ctxKeyName, "contextvalue")
 	req := httptest.NewRequest(http.MethodGet, "/test", nil).WithContext(ctx)
 	c.Request = req
 
@@ -871,7 +876,7 @@ func TestContextValue(t *testing.T) {
 	}
 
 	// Falls back to request context
-	if c.Value("contextkey") != "contextvalue" {
+	if c.Value(ctxKeyName) != "contextvalue" {
 		t.Error("should return context value for non-local key")
 	}
 

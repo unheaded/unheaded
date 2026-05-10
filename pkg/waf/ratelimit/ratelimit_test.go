@@ -565,12 +565,16 @@ func TestEndpointLimiter_Reset(t *testing.T) {
 	}
 }
 
+type ratelimitTestCtxKey string
+
+const ctxKeyClientIP ratelimitTestCtxKey = "client_ip"
+
 func TestRateLimitMiddleware_Check(t *testing.T) {
 	limiter := NewSlidingWindow(5, time.Second)
 	defer limiter.Close()
 
 	keyExtractor := func(ctx context.Context) string {
-		if key, ok := ctx.Value("client_ip").(string); ok {
+		if key, ok := ctx.Value(ctxKeyClientIP).(string); ok {
 			return key
 		}
 		return "unknown"
@@ -584,7 +588,7 @@ func TestRateLimitMiddleware_Check(t *testing.T) {
 	middleware := NewRateLimitMiddleware(limiter, keyExtractor)
 	middleware.SetLimitReachedHandler(onLimitReached)
 
-	ctx := context.WithValue(context.Background(), "client_ip", "1.2.3.4")
+	ctx := context.WithValue(context.Background(), ctxKeyClientIP, "1.2.3.4")
 
 	// Should allow first 5
 	for i := 0; i < 5; i++ {
