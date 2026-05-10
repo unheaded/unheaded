@@ -108,8 +108,11 @@ fn cmd_validate(kernel: PathBuf) -> Result<()> {
         );
     }
 
+    // Per ADR-072: canonical hex is the brand-spelled form (UNHD MSB-first),
+    // and the LE byte sequence is the wire-order form (DHNU at increasing
+    // memory addresses). Both shown for operator clarity.
     println!(
-        "\nBoot magic: 0x{:08X} ('{}')",
+        "\nBoot magic: 0x{:08X} (canonical 'UNHD' MSB-first; wire bytes '{}' per ADR-072)",
         xv6_mbc::BOOT_MAGIC,
         std::str::from_utf8(&xv6_mbc::BOOT_MAGIC.to_le_bytes())
             .unwrap_or("???")
@@ -144,7 +147,7 @@ fn cmd_boot(
     println!("  3. Zero CSR region (byte 0x000_F000-0x000_F0FF)");
     println!("  4. Write default HLT trap handler at 0x0400");
     println!("  5. Write BootParams v2 (256 bytes) at 0x0100");
-    println!("     magic = 'UNHD' (0x{:08X})", xv6_mbc::BOOT_MAGIC);
+    println!("     magic = 0x{:08X} (canonical 'UNHD' MSB-first; wire bytes 'DHNU' per ADR-072)", xv6_mbc::BOOT_MAGIC);
     println!("     version = 2");
     println!("     kernel_addr = 0x10000 (stage-1 stub)");
     println!("     bss_start / bss_end (read from kernel.elf .bss)");

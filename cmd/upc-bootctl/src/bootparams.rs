@@ -119,7 +119,10 @@ mod tests {
     fn to_bytes_first_four_bytes_are_magic_le() {
         let bp = BootParamsV2::for_xv6(0, 0);
         let bytes = bp.to_bytes();
-        // 'UNHD' = 0x554E4844 LE = [0x44, 0x48, 0x4E, 0x55] = 'D','H','N','U'
+        // Intentional pin per ADR-072: canonical hex 0x554E4844 ('UNHD'
+        // MSB-first) serializes as little-endian to D,H,N,U at increasing
+        // byte offsets. Wire bytes match `docs/doom/UPC_BOOT_PROTOCOL_V2.md`
+        // §"Field semantics" magic field.
         assert_eq!(&bytes[0..4], &[0x44, 0x48, 0x4E, 0x55]);
     }
 

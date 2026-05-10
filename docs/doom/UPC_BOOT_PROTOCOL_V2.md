@@ -110,7 +110,9 @@ The kernel image moved from 0x10000 (v1) to 0x20000 (v2) to make room for the st
 ```c
 struct BootParamsV2 {
     /* === v1 fields, preserved === */
-    u32 magic;             /* 'UNHD' = 0x554E4844 */
+    u32 magic;             /* canonical hex 0x554E4844; brand-spelled 'UNHD'
+                              MSB-first; bytes at increasing addresses are
+                              D,H,N,U per ADR-072 */
     u32 version;           /* 2 */
     u32 memory_size;       /* total RAM bytes (default 64 MB) */
     u32 ramdisk_addr;      /* ramdisk byte address */
@@ -137,7 +139,7 @@ struct BootParamsV2 {
 
 **Field semantics:**
 
-- **magic** (`'UNHD'` = 0x554E4844): kernel reads first; if mismatch, kernel HALTs immediately (boot protocol violation).
+- **magic** (canonical hex `0x554E4844`; brand-spelled `'UNHD'` MSB-first; memory bytes are `D,H,N,U` per ADR-072): kernel reads first; if mismatch, kernel HALTs immediately (boot protocol violation).
 - **version** (2): kernel reads second; if mismatch, kernel can choose to refuse boot or fall back. uClinux + Linux 6.x require v2; xv6 (Phase 1) supports both.
 - **bss_start / bss_end**: stage 1 zeroes `[bss_start, bss_end)` byte range before jumping to kernel. v1 boots without this rely on pre-zeroed RAM, which fails on warm-boot. **Mandatory for Linux.**
 - **initrd2_addr**: 0 = no second ramdisk. Used when modules ship separately from rootfs (Linux convention).
