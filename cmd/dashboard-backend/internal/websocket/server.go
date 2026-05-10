@@ -142,7 +142,7 @@ func (c *Client) Close() {
 		c.closeMu.Unlock()
 
 		close(c.send)
-		c.conn.Close()
+		_ = c.conn.Close()
 	})
 }
 
@@ -402,11 +402,11 @@ func (s *Server) upgradeConnection(w http.ResponseWriter, r *http.Request) (net.
 	)
 
 	if _, err := bufrw.WriteString(response); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("write response failed: %w", err)
 	}
 	if err := bufrw.Flush(); err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return nil, fmt.Errorf("flush failed: %w", err)
 	}
 
@@ -433,8 +433,10 @@ func (s *Server) clientReadPump(c *Client) {
 	reader := bufio.NewReader(c.conn)
 
 	for {
-		// Set read deadline
-		c.conn.SetReadDeadline(time.Now().Add(s.config.ReadTimeout))
+		// Set read deadline. SetReadDeadline returns an error only if the
+		// connection has already been closed; the next ReadFrame would surface
+		// the same condition, so we ignore here.
+		_ = c.conn.SetReadDeadline(time.Now().Add(s.config.ReadTimeout))
 
 		// Read frame
 		opcode, payload, err := s.readFrame(reader)
@@ -470,13 +472,19 @@ func (s *Server) clientReadPump(c *Client) {
 				s.onMessage(c, payload)
 			}
 		case opcodePing:
-			// Send pong
-			s.writeFrame(c, opcodePong, payload)
+			// Send pong. Write errors here just mean the connection is gone;
+			// the next read iteration will surface the actual EOF/error.
+			if err := s.writeFrame(c, opcodePong, payload); err != nil {
+				s.log.Debug().Err(err).Str("client_id", c.id).Msg("pong write failed")
+			}
 		case opcodePong:
 			// Pong received, connection is alive
 		case opcodeClose:
-			// Send close frame and exit
-			s.writeFrame(c, opcodeClose, nil)
+			// Send close frame and exit. Best-effort — peer may have already
+			// closed the conn so we accept any write error.
+			if err := s.writeFrame(c, opcodeClose, nil); err != nil {
+				s.log.Debug().Err(err).Str("client_id", c.id).Msg("close-ack write failed")
+			}
 			return
 		}
 	}
@@ -494,8 +502,8 @@ func (s *Server) clientWritePump(c *Client) {
 		select {
 		case message, ok := <-c.send:
 			if !ok {
-				// Channel closed
-				s.writeFrame(c, opcodeClose, nil)
+				// Channel closed — best-effort close frame.
+				_ = s.writeFrame(c, opcodeClose, nil)
 				return
 			}
 
@@ -581,7 +589,9 @@ func (s *Server) writeFrame(c *Client, opcode byte, payload []byte) error {
 	c.writeMu.Lock()
 	defer c.writeMu.Unlock()
 
-	c.conn.SetWriteDeadline(time.Now().Add(s.config.WriteTimeout))
+	// Best-effort deadline — a SetWriteDeadline error would only come from a
+	// closed conn, in which case the subsequent Write surfaces the real error.
+	_ = c.conn.SetWriteDeadline(time.Now().Add(s.config.WriteTimeout))
 
 	length := len(payload)
 
