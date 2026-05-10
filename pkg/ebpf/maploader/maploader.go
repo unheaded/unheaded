@@ -67,7 +67,10 @@ type bpfMapOpAttr struct {
 }
 
 // bpfMapBatchOpAttr is the attribute structure for batch operations (kernel 5.6+)
-// BPF_MAP_UPDATE_BATCH syscall allows efficient bulk updates to maps
+// BPF_MAP_UPDATE_BATCH syscall allows efficient bulk updates to maps.
+// Staged ahead of the batch-update consumer (PHASE5_SUMMARY.md line 224).
+//
+//nolint:unused // staged for batch-update wiring
 type bpfMapBatchOpAttr struct {
 	InBatch  uint64 // Pointer to input batch (keys/values)
 	OutBatch uint64 // Pointer to output batch

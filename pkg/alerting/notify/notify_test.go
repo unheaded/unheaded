@@ -101,12 +101,6 @@ func (m *mockChannel) getCalls() int {
 	return m.calls
 }
 
-func (m *mockChannel) getLastBatch() []*alerting.Alert {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	return m.lastBatch
-}
-
 // ---------------------------------------------------------------------------
 // 1. Router creation and channel registration
 // ---------------------------------------------------------------------------

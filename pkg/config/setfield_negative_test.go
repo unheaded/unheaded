@@ -18,10 +18,6 @@ type uintHolder struct {
 	V uint64
 }
 
-type uint32Holder struct {
-	V uint32
-}
-
 func TestSetFieldValue_RejectsNegativeIntForUnsignedField(t *testing.T) {
 	t.Parallel()
 	h := &uintHolder{}

@@ -35,10 +35,8 @@ import (
 //   - OOB memory addresses in DRAW_FRAME → should not read beyond map
 //   - Overflow in SLEEP → should not create infinite sleep
 
-// MBC opcode and syscall constants (matching monad-common)
+// Syscall constants (matching monad-common).
 const (
-	opSYSCALL = 0x40
-
 	sysDRAW_FRAME = 0x01
 	sysGET_KEY    = 0x02
 	sysGET_TICKS  = 0x03

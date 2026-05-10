@@ -58,24 +58,6 @@ func makeE2EEvent(evType pkgebpf.EventType, hopID uint8, flowLabel uint16, ts ui
 	}
 }
 
-// topicForEventType returns the Wotan topic for a given event type.
-func topicForEventType(evType pkgebpf.EventType) string {
-	switch evType {
-	case pkgebpf.EventBirth:
-		return AnamnesisTopicBirth
-	case pkgebpf.EventHop:
-		return AnamnesisTopicHop
-	case pkgebpf.EventDeath:
-		return AnamnesisTopicDeath
-	case pkgebpf.EventAnomaly:
-		return AnamnesisTopicAnomaly
-	case pkgebpf.EventChaos:
-		return AnamnesisTopicChaos
-	default:
-		return ""
-	}
-}
-
 // ── Broadcast collector ─────────────────────────────────────────────────────
 
 // wsBroadcastCollector captures WebSocket broadcast messages for verification.

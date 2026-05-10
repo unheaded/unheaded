@@ -520,44 +520,6 @@ func isLXDAvailable() bool {
 	return strings.Contains(string(out), "unheaded-")
 }
 
-func execCommand(t *testing.T, name string, args ...string) (string, error) {
-	t.Helper()
-
-	cmd := exec.Command(name, args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		return "", fmt.Errorf("command failed: %w\noutput: %s", err, output)
-	}
-
-	return string(output), nil
-}
-
-func containerIsRunning(t *testing.T, name string) bool {
-	t.Helper()
-
-	output, err := execCommand(t, "lxc", "list", "--format=json")
-	if err != nil {
-		t.Logf("failed to list containers: %v", err)
-		return false
-	}
-
-	return strings.Contains(output, fmt.Sprintf("unheaded-%s", name))
-}
-
-func waitForContainer(t *testing.T, name string, timeout time.Duration) error {
-	t.Helper()
-
-	deadline := time.Now().Add(timeout)
-	for time.Now().Before(deadline) {
-		if containerIsRunning(t, name) {
-			return nil
-		}
-		time.Sleep(1 * time.Second)
-	}
-
-	return fmt.Errorf("container %s did not start within %v", name, timeout)
-}
-
 // findNixContainersDir locates the nix/containers directory relative to the test file.
 func findNixContainersDir(t *testing.T) string {
 	t.Helper()

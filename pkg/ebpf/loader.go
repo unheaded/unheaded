@@ -986,7 +986,10 @@ func parseBTF(data []byte) (*btfData, error) {
 	return btf, nil
 }
 
-// getString retrieves a string from the BTF string section
+// getString retrieves a string from the BTF string section. Symmetric to the
+// type-section parser above; staged for full BTF type-name resolution.
+//
+//nolint:unused // staged for BTF type-name resolution
 func (b *btfData) getString(offset uint32) string {
 	if int(offset) >= len(b.Strings) {
 		return ""
@@ -1310,7 +1313,11 @@ func bpfProgAttach(progFD, targetFD int, attachType uint32) error {
 	return nil
 }
 
-// bpfProgDetach detaches a BPF program
+// bpfProgDetach detaches a BPF program. Symmetric pair to bpfProgAttach;
+// kept ahead of consumer wire-up so cleanup paths can call it without
+// reimplementing the syscall plumbing.
+//
+//nolint:unused // staged for upcoming detach paths
 func bpfProgDetach(progFD, targetFD int, attachType uint32) error {
 	attr := bpfProgAttachAttr{
 		TargetFD:    uint32(targetFD),

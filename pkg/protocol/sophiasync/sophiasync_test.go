@@ -13,11 +13,8 @@ import (
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
-// MockWotanClient implements a mock wotan client for testing
-type MockWotanClient struct {
-	published map[string][]byte
-}
-
+// NewMockWotanClient returns an empty wotan client for tests that don't
+// exercise the publish path.
 func NewMockWotanClient() *wotanClient.Client {
 	return &wotanClient.Client{}
 }

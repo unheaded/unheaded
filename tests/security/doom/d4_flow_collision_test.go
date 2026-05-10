@@ -319,7 +319,6 @@ func TestD4_CacheKeyCollisionImpact(t *testing.T) {
 	// two different flows share the same cache key → data corruption.
 
 	const cacheEntries = 256
-	const cacheKeyBits = 20
 
 	// Calculate: how many unique flow labels map to the same cache bucket?
 	// If cache uses flow_label % 256 as bucket, then:
