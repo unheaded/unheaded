@@ -268,7 +268,10 @@ mod tests {
     #[test]
     fn xv6_initial_cpu_state_has_correct_pc_and_sp() {
         let state = xv6_initial_cpu_state();
-        assert_eq!(state.pc, 0x4000); // word index of byte 0x10000
+        // PC=0 is slot 0 of ROM_MAP = first MBC instruction of xv6-mbc.mbc
+        // (.mbc files pack from offset 0; the .stage1 byte address from
+        // kernel-mbc.ld is for the linker, not the ROM_MAP loader).
+        assert_eq!(state.pc, 0);
         assert_eq!(state.regs[15], 0x03F0_0000); // SP = stack top
         assert_eq!(state.priv_level, 0); // M-mode
         assert_eq!(state.reservation_address, 0xFFFF_FFFF);
