@@ -254,7 +254,7 @@ func NewHTTPListener(config ListenerConfig) *HTTPListener {
 // SetHTTPHandler sets the HTTP handler.
 func (l *HTTPListener) SetHTTPHandler(h HTTPHandler) {
 	l.handler = h
-	l.Listener.SetHandler(l.handleHTTPConnection)
+	l.SetHandler(l.handleHTTPConnection)
 }
 
 // handleHTTPConnection handles an HTTP connection.

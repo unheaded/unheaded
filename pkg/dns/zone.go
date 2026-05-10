@@ -633,7 +633,7 @@ func (dz *DynamicZone) AddUpdateHook(hook ZoneUpdateHook) {
 
 // DynamicAdd adds a record and triggers hooks
 func (dz *DynamicZone) DynamicAdd(rr *ResourceRecord) error {
-	if err := dz.Zone.AddRecord(rr); err != nil {
+	if err := dz.AddRecord(rr); err != nil {
 		return err
 	}
 
@@ -644,7 +644,7 @@ func (dz *DynamicZone) DynamicAdd(rr *ResourceRecord) error {
 
 // DynamicRemove removes a record and triggers hooks
 func (dz *DynamicZone) DynamicRemove(rr *ResourceRecord) error {
-	if err := dz.Zone.RemoveRecord(rr); err != nil {
+	if err := dz.RemoveRecord(rr); err != nil {
 		return err
 	}
 

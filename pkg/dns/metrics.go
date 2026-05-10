@@ -481,7 +481,7 @@ func (m *DNSServerMetrics) RecordForwardError() {
 
 // ServerSnapshot returns a snapshot including server metrics
 func (m *DNSServerMetrics) ServerSnapshot() *ServerMetricsSnapshot {
-	base := m.DiscoveryMetrics.Snapshot()
+	base := m.Snapshot()
 
 	return &ServerMetricsSnapshot{
 		MetricsSnapshot:  base,

@@ -620,7 +620,7 @@ func (p *ConnectionPool) Get(ctx context.Context) (net.Conn, error) {
 		// Check if connection is still valid
 		if time.Since(pc.createdAt) > p.config.MaxLifetime ||
 			time.Since(pc.lastUsed) > p.config.MaxIdleTime {
-			pc.Conn.Close()
+			pc.Close()
 			atomic.AddUint64(&p.totalMisses, 1)
 		} else {
 			pc.lastUsed = time.Now()
@@ -663,14 +663,14 @@ func (p *ConnectionPool) Put(conn net.Conn) {
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
-		pc.Conn.Close()
+		pc.Close()
 		return
 	}
 	p.mu.Unlock()
 
 	// Check if connection is still valid
 	if time.Since(pc.createdAt) > p.config.MaxLifetime {
-		pc.Conn.Close()
+		pc.Close()
 		return
 	}
 
@@ -680,7 +680,7 @@ func (p *ConnectionPool) Put(conn net.Conn) {
 	select {
 	case p.conns <- pc:
 	default:
-		pc.Conn.Close()
+		pc.Close()
 	}
 }
 
@@ -720,7 +720,7 @@ func (p *ConnectionPool) Close() {
 
 	close(p.conns)
 	for pc := range p.conns {
-		pc.Conn.Close()
+		pc.Close()
 	}
 }
 
@@ -743,7 +743,7 @@ func (p *ConnectionPool) Cleanup() {
 				time.Since(pc.createdAt) < p.config.MaxLifetime {
 				toReturn = append(toReturn, pc)
 			} else {
-				pc.Conn.Close()
+				pc.Close()
 			}
 		default:
 			goto done
@@ -756,7 +756,7 @@ done:
 		select {
 		case p.conns <- pc:
 		default:
-			pc.Conn.Close()
+			pc.Close()
 		}
 	}
 }

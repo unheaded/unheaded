@@ -103,7 +103,7 @@ func NewTimeoutConn(conn net.Conn, readTimeout, writeTimeout time.Duration) *Tim
 // Read reads data with timeout.
 func (tc *TimeoutConn) Read(b []byte) (int, error) {
 	if tc.readTimeout > 0 {
-		if err := tc.Conn.SetReadDeadline(time.Now().Add(tc.readTimeout)); err != nil {
+		if err := tc.SetReadDeadline(time.Now().Add(tc.readTimeout)); err != nil {
 			return 0, err
 		}
 	}
@@ -113,7 +113,7 @@ func (tc *TimeoutConn) Read(b []byte) (int, error) {
 // Write writes data with timeout.
 func (tc *TimeoutConn) Write(b []byte) (int, error) {
 	if tc.writeTimeout > 0 {
-		if err := tc.Conn.SetWriteDeadline(time.Now().Add(tc.writeTimeout)); err != nil {
+		if err := tc.SetWriteDeadline(time.Now().Add(tc.writeTimeout)); err != nil {
 			return 0, err
 		}
 	}
