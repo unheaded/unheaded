@@ -136,3 +136,23 @@ Once translator emits MBC for the kernel image, the resulting `xv6-mbc.mbc` will
 3. **Run + iterate** on Error 3 issues that surface only at boot time.
 
 After all three, the Phase 1.1 first milestone — `cargo run -p doom-runner -- --kernel xv6-mbc.mbc` prints "xv6 booting..." and HALTs — should be reachable.
+
+## Phase 1.1 SHIP decisions (2026-05-10)
+
+- **Stage-1 stub deferred to Phase 2 (uClinux).** `start_mbc.c` is placed in
+  the `.stage1` region by `kernel-mbc.ld` and serves as the de-facto stage-1
+  for xv6. It (a) verifies BootParams magic+version, (b) prints "xv6 booting...",
+  (c) sets up MEPC + MSTATUS.MPP=S, (d) issues MRET. xv6 DOES have `.bss`
+  (NCPU stack0 alone is `4096*NCPU` bytes), but the gate banner ("xv6 booting...")
+  is printed BEFORE any code path that depends on zeroed BSS. The Phase 1.1 gate
+  is achievable without a separate `crates/upc-bootstub/`.
+
+  Stage-1 stub crate WILL be authored in Phase 2 when uClinux requires:
+  (a) full BSS zero-fill before `start_kernel()`, (b) clean M→S transition at
+  the kernel-elf entry point, (c) initramfs CPIO unpack to known address.
+- **TTY transport is HTTP loopback** from upc-bootctl runner →
+  upc-tty-bridge on port 26100. New endpoint /api/v1/tty/ingest. Wotan-topic
+  path deferred to Phase 3+.
+- **Halt cleanup**: ctrl_c OR halted-byte detection → drain TTY → remove
+  CPU_MAP[instance] → zero SCREEN_MAP/KBD_MAP → exit.
+
