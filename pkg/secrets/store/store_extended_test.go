@@ -298,14 +298,11 @@ func TestMemoryStore_WatchContextCancel(t *testing.T) {
 		t.Fatalf("Set after cancel: %v", err)
 	}
 
-	// Channel should be closed after context cancel
+	// Channel should be closed after context cancel. Either branch is
+	// acceptable — receiving a value or timing out post-cleanup.
 	select {
-	case _, ok := <-ch:
-		if ok {
-			// Got a value, that's fine too
-		}
+	case <-ch:
 	case <-time.After(200 * time.Millisecond):
-		// Timeout is acceptable too - channel might have been cleaned up
 	}
 }
 

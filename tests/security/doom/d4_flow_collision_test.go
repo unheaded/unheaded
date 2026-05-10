@@ -237,9 +237,8 @@ func TestD4_RecommendedTraceIDSize(t *testing.T) {
 		t.Logf("  %s: need >= %.0f bits (n=%d, P<%.2e)",
 			req.name, bitsNeeded, req.maxFlows, req.maxProbReq)
 
-		if bitsNeeded < float64(req.minBitsNeeded) {
-			// This is fine — our estimate may be conservative
-		}
+		// bitsNeeded < minBitsNeeded is acceptable — our estimate may be conservative.
+		_ = bitsNeeded
 	}
 
 	t.Log("")

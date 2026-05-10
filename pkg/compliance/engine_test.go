@@ -364,11 +364,9 @@ func TestRegisterCustomChecker(t *testing.T) {
 		t.Fatalf("unexpected error running assessment: %v", err)
 	}
 
-	// Check that some controls are compliant
-	if assessment.Summary.Compliant == 0 && assessment.Summary.NotAssessed == assessment.Summary.TotalControls {
-		// This is expected since the checker only supports specific patterns
-		// and we haven't fully wired up pattern matching
-	}
+	// All-NotAssessed is acceptable here — the checker only supports specific
+	// patterns and pattern matching isn't fully wired up yet.
+	_ = assessment.Summary.Compliant
 }
 
 type testChecker struct {

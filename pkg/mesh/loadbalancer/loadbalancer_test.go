@@ -434,13 +434,10 @@ func TestLeastConn(t *testing.T) {
 		ep1, _ := lc.Next()
 		// ep1 now has 1 connection (auto-incremented by Next)
 
-		// Get second endpoint - should be the other one
-		ep2, _ := lc.Next()
-
-		if ep1.ID == ep2.ID {
-			// May pick the same one, but should eventually balance
-			// Due to auto-increment in Next(), verify connections work
-		}
+		// Second pick may equal the first depending on auto-increment timing
+		// in Next(); the balancer's correctness is verified separately.
+		_, _ = lc.Next()
+		_ = ep1
 	})
 
 	t.Run("Release_DecrementsCount", func(t *testing.T) {

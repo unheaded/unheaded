@@ -36,11 +36,9 @@ func TestFailoverStateMachine(t *testing.T) {
 		t.Fatal("should not be able to promote from primary state")
 	}
 
-	// Demote
-	if err := fm.DemoteToReader(context.Background()); err == nil {
-		// Cooldown should prevent immediate demote? No — cooldown only applies to promote
-		// Demotion is always allowed from primary state
-	}
+	// Demote: cooldown only applies to promote, so demotion from primary is
+	// always allowed and we don't assert on the err either way.
+	_ = fm.DemoteToReader(context.Background())
 }
 
 func TestFailoverCooldown(t *testing.T) {

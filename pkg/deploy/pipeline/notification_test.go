@@ -939,12 +939,8 @@ func TestNotificationManagerSendPagerDuty(t *testing.T) {
 		}
 
 		// This will fail since it tries to connect to pagerduty.com, but we can verify it attempts
-		err := m.sendPagerDuty(context.Background(), ch, notif)
-		// Error is expected since we can't reach PagerDuty
-		if err == nil {
-			// If somehow it succeeds (unlikely), that's fine too
-		}
-		_ = err
+		// Error is expected (no PagerDuty reachable); success would also be fine.
+		_ = m.sendPagerDuty(context.Background(), ch, notif)
 	})
 
 	t.Run("resolve event type", func(t *testing.T) {

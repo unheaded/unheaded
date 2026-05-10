@@ -1950,14 +1950,11 @@ func TestRegistryDiscoveryWatch(t *testing.T) {
 	<-watchCtx.Done()
 	time.Sleep(20 * time.Millisecond)
 
-	// Channel should eventually close
+	// Channel should eventually close. Either branch is acceptable —
+	// receiving data or timing out while the watcher cleans up.
 	select {
-	case _, ok := <-ch:
-		if ok {
-			// Received data, that's fine
-		}
+	case <-ch:
 	case <-time.After(500 * time.Millisecond):
-		// Watch goroutine may still be cleaning up
 	}
 }
 
