@@ -7,7 +7,6 @@ package metrics
 
 import (
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -171,7 +170,7 @@ func TestParseNetStats(t *testing.T) {
 				}
 
 				for name, value := range stats {
-					if err := ioutil.WriteFile(filepath.Join(ifDir, name), []byte(value), 0644); err != nil {
+					if err := os.WriteFile(filepath.Join(ifDir, name), []byte(value), 0644); err != nil {
 						return err
 					}
 				}
@@ -194,7 +193,7 @@ func TestParseNetStats(t *testing.T) {
 				}
 
 				for name, value := range stats {
-					if err := ioutil.WriteFile(filepath.Join(ifDir, name), []byte(value), 0644); err != nil {
+					if err := os.WriteFile(filepath.Join(ifDir, name), []byte(value), 0644); err != nil {
 						return err
 					}
 				}
@@ -268,17 +267,17 @@ func TestBareMetalCollector_Collect(t *testing.T) {
 	}
 
 	// Create meminfo file
-	if err := ioutil.WriteFile(filepath.Join(procDir, "meminfo"), []byte("MemTotal:        8167848 kB\nMemFree:         4458204 kB\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(procDir, "meminfo"), []byte("MemTotal:        8167848 kB\nMemFree:         4458204 kB\n"), 0644); err != nil {
 		t.Fatalf("failed to create meminfo: %v", err)
 	}
 
 	// Create loadavg file
-	if err := ioutil.WriteFile(filepath.Join(procDir, "loadavg"), []byte("0.50 0.45 0.42 2/256 12345\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(procDir, "loadavg"), []byte("0.50 0.45 0.42 2/256 12345\n"), 0644); err != nil {
 		t.Fatalf("failed to create loadavg: %v", err)
 	}
 
 	// Create stat file
-	if err := ioutil.WriteFile(filepath.Join(procDir, "stat"), []byte("cpu  100 10 50 900 20 5 10 0 0 0\n"), 0644); err != nil {
+	if err := os.WriteFile(filepath.Join(procDir, "stat"), []byte("cpu  100 10 50 900 20 5 10 0 0 0\n"), 0644); err != nil {
 		t.Fatalf("failed to create stat: %v", err)
 	}
 

@@ -7,7 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -184,7 +184,7 @@ func (d *DockerCollector) listContainers(ctx context.Context) ([]dockerContainer
 		return nil, fmt.Errorf("Docker returned status %d", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("reading response: %w", err)
 	}
@@ -250,7 +250,7 @@ func (d *DockerCollector) getContainerStats(ctx context.Context, containerID str
 		return nil, fmt.Errorf("Docker returned status %d", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("reading response: %w", err)
 	}

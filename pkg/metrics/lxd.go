@@ -6,7 +6,7 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net"
 	"net/http"
 	"os"
@@ -123,7 +123,7 @@ func (l *LXDCollector) fetchMetrics(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("LXD returned status %d", resp.StatusCode)
 	}
 
-	body, err := ioutil.ReadAll(resp.Body)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return "", fmt.Errorf("reading response: %w", err)
 	}

@@ -6,7 +6,6 @@ package metrics
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -83,7 +82,7 @@ func (b *BareMetalCollector) collectMemory() []Sample {
 	baseLabels := map[string]string{"collector": "baremetal"}
 
 	path := filepath.Join(b.procRoot, "meminfo")
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: cannot read %s: %v\n", path, err)
 		return samples
@@ -156,7 +155,7 @@ func (b *BareMetalCollector) collectLoadAverage() []Sample {
 	baseLabels := map[string]string{"collector": "baremetal"}
 
 	path := filepath.Join(b.procRoot, "loadavg")
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: cannot read %s: %v\n", path, err)
 		return samples
@@ -213,7 +212,7 @@ func (b *BareMetalCollector) collectCPU() []Sample {
 	var samples []Sample
 
 	path := filepath.Join(b.procRoot, "stat")
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: cannot read %s: %v\n", path, err)
 		return samples
@@ -281,7 +280,7 @@ func (b *BareMetalCollector) collectNetwork() []Sample {
 	var samples []Sample
 
 	netPath := filepath.Join(b.sysRoot, "class", "net")
-	entries, err := ioutil.ReadDir(netPath)
+	entries, err := os.ReadDir(netPath)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: cannot read %s: %v\n", netPath, err)
 		return samples
@@ -353,7 +352,7 @@ func (b *BareMetalCollector) parseNetStats(netPath string, ifName string) map[st
 	metrics := []string{"rx_bytes", "rx_packets", "tx_bytes", "tx_packets"}
 	for _, metric := range metrics {
 		filePath := filepath.Join(statsPath, metric)
-		data, err := ioutil.ReadFile(filePath)
+		data, err := os.ReadFile(filePath)
 		if err != nil {
 			continue
 		}
