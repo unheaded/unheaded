@@ -82,7 +82,9 @@ type Gateway struct {
 	rateLimiter   *middleware.RateLimiter
 	wotan         *wotanClient.Client
 	httpServer    *http.Server
-	http3Server   interface{} // http3.Server when enabled
+	// http3Server (interface{} placeholder) was here for an HTTP/3 listener
+	// but no code path ever assigned or read it. When HTTP/3 lands, declare
+	// at the same time as Start/Stop wiring.
 	healthMgr     *healthManager
 	mu            sync.RWMutex
 	running       bool

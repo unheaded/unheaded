@@ -8,7 +8,6 @@ package hauberk
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -102,7 +101,8 @@ type Service struct {
 	circuitBreakers map[string]*CircuitBreaker
 	policies        map[string]*TrafficPolicy
 	certificates    map[string]*Certificate
-	tlsConfig       *tls.Config
+	// (tlsConfig *tls.Config previously here; never assigned. mTLS config
+	// is sourced per-endpoint via the certificates map.)
 }
 
 // Config holds Hauberk service configuration.
