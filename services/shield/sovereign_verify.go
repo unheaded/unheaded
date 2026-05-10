@@ -5,7 +5,6 @@ package shield
 
 import (
 	"fmt"
-	"sync"
 
 	"unheaded/pkg/sophia"
 )
@@ -46,8 +45,10 @@ type SovereignSigSlot struct {
 
 // SovereignVerifier validates SOVEREIGN tier 2-of-3 multi-sig.
 // Requires signatures from DISTINCT algorithm families.
+//
+// (mu sync.RWMutex previously here; the embedded PQCVerifier owns its own
+// concurrency primitive and SovereignVerifier holds no other mutable state.)
 type SovereignVerifier struct {
-	mu       sync.RWMutex
 	verifier *PQCVerifier
 }
 
