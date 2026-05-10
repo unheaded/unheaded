@@ -5,9 +5,14 @@
 package main
 
 import (
+	"bytes"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
+
+var _ = time.Second // keep "time" import alive after test reshuffles
 
 // ─── parseInstanceParam ──────────────────────────────────────────────────────
 
@@ -144,5 +149,79 @@ func drainChan(ch <-chan []byte) string {
 		return string(got)
 	default:
 		return ""
+	}
+}
+
+// ─── handleTtyIngest ─────────────────────────────────────────────────────
+
+func TestHandleTtyIngest_FansOutToSubscriber(t *testing.T) {
+	hub := newHub()
+	sub := &Subscriber{instance: 222, out: make(chan []byte, 4)}
+	hub.add(sub)
+
+	body := bytes.NewReader([]byte(`{"instance":222,"bytes":[120,118,54,32,98,111,111,116,105,110,103,46,46,46]}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tty/ingest", body)
+	w := httptest.NewRecorder()
+
+	hub.handleTtyIngest(w, req)
+
+	if w.Code != http.StatusNoContent {
+		t.Fatalf("expected 204, got %d body=%q", w.Code, w.Body.String())
+	}
+	got := drainChan(sub.out)
+	if got != "xv6 booting..." {
+		t.Errorf("subscriber got %q, want %q", got, "xv6 booting...")
+	}
+}
+
+func TestHandleTtyIngest_RejectsNonPost(t *testing.T) {
+	hub := newHub()
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tty/ingest", nil)
+	w := httptest.NewRecorder()
+	hub.handleTtyIngest(w, req)
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("GET to POST-only endpoint: got %d, want 405", w.Code)
+	}
+}
+
+func TestHandleTtyIngest_RejectsBadJSON(t *testing.T) {
+	hub := newHub()
+	body := bytes.NewReader([]byte(`{"instance":not-a-number}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tty/ingest", body)
+	w := httptest.NewRecorder()
+	hub.handleTtyIngest(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("malformed JSON: got %d, want 400", w.Code)
+	}
+}
+
+func TestHandleTtyIngest_RejectsByteOutOfRange(t *testing.T) {
+	hub := newHub()
+	body := bytes.NewReader([]byte(`{"instance":222,"bytes":[300]}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tty/ingest", body)
+	w := httptest.NewRecorder()
+	hub.handleTtyIngest(w, req)
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("byte 300 (out of u8 range): got %d, want 400", w.Code)
+	}
+}
+
+func TestHandleTtyIngest_OnlyTargetInstanceReceives(t *testing.T) {
+	hub := newHub()
+	sub222 := &Subscriber{instance: 222, out: make(chan []byte, 4)}
+	subOther := &Subscriber{instance: 100, out: make(chan []byte, 4)}
+	hub.add(sub222)
+	hub.add(subOther)
+
+	body := bytes.NewReader([]byte(`{"instance":222,"bytes":[65,66,67]}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/tty/ingest", body)
+	w := httptest.NewRecorder()
+	hub.handleTtyIngest(w, req)
+
+	if drainChan(sub222.out) != "ABC" {
+		t.Error("instance 222 subscriber should have received 'ABC'")
+	}
+	if drainChan(subOther.out) != "" {
+		t.Error("instance 100 subscriber should NOT have received the payload")
 	}
 }

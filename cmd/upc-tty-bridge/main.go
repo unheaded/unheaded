@@ -177,6 +177,40 @@ func handleHealth(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(resp)
 }
 
+// ttyIngestRequest is the JSON body POSTed by upc-bootctl's TTY poller
+// to /api/v1/tty/ingest. Bytes are JSON-array-of-numbers (not base64) so
+// the body shows readable in curl/logs during dev.
+type ttyIngestRequest struct {
+	Instance uint8 `json:"instance"`
+	Bytes    []int `json:"bytes"`
+}
+
+// handleTtyIngest accepts TTY bytes from upc-bootctl and fans them out
+// to all WebSocket subscribers watching the same instance.
+//
+// Response: 204 No Content on success, 400 on bad body.
+func (h *Hub) handleTtyIngest(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "POST only", http.StatusMethodNotAllowed)
+		return
+	}
+	var req ttyIngestRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, fmt.Sprintf("bad JSON: %v", err), http.StatusBadRequest)
+		return
+	}
+	bytes := make([]byte, len(req.Bytes))
+	for i, v := range req.Bytes {
+		if v < 0 || v > 255 {
+			http.Error(w, fmt.Sprintf("byte %d out of range: %d", i, v), http.StatusBadRequest)
+			return
+		}
+		bytes[i] = byte(v)
+	}
+	h.broadcastTty(req.Instance, bytes)
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func main() {
 	port := flag.Int("port", defaultPort, "WebSocket listen port")
 	flag.Parse()
@@ -191,6 +225,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/console", hub.handleWs)
+	mux.HandleFunc("/api/v1/tty/ingest", hub.handleTtyIngest)
 	// Static asset endpoint for xterm.js page (served from ../../dashboard/).
 	mux.Handle("/", http.FileServer(http.Dir("../../dashboard/")))
 
