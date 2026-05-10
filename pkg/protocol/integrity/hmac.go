@@ -30,7 +30,7 @@ func NewHMACComputer(flowSecret [32]byte) *HMACComputer {
 // DeriveFlowSecret derives a per-flow secret using HKDF-SHA256
 // Parameters: nodeSecret, flowLabel, srcIP, dstIP
 func DeriveFlowSecret(nodeSecret []byte, flowLabel uint32, srcIP net.IP, dstIP net.IP) ([32]byte, error) {
-	if nodeSecret == nil || len(nodeSecret) == 0 {
+	if len(nodeSecret) == 0 {
 		return [32]byte{}, fmt.Errorf("node secret cannot be nil or empty")
 	}
 

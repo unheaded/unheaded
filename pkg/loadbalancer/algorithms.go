@@ -789,7 +789,7 @@ func (m *MaglevHashState) Select(ctx context.Context, key string, backends []*Ba
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	if m.table == nil || len(m.table) == 0 {
+	if len(m.table) == 0 {
 		return backends[0], nil
 	}
 

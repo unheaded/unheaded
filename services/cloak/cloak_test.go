@@ -487,7 +487,7 @@ func TestListDashboards(t *testing.T) {
 	t.Run("returns empty slice for no dashboards", func(t *testing.T) {
 		svc := newTestService()
 		result := svc.ListDashboards("u1")
-		if result != nil && len(result) != 0 {
+		if len(result) != 0 {
 			t.Errorf("expected empty result, got %d dashboards", len(result))
 		}
 	})
@@ -497,7 +497,7 @@ func TestListDashboards(t *testing.T) {
 		mustCreateDashboard(t, svc, &Dashboard{ID: "d1", Name: "One", OwnerID: "u1"})
 
 		result := svc.ListDashboards("no-such-user")
-		if result != nil && len(result) != 0 {
+		if len(result) != 0 {
 			t.Errorf("expected empty result, got %d dashboards", len(result))
 		}
 	})
@@ -2047,7 +2047,7 @@ func TestEdgeCases_EmptyDashboard(t *testing.T) {
 	if !ok {
 		t.Fatal("expected dashboard to exist")
 	}
-	if got.Widgets != nil && len(got.Widgets) != 0 {
+	if len(got.Widgets) != 0 {
 		t.Errorf("expected nil or empty widgets, got %d", len(got.Widgets))
 	}
 }

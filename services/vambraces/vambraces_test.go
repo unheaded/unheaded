@@ -920,7 +920,7 @@ func TestListAlerts(t *testing.T) {
 func TestListAlerts_Empty(t *testing.T) {
 	svc := newTestService()
 	got := svc.ListAlerts("")
-	if got != nil && len(got) != 0 {
+	if len(got) != 0 {
 		t.Errorf("expected empty list, got %d", len(got))
 	}
 }

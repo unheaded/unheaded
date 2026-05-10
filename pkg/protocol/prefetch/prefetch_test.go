@@ -174,7 +174,7 @@ func TestPrefetchManagerGetFlowHintsNotFound(t *testing.T) {
 	pm := NewPrefetchManager()
 
 	hints := pm.GetFlowHints(0xDEADBEEF)
-	if hints != nil && len(hints) != 0 {
+	if len(hints) != 0 {
 		t.Errorf("Expected no hints for non-existent flow")
 	}
 }
@@ -203,7 +203,7 @@ func TestPrefetchManagerCancelFlowHints(t *testing.T) {
 	}
 
 	hints := pm.GetFlowHints(flowLabel)
-	if hints != nil && len(hints) != 0 {
+	if len(hints) != 0 {
 		t.Errorf("Expected no hints after cancellation")
 	}
 }
