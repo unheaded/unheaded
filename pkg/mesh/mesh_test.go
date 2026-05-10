@@ -1411,11 +1411,14 @@ func TestCachingDiscoveryWrapper(t *testing.T) {
 		t.Errorf("len = %d", len(eps))
 	}
 
-	// Remove from backend and verify cache hit.
+	// Remove from backend and verify cache hit returns the stale endpoint.
 	sd.RemoveService("svc", "ns")
 	eps, err = cd.Discover(ctx, "svc", "ns")
 	if err != nil {
 		t.Error("cached result should succeed")
+	}
+	if len(eps) != 1 {
+		t.Errorf("cache hit should still return the 1 endpoint, got %d (cache invalidated unexpectedly?)", len(eps))
 	}
 
 	// Invalidate and verify miss.

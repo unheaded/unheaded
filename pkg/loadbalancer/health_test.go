@@ -1275,4 +1275,7 @@ func TestSelectWithContext(t *testing.T) {
 	if err != nil {
 		t.Errorf("Select with cancelled context failed: %v", err)
 	}
+	if selected == nil {
+		t.Error("Select with cancelled context should still return a backend (sync path)")
+	}
 }
