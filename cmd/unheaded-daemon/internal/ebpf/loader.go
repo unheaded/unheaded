@@ -468,8 +468,7 @@ func (m *MockLoader) ReadMap(ctx context.Context, programName, mapName string, k
 		return nil, ErrMapNotFound
 	}
 
-	keyStr := string(key)
-	value, exists := mapData[keyStr]
+	value, exists := mapData[string(key)]
 	if !exists {
 		return nil, nil // Key not found, return nil
 	}

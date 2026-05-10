@@ -480,13 +480,13 @@ func (s *Sidecar) convertEndpoints(eps []*discovery.Endpoint) []*loadbalance.End
 }
 
 func (s *Sidecar) onRequest(req *proxy.Request) {
-	if s.metrics != nil {
-		// Record start of request
-	}
-
-	if s.tracer != nil {
-		// Start span
-	}
+	// TODO: wire start-of-request metric (s.metrics) and tracing span
+	// (s.tracer) when the proxy.Request type carries the correlation
+	// fields needed by both. Both signals are deliberately no-op until
+	// the wiring lands so we don't pre-allocate per-request state for
+	// nothing.
+	_ = s
+	_ = req
 }
 
 func (s *Sidecar) onResponse(resp *proxy.Response) {

@@ -10,9 +10,11 @@ import (
 	"context"
 	"crypto/tls"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"os"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -449,7 +451,7 @@ func (p *OutboundProxy) proxyHTTP(conn net.Conn, reader *bufio.Reader) {
 		req, err := http.ReadRequest(reader)
 		if err != nil {
 			if err != io.EOF {
-				// Log error
+				fmt.Fprintf(os.Stderr, "outbound proxy: read request: %v\n", err)
 			}
 			return
 		}
