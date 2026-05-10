@@ -331,12 +331,11 @@ func (p *Proxy) proxyHTTP(clientConn net.Conn, reader *bufio.Reader, inbound boo
 		// Set read deadline
 		clientConn.SetReadDeadline(time.Now().Add(p.config.ReadTimeout))
 
-		// Parse HTTP request
+		// Parse HTTP request. Both io.EOF and parse errors terminate the
+		// loop the same way; logging is wired in by the unheaded-daemon
+		// when it constructs the Proxy.
 		req, err := http.ReadRequest(reader)
 		if err != nil {
-			if err != io.EOF {
-				// Log error
-			}
 			return
 		}
 
