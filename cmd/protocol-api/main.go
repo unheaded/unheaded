@@ -51,7 +51,9 @@ var (
 var (
 	globalMockMode bool // Derived from globalBackend.Mode(); kept for backwards compat
 	globalAPIKey   string
-	globalBPFPath  string
+	// (globalBPFPath was once threaded through to map readers but the
+	// modern path goes via globalBackend; the variable was assigned but
+	// never read. Removed.)
 
 	// Rate limiters per endpoint
 	rateLimiters = make(map[string]*rate.Limiter)
@@ -87,7 +89,7 @@ func main() {
 	}
 	globalMockMode = IsMockMode()
 	globalAPIKey = *apiKey
-	globalBPFPath = *bpfMapsPath
+	_ = bpfMapsPath // path is owned by globalBackend; flag still parsed for CLI compat
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
