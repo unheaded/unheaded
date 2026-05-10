@@ -25,7 +25,7 @@ xv6-mbc = { path = "../../crates/xv6-mbc" }
 aya = "0.13"
 aya-log = "0.2"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "time", "sync"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
