@@ -196,27 +196,36 @@ func TestMapUsageTracker(t *testing.T) {
 func TestMapUsageAlerts(t *testing.T) {
 	tracker, _ := NewMapUsageTracker("test_map", 1000)
 
-	// Update to 80%
+	// Update to 80% — ONLY 80% alert should fire (not 90/95)
 	alert80, alert90, alert95, _ := tracker.UpdateUsage(800)
 	if !alert80 {
 		t.Errorf("expected 80%% alert")
 	}
+	if alert90 || alert95 {
+		t.Errorf("at 80%%, expected only alert80 to fire (got 80=%v 90=%v 95=%v)", alert80, alert90, alert95)
+	}
 
-	// Update to 90% (should alert for 90%)
+	// Update to 90% — only 90% alert should fire
 	tracker2, _ := NewMapUsageTracker("test_map2", 1000)
 	tracker2.UpdateUsage(800) // trigger 80% alert first
 	alert80, alert90, alert95, _ = tracker2.UpdateUsage(900)
 	if !alert90 {
 		t.Errorf("expected 90%% alert")
 	}
+	if alert80 || alert95 {
+		t.Errorf("at 90%%, expected only alert90 to fire (got 80=%v 90=%v 95=%v)", alert80, alert90, alert95)
+	}
 
-	// Update to 95% (should alert for 95%)
+	// Update to 95% — only 95% alert should fire
 	tracker3, _ := NewMapUsageTracker("test_map3", 1000)
 	tracker3.UpdateUsage(800)
 	tracker3.UpdateUsage(900)
 	alert80, alert90, alert95, _ = tracker3.UpdateUsage(950)
 	if !alert95 {
 		t.Errorf("expected 95%% alert")
+	}
+	if alert80 || alert90 {
+		t.Errorf("at 95%%, expected only alert95 to fire (got 80=%v 90=%v 95=%v)", alert80, alert90, alert95)
 	}
 }
 

@@ -105,10 +105,13 @@ func TestSequenceTrackerValidateMonotonicity(t *testing.T) {
 		t.Errorf("Gap packet: err=%v, lost=%d, reordered=%v (expected lost=1)", err, lost, reordered)
 	}
 
-	// Out of order packet (sequence 4, expected 6)
+	// Out of order packet (sequence 4, expected 6) — reordered=true, lost=0.
 	lost, reordered, err = st.ValidateMonotonicity("ns1", 4)
 	if err != nil || !reordered {
 		t.Errorf("Out of order packet: err=%v, reordered=%v (expected true)", err, reordered)
+	}
+	if lost != 0 {
+		t.Errorf("Out of order packet: lost=%d (expected 0 — reordered packets are not 'lost')", lost)
 	}
 }
 
