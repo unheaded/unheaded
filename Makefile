@@ -164,8 +164,14 @@ ebpf-hop: ## Build hop-ebpf only (Layer 1 per-hop processor)
 ebpf-yaldabaoth: ## Build yaldabaoth-ebpf only (chaos injection)
 	cd $(EBPF_DIR) && cargo build $(CARGO_BUILD_FLAGS) --target=bpfel-unknown-none -Z build-std=core -p yaldabaoth-ebpf
 
-ebpf-monad-cpu: ## Build monad-cpu-ebpf only (Doom PoC VM)
+ebpf-monad-cpu: ## Build monad-cpu-ebpf only (lean — loads on kernel 6.17+)
 	cd $(EBPF_DIR) && cargo build $(CARGO_BUILD_FLAGS) --target=bpfel-unknown-none -Z build-std=core -p monad-cpu-ebpf
+
+ebpf-monad-cpu-doom: ## Build monad-cpu-ebpf with Doom render-chain PC tracing diagnostic (`--features doom-debug`)
+	cd $(EBPF_DIR) && cargo build $(CARGO_BUILD_FLAGS) --target=bpfel-unknown-none -Z build-std=core -p monad-cpu-ebpf --features doom-debug
+
+ebpf-monad-cpu-ascend: ## Build monad-cpu-ebpf with ASCEND-LINUX ABI v2 opcodes (`--features ascend-linux`) — required for xv6/Linux kernel boot
+	cd $(EBPF_DIR) && cargo build $(CARGO_BUILD_FLAGS) --target=bpfel-unknown-none -Z build-std=core -p monad-cpu-ebpf --features ascend-linux
 
 build-monad-mbc: ## Build monad-mbc assembler/translator
 	@echo "Building monad-mbc..."

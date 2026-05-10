@@ -420,7 +420,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         let d = (insn.dst() as usize) & 0x0F;
         let s = (insn.src() as usize) & 0x0F;
 
-        // DIAGNOSTIC: Check if PC enters key render chain functions
+        // DIAGNOSTIC: Check if PC enters key Doom render chain functions.
+        // Gated behind `doom-debug` feature 2026-05-10 — kernel 6.17 BPF
+        // verifier rejects the program with "infinite loop detected" when
+        // all 14 PC checks compile in. xv6/uClinux/Linux paths build
+        // without the feature; Doom debugging uses
+        // `cargo build --features doom-debug`.
+        #[cfg(feature = "doom-debug")]
         {
             let m = 0xE3000u32 >> 2;
             if cpu.pc == 13351 {
@@ -873,24 +879,29 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.regs[0] = old;
 
         // ── ASCEND-LINUX (ADR-067) ────────────────────────────────────────────
-        } else if opc == op::FENCE {
-            // Full memory barrier. On single-CPU MBC this is a no-op at the
-            // dispatch level; the BPF map writes already see strict ordering
-            // from the eBPF verifier's instruction sequencing.
-            //
+        // The 5 new opcodes (FENCE/MRET/SRET/LR.W/SC.W) added in Phase 0 push
+        // the kernel 6.17 BPF verifier past its state-pruning budget when
+        // compiled together. Gate them behind `ascend-linux` so:
+        //   - Doom build (default features) loads cleanly on 6.17.
+        //   - xv6/uClinux/Linux build with `--features ascend-linux` to get
+        //     the priv-level + atomic + barrier semantics they need.
+        //   - When disabled, the if-arms short-circuit on cfg!() = false
+        //     and the LLVM optimizer eliminates the dead branches, keeping
+        //     the BPF program small enough for the verifier.
+        // Phase 1.1 SHIP unblock 2026-05-10.
+        } else if cfg!(feature = "ascend-linux") && opc == op::FENCE {
+            // Full memory barrier. No-op on single-CPU MBC.
             // ADR-067 Decision 5.
-        } else if opc == op::MRET {
+        } else if cfg!(feature = "ascend-linux") && opc == op::MRET {
             // Machine-mode return. Pop MEPC + restore priv from MSTATUS.MPP.
-            // CSR memory region per ADR-067 Decision 2: 0x000_F000 + csr*4.
             let mepc = mem_read_word((0xF000 + 0x341 * 4) >> 2);
             let mstatus = mem_read_word((0xF000 + 0x300 * 4) >> 2);
             let mpp = ((mstatus >> 11) & 0b11) as u8;
             cpu.priv_level = mpp;
             cpu.pc = mepc >> 2;
             cpu.reservation_address = 0xFFFF_FFFF;
-            // Skip the trailing pc+=1 below since MRET sets PC explicitly.
             continue;
-        } else if opc == op::SRET {
+        } else if cfg!(feature = "ascend-linux") && opc == op::SRET {
             // Supervisor-mode return. SEPC + SSTATUS.SPP.
             let sepc = mem_read_word((0xF000 + 0x141 * 4) >> 2);
             let sstatus = mem_read_word((0xF000 + 0x100 * 4) >> 2);
@@ -899,13 +910,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.pc = sepc >> 2;
             cpu.reservation_address = 0xFFFF_FFFF;
             continue;
-        } else if opc == op::LR_W {
+        } else if cfg!(feature = "ascend-linux") && opc == op::LR_W {
             // Load-Reserved Word: rd = RAM[rs1]; reserve rs1.
             let addr = cpu.regs[s];
             let word_addr = addr >> 2;
             cpu.regs[d] = mem_read_word(word_addr);
             cpu.reservation_address = addr;
-        } else if opc == op::SC_W {
+        } else if cfg!(feature = "ascend-linux") && opc == op::SC_W {
             // Store-Conditional Word: if reservation valid on rs1,
             // RAM[rs1] = rs2 (value reg = imm[3:0]); rd = 0 success / 1 failure.
             let addr = cpu.regs[s];

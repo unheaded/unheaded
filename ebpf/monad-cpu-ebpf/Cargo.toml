@@ -9,6 +9,22 @@ publish.workspace   = true
 name = "monad-cpu-ebpf"
 path = "src/main.rs"
 
+[features]
+default = []
+# doom-debug: per-PC render-chain tracing diagnostic (D_Display,
+# R_RenderPlayerView, R_DrawPlanes, ...) in the execute loop.
+# Originally always-on. Kernel 6.17 BPF verifier exhausts
+# state-pruning when all the per-PC checks compile in. Kept behind
+# a feature so Doom debugging still works
+# (`cargo build --features doom-debug`).
+doom-debug = []
+# ascend-linux: enables the ABI v2 opcodes added in Phase 0
+# (FENCE, MRET, SRET, LR.W, SC.W) per ADR-067 §5. xv6/uClinux/Linux
+# need MRET for M→S transition + atomics for SMP. Default off so
+# Doom and similar lighter workloads load cleanly on kernel 6.17;
+# build with `--features ascend-linux` for kernel-boot paths.
+ascend-linux = []
+
 [dependencies]
 aya-ebpf.workspace     = true
 aya-log-ebpf.workspace = true
