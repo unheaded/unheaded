@@ -12,6 +12,7 @@ use anyhow::{anyhow, bail, Context, Result};
 use aya::maps::{Array, HashMap as AyaHashMap};
 use aya::programs::Xdp;
 use aya::Ebpf;
+use std::fs;
 use std::path::Path;
 
 /// CPU state for the MBC virtual machine — must match monad-common's
@@ -173,6 +174,78 @@ impl BootRunner {
             );
         }
         Ok(())
+    }
+
+    /// Load a `.data` TLV image (emitted by rv32i-to-mbc alongside the
+    /// `.mbc` artifact) into RAM_MAP at the byte-VMA addresses the C
+    /// compiler's loaded immediates expect. Format: `[count u32 LE]
+    /// [(byte_addr u32, len u32, bytes... padded to 4-byte alignment)]+`.
+    ///
+    /// Without this step, xv6's `lui a3, 0x27; addi a3, 1584` loads a
+    /// byte address (0x27630) into a register, and the subsequent
+    /// `lbu a4, 0(a3)` reads zero from RAM_MAP — the .rodata string
+    /// "xv6 booting..." never reaches the TTY. Task #61 closure.
+    pub fn load_data_image(&mut self, path: &Path) -> Result<()> {
+        let blob = fs::read(path)
+            .with_context(|| format!("read data image: {}", path.display()))?;
+        if blob.len() < 4 {
+            anyhow::bail!(
+                "data image too short ({} bytes); expected at least the count header",
+                blob.len()
+            );
+        }
+        let count = u32::from_le_bytes([blob[0], blob[1], blob[2], blob[3]]) as usize;
+        let mut off = 4usize;
+        let mut regions: Vec<(u32, Vec<u8>)> = Vec::with_capacity(count);
+        for i in 0..count {
+            if off + 8 > blob.len() {
+                anyhow::bail!(
+                    "data image truncated at record {} (off=0x{:x} blob_len=0x{:x})",
+                    i,
+                    off,
+                    blob.len()
+                );
+            }
+            let byte_addr = u32::from_le_bytes([
+                blob[off],
+                blob[off + 1],
+                blob[off + 2],
+                blob[off + 3],
+            ]);
+            let len = u32::from_le_bytes([
+                blob[off + 4],
+                blob[off + 5],
+                blob[off + 6],
+                blob[off + 7],
+            ]) as usize;
+            off += 8;
+            if off + len > blob.len() {
+                anyhow::bail!(
+                    "data image record {} payload truncated (off=0x{:x} len=0x{:x} blob_len=0x{:x})",
+                    i,
+                    off,
+                    len,
+                    blob.len()
+                );
+            }
+            let bytes = blob[off..off + len].to_vec();
+            off += len;
+            // Skip the 4-byte alignment padding the writer added.
+            while off % 4 != 0 && off < blob.len() {
+                off += 1;
+            }
+            regions.push((byte_addr, bytes));
+        }
+        tracing::info!(
+            count = regions.len(),
+            total_bytes = regions.iter().map(|(_, b)| b.len()).sum::<usize>(),
+            "data image parsed"
+        );
+        // Reuse populate_ram so the byte-address → word-address layout is
+        // handled identically to the existing IVT/BootParams/CSR writes.
+        let region_refs: Vec<(u32, &[u8])> =
+            regions.iter().map(|(a, b)| (*a, b.as_slice())).collect();
+        self.populate_ram(&region_refs)
     }
 
     /// Insert the initial CPU state for `instance_id` into CPU_MAP.
