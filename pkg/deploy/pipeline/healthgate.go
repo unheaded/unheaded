@@ -670,7 +670,7 @@ func (g *HealthGate) runHTTPCheck(ctx context.Context, config *HTTPHealthCheck, 
 	// Check expected body if configured
 	if config.ExpectedBody != "" {
 		buf := new(bytes.Buffer)
-		buf.ReadFrom(resp.Body)
+		_, _ = buf.ReadFrom(resp.Body)
 		result.Output = buf.String()
 
 		if !strings.Contains(result.Output, config.ExpectedBody) {
@@ -681,7 +681,7 @@ func (g *HealthGate) runHTTPCheck(ctx context.Context, config *HTTPHealthCheck, 
 	// Check expected JSON if configured
 	if config.ExpectedJSON != nil {
 		buf := new(bytes.Buffer)
-		buf.ReadFrom(resp.Body)
+		_, _ = buf.ReadFrom(resp.Body)
 
 		var responseJSON map[string]interface{}
 		if err := json.Unmarshal(buf.Bytes(), &responseJSON); err != nil {
@@ -713,7 +713,7 @@ func (g *HealthGate) runTCPCheck(ctx context.Context, config *TCPHealthCheck, re
 	if err != nil {
 		return fmt.Errorf("TCP connection failed: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Send data if configured
 	if config.Send != "" {
@@ -753,7 +753,7 @@ func (g *HealthGate) runGRPCCheck(ctx context.Context, config *GRPCHealthCheck, 
 	if err != nil {
 		return fmt.Errorf("gRPC connection failed: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// In a real implementation, we would use the gRPC health checking protocol
 	// For now, a successful TCP connection indicates the service is reachable

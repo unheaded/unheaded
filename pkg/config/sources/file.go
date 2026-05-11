@@ -161,7 +161,7 @@ func (p *TOMLParser) Parse() (map[string]any, error) {
 					if _, ok := parent[parts[i]]; !ok {
 						parent[parts[i]] = make(map[string]any)
 					}
-					parent = parent[parts[i]].(map[string]any)
+					parent, _ = parent[parts[i]].(map[string]any)
 				}
 
 				lastKey := parts[len(parts)-1]
@@ -169,7 +169,7 @@ func (p *TOMLParser) Parse() (map[string]any, error) {
 					parent[lastKey] = make([]any, 0)
 				}
 
-				arr := parent[lastKey].([]any)
+				arr, _ := parent[lastKey].([]any)
 				newSection := make(map[string]any)
 				arr = append(arr, newSection)
 				parent[lastKey] = arr
@@ -190,7 +190,7 @@ func (p *TOMLParser) Parse() (map[string]any, error) {
 					if _, ok := currentSection[part]; !ok {
 						currentSection[part] = make(map[string]any)
 					}
-					currentSection = currentSection[part].(map[string]any)
+					currentSection, _ = currentSection[part].(map[string]any)
 				}
 			}
 
@@ -212,7 +212,7 @@ func (p *TOMLParser) Parse() (map[string]any, error) {
 						if _, ok := target[parts[i]]; !ok {
 							target[parts[i]] = make(map[string]any)
 						}
-						target = target[parts[i]].(map[string]any)
+						target, _ = target[parts[i]].(map[string]any)
 					}
 					target[parts[len(parts)-1]] = value
 				} else {

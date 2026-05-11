@@ -40,7 +40,7 @@ func OpenPinnedAnamnesisReader(ctx context.Context, pinPath string, bufSize int)
 	// Get map info to determine ring buffer size
 	ringSize, err := getRingbufSize(mapFD)
 	if err != nil {
-		unix.Close(mapFD)
+		_ = unix.Close(mapFD)
 		return nil, fmt.Errorf("get ring buffer size: %w", err)
 	}
 
@@ -51,7 +51,7 @@ func OpenPinnedAnamnesisReader(ctx context.Context, pinPath string, bufSize int)
 	mmapData, err := unix.Mmap(mapFD, 0, mmapSize,
 		unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 	if err != nil {
-		unix.Close(mapFD)
+		_ = unix.Close(mapFD)
 		return nil, fmt.Errorf("mmap ring buffer: %w", err)
 	}
 
@@ -91,8 +91,8 @@ func pinnedRingbufPoller(ctx context.Context, mapFD int, mmapData []byte,
 	out chan<- []byte, ringSize, pageSize int) {
 
 	defer close(out)
-	defer unix.Munmap(mmapData)
-	defer unix.Close(mapFD)
+	defer func() { _ = unix.Munmap(mmapData) }()
+	defer func() { _ = unix.Close(mapFD) }()
 
 	consumerPos := (*uint64)(unsafe.Pointer(&mmapData[0]))
 	producerPos := (*uint64)(unsafe.Pointer(&mmapData[pageSize-8]))

@@ -88,7 +88,7 @@ func newConfigGetCommand() *Command {
 				return ctx.Output.Write(map[string]string{key: value})
 			}
 
-			ctx.Output.WriteStringln(value)
+			_ = ctx.Output.WriteStringln(value)
 			return nil
 		},
 	}
@@ -169,7 +169,7 @@ func newConfigValidateCommand() *Command {
 
 			w.WriteError("Configuration has %d error(s):", len(errors))
 			for _, err := range errors {
-				w.WriteStringln(fmt.Sprintf("  - %s", err))
+				_ = w.WriteStringln(fmt.Sprintf("  - %s", err))
 			}
 			return fmt.Errorf("configuration validation failed")
 		},
@@ -183,7 +183,7 @@ func newConfigCurrentContextCommand() *Command {
 		Usage:   "unheaded config current-context",
 		Aliases: []string{"ctx"},
 		RunFunc: func(ctx *Context, args []string) error {
-			ctx.Output.WriteStringln(ctx.Config.CurrentContext)
+			_ = ctx.Output.WriteStringln(ctx.Config.CurrentContext)
 			return nil
 		},
 	}
@@ -243,7 +243,7 @@ func newConfigViewCommand() *Command {
 				return fmt.Errorf("failed to marshal config: %w", err)
 			}
 
-			ctx.Output.WriteStringln(string(data))
+			_ = ctx.Output.WriteStringln(string(data))
 			return nil
 		},
 	}
