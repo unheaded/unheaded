@@ -181,7 +181,7 @@ func (p *L4Proxy) acceptTCP() {
 // handleTCP handles a single TCP connection.
 func (p *L4Proxy) handleTCP(clientConn net.Conn) {
 	defer p.wg.Done()
-	defer clientConn.Close()
+	defer func() { _ = clientConn.Close() }()
 
 	startTime := time.Now()
 	clientAddr := clientConn.RemoteAddr().String()
@@ -327,14 +327,14 @@ func (p *L4Proxy) copy(dst, src net.Conn, timeout time.Duration) (int64, error) 
 
 		// Set read deadline
 		if timeout > 0 {
-			src.SetReadDeadline(time.Now().Add(timeout))
+			_ = src.SetReadDeadline(time.Now().Add(timeout))
 		}
 
 		n, err := src.Read(buf)
 		if n > 0 {
 			// Set write deadline
 			if timeout > 0 {
-				dst.SetWriteDeadline(time.Now().Add(timeout))
+				_ = dst.SetWriteDeadline(time.Now().Add(timeout))
 			}
 
 			written, writeErr := dst.Write(buf[:n])
@@ -392,7 +392,7 @@ func (p *L4Proxy) handleUDP() {
 		}
 
 		// Set read deadline for clean shutdown
-		p.udpConn.SetReadDeadline(time.Now().Add(time.Second))
+		_ = p.udpConn.SetReadDeadline(time.Now().Add(time.Second))
 
 		n, clientAddr, err := p.udpConn.ReadFromUDP(buf)
 		if err != nil {
@@ -437,13 +437,13 @@ func (p *L4Proxy) handleUDP() {
 			go func(sess *udpSession, cAddr *net.UDPAddr) {
 				respBuf := make([]byte, 65535)
 				for {
-					sess.backendConn.SetReadDeadline(time.Now().Add(p.config.Timeouts.Idle))
+					_ = sess.backendConn.SetReadDeadline(time.Now().Add(p.config.Timeouts.Idle))
 					n, err := sess.backendConn.Read(respBuf)
 					if err != nil {
 						break
 					}
 					sess.lastActivity = time.Now()
-					p.udpConn.WriteToUDP(respBuf[:n], cAddr)
+					_, _ = p.udpConn.WriteToUDP(respBuf[:n], cAddr)
 					atomic.AddInt64(&p.totalBytes, int64(n))
 				}
 			}(session, clientAddr)
@@ -452,7 +452,7 @@ func (p *L4Proxy) handleUDP() {
 
 		// Forward packet to backend
 		session.lastActivity = time.Now()
-		session.backendConn.Write(buf[:n])
+		_, _ = session.backendConn.Write(buf[:n])
 		atomic.AddInt64(&p.totalBytes, int64(n))
 		atomic.AddInt64(&p.totalConns, 1)
 	}

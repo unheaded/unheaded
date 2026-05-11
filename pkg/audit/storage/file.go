@@ -232,7 +232,7 @@ func (fs *FileStorage) openCurrentFile() error {
 	// Get current file size
 	info, err := file.Stat()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return err
 	}
 
@@ -269,14 +269,14 @@ func (fs *FileStorage) rotate() error {
 		_ = fs.writer.Flush()
 	}
 	if fs.currentFile != nil {
-		fs.currentFile.Close()
+		_ = fs.currentFile.Close()
 	}
 
 	// Rename current file with timestamp if size-based rotation
 	if fs.currentSize >= fs.maxFileSize {
 		oldName := filepath.Join(fs.baseDir, fmt.Sprintf("audit-%s.log", fs.currentDate))
 		newName := filepath.Join(fs.baseDir, fmt.Sprintf("audit-%s-%d.log", fs.currentDate, time.Now().Unix()))
-		os.Rename(oldName, newName)
+		_ = os.Rename(oldName, newName)
 	}
 
 	return fs.openCurrentFile()
@@ -299,7 +299,7 @@ func (fs *FileStorage) loadLastHash() error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var lastLine string
 	scanner := bufio.NewScanner(file)
@@ -337,7 +337,7 @@ func (fs *FileStorage) findEventInFile(filename, id string) (*audit.AuditEvent, 
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	scanner := bufio.NewScanner(file)
 	scanner.Buffer(make([]byte, 1024*1024), 10*1024*1024) // 10MB max line size
@@ -361,7 +361,7 @@ func (fs *FileStorage) queryFile(filename string, query *audit.AuditQuery) ([]*a
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var results []*audit.AuditEvent
 	scanner := bufio.NewScanner(file)
@@ -508,7 +508,7 @@ func (r *FileReader) openNextFile() error {
 
 func (r *FileReader) closeCurrentFile() {
 	if r.file != nil {
-		r.file.Close()
+		_ = r.file.Close()
 		r.file = nil
 	}
 }

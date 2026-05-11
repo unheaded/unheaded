@@ -449,7 +449,8 @@ func (b *Backend) SetHealthCheckResult(healthy bool, healthConfig HealthCheckCon
 // LastHealthCheck returns the time of the last health check.
 func (b *Backend) LastHealthCheck() time.Time {
 	if v := b.lastHealthCheck.Load(); v != nil {
-		return v.(time.Time)
+		t, _ := v.(time.Time)
+		return t
 	}
 	return time.Time{}
 }
@@ -457,7 +458,8 @@ func (b *Backend) LastHealthCheck() time.Time {
 // LastError returns the last error.
 func (b *Backend) LastError() error {
 	if v := b.lastError.Load(); v != nil {
-		return v.(error)
+		err, _ := v.(error)
+		return err
 	}
 	return nil
 }
@@ -790,7 +792,7 @@ func (p *ConnectionPool) Get(ctx context.Context) (net.Conn, error) {
 
 		// Check if connection is still valid
 		if now.Sub(createdAt) > p.idleTimeout {
-			conn.Close()
+			_ = conn.Close()
 			continue
 		}
 
@@ -809,7 +811,7 @@ func (p *ConnectionPool) Put(conn net.Conn) {
 	defer p.mu.Unlock()
 
 	if len(p.connections) >= p.maxIdle {
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
@@ -829,7 +831,7 @@ func (p *ConnectionPool) dial(ctx context.Context) (net.Conn, error) {
 	if p.backend.tlsConfig != nil {
 		tlsConn := tls.Client(conn, p.backend.tlsConfig)
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil, err
 		}
 		return tlsConn, nil
@@ -844,7 +846,7 @@ func (p *ConnectionPool) Close() {
 	defer p.mu.Unlock()
 
 	for _, conn := range p.connections {
-		conn.Close()
+		_ = conn.Close()
 	}
 	p.connections = p.connections[:0]
 	p.created = p.created[:0]
@@ -868,7 +870,7 @@ func (p *ConnectionPool) Cleanup() {
 
 	for i, conn := range p.connections {
 		if now.Sub(p.created[i]) > p.idleTimeout {
-			conn.Close()
+			_ = conn.Close()
 		} else {
 			newConns = append(newConns, conn)
 			newCreated = append(newCreated, p.created[i])

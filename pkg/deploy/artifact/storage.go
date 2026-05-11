@@ -157,12 +157,12 @@ func (s *FileStorage) Put(ctx context.Context, key string, reader io.Reader) (st
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	// Copy data to file
 	size, err := io.Copy(file, reader)
 	if err != nil {
-		os.Remove(filePath)
+		_ = os.Remove(filePath)
 		return "", 0, fmt.Errorf("failed to write data: %w", err)
 	}
 
@@ -314,14 +314,14 @@ func (s *CachingStorage) Put(ctx context.Context, key string, reader io.Reader) 
 		for s.total+size > s.maxSize && len(s.sizes) > 0 {
 			// Simple eviction: remove first item
 			for evictKey := range s.sizes {
-				s.cache.Delete(ctx, evictKey)
+				_ = s.cache.Delete(ctx, evictKey)
 				s.total -= s.sizes[evictKey]
 				delete(s.sizes, evictKey)
 				break
 			}
 		}
 
-		s.cache.Put(ctx, ref, bytes.NewReader(data))
+		_, _, _ = s.cache.Put(ctx, ref, bytes.NewReader(data))
 		s.sizes[ref] = size
 		s.total += size
 		s.mu.Unlock()
@@ -353,7 +353,7 @@ func (s *CachingStorage) Delete(ctx context.Context, ref string) error {
 	// Remove from cache
 	s.mu.Lock()
 	if size, cached := s.sizes[ref]; cached {
-		s.cache.Delete(ctx, ref)
+		_ = s.cache.Delete(ctx, ref)
 		s.total -= size
 		delete(s.sizes, ref)
 	}
@@ -409,7 +409,7 @@ func (s *ReplicatedStorage) Put(ctx context.Context, key string, reader io.Reade
 	// Replicate to all replicas asynchronously
 	for _, replica := range s.replicas {
 		go func(r Storage) {
-			r.Put(ctx, key, bytes.NewReader(data))
+			_, _, _ = r.Put(ctx, key, bytes.NewReader(data))
 		}(replica)
 	}
 
@@ -442,7 +442,7 @@ func (s *ReplicatedStorage) Delete(ctx context.Context, ref string) error {
 
 	// Delete from replicas
 	for _, replica := range s.replicas {
-		replica.Delete(ctx, ref)
+		_ = replica.Delete(ctx, ref)
 	}
 
 	return err
