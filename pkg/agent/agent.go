@@ -530,8 +530,8 @@ func mergeRefs(perTurn, seed []champion.Reference) []champion.Reference {
 // learn from.
 func (a *Agent) dispatch(ctx context.Context, tc champion.ToolCall) (string, error) {
 	if a.champ == nil {
-		msg := fmt.Sprintf("tool refused: agent has no Champion bound; tool calls disabled")
-		return msg, fmt.Errorf("%s", msg)
+		msg := "tool refused: agent has no Champion bound; tool calls disabled"
+		return msg, errors.New(msg)
 	}
 	out, err := a.champ.Dispatch(ctx, tc)
 	if err != nil {

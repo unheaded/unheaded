@@ -510,6 +510,6 @@ func TestNewClient(t *testing.T) {
 		t.Fatal("NewClient returned nil")
 	}
 
-	// Verify it implements Client interface
-	var _ Client = c
+	// Verify it implements Client interface (compile-time assertion).
+	var _ Client = c //nolint:staticcheck // QF1011 false-positive: removing the type defeats the interface-conformance check
 }

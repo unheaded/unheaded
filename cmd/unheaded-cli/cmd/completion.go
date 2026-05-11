@@ -4,9 +4,6 @@
 // Package cmd provides shell completion for THE GAUNTLETS CLI.
 package cmd
 
-import (
-	"fmt"
-)
 
 // NewCompletionCommand creates the completion command.
 func NewCompletionCommand() *Command {
@@ -278,7 +275,7 @@ _unheaded "$@"
 }
 
 func generateFishCompletion() string {
-	return fmt.Sprintf(`# fish completion for unheaded
+	return `# fish completion for unheaded
 
 # Main commands
 complete -c unheaded -f -n "__fish_use_subcommand" -a "container" -d "Manage containers"
@@ -342,5 +339,5 @@ complete -c unheaded -s h -l help -d "Show help"
 complete -c unheaded -f -n "__fish_seen_subcommand_from completion" -a "bash" -d "Generate bash completion"
 complete -c unheaded -f -n "__fish_seen_subcommand_from completion" -a "zsh" -d "Generate zsh completion"
 complete -c unheaded -f -n "__fish_seen_subcommand_from completion" -a "fish" -d "Generate fish completion"
-`)
+`
 }

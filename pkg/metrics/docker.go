@@ -181,7 +181,7 @@ func (d *DockerCollector) listContainers(ctx context.Context) ([]dockerContainer
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Docker returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("docker returned status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -247,7 +247,7 @@ func (d *DockerCollector) getContainerStats(ctx context.Context, containerID str
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Docker returned status %d", resp.StatusCode)
+		return nil, fmt.Errorf("docker returned status %d", resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)

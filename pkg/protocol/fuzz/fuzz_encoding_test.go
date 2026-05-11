@@ -156,10 +156,9 @@ func FuzzCRC16CCITT(f *testing.F) {
 			t.Logf("CRC collision on length change (expected for CRC-16): both %04x", crc1)
 		}
 
-		// CRC-16 produces values in range [0, 65535]
-		if crc1 > 0xFFFF {
-			t.Errorf("CRC value out of 16-bit range: %d", crc1)
-		}
+		// CRC-16 produces values in range [0, 65535]. The uint16 type
+		// already guarantees this; no assertion needed.
+		_ = crc1
 	})
 }
 

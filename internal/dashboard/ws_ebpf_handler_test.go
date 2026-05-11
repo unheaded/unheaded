@@ -31,5 +31,5 @@ func TestNewNoOpTelemetryHandler_ReturnsValidImplementation(t *testing.T) {
 		t.Fatal("nil handler returned")
 	}
 	// Verify interface satisfaction at compile time + runtime no-panic.
-	var _ TelemetryHandler = h
+	var _ TelemetryHandler = h //nolint:staticcheck // QF1011 false-positive: removing the type defeats the interface assertion
 }
