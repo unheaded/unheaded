@@ -37,13 +37,6 @@ type IntegrationTestHarness struct {
 	ServiceMesh      *mesh.Mesh
 	LoadBalancer     *loadbalancer.Balancer
 
-	// State tracking
-	mu                 sync.Mutex
-	scheduledWorkloads map[string]*scheduler.Workload
-	createdContainers  map[string]*TestContainer
-	registeredServices map[string]*dns.Service
-	meshEndpoints      map[string][]*mesh.Endpoint
-
 	// Cleanup
 	cleanup []func()
 }
@@ -78,12 +71,8 @@ func NewIntegrationTestHarness(t *testing.T) *IntegrationTestHarness {
 	t.Helper()
 
 	h := &IntegrationTestHarness{
-		t:                  t,
-		scheduledWorkloads: make(map[string]*scheduler.Workload),
-		createdContainers:  make(map[string]*TestContainer),
-		registeredServices: make(map[string]*dns.Service),
-		meshEndpoints:      make(map[string][]*mesh.Endpoint),
-		cleanup:            []func(){},
+		t:       t,
+		cleanup: []func(){},
 	}
 
 	// Initialize components
