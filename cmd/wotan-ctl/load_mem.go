@@ -4,7 +4,7 @@
 package main
 
 import (
-	"crypto/md5"
+	"crypto/md5" //nolint:gosec // page-load checksum, not security primitive
 	"flag"
 	"fmt"
 	"net/http"
@@ -109,7 +109,7 @@ func loadMem(ctx *Context, flowLabel uint64, baseAddr uint64, filePath string, w
 	// For now, implement as dry-run since actual Wotan HTTP API would need to be documented
 	fmt.Println("\n[DRY-RUN] Would stream pages to Wotan:")
 
-	checksum := md5.New()
+	checksum := md5.New() //nolint:gosec // page-load checksum, not security
 	for i := 0; i < totalPages; i++ {
 		offset := i * pageSize
 		end := offset + pageSize
