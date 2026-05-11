@@ -253,36 +253,36 @@ func (c *Command) showHelp(ctx *Context) error {
 
 	// Header
 	if c.Long != "" {
-		w.WriteStringln(c.Long)
+		_ = w.WriteStringln(c.Long)
 	} else if c.Short != "" {
-		w.WriteStringln(c.Short)
+		_ = w.WriteStringln(c.Short)
 	}
-	w.WriteStringln("")
+	_ = w.WriteStringln("")
 
 	// Usage
 	if c.Usage != "" {
-		w.WriteStringln("Usage:")
-		w.WriteStringln("  " + c.Usage)
+		_ = w.WriteStringln("Usage:")
+		_ = w.WriteStringln("  " + c.Usage)
 	} else {
-		w.WriteStringln("Usage:")
+		_ = w.WriteStringln("Usage:")
 		if len(c.SubCommands) > 0 {
-			w.WriteStringln("  " + path + " [command]")
+			_ = w.WriteStringln("  " + path + " [command]")
 		} else {
-			w.WriteStringln("  " + path + " [flags]")
+			_ = w.WriteStringln("  " + path + " [flags]")
 		}
 	}
-	w.WriteStringln("")
+	_ = w.WriteStringln("")
 
 	// Aliases
 	if len(c.Aliases) > 0 {
-		w.WriteStringln("Aliases:")
-		w.WriteStringln("  " + strings.Join(c.Aliases, ", "))
-		w.WriteStringln("")
+		_ = w.WriteStringln("Aliases:")
+		_ = w.WriteStringln("  " + strings.Join(c.Aliases, ", "))
+		_ = w.WriteStringln("")
 	}
 
 	// Subcommands
 	if len(c.SubCommands) > 0 {
-		w.WriteStringln("Available Commands:")
+		_ = w.WriteStringln("Available Commands:")
 
 		// Collect unique commands (filter aliases)
 		seen := make(map[*Command]bool)
@@ -307,33 +307,33 @@ func (c *Command) showHelp(ctx *Context) error {
 			}
 		}
 		for _, sub := range cmds {
-			w.WriteStringln(fmt.Sprintf("  %-*s  %s", maxLen, sub.Name, sub.Short))
+			_ = w.WriteStringln(fmt.Sprintf("  %-*s  %s", maxLen, sub.Name, sub.Short))
 		}
-		w.WriteStringln("")
+		_ = w.WriteStringln("")
 	}
 
 	// Flags
 	if c.Flags != nil {
-		w.WriteStringln("Flags:")
+		_ = w.WriteStringln("Flags:")
 		c.Flags.SetOutput(os.Stdout)
 		c.Flags.PrintDefaults()
-		w.WriteStringln("")
+		_ = w.WriteStringln("")
 	}
 
 	// Global flags (only for root)
 	if c.parent == nil {
-		w.WriteStringln("Global Flags:")
-		w.WriteStringln("  -o, --output string    Output format: table, json, yaml, wide (default \"table\")")
-		w.WriteStringln("  -v, --verbose          Enable verbose output")
-		w.WriteStringln("  -q, --quiet            Suppress non-essential output")
-		w.WriteStringln("      --no-color         Disable color output")
-		w.WriteStringln("      --context string   Context to use")
-		w.WriteStringln("")
+		_ = w.WriteStringln("Global Flags:")
+		_ = w.WriteStringln("  -o, --output string    Output format: table, json, yaml, wide (default \"table\")")
+		_ = w.WriteStringln("  -v, --verbose          Enable verbose output")
+		_ = w.WriteStringln("  -q, --quiet            Suppress non-essential output")
+		_ = w.WriteStringln("      --no-color         Disable color output")
+		_ = w.WriteStringln("      --context string   Context to use")
+		_ = w.WriteStringln("")
 	}
 
 	// Footer
 	if len(c.SubCommands) > 0 {
-		w.WriteStringln(fmt.Sprintf("Use \"%s [command] --help\" for more information about a command.", path))
+		_ = w.WriteStringln(fmt.Sprintf("Use \"%s [command] --help\" for more information about a command.", path))
 	}
 
 	return nil
