@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"unheaded/pkg/logger"
@@ -272,7 +273,9 @@ type ObjectWalker interface {
 	Walk(ctx context.Context, bucket, prefix string, fn func(info *ObjectInfo) error) error
 }
 
-// ValidateKey validates an object key.
+// ValidateKey validates an object key. Rejects path-traversal and
+// absolute-path attempts so the FilesystemStore cannot be tricked into
+// reading or writing outside its bucket root via a crafted key.
 func ValidateKey(key string) error {
 	if key == "" {
 		return fmt.Errorf("object: empty key")
@@ -280,16 +283,31 @@ func ValidateKey(key string) error {
 	if len(key) > 1024 {
 		return fmt.Errorf("object: key too long (max 1024)")
 	}
+	if strings.HasPrefix(key, "/") || strings.HasPrefix(key, `\`) {
+		return fmt.Errorf("object: key must not be absolute")
+	}
+	if key == ".." || strings.HasPrefix(key, "../") || strings.HasPrefix(key, `..\`) ||
+		strings.Contains(key, "/../") || strings.Contains(key, `\..\`) ||
+		strings.HasSuffix(key, "/..") || strings.HasSuffix(key, `\..`) {
+		return fmt.Errorf("object: key must not contain path traversal segments")
+	}
+	if strings.ContainsRune(key, 0) {
+		return fmt.Errorf("object: key must not contain NUL bytes")
+	}
 	return nil
 }
 
-// ValidateBucket validates a bucket name.
+// ValidateBucket validates a bucket name. Same traversal+NUL rejection
+// as ValidateKey plus the existing length bound.
 func ValidateBucket(bucket string) error {
 	if bucket == "" {
 		return fmt.Errorf("object: empty bucket name")
 	}
 	if len(bucket) < 3 || len(bucket) > 63 {
 		return fmt.Errorf("object: bucket name must be 3-63 characters")
+	}
+	if strings.ContainsAny(bucket, "/\\") || strings.Contains(bucket, "..") || strings.ContainsRune(bucket, 0) {
+		return fmt.Errorf("object: bucket name must not contain path-separator, traversal, or NUL")
 	}
 	return nil
 }
