@@ -920,7 +920,7 @@ func (a *Aggregator) runTCPCheck(ctx context.Context, check *HealthCheck) *Healt
 			Error:   err.Error(),
 		}
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	return &HealthResult{
 		Name:    check.Name,
@@ -957,7 +957,7 @@ func (a *Aggregator) runGRPCCheck(ctx context.Context, check *HealthCheck) *Heal
 			Error:   err.Error(),
 		}
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	client := healthpb.NewHealthClient(conn)
 	req := &healthpb.HealthCheckRequest{
@@ -1087,7 +1087,7 @@ func (a *Aggregator) runWotanCheck(ctx context.Context, check *HealthCheck) *Hea
 			Error:   err.Error(),
 		}
 	}
-	conn.Close()
+	_ = conn.Close()
 
 	// Then try HTTP health endpoint
 	healthURL := fmt.Sprintf("http://%s/health", check.Target)

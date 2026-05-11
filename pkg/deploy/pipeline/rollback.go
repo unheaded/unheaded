@@ -544,7 +544,7 @@ func (m *RollbackManager) executeRollback(ctx context.Context, rollback *Pipelin
 	if err != nil {
 		// Execute on-failure hooks
 		if rollback.Strategy != nil && rollback.Strategy.Hooks != nil {
-			m.executeHooks(ctx, rollback.Strategy.Hooks.OnFailure, rollback)
+			_ = m.executeHooks(ctx, rollback.Strategy.Hooks.OnFailure, rollback)
 		}
 		m.failRollback(rollback, err)
 		return
@@ -560,7 +560,7 @@ func (m *RollbackManager) executeRollback(ctx context.Context, rollback *Pipelin
 
 	// Execute post-rollback hooks
 	if rollback.Strategy != nil && rollback.Strategy.Hooks != nil {
-		m.executeHooks(ctx, rollback.Strategy.Hooks.PostRollback, rollback)
+		_ = m.executeHooks(ctx, rollback.Strategy.Hooks.PostRollback, rollback)
 	}
 
 	// Complete rollback
@@ -577,7 +577,7 @@ func (m *RollbackManager) executeRollback(ctx context.Context, rollback *Pipelin
 
 	// Update artifact tracker
 	if m.artifactTracker != nil {
-		m.artifactTracker.MarkRollback(ctx, rollback.ServiceName, rollback.ToVersion, rollback.ID)
+		_ = m.artifactTracker.MarkRollback(ctx, rollback.ServiceName, rollback.ToVersion, rollback.ID)
 	}
 }
 

@@ -175,7 +175,7 @@ func (s *Server) Start(ctx context.Context) error {
 
 	// Start DHCP proxy
 	if err := s.dhcpProxy.Start(ctx); err != nil {
-		s.tftpServer.Stop()
+		_ = s.tftpServer.Stop()
 		return fmt.Errorf("starting DHCP proxy: %w", err)
 	}
 
@@ -190,8 +190,8 @@ func (s *Server) Stop() error {
 	}
 
 	close(s.done)
-	s.tftpServer.Stop()
-	s.dhcpProxy.Stop()
+	_ = s.tftpServer.Stop()
+	_ = s.dhcpProxy.Stop()
 	s.running = false
 
 	return nil

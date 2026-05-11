@@ -265,7 +265,7 @@ func (hc *EnhancedHealthChecker) checkEndpoint(svc *ServiceDefinition, epState *
 
 	// Update health through service discovery (uses sd.mu exclusively for ep fields).
 	// UpdateEndpointHealth no-ops when health hasn't changed.
-	hc.sd.UpdateEndpointHealth(svc.Name, ep.ID, newHealth)
+	_ = hc.sd.UpdateEndpointHealth(svc.Name, ep.ID, newHealth)
 }
 
 // determineHealth determines the health state based on check results
@@ -357,7 +357,7 @@ func (hc *EnhancedHealthChecker) tcpCheck(ctx context.Context, ep *ServiceEndpoi
 	if err != nil {
 		return fmt.Errorf("tcp connect: %w", err)
 	}
-	conn.Close()
+	_ = conn.Close()
 	return nil
 }
 
@@ -394,7 +394,7 @@ func (hc *EnhancedHealthChecker) httpCheck(ctx context.Context, ep *ServiceEndpo
 	defer resp.Body.Close()
 
 	// Drain body
-	io.Copy(io.Discard, resp.Body)
+	_, _ = io.Copy(io.Discard, resp.Body)
 
 	expectedStatus := config.ExpectedStatus
 	if expectedStatus == 0 {

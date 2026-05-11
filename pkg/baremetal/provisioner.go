@@ -528,7 +528,7 @@ func (p *bareMetalProvisioner) powerOffMachine(ctx context.Context, machine *Mac
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	return client.PowerOff(ctx)
 }
@@ -544,7 +544,7 @@ func (p *bareMetalProvisioner) powerOnMachine(ctx context.Context, machine *Mach
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Set boot device to PXE
 	if err := client.SetBootDevice(ctx, ipmi.BootDevicePXE); err != nil {
@@ -649,7 +649,7 @@ func (p *bareMetalProvisioner) Reboot(ctx context.Context, machineID string) err
 	if err != nil {
 		return err
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	return client.Reboot(ctx)
 }

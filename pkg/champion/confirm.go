@@ -150,7 +150,7 @@ func (c *Champion) ConfirmPendingToolCall(ctx context.Context, token string) (an
 
 	// Run a stripped gate: Rules 3 and 1, but skip Rule 2.
 	if tc.HasDestructiveVerb() {
-		c.logAction(ctx, "tool_call_confirmed_destructive_blocked",
+		_, _ = c.logAction(ctx, "tool_call_confirmed_destructive_blocked",
 			fmt.Sprintf("ToolCall: %s (destructive arg even after user confirm)", tc.Name),
 			tc.EmittedBy)
 		return nil, fmt.Errorf("destructive shell verbs cannot be confirmed; refused")
@@ -159,7 +159,7 @@ func (c *Champion) ConfirmPendingToolCall(ctx context.Context, token string) (an
 	// Path-allowlist for path-bearing tools.
 	if path, ok := tc.Args["path"].(string); ok {
 		if err := c.validatePath(path); err != nil {
-			c.logAction(ctx, "tool_call_confirmed_path_denied",
+			_, _ = c.logAction(ctx, "tool_call_confirmed_path_denied",
 				fmt.Sprintf("ToolCall: %s (path denied even after user confirm)", tc.Name),
 				tc.EmittedBy)
 			return nil, fmt.Errorf("path-allowlist (still enforced after confirm): %w", err)
@@ -169,7 +169,7 @@ func (c *Champion) ConfirmPendingToolCall(ctx context.Context, token string) (an
 	// Log that the user explicitly confirmed an untrusted-justification
 	// call. This is the audit trail for "human in the loop authorized
 	// this despite the warning."
-	c.logAction(ctx, "tool_call_user_confirmed",
+	_, _ = c.logAction(ctx, "tool_call_user_confirmed",
 		fmt.Sprintf("ToolCall: %s (user confirmed untrusted justification)", tc.Name),
 		"user")
 

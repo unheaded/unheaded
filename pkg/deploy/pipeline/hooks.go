@@ -346,7 +346,7 @@ func (e *HookExecutor) executeHTTPHook(ctx context.Context, hook *Hook, result *
 
 	// Read response body
 	buf := new(bytes.Buffer)
-	buf.ReadFrom(resp.Body)
+	_, _ = buf.ReadFrom(resp.Body)
 	result.Output = buf.String()
 
 	// Check status code
@@ -440,11 +440,11 @@ func (e *HookExecutor) executeScriptHook(ctx context.Context, hook *Hook, result
 	tmpPath := tmpFile.Name()
 
 	// Ensure cleanup of temporary file
-	defer os.Remove(tmpPath)
+	defer func() { _ = os.Remove(tmpPath) }()
 
 	// Write script content to the temp file
 	if _, err := tmpFile.WriteString(hook.Config.Script); err != nil {
-		tmpFile.Close()
+		_ = tmpFile.Close()
 		return fmt.Errorf("failed to write script to temp file: %w", err)
 	}
 	if err := tmpFile.Close(); err != nil {

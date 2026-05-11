@@ -345,7 +345,7 @@ func (s *CanaryStrategy) Execute(ctx context.Context, params *ExecuteParams) (*R
 	// Terminate stable instances
 	for _, inst := range deployment.stableInstances {
 		if params.Callbacks != nil && params.Callbacks.OnInstanceDelete != nil {
-			params.Callbacks.OnInstanceDelete(ctx, inst.ID)
+			_ = params.Callbacks.OnInstanceDelete(ctx, inst.ID)
 		}
 		deployment.result.Metrics.InstancesDeleted++
 	}
@@ -405,7 +405,7 @@ func (s *CanaryStrategy) Rollback(ctx context.Context, params *RollbackParams) e
 		// Terminate canary instances
 		for _, inst := range deployment.canaryInstances {
 			if params.Callbacks != nil && params.Callbacks.OnInstanceDelete != nil {
-				params.Callbacks.OnInstanceDelete(ctx, inst.ID)
+				_ = params.Callbacks.OnInstanceDelete(ctx, inst.ID)
 			}
 		}
 
@@ -567,7 +567,7 @@ func (s *CanaryStrategy) runAnalysis(ctx context.Context, deployment *canaryDepl
 // rollbackTraffic shifts traffic back to stable.
 func (s *CanaryStrategy) rollbackTraffic(ctx context.Context, deployment *canaryDeployment, params *ExecuteParams) {
 	if params.Callbacks != nil && params.Callbacks.OnTrafficShift != nil {
-		params.Callbacks.OnTrafficShift(ctx, &TrafficShiftParams{
+		_ = params.Callbacks.OnTrafficShift(ctx, &TrafficShiftParams{
 			OldVersion: params.TargetVersion,
 			NewVersion: params.CurrentVersion,
 			Weight:     100,
