@@ -176,7 +176,7 @@ func (p *InboundProxy) Start() error {
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
-		p.server.Serve(listener)
+		_ = p.server.Serve(listener)
 	}()
 
 	return nil
@@ -422,10 +422,10 @@ func (p *OutboundProxy) acceptLoop() {
 
 // handleConnection handles a single connection.
 func (p *OutboundProxy) handleConnection(conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set timeouts
-	conn.SetDeadline(time.Now().Add(p.config.IdleTimeout))
+	_ = conn.SetDeadline(time.Now().Add(p.config.IdleTimeout))
 
 	// Read and proxy data
 	reader := bufio.NewReaderSize(conn, p.config.ReadBufferSize)
@@ -446,7 +446,7 @@ func (p *OutboundProxy) handleConnection(conn net.Conn) {
 // proxyHTTP handles HTTP proxying.
 func (p *OutboundProxy) proxyHTTP(conn net.Conn, reader *bufio.Reader) {
 	for {
-		conn.SetReadDeadline(time.Now().Add(p.config.ReadTimeout))
+		_ = conn.SetReadDeadline(time.Now().Add(p.config.ReadTimeout))
 
 		req, err := http.ReadRequest(reader)
 		if err != nil {
@@ -499,7 +499,7 @@ func (p *OutboundProxy) proxyHTTP(conn net.Conn, reader *bufio.Reader) {
 		}
 
 		// Write response
-		conn.SetWriteDeadline(time.Now().Add(p.config.WriteTimeout))
+		_ = conn.SetWriteDeadline(time.Now().Add(p.config.WriteTimeout))
 
 		if len(resp.Body) > 0 {
 			httpResp.Header.Set("Content-Length", strconv.Itoa(len(resp.Body)))
@@ -923,7 +923,7 @@ func (p *TransparentProxy) acceptLoop() {
 
 // handleConnection handles a single connection.
 func (p *TransparentProxy) handleConnection(clientConn net.Conn) {
-	defer clientConn.Close()
+	defer func() { _ = clientConn.Close() }()
 
 	// Get original destination
 	// This requires platform-specific code (SO_ORIGINAL_DST on Linux)
@@ -955,7 +955,7 @@ func (p *TransparentProxy) handleConnection(clientConn net.Conn) {
 	if err != nil {
 		return
 	}
-	defer backendConn.Close()
+	defer func() { _ = backendConn.Close() }()
 
 	// Wrap with TLS if configured
 	if p.config.TLSConfig != nil {
@@ -976,7 +976,7 @@ func (p *TransparentProxy) handleConnection(clientConn net.Conn) {
 		n, _ := io.Copy(backendConn, clientConn)
 		atomic.AddUint64(&p.totalBytes, uint64(n))
 		if tc, ok := backendConn.(*net.TCPConn); ok {
-			tc.CloseWrite()
+			_ = tc.CloseWrite()
 		}
 	}()
 
@@ -986,7 +986,7 @@ func (p *TransparentProxy) handleConnection(clientConn net.Conn) {
 		n, _ := io.Copy(clientConn, backendConn)
 		atomic.AddUint64(&p.totalBytes, uint64(n))
 		if tc, ok := clientConn.(*net.TCPConn); ok {
-			tc.CloseWrite()
+			_ = tc.CloseWrite()
 		}
 	}()
 
@@ -1039,7 +1039,7 @@ func sendHTTPError(conn net.Conn, status int) {
 	}
 	resp.Header.Set("Content-Length", "0")
 	resp.Header.Set("Connection", "close")
-	resp.Write(conn)
+	_ = resp.Write(conn)
 }
 
 // PoolManager manages multiple connection pools.
