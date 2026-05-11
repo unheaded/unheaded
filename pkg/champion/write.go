@@ -61,7 +61,7 @@ func (c *Champion) WriteFile(ctx context.Context, path, content string) error {
 
 	// Save snapshot for revert
 	if c.snapshotStore != nil && actionID > 0 {
-		c.snapshotStore.SaveSnapshot(ctx, actionID, "file", absPath, before, content, nil)
+		_ = c.snapshotStore.SaveSnapshot(ctx, actionID, "file", absPath, before, content, nil)
 	}
 
 	summary := fmt.Sprintf("Wrote %d bytes to %s", len(content), absPath)
@@ -110,7 +110,7 @@ func (c *Champion) PatchFile(ctx context.Context, path, oldText, newText string)
 
 	// Save snapshot
 	if c.snapshotStore != nil && actionID > 0 {
-		c.snapshotStore.SaveSnapshot(ctx, actionID, "file", absPath, before, after, nil)
+		_ = c.snapshotStore.SaveSnapshot(ctx, actionID, "file", absPath, before, after, nil)
 	}
 
 	summary := fmt.Sprintf("Patched %s: replaced %d chars with %d chars", absPath, len(oldText), len(newText))
@@ -200,7 +200,7 @@ func (c *Champion) UpdateKanbanTask(ctx context.Context, id string, updates map[
 	// Snapshot before state
 	if existing, err := c.kanbanStore.GetTask(ctx, id); err == nil && c.snapshotStore != nil && actionID > 0 {
 		beforeJSON, _ := json.Marshal(existing)
-		c.snapshotStore.SaveSnapshot(ctx, actionID, "kanban_task", id, string(beforeJSON), "", nil)
+		_ = c.snapshotStore.SaveSnapshot(ctx, actionID, "kanban_task", id, string(beforeJSON), "", nil)
 	}
 
 	if err := c.kanbanStore.UpdateTask(ctx, id, updates); err != nil {

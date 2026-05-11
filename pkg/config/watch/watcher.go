@@ -362,7 +362,7 @@ func (w *DirectoryWatcher) scanDirectory() {
 		return nil
 	}
 
-	filepath.Walk(w.path, walkFn)
+	_ = filepath.Walk(w.path, walkFn)
 }
 
 // matchesPatterns checks if a path matches the configured patterns.
@@ -443,7 +443,7 @@ func (w *DirectoryWatcher) checkChanges() {
 		return nil
 	}
 
-	filepath.Walk(w.path, walkFn)
+	_ = filepath.Walk(w.path, walkFn)
 
 	// Check for new and modified files
 	for path, info := range currentFiles {
@@ -533,7 +533,7 @@ func NewMultiWatcher(paths []string) (*MultiWatcher, error) {
 		if err != nil {
 			// Close already created watchers
 			for _, existing := range mw.watchers {
-				existing.Close()
+				_ = existing.Close()
 			}
 			return nil, fmt.Errorf("watch %s: %w", path, err)
 		}
