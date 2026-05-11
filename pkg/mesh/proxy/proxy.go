@@ -191,7 +191,7 @@ func (p *Proxy) Start() error {
 	outboundAddr := net.JoinHostPort(p.config.OutboundAddr, itoa(p.config.OutboundPort))
 	outListener, err := net.Listen("tcp", outboundAddr)
 	if err != nil {
-		p.inboundListener.Close()
+		_ = p.inboundListener.Close()
 		return err
 	}
 	p.outboundListener = outListener
@@ -217,14 +217,14 @@ func (p *Proxy) Stop() error {
 
 	// Close listeners
 	if p.inboundListener != nil {
-		p.inboundListener.Close()
+		_ = p.inboundListener.Close()
 	}
 	if p.outboundListener != nil {
-		p.outboundListener.Close()
+		_ = p.outboundListener.Close()
 	}
 
 	// Close connection pools
-	p.poolManager.Close()
+	_ = p.poolManager.Close()
 
 	// Wait for all connections to finish
 	p.wg.Wait()
@@ -388,7 +388,7 @@ func (p *Proxy) proxyHTTP(clientConn net.Conn, reader *bufio.Reader, inbound boo
 		// Forward request
 		backendConn.SetWriteDeadline(time.Now().Add(p.config.WriteTimeout))
 		if err := req.Write(backendConn); err != nil {
-			backendConn.Close()
+			_ = backendConn.Close()
 			p.sendHTTPError(clientConn, http.StatusBadGateway)
 			continue
 		}
@@ -398,7 +398,7 @@ func (p *Proxy) proxyHTTP(clientConn net.Conn, reader *bufio.Reader, inbound boo
 		backendReader := bufio.NewReaderSize(backendConn, p.config.ReadBufferSize)
 		resp, err := http.ReadResponse(backendReader, req)
 		if err != nil {
-			backendConn.Close()
+			_ = backendConn.Close()
 			p.sendHTTPError(clientConn, http.StatusBadGateway)
 			continue
 		}
@@ -427,18 +427,18 @@ func (p *Proxy) proxyHTTP(clientConn net.Conn, reader *bufio.Reader, inbound boo
 		writeErr := resp.Write(clientConn)
 		_ = resp.Body.Close()
 		if writeErr != nil {
-			backendConn.Close()
+			_ = backendConn.Close()
 			return
 		}
 
 		// Return connection to pool if keep-alive
 		if resp.Close || req.Close {
-			backendConn.Close()
+			_ = backendConn.Close()
 		} else {
 			if pc, ok := backendConn.(*PooledConn); ok {
 				pc.pool.put(pc)
 			} else {
-				backendConn.Close()
+				_ = backendConn.Close()
 			}
 		}
 
@@ -522,7 +522,7 @@ func (p *Proxy) getBackendConn(address string) (net.Conn, error) {
 	if tlsConfig != nil {
 		tlsConn := tls.Client(conn, tlsConfig)
 		if err := tlsConn.Handshake(); err != nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil, err
 		}
 		return tlsConn, nil
