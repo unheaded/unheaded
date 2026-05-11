@@ -189,10 +189,10 @@ func renderStatus(ctx *Context, status *SystemStatus) error {
 
 	// Header
 	banner := fmt.Sprintf("Unheaded Kingdom Status - %s", time.Now().Format("2006-01-02 15:04:05"))
-	w.WriteStringln(output.Banner(banner, color))
+	_ = w.WriteStringln(output.Banner(banner, color))
 
 	// Cluster Overview
-	w.WriteStringln(output.Bold("Cluster"))
+	_ = w.WriteStringln(output.Bold("Cluster"))
 	clusterKV := output.NewKeyValueTable(w.Out()).SetColor(color).SetIndent(2)
 	clusterKV.Add("Context", status.Cluster.Name)
 	clusterKV.AddWithStatus("Status", status.Cluster.Status)
@@ -201,8 +201,8 @@ func renderStatus(ctx *Context, status *SystemStatus) error {
 	clusterKV.Render()
 
 	// Container Summary
-	w.WriteStringln("")
-	w.WriteStringln(output.Bold("Containers"))
+	_ = w.WriteStringln("")
+	_ = w.WriteStringln(output.Bold("Containers"))
 	if len(status.Containers) > 0 {
 		stats := status.Containers[0]
 		containerKV := output.NewKeyValueTable(w.Out()).SetColor(color).SetIndent(2)
@@ -214,8 +214,8 @@ func renderStatus(ctx *Context, status *SystemStatus) error {
 	}
 
 	// Services
-	w.WriteStringln("")
-	w.WriteStringln(output.Bold("Services"))
+	_ = w.WriteStringln("")
+	_ = w.WriteStringln(output.Bold("Services"))
 
 	svcTable := output.NewTable(w.Out()).SetColor(color)
 	svcTable.SetHeaders("NAME", "STATUS", "REPLICAS", "HEALTH", "ENDPOINT")
@@ -232,8 +232,8 @@ func renderStatus(ctx *Context, status *SystemStatus) error {
 	svcTable.Render()
 
 	// Network
-	w.WriteStringln("")
-	w.WriteStringln(output.Bold("Network"))
+	_ = w.WriteStringln("")
+	_ = w.WriteStringln(output.Bold("Network"))
 	netKV := output.NewKeyValueTable(w.Out()).SetColor(color).SetIndent(2)
 	netKV.Add("Bridge", status.Network.Bridge)
 	netKV.Add("Policies", fmt.Sprintf("%d", status.Network.Policies))
@@ -243,8 +243,8 @@ func renderStatus(ctx *Context, status *SystemStatus) error {
 
 	// Alerts
 	if len(status.Alerts) > 0 {
-		w.WriteStringln("")
-		w.WriteStringln(output.Bold("Active Alerts"))
+		_ = w.WriteStringln("")
+		_ = w.WriteStringln(output.Bold("Active Alerts"))
 
 		for _, alert := range status.Alerts {
 			icon := output.IconInfo
@@ -259,13 +259,13 @@ func renderStatus(ctx *Context, status *SystemStatus) error {
 			}
 
 			if color {
-				w.WriteStringln(fmt.Sprintf("  %s%s%s %s [%s] %s",
+				_ = w.WriteStringln(fmt.Sprintf("  %s%s%s %s [%s] %s",
 					alertColor, string(icon), output.ColorReset,
 					alert.Timestamp.Format("15:04"),
 					alert.Source,
 					alert.Message))
 			} else {
-				w.WriteStringln(fmt.Sprintf("  [%s] %s [%s] %s",
+				_ = w.WriteStringln(fmt.Sprintf("  [%s] %s [%s] %s",
 					strings.ToUpper(alert.Level),
 					alert.Timestamp.Format("15:04"),
 					alert.Source,
@@ -275,11 +275,11 @@ func renderStatus(ctx *Context, status *SystemStatus) error {
 	}
 
 	// Quick Commands
-	w.WriteStringln("")
-	w.WriteStringln(output.Dim("Quick Commands:"))
-	w.WriteStringln(output.Dim("  unheaded container list     - List all containers"))
-	w.WriteStringln(output.Dim("  unheaded service status     - Service details"))
-	w.WriteStringln(output.Dim("  unheaded network inspect    - Network details"))
+	_ = w.WriteStringln("")
+	_ = w.WriteStringln(output.Dim("Quick Commands:"))
+	_ = w.WriteStringln(output.Dim("  unheaded container list     - List all containers"))
+	_ = w.WriteStringln(output.Dim("  unheaded service status     - Service details"))
+	_ = w.WriteStringln(output.Dim("  unheaded network inspect    - Network details"))
 
 	return nil
 }
