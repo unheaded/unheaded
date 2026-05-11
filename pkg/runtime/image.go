@@ -506,6 +506,10 @@ func extractLayer(layerPath, destDir string) error {
 		if strings.HasPrefix(filepath.Base(name), ".wh.") {
 			// This is a whiteout file - delete the corresponding file
 			target := filepath.Join(destDir, filepath.Dir(name), strings.TrimPrefix(filepath.Base(name), ".wh."))
+			// Guard against malicious whiteout-name path traversal (Zip Slip).
+			if !strings.HasPrefix(filepath.Clean(target), filepath.Clean(destDir)) {
+				continue
+			}
 			_ = os.RemoveAll(target)
 			continue
 		}
