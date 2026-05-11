@@ -321,9 +321,10 @@ func parseArgs(s string) []string {
 			continue
 		}
 
-		if ch == '(' {
+		switch ch {
+		case '(':
 			depth++
-		} else if ch == ')' {
+		case ')':
 			depth--
 		}
 

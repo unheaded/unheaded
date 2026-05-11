@@ -87,7 +87,7 @@ func TestDefaultServices_NamesAreLowercaseHyphenated(t *testing.T) {
 	// CamelCase or under_score additions.
 	for _, svc := range defaultServices {
 		for _, ch := range svc.Name {
-			if !(ch == '-' || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) {
+			if !(ch == '-' || (ch >= 'a' && ch <= 'z') || (ch >= '0' && ch <= '9')) { //nolint:staticcheck // QF1001: De Morgan would invert allow-list to forbid-list — less readable for char validation
 				t.Errorf("%s contains non-[a-z0-9-] char %q", svc.Name, ch)
 				break
 			}

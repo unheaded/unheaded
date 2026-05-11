@@ -217,15 +217,17 @@ func printCPUState(cpu *bpf.CpuState, instance uint32) {
 		nameLeft := fmt.Sprintf("r%d", regLeft)
 		nameRight := fmt.Sprintf("r%d", regRight)
 
-		if regLeft == 14 {
+		switch regLeft {
+		case 14:
 			nameLeft = "LR"
-		} else if regLeft == 15 {
+		case 15:
 			nameLeft = "SP"
 		}
 
-		if regRight == 14 {
+		switch regRight {
+		case 14:
 			nameRight = "LR"
-		} else if regRight == 15 {
+		case 15:
 			nameRight = "SP"
 		}
 

@@ -577,7 +577,7 @@ func (s *ContainerSpec) Validate() error {
 
 	// Validate name format (alphanumeric, dashes, underscores)
 	for _, c := range s.Name {
-		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_') {
+		if !((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' || c == '_') { //nolint:staticcheck // QF1001: De Morgan would invert allow-list to forbid-list — less readable for char validation
 			return fmt.Errorf("%w: name contains invalid character: %c", ErrInvalidSpec, c)
 		}
 	}

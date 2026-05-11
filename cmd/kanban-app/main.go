@@ -1058,7 +1058,7 @@ func validateTaskInput(task *Task) error {
 
 	// Validate ID format (alphanumeric + hyphens only)
 	for _, r := range task.ID {
-		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_') {
+		if !((r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_') { //nolint:staticcheck // QF1001: De Morgan would invert allow-list to forbid-list — less readable for char validation
 			return errors.New("task.id contains invalid characters (use alphanumeric, -, _)")
 		}
 	}

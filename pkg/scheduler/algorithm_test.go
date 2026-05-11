@@ -120,9 +120,10 @@ func TestBinPackAlgorithm_ScoreNodes(t *testing.T) {
 	// Find scores by node
 	var score1, score2 int64
 	for _, s := range scores {
-		if s.Node.ID == "node-1" {
+		switch s.Node.ID {
+		case "node-1":
 			score1 = s.Score
-		} else if s.Node.ID == "node-2" {
+		case "node-2":
 			score2 = s.Score
 		}
 	}
@@ -230,9 +231,10 @@ func TestSpreadAlgorithm_ScoreNodes(t *testing.T) {
 	// Find scores by node
 	var score1, score2 int64
 	for _, s := range scores {
-		if s.Node.ID == "node-1" {
+		switch s.Node.ID {
+		case "node-1":
 			score1 = s.Score
-		} else if s.Node.ID == "node-2" {
+		case "node-2":
 			score2 = s.Score
 		}
 	}
