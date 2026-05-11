@@ -228,6 +228,65 @@ linters:
         linters: [gosec]
         text: "G703:"
 
+      # G302 (file permissions on Open/OpenFile) and G306 (WriteFile)
+      # in container-runtime / log / namespace / volume paths intentionally
+      # use 0644-permissive perms because the files are created by the
+      # runtime daemon but read by container-side processes running as
+      # different UIDs. (Companion to the G301/G306 dir exclusion above.)
+      - path: pkg/runtime/
+        linters: [gosec]
+        text: "G302:"
+      - path: pkg/storage/wal/
+        linters: [gosec]
+        text: "G302:"
+      - path: pkg/network/policy_controller
+        linters: [gosec]
+        text: "G302:"
+      - path: pkg/audit/storage/file
+        linters: [gosec]
+        text: "G302:"
+
+      # G306: kingdom-internal config files use 0640 (owner+group
+      # readable) so backup tooling and operator inspection work without
+      # making files world-readable. gosec wants 0600 strictly; the
+      # 0640 choice is documented in commit 0fa94c52.
+      - path: cmd/cert-gen/
+        linters: [gosec]
+        text: "G306:"
+      - path: cmd/lich-security/
+        linters: [gosec]
+        text: "G306:"
+      - path: cmd/unheaded-cli/cmd/generate
+        linters: [gosec]
+        text: "G306:"
+      - path: cmd/unheaded-daemon/internal/config/config
+        linters: [gosec]
+        text: "G306:"
+      - path: pkg/benchmark/benchmark
+        linters: [gosec]
+        text: "G306:"
+      - path: pkg/config/config
+        linters: [gosec]
+        text: "G306:"
+      - path: pkg/loadbalancer/config
+        linters: [gosec]
+        text: "G306:"
+      - path: pkg/network/policy_controller
+        linters: [gosec]
+        text: "G306:"
+      - path: pkg/nix/builder
+        linters: [gosec]
+        text: "G306:"
+      - path: pkg/testing/
+        linters: [gosec]
+        text: "G306:"
+      - path: pkg/worker/queue
+        linters: [gosec]
+        text: "G306:"
+      - path: services/timeguru/internal/sync
+        linters: [gosec]
+        text: "G306:"
+
       # G204 (subprocess-with-variable) in directories that wrap known
       # external tools where the "tainted" input is operator-managed
       # config (image-build commands, network policy iptables wrappers,

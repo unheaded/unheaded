@@ -461,8 +461,8 @@ func Static(prefix, root string) HandlerFunc {
 			return
 		}
 
-		// Check if file exists
-		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
+		// Check if file exists. fullPath proven inside absRoot above.
+		if _, err := os.Stat(fullPath); os.IsNotExist(err) { //nolint:gosec // traversal guarded above
 			_ = c.NotFound()
 			return
 		}
