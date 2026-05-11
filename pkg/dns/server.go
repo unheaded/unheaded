@@ -561,7 +561,7 @@ func RateLimitMiddleware(rps int, burst int) Middleware {
 				// Send REFUSED response
 				resp := NewResponse(r)
 				resp.Header.SetRcode(RcodeRefused)
-				w.WriteMsg(resp)
+				_ = w.WriteMsg(resp)
 				return
 			}
 
@@ -621,7 +621,7 @@ func ACLMiddleware(allowedNets []*net.IPNet, deniedNets []*net.IPNet) Middleware
 			if ip == nil {
 				resp := NewResponse(r)
 				resp.Header.SetRcode(RcodeRefused)
-				w.WriteMsg(resp)
+				_ = w.WriteMsg(resp)
 				return
 			}
 
@@ -630,7 +630,7 @@ func ACLMiddleware(allowedNets []*net.IPNet, deniedNets []*net.IPNet) Middleware
 				if net.Contains(ip) {
 					resp := NewResponse(r)
 					resp.Header.SetRcode(RcodeRefused)
-					w.WriteMsg(resp)
+					_ = w.WriteMsg(resp)
 					return
 				}
 			}
@@ -647,7 +647,7 @@ func ACLMiddleware(allowedNets []*net.IPNet, deniedNets []*net.IPNet) Middleware
 				if !allowed {
 					resp := NewResponse(r)
 					resp.Header.SetRcode(RcodeRefused)
-					w.WriteMsg(resp)
+					_ = w.WriteMsg(resp)
 					return
 				}
 			}
@@ -668,7 +668,7 @@ func RecoveryMiddleware(logger *log.Logger) Middleware {
 					}
 					resp := NewResponse(r)
 					resp.Header.SetRcode(RcodeServerFailure)
-					w.WriteMsg(resp)
+					_ = w.WriteMsg(resp)
 				}
 			}()
 			next.ServeDNS(ctx, w, r)
