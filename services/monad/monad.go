@@ -604,7 +604,7 @@ func (s *Service) publishOperationEvent(ctx context.Context, op *Operation) {
 	// Extract trace_id from context or generate one
 	traceID := ""
 	if tid := ctx.Value("trace_id"); tid != nil {
-		traceID = tid.(string)
+		traceID, _ = tid.(string)
 	}
 	if traceID == "" {
 		traceID = fmt.Sprintf("monad-%d", time.Now().UnixNano())
@@ -648,7 +648,7 @@ func (s *Service) publishStateChange(ctx context.Context, eventType string, chan
 	// Extract trace_id from context or generate one
 	traceID := ""
 	if tid := ctx.Value("trace_id"); tid != nil {
-		traceID = tid.(string)
+		traceID, _ = tid.(string)
 	}
 	if traceID == "" {
 		traceID = fmt.Sprintf("monad-%d", time.Now().UnixNano())

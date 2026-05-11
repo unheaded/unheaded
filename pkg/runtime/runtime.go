@@ -557,12 +557,12 @@ func (r *DefaultRuntime) Close() error {
 
 	// Close all log streams
 	for _, ls := range r.logStreams {
-		ls.Close()
+		_ = ls.Close()
 	}
 
 	// Close image store
 	if r.images != nil {
-		r.images.Close()
+		_ = r.images.Close()
 	}
 
 	return nil

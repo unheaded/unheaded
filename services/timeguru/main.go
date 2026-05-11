@@ -127,7 +127,7 @@ func main() {
 	}
 
 	if client != nil {
-		client.Close()
+		_ = client.Close()
 	}
 
 	log.Info().Msg("timeguru stopped gracefully")
@@ -189,7 +189,7 @@ func timelineHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(data)
+	_, _ = w.Write(data)
 }
 
 func updateTimeline(data []byte) {

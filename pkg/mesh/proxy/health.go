@@ -210,7 +210,7 @@ func (hc *HealthChecker) tcpCheck(address string) error {
 	if err != nil {
 		return err
 	}
-	conn.Close()
+	_ = conn.Close()
 	return nil
 }
 
@@ -236,7 +236,7 @@ func (hc *HealthChecker) httpCheck(address string) error {
 	defer resp.Body.Close()
 
 	// Drain body to reuse connection
-	io.Copy(io.Discard, resp.Body)
+	_, _ = io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode != hc.config.ExpectedStatus {
 		return &HealthCheckError{
