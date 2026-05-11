@@ -153,7 +153,7 @@ func (g *RouteGroup) Static(path, root string) {
 	handler := func(c *Context) {
 		filePath := c.Param("path")
 		fullPath := root + "/" + filePath
-		c.File(fullPath)
+		_ = c.File(fullPath)
 	}
 
 	// Combine group middleware
@@ -168,7 +168,7 @@ func (g *RouteGroup) StaticFile(path, filepath string) {
 	absolutePath := g.calculateAbsolutePath(path)
 
 	handler := func(c *Context) {
-		c.File(filepath)
+		_ = c.File(filepath)
 	}
 
 	finalHandlers := g.combinedMiddleware().combine(HandlersChain{handler})
@@ -309,7 +309,7 @@ func (pr *PartialResource) Index(c *Context) {
 	if pr.IndexHandler != nil {
 		pr.IndexHandler(c)
 	} else {
-		c.NotFound()
+		_ = c.NotFound()
 	}
 }
 
@@ -318,7 +318,7 @@ func (pr *PartialResource) Show(c *Context) {
 	if pr.ShowHandler != nil {
 		pr.ShowHandler(c)
 	} else {
-		c.NotFound()
+		_ = c.NotFound()
 	}
 }
 
@@ -327,7 +327,7 @@ func (pr *PartialResource) Create(c *Context) {
 	if pr.CreateHandler != nil {
 		pr.CreateHandler(c)
 	} else {
-		c.NotFound()
+		_ = c.NotFound()
 	}
 }
 
@@ -336,7 +336,7 @@ func (pr *PartialResource) Update(c *Context) {
 	if pr.UpdateHandler != nil {
 		pr.UpdateHandler(c)
 	} else {
-		c.NotFound()
+		_ = c.NotFound()
 	}
 }
 
@@ -345,6 +345,6 @@ func (pr *PartialResource) Delete(c *Context) {
 	if pr.DeleteHandler != nil {
 		pr.DeleteHandler(c)
 	} else {
-		c.NotFound()
+		_ = c.NotFound()
 	}
 }

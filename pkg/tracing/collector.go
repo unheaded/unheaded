@@ -103,7 +103,7 @@ func (t *TraceID) FromString(s string) error {
 // NewTraceID generates a new random trace ID
 func NewTraceID() TraceID {
 	var id TraceID
-	rand.Read(id[:])
+	_, _ = rand.Read(id[:])
 	return id
 }
 
@@ -165,7 +165,7 @@ func (s *SpanID) FromString(str string) error {
 // NewSpanID generates a new random span ID
 func NewSpanID() SpanID {
 	var id SpanID
-	rand.Read(id[:])
+	_, _ = rand.Read(id[:])
 	return id
 }
 
@@ -1523,7 +1523,7 @@ func (c *Collector) Close() error {
 	if c.httpServer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		c.httpServer.Shutdown(ctx)
+		_ = c.httpServer.Shutdown(ctx)
 	}
 
 	// Close stream subscribers
@@ -1550,7 +1550,7 @@ func (c *Collector) correlationLoop() {
 		case <-c.ctx.Done():
 			return
 		case <-ticker.C:
-			c.CorrelateTraces()
+			_ = c.CorrelateTraces()
 		}
 	}
 }
@@ -1716,17 +1716,17 @@ func (c *Collector) serveHTTP() {
 
 func (c *Collector) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"healthy"}`))
+	_, _ = w.Write([]byte(`{"status":"healthy"}`))
 }
 
 func (c *Collector) handleReady(w http.ResponseWriter, r *http.Request) {
 	if atomic.LoadInt32(&c.closed) == 1 {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte(`{"status":"not ready"}`))
+		_, _ = w.Write([]byte(`{"status":"not ready"}`))
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"ready"}`))
+	_, _ = w.Write([]byte(`{"status":"ready"}`))
 }
 
 func (c *Collector) handleTraces(w http.ResponseWriter, r *http.Request) {

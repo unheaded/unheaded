@@ -228,24 +228,24 @@ func Negotiate(local, remote *Settings) (*Settings, error) {
 		case SettingsSupportedExtensions:
 			// For extensions, compute intersection (bitwise AND)
 			if localOk && remoteOk {
-				result.Set(id, localVal&remoteVal)
+				_ = result.Set(id, localVal&remoteVal)
 			} else if localOk {
-				result.Set(id, localVal)
+				_ = result.Set(id, localVal)
 			} else {
-				result.Set(id, remoteVal)
+				_ = result.Set(id, remoteVal)
 			}
 		default:
 			// For limit settings, use minimum (both must be present to negotiate)
 			if localOk && remoteOk {
 				if localVal < remoteVal {
-					result.Set(id, localVal)
+					_ = result.Set(id, localVal)
 				} else {
-					result.Set(id, remoteVal)
+					_ = result.Set(id, remoteVal)
 				}
 			} else if localOk {
-				result.Set(id, localVal)
+				_ = result.Set(id, localVal)
 			} else {
-				result.Set(id, remoteVal)
+				_ = result.Set(id, remoteVal)
 			}
 		}
 	}
