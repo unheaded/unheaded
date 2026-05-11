@@ -126,7 +126,7 @@ type FileStorage struct {
 
 // NewFileStorage creates a new file storage.
 func NewFileStorage(basePath string) (*FileStorage, error) {
-	if err := os.MkdirAll(basePath, 0755); err != nil {
+	if err := os.MkdirAll(basePath, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create storage directory: %w", err)
 	}
 
@@ -148,7 +148,7 @@ func (s *FileStorage) Put(ctx context.Context, key string, reader io.Reader) (st
 	filePath := filepath.Join(s.basePath, safeKey)
 
 	// Ensure parent directory exists
-	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filePath), 0750); err != nil {
 		return "", 0, fmt.Errorf("failed to create directory: %w", err)
 	}
 

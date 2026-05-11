@@ -122,12 +122,12 @@ func updateGoldenFile(t goldenTB, path string, content []byte) bool {
 
 	// Create directory if needed
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		t.Errorf("Failed to create golden file directory: %v", err)
 		return false
 	}
 
-	if err := os.WriteFile(path, content, 0644); err != nil {
+	if err := os.WriteFile(path, content, 0640); err != nil {
 		t.Errorf("Failed to write golden file: %v", err)
 		return false
 	}
@@ -401,7 +401,7 @@ func RunGoldenTestCases(t *testing.T, dir string, fn func(input []byte) []byte) 
 
 			if *updateGolden {
 				expectedPath := filepath.Join(dir, tc.Name, "expected")
-				if err := os.WriteFile(expectedPath, actual, 0644); err != nil {
+				if err := os.WriteFile(expectedPath, actual, 0640); err != nil {
 					t.Errorf("Failed to update expected file: %v", err)
 				}
 				return

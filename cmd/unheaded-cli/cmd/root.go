@@ -376,7 +376,7 @@ func SaveConfig(config *Config) error {
 	}
 
 	configDir := filepath.Join(homeDir, ".unheaded")
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0750); err != nil {
 		return err
 	}
 

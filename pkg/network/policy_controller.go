@@ -1730,7 +1730,7 @@ func (pc *PolicyController) applyBGPConfig(ctx context.Context, policy *NetworkP
 
 	// Write to BGP daemon config file
 	configPath := fmt.Sprintf("/etc/frr/bgpd.conf.d/%s.conf", sanitizeChainName(policy.Metadata.Name))
-	if err := os.WriteFile(configPath, []byte(config), 0644); err != nil {
+	if err := os.WriteFile(configPath, []byte(config), 0640); err != nil {
 		return fmt.Errorf("write BGP config: %w", err)
 	}
 

@@ -47,7 +47,7 @@ func (c *Champion) WriteFile(ctx context.Context, path, content string) error {
 
 	// Write the file
 	dir := filepath.Dir(absPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return fmt.Errorf("create directory: %w", err)
 	}

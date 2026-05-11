@@ -322,7 +322,7 @@ type CacheEntry struct {
 
 // NewBuildCache creates a new build cache.
 func NewBuildCache(cacheDir string, maxSize int64, maxAge time.Duration) (*BuildCache, error) {
-	if err := os.MkdirAll(cacheDir, 0755); err != nil {
+	if err := os.MkdirAll(cacheDir, 0750); err != nil {
 		return nil, fmt.Errorf("create cache directory: %w", err)
 	}
 
@@ -448,7 +448,7 @@ func (c *BuildCache) persist(entry *CacheEntry) error {
 	}
 
 	entryPath := filepath.Join(c.cacheDir, entry.Key+".json")
-	return os.WriteFile(entryPath, data, 0644)
+	return os.WriteFile(entryPath, data, 0640)
 }
 
 // evictOldest removes the least recently accessed entry.
@@ -885,7 +885,7 @@ type Builder struct {
 // NewBuilder creates a new Builder service.
 func NewBuilder(config BuilderConfig, wotan *wotanClient.Client) (*Builder, error) {
 	// Create output directory
-	if err := os.MkdirAll(config.OutputDir, 0755); err != nil {
+	if err := os.MkdirAll(config.OutputDir, 0750); err != nil {
 		return nil, fmt.Errorf("create output directory: %w", err)
 	}
 

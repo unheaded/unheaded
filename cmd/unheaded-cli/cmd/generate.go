@@ -73,10 +73,10 @@ func newGenerateIaCCommand() *Command {
 			for path, content := range out.Files {
 				fullPath := filepath.Join(*outDir, string(out.Backend), path)
 				dir := filepath.Dir(fullPath)
-				if err := os.MkdirAll(dir, 0755); err != nil {
+				if err := os.MkdirAll(dir, 0750); err != nil {
 					return fmt.Errorf("mkdir %s: %w", dir, err)
 				}
-				if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+				if err := os.WriteFile(fullPath, []byte(content), 0640); err != nil {
 					return fmt.Errorf("write %s: %w", fullPath, err)
 				}
 				written++
