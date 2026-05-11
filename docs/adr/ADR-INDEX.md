@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-05-05
-**Total:** 66 ADRs (ADR-012b deprecated, ADR-035 superseded by ADR-064, ADR-027-065 across sessions; ADR-69420 pipe-dream)
+**Last updated:** 2026-05-11
+**Total:** 71 ADRs (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-027-065 across sessions; ADR-066/067/072/073 added; ADR-69420 pipe-dream)
 
 ## Status Summary
 
@@ -111,4 +111,8 @@
 | [062](ADR-062-fuzz-redteam-pentest-framework.md) | Fuzz / Red-Team / Pentest Framework (Lich Codified) — three-tier offensive taxonomy, numbered LICH-NNN campaigns, activation rules | **Accepted** (existing pattern ratified; new campaigns slot in) | 2026-05-04 |
 | [063](ADR-063-akira-summons-lich-randomized-ctf.md) | Akira Randomly Summons the Lich for CTF Mode — bounded, opt-in, randomized adversarial probing of live Kingdom services | **Pipe Dream** (activates after ADR-062's framework has 3 campaigns clean for 7 days) | 2026-05-04 |
 | [064](ADR-064-wotan-active-active-cluster-k8s-native.md) | Wotan Active/Active Cluster — 3-node minimum, K8s-native StatefulSet, Raft membership + topic-leader election, broadcast replication. Supersedes ADR-035 ("active passive works but doesn't scale") | **Proposed** (4-phase rollout; ADR-035 stays running through cutover) | 2026-05-05 |
-| [065](ADR-065-aya-major-version-migration.md) | aya 0.1.x → 0.13.x Major-Version Migration Plan — 6-phase migration (pre-flight → branch → mechanical fixes → verifier gate → integration smoke → merge), gated on Linux verification host with bpftool ≥ 7.7. Closes kanban `ebpf-aya-upgrade-mn05` | **Proposed** (migration plan only; impl gated on Captain approval + Linux verification host) | 2026-05-07 |
+| [065](ADR-065-aya-major-version-migration.md) | aya 0.1.x → 0.13.x Major-Version Migration Plan | **Superseded** (Phase A finding: aya splits userspace/kernel independently; no migration needed) | 2026-05-07 |
+| [066](ADR-066-tonic-minor-bump-trace-collector.md) | `cmd/trace-collector` tonic 0.10 → 0.12 — closes 4 CVE-class advisories in rustls-webpki + protobuf chain | **Accepted** | 2026-05-08 |
+| [067](ADR-067-mbc-isa-v2-and-upc-abi-v1.md) | MBC ISA v2 + UPC ABI v1 freeze — 5 new opcodes (FENCE/MRET/SRET/LR.W/SC.W), priv_level field, Boot Protocol v2, memory-mapped CSR region | **Accepted** (Phase 0 ASCEND-LINUX gate) | 2026-05-08 |
+| [072](ADR-072-boot-magic-byte-ordering.md) | BOOT_MAGIC byte-ordering convention — canonical hex 0x554E4844 ('UNHD' MSB-first); wire bytes 'D','H','N','U' per LE | **Accepted** (doc-only clarification) | 2026-05-10 |
+| [073](ADR-073-lint-policy-zero-findings.md) | Lint Policy: Zero Findings as the New Floor — triage protocol; 12 CVE-class fixes shipped during the 2026-05-11 drain | **Accepted** (`golangci-lint run ./...` returns 0 issues; CI ratchet) | 2026-05-11 |
