@@ -842,7 +842,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 							if err != nil {
 								continue
 							}
-							wotanPub.PublishRaw(ctx, "traces.latency", payload)
+							_ = wotanPub.PublishRaw(ctx, "traces.latency", payload)
 							publisher.PublishLatencyEvent(payload)
 						}
 					}
@@ -933,7 +933,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	log.Info().Msg("unified mode shutting down")
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
-	httpServer.Shutdown(shutdownCtx)
+	_ = httpServer.Shutdown(shutdownCtx)
 
 	// Cleanup BPF programs
 	if err := loader.Close(); err != nil {
@@ -1069,7 +1069,7 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer) {
 		case <-ctx.Done():
 			log.Info().Msg("shutting down...")
 			flushBatches()
-			httpServer.Shutdown(context.Background())
+			_ = httpServer.Shutdown(context.Background())
 			wg.Wait()
 
 			stats := reader.Stats()

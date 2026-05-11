@@ -146,7 +146,7 @@ func (ds *DatabaseStorage) StoreBatch(ctx context.Context, events []*audit.Audit
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	for _, event := range events {
 		if err := ds.storeInTx(ctx, tx, event); err != nil {
@@ -424,7 +424,7 @@ func (ds *DatabaseStorage) scanEvent(row *sql.Row) (*audit.AuditEvent, error) {
 	}
 
 	if details != "" {
-		json.Unmarshal([]byte(details), &event.Details)
+		_ = json.Unmarshal([]byte(details), &event.Details)
 	}
 
 	return &event, nil
@@ -476,7 +476,7 @@ func (ds *DatabaseStorage) scanEventRows(rows *sql.Rows) (*audit.AuditEvent, err
 	}
 
 	if details != "" {
-		json.Unmarshal([]byte(details), &event.Details)
+		_ = json.Unmarshal([]byte(details), &event.Details)
 	}
 
 	return &event, nil

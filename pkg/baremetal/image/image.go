@@ -271,13 +271,13 @@ func (m *Manager) copyFile(src, dst string) (string, int64, error) {
 	if err != nil {
 		return "", 0, err
 	}
-	defer srcFile.Close()
+	defer func() { _ = srcFile.Close() }()
 
 	dstFile, err := os.Create(dst)
 	if err != nil {
 		return "", 0, err
 	}
-	defer dstFile.Close()
+	defer func() { _ = dstFile.Close() }()
 
 	hash := sha256.New()
 	writer := io.MultiWriter(dstFile, hash)
@@ -363,7 +363,7 @@ func (m *Manager) verifyChecksum(path, expected string) error {
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	hash := sha256.New()
 	if _, err := io.Copy(hash, file); err != nil {
