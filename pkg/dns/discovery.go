@@ -130,7 +130,7 @@ func (sd *ServiceDiscovery) RegisterService(svc *Service) error {
 		sd.healthChecker.AddService(svc, func() {
 			sd.mu.Lock()
 			defer sd.mu.Unlock()
-			sd.updateServiceRecords(svc)
+			_ = sd.updateServiceRecords(svc)
 		})
 	}
 
@@ -152,14 +152,14 @@ func (sd *ServiceDiscovery) DeregisterService(name string) error {
 	sd.healthChecker.RemoveService(name)
 
 	// Remove DNS records
-	sd.zone.RemoveRecordsByName(svc.Domain, TypeANY)
+	_ = sd.zone.RemoveRecordsByName(svc.Domain, TypeANY)
 
 	// Remove SRV record
 	srvName := fmt.Sprintf("_%s._%s.%s", svc.Name, svc.Protocol, sd.zone.Name)
-	sd.zone.RemoveRecordsByName(srvName, TypeSRV)
+	_ = sd.zone.RemoveRecordsByName(srvName, TypeSRV)
 
 	// Remove PTR record for browsing
-	sd.zone.RemoveRecordsByName("_services._dns-sd._udp."+sd.zone.Name, TypePTR)
+	_ = sd.zone.RemoveRecordsByName("_services._dns-sd._udp."+sd.zone.Name, TypePTR)
 
 	delete(sd.services, name)
 	delete(sd.roundRobinIdx, name)
@@ -271,8 +271,8 @@ func (sd *ServiceDiscovery) updateServiceRecords(svc *Service) error {
 		}
 	}
 
-	sd.zone.ReplaceRecords(svc.Domain, TypeA, aRecords)
-	sd.zone.ReplaceRecords(svc.Domain, TypeAAAA, aaaaRecords)
+	_ = sd.zone.ReplaceRecords(svc.Domain, TypeA, aRecords)
+	_ = sd.zone.ReplaceRecords(svc.Domain, TypeAAAA, aaaaRecords)
 
 	// Update SRV records
 	srvName := fmt.Sprintf("_%s._%s.%s", svc.Name, svc.Protocol, sd.zone.Name)
@@ -288,7 +288,7 @@ func (sd *ServiceDiscovery) updateServiceRecords(svc *Service) error {
 		}
 		srvRecords = append(srvRecords, NewSRVRecord(srvName, svc.TTL, svc.Priority, weight, port, svc.Domain))
 	}
-	sd.zone.ReplaceRecords(srvName, TypeSRV, srvRecords)
+	_ = sd.zone.ReplaceRecords(srvName, TypeSRV, srvRecords)
 
 	// Update TXT records (metadata)
 	if len(svc.Metadata) > 0 {
@@ -297,7 +297,7 @@ func (sd *ServiceDiscovery) updateServiceRecords(svc *Service) error {
 			txtStrings = append(txtStrings, k+"="+v)
 		}
 		sort.Strings(txtStrings)
-		sd.zone.ReplaceRecords(svc.Domain, TypeTXT, []*ResourceRecord{
+		_ = sd.zone.ReplaceRecords(svc.Domain, TypeTXT, []*ResourceRecord{
 			NewTXTRecord(svc.Domain, svc.TTL, txtStrings...),
 		})
 	}
@@ -316,12 +316,12 @@ func (sd *ServiceDiscovery) updateServiceRecords(svc *Service) error {
 		}
 	}
 	if !found {
-		sd.zone.AddRecord(NewPTRRecord(browseName, svc.TTL, servicePTR))
+		_ = sd.zone.AddRecord(NewPTRRecord(browseName, svc.TTL, servicePTR))
 	}
 
 	// Add PTR from service type to service instances
 	instancePTR := svc.Name + "." + svc.Domain
-	sd.zone.AddRecord(NewPTRRecord(servicePTR, svc.TTL, instancePTR))
+	_ = sd.zone.AddRecord(NewPTRRecord(servicePTR, svc.TTL, instancePTR))
 
 	return nil
 }
@@ -725,7 +725,7 @@ func (rd *ReverseDiscovery) RegisterReverse(serviceName string) error {
 			continue
 		}
 
-		rd.sd.zone.AddRecord(NewPTRRecord(ptrName, svc.TTL, svc.Domain))
+		_ = rd.sd.zone.AddRecord(NewPTRRecord(ptrName, svc.TTL, svc.Domain))
 	}
 
 	return nil
