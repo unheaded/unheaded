@@ -76,7 +76,7 @@ func (c *LRUCache) Get(ctx context.Context, key []byte) ([]byte, bool) {
 		return nil, false
 	}
 
-	entry := elem.Value.(*lruEntry)
+	entry, _ := elem.Value.(*lruEntry)
 
 	// Check expiration
 	if !entry.expiresAt.IsZero() && time.Now().After(entry.expiresAt) {
@@ -117,7 +117,7 @@ func (c *LRUCache) Set(ctx context.Context, key, value []byte, ttl time.Duration
 	// Check if key exists
 	if elem, ok := c.items[keyStr]; ok {
 		// Update existing entry
-		entry := elem.Value.(*lruEntry)
+		entry, _ := elem.Value.(*lruEntry)
 		c.bytes -= entry.size
 		entry.value = CopyBytes(value)
 		entry.size = entrySize
@@ -243,7 +243,7 @@ func (c *LRUCache) evictOldest() {
 // removeElement removes an element from the cache.
 func (c *LRUCache) removeElement(elem *list.Element) {
 	c.evictList.Remove(elem)
-	entry := elem.Value.(*lruEntry)
+	entry, _ := elem.Value.(*lruEntry)
 	delete(c.items, entry.key)
 	c.size--
 	c.bytes -= entry.size
@@ -291,7 +291,7 @@ func (c *LRUCache) Peek(ctx context.Context, key []byte) ([]byte, bool) {
 		return nil, false
 	}
 
-	entry := elem.Value.(*lruEntry)
+	entry, _ := elem.Value.(*lruEntry)
 
 	// Check expiration
 	if !entry.expiresAt.IsZero() && time.Now().After(entry.expiresAt) {
@@ -311,7 +311,7 @@ func (c *LRUCache) RemoveOldest() ([]byte, bool) {
 		return nil, false
 	}
 
-	entry := elem.Value.(*lruEntry)
+	entry, _ := elem.Value.(*lruEntry)
 	key := []byte(entry.key)
 	c.removeElement(elem)
 	updateSize("lru", c.size, c.bytes)
@@ -350,7 +350,7 @@ func (c *LRUCache) GetOrSet(ctx context.Context, key []byte, fn func() ([]byte, 
 	}
 
 	// Store in cache
-	c.Set(ctx, key, value, ttl)
+	_ = c.Set(ctx, key, value, ttl)
 
 	return value, nil
 }
@@ -365,7 +365,7 @@ func (c *LRUCache) ExpireNow(key []byte) bool {
 		return false
 	}
 
-	entry := elem.Value.(*lruEntry)
+	entry, _ := elem.Value.(*lruEntry)
 	entry.expiresAt = time.Now().Add(-time.Second)
 	return true
 }
@@ -380,7 +380,7 @@ func (c *LRUCache) SetTTL(key []byte, ttl time.Duration) bool {
 		return false
 	}
 
-	entry := elem.Value.(*lruEntry)
+	entry, _ := elem.Value.(*lruEntry)
 	if ttl > 0 {
 		entry.expiresAt = time.Now().Add(ttl)
 	} else {
@@ -403,7 +403,7 @@ func (c *LRUCache) CleanupExpired() int {
 
 	for elem := c.evictList.Back(); elem != nil; {
 		prev := elem.Prev()
-		entry := elem.Value.(*lruEntry)
+		entry, _ := elem.Value.(*lruEntry)
 		if !entry.expiresAt.IsZero() && now.After(entry.expiresAt) {
 			c.removeElement(elem)
 			removed++

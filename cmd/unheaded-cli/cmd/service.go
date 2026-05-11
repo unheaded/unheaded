@@ -193,8 +193,8 @@ func newServiceDeployCommand() *Command {
 
 			if dryRun {
 				w := ctx.Output
-				w.WriteStringln(output.Bold("Dry Run - Service Deployment Plan:"))
-				w.WriteStringln("")
+				_ = w.WriteStringln(output.Bold("Dry Run - Service Deployment Plan:"))
+				_ = w.WriteStringln("")
 
 				kv := output.NewKeyValueTable(w.Out()).SetColor(w.Color())
 				kv.Add("Name", name)
@@ -208,7 +208,7 @@ func newServiceDeployCommand() *Command {
 				}
 				kv.Render()
 
-				w.WriteStringln("")
+				_ = w.WriteStringln("")
 				w.WriteInfo("No changes made (dry run)")
 				return nil
 			}
@@ -258,8 +258,8 @@ func newServiceStatusCommand() *Command {
 			w := ctx.Output
 			color := w.Color()
 
-			w.WriteStringln(output.Bold("Service: " + name))
-			w.WriteStringln("")
+			_ = w.WriteStringln(output.Bold("Service: " + name))
+			_ = w.WriteStringln("")
 
 			kv := output.NewKeyValueTable(w.Out()).SetColor(color)
 			kv.Add("Name", service.Name)
@@ -271,8 +271,8 @@ func newServiceStatusCommand() *Command {
 			kv.Add("Updated", service.UpdatedAt.Format(time.RFC3339))
 			kv.Render()
 
-			w.WriteStringln("")
-			w.WriteStringln(output.Bold("Instances:"))
+			_ = w.WriteStringln("")
+			_ = w.WriteStringln(output.Bold("Instances:"))
 
 			table := output.NewTable(w.Out()).SetColor(color)
 			table.SetHeaders("INSTANCE", "STATUS", "NODE", "IP", "AGE")
@@ -280,8 +280,8 @@ func newServiceStatusCommand() *Command {
 			table.AddRow(name+"-2", output.StatusOutput{Status: "Running"}.Colorize(color), "node-1", "localhost", "2h")
 			table.Render()
 
-			w.WriteStringln("")
-			w.WriteStringln(output.Bold("Recent Events:"))
+			_ = w.WriteStringln("")
+			_ = w.WriteStringln(output.Bold("Recent Events:"))
 
 			events := output.NewListTable(w.Out()).SetColor(color)
 			events.Add(fmt.Sprintf("%s - Instance %s-2 started", time.Now().Add(-2*time.Hour).Format("15:04"), name))
@@ -352,7 +352,7 @@ func newServiceLogsCommand() *Command {
 			}
 
 			for _, log := range mockLogs[start:] {
-				w.WriteStringln(log)
+				_ = w.WriteStringln(log)
 			}
 
 			if follow {
