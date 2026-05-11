@@ -345,7 +345,7 @@ func (s *Scheduler) executeRotation(schedule *Schedule) {
 
 		// Retry sooner on failure
 		schedule.NextRotation = time.Now().Add(schedule.Interval / 4)
-		if schedule.NextRotation.Sub(time.Now()) < time.Minute {
+		if time.Until(schedule.NextRotation) < time.Minute {
 			schedule.NextRotation = time.Now().Add(time.Minute)
 		}
 	} else {

@@ -2307,7 +2307,7 @@ func TestWotanIntegrationWithTraceID(t *testing.T) {
 		svc := newTestServiceWithWotan(server)
 
 		// Create context with trace_id
-		ctx := context.WithValue(context.Background(), "trace_id", "test-trace-123")
+		ctx := context.WithValue(context.Background(), "trace_id", "test-trace-123") //nolint:staticcheck // SA1029 test-only string key; collision risk irrelevant in unit-test scope
 
 		_ = svc.Start(ctx)
 

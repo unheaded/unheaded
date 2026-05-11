@@ -310,17 +310,19 @@ func TestSecureCompare_TimingConsistency(t *testing.T) {
 
 	iterations := 1000
 
-	// Measure time for early difference
+	// Measure time for early difference. The function's return value is
+	// intentionally discarded — this test asserts on timing, not result.
 	startEarly := time.Now()
 	for i := 0; i < iterations; i++ {
-		secureCompare(correctKey, wrongKeyEarly)
+		_ = secureCompare(correctKey, wrongKeyEarly)
 	}
 	durationEarly := time.Since(startEarly)
 
-	// Measure time for late difference
+	// Measure time for late difference. Return value also intentionally
+	// discarded for the same reason.
 	startLate := time.Now()
 	for i := 0; i < iterations; i++ {
-		secureCompare(correctKey, wrongKeyLate)
+		_ = secureCompare(correctKey, wrongKeyLate)
 	}
 	durationLate := time.Since(startLate)
 

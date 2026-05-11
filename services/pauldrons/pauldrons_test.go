@@ -454,14 +454,11 @@ func TestSelectBackend_IPHash_Consistency(t *testing.T) {
 		svc.AddBackend("ip", makeBackend(fmt.Sprintf("b%d", i), fmt.Sprintf("10.0.0.%d", i+1), 80, 1))
 	}
 
-	// Re-setup cleanly.
+	// Re-setup cleanly. The original `for { break }` only ever ran one
+	// iteration; replaced with an explicit single call.
 	svc2 := newTestService(nil)
 	pool2 := &Pool{ID: "ip", Algorithm: AlgoIPHash}
-	for i := 0; i < 5; i++ {
-		setupPoolWithBackends(t, svc2, pool2, makeBackend(fmt.Sprintf("b%d", i), fmt.Sprintf("10.0.0.%d", i+1), 80, 1))
-		// Only first call sets up the pool, rest just test
-		break
-	}
+	setupPoolWithBackends(t, svc2, pool2, makeBackend("b0", "10.0.0.1", 80, 1))
 	svc3 := newTestService(nil)
 	p := &Pool{ID: "ip", Algorithm: AlgoIPHash}
 	backends := []*Backend{
@@ -1391,12 +1388,11 @@ func TestStats_SessionsCounted(t *testing.T) {
 func TestConcurrent_SelectBackend(t *testing.T) {
 	svc := newTestService(nil)
 	pool := &Pool{ID: "race-rr", Algorithm: AlgoRoundRobin}
-	for i := 0; i < 10; i++ {
-		setupPoolWithBackends(t, svc, pool,
-			makeBackend(fmt.Sprintf("b%d", i), fmt.Sprintf("10.0.0.%d", i+1), 80, 1),
-		)
-		break // setupPoolWithBackends creates pool and adds backends
-	}
+	// setupPoolWithBackends creates pool and adds the first backend; the
+	// original `for { break }` only ever ran one iteration.
+	setupPoolWithBackends(t, svc, pool,
+		makeBackend("b0", "10.0.0.1", 80, 1),
+	)
 	// Add additional backends.
 	for i := 1; i < 10; i++ {
 		svc.AddBackend("race-rr", makeBackend(fmt.Sprintf("b%d", i), fmt.Sprintf("10.0.0.%d", i+1), 80, 1))
