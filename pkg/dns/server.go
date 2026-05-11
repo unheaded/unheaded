@@ -231,7 +231,7 @@ func (s *Server) serveUDP() {
 		default:
 		}
 
-		s.udpListener.SetReadDeadline(time.Now().Add(time.Second))
+		_ = s.udpListener.SetReadDeadline(time.Now().Add(time.Second))
 		n, addr, err := s.udpListener.ReadFromUDP(buf)
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Timeout() {
@@ -287,7 +287,9 @@ func (s *Server) serveTCP() {
 		default:
 		}
 
-		s.tcpListener.(*net.TCPListener).SetDeadline(time.Now().Add(time.Second))
+		if tl, ok := s.tcpListener.(*net.TCPListener); ok {
+			_ = tl.SetDeadline(time.Now().Add(time.Second))
+		}
 		conn, err := s.tcpListener.Accept()
 		if err != nil {
 			if ne, ok := err.(net.Error); ok && ne.Timeout() {
@@ -319,10 +321,10 @@ func (s *Server) serveTCP() {
 
 // handleTCP processes TCP requests on a connection
 func (s *Server) handleTCP(conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	for {
-		conn.SetReadDeadline(time.Now().Add(s.config.ReadTimeout))
+		_ = conn.SetReadDeadline(time.Now().Add(s.config.ReadTimeout))
 
 		// Read 2-byte length prefix
 		lenBuf := make([]byte, 2)
@@ -501,7 +503,7 @@ func (w *tcpResponseWriter) WriteMsg(msg *Message) error {
 	tcpData[1] = byte(len(data))
 	copy(tcpData[2:], data)
 
-	w.conn.SetWriteDeadline(time.Now().Add(w.timeout))
+	_ = w.conn.SetWriteDeadline(time.Now().Add(w.timeout))
 	_, err = w.conn.Write(tcpData)
 	return err
 }
@@ -555,7 +557,7 @@ func RateLimitMiddleware(rps int, burst int) Middleware {
 
 			// Get or create limiter for this client
 			val, _ := limiters.LoadOrStore(host, newRateLimiter(rps, burst))
-			limiter := val.(*rateLimiter)
+			limiter, _ := val.(*rateLimiter)
 
 			if !limiter.allow() {
 				// Send REFUSED response

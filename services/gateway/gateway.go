@@ -347,11 +347,11 @@ func (g *Gateway) Shutdown() error {
 	g.rateLimiter.Stop()
 
 	// Close router
-	g.router.Close()
+	_ = g.router.Close()
 
 	// Close Wotan client
 	if g.wotan != nil {
-		g.wotan.Close()
+		_ = g.wotan.Close()
 	}
 
 	// Shutdown HTTP server
@@ -421,7 +421,7 @@ func (g *Gateway) healthHandler(w http.ResponseWriter, r *http.Request) {
 // livenessHandler handles Kubernetes liveness probe.
 func (g *Gateway) livenessHandler(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"alive"}`))
+	_, _ = w.Write([]byte(`{"status":"alive"}`))
 }
 
 // readinessHandler handles Kubernetes readiness probe.
@@ -439,18 +439,18 @@ func (g *Gateway) readinessHandler(w http.ResponseWriter, r *http.Request) {
 
 	if !hasHealthyBackend && len(routeInfos) > 0 {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte(`{"status":"not_ready","reason":"no_healthy_backends"}`))
+		_, _ = w.Write([]byte(`{"status":"not_ready","reason":"no_healthy_backends"}`))
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status":"ready"}`))
+	_, _ = w.Write([]byte(`{"status":"ready"}`))
 }
 
 // metricsHandler handles Prometheus metrics endpoint.
 func (g *Gateway) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-	g.metrics.Gather(w)
+	_ = g.metrics.Gather(w)
 }
 
 // GetRouter returns the gateway router.
