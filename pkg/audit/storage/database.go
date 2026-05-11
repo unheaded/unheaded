@@ -8,11 +8,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strings"
 	"time"
 
 	"unheaded/pkg/audit"
 )
+
+// validTableName matches conservative SQL-identifier rules: starts with a
+// letter or underscore, then [A-Za-z0-9_] up to 64 chars. Rejects anything
+// that would let a caller smuggle SQL fragments through tableName.
+var validTableName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
 
 // DatabaseStorage implements database-backed audit storage.
 type DatabaseStorage struct {
@@ -34,6 +40,9 @@ func NewDatabaseStorage(db *sql.DB, tableName string) (*DatabaseStorage, error) 
 	}
 	if tableName == "" {
 		tableName = "audit_events"
+	}
+	if !validTableName.MatchString(tableName) {
+		return nil, fmt.Errorf("audit storage: tableName %q does not match safe identifier pattern", tableName)
 	}
 
 	ds := &DatabaseStorage{
