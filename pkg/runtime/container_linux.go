@@ -79,26 +79,26 @@ func (r *DefaultRuntime) CreateContainer(ctx context.Context, config *ContainerC
 
 	// Extract image layers to rootfs
 	if err := r.images.ExtractImage(img.ID, rootfs); err != nil {
-		os.RemoveAll(containerRoot)
+		_ = os.RemoveAll(containerRoot)
 		return nil, fmt.Errorf("failed to extract image: %w", err)
 	}
 
 	// Generate OCI spec
 	spec, err := r.generateOCISpec(config, rootfs)
 	if err != nil {
-		os.RemoveAll(containerRoot)
+		_ = os.RemoveAll(containerRoot)
 		return nil, fmt.Errorf("failed to generate OCI spec: %w", err)
 	}
 
 	specPath := filepath.Join(bundlePath, "config.json")
 	specData, err := json.MarshalIndent(spec, "", "  ")
 	if err != nil {
-		os.RemoveAll(containerRoot)
+		_ = os.RemoveAll(containerRoot)
 		return nil, fmt.Errorf("failed to marshal OCI spec: %w", err)
 	}
 
 	if err := os.WriteFile(specPath, specData, 0644); err != nil {
-		os.RemoveAll(containerRoot)
+		_ = os.RemoveAll(containerRoot)
 		return nil, fmt.Errorf("failed to write OCI spec: %w", err)
 	}
 
@@ -107,7 +107,7 @@ func (r *DefaultRuntime) CreateContainer(ctx context.Context, config *ContainerC
 	if config.Resources != nil {
 		cgroupPath, err = r.cgroups.CreateCgroup(config.ID, config.Resources)
 		if err != nil {
-			os.RemoveAll(containerRoot)
+			_ = os.RemoveAll(containerRoot)
 			return nil, fmt.Errorf("failed to create cgroup: %w", err)
 		}
 	}
@@ -115,9 +115,9 @@ func (r *DefaultRuntime) CreateContainer(ctx context.Context, config *ContainerC
 	// Setup mounts
 	if err := r.setupMounts(config, rootfs); err != nil {
 		if cgroupPath != "" {
-			r.cgroups.RemoveCgroup(cgroupPath)
+			_ = r.cgroups.RemoveCgroup(cgroupPath)
 		}
-		os.RemoveAll(containerRoot)
+		_ = os.RemoveAll(containerRoot)
 		return nil, fmt.Errorf("failed to setup mounts: %w", err)
 	}
 
@@ -251,10 +251,10 @@ func (r *DefaultRuntime) StartContainer(ctx context.Context, containerID string)
 
 	// Start copying output to log file
 	go func() {
-		io.Copy(logFile, stdout)
+		_, _ = io.Copy(logFile, stdout)
 	}()
 	go func() {
-		io.Copy(logFile, stderr)
+		_, _ = io.Copy(logFile, stderr)
 		_ = logFile.Close()
 	}()
 
@@ -381,7 +381,7 @@ func (r *DefaultRuntime) RemoveContainer(ctx context.Context, containerID string
 
 	// Remove cgroup
 	if c.cgroupPath != "" {
-		r.cgroups.RemoveCgroup(c.cgroupPath)
+		_ = r.cgroups.RemoveCgroup(c.cgroupPath)
 	}
 
 	// Cleanup mounts
@@ -389,7 +389,7 @@ func (r *DefaultRuntime) RemoveContainer(ctx context.Context, containerID string
 
 	// Remove container directory
 	containerRoot := filepath.Join(r.config.Root, "containers", containerID)
-	os.RemoveAll(containerRoot)
+	_ = os.RemoveAll(containerRoot)
 
 	// Remove from map
 	r.mu.Lock()
@@ -531,7 +531,7 @@ func (r *DefaultRuntime) setupMounts(config *ContainerConfig, rootfs string) err
 // cleanupMounts cleans up container mounts.
 func (r *DefaultRuntime) cleanupMounts(config *ContainerConfig, rootfs string) {
 	for i := len(config.Mounts) - 1; i >= 0; i-- {
-		r.volumes.Unmount(&config.Mounts[i], rootfs)
+		_ = r.volumes.Unmount(&config.Mounts[i], rootfs)
 	}
 }
 
@@ -549,7 +549,7 @@ func parseUserGroup(user string) (int, int) {
 	_, err := fmt.Sscanf(user, "%d:%d", &uid, &gid)
 	if err != nil {
 		// Try just uid
-		fmt.Sscanf(user, "%d", &uid)
+		_, _ = fmt.Sscanf(user, "%d", &uid)
 		gid = uid
 	}
 
