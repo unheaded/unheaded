@@ -46,7 +46,7 @@ func newBashCompletionCommand() *Command {
 		Usage: "unheaded completion bash",
 		RunFunc: func(ctx *Context, args []string) error {
 			script := generateBashCompletion()
-			ctx.Output.WriteString(script)
+			_ = ctx.Output.WriteString(script)
 			return nil
 		},
 	}
@@ -59,7 +59,7 @@ func newZshCompletionCommand() *Command {
 		Usage: "unheaded completion zsh",
 		RunFunc: func(ctx *Context, args []string) error {
 			script := generateZshCompletion()
-			ctx.Output.WriteString(script)
+			_ = ctx.Output.WriteString(script)
 			return nil
 		},
 	}
@@ -72,7 +72,7 @@ func newFishCompletionCommand() *Command {
 		Usage: "unheaded completion fish",
 		RunFunc: func(ctx *Context, args []string) error {
 			script := generateFishCompletion()
-			ctx.Output.WriteString(script)
+			_ = ctx.Output.WriteString(script)
 			return nil
 		},
 	}

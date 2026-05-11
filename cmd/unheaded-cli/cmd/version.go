@@ -60,7 +60,7 @@ Shows:
 
 			// Logo/Banner
 			if color {
-				w.WriteStringln(output.GradientText(`
+				_ = w.WriteStringln(output.GradientText(`
   _   _       _                    _          _
  | | | |_ __ | |__   ___  __ _  __| | ___  __| |
  | | | | '_ \| '_ \ / _ \/ _' |/ _' |/ _ \/ _' |
@@ -69,8 +69,8 @@ Shows:
 `, color))
 			}
 
-			w.WriteStringln(output.Bold("THE GAUNTLETS - Unheaded Kingdom CLI"))
-			w.WriteStringln("")
+			_ = w.WriteStringln(output.Bold("THE GAUNTLETS - Unheaded Kingdom CLI"))
+			_ = w.WriteStringln("")
 
 			kv := output.NewKeyValueTable(w.Out()).SetColor(color)
 			kv.Add("Version", info.Version)

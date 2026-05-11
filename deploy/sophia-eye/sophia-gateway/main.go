@@ -435,7 +435,7 @@ func (sg *SophiaGateway) handleChat(w http.ResponseWriter, r *http.Request) {
 		Timestamp:        time.Now().Unix(),
 		Status:           "success",
 	}
-	go sg.recordInferenceToAnamnesis(context.Background(), record)
+	go func() { _ = sg.recordInferenceToAnamnesis(context.Background(), record) }()
 
 	// Report to Wotan
 	metric := WotanMetric{
@@ -450,11 +450,11 @@ func (sg *SophiaGateway) handleChat(w http.ResponseWriter, r *http.Request) {
 			"completion_tokens": fmt.Sprintf("%d", inferenceResp.Usage.CompletionTokens),
 		},
 	}
-	go sg.reportToWotan(context.Background(), metric)
+	go func() { _ = sg.reportToWotan(context.Background(), metric) }()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)
-	w.Write(respBody)
+	_, _ = w.Write(respBody)
 }
 
 func (sg *SophiaGateway) handleMetrics(w http.ResponseWriter, r *http.Request) {
