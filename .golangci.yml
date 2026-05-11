@@ -157,6 +157,15 @@ linters:
           - gosec
           - bodyclose
 
+      # pkg/audit/storage/database.go interpolates a validated tableName
+      # via fmt.Sprintf — gosec G201 cannot see that NewDatabaseStorage
+      # rejects unsafe identifiers via validTableName regex at construction.
+      # Validation is real; only the lint signal is a false positive.
+      - path: pkg/audit/storage/database\.go
+        linters:
+          - gosec
+        text: "G201:"
+
       # Main packages often have simple error handling
       - path: cmd/
         linters:
