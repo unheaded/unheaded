@@ -365,9 +365,9 @@ func (b *bridge) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Configure connection deadlines to prevent goroutine leaks.
 	conn.SetReadLimit(1024) // Keyboard events are small (4 bytes)
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	conn.SetPongHandler(func(string) error {
-		conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
 
@@ -457,7 +457,7 @@ func (b *bridge) pingLoop(c *client) {
 
 	for range ticker.C {
 		c.mu.Lock()
-		c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 		err := c.conn.WriteMessage(websocket.PingMessage, nil)
 		c.mu.Unlock()
 		if err != nil {
@@ -653,7 +653,7 @@ func (b *bridge) broadcastBinary(data []byte) {
 
 	for c := range b.clients {
 		c.mu.Lock()
-		c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 		err := c.conn.WriteMessage(websocket.BinaryMessage, data)
 		c.mu.Unlock()
 		if err != nil {
@@ -671,7 +671,7 @@ func (b *bridge) broadcastText(data []byte) {
 
 	for c := range b.clients {
 		c.mu.Lock()
-		c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+		_ = c.conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 		err := c.conn.WriteMessage(websocket.TextMessage, data)
 		c.mu.Unlock()
 		if err != nil {

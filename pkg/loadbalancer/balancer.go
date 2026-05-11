@@ -281,7 +281,7 @@ func (b *Balancer) Start() error {
 	}
 
 	if err != nil {
-		b.health.Stop()
+		_ = b.health.Stop()
 		atomic.StoreInt32(&b.running, 0)
 		return fmt.Errorf("start proxy: %w", err)
 	}
@@ -961,19 +961,19 @@ func (cw *ConfigWatcher) Reload() error {
 
 	for _, bc := range config.Backends {
 		if !existingBackends[bc.Name] {
-			cw.balancer.AddBackend(bc)
+			_ = cw.balancer.AddBackend(bc)
 		}
 		delete(existingBackends, bc.Name)
 	}
 
 	// Remove backends that are no longer in config
 	for name := range existingBackends {
-		cw.balancer.RemoveBackend(name)
+		_ = cw.balancer.RemoveBackend(name)
 	}
 
 	// Update algorithm
 	if config.Algorithm != cw.balancer.Config().Algorithm {
-		cw.balancer.SetAlgorithm(config.Algorithm)
+		_ = cw.balancer.SetAlgorithm(config.Algorithm)
 	}
 
 	return nil

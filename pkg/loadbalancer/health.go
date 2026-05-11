@@ -221,7 +221,7 @@ func (hc *HealthChecker) checkTCP(ctx context.Context, backend *Backend) error {
 	if err != nil {
 		return fmt.Errorf("tcp connect: %w", err)
 	}
-	conn.Close()
+	_ = conn.Close()
 	return nil
 }
 
@@ -484,7 +484,7 @@ func (ha *HealthAggregator) Start() error {
 	if ha.passive != nil {
 		if err := ha.passive.Start(); err != nil {
 			if ha.active != nil {
-				ha.active.Stop()
+				_ = ha.active.Stop()
 			}
 			return fmt.Errorf("start passive health checker: %w", err)
 		}
@@ -563,7 +563,7 @@ func (he *HealthEndpoint) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (he *HealthEndpoint) handleHealth(w http.ResponseWriter, r *http.Request) {
 	// Health returns 200 if load balancer is running
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	_, _ = w.Write([]byte("OK"))
 }
 
 func (he *HealthEndpoint) handleReady(w http.ResponseWriter, r *http.Request) {
@@ -571,7 +571,7 @@ func (he *HealthEndpoint) handleReady(w http.ResponseWriter, r *http.Request) {
 	healthy := he.pool.Healthy()
 	if len(healthy) == 0 {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		w.Write([]byte("No healthy backends"))
+		_, _ = w.Write([]byte("No healthy backends"))
 		return
 	}
 	w.WriteHeader(http.StatusOK)

@@ -441,7 +441,11 @@ func (r *CertificateRotatorWithCA) Verify(ctx context.Context, secret *secrets.S
 	}
 
 	// Verify key matches certificate
-	if cert.PublicKey.(*rsa.PublicKey).N.Cmp(key.N) != 0 {
+	pub, ok := cert.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return errors.New("certificate public key is not RSA")
+	}
+	if pub.N.Cmp(key.N) != 0 {
 		return errors.New("private key does not match certificate")
 	}
 
@@ -565,7 +569,7 @@ func (dci *DatabaseCredentialIntegration) RotateCredentials(ctx context.Context,
 		SSLMode:  string(secret.Data["ssl_mode"]),
 	}
 	if port, ok := secret.Data["port"]; ok {
-		fmt.Sscanf(string(port), "%d", &config.Port)
+		_, _ = fmt.Sscanf(string(port), "%d", &config.Port)
 	}
 
 	// Generate new password
@@ -596,7 +600,7 @@ func (dci *DatabaseCredentialIntegration) RotateCredentials(ctx context.Context,
 		// Rollback
 		db2, _ := driver.Connect(ctx, config)
 		if db2 != nil {
-			driver.RotateCredentials(ctx, db2, config.Username, config.Password)
+			_ = driver.RotateCredentials(ctx, db2, config.Username, config.Password)
 			db2.Close()
 		}
 		integrationErrors.WithLabels(metrics.Labels{"type": "database", "error_type": "validation_failed"}).Inc()
@@ -824,7 +828,7 @@ func (aki *APIKeyIntegration) RotateAPIKey(ctx context.Context, path, generatorN
 	// Store
 	if err := aki.store.Set(ctx, path, newSecret); err != nil {
 		// Revoke new key on store failure
-		gen.Revoke(ctx, newKey)
+		_ = gen.Revoke(ctx, newKey)
 		integrationErrors.WithLabels(metrics.Labels{"type": "api_key", "error_type": "store_failed"}).Inc()
 		return nil, err
 	}
