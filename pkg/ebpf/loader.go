@@ -1402,7 +1402,7 @@ func parseELF(path string) (*parsedELF, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%w: open %s: %v", ErrELFParseFailed, path, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Verify it's a BPF object file (EM_BPF = 247)
 	if f.Machine != elf.EM_BPF && f.Machine != elf.Machine(247) {
@@ -2622,7 +2622,7 @@ func (l *NativeLoader) attachXDPNetlink(loaded *loadedProgram, ifIndex int) erro
 	if err != nil {
 		return fmt.Errorf("create netlink socket: %w", err)
 	}
-	defer unix.Close(sock)
+	defer func() { _ = unix.Close(sock) }()
 
 	// Bind socket
 	addr := &unix.SockaddrNetlink{Family: unix.AF_NETLINK}
@@ -2734,7 +2734,7 @@ func getInterfaceByName(name string) (*interfaceInfo, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer unix.Close(fd)
+	defer func() { _ = unix.Close(fd) }()
 
 	var ifr [40]byte // struct ifreq
 	copy(ifr[:], name)
@@ -2828,7 +2828,7 @@ func (l *NativeLoader) attachTCNetlink(loaded *loadedProgram, ifIndex int) error
 	if err != nil {
 		return fmt.Errorf("create netlink socket: %w", err)
 	}
-	defer unix.Close(sock)
+	defer func() { _ = unix.Close(sock) }()
 
 	// Bind socket
 	addr := &unix.SockaddrNetlink{Family: unix.AF_NETLINK}
@@ -3199,7 +3199,7 @@ func registerKprobe(funcName string, ret bool) (uint64, error) {
 	if err != nil {
 		return 0, fmt.Errorf("open kprobe_events: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	if _, err := f.WriteString(probeCmd); err != nil {
 		return 0, fmt.Errorf("write kprobe_events: %w", err)
@@ -3386,7 +3386,7 @@ func (l *NativeLoader) attachCgroup(loaded *loadedProgram) error {
 	if err != nil {
 		return fmt.Errorf("open cgroup %s: %w", cgroupPath, err)
 	}
-	defer unix.Close(cgroupFD)
+	defer func() { _ = unix.Close(cgroupFD) }()
 
 	// Determine attach type
 	var attachType uint32

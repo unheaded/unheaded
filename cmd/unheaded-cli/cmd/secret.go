@@ -115,7 +115,7 @@ func newSecretGetCommand() *Command {
 				if !ok {
 					return fmt.Errorf("key '%s' not found in secret", key)
 				}
-				ctx.Output.WriteStringln(string(data))
+				_ = ctx.Output.WriteStringln(string(data))
 				return nil
 			}
 
@@ -141,8 +141,8 @@ func newSecretGetCommand() *Command {
 			w := ctx.Output
 			color := w.Color()
 
-			w.WriteStringln(output.Bold("Secret: " + path))
-			w.WriteStringln("")
+			_ = w.WriteStringln(output.Bold("Secret: " + path))
+			_ = w.WriteStringln("")
 
 			kv := output.NewKeyValueTable(w.Out()).SetColor(color)
 			kv.Add("Path", secret.Path)
@@ -155,15 +155,15 @@ func newSecretGetCommand() *Command {
 			}
 			kv.Render()
 
-			w.WriteStringln("")
-			w.WriteStringln(output.Bold("Data Keys:"))
+			_ = w.WriteStringln("")
+			_ = w.WriteStringln(output.Bold("Data Keys:"))
 			list := output.NewListTable(w.Out()).SetColor(color)
 			for k := range secret.Data {
 				list.Add(k)
 			}
 			list.Render()
 
-			w.WriteStringln("")
+			_ = w.WriteStringln("")
 			w.WriteInfo("Use 'unheaded secret get %s --key <key>' to retrieve specific values", path)
 
 			return nil
