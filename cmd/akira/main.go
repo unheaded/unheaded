@@ -253,7 +253,15 @@ func main() {
 		})
 		addr := fmt.Sprintf(":%d", *listenPort)
 		log.Info().Str("addr", addr).Msg("Akira HTTP API listening")
-		if err := http.ListenAndServe(addr, mux); err != nil && err != http.ErrServerClosed {
+		srv := &http.Server{
+			Addr:              addr,
+			Handler:           mux,
+			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       30 * time.Second,
+			WriteTimeout:      30 * time.Second,
+			IdleTimeout:       120 * time.Second,
+		}
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Error().Err(err).Msg("Akira HTTP API listen failed")
 		}
 	}()
