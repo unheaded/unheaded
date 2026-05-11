@@ -1,0 +1,232 @@
+# Yggdrasil Evidence Pack Manifest — Schema v1
+# This file is the AUTHORITATIVE schema for manifest.yaml inside every
+# evidence pack tarball. Every field with `required: true` must be present
+# and pass the listed validation rule.
+#
+# Schema bumps: Round Table decision per OS-FORK-DISCIPLINE.md §4.
+#
+# Free to use. Free to share.
+
+$schema: "https://json-schema.org/draft/2020-12/schema"
+$id: "https://unheaded.dev/yggdrasil/evidence-pack/manifest-v1.yaml"
+type: object
+required:
+  - schema_version
+  - image
+  - anchor
+  - overlay
+  - sbom
+  - cve_scan
+  - cis_benchmark
+  - upc_doctor
+  - chain_of_custody
+properties:
+  schema_version:
+    type: string
+    const: "1.0.0"
+    description: "Bumped via Round Table per OS-FORK-DISCIPLINE.md §4."
+
+  image:
+    type: object
+    required: [iso_path, iso_sha256, iso_size_bytes, build_date_utc, build_host]
+    properties:
+      iso_path:
+        type: string
+        pattern: "^[A-Za-z0-9._/-]+\\.iso$"
+      iso_sha256:
+        type: string
+        pattern: "^[a-f0-9]{64}$"
+      iso_size_bytes:
+        type: integer
+        minimum: 1
+      build_date_utc:
+        type: string
+        format: date-time
+      build_host:
+        type: string
+        description: "Hostname of the packer build runner."
+
+  anchor:
+    type: object
+    required: [release_codename, release_version, release_date, debian_commit]
+    properties:
+      release_codename:
+        type: string
+        enum: [bookworm, trixie, forky]
+        description: "Current Yggdrasil anchor (Debian 12/13/14 codenames)."
+      release_version:
+        type: string
+        pattern: "^[0-9]+\\.[0-9]+(\\.[0-9]+)?$"
+      release_date:
+        type: string
+        format: date
+      debian_commit:
+        type: string
+        pattern: "^[a-f0-9]{40}$"
+        description: "Git commit of the Debian release source."
+
+  overlay:
+    type: object
+    required: [patch_count, patches, total_loc_delta]
+    properties:
+      patch_count:
+        type: integer
+        minimum: 0
+        maximum: 50
+        description: "Per OS-FORK-DISCIPLINE.md Pillar 4."
+      patches:
+        type: array
+        items:
+          type: object
+          required: [filename, sha256, subject, reason, upstream_status, authored_date]
+          properties:
+            filename:
+              type: string
+              pattern: "^[0-9]{4}-[a-z0-9-]+\\.patch$"
+            sha256:
+              type: string
+              pattern: "^[a-f0-9]{64}$"
+            subject:
+              type: string
+            reason:
+              type: string
+            upstream_status:
+              type: string
+              enum: [submitted, accepted, rejected, downstream-only]
+            authored_date:
+              type: string
+              format: date
+      total_loc_delta:
+        type: integer
+        minimum: 0
+        maximum: 5000
+        description: "Per OS-FORK-DISCIPLINE.md Pillar 4."
+
+  sbom:
+    type: object
+    required: [spdx_path, cyclonedx_path, package_count, license_summary]
+    properties:
+      spdx_path:
+        type: string
+        const: "sbom.spdx.json"
+      cyclonedx_path:
+        type: string
+        const: "sbom.cyclonedx.json"
+      package_count:
+        type: integer
+        minimum: 1
+      license_summary:
+        type: object
+        description: "License-id -> count map. GPL-3.0-or-later expected for kingdom code."
+
+  cve_scan:
+    type: object
+    required: [scan_date_utc, scanner, scanner_version, critical, high, medium, low, waivers]
+    properties:
+      scan_date_utc:
+        type: string
+        format: date-time
+      scanner:
+        type: string
+        enum: [trivy, grype, snyk]
+      scanner_version:
+        type: string
+      critical:
+        type: integer
+        minimum: 0
+        maximum: 0
+        description: "MUST be zero. Waivers only via Round Table — log in chain_of_custody."
+      high:
+        type: integer
+        minimum: 0
+        maximum: 0
+        description: "MUST be zero. Same rule as critical."
+      medium:
+        type: integer
+        minimum: 0
+      low:
+        type: integer
+        minimum: 0
+      waivers:
+        type: array
+        items:
+          type: object
+          required: [cve_id, reason, approver, expires_date]
+          properties:
+            cve_id:
+              type: string
+              pattern: "^CVE-[0-9]{4}-[0-9]+$"
+            reason:
+              type: string
+            approver:
+              type: string
+            expires_date:
+              type: string
+              format: date
+
+  cis_benchmark:
+    type: object
+    required: [benchmark, level, score_percent, lynis_hardening_score]
+    properties:
+      benchmark:
+        type: string
+        const: "CIS Debian Linux 12 Benchmark"
+      level:
+        type: integer
+        enum: [1, 2]
+      score_percent:
+        type: number
+        minimum: 95
+        description: "Yggdrasil targets ≥ 95% CIS Level 1 compliance."
+      lynis_hardening_score:
+        type: integer
+        minimum: 90
+        maximum: 100
+
+  upc_doctor:
+    type: object
+    required: [exit_code, kernel_version, bpf_subsystem, xdp_supported, upc_bootctl_present, upc_tty_bridge_active, monad_cpu_ebpf_present, healthz_reachable]
+    properties:
+      exit_code:
+        type: integer
+        const: 0
+      kernel_version:
+        type: string
+        pattern: "^[0-9]+\\.[0-9]+\\.[0-9]+"
+      bpf_subsystem:
+        type: boolean
+        const: true
+      xdp_supported:
+        type: boolean
+      upc_bootctl_present:
+        type: boolean
+        const: true
+      upc_tty_bridge_active:
+        type: boolean
+        const: true
+      monad_cpu_ebpf_present:
+        type: boolean
+        const: true
+      healthz_reachable:
+        type: boolean
+        const: true
+
+  chain_of_custody:
+    type: array
+    description: "Append-only log of who-built-what-when. New entries at end."
+    items:
+      type: object
+      required: [timestamp_utc, actor, action]
+      properties:
+        timestamp_utc:
+          type: string
+          format: date-time
+        actor:
+          type: string
+          description: "Operator name + build runner hostname."
+        action:
+          type: string
+          description: "Free-form description of the build/sign/verify action."
+        signature:
+          type: string
+          description: "ML-DSA-65 detached signature over the action description (hex)."
