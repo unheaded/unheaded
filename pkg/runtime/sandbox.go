@@ -261,7 +261,7 @@ func (r *DefaultRuntime) CreateSandbox(ctx context.Context, config *SandboxConfi
 
 	// Create namespaces
 	if err := r.setupSandboxNamespaces(sandbox, config); err != nil {
-		os.RemoveAll(sandboxRoot)
+		_ = os.RemoveAll(sandboxRoot)
 		return nil, fmt.Errorf("failed to setup namespaces: %w", err)
 	}
 
@@ -270,7 +270,7 @@ func (r *DefaultRuntime) CreateSandbox(ctx context.Context, config *SandboxConfi
 		cgroupPath, err := r.cgroups.CreateCgroup(config.ID, config.Linux.Resources)
 		if err != nil {
 			r.cleanupSandboxNamespaces(sandbox)
-			os.RemoveAll(sandboxRoot)
+			_ = os.RemoveAll(sandboxRoot)
 			return nil, fmt.Errorf("failed to create cgroup: %w", err)
 		}
 		sandbox.cgroupPath = cgroupPath
@@ -372,13 +372,13 @@ func (r *DefaultRuntime) setupSandboxNamespaces(sandbox *Sandbox, config *Sandbo
 // cleanupSandboxNamespaces cleans up sandbox namespaces.
 func (r *DefaultRuntime) cleanupSandboxNamespaces(sandbox *Sandbox) {
 	if sandbox.NetNS != "" {
-		r.namespaces.RemoveNamespaces(sandbox.config.ID)
+		_ = r.namespaces.RemoveNamespaces(sandbox.config.ID)
 	}
 	if sandbox.IPCNS != "" {
-		r.namespaces.RemoveNamespaces(sandbox.config.ID + "-ipc")
+		_ = r.namespaces.RemoveNamespaces(sandbox.config.ID + "-ipc")
 	}
 	if sandbox.UTSNS != "" {
-		r.namespaces.RemoveNamespaces(sandbox.config.ID + "-uts")
+		_ = r.namespaces.RemoveNamespaces(sandbox.config.ID + "-uts")
 	}
 }
 
@@ -439,7 +439,7 @@ func (r *DefaultRuntime) StopSandbox(ctx context.Context, sandboxID string) erro
 	if sandbox.pausePID > 0 {
 		proc, err := os.FindProcess(sandbox.pausePID)
 		if err == nil {
-			proc.Kill()
+			_ = proc.Kill()
 		}
 		sandbox.pausePID = 0
 	}
@@ -472,12 +472,12 @@ func (r *DefaultRuntime) RemoveSandbox(ctx context.Context, sandboxID string) er
 
 	// Cleanup cgroup
 	if sandbox.cgroupPath != "" {
-		r.cgroups.RemoveCgroup(sandbox.cgroupPath)
+		_ = r.cgroups.RemoveCgroup(sandbox.cgroupPath)
 	}
 
 	// Remove sandbox directory
 	sandboxRoot := filepath.Join(r.config.Root, "sandboxes", sandboxID)
-	os.RemoveAll(sandboxRoot)
+	_ = os.RemoveAll(sandboxRoot)
 
 	r.mu.Lock()
 	delete(r.sandboxes, sandboxID)

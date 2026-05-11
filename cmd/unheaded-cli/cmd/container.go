@@ -428,7 +428,7 @@ func newContainerExecCommand() *Command {
 
 			// Output stdout/stderr
 			if len(result.Stdout) > 0 {
-				ctx.Output.WriteString(string(result.Stdout))
+				_ = ctx.Output.WriteString(string(result.Stdout))
 			}
 			if len(result.Stderr) > 0 {
 				ctx.Output.WriteError("%s", string(result.Stderr))
@@ -483,8 +483,8 @@ func newContainerInspectCommand() *Command {
 			w := ctx.Output
 			color := w.Color()
 
-			w.WriteStringln(output.Bold("Container: " + name))
-			w.WriteStringln("")
+			_ = w.WriteStringln(output.Bold("Container: " + name))
+			_ = w.WriteStringln("")
 
 			kv := output.NewKeyValueTable(w.Out()).SetColor(color)
 			kv.Add("Name", container.Name)
@@ -496,9 +496,9 @@ func newContainerInspectCommand() *Command {
 			kv.Add("Profiles", strings.Join(container.Profiles, ", "))
 			kv.Render()
 
-			w.WriteStringln("")
-			w.WriteStringln(output.Bold("Resources:"))
-			w.WriteStringln("")
+			_ = w.WriteStringln("")
+			_ = w.WriteStringln(output.Bold("Resources:"))
+			_ = w.WriteStringln("")
 
 			resKV := output.NewKeyValueTable(w.Out()).SetColor(color).SetIndent(2)
 			resKV.Add("CPU Usage", formatCPU(state.CPU.Usage))
@@ -511,10 +511,10 @@ func newContainerInspectCommand() *Command {
 
 			// Network interfaces
 			if len(state.Network) > 0 {
-				w.WriteStringln("")
-				w.WriteStringln(output.Bold("Network Interfaces:"))
+				_ = w.WriteStringln("")
+				_ = w.WriteStringln(output.Bold("Network Interfaces:"))
 				for name, net := range state.Network {
-					w.WriteStringln(fmt.Sprintf("\n  %s:", output.Cyan(name)))
+					_ = w.WriteStringln(fmt.Sprintf("\n  %s:", output.Cyan(name)))
 					netKV := output.NewKeyValueTable(w.Out()).SetColor(color).SetIndent(4)
 					netKV.Add("State", net.State)
 					netKV.Add("Type", net.Type)

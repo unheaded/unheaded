@@ -331,7 +331,8 @@ func (s *Service) GenerateOpenAPI() map[string]interface{} {
 		if paths[route.Path] == nil {
 			paths[route.Path] = make(map[string]interface{})
 		}
-		paths[route.Path].(map[string]interface{})[methodLower] = map[string]interface{}{
+		pathOps, _ := paths[route.Path].(map[string]interface{})
+		pathOps[methodLower] = map[string]interface{}{
 			"summary":     route.Description,
 			"operationId": route.CommandName,
 			"tags":        []string{s.getCommandGroup(route.CommandName)},
@@ -361,7 +362,7 @@ func (s *Service) getCommandGroup(cmdName string) string {
 
 func (s *Service) registerBuiltinCommands() {
 	// Health check command (API prefix path)
-	s.RegisterCommand(&Command{
+	_ = s.RegisterCommand(&Command{
 		Name:        "health",
 		Description: "Check service health",
 		Group:       "system",
@@ -380,7 +381,7 @@ func (s *Service) registerBuiltinCommands() {
 	})
 
 	// Standard /health endpoint (required by CLAUDE.md)
-	s.RegisterCommand(&Command{
+	_ = s.RegisterCommand(&Command{
 		Name:        "health-standard",
 		Description: "Standard health check endpoint",
 		Group:       "system",
@@ -398,7 +399,7 @@ func (s *Service) registerBuiltinCommands() {
 	})
 
 	// Standard /ready endpoint (required by CLAUDE.md)
-	s.RegisterCommand(&Command{
+	_ = s.RegisterCommand(&Command{
 		Name:        "ready",
 		Description: "Readiness check endpoint",
 		Group:       "system",
@@ -416,7 +417,7 @@ func (s *Service) registerBuiltinCommands() {
 	})
 
 	// Standard /metrics endpoint (required by CLAUDE.md)
-	s.RegisterCommand(&Command{
+	_ = s.RegisterCommand(&Command{
 		Name:        "metrics",
 		Description: "Prometheus-style metrics endpoint",
 		Group:       "system",
@@ -432,7 +433,7 @@ func (s *Service) registerBuiltinCommands() {
 	})
 
 	// Version command
-	s.RegisterCommand(&Command{
+	_ = s.RegisterCommand(&Command{
 		Name:        "version",
 		Description: "Get API version",
 		Group:       "system",
@@ -449,7 +450,7 @@ func (s *Service) registerBuiltinCommands() {
 	})
 
 	// List commands
-	s.RegisterCommand(&Command{
+	_ = s.RegisterCommand(&Command{
 		Name:        "commands",
 		Description: "List all available commands",
 		Group:       "system",
@@ -483,7 +484,7 @@ func (s *Service) publishEvent(ctx context.Context, eventType string, data map[s
 		return
 	}
 
-	s.wotan.Publish(ctx, s.config.WotanTopic, payload)
+	_ = s.wotan.Publish(ctx, s.config.WotanTopic, payload)
 }
 
 // Stats returns service statistics.
