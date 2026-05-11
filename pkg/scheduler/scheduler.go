@@ -400,7 +400,7 @@ func (s *Scheduler) Cancel(workloadID string) error {
 
 	// Unbind if scheduled
 	if workload.BoundNode != "" {
-		s.binder.Unbind(workload)
+		_ = s.binder.Unbind(workload)
 		s.quotas.ReleaseQuota(workload.Namespace, workload.Resources.Requests)
 	}
 
@@ -462,7 +462,7 @@ func (s *Scheduler) scheduleWorkload(workload *Workload) *SchedulingResult {
 	}
 
 	// Reserve quota
-	s.quotas.ReserveQuota(workload.Namespace, workload.Resources.Requests)
+	_ = s.quotas.ReserveQuota(workload.Namespace, workload.Resources.Requests)
 
 	result.Node = selectedNode
 	result.Success = true
@@ -549,7 +549,7 @@ func (s *Scheduler) attemptPreemption(workload *Workload, nodes []*Node) *Preemp
 		victim, exists := s.workloads[victimID]
 		if exists {
 			victim.State = WorkloadStateEvicted
-			s.binder.Unbind(victim)
+			_ = s.binder.Unbind(victim)
 			s.quotas.ReleaseQuota(victim.Namespace, victim.Resources.Requests)
 
 			if s.onPreempted != nil {
@@ -599,7 +599,7 @@ func (s *Scheduler) handleSchedulingResult(result *SchedulingResult) {
 			result.Workload.Annotations = make(map[string]string)
 		}
 		if r, ok := result.Workload.Annotations["scheduler/retries"]; ok {
-			fmt.Sscanf(r, "%d", &retries)
+			_, _ = fmt.Sscanf(r, "%d", &retries)
 		}
 
 		if retries < s.config.MaxRetries {
@@ -789,7 +789,7 @@ func (s *Scheduler) Reschedule(workloadID string) error {
 
 	// Unbind if currently bound
 	if workload.BoundNode != "" {
-		s.binder.Unbind(workload)
+		_ = s.binder.Unbind(workload)
 		s.quotas.ReleaseQuota(workload.Namespace, workload.Resources.Requests)
 	}
 

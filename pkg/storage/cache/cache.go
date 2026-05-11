@@ -260,7 +260,7 @@ func (m *MultiLevelCache) Get(ctx context.Context, key []byte) ([]byte, bool) {
 		if value, ok := cache.Get(ctx, key); ok {
 			// Populate earlier caches
 			for j := 0; j < i; j++ {
-				m.caches[j].Set(ctx, key, value, 0)
+				_ = m.caches[j].Set(ctx, key, value, 0)
 			}
 			return value, true
 		}
@@ -309,7 +309,7 @@ func (m *MultiLevelCache) Stats() CacheStats {
 // Close releases resources for all cache levels.
 func (m *MultiLevelCache) Close() error {
 	for _, cache := range m.caches {
-		cache.Close()
+		_ = cache.Close()
 	}
 	return nil
 }
@@ -344,7 +344,7 @@ func (w *CacheWrapper) Get(ctx context.Context, key []byte) ([]byte, error) {
 	}
 
 	// Cache the result
-	w.cache.Set(ctx, key, value, w.ttl)
+	_ = w.cache.Set(ctx, key, value, w.ttl)
 
 	return value, nil
 }
@@ -357,7 +357,7 @@ func (w *CacheWrapper) Set(ctx context.Context, key, value []byte) error {
 	}
 
 	// Update cache
-	w.cache.Set(ctx, key, value, w.ttl)
+	_ = w.cache.Set(ctx, key, value, w.ttl)
 
 	return nil
 }
@@ -382,6 +382,6 @@ func (w *CacheWrapper) Scan(ctx context.Context, prefix []byte, fn func(key, val
 
 // Close releases resources.
 func (w *CacheWrapper) Close() error {
-	w.cache.Close()
+	_ = w.cache.Close()
 	return w.store.Close()
 }

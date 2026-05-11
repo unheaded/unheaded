@@ -65,7 +65,7 @@ func (h priorityHeap) Swap(i, j int) {
 }
 
 func (h *priorityHeap) Push(x interface{}) {
-	item := x.(*priorityQueueItem)
+	item, _ := x.(*priorityQueueItem)
 	item.index = len(*h)
 	*h = append(*h, item)
 }
@@ -136,7 +136,7 @@ func (q *InMemoryQueue) Dequeue() (*Job, error) {
 		return nil, ErrQueueEmpty
 	}
 
-	item := heap.Pop(&q.heap).(*priorityQueueItem)
+	item, _ := heap.Pop(&q.heap).(*priorityQueueItem)
 	return item.job, nil
 }
 
@@ -153,7 +153,7 @@ func (q *InMemoryQueue) DequeueWait() (*Job, error) {
 		return nil, ErrQueueClosed
 	}
 
-	item := heap.Pop(&q.heap).(*priorityQueueItem)
+	item, _ := heap.Pop(&q.heap).(*priorityQueueItem)
 	return item.job, nil
 }
 
@@ -333,7 +333,7 @@ func (pq *PersistentQueue) Dequeue() (*Job, error) {
 	if pq.saveOnOp {
 		if saveErr := pq.save(); saveErr != nil {
 			// Re-enqueue the job if save fails
-			pq.InMemoryQueue.Enqueue(job)
+			_ = pq.InMemoryQueue.Enqueue(job)
 			return nil, saveErr
 		}
 	}
@@ -394,7 +394,7 @@ func (pq *PersistentQueue) load() error {
 			Metadata:   pj.Metadata,
 			// Func will need to be set by the application
 		}
-		pq.InMemoryQueue.Enqueue(job)
+		_ = pq.InMemoryQueue.Enqueue(job)
 	}
 
 	return nil

@@ -325,7 +325,7 @@ func NewEnhancedServiceDiscovery(config *ServiceDiscoveryConfig) (*EnhancedServi
 
 	if config.EnableHealthChecks {
 		sd.healthChecker = NewEnhancedHealthChecker(config, sd)
-		sd.healthChecker.Start()
+		_ = sd.healthChecker.Start()
 	}
 
 	// Start maintenance goroutine
@@ -737,7 +737,7 @@ func (sd *EnhancedServiceDiscovery) updateServiceDNS(svc *ServiceDefinition) {
 			txtParts = append(txtParts, fmt.Sprintf("%s=%s", k, v))
 		}
 		sort.Strings(txtParts)
-		sd.zone.ReplaceRecords(srvName, TypeTXT, []*ResourceRecord{
+		_ = sd.zone.ReplaceRecords(srvName, TypeTXT, []*ResourceRecord{
 			NewTXTRecord(srvName, svc.TTL, txtParts...),
 		})
 	}
@@ -764,12 +764,12 @@ func (sd *EnhancedServiceDiscovery) updateDNSSDRecords(svc *ServiceDefinition) {
 		}
 	}
 	if !found {
-		sd.zone.AddRecord(NewPTRRecord(browseZone, svc.TTL, serviceType))
+		_ = sd.zone.AddRecord(NewPTRRecord(browseZone, svc.TTL, serviceType))
 	}
 
 	// Add PTR from service type to service instance
 	instanceName := svc.InstanceName(domain)
-	sd.zone.AddRecord(NewPTRRecord(serviceType, svc.TTL, instanceName))
+	_ = sd.zone.AddRecord(NewPTRRecord(serviceType, svc.TTL, instanceName))
 
 	// Instance TXT record with full metadata
 	if len(svc.Metadata) > 0 || len(svc.Endpoints) > 0 {
@@ -783,7 +783,7 @@ func (sd *EnhancedServiceDiscovery) updateDNSSDRecords(svc *ServiceDefinition) {
 		txtParts = append(txtParts, fmt.Sprintf("healthy=%d", healthyCount))
 
 		sort.Strings(txtParts)
-		sd.zone.ReplaceRecords(instanceName, TypeTXT, []*ResourceRecord{
+		_ = sd.zone.ReplaceRecords(instanceName, TypeTXT, []*ResourceRecord{
 			NewTXTRecord(instanceName, svc.TTL, txtParts...),
 		})
 	}
