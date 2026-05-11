@@ -356,7 +356,7 @@ func (s *Service) BroadcastMessage(msg []byte) error {
 
 func (s *Service) registerBuiltinRoutes() {
 	// Health check
-	s.GET("/health", func(w http.ResponseWriter, r *http.Request) {
+	_ = s.GET("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"status":    "healthy",
@@ -366,7 +366,7 @@ func (s *Service) registerBuiltinRoutes() {
 	})
 
 	// Readiness check
-	s.GET("/ready", func(w http.ResponseWriter, r *http.Request) {
+	_ = s.GET("/ready", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"ready":   true,
@@ -375,7 +375,7 @@ func (s *Service) registerBuiltinRoutes() {
 	})
 
 	// Prometheus-style metrics endpoint
-	s.GET("/metrics", func(w http.ResponseWriter, r *http.Request) {
+	_ = s.GET("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		stats := s.Stats()
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 		fmt.Fprintf(w, "# HELP cape_routes_total Total registered routes\n")
@@ -399,7 +399,7 @@ func (s *Service) registerBuiltinRoutes() {
 	})
 
 	// Routes listing
-	s.GET("/routes", func(w http.ResponseWriter, r *http.Request) {
+	_ = s.GET("/routes", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(s.ListRoutes())
 	})

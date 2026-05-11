@@ -418,14 +418,14 @@ func (r *Router) RegisterHealthChecks(config HealthCheckConfig) {
 
 	// Main health check
 	r.GET(config.Path, func(c *Context) {
-		c.JSON(http.StatusOK, map[string]string{
+		_ = c.JSON(http.StatusOK, map[string]string{
 			"status": "healthy",
 		})
 	})
 
 	// Liveness probe (is the server alive?)
 	r.GET(config.LivenessPath, func(c *Context) {
-		c.JSON(http.StatusOK, map[string]string{
+		_ = c.JSON(http.StatusOK, map[string]string{
 			"status": "alive",
 		})
 	})
@@ -451,7 +451,7 @@ func (r *Router) RegisterHealthChecks(config HealthCheckConfig) {
 			statusText = "not_ready"
 		}
 
-		c.JSON(status, map[string]any{
+		_ = c.JSON(status, map[string]any{
 			"status": statusText,
 			"checks": results,
 		})
@@ -561,6 +561,6 @@ func (r *Router) RegisterMetricsEndpoint(path string, metrics *Metrics) {
 	}
 
 	r.GET(path, func(c *Context) {
-		c.JSON(http.StatusOK, metrics.Snapshot())
+		_ = c.JSON(http.StatusOK, metrics.Snapshot())
 	})
 }

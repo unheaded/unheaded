@@ -64,12 +64,12 @@ func (f *Fixture) Run(testFn func()) {
 
 		// Clean up temp dirs
 		for _, dir := range f.tempDirs {
-			os.RemoveAll(dir)
+			_ = os.RemoveAll(dir)
 		}
 
 		// Clean up temp files
 		for _, file := range f.tempFiles {
-			os.Remove(file)
+			_ = os.Remove(file)
 		}
 	}()
 
@@ -415,9 +415,9 @@ func (e *TestEnv) Restore() {
 
 	for key, value := range e.original {
 		if value == "\x00" {
-			os.Unsetenv(key)
+			_ = os.Unsetenv(key)
 		} else {
-			os.Setenv(key, value)
+			_ = os.Setenv(key, value)
 		}
 	}
 }

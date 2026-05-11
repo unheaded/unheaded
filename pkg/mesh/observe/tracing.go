@@ -65,14 +65,14 @@ func ParseSpanID(s string) (SpanID, error) {
 // GenerateTraceID generates a new random trace ID.
 func GenerateTraceID() TraceID {
 	var id TraceID
-	rand.Read(id[:])
+	_, _ = rand.Read(id[:])
 	return id
 }
 
 // GenerateSpanID generates a new random span ID.
 func GenerateSpanID() SpanID {
 	var id SpanID
-	rand.Read(id[:])
+	_, _ = rand.Read(id[:])
 	return id
 }
 
@@ -231,7 +231,7 @@ func (t *Tracer) FinishSpan(span *Span) {
 
 	// Export if sampled
 	if span.Sampled && t.exporter != nil {
-		t.exporter.Export(span)
+		_ = t.exporter.Export(span)
 	}
 }
 
@@ -288,7 +288,7 @@ func (t *Tracer) shouldSample() bool {
 	}
 
 	var b [1]byte
-	rand.Read(b[:])
+	_, _ = rand.Read(b[:])
 	return float64(b[0])/256.0 < t.sampleRate
 }
 
