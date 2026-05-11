@@ -708,8 +708,8 @@ func (sd *EnhancedServiceDiscovery) updateServiceDNS(svc *ServiceDefinition) {
 			aaaaRecords = append(aaaaRecords, NewAAAARecord(serviceDomain, svc.TTL, ep.Address))
 		}
 	}
-	sd.zone.ReplaceRecords(serviceDomain, TypeA, aRecords)
-	sd.zone.ReplaceRecords(serviceDomain, TypeAAAA, aaaaRecords)
+	_ = sd.zone.ReplaceRecords(serviceDomain, TypeA, aRecords)
+	_ = sd.zone.ReplaceRecords(serviceDomain, TypeAAAA, aaaaRecords)
 
 	// SRV records - _service._protocol.domain
 	srvName := svc.FQDN(domain)
@@ -728,7 +728,7 @@ func (sd *EnhancedServiceDiscovery) updateServiceDNS(svc *ServiceDefinition) {
 			serviceDomain,
 		))
 	}
-	sd.zone.ReplaceRecords(srvName, TypeSRV, srvRecords)
+	_ = sd.zone.ReplaceRecords(srvName, TypeSRV, srvRecords)
 
 	// TXT records for service metadata
 	if len(svc.Metadata) > 0 {
@@ -796,11 +796,11 @@ func (sd *EnhancedServiceDiscovery) removeDNSRecords(svc *ServiceDefinition) {
 	srvName := svc.FQDN(domain)
 	instanceName := svc.InstanceName(domain)
 
-	sd.zone.RemoveRecordsByName(serviceDomain, TypeA)
-	sd.zone.RemoveRecordsByName(serviceDomain, TypeAAAA)
-	sd.zone.RemoveRecordsByName(srvName, TypeSRV)
-	sd.zone.RemoveRecordsByName(srvName, TypeTXT)
-	sd.zone.RemoveRecordsByName(instanceName, TypeTXT)
+	_ = sd.zone.RemoveRecordsByName(serviceDomain, TypeA)
+	_ = sd.zone.RemoveRecordsByName(serviceDomain, TypeAAAA)
+	_ = sd.zone.RemoveRecordsByName(srvName, TypeSRV)
+	_ = sd.zone.RemoveRecordsByName(srvName, TypeTXT)
+	_ = sd.zone.RemoveRecordsByName(instanceName, TypeTXT)
 
 	// Note: We don't remove the browse PTR records as they may be shared
 }
