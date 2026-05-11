@@ -413,9 +413,11 @@ func (s *Server) upgradeConnection(w http.ResponseWriter, r *http.Request) (net.
 	return conn, nil
 }
 
-// computeAcceptKey computes the Sec-WebSocket-Accept key
+// computeAcceptKey computes the Sec-WebSocket-Accept key.
+// RFC 6455 §4.2.2 requires SHA-1 for the WebSocket handshake; this is a
+// protocol fingerprint, not a security primitive. (gosec G401 false-positive.)
 func computeAcceptKey(key string) string {
-	h := sha1.New()
+	h := sha1.New() //nolint:gosec // RFC 6455 mandates SHA-1 for the WebSocket handshake
 	h.Write([]byte(key + websocketGUID))
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
