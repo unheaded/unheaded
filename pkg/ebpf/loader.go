@@ -1925,7 +1925,7 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 		if err != nil {
 			// Clean up already created maps
 			for _, m := range loaded.maps {
-				unix.Close(m.fd)
+				_ = unix.Close(m.fd)
 			}
 			ebpfErrors.WithLabelValues("load", "map_create").Inc()
 			return fmt.Errorf("create map %s: %w", name, err)
@@ -1970,7 +1970,7 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 
 	if mainProg == nil {
 		for _, m := range loaded.maps {
-			unix.Close(m.fd)
+			_ = unix.Close(m.fd)
 		}
 		return fmt.Errorf("%w: no suitable program found", ErrNoInstructions)
 	}
@@ -2036,7 +2036,7 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 		rodataFD, err := l.createMap(rodataMapDef, spec)
 		if err != nil {
 			for _, m := range loaded.maps {
-				unix.Close(m.fd)
+				_ = unix.Close(m.fd)
 			}
 			return fmt.Errorf("create rodata map %s: %w", name, err)
 		}
@@ -2044,9 +2044,9 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 		key := uint32(0)
 		if err := bpfMapUpdateElem(rodataFD, unsafe.Pointer(&key),
 			unsafe.Pointer(&prog.Instructions[0]), 0); err != nil {
-			unix.Close(rodataFD)
+			_ = unix.Close(rodataFD)
 			for _, m := range loaded.maps {
-				unix.Close(m.fd)
+				_ = unix.Close(m.fd)
 			}
 			return fmt.Errorf("populate rodata map %s: %w", name, err)
 		}
@@ -2065,7 +2065,7 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 	if relocs, ok := parsed.Relocations[mainProg.Name]; ok {
 		if err := l.applyRelocations(instructions, relocs, loaded.maps, parsed, funcMap); err != nil {
 			for _, m := range loaded.maps {
-				unix.Close(m.fd)
+				_ = unix.Close(m.fd)
 			}
 			return fmt.Errorf("apply relocations: %w", err)
 		}
@@ -2085,7 +2085,7 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 
 	if err != nil {
 		for _, m := range loaded.maps {
-			unix.Close(m.fd)
+			_ = unix.Close(m.fd)
 		}
 		ebpfErrors.WithLabelValues("load", "prog_load").Inc()
 
@@ -2109,16 +2109,16 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 	if spec.PinPath != "" {
 		pinPath := filepath.Join(l.config.PinPath, spec.PinPath)
 		if err := os.MkdirAll(filepath.Dir(pinPath), 0755); err != nil {
-			unix.Close(progFD)
+			_ = unix.Close(progFD)
 			for _, m := range loaded.maps {
-				unix.Close(m.fd)
+				_ = unix.Close(m.fd)
 			}
 			return fmt.Errorf("create pin directory: %w", err)
 		}
 		if err := bpfObjPin(progFD, pinPath); err != nil {
-			unix.Close(progFD)
+			_ = unix.Close(progFD)
 			for _, m := range loaded.maps {
-				unix.Close(m.fd)
+				_ = unix.Close(m.fd)
 			}
 			return fmt.Errorf("pin program: %w", err)
 		}
@@ -2271,12 +2271,12 @@ func (l *NativeLoader) Unload(ctx context.Context, name string) error {
 
 	// Close links
 	for _, fd := range loaded.linkFDs {
-		unix.Close(fd)
+		_ = unix.Close(fd)
 	}
 
 	// Close perf FDs
 	for _, fd := range loaded.perfFDs {
-		unix.Close(fd)
+		_ = unix.Close(fd)
 	}
 
 	// Unmap ring buffers + close map FDs. The unsafe-pointer conversion
@@ -2284,12 +2284,12 @@ func (l *NativeLoader) Unload(ctx context.Context, name string) error {
 	// documented site rather than two.
 	for _, m := range loaded.maps {
 		_ = munmapKernelRegion(m.mmapAddr, m.mmapSize)
-		unix.Close(m.fd)
+		_ = unix.Close(m.fd)
 	}
 
 	// Close program FD
 	if loaded.fd > 0 {
-		unix.Close(loaded.fd)
+		_ = unix.Close(loaded.fd)
 	}
 
 	// Update metrics
@@ -3104,7 +3104,7 @@ func (l *NativeLoader) attachKprobeLink(loaded *loadedProgram, funcName string, 
 	// Create BPF link
 	linkFD, err := bpfLinkCreate(loaded.fd, int(perfFD), BPF_PERF_EVENT)
 	if err != nil {
-		unix.Close(int(perfFD))
+		_ = unix.Close(int(perfFD))
 		return -1, err
 	}
 
@@ -3149,7 +3149,7 @@ func (l *NativeLoader) attachKprobePerf(loaded *loadedProgram, funcName string, 
 	_, _, errno = unix.Syscall(unix.SYS_IOCTL, perfFD,
 		PERF_EVENT_IOC_SET_BPF, uintptr(loaded.fd))
 	if errno != 0 {
-		unix.Close(int(perfFD))
+		_ = unix.Close(int(perfFD))
 		return fmt.Errorf("PERF_EVENT_IOC_SET_BPF: %w", errno)
 	}
 
@@ -3157,7 +3157,7 @@ func (l *NativeLoader) attachKprobePerf(loaded *loadedProgram, funcName string, 
 	_, _, errno = unix.Syscall(unix.SYS_IOCTL, perfFD,
 		PERF_EVENT_IOC_ENABLE, 0)
 	if errno != 0 {
-		unix.Close(int(perfFD))
+		_ = unix.Close(int(perfFD))
 		return fmt.Errorf("PERF_EVENT_IOC_ENABLE: %w", errno)
 	}
 
@@ -3286,7 +3286,7 @@ func (l *NativeLoader) attachTracepointLink(loaded *loadedProgram, tpID uint64) 
 
 	linkFD, err := bpfLinkCreate(loaded.fd, int(perfFD), BPF_PERF_EVENT)
 	if err != nil {
-		unix.Close(int(perfFD))
+		_ = unix.Close(int(perfFD))
 		return -1, err
 	}
 
@@ -3324,14 +3324,14 @@ func (l *NativeLoader) attachTracepointPerf(loaded *loadedProgram, tpID uint64) 
 	_, _, errno = unix.Syscall(unix.SYS_IOCTL, perfFD,
 		PERF_EVENT_IOC_SET_BPF, uintptr(loaded.fd))
 	if errno != 0 {
-		unix.Close(int(perfFD))
+		_ = unix.Close(int(perfFD))
 		return fmt.Errorf("PERF_EVENT_IOC_SET_BPF: %w", errno)
 	}
 
 	_, _, errno = unix.Syscall(unix.SYS_IOCTL, perfFD,
 		PERF_EVENT_IOC_ENABLE, 0)
 	if errno != 0 {
-		unix.Close(int(perfFD))
+		_ = unix.Close(int(perfFD))
 		return fmt.Errorf("PERF_EVENT_IOC_ENABLE: %w", errno)
 	}
 
@@ -4029,12 +4029,12 @@ func (l *NativeLoader) Close() error {
 		// Unmap + close — see munmap_linux.go for the kernel-mmap helper.
 		for _, m := range loaded.maps {
 			_ = munmapKernelRegion(m.mmapAddr, m.mmapSize)
-			unix.Close(m.fd)
+			_ = unix.Close(m.fd)
 		}
 
 		// Close program FD
 		if loaded.fd > 0 {
-			unix.Close(loaded.fd)
+			_ = unix.Close(loaded.fd)
 		}
 
 		delete(l.programs, name)
@@ -4042,7 +4042,7 @@ func (l *NativeLoader) Close() error {
 
 	// Close kernel BTF FD
 	if l.btfFD > 0 {
-		unix.Close(l.btfFD)
+		_ = unix.Close(l.btfFD)
 	}
 
 	// Wait for background goroutines
