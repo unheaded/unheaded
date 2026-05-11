@@ -127,9 +127,9 @@ func (r *SRVRecord) String() string {
 }
 
 func (r *SRVRecord) pack(buf *bytes.Buffer, offsets map[string]uint16) error {
-	binary.Write(buf, binary.BigEndian, r.Priority)
-	binary.Write(buf, binary.BigEndian, r.Weight)
-	binary.Write(buf, binary.BigEndian, r.Port)
+	_ = binary.Write(buf, binary.BigEndian, r.Priority)
+	_ = binary.Write(buf, binary.BigEndian, r.Weight)
+	_ = binary.Write(buf, binary.BigEndian, r.Port)
 	// SRV target should not be compressed
 	return packNameNoCompression(buf, r.Target)
 }
@@ -145,7 +145,7 @@ func (r *MXRecord) String() string {
 }
 
 func (r *MXRecord) pack(buf *bytes.Buffer, offsets map[string]uint16) error {
-	binary.Write(buf, binary.BigEndian, r.Preference)
+	_ = binary.Write(buf, binary.BigEndian, r.Preference)
 	return packName(buf, r.Exchange, offsets)
 }
 
@@ -185,11 +185,11 @@ func (r *SOARecord) pack(buf *bytes.Buffer, offsets map[string]uint16) error {
 	if err := packName(buf, r.RName, offsets); err != nil {
 		return err
 	}
-	binary.Write(buf, binary.BigEndian, r.Serial)
-	binary.Write(buf, binary.BigEndian, r.Refresh)
-	binary.Write(buf, binary.BigEndian, r.Retry)
-	binary.Write(buf, binary.BigEndian, r.Expire)
-	binary.Write(buf, binary.BigEndian, r.Minimum)
+	_ = binary.Write(buf, binary.BigEndian, r.Serial)
+	_ = binary.Write(buf, binary.BigEndian, r.Refresh)
+	_ = binary.Write(buf, binary.BigEndian, r.Retry)
+	_ = binary.Write(buf, binary.BigEndian, r.Expire)
+	_ = binary.Write(buf, binary.BigEndian, r.Minimum)
 	return nil
 }
 

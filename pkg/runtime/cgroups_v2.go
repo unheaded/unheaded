@@ -377,7 +377,7 @@ func (m *CgroupV2Manager) CreateCgroupV2(containerID string, config *CgroupV2Con
 	// Apply configuration
 	if config != nil {
 		if err := m.applyV2Config(fullPath, config); err != nil {
-			os.RemoveAll(fullPath)
+			_ = os.RemoveAll(fullPath)
 			return "", fmt.Errorf("failed to apply cgroup config: %w", err)
 		}
 	}
@@ -662,7 +662,7 @@ func (m *CgroupV2Manager) DeleteCgroup(containerID string) error {
 	if procs, err := m.readProcsFile(procsPath); err == nil {
 		for _, pid := range procs {
 			if proc, err := os.FindProcess(pid); err == nil {
-				proc.Signal(syscall.SIGKILL)
+				_ = proc.Signal(syscall.SIGKILL)
 			}
 		}
 	}
@@ -1116,7 +1116,7 @@ func (m *CgroupV2Manager) readProcsFile(path string) ([]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var pids []int
 	scanner := bufio.NewScanner(file)
@@ -1190,7 +1190,7 @@ func (m *CgroupV2Manager) WatchEvents(containerID string) (<-chan CgroupEvent, e
 // processEvents processes inotify events and converts them to cgroup events.
 func (w *CgroupEventWatcher) processEvents(containerID string) {
 	defer close(w.events)
-	defer unix.Close(w.inotifyFd)
+	defer func() { _ = unix.Close(w.inotifyFd) }()
 
 	buf := make([]byte, 4096)
 
@@ -1512,7 +1512,7 @@ func (m *CgroupV2Manager) KillAll(containerID string) error {
 
 	for _, pid := range procs {
 		if proc, err := os.FindProcess(pid); err == nil {
-			proc.Signal(syscall.SIGKILL)
+			_ = proc.Signal(syscall.SIGKILL)
 		}
 	}
 
@@ -1570,13 +1570,13 @@ func (m *CgroupV2Manager) WaitForEmpty(ctx context.Context, containerID string) 
 	if err != nil {
 		return err
 	}
-	defer unix.Close(fd)
+	defer func() { _ = unix.Close(fd) }()
 
 	wd, err := unix.InotifyAddWatch(fd, eventsPath, unix.IN_MODIFY)
 	if err != nil {
 		return err
 	}
-	defer unix.InotifyRmWatch(fd, uint32(wd))
+	defer func() { _, _ = unix.InotifyRmWatch(fd, uint32(wd)) }()
 
 	// Check initial state
 	if populated, err := m.isPopulated(eventsPath); err == nil && !populated {
@@ -1592,7 +1592,7 @@ func (m *CgroupV2Manager) WaitForEmpty(ctx context.Context, containerID string) 
 		}
 
 		// Set read timeout
-		unix.SetNonblock(fd, true)
+		_ = unix.SetNonblock(fd, true)
 		n, err := unix.Read(fd, buf)
 		if err != nil {
 			if err == unix.EAGAIN {
@@ -1670,7 +1670,7 @@ func readKeyValueFileV2(path string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	result := make(map[string]string)
 	scanner := bufio.NewScanner(file)
