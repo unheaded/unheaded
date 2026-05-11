@@ -80,11 +80,22 @@ struct boot_params_v2 {
 #define MSTATUS_MPP_S     (1u << 11)  // MPP=01 (S-mode) at bits [12:11]
 
 // ── MMIO console (UPC L4f convention) ─────────────────────────────────────
+//
+// 2026-05-11: switched from `volatile uint32 *` to `volatile uint8 *`. The
+// previous u32 store at unaligned address 0xC001 was being lowered by GCC
+// into 4 separate byte stores (sb at 0xC001, 0xC002, 0xC003, 0xC004), of
+// which the first 3 hit the eBPF MMIO TTY intercept range (0xC000-0xC003)
+// and produced 3 bytes per call (char + 2 zero pad). The fourth store
+// landed in RAM at 0xC004 — wasted I/O.
+//
+// A direct byte store skips the splitting: one sb at 0xC001 -> one TTY
+// intercept -> one byte emitted. Drops the "x..v..6.. ..b.." pattern to
+// the clean "xv6 booting...\n" the operator actually wants to see.
 #define UPC_TTY_DATA_ADDR    0xC001
-#define UPC_TTY_REG          (*(volatile uint32 *)(UPC_TTY_DATA_ADDR))
+#define UPC_TTY_REG          (*(volatile uint8 *)(UPC_TTY_DATA_ADDR))
 
 static inline void mmio_putc(char c) {
-    UPC_TTY_REG = (uint32)c;
+    UPC_TTY_REG = (uint8)c;
 }
 
 static void mmio_puts(const char *s) {
