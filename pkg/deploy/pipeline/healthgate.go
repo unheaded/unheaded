@@ -767,7 +767,7 @@ func (g *HealthGate) runExecCheck(ctx context.Context, config *ExecHealthCheck, 
 		return errors.New("exec check configuration is nil")
 	}
 
-	cmd := exec.CommandContext(ctx, config.Command, config.Args...)
+	cmd := exec.CommandContext(ctx, config.Command, config.Args...) //nolint:gosec // operator-configured exec health check
 
 	output, err := cmd.Output()
 	result.Output = string(output)

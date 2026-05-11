@@ -176,6 +176,29 @@ linters:
           - gosec
         text: "G402:"
 
+      # G204 (subprocess-with-variable) in directories that wrap known
+      # external tools where the "tainted" input is operator-managed
+      # config (image-build commands, network policy iptables wrappers,
+      # benchmark test binaries, security-test campaigns):
+      - path: pkg/baremetal/image/
+        linters: [gosec]
+        text: "G204:"
+      - path: pkg/nix/builder
+        linters: [gosec]
+        text: "G204:"
+      - path: pkg/network/policy_controller
+        linters: [gosec]
+        text: "G204:"
+      - path: pkg/metrics/nixos
+        linters: [gosec]
+        text: "G204:"
+      - path: cmd/perf-benchmark/
+        linters: [gosec]
+        text: "G204:"
+      - path: cmd/lich-security/
+        linters: [gosec]
+        text: "G204:"
+
       # Main packages often have simple error handling
       - path: cmd/
         linters:

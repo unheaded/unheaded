@@ -292,7 +292,7 @@ func (hc *HealthChecker) checkExec(ctx context.Context, backend *Backend, config
 		return errors.New("no exec command configured")
 	}
 
-	cmd := exec.CommandContext(ctx, config.ExecCommand[0], config.ExecCommand[1:]...)
+	cmd := exec.CommandContext(ctx, config.ExecCommand[0], config.ExecCommand[1:]...) //nolint:gosec // operator-configured exec health check
 
 	// Set environment variables with backend info
 	cmd.Env = append(cmd.Env,
