@@ -176,6 +176,38 @@ linters:
           - gosec
         text: "G402:"
 
+      # G301/G306 (file/dir permissions): excluded in container-
+      # runtime, image-extraction, and storage paths where 0755/0644
+      # are intentional for cross-UID access. Containers run as
+      # different UIDs than the host runtime; tightening to 0750/0600
+      # would break the container-side reads. State directories that
+      # *don't* need cross-UID traversal (cmd/cert-gen, cmd/kanban-app)
+      # were tightened to 0750 in commit 1a8687fa as a real fix.
+      - path: pkg/runtime/
+        linters: [gosec]
+        text: "G301:"
+      - path: pkg/runtime/
+        linters: [gosec]
+        text: "G306:"
+      - path: pkg/storage/object/
+        linters: [gosec]
+        text: "G301:"
+      - path: pkg/storage/object/
+        linters: [gosec]
+        text: "G306:"
+      - path: pkg/baremetal/
+        linters: [gosec]
+        text: "G301:"
+      - path: pkg/baremetal/
+        linters: [gosec]
+        text: "G306:"
+      - path: pkg/ebpf/
+        linters: [gosec]
+        text: "G301:"
+      - path: arch/mbc/
+        linters: [gosec]
+        text: "G306:"
+
       # G204 (subprocess-with-variable) in directories that wrap known
       # external tools where the "tainted" input is operator-managed
       # config (image-build commands, network policy iptables wrappers,
