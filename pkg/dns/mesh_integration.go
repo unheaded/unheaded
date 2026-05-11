@@ -174,7 +174,7 @@ func (mi *MeshIntegration) syncLoop(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			mi.syncAll(ctx)
+			_ = mi.syncAll(ctx)
 		}
 	}
 }
@@ -306,7 +306,7 @@ func (mi *MeshIntegration) updateService(existing, new *ServiceDefinition, meshS
 	// Remove endpoints that no longer exist
 	for id := range existingEps {
 		if _, exists := newEps[id]; !exists {
-			mi.sd.RemoveEndpoint(existing.Name, id)
+			_ = mi.sd.RemoveEndpoint(existing.Name, id)
 		}
 	}
 
@@ -314,14 +314,14 @@ func (mi *MeshIntegration) updateService(existing, new *ServiceDefinition, meshS
 	for id, ep := range newEps {
 		if existingEp, exists := existingEps[id]; !exists {
 			// Add new endpoint
-			mi.sd.AddEndpoint(existing.Name, ep)
+			_ = mi.sd.AddEndpoint(existing.Name, ep)
 		} else {
 			// Update health if changed
 			if existingEp.Health != ep.Health {
-				mi.sd.UpdateEndpointHealth(existing.Name, id, ep.Health)
+				_ = mi.sd.UpdateEndpointHealth(existing.Name, id, ep.Health)
 			}
 			// Update last seen
-			mi.sd.Heartbeat(existing.Name, id)
+			_ = mi.sd.Heartbeat(existing.Name, id)
 		}
 	}
 
@@ -352,7 +352,7 @@ func (mi *MeshIntegration) handleHealthChange(address string, health EndpointHea
 				} else {
 					newHealth = HealthStateUnhealthy
 				}
-				mi.sd.UpdateEndpointHealth(svcName, ep.ID, newHealth)
+				_ = mi.sd.UpdateEndpointHealth(svcName, ep.ID, newHealth)
 				return
 			}
 		}
@@ -421,11 +421,11 @@ func (mi *MeshIntegration) handleServiceUpdate(meshSvc *MeshService) {
 
 	existing, err := mi.sd.GetService(meshSvc.Name)
 	if err == ErrServiceNotFound {
-		mi.sd.RegisterService(dnsSvc)
+		_ = mi.sd.RegisterService(dnsSvc)
 		return
 	}
 
-	mi.updateService(existing, dnsSvc, meshSvc)
+	_ = mi.updateService(existing, dnsSvc, meshSvc)
 }
 
 // ExportToDNS exports a DNS service to the mesh registry
@@ -505,7 +505,7 @@ func (h *DNSHandler) ServeDNS(ctx context.Context, w ResponseWriter, r *Message)
 	if len(r.Questions) == 0 {
 		resp := NewResponse(r)
 		resp.Header.SetRcode(RcodeFormatError)
-		w.WriteMsg(resp)
+		_ = w.WriteMsg(resp)
 		return
 	}
 
@@ -515,7 +515,7 @@ func (h *DNSHandler) ServeDNS(ctx context.Context, w ResponseWriter, r *Message)
 	if h.sd != nil {
 		resp, handled := h.handleServiceQuery(r, q)
 		if handled {
-			w.WriteMsg(resp)
+			_ = w.WriteMsg(resp)
 			h.recordMetrics(q.Type, resp.Header.Rcode(), time.Since(start), false)
 			return
 		}
@@ -525,7 +525,7 @@ func (h *DNSHandler) ServeDNS(ctx context.Context, w ResponseWriter, r *Message)
 	if h.resolver != nil {
 		resp, err := h.resolver.Resolve(ctx, r)
 		if err == nil && resp != nil {
-			w.WriteMsg(resp)
+			_ = w.WriteMsg(resp)
 			h.recordMetrics(q.Type, resp.Header.Rcode(), time.Since(start), true)
 			return
 		}
@@ -534,7 +534,7 @@ func (h *DNSHandler) ServeDNS(ctx context.Context, w ResponseWriter, r *Message)
 	// NXDOMAIN
 	resp := NewResponse(r)
 	resp.Header.SetRcode(RcodeNameError)
-	w.WriteMsg(resp)
+	_ = w.WriteMsg(resp)
 	h.recordMetrics(q.Type, RcodeNameError, time.Since(start), false)
 }
 
