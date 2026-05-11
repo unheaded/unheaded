@@ -389,7 +389,7 @@ func TestFilesystemObjectStore(t *testing.T) {
 			t.Errorf("Put returned size %d, want %d", info.Size, len(content))
 		}
 
-		reader, info, err := store.Get(ctx, bucket, key)
+		reader, _, err := store.Get(ctx, bucket, key)
 		if err != nil {
 			t.Fatalf("Get failed: %v", err)
 		}

@@ -528,8 +528,10 @@ func TestArchitectService_ListDecisions_Snapshot(t *testing.T) {
 	decisions, _ := svc.ListDecisions(ctx)
 	origLen := len(decisions)
 
-	// Modifying the snapshot should not affect the source
-	decisions = append(decisions, ArchitectureDecision{Title: "Extra"})
+	// Modifying the snapshot should not affect the source. The append's
+	// return value is intentionally discarded — the assertion below verifies
+	// that the source slice in svc is unchanged after our local mutation.
+	_ = append(decisions, ArchitectureDecision{Title: "Extra"})
 
 	decisions2, _ := svc.ListDecisions(ctx)
 	if len(decisions2) != origLen {

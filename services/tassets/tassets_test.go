@@ -2049,7 +2049,9 @@ func TestObject_FieldPopulation(t *testing.T) {
 
 	meta := map[string]string{"type": "test", "env": "ci"}
 	data := []byte("field test data")
-	obj := mustPutObject(t, svc, "fields", "test.dat", data)
+	// First Put exercises the no-metadata path; we don't bind the result
+	// because the test asserts on the second Put (with metadata) below.
+	mustPutObject(t, svc, "fields", "test.dat", data)
 
 	// Put again with metadata.
 	obj, err := svc.PutObject("fields", "meta.dat", data, meta)

@@ -40,12 +40,10 @@ func TestMarshalUnmarshalRoundTrip(t *testing.T) {
 }
 
 func TestMarshalSize(t *testing.T) {
+	// Marshal returns [PQCStateSize]byte (fixed-size); type system
+	// guarantees the length. Exercise the call + pin the constant.
 	var s PQCState
-	buf := s.Marshal()
-
-	if len(buf) != PQCStateSize {
-		t.Fatalf("marshal size = %d, want %d", len(buf), PQCStateSize)
-	}
+	_ = s.Marshal()
 
 	if PQCStateSize != 40 {
 		t.Fatalf("PQCStateSize = %d, want 40", PQCStateSize)

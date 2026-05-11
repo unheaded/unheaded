@@ -341,7 +341,10 @@ func TestManager_Rollback_SpecificTarget(t *testing.T) {
 }
 
 func TestManager_Rollback_DuplicateInProgress(t *testing.T) {
-	mgr, _, _, _ := setupTestManager()
+	// setupTestManager() returns a default manager + mocks; this test
+	// builds its own lookup/updater set below and constructs a fresh
+	// manager at line `mgr = NewManager(...)`, so the setup helper's
+	// returns would be discarded. Skip it entirely.
 
 	// Slow down the updater so rollback stays in-progress
 	lookup := newMockDeploymentLookup()
@@ -364,7 +367,7 @@ func TestManager_Rollback_DuplicateInProgress(t *testing.T) {
 	lookup.previous["svc-a:dep-current"] = lookup.deployments["dep-previous"]
 
 	slowUpdater := &mockInstanceUpdater{}
-	mgr = NewManager(lookup, slowUpdater, &mockTrafficShifter{})
+	mgr := NewManager(lookup, slowUpdater, &mockTrafficShifter{})
 
 	req := &RollbackRequest{
 		DeploymentID: "dep-current",
