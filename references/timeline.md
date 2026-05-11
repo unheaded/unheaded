@@ -3,7 +3,7 @@
 ## A Living Grimoire of the Kingdom's Journey
 
 **STATUS:** Age 3 IN PROGRESS — Public Release Sprint, ASCEND-LINUX (Dream Ladder L5 → L6) actively shipping
-**LAST UPDATED:** 2026-05-09
+**LAST UPDATED:** 2026-05-11
 **HEAD:** ASCEND-LINUX Phase 1.1 — xv6-mbc.mbc EMITS (11,721 MBC instructions, 46 KB), upc-bootctl + upc-tty-bridge scaffolded, dual demo surface (xterm browser + host pty) ready for live BPF integration
 **Drift policy:** ADR-052 — this file MUST be ≤ 7 days from HEAD when HEAD has new commits.
 
@@ -57,6 +57,7 @@
 - ASCEND-LINUX Phase 0 complete (2026-05-08; ADR-067 7-decision ABI + ISA spec; 5 new MBC opcodes FENCE/MRET/SRET/LR.W/SC.W shipped; priv_level field added to MbcCpuState; Boot Protocol v2 spec; eBPF interpreter implementation; verifier-budget revalidation; 15 commits across kickoff)
 - ASCEND-LINUX Phase 1.1 super-sprint (2026-05-09, autonomous; 12 commits across 12 build iterations; xv6-mbc adapters: start_mbc.c, console-mmio.c, blk-ramdisk.c, syscall_shims.S, Makefile.mbc + linker script; kernel.elf links via RV32 conversion; **xv6-mbc.mbc EMITS** — 11,721 MBC instructions, 46 KB, first kernel image translated end-to-end; cmd/upc-bootctl boot dispatcher with validate + dry-run; cmd/upc-tty-bridge WebSocket on UPC user-app port 26100 + dashboard/upc-console.html xterm.js client; translator gains CSR + MRET/SRET/WFI/SFENCE.VMA + register-aliasing x18-x31→r3-r13 best-effort)
 - Marshal continuation shift 2026-05-09 (autonomous; 4 commits; cleanup stray upc-tty-bridge binary + .gitignore guard; **monad-mbc 65-day screen-test regression closed** — SCREEN_BASE moved 0xC000→0x70000 on 2026-03-03 c7831cad but 3 test fixtures never updated; upc-tty-bridge unreachable code closed; 7 of 12 carry-forward parking-lot entries from 2026-05-07 RESOLVED across drain + this shift; cargo audit zhend 0 vulns, trace-collector 0 vulns, only 4 unmaintained warnings remain across the whole Rust tree)
+- Marshal extended-churn shift 2026-05-10/11 (autonomous, ~95 commits, Stevie-authorized 12hr churn): **ZERO LINT achieved across the kingdom — 2362 → 0** (errcheck/gosec/govet/staticcheck/unused/bodyclose all green via per-finding triage). **12 real CVE-class security bug fixes shipped** (RSA assertion crash ×2 sites in cert rotation, ECDSA assertion crash ×4 sites in CA loaders + mTLS, OCI tar Zip Slip in container runtime whiteout, HTTP static-file path-existence info-disclosure oracle, object storage path traversal via unvalidated key, audit `tableName` SQL-injection vector closure, Akira Slowloris HTTP timeouts, container image decompression-bomb cap at 5 GiB/file, Splunk exporter TLS NPE, mTLS Signer assertion crash). **ADR-073** records the lint-policy "zero findings as the new floor" discipline. **Yggdrasil OS-FORK-DISCIPLINE Pillar 5** added (`docs/OS-FORK-DISCIPLINE.md` + `nix/yggdrasil/overlay/upc/` quilt patches + `nix/yggdrasil/overlay/systemd/upc-tty-bridge.service` + `nix/yggdrasil/bin/yggdrasil-doctor-upc` 8-check preflight) for **task #71 UPC-on-Yggdrasil scaffolding**. 242/242 packages still passing tests. Shift reports at `references/marshal-shift-2026-05-11-{zero-prompt-12hr,extended-churn,final-checkpoint}.md`.
 
 **Remaining for Age 3:**
 - Captain Track A/B/C decision (Wed 2026-04-29)
@@ -82,5 +83,5 @@
 
 ---
 
-*Synced: 2026-05-09 (Marshal continuation shift — appended NORTH-STAR Appendix A, Marshal drain, ASCEND-LINUX kickoff + super-sprint, this continuation shift)*
+*Synced: 2026-05-11 (Marshal extended-churn shift — ZERO LINT achieved, 12 real CVE fixes, ADR-073, Yggdrasil Pillar 5 scaffold, task #71)*
 *Next sync trigger: any commit to main + drift-guard CI check*
