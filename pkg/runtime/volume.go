@@ -273,14 +273,14 @@ func (m *VolumeManager) mountBind(mount *Mount, dest string) error {
 
 	// Match destination type to source
 	if srcInfo.IsDir() {
-		os.MkdirAll(dest, 0755)
+		_ = os.MkdirAll(dest, 0755)
 	} else {
-		os.MkdirAll(filepath.Dir(dest), 0755)
+		_ = os.MkdirAll(filepath.Dir(dest), 0755)
 		f, err := os.OpenFile(dest, os.O_CREATE, 0644)
 		if err != nil {
 			return err
 		}
-		f.Close()
+		_ = f.Close()
 	}
 
 	// Build mount flags
@@ -300,7 +300,7 @@ func (m *VolumeManager) mountBind(mount *Mount, dest string) error {
 	// Make read-only if needed (requires remount)
 	if mount.ReadOnly {
 		if err := unix.Mount("", dest, "", uintptr(unix.MS_BIND|unix.MS_REMOUNT|unix.MS_RDONLY), ""); err != nil {
-			unix.Unmount(dest, 0)
+			_ = unix.Unmount(dest, 0)
 			return fmt.Errorf("failed to make mount read-only: %w", err)
 		}
 	}
@@ -489,7 +489,7 @@ func getGID(name string) int {
 		parts := strings.Split(line, ":")
 		if len(parts) >= 3 && parts[0] == name {
 			var gid int
-			fmt.Sscanf(parts[2], "%d", &gid)
+			_, _ = fmt.Sscanf(parts[2], "%d", &gid)
 			return gid
 		}
 	}
@@ -556,7 +556,7 @@ func (m *VolumeManager) SetupContainerMounts(rootfs string) error {
 
 	for _, sl := range symlinks {
 		linkPath := filepath.Join(rootfs, sl.link)
-		os.Remove(linkPath) // Remove if exists
+		_ = os.Remove(linkPath) // Remove if exists
 		// Best-effort: symlink may fail on read-only target dirs.
 		_ = os.Symlink(sl.target, linkPath)
 	}
@@ -690,9 +690,9 @@ func parseMountInfoLine(line string) (*MountInfo, error) {
 
 	info := &MountInfo{}
 
-	fmt.Sscanf(parts[0], "%d", &info.MountID)
-	fmt.Sscanf(parts[1], "%d", &info.ParentID)
-	fmt.Sscanf(parts[2], "%d:%d", &info.Major, &info.Minor)
+	_, _ = fmt.Sscanf(parts[0], "%d", &info.MountID)
+	_, _ = fmt.Sscanf(parts[1], "%d", &info.ParentID)
+	_, _ = fmt.Sscanf(parts[2], "%d:%d", &info.Major, &info.Minor)
 	info.Root = parts[3]
 	info.MountPoint = parts[4]
 	info.MountOptions = strings.Split(parts[5], ",")

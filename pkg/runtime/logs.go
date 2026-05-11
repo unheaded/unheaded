@@ -125,7 +125,7 @@ func (r *DefaultRuntime) GetContainerLogs(ctx context.Context, containerID strin
 	// If tailing, seek to the appropriate position
 	if options.Tail > 0 {
 		if err := stream.seekToTail(options.Tail); err != nil {
-			file.Close()
+			_ = file.Close()
 			return nil, fmt.Errorf("failed to seek to tail: %w", err)
 		}
 	}
@@ -219,7 +219,7 @@ func (ls *logStream) seekToTail(n int64) error {
 		}
 		pos -= readSize
 
-		ls.file.Seek(pos, io.SeekStart)
+		_, _ = ls.file.Seek(pos, io.SeekStart)
 		bytesRead, err := ls.file.Read(buf[:readSize])
 		if err != nil && err != io.EOF {
 			return err
@@ -231,7 +231,7 @@ func (ls *logStream) seekToTail(n int64) error {
 				lines++
 				if lines > n {
 					// Found the position
-					ls.file.Seek(pos+int64(i)+1, io.SeekStart)
+					_, _ = ls.file.Seek(pos+int64(i)+1, io.SeekStart)
 					ls.reader.Reset(ls.file)
 					return nil
 				}
@@ -240,7 +240,7 @@ func (ls *logStream) seekToTail(n int64) error {
 	}
 
 	// Not enough lines, start from beginning
-	ls.file.Seek(0, io.SeekStart)
+	_, _ = ls.file.Seek(0, io.SeekStart)
 	ls.reader.Reset(ls.file)
 	return nil
 }
@@ -329,7 +329,7 @@ func NewLogWriter(path string, stream StreamType, maxSize int64, maxFiles int) (
 
 	stat, err := file.Stat()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, fmt.Errorf("failed to stat log file: %w", err)
 	}
 
@@ -400,11 +400,11 @@ func (lw *LogWriter) rotate() error {
 	for i := lw.maxFiles - 1; i > 0; i-- {
 		oldPath := fmt.Sprintf("%s.%d", lw.path, i)
 		newPath := fmt.Sprintf("%s.%d", lw.path, i+1)
-		os.Rename(oldPath, newPath)
+		_ = os.Rename(oldPath, newPath)
 	}
 
 	// Rename current to .1
-	os.Rename(lw.path, lw.path+".1")
+	_ = os.Rename(lw.path, lw.path+".1")
 
 	// Create new file
 	file, err := os.OpenFile(lw.path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
@@ -615,7 +615,7 @@ func (lc *LogCopier) copy(r io.Reader, stream StreamType) {
 		case <-lc.closed:
 			return
 		default:
-			lc.writer.WriteEntry(scanner.Bytes(), time.Now())
+			_ = lc.writer.WriteEntry(scanner.Bytes(), time.Now())
 		}
 	}
 }
@@ -624,7 +624,7 @@ func (lc *LogCopier) copy(r io.Reader, stream StreamType) {
 func (lc *LogCopier) Stop() {
 	close(lc.closed)
 	lc.wg.Wait()
-	lc.writer.Close()
+	_ = lc.writer.Close()
 }
 
 // Wait waits for copying to complete.
