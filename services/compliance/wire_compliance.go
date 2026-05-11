@@ -361,10 +361,10 @@ func (s *WireComplianceService) handleViolations(w http.ResponseWriter, r *http.
 	offset := 0
 	limit := 100
 	if v := r.URL.Query().Get("offset"); v != "" {
-		fmt.Sscanf(v, "%d", &offset)
+		_, _ = fmt.Sscanf(v, "%d", &offset)
 	}
 	if v := r.URL.Query().Get("limit"); v != "" {
-		fmt.Sscanf(v, "%d", &limit)
+		_, _ = fmt.Sscanf(v, "%d", &limit)
 	}
 
 	total := len(violations)

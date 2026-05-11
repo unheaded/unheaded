@@ -61,8 +61,8 @@ func (p *Publisher) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 
 	// Fire and forget — logging should never block application logic
 	go func() {
-		defer func() { recover() }() // guard against panics
-		p.conn.Publish(ctx, topic, data)
+		defer func() { _ = recover() }() // guard against panics
+		_ = p.conn.Publish(ctx, topic, data)
 	}()
 }
 

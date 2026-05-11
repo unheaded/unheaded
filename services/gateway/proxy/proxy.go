@@ -249,7 +249,7 @@ func (p *ReverseProxy) proxyRequest(w http.ResponseWriter, r *http.Request, back
 	w.WriteHeader(resp.StatusCode)
 
 	// Copy response body
-	bufp := p.bufferPool.Get().(*[]byte)
+	bufp, _ := p.bufferPool.Get().(*[]byte)
 	defer p.bufferPool.Put(bufp)
 	_, err = io.CopyBuffer(w, resp.Body, *bufp)
 
@@ -368,7 +368,7 @@ func statusCodeClass(code int) string {
 func writeProxyError(w http.ResponseWriter, message string, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	w.Write([]byte(`{"error":"proxy_error","message":"` + message + `"}`))
+	_, _ = w.Write([]byte(`{"error":"proxy_error","message":"` + message + `"}`))
 }
 
 // Close closes the proxy and releases resources.

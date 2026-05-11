@@ -48,7 +48,7 @@ type sessionEntry struct {
 // NewMemorySessionStore creates a new in-memory session store.
 func NewMemorySessionStore(maxEntries int) *MemorySessionStore {
 	key := make([]byte, 32)
-	rand.Read(key)
+	_, _ = rand.Read(key)
 
 	return &MemorySessionStore{
 		sessions:   make(map[string]*sessionEntry),
@@ -147,7 +147,7 @@ func (m *MemorySessionStore) Size() int {
 func (m *MemorySessionStore) GenerateSessionID(backendName string) string {
 	// Random bytes
 	randomBytes := make([]byte, 16)
-	rand.Read(randomBytes)
+	_, _ = rand.Read(randomBytes)
 
 	// Create payload
 	payload := fmt.Sprintf("%s:%s", backendName, hex.EncodeToString(randomBytes))

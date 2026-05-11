@@ -354,7 +354,7 @@ func (s *Service) matchesRule(req *Request, rule *Rule) bool {
 
 func (s *Service) registerDefaultRules() {
 	// SQL injection detection
-	s.AddRule(&Rule{
+	_ = s.AddRule(&Rule{
 		ID:       "sqli-detection",
 		Name:     "SQL Injection Detection",
 		Type:     RuleTypeSQLInjection,
@@ -364,7 +364,7 @@ func (s *Service) registerDefaultRules() {
 	})
 
 	// XSS detection
-	s.AddRule(&Rule{
+	_ = s.AddRule(&Rule{
 		ID:       "xss-detection",
 		Name:     "XSS Detection",
 		Type:     RuleTypeXSS,

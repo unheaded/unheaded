@@ -98,7 +98,7 @@ func (p *MarkdownParser) Parse() (*timeline.Timeline, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open file: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	return p.ParseReader(bufio.NewScanner(file))
 }
@@ -235,7 +235,7 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 		// Parse Progress
 		if progressMatch := progressRe.FindStringSubmatch(line); progressMatch != nil {
 			progress := 0
-			fmt.Sscanf(progressMatch[1], "%d", &progress)
+			_, _ = fmt.Sscanf(progressMatch[1], "%d", &progress)
 			if currentMilestone != nil {
 				currentMilestone.Progress = progress
 			} else if currentPhase != nil {

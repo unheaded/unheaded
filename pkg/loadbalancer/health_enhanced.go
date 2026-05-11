@@ -751,10 +751,10 @@ func (t *TCPHealthCheckWithBanner) Check(ctx context.Context, address string) (s
 	if err != nil {
 		return "", fmt.Errorf("dial: %w", err)
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set read deadline
-	conn.SetReadDeadline(time.Now().Add(t.Timeout))
+	_ = conn.SetReadDeadline(time.Now().Add(t.Timeout))
 
 	// Read banner
 	reader := bufio.NewReader(conn)

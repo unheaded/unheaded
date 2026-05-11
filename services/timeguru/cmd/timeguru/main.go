@@ -150,11 +150,11 @@ func main() {
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, _ *http.Request) {
 		if healthSrv.Status() == transport.StatusDown {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			w.Write([]byte(`{"ready":false}`))
+			_, _ = w.Write([]byte(`{"ready":false}`))
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"ready":true}`))
+		_, _ = w.Write([]byte(`{"ready":true}`))
 	})
 	mux.HandleFunc("/health", handler.HandleHealth)
 

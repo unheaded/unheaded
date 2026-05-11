@@ -25,7 +25,7 @@ func NewHybridStore(walDir string, pgConnStr string, capacity int) (*WALStore, e
 
 	store, err := NewWALStore(walDir, capacity, pg)
 	if err != nil {
-		pg.Close()
+		_ = pg.Close()
 		return nil, fmt.Errorf("hybrid_store: wal: %w", err)
 	}
 
@@ -93,7 +93,7 @@ func (e *EpochManager) GetEpoch(ctx context.Context) (int64, error) {
 		return 0, nil
 	}
 	var epoch int64
-	fmt.Sscanf(val, "%d", &epoch)
+	_, _ = fmt.Sscanf(val, "%d", &epoch)
 	return epoch, nil
 }
 

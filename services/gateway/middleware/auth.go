@@ -205,7 +205,8 @@ func (e *AuthError) Error() string {
 // GetUserID retrieves the user ID from context.
 func GetUserID(ctx context.Context) string {
 	if v := ctx.Value(UserIDKey); v != nil {
-		return v.(string)
+		s, _ := v.(string)
+		return s
 	}
 	return ""
 }
@@ -213,7 +214,8 @@ func GetUserID(ctx context.Context) string {
 // GetClaims retrieves JWT claims from context.
 func GetClaims(ctx context.Context) *JWTClaims {
 	if v := ctx.Value(ClaimsKey); v != nil {
-		return v.(*JWTClaims)
+		c, _ := v.(*JWTClaims)
+		return c
 	}
 	return nil
 }
