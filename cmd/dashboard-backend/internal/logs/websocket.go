@@ -116,13 +116,13 @@ func (ls *LogStream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			data, _ := json.Marshal(entry)
-			w.Write([]byte("data: "))
-			w.Write(data)
-			w.Write([]byte("\n\n"))
+			_, _ = w.Write([]byte("data: "))
+			_, _ = w.Write(data)
+			_, _ = w.Write([]byte("\n\n"))
 			flusher.Flush()
 		case <-time.After(30 * time.Second):
 			// keepalive
-			w.Write([]byte(": keepalive\n\n"))
+			_, _ = w.Write([]byte(": keepalive\n\n"))
 			flusher.Flush()
 		}
 	}

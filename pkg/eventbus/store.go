@@ -85,7 +85,7 @@ func (s *MemoryStore) Query(pattern string, start, end time.Time) ([]Event, erro
 	if !isWildcardPattern(pattern) {
 		if elems, ok := s.byTopic[pattern]; ok {
 			for _, elem := range elems {
-				entry := elem.Value.(*eventEntry)
+				entry, _ := elem.Value.(*eventEntry)
 				if s.inTimeRange(entry.event, start, end) {
 					results = append(results, entry.event)
 				}
@@ -94,7 +94,7 @@ func (s *MemoryStore) Query(pattern string, start, end time.Time) ([]Event, erro
 	} else {
 		// Scan all events for wildcard patterns
 		for e := s.order.Front(); e != nil; e = e.Next() {
-			entry := e.Value.(*eventEntry)
+			entry, _ := e.Value.(*eventEntry)
 			if MatchPattern(pattern, entry.event.Topic) && s.inTimeRange(entry.event, start, end) {
 				results = append(results, entry.event)
 			}
@@ -115,7 +115,8 @@ func (s *MemoryStore) Get(id string) (Event, bool) {
 	defer s.mu.RUnlock()
 
 	if elem, ok := s.events[id]; ok {
-		return elem.Value.(*eventEntry).event, true
+		entry, _ := elem.Value.(*eventEntry)
+		return entry.event, true
 	}
 	return Event{}, false
 }
@@ -156,7 +157,7 @@ func (s *MemoryStore) evictOldest() {
 		return
 	}
 
-	entry := oldest.Value.(*eventEntry)
+	entry, _ := oldest.Value.(*eventEntry)
 
 	// Remove from events map
 	delete(s.events, entry.event.ID)
