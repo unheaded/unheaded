@@ -845,7 +845,7 @@ func (e *StrategyExecutor) executeBlueGreen(ctx context.Context, execution *Stra
 		execution.Progress.Message = "Terminating blue environment"
 
 		if e.instanceManager != nil {
-			e.instanceManager.DeleteInstances(ctx, params.ServiceName, params.CurrentVersion)
+			_ = e.instanceManager.DeleteInstances(ctx, params.ServiceName, params.CurrentVersion)
 		}
 	}
 
@@ -935,7 +935,7 @@ func (e *StrategyExecutor) executeCanary(ctx context.Context, execution *Strateg
 				if config.AbortOnFailure {
 					// Rollback traffic
 					if e.trafficManager != nil {
-						e.trafficManager.ShiftTraffic(ctx, params.ServiceName, params.TargetVersion, params.CurrentVersion, 100)
+						_ = e.trafficManager.ShiftTraffic(ctx, params.ServiceName, params.TargetVersion, params.CurrentVersion, 100)
 					}
 					return fmt.Errorf("%w: %s", ErrAnalysisFailed, result.Message)
 				}
@@ -972,7 +972,7 @@ func (e *StrategyExecutor) executeCanary(ctx context.Context, execution *Strateg
 	if e.instanceManager != nil {
 		for execution.Progress.InstancesUpdated < params.Replicas {
 			remaining := params.Replicas - execution.Progress.InstancesUpdated
-			e.instanceManager.CreateInstances(ctx, params.ServiceName, params.TargetVersion, remaining, map[string]string{
+			_ = e.instanceManager.CreateInstances(ctx, params.ServiceName, params.TargetVersion, remaining, map[string]string{
 				"deployment": execution.DeploymentID,
 				"role":       "stable",
 			})
@@ -982,7 +982,7 @@ func (e *StrategyExecutor) executeCanary(ctx context.Context, execution *Strateg
 
 	// Remove old instances
 	if e.instanceManager != nil {
-		e.instanceManager.DeleteInstances(ctx, params.ServiceName, params.CurrentVersion)
+		_ = e.instanceManager.DeleteInstances(ctx, params.ServiceName, params.CurrentVersion)
 	}
 
 	execution.Progress.Percentage = 100
@@ -996,7 +996,7 @@ func (e *StrategyExecutor) executeRecreate(ctx context.Context, execution *Strat
 	execution.Progress.Message = "Stopping old instances"
 
 	if e.instanceManager != nil {
-		e.instanceManager.DeleteInstances(ctx, params.ServiceName, params.CurrentVersion)
+		_ = e.instanceManager.DeleteInstances(ctx, params.ServiceName, params.CurrentVersion)
 	}
 
 	execution.Progress.Percentage = 30
@@ -1349,7 +1349,8 @@ func (e *StrategyExecutor) sendNotifications(ctx context.Context, execution *Str
 	}
 
 	for _, channel := range config.Channels {
-		go e.notifier.Notify(ctx, &channel, event)
+		ch := channel
+		go func() { _ = e.notifier.Notify(ctx, &ch, event) }()
 	}
 }
 

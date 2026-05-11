@@ -228,11 +228,11 @@ func (r *Resolver) forwardUDP(ctx context.Context, upstream string, queryData []
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set deadline
 	if deadline, ok := ctx.Deadline(); ok {
-		conn.SetDeadline(deadline)
+		_ = conn.SetDeadline(deadline)
 	}
 
 	// Send query
@@ -273,11 +273,11 @@ func (r *Resolver) forwardTCP(ctx context.Context, upstream string, queryData []
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set deadline
 	if deadline, ok := ctx.Deadline(); ok {
-		conn.SetDeadline(deadline)
+		_ = conn.SetDeadline(deadline)
 	}
 
 	// TCP DNS uses 2-byte length prefix
@@ -399,7 +399,7 @@ func (p *connectionPool) put(addr string, conn net.Conn) {
 	defer p.mu.Unlock()
 
 	if len(p.conns[addr]) >= p.maxConns {
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 	p.conns[addr] = append(p.conns[addr], conn)
@@ -411,7 +411,7 @@ func (p *connectionPool) close() {
 
 	for _, conns := range p.conns {
 		for _, conn := range conns {
-			conn.Close()
+			_ = conn.Close()
 		}
 	}
 	p.conns = make(map[string][]net.Conn)

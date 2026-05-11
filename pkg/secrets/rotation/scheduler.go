@@ -192,7 +192,7 @@ func (s *Scheduler) AddSchedule(schedule *Schedule) error {
 		Msg("schedule added")
 
 	s.updateMetrics()
-	s.saveState()
+	_ = s.saveState()
 
 	return nil
 }
@@ -206,7 +206,7 @@ func (s *Scheduler) RemoveSchedule(path string) {
 	s.log.Info().Str("path", path).Msg("schedule removed")
 
 	s.updateMetrics()
-	s.saveState()
+	_ = s.saveState()
 }
 
 // GetSchedule returns a schedule by path.
@@ -262,7 +262,7 @@ func (s *Scheduler) Stop() {
 	s.mu.Unlock()
 
 	s.wg.Wait()
-	s.saveState()
+	_ = s.saveState()
 
 	s.log.Info().Msg("scheduler stopped")
 }
@@ -366,7 +366,7 @@ func (s *Scheduler) executeRotation(schedule *Schedule) {
 	}
 
 	s.updateMetrics()
-	s.saveState()
+	_ = s.saveState()
 }
 
 // updateMetrics updates scheduler metrics.
@@ -474,7 +474,7 @@ func (s *Scheduler) EnableSchedule(path string) error {
 
 	s.log.Info().Str("path", path).Msg("schedule enabled")
 	s.updateMetrics()
-	s.saveState()
+	_ = s.saveState()
 
 	return nil
 }
@@ -493,7 +493,7 @@ func (s *Scheduler) DisableSchedule(path string) error {
 
 	s.log.Info().Str("path", path).Msg("schedule disabled")
 	s.updateMetrics()
-	s.saveState()
+	_ = s.saveState()
 
 	return nil
 }

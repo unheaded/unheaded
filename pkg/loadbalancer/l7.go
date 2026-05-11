@@ -491,8 +491,8 @@ func (ws *WebSocketProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Flush any buffered data
 	if clientBuf.Reader.Buffered() > 0 {
 		buf := make([]byte, clientBuf.Reader.Buffered())
-		clientBuf.Read(buf)
-		backendConn.Write(buf)
+		_, _ = clientBuf.Read(buf)
+		_, _ = backendConn.Write(buf)
 	}
 
 	// Bidirectional copy
@@ -501,13 +501,13 @@ func (ws *WebSocketProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	go func() {
 		defer wg.Done()
-		io.Copy(backendConn, clientConn)
+		_, _ = io.Copy(backendConn, clientConn)
 		_ = backendConn.Close()
 	}()
 
 	go func() {
 		defer wg.Done()
-		io.Copy(clientConn, backendConn)
+		_, _ = io.Copy(clientConn, backendConn)
 		_ = clientConn.Close()
 	}()
 
@@ -785,7 +785,7 @@ func (hrw *HealthResponseWriter) Write(b []byte) (int, error) {
 // Flush sends the buffered response.
 func (hrw *HealthResponseWriter) Flush(w http.ResponseWriter) {
 	w.WriteHeader(hrw.statusCode)
-	w.Write(hrw.body)
+	_, _ = w.Write(hrw.body)
 }
 
 // CompressedResponseWriter adds compression to responses.
@@ -1135,7 +1135,8 @@ func NewBufferPool(size int) *BufferPool {
 
 // Get gets a buffer from the pool.
 func (bp *BufferPool) Get() []byte {
-	return *bp.pool.Get().(*[]byte)
+	buf, _ := bp.pool.Get().(*[]byte)
+	return *buf
 }
 
 // Put returns a buffer to the pool.
