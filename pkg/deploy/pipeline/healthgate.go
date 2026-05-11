@@ -764,7 +764,7 @@ func (g *HealthGate) runGRPCCheck(ctx context.Context, config *GRPCHealthCheck, 
 // runExecCheck runs an exec health check.
 func (g *HealthGate) runExecCheck(ctx context.Context, config *ExecHealthCheck, result *CheckResult) error {
 	if config == nil {
-		return errors.New("Exec check configuration is nil")
+		return errors.New("exec check configuration is nil")
 	}
 
 	cmd := exec.CommandContext(ctx, config.Command, config.Args...)

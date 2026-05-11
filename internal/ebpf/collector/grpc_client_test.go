@@ -45,5 +45,5 @@ func TestNoOpGRPCClient_SendAcceptsNilEvent(t *testing.T) {
 
 func TestNewNoOpGRPCClient_SatisfiesInterface(t *testing.T) {
 	t.Parallel()
-	var _ GRPCClient = NewNoOpGRPCClient()
+	var _ GRPCClient = NewNoOpGRPCClient() //nolint:staticcheck // QF1011 false-positive: removing the type defeats the interface assertion
 }

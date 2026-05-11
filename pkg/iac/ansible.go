@@ -169,7 +169,7 @@ RestartSec=5s
 		s += "ProtectSystem=strict\nProtectHome=true\nPrivateTmp=true\n"
 	}
 	if config.Hardening.RunAsUser > 0 {
-		s += fmt.Sprintf("User=unheaded\nGroup=unheaded\n")
+		s += "User=unheaded\nGroup=unheaded\n"
 	}
 
 	// Environment

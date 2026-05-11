@@ -208,10 +208,8 @@ func FuzzCrossServiceWotanToSophia(f *testing.F) {
 			for key := range entry.Metadata {
 				val, ok := extractNumericField(entry, key)
 				if ok {
-					// Verify the extracted value is sane
-					if val > math.MaxUint32 {
-						t.Errorf("extracted value exceeds uint32 max: %d", val)
-					}
+					// uint32 type already guarantees val <= MaxUint32.
+					_ = val
 				}
 			}
 		}
@@ -290,10 +288,8 @@ func FuzzCrossServiceSophiaToMonad(f *testing.F) {
 			return
 		}
 
-		// Invariant: re-decoded value must be finite and non-negative
-		if reDecoded > math.MaxUint64 {
-			t.Errorf("re-decoded value exceeds uint64 max")
-		}
+		// uint64 type already guarantees non-negative + <= MaxUint64.
+		_ = reDecoded
 	})
 }
 

@@ -478,7 +478,7 @@ func TestWotanHookWithoutPublisher(t *testing.T) {
 	if result.Success {
 		t.Error("hook should fail without publisher")
 	}
-	if !strings.Contains(result.Error, "Wotan publisher not configured") {
+	if !strings.Contains(result.Error, "wotan publisher not configured") {
 		t.Errorf("expected error about publisher, got %s", result.Error)
 	}
 }

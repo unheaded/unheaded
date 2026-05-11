@@ -84,12 +84,12 @@ resource "docker_container" "%s" {
 `, config.Name, config.Name, config.Name)
 
 	if config.GRPCPort > 0 {
-		s += fmt.Sprintf(`
+		s += `
   ports {
     internal = var.grpc_port
     external = var.grpc_port
   }
-`)
+`
 	}
 
 	s += `

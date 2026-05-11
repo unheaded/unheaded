@@ -173,7 +173,7 @@ spec:
 		}
 	}
 	if config.Hardening.SeccompPolicy != "" {
-		s += fmt.Sprintf("            seccompProfile:\n              type: RuntimeDefault\n")
+		s += "            seccompProfile:\n              type: RuntimeDefault\n"
 	}
 
 	return s

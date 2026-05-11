@@ -360,11 +360,11 @@ func (e *HookExecutor) executeHTTPHook(ctx context.Context, hook *Hook, result *
 // executeWotanHook executes a Wotan hook.
 func (e *HookExecutor) executeWotanHook(ctx context.Context, hook *Hook, result *HookResult, pipelineCtx map[string]interface{}) error {
 	if e.wotanPublisher == nil {
-		return fmt.Errorf("Wotan publisher not configured")
+		return fmt.Errorf("wotan publisher not configured")
 	}
 
 	if hook.Config == nil || hook.Config.Topic == "" {
-		return fmt.Errorf("Wotan hook requires topic")
+		return fmt.Errorf("wotan hook requires topic")
 	}
 
 	// Build payload

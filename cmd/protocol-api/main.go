@@ -112,7 +112,10 @@ func main() {
 	// Wrap with pkg/auth middleware (activated via AUTH_ENABLED=true env var).
 	// This layers on top of the legacy --api-key flag auth.
 	authCfg := auth.LoadServiceAuthConfig("protocol-api")
-	var srvHandler http.Handler = restHandler
+	// Explicit interface type required: srvHandler is reassigned below to
+	// auth.WrapHandler's http.Handler return value, so the variable's
+	// static type cannot be the concrete restHandler type.
+	var srvHandler http.Handler = restHandler //nolint:staticcheck // QF1011 false-positive: interface type is required for the reassignment below
 	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
 
 	restServer := &http.Server{
