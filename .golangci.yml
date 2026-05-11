@@ -207,6 +207,18 @@ linters:
       - path: arch/mbc/
         linters: [gosec]
         text: "G306:"
+      # pkg/runtime/image.go has explicit path-traversal guards at the
+      # top of the extract loop (line 516 destDir-prefix check) and on
+      # the whiteout branch (commit 688dbb60). Plus the 5 GiB
+      # decompression cap (commit bf071529). gosec G703/G305 cannot
+      # see the guards — they re-fire on every targetPath usage in the
+      # loop body. Path-scoped exclusion documents that the guards exist.
+      - path: pkg/runtime/image\.go
+        linters: [gosec]
+        text: "G703:"
+      - path: pkg/runtime/image\.go
+        linters: [gosec]
+        text: "G305:"
 
       # G204 (subprocess-with-variable) in directories that wrap known
       # external tools where the "tainted" input is operator-managed
