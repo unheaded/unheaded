@@ -268,7 +268,7 @@ func (m *Manager) Silence(ctx context.Context, silence *alerting.Silence) error 
 	}
 
 	m.silences[silence.ID] = silence
-	m.silencer.AddSilence(silence)
+	_ = m.silencer.AddSilence(silence)
 
 	return nil
 }
@@ -307,7 +307,7 @@ func (m *Manager) AddInhibition(ctx context.Context, rule *alerting.InhibitionRu
 	defer m.mu.Unlock()
 
 	m.inhibitions[rule.ID] = rule
-	m.inhibitor.AddRule(rule)
+	_ = m.inhibitor.AddRule(rule)
 
 	return nil
 }

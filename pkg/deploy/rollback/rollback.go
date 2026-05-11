@@ -347,7 +347,8 @@ func (m *Manager) notifyCallbacks(ctx context.Context, rollback *Rollback) {
 	m.mu.RUnlock()
 
 	for _, callback := range callbacks {
-		go callback(ctx, rollback)
+		cb := callback
+		go func() { _ = cb(ctx, rollback) }()
 	}
 }
 
@@ -518,7 +519,7 @@ func (m *AutoRollbackMonitor) RecordHealthCheckFailure(ctx context.Context, depl
 		}
 
 		// Trigger rollback
-		m.manager.Rollback(ctx, &RollbackRequest{
+		_, _ = m.manager.Rollback(ctx, &RollbackRequest{
 			DeploymentID: deploymentID,
 			Reason:       RollbackReasonHealthCheck,
 			InitiatedBy:  "auto-rollback-monitor",

@@ -13,6 +13,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"sync"
 	"time"
@@ -235,7 +236,11 @@ func (a *Authority) loadRoot(certPEM, keyPEM []byte) error {
 		if err != nil {
 			return err
 		}
-		key = pkcs8Key.(*ecdsa.PrivateKey)
+		ecKey, ok := pkcs8Key.(*ecdsa.PrivateKey)
+		if !ok {
+			return fmt.Errorf("ca: root private key is not ECDSA (got %T)", pkcs8Key)
+		}
+		key = ecKey
 	}
 
 	a.rootCert = cert
@@ -268,7 +273,11 @@ func (a *Authority) loadIntermediate(certPEM, keyPEM []byte) error {
 		if err != nil {
 			return err
 		}
-		key = pkcs8Key.(*ecdsa.PrivateKey)
+		ecKey, ok := pkcs8Key.(*ecdsa.PrivateKey)
+		if !ok {
+			return fmt.Errorf("ca: intermediate private key is not ECDSA (got %T)", pkcs8Key)
+		}
+		key = ecKey
 	}
 
 	a.intermCert = cert

@@ -77,7 +77,7 @@ var contextPool = sync.Pool{
 
 // acquireContext gets a Context from the pool
 func acquireContext(w http.ResponseWriter, r *http.Request) *Context {
-	c := contextPool.Get().(*Context)
+	c, _ := contextPool.Get().(*Context)
 	c.Writer = w
 	c.Request = r
 	c.index = -1
@@ -154,7 +154,7 @@ func (c *Context) AbortWithStatus(code int) {
 // AbortWithError aborts with a status code and error message
 func (c *Context) AbortWithError(code int, err error) {
 	c.Status(code)
-	c.String(code, "%s", err.Error())
+	_ = c.String(code, "%s", err.Error())
 	c.Abort()
 }
 

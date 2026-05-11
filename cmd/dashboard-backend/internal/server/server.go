@@ -757,7 +757,8 @@ func (s *Server) serveStaticFile(w http.ResponseWriter, r *http.Request, name st
 	}
 
 	// http.ServeContent handles Content-Type, caching, range requests
-	http.ServeContent(w, r, name, stat.ModTime(), f.(io.ReadSeeker))
+	rs, _ := f.(io.ReadSeeker)
+	http.ServeContent(w, r, name, stat.ModTime(), rs)
 }
 
 // Start starts the server and all components
@@ -2523,7 +2524,7 @@ func (s *Server) handleServiceConfig(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", "application/x-yaml")
-		w.Write(yamlBytes)
+		_, _ = w.Write(yamlBytes)
 
 	case http.MethodPut:
 		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1 MB limit

@@ -117,7 +117,7 @@ func showStatus(ctx *Context) error {
 
 func watchStatus(ctx *Context, interval int) error {
 	ctx.Output.WriteInfo("Watching status (press Ctrl+C to stop)...")
-	ctx.Output.WriteStringln("")
+	_ = ctx.Output.WriteStringln("")
 
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
@@ -129,7 +129,7 @@ func watchStatus(ctx *Context, interval int) error {
 
 	for range ticker.C {
 		// Clear screen (simple approach)
-		ctx.Output.WriteString("\033[H\033[2J")
+		_ = ctx.Output.WriteString("\033[H\033[2J")
 		if err := showStatus(ctx); err != nil {
 			ctx.Output.WriteError("Failed to get status: %v", err)
 		}
