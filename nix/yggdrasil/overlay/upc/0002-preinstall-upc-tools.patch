@@ -21,12 +21,13 @@ index 0000000..2222222
 --- /dev/null
 +++ b/etc/yggdrasil/required-packages.d/upc.list
 @@ -0,0 +1,7 @@
-+# Yggdrasil — UPC required packages
++# Yggdrasil — UPC + evidence-pack required packages.
 +# Installed at image-build time. Cannot be removed without `apt --force`.
 +upc-bootctl
 +upc-tty-bridge
 +monad-cpu-ebpf
 +unheaded-shared
 +unheaded-runner
++yggdrasil-evidence
 --
 2.43.0
