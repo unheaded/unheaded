@@ -608,10 +608,16 @@ func (dci *DatabaseCredentialIntegration) RotateCredentials(ctx context.Context,
 	newSecret.Data["password"] = []byte(newPassword)
 	newSecret.RotatedAt = time.Now()
 
+	// GracePeriod is collected here for future use — the rotator config
+	// interface accepts it, but the database-credential path doesn't yet
+	// schedule delayed invalidation of the old secret. TODO(rotation):
+	// wire GracePeriod through to the secret store so the previous
+	// credential is invalidated after `opts.GracePeriod` elapses.
 	rotationConfig := RotationConfig{
 		KeepPrevious: opts.KeepPrevious,
 		GracePeriod:  opts.GracePeriod,
 	}
+	_ = rotationConfig.GracePeriod // discard until the TODO above is wired
 
 	result := &RotationResult{
 		Success:        true,
