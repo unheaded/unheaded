@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Makefile.bootstub — RV32I + MBC build for upc-bootstub.
+# ASCEND-LINUX Phase 2 (task #63 closure scaffolding).
+#
+# Usage (from crates/upc-bootstub/):
+#   make -f adapters/Makefile.bootstub all
+#
+# Mirrors crates/xv6-mbc/adapters/Makefile.mbc — same toolchain, same
+# CFLAGS shape (ffixed-x16..x31 because MBC has only r0-r15), same
+# rv32i_to_mbc translator pipeline. Difference: this build produces a
+# single small stub image (a few hundred MBC instructions) intended to
+# be PREPENDED to a uClinux/Linux kernel image at boot time.
+
+A   = $(dir $(lastword $(MAKEFILE_LIST)))
+SRC = $(A)../src
+OUT = $(A)../target
+
+TOOLPREFIX = riscv64-unknown-elf-
+CC      = $(TOOLPREFIX)gcc
+LD      = $(TOOLPREFIX)ld
+OBJDUMP = $(TOOLPREFIX)objdump
+
+GCC_INCLUDE = $(shell $(CC) -print-file-name=include)
+
+# Same flag set as Makefile.mbc — ensures C compiler never assigns code
+# to s2-s11 (= x18-x27) or any x16+ register MBC doesn't expose.
+CFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32e -nostdlib -nostdinc -static -ffreestanding \
+         -fno-builtin -O2 \
+         -ffixed-x16 -ffixed-x17 -ffixed-x18 -ffixed-x19 \
+         -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 \
+         -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 \
+         -ffixed-x28 -ffixed-x29 -ffixed-x30 -ffixed-x31 \
+         -isystem $(GCC_INCLUDE)
+
+LDFLAGS = -z max-page-size=4096 -melf32lriscv
+
+# rv32i_to_mbc translator binary — built by `cargo build --release` in
+# crates/monad-mbc/. Override RV2MBC if the binary lives elsewhere.
+RV2MBC ?= $(A)../../monad-mbc/target/release/rv32i-to-mbc
+
+.PHONY: all clean
+
+all: $(OUT)/upc-bootstub.mbc
+
+$(OUT):
+	mkdir -p $(OUT)
+
+$(OUT)/start.o: $(SRC)/start.c | $(OUT)
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+$(OUT)/upc-bootstub.elf: $(OUT)/start.o $(A)bootstub.ld | $(OUT)
+	$(LD) $(LDFLAGS) -T $(A)bootstub.ld -o $@ $(OUT)/start.o
+	$(OBJDUMP) -d $@ > $(OUT)/upc-bootstub.asm
+
+$(OUT)/upc-bootstub.mbc: $(OUT)/upc-bootstub.elf
+	@if [ ! -x "$(RV2MBC)" ]; then \
+	  echo "Error: rv32i-to-mbc not found at $(RV2MBC)."; \
+	  echo "Build it first: (cd ../monad-mbc && cargo build --release --bin rv32i-to-mbc)"; \
+	  exit 1; \
+	fi
+	$(RV2MBC) $< -o $@
+
+clean:
+	rm -rf $(OUT)
