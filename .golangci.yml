@@ -166,6 +166,16 @@ linters:
           - gosec
         text: "G201:"
 
+      # cmd/lich-security is the offensive-security campaign runner —
+      # the WHOLE POINT of these campaigns is to test broken/insecure
+      # TLS configs (downgrade attacks, cert bypass, weak cipher probes).
+      # Suppressing G402 in this directory keeps the rule active where
+      # it matters (production code paths).
+      - path: cmd/lich-security/
+        linters:
+          - gosec
+        text: "G402:"
+
       # Main packages often have simple error handling
       - path: cmd/
         linters:

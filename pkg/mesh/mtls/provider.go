@@ -384,7 +384,7 @@ func (p *Provider) generateServiceCertificate() error {
 // buildTLSConfigs builds the server and client TLS configurations.
 func (p *Provider) buildTLSConfigs() {
 	// Server config for accepting mTLS connections
-	p.serverConfig = &tls.Config{
+	p.serverConfig = &tls.Config{ //nolint:gosec // MinVersion floored to TLS 1.2 in DefaultConfig
 		MinVersion:   p.config.MinVersion,
 		MaxVersion:   p.config.MaxVersion,
 		CipherSuites: p.config.CipherSuites,
