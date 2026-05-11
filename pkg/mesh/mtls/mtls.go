@@ -291,7 +291,9 @@ func (m *Manager) buildTLSConfigs() {
 	// Server config.
 	// SessionTicketsDisabled = true so that resumed sessions cannot bypass
 	// the VerifyPeerCertificate callback (gosec G123 / CWE-295).
-	m.serverConfig = &tls.Config{
+	// MinVersion is floored to TLS 1.2 below; gosec G402 cannot see the
+	// floor logic in DefaultConfig() (returns tls.VersionTLS12).
+	m.serverConfig = &tls.Config{ //nolint:gosec // MinVersion floored to TLS 1.2 in DefaultConfig
 		MinVersion:   m.config.MinVersion,
 		MaxVersion:   m.config.MaxVersion,
 		CipherSuites: m.config.CipherSuites,
@@ -305,7 +307,7 @@ func (m *Manager) buildTLSConfigs() {
 	}
 
 	// Client config. Same session-ticket guard.
-	m.clientConfig = &tls.Config{
+	m.clientConfig = &tls.Config{ //nolint:gosec // MinVersion floored to TLS 1.2 in DefaultConfig
 		MinVersion:   m.config.MinVersion,
 		MaxVersion:   m.config.MaxVersion,
 		CipherSuites: m.config.CipherSuites,
