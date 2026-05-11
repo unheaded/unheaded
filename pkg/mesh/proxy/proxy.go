@@ -276,7 +276,7 @@ func (p *Proxy) acceptLoop(listener net.Listener, inbound bool) {
 }
 
 func (p *Proxy) handleInbound(conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Wrap with TLS if configured
 	p.mu.RLock()
@@ -292,17 +292,17 @@ func (p *Proxy) handleInbound(conn net.Conn) {
 	}
 
 	// Set timeouts
-	conn.SetDeadline(time.Now().Add(p.config.IdleTimeout))
+	_ = conn.SetDeadline(time.Now().Add(p.config.IdleTimeout))
 
 	// Proxy the connection
 	p.proxyConnection(conn, true)
 }
 
 func (p *Proxy) handleOutbound(conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Set timeouts
-	conn.SetDeadline(time.Now().Add(p.config.IdleTimeout))
+	_ = conn.SetDeadline(time.Now().Add(p.config.IdleTimeout))
 
 	// Proxy the connection
 	p.proxyConnection(conn, false)
@@ -329,7 +329,7 @@ func (p *Proxy) proxyConnection(clientConn net.Conn, inbound bool) {
 func (p *Proxy) proxyHTTP(clientConn net.Conn, reader *bufio.Reader, inbound bool) {
 	for {
 		// Set read deadline
-		clientConn.SetReadDeadline(time.Now().Add(p.config.ReadTimeout))
+		_ = clientConn.SetReadDeadline(time.Now().Add(p.config.ReadTimeout))
 
 		// Parse HTTP request. Both io.EOF and parse errors terminate the
 		// loop the same way; logging is wired in by the unheaded-daemon
@@ -386,7 +386,7 @@ func (p *Proxy) proxyHTTP(clientConn net.Conn, reader *bufio.Reader, inbound boo
 		}
 
 		// Forward request
-		backendConn.SetWriteDeadline(time.Now().Add(p.config.WriteTimeout))
+		_ = backendConn.SetWriteDeadline(time.Now().Add(p.config.WriteTimeout))
 		if err := req.Write(backendConn); err != nil {
 			_ = backendConn.Close()
 			p.sendHTTPError(clientConn, http.StatusBadGateway)
@@ -394,7 +394,7 @@ func (p *Proxy) proxyHTTP(clientConn net.Conn, reader *bufio.Reader, inbound boo
 		}
 
 		// Read response
-		backendConn.SetReadDeadline(time.Now().Add(p.config.ReadTimeout))
+		_ = backendConn.SetReadDeadline(time.Now().Add(p.config.ReadTimeout))
 		backendReader := bufio.NewReaderSize(backendConn, p.config.ReadBufferSize)
 		resp, err := http.ReadResponse(backendReader, req)
 		if err != nil {
@@ -423,7 +423,7 @@ func (p *Proxy) proxyHTTP(clientConn net.Conn, reader *bufio.Reader, inbound boo
 		// need to close it to release any internal resources (chunked-reader
 		// state, etc) before either returning the conn to the pool or closing
 		// it. We sequence: Write → Close(body) → pool/close decision.
-		clientConn.SetWriteDeadline(time.Now().Add(p.config.WriteTimeout))
+		_ = clientConn.SetWriteDeadline(time.Now().Add(p.config.WriteTimeout))
 		writeErr := resp.Write(clientConn)
 		_ = resp.Body.Close()
 		if writeErr != nil {
@@ -436,7 +436,7 @@ func (p *Proxy) proxyHTTP(clientConn net.Conn, reader *bufio.Reader, inbound boo
 			_ = backendConn.Close()
 		} else {
 			if pc, ok := backendConn.(*PooledConn); ok {
-				pc.pool.put(pc)
+				_ = pc.pool.put(pc)
 			} else {
 				_ = backendConn.Close()
 			}
@@ -476,7 +476,7 @@ func (p *Proxy) proxyL4(clientConn net.Conn, reader *bufio.Reader, inbound bool)
 	if err != nil {
 		return
 	}
-	defer backendConn.Close()
+	defer func() { _ = backendConn.Close() }()
 
 	// Bidirectional copy
 	var wg sync.WaitGroup
@@ -489,7 +489,7 @@ func (p *Proxy) proxyL4(clientConn net.Conn, reader *bufio.Reader, inbound bool)
 		atomic.AddUint64(&p.totalBytes, uint64(n))
 		// Signal EOF to backend
 		if tc, ok := backendConn.(*net.TCPConn); ok {
-			tc.CloseWrite()
+			_ = tc.CloseWrite()
 		}
 	}()
 
@@ -500,7 +500,7 @@ func (p *Proxy) proxyL4(clientConn net.Conn, reader *bufio.Reader, inbound bool)
 		atomic.AddUint64(&p.totalBytes, uint64(n))
 		// Signal EOF to client
 		if tc, ok := clientConn.(*net.TCPConn); ok {
-			tc.CloseWrite()
+			_ = tc.CloseWrite()
 		}
 	}()
 
@@ -541,7 +541,7 @@ func (p *Proxy) sendHTTPError(conn net.Conn, status int) {
 	}
 	resp.Header.Set("Content-Length", "0")
 	resp.Header.Set("Connection", "close")
-	resp.Write(conn)
+	_ = resp.Write(conn)
 }
 
 func isHTTPMethod(b byte) bool {
