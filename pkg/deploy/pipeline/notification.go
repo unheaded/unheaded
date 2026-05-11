@@ -843,7 +843,7 @@ func (m *NotificationManager) sendDiscord(ctx context.Context, channel *Channel,
 		"fields":      []map[string]interface{}{},
 	}
 
-	fields := embed["fields"].([]map[string]interface{})
+	fields, _ := embed["fields"].([]map[string]interface{})
 	if notification.Service != "" {
 		fields = append(fields, map[string]interface{}{
 			"name":   "Service",

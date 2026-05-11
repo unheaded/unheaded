@@ -203,7 +203,7 @@ func (s *Service) Run(ctx context.Context) error {
 	}
 
 	if s.wotan != nil {
-		s.wotan.Close()
+		_ = s.wotan.Close()
 	}
 
 	s.logger.Info().Msg("service stopped gracefully")

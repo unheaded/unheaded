@@ -80,7 +80,7 @@ func (m *KEMTunnelManager) InitiateTunnel(localSvc, remoteSvc uint16, algoID, pa
 
 	// Generate tunnel ID
 	idBytes := make([]byte, 8)
-	rand.Read(idBytes)
+	_, _ = rand.Read(idBytes)
 
 	now := time.Now()
 	tunnel := &KEMTunnel{

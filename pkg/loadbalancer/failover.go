@@ -1037,7 +1037,7 @@ func (dm *GracefulDrainManager) GetDrainState(name string) (*DrainState, bool) {
 // DrainAll starts draining all backends.
 func (dm *GracefulDrainManager) DrainAll(timeout time.Duration) {
 	for _, backend := range dm.pool.All() {
-		dm.StartDrain(backend.Config.Name, timeout)
+		_ = dm.StartDrain(backend.Config.Name, timeout)
 	}
 }
 

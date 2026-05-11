@@ -121,7 +121,7 @@ func (r *SuricataReader) tailEVEJSON(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("suricata: open eve.json: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Seek to end of file to only process new events
 	if _, err := f.Seek(0, io.SeekEnd); err != nil {

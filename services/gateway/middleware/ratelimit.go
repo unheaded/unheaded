@@ -84,7 +84,7 @@ func NewRateLimiter(cfg *config.RateLimitConfig, log *logger.Logger, metricsReg 
 	)
 
 	if metricsReg != nil {
-		metricsReg.Register(rateLimitCounter)
+		_ = metricsReg.Register(rateLimitCounter)
 	}
 
 	// Build trustedProxies map from config

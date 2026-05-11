@@ -123,7 +123,7 @@ func (h *Hub) handleWs(w http.ResponseWriter, r *http.Request) {
 
 	// Send a hello banner so the browser knows the channel is live.
 	hello := fmt.Sprintf("upc-tty-bridge: attached to UPC instance 0x%02X\r\n", instance)
-	conn.WriteMessage(websocket.TextMessage, []byte(hello))
+	_ = conn.WriteMessage(websocket.TextMessage, []byte(hello))
 
 	// Writer goroutine — push tty bytes from out → WS.
 	done := make(chan struct{})

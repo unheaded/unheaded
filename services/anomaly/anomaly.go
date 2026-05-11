@@ -867,7 +867,7 @@ func (s *Service) publishEvent(ctx context.Context, topic string, event map[stri
 	// Extract trace_id from context or generate one
 	traceID := ""
 	if tid := ctx.Value("trace_id"); tid != nil {
-		traceID = tid.(string)
+		traceID, _ = tid.(string)
 	}
 	if traceID == "" {
 		traceID = fmt.Sprintf("anomaly-%d", time.Now().UnixNano())

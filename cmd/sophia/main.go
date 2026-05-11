@@ -390,7 +390,7 @@ func (hs *HTTPServer) metricsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(metrics))
+	_, _ = w.Write([]byte(metrics))
 }
 
 // knowledgeHandler routes knowledge operations.

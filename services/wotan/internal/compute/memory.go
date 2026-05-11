@@ -774,7 +774,7 @@ func walAppend(path string, lineAddr uint32, data []byte) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var record [walRecordSize]byte
 

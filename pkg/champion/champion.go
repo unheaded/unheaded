@@ -224,5 +224,5 @@ func (c *Champion) completeAction(ctx context.Context, id int64, status, result,
 	if c.store == nil || id == 0 {
 		return
 	}
-	c.store.UpdateAction(ctx, id, status, result, errMsg, int(elapsed.Milliseconds()))
+	_ = c.store.UpdateAction(ctx, id, status, result, errMsg, int(elapsed.Milliseconds()))
 }

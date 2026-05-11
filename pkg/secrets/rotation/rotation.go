@@ -489,7 +489,11 @@ func (r *CertificateRotator) Verify(ctx context.Context, secret *secrets.Secret)
 	}
 
 	// Verify key matches certificate
-	if cert.PublicKey.(*rsa.PublicKey).N.Cmp(key.N) != 0 {
+	pub, ok := cert.PublicKey.(*rsa.PublicKey)
+	if !ok {
+		return errors.New("certificate public key is not RSA")
+	}
+	if pub.N.Cmp(key.N) != 0 {
 		return errors.New("private key does not match certificate")
 	}
 
