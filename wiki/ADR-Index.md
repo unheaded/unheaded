@@ -71,6 +71,10 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [062](../docs/adr/ADR-062-fuzz-redteam-pentest-framework.md) | Fuzz / Red-Team / Pentest Framework (Lich Codified) — three-tier offensive taxonomy, numbered LICH-NNN campaigns, activation rules | **Accepted** (existing pattern ratified; new campaigns slot in) |
 | [063](../docs/adr/ADR-063-akira-summons-lich-randomized-ctf.md) | Akira Randomly Summons the Lich for CTF Mode — bounded, opt-in, randomized adversarial probing of live Kingdom services | **Pipe Dream** (activates after ADR-062's framework has 3 campaigns clean for 7 days) |
 | [064](../docs/adr/ADR-064-wotan-active-active-cluster-k8s-native.md) | Wotan Active/Active Cluster — 3-node minimum, K8s-native StatefulSet, Raft membership + topic-leader election, broadcast replication. Supersedes ADR-035 ("active passive works but doesn't scale") | **Proposed** (4-phase rollout; ADR-035 stays running through cutover) |
+| [065](../docs/adr/ADR-065-aya-major-version-migration.md) | aya 0.10 → 0.13 major version migration (eBPF host-side library) | **Accepted** (2026-05-08) |
+| [066](../docs/adr/ADR-066-tonic-minor-bump-trace-collector.md) | `cmd/trace-collector` tonic 0.10 → 0.12 minor bump (closes 4 cargo-audit advisories) | **Accepted** (2026-05-08) |
+| [067](../docs/adr/ADR-067-mbc-isa-v2-and-upc-abi-v1.md) | MBC ISA v2 + UPC ABI v1 — 5 new opcodes (FENCE, MRET, SRET, LR.W, SC.W), priv_level + reservation_address fields, CSR memory-mapped region | **Accepted** (Phase 0 complete 2026-05-08) |
+| [072](../docs/adr/ADR-072-boot-magic-byte-ordering.md) | BOOT_MAGIC byte-ordering convention — canonical hex `0x554E4844` ('UNHD' MSB-first); wire bytes `D,H,N,U` per LE. Three-skill panel (Developer + Micromanager + Busboy) doc-only resolution | **Accepted** (2026-05-10; closes task #64) |
 
 ---
 
