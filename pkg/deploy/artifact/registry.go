@@ -425,7 +425,7 @@ func (m *RegistryMirror) Pull(ctx context.Context, name, tag string) (io.ReadClo
 // Delete deletes from both cache and upstream.
 func (m *RegistryMirror) Delete(ctx context.Context, ref string) error {
 	// Delete from cache
-	m.cache.Delete(ctx, ref)
+	_ = m.cache.Delete(ctx, ref)
 	m.mu.Lock()
 	delete(m.cached, ref)
 	m.mu.Unlock()

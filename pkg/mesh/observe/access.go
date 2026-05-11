@@ -186,7 +186,7 @@ func (l *AccessLogger) writeEntry(entry *AccessLogEntry) {
 	}
 
 	l.buffer.WriteByte('\n')
-	l.writer.Write(l.buffer.Bytes())
+	_, _ = l.writer.Write(l.buffer.Bytes())
 }
 
 func (l *AccessLogger) formatJSON(entry *AccessLogEntry) {

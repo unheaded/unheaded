@@ -228,7 +228,7 @@ var bufferPool = sync.Pool{
 }
 
 func getBuffer() *bytes.Buffer {
-	buf := bufferPool.Get().(*bytes.Buffer)
+	buf, _ := bufferPool.Get().(*bytes.Buffer)
 	buf.Reset()
 	return buf
 }

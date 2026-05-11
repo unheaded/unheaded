@@ -206,7 +206,7 @@ func (b *Binder) RelocateBinding(workload *Workload, newNode *Node) error {
 	if err := newNode.Allocate(workload.Resources.Requests); err != nil {
 		// Try to restore old binding
 		if oldNode != nil {
-			oldNode.Allocate(binding.Resources)
+			_ = oldNode.Allocate(binding.Resources)
 		}
 		return err
 	}

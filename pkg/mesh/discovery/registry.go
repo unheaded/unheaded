@@ -460,7 +460,7 @@ func (ir *InstanceRegistrar) heartbeatLoop() {
 			return
 		case <-ticker.C:
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			ir.heartbeat(ctx)
+			_ = ir.heartbeat(ctx)
 			cancel()
 		}
 	}

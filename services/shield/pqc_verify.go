@@ -277,7 +277,7 @@ type replayWindow struct {
 // checkReplay validates a SeqNum against the per-flow sliding window.
 func (v *PQCVerifier) checkReplay(flowKey string, seqNum uint16) bool {
 	raw, _ := v.replayWindows.LoadOrStore(flowKey, &replayWindow{windowSz: 16384})
-	w := raw.(*replayWindow)
+	w, _ := raw.(*replayWindow)
 
 	w.mu.Lock()
 	defer w.mu.Unlock()

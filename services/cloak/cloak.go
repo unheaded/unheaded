@@ -551,7 +551,7 @@ func (s *Service) handleMetrics(w http.ResponseWriter, r *http.Request) {
 func (s *Service) handleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	// In production, would serve template
-	w.Write([]byte("<!DOCTYPE html><html><head><title>Unheaded Kingdom Dashboard</title></head><body><h1>The Cloak Awaits</h1></body></html>"))
+	_, _ = w.Write([]byte("<!DOCTYPE html><html><head><title>Unheaded Kingdom Dashboard</title></head><body><h1>The Cloak Awaits</h1></body></html>"))
 }
 
 func (s *Service) handleDashboards(w http.ResponseWriter, r *http.Request) {

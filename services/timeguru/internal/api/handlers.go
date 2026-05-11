@@ -744,7 +744,7 @@ func (h *Handler) writeMarkdown(w http.ResponseWriter, status int, tl *timeline.
 	w.WriteHeader(status)
 
 	md := h.generateMarkdown(tl)
-	w.Write([]byte(md))
+	_, _ = w.Write([]byte(md))
 }
 
 // generateMarkdown converts Timeline to Markdown format

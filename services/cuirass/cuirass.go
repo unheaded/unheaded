@@ -319,7 +319,7 @@ func (s *Service) runHealthChecks(ctx context.Context) {
 		// Check for stale services
 		if time.Since(svc.LastSeen) > s.config.DeregisterAfter {
 			s.log.Warn().Str("id", svc.ID).Msg("Service stale, deregistering")
-			s.Deregister(ctx, svc.ID)
+			_ = s.Deregister(ctx, svc.ID)
 			continue
 		}
 

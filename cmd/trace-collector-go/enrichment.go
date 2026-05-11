@@ -124,7 +124,7 @@ func (te *TraceEnricher) EnrichTrace(trace *TraceEvent) {
 func (te *TraceEnricher) resolveServiceName(svcID uint8) string {
 	// Check cache first.
 	if entry, ok := te.cache.Load(svcID); ok {
-		cached := entry.(*enrichmentCacheEntry)
+		cached, _ := entry.(*enrichmentCacheEntry)
 		// Cache entries are valid for 5 minutes.
 		if time.Since(cached.cachedAt) < 5*time.Minute {
 			atomic.AddInt64(&te.cacheHits, 1)

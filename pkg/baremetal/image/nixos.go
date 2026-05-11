@@ -140,7 +140,7 @@ func (b *NixOSBuilder) buildSquashFS(ctx context.Context, storePath string) (str
 	if err := os.WriteFile(listPath, []byte(strings.Join(closurePaths, "\n")), 0644); err != nil {
 		return "", fmt.Errorf("writing closure list: %w", err)
 	}
-	defer os.Remove(listPath)
+	defer func() { _ = os.Remove(listPath) }()
 
 	// Build squashfs
 	cmd := exec.CommandContext(ctx, "mksquashfs",

@@ -333,7 +333,9 @@ func (s *Service) RevokeKey(keyID string) error {
 
 	// Cancel any pending grace timer
 	if timer, ok := s.graceTimers.LoadAndDelete(keyID); ok {
-		timer.(*time.Timer).Stop()
+		if t, ok := timer.(*time.Timer); ok {
+			t.Stop()
+		}
 	}
 
 	s.log.Warn().

@@ -10,6 +10,7 @@ package gungnir
 import (
 	"crypto/sha256"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
@@ -58,9 +59,13 @@ func NewSigner(priv *mldsa65.PrivateKey) (*Signer, error) {
 	if priv == nil {
 		return nil, errors.New("gungnir: nil private key")
 	}
+	pub, ok := priv.Public().(*mldsa65.PublicKey)
+	if !ok {
+		return nil, fmt.Errorf("gungnir: private key Public() did not return *mldsa65.PublicKey (got %T)", priv.Public())
+	}
 	return &Signer{
 		priv:  priv,
-		pub:   priv.Public().(*mldsa65.PublicKey),
+		pub:   pub,
 		keyID: "dev-spike",
 	}, nil
 }

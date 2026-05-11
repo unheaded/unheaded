@@ -832,6 +832,6 @@ func (s *Scraper) RegisterKingdomServices(overrides map[string]string) {
 				"instance": hostPort,
 			},
 		}
-		s.RegisterTarget(target)
+		_ = s.RegisterTarget(target)
 	}
 }

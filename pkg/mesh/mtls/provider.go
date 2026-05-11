@@ -352,7 +352,11 @@ func (p *Provider) generateServiceCertificate() error {
 
 	signingCert, _ := p.localCA.GetCertificate()
 	signingKey := p.localCA.GetSigningKey()
-	certMgr := NewCertificateManager(signingCert, signingKey.(crypto.Signer))
+	signer, ok := signingKey.(crypto.Signer)
+	if !ok {
+		return fmt.Errorf("local CA signing key does not implement crypto.Signer (got %T)", signingKey)
+	}
+	certMgr := NewCertificateManager(signingCert, signer)
 
 	cert, key, err := certMgr.GenerateCertificate(certConfig)
 	if err != nil {

@@ -12,6 +12,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"math/big"
 	"net"
 	"net/url"
@@ -154,7 +155,11 @@ func (cm *CertificateManager) SetCertificate(cert *x509.Certificate, key crypto.
 		Bytes: cert.Raw,
 	})
 
-	keyDER, err := x509.MarshalECPrivateKey(key.(*ecdsa.PrivateKey))
+	ecKey, ok := key.(*ecdsa.PrivateKey)
+	if !ok {
+		return fmt.Errorf("mtls/certs: key is not ECDSA (got %T)", key)
+	}
+	keyDER, err := x509.MarshalECPrivateKey(ecKey)
 	if err != nil {
 		return err
 	}

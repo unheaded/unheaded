@@ -135,7 +135,7 @@ func (h *DoomHandler) HandleScreen(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Length", fmt.Sprintf("%d", len(screenData)))
 	w.Header().Set("X-Screen-Width", fmt.Sprintf("%d", ScreenWidth))
 	w.Header().Set("X-Screen-Height", fmt.Sprintf("%d", ScreenHeight))
-	w.Write(screenData)
+	_, _ = w.Write(screenData)
 }
 
 // HandleStatus handles GET /doom/status.

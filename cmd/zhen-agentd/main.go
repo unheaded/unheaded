@@ -900,7 +900,7 @@ func pingHTTP(ctx context.Context, c *http.Client, endpoint string) bool {
 		return false
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
+	_, _ = io.Copy(io.Discard, resp.Body)
 	return resp.StatusCode == 200
 }
 

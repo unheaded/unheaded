@@ -179,7 +179,7 @@ func (c *ReplicationClient) Ping(ctx context.Context) (*chatpb.ReplicationPongRe
 // disconnect closes the gRPC connection.
 func (c *ReplicationClient) disconnect() {
 	if c.conn != nil {
-		c.conn.Close()
+		_ = c.conn.Close()
 		c.conn = nil
 		c.client = nil
 	}

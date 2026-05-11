@@ -189,7 +189,7 @@ func (m *Manager) WrapConn(conn net.Conn) (*tls.Conn, error) {
 	tlsConn := tls.Server(conn, config)
 
 	if err := tlsConn.Handshake(); err != nil {
-		tlsConn.Close()
+		_ = tlsConn.Close()
 		return nil, err
 	}
 

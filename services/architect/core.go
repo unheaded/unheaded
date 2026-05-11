@@ -250,7 +250,7 @@ func (s *ArchitectService) publishStateChange(ctx context.Context, eventType str
 	// Extract trace_id from context if available
 	traceID := ""
 	if tid := ctx.Value("trace_id"); tid != nil {
-		traceID = tid.(string)
+		traceID, _ = tid.(string)
 	}
 	if traceID == "" {
 		traceID = fmt.Sprintf("arch-%d", time.Now().UnixNano())

@@ -431,7 +431,7 @@ func (c *Context) DeleteCookie(name string) {
 // StaticFile serves a single static file
 func StaticFile(path, filepath string) HandlerFunc {
 	return func(c *Context) {
-		c.File(filepath)
+		_ = c.File(filepath)
 	}
 }
 

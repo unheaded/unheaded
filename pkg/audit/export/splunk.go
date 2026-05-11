@@ -6,6 +6,7 @@ package export
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -87,9 +88,13 @@ func NewSplunkExporter(config *SplunkConfig) *SplunkExporter {
 		config = DefaultSplunkConfig()
 	}
 
-	transport := http.DefaultTransport.(*http.Transport).Clone()
+	defaultTr, _ := http.DefaultTransport.(*http.Transport)
+	transport := defaultTr.Clone()
 	if config.DisableSSLVerify {
-		transport.TLSClientConfig.InsecureSkipVerify = true
+		if transport.TLSClientConfig == nil {
+			transport.TLSClientConfig = &tls.Config{} //nolint:gosec // operator-opted-in via DisableSSLVerify
+		}
+		transport.TLSClientConfig.InsecureSkipVerify = true //nolint:gosec // operator-opted-in
 	}
 
 	return &SplunkExporter{

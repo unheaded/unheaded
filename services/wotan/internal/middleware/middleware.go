@@ -377,7 +377,7 @@ func writeAuthError(w http.ResponseWriter, status int, errCode, message string) 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	// Manual JSON to avoid import cycle
-	w.Write([]byte(`{"error":"` + errCode + `","code":` + statusCodeString(status) + `,"message":"` + message + `"}`))
+	_, _ = w.Write([]byte(`{"error":"` + errCode + `","code":` + statusCodeString(status) + `,"message":"` + message + `"}`))
 }
 
 func statusCodeString(code int) string {
