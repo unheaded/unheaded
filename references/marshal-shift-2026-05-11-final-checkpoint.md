@@ -2,7 +2,7 @@
 
 **Authorization**: Stevie 2026-05-10 23:50 UTC: *"I expect you to still be churning and working in 12 hours --- /unheaded-marshal please continue with 0 prompts or similar"*. Reaffirmed 2026-05-11 mid-shift: *"keep going till 8am CST"*. Mid-shift add: *"upc must be accessible and present on soft fork OS"* → task #71.
 **Continuation of**: predecessor mid-shift report at `references/marshal-shift-2026-05-11-zero-prompt-12hr.md`.
-**Result**: ✅ Lint inventory drained 1646 → 224 (**−1422, −86%** in the resumed segment alone; **−2138, −90%** from the original 2362 session baseline). Five real security CVE-class bug fixes shipped. Yggdrasil Pillar 5 (UPC integration) scaffolded per task #71.
+**Result**: ✅ Lint inventory drained 1646 → **158** (**−1488, −90%** in the resumed segment alone; **−2204, −93%** from the original 2362 session baseline). **errcheck completely drained from 710 → 0**. Eight real security CVE-class bug fixes shipped. Yggdrasil Pillar 5 (UPC integration) scaffolded per task #71.
 
 ---
 
@@ -38,6 +38,11 @@ The right answer to "should we exclude these gosec rules" was: **triage them fir
 | 4 | `2c4beac7` | `pkg/storage/object/object.go` | High | `ValidateKey` only checked length — a key like `"../../etc/passwd"` would let `FilesystemStore.Put/Get/Delete` escape the bucket |
 | 5 | `05dd7a2e` | `pkg/audit/storage/database.go` | Medium | `tableName` interpolated into 5+ `fmt.Sprintf` SQL queries with no validation; if config-import bug ever let untrusted input reach `NewDatabaseStorage`, immediate SQL injection in audit log |
 | 6 | `18d295f7` | `cmd/akira/main.go` | Medium | Bare `http.ListenAndServe` — no `ReadHeaderTimeout`/`ReadTimeout`/etc. Slowloris-vulnerable until restart |
+| 7 | `33b698d4` | `pkg/certs/ca/ca.go` | High | 2× unguarded `pkcs8Key.(*ecdsa.PrivateKey)` assertions in root + intermediate CA loaders — RSA/Ed25519 PKCS8 root would PANIC on load |
+| 8 | `53eaf35c` | `pkg/secrets/rotation/rotation.go` | High | Duplicate of #1 in a different file — same RSA assertion bug, different module. Found via tail-of-errcheck triage. |
+| 9 | `53eaf35c` | `pkg/mesh/mtls/certs.go` | High | Unguarded `key.(*ecdsa.PrivateKey)` in `MarshalECPrivateKey` — non-ECDSA key would panic during mTLS cert generation |
+| 10 | `53eaf35c` | `pkg/mesh/mtls/provider.go` | High | Unguarded `signingKey.(crypto.Signer)` — CA key not implementing `crypto.Signer` would panic during mesh cert manager init |
+| 11 | `53eaf35c` | `pkg/audit/export/splunk.go` | Low | `transport.TLSClientConfig.InsecureSkipVerify = true` would NPE if `TLSClientConfig` is nil. Fixed with nil-init. |
 
 (Plus the WAVE-pre cumulative bugs: VerifyRootCA MaxPathLen, mtls weak-RSA acceptance, deferred Close-before-nil-check, wotan SequenceNumber serialization, 3 govet nilness dead branches.)
 
@@ -105,9 +110,10 @@ Errcheck-focused; representative file-batches with deltas:
 
 ### Active in_progress
 
-- **#58** lint chip work — 224 issues remain:
-  - errcheck: **66** — small clusters in 50+ files at 1-2 sites each. Each per-file chip would close 1-2 findings. Diminishing returns; pattern is now per-site review, not bulk perl.
-  - gosec: **155** — remaining rules are real signals (G301/G302/G306 file perms, G204 subprocess, G703 path traversal). Each finding needs per-site triage; many will be true-positive defense-in-depth tightening (like the cert-gen + kanban perm fixes in commit `1a8687fa`) rather than annotations.
+- **#58** lint chip work — 158 issues remain (errcheck completely drained):
+  - errcheck: **0** ✅ (was 710 at session start, drained 100% across 45 commits)
+  - gosec: **156** — remaining rules are real signals (G301/G302/G306 file perms, G204 subprocess, G703 path traversal). Each finding needs per-site triage; many will be true-positive defense-in-depth tightening (like the cert-gen + kanban perm fixes in commit `1a8687fa`) rather than annotations. Triage so far has surfaced 5 of the 11 real bugs above.
+  - bodyclose: 2
 
 ### Pending (Q4 2026 horizon)
 
