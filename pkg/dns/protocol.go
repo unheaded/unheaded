@@ -309,7 +309,7 @@ func packName(buf *bytes.Buffer, name string, offsets map[string]uint16) error {
 	// Check for existing compression pointer
 	if offset, ok := offsets[name]; ok {
 		ptr := 0xC000 | offset
-		binary.Write(buf, binary.BigEndian, uint16(ptr))
+		_ = binary.Write(buf, binary.BigEndian, uint16(ptr))
 		return nil
 	}
 
@@ -331,7 +331,7 @@ func packName(buf *bytes.Buffer, name string, offsets map[string]uint16) error {
 		if i > 0 {
 			if offset, ok := offsets[suffix]; ok {
 				ptr := 0xC000 | offset
-				binary.Write(buf, binary.BigEndian, uint16(ptr))
+				_ = binary.Write(buf, binary.BigEndian, uint16(ptr))
 				return nil
 			}
 			offsets[suffix] = uint16(buf.Len())

@@ -175,7 +175,7 @@ func (c *Checker) readyHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("OK"))
+	_, _ = w.Write([]byte("OK"))
 }
 
 func (c *Checker) metricsHandler(w http.ResponseWriter, r *http.Request) {
@@ -251,7 +251,7 @@ func main() {
 		<-sigChan
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
-		server.Shutdown(ctx)
+		_ = server.Shutdown(ctx)
 	}()
 
 	log.Printf("Starting routing-health server on %s", addr)

@@ -184,10 +184,10 @@ func (e *EmailChannel) sendMail(ctx context.Context, msg []byte) error {
 
 	client, err := smtp.NewClient(conn, e.config.SMTPHost)
 	if err != nil {
-		conn.Close()
+		_ = conn.Close()
 		return fmt.Errorf("failed to create SMTP client: %w", err)
 	}
-	defer client.Close()
+	defer func() { _ = client.Close() }()
 
 	// Start TLS if required
 	if e.config.RequireTLS {

@@ -175,7 +175,7 @@ func (s *Store) SeedIfEmpty() (int, error) {
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`)
 	if err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		return 0, fmt.Errorf("prepare seed statement: %w", err)
 	}
 	defer stmt.Close()
@@ -195,7 +195,7 @@ func (s *Store) SeedIfEmpty() (int, error) {
 			createdAt,
 			updatedAt,
 		); err != nil {
-			tx.Rollback()
+			_ = tx.Rollback()
 			return 0, fmt.Errorf("seed task %s: %w", task.ID, err)
 		}
 	}

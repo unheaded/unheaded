@@ -71,7 +71,7 @@ func parseModelKeys(scriptPath string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("open switch-model.sh: %w", err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	keyLine := regexp.MustCompile(`^MODEL_FILE\[([a-z0-9][a-z0-9-]*)\]=`)
 	var keys []string
@@ -110,7 +110,7 @@ func hashFile(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	h := sha256.New()
 	buf := make([]byte, 64*1024)
 	for {

@@ -131,7 +131,7 @@ func (h *Handlers) handleVerify(w http.ResponseWriter, r *http.Request) {
 			WithSigRef(req.SigRef).
 			WithKeyRef(req.KeyRef).
 			WithTier(uint8(result.Tier))
-		h.publisher.PublishVerified(evt)
+		_ = h.publisher.PublishVerified(evt)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -181,7 +181,7 @@ func (h *Handlers) handleVerifySovereign(w http.ResponseWriter, r *http.Request)
 			WithTier(uint8(policy.TierSovereign)).
 			WithDetail("valid_count", resp.ValidCount).
 			WithDetail("distinct_families", resp.DistinctFamilies)
-		h.publisher.PublishSovereign(evt)
+		_ = h.publisher.PublishSovereign(evt)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
