@@ -122,6 +122,16 @@ linters:
           - errcheck
           - gosec
 
+      # govet's `unusedwrite` analyzer flags test fixtures that set
+      # struct fields without reading them — intentional test scaffolding,
+      # not a real bug. Filter ONLY this analyzer in test files; keep the
+      # rest of govet (nilness, copylocks, etc.) active so it can still
+      # catch real bugs in test setup code.
+      - path: _test\.go
+        linters:
+          - govet
+        text: "unusedwrite:"
+
       # Generated protobuf files
       - path: \.pb\.go
         linters:
