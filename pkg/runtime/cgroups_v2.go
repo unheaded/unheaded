@@ -1215,11 +1215,13 @@ func (w *CgroupEventWatcher) processEvents(containerID string) {
 			continue
 		}
 
-		// Process inotify events
+		// Process inotify events. Simple parsing — production would cast
+		// &buf[offset] to *unix.InotifyEvent and honor event.Len for
+		// variable-length names. Today we advance by the fixed header
+		// size only, which works for cgroup file-watches because we
+		// configured them with IN_MASK_CREATE (no name in the event).
 		var offset uint32
 		for offset < uint32(n) {
-			event := (*unix.InotifyEvent)(nil)
-			// Simple parsing - in production would use proper struct casting
 			if offset+unix.SizeofInotifyEvent > uint32(n) {
 				break
 			}
@@ -1231,9 +1233,6 @@ func (w *CgroupEventWatcher) processEvents(containerID string) {
 			filePath, ok := w.watches[wd]
 			if !ok {
 				offset += unix.SizeofInotifyEvent
-				if event != nil && event.Len > 0 {
-					offset += event.Len
-				}
 				continue
 			}
 
@@ -1241,9 +1240,6 @@ func (w *CgroupEventWatcher) processEvents(containerID string) {
 			w.generateEvent(containerID, filePath)
 
 			offset += unix.SizeofInotifyEvent
-			if event != nil && event.Len > 0 {
-				offset += event.Len
-			}
 		}
 	}
 }

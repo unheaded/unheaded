@@ -531,7 +531,6 @@ func (r *SSHKeyRotator) Rotate(ctx context.Context, current *secrets.Secret, con
 	}
 
 	var privateKey, publicKey []byte
-	var err error
 
 	switch keyType {
 	case "ed25519":
@@ -587,10 +586,6 @@ func (r *SSHKeyRotator) Rotate(ctx context.Context, current *secrets.Secret, con
 
 	default:
 		return nil, fmt.Errorf("unsupported key type: %s", keyType)
-	}
-
-	if err != nil {
-		return nil, err
 	}
 
 	newSecret.Data["private"] = privateKey
