@@ -1,0 +1,38 @@
+# crates/upc-bootstub — Stage-1 boot stub for uClinux + full Linux on UPC.
+#
+# Authored as P0 scaffolding for ASCEND-LINUX Phase 2 (task #63 closure).
+# The Phase 1.1 xv6 boot path inlined its stage-1 work into start_mbc.c
+# because xv6 prints its banner BEFORE any BSS-dependent path executes
+# (see crates/xv6-mbc/TRANSLATOR_EXTENSIONS.md §"Phase 1.1 SHIP decisions"
+# for the rationale). uClinux / Linux 6.x cannot do that — they require:
+#
+#   (a) full BSS zero-fill before start_kernel(),
+#   (b) clean M-mode -> S-mode transition at the kernel-elf entry point,
+#   (c) initramfs CPIO unpack to a known address in RAM_MAP,
+#   (d) cmdline parse + handoff via BootParamsV2.
+#
+# This crate is the home of those four operations. At Phase 2 build time
+# the C source under src/ is compiled into a standalone MBC bytecode
+# image (upc-bootstub.mbc) that uclinux-mbc and (later) linux-mbc place
+# at byte 0x00010000 — the same slot start_mbc.c occupies for xv6.
+#
+# This Cargo.toml is the Rust workspace stub that locates the artifact
+# for cmd/upc-bootctl, mirroring the shape of crates/xv6-mbc/Cargo.toml.
+#
+# License: GPL-3.0-or-later (this Cargo.toml + lib + C source).
+# C source links no third-party code; relies only on the MBC ABI v2
+# defined in ADR-067 + UPC Boot Protocol v2 (docs/doom/UPC_BOOT_PROTOCOL_V2.md).
+
+[package]
+name = "upc-bootstub"
+version = "0.1.0"
+edition = "2021"
+authors = ["Unheaded Kingdom Infrastructure Team"]
+description = "Stage-1 boot stub for uClinux + Linux on UPC (ASCEND-LINUX Phase 2)"
+license = "GPL-3.0-or-later"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
