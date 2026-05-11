@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Subject: sshd hardening — disable root login, password auth, weak ciphers
+# Reason: CIS Debian 12 §5.2 (SSH server configuration) requires
+#         PermitRootLogin=no, PasswordAuthentication=no, MaxAuthTries<=4,
+#         and a constrained Ciphers/MACs/KexAlgorithms list. Upstream
+#         Debian ships PermitRootLogin=prohibit-password and
+#         PasswordAuthentication=yes which fail CIS §5.2.7 and §5.2.10.
+# Upstream-status: Discussed upstream periodically; rejected because the
+#                  default ships need to support upgrades from older systems
+#                  that may have password-only auth. Yggdrasil targets a
+#                  fresh-install profile so the harder default is appropriate.
+# Authored: 2026-05-11 by unheaded-architect
+
+# Status: SAMPLE — illustrative format. Real Phase 1 work (task #65) layers
+# on the FIPS 140-3 cipher list when SELinux policy port (task #66) lands.
+
+--- a/etc/ssh/sshd_config.d/99-yggdrasil-hardening.conf
++++ b/etc/ssh/sshd_config.d/99-yggdrasil-hardening.conf
+@@ -0,0 +1,30 @@
++# Yggdrasil sshd hardening — CIS Debian 12 §5.2 baseline.
++# Loaded after the default sshd_config; later directives win.
++
++# CIS §5.2.7 — disable root login entirely (use sudo from operator account).
++PermitRootLogin no
++
++# CIS §5.2.10 — public-key only; passwords vulnerable to brute force.
++PasswordAuthentication no
++ChallengeResponseAuthentication no
++KbdInteractiveAuthentication no
++UsePAM yes
++
++# CIS §5.2.5 — fail-fast on credential probing.
++MaxAuthTries 4
++LoginGraceTime 60
++
++# CIS §5.2.13 — constrained algorithm list (FIPS 140-3 alignment).
++Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
++MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com
++KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
++
++# CIS §5.2.20 — disable X11 forwarding (we don't run X on Yggdrasil servers).
++X11Forwarding no
++
++# CIS §5.2.22 — explicit AllowGroups restricts SSH to a designated group.
++AllowGroups yggdrasil-ssh
++
++# Idle session limits (CIS §5.2.16-17).
++ClientAliveInterval 300
++ClientAliveCountMax 0

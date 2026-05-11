@@ -5,11 +5,15 @@
 # applied via `quilt push -a`. This file lists patches in apply order.
 #
 # Format: NNNN-short-description.patch (one per line, in numeric order).
-# Empty during P0 scaffolding; populated as Phase 1 (task #65) lands the
-# CIS/STIG hardening rules and the Kingdom-specific configs.
+# Sample patches authored 2026-05-11 to illustrate the discipline shape.
+# Phase 1 (task #65) replaces these with the full CIS-mapped overlay set.
 #
 # Discipline gates (per OS-FORK-DISCIPLINE.md §8 + §"Pillar 4 — Divergence budget"):
 #   - patch count <= 50
 #   - total LOC delta <= 5,000
 #   - no upstream file with > 3 patches against it
 #   - every patch has SPDX + Subject/Reason/Upstream-status/Authored headers
+
+0001-sysctl-kernel-hardening.patch
+0002-sshd-config-hardening.patch
+0003-disable-unused-services.patch
