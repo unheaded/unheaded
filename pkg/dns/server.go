@@ -312,7 +312,7 @@ func (s *Server) serveTCP() {
 				s.handleTCP(conn)
 			}()
 		default:
-			conn.Close()
+			_ = conn.Close()
 		}
 	}
 }
@@ -412,17 +412,17 @@ func (s *Server) Stop() error {
 	close(s.shutdown)
 
 	if s.udpListener != nil {
-		s.udpListener.Close()
+		_ = s.udpListener.Close()
 	}
 
 	if s.tcpListener != nil {
-		s.tcpListener.Close()
+		_ = s.tcpListener.Close()
 	}
 
 	s.wg.Wait()
 	s.running.Store(false)
 
-	s.resolver.Close()
+	_ = s.resolver.Close()
 
 	return nil
 }

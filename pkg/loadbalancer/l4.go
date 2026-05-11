@@ -167,7 +167,7 @@ func (p *L4Proxy) acceptTCP() {
 		// Check connection limits
 		if p.config.Limits.MaxConnections > 0 {
 			if atomic.LoadInt64(&p.activeConns) >= int64(p.config.Limits.MaxConnections) {
-				conn.Close()
+				_ = conn.Close()
 				atomic.AddInt64(&p.droppedConns, 1)
 				continue
 			}
@@ -247,8 +247,8 @@ func (p *L4Proxy) handleTCP(clientConn net.Conn) {
 	<-done
 
 	// Close connections to trigger other goroutine to finish
-	clientConn.Close()
-	backendConn.Close()
+	_ = clientConn.Close()
+	_ = backendConn.Close()
 
 	// Wait for second direction
 	<-done
@@ -304,7 +304,7 @@ func (p *L4Proxy) dialBackend(ctx context.Context, backend *Backend) (net.Conn, 
 	if backend.tlsConfig != nil {
 		tlsConn := tls.Client(conn, backend.tlsConfig)
 		if err := tlsConn.HandshakeContext(ctx); err != nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil, err
 		}
 		return tlsConn, nil
@@ -473,11 +473,11 @@ func (p *L4Proxy) Stop() error {
 	close(p.stopCh)
 
 	if p.tcpListener != nil {
-		p.tcpListener.Close()
+		_ = p.tcpListener.Close()
 	}
 
 	if p.udpConn != nil {
-		p.udpConn.Close()
+		_ = p.udpConn.Close()
 	}
 
 	// Wait for drain timeout
@@ -709,7 +709,7 @@ func NewPortRangeListener(host string, startPort, endPort int) (*PortRangeListen
 		listener, err := net.Listen("tcp", addr)
 		if err != nil {
 			// Close already opened listeners
-			prl.Close()
+			_ = prl.Close()
 			return nil, fmt.Errorf("listen on %s: %w", addr, err)
 		}
 		prl.listeners = append(prl.listeners, listener)
@@ -728,7 +728,7 @@ func NewPortRangeListener(host string, startPort, endPort int) (*PortRangeListen
 				select {
 				case prl.acceptCh <- conn:
 				case <-prl.stopCh:
-					conn.Close()
+					_ = conn.Close()
 					return
 				}
 			}
@@ -754,7 +754,7 @@ func (prl *PortRangeListener) Accept() (net.Conn, error) {
 func (prl *PortRangeListener) Close() error {
 	close(prl.stopCh)
 	for _, l := range prl.listeners {
-		l.Close()
+		_ = l.Close()
 	}
 	return nil
 }
