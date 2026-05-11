@@ -253,7 +253,9 @@ func main() {
 		})
 		addr := fmt.Sprintf(":%d", *listenPort)
 		log.Info().Str("addr", addr).Msg("Akira HTTP API listening")
-		http.ListenAndServe(addr, mux)
+		if err := http.ListenAndServe(addr, mux); err != nil && err != http.ErrServerClosed {
+			log.Error().Err(err).Msg("Akira HTTP API listen failed")
+		}
 	}()
 
 	// Daemon mode — run until signal

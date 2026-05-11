@@ -97,9 +97,12 @@ func (ls *LogStream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	})
 	for _, entry := range recent {
 		data, _ := json.Marshal(entry)
-		w.Write([]byte("data: "))
-		w.Write(data)
-		w.Write([]byte("\n\n"))
+		// Best-effort SSE writes — client disconnect mid-stream is normal
+		// and not actionable; rely on flusher.Flush failure or the next
+		// Write returning err to detect disconnect.
+		_, _ = w.Write([]byte("data: "))
+		_, _ = w.Write(data)
+		_, _ = w.Write([]byte("\n\n"))
 	}
 	flusher.Flush()
 
