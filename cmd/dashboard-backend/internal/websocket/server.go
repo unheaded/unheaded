@@ -8,7 +8,7 @@ package websocket
 import (
 	"bufio"
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" //nolint:gosec // RFC 6455 §4.2.2 mandates SHA-1 for WebSocket handshake
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"

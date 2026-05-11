@@ -125,7 +125,7 @@ func (x *XDPSync) Start(ctx context.Context) error {
 	ln, err := net.Listen("tcp", addr)
 	if err != nil {
 		// Fallback to any available port.
-		ln, err = net.Listen("tcp", ":0")
+		ln, err = net.Listen("tcp", ":0") //nolint:gosec // intentional bind-to-all fallback for test infra; production sets a fixed addr
 		if err != nil {
 			return fmt.Errorf("xdpsync: listen: %w", err)
 		}

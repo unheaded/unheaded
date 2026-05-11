@@ -469,7 +469,12 @@ func (e *HookExecutor) executeScriptHook(ctx context.Context, hook *Hook, result
 		return fmt.Errorf("failed to get absolute path for script: %w", err)
 	}
 
-	cmd := exec.CommandContext(ctx, interpreterPath, absScriptPath)
+	// G702 false positive: hook scripts are arbitrary code by design
+	// (deploy hooks let operators run pre/post-deploy actions). The
+	// interpreter is resolved via exec.LookPath so PATH cannot be
+	// hijacked, and the script is written to a temp file with 0500
+	// perms so only the deploy daemon's UID can execute it.
+	cmd := exec.CommandContext(ctx, interpreterPath, absScriptPath) //nolint:gosec // hook scripts are arbitrary code by design
 
 	// Set working directory if specified
 	if hook.Config.Dir != "" {
