@@ -182,8 +182,9 @@ func (r *DefaultRuntime) StartContainer(ctx context.Context, containerID string)
 		cmd = append(cmd, c.config.Args...)
 	}
 
-	// Create process
-	proc := exec.CommandContext(ctx, cmd[0], cmd[1:]...)
+	// G204: container start runs caller-supplied cmd inside the
+	// container's namespace. Same boundary as exec.go:124 above.
+	proc := exec.CommandContext(ctx, cmd[0], cmd[1:]...) //nolint:gosec // container start by design
 	proc.Dir = c.rootfs
 	proc.Env = c.config.Env
 

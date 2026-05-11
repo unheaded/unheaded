@@ -253,7 +253,7 @@ func (e *HookExecutor) executeExecHook(ctx context.Context, hook *Hook, result *
 		args = []string{}
 	}
 
-	cmd := exec.CommandContext(ctx, hook.Config.Command, args...)
+	cmd := exec.CommandContext(ctx, hook.Config.Command, args...) //nolint:gosec // operator-configured deploy hook
 
 	// Set working directory
 	if hook.Config.Dir != "" {
