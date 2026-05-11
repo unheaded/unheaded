@@ -452,11 +452,11 @@ func newNetworkInspectCommand() *Command {
 			w := ctx.Output
 			color := w.Color()
 
-			w.WriteStringln(output.Bold("Network Overview"))
-			w.WriteStringln("")
+			_ = w.WriteStringln(output.Bold("Network Overview"))
+			_ = w.WriteStringln("")
 
 			// Bridge info
-			w.WriteStringln(output.Bold("Bridge Configuration:"))
+			_ = w.WriteStringln(output.Bold("Bridge Configuration:"))
 			kv := output.NewKeyValueTable(w.Out()).SetColor(color).SetIndent(2)
 			kv.Add("Name", "lxdbr0")
 			kv.Add("IPv4 Address", "10.10.10.1")
@@ -466,8 +466,8 @@ func newNetworkInspectCommand() *Command {
 			kv.AddWithStatus("Status", "Active")
 			kv.Render()
 
-			w.WriteStringln("")
-			w.WriteStringln(output.Bold("Key Endpoints:"))
+			_ = w.WriteStringln("")
+			_ = w.WriteStringln(output.Bold("Key Endpoints:"))
 
 			endpoints := output.NewTable(w.Out()).SetColor(color)
 			endpoints.SetHeaders("SERVICE", "IP", "PORT", "STATUS")
@@ -479,8 +479,8 @@ func newNetworkInspectCommand() *Command {
 			endpoints.AddRow("Architect", "localhost", "19001", output.StatusOutput{Status: "Pending"}.Colorize(color))
 			endpoints.Render()
 
-			w.WriteStringln("")
-			w.WriteStringln(output.Bold("Firewall Rules:"))
+			_ = w.WriteStringln("")
+			_ = w.WriteStringln(output.Bold("Firewall Rules:"))
 			rules := output.NewListTable(w.Out()).SetColor(color).SetBullet(string(output.IconTriangle))
 			rules.Add("ALLOW internal (10.10.10.0/24) -> all")
 			rules.Add("ALLOW external -> gateway:21443 (TLS)")
@@ -491,8 +491,8 @@ func newNetworkInspectCommand() *Command {
 
 			if len(args) > 0 {
 				container := args[0]
-				w.WriteStringln("")
-				w.WriteStringln(output.Bold(fmt.Sprintf("Container Network: %s", container)))
+				_ = w.WriteStringln("")
+				_ = w.WriteStringln(output.Bold(fmt.Sprintf("Container Network: %s", container)))
 				w.WriteInfo("Container-specific network info not yet implemented")
 			}
 
