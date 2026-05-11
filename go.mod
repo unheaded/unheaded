@@ -1,6 +1,6 @@
 module unheaded
 
-go 1.24.0
+go 1.25.0
 
 // 2026-05-08 (govulncheck closure): toolchain pinned to 1.25.10 to close
 // the bulk of the kingdom-wide standard-library vulnerabilities surfaced
@@ -26,9 +26,9 @@ require (
 	github.com/sony/gobreaker v0.5.0
 	github.com/unheaded/doomgeneric v0.0.0
 	github.com/yuin/goldmark v1.7.16
-	golang.org/x/crypto v0.46.0
-	golang.org/x/sys v0.40.0
-	golang.org/x/text v0.32.0
+	golang.org/x/crypto v0.50.0
+	golang.org/x/sys v0.43.0
+	golang.org/x/text v0.36.0
 	golang.org/x/time v0.5.0
 	google.golang.org/grpc v1.79.3
 	google.golang.org/protobuf v1.36.10
@@ -55,7 +55,7 @@ require (
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
-	golang.org/x/net v0.48.0 // indirect
+	golang.org/x/net v0.53.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
 	modernc.org/libc v1.67.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
