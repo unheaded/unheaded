@@ -1,0 +1,104 @@
+#!/bin/bash
+# yggdrasil-doctor-upc — Preflight self-check for UPC on Yggdrasil.
+#
+# Task #71. Run as `yggdrasil-doctor upc` (the doctor wrapper dispatches
+# to the matching subcommand script in /usr/lib/yggdrasil/doctor/).
+#
+# Exit codes:
+#   0  all green
+#   1  one or more checks failed (details on stderr)
+#   2  prerequisite missing (kernel too old, BPF unsupported, etc.)
+#
+# Free to use. Free to share.
+
+set -u
+
+GREEN=$'\033[0;32m'
+RED=$'\033[0;31m'
+YELLOW=$'\033[0;33m'
+NC=$'\033[0m'
+
+pass() { printf "  %sPASS%s  %s\n" "$GREEN" "$NC" "$1"; }
+fail() { printf "  %sFAIL%s  %s\n" "$RED" "$NC" "$1" >&2; FAILED=1; }
+warn() { printf "  %sWARN%s  %s\n" "$YELLOW" "$NC" "$1"; }
+
+FAILED=0
+
+echo "=== yggdrasil-doctor upc ==="
+echo
+
+echo "[1/8] Kernel version"
+KVER=$(uname -r)
+KMAJ=$(echo "$KVER" | cut -d. -f1)
+KMIN=$(echo "$KVER" | cut -d. -f2)
+if [ "$KMAJ" -ge 6 ] && [ "$KMIN" -ge 1 ]; then
+  pass "kernel $KVER >= 6.1 (BPF features available)"
+else
+  fail "kernel $KVER too old (need >= 6.1 for verifier features)"
+  exit 2
+fi
+
+echo "[2/8] BPF subsystem"
+if [ -d /sys/fs/bpf ]; then
+  pass "/sys/fs/bpf mounted"
+else
+  fail "/sys/fs/bpf NOT mounted (need bpffs)"
+fi
+
+echo "[3/8] XDP support"
+if [ -e /sys/class/net/lo/xdp ] || command -v ip &>/dev/null && ip link show lo &>/dev/null; then
+  pass "XDP attach point reachable"
+else
+  warn "XDP attach point not visible — generic XDP may still work"
+fi
+
+echo "[4/8] upc-bootctl"
+if command -v upc-bootctl &>/dev/null; then
+  pass "upc-bootctl on PATH at $(command -v upc-bootctl)"
+else
+  fail "upc-bootctl NOT installed"
+fi
+
+echo "[5/8] upc-tty-bridge"
+if command -v upc-tty-bridge &>/dev/null; then
+  pass "upc-tty-bridge on PATH at $(command -v upc-tty-bridge)"
+else
+  fail "upc-tty-bridge NOT installed"
+fi
+
+echo "[6/8] upc-tty-bridge service"
+if systemctl is-enabled upc-tty-bridge.service &>/dev/null; then
+  pass "upc-tty-bridge.service enabled"
+else
+  fail "upc-tty-bridge.service NOT enabled"
+fi
+if systemctl is-active upc-tty-bridge.service &>/dev/null; then
+  pass "upc-tty-bridge.service active"
+else
+  fail "upc-tty-bridge.service NOT active"
+fi
+
+echo "[7/8] BPF object"
+if [ -f /opt/unheaded/share/monad-cpu-ebpf.o ]; then
+  SIZE=$(stat -c%s /opt/unheaded/share/monad-cpu-ebpf.o)
+  pass "monad-cpu-ebpf.o present ($SIZE bytes)"
+else
+  fail "monad-cpu-ebpf.o NOT installed at /opt/unheaded/share/"
+fi
+
+echo "[8/8] Mode A demo health"
+if curl -fsS -m 2 http://127.0.0.1:26100/healthz >/dev/null 2>&1; then
+  pass "tty-bridge responds on http://127.0.0.1:26100/healthz"
+else
+  fail "tty-bridge healthz unreachable on 127.0.0.1:26100"
+fi
+
+echo
+if [ "$FAILED" -eq 0 ]; then
+  echo "${GREEN}All checks passed.${NC} UPC is ready."
+  echo "Try: upc-bootctl boot --kernel /opt/unheaded/share/xv6-mbc.mbc --instance 222"
+  exit 0
+else
+  echo "${RED}One or more checks failed.${NC} Fix above and re-run."
+  exit 1
+fi

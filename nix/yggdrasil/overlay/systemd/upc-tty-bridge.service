@@ -1,0 +1,36 @@
+[Unit]
+Description=Unheaded Protocol Computer — TTY Bridge (Mode A demo surface)
+Documentation=https://unheaded.dev/docs/upc-tty-bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/upc-tty-bridge --listen 127.0.0.1:26100 --static /opt/unheaded/share
+Restart=on-failure
+RestartSec=5s
+User=upc
+Group=upc
+
+# Hardening (CIS-aligned)
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+ReadOnlyPaths=/opt/unheaded/share
+CapabilityBoundingSet=
+
+[Install]
+WantedBy=multi-user.target

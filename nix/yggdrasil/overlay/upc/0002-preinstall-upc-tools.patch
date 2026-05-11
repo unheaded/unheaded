@@ -1,0 +1,32 @@
+From 0000000000000000000000000000000000000002 Mon Sep 17 00:00:00 2001
+From: Yggdrasil UPC Overlay <yggdrasil@unheaded.dev>
+Date: Sun, 11 May 2026 00:00:00 +0000
+Subject: [PATCH 2/2] preinstall upc-* packages as Required
+
+The packer build (nix/yggdrasil/packer/template.pkr.hcl) consumes this
+list and emits an `apt-get install -y` line in the provision phase. The
+"Required" priority means apt won't allow these to be removed without
+forcing.
+
+Task #71 — UPC accessible & present on Yggdrasil.
+
+---
+ etc/yggdrasil/required-packages.d/upc.list | 7 +++++++
+ 1 file changed, 7 insertions(+)
+ create mode 100644 etc/yggdrasil/required-packages.d/upc.list
+
+diff --git a/etc/yggdrasil/required-packages.d/upc.list b/etc/yggdrasil/required-packages.d/upc.list
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/etc/yggdrasil/required-packages.d/upc.list
+@@ -0,0 +1,7 @@
++# Yggdrasil — UPC required packages
++# Installed at image-build time. Cannot be removed without `apt --force`.
++upc-bootctl
++upc-tty-bridge
++monad-cpu-ebpf
++unheaded-shared
++unheaded-runner
+--
+2.43.0
