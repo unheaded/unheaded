@@ -299,7 +299,7 @@ func NewPersistentQueue(path string, capacity int) (*PersistentQueue, error) {
 
 	// Create directory if it doesn't exist
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return nil, err
 	}
 
@@ -363,7 +363,7 @@ func (pq *PersistentQueue) save() error {
 		return err
 	}
 
-	return os.WriteFile(pq.path, data, 0644)
+	return os.WriteFile(pq.path, data, 0640)
 }
 
 // load restores the queue from disk.

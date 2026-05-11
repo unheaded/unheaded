@@ -118,7 +118,7 @@ func New(cfg Config) (*WAL, error) {
 	}
 
 	// Create directory
-	if err := os.MkdirAll(cfg.Path, 0755); err != nil {
+	if err := os.MkdirAll(cfg.Path, 0750); err != nil {
 		return nil, fmt.Errorf("wal: create directory: %w", err)
 	}
 

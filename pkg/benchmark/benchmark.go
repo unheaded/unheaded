@@ -267,7 +267,7 @@ func (s *BenchmarkSuite) SaveJSON(filename string) error {
 		return fmt.Errorf("marshal results: %w", err)
 	}
 
-	if err := os.WriteFile(filename, data, 0644); err != nil {
+	if err := os.WriteFile(filename, data, 0640); err != nil {
 		return fmt.Errorf("write %s: %w", filename, err)
 	}
 

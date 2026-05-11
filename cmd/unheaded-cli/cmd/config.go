@@ -276,7 +276,7 @@ func newConfigInitCommand() *Command {
 			}
 
 			// Create config directory
-			if err := os.MkdirAll(configDir, 0755); err != nil {
+			if err := os.MkdirAll(configDir, 0750); err != nil {
 				return fmt.Errorf("failed to create config directory: %w", err)
 			}
 

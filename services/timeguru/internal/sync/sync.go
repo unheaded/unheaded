@@ -67,7 +67,7 @@ func NewSyncer(dir string, formats ...Format) (*Syncer, error) {
 		return nil, ErrEmptyDirectory
 	}
 	// Ensure output directory exists
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return nil, fmt.Errorf("create sync directory %s: %w", dir, err)
 	}
 	if len(formats) == 0 {
@@ -103,7 +103,7 @@ func (s *Syncer) Sync(tl *timeline.Timeline) *SyncResult {
 			continue
 		}
 
-		if err := os.WriteFile(path, data, 0644); err != nil {
+		if err := os.WriteFile(path, data, 0640); err != nil {
 			result.Errors = append(result.Errors, fmt.Errorf("write %s: %w", path, err))
 			continue
 		}

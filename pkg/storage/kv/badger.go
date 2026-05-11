@@ -34,7 +34,7 @@ func NewBadgerStore(cfg Config) (*BadgerStore, error) {
 
 	// Ensure path exists
 	if cfg.Path != "" {
-		if err := os.MkdirAll(cfg.Path, 0755); err != nil {
+		if err := os.MkdirAll(cfg.Path, 0750); err != nil {
 			return nil, fmt.Errorf("badger: create directory: %w", err)
 		}
 	}

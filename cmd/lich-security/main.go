@@ -104,9 +104,9 @@ func parseCampaigns(s string) []string {
 func writeReport(path, content string) error {
 	dir := path[:strings.LastIndex(path, "/")]
 	if dir != "" {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			return err
 		}
 	}
-	return os.WriteFile(path, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content), 0640)
 }

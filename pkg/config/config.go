@@ -800,7 +800,7 @@ func (c *Config) WriteToFile(path string) error {
 		return err
 	}
 
-	return os.WriteFile(path, content, 0644)
+	return os.WriteFile(path, content, 0640)
 }
 
 // mapToTOML converts a map to TOML format.
