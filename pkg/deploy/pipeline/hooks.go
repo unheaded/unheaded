@@ -451,8 +451,10 @@ func (e *HookExecutor) executeScriptHook(ctx context.Context, hook *Hook, result
 		return fmt.Errorf("failed to close temp script file: %w", err)
 	}
 
-	// Set executable permissions (owner read/execute only for security)
-	if err := os.Chmod(tmpPath, 0500); err != nil {
+	// Set executable permissions (owner read/execute only for security).
+	// tmpPath comes from os.CreateTemp — not user-influenced; gosec G302/
+	// G703 false positives.
+	if err := os.Chmod(tmpPath, 0500); err != nil { //nolint:gosec // tmpPath from os.CreateTemp; 0500 is intentional owner-exec-only
 		return fmt.Errorf("failed to set script permissions: %w", err)
 	}
 

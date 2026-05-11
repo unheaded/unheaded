@@ -96,7 +96,7 @@ func NewWikiServer(wikiDir string) (*WikiServer, error) {
 		return nil, fmt.Errorf("resolve wiki dir: %w", err)
 	}
 
-	info, err := os.Stat(absDir)
+	info, err := os.Stat(absDir) //nolint:gosec // wikiDir is operator-supplied via CLI flag, not user input
 	if err != nil {
 		return nil, fmt.Errorf("stat wiki dir %s: %w", absDir, err)
 	}
