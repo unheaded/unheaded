@@ -255,17 +255,18 @@ func (p *TOMLParser) advance() rune {
 func (p *TOMLParser) skipWhitespaceAndComments() {
 	for p.pos < len(p.input) {
 		ch := p.peek()
-		if ch == ' ' || ch == '\t' || ch == '\r' {
+		switch ch {
+		case ' ', '\t', '\r':
 			p.advance()
-		} else if ch == '#' {
+		case '#':
 			// Skip comment until end of line
 			for p.pos < len(p.input) && p.peek() != '\n' {
 				p.advance()
 			}
-		} else if ch == '\n' {
+		case '\n':
 			p.advance()
-		} else {
-			break
+		default:
+			return
 		}
 	}
 }
@@ -778,14 +779,16 @@ func (p *TOMLParser) parseOctalNumber(prefix string) (int, error) {
 // parseBinaryNumber parses a binary number.
 func (p *TOMLParser) parseBinaryNumber(prefix string) (int, error) {
 	var sb strings.Builder
+	binLoop:
 	for p.pos < len(p.input) {
 		ch := p.peek()
-		if ch == '0' || ch == '1' {
+		switch ch {
+		case '0', '1':
 			sb.WriteRune(p.advance())
-		} else if ch == '_' {
+		case '_':
 			p.advance()
-		} else {
-			break
+		default:
+			break binLoop
 		}
 	}
 	i, err := strconv.ParseInt(sb.String(), 2, 64)
@@ -981,13 +984,15 @@ func (p *YAMLParser) parseArray(baseIndent int) ([]any, error) {
 // getIndent returns the indentation level of a line.
 func (p *YAMLParser) getIndent(line string) int {
 	count := 0
+indentLoop:
 	for _, ch := range line {
-		if ch == ' ' {
+		switch ch {
+		case ' ':
 			count++
-		} else if ch == '\t' {
+		case '\t':
 			count += 2
-		} else {
-			break
+		default:
+			break indentLoop
 		}
 	}
 	return count
@@ -1161,9 +1166,10 @@ func splitFlow(s string, delim rune) []string {
 			continue
 		}
 
-		if ch == '[' || ch == '{' {
+		switch ch {
+		case '[', '{':
 			depth++
-		} else if ch == ']' || ch == '}' {
+		case ']', '}':
 			depth--
 		}
 

@@ -1402,11 +1402,12 @@ func TestConcurrentSubscribeAndPublish(t *testing.T) {
 			defer wg.Done()
 			for j := 0; j < opsPerGoroutine; j++ {
 				// Mix of reads and writes to exercise locks.
-				if j%3 == 0 {
+				switch j % 3 {
+				case 0:
 					c.GetSubscriber("concurrent")
-				} else if j%3 == 1 {
+				case 1:
 					c.IsApproved("concurrent")
-				} else {
+				default:
 					err := c.Publish(context.Background(), "concurrent", []byte(fmt.Sprintf("msg-%d-%d", id, j)))
 					if err != nil {
 						errs <- err
