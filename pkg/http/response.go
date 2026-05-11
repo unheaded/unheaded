@@ -446,14 +446,24 @@ func Static(prefix, root string) HandlerFunc {
 	fs := http.FileServer(http.Dir(root))
 	handler := http.StripPrefix(prefix, fs)
 
+	absRoot, _ := filepath.Abs(root)
 	return func(c *Context) {
 		// Get the file path
 		path := c.Request.URL.Path
 
-		// Check if file exists
+		// Compute target path and reject any traversal attempt before
+		// touching the filesystem (so NotFound vs FileServer-404 cannot
+		// be used as an existence-disclosure oracle for paths above root).
 		fullPath := filepath.Join(root, strings.TrimPrefix(path, prefix))
+		absFull, err := filepath.Abs(fullPath)
+		if err != nil || !strings.HasPrefix(absFull+string(filepath.Separator), absRoot+string(filepath.Separator)) {
+			_ = c.NotFound()
+			return
+		}
+
+		// Check if file exists
 		if _, err := os.Stat(fullPath); os.IsNotExist(err) {
-			c.NotFound()
+			_ = c.NotFound()
 			return
 		}
 
