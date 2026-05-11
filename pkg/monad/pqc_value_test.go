@@ -28,22 +28,23 @@ func TestMarshalUnmarshalRoundTrip(t *testing.T) {
 }
 
 func TestMarshalSize(t *testing.T) {
-	v := PQCValue{}
-	buf := v.Marshal()
-	if len(buf) != PQCValueSize {
-		t.Fatalf("expected Marshal to produce %d bytes, got %d", PQCValueSize, len(buf))
+	// Marshal returns [PQCValueSize]byte (fixed-size); type system already
+	// guarantees the length. Pin the constant matches the spec instead.
+	if PQCValueSize != 12 {
+		t.Fatalf("PQCValueSize constant should be 12 (per draft-bellis-unheaded-pqc-authentication-00), got %d", PQCValueSize)
 	}
+	v := PQCValue{}
+	_ = v.Marshal()
 }
 
 func TestPseudoHeaderMarshalSize(t *testing.T) {
-	ph := PseudoHeader{}
-	buf := ph.Marshal()
-	if len(buf) != PseudoHeaderSize {
-		t.Fatalf("expected PseudoHeader.Marshal to produce %d bytes, got %d", PseudoHeaderSize, len(buf))
-	}
+	// Marshal returns [PseudoHeaderSize]byte; type guarantees length.
+	// Pin the constant matches the spec.
 	if PseudoHeaderSize != 52 {
 		t.Fatalf("PseudoHeaderSize constant should be 52, got %d", PseudoHeaderSize)
 	}
+	ph := PseudoHeader{}
+	_ = ph.Marshal()
 }
 
 func TestPseudoHeaderMarshalLayout(t *testing.T) {

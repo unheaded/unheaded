@@ -358,7 +358,7 @@ func TestDecoderStreamState(t *testing.T) {
 		t.Errorf("failed to update state: %v", err)
 	}
 
-	hopID, version = ds.GetState()
+	_, version = ds.GetState()
 	if version != 5 {
 		t.Errorf("expected version 5 after update, got %d", version)
 	}

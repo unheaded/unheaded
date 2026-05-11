@@ -540,7 +540,7 @@ func TestFullContainerLifecycle(t *testing.T) {
 	}
 
 	// Restart
-	op, err = m.RestartContainer(ctx, name, false, 30)
+	_, err = m.RestartContainer(ctx, name, false, 30)
 	if err != nil {
 		t.Fatalf("Restart: %v", err)
 	}

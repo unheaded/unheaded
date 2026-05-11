@@ -15,13 +15,15 @@ func TestDeriveFlowSecret(t *testing.T) {
 		srcIP := net.ParseIP("192.168.1.1")
 		dstIP := net.ParseIP("192.168.1.2")
 
+		// DeriveFlowSecret returns [32]byte (fixed-size); the type system
+		// already guarantees length == 32. Assert the value isn't all-zeros
+		// instead — a meaningful contract on the HKDF output.
 		secret, err := DeriveFlowSecret(nodeSecret, flowLabel, srcIP, dstIP)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-
-		if len(secret) != 32 {
-			t.Errorf("expected 32-byte secret, got %d", len(secret))
+		if secret == [32]byte{} {
+			t.Error("DeriveFlowSecret returned all-zero secret; HKDF likely failed silently")
 		}
 	})
 
@@ -133,10 +135,11 @@ func TestHMACCompute(t *testing.T) {
 		var monadHeader [18]byte
 		copy(monadHeader[:], []byte("test-monad-header!"))
 
+		// Compute returns [8]byte (fixed-size); type system guarantees
+		// length == HMACTagSize. Assert non-zero contents instead.
 		tag := computer.Compute(monadHeader)
-
-		if len(tag) != HMACTagSize {
-			t.Errorf("expected tag size %d, got %d", HMACTagSize, len(tag))
+		if tag == [8]byte{} {
+			t.Error("HMAC computer returned all-zero tag")
 		}
 	})
 

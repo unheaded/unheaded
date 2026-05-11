@@ -180,9 +180,8 @@ func TestListener_NoHandler(t *testing.T) {
 	// Should be closed by listener
 	buf := make([]byte, 1)
 	conn.SetReadDeadline(time.Now().Add(time.Second))
-	_, err = conn.Read(buf)
+	_, _ = conn.Read(buf) // err is expected (EOF or connection-closed); we don't assert
 	conn.Close()
-	// err should be EOF or similar - connection closed
 
 	l.Stop()
 }

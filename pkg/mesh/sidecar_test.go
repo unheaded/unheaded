@@ -373,7 +373,9 @@ func TestTracing(t *testing.T) {
 	tracer := observe.NewTracer("test-service", 1.0, exporter)
 
 	ctx := context.Background()
-	span, ctx := tracer.StartSpan(ctx, "test-operation")
+	// StartSpan returns (span, derived_ctx). The derived ctx isn't used
+	// downstream in this test (no child operation); discard it.
+	span, _ := tracer.StartSpan(ctx, "test-operation")
 
 	span.SetTag("key", "value")
 	span.Log(map[string]string{"event": "test"})

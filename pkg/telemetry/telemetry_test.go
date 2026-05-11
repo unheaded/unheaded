@@ -1755,7 +1755,9 @@ func TestHTTPMiddleware_Simulation(t *testing.T) {
 			ctx = ContextWithSpan(ctx, parentSpan)
 		}
 
-		ctx, span := tracer.StartSpan(ctx, "handle-request",
+		// StartSpan returns (derived_ctx, span). No child operation in
+		// this test handler; discard the derived ctx.
+		_, span := tracer.StartSpan(ctx, "handle-request",
 			WithSpanKind(SpanKindServer),
 		)
 		defer span.End()
