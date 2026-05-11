@@ -125,14 +125,29 @@ impl BootRunner {
     /// addresses. If the kernel image has a non-zero base offset, the
     /// caller must shift `mbc_words` accordingly.
     pub fn populate_rom(&mut self, mbc_words: &[u32]) -> Result<()> {
+        self.populate_rom_at(0, mbc_words)
+    }
+
+    /// Write `mbc_words` into ROM_MAP starting at slot `start_slot` (a
+    /// word index). Used by Phase 2 to place the upc-bootstub.mbc at
+    /// slot 0x4000 (byte 0x10000) and a separately-built uClinux/Linux
+    /// kernel at slot 0x8000 (byte 0x20000). For Phase 1.1 xv6 the
+    /// caller still uses populate_rom() (= start_slot=0) because xv6's
+    /// .mbc image self-locates per its own kernel-mbc.ld layout.
+    pub fn populate_rom_at(&mut self, start_slot: u32, mbc_words: &[u32]) -> Result<()> {
         let mut rom: Array<_, u32> = Array::try_from(
             self.ebpf.map_mut("ROM_MAP").context("ROM_MAP not found")?,
         )?;
         for (i, &word) in mbc_words.iter().enumerate() {
-            rom.set(i as u32, word, 0)
-                .with_context(|| format!("ROM_MAP[{}] write", i))?;
+            let slot = start_slot + i as u32;
+            rom.set(slot, word, 0)
+                .with_context(|| format!("ROM_MAP[{}] write", slot))?;
         }
-        tracing::info!(words = mbc_words.len(), "ROM_MAP populated");
+        tracing::info!(
+            start_slot = start_slot,
+            words = mbc_words.len(),
+            "ROM_MAP populated"
+        );
         Ok(())
     }
 

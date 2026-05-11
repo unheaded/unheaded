@@ -43,6 +43,14 @@ enum Cmd {
         #[arg(long)]
         kernel: PathBuf,
 
+        /// Path to the optional Phase 2 stage-1 stub (upc-bootstub.mbc).
+        /// When provided, the stub is loaded into ROM_MAP at byte 0x10000
+        /// ahead of the kernel; CPU.PC starts at 0x4000 (= the stub's
+        /// entry). When absent (Phase 1.1 xv6 path), the kernel image is
+        /// expected to inline its own start code at byte 0x10000.
+        #[arg(long)]
+        bootstub: Option<PathBuf>,
+
         /// Path to the optional ramdisk (CPIO+gzip initramfs).
         #[arg(long)]
         initramfs: Option<PathBuf>,
@@ -125,6 +133,7 @@ fn cmd_validate(kernel: PathBuf) -> Result<()> {
 
 fn cmd_boot(
     kernel: PathBuf,
+    bootstub: Option<PathBuf>,
     initramfs: Option<PathBuf>,
     instance: u8,
     dry_run: bool,
@@ -133,6 +142,14 @@ fn cmd_boot(
 
     println!("\n=== BOOT DISPATCH (dry_run={}) ===", dry_run);
     println!("instance:      0x{:02X}", instance);
+    if let Some(ref bs) = bootstub {
+        let sz = std::fs::metadata(bs)
+            .map(|m| m.len())
+            .unwrap_or(0);
+        println!("bootstub:      {} ({} bytes)", bs.display(), sz);
+    } else {
+        println!("bootstub:      (none — kernel image must inline its own start code)");
+    }
     if let Some(ref ir) = initramfs {
         let sz = std::fs::metadata(ir)
             .with_context(|| format!("stat initramfs: {}", ir.display()))?
@@ -205,15 +222,42 @@ fn cmd_boot(
         (bootparams::ADDR_CSR_REGION, &[0u8; 256]),
     ])?;
 
-    // Load the kernel image into ROM_MAP. xv6-mbc.mbc is laid out so that
-    // slot 0 of ROM_MAP corresponds to MBC PC index 0, which matches our
-    // kernel-mbc.ld layout (.stage1 starts at byte 0x10000 = word index
-    // 0x4000 — but the .mbc file packs from offset 0). The eBPF interpreter
-    // uses CPU.pc as the ROM_MAP index, and we initialize CPU.pc=0x4000.
-    runner.populate_rom(&mbc_words)?;
+    // Phase 2 path: when --bootstub is provided, place upc-bootstub.mbc
+    // at MBC PC 0x4000 (= byte 0x10000) and the kernel image at PC 0x8000
+    // (= byte 0x20000). Phase 1.1 xv6 path (no --bootstub) loads the
+    // kernel.mbc starting at slot 0 because xv6's .mbc was built with
+    // its own .stage1 region at byte 0x10000 inlined by kernel-mbc.ld.
+    if let Some(ref bs_path) = bootstub {
+        let bs_bytes = std::fs::read(bs_path)
+            .with_context(|| format!("read bootstub: {}", bs_path.display()))?;
+        check_image_alignment(&bs_bytes)?;
+        let bs_words: Vec<u32> = bs_bytes
+            .chunks_exact(4)
+            .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .collect();
+        runner.populate_rom_at(0x4000, &bs_words)?;
+        runner.populate_rom_at(0x8000, &mbc_words)?;
+        println!(
+            "  ROM_MAP: bootstub @ slot 0x4000 ({} words) + kernel @ slot 0x8000 ({} words)",
+            bs_words.len(),
+            mbc_words.len()
+        );
+        // Load bootstub's .data sidecar (if present) into RAM_MAP so the
+        // stub's "BOOT FAIL: ..." strings are resolvable.
+        let bs_data_path = bs_path.with_extension("data");
+        if bs_data_path.exists() {
+            match runner.load_data_image(&bs_data_path) {
+                Ok(()) => println!("  Bootstub data: loaded {}", bs_data_path.display()),
+                Err(e) => println!("  ⚠ bootstub data load failed: {}", e),
+            }
+        }
+    } else {
+        // Phase 1.1 xv6 path: kernel.mbc loads at slot 0 (self-locating).
+        runner.populate_rom(&mbc_words)?;
+    }
 
-    // Load the data-section image into RAM_MAP at byte-VMA addresses, so
-    // xv6's compiled `lui rd, hi; addi rd, lo` patterns can dereference
+    // Load the kernel's data-section image into RAM_MAP at byte-VMA addresses,
+    // so the C compiler's `lui rd, hi; addi rd, lo` patterns can dereference
     // .rodata strings + .data globals. The translator emits this file as a
     // sibling to the .mbc (e.g. xv6-mbc.mbc -> xv6-mbc.data). Optional —
     // if missing, the boot will still progress but may halt on the first
@@ -373,10 +417,11 @@ fn main() -> Result<()> {
         Cmd::Validate { kernel } => cmd_validate(kernel),
         Cmd::Boot {
             kernel,
+            bootstub,
             initramfs,
             instance,
             dry_run,
-        } => cmd_boot(kernel, initramfs, instance, dry_run),
+        } => cmd_boot(kernel, bootstub, initramfs, instance, dry_run),
         Cmd::Console { instance } => cmd_console(instance),
     }
 }
