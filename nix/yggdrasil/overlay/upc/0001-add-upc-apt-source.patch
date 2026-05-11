@@ -1,0 +1,30 @@
+From 0000000000000000000000000000000000000001 Mon Sep 17 00:00:00 2001
+From: Yggdrasil UPC Overlay <yggdrasil@unheaded.dev>
+Date: Sun, 11 May 2026 00:00:00 +0000
+Subject: [PATCH 1/2] add Unheaded UPC apt source
+
+Yggdrasil ships UPC tooling. The apt source for upc-* binaries is added
+to sources.list.d so that `apt update` and `apt install upc-bootctl`
+work out of the box. The repo signing key is preinstalled to
+/etc/apt/trusted.gpg.d/unheaded-upc.gpg by the Debian hardening
+pipeline (task #65) before this patch applies.
+
+Task #71 — UPC accessible & present on Yggdrasil.
+
+---
+ etc/apt/sources.list.d/unheaded-upc.list | 4 ++++
+ 1 file changed, 4 insertions(+)
+ create mode 100644 etc/apt/sources.list.d/unheaded-upc.list
+
+diff --git a/etc/apt/sources.list.d/unheaded-upc.list b/etc/apt/sources.list.d/unheaded-upc.list
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/etc/apt/sources.list.d/unheaded-upc.list
+@@ -0,0 +1,4 @@
++# Yggdrasil — Unheaded Protocol Computer apt source
++# Repo built by task #65 (Debian hardening pipeline).
++# Free to use. Free to share.
++deb [signed-by=/etc/apt/trusted.gpg.d/unheaded-upc.gpg] https://apt.unheaded.dev/yggdrasil bookworm main
+--
+2.43.0

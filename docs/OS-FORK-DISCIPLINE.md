@@ -94,6 +94,30 @@ The signed-manifest evidence pack (task #68) emits a per-build SBOM that names e
 - **Userspace package selection:** the package set is owned by the packer pipeline config (task #65), not this doc. This doc covers HOW we maintain divergence, not WHICH packages we ship.
 - **Cloud image variants (AMI/GCE/Azure):** task #67 — same overlay applies, packer just emits different output formats.
 
+## 7.5. Pillar 5 — UPC integration (task #71)
+
+Yggdrasil exists to be the host that runs UPC. This is non-negotiable, not optional. Every Yggdrasil image MUST ship the Unheaded Protocol Computer tooling installed, enabled, and self-checking out of the box.
+
+| Surface | Required artifact | Owner |
+|---------|-------------------|-------|
+| `upc-bootctl` CLI | `/usr/bin/upc-bootctl` from `cmd/upc-bootctl/` Go build | task #65 packer |
+| `upc-tty-bridge` CLI | `/usr/bin/upc-tty-bridge` from `cmd/upc-tty-bridge/` Go build | task #65 packer |
+| Mode A demo unit | `upc-tty-bridge.service` enabled at boot, listening on 127.0.0.1:26100 | `nix/yggdrasil/overlay/systemd/` |
+| Browser xterm assets | `/opt/unheaded/share/upc-console.html` + vendored `xterm.js` | `unheaded-shared` deb |
+| BPF program | `/opt/unheaded/share/monad-cpu-ebpf.o` (built `--features ascend-linux`, pinned to anchor kernel ABI) | `monad-cpu-ebpf` deb |
+| Self-check | `yggdrasil-doctor upc` exits 0 on a fresh boot | `nix/yggdrasil/bin/yggdrasil-doctor-upc` |
+
+**Discipline invariants for UPC integration:**
+
+- [ ] All five surfaces listed above ship in the image (build fails otherwise).
+- [ ] `which upc-bootctl` returns 0 in the image-build smoke test.
+- [ ] `systemctl is-enabled upc-tty-bridge` returns `enabled` in the smoke test.
+- [ ] `yggdrasil-doctor upc` exits 0 on the first boot of a fresh image.
+- [ ] The shipped `monad-cpu-ebpf.o` was built against the same kernel ABI as the anchor (avoid kernel-version drift between BPF compile and runtime).
+- [ ] When the apt-source patch (`overlay/upc/0001-add-upc-apt-source.patch`) lands, the GPG key `unheaded-upc.gpg` is preinstalled at `/etc/apt/trusted.gpg.d/`.
+
+**Why this is a pillar, not a packer line:** because if Yggdrasil ships without UPC, Yggdrasil is "just another hardened Debian." With UPC, Yggdrasil is the only distro where `upc-bootctl boot xv6 --instance 222` is a one-liner from a fresh install. That's the entire reason this fork exists.
+
 ## 8. Discipline invariants (CI-checkable)
 
 The Phase 1 pipeline (task #65) MUST gate the build on these:
@@ -111,5 +135,8 @@ The Phase 1 pipeline (task #65) MUST gate the build on these:
 
 - ADR-69420 — "Kingdom-Native BGP Routing Daemon + Unheaded OS"
 - `references/battle-plan-NORTH-STAR-2026-05-05.md` §"Q4 2026 Yggdrasil track"
+- `nix/yggdrasil/overlay/upc/README.md` — UPC overlay specifics (task #71)
+- `nix/yggdrasil/overlay/systemd/upc-tty-bridge.service` — Mode A unit
+- `nix/yggdrasil/bin/yggdrasil-doctor-upc` — UPC preflight self-check
 - Debian `policy.debian.org` §"Source package format" (quilt-3.0 reference)
 - RHEL `selinux-policy` upstream (target for the policy port in task #66)
