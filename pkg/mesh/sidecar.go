@@ -365,7 +365,7 @@ func (s *Sidecar) Stop() error {
 
 	// Stop proxy
 	if s.proxy != nil {
-		s.proxy.Stop()
+		_ = s.proxy.Stop()
 	}
 
 	// Stop health checker
@@ -380,12 +380,12 @@ func (s *Sidecar) Stop() error {
 
 	// Close discoverer
 	if s.discoverer != nil {
-		s.discoverer.Close()
+		_ = s.discoverer.Close()
 	}
 
 	// Close access logger
 	if s.accessLogger != nil {
-		s.accessLogger.Close()
+		_ = s.accessLogger.Close()
 	}
 
 	return nil

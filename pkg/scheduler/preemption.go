@@ -1049,7 +1049,7 @@ func (h preemptionQueueHeap) Swap(i, j int) {
 }
 
 func (h *preemptionQueueHeap) Push(x interface{}) {
-	item := x.(*PreemptionQueueItem)
+	item, _ := x.(*PreemptionQueueItem)
 	item.index = len(*h)
 	*h = append(*h, item)
 }
@@ -1119,7 +1119,7 @@ func (q *PreemptionQueue) Pop() *Workload {
 		return nil
 	}
 
-	item := heap.Pop(&q.items).(*PreemptionQueueItem)
+	item, _ := heap.Pop(&q.items).(*PreemptionQueueItem)
 	delete(q.lookup, item.workload.ID)
 
 	return item.workload
@@ -1134,7 +1134,7 @@ func (q *PreemptionQueue) PopWait() *Workload {
 		q.cond.Wait()
 	}
 
-	item := heap.Pop(&q.items).(*PreemptionQueueItem)
+	item, _ := heap.Pop(&q.items).(*PreemptionQueueItem)
 	delete(q.lookup, item.workload.ID)
 
 	return item.workload

@@ -550,20 +550,20 @@ func NewSocket(family int) (*Socket, error) {
 	}
 
 	if err := unix.Bind(fd, sockAddr); err != nil {
-		unix.Close(fd)
+		_ = unix.Close(fd)
 		return nil, fmt.Errorf("failed to bind netlink socket: %w", err)
 	}
 
 	// Get the assigned port ID
 	sa, err := unix.Getsockname(fd)
 	if err != nil {
-		unix.Close(fd)
+		_ = unix.Close(fd)
 		return nil, fmt.Errorf("failed to get socket name: %w", err)
 	}
 
 	nlsa, ok := sa.(*unix.SockaddrNetlink)
 	if !ok {
-		unix.Close(fd)
+		_ = unix.Close(fd)
 		return nil, errors.New("unexpected socket address type")
 	}
 

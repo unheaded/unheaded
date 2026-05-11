@@ -189,7 +189,7 @@ func (p *Pool) Start() error {
 	go p.dispatcher()
 
 	// Start scheduler
-	p.scheduler.Start()
+	_ = p.scheduler.Start()
 
 	return nil
 }
@@ -371,7 +371,7 @@ func (p *Pool) Shutdown(ctx context.Context) error {
 	p.mu.Unlock()
 
 	// Stop accepting new jobs
-	p.queue.Close()
+	_ = p.queue.Close()
 
 	// Stop scheduler
 	p.scheduler.Stop()
@@ -404,7 +404,7 @@ func (p *Pool) ShutdownNow() {
 	p.running = false
 	p.mu.Unlock()
 
-	p.queue.Close()
+	_ = p.queue.Close()
 	p.scheduler.Stop()
 	close(p.stopCh)
 

@@ -331,15 +331,15 @@ func (m *Mesh) Stop() error {
 
 	// Stop proxies
 	if m.inboundProxy != nil {
-		m.inboundProxy.Stop()
+		_ = m.inboundProxy.Stop()
 	}
 	if m.outboundProxy != nil {
-		m.outboundProxy.Stop()
+		_ = m.outboundProxy.Stop()
 	}
 
 	// Stop discovery
 	if m.discovery != nil {
-		m.discovery.Stop()
+		_ = m.discovery.Stop()
 	}
 
 	// Close connection pools

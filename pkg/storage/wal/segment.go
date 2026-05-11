@@ -51,7 +51,7 @@ func OpenSegment(path string, syncWrites bool) (*Segment, error) {
 
 	stat, err := file.Stat()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, fmt.Errorf("stat segment: %w", err)
 	}
 
@@ -65,13 +65,13 @@ func OpenSegment(path string, syncWrites bool) (*Segment, error) {
 
 	// Scan to find first and last sequence
 	if err := segment.scanSequences(); err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, fmt.Errorf("scan sequences: %w", err)
 	}
 
 	// Seek to end for appending
 	if _, err := file.Seek(0, io.SeekEnd); err != nil {
-		file.Close()
+		_ = file.Close()
 		return nil, fmt.Errorf("seek to end: %w", err)
 	}
 

@@ -59,7 +59,7 @@ func NewWALStore(walDir string, capacity int, pgStore *PGStore) (*WALStore, erro
 
 	// Recover state from WAL
 	if err := s.recover(); err != nil {
-		w.Close()
+		_ = w.Close()
 		return nil, fmt.Errorf("wal_store: recovery: %w", err)
 	}
 
@@ -180,7 +180,7 @@ func (s *WALStore) Delete(ctx context.Context, id uuid.UUID, creatorID uuid.UUID
 
 			// Also delete from PG
 			if s.pg != nil {
-				s.pg.Delete(ctx, id, creatorID, content)
+				_ = s.pg.Delete(ctx, id, creatorID, content)
 			}
 			return nil
 		}
@@ -253,6 +253,6 @@ func (s *WALStore) flushToPG() {
 
 	ctx := context.Background()
 	for _, msg := range messages {
-		s.pg.Push(ctx, msg) // Idempotent (ON CONFLICT DO NOTHING)
+		_, _, _ = s.pg.Push(ctx, msg) // Idempotent (ON CONFLICT DO NOTHING)
 	}
 }

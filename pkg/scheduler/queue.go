@@ -46,7 +46,7 @@ func (h workloadHeap) Swap(i, j int) {
 }
 
 func (h *workloadHeap) Push(x interface{}) {
-	item := x.(*queueItem)
+	item, _ := x.(*queueItem)
 	item.index = len(*h)
 	*h = append(*h, item)
 }
@@ -109,7 +109,7 @@ func (pq *PriorityQueue) Pop() *Workload {
 		return nil
 	}
 
-	item := heap.Pop(&pq.items).(*queueItem)
+	item, _ := heap.Pop(&pq.items).(*queueItem)
 	delete(pq.lookup, item.workload.ID)
 
 	return item.workload
@@ -124,7 +124,7 @@ func (pq *PriorityQueue) PopWait() *Workload {
 		pq.cond.Wait()
 	}
 
-	item := heap.Pop(&pq.items).(*queueItem)
+	item, _ := heap.Pop(&pq.items).(*queueItem)
 	delete(pq.lookup, item.workload.ID)
 
 	return item.workload

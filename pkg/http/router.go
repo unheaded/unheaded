@@ -578,7 +578,7 @@ func (r *Router) Static(path, root string) {
 		fullPath := root + "/" + filePath
 
 		// Check if file exists
-		c.File(fullPath)
+		_ = c.File(fullPath)
 	}
 
 	r.GET(path, handler)
@@ -588,7 +588,7 @@ func (r *Router) Static(path, root string) {
 // StaticFile registers a single static file handler
 func (r *Router) StaticFile(path, filepath string) {
 	handler := func(c *Context) {
-		c.File(filepath)
+		_ = c.File(filepath)
 	}
 
 	r.GET(path, handler)
@@ -608,7 +608,7 @@ func (r *Router) MethodNotAllowed(handler HandlerFunc) {
 // ServeHTTP implements the http.Handler interface
 func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	// Get context from pool
-	c := r.pool.Get().(*Context)
+	c, _ := r.pool.Get().(*Context)
 	c.reset(w, req)
 	defer r.pool.Put(c)
 
