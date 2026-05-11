@@ -151,13 +151,13 @@ func (m *NamespaceManager) RemoveNamespaces(id string) error {
 func (m *NamespaceManager) cleanupNamespaces(nsSet *NamespaceSet) {
 	for _, path := range nsSet.Paths {
 		// Unmount if mounted
-		unix.Unmount(path, unix.MNT_DETACH)
-		os.Remove(path)
+		_ = unix.Unmount(path, unix.MNT_DETACH)
+		_ = os.Remove(path)
 	}
 
 	// Remove directory
 	nsDir := filepath.Join(m.nsBasePath, nsSet.ID)
-	os.Remove(nsDir)
+	_ = os.Remove(nsDir)
 }
 
 // nsTypeToProc converts NamespaceType to proc filesystem name.
@@ -196,7 +196,7 @@ func (m *NamespaceManager) EnterNamespace(path string, nsType NamespaceType) err
 	if err != nil {
 		return fmt.Errorf("failed to open namespace: %w", err)
 	}
-	defer unix.Close(fd)
+	defer func() { _ = unix.Close(fd) }()
 
 	// Get clone flag for namespace type
 	cloneFlag := nsTypeToCloneFlag(nsType)
@@ -274,7 +274,7 @@ func (m *NamespaceManager) CreateNetworkNamespace(id string) (string, error) {
 	}()
 
 	if err := <-errCh; err != nil {
-		os.Remove(nsPath)
+		_ = os.Remove(nsPath)
 		return "", err
 	}
 
@@ -298,7 +298,7 @@ func (m *NamespaceManager) ConfigureNetworkNamespace(nsPath string) error {
 	if err != nil {
 		return fmt.Errorf("failed to open namespace: %w", err)
 	}
-	defer unix.Close(nsFd)
+	defer func() { _ = unix.Close(nsFd) }()
 
 	// Enter namespace and configure
 	errCh := make(chan error, 1)
@@ -312,7 +312,7 @@ func (m *NamespaceManager) ConfigureNetworkNamespace(nsPath string) error {
 			errCh <- fmt.Errorf("failed to save original namespace: %w", err)
 			return
 		}
-		defer unix.Close(origNsFd)
+		defer func() { _ = unix.Close(origNsFd) }()
 
 		// Enter target namespace
 		if err := unix.Setns(nsFd, unix.CLONE_NEWNET); err != nil {
@@ -344,7 +344,7 @@ func bringUpLoopback() error {
 	if err != nil {
 		return err
 	}
-	defer unix.Close(sock)
+	defer func() { _ = unix.Close(sock) }()
 
 	// Get interface index for lo
 	ifreq := &ifreqFlags{
@@ -487,7 +487,7 @@ func (m *NamespaceManager) CreateUserNamespace(id string, uidMappings, gidMappin
 	}()
 
 	if err := <-errCh; err != nil {
-		os.Remove(nsPath)
+		_ = os.Remove(nsPath)
 		return "", err
 	}
 
@@ -526,7 +526,7 @@ func (m *NamespaceManager) SetHostname(nsPath, hostname string) error {
 	if err != nil {
 		return err
 	}
-	defer unix.Close(nsFd)
+	defer func() { _ = unix.Close(nsFd) }()
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -538,7 +538,7 @@ func (m *NamespaceManager) SetHostname(nsPath, hostname string) error {
 			errCh <- err
 			return
 		}
-		defer unix.Close(origFd)
+		defer func() { _ = unix.Close(origFd) }()
 
 		if err := unix.Setns(nsFd, unix.CLONE_NEWUTS); err != nil {
 			errCh <- err
@@ -546,7 +546,7 @@ func (m *NamespaceManager) SetHostname(nsPath, hostname string) error {
 		}
 
 		if err := unix.Sethostname([]byte(hostname)); err != nil {
-			unix.Setns(origFd, unix.CLONE_NEWUTS)
+			_ = unix.Setns(origFd, unix.CLONE_NEWUTS)
 			errCh <- err
 			return
 		}
