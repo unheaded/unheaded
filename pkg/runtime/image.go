@@ -470,6 +470,12 @@ func (s *ImageStore) ExtractImage(imageID, destDir string) error {
 	return nil
 }
 
+// maxExtractedFileSize caps any single file extracted from a container image.
+// 5 GiB is well above any realistic single-file artifact (root filesystems
+// rarely have files > 1 GiB) and prevents decompression-bomb DoS where a
+// crafted gzip layer expands to hundreds of GiB and OOMs the runtime.
+const maxExtractedFileSize int64 = 5 << 30
+
 // extractLayer extracts a layer tarball to a directory.
 func extractLayer(layerPath, destDir string) error {
 	f, err := os.Open(layerPath)
@@ -534,9 +540,12 @@ func extractLayer(layerPath, destDir string) error {
 			if err != nil {
 				return err
 			}
-			if _, err := io.Copy(outFile, tarReader); err != nil {
+			if n, err := io.CopyN(outFile, tarReader, maxExtractedFileSize); err != nil && err != io.EOF {
 				_ = outFile.Close()
 				return err
+			} else if n == maxExtractedFileSize {
+				_ = outFile.Close()
+				return fmt.Errorf("image: file %s exceeds %d-byte extraction cap (decompression-bomb guard)", targetPath, maxExtractedFileSize)
 			}
 			_ = outFile.Close()
 		case tar.TypeSymlink:
@@ -949,10 +958,12 @@ func calculateDiffID(layerPath string) (string, error) {
 	}
 	defer func() { _ = gzReader.Close() }()
 
-	// Hash the uncompressed content
+	// Hash the uncompressed content (capped to defuse decompression bombs).
 	h := sha256.New()
-	if _, err := io.Copy(h, gzReader); err != nil {
+	if n, err := io.CopyN(h, gzReader, maxExtractedFileSize); err != nil && err != io.EOF {
 		return "", err
+	} else if n == maxExtractedFileSize {
+		return "", fmt.Errorf("image: layer exceeds %d-byte hash cap (decompression-bomb guard)", maxExtractedFileSize)
 	}
 
 	return "sha256:" + hex.EncodeToString(h.Sum(nil)), nil
