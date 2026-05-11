@@ -1225,24 +1225,32 @@ router.Use(auth.Middleware(authenticator))
 
 ---
 
-## ASCEND-LINUX (Linux on UPC) — Phase 0 ✓ Phase 1.1 ~80% (2026-05-08 → 2026-05-09)
+## ASCEND-LINUX (Linux on UPC) — Phase 0 ✓ Phase 1.1 SHIP ✓ (2026-05-08 → 2026-05-11)
 
 The Dream Ladder summit per `references/battle-plan-ascend-linux-2026-05-08.md`.
 
-**Phase 0 (DONE):** ABI v1 + ISA v2 frozen per `docs/adr/ADR-067-mbc-isa-v2-and-upc-abi-v1.md`. 5 new MBC opcodes (FENCE 0x3F, MRET 0x47, SRET 0x48, LR.W 0x49, SC.W 0x4A) implemented in monad-mbc + monad-cpu-ebpf. MbcCpuState 128 → 136 bytes (priv_level + reservation_address). UPC Boot Protocol v2 spec (`docs/doom/UPC_BOOT_PROTOCOL_V2.md`) — two-stage boot, 256B BootParams, memory-mapped CSR region 0x000_F000+. BPF verifier still 7%/900K budget.
+**Phase 0 (DONE):** ABI v1 + ISA v2 frozen per `docs/adr/ADR-067-mbc-isa-v2-and-upc-abi-v1.md`. 5 new MBC opcodes (FENCE 0x3F, MRET 0x47, SRET 0x48, LR.W 0x49, SC.W 0x4A) implemented in monad-mbc + monad-cpu-ebpf. MbcCpuState 128 → 136 bytes (priv_level + reservation_address). UPC Boot Protocol v2 spec (`docs/doom/UPC_BOOT_PROTOCOL_V2.md`) — two-stage boot, 256B BootParams, memory-mapped CSR region 0x000_F000+. BPF verifier still well under budget.
 
-**Phase 1.1 (~80% complete):**
+**Phase 1.1 SHIP gate ACHIEVED 2026-05-10 (commit `3ac1f684`):**
 - xv6-riscv vendored at `crates/xv6-mbc/upstream/` (commit `5474d4bf`, MIT).
-- 7 adapter files in `crates/xv6-mbc/adapters/` (start_mbc.c, console-mmio.c, blk-ramdisk.c, syscall_shims.S, swtch_mbc.S, trampoline_mbc.S, kernelvec_mbc.S, libgcc_stubs.c, kernel-mbc.ld, Makefile.mbc).
-- Translator extensions in `crates/monad-mbc/src/translator.rs`: CSR opcodes via memory-mapped LD/ST; MRET/SRET/WFI/SFENCE.VMA recognized; opcode=0 NOP; x18-x31 register aliasing.
-- **kernel.elf LINKS GREEN. xv6-mbc.mbc EMITS — 11,721 MBC instructions, 46 KB.**
+- Adapters in `crates/xv6-mbc/adapters/`: start_mbc.c, console-mmio.c, blk-ramdisk.c, syscall_shims.S, swtch_mbc.S (s2-s11 stripped), trampoline_mbc.S (s2-s11 stripped), kernelvec_mbc.S, libgcc_stubs.c, kernel-mbc.ld, Makefile.mbc.
+- Translator extensions in `crates/monad-mbc/src/translator.rs`: CSR opcodes via memory-mapped LD/ST; MRET/SRET/WFI/SFENCE.VMA; opcode=0 NOP; x18-x31 register aliasing.
+- `crates/monad-mbc/src/bin/rv32i_to_mbc.rs` now also emits a `.data` sibling (TLV format) carrying every ALLOC PROGBITS section that lacks SHF_EXECINSTR (.rodata, .srodata, .data, .sdata).
+- **Live boot result on kernel 6.17.0-23 with `--features ascend-linux`:** `sudo cargo run -p upc-bootctl -- boot --kernel xv6-mbc.mbc --instance 222` advances the CPU 4000 instructions, transitions M-mode → S-mode (priv 0→1), and emits `xv6 booting...\n` (15 bytes, clean ASCII) to TTY_MAP. The bootctl producer POSTs captured bytes to upc-tty-bridge `/api/v1/tty/ingest` on port 26100.
 - Boot tools shipped:
-  - `cmd/upc-bootctl/` — `validate` + `boot --dry-run` + `console` skeleton.
+  - `cmd/upc-bootctl/` — `validate`, `boot` (live BPF + XDP attach + trigger packet + TTY drain + bridge POST), `console` skeleton.
   - `cmd/upc-tty-bridge/` — Go WebSocket bridge for Mode A demo (port 26100).
   - `dashboard/upc-console.html` — Browser xterm.js client.
+- Architectural decisions landed:
+  - `docs/adr/ADR-067` — MBC ISA v2 + UPC ABI v1.
+  - `docs/adr/ADR-072` — BOOT_MAGIC byte-ordering convention (canonical hex 0x554E4844 'UNHD' MSB-first; wire bytes 'D','H','N','U' per LE; same pattern as ELF magic).
 
-**Remaining for Phase 1.1 first milestone:** wire upc-bootctl `boot` to actual aya BPF map population (~3 days, pattern after `crates/doom-runner/`), then `cargo run -p upc-bootctl -- boot --kernel xv6-mbc.mbc --instance 222` should print "xv6 booting..." to upc-tty-bridge and HALT cleanly.
+**Phase 2 scaffolding landed (`crates/upc-bootstub/`):** stage-1 stub crate authored 2026-05-11 for uClinux + full Linux. Verifies BootParams magic+version, zeroes BSS, sets MEPC + MSTATUS.MPP=S, MRET to kernel. C source compiled at Phase 2 day-1 via the rv32i_to_mbc pipeline (Makefile.bootstub TBD).
 
-**Demo surfaces (per battle plan):** A=browser xterm (scaffolded), B=direct host pty (skeleton), C=SSH over IPv6 (Phase 4). Mode A unblocks at end of Phase 1; Mode C at end of Phase 4.
+**Yggdrasil scaffolding landed (`nix/yggdrasil/`):** ADR-69420 §"Feature B" four-pillar discipline doc at `docs/OS-FORK-DISCIPLINE.md`; anchor.nix pinning Debian 12 bookworm; packer/template.pkr.hcl skeleton; 3 sample CIS hardening overlay patches. Phase 1 pipeline (task #65) lights up at Q4 2026.
 
-**Key shift logs:** `references/marshal-shift-2026-05-08-ascend-linux-kickoff.md`, `references/marshal-shift-2026-05-09-ascend-linux-supersprint.md`.
+**Demo surfaces (per battle plan):** A=browser xterm (xterm.js + tty-bridge wired), B=direct host pty (skeleton), C=SSH over IPv6 (Phase 4). Mode A unlocks at Phase 1.1 SHIP gate (NOW); Mode C at end of Phase 4.
+
+**Next horizon (out-of-session scope):** Phase 1.2 page tables, 1.3 process model, 1.4 filesystem, 1.5 shell+5 commands. Weeks of work, not a single shift.
+
+**Key shift logs:** `references/marshal-shift-2026-05-08-ascend-linux-kickoff.md`, `references/marshal-shift-2026-05-09-ascend-linux-supersprint.md`, `references/marshal-shift-2026-05-10-phase11-banner-shipped.md`.
