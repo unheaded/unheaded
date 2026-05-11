@@ -569,7 +569,7 @@ func (hc *HealthChecker) tcpCheck(addr net.IP, port uint16, timeout time.Duratio
 	if err != nil {
 		return false
 	}
-	conn.Close()
+	_ = conn.Close()
 	return true
 }
 

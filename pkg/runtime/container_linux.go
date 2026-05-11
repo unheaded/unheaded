@@ -229,7 +229,7 @@ func (r *DefaultRuntime) StartContainer(ctx context.Context, containerID string)
 	if c.config.Stdin {
 		stdin, err := proc.StdinPipe()
 		if err != nil {
-			logFile.Close()
+			_ = logFile.Close()
 			return fmt.Errorf("failed to create stdin pipe: %w", err)
 		}
 		c.stdin = stdin
@@ -237,14 +237,14 @@ func (r *DefaultRuntime) StartContainer(ctx context.Context, containerID string)
 
 	stdout, err := proc.StdoutPipe()
 	if err != nil {
-		logFile.Close()
+		_ = logFile.Close()
 		return fmt.Errorf("failed to create stdout pipe: %w", err)
 	}
 	c.stdout = stdout
 
 	stderr, err := proc.StderrPipe()
 	if err != nil {
-		logFile.Close()
+		_ = logFile.Close()
 		return fmt.Errorf("failed to create stderr pipe: %w", err)
 	}
 	c.stderr = stderr
@@ -255,7 +255,7 @@ func (r *DefaultRuntime) StartContainer(ctx context.Context, containerID string)
 	}()
 	go func() {
 		io.Copy(logFile, stderr)
-		logFile.Close()
+		_ = logFile.Close()
 	}()
 
 	// Start the process

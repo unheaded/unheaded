@@ -470,21 +470,21 @@ func (ws *WebSocketProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	hijacker, ok := w.(http.Hijacker)
 	if !ok {
 		http.Error(w, "Hijacking not supported", http.StatusInternalServerError)
-		backendConn.Close()
+		_ = backendConn.Close()
 		return
 	}
 
 	clientConn, clientBuf, err := hijacker.Hijack()
 	if err != nil {
 		http.Error(w, "Failed to hijack connection", http.StatusInternalServerError)
-		backendConn.Close()
+		_ = backendConn.Close()
 		return
 	}
 
 	// Forward the original request to backend
 	if err := r.Write(backendConn); err != nil {
-		clientConn.Close()
-		backendConn.Close()
+		_ = clientConn.Close()
+		_ = backendConn.Close()
 		return
 	}
 
@@ -502,13 +502,13 @@ func (ws *WebSocketProxy) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		defer wg.Done()
 		io.Copy(backendConn, clientConn)
-		backendConn.Close()
+		_ = backendConn.Close()
 	}()
 
 	go func() {
 		defer wg.Done()
 		io.Copy(clientConn, backendConn)
-		clientConn.Close()
+		_ = clientConn.Close()
 	}()
 
 	wg.Wait()
