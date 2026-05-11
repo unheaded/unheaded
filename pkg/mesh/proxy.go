@@ -198,7 +198,7 @@ func (p *InboundProxy) Stop() error {
 	defer cancel()
 
 	if err := p.server.Shutdown(ctx); err != nil {
-		p.server.Close()
+		_ = p.server.Close()
 	}
 
 	p.wg.Wait()
@@ -248,7 +248,7 @@ func (p *InboundProxy) handleHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Write body
 	if len(resp.Body) > 0 {
-		w.Write(resp.Body)
+		_, _ = w.Write(resp.Body)
 		atomic.AddUint64(&p.totalBytes, uint64(len(resp.Body)))
 	}
 }
@@ -378,7 +378,7 @@ func (p *OutboundProxy) Stop() error {
 
 	// Close listener
 	if p.listener != nil {
-		p.listener.Close()
+		_ = p.listener.Close()
 	}
 
 	// Close all connection pools
@@ -511,7 +511,7 @@ func (p *OutboundProxy) proxyHTTP(conn net.Conn, reader *bufio.Reader) {
 		}
 
 		if len(resp.Body) > 0 {
-			conn.Write(resp.Body)
+			_, _ = conn.Write(resp.Body)
 			atomic.AddUint64(&p.totalBytes, uint64(len(resp.Body)))
 		}
 
@@ -620,7 +620,7 @@ func (p *ConnectionPool) Get(ctx context.Context) (net.Conn, error) {
 		// Check if connection is still valid
 		if time.Since(pc.createdAt) > p.config.MaxLifetime ||
 			time.Since(pc.lastUsed) > p.config.MaxIdleTime {
-			pc.Close()
+			_ = pc.Close()
 			atomic.AddUint64(&p.totalMisses, 1)
 		} else {
 			pc.lastUsed = time.Now()
@@ -654,7 +654,7 @@ func (p *ConnectionPool) Get(ctx context.Context) (net.Conn, error) {
 func (p *ConnectionPool) Put(conn net.Conn) {
 	pc, ok := conn.(*pooledConn)
 	if !ok {
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
@@ -663,14 +663,14 @@ func (p *ConnectionPool) Put(conn net.Conn) {
 	p.mu.Lock()
 	if p.closed {
 		p.mu.Unlock()
-		pc.Close()
+		_ = pc.Close()
 		return
 	}
 	p.mu.Unlock()
 
 	// Check if connection is still valid
 	if time.Since(pc.createdAt) > p.config.MaxLifetime {
-		pc.Close()
+		_ = pc.Close()
 		return
 	}
 
@@ -680,7 +680,7 @@ func (p *ConnectionPool) Put(conn net.Conn) {
 	select {
 	case p.conns <- pc:
 	default:
-		pc.Close()
+		_ = pc.Close()
 	}
 }
 
@@ -699,7 +699,7 @@ func (p *ConnectionPool) dial(ctx context.Context) (net.Conn, error) {
 	if p.config.TLSConfig != nil {
 		tlsConn := tls.Client(conn, p.config.TLSConfig)
 		if err := tlsConn.Handshake(); err != nil {
-			conn.Close()
+			_ = conn.Close()
 			return nil, err
 		}
 		return tlsConn, nil
@@ -720,7 +720,7 @@ func (p *ConnectionPool) Close() {
 
 	close(p.conns)
 	for pc := range p.conns {
-		pc.Close()
+		_ = pc.Close()
 	}
 }
 
@@ -743,7 +743,7 @@ func (p *ConnectionPool) Cleanup() {
 				time.Since(pc.createdAt) < p.config.MaxLifetime {
 				toReturn = append(toReturn, pc)
 			} else {
-				pc.Close()
+				_ = pc.Close()
 			}
 		default:
 			goto done
@@ -756,7 +756,7 @@ done:
 		select {
 		case p.conns <- pc:
 		default:
-			pc.Close()
+			_ = pc.Close()
 		}
 	}
 }
@@ -886,7 +886,7 @@ func (p *TransparentProxy) Stop() error {
 	p.mu.Unlock()
 
 	if p.listener != nil {
-		p.listener.Close()
+		_ = p.listener.Close()
 	}
 
 	p.wg.Wait()
@@ -1077,7 +1077,7 @@ func (pm *PoolManager) Put(conn net.Conn) {
 	if pc, ok := conn.(*pooledConn); ok {
 		pc.pool.Put(conn)
 	} else {
-		conn.Close()
+		_ = conn.Close()
 	}
 }
 
