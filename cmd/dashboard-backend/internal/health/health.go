@@ -880,6 +880,8 @@ func (m *Monitor) RegisterKingdomServices(overrides map[string]string) {
 			ReadyURL:  fmt.Sprintf("http://%s/ready", hostPort),
 			Tags:      []string{"kingdom"},
 		}
-		m.RegisterTarget(target)
+		if err := m.RegisterTarget(target); err != nil {
+			m.log.Warn().Err(err).Str("target", target.Name).Msg("RegisterTarget failed")
+		}
 	}
 }
