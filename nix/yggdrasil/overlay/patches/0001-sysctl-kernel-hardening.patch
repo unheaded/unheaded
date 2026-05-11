@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Subject: Kernel hardening sysctl baseline for Yggdrasil
+# Reason: CIS Debian 12 Benchmark §3.1-3.3 require these sysctl settings
+#         (kernel.kptr_restrict=2, kernel.dmesg_restrict=1,
+#         kernel.unprivileged_bpf_disabled=1, net.ipv4.conf.all.send_redirects=0)
+#         to pass at the LEVEL 1 (Server) profile. Upstream Debian ships with
+#         the kernel defaults which fail these checks on a vanilla install.
+# Upstream-status: Not submitted (Debian policy is to ship kernel defaults;
+#                  this is a Yggdrasil-specific hardening overlay).
+# Authored: 2026-05-11 by unheaded-architect
+
+# Status: SAMPLE — illustrative of the patch format required by
+# OS-FORK-DISCIPLINE.md §"Pillar 2 — Overlay patch format". Real CIS-mapped
+# settings + the lynis-passing supplement land in Phase 1 (task #65).
+
+--- a/etc/sysctl.d/99-yggdrasil-hardening.conf
++++ b/etc/sysctl.d/99-yggdrasil-hardening.conf
+@@ -0,0 +1,23 @@
++# Yggdrasil kernel hardening — CIS Debian 12 §3.1-3.3 baseline.
++# Loaded by systemd-sysctl on every boot; survives runtime tampering
++# only as the default, not as a re-enforcement (auditd watches this file
++# for unauthorised edits per the SOC2 audit-trail evidence pack).
++
++# Restrict kernel pointer exposure to /proc (CIS §3.1.1).
++kernel.kptr_restrict = 2
++
++# Restrict dmesg to root (CIS §3.1.2).
++kernel.dmesg_restrict = 1
++
++# Disable unprivileged BPF (CIS §3.3.1; reduces eBPF JIT attack surface
++# for non-root processes — Yggdrasil runs Shield/Shim BPF as root via
++# the unheaded-daemon).
++kernel.unprivileged_bpf_disabled = 1
++
++# Disable SUID core dumps (CIS §1.5.2; prevents info-leak via crash files).
++fs.suid_dumpable = 0
++
++# IPv4 source-route rejection (CIS §3.2.1).
++net.ipv4.conf.all.send_redirects = 0
++net.ipv4.conf.default.send_redirects = 0
++net.ipv4.conf.all.accept_source_route = 0

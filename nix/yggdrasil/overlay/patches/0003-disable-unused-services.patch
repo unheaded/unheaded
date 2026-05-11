@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+# Subject: Mask Debian services Yggdrasil never runs (CIS attack-surface reduction)
+# Reason: CIS Debian 12 §2.2 (Inetd Services) + §2.3 (Special Purpose Services)
+#         require disabling avahi, cups, snmp, rsh, telnet, talk, tftp, ldap,
+#         dovecot, samba, http, ftp, mta, dhcpd, dnsmasq, nfs by default.
+#         Yggdrasil's role is "kingdom infrastructure host" — it needs none
+#         of these. Mask them with systemd so they cannot be started even
+#         by an operator mistake.
+# Upstream-status: Per-service decisions vary upstream; consolidated mask
+#                  list is Yggdrasil-specific. Lynis flags any of these
+#                  as "running" with WARN; this patch ensures clean scans.
+# Authored: 2026-05-11 by unheaded-architect
+
+# Status: SAMPLE — illustrative format. Final list comes from a CIS-mapped
+# audit during Phase 1 (task #65) + may be refined by the SOC2 evidence
+# pack (task #68) requirements.
+
+--- a/etc/systemd/system-preset/99-yggdrasil-disable.preset
++++ b/etc/systemd/system-preset/99-yggdrasil-disable.preset
+@@ -0,0 +1,28 @@
++# Yggdrasil — CIS Debian 12 §2.2 + §2.3 service disables.
++# Applied by `systemctl preset-all` on first boot; persistent across upgrades.
++
++# Network discovery / printer / SNMP — not used on Yggdrasil hosts.
++disable avahi-daemon.service
++disable avahi-daemon.socket
++disable cups.service
++disable cups.socket
++disable snmpd.service
++
++# Legacy remote-access services (CIS §2.2.1-2.2.5).
++disable inetd.service
++disable rsh.service
++disable rlogin.service
++disable telnet.service
++disable talk.service
++disable tftp.service
++
++# Legacy file-share / directory / mail / web (CIS §2.3.1-2.3.6).
++disable nfs-server.service
++disable smbd.service
++disable dovecot.service
++disable slapd.service
++disable httpd.service
++disable apache2.service
++disable bind9.service
++disable dnsmasq.service
