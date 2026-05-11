@@ -220,6 +220,14 @@ linters:
         linters: [gosec]
         text: "G305:"
 
+      # pkg/storage/object/filesystem.go traversal-via-objectPath:
+      # ValidateKey at the top of every Put/Get/Delete (commit 2c4beac7)
+      # rejects "../" and absolute paths. The validation is real;
+      # gosec G703 just can't see it.
+      - path: pkg/storage/object/filesystem\.go
+        linters: [gosec]
+        text: "G703:"
+
       # G204 (subprocess-with-variable) in directories that wrap known
       # external tools where the "tainted" input is operator-managed
       # config (image-build commands, network policy iptables wrappers,
