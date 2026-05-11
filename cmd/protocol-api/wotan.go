@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"sync"
 	"time"
@@ -255,23 +256,25 @@ type CompactMemoryLayout struct {
 	Sequence uint64
 }
 
-// MarshalToBytes converts a MemorySlot to its compact 40-byte representation
+// MarshalToBytes converts a MemorySlot to its compact 40-byte representation:
+// bytes 0..31 = StateData, bytes 32..39 = SequenceNumber (big-endian u64).
 func MarshalToBytes(slot *pb.MemorySlot) [40]byte {
 	var layout CompactMemoryLayout
 	copy(layout.State[:], slot.StateData)
 	layout.Sequence = slot.SequenceNumber
-	// In real implementation, would use binary.BigEndian.PutUint64
+
 	var result [40]byte
 	copy(result[:32], layout.State[:])
-	// Sequence would be encoded in bytes 32-39
+	binary.BigEndian.PutUint64(result[32:40], layout.Sequence)
 	return result
 }
 
-// UnmarshalFromBytes converts 40 bytes back to a MemorySlot
+// UnmarshalFromBytes converts 40 bytes back to a MemorySlot.
+// Inverse of MarshalToBytes: bytes 0..31 = StateData, 32..39 = SequenceNumber.
 func UnmarshalFromBytes(data [40]byte, flowLabel uint32) *pb.MemorySlot {
 	return &pb.MemorySlot{
-		FlowLabel: flowLabel,
-		StateData: data[:32],
-		// Sequence would be decoded from bytes 32-39
+		FlowLabel:      flowLabel,
+		StateData:      data[:32],
+		SequenceNumber: binary.BigEndian.Uint64(data[32:40]),
 	}
 }
