@@ -410,7 +410,7 @@ func (s *ImageStore) RemoveImage(ref string, force bool) error {
 
 	// Remove manifest
 	manifestPath := filepath.Join(s.root, "manifests", sanitizeID(imageID)+".json")
-	os.Remove(manifestPath)
+	_ = os.Remove(manifestPath)
 
 	// Decrement layer references and remove if unused
 	if img.RootFS != nil {
@@ -419,7 +419,7 @@ func (s *ImageStore) RemoveImage(ref string, force bool) error {
 				if layer.DiffID == diffID {
 					layer.RefCount--
 					if layer.RefCount <= 0 {
-						os.Remove(layer.Path)
+						_ = os.Remove(layer.Path)
 						delete(s.layers, layerID)
 					}
 					break
@@ -476,7 +476,7 @@ func extractLayer(layerPath, destDir string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	var reader io.Reader = f
 
@@ -484,10 +484,10 @@ func extractLayer(layerPath, destDir string) error {
 	gzReader, err := gzip.NewReader(f)
 	if err == nil {
 		reader = gzReader
-		defer gzReader.Close()
+		defer func() { _ = gzReader.Close() }()
 	} else {
 		// Seek back to beginning for uncompressed tar
-		f.Seek(0, io.SeekStart)
+		_, _ = f.Seek(0, io.SeekStart)
 	}
 
 	tarReader := tar.NewReader(reader)
@@ -506,7 +506,7 @@ func extractLayer(layerPath, destDir string) error {
 		if strings.HasPrefix(filepath.Base(name), ".wh.") {
 			// This is a whiteout file - delete the corresponding file
 			target := filepath.Join(destDir, filepath.Dir(name), strings.TrimPrefix(filepath.Base(name), ".wh."))
-			os.RemoveAll(target)
+			_ = os.RemoveAll(target)
 			continue
 		}
 
@@ -539,7 +539,7 @@ func extractLayer(layerPath, destDir string) error {
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
 				return err
 			}
-			os.Remove(targetPath) // Remove existing
+			_ = os.Remove(targetPath) // Remove existing
 			if err := os.Symlink(header.Linkname, targetPath); err != nil {
 				return err
 			}
@@ -548,7 +548,7 @@ func extractLayer(layerPath, destDir string) error {
 				return err
 			}
 			linkTarget := filepath.Join(destDir, header.Linkname)
-			os.Remove(targetPath)
+			_ = os.Remove(targetPath)
 			if err := os.Link(linkTarget, targetPath); err != nil {
 				return err
 			}
@@ -775,7 +775,7 @@ func (s *ImageStore) fetchLayer(ctx context.Context, ref *imageReference, layer 
 	// Calculate diff ID
 	diffID, err := calculateDiffID(layerPath)
 	if err != nil {
-		os.Remove(layerPath)
+		_ = os.Remove(layerPath)
 		return "", "", err
 	}
 
@@ -930,20 +930,20 @@ func calculateDiffID(layerPath string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	// Try to decompress gzip
 	gzReader, err := gzip.NewReader(f)
 	if err != nil {
 		// Not gzipped, hash the file directly
-		f.Seek(0, io.SeekStart)
+		_, _ = f.Seek(0, io.SeekStart)
 		h := sha256.New()
 		if _, err := io.Copy(h, f); err != nil {
 			return "", err
 		}
 		return "sha256:" + hex.EncodeToString(h.Sum(nil)), nil
 	}
-	defer gzReader.Close()
+	defer func() { _ = gzReader.Close() }()
 
 	// Hash the uncompressed content
 	h := sha256.New()
