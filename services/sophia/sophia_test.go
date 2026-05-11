@@ -1375,7 +1375,7 @@ func TestPublishEventNilWotan(t *testing.T) {
 
 func TestPublishEventWithTraceID(t *testing.T) {
 	svc := newTestService()
-	ctx := context.WithValue(context.Background(), "trace_id", "test-trace-123")
+	ctx := context.WithValue(context.Background(), "trace_id", "test-trace-123") //nolint:staticcheck // SA1029 test-only string key; collision risk irrelevant in unit-test scope
 
 	// Should not panic
 	svc.publishEvent(ctx, "test.event", map[string]interface{}{"key": "value"})

@@ -438,7 +438,9 @@ func TestRuntimeToContainer(t *testing.T) {
 		{Name: "database", Image: "postgres:latest", Labels: map[string]string{"tier": "data"}},
 	}
 
-	var containers []*TestContainer
+	// containers slice was previously accumulated here but never checked;
+	// the assertion below uses harness.RuntimeManager.ListContainers()
+	// instead. Drop the dead accumulator.
 	for _, spec := range specs {
 		c, err := harness.RuntimeManager.CreateContainer(ctx, &spec)
 		if err != nil {
@@ -449,7 +451,6 @@ func TestRuntimeToContainer(t *testing.T) {
 			t.Fatalf("Failed to start container %s: %v", spec.Name, err)
 		}
 
-		containers = append(containers, c)
 		t.Logf("Created container: %s (ID: %s, IP: %s)", c.Name, c.ID, c.IPAddress)
 	}
 

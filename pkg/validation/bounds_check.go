@@ -28,11 +28,7 @@ func ValidateMemoryRange(addr, size, maxAddr uint32) bool {
 
 	// Check for uint32 overflow: addr + size must not wrap
 	end := uint64(addr) + uint64(size)
-	if end > uint64(maxAddr) {
-		return false
-	}
-
-	return true
+	return end <= uint64(maxAddr)
 }
 
 // ValidateMemoryAddr checks that a single memory address is within bounds.

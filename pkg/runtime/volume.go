@@ -313,10 +313,7 @@ func (m *VolumeManager) mountTmpfs(mount *Mount, dest string) error {
 	flags := unix.MS_NOEXEC | unix.MS_NOSUID | unix.MS_NODEV
 
 	// Build options
-	var options []string
-	for _, opt := range mount.Options {
-		options = append(options, opt)
-	}
+	options := append([]string(nil), mount.Options...)
 
 	// Default size if not specified
 	hasSize := false

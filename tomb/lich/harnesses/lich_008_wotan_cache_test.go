@@ -284,11 +284,9 @@ func FuzzCacheRingBufferInterleaved(f *testing.F) {
 
 			case 1: // get
 				entries := rb.Get()
-				if entries != nil {
-					for i, e := range entries {
-						_ = e.ID
-						_ = i
-					}
+				for i, e := range entries {
+					_ = e.ID
+					_ = i
 				}
 
 			case 2: // query

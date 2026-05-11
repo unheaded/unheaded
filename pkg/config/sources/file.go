@@ -131,8 +131,8 @@ func (p *TOMLParser) Parse() (map[string]any, error) {
 
 		ch := p.peek()
 
-		switch {
-		case ch == '[':
+		switch ch {
+		case '[':
 			// Section or array of tables
 			p.advance()
 			if p.peek() == '[' {
@@ -194,7 +194,7 @@ func (p *TOMLParser) Parse() (map[string]any, error) {
 				}
 			}
 
-		case ch == '\n', ch == '\r':
+		case '\n', '\r':
 			p.advance()
 
 		default:

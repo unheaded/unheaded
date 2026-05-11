@@ -93,7 +93,7 @@ func (a *PrometheusAdapter) Exposition() string {
 	var s string
 	for _, m := range a.metrics {
 		s += fmt.Sprintf("# TYPE %s %s\n", m.name, m.mtype)
-		s += fmt.Sprintf("%s", m.name)
+		s += m.name
 		if len(m.labels) > 0 {
 			s += "{"
 			first := true

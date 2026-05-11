@@ -862,15 +862,15 @@ func TestPollMessages(t *testing.T) {
 				count := atomic.AddInt64(&callCount, 1)
 				now := time.Now()
 
-				switch {
-				case count == 1:
+				switch count {
+				case 1:
 					jsonResponse(w, http.StatusOK, map[string]interface{}{
 						"messages": []map[string]interface{}{
 							{"message_id": "msg-1", "topic": "chat", "sender_id": "s1",
 								"created_at": now.Format(time.RFC3339Nano), "seq": 1, "payload": "first"},
 						},
 					})
-				case count == 2:
+				case 2:
 					// Verify after_seq was updated.
 					afterSeq := r.URL.Query().Get("after_seq")
 					if afterSeq != "1" {

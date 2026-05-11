@@ -1984,11 +1984,11 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 	copy(instructions, mainProg.Instructions)
 
 	// Collect referenced .text functions and append only those
-	textProg, _ := parsed.Programs[".text"]
+	textProg := parsed.Programs[".text"]
 	// funcMap: symValue (offset in .text) → new instruction index in combined stream
 	funcMap := make(map[uint64]int)
 	if textProg != nil {
-		relocs, _ := parsed.Relocations[mainProg.Name]
+		relocs := parsed.Relocations[mainProg.Name]
 		// Collect unique function offsets referenced by R_BPF_64_32 relocations
 		seen := make(map[uint64]bool)
 		var funcOffsets []uint64

@@ -1110,6 +1110,11 @@ func (st *ServerTimingHeader) SetHeader(w http.ResponseWriter) {
 }
 
 // BufferPool provides a pool of byte buffers.
+//
+// The underlying sync.Pool stores *[]byte rather than []byte to avoid
+// per-Put allocation of the interface{} wrapper around the slice header
+// (staticcheck SA6002). Public Get/Put still expose []byte for ergonomic
+// callers — the pointer indirection is internal.
 type BufferPool struct {
 	pool sync.Pool
 	size int
@@ -1121,7 +1126,8 @@ func NewBufferPool(size int) *BufferPool {
 		size: size,
 		pool: sync.Pool{
 			New: func() interface{} {
-				return make([]byte, size)
+				buf := make([]byte, size)
+				return &buf
 			},
 		},
 	}
@@ -1129,13 +1135,14 @@ func NewBufferPool(size int) *BufferPool {
 
 // Get gets a buffer from the pool.
 func (bp *BufferPool) Get() []byte {
-	return bp.pool.Get().([]byte)
+	return *bp.pool.Get().(*[]byte)
 }
 
 // Put returns a buffer to the pool.
 func (bp *BufferPool) Put(buf []byte) {
 	if cap(buf) >= bp.size {
-		bp.pool.Put(buf[:bp.size])
+		trimmed := buf[:bp.size]
+		bp.pool.Put(&trimmed)
 	}
 }
 

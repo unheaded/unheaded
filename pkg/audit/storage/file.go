@@ -245,12 +245,8 @@ func (fs *FileStorage) openCurrentFile() error {
 
 // checkRotation checks if rotation is needed and performs it.
 func (fs *FileStorage) checkRotation() error {
-	needRotation := false
-
-	// Check size-based rotation
-	if fs.currentSize >= fs.maxFileSize {
-		needRotation = true
-	}
+	// Size-based rotation triggers at the configured threshold.
+	needRotation := fs.currentSize >= fs.maxFileSize
 
 	// Check daily rotation
 	if fs.rotateDaily {

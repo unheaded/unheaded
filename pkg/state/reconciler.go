@@ -778,10 +778,8 @@ func (r *Reconciler) GetActualState(ctx context.Context) (*ActualState, error) {
 		state.Containers[c.Name] = c
 	}
 
-	if networks != nil {
-		for _, n := range networks {
-			state.Networks[n.Name] = n
-		}
+	for _, n := range networks {
+		state.Networks[n.Name] = n
 	}
 
 	r.mu.Lock()

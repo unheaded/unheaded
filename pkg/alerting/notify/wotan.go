@@ -351,9 +351,7 @@ func (m *MockWotanPublisher) PublishBatch(ctx context.Context, topic string, eve
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.Batches = append(m.Batches, events)
-	for _, e := range events {
-		m.Events = append(m.Events, e)
-	}
+	m.Events = append(m.Events, events...)
 	return nil
 }
 
