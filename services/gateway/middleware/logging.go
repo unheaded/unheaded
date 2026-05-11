@@ -100,9 +100,9 @@ func NewLoggingMiddleware(log *logger.Logger, metricsReg *metrics.Registry) *Log
 	)
 
 	if metricsReg != nil {
-		metricsReg.Register(requestsCounter)
-		metricsReg.Register(durationHist)
-		metricsReg.Register(responseSizeHist)
+		_ = metricsReg.Register(requestsCounter)
+		_ = metricsReg.Register(durationHist)
+		_ = metricsReg.Register(responseSizeHist)
 	}
 
 	return &LoggingMiddleware{

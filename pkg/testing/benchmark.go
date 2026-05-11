@@ -253,8 +253,8 @@ func (c *BenchmarkComparison) Summary() string {
 	defer c.mu.Unlock()
 
 	var sb strBuilder
-	sb.WriteString("Benchmark Summary:\n")
-	sb.WriteString("==================\n")
+	_, _ = sb.WriteString("Benchmark Summary:\n")
+	_, _ = sb.WriteString("==================\n")
 
 	names := make([]string, 0, len(c.results))
 	for name := range c.results {
@@ -265,7 +265,7 @@ func (c *BenchmarkComparison) Summary() string {
 	for _, name := range names {
 		results := c.results[name]
 		avgNs := averageNsPerOp(results)
-		sb.WriteString(fmt.Sprintf("%s: %d ns/op (avg of %d runs)\n", name, avgNs, len(results)))
+		_, _ = sb.WriteString(fmt.Sprintf("%s: %d ns/op (avg of %d runs)\n", name, avgNs, len(results)))
 	}
 
 	return sb.String()

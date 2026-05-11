@@ -124,7 +124,7 @@ func (r *Router) RemoveRoute(name string) bool {
 	}
 
 	// Close the proxy
-	route.Proxy.Close()
+	_ = route.Proxy.Close()
 
 	// Remove from slice
 	for i, rt := range r.routes {
@@ -159,7 +159,7 @@ func (r *Router) ClearRoutes() {
 	defer r.mu.Unlock()
 
 	for _, route := range r.routes {
-		route.Proxy.Close()
+		_ = route.Proxy.Close()
 	}
 	r.routes = make([]*Route, 0)
 	r.routeMap = make(map[string]*Route)
@@ -171,7 +171,7 @@ func (r *Router) Close() error {
 	defer r.mu.Unlock()
 
 	for _, route := range r.routes {
-		route.Proxy.Close()
+		_ = route.Proxy.Close()
 	}
 
 	return nil

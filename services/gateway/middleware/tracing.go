@@ -95,7 +95,8 @@ func generateID() string {
 // GetTraceID retrieves the trace ID from context.
 func GetTraceID(ctx context.Context) string {
 	if v := ctx.Value(TraceIDKey); v != nil {
-		return v.(string)
+		s, _ := v.(string)
+		return s
 	}
 	return ""
 }
@@ -103,7 +104,8 @@ func GetTraceID(ctx context.Context) string {
 // GetSpanID retrieves the span ID from context.
 func GetSpanID(ctx context.Context) string {
 	if v := ctx.Value(SpanIDKey); v != nil {
-		return v.(string)
+		s, _ := v.(string)
+		return s
 	}
 	return ""
 }
@@ -111,7 +113,8 @@ func GetSpanID(ctx context.Context) string {
 // GetRequestStart retrieves the request start time from context.
 func GetRequestStart(ctx context.Context) time.Time {
 	if v := ctx.Value(RequestStartKey); v != nil {
-		return v.(time.Time)
+		t, _ := v.(time.Time)
+		return t
 	}
 	return time.Time{}
 }

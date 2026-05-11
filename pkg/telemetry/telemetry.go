@@ -733,9 +733,9 @@ func (e *OTLPExporter) batchLoop() {
 		case <-e.shutdownCh:
 			return
 		case <-e.flushCh:
-			e.flush()
+			_ = e.flush()
 		case <-ticker.C:
-			e.flush()
+			_ = e.flush()
 		}
 	}
 }
@@ -774,7 +774,7 @@ func (e *OTLPExporter) flush() error {
 		return fmt.Errorf("%w: %v", ErrExportFailed, err)
 	}
 	defer resp.Body.Close()
-	io.Copy(io.Discard, resp.Body)
+	_, _ = io.Copy(io.Discard, resp.Body)
 
 	if resp.StatusCode/100 != 2 {
 		return fmt.Errorf("%w: HTTP %d", ErrExportFailed, resp.StatusCode)

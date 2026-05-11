@@ -53,7 +53,7 @@ type pendingMessage struct {
 // that block connection recycling.
 func drainBody(resp *http.Response) {
 	if resp != nil && resp.Body != nil {
-		io.Copy(io.Discard, resp.Body)
+		_, _ = io.Copy(io.Discard, resp.Body)
 		resp.Body.Close()
 	}
 }
@@ -341,7 +341,7 @@ func (c *Client) Close() error {
 
 	// Close gRPC client if initialized
 	if c.grpcClient != nil {
-		c.grpcClient.Close()
+		_ = c.grpcClient.Close()
 		c.grpcClient = nil
 	}
 
@@ -619,7 +619,7 @@ func (c *Client) StreamMessages(ctx context.Context, topic string) (<-chan *Mess
 	if activeTransport == TransportGRPC && c.grpcAddr != "" {
 		grpcCl, err := c.getOrCreateGRPCClient()
 		if err == nil {
-			grpcCl.Subscribe(ctx, topic, sub.DisplayName)
+			_, _ = grpcCl.Subscribe(ctx, topic, sub.DisplayName)
 			ch, err := grpcCl.StreamMessages(ctx, topic)
 			if err == nil {
 				return ch, nil
