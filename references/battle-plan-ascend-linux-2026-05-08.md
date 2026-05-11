@@ -134,9 +134,11 @@ The current boot protocol (UPC_BOOT_PROTOCOL.md v1) loads at 0x10000, expects pr
 
 **Goal:** xv6-riscv kernel boots on UPC. Shell prompt visible. 5 commands (`ls`, `cat`, `echo`, `uname`, `ps`) respond in <50 ms in browser.
 
+**Status:** Phase 1.1 SHIP gate ACHIEVED 2026-05-10 (commit `3ac1f684`). xv6 emits `xv6 booting...\n` on kernel 6.17.0-23 with `--features ascend-linux`. CPU advances 4000 insns, M→S transition (priv 0→1) verified. See `references/marshal-shift-2026-05-10-phase11-banner-shipped.md` for the full shift report. Phase 1.2-1.5 (page tables, process model, filesystem, shell+5cmds) remain — the headline gate "shell prompt visible" is the Phase 1 final gate per §1.6, not Phase 1.1.
+
 **Owner:** Developer (lead) + Computermancer (ABI / linker) + Architect (verifier guard) + Marshal (drift). **Hybrid: mechanical work unattended, kernel-choice + page-table model are pair calls.**
 
-### 1.1 — xv6 source bring-up (~5 days, unattended)
+### 1.1 — xv6 source bring-up (~5 days, unattended) — ✅ DONE 2026-05-10
 
 21. Vendor xv6-riscv from MIT-PDOS upstream (commit pinned, MIT license verified) into `crates/xv6-mbc/upstream/`.
 22. Add a top-level `crates/xv6-mbc/Cargo.toml` workspace member; treat the C source as a build target, not a Rust library.
@@ -145,6 +147,16 @@ The current boot protocol (UPC_BOOT_PROTOCOL.md v1) loads at 0x10000, expects pr
 25. Replace xv6's UART driver (`kernel/uart.c`) with a console driver that writes to MMIO 0xC001 (per UPC_OS_PRIMITIVES.md L4f).
 26. Replace xv6's `kernel/virtio_disk.c` with a ramdisk driver using SYS_READ_BLOCK / SYS_WRITE_BLOCK syscalls (or direct block-device mmap).
 27. First end-of-section commit gate: `cargo run --bin doom-runner -- --kernel xv6-mbc.mbc` should print "xv6 booting..." and HLT (no shell yet).
+
+**§1.1 SHIP NOTES (2026-05-10 — paths taken vs paths not taken):**
+
+- **Loader path used = doom-runner replaced by `cmd/upc-bootctl`.** §1.1 originally targeted doom-runner as the loader; in practice cmd/upc-bootctl emerged in §1.5/Phase 1 SHIP plan and became the canonical Phase 1.1 loader. Closes tasks #51, #62.
+- **Translator .rodata path: loader-mirror, NOT translator-MBC-relative-loads.** The original §1.1 plan implied the translator would emit MBC-relative immediates for .rodata. The simpler path landed: rv32i_to_mbc emits a `.data` sibling artifact (TLV: count + records of `[byte_addr, len, bytes]`) and cmd/upc-bootctl bulk-writes to RAM_MAP at byte-VMA addresses via `runner.load_data_image`. This avoided the multi-day translator redesign that earlier estimates flagged. Closes task #61.
+- **BPF verifier rejection on kernel 6.17 → ROOT CAUSE WAS MRET/SRET handlers.** A stray `continue;` skipped `i += 1` in the dispatch loop, plus an unmasked-wide-range PC write tripped state-pruning. Fix in `0e30b55b`: drop `continue`, mask PC `& 0xFFFF`. Closes task #70. BlackMage adversarial review: SAFE — fix actually closes a counter-bypass primitive.
+- **BOOT_MAGIC byte-order ambiguity → ADR-072.** Resolved with markdown-only doc edits: canonical hex `0x554E4844` ('UNHD' MSB-first); wire bytes `D,H,N,U` per LE. Same pattern as ELF magic. Closes task #64.
+- **x16+ register usage → STRIPPED FROM swtch + trampoline.** Audit on linked kernel.elf showed all 40 x16+ usages were s2-s11 saves/restores in context-switch path. CFLAGS already pin `-ffixed-x18..x27` so C codegen never assigned to them; the asm saves were dead work AND introduced unsupported-register translator errors. Stripped in commit `5c55c386`. Closes task #60.
+- **MMIO TTY 2-null-pad cosmetic fixed.** start_mbc.c::mmio_putc switched from unaligned `volatile uint32 *` to `volatile uint8 *`. Banner output drops 45 → 15 bytes. Commit `3f14a768`.
+- **Phase 2 stage-1 stub crate scaffolded** (`crates/upc-bootstub/`) per the SHIP-decision deferral; cmd/upc-bootctl gained a `--bootstub <path>` flag for the prepended-stub boot path. Closes task #63.
 
 ### 1.2 — Page tables under MMU (~7 days, pair on day 1, then unattended)
 
