@@ -529,7 +529,7 @@ func (hs *HTTPServer) metricsHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(metrics))
+	_, _ = w.Write([]byte(metrics))
 }
 
 // operationsHandler handles POST /api/v1/operations - Execute an operation
@@ -638,7 +638,7 @@ func (hs *HTTPServer) executeOperationHandler(w http.ResponseWriter, r *http.Req
 func (hs *HTTPServer) listOperationsHandler(w http.ResponseWriter, r *http.Request) {
 	limit := 50 // Default limit
 	if l := r.URL.Query().Get("limit"); l != "" {
-		fmt.Sscanf(l, "%d", &limit)
+		_, _ = fmt.Sscanf(l, "%d", &limit)
 		if limit <= 0 || limit > 1000 {
 			limit = 50
 		}
@@ -723,7 +723,7 @@ func (hs *HTTPServer) transactionsHandler(w http.ResponseWriter, r *http.Request
 	// Execute each operation in the transaction
 	for i, op := range req.Operations {
 		if op.Name == "" {
-			tx.Rollback()
+			_ = tx.Rollback()
 			hs.writeError(w, http.StatusBadRequest, "VALIDATION_ERROR",
 				fmt.Sprintf("Operation %d: name is required", i), nil)
 			return
@@ -742,7 +742,7 @@ func (hs *HTTPServer) transactionsHandler(w http.ResponseWriter, r *http.Request
 		case "effect":
 			tx = tx.Effect(op.Name, op.Input)
 		default:
-			tx.Rollback()
+			_ = tx.Rollback()
 			hs.writeError(w, http.StatusBadRequest, "INVALID_TYPE",
 				fmt.Sprintf("Operation %d: type must be query, mutation, or effect", i), nil)
 			return
@@ -751,7 +751,7 @@ func (hs *HTTPServer) transactionsHandler(w http.ResponseWriter, r *http.Request
 
 	// Commit transaction
 	if err := tx.Commit(); err != nil {
-		tx.Rollback()
+		_ = tx.Rollback()
 		hs.writeError(w, http.StatusBadRequest, "TRANSACTION_FAILED", err.Error(), err)
 		return
 	}

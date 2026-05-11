@@ -302,13 +302,13 @@ func FormatCpuState(regs [16]uint64, pc, sp, flags uint64, halted bool, instrCou
 
 	// Write 16 registers (128 bytes)
 	for i := 0; i < 16; i++ {
-		binary.Write(buf, binary.LittleEndian, regs[i])
+		_ = binary.Write(buf, binary.LittleEndian, regs[i])
 	}
 
 	// Write PC, SP, flags (24 bytes)
-	binary.Write(buf, binary.LittleEndian, pc)
-	binary.Write(buf, binary.LittleEndian, sp)
-	binary.Write(buf, binary.LittleEndian, flags)
+	_ = binary.Write(buf, binary.LittleEndian, pc)
+	_ = binary.Write(buf, binary.LittleEndian, sp)
+	_ = binary.Write(buf, binary.LittleEndian, flags)
 
 	// Write halted + padding (8 bytes)
 	var haltedByte byte
@@ -319,7 +319,7 @@ func FormatCpuState(regs [16]uint64, pc, sp, flags uint64, halted bool, instrCou
 	buf.Write(make([]byte, 7)) // padding
 
 	// Write instruction count (8 bytes)
-	binary.Write(buf, binary.LittleEndian, instrCount)
+	_ = binary.Write(buf, binary.LittleEndian, instrCount)
 
 	// Write last KBD state (32 bytes)
 	buf.Write(kbdState[:])

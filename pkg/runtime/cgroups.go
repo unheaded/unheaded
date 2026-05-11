@@ -162,7 +162,7 @@ func (m *CgroupManager) CreateCgroup(containerID string, resources *ResourceConf
 
 	// Apply resource limits
 	if err := m.applyResources(fullPath, resources); err != nil {
-		os.RemoveAll(fullPath)
+		_ = os.RemoveAll(fullPath)
 		return "", fmt.Errorf("failed to apply resources: %w", err)
 	}
 
@@ -436,7 +436,7 @@ func (m *CgroupManager) RemoveCgroup(cgroupPath string) error {
 			// Send SIGKILL
 			proc, err := os.FindProcess(pid)
 			if err == nil {
-				proc.Kill()
+				_ = proc.Kill()
 			}
 		}
 	}
@@ -613,7 +613,7 @@ func readKeyValueFile(path string) (map[string]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	result := make(map[string]string)
 	scanner := bufio.NewScanner(file)
@@ -634,7 +634,7 @@ func readProcs(path string) ([]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var pids []int
 	scanner := bufio.NewScanner(file)
@@ -825,7 +825,7 @@ func (m *CgroupManager) KillAllProcesses(containerID string) error {
 
 	for _, pid := range pids {
 		if proc, err := os.FindProcess(pid); err == nil {
-			proc.Kill()
+			_ = proc.Kill()
 		}
 	}
 

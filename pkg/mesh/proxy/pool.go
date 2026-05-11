@@ -152,7 +152,7 @@ func (p *ConnectionPool) Get() (*PooledConn, error) {
 		}
 
 		// Connection expired, close it
-		conn.Conn.Close()
+		_ = conn.Conn.Close()
 		atomic.AddInt32(&p.numOpen, -1)
 		atomic.AddUint64(&p.evictions, 1)
 	}
@@ -241,7 +241,7 @@ func (p *ConnectionPool) Close() error {
 
 	// Close all idle connections
 	for _, conn := range p.conns {
-		conn.Conn.Close()
+		_ = conn.Conn.Close()
 	}
 	p.conns = nil
 
@@ -330,7 +330,7 @@ func (p *ConnectionPool) ensureMinConnections() {
 		p.mu.Lock()
 		if p.closed {
 			p.mu.Unlock()
-			conn.Conn.Close()
+			_ = conn.Conn.Close()
 			atomic.AddInt32(&p.numOpen, -1)
 			break
 		}
@@ -422,7 +422,7 @@ func (pm *PoolManager) evictOldest() {
 	// Simple eviction: just remove the first one
 	// In production, you'd want LRU or similar
 	for addr, pool := range pm.pools {
-		pool.Close()
+		_ = pool.Close()
 		delete(pm.pools, addr)
 		break
 	}
@@ -434,7 +434,7 @@ func (pm *PoolManager) Close() error {
 	defer pm.mu.Unlock()
 
 	for addr, pool := range pm.pools {
-		pool.Close()
+		_ = pool.Close()
 		delete(pm.pools, addr)
 	}
 
