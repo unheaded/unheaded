@@ -396,7 +396,7 @@ func (c *BuildCache) Delete(key string) error {
 
 	// Remove persisted file
 	entryPath := filepath.Join(c.cacheDir, key+".json")
-	os.Remove(entryPath)
+	_ = os.Remove(entryPath)
 
 	return nil
 }
@@ -466,7 +466,7 @@ func (c *BuildCache) evictOldest() {
 	if oldest != nil {
 		c.currentSize -= oldest.Size
 		delete(c.entries, oldestKey)
-		os.Remove(filepath.Join(c.cacheDir, oldestKey+".json"))
+		_ = os.Remove(filepath.Join(c.cacheDir, oldestKey+".json"))
 	}
 }
 
@@ -1103,7 +1103,7 @@ func (b *Builder) executeBuild(ctx context.Context, spec *BuildSpec) *BuildResul
 		LastAccess: time.Now(),
 		Size:       imageSize,
 	}
-	b.cache.Put(cacheEntry)
+	_ = b.cache.Put(cacheEntry)
 
 	buildsTotal.WithLabelValues(spec.ContainerName, "success").Inc()
 	buildDuration.WithLabelValues(spec.ContainerName).Observe(result.Duration.Seconds())
@@ -1199,7 +1199,7 @@ func (b *Builder) extractContainerImage(storePath, containerName string) (string
 	if err != nil {
 		return "", "", 0, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 
 	h := sha256.New()
 	if _, err := io.Copy(h, f); err != nil {
@@ -1262,7 +1262,7 @@ func (b *Builder) onFlakeChange(path string, config *FlakeConfig) {
 			},
 		}
 
-		b.queue.Enqueue(spec)
+		_ = b.queue.Enqueue(spec)
 	}
 }
 
@@ -1292,7 +1292,7 @@ func (b *Builder) publishBuildEvent(result *BuildResult) {
 	data, _ := json.Marshal(event)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	b.wotan.Publish(ctx, b.config.WotanTopic, data)
+	_ = b.wotan.Publish(ctx, b.config.WotanTopic, data)
 }
 
 // ============================================================================

@@ -129,7 +129,7 @@ func (l *Listener) acceptLoop(ctx context.Context) error {
 
 		// Set accept deadline to check for context cancellation
 		if tcpListener, ok := listener.(*net.TCPListener); ok {
-			tcpListener.SetDeadline(time.Now().Add(time.Second))
+			_ = tcpListener.SetDeadline(time.Now().Add(time.Second))
 		}
 
 		conn, err := listener.Accept()
@@ -148,7 +148,7 @@ func (l *Listener) acceptLoop(ctx context.Context) error {
 		if l.config.MaxConnections > 0 {
 			active := atomic.LoadInt64(&l.activeConns)
 			if active >= int64(l.config.MaxConnections) {
-				conn.Close()
+				_ = conn.Close()
 				continue
 			}
 		}
@@ -168,10 +168,10 @@ func (l *Listener) handleConnection(conn net.Conn) {
 
 	// Set timeouts
 	if l.config.ReadTimeout > 0 {
-		conn.SetReadDeadline(time.Now().Add(l.config.ReadTimeout))
+		_ = conn.SetReadDeadline(time.Now().Add(l.config.ReadTimeout))
 	}
 	if l.config.WriteTimeout > 0 {
-		conn.SetWriteDeadline(time.Now().Add(l.config.WriteTimeout))
+		_ = conn.SetWriteDeadline(time.Now().Add(l.config.WriteTimeout))
 	}
 
 	l.mu.RLock()
@@ -181,7 +181,7 @@ func (l *Listener) handleConnection(conn net.Conn) {
 	if handler != nil {
 		handler(conn)
 	} else {
-		conn.Close()
+		_ = conn.Close()
 	}
 }
 
@@ -259,7 +259,7 @@ func (l *HTTPListener) SetHTTPHandler(h HTTPHandler) {
 
 // handleHTTPConnection handles an HTTP connection.
 func (l *HTTPListener) handleHTTPConnection(conn net.Conn) {
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	buf := make([]byte, 8192)
 	n, err := conn.Read(buf)

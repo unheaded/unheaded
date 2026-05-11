@@ -101,8 +101,8 @@ func (f *FilesystemStore) Put(ctx context.Context, bucket, key string, reader io
 	}
 	tmpPath := tmpFile.Name()
 	defer func() {
-		tmpFile.Close()
-		os.Remove(tmpPath)
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
 	}()
 
 	// Copy data and calculate MD5
@@ -207,7 +207,7 @@ func (f *FilesystemStore) Get(ctx context.Context, bucket, key string) (io.ReadC
 
 	stat, err := file.Stat()
 	if err != nil {
-		file.Close()
+		_ = file.Close()
 		recordOp("filesystem", "get", "error", time.Since(start).Seconds())
 		return nil, nil, fmt.Errorf("filesystem: stat object: %w", err)
 	}
@@ -274,7 +274,7 @@ func (f *FilesystemStore) Delete(ctx context.Context, bucket, key string) error 
 	}
 
 	// Remove metadata (ignore errors)
-	os.Remove(metadataPath)
+	_ = os.Remove(metadataPath)
 
 	// Try to remove empty parent directories
 	f.cleanupEmptyDirs(filepath.Dir(objectPath), filepath.Join(f.root, bucket))
@@ -606,7 +606,7 @@ func (f *FilesystemStore) readMetadata(objectPath string) (*storage.ObjectInfo, 
 	}
 
 	var size int64
-	fmt.Sscanf(string(lines[1]), "%d", &size)
+	_, _ = fmt.Sscanf(string(lines[1]), "%d", &size)
 
 	lastMod, _ := time.Parse(time.RFC3339, string(lines[3]))
 
@@ -632,7 +632,7 @@ func (f *FilesystemStore) cleanupEmptyDirs(path, stopAt string) {
 		if err != nil || len(entries) > 0 {
 			return
 		}
-		os.Remove(path)
+		_ = os.Remove(path)
 		path = filepath.Dir(path)
 	}
 }
