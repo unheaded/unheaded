@@ -4,10 +4,11 @@
 **Author:** Marshal (overnight unattended run, Appendix A Step A4)
 **Lane:** RFC Editor (analysis only — Marshal does not author specs)
 **Reference status snapshot:** `docs/specs/2026-04-27-wotan-status.md`
+**RATIFIED:** Stevie 2026-05-11 — DEFER accepted. Re-open only on the flip conditions in §"What would flip this to ship draft-04" below.
 
 ---
 
-## Recommendation: **DEFER draft-04**
+## Recommendation: **DEFER draft-04** ✅ RATIFIED 2026-05-11
 
 Same disposition as Sophia (see `docs/specs/sophia-04-shipdefer-2026-05-06.md`). The 2026-04-27 status snapshot recommended SHIP for draft-03 — already shipped — and identified three light-touch verification items that are 1-hour RFC-Editor passes, not blockers. Nothing in the 9 days since has changed that picture.
 

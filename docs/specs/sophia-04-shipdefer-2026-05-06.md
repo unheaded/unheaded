@@ -4,10 +4,11 @@
 **Author:** Marshal (overnight unattended run, Appendix A Step A3)
 **Lane:** RFC Editor (analysis only — Marshal does not author specs)
 **Reference status snapshot:** `docs/specs/2026-04-27-sophia-status.md`
+**RATIFIED:** Stevie 2026-05-11 — DEFER accepted. Re-open only on the flip conditions in §"What would flip this to ship draft-04" below.
 
 ---
 
-## Recommendation: **DEFER draft-04**
+## Recommendation: **DEFER draft-04** ✅ RATIFIED 2026-05-11
 
 No new evidence has surfaced between 2026-04-27 (last status snapshot) and 2026-05-06 (today, T+9 days) that justifies cutting a Sophia draft-04. The 2026-04-27 status was unambiguous: "**SHIP — already shipped**" — meaning draft-03 is the current publishable artifact and no draft-04 work is queued.
 
