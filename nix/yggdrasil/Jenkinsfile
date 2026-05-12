@@ -1,0 +1,139 @@
+// Yggdrasil P1 Jenkinsfile — task #65 reference pipeline
+//
+// Builds the hardened Debian ISO + signed manifest evidence pack on a
+// schedule (nightly anchor refresh) AND on tag (release builds).
+//
+// Status: SCAFFOLD. The packer template + provisioner scripts are the
+// in-tree contract; this Jenkinsfile is the CI side. Both go live together
+// at task #65 implementation.
+//
+// Free to use. Free to share.
+
+pipeline {
+    agent {
+        label 'yggdrasil-builder'   // Jenkins agent with: packer >= 1.10, qemu-system-x86,
+                                    // quilt, trivy, lynis, gungnir-sign, kvm device, ≥ 8 GiB RAM
+    }
+
+    triggers {
+        // Nightly anchor refresh — verifies the anchor is still valid +
+        // rebuilds against any new Debian point release.
+        cron('H 4 * * *')
+
+        // Tag-based release builds picked up via GitHub webhook.
+    }
+
+    environment {
+        SOURCE_DATE_EPOCH = sh(returnStdout: true, script: 'date -u +%s').trim()
+        YGGDRASIL_VERSION = "${env.GIT_TAG ?: env.BUILD_NUMBER + '-snapshot'}"
+        GPG_KEY_ID = credentials('yggdrasil-mldsa65-key-id')
+    }
+
+    options {
+        timeout(time: 2, unit: 'HOURS')   // Image build + evidence pack
+        timestamps()
+        ansiColor('xterm')
+        buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '10'))
+    }
+
+    stages {
+        stage('Discipline gates') {
+            steps {
+                sh 'bash nix/yggdrasil/scripts/yggdrasil-verify-anchor.sh'
+                sh 'bash nix/yggdrasil/scripts/yggdrasil-verify-overlay.sh'
+            }
+        }
+
+        stage('Cargo audit + govulncheck (kingdom-side)') {
+            steps {
+                sh 'cd cmd/upc-bootctl && cargo audit'
+                sh 'cd ebpf && cargo audit'
+                sh '~/go/bin/govulncheck ./...'
+            }
+        }
+
+        stage('Build hardened ISO') {
+            steps {
+                dir('nix/yggdrasil/packer') {
+                    sh '''
+                        packer init template.pkr.hcl
+                        packer build \
+                            -var "yggdrasil_version=${YGGDRASIL_VERSION}" \
+                            -var "source_epoch=${SOURCE_DATE_EPOCH}" \
+                            template.pkr.hcl
+                    '''
+                }
+            }
+            post {
+                always {
+                    archiveArtifacts artifacts: 'nix/yggdrasil/packer/build/*.qcow2', allowEmptyArchive: true
+                    archiveArtifacts artifacts: 'nix/yggdrasil/packer/build/packer-manifest.json', allowEmptyArchive: true
+                }
+            }
+        }
+
+        stage('Verify evidence pack') {
+            steps {
+                sh '''
+                    cd nix/yggdrasil/packer/build
+                    EVIDENCE=$(ls evidence-pack-*.tar.gz | head -1)
+                    if [ -z "$EVIDENCE" ]; then
+                        echo "FAIL: no evidence pack emitted"
+                        exit 1
+                    fi
+                    yggdrasil-evidence verify "$EVIDENCE"
+                '''
+            }
+            post {
+                success {
+                    archiveArtifacts artifacts: 'nix/yggdrasil/packer/build/evidence-pack-*.tar.gz'
+                }
+            }
+        }
+
+        stage('Smoke boot (qemu)') {
+            steps {
+                dir('nix/yggdrasil/tests') {
+                    sh 'bash smoke-boot.sh'
+                }
+            }
+        }
+
+        stage('Publish to apt repo') {
+            when { tag 'v*' }
+            steps {
+                withCredentials([file(credentialsId: 'yggdrasil-reprepro-key', variable: 'REPREPRO_KEY')]) {
+                    sh 'bash nix/yggdrasil/repo/publish.sh "${YGGDRASIL_VERSION}"'
+                }
+            }
+        }
+
+        stage('Publish image to release channel') {
+            when { tag 'v*' }
+            steps {
+                sh '''
+                    aws s3 cp nix/yggdrasil/packer/build/*.qcow2 \
+                        s3://yggdrasil-releases/${YGGDRASIL_VERSION}/ \
+                        --metadata "yggdrasil-version=${YGGDRASIL_VERSION}"
+                    aws s3 cp nix/yggdrasil/packer/build/evidence-pack-*.tar.gz \
+                        s3://yggdrasil-releases/${YGGDRASIL_VERSION}/
+                '''
+            }
+        }
+    }
+
+    post {
+        failure {
+            // Wotan topic notification — kingdom uses Wotan as the alert backbone
+            sh '''
+                if command -v wotan-publish >/dev/null 2>&1; then
+                    wotan-publish --topic system.outage.reports --message \
+                        "Yggdrasil build ${BUILD_NUMBER} FAILED on ${GIT_BRANCH}"
+                fi
+            '''
+        }
+        success {
+            sh 'echo "Yggdrasil build ${YGGDRASIL_VERSION} ready"'
+        }
+    }
+}
