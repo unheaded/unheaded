@@ -93,10 +93,49 @@ Enables dynamic service discovery via gRPC reflection API.
 
 ## Testing Requirements
 
-- Unit test coverage: minimum 80%
+- Unit test coverage: minimum 80% on new code
 - All tests must pass: `go test ./...`
 - No skipped tests without justification
 - Integration tests must pass on branch
+
+## Zero-Findings Lint Ratchet (ADR-073)
+
+**The kingdom maintains ZERO golangci-lint findings.** Per
+[ADR-073](docs/adr/ADR-073-lint-policy-zero-findings.md), every PR must
+keep the lint inventory at zero across errcheck, govet, staticcheck,
+unused, gosec, and bodyclose.
+
+```bash
+golangci-lint run ./...       # expect: 0 issues.
+```
+
+If your PR introduces a new lint finding, you have three triage options
+(in order of preference):
+
+1. **Real bug** → fix it. The 2026-05-11 lint drain surfaced 13 real
+   CVE-class bugs hidden under noise — every one was a `//nolint` candidate
+   in a less rigorous repo.
+2. **Site-specific false positive** → `//nolint:<linter>` with a
+   rationale comment ON THE SAME LINE.
+3. **Rule-wide false-positive pool** (rare for new PRs) → propose a
+   `.golangci.yml` global or path-scoped exclude in your PR with a
+   rationale block. Maintainer review required.
+
+What **never** goes in `.golangci.yml`: bare excludes without rationale,
+or excludes that mask incomplete refactoring instead of architectural
+choice.
+
+## Health Check
+
+Before submitting a PR, run the unified health check:
+
+```bash
+make health
+```
+
+This runs all 8 gates (lint, build, tests, Go vulns, Rust crate audits,
+branch hygiene, doc drift, soft-info) in ~95 seconds. If it doesn't say
+KINGDOM HEALTHY, your PR isn't ready.
 
 ## Code Style
 
@@ -118,4 +157,4 @@ Enables dynamic service discovery via gRPC reflection API.
 
 ---
 
-**Last Updated:** March 25, 2026
+**Last Updated:** 2026-05-11 (added ADR-073 zero-findings lint ratchet section + `make health` reference)
