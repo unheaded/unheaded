@@ -1,13 +1,45 @@
 # PHASE 1.2 PRE-WORK BATTLE PLAN — 8 Phases, 47 Steps
 
+> **⏸ HOLD — DO NOT EXECUTE AUTONOMOUSLY (2026-05-11)**
+>
+> Per Stevie 2026-05-11: *"Hold pre-work; pair-call together first."*
+>
+> The pair-call (Stevie + Architect + Computermancer + BlackMage + Developer)
+> convenes FIRST. The Phase 1.2 option (A/B/C) is picked LIVE. Only THEN does
+> the pre-work execute, and only for the chosen option's variant.
+>
+> The Marshal will NOT fire this plan on its own. The plan stands as the
+> contract for what the pair-call's pre-work will look like once it convenes.
+>
+> See: `references/blockers-resolved-2026-05-11.md` §3 for the call.
+
 **Date**: 2026-05-11
 **Sprint**: ASCEND-LINUX Phase 1.2 pre-work — pair-call readiness (ADR-074)
-**Prerequisite**: ADR-074 drafted + Architect addendum landed (commits `1c2189e7` + `3fc95cb5`). `golangci-lint run ./...` clean (0 issues). 242/242 tests passing.
-**Target**: AP-1 through AP-6 complete; pair-call between Stevie + Architect + Computermancer + BlackMage + Developer can convene with decision-ready evidence on the table.
-**Estimated Duration**: 3-4 hours autonomous
-**Agent Strategy**: Marshal-safe, fully unattended. **NO architectural decision is committed by ANY step in this plan.** All work is foundation that serves Option A, B, or C equally.
+**Status**: 🟡 HOLD (was: 🟢 ready to execute autonomously)
+**Prerequisite**: ADR-074 drafted + Architect addendum landed (commits `1c2189e7` + `3fc95cb5`). `golangci-lint run ./...` clean (0 issues). 242/242 tests passing. **Pair-call window confirmed by Stevie** (not yet scheduled as of 2026-05-11).
+**Target**: AP-1 through AP-6 complete for the chosen option (post pair-call); pair-call decision recorded in ADR-074.
+**Estimated Duration**: 3-4 hours of execution time AFTER pair-call lands.
+**Agent Strategy**: Marshal-safe foundation work, but **gated on pair-call**. After the call, the chosen option's variant is what gets built — the other two stay as no-op stubs.
 **Commit Cadence**: Every 3 steps (calculated: max(3, min(5, 47/20)) = 3)
 **Stuck Protocol**: Skip after 3× time estimate. AP-2 and AP-5 require running `scripts/bpf-verifier-check.sh` — if the script itself is broken, mark STUCK and proceed to AP-3/AP-4 which are independent.
+
+---
+
+## Phase −1 — Blocker-clearing prepend (2026-05-11)
+
+Before this plan can execute, the following blockers were cleared:
+
+| Blocker | Status | Reference |
+|---------|--------|-----------|
+| Captain Track A/B/C call (13 days overdue) | ✅ CLOSED — Track C (Hybrid, slow + safe) | `references/blockers-resolved-2026-05-11.md` §1 |
+| Sophia draft-04 ship-or-defer | ✅ DEFER ratified by Stevie | `docs/specs/sophia-04-shipdefer-2026-05-06.md` |
+| Wotan draft-04 ship-or-defer | ✅ DEFER ratified by Stevie | `docs/specs/wotan-04-shipdefer-2026-05-06.md` |
+| Branch hygiene (3 stale locals) | ✅ DELETED (origin retains; no data loss) | `references/blockers-resolved-2026-05-11.md` §4 |
+| Phase 1.2 pair-call window | ⏸ Pending Stevie's calendar | THIS PLAN — gated until called |
+
+**Track C downstream impact on this plan**: Track C does NOT gate ASCEND-LINUX Phase 1.2. The Phase 1.2 pair-call is independent of the public-launch carry-forwards (demo video, sub-50ms benchmark, public auth — all DEFERRED under Track C). Phase 1.2 proceeds on its own pair-call cadence whenever Stevie has a window.
+
+---
 
 ---
 
