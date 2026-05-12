@@ -26,12 +26,33 @@ func TestValidateKey(t *testing.T) {
 		key     string
 		wantErr bool
 	}{
+		// Happy paths
 		{"file.txt", false},
 		{"path/to/file.json", false},
 		{"a", false},
+		// Length bounds
 		{"", true},
 		{strings.Repeat("x", 1025), true},
 		{strings.Repeat("x", 1024), false},
+		// Path traversal — commit 2c4beac7 closure
+		{"..", true},
+		{"../etc/passwd", true},
+		{"../../etc/passwd", true},
+		{"a/../etc/passwd", true},
+		{"a/..", true},
+		{"normal/file/../escape", true},
+		// Backslash traversal (Windows-flavor)
+		{`..\etc\passwd`, true},
+		{`a\..\etc`, true},
+		// Absolute paths
+		{"/etc/passwd", true},
+		{`\etc\passwd`, true},
+		// NUL byte injection
+		{"file\x00.txt", true},
+		{"\x00", true},
+		// Nested but contained — should pass
+		{"a/b/c/d/file.json", false},
+		{"valid..weird.name", false}, // ".." in the middle of a path component is fine
 	}
 	for _, tt := range tests {
 		err := ValidateKey(tt.key)
@@ -46,12 +67,22 @@ func TestValidateBucket(t *testing.T) {
 		bucket  string
 		wantErr bool
 	}{
+		// Happy paths
 		{"mybucket", false},
 		{"abc", false},
 		{strings.Repeat("x", 63), false},
+		// Length bounds
 		{"", true},
 		{"ab", true},                    // too short
 		{strings.Repeat("x", 64), true}, // too long
+		// Path traversal — commit 2c4beac7 closure
+		{"bucket/with/slash", true},
+		{`bucket\with\backslash`, true},
+		{"bucket..traversal", true},
+		{"..", true},
+		// NUL byte injection
+		{"bucket\x00", true},
+		{"\x00bucket", true},
 	}
 	for _, tt := range tests {
 		err := ValidateBucket(tt.bucket)
