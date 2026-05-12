@@ -498,6 +498,10 @@ ci-local: ## Run full CI pipeline locally
 	@chmod +x scripts/ci-local.sh
 	scripts/ci-local.sh
 
+health: ## Kingdom-wide health check (ADR-073 ratchet + vulns + tests + branch hygiene + doc drift)
+	@chmod +x scripts/kingdom-health.sh
+	@scripts/kingdom-health.sh
+
 ci-security: ## Run security scans only (gosec + govulncheck + GPL boundary)
 	@echo "Running security scans..."
 	@which gosec > /dev/null || (echo "Installing gosec..." && go install github.com/securego/gosec/v2/cmd/gosec@v2.21.0)
