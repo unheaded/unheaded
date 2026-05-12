@@ -257,3 +257,109 @@ This ADR is pre-work, not a decision. It enumerates options, predicts verifier-b
 Per Ioannidis: predictions are pre-registered. Per Popper: each option has a falsification condition. Per Peirce: we generated multiple hypotheses BEFORE picking one (no premature commitment).
 
 Ready for the pair-call.
+
+---
+
+## Architect review addendum (2026-05-11)
+
+**Four-minds verdict: Option A holds up structurally, but the Scientist's analysis surfaced a deeper concept than a deeper infrastructure gap. Three issues to surface before the pair-call.**
+
+### Issue 1 — `PROC_TABLE` slot layout does not include `page_dir_base` (BLOCKER for Option A)
+
+Ground truth from `ebpf/monad-cpu-ebpf/src/main.rs`:
+
+```rust
+/// Layout per slot: [r0..r15, PC, flags, SP_copy, program_break]
+#[map]
+static PROC_TABLE: Array<[u32; 20]> = Array::with_max_entries(4, 0);
+```
+
+The 4-slot process table that drives the L4c scheduler stores 20 u32s per slot: 16 GPRs + PC + flags + SP_copy + program_break. **It does NOT store `page_dir_base` per process.** Today `MbcCpuState.page_dir_base` is per-CPU (single value for the whole interpreter), and `SYS_SET_PAGE_DIR` writes that single per-CPU field.
+
+For Option A's "per-task pgd" model to work, the slot must widen. Two options:
+
+- **Widen `PROC_TABLE` to `[u32; 21]`** — add a `page_dir_base` field at index 20 (push `program_break` to 21, or keep `program_break` at 19 and add `page_dir_base` at 20). Minimum-risk. Adds 4 bytes × 4 slots = 16 bytes of BPF map memory. Verifier-neutral.
+- **Add a new `PROC_PGDS: Array<u32>` of length 4** — parallel array indexed by pid. Same memory cost. Slightly less cache-friendly (two map lookups on context switch instead of one). Slightly easier verifier proof because the new map is read-only after init.
+
+**Architect's pick: widen `PROC_TABLE` to `[u32; 21]`**. Already touching context-switch path; one map is simpler than two; cache locality matters when fork/exec/yield fire repeatedly.
+
+### Issue 2 — No allocator for new page directories on `SYS_FORK`
+
+The current `SYS_FORK` path in `monad-cpu-ebpf/src/main.rs` copies registers from parent into child slot. **It does not allocate a physical page for the child's pgd.** The Scientist's analysis assumed this allocation exists; it does not.
+
+Three structural options:
+
+- **(A1) Fixed per-pid pgd region** at known addresses. With 4-slot `PROC_TABLE` and 4 KiB pgds, reserve `RAM_MAP[0x00_F0_0000..0x00_F0_1000]` for pid 0, `+0x1000` for pid 1, etc. 16 KiB total, fixed forever. **Simplest. Verifier-safe. Phase 3 will need to revisit when process count goes >4.**
+- **(A2) Kernel-side freelist in `RAM_MAP`** with a new `SYS_ALLOC_PAGES` syscall. More general, more complex. Verifier cost: medium (the freelist walker is a bounded loop over ≤N free entries).
+- **(A3) Allocator lives entirely in xv6 userspace**, using `SYS_BRK`-style heap growth. Most Linux-like. Highest xv6 patch surface (~150 LOC vs ~30 for A1).
+
+**Architect's pick for Phase 1.2: A1 (fixed per-pid region)**. Phase 3 will need A3 (Linux-style); we'll have learned more by then. A1 unblocks Phase 1.2 in days, not weeks.
+
+### Issue 3 — `SYS_FLUSH_TLB` is already chunked; that's a feature, not a flaw
+
+Reading `ebpf/monad-cpu-ebpf/src/main.rs:1294` confirms: `SYS_FLUSH_TLB` already implements **chunked 8-entries-per-tick** flushing with PC rewind for continuation. This is the verifier-safe pattern. The Scientist's ADR-074 estimated "TLB-zero loop: 64 iterations × constant body ≈ 200 verifier instructions" — that's the WORST case (single pass). The actual deployed code does it in 8 passes of 8 iterations, so per-tick verifier cost is ~25 instructions, not 200. **Verifier-budget delta for Option A is even smaller than the Scientist estimated.** Revised prediction: **+0.2% to +0.8%** of budget.
+
+The chunked-flush pattern means Phase 1.2 context switch will take 8 ticks to fully flush the TLB (with the CPU stalled for the remainder of the dispatch loop on tick 1 and resuming on tick 2). This is fine for xv6's coarse scheduling cadence — but worth measuring at Phase 1.5 when shell+5cmds workload actually exercises it.
+
+### Issue 4 — Cross-tier check: Wotan DISTRIBUTED implications (Phase 3+)
+
+In LOCAL mode (Phase 1, single node), Option A is clean. In DISTRIBUTED mode (Phase 3+, multi-node with Wotan distributed memory), per-task pgd at a node-local physical address breaks the model: another node's CPU cannot resolve `page_dir_base = 0x00F00000` unless that virtual-to-physical mapping is identical kingdom-wide.
+
+**Phase 1.2 doesn't need to solve this.** But the ADR should flag it explicitly so Phase 3 doesn't re-derive the problem from scratch. Solution sketch (for Phase 3 future ADR): replace physical-address `page_dir_base` with a logical handle `(node_id, pgd_id)` that Wotan resolves at access time. This is the same pattern used for cross-node Wotan memory coherence.
+
+### Issue 5 — BPF map inventory pressure
+
+Current map count in `monad-cpu-ebpf/src/main.rs`: **16 maps**. Kernel default `kernel.bpf_stats_enabled` paths can struggle past 20-30 maps per program on older kernels (<5.15). Yggdrasil's anchor kernel is 6.x so this is fine, but verifier-budget regression to watch: each new map adds proof obligations.
+
+**Phase 1.2 net map delta**:
+- Option A (widen PROC_TABLE): **0 new maps**. Existing slot extension.
+- Option B (ASID-tagged): **0 new maps**, but TLB_MAP value type widens.
+- Option C (priv_level + pid hybrid): **0 new maps**.
+
+All three options are map-neutral. Good.
+
+---
+
+## Architect-owned pre-work (before pair-call)
+
+These items can land WITHOUT the pair-call decision because they're structural prerequisites for any of the three options. Marshal-mode safe (no architectural decision is being made, only foundation-laying):
+
+| # | Item | Effort | Owner | Output |
+|---|------|--------|-------|--------|
+| AP-1 | **Author ADR-074 follow-on note**: add the `PROC_TABLE` layout-extension table and the fixed-per-pid-pgd-region memory map. | 30 min | Architect | This addendum (DONE) |
+| AP-2 | **Measure baseline verifier budget** with current code on the Yggdrasil anchor kernel. Capture `tmp/bpf-budget-baseline-2026-05-11.txt`. | 15 min | Architect + Developer | Baseline numbers in `tmp/` |
+| AP-3 | **Write a feature-flag scaffold in `ebpf/monad-cpu-ebpf/src/main.rs`** that's a NO-OP today but gates the future Option-A code path behind `#[cfg(feature = "phase12-option-a")]`. Lets the pair-call build all 3 variants for measurement. | 1 hour | Architect + Developer | Feature flags + 3 stub builds compile |
+| AP-4 | **Document the per-pid pgd memory map** in `docs/doom/UPC_OS_PRIMITIVES.md` (or a new `docs/doom/UPC_PAGE_TABLE_LAYOUT.md`) so the pair-call has a concrete address space picture. | 45 min | Architect | New doc + diagram |
+| AP-5 | **Sample MEM_READ_WORD verifier cost** at the current path-traversal-guarded sites to validate the Scientist's "+0.2% to +0.8%" revised estimate. | 30 min | Architect + Scientist | Numbers in `tmp/` |
+| AP-6 | **Flag the DISTRIBUTED-mode follow-on** in the ASCEND-LINUX battle plan as an explicit Phase 3 dependency, so the page-table work in Phase 1.2 + Phase 3.1 isn't surprised by it. | 15 min | Architect | Battle-plan amendment commit |
+
+**Total pre-work: ~3.5 hours of Marshal-safe foundation work.** None of it commits to Option A, B, or C. All of it leaves the pair-call decision-ready.
+
+## Architect endorsement of Option A (conditional)
+
+The four minds align:
+
+- **Systems**: per-task pgd is the kernel-native pattern. Linux, xv6, FreeBSD all use it. Path of least kernel-side surprise.
+- **Network**: irrelevant for Phase 1.2 (single-node compute). Will become relevant in Phase 3 DISTRIBUTED — flag it now (AP-6).
+- **Infrastructure**: BPF map cost is neutral. Verifier budget delta is the smallest of the three options. Memory cost is 16 KiB fixed for 4-pid pgd region. All numbers fit easily.
+- **Security**: BlackMage analysis from Scientist holds. Physical pgd separation is the cleanest isolation primitive. Defense-in-depth (Option C) becomes available later as a non-breaking addition if needed.
+
+**Conditional on**:
+1. Pre-work items AP-1 through AP-6 complete before the pair-call.
+2. Measurement of actual verifier-budget delta confirms <2% (predicted 0.2-0.8%).
+3. Stevie confirms the 4-process cap is acceptable for Phase 1.2-1.5; Phase 3 will widen.
+
+If the measurement comes back >5% or some assumption fails, Architect joins the room with a revised position — but the foundation work is structurally agnostic.
+
+---
+
+## Decision (PENDING pair-call — UPDATED)
+
+To be filled in after the call. Format:
+
+> **DECIDED**: Option [A | B | C] selected.
+> **Vote**: Stevie [agrees | overrides]; Architect [seconds | dissents with reasoning]; Computermancer [seconds | dissents]; BlackMage [seconds | dissents]; Developer [seconds | dissents].
+> **Implementation**: starts at commit [hash] after pair-call.
+> **Verification**: forkbomb test at Phase 3.1 hard gate; falsification experiments per strong-inference protocol above.
+> **PROC_TABLE layout**: `[u32; 21]` adopted per Architect AP-1 recommendation OR alternative chosen.
+> **Page-table allocator**: A1 (fixed per-pid region) adopted per Architect Issue 2 recommendation OR alternative chosen.
