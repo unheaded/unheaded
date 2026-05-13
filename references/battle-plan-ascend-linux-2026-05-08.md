@@ -274,6 +274,10 @@ The current boot protocol (UPC_BOOT_PROTOCOL.md v1) loads at 0x10000, expects pr
 
 ### 3.1 — MMU enablement (~10 days, pair-heavy)
 
+
+**DISTRIBUTED-mode follow-on (added 2026-05-12 per ADR-074 AP-6)**: when Phase 1.2 adopts per-task pgd at a node-local physical address (Option A — see `docs/adr/ADR-074-phase12-page-table-model.md`, Decision 2026-05-12), Wotan DISTRIBUTED mode cannot directly resolve `page_dir_base = 0x00F00000` across nodes unless the RAM_MAP layout is identical kingdom-wide. Phase 3.1 must replace the physical-address handle with a logical `(node_id, pgd_id)` handle that Wotan's distributed memory coherence resolves at access time. Same pattern as cross-node Wotan memory access. Flagged here so Phase 3.1 doesn't re-derive the problem from scratch.
+
+
 80. Re-enable Phase 0's reserved Sv32 page-table opcodes (or CSR translation, per 0.2 decision 8).
 81. Implement `arch/mbc/include/asm/pgtable.h` — pgd_t, pmd_t, pte_t types matching our L4d MMU layout.
 82. Implement `arch/mbc/mm/init.c` — kernel initial page table; identity-maps the kernel image; enables MMU before jumping into `start_kernel`'s late init.
