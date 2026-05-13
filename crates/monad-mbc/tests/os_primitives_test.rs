@@ -2031,6 +2031,76 @@ fn phase13_sys_waitpid_yields_when_child_running() {
     assert_eq!(cpu.state.current_pid, 1, "parent yields to runnable child");
 }
 
+/// Phase 1.3 Step 7 (ADR-075 §Security #3): the LR.W reservation MUST be
+/// invalidated by a context switch. Without this, a process could LR.W →
+/// yield → SC.W and succeed even if another process modified the address.
+#[test]
+fn phase13_lr_sc_reservation_cleared_by_context_switch() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.state.num_processes = 2;
+    cpu.state.current_pid = 0;
+    cpu.state.reservation_address = 0x400; // PID 0 has an outstanding LR.W
+                                           // Pre-load PID 1 so the scheduler can switch.
+    cpu.proc_table[1] = [0u32; 21];
+    cpu.proc_table[1][16] = 10;
+    cpu.proc_table[1][18] = 0xFFFE_0000;
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_SCHED_YIELD as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0), // PC=10
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(3).ok();
+
+    assert_eq!(cpu.state.current_pid, 1, "context switch occurred");
+    assert_eq!(
+        cpu.state.reservation_address, 0xFFFF_FFFF,
+        "reservation MUST be invalidated by context switch"
+    );
+}
+
+/// Phase 1.3 Step 7 (ADR-075 §Security #3): the LR.W reservation MUST also
+/// be invalidated by a priv-level transition (MRET / SRET already clear it;
+/// pin the invariant via a U → S transition with a live reservation).
+#[test]
+fn phase13_lr_sc_reservation_cleared_by_mret_priv_transition() {
+    let mut cpu = cpu_with_safe_sp();
+    // Pretend we're in M-mode coming OUT of M via MRET; pre-load CSRs.
+    let mepc_word = ((0xF000 + 0x341 * 4) >> 2) as usize;
+    let mstatus_word = ((0xF000 + 0x300 * 4) >> 2) as usize;
+    cpu.ram[mepc_word] = 20; // PC=5 word index
+    cpu.ram[mstatus_word] = 0b01 << 11; // MPP=01 (return to S-mode)
+
+    cpu.state.priv_level = 0; // M-mode
+    cpu.state.reservation_address = 0xCAFE; // live reservation pre-MRET
+
+    let rom = vec![
+        enc(op::MRET, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0), // PC=5
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(10).ok();
+
+    assert_eq!(cpu.state.priv_level, 1, "M->S transition happened");
+    assert_eq!(
+        cpu.state.reservation_address, 0xFFFF_FFFF,
+        "priv transition MUST invalidate the LR.W reservation"
+    );
+}
+
 /// Phase 1.3 Step 5 (ADR-075 D-5): SYS_EXECVE resets regs + PC + program_break
 /// but PRESERVES the page_dir_base (exec replaces the image, not the address
 /// space). r1 carries the pre-loaded entry-point ROM word address.

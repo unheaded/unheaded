@@ -1817,6 +1817,12 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
     }
 
     // 3. Load next process state from PROC_TABLE[next_pid]
+    // Phase 1.3 ADR-075 §Security #3: invalidate the LR.W reservation on every
+    // context switch. RISC-V spec says reservations are cleared by exceptions
+    // and interrupts; SYS_SCHED_YIELD (the syscall trap) qualifies. Without
+    // this, a process could LR.W → yield → another process SC.W to the same
+    // address → original process's SC.W incorrectly succeeds.
+    cpu.reservation_address = 0xFFFF_FFFF;
     let load_state = match PROC_TABLE.get(next_pid) {
         Some(s) => *s,
         None => return, // safety: shouldn't happen
