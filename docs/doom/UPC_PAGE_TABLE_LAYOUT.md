@@ -103,6 +103,51 @@ identical kingdom-wide. Phase 3 will need a logical `(node_id, pgd_id)` handle
 that Wotan resolves at access time. **Phase 1.2 does not need to solve this**;
 flagged here so Phase 3 doesn't re-derive it.
 
+## Phase 1.3 AP-4 amendment — userland virtual address space
+
+Phase 1.2 documented the kernel-side / pgd-region layout. Phase 1.3 introduces
+user processes, so the user virtual address space (per-pid, distinct from the
+RAM_MAP physical view above) is recorded here.
+
+Each process has its own page directory in the `0x00F00000..0x00F03FFF` region
+(or `0x00F00000..0x00F07FFF` after Phase 1.3 AP-1 widens to 8 slots). That pgd
+maps the following **user-VA** layout, which is xv6's default user address
+space adapted for the UPC's 32-bit RAM_MAP:
+
+```
+User virtual address              Contents                              Physical mapping
+─────────────────────             ──────────────────────────────────    ─────────────────────────────
+0x00000000  -  ~~~~~~~~~~         User code (text) + read-only data     pgd[pid] → 0x01000000..0x02FFFFFF
+~~~~~~~~~~  -  ~~~~~~~~~~         User data + bss + heap (sbrk grows)   pgd[pid] → 0x01000000..0x02FFFFFF
+~~~~~~~~~~  -  TRAPFRAME-1        (unmapped guard)
+TRAPFRAME (= TRAMPOLINE - PGSIZE) Per-process trapframe (one PGSIZE)    allocated by proc_pagetable
+TRAMPOLINE (= MAXVA - PGSIZE)     Trampoline page (highest user VA)     maps to kernel-image VA of
+                                                                        adapters/trampoline_mbc.S
+```
+
+Three notes:
+
+1. **User code/data physical pool: 0x01000000..0x02FFFFFF** — 32 MiB carved
+   between the Phase-1.2 pgd region (ending `0x00F0FFFF`) and the userspace
+   stack region (`0x03F00000..0x03FFFFFF`). Each process's pgd installs PTEs
+   mapping user-VA 0x00000000+ to physical addresses inside this pool. The
+   simple Phase-1.3 allocator hands out fixed-size slabs (e.g. 4 MiB per pid at
+   8 slots = 32 MiB exactly).
+2. **TRAMPOLINE at MAXVA - PGSIZE** — highest user VA. The PTE points to the
+   physical address of `trampoline_mbc.S` inside the kernel image
+   (`0x00010000+`). Same VA in every pid, same physical page. xv6's standard
+   pattern — kept verbatim per AP-3.
+3. **TRAPFRAME at TRAMPOLINE - PGSIZE** — one PGSIZE-sized page per process,
+   allocated inside `proc_pagetable()` (xv6 `kernel/proc.c`). Holds the saved
+   user GPRs during a trap; the trampoline reads/writes this page on
+   entry/exit. Distinct physical page per pid; same user VA in every pid.
+
+The Phase-1.2 RAM_MAP table above is the **physical view**; this section is
+the **per-pid virtual view** Phase 1.3 lays on top of it. The MMU walker in
+`ebpf/monad-cpu-ebpf/src/main.rs::translate_address()` already handles the
+two-level walk — Phase 1.3 only adds entries to pgds; it does not change the
+walker.
+
 ## References
 
 - `docs/adr/ADR-074-phase12-page-table-model.md` — full ADR + Architect addendum + Decision 2026-05-12
@@ -111,3 +156,10 @@ flagged here so Phase 3 doesn't re-derive it.
 - `ebpf/monad-common/src/lib.rs::MbcCpuState` — CPU state struct
 - `docs/doom/UPC_BOOT_PROTOCOL_V2.md` — memory map authoritative source for the
   0x00000000-0x000003FF, 0x0000F000-0x0000F3FF, and other reserved regions
+- `references/phase13-ap1-slot-count-budget.md` — Phase 1.3 slot widening (4 → 8)
+- `references/phase13-ap3-trapframe-decision.md` — trapframe ABI keep-as-is decision
+- `crates/xv6-mbc/upstream/kernel/proc.c` — `proc_pagetable()` allocates TRAMPOLINE + TRAPFRAME mappings
+
+---
+
+Free to use. Free to share.
