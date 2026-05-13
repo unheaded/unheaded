@@ -62,14 +62,6 @@ USER_LIB_OBJS = \
   $U/umalloc.o \
   $A/libgcc_stubs.o
 
-# Per-program object lists.
-INIT_OBJS = $U/init.o $(USER_LIB_OBJS)
-SH_OBJS   = $U/sh.o   $(USER_LIB_OBJS)
-LS_OBJS   = $U/ls.o   $(USER_LIB_OBJS)
-CAT_OBJS  = $U/cat.o  $(USER_LIB_OBJS)
-ECHO_OBJS = $U/echo.o $(USER_LIB_OBJS)
-WC_OBJS   = $U/wc.o   $(USER_LIB_OBJS)
-
 # Generic compile rule (same as Makefile.mbc).
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
@@ -77,40 +69,50 @@ WC_OBJS   = $U/wc.o   $(USER_LIB_OBJS)
 %.o: %.S
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-# Per-program ELF link → MBC translate (mirrors kernel pattern).
-$T/init.elf: $(INIT_OBJS) $U/user.ld
+# Per-program ELF link rule: $T/<prog>.elf depends on $U/<prog>.o + the
+# shared USER_LIB_OBJS. Pattern rule keeps the Makefile small as the
+# userland grows (init, sh, ls, cat, echo, wc, ln, mkdir, kill, rm, grep
+# all build from one rule).
+$T/%.elf: $U/%.o $(USER_LIB_OBJS) $U/user.ld
 	mkdir -p $T
-	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $(INIT_OBJS)
+	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $< $(USER_LIB_OBJS)
 
-$T/init.mbc: $T/init.elf
+# Translate ELF → MBC + .rv2mbc + .data sidecars.
+$T/%.mbc: $T/%.elf
 	../../monad-mbc/target/release/rv32i-to-mbc $< -o $@
 
-$T/sh.elf: $(SH_OBJS) $U/user.ld
-	mkdir -p $T
-	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $(SH_OBJS)
+# Public phony targets — one per supported user program.
+init:  $T/init.mbc
+sh:    $T/sh.mbc
+ls:    $T/ls.mbc
+cat:   $T/cat.mbc
+echo:  $T/echo.mbc
+wc:    $T/wc.mbc
+ln:    $T/ln.mbc
+mkdir: $T/mkdir.mbc
+kill:  $T/kill.mbc
+rm:    $T/rm.mbc
+grep:  $T/grep.mbc
 
-$T/sh.mbc: $T/sh.elf
-	../../monad-mbc/target/release/rv32i-to-mbc $< -o $@
+# Default userland set for the Phase 1.5 shell+5cmds gate
+# (ASCEND-LINUX battle plan §1.5). init + sh + 5 commands.
+USERLAND_PROGS = $T/init.mbc $T/sh.mbc $T/ls.mbc $T/cat.mbc $T/echo.mbc $T/wc.mbc
+userland: $(USERLAND_PROGS)
 
-# Public phony targets.
-init: $T/init.mbc
-sh:   $T/sh.mbc
-ls:   $T/ls.mbc
-cat:  $T/cat.mbc
-echo: $T/echo.mbc
+# Build the xv6-format ramdisk image embedding the default userland.
+# mkfs (host x86-64) must already be built (gcc -I. -o mkfs/mkfs mkfs/mkfs.c).
+# mkfs asserts on '/' in input filenames; we cd into target/ so the
+# basenames are bare.
+$T/fs.img: $(USERLAND_PROGS)
+	cd $T && ../mkfs/mkfs fs.img \
+	  $(notdir $(USERLAND_PROGS))
 
-# Future: ramdisk build via mkfs host tool. Pre-condition: mkfs.c compiled
-# as native x86-64 binary at upstream/mkfs/mkfs (no MBC translation).
-# Then: ./mkfs target/ramdisk.img target/init.mbc target/sh.mbc target/ls.mbc
-#   ... target/cat.mbc target/echo.mbc
-# upc-bootctl gains --ramdisk <path> flag in a Phase 1.4 follow-on.
-ramdisk:
-	@echo "ramdisk build deferred to Phase 1.4 — see"
-	@echo "  references/phase13-step8-userland-build-notes.md"
-	@exit 1
+ramdisk: $T/fs.img
 
 clean:
 	rm -f $U/*.o $U/usys.S
-	rm -rf $T/init.* $T/sh.* $T/ls.* $T/cat.* $T/echo.*
+	rm -rf $T/init.* $T/sh.* $T/ls.* $T/cat.* $T/echo.* \
+	       $T/wc.* $T/ln.* $T/mkdir.* $T/kill.* $T/rm.* $T/grep.* \
+	       $T/fs.img
 
-.PHONY: clean init sh ls cat echo ramdisk
+.PHONY: clean init sh ls cat echo wc ln mkdir kill rm grep userland ramdisk
