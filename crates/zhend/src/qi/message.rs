@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 //! Gossip protocol messages exchanged between zhend peers.
 //!
 //! All messages are bincode-serialized for compact wire representation.
@@ -63,8 +64,8 @@ pub enum GossipMessage {
 impl GossipMessage {
     /// Serialize to wire format (bincode).
     pub fn encode(&self) -> ZhenResult<Vec<u8>> {
-        let bytes =
-            bincode::serialize(self).map_err(|e| ZhenError::Serialization(e.to_string()))?;
+        let bytes = bincode::serde::encode_to_vec(self, bincode::config::standard())
+            .map_err(|e| ZhenError::Serialization(e.to_string()))?;
 
         if bytes.len() > MAX_MSG_SIZE {
             return Err(ZhenError::Transport(format!(
@@ -93,7 +94,9 @@ impl GossipMessage {
             )));
         }
 
-        bincode::deserialize(bytes).map_err(|e| ZhenError::Serialization(e.to_string()))
+        bincode::serde::decode_from_slice(bytes, bincode::config::standard())
+            .map(|(msg, _consumed)| msg)
+            .map_err(|e| ZhenError::Serialization(e.to_string()))
     }
 }
 
