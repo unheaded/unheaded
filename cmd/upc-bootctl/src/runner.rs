@@ -138,12 +138,49 @@ impl BootRunner {
     /// starts at RV byte 0x20000 (RV word 0x8000) per kernel-mbc.ld.
     ///
     /// Without this, JALR / CALLR / MRET / SRET land on unset entries
-    /// (0 = MBC slot 0) and execution falls through to garbage. xv6's
-    /// `__asm__ volatile("mret")` after `CSR_REG(CSR_MEPC) = &main;`
-    /// was silently lost before this fix. Phase 1.3 AP-2 fix.
-    pub fn populate_rv2mbc(&mut self, bytes: &[u8], text_rv_word_base: u32) -> Result<()> {
+    /// (0 = MBC slot 0) and execution falls through to garbage. Phase
+    /// 1.3 AP-2 fix.
+    ///
+    /// Phase 1.3 Step 6 (ADR-075 §Security #1): compute SHA-256 over the
+    /// .rv2mbc bytes and surface it as a hex string. If `expected_sha`
+    /// is Some, fail-fast when the computed hash mismatches —
+    /// attacker-supplied `.rv2mbc` files would redirect every indirect
+    /// branch in the loaded image. The caller (typically the
+    /// `UPC_RV2MBC_SHA` env-var path in main.rs) decides whether to
+    /// enforce.
+    pub fn populate_rv2mbc(
+        &mut self,
+        bytes: &[u8],
+        text_rv_word_base: u32,
+        expected_sha: Option<&str>,
+    ) -> Result<()> {
         if bytes.len() % 4 != 0 {
             bail!("rv2mbc file length {} not 4-byte aligned", bytes.len());
+        }
+        // Compute SHA-256 BEFORE touching BPF maps so a mismatch leaves
+        // RV2MBC_MAP in its prior state (all-zero on a fresh boot).
+        let computed_sha = {
+            use sha2::{Digest, Sha256};
+            let mut h = Sha256::new();
+            h.update(bytes);
+            let out = h.finalize();
+            let mut s = String::with_capacity(64);
+            for b in out.iter() {
+                use std::fmt::Write;
+                let _ = write!(&mut s, "{:02x}", b);
+            }
+            s
+        };
+        if let Some(want) = expected_sha {
+            let want_norm = want.trim().to_ascii_lowercase();
+            if want_norm != computed_sha {
+                bail!(
+                    "rv2mbc integrity gate FAILED: computed sha256={computed_sha}, expected={want_norm}"
+                );
+            }
+            tracing::info!(sha256 = %computed_sha, "RV2MBC integrity gate PASSED");
+        } else {
+            tracing::info!(sha256 = %computed_sha, "RV2MBC SHA-256 logged (no gate enforced)");
         }
         let entries = bytes.len() / 4;
         let mut map: Array<_, u32> = Array::try_from(

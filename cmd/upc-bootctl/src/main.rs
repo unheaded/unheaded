@@ -291,20 +291,34 @@ fn cmd_boot(
     // slot. Phase 2 will pass a different base for the bootstub flow.
     let rv2mbc_path = kernel.with_extension("rv2mbc");
     let text_rv_word_base: u32 = 0x8000; // xv6 .text base = RV byte 0x20000
+                                         // Phase 1.3 ADR-075 §Security #1: if UPC_RV2MBC_SHA is set, the loader
+                                         // verifies the .rv2mbc bytes against this SHA-256 before any BPF map
+                                         // write. Build pipelines should always set this; dev loops can omit
+                                         // (the SHA is logged either way).
+    let expected_rv2mbc_sha = std::env::var("UPC_RV2MBC_SHA").ok();
     if rv2mbc_path.exists() {
         match std::fs::read(&rv2mbc_path) {
-            Ok(bytes) => match runner.populate_rv2mbc(&bytes, text_rv_word_base) {
+            Ok(bytes) => match runner.populate_rv2mbc(
+                &bytes,
+                text_rv_word_base,
+                expected_rv2mbc_sha.as_deref(),
+            ) {
                 Ok(()) => println!(
-                    "  RV→MBC map: loaded {} ({} entries @ RV-word-base 0x{:04X})",
+                    "  RV→MBC map: loaded {} ({} entries @ RV-word-base 0x{:04X}{})",
                     rv2mbc_path.display(),
                     bytes.len() / 4,
-                    text_rv_word_base
+                    text_rv_word_base,
+                    if expected_rv2mbc_sha.is_some() {
+                        " + SHA gate"
+                    } else {
+                        ""
+                    }
                 ),
-                Err(e) => println!(
-                    "  ⚠ rv2mbc map at {} failed to load: {} (MRET/SRET/JALR will fall through)",
-                    rv2mbc_path.display(),
-                    e
-                ),
+                Err(e) => {
+                    // Integrity gate failure is fail-fast: bail out so the boot
+                    // doesn't proceed with an untrusted translation table.
+                    bail!("rv2mbc load failed: {}", e);
+                }
             },
             Err(e) => println!(
                 "  ⚠ rv2mbc map at {} unreadable: {}",
