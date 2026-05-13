@@ -1,21 +1,18 @@
 # PHASE 1.2 PRE-WORK BATTLE PLAN — 8 Phases, 47 Steps
 
-> **⏸ HOLD — DO NOT EXECUTE AUTONOMOUSLY (2026-05-11)**
+> **🟢 HOLD LIFTED — EXECUTING (2026-05-12)**
 >
-> Per Stevie 2026-05-11: *"Hold pre-work; pair-call together first."*
+> Pair-call convened 2026-05-12. Decision per ADR-074 §"Decision — 2026-05-12":
+> - **Option A** (per-task pgd) chosen
+> - **Allocator A1** (fixed per-pid region at `RAM_MAP[0x00F00000+pid*0x1000]`)
+> - **Marshal executes pre-work + implementation autonomously** per Track C
 >
-> The pair-call (Stevie + Architect + Computermancer + BlackMage + Developer)
-> convenes FIRST. The Phase 1.2 option (A/B/C) is picked LIVE. Only THEN does
-> the pre-work execute, and only for the chosen option's variant.
->
-> The Marshal will NOT fire this plan on its own. The plan stands as the
-> contract for what the pair-call's pre-work will look like once it convenes.
->
-> See: `references/blockers-resolved-2026-05-11.md` §3 for the call.
+> Plan is now LIVE. Marshal proceeds through Phase 0 → Phase 7, then transitions
+> into the Option A implementation arc.
 
 **Date**: 2026-05-11
 **Sprint**: ASCEND-LINUX Phase 1.2 pre-work — pair-call readiness (ADR-074)
-**Status**: 🟡 HOLD (was: 🟢 ready to execute autonomously)
+**Status**: 🟢 EXECUTING (was: 🟡 HOLD; pair-call landed 2026-05-12)
 **Prerequisite**: ADR-074 drafted + Architect addendum landed (commits `1c2189e7` + `3fc95cb5`). `golangci-lint run ./...` clean (0 issues). 242/242 tests passing. **Pair-call window confirmed by Stevie** (not yet scheduled as of 2026-05-11).
 **Target**: AP-1 through AP-6 complete for the chosen option (post pair-call); pair-call decision recorded in ADR-074.
 **Estimated Duration**: 3-4 hours of execution time AFTER pair-call lands.
