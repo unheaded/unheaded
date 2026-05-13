@@ -1225,7 +1225,24 @@ router.Use(auth.Middleware(authenticator))
 
 ---
 
-## ASCEND-LINUX (Linux on UPC) — Phase 0 ✓ Phase 1.1 SHIP ✓ (2026-05-08 → 2026-05-11)
+## ASCEND-LINUX (Linux on UPC) — Phase 0 ✓ Phase 1.1 SHIP ✓ Phase 1.2 IMPL ✓ Phase 1.3 IMPL (A-D) ✓ Phase 1.4/1.5 substrate ✓ (2026-05-08 → 2026-05-13)
+
+**Phase 1.2 IMPL** closed 2026-05-13 (`b9572c26`): Option A per-pid pgd substrate across BPF + host emulator + vendored xv6 (`uvmcreate(int pid)` returns `0x00F00000 + pid*0x1000`). ADR-074 ACCEPTED. See `references/phase12-impl-complete-2026-05-13.md`.
+
+**Phase 1.3 IMPL** Sub-phases A-D closed 2026-05-13 (`9f3c0e3e`). PROC_TABLE 4→8, SYS_EXIT ZOMBIE refactor, LR.W/SC.W reservation-clear (real RISC-V atomicity bug caught + fixed), RV2MBC SHA-256 integrity gate via `UPC_RV2MBC_SHA` env var, userland Makefile scaffold. **AP-2 fix** (`73834054`) unblocked the headline win: xv6 advances past MRET into `main()` with M→S privilege transition; TTY emits `"xv6 booting...\nxv6 kernel is booting\n\n"`. ADR-075 ACCEPTED. 12 new falsification tests; verifier budget 8.52% of 900K (vs 12% hard gate). See `references/phase13-impl-complete-2026-05-13.md` + `references/security-upc-linux-spitball-2026-05-13.md` (Sentinel + BlackMage joint brief).
+
+**Phase 1.4 kickoff + Phase 1.5 binary substrate** landed 2026-05-13:
+- `crates/xv6-mbc/upstream/mkfs/mkfs` — native x86-64 host tool (`gcc -I. -o mkfs/mkfs mkfs/mkfs.c`).
+- `crates/xv6-mbc/adapters/Makefile.mbc-userland` — pattern-rule build for the full xv6 userland. Builds init / sh / ls / cat / echo / wc (the Phase 1.5 SHELL+5CMDS gate) plus ln/mkdir/kill/rm/grep. `make ramdisk` → `target/fs.img` (2 MB xv6-format, all programs embedded).
+- `upc-bootctl --ramdisk <path>` flag loads fs.img into RAM_MAP at byte `0x00800000`.
+- `upc-bootctl --triggers <count>` flag (default 500; bump for Phase 1.4 work that needs the kernel to advance further).
+- **PHYSTOP cap** (`-DPHYSTOP=0x00800000UL`) + **kfree/kalloc memset skip** (`-DUPC_SKIP_K{FREE,ALLOC}_MEMSET`) — saves millions of BPF insns on xv6's early init. See `references/phase14-xv6-init-loop-root-cause-2026-05-13.md`.
+
+**What remains for Phase 1.4 runtime**: xv6 still loops somewhere in early init (PC=0x615 region after kinit advances). Next attended shift instruments `main()` with `mmio_puts` between each init call to isolate the loop site (likely candidates: `kmem.lock` spinlock LR.W/SC.W semantics, `kvminit` Sv32 walker, or `procinit` PROC_TABLE shape). After that, syscall stubs (`open/dup/mknod`) backed by a real FS reader against fs.img.
+
+---
+
+## ASCEND-LINUX (Linux on UPC) — Phase 0 ✓ Phase 1.1 SHIP ✓ (2026-05-08 → 2026-05-11) — historical
 
 The Dream Ladder summit per `references/battle-plan-ascend-linux-2026-05-08.md`.
 
