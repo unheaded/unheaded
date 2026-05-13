@@ -51,11 +51,16 @@ $U/usys.S: $U/usys.pl
 	perl $U/usys.pl > $U/usys.S
 
 # Userland support library objects, shared by every user program.
+# Includes adapters/libgcc_stubs.o because freestanding RV32 lacks
+# libgcc's 64-bit divide helpers (__umoddi3 / __udivdi3) that printf.c
+# transitively pulls in. The kernel side hit the same gap; reusing the
+# same stub file.
 USER_LIB_OBJS = \
   $U/ulib.o \
   $U/usys.o \
   $U/printf.o \
-  $U/umalloc.o
+  $U/umalloc.o \
+  $A/libgcc_stubs.o
 
 # Per-program object lists.
 INIT_OBJS = $U/init.o $(USER_LIB_OBJS)

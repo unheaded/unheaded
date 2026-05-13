@@ -1,8 +1,25 @@
-# Phase 1.3 IMPL Step 8 — Userland Build Pipeline (scaffold + carry-over)
+# Phase 1.3 IMPL Step 8 — Userland Build Pipeline (scaffold + Phase 1.4 kickoff)
 
 **Date:** 2026-05-13 (autonomous Marshal shift)
-**Status:** SCAFFOLD ONLY — actual build deferred to Phase 1.4
+**Status:** SCAFFOLD LANDED + BUILD WORKS END-TO-END (mkfs + init.mbc + fs.img).
+        Original Phase 1.3 cut-point was over-conservative; init.c compiles
+        and translates fine. Runtime path still gates on Phase 1.4 syscall
+        backing, but the build chain is unblocked.
 **Predecessor:** ADR-075 D-4 + battle-plan-phase13-impl-2026-05-13.md §Sub-phase D
+
+## Build-chain win 2026-05-13 (Phase 1.4 kickoff)
+
+- `crates/xv6-mbc/upstream/mkfs/mkfs` — native x86-64 host tool compiled clean
+  (`gcc -Wall -Werror -I. -o mkfs/mkfs mkfs/mkfs.c`).
+- `crates/xv6-mbc/upstream/target/init.mbc` — 1616 MBC instructions, 6.4KB,
+  + `init.rv2mbc` (3.7KB, 942 entries) + `init.data` (188B).
+- `crates/xv6-mbc/upstream/target/fs.img` — 2 MB xv6-format ramdisk with
+  `init.mbc` embedded (run `cd target && ../mkfs/mkfs fs.img init.mbc`).
+- Makefile.mbc-userland updated: links `adapters/libgcc_stubs.o` to satisfy
+  printf.c's transitive `__umoddi3` / `__udivdi3` references (same gap
+  the kernel side already handles).
+
+## What landed (scaffold)
 
 ## What landed this shift
 
@@ -28,34 +45,49 @@ So a real `init.c` build would compile, but the resulting binary would `open()` 
 
 A hello-world userland program that only does `write(1, "hi\n", 3); exit(0);` would build cleanly against the existing SYSCALL handlers AND run end-to-end through MRET → main() → SYS_WRITE → SYS_EXIT. That's a real Phase 1.4 milestone candidate.
 
-## Iteration recipe for Phase 1.4
+## Iteration recipe for Phase 1.4 (steps 1-3 now DONE 2026-05-13)
 
-1. Compile `mkfs.c` as a native x86-64 host tool:
+1. ✅ Compile `mkfs.c` as a native x86-64 host tool:
    ```bash
-   cd crates/xv6-mbc/upstream/mkfs
-   gcc -Wall -Werror -I.. -o mkfs mkfs.c
+   cd crates/xv6-mbc/upstream
+   gcc -Wall -Werror -I. -o mkfs/mkfs mkfs/mkfs.c
    ```
-2. Build the userland trivial test (or stub `init.c` down to a write+exit):
+2. ✅ Build the xv6 init userland:
    ```bash
    cd crates/xv6-mbc/upstream
    make -f ../adapters/Makefile.mbc-userland init
-   # produces target/init.mbc + target/init.rv2mbc
+   # produces target/init.elf + target/init.mbc + target/init.rv2mbc + target/init.data
    ```
-3. Build ramdisk image with mkfs:
+3. ✅ Build ramdisk image with mkfs (NOTE: mkfs asserts on '/' in filenames,
+   so the input must be invoked with bare basenames, not paths):
    ```bash
-   ./mkfs/mkfs target/ramdisk.img target/init.mbc
+   cd crates/xv6-mbc/upstream/target
+   ../mkfs/mkfs fs.img init.mbc
+   # produces fs.img (2 MB xv6-format with init.mbc embedded)
    ```
-4. Add `--ramdisk <path>` to `upc-bootctl` that loads `ramdisk.img` into RAM_MAP at byte `0x00800000` (per `docs/doom/UPC_PAGE_TABLE_LAYOUT.md`).
-5. Stub `open`/`dup`/`mknod` with `return -ENOSYS` in the BPF SYSCALL dispatch (the existing handler chain already has SYS_OPEN as a stub returning fd=3 — extend the pattern).
-6. Add `crates/xv6-mbc/upstream/user/init.c` to actually use `write` + `exit` only (or sidestep with a custom `test_init.c` that bypasses the unbacked syscalls). Author a `references/battle-plan-phase14-impl-YYYY-MM-DD.md`.
+4. ⏳ Add `--ramdisk <path>` to `upc-bootctl` that loads `ramdisk.img` into RAM_MAP at byte `0x00800000` (per `docs/doom/UPC_PAGE_TABLE_LAYOUT.md`).
+5. ⏳ Stub `open`/`dup`/`mknod` with `return -ENOSYS` in the BPF SYSCALL dispatch (the existing handler chain already has SYS_OPEN as a stub returning fd=3 — extend the pattern). Then back them with the real ramdisk-FS read path.
+6. ⏳ Get xv6 kernel to advance past `main()` into `scheduler()` so `userinit()` actually fires and exec's `/init`. This is the bigger Phase 1.4 piece — Phase 1.3 banner-boot stops at insn=4000 mid-`main()`; need to wire the scheduler loop entry properly.
+7. ⏳ Author `references/battle-plan-phase14-impl-YYYY-MM-DD.md`.
 
-## Why we stopped here (autonomous-shift cut-point)
+## Reassessment 2026-05-13 (Phase 1.4 kickoff probe)
 
-Per the battle plan's explicit cut-point for Step 8:
+The original Step 8 cut-point assumed the BUILD couldn't proceed without
+the syscall stubs. Probe revealed that's wrong: `init.c` compiles AND
+translates AND embeds in a ramdisk fine — the build chain only needed
+`adapters/libgcc_stubs.o` linked in (printf.c pulls in 64-bit divide
+helpers freestanding RV32 lacks).
 
-> if user/sh.c references xv6 userspace syscalls our SYSCALL handler doesn't yet implement (open/read/write/fork/exec/wait/dup/pipe/close), stub them in BPF with `return -ENOSYS` and document the gap.
+What's actually deferred to Phase 1.4 is the RUNTIME, not the BUILD:
+init.mbc would `ecall SYS_OPEN("console")`, the BPF interpreter would
+dispatch to the stub returning fd=3, init would then `dup(3)` which is
+unimplemented and bail. And before any of that fires, the xv6 kernel
+needs to actually reach `userinit()` — currently the BPF interpreter
+halts mid-`main()` because the scheduler loop entry isn't wired into the
+trigger-packet cadence.
 
-That cut-point fires HERE. Even init.c — not just sh.c — needs unbacked syscalls. Building it without the stubs lands a binary that immediately faults; building the stubs is real interactive engineering, not unattended churn. The scaffolding Makefile + this note are the deliverable; Phase 1.4 inherits the iteration.
+So the carry-overs (numbered 4-7 above) ARE real Phase 1.4 work, but
+the build-pipeline carry-over is closed.
 
 ## Cross-references
 
