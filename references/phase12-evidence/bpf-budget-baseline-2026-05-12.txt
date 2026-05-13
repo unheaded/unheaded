@@ -1,0 +1,41 @@
+# BPF Verifier Budget Baseline — captured 2026-05-12 — kernel 6.17.0-23-generic — Phase 1.2 AP-2
+# Referenced by ADR-074 pair-call (2026-05-12) for Option A delta measurement.
+
+==============================================
+BPF VERIFIER CI GATE — ADR-012
+==============================================
+Kernel: 6.17.0-23-generic
+Budget: 900000 verified instructions (of 1M max)
+
+=== Phase 1: Compile all BPF programs ===
+  Compiled: 0 programs
+
+=== Phase 2: Static analysis for BPF anti-patterns ===
+  WARNING: Potentially unbounded loops found:
+/home/govan/tmp/unheaded/ebpf/anomaly-ebpf/src/main.rs:229:    let hbh_ext_len = unsafe { core::ptr::read_volatile((hbh_start + 1) as *const u8) };
+/home/govan/tmp/unheaded/ebpf/anomaly-ebpf/src/main.rs:230:    let hbh_total = (hbh_ext_len as usize + 1) * 8;
+/home/govan/tmp/unheaded/ebpf/anomaly-ebpf/src/main.rs:392:            unique_count = unique_count.saturating_add(1);
+/home/govan/tmp/unheaded/ebpf/anomaly-ebpf/src/main.rs:490:        let is_leaf = (node_flags & 0x01) != 0;
+/home/govan/tmp/unheaded/ebpf/anomaly-ebpf/src/main.rs:547:            core::ptr::write_volatile(ptr.add(2) as *mut u32, pkt_count.saturating_add(1));
+  WARNING: u128/i128 operations found (not supported in BPF):
+/home/govan/tmp/unheaded/ebpf/nfv-ebpf/src/main.rs:440:        // Use wrapping_mul — BPF doesn't support u128 (__multi3) from saturating_mul
+/home/govan/tmp/unheaded/ebpf/qos-ebpf/src/main.rs:323:                // Use wrapping_mul — BPF doesn't support u128 (__multi3) from saturating_mul
+
+=== Phase 3: Loop bound verification ===
+  Total loop constructs: 515
+  Bound references: 143
+
+=== Phase 4: Instruction count check ===
+  monad-cpu-ebpf: 606920 bytes (~75865 estimated instructions)
+  OK: 8% of budget used
+
+==============================================
+SUMMARY
+==============================================
+  Failures: 0
+  Warnings: 2
+  Kernel:   6.17.0-23-generic
+  Date:     2026-05-13T03:10:01Z
+
+GATE: PASSED (2 warnings)
+EXIT=0
