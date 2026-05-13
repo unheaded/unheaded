@@ -1,0 +1,111 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Makefile.mbc-userland — userland (init / sh / cmds) build for xv6-on-UPC.
+# ASCEND-LINUX Phase 1.3 IMPL Step 8 scaffold per
+# `references/battle-plan-phase13-impl-2026-05-13.md`.
+#
+# Usage (from crates/xv6-mbc/upstream/):
+#   make -f ../adapters/Makefile.mbc-userland init
+#   make -f ../adapters/Makefile.mbc-userland sh
+#   make -f ../adapters/Makefile.mbc-userland ramdisk
+#
+# Mirrors Makefile.mbc's pattern (kernel side) but with two differences:
+#   1. Output goes to target/ as <prog>.mbc + <prog>.rv2mbc.
+#   2. Linker script is upstream user/user.ld (already present).
+#   3. Each program links against ulib.o + printf.o + umalloc.o + usys.o
+#      (the usys.S is generated from usys.pl).
+#
+# Status (Phase 1.3): scaffold. The actual builds require:
+#   * Phase 1.4 filesystem syscall stubs (open/read/write/dup/wait/exec).
+#   * Phase 1.4 mkfs host tool (already vendored at upstream/mkfs/mkfs.c).
+#   * Phase 1.4 ramdisk image emission + upc-bootctl --ramdisk flag.
+# See `references/phase13-step8-userland-build-notes.md` for the carry-over.
+
+K = kernel
+U = user
+A = ../adapters
+T = target
+
+TOOLPREFIX = riscv64-unknown-elf-
+CC = $(TOOLPREFIX)gcc
+LD = $(TOOLPREFIX)ld
+OBJCOPY = $(TOOLPREFIX)objcopy
+OBJDUMP = $(TOOLPREFIX)objdump
+
+# Same RV32I + zicsr + zmmul flags as kernel side. -ffixed-x18..x31 keeps
+# the C compiler off MBC-unavailable registers (s2-s11 / t3-t6).
+GCC_INCLUDE = $(shell $(CC) -print-file-name=include)
+CFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32e -nostdlib -nostdinc -static -ffreestanding \
+         -fno-builtin -O2 \
+         -ffixed-x16 -ffixed-x17 -ffixed-x18 -ffixed-x19 \
+         -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 \
+         -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 \
+         -ffixed-x28 -ffixed-x29 -ffixed-x30 -ffixed-x31 \
+         -I. -isystem $(GCC_INCLUDE)
+ASFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32e
+
+LDFLAGS = -z max-page-size=4096 -melf32lriscv
+
+# Generate usys.S from usys.pl (xv6 convention).
+$U/usys.S: $U/usys.pl
+	perl $U/usys.pl > $U/usys.S
+
+# Userland support library objects, shared by every user program.
+USER_LIB_OBJS = \
+  $U/ulib.o \
+  $U/usys.o \
+  $U/printf.o \
+  $U/umalloc.o
+
+# Per-program object lists.
+INIT_OBJS = $U/init.o $(USER_LIB_OBJS)
+SH_OBJS   = $U/sh.o   $(USER_LIB_OBJS)
+LS_OBJS   = $U/ls.o   $(USER_LIB_OBJS)
+CAT_OBJS  = $U/cat.o  $(USER_LIB_OBJS)
+ECHO_OBJS = $U/echo.o $(USER_LIB_OBJS)
+WC_OBJS   = $U/wc.o   $(USER_LIB_OBJS)
+
+# Generic compile rule (same as Makefile.mbc).
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+%.o: %.S
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Per-program ELF link → MBC translate (mirrors kernel pattern).
+$T/init.elf: $(INIT_OBJS) $U/user.ld
+	mkdir -p $T
+	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $(INIT_OBJS)
+
+$T/init.mbc: $T/init.elf
+	../../monad-mbc/target/release/rv32i-to-mbc $< -o $@
+
+$T/sh.elf: $(SH_OBJS) $U/user.ld
+	mkdir -p $T
+	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $(SH_OBJS)
+
+$T/sh.mbc: $T/sh.elf
+	../../monad-mbc/target/release/rv32i-to-mbc $< -o $@
+
+# Public phony targets.
+init: $T/init.mbc
+sh:   $T/sh.mbc
+ls:   $T/ls.mbc
+cat:  $T/cat.mbc
+echo: $T/echo.mbc
+
+# Future: ramdisk build via mkfs host tool. Pre-condition: mkfs.c compiled
+# as native x86-64 binary at upstream/mkfs/mkfs (no MBC translation).
+# Then: ./mkfs target/ramdisk.img target/init.mbc target/sh.mbc target/ls.mbc
+#   ... target/cat.mbc target/echo.mbc
+# upc-bootctl gains --ramdisk <path> flag in a Phase 1.4 follow-on.
+ramdisk:
+	@echo "ramdisk build deferred to Phase 1.4 — see"
+	@echo "  references/phase13-step8-userland-build-notes.md"
+	@exit 1
+
+clean:
+	rm -f $U/*.o $U/usys.S
+	rm -rf $T/init.* $T/sh.* $T/ls.* $T/cat.* $T/echo.*
+
+.PHONY: clean init sh ls cat echo ramdisk
