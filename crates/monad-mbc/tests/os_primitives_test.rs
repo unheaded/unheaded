@@ -1915,3 +1915,92 @@ fn phase13_proc_table_supports_8_slots() {
         "exhausted fork returns -EAGAIN (errno 11)"
     );
 }
+
+/// Phase 1.3 Step 3 (ADR-075 D-5): SYS_EXIT zombies the exiting slot
+/// (sets halted_mask bit for current_pid) and yields to another runnable
+/// process. num_processes is NOT decremented — the slot stays allocated
+/// until a parent SYS_WAITPID reaps it (xv6 ZOMBIE semantic).
+#[test]
+fn phase13_sys_exit_zombies_slot_and_yields() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.state.num_processes = 2;
+    cpu.state.current_pid = 1;
+    cpu.proc_table[0] = [0u32; 21];
+    cpu.proc_table[0][16] = 10; // PC=10 (HALT in ROM)
+    cpu.proc_table[0][18] = 0xFFFE_0000;
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_EXIT as u16),
+        enc(op::MOVI, 1, 0, 42),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0), // PC=10
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(5).ok();
+
+    assert_eq!(
+        cpu.halted_mask & 0b10,
+        0b10,
+        "PID 1 halted_mask bit set after SYS_EXIT"
+    );
+    assert_eq!(
+        cpu.state.num_processes, 2,
+        "num_processes unchanged on SYS_EXIT (ZOMBIE)"
+    );
+    assert_eq!(cpu.state.current_pid, 0, "yields to PID 0");
+    assert_eq!(cpu.state.exit_code, 42, "exit code captured");
+}
+
+/// Phase 1.3 Step 3: SYS_EXIT from the last runnable process halts the CPU
+/// (no scheduler ping-pong).
+#[test]
+fn phase13_sys_exit_last_process_halts_cpu() {
+    let mut cpu = cpu_with_safe_sp();
+    assert_eq!(cpu.state.num_processes, 1);
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_EXIT as u16),
+        enc(op::MOVI, 1, 0, 7),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(5).ok();
+    assert_eq!(cpu.state.halted, 1, "CPU halts when last process exits");
+    assert_eq!(cpu.state.exit_code, 7);
+}
+
+/// Phase 1.3 Step 3: SYS_SCHED_YIELD switches to the next runnable process.
+/// Regression-pinning test against the freshly-widened 8-slot scheduler.
+#[test]
+fn phase13_sys_sched_yield_switches() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.state.num_processes = 2;
+    cpu.state.current_pid = 0;
+    cpu.proc_table[1] = [0u32; 21];
+    cpu.proc_table[1][16] = 10;
+    cpu.proc_table[1][18] = 0xFFFE_0000;
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_SCHED_YIELD as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0), // PC=10
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(3).ok();
+    assert_eq!(cpu.state.current_pid, 1, "yield switches to PID 1");
+}

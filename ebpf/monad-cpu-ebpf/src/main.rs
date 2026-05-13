@@ -958,17 +958,42 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 increment_stat(STAT_LINUX_SYSCALLS);
                 let syscall_nr = cpu.regs[0];
                 if syscall_nr == lsys::SYS_EXIT {
-                    // SYS_EXIT(1): halt CPU with exit code from r1.
+                    // SYS_EXIT(1): exiting process is marked ZOMBIE (halted_mask
+                    // bit set); slot stays allocated until parent SYS_WAITPID
+                    // reaps it. Phase 1.3 ADR-075 D-5 (xv6 kfork()-authoritative
+                    // model — eBPF just owns the CPU/scheduler bookkeeping).
                     cpu.exit_code = cpu.regs[1];
-                    // Unsuspend any parent waiting via vfork
+                    let exiting_pid = cpu.current_pid as u32;
+                    // Set halted_mask bit for current_pid in SCHED_STATE[3].
+                    if let Some(p) = SCHED_STATE.get_ptr_mut(3) {
+                        unsafe {
+                            *p |= 1u32 << exiting_pid;
+                        }
+                    }
+                    // Clear suspended_mask entirely — any parent vfork-waiting
+                    // for any child wakes up. Phase 1.3 Step 4 will refine to
+                    // per-pid wait queues; for now keep the broad-wake semantics.
                     if let Some(p) = SCHED_STATE.get_ptr_mut(2) {
                         unsafe {
                             *p = 0;
-                        } // clear all suspended bits
+                        }
                     }
-                    cpu.halted = 1;
-                    increment_stat(STAT_HALTED);
-                    break;
+                    // Yield if any other process can run; else halt the CPU.
+                    if cpu.num_processes > 1 {
+                        scheduler_context_switch(cpu, flow_label, hop_id);
+                        // If scheduler_context_switch stayed on same pid (all
+                        // others halted), set CPU halted so we don't spin.
+                        if cpu.current_pid as u32 == exiting_pid {
+                            cpu.halted = 1;
+                            increment_stat(STAT_HALTED);
+                            break;
+                        }
+                        // Otherwise CPU keeps running as the next process.
+                    } else {
+                        cpu.halted = 1;
+                        increment_stat(STAT_HALTED);
+                        break;
+                    }
                 } else if syscall_nr == lsys::SYS_WRITE {
                     // SYS_WRITE(4): r1=fd, r2=buf_addr, r3=len.
                     // If fd==1 (stdout) or fd==2 (stderr), write to TTY_MAP.

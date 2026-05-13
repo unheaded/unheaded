@@ -720,11 +720,26 @@ impl Cpu {
                     // Convention: r0 = syscall number, r1-r3 = args.
                     let syscall_nr = self.state.regs[0];
                     if syscall_nr == lsys::SYS_EXIT {
+                        // Phase 1.3 ADR-075 D-5: ZOMBIE the exiting slot (keep
+                        // it in the table until parent reaps), set halted_mask
+                        // bit, broad-wake any vfork-suspended parent, then
+                        // yield if any other process can run; halt only if
+                        // single-process or all-halted.
                         self.state.exit_code = self.state.regs[1];
-                        // Unsuspend any parent waiting via vfork
+                        let exiting_pid = self.state.current_pid as u32;
+                        self.halted_mask |= 1u32 << exiting_pid;
                         self.unsuspend_vfork_parent();
-                        self.state.halted = 1;
-                        return Err(ExecError::Halted);
+                        if self.state.num_processes > 1 {
+                            self.scheduler_context_switch();
+                            if self.state.current_pid as u32 == exiting_pid {
+                                self.state.halted = 1;
+                                return Err(ExecError::Halted);
+                            }
+                            // CPU keeps running as the next scheduled process.
+                        } else {
+                            self.state.halted = 1;
+                            return Err(ExecError::Halted);
+                        }
                     } else if syscall_nr == lsys::SYS_WRITE {
                         let fd = self.state.regs[1];
                         let buf_addr = self.state.regs[2];
