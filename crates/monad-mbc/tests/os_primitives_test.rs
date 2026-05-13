@@ -1976,6 +1976,126 @@ fn phase13_sys_exit_last_process_halts_cpu() {
     assert_eq!(cpu.state.exit_code, 7);
 }
 
+/// Phase 1.3 Step 4 (ADR-075 D-5): SYS_WAITPID returns the child pid when
+/// the target child has already halted (halted_mask bit set). No yield.
+#[test]
+fn phase13_sys_waitpid_returns_pid_when_child_halted() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.state.num_processes = 2;
+    cpu.state.current_pid = 0;
+    cpu.halted_mask = 0b10; // PID 1 already halted (zombie)
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_WAITPID as u16),
+        enc(op::MOVI, 1, 0, 1), // wait for PID 1
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(5).ok();
+    assert_eq!(cpu.state.regs[0], 1, "WAITPID returns child pid 1");
+    assert_eq!(
+        cpu.state.current_pid, 0,
+        "no yield needed when child already halted"
+    );
+}
+
+/// Phase 1.3 Step 4: SYS_WAITPID yields when the target child is still
+/// running (halted_mask bit clear). PC rewinds so the next tick re-checks.
+#[test]
+fn phase13_sys_waitpid_yields_when_child_running() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.state.num_processes = 2;
+    cpu.state.current_pid = 0;
+    cpu.halted_mask = 0; // PID 1 still running
+    cpu.proc_table[1] = [0u32; 21];
+    cpu.proc_table[1][16] = 10; // PID 1 PC=10 (HALT)
+    cpu.proc_table[1][18] = 0xFFFE_0000;
+
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_WAITPID as u16),
+        enc(op::MOVI, 1, 0, 1), // wait for PID 1
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0), // PC=10
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(3).ok();
+    // Parent yielded; current_pid is now PID 1 (the child).
+    assert_eq!(cpu.state.current_pid, 1, "parent yields to runnable child");
+}
+
+/// Phase 1.3 Step 5 (ADR-075 D-5): SYS_EXECVE resets regs + PC + program_break
+/// but PRESERVES the page_dir_base (exec replaces the image, not the address
+/// space). r1 carries the pre-loaded entry-point ROM word address.
+#[test]
+fn phase13_sys_execve_resets_regs_preserves_pgd() {
+    let mut cpu = cpu_with_safe_sp();
+    // Pre-populate state we expect EXEC to clear.
+    for i in 0..16 {
+        cpu.state.regs[i] = 0xDEAD0000 + i as u32;
+    }
+    cpu.state.flags = 0xFF;
+    cpu.state.program_break = 0x9999_9999;
+    cpu.state.page_dir_base = 0x00F0_0000; // current process pgd
+
+    // EXEC takes the entry point in r1 — but we set r0 (syscall nr) and r1
+    // BEFORE the syscall fires; the handler reads them then clears.
+    let entry_target: u32 = 12;
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_EXECVE as u16),
+        enc(op::MOVI, 1, 0, entry_target as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0),
+        enc(op::HALT, 0, 0, 0), // PC=12 (entry target)
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(10).ok();
+
+    // PC should have jumped to entry target (then halted).
+    // All GPRs zeroed except SP reset to 0xFFFF_0000.
+    for i in 0..15 {
+        assert_eq!(cpu.state.regs[i], 0, "reg {i} should be zeroed by EXEC");
+    }
+    assert_eq!(cpu.state.regs[15], 0xFFFF_0000, "SP reset by EXEC");
+    assert_eq!(cpu.state.flags, 0, "flags cleared by EXEC");
+    // page_dir_base PRESERVED — exec replaces image in same address space.
+    assert_eq!(
+        cpu.state.page_dir_base, 0x00F0_0000,
+        "page_dir_base MUST survive EXEC (image swap, not address-space swap)"
+    );
+}
+
+/// Phase 1.3 Step 4: SYS_WAITPID for an invalid pid returns -ECHILD (10).
+#[test]
+fn phase13_sys_waitpid_invalid_pid_returns_echild() {
+    let mut cpu = cpu_with_safe_sp();
+    cpu.state.num_processes = 2;
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_WAITPID as u16),
+        enc(op::MOVI, 1, 0, 99), // pid 99 doesn't exist
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(5).ok();
+    assert_eq!(cpu.state.regs[0] as i32, -10, "invalid pid -> -ECHILD");
+}
+
 /// Phase 1.3 Step 3: SYS_SCHED_YIELD switches to the next runnable process.
 /// Regression-pinning test against the freshly-widened 8-slot scheduler.
 #[test]
