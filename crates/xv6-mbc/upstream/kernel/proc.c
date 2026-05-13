@@ -173,13 +173,20 @@ freeproc(struct proc *p)
 
 // Create a user page table for a given process, with no user memory,
 // but with trampoline and trapframe pages.
+// Phase 1.2 (ADR-074 Option A): the returned pagetable_t is the physical
+// address of this pid's first-level pgd in the fixed per-pid region at
+// 0x00F00000 + p->pid*0x1000. xv6's scheduler() later calls
+// w_satp(MAKE_SATP(p->pagetable)) which our memory-mapped CSR region
+// (0x0000F000+) routes to MbcCpuState::page_dir_base. The BPF scheduler
+// hook (phase12_option_a_on_context_switch) and PROC_TABLE[pid][20]
+// observe the same value. See docs/doom/UPC_PAGE_TABLE_LAYOUT.md.
 pagetable_t
 proc_pagetable(struct proc *p)
 {
   pagetable_t pagetable;
 
   // An empty page table.
-  pagetable = uvmcreate();
+  pagetable = uvmcreate(p->pid);
   if(pagetable == 0)
     return 0;
 

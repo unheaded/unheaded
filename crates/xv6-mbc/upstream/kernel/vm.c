@@ -175,13 +175,25 @@ mappages(pagetable_t pagetable, uint64 va, uint64 size, uint64 pa, int perm)
 
 // create an empty user page table.
 // returns 0 if out of memory.
+// Phase 1.2 (ADR-074 Option A + Allocator A1): per-pid fixed pgd region.
+// pid 0..3 -> pgd at 0x00F00000 + pid*0x1000 (matches PROC_TABLE[pid][20]
+// in ebpf/monad-cpu-ebpf/src/main.rs and the host emulator). pid >= 4 falls
+// back to kalloc until Phase 3 widens MAX_PROCESSES.
+#define MBC_PER_PID_PGD_BASE 0x00F00000UL
+#define MBC_PGD_SIZE_BYTES   4096UL
+#define MBC_MAX_PROCESSES    4
+
 pagetable_t
-uvmcreate()
+uvmcreate(int pid)
 {
   pagetable_t pagetable;
-  pagetable = (pagetable_t) kalloc();
-  if(pagetable == 0)
-    return 0;
+  if (pid >= 0 && pid < MBC_MAX_PROCESSES) {
+    pagetable = (pagetable_t)(MBC_PER_PID_PGD_BASE + (uint64)pid * MBC_PGD_SIZE_BYTES);
+  } else {
+    pagetable = (pagetable_t) kalloc();
+    if (pagetable == 0)
+      return 0;
+  }
   memset(pagetable, 0, PGSIZE);
   return pagetable;
 }
