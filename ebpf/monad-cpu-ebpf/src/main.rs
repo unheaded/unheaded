@@ -155,10 +155,12 @@ static TTY_MAP: Array<u8> = Array::with_max_entries(4096, 0);
 static TTY_HEAD: Array<u32> = Array::with_max_entries(1, 0);
 
 /// Process table: 4 slots, each stores saved CPU state for context switch (Level 4c).
-/// Key = process_id (0-3), Value = saved register set (20 u32s = 80 bytes).
-/// Layout per slot: [r0..r15, PC, flags, SP_copy, program_break]
+/// Key = process_id (0-3), Value = saved register set (21 u32s = 84 bytes).
+/// Layout per slot: [r0..r15, PC, flags, SP_copy, program_break, page_dir_base]
+/// slot[20] = page_dir_base widened in Phase 1.2 (ADR-074 Option A); see
+/// `phase12::PROC_TABLE_PGD_SLOT`.
 #[map]
-static PROC_TABLE: Array<[u32; 20]> = Array::with_max_entries(4, 0);
+static PROC_TABLE: Array<[u32; 21]> = Array::with_max_entries(4, 0);
 
 /// Scheduler state: [0]=current_pid, [1]=num_processes, [2]=scheduler_enabled, [3]=halted_mask.
 /// halted_mask: bit i set means process i has exited/halted.
@@ -1040,8 +1042,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         cpu.regs[0] = (-11i32) as u32;
                     } else {
                         let child_pid = cpu.num_processes as u32;
-                        // Save child state: copy parent's regs + PC + flags + SP + brk
-                        let mut child_state = [0u32; 20];
+                        // Save child state: copy parent's regs + PC + flags + SP + brk + pgd
+                        let mut child_state = [0u32; 21];
                         let mut r = 0u32;
                         while r < 16 {
                             child_state[r as usize] = cpu.regs[r as usize];
@@ -1051,6 +1053,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         child_state[17] = cpu.flags as u32;
                         child_state[18] = cpu.regs[15]; // SP copy
                         child_state[19] = cpu.program_break;
+                        // Phase 1.2 (ADR-074 Option A + Allocator A1): each child gets
+                        // its own pgd at the per-pid fixed region. Child inherits the
+                        // address space identity but not the parent's pgd contents —
+                        // xv6 kernel/proc.c::fork() COWs / shares mappings as needed.
+                        child_state[phase12::PROC_TABLE_PGD_SLOT] =
+                            phase12::pgd_base_for_pid(child_pid as u8);
                         // Child gets 0 in r0 (fork return value)
                         child_state[0] = 0;
                         // Write child state to PROC_TABLE
@@ -1078,7 +1086,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     } else {
                         let parent_pid = cpu.current_pid as u32;
                         let child_pid = cpu.num_processes as u32;
-                        let mut child_state = [0u32; 20];
+                        let mut child_state = [0u32; 21];
                         let mut r = 0u32;
                         while r < 16 {
                             child_state[r as usize] = cpu.regs[r as usize];
@@ -1088,6 +1096,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         child_state[17] = cpu.flags as u32;
                         child_state[18] = cpu.regs[15]; // SP copy
                         child_state[19] = cpu.program_break;
+                        // Phase 1.2 (ADR-074 Option A): assign child its per-pid pgd.
+                        child_state[phase12::PROC_TABLE_PGD_SLOT] =
+                            phase12::pgd_base_for_pid(child_pid as u8);
                         child_state[0] = 0; // child gets 0
                         if let Some(p) = PROC_TABLE.get_ptr_mut(child_pid) {
                             unsafe {
@@ -1721,7 +1732,7 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
     }
 
     // 1. Save current process state to PROC_TABLE[current_pid]
-    let mut save_state = [0u32; 20];
+    let mut save_state = [0u32; 21];
     let mut r = 0u32;
     while r < 16 {
         save_state[r as usize] = cpu.regs[r as usize];
@@ -1731,6 +1742,8 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
     save_state[17] = cpu.flags as u32;
     save_state[18] = cpu.regs[15]; // SP copy
     save_state[19] = cpu.program_break;
+    // Phase 1.2 (ADR-074 Option A + Allocator A1): save current pgd phys addr.
+    save_state[phase12::PROC_TABLE_PGD_SLOT] = cpu.page_dir_base;
 
     if let Some(p) = PROC_TABLE.get_ptr_mut(old_pid) {
         unsafe {
@@ -1782,6 +1795,27 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
     cpu.flags = load_state[17] as u8;
     // load_state[18] is SP copy — already in regs[15] from the load above
     cpu.program_break = load_state[19];
+    // Phase 1.2 (ADR-074 Option A): load incoming process's pgd phys addr.
+    cpu.page_dir_base = load_state[phase12::PROC_TABLE_PGD_SLOT];
+
+    // Phase 1.2 (ADR-074 Decision 2026-05-12): invoke the chosen-option
+    // context-switch hook. With `--features phase12-option-a` this calls
+    // `phase12_option_a_on_context_switch`; default build calls the no-op.
+    // Hook receives the *new* pid and may further mutate cpu (e.g. ASID
+    // for Option B). The save+load above already established the basic
+    // Option-A state; the hook is the extension point.
+    #[cfg(feature = "phase12-option-a")]
+    phase12::phase12_option_a_on_context_switch(cpu, next_pid as u8);
+    #[cfg(feature = "phase12-option-b")]
+    phase12::phase12_option_b_on_context_switch(cpu, next_pid as u8);
+    #[cfg(feature = "phase12-option-c")]
+    phase12::phase12_option_c_on_context_switch(cpu, next_pid as u8);
+    #[cfg(not(any(
+        feature = "phase12-option-a",
+        feature = "phase12-option-b",
+        feature = "phase12-option-c"
+    )))]
+    phase12::phase12_noop_on_context_switch(cpu, next_pid as u8);
 
     // 4. Update current_pid
     cpu.current_pid = next_pid as u8;

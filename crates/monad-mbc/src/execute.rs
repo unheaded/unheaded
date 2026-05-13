@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 //! Userspace MBC fetch-decode-execute loop.
 //!
 //! This mirrors the BPF implementation (monad-cpu-ebpf/src/main.rs) but runs
@@ -33,9 +34,11 @@ pub struct Cpu {
     pub tty_output: Vec<u8>,
     /// Instance ID for SYS_GETPID (defaults to 0).
     pub instance_id: u32,
-    /// Process table for Level 4c scheduler: 4 slots of 20 u32s each.
-    /// Layout per slot: [r0..r15, PC, flags, SP_copy, program_break]
-    pub proc_table: [[u32; 20]; 4],
+    /// Process table for Level 4c scheduler: 4 slots of 21 u32s each.
+    /// Layout per slot: [r0..r15, PC, flags, SP_copy, program_break, page_dir_base]
+    /// slot[20] = page_dir_base widened in Phase 1.2 (ADR-074 Option A);
+    /// matches the BPF-side layout in `ebpf/monad-cpu-ebpf/src/main.rs::PROC_TABLE`.
+    pub proc_table: [[u32; 21]; 4],
     /// Halted process bitmask (bit i set = process i has exited).
     pub halted_mask: u32,
     /// Suspended process bitmask (bit i set = process i is suspended via vfork).
@@ -67,7 +70,7 @@ impl Cpu {
             ticks_ms: 0,
             tty_output: Vec::new(),
             instance_id: 0,
-            proc_table: [[0u32; 20]; 4],
+            proc_table: [[0u32; 21]; 4],
             halted_mask: 0,
             suspended_mask: 0,
             tlb: [[0u32; 3]; 64],
@@ -468,8 +471,7 @@ impl Cpu {
                 let sp = self.state.regs[REG_SP] as usize;
                 if sp < self.ram.len() {
                     self.ram[sp] = self.state.regs[dst];
-                    self.state.regs[REG_SP] =
-                        self.state.regs[REG_SP].wrapping_sub(1);
+                    self.state.regs[REG_SP] = self.state.regs[REG_SP].wrapping_sub(1);
                 }
             }
             op::POP => {
@@ -512,30 +514,24 @@ impl Cpu {
             op::JMP => {
                 self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
             }
-            op::JZ
-                if (self.state.flags & mf::Z) != 0 => {
-                    self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
-                }
-            op::JNZ
-                if (self.state.flags & mf::Z) == 0 => {
-                    self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
-                }
-            op::JN
-                if (self.state.flags & mf::N) != 0 => {
-                    self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
-                }
-            op::JP
-                if (self.state.flags & mf::N) == 0 && (self.state.flags & mf::Z) == 0 => {
-                    self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
-                }
-            op::JC
-                if (self.state.flags & mf::C) != 0 => {
-                    self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
-                }
-            op::JNC
-                if (self.state.flags & mf::C) == 0 => {
-                    self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
-                }
+            op::JZ if (self.state.flags & mf::Z) != 0 => {
+                self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
+            }
+            op::JNZ if (self.state.flags & mf::Z) == 0 => {
+                self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
+            }
+            op::JN if (self.state.flags & mf::N) != 0 => {
+                self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
+            }
+            op::JP if (self.state.flags & mf::N) == 0 && (self.state.flags & mf::Z) == 0 => {
+                self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
+            }
+            op::JC if (self.state.flags & mf::C) != 0 => {
+                self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
+            }
+            op::JNC if (self.state.flags & mf::C) == 0 => {
+                self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
+            }
 
             // === Call/Return ===
             op::CALL => {
@@ -544,8 +540,7 @@ impl Cpu {
                 let sp = self.state.regs[REG_SP] as usize;
                 if sp < self.ram.len() {
                     self.ram[sp] = self.state.pc;
-                    self.state.regs[REG_SP] =
-                        self.state.regs[REG_SP].wrapping_sub(1);
+                    self.state.regs[REG_SP] = self.state.regs[REG_SP].wrapping_sub(1);
                 }
                 self.state.pc = target;
             }
@@ -563,8 +558,7 @@ impl Cpu {
                 let sp = self.state.regs[REG_SP] as usize;
                 if sp < self.ram.len() {
                     self.ram[sp] = self.state.pc;
-                    self.state.regs[REG_SP] =
-                        self.state.regs[REG_SP].wrapping_sub(1);
+                    self.state.regs[REG_SP] = self.state.regs[REG_SP].wrapping_sub(1);
                 }
                 self.state.pc = self.state.regs[src];
             }
@@ -653,7 +647,7 @@ impl Cpu {
                 let mpp = ((mstatus >> 11) & 0b11) as u8;
                 self.state.priv_level = mpp;
                 self.state.pc = mepc >> 2; // pc is word-indexed in MBC
-                // Reservation cleared on privilege transition.
+                                           // Reservation cleared on privilege transition.
                 self.state.reservation_address = 0xFFFF_FFFF;
                 return Ok(());
             }
@@ -829,12 +823,15 @@ impl Cpu {
                         } else {
                             let child_pid = self.state.num_processes as usize;
                             // Save child state: copy parent's regs + PC + flags + SP + brk
-                            let mut child_state = [0u32; 20];
+                            let mut child_state = [0u32; 21];
                             child_state[..16].copy_from_slice(&self.state.regs[..16]);
                             child_state[16] = self.state.pc;
                             child_state[17] = self.state.flags as u32;
                             child_state[18] = self.state.regs[REG_SP];
                             child_state[19] = self.state.program_break;
+                            // Phase 1.2 (ADR-074 Option A + Allocator A1): assign per-pid pgd
+                            // at fixed region 0x00F00000 + pid*0x1000.
+                            child_state[20] = 0x00F0_0000u32 + (child_pid as u32) * 0x1000;
                             // Child gets 0 in r0
                             child_state[0] = 0;
                             self.proc_table[child_pid] = child_state;
@@ -852,12 +849,14 @@ impl Cpu {
                             let parent_pid = self.state.current_pid as usize;
                             let child_pid = self.state.num_processes as usize;
                             // Save child state: copy parent's regs + PC + flags + SP + brk
-                            let mut child_state = [0u32; 20];
+                            let mut child_state = [0u32; 21];
                             child_state[..16].copy_from_slice(&self.state.regs[..16]);
                             child_state[16] = self.state.pc;
                             child_state[17] = self.state.flags as u32;
                             child_state[18] = self.state.regs[REG_SP];
                             child_state[19] = self.state.program_break;
+                            // Phase 1.2 (ADR-074 Option A): per-pid pgd assignment.
+                            child_state[20] = 0x00F0_0000u32 + (child_pid as u32) * 0x1000;
                             // Child gets 0 in r0
                             child_state[0] = 0;
                             self.proc_table[child_pid] = child_state;
@@ -1078,15 +1077,13 @@ impl Cpu {
                 } else {
                     // Non-0x80 software interrupt: standard IVT dispatch.
                     // Push flags (SP is byte address, 4 bytes per entry)
-                    self.state.regs[REG_SP] =
-                        self.state.regs[REG_SP].wrapping_sub(4);
+                    self.state.regs[REG_SP] = self.state.regs[REG_SP].wrapping_sub(4);
                     let sp_flags = (self.state.regs[REG_SP] >> 2) as usize;
                     if sp_flags < self.ram.len() {
                         self.ram[sp_flags] = self.state.flags as u32;
                     }
                     // Push PC (already advanced = return address)
-                    self.state.regs[REG_SP] =
-                        self.state.regs[REG_SP].wrapping_sub(4);
+                    self.state.regs[REG_SP] = self.state.regs[REG_SP].wrapping_sub(4);
                     let sp_pc = (self.state.regs[REG_SP] >> 2) as usize;
                     if sp_pc < self.ram.len() {
                         self.ram[sp_pc] = self.state.pc;
@@ -1152,12 +1149,14 @@ impl Cpu {
         }
 
         // 1. Save current process state
-        let mut save = [0u32; 20];
+        let mut save = [0u32; 21];
         save[..16].copy_from_slice(&self.state.regs[..16]);
         save[16] = self.state.pc;
         save[17] = self.state.flags as u32;
         save[18] = self.state.regs[REG_SP];
         save[19] = self.state.program_break;
+        // Phase 1.2 (ADR-074 Option A): save current pgd phys addr.
+        save[20] = self.state.page_dir_base;
         self.proc_table[old_pid] = save;
 
         // 2. Find next runnable process (round-robin, skip halted and suspended)
@@ -1180,6 +1179,8 @@ impl Cpu {
         self.state.pc = load[16];
         self.state.flags = load[17] as u8;
         self.state.program_break = load[19];
+        // Phase 1.2 (ADR-074 Option A): load incoming process's pgd phys addr.
+        self.state.page_dir_base = load[20];
 
         // 4. Update current_pid
         self.state.current_pid = next_pid as u8;
@@ -2087,7 +2088,7 @@ mod tests {
         let program = vec![
             MbcInsn::encode(op::MOVI, 1, 0, 0x0100_u16).0, // 0: r1 = src addr
             MbcInsn::encode(op::MOVI, 2, 0, 0x0200_u16).0, // 1: r2 = dst addr
-            MbcInsn::encode(op::MOVI, 3, 0, 4).0,             // 2: r3 = count
+            MbcInsn::encode(op::MOVI, 3, 0, 4).0,          // 2: r3 = count
             // loop:
             MbcInsn::encode(op::LD, 0, 1, 0).0, // 3: r0 = RAM[r1]
             MbcInsn::encode(op::ST, 2, 0, 0).0, // 4: RAM[r2] = r0
