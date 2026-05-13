@@ -12,7 +12,7 @@ use anyhow::{Context, Result};
 use std::process::Command;
 
 const NS_NAME: &str = "upc0";
-const VETH_HOST: &str = "veth-upc0";  // lives in default ns
+const VETH_HOST: &str = "veth-upc0"; // lives in default ns
 const VETH_INSIDE: &str = "veth-upc0p"; // moved into upc0 ns
 
 /// Tear down any prior state, then create namespace + veth pair.
@@ -33,7 +33,14 @@ pub fn setup_upc0() -> Result<&'static str> {
 
     Command::new("ip")
         .args([
-            "link", "add", VETH_HOST, "type", "veth", "peer", "name", VETH_INSIDE,
+            "link",
+            "add",
+            VETH_HOST,
+            "type",
+            "veth",
+            "peer",
+            "name",
+            VETH_INSIDE,
         ])
         .status()
         .context("ip link add veth pair")?
@@ -56,7 +63,16 @@ pub fn setup_upc0() -> Result<&'static str> {
         .status()
         .context("ip link set veth-upc0 up")?;
     Command::new("ip")
-        .args(["netns", "exec", NS_NAME, "ip", "link", "set", VETH_INSIDE, "up"])
+        .args([
+            "netns",
+            "exec",
+            NS_NAME,
+            "ip",
+            "link",
+            "set",
+            VETH_INSIDE,
+            "up",
+        ])
         .status()
         .context("ip link set veth-upc0p up")?;
     Command::new("ip")
@@ -72,8 +88,15 @@ pub fn setup_upc0() -> Result<&'static str> {
         .context("ip addr add host-side")?;
     Command::new("ip")
         .args([
-            "netns", "exec", NS_NAME, "ip", "addr", "add",
-            "fd00:dead:beef:dada::de/64", "dev", VETH_INSIDE,
+            "netns",
+            "exec",
+            NS_NAME,
+            "ip",
+            "addr",
+            "add",
+            "fd00:dead:beef:dada::de/64",
+            "dev",
+            VETH_INSIDE,
         ])
         .status()
         .context("ip addr add ns-side")?;
@@ -108,9 +131,13 @@ pub fn send_trigger(count: u32, instance: u8) -> Result<()> {
             if cur.join(".git").exists() {
                 break;
             }
-            if !cur.pop() { break; }
+            if !cur.pop() {
+                break;
+            }
         }
-        cur.join("scripts/doom-tick.py").to_string_lossy().into_owned()
+        cur.join("scripts/doom-tick.py")
+            .to_string_lossy()
+            .into_owned()
     });
     // doom-tick.py reads --interface and uses AF_PACKET. We send into
     // upc0 namespace (the inside of the veth, where XDP is attached
@@ -118,20 +145,28 @@ pub fn send_trigger(count: u32, instance: u8) -> Result<()> {
     // veth-upc0p → veth-upc0 = XDP ingress.
     let out = Command::new("ip")
         .args([
-            "netns", "exec", NS_NAME, "python3",
+            "netns",
+            "exec",
+            NS_NAME,
+            "python3",
             &script,
-            "--flow-label", &flow_label,
-            "--count", &count_str,
+            "--flow-label",
+            &flow_label,
+            "--count",
+            &count_str,
             "--burst",
-            "--interface", VETH_INSIDE,
+            "--interface",
+            VETH_INSIDE,
         ])
         .output()
         .context("invoke scripts/doom-tick.py")?;
     let stdout = String::from_utf8_lossy(&out.stdout);
     let stderr = String::from_utf8_lossy(&out.stderr);
     if !out.status.success() {
-        eprintln!("doom-tick.py FAILED ({}):\nstdout: {}\nstderr: {}",
-            out.status, stdout, stderr);
+        eprintln!(
+            "doom-tick.py FAILED ({}):\nstdout: {}\nstderr: {}",
+            out.status, stdout, stderr
+        );
     } else if !stderr.is_empty() {
         eprintln!("doom-tick.py stderr: {}", stderr);
     } else {

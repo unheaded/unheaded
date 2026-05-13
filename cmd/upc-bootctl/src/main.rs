@@ -79,17 +79,14 @@ enum Cmd {
 /// multiple of 4 (an MBC instruction is always one 32-bit word).
 fn check_image_alignment(bytes: &[u8]) -> Result<usize> {
     if !bytes.len().is_multiple_of(4) {
-        bail!(
-            "kernel image not 4-byte aligned ({} bytes)",
-            bytes.len()
-        );
+        bail!("kernel image not 4-byte aligned ({} bytes)", bytes.len());
     }
     Ok(bytes.len() / 4)
 }
 
 fn cmd_validate(kernel: PathBuf) -> Result<()> {
-    let bytes = std::fs::read(&kernel)
-        .with_context(|| format!("read kernel: {}", kernel.display()))?;
+    let bytes =
+        std::fs::read(&kernel).with_context(|| format!("read kernel: {}", kernel.display()))?;
 
     let n_insns = check_image_alignment(&bytes)?;
 
@@ -101,12 +98,7 @@ fn cmd_validate(kernel: PathBuf) -> Result<()> {
     println!("\nfirst 32 MBC instructions:");
     for i in 0..32.min(n_insns) {
         let off = i * 4;
-        let w = u32::from_le_bytes([
-            bytes[off],
-            bytes[off + 1],
-            bytes[off + 2],
-            bytes[off + 3],
-        ]);
+        let w = u32::from_le_bytes([bytes[off], bytes[off + 1], bytes[off + 2], bytes[off + 3]]);
         let opcode = (w >> 24) & 0xFF;
         let dst = (w >> 20) & 0xF;
         let src = (w >> 16) & 0xF;
@@ -123,8 +115,7 @@ fn cmd_validate(kernel: PathBuf) -> Result<()> {
     println!(
         "\nBoot magic: 0x{:08X} (canonical 'UNHD' MSB-first; wire bytes '{}' per ADR-072)",
         xv6_mbc::BOOT_MAGIC,
-        std::str::from_utf8(&xv6_mbc::BOOT_MAGIC.to_le_bytes())
-            .unwrap_or("???")
+        std::str::from_utf8(&xv6_mbc::BOOT_MAGIC.to_le_bytes()).unwrap_or("???")
     );
 
     println!("\n✓ kernel image structurally valid");
@@ -143,9 +134,7 @@ fn cmd_boot(
     println!("\n=== BOOT DISPATCH (dry_run={}) ===", dry_run);
     println!("instance:      0x{:02X}", instance);
     if let Some(ref bs) = bootstub {
-        let sz = std::fs::metadata(bs)
-            .map(|m| m.len())
-            .unwrap_or(0);
+        let sz = std::fs::metadata(bs).map(|m| m.len()).unwrap_or(0);
         println!("bootstub:      {} ({} bytes)", bs.display(), sz);
     } else {
         println!("bootstub:      (none — kernel image must inline its own start code)");
@@ -160,18 +149,27 @@ fn cmd_boot(
     }
 
     println!("\nBoot Protocol v2 setup (per docs/doom/UPC_BOOT_PROTOCOL_V2.md):");
-    println!("  1. Allocate PerCPU<MbcCpuState> slot for instance 0x{:02X}", instance);
+    println!(
+        "  1. Allocate PerCPU<MbcCpuState> slot for instance 0x{:02X}",
+        instance
+    );
     println!("  2. Zero IVT region (byte 0x0000-0x03FF)");
     println!("  3. Zero CSR region (byte 0x000_F000-0x000_F0FF)");
     println!("  4. Write default HLT trap handler at 0x0400");
     println!("  5. Write BootParams v2 (256 bytes) at 0x0100");
-    println!("     magic = 0x{:08X} (canonical 'UNHD' MSB-first; wire bytes 'DHNU' per ADR-072)", xv6_mbc::BOOT_MAGIC);
+    println!(
+        "     magic = 0x{:08X} (canonical 'UNHD' MSB-first; wire bytes 'DHNU' per ADR-072)",
+        xv6_mbc::BOOT_MAGIC
+    );
     println!("     version = 2");
     println!("     kernel_addr = 0x10000 (stage-1 stub)");
     println!("     bss_start / bss_end (read from kernel.elf .bss)");
     println!("     boot_random_seed = 32 bytes from getrandom(2)");
     println!("  6. Load kernel image at byte 0x10000");
-    println!("     {} words → ROM_MAP slots 0x4000+", std::fs::metadata(&kernel)?.len() / 4);
+    println!(
+        "     {} words → ROM_MAP slots 0x4000+",
+        std::fs::metadata(&kernel)?.len() / 4
+    );
     if initramfs.is_some() {
         println!("  7. Load initramfs at byte 0x800000");
     }
@@ -189,8 +187,8 @@ fn cmd_boot(
     }
 
     // ── LIVE BOOT PATH (Phase 1.1 SHIP per battle-plan-phase11-ship-2026-05-10.md) ──
-    let kernel_bytes = std::fs::read(&kernel)
-        .with_context(|| format!("read kernel: {}", kernel.display()))?;
+    let kernel_bytes =
+        std::fs::read(&kernel).with_context(|| format!("read kernel: {}", kernel.display()))?;
     let _ = check_image_alignment(&kernel_bytes)?;
     let mbc_words: Vec<u32> = kernel_bytes
         .chunks_exact(4)
@@ -200,9 +198,8 @@ fn cmd_boot(
     let bp = bootparams::BootParamsV2::for_xv6(kernel_bytes.len() as u32, 0);
     let bp_bytes = bp.to_bytes();
 
-    let ebpf_obj = std::env::var("MONAD_CPU_EBPF_OBJ").unwrap_or_else(|_| {
-        "target/bpfel-unknown-none/release/monad-cpu-ebpf".to_string()
-    });
+    let ebpf_obj = std::env::var("MONAD_CPU_EBPF_OBJ")
+        .unwrap_or_else(|_| "target/bpfel-unknown-none/release/monad-cpu-ebpf".to_string());
     let ebpf_obj = std::path::PathBuf::from(ebpf_obj);
     if !ebpf_obj.exists() {
         bail!(
@@ -282,6 +279,46 @@ fn cmd_boot(
         );
     }
 
+    // Load the RV→MBC translation map. The translator emits this as a
+    // sibling to the .mbc (xv6-mbc.mbc → xv6-mbc.rv2mbc). Without it,
+    // JALR / CALLR / MRET / SRET land on unset entries (0 = slot 0) and
+    // execution falls through to garbage. Phase 1.3 AP-2 root cause.
+    //
+    // The translator emits entries indexed from RV word 0 (start of the
+    // .text section). xv6's .text begins at RV byte 0x20000 (RV word
+    // 0x8000) per kernel-mbc.ld; the loader shifts entries by that base
+    // so the BPF interpreter's absolute-RV-word lookups hit the right
+    // slot. Phase 2 will pass a different base for the bootstub flow.
+    let rv2mbc_path = kernel.with_extension("rv2mbc");
+    let text_rv_word_base: u32 = 0x8000; // xv6 .text base = RV byte 0x20000
+    if rv2mbc_path.exists() {
+        match std::fs::read(&rv2mbc_path) {
+            Ok(bytes) => match runner.populate_rv2mbc(&bytes, text_rv_word_base) {
+                Ok(()) => println!(
+                    "  RV→MBC map: loaded {} ({} entries @ RV-word-base 0x{:04X})",
+                    rv2mbc_path.display(),
+                    bytes.len() / 4,
+                    text_rv_word_base
+                ),
+                Err(e) => println!(
+                    "  ⚠ rv2mbc map at {} failed to load: {} (MRET/SRET/JALR will fall through)",
+                    rv2mbc_path.display(),
+                    e
+                ),
+            },
+            Err(e) => println!(
+                "  ⚠ rv2mbc map at {} unreadable: {}",
+                rv2mbc_path.display(),
+                e
+            ),
+        }
+    } else {
+        println!(
+            "  ⚠ no rv2mbc map at {} — MRET/SRET/JALR/CALLR will fall through",
+            rv2mbc_path.display()
+        );
+    }
+
     // Initial CPU state: PC=0x4000 (word index of byte 0x10000), SP=0x03F00000,
     // priv_level=0 M-mode, reservation_address=0xFFFFFFFF.
     runner.populate_cpu(runner::xv6_initial_cpu_state())?;
@@ -291,7 +328,12 @@ fn cmd_boot(
     println!(
         "\n✓ live BPF maps populated for instance 0x{:02X}\n  \
          CPU_MAP[0x{:X}]: PC=0x{:08X} SP=0x{:08X} priv={} halted={}",
-        instance, instance, cpu_initial.pc, cpu_initial.regs[15], cpu_initial.priv_level, cpu_initial.halted
+        instance,
+        instance,
+        cpu_initial.pc,
+        cpu_initial.regs[15],
+        cpu_initial.priv_level,
+        cpu_initial.halted
     );
     println!(
         "  ROM_MAP: {} MBC words loaded ({} bytes)",
@@ -332,8 +374,12 @@ fn cmd_boot(
     println!(
         "\n=== AFTER TRIGGER ===\n  \
          CPU_MAP[0x{:X}]: PC=0x{:08X} SP=0x{:08X} priv={} halted={} insn_count={}",
-        instance, cpu_after.pc, cpu_after.regs[15], cpu_after.priv_level,
-        cpu_after.halted, cpu_after.insn_count
+        instance,
+        cpu_after.pc,
+        cpu_after.regs[15],
+        cpu_after.priv_level,
+        cpu_after.halted,
+        cpu_after.insn_count
     );
     if cpu_after.pc != cpu_initial.pc || cpu_after.insn_count > 0 {
         println!("  ✓ FIRST HEARTBEAT — eBPF interpreter advanced the CPU");
@@ -349,7 +395,13 @@ fn cmd_boot(
         // null bytes / non-ASCII can hide what really happened.
         let printable: String = tty_bytes
             .iter()
-            .map(|&b| if (32..127).contains(&b) { b as char } else { '·' })
+            .map(|&b| {
+                if (32..127).contains(&b) {
+                    b as char
+                } else {
+                    '·'
+                }
+            })
             .collect();
         let hex: String = tty_bytes
             .iter()
@@ -381,7 +433,9 @@ fn cmd_boot(
             println!("\n  🎉 PHASE 1.1 GATE BANNER VISIBLE: \"xv6 booting...\"");
         } else if stripped.contains("BOOT FAIL") || s.contains("BOOT FAIL") {
             println!("\n  ⚠ start_mbc.c HIT 'BOOT FAIL' branch — magic or version mismatch.");
-            println!("    Likely cause: BootParams address mismatch OR translator skipped LD insns.");
+            println!(
+                "    Likely cause: BootParams address mismatch OR translator skipped LD insns."
+            );
         } else {
             println!("\n  ⚠ TTY captured non-banner output. Path through start_mbc.c unclear.");
         }
@@ -401,9 +455,14 @@ fn cmd_console(instance: u8) -> Result<()> {
     println!("Console attach mode (Mode B demo surface).");
     println!();
     println!("Implementation pending: subscribe to Busboy topic");
-    println!("compute.tty.0x{:02X}, render bytes to host stdout, capture", instance);
-    println!("stdin keystrokes and write to KBD_MAP at 0x{:04X}.",
-             instance);
+    println!(
+        "compute.tty.0x{:02X}, render bytes to host stdout, capture",
+        instance
+    );
+    println!(
+        "stdin keystrokes and write to KBD_MAP at 0x{:04X}.",
+        instance
+    );
     println!();
     println!("Pattern: cmd/doom-bridge/main.go but framing tty bytes");
     println!("instead of framebuffer pixels.");
