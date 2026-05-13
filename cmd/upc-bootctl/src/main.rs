@@ -55,6 +55,13 @@ enum Cmd {
         #[arg(long)]
         initramfs: Option<PathBuf>,
 
+        /// Path to the optional xv6-format ramdisk image (built by
+        /// `crates/xv6-mbc/upstream/mkfs/mkfs`). Loaded into RAM_MAP at
+        /// byte 0x00800000 per docs/doom/UPC_PAGE_TABLE_LAYOUT.md.
+        /// Phase 1.4 IMPL — distinct from --initramfs (Linux CPIO).
+        #[arg(long)]
+        ramdisk: Option<PathBuf>,
+
         /// UPC instance ID (low byte of CPU_MAP key).
         #[arg(long, default_value_t = 0xDE)]
         instance: u8,
@@ -126,6 +133,7 @@ fn cmd_boot(
     kernel: PathBuf,
     bootstub: Option<PathBuf>,
     initramfs: Option<PathBuf>,
+    ramdisk: Option<PathBuf>,
     instance: u8,
     dry_run: bool,
 ) -> Result<()> {
@@ -259,6 +267,23 @@ fn cmd_boot(
     // sibling to the .mbc (e.g. xv6-mbc.mbc -> xv6-mbc.data). Optional —
     // if missing, the boot will still progress but may halt on the first
     // string load. Task #61 closure.
+    // Phase 1.4: load the xv6-format ramdisk (fs.img) at byte 0x00800000.
+    // mkfs produces this image; xv6's fs.c later mounts it. Address per
+    // docs/doom/UPC_PAGE_TABLE_LAYOUT.md.
+    if let Some(ref rd) = ramdisk {
+        match std::fs::read(rd) {
+            Ok(bytes) => match runner.populate_ram(&[(0x00800000, &bytes)]) {
+                Ok(()) => println!(
+                    "  Ramdisk: loaded {} ({} bytes @ byte 0x00800000)",
+                    rd.display(),
+                    bytes.len()
+                ),
+                Err(e) => bail!("ramdisk load failed: {e}"),
+            },
+            Err(e) => bail!("ramdisk read {} failed: {e}", rd.display()),
+        }
+    }
+
     let data_path = kernel.with_extension("data");
     if data_path.exists() {
         match runner.load_data_image(&data_path) {
@@ -492,9 +517,10 @@ fn main() -> Result<()> {
             kernel,
             bootstub,
             initramfs,
+            ramdisk,
             instance,
             dry_run,
-        } => cmd_boot(kernel, bootstub, initramfs, instance, dry_run),
+        } => cmd_boot(kernel, bootstub, initramfs, ramdisk, instance, dry_run),
         Cmd::Console { instance } => cmd_console(instance),
     }
 }
