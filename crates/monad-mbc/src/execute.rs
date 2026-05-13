@@ -34,11 +34,12 @@ pub struct Cpu {
     pub tty_output: Vec<u8>,
     /// Instance ID for SYS_GETPID (defaults to 0).
     pub instance_id: u32,
-    /// Process table for Level 4c scheduler: 4 slots of 21 u32s each.
+    /// Process table for Level 4c scheduler: 8 slots of 21 u32s each.
+    /// Widened from 4 → 8 in Phase 1.3 IMPL per ADR-075 D-1.
     /// Layout per slot: [r0..r15, PC, flags, SP_copy, program_break, page_dir_base]
     /// slot[20] = page_dir_base widened in Phase 1.2 (ADR-074 Option A);
     /// matches the BPF-side layout in `ebpf/monad-cpu-ebpf/src/main.rs::PROC_TABLE`.
-    pub proc_table: [[u32; 21]; 4],
+    pub proc_table: [[u32; 21]; 8],
     /// Halted process bitmask (bit i set = process i has exited).
     pub halted_mask: u32,
     /// Suspended process bitmask (bit i set = process i is suspended via vfork).
@@ -70,7 +71,7 @@ impl Cpu {
             ticks_ms: 0,
             tty_output: Vec::new(),
             instance_id: 0,
-            proc_table: [[0u32; 21]; 4],
+            proc_table: [[0u32; 21]; 8],
             halted_mask: 0,
             suspended_mask: 0,
             tlb: [[0u32; 3]; 64],

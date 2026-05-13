@@ -19,7 +19,11 @@ use std::path::PathBuf;
 /// Locate the workspace's tests/mbc-pipeline/ directory relative to this crate.
 fn fixtures_dir() -> PathBuf {
     let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    manifest.join("..").join("..").join("tests").join("mbc-pipeline")
+    manifest
+        .join("..")
+        .join("..")
+        .join("tests")
+        .join("mbc-pipeline")
 }
 
 #[test]
@@ -38,8 +42,7 @@ fn every_mbc_pipeline_asm_fixture_assembles_cleanly() {
     let mut checked = 0usize;
     let mut failures: Vec<(String, String)> = Vec::new();
 
-    let entries = fs::read_dir(&dir)
-        .unwrap_or_else(|e| panic!("read tests/mbc-pipeline/: {}", e));
+    let entries = fs::read_dir(&dir).unwrap_or_else(|e| panic!("read tests/mbc-pipeline/: {}", e));
 
     for entry in entries.flatten() {
         let path = entry.path();
@@ -51,8 +54,7 @@ fn every_mbc_pipeline_asm_fixture_assembles_cleanly() {
             .and_then(|n| n.to_str())
             .unwrap_or("(unknown)")
             .to_string();
-        let source = fs::read_to_string(&path)
-            .unwrap_or_else(|e| panic!("read {}: {}", name, e));
+        let source = fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {}", name, e));
         match assemble(&source) {
             Ok(words) => {
                 assert!(

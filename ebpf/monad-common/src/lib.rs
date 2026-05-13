@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 //! # monad-common
 //!
 //! Shared types for the **Unheaded Protocol Foundation**
@@ -1475,7 +1476,10 @@ pub mod mbc_interrupts {
     /// Number of ticks between timer interrupts (at 35 Hz XDP, every 3rd tick ~ 12 Hz).
     pub const TIMER_TICK_DIVISOR: u32 = 3;
     /// Maximum number of processes supported by the Level 4c scheduler.
-    pub const MAX_PROCESSES: u8 = 4;
+    /// Widened 4 → 8 in Phase 1.3 IMPL per ADR-075 D-1; must stay in lockstep
+    /// with `ebpf/monad-cpu-ebpf/src/phase12.rs::MAX_PROCESSES` and the
+    /// `PROC_TABLE` map's `with_max_entries`.
+    pub const MAX_PROCESSES: u8 = 8;
 }
 
 /// Screen / I/O memory map constants for the Doom-over-IPv6 PoC.
@@ -2125,7 +2129,9 @@ mod tests {
         assert!(
             kbd < screen_start || kbd >= screen_end,
             "KBD_ADDR=0x{:X} overlaps SCREEN region [0x{:X}, 0x{:X})",
-            kbd, screen_start, screen_end
+            kbd,
+            screen_start,
+            screen_end
         );
     }
 

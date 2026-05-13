@@ -1842,3 +1842,76 @@ fn phase12_context_switch_save_restore_page_dir_base() {
         "PID 0 and PID 1 must hold distinct pgds (Option A isolation invariant)"
     );
 }
+
+/// Phase 1.3 D-1 (ADR-075): PROC_TABLE widened 4 → 8. Forking 7 times must
+/// populate proc_table[0..8] with distinct, 4-KiB-aligned page-directory
+/// bases across the full per-pid region 0x00F00000..0x00F07000. An 8th fork
+/// must refuse (slot exhaustion → r0 = -EAGAIN). This is the Phase 1.3
+/// IMPL Step 2 falsification test from `references/battle-plan-phase13-impl-2026-05-13.md`.
+#[test]
+fn phase13_proc_table_supports_8_slots() {
+    let mut cpu = cpu_with_safe_sp();
+    assert_eq!(cpu.state.num_processes, 1, "starts with init only");
+
+    // Fork 7 times → 8 total processes (init + 7 children).
+    let mut rom: Vec<u32> = Vec::new();
+    for _ in 0..7 {
+        rom.push(enc(op::MOVI, 0, 0, lsys::SYS_FORK as u16));
+        rom.push(enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16));
+    }
+    rom.push(enc(op::HALT, 0, 0, 0));
+    cpu.load_rom(&rom);
+    cpu.run(400).ok();
+
+    assert_eq!(
+        cpu.state.num_processes, 8,
+        "8 slots filled by init + 7 forks"
+    );
+
+    // Each pid 1..=7 owns a unique 4-KiB-aligned pgd inside the per-pid region.
+    let mut seen = std::collections::HashSet::new();
+    for pid in 1..8 {
+        let pgd = cpu.proc_table[pid][20];
+        assert_eq!(
+            pgd & 0xFFF,
+            0,
+            "pid {pid} pgd 0x{pgd:08X} not 4-KiB aligned"
+        );
+        assert!(
+            (0x00F0_0000..=0x00F0_7000).contains(&pgd),
+            "pid {pid} pgd 0x{pgd:08X} outside fixed region 0x00F00000-0x00F07000"
+        );
+        assert!(
+            seen.insert(pgd),
+            "pid {pid} pgd 0x{pgd:08X} collides with sibling"
+        );
+    }
+
+    // Deterministic mapping per phase12::pgd_base_for_pid: pid * 0x1000.
+    for pid in 1..8usize {
+        assert_eq!(
+            cpu.proc_table[pid][20],
+            0x00F0_0000 + (pid as u32) * 0x1000,
+            "pid {pid} pgd doesn't match Allocator A1 formula"
+        );
+    }
+
+    // An 8th fork (from any process) must refuse — slot exhaustion → r0 = -EAGAIN.
+    let exhaust_rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_FORK as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&exhaust_rom);
+    cpu.state.pc = 0;
+    cpu.state.halted = 0;
+    cpu.run(50).ok();
+    assert_eq!(
+        cpu.state.num_processes, 8,
+        "9th process must NOT be created"
+    );
+    assert_eq!(
+        cpu.state.regs[0] as i32, -11,
+        "exhausted fork returns -EAGAIN (errno 11)"
+    );
+}
