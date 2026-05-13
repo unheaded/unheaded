@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 //! Comprehensive integration tests for UPC OS primitives.
 //!
 //! Tests all Level 4a-4f + Level 5 boot protocol primitives:
@@ -1581,7 +1582,10 @@ fn ascend_sc_w_success_when_reservation_valid() {
     let _ = cpu.run(100);
 
     assert_eq!(cpu.state.regs[2], 0, "SC.W success: rd must be 0");
-    assert_eq!(cpu.ram[0x100], 0xDEADBEEF, "memory must be updated on SC.W success");
+    assert_eq!(
+        cpu.ram[0x100], 0xDEADBEEF,
+        "memory must be updated on SC.W success"
+    );
     assert_eq!(
         cpu.state.reservation_address, 0xFFFF_FFFF,
         "reservation cleared after SC.W"
@@ -1617,7 +1621,10 @@ fn ascend_sc_w_failure_when_reservation_address_mismatches() {
     cpu.load_rom(&rom);
     let _ = cpu.run(100);
 
-    assert_eq!(cpu.state.regs[2], 1, "stale reservation must produce SC.W failure");
+    assert_eq!(
+        cpu.state.regs[2], 1,
+        "stale reservation must produce SC.W failure"
+    );
     assert_eq!(cpu.ram[0x100], 0x42, "memory unchanged");
 }
 
@@ -1669,7 +1676,10 @@ fn ascend_mret_pops_mepc_and_restores_priv() {
     let _ = cpu.run(100);
 
     assert_eq!(cpu.state.halted, 1, "MRET should land on HALT");
-    assert_eq!(cpu.state.priv_level, 1, "MRET must restore priv to S (MPP=01)");
+    assert_eq!(
+        cpu.state.priv_level, 1,
+        "MRET must restore priv to S (MPP=01)"
+    );
     assert_eq!(
         cpu.state.reservation_address, 0xFFFF_FFFF,
         "MRET must clear reservation"
@@ -1701,7 +1711,10 @@ fn ascend_sret_pops_sepc_and_returns_to_u_mode() {
     let _ = cpu.run(100);
 
     assert_eq!(cpu.state.halted, 1);
-    assert_eq!(cpu.state.priv_level, 3, "SRET with SPP=0 must return to U-mode");
+    assert_eq!(
+        cpu.state.priv_level, 3,
+        "SRET with SPP=0 must return to U-mode"
+    );
     assert_eq!(cpu.state.reservation_address, 0xFFFF_FFFF);
     assert_eq!(cpu.state.regs[0], 0);
 }
@@ -1721,5 +1734,111 @@ fn ascend_sret_with_spp_1_returns_to_s_mode() {
     let _ = cpu.run(100);
 
     assert_eq!(cpu.state.halted, 1);
-    assert_eq!(cpu.state.priv_level, 1, "SRET with SPP=1 must stay in S-mode");
+    assert_eq!(
+        cpu.state.priv_level, 1,
+        "SRET with SPP=1 must stay in S-mode"
+    );
+}
+
+// ── Phase 1.2 (ADR-074 Option A + Allocator A1) ─────────────────────────────
+
+/// Forking 4 children must populate proc_table[i][20] (page_dir_base) with
+/// distinct, 4-KiB-aligned addresses inside the fixed per-pid region at
+/// 0x00F00000. This is the Phase 3.1 hard-gate forkbomb smoke test from the
+/// Phase 1.2 IMPL plan; if it fails, Option A is broken at the allocator
+/// layer and downstream xv6 patches will inherit the corruption.
+#[test]
+fn phase12_fork_assigns_distinct_pgd_per_child() {
+    let mut cpu = cpu_with_safe_sp();
+    assert_eq!(cpu.state.num_processes, 1, "starts with init only");
+
+    // Fork three times. Process indices end up: 0=init, 1, 2, 3.
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_FORK as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::MOVI, 0, 0, lsys::SYS_FORK as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::MOVI, 0, 0, lsys::SYS_FORK as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    cpu.run(200).ok();
+    assert_eq!(cpu.state.num_processes, 4, "should now have 4 processes");
+
+    // Children 1..=3 must have unique, 4-KiB-aligned pgds in the fixed region.
+    let mut seen = std::collections::HashSet::new();
+    for pid in 1..4 {
+        let pgd = cpu.proc_table[pid][20];
+        assert_eq!(
+            pgd & 0xFFF,
+            0,
+            "pid {} pgd 0x{:08X} not 4-KiB aligned",
+            pid,
+            pgd
+        );
+        assert!(
+            (0x00F0_0000..=0x00F0_3000).contains(&pgd),
+            "pid {} pgd 0x{:08X} outside fixed region 0x00F00000-0x00F03000",
+            pid,
+            pgd
+        );
+        assert!(
+            seen.insert(pgd),
+            "pid {} pgd 0x{:08X} collides with sibling",
+            pid,
+            pgd
+        );
+    }
+    // Verify the deterministic mapping.
+    assert_eq!(cpu.proc_table[1][20], 0x00F0_1000);
+    assert_eq!(cpu.proc_table[2][20], 0x00F0_2000);
+    assert_eq!(cpu.proc_table[3][20], 0x00F0_3000);
+}
+
+/// Context switch must save the outgoing process's `page_dir_base` to
+/// proc_table[old][20] and load the incoming process's pgd from
+/// proc_table[new][20] into `cpu.state.page_dir_base`. This is the Option A
+/// falsification experiment from ADR-074: PID 1 sets a sentinel pgd, yields
+/// to PID 0, and PID 0's pgd must NOT match PID 1's.
+#[test]
+fn phase12_context_switch_save_restore_page_dir_base() {
+    let mut cpu = cpu_with_safe_sp();
+    // Two processes: PID 0 (init) with sentinel pgd, PID 1 with different pgd.
+    cpu.state.num_processes = 2;
+    cpu.state.current_pid = 0;
+    cpu.state.page_dir_base = 0x00F0_0000; // PID 0's pgd
+                                           // Pre-load PID 1 in proc_table with its own pgd.
+    cpu.proc_table[1] = [0u32; 21];
+    cpu.proc_table[1][16] = 0; // PC=0 (HALT)
+    cpu.proc_table[1][18] = 0xFFFE_0000; // some SP
+    cpu.proc_table[1][20] = 0x00F0_1000; // PID 1's pgd
+
+    // Yield from PID 0 → PID 1.
+    let rom = vec![
+        enc(op::MOVI, 0, 0, lsys::SYS_SCHED_YIELD as u16),
+        enc(op::INT, 0, 0, intr::VECTOR_SYSCALL as u16),
+        enc(op::HALT, 0, 0, 0),
+    ];
+    cpu.load_rom(&rom);
+    // Run exactly through the MOVI + INT (yield); stop before PID 1 can re-enter
+    // the scheduler and ping-pong back to PID 0.
+    cpu.run(2).ok();
+
+    // PID 0's outgoing pgd should be saved.
+    assert_eq!(
+        cpu.proc_table[0][20], 0x00F0_0000,
+        "outgoing PID 0 pgd should be saved to slot[20]"
+    );
+    // CPU should now be running PID 1 with PID 1's pgd loaded.
+    assert_eq!(cpu.state.current_pid, 1, "should have switched to PID 1");
+    assert_eq!(
+        cpu.state.page_dir_base, 0x00F0_1000,
+        "CPU pgd should be loaded from PID 1's slot[20]"
+    );
+    // PID 0's pgd MUST NOT equal PID 1's pgd — that's the isolation invariant.
+    assert_ne!(
+        cpu.proc_table[0][20], cpu.proc_table[1][20],
+        "PID 0 and PID 1 must hold distinct pgds (Option A isolation invariant)"
+    );
 }
