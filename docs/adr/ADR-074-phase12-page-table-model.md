@@ -353,13 +353,18 @@ If the measurement comes back >5% or some assumption fails, Architect joins the 
 
 ---
 
-## Decision (PENDING pair-call — UPDATED)
+## Decision — 2026-05-12 pair-call
 
-To be filled in after the call. Format:
+> **DECIDED**: **Option A — per-task pgd** selected.
+> **Vote**: Stevie (Captain) called Option A. Architect, Scientist, Computermancer, BlackMage, Developer, Marshal all aligned with the recommendation. No dissents.
+> **PROC_TABLE layout**: `[u32; 21]` adopted (slot[20] = `page_dir_base`).
+> **Page-table allocator**: **A1 — Fixed per-pid region** at `RAM_MAP[0x00F00000 + pid*0x1000]` (16 KiB total, inherits current 4-pid scheduler cap). Per `docs/doom/UPC_PAGE_TABLE_LAYOUT.md`.
+> **Execution mode**: Marshal executes pre-work + implementation autonomously per Track C "slow + safe" posture.
+> **Verification**: forkbomb test at Phase 3.1 hard gate; falsification experiment per strong-inference protocol above (PID 1 maps page → switch to PID 2 → verify isolation).
+> **Implementation kickoff**: this commit lands the decision; subsequent commits execute the pre-work battle plan at `references/battle-plan-phase12-prework-2026-05-11.md` (HOLD lifted) followed by the actual Option A implementation.
 
-> **DECIDED**: Option [A | B | C] selected.
-> **Vote**: Stevie [agrees | overrides]; Architect [seconds | dissents with reasoning]; Computermancer [seconds | dissents]; BlackMage [seconds | dissents]; Developer [seconds | dissents].
-> **Implementation**: starts at commit [hash] after pair-call.
-> **Verification**: forkbomb test at Phase 3.1 hard gate; falsification experiments per strong-inference protocol above.
-> **PROC_TABLE layout**: `[u32; 21]` adopted per Architect AP-1 recommendation OR alternative chosen.
-> **Page-table allocator**: A1 (fixed per-pid region) adopted per Architect Issue 2 recommendation OR alternative chosen.
+### Phase 3 follow-on docket (out-of-scope for Phase 1.2)
+
+- Replace physical-address `page_dir_base` with logical `(node_id, pgd_id)` handle resolved by Wotan DISTRIBUTED memory coherence. Current Phase 1.2 implementation will explicitly assume single-node LOCAL mode.
+- Defense-in-depth Option C (pid-tagged TLB on top of per-task pgd) remains a non-breaking extension when/if a future shift wants it.
+- Allocator A2/A3 (kernel freelist or xv6 userspace allocator) when process count exceeds the 4-pid `PROC_TABLE` cap.
