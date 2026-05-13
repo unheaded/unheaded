@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 //! Codec for Pu fragments — encode/decode for storage and gossip transport.
 //!
 //! Uses bincode for compact binary serialization. All decode operations
@@ -8,7 +9,8 @@ use crate::{ZhenError, ZhenResult};
 
 /// Encode a fragment to compact binary representation.
 pub fn encode(fragment: &Fragment) -> ZhenResult<Vec<u8>> {
-    bincode::serialize(fragment).map_err(|e| ZhenError::Serialization(e.to_string()))
+    bincode::serde::encode_to_vec(fragment, bincode::config::standard())
+        .map_err(|e| ZhenError::Serialization(e.to_string()))
 }
 
 /// Decode a fragment from binary, verifying integrity.
@@ -17,8 +19,9 @@ pub fn encode(fragment: &Fragment) -> ZhenResult<Vec<u8>> {
 /// - Deserialization fails (malformed input)
 /// - BLAKE3 verification fails (tampered payload)
 pub fn decode(bytes: &[u8]) -> ZhenResult<Fragment> {
-    let fragment: Fragment =
-        bincode::deserialize(bytes).map_err(|e| ZhenError::Serialization(e.to_string()))?;
+    let (fragment, _consumed): (Fragment, usize) =
+        bincode::serde::decode_from_slice(bytes, bincode::config::standard())
+            .map_err(|e| ZhenError::Serialization(e.to_string()))?;
 
     if !fragment.verify() {
         return Err(ZhenError::IntegrityFailure {

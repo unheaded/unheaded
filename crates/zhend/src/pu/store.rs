@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 //! # Tiered Store — Geological Memory
 //!
 //! L1 (Hot)  — In-memory HashMap, mmap-backed. Sub-millisecond.
@@ -330,8 +331,8 @@ impl TieredStore {
         let fragments: Vec<&Fragment> = l1.values().collect();
         let count = fragments.len();
 
-        let encoded =
-            bincode::serialize(&fragments).map_err(|e| ZhenError::Serialization(e.to_string()))?;
+        let encoded = bincode::serde::encode_to_vec(&fragments, bincode::config::standard())
+            .map_err(|e| ZhenError::Serialization(e.to_string()))?;
 
         // Write atomically: write to tmp, then rename.
         let tmp_path = self.snapshot_path.with_extension("bin.tmp");
@@ -353,8 +354,9 @@ impl TieredStore {
             Err(e) => return Err(e.into()),
         };
 
-        let fragments: Vec<Fragment> =
-            bincode::deserialize(&bytes).map_err(|e| ZhenError::Serialization(e.to_string()))?;
+        let (fragments, _consumed): (Vec<Fragment>, usize) =
+            bincode::serde::decode_from_slice(&bytes, bincode::config::standard())
+                .map_err(|e| ZhenError::Serialization(e.to_string()))?;
 
         let mut l1 = self
             .l1
