@@ -30,7 +30,7 @@ jobs:
     name: Shell script syntax + executability
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: bash -n on all provisioners + scripts
         run: |
           set -euo pipefail
@@ -50,8 +50,8 @@ jobs:
     name: YAML schema validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with: { python-version: '3.12' }
       - name: yamllint
         run: |
@@ -70,7 +70,7 @@ jobs:
     name: Packer validate
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Install packer
         run: |
           curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg
@@ -87,7 +87,7 @@ jobs:
     name: Anchor + overlay verify scripts
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - run: bash nix/yggdrasil/scripts/yggdrasil-verify-anchor.sh
       - run: bash nix/yggdrasil/scripts/yggdrasil-verify-overlay.sh
 
@@ -95,7 +95,7 @@ jobs:
     name: OS-FORK-DISCIPLINE patch + LOC budget
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Patch count ≤ 50
         run: |
           PC=$(find nix/yggdrasil/overlay/patches -name '*.patch' 2>/dev/null | wc -l)

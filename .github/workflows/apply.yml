@@ -13,7 +13,7 @@ jobs:
       matrix:
         layer: [networking, compute, identity, observability, ebpf]
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - uses: opentofu/setup-opentofu@v1
     - uses: gruntwork-io/terragrunt-action@v2
 
