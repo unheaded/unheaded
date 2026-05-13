@@ -27,28 +27,28 @@ use std::path::Path;
 #[repr(C)]
 #[derive(Clone, Copy, Debug)]
 pub struct MbcCpuState {
-    pub regs: [u32; 16],          // 64 bytes
-    pub pc: u32,                  // 4
-    pub flags: u8,                // 1
-    pub halted: u8,               // 1
-    pub stalled: u8,              // 1
-    pub _pad: u8,                 // 1
-    pub sleep_until_ns: u64,      // 8
-    pub insn_count: u64,          // 8
-    pub cache_hits: u64,          // 8
-    pub cache_misses: u64,        // 8
-    pub interrupt_pending: u8,    // 1
-    pub interrupt_vector: u8,     // 1
-    pub interrupts_enabled: u8,   // 1
-    pub _pad2: u8,                // 1
-    pub tick_counter: u32,        // 4
-    pub program_break: u32,       // 4
-    pub exit_code: u32,           // 4
-    pub current_pid: u8,          // 1
-    pub num_processes: u8,        // 1
-    pub mmu_enabled: u8,          // 1
-    pub _pad3: u8,                // 1
-    pub page_dir_base: u32,       // 4 (offset 124)
+    pub regs: [u32; 16],        // 64 bytes
+    pub pc: u32,                // 4
+    pub flags: u8,              // 1
+    pub halted: u8,             // 1
+    pub stalled: u8,            // 1
+    pub _pad: u8,               // 1
+    pub sleep_until_ns: u64,    // 8
+    pub insn_count: u64,        // 8
+    pub cache_hits: u64,        // 8
+    pub cache_misses: u64,      // 8
+    pub interrupt_pending: u8,  // 1
+    pub interrupt_vector: u8,   // 1
+    pub interrupts_enabled: u8, // 1
+    pub _pad2: u8,              // 1
+    pub tick_counter: u32,      // 4
+    pub program_break: u32,     // 4
+    pub exit_code: u32,         // 4
+    pub current_pid: u8,        // 1
+    pub num_processes: u8,      // 1
+    pub mmu_enabled: u8,        // 1
+    pub _pad3: u8,              // 1
+    pub page_dir_base: u32,     // 4 (offset 124)
     // ── ASCEND-LINUX ABI v2 (ADR-067) ───────────────────────────────────
     pub priv_level: u8,           // 1 (offset 128) M=0/S=1/U=3
     pub _pad4: u8,                // 1
@@ -110,9 +110,8 @@ pub struct BootRunner {
 
 impl BootRunner {
     pub fn open(ebpf_obj_path: &Path, instance_id: u32) -> Result<Self> {
-        let ebpf = Ebpf::load_file(ebpf_obj_path).with_context(|| {
-            format!("load eBPF object: {}", ebpf_obj_path.display())
-        })?;
+        let ebpf = Ebpf::load_file(ebpf_obj_path)
+            .with_context(|| format!("load eBPF object: {}", ebpf_obj_path.display()))?;
         Ok(Self { ebpf, instance_id })
     }
 
@@ -128,6 +127,46 @@ impl BootRunner {
         self.populate_rom_at(0, mbc_words)
     }
 
+    /// Populate `RV2MBC_MAP` from the `.rv2mbc` sibling file emitted by
+    /// the rv32i-to-mbc translator. Format: a flat little-endian u32
+    /// array where index = RV word offset from `.text` start, value =
+    /// corresponding MBC PC (word index in ROM_MAP).
+    ///
+    /// `text_rv_word_base` shifts the load offset so that the BPF
+    /// interpreter's absolute-RV-word lookups (JMPR, CALLR, MRET, SRET)
+    /// land on the right entry. For xv6-mbc.mbc the `.text` section
+    /// starts at RV byte 0x20000 (RV word 0x8000) per kernel-mbc.ld.
+    ///
+    /// Without this, JALR / CALLR / MRET / SRET land on unset entries
+    /// (0 = MBC slot 0) and execution falls through to garbage. xv6's
+    /// `__asm__ volatile("mret")` after `CSR_REG(CSR_MEPC) = &main;`
+    /// was silently lost before this fix. Phase 1.3 AP-2 fix.
+    pub fn populate_rv2mbc(&mut self, bytes: &[u8], text_rv_word_base: u32) -> Result<()> {
+        if bytes.len() % 4 != 0 {
+            bail!("rv2mbc file length {} not 4-byte aligned", bytes.len());
+        }
+        let entries = bytes.len() / 4;
+        let mut map: Array<_, u32> = Array::try_from(
+            self.ebpf
+                .map_mut("RV2MBC_MAP")
+                .context("RV2MBC_MAP not found")?,
+        )?;
+        for i in 0..entries {
+            let off = i * 4;
+            let mbc_pc =
+                u32::from_le_bytes([bytes[off], bytes[off + 1], bytes[off + 2], bytes[off + 3]]);
+            let absolute_idx = text_rv_word_base + i as u32;
+            map.set(absolute_idx, mbc_pc, 0)
+                .with_context(|| format!("RV2MBC_MAP[{}] write", absolute_idx))?;
+        }
+        tracing::info!(
+            entries = entries,
+            base = text_rv_word_base,
+            "RV2MBC_MAP populated"
+        );
+        Ok(())
+    }
+
     /// Write `mbc_words` into ROM_MAP starting at slot `start_slot` (a
     /// word index). Used by Phase 2 to place the upc-bootstub.mbc at
     /// slot 0x4000 (byte 0x10000) and a separately-built uClinux/Linux
@@ -135,9 +174,8 @@ impl BootRunner {
     /// caller still uses populate_rom() (= start_slot=0) because xv6's
     /// .mbc image self-locates per its own kernel-mbc.ld layout.
     pub fn populate_rom_at(&mut self, start_slot: u32, mbc_words: &[u32]) -> Result<()> {
-        let mut rom: Array<_, u32> = Array::try_from(
-            self.ebpf.map_mut("ROM_MAP").context("ROM_MAP not found")?,
-        )?;
+        let mut rom: Array<_, u32> =
+            Array::try_from(self.ebpf.map_mut("ROM_MAP").context("ROM_MAP not found")?)?;
         for (i, &word) in mbc_words.iter().enumerate() {
             let slot = start_slot + i as u32;
             rom.set(slot, word, 0)
@@ -155,9 +193,8 @@ impl BootRunner {
     /// is packed into u32 words (little-endian) and written at
     /// `byte_addr / 4`. Sub-word remainders are zero-padded.
     pub fn populate_ram(&mut self, regions: &[(u32, &[u8])]) -> Result<()> {
-        let mut ram: Array<_, u32> = Array::try_from(
-            self.ebpf.map_mut("RAM_MAP").context("RAM_MAP not found")?,
-        )?;
+        let mut ram: Array<_, u32> =
+            Array::try_from(self.ebpf.map_mut("RAM_MAP").context("RAM_MAP not found")?)?;
         for &(byte_addr, data) in regions {
             if byte_addr % 4 != 0 {
                 bail!(
@@ -201,8 +238,8 @@ impl BootRunner {
     /// `lbu a4, 0(a3)` reads zero from RAM_MAP — the .rodata string
     /// "xv6 booting..." never reaches the TTY. Task #61 closure.
     pub fn load_data_image(&mut self, path: &Path) -> Result<()> {
-        let blob = fs::read(path)
-            .with_context(|| format!("read data image: {}", path.display()))?;
+        let blob =
+            fs::read(path).with_context(|| format!("read data image: {}", path.display()))?;
         if blob.len() < 4 {
             anyhow::bail!(
                 "data image too short ({} bytes); expected at least the count header",
@@ -221,18 +258,11 @@ impl BootRunner {
                     blob.len()
                 );
             }
-            let byte_addr = u32::from_le_bytes([
-                blob[off],
-                blob[off + 1],
-                blob[off + 2],
-                blob[off + 3],
-            ]);
-            let len = u32::from_le_bytes([
-                blob[off + 4],
-                blob[off + 5],
-                blob[off + 6],
-                blob[off + 7],
-            ]) as usize;
+            let byte_addr =
+                u32::from_le_bytes([blob[off], blob[off + 1], blob[off + 2], blob[off + 3]]);
+            let len =
+                u32::from_le_bytes([blob[off + 4], blob[off + 5], blob[off + 6], blob[off + 7]])
+                    as usize;
             off += 8;
             if off + len > blob.len() {
                 anyhow::bail!(
@@ -265,12 +295,10 @@ impl BootRunner {
 
     /// Insert the initial CPU state for `instance_id` into CPU_MAP.
     pub fn populate_cpu(&mut self, initial_state: MbcCpuState) -> Result<()> {
-        let mut cpu: AyaHashMap<_, u32, MbcCpuState> = AyaHashMap::try_from(
-            self.ebpf.map_mut("CPU_MAP").context("CPU_MAP not found")?,
-        )?;
-        cpu.insert(self.instance_id, initial_state, 0).with_context(|| {
-            format!("CPU_MAP[0x{:X}] insert", self.instance_id)
-        })?;
+        let mut cpu: AyaHashMap<_, u32, MbcCpuState> =
+            AyaHashMap::try_from(self.ebpf.map_mut("CPU_MAP").context("CPU_MAP not found")?)?;
+        cpu.insert(self.instance_id, initial_state, 0)
+            .with_context(|| format!("CPU_MAP[0x{:X}] insert", self.instance_id))?;
         tracing::info!(instance = self.instance_id, "CPU_MAP populated");
         Ok(())
     }
@@ -291,9 +319,8 @@ impl BootRunner {
 
     /// Read the current CPU state for `instance_id` from CPU_MAP.
     pub fn cpu_state(&self) -> Result<MbcCpuState> {
-        let cpu: AyaHashMap<_, u32, MbcCpuState> = AyaHashMap::try_from(
-            self.ebpf.map("CPU_MAP").context("CPU_MAP")?,
-        )?;
+        let cpu: AyaHashMap<_, u32, MbcCpuState> =
+            AyaHashMap::try_from(self.ebpf.map("CPU_MAP").context("CPU_MAP")?)?;
         cpu.get(&self.instance_id, 0)
             .with_context(|| format!("CPU_MAP[0x{:X}] get", self.instance_id))
     }
@@ -302,12 +329,9 @@ impl BootRunner {
     /// TTY_MAP is a 4096-byte circular buffer; TTY_HEAD is the next-write
     /// position maintained by the eBPF interpreter on MMIO 0xC001 writes.
     pub fn read_tty(&self, head_cursor: &mut u32) -> Result<Vec<u8>> {
-        let tty: Array<_, u8> = Array::try_from(
-            self.ebpf.map("TTY_MAP").context("TTY_MAP")?,
-        )?;
-        let head_map: Array<_, u32> = Array::try_from(
-            self.ebpf.map("TTY_HEAD").context("TTY_HEAD")?,
-        )?;
+        let tty: Array<_, u8> = Array::try_from(self.ebpf.map("TTY_MAP").context("TTY_MAP")?)?;
+        let head_map: Array<_, u32> =
+            Array::try_from(self.ebpf.map("TTY_HEAD").context("TTY_HEAD")?)?;
         let new_head = head_map.get(&0u32, 0)?;
         if new_head == *head_cursor {
             return Ok(vec![]);

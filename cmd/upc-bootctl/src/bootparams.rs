@@ -35,8 +35,8 @@ pub const SIZE_CSR_REGION: u32 = 256; // 64 CSRs × 4 bytes
 #[derive(Clone, Copy)]
 pub struct BootParamsV2 {
     // === v1 fields, preserved ===
-    pub magic: u32,        // 'UNHD'
-    pub version: u32,      // 2
+    pub magic: u32,   // 'UNHD'
+    pub version: u32, // 2
     pub memory_size: u32,
     pub ramdisk_addr: u32,
     pub ramdisk_size: u32,
@@ -74,11 +74,11 @@ impl BootParamsV2 {
             kernel_size: kernel_size_bytes,
             boot_args_addr: ADDR_CMDLINE,
             boot_args_len: 0,
-            num_cpus: 1,        // Phase 1.1 = single-CPU per ADR-067 §3
+            num_cpus: 1, // Phase 1.1 = single-CPU per ADR-067 §3
             tick_rate_hz: 12,
-            bss_start: 0,       // unused for xv6 first-boot gate
+            bss_start: 0, // unused for xv6 first-boot gate
             bss_end: 0,
-            initrd2_addr: 0,    // no second initramfs
+            initrd2_addr: 0, // no second initramfs
             cmd_line_args_ptr: 0,
             boot_random_seed: 0, // entropy provision deferred to Phase 2
             reserved: [0u32; 48],

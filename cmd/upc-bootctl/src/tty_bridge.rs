@@ -40,8 +40,7 @@ pub fn post_ingest(instance: u8, bytes: &[u8]) {
     if bytes.is_empty() {
         return;
     }
-    let host =
-        std::env::var("UPC_TTY_BRIDGE_HOST").unwrap_or_else(|_| DEFAULT_HOST.to_string());
+    let host = std::env::var("UPC_TTY_BRIDGE_HOST").unwrap_or_else(|_| DEFAULT_HOST.to_string());
     let port = std::env::var("UPC_TTY_BRIDGE_PORT")
         .ok()
         .and_then(|s| s.parse::<u16>().ok())

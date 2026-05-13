@@ -899,23 +899,33 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // ADR-067 Decision 5.
         } else if cfg!(feature = "ascend-linux") && opc == op::MRET {
             // Machine-mode return. Pop MEPC + restore priv from MSTATUS.MPP.
-            // Mask PC to ROM_MAP's actual index range (65536 entries) so the
-            // BPF verifier can prove the loop converges; without the mask the
-            // post-MRET cpu.pc has scalar range 0..0x3FFFFFFF and the next
-            // iteration's fetch trips "infinite loop detected" on kernel 6.17.
+            // MEPC holds an RV32 byte address (xv6 stores `&main` directly);
+            // translate through RV2MBC_MAP to land on the correct MBC PC.
+            // Phase 1.3 AP-2 fix — same translation pattern as JMPR/CALLR.
+            // The 0xFFFF mask keeps the verifier happy on kernel 6.17 (proves
+            // the post-MRET PC fits in ROM_MAP's 65536 entries).
             let mepc = mem_read_word((0xF000 + 0x341 * 4) >> 2);
             let mstatus = mem_read_word((0xF000 + 0x300 * 4) >> 2);
             let mpp = ((mstatus >> 11) & 0b11) as u8;
             cpu.priv_level = mpp;
-            cpu.pc = (mepc >> 2) & 0xFFFF;
+            let rv_word = (mepc >> 2) & 0xFFFF;
+            cpu.pc = match RV2MBC_MAP.get(rv_word) {
+                Some(mbc_idx) => *mbc_idx & 0xFFFF,
+                None => cpu.pc, // unmapped — fall through to next insn
+            };
             cpu.reservation_address = 0xFFFF_FFFF;
         } else if cfg!(feature = "ascend-linux") && opc == op::SRET {
-            // Supervisor-mode return. SEPC + SSTATUS.SPP. Same range-mask as MRET.
+            // Supervisor-mode return. SEPC + SSTATUS.SPP. Same RV2MBC translation
+            // as MRET — SEPC holds an RV byte address.
             let sepc = mem_read_word((0xF000 + 0x141 * 4) >> 2);
             let sstatus = mem_read_word((0xF000 + 0x100 * 4) >> 2);
             let spp = ((sstatus >> 8) & 0b1) as u8;
             cpu.priv_level = if spp == 0 { 3 } else { 1 };
-            cpu.pc = (sepc >> 2) & 0xFFFF;
+            let rv_word = (sepc >> 2) & 0xFFFF;
+            cpu.pc = match RV2MBC_MAP.get(rv_word) {
+                Some(mbc_idx) => *mbc_idx & 0xFFFF,
+                None => cpu.pc, // unmapped — fall through
+            };
             cpu.reservation_address = 0xFFFF_FFFF;
         } else if cfg!(feature = "ascend-linux") && opc == op::LR_W {
             // Load-Reserved Word: rd = RAM[rs1]; reserve rs1.
