@@ -36,8 +36,17 @@
 // the kernel expects there to be RAM
 // for use by the kernel and user pages
 // from physical address 0x80000000 to PHYSTOP.
+// Phase 1.4 UPC override: the UPC memory layout has no backing in the
+// 0x80000000+ range, so PHYSTOP defaults below would make kinit's
+// freerange walk ~558K phantom pages. Override via -DPHYSTOP=... in
+// the build to point at a sensible UPC RAM_MAP boundary (e.g.
+// 0x00800000, just below the ramdisk region).
+#ifndef KERNBASE
 #define KERNBASE 0x80000000L
+#endif
+#ifndef PHYSTOP
 #define PHYSTOP (KERNBASE + 128*1024*1024)
+#endif
 
 // map the trampoline page to the highest address,
 // in both user and kernel space.

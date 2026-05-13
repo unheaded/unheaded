@@ -32,7 +32,21 @@ CFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32e -nostdlib -nostdinc -static -ffre
          -ffixed-x20 -ffixed-x21 -ffixed-x22 -ffixed-x23 \
          -ffixed-x24 -ffixed-x25 -ffixed-x26 -ffixed-x27 \
          -ffixed-x28 -ffixed-x29 -ffixed-x30 -ffixed-x31 \
-         -I$(K) -I$A -isystem $(GCC_INCLUDE)
+         -I$(K) -I$A -isystem $(GCC_INCLUDE) \
+         -DPHYSTOP=0x00800000UL \
+         -DUPC_SKIP_KFREE_MEMSET -DUPC_SKIP_KALLOC_MEMSET
+# Phase 1.4 PHYSTOP override: upstream xv6 expects PHYSTOP at
+# KERNBASE + 128 MiB = 0x88000000, but UPC's RAM_MAP has no backing
+# in that range. Cap at 0x00800000 (just below the ramdisk region per
+# UPC_PAGE_TABLE_LAYOUT.md); this gives kinit's freerange ~7.5 MiB of
+# RAM_MAP-backed pages to walk instead of 128 MiB of phantom memory.
+#
+# UPC_SKIP_K{FREE,ALLOC}_MEMSET: upstream kfree+kalloc include a
+# debug "fill with junk" memset over each 4 KiB page. Through the BPF
+# interpreter that's ~40K BPF insns PER page; freerange's 1900-page
+# walk would burn ~75M insns. Disabled on UPC — debug-fill is
+# diagnostic-only and the BPF interpreter has its own safety nets.
+# See references/phase14-xv6-init-loop-root-cause-2026-05-13.md.
 ASFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32e
 # zicsr is needed because xv6's entry.S uses csrr (the rv32i-to-mbc translator
 # rewrites these to memory-mapped loads at the 0x000_F000 region per ADR-067
