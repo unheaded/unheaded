@@ -68,6 +68,25 @@ A hello-world userland program that only does `write(1, "hi\n", 3); exit(0);` wo
 4. ⏳ Add `--ramdisk <path>` to `upc-bootctl` that loads `ramdisk.img` into RAM_MAP at byte `0x00800000` (per `docs/doom/UPC_PAGE_TABLE_LAYOUT.md`).
 5. ⏳ Stub `open`/`dup`/`mknod` with `return -ENOSYS` in the BPF SYSCALL dispatch (the existing handler chain already has SYS_OPEN as a stub returning fd=3 — extend the pattern). Then back them with the real ramdisk-FS read path.
 6. ⏳ Get xv6 kernel to advance past `main()` into `scheduler()` so `userinit()` actually fires and exec's `/init`. This is the bigger Phase 1.4 piece — Phase 1.3 banner-boot stops at insn=4000 mid-`main()`; need to wire the scheduler loop entry properly.
+
+   **2026-05-13 probe finding**: bumped `--triggers 500` → `--triggers 5000`
+   (10× insn budget). CPU advanced from insn=4000 to insn=40000 (all 10×
+   triggers landed) but PC stayed in the 0x640 vicinity and TTY emitted
+   no new output. xv6 is in an UNPRODUCTIVE LOOP in early kernel init —
+   not trigger-budget-bound. Likely candidates:
+
+   - Waiting for a timer interrupt that the BPF interpreter doesn't fire
+     in trigger-driven mode (xv6 needs the timer to tick for scheduler
+     entry from `main()`'s `scheduler()` call to even proceed).
+   - Stuck in a `kalloc` loop trying to allocate from a memory pool the
+     BootParams didn't size correctly.
+   - Spinning on a non-existent CPU coming up (xv6 main() waits for
+     started[i] from non-CPU0 hartids; we only have 1 hart).
+
+   First step for the next attended shift: instrument with a `mmio_puts`
+   at every major xv6 main() init step, rebuild, see where it actually
+   loops. Then fix whatever it's waiting for.
+
 7. ⏳ Author `references/battle-plan-phase14-impl-YYYY-MM-DD.md`.
 
 ## Reassessment 2026-05-13 (Phase 1.4 kickoff probe)

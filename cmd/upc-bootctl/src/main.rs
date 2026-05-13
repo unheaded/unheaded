@@ -62,6 +62,14 @@ enum Cmd {
         #[arg(long)]
         ramdisk: Option<PathBuf>,
 
+        /// Number of Monad trigger packets to send post-dispatch. Each
+        /// packet advances the CPU by up to 16 MBC instructions. Default
+        /// 500 (~4000 insns, enough for Phase 1.1 banner+main()). Bump
+        /// to 5000+ for Phase 1.4 work that needs the kernel to advance
+        /// further (scheduler entry, userinit, FS mount).
+        #[arg(long, default_value_t = 500)]
+        triggers: u32,
+
         /// UPC instance ID (low byte of CPU_MAP key).
         #[arg(long, default_value_t = 0xDE)]
         instance: u8,
@@ -134,6 +142,7 @@ fn cmd_boot(
     bootstub: Option<PathBuf>,
     initramfs: Option<PathBuf>,
     ramdisk: Option<PathBuf>,
+    triggers: u32,
     instance: u8,
     dry_run: bool,
 ) -> Result<()> {
@@ -404,8 +413,11 @@ fn cmd_boot(
 
     // Send Monad-format trigger packets via doom-tick.py. flow_label =
     // instance ID; eBPF dispatches on (flow_label & 0xFF).
-    println!("\n[sending 500 Monad trigger packets to advance the CPU (each = up to 16 insns)]");
-    netns::send_trigger(500, instance)?;
+    println!(
+        "\n[sending {} Monad trigger packets to advance the CPU (each = up to 16 insns)]",
+        triggers
+    );
+    netns::send_trigger(triggers, instance)?;
     std::thread::sleep(std::time::Duration::from_millis(1500));
 
     // Read CPU state after trigger
@@ -518,9 +530,12 @@ fn main() -> Result<()> {
             bootstub,
             initramfs,
             ramdisk,
+            triggers,
             instance,
             dry_run,
-        } => cmd_boot(kernel, bootstub, initramfs, ramdisk, instance, dry_run),
+        } => cmd_boot(
+            kernel, bootstub, initramfs, ramdisk, triggers, instance, dry_run,
+        ),
         Cmd::Console { instance } => cmd_console(instance),
     }
 }
