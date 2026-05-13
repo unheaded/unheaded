@@ -24,6 +24,13 @@ doom-debug = []
 # Doom and similar lighter workloads load cleanly on kernel 6.17;
 # build with `--features ascend-linux` for kernel-boot paths.
 ascend-linux = []
+# Phase 1.2 pre-work (ADR-074). All three are NO-OPs today;
+# they exist so the pair-call can build all variants for verifier measurement.
+# Pair-call landed 2026-05-12: Option A chosen. Option B/C stubs kept for
+# regression measurement and as documentation of the path-not-taken.
+phase12-option-a = []  # per-task pgd (CHOSEN per ADR-074 Decision 2026-05-12)
+phase12-option-b = []  # ASID-tagged shared pgd (stub for measurement)
+phase12-option-c = []  # priv_level + pid hybrid (stub for measurement)
 
 [dependencies]
 aya-ebpf.workspace     = true
