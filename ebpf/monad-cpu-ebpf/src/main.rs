@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 //! Unheaded Protocol — Monad CPU eBPF Program
 //!
 //! The **Monad CPU** is the Doom-over-IPv6 proof-of-concept: a complete
@@ -44,6 +45,8 @@
 
 #![no_std]
 #![no_main]
+
+mod phase12;
 
 use aya_ebpf::{
     bindings::xdp_action,
