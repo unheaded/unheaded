@@ -1176,9 +1176,11 @@ impl Cpu {
         self.proc_table[old_pid] = save;
 
         // 2. Find next runnable process (round-robin, skip halted and suspended)
+        // Loop bound widened 4 → 8 in Phase 1.3 ADR-075 D-1 to match
+        // MAX_PROCESSES.
         let skip_mask = self.halted_mask | self.suspended_mask;
         let mut next_pid = (old_pid + 1) % num;
-        for _ in 0..4 {
+        for _ in 0..8 {
             if next_pid < num && (skip_mask & (1 << next_pid)) == 0 {
                 break;
             }
@@ -1188,6 +1190,13 @@ impl Cpu {
         if next_pid == old_pid {
             return; // no other runnable process
         }
+
+        // Phase 1.3 ADR-075 §Security #3: invalidate the LR.W reservation on
+        // context switch. RISC-V semantics say reservations are cleared by
+        // exceptions; SYS_SCHED_YIELD (the trap that triggers this path)
+        // qualifies. Without this, a process could LR.W → yield → another
+        // process SC.W to the same address → original SC.W wrongly succeeds.
+        self.state.reservation_address = 0xFFFF_FFFF;
 
         // 3. Load next process state
         let load = self.proc_table[next_pid];
