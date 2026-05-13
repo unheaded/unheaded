@@ -26,9 +26,11 @@ pub const PER_PID_PGD_BASE: u32 = 0x00F0_0000;
 #[allow(dead_code)]
 pub const PGD_SIZE_BYTES: u32 = 4096;
 
-/// Maximum supported processes (matches PROC_TABLE Array<[u32; 21]> max_entries=4).
+/// Maximum supported processes (matches PROC_TABLE Array<[u32; 21]> max_entries=8).
+/// Widened from 4 → 8 in Phase 1.3 IMPL per ADR-075 D-1 to support
+/// init + sh + 5 user commands with one slot of test headroom.
 #[allow(dead_code)]
-pub const MAX_PROCESSES: u32 = 4;
+pub const MAX_PROCESSES: u32 = 8;
 
 /// Compute the per-pid pgd base address given a pid (Allocator A1).
 #[inline(always)]

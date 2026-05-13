@@ -154,13 +154,14 @@ static TTY_MAP: Array<u8> = Array::with_max_entries(4096, 0);
 #[map]
 static TTY_HEAD: Array<u32> = Array::with_max_entries(1, 0);
 
-/// Process table: 4 slots, each stores saved CPU state for context switch (Level 4c).
-/// Key = process_id (0-3), Value = saved register set (21 u32s = 84 bytes).
+/// Process table: 8 slots (Phase 1.3 ADR-075 D-1; was 4 in Phase 1.2).
+/// Key = process_id (0-7), Value = saved register set (21 u32s = 84 bytes).
 /// Layout per slot: [r0..r15, PC, flags, SP_copy, program_break, page_dir_base]
 /// slot[20] = page_dir_base widened in Phase 1.2 (ADR-074 Option A); see
-/// `phase12::PROC_TABLE_PGD_SLOT`.
+/// `phase12::PROC_TABLE_PGD_SLOT`. 8 slots support init + sh + 5 cmds with
+/// one slot headroom for tests/forkbomb.
 #[map]
-static PROC_TABLE: Array<[u32; 21]> = Array::with_max_entries(4, 0);
+static PROC_TABLE: Array<[u32; 21]> = Array::with_max_entries(8, 0);
 
 /// Scheduler state: [0]=current_pid, [1]=num_processes, [2]=scheduler_enabled, [3]=halted_mask.
 /// halted_mask: bit i set means process i has exited/halted.
@@ -1730,7 +1731,7 @@ fn emit_tty_write(flow_label: u32, bytes_written: u32, hop_id: u8) {
 /// 3. Load that process's state from PROC_TABLE
 /// 4. Update current_pid in cpu state and SCHED_STATE
 ///
-/// All loops bounded to MAX_PROCESSES (4) for BPF verifier.
+/// All loops bounded to MAX_PROCESSES (8 since Phase 1.3 ADR-075 D-1) for BPF verifier.
 #[inline(always)]
 fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) {
     let old_pid = cpu.current_pid as u32;
@@ -1775,9 +1776,9 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
     let skip_mask = halted_mask | suspended_mask;
 
     let mut next_pid = (old_pid + 1) % num;
-    // Bounded search: try up to 4 candidates
+    // Bounded search: try up to MAX_PROCESSES (8) candidates per Phase 1.3 ADR-075 D-1.
     let mut attempts = 0u32;
-    while attempts < 4 {
+    while attempts < 8 {
         if next_pid < num && (skip_mask & (1 << next_pid)) == 0 {
             break; // found a runnable process
         }

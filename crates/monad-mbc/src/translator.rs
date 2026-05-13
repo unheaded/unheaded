@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 //! RV32I to MBC translator: converts RISC-V 32-bit instructions to MBC bytecode.
 //!
 //! ## Two-Pass Architecture
@@ -293,11 +294,11 @@ impl Translator {
             // correctness depends on hot-path code not relying on these
             // simultaneously. Get-it-built-first; refine via real spill
             // emit in a follow-up shift.
-            18..=21 => Ok(xreg - 18 + 6), // x18-x21 (s2-s5) → r6-r9
+            18..=21 => Ok(xreg - 18 + 6),  // x18-x21 (s2-s5) → r6-r9
             22..=25 => Ok(xreg - 22 + 10), // x22-x25 (s6-s9) → r10-r13
-            26 => Ok(12), // x26 (s10) → r12
-            27 => Ok(13), // x27 (s11) → r13
-            28..=31 => Ok(xreg - 28 + 3), // x28-x31 (t3-t6) → r3-r6
+            26 => Ok(12),                  // x26 (s10) → r12
+            27 => Ok(13),                  // x27 (s11) → r13
+            28..=31 => Ok(xreg - 28 + 3),  // x28-x31 (t3-t6) → r3-r6
             _ => Err(TranslateError::UnsupportedRegister { register: xreg }),
         }
     }
@@ -1034,11 +1035,19 @@ impl Translator {
                             (_, 0x001) => self.emit(op::HALT, 0, 0, 0),    // EBREAK
                             (_, 0x302) => self.emit(op::MRET, 0, 0, 0),    // MRET
                             (_, 0x102) => self.emit(op::SRET, 0, 0, 0),    // SRET
-                            (_, 0x105) => { /* WFI — wait for interrupt; emit nothing (busy-wait) */ }
-                            (0x09, _) => self.emit(op::FENCE, 0, 0, 0),    // SFENCE.VMA → FENCE
-                            (0x0B, _) => self.emit(op::FENCE, 0, 0, 0),    // SINVAL.VMA → FENCE
+                            (_, 0x105) => { /* WFI — wait for interrupt; emit nothing (busy-wait) */
+                            }
+                            (0x09, _) => self.emit(op::FENCE, 0, 0, 0), // SFENCE.VMA → FENCE
+                            (0x0B, _) => self.emit(op::FENCE, 0, 0, 0), // SINVAL.VMA → FENCE
                             // Other privileged ops (HFENCE, HINVAL, MNRET) — treat as FENCE for now.
-                            (0x08, _) | (0x18, _) | (0x19, _) | (0x55, _) | (0x0A, _) | (0x1F, _) | (0x23, _) | (0x7F, _) => {
+                            (0x08, _)
+                            | (0x18, _)
+                            | (0x19, _)
+                            | (0x55, _)
+                            | (0x0A, _)
+                            | (0x1F, _)
+                            | (0x23, _)
+                            | (0x7F, _) => {
                                 self.emit(op::FENCE, 0, 0, 0);
                             }
                             _ => {
@@ -1803,7 +1812,11 @@ mod tests {
         // SFENCE.VMA is encoded as opcode=0x73, funct3=0, funct7=0x09.
         let sfence = rv32i_system(0, 0x09);
         let result = Translator::translate_program(&[sfence]);
-        assert!(result.is_ok(), "SFENCE.VMA should translate: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "SFENCE.VMA should translate: {:?}",
+            result.err()
+        );
         let mbc = result.unwrap();
         assert!(
             mbc.iter().any(|w| MbcInsn(*w).opcode() == op::FENCE),
@@ -1831,7 +1844,11 @@ mod tests {
         // EBREAK is encoded as opcode=0x73, funct3=0, imm=0x001. Maps to HALT.
         let ebreak = rv32i_system(0x001, 0);
         let result = Translator::translate_program(&[ebreak]);
-        assert!(result.is_ok(), "EBREAK should translate: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "EBREAK should translate: {:?}",
+            result.err()
+        );
         let mbc = result.unwrap();
         assert!(
             mbc.iter().any(|w| MbcInsn(*w).opcode() == op::HALT),
@@ -1872,12 +1889,21 @@ mod tests {
         let opcodes: Vec<u8> = mbc.iter().map(|w| MbcInsn(*w).opcode()).collect();
         // Must contain: address-load (MOVI for ≤16-bit, MOVI+LOAD_IMM32 for
         // full 32-bit) + LD (read CSR into rd) + ST (write src to CSR).
-        assert!(contains_addr_load(&opcodes),
-            "CSRRW should emit MOVI/LOAD_IMM32 for CSR base address; got {:?}", opcodes);
-        assert!(opcodes.contains(&op::LD),
-            "CSRRW with rd!=x0 should emit LD to read old CSR value; got {:?}", opcodes);
-        assert!(opcodes.contains(&op::ST),
-            "CSRRW should emit ST to write new CSR value; got {:?}", opcodes);
+        assert!(
+            contains_addr_load(&opcodes),
+            "CSRRW should emit MOVI/LOAD_IMM32 for CSR base address; got {:?}",
+            opcodes
+        );
+        assert!(
+            opcodes.contains(&op::LD),
+            "CSRRW with rd!=x0 should emit LD to read old CSR value; got {:?}",
+            opcodes
+        );
+        assert!(
+            opcodes.contains(&op::ST),
+            "CSRRW should emit ST to write new CSR value; got {:?}",
+            opcodes
+        );
     }
 
     #[test]
@@ -1886,16 +1912,32 @@ mod tests {
         // The translator's optimization: skip LD when rd==x0.
         let csrrw = rv32i_csrrw(0x300, 11, 0);
         let result = Translator::translate_program(&[csrrw]);
-        assert!(result.is_ok(), "CSRRW (rd=x0) translate: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "CSRRW (rd=x0) translate: {:?}",
+            result.err()
+        );
         let mbc = result.unwrap();
         let opcodes: Vec<u8> = mbc.iter().map(|w| MbcInsn(*w).opcode()).collect();
         // ST is required.
-        assert!(opcodes.contains(&op::ST), "ST still required, got {:?}", opcodes);
+        assert!(
+            opcodes.contains(&op::ST),
+            "ST still required, got {:?}",
+            opcodes
+        );
         // Address load still needed.
-        assert!(contains_addr_load(&opcodes), "address load still required, got {:?}", opcodes);
+        assert!(
+            contains_addr_load(&opcodes),
+            "address load still required, got {:?}",
+            opcodes
+        );
         // LD should be elided since rd==x0.
         let ld_count = opcodes.iter().filter(|&&o| o == op::LD).count();
-        assert_eq!(ld_count, 0, "CSRRW with rd=x0 should NOT emit LD; got {:?}", opcodes);
+        assert_eq!(
+            ld_count, 0,
+            "CSRRW with rd=x0 should NOT emit LD; got {:?}",
+            opcodes
+        );
     }
 
     #[test]
@@ -1905,11 +1947,18 @@ mod tests {
         // load path for CSRs above the 16-bit byte-address boundary.
         let csrrw = rv32i_csrrw(0xC03, 11, 10);
         let result = Translator::translate_program(&[csrrw]);
-        assert!(result.is_ok(), "CSRRW (high CSR) translate: {:?}", result.err());
+        assert!(
+            result.is_ok(),
+            "CSRRW (high CSR) translate: {:?}",
+            result.err()
+        );
         let mbc = result.unwrap();
         let opcodes: Vec<u8> = mbc.iter().map(|w| MbcInsn(*w).opcode()).collect();
-        assert!(opcodes.contains(&op::LOAD_IMM32),
-            "CSRRW for high CSR (>16-bit byte addr) requires LOAD_IMM32; got {:?}", opcodes);
+        assert!(
+            opcodes.contains(&op::LOAD_IMM32),
+            "CSRRW for high CSR (>16-bit byte addr) requires LOAD_IMM32; got {:?}",
+            opcodes
+        );
     }
 
     #[test]
@@ -1921,10 +1970,16 @@ mod tests {
         assert!(result.is_ok(), "CSRRS translate: {:?}", result.err());
         let mbc = result.unwrap();
         let opcodes: Vec<u8> = mbc.iter().map(|w| MbcInsn(*w).opcode()).collect();
-        assert!(opcodes.contains(&op::OR),
-            "CSRRS should emit OR for the bit-set RMW; got {:?}", opcodes);
-        assert!(opcodes.contains(&op::ST),
-            "CSRRS should emit ST to write back the OR'd value; got {:?}", opcodes);
+        assert!(
+            opcodes.contains(&op::OR),
+            "CSRRS should emit OR for the bit-set RMW; got {:?}",
+            opcodes
+        );
+        assert!(
+            opcodes.contains(&op::ST),
+            "CSRRS should emit ST to write back the OR'd value; got {:?}",
+            opcodes
+        );
     }
 
     // ── map_register: ABI mapping + ASCEND-LINUX x16-x31 spill-shadow ────
@@ -1941,7 +1996,7 @@ mod tests {
         let t = Translator::new();
         assert_eq!(t.map_register(1).unwrap(), 14, "x1 (ra) → r14");
         assert_eq!(t.map_register(2).unwrap(), 15, "x2 (sp) → r15");
-        assert_eq!(t.map_register(3).unwrap(), 1,  "x3 (gp) → r1");
+        assert_eq!(t.map_register(3).unwrap(), 1, "x3 (gp) → r1");
         assert_eq!(t.map_register(10).unwrap(), 8, "x10 (a0) → r8");
         assert_eq!(t.map_register(15).unwrap(), 13, "x15 (a5) → r13");
     }
@@ -1951,8 +2006,16 @@ mod tests {
         // x16 (a6) and x17 (a7) are RV32I argument-overflow registers.
         // Pre-ASCEND-LINUX they spill onto x4 (tp) and x3 (gp) respectively.
         let t = Translator::new();
-        assert_eq!(t.map_register(16).unwrap(), 2, "x16 (a6) spills onto r2 (tp)");
-        assert_eq!(t.map_register(17).unwrap(), 1, "x17 (a7) spills onto r1 (gp)");
+        assert_eq!(
+            t.map_register(16).unwrap(),
+            2,
+            "x16 (a6) spills onto r2 (tp)"
+        );
+        assert_eq!(
+            t.map_register(17).unwrap(),
+            1,
+            "x17 (a7) spills onto r1 (gp)"
+        );
     }
 
     #[test]

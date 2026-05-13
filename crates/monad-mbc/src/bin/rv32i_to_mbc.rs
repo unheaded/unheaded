@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 //! rv32i-to-mbc: Translate an RV32I ELF binary to MBC bytecode.
 //!
 //! Usage:
@@ -244,8 +245,7 @@ fn main() {
                     if (sh.sh_flags & goblin::elf::section_header::SHF_ALLOC as u64) == 0 {
                         continue;
                     }
-                    if (sh.sh_flags & goblin::elf::section_header::SHF_EXECINSTR as u64) != 0
-                    {
+                    if (sh.sh_flags & goblin::elf::section_header::SHF_EXECINSTR as u64) != 0 {
                         continue;
                     }
                     if sh.sh_size == 0 {
