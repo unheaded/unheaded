@@ -4,7 +4,7 @@
 
 Configuration management automation platform. Provisions backend infrastructure — service mesh, observability, security, control plane — from declarative configuration. The Unheaded Protocol encodes state in IPv6 Hop-by-Hop headers, processed at each hop via eBPF. Free to use, free to share.
 
-**Status:** Age 1 (Alpha) and Age 2 (Beta) complete; Age 3 (Public Release) in progress. Dual bare metal (WEST + EAST) online with cross-host BPF flow graph. Wire format frozen at v0x01. ASCEND-LINUX dream ladder shipping (Phase 1.1 SHIP gate cleared — xv6 emits `xv6 booting...` on the UPC compute substrate; Phase 1.2 page-table substrate landed).
+**Status:** Age 1 (Alpha) and Age 2 (Beta) complete; Age 3 (Public Release) in progress. Dual bare metal (WEST + EAST) online with cross-host BPF flow graph. Wire format frozen at v0x01. **ASCEND-LINUX L5: xv6 enters user mode on the UPC** (2026-05-14, Phase 1.5 spike — init's `main()` runs through `open` / `dup×2` / `printf` to the `write` ecall; full chronology in `wiki/Linux-on-UPC.md`).
 
 ## Building
 
@@ -47,7 +47,17 @@ Go services, Rust eBPF (Aya), Wotan message bus (gRPC + HTTP), PostgreSQL (multi
 
 ## UPC compute substrate
 
-The Unheaded Protocol Computer (UPC) is a virtual CPU built on the protocol itself: Monad as the transport bus, Wotan as memory, Sophia as microcode, eBPF as the interpreter. The Dream Ladder runs from packet stamping (L1) up to running Linux (L6). Doom-on-Monad ships at the lower levels (computational-completeness proof); xv6-on-MBC is in active bring-up via `crates/xv6-mbc/`. See `docs/doom/` for the architecture and `references/battle-plan-ascend-linux-2026-05-08.md` for the roadmap.
+The Unheaded Protocol Computer (UPC) is a virtual CPU built on the protocol itself: Monad as the transport bus, Wotan as memory, Sophia as microcode, eBPF as the interpreter. The Dream Ladder runs from packet stamping (L1) up to running Linux (L6). Doom-on-Monad ships at the lower levels (L3 computational-completeness proof). xv6-on-UPC is L5 — kernel boots, scheduler runs, init enters user mode (2026-05-14, Phase 1.5).
+
+Robust documentation:
+- [`wiki/UPC-Overview.md`](wiki/UPC-Overview.md) — substrate, BPF maps, MBC ISA, Boot Protocol v2
+- [`wiki/Unheaded-Protocol.md`](wiki/Unheaded-Protocol.md) — Monad + Sophia + Wotan + MBC + Shim + PQC
+- [`wiki/UPC-Dream-Ladder.md`](wiki/UPC-Dream-Ladder.md) — six-level ascent + gates
+- [`wiki/Doom-on-UPC.md`](wiki/Doom-on-UPC.md) — L3 proof
+- [`wiki/Linux-on-UPC.md`](wiki/Linux-on-UPC.md) — ASCEND-LINUX, current frontier
+- [`wiki/MBC-ISA-Reference.md`](wiki/MBC-ISA-Reference.md) — opcode + encoding reference
+
+Code: `crates/doom-runner/`, `crates/xv6-mbc/`, `cmd/upc-bootctl/`, `ebpf/monad-cpu-ebpf/`. Roadmap: `references/battle-plan-ascend-linux-2026-05-08.md`.
 
 ## Zhen AI
 
