@@ -1696,6 +1696,80 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 cpu.sleep_until_ns = now + ms * 1_000_000;
                 increment_stat(STAT_SLEEPING);
                 break;
+            } else if syscall_nr == lsys::SYS_READ_BLOCK {
+                // RV32I ecall convention: a7 (→ r1) = syscall_nr,
+                //                          a0 (→ r8) = block_num,
+                //                          a1 (→ r9) = dest_byte_addr.
+                // 128-word block copied 16 words/tick (verifier-friendly);
+                // r10 (= a2 = third "arg" slot) tracks progress.
+                // Phase 1.4 fsinit unblock 2026-05-14.
+                let block_num = cpu.regs[8];
+                let buf_addr = cpu.regs[9];
+                let progress = cpu.regs[10];
+                if block_num < blk::TOTAL_BLOCKS {
+                    let src_base =
+                        blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK + progress;
+                    let dst_base = (buf_addr >> 2) + progress;
+                    let mut w: u32 = 0;
+                    while w < 16 {
+                        let val = match RAM_MAP.get(src_base + w) {
+                            Some(v) => *v,
+                            None => 0,
+                        };
+                        if let Some(ptr) = RAM_MAP.get_ptr_mut(dst_base + w) {
+                            unsafe {
+                                *ptr = val;
+                            }
+                        }
+                        w += 1;
+                    }
+                    let next_progress = progress + 16;
+                    if next_progress >= 128 {
+                        cpu.regs[8] = blk::BLOCK_SIZE;
+                        cpu.regs[10] = 0;
+                        increment_stat(STAT_BLOCK_OPS);
+                    } else {
+                        cpu.regs[10] = next_progress;
+                        cpu.pc = cpu.pc.wrapping_sub(1);
+                        break;
+                    }
+                } else {
+                    cpu.regs[8] = (-(lsys::EIO as i32)) as u32;
+                }
+            } else if syscall_nr == lsys::SYS_WRITE_BLOCK {
+                let block_num = cpu.regs[8];
+                let buf_addr = cpu.regs[9];
+                let progress = cpu.regs[10];
+                if block_num < blk::TOTAL_BLOCKS {
+                    let src_base = (buf_addr >> 2) + progress;
+                    let dst_base =
+                        blk::RAMDISK_BASE_WORD + block_num * blk::WORDS_PER_BLOCK + progress;
+                    let mut w: u32 = 0;
+                    while w < 16 {
+                        let val = match RAM_MAP.get(src_base + w) {
+                            Some(v) => *v,
+                            None => 0,
+                        };
+                        if let Some(ptr) = RAM_MAP.get_ptr_mut(dst_base + w) {
+                            unsafe {
+                                *ptr = val;
+                            }
+                        }
+                        w += 1;
+                    }
+                    let next_progress = progress + 16;
+                    if next_progress >= 128 {
+                        cpu.regs[8] = blk::BLOCK_SIZE;
+                        cpu.regs[10] = 0;
+                        increment_stat(STAT_BLOCK_OPS);
+                    } else {
+                        cpu.regs[10] = next_progress;
+                        cpu.pc = cpu.pc.wrapping_sub(1);
+                        break;
+                    }
+                } else {
+                    cpu.regs[8] = (-(lsys::EIO as i32)) as u32;
+                }
             }
             // Unknown syscall: silently ignore (fail-safe).
         } else if opc == op::HALT {
