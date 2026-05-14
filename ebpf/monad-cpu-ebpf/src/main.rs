@@ -1742,18 +1742,25 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.regs[8] = (-(lsys::EIO as i32)) as u32;
                 }
             } else if syscall_nr == 16 {
-                // xv6 SYS_write (16) — minimal 1-byte-per-call (printf's
-                // putc does `write(fd, &c, 1)`). Larger writes blow the
-                // BPF verifier budget on kernel 6.17. r9 (a1) = buf ptr.
-                // Phase 1.5 spike — KNOWN ISSUE: buf_addr lands at an
-                // offset that reads NUL (vprintf save/restore on stack
-                // appears intact in the disassembly but the post-CALL
-                // r9 doesn't match what STB wrote). Will be revisited
-                // with proper SP / spill-shadow auditing in Phase 1.6.
+                // xv6 SYS_write (16) — 1-byte-per-call (printf's putc does
+                // write(fd, &c, 1)). Larger writes blow the kernel-6.17 BPF
+                // verifier budget. Phase 1.6 unblock: the trampoline_mbc.S
+                // sp-load fix gave us a real RAM_MAP-backed buf_addr.
                 let buf_addr = cpu.regs[9];
                 let byte_val = mem_read_byte(buf_addr);
                 mem_write_byte(0xC001, byte_val);
                 cpu.regs[8] = 1;
+            } else if syscall_nr == 1 {
+                // xv6 SYS_fork (1) stub — return -1 so init's `if (pid<0)`
+                // path fires "init: fork failed\n" + exit(1). Real fork on
+                // UPC needs trapframe + pgd duplication; deferred.
+                cpu.regs[8] = (-1i32) as u32;
+            } else if syscall_nr == 2 {
+                // xv6 SYS_exit (2) — halt the CPU. exit_code in a0 (r8).
+                cpu.exit_code = cpu.regs[8];
+                cpu.halted = 1;
+                increment_stat(STAT_HALTED);
+                break;
             } else if syscall_nr == lsys::SYS_WRITE_BLOCK {
                 let block_num = cpu.regs[8];
                 let buf_addr = cpu.regs[9];
