@@ -136,7 +136,19 @@ Expected TTY contains, in order: `xv6 booting...`, `after consoleinit`, `after p
 
 3. **MRET feature gate needs a guard.** A monad-cpu-ebpf build without `--features ascend-linux` is silently wrong for ASCEND-LINUX work. Either add a `compile_error!` when targeting xv6/uClinux/Linux without the feature, OR have `upc-bootctl` refuse to load a binary that doesn't define the MRET symbol. Currently the failure mode is a 44-byte TTY blurb that *looks* like a kernel regression.
 
-## Why we stop here
+## Addendum — Option A tried, succeeded beyond expectation
+
+Marshal decided to risk one more bounded test — Option A as a single patch + boot. Outcome was a clean win, so the "Why we stop here" caveat below is now historical.
+
+**Patch (commit `dc6842ff`):**
+- `crates/xv6-mbc/adapters/Makefile.mbc` — add `-DUPC_SKIP_KVMINIT` to CFLAGS
+- `crates/xv6-mbc/upstream/kernel/vm.c::kvmmake` — `#ifdef UPC_SKIP_KVMINIT` early-return after the kpgtbl allocation
+
+**Result with `--triggers 500000`:** every `mmio_puts("after X")` marker in `main()` prints. main() returns into `scheduler()`. CPU halts ~726K insns deep at `PC=0x40000 SP=0x7FFFE000 priv=1 halted=1`. The high PC + high SP suggests scheduler→swtch jumped into user-process VA territory (initcode / first user instruction). That is the next bug, in a different phase.
+
+The SATP write inside `kvminithart` did NOT crash the BPF interpreter — `w_satp(MAKE_SATP(kernel_pagetable))` on an all-zero pagetable is harmless because our CSR write goes to MMIO at `0xF000 + 0x180 * 4` and nothing reads SATP for translation (translate_address() in `monad-cpu-ebpf` uses its own substrate). So Option A is sufficient as-is; Option B / C unnecessary.
+
+## Why we stop here (historical — pre-Option-A)
 
 The Marshal shift is at the ~60-minute mark of bounded autonomous debug. The kvminit fix is interactive — multiple Options, each needs a rebuild + boot to validate, and Option A risks chaining into a SATP-write bug that needs CSR-translation inspection. That's appropriate for an attended session, not unattended churn. Captured everything in this doc; committing locally; pushing blocked on SSH key.
 
