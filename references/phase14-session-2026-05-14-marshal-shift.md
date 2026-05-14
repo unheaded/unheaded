@@ -136,6 +136,107 @@ Expected TTY contains, in order: `xv6 booting...`, `after consoleinit`, `after p
 
 3. **MRET feature gate needs a guard.** A monad-cpu-ebpf build without `--features ascend-linux` is silently wrong for ASCEND-LINUX work. Either add a `compile_error!` when targeting xv6/uClinux/Linux without the feature, OR have `upc-bootctl` refuse to load a binary that doesn't define the MRET symbol. Currently the failure mode is a 44-byte TTY blurb that *looks* like a kernel regression.
 
+## Attended-pass addendum (later same day) — Phase 1.4 milestone shipped
+
+Stevie returned mid-shift; we kept pushing. Five more commits landed
+(`1c8a5ec7`, `6fd7a337`, `699b9758`, `e857a3d6`, plus the doc updates).
+End state: **xv6 boot reaches user-mode privilege transition and halts
+cleanly**, no panic, no reboot loop. PC=0x2D84 SP=0 priv=3 halted=1 at
+5.35M MBC insns.
+
+What we found beyond Option A (in chronological order):
+
+1. **op::RET treated `cpu.regs[14]` as MBC PC.** Correct for compiled
+   RV CALL→RET chains, wrong when r14 was loaded from a struct field
+   initialised by C `(uint64)&function` (e.g. `p->context.ra =
+   (uint64)forkret`). Forkret's MBC PC was 0xC8A but ra held the RV
+   byte address 0x21E94, so PC walked NOPs to the 0x40000 bounds halt.
+   Fixed by adding `if ret >= 0x10000` rv2mbc translation — under
+   that threshold treat as MBC PC, otherwise translate. (line 773
+   of main.rs in commit `1c8a5ec7`.)
+
+2. **BPF `Array::get` returns `Some(&0)` for unset slots, not None.**
+   JMPR / CALLR / MRET / SRET were matching `Some(_) => *mbc_idx`
+   unconditionally, so any pointer outside the kernel's rv2mbc range
+   (typically user VA 0 for an init proc, or stale data) silently sent
+   PC to 0 → start_mbc.c reboot, kernel re-runs, loop. Guard added on
+   all four opcodes: `Some(mbc_idx) if *mbc_idx != 0`, else halt
+   (MRET/SRET) or skip (JMPR/CALLR).
+
+3. **BPF timer interrupt fired into a flat IVT at byte 0.** Once xv6
+   set SIE in sstatus and (separately, in our case) interrupts_enabled
+   stayed off — but the gate firing into IVT[VECTOR_TIMER]=0 was a
+   latent reset trap. Gated behind `cfg!(not(feature = "ascend-linux"))`
+   so Doom still fires its own scheduler timer.
+
+4. **UPC_SKIP_KVMINIT had a follow-on bug.** procinit set
+   `p->kstack = KSTACK(p)` (= high VA 0x7FFFE000 from the unmapped
+   trampoline region). With no paging on UPC that's past RAM_MAP's
+   16 MiB window — sw drops, lw returns 0. push_off's stack save+
+   restore of ra returned zero, RET PC=0, reboot. Fix: under
+   UPC_FLAT_TRAMPOLINE, procinit kalloc's a backing page (low PA
+   inside PHYSTOP) and uses it directly as kstack.
+
+5. **prepare_return + forkret used high-VA TRAMPOLINE addresses.**
+   On UPC the trampoline page is decorative (no real paging). The
+   JALR/CALLR to TRAMPOLINE+(uservec-trampoline) landed on an
+   unmapped rv2mbc slot. Fix: under UPC_FLAT_TRAMPOLINE, point at
+   the low link-address of uservec / userret directly.
+
+6. **Block syscall ABI mismatch.** `syscall_shims.S` put the syscall
+   number in a0 with a confused three-way mv shuffle. The MBC
+   op::SYSCALL dispatcher reads syscall_nr from r1 (= RV x17 = a7
+   per translator's map_register). Rewrote shim cleanly: a7=nr,
+   a0/a1 unchanged, a2=0 to seed the chunked progress counter.
+
+7. **L4e block syscalls only on INT 0x80 path, not on ecall.** Added
+   SYS_READ_BLOCK / SYS_WRITE_BLOCK handlers to op::SYSCALL too,
+   reading args from r8 (a0) / r9 (a1) / r10 (a2-progress).
+
+8. **mkfs packed userland under .mbc-suffixed basenames.** xv6's
+   forkret calls `kexec("/init")`, not `/init.mbc`. cp into
+   extensionless copies before invoking mkfs.
+
+9. **kexec demanded ELF magic; userland is MBC bytecode.** Stub:
+   under UPC_FLAT_TRAMPOLINE, recognise non-ELF as MBC and return
+   success without doing the ELF mapping. Forkret then proceeds
+   to prepare_return → SRET. The SRET zero-slot guard from (2)
+   catches trapframe->epc=0 cleanly.
+
+**Final TTY tail:** `kexec: non-ELF userland (MBC bytecode) — Phase 1.5 stub`
+
+## What Phase 1.5 needs
+
+Real userland execution. Two sub-problems:
+
+- **Where does user MBC live?** Three options surface in priority order:
+  (a) Pre-load init.mbc into a high ROM_MAP slot at boot via upc-bootctl
+      `--userland`; have kexec just set trapframe->epc to that slot.
+  (b) New BPF syscall SYS_LOAD_USER_CODE that copies RAM_MAP bytes to
+      ROM_MAP; kexec uses it to load .mbc on demand.
+  (c) Routing in the BPF interpreter so cpu.pc can also fetch from a
+      USER_MAP overlay. Most flexibility, most code.
+
+- **How does SRET find user code?** Need a sentinel SEPC convention
+  the SRET handler maps to the user MBC slot. Simplest: extend
+  RV2MBC_MAP with entries for a designated user-VA range (e.g.
+  rv_byte 0x00010000-0x0001FFFC = rv_word 0x4000-0x7FFF), have
+  kexec populate them via a new syscall.
+
+Both are clean, mechanical follow-ons. Phase 1.4 itself is shipped.
+
+## Attended-pass commit chain (this part of the day)
+
+- `1c8a5ec7` forkret runs end-to-end on UPC (RET + zero-slot guards +
+  timer gate + kstack + FLAT_TRAMPOLINE)
+- `6fd7a337` fsinit superblock reads now work (syscall ABI fix)
+- `699b9758` drop .mbc extension when packing userland into fs.img
+- `e857a3d6` Phase 1.4 milestone — clean halt at user-mode entry
+
+Push still blocked on SSH key (`ssh-add ~/.ssh/id_ed25519` when Stevie
+is at a terminal). Total local commits ahead of `origin/main` this
+session: 8.
+
 ## Addendum — Option A tried, succeeded beyond expectation
 
 Marshal decided to risk one more bounded test — Option A as a single patch + boot. Outcome was a clean win, so the "Why we stop here" caveat below is now historical.
