@@ -2,7 +2,7 @@
 
 **Unheaded** — configuration management automation platform built around the Unheaded Protocol: a mapped data bus over IPv6 Hop-by-Hop Options with eBPF-powered observability. Provides control plane, service mesh, observability, and security baseline. You bring the application.
 
-**State:** Age 3 in progress. Wire format frozen at v0x01 (12 IANA registries, S67). 6 Internet-Drafts shipped. K8s substrate proven (WAVE17, 2026-05-05). Track-call (A/B/C) pending Captain.
+**State:** Age 3 in progress. Wire format frozen at v0x01 (12 IANA registries, S67). 6 Internet-Drafts shipped. K8s substrate proven (WAVE17, 2026-05-05). **ASCEND-LINUX L5: xv6 enters user mode on the UPC** (2026-05-14, [Linux on UPC](Linux-on-UPC)). Track-call (A/B/C) pending Captain.
 
 ---
 
@@ -20,7 +20,17 @@
 - [[Project Structure|Project-Structure]]
 - [[Microservices]]
 
-## The Protocol
+## The Protocol Computer (UPC)
+
+The UPC is a virtual CPU implemented in the eBPF runtime. Monad packets are the clock; XDP is the dispatcher; BPF maps are ROM/RAM/page-tables.
+
+- [[UPC Overview|UPC-Overview]] — what the UPC is, BPF maps, MBC ISA summary, Boot Protocol v2
+- [[Unheaded Protocol|Unheaded-Protocol]] — Monad + Sophia + Wotan + MBC + Shim + PQC tied together
+- [[Dream Ladder|UPC-Dream-Ladder]] — six-level ascent (L1→L6), per-level status
+- [[Linux on UPC|Linux-on-UPC]] — ASCEND-LINUX, current frontier (L5 spike, 2026-05-14)
+- [[Doom on UPC|Doom-on-UPC]] — L3 computational-completeness proof
+
+## The Protocol (specifications)
 
 - [[Protocol Foundation|Protocol-Foundation]] — Monad 20-byte wire format (FROZEN v0x01)
 - [[Protocol Technical Summary|Protocol-Technical-Summary]]
@@ -91,8 +101,9 @@ UPC-controlled OS baseline, drift detection, alerts-only self-healing. Two-plane
 - [[Wave 10C Backprop|Wave-10C-Backprop]]
 - [[So The Game Goes On|So-The-Game-Goes-On]]
 
-## Recent Progress (Apr 11 → May 5, 2026)
+## Recent Progress (Apr 11 → May 14, 2026)
 
+- **2026-05-14** ASCEND-LINUX **Phase 1.4 milestone** (Linux on UPC L5 substrate clears all init() calls; clean halt at U-mode entry) **+ Phase 1.5 spike** (userland MBC loader; xv6 init enters `priv=3` and runs `open` / `dup×2` / `printf` / `vprintf` → `write` ecall). 13 commits. Phase 1.6 is the byte-path through `SYS_write`. See [Linux on UPC](Linux-on-UPC).
 - **2026-05-05** WAVE17 — K8s substrate proven (9/9 services Running on 3-node kind). ADR-064 active/active spec landed (impl deferred). cmd/tools/ scaffold for Mímir / Anamnesis Lite / Zhen On-Prem. ADR-Index regenerated 21→65 entries.
 - **2026-05-04** WAVE16 — Multi-model selector live in sidebar. 5 model keys. qwen-coder-14b benched. ADR-060 LIVE.
 - **2026-05-03** ADR-059 Phase 1 shipped — Zhenai Interactive CLI (`cmd/zhen-cli`).
@@ -127,8 +138,7 @@ UPC-controlled OS baseline, drift detection, alerts-only self-healing. Two-plane
 - [[Protocol Heritage|Protocol-Heritage]]
 - [[Phylactery]]
 - [[Kingdom Mode Math|Kingdom-Mode-Math]]
-- [[Doom over IPv6|Doom-over-IPv6]]
-- [[UPC Dream Ladder|UPC-Dream-Ladder]]
+- [[Doom over IPv6|Doom-over-IPv6]] *(legacy stub — see [[Doom on UPC]])*
 
 ## Skills
 

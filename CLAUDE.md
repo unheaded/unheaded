@@ -1225,7 +1225,28 @@ router.Use(auth.Middleware(authenticator))
 
 ---
 
-## ASCEND-LINUX (Linux on UPC) — Phase 0 ✓ Phase 1.1 SHIP ✓ Phase 1.2 IMPL ✓ Phase 1.3 IMPL (A-D) ✓ Phase 1.4/1.5 substrate ✓ (2026-05-08 → 2026-05-13)
+## ASCEND-LINUX (Linux on UPC) — Phase 0 ✓ Phase 1.1 SHIP ✓ Phase 1.2 IMPL ✓ Phase 1.3 IMPL (A-D) ✓ Phase 1.4 ✓ Phase 1.5 spike ✓ (2026-05-08 → 2026-05-14)
+
+**Phase 1.4 / Phase 1.5 milestone shipped 2026-05-14.** xv6 boots end-to-end on the UPC: every `main()` init call clears, scheduler dispatches the init proc, kexec wires the user trapframe, SRET transitions to user mode (`priv=3`), and init's `main()` runs through `open` / `dup×2` / `printf` / `vprintf` to the `write` syscall stub. 13 commits this session. Headline reference: `wiki/Linux-on-UPC.md` (full Phase 0→1.5 narrative). Session logs: `references/phase14-session-2026-05-14-marshal-shift.md` + `references/phase15-session-2026-05-14-userland-spike.md`.
+
+**Build gotcha:** always `cargo build --release -p monad-cpu-ebpf --features ascend-linux`. Without the feature, MRET/SRET/LR.W/SC.W/FENCE silently NOP and the kernel fails to escape `start_mbc.c` with `BOOT FAIL: MRET fall-through`.
+
+**Boot recipe:**
+```bash
+cd ~/tmp/unheaded/ebpf && cargo build --release -p monad-cpu-ebpf --features ascend-linux
+cd ../crates/xv6-mbc/upstream && make -f ../adapters/Makefile.mbc clean kernel && rm -f target/fs.img && make -f ../adapters/Makefile.mbc-userland ramdisk
+cd ../../../ebpf && sudo /home/govan/tmp/unheaded/cmd/upc-bootctl/target/release/upc-bootctl boot \
+  --kernel /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/xv6-mbc.mbc \
+  --ramdisk /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/fs.img \
+  --userland /home/govan/tmp/unheaded/crates/xv6-mbc/upstream/target/init.mbc \
+  --triggers 800000 --instance 222
+```
+
+**Phase 1.6 work in progress:** `SYS_write`'s byte-path. `mem_read_byte(r9)` reads NUL during init's first printf — suspect the translator's spill-shadow on x17 (a7 → r1 aliased onto gp at fixed RAM byte 0x64004). Diagnosis in `references/phase15-session-2026-05-14-userland-spike.md`.
+
+---
+
+**Historical (Phase 1.4 substrate, 2026-05-13):**
 
 **Phase 1.2 IMPL** closed 2026-05-13 (`b9572c26`): Option A per-pid pgd substrate across BPF + host emulator + vendored xv6 (`uvmcreate(int pid)` returns `0x00F00000 + pid*0x1000`). ADR-074 ACCEPTED. See `references/phase12-impl-complete-2026-05-13.md`.
 
