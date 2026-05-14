@@ -27,25 +27,26 @@
 
 .globl __upc_sys_read_block
 __upc_sys_read_block:
-    /* a0 = block_num (in), a1 = dest_byte_addr (in), a0 = ret (out) */
-    /* MBC: r0 = SYS_READ_BLOCK (200); r1 = block_num; r2 = dest_addr; SYSCALL */
-    li      a2, 200             /* SYS_READ_BLOCK */
-    /* shuffle: rv32 a0→a1, a1→a2, a2→a0 — but easier: just spell out SYSCALL pattern */
-    /* For first cut, rely on the kernel side honoring args in a0/a1 plus syscall in a2;
-       a future Phase 1.1 step refines this once the translator's syscall convention is locked. */
-    mv      t0, a0              /* t0 = block_num */
-    mv      a1, a1              /* a1 = dest_addr (already there) */
-    mv      a0, a2              /* a0 = syscall_nr */
-    /* RV32 ecall — translator emits MBC SYSCALL (0x40). */
-    ecall
+    /* a0 = block_num (in), a1 = dest_byte_addr (in), a0 = ret (out)
+     *
+     * RV32I ecall convention: a7 holds the syscall number. The MBC
+     * op::SYSCALL dispatcher reads syscall_nr from r1 (= MBC mapping of
+     * RV x17 = a7, per crates/monad-mbc/src/translator.rs::map_register).
+     * a2 (→ r10) holds the chunk-progress counter; the handler reuses it
+     * across multi-tick block copies, so zero it on first entry.
+     * Block syscalls now live on the op::SYSCALL path with handler at
+     * ebpf/monad-cpu-ebpf/src/main.rs (Phase 1.4 fsinit unblock 2026-05-14).
+     */
+    li      a7, 200             /* SYS_READ_BLOCK in a7 */
+    li      a2, 0               /* progress = 0 for first chunk */
+    ecall                       /* translator emits MBC SYSCALL (0x40) */
     ret
 
 .globl __upc_sys_write_block
 __upc_sys_write_block:
     /* a0 = block_num (in), a1 = src_byte_addr (in), a0 = ret (out) */
-    li      a2, 201             /* SYS_WRITE_BLOCK */
-    mv      t0, a0
-    mv      a0, a2
+    li      a7, 201             /* SYS_WRITE_BLOCK in a7 */
+    li      a2, 0               /* progress = 0 for first chunk */
     ecall
     ret
 
