@@ -849,12 +849,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         mem_write_byte(0xC001, hex[((v >> 4) & 0xF) as usize]);
                         mem_write_byte(0xC001, hex[(v & 0xF) as usize]);
                         mem_write_byte(0xC001, b'>');
-                        // Arm the PC tracer: dispatch loop will emit next 200 PCs.
-                        if let Some(p) = TRACE_HEAD.get_ptr_mut(0) {
-                            unsafe {
-                                *p = 200;
-                            }
-                        }
+                        // Tracer arming disabled — diagnostics moved to F1..F5 markers.
                         *mbc_idx
                     }
                     _ => {
@@ -1014,7 +1009,17 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.priv_level = if spp == 0 { 3 } else { 1 };
             let rv_word = (sepc >> 2) & 0xFFFF;
             cpu.pc = match RV2MBC_MAP.get(rv_word) {
-                Some(mbc_idx) if *mbc_idx != 0 => *mbc_idx & 0xFFFF,
+                Some(mbc_idx) if *mbc_idx != 0 => {
+                    // Diagnostic: emit 'S' on every SRET + arm PC tracer for
+                    // first 100 user-mode instructions.
+                    mem_write_byte(0xC001, b'S');
+                    if let Some(p) = TRACE_HEAD.get_ptr_mut(0) {
+                        unsafe {
+                            *p = 100;
+                        }
+                    }
+                    *mbc_idx & 0xFFFF
+                }
                 _ => {
                     mem_write_word(0xE0060 >> 2, 0xDEAD0048); // SRET unmapped sentinel
                     mem_write_word(0xE0064 >> 2, sepc);

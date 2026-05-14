@@ -9,6 +9,7 @@
 // Phase 1.4 scheduler-halt bisection — see
 // references/phase14-session-2026-05-14-marshal-shift.md
 extern void mmio_puts(const char *s);
+extern void mmio_putc(char c);
 
 struct cpu cpus[NCPU];
 
@@ -542,20 +543,25 @@ forkret(void)
   // Still holding p->lock from scheduler.
   release(&p->lock);
   mmio_puts("forkret: lock released\n");
+  mmio_putc('F'); mmio_putc('1');  /* phase 1.5 bisect */
 
   if (first) {
     // File system initialization must be run in the context of a
     // regular process (e.g., because it calls sleep), and thus cannot
     // be run from main().
+    mmio_putc('F'); mmio_putc('2');
     fsinit(ROOTDEV);
+    mmio_putc('F'); mmio_putc('3');
 
     first = 0;
     // ensure other cores see first=0.
     __sync_synchronize();
 
+    mmio_putc('F'); mmio_putc('4');
     // We can invoke kexec() now that file system is initialized.
     // Put the return value (argc) of kexec into a0.
     p->trapframe->a0 = kexec("/init", (char *[]){ "/init", 0 });
+    mmio_putc('F'); mmio_putc('5');
     if (p->trapframe->a0 == -1) {
       panic("exec");
     }

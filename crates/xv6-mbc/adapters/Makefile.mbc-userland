@@ -117,3 +117,6 @@ clean:
 	       $T/fs.img
 
 .PHONY: clean init sh ls cat echo wc ln mkdir kill rm grep userland ramdisk
+
+# Keep .elf intermediates around for debugging.
+.SECONDARY: $T/init.elf $T/sh.elf $T/ls.elf $T/cat.elf $T/echo.elf $T/wc.elf

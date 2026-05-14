@@ -62,6 +62,25 @@ enum Cmd {
         #[arg(long)]
         ramdisk: Option<PathBuf>,
 
+        /// Path to the userland MBC image (e.g. init.mbc). When provided,
+        /// the .mbc / .rv2mbc / .data sidecars are loaded into a dedicated
+        /// user region of ROM_MAP / RV2MBC_MAP / RAM_MAP so xv6's kexec
+        /// can drop the process into user mode without needing a real
+        /// ELF loader. Phase 1.5 IMPL (ASCEND-LINUX userland-spike).
+        ///
+        /// Layout (must match crates/xv6-mbc/upstream/user/user.ld which
+        /// links userland at RV byte 0x0):
+        ///   - .mbc       → ROM_MAP slot 0x4000+ (USER_ROM_BASE).
+        ///   - .rv2mbc    → RV2MBC_MAP slot 0 onward, with each entry
+        ///                  shifted by USER_ROM_BASE so SRET(SEPC=0)
+        ///                  lands on the user MBC PC.
+        ///   - .data      → RAM_MAP at each record's byte address.
+        ///
+        /// The kernel side (crates/xv6-mbc/upstream/kernel/exec.c) sees
+        /// the same path through namei() and sets trapframe->epc = 0.
+        #[arg(long)]
+        userland: Option<PathBuf>,
+
         /// Number of Monad trigger packets to send post-dispatch. Each
         /// packet advances the CPU by up to 16 MBC instructions. Default
         /// 500 (~4000 insns, enough for Phase 1.1 banner+main()). Bump
@@ -137,11 +156,13 @@ fn cmd_validate(kernel: PathBuf) -> Result<()> {
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 fn cmd_boot(
     kernel: PathBuf,
     bootstub: Option<PathBuf>,
     initramfs: Option<PathBuf>,
     ramdisk: Option<PathBuf>,
+    userland: Option<PathBuf>,
     triggers: u32,
     instance: u8,
     dry_run: bool,
@@ -367,6 +388,130 @@ fn cmd_boot(
         );
     }
 
+    // Phase 1.5: load the userland MBC image into a dedicated ROM_MAP region
+    // (USER_ROM_BASE = 0x4000) plus shifted RV2MBC entries (starting at slot 0)
+    // plus the .data sidecar into RAM_MAP. xv6's kexec then drops the process
+    // into user mode by setting trapframe->epc = 0 (matching user.ld which
+    // links userland at RV byte 0); SRET reads SEPC=0, RV2MBC_MAP[0] points
+    // at USER_ROM_BASE, and the user MBC code runs.
+    const USER_ROM_BASE: u32 = 0x4000;
+    if let Some(ref up) = userland {
+        match std::fs::read(up) {
+            Ok(bytes) => {
+                if !bytes.len().is_multiple_of(4) {
+                    bail!(
+                        "userland {} not 4-byte aligned ({} bytes)",
+                        up.display(),
+                        bytes.len()
+                    );
+                }
+                // CALL opcode (0x27) uses an absolute 24-bit MBC PC. The
+                // translator emits CALL targets relative to the .mbc's slot
+                // 0, but we load init.mbc at USER_ROM_BASE — so every CALL
+                // immediate needs USER_ROM_BASE added or it lands inside the
+                // kernel image. Same fix is NOT needed for JMP/JZ/JNZ/... which
+                // use signed PC-relative offsets (wrap-add survives the shift).
+                const OP_CALL: u32 = 0x27;
+                let mut patched_calls = 0u32;
+                let words: Vec<u32> = bytes
+                    .chunks_exact(4)
+                    .map(|c| {
+                        let w = u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
+                        if (w >> 24) == OP_CALL {
+                            patched_calls += 1;
+                            let target = w & 0x00FF_FFFF;
+                            let shifted = (target + USER_ROM_BASE) & 0x00FF_FFFF;
+                            (OP_CALL << 24) | shifted
+                        } else {
+                            w
+                        }
+                    })
+                    .collect();
+                runner
+                    .populate_rom_at(USER_ROM_BASE, &words)
+                    .with_context(|| format!("userland ROM load {}", up.display()))?;
+                if patched_calls > 0 {
+                    println!(
+                        "  Userland MBC: patched {} CALL targets (+0x{:04X}) for user-region load",
+                        patched_calls, USER_ROM_BASE
+                    );
+                }
+                println!(
+                    "  Userland MBC: loaded {} ({} bytes / {} words @ ROM slot 0x{:04X})",
+                    up.display(),
+                    bytes.len(),
+                    words.len(),
+                    USER_ROM_BASE
+                );
+            }
+            Err(e) => bail!("userland read {} failed: {e}", up.display()),
+        }
+
+        // Userland .data: same TLV format as the kernel side. Each record's
+        // byte_addr is in user.ld's address space starting at 0, so it lands
+        // in RAM_MAP[byte_addr] directly. No conflicts with kernel layout
+        // because user .text fills bytes 0..N (read-only — covered by ROM_MAP)
+        // and user .rodata/.data start past the IVT/BootParams region.
+        let user_data_path = up.with_extension("data");
+        if user_data_path.exists() {
+            match runner.load_data_image(&user_data_path) {
+                Ok(()) => println!(
+                    "  Userland data: loaded {} (.rodata/.data into RAM_MAP)",
+                    user_data_path.display()
+                ),
+                Err(e) => println!(
+                    "  ⚠ userland data at {} failed to load: {}",
+                    user_data_path.display(),
+                    e
+                ),
+            }
+        }
+
+        // Userland rv2mbc: each entry maps a user RV word to an MBC PC inside
+        // init.mbc (whose first instruction is at MBC PC 0 in its own stream).
+        // Shift every entry by USER_ROM_BASE so the BPF interpreter's lookup
+        // lands on the right slot in the shared ROM_MAP.
+        let user_rv2mbc_path = up.with_extension("rv2mbc");
+        if user_rv2mbc_path.exists() {
+            match std::fs::read(&user_rv2mbc_path) {
+                Ok(bytes) => {
+                    if !bytes.len().is_multiple_of(4) {
+                        bail!(
+                            "userland rv2mbc {} not 4-byte aligned",
+                            user_rv2mbc_path.display()
+                        );
+                    }
+                    let shifted: Vec<u8> = bytes
+                        .chunks_exact(4)
+                        .flat_map(|c| {
+                            let raw = u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
+                            (raw + USER_ROM_BASE).to_le_bytes()
+                        })
+                        .collect();
+                    // text_rv_word_base = 0 — userland links text at RV byte 0.
+                    match runner.populate_rv2mbc(&shifted, 0, None) {
+                        Ok(()) => println!(
+                            "  Userland RV→MBC: loaded {} ({} entries @ RV-word-base 0x0000 + shift 0x{:04X})",
+                            user_rv2mbc_path.display(),
+                            shifted.len() / 4,
+                            USER_ROM_BASE
+                        ),
+                        Err(e) => bail!("userland rv2mbc load failed: {e}"),
+                    }
+                }
+                Err(e) => bail!(
+                    "userland rv2mbc read {} failed: {e}",
+                    user_rv2mbc_path.display()
+                ),
+            }
+        } else {
+            println!(
+                "  ⚠ no userland rv2mbc at {} — SRET into user code will fail",
+                user_rv2mbc_path.display()
+            );
+        }
+    }
+
     // Initial CPU state: PC=0x4000 (word index of byte 0x10000), SP=0x03F00000,
     // priv_level=0 M-mode, reservation_address=0xFFFFFFFF.
     runner.populate_cpu(runner::xv6_initial_cpu_state())?;
@@ -530,11 +675,12 @@ fn main() -> Result<()> {
             bootstub,
             initramfs,
             ramdisk,
+            userland,
             triggers,
             instance,
             dry_run,
         } => cmd_boot(
-            kernel, bootstub, initramfs, ramdisk, triggers, instance, dry_run,
+            kernel, bootstub, initramfs, ramdisk, userland, triggers, instance, dry_run,
         ),
         Cmd::Console { instance } => cmd_console(instance),
     }
