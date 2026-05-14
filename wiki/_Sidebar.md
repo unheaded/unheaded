@@ -66,10 +66,14 @@
 - [[eBPF Programs|eBPF-Programs]]
 - [[Service Breakout|Service-Breakout-Strategy]]
 
-**Compute**
-- [[UPC Dream Ladder|UPC-Dream-Ladder]]
+**The Protocol Computer (UPC)**
+- [[UPC Overview|UPC-Overview]]
+- [[Unheaded Protocol|Unheaded-Protocol]]
+- [[Dream Ladder|UPC-Dream-Ladder]]
+- [[Linux on UPC|Linux-on-UPC]]
+- [[Doom on UPC|Doom-on-UPC]]
+- [[Doom over IPv6|Doom-over-IPv6]] *(legacy)*
 - [[Kingdom Mode Math|Kingdom-Mode-Math]]
-- [[Doom over IPv6|Doom-over-IPv6]]
 
 **Storage**
 - [[The Well|The-Well]]
