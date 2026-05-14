@@ -6,6 +6,10 @@
 #include "proc.h"
 #include "defs.h"
 
+// Phase 1.4 scheduler-halt bisection — see
+// references/phase14-session-2026-05-14-marshal-shift.md
+extern void mmio_puts(const char *s);
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -48,13 +52,27 @@ void
 procinit(void)
 {
   struct proc *p;
-  
+
   initlock(&pid_lock, "nextpid");
   initlock(&wait_lock, "wait_lock");
   for(p = proc; p < &proc[NPROC]; p++) {
       initlock(&p->lock, "proc");
       p->state = UNUSED;
+#ifdef UPC_FLAT_TRAMPOLINE
+      // On UPC the page table is decorative — KSTACK() returns the high
+      // VA 0x7FFF.... which is past RAM_MAP's 16 MiB window, so any
+      // sw/lw against the kernel stack silently fails (write drops, read
+      // returns zero), corrupting the saved RA at the next ret and
+      // sending PC to 0. Allocate a real backing page from kalloc (which
+      // returns a low physical address within PHYSTOP) and use it directly
+      // as the kstack. See references/phase14-session-2026-05-14-marshal-shift.md.
+      char *pa = kalloc();
+      if (pa == 0)
+        panic("kalloc kstack");
+      p->kstack = (uint64)pa;
+#else
       p->kstack = KSTACK((int) (p - proc));
+#endif
   }
 }
 
@@ -435,6 +453,7 @@ scheduler(void)
   struct cpu *c = mycpu();
 
   c->proc = 0;
+  mmio_puts("sched: entered\n");
   for(;;){
     // The most recent process to run may have had interrupts
     // turned off; enable them to avoid a deadlock if all
@@ -448,12 +467,15 @@ scheduler(void)
     for(p = proc; p < &proc[NPROC]; p++) {
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
+        mmio_puts("sched: found RUNNABLE\n");
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        mmio_puts("sched: pre-swtch\n");
         swtch(&c->context, &p->context);
+        mmio_puts("sched: post-swtch\n");
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
@@ -516,8 +538,10 @@ forkret(void)
   static int first = 1;
   struct proc *p = myproc();
 
+  mmio_puts("forkret: entered\n");
   // Still holding p->lock from scheduler.
   release(&p->lock);
+  mmio_puts("forkret: lock released\n");
 
   if (first) {
     // File system initialization must be run in the context of a
@@ -540,8 +564,19 @@ forkret(void)
   // return to user space, mimicing usertrap()'s return.
   prepare_return();
   uint64 satp = MAKE_SATP(p->pagetable);
+#ifdef UPC_FLAT_TRAMPOLINE
+  // On UPC the trampoline page is not mapped at the high TRAMPOLINE VA
+  // (kvmmake's kvmmap calls were skipped — page table is decorative since
+  // the BPF interpreter's translate_address() is authoritative). Call
+  // userret at its kernel-link address directly; the RV2MBC map covers
+  // it because it's in the kernel image's .text region.
+  extern char trampoline[];
+  (void)trampoline;
+  ((void (*)(uint64))(uint64)userret)(satp);
+#else
   uint64 trampoline_userret = TRAMPOLINE + (userret - trampoline);
   ((void (*)(uint64))trampoline_userret)(satp);
+#endif
 }
 
 // Sleep on channel chan, releasing condition lock lk.
