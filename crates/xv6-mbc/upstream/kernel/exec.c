@@ -35,6 +35,12 @@ kexec(char *path, char **argv)
   pagetable_t pagetable = 0, oldpagetable;
   struct proc *p = myproc();
 
+  extern void mmio_puts(const char *);
+  extern void mmio_putc(char);  /* declared in adapters/start_mbc.c */
+  mmio_putc('$');  /* kexec entry sentinel */
+  mmio_puts("KX:enter\n");
+  mmio_putc('%');  /* after mmio_puts */
+
   begin_op();
 
   // Open the executable file.
@@ -51,19 +57,27 @@ kexec(char *path, char **argv)
   // Is this really an ELF file?
 #ifdef UPC_FLAT_TRAMPOLINE
   // On UPC the userland is MBC bytecode (rv32i-to-mbc translator output),
-  // not an ELF. Phase 1.4 milestone: recognise the non-ELF case as an MBC
-  // load, log it, and return success without doing the ELF mapping. The
-  // subsequent forkret → prepare_return → SRET will hit a clean unmapped-
-  // SEPC halt rather than the kexec panic — Phase 1.5 will replace this
-  // stub with a real MBC userland loader (copy bytecode into a ROM_MAP
-  // user region, set trapframe->epc to a sentinel SRET understands).
-  // See references/phase14-session-2026-05-14-marshal-shift.md.
+  // not an ELF. The bytecode + rv2mbc + .data sidecars were pre-loaded into
+  // ROM_MAP / RV2MBC_MAP / RAM_MAP by upc-bootctl --userland, so the
+  // kernel-side job is just to point trapframe->epc at the user entry
+  // (RV byte 0 — matches crates/xv6-mbc/upstream/user/user.ld). The
+  // subsequent forkret → prepare_return → SRET reads SEPC=0,
+  // RV2MBC_MAP[0] = USER_ROM_BASE, and user MBC runs.
   if(elf.magic != ELF_MAGIC) {
     extern void mmio_puts(const char *);
-    mmio_puts("kexec: non-ELF userland (MBC bytecode) — Phase 1.5 stub\n");
+    mmio_puts("kexec: MBC userland — wiring trapframe->epc=0\n");
+    if(p->trapframe == 0)
+      panic("kexec: no trapframe");
+    p->trapframe->epc = 0;     // userland .text starts at RV byte 0
+    // User stack sits in a free RAM_MAP region above the kernel BSS
+    // (~0x114AA0) and below the fs.img ramdisk (0x800000). Grow down
+    // from byte 0x500000 (5 MiB) — 1 MiB of stack room.
+    p->trapframe->sp  = 0x500000UL - 16;
+    p->trapframe->a0  = 1;     // argc = 1 (just "/init")
+    p->trapframe->a1  = 0;     // argv = NULL (no argv frame on UPC yet)
     iunlockput(ip);
     end_op();
-    return 0;
+    return 1;                  // argc — forkret writes this to a0
   }
 #else
   if(elf.magic != ELF_MAGIC)

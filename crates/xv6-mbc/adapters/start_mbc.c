@@ -94,7 +94,7 @@ struct boot_params_v2 {
 #define UPC_TTY_DATA_ADDR    0xC001
 #define UPC_TTY_REG          (*(volatile uint8 *)(UPC_TTY_DATA_ADDR))
 
-static inline void mmio_putc(char c) {
+void mmio_putc(char c) {
     UPC_TTY_REG = (uint8)c;
 }
 
