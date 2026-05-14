@@ -102,10 +102,11 @@ userland: $(USERLAND_PROGS)
 # Build the xv6-format ramdisk image embedding the default userland.
 # mkfs (host x86-64) must already be built (gcc -I. -o mkfs/mkfs mkfs/mkfs.c).
 # mkfs asserts on '/' in input filenames; we cd into target/ so the
-# basenames are bare.
+# basenames are bare. xv6 looks for `/init` (no extension) via namei,
+# so strip the .mbc suffix by creating extensionless copies before mkfs.
 $T/fs.img: $(USERLAND_PROGS)
-	cd $T && ../mkfs/mkfs fs.img \
-	  $(notdir $(USERLAND_PROGS))
+	cd $T && for f in $(notdir $(USERLAND_PROGS)); do cp $$f $${f%.mbc}; done
+	cd $T && ../mkfs/mkfs fs.img init sh ls cat echo wc
 
 ramdisk: $T/fs.img
 
