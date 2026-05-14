@@ -49,8 +49,26 @@ kexec(char *path, char **argv)
     goto bad;
 
   // Is this really an ELF file?
+#ifdef UPC_FLAT_TRAMPOLINE
+  // On UPC the userland is MBC bytecode (rv32i-to-mbc translator output),
+  // not an ELF. Phase 1.4 milestone: recognise the non-ELF case as an MBC
+  // load, log it, and return success without doing the ELF mapping. The
+  // subsequent forkret → prepare_return → SRET will hit a clean unmapped-
+  // SEPC halt rather than the kexec panic — Phase 1.5 will replace this
+  // stub with a real MBC userland loader (copy bytecode into a ROM_MAP
+  // user region, set trapframe->epc to a sentinel SRET understands).
+  // See references/phase14-session-2026-05-14-marshal-shift.md.
+  if(elf.magic != ELF_MAGIC) {
+    extern void mmio_puts(const char *);
+    mmio_puts("kexec: non-ELF userland (MBC bytecode) — Phase 1.5 stub\n");
+    iunlockput(ip);
+    end_op();
+    return 0;
+  }
+#else
   if(elf.magic != ELF_MAGIC)
     goto bad;
+#endif
 
   if((pagetable = proc_pagetable(p)) == 0)
     goto bad;
