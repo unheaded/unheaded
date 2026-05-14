@@ -576,9 +576,13 @@ forkret(void)
   // the BPF interpreter's translate_address() is authoritative). Call
   // userret at its kernel-link address directly; the RV2MBC map covers
   // it because it's in the kernel image's .text region.
+  // Also pass p->trapframe (low PA from kalloc) as a1 so the patched
+  // userret (under UPC_FLAT_TRAMPOLINE) can find the trapframe without
+  // needing the high TRAPFRAME VA — see adapters/trampoline_mbc.S.
+  // Phase 1.6 SYS_write byte-path fix.
   extern char trampoline[];
   (void)trampoline;
-  ((void (*)(uint64))(uint64)userret)(satp);
+  ((void (*)(uint64, uint64))(uint64)userret)(satp, (uint64)p->trapframe);
 #else
   uint64 trampoline_userret = TRAMPOLINE + (userret - trampoline);
   ((void (*)(uint64))trampoline_userret)(satp);

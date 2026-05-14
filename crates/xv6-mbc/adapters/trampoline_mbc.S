@@ -97,7 +97,17 @@ userret:
         csrw satp, a0
         sfence.vma zero, zero
 
+#ifdef UPC_FLAT_TRAMPOLINE
+        # On UPC the trampoline page is NOT mapped at the high TRAPFRAME
+        # VA (paging is decorative — translate_address in monad-cpu-ebpf
+        # has no entry for 0x7FFFE000). Reading from TRAPFRAME would
+        # return 0 (out-of-range mem_read_word fallback) and trash sp.
+        # forkret passes p->trapframe (low PA from kalloc) as a1; use
+        # that directly. Phase 1.6 SYS_write byte-path fix.
+        mv a0, a1
+#else
         li a0, TRAPFRAME
+#endif
 
         # restore all but a0 from TRAPFRAME
         lw ra, 20(a0)
