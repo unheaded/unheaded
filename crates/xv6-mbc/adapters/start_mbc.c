@@ -98,7 +98,10 @@ static inline void mmio_putc(char c) {
     UPC_TTY_REG = (uint8)c;
 }
 
-static void mmio_puts(const char *s) {
+// Non-static so main.c can call this for early-init instrumentation
+// (Phase 1.4 xv6 init-loop bisection — see
+// references/phase14-xv6-init-loop-root-cause-2026-05-13.md).
+void mmio_puts(const char *s) {
     while (*s) {
         mmio_putc(*s++);
     }
