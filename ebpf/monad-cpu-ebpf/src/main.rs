@@ -137,6 +137,12 @@ static TAIL_CALL_PROGS: ProgramArray = ProgramArray::with_max_entries(1, 0);
 #[map]
 static TAIL_ROUND: Array<u32> = Array::with_max_entries(1, 0);
 
+/// Phase 1.4 forkret-bisect PC tracer. Slot 0 holds a countdown; when > 0,
+/// the dispatch loop emits the current PC as 4 hex chars to TTY and decrements.
+/// Set by the RET fix path on first large-r14 (cf. RET handler).
+#[map]
+static TRACE_HEAD: Array<u32> = Array::with_max_entries(1, 0);
+
 /// Maximum additional tail call rounds per packet (0 = no tail calls).
 /// Total rounds = 1 (initial) + MAX_TAIL_CALLS.
 /// At 15: 16 total rounds × 16 insns = 256 insns/packet.
@@ -354,7 +360,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     // ticks (~12 Hz at 35 Hz XDP rate), fire a timer interrupt — but only
     // if interrupts are enabled and no interrupt is already pending.
     cpu.tick_counter = cpu.tick_counter.wrapping_add(1);
-    if cpu.tick_counter >= intr::TIMER_TICK_DIVISOR
+    // ASCEND-LINUX: xv6 manages its own interrupts via STVEC/sstatus and has
+    // not programmed our flat IVT. Firing a BPF-level timer here causes
+    // mem_read_word(ivt_addr) = 0 → PC reset to 0 → silent reboot. Gate the
+    // timer behind feature so xv6 builds skip it. Doom path keeps firing.
+    if cfg!(not(feature = "ascend-linux"))
+        && cpu.tick_counter >= intr::TIMER_TICK_DIVISOR
         && cpu.interrupts_enabled != 0
         && cpu.interrupt_pending == 0
     {
@@ -396,6 +407,24 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.pc = mem_read_word(ivt_addr >> 2);
             // Clear pending
             cpu.interrupt_pending = 0;
+        }
+
+        // Phase 1.4 PC tracer (forkret-bisect). When armed, emit current PC
+        // as 4 hex chars to TTY and decrement countdown. Armed by RET-fix path.
+        if let Some(p) = TRACE_HEAD.get_ptr_mut(0) {
+            let n = unsafe { *p };
+            if n > 0 {
+                let hex = b"0123456789ABCDEF";
+                let v = cpu.pc;
+                mem_write_byte(0xC001, hex[((v >> 12) & 0xF) as usize]);
+                mem_write_byte(0xC001, hex[((v >> 8) & 0xF) as usize]);
+                mem_write_byte(0xC001, hex[((v >> 4) & 0xF) as usize]);
+                mem_write_byte(0xC001, hex[(v & 0xF) as usize]);
+                mem_write_byte(0xC001, b' ');
+                unsafe {
+                    *p = n - 1;
+                }
+            }
         }
 
         // Fetch — with explicit PC bounds check
@@ -688,12 +717,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // Indirect jump with RV32I→MBC address translation.
             // regs[dst] holds a RISC-V byte address (e.g. function pointer from .data).
             // Convert to RV word index, look up the MBC PC in RV2MBC_MAP.
+            // Guard against default-zero slots (BPF Array::get returns Some(&0)
+            // for unset entries) — treat as unmapped to avoid silent PC=0 reset.
             let old_pc = cpu.pc.wrapping_sub(1); // PC of this JMPR instruction
             let rv_addr = cpu.regs[d];
             let rv_word = rv_addr >> 2;
             cpu.pc = match RV2MBC_MAP.get(rv_word) {
-                Some(mbc_idx) => *mbc_idx,
-                None => {
+                Some(mbc_idx) if *mbc_idx != 0 => *mbc_idx,
+                _ => {
                     // Bug 20 fix: Unmapped JMPR — skip instead of halting.
                     // BSS corruption in DOOM produces garbage function pointers.
                     // Skipping the indirect jump lets execution fall through to
@@ -742,13 +773,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             mem_write_word(callr_log_base + 3, old_pc);
 
             cpu.pc = match RV2MBC_MAP.get(rv_word) {
-                Some(mbc_idx) => {
+                Some(mbc_idx) if *mbc_idx != 0 => {
                     // Log successful lookup
                     mem_write_word(callr_log_base + 4, *mbc_idx);
                     mem_write_word(callr_log_base + 5, 0xCA110001); // success marker
                     *mbc_idx
                 }
-                None => {
+                _ => {
                     // Unmapped CALLR — skip
                     mem_write_word(callr_log_base + 4, 0xDEAD0003);
                     mem_write_word(callr_log_base + 5, rv_word);
@@ -772,12 +803,29 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             }
         } else if opc == op::RET {
             // Link register return: jump to address in r14 (LR).
-            // The compiled code's epilogue restores r14 from the stack
-            // before executing RET, so r14 always holds the correct
-            // return address.
             //
-            // This matches RV32I `jalr x0, 0(x1)`: PC = x1(ra).
-            // x1(ra) maps to MBC r14.
+            // r14 holds one of two semantically-distinct things:
+            //   (a) MBC PC saved by a prior CALL  — small value (< 0x10000)
+            //   (b) RISC-V byte address loaded from a C struct field
+            //       initialised with `(uint64)&function`  — large value
+            //       (>= 0x10000 per kernel-mbc.ld layout: kernel .text
+            //       at 0x20000, stage-1 stub at 0x10000, MBC PCs at
+            //       ROM_MAP slots [0, 0x10000)).
+            //
+            // Case (a) is the compiled-RV path: CALL stores cpu.pc into
+            // r14, callee saves/restores ra to/from stack via LW/SW, RET
+            // reads it back. The stored value never escapes MBC space.
+            //
+            // Case (b) is the C-function-pointer pattern used by xv6's
+            // scheduler / fork plumbing: `p->context.ra = (uint64)forkret;`
+            // stores forkret's RV linker address. swtch_mbc.S loads it
+            // into ra via `lw ra, 0(a1)` and rets. Without translation,
+            // PC gets set to the RV byte address, walks through zero-NOPs
+            // in ROM_MAP, and hits the bounds halt at 0x40000. See
+            // references/phase14-session-2026-05-14-marshal-shift.md.
+            //
+            // Disambiguate by value: r14 >= 0x10000 means "RV byte address",
+            // do rv2mbc lookup; otherwise treat as MBC PC directly.
             let ret = cpu.regs[14];
             if ret == 0 {
                 mem_write_word(0xE0000 >> 2, 0xDEAD0001);
@@ -788,7 +836,35 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 mem_write_word(0xE0014 >> 2, cpu.regs[14]);
                 increment_stat(STAT_ROM_FAULT);
             }
-            cpu.pc = ret;
+            if ret >= 0x10000 {
+                let rv_word = ret >> 2;
+                cpu.pc = match RV2MBC_MAP.get(rv_word) {
+                    Some(mbc_idx) if *mbc_idx != 0 => {
+                        // Diagnostic: dump translated mbc_idx as 4 hex chars + arm tracer.
+                        let v = *mbc_idx;
+                        let hex = b"0123456789ABCDEF";
+                        mem_write_byte(0xC001, b'<');
+                        mem_write_byte(0xC001, hex[((v >> 12) & 0xF) as usize]);
+                        mem_write_byte(0xC001, hex[((v >> 8) & 0xF) as usize]);
+                        mem_write_byte(0xC001, hex[((v >> 4) & 0xF) as usize]);
+                        mem_write_byte(0xC001, hex[(v & 0xF) as usize]);
+                        mem_write_byte(0xC001, b'>');
+                        // Arm the PC tracer: dispatch loop will emit next 200 PCs.
+                        if let Some(p) = TRACE_HEAD.get_ptr_mut(0) {
+                            unsafe {
+                                *p = 200;
+                            }
+                        }
+                        *mbc_idx
+                    }
+                    _ => {
+                        mem_write_byte(0xC001, b'?');
+                        ret
+                    }
+                };
+            } else {
+                cpu.pc = ret;
+            }
 
         // ── Memory ────────────────────────────────────────────────────────────
         // All memory accesses go through translate_address() for MMU support
@@ -903,29 +979,49 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // MEPC holds an RV32 byte address (xv6 stores `&main` directly);
             // translate through RV2MBC_MAP to land on the correct MBC PC.
             // Phase 1.3 AP-2 fix — same translation pattern as JMPR/CALLR.
-            // The 0xFFFF mask keeps the verifier happy on kernel 6.17 (proves
-            // the post-MRET PC fits in ROM_MAP's 65536 entries).
+            //
+            // Guard added 2026-05-14: BPF Array::get returns Some(&0) for
+            // unset slots (not None). If MEPC points at a VA that wasn't
+            // populated in rv2mbc (e.g. user VA 0 for an init proc whose
+            // user binary isn't wired into the kernel image), the default
+            // 0 would silently send PC to 0, resetting the CPU to start_mbc.c.
+            // Treat zero result as unmapped and halt instead.
             let mepc = mem_read_word((0xF000 + 0x341 * 4) >> 2);
             let mstatus = mem_read_word((0xF000 + 0x300 * 4) >> 2);
             let mpp = ((mstatus >> 11) & 0b11) as u8;
             cpu.priv_level = mpp;
             let rv_word = (mepc >> 2) & 0xFFFF;
             cpu.pc = match RV2MBC_MAP.get(rv_word) {
-                Some(mbc_idx) => *mbc_idx & 0xFFFF,
-                None => cpu.pc, // unmapped — fall through to next insn
+                Some(mbc_idx) if *mbc_idx != 0 => *mbc_idx & 0xFFFF,
+                _ => {
+                    mem_write_word(0xE0050 >> 2, 0xDEAD0047); // MRET unmapped sentinel
+                    mem_write_word(0xE0054 >> 2, mepc);
+                    cpu.halted = 1;
+                    increment_stat(STAT_ROM_FAULT);
+                    cpu.pc
+                }
             };
             cpu.reservation_address = 0xFFFF_FFFF;
         } else if cfg!(feature = "ascend-linux") && opc == op::SRET {
             // Supervisor-mode return. SEPC + SSTATUS.SPP. Same RV2MBC translation
             // as MRET — SEPC holds an RV byte address.
+            //
+            // Guard added 2026-05-14 (same as MRET): default-zero slots in
+            // RV2MBC_MAP must not silently route PC to 0.
             let sepc = mem_read_word((0xF000 + 0x141 * 4) >> 2);
             let sstatus = mem_read_word((0xF000 + 0x100 * 4) >> 2);
             let spp = ((sstatus >> 8) & 0b1) as u8;
             cpu.priv_level = if spp == 0 { 3 } else { 1 };
             let rv_word = (sepc >> 2) & 0xFFFF;
             cpu.pc = match RV2MBC_MAP.get(rv_word) {
-                Some(mbc_idx) => *mbc_idx & 0xFFFF,
-                None => cpu.pc, // unmapped — fall through
+                Some(mbc_idx) if *mbc_idx != 0 => *mbc_idx & 0xFFFF,
+                _ => {
+                    mem_write_word(0xE0060 >> 2, 0xDEAD0048); // SRET unmapped sentinel
+                    mem_write_word(0xE0064 >> 2, sepc);
+                    cpu.halted = 1;
+                    increment_stat(STAT_ROM_FAULT);
+                    cpu.pc
+                }
             };
             cpu.reservation_address = 0xFFFF_FFFF;
         } else if cfg!(feature = "ascend-linux") && opc == op::LR_W {

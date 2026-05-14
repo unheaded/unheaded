@@ -107,7 +107,13 @@ prepare_return(void)
   intr_off();
 
   // send syscalls, interrupts, and exceptions to uservec in trampoline.S
+#ifdef UPC_FLAT_TRAMPOLINE
+  // Trampoline isn't VA-mapped on UPC (see proc.c::forkret comment); point
+  // STVEC at the low link-address of uservec instead.
+  uint64 trampoline_uservec = (uint64)uservec;
+#else
   uint64 trampoline_uservec = TRAMPOLINE + (uservec - trampoline);
+#endif
   w_stvec(trampoline_uservec);
 
   // set up trapframe values that uservec will need when
