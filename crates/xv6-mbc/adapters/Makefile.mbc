@@ -34,7 +34,8 @@ CFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32e -nostdlib -nostdinc -static -ffre
          -ffixed-x28 -ffixed-x29 -ffixed-x30 -ffixed-x31 \
          -I$(K) -I$A -isystem $(GCC_INCLUDE) \
          -DPHYSTOP=0x00800000UL \
-         -DUPC_SKIP_KFREE_MEMSET -DUPC_SKIP_KALLOC_MEMSET
+         -DUPC_SKIP_KFREE_MEMSET -DUPC_SKIP_KALLOC_MEMSET \
+         -DUPC_SKIP_KVMINIT
 # Phase 1.4 PHYSTOP override: upstream xv6 expects PHYSTOP at
 # KERNBASE + 128 MiB = 0x88000000, but UPC's RAM_MAP has no backing
 # in that range. Cap at 0x00800000 (just below the ramdisk region per

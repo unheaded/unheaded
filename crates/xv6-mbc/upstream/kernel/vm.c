@@ -26,6 +26,17 @@ kvmmake(void)
   kpgtbl = (pagetable_t) kalloc();
   memset(kpgtbl, 0, PGSIZE);
 
+#ifdef UPC_SKIP_KVMINIT
+  // On UPC the page table is decorative — BPF interpreter's
+  // translate_address() (RAM_MAP/ROM_MAP/TTY_MAP/FB_MAP/pgd substrate) is
+  // authoritative. Skip the kvmmap calls that depend on KERNBASE-relative
+  // arithmetic (line 42 underflows because we cap PHYSTOP at 0x00800000
+  // without re-anchoring KERNBASE=0x80000000). xv6 still gets a kpgtbl
+  // page so kvminithart can write SATP without segfaulting.
+  // See references/phase14-session-2026-05-14-marshal-shift.md (Option A).
+  return kpgtbl;
+#endif
+
   // uart registers
   kvmmap(kpgtbl, UART0, UART0, PGSIZE, PTE_R | PTE_W);
 
@@ -47,7 +58,7 @@ kvmmake(void)
 
   // allocate and map a kernel stack for each process.
   proc_mapstacks(kpgtbl);
-  
+
   return kpgtbl;
 }
 
