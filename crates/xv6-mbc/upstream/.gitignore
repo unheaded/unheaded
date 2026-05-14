@@ -11,7 +11,10 @@ entryother
 initcode
 initcode.out
 kernelmemfs
-mkfs
+# Upstream xv6 ignores `mkfs` which matches both the binary AND the source dir.
+# We need `mkfs/mkfs.c` tracked so `clean-artifacts.sh` does not wipe vendored
+# source. Narrow the ignore to just the compiled binary.
+mkfs/mkfs
 kernel/kernel
 user/usys.S
 .gdbinit
