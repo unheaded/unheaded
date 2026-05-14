@@ -103,7 +103,7 @@ UPC-controlled OS baseline, drift detection, alerts-only self-healing. Two-plane
 
 ## Recent Progress (Apr 11 → May 14, 2026)
 
-- **2026-05-14** ASCEND-LINUX **Phase 1.4 milestone** (Linux on UPC L5 substrate clears all init() calls; clean halt at U-mode entry) **+ Phase 1.5 spike** (userland MBC loader; xv6 init enters `priv=3` and runs `open` / `dup×2` / `printf` / `vprintf` → `write` ecall). 13 commits. Phase 1.6 is the byte-path through `SYS_write`. See [Linux on UPC](Linux-on-UPC).
+- **2026-05-14** ASCEND-LINUX **Phase 1.4 → 1.6 in one day**: kernel boots end-to-end; userland loader (`upc-bootctl --userland`); user mode reached (`priv=3`); user printf reaches TTY — **`init: starting sh\n` prints from xv6 user mode on the UPC** (commit `724d5b06`). 14 commits. Next: SYS_fork / SYS_exec / SYS_wait → shell prompt. See [Linux on UPC](Linux-on-UPC).
 - **2026-05-05** WAVE17 — K8s substrate proven (9/9 services Running on 3-node kind). ADR-064 active/active spec landed (impl deferred). cmd/tools/ scaffold for Mímir / Anamnesis Lite / Zhen On-Prem. ADR-Index regenerated 21→65 entries.
 - **2026-05-04** WAVE16 — Multi-model selector live in sidebar. 5 model keys. qwen-coder-14b benched. ADR-060 LIVE.
 - **2026-05-03** ADR-059 Phase 1 shipped — Zhenai Interactive CLI (`cmd/zhen-cli`).

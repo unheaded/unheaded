@@ -2,7 +2,7 @@
 
 The ASCEND-LINUX campaign brings a real operating system up on the [Unheaded Protocol Computer](UPC-Overview). Phased six-level Dream Ladder summit (L5 → L6); the kernel of choice for L5 is xv6-riscv (vendored at `crates/xv6-mbc/upstream/`), L6 is uClinux then full Linux+MMU.
 
-**Current state (2026-05-14):** xv6 boots end-to-end on the UPC. Kernel completes init, scheduler dispatches the init proc, kexec wires the user trapframe, SRET transitions to user mode (`priv=3`), and init's `main()` runs through `open` / `dup×2` / `printf` / `vprintf` to the `write` syscall stub. Phase 1.6 work is the byte-path through `SYS_write`.
+**Current state (2026-05-14):** xv6 boots end-to-end on the UPC and the init user process **prints `init: starting sh` to the host TTY**. Kernel completes init, scheduler dispatches the init proc, kexec wires the user trapframe, SRET transitions to user mode (`priv=3`), init's `main()` runs through `open` / `dup×2` / `printf` → `vprintf` → user/printf.c's `putc` → `write` syscall stub → BPF `op::SYSCALL` handler → MMIO TTY emit. **L5 user-mode TTY gate shipped (commit `724d5b06`).** Remaining for full L5 = a working shell: fork / exec / wait / open / close syscalls.
 
 This page is the cumulative narrative of the campaign. Live session logs and per-phase root-cause docs live under [`references/`](../references/) and the original battle plan is at [`references/battle-plan-ascend-linux-2026-05-08.md`](../references/battle-plan-ascend-linux-2026-05-08.md).
 
@@ -84,13 +84,20 @@ S 4000 4001 4002 4003 4004 4005 4006 4007 4008 4009 400A 400B   ← init main pr
 
 Every CALL target lands in the user region. Every ecall fires correctly. Commit chain: `2295a2e3` (loader), `250d42c3` (`SYS_write` spike), `17a63212` (session log).
 
-### Phase 1.6 — SYS_write byte-path (in progress)
+### Phase 1.6 — `init: starting sh` (2026-05-14, shipped)
 
 `SYS_write` (xv6 syscall 16) was added to the `op::SYSCALL` ecall path as a minimal 1-byte-per-call handler. printf's `putc(fd, c)` does `write(fd, &c, 1)`, so single-byte is enough; larger writes ran the kernel-6.17 BPF verifier past its budget when combined with the existing SYS_READ_BLOCK / SYS_WRITE_BLOCK handlers.
 
-The remaining bug: `mem_read_byte(r9)` returns NUL during init's first printf. r9 should be `sp + 27` (the byte slot where vprintf's STB stores `c` immediately before calling write). The MBC disassembly of vprintf around 0x42D2–0x42DA (`LD a0 ← sp+0; ... STB a4 → sp+27; CALL write`) is structurally correct; empirically the buf_addr at SYS_write entry lands ~0x10 bytes off from where STB wrote.
+**The byte-path bug** (turned out NOT to be the spill-shadow on x17): user SP was garbage. trampoline_mbc.S's userret reloads the user register file via `lw sp, 24(a0)` after `li a0, TRAPFRAME`. TRAPFRAME = 0x7FFFE000 (xv6's high VA for the trampoline page). On UPC paging is decorative, translate_address has no entry for 0x7FFFE000, mem_read_word falls through to the out-of-range branch and returns 0. sp gets clobbered to 0; user main's prologue (`addi sp, sp, -12`), printf's (`-28`), vprintf's (`-40`) cumulatively yield sp = -80 = 0xFFFFFFB0. vprintf's `addi a1, sp, 27` yields a1 = 0xFFFFFFCB. mem_read_byte at that address hits the out-of-range RAM_MAP cap (word index > 16 M words) and returns 0. SYS_write writes NUL — no visible output.
 
-Working hypothesis: the translator's spill-shadow on x17 (a7 → r1, aliased onto gp via fixed-address RAM at byte `0x64004`) interacts badly somewhere. Full diagnosis in [`references/phase15-session-2026-05-14-userland-spike.md`](../references/phase15-session-2026-05-14-userland-spike.md). Next attended shift: Computermancer + Developer pair audit of the rv32i-to-mbc register allocation around printf → vprintf → putc → write.
+**Fix (commit `724d5b06`):**
+
+1. forkret passes `p->trapframe` (low PA from kalloc) as **a1** when calling userret under `UPC_FLAT_TRAMPOLINE`. The trapframe lives at a real RAM_MAP-backed address.
+2. userret in trampoline_mbc.S gains an `#ifdef UPC_FLAT_TRAMPOLINE` arm: `mv a0, a1` instead of `li a0, TRAPFRAME`. The subsequent lw / sw sequence is untouched — it's just reading the actual trapframe page now.
+
+After the fix, the boot log goes through to `init: starting sh\n` printed to the host TTY, one byte at a time, through `user/printf.c → user/usys.S write → BPF op::SYSCALL → mem_write_byte(0xC001, byte) → upc-bootctl TTY drain`.
+
+The xv6 L5 user-mode TTY gate is shipped. Remaining for a full L5 (= shell prompt visible): SYS_fork / SYS_exec / SYS_wait / SYS_open / SYS_close / SYS_close handlers — none expected to be as deep as the trapframe bug.
 
 ## Reproduction recipe
 

@@ -128,7 +128,7 @@ The full UPC build-out is the **Dream Ladder** — a six-level ascent from packe
 | L2 | Monad header stamping, CRC-16 valid | ✅ shipped |
 | L3 | Framebuffer rendering at 35 fps | ✅ shipped (Doom-on-Monad) |
 | L4 | OS primitives: syscalls, interrupts, scheduler, MMU | ✅ shipped through L4f |
-| L5 | xv6 kernel boots on UPC | ✅ Phase 1.4/1.5 (2026-05-14): xv6 kernel boots, enters user mode |
+| L5 | xv6 kernel boots on UPC | 🟡 Phase 1.4–1.6 (2026-05-14): kernel boots end-to-end; user mode reached; `init: starting sh` prints. Shell prompt blocked on fork/exec/wait. |
 | L6 | Linux boots on UPC | ⏳ Phase 2+ (uClinux first, then full Linux with MMU) |
 
 Per-level detail: [UPC Dream Ladder](UPC-Dream-Ladder). The current frontier is [Linux on UPC](Linux-on-UPC). The L3 ascent is documented at [Doom on UPC](Doom-on-UPC).

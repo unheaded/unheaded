@@ -12,7 +12,7 @@ This page is the live status. The deep architecture is at [UPC Overview](UPC-Ove
 | **L2** Stamping | Monad HbH write, CRC-16 valid | Wire capture, checksum verify | ✅ shipped |
 | **L3** Framebuffer | Scanline render, 320×200 output | Visual verify, ≥35 fps benchmark | ✅ shipped — [Doom on UPC](Doom-on-UPC) |
 | **L4** OS primitives | Syscalls, interrupts, scheduler, MMU | Unit tests, scheduling fairness, MMU isolation | ✅ shipped through L4f |
-| **L5** xv6 kernel | xv6 boots, init runs | Boot log reaches `init: starting sh`, shell prompt visible | ⏳ Phase 1.5 spike — init reaches `write` ecall, byte-path Phase 1.6 work |
+| **L5** xv6 kernel | xv6 boots, init runs | Boot log reaches `init: starting sh`, shell prompt visible | 🟡 Phase 1.6 (2026-05-14): `init: starting sh` shipped. Shell prompt blocked on fork/exec/wait handlers. |
 | **L6** Linux | uClinux first, then Linux+MMU | `/bin/sh` prompt over Mode-C SSH session | ⏳ Phase 2+ |
 
 ## Per-level detail

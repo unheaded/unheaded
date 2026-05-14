@@ -1225,9 +1225,11 @@ router.Use(auth.Middleware(authenticator))
 
 ---
 
-## ASCEND-LINUX (Linux on UPC) — Phase 0 ✓ Phase 1.1 SHIP ✓ Phase 1.2 IMPL ✓ Phase 1.3 IMPL (A-D) ✓ Phase 1.4 ✓ Phase 1.5 spike ✓ (2026-05-08 → 2026-05-14)
+## ASCEND-LINUX (Linux on UPC) — Phase 0 ✓ Phase 1.1 SHIP ✓ Phase 1.2 IMPL ✓ Phase 1.3 IMPL (A-D) ✓ Phase 1.4 ✓ Phase 1.5 ✓ Phase 1.6 (`init: starting sh`) ✓ (2026-05-08 → 2026-05-14)
 
-**Phase 1.4 / Phase 1.5 milestone shipped 2026-05-14.** xv6 boots end-to-end on the UPC: every `main()` init call clears, scheduler dispatches the init proc, kexec wires the user trapframe, SRET transitions to user mode (`priv=3`), and init's `main()` runs through `open` / `dup×2` / `printf` / `vprintf` to the `write` syscall stub. 13 commits this session. Headline reference: `wiki/Linux-on-UPC.md` (full Phase 0→1.5 narrative). Session logs: `references/phase14-session-2026-05-14-marshal-shift.md` + `references/phase15-session-2026-05-14-userland-spike.md`.
+**Phase 1.6 milestone shipped 2026-05-14 (commit `724d5b06`).** xv6 init prints `init: starting sh\n` from user mode through the BPF `SYS_write` handler to the host TTY. Full pipeline: kernel boots → scheduler → forkret → kexec wires trapframe → userret (with `UPC_FLAT_TRAMPOLINE` patch that loads sp from p->trapframe's low PA rather than the unmapped 0x7FFFE000 high VA) → SRET → priv=3 → user main → open / dup × 2 / printf → vprintf body → write syscall stub → ecall → SYS_write byte emit to TTY MMIO 0xC001. Headline reference: `wiki/Linux-on-UPC.md` (full Phase 0→1.6 narrative). Session logs: `references/phase14-session-2026-05-14-marshal-shift.md` + `references/phase15-session-2026-05-14-userland-spike.md`.
+
+**Remaining for a full L5 (shell prompt visible):** SYS_fork / SYS_exec / SYS_wait / SYS_open / SYS_close handlers. init.c's outer loop is `printf("init: starting sh\n"); fork(); ...; exec("sh", argv); wait(...);`. Each is one BPF handler.
 
 **Build gotcha:** always `cargo build --release -p monad-cpu-ebpf --features ascend-linux`. Without the feature, MRET/SRET/LR.W/SC.W/FENCE silently NOP and the kernel fails to escape `start_mbc.c` with `BOOT FAIL: MRET fall-through`.
 
