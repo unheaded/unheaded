@@ -2,7 +2,7 @@
 # Promtail configuration for the Dark Mirror — Tomb of Knowledge
 #
 # Ships Tomb VM logs to Loki for centralized log aggregation.
-# Captures: Lich campaign logs, Oracle logs, system logs, Dark Mirror service logs.
+# Captures: Lich campaign logs, Cerydwyn logs, system logs, Dark Mirror service logs.
 
 server:
   http_listen_port: 9080
@@ -51,34 +51,34 @@ scrape_configs:
           __path__: /opt/tomb/lich/logs/*.log
 
   # =============================================
-  # Oracle Logs
+  # Cerydwyn Logs
   # =============================================
-  - job_name: oracle-logs
+  - job_name: cerydwyn-logs
     static_configs:
       - targets:
           - localhost
         labels:
-          job: oracle
+          job: cerydwyn
           component: queries
-          __path__: /opt/tomb/oracle/logs/*.log
+          __path__: /opt/tomb/cerydwyn/logs/*.log
 
-  - job_name: oracle-suggestions
+  - job_name: cerydwyn-suggestions
     static_configs:
       - targets:
           - localhost
         labels:
-          job: oracle
+          job: cerydwyn
           component: suggestions
-          __path__: /opt/tomb/oracle/suggestions/*.md
+          __path__: /opt/tomb/cerydwyn/suggestions/*.md
 
-  - job_name: oracle-daemon
+  - job_name: cerydwyn-daemon
     static_configs:
       - targets:
           - localhost
         labels:
-          job: oracle
+          job: cerydwyn
           component: daemon
-          __path__: /opt/tomb/oracle/logs/oracle-daemon.log
+          __path__: /opt/tomb/cerydwyn/logs/cerydwyn-daemon.log
 
   # =============================================
   # Dark Mirror Service Logs (Docker containers)

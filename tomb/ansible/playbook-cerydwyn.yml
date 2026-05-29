@@ -1,30 +1,30 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
-# tomb/ansible/playbook-oracle.yml -- Deploy Oracle LLM (Layer 4)
+# tomb/ansible/playbook-cerydwyn.yml -- Deploy Cerydwyn LLM (Layer 4)
 #
 # Installs Ollama, transfers Mistral-7B model, deploys RAG pipeline
-# scripts, configures systemd services for ollama and oracle-daemon.
+# scripts, configures systemd services for ollama and cerydwyn-daemon.
 # All binaries and model files pre-staged -- no internet access.
 ---
-- name: "Tomb of Knowledge -- Layer 4: The Oracle"
+- name: "Tomb of Knowledge -- Layer 4: The Cerydwyn"
   hosts: tomb
   become: true
   gather_facts: false
 
   vars:
-    oracle_root: "{{ tomb_root }}/oracle"
+    cerydwyn_root: "{{ tomb_root }}/cerydwyn"
     ollama_bin: "/usr/local/bin/ollama"
     ollama_listen: "127.0.0.1:{{ ollama_port }}"
-    ollama_model_dir: "{{ oracle_root }}/ollama/models"
+    ollama_model_dir: "{{ cerydwyn_root }}/ollama/models"
     llm_model: "mistral"
 
   roles:
-    - role: oracle
+    - role: cerydwyn
 
   tasks:
     - name: "Transfer Ollama binary"
       ansible.builtin.copy:
-        src: "{{ packages_src }}/oracle/ollama"
+        src: "{{ packages_src }}/cerydwyn/ollama"
         dest: "{{ ollama_bin }}"
         owner: root
         group: root
@@ -38,12 +38,12 @@
 
     - name: "Warn if Ollama binary missing"
       ansible.builtin.debug:
-        msg: "WARNING: Ollama binary not found at {{ ollama_bin }}. Stage it in packages/oracle/ollama"
+        msg: "WARNING: Ollama binary not found at {{ ollama_bin }}. Stage it in packages/cerydwyn/ollama"
       when: not ollama_stat.stat.exists
 
     - name: "Transfer Mistral-7B model files"
       ansible.builtin.copy:
-        src: "{{ packages_src }}/oracle/models/"
+        src: "{{ packages_src }}/cerydwyn/models/"
         dest: "{{ ollama_model_dir }}/"
         owner: root
         group: root
@@ -65,26 +65,26 @@
             "collection_name": "grimoire",
             "temperature": 0.3,
             "max_tokens": 2048,
-            "system_prompt": "You are the BlackMage Oracle, advisor to a kingdom's security team. Respond with tactical, actionable guidance grounded in the Kingdom's architecture and threat landscape. Reference specific documents when applicable."
+            "system_prompt": "You are the BlackMage Cerydwyn, advisor to a kingdom's security team. Respond with tactical, actionable guidance grounded in the Kingdom's architecture and threat landscape. Reference specific documents when applicable."
           }
-        dest: "{{ oracle_root }}/rag-config.json"
+        dest: "{{ cerydwyn_root }}/rag-config.json"
         owner: root
         group: root
         mode: "0640"
 
-    - name: "Deploy rag-oracle.py"
+    - name: "Deploy rag-cerydwyn.py"
       ansible.builtin.copy:
-        src: "files/rag-oracle.py"
-        dest: "{{ oracle_root }}/rag-oracle.py"
+        src: "files/rag-cerydwyn.py"
+        dest: "{{ cerydwyn_root }}/rag-cerydwyn.py"
         owner: root
         group: root
         mode: "0755"
       failed_when: false
 
-    - name: "Deploy oracle-daemon.py"
+    - name: "Deploy cerydwyn-daemon.py"
       ansible.builtin.copy:
-        src: "files/oracle-daemon.py"
-        dest: "{{ oracle_root }}/oracle-daemon.py"
+        src: "files/cerydwyn-daemon.py"
+        dest: "{{ cerydwyn_root }}/cerydwyn-daemon.py"
         owner: root
         group: root
         mode: "0755"
@@ -94,7 +94,7 @@
       ansible.builtin.copy:
         content: |
           [Unit]
-          Description=Ollama LLM Service (The Oracle)
+          Description=Ollama LLM Service (The Cerydwyn)
           After=network.target
 
           [Service]
@@ -114,25 +114,25 @@
       notify: Reload systemd
       when: ollama_stat.stat.exists
 
-    - name: "Deploy oracle-daemon systemd service"
+    - name: "Deploy cerydwyn-daemon systemd service"
       ansible.builtin.copy:
         content: |
           [Unit]
-          Description=Oracle Daemon (continuous threat monitoring)
+          Description=Cerydwyn Daemon (continuous threat monitoring)
           After=ollama.service
           Wants=ollama.service
 
           [Service]
           Type=simple
           User=root
-          ExecStart=/usr/bin/python3 {{ oracle_root }}/oracle-daemon.py --config {{ oracle_root }}/rag-config.json
+          ExecStart=/usr/bin/python3 {{ cerydwyn_root }}/cerydwyn-daemon.py --config {{ cerydwyn_root }}/rag-config.json
           Restart=on-failure
           RestartSec=30s
           Environment=PYTHONUNBUFFERED=1
 
           [Install]
           WantedBy=multi-user.target
-        dest: /etc/systemd/system/oracle-daemon.service
+        dest: /etc/systemd/system/cerydwyn-daemon.service
         mode: "0644"
       notify: Reload systemd
 
@@ -164,9 +164,9 @@
       ansible.builtin.debug:
         msg: "Ollama: {{ 'READY' if (ollama_health.status | default(0)) == 200 else 'NOT READY' }}"
 
-    - name: "Enable oracle-daemon (starts after Ollama)"
+    - name: "Enable cerydwyn-daemon (starts after Ollama)"
       ansible.builtin.systemd:
-        name: oracle-daemon
+        name: cerydwyn-daemon
         enabled: true
       failed_when: false
 

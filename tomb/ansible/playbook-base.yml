@@ -34,11 +34,11 @@
       - { path: "{{ tomb_root }}/grimoire/rag", mode: "0750" }
       - { path: "{{ tomb_root }}/grimoire/rag/chroma.db", mode: "0750" }
       - { path: "{{ tomb_root }}/grimoire/rag/embeddings", mode: "0750" }
-      - { path: "{{ tomb_root }}/oracle", mode: "0700" }
-      - { path: "{{ tomb_root }}/oracle/ollama", mode: "0700" }
-      - { path: "{{ tomb_root }}/oracle/ollama/models", mode: "0700" }
-      - { path: "{{ tomb_root }}/oracle/logs", mode: "0700" }
-      - { path: "{{ tomb_root }}/oracle/suggestions", mode: "0700" }
+      - { path: "{{ tomb_root }}/cerydwyn", mode: "0700" }
+      - { path: "{{ tomb_root }}/cerydwyn/ollama", mode: "0700" }
+      - { path: "{{ tomb_root }}/cerydwyn/ollama/models", mode: "0700" }
+      - { path: "{{ tomb_root }}/cerydwyn/logs", mode: "0700" }
+      - { path: "{{ tomb_root }}/cerydwyn/suggestions", mode: "0700" }
       - { path: "{{ tomb_root }}/dark-mirror", mode: "0750" }
       - { path: "{{ tomb_root }}/dark-mirror/prometheus", mode: "0750" }
       - { path: "{{ tomb_root }}/dark-mirror/prometheus/data", mode: "0750" }

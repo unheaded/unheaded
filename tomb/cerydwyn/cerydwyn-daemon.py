@@ -2,22 +2,22 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 #
-# oracle-daemon.py — Background daemon for the Oracle
+# cerydwyn-daemon.py — Background daemon for the Cerydwyn
 #
 # Capabilities:
 #   - Monitors Lich crash reports and auto-generates threat assessments
 #   - Watches Dark Mirror alerts and provides analysis
-#   - Logs suggestions to /opt/tomb/oracle/suggestions/
+#   - Logs suggestions to /opt/tomb/cerydwyn/suggestions/
 #   - Runs continuously in the background
 #
 # Usage:
-#   python3 oracle-daemon.py &
-#   python3 oracle-daemon.py --config /opt/tomb/oracle/config/rag-config.json
-#   python3 oracle-daemon.py --dry-run    # Show what would be analyzed
+#   python3 cerydwyn-daemon.py &
+#   python3 cerydwyn-daemon.py --config /opt/tomb/cerydwyn/config/rag-config.json
+#   python3 cerydwyn-daemon.py --dry-run    # Show what would be analyzed
 #
 # Systemd:
 #   [Service]
-#   ExecStart=/usr/bin/python3 /opt/tomb/oracle/oracle-daemon.py
+#   ExecStart=/usr/bin/python3 /opt/tomb/cerydwyn/cerydwyn-daemon.py
 #   Restart=on-failure
 
 import hashlib
@@ -31,17 +31,17 @@ from datetime import datetime
 from pathlib import Path
 
 # --- Configuration ---
-ORACLE_ROOT = os.environ.get("ORACLE_ROOT", "/opt/tomb/oracle")
+CERYDWYN_ROOT = os.environ.get("CERYDWYN_ROOT", "/opt/tomb/cerydwyn")
 GRIMOIRE_ROOT = os.environ.get("GRIMOIRE_ROOT", "/opt/tomb/grimoire")
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
-ORACLE_MODEL = os.environ.get("ORACLE_MODEL", "oracle-mistral")
+CERYDWYN_MODEL = os.environ.get("CERYDWYN_MODEL", "cerydwyn-mistral")
 
 LICH_CRASHES_DIR = os.environ.get("LICH_CRASHES_DIR", "/opt/tomb/lich/crashes")
 LICH_CAMPAIGNS_DIR = os.environ.get("LICH_CAMPAIGNS_DIR", "/opt/tomb/lich/campaigns")
 DARK_MIRROR_ALERTS_DIR = os.environ.get("DARK_MIRROR_ALERTS_DIR", "/opt/tomb/dark-mirror/alerts")
-SUGGESTIONS_DIR = os.path.join(ORACLE_ROOT, "suggestions")
-PROCESSED_DB = os.path.join(ORACLE_ROOT, "config", "processed-items.json")
-SYSTEM_PROMPT_FILE = os.path.join(ORACLE_ROOT, "prompts", "system-oracle.txt")
+SUGGESTIONS_DIR = os.path.join(CERYDWYN_ROOT, "suggestions")
+PROCESSED_DB = os.path.join(CERYDWYN_ROOT, "config", "processed-items.json")
+SYSTEM_PROMPT_FILE = os.path.join(CERYDWYN_ROOT, "prompts", "system-cerydwyn.txt")
 
 # Polling intervals (seconds)
 CRASH_POLL_INTERVAL = 30
@@ -52,17 +52,17 @@ HEARTBEAT_INTERVAL = 300
 # --- Logging ---
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s [oracle-daemon] %(levelname)s %(message)s",
+    format="%(asctime)s [cerydwyn-daemon] %(levelname)s %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
     handlers=[
         logging.StreamHandler(sys.stdout),
         logging.FileHandler(
-            os.path.join(ORACLE_ROOT, "logs", "oracle-daemon.log"),
+            os.path.join(CERYDWYN_ROOT, "logs", "cerydwyn-daemon.log"),
             mode="a",
-        ) if os.path.isdir(os.path.join(ORACLE_ROOT, "logs")) else logging.StreamHandler(),
+        ) if os.path.isdir(os.path.join(CERYDWYN_ROOT, "logs")) else logging.StreamHandler(),
     ],
 )
-log = logging.getLogger("oracle-daemon")
+log = logging.getLogger("cerydwyn-daemon")
 
 
 class ProcessedTracker:
@@ -110,7 +110,7 @@ def file_hash(filepath):
 
 
 def load_system_prompt():
-    """Load the Oracle system prompt."""
+    """Load the Cerydwyn system prompt."""
     try:
         with open(SYSTEM_PROMPT_FILE, "r") as f:
             return f.read().strip()
@@ -124,7 +124,7 @@ def query_ollama(prompt, system_prompt=""):
         import urllib.request
 
         payload = {
-            "model": ORACLE_MODEL,
+            "model": CERYDWYN_MODEL,
             "prompt": prompt,
             "stream": False,
         }
@@ -154,10 +154,10 @@ def write_suggestion(category, title, content, metadata=None):
     filepath = os.path.join(SUGGESTIONS_DIR, filename)
 
     lines = [
-        f"# Oracle Suggestion: {title}",
+        f"# Cerydwyn Suggestion: {title}",
         f"**Category:** {category}",
         f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-        f"**Model:** {ORACLE_MODEL}",
+        f"**Model:** {CERYDWYN_MODEL}",
         "",
     ]
 
@@ -261,7 +261,7 @@ Provide:
             )
             self.tracker.mark_processed("crashes", fhash, {"file": filepath, "category": category})
         else:
-            log.warning("No Oracle response for crash: %s", filepath)
+            log.warning("No Cerydwyn response for crash: %s", filepath)
 
 
 class AlertWatcher:
@@ -443,7 +443,7 @@ Provide:
 
 # --- Daemon Main Loop ---
 
-class OracleDaemon:
+class CerydwynDaemon:
     """Main daemon orchestrating all watchers."""
 
     def __init__(self, dry_run=False):
@@ -488,17 +488,17 @@ class OracleDaemon:
 
     def run(self):
         """Main loop."""
-        log.info("Oracle daemon starting...")
-        log.info("  ORACLE_ROOT: %s", ORACLE_ROOT)
+        log.info("Cerydwyn daemon starting...")
+        log.info("  CERYDWYN_ROOT: %s", CERYDWYN_ROOT)
         log.info("  OLLAMA_URL: %s", OLLAMA_URL)
-        log.info("  ORACLE_MODEL: %s", ORACLE_MODEL)
+        log.info("  CERYDWYN_MODEL: %s", CERYDWYN_MODEL)
         log.info("  LICH_CRASHES_DIR: %s", LICH_CRASHES_DIR)
         log.info("  DARK_MIRROR_ALERTS_DIR: %s", DARK_MIRROR_ALERTS_DIR)
         log.info("  SUGGESTIONS_DIR: %s", SUGGESTIONS_DIR)
 
         # Ensure directories exist
         os.makedirs(SUGGESTIONS_DIR, exist_ok=True)
-        os.makedirs(os.path.join(ORACLE_ROOT, "logs"), exist_ok=True)
+        os.makedirs(os.path.join(CERYDWYN_ROOT, "logs"), exist_ok=True)
 
         # Initial Ollama health check
         if not self.check_ollama():
@@ -545,7 +545,7 @@ class OracleDaemon:
             # Sleep briefly between iterations
             time.sleep(5)
 
-        log.info("Oracle daemon stopped.")
+        log.info("Cerydwyn daemon stopped.")
 
     def _dry_run_scan(self):
         """Show what files would be processed without actually analyzing them."""
@@ -582,16 +582,16 @@ def main():
         if arg == "--config" and i < len(sys.argv) - 1:
             config_file = sys.argv[i + 1]
         elif arg in ("--help", "-h"):
-            print("Usage: oracle-daemon.py [--dry-run] [--config PATH]")
+            print("Usage: cerydwyn-daemon.py [--dry-run] [--config PATH]")
             print()
             print("Options:")
-            print("  --dry-run    Show what would be analyzed without querying Oracle")
-            print("  --config     Path to rag-config.json (default: /opt/tomb/oracle/config/rag-config.json)")
+            print("  --dry-run    Show what would be analyzed without querying Cerydwyn")
+            print("  --config     Path to rag-config.json (default: /opt/tomb/cerydwyn/config/rag-config.json)")
             print()
             print("Environment:")
             print("  OLLAMA_URL             Ollama endpoint (default: http://127.0.0.1:11434)")
-            print("  ORACLE_MODEL           Model name (default: oracle-mistral)")
-            print("  ORACLE_ROOT            Oracle root (default: /opt/tomb/oracle)")
+            print("  CERYDWYN_MODEL           Model name (default: cerydwyn-mistral)")
+            print("  CERYDWYN_ROOT            Cerydwyn root (default: /opt/tomb/cerydwyn)")
             print("  LICH_CRASHES_DIR       Lich crashes dir (default: /opt/tomb/lich/crashes)")
             print("  DARK_MIRROR_ALERTS_DIR Alert rules dir (default: /opt/tomb/dark-mirror/alerts)")
             sys.exit(0)
@@ -600,12 +600,12 @@ def main():
         with open(config_file, "r") as f:
             cfg = json.load(f)
         # Override globals from config
-        global OLLAMA_URL, ORACLE_MODEL, GRIMOIRE_ROOT
+        global OLLAMA_URL, CERYDWYN_MODEL, GRIMOIRE_ROOT
         OLLAMA_URL = cfg.get("ollama_url", OLLAMA_URL)
-        ORACLE_MODEL = cfg.get("model", ORACLE_MODEL)
+        CERYDWYN_MODEL = cfg.get("model", CERYDWYN_MODEL)
         GRIMOIRE_ROOT = cfg.get("grimoire_root", GRIMOIRE_ROOT)
 
-    daemon = OracleDaemon(dry_run=dry_run)
+    daemon = CerydwynDaemon(dry_run=dry_run)
     daemon.run()
 
 

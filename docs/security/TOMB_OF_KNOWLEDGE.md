@@ -10,7 +10,7 @@ The Tomb operates at the intersection of automation, knowledge, and observation.
 - **600+ native Kali security tools** (The Arsenal)
 - **Custom adversary frameworks** (The Lich, LICH-001 through LICH-010)
 - **The collective intelligence of the Kingdom** (The Grimoire: docs, MITRE ATT&CK, NVD CVE database)
-- **Local AI reasoning** (The Oracle: Ollama/Mistral-7B with RAG retrieval)
+- **Local AI reasoning** (The Cerydwyn: Ollama/Mistral-7B with RAG retrieval)
 - **External observability** (The Dark Mirror: Prometheus + Grafana + Loki monitoring the Kingdom from outside)
 
 ---
@@ -150,11 +150,11 @@ The Grimoire is a comprehensive offline knowledge repository. It includes:
 
 ---
 
-### Layer 4: The Oracle
+### Layer 4: The Cerydwyn
 
 **Purpose:** Local LLM with RAG pipeline for interactive AI-driven threat modeling and attack planning
 
-The Oracle is the BlackMage's voice of reason. It combines:
+The Cerydwyn is the BlackMage's voice of reason. It combines:
 - **Local LLM:** Ollama running Mistral-7B (7 billion parameters, runs on Raft PC CPU/GPU)
 - **RAG Pipeline:** Queries the Grimoire, retrieves relevant knowledge, augments LLM context
 - **Interactive TUI:** Serial console interface for real-time queries
@@ -193,21 +193,21 @@ User (via TUI or API)
 
 **Key File Paths:**
 ```
-/opt/tomb/oracle/                  — Oracle root
-/opt/tomb/oracle/ollama/           — Ollama config & model cache
-/opt/tomb/oracle/ollama/models/    — Mistral-7B model files
-/opt/tomb/oracle/rag-config.json   — RAG pipeline configuration
-/opt/tomb/oracle/logs/             — Oracle query logs & traces
-/opt/tomb/oracle/suggestions/      — Autonomous suggestions log
+/opt/tomb/cerydwyn/                  — Cerydwyn root
+/opt/tomb/cerydwyn/ollama/           — Ollama config & model cache
+/opt/tomb/cerydwyn/ollama/models/    — Mistral-7B model files
+/opt/tomb/cerydwyn/rag-config.json   — RAG pipeline configuration
+/opt/tomb/cerydwyn/logs/             — Cerydwyn query logs & traces
+/opt/tomb/cerydwyn/suggestions/      — Autonomous suggestions log
 ```
 
 **Key Scripts:**
 - `rag-query.py` — Retrieve documents from ChromaDB by semantic search
-- `rag-oracle.py` — Full RAG+LLM pipeline (query → retrieval → generation)
-- `oracle-tui.py` — Interactive terminal UI for serial console
-- `oracle-daemon.py` — Background service generating suggestions
+- `rag-cerydwyn.py` — Full RAG+LLM pipeline (query → retrieval → generation)
+- `cerydwyn-tui.py` — Interactive terminal UI for serial console
+- `cerydwyn-daemon.py` — Background service generating suggestions
 
-**Access Pattern:** The Oracle is consulted for strategy and context. It is the BlackMage's mind—able to see patterns across time and campaigns.
+**Access Pattern:** The Cerydwyn is consulted for strategy and context. It is the BlackMage's mind—able to see patterns across time and campaigns.
 
 ---
 
@@ -218,7 +218,7 @@ User (via TUI or API)
 The Dark Mirror is an observability stack running inside the Tomb that monitors the Kingdom from the outside. It provides:
 - **Prometheus:** Metrics collection and time-series storage
 - **Grafana:** Visualization and dashboard composition
-- **Loki:** Log aggregation and search (from Lich campaigns, oracle traces)
+- **Loki:** Log aggregation and search (from Lich campaigns, cerydwyn traces)
 - **Alerting:** Rules for detecting anomalies during attacks
 
 **What It Monitors:**
@@ -326,7 +326,7 @@ qemu-system-x86_64 \
 1. **Reconnaissance:** Tomb sends probes toward Kingdom targets via 192.168.13.0/30
 2. **Attack Execution:** Lich campaigns interact with Kingdom services
 3. **Metric Collection:** Dark Mirror scrapes Kingdom Prometheus endpoints (if exposed) or uses packet inspection
-4. **Log Aggregation:** Loki ingests Lich campaign logs and oracle traces
+4. **Log Aggregation:** Loki ingests Lich campaign logs and cerydwyn traces
 5. **Report Generation:** attack-report.sh synthesizes findings into canonical report
 
 ---
@@ -351,7 +351,7 @@ qemu-system-x86_64 \
 │   └── rag/                        RAG vector index
 │       ├── chroma.db/              ChromaDB vector store
 │       └── embeddings/             Cached sentence-transformers embeddings
-├── oracle/                         Oracle LLM + RAG pipeline
+├── cerydwyn/                         Cerydwyn LLM + RAG pipeline
 │   ├── ollama/                     Ollama service config
 │   │   └── models/                 Mistral-7B model files
 │   ├── rag-config.json             RAG pipeline configuration
@@ -468,7 +468,7 @@ qemu-system-x86_64 \
 - Ranks by relevance
 - Links to full document paths
 
-**Integration:** Called by oracle-daemon.py before generating suggestions
+**Integration:** Called by cerydwyn-daemon.py before generating suggestions
 
 ---
 
@@ -498,13 +498,13 @@ Chunk 2: [similarity: 0.88] [source: /opt/tomb/grimoire/nvd-cves/CVE-2024-1234.j
 
 ---
 
-#### `rag-oracle.py`
+#### `rag-cerydwyn.py`
 **Purpose:** Full RAG+LLM pipeline: retrieve → augment → generate
 
 **Usage:**
 ```bash
-python3 rag-oracle.py "Design a red team campaign against our Kubernetes cluster"
-python3 rag-oracle.py --lich-context LICH-005 "What payloads would work best?"
+python3 rag-cerydwyn.py "Design a red team campaign against our Kubernetes cluster"
+python3 rag-cerydwyn.py --lich-context LICH-005 "What payloads would work best?"
 ```
 
 **Behavior:**
@@ -513,11 +513,11 @@ python3 rag-oracle.py --lich-context LICH-005 "What payloads would work best?"
 3. Constructs LLM prompt augmented with retrieved knowledge
 4. Calls Ollama/Mistral-7B to generate response
 5. Streams response to stdout
-6. Logs interaction to /opt/tomb/oracle/logs/
+6. Logs interaction to /opt/tomb/cerydwyn/logs/
 
 **Prompt Template:**
 ```
-You are the BlackMage Oracle, advisor to a kingdom's security team.
+You are the BlackMage Cerydwyn, advisor to a kingdom's security team.
 You have access to the following Grimoire excerpts:
 
 [Retrieved documents inserted here]
@@ -530,24 +530,24 @@ architecture and threat landscape. Reference specific documents when applicable.
 
 ---
 
-#### `oracle-tui.py`
-**Purpose:** Interactive terminal UI for serial console interaction with Oracle
+#### `cerydwyn-tui.py`
+**Purpose:** Interactive terminal UI for serial console interaction with Cerydwyn
 
 **Usage:**
 ```bash
 # Inside Tomb VM
-python3 /opt/tomb/oracle/oracle-tui.py
+python3 /opt/tomb/cerydwyn/cerydwyn-tui.py
 ```
 
 **Interface:**
 ```
 ╔════════════════════════════════════════════════════════════════╗
-║  The Oracle — BlackMage Interactive Counsel                    ║
+║  The Cerydwyn — BlackMage Interactive Counsel                    ║
 ╠════════════════════════════════════════════════════════════════╣
 ║                                                                ║
 ║  > What vulnerabilities should we target first?               ║
 ║                                                                ║
-║  The Oracle is consulting the Grimoire... (⧖ 2.3s)            ║
+║  The Cerydwyn is consulting the Grimoire... (⧖ 2.3s)            ║
 ║                                                                ║
 ║  Based on MITRE ATT&CK and your Kubernetes cluster:           ║
 ║  1. Container escape (LICH-006 recommended)                   ║
@@ -570,21 +570,21 @@ Keyboard: Ctrl+C to exit | Enter to submit | Up/Down for history
 
 ---
 
-#### `oracle-daemon.py`
+#### `cerydwyn-daemon.py`
 **Purpose:** Background service for continuous threat modeling and suggestion generation
 
 **Usage:**
 ```bash
 # Start daemon
-python3 /opt/tomb/oracle/oracle-daemon.py --config /opt/tomb/oracle/rag-config.json
+python3 /opt/tomb/cerydwyn/cerydwyn-daemon.py --config /opt/tomb/cerydwyn/rag-config.json
 
 # Query suggestions
-tail -f /opt/tomb/oracle/suggestions/latest.log
+tail -f /opt/tomb/cerydwyn/suggestions/latest.log
 ```
 
 **Behavior:**
 - Monitors Kingdom infrastructure for changes
-- Periodically queries Oracle with contextual prompts:
+- Periodically queries Cerydwyn with contextual prompts:
   - "Given the latest Kubernetes deployment, what new attack paths exist?"
   - "Are there new CVEs matching our current tech stack?"
 - Generates suggestions ranked by severity
@@ -701,10 +701,10 @@ Uptime:                       8 days, 3 hours, 22 minutes
   NVD CVEs:                    ✓ 234,521 CVE records
   RAG Index (ChromaDB):        ✓ 18,234 chunks embedded
 
-═ Layer 4: The Oracle ═
+═ Layer 4: The Cerydwyn ═
   Ollama Service:              ✓ Running (Mistral-7B loaded)
   RAG Pipeline:                ✓ Responding (avg latency: 4.2s)
-  Oracle Daemon:               ✓ Running (last suggestion: 1 hour ago)
+  Cerydwyn Daemon:               ✓ Running (last suggestion: 1 hour ago)
 
 ═ Layer 5: The Dark Mirror ═
   Prometheus:                  ✓ Scraping Kingdom (5 targets)
@@ -859,14 +859,14 @@ Fuzzing Crash (RCE)
 ```
 
 #### 2. The Architect (Design Reviewer)
-- **Receives:** Threat model validation reports (from oracle-daemon.py + rag-oracle.py)
+- **Receives:** Threat model validation reports (from cerydwyn-daemon.py + rag-cerydwyn.py)
 - **Action:** Reviews Kingdom architecture against discovered attack paths
 - **Feedback Loop:** Updates threat models, proposes architectural changes
 - **Success Metric:** Attack path closed in next design iteration
 
 **Data Flow:**
 ```
-Oracle: "RBAC misconfiguration allows lateral movement"
+Cerydwyn: "RBAC misconfiguration allows lateral movement"
   → Architect reviews Kubernetes RBAC policies
   → Architect proposes tighter role definitions
   → Policy changes deployed to staging
@@ -960,7 +960,7 @@ $ ss -tlnp | grep -E ':(53|123|443|80)'  # Should be minimal
 - Command execution logs with timestamps
 - Fuzzing corpus (seeds that triggered crashes)
 - Crash dumps with register state + stack trace
-- Oracle queries + responses (reasoning trail)
+- Cerydwyn queries + responses (reasoning trail)
 - Dark Mirror metrics (latency, errors during attack)
 
 **Evidence Retention:**
@@ -1003,13 +1003,13 @@ Within the Tomb dwells the Lich (The Lich framework, LICH-001 through LICH-010),
 
 In the time before the Kingdom was built, a meteorite fell from the sky—cold, forged in distant fire, carrying elements unknown to the earth. The Kingdom's smiths took this meteorite and worked it into the Champion's sword: a weapon that could pierce any armor, defeat any foe.
 
-The Tomb is that meteorite. Born outside the Kingdom (in the void of pure attack mindset), now forged into the Kingdom's greatest defensive weapon. The Oracle (the 7B parameters of local LLM reasoning) is the blade; the Dark Mirror (the observability of how the Kingdom appears under attack) is the hilt.
+The Tomb is that meteorite. Born outside the Kingdom (in the void of pure attack mindset), now forged into the Kingdom's greatest defensive weapon. The Cerydwyn (the 7B parameters of local LLM reasoning) is the blade; the Dark Mirror (the observability of how the Kingdom appears under attack) is the hilt.
 
 ### Outside the Walls, Yet Woven Into Every Shadow
 
 The Tomb sits in isolation, air-gapped from the public internet, connected only by a thread to the Kingdom. Yet it is everywhere in the Kingdom's thinking:
 
-- The Architect consults the Oracle's threat models.
+- The Architect consults the Cerydwyn's threat models.
 - The Developer receives crash reports and fixes bugs.
 - The Micromanager tracks findings and remediation SLAs.
 - Every alert that the Kingdom's monitoring tools raise has been anticipated by the Dark Mirror.
@@ -1039,7 +1039,7 @@ The chaos of attack, studied and simulated, becomes the foundation of order and 
 ║  LAYER 1: THE ARSENAL                      — Kali 600+ tools            ║
 ║  LAYER 2: THE LICH                         — LICH-001 to LICH-010       ║
 ║  LAYER 3: THE GRIMOIRE                     — Kingdom docs + CVE + MITRE ║
-║  LAYER 4: THE ORACLE                       — Mistral-7B + RAG retrieval ║
+║  LAYER 4: THE CERYDWYN                       — Mistral-7B + RAG retrieval ║
 ║  LAYER 5: THE DARK MIRROR                  — Prom + Grafana + Loki      ║
 ║                                                                          ║
 ║  KEY COMMANDS:                                                           ║
@@ -1047,9 +1047,9 @@ The chaos of attack, studied and simulated, becomes the foundation of order and 
 ║    tomb-boot.sh                    Launch Tomb VM                       ║
 ║    lich-runner.sh --campaign X     Execute attack campaign              ║
 ║    attack-preflight.sh             Validate scope before attack         ║
-║    rag-oracle.py "query"           Ask Oracle a question                ║
-║    oracle-tui.py                   Interactive Oracle terminal          ║
-║    oracle-daemon.py                Continuous threat modeling           ║
+║    rag-cerydwyn.py "query"           Ask Cerydwyn a question                ║
+║    cerydwyn-tui.py                   Interactive Cerydwyn terminal          ║
+║    cerydwyn-daemon.py                Continuous threat modeling           ║
 ║    attack-report.sh                Generate post-attack report          ║
 ║    tomb-status.sh                  Health check all layers              ║
 ║    tomb-backup.sh                  Backup to Raft PC                    ║
@@ -1065,7 +1065,7 @@ The chaos of attack, studied and simulated, becomes the foundation of order and 
 ║                                                                          ║
 ║    /opt/tomb/lich/          — Adversary framework                       ║
 ║    /opt/tomb/grimoire/      — Knowledge base (Kingdom docs + CVE + RAG) ║
-║    /opt/tomb/oracle/        — Oracle LLM service                        ║
+║    /opt/tomb/cerydwyn/        — Cerydwyn LLM service                        ║
 ║    /opt/tomb/dark-mirror/   — Observability (Prom + Grafana + Loki)    ║
 ║    /opt/tomb/reports/       — Attack reports                            ║
 ║    /opt/tomb/scope.conf     — Attack scope definition                   ║
@@ -1095,9 +1095,9 @@ The chaos of attack, studied and simulated, becomes the foundation of order and 
 | **Lich** | Custom adversary framework; LICH-001 through LICH-010 are coordinated attack campaigns |
 | **Lich Campaign** | Automated attack flow (e.g., LICH-001 = network recon, LICH-005 = credential brute-force) |
 | **Grimoire** | Knowledge base containing Kingdom docs, MITRE ATT&CK, NVD CVE records, threat models, history |
-| **Oracle** | Local LLM (Mistral-7B via Ollama) augmented with RAG retrieval from Grimoire |
-| **Oracle Daemon** | Background service running autonomous Oracle queries to generate threat modeling suggestions |
-| **Oracle TUI** | Interactive terminal user interface for querying Oracle via serial console |
+| **Cerydwyn** | Local LLM (Mistral-7B via Ollama) augmented with RAG retrieval from Grimoire |
+| **Cerydwyn Daemon** | Background service running autonomous Cerydwyn queries to generate threat modeling suggestions |
+| **Cerydwyn TUI** | Interactive terminal user interface for querying Cerydwyn via serial console |
 | **Phylactery** | In Kingdom lore, the object housing a BlackMage's essence; the Tomb is the phylactery of security |
 | **RAG (Retrieval-Augmented Generation)** | Pipeline combining document retrieval (ChromaDB) with LLM generation (Mistral-7B) |
 | **Raft PC** | Physical host running QEMU; bridges Kingdom network (192.168.13.1) to Tomb VM (192.168.13.2/3) |
@@ -1116,7 +1116,7 @@ The chaos of attack, studied and simulated, becomes the foundation of order and 
 1. **IMMEDIATE:** Kill the QEMU process on Raft PC (`pkill qemu-system`)
 2. **PRESERVE:** Do NOT delete qcow2 image; it is evidence
 3. **ALERT:** Contact Chief Architect + CISO immediately
-4. **AUDIT:** Review /opt/tomb/oracle/logs/ and pcaps for timeline of compromise
+4. **AUDIT:** Review /opt/tomb/cerydwyn/logs/ and pcaps for timeline of compromise
 5. **FORENSICS:** Forensic analysis of qcow2 image (on isolated Raft PC)
 6. **REBUILD:** Restore from clean backup or rebuild Tomb from source ISO
 7. **REVIEW:** Update scope.conf and attack procedures based on breach root cause

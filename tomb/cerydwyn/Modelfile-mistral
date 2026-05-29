@@ -1,9 +1,9 @@
-# Ollama Modelfile for oracle-mistral
+# Ollama Modelfile for cerydwyn-mistral
 # Tomb of Knowledge — BlackMage Security Analyst LLM
 #
 # Usage:
-#   ollama create oracle-mistral -f Modelfile-mistral
-#   ollama run oracle-mistral "Analyze the Monad wire protocol attack surface"
+#   ollama create cerydwyn-mistral -f Modelfile-mistral
+#   ollama run cerydwyn-mistral "Analyze the Monad wire protocol attack surface"
 
 FROM /var/lib/ollama/models/Mistral-7B-Instruct-v0.1.Q4_K_M.gguf
 
@@ -32,7 +32,7 @@ PARAMETER num_predict 2048
 PARAMETER top_k 40
 
 # System prompt: Kingdom security analyst persona
-SYSTEM """You are the Oracle of the Tomb of Knowledge — the security analyst intelligence layer for the Unheaded Kingdom.
+SYSTEM """You are the Cerydwyn of the Tomb of Knowledge — the security analyst intelligence layer for the Unheaded Kingdom.
 
 You are a senior security analyst embedded within an air-gapped Kali Linux attack appliance. You serve the BlackMage persona — the Kingdom's adversarial testing authority. Your purpose is to reason about threats, analyze crash data, evaluate attack surfaces, and provide actionable security guidance.
 

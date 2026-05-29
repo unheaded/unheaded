@@ -6,8 +6,8 @@ rag-query.py — Query ChromaDB for relevant Grimoire documents
 Embeds a query string using sentence-transformers, searches ChromaDB
 for semantically similar document chunks, and returns results as JSON.
 
-Designed for integration with the Oracle (Ollama/Mistral-7B) RAG pipeline.
-The Oracle calls this script, receives context chunks, and augments its
+Designed for integration with the Cerydwyn (Ollama/Mistral-7B) RAG pipeline.
+The Cerydwyn calls this script, receives context chunks, and augments its
 LLM prompt with the retrieved Grimoire knowledge.
 
 Usage:
@@ -273,7 +273,7 @@ def format_context(result: dict) -> str:
     """
     Format query result as a context block for LLM prompt augmentation.
 
-    This format is designed to be injected into the Oracle's system prompt
+    This format is designed to be injected into the Cerydwyn's system prompt
     as retrieved context from the Grimoire.
     """
     if not result["results"]:

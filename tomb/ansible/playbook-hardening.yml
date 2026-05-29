@@ -140,7 +140,7 @@
         path: "{{ item.path }}"
         mode: "{{ item.mode }}"
       loop:
-        - { path: "{{ tomb_root }}/oracle", mode: "0700" }
+        - { path: "{{ tomb_root }}/cerydwyn", mode: "0700" }
         - { path: "{{ tomb_root }}/reports", mode: "0700" }
         - { path: "{{ tomb_root }}/lich", mode: "0750" }
         - { path: "{{ tomb_root }}/grimoire", mode: "0750" }

@@ -9,7 +9,7 @@ security tooling for adversarial validation of the Unheaded Kingdom platform.
 
 ```
 Layer 5: Dark Mirror    — External observability (Prometheus, Grafana, Loki)
-Layer 4: Oracle         — AI threat analysis (Ollama + Mistral-7B)
+Layer 4: Cerydwyn         — AI threat analysis (Ollama + Mistral-7B)
 Layer 3: Grimoire       — Knowledge base + RAG search (ChromaDB + MITRE ATT&CK)
 Layer 2: Lich           — 10-harness fuzz framework targeting protocol stack
 Layer 1: Base System    — Hardened Kali Linux, directories, SSH, tooling
@@ -148,7 +148,7 @@ make console
 
 - Directory structure at `/opt/tomb/` with subdirectories per layer
 - Kali standard tooling (nmap, nikto, sqlmap, hydra, john, gdb, wireshark)
-- Python 3.10+ virtualenv for RAG pipeline and Oracle daemon
+- Python 3.10+ virtualenv for RAG pipeline and Cerydwyn daemon
 - SSH key deployment (`~/.ssh/id_tomb` → `~kali/.ssh/authorized_keys`)
 
 ### Layer 2: Lich Adversary Framework
@@ -204,9 +204,9 @@ cd /opt/tomb/grimoire
 python3 rag/rag-query.py --query "How does Wotan authenticate services?"
 ```
 
-### Layer 4: Oracle LLM
+### Layer 4: Cerydwyn LLM
 
-**Provisioned by:** `provision.sh --phase deploy-oracle`
+**Provisioned by:** `provision.sh --phase deploy-cerydwyn`
 
 Autonomous threat assessment using Ollama + Mistral-7B.
 
@@ -218,17 +218,17 @@ Autonomous threat assessment using Ollama + Mistral-7B.
 | AlertWatcher | 60s | Prometheus firing alerts |
 | CampaignWatcher | 120s | Completed Lich campaigns |
 
-**Output:** `/opt/tomb/oracle/suggestions/YYYYMMDD-HHMMSS-{crash,alert,campaign}-*.md`
+**Output:** `/opt/tomb/cerydwyn/suggestions/YYYYMMDD-HHMMSS-{crash,alert,campaign}-*.md`
 
 Each suggestion includes: root cause analysis, exploitability assessment, CVSS
 score, CWE classification, and mitigation recommendations.
 
 ```bash
 # Start daemon
-python3 oracle-daemon.py &
+python3 cerydwyn-daemon.py &
 
 # Dry run
-python3 oracle-daemon.py --dry-run
+python3 cerydwyn-daemon.py --dry-run
 ```
 
 ### Layer 5: Dark Mirror Observability
@@ -242,7 +242,7 @@ Docker Compose stack for external observation of Kingdom services:
 | Prometheus | 9090 | 2 GB | Scrapes Kingdom metrics (19000-19005) |
 | Grafana | 3000 | 512 MB | Dashboards (attack-metrics, kingdom-overview) |
 | Loki | 3100 | 1 GB | Log aggregation |
-| Promtail | 9080 | 256 MB | Log shipper (Lich logs, Oracle output, syslog) |
+| Promtail | 9080 | 256 MB | Log shipper (Lich logs, Cerydwyn output, syslog) |
 
 **Prometheus scrapes Kingdom services on WEST:**
 
@@ -283,7 +283,7 @@ cd tomb
 
 # Single phase
 ./provision.sh --phase deploy-lich
-./provision.sh --phase deploy-oracle
+./provision.sh --phase deploy-cerydwyn
 
 # Dry run
 ./provision.sh --dry-run
@@ -305,7 +305,7 @@ make ansible-lich       # Just Lich layer
 1. **setup-base** — Directories, packages, users, SSH
 2. **deploy-lich** — Fuzz harnesses + runner
 3. **deploy-grimoire** — Knowledge base + RAG index
-4. **deploy-oracle** — Ollama + daemon
+4. **deploy-cerydwyn** — Ollama + daemon
 5. **deploy-dark-mirror** — Docker Compose observability
 6. **harden** — Firewall, seccomp, audit logging
 
@@ -368,8 +368,8 @@ ssh -i ~/.ssh/id_tomb kali@192.168.13.6 '
 | `tomb/grimoire/setup-grimoire.sh` | RAG pipeline setup + indexing |
 | `tomb/grimoire/rag/rag-query.py` | Query the knowledge base |
 | `tomb/grimoire/threat-models/*.md` | STRIDE threat models |
-| `tomb/oracle/oracle-daemon.py` | LLM watcher daemon |
-| `tomb/oracle/Modelfile-mistral` | Ollama model customization |
+| `tomb/cerydwyn/cerydwyn-daemon.py` | LLM watcher daemon |
+| `tomb/cerydwyn/Modelfile-mistral` | Ollama model customization |
 | `tomb/dark-mirror/docker-compose.yml` | Observability stack |
 | `tomb/dark-mirror/prometheus.yml` | Kingdom scrape targets |
 | `tomb/dark-mirror/setup-dark-mirror.sh` | Stack deployment script |

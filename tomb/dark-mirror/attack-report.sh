@@ -5,7 +5,7 @@
 # attack-report.sh — Generate markdown attack reports combining:
 #   - Prometheus metrics (service health, error rates, latency)
 #   - Loki logs (campaign logs, system events)
-#   - Oracle analysis (AI-driven threat assessment)
+#   - Cerydwyn analysis (AI-driven threat assessment)
 #
 # Usage:
 #   ./attack-report.sh
@@ -18,7 +18,7 @@ set -euo pipefail
 # --- Configuration ---
 PROMETHEUS_URL="${PROMETHEUS_URL:-http://127.0.0.1:9090}"
 LOKI_URL="${LOKI_URL:-http://127.0.0.1:3100}"
-ORACLE_ROOT="${ORACLE_ROOT:-/opt/tomb/oracle}"
+CERYDWYN_ROOT="${CERYDWYN_ROOT:-/opt/tomb/cerydwyn}"
 REPORTS_DIR="${REPORTS_DIR:-/opt/tomb/reports}"
 CAMPAIGN=""
 SINCE="1 hour ago"
@@ -264,31 +264,31 @@ SECTION
 
 ---
 
-## 7. Oracle Analysis
+## 7. Cerydwyn Analysis
 
 SECTION
 
-    # Query Oracle for analysis if available
-    if [[ -x "${ORACLE_ROOT}/oracle.sh" ]]; then
-        log_info "Querying Oracle for threat assessment..."
+    # Query Cerydwyn for analysis if available
+    if [[ -x "${CERYDWYN_ROOT}/cerydwyn.sh" ]]; then
+        log_info "Querying Cerydwyn for threat assessment..."
 
-        local oracle_prompt="Based on the current Dark Mirror observations: "
-        oracle_prompt+="services down=$(prom_query_value 'count(up{job!="prometheus"} == 0)'), "
-        oracle_prompt+="error rate=$(prom_query_value '(sum(rate(unheaded_http_requests_total{status=~"5.."}[5m])) / sum(rate(unheaded_http_requests_total[5m]))) * 100')%, "
-        oracle_prompt+="total request rate=$(prom_query_value 'sum(rate(unheaded_http_requests_total[5m]))'). "
+        local cerydwyn_prompt="Based on the current Dark Mirror observations: "
+        cerydwyn_prompt+="services down=$(prom_query_value 'count(up{job!="prometheus"} == 0)'), "
+        cerydwyn_prompt+="error rate=$(prom_query_value '(sum(rate(unheaded_http_requests_total{status=~"5.."}[5m])) / sum(rate(unheaded_http_requests_total[5m]))) * 100')%, "
+        cerydwyn_prompt+="total request rate=$(prom_query_value 'sum(rate(unheaded_http_requests_total[5m]))'). "
 
         if [[ -n "$CAMPAIGN" ]]; then
-            oracle_prompt+="Campaign: ${CAMPAIGN}. "
+            cerydwyn_prompt+="Campaign: ${CAMPAIGN}. "
         fi
 
-        oracle_prompt+="Provide a brief threat assessment: what is the Kingdom's current security posture? Any anomalies?"
+        cerydwyn_prompt+="Provide a brief threat assessment: what is the Kingdom's current security posture? Any anomalies?"
 
-        local oracle_response
-        oracle_response=$("${ORACLE_ROOT}/oracle.sh" --no-stream "$oracle_prompt" 2>/dev/null || echo "(Oracle not available — Ollama may not be running)")
+        local cerydwyn_response
+        cerydwyn_response=$("${CERYDWYN_ROOT}/cerydwyn.sh" --no-stream "$cerydwyn_prompt" 2>/dev/null || echo "(Cerydwyn not available — Ollama may not be running)")
 
-        echo "$oracle_response" >> "$report_file"
+        echo "$cerydwyn_response" >> "$report_file"
     else
-        echo "(Oracle not available — oracle.sh not found at ${ORACLE_ROOT}/oracle.sh)" >> "$report_file"
+        echo "(Cerydwyn not available — cerydwyn.sh not found at ${CERYDWYN_ROOT}/cerydwyn.sh)" >> "$report_file"
     fi
 
     cat >> "$report_file" <<SECTION

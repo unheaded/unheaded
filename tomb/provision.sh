@@ -18,7 +18,7 @@
 #   setup-base      — Base system: directories, packages, users, SSH keys
 #   deploy-lich     — Layer 2: Lich adversary framework + LICH-001..010
 #   deploy-grimoire — Layer 3: Grimoire knowledge base + RAG index
-#   deploy-oracle   — Layer 4: Oracle LLM (Ollama + Mistral-7B) + RAG pipeline
+#   deploy-cerydwyn   — Layer 4: Cerydwyn LLM (Ollama + Mistral-7B) + RAG pipeline
 #   deploy-dark-mirror — Layer 5: Dark Mirror observability (Prometheus, Grafana, Loki)
 #   harden          — Phase 13: Security hardening (firewall, seccomp, audit)
 #
@@ -297,14 +297,14 @@ phase_setup_base() {
     header "PHASE 1: SETUP BASE SYSTEM"
 
     info "Creating Tomb directory structure..."
-    tomb_root "mkdir -p ${TOMB_ROOT}/{lich/{campaigns,harnesses,crash-triage/{corpus,crashes/{rce,dos,memory-leak,info-leak,unknown}}},grimoire/{kingdom-docs,mitre-attck,nvd-cves,cwe,threat-models,history,rag/{chroma.db,embeddings}},oracle/{ollama/models,logs,suggestions},dark-mirror/{prometheus,grafana/{dashboards,datasources},loki,alerts},captures/{pcaps,packet-analysis},reports/archive}"
+    tomb_root "mkdir -p ${TOMB_ROOT}/{lich/{campaigns,harnesses,crash-triage/{corpus,crashes/{rce,dos,memory-leak,info-leak,unknown}}},grimoire/{kingdom-docs,mitre-attck,nvd-cves,cwe,threat-models,history,rag/{chroma.db,embeddings}},cerydwyn/{ollama/models,logs,suggestions},dark-mirror/{prometheus,grafana/{dashboards,datasources},loki,alerts},captures/{pcaps,packet-analysis},reports/archive}"
     tomb_root "mkdir -p ${TOMB_STAGING}"
     ok "Directory structure created"
 
     info "Setting ownership and permissions..."
     tomb_root "chown -R ${TOMB_USER}:${TOMB_USER} ${TOMB_ROOT}"
     tomb_root "chmod 750 ${TOMB_ROOT}"
-    tomb_root "chmod 700 ${TOMB_ROOT}/oracle"
+    tomb_root "chmod 700 ${TOMB_ROOT}/cerydwyn"
     tomb_root "chmod 700 ${TOMB_ROOT}/reports"
     ok "Permissions set"
 
@@ -375,7 +375,7 @@ SCOPE_EOF"
     info "Verifying base setup..."
     verify_dir "${TOMB_ROOT}/lich"
     verify_dir "${TOMB_ROOT}/grimoire"
-    verify_dir "${TOMB_ROOT}/oracle"
+    verify_dir "${TOMB_ROOT}/cerydwyn"
     verify_dir "${TOMB_ROOT}/dark-mirror"
     verify_dir "${TOMB_ROOT}/captures"
     verify_dir "${TOMB_ROOT}/reports"
@@ -833,7 +833,7 @@ import sys
 
 TOMB_ROOT = \"/opt/tomb\"
 CHROMA_DIR = os.path.join(TOMB_ROOT, \"grimoire\", \"rag\", \"chroma.db\")
-RAG_CONFIG = os.path.join(TOMB_ROOT, \"oracle\", \"rag-config.json\")
+RAG_CONFIG = os.path.join(TOMB_ROOT, \"cerydwyn\", \"rag-config.json\")
 DEFAULT_TOP_K = 5
 DEFAULT_MODEL = \"all-MiniLM-L6-v2\"
 
@@ -944,36 +944,36 @@ RAG_QUERY_EOF"
 }
 
 # ============================================================================
-# PHASE: DEPLOY-ORACLE
+# PHASE: DEPLOY-CERYDWYN
 # ============================================================================
-phase_deploy_oracle() {
-    header "PHASE 4: DEPLOY ORACLE LLM (Ollama + Mistral-7B)"
+phase_deploy_cerydwyn() {
+    header "PHASE 4: DEPLOY CERYDWYN LLM (Ollama + Mistral-7B)"
 
     info "Transferring Ollama binary..."
-    if [ -f "${PACKAGES_DIR}/oracle/ollama" ]; then
-        tomb_scp "${PACKAGES_DIR}/oracle/ollama" "${TOMB_STAGING}/ollama"
+    if [ -f "${PACKAGES_DIR}/cerydwyn/ollama" ]; then
+        tomb_scp "${PACKAGES_DIR}/cerydwyn/ollama" "${TOMB_STAGING}/ollama"
         tomb_root "cp ${TOMB_STAGING}/ollama /usr/local/bin/ollama"
         tomb_root "chmod 755 /usr/local/bin/ollama"
         ok "Ollama binary installed"
     else
-        warn "No ollama binary in packages/oracle/ -- download from ollama.com"
+        warn "No ollama binary in packages/cerydwyn/ -- download from ollama.com"
         info "Hint: curl -fsSL https://ollama.com/install.sh | sh  (on internet-connected host)"
-        info "      cp /usr/local/bin/ollama tomb/packages/oracle/ollama"
+        info "      cp /usr/local/bin/ollama tomb/packages/cerydwyn/ollama"
     fi
 
     info "Transferring Mistral-7B model..."
-    if [ -d "${PACKAGES_DIR}/oracle/models" ]; then
-        tomb_scp "${PACKAGES_DIR}/oracle/models/" "${TOMB_STAGING}/models/"
-        tomb_root "cp -r ${TOMB_STAGING}/models/* ${TOMB_ROOT}/oracle/ollama/models/"
+    if [ -d "${PACKAGES_DIR}/cerydwyn/models" ]; then
+        tomb_scp "${PACKAGES_DIR}/cerydwyn/models/" "${TOMB_STAGING}/models/"
+        tomb_root "cp -r ${TOMB_STAGING}/models/* ${TOMB_ROOT}/cerydwyn/ollama/models/"
         ok "Mistral-7B model files transferred"
     else
-        warn "No models/ in packages/oracle/ -- pre-pull model on internet-connected host"
+        warn "No models/ in packages/cerydwyn/ -- pre-pull model on internet-connected host"
         info "Hint: ollama pull mistral"
-        info "      cp -r ~/.ollama/models/ tomb/packages/oracle/models/"
+        info "      cp -r ~/.ollama/models/ tomb/packages/cerydwyn/models/"
     fi
 
     info "Deploying RAG configuration..."
-    tomb_exec "cat > ${TOMB_ROOT}/oracle/rag-config.json << 'RAG_CFG_EOF'
+    tomb_exec "cat > ${TOMB_ROOT}/cerydwyn/rag-config.json << 'RAG_CFG_EOF'
 {
   \"embedding_model\": \"all-MiniLM-L6-v2\",
   \"llm_model\": \"mistral\",
@@ -985,22 +985,22 @@ phase_deploy_oracle() {
   \"collection_name\": \"grimoire\",
   \"temperature\": 0.3,
   \"max_tokens\": 2048,
-  \"system_prompt\": \"You are the BlackMage Oracle, advisor to a kingdom's security team. Respond with tactical, actionable guidance grounded in the Kingdom's architecture and threat landscape. Reference specific documents when applicable.\"
+  \"system_prompt\": \"You are the BlackMage Cerydwyn, advisor to a kingdom's security team. Respond with tactical, actionable guidance grounded in the Kingdom's architecture and threat landscape. Reference specific documents when applicable.\"
 }
 RAG_CFG_EOF"
     ok "rag-config.json deployed"
 
-    info "Deploying Oracle systemd service..."
+    info "Deploying Cerydwyn systemd service..."
     tomb_root "cat > /etc/systemd/system/ollama.service << 'OLLAMA_SVC_EOF'
 [Unit]
-Description=Ollama LLM Service (The Oracle)
+Description=Ollama LLM Service (The Cerydwyn)
 After=network.target
 
 [Service]
 Type=simple
 User=root
 ExecStart=/usr/local/bin/ollama serve
-Environment=OLLAMA_MODELS=/opt/tomb/oracle/ollama/models
+Environment=OLLAMA_MODELS=/opt/tomb/cerydwyn/ollama/models
 Environment=OLLAMA_HOST=127.0.0.1:11434
 Restart=on-failure
 RestartSec=10s
@@ -1032,13 +1032,13 @@ OLLAMA_SVC_EOF"
         warn "Ollama did not start within timeout -- check binary and model files"
     fi
 
-    info "Deploying rag-oracle.py..."
-    tomb_exec "cat > ${TOMB_STAGING}/rag-oracle.py << 'RAG_ORACLE_EOF'
+    info "Deploying rag-cerydwyn.py..."
+    tomb_exec "cat > ${TOMB_STAGING}/rag-cerydwyn.py << 'RAG_CERYDWYN_EOF'
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# rag-oracle.py -- Full RAG+LLM pipeline (retrieve -> augment -> generate)
+# rag-cerydwyn.py -- Full RAG+LLM pipeline (retrieve -> augment -> generate)
 \"\"\"
-The Oracle: RAG-augmented LLM for security threat modeling.
+The Cerydwyn: RAG-augmented LLM for security threat modeling.
 Queries Grimoire via ChromaDB, augments prompt, generates via Ollama.
 \"\"\"
 import argparse
@@ -1049,8 +1049,8 @@ import urllib.request
 import urllib.error
 
 TOMB_ROOT = \"/opt/tomb\"
-RAG_CONFIG = os.path.join(TOMB_ROOT, \"oracle\", \"rag-config.json\")
-LOG_DIR = os.path.join(TOMB_ROOT, \"oracle\", \"logs\")
+RAG_CONFIG = os.path.join(TOMB_ROOT, \"cerydwyn\", \"rag-config.json\")
+LOG_DIR = os.path.join(TOMB_ROOT, \"cerydwyn\", \"logs\")
 
 
 def load_config():
@@ -1063,7 +1063,7 @@ def load_config():
         \"top_k\": 5,
         \"temperature\": 0.3,
         \"max_tokens\": 2048,
-        \"system_prompt\": \"You are the BlackMage Oracle.\",
+        \"system_prompt\": \"You are the BlackMage Cerydwyn.\",
     }
 
 
@@ -1084,7 +1084,7 @@ def retrieve_context(query, config):
 
 def build_prompt(query, context_docs, config):
     \"\"\"Build augmented prompt with retrieved Grimoire context.\"\"\"
-    system_prompt = config.get(\"system_prompt\", \"You are the BlackMage Oracle.\")
+    system_prompt = config.get(\"system_prompt\", \"You are the BlackMage Cerydwyn.\")
 
     context_block = \"\"
     if context_docs:
@@ -1147,13 +1147,13 @@ def log_interaction(query, context_docs, response, config):
         \"response_length\": len(response),
         \"model\": config.get(\"llm_model\", \"mistral\"),
     }
-    log_path = os.path.join(LOG_DIR, f\"oracle-{ts}.json\")
+    log_path = os.path.join(LOG_DIR, f\"cerydwyn-{ts}.json\")
     with open(log_path, \"w\") as f:
         json.dump(log_entry, f, indent=2)
 
 
 def main():
-    parser = argparse.ArgumentParser(description=\"The Oracle: RAG+LLM pipeline\")
+    parser = argparse.ArgumentParser(description=\"The Cerydwyn: RAG+LLM pipeline\")
     parser.add_argument(\"query\", help=\"Your question or request\")
     parser.add_argument(\"--lich-context\", help=\"Add LICH campaign context\")
     parser.add_argument(\"--no-rag\", action=\"store_true\", help=\"Skip RAG retrieval\")
@@ -1168,18 +1168,18 @@ def main():
     # Step 1: Retrieve context from Grimoire
     context_docs = []
     if not args.no_rag:
-        print(\"[Oracle] Consulting the Grimoire...\", file=sys.stderr)
+        print(\"[Cerydwyn] Consulting the Grimoire...\", file=sys.stderr)
         context_docs = retrieve_context(query, config)
         if context_docs:
-            print(f\"[Oracle] Retrieved {len(context_docs)} relevant documents.\", file=sys.stderr)
+            print(f\"[Cerydwyn] Retrieved {len(context_docs)} relevant documents.\", file=sys.stderr)
         else:
-            print(\"[Oracle] No relevant documents found in Grimoire.\", file=sys.stderr)
+            print(\"[Cerydwyn] No relevant documents found in Grimoire.\", file=sys.stderr)
 
     # Step 2: Build augmented prompt
     prompt = build_prompt(query, context_docs, config)
 
     # Step 3: Generate response via Ollama
-    print(\"[Oracle] Generating response...\\n\", file=sys.stderr)
+    print(\"[Cerydwyn] Generating response...\\n\", file=sys.stderr)
     response = query_ollama(prompt, config)
 
     # Step 4: Log interaction
@@ -1188,19 +1188,19 @@ def main():
 
 if __name__ == \"__main__\":
     main()
-RAG_ORACLE_EOF"
-    tomb_root "cp ${TOMB_STAGING}/rag-oracle.py ${TOMB_ROOT}/oracle/rag-oracle.py"
-    tomb_root "chmod 755 ${TOMB_ROOT}/oracle/rag-oracle.py"
-    ok "rag-oracle.py deployed"
+RAG_CERYDWYN_EOF"
+    tomb_root "cp ${TOMB_STAGING}/rag-cerydwyn.py ${TOMB_ROOT}/cerydwyn/rag-cerydwyn.py"
+    tomb_root "chmod 755 ${TOMB_ROOT}/cerydwyn/rag-cerydwyn.py"
+    ok "rag-cerydwyn.py deployed"
 
-    info "Deploying oracle-daemon.py..."
-    tomb_exec "cat > ${TOMB_STAGING}/oracle-daemon.py << 'DAEMON_EOF'
+    info "Deploying cerydwyn-daemon.py..."
+    tomb_exec "cat > ${TOMB_STAGING}/cerydwyn-daemon.py << 'DAEMON_EOF'
 #!/usr/bin/env python3
 # SPDX-License-Identifier: MIT
-# oracle-daemon.py -- Background service for continuous threat monitoring
+# cerydwyn-daemon.py -- Background service for continuous threat monitoring
 \"\"\"
-Periodically queries the Oracle with contextual prompts and writes
-suggestions to /opt/tomb/oracle/suggestions/ for human review.
+Periodically queries the Cerydwyn with contextual prompts and writes
+suggestions to /opt/tomb/cerydwyn/suggestions/ for human review.
 \"\"\"
 import json
 import os
@@ -1212,8 +1212,8 @@ import urllib.error
 from datetime import datetime
 
 TOMB_ROOT = \"/opt/tomb\"
-RAG_CONFIG = os.path.join(TOMB_ROOT, \"oracle\", \"rag-config.json\")
-SUGGESTIONS_DIR = os.path.join(TOMB_ROOT, \"oracle\", \"suggestions\")
+RAG_CONFIG = os.path.join(TOMB_ROOT, \"cerydwyn\", \"rag-config.json\")
+SUGGESTIONS_DIR = os.path.join(TOMB_ROOT, \"cerydwyn\", \"suggestions\")
 POLL_INTERVAL = 3600  # 1 hour between suggestions
 RUNNING = True
 
@@ -1305,7 +1305,7 @@ def main():
     config = load_config()
     os.makedirs(SUGGESTIONS_DIR, exist_ok=True)
 
-    print(f\"[daemon] Oracle daemon starting (poll interval: {POLL_INTERVAL}s)\")
+    print(f\"[daemon] Cerydwyn daemon starting (poll interval: {POLL_INTERVAL}s)\")
     print(f\"[daemon] Suggestions dir: {SUGGESTIONS_DIR}\")
 
     prompt_index = 0
@@ -1338,49 +1338,49 @@ def main():
 if __name__ == \"__main__\":
     main()
 DAEMON_EOF"
-    tomb_root "cp ${TOMB_STAGING}/oracle-daemon.py ${TOMB_ROOT}/oracle/oracle-daemon.py"
-    tomb_root "chmod 755 ${TOMB_ROOT}/oracle/oracle-daemon.py"
-    ok "oracle-daemon.py deployed"
+    tomb_root "cp ${TOMB_STAGING}/cerydwyn-daemon.py ${TOMB_ROOT}/cerydwyn/cerydwyn-daemon.py"
+    tomb_root "chmod 755 ${TOMB_ROOT}/cerydwyn/cerydwyn-daemon.py"
+    ok "cerydwyn-daemon.py deployed"
 
-    info "Deploying oracle-daemon systemd service..."
-    tomb_root "cat > /etc/systemd/system/oracle-daemon.service << 'ORACLED_EOF'
+    info "Deploying cerydwyn-daemon systemd service..."
+    tomb_root "cat > /etc/systemd/system/cerydwyn-daemon.service << 'CERYDWYND_EOF'
 [Unit]
-Description=Oracle Daemon (continuous threat monitoring)
+Description=Cerydwyn Daemon (continuous threat monitoring)
 After=ollama.service
 Wants=ollama.service
 
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/bin/python3 /opt/tomb/oracle/oracle-daemon.py --config /opt/tomb/oracle/rag-config.json
+ExecStart=/usr/bin/python3 /opt/tomb/cerydwyn/cerydwyn-daemon.py --config /opt/tomb/cerydwyn/rag-config.json
 Restart=on-failure
 RestartSec=30s
 Environment=PYTHONUNBUFFERED=1
 
 [Install]
 WantedBy=multi-user.target
-ORACLED_EOF"
+CERYDWYND_EOF"
     tomb_root "systemctl daemon-reload"
-    tomb_root "systemctl enable oracle-daemon 2>/dev/null || true"
-    ok "oracle-daemon.service deployed"
+    tomb_root "systemctl enable cerydwyn-daemon 2>/dev/null || true"
+    ok "cerydwyn-daemon.service deployed"
 
     # Verification
-    info "Verifying Oracle deployment..."
-    verify_dir "${TOMB_ROOT}/oracle/ollama"
-    verify_dir "${TOMB_ROOT}/oracle/logs"
-    verify_dir "${TOMB_ROOT}/oracle/suggestions"
-    tomb_exec "test -f ${TOMB_ROOT}/oracle/rag-config.json" && ok "rag-config.json present" || fail "rag-config.json missing"
-    tomb_exec "test -f ${TOMB_ROOT}/oracle/rag-oracle.py" && ok "rag-oracle.py present" || fail "rag-oracle.py missing"
-    tomb_exec "test -f ${TOMB_ROOT}/oracle/oracle-daemon.py" && ok "oracle-daemon.py present" || fail "oracle-daemon.py missing"
+    info "Verifying Cerydwyn deployment..."
+    verify_dir "${TOMB_ROOT}/cerydwyn/ollama"
+    verify_dir "${TOMB_ROOT}/cerydwyn/logs"
+    verify_dir "${TOMB_ROOT}/cerydwyn/suggestions"
+    tomb_exec "test -f ${TOMB_ROOT}/cerydwyn/rag-config.json" && ok "rag-config.json present" || fail "rag-config.json missing"
+    tomb_exec "test -f ${TOMB_ROOT}/cerydwyn/rag-cerydwyn.py" && ok "rag-cerydwyn.py present" || fail "rag-cerydwyn.py missing"
+    tomb_exec "test -f ${TOMB_ROOT}/cerydwyn/cerydwyn-daemon.py" && ok "cerydwyn-daemon.py present" || fail "cerydwyn-daemon.py missing"
 
     if tomb_exec "command -v ollama >/dev/null 2>&1"; then
         ok "Ollama binary in PATH"
         verify_service "ollama" "11434"
     else
-        warn "Ollama binary not found -- stage it in packages/oracle/ollama"
+        warn "Ollama binary not found -- stage it in packages/cerydwyn/ollama"
     fi
 
-    ok "Oracle LLM deployed"
+    ok "Cerydwyn LLM deployed"
 }
 
 # ============================================================================
@@ -1652,7 +1652,7 @@ groups:
           severity: warning
           layer: tomb
         annotations:
-          summary: \"Oracle (Ollama) service is DOWN\"
+          summary: \"Cerydwyn (Ollama) service is DOWN\"
 ALERTS_EOF"
     ok "Alerting rules deployed"
 
@@ -1815,7 +1815,7 @@ FWSVC"
     ok "SSH hardened (no root login, key-only, no forwarding)"
 
     info "Setting filesystem permissions..."
-    tomb_root "chmod 700 ${TOMB_ROOT}/oracle"
+    tomb_root "chmod 700 ${TOMB_ROOT}/cerydwyn"
     tomb_root "chmod 700 ${TOMB_ROOT}/reports"
     tomb_root "chmod 750 ${TOMB_ROOT}/lich"
     tomb_root "chmod 750 ${TOMB_ROOT}/grimoire"
@@ -1943,13 +1943,13 @@ phase_verify_all() {
         fail "Grimoire incomplete"
     fi
 
-    # Layer 4: Oracle
+    # Layer 4: Cerydwyn
     total=$((total + 1))
-    info "[6] Layer 4 -- Oracle LLM..."
-    if tomb_exec "test -f ${TOMB_ROOT}/oracle/rag-config.json && test -f ${TOMB_ROOT}/oracle/rag-oracle.py" 2>/dev/null; then
-        ok "Oracle pipeline deployed"; pass=$((pass + 1))
+    info "[6] Layer 4 -- Cerydwyn LLM..."
+    if tomb_exec "test -f ${TOMB_ROOT}/cerydwyn/rag-config.json && test -f ${TOMB_ROOT}/cerydwyn/rag-cerydwyn.py" 2>/dev/null; then
+        ok "Cerydwyn pipeline deployed"; pass=$((pass + 1))
     else
-        fail "Oracle incomplete"
+        fail "Cerydwyn incomplete"
     fi
 
     total=$((total + 1))
@@ -2028,7 +2028,7 @@ PHASES:
     setup-base         Base system: directories, packages, users
     deploy-lich        Layer 2: Lich adversary framework
     deploy-grimoire    Layer 3: Grimoire knowledge base + RAG
-    deploy-oracle      Layer 4: Oracle LLM (Ollama + Mistral)
+    deploy-cerydwyn      Layer 4: Cerydwyn LLM (Ollama + Mistral)
     deploy-dark-mirror Layer 5: Dark Mirror observability
     harden             Phase 13: Security hardening
     verify             Full deployment verification
@@ -2052,7 +2052,7 @@ list_phases() {
     echo "  setup-base         Base system setup"
     echo "  deploy-lich        Lich adversary framework"
     echo "  deploy-grimoire    Grimoire knowledge base"
-    echo "  deploy-oracle      Oracle LLM"
+    echo "  deploy-cerydwyn      Cerydwyn LLM"
     echo "  deploy-dark-mirror Dark Mirror observability"
     echo "  harden             Security hardening"
     echo "  verify             Deployment verification"
@@ -2101,7 +2101,7 @@ main() {
             setup-base)         phase_preflight; phase_setup_base ;;
             deploy-lich)        phase_deploy_lich ;;
             deploy-grimoire)    phase_deploy_grimoire ;;
-            deploy-oracle)      phase_deploy_oracle ;;
+            deploy-cerydwyn)      phase_deploy_cerydwyn ;;
             deploy-dark-mirror) phase_deploy_dark_mirror ;;
             harden)             phase_harden ;;
             verify)             phase_verify_all ;;
@@ -2113,7 +2113,7 @@ main() {
         phase_setup_base
         phase_deploy_lich
         phase_deploy_grimoire
-        phase_deploy_oracle
+        phase_deploy_cerydwyn
         phase_deploy_dark_mirror
         phase_harden
         phase_verify_all
