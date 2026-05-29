@@ -248,6 +248,7 @@ func getInitialTasks() []Task {
 		{ID: "debt-docker-compose", Title: "Fix Docker Compose Ports", Description: "docker-compose.yml has wotan on 8081/5555, should match standalone defaults 8080/9090.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now.Add(-1 * d), UpdatedAt: now},
 		{ID: "debt-timeguru-db", Title: "Timeguru Local Dev Defaults", Description: "DB_PATH defaults to /opt/unheaded/data/ which doesn't exist on macOS.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
 		{ID: "debt-timeline-sync", Title: "Timeline Data Hydration", Description: "timeline.json milestones array is empty. Sync overwrites timeline.md to stubs.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
+		{ID: "debt-seed-reconcile", Title: "Reconcile Genesis-seed card edits into running Well board", Description: "Edits to getInitialTasks() (e.g. Cerydwyn rename, de-salesed vision items) only seed a fresh/empty DB — an already-seeded Well does not auto-update. Reconcile live boards via the kanban API/DB. Long-term: lift the Genesis seed out of the binary so The Well is the sole source.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
 
 		// =====================================================================
 		// VISION — high-level north star items
