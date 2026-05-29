@@ -138,10 +138,12 @@ services:
       - "--metrics.prometheus.entryPoint=metrics"
       - "--entrypoints.metrics.address=:8082"
     ports:
-      - "80:80"       # HTTP
-      - "443:443"     # HTTPS + HTTP/3 (QUIC)
-      - "443:443/udp" # QUIC UDP
-      - "50051:50051" # gRPC
+      # Host ports are env-overridable (see .env) so the edge can coexist with a
+      # host LB already on 80/443 (e.g. WEST's HAProxy). Defaults preserve 80/443.
+      - "${TRAEFIK_HTTP_PORT:-80}:80"         # HTTP
+      - "${TRAEFIK_HTTPS_PORT:-443}:443"      # HTTPS + HTTP/3 (QUIC)
+      - "${TRAEFIK_HTTPS_PORT:-443}:443/udp"  # QUIC UDP
+      - "${TRAEFIK_GRPC_PORT:-50051}:50051"   # gRPC
       - "21000:21000"   # Traefik dashboard (dev only)
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
