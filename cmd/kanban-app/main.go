@@ -170,6 +170,15 @@ func NewServerWithTaskManager(cfg Config, tm *TaskManager, store TaskStore) *Ser
 // getInitialTasks returns the full Unheaded Kingdom inventory.
 // Every armor piece, gnostic service, active task, vision item, and wishlist entry.
 // This is the COMPLETE view of the project — past, present, and future.
+//
+// CANONICAL SOURCE OF CARDS IS THE WELL (PostgreSQL), NOT THIS FUNCTION.
+// These literals are a ONE-TIME Genesis seed: SeedIfEmpty() writes them to the
+// store only when it is empty (fresh DB). At runtime the kanban pulls every card
+// FROM the store (Postgres → The Well, SQLite fallback). Editing cards here has NO
+// effect on an already-seeded board — add/edit cards via the kanban API so they
+// persist to The Well. This hardcoded inventory is a temporary bootstrap and must
+// not be treated as the system of record. (See pgstore.go / pkg/database, ADR-016.)
+// TODO: extract the Genesis seed out of the binary (e.g. a seed file in The Well).
 func getInitialTasks() []Task {
 	now := time.Now()
 	d := 24 * time.Hour // shorthand
