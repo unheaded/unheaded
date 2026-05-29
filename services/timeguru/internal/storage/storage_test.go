@@ -21,7 +21,7 @@ func createTestTimeline() *timeline.Timeline {
 		Version:     "1.0.0",
 		LastUpdated: time.Date(2026, 1, 27, 12, 0, 0, 0, time.UTC),
 		Status:      "alpha",
-		Vision:      "Production-ready infrastructure in hours, not months.",
+		Vision:      "Configuration management automation platform.",
 		Phases: []*timeline.Phase{
 			{
 				ID:       "phase-1",

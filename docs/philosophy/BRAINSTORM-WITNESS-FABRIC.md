@@ -167,7 +167,7 @@ Music is the *fastest creative medium humans have ever found* that still produce
 
 **Why this matters for Unheaded specifically:**
 
-The project's ambition — "production-ready infrastructure in hours, not months" — is a claim about collapsing intent-to-artifact latency in the infrastructure domain. The ceiling on how far you can collapse it is set by *what medium the operator is using to express intent*. YAML → typing speed. Terraform → typing + plan-review. LLM prompt → prose-typing + model latency + review. All stuck at the *language* tier of human expressive bandwidth, the slow tier.
+The project's ambition — "configuration management automation platform" — is a claim about collapsing intent-to-artifact latency in the infrastructure domain. The ceiling on how far you can collapse it is set by *what medium the operator is using to express intent*. YAML → typing speed. Terraform → typing + plan-review. LLM prompt → prose-typing + model latency + review. All stuck at the *language* tier of human expressive bandwidth, the slow tier.
 
 **What would it look like to operate infrastructure at music speed?** Not "faster YAML." Not "better autocomplete." Not "AI writes the config for you." Those are all still in the symbolic-encoding tier. Music speed means the *gesture and the artifact are the same event*, and the gesture happens at the rate of embodied intent.
 

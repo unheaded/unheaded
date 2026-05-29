@@ -1,6 +1,6 @@
 # Unheaded Protocol Foundation
 
-**Production-ready infrastructure in hours, not months.**
+**Configuration management automation platform.**
 
 Unheaded is a configuration management automation platform that delivers the complete "suit of armor" for modern SaaS applications. You bring your application ("the head"), we provide everything else — from kernel tuning to the control plane.
 

@@ -151,7 +151,7 @@ func NewService(cfg Config) (*Service, error) {
 		wotan:           cfg.Wotan,
 		metricsCallback: cfg.MetricsCallback,
 		vision: &Vision{
-			Title:     "Production-ready infrastructure in hours, not months",
+			Title:     "Configuration management automation platform",
 			Statement: "Unheaded delivers the complete suit of armor for modern SaaS applications",
 			Goals:     []string{"eBPF observability", "Immutable infrastructure", "Zero customer data access", "Self-hosting proof"},
 			UpdatedAt: time.Now(),

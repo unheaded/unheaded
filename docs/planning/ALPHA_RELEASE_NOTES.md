@@ -5,7 +5,7 @@ February 23, 2026
 
 ## Summary
 First alpha release of the Unheaded infrastructure automation platform.
-Production-ready infrastructure in hours, not months.
+Configuration management automation platform.
 
 ## Highlights
 - **eBPF packet tracing**: XDP packet_marker, TC flow_tracker, tracepoint latency_probe, syscall_tracer, plus Doom compute engine (monad-cpu-ebpf, hop-ebpf, shield-ebpf, yaldabaoth-ebpf)

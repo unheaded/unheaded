@@ -18,7 +18,7 @@ Today is **Mon 2026-04-27**, 2 days since last commit. Round Table verifies the 
 
 ### The Throne Speaks (Captain — Vision & Strategy)
 **Strategic Position**: Age 3 public-launch sprint stalled mid-flight. Pivoted into multi-wave forge research (WAVE10F → 11 → 12 → 13) chasing Gemma-4 LoRA quality. The forge research is *world-class* but it has eaten 6 weeks and pulled focus from launch.
-**North Star** (per VISION.md): "Production-ready, fully observable, cryptographically secured infrastructure in hours, not months." Forge/Zhen is a *force multiplier* for that vision, not the vision itself.
+**North Star** (per VISION.md): "Production-ready, fully observable, cryptographically secured infrastructure." Forge/Zhen is a *force multiplier* for that vision, not the vision itself.
 **Key Decision This Table**: Two-track or single-track?
 - **Track A (forge-first)**: finish WAVE13/14 (KV-cache + serve) → ship Zhen-as-product. Defers public launch to Sprint May-Q3.
 - **Track B (launch-first)**: pause forge after WAVE13 Phase 2 quality-call → finish public-release-cleanup, demo video, README polish, public alpha. Forge resumes post-launch.
@@ -151,7 +151,7 @@ All correctly placed.
 ### The Laboratory (Scientist — Theory & Proofs)
 **Open Theories**:
 - **WAVE13 Phase 1 hypothesis (under-training)**: CE 6.78 → P(target)≈0.001. To get P>0.5 need CE<0.7. **Math is sound.** Hypothesis: more epochs + KV-cache + maybe rank↑ from 16. Falsifiable: train another 500 steps and measure CE delta. If asymptotic, problem is *not* under-training but architecture/data.
-- **Falsifiable performance claim** ("infra in hours"): still not benchmarked per CLAUDE.md's "Age 2 remaining". Open since at least Feb.
+- **Falsifiable performance claim** ("configuration management automation"): still not benchmarked per CLAUDE.md's "Age 2 remaining". Open since at least Feb.
 **Pending Proofs**:
 - 24h consolidation block (Apr 20) found `log(vocab) = log(262144) ≈ 12.48` is the information-theoretic floor for scrambled-train CE. Memorization signature deferred to Phase 7.2.
 - Learning-Gate 4/5 PASS, 5/5 if Exp 2 redesigned. Worth re-running with 100-step plateau budget.

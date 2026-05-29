@@ -20,7 +20,7 @@
         "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
         "options": {
           "mode": "markdown",
-          "content": "# The Unheaded Kingdom\n**Production-ready infrastructure in hours, not months.** &nbsp; 7 services | Wotan message bus | eBPF-native observability"
+          "content": "# The Unheaded Kingdom\n**Configuration management automation platform.** &nbsp; 7 services | Wotan message bus | eBPF-native observability"
         }
       },
 

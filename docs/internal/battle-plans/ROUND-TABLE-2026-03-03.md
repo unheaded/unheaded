@@ -18,7 +18,7 @@ Critical remaining work: S72R auth/mTLS wiring never compiled (code written, nev
 
 **Strategic Position**: We have infrastructure depth no competitor can match — Doom-in-eBPF proves computational completeness, AF_XDP at 920K pps proves wire speed, frozen wire format proves stability. But depth without demonstration is invisible advantage. The market needs to SEE this.
 
-**North Star**: Production-ready infrastructure in hours, not months. Customer brings their app, we provide everything else — traced from packet zero.
+**North Star**: Configuration management automation platform. Customer brings their app, we provide everything else — traced from packet zero.
 
 **Key Decision**: Sequencing the final push. We have massive amounts of written-but-unvalidated code. The strategic priority is VALIDATION over NEW FEATURES. Ship what's written before writing more.
 

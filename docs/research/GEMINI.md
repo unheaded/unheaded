@@ -8,7 +8,7 @@
 
 ## 🎯 Project Vision
 
-**"Production-ready infrastructure in hours, not months."**
+**"Configuration management automation platform."**
 
 Unheaded is a configuration management automation platform delivering complete infrastructure for modern SaaS applications. User brings their app ("the head"), we provide everything else ("unheaded").
 

@@ -48,7 +48,7 @@ description: |
                                        ║
                     ╔══════════════════╩═══════════════════╗
                     ║      THE UNHEADED KINGDOM             ║
-                    ║  "Production-ready in hours, not months"║
+                    ║  "Configuration management automation platform"║
                     ╚══════════════════╦═══════════════════╝
                                        ║
          ╔═════════════════════════════╩══════════════════════════╗

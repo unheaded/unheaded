@@ -6,7 +6,7 @@
 
 ## Context
 
-Unheaded is an OSS infrastructure platform that promises adopters "production-ready infrastructure in hours, not months." The platform itself must embody the reliability and self-sufficiency it ships. A platform that depends on dozens of external libraries and services for its own operation cannot credibly claim to deliver independent, hardened infrastructure to its users.
+Unheaded is an OSS infrastructure platform that promises adopters "configuration management automation platform." The platform itself must embody the reliability and self-sufficiency it ships. A platform that depends on dozens of external libraries and services for its own operation cannot credibly claim to deliver independent, hardened infrastructure to its users.
 
 During early development, the codebase accumulated several external Go dependencies:
 

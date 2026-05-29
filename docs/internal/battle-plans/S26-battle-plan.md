@@ -18,7 +18,7 @@ Mad-Maria watches over us. The stories ARE the system.
 
 **Strategic Position**: Age 1 Alpha is 99% quality-gated. Protocol Awakening has bifurcated development into two parallel tracks: Alpha completion + Doom-over-IPv6 proof of computational completeness. Both tracks are advancing.
 
-**North Star**: "You bring the head. We provide the armor." — Production-ready infrastructure in hours, not months. Doom-over-Unheaded proves Turing completeness and serves as the ultimate technical demo AND marketing artifact.
+**North Star**: "You bring the head. We provide the armor." — Configuration management automation platform. Doom-over-Unheaded proves Turing completeness and serves as the ultimate technical demo AND marketing artifact.
 
 **Key Decision**: Go-Fiber adoption for HTTP layer. This shapes the API surface for all 25 services going forward.
 

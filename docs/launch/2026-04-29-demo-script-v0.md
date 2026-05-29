@@ -14,7 +14,7 @@
 
 In 5–8 minutes, a viewer who has never heard of Unheaded should leave able to answer:
 
-1. **What is it?** "Configuration management automation that delivers production infrastructure in hours, not months."
+1. **What is it?** "Configuration management automation that delivers production infrastructure."
 2. **Why does it matter?** "Modern infra is bolted-together tools with sampled observability and scattered security. Unheaded is unified — packets carry their own traces, eBPF enforces policy at kernel speed, and the protocol IS the moat."
 3. **Why now?** "eBPF is the inflection point. IPv6 extension headers are the medium. The Wild West of post-AI-boom tooling demands one platform, not twelve sidecars."
 4. **What can I see today?** "Self-hosting proof — Unheaded building Unheaded on bare metal. Live dashboard. Real eBPF traces. Real Kanban. Real timeline."
@@ -31,7 +31,7 @@ Viewer leaves with three feelings: *this is real, this is different, this is bui
 
 **Voiceover** (Stevie): *"This is Unheaded. Every commit you see on the left is building the platform on the right. Self-hosting. Live. Right now."*
 
-**Cut to title card**: `UNHEADED — Production infra in hours, observable from packet zero.`
+**Cut to title card**: `UNHEADED — Configuration management automation platform, observable from packet zero.`
 
 ### Scene 2 — The problem (0:30–1:30)
 
@@ -90,7 +90,7 @@ Viewer leaves with three feelings: *this is real, this is different, this is bui
 - `unheaded/wiki` — docs
 - `unheaded@bellis.tech` — partnerships
 
-**Voiceover**: *"Production infra in hours. Observable from packet zero. The protocol is the moat. Let's build."*
+**Voiceover**: *"Configuration management automation platform. Observable from packet zero. The protocol is the moat. Let's build."*
 
 **Cut to outro card**: Unheaded logo + KGLW one-liner if Stevie is feeling it.
 

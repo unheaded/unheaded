@@ -10,7 +10,7 @@ The result: infrastructure teams spend months integrating tools that should be u
 
 ## The Vision
 
-Unheaded delivers production-ready, fully observable, cryptographically secured infrastructure in hours, not months.
+Unheaded delivers production-ready, fully observable, cryptographically secured infrastructure.
 
 Applications bring their logic. Unheaded provides everything else: security, observability, networking, and a protocol layer that embeds computation directly into packets.
 

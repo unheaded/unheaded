@@ -25,7 +25,7 @@ Everything else is downstream of it.
 ## The 19 Seats Speak
 
 ### The Throne — Captain (Vision)
-- **Started:** Production infra in hours, not months. Protocol IS the moat.
+- **Started:** Configuration management automation platform. Protocol IS the moat.
 - **Block:** Track A/B/C decision overdue 7+ days. Sole arbiter.
 
 ### The Ledger — Micromanager (Execution)
@@ -123,7 +123,7 @@ Everything else is downstream of it.
 
 ### Where We Started (T+0, 2026-01-26)
 **The Bet:** "eBPF + IPv6 extension headers + gRPC. The protocol IS the moat."
-Production infrastructure in hours. Application brings logic. Unheaded brings everything
+Configuration management automation platform. Application brings logic. Unheaded brings everything
 else (security, observability, networking, protocol layer). 6 armor layers. Zero
 customer data access by architecture.
 
@@ -158,7 +158,7 @@ customer data access by architecture.
 ```
                     NORTH STAR
                          ↑
-              Production infra in hours
+              Configuration management automation platform
               Protocol IS the moat (wire format v0x01 frozen)
                          ↑
                  AGE 5 (Scaling Era)
@@ -208,7 +208,7 @@ customer data access by architecture.
 - [ ] MBC bytecode spec finalization — Owner: Computermancer + RFC Editor — Deadline: deferred to Age 4
 
 ### Decisions Made at This Round Table
-1. **North Star is unchanged**: Production infra in hours, protocol-as-moat.
+1. **North Star is unchanged**: Configuration management automation platform, protocol-as-moat.
 2. **Two-thread reality is acknowledged**: Research thread legitimately ahead of public-launch thread; this is not a defect, it is the current state.
 3. **Track-call is the keystone**: Every other Age 3 closeout action is downstream. No further work plans get drawn until it lands.
 

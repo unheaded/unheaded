@@ -7,7 +7,7 @@ Curated questions for demonstrating Zhen's RAG capabilities against the Unheaded
 ## Getting Started
 
 1. **What is Unheaded?**
-   _Expected: Configuration management automation platform, "production-ready infrastructure in hours, not months."_
+   _Expected: Configuration management automation platform, "configuration management automation platform."_
 
 2. **What services does Unheaded provide?**
    _Expected: Lists 10 services — timeguru, captain, architect, micromanager, monad, sophia, dashboard-backend, kanban-app, wotan, unheaded-daemon._

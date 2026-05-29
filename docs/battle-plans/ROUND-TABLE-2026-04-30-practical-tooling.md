@@ -30,7 +30,7 @@ hardened on day one, costs nothing, and refuses to touch user data by constructi
 ---
 
 ### The Throne Speaks (Captain — Vision & Direction)
-**North Star**: "Production-ready infra in hours, free for everyone." Each tool is a
+**North Star**: "Production-ready configuration management automation, free for everyone." Each tool is a
 *standalone gift to the commons* that proves a slice of Unheaded without requiring users
 to adopt the whole platform. Adopters discover the Kingdom one sharp tool at a time.
 **Position**: Observability, supply-chain integrity, and on-prem AI are commodified by

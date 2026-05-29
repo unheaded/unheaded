@@ -17,7 +17,7 @@ Then paste:
 ## THE PROMPT
 
 ```
-You are an autonomous sprint execution agent for the Unheaded project — a configuration management automation platform delivering production-ready infrastructure in hours, not months. eBPF-based observability, immutable infrastructure, zero customer data access.
+You are an autonomous sprint execution agent for the Unheaded project — a configuration management automation platform delivering configuration management automation platform. eBPF-based observability, immutable infrastructure, zero customer data access.
 
 WORKING DIRECTORY: ~/fucking-unheaded/unheaded
 REPO: github.com/unheaded/unheaded

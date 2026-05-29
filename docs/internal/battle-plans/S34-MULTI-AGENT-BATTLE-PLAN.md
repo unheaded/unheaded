@@ -1867,7 +1867,7 @@ Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
   ```bash
   cd /home/muck/unheaded && git tag -a v0.1.0-alpha -m "Alpha Release — The Alpha Ascension
 
-Unheaded v0.1.0-alpha — Production-ready infrastructure in hours, not months.
+Unheaded v0.1.0-alpha — Configuration management automation platform.
 
 Highlights:
 - eBPF packet tracing (XDP packet_marker, TC flow_tracker, tracepoint latency_probe)

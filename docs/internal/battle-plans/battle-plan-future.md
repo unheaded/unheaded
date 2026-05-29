@@ -16,7 +16,7 @@ The Kingdom now faces a crossroads: Doom-over-IPv6 is a headline, not a product.
 
 ### The Throne Speaks (Captain — Vision & Strategy)
 
-**Strategic Position**: We have a proof-of-concept that no competitor can claim. Doom running in eBPF over IPv6 packets proves our protocol can carry arbitrary computation. But headlines fade. The north star is "production-ready infrastructure in hours, not months" — gifted to the community under GPL-3.0. Every workstream below must feed that north star or it's a distraction.
+**Strategic Position**: We have a proof-of-concept that no competitor can claim. Doom running in eBPF over IPv6 packets proves our protocol can carry arbitrary computation. But headlines fade. The north star is "configuration management automation platform" — gifted to the community under GPL-3.0. Every workstream below must feed that north star or it's a distraction.
 
 **North Star**: Packet tracing observability platform with eBPF at L2-L7. Customer brings their app, we provide everything else — including the ability to see every packet from ingress to application and back.
 

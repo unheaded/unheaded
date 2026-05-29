@@ -74,7 +74,7 @@ ASCEND-LINUX Phase 1.1 SHIP gate (banner emit on real 6.17 kernel) holds. **Phas
 
 ### The Throne — Captain (Vision & Strategy)
 **Strategic Position**: Age 3 (~70%). Wire format FROZEN at v0x01. Two threads remain bifurcated.
-**North Star**: Production infra in hours, not months. Protocol IS the moat. **Now ALSO: Yggdrasil + UPC integration is a real distro-level differentiator**, scaffolded this session.
+**North Star**: Configuration management automation platform. Protocol IS the moat. **Now ALSO: Yggdrasil + UPC integration is a real distro-level differentiator**, scaffolded this session.
 **Key Decisions Pending**: (a) Captain Track A/B/C — overdue since 2026-04-29; (b) Phase 1.2 pair-call window (when does Stevie commit a day to page tables?); (c) Sophia/Wotan draft-04 ship-or-defer.
 **Risk to Vision**: Bifurcation persists — research thread shipping at quality, public-launch thread STILL stalled. Captain Track call is the single highest-leverage action in the kingdom.
 

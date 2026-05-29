@@ -19,7 +19,7 @@
                                        ║
                     ╔══════════════════╩═══════════════════╗
                     ║      THE UNHEADED KINGDOM             ║
-                    ║  "Production-ready in hours, not months"║
+                    ║  "Configuration management automation platform"║
                     ╚══════════════════╦═══════════════════╝
                                        ║
          ╔═════════════════════════════╩══════════════════════════╗
@@ -82,7 +82,7 @@
 
 **"You bring the head. We provide the armor."**
 
-The Unheaded Kingdom delivers the complete **Suit of Armor** for modern SaaS applications - production-ready infrastructure forged in hours, not months.
+The Unheaded Kingdom delivers the complete **Suit of Armor** for modern SaaS applications - configuration management automation platform.
 
 **The Sacred Pillars:**
 - 🌑 **The Whispering Void** - eBPF-based observability (L2-L7) - we see ALL

@@ -37,7 +37,7 @@ The Kingdom stands at ~260K production LOC (~464K with tests). Doom is playable 
 
 **Strategic Position**: We're past proof-of-concept and into platform engineering. Doom proved the eBPF pipeline works. Now we need the platform to act like a platform — services that discover each other, communicate on a real bus, log to a real aggregator, and listen on ports that don't fight with `python -m http.server`.
 
-**North Star**: Unchanged. "Production-ready infrastructure in hours, not months." But production-ready means services don't hardcode IPs, don't conflict on ports, don't default to the wrong transport, and don't hide their logs.
+**North Star**: Unchanged. "Configuration management automation platform." But production-ready means services don't hardcode IPs, don't conflict on ports, don't default to the wrong transport, and don't hide their logs.
 
 **Key Decision**: The four pillars discussed today are prerequisites for WS5. Without them, "return to core" means returning to the same mess. Fix the foundation. Then build the house.
 
