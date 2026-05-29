@@ -174,7 +174,7 @@ go test -v ./...
 
 ## Version
 
-- Go 1.24.0
+- Go 1.25.0
 - Module: `unheaded`
 
 ## Related Files

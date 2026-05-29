@@ -29,7 +29,7 @@ This document establishes the performance baseline for Unheaded's S77 infrastruc
 | P2P Link | Direct Ethernet, 192.168.13.0/24 |
 | WireGuard | fd00:dead:beef::/48, port 51820 |
 | OS | Linux 6.x |
-| Go | 1.24+ |
+| Go | 1.25+ |
 
 ### Conditions
 
