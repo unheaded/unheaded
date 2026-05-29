@@ -350,8 +350,10 @@ services:
     volumes:
       - ./config/coredns/Corefile:/etc/coredns/Corefile:ro
     ports:
-      - "5353:53/udp"   # DNS (non-privileged port for dev)
-      - "5353:53/tcp"
+      # Host-published only (other containers use Docker's internal DNS, not this).
+      # Override in .env to dodge a host already on 5353 (macOS Bonjour / Pi-hole).
+      - "${COREDNS_PORT:-5353}:53/udp"
+      - "${COREDNS_PORT:-5353}:53/tcp"
     networks:
       - control
       - data
