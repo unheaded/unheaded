@@ -139,7 +139,8 @@ as the Kingdom scales.
 |------|--------|-------------------|
 | **Phylactery** | Greek/D&D: soul vessel | Encrypted state persistence |
 | **Dark Grimoire** | Medieval: book of dark magic | Attack surface taxonomy |
-| **LICH** | D&D: undead wizard | Lethal Infrastructure Chaos Hunter (fuzzing framework) |
+| **LICH** | D&D: undead wizard | Lethal Infrastructure Chaos Hunter (red-team / offense — fuzzing + future autonomous adversary) |
+| **Cerydwyn** | Welsh myth: Cerridwen, keeper of the cauldron of Awen (knowledge, healing, transformation); Pagan/Druidic pool | Tomb's **white-hat / blue-team** triage LLM (Mistral-7B + RAG over the Grimoire) — CVE/patch/threat-assessment. The **counter to LICH**: where Lich attacks, Cerydwyn brews remedies. Renamed from "Oracle" 2026-05-29. Sentinel-aligned. |
 | **Fae Chamber** | Fairy court | Service interface contracts (Wotan pub/sub topics) |
 | **Kingdom Mode** | Political entity | Extended register space via EVPN-VXLAN IPv6 address reclamation |
 | **The Whispering Void** | Original | eBPF data plane — "whispers" because it observes silently at kernel level |

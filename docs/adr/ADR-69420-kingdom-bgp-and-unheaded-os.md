@@ -347,7 +347,7 @@ The kanban app (`cmd/kanban-app/main.go`, lines 256-267) maintains 12 wish-list 
 | `wish-hindu-naming` | Hindu/Indian/Yoga | Indra→LB, Agni→WAF, Vishnu→reconciler, Shiva→chaos, Dharma→compliance, Karma→events | **PARTIALLY ADOPTED** (Dharma, Karma in Pillar 4 via Buddhism; Hindu pool expands these) |
 | `wish-chinese-naming` | Chinese/Taoism | Pangu→bootstrap, Nuwa→self-heal, Sun Wukong→chaos, Guanyin→observability | FUTURE — Age 3+ |
 | `wish-japanese-naming` | Japanese/Shinto/FF | Amaterasu→observability, Susanoo→chaos, Tsukuyomi→scheduler, Kitsune→mesh | FUTURE — Age 3+ |
-| `wish-pagan-naming` | Pagan/Wiccan/Druidic | Cernunnos→fabric, Brigid→WAF, Morrigan→chaos, Dagda→control plane | FUTURE — Age 3+ |
+| `wish-pagan-naming` | Pagan/Wiccan/Druidic | Cernunnos→fabric, Brigid→WAF, Morrigan→chaos, Dagda→control plane, **Cerridwen→Cerydwyn** | **PARTIALLY ADOPTED** (Cerridwen→Cerydwyn = tomb white-hat triage LLM, counter to LICH; renamed from Oracle) |
 | `wish-shaman-naming` | Shamanistic/Animist | Thunderbird→LB, Coyote→chaos, Spider Woman→mesh, Raven→observability | FUTURE — Age 3+ |
 | `wish-jewish-naming` | Jewish/Kabbalistic | Sefirot→mesh, Ein Sof→control plane, Golem→runtime, Tikkun→self-heal | FUTURE — Age 3+ |
 | `wish-islamic-naming` | Islamic/Sufi | Jibril→message bus, Buraq→scheduler, Mizan→LB, Barzakh→isolation | FUTURE — Age 3+ |
