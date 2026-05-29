@@ -1,6 +1,6 @@
 apiVersion: v2
 name: unheaded
-description: Unheaded — Production-ready infrastructure in hours, not months
+description: Unheaded — Configuration management automation platform
 type: application
 version: 0.1.0
 appVersion: "0.1.0-alpha"

@@ -19,7 +19,7 @@
 >
 > What if you could skip all of that?
 
-**[VISUAL: Particle field coalesces into the Unheaded dashboard. The tagline appears: "Production-ready infrastructure in hours, not months."]**
+**[VISUAL: Particle field coalesces into the Unheaded dashboard. The tagline appears: "Configuration management automation platform."]**
 
 ---
 
@@ -147,7 +147,7 @@
 
 > You just watched Unheaded run Unheaded. The dashboard. The Kanban board. The eBPF tracing. The service mesh. The container orchestration. All of it running on the platform it was built to demonstrate.
 >
-> Production-ready infrastructure in hours, not months.
+> Configuration management automation platform.
 
 **[VISUAL: The particle field expands outward. The Unheaded logo centers. Below it: unheaded.com and hello@unheaded.com.]**
 

@@ -391,7 +391,7 @@ Plus directory structure for all components.
 
 ## 🔥 The Vision (Reminder)
 
-**"Production-ready infrastructure in hours, not months."**
+**"Configuration management automation platform."**
 
 We're building:
 - ✅ Drop-in infrastructure platform

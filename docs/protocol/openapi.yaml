@@ -380,7 +380,7 @@ paths:
               example:
                 success: true
                 data:
-                  title: "Production-ready infrastructure in hours, not months"
+                  title: "Configuration management automation platform"
                   statement: "Unheaded delivers the complete suit of armor for modern SaaS applications"
                   goals:
                     - "eBPF observability"

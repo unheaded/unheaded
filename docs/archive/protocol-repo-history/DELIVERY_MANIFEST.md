@@ -89,7 +89,7 @@ New file created specifically for AI agent coordination:
 
 ### Key Sections
 
-1. **Project Vision** - "Production-ready infrastructure in hours, not months"
+1. **Project Vision** - "Configuration management automation platform"
 2. **Architecture Overview** - 6 layers, tech stack, network
 3. **Development Principles** - Security first, observable by default, declarative everything
 4. **Service Implementation Guidelines** - Go patterns, Wotan integration, triple format

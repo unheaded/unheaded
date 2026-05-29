@@ -41,7 +41,7 @@ Retrieve the complete project timeline.
     "version": "1.0.0",
     "last_updated": "2026-01-27T12:00:00Z",
     "status": "alpha",
-    "vision": "Production-ready infrastructure in hours, not months.",
+    "vision": "Configuration management automation platform.",
     "phases": [...],
     "milestones": [...]
   }

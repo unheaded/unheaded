@@ -18,7 +18,7 @@ Since the last Round Table (S74, Feb 27-28), **significant progress has shipped*
 
 **Strategic Position**: Pre-launch alpha with production-grade infrastructure. The protocol IS the moat — wire format frozen, 12 IANA registries drafted, IPR clearance confirmed (RFC 8928/9927 CLEAR).
 
-**North Star**: Production-ready infrastructure in hours, not months — gifted to the community under GPL-3.0. Self-hosting proof (The Meta Moment) is the demo that proves the claim.
+**North Star**: Configuration management automation platform — gifted to the community under GPL-3.0. Self-hosting proof (The Meta Moment) is the demo that proves the claim.
 
 **Key Decision**: With EAST now reachable via P2P, the #1 priority shifts from "more code" to "prove it works on real hardware." The Kingdom needs a live demo on bare metal more than it needs more features.
 

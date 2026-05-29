@@ -1,6 +1,6 @@
 # Unheaded Documentation
 
-**Production-ready infrastructure in hours, not months.**
+**Configuration management automation platform.**
 
 Unheaded is a configuration management automation platform built on eBPF-based observability, declarative infrastructure, and a novel IPv6 protocol extension for per-packet metadata. User brings their app ("the head"), we provide everything else.
 

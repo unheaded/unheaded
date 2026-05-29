@@ -63,7 +63,7 @@ This document presents three honest paths. Stevie picks one.
 ### Captain's risk read
 
 - HIGH — *protocol-is-the-moat is true, but if no one can find the repo, the moat protects an empty fortress*
-- Forge research is *amazing engineering* but it is **not the customer-facing thesis** of Unheaded. The customer-facing thesis is "production infra in hours." Forge is a force multiplier for that thesis, not the thesis itself.
+- Forge research is *amazing engineering* but it is **not the customer-facing thesis** of Unheaded. The customer-facing thesis is "configuration management automation platform." Forge is a force multiplier for that thesis, not the thesis itself.
 
 ### When to pick A
 
@@ -98,7 +98,7 @@ This document presents three honest paths. Stevie picks one.
 - README that doesn't bury the lede
 - Falsifiable infra benchmark
 - Pre-public scrub locked
-- Track B's headline: *"Unheaded is public. Production infra in hours, observable from packet zero. The protocol IS the moat, and now you can read it."*
+- Track B's headline: *"Unheaded is public. Configuration management automation platform, observable from packet zero. The protocol IS the moat, and now you can read it."*
 
 ### What doesn't ship (in this window)
 

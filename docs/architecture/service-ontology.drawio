@@ -32,7 +32,7 @@
         <mxCell id="p1_e_pxe_slp" value="wire fleet" style="endArrow=block;html=1;strokeColor=#888888;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p1_pxe" target="p1_slp"><mxGeometry relative="1" as="geometry"/></mxCell>
 
         <!-- Age ladder -->
-        <mxCell id="p1_age" value="Age ladder:   0 Foundation ✅  →  1 Alpha ✅  →  2 Beta ✅  →  3 Public Release (~70%)  →  4 MVP  →  5 Scaling  →  ★ North Star (production infra in hours · protocol IS the moat)" style="text;html=1;fontSize=12;fontStyle=2;verticalAlign=middle;align=center;" vertex="1" parent="1"><mxGeometry x="20" y="196" width="1560" height="24" as="geometry"/></mxCell>
+        <mxCell id="p1_age" value="Age ladder:   0 Foundation ✅  →  1 Alpha ✅  →  2 Beta ✅  →  3 Public Release (~70%)  →  4 MVP  →  5 Scaling  →  ★ North Star (protocol IS the moat)" style="text;html=1;fontSize=12;fontStyle=2;verticalAlign=middle;align=center;" vertex="1" parent="1"><mxGeometry x="20" y="196" width="1560" height="24" as="geometry"/></mxCell>
 
         <!-- KINGDOM container -->
         <mxCell id="p1_kd_box" value="THE KINGDOM — built / partial (today)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fbfbfb;strokeColor=#999999;verticalAlign=top;align=left;fontStyle=1;fontSize=13;" vertex="1" parent="1"><mxGeometry x="20" y="232" width="1560" height="470" as="geometry"/></mxCell>
@@ -305,11 +305,11 @@
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="p6_title" value="North Star — Yggdrasil PXE substrate + Sleipnir/Gleipnir + product promise (all FUTURE / Age 2-3, Q4 2026+)" style="text;html=1;fontSize=17;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="16" width="1400" height="30" as="geometry"/></mxCell>
+        <mxCell id="p6_title" value="North Star — Yggdrasil PXE substrate + Sleipnir/Gleipnir + platform capabilities (all FUTURE / Age 2-3, Q4 2026+)" style="text;html=1;fontSize=17;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="16" width="1400" height="30" as="geometry"/></mxCell>
 
         <!-- product promise -->
-        <mxCell id="p6_promise_box" value="Product promise — 'production infrastructure in hours, protocol IS the moat'" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fbfbfb;strokeColor=#0e8088;dashed=1;dashPattern=6 4;verticalAlign=top;align=left;fontStyle=2;fontSize=12;opacity=85;" vertex="1" parent="1"><mxGeometry x="40" y="70" width="1500" height="100" as="geometry"/></mxCell>
-        <mxCell id="p6_pr1" value="4-hour prod deploy" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b0e3e6;strokeColor=#0e8088;dashed=1;dashPattern=6 4;opacity=70;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="60" y="108" width="180" height="46" as="geometry"/></mxCell>
+        <mxCell id="p6_promise_box" value="Platform capabilities (vision)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#fbfbfb;strokeColor=#0e8088;dashed=1;dashPattern=6 4;verticalAlign=top;align=left;fontStyle=2;fontSize=12;opacity=85;" vertex="1" parent="1"><mxGeometry x="40" y="70" width="1500" height="100" as="geometry"/></mxCell>
+        <mxCell id="p6_pr1" value="automated full-stack provisioning" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b0e3e6;strokeColor=#0e8088;dashed=1;dashPattern=6 4;opacity=70;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="60" y="108" width="180" height="46" as="geometry"/></mxCell>
         <mxCell id="p6_pr2" value="drop-in compliance templates&#10;FedRAMP/NIST/SOC2/PCI/HIPAA/ITAR/GDPR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b0e3e6;strokeColor=#0e8088;dashed=1;dashPattern=6 4;opacity=70;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="270" y="108" width="320" height="46" as="geometry"/></mxCell>
         <mxCell id="p6_pr3" value="eBPF custom dashboards" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b0e3e6;strokeColor=#0e8088;dashed=1;dashPattern=6 4;opacity=70;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="620" y="108" width="220" height="46" as="geometry"/></mxCell>
         <mxCell id="p6_pr4" value="full IDP/SIEM/SOC/NOC stack" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b0e3e6;strokeColor=#0e8088;dashed=1;dashPattern=6 4;opacity=70;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="870" y="108" width="280" height="46" as="geometry"/></mxCell>

@@ -5,7 +5,7 @@
 
 ## Overview
 
-Unheaded is a configuration management automation platform that delivers production-ready infrastructure in hours, not months. This document describes the alpha architecture demonstrating core capabilities.
+Unheaded is a configuration management automation platform that delivers configuration management automation platform. This document describes the alpha architecture demonstrating core capabilities.
 
 ## Design Principles
 

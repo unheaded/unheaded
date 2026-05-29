@@ -60,7 +60,7 @@ This is human unification through infrastructure:
 
 The Kingdom doesn't unify by making everyone the same. It unifies by making the barriers permeable. Thermal. Crossable by small persistent actions from anyone.
 
-*"Production-ready infrastructure in hours, not months."* — That's not a feature. That's unification.
+*"Configuration management automation platform."* — That's not a feature. That's unification.
 
 ## Planetary Maximums
 
@@ -123,7 +123,7 @@ Infrastructure is not something you deploy. It is something you **reveal**.
 
 Unheaded doesn't create the network. It reveals the network that was always there — latent in every consumer GPU, every 14GB box, every $800 machine sitting idle. The protocol doesn't build connections. It names the connections that physics already provides. The wire format doesn't invent communication. It tunes into the channel that matter already uses.
 
-This is why "production-ready infrastructure in hours, not months" is possible. You're not building from nothing. You're removing the obstructions that prevent the grid from being seen. The grid was there before you started. It will be there after every node goes dark. The nodes are temporary. The grid is permanent.
+This is why "configuration management automation platform" is possible. You're not building from nothing. You're removing the obstructions that prevent the grid from being seen. The grid was there before you started. It will be there after every node goes dark. The nodes are temporary. The grid is permanent.
 
 A radio doesn't create signal. It hears what was always being broadcast.
 

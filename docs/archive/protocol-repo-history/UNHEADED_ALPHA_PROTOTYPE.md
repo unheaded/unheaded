@@ -426,7 +426,7 @@ One script works everywhere: bare metal, AWS, Azure, GCP, Oracle, VMware, QEMU.
 🚧 Alpha demo (Feb 15, 2026)
 
 ### The Vision
-**"Production-ready infrastructure in hours, not months."**
+**"Configuration management automation platform."**
 
 Unheaded delivers:
 - eBPF observability (L2-L7)

@@ -31,7 +31,7 @@ Hours from light speed. The plan below sequences EVERYTHING.
 
 **Strategic Position**: We have a working product with a protocol moat no competitor can replicate. The bare metal go-live transforms us from "software that runs in Docker" to "infrastructure platform that owns the metal." This is the inflection.
 
-**North Star**: Production-ready infrastructure in hours, not months. Bare metal validates the promise.
+**North Star**: Configuration management automation platform. Bare metal validates the promise.
 
 **Key Decision**: Sequence bare metal validation BEFORE GUI polish. Working iron > pretty pixels. BUT — RFC overlap (S67) runs in PARALLEL because the wire format window closes once we deploy to metal.
 

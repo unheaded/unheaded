@@ -27,7 +27,7 @@
 
 > Unheaded is a configuration management automation platform.
 >
-> The name comes from a simple idea: you bring your application -- the head -- and we provide everything else. Networking, observability, security, service mesh, deployment. Production-ready infrastructure in hours, not months.
+> The name comes from a simple idea: you bring your application -- the head -- and we provide everything else. Networking, observability, security, service mesh, deployment. Configuration management automation platform.
 >
 > What you are about to see is a live system. Two bare-metal hosts connected via WireGuard, running 25 services, with eBPF tracing every packet from wire to browser.
 >

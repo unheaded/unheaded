@@ -37,7 +37,7 @@ LOVE SERVE REMEMBER. PEACE AND LOVE. Free to use. Free to share. <3
 
 ## 🎯 Project Vision
 
-**"Production-ready infrastructure in hours, not months — free for everyone."**
+**"Configuration management automation platform — free for everyone."**
 
 Unheaded is a configuration management automation platform delivering complete infrastructure for modern SaaS applications, gifted to the community under GPL-3.0. User brings their app ("the head"), we provide everything else ("unheaded") — at no cost, ever.
 
