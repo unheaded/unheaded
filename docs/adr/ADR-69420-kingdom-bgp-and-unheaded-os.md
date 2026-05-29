@@ -610,4 +610,39 @@ The Yggdrasil image builder (Feature B of this ADR) consumes the same .deb packa
 
 ---
 
-**Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), Sentinel blue team defense skill created, CVE poller service TODO documented, Amber Pillar 2 expansion, fourth naming pillar (Contemplative Traditions), 12-pool naming expansion roadmap, IP/trademark audit requirement, PQC dependency licensing assessment, and distribution strategy (apt/snap/git). Pre-public blocker: Amber IP audit.
+**Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), Sentinel blue team defense skill created, CVE poller service TODO documented, Amber Pillar 2 expansion, fourth naming pillar (Contemplative Traditions), 12-pool naming expansion roadmap, IP/trademark audit requirement, PQC dependency licensing assessment, distribution strategy (apt/snap/git), and Zhenai UI role-selector chat (pipe dream). Pre-public blocker: Amber IP audit.
+
+---
+
+## TODO: Zhenai UI Role-Selector Chat (Pipe Dream)
+
+**Priority**: Far-future / pipe dream — worth noting
+**Owner**: Stevie + Zhenai (Champion) + Developer
+**Added**: 2026-05-29
+
+### Idea
+
+The Zhenai chat page (the conversational face of the kanban "steering wheel" — kanban board and
+Zhenai chat/API are the same control surface) should expose a **dropdown not just for engines,
+but for roles**. Today the UI already has a model/engine selector (ADR-060 multi-model selector);
+extend it with a **role selector** alongside it:
+
+- **Engine dropdown** (existing): which local model/GGUF backs the chat.
+- **Role dropdown** (new): which Kingdom *persona/role* answers — e.g. **Lich** (red-team /
+  offense), **BlackMage** (security/pentest), **Developer** (implementation, used for QA), and so
+  on across the skill roster.
+
+### Rationale
+
+Role-specialization is the lever that lets purpose-built, **role-fine-tuned models run on
+gaming-PC-class hardware** (a single consumer GPU) instead of requiring a **multi-node datacenter
+HPC cluster**. A small model fine-tuned for one narrow role (e.g. "Developer-for-QA" or "Lich
+red-team") can punch above its weight for that role, so a stable of small role-tuned adapters
+on commodity hardware substitutes for one giant generalist model on expensive HPC. This dovetails
+with the Forge LoRA pipeline (per-role LoRA adapters) and the Champion's execute+author loop.
+
+### Status
+
+**Pipe dream** — captured for the record at Stevie's request. Not scheduled. Cross-references:
+ADR-060 (Zhenai multi-model selector), ADR-048 (ForgeBackend trait), and the red/blue role roster
+(Sentinel / BlackMage / MoatGhost / Developer / etc.).
