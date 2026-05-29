@@ -141,7 +141,7 @@ services:
       - ./promtail/promtail-config.yml:/etc/promtail/config.yml:ro
       # Mount Tomb directories for log collection
       - /opt/tomb/lich:/opt/tomb/lich:ro
-      - /opt/tomb/oracle:/opt/tomb/oracle:ro
+      - /opt/tomb/cerydwyn:/opt/tomb/cerydwyn:ro
       - /opt/tomb/reports:/opt/tomb/reports:ro
       - /opt/tomb/captures:/opt/tomb/captures:ro
       # System logs

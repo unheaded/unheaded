@@ -6,7 +6,7 @@
 #   1. Base system (directories, packages, users)
 #   2. Lich adversary framework (Layer 2)
 #   3. Grimoire knowledge base (Layer 3)
-#   4. Oracle LLM (Layer 4)
+#   4. Cerydwyn LLM (Layer 4)
 #   5. Dark Mirror observability (Layer 5)
 #   6. Security hardening (Phase 13)
 #
@@ -40,9 +40,9 @@
   ansible.builtin.import_playbook: playbook-grimoire.yml
   tags: [grimoire, layer3]
 
-- name: "Phase 4: The Oracle (LLM + RAG)"
-  ansible.builtin.import_playbook: playbook-oracle.yml
-  tags: [oracle, layer4]
+- name: "Phase 4: The Cerydwyn (LLM + RAG)"
+  ansible.builtin.import_playbook: playbook-cerydwyn.yml
+  tags: [cerydwyn, layer4]
 
 - name: "Phase 5: The Dark Mirror (Observability)"
   ansible.builtin.import_playbook: playbook-dark-mirror.yml
@@ -66,7 +66,7 @@
       loop:
         - { path: "{{ tomb_root }}/lich/campaigns/LICH-001", layer: "Lich" }
         - { path: "{{ tomb_root }}/grimoire/kingdom-docs", layer: "Grimoire" }
-        - { path: "{{ tomb_root }}/oracle/rag-config.json", layer: "Oracle" }
+        - { path: "{{ tomb_root }}/cerydwyn/rag-config.json", layer: "Cerydwyn" }
         - { path: "{{ tomb_root }}/dark-mirror/prometheus/prometheus.yml", layer: "Dark Mirror" }
       loop_control:
         label: "{{ item.layer }}"
@@ -88,7 +88,7 @@
           Layer 1 (Arsenal):      Kali Linux base tools
           Layer 2 (Lich):         {{ 'DEPLOYED' if layer_checks.results[0].stat.exists else 'MISSING' }}
           Layer 3 (Grimoire):     {{ 'DEPLOYED' if layer_checks.results[1].stat.exists else 'MISSING' }}
-          Layer 4 (Oracle):       {{ 'DEPLOYED' if layer_checks.results[2].stat.exists else 'MISSING' }}
+          Layer 4 (Cerydwyn):       {{ 'DEPLOYED' if layer_checks.results[2].stat.exists else 'MISSING' }}
           Layer 5 (Dark Mirror):  {{ 'DEPLOYED' if layer_checks.results[3].stat.exists else 'MISSING' }}
           Air-gap:                ENFORCED
 

@@ -2,19 +2,19 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 #
-# oracle-tui.py — Interactive terminal UI for the Oracle (serial console)
+# cerydwyn-tui.py — Interactive terminal UI for the Cerydwyn (serial console)
 #
 # Features:
-#   - Chat interface with Oracle LLM
+#   - Chat interface with Cerydwyn LLM
 #   - RAG-augmented responses from the Grimoire
 #   - Query history with scrollback
 #   - Export conversation to markdown
 #   - Works on serial console (curses-based)
 #
 # Usage:
-#   python3 oracle-tui.py
-#   python3 oracle-tui.py --batch --query-file /tmp/queries.txt
-#   python3 oracle-tui.py --export-dir /opt/tomb/oracle/history
+#   python3 cerydwyn-tui.py
+#   python3 cerydwyn-tui.py --batch --query-file /tmp/queries.txt
+#   python3 cerydwyn-tui.py --export-dir /opt/tomb/cerydwyn/history
 
 import curses
 import json
@@ -29,23 +29,23 @@ from pathlib import Path
 
 # --- Configuration ---
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
-ORACLE_MODEL = os.environ.get("ORACLE_MODEL", "oracle-mistral")
-ORACLE_ROOT = os.environ.get("ORACLE_ROOT", "/opt/tomb/oracle")
+CERYDWYN_MODEL = os.environ.get("CERYDWYN_MODEL", "cerydwyn-mistral")
+CERYDWYN_ROOT = os.environ.get("CERYDWYN_ROOT", "/opt/tomb/cerydwyn")
 GRIMOIRE_ROOT = os.environ.get("GRIMOIRE_ROOT", "/opt/tomb/grimoire")
-SYSTEM_PROMPT_FILE = os.path.join(ORACLE_ROOT, "prompts", "system-oracle.txt")
-RAG_CONFIG_FILE = os.path.join(ORACLE_ROOT, "config", "rag-config.json")
-HISTORY_DIR = os.path.join(ORACLE_ROOT, "history")
+SYSTEM_PROMPT_FILE = os.path.join(CERYDWYN_ROOT, "prompts", "system-cerydwyn.txt")
+RAG_CONFIG_FILE = os.path.join(CERYDWYN_ROOT, "config", "rag-config.json")
+HISTORY_DIR = os.path.join(CERYDWYN_ROOT, "history")
 EXPORT_DIR = os.environ.get("EXPORT_DIR", HISTORY_DIR)
 TOP_K = 5
 
 
 def load_system_prompt():
-    """Load the Oracle system prompt from file."""
+    """Load the Cerydwyn system prompt from file."""
     try:
         with open(SYSTEM_PROMPT_FILE, "r") as f:
             return f.read().strip()
     except FileNotFoundError:
-        return "You are the Oracle of the Tomb of Knowledge — a security analyst for the Unheaded Kingdom."
+        return "You are the Cerydwyn of the Tomb of Knowledge — a security analyst for the Unheaded Kingdom."
 
 
 def rag_retrieve(query, top_k=TOP_K):
@@ -112,7 +112,7 @@ def query_ollama(prompt, system_prompt="", stream=False):
         import urllib.request
 
         payload = {
-            "model": ORACLE_MODEL,
+            "model": CERYDWYN_MODEL,
             "prompt": prompt,
             "stream": stream,
         }
@@ -144,7 +144,7 @@ def query_ollama(prompt, system_prompt="", stream=False):
         return f"[ERROR] Ollama query failed: {e}"
 
 
-class OracleConversation:
+class CerydwynConversation:
     """Manages a conversation with history."""
 
     def __init__(self):
@@ -155,18 +155,18 @@ class OracleConversation:
         self.messages.append(("user", query, datetime.now()))
 
     def add_response(self, response):
-        self.messages.append(("oracle", response, datetime.now()))
+        self.messages.append(("cerydwyn", response, datetime.now()))
 
     def get_context_prompt(self, query, rag_context=""):
         """Build a full prompt with conversation history and RAG context."""
         parts = []
 
         # Include last 3 exchanges for context continuity
-        recent = [m for m in self.messages if m[0] in ("user", "oracle")][-6:]
+        recent = [m for m in self.messages if m[0] in ("user", "cerydwyn")][-6:]
         if recent:
             parts.append("[Conversation History]")
             for role, text, ts in recent:
-                label = "User" if role == "user" else "Oracle"
+                label = "User" if role == "user" else "Cerydwyn"
                 parts.append(f"{label}: {text[:500]}")
             parts.append("")
 
@@ -181,9 +181,9 @@ class OracleConversation:
     def export_markdown(self, filepath):
         """Export the conversation to a markdown file."""
         lines = [
-            "# Oracle Conversation Log",
+            "# Cerydwyn Conversation Log",
             f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-            f"**Model:** {ORACLE_MODEL}",
+            f"**Model:** {CERYDWYN_MODEL}",
             f"**Messages:** {len(self.messages)}",
             "",
             "---",
@@ -197,8 +197,8 @@ class OracleConversation:
                 lines.append("")
                 lines.append(text)
                 lines.append("")
-            elif role == "oracle":
-                lines.append(f"### [{timestamp}] Oracle Response")
+            elif role == "cerydwyn":
+                lines.append(f"### [{timestamp}] Cerydwyn Response")
                 lines.append("")
                 lines.append(text)
                 lines.append("")
@@ -210,12 +210,12 @@ class OracleConversation:
             f.write("\n".join(lines))
 
 
-class OracleTUI:
-    """Curses-based TUI for the Oracle."""
+class CerydwynTUI:
+    """Curses-based TUI for the Cerydwyn."""
 
     def __init__(self, stdscr):
         self.stdscr = stdscr
-        self.conversation = OracleConversation()
+        self.conversation = CerydwynConversation()
         self.input_buffer = ""
         self.display_lines = []
         self.scroll_offset = 0
@@ -228,7 +228,7 @@ class OracleTUI:
         curses.curs_set(1)
         curses.use_default_colors()
         if curses.has_colors():
-            curses.init_pair(1, curses.COLOR_GREEN, -1)   # Oracle header
+            curses.init_pair(1, curses.COLOR_GREEN, -1)   # Cerydwyn header
             curses.init_pair(2, curses.COLOR_CYAN, -1)     # User query
             curses.init_pair(3, curses.COLOR_YELLOW, -1)   # Status bar
             curses.init_pair(4, curses.COLOR_RED, -1)       # Error
@@ -242,7 +242,7 @@ class OracleTUI:
 
     def draw_header(self):
         max_y, max_x = self.get_dimensions()
-        header = " TOMB OF KNOWLEDGE -- THE ORACLE "
+        header = " TOMB OF KNOWLEDGE -- THE CERYDWYN "
         header = header.center(max_x - 1)
         try:
             self.stdscr.addstr(0, 0, header[:max_x - 1], curses.A_REVERSE | curses.color_pair(1))
@@ -251,7 +251,7 @@ class OracleTUI:
 
     def draw_status_bar(self):
         max_y, max_x = self.get_dimensions()
-        model_info = f" Model: {ORACLE_MODEL}"
+        model_info = f" Model: {CERYDWYN_MODEL}"
         msg_count = f" Messages: {len(self.conversation.messages)}"
         commands = " ^X:Exit  ^E:Export  ^L:Clear  ^R:RAG  PgUp/PgDn:Scroll"
 
@@ -270,7 +270,7 @@ class OracleTUI:
 
     def draw_input_line(self):
         max_y, max_x = self.get_dimensions()
-        prompt = "Oracle> "
+        prompt = "Cerydwyn> "
         visible_width = max_x - len(prompt) - 1
         visible_input = self.input_buffer[-visible_width:] if len(self.input_buffer) > visible_width else self.input_buffer
         try:
@@ -305,8 +305,8 @@ class OracleTUI:
                     for wl in wrapped:
                         self.display_lines.append((f"  {wl}", 2, 0))
                 self.display_lines.append(("", 0, 0))
-            elif role == "oracle":
-                self.display_lines.append((f"[{timestamp}] Oracle:", 1, curses.A_BOLD))
+            elif role == "cerydwyn":
+                self.display_lines.append((f"[{timestamp}] Cerydwyn:", 1, curses.A_BOLD))
                 for line in text.split("\n"):
                     wrapped = textwrap.wrap(line, wrap_width) or [""]
                     for wl in wrapped:
@@ -351,13 +351,13 @@ class OracleTUI:
         self.stdscr.refresh()
 
     def process_query(self, query):
-        """Send query to Oracle with RAG augmentation."""
+        """Send query to Cerydwyn with RAG augmentation."""
         self.conversation.add_query(query)
         self.query_history.append(query)
         self.history_index = -1
 
         # Show "thinking" status
-        self.status_message = "Querying Grimoire and Oracle... (this may take 30-60s)"
+        self.status_message = "Querying Grimoire and Cerydwyn... (this may take 30-60s)"
         self.refresh_display()
 
         # RAG retrieval
@@ -376,7 +376,7 @@ class OracleTUI:
     def export_conversation(self):
         """Export current conversation to markdown."""
         os.makedirs(EXPORT_DIR, exist_ok=True)
-        filename = f"oracle-session-{datetime.now().strftime('%Y%m%d-%H%M%S')}.md"
+        filename = f"cerydwyn-session-{datetime.now().strftime('%Y%m%d-%H%M%S')}.md"
         filepath = os.path.join(EXPORT_DIR, filename)
         self.conversation.export_markdown(filepath)
         self.status_message = f"Exported to {filepath}"
@@ -480,7 +480,7 @@ class OracleTUI:
         """Main event loop."""
         # Welcome message
         welcome = (
-            "Welcome to the Oracle of the Tomb of Knowledge.\n"
+            "Welcome to the Cerydwyn of the Tomb of Knowledge.\n"
             "I am the BlackMage's analytical voice. Ask me about Kingdom security,\n"
             "threat modeling, vulnerability analysis, or attack planning.\n"
             "\n"
@@ -503,7 +503,7 @@ class OracleTUI:
 
 def run_batch_mode(query_file):
     """Non-interactive batch mode for scripted queries."""
-    conversation = OracleConversation()
+    conversation = CerydwynConversation()
 
     if not os.path.isfile(query_file):
         print(f"[ERROR] Query file not found: {query_file}", file=sys.stderr)
@@ -552,18 +552,18 @@ def main():
             EXPORT_DIR = args[i + 1]
             i += 1
         elif args[i] in ("--help", "-h"):
-            print("Usage: oracle-tui.py [--batch --query-file FILE] [--export-dir DIR]")
+            print("Usage: cerydwyn-tui.py [--batch --query-file FILE] [--export-dir DIR]")
             print()
             print("Interactive mode (default):")
-            print("  python3 oracle-tui.py")
+            print("  python3 cerydwyn-tui.py")
             print()
             print("Batch mode:")
-            print("  python3 oracle-tui.py --batch --query-file /tmp/queries.txt")
+            print("  python3 cerydwyn-tui.py --batch --query-file /tmp/queries.txt")
             print()
             print("Environment variables:")
             print("  OLLAMA_URL       Ollama endpoint (default: http://127.0.0.1:11434)")
-            print("  ORACLE_MODEL     Model name (default: oracle-mistral)")
-            print("  ORACLE_ROOT      Oracle root dir (default: /opt/tomb/oracle)")
+            print("  CERYDWYN_MODEL     Model name (default: cerydwyn-mistral)")
+            print("  CERYDWYN_ROOT      Cerydwyn root dir (default: /opt/tomb/cerydwyn)")
             print("  GRIMOIRE_ROOT    Grimoire root (default: /opt/tomb/grimoire)")
             sys.exit(0)
         i += 1
@@ -574,7 +574,7 @@ def main():
             sys.exit(1)
         run_batch_mode(query_file)
     else:
-        curses.wrapper(lambda stdscr: OracleTUI(stdscr).run())
+        curses.wrapper(lambda stdscr: CerydwynTUI(stdscr).run())
 
 
 if __name__ == "__main__":

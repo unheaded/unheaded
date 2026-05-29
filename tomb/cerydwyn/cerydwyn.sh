@@ -2,31 +2,31 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 #
-# oracle.sh — CLI wrapper that queries Ollama with RAG augmentation from the Grimoire
+# cerydwyn.sh — CLI wrapper that queries Ollama with RAG augmentation from the Grimoire
 #
 # Usage:
-#   ./oracle.sh "What are the attack vectors for the Monad wire protocol?"
-#   ./oracle.sh --no-rag "Explain CWE-787 in simple terms"
-#   ./oracle.sh --context-file /tmp/crash-report.txt "Analyze this crash"
-#   echo "query" | ./oracle.sh --stdin
+#   ./cerydwyn.sh "What are the attack vectors for the Monad wire protocol?"
+#   ./cerydwyn.sh --no-rag "Explain CWE-787 in simple terms"
+#   ./cerydwyn.sh --context-file /tmp/crash-report.txt "Analyze this crash"
+#   echo "query" | ./cerydwyn.sh --stdin
 #
 # Environment:
 #   OLLAMA_URL       Ollama API endpoint (default: http://127.0.0.1:11434)
-#   ORACLE_MODEL     Model name (default: oracle-mistral)
+#   CERYDWYN_MODEL     Model name (default: cerydwyn-mistral)
 #   GRIMOIRE_ROOT    Path to Grimoire knowledge base (default: /opt/tomb/grimoire)
-#   ORACLE_ROOT      Path to Oracle root (default: /opt/tomb/oracle)
+#   CERYDWYN_ROOT      Path to Cerydwyn root (default: /opt/tomb/cerydwyn)
 
 set -euo pipefail
 
 # --- Configuration ---
 OLLAMA_URL="${OLLAMA_URL:-http://127.0.0.1:11434}"
-ORACLE_MODEL="${ORACLE_MODEL:-oracle-mistral}"
+CERYDWYN_MODEL="${CERYDWYN_MODEL:-cerydwyn-mistral}"
 GRIMOIRE_ROOT="${GRIMOIRE_ROOT:-/opt/tomb/grimoire}"
-ORACLE_ROOT="${ORACLE_ROOT:-/opt/tomb/oracle}"
-SYSTEM_PROMPT_FILE="${ORACLE_ROOT}/prompts/system-oracle.txt"
-RAG_CONFIG="${ORACLE_ROOT}/config/rag-config.json"
-LOG_DIR="${ORACLE_ROOT}/logs"
-HISTORY_DIR="${ORACLE_ROOT}/history"
+CERYDWYN_ROOT="${CERYDWYN_ROOT:-/opt/tomb/cerydwyn}"
+SYSTEM_PROMPT_FILE="${CERYDWYN_ROOT}/prompts/system-cerydwyn.txt"
+RAG_CONFIG="${CERYDWYN_ROOT}/config/rag-config.json"
+LOG_DIR="${CERYDWYN_ROOT}/logs"
+HISTORY_DIR="${CERYDWYN_ROOT}/history"
 TOP_K=5
 USE_RAG=true
 CONTEXT_FILE=""
@@ -41,19 +41,19 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --no-rag)      USE_RAG=false; shift ;;
         --top-k)       TOP_K="$2"; shift 2 ;;
-        --model)       ORACLE_MODEL="$2"; shift 2 ;;
+        --model)       CERYDWYN_MODEL="$2"; shift 2 ;;
         --context-file) CONTEXT_FILE="$2"; shift 2 ;;
         --stdin)       STDIN_MODE=true; shift ;;
         --no-stream)   STREAM=false; shift ;;
         --verbose|-v)  VERBOSE=true; shift ;;
         --help|-h)
             cat <<'USAGE'
-Usage: oracle.sh [OPTIONS] "query"
+Usage: cerydwyn.sh [OPTIONS] "query"
 
 Options:
   --no-rag           Skip RAG retrieval, use model knowledge only
   --top-k N          Number of Grimoire chunks to retrieve (default: 5)
-  --model NAME       Ollama model name (default: oracle-mistral)
+  --model NAME       Ollama model name (default: cerydwyn-mistral)
   --context-file F   Inject file contents as additional context
   --stdin            Read query from stdin
   --no-stream        Disable streaming output (wait for full response)
@@ -61,10 +61,10 @@ Options:
   --help, -h         Show this help
 
 Examples:
-  oracle.sh "What is the Monad wire format attack surface?"
-  oracle.sh --no-rag "Explain buffer overflows"
-  oracle.sh --context-file /opt/tomb/lich/crashes/crash-001.txt "Analyze this crash"
-  echo "List all LICH modules" | oracle.sh --stdin
+  cerydwyn.sh "What is the Monad wire format attack surface?"
+  cerydwyn.sh --no-rag "Explain buffer overflows"
+  cerydwyn.sh --context-file /opt/tomb/lich/crashes/crash-001.txt "Analyze this crash"
+  echo "List all LICH modules" | cerydwyn.sh --stdin
 USAGE
             exit 0
             ;;
@@ -85,7 +85,7 @@ if [[ "$STDIN_MODE" == "true" ]]; then
 fi
 
 if [[ -z "$QUERY" ]]; then
-    echo "[ERROR] No query provided. Use: oracle.sh \"your question\"" >&2
+    echo "[ERROR] No query provided. Use: cerydwyn.sh \"your question\"" >&2
     exit 1
 fi
 
@@ -206,7 +206,7 @@ query_ollama_stream() {
 
     curl -sf "${OLLAMA_URL}/api/generate" \
         -d "$(jq -n \
-            --arg model "$ORACLE_MODEL" \
+            --arg model "$CERYDWYN_MODEL" \
             --arg prompt "$prompt" \
             '{model: $model, prompt: $prompt, stream: true}')" \
         2>/dev/null | while IFS= read -r line; do
@@ -231,7 +231,7 @@ query_ollama_batch() {
     local response
     response=$(curl -sf "${OLLAMA_URL}/api/generate" \
         -d "$(jq -n \
-            --arg model "$ORACLE_MODEL" \
+            --arg model "$CERYDWYN_MODEL" \
             --arg prompt "$prompt" \
             '{model: $model, prompt: $prompt, stream: false}')" \
         2>/dev/null)
@@ -251,11 +251,11 @@ log_query() {
 
     mkdir -p "$LOG_DIR"
 
-    local logfile="${LOG_DIR}/oracle-$(date '+%Y-%m-%d').log"
+    local logfile="${LOG_DIR}/cerydwyn-$(date '+%Y-%m-%d').log"
     {
         echo "---"
         echo "timestamp: $(timestamp)"
-        echo "model: ${ORACLE_MODEL}"
+        echo "model: ${CERYDWYN_MODEL}"
         echo "rag: ${rag_used}"
         echo "query: ${query:0:200}"
         echo "---"

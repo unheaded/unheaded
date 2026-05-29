@@ -51,4 +51,4 @@ groups:
           severity: warning
           layer: tomb
         annotations:
-          summary: "Oracle (Ollama) service is DOWN"
+          summary: "Cerydwyn (Ollama) service is DOWN"

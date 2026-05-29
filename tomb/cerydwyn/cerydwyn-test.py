@@ -2,20 +2,20 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 #
-# oracle-test.py — Test harness for Oracle LLM verification
+# cerydwyn-test.py — Test harness for Cerydwyn LLM verification
 #
 # Verifies:
 #   1. Ollama connectivity (API reachable)
-#   2. Model loading (oracle-mistral available)
+#   2. Model loading (cerydwyn-mistral available)
 #   3. Query capability (generate a response)
 #   4. RAG retrieval (Grimoire search works)
 #   5. System prompt loading
 #   6. Response quality (structured output)
 #
 # Usage:
-#   python3 oracle-test.py
-#   python3 oracle-test.py --verbose
-#   python3 oracle-test.py --quick    # Skip slow tests
+#   python3 cerydwyn-test.py
+#   python3 cerydwyn-test.py --verbose
+#   python3 cerydwyn-test.py --quick    # Skip slow tests
 
 import json
 import os
@@ -26,11 +26,11 @@ from datetime import datetime
 
 # --- Configuration ---
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
-ORACLE_MODEL = os.environ.get("ORACLE_MODEL", "oracle-mistral")
-ORACLE_ROOT = os.environ.get("ORACLE_ROOT", "/opt/tomb/oracle")
+CERYDWYN_MODEL = os.environ.get("CERYDWYN_MODEL", "cerydwyn-mistral")
+CERYDWYN_ROOT = os.environ.get("CERYDWYN_ROOT", "/opt/tomb/cerydwyn")
 GRIMOIRE_ROOT = os.environ.get("GRIMOIRE_ROOT", "/opt/tomb/grimoire")
-SYSTEM_PROMPT_FILE = os.path.join(ORACLE_ROOT, "prompts", "system-oracle.txt")
-RAG_CONFIG_FILE = os.path.join(ORACLE_ROOT, "config", "rag-config.json")
+SYSTEM_PROMPT_FILE = os.path.join(CERYDWYN_ROOT, "prompts", "system-cerydwyn.txt")
+RAG_CONFIG_FILE = os.path.join(CERYDWYN_ROOT, "config", "rag-config.json")
 
 VERBOSE = "--verbose" in sys.argv or "-v" in sys.argv
 QUICK = "--quick" in sys.argv
@@ -89,7 +89,7 @@ def test_ollama_connectivity(result):
 
 
 def test_model_available(result):
-    """Test 2: Verify oracle-mistral model is loaded."""
+    """Test 2: Verify cerydwyn-mistral model is loaded."""
     import urllib.request
 
     req = urllib.request.Request(f"{OLLAMA_URL}/api/tags")
@@ -99,16 +99,16 @@ def test_model_available(result):
     models = body.get("models", [])
     model_names = [m.get("name", "") for m in models]
 
-    # Check for exact match or prefix match (e.g., "oracle-mistral:latest")
-    found = any(ORACLE_MODEL in name for name in model_names)
+    # Check for exact match or prefix match (e.g., "cerydwyn-mistral:latest")
+    found = any(CERYDWYN_MODEL in name for name in model_names)
 
     if found:
         result.passed = True
-        result.message = f"Model '{ORACLE_MODEL}' is available"
+        result.message = f"Model '{CERYDWYN_MODEL}' is available"
     else:
-        result.message = f"Model '{ORACLE_MODEL}' not found. Available: {model_names}"
+        result.message = f"Model '{CERYDWYN_MODEL}' not found. Available: {model_names}"
         result.details = (
-            "Fix: Run 'ollama create oracle-mistral -f /opt/tomb/oracle/Modelfile-mistral'"
+            "Fix: Run 'ollama create cerydwyn-mistral -f /opt/tomb/cerydwyn/Modelfile-mistral'"
         )
 
 
@@ -117,8 +117,8 @@ def test_basic_query(result):
     import urllib.request
 
     payload = {
-        "model": ORACLE_MODEL,
-        "prompt": "Respond with exactly: ORACLE_READY",
+        "model": CERYDWYN_MODEL,
+        "prompt": "Respond with exactly: CERYDWYN_READY",
         "stream": False,
     }
     data = json.dumps(payload).encode("utf-8")
@@ -146,7 +146,7 @@ def test_security_query(result):
     import urllib.request
 
     payload = {
-        "model": ORACLE_MODEL,
+        "model": CERYDWYN_MODEL,
         "prompt": (
             "What is CWE-787? Respond with the CWE name and a one-sentence description. "
             "Include the words 'out-of-bounds' in your response."
@@ -231,19 +231,19 @@ def test_grimoire_exists(result):
         result.message = f"Grimoire exists but no expected subdirs found"
 
 
-def test_oracle_directories(result):
-    """Test 8: Verify Oracle directory structure."""
+def test_cerydwyn_directories(result):
+    """Test 8: Verify Cerydwyn directory structure."""
     expected = ["prompts", "logs", "suggestions", "config", "history"]
-    found = [d for d in expected if os.path.isdir(os.path.join(ORACLE_ROOT, d))]
+    found = [d for d in expected if os.path.isdir(os.path.join(CERYDWYN_ROOT, d))]
 
     if len(found) == len(expected):
         result.passed = True
-        result.message = f"All {len(expected)} Oracle directories exist"
+        result.message = f"All {len(expected)} Cerydwyn directories exist"
     elif found:
         result.passed = True  # Partial pass
         result.message = f"{len(found)}/{len(expected)} dirs exist (missing: {set(expected) - set(found)})"
     else:
-        result.message = f"No Oracle directories found at {ORACLE_ROOT}"
+        result.message = f"No Cerydwyn directories found at {CERYDWYN_ROOT}"
 
 
 def test_ollama_binary(result):
@@ -261,7 +261,7 @@ def test_ollama_binary(result):
 
 def test_suggestions_writable(result):
     """Test 10: Verify suggestions directory is writable."""
-    suggestions_dir = os.path.join(ORACLE_ROOT, "suggestions")
+    suggestions_dir = os.path.join(CERYDWYN_ROOT, "suggestions")
     os.makedirs(suggestions_dir, exist_ok=True)
 
     test_file = os.path.join(suggestions_dir, ".write-test")
@@ -279,11 +279,11 @@ def test_suggestions_writable(result):
 
 def main():
     print("=" * 60)
-    print("  Tomb of Knowledge — Oracle Test Harness")
+    print("  Tomb of Knowledge — Cerydwyn Test Harness")
     print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  Ollama URL: {OLLAMA_URL}")
-    print(f"  Model: {ORACLE_MODEL}")
-    print(f"  Oracle Root: {ORACLE_ROOT}")
+    print(f"  Model: {CERYDWYN_MODEL}")
+    print(f"  Cerydwyn Root: {CERYDWYN_ROOT}")
     print("=" * 60)
     print()
 
@@ -294,7 +294,7 @@ def main():
         ("5. System Prompt File", test_system_prompt_exists),
         ("6. RAG Config File", test_rag_config_exists),
         ("7. Grimoire Structure", test_grimoire_exists),
-        ("8. Oracle Directories", test_oracle_directories),
+        ("8. Cerydwyn Directories", test_cerydwyn_directories),
         ("9. Ollama Binary", test_ollama_binary),
         ("10. Suggestions Writable", test_suggestions_writable),
     ]
@@ -338,7 +338,7 @@ def main():
     print("-" * 60)
 
     # Write results to log
-    log_dir = os.path.join(ORACLE_ROOT, "logs")
+    log_dir = os.path.join(CERYDWYN_ROOT, "logs")
     os.makedirs(log_dir, exist_ok=True)
     log_file = os.path.join(log_dir, f"test-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json")
     try:
@@ -372,7 +372,7 @@ def main():
 
 if __name__ == "__main__":
     if "--help" in sys.argv or "-h" in sys.argv:
-        print("Usage: oracle-test.py [--verbose] [--quick]")
+        print("Usage: cerydwyn-test.py [--verbose] [--quick]")
         print()
         print("Options:")
         print("  --verbose, -v  Show detailed output for each test")
@@ -380,8 +380,8 @@ if __name__ == "__main__":
         print()
         print("Environment:")
         print("  OLLAMA_URL     Ollama endpoint (default: http://127.0.0.1:11434)")
-        print("  ORACLE_MODEL   Model name (default: oracle-mistral)")
-        print("  ORACLE_ROOT    Oracle root (default: /opt/tomb/oracle)")
+        print("  CERYDWYN_MODEL   Model name (default: cerydwyn-mistral)")
+        print("  CERYDWYN_ROOT    Cerydwyn root (default: /opt/tomb/cerydwyn)")
         print("  GRIMOIRE_ROOT  Grimoire root (default: /opt/tomb/grimoire)")
         sys.exit(0)
 

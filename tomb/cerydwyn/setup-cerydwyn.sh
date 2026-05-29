@@ -2,22 +2,22 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 #
-# setup-oracle.sh — Install Ollama + model setup inside the air-gapped Tomb VM
+# setup-cerydwyn.sh — Install Ollama + model setup inside the air-gapped Tomb VM
 #
 # Prerequisites:
 #   - Ollama binary pre-transferred to /tmp/ollama-binary
 #   - Model GGUF file pre-transferred to /tmp/Mistral-7B-Instruct-v0.1.Q4_K_M.gguf
-#   - ChromaDB + sentence-transformers wheels in /tmp/oracle-wheels/
+#   - ChromaDB + sentence-transformers wheels in /tmp/cerydwyn-wheels/
 #   - Python 3.8+ available
 #   - Run as root or with sudo
 #
-# Usage: sudo ./setup-oracle.sh [--skip-model] [--skip-rag]
+# Usage: sudo ./setup-cerydwyn.sh [--skip-model] [--skip-rag]
 
 set -euo pipefail
 
 # --- Configuration ---
 TOMB_ROOT="/opt/tomb"
-ORACLE_ROOT="${TOMB_ROOT}/oracle"
+CERYDWYN_ROOT="${TOMB_ROOT}/cerydwyn"
 OLLAMA_BIN_DIR="/opt/ollama/bin"
 OLLAMA_MODELS_DIR="/var/lib/ollama/models"
 OLLAMA_USER="ollama"
@@ -26,7 +26,7 @@ GRIMOIRE_ROOT="${TOMB_ROOT}/grimoire"
 
 MODEL_SRC="/tmp/Mistral-7B-Instruct-v0.1.Q4_K_M.gguf"
 OLLAMA_SRC="/tmp/ollama-binary"
-WHEELS_DIR="/tmp/oracle-wheels"
+WHEELS_DIR="/tmp/cerydwyn-wheels"
 
 SKIP_MODEL=false
 SKIP_RAG=false
@@ -62,13 +62,13 @@ check_root() {
 
 # --- Phase 1: Directory Structure ---
 setup_directories() {
-    log_info "Creating Oracle directory structure..."
+    log_info "Creating Cerydwyn directory structure..."
 
-    mkdir -p "${ORACLE_ROOT}"/{prompts,logs,suggestions,history,config}
+    mkdir -p "${CERYDWYN_ROOT}"/{prompts,logs,suggestions,history,config}
     mkdir -p "${OLLAMA_BIN_DIR}"
     mkdir -p "${OLLAMA_MODELS_DIR}"
 
-    log_ok "Directory structure created at ${ORACLE_ROOT}"
+    log_ok "Directory structure created at ${CERYDWYN_ROOT}"
 }
 
 # --- Phase 2: Ollama Binary Installation ---
@@ -124,7 +124,7 @@ install_systemd_service() {
         # Inline fallback if the service file is missing
         cat > /etc/systemd/system/ollama.service <<'UNIT'
 [Unit]
-Description=Ollama Local LLM Service — Tomb of Knowledge Oracle
+Description=Ollama Local LLM Service — Tomb of Knowledge Cerydwyn
 After=network.target
 Documentation=https://github.com/unheaded/unheaded
 
@@ -191,32 +191,32 @@ install_model() {
 
     log_ok "Model weights installed ($(du -h "${OLLAMA_MODELS_DIR}/Mistral-7B-Instruct-v0.1.Q4_K_M.gguf" | cut -f1))"
 
-    # Create the oracle-mistral model from the Modelfile
-    log_info "Creating oracle-mistral model via Ollama Modelfile..."
+    # Create the cerydwyn-mistral model from the Modelfile
+    log_info "Creating cerydwyn-mistral model via Ollama Modelfile..."
 
     local modelfile_src
     modelfile_src="$(dirname "$(readlink -f "$0")")/Modelfile-mistral"
 
     if [[ -f "$modelfile_src" ]]; then
-        "${OLLAMA_BIN_DIR}/ollama" create oracle-mistral -f "$modelfile_src"
-        log_ok "oracle-mistral model created"
+        "${OLLAMA_BIN_DIR}/ollama" create cerydwyn-mistral -f "$modelfile_src"
+        log_ok "cerydwyn-mistral model created"
     else
         log_warn "Modelfile-mistral not found at $modelfile_src — create model manually later"
     fi
 }
 
-# --- Phase 5: Oracle Scripts Deployment ---
+# --- Phase 5: Cerydwyn Scripts Deployment ---
 deploy_scripts() {
-    log_info "Deploying Oracle scripts..."
+    log_info "Deploying Cerydwyn scripts..."
 
     local script_dir
     script_dir="$(dirname "$(readlink -f "$0")")"
 
-    # Copy scripts to Oracle root
-    for script in oracle.sh oracle-tui.py oracle-daemon.py oracle-test.py; do
+    # Copy scripts to Cerydwyn root
+    for script in cerydwyn.sh cerydwyn-tui.py cerydwyn-daemon.py cerydwyn-test.py; do
         if [[ -f "${script_dir}/${script}" ]]; then
-            cp "${script_dir}/${script}" "${ORACLE_ROOT}/${script}"
-            chmod +x "${ORACLE_ROOT}/${script}"
+            cp "${script_dir}/${script}" "${CERYDWYN_ROOT}/${script}"
+            chmod +x "${CERYDWYN_ROOT}/${script}"
             log_ok "Deployed ${script}"
         else
             log_warn "Script ${script} not found in ${script_dir}"
@@ -225,11 +225,11 @@ deploy_scripts() {
 
     # Copy system prompt
     if [[ -d "${script_dir}/prompts" ]]; then
-        cp -r "${script_dir}/prompts/"* "${ORACLE_ROOT}/prompts/" 2>/dev/null || true
+        cp -r "${script_dir}/prompts/"* "${CERYDWYN_ROOT}/prompts/" 2>/dev/null || true
         log_ok "Deployed system prompts"
     fi
 
-    log_ok "Oracle scripts deployed to ${ORACLE_ROOT}"
+    log_ok "Cerydwyn scripts deployed to ${CERYDWYN_ROOT}"
 }
 
 # --- Phase 6: RAG Dependencies ---
@@ -256,10 +256,10 @@ install_rag_deps() {
     fi
 
     # Create RAG config
-    cat > "${ORACLE_ROOT}/config/rag-config.json" <<EOF
+    cat > "${CERYDWYN_ROOT}/config/rag-config.json" <<EOF
 {
     "ollama_url": "http://127.0.0.1:${OLLAMA_PORT}",
-    "model": "oracle-mistral",
+    "model": "cerydwyn-mistral",
     "grimoire_root": "${GRIMOIRE_ROOT}",
     "chromadb_path": "${GRIMOIRE_ROOT}/rag/chroma.db",
     "embedding_model": "all-MiniLM-L6-v2",
@@ -268,14 +268,14 @@ install_rag_deps() {
     "chunk_overlap": 64,
     "max_context_tokens": 4096,
     "temperature": 0.3,
-    "system_prompt_path": "${ORACLE_ROOT}/prompts/system-oracle.txt",
-    "suggestion_log_dir": "${ORACLE_ROOT}/suggestions",
-    "query_log_dir": "${ORACLE_ROOT}/logs",
-    "history_dir": "${ORACLE_ROOT}/history"
+    "system_prompt_path": "${CERYDWYN_ROOT}/prompts/system-cerydwyn.txt",
+    "suggestion_log_dir": "${CERYDWYN_ROOT}/suggestions",
+    "query_log_dir": "${CERYDWYN_ROOT}/logs",
+    "history_dir": "${CERYDWYN_ROOT}/history"
 }
 EOF
 
-    log_ok "RAG config written to ${ORACLE_ROOT}/config/rag-config.json"
+    log_ok "RAG config written to ${CERYDWYN_ROOT}/config/rag-config.json"
 }
 
 # --- Phase 7: Verification ---
@@ -285,8 +285,8 @@ verify_installation() {
     local failures=0
 
     # Check directories
-    for dir in "${ORACLE_ROOT}" "${ORACLE_ROOT}/prompts" "${ORACLE_ROOT}/logs" \
-               "${ORACLE_ROOT}/suggestions" "${ORACLE_ROOT}/config"; do
+    for dir in "${CERYDWYN_ROOT}" "${CERYDWYN_ROOT}/prompts" "${CERYDWYN_ROOT}/logs" \
+               "${CERYDWYN_ROOT}/suggestions" "${CERYDWYN_ROOT}/config"; do
         if [[ -d "$dir" ]]; then
             log_ok "Directory exists: $dir"
         else
@@ -319,8 +319,8 @@ verify_installation() {
     fi
 
     # Check scripts
-    for script in oracle.sh oracle-tui.py oracle-daemon.py oracle-test.py; do
-        if [[ -x "${ORACLE_ROOT}/${script}" ]]; then
+    for script in cerydwyn.sh cerydwyn-tui.py cerydwyn-daemon.py cerydwyn-test.py; do
+        if [[ -x "${CERYDWYN_ROOT}/${script}" ]]; then
             log_ok "Script executable: ${script}"
         else
             log_warn "Script missing or not executable: ${script}"
@@ -328,17 +328,17 @@ verify_installation() {
     done
 
     # Check system prompt
-    if [[ -f "${ORACLE_ROOT}/prompts/system-oracle.txt" ]]; then
+    if [[ -f "${CERYDWYN_ROOT}/prompts/system-cerydwyn.txt" ]]; then
         log_ok "System prompt exists"
     else
-        log_warn "System prompt not found at ${ORACLE_ROOT}/prompts/system-oracle.txt"
+        log_warn "System prompt not found at ${CERYDWYN_ROOT}/prompts/system-cerydwyn.txt"
     fi
 
     echo ""
     if [[ $failures -eq 0 ]]; then
-        log_ok "=== Oracle installation complete. All checks passed. ==="
+        log_ok "=== Cerydwyn installation complete. All checks passed. ==="
     else
-        log_error "=== Oracle installation completed with $failures error(s). ==="
+        log_error "=== Cerydwyn installation completed with $failures error(s). ==="
     fi
 
     return $failures
@@ -347,7 +347,7 @@ verify_installation() {
 # --- Main ---
 main() {
     echo "============================================"
-    echo "  Tomb of Knowledge — Oracle Setup"
+    echo "  Tomb of Knowledge — Cerydwyn Setup"
     echo "  Air-Gapped Ollama + Mistral-7B + RAG"
     echo "============================================"
     echo ""
@@ -365,10 +365,10 @@ main() {
     echo ""
     log_info "Next steps:"
     log_info "  1. Verify model: /opt/ollama/bin/ollama list"
-    log_info "  2. Test query:   ${ORACLE_ROOT}/oracle.sh 'What is the Monad protocol?'"
-    log_info "  3. Run TUI:      python3 ${ORACLE_ROOT}/oracle-tui.py"
-    log_info "  4. Start daemon: python3 ${ORACLE_ROOT}/oracle-daemon.py &"
-    log_info "  5. Run tests:    python3 ${ORACLE_ROOT}/oracle-test.py"
+    log_info "  2. Test query:   ${CERYDWYN_ROOT}/cerydwyn.sh 'What is the Monad protocol?'"
+    log_info "  3. Run TUI:      python3 ${CERYDWYN_ROOT}/cerydwyn-tui.py"
+    log_info "  4. Start daemon: python3 ${CERYDWYN_ROOT}/cerydwyn-daemon.py &"
+    log_info "  5. Run tests:    python3 ${CERYDWYN_ROOT}/cerydwyn-test.py"
 }
 
 main "$@"

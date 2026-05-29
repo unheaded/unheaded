@@ -9,7 +9,7 @@
 #   make status             Check VM and service status
 #   make deploy-lich        Deploy Layer 2: Lich adversary framework
 #   make deploy-grimoire    Deploy Layer 3: Grimoire knowledge base
-#   make deploy-oracle      Deploy Layer 4: Oracle LLM
+#   make deploy-cerydwyn      Deploy Layer 4: Cerydwyn LLM
 #   make deploy-dark-mirror Deploy Layer 5: Dark Mirror observability
 #   make harden             Run Phase 13 security hardening
 #   make test               Run integration tests
@@ -191,14 +191,14 @@ status: ## Check VM and service status
 	@echo ""
 	@echo "  Services (via SSH):"
 	@ssh $(SSH_OPTS) $(TOMB_USER)@$(TOMB_TARGET) "\
-		for svc in ollama oracle-daemon tomb-prometheus tomb-grafana tomb-loki tomb-firewall; do \
+		for svc in ollama cerydwyn-daemon tomb-prometheus tomb-grafana tomb-loki tomb-firewall; do \
 			state=\$$(systemctl is-active \$$svc 2>/dev/null || echo 'unknown'); \
 			printf '    %-22s %s\n' \"\$$svc:\" \"\$$state\"; \
 		done" 2>/dev/null || echo "    (could not query services via SSH)"
 	@echo ""
 	@echo "  Layers:"
 	@ssh $(SSH_OPTS) $(TOMB_USER)@$(TOMB_TARGET) "\
-		for d in lich grimoire oracle dark-mirror captures reports; do \
+		for d in lich grimoire cerydwyn dark-mirror captures reports; do \
 			if [ -d /opt/tomb/\$$d ]; then \
 				count=\$$(find /opt/tomb/\$$d -type f 2>/dev/null | wc -l); \
 				printf '    %-22s %s files\n' \"/opt/tomb/\$$d:\" \"\$$count\"; \
@@ -232,9 +232,9 @@ deploy-lich: ## Deploy Layer 2: Lich adversary framework
 deploy-grimoire: ## Deploy Layer 3: Grimoire knowledge base
 	$(PROVISION_SH) --target $(TOMB_TARGET) --phase deploy-grimoire
 
-.PHONY: deploy-oracle
-deploy-oracle: ## Deploy Layer 4: Oracle LLM (Ollama + Mistral)
-	$(PROVISION_SH) --target $(TOMB_TARGET) --phase deploy-oracle
+.PHONY: deploy-cerydwyn
+deploy-cerydwyn: ## Deploy Layer 4: Cerydwyn LLM (Ollama + Mistral)
+	$(PROVISION_SH) --target $(TOMB_TARGET) --phase deploy-cerydwyn
 
 .PHONY: deploy-dark-mirror
 deploy-dark-mirror: ## Deploy Layer 5: Dark Mirror observability
@@ -267,9 +267,9 @@ ansible-lich: ## Run Lich deployment playbook
 ansible-grimoire: ## Run Grimoire deployment playbook
 	cd $(ANSIBLE_DIR) && $(ANSIBLE_PLAY) playbook-grimoire.yml
 
-.PHONY: ansible-oracle
-ansible-oracle: ## Run Oracle deployment playbook
-	cd $(ANSIBLE_DIR) && $(ANSIBLE_PLAY) playbook-oracle.yml
+.PHONY: ansible-cerydwyn
+ansible-cerydwyn: ## Run Cerydwyn deployment playbook
+	cd $(ANSIBLE_DIR) && $(ANSIBLE_PLAY) playbook-cerydwyn.yml
 
 .PHONY: ansible-dark-mirror
 ansible-dark-mirror: ## Run Dark Mirror deployment playbook
@@ -326,7 +326,7 @@ test-layers: ## Verify all 5 layers are deployed
 		pass=0; total=5; \
 		test -d /opt/tomb/lich/campaigns/LICH-001 && pass=\$$((pass+1)) && echo '[PASS] Layer 2: Lich' || echo '[FAIL] Layer 2: Lich'; \
 		test -d /opt/tomb/grimoire/kingdom-docs && pass=\$$((pass+1)) && echo '[PASS] Layer 3: Grimoire' || echo '[FAIL] Layer 3: Grimoire'; \
-		test -f /opt/tomb/oracle/rag-config.json && pass=\$$((pass+1)) && echo '[PASS] Layer 4: Oracle' || echo '[FAIL] Layer 4: Oracle'; \
+		test -f /opt/tomb/cerydwyn/rag-config.json && pass=\$$((pass+1)) && echo '[PASS] Layer 4: Cerydwyn' || echo '[FAIL] Layer 4: Cerydwyn'; \
 		test -f /opt/tomb/dark-mirror/prometheus/prometheus.yml && pass=\$$((pass+1)) && echo '[PASS] Layer 5: Dark Mirror' || echo '[FAIL] Layer 5: Dark Mirror'; \
 		sudo iptables -L -n 2>/dev/null | grep -q DROP && pass=\$$((pass+1)) && echo '[PASS] Hardening: Firewall' || echo '[FAIL] Hardening: Firewall'; \
 		echo \"\$$pass/\$$total layers verified\"" 2>/dev/null \
@@ -397,7 +397,7 @@ stage-packages: ## Show instructions for staging air-gapped packages
 	@echo "    |   +-- nvd-cves/          NVD CVE records"
 	@echo "    |   +-- cwe/               CWE mappings"
 	@echo "    |   +-- rag-deps/          Python wheels (chromadb, sentence-transformers)"
-	@echo "    +-- oracle/"
+	@echo "    +-- cerydwyn/"
 	@echo "    |   +-- ollama             Ollama binary"
 	@echo "    |   +-- models/            Mistral-7B model files"
 	@echo "    +-- dark-mirror/"
@@ -411,8 +411,8 @@ stage-packages: ## Show instructions for staging air-gapped packages
 	@echo "    # Ollama"
 	@echo "    curl -fsSL https://ollama.com/install.sh | sh"
 	@echo "    ollama pull mistral"
-	@echo "    cp /usr/local/bin/ollama $(PACKAGES_DIR)/oracle/ollama"
-	@echo "    cp -r ~/.ollama/models/ $(PACKAGES_DIR)/oracle/models/"
+	@echo "    cp /usr/local/bin/ollama $(PACKAGES_DIR)/cerydwyn/ollama"
+	@echo "    cp -r ~/.ollama/models/ $(PACKAGES_DIR)/cerydwyn/models/"
 	@echo ""
 	@echo "    # RAG dependencies"
 	@echo "    pip download -d $(PACKAGES_DIR)/grimoire/rag-deps/ chromadb sentence-transformers"

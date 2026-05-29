@@ -371,12 +371,12 @@
         "sortOrder": "Descending",
         "wrapLogMessage": true
       },
-      "title": "Oracle Suggestions (Auto-Generated)",
+      "title": "Cerydwyn Suggestions (Auto-Generated)",
       "type": "logs",
       "targets": [
         {
           "datasource": { "type": "loki", "uid": "loki" },
-          "expr": "{job=\"oracle\", component=\"suggestions\"}",
+          "expr": "{job=\"cerydwyn\", component=\"suggestions\"}",
           "refId": "A"
         }
       ]

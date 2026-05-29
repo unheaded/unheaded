@@ -92,7 +92,7 @@ When a query hits the `mitre-attck` collection:
 python3 rag-query.py --query "lateral movement techniques for Linux" --collection mitre-attck
 ```
 
-The pipeline returns semantically relevant technique descriptions, allowing the Oracle to reason about attack paths against Kingdom infrastructure.
+The pipeline returns semantically relevant technique descriptions, allowing the Cerydwyn to reason about attack paths against Kingdom infrastructure.
 
 ### Cross-Collection Queries
 
@@ -106,7 +106,7 @@ This retrieves:
 - Kingdom architecture docs describing Wotan's design, ports, and protocols
 - MITRE techniques relevant to message bus exploitation (T1557 AiTM, T1071 App Layer Protocol, etc.)
 
-The Oracle then synthesizes context from both sources to generate threat-informed analysis.
+The Cerydwyn then synthesizes context from both sources to generate threat-informed analysis.
 
 ## Data Freshness
 

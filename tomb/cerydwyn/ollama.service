@@ -2,14 +2,14 @@
 # Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
 #
 # Systemd unit file for Ollama Local LLM Service
-# Tomb of Knowledge — Oracle Layer
+# Tomb of Knowledge — Cerydwyn Layer
 #
 # Install: sudo cp ollama.service /etc/systemd/system/
 #          sudo systemctl daemon-reload
 #          sudo systemctl enable --now ollama
 
 [Unit]
-Description=Ollama Local LLM Service — Tomb of Knowledge Oracle
+Description=Ollama Local LLM Service — Tomb of Knowledge Cerydwyn
 Documentation=https://github.com/unheaded/unheaded
 After=network.target local-fs.target
 Wants=local-fs.target

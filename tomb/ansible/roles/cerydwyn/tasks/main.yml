@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: MIT
-# roles/oracle/tasks/main.yml -- Oracle LLM role
+# roles/cerydwyn/tasks/main.yml -- Cerydwyn LLM role
 ---
-- name: "Ensure Oracle directories exist"
+- name: "Ensure Cerydwyn directories exist"
   ansible.builtin.file:
-    path: "{{ tomb_root }}/oracle/{{ item }}"
+    path: "{{ tomb_root }}/cerydwyn/{{ item }}"
     state: directory
     owner: root
     group: root
@@ -23,5 +23,5 @@
 - name: "Report memory availability"
   ansible.builtin.debug:
     msg: |
-      Memory for Oracle LLM (Mistral-7B Q4 needs ~4GB):
+      Memory for Cerydwyn LLM (Mistral-7B Q4 needs ~4GB):
       {{ mem_check.stdout_lines | join('\n') }}
