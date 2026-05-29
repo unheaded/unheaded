@@ -15,7 +15,7 @@
 # Production deploy: behind an nginx/HAProxy sidecar for TLS termination
 # (per Unheaded's Port-Authority pattern).
 
-FROM golang:1.24-alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 # Build deps (CGO disabled — we want a pure-static binary).
 RUN apk add --no-cache git ca-certificates

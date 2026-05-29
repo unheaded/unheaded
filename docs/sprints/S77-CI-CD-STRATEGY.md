@@ -53,7 +53,7 @@ and signs deployment artifacts.
 
 ## Jenkinsfile
 
-Declarative pipeline pinned to `golang:1.24-alpine` (S77 Phase 3 baseline
+Declarative pipeline pinned to `golang:1.25-alpine` (S77 Phase 3 baseline
 — Phase E.4 of the broader Wobbly-Pond plan migrates Node consumers to
 24; Go itself is independent). Stages:
 

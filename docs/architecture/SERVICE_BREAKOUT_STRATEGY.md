@@ -393,7 +393,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.25'
       - run: go test -race -coverprofile=coverage.out ./...
       - run: go build ./...
 

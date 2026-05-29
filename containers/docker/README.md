@@ -33,7 +33,7 @@ docker compose down -v
 
 The `Dockerfile` uses a multi-stage build pattern:
 
-1. **Builder stage** (`golang:1.24-alpine`): Compiles all Go services
+1. **Builder stage** (`golang:1.25-alpine`): Compiles all Go services
 2. **Per-service stages** (`alpine:3.19`): Minimal runtime images per service
 3. **All-in-one stage** (default): Supervisor-managed single container for dev
 
