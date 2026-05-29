@@ -8,7 +8,7 @@ Configuration management automation platform. Provisions backend infrastructure 
 
 ## Building
 
-Requires Linux (kernel 5.15+ baseline; kernel 6.17+ for the ASCEND-LINUX BPF verifier features), Go 1.24+, Rust nightly, Docker.
+Requires Linux (kernel 5.15+ baseline; kernel 6.17+ for the ASCEND-LINUX BPF verifier features), Go 1.25+, Rust nightly, Docker.
 
 ```bash
 go build ./...

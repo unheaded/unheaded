@@ -139,7 +139,7 @@ scripts/verify-gpl-boundary.sh
 
 ### Prerequisites
 
-- Go 1.24+
+- Go 1.25+
 - Rust toolchain (for eBPF builds)
 - Optional: gosec, govulncheck, go-licenses, cargo-license, Syft
 

@@ -57,7 +57,7 @@ This handles all prerequisites below plus GPU drivers, kernel tuning, eBPF envir
 
 | Tool | Version | Install | Check |
 |------|---------|---------|-------|
-| **Go** | 1.24+ | `wget https://go.dev/dl/go1.24.0.linux-amd64.tar.gz && tar -C /usr/local -xzf go*.tar.gz` | `go version` |
+| **Go** | 1.25+ | `wget https://go.dev/dl/go1.25.0.linux-amd64.tar.gz && tar -C /usr/local -xzf go*.tar.gz` | `go version` |
 | **Rust** | nightly | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh -s -- -y --default-toolchain nightly` | `rustc --version` |
 | **Rust eBPF targets** | — | `rustup target add x86_64-unknown-linux-musl && rustup component add rust-src && cargo install bpf-linker` | `cargo install --list \| grep bpf` |
 | **Docker + Compose** | 24+ | [docs.docker.com/engine/install](https://docs.docker.com/engine/install/) | `docker compose version` |
