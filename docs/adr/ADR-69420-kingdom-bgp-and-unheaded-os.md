@@ -610,7 +610,7 @@ The Yggdrasil image builder (Feature B of this ADR) consumes the same .deb packa
 
 ---
 
-**Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), Sentinel blue team defense skill created, CVE poller service TODO documented, Amber Pillar 2 expansion, fourth naming pillar (Contemplative Traditions), 12-pool naming expansion roadmap, IP/trademark audit requirement, PQC dependency licensing assessment, distribution strategy (apt/snap/git), and Zhenai UI role-selector chat (pipe dream). Pre-public blocker: Amber IP audit.
+**Document Status**: Complete. Three features scoped (Sleipnir, Yggdrasil, Gleipnir), Sentinel blue team defense skill created, CVE poller service TODO documented, Amber Pillar 2 expansion, fourth naming pillar (Contemplative Traditions), 12-pool naming expansion roadmap, IP/trademark audit requirement, PQC dependency licensing assessment, distribution strategy (apt/snap/git), Zhenai UI role-selector chat (pipe dream), and Egyptian naming pillar (future). Pre-public blocker: Amber IP audit.
 
 ---
 
@@ -646,3 +646,87 @@ with the Forge LoRA pipeline (per-role LoRA adapters) and the Champion's execute
 **Pipe dream** — captured for the record at Stevie's request. Not scheduled. Cross-references:
 ADR-060 (Zhenai multi-model selector), ADR-048 (ForgeBackend trait), and the red/blue role roster
 (Sentinel / BlackMage / MoatGhost / Developer / etc.).
+
+---
+
+## Addendum: Egyptian Naming Pillar (FUTURE)
+
+**Priority**: Future — expansion vocabulary, not scheduled
+**Owner**: Lore + Captain
+**Added**: 2026-05-29
+
+### Context
+
+The Kingdom's lore today draws primarily from: **Ancient Greece** (Gnostic Cosmology — Pillar 1:
+Monad / Sophia / Pleroma / Kenoma / Yaldabaoth, plus the "Greek atmospheric" extended pool),
+**Norse / Medieval Armory** (Pillar 3, the production standard: Wotan, Heimdall, Gjallarhorn,
+Gungnir, Sleipnir, Yggdrasil, Gleipnir, cuirass/hauberk/gauntlets/…), and **Chinese / Japanese**
+legend (currently *wishlist*, not yet adopted — see the 12-pool roadmap above). Stevie wants
+**Egyptian mythology** added as a naming pool, and the seed material is the inscription corpus of
+**Hatshepsut's obelisk at Karnak (Obelisk E)** — Amun-Ra, Maatkara, Horus, Aten, the Two Ladies,
+the Ennead, the Two Lands, Ka.
+
+**Hindu / Indian / Yoga — confirmed present** (the "double-check"): it is already in the canon, not
+missing. Pillar 4 (Contemplative Traditions) adopts **Iyengar Yoga** (Tadasana → readiness,
+Pranayama → backpressure, Vinyasa → deploy cadence, Bandha → containment, Sthira/Sukha → resilience)
+and Dharma/Karma via Buddhism; `wish-hindu-naming` in the 12-pool roadmap (Indra→LB, Agni→WAF,
+Vishnu→reconciler, Shiva→chaos, Brahma→provisioner, Dharma→compliance, Karma→events, Chakra→mesh,
+Garuda→scheduler) is marked **PARTIALLY ADOPTED**. No action needed beyond promoting it further if
+desired.
+
+### Egyptian Mythology — proposed mappings
+
+Egyptian cosmology maps unusually well to infrastructure: **Maat** (cosmic order vs chaos) is the
+desired-state/compliance ideal; the **sun's daily barque cycle** is the scheduler; the **Two Lands**
+unification is active/active federation.
+
+| Term | Meaning | Kingdom Mapping |
+|------|---------|-----------------|
+| **Amun-Ra** | "The hidden one" fused with the sun — King of the Gods, the unseen director ("It was he who gave directions"). | Control plane / root orchestrator — the hidden authority that directs all services. |
+| **Ra** | Sun god; travels the day-barque and night-barque in an eternal cycle. | Scheduler / cron / daily convergence run — the recurring journey across the sky. |
+| **Aten** | The radiant sun-disk; "they illuminate the Two Lands like Aten." | Observability — dashboards, tracing, the light that makes the system visible. |
+| **Maat / Maatkara** | Truth, balance, cosmic order; the ka of Ra. | Policy / compliance / desired-state reconciliation (Gleipnir) — order asserted against chaos. |
+| **Horus** | Falcon sky-god, legitimate kingship, "Mighty of ka's," watcher of the horizon. | Gateway / ingress / edge — the rightful watcher at the boundary. |
+| **Set (Seth)** | Storm and disorder; "Horus and Set have joined their portions." | Chaos engineering (peer of Yaldabaoth / Shiva). |
+| **Thoth** | Scribe of the gods, writing, records, reckoning. | Logging / audit trail / documentation (the Librarian). |
+| **Anubis** | Guardian; weighs the heart against Maat's feather to judge admission. | Health/readiness gates / admission control — pass or be rejected. |
+| **Osiris** | Death and resurrection, regeneration. | Self-healing / restart / recovery. |
+| **Isis** | Magic (heka) and protection; "I rule like the son of Isis." | Crypto / secrets / protection (the Crystal Grotto). |
+| **Khepri** | Scarab; the self-created rising dawn sun ("forms like Khepri, who rises"). | Bootstrap / cold-start / init. |
+| **Atum** | The complete, setting sun, the All ("I shall rest in life like Atum"). | Graceful shutdown / drain. |
+| **The Ennead** | The Nine gods of Heliopolis (On); the divine council. | Quorum / consensus group (a 9-node council). |
+| **The Two Lands** | Upper + Lower Egypt unified under one crown ("Lord of the Two Lands"). | Active/active dual-region federation under one control plane. |
+| **Ka** | Vital life-force / animating double. | Liveness — the vitality of a running process/container. |
+| **Djed** | The pillar of stability. | Persistence / durable state / stable storage. |
+| **Was** | Scepter of dominion and power. | Authority / RBAC / capabilities. |
+| **Cartouche** | Oval enclosing a royal name, sealing identity. | Service identity / namespace boundary. |
+| **Obelisk** | Inscribed monument recording annals "of millions of years." | Immutable append-only ledger / audit record / trace marker. |
+| **Duat** | The night underworld the sun traverses before dawn. | Overnight batch / background async processing. |
+| **Ipet-sut (Karnak)** | "The horizon on earth, the august hill of the beginning." | The platform / cluster home — the ground everything is built on. |
+
+### Source seed — Hatshepsut's Obelisk, Karnak (Obelisk E)
+
+The naming pool is seeded from the obelisk inscriptions (north/east/west/south faces + the
+South→West→North→East base inscriptions). Representative lines:
+
+> "Wrought with very fine gold, they illuminate the Two Lands like Aten." (→ Aten = observability)
+> "Her annals are millions of years, united with life, stability, and dominion." (→ obelisk = ledger)
+> "whom he chose as guardian of Egypt, as protector of nobles and commoners." (→ Horus = gateway)
+
+Transliteration uses glyphs absent from a standard keyboard (Ꜣ Ꜥ ḥ ḫ ẖ š ḳ ṯ ḏ); the full
+hieroglyphic → transliteration → translation corpus Stevie supplied is the reference material for
+this pool (keep it in `docs/lore/` when the pillar is formally adopted).
+
+### Sacred Law compliance
+
+The **Seventh Sacred Law — "Respect the practice"** applies: Egyptian names carry weight from a
+living cultural heritage; use them with understanding, not decoration. A service named **Maat** must
+actually enforce order/policy; **Anubis** must actually gate admission; **Osiris** must actually
+resurrect. The name IS the contract.
+
+### Status
+
+**Future / expansion vocabulary.** Adopt with the same treatment as Pillar 4 when the pool is
+formally promoted: a term-by-term mapping, an integration table against the existing pillars, and a
+`wish-egyptian-naming` entry added to the kanban wish pool + the 12-pool roadmap table above (which
+becomes 13). Egyptian terms are public-domain (ancient theology) and require no IP audit.
