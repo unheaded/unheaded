@@ -112,16 +112,28 @@ docker compose logs -f
 | Micromanager | unheaded-micromanager | 19003 | `localhost:19003/health` | Task execution |
 | Monad | unheaded-monad | 19004 | `localhost:19004/health` | State management |
 | Sophia | unheaded-sophia | 19005 | `localhost:19005/health` | Knowledge graph |
-| Cuirass | unheaded-cuirass | 17000 | `localhost:17000/health` | Control plane |
+| Cuirass | unheaded-cuirass | 19006 | `localhost:19006/health` | Control plane |
 | Dashboard | unheaded-dashboard | 20000 | `localhost:20000/health` | Metrics + WebSocket |
 | Kanban | unheaded-kanban | 20001 | `localhost:20001/health` | Self-hosting proof |
 
-**Optional observability stack** (Prometheus + Grafana):
-```bash
-docker compose --profile observability up -d
-# Prometheus: localhost:9091
-# Grafana:    localhost:3000 (admin/unheaded)
-```
+**Open in your browser (local testing):**
+- **Kanban board / Zhenai cockpit** → http://localhost:20001
+- **Dashboard** (metrics + live packet-flow) → http://localhost:20000
+- **Grafana** → http://localhost:3001 (admin / unheaded)
+- **Traefik dashboard** → http://localhost:21000
+
+### Infra & data-plane host ports
+
+These come up with `docker compose up -d` alongside the services above.
+
+| Component | Container | Host Port(s) | Role |
+|-----------|-----------|--------------|------|
+| Traefik (edge) | unheaded-traefik | 80 (HTTP), 443 (HTTPS), 50051 (gRPC) | Reverse proxy / ingress. Override via `.env` (`TRAEFIK_HTTP_PORT`/`TRAEFIK_HTTPS_PORT`) if 80/443 are taken. |
+| Grafana | unheaded-grafana | 3001 | Dashboards (admin / unheaded) |
+| VictoriaMetrics | unheaded-victoria | 8428 | Prometheus-compatible metrics store |
+| ClickHouse | unheaded-clickhouse | 8123 (HTTP), 9000 (native) | Log store |
+| PostgreSQL | unheaded-postgres | 5432 | "The Well" |
+| CoreDNS | unheaded-coredns | 5353 | Dev DNS for `*.unheaded.local`. Override via `.env` (`COREDNS_PORT`) if 5353 is taken (macOS Bonjour / Pi-hole). |
 
 ---
 
@@ -129,7 +141,7 @@ docker compose --profile observability up -d
 
 ```bash
 # Quick health check across all services (Doom Range ports)
-for port in 17000 18000 19000 19001 19002 19003 19004 19005 20000 20001; do
+for port in 18000 19000 19001 19002 19003 19004 19005 19006 20000 20001; do
   printf "localhost:%-5s → " "$port"
   curl -sf "http://localhost:$port/health" && echo "" || echo "UNREACHABLE"
 done
