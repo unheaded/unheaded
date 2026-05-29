@@ -12,7 +12,7 @@ permissions:
   packages: write
 
 env:
-  GO_VERSION: '1.24'
+  GO_VERSION: '1.25'
   RUST_STABLE: 'stable'
   RUST_NIGHTLY: 'nightly-2025-06-01'
   # bpfel-unknown-none requires nightly + build-std=core
