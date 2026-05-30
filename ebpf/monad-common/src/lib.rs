@@ -1547,6 +1547,15 @@ pub mod mbc_mmu {
     pub const PTE_ACCESSED: u32 = 1 << 8;
     /// Page table entry flag: page has been written (dirty).
     pub const PTE_DIRTY: u32 = 1 << 7;
+    /// Page-directory entry flag: this PDE is a 4 MiB superpage leaf, not a
+    /// pointer to a second-level table (ADR-074 large-page support, 2026-05-30).
+    /// When set, the physical 4 MiB-page base is `pde & SUPERPAGE_MASK` and the
+    /// low 22 bits of the virtual address are the in-page offset.
+    pub const PTE_LEAF: u32 = 1 << 6;
+    /// Mask for the 4 MiB-aligned physical base of a superpage leaf PDE.
+    pub const SUPERPAGE_MASK: u32 = 0xFFC0_0000;
+    /// In-page offset mask for a 4 MiB superpage (low 22 bits).
+    pub const SUPERPAGE_OFFSET_MASK: u32 = 0x003F_FFFF;
 
     /// Mask to extract the page frame number from a page table entry (bits [31:12]).
     pub const PTE_PFN_MASK: u32 = 0xFFFFF000;
