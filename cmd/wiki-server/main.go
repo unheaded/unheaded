@@ -12,17 +12,19 @@
  */
 
 // Package main implements wiki-server: a simple HTTP server that renders
-// markdown files from docs/wiki/ as styled HTML pages with sidebar navigation.
+// markdown files from wiki/ as styled HTML pages with sidebar navigation.
+// GitHub-wiki-style [[Page]] / [[Display|Page]] links are rewritten to
+// standard markdown links before rendering.
 //
 // Usage:
 //
-//	wiki-server [--port 20002] [--wiki-dir ./docs/wiki]
+//	wiki-server [--port 20002] [--wiki-dir ./wiki]
 //
 // Endpoints:
 //
 //	GET /              Redirect to /wiki/
 //	GET /wiki/         Wiki homepage (README.md)
-//	GET /wiki/{page}   Render docs/wiki/{page}.md as HTML
+//	GET /wiki/{page}   Render wiki/{page}.md as HTML
 //	GET /health        Health check (200 OK)
 //	GET /ready         Readiness probe (200 OK)
 //
@@ -38,6 +40,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"syscall"
@@ -50,6 +53,23 @@ import (
 
 	"unheaded/pkg/auth"
 )
+
+// wikiLinkRe matches GitHub-wiki-style links: [[Display|Page-Name]] or [[Page-Name]].
+var wikiLinkRe = regexp.MustCompile(`\[\[([^\]|]+)(?:\|([^\]]+))?\]\]`)
+
+// rewriteWikiLinks converts [[Page]] and [[Display|Page]] to standard markdown links
+// so goldmark can render them. Targets resolve relative to /wiki/.
+func rewriteWikiLinks(src []byte) []byte {
+	return wikiLinkRe.ReplaceAllFunc(src, func(m []byte) []byte {
+		sub := wikiLinkRe.FindSubmatch(m)
+		display := string(sub[1])
+		target := string(sub[2])
+		if target == "" {
+			target = display
+		}
+		return []byte("[" + display + "](/wiki/" + target + ")")
+	})
+}
 
 const (
 	serviceVersion = "0.1.0-alpha"
@@ -205,6 +225,8 @@ func (ws *WikiServer) renderPage(slug string) (string, string, error) {
 		}
 	}
 
+	data = rewriteWikiLinks(data)
+
 	var buf bytes.Buffer
 	if err := ws.md.Convert(data, &buf); err != nil {
 		return "", "", fmt.Errorf("render markdown: %w", err)
@@ -318,7 +340,7 @@ func newServer(port int, handler http.Handler) *http.Server {
 
 func main() {
 	port := flag.Int("port", 20002, "HTTP server port")
-	wikiDir := flag.String("wiki-dir", "./docs/wiki", "Path to wiki markdown directory")
+	wikiDir := flag.String("wiki-dir", "./wiki", "Path to wiki markdown directory")
 	flag.Parse()
 
 	logf("INFO", "starting wiki-server",
