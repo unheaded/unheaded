@@ -512,6 +512,14 @@ fn cmd_boot(
         }
     }
 
+    // ADR-074 Option A Gate 1 (2026-05-30): build pid 0's identity page
+    // directory at its fixed pgd region (0x00F00000) before the CPU starts.
+    // 16 superpages × 4 MiB = identity-maps the low 64 MiB onto physical RAM.
+    // The interpreter only translates user-mode accesses, so this is a no-op
+    // transform that must NOT change the boot — proving the live MMU walk.
+    runner.populate_identity_pgd(0x00F0_0000, 16)?;
+    println!("  ✓ pid-0 identity pgd built at 0x00F00000 (16×4MiB superpages, MMU live)");
+
     // Initial CPU state: PC=0x4000 (word index of byte 0x10000), SP=0x03F00000,
     // priv_level=0 M-mode, reservation_address=0xFFFFFFFF.
     runner.populate_cpu(runner::xv6_initial_cpu_state())?;

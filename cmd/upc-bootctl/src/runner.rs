@@ -88,9 +88,12 @@ pub fn xv6_initial_cpu_state() -> MbcCpuState {
         exit_code: 0,
         current_pid: 0,
         num_processes: 1,
-        mmu_enabled: 0,
+        // ADR-074 Option A (2026-05-30): MMU on kingdom-wide, but the interpreter
+        // only translates user-mode (priv 3) accesses — the kernel stays flat.
+        // page_dir_base points at pid 0's fixed per-pid pgd region.
+        mmu_enabled: 1,
         _pad3: 0,
-        page_dir_base: 0,
+        page_dir_base: 0x00F0_0000,
         priv_level: 0,
         _pad4: 0,
         _pad5: 0,
@@ -222,6 +225,36 @@ impl BootRunner {
             start_slot = start_slot,
             words = mbc_words.len(),
             "ROM_MAP populated"
+        );
+        Ok(())
+    }
+
+    /// Build pid 0's identity page directory at its fixed per-pid pgd region
+    /// (ADR-074 Allocator A1, `pgd_base`). Maps the low `n_superpages` × 4 MiB
+    /// of the virtual address space identity-onto physical RAM using superpage
+    /// leaf PDEs (`PTE_LEAF`). This is the Gate-1 "MMU live, identity slice"
+    /// table: translation is a no-op transform, so the boot must still reach
+    /// `init: starting sh` — proving the live walk + leaf + priv-gating path.
+    ///
+    /// PDE flag bits MUST match `monad_common::mmu` (PRESENT=1<<11, LEAF=1<<6,
+    /// WRITE=1<<10, USER=1<<9); mirrored here because bootctl does not import
+    /// the no_std common crate.
+    pub fn populate_identity_pgd(&mut self, pgd_base: u32, n_superpages: u32) -> Result<()> {
+        const PTE_PRESENT: u32 = 1 << 11;
+        const PTE_LEAF: u32 = 1 << 6;
+        const PTE_WRITE: u32 = 1 << 10;
+        const PTE_USER: u32 = 1 << 9;
+        let flags = PTE_PRESENT | PTE_LEAF | PTE_WRITE | PTE_USER;
+        let mut bytes = Vec::with_capacity((n_superpages as usize) * 4);
+        for k in 0..n_superpages {
+            let pde = (k << 22) | flags; // identity: VA 4MiB-page k → PA 4MiB-page k
+            bytes.extend_from_slice(&pde.to_le_bytes());
+        }
+        self.populate_ram(&[(pgd_base, &bytes)])?;
+        tracing::info!(
+            pgd_base = format!("0x{:08X}", pgd_base),
+            superpages = n_superpages,
+            "identity pgd written (pid 0, ADR-074 Gate 1)"
         );
         Ok(())
     }

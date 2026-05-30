@@ -169,10 +169,14 @@ static TTY_HEAD: Array<u32> = Array::with_max_entries(1, 0);
 #[map]
 static PROC_TABLE: Array<[u32; 21]> = Array::with_max_entries(8, 0);
 
-/// Scheduler state: [0]=current_pid, [1]=num_processes, [2]=scheduler_enabled, [3]=halted_mask.
-/// halted_mask: bit i set means process i has exited/halted.
+/// Scheduler state: [0]=current_pid, [1]=num_processes, [2]=suspended_mask,
+/// [3]=halted_mask, [4]=reaped_mask.
+/// halted_mask: bit i set means process i has exited (ZOMBIE) — the scheduler
+///   skips it but it stays in PROC_TABLE until reaped.
+/// reaped_mask: bit i set means a parent wait() has already collected zombie i,
+///   so a later wait() won't return the same pid twice (Phase 1.6).
 #[map]
-static SCHED_STATE: Array<u32> = Array::with_max_entries(4, 0);
+static SCHED_STATE: Array<u32> = Array::with_max_entries(5, 0);
 
 /// Software TLB: 64 entries, direct-mapped by virtual page number (Level 4d).
 /// Key = index (vpn & 63), Value = [vpn, pfn, flags] (3 u32s = 12 bytes).
@@ -1751,16 +1755,143 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 mem_write_byte(0xC001, byte_val);
                 cpu.regs[8] = 1;
             } else if syscall_nr == 1 {
-                // xv6 SYS_fork (1) stub — return -1 so init's `if (pid<0)`
-                // path fires "init: fork failed\n" + exit(1). Real fork on
-                // UPC needs trapframe + pgd duplication; deferred.
-                cpu.regs[8] = (-1i32) as u32;
+                // ── xv6 SYS_fork (1) — RV32I ecall path (Phase 1.6) ──────────
+                // Real fork: snapshot the parent's full MBC register file into
+                // the next PROC_TABLE slot so the scheduler (driven later by
+                // SYS_wait → scheduler_context_switch) can run the child. This
+                // mirrors the proven INT 0x80 SYS_FORK (Level 4c) but uses the
+                // RISC-V ABI: a0 (→ r8) carries the return value. Parent gets
+                // child_pid; the child resumes from the saved state with a0 = 0
+                // and takes init.c's `if (pid == 0)` exec branch.
+                //
+                // cpu.pc was already advanced past the ecall at fetch (see the
+                // `cpu.pc.wrapping_add(1)` before opcode dispatch), so storing
+                // child_state[16] = cpu.pc resumes the child *after* the syscall.
+                if cpu.num_processes >= intr::MAX_PROCESSES {
+                    // No free PROC_TABLE slot — xv6 fork() returns -1.
+                    cpu.regs[8] = (-1i32) as u32;
+                } else {
+                    let child_pid = cpu.num_processes as u32;
+                    let mut child_state = [0u32; 21];
+                    let mut r = 0u32;
+                    while r < 16 {
+                        child_state[r as usize] = cpu.regs[r as usize];
+                        r += 1;
+                    }
+                    child_state[16] = cpu.pc; // child resumes after the ecall
+                    child_state[17] = cpu.flags as u32;
+                    child_state[18] = cpu.regs[15]; // SP copy (regs copied above)
+                    child_state[19] = cpu.program_break;
+                    // Phase 1.2 (ADR-074 Option A): child gets its per-pid pgd.
+                    child_state[phase12::PROC_TABLE_PGD_SLOT] =
+                        phase12::pgd_base_for_pid(child_pid as u8);
+                    // Child's fork() return value: a0 = 0.
+                    child_state[8] = 0;
+                    if let Some(p) = PROC_TABLE.get_ptr_mut(child_pid) {
+                        unsafe {
+                            *p = child_state;
+                        }
+                    }
+                    cpu.num_processes += 1;
+                    if let Some(p) = SCHED_STATE.get_ptr_mut(1) {
+                        unsafe {
+                            *p = cpu.num_processes as u32;
+                        }
+                    }
+                    increment_stat(STAT_FORKS);
+                    // Parent's fork() return value: a0 = child_pid.
+                    cpu.regs[8] = child_pid;
+                }
             } else if syscall_nr == 2 {
-                // xv6 SYS_exit (2) — halt the CPU. exit_code in a0 (r8).
+                // ── xv6 SYS_exit (2) — RV32I ecall path (Phase 1.6) ──────────
+                // Mark the exiting process a ZOMBIE (set its halted_mask bit) so
+                // its parent's wait() can reap it, then context-switch to a
+                // runnable process. Only halt the whole CPU when nothing else
+                // can run (the last process exited). Mirrors INT 0x80 SYS_EXIT
+                // (Phase 1.3 ADR-075 D-5). exit code in a0 (→ r8).
                 cpu.exit_code = cpu.regs[8];
-                cpu.halted = 1;
-                increment_stat(STAT_HALTED);
-                break;
+                let exiting_pid = cpu.current_pid as u32;
+                if let Some(p) = SCHED_STATE.get_ptr_mut(3) {
+                    unsafe {
+                        *p |= 1u32 << exiting_pid;
+                    }
+                }
+                if cpu.num_processes > 1 {
+                    scheduler_context_switch(cpu, flow_label, hop_id);
+                    // If the scheduler couldn't move off the exiting pid (all
+                    // others are zombies/suspended), there's nothing left to
+                    // run — halt.
+                    if cpu.current_pid as u32 == exiting_pid {
+                        cpu.halted = 1;
+                        increment_stat(STAT_HALTED);
+                    }
+                    break;
+                } else {
+                    cpu.halted = 1;
+                    increment_stat(STAT_HALTED);
+                    break;
+                }
+            } else if syscall_nr == 3 {
+                // ── xv6 SYS_wait (3) — RV32I ecall path (Phase 1.6) ──────────
+                // wait(int *status): block until ANY child exits, return its
+                // pid; -1 if the caller has no children. a0 (→ r8) is BOTH the
+                // status pointer (0 = ignore) and the return value.
+                //
+                // Cooperative model: children are pids greater than the parent
+                // (init=0 forks 1,2,…). If a not-yet-reaped zombie child exists,
+                // reap it (mark reaped_mask, keep halted_mask so the scheduler
+                // never reschedules it) and return its pid. Otherwise switch to
+                // a runnable child and re-execute this ecall when we resume —
+                // cpu.pc is decremented BEFORE the switch so the *parent's*
+                // saved PC lands on the wait ecall (pc was pre-incremented at
+                // fetch), while the child resumes at its own saved PC.
+                let parent_pid = cpu.current_pid as u32;
+                let num = cpu.num_processes as u32;
+                let halted = match SCHED_STATE.get(3) {
+                    Some(v) => *v,
+                    None => 0,
+                };
+                let reaped = match SCHED_STATE.get(4) {
+                    Some(v) => *v,
+                    None => 0,
+                };
+                let mut found: i32 = -1;
+                let mut any_child = false;
+                let mut p = parent_pid + 1;
+                // Bounded by MAX_PROCESSES for the BPF verifier.
+                while p < num && p < intr::MAX_PROCESSES as u32 {
+                    any_child = true;
+                    if (halted >> p) & 1 != 0 && (reaped >> p) & 1 == 0 {
+                        found = p as i32;
+                        break;
+                    }
+                    p += 1;
+                }
+                if found >= 0 {
+                    let child = found as u32;
+                    // Reap: record in reaped_mask so a later wait() skips it.
+                    if let Some(ptr) = SCHED_STATE.get_ptr_mut(4) {
+                        unsafe {
+                            *ptr = reaped | (1u32 << child);
+                        }
+                    }
+                    // If a status pointer was supplied, write 0 (we don't track
+                    // per-process exit status yet).
+                    let status_ptr = cpu.regs[8];
+                    if status_ptr != 0 {
+                        mem_write_word(status_ptr >> 2, 0);
+                    }
+                    increment_stat(STAT_WAITPIDS);
+                    cpu.regs[8] = child; // wait() returns the reaped child's pid
+                } else if any_child {
+                    // Children exist but none have exited yet — run one.
+                    cpu.pc = cpu.pc.wrapping_sub(1); // re-execute wait on resume
+                    scheduler_context_switch(cpu, flow_label, hop_id);
+                    break;
+                } else {
+                    // No children — xv6 wait() returns -1.
+                    cpu.regs[8] = (-1i32) as u32;
+                }
             } else if syscall_nr == lsys::SYS_WRITE_BLOCK {
                 let block_num = cpu.regs[8];
                 let buf_addr = cpu.regs[9];
@@ -2106,8 +2237,13 @@ fn emit_context_switch(flow_label: u32, from_pid: u32, to_pid: u32, hop_id: u8) 
 /// BPF verifier: this function is #[inline(always)] to avoid call overhead.
 /// The page table walk is bounded (2 reads), TLB access is 1 Array lookup.
 fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
-    if cpu.mmu_enabled == 0 {
-        return vaddr; // Flat mode — no translation (Doom, backward compat)
+    // Translate only for user mode (priv_level==3). The kernel runs at flat
+    // physical addresses (ROM code + RAM data; kvminit is skipped on UPC), so
+    // M/S-mode accesses bypass the walk. This lets us leave mmu_enabled=1
+    // kingdom-wide while only user pages get the per-pid page table (ADR-074
+    // Option A, 2026-05-30).
+    if cpu.mmu_enabled == 0 || cpu.priv_level != 3 {
+        return vaddr; // Flat mode — no translation (kernel, or Doom back-compat)
     }
 
     let vpn = vaddr >> 12;
@@ -2133,6 +2269,21 @@ fn translate_address(cpu: &MbcCpuState, vaddr: u32) -> u32 {
     let pde = mem_read_word(pd_word_addr);
     if (pde & mmu::PTE_PRESENT) == 0 {
         return vaddr; // Page fault — return unmapped (handle gracefully)
+    }
+
+    // 4 MiB superpage leaf (ADR-074 large-page path): the PDE maps a whole
+    // 4 MiB region directly — no second-level table. Resolve to physical and
+    // install a 4 KiB-granular TLB entry so repeat hits skip the re-walk.
+    if (pde & mmu::PTE_LEAF) != 0 {
+        let paddr = (pde & mmu::SUPERPAGE_MASK) | (vaddr & mmu::SUPERPAGE_OFFSET_MASK);
+        if let Some(p) = TLB_MAP.get_ptr_mut(tlb_idx) {
+            unsafe {
+                (*p)[0] = vpn;
+                (*p)[1] = paddr >> 12;
+                (*p)[2] = mmu::PTE_PRESENT;
+            }
+        }
+        return paddr;
     }
 
     // Read page table entry
