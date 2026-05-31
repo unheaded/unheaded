@@ -528,13 +528,15 @@ fn cmd_boot(
     let cpu_initial = runner.cpu_state()?;
     println!(
         "\n✓ live BPF maps populated for instance 0x{:02X}\n  \
-         CPU_MAP[0x{:X}]: PC=0x{:08X} SP=0x{:08X} priv={} halted={}",
+         CPU_MAP[0x{:X}]: PC=0x{:08X} SP=0x{:08X} priv={} halted={} num_proc={} cur_pid={}",
         instance,
         instance,
         cpu_initial.pc,
         cpu_initial.regs[15],
         cpu_initial.priv_level,
-        cpu_initial.halted
+        cpu_initial.halted,
+        cpu_initial.num_processes,
+        cpu_initial.current_pid
     );
     println!(
         "  ROM_MAP: {} MBC words loaded ({} bytes)",
@@ -577,13 +579,16 @@ fn cmd_boot(
     let cpu_after = runner.cpu_state()?;
     println!(
         "\n=== AFTER TRIGGER ===\n  \
-         CPU_MAP[0x{:X}]: PC=0x{:08X} SP=0x{:08X} priv={} halted={} insn_count={}",
+         CPU_MAP[0x{:X}]: PC=0x{:08X} SP=0x{:08X} priv={} halted={} insn_count={} num_proc={} cur_pid={} brk=0x{:08X}",
         instance,
         cpu_after.pc,
         cpu_after.regs[15],
         cpu_after.priv_level,
         cpu_after.halted,
-        cpu_after.insn_count
+        cpu_after.insn_count,
+        cpu_after.num_processes,
+        cpu_after.current_pid,
+        cpu_after.program_break
     );
     if cpu_after.pc != cpu_initial.pc || cpu_after.insn_count > 0 {
         println!("  ✓ FIRST HEARTBEAT — eBPF interpreter advanced the CPU");
