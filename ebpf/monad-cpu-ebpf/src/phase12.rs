@@ -39,6 +39,45 @@ pub fn pgd_base_for_pid(pid: u8) -> u32 {
     PER_PID_PGD_BASE + (pid as u32) * PGD_SIZE_BYTES
 }
 
+/// Size of a process's user RAM slice (ADR-074 make-MMU-live Gate 2, 2026-05-30).
+/// Covers init's data + stack footprint (stack sits near ~5 MiB). 4 MiB-aligned.
+pub const USER_SLICE_BYTES: u32 = 0x0060_0000; // 6 MiB
+
+/// fork() working-set copy bounds (perf, 2026-05-31). The full 6 MiB slice is
+/// almost all zeros: the user image (.text/.rodata/.data/.bss) sits in the low
+/// few KiB (heap is untracked — program_break reads 0) and the live stack sits
+/// near the top (SP ≈ 5 MiB). Copying the whole slice costs ~98K ticks/fork at
+/// 16 words/tick; copying just these two bands costs ~5K. fork() copies
+/// [0, FORK_COPY_LOW_BYTES) for the image+heap and a FORK_COPY_STACK_BYTES
+/// window around the (page-aligned) stack pointer for the live stack.
+/// Assumes user image+heap < 256 KiB and stack depth < 64 KiB at fork time —
+/// true for init / sh / gate2; revisit (or fall back to full-slice) for a
+/// malloc-heavy or deep-recursion userland.
+pub const FORK_COPY_LOW_BYTES: u32 = 0x0004_0000; // 256 KiB: image + heap
+pub const FORK_COPY_STACK_BYTES: u32 = 0x0001_0000; // 64 KiB: live stack window
+/// 4 MiB-aligned physical base of the (shared) child slice. Clear of the kernel
+/// (<8 MiB), the ramdisk (8–10 MiB), and the per-pid pgd region (~15.7 MiB).
+pub const USER_CHILD_SLICE: u32 = 0x0100_0000; // 16 MiB
+
+/// Physical base offset added to a user virtual address for `pid`. pid 0 (init)
+/// keeps an identity slice (offset 0) exactly where the loader set it up, so the
+/// kernel↔init boot is undisturbed. Children map their VA[0,SLICE) onto a
+/// disjoint physical slice.
+///
+/// NOTE (Phase 3.1): children currently SHARE one physical slice — correct only
+/// because they run serially (init forks → waits → child runs+exits → reap →
+/// next fork). True N-way isolation (the forkbomb gate) needs a distinct slice
+/// per live pid; deferred per ADR-074.
+#[inline(always)]
+#[allow(dead_code)]
+pub fn pid_phys_offset(pid: u8) -> u32 {
+    if pid == 0 {
+        0
+    } else {
+        USER_CHILD_SLICE
+    }
+}
+
 /// PROC_TABLE slot index for `page_dir_base` (Option A widening).
 ///
 /// Slot layout per Architect addendum:

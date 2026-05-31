@@ -1174,8 +1174,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.regs[0] = 0; // success
                     increment_stat(STAT_SLEEPING);
                     break;
-                } else if syscall_nr == lsys::SYS_FORK {
+                } else if !cfg!(feature = "ascend-linux") && syscall_nr == lsys::SYS_FORK {
                     // ── SYS_FORK(2): Create child process (Level 4c scheduler) ──
+                    // Gated off under ascend-linux: xv6 manages processes via the
+                    // RV32I ecall path, and this INT-0x80 handler was inflating
+                    // cpu.num_processes during kernel boot (forkret/userinit).
                     // Copy current registers to next PROC_TABLE slot.
                     // Parent gets child_pid in r0, child gets 0 in r0.
                     if cpu.num_processes >= intr::MAX_PROCESSES {
@@ -1219,7 +1222,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         // Parent gets child_pid in r0
                         cpu.regs[0] = child_pid;
                     }
-                } else if syscall_nr == lsys::SYS_VFORK {
+                } else if !cfg!(feature = "ascend-linux") && syscall_nr == lsys::SYS_VFORK {
                     // ── SYS_VFORK(190): Fork + suspend parent (Level 6) ──
                     // Like SYS_FORK but parent is suspended until child exits/execve.
                     if cpu.num_processes >= intr::MAX_PROCESSES {
@@ -1649,7 +1652,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // a0 (x10 → r8) = first arg / return value,
             // a1 (x11 → r9) = second arg / return value.
             let syscall_nr = cpu.regs[1];
-            if syscall_nr == sys::SYS_DRAW_FRAME {
+            // NOTE: the Doom syscalls DRAW_FRAME(1)/GET_KEY(2)/GET_TICKS(3)/SLEEP(4)
+            // collide numerically with xv6 fork(1)/exit(2)/wait(3). They are
+            // mutually-exclusive workloads, so under `ascend-linux` the Doom
+            // numbers are disabled and 1/2/3 route to the xv6 handlers below.
+            if !cfg!(feature = "ascend-linux") && syscall_nr == sys::SYS_DRAW_FRAME {
                 // DG_DrawFrame: framebuffer at SCREEN_BASE.
                 // Increment frame-ready counter so userspace (doom-bridge) can detect
                 // new frames and bulk-copy RAM_MAP → SCREEN_MAP without BPF verifier limits.
@@ -1663,7 +1670,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     emit_screen_write(flow_label, mmap::SCREEN_BASE, hop_id);
                 }
                 copy_fb_to_screen(mmap::SCREEN_BASE);
-            } else if syscall_nr == sys::SYS_GET_KEY {
+            } else if !cfg!(feature = "ascend-linux") && syscall_nr == sys::SYS_GET_KEY {
                 // DG_GetKey: r8 (a0) = key code, r9 (a1) = pressed.
                 // Scan 8 KBD_MAP slots (circular queue) for the first non-zero event.
                 // Encoding per slot: (key_code << 1) | pressed_flag
@@ -1696,10 +1703,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.regs[8] = 0;
                     cpu.regs[9] = 0;
                 }
-            } else if syscall_nr == sys::SYS_GET_TICKS {
+            } else if !cfg!(feature = "ascend-linux") && syscall_nr == sys::SYS_GET_TICKS {
                 // DG_GetTicksMs: r8 (a0) = milliseconds since boot.
                 cpu.regs[8] = (now / 1_000_000) as u32;
-            } else if syscall_nr == sys::SYS_SLEEP {
+            } else if !cfg!(feature = "ascend-linux") && syscall_nr == sys::SYS_SLEEP {
                 // DG_SleepMs: sleep for r8 (a0) milliseconds.
                 let ms = cpu.regs[8] as u64;
                 cpu.sleep_until_ns = now + ms * 1_000_000;
@@ -1750,8 +1757,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // write(fd, &c, 1)). Larger writes blow the kernel-6.17 BPF
                 // verifier budget. Phase 1.6 unblock: the trampoline_mbc.S
                 // sp-load fix gave us a real RAM_MAP-backed buf_addr.
+                // Gate 2: buf_addr is a USER virtual address — resolve it through
+                // the calling process's page table (walkaddr equivalent) before
+                // the physical read. Identity for pid 0; offset slice for children.
                 let buf_addr = cpu.regs[9];
-                let byte_val = mem_read_byte(buf_addr);
+                let byte_val = mem_read_byte(translate_address(cpu, buf_addr));
                 mem_write_byte(0xC001, byte_val);
                 cpu.regs[8] = 1;
             } else if syscall_nr == 1 {
@@ -1767,11 +1777,103 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // cpu.pc was already advanced past the ecall at fetch (see the
                 // `cpu.pc.wrapping_add(1)` before opcode dispatch), so storing
                 // child_state[16] = cpu.pc resumes the child *after* the syscall.
-                if cpu.num_processes >= intr::MAX_PROCESSES {
-                    // No free PROC_TABLE slot — xv6 fork() returns -1.
+                // Phase 1.2 slot recycling: allocate the lowest FREE pid rather
+                // than a monotonic high-water counter. A slot is free if it was
+                // never used (pid >= num_processes) OR it is fully collected —
+                // its child exited (halted) AND the parent reaped it (reaped).
+                // Without this, init's `fork→exec-fail→exit→wait` loop burns one
+                // permanent slot per iteration and wedges at MAX after 7 forks.
+                // The scan reads only masks (not mutated until finalize), so it
+                // returns the SAME pid on every copy-tick re-entry — stable.
+                let halted_m = match SCHED_STATE.get(3) {
+                    Some(v) => *v,
+                    None => 0,
+                };
+                let reaped_m = match SCHED_STATE.get(4) {
+                    Some(v) => *v,
+                    None => 0,
+                };
+                let nprocs = cpu.num_processes as u32;
+                let mut child_pid = intr::MAX_PROCESSES as u32; // sentinel: none free
+                let mut cand = 1u32;
+                while cand < intr::MAX_PROCESSES as u32 {
+                    let used_live = cand < nprocs
+                        && !(((halted_m >> cand) & 1) != 0 && ((reaped_m >> cand) & 1) != 0);
+                    if !used_live {
+                        child_pid = cand;
+                        break;
+                    }
+                    cand += 1;
+                }
+                if child_pid >= intr::MAX_PROCESSES as u32 {
+                    // All slots live — xv6 fork() returns -1.
                     cpu.regs[8] = (-1i32) as u32;
                 } else {
-                    let child_pid = cpu.num_processes as u32;
+                    let child_pgd = phase12::pgd_base_for_pid(child_pid as u8);
+                    let child_off = phase12::pid_phys_offset(child_pid as u8);
+                    // ── Gate 2: give the child its own address space (ADR-074) ──
+                    // First entry for this pid (child pgd pde[0] not yet present):
+                    // build a per-pid page directory mapping VA[0,8MiB) onto the
+                    // child's disjoint physical slice via two 4 MiB superpage
+                    // leaves, and reset the copy cursor (a2/regs[10] — caller-saved,
+                    // fork has no args so it's free scratch across the re-entries).
+                    let pde0 = mem_read_word(child_pgd >> 2);
+                    if (pde0 & mmu::PTE_PRESENT) == 0 {
+                        let flags =
+                            mmu::PTE_PRESENT | mmu::PTE_LEAF | mmu::PTE_WRITE | mmu::PTE_USER;
+                        mem_write_word(child_pgd >> 2, (child_off & mmu::SUPERPAGE_MASK) | flags);
+                        mem_write_word(
+                            (child_pgd >> 2) + 1,
+                            ((child_off + 0x0040_0000) & mmu::SUPERPAGE_MASK) | flags,
+                        );
+                        cpu.regs[10] = 0; // copy cursor (words copied so far)
+                    }
+                    // Copy the parent's WORKING SET into the child's slice, a
+                    // chunk per tick (re-enters via pc-=1 until done). The child
+                    // is not yet in PROC_TABLE, so the scheduler can't switch to
+                    // it mid-copy. Parent slice is identity for pid 0 (src_off=0).
+                    // Two bands skip the multi-MiB zero gap between the low image
+                    // and the high stack (see phase12::FORK_COPY_* for the model):
+                    // a linear cursor [0,total_copy) maps to the low band first,
+                    // then the stack window around the (page-aligned) SP.
+                    let cursor = cpu.regs[10];
+                    let total = phase12::USER_SLICE_BYTES >> 2;
+                    let low_words = phase12::FORK_COPY_LOW_BYTES >> 2;
+                    let stack_words = phase12::FORK_COPY_STACK_BYTES >> 2;
+                    let total_copy = low_words + stack_words;
+                    let stack_base = (cpu.regs[15] & !0xFFFu32) >> 2; // page-aligned SP, words
+                    let src_off = phase12::pid_phys_offset(cpu.current_pid) >> 2;
+                    let dst_off = child_off >> 2;
+                    let mut w = 0u32;
+                    while w < 16 {
+                        let c = cursor + w;
+                        if c < total_copy {
+                            let slice_word = if c < low_words {
+                                c
+                            } else {
+                                stack_base + (c - low_words)
+                            };
+                            if slice_word < total {
+                                let val = match RAM_MAP.get(src_off + slice_word) {
+                                    Some(v) => *v,
+                                    None => 0,
+                                };
+                                if let Some(p) = RAM_MAP.get_ptr_mut(dst_off + slice_word) {
+                                    unsafe {
+                                        *p = val;
+                                    }
+                                }
+                            }
+                        }
+                        w += 1;
+                    }
+                    let next = cursor + 16;
+                    if next < total_copy {
+                        cpu.regs[10] = next;
+                        cpu.pc = cpu.pc.wrapping_sub(1); // re-enter to continue copy
+                        break;
+                    }
+                    // Copy complete — finalize the fork.
                     let mut child_state = [0u32; 21];
                     let mut r = 0u32;
                     while r < 16 {
@@ -1780,19 +1882,33 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     }
                     child_state[16] = cpu.pc; // child resumes after the ecall
                     child_state[17] = cpu.flags as u32;
-                    child_state[18] = cpu.regs[15]; // SP copy (regs copied above)
+                    child_state[18] = cpu.regs[15];
                     child_state[19] = cpu.program_break;
-                    // Phase 1.2 (ADR-074 Option A): child gets its per-pid pgd.
-                    child_state[phase12::PROC_TABLE_PGD_SLOT] =
-                        phase12::pgd_base_for_pid(child_pid as u8);
-                    // Child's fork() return value: a0 = 0.
-                    child_state[8] = 0;
+                    // Child runs out of its own pgd (per-pid slice).
+                    child_state[phase12::PROC_TABLE_PGD_SLOT] = child_pgd;
+                    child_state[8] = 0; // child's fork() returns 0
+                    child_state[10] = 0; // clear copy-cursor scratch
                     if let Some(p) = PROC_TABLE.get_ptr_mut(child_pid) {
                         unsafe {
                             *p = child_state;
                         }
                     }
-                    cpu.num_processes += 1;
+                    // Revive the (possibly reused) slot: clear its halted/reaped
+                    // bits so the scheduler runs it and a later wait() can reap it
+                    // again. Extend the high-water only if this pid is new.
+                    if let Some(p) = SCHED_STATE.get_ptr_mut(3) {
+                        unsafe {
+                            *p &= !(1u32 << child_pid);
+                        }
+                    }
+                    if let Some(p) = SCHED_STATE.get_ptr_mut(4) {
+                        unsafe {
+                            *p &= !(1u32 << child_pid);
+                        }
+                    }
+                    if child_pid + 1 > cpu.num_processes as u32 {
+                        cpu.num_processes = (child_pid + 1) as u8;
+                    }
                     if let Some(p) = SCHED_STATE.get_ptr_mut(1) {
                         unsafe {
                             *p = cpu.num_processes as u32;
@@ -1875,11 +1991,19 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                             *ptr = reaped | (1u32 << child);
                         }
                     }
+                    // Phase 1.2 slot recycling: free the reaped child's address
+                    // space by clearing pde[0] PRESENT. A future fork() that
+                    // reuses this pid then sees an absent pgd and re-runs its
+                    // first-entry path (rebuild superpages + reset copy cursor).
+                    let freed_pgd = phase12::pgd_base_for_pid(child as u8);
+                    let freed_pde0 = mem_read_word(freed_pgd >> 2);
+                    mem_write_word(freed_pgd >> 2, freed_pde0 & !mmu::PTE_PRESENT);
                     // If a status pointer was supplied, write 0 (we don't track
                     // per-process exit status yet).
                     let status_ptr = cpu.regs[8];
                     if status_ptr != 0 {
-                        mem_write_word(status_ptr >> 2, 0);
+                        // Gate 2: status_ptr is a user VA — translate to physical.
+                        mem_write_word(translate_address(cpu, status_ptr) >> 2, 0);
                     }
                     increment_stat(STAT_WAITPIDS);
                     cpu.regs[8] = child; // wait() returns the reaped child's pid
@@ -2165,6 +2289,23 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
     cpu.program_break = load_state[19];
     // Phase 1.2 (ADR-074 Option A): load incoming process's pgd phys addr.
     cpu.page_dir_base = load_state[phase12::PROC_TABLE_PGD_SLOT];
+
+    // Gate 2 (ADR-074 Option A): flush the TLB on every pgd switch. The 64-entry
+    // direct-mapped TLB is keyed on vpn alone (no ASID), so without this a stale
+    // entry from the outgoing process would resolve the incoming process's
+    // identical VA to the WRONG physical slice — a cross-process leak. Invalidate
+    // all 64 entries (sentinel vpn, present bit cleared). Bounded loop, ~+0.5%
+    // verifier budget per ADR-074 §Issue 3.
+    let mut t = 0u32;
+    while t < 64 {
+        if let Some(p) = TLB_MAP.get_ptr_mut(t) {
+            unsafe {
+                (*p)[0] = 0xFFFF_FFFF;
+                (*p)[2] = 0;
+            }
+        }
+        t += 1;
+    }
 
     // Phase 1.2 (ADR-074 Decision 2026-05-12): invoke the chosen-option
     // context-switch hook. With `--features phase12-option-a` this calls
