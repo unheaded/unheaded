@@ -97,6 +97,11 @@ grep:  $T/grep.mbc
 #   upc-bootctl boot ... --userland target/gate2.mbc
 gate2: $T/gate2.mbc
 
+# Phase 1.2 Gate 4 — N-way CONCURRENT isolation falsification test (ADR-074
+# scoped) — run as the userland directly:
+#   upc-bootctl boot ... --userland target/gate_nway.mbc
+gate_nway: $T/gate_nway.mbc
+
 # Default userland set for the Phase 1.5 shell+5cmds gate
 # (ASCEND-LINUX battle plan §1.5). init + sh + 5 commands.
 USERLAND_PROGS = $T/init.mbc $T/sh.mbc $T/ls.mbc $T/cat.mbc $T/echo.mbc $T/wc.mbc
@@ -117,9 +122,9 @@ clean:
 	rm -f $U/*.o $U/usys.S
 	rm -rf $T/init.* $T/sh.* $T/ls.* $T/cat.* $T/echo.* \
 	       $T/wc.* $T/ln.* $T/mkdir.* $T/kill.* $T/rm.* $T/grep.* \
-	       $T/gate2.* $T/fs.img
+	       $T/gate2.* $T/gate_nway.* $T/fs.img
 
-.PHONY: clean init sh ls cat echo wc ln mkdir kill rm grep gate2 userland ramdisk
+.PHONY: clean init sh ls cat echo wc ln mkdir kill rm grep gate2 gate_nway userland ramdisk
 
 # Keep .elf intermediates around for debugging.
 .SECONDARY: $T/init.elf $T/sh.elf $T/ls.elf $T/cat.elf $T/echo.elf $T/wc.elf

@@ -1805,8 +1805,18 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     }
                     cand += 1;
                 }
-                if child_pid >= intr::MAX_PROCESSES as u32 {
-                    // All slots live — xv6 fork() returns -1.
+                // Gate 4 capacity guard (ADR-074 scoped N-way, 2026-05-31): a
+                // child's 8 MiB slice must fit under RAM_ISOLATION_CEILING (56
+                // MiB) inside the 64 MiB RAM_MAP. A forkbomb that exhausts the
+                // physical budget bails (-1) here — BEFORE any pgd/leaf is built
+                // — so we never map an out-of-bounds or overlapping slice.
+                let slice_top =
+                    phase12::pid_phys_offset(child_pid as u8).wrapping_add(phase12::SLICE_STRIDE);
+                if child_pid >= intr::MAX_PROCESSES as u32
+                    || slice_top > phase12::RAM_ISOLATION_CEILING
+                {
+                    // No free slot, OR the next slice would exceed the ceiling —
+                    // xv6 fork() returns -1 (graceful physical exhaustion).
                     cpu.regs[8] = (-1i32) as u32;
                 } else {
                     let child_pgd = phase12::pgd_base_for_pid(child_pid as u8);
@@ -2015,6 +2025,45 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 } else {
                     // No children — xv6 wait() returns -1.
                     cpu.regs[8] = (-1i32) as u32;
+                }
+            } else if syscall_nr == 11 {
+                // ── xv6 SYS_getpid (11) — RV32I ecall path (Gate 4) ──────────
+                // Return the running pid (a0) so a userland process can
+                // self-verify it is executing AS the pid whose per-pid physical
+                // slice it expects — part of proving "per-pid" isolation, not
+                // just "per-fork". 0 = init; children are 1.. . Not handled in
+                // the original Phase 1.6 path (init/sh/gate2 don't call it).
+                cpu.regs[8] = cpu.current_pid as u32;
+            } else if syscall_nr == 13 {
+                // ── xv6 SYS_pause (13) → cooperative YIELD (Gate 4, 2026-05-31) ─
+                // ascend-linux has NO timer preemption (the round-robin timer
+                // switch near the top of this program is cfg-gated off for xv6
+                // builds), so a live process can only relinquish the CPU at
+                // exit/wait. Proving per-pid isolation of CONCURRENT live
+                // processes (gate_nway.c) requires children to pause-and-resume
+                // while staying live — exactly what a cooperative yield gives.
+                // We reuse SYS_pause (sleep's defining act IS yielding the CPU;
+                // the duration arg is ignored in the cooperative model) instead
+                // of minting a new syscall number — zero userland plumbing.
+                // Phase-3 TODO: split a dedicated SYS_yield from
+                // SYS_pause(sleep-with-duration) once real timer preemption lands.
+                //
+                // pc is already advanced past the ecall (fetch pre-increment) and
+                // — unlike SYS_wait — we do NOT decrement it: the yielder resumes
+                // AFTER pause() returns, not by re-running it. Set the return
+                // value (0) BEFORE the switch so it is saved into the yielder's
+                // PROC_TABLE slot; after the switch `cpu` holds the NEXT
+                // process's registers. break only if a switch actually happened
+                // (matches exit/wait); if the caller is the only runnable
+                // process, scheduler_context_switch is a no-op and pause()
+                // simply returns 0.
+                cpu.regs[8] = 0;
+                let prev_pid = cpu.current_pid;
+                if cpu.num_processes > 1 {
+                    scheduler_context_switch(cpu, flow_label, hop_id);
+                }
+                if cpu.current_pid != prev_pid {
+                    break;
                 }
             } else if syscall_nr == lsys::SYS_WRITE_BLOCK {
                 let block_num = cpu.regs[8];
