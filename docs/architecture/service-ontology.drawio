@@ -1,349 +1,741 @@
-<mxfile host="app.diagrams.net" agent="unheaded-ontology" version="24.0.0">
-  <!--
-    Unheaded — Service Ontology (interaction map)
-    Generated 2026-05-29. Hand-authored. See docs/architecture/ for companions.
-    Maturity encoding (node border): solid border = built today;
-      dashed = scaffold/partial; faded dotted (opacity, italic) = future/vision.
-    Edge color: green=Wotan pub/sub; gray dashed=depends_on; blue=protocol data-plane;
-      purple=UPC boot pipeline; teal=knowledge/training/drives; red dashed=attacks;
-      orange dashed=red/blue handoff.
-  -->
-
+<mxfile host="Electron" agent="unheaded-ontology" pages="6">
   <diagram name="1 · Overview + North Star" id="page-overview">
-    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
+    <mxGraphModel dx="1414" dy="930" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="900" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-
-        <mxCell id="p1_title" value="Unheaded — Service Ontology  ·  Overview + North Star   (tabs below hold detail per subsystem)" style="text;html=1;fontSize=20;fontStyle=1;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="20" y="16" width="1200" height="34" as="geometry"/></mxCell>
-
-        <!-- NORTH STAR container -->
-        <mxCell id="p1_ns_box" value="NORTH STAR — Yggdrasil scaling substrate  (FUTURE · Q4 2026+, not built)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#718096;dashed=1;dashPattern=6 4;verticalAlign=top;align=left;fontStyle=2;fontSize=13;" vertex="1" parent="1"><mxGeometry x="20" y="64" width="1560" height="120" as="geometry"/></mxCell>
-        <mxCell id="p1_cfg" value="Canonical Config (YAML/TOML)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="40" y="108" width="150" height="46" as="geometry"/></mxCell>
-        <mxCell id="p1_gleip" value="Gleipnir — config convergence" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="230" y="108" width="160" height="46" as="geometry"/></mxCell>
-        <mxCell id="p1_deb" value=".deb packages: daemon · cli · ebpf · dashboard · wotan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="430" y="108" width="210" height="46" as="geometry"/></mxCell>
-        <mxCell id="p1_ygg" value="Yggdrasil image builder (Debian 12 + CIS/STIG + SELinux)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="680" y="108" width="230" height="46" as="geometry"/></mxCell>
-        <mxCell id="p1_pxe" value="PXE boot → ISO / cloud / qcow2 → N-node fleet" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="950" y="108" width="220" height="46" as="geometry"/></mxCell>
-        <mxCell id="p1_slp" value="Sleipnir — Kingdom BGP fabric (8 ECMP legs)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="1210" y="108" width="200" height="46" as="geometry"/></mxCell>
-        <mxCell id="p1_e_cfg_gleip" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;" edge="1" parent="1" source="p1_cfg" target="p1_gleip"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p1_e_gleip_ygg" value="configs" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p1_gleip" target="p1_ygg"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p1_e_deb_ygg" value="bake in" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p1_deb" target="p1_ygg"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p1_e_ygg_pxe" value="build" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p1_ygg" target="p1_pxe"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p1_e_pxe_slp" value="wire fleet" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p1_pxe" target="p1_slp"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <!-- Age ladder -->
-        <mxCell id="p1_age" value="Age ladder:   0 Foundation ✅  →  1 Alpha ✅  →  2 Beta ✅  →  3 Public Release (~70%)  →  4 MVP  →  5 Scaling  →  ★ North Star (protocol IS the moat)" style="text;html=1;fontSize=12;fontStyle=2;verticalAlign=middle;align=center;" vertex="1" parent="1"><mxGeometry x="20" y="196" width="1560" height="24" as="geometry"/></mxCell>
-
-        <!-- KINGDOM container -->
-        <mxCell id="p1_kd_box" value="THE KINGDOM — built / partial (today)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#718096;verticalAlign=top;align=left;fontStyle=1;fontSize=13;" vertex="1" parent="1"><mxGeometry x="20" y="232" width="1560" height="470" as="geometry"/></mxCell>
-
-        <mxCell id="p1_wheel" value="STEERING WHEEL (L5)  —  Kanban board ≡ Zhenai chat/API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;strokeWidth=2;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="560" y="262" width="470" height="48" as="geometry"/></mxCell>
-
-        <mxCell id="p1_svc_lbl" value="L4 / L3 services  —  detail on tab '2 · Service Mesh'" style="text;html=1;fontSize=11;fontStyle=2;align=left;" vertex="1" parent="1"><mxGeometry x="60" y="332" width="500" height="18" as="geometry"/></mxCell>
-        <mxCell id="p1_captain" value="captain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="60" y="354" width="110" height="36" as="geometry"/></mxCell>
-        <mxCell id="p1_architect" value="architect" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="185" y="354" width="110" height="36" as="geometry"/></mxCell>
-        <mxCell id="p1_micro" value="micromanager" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="310" y="354" width="120" height="36" as="geometry"/></mxCell>
-        <mxCell id="p1_timeguru" value="timeguru" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="445" y="354" width="110" height="36" as="geometry"/></mxCell>
-        <mxCell id="p1_gateway" value="gateway" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="60" y="400" width="110" height="36" as="geometry"/></mxCell>
-        <mxCell id="p1_shield" value="shield (WAF)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="185" y="400" width="110" height="36" as="geometry"/></mxCell>
-        <mxCell id="p1_keymgmt" value="keymgmt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="310" y="400" width="110" height="36" as="geometry"/></mxCell>
-        <mxCell id="p1_armor" value="armor svcs (hauberk/gauntlets/…) — scaffold" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;" vertex="1" parent="1"><mxGeometry x="445" y="400" width="110" height="36" as="geometry"/></mxCell>
-
-        <mxCell id="p1_proto_lbl" value="Protocol triad  —  detail on tab '3 · Protocol Data Plane'" style="text;html=1;fontSize=11;fontStyle=2;align=left;" vertex="1" parent="1"><mxGeometry x="360" y="470" width="500" height="18" as="geometry"/></mxCell>
-        <mxCell id="p1_monad" value="Monad — wire (IPv6 HbH 20B)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="360" y="492" width="150" height="42" as="geometry"/></mxCell>
-        <mxCell id="p1_sophia" value="Sophia — PQC dict" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="540" y="492" width="130" height="42" as="geometry"/></mxCell>
-        <mxCell id="p1_wotan" value="Wotan — msg bus / memory" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="700" y="492" width="160" height="42" as="geometry"/></mxCell>
-        <mxCell id="p1_e_m_s" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" edge="1" parent="1" source="p1_monad" target="p1_sophia"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p1_e_s_w" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" edge="1" parent="1" source="p1_sophia" target="p1_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <mxCell id="p1_ebpf" value="eBPF + AF_XDP  (interpreter / datapath)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="360" y="566" width="200" height="40" as="geometry"/></mxCell>
-        <mxCell id="p1_e_m_ebpf" value="interprets" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" edge="1" parent="1" source="p1_monad" target="p1_ebpf"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <mxCell id="p1_pkg" value="pkg/ foundation libs — protocol-core · networking · security/crypto · observability · infra/deploy · control/util" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;strokeWidth=2;fontSize=11;" vertex="1" parent="1"><mxGeometry x="60" y="630" width="800" height="40" as="geometry"/></mxCell>
-
-        <mxCell id="p1_upc" value="UPC / Crates: monad-mbc → xv6 → doom-runner   (tab '4 · UPC/Crates')" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1040" y="354" width="500" height="40" as="geometry"/></mxCell>
-        <mxCell id="p1_zhen" value="Zhen: zhend → zhenai-forge → Champion → runbooks" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1040" y="404" width="500" height="40" as="geometry"/></mxCell>
-        <mxCell id="p1_tomb" value="Tomb red-team: LICH (future agent) → Cerydwyn → Dark-Mirror   (tab '5 · Tomb')" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="1040" y="492" width="500" height="46" as="geometry"/></mxCell>
-
-        <mxCell id="p1_e_wheel_micro" value="drives" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" edge="1" parent="1" source="p1_wheel" target="p1_micro"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p1_e_wheel_captain" value="drives" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" edge="1" parent="1" source="p1_wheel" target="p1_captain"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p1_e_zhen_wheel" value="agent face" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" edge="1" parent="1" source="p1_zhen" target="p1_wheel"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p1_e_captain_wotan" value="pub/sub" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p1_captain" target="p1_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p1_e_gateway_wotan" value="pub/sub" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p1_gateway" target="p1_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p1_e_tomb_monad" value="attacks" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c53030;strokeWidth=2;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p1_tomb" target="p1_monad"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p1_e_pkg_deb" value="packaged as .deb → bundled into Yggdrasil" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="p1_pkg" target="p1_deb"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <!-- legend -->
-        <mxCell id="p1_leg1" value="Maturity:   [solid border] = built today      [dashed] = scaffold / partial      [dotted border + italic + (FUTURE) tag] = future / vision (pipe dream)" style="text;html=1;fontSize=12;fontStyle=1;align=left;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="20" y="712" width="1560" height="22" as="geometry"/></mxCell>
-        <mxCell id="p1_leg2" value="Edges:   green = Wotan pub/sub   ·   gray dashed = depends_on / bundling   ·   blue = protocol data-plane   ·   purple = UPC boot   ·   teal = knowledge/training/drives   ·   red dashed = attacks   ·   orange dashed = red/blue handoff" style="text;html=1;fontSize=12;align=left;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="20" y="736" width="1560" height="22" as="geometry"/></mxCell>
+        <mxCell id="p1_title" parent="1" style="text;html=1;fontSize=20;fontStyle=1;verticalAlign=middle;" value="Unheaded — Service Ontology  ·  Overview + North Star   (tabs below hold detail per subsystem)" vertex="1">
+          <mxGeometry height="34" width="1200" x="20" y="16" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_ns_box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#718096;dashed=1;dashPattern=6 4;verticalAlign=top;align=left;fontStyle=2;fontSize=13;" value="NORTH STAR — Yggdrasil scaling substrate  (FUTURE · Q4 2026+, not built)" vertex="1">
+          <mxGeometry height="120" width="1560" x="20" y="64" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_cfg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="Canonical Config (YAML/TOML)" vertex="1">
+          <mxGeometry height="46" width="150" x="40" y="74" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_gleip" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="Gleipnir — config convergence" vertex="1">
+          <mxGeometry height="46" width="160" x="240" y="74" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_deb" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value=".deb packages: daemon · cli · ebpf · dashboard · wotan" vertex="1">
+          <mxGeometry height="46" width="210" x="420" y="120" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_ygg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="Yggdrasil image builder (Debian 12 + CIS/STIG + SELinux)" vertex="1">
+          <mxGeometry height="46" width="230" x="745" y="74" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_pxe" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="PXE boot → ISO / cloud / qcow2 → N-node fleet" vertex="1">
+          <mxGeometry height="46" width="220" x="1060" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_slp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="Sleipnir — Kingdom BGP fabric (8 ECMP legs)" vertex="1">
+          <mxGeometry height="46" width="200" x="1370" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_cfg_gleip" edge="1" parent="1" source="p1_cfg" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;" target="p1_gleip">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_gleip_ygg" edge="1" parent="1" source="p1_gleip" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" target="p1_ygg" value="configs">
+          <mxGeometry relative="1" x="0.0015" y="10" as="geometry">
+            <mxPoint x="-1" as="offset" />
+            <Array as="points">
+              <mxPoint x="560" y="90" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p1_e_deb_ygg" edge="1" parent="1" source="p1_deb" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" target="p1_ygg" value="bake in">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_ygg_pxe" edge="1" parent="1" source="p1_ygg" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" target="p1_pxe" value="build">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_pxe_slp" edge="1" parent="1" source="p1_pxe" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" target="p1_slp" value="wire fleet">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_age" parent="1" style="text;html=1;fontSize=12;fontStyle=2;verticalAlign=middle;align=center;" value="Age ladder:   0 Foundation ✅  →  1 Alpha ✅  →  2 Beta ✅  →  3 Public Release (~70%)  →  4 MVP  →  5 Scaling  →  ★ North Star (protocol IS the moat)" vertex="1">
+          <mxGeometry height="24" width="1560" x="20" y="196" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_kd_box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#718096;verticalAlign=top;align=left;fontStyle=1;fontSize=13;" value="THE KINGDOM — built / partial (today)" vertex="1">
+          <mxGeometry height="470" width="1560" x="20" y="232" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_wheel" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;strokeWidth=2;fontStyle=1;" value="STEERING WHEEL (L5)  —  Kanban board ≡ Zhenai chat/API" vertex="1">
+          <mxGeometry height="48" width="470" x="1070" y="240" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_svc_lbl" parent="1" style="text;html=1;fontSize=11;fontStyle=2;align=left;" value="L4 / L3 services  —  detail on tab &#39;2 · Service Mesh&#39;" vertex="1">
+          <mxGeometry height="18" width="500" x="60" y="332" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_captain" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="captain" vertex="1">
+          <mxGeometry height="36" width="110" x="850" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_architect" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="architect" vertex="1">
+          <mxGeometry height="36" width="110" x="620" y="246" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_micro" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="micromanager" vertex="1">
+          <mxGeometry height="36" width="120" x="610" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_timeguru" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="timeguru" vertex="1">
+          <mxGeometry height="36" width="110" x="620" y="288" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_gateway" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="gateway" vertex="1">
+          <mxGeometry height="36" width="110" x="555" y="474" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_shield" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;strokeWidth=2;" value="shield (WAF)" vertex="1">
+          <mxGeometry height="36" width="110" x="870" y="252" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_keymgmt" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;strokeWidth=2;" value="keymgmt" vertex="1">
+          <mxGeometry height="36" width="110" x="745" y="252" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_armor" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;" value="armor svcs (hauberk/gauntlets/…) — scaffold" vertex="1">
+          <mxGeometry height="36" width="110" x="620" y="390" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_proto_lbl" parent="1" style="text;html=1;fontSize=11;fontStyle=2;align=left;" value="Protocol triad  —  detail on tab &#39;3 · Protocol Data Plane&#39;" vertex="1">
+          <mxGeometry height="18" width="500" x="360" y="470" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_monad" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" value="Monad — wire (IPv6 HbH 20B)" vertex="1">
+          <mxGeometry height="42" width="150" x="1420" y="606" as="geometry" />
+        </mxCell>
+        <mxCell id="KQmGJcKh-tl1bYGT2HmS-1" edge="1" parent="1" source="p1_sophia" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;exitX=0.5;exitY=0;exitDx=0;exitDy=0;">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="820" y="540" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p1_sophia" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" value="Sophia — PQC dict" vertex="1">
+          <mxGeometry height="42" width="130" x="870" y="540" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_wotan" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" value="Wotan — msg bus / memory" vertex="1">
+          <mxGeometry height="42" width="160" x="840" y="458" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_m_s" edge="1" parent="1" source="p1_monad" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" target="p1_sophia">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_s_w" edge="1" parent="1" source="p1_sophia" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" target="p1_wotan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_ebpf" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" value="eBPF + AF_XDP  (interpreter / datapath)" vertex="1">
+          <mxGeometry height="40" width="200" x="570" y="566" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_m_ebpf" edge="1" parent="1" source="p1_monad" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" target="p1_ebpf" value="interprets">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_pkg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;strokeWidth=2;fontSize=11;" value="pkg/ foundation libs — protocol-core · networking · security/crypto · observability · infra/deploy · control/util" vertex="1">
+          <mxGeometry height="40" width="800" x="60" y="630" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_upc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="UPC / Crates: monad-mbc → xv6 → doom-runner   (tab &#39;4 · UPC/Crates&#39;)" vertex="1">
+          <mxGeometry height="40" width="500" x="1070" y="458" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_zhen" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="Zhen: zhend → zhenai-forge → Champion → runbooks" vertex="1">
+          <mxGeometry height="40" width="500" x="1070" y="398" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_tomb" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" value="Tomb red-team: LICH (future agent) → Cerydwyn → Dark-Mirror   (tab &#39;5 · Tomb&#39;)" vertex="1">
+          <mxGeometry height="46" width="500" x="1070" y="510" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_wheel_micro" edge="1" parent="1" source="p1_wheel" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" target="p1_micro" value="drives">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_wheel_captain" edge="1" parent="1" source="p1_wheel" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" target="p1_captain" value="drives">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_zhen_wheel" edge="1" parent="1" source="p1_zhen" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" target="p1_wheel" value="agent face">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_captain_wotan" edge="1" parent="1" source="p1_captain" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p1_wotan" value="pub/sub">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_gateway_wotan" edge="1" parent="1" source="p1_gateway" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p1_wotan" value="pub/sub">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_tomb_monad" edge="1" parent="1" source="p1_tomb" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c53030;strokeWidth=2;dashed=1;dashPattern=6 4;fontStyle=2;" target="p1_monad" value="attacks">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_e_pkg_deb" edge="1" parent="1" source="p1_pkg" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="p1_deb" value="packaged as .deb → bundled into Yggdrasil">
+          <mxGeometry relative="1" x="-0.0851" y="-233" as="geometry">
+            <mxPoint as="offset" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="p1_leg1" parent="1" style="text;html=1;fontSize=12;fontStyle=1;align=left;verticalAlign=middle;" value="Maturity:   [solid border] = built today      [dashed] = scaffold / partial      [dotted border + italic + (FUTURE) tag] = future / vision (pipe dream)" vertex="1">
+          <mxGeometry height="22" width="1560" x="20" y="712" as="geometry" />
+        </mxCell>
+        <mxCell id="p1_leg2" parent="1" style="text;html=1;fontSize=12;align=left;verticalAlign=middle;" value="Edges:   green = Wotan pub/sub   ·   gray dashed = depends_on / bundling   ·   blue = protocol data-plane   ·   purple = UPC boot   ·   teal = knowledge/training/drives   ·   red dashed = attacks   ·   orange dashed = red/blue handoff" vertex="1">
+          <mxGeometry height="22" width="1560" x="20" y="736" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
-
   <diagram name="2 · Service Mesh" id="page-mesh">
-    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="980" math="0" shadow="0">
+    <mxGraphModel dx="1347" dy="886" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="980" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="p2_title" value="Service Mesh — runtime interaction (Wotan message bus hub + depends_on)" style="text;html=1;fontSize=18;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="16" width="1200" height="30" as="geometry"/></mxCell>
-
-        <mxCell id="p2_wotan" value="WOTAN message bus&#10;pub/sub · ring buffer · protocol RAM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=3;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="660" y="300" width="240" height="80" as="geometry"/></mxCell>
-        <mxCell id="p2_disc" value="service-discovery&#10;(register / resolve)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="560" y="430" width="160" height="46" as="geometry"/></mxCell>
-        <mxCell id="p2_logagg" value="log-aggregator&#10;(logs.* ring buffer)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="840" y="430" width="160" height="46" as="geometry"/></mxCell>
-
-        <!-- built services (green/red) -->
-        <mxCell id="p2_captain" value="captain" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="120" y="160" width="130" height="36" as="geometry"/></mxCell>
-        <mxCell id="p2_architect" value="architect" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="120" y="210" width="130" height="36" as="geometry"/></mxCell>
-        <mxCell id="p2_micro" value="micromanager" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="120" y="260" width="130" height="36" as="geometry"/></mxCell>
-        <mxCell id="p2_timeguru" value="timeguru" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="120" y="310" width="130" height="36" as="geometry"/></mxCell>
-        <mxCell id="p2_loadbalancer" value="loadbalancer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="120" y="360" width="130" height="36" as="geometry"/></mxCell>
-        <mxCell id="p2_yaldabaoth" value="yaldabaoth (chaos)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="120" y="410" width="130" height="36" as="geometry"/></mxCell>
-
-        <mxCell id="p2_gateway" value="gateway" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1320" y="160" width="130" height="36" as="geometry"/></mxCell>
-        <mxCell id="p2_shield" value="shield (WAF)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1320" y="210" width="130" height="36" as="geometry"/></mxCell>
-        <mxCell id="p2_keymgmt" value="keymgmt" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1320" y="260" width="130" height="36" as="geometry"/></mxCell>
-        <mxCell id="p2_sophia" value="sophia (svc)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1320" y="310" width="130" height="36" as="geometry"/></mxCell>
-        <mxCell id="p2_devsdk" value="developer (SDK)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1320" y="360" width="130" height="36" as="geometry"/></mxCell>
-        <mxCell id="p2_dashboard" value="dashboard-backend" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1320" y="410" width="130" height="36" as="geometry"/></mxCell>
-
-        <!-- pub/sub edges built → wotan -->
-        <mxCell id="p2_e1" value="pub/sub" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p2_captain" target="p2_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e2" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p2_architect" target="p2_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e3" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p2_micro" target="p2_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e4" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p2_timeguru" target="p2_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e5" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p2_loadbalancer" target="p2_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e6" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p2_yaldabaoth" target="p2_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e7" value="pub/sub" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p2_gateway" target="p2_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e8" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p2_shield" target="p2_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e9" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p2_keymgmt" target="p2_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e10" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p2_sophia" target="p2_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e11" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p2_devsdk" target="p2_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e12" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p2_dashboard" target="p2_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <!-- depends_on edges -->
-        <mxCell id="p2_e_dep1" value="depends_on" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;fontStyle=2;" edge="1" parent="1" source="p2_captain" target="p2_disc"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e_dep2" value="depends_on" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;fontStyle=2;" edge="1" parent="1" source="p2_shield" target="p2_logagg"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e_dep3" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;" edge="1" parent="1" source="p2_dashboard" target="p2_logagg"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p2_e_dep4" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;" edge="1" parent="1" source="p2_wotan" target="p2_disc"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <!-- scaffold cluster -->
-        <mxCell id="p2_scaffold_box" value="Scaffolded / thin services (1-file + test) — register on Wotan, minimal logic today" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#c53030;dashed=1;verticalAlign=top;align=left;fontStyle=2;fontSize=12;" vertex="1" parent="1"><mxGeometry x="120" y="520" width="1330" height="170" as="geometry"/></mxCell>
-        <mxCell id="p2_s_hauberk" value="hauberk" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="140" y="552" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_gauntlets" value="gauntlets" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="260" y="552" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_pauldrons" value="pauldrons" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="380" y="552" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_sabatons" value="sabatons" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="500" y="552" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_vambraces" value="vambraces" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="620" y="552" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_cuirass" value="cuirass" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="740" y="552" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_sword" value="sword" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="860" y="552" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_tassets" value="tassets" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="980" y="552" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_pleroma" value="pleroma" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="1100" y="552" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_kenoma" value="kenoma" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="1220" y="552" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_anamnesis" value="anamnesis" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="140" y="590" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_telemetry" value="telemetry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="260" y="590" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_monadsvc" value="monad (svc)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="380" y="590" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_selfheal" value="selfheal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="500" y="590" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_compliance" value="compliance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="620" y="590" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_firewall" value="firewall" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="740" y="590" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_qos" value="qos" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="860" y="590" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_nfv" value="nfv" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="980" y="590" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_canary" value="canary" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="1100" y="590" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_version" value="version" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="1220" y="590" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_cape" value="cape" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="140" y="628" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_cloak" value="cloak" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="260" y="628" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_s_anomaly" value="anomaly" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;dashed=1;fontSize=11;" vertex="1" parent="1"><mxGeometry x="380" y="628" width="110" height="28" as="geometry"/></mxCell>
-        <mxCell id="p2_e_scaffold_wotan" value="register / pub-sub" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;dashed=1;fontStyle=2;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" edge="1" parent="1" source="p2_scaffold_box" target="p2_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <!-- pkg foundation band -->
-        <mxCell id="p2_pkg_box" value="pkg/ foundation (built-on, import-time)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;verticalAlign=top;align=left;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="120" y="710" width="1330" height="80" as="geometry"/></mxCell>
-        <mxCell id="p2_pc" value="protocol-core&#10;monad·sophia·wotan·upc·ebpf·afxdp" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;fontSize=10;" vertex="1" parent="1"><mxGeometry x="140" y="742" width="200" height="40" as="geometry"/></mxCell>
-        <mxCell id="p2_net" value="networking&#10;mesh·dns·netlink·loadbalancer" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;fontSize=10;" vertex="1" parent="1"><mxGeometry x="360" y="742" width="200" height="40" as="geometry"/></mxCell>
-        <mxCell id="p2_sec" value="security/crypto&#10;crypto·tls·auth·certs·waf·secrets" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;fontSize=10;" vertex="1" parent="1"><mxGeometry x="580" y="742" width="200" height="40" as="geometry"/></mxCell>
-        <mxCell id="p2_obsv" value="observability&#10;metrics·logger·logagg·trace·telemetry" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;fontSize=10;" vertex="1" parent="1"><mxGeometry x="800" y="742" width="210" height="40" as="geometry"/></mxCell>
-        <mxCell id="p2_infra" value="infra/deploy&#10;container·lxd·nix·iac·deploy·baremetal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;fontSize=10;" vertex="1" parent="1"><mxGeometry x="1030" y="742" width="210" height="40" as="geometry"/></mxCell>
-        <mxCell id="p2_ctrl" value="control/util&#10;service·discovery·transport·config·champion" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;fontSize=10;" vertex="1" parent="1"><mxGeometry x="1260" y="742" width="180" height="40" as="geometry"/></mxCell>
-        <mxCell id="p2_e_wotan_pc" value="built on" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;fontStyle=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" edge="1" parent="1" source="p2_wotan" target="p2_pc"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <mxCell id="p2_note" value="Note: only built services drawn with individual pub/sub edges. All 34 register via system.discovery; foundational service-discovery + log-aggregator carry most depends_on." style="text;html=1;fontSize=11;fontStyle=2;align=left;" vertex="1" parent="1"><mxGeometry x="20" y="60" width="1200" height="40" as="geometry"/></mxCell>
-        <mxCell id="p2_leg" value="green=pub/sub  ·  gray dashed=depends_on/built-on   |   border: solid=built, dashed=scaffold" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="1"><mxGeometry x="20" y="810" width="1200" height="20" as="geometry"/></mxCell>
+        <mxCell id="p2_title" parent="1" style="text;html=1;fontSize=18;fontStyle=1;" value="Service Mesh — runtime interaction (Wotan message bus hub + depends_on)" vertex="1">
+          <mxGeometry height="30" width="1200" x="20" y="16" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_wotan" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=3;fontStyle=1;" value="WOTAN message bus&#xa;pub/sub · ring buffer · protocol RAM" vertex="1">
+          <mxGeometry height="80" width="240" x="660" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_disc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="service-discovery&#xa;(register / resolve)" vertex="1">
+          <mxGeometry height="46" width="160" x="620" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_logagg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;strokeWidth=2;" value="log-aggregator&#xa;(logs.* ring buffer)" vertex="1">
+          <mxGeometry height="46" width="160" x="1320" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_captain" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="captain" vertex="1">
+          <mxGeometry height="36" width="130" x="120" y="160" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_architect" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="architect" vertex="1">
+          <mxGeometry height="36" width="130" x="120" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_micro" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="micromanager" vertex="1">
+          <mxGeometry height="36" width="130" x="120" y="260" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_timeguru" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="timeguru" vertex="1">
+          <mxGeometry height="36" width="130" x="120" y="310" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_loadbalancer" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="loadbalancer" vertex="1">
+          <mxGeometry height="36" width="130" x="120" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_yaldabaoth" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="yaldabaoth (chaos)" vertex="1">
+          <mxGeometry height="36" width="130" x="120" y="410" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_gateway" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="gateway" vertex="1">
+          <mxGeometry height="36" width="130" x="1110" y="150" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_shield" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;strokeWidth=2;" value="shield (WAF)" vertex="1">
+          <mxGeometry height="36" width="130" x="1110" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_keymgmt" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;strokeWidth=2;" value="keymgmt" vertex="1">
+          <mxGeometry height="36" width="130" x="1110" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_sophia" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" value="sophia (svc)" vertex="1">
+          <mxGeometry height="36" width="130" x="1110" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_devsdk" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="developer (SDK)" vertex="1">
+          <mxGeometry height="36" width="130" x="1110" y="350" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_dashboard" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;strokeWidth=2;" value="dashboard-backend" vertex="1">
+          <mxGeometry height="36" width="130" x="1110" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e1" edge="1" parent="1" source="p2_captain" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p2_wotan" value="pub/sub">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e2" edge="1" parent="1" source="p2_architect" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p2_wotan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e3" edge="1" parent="1" source="p2_micro" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p2_wotan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e4" edge="1" parent="1" source="p2_timeguru" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p2_wotan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e5" edge="1" parent="1" source="p2_loadbalancer" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p2_wotan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e6" edge="1" parent="1" source="p2_yaldabaoth" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p2_wotan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e7" edge="1" parent="1" source="p2_gateway" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p2_wotan" value="pub/sub">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e8" edge="1" parent="1" source="p2_shield" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p2_wotan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e9" edge="1" parent="1" source="p2_keymgmt" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p2_wotan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e10" edge="1" parent="1" source="p2_sophia" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p2_wotan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e11" edge="1" parent="1" source="p2_devsdk" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p2_wotan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e12" edge="1" parent="1" source="p2_dashboard" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" target="p2_wotan">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e_dep1" edge="1" parent="1" source="p2_captain" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;fontStyle=2;" target="p2_disc" value="depends_on">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e_dep2" edge="1" parent="1" source="p2_shield" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;fontStyle=2;" target="p2_logagg" value="depends_on">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e_dep3" edge="1" parent="1" source="p2_dashboard" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;" target="p2_logagg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e_dep4" edge="1" parent="1" source="p2_wotan" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;" target="p2_disc">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_scaffold_box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#c53030;dashed=1;verticalAlign=top;align=left;fontStyle=2;fontSize=12;" value="Scaffolded / thin services (1-file + test) — register on Wotan, minimal logic today" vertex="1">
+          <mxGeometry height="170" width="1230" x="170" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_hauberk" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" value="hauberk" vertex="1">
+          <mxGeometry height="28" width="110" x="190" y="652" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_gauntlets" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" value="gauntlets" vertex="1">
+          <mxGeometry height="28" width="110" x="310" y="652" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_pauldrons" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" value="pauldrons" vertex="1">
+          <mxGeometry height="28" width="110" x="430" y="652" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_sabatons" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" value="sabatons" vertex="1">
+          <mxGeometry height="28" width="110" x="550" y="652" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_vambraces" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" value="vambraces" vertex="1">
+          <mxGeometry height="28" width="110" x="670" y="652" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_cuirass" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" value="cuirass" vertex="1">
+          <mxGeometry height="28" width="110" x="790" y="652" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_sword" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" value="sword" vertex="1">
+          <mxGeometry height="28" width="110" x="910" y="652" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_tassets" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" value="tassets" vertex="1">
+          <mxGeometry height="28" width="110" x="1030" y="652" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_pleroma" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;dashed=1;fontSize=11;" value="pleroma" vertex="1">
+          <mxGeometry height="28" width="110" x="1150" y="652" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_kenoma" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;dashed=1;fontSize=11;" value="kenoma" vertex="1">
+          <mxGeometry height="28" width="110" x="1270" y="652" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_anamnesis" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;dashed=1;fontSize=11;" value="anamnesis" vertex="1">
+          <mxGeometry height="28" width="110" x="190" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_telemetry" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;dashed=1;fontSize=11;" value="telemetry" vertex="1">
+          <mxGeometry height="28" width="110" x="310" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_monadsvc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;dashed=1;fontSize=11;" value="monad (svc)" vertex="1">
+          <mxGeometry height="28" width="110" x="430" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_selfheal" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" value="selfheal" vertex="1">
+          <mxGeometry height="28" width="110" x="550" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_compliance" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" value="compliance" vertex="1">
+          <mxGeometry height="28" width="110" x="670" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_firewall" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" value="firewall" vertex="1">
+          <mxGeometry height="28" width="110" x="790" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_qos" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" value="qos" vertex="1">
+          <mxGeometry height="28" width="110" x="910" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_nfv" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" value="nfv" vertex="1">
+          <mxGeometry height="28" width="110" x="1030" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_canary" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" value="canary" vertex="1">
+          <mxGeometry height="28" width="110" x="1150" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_version" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;fontSize=11;" value="version" vertex="1">
+          <mxGeometry height="28" width="110" x="1270" y="690" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_cape" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" value="cape" vertex="1">
+          <mxGeometry height="28" width="110" x="190" y="728" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_cloak" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;fontSize=11;" value="cloak" vertex="1">
+          <mxGeometry height="28" width="110" x="310" y="728" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_s_anomaly" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;dashed=1;fontSize=11;" value="anomaly" vertex="1">
+          <mxGeometry height="28" width="110" x="430" y="728" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e_scaffold_wotan" edge="1" parent="1" source="p2_scaffold_box" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;dashed=1;fontStyle=2;exitX=0.5;exitY=0;entryX=0.5;entryY=1;" target="p2_wotan" value="register / pub-sub">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_pkg_box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;verticalAlign=top;align=left;fontStyle=1;fontSize=12;" value="&amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp; &amp;nbsp;pkg/ foundation (built-on, import-time)" vertex="1">
+          <mxGeometry height="80" width="1330" x="160" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_pc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;fontSize=10;" value="protocol-core&#xa;monad·sophia·wotan·upc·ebpf·afxdp" vertex="1">
+          <mxGeometry height="40" width="200" x="185" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_net" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;fontSize=10;" value="networking&#xa;mesh·dns·netlink·loadbalancer" vertex="1">
+          <mxGeometry height="40" width="200" x="405" y="512" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_sec" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;fontSize=10;" value="security/crypto&#xa;crypto·tls·auth·certs·waf·secrets" vertex="1">
+          <mxGeometry height="40" width="200" x="625" y="512" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_obsv" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;fontSize=10;" value="observability&#xa;metrics·logger·logagg·trace·telemetry" vertex="1">
+          <mxGeometry height="40" width="210" x="845" y="512" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_infra" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;fontSize=10;" value="infra/deploy&#xa;container·lxd·nix·iac·deploy·baremetal" vertex="1">
+          <mxGeometry height="40" width="210" x="1075" y="512" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_ctrl" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;fontSize=10;" value="control/util&#xa;service·discovery·transport·config·champion" vertex="1">
+          <mxGeometry height="40" width="180" x="1305" y="512" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_e_wotan_pc" edge="1" parent="1" source="p2_wotan" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;fontStyle=2;exitX=0.5;exitY=1;entryX=0.5;entryY=0;" target="p2_pc" value="built on">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_note" parent="1" style="text;html=1;fontSize=11;fontStyle=2;align=left;" value="Note: only built services drawn with individual pub/sub edges. All 34 register via system.discovery; foundational service-discovery + log-aggregator carry most depends_on." vertex="1">
+          <mxGeometry height="40" width="1200" x="20" y="60" as="geometry" />
+        </mxCell>
+        <mxCell id="p2_leg" parent="1" style="text;html=1;fontSize=11;align=left;" value="green=pub/sub  ·  gray dashed=depends_on/built-on   |   border: solid=built, dashed=scaffold" vertex="1">
+          <mxGeometry height="20" width="1200" x="20" y="810" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
-
   <diagram name="3 · Protocol Data Plane" id="page-protocol">
-    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="760" math="0" shadow="0">
+    <mxGraphModel dx="1768" dy="1163" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="760" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="p3_title" value="Protocol Data Plane — Monad → Sophia → Wotan, interpreted by eBPF/AF_XDP" style="text;html=1;fontSize=18;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="16" width="1200" height="30" as="geometry"/></mxCell>
-
-        <mxCell id="p3_pkt" value="IPv6 packet  ·  Hop-by-Hop extension header" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#2b6cb0;verticalAlign=top;align=left;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="60" y="90" width="520" height="120" as="geometry"/></mxCell>
-        <mxCell id="p3_monad" value="Monad — 20-byte register (wire FROZEN v0x01)&#10;trace id · flags · flow action · PQC auth · latency" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="80" y="130" width="480" height="60" as="geometry"/></mxCell>
-
-        <mxCell id="p3_sophia" value="Sophia — PQC dictionaries / microcode&#10;ML-DSA-65 key+sig BPF maps" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="660" y="100" width="280" height="60" as="geometry"/></mxCell>
-        <mxCell id="p3_wotan" value="Wotan — distributed memory / msg bus&#10;ring buffer · pub/sub · protocol RAM" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1020" y="100" width="280" height="60" as="geometry"/></mxCell>
-        <mxCell id="p3_e_ms" value="wraps w/ PQC policy" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" edge="1" parent="1" source="p3_monad" target="p3_sophia"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p3_e_sw" value="correlates / stores" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" edge="1" parent="1" source="p3_sophia" target="p3_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <mxCell id="p3_ebpf" value="eBPF programs (23)&#10;packet_marker · flow_tracker · latency_probe" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="80" y="280" width="300" height="60" as="geometry"/></mxCell>
-        <mxCell id="p3_afxdp" value="AF_XDP datapath&#10;920K pps validated (Rust FFI + Go bridge)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="80" y="360" width="300" height="50" as="geometry"/></mxCell>
-        <mxCell id="p3_e_m_ebpf" value="interprets register" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" edge="1" parent="1" source="p3_monad" target="p3_ebpf"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p3_e_ebpf_afxdp" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" edge="1" parent="1" source="p3_ebpf" target="p3_afxdp"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <!-- Mimir's law -->
-        <mxCell id="p3_mimir_box" value="Mímir's Law / Gleipnir Phase-0 PoC (alerts-only, ADR-043) — scaffold" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#b7791f;dashed=1;verticalAlign=top;align=left;fontStyle=2;fontSize=12;" vertex="1" parent="1"><mxGeometry x="460" y="270" width="840" height="200" as="geometry"/></mxCell>
-        <mxCell id="p3_gjallar" value="gjallarhorn — 20-byte UPC trigger packets" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;dashed=1;" vertex="1" parent="1"><mxGeometry x="480" y="310" width="240" height="46" as="geometry"/></mxCell>
-        <mxCell id="p3_heimdall" value="heimdall-bpf — kprobes (execve/write) + XDP" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;dashed=1;" vertex="1" parent="1"><mxGeometry x="760" y="310" width="260" height="46" as="geometry"/></mxCell>
-        <mxCell id="p3_enkrateia" value="enkrateia — drift aggregator (no auto-restore)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;" vertex="1" parent="1"><mxGeometry x="1050" y="310" width="230" height="46" as="geometry"/></mxCell>
-        <mxCell id="p3_gungnir" value="gungnir — ML-DSA-65 sealed payloads / config signing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;" vertex="1" parent="1"><mxGeometry x="480" y="380" width="280" height="46" as="geometry"/></mxCell>
-        <mxCell id="p3_anamnesis" value="anamnesis — event memory / Suricata EVE bridge" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;dashed=1;" vertex="1" parent="1"><mxGeometry x="800" y="380" width="280" height="46" as="geometry"/></mxCell>
-        <mxCell id="p3_e_gj_heim" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;dashed=1;" edge="1" parent="1" source="p3_gjallar" target="p3_heimdall"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p3_e_heim_enk" value="drift events" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;dashed=1;" edge="1" parent="1" source="p3_heimdall" target="p3_enkrateia"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p3_e_gungnir_wotan" value="signs config.* topics" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c53030;dashed=1;" edge="1" parent="1" source="p3_gungnir" target="p3_wotan"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p3_e_enk_anam" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#b7791f;dashed=1;" edge="1" parent="1" source="p3_enkrateia" target="p3_anamnesis"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <mxCell id="p3_leg" value="border: solid=built (monad/sophia/wotan/ebpf/afxdp), dashed=scaffold/PoC (Mímir trio)   ·   blue edges = protocol data-plane, red=signing" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="1"><mxGeometry x="20" y="500" width="1300" height="20" as="geometry"/></mxCell>
+        <mxCell id="p3_title" parent="1" style="text;html=1;fontSize=18;fontStyle=1;" value="Protocol Data Plane — Monad → Sophia → Wotan, interpreted by eBPF/AF_XDP" vertex="1">
+          <mxGeometry height="30" width="1200" x="20" y="16" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_pkt" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#2b6cb0;verticalAlign=top;align=left;fontStyle=1;fontSize=12;" value="IPv6 packet  ·  Hop-by-Hop extension header" vertex="1">
+          <mxGeometry height="120" width="520" x="60" y="90" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_monad" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" value="Monad — 20-byte register (wire FROZEN v0x01)&#xa;trace id · flags · flow action · PQC auth · latency" vertex="1">
+          <mxGeometry height="60" width="480" x="80" y="130" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_sophia" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" value="Sophia — PQC dictionaries / microcode&#xa;ML-DSA-65 key+sig BPF maps" vertex="1">
+          <mxGeometry height="60" width="280" x="760" y="20" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_wotan" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" value="Wotan — distributed memory / msg bus&#xa;ring buffer · pub/sub · protocol RAM" vertex="1">
+          <mxGeometry height="60" width="280" x="400" y="400" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_e_ms" edge="1" parent="1" source="p3_monad" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" target="p3_sophia" value="wraps w/ PQC policy">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_e_sw" edge="1" parent="1" source="p3_sophia" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" target="p3_wotan" value="correlates / stores">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_ebpf" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" value="eBPF programs (23)&#xa;packet_marker · flow_tracker · latency_probe" vertex="1">
+          <mxGeometry height="60" width="300" x="80" y="280" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_afxdp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" value="AF_XDP datapath&#xa;920K pps validated (Rust FFI + Go bridge)" vertex="1">
+          <mxGeometry height="50" width="300" x="80" y="360" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_e_m_ebpf" edge="1" parent="1" source="p3_monad" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" target="p3_ebpf" value="interprets register">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_e_ebpf_afxdp" edge="1" parent="1" source="p3_ebpf" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;strokeWidth=2;" target="p3_afxdp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_mimir_box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#b7791f;dashed=1;verticalAlign=top;align=left;fontStyle=2;fontSize=12;" value="Mímir&#39;s Law / Gleipnir Phase-0 PoC (alerts-only, ADR-043) — scaffold" vertex="1">
+          <mxGeometry height="200" width="730" x="800" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_gjallar" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;dashed=1;" value="gjallarhorn — 20-byte UPC trigger packets" vertex="1">
+          <mxGeometry height="46" width="240" x="810" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_heimdall" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;dashed=1;" value="heimdall-bpf — kprobes (execve/write) + XDP" vertex="1">
+          <mxGeometry height="46" width="260" x="1070" y="210" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_enkrateia" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;dashed=1;" value="enkrateia — drift aggregator (no auto-restore)" vertex="1">
+          <mxGeometry height="46" width="230" x="1280" y="287" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_gungnir" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffd6d6;strokeColor=#c53030;dashed=1;" value="gungnir — ML-DSA-65 sealed payloads / config signing" vertex="1">
+          <mxGeometry height="46" width="280" x="810" y="277" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_anamnesis" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;dashed=1;" value="anamnesis — event memory / Suricata EVE bridge" vertex="1">
+          <mxGeometry height="46" width="280" x="880" y="334" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_e_gj_heim" edge="1" parent="1" source="p3_gjallar" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;dashed=1;" target="p3_heimdall">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_e_heim_enk" edge="1" parent="1" source="p3_heimdall" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2b6cb0;dashed=1;" target="p3_enkrateia" value="drift events">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_e_gungnir_wotan" edge="1" parent="1" source="p3_gungnir" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c53030;dashed=1;" target="p3_wotan" value="signs config.* topics">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_e_enk_anam" edge="1" parent="1" source="p3_enkrateia" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#b7791f;dashed=1;" target="p3_anamnesis">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p3_leg" parent="1" style="text;html=1;fontSize=11;align=left;" value="border: solid=built (monad/sophia/wotan/ebpf/afxdp), dashed=scaffold/PoC (Mímir trio)   ·   blue edges = protocol data-plane, red=signing" vertex="1">
+          <mxGeometry height="20" width="1300" x="20" y="500" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
-
   <diagram name="4 · UPC / Crates + Zhen" id="page-upc">
-    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="760" math="0" shadow="0">
+    <mxGraphModel dx="1414" dy="930" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="760" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="p4_title" value="UPC / Crates boot pipeline + Zhen knowledge/agent branch" style="text;html=1;fontSize=18;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="16" width="1200" height="30" as="geometry"/></mxCell>
-
-        <!-- UPC pipeline -->
-        <mxCell id="p4_mbc" value="monad-mbc&#10;rv32i → MBC translator/asm" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="60" y="110" width="200" height="56" as="geometry"/></mxCell>
-        <mxCell id="p4_xv6" value="xv6-mbc kernel&#10;Phase 1.6: 'init: starting sh' ✅" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="320" y="110" width="220" height="56" as="geometry"/></mxCell>
-        <mxCell id="p4_runner" value="doom-runner / upc-bootctl&#10;Aya BPF loader + memory mgr" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="600" y="110" width="220" height="56" as="geometry"/></mxCell>
-        <mxCell id="p4_tty" value="upc-tty-bridge (WS :26100)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="880" y="110" width="200" height="56" as="geometry"/></mxCell>
-        <mxCell id="p4_browser" value="browser xterm.js console" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1140" y="110" width="200" height="56" as="geometry"/></mxCell>
-        <mxCell id="p4_e1" value="translate" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;strokeWidth=2;" edge="1" parent="1" source="p4_mbc" target="p4_xv6"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p4_e2" value="load + boot" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;strokeWidth=2;" edge="1" parent="1" source="p4_xv6" target="p4_runner"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p4_e3" value="TTY bytes" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;strokeWidth=2;" edge="1" parent="1" source="p4_runner" target="p4_tty"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p4_e4" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;strokeWidth=2;" edge="1" parent="1" source="p4_tty" target="p4_browser"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <mxCell id="p4_doom" value="Doom-over-IPv6 (E1M1 playable)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="600" y="200" width="220" height="40" as="geometry"/></mxCell>
-        <mxCell id="p4_e_runner_doom" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;strokeWidth=2;" edge="1" parent="1" source="p4_runner" target="p4_doom"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p4_bootstub" value="upc-bootstub → uClinux / Linux (FUTURE)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="320" y="200" width="220" height="40" as="geometry"/></mxCell>
-        <mxCell id="p4_e_xv6_stub" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;dashed=1;dashPattern=6 4;" edge="1" parent="1" source="p4_xv6" target="p4_bootstub"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <!-- Zhen branch -->
-        <mxCell id="p4_zhen_box" value="Zhen — knowledge → training → agent" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#2c7a7b;verticalAlign=top;align=left;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="60" y="300" width="1280" height="160" as="geometry"/></mxCell>
-        <mxCell id="p4_zhend" value="zhend — gossip knowledge (Layer 0)&#10;content-addressed, PQ crypto" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="80" y="340" width="230" height="56" as="geometry"/></mxCell>
-        <mxCell id="p4_forge" value="zhenai-forge — LoRA on Gemma-4 E2B&#10;GPU fwd+bwd kernels" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="360" y="340" width="240" height="56" as="geometry"/></mxCell>
-        <mxCell id="p4_infer" value="zhen-inference (llama.cpp)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="650" y="340" width="200" height="56" as="geometry"/></mxCell>
-        <mxCell id="p4_champ" value="Champion (pkg/champion)&#10;EXECUTES and AUTHORS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="900" y="340" width="210" height="56" as="geometry"/></mxCell>
-        <mxCell id="p4_runbooks" value="runbooks/ (31 ops runbooks)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1150" y="340" width="170" height="56" as="geometry"/></mxCell>
-        <mxCell id="p4_ze1" value="train corpus" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" edge="1" parent="1" source="p4_zhend" target="p4_forge"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p4_ze2" value="LoRA adapter" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" edge="1" parent="1" source="p4_forge" target="p4_infer"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p4_ze3" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" edge="1" parent="1" source="p4_infer" target="p4_champ"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p4_ze4" value="execute + author" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" edge="1" parent="1" source="p4_champ" target="p4_runbooks"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <!-- steering wheel -->
-        <mxCell id="p4_wheel" value="STEERING WHEEL — Kanban board ≡ Zhenai chat/API" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;strokeWidth=2;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="500" y="500" width="420" height="48" as="geometry"/></mxCell>
-        <mxCell id="p4_e_champ_wheel" value="agent face" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" edge="1" parent="1" source="p4_champ" target="p4_wheel"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p4_roles" value="Zhenai role-selector chat (PIPE DREAM)&#10;dropdown: engines + roles (Lich · BlackMage · Developer-QA)&#10;→ role-tuned models on gaming-PC HW, not HPC" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="980" y="490" width="360" height="68" as="geometry"/></mxCell>
-        <mxCell id="p4_e_wheel_roles" value="future feature" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p4_wheel" target="p4_roles"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <mxCell id="p4_heimbpf" value="heimdall-bpf (scaffold)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;dashed=1;" vertex="1" parent="1"><mxGeometry x="880" y="200" width="200" height="40" as="geometry"/></mxCell>
-
-        <mxCell id="p4_leg" value="purple = UPC boot pipeline   ·   teal = knowledge/training/drives   ·   border: solid=built, dashed=scaffold, faded=future" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="1"><mxGeometry x="20" y="600" width="1300" height="20" as="geometry"/></mxCell>
+        <mxCell id="p4_title" parent="1" style="text;html=1;fontSize=18;fontStyle=1;" value="UPC / Crates boot pipeline + Zhen knowledge/agent branch" vertex="1">
+          <mxGeometry height="30" width="1200" x="20" y="16" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_mbc" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="monad-mbc&#xa;rv32i → MBC translator/asm" vertex="1">
+          <mxGeometry height="56" width="200" x="60" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_xv6" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="xv6-mbc kernel&#xa;Phase 1.6: &#39;init: starting sh&#39; ✅" vertex="1">
+          <mxGeometry height="56" width="220" x="320" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_runner" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="doom-runner / upc-bootctl&#xa;Aya BPF loader + memory mgr" vertex="1">
+          <mxGeometry height="56" width="220" x="600" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_tty" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="upc-tty-bridge (WS :26100)" vertex="1">
+          <mxGeometry height="56" width="200" x="880" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_browser" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="browser xterm.js console" vertex="1">
+          <mxGeometry height="56" width="200" x="1140" y="110" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_e1" edge="1" parent="1" source="p4_mbc" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;strokeWidth=2;" target="p4_xv6" value="translate">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_e2" edge="1" parent="1" source="p4_xv6" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;strokeWidth=2;" target="p4_runner" value="load + boot">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_e3" edge="1" parent="1" source="p4_runner" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;strokeWidth=2;" target="p4_tty" value="TTY bytes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_e4" edge="1" parent="1" source="p4_tty" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;strokeWidth=2;" target="p4_browser">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_doom" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="Doom-over-IPv6 (E1M1 playable)" vertex="1">
+          <mxGeometry height="40" width="220" x="600" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_e_runner_doom" edge="1" parent="1" source="p4_runner" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;strokeWidth=2;" target="p4_doom">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_bootstub" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;dashed=1;dashPattern=6 4;fontStyle=2;" value="upc-bootstub → uClinux / Linux (FUTURE)" vertex="1">
+          <mxGeometry height="40" width="220" x="320" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_e_xv6_stub" edge="1" parent="1" source="p4_xv6" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#6b46c1;dashed=1;dashPattern=6 4;" target="p4_bootstub">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_zhen_box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#2c7a7b;verticalAlign=top;align=left;fontStyle=1;fontSize=12;" value="Zhen — knowledge → training → agent" vertex="1">
+          <mxGeometry height="160" width="1280" x="60" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_zhend" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="zhend — gossip knowledge (Layer 0)&#xa;content-addressed, PQ crypto" vertex="1">
+          <mxGeometry height="56" width="230" x="80" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_forge" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="zhenai-forge — LoRA on Gemma-4 E2B&#xa;GPU fwd+bwd kernels" vertex="1">
+          <mxGeometry height="56" width="240" x="360" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_infer" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;" value="zhen-inference (llama.cpp)" vertex="1">
+          <mxGeometry height="56" width="200" x="650" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_champ" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;strokeWidth=2;fontStyle=1;" value="Champion (pkg/champion)&#xa;EXECUTES and AUTHORS" vertex="1">
+          <mxGeometry height="56" width="210" x="900" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_runbooks" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;strokeWidth=2;" value="runbooks/ (31 ops runbooks)" vertex="1">
+          <mxGeometry height="56" width="170" x="1150" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_ze1" edge="1" parent="1" source="p4_zhend" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" target="p4_forge" value="train corpus">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_ze2" edge="1" parent="1" source="p4_forge" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" target="p4_infer" value="LoRA adapter">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_ze3" edge="1" parent="1" source="p4_infer" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" target="p4_champ">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_ze4" edge="1" parent="1" source="p4_champ" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" target="p4_runbooks" value="execute + author">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_wheel" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;strokeWidth=2;fontStyle=1;" value="STEERING WHEEL — Kanban board ≡ Zhenai chat/API" vertex="1">
+          <mxGeometry height="48" width="420" x="500" y="500" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_e_champ_wheel" edge="1" parent="1" source="p4_champ" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;strokeWidth=2;" target="p4_wheel" value="agent face">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_roles" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" value="Zhenai role-selector chat (PIPE DREAM)&#xa;dropdown: engines + roles (Lich · BlackMage · Developer-QA)&#xa;→ role-tuned models on gaming-PC HW, not HPC" vertex="1">
+          <mxGeometry height="68" width="360" x="980" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_e_wheel_roles" edge="1" parent="1" source="p4_wheel" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" target="p4_roles" value="future feature">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_heimbpf" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e9d8fd;strokeColor=#6b46c1;dashed=1;" value="heimdall-bpf (scaffold)" vertex="1">
+          <mxGeometry height="40" width="200" x="880" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="p4_leg" parent="1" style="text;html=1;fontSize=11;align=left;" value="purple = UPC boot pipeline   ·   teal = knowledge/training/drives   ·   border: solid=built, dashed=scaffold, faded=future" vertex="1">
+          <mxGeometry height="20" width="1300" x="20" y="600" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
-
   <diagram name="5 · Tomb / Red-Team" id="page-tomb">
     <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="780" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="p5_title" value="Tomb — Red-Team loop (LICH agent = future; fuzz harnesses + Cerydwyn = today's scaffold)" style="text;html=1;fontSize=18;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="16" width="1300" height="30" as="geometry"/></mxCell>
-
-        <mxCell id="p5_lich" value="LICH — autonomous red-team AGENT&#10;(local LLM / MCP / agent)   FUTURE · PIPE DREAM (ADR-062/063)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="60" y="90" width="360" height="70" as="geometry"/></mxCell>
-        <mxCell id="p5_targets" value="Protocol + Services targets&#10;Monad wire/codec · CRC-16 · MBC · eBPF · Wotan cache · WAL · flow-ID" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="600" y="90" width="420" height="70" as="geometry"/></mxCell>
-        <mxCell id="p5_e_lich_targets" value="attacks (autonomous, future)" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c53030;strokeWidth=2;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p5_lich" target="p5_targets"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <mxCell id="p5_harness" value="Fuzz harnesses lich_001..014 (Go)&#10;today's realized scaffold" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;" vertex="1" parent="1"><mxGeometry x="60" y="220" width="320" height="56" as="geometry"/></mxCell>
-        <mxCell id="p5_e_lich_harness" value="will drive" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p5_lich" target="p5_harness"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p5_e_harness_targets" value="fuzzes" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c53030;strokeWidth=2;dashed=1;" edge="1" parent="1" source="p5_harness" target="p5_targets"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p5_topic" value="Wotan topic&#10;security.lich.results" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="440" y="230" width="180" height="46" as="geometry"/></mxCell>
-        <mxCell id="p5_e_harness_topic" value="findings" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p5_harness" target="p5_topic"><mxGeometry relative="1" as="geometry"/></mxCell>
-
+        <mxCell id="p5_title" value="Tomb — Red-Team loop (LICH agent = future; fuzz harnesses + Cerydwyn = today&#39;s scaffold)" style="text;html=1;fontSize=18;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="20" y="16" width="1300" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_lich" value="LICH — autonomous red-team AGENT&#xa;(local LLM / MCP / agent)   FUTURE · PIPE DREAM (ADR-062/063)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="60" y="90" width="360" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_targets" value="Protocol + Services targets&#xa;Monad wire/codec · CRC-16 · MBC · eBPF · Wotan cache · WAL · flow-ID" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="600" y="90" width="420" height="70" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_e_lich_targets" value="attacks (autonomous, future)" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c53030;strokeWidth=2;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p5_lich" target="p5_targets">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_harness" value="Fuzz harnesses lich_001..014 (Go)&#xa;today&#39;s realized scaffold" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;" vertex="1" parent="1">
+          <mxGeometry x="60" y="220" width="320" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_e_lich_harness" value="will drive" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p5_lich" target="p5_harness">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_e_harness_targets" value="fuzzes" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c53030;strokeWidth=2;dashed=1;" edge="1" parent="1" source="p5_harness" target="p5_targets">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_topic" value="Wotan topic&#xa;security.lich.results" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#cfe2ff;strokeColor=#2b6cb0;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="440" y="230" width="180" height="46" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_e_harness_topic" value="findings" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#2f855a;strokeWidth=2;" edge="1" parent="1" source="p5_harness" target="p5_topic">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
         <!-- knowledge + triage -->
-        <mxCell id="p5_grimoire" value="grimoire — RAG corpus&#10;MITRE ATT&amp;CK · threat models · Kingdom docs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="60" y="330" width="320" height="56" as="geometry"/></mxCell>
-        <mxCell id="p5_oracle" value="Cerydwyn — Mistral-7B triage daemon&#10;(Ollama + RAG)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="440" y="330" width="280" height="56" as="geometry"/></mxCell>
-        <mxCell id="p5_sugg" value="suggestions / threat assessments" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="780" y="330" width="240" height="56" as="geometry"/></mxCell>
-        <mxCell id="p5_e_grim_oracle" value="context (RAG)" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;strokeWidth=2;" edge="1" parent="1" source="p5_grimoire" target="p5_oracle"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p5_e_harness_oracle" value="crash reports" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;strokeWidth=2;" edge="1" parent="1" source="p5_harness" target="p5_oracle"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p5_e_oracle_sugg" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;strokeWidth=2;" edge="1" parent="1" source="p5_oracle" target="p5_sugg"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <mxCell id="p5_mirror" value="Dark-Mirror — Prometheus / Loki / Grafana (attack telemetry)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1080" y="230" width="280" height="56" as="geometry"/></mxCell>
-        <mxCell id="p5_e_topic_mirror" value="observes" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;fontStyle=2;" edge="1" parent="1" source="p5_topic" target="p5_mirror"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p5_e_sugg_mirror" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;" edge="1" parent="1" source="p5_sugg" target="p5_mirror"><mxGeometry relative="1" as="geometry"/></mxCell>
-
+        <mxCell id="p5_grimoire" value="grimoire — RAG corpus&#xa;MITRE ATT&amp;CK · threat models · Kingdom docs" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="60" y="330" width="320" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_oracle" value="Cerydwyn — Mistral-7B triage daemon&#xa;(Ollama + RAG)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="440" y="330" width="280" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_sugg" value="suggestions / threat assessments" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="780" y="330" width="240" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_e_grim_oracle" value="context (RAG)" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;strokeWidth=2;" edge="1" parent="1" source="p5_grimoire" target="p5_oracle">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_e_harness_oracle" value="crash reports" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;strokeWidth=2;" edge="1" parent="1" source="p5_harness" target="p5_oracle">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_e_oracle_sugg" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;strokeWidth=2;" edge="1" parent="1" source="p5_oracle" target="p5_sugg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_mirror" value="Dark-Mirror — Prometheus / Loki / Grafana (attack telemetry)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3bf;strokeColor=#b7791f;strokeWidth=2;" vertex="1" parent="1">
+          <mxGeometry x="1080" y="230" width="280" height="56" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_e_topic_mirror" value="observes" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;fontStyle=2;" edge="1" parent="1" source="p5_topic" target="p5_mirror">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_e_sugg_mirror" style="endArrow=open;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;" edge="1" parent="1" source="p5_sugg" target="p5_mirror">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
         <!-- red/blue handoff chain -->
-        <mxCell id="p5_handoff_box" value="Daily red/blue adversarial loop (via Zhen AI) — FUTURE / aspirational" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#c05621;dashed=1;dashPattern=6 4;verticalAlign=top;align=left;fontStyle=2;fontSize=12;" vertex="1" parent="1"><mxGeometry x="60" y="450" width="1300" height="120" as="geometry"/></mxCell>
-        <mxCell id="p5_sentinel" value="Sentinel&#10;detect" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="100" y="490" width="160" height="50" as="geometry"/></mxCell>
-        <mxCell id="p5_blackmage" value="BlackMage&#10;exploit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="360" y="490" width="160" height="50" as="geometry"/></mxCell>
-        <mxCell id="p5_archh" value="Architect&#10;harden" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="620" y="490" width="160" height="50" as="geometry"/></mxCell>
-        <mxCell id="p5_devp" value="Developer&#10;patch" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="880" y="490" width="160" height="50" as="geometry"/></mxCell>
-        <mxCell id="p5_moat" value="MoatGhost&#10;certify" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="1140" y="490" width="160" height="50" as="geometry"/></mxCell>
-        <mxCell id="p5_h1" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;dashed=1;dashPattern=6 4;" edge="1" parent="1" source="p5_sentinel" target="p5_blackmage"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p5_h2" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;dashed=1;dashPattern=6 4;" edge="1" parent="1" source="p5_blackmage" target="p5_archh"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p5_h3" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;dashed=1;dashPattern=6 4;" edge="1" parent="1" source="p5_archh" target="p5_devp"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p5_h4" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;dashed=1;dashPattern=6 4;" edge="1" parent="1" source="p5_devp" target="p5_moat"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <mxCell id="p5_leg" value="red dashed = attacks/fuzzes   ·   orange = red-team data-flow   ·   orange dashed = red/blue handoff (future)   ·   border: solid=built, dashed=scaffold, faded=future" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="1"><mxGeometry x="20" y="600" width="1340" height="20" as="geometry"/></mxCell>
+        <mxCell id="p5_handoff_box" value="Daily red/blue adversarial loop (via Zhen AI) — FUTURE / aspirational" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#c05621;dashed=1;dashPattern=6 4;verticalAlign=top;align=left;fontStyle=2;fontSize=12;" vertex="1" parent="1">
+          <mxGeometry x="60" y="450" width="1300" height="120" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_sentinel" value="Sentinel&#xa;detect" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="100" y="490" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_blackmage" value="BlackMage&#xa;exploit" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="360" y="490" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_archh" value="Architect&#xa;harden" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="620" y="490" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_devp" value="Developer&#xa;patch" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="880" y="490" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_moat" value="MoatGhost&#xa;certify" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0c2;strokeColor=#c05621;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="490" width="160" height="50" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_h1" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;dashed=1;dashPattern=6 4;" edge="1" parent="1" source="p5_sentinel" target="p5_blackmage">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_h2" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;dashed=1;dashPattern=6 4;" edge="1" parent="1" source="p5_blackmage" target="p5_archh">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_h3" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;dashed=1;dashPattern=6 4;" edge="1" parent="1" source="p5_archh" target="p5_devp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_h4" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#c05621;dashed=1;dashPattern=6 4;" edge="1" parent="1" source="p5_devp" target="p5_moat">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p5_leg" value="red dashed = attacks/fuzzes   ·   orange = red-team data-flow   ·   orange dashed = red/blue handoff (future)   ·   border: solid=built, dashed=scaffold, faded=future" style="text;html=1;fontSize=11;align=left;" vertex="1" parent="1">
+          <mxGeometry x="20" y="600" width="1340" height="20" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
-
   <diagram name="6 · North Star (Yggdrasil)" id="page-northstar">
-    <mxGraphModel dx="1400" dy="900" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="820" math="0" shadow="0">
+    <mxGraphModel dx="1571" dy="1033" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="820" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="p6_title" value="North Star — Yggdrasil PXE substrate + Sleipnir/Gleipnir + platform capabilities (all FUTURE / Age 2-3, Q4 2026+)" style="text;html=1;fontSize=17;fontStyle=1;" vertex="1" parent="1"><mxGeometry x="20" y="16" width="1400" height="30" as="geometry"/></mxCell>
-
-        <!-- product promise -->
-        <mxCell id="p6_promise_box" value="Platform capabilities (vision)" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;verticalAlign=top;align=left;fontStyle=2;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="70" width="1500" height="100" as="geometry"/></mxCell>
-        <mxCell id="p6_pr1" value="automated full-stack provisioning" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="60" y="108" width="180" height="46" as="geometry"/></mxCell>
-        <mxCell id="p6_pr2" value="drop-in compliance templates&#10;FedRAMP/NIST/SOC2/PCI/HIPAA/ITAR/GDPR" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="270" y="108" width="320" height="46" as="geometry"/></mxCell>
-        <mxCell id="p6_pr3" value="eBPF custom dashboards" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="620" y="108" width="220" height="46" as="geometry"/></mxCell>
-        <mxCell id="p6_pr4" value="full IDP/SIEM/SOC/NOC stack" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="870" y="108" width="280" height="46" as="geometry"/></mxCell>
-        <mxCell id="p6_pr5" value="zero-trust everywhere (mTLS)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="1180" y="108" width="240" height="46" as="geometry"/></mxCell>
-
-        <!-- substrate pipeline -->
-        <mxCell id="p6_sub_box" value="Scaling substrate — how the promise is delivered to a fleet" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#4a5568;dashed=1;dashPattern=6 4;verticalAlign=top;align=left;fontStyle=2;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="200" width="1500" height="220" as="geometry"/></mxCell>
-        <mxCell id="p6_cfg" value="Canonical Config" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="60" y="250" width="150" height="44" as="geometry"/></mxCell>
-        <mxCell id="p6_gleip" value="Gleipnir — config convergence&#10;(Docker/LXD/K8s/Ansible/Nix/obs/SELinux)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="250" y="244" width="300" height="56" as="geometry"/></mxCell>
-        <mxCell id="p6_src" value="Kingdom source" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="60" y="330" width="150" height="44" as="geometry"/></mxCell>
-        <mxCell id="p6_deb" value=".deb packages&#10;daemon·cli·ebpf·dashboard·wotan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="250" y="324" width="220" height="56" as="geometry"/></mxCell>
-        <mxCell id="p6_apt" value="apt repo / snap / Docker Hub" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="510" y="330" width="220" height="44" as="geometry"/></mxCell>
-        <mxCell id="p6_ygg" value="Yggdrasil image builder (Jenkins)&#10;Debian 12 + CIS/STIG + SELinux" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="770" y="300" width="280" height="56" as="geometry"/></mxCell>
-        <mxCell id="p6_pxe" value="ISO / cloud / qcow2 → PXE boot" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="1090" y="300" width="220" height="56" as="geometry"/></mxCell>
-        <mxCell id="p6_fleet" value="N-node fleet (2 → 1000s)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="1350" y="300" width="170" height="56" as="geometry"/></mxCell>
-        <mxCell id="p6_slp" value="Sleipnir — Kingdom BGP fabric (8 ECMP legs, sub-second BFD)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" vertex="1" parent="1"><mxGeometry x="1090" y="370" width="430" height="40" as="geometry"/></mxCell>
-        <mxCell id="p6_e1" value="converge" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p6_cfg" target="p6_gleip"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p6_e2" value="build" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p6_src" target="p6_deb"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p6_e3" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;" edge="1" parent="1" source="p6_deb" target="p6_apt"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p6_e4" value="bake in" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p6_apt" target="p6_ygg"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p6_e4b" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;" edge="1" parent="1" source="p6_gleip" target="p6_ygg"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p6_e5" value="image" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p6_ygg" target="p6_pxe"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p6_e6" value="provision" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p6_pxe" target="p6_fleet"><mxGeometry relative="1" as="geometry"/></mxCell>
-        <mxCell id="p6_e7" value="routes" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" edge="1" parent="1" source="p6_slp" target="p6_fleet"><mxGeometry relative="1" as="geometry"/></mxCell>
-
-        <!-- realized seeds -->
-        <mxCell id="p6_seed_box" value="Realized seeds today (solid) — what the vision is already growing from" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#2f855a;verticalAlign=top;align=left;fontStyle=1;fontSize=12;" vertex="1" parent="1"><mxGeometry x="40" y="450" width="1500" height="100" as="geometry"/></mxCell>
-        <mxCell id="p6_s1" value="nix/yggdrasil/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="60" y="490" width="180" height="40" as="geometry"/></mxCell>
-        <mxCell id="p6_s2" value="docs/OS-FORK-DISCIPLINE.md" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="270" y="490" width="260" height="40" as="geometry"/></mxCell>
-        <mxCell id="p6_s3" value="debian/" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="560" y="490" width="160" height="40" as="geometry"/></mxCell>
-        <mxCell id="p6_s4" value="Jenkinsfile (.deb CI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="750" y="490" width="220" height="40" as="geometry"/></mxCell>
-        <mxCell id="p6_s5" value="pkg/baremetal (HW inventory)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" vertex="1" parent="1"><mxGeometry x="1000" y="490" width="260" height="40" as="geometry"/></mxCell>
-
-        <mxCell id="p6_ref" value="Sources: docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md · references/battle-plan-NORTH-STAR-2026-05-05.md (dated snapshot) · cmd/kanban-app/main.go (vision-* items). Trust git log for current status." style="text;html=1;fontSize=11;fontStyle=2;align=left;" vertex="1" parent="1"><mxGeometry x="20" y="570" width="1500" height="40" as="geometry"/></mxCell>
+        <mxCell id="p6_title" parent="1" style="text;html=1;fontSize=17;fontStyle=1;" value="North Star — Yggdrasil PXE substrate + Sleipnir/Gleipnir + platform capabilities (all FUTURE / Age 2-3, Q4 2026+)" vertex="1">
+          <mxGeometry height="30" width="1400" x="20" y="16" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_promise_box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;verticalAlign=top;align=left;fontStyle=2;fontSize=12;" value="Platform capabilities (vision)" vertex="1">
+          <mxGeometry height="100" width="1500" x="40" y="70" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_pr1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" value="automated full-stack provisioning" vertex="1">
+          <mxGeometry height="46" width="180" x="60" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_pr2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" value="drop-in compliance templates&#xa;FedRAMP/NIST/SOC2/PCI/HIPAA/ITAR/GDPR" vertex="1">
+          <mxGeometry height="46" width="320" x="270" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_pr3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" value="eBPF custom dashboards" vertex="1">
+          <mxGeometry height="46" width="220" x="620" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_pr4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" value="full IDP/SIEM/SOC/NOC stack" vertex="1">
+          <mxGeometry height="46" width="280" x="870" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_pr5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#b2f5ea;strokeColor=#2c7a7b;dashed=1;dashPattern=6 4;fontStyle=2;" value="zero-trust everywhere (mTLS)" vertex="1">
+          <mxGeometry height="46" width="240" x="1180" y="108" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_sub_box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#4a5568;dashed=1;dashPattern=6 4;verticalAlign=top;align=left;fontStyle=2;fontSize=12;" value="Scaling substrate — how the promise is delivered to a fleet" vertex="1">
+          <mxGeometry height="220" width="1500" x="40" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_cfg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="Canonical Config" vertex="1">
+          <mxGeometry height="44" width="150" x="60" y="250" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_gleip" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="Gleipnir — config convergence&#xa;(Docker/LXD/K8s/Ansible/Nix/obs/SELinux)" vertex="1">
+          <mxGeometry height="56" width="300" x="250" y="244" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_src" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="Kingdom source" vertex="1">
+          <mxGeometry height="44" width="150" x="60" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_deb" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value=".deb packages&#xa;daemon·cli·ebpf·dashboard·wotan" vertex="1">
+          <mxGeometry height="56" width="220" x="250" y="324" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_apt" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="apt repo / snap / Docker Hub" vertex="1">
+          <mxGeometry height="44" width="220" x="510" y="330" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_ygg" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="Yggdrasil image builder (Jenkins)&#xa;Debian 12 + CIS/STIG + SELinux" vertex="1">
+          <mxGeometry height="56" width="280" x="800" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_pxe" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="ISO / cloud / qcow2 → PXE boot" vertex="1">
+          <mxGeometry height="56" width="220" x="1090" y="220" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_fleet" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="N-node fleet (2 → 1000s)" vertex="1">
+          <mxGeometry height="56" width="170" x="1350" y="300" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_slp" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e2e8f0;strokeColor=#4a5568;dashed=1;dashPattern=6 4;fontStyle=2;" value="Sleipnir — Kingdom BGP fabric (8 ECMP legs, sub-second BFD)" vertex="1">
+          <mxGeometry height="40" width="430" x="1090" y="370" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_e1" edge="1" parent="1" source="p6_cfg" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" target="p6_gleip" value="converge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_e2" edge="1" parent="1" source="p6_src" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" target="p6_deb" value="build">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_e3" edge="1" parent="1" source="p6_deb" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;" target="p6_apt">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_e4" edge="1" parent="1" source="p6_apt" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" target="p6_ygg" value="bake in">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_e4b" edge="1" parent="1" source="p6_gleip" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;" target="p6_ygg">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_e5" edge="1" parent="1" source="p6_ygg" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" target="p6_pxe" value="image">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_e6" edge="1" parent="1" source="p6_pxe" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" target="p6_fleet" value="provision">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_e7" edge="1" parent="1" source="p6_slp" style="endArrow=block;html=1;labelBackgroundColor=#ffffff;fontColor=#1a202c;strokeColor=#718096;dashed=1;dashPattern=6 4;fontStyle=2;" target="p6_fleet" value="routes">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_seed_box" parent="1" style="rounded=0;whiteSpace=wrap;html=1;fillColor=#f7fafc;strokeColor=#2f855a;verticalAlign=top;align=left;fontStyle=1;fontSize=12;" value="Realized seeds today (solid) — what the vision is already growing from" vertex="1">
+          <mxGeometry height="100" width="1500" x="40" y="450" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_s1" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="nix/yggdrasil/" vertex="1">
+          <mxGeometry height="40" width="180" x="60" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_s2" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="docs/OS-FORK-DISCIPLINE.md" vertex="1">
+          <mxGeometry height="40" width="260" x="270" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_s3" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="debian/" vertex="1">
+          <mxGeometry height="40" width="160" x="560" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_s4" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="Jenkinsfile (.deb CI)" vertex="1">
+          <mxGeometry height="40" width="220" x="750" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_s5" parent="1" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d6f5d6;strokeColor=#2f855a;strokeWidth=2;" value="pkg/baremetal (HW inventory)" vertex="1">
+          <mxGeometry height="40" width="260" x="1000" y="490" as="geometry" />
+        </mxCell>
+        <mxCell id="p6_ref" parent="1" style="text;html=1;fontSize=11;fontStyle=2;align=left;" value="Sources: docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md · references/battle-plan-NORTH-STAR-2026-05-05.md (dated snapshot) · cmd/kanban-app/main.go (vision-* items). Trust git log for current status." vertex="1">
+          <mxGeometry height="40" width="1500" x="20" y="570" as="geometry" />
+        </mxCell>
       </root>
     </mxGraphModel>
   </diagram>
