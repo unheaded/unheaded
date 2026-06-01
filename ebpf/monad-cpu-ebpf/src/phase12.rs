@@ -39,8 +39,13 @@ pub fn pgd_base_for_pid(pid: u8) -> u32 {
     PER_PID_PGD_BASE + (pid as u32) * PGD_SIZE_BYTES
 }
 
-/// Size of a process's user RAM slice (ADR-074 make-MMU-live Gate 2, 2026-05-30).
-/// Covers init's data + stack footprint (stack sits near ~5 MiB). 4 MiB-aligned.
+/// fork()'s working-set COPY clamp (ADR-074 make-MMU-live Gate 2, 2026-05-30).
+/// Covers init's data + stack footprint (stack sits near ~5 MiB, set by
+/// exec.c → trapframe->sp = 0x500000-16). NOTE: this is the COPY bound, not the
+/// mapped-slice size. The slice MAPPED by the two superpage leaves is 8 MiB
+/// (= SLICE_STRIDE); the VA[6,8) MiB tail above this clamp is mapped but
+/// un-copied — private to the pid within its own stride, NOT a cross-process
+/// leak (Gate 4). 4 MiB-aligned.
 pub const USER_SLICE_BYTES: u32 = 0x0060_0000; // 6 MiB
 
 /// fork() working-set copy bounds (perf, 2026-05-31). The full 6 MiB slice is
@@ -55,26 +60,58 @@ pub const USER_SLICE_BYTES: u32 = 0x0060_0000; // 6 MiB
 /// malloc-heavy or deep-recursion userland.
 pub const FORK_COPY_LOW_BYTES: u32 = 0x0004_0000; // 256 KiB: image + heap
 pub const FORK_COPY_STACK_BYTES: u32 = 0x0001_0000; // 64 KiB: live stack window
-/// 4 MiB-aligned physical base of the (shared) child slice. Clear of the kernel
-/// (<8 MiB), the ramdisk (8–10 MiB), and the per-pid pgd region (~15.7 MiB).
+/// 4 MiB-aligned physical base of the FIRST child slice (pid 1). Clear of the
+/// kernel (<8 MiB), the ramdisk (8–10 MiB), and the per-pid pgd region (~15.7 MiB).
 pub const USER_CHILD_SLICE: u32 = 0x0100_0000; // 16 MiB
 
-/// Physical base offset added to a user virtual address for `pid`. pid 0 (init)
-/// keeps an identity slice (offset 0) exactly where the loader set it up, so the
-/// kernel↔init boot is undisturbed. Children map their VA[0,SLICE) onto a
-/// disjoint physical slice.
+/// Per-pid physical slice stride (Gate 4 — N-way concurrent isolation, 2026-05-31).
+/// Each live pid owns a DISJOINT physical slice this far apart. Must be ≥ two
+/// 4 MiB superpages (= 8 MiB), because each pid's VA[0,8 MiB) is mapped by two
+/// superpage leaves: a stride < 8 MiB makes pid N's upper leaf OVERLAP pid N+1's
+/// lower leaf — the exact cross-process leak gate_nway.c falsifies (BlackMage
+/// leak primitive #1). const-asserted below.
+pub const SLICE_STRIDE: u32 = 0x0080_0000; // 8 MiB (two 4 MiB superpages)
+
+/// Highest physical address a child slice may occupy inside the 64 MiB RAM_MAP
+/// (ADR-074 scoped N-way, 2026-05-31). A fork whose slice top would exceed this
+/// bails (-1) rather than mapping an out-of-bounds / overlapping slice — a
+/// forkbomb then fails gracefully on physical exhaustion. 56 MiB admits pids
+/// 1..=5 and leaves 8 MiB headroom below RAM_MAP's 64 MiB top.
+pub const RAM_ISOLATION_CEILING: u32 = 0x0380_0000; // 56 MiB
+
+// ── Gate 4 isolation invariants (compile-time) ─────────────────────────────
+/// The stride must cover the two 4 MiB superpage leaves, or adjacent pids'
+/// slices overlap physically (the leak gate_nway.c exists to catch).
+const _: () = assert!(
+    SLICE_STRIDE >= 2 * 0x0040_0000,
+    "SLICE_STRIDE < two 4 MiB superpages → adjacent pid leaf OVERLAP"
+);
+/// At least 4 concurrent children (pid 1..=4) must fit under the ceiling so the
+/// scoped 3–4-way gate has headroom. pid 4's slice top = base + 3*stride + stride.
+const _: () = assert!(
+    USER_CHILD_SLICE + 3 * SLICE_STRIDE + SLICE_STRIDE <= RAM_ISOLATION_CEILING,
+    "≥4 concurrent child slices do not fit under RAM_ISOLATION_CEILING"
+);
+
+/// Physical base offset added to a user virtual address for `pid`.
 ///
-/// NOTE (Phase 3.1): children currently SHARE one physical slice — correct only
-/// because they run serially (init forks → waits → child runs+exits → reap →
-/// next fork). True N-way isolation (the forkbomb gate) needs a distinct slice
-/// per live pid; deferred per ADR-074.
+/// pid 0 (init) keeps an identity slice (offset 0) exactly where the loader set
+/// it up, so the kernel↔init boot is undisturbed and Gate 2/3 (which key pid 1
+/// at 16 MiB) stay intact.
+///
+/// Children (pid ≥ 1) each map their VA[0,8 MiB) onto a DISJOINT physical slice
+/// `USER_CHILD_SLICE + (pid-1)*SLICE_STRIDE`: pid1=16, pid2=24, pid3=32,
+/// pid4=40, pid5=48 MiB. With SLICE_STRIDE = 8 MiB the slices never overlap, so
+/// per-pid pgds isolate CONCURRENT live processes — the property gate_nway.c
+/// proves (Gate 4, 2026-05-31). SYS_fork's capacity guard refuses a slice whose
+/// top would exceed RAM_ISOLATION_CEILING, so a forkbomb fails gracefully.
 #[inline(always)]
 #[allow(dead_code)]
 pub fn pid_phys_offset(pid: u8) -> u32 {
     if pid == 0 {
         0
     } else {
-        USER_CHILD_SLICE
+        USER_CHILD_SLICE + (pid as u32 - 1) * SLICE_STRIDE
     }
 }
 
@@ -212,5 +249,73 @@ mod tests {
         let total_used = last_pid_top - PER_PID_PGD_BASE;
         assert_eq!(total_used, MAX_PROCESSES * PGD_SIZE_BYTES);
         assert_eq!(total_used, 16 * 1024);
+    }
+
+    // ── Gate 4 — N-way concurrent isolation (2026-05-31) ───────────────────
+
+    #[test]
+    fn pid0_phys_offset_is_identity() {
+        assert_eq!(pid_phys_offset(0), 0);
+    }
+
+    #[test]
+    fn pid1_base_unchanged_at_16mib() {
+        // Gate 2/3 key pid 1 at 16 MiB; the N-way generalization must not move
+        // it (init↔pid1 boot + gate2 regression depend on it).
+        assert_eq!(pid_phys_offset(1), USER_CHILD_SLICE);
+        assert_eq!(USER_CHILD_SLICE, 0x0100_0000);
+    }
+
+    #[test]
+    fn child_slices_are_disjoint() {
+        // Each live pid's 8 MiB-mapped slice [off, off+SLICE_STRIDE) must not
+        // overlap any other's — the property gate_nway.c proves at runtime.
+        for i in 1u8..=5 {
+            for j in 1u8..=5 {
+                if i == j {
+                    continue;
+                }
+                let (a, b) = (pid_phys_offset(i), pid_phys_offset(j));
+                let (lo, hi) = if a < b { (a, b) } else { (b, a) };
+                assert!(
+                    hi - lo >= SLICE_STRIDE,
+                    "pid {} (0x{:08X}) and pid {} (0x{:08X}) slices overlap",
+                    i,
+                    a,
+                    j,
+                    b
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn stride_covers_two_superpages() {
+        // < two 4 MiB superpages → adjacent pid leaf overlap (leak primitive #1).
+        assert!(SLICE_STRIDE >= 2 * 0x0040_0000);
+        assert_eq!(SLICE_STRIDE, 0x0080_0000);
+    }
+
+    #[test]
+    fn four_children_fit_under_ceiling() {
+        // pids 1..=4 must fit; the SYS_fork capacity guard bails above this.
+        for pid in 1u8..=4 {
+            let top = pid_phys_offset(pid) + SLICE_STRIDE;
+            assert!(
+                top <= RAM_ISOLATION_CEILING,
+                "pid {} slice top 0x{:08X} exceeds ceiling 0x{:08X}",
+                pid,
+                top,
+                RAM_ISOLATION_CEILING
+            );
+        }
+    }
+
+    #[test]
+    fn sixth_child_exhausts_the_budget() {
+        // The forkbomb gate: a 6th concurrent child (pid 6) must NOT fit — its
+        // slice top exceeds the ceiling, so SYS_fork returns -1 (graceful).
+        let top = pid_phys_offset(6) + SLICE_STRIDE;
+        assert!(top > RAM_ISOLATION_CEILING);
     }
 }
