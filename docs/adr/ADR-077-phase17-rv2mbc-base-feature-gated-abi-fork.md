@@ -1,4 +1,4 @@
-# ADR-076 — ASCEND-LINUX Phase 1.7 Gate B: Feature-Gated `MbcCpuState` ABI Fork (per-process `rv2mbc_base`, Doom-insulated)
+# ADR-077 — ASCEND-LINUX Phase 1.7 Gate B: Feature-Gated `MbcCpuState` ABI Fork (per-process `rv2mbc_base`, Doom-insulated)
 
 **Status**: ACCEPTED (Stevie's call, 2026-06-18)
 **Date**: 2026-06-18
@@ -79,7 +79,7 @@ Add `rv2mbc_base` to `MbcCpuState` **behind a new `ascend-linux` Cargo feature o
 3. `ebpf/monad-common/src/lib.rs` — in `struct MbcCpuState`, **append after `reservation_address`**
    (the current last field, so `repr(C)` offsets of all existing fields are preserved):
    ```rust
-   // ── Phase 1.7 Gate B (ADR-076): per-process RV2MBC base, ASCEND-only ──
+   // ── Phase 1.7 Gate B (ADR-077): per-process RV2MBC base, ASCEND-only ──
    #[cfg(feature = "ascend-linux")]
    pub rv2mbc_base: u32,
    #[cfg(feature = "ascend-linux")]
