@@ -103,7 +103,7 @@ non-obvious blocker:
 
 > **RESOLVED 2026-06-18 — Stevie's call: B1 (MbcCpuState field), but Doom MUST keep building +
 > running. Vetted by Developer + Scientist + Micromanager. Canonical decision record:
-> `docs/adr/ADR-076-phase17-rv2mbc-base-feature-gated-abi-fork.md`.**
+> `docs/adr/ADR-077-phase17-rv2mbc-base-feature-gated-abi-fork.md`.**
 >
 > **Insulation design (feature-gated ABI fork):** put `rv2mbc_base: u32` + 4-byte pad behind a NEW
 > `ascend-linux` feature on `monad-common`, forwarded from `monad-cpu-ebpf`
