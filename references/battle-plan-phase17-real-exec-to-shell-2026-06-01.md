@@ -2,7 +2,9 @@
 
 **Date:** 2026-06-01
 **Owner:** Computermancer (+ Developer, Architect; BlackMage on the FS-read attack surface)
-**Status:** DRAFT — needs §Decision (FS-reader placement) before code. Successor to
+**Status:** PARTIALLY EXECUTED — **Gate A (console fd substrate) landed 2026-06-18**; §Decision
+(FS-reader placement) still open. Gate B (`exec`) design + the RV2MBC-collision resolution live
+in the successor `battle-plan-phase17-gateB-exec-design-2026-06-18.md`. Successor to
 `battle-plan-phase12-make-mmu-live-2026-05-30.md`, whose Gates 1–4 (live per-pid MMU +
 N-way isolation) all landed (`14ebe821`, `ed651dc1`, `0e023161`).
 
