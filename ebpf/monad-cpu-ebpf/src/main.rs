@@ -46,6 +46,7 @@
 #![no_std]
 #![no_main]
 
+mod fdtable;
 mod phase12;
 
 use aya_ebpf::{
@@ -184,6 +185,14 @@ static SCHED_STATE: Array<u32> = Array::with_max_entries(5, 0);
 #[map]
 static TLB_MAP: Array<[u32; 3]> = Array::with_max_entries(64, 0);
 
+/// Per-process file-descriptor table (Phase 1.7 Gate A): one `NOFILE`-wide
+/// row of descriptor *kind* tags per pid. Index = `pid*NOFILE + fd`
+/// (`fdtable::fd_slot`); value ∈ {`FD_FREE`, `FD_CONSOLE`, …}. xv6's
+/// `open`/`dup`/`close`/`read`/`fstat` consult it so init's console fds 0/1/2
+/// route to the TTY MMIO and a forked child inherits its parent's open files.
+#[map]
+static FD_TABLE: Array<u32> = Array::with_max_entries(fdtable::FD_TABLE_LEN, 0);
+
 // ── Stat keys ─────────────────────────────────────────────────────────────────
 const STAT_PACKETS_TOTAL: u32 = 0;
 const STAT_CPU_TICKS: u32 = 1;
@@ -271,6 +280,50 @@ pub fn monad_cpu(ctx: XdpContext) -> u32 {
     }
 
     action
+}
+
+// ── Phase 1.7 file-descriptor helpers (Gate A) ─────────────────────────────
+// Thin BPF-side accessors over FD_TABLE; the index math + free-slot policy
+// live (and are unit tested) in `fdtable`. All bound-check fd against NOFILE
+// so a hostile/garbage fd can never index a neighbouring pid's row.
+
+/// Kind tag for (`pid`, `fd`), or `FD_FREE` if out of range / closed.
+#[inline(always)]
+fn fd_kind(pid: u8, fd: u32) -> u32 {
+    if fd >= fdtable::NOFILE {
+        return fdtable::FD_FREE;
+    }
+    match FD_TABLE.get(fdtable::fd_slot(pid, fd)) {
+        Some(v) => *v,
+        None => fdtable::FD_FREE,
+    }
+}
+
+/// Set the kind tag for (`pid`, `fd`). No-op if `fd >= NOFILE`.
+#[inline(always)]
+fn fd_set_kind(pid: u8, fd: u32, kind: u32) {
+    if fd >= fdtable::NOFILE {
+        return;
+    }
+    if let Some(p) = FD_TABLE.get_ptr_mut(fdtable::fd_slot(pid, fd)) {
+        unsafe {
+            *p = kind;
+        }
+    }
+}
+
+/// Lowest free fd for `pid`, or `NOFILE` (= "table full") if none — the caller
+/// maps that to xv6's -1. Mirrors `fdtable::lowest_free` over the live map.
+#[inline(always)]
+fn fd_alloc(pid: u8) -> u32 {
+    let mut fd = 0u32;
+    while fd < fdtable::NOFILE {
+        if fd_kind(pid, fd) == fdtable::FD_FREE {
+            return fd;
+        }
+        fd += 1;
+    }
+    fdtable::NOFILE
 }
 
 #[inline(always)]
@@ -1903,6 +1956,18 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                             *p = child_state;
                         }
                     }
+                    // Phase 1.7 Gate A: the child inherits the parent's open
+                    // files (xv6 fork() dups every fd). Copy the parent's
+                    // FD_TABLE row into the child's so init's console fds 0/1/2
+                    // survive into the forked child — and thence into any exec'd
+                    // sh, which writes its prompt to fd 2 and reads from fd 0.
+                    // Bounded by NOFILE for the verifier.
+                    let mut ifd = 0u32;
+                    while ifd < fdtable::NOFILE {
+                        let k = fd_kind(cpu.current_pid, ifd);
+                        fd_set_kind(child_pid as u8, ifd, k);
+                        ifd += 1;
+                    }
                     // Revive the (possibly reused) slot: clear its halted/reaped
                     // bits so the scheduler runs it and a later wait() can reap it
                     // again. Extend the high-water only if this pid is new.
@@ -2064,6 +2129,92 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 }
                 if cpu.current_pid != prev_pid {
                     break;
+                }
+            } else if syscall_nr == 15 {
+                // ── xv6 SYS_open (15) — RV32I ecall path (Phase 1.7 Gate A) ──
+                // open(path=a0, flags=a1) → lowest-free fd for this pid, or -1
+                // if the per-process table is full. Pre-filesystem-reader the
+                // only openable object is the console device, so every open()
+                // resolves to a CONSOLE fd — exactly what init's
+                // open("console", O_RDWR) needs (it returns fd 0, then dup×2
+                // puts the console on stdout/stderr). File opens (ls/cat/…)
+                // route here too and currently also yield a console fd; real
+                // inode-backed fds arrive with the Phase 1.7 FS reader (Gate B).
+                let pid = cpu.current_pid;
+                let fd = fd_alloc(pid);
+                if fd >= fdtable::NOFILE {
+                    cpu.regs[8] = (-1i32) as u32; // EMFILE: no free descriptor
+                } else {
+                    fd_set_kind(pid, fd, fdtable::FD_CONSOLE);
+                    cpu.regs[8] = fd;
+                }
+            } else if syscall_nr == 17 {
+                // ── xv6 SYS_mknod (17) — RV32I ecall path (Phase 1.7 Gate A) ──
+                // mknod(path, major, minor): register a device node. The console
+                // device is implicit in this model (no device-number table at
+                // L5), so this is a success-returning near-noop that only has to
+                // satisfy init's `if(open("console")<0){ mknod("console",…); … }`
+                // fallback. Real device nodes await the FS reader.
+                cpu.regs[8] = 0;
+            } else if syscall_nr == 10 {
+                // ── xv6 SYS_dup (10) — RV32I ecall path (Phase 1.7 Gate A) ──
+                // dup(oldfd=a0): copy oldfd's kind onto the lowest-free fd. init
+                // does dup(0); dup(0) to put the console on stdout(1)/stderr(2).
+                // -1 if oldfd isn't open or the table is full. oldfd itself is in
+                // use, so fd_alloc never returns it.
+                let pid = cpu.current_pid;
+                let oldfd = cpu.regs[8];
+                let kind = fd_kind(pid, oldfd);
+                if kind == fdtable::FD_FREE {
+                    cpu.regs[8] = (-1i32) as u32; // EBADF: oldfd not open
+                } else {
+                    let newfd = fd_alloc(pid);
+                    if newfd >= fdtable::NOFILE {
+                        cpu.regs[8] = (-1i32) as u32;
+                    } else {
+                        fd_set_kind(pid, newfd, kind);
+                        cpu.regs[8] = newfd;
+                    }
+                }
+            } else if syscall_nr == 21 {
+                // ── xv6 SYS_close (21) — RV32I ecall path (Phase 1.7 Gate A) ──
+                // close(fd=a0): free the descriptor; -1 if it wasn't open. No
+                // refcount at L5 — each fd is an independent kind tag, so closing
+                // one dup'd console fd doesn't disturb the others.
+                let pid = cpu.current_pid;
+                let fd = cpu.regs[8];
+                if fd_kind(pid, fd) == fdtable::FD_FREE {
+                    cpu.regs[8] = (-1i32) as u32;
+                } else {
+                    fd_set_kind(pid, fd, fdtable::FD_FREE);
+                    cpu.regs[8] = 0;
+                }
+            } else if syscall_nr == 5 {
+                // ── xv6 SYS_read (5) — RV32I ecall path (Phase 1.7 console-in) ──
+                // read(fd=a0, buf=a1, n=a2). The console-fd substrate (open/dup/
+                // close/fork-inheritance) is the Gate A deliverable; the actual
+                // KBD_MAP→user-buffer drain is Gate-C input and is DEFERRED here.
+                //
+                // WHY DEFERRED: the natural drain loop calls translate_address()
+                // (a full Sv32 page-table walk) once per byte inside an 8-iter
+                // loop. That 8× path explosion — stacked on the pre-existing
+                // INT-0x80 lsys::SYS_READ drain loop in the same monolithic
+                // try_monad_cpu — pushed the BPF verifier past its 1,000,000
+                // processed-insn COMPLEXITY ceiling (boot-verify 2026-06-18:
+                // "BPF program is too large. Processed 1000001 insn"). init never
+                // read()s before exec'ing sh, so this is not on the Gate A
+                // regression path. Gate C must restore the drain with a
+                // verifier-friendly shape: translate the buffer base ONCE outside
+                // the loop (the ≤8 console bytes are consecutive and overwhelmingly
+                // intra-page) and write byte offsets, instead of translating per byte.
+                let pid = cpu.current_pid;
+                let fd = cpu.regs[8];
+                if fd_kind(pid, fd) != fdtable::FD_CONSOLE {
+                    cpu.regs[8] = (-1i32) as u32; // not a readable fd (yet)
+                } else {
+                    // Console fd open, but no input delivered pre-Gate-C: report
+                    // 0 bytes read so a polling reader simply re-polls.
+                    cpu.regs[8] = 0;
                 }
             } else if syscall_nr == lsys::SYS_WRITE_BLOCK {
                 let block_num = cpu.regs[8];
