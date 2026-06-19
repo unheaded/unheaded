@@ -23,7 +23,9 @@ doom-debug = []
 # need MRET for M→S transition + atomics for SMP. Default off so
 # Doom and similar lighter workloads load cleanly on kernel 6.17;
 # build with `--features ascend-linux` for kernel-boot paths.
-ascend-linux = []
+# Forwards to monad-common so MbcCpuState picks up the per-process
+# rv2mbc_base field (136→144 bytes) in this configuration (ADR-077).
+ascend-linux = ["monad-common/ascend-linux"]
 # Phase 1.2 pre-work (ADR-074). All three are NO-OPs today;
 # they exist so the pair-call can build all variants for verifier measurement.
 # Pair-call landed 2026-05-12: Option A chosen. Option B/C stubs kept for

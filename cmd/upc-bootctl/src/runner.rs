@@ -16,8 +16,10 @@ use std::fs;
 use std::path::Path;
 
 /// CPU state for the MBC virtual machine — must match monad-common's
-/// `MbcCpuState` exactly. ABI v2, 136 bytes (added priv_level +
-/// reservation_address per ADR-067).
+/// `MbcCpuState` exactly. ASCEND ABI, 144 bytes: ADR-067's 136-byte v2
+/// (priv_level + reservation_address) plus ADR-077's per-process
+/// rv2mbc_base (+pad). upc-bootctl always loads the `--features
+/// ascend-linux` object, so this mirror is unconditionally 144 (no cfg).
 ///
 /// Lifted verbatim from `crates/doom-runner/src/main.rs` so the
 /// `unsafe impl aya::Pod` and the const-assert on the size live in
@@ -55,12 +57,15 @@ pub struct MbcCpuState {
     pub _pad5: u8,                // 1
     pub _pad6: u8,                // 1
     pub reservation_address: u32, // 4 (offset 132) LR.W reservation tracker
-} // total: 136
+    // ── Phase 1.7 Gate B (ADR-077): per-process RV2MBC base ──────────────
+    pub rv2mbc_base: u32, // 4 (offset 136) per-process RV2MBC_MAP offset
+    pub _pad7: [u8; 4],   // 4 keep size_of % 8 == 0 (136 → 144)
+} // total: 144
 
 // Safety: MbcCpuState is #[repr(C)], Copy, contains only primitives.
 unsafe impl aya::Pod for MbcCpuState {}
 
-const _: () = assert!(std::mem::size_of::<MbcCpuState>() == 136);
+const _: () = assert!(std::mem::size_of::<MbcCpuState>() == 144);
 
 /// Initial CPU state for an xv6 boot. PC=0 (slot 0 of ROM_MAP = first
 /// MBC instruction of xv6-mbc.mbc = start_mbc.c::start entry — the .mbc
@@ -99,6 +104,9 @@ pub fn xv6_initial_cpu_state() -> MbcCpuState {
         _pad5: 0,
         _pad6: 0,
         reservation_address: 0xFFFF_FFFF,
+        // pid 0 (init) lives at RV2MBC base 0 → identity lookups (ADR-077).
+        rv2mbc_base: 0,
+        _pad7: [0; 4],
     };
     state.regs[15] = 0x03F0_0000; // SP = stack top byte address
     state
@@ -443,8 +451,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn mbc_cpu_state_size_is_136() {
-        assert_eq!(std::mem::size_of::<MbcCpuState>(), 136);
+    fn mbc_cpu_state_size_is_144() {
+        // ASCEND ABI (ADR-077): 136-byte v2 + rv2mbc_base (+pad) = 144.
+        assert_eq!(std::mem::size_of::<MbcCpuState>(), 144);
+    }
+
+    #[test]
+    fn xv6_initial_cpu_state_rv2mbc_base_is_zero() {
+        // pid 0 (init) → identity RV2MBC lookups.
+        assert_eq!(xv6_initial_cpu_state().rv2mbc_base, 0);
     }
 
     #[test]
