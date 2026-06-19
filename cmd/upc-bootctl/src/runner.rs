@@ -371,6 +371,90 @@ impl BootRunner {
         self.populate_ram(&region_refs)
     }
 
+    /// Parse a `.data` TLV blob into `(byte_addr, bytes)` regions — the same
+    /// format `load_data_image` consumes, but returned to the caller instead
+    /// of written at the linked VAs. Used by `stage_program_data` to build a
+    /// flat exec-staging image for a non-pid-0 program (ADR-077 Gate B).
+    fn parse_data_regions(blob: &[u8], what: &str) -> Result<Vec<(u32, Vec<u8>)>> {
+        if blob.len() < 4 {
+            bail!("{what}: data image too short ({} bytes)", blob.len());
+        }
+        let count = u32::from_le_bytes([blob[0], blob[1], blob[2], blob[3]]) as usize;
+        let mut off = 4usize;
+        let mut regions = Vec::with_capacity(count);
+        for i in 0..count {
+            if off + 8 > blob.len() {
+                bail!("{what}: truncated at record {i}");
+            }
+            let byte_addr =
+                u32::from_le_bytes([blob[off], blob[off + 1], blob[off + 2], blob[off + 3]]);
+            let len =
+                u32::from_le_bytes([blob[off + 4], blob[off + 5], blob[off + 6], blob[off + 7]])
+                    as usize;
+            off += 8;
+            if off + len > blob.len() {
+                bail!("{what}: record {i} payload truncated");
+            }
+            regions.push((byte_addr, blob[off..off + len].to_vec()));
+            off += len;
+            while off % 4 != 0 && off < blob.len() {
+                off += 1;
+            }
+        }
+        Ok(regions)
+    }
+
+    /// Stage a program's `.data`/`.rodata` as a single flat blob in a pristine
+    /// RAM region so `exec(7)` can re-copy it into the running pid's physical
+    /// slice (ADR-077 Gate B). Unlike `load_data_image` (which writes at the
+    /// linked VAs for pid 0), this packs every region into a contiguous buffer
+    /// `[min_va, max_va)` and writes it at `stage_byte_va` — well above the
+    /// ramdisk and pid slices so fork-copy never clobbers it.
+    ///
+    /// Returns `(data_dst_va, data_len_words)`: the user VA where exec lands
+    /// the blob (the linked min VA) and its word count. `(0, 0)` if the
+    /// program has no initialized data.
+    pub fn stage_program_data(
+        &mut self,
+        data_path: &Path,
+        stage_byte_va: u32,
+    ) -> Result<(u32, u32)> {
+        let blob = fs::read(data_path)
+            .with_context(|| format!("read program data: {}", data_path.display()))?;
+        let regions = Self::parse_data_regions(&blob, &data_path.display().to_string())?;
+        if regions.is_empty() {
+            return Ok((0, 0));
+        }
+        let min_va = regions.iter().map(|(a, _)| *a).min().unwrap() & !3;
+        let max_va = regions
+            .iter()
+            .map(|(a, b)| a + b.len() as u32)
+            .max()
+            .unwrap();
+        let span = ((max_va - min_va) + 3) & !3; // round up to whole words
+        let mut flat = vec![0u8; span as usize];
+        for (va, bytes) in &regions {
+            let off = (va - min_va) as usize;
+            flat[off..off + bytes.len()].copy_from_slice(bytes);
+        }
+        // Stage the flat blob at the pristine high RAM address.
+        self.populate_ram(&[(stage_byte_va, &flat)])?;
+        Ok((min_va, span / 4))
+    }
+
+    /// Write one PROGRAM_TABLE row. `row` is the 8-word contract defined in
+    /// `monad-cpu-ebpf`'s `pt` module (ADR-077 Gate B).
+    pub fn populate_program_table(&mut self, slot: u32, row: [u32; 8]) -> Result<()> {
+        let mut pt: Array<_, [u32; 8]> = Array::try_from(
+            self.ebpf
+                .map_mut("PROGRAM_TABLE")
+                .context("PROGRAM_TABLE not found")?,
+        )?;
+        pt.set(slot, row, 0)
+            .with_context(|| format!("PROGRAM_TABLE[{slot}] write"))?;
+        Ok(())
+    }
+
     /// Insert the initial CPU state for `instance_id` into CPU_MAP.
     pub fn populate_cpu(&mut self, initial_state: MbcCpuState) -> Result<()> {
         let mut cpu: AyaHashMap<_, u32, MbcCpuState> =

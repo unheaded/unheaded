@@ -14,7 +14,7 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 mod bootparams;
 mod netns;
@@ -104,6 +104,100 @@ enum Cmd {
         #[arg(long, default_value_t = 0xDE)]
         instance: u8,
     },
+}
+
+/// FNV-1a 32-bit hash of a program basename. MUST stay bit-identical to
+/// `pt::name_hash` in `monad-cpu-ebpf` so `exec(7)` resolves a path to the
+/// PROGRAM_TABLE slot the loader wrote (ADR-077 Gate B).
+fn fnv1a(name: &[u8]) -> u32 {
+    let mut h: u32 = 0x811c_9dc5;
+    for &b in name {
+        h ^= b as u32;
+        h = h.wrapping_mul(0x0100_0193);
+    }
+    h
+}
+
+/// Pre-translate a resident userland program (`sh`, `ls`, …) into a disjoint
+/// `ROM_MAP` region + a disjoint `RV2MBC_MAP` base, stage its `.data` in a
+/// pristine RAM region, and record an 8-word PROGRAM_TABLE row (ADR-077 Gate
+/// B). Mirrors the `--userland` (init) load path, but at non-zero bases so
+/// init and the program coexist in the shared maps. `name` is the basename
+/// `exec` will hash to find this slot.
+#[allow(clippy::too_many_arguments)]
+fn load_resident_program(
+    runner: &mut runner::BootRunner,
+    mbc_path: &Path,
+    name: &str,
+    slot: u32,
+    rom_base: u32,
+    rv2mbc_base: u32,
+    data_stage_va: u32,
+) -> Result<()> {
+    const OP_CALL: u32 = 0x27;
+    let bytes = std::fs::read(mbc_path).with_context(|| format!("read {}", mbc_path.display()))?;
+    if !bytes.len().is_multiple_of(4) {
+        bail!("{} not 4-byte aligned", mbc_path.display());
+    }
+    // Patch CALL immediates by rom_base, exactly like the init path.
+    let words: Vec<u32> = bytes
+        .chunks_exact(4)
+        .map(|c| {
+            let w = u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
+            if (w >> 24) == OP_CALL {
+                (OP_CALL << 24) | ((w & 0x00FF_FFFF) + rom_base & 0x00FF_FFFF)
+            } else {
+                w
+            }
+        })
+        .collect();
+    runner
+        .populate_rom_at(rom_base, &words)
+        .with_context(|| format!("{name} ROM load"))?;
+
+    // rv2mbc: values shifted by rom_base (RV word → that program's ROM slot);
+    // loaded at index base rv2mbc_base so each program owns a disjoint region.
+    let rv2mbc_path = mbc_path.with_extension("rv2mbc");
+    let rv =
+        std::fs::read(&rv2mbc_path).with_context(|| format!("read {}", rv2mbc_path.display()))?;
+    if !rv.len().is_multiple_of(4) {
+        bail!("{} not 4-byte aligned", rv2mbc_path.display());
+    }
+    let shifted: Vec<u8> = rv
+        .chunks_exact(4)
+        .flat_map(|c| (u32::from_le_bytes([c[0], c[1], c[2], c[3]]) + rom_base).to_le_bytes())
+        .collect();
+    runner
+        .populate_rv2mbc(&shifted, rv2mbc_base, None)
+        .with_context(|| format!("{name} rv2mbc load"))?;
+
+    // Stage .data flat for exec to re-copy into the running pid's slice.
+    let data_path = mbc_path.with_extension("data");
+    let (data_dst_va, data_len_words) = if data_path.exists() {
+        runner.stage_program_data(&data_path, data_stage_va)?
+    } else {
+        (0, 0)
+    };
+
+    // entry = RV word 0 (user.ld links _start at RV byte 0) → ROM slot rom_base.
+    let row: [u32; 8] = [
+        fnv1a(name.as_bytes()),
+        rom_base,      // entry_mbc
+        rv2mbc_base,   // rv2mbc_base
+        data_dst_va,   // data_dst_va
+        data_stage_va, // data_src_va
+        data_len_words,
+        1, // valid
+        0,
+    ];
+    runner.populate_program_table(slot, row)?;
+    println!(
+        "  Program[{slot}] '{name}': ROM 0x{rom_base:04X} rv2mbc_base 0x{rv2mbc_base:04X} \
+         entry 0x{rom_base:04X} data {} words @ VA 0x{data_dst_va:06X} (staged 0x{data_stage_va:06X}) hash 0x{:08X}",
+        data_len_words,
+        fnv1a(name.as_bytes())
+    );
+    Ok(())
 }
 
 /// Validate that a kernel image's byte buffer is 4-byte aligned and return the
@@ -509,6 +603,42 @@ fn cmd_boot(
                 "  ⚠ no userland rv2mbc at {} — SRET into user code will fail",
                 user_rv2mbc_path.display()
             );
+        }
+    }
+
+    // ── Phase 1.7 Gate B (ADR-077): resident programs for exec(7) ──
+    // Pre-translate sibling userland programs into disjoint ROM/RV2MBC
+    // regions + a PROGRAM_TABLE the in-kernel exec handler resolves by
+    // basename hash. init stays at ROM 0x4000 / rv2mbc-base 0; programs
+    // start past it and below the kernel's rv2mbc base (0x8000). Loaded
+    // as siblings of --userland so the existing boot recipe is unchanged.
+    if let Some(ref up) = userland {
+        // Headline (Gate B) needs `sh`; ls/cat/echo/wc follow the same
+        // pattern for Gate C and slot in after sh's bases.
+        const PROGRAMS: &[&str] = &["sh"];
+        let dir = up.parent().unwrap_or_else(|| Path::new("."));
+        for (i, name) in PROGRAMS.iter().enumerate() {
+            let mbc = dir.join(format!("{name}.mbc"));
+            if !mbc.exists() {
+                println!(
+                    "  ⚠ resident program '{name}' not found at {} — skipping",
+                    mbc.display()
+                );
+                continue;
+            }
+            let slot = i as u32;
+            let rom_base = 0x6000 + slot * 0x3000; // 12 Ki-word stride
+            let rv2mbc_base = 0x1000 + slot * 0x1000; // < 0x8000 (kernel base)
+            let data_stage_va = 0x00C0_0000 + slot * 0x0004_0000; // pristine RAM
+            load_resident_program(
+                &mut runner,
+                &mbc,
+                name,
+                slot,
+                rom_base,
+                rv2mbc_base,
+                data_stage_va,
+            )?;
         }
     }
 

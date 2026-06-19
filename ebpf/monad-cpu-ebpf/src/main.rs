@@ -214,6 +214,48 @@ static TLB_MAP: Array<[u32; 3]> = Array::with_max_entries(64, 0);
 #[map]
 static FD_TABLE: Array<u32> = Array::with_max_entries(fdtable::FD_TABLE_LEN, 0);
 
+/// Resident-program table (Phase 1.7 Gate B, ADR-077). The host loader
+/// pre-translates each userland program (`sh`, `ls`, …) into a disjoint
+/// `ROM_MAP` region + a disjoint `RV2MBC_MAP` base and records the result
+/// here; `exec(7)` resolves a path basename to a slot and adopts it. Each
+/// 8-word row is `[name_hash, entry_mbc, rv2mbc_base, data_dst_va,
+/// data_src_va, data_len_words, valid, _resv]` (see `pt::*`). Indexed by
+/// program slot, not pid.
+#[map]
+static PROGRAM_TABLE: Array<[u32; 8]> = Array::with_max_entries(16, 0);
+
+/// PROGRAM_TABLE row field offsets — the host/BPF contract (ADR-077).
+#[allow(dead_code)] // some fields are consumed only by the exec(7) handler
+mod pt {
+    /// Number of program slots (must match PROGRAM_TABLE max_entries).
+    pub const SLOTS: u32 = 16;
+    /// FNV-1a-32 hash of the program basename (e.g. "sh").
+    pub const NAME_HASH: usize = 0;
+    /// MBC ROM slot of the program entry point (`cpu.pc` adopts this).
+    pub const ENTRY_MBC: usize = 1;
+    /// Per-process RV2MBC_MAP index offset (→ `cpu.rv2mbc_base`).
+    pub const RV2MBC_BASE: usize = 2;
+    /// User byte VA where the flat .data/.rodata blob is copied.
+    pub const DATA_DST_VA: usize = 3;
+    /// RAM byte VA of the pristine host-staged flat blob (copy source).
+    pub const DATA_SRC_VA: usize = 4;
+    /// Number of 32-bit words to copy from src→dst at exec time.
+    pub const DATA_LEN_WORDS: usize = 5;
+    /// 1 = slot populated, 0 = empty.
+    pub const VALID: usize = 6;
+    /// FNV-1a-32 of a basename. Mirrors the host's `fnv1a` in upc-bootctl.
+    pub fn name_hash(name: &[u8]) -> u32 {
+        let mut h: u32 = 0x811c_9dc5;
+        let mut i = 0usize;
+        while i < name.len() {
+            h ^= name[i] as u32;
+            h = h.wrapping_mul(0x0100_0193);
+            i += 1;
+        }
+        h
+    }
+}
+
 // ── Stat keys ─────────────────────────────────────────────────────────────────
 const STAT_PACKETS_TOTAL: u32 = 0;
 const STAT_CPU_TICKS: u32 = 1;
