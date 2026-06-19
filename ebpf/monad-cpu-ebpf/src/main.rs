@@ -141,6 +141,19 @@ fn rv2mbc_base_of(_cpu: &MbcCpuState) -> u32 {
     0
 }
 
+/// Set the per-process RV2MBC base (ADR-077). cfg-gated so the `exec(7)`
+/// handler — whose body compiles in both feature configs behind a runtime
+/// `cfg!` guard — can write the field without referencing it in the Doom
+/// build (where it does not exist). No-op in the non-ascend build.
+#[cfg(feature = "ascend-linux")]
+#[inline(always)]
+fn set_rv2mbc_base(cpu: &mut MbcCpuState, base: u32) {
+    cpu.rv2mbc_base = base;
+}
+#[cfg(not(feature = "ascend-linux"))]
+#[inline(always)]
+fn set_rv2mbc_base(_cpu: &mut MbcCpuState, _base: u32) {}
+
 /// Compute events ring buffer: emits ComputeHopEvent on cache miss, screen write, halt.
 #[map]
 static COMPUTE_EVENTS: RingBuf = RingBuf::with_byte_size(262_144, 0);
@@ -1172,7 +1185,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         // ── Interrupts ────────────────────────────────────────────────────────
         } else if opc == op::INT {
             let vector = imm as u8;
-            if vector == intr::VECTOR_SYSCALL {
+            // The INT-0x80 Linux/FUZIX dispatch below is dead weight under
+            // ASCEND-LINUX: xv6 issues syscalls via `ecall` (op::SYSCALL), never
+            // INT 0x80. Gating it with `!cfg!(ascend-linux)` lets rustc
+            // dead-eliminate the whole ~560-line block before the BPF verifier
+            // sees it, freeing the complexity budget the exec(7) handler needs
+            // (the program sits right at the 1M processed-insn ceiling — adding
+            // exec without this frees no room and the object fails to load).
+            // Doom (non-ascend) keeps the dispatch exactly as before.
+            if !cfg!(feature = "ascend-linux") && vector == intr::VECTOR_SYSCALL {
                 // ── INT 0x80: Linux-compatible syscall dispatch (Level 4b) ────
                 // Convention: r0 = syscall number, r1-r3 = args.
                 // PC is NOT pushed (this is a synchronous call, not an interrupt).
@@ -2278,6 +2299,125 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // Console fd open, but no input delivered pre-Gate-C: report
                     // 0 bytes read so a polling reader simply re-polls.
                     cpu.regs[8] = 0;
+                }
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 7 {
+                // ── xv6 SYS_exec (7) — Phase 1.7 Gate B headline (ADR-077) ──
+                // exec(path=a0, argv=a1): replace this pid's image with a
+                // resident program from PROGRAM_TABLE. Resolve the path
+                // basename → slot via FNV-1a (matching the host loader's
+                // fnv1a), copy the program's host-staged .data/.rodata into
+                // this pid's physical slice, adopt its per-process rv2mbc_base
+                // + entry PC, then reset the user context. On a miss → -1 so
+                // init still prints `exec sh failed` rather than crashing.
+                //
+                // Verifier shape (per the read(5) note above): translate the
+                // path base ONCE, then read consecutive bytes; the .data copy
+                // is a single bounded ≤512-word loop (sh's data ≈ 252 words),
+                // NOT a per-byte translate loop.
+                let path_va = cpu.regs[8];
+                // Resolve the path's physical address WITHOUT a Sv32 walk: the
+                // per-pid pgd maps user VA[0,8MiB) onto the slice linearly via
+                // two 4 MiB superpages, so phys = slice_base + va. This is the
+                // verifier-budget-critical shortcut — a full translate_address()
+                // here pushes the (already near-1M) program past the complexity
+                // ceiling, exactly the Gate A read(5) failure mode.
+                let path_phys = phase12::pid_phys_offset(cpu.current_pid).wrapping_add(path_va);
+                let mut h: u32 = 0x811c_9dc5;
+                let mut j = 0u32;
+                while j < 16 {
+                    let b = mem_read_byte(path_phys + j);
+                    if b == 0 {
+                        break;
+                    }
+                    if b == b'/' {
+                        h = 0x811c_9dc5; // restart at each separator → basename
+                    } else {
+                        h ^= b as u32;
+                        h = h.wrapping_mul(0x0100_0193);
+                    }
+                    j += 1;
+                }
+                // Find a populated PROGRAM_TABLE slot whose basename matches.
+                let mut slot = pt::SLOTS;
+                let mut s = 0u32;
+                while s < pt::SLOTS {
+                    if let Some(row) = PROGRAM_TABLE.get(s) {
+                        if row[pt::VALID] == 1 && row[pt::NAME_HASH] == h {
+                            slot = s;
+                            break;
+                        }
+                    }
+                    s += 1;
+                }
+                if slot >= pt::SLOTS {
+                    cpu.regs[8] = (-1i32) as u32; // ENOENT → `exec sh failed`
+                } else {
+                    let row = match PROGRAM_TABLE.get(slot) {
+                        Some(r) => *r,
+                        None => [0u32; 8],
+                    };
+                    let entry_mbc = row[pt::ENTRY_MBC];
+                    let new_base = row[pt::RV2MBC_BASE];
+                    let dst_va = row[pt::DATA_DST_VA];
+                    let src_va = row[pt::DATA_SRC_VA];
+                    let len_words = row[pt::DATA_LEN_WORDS];
+                    // Copy the host-staged flat .data/.rodata blob into THIS
+                    // pid's slice at the program's linked VA — fork-copy left
+                    // init's image here; exec overwrites it. RE-ENTRANT 16
+                    // words/tick (the proven fork-copy shape): a single 512-word
+                    // tick blew the verifier's 1M complexity ceiling, so the
+                    // copy spans ticks via pc-=1, bounding the loop to 16.
+                    //
+                    // a2 (regs[10]) is the word cursor; a3 (regs[11]) is an
+                    // exec-in-progress marker so the cursor is zeroed exactly
+                    // once at entry (fork uses pde0-presence for the same job).
+                    // path/argv (a0/a1) are untouched across re-entries, so the
+                    // per-tick re-resolve above is stable.
+                    const EXEC_MAGIC: u32 = 0xE0EC_B10C;
+                    if cpu.regs[11] != EXEC_MAGIC {
+                        cpu.regs[10] = 0;
+                        cpu.regs[11] = EXEC_MAGIC;
+                    }
+                    let cursor = cpu.regs[10];
+                    let src_word = (src_va >> 2).wrapping_add(cursor);
+                    let dst_word = (phase12::pid_phys_offset(cpu.current_pid).wrapping_add(dst_va)
+                        >> 2)
+                        .wrapping_add(cursor);
+                    let mut w = 0u32;
+                    while w < 16 {
+                        if cursor + w < len_words {
+                            let val = match RAM_MAP.get(src_word + w) {
+                                Some(v) => *v,
+                                None => 0,
+                            };
+                            if let Some(p) = RAM_MAP.get_ptr_mut(dst_word + w) {
+                                unsafe {
+                                    *p = val;
+                                }
+                            }
+                        }
+                        w += 1;
+                    }
+                    let next = cursor + 16;
+                    if next < len_words {
+                        cpu.regs[10] = next;
+                        cpu.pc = cpu.pc.wrapping_sub(1); // re-enter to continue
+                        break;
+                    }
+                    // Copy complete — adopt the new image. priv stays U (3); the
+                    // per-process RV2MBC base routes the program's indirect
+                    // branches to its disjoint map region; PC jumps to its entry.
+                    set_rv2mbc_base(cpu, new_base);
+                    let mut r = 0u32;
+                    while r < 16 {
+                        cpu.regs[r as usize] = 0;
+                        r += 1;
+                    }
+                    cpu.regs[15] = 0x0050_0000; // fresh user stack top (< 8 MiB)
+                    cpu.pc = entry_mbc;
+                    cpu.flags = 0;
+                    cpu.program_break = DEFAULT_PROGRAM_BREAK;
+                    cpu.reservation_address = 0xFFFF_FFFF;
                 }
             } else if syscall_nr == lsys::SYS_WRITE_BLOCK {
                 let block_num = cpu.regs[8];
