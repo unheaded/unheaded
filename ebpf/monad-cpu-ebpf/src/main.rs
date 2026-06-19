@@ -202,7 +202,7 @@ static TTY_HEAD: Array<u32> = Array::with_max_entries(1, 0);
 /// `phase12::PROC_TABLE_PGD_SLOT`. 8 slots support init + sh + 5 cmds with
 /// one slot headroom for tests/forkbomb.
 #[map]
-static PROC_TABLE: Array<[u32; 21]> = Array::with_max_entries(8, 0);
+static PROC_TABLE: Array<[u32; 22]> = Array::with_max_entries(8, 0);
 
 /// Scheduler state: [0]=current_pid, [1]=num_processes, [2]=suspended_mask,
 /// [3]=halted_mask, [4]=reaped_mask.
@@ -1324,7 +1324,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     } else {
                         let child_pid = cpu.num_processes as u32;
                         // Save child state: copy parent's regs + PC + flags + SP + brk + pgd
-                        let mut child_state = [0u32; 21];
+                        let mut child_state = [0u32; 22];
                         let mut r = 0u32;
                         while r < 16 {
                             child_state[r as usize] = cpu.regs[r as usize];
@@ -1367,7 +1367,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     } else {
                         let parent_pid = cpu.current_pid as u32;
                         let child_pid = cpu.num_processes as u32;
-                        let mut child_state = [0u32; 21];
+                        let mut child_state = [0u32; 22];
                         let mut r = 0u32;
                         while r < 16 {
                             child_state[r as usize] = cpu.regs[r as usize];
@@ -2021,7 +2021,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         break;
                     }
                     // Copy complete — finalize the fork.
-                    let mut child_state = [0u32; 21];
+                    let mut child_state = [0u32; 22];
                     let mut r = 0u32;
                     while r < 16 {
                         child_state[r as usize] = cpu.regs[r as usize];
@@ -2033,6 +2033,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     child_state[19] = cpu.program_break;
                     // Child runs out of its own pgd (per-pid slice).
                     child_state[phase12::PROC_TABLE_PGD_SLOT] = child_pgd;
+                    // Phase 1.7 Gate B (ADR-077): the child inherits the parent's
+                    // RV2MBC base — it runs the same image until it exec's. init
+                    // (base 0) → its children resolve into init's region until
+                    // exec("sh") swaps the base. Compile-time 0 in Doom.
+                    child_state[phase12::PROC_TABLE_RV2MBC_SLOT] = rv2mbc_base_of(cpu);
                     child_state[8] = 0; // child's fork() returns 0
                     child_state[10] = 0; // clear copy-cursor scratch
                     if let Some(p) = PROC_TABLE.get_ptr_mut(child_pid) {
@@ -2621,7 +2626,7 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
     }
 
     // 1. Save current process state to PROC_TABLE[current_pid]
-    let mut save_state = [0u32; 21];
+    let mut save_state = [0u32; 22];
     let mut r = 0u32;
     while r < 16 {
         save_state[r as usize] = cpu.regs[r as usize];
@@ -2633,6 +2638,10 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
     save_state[19] = cpu.program_break;
     // Phase 1.2 (ADR-074 Option A + Allocator A1): save current pgd phys addr.
     save_state[phase12::PROC_TABLE_PGD_SLOT] = cpu.page_dir_base;
+    // Phase 1.7 Gate B (ADR-077): save the per-process RV2MBC base so a
+    // descheduled program keeps resolving indirect branches into its own
+    // region. `rv2mbc_base_of` is a compile-time 0 in the non-ascend build.
+    save_state[phase12::PROC_TABLE_RV2MBC_SLOT] = rv2mbc_base_of(cpu);
 
     if let Some(p) = PROC_TABLE.get_ptr_mut(old_pid) {
         unsafe {
@@ -2692,6 +2701,8 @@ fn scheduler_context_switch(cpu: &mut MbcCpuState, flow_label: u32, hop_id: u8) 
     cpu.program_break = load_state[19];
     // Phase 1.2 (ADR-074 Option A): load incoming process's pgd phys addr.
     cpu.page_dir_base = load_state[phase12::PROC_TABLE_PGD_SLOT];
+    // Phase 1.7 Gate B (ADR-077): restore the incoming process's RV2MBC base.
+    set_rv2mbc_base(cpu, load_state[phase12::PROC_TABLE_RV2MBC_SLOT]);
 
     // Gate 2 (ADR-074 Option A): flush the TLB on every pgd switch. The 64-entry
     // direct-mapped TLB is keyed on vpn alone (no ASID), so without this a stale

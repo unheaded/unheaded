@@ -124,8 +124,16 @@ pub fn pid_phys_offset(pid: u8) -> u32 {
 /// - slot[18]     → SP_copy
 /// - slot[19]     → program_break
 /// - slot[20]     → **page_dir_base** ← Option A addition
+/// - slot[21]     → **rv2mbc_base** ← Phase 1.7 Gate B (ADR-077)
 #[allow(dead_code)]
 pub const PROC_TABLE_PGD_SLOT: usize = 20;
+
+/// PROC_TABLE slot holding the per-process RV2MBC base (ADR-077 Gate B). A
+/// context switch save/restores it next to `page_dir_base` so a descheduled
+/// program (e.g. sh) keeps resolving its indirect branches into its own
+/// disjoint RV2MBC_MAP region. Grows the row from `[u32;21]` to `[u32;22]`.
+#[allow(dead_code)]
+pub const PROC_TABLE_RV2MBC_SLOT: usize = 21;
 
 // ───────────────────────────────────────────────────────────────────────
 // Option A — per-task pgd (CHOSEN)
