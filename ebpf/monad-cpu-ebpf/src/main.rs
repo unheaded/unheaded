@@ -120,6 +120,27 @@ static L1_CACHE: LruHashMap<u32, [u8; 64]> = LruHashMap::with_max_entries(256, 0
 #[map]
 static RV2MBC_MAP: Array<u32> = Array::with_max_entries(65_536, 0);
 
+/// Per-process RV2MBC base offset (ADR-077, Phase 1.7 Gate B). Under
+/// ASCEND-LINUX each resident program (init, sh, …) occupies a disjoint
+/// `RV2MBC_MAP` region, selected per-process by `cpu.rv2mbc_base`, so their
+/// colliding RV-word-0 text ranges coexist. Every indirect-branch lookup
+/// adds this base: `RV2MBC_MAP[rv2mbc_base + (rv_addr >> 2)]`.
+///
+/// In the non-ascend (Doom) build the field does not exist and each program
+/// is the sole `RV2MBC_MAP` occupant, so the base is a compile-time 0 and the
+/// lookup is byte-identical to before. This helper exists so the shared
+/// JMPR/CALLR/RET sites compile in both feature configs.
+#[cfg(feature = "ascend-linux")]
+#[inline(always)]
+fn rv2mbc_base_of(cpu: &MbcCpuState) -> u32 {
+    cpu.rv2mbc_base
+}
+#[cfg(not(feature = "ascend-linux"))]
+#[inline(always)]
+fn rv2mbc_base_of(_cpu: &MbcCpuState) -> u32 {
+    0
+}
+
 /// Compute events ring buffer: emits ComputeHopEvent on cache miss, screen write, halt.
 #[map]
 static COMPUTE_EVENTS: RingBuf = RingBuf::with_byte_size(262_144, 0);
@@ -779,7 +800,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let old_pc = cpu.pc.wrapping_sub(1); // PC of this JMPR instruction
             let rv_addr = cpu.regs[d];
             let rv_word = rv_addr >> 2;
-            cpu.pc = match RV2MBC_MAP.get(rv_word) {
+            cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_base_of(cpu))) {
                 Some(mbc_idx) if *mbc_idx != 0 => *mbc_idx,
                 _ => {
                     // Bug 20 fix: Unmapped JMPR — skip instead of halting.
@@ -829,7 +850,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             mem_write_word(callr_log_base + 2, d as u32);
             mem_write_word(callr_log_base + 3, old_pc);
 
-            cpu.pc = match RV2MBC_MAP.get(rv_word) {
+            cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_base_of(cpu))) {
                 Some(mbc_idx) if *mbc_idx != 0 => {
                     // Log successful lookup
                     mem_write_word(callr_log_base + 4, *mbc_idx);
@@ -895,7 +916,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             }
             if ret >= 0x10000 {
                 let rv_word = ret >> 2;
-                cpu.pc = match RV2MBC_MAP.get(rv_word) {
+                cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_base_of(cpu))) {
                     Some(mbc_idx) if *mbc_idx != 0 => {
                         // Diagnostic: dump translated mbc_idx as 4 hex chars + arm tracer.
                         let v = *mbc_idx;
@@ -1043,7 +1064,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let mpp = ((mstatus >> 11) & 0b11) as u8;
             cpu.priv_level = mpp;
             let rv_word = (mepc >> 2) & 0xFFFF;
-            cpu.pc = match RV2MBC_MAP.get(rv_word) {
+            cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_base_of(cpu))) {
                 Some(mbc_idx) if *mbc_idx != 0 => *mbc_idx & 0xFFFF,
                 _ => {
                     mem_write_word(0xE0050 >> 2, 0xDEAD0047); // MRET unmapped sentinel
@@ -1065,7 +1086,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let spp = ((sstatus >> 8) & 0b1) as u8;
             cpu.priv_level = if spp == 0 { 3 } else { 1 };
             let rv_word = (sepc >> 2) & 0xFFFF;
-            cpu.pc = match RV2MBC_MAP.get(rv_word) {
+            cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_base_of(cpu))) {
                 Some(mbc_idx) if *mbc_idx != 0 => {
                     // Diagnostic: emit 'S' on every SRET + arm PC tracer for
                     // first 100 user-mode instructions.
