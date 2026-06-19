@@ -1,11 +1,11 @@
 # ADR-077 — ASCEND-LINUX Phase 1.7 Gate B: Feature-Gated `MbcCpuState` ABI Fork (per-process `rv2mbc_base`, Doom-insulated)
 
-**Status**: ACCEPTED (Stevie's call, 2026-06-18)
-**Date**: 2026-06-18
+**Status**: ACCEPTED (Stevie's call, 2026-06-18) — **IMPLEMENTED + GATE B HEADLINE SHIPPED 2026-06-19**
+**Date**: 2026-06-18 (implemented 2026-06-19)
 **Deciders**: Stevie + unheaded-developer + unheaded-scientist + unheaded-micromanager (consulted in-session)
 **Aligns with**: ADR-067 (MBC ISA v2 + UPC ABI v1 — froze `MbcCpuState` at 136 bytes), ADR-074 (Phase 1.2 per-pid page-table model), ADR-075 (Phase 1.3 process model), ADR-052 (in-tree source-of-truth)
 **Triggers**: Phase 1.7 Gate B (`exec` → live `sh` prompt). Design lives in `references/battle-plan-phase17-gateB-exec-design-2026-06-18.md`; predecessor `references/battle-plan-phase17-real-exec-to-shell-2026-06-01.md`.
-**Implementation status at adoption**: NOT YET IMPLEMENTED. This ADR is the spec a future engineer implements against; it must pass the acceptance gates in §7 before it lands.
+**Implementation status**: **SHIPPED 2026-06-19** (commits `2766027b` ABI fork → `cf3d7bd9` 5-site base plumbing → `b9d1fe1c` PROGRAM_TABLE + host loader → `1398e902` exec(7) handler → `cb94c406` ctx-switch save/restore). All §7 gates pass: **G1** ASCEND boot — the `init: starting sh`/`exec sh failed` loop is gone; child `exec("sh")` succeeds, sh runs in its pid-1 slice and emits its `$` prompt byte (the headline). **G2** doom-runner builds AND runs (CPU_MAP PASS, pipeline complete ~2.6s). **G3** both feature configs compile (136/144 const-asserts). **Budget** the ascend object loads under the 1M verifier-complexity ceiling — freed by gating the dead INT-0x80 Linux/FUZIX dispatch to non-ascend. **Deferred to Gate C**: `fstat(8)` (lands with the FS reader) and sh's post-prompt halt (interactive `read()` console-in is still the deferred Gate A stub, so sh halts after its first `$` byte).
 
 ---
 
