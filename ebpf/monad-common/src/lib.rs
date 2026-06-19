@@ -1034,7 +1034,24 @@ pub struct MbcCpuState {
     /// reservation. Cleared by IRQ entry, context switch, or any write
     /// to the reserved address by any CPU. ADR-067 Decision 4.
     pub reservation_address: u32,
+    // ── Phase 1.7 Gate B (ADR-077): per-process RV2MBC base, ASCEND-only ──
+    /// Per-process offset into the shared RV2MBC_MAP. Every indirect-branch
+    /// lookup becomes `RV2MBC_MAP[rv2mbc_base + (rv_addr >> 2)]`, giving each
+    /// resident program (init, sh, ...) a disjoint region so their colliding
+    /// RV-word-0 entry ranges coexist. Restored on ctx switch from PROC_TABLE.
+    #[cfg(feature = "ascend-linux")]
+    pub rv2mbc_base: u32,
+    /// Padding to keep `size_of % 8 == 0` (136 → 144, since 140 is not 8-aligned).
+    #[cfg(feature = "ascend-linux")]
+    pub _pad7: [u8; 4],
 }
+
+// ABI tripwire: the two layouts diverge only by the trailing 8 bytes.
+// If either drifts, the build fails here (ADR-077 §5).
+#[cfg(not(feature = "ascend-linux"))]
+const _: () = assert!(core::mem::size_of::<MbcCpuState>() == 136);
+#[cfg(feature = "ascend-linux")]
+const _: () = assert!(core::mem::size_of::<MbcCpuState>() == 144);
 
 /// Default initial program break address (4 MiB).
 pub const DEFAULT_PROGRAM_BREAK: u32 = 0x0040_0000;
@@ -1070,6 +1087,12 @@ impl Default for MbcCpuState {
             _pad5: 0,
             _pad6: 0,
             reservation_address: 0xFFFF_FFFF, // no active reservation
+            // ASCEND-LINUX Phase 1.7 default (ADR-077): pid 0 (init) sits at
+            // base 0, so its RV2MBC lookups are identity — unchanged from today.
+            #[cfg(feature = "ascend-linux")]
+            rv2mbc_base: 0,
+            #[cfg(feature = "ascend-linux")]
+            _pad7: [0; 4],
         }
     }
 }

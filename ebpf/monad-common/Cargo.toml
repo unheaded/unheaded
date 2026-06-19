@@ -13,3 +13,11 @@ authors.workspace    = true
 #
 # The #![cfg_attr(not(test), no_std)] dance allows host-side unit tests
 # without pulling in std for the BPF target.
+
+[features]
+default = []
+# ascend-linux: forks MbcCpuState's ABI for Linux-on-UPC (ADR-077).
+# Off (Doom/default): struct is 136 bytes, byte-identical to ADR-067.
+# On: appends per-process rv2mbc_base (+pad) → 144 bytes. Forwarded from
+# monad-cpu-ebpf's same-named feature so the two stay in lockstep.
+ascend-linux = []
