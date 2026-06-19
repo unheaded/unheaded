@@ -2,8 +2,11 @@
 
 **Date:** 2026-06-18
 **Owner:** Computermancer (+ Architect on the ABI call; Developer on the loader)
-**Status:** DESIGN — Gate A landed (this session); Gate B blocked on §Decision + one ABI/loader
-sub-choice below. Successor to `battle-plan-phase17-real-exec-to-shell-2026-06-01.md`.
+**Status:** **GATE B SHIPPED 2026-06-19** — `exec("sh")` succeeds and sh emits its `$` prompt
+(ADR-077 §Implementation status; commits `2766027b`…`cb94c406`). The §Decision resolved to A+B1
+(loader-side pre-translation + per-process `rv2mbc_base` in a feature-gated `MbcCpuState`). Gate A
+landed prior. Remaining: Gate C (interactive line — `read()` console-in drain + sh's post-`$`
+halt). Successor to `battle-plan-phase17-real-exec-to-shell-2026-06-01.md`.
 
 ## What landed this session (Gate A — console fd substrate)
 
@@ -183,8 +186,12 @@ per-process base is needed.
   `init: starting sh` (no regression); gate2 + gate_nway regressions pass. Required a verifier
   fix (deferred `read`(5) drain to Gate C — see Boot-verify note above). Uncommitted (Stevie
   owns commits).
-- **Gate B** (exec launches sh) — child `exec("sh")` stops printing `exec sh failed`; `sh` runs
-  in its pid-1 slice and emits its first byte. Headline.
+- **Gate B** (exec launches sh) — ✅ **DONE 2026-06-19.** child `exec("sh")` stops printing
+  `exec sh failed`; `sh` runs in its pid-1 slice and emits its first byte (`$`). Headline.
+  Verifier budget was freed by gating the dead INT-0x80 Linux/FUZIX dispatch (~560 lines) to
+  non-ascend (`!cfg!(feature = "ascend-linux")` → rustc dead-eliminates it). The exec data-copy
+  reads the path by direct slice arithmetic (`pid_phys_offset + va`), NOT `translate_address`,
+  and stages `.data` re-entrant 16-words/tick — both to stay under the 1M complexity ceiling.
 - **Gate C** (interactive line) — feed bytes via tty-bridge; `sh` `read`s a command, fork+execs
   `ls`/`echo`, output appears. (`read`(5) console-in already wired this session.)
 - **Budget:** measure verifier % after Gate B (Gate A added ~5 small arms + 3 helpers + a
