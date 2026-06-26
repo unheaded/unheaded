@@ -455,6 +455,43 @@ impl BootRunner {
         Ok(())
     }
 
+    /// Pre-fill the KBD ring with up to 8 scripted console-input bytes (Gate C
+    /// `--input`). Sets KBD_MAP[i] = (byte<<1)|1 for i in 0..n, KBD_HEAD = n,
+    /// KBD_TAIL = 0; the guest's read(5) drain pops one byte per call. Capped at
+    /// the 8-slot KBD_MAP — errors (never silently truncates) on overflow.
+    pub fn write_kbd(&mut self, bytes: &[u8]) -> Result<()> {
+        let n = bytes.len();
+        if n > 8 {
+            bail!("--input exceeds KBD ring capacity (8 bytes), got {n}");
+        }
+        {
+            let mut kbd: Array<_, u32> =
+                Array::try_from(self.ebpf.map_mut("KBD_MAP").context("KBD_MAP not found")?)?;
+            for (i, &b) in bytes.iter().enumerate() {
+                kbd.set(i as u32, ((b as u32) << 1) | 1, 0)
+                    .with_context(|| format!("KBD_MAP[{i}] write"))?;
+            }
+        }
+        {
+            let mut head: Array<_, u32> = Array::try_from(
+                self.ebpf
+                    .map_mut("KBD_HEAD")
+                    .context("KBD_HEAD not found")?,
+            )?;
+            head.set(0, n as u32, 0).context("KBD_HEAD write")?;
+        }
+        {
+            let mut tail: Array<_, u32> = Array::try_from(
+                self.ebpf
+                    .map_mut("KBD_TAIL")
+                    .context("KBD_TAIL not found")?,
+            )?;
+            tail.set(0, 0u32, 0).context("KBD_TAIL write")?;
+        }
+        tracing::info!(bytes = n, "KBD ring pre-filled (--input)");
+        Ok(())
+    }
+
     /// Insert the initial CPU state for `instance_id` into CPU_MAP.
     pub fn populate_cpu(&mut self, initial_state: MbcCpuState) -> Result<()> {
         let mut cpu: AyaHashMap<_, u32, MbcCpuState> =
