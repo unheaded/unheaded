@@ -73,9 +73,9 @@ USER_LIB_OBJS = \
 # shared USER_LIB_OBJS. Pattern rule keeps the Makefile small as the
 # userland grows (init, sh, ls, cat, echo, wc, ln, mkdir, kill, rm, grep
 # all build from one rule).
-$T/%.elf: $U/%.o $(USER_LIB_OBJS) $U/user.ld
+$T/%.elf: $A/crt0_mbc.o $U/%.o $(USER_LIB_OBJS) $U/user.ld
 	mkdir -p $T
-	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $< $(USER_LIB_OBJS)
+	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $A/crt0_mbc.o $U/$*.o $(USER_LIB_OBJS)
 
 # Translate ELF → MBC + .rv2mbc + .data sidecars.
 $T/%.mbc: $T/%.elf

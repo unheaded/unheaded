@@ -154,6 +154,30 @@ fn set_rv2mbc_base(cpu: &mut MbcCpuState, base: u32) {
 #[inline(always)]
 fn set_rv2mbc_base(_cpu: &mut MbcCpuState, _base: u32) {}
 
+/// Privilege-aware RV2MBC base for indirect-branch translation (ADR-077 Gate C
+/// fix). The per-process base (`cpu.rv2mbc_base`) selects a *user* program's
+/// disjoint RV2MBC region, but kernel (supervisor/machine) code lives in the
+/// base-0 region shared by all processes. After `exec` set a user base, a
+/// machine-mode trap (e.g. timer) whose MRET returns into supervisor code would
+/// add the user base to a kernel return target and fault on an unmapped MBC
+/// index (the Gate C `halt_reason=0x47`, mepc=0x27304 @ base 0x1000). Mirror the
+/// MMU's own rule (`translate_address`: per-process only when `priv_level == 3`).
+/// So: user mode → per-process base; kernel mode → 0. Doom build = compile-time 0.
+#[cfg(feature = "ascend-linux")]
+#[inline(always)]
+fn rv2mbc_branch_base(cpu: &MbcCpuState) -> u32 {
+    if cpu.priv_level == 3 {
+        cpu.rv2mbc_base
+    } else {
+        0
+    }
+}
+#[cfg(not(feature = "ascend-linux"))]
+#[inline(always)]
+fn rv2mbc_branch_base(_cpu: &MbcCpuState) -> u32 {
+    0
+}
+
 /// Compute events ring buffer: emits ComputeHopEvent on cache miss, screen write, halt.
 #[map]
 static COMPUTE_EVENTS: RingBuf = RingBuf::with_byte_size(262_144, 0);
@@ -565,11 +589,29 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         // Belt-and-suspenders: check explicitly, then check Array result.
         if cpu.pc >= 262_144_u32 {
             // PC out of ROM range — record bad PC AND last valid PC
-            if let Some(ptr) = STATS.get_ptr_mut(&STAT_ROM_FAULT) {
-                unsafe {
-                    *ptr = ((cpu.pc as u64) << 32) | (prev_pc as u64);
-                }
-            }
+            halt_diag(
+                cpu.pc,
+                rv2mbc_base_of(cpu),
+                cpu.current_pid as u32,
+                prev_pc,
+                0x66,
+            );
+            cpu.halted = 1;
+            break;
+        }
+        // Gate C diagnostic: an unexpected branch to PC=0 after boot re-runs
+        // start_mbc → main() (the reboot loop seen after the rv2mbc_branch_base
+        // fix). Catch it generically here — `prev_pc` still holds the culprit
+        // branch's PC (set on the prior iteration). 1M-insn threshold skips the
+        // legitimate PC=0 at cold boot.
+        if cpu.pc == 0 && cpu.insn_count > 1_000_000 {
+            halt_diag(
+                cpu.pc,
+                rv2mbc_branch_base(cpu),
+                cpu.current_pid as u32,
+                prev_pc,
+                0x2E5E7,
+            );
             cpu.halted = 1;
             break;
         }
@@ -578,6 +620,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
         let insn_word = match ROM_MAP.get(cpu.pc) {
             Some(w) => *w,
             None => {
+                // ROM-fetch-miss: an indirect branch resolved to an unmapped
+                // MBC index. Capture fault context (slots 25-29) for triage.
+                halt_diag(
+                    cpu.pc,
+                    rv2mbc_base_of(cpu),
+                    cpu.current_pid as u32,
+                    prev_pc,
+                    0x60,
+                );
                 cpu.halted = 1;
                 increment_stat(STAT_ROM_FAULT);
                 break;
@@ -855,7 +906,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let old_pc = cpu.pc.wrapping_sub(1); // PC of this JMPR instruction
             let rv_addr = cpu.regs[d];
             let rv_word = rv_addr >> 2;
-            cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_base_of(cpu))) {
+            cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_branch_base(cpu))) {
                 Some(mbc_idx) if *mbc_idx != 0 => *mbc_idx,
                 _ => {
                     // Bug 20 fix: Unmapped JMPR — skip instead of halting.
@@ -905,7 +956,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             mem_write_word(callr_log_base + 2, d as u32);
             mem_write_word(callr_log_base + 3, old_pc);
 
-            cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_base_of(cpu))) {
+            cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_branch_base(cpu))) {
                 Some(mbc_idx) if *mbc_idx != 0 => {
                     // Log successful lookup
                     mem_write_word(callr_log_base + 4, *mbc_idx);
@@ -971,7 +1022,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             }
             if ret >= 0x10000 {
                 let rv_word = ret >> 2;
-                cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_base_of(cpu))) {
+                cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_branch_base(cpu))) {
                     Some(mbc_idx) if *mbc_idx != 0 => {
                         // Diagnostic: dump translated mbc_idx as 4 hex chars + arm tracer.
                         let v = *mbc_idx;
@@ -1119,11 +1170,18 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let mpp = ((mstatus >> 11) & 0b11) as u8;
             cpu.priv_level = mpp;
             let rv_word = (mepc >> 2) & 0xFFFF;
-            cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_base_of(cpu))) {
+            cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_branch_base(cpu))) {
                 Some(mbc_idx) if *mbc_idx != 0 => *mbc_idx & 0xFFFF,
                 _ => {
                     mem_write_word(0xE0050 >> 2, 0xDEAD0047); // MRET unmapped sentinel
                     mem_write_word(0xE0054 >> 2, mepc);
+                    halt_diag(
+                        mepc,
+                        rv2mbc_base_of(cpu),
+                        cpu.current_pid as u32,
+                        prev_pc,
+                        0x47,
+                    );
                     cpu.halted = 1;
                     increment_stat(STAT_ROM_FAULT);
                     cpu.pc
@@ -1141,7 +1199,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             let spp = ((sstatus >> 8) & 0b1) as u8;
             cpu.priv_level = if spp == 0 { 3 } else { 1 };
             let rv_word = (sepc >> 2) & 0xFFFF;
-            cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_base_of(cpu))) {
+            cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_branch_base(cpu))) {
                 Some(mbc_idx) if *mbc_idx != 0 => {
                     // Diagnostic: emit 'S' on every SRET + arm PC tracer for
                     // first 100 user-mode instructions.
@@ -1156,6 +1214,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 _ => {
                     mem_write_word(0xE0060 >> 2, 0xDEAD0048); // SRET unmapped sentinel
                     mem_write_word(0xE0064 >> 2, sepc);
+                    halt_diag(
+                        sepc,
+                        rv2mbc_base_of(cpu),
+                        cpu.current_pid as u32,
+                        prev_pc,
+                        0x48,
+                    );
                     cpu.halted = 1;
                     increment_stat(STAT_ROM_FAULT);
                     cpu.pc
@@ -2461,6 +2526,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             }
             // Unknown syscall: silently ignore (fail-safe).
         } else if opc == op::HALT {
+            halt_diag(
+                cpu.pc,
+                rv2mbc_base_of(cpu),
+                cpu.current_pid as u32,
+                prev_pc,
+                0x80,
+            );
             cpu.halted = 1;
             increment_stat(STAT_HALTED);
             // SP diagnostic: record r15 and PC at halt time
@@ -3069,6 +3141,35 @@ fn increment_stat(key: u32) {
     } else {
         let _ = STATS.insert(&key, &1u64, 0);
     }
+}
+
+/// Set a STATS slot to an explicit value (insert-or-update). `STATS` is a
+/// HashMap, so `get_ptr_mut(&k)` returns None for a never-written key — a plain
+/// store would silently no-op (the slot-25 capture footgun, ~/tmp/next.md). This
+/// mirrors `increment_stat`'s insert path so diagnostic slots always land.
+#[inline(always)]
+fn set_stat(key: u32, val: u64) {
+    if let Some(v) = STATS.get_ptr_mut(&key) {
+        unsafe {
+            *v = val;
+        }
+    } else {
+        let _ = STATS.insert(&key, &val, 0);
+    }
+}
+
+/// Capture the halt context into diag slots 25-29 (printed by upc-bootctl as
+/// `ROM-FAULT CTX:` + `halt_reason`). Non-inline so every halt site shares ONE
+/// verified copy — cheap on the verifier's 1M-insn budget. `reason` identifies
+/// which `cpu.halted = 1` site fired (Gate C post-`$` halt triage). `target` is
+/// the most diagnostic address for the site (fault PC, or the untranslated
+/// mepc/sepc for the indirect-branch arms).
+fn halt_diag(target: u32, rv2mbc_base: u32, pid: u32, prev_pc: u32, reason: u32) {
+    set_stat(25, target as u64);
+    set_stat(26, rv2mbc_base as u64);
+    set_stat(27, pid as u64);
+    set_stat(28, prev_pc as u64);
+    set_stat(29, reason as u64);
 }
 
 // ── Panic handler ─────────────────────────────────────────────────────────────

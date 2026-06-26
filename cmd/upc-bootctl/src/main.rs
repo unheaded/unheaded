@@ -723,14 +723,14 @@ fn cmd_boot(
     // Non-wrapping STATS dump (the TTY ring wraps; these counters don't).
     // Keys: 3=HALTED 7=SYSCALLS 8=ROM_FAULT 13=LINUX_SYS 14=TTY_WRITES
     // 15=CTX_SWITCH 16=FORKS 20=TTY_READS 21=WAITPIDS 23=MODERATE_SYS.
-    if let Ok(s) = runner.read_stats(&[3, 7, 8, 13, 14, 15, 16, 20, 21, 23, 25, 26, 27, 28]) {
+    if let Ok(s) = runner.read_stats(&[3, 7, 8, 13, 14, 15, 16, 20, 21, 23, 25, 26, 27, 28, 29]) {
         println!(
             "  STATS: halted={} syscalls={} rom_fault={} lin_sys={} tty_w={} ctx_sw={} forks={} tty_r={} waitpid={} mod_sys={}",
             s[0], s[1], s[2], s[3], s[4], s[5], s[6], s[7], s[8], s[9]
         );
         println!(
-            "  ROM-FAULT CTX: fault_pc=0x{:X} rv2mbc_base=0x{:X} cur_pid={} prev_pc=0x{:X}",
-            s[10], s[11], s[12], s[13]
+            "  ROM-FAULT CTX: target=0x{:X} rv2mbc_base=0x{:X} cur_pid={} prev_pc=0x{:X} halt_reason=0x{:X}",
+            s[10], s[11], s[12], s[13], s[14]
         );
     }
     if cpu_after.pc != cpu_initial.pc || cpu_after.insn_count > 0 {
