@@ -94,6 +94,16 @@ static SCREEN_MAP: Array<u8> = Array::with_max_entries(64_000, 0);
 #[map]
 static KBD_MAP: Array<u32> = Array::with_max_entries(8, 0);
 
+/// KBD ring producer/consumer indices (Gate C Stage 2). The host (upc-bootctl
+/// `write_kbd`) fills KBD_MAP[0..n] and sets KBD_HEAD = n; the guest's console
+/// read(5) drain consumes ONE byte at KBD_TAL per call and advances it. O(1) per
+/// read — no 8-slot scan (verifier budget, hardening H2). Monotonic indices;
+/// the slot is `idx & 7`.
+#[map]
+static KBD_HEAD: Array<u32> = Array::with_max_entries(1, 0);
+#[map]
+static KBD_TAIL: Array<u32> = Array::with_max_entries(1, 0);
+
 /// CPU instance state table: 256 instances.
 /// Key = instance_id (u32, low 8 bits of Flow Label).
 /// Value = MbcCpuState (80 bytes: 16×u32 regs + pc + flags + halted + pad + sleep_ns).
@@ -176,6 +186,27 @@ fn rv2mbc_branch_base(cpu: &MbcCpuState) -> u32 {
 #[inline(always)]
 fn rv2mbc_branch_base(_cpu: &MbcCpuState) -> u32 {
     0
+}
+
+/// 8 MiB per-pid user VA window (== `phase12::SLICE_STRIDE`). A user VA at or
+/// above this escapes the pid's slice.
+const USER_VA_CEILING: u32 = 0x0080_0000;
+
+/// Bounded user-VA → physical translation for syscall buffer access (hardening
+/// H1). The per-pid pgd maps user VA[0,8 MiB) linearly onto the pid's physical
+/// slice, so `phys = pid_phys_offset(pid) + va` — NO Sv32 walk (the verifier
+/// budget shortcut exec(7)/read(5) rely on). But `va` is USER-controlled: an
+/// unbounded `phys` could hit another pid's slice, the ramdisk, staged `.data`,
+/// or the guest page tables — and `wrapping_add` lets a huge `va` wrap into low
+/// kernel memory. Reject overflow and any `[va, va+len)` that leaves the slice;
+/// `None` ⇒ the caller returns -1/EFAULT and writes nothing.
+#[inline(always)]
+fn user_phys(pid: u8, va: u32, len: u32) -> Option<u32> {
+    let end = va.checked_add(len)?;
+    if end > USER_VA_CEILING {
+        return None;
+    }
+    Some(phase12::pid_phys_offset(pid).wrapping_add(va))
 }
 
 /// Compute events ring buffer: emits ComputeHopEvent on cache miss, screen write, halt.
@@ -2344,36 +2375,57 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.regs[8] = 0;
                 }
             } else if syscall_nr == 5 {
-                // ── xv6 SYS_read (5) — RV32I ecall path (Phase 1.7 console-in) ──
-                // read(fd=a0, buf=a1, n=a2). The console-fd substrate (open/dup/
-                // close/fork-inheritance) is the Gate A deliverable; the actual
-                // KBD_MAP→user-buffer drain is Gate-C input and is DEFERRED here.
-                //
-                // WHY DEFERRED: the natural drain loop calls translate_address()
-                // (a full Sv32 page-table walk) once per byte inside an 8-iter
-                // loop. That 8× path explosion — stacked on the pre-existing
-                // INT-0x80 lsys::SYS_READ drain loop in the same monolithic
-                // try_monad_cpu — pushed the BPF verifier past its 1,000,000
-                // processed-insn COMPLEXITY ceiling (boot-verify 2026-06-18:
-                // "BPF program is too large. Processed 1000001 insn"). init never
-                // read()s before exec'ing sh, so this is not on the Gate A
-                // regression path. Gate C must restore the drain with a
-                // verifier-friendly shape: translate the buffer base ONCE outside
-                // the loop (the ≤8 console bytes are consecutive and overwhelmingly
-                // intra-page) and write byte offsets, instead of translating per byte.
+                // ── xv6 SYS_read (5) — RV32I ecall path (Gate C console input) ──
+                // read(fd=a0, buf=a1, n=a2). sh's gets() always asks for n=1, so
+                // we deliver exactly ONE byte per call from the KBD ring (host
+                // pre-fills it via upc-bootctl --input). Verifier-friendly shape
+                // (the deferral note from Gate A): NO per-byte translate loop —
+                // one O(1) ring pop + one bounded user_phys() + one mem_write_byte.
                 let pid = cpu.current_pid;
                 let fd = cpu.regs[8];
                 if fd_kind(pid, fd) != fdtable::FD_CONSOLE {
                     cpu.regs[8] = (-1i32) as u32; // not a readable fd (yet)
                 } else {
-                    // Console fd: BLOCK instead of returning 0=EOF (Gate C
-                    // Stage 1). A console is never truly at end-of-input, so an
-                    // empty read must re-enter the ecall and re-poll rather than
-                    // let sh's gets() treat 0 as EOF and exit. Rewind PC to the
-                    // ecall and break this tick; the next trigger re-runs read.
-                    // Stage 2 turns this into a real KBD-ring drain.
-                    cpu.pc = cpu.pc.wrapping_sub(1);
-                    break;
+                    let tail = match KBD_TAIL.get(0) {
+                        Some(v) => *v,
+                        None => 0,
+                    };
+                    let head = match KBD_HEAD.get(0) {
+                        Some(v) => *v,
+                        None => 0,
+                    };
+                    if tail < head {
+                        // One queued byte. Decode (scancode<<1)|pressed → ASCII.
+                        let raw = match KBD_MAP.get(tail & 7) {
+                            Some(v) => *v,
+                            None => 0,
+                        };
+                        let ch = ((raw >> 1) & 0xFF) as u8;
+                        let buf_va = cpu.regs[9];
+                        match user_phys(pid, buf_va, 1) {
+                            Some(phys) => {
+                                mem_write_byte(phys, ch);
+                                if let Some(p) = KBD_TAIL.get_ptr_mut(0) {
+                                    unsafe {
+                                        *p = tail.wrapping_add(1);
+                                    }
+                                }
+                                increment_stat(STAT_TTY_READS);
+                                cpu.regs[8] = 1; // 1 byte delivered
+                            }
+                            None => {
+                                // H1: buffer VA escapes the pid slice → EFAULT,
+                                // do not advance the ring or write memory.
+                                cpu.regs[8] = (-1i32) as u32;
+                            }
+                        }
+                    } else {
+                        // Empty ring: BLOCK (Gate C Stage 1). A console is never
+                        // truly at EOF — rewind PC to the ecall and re-poll next
+                        // tick rather than let sh's gets() treat 0 as EOF + exit.
+                        cpu.pc = cpu.pc.wrapping_sub(1);
+                        break;
+                    }
                 }
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 7 {
                 // ── xv6 SYS_exec (7) — Phase 1.7 Gate B headline (ADR-077) ──

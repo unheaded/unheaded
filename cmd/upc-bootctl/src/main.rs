@@ -96,6 +96,14 @@ enum Cmd {
         /// Dry-run — print what we'd do but don't touch BPF maps.
         #[arg(long)]
         dry_run: bool,
+
+        /// Scripted console input (Gate C). Up to 8 bytes are pre-loaded into
+        /// the KBD ring before the CPU runs, so the guest's read(5) drain feeds
+        /// them to sh's gets() as if typed. Use $'echo\n' to terminate a line.
+        /// read does NOT echo (acceptable for a scripted demo). Errors if the
+        /// input exceeds the 8-slot ring (no silent truncation).
+        #[arg(long)]
+        input: Option<String>,
     },
 
     /// Attach a host pty to the UPC's tty stream (Mode B demo surface).
@@ -260,6 +268,7 @@ fn cmd_boot(
     triggers: u32,
     instance: u8,
     dry_run: bool,
+    input: Option<String>,
 ) -> Result<()> {
     cmd_validate(kernel.clone())?;
 
@@ -696,6 +705,16 @@ fn cmd_boot(
         }
     }
 
+    // Gate C: pre-load scripted console input into the KBD ring BEFORE the CPU
+    // runs, so the guest's read(5) drain feeds it to sh's gets() as if typed.
+    if let Some(ref s) = input {
+        runner.write_kbd(s.as_bytes())?;
+        println!(
+            "  ✓ KBD ring pre-filled with {} input byte(s) (--input, read does not echo)",
+            s.len()
+        );
+    }
+
     // Send Monad-format trigger packets via doom-tick.py. flow_label =
     // instance ID; eBPF dispatches on (flow_label & 0xFF).
     println!(
@@ -835,8 +854,9 @@ fn main() -> Result<()> {
             triggers,
             instance,
             dry_run,
+            input,
         } => cmd_boot(
-            kernel, bootstub, initramfs, ramdisk, userland, triggers, instance, dry_run,
+            kernel, bootstub, initramfs, ramdisk, userland, triggers, instance, dry_run, input,
         ),
         Cmd::Console { instance } => cmd_console(instance),
     }
