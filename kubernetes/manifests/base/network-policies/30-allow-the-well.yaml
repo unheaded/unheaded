@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+# The Well (PostgreSQL) accepts connections only from labelled DB clients
+# (kanban, timeguru, dashboard). Mirrors the 7-user least-privilege model.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-the-well-ingress
+  namespace: unheaded
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: the-well
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              kingdom.well-client: "true"
+      ports:
+        - { protocol: TCP, port: 5432 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-the-well-egress
+  namespace: unheaded
+spec:
+  podSelector:
+    matchLabels:
+      kingdom.well-client: "true"
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: the-well
+      ports:
+        - { protocol: TCP, port: 5432 }

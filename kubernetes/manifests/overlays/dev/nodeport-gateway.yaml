@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: unheaded
+spec:
+  type: NodePort
+  ports:
+    - { name: http,  port: 21000, targetPort: 21000, nodePort: 21000 }
+    - { name: https, port: 21443, targetPort: 21443, nodePort: 21443 }

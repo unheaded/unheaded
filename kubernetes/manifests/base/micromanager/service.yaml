@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: micromanager
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: micromanager
+    kingdom.armor: war-room
+spec:
+  selector:
+    app.kubernetes.io/name: micromanager
+  ports:
+    - { name: http, port: 19003, targetPort: 19003 }

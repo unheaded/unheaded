@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-edge-config
+  namespace: unheaded
+data:
+  haproxy.cfg: |
+    global
+        log stdout format raw local0 info
+        maxconn 50000
+    defaults
+        log global
+        mode http
+        option httplog
+        option dontlognull
+        timeout connect 5s
+        timeout client 30s
+        timeout server 30s
+    frontend stats
+        bind *:21404
+        stats enable
+        stats uri /stats
+        http-request use-service prometheus-exporter if { path /metrics }
+        monitor-uri /healthz
+    frontend fe_http
+        bind *:21080
+        http-request redirect scheme https code 301
+    frontend fe_https
+        bind *:21443
+        http-response set-header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        default_backend be_gateway
+    backend be_gateway
+        balance roundrobin
+        option httpchk GET /health
+        server gateway gateway:21000 check

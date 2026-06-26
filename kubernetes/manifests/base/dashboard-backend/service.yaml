@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard-backend
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: dashboard-backend
+    kingdom.armor: visor
+spec:
+  selector:
+    app.kubernetes.io/name: dashboard-backend
+  ports:
+    - { name: http, port: 20000, targetPort: 20000 }

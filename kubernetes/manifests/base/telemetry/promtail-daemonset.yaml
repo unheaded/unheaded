@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+# Hardening exception: promtail mounts host log dirs (read-only) to tail
+# container stdout. Runs nonroot where the runtime permits log readability.
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: promtail
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: promtail
+    kingdom.tier: observability
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: promtail
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: promtail
+        kingdom.tier: observability
+    spec:
+      serviceAccountName: prometheus
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: promtail
+          image: grafana/promtail:2.9.0
+          args: ["-config.file=/etc/promtail/config.yml"]
+          ports:
+            - { name: http, containerPort: 9080 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: config, mountPath: /etc/promtail }
+            - { name: pods, mountPath: /var/log/pods, readOnly: true }
+            - { name: containers, mountPath: /var/lib/docker/containers, readOnly: true }
+            - { name: tmp, mountPath: /tmp }
+          resources:
+            requests: { cpu: "50m", memory: 64Mi }
+            limits: { cpu: "250m", memory: 128Mi }
+      tolerations:
+        - { operator: Exists }
+      volumes:
+        - { name: config, configMap: { name: promtail-config } }
+        - { name: pods, hostPath: { path: /var/log/pods } }
+        - { name: containers, hostPath: { path: /var/lib/docker/containers } }
+        - { name: tmp, emptyDir: { medium: Memory, sizeLimit: 64Mi } }

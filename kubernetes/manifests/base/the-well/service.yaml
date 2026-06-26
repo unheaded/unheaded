@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: the-well
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: the-well
+    kingdom.armor: the-well
+spec:
+  clusterIP: None          # headless — stable DNS the-well-0.the-well
+  selector:
+    app.kubernetes.io/name: the-well
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

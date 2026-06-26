@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: sophia
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: sophia
+    kingdom.armor: sophia
+spec:
+  selector:
+    app.kubernetes.io/name: sophia
+  ports:
+    - { name: http, port: 19005, targetPort: 19005 }

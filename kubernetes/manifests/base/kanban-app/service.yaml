@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: kanban-app
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: kanban-app
+    kingdom.armor: meta-moment
+spec:
+  selector:
+    app.kubernetes.io/name: kanban-app
+  ports:
+    - { name: http, port: 20001, targetPort: 20001 }

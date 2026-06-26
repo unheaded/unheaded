@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - 00-default-deny.yaml
+  - 10-allow-dns.yaml
+  - 20-allow-wotan-bus.yaml
+  - 30-allow-the-well.yaml
+  - 40-allow-metrics-scrape.yaml
+  - 50-allow-edge.yaml

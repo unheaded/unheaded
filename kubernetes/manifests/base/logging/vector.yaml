@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vector-config
+  namespace: unheaded
+data:
+  vector.yaml: |
+    sources:
+      internal:
+        type: internal_logs
+    sinks:
+      clickhouse:
+        type: clickhouse
+        inputs: [internal]
+        endpoint: http://clickhouse:8123
+        database: unheaded_logs
+        table: events
+        skip_unknown_fields: true
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vector
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: vector
+    kingdom.tier: observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vector
+        kingdom.tier: observability
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: vector
+          image: timberio/vector:0.43.1-debian
+          args: ["--config", "/etc/vector/vector.yaml"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: config, mountPath: /etc/vector }
+            - { name: data, mountPath: /var/lib/vector }
+          resources:
+            requests: { cpu: "50m", memory: 64Mi }
+            limits: { cpu: "500m", memory: 256Mi }
+      volumes:
+        - { name: config, configMap: { name: vector-config } }
+        - { name: data, emptyDir: { sizeLimit: 256Mi } }

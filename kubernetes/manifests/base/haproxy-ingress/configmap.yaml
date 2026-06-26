@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# Global tuning ConfigMap for the HAProxy ingress controller (referenced by the
+# controller's `--configmap=` arg). Full key reference:
+# haproxy.com/documentation/kubernetes-ingress/configuration/configmap/
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-kubernetes-ingress
+  namespace: haproxy-controller
+data:
+  # Redirect plain HTTP → HTTPS at the EXTERNAL https NodePort (Doom Range),
+  # since that is the port clients actually reach the edge on.
+  ssl-redirect: "true"
+  ssl-redirect-port: "21443"
+  # Emit Prometheus metrics on the stats frontend.
+  prometheus: "true"
+  # Trust the in-cluster pod CIDR for X-Forwarded-For (tighten per environment).
+  forwarded-for: "true"

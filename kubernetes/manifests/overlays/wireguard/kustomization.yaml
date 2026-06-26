@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Optional east-west overlay (fd00:dead:beef::/48). Host-networked DaemonSet.
+# Provide the WireGuard keys/config out of band as a Secret named wireguard-config.
+resources:
+  - wireguard.yaml

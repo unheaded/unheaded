@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# HAProxy Kubernetes Ingress Controller (community) — the Kingdom's on-prem edge.
+# Converges the external HAProxy edge and the `Ingress` resource into one.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - ingressclass.yaml
+  - configmap.yaml
+  - controller.yaml
+  - networkpolicy.yaml

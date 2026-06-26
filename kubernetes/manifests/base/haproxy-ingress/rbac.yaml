@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# RBAC for the HAProxy Kubernetes Ingress Controller (community edition).
+# Rules mirror the upstream deploy manifest
+# (github.com/haproxytech/kubernetes-ingress, deploy/haproxy-ingress.yaml):
+# the controller watches Ingresses/Services/Endpoints/Secrets cluster-wide and
+# updates Ingress status, so the ClusterRole is necessarily broad but read-only
+# except for secrets (cert generation) and ingress status.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: haproxy-kubernetes-ingress
+  namespace: haproxy-controller
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: haproxy-kubernetes-ingress
+rules:
+  - apiGroups: [""]
+    resources: [configmaps, endpoints, nodes, pods, services, namespaces, events, serviceaccounts]
+    verbs: [get, list, watch]
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, list, watch, create, patch, update]
+  - apiGroups: [extensions, networking.k8s.io]
+    resources: [ingresses, ingresses/status, ingressclasses]
+    verbs: [get, list, watch]
+  - apiGroups: [networking.k8s.io]
+    resources: [ingresses/status]
+    verbs: [update]
+  - apiGroups: [discovery.k8s.io]
+    resources: [endpointslices]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [replicasets, deployments, daemonsets]
+    verbs: [get, list]
+  - apiGroups: [apiextensions.k8s.io]
+    resources: [customresourcedefinitions]
+    verbs: [get, list, watch, update]
+  # HAProxy CRD groups (defaults/globals/backends) — present when CRDs are
+  # installed; harmless if not. Kept for parity with the upstream manifest.
+  - apiGroups: [ingress.v1.haproxy.org, ingress.v3.haproxy.org]
+    resources: ["*"]
+    verbs: [get, list, watch, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: haproxy-kubernetes-ingress
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: haproxy-kubernetes-ingress
+subjects:
+  - kind: ServiceAccount
+    name: haproxy-kubernetes-ingress
+    namespace: haproxy-controller

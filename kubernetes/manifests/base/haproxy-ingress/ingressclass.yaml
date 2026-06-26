@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# The IngressClass that Unheaded's Ingress targets via `ingressClassName: haproxy`.
+# `spec.controller` is the well-known identifier the HAProxy controller claims.
+# NOT marked the cluster default (no `ingressclass.kubernetes.io/is-default-class`)
+# so it never silently captures Ingresses meant for another controller — Unheaded's
+# Ingress opts in explicitly.
+apiVersion: networking.k8s.io/v1
+kind: IngressClass
+metadata:
+  name: haproxy
+  labels:
+    kingdom.role: edge
+spec:
+  controller: haproxy.org/ingress-controller

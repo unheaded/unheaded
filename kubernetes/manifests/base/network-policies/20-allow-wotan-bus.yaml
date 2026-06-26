@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+# The message bus is the spine: every Kingdom service may reach Wotan
+# (gRPC 18001 primary, HTTP 18000 fallback), and Wotan accepts from them.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-wotan-ingress
+  namespace: unheaded
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: wotan
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              kingdom.bus-client: "true"
+      ports:
+        - { protocol: TCP, port: 18000 }
+        - { protocol: TCP, port: 18001 }
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-wotan-egress
+  namespace: unheaded
+spec:
+  podSelector:
+    matchLabels:
+      kingdom.bus-client: "true"
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: wotan
+      ports:
+        - { protocol: TCP, port: 18000 }
+        - { protocol: TCP, port: 18001 }

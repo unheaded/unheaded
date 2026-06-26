@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Optional add-on: layer on top of an environment overlay, e.g.
+#   kubectl apply -k overlays/dev
+#   kubectl apply -k overlays/gpu-vllm
+# Requires the AMD GPU device plugin (amd.com/gpu) and a GPU node.
+resources:
+  - vllm.yaml

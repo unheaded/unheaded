@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+# Dev images: local registry / latest. Override with your own registry.
+images:
+  - name: ghcr.io/stevenrbellis/unheaded/wotan
+    newTag: dev
+  - name: ghcr.io/stevenrbellis/unheaded/gateway
+    newTag: dev
+
+patches:
+  # Lower the log level for noisy local debugging.
+  - target:
+      kind: ConfigMap
+      name: unheaded-shared
+    patch: |-
+      - op: replace
+        path: /data/UNHEADED_LOG_LEVEL
+        value: debug
+  # Expose the published surfaces as NodePort on their registry ports.
+  # REQUIRES kube-apiserver --service-node-port-range=3000-32767 (see BUILD-PLAN.md).
+  - path: nodeport-gateway.yaml
+  - path: nodeport-dashboard.yaml
+  - path: nodeport-kanban.yaml
+  - path: nodeport-grafana.yaml

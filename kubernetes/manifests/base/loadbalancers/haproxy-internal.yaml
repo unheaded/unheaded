@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: haproxy-internal
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: haproxy-internal
+    kingdom.armor: pauldrons
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: haproxy-internal
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: haproxy-internal
+        kingdom.armor: pauldrons
+        kingdom.role: internal-lb
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 99
+        runAsGroup: 99
+        fsGroup: 99
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: haproxy
+          image: haproxy:2.9-alpine
+          ports:
+            - { name: http, containerPort: 21081 }
+            - { name: metrics, containerPort: 21405 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: config, mountPath: /usr/local/etc/haproxy }
+            - { name: run, mountPath: /run }
+            - { name: tmp, mountPath: /tmp }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 21405 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 21405 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: 64Mi }
+            limits: { cpu: "2", memory: 512Mi }
+      volumes:
+        - name: config
+          configMap: { name: haproxy-internal-config }
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 32Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: haproxy-internal
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: haproxy-internal
+    kingdom.role: internal-lb
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: haproxy-internal
+  ports:
+    - { name: http, port: 21081, targetPort: 21081 }
+    - { name: metrics, port: 21405, targetPort: 21405 }

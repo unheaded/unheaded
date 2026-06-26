@@ -1,0 +1,80 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: haproxy-edge
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: haproxy-edge
+    kingdom.armor: pauldrons
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: haproxy-edge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: haproxy-edge
+        kingdom.armor: pauldrons
+        kingdom.role: edge
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 99
+        runAsGroup: 99
+        fsGroup: 99
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: haproxy
+          image: haproxy:2.9-alpine
+          ports:
+            - { name: http, containerPort: 21080 }
+            - { name: https, containerPort: 21443 }
+            - { name: metrics, containerPort: 21404 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - { name: config, mountPath: /usr/local/etc/haproxy }
+            - { name: run, mountPath: /run }
+            - { name: tmp, mountPath: /tmp }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 21404 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /healthz, port: 21404 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: 64Mi }
+            limits: { cpu: "2", memory: 512Mi }
+      volumes:
+        - name: config
+          configMap: { name: haproxy-edge-config }
+        - name: run
+          emptyDir: {}
+        - name: tmp
+          emptyDir: { medium: Memory, sizeLimit: 32Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: haproxy-edge
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: haproxy-edge
+    kingdom.role: edge
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: haproxy-edge
+  ports:
+    - { name: http, port: 21080, targetPort: 21080 }
+    - { name: https, port: 21443, targetPort: 21443 }
+    - { name: metrics, port: 21404, targetPort: 21404 }
