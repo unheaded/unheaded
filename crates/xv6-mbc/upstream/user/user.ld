@@ -1,10 +1,12 @@
 OUTPUT_ARCH( "riscv" )
+ENTRY( _start )
 
 SECTIONS
 {
  . = 0x0;
- 
+
   .text : {
+    *(.text._start)   /* crt0 _start MUST be the entry at RV byte 0 (ASCEND Gate C) */
     *(.text .text.*)
   }
 
