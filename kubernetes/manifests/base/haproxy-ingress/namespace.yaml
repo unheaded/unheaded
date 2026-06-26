@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# Dedicated namespace for the HAProxy Kubernetes Ingress Controller — the
+# Kingdom's on-prem edge. Kept separate from `unheaded` (the workload namespace)
+# because the controller needs cluster-wide RBAC and is infrastructure, not an
+# application service. PSA `restricted`: the controller binds only ports >1023
+# (8080/8443/1024/1042), so it needs NO added capabilities and stays fully
+# restricted-compliant — unlike a stock ingress controller binding 80/443.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: haproxy-controller
+  labels:
+    kingdom.role: edge
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted

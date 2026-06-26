@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: architect
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: architect
+    kingdom.armor: sage
+spec:
+  selector:
+    app.kubernetes.io/name: architect
+  ports:
+    - { name: http, port: 19001, targetPort: 19001 }

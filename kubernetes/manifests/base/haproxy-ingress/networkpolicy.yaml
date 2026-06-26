@@ -1,0 +1,36 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# Edge network posture for the haproxy-controller namespace. Default-deny on
+# INGRESS (only the controller's frontends are reachable); egress is left open
+# because the controller MUST reach the API server (watch Ingresses/Services)
+# and every backend Service across the cluster — locking egress precisely is
+# environment-specific (API server IP, pod/service CIDRs) and is a follow-up.
+# Requires a NetworkPolicy-enforcing CNI (Calico/Cilium); Flannel ignores these.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: haproxy-controller
+spec:
+  podSelector: {}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-edge-frontends
+  namespace: haproxy-controller
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: haproxy-kubernetes-ingress
+  policyTypes: [Ingress]
+  ingress:
+    # Public edge: accept external traffic on the HTTP/HTTPS/stats frontends
+    # from anywhere (the NodePort fronts these).
+    - ports:
+        - { protocol: TCP, port: 8080 }
+        - { protocol: TCP, port: 8443 }
+        - { protocol: TCP, port: 1024 }
+        - { protocol: TCP, port: 1042 }

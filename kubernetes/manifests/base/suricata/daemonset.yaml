@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+# Hardening exception (documented): Suricata is a host IDS that captures raw
+# packets, so it requires hostNetwork + NET_ADMIN/NET_RAW and runs as root.
+# This mirrors the eBPF/IDS exception in the NixOS baseline (CLAUDE.md).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: suricata
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: suricata
+    kingdom.role: ids
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: suricata
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: suricata
+        kingdom.role: ids
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: suricata
+          image: jasonish/suricata:latest
+          args: ["-c", "/etc/suricata/suricata.yaml", "-i", "any"]
+          securityContext:
+            runAsNonRoot: false
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN", "NET_RAW", "SYS_NICE"]
+          volumeMounts:
+            - { name: config, mountPath: /etc/suricata }
+            - { name: logs, mountPath: /var/log/suricata }
+            - { name: run, mountPath: /var/run/suricata }
+          resources:
+            requests: { cpu: "100m", memory: 256Mi }
+            limits: { cpu: "2", memory: 1Gi }
+      tolerations:
+        - { operator: Exists }
+      volumes:
+        - { name: config, configMap: { name: suricata-config } }
+        - { name: logs, emptyDir: { sizeLimit: 512Mi } }
+        - { name: run, emptyDir: {} }

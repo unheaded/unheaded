@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+# Hardening exception: WireGuard needs NET_ADMIN + SYS_MODULE + host networking
+# to manage the kernel tunnel interface (51820/udp).
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: wireguard
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: wireguard
+    kingdom.role: network
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: wireguard
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: wireguard
+        kingdom.role: network
+    spec:
+      hostNetwork: true
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: wireguard
+          image: lscr.io/linuxserver/wireguard:latest
+          env:
+            - { name: PUID, value: "1000" }
+            - { name: PGID, value: "1000" }
+            - { name: TZ, value: "UTC" }
+            - { name: SERVERPORT, value: "51820" }
+            - { name: INTERNAL_SUBNET, value: "fd00:dead:beef::/48" }
+          ports:
+            - { name: wg, containerPort: 51820, protocol: UDP, hostPort: 51820 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["NET_ADMIN", "SYS_MODULE"]
+          volumeMounts:
+            - { name: config, mountPath: /config }
+            - { name: modules, mountPath: /lib/modules, readOnly: true }
+          resources:
+            requests: { cpu: "50m", memory: 64Mi }
+            limits: { cpu: "500m", memory: 128Mi }
+      volumes:
+        - { name: config, secret: { secretName: wireguard-config, optional: true } }
+        - { name: modules, hostPath: { path: /lib/modules } }

@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: gateway
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: gateway
+    kingdom.armor: shield
+    kingdom.role: gateway
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: gateway
+  ports:
+    - { name: http,  port: 21000, targetPort: 21000 }
+    - { name: https, port: 21443, targetPort: 21443 }

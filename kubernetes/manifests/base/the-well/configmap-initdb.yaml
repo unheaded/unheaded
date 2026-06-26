@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: the-well-initdb
+  namespace: unheaded
+data:
+  00-init.sh: |
+    #!/bin/sh
+    set -e
+    psql -v ON_ERROR_STOP=1 --username "$POSTGRES_USER" <<-SQL
+      CREATE DATABASE unheaded_app;
+      CREATE DATABASE unheaded_ops;
+      CREATE DATABASE unheaded_config;
+      CREATE USER app_kanban     WITH PASSWORD '${APP_KANBAN_PASSWORD}';
+      CREATE USER app_timeguru   WITH PASSWORD '${APP_TIMEGURU_PASSWORD}';
+      CREATE USER app_zhen       WITH PASSWORD '${APP_ZHEN_PASSWORD}';
+      CREATE USER ops_writer     WITH PASSWORD '${OPS_WRITER_PASSWORD}';
+      CREATE USER ops_reader     WITH PASSWORD '${OPS_READER_PASSWORD}';
+      CREATE USER config_admin   WITH PASSWORD '${CONFIG_ADMIN_PASSWORD}';
+      CREATE USER config_reader  WITH PASSWORD '${CONFIG_READER_PASSWORD}';
+    SQL

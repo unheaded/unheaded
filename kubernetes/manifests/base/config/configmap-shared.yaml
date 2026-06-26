@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+# Mirrors docker/.env.shared — non-secret runtime configuration.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: unheaded-shared
+  namespace: unheaded
+data:
+  UNHEADED_LOG_LEVEL: "info"
+  UNHEADED_TRACE_ENABLED: "true"
+  UNHEADED_METRICS_ENABLED: "true"
+  UNHEADED_NETWORK_MTU: "1380"
+  UNHEADED_IPV6_PREFIX: "fd00:dead:beef::/48"
+  VERSION: "dev"
+  # gRPC-first transport: Wotan is the primary bus (gRPC 18001, HTTP 18000 fallback)
+  WOTAN_ADDR: "wotan:18000"
+  WOTAN_GRPC_ADDR: "wotan:18001"

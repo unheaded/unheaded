@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: haproxy-internal-config
+  namespace: unheaded
+data:
+  haproxy.cfg: |
+    global
+        log stdout format raw local0 info
+    defaults
+        log global
+        mode http
+        option httplog
+        timeout connect 5s
+        timeout client 15s
+        timeout server 15s
+    frontend stats
+        bind *:21405
+        http-request use-service prometheus-exporter if { path /metrics }
+        monitor-uri /healthz
+    frontend fe_services
+        bind *:21081
+        acl is_wotan     path_beg /wotan
+        acl is_monad     path_beg /monad
+        acl is_sophia    path_beg /sophia
+        acl is_dashboard path_beg /dashboard
+        acl is_kanban    path_beg /kanban
+        use_backend be_wotan     if is_wotan
+        use_backend be_monad     if is_monad
+        use_backend be_sophia    if is_sophia
+        use_backend be_dashboard if is_dashboard
+        use_backend be_kanban    if is_kanban
+        default_backend be_gateway
+    backend be_wotan
+        server wotan wotan:18000 check
+    backend be_monad
+        server monad monad:19004 check
+    backend be_sophia
+        server sophia sophia:19005 check
+    backend be_dashboard
+        server dashboard dashboard-backend:20000 check
+    backend be_kanban
+        server kanban kanban-app:20001 check
+    backend be_gateway
+        server gateway gateway:21000 check

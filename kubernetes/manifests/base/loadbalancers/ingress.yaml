@@ -1,0 +1,31 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# The Kingdom's external routing, served by the HAProxy Kubernetes Ingress
+# Controller (base/haproxy-ingress/). External clients reach the edge at
+# <node-ip>:21443 (HTTPS) / :21080 (HTTP) via the controller's NodePort; the
+# controller terminates TLS and routes these paths to the in-cluster ClusterIP
+# Services. The Docker nginx per-app sidecars (nginx-wotan/-monad/-sophia/
+# -dashboard/-kanban/-gateway) collapse into these path rules.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: unheaded-edge
+  namespace: unheaded
+  labels:
+    kingdom.role: edge
+spec:
+  ingressClassName: haproxy
+  # TLS: the controller serves a built-in self-signed cert by default, so HTTPS
+  # works out of the box. For a real certificate, create a kubernetes.io/tls
+  # Secret in the `unheaded` namespace and reference it here (secret backend is
+  # a deployment decision — SOPS/age, Sealed Secrets, External Secrets, Vault):
+  #   tls:
+  #     - hosts: [unheaded.example.org]
+  #       secretName: unheaded-edge-tls
+  rules:
+    - http:
+        paths:
+          - { path: /dashboard, pathType: Prefix, backend: { service: { name: dashboard-backend, port: { number: 20000 } } } }
+          - { path: /kanban,    pathType: Prefix, backend: { service: { name: kanban-app,        port: { number: 20001 } } } }
+          - { path: /,          pathType: Prefix, backend: { service: { name: gateway,           port: { number: 21000 } } } }

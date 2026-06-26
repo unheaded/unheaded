@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - prometheus-rbac.yaml
+  - prometheus-config.yaml
+  - prometheus.yaml
+  - victoriametrics.yaml
+  - loki-config.yaml
+  - loki.yaml
+  - grafana.yaml
+  - node-exporter-daemonset.yaml
+  - promtail-config.yaml
+  - promtail-daemonset.yaml

@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: wotan
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: wotan
+    kingdom.armor: fae-chamber
+spec:
+  selector:
+    app.kubernetes.io/name: wotan
+  ports:
+    - { name: http, port: 18000, targetPort: 18000 }
+    - { name: grpc, port: 18001, targetPort: 18001 }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wotan-headless
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: wotan
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/name: wotan
+  ports:
+    - { name: http, port: 18000, targetPort: 18000 }
+    - { name: grpc, port: 18001, targetPort: 18001 }

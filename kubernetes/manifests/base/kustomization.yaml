@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# Apply to the whole Kingdom unless a component overrides it.
+namespace: unheaded
+
+commonLabels:
+  app.kubernetes.io/part-of: unheaded
+
+resources:
+  # --- foundation ---
+  - namespace
+  - config
+  - network-policies
+  # --- stateful core ---
+  - the-well
+  - wotan
+  # --- core services ---
+  - monad
+  - sophia
+  - timeguru
+  - architect
+  - captain
+  - micromanager
+  - cuirass
+  - dashboard-backend
+  - kanban-app
+  - gateway
+  # --- edge / load balancing ---
+  - loadbalancers
+  # --- observability ---
+  - telemetry
+  - logging
+  # --- security ---
+  - suricata

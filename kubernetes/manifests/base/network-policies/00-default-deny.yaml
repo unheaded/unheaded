@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+# Default-deny ALL ingress + egress in the namespace. Mirrors the NixOS
+# "DENY ALL, explicit allow only" firewall baseline (CLAUDE.md Network Policies).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: unheaded
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+    - Egress

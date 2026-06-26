@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+
+# Sophia's Eye — vLLM on ROCm (gfx1101 / RX 7700 XT). GPU + /dev/kfd + /dev/dri.
+# Hardening exception: GPU passthrough needs SYS_PTRACE and a GPU node.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-deepseek
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: vllm-deepseek
+    kingdom.role: llm-inference
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: vllm-deepseek
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: vllm-deepseek
+        kingdom.role: llm-inference
+    spec:
+      nodeSelector:
+        amd.com/gpu: "true"
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: vllm
+          image: ghcr.io/stevenrbellis/unheaded/vllm-rocm:dev
+          env:
+            - { name: HSA_OVERRIDE_GFX_VERSION, value: "11.0.1" }
+            - { name: PYTORCH_ROCM_ARCH, value: "gfx1101" }
+            - { name: HIP_VISIBLE_DEVICES, value: "0" }
+            - { name: VLLM_PORT, value: "20100" }
+            - { name: VLLM_GPU_MEMORY_UTILIZATION, value: "0.90" }
+            - { name: VLLM_MAX_MODEL_LEN, value: "8192" }
+          ports:
+            - { name: http, containerPort: 20100 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+              add: ["SYS_PTRACE"]
+          volumeMounts:
+            - { name: kfd, mountPath: /dev/kfd }
+            - { name: dri, mountPath: /dev/dri }
+            - { name: models, mountPath: /models, readOnly: true }
+            - { name: shm, mountPath: /dev/shm }
+          resources:
+            limits:
+              amd.com/gpu: "1"
+              memory: 14Gi
+              cpu: "8"
+          readinessProbe:
+            httpGet: { path: /health, port: 20100 }
+            initialDelaySeconds: 120
+            periodSeconds: 30
+      volumes:
+        - { name: kfd, hostPath: { path: /dev/kfd } }
+        - { name: dri, hostPath: { path: /dev/dri } }
+        - { name: models, hostPath: { path: /mnt/models } }
+        - { name: shm, emptyDir: { medium: Memory, sizeLimit: 4Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-deepseek
+  namespace: unheaded
+  labels:
+    app.kubernetes.io/name: vllm-deepseek
+spec:
+  selector:
+    app.kubernetes.io/name: vllm-deepseek
+  ports:
+    - { name: http, port: 20100, targetPort: 20100 }
