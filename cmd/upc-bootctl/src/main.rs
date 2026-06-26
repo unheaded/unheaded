@@ -624,7 +624,7 @@ fn cmd_boot(
     if let Some(ref up) = userland {
         // Headline (Gate B) needs `sh`; ls/cat/echo/wc follow the same
         // pattern for Gate C and slot in after sh's bases.
-        const PROGRAMS: &[&str] = &["sh"];
+        const PROGRAMS: &[&str] = &["sh", "echo", "ls", "cat", "wc"];
         let dir = up.parent().unwrap_or_else(|| Path::new("."));
         for (i, name) in PROGRAMS.iter().enumerate() {
             let mbc = dir.join(format!("{name}.mbc"));

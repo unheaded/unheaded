@@ -268,6 +268,15 @@ static PROC_TABLE: Array<[u32; 22]> = Array::with_max_entries(8, 0);
 #[map]
 static SCHED_STATE: Array<u32> = Array::with_max_entries(5, 0);
 
+/// Parent-of table (Gate C Stage 3): PARENT_OF[child_pid] = parent's pid. Set on
+/// every fork, so wait() reaps only a process's DIRECT children — real xv6
+/// semantics. Without it the wait scan used "any halted pid > me", so init (pid
+/// 0) would reap sh's child (the grandchild-reap bug → sh's wait hangs). Default
+/// 0 is safe: every live child is written on fork (pid reuse refreshes it), and
+/// the wait scan skips p == self so init never reaps itself.
+#[map]
+static PARENT_OF: Array<u32> = Array::with_max_entries(8, 0);
+
 /// Software TLB: 64 entries, direct-mapped by virtual page number (Level 4d).
 /// Key = index (vpn & 63), Value = [vpn, pfn, flags] (3 u32s = 12 bytes).
 /// Used by translate_address() for fast virtual-to-physical translation.
@@ -2174,6 +2183,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                             *p = cpu.num_processes as u32;
                         }
                     }
+                    // Stage 3: record parentage so wait() reaps only direct
+                    // children (refreshes the slot on pid reuse — M2).
+                    if let Some(p) = PARENT_OF.get_ptr_mut(child_pid) {
+                        unsafe {
+                            *p = cpu.current_pid as u32;
+                        }
+                    }
                     increment_stat(STAT_FORKS);
                     // Parent's fork() return value: a0 = child_pid.
                     cpu.regs[8] = child_pid;
@@ -2187,6 +2203,22 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // (Phase 1.3 ADR-075 D-5). exit code in a0 (→ r8).
                 cpu.exit_code = cpu.regs[8];
                 let exiting_pid = cpu.current_pid as u32;
+                // Stage 3 / M1: reparent this pid's children to init (pid 0)
+                // BEFORE marking it a zombie. With parent-filtered wait(), a
+                // child whose parent died first would otherwise be reapable by
+                // NO ONE → slot leak → fork-fails-forever (the phase16 bug
+                // class). One bounded ≤8 scan.
+                let mut q = 0u32;
+                while q < intr::MAX_PROCESSES as u32 {
+                    if let Some(pp) = PARENT_OF.get_ptr_mut(q) {
+                        unsafe {
+                            if *pp == exiting_pid {
+                                *pp = 0;
+                            }
+                        }
+                    }
+                    q += 1;
+                }
                 if let Some(p) = SCHED_STATE.get_ptr_mut(3) {
                     unsafe {
                         *p |= 1u32 << exiting_pid;
@@ -2233,13 +2265,22 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 };
                 let mut found: i32 = -1;
                 let mut any_child = false;
-                let mut p = parent_pid + 1;
+                // Stage 3: scan ALL pids and reap only DIRECT children
+                // (PARENT_OF[p] == me), skipping self — so init never reaps sh's
+                // child (grandchild-reap bug) and never reaps itself.
+                let mut p = 0u32;
                 // Bounded by MAX_PROCESSES for the BPF verifier.
                 while p < num && p < intr::MAX_PROCESSES as u32 {
-                    any_child = true;
-                    if (halted >> p) & 1 != 0 && (reaped >> p) & 1 == 0 {
-                        found = p as i32;
-                        break;
+                    let parent_of_p = match PARENT_OF.get(p) {
+                        Some(v) => *v,
+                        None => 0,
+                    };
+                    if p != parent_pid && parent_of_p == parent_pid {
+                        any_child = true;
+                        if (halted >> p) & 1 != 0 && (reaped >> p) & 1 == 0 {
+                            found = p as i32;
+                            break;
+                        }
                     }
                     p += 1;
                 }
