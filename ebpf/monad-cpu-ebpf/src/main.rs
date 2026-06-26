@@ -2366,9 +2366,14 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 if fd_kind(pid, fd) != fdtable::FD_CONSOLE {
                     cpu.regs[8] = (-1i32) as u32; // not a readable fd (yet)
                 } else {
-                    // Console fd open, but no input delivered pre-Gate-C: report
-                    // 0 bytes read so a polling reader simply re-polls.
-                    cpu.regs[8] = 0;
+                    // Console fd: BLOCK instead of returning 0=EOF (Gate C
+                    // Stage 1). A console is never truly at end-of-input, so an
+                    // empty read must re-enter the ecall and re-poll rather than
+                    // let sh's gets() treat 0 as EOF and exit. Rewind PC to the
+                    // ecall and break this tick; the next trigger re-runs read.
+                    // Stage 2 turns this into a real KBD-ring drain.
+                    cpu.pc = cpu.pc.wrapping_sub(1);
+                    break;
                 }
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 7 {
                 // ── xv6 SYS_exec (7) — Phase 1.7 Gate B headline (ADR-077) ──
