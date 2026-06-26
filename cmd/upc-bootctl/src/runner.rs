@@ -509,6 +509,14 @@ impl BootRunner {
         Ok(bytes)
     }
 
+    /// Read selected STATS counters (non-wrapping, unlike the TTY ring) for
+    /// post-mortem diagnosis. Returns one value per requested key (0 if unset).
+    pub fn read_stats(&self, keys: &[u32]) -> Result<Vec<u64>> {
+        let stats: AyaHashMap<_, u32, u64> =
+            AyaHashMap::try_from(self.ebpf.map("STATS").context("STATS")?)?;
+        Ok(keys.iter().map(|k| stats.get(k, 0).unwrap_or(0)).collect())
+    }
+
     /// Best-effort cleanup: remove this instance's CPU_MAP entry.
     /// SCREEN_MAP and KBD_MAP are arrays — caller can zero them via
     /// populate_ram() if desired (Phase 6 does this).
