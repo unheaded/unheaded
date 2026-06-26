@@ -1225,7 +1225,9 @@ router.Use(auth.Middleware(authenticator))
 
 ---
 
-## ASCEND-LINUX (Linux on UPC) — Phase 0 ✓ Phase 1.1 SHIP ✓ Phase 1.2 IMPL ✓ Phase 1.3 IMPL (A-D) ✓ Phase 1.4 ✓ Phase 1.5 ✓ Phase 1.6 (`init: starting sh`) ✓ (2026-05-08 → 2026-05-14)
+## ASCEND-LINUX (Linux on UPC) — Phase 0 ✓ … Phase 1.6 (`init: starting sh`) ✓ Phase 1.7 Gate A (console stdio) ✓ Gate B (exec → `$`) ✓ Gate C (interactive sh) ✓ (2026-05-08 → 2026-06-26)
+
+**Phase 1.7 Gate C SHIPPED 2026-06-26 (commits `86feadc7`→`fbc32697`).** Interactive sh: a scripted command line is read, sh forks + exec's it, the child exits, sh reaps ITS OWN child, and a fresh `$` prompt returns (`--input $'echo\n'` → `init: starting sh·$$`, forks=2 waitpid=1 tty_r=5). Two root causes behind the post-`$` halt+reboot: (1) MRET added sh's USER rv2mbc base to a KERNEL return target → fix `rv2mbc_branch_base()` (per-process base only when priv==3); (2) the user link omits `-e main` so sh's ELF entry defaulted to `getcmd` not `main` → fix `crt0_mbc.S` `_start` forced to RV byte 0. Then 4 stages: read(5)-block, KBD-ring drain + `--input`, parent-filtered `wait()` (fixes grandchild-reap), register echo/ls/cat/wc. gate2 ISOLATION-PASS; gate_nway NWAY-FAIL is pre-existing. **Deferred to a follow-on FS-reader gate:** fstat(8) + inode-backed open/read (ls/cat output) + argv-on-stack. Session log: `references/phase17-gateC-shipped-2026-06-26.md`.
 
 **Phase 1.6 milestone shipped 2026-05-14 (commit `724d5b06`).** xv6 init prints `init: starting sh\n` from user mode through the BPF `SYS_write` handler to the host TTY. Full pipeline: kernel boots → scheduler → forkret → kexec wires trapframe → userret (with `UPC_FLAT_TRAMPOLINE` patch that loads sp from p->trapframe's low PA rather than the unmapped 0x7FFFE000 high VA) → SRET → priv=3 → user main → open / dup × 2 / printf → vprintf body → write syscall stub → ecall → SYS_write byte emit to TTY MMIO 0xC001. Headline reference: `wiki/Linux-on-UPC.md` (full Phase 0→1.6 narrative). Session logs: `references/phase14-session-2026-05-14-marshal-shift.md` + `references/phase15-session-2026-05-14-userland-spike.md`.
 
