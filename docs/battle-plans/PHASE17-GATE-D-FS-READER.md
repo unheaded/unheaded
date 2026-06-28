@@ -160,17 +160,29 @@ kernel-memory read funneled into a user buffer = isolation break.
 
 ---
 
-## PHASE 2 — Per-fd inode state
+## PHASE 2 — Per-fd inode state ✅ DONE (2026-06-28)
 
 **Goal**: fds can carry `{inum, offset}`. **Agent**: Solo.
 
-- [ ] **Step 18** [TEST]: extend `fdtable.rs` tests — `FD_INODE` kind; per-pid disjoint
-  `FD_INODE_MAP` rows; recycle-on-close clears state.
-- [ ] **Step 19** [CODE]: add `FD_INODE = 2`; declare `FD_INODE_MAP: Array<[u32;2]>` (or two
-  Arrays) indexed `pid*NOFILE+fd` for `{inum, offset}`; helpers `fd_set_inode`, `fd_inode`,
-  `fd_set_offset`, and clear on close.
-- [ ] **Step 20** [V][GATE]: `cargo test -p monad-cpu-ebpf` green.
-- [ ] **Step 21** [C]: commit `feat(upc): per-fd inode state (FD_INODE + FD_INODE_MAP)`.
+> **TEST-HOME CORRECTION (continued from Phase 1):** the pure FD-table logic
+> (kind constants, `fd_slot`, `lowest_free`, and the new inode-state model) was
+> **moved into `monad-common::fdtable`** so it actually runs under
+> `cargo test -p monad-common` — the bin crate's inline `fdtable.rs` tests are
+> dead (build-std poison). The bin `fdtable.rs` is now `pub use
+> monad_common::fdtable::*;`, so `main.rs`'s `fdtable::*` call sites are
+> unchanged. The live BPF maps + accessors stay in `main.rs`.
+
+- [x] **Step 18** [TEST]: inode-state tests in `monad-common/src/fdtable.rs` — `FD_INODE`
+  distinct from `FD_FREE`/`FD_CONSOLE`; per-pid disjoint `FD_INODE_MAP` rows; bind→get,
+  offset-advance, recycle-on-close clears state, out-of-range fd no-op.
+- [x] **Step 19** [CODE]: added `FD_INODE = 2`; `FD_INODE_MAP: Array<[u32;2]>` (FD_TABLE_LEN
+  rows, indexed by `fd_slot(pid,fd)`, value `[inum, offset]`); BPF helpers `fd_inode`,
+  `fd_set_inode`, `fd_set_offset`, `fd_clear_inode`; `close(21)` now clears the inode row on
+  free. (dup/fork inode-copy intentionally deferred — ls/cat open their own fds post-exec.)
+- [x] **Step 20** [V][GATE]: `cargo test -p monad-common` → **85 passed** (73 prior + 12:
+  7 fd-table now in their runnable home + 5 inode-state), 0 failed; ascend + non-ascend
+  bin builds green (only the pre-existing `TAIL_ROUND` unused-unsafe warning), ascend rebuilt last.
+- [x] **Step 21** [C]: commit `feat(upc): per-fd inode state (FD_INODE + FD_INODE_MAP)`.
 
 ---
 
@@ -291,7 +303,9 @@ sudo ~/tmp/unheaded/cmd/upc-bootctl/target/release/upc-bootctl boot \
 
 - `ebpf/monad-cpu-ebpf/src/main.rs` — ascend ecall handlers: open@2359, read@2418, +fstat(8), exec@2471 (argv); KBD masks.
 - `ebpf/monad-common/src/fs_walk.rs` — **NEW** pure walker + inline off-target tests (NOT the bin crate — see Phase 1 test-home correction).
-- `ebpf/monad-cpu-ebpf/src/fdtable.rs` — `FD_INODE` + `FD_INODE_MAP {inum,offset}`.
+- `ebpf/monad-common/src/fdtable.rs` — **NEW** pure FD-table logic: `FD_INODE` kind + inode-state
+  model + tests (the runnable test home; bin `fdtable.rs` re-exports it). `FD_INODE_MAP` map +
+  `fd_inode`/`fd_set_inode`/`fd_set_offset`/`fd_clear_inode` accessors live in `main.rs`.
 - `cmd/upc-bootctl/src/runner.rs` — `write_kbd` cap 8→64.
 - `crates/xv6-mbc/adapters/Makefile.mbc-userland` — add `README` to mkfs.
 - `crates/xv6-mbc/adapters/crt0_mbc.S` — verify `a0/a1` forwarded (likely no change).

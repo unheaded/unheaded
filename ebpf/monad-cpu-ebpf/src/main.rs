@@ -291,6 +291,15 @@ static TLB_MAP: Array<[u32; 3]> = Array::with_max_entries(64, 0);
 #[map]
 static FD_TABLE: Array<u32> = Array::with_max_entries(fdtable::FD_TABLE_LEN, 0);
 
+/// Per-fd inode state (Phase 1.7 Gate D): `{inum, offset}` for every
+/// [`fdtable::FD_INODE`] descriptor, one `NOFILE`-wide row per pid, indexed by
+/// the same `fdtable::fd_slot(pid, fd)` as `FD_TABLE`. Value `[inum, offset]`:
+/// `open` binds `[inum, 0]`, `read` advances `offset`, `close` clears it back
+/// to `[0, 0]` so a recycled descriptor never carries a previous file's state.
+/// The `FD_TABLE` kind tag is authoritative for *which* store applies to an fd.
+#[map]
+static FD_INODE_MAP: Array<[u32; 2]> = Array::with_max_entries(fdtable::FD_TABLE_LEN, 0);
+
 /// Resident-program table (Phase 1.7 Gate B, ADR-077). The host loader
 /// pre-translates each userland program (`sh`, `ls`, …) into a disjoint
 /// `ROM_MAP` region + a disjoint `RV2MBC_MAP` base and records the result
@@ -464,6 +473,70 @@ fn fd_alloc(pid: u8) -> u32 {
         fd += 1;
     }
     fdtable::NOFILE
+}
+
+// ── Phase 1.7 Gate D per-fd inode state (FD_INODE_MAP) ─────────────────────
+// Thin BPF accessors over FD_INODE_MAP, indexed by the same `fdtable::fd_slot`
+// as FD_TABLE. The pure storage model + invariants (disjoint rows, bind /
+// advance / recycle-clear) are unit-tested in `monad_common::fdtable`. All
+// bound-check `fd < NOFILE` so a hostile fd can never reach a neighbour's row.
+
+/// `(inum, offset)` for (`pid`, `fd`), or `(0, 0)` if out of range / unbound.
+#[inline(always)]
+#[allow(dead_code)] // wired by Gate D read(5)/fstat(8) (Phases 4–5)
+fn fd_inode(pid: u8, fd: u32) -> (u32, u32) {
+    if fd >= fdtable::NOFILE {
+        return (0, 0);
+    }
+    match FD_INODE_MAP.get(fdtable::fd_slot(pid, fd)) {
+        Some(v) => (v[0], v[1]),
+        None => (0, 0),
+    }
+}
+
+/// Bind (`pid`, `fd`) to inode `inum` at offset 0 and tag it `FD_INODE`. The
+/// open-time state for an inode-backed descriptor. No-op if `fd >= NOFILE`.
+#[inline(always)]
+#[allow(dead_code)] // wired by Gate D open(15) (Phase 3)
+fn fd_set_inode(pid: u8, fd: u32, inum: u32) {
+    if fd >= fdtable::NOFILE {
+        return;
+    }
+    if let Some(p) = FD_INODE_MAP.get_ptr_mut(fdtable::fd_slot(pid, fd)) {
+        unsafe {
+            *p = [inum, 0];
+        }
+    }
+    fd_set_kind(pid, fd, fdtable::FD_INODE);
+}
+
+/// Advance the stored read offset for (`pid`, `fd`), keeping `inum`. No-op if
+/// `fd >= NOFILE`.
+#[inline(always)]
+#[allow(dead_code)] // wired by Gate D read(5) (Phase 5)
+fn fd_set_offset(pid: u8, fd: u32, off: u32) {
+    if fd >= fdtable::NOFILE {
+        return;
+    }
+    if let Some(p) = FD_INODE_MAP.get_ptr_mut(fdtable::fd_slot(pid, fd)) {
+        unsafe {
+            (*p)[1] = off;
+        }
+    }
+}
+
+/// Clear (`pid`, `fd`)'s inode state on close/recycle so a reused descriptor
+/// never inherits a previous file's inum or offset. No-op if `fd >= NOFILE`.
+#[inline(always)]
+fn fd_clear_inode(pid: u8, fd: u32) {
+    if fd >= fdtable::NOFILE {
+        return;
+    }
+    if let Some(p) = FD_INODE_MAP.get_ptr_mut(fdtable::fd_slot(pid, fd)) {
+        unsafe {
+            *p = [0, 0];
+        }
+    }
 }
 
 #[inline(always)]
@@ -2413,6 +2486,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.regs[8] = (-1i32) as u32;
                 } else {
                     fd_set_kind(pid, fd, fdtable::FD_FREE);
+                    // Gate D: drop any inode binding so a recycled fd can't read
+                    // a stale {inum, offset} (harmless no-op for console fds).
+                    fd_clear_inode(pid, fd);
                     cpu.regs[8] = 0;
                 }
             } else if syscall_nr == 5 {
