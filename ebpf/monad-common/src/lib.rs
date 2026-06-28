@@ -120,6 +120,12 @@ pub const OFF_CHECKSUM: usize = 0x12;
 /// Number of bytes protected by the Monad checksum (octets 0x00 through 0x11).
 pub const MONAD_CRC_DATA_LEN: usize = 18;
 
+// ── Phase 1.7 Gate D — xv6 fs.img read-only walker ──────────────────────────
+
+/// Pure xv6 `fs.img` inode/dirent address arithmetic for Gate D's
+/// `open`/`read`/`fstat` (unit-tested off-target; see module docs).
+pub mod fs_walk;
+
 // ── Monad Flags bitfield ──────────────────────────────────────────────────────
 
 /// Flags bitfield constants for [`Monad::flags`] (offset [`OFF_FLAGS`]).
