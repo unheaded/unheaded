@@ -126,6 +126,10 @@ pub const MONAD_CRC_DATA_LEN: usize = 18;
 /// `open`/`read`/`fstat` (unit-tested off-target; see module docs).
 pub mod fs_walk;
 
+/// Pure per-process file-descriptor table: descriptor-kind constants, slot
+/// math, free-slot policy, and the off-target inode-state model (Gate D).
+pub mod fdtable;
+
 // ── Monad Flags bitfield ──────────────────────────────────────────────────────
 
 /// Flags bitfield constants for [`Monad::flags`] (offset [`OFF_FLAGS`]).
