@@ -2570,6 +2570,50 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         }
                     }
                 }
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 8 {
+                // ── xv6 SYS_fstat (8) — Gate D dinode stat (Phase 4) ─────────
+                // fstat(fd=a0, st=a1): fill `struct stat` for an FD_INODE fd
+                // from its dinode so `ls` can classify + size each entry.
+                // xv6 `struct stat` = { int dev; uint ino; short type; short
+                // nlink; uint64 size } → 24 bytes (uint64 size 8-aligned at
+                // off 16). No loops here — straight reads + 6 word writes —
+                // so the verifier cost stays tiny on top of the open walk.
+                let pid = cpu.current_pid;
+                let fd = cpu.regs[8];
+                let st_va = cpu.regs[9];
+                let mut done = false;
+                if fd_kind(pid, fd) == fdtable::FD_INODE {
+                    let (inum, _off) = fd_inode(pid, fd);
+                    if let Some(sw) = fs_walk::word_of_block(fs_walk::SUPERBLOCK_BLOCK) {
+                        let magic = ram_word(sw);
+                        let ninodes = ram_word(sw + 3);
+                        let inodestart = ram_word(sw + 6);
+                        if magic == fs_walk::FSMAGIC && fs_walk::inum_valid(inum, ninodes) {
+                            let iblock = fs_walk::inode_block(inum, inodestart);
+                            if let Some(ib) = fs_walk::word_of_block(iblock) {
+                                let db = ib + fs_walk::dinode_word_offset(inum);
+                                let type_ = ram_word(db) & 0xFFFF;
+                                let nlink = ram_word(db + 1) >> 16;
+                                let size = ram_word(db + 2);
+                                // H-FS6: copy-out only through the per-pid bound.
+                                if let Some(phys) = user_phys(pid, st_va, 24) {
+                                    let w = phys >> 2;
+                                    ram_write_word(w, 1); // dev
+                                    ram_write_word(w + 1, inum); // ino
+                                    ram_write_word(w + 2, type_ | (nlink << 16)); // type|nlink
+                                    ram_write_word(w + 3, 0); // pad (8-align size)
+                                    ram_write_word(w + 4, size); // size lo
+                                    ram_write_word(w + 5, 0); // size hi (xv6 files < 4 GiB)
+                                    cpu.regs[8] = 0;
+                                    done = true;
+                                }
+                            }
+                        }
+                    }
+                }
+                if !done {
+                    cpu.regs[8] = (-1i32) as u32;
+                }
             } else if syscall_nr == 17 {
                 // ── xv6 SYS_mknod (17) — RV32I ecall path (Phase 1.7 Gate A) ──
                 // mknod(path, major, minor): register a device node. The console
@@ -3341,6 +3385,18 @@ fn ram_word(word_addr: u32) -> u32 {
 fn ram_byte(byte_addr: u32) -> u8 {
     let w = ram_word(byte_addr >> 2);
     ((w >> ((byte_addr & 3) * 8)) & 0xFF) as u8
+}
+
+/// Gate D: raw word write straight to `RAM_MAP`, skipping `mem_write_word`'s TTY
+/// MMIO intercept. Used to fill a user `struct stat` buffer (plain RAM in the
+/// pid slice, never device memory). Caller bounds the dest via [`user_phys`].
+#[inline(always)]
+fn ram_write_word(word_addr: u32, value: u32) {
+    if let Some(p) = RAM_MAP.get_ptr_mut(word_addr) {
+        unsafe {
+            *p = value;
+        }
+    }
 }
 
 /// Gate D: true if the NUL-or-`/`-terminated path at phys byte `base` equals the
