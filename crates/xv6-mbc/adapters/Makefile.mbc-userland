@@ -112,9 +112,18 @@ userland: $(USERLAND_PROGS)
 # mkfs asserts on '/' in input filenames; we cd into target/ so the
 # basenames are bare. xv6 looks for `/init` (no extension) via namei,
 # so strip the .mbc suffix by creating extensionless copies before mkfs.
+# Gate-D demo fixture: a host-authored ASCII file embedded in fs.img so
+# `cat README` proves the FS reader walked a real inode (anti-memorization
+# control — the exact bytes below cannot be regurgitated by the guest).
 $T/fs.img: $(USERLAND_PROGS)
 	cd $T && for f in $(notdir $(USERLAND_PROGS)); do cp $$f $${f%.mbc}; done
-	cd $T && ../mkfs/mkfs fs.img init sh ls cat echo wc
+	printf '%s\n' \
+	  'Unheaded UPC -- Phase 1.7 Gate D filesystem reader.' \
+	  'If you can read this line, cat() walked a real xv6 inode off' \
+	  'fs.img through the eBPF FS walker: superblock -> inode -> data' \
+	  'block -> user buffer. ls sees, cat speaks, echo answers.' \
+	  'Proof token: 0xGA7ED-D15C-READER. Peace and love.' > $T/README
+	cd $T && ../mkfs/mkfs fs.img init sh ls cat echo wc README
 
 ramdisk: $T/fs.img
 
@@ -122,7 +131,7 @@ clean:
 	rm -f $U/*.o $U/usys.S
 	rm -rf $T/init.* $T/sh.* $T/ls.* $T/cat.* $T/echo.* \
 	       $T/wc.* $T/ln.* $T/mkdir.* $T/kill.* $T/rm.* $T/grep.* \
-	       $T/gate2.* $T/gate_nway.* $T/fs.img
+	       $T/gate2.* $T/gate_nway.* $T/fs.img $T/README
 
 .PHONY: clean init sh ls cat echo wc ln mkdir kill rm grep gate2 gate_nway userland ramdisk
 
