@@ -57,11 +57,12 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, mbc_block as blk, mbc_flags as mf, mbc_interrupts as intr, mbc_linux_syscalls as lsys,
-    mbc_mmap as mmap, mbc_mmu as mmu, mbc_opcodes as op, mbc_syscalls as sys, ComputeHopEvent,
-    MbcCpuState, MbcInsn, Monad, DEFAULT_PROGRAM_BREAK, EVENT_CACHE_MISS, EVENT_COMPUTE_HALT,
-    EVENT_CONTEXT_SWITCH, EVENT_SCREEN_WRITE, EVENT_TTY_WRITE, IPV6_FIXED_HDR_LEN,
-    IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
+    flags, fs_walk, mbc_block as blk, mbc_flags as mf, mbc_interrupts as intr,
+    mbc_linux_syscalls as lsys, mbc_mmap as mmap, mbc_mmu as mmu, mbc_opcodes as op,
+    mbc_syscalls as sys, ComputeHopEvent, MbcCpuState, MbcInsn, Monad, DEFAULT_PROGRAM_BREAK,
+    EVENT_CACHE_MISS, EVENT_COMPUTE_HALT, EVENT_CONTEXT_SWITCH, EVENT_SCREEN_WRITE,
+    EVENT_TTY_WRITE, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE,
+    MONAD_SIZE,
 };
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
@@ -2430,22 +2431,144 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     break;
                 }
             } else if syscall_nr == 15 {
-                // ── xv6 SYS_open (15) — RV32I ecall path (Phase 1.7 Gate A) ──
-                // open(path=a0, flags=a1) → lowest-free fd for this pid, or -1
-                // if the per-process table is full. Pre-filesystem-reader the
-                // only openable object is the console device, so every open()
-                // resolves to a CONSOLE fd — exactly what init's
-                // open("console", O_RDWR) needs (it returns fd 0, then dup×2
-                // puts the console on stdout/stderr). File opens (ls/cat/…)
-                // route here too and currently also yield a console fd; real
-                // inode-backed fds arrive with the Phase 1.7 FS reader (Gate B).
+                // ── xv6 SYS_open (15) — Gate D real inode resolve (Phase 3) ──
+                // open(path=a0, flags=a1). `open("console")` keeps the pre-FS
+                // console-device fd (init's stdio: open→0, dup×2→1,2). Any other
+                // path is resolved against the root directory's dirents (inum 1)
+                // → an FD_INODE descriptor carrying {inum, 0}, or -1 on a miss /
+                // a bad superblock (H-FS3). All `fs.img` address arithmetic goes
+                // through the off-target-tested `monad_common::fs_walk`.
+                //
+                // Verifier budget: the dirent scan is RE-ENTRANT ≤8 entries/tick
+                // (a2=regs[10] is the cursor, a3=regs[11] an OPEN_MAGIC marker so
+                // the cursor is zeroed once at entry). a0/a1 are never written
+                // until the syscall returns, so the per-tick basename re-resolve
+                // is stable. No `translate_address()` — direct phys throughout.
                 let pid = cpu.current_pid;
-                let fd = fd_alloc(pid);
-                if fd >= fdtable::NOFILE {
-                    cpu.regs[8] = (-1i32) as u32; // EMFILE: no free descriptor
+                let path_va = cpu.regs[8];
+                let path_phys = phase12::pid_phys_offset(pid).wrapping_add(path_va);
+                // Basename phys byte addr: strip leading '/' and "./" (≤8 bounded).
+                // Strip a single leading "./" or '/' (covers ls/stat's "./name"
+                // and an absolute "/name"). A fixed two-way test, not a break-loop:
+                // the loop's early exit added verifier state for no real benefit —
+                // our paths never nest deeper than one separator.
+                let mut base = path_phys;
+                let c0 = ram_byte(base);
+                if c0 == b'.' && ram_byte(base.wrapping_add(1)) == b'/' {
+                    base = base.wrapping_add(2);
+                } else if c0 == b'/' {
+                    base = base.wrapping_add(1);
+                }
+                if name_is(base, b"console") {
+                    // Console device is implicit (not in fs.img) — keep FD_CONSOLE.
+                    let fd = fd_alloc(pid);
+                    if fd >= fdtable::NOFILE {
+                        cpu.regs[8] = (-1i32) as u32; // EMFILE
+                    } else {
+                        fd_set_kind(pid, fd, fdtable::FD_CONSOLE);
+                        cpu.regs[8] = fd;
+                    }
                 } else {
-                    fd_set_kind(pid, fd, fdtable::FD_CONSOLE);
-                    cpu.regs[8] = fd;
+                    // Superblock @ block 1 (8 words); H-FS3 gates every open.
+                    let mut sb = [0u32; 8];
+                    let sb_ok = match fs_walk::word_of_block(fs_walk::SUPERBLOCK_BLOCK) {
+                        Some(w0) => {
+                            let mut i = 0u32;
+                            while i < 8 {
+                                sb[i as usize] = ram_word(w0 + i);
+                                i += 1;
+                            }
+                            fs_walk::superblock_valid(&sb)
+                        }
+                        None => false,
+                    };
+                    if !sb_ok {
+                        cpu.regs[8] = (-1i32) as u32; // no valid FS → all opens fail
+                    } else {
+                        let ninodes = fs_walk::superblock_ninodes(&sb);
+                        let inodestart = fs_walk::superblock_inodestart(&sb);
+                        // Root dinode (inum 1). Read its fields DIRECTLY from fs.img
+                        // (a BPF map) rather than decoding into a stack struct: the
+                        // dirent scan indexes addrs by a runtime `fbn`, and a
+                        // variable-offset read from the *stack* is rejected by the
+                        // verifier — a variable index into a map is allowed.
+                        let iblock = fs_walk::inode_block(fs_walk::ROOTINO, inodestart);
+                        match fs_walk::word_of_block(iblock) {
+                            None => cpu.regs[8] = (-1i32) as u32, // inode block oob (H-FS1)
+                            Some(ib_word) => {
+                                let dino_base =
+                                    ib_word + fs_walk::dinode_word_offset(fs_walk::ROOTINO);
+                                let rtype = (ram_word(dino_base) & 0xFFFF) as u16;
+                                let rsize = ram_word(dino_base + 2);
+                                if rtype != fs_walk::T_DIR {
+                                    // Root inode must be a directory to walk dirents.
+                                    cpu.regs[8] = (-1i32) as u32;
+                                } else {
+                                    // Clamp the entry count to a constant ceiling: a
+                                    // hostile dinode.size can't drive an unbounded
+                                    // scan (bounds total re-entries).
+                                    const OPEN_MAX_DIRENTS: u32 = 256;
+                                    const OPEN_MAGIC: u32 = 0x09E0_0DE0;
+                                    let ndir_raw = rsize / fs_walk::DIRENT_BYTES;
+                                    let ndir = if ndir_raw > OPEN_MAX_DIRENTS {
+                                        OPEN_MAX_DIRENTS
+                                    } else {
+                                        ndir_raw
+                                    };
+                                    if cpu.regs[11] != OPEN_MAGIC {
+                                        cpu.regs[10] = 0;
+                                        cpu.regs[11] = OPEN_MAGIC;
+                                    }
+                                    let idx = cpu.regs[10];
+                                    let mut found: u32 = 0; // 0 = none (never a real inum)
+                                                            // ONE dirent per tick. No outer loop: re-entry
+                                                            // (pc-=1) advances the cursor, so the only loop
+                                                            // the verifier explores here is name_eq_phys's
+                                                            // 14-iter compare. exec(7) already sits near the
+                                                            // shared 1M ceiling; >1 dirent/tick tipped the
+                                                            // whole program over (BPF program too large).
+                                    if idx < ndir {
+                                        let fbn = idx / fs_walk::DIRENTS_PER_BLOCK;
+                                        if (fbn as usize) < fs_walk::NDIRECT {
+                                            // addrs[fbn] = dinode word 3+fbn, read from
+                                            // fs.img (map index, not stack).
+                                            let dblk = ram_word(dino_base + 3 + fbn);
+                                            if dblk != 0 {
+                                                if let Some(dbw) = fs_walk::word_of_block(dblk) {
+                                                    let within = idx % fs_walk::DIRENTS_PER_BLOCK;
+                                                    let dword = dbw + within * 4; // 4 w/dirent
+                                                    let inum = ram_word(dword) & 0xFFFF;
+                                                    if inum != 0
+                                                        && inum < ninodes
+                                                        && name_eq_phys(dword * 4 + 2, base)
+                                                    {
+                                                        found = inum;
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    let next = idx + 1;
+                                    if found != 0 {
+                                        let fd = fd_alloc(pid);
+                                        if fd >= fdtable::NOFILE {
+                                            cpu.regs[8] = (-1i32) as u32;
+                                        } else {
+                                            fd_set_inode(pid, fd, found); // FD_INODE + [inum,0]
+                                            cpu.regs[8] = fd;
+                                        }
+                                    } else if next < ndir {
+                                        // More dirents remain — re-enter next tick.
+                                        cpu.regs[10] = next;
+                                        cpu.pc = cpu.pc.wrapping_sub(1);
+                                        break;
+                                    } else {
+                                        cpu.regs[8] = (-1i32) as u32; // exhausted, no match
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             } else if syscall_nr == 17 {
                 // ── xv6 SYS_mknod (17) — RV32I ecall path (Phase 1.7 Gate A) ──
@@ -3199,6 +3322,70 @@ fn tty_push_byte(b: u8) {
             *h = new_head;
         }
     }
+}
+
+/// Gate D: raw word read straight from `RAM_MAP` — NO MMIO/screen/KBD range
+/// checks (those branches are pure verifier-complexity tax in the fs.img walk,
+/// which never touches device memory). Use only for fs.img / user-slice RAM.
+#[inline(always)]
+fn ram_word(word_addr: u32) -> u32 {
+    match RAM_MAP.get(word_addr) {
+        Some(v) => *v,
+        None => 0,
+    }
+}
+
+/// Gate D: raw byte read via [`ram_word`] (one map lookup + shift, no MMIO
+/// branches) — keeps the hot name-compare loop cheap for the BPF verifier.
+#[inline(always)]
+fn ram_byte(byte_addr: u32) -> u8 {
+    let w = ram_word(byte_addr >> 2);
+    ((w >> ((byte_addr & 3) * 8)) & 0xFF) as u8
+}
+
+/// Gate D: true if the NUL-or-`/`-terminated path at phys byte `base` equals the
+/// literal `lit` (e.g. `b"console"`). Bounded to `lit.len()+1` byte reads.
+#[inline(always)]
+fn name_is(base: u32, lit: &[u8]) -> bool {
+    let mut i = 0usize;
+    while i < lit.len() {
+        if ram_byte(base.wrapping_add(i as u32)) != lit[i] {
+            return false;
+        }
+        i += 1;
+    }
+    let n = ram_byte(base.wrapping_add(lit.len() as u32));
+    n == 0 || n == b'/'
+}
+
+/// Gate D: `strncmp(name, basename, DIRSIZ)` over phys memory. `dname` is the
+/// phys byte address of a NUL-padded 14-byte dirent name; `base` is the
+/// phys byte address of the NUL-or-`/`-terminated path basename. **H-FS8**:
+/// reads at most [`fs_walk::DIRSIZ`] bytes of the dirent field, never past it.
+#[inline(always)]
+fn name_eq_phys(dname: u32, base: u32) -> bool {
+    // Early-return form: a `return` lets the verifier PRUNE the rest of this
+    // path immediately (cheaper than a flag-accumulating full 14-iter scan, which
+    // forces the verifier to explore every iteration). H-FS8: ≤ DIRSIZ bytes.
+    let mut k = 0u32;
+    while k < fs_walk::DIRSIZ as u32 {
+        let dn = ram_byte(dname.wrapping_add(k));
+        let praw = ram_byte(base.wrapping_add(k));
+        // Path basename terminates at NUL or '/'; treat both as the 0 pad the
+        // dirent name uses for short names so strncmp semantics line up.
+        let pn = if praw == b'/' { 0 } else { praw };
+        if dn != pn {
+            return false;
+        }
+        if pn == 0 {
+            return true; // both end here
+        }
+        k += 1;
+    }
+    // Consumed all DIRSIZ bytes with no mismatch: equal iff the basename also
+    // ends exactly at DIRSIZ (no 15th significant byte).
+    let nxt = ram_byte(base.wrapping_add(fs_walk::DIRSIZ as u32));
+    nxt == 0 || nxt == b'/'
 }
 
 /// Read a single byte from the MBC address space.
