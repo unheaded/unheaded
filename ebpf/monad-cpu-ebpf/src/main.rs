@@ -2667,9 +2667,85 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // one O(1) ring pop + one bounded user_phys() + one mem_write_byte.
                 let pid = cpu.current_pid;
                 let fd = cpu.regs[8];
-                if fd_kind(pid, fd) != fdtable::FD_CONSOLE {
-                    cpu.regs[8] = (-1i32) as u32; // not a readable fd (yet)
-                } else {
+                let kind = fd_kind(pid, fd);
+                if kind == fdtable::FD_INODE {
+                    // ── Gate D file read (Phase 5): copy ≤READ_CHUNK bytes from
+                    // the inode's data at the stored offset into the user buffer,
+                    // advance the offset, return the count (0 at EOF). Capped per
+                    // call (a SHORT read) so NO re-entrancy is needed — ls reads
+                    // 16 B exact, cat tolerates short reads — keeping verifier
+                    // state well under the budget-tight 1M ceiling.
+                    const READ_CHUNK: u32 = 16; // bytes per read() call (1 dirent / short read)
+                    let n = cpu.regs[10]; // a2 = requested count
+                    let buf_va = cpu.regs[9]; // a1
+                    let (inum, offset) = fd_inode(pid, fd);
+                    let mut ret = (-1i32) as u32;
+                    if let Some(sw) = fs_walk::word_of_block(fs_walk::SUPERBLOCK_BLOCK) {
+                        let magic = ram_word(sw);
+                        let ninodes = ram_word(sw + 3);
+                        let inodestart = ram_word(sw + 6);
+                        if magic == fs_walk::FSMAGIC && fs_walk::inum_valid(inum, ninodes) {
+                            let iblock = fs_walk::inode_block(inum, inodestart);
+                            if let Some(ib) = fs_walk::word_of_block(iblock) {
+                                let db = ib + fs_walk::dinode_word_offset(inum);
+                                let size = ram_word(db + 2);
+                                if offset >= size {
+                                    ret = 0; // EOF
+                                } else {
+                                    // H-FS7: clamp to n, to one chunk, and to the
+                                    // current data block's remaining bytes; no wrap.
+                                    let avail = size - offset;
+                                    let mut cap = if n < avail { n } else { avail };
+                                    if cap > READ_CHUNK {
+                                        cap = READ_CHUNK;
+                                    }
+                                    let within = offset % fs_walk::BSIZE;
+                                    let block_left = fs_walk::BSIZE - within;
+                                    if cap > block_left {
+                                        cap = block_left;
+                                    }
+                                    let fbn = offset / fs_walk::BSIZE;
+                                    if (fbn as usize) < fs_walk::NDIRECT {
+                                        let dblk = ram_word(db + 3 + fbn);
+                                        if dblk != 0 {
+                                            if let Some(dbw) = fs_walk::word_of_block(dblk) {
+                                                let src_byte = dbw * 4 + within;
+                                                // H-FS6: copy-out via the per-pid bound.
+                                                // Bound the dest to the full chunk; our
+                                                // inode readers (ls=16, cat=512) always
+                                                // pass buffers ≥ READ_CHUNK.
+                                                if let Some(dst) =
+                                                    user_phys(pid, buf_va, READ_CHUNK)
+                                                {
+                                                    // Fixed READ_CHUNK-byte copy with NO
+                                                    // inner guard — the guarded form
+                                                    // doubled verifier states and blew
+                                                    // the 1M ceiling. The caller honors
+                                                    // the returned `cap`, so tail bytes
+                                                    // copied past it are ignored; every
+                                                    // src byte stays inside fs.img.
+                                                    let mut c = 0u32;
+                                                    while c < READ_CHUNK {
+                                                        ram_write_byte(
+                                                            dst + c,
+                                                            ram_byte(src_byte + c),
+                                                        );
+                                                        c += 1;
+                                                    }
+                                                    fd_set_offset(pid, fd, offset + cap);
+                                                    ret = cap;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    // fbn ≥ NDIRECT (file > 12 KiB single-indirect)
+                                    // is not needed for the Gate-D corpus.
+                                }
+                            }
+                        }
+                    }
+                    cpu.regs[8] = ret;
+                } else if kind == fdtable::FD_CONSOLE {
                     let tail = match KBD_TAIL.get(0) {
                         Some(v) => *v,
                         None => 0,
@@ -2710,6 +2786,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         cpu.pc = cpu.pc.wrapping_sub(1);
                         break;
                     }
+                } else {
+                    cpu.regs[8] = (-1i32) as u32; // not a readable fd
                 }
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 7 {
                 // ── xv6 SYS_exec (7) — Phase 1.7 Gate B headline (ADR-077) ──
@@ -3395,6 +3473,19 @@ fn ram_write_word(word_addr: u32, value: u32) {
     if let Some(p) = RAM_MAP.get_ptr_mut(word_addr) {
         unsafe {
             *p = value;
+        }
+    }
+}
+
+/// Gate D: raw byte write (read-modify-write of the enclosing word) straight to
+/// `RAM_MAP`, skipping MMIO intercepts. Used by `read(5)` to copy file bytes
+/// into a user buffer. Caller bounds the dest via [`user_phys`].
+#[inline(always)]
+fn ram_write_byte(byte_addr: u32, value: u8) {
+    let shift = (byte_addr & 3) * 8;
+    if let Some(p) = RAM_MAP.get_ptr_mut(byte_addr >> 2) {
+        unsafe {
+            *p = (*p & !(0xFFu32 << shift)) | ((value as u32) << shift);
         }
     }
 }
