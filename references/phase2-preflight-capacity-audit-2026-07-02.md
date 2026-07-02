@@ -75,8 +75,11 @@ Phase 2.1 in the 2026-05-08 plan (tasks 54–60: vendor Linux, port arch/mbc) pr
 the code-store problem is solved. It is not. **Insert a Phase 2.0 substrate epic before
 2.1:**
 
-1. **RET address tagging** (ADR + impl) — removes the value-disambiguation ceiling.
-   Prerequisite for any image whose MBC size crosses the floor. ~Modest verifier cost.
+1. ~~**RET address tagging** (ADR + impl) — removes the value-disambiguation ceiling.~~
+   **✅ DONE 2026-07-02 (ADR-079).** CALL/CALLR tag MBC PCs with bit 31; RET tests the
+   tag, not magnitude. Floor + loader guard retired. xv6 corpus green, verifier +0.03%.
+   Also expected to fix the Doom PC-corruption misparse (Marshal-supervised confirm
+   pending). Wall #4 (RET_RV_FLOOR) is now CLOSED.
 2. **Code-store strategy decision** (pair call — this is the fork in the road):
    - **(A) Bigger resident maps** — grow ROM_MAP + RV2MBC_MAP to Linux scale (megabytes
      of locked memory/instance), keep whole-kernel offline pretranslation. Simplest;

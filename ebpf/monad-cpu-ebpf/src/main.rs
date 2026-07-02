@@ -191,6 +191,20 @@ fn rv2mbc_branch_base(_cpu: &MbcCpuState) -> u32 {
     0
 }
 
+/// Tag bit set on an MBC return address stored in r14 (LR) by CALL/CALLR, so
+/// RET can tell a saved MBC PC from a raw RISC-V byte address WITHOUT a fragile
+/// magnitude threshold (ADR-079). MBC PCs are ROM_MAP word indices (max ≈
+/// 0x40000) and every RV address the guest uses (kernel .text ≈ 0x20000, user
+/// VA < 8 MiB, stack < 64 MiB) is < 0x8000_0000, so bit 31 is free and
+/// unambiguous. Replaces the value-disambiguation floor that Gate D.1 had to
+/// keep raising (0x10000 → 0x20000 for wc); scales to any image size and, by
+/// construction, makes the Doom `[0x10000, 0x151BF]` return-PC misparse
+/// impossible. A tagged value round-trips through the guest stack (SW ra / LW
+/// ra) transparently — it is just a 32-bit word — and the C-function-pointer
+/// path (`context.ra = (uint64)&fn`) stores an UNtagged RV address, which RET
+/// still routes to the rv2mbc lookup.
+const RET_MBC_TAG: u32 = 0x8000_0000;
+
 /// 8 MiB per-pid user VA window (== `phase12::SLICE_STRIDE`). A user VA at or
 /// above this escapes the pid's slice.
 const USER_VA_CEILING: u32 = 0x0080_0000;
@@ -1000,8 +1014,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // No stack manipulation here — that's the compiler's job.
             //
             // This matches RV32I `jal x1, target`: x1=PC+4, PC=target.
-            // x1(ra) maps to MBC r14.
-            cpu.regs[14] = cpu.pc; // LR = return address
+            // x1(ra) maps to MBC r14. Tag the MBC PC (ADR-079) so RET can
+            // distinguish it from a raw RV address by bit 31, not magnitude.
+            cpu.regs[14] = cpu.pc | RET_MBC_TAG; // LR = tagged return address
             let target = insn_word & 0x00FF_FFFF;
             cpu.pc = target;
             if cpu.pc == 0 {
@@ -1061,7 +1076,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
             // Indirect call with RV32I→MBC address translation.
             let old_pc = cpu.pc.wrapping_sub(1);
-            cpu.regs[14] = cpu.pc; // LR = return address
+            cpu.regs[14] = cpu.pc | RET_MBC_TAG; // LR = tagged return address (ADR-079)
             let rv_addr = cpu.regs[d];
             let rv_word = rv_addr >> 2;
 
@@ -1105,49 +1120,43 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // Link register return: jump to address in r14 (LR).
             //
             // r14 holds one of two semantically-distinct things:
-            //   (a) MBC PC saved by a prior CALL — kernel ROM [0, ~0x2E00]
-            //       plus the resident user programs' ROM regions (wc, the
-            //       highest, tops out ≈ 0x14B00). All < RET_RV_FLOOR.
-            //   (b) RISC-V byte address loaded from a C struct field
-            //       initialised with `(uint64)&function` — kernel .text
-            //       links at RV 0x20000 (kernel-mbc.ld), so these are
-            //       >= RET_RV_FLOOR.
+            //   (a) an MBC PC saved by a prior CALL/CALLR — now TAGGED with
+            //       bit 31 (`RET_MBC_TAG`, ADR-079). Untag and jump direct.
+            //   (b) a raw RISC-V byte address loaded from a C struct field
+            //       initialised with `(uint64)&function` — UNtagged (bit 31
+            //       clear). Translate via the rv2mbc lookup.
             //
-            // Case (a) is the compiled-RV path: CALL stores cpu.pc into
-            // r14, callee saves/restores ra to/from stack via LW/SW, RET
-            // reads it back. The stored value never escapes MBC space.
+            // Case (a) is the compiled-RV path: CALL tags cpu.pc into r14, the
+            // callee saves/restores ra to/from the stack via SW/LW (the tag
+            // is just a 32-bit bit, it round-trips), RET untags it here.
             //
             // Case (b) is the C-function-pointer pattern used by xv6's
             // scheduler / fork plumbing: `p->context.ra = (uint64)forkret;`
-            // stores forkret's RV linker address. swtch_mbc.S loads it
-            // into ra via `lw ra, 0(a1)` and rets. Without translation,
-            // PC gets set to the RV byte address, walks through zero-NOPs
-            // in ROM_MAP, and hits the bounds halt at 0x40000. See
+            // stores forkret's RV linker address. swtch_mbc.S loads it into ra
+            // via `lw ra, 0(a1)` and rets; the value never passed through a
+            // CALL so it carries no tag → rv2mbc lookup. See
             // references/phase14-session-2026-05-14-marshal-shift.md.
             //
-            // Disambiguate by value: r14 >= RET_RV_FLOOR means "RV byte
-            // address", do the rv2mbc lookup; otherwise treat as an MBC PC
-            // directly. THE GATE D.1 TRAP: this floor was 0x10000, but wc's
-            // ROM base is 0x12000 — every RET inside wc took the RV-lookup
-            // path and jumped into kernel-region garbage (kexec/freewalk),
-            // the `wc README` runaway. The host loader refuses to place a
-            // program's ROM at/above this floor (upc-bootctl guard), so the
-            // two value spaces stay disjoint. Caveat: an RV address in
-            // [0x10000, 0x20000) (the stage-1 stub region) would now be
-            // misread as an MBC PC — nothing RETs into the stub in the xv6
-            // flow (it is not even loaded here).
-            const RET_RV_FLOOR: u32 = 0x20000;
+            // The tag replaces the old magnitude floor (Gate D.1's 0x10000 →
+            // 0x20000, which broke once wc's ROM base crossed it and cannot
+            // survive Linux-scale MBC images). Bit 31 is free because MBC PCs
+            // are ROM_MAP word indices (< 0x40000) and every guest RV address
+            // is < 0x8000_0000.
             let ret = cpu.regs[14];
-            if ret == 0 {
-                mem_write_word(0xE0000 >> 2, 0xDEAD0001);
-                mem_write_word(0xE0004 >> 2, 0x28);
-                mem_write_word(0xE0008 >> 2, cpu.pc.wrapping_sub(1));
-                mem_write_word(0xE000C >> 2, ret);
-                mem_write_word(0xE0010 >> 2, cpu.regs[15]);
-                mem_write_word(0xE0014 >> 2, cpu.regs[14]);
-                increment_stat(STAT_ROM_FAULT);
-            }
-            if ret >= RET_RV_FLOOR {
+            if ret & RET_MBC_TAG != 0 {
+                // (a) Tagged MBC PC — untag, jump direct.
+                cpu.pc = ret & !RET_MBC_TAG;
+            } else {
+                // (b) Raw RV byte address (or a stale 0). rv2mbc lookup.
+                if ret == 0 {
+                    mem_write_word(0xE0000 >> 2, 0xDEAD0001);
+                    mem_write_word(0xE0004 >> 2, 0x28);
+                    mem_write_word(0xE0008 >> 2, cpu.pc.wrapping_sub(1));
+                    mem_write_word(0xE000C >> 2, ret);
+                    mem_write_word(0xE0010 >> 2, cpu.regs[15]);
+                    mem_write_word(0xE0014 >> 2, cpu.regs[14]);
+                    increment_stat(STAT_ROM_FAULT);
+                }
                 let rv_word = ret >> 2;
                 cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_branch_base(cpu))) {
                     Some(mbc_idx) if *mbc_idx != 0 => {
@@ -1168,8 +1177,6 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         ret
                     }
                 };
-            } else {
-                cpu.pc = ret;
             }
 
         // ── Memory ────────────────────────────────────────────────────────────
