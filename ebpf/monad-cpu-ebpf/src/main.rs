@@ -1105,12 +1105,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // Link register return: jump to address in r14 (LR).
             //
             // r14 holds one of two semantically-distinct things:
-            //   (a) MBC PC saved by a prior CALL  — small value (< 0x10000)
+            //   (a) MBC PC saved by a prior CALL — kernel ROM [0, ~0x2E00]
+            //       plus the resident user programs' ROM regions (wc, the
+            //       highest, tops out ≈ 0x14B00). All < RET_RV_FLOOR.
             //   (b) RISC-V byte address loaded from a C struct field
-            //       initialised with `(uint64)&function`  — large value
-            //       (>= 0x10000 per kernel-mbc.ld layout: kernel .text
-            //       at 0x20000, stage-1 stub at 0x10000, MBC PCs at
-            //       ROM_MAP slots [0, 0x10000)).
+            //       initialised with `(uint64)&function` — kernel .text
+            //       links at RV 0x20000 (kernel-mbc.ld), so these are
+            //       >= RET_RV_FLOOR.
             //
             // Case (a) is the compiled-RV path: CALL stores cpu.pc into
             // r14, callee saves/restores ra to/from stack via LW/SW, RET
@@ -1124,8 +1125,18 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             // in ROM_MAP, and hits the bounds halt at 0x40000. See
             // references/phase14-session-2026-05-14-marshal-shift.md.
             //
-            // Disambiguate by value: r14 >= 0x10000 means "RV byte address",
-            // do rv2mbc lookup; otherwise treat as MBC PC directly.
+            // Disambiguate by value: r14 >= RET_RV_FLOOR means "RV byte
+            // address", do the rv2mbc lookup; otherwise treat as an MBC PC
+            // directly. THE GATE D.1 TRAP: this floor was 0x10000, but wc's
+            // ROM base is 0x12000 — every RET inside wc took the RV-lookup
+            // path and jumped into kernel-region garbage (kexec/freewalk),
+            // the `wc README` runaway. The host loader refuses to place a
+            // program's ROM at/above this floor (upc-bootctl guard), so the
+            // two value spaces stay disjoint. Caveat: an RV address in
+            // [0x10000, 0x20000) (the stage-1 stub region) would now be
+            // misread as an MBC PC — nothing RETs into the stub in the xv6
+            // flow (it is not even loaded here).
+            const RET_RV_FLOOR: u32 = 0x20000;
             let ret = cpu.regs[14];
             if ret == 0 {
                 mem_write_word(0xE0000 >> 2, 0xDEAD0001);
@@ -1136,7 +1147,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 mem_write_word(0xE0014 >> 2, cpu.regs[14]);
                 increment_stat(STAT_ROM_FAULT);
             }
-            if ret >= 0x10000 {
+            if ret >= RET_RV_FLOOR {
                 let rv_word = ret >> 2;
                 cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_branch_base(cpu))) {
                     Some(mbc_idx) if *mbc_idx != 0 => {

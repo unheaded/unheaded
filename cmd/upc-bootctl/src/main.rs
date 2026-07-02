@@ -143,9 +143,23 @@ fn load_resident_program(
     data_stage_va: u32,
 ) -> Result<()> {
     const OP_CALL: u32 = 0x27;
+    // The eBPF RET handler disambiguates r14 by value: < RET_RV_FLOOR
+    // (0x20000) = MBC return PC, >= = RV byte address needing an rv2mbc
+    // lookup. A program whose ROM crosses that floor makes its own CALL
+    // return addresses misparse as RV pointers — the Gate D.1 `wc README`
+    // runaway (wc at ROM 0x12000 vs the old 0x10000 floor). Refuse loudly.
+    const RET_RV_FLOOR: u32 = 0x20000;
     let bytes = std::fs::read(mbc_path).with_context(|| format!("read {}", mbc_path.display()))?;
     if !bytes.len().is_multiple_of(4) {
         bail!("{} not 4-byte aligned", mbc_path.display());
+    }
+    let rom_end = rom_base as u64 + (bytes.len() as u64 / 4);
+    if rom_end > RET_RV_FLOOR as u64 {
+        bail!(
+            "{name}: ROM [0x{rom_base:X}, 0x{rom_end:X}) crosses the RET \
+             MBC-vs-RV disambiguation floor 0x{RET_RV_FLOOR:X} — its CALL \
+             return addresses would misparse as RV pointers (Gate D.1 wc bug)"
+        );
     }
     // Patch CALL immediates by rom_base, exactly like the init path.
     let words: Vec<u32> = bytes
