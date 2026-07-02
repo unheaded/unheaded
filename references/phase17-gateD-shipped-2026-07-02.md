@@ -94,7 +94,33 @@ was a landmine.
 | E3 | `--input $'echo hello\n'` | `hello` ✅ |
 | E4 | regressions | Gate C `echo\n` stats identical (`forks=2 tty_r=5 waitpid=1 halt=0x0`, ends `$$`); gate2 `ISOLATION-PASS`; gate_nway `NWAY-FAIL pid2` pre-existing; monad-common 85+1 tests pass; both eBPF configs compile, ascend rebuilt LAST; XDP attach passes (under the 1M ceiling) ✅ |
 
-## Known issue → Gate D.1
+## Known issue → Gate D.1 — **RESOLVED same day (`a769d5ee`)**
+
+**Root cause: the RET MBC-vs-RV disambiguation floor.** The RET handler treats r14 <
+0x10000 as an MBC return PC and ≥ 0x10000 as an RV byte address needing an rv2mbc
+lookup. wc's ROM base is **0x12000** — the resident-program loader outgrew the
+constant — so every RET inside wc misparsed its own return address as an RV pointer
+and jumped into kernel-region garbage (`<2585>` = kexec+0x358; then endless
+freewalk-area execution with the diving SP). Only wc crossed the line (cat tops out at
+0xF000). The "wc no-args is healthy" probe below was a false negative: it blocks on
+stdin before executing a single RET. The timer-preemption lead was falsified first
+(the BPF timer is cfg-gated OFF under ascend-linux — xv6 has no preemption at all).
+
+Fix: floor raised to 0x20000 (MBC PCs top out ≈0x14B00; kernel .text RV addresses
+start at 0x20000 per kernel-mbc.ld) + upc-bootctl refuses to load a program whose ROM
+would cross the floor. `wc README` → `5 49 283 README`. Full E1–E4 sweep green,
+Gate C stats byte-identical.
+
+**Doom side-note (hypothesis, needs a Marshal-supervised doom-runner session):**
+doom.rv2mbc shows Doom MBC PCs span [0x2, 0x151BF] — under the OLD floor, every Doom
+return address in [0x10000, 0x151BF] misparsed as RV, which looks like (one of) the
+mechanisms behind Doom's documented PC-corruption blocker. Doom never legitimately
+RETs to raw RV pointers (CALLR stores MBC PCs), and all Doom MBC PCs sit below the new
+0x20000 floor, so the change is plausibly a strict improvement for Doom. Verify before
+claiming. Long-term sound fix for both worlds: tag MBC return addresses at CALL time
+(ADR candidate).
+
+### Original diagnosis trail (kept for the record)
 
 **`wc README` spins.** wc's child (pid 2) runs away: PC lands in the kernel region
 (≈0x997), SP descends ~270 KB below 0x500000 (repeated frames), kernel RET-anomaly
