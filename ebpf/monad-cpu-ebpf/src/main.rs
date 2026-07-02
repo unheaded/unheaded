@@ -2550,6 +2550,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                                     }
                                     let next = idx + 1;
                                     if found != 0 {
+                                        // Retire the scan: a stale OPEN_MAGIC left in
+                                        // a3 would make the NEXT open seed its cursor
+                                        // from whatever the user last put in a2 (e.g.
+                                        // read's n=16), silently skipping dirents.
+                                        cpu.regs[11] = 0;
                                         let fd = fd_alloc(pid);
                                         if fd >= fdtable::NOFILE {
                                             cpu.regs[8] = (-1i32) as u32;
@@ -2563,6 +2568,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                                         cpu.pc = cpu.pc.wrapping_sub(1);
                                         break;
                                     } else {
+                                        cpu.regs[11] = 0; // retire the scan (see above)
                                         cpu.regs[8] = (-1i32) as u32; // exhausted, no match
                                     }
                                 }
@@ -2574,10 +2580,15 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 // ── xv6 SYS_fstat (8) — Gate D dinode stat (Phase 4) ─────────
                 // fstat(fd=a0, st=a1): fill `struct stat` for an FD_INODE fd
                 // from its dinode so `ls` can classify + size each entry.
-                // xv6 `struct stat` = { int dev; uint ino; short type; short
-                // nlink; uint64 size } → 24 bytes (uint64 size 8-aligned at
-                // off 16). No loops here — straight reads + 6 word writes —
-                // so the verifier cost stays tiny on top of the open walk.
+                // THE ILP32E TRAP: xv6 types.h does `typedef unsigned long
+                // uint64` — 4 BYTES under -mabi=ilp32e — so `struct stat` =
+                // { int dev; uint ino; short type; short nlink; uint64 size }
+                // is 16 bytes with size at offset 12, NOT the RV64 24-byte /
+                // offset-16 layout. Writing 24 bytes smashed the 8 bytes after
+                // the caller's st — ls's buf[0..3] — blanking every path `ls`
+                // built (the Gate D "blank names + size 0" bug). No loops here
+                // — straight reads + 4 word writes — so the verifier cost
+                // stays tiny on top of the open walk.
                 let pid = cpu.current_pid;
                 let fd = cpu.regs[8];
                 let st_va = cpu.regs[9];
@@ -2596,14 +2607,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                                 let nlink = ram_word(db + 1) >> 16;
                                 let size = ram_word(db + 2);
                                 // H-FS6: copy-out only through the per-pid bound.
-                                if let Some(phys) = user_phys(pid, st_va, 24) {
+                                if let Some(phys) = user_phys(pid, st_va, 16) {
                                     let w = phys >> 2;
                                     ram_write_word(w, 1); // dev
                                     ram_write_word(w + 1, inum); // ino
                                     ram_write_word(w + 2, type_ | (nlink << 16)); // type|nlink
-                                    ram_write_word(w + 3, 0); // pad (8-align size)
-                                    ram_write_word(w + 4, size); // size lo
-                                    ram_write_word(w + 5, 0); // size hi (xv6 files < 4 GiB)
+                                    ram_write_word(w + 3, size); // size (ulong = 4 B on ilp32e)
                                     cpu.regs[8] = 0;
                                     done = true;
                                 }
