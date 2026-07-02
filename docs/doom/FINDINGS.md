@@ -1,5 +1,31 @@
 # Doom Findings -- Session 2026-03-29
 
+> ## ⚡ 2026-07-02 UPDATE — test ADR-079 FIRST next Doom shift (strong PC-corruption fix candidate)
+> The ASCEND-LINUX work found and fixed a return-address disambiguation bug in the
+> **shared** eBPF interpreter that is a strong candidate for (part of) the PC-corruption
+> blocker below. The RET handler distinguished a saved MBC PC from a raw RV byte address
+> by a **magnitude floor** (originally `0x10000`). Doom's `doom.rv2mbc` shows Doom's MBC
+> PCs span **`[0x2, 0x151BF]`** — so **every Doom RET whose return address ≥ 0x10000 was
+> misparsed as an RV byte address**, sent through the `RV2MBC_MAP` lookup, and jumped to a
+> wrong/garbage target early in init. That matches this doc's signature exactly ("jumped
+> to an invalid address early in init via an indirect path," then PC climbs through NOPs
+> into the billions).
+>
+> **ADR-079 (commit `687c9182`) makes this misparse impossible by construction**: CALL/CALLR
+> now tag MBC return addresses with bit 31, and RET tests the tag instead of magnitude.
+> Verified regression-green on the whole xv6 corpus; the non-ascend (Doom) config compiles.
+>
+> **Caveat — Doom is currently "PLAYABLE" per `NEXT-STEPS.md` (2026-03-30) and E1M1 is
+> completable**, so the 2026-03-29 PC corruption below was evidently worked around after
+> this doc was written. That means ADR-079 is EITHER redundant with a later Doom-side fix,
+> OR still relevant to residual issues (E1M2 texture corruption). Either way it should not
+> regress a playable Doom (the tag is transparent to pure-MBC call/return). **Not yet run
+> against Doom** — needs a Marshal-supervised doom-runner pipeline (netns + packet
+> injection). **Next Doom session: rebuild the non-ascend object, run doom-runner, confirm
+> E1M1 still plays and CPU_MAP PC stays in `[0, 0x3FFFF]`; then check whether E1M2 textures
+> improve.** See `docs/adr/ADR-079-ret-address-tagging.md` and
+> `references/phase17-gateD-shipped-2026-07-02.md`.
+
 ## The Debugging Journey
 
 This document records the full debugging narrative of the Doom-over-IPv6 session
