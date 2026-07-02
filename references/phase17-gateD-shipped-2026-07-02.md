@@ -96,15 +96,23 @@ was a landmine.
 
 ## Known issue → Gate D.1
 
-**`wc README` spins.** wc's child (pid 2) runs away in user code: PC≈0x997, SP descends
-~270 KB below 0x500000 (deep recursion or runaway loop), kernel RET-anomaly tracer
-emits `<2585>`, sh never reaps (`waitpid=0`). NOT a regression — wc was unreachable
-before argv existed (argc was always 0 → wc read stdin → blocked). wc is not in the
-Gate D acceptance set. First lead for D.1: wc is the only corpus program whose printf
-prints THREE `%d`s from accumulated counters — but ls prints `%d` sizes fine; second
-lead: wc's `while((n = read(fd, buf, 512)) > 0)` short-read loop interleaving with the
-new re-entrant write cursor (both park state in a3 across ecall re-entries — check for
-a collision when read's console-block path and write's cursor path alternate).
+**`wc README` spins.** wc's child (pid 2) runs away: PC lands in the kernel region
+(≈0x997), SP descends ~270 KB below 0x500000 (repeated frames), kernel RET-anomaly
+tracer emits `<2585>`, sh never reaps (`waitpid=0`). NOT a regression — wc was
+unreachable before argv existed (argc was always 0 → wc read stdin → blocked). wc is
+not in the Gate D acceptance set.
+
+Post-ship probes pruned the space: `wc` with NO args sits healthy at PC=0x1220E (its
+own ROM) correctly blocked on stdin → startup/BSS/entry/exec-staging are fine; `echo a
+b c` prints `a b c` → multi-arg argv is fine. The runaway is specific to wc's
+FD_INODE read+count loop. **Lead #1 (strong): timer/trap preemption of long pure-user
+compute.** wc is the only corpus program that runs ~1400 uninterrupted user-code loop
+iterations between syscalls (per-byte `strchr` on each 16-byte chunk); cat/echo/ls are
+syscall-dense. A timer interrupt delivered at priv==3 exercises a user-preemption trap
+path no program ever hit — same family as the Gate C MRET user-vs-kernel rv2mbc-base
+bug. Check trap entry/return for user-mode preemption (ra/sp handling, base selection
+on the trap RET). Weakened: a3-collision (wc's loop has no re-entrant a3 holders) and
+varargs (`%d`×3 works in ls).
 
 ## Verifier-budget ledger (what fit)
 
