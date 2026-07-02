@@ -89,17 +89,19 @@ static RAM_MAP: Array<u32> = Array::with_max_entries(16_777_216, 0);
 #[map]
 static SCREEN_MAP: Array<u8> = Array::with_max_entries(64_000, 0);
 
-/// Keyboard state: 8 entries, one u32 per active key slot.
+/// Keyboard state: 64 entries, one u32 per active key slot (Gate D Phase 6:
+/// 8→64 so a full command line like `cat README\n` fits the scripted ring).
 /// Encoding: `(scancode << 1) | pressed_flag`
-/// Userspace writes key events here.  CPU reads via SYS_GET_KEY.
+/// Userspace writes key events here.  CPU reads via SYS_GET_KEY (legacy Doom
+/// path scans slots 0..8 only) or the ascend console read(5) ring drain.
 #[map]
-static KBD_MAP: Array<u32> = Array::with_max_entries(8, 0);
+static KBD_MAP: Array<u32> = Array::with_max_entries(64, 0);
 
 /// KBD ring producer/consumer indices (Gate C Stage 2). The host (upc-bootctl
 /// `write_kbd`) fills KBD_MAP[0..n] and sets KBD_HEAD = n; the guest's console
 /// read(5) drain consumes ONE byte at KBD_TAL per call and advances it. O(1) per
-/// read — no 8-slot scan (verifier budget, hardening H2). Monotonic indices;
-/// the slot is `idx & 7`.
+/// read — no slot scan (verifier budget, hardening H2). Monotonic indices;
+/// the slot is `idx & 63`.
 #[map]
 static KBD_HEAD: Array<u32> = Array::with_max_entries(1, 0);
 #[map]
@@ -2069,17 +2071,53 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     cpu.regs[8] = (-(lsys::EIO as i32)) as u32;
                 }
             } else if syscall_nr == 16 {
-                // xv6 SYS_write (16) — 1-byte-per-call (printf's putc does
-                // write(fd, &c, 1)). Larger writes blow the kernel-6.17 BPF
-                // verifier budget. Phase 1.6 unblock: the trampoline_mbc.S
-                // sp-load fix gave us a real RAM_MAP-backed buf_addr.
+                // xv6 SYS_write (16) — write(fd=a0, buf=a1, n=a2) to the TTY.
+                // ONE byte per tick: a whole-buffer copy loop blows the
+                // kernel-6.17 BPF verifier budget, so n>1 re-enters via pc-=1
+                // (Gate D Phase 6 — cat/echo write full buffers and xv6's cat
+                // treats a short write as fatal; before this, echo printed
+                // only its first byte). The cursor rides in a3's low 16 bits
+                // under a 0xD0C0 tag (a2 holds n, so open(15)'s bare-a3-magic
+                // trick doesn't fit); printf's hot putc (n==1) never touches
+                // a3. n is clamped to 4096 so a hostile count can't wedge the
+                // CPU in a near-infinite re-entry chain.
                 // Gate 2: buf_addr is a USER virtual address — resolve it through
                 // the calling process's page table (walkaddr equivalent) before
                 // the physical read. Identity for pid 0; offset slice for children.
                 let buf_addr = cpu.regs[9];
-                let byte_val = mem_read_byte(translate_address(cpu, buf_addr));
-                mem_write_byte(0xC001, byte_val);
-                cpu.regs[8] = 1;
+                let n_raw = cpu.regs[10];
+                let n = if n_raw > 4096 { 4096 } else { n_raw };
+                if n == 0 {
+                    cpu.regs[8] = 0;
+                } else if n == 1 {
+                    // Hot path: printf's putc — no cursor machinery.
+                    let byte_val = mem_read_byte(translate_address(cpu, buf_addr));
+                    mem_write_byte(0xC001, byte_val);
+                    cpu.regs[8] = 1;
+                } else {
+                    const WRITE_TAG: u32 = 0xD0C0_0000;
+                    let cursor = if (cpu.regs[11] & 0xFFFF_0000) == WRITE_TAG {
+                        let c = cpu.regs[11] & 0xFFFF;
+                        if c >= n {
+                            0 // hostile/stale cursor — restart
+                        } else {
+                            c
+                        }
+                    } else {
+                        0
+                    };
+                    let byte_val =
+                        mem_read_byte(translate_address(cpu, buf_addr.wrapping_add(cursor)));
+                    mem_write_byte(0xC001, byte_val);
+                    let next = cursor + 1;
+                    if next < n {
+                        cpu.regs[11] = WRITE_TAG | next;
+                        cpu.pc = cpu.pc.wrapping_sub(1); // re-enter next tick
+                        break;
+                    }
+                    cpu.regs[11] = 0; // retire the cursor
+                    cpu.regs[8] = n;
+                }
             } else if syscall_nr == 1 {
                 // ── xv6 SYS_fork (1) — RV32I ecall path (Phase 1.6) ──────────
                 // Real fork: snapshot the parent's full MBC register file into
@@ -2765,7 +2803,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     };
                     if tail < head {
                         // One queued byte. Decode (scancode<<1)|pressed → ASCII.
-                        let raw = match KBD_MAP.get(tail & 7) {
+                        let raw = match KBD_MAP.get(tail & 63) {
                             Some(v) => *v,
                             None => 0,
                         };
@@ -2859,24 +2897,86 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     let dst_va = row[pt::DATA_DST_VA];
                     let src_va = row[pt::DATA_SRC_VA];
                     let len_words = row[pt::DATA_LEN_WORDS];
-                    // Copy the host-staged flat .data/.rodata blob into THIS
-                    // pid's slice at the program's linked VA — fork-copy left
-                    // init's image here; exec overwrites it. RE-ENTRANT 16
-                    // words/tick (the proven fork-copy shape): a single 512-word
-                    // tick blew the verifier's 1M complexity ceiling, so the
-                    // copy spans ticks via pc-=1, bounding the loop to 16.
+                    // Two re-entrant phases, sequenced by the a3 marker (a2 =
+                    // regs[10] is the cursor for whichever phase is live;
+                    // path/argv in a0/a1 are untouched across re-entries, so
+                    // the per-tick re-resolve above is stable):
                     //
-                    // a2 (regs[10]) is the word cursor; a3 (regs[11]) is an
-                    // exec-in-progress marker so the cursor is zeroed exactly
-                    // once at entry (fork uses pde0-presence for the same job).
-                    // path/argv (a0/a1) are untouched across re-entries, so the
-                    // per-tick re-resolve above is stable.
+                    // PHASE A (Gate D Phase 6) — argv harvest, ONE arg/tick
+                    // (open(15)'s proven 1-item/tick shape). Copies each arg
+                    // string (fixed ARG_CAP bytes, no inner guard — read(5)'s
+                    // proven copy shape) + a NULL-terminated pointer array into
+                    // a fixed frame at VA 0x0060_0000 — virgin territory above
+                    // the 0x0050_0000 stack top and below the 8 MiB ceiling.
+                    // NOT below the stack top: init's `argv[]` is a stack local
+                    // living exactly there, and the harvest must never clobber
+                    // what it is still reading. argc rides to phase B in a2's
+                    // high 16 bits (the .data cursor needs < 16 bits).
+                    //
+                    // PHASE B — copy the host-staged flat .data/.rodata blob
+                    // into THIS pid's slice at the program's linked VA —
+                    // fork-copy left init's image here; exec overwrites it.
+                    // RE-ENTRANT 16 words/tick (the proven fork-copy shape): a
+                    // single 512-word tick blew the verifier's 1M complexity
+                    // ceiling, so the copy spans ticks via pc-=1, bounding the
+                    // loop to 16.
                     const EXEC_MAGIC: u32 = 0xE0EC_B10C;
-                    if cpu.regs[11] != EXEC_MAGIC {
+                    const EXEC_ARGV_MAGIC: u32 = 0xE0EC_A26F;
+                    const ARGV_MAX: u32 = 8; // args harvested (excl. NULL)
+                    const ARG_CAP: u32 = 16; // bytes per arg slot (incl. NUL)
+                    const ARGV_STR_VA: u32 = 0x0060_0000; // 8 × 16 B slots
+                    const ARGV_ARR_VA: u32 = 0x0060_0080; // 9 pointer words
+                    if cpu.regs[11] != EXEC_MAGIC && cpu.regs[11] != EXEC_ARGV_MAGIC {
                         cpu.regs[10] = 0;
-                        cpu.regs[11] = EXEC_MAGIC;
+                        cpu.regs[11] = EXEC_ARGV_MAGIC;
                     }
-                    let cursor = cpu.regs[10];
+                    if cpu.regs[11] == EXEC_ARGV_MAGIC {
+                        let argv_va = cpu.regs[9];
+                        // Clamp a hostile re-entry cursor (user-settable a2):
+                        // > ARGV_MAX would fabricate an unbounded argc.
+                        let i = if cpu.regs[10] > ARGV_MAX {
+                            ARGV_MAX
+                        } else {
+                            cpu.regs[10]
+                        };
+                        let base = phase12::pid_phys_offset(cpu.current_pid);
+                        // argv[i] pointer, 0 (= terminator) if the table is
+                        // NULL or escapes the pid slice (H-bound).
+                        let pva = argv_va.wrapping_add(i * 4);
+                        let ptr = if argv_va == 0 || pva >= USER_VA_CEILING - 4 {
+                            0
+                        } else {
+                            ram_word(base.wrapping_add(pva) >> 2)
+                        };
+                        if i >= ARGV_MAX || ptr == 0 || ptr >= USER_VA_CEILING - ARG_CAP {
+                            // End of args: NULL-terminate the array, stash
+                            // argc = i, hand off to the phase-B .data copy.
+                            ram_write_word(base.wrapping_add(ARGV_ARR_VA + i * 4) >> 2, 0);
+                            cpu.regs[10] = i << 16;
+                            cpu.regs[11] = EXEC_MAGIC;
+                        } else {
+                            // Fixed ARG_CAP-byte copy, slot tail force-NUL'd:
+                            // short strings carry their own NUL; a 15+-byte
+                            // arg is truncated, never unterminated.
+                            let src = base.wrapping_add(ptr);
+                            let dstb = base.wrapping_add(ARGV_STR_VA + i * ARG_CAP);
+                            let mut k = 0u32;
+                            while k < ARG_CAP - 1 {
+                                ram_write_byte(dstb + k, ram_byte(src + k));
+                                k += 1;
+                            }
+                            ram_write_byte(dstb + (ARG_CAP - 1), 0);
+                            ram_write_word(
+                                base.wrapping_add(ARGV_ARR_VA + i * 4) >> 2,
+                                ARGV_STR_VA + i * ARG_CAP,
+                            );
+                            cpu.regs[10] = i + 1;
+                        }
+                        cpu.pc = cpu.pc.wrapping_sub(1); // re-enter next tick
+                        break;
+                    }
+                    let argc_stash = cpu.regs[10] >> 16;
+                    let cursor = cpu.regs[10] & 0xFFFF;
                     let src_word = (src_va >> 2).wrapping_add(cursor);
                     let dst_word = (phase12::pid_phys_offset(cpu.current_pid).wrapping_add(dst_va)
                         >> 2)
@@ -2898,7 +2998,7 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     }
                     let next = cursor + 16;
                     if next < len_words {
-                        cpu.regs[10] = next;
+                        cpu.regs[10] = next | (argc_stash << 16);
                         cpu.pc = cpu.pc.wrapping_sub(1); // re-enter to continue
                         break;
                     }
@@ -2911,6 +3011,10 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         cpu.regs[r as usize] = 0;
                         r += 1;
                     }
+                    // Gate D Phase 6: hand main() its arguments — crt0's
+                    // `call main` forwards a0/a1 untouched.
+                    cpu.regs[8] = argc_stash; // a0 = argc
+                    cpu.regs[9] = ARGV_ARR_VA; // a1 = argv (NULL-terminated)
                     cpu.regs[15] = 0x0050_0000; // fresh user stack top (< 8 MiB)
                     cpu.pc = entry_mbc;
                     cpu.flags = 0;
