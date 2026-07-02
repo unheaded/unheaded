@@ -512,6 +512,24 @@ impl BootRunner {
             .context("monad_cpu program not found in eBPF object")?
             .try_into()?;
         prog.load().context("XDP program load")?;
+        // Verifier-budget baseline (Phase 2.0 preflight): the kernel reports
+        // the post-dead-code-elimination verified-instruction count once the
+        // program loads. This is the number that races the 1M complexity
+        // ceiling — the ONLY reliable way to read it for an Aya object, since
+        // its legacy `maps` section can't be loaded by libbpf/veristat/bpftool.
+        // Printed only when UPC_VERIFIER_STATS is set (keeps normal boots quiet).
+        if std::env::var_os("UPC_VERIFIER_STATS").is_some() {
+            match prog.info() {
+                Ok(info) => match info.verified_instruction_count() {
+                    Some(n) => println!(
+                        "  VERIFIER: monad_cpu verified {n} insns ({:.1}% of 1M ceiling)",
+                        n as f64 / 1_000_000.0 * 100.0
+                    ),
+                    None => println!("  VERIFIER: verified_insns unavailable (kernel < 5.16?)"),
+                },
+                Err(e) => println!("  VERIFIER: prog info unavailable: {e}"),
+            }
+        }
         prog.attach(iface, aya::programs::XdpFlags::default())
             .with_context(|| format!("XDP attach to {}", iface))?;
         tracing::info!(iface, "XDP attached");
