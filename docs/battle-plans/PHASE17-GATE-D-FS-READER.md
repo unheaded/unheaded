@@ -1,5 +1,16 @@
 # Phase 1.7 Gate D — FS Reader Battle Plan
 
+> ## ✅ SHIPPED 2026-07-02
+> All gates green: E1 `ls` real root listing, E2 `cat README` exact fixture
+> (`0xGA7ED-D15C-READER`), E3 `echo hello` → `hello`, E4 zero regression
+> (Gate C stats identical, gate2 ISOLATION-PASS, gate_nway pre-existing).
+> Commits `f621c662`→`e47bf2c5`; the Phase 5 "blank names + size 0" root cause
+> was fstat writing the RV64 24-byte `struct stat` into the guest's ilp32e
+> 16-byte one (`uint64` = `unsigned long` = 4 B), smashing ls's `buf[0..3]`.
+> Session log: `references/phase17-gateD-shipped-2026-07-02.md`.
+> ADR: `docs/adr/ADR-078-gate-d-fs-reader-and-exec-argv-abi.md`.
+> Known issue deferred to Gate D.1: `wc README` runaway (unreachable pre-argv).
+
 **Date**: 2026-06-28
 **Sprint**: Phase 1.7 Gate D — inode-backed `open`/`read`/`fstat` over xv6 `fs.img` + argv-on-stack in `exec(7)`
 **Prerequisite**: Gate C shipped (`e24abeb9`, interactive `sh`); tree clean on `main`
