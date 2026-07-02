@@ -455,14 +455,16 @@ impl BootRunner {
         Ok(())
     }
 
-    /// Pre-fill the KBD ring with up to 8 scripted console-input bytes (Gate C
-    /// `--input`). Sets KBD_MAP[i] = (byte<<1)|1 for i in 0..n, KBD_HEAD = n,
-    /// KBD_TAIL = 0; the guest's read(5) drain pops one byte per call. Capped at
-    /// the 8-slot KBD_MAP — errors (never silently truncates) on overflow.
+    /// Pre-fill the KBD ring with up to 64 scripted console-input bytes (Gate C
+    /// `--input`; Gate D Phase 6 grew the ring 8→64 so a full command line like
+    /// `cat README\n` fits). Sets KBD_MAP[i] = (byte<<1)|1 for i in 0..n,
+    /// KBD_HEAD = n, KBD_TAIL = 0; the guest's read(5) drain pops one byte per
+    /// call. Capped at the 64-slot KBD_MAP — errors (never silently truncates)
+    /// on overflow.
     pub fn write_kbd(&mut self, bytes: &[u8]) -> Result<()> {
         let n = bytes.len();
-        if n > 8 {
-            bail!("--input exceeds KBD ring capacity (8 bytes), got {n}");
+        if n > 64 {
+            bail!("--input exceeds KBD ring capacity (64 bytes), got {n}");
         }
         {
             let mut kbd: Array<_, u32> =

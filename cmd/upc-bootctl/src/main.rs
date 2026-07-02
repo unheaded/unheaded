@@ -97,11 +97,11 @@ enum Cmd {
         #[arg(long)]
         dry_run: bool,
 
-        /// Scripted console input (Gate C). Up to 8 bytes are pre-loaded into
+        /// Scripted console input (Gate C). Up to 64 bytes are pre-loaded into
         /// the KBD ring before the CPU runs, so the guest's read(5) drain feeds
         /// them to sh's gets() as if typed. Use $'echo\n' to terminate a line.
         /// read does NOT echo (acceptable for a scripted demo). Errors if the
-        /// input exceeds the 8-slot ring (no silent truncation).
+        /// input exceeds the 64-slot ring (no silent truncation).
         #[arg(long)]
         input: Option<String>,
     },
