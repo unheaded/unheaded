@@ -46,15 +46,22 @@
 //! If any verify step fails: print "BOOT FAIL: <reason>" via MMIO 0xC001
 //! and HALT.
 //!
-//! ## Status: P0 scaffolding (2026-05-11)
+//! ## Status: builds end-to-end (Phase 2.0 preflight, 2026-07-02)
 //!
-//! - `Cargo.toml` + this `lib.rs` + `src/start.c` skeleton are in place.
-//! - The actual C implementation of steps 1-5 is a TODO for Phase 2 kickoff.
-//! - The build pipeline (compile start.c -> link -> rv32i_to_mbc) needs
-//!   a sibling `Makefile.bootstub` modeled on
-//!   `crates/xv6-mbc/adapters/Makefile.mbc`.
-//! - No image_path() yet because no image gets built yet — added when
-//!   Phase 2 actually compiles the artifact.
+//! - `Cargo.toml` + `lib.rs` + `src/start.c` in place; steps 1–5 are
+//!   IMPLEMENTED in `start.c` (not stubs — magic/version verify, BSS zero,
+//!   MEPC/MSTATUS.MPP set, MRET, fail-fast diagnostics).
+//! - `make -f adapters/Makefile.bootstub all` compiles start.c → links →
+//!   `rv32i-to-mbc` → `target/upc-bootstub.mbc` (115 RV32I → 194 MBC insns).
+//!   `upc-bootctl validate --kernel target/upc-bootstub.mbc` decodes it clean.
+//! - NOT yet boot-integrated: the stub has no kernel to hand off to until
+//!   Phase 2.1 vendors one, and per the Phase 2.0 capacity audit
+//!   (`references/phase2-preflight-capacity-audit-2026-07-02.md`) the
+//!   code-store substrate can't hold a Linux image yet. Boot-path wiring
+//!   (`upc-bootctl --bootstub`) waits on that substrate decision.
+//! - Loader note for Phase 2.4: the ilp32e link keeps `.rodata` in the BOOT
+//!   text region AND the translator emits a `.data` sibling for it — decide
+//!   which the loader stages so the "BOOT FAIL" strings resolve once.
 
 #![deny(missing_docs)]
 
