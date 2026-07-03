@@ -2,9 +2,9 @@
 
 # Unheaded
 
-Configuration management automation platform. Provisions backend infrastructure — service mesh, observability, security, control plane — from declarative configuration. The Unheaded Protocol encodes state in IPv6 Hop-by-Hop headers, processed at each hop via eBPF. Free to use, free to share.
+Configuration management automation platform. Provisions backend infrastructure — service mesh, observability, security, control plane — from declarative configuration. The Unheaded Protocol encodes state in IPv6 Hop-by-Hop headers, processed at each hop via eBPF.
 
-**Status:** Age 1 (Alpha) and Age 2 (Beta) complete; Age 3 (Public Release) in progress. Dual bare metal (WEST + EAST) online with cross-host BPF flow graph. Wire format frozen at v0x01. **ASCEND-LINUX L5: xv6 enters user mode on the UPC** (2026-05-14, Phase 1.5 spike — init's `main()` runs through `open` / `dup×2` / `printf` to the `write` ecall; full chronology in `wiki/Linux-on-UPC.md`).
+**Status:** Age 1 (Alpha) and Age 2 (Beta) complete; Age 3 (Public Release) in progress. Dual bare metal (WEST + EAST) online with cross-host BPF flow graph. Wire format frozen at v0x01. **ASCEND-LINUX Phase 1 complete (2026-07-02): interactive xv6 shell on the UPC** — fork/exec/wait, per-pid MMU isolation, in-BPF filesystem reader (`ls`/`cat`/`echo`/`wc` over a real `fs.img`). Doom runs on the same interpreter, playable in-browser via `doom-runner`. Next: Unheaded Linux, an own-built minimal OS on the UPC (ADR-081).
 
 ## Building
 
@@ -47,7 +47,11 @@ Go services, Rust eBPF (Aya), Wotan message bus (gRPC + HTTP), PostgreSQL (multi
 
 ## UPC compute substrate
 
-The Unheaded Protocol Computer (UPC) is a virtual CPU built on the protocol itself: Monad as the transport bus, Wotan as memory, Sophia as microcode, eBPF as the interpreter. The Dream Ladder runs from packet stamping (L1) up to running Linux (L6). Doom-on-Monad ships at the lower levels (L3 computational-completeness proof). xv6-on-UPC is L5 — kernel boots, scheduler runs, init enters user mode (2026-05-14, Phase 1.5).
+The Unheaded Protocol Computer (UPC) is a virtual CPU built on the protocol itself: Monad as the transport bus, Wotan as memory, Sophia as microcode, eBPF as the interpreter. One interpreter runs multiple guest workloads, feature-partitioned to fit the eBPF verifier's 1M-instruction budget (ADR-080). The Dream Ladder runs from packet stamping (L1) to running an OS (L6).
+
+- **Doom** — L3 computational-completeness proof; playable in-browser via `doom-runner`.
+- **xv6** — L5; interactive shell, fork/exec/wait, per-pid MMU isolation, in-BPF filesystem reader (`ls`/`cat`/`echo`/`wc` over `fs.img`). Phase 1 complete 2026-07-02.
+- **Unheaded Linux** — next; an own-built minimal OS evolving from the xv6 substrate, scaling toward the Yggdrasil golden image (ADR-081). Long-term.
 
 Robust documentation:
 - [`wiki/UPC-Overview.md`](wiki/UPC-Overview.md) — substrate, BPF maps, MBC ISA, Boot Protocol v2
@@ -57,7 +61,7 @@ Robust documentation:
 - [`wiki/Linux-on-UPC.md`](wiki/Linux-on-UPC.md) — ASCEND-LINUX, current frontier
 - [`wiki/MBC-ISA-Reference.md`](wiki/MBC-ISA-Reference.md) — opcode + encoding reference
 
-Code: `crates/doom-runner/`, `crates/xv6-mbc/`, `cmd/upc-bootctl/`, `ebpf/monad-cpu-ebpf/`. Roadmap: `references/battle-plan-ascend-linux-2026-05-08.md`.
+Code: `crates/doom-runner/`, `crates/xv6-mbc/`, `cmd/upc-bootctl/`, `ebpf/monad-cpu-ebpf/`. Roadmap: `docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md`.
 
 ## Zhen AI
 
@@ -65,7 +69,7 @@ Code: `crates/doom-runner/`, `crates/xv6-mbc/`, `cmd/upc-bootctl/`, `ebpf/monad-
 
 ## License
 
-GPL-3.0-or-later. Protocol specs dual-licensed GPL-3.0-or-later / Apache-2.0. Every tool extracted from this platform is free to use and free to share with the community — no paid tiers, no enterprise gates.
+GPL-3.0-or-later. Protocol specs dual-licensed GPL-3.0-or-later / Apache-2.0.
 
 ## Author
 
