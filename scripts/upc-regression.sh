@@ -85,12 +85,14 @@ if [ -f "$WAD" ]; then
   { sudo pkill -9 -f "doom-runner run"; sudo "$DR" ring teardown --hops 2; } >/dev/null 2>&1
   # setsid detaches doom-runner into its own session so SIGKILL'ing it later
   # produces no job-control noise in this shell.
-  ( cd "$ROOT" && sudo setsid "$DR" run --doom-mbc doom/doom.mbc --doom-elf doom/doom.elf \
-    --rv2mbc doom/doom.rv2mbc --wad "$WAD" --hops 2 >"$LOG" 2>&1 & ) 2>/dev/null
+  ( cd "$ROOT" && sudo UPC_VERIFIER_STATS=1 setsid "$DR" run --doom-mbc doom/doom.mbc \
+    --doom-elf doom/doom.elf --rv2mbc doom/doom.rv2mbc --wad "$WAD" --hops 2 >"$LOG" 2>&1 & ) 2>/dev/null
   for _ in $(seq 1 20); do
     grep -aqE "pipeline complete|too large|Argument list too long" "$LOG" && break
     sleep 1
   done
+  DBUD="$(grep -aoE 'verified [0-9]+ insns \([0-9.]+% of 1M ceiling\)' "$LOG" | head -1)"
+  [ -n "$DBUD" ] && note "Doom verifier:   $DBUD"
   if grep -aq "pipeline complete" "$LOG"; then pass "Doom object loads (< 1M verifier ceiling)"
   elif grep -aqE "too large|Argument list too long" "$LOG"; then fail "Doom object OVER 1M ceiling"
   else fail "Doom load inconclusive (see harness log)"; fi
