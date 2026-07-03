@@ -2,7 +2,7 @@
 
 The ASCEND-LINUX campaign brings a real operating system up on the [Unheaded Protocol Computer](UPC-Overview). Phased six-level Dream Ladder summit (L5 → L6); the kernel of choice for L5 is xv6-riscv (vendored at `crates/xv6-mbc/upstream/`), L6 is uClinux then full Linux+MMU.
 
-**Current state (2026-05-14):** xv6 boots end-to-end on the UPC and the init user process **prints `init: starting sh` to the host TTY**. Kernel completes init, scheduler dispatches the init proc, kexec wires the user trapframe, SRET transitions to user mode (`priv=3`), init's `main()` runs through `open` / `dup×2` / `printf` → `vprintf` → user/printf.c's `putc` → `write` syscall stub → BPF `op::SYSCALL` handler → MMIO TTY emit. **L5 user-mode TTY gate shipped (commit `724d5b06`).** Remaining for full L5 = a working shell: fork / exec / wait / open / close syscalls.
+**Current state (2026-07-03): ASCEND-LINUX Phase 1 COMPLETE.** xv6 runs an **interactive shell** on the UPC — a scripted command line is read from the console, `sh` forks + exec's it, the child runs and exits, `sh` reaps it, and a fresh `$` prompt returns. The full `init → sh → fork/exec/wait` lifecycle works, backed by a real in-BPF filesystem reader over `fs.img`: `ls` lists the root directory with types/inums/sizes, `cat` prints real file contents (including `>12 KiB` files via single-indirect blocks), `echo` and `wc` run with argv, per-pid MMU isolation holds. Gates A (console stdio) → B (`exec` → `$`) → C (interactive sh) → D (FS reader) → D.1 (`wc`) all shipped. **Next: Unheaded Linux** — an own-built minimal OS evolving from this xv6 substrate ([ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md)); the roadmap is [`docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md`](../docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md).
 
 This page is the cumulative narrative of the campaign. Live session logs and per-phase root-cause docs live under [`references/`](../references/) and the original battle plan is at [`references/battle-plan-ascend-linux-2026-05-08.md`](../references/battle-plan-ascend-linux-2026-05-08.md).
 
@@ -97,7 +97,19 @@ Every CALL target lands in the user region. Every ecall fires correctly. Commit 
 
 After the fix, the boot log goes through to `init: starting sh\n` printed to the host TTY, one byte at a time, through `user/printf.c → user/usys.S write → BPF op::SYSCALL → mem_write_byte(0xC001, byte) → upc-bootctl TTY drain`.
 
-The xv6 L5 user-mode TTY gate is shipped. Remaining for a full L5 (= shell prompt visible): SYS_fork / SYS_exec / SYS_wait / SYS_open / SYS_close / SYS_close handlers — none expected to be as deep as the trapframe bug.
+The xv6 L5 user-mode TTY gate is shipped.
+
+### Phase 1.7 — Gates A → D.1: interactive shell + filesystem (2026-06-18 → 2026-07-03)
+
+The syscall fan-out landed as five gates, each with its own root-cause hunt (session logs under `references/`):
+
+- **Gate A — console stdio.** `read(5)` blocks on an empty KBD ring instead of returning EOF; a scripted `--input` pre-fills the ring. sh reads its command line.
+- **Gate B — `exec` → `$` (ADR-077).** A feature-gated `MbcCpuState` ABI fork adds a per-process `rv2mbc_base` so each program's indirect branches resolve into its own disjoint RV2MBC region (init and sh both link at RV byte 0 and would otherwise collide at `RV2MBC_MAP[0]`). `exec("sh")` succeeds and sh emits `$`.
+- **Gate C — interactive sh.** `fork → exec → wait → prompt` lifecycle. Two root causes behind the post-`$` reboot: MRET added sh's *user* rv2mbc base to a *kernel* return target (fix: per-process base only at `priv==3`); and the user link defaulted sh's entry to `getcmd` not `main` (fix: `crt0_mbc.S` forces `_start` to RV byte 0). Plus parent-filtered `wait()` (fixes grandchild-reap).
+- **Gate D — FS reader ([ADR-078](../docs/adr/ADR-078-gate-d-fs-reader-and-exec-argv-abi.md)).** `open`/`read`/`fstat` walk `fs.img` inodes directly from RAM_MAP inside the eBPF CPU (pure `monad_common::fs_walk`, off-target tested), backed by per-fd `{inum, offset}` state. `exec` gains an argv frame (VA `0x600000`). The headline bug: xv6 `uint64` is 4 bytes under `-mabi=ilp32e`, so `struct stat` is 16 bytes with `size` at offset 12 — writing the RV64 24-byte layout smashed `ls`'s buffer (the "blank names + size 0" symptom).
+- **Gate D.1 — `wc` + RET tagging ([ADR-079](../docs/adr/ADR-079-ret-address-tagging.md)).** `wc README` runaway root-caused to the RET handler's MBC-vs-RV magnitude floor (wc's ROM base crossed it). Fixed by tagging MBC return addresses with bit 31 at CALL/CALLR — which also unblocks Linux-scale images and, by construction, kills the historical Doom PC-corruption misparse.
+
+Since then: `read(5)` reads `>12 KiB` files via the single-indirect block; the code-store maps grew behind a `large-image` feature (option A for Linux-scale images); the whole thing is guarded by `scripts/upc-regression.sh` (load-tests both the xv6/ascend and Doom/non-ascend builds).
 
 ## Reproduction recipe
 
@@ -126,11 +138,7 @@ Expected boot log includes `Userland MBC: patched 41 CALL targets`, then the ker
 
 ## What's next
 
-Three independent threads from here:
-
-1. **Phase 1.6 SYS_write fix.** The byte-path NUL. One translator-audit shift unblocks the first printf byte.
-2. **Phase 1.7 syscall fan-out.** Once the byte path works, wire `SYS_open` / `SYS_close` / `SYS_dup` / `SYS_fork` / `SYS_exec` / `SYS_wait` / `SYS_exit` against the fs.img reader and the per-pid PROC_TABLE. The xv6 init proc loops `printf` → `fork` → `exec("sh", ...)` → `wait`. Each blocker is one syscall handler.
-3. **Phase 2 uClinux bring-up.** Real Linux (uClinux first, no MMU) on top of the Phase 1 substrate. Stage-1 stub `crates/upc-bootstub/` is already scaffolded. ADR-067's Phase-2 path expects the BootParams + MEPC handoff to behave identically across xv6 and uClinux.
+Phase 1 (xv6) is complete. The path forward is **Unheaded Linux** ([ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md)): rather than vendor uClinux + busybox, build our own minimal OS from scratch on this substrate, evolving from xv6 (own PID 1 → shell → kernel edges → kernel core), scaling toward the Yggdrasil golden image. Long-term. The two-track roadmap is [`docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md`](../docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md); near-term Track 1 keeps hardening the UPC substrate (FS stretch, the `upc-api` guest contract, code-store readiness). The stage-1 stub `crates/upc-bootstub/` builds end-to-end and stands ready for a kernel-class guest.
 
 ## Demo surface
 
