@@ -2798,41 +2798,54 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                                         cap = block_left;
                                     }
                                     let fbn = offset / fs_walk::BSIZE;
-                                    if (fbn as usize) < fs_walk::NDIRECT {
-                                        let dblk = ram_word(db + 3 + fbn);
-                                        if dblk != 0 {
-                                            if let Some(dbw) = fs_walk::word_of_block(dblk) {
-                                                let src_byte = dbw * 4 + within;
-                                                // H-FS6: copy-out via the per-pid bound.
-                                                // Bound the dest to the full chunk; our
-                                                // inode readers (ls=16, cat=512) always
-                                                // pass buffers ≥ READ_CHUNK.
-                                                if let Some(dst) =
-                                                    user_phys(pid, buf_va, READ_CHUNK)
-                                                {
-                                                    // Fixed READ_CHUNK-byte copy with NO
-                                                    // inner guard — the guarded form
-                                                    // doubled verifier states and blew
-                                                    // the 1M ceiling. The caller honors
-                                                    // the returned `cap`, so tail bytes
-                                                    // copied past it are ignored; every
-                                                    // src byte stays inside fs.img.
-                                                    let mut c = 0u32;
-                                                    while c < READ_CHUNK {
-                                                        ram_write_byte(
-                                                            dst + c,
-                                                            ram_byte(src_byte + c),
-                                                        );
-                                                        c += 1;
-                                                    }
-                                                    fd_set_offset(pid, fd, offset + cap);
-                                                    ret = cap;
+                                    // Resolve the data block for file-block `fbn`:
+                                    // direct (addrs[fbn]) for fbn < NDIRECT, else
+                                    // the single-indirect block (addrs[NDIRECT] →
+                                    // indirect block → [fbn-NDIRECT]) so files
+                                    // over 12 KiB read correctly. H-FS4: capped at
+                                    // the single-indirect range (xv6 has no double
+                                    // indirect); beyond it → 0 (hole). One extra
+                                    // RAM read for the indirect case; no new loop.
+                                    let dblk = if (fbn as usize) < fs_walk::NDIRECT {
+                                        ram_word(db + 3 + fbn)
+                                    } else {
+                                        let idx = fbn - fs_walk::NDIRECT as u32;
+                                        if idx >= fs_walk::NINDIRECT {
+                                            0
+                                        } else {
+                                            let ind_blk =
+                                                ram_word(db + 3 + fs_walk::NDIRECT as u32);
+                                            match fs_walk::word_of_block(ind_blk) {
+                                                Some(indw) if ind_blk != 0 => ram_word(indw + idx),
+                                                _ => 0,
+                                            }
+                                        }
+                                    };
+                                    if dblk != 0 {
+                                        if let Some(dbw) = fs_walk::word_of_block(dblk) {
+                                            let src_byte = dbw * 4 + within;
+                                            // H-FS6: copy-out via the per-pid bound.
+                                            // Bound the dest to the full chunk; our
+                                            // inode readers (ls=16, cat=512) always
+                                            // pass buffers ≥ READ_CHUNK.
+                                            if let Some(dst) = user_phys(pid, buf_va, READ_CHUNK) {
+                                                // Fixed READ_CHUNK-byte copy with NO
+                                                // inner guard — the guarded form
+                                                // doubled verifier states and blew
+                                                // the 1M ceiling. The caller honors
+                                                // the returned `cap`, so tail bytes
+                                                // copied past it are ignored; every
+                                                // src byte stays inside fs.img.
+                                                let mut c = 0u32;
+                                                while c < READ_CHUNK {
+                                                    ram_write_byte(dst + c, ram_byte(src_byte + c));
+                                                    c += 1;
                                                 }
+                                                fd_set_offset(pid, fd, offset + cap);
+                                                ret = cap;
                                             }
                                         }
                                     }
-                                    // fbn ≥ NDIRECT (file > 12 KiB single-indirect)
-                                    // is not needed for the Gate-D corpus.
                                 }
                             }
                         }

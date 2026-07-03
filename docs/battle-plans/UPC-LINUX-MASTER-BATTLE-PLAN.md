@@ -70,8 +70,10 @@ Scientist).*
 ### Epic 1.3 — Extend xv6 OS-primitive coverage (FS stretch + syscalls)
 *Grows the substrate's primitives — every one is reusable by Unheaded Linux. Each is one bounded,
 budget-aware handler with a green gate. Pick off as budget/interest allows.*
-- [ ] **1.3.1** FS reader stretch (Gate D.1 leftovers): subdirectory path walk, device inodes,
-      `>12 KiB` files (single-indirect blocks). Off-target test in `fs_walk` first.
+- [~] **1.3.1** FS reader stretch. **`>12 KiB` files (single-indirect blocks) DONE** — read(5)
+      resolves `fbn ≥ NDIRECT` via the indirect block; `cat BIGFILE` (14,570 B) reads its tail
+      past offset 12,288 (marker `INDIRECT-READ-OK`), verifier +656 insns (858,654), harness
+      guards it permanently. REMAINS: subdirectory path walk, device inodes.
 - [ ] **1.3.2** File **writes** (`write` to FD_INODE) + `>` redirection in sh — the first mutating
       FS path (needs a block-alloc story; scope carefully vs verifier budget).
 - [ ] **1.3.3** Pipes (`|`) + a couple more shell builtins.
