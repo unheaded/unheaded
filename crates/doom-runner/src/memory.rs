@@ -40,6 +40,12 @@ pub const ROM_BASE: u32 = 0x0000_0000;
 pub const ROM_SIZE: u32 = 0x0010_0000; // 1 MiB
 
 /// ROM_MAP max entries (one u32 per MBC instruction slot).
+///
+/// MUST equal `monad_common::mbc_maps::ROM_MAP_WORDS_DEFAULT`. doom-runner keeps
+/// its own copy on purpose (it avoids the dual-target monad-common dependency —
+/// see the MbcCpuState replica note in main.rs); Doom always uses the default
+/// (non-`large-image`) eBPF build, so this default value is correct for it.
+/// If the eBPF default ever changes, update this in lockstep.
 pub const ROM_MAP_ENTRIES: u32 = 262_144;
 
 /// RAM region start (data, bss, screen, heap, WAD, stack).
