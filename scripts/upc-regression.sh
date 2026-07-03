@@ -63,10 +63,11 @@ VBUD="$(cd "$EBPF" && sudo UPC_VERIFIER_STATS=1 "$BC" boot --kernel "$K/xv6-mbc.
   | grep -aoE 'verified [0-9]+ insns \([0-9.]+% of 1M ceiling\)')"
 [ -n "$VBUD" ] && note "ascend verifier: $VBUD" || note "ascend verifier: (unreported)"
 
-xv6_expect 'ls'          'README'                  'ls lists root dir'
-xv6_expect 'cat README'  '0xGA7ED-D15C-READER'     'cat README (proof token)'
-xv6_expect 'echo hello'  'hello'                   'echo hello'
-xv6_expect 'wc README'   '5 49 283 README'         'wc README'
+xv6_expect 'ls'           'README'                 'ls lists root dir'
+xv6_expect 'cat README'   '0xGA7ED-D15C-READER'    'cat README (direct blocks)'
+xv6_expect 'cat BIGFILE'  'INDIRECT-READ-OK'       'cat BIGFILE (>12 KiB, indirect block)'
+xv6_expect 'echo hello'   'hello'                  'echo hello'
+xv6_expect 'wc README'    '5 49 283 README'        'wc README'
 
 G2="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/gate2.mbc" --triggers 800000 --instance 111 2>&1)"
