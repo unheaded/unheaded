@@ -1,5 +1,24 @@
 # Doom Findings -- Session 2026-03-29
 
+> ## ✅ 2026-07-03 UPDATE — Doom RAN with ADR-079 live; PC valid, no corruption
+> Brought Doom online through the full doom-runner pipeline (commit `7eba83e0`). **Doom loads,
+> executes, and renders**: PC stays in valid ROM range (sampled 0x130bb ≪ 86463 — NO corruption
+> into the billions), the ADR-079 tagged return address is live (`regs[14]=0x800130fa`, bit-31
+> tag → untags to a valid ROM PC), FRAME_READY climbs past 14K, and the RAM framebuffer at
+> 0x70000 is full of real DOOM palette pixels. So the ADR-079 tag scheme is **verified compatible
+> with Doom** (whatever the historical PC-corruption was, tagging did not reintroduce it).
+>
+> **Two things that block/unblock Doom, learned the hard way:**
+> 1. **The non-ascend (Doom) object must be LOAD-tested, not just compile-tested.** Ten xv6-only
+>    syscall arms had accumulated in the shared object and DCE was not gating them out of the
+>    Doom build, pushing it just over the 1M verifier ceiling — doom-runner could not load it.
+>    Fixed by gating them `cfg!(feature = "ascend-linux")`. Non-ascend now sits right at the
+>    edge of 1M; **add a real load-check to CI** (bpf-verifier-check.sh only compile/analyzes).
+> 2. The framebuffer the bridge serves is **RAM_MAP @ 0x70000**, not SCREEN_MAP (word stores
+>    only land in RAM_MAP). SCREEN_MAP reading ~0 is normal; check RAM_MAP for pixels.
+>
+> _(Original 2026-07-02 hypothesis below — now confirmed Doom-safe.)_
+
 > ## ⚡ 2026-07-02 UPDATE — test ADR-079 FIRST next Doom shift (strong PC-corruption fix candidate)
 > The ASCEND-LINUX work found and fixed a return-address disambiguation bug in the
 > **shared** eBPF interpreter that is a strong candidate for (part of) the PC-corruption
