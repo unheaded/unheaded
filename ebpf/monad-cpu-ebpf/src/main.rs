@@ -75,9 +75,9 @@ use monad_common::{
 /// const — verifier cost is unchanged (map size does not affect verified
 /// instructions), only locked memory grows.
 #[cfg(not(feature = "large-image"))]
-const ROM_MAP_ENTRIES: u32 = 262_144;
+const ROM_MAP_ENTRIES: u32 = monad_common::mbc_maps::ROM_MAP_WORDS_DEFAULT;
 #[cfg(feature = "large-image")]
-const ROM_MAP_ENTRIES: u32 = 1_048_576;
+const ROM_MAP_ENTRIES: u32 = monad_common::mbc_maps::ROM_MAP_WORDS_LARGE;
 
 /// ROM: MBC program instructions, u32 per slot.
 /// Index = PC value.  Loaded by Wotan trace-collector from .mbc binary.
@@ -92,7 +92,7 @@ static ROM_MAP: Array<u32> = Array::with_max_entries(ROM_MAP_ENTRIES, 0);
 /// Array never fills up (unlike HashMap) — in-range indices always succeed.
 /// Zero-initialized by default (all entries start at 0).
 #[map]
-static RAM_MAP: Array<u32> = Array::with_max_entries(16_777_216, 0);
+static RAM_MAP: Array<u32> = Array::with_max_entries(monad_common::mbc_maps::RAM_MAP_WORDS, 0);
 
 /// Screen framebuffer: 320×200 = 64 000 bytes, 8-bit palette indices.
 /// Pixel (x, y) → SCREEN_MAP[y * 320 + x].
@@ -141,9 +141,9 @@ static L1_CACHE: LruHashMap<u32, [u8; 64]> = LruHashMap::with_max_entries(256, 0
 /// + xv6). The `large-image` feature grows it to 512 Ki (2 MiB of .text) for a
 /// Linux-class kernel, closing capacity-audit wall #3 (RV2MBC 8× too small).
 #[cfg(not(feature = "large-image"))]
-const RV2MBC_MAP_ENTRIES: u32 = 65_536;
+const RV2MBC_MAP_ENTRIES: u32 = monad_common::mbc_maps::RV2MBC_ENTRIES_DEFAULT;
 #[cfg(feature = "large-image")]
-const RV2MBC_MAP_ENTRIES: u32 = 524_288;
+const RV2MBC_MAP_ENTRIES: u32 = monad_common::mbc_maps::RV2MBC_ENTRIES_LARGE;
 
 /// RV32I-to-MBC address translation map.
 /// Index = RV32I word index (byte_addr >> 2), Value = MBC PC index.
