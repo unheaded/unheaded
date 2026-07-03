@@ -1,71 +1,80 @@
-
-
 # Unheaded
 
-Configuration management automation platform. Provisions backend infrastructure — service mesh, observability, security, control plane — from declarative configuration. The Unheaded Protocol encodes state in IPv6 Hop-by-Hop headers, processed at each hop via eBPF.
+Unheaded is a configuration-management automation platform. It provisions backend
+infrastructure — service mesh, observability, security, control plane — from declarative
+configuration. State is encoded in a 20-byte register carried in IPv6 Hop-by-Hop headers
+(the Monad wire format) and processed at each hop with eBPF.
 
-**Status:** Age 1 (Alpha) and Age 2 (Beta) complete; Age 3 (Public Release) in progress. Dual bare metal (WEST + EAST) online with cross-host BPF flow graph. Wire format frozen at v0x01. **ASCEND-LINUX Phase 1 complete (2026-07-02): interactive xv6 shell on the UPC** — fork/exec/wait, per-pid MMU isolation, in-BPF filesystem reader (`ls`/`cat`/`echo`/`wc` over a real `fs.img`). Doom runs on the same interpreter, playable in-browser via `doom-runner`. Next: Unheaded Linux, an own-built minimal OS on the UPC (ADR-081).
+The repository also contains the Unheaded Protocol Computer (UPC), a virtual CPU built on
+the protocol, on which Doom and a Unix kernel run.
+
+Solo, experimental, in active development.
 
 ## Building
 
-Requires Linux (kernel 5.15+ baseline; kernel 6.17+ for the ASCEND-LINUX BPF verifier features), Go 1.25+, Rust nightly, Docker.
+Requires Linux (kernel 5.15+; 6.17+ for the UPC eBPF verifier features), Go 1.25+,
+Rust nightly, Docker.
 
-```bash
+```
 go build ./...
 sudo docker compose up -d
 ```
 
-See [QUICKSTART.md](QUICKSTART.md) for details.
+See [QUICKSTART.md](QUICKSTART.md).
 
-## Architecture
+## Components
 
 ```
-Layer 5  Dashboard, Kanban, Zhenai Web UI
+Layer 5  Dashboard, Kanban, Zhenai web UI
 Layer 4  timeguru, captain, architect, micromanager, monad, sophia
 Layer 3  Wotan (message bus), trace-collector, gateway, Akira (health)
 Layer 2  unheaded-daemon (drift detection, reconciliation)
-Layer 1  23 eBPF programs (XDP/TC, Rust/Aya, Go/cilium)
+Layer 1  23 eBPF programs (XDP/TC; Rust/Aya, Go/cilium)
 Layer 0  LXD / Docker / NixOS / bare metal
 ```
 
-Ports 16666-26666. gRPC with mTLS default. See `pkg/ports/ports.go`.
+Services use ports 16666–26666, gRPC with mTLS by default (`pkg/ports/ports.go`). Two
+bare-metal hosts (WEST, EAST) run a cross-host BPF flow graph.
 
 ## Protocol
 
-Monad wire format: 20-byte register file in IPv6 HbH extension header. Wire format frozen at v0x01. 12 IANA registries in foundation spec draft-06.
+Monad: a 20-byte register file in an IPv6 Hop-by-Hop extension header, frozen at v0x01.
 
-- [draft-bellis-unheaded-protocol-foundation-06](docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md)
-- [draft-bellis-unheaded-sophia-dictionary-03](docs/protocol/draft-bellis-unheaded-sophia-dictionary-03.md)
-- [draft-bellis-unheaded-wotan-memory-03](docs/protocol/draft-bellis-unheaded-wotan-memory-03.md)
-- [draft-bellis-unheaded-mbc-isa-00](docs/protocol/draft-bellis-unheaded-mbc-isa-00.md)
-- [draft-bellis-unheaded-shim-00](docs/protocol/draft-bellis-unheaded-shim-00.md)
-- [draft-bellis-unheaded-pqc-authentication-00](docs/protocol/draft-bellis-unheaded-pqc-authentication-00.md)
+- [foundation-06](docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md)
+- [sophia-dictionary-03](docs/protocol/draft-bellis-unheaded-sophia-dictionary-03.md)
+- [wotan-memory-03](docs/protocol/draft-bellis-unheaded-wotan-memory-03.md)
+- [mbc-isa-00](docs/protocol/draft-bellis-unheaded-mbc-isa-00.md)
+- [shim-00](docs/protocol/draft-bellis-unheaded-shim-00.md)
+- [pqc-authentication-00](docs/protocol/draft-bellis-unheaded-pqc-authentication-00.md)
+
+## UPC
+
+A virtual CPU built on the protocol: Monad as the transport bus, Wotan as memory, Sophia
+as microcode, eBPF as the interpreter. One interpreter runs multiple guest workloads,
+feature-partitioned to fit the eBPF verifier's 1M-instruction budget.
+
+- **Doom** — runs; playable in a browser via `doom-runner`.
+- **xv6** — runs; interactive shell, fork/exec/wait, per-pid MMU isolation, in-BPF
+  filesystem reader (`ls`/`cat`/`echo`/`wc` over `fs.img`).
+- **Unheaded Linux** — a from-scratch minimal OS, evolving from the xv6 substrate.
+  In development.
+
+Code: `ebpf/monad-cpu-ebpf/` (interpreter), `crates/xv6-mbc/`, `crates/doom-runner/`,
+`cmd/upc-bootctl/`. Docs: [`wiki/UPC-Overview.md`](wiki/UPC-Overview.md),
+[`wiki/Linux-on-UPC.md`](wiki/Linux-on-UPC.md), [`wiki/Doom-on-UPC.md`](wiki/Doom-on-UPC.md),
+[`wiki/MBC-ISA-Reference.md`](wiki/MBC-ISA-Reference.md).
 
 ## Stack
 
-Go services, Rust eBPF (Aya), Wotan message bus (gRPC + HTTP), PostgreSQL (multi-DB "The Well"), llama.cpp + Mistral-7B (ROCm), vanilla JS frontend, .deb packaging + systemd, SLH-DSA / ML-DSA-65 post-quantum crypto, deterministic Sealed Cask builds.
+Go services, Rust eBPF (Aya), Wotan message bus (gRPC + HTTP), PostgreSQL (multi-DB "The
+Well"), llama.cpp + Mistral-7B (ROCm), vanilla-JS frontend, `.deb` packaging + systemd,
+SLH-DSA / ML-DSA-65 post-quantum crypto, deterministic Sealed Cask builds.
 
-## UPC compute substrate
+## Zhen
 
-The Unheaded Protocol Computer (UPC) is a virtual CPU built on the protocol itself: Monad as the transport bus, Wotan as memory, Sophia as microcode, eBPF as the interpreter. One interpreter runs multiple guest workloads, feature-partitioned to fit the eBPF verifier's 1M-instruction budget (ADR-080). The Dream Ladder runs from packet stamping (L1) to running an OS (L6).
-
-- **Doom** — L3 computational-completeness proof; playable in-browser via `doom-runner`.
-- **xv6** — L5; interactive shell, fork/exec/wait, per-pid MMU isolation, in-BPF filesystem reader (`ls`/`cat`/`echo`/`wc` over `fs.img`). Phase 1 complete 2026-07-02.
-- **Unheaded Linux** — next; an own-built minimal OS evolving from the xv6 substrate, scaling toward the Yggdrasil golden image (ADR-081). Long-term.
-
-Robust documentation:
-- [`wiki/UPC-Overview.md`](wiki/UPC-Overview.md) — substrate, BPF maps, MBC ISA, Boot Protocol v2
-- [`wiki/Unheaded-Protocol.md`](wiki/Unheaded-Protocol.md) — Monad + Sophia + Wotan + MBC + Shim + PQC
-- [`wiki/UPC-Dream-Ladder.md`](wiki/UPC-Dream-Ladder.md) — six-level ascent + gates
-- [`wiki/Doom-on-UPC.md`](wiki/Doom-on-UPC.md) — L3 proof
-- [`wiki/Linux-on-UPC.md`](wiki/Linux-on-UPC.md) — ASCEND-LINUX, current frontier
-- [`wiki/MBC-ISA-Reference.md`](wiki/MBC-ISA-Reference.md) — opcode + encoding reference
-
-Code: `crates/doom-runner/`, `crates/xv6-mbc/`, `cmd/upc-bootctl/`, `ebpf/monad-cpu-ebpf/`. Roadmap: `docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md`.
-
-## Zhen AI
-
-`crates/zhend/` (anti-fragile gossip knowledge substrate, PQC-secured) + `crates/zhenai-forge/` (LoRA fine-tuning on Gemma-4 / Mistral-7B via ROCm) + Flask web UI at port 20103 (1.52M-vector RAG corpus). Currently consolidating WAVE12 Kingdom RAFT LoRA wins; eval Δ −14.32 vs base on held-out Kingdom prefixes.
+`crates/zhend/` — anti-fragile gossip knowledge substrate, PQC-secured. `crates/zhenai-forge/`
+— LoRA fine-tuning on Gemma-4 / Mistral-7B via ROCm. Flask web UI on port 20103 over a
+1.52M-vector RAG corpus.
 
 ## License
 
