@@ -1159,23 +1159,8 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 }
                 let rv_word = ret >> 2;
                 cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_branch_base(cpu))) {
-                    Some(mbc_idx) if *mbc_idx != 0 => {
-                        // Diagnostic: dump translated mbc_idx as 4 hex chars + arm tracer.
-                        let v = *mbc_idx;
-                        let hex = b"0123456789ABCDEF";
-                        mem_write_byte(0xC001, b'<');
-                        mem_write_byte(0xC001, hex[((v >> 12) & 0xF) as usize]);
-                        mem_write_byte(0xC001, hex[((v >> 8) & 0xF) as usize]);
-                        mem_write_byte(0xC001, hex[((v >> 4) & 0xF) as usize]);
-                        mem_write_byte(0xC001, hex[(v & 0xF) as usize]);
-                        mem_write_byte(0xC001, b'>');
-                        // Tracer arming disabled — diagnostics moved to F1..F5 markers.
-                        *mbc_idx
-                    }
-                    _ => {
-                        mem_write_byte(0xC001, b'?');
-                        ret
-                    }
+                    Some(mbc_idx) if *mbc_idx != 0 => *mbc_idx,
+                    _ => ret,
                 };
             }
 
@@ -2090,54 +2075,63 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 }
             } else if syscall_nr == 16 {
                 // xv6 SYS_write (16) — write(fd=a0, buf=a1, n=a2) to the TTY.
-                // ONE byte per tick: a whole-buffer copy loop blows the
-                // kernel-6.17 BPF verifier budget, so n>1 re-enters via pc-=1
-                // (Gate D Phase 6 — cat/echo write full buffers and xv6's cat
-                // treats a short write as fatal; before this, echo printed
-                // only its first byte). The cursor rides in a3's low 16 bits
-                // under a 0xD0C0 tag (a2 holds n, so open(15)'s bare-a3-magic
-                // trick doesn't fit); printf's hot putc (n==1) never touches
-                // a3. n is clamped to 4096 so a hostile count can't wedge the
-                // CPU in a near-infinite re-entry chain.
                 // Gate 2: buf_addr is a USER virtual address — resolve it through
                 // the calling process's page table (walkaddr equivalent) before
                 // the physical read. Identity for pid 0; offset slice for children.
                 let buf_addr = cpu.regs[9];
-                let n_raw = cpu.regs[10];
-                let n = if n_raw > 4096 { 4096 } else { n_raw };
-                if n == 0 {
-                    cpu.regs[8] = 0;
-                } else if n == 1 {
-                    // Hot path: printf's putc — no cursor machinery.
+                if cfg!(feature = "ascend-linux") {
+                    // xv6 multi-byte re-entrant write (echo/cat write full buffers
+                    // and xv6's cat treats a short write as fatal). ONE byte per
+                    // tick: a whole-buffer copy loop blows the kernel-6.17 verifier
+                    // budget, so n>1 re-enters via pc-=1. The cursor rides in a3's
+                    // low 16 bits under a 0xD0C0 tag (a2 holds n); printf's hot
+                    // putc (n==1) never touches a3. n clamped to 4096 so a hostile
+                    // count can't wedge the CPU. DCE'd in the Doom build — Doom
+                    // never uses xv6's write(16), and the extra states pushed the
+                    // non-ascend object over the 1M ceiling (Doom regression).
+                    let n_raw = cpu.regs[10];
+                    let n = if n_raw > 4096 { 4096 } else { n_raw };
+                    if n == 0 {
+                        cpu.regs[8] = 0;
+                    } else if n == 1 {
+                        let byte_val = mem_read_byte(translate_address(cpu, buf_addr));
+                        mem_write_byte(0xC001, byte_val);
+                        cpu.regs[8] = 1;
+                    } else {
+                        const WRITE_TAG: u32 = 0xD0C0_0000;
+                        let cursor = if (cpu.regs[11] & 0xFFFF_0000) == WRITE_TAG {
+                            let c = cpu.regs[11] & 0xFFFF;
+                            if c >= n {
+                                0 // hostile/stale cursor — restart
+                            } else {
+                                c
+                            }
+                        } else {
+                            0
+                        };
+                        let byte_val =
+                            mem_read_byte(translate_address(cpu, buf_addr.wrapping_add(cursor)));
+                        mem_write_byte(0xC001, byte_val);
+                        let next = cursor + 1;
+                        if next < n {
+                            cpu.regs[11] = WRITE_TAG | next;
+                            cpu.pc = cpu.pc.wrapping_sub(1); // re-enter next tick
+                            break;
+                        }
+                        cpu.regs[11] = 0; // retire the cursor
+                        cpu.regs[8] = n;
+                    }
+                } else {
+                    // Doom build: single-byte write (the pre-Gate-D-Phase-6 path).
                     let byte_val = mem_read_byte(translate_address(cpu, buf_addr));
                     mem_write_byte(0xC001, byte_val);
                     cpu.regs[8] = 1;
-                } else {
-                    const WRITE_TAG: u32 = 0xD0C0_0000;
-                    let cursor = if (cpu.regs[11] & 0xFFFF_0000) == WRITE_TAG {
-                        let c = cpu.regs[11] & 0xFFFF;
-                        if c >= n {
-                            0 // hostile/stale cursor — restart
-                        } else {
-                            c
-                        }
-                    } else {
-                        0
-                    };
-                    let byte_val =
-                        mem_read_byte(translate_address(cpu, buf_addr.wrapping_add(cursor)));
-                    mem_write_byte(0xC001, byte_val);
-                    let next = cursor + 1;
-                    if next < n {
-                        cpu.regs[11] = WRITE_TAG | next;
-                        cpu.pc = cpu.pc.wrapping_sub(1); // re-enter next tick
-                        break;
-                    }
-                    cpu.regs[11] = 0; // retire the cursor
-                    cpu.regs[8] = n;
                 }
-            } else if syscall_nr == 1 {
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 1 {
                 // ── xv6 SYS_fork (1) — RV32I ecall path (Phase 1.6) ──────────
+                // ascend-only: in the Doom build syscall 1 is SYS_DRAW_FRAME
+                // (handled above); gating this xv6 arm DCEs it out of the Doom
+                // object, which Doom never calls and which cost verifier budget.
                 // Real fork: snapshot the parent's full MBC register file into
                 // the next PROC_TABLE slot so the scheduler (driven later by
                 // SYS_wait → scheduler_context_switch) can run the child. This
@@ -2324,8 +2318,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // Parent's fork() return value: a0 = child_pid.
                     cpu.regs[8] = child_pid;
                 }
-            } else if syscall_nr == 2 {
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 2 {
                 // ── xv6 SYS_exit (2) — RV32I ecall path (Phase 1.6) ──────────
+                // ascend-only (Doom's syscall 2 is SYS_GET_KEY, handled above).
                 // Mark the exiting process a ZOMBIE (set its halted_mask bit) so
                 // its parent's wait() can reap it, then context-switch to a
                 // runnable process. Only halt the whole CPU when nothing else
@@ -2369,8 +2364,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     increment_stat(STAT_HALTED);
                     break;
                 }
-            } else if syscall_nr == 3 {
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 3 {
                 // ── xv6 SYS_wait (3) — RV32I ecall path (Phase 1.6) ──────────
+                // ascend-only (Doom's syscall 3 is SYS_GET_TICKS, handled above).
                 // wait(int *status): block until ANY child exits, return its
                 // pid; -1 if the caller has no children. a0 (→ r8) is BOTH the
                 // status pointer (0 = ignore) and the return value.
@@ -2447,16 +2443,18 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     // No children — xv6 wait() returns -1.
                     cpu.regs[8] = (-1i32) as u32;
                 }
-            } else if syscall_nr == 11 {
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 11 {
                 // ── xv6 SYS_getpid (11) — RV32I ecall path (Gate 4) ──────────
+                // ascend-only (xv6 syscall; Doom never issues it).
                 // Return the running pid (a0) so a userland process can
                 // self-verify it is executing AS the pid whose per-pid physical
                 // slice it expects — part of proving "per-pid" isolation, not
                 // just "per-fork". 0 = init; children are 1.. . Not handled in
                 // the original Phase 1.6 path (init/sh/gate2 don't call it).
                 cpu.regs[8] = cpu.current_pid as u32;
-            } else if syscall_nr == 13 {
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 13 {
                 // ── xv6 SYS_pause (13) → cooperative YIELD (Gate 4, 2026-05-31) ─
+                // ascend-only (xv6 scheduler yield; Doom never issues it).
                 // ascend-linux has NO timer preemption (the round-robin timer
                 // switch near the top of this program is cfg-gated off for xv6
                 // builds), so a live process can only relinquish the CPU at
@@ -2486,8 +2484,12 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 if cpu.current_pid != prev_pid {
                     break;
                 }
-            } else if syscall_nr == 15 {
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 15 {
                 // ── xv6 SYS_open (15) — Gate D real inode resolve (Phase 3) ──
+                // ascend-only: the FS-walk here (superblock + dirent scan +
+                // name compare) is the single biggest xv6-only chunk. DCE'd
+                // out of the Doom build (Doom has no filesystem) — this is what
+                // brought the non-ascend object back under the 1M ceiling.
                 // open(path=a0, flags=a1). `open("console")` keeps the pre-FS
                 // console-device fd (init's stdio: open→0, dup×2→1,2). Any other
                 // path is resolved against the root directory's dirents (inum 1)
@@ -2679,16 +2681,18 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 if !done {
                     cpu.regs[8] = (-1i32) as u32;
                 }
-            } else if syscall_nr == 17 {
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 17 {
                 // ── xv6 SYS_mknod (17) — RV32I ecall path (Phase 1.7 Gate A) ──
+                // ascend-only (xv6 device node; Doom never issues it).
                 // mknod(path, major, minor): register a device node. The console
                 // device is implicit in this model (no device-number table at
                 // L5), so this is a success-returning near-noop that only has to
                 // satisfy init's `if(open("console")<0){ mknod("console",…); … }`
                 // fallback. Real device nodes await the FS reader.
                 cpu.regs[8] = 0;
-            } else if syscall_nr == 10 {
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 10 {
                 // ── xv6 SYS_dup (10) — RV32I ecall path (Phase 1.7 Gate A) ──
+                // ascend-only (xv6 fd dup; Doom never issues it).
                 // dup(oldfd=a0): copy oldfd's kind onto the lowest-free fd. init
                 // does dup(0); dup(0) to put the console on stdout(1)/stderr(2).
                 // -1 if oldfd isn't open or the table is full. oldfd itself is in
@@ -2707,8 +2711,9 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                         cpu.regs[8] = newfd;
                     }
                 }
-            } else if syscall_nr == 21 {
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 21 {
                 // ── xv6 SYS_close (21) — RV32I ecall path (Phase 1.7 Gate A) ──
+                // ascend-only (xv6 fd close; Doom never issues it).
                 // close(fd=a0): free the descriptor; -1 if it wasn't open. No
                 // refcount at L5 — each fd is an independent kind tag, so closing
                 // one dup'd console fd doesn't disturb the others.
@@ -2723,8 +2728,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     fd_clear_inode(pid, fd);
                     cpu.regs[8] = 0;
                 }
-            } else if syscall_nr == 5 {
+            } else if cfg!(feature = "ascend-linux") && syscall_nr == 5 {
                 // ── xv6 SYS_read (5) — RV32I ecall path (Gate C console input) ──
+                // ascend-only: FD_INODE file read (block resolve + copy) + the
+                // console KBD-ring drain. The second-biggest xv6-only chunk;
+                // DCE'd out of Doom (Doom reads keys via SYS_GET_KEY, not read).
                 // read(fd=a0, buf=a1, n=a2). sh's gets() always asks for n=1, so
                 // we deliver exactly ONE byte per call from the KBD ring (host
                 // pre-fills it via upc-bootctl --input). Verifier-friendly shape
