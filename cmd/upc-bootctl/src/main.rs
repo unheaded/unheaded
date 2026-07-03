@@ -177,21 +177,25 @@ fn load_resident_program(
     rv2mbc_base: u32,
     data_stage_va: u32,
 ) -> Result<()> {
-    // ROM_MAP holds 262,144 MBC words (see monad-cpu-ebpf `ROM_MAP`). A
-    // program's ROM must fit within it. (The old RET MBC-vs-RV magnitude
-    // floor guard is gone — ADR-079 tags return addresses with bit 31 at
-    // CALL/CALLR, so a program's ROM base no longer has to stay below a
-    // fixed floor; that unblocks Linux-scale images.)
-    const ROM_MAP_WORDS: u32 = 262_144;
+    // A program's ROM must fit ROM_MAP (see monad-cpu-ebpf `ROM_MAP`). Its
+    // capacity is compile-time-feature-dependent: 262,144 words by default,
+    // 1,048,576 with `large-image` (ADR-081 / the code-store option). upc-bootctl
+    // (host) can't know which feature the loaded object was built with, so this
+    // early check guards against the MAXIMUM and relies on populate_rom_at (aya
+    // `Array::set`) to enforce the actual per-build bound — otherwise a stale
+    // 262,144 guard would wrongly reject a valid large image on a large-image
+    // build, defeating the feature. (The old RET MBC-vs-RV floor guard is gone —
+    // ADR-079 tags return addresses, so ROM base is no longer floor-constrained.)
+    const ROM_MAP_WORDS_MAX: u32 = 1_048_576;
     let bytes = std::fs::read(mbc_path).with_context(|| format!("read {}", mbc_path.display()))?;
     if !bytes.len().is_multiple_of(4) {
         bail!("{} not 4-byte aligned", mbc_path.display());
     }
     let rom_end = rom_base as u64 + (bytes.len() as u64 / 4);
-    if rom_end > ROM_MAP_WORDS as u64 {
+    if rom_end > ROM_MAP_WORDS_MAX as u64 {
         bail!(
             "{name}: ROM [0x{rom_base:X}, 0x{rom_end:X}) overflows ROM_MAP \
-             (0x{ROM_MAP_WORDS:X} words)"
+             (max 0x{ROM_MAP_WORDS_MAX:X} words)"
         );
     }
     // Patch CALL immediates by rom_base, exactly like the init path.
