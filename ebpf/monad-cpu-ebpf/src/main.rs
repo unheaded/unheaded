@@ -98,7 +98,7 @@ static RAM_MAP: Array<u32> = Array::with_max_entries(monad_common::mbc_maps::RAM
 /// Pixel (x, y) → SCREEN_MAP[y * 320 + x].
 /// Userspace polls this at 60 Hz to render the current frame.
 #[map]
-static SCREEN_MAP: Array<u8> = Array::with_max_entries(64_000, 0);
+static SCREEN_MAP: Array<u8> = Array::with_max_entries(monad_common::mbc_maps::SCREEN_MAP_BYTES, 0);
 
 /// Keyboard state: 64 entries, one u32 per active key slot (Gate D Phase 6:
 /// 8→64 so a full command line like `cat README\n` fits the scripted ring).
@@ -122,7 +122,8 @@ static KBD_TAIL: Array<u32> = Array::with_max_entries(1, 0);
 /// Key = instance_id (u32, low 8 bits of Flow Label).
 /// Value = MbcCpuState (80 bytes: 16×u32 regs + pc + flags + halted + pad + sleep_ns).
 #[map]
-static CPU_MAP: HashMap<u32, MbcCpuState> = HashMap::with_max_entries(256, 0);
+static CPU_MAP: HashMap<u32, MbcCpuState> =
+    HashMap::with_max_entries(monad_common::mbc_maps::CPU_MAP_ENTRIES, 0);
 
 /// Statistics counters.
 #[map]
