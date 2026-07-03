@@ -1498,6 +1498,61 @@ pub mod mbc_block {
     pub const WORDS_PER_BLOCK: u32 = BLOCK_SIZE / 4; // 128 words
 }
 
+/// Canonical BPF-map capacities for the UPC interpreter (`monad-cpu-ebpf`).
+///
+/// Single source of truth for map sizes that are otherwise duplicated across the
+/// eBPF crate's `with_max_entries` calls and the host loaders (`cmd/upc-bootctl`,
+/// `crates/doom-runner`). Those copies drift — e.g. the `large-image` feature
+/// (ADR-081 code-store option) grew ROM_MAP but upc-bootctl's guard kept the old
+/// value and would have wrongly rejected large images. Consumers should migrate
+/// to these constants so a size change lands in exactly one place.
+///
+/// The interpreter selects the ROM / RV2MBC capacity by the `large-image`
+/// feature; the host loaders can't know that feature at compile time, so they
+/// guard against the `*_LARGE` maximum and rely on `aya::Array::set` for the
+/// actual per-build bound.
+pub mod mbc_maps {
+    /// ROM_MAP capacity (MBC words), default (small-image) build. 1 MiB of code.
+    pub const ROM_MAP_WORDS_DEFAULT: u32 = 262_144;
+    /// ROM_MAP capacity with `large-image`. 4 MiB — holds a uClinux/Linux-class
+    /// kernel image (ADR-081).
+    pub const ROM_MAP_WORDS_LARGE: u32 = 1_048_576;
+    /// RV2MBC_MAP capacity (entries, one per RV `.text` word), default build.
+    pub const RV2MBC_ENTRIES_DEFAULT: u32 = 65_536;
+    /// RV2MBC_MAP capacity with `large-image`. 8× — covers ~2 MiB of RV `.text`.
+    pub const RV2MBC_ENTRIES_LARGE: u32 = 524_288;
+    /// RAM_MAP capacity (words) — 64 MiB physical space. Feature-independent.
+    pub const RAM_MAP_WORDS: u32 = 16_777_216;
+    /// SCREEN_MAP capacity (bytes) — the 320×200 framebuffer.
+    pub const SCREEN_MAP_BYTES: u32 = 320 * 200;
+    /// CPU_MAP instance capacity (one MbcCpuState row per instance id).
+    pub const CPU_MAP_ENTRIES: u32 = 256;
+}
+
+#[cfg(test)]
+mod mbc_maps_tests {
+    use super::mbc_maps::*;
+
+    #[test]
+    fn large_image_capacities_exceed_default() {
+        assert!(ROM_MAP_WORDS_LARGE > ROM_MAP_WORDS_DEFAULT);
+        assert!(RV2MBC_ENTRIES_LARGE > RV2MBC_ENTRIES_DEFAULT);
+        // The audit called ROM 2× / RV2MBC 8× too small; the large sizes deliver.
+        assert_eq!(ROM_MAP_WORDS_LARGE, ROM_MAP_WORDS_DEFAULT * 4);
+        assert_eq!(RV2MBC_ENTRIES_LARGE, RV2MBC_ENTRIES_DEFAULT * 8);
+    }
+
+    #[test]
+    fn ram_map_is_64_mib_of_words() {
+        assert_eq!(RAM_MAP_WORDS, 64 * 1024 * 1024 / 4);
+    }
+
+    #[test]
+    fn screen_map_is_320x200() {
+        assert_eq!(SCREEN_MAP_BYTES, 64_000);
+    }
+}
+
 /// Interrupt vector numbers for the MBC CPU.
 pub mod mbc_interrupts {
     /// Timer interrupt vector (~100 Hz for scheduler). IVT offset = 0x20 * 4 = 0x80.
