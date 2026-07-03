@@ -1002,4 +1002,35 @@ mod tests {
         // test is the tripwire.
         assert_eq!(relocate_rv2mbc_entry(0, 0x6000), 0x6000);
     }
+
+    // ── fnv1a: the exec name-hash. It MUST stay bit-identical to the eBPF
+    // exec(7) handler's basename hash (pt::name_hash in monad-cpu-ebpf) — the
+    // loader writes PROGRAM_TABLE rows keyed by this hash and exec resolves a
+    // path basename to a slot by recomputing it. These pin it to the canonical
+    // FNV-1a-32 test vectors (offset basis 0x811c9dc5, prime 0x01000193), so any
+    // drift in either implementation is caught here.
+
+    #[test]
+    fn fnv1a_empty_is_offset_basis() {
+        assert_eq!(fnv1a(b""), 0x811c_9dc5);
+    }
+
+    #[test]
+    fn fnv1a_matches_canonical_vectors() {
+        assert_eq!(fnv1a(b"a"), 0xe40c_292c);
+        assert_eq!(fnv1a(b"foobar"), 0xbf9c_f968);
+    }
+
+    #[test]
+    fn fnv1a_is_order_sensitive() {
+        // Distinct program names must hash distinctly (no PROGRAM_TABLE collision
+        // for the resident set) and the hash is order-dependent.
+        assert_ne!(fnv1a(b"sh"), fnv1a(b"hs"));
+        let names: [&[u8]; 5] = [b"sh", b"ls", b"cat", b"echo", b"wc"];
+        for i in 0..names.len() {
+            for j in (i + 1)..names.len() {
+                assert_ne!(fnv1a(names[i]), fnv1a(names[j]), "collision {i} vs {j}");
+            }
+        }
+    }
 }
