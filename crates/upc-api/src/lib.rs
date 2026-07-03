@@ -52,6 +52,21 @@
 //!   live in `ebpf/monad-cpu-ebpf` (core), `cmd/upc-bootctl` +
 //!   `crates/doom-runner` (loaders), and the per-workload adapters
 //!   (`crates/xv6-mbc`, `crates/doom-runner`).
+//!
+//! ## Open design issues to settle in Epic 1.2.3 adoption (found on review)
+//!
+//! 1. **The opaque types are not constructible, so the traits can't be
+//!    implemented.** [`image::MbcImage`] / [`image::Rv2MbcMap`] have a private
+//!    `()` field and no constructor, and [`image::GuestImage`] returns
+//!    `&MbcImage` — a loader outside this crate cannot build one to return. The
+//!    fix is part of the trait-vs-struct decision below.
+//! 2. **Trait objects vs descriptor structs.** This scaffold uses object-safe
+//!    traits (`&dyn GuestImage` / `&dyn SyscallSurface`); the 2026-07-03 panel
+//!    (Developer) preferred **plain descriptor structs + free functions** — the
+//!    `Workload` is *data*, not behaviour, and `&dyn` adds the same indirection
+//!    the eBPF verifier forbids downstream. Moving to descriptor structs (fields
+//!    the loader fills: a `Vec<u32>` image, an rv2mbc map, an entry PC) also
+//!    dissolves issue 1 (no opaque types to construct). Recommended direction.
 
 #![deny(missing_docs)]
 
