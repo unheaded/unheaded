@@ -33,6 +33,15 @@ ascend-linux = ["monad-common/ascend-linux"]
 phase12-option-a = []  # per-task pgd (CHOSEN per ADR-074 Decision 2026-05-12)
 phase12-option-b = []  # ASID-tagged shared pgd (stub for measurement)
 phase12-option-c = []  # priv_level + pid hybrid (stub for measurement)
+# large-image: grow the code store (ROM_MAP + RV2MBC_MAP) for Linux-class
+# kernel images. Phase 2 code-store option A (grow-maps) per the capacity
+# audit (references/phase2-preflight-capacity-audit-2026-07-02.md). Default
+# OFF so Doom/xv6 keep the small maps (no extra locked memory, byte-identical
+# behavior). Enable for a uClinux/Linux build once its MBC image exceeds the
+# small-image ROM_MAP. Map max_entries is a compile-time const, so this is a
+# feature, not a runtime knob. Verifier cost is zero (map size does not affect
+# verified instructions); only locked memory grows.
+large-image = []
 
 [dependencies]
 aya-ebpf.workspace     = true

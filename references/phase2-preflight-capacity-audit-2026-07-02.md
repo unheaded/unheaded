@@ -84,6 +84,15 @@ the code-store problem is solved. It is not. **Insert a Phase 2.0 substrate epic
    - **(A) Bigger resident maps** — grow ROM_MAP + RV2MBC_MAP to Linux scale (megabytes
      of locked memory/instance), keep whole-kernel offline pretranslation. Simplest;
      memory-heavy; still needs multi-segment loading.
+   - **(A) is now IMPLEMENTED + VALIDATED (2026-07-03, `large-image` cargo feature).**
+     ROM_MAP 262K→1M words (4 MiB), RV2MBC_MAP 65K→512K entries, cfg-gated so Doom/xv6
+     builds are byte-identical (default off). **Key result: growing the maps costs ZERO
+     verifier budget** — the ascend build measured 857,998 insns *identically* with and
+     without `large-image` (map size is a load-time property, not a verified instruction).
+     xv6 boots cleanly at the Linux-scale map sizes (`cat README` walks a real inode). So
+     option A's only cost is locked memory, and it is confined to Linux-class builds by the
+     feature. Walls #2 and #3 are CLOSED for uClinux-scale images. (Full Linux may still
+     want B/C, but A unblocks bring-up.)
    - **(B) Demand translation** — translate RV→MBC lazily in the interpreter on first
      execution of a page. Scales to any image; but adds interpreter complexity against a
      15% verifier budget — **high risk of blowing the ceiling** (measure a spike first).

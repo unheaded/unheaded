@@ -67,11 +67,22 @@ use monad_common::{
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
 
+/// ROM code-store capacity (MBC words). Small-image default holds 262 144
+/// words (1 MiB) — ample for Doom / xv6. The `large-image` feature (Phase 2
+/// code-store option A) grows it to 1 Mi word (4 MiB) so a uClinux/Linux-class
+/// kernel image fits; see the capacity audit
+/// (references/phase2-preflight-capacity-audit-2026-07-02.md). Compile-time
+/// const — verifier cost is unchanged (map size does not affect verified
+/// instructions), only locked memory grows.
+#[cfg(not(feature = "large-image"))]
+const ROM_MAP_ENTRIES: u32 = 262_144;
+#[cfg(feature = "large-image")]
+const ROM_MAP_ENTRIES: u32 = 1_048_576;
+
 /// ROM: MBC program instructions, u32 per slot.
 /// Index = PC value.  Loaded by Wotan trace-collector from .mbc binary.
-/// 262 144 entries = 1 MiB of instructions.
 #[map]
-static ROM_MAP: Array<u32> = Array::with_max_entries(262_144, 0);
+static ROM_MAP: Array<u32> = Array::with_max_entries(ROM_MAP_ENTRIES, 0);
 
 /// RAM: word-addressable memory backed by a BPF Array.
 /// Index = word address (byte_addr >> 2 for LD/ST, direct for CALL/RET stack).
@@ -125,13 +136,21 @@ static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
 #[map]
 static L1_CACHE: LruHashMap<u32, [u8; 64]> = LruHashMap::with_max_entries(256, 0);
 
+/// RV2MBC translation-table capacity (entries, one per RV word of .text).
+/// Small-image default is 65 536 (covers 256 KiB of .text — Doom's 46 K insns
+/// + xv6). The `large-image` feature grows it to 512 Ki (2 MiB of .text) for a
+/// Linux-class kernel, closing capacity-audit wall #3 (RV2MBC 8× too small).
+#[cfg(not(feature = "large-image"))]
+const RV2MBC_MAP_ENTRIES: u32 = 65_536;
+#[cfg(feature = "large-image")]
+const RV2MBC_MAP_ENTRIES: u32 = 524_288;
+
 /// RV32I-to-MBC address translation map.
 /// Index = RV32I word index (byte_addr >> 2), Value = MBC PC index.
 /// Used by JMPR/CALLR to translate function pointers stored as RISC-V
 /// byte addresses into the correct MBC ROM index.
-/// 65,536 entries covers up to 262,144 bytes of .text (46,132 RV insns for Doom).
 #[map]
-static RV2MBC_MAP: Array<u32> = Array::with_max_entries(65_536, 0);
+static RV2MBC_MAP: Array<u32> = Array::with_max_entries(RV2MBC_MAP_ENTRIES, 0);
 
 /// Per-process RV2MBC base offset (ADR-077, Phase 1.7 Gate B). Under
 /// ASCEND-LINUX each resident program (init, sh, …) occupies a disjoint
