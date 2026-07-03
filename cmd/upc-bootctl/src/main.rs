@@ -126,6 +126,26 @@ fn fnv1a(name: &[u8]) -> u32 {
     h
 }
 
+/// MBC opcode for CALL (absolute call with a 24-bit immediate target).
+const OP_CALL: u32 = 0x27;
+
+/// Relocate a CALL instruction's 24-bit immediate by `rom_base`, wrapping within
+/// 24 bits; any non-CALL word passes through unchanged.
+///
+/// The MBC translator emits CALL targets relative to the `.mbc`'s slot 0, so a
+/// program loaded at a non-zero ROM base needs every CALL immediate shifted or
+/// the call lands inside another image. JMP/JZ/JNZ/... are NOT relocated: they
+/// use signed PC-relative offsets that survive a uniform shift. Pure so the
+/// loader's core relocation is unit-tested off-target.
+#[inline]
+fn relocate_call_word(word: u32, rom_base: u32) -> u32 {
+    if (word >> 24) == OP_CALL {
+        (OP_CALL << 24) | ((word & 0x00FF_FFFF).wrapping_add(rom_base) & 0x00FF_FFFF)
+    } else {
+        word
+    }
+}
+
 /// Pre-translate a resident userland program (`sh`, `ls`, …) into a disjoint
 /// `ROM_MAP` region + a disjoint `RV2MBC_MAP` base, stage its `.data` in a
 /// pristine RAM region, and record an 8-word PROGRAM_TABLE row (ADR-077 Gate
@@ -142,7 +162,6 @@ fn load_resident_program(
     rv2mbc_base: u32,
     data_stage_va: u32,
 ) -> Result<()> {
-    const OP_CALL: u32 = 0x27;
     // ROM_MAP holds 262,144 MBC words (see monad-cpu-ebpf `ROM_MAP`). A
     // program's ROM must fit within it. (The old RET MBC-vs-RV magnitude
     // floor guard is gone — ADR-079 tags return addresses with bit 31 at
@@ -163,14 +182,7 @@ fn load_resident_program(
     // Patch CALL immediates by rom_base, exactly like the init path.
     let words: Vec<u32> = bytes
         .chunks_exact(4)
-        .map(|c| {
-            let w = u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
-            if (w >> 24) == OP_CALL {
-                (OP_CALL << 24) | ((w & 0x00FF_FFFF) + rom_base & 0x00FF_FFFF)
-            } else {
-                w
-            }
-        })
+        .map(|c| relocate_call_word(u32::from_le_bytes([c[0], c[1], c[2], c[3]]), rom_base))
         .collect();
     runner
         .populate_rom_at(rom_base, &words)
@@ -527,7 +539,6 @@ fn cmd_boot(
                 // immediate needs USER_ROM_BASE added or it lands inside the
                 // kernel image. Same fix is NOT needed for JMP/JZ/JNZ/... which
                 // use signed PC-relative offsets (wrap-add survives the shift).
-                const OP_CALL: u32 = 0x27;
                 let mut patched_calls = 0u32;
                 let words: Vec<u32> = bytes
                     .chunks_exact(4)
@@ -535,12 +546,8 @@ fn cmd_boot(
                         let w = u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
                         if (w >> 24) == OP_CALL {
                             patched_calls += 1;
-                            let target = w & 0x00FF_FFFF;
-                            let shifted = (target + USER_ROM_BASE) & 0x00FF_FFFF;
-                            (OP_CALL << 24) | shifted
-                        } else {
-                            w
                         }
+                        relocate_call_word(w, USER_ROM_BASE)
                     })
                     .collect();
                 runner
@@ -912,5 +919,44 @@ mod tests {
         const XV6_MBC_BYTES: usize = 11_721 * 4;
         let buf = vec![0u8; XV6_MBC_BYTES];
         assert_eq!(check_image_alignment(&buf).unwrap(), 11_721);
+    }
+
+    // ── relocate_call_word: characterization of the loader's core relocation ──
+    // These pin the current behavior so the upc-api loader refactor (Epic 1.2)
+    // can be proven byte-identical against them.
+
+    #[test]
+    fn relocate_non_call_passes_through() {
+        // Opcode 0x0F (not CALL) — the whole word is untouched regardless of base.
+        assert_eq!(relocate_call_word(0x0F00_0100, 0x4000), 0x0F00_0100);
+        assert_eq!(relocate_call_word(0x0000_0000, 0x4000), 0x0000_0000);
+    }
+
+    #[test]
+    fn relocate_call_shifts_immediate_by_rom_base() {
+        // CALL (0x27) to target 0x000100, loaded at ROM base 0x4000:
+        // (0x100 + 0x4000) & 0xFFFFFF = 0x4100, opcode byte preserved.
+        assert_eq!(relocate_call_word(0x2700_0100, 0x4000), 0x2700_4100);
+    }
+
+    #[test]
+    fn relocate_call_base_zero_is_identity() {
+        // init loads at ROM base 0 (via populate_rom): CALL immediates unchanged.
+        assert_eq!(relocate_call_word(0x2712_3456, 0), 0x2712_3456);
+    }
+
+    #[test]
+    fn relocate_call_wraps_within_24_bits() {
+        // Target 0xFFFFFF + 1 wraps to 0 within the 24-bit immediate; the
+        // opcode byte in bits 24..32 is never disturbed by the wrap.
+        assert_eq!(relocate_call_word(0x27FF_FFFF, 0x1), 0x2700_0000);
+    }
+
+    #[test]
+    fn relocate_call_preserves_opcode_byte() {
+        // Only bits 0..24 change; bits 24..32 stay 0x27 for any base.
+        for base in [0u32, 0x4000, 0x1_0000, 0xFF_FFFF] {
+            assert_eq!(relocate_call_word(0x2700_0000, base) >> 24, 0x27);
+        }
     }
 }
