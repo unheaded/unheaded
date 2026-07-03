@@ -1,0 +1,33 @@
+# crates/upc-api — the UPC programmatic-API surface (bones-only scaffold).
+#
+# Host-side orchestration crate that names the contract by which a guest
+# program plugs into the UPC (Unheaded Protocol Computer). Scaffold only:
+# traits, enums, and opaque placeholder types with rich doc comments; every
+# function body is `todo!()`. No implementations, no hardcoded values.
+#
+# WHERE THIS RUNS: userspace on the HOST. It is consumed by the loaders
+# (cmd/upc-bootctl for xv6/Linux, crates/doom-runner for Doom). It does NOT
+# run inside the eBPF interpreter (ebpf/monad-cpu-ebpf) — the BPF verifier
+# forbids the dynamic dispatch / trait objects a "registered dispatch" needs,
+# so the interpreter's syscall dispatch stays a hardcoded, cfg-partitioned
+# if/else chain. This crate DESCRIBES that surface for the host; it does not
+# dispatch at runtime.
+#
+# See docs/adr/ADR-080-upc-programmatic-api.md for the full contract.
+#
+# License: GPL-3.0-or-later. No third-party dependencies (prefer zero — the
+# skeleton typechecks against core/std alone).
+
+[package]
+name = "upc-api"
+version = "0.1.0"
+edition = "2021"
+authors = ["Unheaded Kingdom Infrastructure Team"]
+description = "Host-side contract (bones) for loading and running guests on the UPC (ADR-080)"
+license = "GPL-3.0-or-later"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[dependencies]
