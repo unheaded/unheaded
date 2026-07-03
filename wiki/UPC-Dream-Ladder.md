@@ -12,8 +12,8 @@ This page is the live status. The deep architecture is at [UPC Overview](UPC-Ove
 | **L2** Stamping | Monad HbH write, CRC-16 valid | Wire capture, checksum verify | ✅ shipped |
 | **L3** Framebuffer | Scanline render, 320×200 output | Visual verify, ≥35 fps benchmark | ✅ shipped — [Doom on UPC](Doom-on-UPC) |
 | **L4** OS primitives | Syscalls, interrupts, scheduler, MMU | Unit tests, scheduling fairness, MMU isolation | ✅ shipped through L4f |
-| **L5** xv6 kernel | xv6 boots, init runs | Boot log reaches `init: starting sh`, shell prompt visible | 🟡 Phase 1.6 (2026-05-14): `init: starting sh` shipped. Shell prompt blocked on fork/exec/wait handlers. |
-| **L6** Linux | uClinux first, then Linux+MMU | `/bin/sh` prompt over Mode-C SSH session | ⏳ Phase 2+ |
+| **L5** xv6 kernel | interactive shell + filesystem | `sh` runs `ls`/`cat`/`echo`/`wc`, prompt returns | ✅ **shipped (2026-07-03)** — Phase 1 COMPLETE, Gates A→D.1. Interactive `sh` (fork/exec/wait), in-BPF FS reader over `fs.img`, per-pid MMU. [Linux on UPC](Linux-on-UPC) |
+| **L6** own OS | **Unheaded Linux** — own minimal OS from scratch (not vendored uClinux) | `sh` prompt on our kernel; scale to Yggdrasil golden image | ⏳ next ([ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md)) — evolve from xv6, budget-gated |
 
 ## Per-level detail
 
@@ -52,24 +52,19 @@ Sub-levels:
 
 Gate: each sub-level has its own unit tests in `ebpf/monad-cpu-ebpf/` + integration tests via `cmd/upc-bootctl validate`.
 
-### L5 — xv6 kernel (Phase 1.5 spike, 2026-05-14)
+### L5 — xv6 kernel (Phase 1 COMPLETE, 2026-07-03)
 
 xv6-riscv vendored at `crates/xv6-mbc/upstream/` (MIT). MBC ISA gained five new opcodes (FENCE / MRET / SRET / LR.W / SC.W) gated behind `cfg!(feature = "ascend-linux")`.
 
-**Achieved:** kernel boots end-to-end. consoleinit → printfinit → kinit → kvminit → kvminithart → procinit → trapinit → trapinithart → binit → iinit → fileinit → userinit → started=1 → scheduler → swtch → forkret → fsinit → kexec → SRET → priv=3 (user mode) → init's `main` → `open` → `dup` × 2 → `printf` → `vprintf` body → `write` syscall stub → `ecall`.
+**Shipped:** a full interactive shell. The kernel boots end-to-end, the scheduler dispatches `init`, `init` forks + exec's `sh`, and `sh` reads a command line, forks + exec's the command, reaps its child, and returns a fresh `$` prompt. Backed by an in-BPF filesystem reader that walks `fs.img` inodes directly from RAM_MAP: `ls` lists the root dir with types/inums/sizes, `cat` prints real file contents (incl. `>12 KiB` files via single-indirect blocks), `echo`/`wc` run with argv, per-pid MMU isolation holds (Phase 1.7 Gates A→D.1; ADR-077/078/079).
 
-**Remaining:** `SYS_write` reads NUL at r9 (Phase 1.6 — suspect translator's spill-shadow on x17). Once unblocked, init prints `init: starting sh\n` and the L5 gate ships.
+Detail + full gate chronology: [Linux on UPC](Linux-on-UPC).
 
-Detail: [Linux on UPC](Linux-on-UPC).
+### L6 — Unheaded Linux (next)
 
-### L6 — Linux (Phase 2+)
+Direction set by [ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md): rather than vendor uClinux + busybox, **build our own minimal OS from scratch** on the L5 substrate — evolve from xv6 (own PID 1 → shell → kernel edges → kernel core), never breaking the boot, then scale toward the Yggdrasil golden image. Long-term, budget-gated. The code-store maps already grow behind a `large-image` feature for Linux-scale images; the stage-1 stub `crates/upc-bootstub/` builds end-to-end.
 
-Two sub-phases:
-
-- **L6a** uClinux (no MMU). The Phase-2 stage-1 stub `crates/upc-bootstub/` is scaffolded. Kernel boot will reuse the BootParams + MEPC handoff from xv6.
-- **L6b** full Linux with MMU. Requires `cpu.mmu_enabled = 1` + a real page-table walker in the BPF interpreter. The L4d MMU emulation is the substrate; xv6's Phase 1.2 per-pid pgd model is the dry run.
-
-Gate: a `/bin/sh` prompt visible over an SSH session terminating in a network namespace inside the UPC. Demo Mode C from the original ASCEND-LINUX battle plan.
+Roadmap: [`docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md`](../docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md) (Track 1 substrate now, Track 2 Unheaded Linux later).
 
 ## Gate enforcement
 
