@@ -111,6 +111,16 @@ else
     echo "  SKIP: monad-cpu-ebpf binary not found (build may have failed)"
 fi
 
+# ---- Note: this script compile-checks + static-analyzes only ----
+# It does NOT load the eBPF object into the kernel, so it cannot catch an
+# over-budget object (the verifier only runs at load). The Doom outage of
+# 2026-07-03 was exactly that: a non-ascend object over the 1M ceiling that
+# compiled fine. For the real load-test-each-variant gate (ADR-080), run
+# scripts/upc-regression.sh — it loads BOTH build variants through their
+# loaders and functionally checks Doom + xv6. Wire THAT into CI as the UPC gate.
+echo ""
+echo "  NOTE: load-test both variants with scripts/upc-regression.sh (needs sudo)."
+
 # ---- Summary ----
 echo ""
 echo "=============================================="
