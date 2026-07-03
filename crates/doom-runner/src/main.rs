@@ -76,10 +76,10 @@ pub struct MbcCpuState {
     pub _pad3: u8,              // 1
     pub page_dir_base: u32,     // 4 (offset 124)
     // ── ASCEND-LINUX ABI v2 (ADR-067) ───────────────────────────────────
-    pub priv_level: u8,         // 1 (offset 128) M=0/S=1/U=3
-    pub _pad4: u8,              // 1
-    pub _pad5: u8,              // 1
-    pub _pad6: u8,              // 1
+    pub priv_level: u8,           // 1 (offset 128) M=0/S=1/U=3
+    pub _pad4: u8,                // 1
+    pub _pad5: u8,                // 1
+    pub _pad6: u8,                // 1
     pub reservation_address: u32, // 4 (offset 132) LR.W reservation tracker
 } // total: 136 (was 128 in ABI v1)
 
@@ -295,6 +295,24 @@ async fn cmd_run(
             .load()
             .context("failed to load monad_cpu XDP program")?;
         info!("monad_cpu XDP program loaded into kernel");
+
+        // UPC_VERIFIER_STATS: report the kernel's post-load verified-instruction
+        // count for the non-ascend (Doom) object. This is the only reliable read
+        // for an Aya object (its legacy maps section can't be loaded by
+        // libbpf/veristat/bpftool). Mirrors cmd/upc-bootctl; the regression
+        // harness (scripts/upc-regression.sh) captures it. Printed only when set.
+        if std::env::var_os("UPC_VERIFIER_STATS").is_some() {
+            match program.info() {
+                Ok(i) => match i.verified_instruction_count() {
+                    Some(n) => println!(
+                        "  VERIFIER: monad_cpu verified {n} insns ({:.1}% of 1M ceiling)",
+                        n as f64 / 1_000_000.0 * 100.0
+                    ),
+                    None => println!("  VERIFIER: verified_insns unavailable (kernel < 5.16?)"),
+                },
+                Err(e) => println!("  VERIFIER: prog info unavailable: {e}"),
+            }
+        }
 
         // Attach to veth interfaces in the ring
         // For a 2-hop ring: veth01p (in monad1) and veth10p (in monad0)
