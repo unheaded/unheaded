@@ -50,13 +50,14 @@ Track 2 later. Do them roughly in order; each has a green gate.*
 *This is the prerequisite that makes "add a new guest" (eventually Unheaded Linux) a declarative
 act instead of a third bespoke loader. Panel-reviewed 2026-07-03 (Architect/BlackMage/Developer/
 Scientist).*
-- [ ] **1.2.1** Finish `crates/upc-api` bones (agent left it partial): host-side **descriptor
-      structs + free functions** (NOT trait objects — Developer), modules image/memory/**surface**/
-      **boot**/**workload**/registry. rv2mbc + boot modeled as OPTIONAL/strategy-specific
-      (Scientist: they're accidental, not essential). Wire into a workspace or keep standalone.
-- [ ] **1.2.2** **Characterization (golden) tests FIRST** (Developer): capture the exact bytes
-      `doom-runner` and `upc-bootctl` write to each map today (ROM/RV2MBC/RAM slots, entry PC,
-      BootParams). These are the no-regression oracle.
+- [x] **1.2.1** `crates/upc-api` bones COMPLETE (agent scaffolded image/memory/lib, spend-limit
+      cut it off; the 4 missing modules — surface/boot/workload/registry — were finished as bones,
+      crate builds). NOTE: the agent used object-safe **traits** (`&dyn`); the panel preferred
+      **descriptor structs + free functions** — settle that in 1.2.3 adoption. Standalone crate.
+- [~] **1.2.2** Characterization tests — upc-bootctl's three pure transforms golden-tested
+      (`relocate_call_word`, `relocate_rv2mbc_entry`, `fnv1a` vs canonical FNV-1a; 11 tests);
+      doom-runner already has 24 tests over its load logic. REMAINS: full map-population byte
+      capture (exact ROM/RV2MBC slots + entry PC + BootParams) as the ultimate no-regression oracle.
 - [ ] **1.2.3** Introduce `Workload` as a descriptor both loaders construct internally; route the
       existing load code through one shared `load(workload, &mut runner)`; re-assert byte-identical
       maps at each step.
@@ -79,6 +80,11 @@ budget-aware handler with a green gate. Pick off as budget/interest allows.*
 ### Epic 1.4 — Code-store readiness (only when an image needs it)
 - [x] **1.4.1** Option A `large-image` feature (ROM_MAP 4×, RV2MBC 8×) — DONE + validated
       (zero verifier cost, xv6 boots at Linux-scale maps).
+- [x] **1.4.1a** Map-size **single source of truth** (`monad_common::mbc_maps`) — consolidation
+      done after `large-image` exposed a drift bug (upc-bootctl's stale 262K guard would have
+      wrongly rejected large images). mbc_maps defined + tested; all 5 eBPF map declarations
+      (ROM/RV2MBC/RAM/SCREEN/CPU), upc-bootctl's guard migrated; doom-runner cross-referenced
+      (keeps its own copy by design). Object byte-identical (verifier 857,998 unchanged).
 - [ ] **1.4.2** Keep options B (demand-translate) + C (RAM-resident code) documented in the audit;
       **measure a spike before committing** to either. Do NOT build speculatively — a small
       own-kernel (Track 2) may fit today's maps and moot this.
