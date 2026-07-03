@@ -243,6 +243,32 @@ pub fn name_eq(name: &[u8; DIRSIZ], target: &[u8]) -> bool {
     target.len() <= DIRSIZ
 }
 
+/// Scan a directory data block for an entry named `target`, returning its `inum`
+/// (never `0`) or `None` if absent. Free slots (`inum == 0`) are skipped.
+///
+/// This is the pure directory-lookup primitive: one path component resolved
+/// within one directory data block. `ndirents` bounds the scan (the caller
+/// derives it from the directory inode's size, clamped) so a hostile block can't
+/// drive an unbounded loop (**H-FS4**-style). The in-BPF `open(15)` handler
+/// resolves the root directory this way but re-entrantly (one dirent per tick for
+/// the verifier budget); this whole-block form is the tested spec + the basis for
+/// multi-component path walks (Epic 1.3.1 — "off-target test first").
+#[inline]
+pub fn resolve_in_dir_block(block_words: &[u32], ndirents: u32, target: &[u8]) -> Option<u16> {
+    let mut idx = 0u32;
+    while idx < ndirents {
+        let inum = dirent_inum(block_words, idx)?;
+        if inum != 0 {
+            let name = dirent_name(block_words, idx)?;
+            if name_eq(&name, target) {
+                return Some(inum);
+            }
+        }
+        idx += 1;
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -391,6 +417,30 @@ mod tests {
             idx += 1;
         }
         assert_eq!(found, Some(7));
+    }
+
+    /// `resolve_in_dir_block` factors the inline scan above into one primitive:
+    /// self/parent, hit, miss, free-slot skip, and the scan bound.
+    #[test]
+    fn resolve_in_dir_block_finds_skips_and_bounds() {
+        let mut blk = [0u32; FS_WORDS_PER_BLOCK as usize];
+        write_dirent(&mut blk, 0, 1, b"."); // self
+        write_dirent(&mut blk, 1, 1, b".."); // parent
+        write_dirent(&mut blk, 2, 0, b"stale"); // FREE slot (inum 0) — must skip
+        write_dirent(&mut blk, 3, 7, b"README"); // real target
+        write_dirent(&mut blk, 4, 9, b"init"); // another entry
+        let ndir = 5;
+
+        assert_eq!(resolve_in_dir_block(&blk, ndir, b"."), Some(1));
+        assert_eq!(resolve_in_dir_block(&blk, ndir, b".."), Some(1));
+        assert_eq!(resolve_in_dir_block(&blk, ndir, b"README"), Some(7));
+        assert_eq!(resolve_in_dir_block(&blk, ndir, b"init"), Some(9));
+        // A free slot named "stale" is skipped even though the name matches.
+        assert_eq!(resolve_in_dir_block(&blk, ndir, b"stale"), None);
+        // Absent name.
+        assert_eq!(resolve_in_dir_block(&blk, ndir, b"nope"), None);
+        // The scan bound is honored: README lives at idx 3, so ndir=3 misses it.
+        assert_eq!(resolve_in_dir_block(&blk, 3, b"README"), None);
     }
 
     #[test]
