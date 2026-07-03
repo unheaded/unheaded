@@ -28,17 +28,17 @@ Each XDP invocation tail-calls itself up to 15 times, executing up to 16 MBC ins
 
 | BPF map | Size | Purpose |
 |---|---|---|
-| `ROM_MAP` | 262,144 u32 words | MBC bytecode. xv6 kernel at slot 0; userland at slot 0x4000+. Read-only at runtime (loaded by `upc-bootctl`). |
+| `ROM_MAP` | 262,144 u32 words (`large-image`: 1,048,576) | MBC bytecode. xv6 kernel at slot 0; userland at slot 0x4000+. Read-only at runtime (loaded by `upc-bootctl`). Capacity from `monad_common::mbc_maps`. |
 | `RAM_MAP` | 16,777,216 u32 words (16 MiB byte-addressable / 64 MiB word-addressable) | Working RAM. Stack, BSS, `.data`, ramdisk at 0x800000, framebuffer at SCREEN_BASE, MMIO TTY at 0xC001, CSR shadow at 0xF000+. |
-| `RV2MBC_MAP` | 65,536 u32 | RV byte-addr → MBC PC translation table. Populated by the rv32i-to-mbc translator; consumed by JMPR / CALLR / MRET / SRET to land function pointers / EPCs on the right MBC slot. |
-| `CPU_MAP` | HashMap<u32, MbcCpuState>, 256 entries | Per-UPC-instance register file + flags + privilege level + reservation address + interrupt state. 136 bytes per instance. |
+| `RV2MBC_MAP` | 65,536 u32 (`large-image`: 524,288) | RV byte-addr → MBC PC translation table. Populated by the rv32i-to-mbc translator; consumed by JMPR / CALLR / MRET / SRET to land function pointers / EPCs on the right MBC slot. |
+| `CPU_MAP` | HashMap<u32, MbcCpuState>, 256 entries | Per-UPC-instance register file + flags + privilege level + reservation address + interrupt state. 136 bytes (Doom/ABI v1) or 144 bytes under `--features ascend-linux` (ADR-077 adds per-process `rv2mbc_base`). |
 | `PROC_TABLE` | 8 slots × 32 u32 | Phase 1.2/1.3 per-pid process state. `pgd_base_for_pid()` carves the high pgd region per process. |
 | `TLB_MAP` | 64 entries | Direct-mapped TLB for `translate_address`. Only active when `cpu.mmu_enabled = 1` (Doom-mode keeps it flat). |
 | `TTY_MAP` | 4096 bytes | Circular byte ring. Bytes written to MMIO 0xC001 land here; `upc-bootctl` drains over the BPF ring buffer. |
 | `SCREEN_MAP` | 320×200 bytes | Doom framebuffer (palettized). Byte stores to `SCREEN_BASE` write here AND to RAM_MAP for read consistency. |
 | `STATS` | HashMap | Per-instance counters: insns executed, syscalls, halts, ROM faults, frame ready ticks. |
 
-The `MbcCpuState` struct (in `crates/doom-runner/src/memory.rs` — the source-of-truth) packs 16 GPRs (r0–r15), PC, SP, flags, halted/stalled, sleep_until_ns, insn_count, cache_hits/misses, interrupt state, tick_counter, program_break, exit_code, current_pid, num_processes, mmu_enabled, page_dir_base, priv_level, and reservation_address into 136 bytes.
+The `MbcCpuState` struct (canonical definition in `ebpf/monad-common`, feature-gated by `ascend-linux`; `crates/doom-runner/src/memory.rs` and `cmd/upc-bootctl` carry `#[repr(C)]` replicas that must match) packs 16 GPRs (r0–r15), PC, SP, flags, halted/stalled, sleep_until_ns, insn_count, cache_hits/misses, interrupt state, tick_counter, program_break, exit_code, current_pid, num_processes, mmu_enabled, page_dir_base, priv_level, and reservation_address. It is **136 bytes** in the Doom (ABI v1) build and **144 bytes** under `--features ascend-linux` (ABI v2, ADR-077 adds a per-process `rv2mbc_base`). The two builds cannot share a loaded object — the `invalid value size 144, expected 136` error means an ascend object was loaded by a Doom-configured loader or vice-versa.
 
 ## The MBC ISA
 
