@@ -146,6 +146,21 @@ fn relocate_call_word(word: u32, rom_base: u32) -> u32 {
     }
 }
 
+/// Shift an `.rv2mbc` entry (an MBC PC / ROM word index) by `rom_base` so a
+/// program loaded at a non-zero ROM base resolves its indirect branches
+/// (JMPR/CALLR) and privileged returns (SRET on SEPC=0) into its own ROM
+/// region. Pure so the loader's rv2mbc relocation is unit-tested off-target.
+///
+/// NOTE: this shifts EVERY entry, including a `0` (which RV2MBC_MAP treats as
+/// "unmapped"). At a non-zero base a `0` entry becomes `rom_base`, i.e. non-zero.
+/// This matches the existing loader behavior and is harmless because the
+/// `.rv2mbc` files carry no spurious `0` in the reachable RV-word range — flagged
+/// for a future review, NOT changed here (this is a characterization refactor).
+#[inline]
+fn relocate_rv2mbc_entry(entry: u32, rom_base: u32) -> u32 {
+    entry.wrapping_add(rom_base)
+}
+
 /// Pre-translate a resident userland program (`sh`, `ls`, …) into a disjoint
 /// `ROM_MAP` region + a disjoint `RV2MBC_MAP` base, stage its `.data` in a
 /// pristine RAM region, and record an 8-word PROGRAM_TABLE row (ADR-077 Gate
@@ -198,7 +213,10 @@ fn load_resident_program(
     }
     let shifted: Vec<u8> = rv
         .chunks_exact(4)
-        .flat_map(|c| (u32::from_le_bytes([c[0], c[1], c[2], c[3]]) + rom_base).to_le_bytes())
+        .flat_map(|c| {
+            relocate_rv2mbc_entry(u32::from_le_bytes([c[0], c[1], c[2], c[3]]), rom_base)
+                .to_le_bytes()
+        })
         .collect();
     runner
         .populate_rv2mbc(&shifted, rv2mbc_base, None)
@@ -607,8 +625,11 @@ fn cmd_boot(
                     let shifted: Vec<u8> = bytes
                         .chunks_exact(4)
                         .flat_map(|c| {
-                            let raw = u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
-                            (raw + USER_ROM_BASE).to_le_bytes()
+                            relocate_rv2mbc_entry(
+                                u32::from_le_bytes([c[0], c[1], c[2], c[3]]),
+                                USER_ROM_BASE,
+                            )
+                            .to_le_bytes()
                         })
                         .collect();
                     // text_rv_word_base = 0 — userland links text at RV byte 0.
@@ -958,5 +979,27 @@ mod tests {
         for base in [0u32, 0x4000, 0x1_0000, 0xFF_FFFF] {
             assert_eq!(relocate_call_word(0x2700_0000, base) >> 24, 0x27);
         }
+    }
+
+    #[test]
+    fn relocate_rv2mbc_base_zero_is_identity() {
+        // init loads at ROM base 0: rv2mbc entries pass through unchanged.
+        assert_eq!(relocate_rv2mbc_entry(0x0000_1234, 0), 0x0000_1234);
+        assert_eq!(relocate_rv2mbc_entry(0, 0), 0);
+    }
+
+    #[test]
+    fn relocate_rv2mbc_shifts_entry_by_rom_base() {
+        // A resident program at ROM base 0x6000: each MBC PC entry shifts up.
+        assert_eq!(relocate_rv2mbc_entry(0x0000_00B3, 0x6000), 0x0000_60B3);
+    }
+
+    #[test]
+    fn relocate_rv2mbc_zero_entry_also_shifts_documented_behavior() {
+        // CHARACTERIZATION: a 0 entry (RV2MBC "unmapped" sentinel) is NOT special-
+        // cased — it shifts to rom_base like any other. Pins the current behavior;
+        // see relocate_rv2mbc_entry's note. If this ever needs to preserve 0, this
+        // test is the tripwire.
+        assert_eq!(relocate_rv2mbc_entry(0, 0x6000), 0x6000);
     }
 }
