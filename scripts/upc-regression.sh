@@ -75,6 +75,17 @@ G2="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.i
   --userland "$K/gate2.mbc" --triggers 800000 --instance 111 2>&1)"
 grep -aq 'ISOLATION-PASS' <<<"$G2" && pass "gate2 ISOLATION-PASS" || fail "gate2 ISOLATION-PASS"
 
+# Track 2 Phase 2.1 (ADR-081): OUR init as PID 1. Same kernel + fs.img, only
+# the resident PID 1 program swapped to uinit.mbc. The token proves uinit ran;
+# 'hello' proves it forked+exec'd sh and a command completed through it.
+UI="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  --userland "$K/uinit.mbc" --triggers 4000000 --instance 111 \
+  --input $'echo hello\n' 2>&1)"
+grep -aq '0xP1D1-0UR5' <<<"$UI" && pass "uinit banner (own PID 1)" \
+  || fail "uinit banner (own PID 1) (missing '0xP1D1-0UR5')"
+grep -aq 'hello' <<<"$UI" && pass "uinit forks+execs sh, echo runs" \
+  || fail "uinit forks+execs sh, echo runs (missing 'hello')"
+
 # ---- Variant 2: non-ascend (Doom) — LOAD test -----------------------------
 # The regression that actually happens is "Doom object over the 1M ceiling →
 # won't load." doom-runner loads it through the real pipeline; "pipeline
