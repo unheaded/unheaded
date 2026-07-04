@@ -10,43 +10,123 @@
 //! each build under the 1M budget (ADR-080 §3; Scientist, 2026-07-03 panel).
 //!
 //! So the registry lives HERE, host-side: a catalog of the syscall surfaces the
-//! loaders know how to load. A shared loader consults it to select and validate
-//! a guest's surface before populating the maps. It is a lookup table over
-//! surface descriptors, never a runtime dispatcher.
+//! loaders know how to load. A shared loader consults it to select and validate a
+//! guest's surface before populating the maps. It is a lookup table over surface
+//! descriptors, never a runtime dispatcher.
 
 use crate::syscall::SyscallSurface;
 
 /// A host-side catalog of known guest syscall surfaces (ADR-080 §4). The shared
-/// loader looks a surface up by name to validate a [`super::workload::Workload`]
-/// before load. Holds surfaces behind `&dyn` — they only DESCRIBE, never
-/// dispatch.
-pub struct SurfaceRegistry<'a> {
-    // Backing store (a Vec / map of registered surfaces) is filled by the host;
-    // no fields in the scaffold.
-    _surfaces: core::marker::PhantomData<&'a dyn SyscallSurface>,
+/// loader looks a surface up by name to confirm a [`Workload`]'s declared surface
+/// is one the host actually supports before load. Holds surface descriptors —
+/// they only DESCRIBE, never dispatch.
+///
+/// [`Workload`]: crate::workload::Workload
+#[derive(Clone, Debug, Default)]
+pub struct SurfaceRegistry {
+    surfaces: Vec<SyscallSurface>,
 }
 
-impl<'a> SurfaceRegistry<'a> {
+impl SurfaceRegistry {
     /// An empty registry. The host registers the surfaces its loaders support
     /// (today: "doom", "xv6").
     pub fn new() -> Self {
-        todo!("construct an empty registry; host registers known surfaces")
+        Self {
+            surfaces: Vec::new(),
+        }
     }
 
-    /// Register a guest's syscall surface under its name.
-    pub fn register(&mut self, _surface: &'a dyn SyscallSurface) {
-        todo!("insert `surface` keyed by surface.name()")
+    /// Register a guest's syscall surface. A later registration under a name that
+    /// already exists replaces the earlier one (last write wins), so a loader can
+    /// override a default without duplicate entries.
+    pub fn register(&mut self, surface: SyscallSurface) {
+        if let Some(existing) = self.surfaces.iter_mut().find(|s| s.name == surface.name) {
+            *existing = surface;
+        } else {
+            self.surfaces.push(surface);
+        }
     }
 
-    /// Look up a registered surface by name, for the shared loader's
-    /// pre-load validation.
-    pub fn get(&self, _name: &str) -> Option<&'a dyn SyscallSurface> {
-        todo!("return the surface registered under `name`, if any")
+    /// Look up a registered surface by name, for the shared loader's pre-load
+    /// validation. `None` if no surface was registered under `name`.
+    pub fn get(&self, name: &str) -> Option<&SyscallSurface> {
+        self.surfaces.iter().find(|s| s.name == name)
+    }
+
+    /// The number of registered surfaces.
+    pub fn len(&self) -> usize {
+        self.surfaces.len()
+    }
+
+    /// Whether no surfaces are registered.
+    pub fn is_empty(&self) -> bool {
+        self.surfaces.is_empty()
     }
 }
 
-impl<'a> Default for SurfaceRegistry<'a> {
-    fn default() -> Self {
-        Self::new()
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::syscall::{FeatureGate, SyscallDesc};
+
+    static DOOM_SYS: [SyscallDesc; 1] = [SyscallDesc {
+        number: 0,
+        name: "DRAW_FRAME",
+    }];
+    static XV6_SYS: [SyscallDesc; 1] = [SyscallDesc {
+        number: 16,
+        name: "write",
+    }];
+
+    fn doom() -> SyscallSurface {
+        SyscallSurface {
+            name: "doom",
+            feature_gate: FeatureGate::Default,
+            syscalls: &DOOM_SYS,
+        }
+    }
+
+    fn xv6() -> SyscallSurface {
+        SyscallSurface {
+            name: "xv6",
+            feature_gate: FeatureGate::AscendLinux,
+            syscalls: &XV6_SYS,
+        }
+    }
+
+    #[test]
+    fn new_registry_is_empty() {
+        let r = SurfaceRegistry::new();
+        assert!(r.is_empty());
+        assert_eq!(r.len(), 0);
+        assert!(r.get("doom").is_none());
+    }
+
+    #[test]
+    fn register_and_get() {
+        let mut r = SurfaceRegistry::new();
+        r.register(doom());
+        r.register(xv6());
+        assert_eq!(r.len(), 2);
+        assert_eq!(r.get("doom").unwrap().feature_gate, FeatureGate::Default);
+        assert_eq!(r.get("xv6").unwrap().feature_gate, FeatureGate::AscendLinux);
+        assert!(r.get("linux").is_none());
+    }
+
+    #[test]
+    fn re_register_replaces_not_duplicates() {
+        let mut r = SurfaceRegistry::new();
+        r.register(doom());
+        // Same name, different feature gate — last write wins, no duplicate row.
+        r.register(SyscallSurface {
+            name: "doom",
+            feature_gate: FeatureGate::AscendLinux,
+            syscalls: &DOOM_SYS,
+        });
+        assert_eq!(r.len(), 1);
+        assert_eq!(
+            r.get("doom").unwrap().feature_gate,
+            FeatureGate::AscendLinux
+        );
     }
 }

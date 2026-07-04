@@ -21,6 +21,10 @@ clap = { version = "4.4", features = ["derive"] }
 anyhow = "1.0"
 monad-common = { path = "../../ebpf/monad-common" }
 xv6-mbc = { path = "../../crates/xv6-mbc" }
+# Epic 1.2.3 (ADR-080): the shared UPC guest-load contract. upc-bootctl builds a
+# Workload per userland program and routes ROM_MAP/RV2MBC_MAP population through
+# upc_api::load, so validation + the map-write loop live in one place.
+upc-api = { path = "../../crates/upc-api" }
 # Phase 2 — live BPF integration
 aya = "0.13"
 aya-log = "0.2"

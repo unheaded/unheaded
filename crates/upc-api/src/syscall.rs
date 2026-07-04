@@ -14,6 +14,13 @@
 //! the [`FeatureGate`] (cargo feature) that compiles that surface into the object.
 //! A shared loader uses the descriptor to check that the loaded eBPF object's
 //! feature set actually matches the guest's declared surface (an allowlist).
+//!
+//! ## Descriptor, not trait object (resolved 2026-07-03, Epic 1.2.3)
+//!
+//! The surface was previously a `SyscallSurface` trait held behind `&dyn`. It is
+//! now a plain struct: a name, a [`FeatureGate`], and a slice of [`SyscallDesc`].
+//! The `&dyn` indirection bought nothing (the surface is data, not behaviour) and
+//! echoed the very dynamic dispatch the verifier forbids downstream.
 
 /// The cargo feature that compiles a given surface into the `monad-cpu-ebpf`
 /// object. Selection is a build-time decision (ADR-080 §3); this names it so the
@@ -41,19 +48,23 @@ pub struct SyscallDesc {
 }
 
 /// Part 4 of the guest contract: a host-side description of the guest's syscall
-/// surface. Object-safe so a shared loader / [`super::registry::SurfaceRegistry`]
-/// can hold surfaces behind `&dyn`. It DESCRIBES; it does not dispatch.
-pub trait SyscallSurface {
+/// surface. It DESCRIBES; it does not dispatch.
+///
+/// The shared loader treats [`syscalls`](Self::syscalls) as an ALLOWLIST and
+/// [`feature_gate`](Self::feature_gate) as the object it must have been built
+/// with. The syscall table is a `&'static` slice because each guest's surface is
+/// a compile-time constant the loader owns (e.g. `static DOOM_SURFACE`); this
+/// crate never declares one.
+#[derive(Clone, Copy, Debug)]
+pub struct SyscallSurface {
     /// A stable identifier for this surface (e.g. "doom", "xv6").
-    fn name(&self) -> &str;
-
+    pub name: &'static str,
     /// The cargo feature that must be present in the loaded eBPF object for this
     /// surface's handlers to exist (ADR-080 §3).
-    fn feature_gate(&self) -> FeatureGate;
-
-    /// Every syscall this guest is permitted to issue. The shared loader treats
-    /// this as an ALLOWLIST: a guest whose image invokes a number outside this
-    /// set — or whose set exceeds the loaded object's feature — is rejected
-    /// before it runs (BlackMage: surface is a trust boundary).
-    fn syscalls(&self) -> &[SyscallDesc];
+    pub feature_gate: FeatureGate,
+    /// Every syscall this guest is permitted to issue. The shared loader rejects,
+    /// before it runs, any guest whose image invokes a number outside this set —
+    /// or whose set exceeds the loaded object's feature (BlackMage: the surface
+    /// is a trust boundary).
+    pub syscalls: &'static [SyscallDesc],
 }

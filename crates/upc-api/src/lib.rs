@@ -46,32 +46,35 @@
 //!
 //! ## What this crate IS / IS NOT
 //!
-//! - **IS** the type-level contract: traits, enums, and opaque placeholder
-//!   types with doc comments. Every function body is `todo!()`.
+//! - **IS** the type-level contract: descriptor structs, enums, and one
+//!   [`validate`] free function. A [`Workload`] is plain data
+//!   a loader constructs; the checks are functions over that data.
 //! - **IS NOT** an interpreter, a loader, or a syscall implementation. Those
 //!   live in `ebpf/monad-cpu-ebpf` (core), `cmd/upc-bootctl` +
 //!   `crates/doom-runner` (loaders), and the per-workload adapters
-//!   (`crates/xv6-mbc`, `crates/doom-runner`).
+//!   (`crates/xv6-mbc`, `crates/doom-runner`). This crate names *what* to load
+//!   and refuses an inconsistent descriptor; the loaders own *how* maps are
+//!   populated.
 //!
-//! ## Open design issues to settle in Epic 1.2.3 adoption (found on review)
+//! ## Design decisions settled 2026-07-03 (Epic 1.2.3)
 //!
-//! 1. **The opaque types are not constructible, so the traits can't be
-//!    implemented.** [`image::MbcImage`] / [`image::Rv2MbcMap`] have a private
-//!    `()` field and no constructor, and [`image::GuestImage`] returns
-//!    `&MbcImage` — a loader outside this crate cannot build one to return. The
-//!    fix is part of the trait-vs-struct decision below.
-//! 2. **Trait objects vs descriptor structs.** This scaffold uses object-safe
-//!    traits (`&dyn GuestImage` / `&dyn SyscallSurface`); the 2026-07-03 panel
-//!    (Developer) preferred **plain descriptor structs + free functions** — the
-//!    `Workload` is *data*, not behaviour, and `&dyn` adds the same indirection
-//!    the eBPF verifier forbids downstream. Moving to descriptor structs (fields
-//!    the loader fills: a `Vec<u32>` image, an rv2mbc map, an entry PC) also
-//!    dissolves issue 1 (no opaque types to construct). Recommended direction.
+//! The review-flagged scaffold issues are resolved in favour of the 2026-07-03
+//! panel's recommendation — **descriptor structs + free functions**:
+//!
+//! 1. **Constructibility.** The opaque `MbcImage` / `Rv2MbcMap` handles are gone;
+//!    [`image::GuestImage`] is now a struct with public `Vec<u32>` ROM / branch
+//!    fields, load offsets, and an entry PC a loader fills directly.
+//! 2. **Trait objects → descriptor structs.** [`syscall::SyscallSurface`] and
+//!    [`Workload`] are plain structs, not `&dyn` traits — the `Workload` is data,
+//!    not behaviour, and the removed indirection echoed the very dynamic dispatch
+//!    the eBPF verifier forbids downstream. Validation lives in the
+//!    [`validate`] free function.
 
 #![deny(missing_docs)]
 
 pub mod boot;
 pub mod image;
+pub mod load;
 pub mod memory;
 pub mod registry;
 pub mod syscall;
@@ -79,21 +82,9 @@ pub mod workload;
 
 // Headline re-exports for ergonomics — the contract's public face.
 pub use boot::BootProtocol;
-pub use image::GuestImage;
+pub use image::{GuestImage, MbcPc, RvWordAddr};
+pub use load::{load, ImageSink, LoadError};
 pub use memory::MemoryModel;
 pub use registry::SurfaceRegistry;
 pub use syscall::{FeatureGate, SyscallDesc, SyscallSurface};
-pub use workload::Workload;
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    // Compile-time proof the contract traits are object-safe: the host-side
-    // registry (ADR-080 §4) holds surfaces behind `&dyn`, and a shared loader
-    // holds images behind `&dyn`. Type-level only — no `todo!()` is reached.
-    #[allow(dead_code)]
-    fn _surface_is_object_safe(_s: &dyn syscall::SyscallSurface) {}
-    #[allow(dead_code)]
-    fn _image_is_object_safe(_i: &dyn image::GuestImage) {}
-}
+pub use workload::{validate, MapCapacities, ValidationError, Workload};

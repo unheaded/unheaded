@@ -589,6 +589,34 @@ impl BootRunner {
     }
 }
 
+/// Route `BootRunner` through the shared image loader (Epic 1.2.3, ADR-080).
+/// `write_rom` delegates to the existing `populate_rom_at`; `write_rv2mbc` runs
+/// the same absolute-index `set(base + i, entry)` loop as `populate_rv2mbc`'s
+/// inner body, minus the SHA gate — the `.rv2mbc` integrity gate stays on the
+/// kernel path (which does not go through `upc_api::load`) since the userland
+/// programs this sink serves carry no `expected_rv2mbc_sha256`.
+impl upc_api::ImageSink for BootRunner {
+    type Error = anyhow::Error;
+
+    fn write_rom(&mut self, start_slot: u32, words: &[u32]) -> Result<()> {
+        self.populate_rom_at(start_slot, words)
+    }
+
+    fn write_rv2mbc(&mut self, base: u32, entries: &[u32]) -> Result<()> {
+        let mut map: Array<_, u32> = Array::try_from(
+            self.ebpf
+                .map_mut("RV2MBC_MAP")
+                .context("RV2MBC_MAP not found")?,
+        )?;
+        for (i, &entry) in entries.iter().enumerate() {
+            let idx = base + i as u32;
+            map.set(idx, entry, 0)
+                .with_context(|| format!("RV2MBC_MAP[{idx}] write"))?;
+        }
+        Ok(())
+    }
+}
+
 // Module-level error helper — keeps anyhow::anyhow imports tidy if extended later.
 #[allow(dead_code)]
 fn _unused_anyhow_keepalive() -> anyhow::Error {
