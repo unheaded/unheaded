@@ -66,6 +66,8 @@ VBUD="$(cd "$EBPF" && sudo UPC_VERIFIER_STATS=1 "$BC" boot --kernel "$K/xv6-mbc.
 xv6_expect 'ls'           'README'                 'ls lists root dir'
 xv6_expect 'cat README'   '0xGA7ED-D15C-READER'    'cat README (direct blocks)'
 xv6_expect 'cat BIGFILE'  'INDIRECT-READ-OK'       'cat BIGFILE (>12 KiB, indirect block)'
+xv6_expect 'cat sub/NOTE' 'SUBDIR-WALK-OK'         'cat sub/NOTE (multi-component path walk)'
+xv6_expect 'ls sub'       'NOTE           2'       'ls sub (open dir + stat through subdir)'
 xv6_expect 'echo hello'   'hello'                  'echo hello'
 xv6_expect 'wc README'    '5 49 283 README'        'wc README'
 

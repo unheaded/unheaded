@@ -41,6 +41,7 @@ void rsect(uint sec, void *buf);
 uint ialloc(ushort type);
 void iappend(uint inum, void *p, int n);
 void die(const char *);
+uint subdir(uint parent, char *name);
 
 // convert to riscv byte order
 ushort
@@ -130,15 +131,28 @@ main(int argc, char *argv[])
   for(i = 2; i < argc; i++){
     // get rid of "user/"
     char *shortname;
+    uint parent;
+    char *slash;
     if(strncmp(argv[i], "user/", 5) == 0)
       shortname = argv[i] + 5;
     else
       shortname = argv[i];
-    
-    assert(index(shortname, '/') == 0);
 
     if((fd = open(argv[i], 0)) < 0)
       die(argv[i]);
+
+    // UPC Epic 1.3.1: one-level subdirectory support. "dir/name" creates
+    // (once) a T_DIR "dir" under the root and appends "name" inside it —
+    // the fixture the multi-component path walk resolves. The host file is
+    // opened from argv[i] verbatim (above, before the in-place split).
+    parent = rootino;
+    slash = index(shortname, '/');
+    if(slash != 0){
+      *slash = '\0';
+      parent = subdir(rootino, shortname);
+      shortname = slash + 1;
+    }
+    assert(index(shortname, '/') == 0);
 
     // Skip leading _ in name when writing to file system.
     // The binaries are named _rm, _cat, etc. to keep the
@@ -154,7 +168,7 @@ main(int argc, char *argv[])
     bzero(&de, sizeof(de));
     de.inum = xshort(inum);
     strncpy(de.name, shortname, DIRSIZ);
-    iappend(rootino, &de, sizeof(de));
+    iappend(parent, &de, sizeof(de));
 
     while((cc = read(fd, buf, sizeof(buf))) > 0)
       iappend(inum, buf, cc);
@@ -217,6 +231,49 @@ rsect(uint sec, void *buf)
     die("lseek");
   if(read(fsfd, buf, BSIZE) != BSIZE)
     die("read");
+}
+
+// UPC Epic 1.3.1: find-or-create a T_DIR named `name` under `parent`, with
+// "." / ".." entries. A small cache lets several "dir/file" args share one
+// directory. One level only — nested "a/b/c" args stay asserted out above.
+#define NSUBDIR 8
+struct { char name[DIRSIZ+1]; uint inum; } subdirs[NSUBDIR];
+int nsubdir = 0;
+
+uint
+subdir(uint parent, char *name)
+{
+  struct dirent de;
+  uint inum;
+  int i;
+
+  assert(strlen(name) <= DIRSIZ);
+  for(i = 0; i < nsubdir; i++)
+    if(strncmp(subdirs[i].name, name, DIRSIZ) == 0)
+      return subdirs[i].inum;
+  assert(nsubdir < NSUBDIR);
+
+  inum = ialloc(T_DIR);
+
+  bzero(&de, sizeof(de));
+  de.inum = xshort(inum);
+  strcpy(de.name, ".");
+  iappend(inum, &de, sizeof(de));
+
+  bzero(&de, sizeof(de));
+  de.inum = xshort(parent);
+  strcpy(de.name, "..");
+  iappend(inum, &de, sizeof(de));
+
+  bzero(&de, sizeof(de));
+  de.inum = xshort(inum);
+  strncpy(de.name, name, DIRSIZ);
+  iappend(parent, &de, sizeof(de));
+
+  strncpy(subdirs[nsubdir].name, name, DIRSIZ);
+  subdirs[nsubdir].inum = inum;
+  nsubdir++;
+  return inum;
 }
 
 uint
