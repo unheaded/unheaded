@@ -88,6 +88,114 @@ unsafe impl aya::Pod for MbcCpuState {}
 
 const _: () = assert!(std::mem::size_of::<MbcCpuState>() == 136);
 
+/// Doom's syscall surface (contract part 4, ADR-080). Numbers per the MBC
+/// syscall ABI documented in `demos/doom/doomgeneric_unheaded.c`. `feature_gate`
+/// is `Default` — the non-ascend interpreter build Doom always runs on. This is a
+/// host-side descriptor only; the handlers are compiled into the interpreter.
+static DOOM_SYSCALLS: [upc_api::SyscallDesc; 4] = [
+    upc_api::SyscallDesc {
+        number: 0,
+        name: "DRAW_FRAME",
+    },
+    upc_api::SyscallDesc {
+        number: 1,
+        name: "GET_KEY",
+    },
+    upc_api::SyscallDesc {
+        number: 2,
+        name: "GET_TICKS",
+    },
+    upc_api::SyscallDesc {
+        number: 3,
+        name: "SLEEP",
+    },
+];
+
+/// Doom's surface descriptor: the default-build syscall allowlist.
+static DOOM_SURFACE: upc_api::SyscallSurface = upc_api::SyscallSurface {
+    name: "doom",
+    feature_gate: upc_api::FeatureGate::Default,
+    syscalls: &DOOM_SYSCALLS,
+};
+
+/// The BPF-map capacities `upc_api::load` validates Doom's Workload against. Doom
+/// always runs on the non-ascend (default-image) build, so these are the DEFAULT
+/// map sizes, taken from `crate::memory` (which mirrors `monad_common::mbc_maps`'
+/// DEFAULT values). Unlike the multi-object `upc-bootctl` loader — which cannot
+/// know at compile time whether it loaded a `large-image` object and so guards
+/// against the `*_LARGE` ceilings — doom-runner has exactly one known build, so
+/// the tighter DEFAULT bounds are both correct and stricter.
+fn doom_map_capacities() -> upc_api::MapCapacities {
+    upc_api::MapCapacities {
+        rom_words: memory::ROM_MAP_ENTRIES,
+        rv2mbc_entries: memory::RV2MBC_MAP_ENTRIES,
+        ram_words: memory::RAM_MAP_ENTRIES,
+    }
+}
+
+/// Build Doom's `Workload`: the MBC image at ROM slot 0, its `.rv2mbc` table at
+/// index 0, entry PC 0 (Doom enters at the first ROM slot), flat memory, direct
+/// boot. RAM (WAD + ELF data) and the initial CPU state are populated separately
+/// — they are outside contract parts 1+2.
+fn doom_workload(rom: Vec<u32>, rv2mbc: Vec<u32>) -> upc_api::Workload {
+    upc_api::Workload {
+        name: "doom".to_string(),
+        image: upc_api::GuestImage {
+            rom,
+            rom_start_slot: 0,
+            rv2mbc,
+            rv2mbc_word_base: 0,
+            expected_rv2mbc_sha256: None,
+            entry: upc_api::MbcPc(0),
+        },
+        memory: upc_api::MemoryModel::Flat,
+        surface: DOOM_SURFACE,
+        boot: upc_api::BootProtocol::Direct,
+    }
+}
+
+/// An [`upc_api::ImageSink`] over the live Aya eBPF object. `write_rom` /
+/// `write_rv2mbc` open their map once and run the same `set(base + i, value)`
+/// loop doom-runner used inline, so routing through `upc_api::load` writes
+/// byte-identical `ROM_MAP` / `RV2MBC_MAP` contents.
+struct EbpfImageSink<'a> {
+    ebpf: &'a mut Ebpf,
+}
+
+impl upc_api::ImageSink for EbpfImageSink<'_> {
+    type Error = anyhow::Error;
+
+    fn write_rom(&mut self, start_slot: u32, words: &[u32]) -> Result<()> {
+        let mut rom_map: Array<_, u32> = Array::try_from(
+            self.ebpf
+                .map_mut("ROM_MAP")
+                .context("ROM_MAP not found in eBPF program")?,
+        )?;
+        for (i, &insn) in words.iter().enumerate() {
+            let idx = start_slot + i as u32;
+            rom_map
+                .set(idx, insn, 0)
+                .with_context(|| format!("ROM_MAP write failed at index {idx}"))?;
+        }
+        Ok(())
+    }
+
+    fn write_rv2mbc(&mut self, base: u32, entries: &[u32]) -> Result<()> {
+        let mut rv2mbc_map: Array<_, u32> = Array::try_from(
+            self.ebpf
+                .map_mut("RV2MBC_MAP")
+                .context("RV2MBC_MAP not found in eBPF program")?,
+        )?;
+        for (i, &val) in entries.iter().enumerate() {
+            let idx = base + i as u32;
+            rv2mbc_map
+                .set(idx, val, 0)
+                .with_context(|| format!("RV2MBC_MAP write failed at index {idx}"))?;
+        }
+        Ok(())
+    }
+}
+
 /// CPU instance ID for Doom (0xDE — matches Go loader convention).
 const CPU_INSTANCE_ID: u32 = 0xDE;
 
@@ -412,22 +520,23 @@ async fn cmd_run(
     // Step 5: Write data into the REAL maps (the ones the XDP program uses)
     info!("writing data into eBPF maps (Aya-owned, no pins)...");
 
-    // 5a: ROM_MAP — MBC instructions
+    // 5a + 5c: ROM_MAP + RV2MBC_MAP via the shared image loader (Epic 1.2.3,
+    // ADR-080). Build Doom's Workload and route both map writes through
+    // upc_api::load: validate() (image bounds, entry-in-ROM, every rv2mbc target
+    // in ROM) then the same set(i, value) loops doom-runner ran inline. A missing
+    // .rv2mbc yields an empty table (already warned above) — no writes, matching
+    // the prior `if let Some` skip. RAM_MAP (5b) and CPU_MAP (5d) stay Doom-
+    // specific and are populated below.
+    let workload = doom_workload(rom, rv2mbc_data.unwrap_or_default());
     {
         let t = Instant::now();
-        let mut rom_map: Array<_, u32> = Array::try_from(
-            ebpf.map_mut("ROM_MAP")
-                .context("ROM_MAP not found in eBPF program")?,
-        )?;
-        info!("ROM_MAP: writing {} instructions...", rom.len());
-        for (i, insn) in rom.iter().enumerate() {
-            rom_map
-                .set(i as u32, insn, 0)
-                .with_context(|| format!("ROM_MAP write failed at index {i}"))?;
-        }
+        let n_rom = workload.image.rom.len();
+        let n_rv = workload.image.rv2mbc.len();
+        let mut sink = EbpfImageSink { ebpf: &mut ebpf };
+        upc_api::load(&workload, &doom_map_capacities(), &mut sink)
+            .map_err(|e| anyhow::anyhow!("doom image load: {e}"))?;
         info!(
-            "ROM_MAP: {} entries written in {:.1}s",
-            rom.len(),
+            "ROM_MAP + RV2MBC_MAP: {n_rom} + {n_rv} entries written in {:.1}s (upc_api::load)",
             t.elapsed().as_secs_f64()
         );
     }
@@ -457,25 +566,7 @@ async fn cmd_run(
         );
     }
 
-    // 5c: RV2MBC_MAP — address translation table
-    if let Some(ref rv2mbc) = rv2mbc_data {
-        let t = Instant::now();
-        let mut rv2mbc_map: Array<_, u32> = Array::try_from(
-            ebpf.map_mut("RV2MBC_MAP")
-                .context("RV2MBC_MAP not found in eBPF program")?,
-        )?;
-        info!("RV2MBC_MAP: writing {} entries...", rv2mbc.len());
-        for (i, val) in rv2mbc.iter().enumerate() {
-            rv2mbc_map
-                .set(i as u32, val, 0)
-                .with_context(|| format!("RV2MBC_MAP write failed at index {i}"))?;
-        }
-        info!(
-            "RV2MBC_MAP: {} entries written in {:.1}s",
-            rv2mbc.len(),
-            t.elapsed().as_secs_f64()
-        );
-    }
+    // (ROM_MAP + RV2MBC_MAP were written together above via upc_api::load.)
 
     // 5d: CPU_MAP — initial CPU state
     {
@@ -532,7 +623,7 @@ async fn cmd_run(
 
     // Step 6: Verify loaded data
     info!("verifying loaded data...");
-    verify_maps(&mut ebpf, &rom, &ram_updates, &wad_data)?;
+    verify_maps(&mut ebpf, &workload.image.rom, &ram_updates, &wad_data)?;
 
     let elapsed = t0.elapsed();
     info!(

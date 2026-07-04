@@ -1512,6 +1512,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
+name = "upc-api"
+version = "0.1.0"
+
+[[package]]
 name = "upc-bootctl"
 version = "0.1.0"
 dependencies = [
@@ -1527,6 +1531,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "upc-api",
  "xv6-mbc",
 ]
 

@@ -1,9 +1,10 @@
-# crates/upc-api — the UPC programmatic-API surface (bones-only scaffold).
+# crates/upc-api — the UPC programmatic-API surface (host-side contract).
 #
 # Host-side orchestration crate that names the contract by which a guest
-# program plugs into the UPC (Unheaded Protocol Computer). Scaffold only:
-# traits, enums, and opaque placeholder types with rich doc comments; every
-# function body is `todo!()`. No implementations, no hardcoded values.
+# program plugs into the UPC (Unheaded Protocol Computer). Descriptor structs
+# (a `Workload` is data, not behaviour) + a `validate` free function; no
+# hardcoded guest values. Not yet consumed by the loaders — Epic 1.2.3 routes
+# `upc-bootctl` and `doom-runner` through the shared shape.
 #
 # WHERE THIS RUNS: userspace on the HOST. It is consumed by the loaders
 # (cmd/upc-bootctl for xv6/Linux, crates/doom-runner for Doom). It does NOT

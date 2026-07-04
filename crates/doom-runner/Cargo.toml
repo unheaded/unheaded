@@ -19,3 +19,7 @@ tower-http = { version = "0.5", features = ["fs"] }
 futures-util = "0.3"
 goblin = "0.9"
 byteorder = "1"
+# Epic 1.2.3 (ADR-080): the shared UPC guest-load contract. doom-runner builds a
+# Workload and routes ROM_MAP/RV2MBC_MAP population through upc_api::load, the
+# same shared path upc-bootctl uses for xv6/ASCEND-LINUX guests.
+upc-api = { path = "../upc-api" }
