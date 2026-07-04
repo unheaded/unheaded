@@ -60,7 +60,6 @@
 **Infrastructure**
 - [[Load Balancers|Load-Balancers]]
 - [[Containers]]
-- [[NixOS Containers|NixOS-Containers]]
 - [[IaC Backends|IaC-Backends]]
 - [[Observability|Observability-Backends]]
 - [[eBPF Programs|eBPF-Programs]]
