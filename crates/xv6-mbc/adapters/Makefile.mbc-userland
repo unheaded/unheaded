@@ -83,6 +83,10 @@ $T/%.mbc: $T/%.elf
 
 # Public phony targets — one per supported user program.
 init:  $T/init.mbc
+# Track 2 Phase 2.1 (ADR-081): our own PID 1. Boots via
+#   upc-bootctl boot ... --userland target/uinit.mbc
+# NOT part of fs.img — it replaces the resident init, not the userland set.
+uinit: $T/uinit.mbc
 sh:    $T/sh.mbc
 ls:    $T/ls.mbc
 cat:   $T/cat.mbc
@@ -151,11 +155,11 @@ ramdisk: $T/fs.img
 
 clean:
 	rm -f $U/*.o $U/usys.S
-	rm -rf $T/init.* $T/sh.* $T/ls.* $T/cat.* $T/echo.* \
+	rm -rf $T/init.* $T/uinit.* $T/sh.* $T/ls.* $T/cat.* $T/echo.* \
 	       $T/wc.* $T/ln.* $T/mkdir.* $T/kill.* $T/rm.* $T/grep.* \
 	       $T/gate2.* $T/gate_nway.* $T/fs.img $T/README $T/BIGFILE $T/sub
 
-.PHONY: clean init sh ls cat echo wc ln mkdir kill rm grep gate2 gate_nway userland ramdisk
+.PHONY: clean init uinit sh ls cat echo wc ln mkdir kill rm grep gate2 gate_nway userland ramdisk
 
 # Keep .elf intermediates around for debugging.
-.SECONDARY: $T/init.elf $T/sh.elf $T/ls.elf $T/cat.elf $T/echo.elf $T/wc.elf
+.SECONDARY: $T/init.elf $T/uinit.elf $T/sh.elf $T/ls.elf $T/cat.elf $T/echo.elf $T/wc.elf

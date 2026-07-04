@@ -73,3 +73,14 @@ chain-of-custody for compliance), a different, owned upstream.
   available if needed.
 - **First step:** scope the minimal Unheaded Linux kernel (the smallest thing past xv6 that is
   meaningfully *ours*) and forge a Warmonger battle plan.
+
+## Progress
+
+- **2026-07-04 — Track 2 Phase 2.1 (Own PID 1) SHIPPED.** `user/uinit.c` (UNHEADED-INIT), the
+  first Unheaded-authored program to run as PID 1 on the xv6-mbc kernel. Talks to the kernel only
+  through the syscall ABI; booted via `upc-bootctl --userland target/uinit.mbc` with the kernel and
+  fs.img unchanged. Gate: banner token `0xP1D1-0UR5` prints, sh forks+execs, `$` prompt returns,
+  `echo hello` completes, child reaped. Zero eBPF change (ascend verifier 900,031 unchanged; Doom
+  cannot regress). Two permanent gates in `scripts/upc-regression.sh`. Q2's "evolve, never break
+  the boot" default is now practice, and Q5's Lore blessing began: `uinit` is the working name in
+  the Ascension tradition.

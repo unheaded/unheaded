@@ -107,9 +107,14 @@ budget-aware handler with a green gate. Pick off as budget/interest allows.*
 xv6, never break the boot** — replace MIT code with ours piece by piece, staying green every
 commit. C toolchain (proven RV32→MBC pipeline); minimal own-ABI first.*
 
-### Phase 2.1 — Own PID 1
+### Phase 2.1 — Own PID 1 ✓ SHIPPED 2026-07-04
 Replace xv6 `user/init.c` with our own `init`. Smallest self-contained win: "our code runs as PID 1
 on our kernel." **Gate:** boots, our init forks+execs sh, prompt returns, Doom still plays.
+- [x] `user/uinit.c` (UNHEADED-INIT) boots as PID 1 via `--userland target/uinit.mbc` — same
+      kernel + fs.img, only the resident PID 1 program swapped. Banner token `0xP1D1-0UR5` →
+      `uinit: starting sh` → `$` → `echo hello` → `hello` → fresh `$` (forks=2, waitpid=1).
+      Zero eBPF change: ascend verifier **900,031 unchanged**, Doom green by construction.
+      Two permanent harness gates added to `scripts/upc-regression.sh`.
 
 ### Phase 2.2 — Own the shell + coreutils
 Our own minimal `sh`, then our own `ls`/`cat`/`echo`/`wc`, replacing the MIT userland one at a time.
