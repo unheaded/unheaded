@@ -2505,23 +2505,34 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     break;
                 }
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 15 {
-                // ── xv6 SYS_open (15) — Gate D real inode resolve (Phase 3) ──
+                // ── xv6 SYS_open (15) — Gate D inode resolve + Epic 1.3.1
+                // multi-component path walk ──
                 // ascend-only: the FS-walk here (superblock + dirent scan +
                 // name compare) is the single biggest xv6-only chunk. DCE'd
                 // out of the Doom build (Doom has no filesystem) — this is what
                 // brought the non-ascend object back under the 1M ceiling.
                 // open(path=a0, flags=a1). `open("console")` keeps the pre-FS
                 // console-device fd (init's stdio: open→0, dup×2→1,2). Any other
-                // path is resolved against the root directory's dirents (inum 1)
-                // → an FD_INODE descriptor carrying {inum, 0}, or -1 on a miss /
-                // a bad superblock (H-FS3). All `fs.img` address arithmetic goes
-                // through the off-target-tested `monad_common::fs_walk`.
+                // path is resolved component-by-component from the root dir
+                // (inum 1): each `/`-terminated component descends into the
+                // matched directory ("." / ".." dirents work naturally); the
+                // NUL-terminated final component binds an FD_INODE descriptor
+                // carrying {inum, 0}. -1 on a miss, a bad superblock (H-FS3),
+                // or a non-dir intermediate ("cat README/x"). All `fs.img`
+                // address arithmetic goes through the off-target-tested
+                // `monad_common::fs_walk`.
                 //
-                // Verifier budget: the dirent scan is RE-ENTRANT ≤8 entries/tick
-                // (a2=regs[10] is the cursor, a3=regs[11] an OPEN_MAGIC marker so
-                // the cursor is zeroed once at entry). a0/a1 are never written
-                // until the syscall returns, so the per-tick basename re-resolve
-                // is stable. No `translate_address()` — direct phys throughout.
+                // Verifier budget: the dirent scan is RE-ENTRANT, ONE dirent
+                // per tick (a2=regs[10] cursor, a3=regs[11] OPEN_TAG-tagged
+                // walk state — see the state block below). a1 is never
+                // written; a0 stays put within one component's scan and is
+                // advanced past the component on descend, so the per-tick
+                // component re-resolve is stable. A descend costs one extra
+                // tick and strictly advances a0 through the NUL-terminated
+                // path, so total re-entries stay bounded by ndir × path
+                // length — no verifier loop. No `translate_address()` —
+                // direct phys throughout.
+                const OPEN_TAG: u32 = 0x09E0;
                 let pid = cpu.current_pid;
                 let path_va = cpu.regs[8];
                 let path_phys = phase12::pid_phys_offset(pid).wrapping_add(path_va);
@@ -2537,8 +2548,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                 } else if c0 == b'/' {
                     base = base.wrapping_add(1);
                 }
-                if name_is(base, b"console") {
+                if cpu.regs[11] >> 16 != OPEN_TAG && name_is(base, b"console") {
                     // Console device is implicit (not in fs.img) — keep FD_CONSOLE.
+                    // Tag-gated: mid-walk (a3 tagged) a component named
+                    // "console" is a real dirent lookup ("sub/console" must
+                    // resolve the FILE), never the device.
                     let fd = fd_alloc(pid);
                     if fd >= fdtable::NOFILE {
                         cpu.regs[8] = (-1i32) as u32; // EMFILE
@@ -2565,89 +2579,148 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
                     } else {
                         let ninodes = fs_walk::superblock_ninodes(&sb);
                         let inodestart = fs_walk::superblock_inodestart(&sb);
-                        // Root dinode (inum 1). Read its fields DIRECTLY from fs.img
-                        // (a BPF map) rather than decoding into a stack struct: the
-                        // dirent scan indexes addrs by a runtime `fbn`, and a
-                        // variable-offset read from the *stack* is rejected by the
-                        // verifier — a variable index into a map is allowed.
-                        let iblock = fs_walk::inode_block(fs_walk::ROOTINO, inodestart);
-                        match fs_walk::word_of_block(iblock) {
-                            None => cpu.regs[8] = (-1i32) as u32, // inode block oob (H-FS1)
-                            Some(ib_word) => {
-                                let dino_base =
-                                    ib_word + fs_walk::dinode_word_offset(fs_walk::ROOTINO);
-                                let rtype = (ram_word(dino_base) & 0xFFFF) as u16;
-                                let rsize = ram_word(dino_base + 2);
-                                if rtype != fs_walk::T_DIR {
-                                    // Root inode must be a directory to walk dirents.
+                        // ── Epic 1.3.1 multi-component walk state ──────────
+                        // a3 = regs[11]: [31:16]=OPEN_TAG, [15:0]=current dir
+                        // inum. a2 = regs[10]: dirent cursor within that dir.
+                        // Seeded once per open (tag check); each '/' descend
+                        // re-seeds cursor=0 with the child dir AND advances a0
+                        // itself past the consumed component (a0 is the return
+                        // register — clobbered at syscall end anyway), so the
+                        // per-tick `base` derivation above always lands on the
+                        // CURRENT component. Carrying a component offset here
+                        // instead and adding it to `base` costs +119K verifier
+                        // insns (blows the 1M ceiling): a second variable
+                        // offset into RAM_MAP inside the 14-iter name-compare
+                        // loop defeats state merging. Never do that.
+                        const OPEN_MAX_DIRENTS: u32 = 256;
+                        if cpu.regs[11] >> 16 != OPEN_TAG {
+                            cpu.regs[10] = 0;
+                            cpu.regs[11] = (OPEN_TAG << 16) | fs_walk::ROOTINO;
+                        }
+                        let dir_inum = cpu.regs[11] & 0xFFFF;
+                        let comp = base;
+                        // H-FS9: dir_inum rides in user-writable a3 across
+                        // ticks — bound it like any inum before the walk.
+                        if !fs_walk::inum_valid(dir_inum, ninodes) {
+                            cpu.regs[11] = 0;
+                            cpu.regs[8] = (-1i32) as u32;
+                        } else {
+                            // Current-dir dinode. Read its fields DIRECTLY from
+                            // fs.img (a BPF map) rather than decoding into a
+                            // stack struct: the dirent scan indexes addrs by a
+                            // runtime `fbn`, and a variable-offset read from the
+                            // *stack* is rejected by the verifier — a variable
+                            // index into a map is allowed.
+                            let iblock = fs_walk::inode_block(dir_inum, inodestart);
+                            match fs_walk::word_of_block(iblock) {
+                                None => {
+                                    // inode block oob (H-FS1)
+                                    cpu.regs[11] = 0;
                                     cpu.regs[8] = (-1i32) as u32;
-                                } else {
-                                    // Clamp the entry count to a constant ceiling: a
-                                    // hostile dinode.size can't drive an unbounded
-                                    // scan (bounds total re-entries).
-                                    const OPEN_MAX_DIRENTS: u32 = 256;
-                                    const OPEN_MAGIC: u32 = 0x09E0_0DE0;
-                                    let ndir_raw = rsize / fs_walk::DIRENT_BYTES;
-                                    let ndir = if ndir_raw > OPEN_MAX_DIRENTS {
-                                        OPEN_MAX_DIRENTS
+                                }
+                                Some(ib_word) => {
+                                    let dino_base = ib_word + fs_walk::dinode_word_offset(dir_inum);
+                                    let rtype = (ram_word(dino_base) & 0xFFFF) as u16;
+                                    let rsize = ram_word(dino_base + 2);
+                                    if rtype != fs_walk::T_DIR {
+                                        // Not a directory: corrupt root, or an
+                                        // intermediate component that resolved to
+                                        // a file ("cat README/x").
+                                        cpu.regs[11] = 0;
+                                        cpu.regs[8] = (-1i32) as u32;
                                     } else {
-                                        ndir_raw
-                                    };
-                                    if cpu.regs[11] != OPEN_MAGIC {
-                                        cpu.regs[10] = 0;
-                                        cpu.regs[11] = OPEN_MAGIC;
-                                    }
-                                    let idx = cpu.regs[10];
-                                    let mut found: u32 = 0; // 0 = none (never a real inum)
-                                                            // ONE dirent per tick. No outer loop: re-entry
-                                                            // (pc-=1) advances the cursor, so the only loop
-                                                            // the verifier explores here is name_eq_phys's
-                                                            // 14-iter compare. exec(7) already sits near the
-                                                            // shared 1M ceiling; >1 dirent/tick tipped the
-                                                            // whole program over (BPF program too large).
-                                    if idx < ndir {
-                                        let fbn = idx / fs_walk::DIRENTS_PER_BLOCK;
-                                        if (fbn as usize) < fs_walk::NDIRECT {
-                                            // addrs[fbn] = dinode word 3+fbn, read from
-                                            // fs.img (map index, not stack).
-                                            let dblk = ram_word(dino_base + 3 + fbn);
-                                            if dblk != 0 {
-                                                if let Some(dbw) = fs_walk::word_of_block(dblk) {
-                                                    let within = idx % fs_walk::DIRENTS_PER_BLOCK;
-                                                    let dword = dbw + within * 4; // 4 w/dirent
-                                                    let inum = ram_word(dword) & 0xFFFF;
-                                                    if inum != 0
-                                                        && inum < ninodes
-                                                        && name_eq_phys(dword * 4 + 2, base)
+                                        // Clamp the entry count to a constant ceiling: a
+                                        // hostile dinode.size can't drive an unbounded
+                                        // scan (bounds total re-entries).
+                                        let ndir_raw = rsize / fs_walk::DIRENT_BYTES;
+                                        let ndir = if ndir_raw > OPEN_MAX_DIRENTS {
+                                            OPEN_MAX_DIRENTS
+                                        } else {
+                                            ndir_raw
+                                        };
+                                        let idx = cpu.regs[10];
+                                        let mut found: u32 = 0; // 0 = none (never a real inum)
+                                        let mut mres: u32 = 0; // match result (len | HAS_MORE)
+                                                               // ONE dirent per tick. No outer loop: re-entry
+                                                               // (pc-=1) advances the cursor, so the only loop
+                                                               // the verifier explores here is name_match_phys's
+                                                               // 14-iter compare. exec(7) already sits near the
+                                                               // shared 1M ceiling; >1 dirent/tick tipped the
+                                                               // whole program over (BPF program too large).
+                                        if idx < ndir {
+                                            let fbn = idx / fs_walk::DIRENTS_PER_BLOCK;
+                                            if (fbn as usize) < fs_walk::NDIRECT {
+                                                // addrs[fbn] = dinode word 3+fbn, read from
+                                                // fs.img (map index, not stack).
+                                                let dblk = ram_word(dino_base + 3 + fbn);
+                                                if dblk != 0 {
+                                                    if let Some(dbw) = fs_walk::word_of_block(dblk)
                                                     {
-                                                        found = inum;
+                                                        let within =
+                                                            idx % fs_walk::DIRENTS_PER_BLOCK;
+                                                        let dword = dbw + within * 4; // 4 w/dirent
+                                                        let inum = ram_word(dword) & 0xFFFF;
+                                                        if inum != 0 && inum < ninodes {
+                                                            let m = name_match_phys(
+                                                                dword * 4 + 2,
+                                                                comp,
+                                                            );
+                                                            if m != NO_COMPONENT_MATCH {
+                                                                found = inum;
+                                                                mres = m;
+                                                            }
+                                                        }
                                                     }
                                                 }
                                             }
                                         }
-                                    }
-                                    let next = idx + 1;
-                                    if found != 0 {
-                                        // Retire the scan: a stale OPEN_MAGIC left in
-                                        // a3 would make the NEXT open seed its cursor
-                                        // from whatever the user last put in a2 (e.g.
-                                        // read's n=16), silently skipping dirents.
-                                        cpu.regs[11] = 0;
-                                        let fd = fd_alloc(pid);
-                                        if fd >= fdtable::NOFILE {
-                                            cpu.regs[8] = (-1i32) as u32;
+                                        let next = idx + 1;
+                                        if found != 0 {
+                                            if mres & COMPONENT_HAS_MORE != 0 {
+                                                // Intermediate component ⇒ descend. Advance
+                                                // a0 past the strip + component + '/' so
+                                                // the next tick's `base` IS the next
+                                                // component (repeated '/' and "./" fold
+                                                // out via the per-tick strip above). The
+                                                // child's T_DIR check happens naturally at
+                                                // the next tick's dinode read; a dirent
+                                                // inum is 16 bits, so it always fits the
+                                                // state field. a0 is the return register —
+                                                // clobbered at syscall end regardless.
+                                                let consumed = base
+                                                    .wrapping_sub(path_phys)
+                                                    .wrapping_add(mres & 0xFF)
+                                                    .wrapping_add(1);
+                                                cpu.regs[8] = path_va.wrapping_add(consumed);
+                                                cpu.regs[10] = 0;
+                                                cpu.regs[11] = (OPEN_TAG << 16) | found;
+                                                cpu.pc = cpu.pc.wrapping_sub(1);
+                                                break;
+                                            } else {
+                                                // Final component (terminator is NUL).
+                                                // Retire the scan: a stale OPEN_TAG left
+                                                // in a3 would make the NEXT open seed its
+                                                // cursor from whatever the user last put
+                                                // in a2 (e.g. read's n=16), silently
+                                                // skipping dirents.
+                                                cpu.regs[11] = 0;
+                                                let fd = fd_alloc(pid);
+                                                if fd >= fdtable::NOFILE {
+                                                    cpu.regs[8] = (-1i32) as u32;
+                                                } else {
+                                                    fd_set_inode(pid, fd, found); // FD_INODE + [inum,0]
+                                                    cpu.regs[8] = fd;
+                                                }
+                                            }
+                                        } else if next < ndir {
+                                            // More dirents remain — re-enter next tick.
+                                            cpu.regs[10] = next;
+                                            cpu.pc = cpu.pc.wrapping_sub(1);
+                                            break;
                                         } else {
-                                            fd_set_inode(pid, fd, found); // FD_INODE + [inum,0]
-                                            cpu.regs[8] = fd;
+                                            cpu.regs[11] = 0; // retire the scan (see above)
+                                            cpu.regs[8] = (-1i32) as u32; // exhausted, no match
                                         }
-                                    } else if next < ndir {
-                                        // More dirents remain — re-enter next tick.
-                                        cpu.regs[10] = next;
-                                        cpu.pc = cpu.pc.wrapping_sub(1);
-                                        break;
-                                    } else {
-                                        cpu.regs[11] = 0; // retire the scan (see above)
-                                        cpu.regs[8] = (-1i32) as u32; // exhausted, no match
                                     }
                                 }
                             }
@@ -3677,34 +3750,59 @@ fn name_is(base: u32, lit: &[u8]) -> bool {
     n == 0 || n == b'/'
 }
 
-/// Gate D: `strncmp(name, basename, DIRSIZ)` over phys memory. `dname` is the
-/// phys byte address of a NUL-padded 14-byte dirent name; `base` is the
-/// phys byte address of the NUL-or-`/`-terminated path basename. **H-FS8**:
-/// reads at most [`fs_walk::DIRSIZ`] bytes of the dirent field, never past it.
+/// `name_match_phys` "no match" sentinel.
+const NO_COMPONENT_MATCH: u32 = u32::MAX;
+/// `name_match_phys` result bit: the component's terminator is `/` (an
+/// intermediate path component ⇒ descend), not NUL (final component).
+const COMPONENT_HAS_MORE: u32 = 0x100;
+
+/// Gate D / Epic 1.3.1: `strncmp(name, component, DIRSIZ)` over phys memory.
+/// `dname` is the phys byte address of a NUL-padded 14-byte dirent name;
+/// `comp` is the phys byte address of the current path component (terminated
+/// by NUL or `/`). On a match returns the component length (`0..=DIRSIZ`, the
+/// byte index of its terminator) OR'd with [`COMPONENT_HAS_MORE`] when the
+/// terminator is `/`; else [`NO_COMPONENT_MATCH`]. Packing the terminator
+/// into the return spares the caller a variable-offset `ram_byte(comp+len)`
+/// peek — compound variable offsets into RAM_MAP wreck verifier state-merging
+/// (the Epic 1.3.1 budget lesson: one such offset in this loop cost +119K
+/// insns). Pure twin (off-target tested): `fs_walk::component_match_len` (the
+/// twin returns the bare length; the flag here is a verifier-cost encoding).
+/// **H-FS8**: reads at most [`fs_walk::DIRSIZ`] bytes of the dirent field,
+/// never past it.
 #[inline(always)]
-fn name_eq_phys(dname: u32, base: u32) -> bool {
+fn name_match_phys(dname: u32, comp: u32) -> u32 {
     // Early-return form: a `return` lets the verifier PRUNE the rest of this
     // path immediately (cheaper than a flag-accumulating full 14-iter scan, which
     // forces the verifier to explore every iteration). H-FS8: ≤ DIRSIZ bytes.
     let mut k = 0u32;
     while k < fs_walk::DIRSIZ as u32 {
         let dn = ram_byte(dname.wrapping_add(k));
-        let praw = ram_byte(base.wrapping_add(k));
-        // Path basename terminates at NUL or '/'; treat both as the 0 pad the
-        // dirent name uses for short names so strncmp semantics line up.
+        let praw = ram_byte(comp.wrapping_add(k));
+        // A path component terminates at NUL or '/'; treat both as the 0 pad
+        // the dirent name uses for short names so strncmp semantics line up.
         let pn = if praw == b'/' { 0 } else { praw };
         if dn != pn {
-            return false;
+            return NO_COMPONENT_MATCH;
         }
         if pn == 0 {
-            return true; // both end here
+            // Both end here — k bytes of component; praw tells which kind.
+            if praw == b'/' {
+                return COMPONENT_HAS_MORE | k;
+            }
+            return k;
         }
         k += 1;
     }
-    // Consumed all DIRSIZ bytes with no mismatch: equal iff the basename also
+    // Consumed all DIRSIZ bytes with no mismatch: equal iff the component also
     // ends exactly at DIRSIZ (no 15th significant byte).
-    let nxt = ram_byte(base.wrapping_add(fs_walk::DIRSIZ as u32));
-    nxt == 0 || nxt == b'/'
+    let nxt = ram_byte(comp.wrapping_add(fs_walk::DIRSIZ as u32));
+    if nxt == b'/' {
+        return COMPONENT_HAS_MORE | fs_walk::DIRSIZ as u32;
+    }
+    if nxt == 0 {
+        return fs_walk::DIRSIZ as u32;
+    }
+    NO_COMPONENT_MATCH
 }
 
 /// Read a single byte from the MBC address space.

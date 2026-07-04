@@ -107,15 +107,20 @@ gate_nway: $T/gate_nway.mbc
 USERLAND_PROGS = $T/init.mbc $T/sh.mbc $T/ls.mbc $T/cat.mbc $T/echo.mbc $T/wc.mbc
 userland: $(USERLAND_PROGS)
 
+# Host-native mkfs (x86-64) — rebuilds automatically when mkfs.c changes
+# (e.g. the Epic 1.3.1 subdirectory support).
+mkfs/mkfs: mkfs/mkfs.c
+	gcc -I. -o mkfs/mkfs mkfs/mkfs.c
+
 # Build the xv6-format ramdisk image embedding the default userland.
-# mkfs (host x86-64) must already be built (gcc -I. -o mkfs/mkfs mkfs/mkfs.c).
-# mkfs asserts on '/' in input filenames; we cd into target/ so the
+# mkfs asserts on '/' in bare input filenames; we cd into target/ so the
 # basenames are bare. xv6 looks for `/init` (no extension) via namei,
 # so strip the .mbc suffix by creating extensionless copies before mkfs.
+# A single "dir/name" level IS allowed (Epic 1.3.1 subdir support in mkfs).
 # Gate-D demo fixture: a host-authored ASCII file embedded in fs.img so
 # `cat README` proves the FS reader walked a real inode (anti-memorization
 # control — the exact bytes below cannot be regurgitated by the guest).
-$T/fs.img: $(USERLAND_PROGS)
+$T/fs.img: $(USERLAND_PROGS) mkfs/mkfs
 	cd $T && for f in $(notdir $(USERLAND_PROGS)); do cp $$f $${f%.mbc}; done
 	printf '%s\n' \
 	  'Unheaded UPC -- Phase 1.7 Gate D filesystem reader.' \
@@ -131,7 +136,16 @@ $T/fs.img: $(USERLAND_PROGS)
 	    printf 'indirect-block filler line %03d ----------------------------------\n' $$i; \
 	  done; \
 	  printf 'INDIRECT-READ-OK 0xBEEF-PAST-12KIB end of BIGFILE\n'; } > $T/BIGFILE
-	cd $T && ../mkfs/mkfs fs.img init sh ls cat echo wc README BIGFILE
+	@# NOTE lives in sub/ so `cat sub/NOTE` proves open() descended a real
+	@# T_DIR dirent (multi-component path walk, Epic 1.3.1) instead of
+	@# resolving against the root scan alone.
+	mkdir -p $T/sub
+	printf '%s\n' \
+	  'If you can read this line, open() walked sub -> NOTE across two' \
+	  'directory levels inside the eBPF FS walker: root dirent -> T_DIR' \
+	  'inode -> sub dirent -> file inode.' \
+	  'Proof token: SUBDIR-WALK-OK 0x5UBD1R-PA7H. Peace and love.' > $T/sub/NOTE
+	cd $T && ../mkfs/mkfs fs.img init sh ls cat echo wc README BIGFILE sub/NOTE
 
 ramdisk: $T/fs.img
 
@@ -139,7 +153,7 @@ clean:
 	rm -f $U/*.o $U/usys.S
 	rm -rf $T/init.* $T/sh.* $T/ls.* $T/cat.* $T/echo.* \
 	       $T/wc.* $T/ln.* $T/mkdir.* $T/kill.* $T/rm.* $T/grep.* \
-	       $T/gate2.* $T/gate_nway.* $T/fs.img $T/README $T/BIGFILE
+	       $T/gate2.* $T/gate_nway.* $T/fs.img $T/README $T/BIGFILE $T/sub
 
 .PHONY: clean init sh ls cat echo wc ln mkdir kill rm grep gate2 gate_nway userland ramdisk
 

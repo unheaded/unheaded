@@ -73,7 +73,14 @@ budget-aware handler with a green gate. Pick off as budget/interest allows.*
 - [~] **1.3.1** FS reader stretch. **`>12 KiB` files (single-indirect blocks) DONE** — read(5)
       resolves `fbn ≥ NDIRECT` via the indirect block; `cat BIGFILE` (14,570 B) reads its tail
       past offset 12,288 (marker `INDIRECT-READ-OK`), verifier +656 insns (858,654), harness
-      guards it permanently. REMAINS: subdirectory path walk, device inodes.
+      guards it permanently. **Subdirectory path walk DONE 2026-07-04** — open(15) resolves
+      multi-component paths (`cat sub/NOTE`, `ls sub`, `sub//NOTE`, `./sub/NOTE`; `README/x`
+      fails clean); walk state in a3 (OPEN_TAG|dir inum) + a2 cursor, a0 advanced past each
+      consumed component on descend. Verifier 900,031 (90.0%, +41K for the feature). BUDGET
+      LESSON: a component *offset* carried in state and added to `base` cost +119K (blew 1M) —
+      a second variable offset into RAM_MAP inside the name-compare loop defeats verifier
+      state merging; advancing a0 keeps one scalar. mkfs grew one-level `dir/name` support;
+      harness gates `cat sub/NOTE` + `ls sub`. REMAINS: device inodes.
 - [ ] **1.3.2** File **writes** (`write` to FD_INODE) + `>` redirection in sh — the first mutating
       FS path (needs a block-alloc story; scope carefully vs verifier budget).
 - [ ] **1.3.3** Pipes (`|`) + a couple more shell builtins.

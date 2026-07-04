@@ -243,6 +243,36 @@ pub fn name_eq(name: &[u8; DIRSIZ], target: &[u8]) -> bool {
     target.len() <= DIRSIZ
 }
 
+/// Like [`name_eq`], but `path` is a full remaining *path* (component ends at
+/// NUL, `/`, or end-of-slice) and a match returns the component length
+/// (`0..=DIRSIZ` — the index of its terminator) instead of `true`. The
+/// multi-component walk (Epic 1.3.1) needs the length to find the byte after
+/// the component: `/` ⇒ descend into the matched directory, NUL ⇒ final
+/// component. `None` = no match. In-BPF twin: `name_match_phys` in
+/// `monad-cpu-ebpf` (**H-FS8**: ≤ `DIRSIZ`+1 byte reads, never past the field).
+#[inline(always)]
+pub fn component_match_len(name: &[u8; DIRSIZ], path: &[u8]) -> Option<u32> {
+    let mut i = 0;
+    while i < DIRSIZ {
+        let praw = if i < path.len() { path[i] } else { 0 };
+        let p = if praw == b'/' { 0 } else { praw };
+        if name[i] != p {
+            return None;
+        }
+        if p == 0 {
+            return Some(i as u32);
+        }
+        i += 1;
+    }
+    // All DIRSIZ name bytes matched: equal iff the component also ends here.
+    let nxt = if path.len() > DIRSIZ { path[DIRSIZ] } else { 0 };
+    if nxt == 0 || nxt == b'/' {
+        Some(DIRSIZ as u32)
+    } else {
+        None
+    }
+}
+
 /// Scan a directory data block for an entry named `target`, returning its `inum`
 /// (never `0`) or `None` if absent. Free slots (`inum == 0`) are skipped.
 ///
@@ -441,6 +471,60 @@ mod tests {
         assert_eq!(resolve_in_dir_block(&blk, ndir, b"nope"), None);
         // The scan bound is honored: README lives at idx 3, so ndir=3 misses it.
         assert_eq!(resolve_in_dir_block(&blk, 3, b"README"), None);
+    }
+
+    #[test]
+    fn component_match_len_splits_paths() {
+        let mut sub = [0u8; DIRSIZ];
+        sub[..3].copy_from_slice(b"sub");
+        // Intermediate component: matches and reports where the '/' sits.
+        assert_eq!(component_match_len(&sub, b"sub/NOTE"), Some(3));
+        // Final component: terminator is end-of-slice (implicit NUL).
+        assert_eq!(component_match_len(&sub, b"sub"), Some(3));
+        // Explicit NUL terminator (how the path sits in guest memory).
+        assert_eq!(component_match_len(&sub, b"sub\0junk"), Some(3));
+        // Prefix / extension mismatches.
+        assert_eq!(component_match_len(&sub, b"su"), None);
+        assert_eq!(component_match_len(&sub, b"subx/NOTE"), None);
+        assert_eq!(component_match_len(&sub, b"sub2"), None);
+        // Exactly-DIRSIZ name with '/' right after — still a match.
+        let full = *b"abcdefghijklmn"; // 14 bytes
+        assert_eq!(component_match_len(&full, b"abcdefghijklmn/x"), Some(14));
+        assert_eq!(component_match_len(&full, b"abcdefghijklmn"), Some(14));
+        assert_eq!(component_match_len(&full, b"abcdefghijklmnO"), None);
+    }
+
+    /// Two-level walk spec: resolve "sub" in the root block, then "NOTE" in
+    /// sub's block — the pure shape of the Epic 1.3.1 multi-component open().
+    #[test]
+    fn two_level_walk_via_component_split() {
+        let mut root = [0u32; FS_WORDS_PER_BLOCK as usize];
+        write_dirent(&mut root, 0, 1, b".");
+        write_dirent(&mut root, 1, 1, b"..");
+        write_dirent(&mut root, 2, 7, b"README");
+        write_dirent(&mut root, 3, 5, b"sub"); // T_DIR, inum 5
+        let mut subblk = [0u32; FS_WORDS_PER_BLOCK as usize];
+        write_dirent(&mut subblk, 0, 5, b".");
+        write_dirent(&mut subblk, 1, 1, b"..");
+        write_dirent(&mut subblk, 2, 9, b"NOTE"); // the target, inum 9
+
+        let path = b"sub/NOTE";
+        // Component 1: find its length via the dirent that matches it.
+        let mut sub_name = [0u8; DIRSIZ];
+        sub_name[..3].copy_from_slice(b"sub");
+        let clen = component_match_len(&sub_name, path).unwrap();
+        assert_eq!(clen, 3);
+        assert_eq!(path[clen as usize], b'/', "intermediate ⇒ descend");
+        let dir = resolve_in_dir_block(&root, 4, &path[..clen as usize]).unwrap();
+        assert_eq!(dir, 5);
+        // Component 2: the remainder past the '/' is final (no more '/').
+        let rest = &path[clen as usize + 1..];
+        let file = resolve_in_dir_block(&subblk, 3, rest).unwrap();
+        assert_eq!(file, 9);
+        // "." inside sub resolves to sub itself (self-loop entry works).
+        assert_eq!(resolve_in_dir_block(&subblk, 3, b"."), Some(5));
+        // A miss in sub stays a miss.
+        assert_eq!(resolve_in_dir_block(&subblk, 3, b"README"), None);
     }
 
     #[test]
