@@ -84,3 +84,8 @@ chain-of-custody for compliance), a different, owned upstream.
   cannot regress). Two permanent gates in `scripts/upc-regression.sh`. Q2's "evolve, never break
   the boot" default is now practice, and Q5's Lore blessing began: `uinit` is the working name in
   the Ascension tradition.
+- **2026-07-04 — Phase 2.2 first coreutil (echo) replaced.** `user/uecho.c` builds as
+  `target/echo.mbc` via an explicit Makefile rule (the replacement mechanism for the rest of the
+  set); MIT `echo.c` unwired. GCC -O2 emits bit-identical code for a six-line echo (objdump-diff
+  verified; merger doctrine — one way to write it), so behavior is identical by construction.
+  Multi-arg harness gate added. Zero eBPF change again.

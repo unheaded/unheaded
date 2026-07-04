@@ -69,6 +69,9 @@ xv6_expect 'cat BIGFILE'  'INDIRECT-READ-OK'       'cat BIGFILE (>12 KiB, indire
 xv6_expect 'cat sub/NOTE' 'SUBDIR-WALK-OK'         'cat sub/NOTE (multi-component path walk)'
 xv6_expect 'ls sub'       'NOTE           2'       'ls sub (open dir + stat through subdir)'
 xv6_expect 'echo hello'   'hello'                  'echo hello'
+# Phase 2.2 (ADR-081): echo is OUR uecho.c build; multi-arg locks the
+# one-space-join + trailing-newline contract the single-arg gate misses.
+xv6_expect 'echo peace and love' 'peace and love'  'echo multi-arg (our uecho)'
 xv6_expect 'wc README'    '5 49 283 README'        'wc README'
 
 G2="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \

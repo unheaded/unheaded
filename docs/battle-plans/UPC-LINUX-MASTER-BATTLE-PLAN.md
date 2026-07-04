@@ -119,6 +119,14 @@ on our kernel." **Gate:** boots, our init forks+execs sh, prompt returns, Doom s
 ### Phase 2.2 — Own the shell + coreutils
 Our own minimal `sh`, then our own `ls`/`cat`/`echo`/`wc`, replacing the MIT userland one at a time.
 **Gate (per program):** identical observable behavior, regression sweep green.
+- [x] **echo** (2026-07-04) — `user/uecho.c` builds AS `target/echo.mbc` (the PROGRAM_TABLE
+      basename sh execs); MIT `echo.c` unwired. Explicit Makefile rule overriding the pattern
+      rule = the per-program replacement mechanism for the rest of the set. GCC -O2 emits
+      bit-identical code for the replacement (objdump-diff verified), so the staged ROM hash
+      is unchanged — the strongest form of the identical-behavior gate. New multi-arg harness
+      gate (`echo peace and love`). Verifier 900,031 unchanged.
+- [ ] **cat**, **ls**, **wc** — same mechanism; implementations will genuinely diverge.
+- [ ] **sh** — biggest bite (parser, pipes, redirects); last.
 
 ### Phase 2.3 — Own the kernel edges
 Progressively replace xv6 kernel pieces we already understand: entry/`start`, console driver,

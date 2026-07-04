@@ -77,6 +77,14 @@ $T/%.elf: $A/crt0_mbc.o $U/%.o $(USER_LIB_OBJS) $U/user.ld
 	mkdir -p $T
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $A/crt0_mbc.o $U/$*.o $(USER_LIB_OBJS)
 
+# Track 2 Phase 2.2 (ADR-081): `echo` is OURS. The artifact keeps the name
+# echo.mbc — that is the PROGRAM_TABLE basename sh resolves at exec time —
+# but it links from user/uecho.c. The MIT xv6 user/echo.c stays in the
+# vendored tree, unwired. (Explicit rule overrides the pattern rule above.)
+$T/echo.elf: $A/crt0_mbc.o $U/uecho.o $(USER_LIB_OBJS) $U/user.ld
+	mkdir -p $T
+	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $A/crt0_mbc.o $U/uecho.o $(USER_LIB_OBJS)
+
 # Translate ELF → MBC + .rv2mbc + .data sidecars.
 $T/%.mbc: $T/%.elf
 	../../monad-mbc/target/release/rv32i-to-mbc $< -o $@
