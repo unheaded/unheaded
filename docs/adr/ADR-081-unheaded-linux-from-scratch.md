@@ -96,3 +96,8 @@ chain-of-custody for compliance), a different, owned upstream.
 - **2026-07-05 — Phase 2.2 wc replaced.** `user/uwc.c`; explicit is_sep() encodes the separator
   set the original derived from xv6-strchr's never-matches-NUL quirk. `wc README` byte-identical.
   Remaining MIT userland in the exec set: ls, sh.
+- **2026-07-05 — Phase 2.2 ls replaced. Coreutils complete.** `user/uls.c` (forward-scan
+  basename_padded + print_entry split; ≥DIRSIZ-unpadded and unknown-type-silent quirks kept).
+  Root listing + `ls sub` identical. The exec set (echo/cat/wc/ls) is now 100% Unheaded-authored;
+  only sh remains MIT. sh needs its own battle plan (Warmonger) — clause-by-clause replacement
+  against the Gate C corpus.
