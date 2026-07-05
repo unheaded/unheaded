@@ -90,6 +90,10 @@ $T/cat.elf: $A/crt0_mbc.o $U/ucat.o $(USER_LIB_OBJS) $U/user.ld
 	mkdir -p $T
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $A/crt0_mbc.o $U/ucat.o $(USER_LIB_OBJS)
 
+$T/wc.elf: $A/crt0_mbc.o $U/uwc.o $(USER_LIB_OBJS) $U/user.ld
+	mkdir -p $T
+	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $A/crt0_mbc.o $U/uwc.o $(USER_LIB_OBJS)
+
 # Translate ELF → MBC + .rv2mbc + .data sidecars.
 $T/%.mbc: $T/%.elf
 	../../monad-mbc/target/release/rv32i-to-mbc $< -o $@

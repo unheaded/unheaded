@@ -131,7 +131,12 @@ Our own minimal `sh`, then our own `ls`/`cat`/`echo`/`wc`, replacing the MIT use
       to main instead of exiting mid-helper). Corpus locks all three read paths through it:
       direct blocks (README), single-indirect (BIGFILE >12 KiB), multi-component path walk
       (sub/NOTE). Verifier 900,031 unchanged.
-- [ ] **ls**, **wc** — same mechanism.
+- [x] **wc** (2026-07-05) — `user/uwc.c`. Preserves two subtle contracts explicitly: the
+      separator set { space \t \r \n \v } spelled out (xv6's strchr never matches '\0', so
+      NUL counts as a word char — is_sep() encodes that instead of inheriting the quirk),
+      and the stdin form's empty-name trailing space. Gate: `wc README` → `5 49 283 README`
+      identical. Verifier 900,031 unchanged.
+- [ ] **ls** — same mechanism (fmtname/stat/dirent walk — the biggest coreutil).
 - [ ] **sh** — biggest bite (parser, pipes, redirects); last.
 
 ### Phase 2.3 — Own the kernel edges
