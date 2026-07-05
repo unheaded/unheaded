@@ -58,7 +58,7 @@ ASFLAGS = -march=rv32i_zicsr_zmmul -mabi=ilp32e
 LDFLAGS = -z max-page-size=4096 -melf32lriscv
 
 OBJS = \
-  $K/entry.o \
+  $A/uentry.o \
   $A/start_mbc.o \
   $K/console.o \
   $K/printf.o \
@@ -91,6 +91,8 @@ OBJS = \
 #   $K/uart.o           → replaced by $A/console-mmio.o
 #   $K/plic.o           → no PLIC on UPC; trap routing via IVT
 #   $K/virtio_disk.o    → replaced by $A/blk-ramdisk.o
+# Track 2 Phase 2.3 (ADR-081) — kernel edges are OURS:
+#   $K/entry.o          → replaced by $A/uentry.o
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
