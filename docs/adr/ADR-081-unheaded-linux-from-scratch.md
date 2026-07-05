@@ -110,3 +110,14 @@ chain-of-custody for compliance), a different, owned upstream.
   gates landed green against STOCK sh before the swap (`6e9b5850`); 3 hostile probes (metachar,
   arg flood, 63-byte ring-cap line) survived child-side with a fresh prompt. **The exec set is
   now 100% Unheaded-authored.** Phase 2.3 (kernel edges) is next.
+- **2026-07-05 — Phase 2.3 kernel edges COMPLETE (same day).** The four remaining MIT edge
+  files left the kernel link, one green commit each (battle plan
+  `docs/battle-plans/PHASE23-KERNEL-EDGES.md`): `adapters/uentry.S` (`7c71c90c`),
+  `adapters/usyscall.c` (`8f4caf1e`, runtime-dead — the BPF ecall dispatch owns the syscall
+  surface; linked for trap.c/sysproc/sysfile, alive again in 2.4), `adapters/uprintf.c`
+  (`4ada1df6`, live — every boot print in the goldens renders through it), `adapters/uconsole.c`
+  (`1ac208ac` — with Phase 1.1's console-mmio.c the console stack is 100% ours). Kernel
+  translation count unchanged all sprint (7,552 RV32I → 11,764 MBC); smoke + 16-gate harness
+  byte-identical per edge; verifier 900,031 exact. **MIT remaining in the link: kernel core
+  only** — Phase 2.4 (own the kernel core → it stops being xv6) is next and needs its own
+  battle plan.
