@@ -151,9 +151,28 @@ Our own minimal `sh`, then our own `ls`/`cat`/`echo`/`wc`, replacing the MIT use
       (stock: silent no-op "success"). 1,095 RV32I → 1,874 MBC. Verifier 900,031 unchanged.
       **Phase 2.2 COMPLETE — the exec set is 100% Unheaded-authored.**
 
-### Phase 2.3 — Own the kernel edges
+### Phase 2.3 — Own the kernel edges ✓ COMPLETE 2026-07-05
 Progressively replace xv6 kernel pieces we already understand: entry/`start`, console driver,
 syscall dispatch table. **Gate:** boot green after each swap; the replaced file has no MIT code.
+Battle plan `PHASE23-KERNEL-EDGES.md`. `start.c`/`uart.c`/`plic.c`/`virtio_disk.c` were already
+ours (Phase 1.1 adapters); this sprint removed the four remaining MIT edge files from the link,
+one green commit each, kernel translation count unchanged at every step (7,552 RV32I → 11,764
+MBC — GCC -O2 folds our restructures flat):
+- [x] **entry** (2026-07-05) — `adapters/uentry.S`. Near-merger-doctrine (one correct shape);
+      `_entry` disassembly instruction-identical; sp = stack0+(mhartid+1)*4096 against OUR
+      stack0 (start_mbc.c).
+- [x] **syscall dispatch** (2026-07-05) — `adapters/usyscall.c`. Runtime-dead on the UPC (the
+      BPF ecall dispatch owns the syscall surface; linked for trap.c/sysproc/sysfile — alive
+      again in Phase 2.4). All bounds preserved at stock strength (fetchaddr dual overflow
+      guard, copyinstr-bounded fetchstr); dispatch via bounds-checked handler_for().
+- [x] **printf** (2026-07-05) — `adapters/uprintf.c`. LIVE edge: every kernel boot print in
+      the golden TTY line renders through it. Per-specifier va_arg decode types preserved
+      (ilp32e: uint64 = 4 bytes — decode widths are ABI); panicking/panicked pair kept.
+- [x] **console** (2026-07-05) — `adapters/uconsole.c`. Top half ours + bottom half
+      console-mmio.o (Phase 1.1) = console stack 100% Unheaded. Live: consoleinit/consputc.
+      Dead-but-linked line discipline (^H/^U/^D/^P, ring indices) preserved for Phase 2.4.
+**Remaining MIT in the kernel link: core only** (kalloc spinlock string main vm proc trap
+sysproc bio fs log sleeplock file pipe exec sysfile) — exactly the Phase 2.4 scope.
 
 ### Phase 2.4 — Own the kernel core
 Our implementations of the MMU, scheduler, and FS. At the end of this phase it is **Unheaded Linux**,

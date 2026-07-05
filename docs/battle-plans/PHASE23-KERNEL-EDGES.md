@@ -1,5 +1,19 @@
 # PHASE 2.3 — KERNEL EDGES BATTLE PLAN — 7 Phases, 96 Steps
 
+> **✅ SHIPPED 2026-07-05** — commits `7c71c90c` (uentry.S) → `8f4caf1e`
+> (usyscall.c) → `4ada1df6` (uprintf.c) → `1ac208ac` (uconsole.c) + docs. All
+> four MIT edge files out of the link; MIT remaining = kernel core only (Phase
+> 2.4 scope). Gates: smoke + 16-gate harness ALL GREEN per edge; final sweep
+> 12/12 byte-identical (TTY+stats; `ls` vs the phase22 ush-era capture since
+> the golden predates the ush swap — the plan's Step 74 note was wrong about
+> that, corrected in execution). Kernel translation count invariant all sprint:
+> 7,552 RV32I → 11,764 MBC — GCC -O2 folded every restructure flat, a free
+> equivalence tripwire. Verifier 900,031 (90.0%) EXACT, Doom 737,087. H1-H4
+> all held (zero UPC patches in the vendored four; stack0 in start_mbc.c).
+> Step 50 panic probe resolved per Step 51 DECIDE (unreachable from a green
+> boot; stock-identical by construction, exercised when 2.4 brings usertests).
+> Session log: `references/phase23-kernel-edges-2026-07-05.md` · ADR-081.
+
 **Date**: 2026-07-05
 **Sprint**: Track 2 Phase 2.3 — own the kernel edges (ADR-081 "evolve from xv6,
 never break the boot"). Replace the four remaining MIT kernel files in the
