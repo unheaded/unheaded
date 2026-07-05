@@ -61,7 +61,7 @@ OBJS = \
   $A/uentry.o \
   $A/start_mbc.o \
   $K/console.o \
-  $K/printf.o \
+  $A/uprintf.o \
   $A/console-mmio.o \
   $A/syscall_shims.o \
   $K/kalloc.o \
@@ -96,6 +96,7 @@ OBJS = \
 #   $K/syscall.o        → replaced by $A/usyscall.o (runtime-dead on UPC —
 #                         BPF ecall dispatch owns the syscall surface — but
 #                         linked for trap.c/sysproc/sysfile; alive in 2.4)
+#   $K/printf.o         → replaced by $A/uprintf.o (every kernel boot print)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
