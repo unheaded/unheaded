@@ -93,3 +93,6 @@ chain-of-custody for compliance), a different, owned upstream.
   of mid-helper exits) builds as `target/cat.mbc` via the same mechanism; MIT `cat.c` unwired.
   Corpus gates lock all three read paths (direct / single-indirect / subdir walk). Zero eBPF
   change.
+- **2026-07-05 — Phase 2.2 wc replaced.** `user/uwc.c`; explicit is_sep() encodes the separator
+  set the original derived from xv6-strchr's never-matches-NUL quirk. `wc README` byte-identical.
+  Remaining MIT userland in the exec set: ls, sh.
