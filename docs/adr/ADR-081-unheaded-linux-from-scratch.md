@@ -89,3 +89,7 @@ chain-of-custody for compliance), a different, owned upstream.
   set); MIT `echo.c` unwired. GCC -O2 emits bit-identical code for a six-line echo (objdump-diff
   verified; merger doctrine — one way to write it), so behavior is identical by construction.
   Multi-arg harness gate added. Zero eBPF change again.
+- **2026-07-05 — Phase 2.2 cat replaced.** `user/ucat.c` (own structure — error returns instead
+  of mid-helper exits) builds as `target/cat.mbc` via the same mechanism; MIT `cat.c` unwired.
+  Corpus gates lock all three read paths (direct / single-indirect / subdir walk). Zero eBPF
+  change.
