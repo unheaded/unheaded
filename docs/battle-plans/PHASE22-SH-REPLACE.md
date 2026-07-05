@@ -1,5 +1,18 @@
 # PHASE 2.2 FINALE — SH REPLACE BATTLE PLAN — 10 Phases, 110 Steps
 
+> **✅ SHIPPED 2026-07-05** — commits `6e9b5850` (behavior-lock gates, green vs stock)
+> → `56d82cb4` (the swap; Phase 2.2 COMPLETE). Root cause that shaped the design in one
+> line: stock sh's parser mallocs via the unimplemented sbrk(12) and only worked by
+> accident, while pipe(4)/chdir(9) dead syscalls make its whole non-EXEC grammar dead
+> code — so ush is EXEC-only and malloc-free. Gates: 8-line corpus + uinit round-trip
+> byte-identical (TTY+stats) vs stock goldens (sole diff = sh's own size in the root
+> `ls`, 7,496 vs 11,472 — the replacement itself); N1-N3 identical; `cd` divergence as
+> predicted (`exec cd failed`); 3 hostile probes survived; harness 16 PASS ALL GREEN
+> pre- and post-commit; ascend verifier 900,031 (90.0%) EXACT, Doom 737,087.
+> Session log: `references/phase22-sh-shipped-2026-07-05.md` · ADR: `docs/adr/ADR-081`.
+> Note: goldens were re-captured this session (machine reboot wiped /tmp) via the
+> Appendix A7 temporary-revert mechanism; H1-H5 all held.
+
 **Date**: 2026-07-05
 **Sprint**: Track 2 Phase 2.2 finale — replace the last MIT program in the exec set
 (`sh`) with our own `user/ush.c` (ADR-081, "evolve from xv6, never break the boot")
