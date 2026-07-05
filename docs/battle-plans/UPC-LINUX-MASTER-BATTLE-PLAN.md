@@ -116,7 +116,7 @@ on our kernel." **Gate:** boots, our init forks+execs sh, prompt returns, Doom s
       Zero eBPF change: ascend verifier **900,031 unchanged**, Doom green by construction.
       Two permanent harness gates added to `scripts/upc-regression.sh`.
 
-### Phase 2.2 — Own the shell + coreutils
+### Phase 2.2 — Own the shell + coreutils ✓ COMPLETE 2026-07-05
 Our own minimal `sh`, then our own `ls`/`cat`/`echo`/`wc`, replacing the MIT userland one at a time.
 **Gate (per program):** identical observable behavior, regression sweep green.
 - [x] **echo** (2026-07-04) — `user/uecho.c` builds AS `target/echo.mbc` (the PROGRAM_TABLE
@@ -141,8 +141,15 @@ Our own minimal `sh`, then our own `ls`/`cat`/`echo`/`wc`, replacing the MIT use
       ≥DIRSIZ names print unpadded; unknown inode types print nothing. Gates: root listing +
       `ls sub` identical. Verifier 900,031 unchanged. **Coreutils complete — exec set is now
       100% ours except sh.**
-- [ ] **sh** — biggest bite (parser, pipes, redirects, backgrounding); last. Needs its own
-      battle plan (Warmonger) — replace clause-by-clause against the Gate C corpus.
+- [x] **sh** (2026-07-05) — `user/ush.c`, EXEC-only + malloc-free by design: pipe(4)/chdir(9)/
+      sbrk(12) are dead syscalls on the UPC, so stock's PIPE/REDIR/LIST/BACK clauses and `cd`
+      cannot function, and stock's malloc-per-cmd-node parser only worked by accident (sbrk
+      no-op garbage taken as a heap pointer). Battle plan `PHASE22-SH-REPLACE.md`: 3 behavior-
+      lock gates landed green against STOCK sh first (`6e9b5850`), then the swap — corpus +
+      uinit byte-identical TTY+stats, 3 hostile probes survived (metachar → `syntax`, 9 args →
+      `too many args`, 63-byte ring-cap line), documented divergence `cd` → `exec cd failed`
+      (stock: silent no-op "success"). 1,095 RV32I → 1,874 MBC. Verifier 900,031 unchanged.
+      **Phase 2.2 COMPLETE — the exec set is 100% Unheaded-authored.**
 
 ### Phase 2.3 — Own the kernel edges
 Progressively replace xv6 kernel pieces we already understand: entry/`start`, console driver,

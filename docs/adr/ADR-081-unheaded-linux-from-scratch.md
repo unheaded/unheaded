@@ -101,3 +101,12 @@ chain-of-custody for compliance), a different, owned upstream.
   Root listing + `ls sub` identical. The exec set (echo/cat/wc/ls) is now 100% Unheaded-authored;
   only sh remains MIT. sh needs its own battle plan (Warmonger) — clause-by-clause replacement
   against the Gate C corpus.
+- **2026-07-05 — Phase 2.2 sh replaced. Phase 2.2 COMPLETE.** `user/ush.c` (EXEC-only
+  fork/exec/wait loop, malloc-free — stock sh's parser mallocs via the unimplemented sbrk(12)
+  and worked by accident; PIPE/REDIR/LIST/BACK + `cd` are dead code behind unimplemented
+  pipe(4)/chdir(9)). Battle plan `docs/battle-plans/PHASE22-SH-REPLACE.md`. Corpus + uinit
+  round-trip byte-identical TTY+stats vs stock goldens (the one `ls` field that differs is sh's
+  own file size in fs.img — 7,496 vs 11,472 bytes, the replacement itself). 3 behavior-lock
+  gates landed green against STOCK sh before the swap (`6e9b5850`); 3 hostile probes (metachar,
+  arg flood, 63-byte ring-cap line) survived child-side with a fresh prompt. **The exec set is
+  now 100% Unheaded-authored.** Phase 2.3 (kernel edges) is next.
