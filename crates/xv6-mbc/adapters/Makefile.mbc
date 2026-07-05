@@ -73,7 +73,7 @@ OBJS = \
   $A/swtch_mbc.o \
   $A/trampoline_mbc.o \
   $K/trap.o \
-  $K/syscall.o \
+  $A/usyscall.o \
   $K/sysproc.o \
   $K/bio.o \
   $K/fs.o \
@@ -93,6 +93,9 @@ OBJS = \
 #   $K/virtio_disk.o    → replaced by $A/blk-ramdisk.o
 # Track 2 Phase 2.3 (ADR-081) — kernel edges are OURS:
 #   $K/entry.o          → replaced by $A/uentry.o
+#   $K/syscall.o        → replaced by $A/usyscall.o (runtime-dead on UPC —
+#                         BPF ecall dispatch owns the syscall surface — but
+#                         linked for trap.c/sysproc/sysfile; alive in 2.4)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
