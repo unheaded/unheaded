@@ -98,6 +98,11 @@ $T/ls.elf: $A/crt0_mbc.o $U/uls.o $(USER_LIB_OBJS) $U/user.ld
 	mkdir -p $T
 	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $A/crt0_mbc.o $U/uls.o $(USER_LIB_OBJS)
 
+# Phase 2.2 finale: sh itself is OURS. Last MIT program out of the exec set.
+$T/sh.elf: $A/crt0_mbc.o $U/ush.o $(USER_LIB_OBJS) $U/user.ld
+	mkdir -p $T
+	$(LD) $(LDFLAGS) -T $U/user.ld -o $@ $A/crt0_mbc.o $U/ush.o $(USER_LIB_OBJS)
+
 # Translate ELF → MBC + .rv2mbc + .data sidecars.
 $T/%.mbc: $T/%.elf
 	../../monad-mbc/target/release/rv32i-to-mbc $< -o $@
