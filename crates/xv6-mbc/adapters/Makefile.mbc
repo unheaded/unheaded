@@ -60,7 +60,7 @@ LDFLAGS = -z max-page-size=4096 -melf32lriscv
 OBJS = \
   $A/uentry.o \
   $A/start_mbc.o \
-  $K/console.o \
+  $A/uconsole.o \
   $A/uprintf.o \
   $A/console-mmio.o \
   $A/syscall_shims.o \
@@ -97,6 +97,8 @@ OBJS = \
 #                         BPF ecall dispatch owns the syscall surface — but
 #                         linked for trap.c/sysproc/sysfile; alive in 2.4)
 #   $K/printf.o         → replaced by $A/uprintf.o (every kernel boot print)
+#   $K/console.o        → replaced by $A/uconsole.o (top half; bottom half
+#                         is console-mmio.o — console stack 100% ours)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
