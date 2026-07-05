@@ -136,8 +136,13 @@ Our own minimal `sh`, then our own `ls`/`cat`/`echo`/`wc`, replacing the MIT use
       NUL counts as a word char — is_sep() encodes that instead of inheriting the quirk),
       and the stdin form's empty-name trailing space. Gate: `wc README` → `5 49 283 README`
       identical. Verifier 900,031 unchanged.
-- [ ] **ls** — same mechanism (fmtname/stat/dirent walk — the biggest coreutil).
-- [ ] **sh** — biggest bite (parser, pipes, redirects); last.
+- [x] **ls** (2026-07-05) — `user/uls.c` (own structure: forward-scan basename_padded +
+      print_entry helper split out of the original's fmtname/switch). Quirks preserved:
+      ≥DIRSIZ names print unpadded; unknown inode types print nothing. Gates: root listing +
+      `ls sub` identical. Verifier 900,031 unchanged. **Coreutils complete — exec set is now
+      100% ours except sh.**
+- [ ] **sh** — biggest bite (parser, pipes, redirects, backgrounding); last. Needs its own
+      battle plan (Warmonger) — replace clause-by-clause against the Gate C corpus.
 
 ### Phase 2.3 — Own the kernel edges
 Progressively replace xv6 kernel pieces we already understand: entry/`start`, console driver,
