@@ -74,6 +74,20 @@ xv6_expect 'echo hello'   'hello'                  'echo hello'
 xv6_expect 'echo peace and love' 'peace and love'  'echo multi-arg (our uecho)'
 xv6_expect 'wc README'    '5 49 283 README'        'wc README'
 
+# Phase 2.2 finale (ADR-081): sh behavior lock — these gates landed GREEN
+# against STOCK sh BEFORE the ush swap, so they gate the shell's observable
+# behavior (exec-failure text, blank-line skip, prompt-loop survival across
+# commands), not any particular implementation.
+xv6_expect 'nosuch'       'exec nosuch failed'     'sh reports exec failure (unknown command)'
+xv6_expect $'\necho unbroken' 'unbroken'           'sh skips blank line, loop survives'
+MC="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
+  --userland "$K/init.mbc" --triggers 4000000 --instance 111 \
+  --input $'echo alpha\necho omega\n' 2>&1)"
+grep -aq 'alpha' <<<"$MC" && pass "sh multi-command: first command runs" \
+  || fail "sh multi-command: first command runs (missing 'alpha')"
+grep -aq 'omega' <<<"$MC" && pass "sh multi-command: prompt loop survives to second" \
+  || fail "sh multi-command: prompt loop survives to second (missing 'omega')"
+
 G2="$(cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
   --userland "$K/gate2.mbc" --triggers 800000 --instance 111 2>&1)"
 grep -aq 'ISOLATION-PASS' <<<"$G2" && pass "gate2 ISOLATION-PASS" || fail "gate2 ISOLATION-PASS"
