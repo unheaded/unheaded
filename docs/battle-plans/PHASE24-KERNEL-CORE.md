@@ -287,6 +287,44 @@ Same loop as T1 per file (write u-file → OBJS swap → kbuild → count
 
 ---
 
+## TRANCHE 3 DETAILED STEPS (forged 2026-07-07 at tranche start) —
+## sysproc.c, sysfile.c, pipe.c, fs.c (Steps T3-1..T3-40)
+
+**Goal**: the syscall wrapper layer and the on-disk FS are ours — the last
+pristine-MIT files. **Patch audit (grep + read)**: all four pristine (no
+UPC_/mmio markers). **Live map**: fs.c iinit at main() + fsinit via forkret
+(readsb FSMAGIC check + initlog) boot-live; EVERYTHING else dormant — the
+BPF dispatch owns the user syscall surface, in-BPF fs_walk (ADR-078) owns FS
+reads, pipe(4) is unimplemented. BlackMage rule: dormant bodies keep stock
+bounds verbatim-in-behavior (they are T4's / the trap-flip's attack surface).
+
+u-files generated header + VERBATIM body (mechanical cat — zero hand-copy
+risk on fs.c's 720 lines). Same loop, same gates, same stuck protocol as
+T1/T2.
+
+- [ ] **T3-1..4** PREFLIGHT: tree clean at T2-docs HEAD; goldens 36; T2
+  post-docs harness ALL GREEN = baseline.
+- [ ] **T3-5..13** FILE 1 — `$AD/usysproc.c`: sys_sbrk lazy-path overflow
+  guards (addr+n<addr, >TRAPFRAME) + SBRK_EAGER split; sys_pause killed()
+  check. Commit `… kernel core: sysproc (usysproc.c)`.
+- [ ] **T3-14..22** FILE 2 — `$AD/usysfile.c`: argfd bounds ladder; sys_exec
+  MAXARG cap + uarg==0 terminator; link/unlink lock order + nlink
+  accounting; create() reuse semantics. Commit `… kernel core: sysfile
+  (usysfile.c)`.
+- [ ] **T3-23..31** FILE 3 — `$AD/upipe.c`: fullness test nwrite==nread+
+  PIPESIZE; sleep/wakeup pairing; last-end kfree; piperead's i=-1
+  first-byte convention. Commit `… kernel core: pipe (upipe.c)`.
+- [ ] **T3-32..40** FILE 4 — `$AD/ufs.c` (the big one, 720 lines): iinit +
+  fsinit boot-live (readsb FSMAGIC + initlog); bmap bounds + panics;
+  readi/writei overflow guards; namex hand-over-hand locking; dirlink
+  DIRSIZ discipline. Commit `… kernel core: fs (ufs.c). Tranche 3 COMPLETE`.
+- [ ] **T3-SWEEP+SHIP**: 12-golden sweep 12/12; compliance (SPDX 12/12
+  total, MIT untouched, `$K/` census = 4: vm proc trap exec); docs (ADR-081
+  bullet, master plan, session log `references/phase24-t3-<date>.md`, T3
+  banner here, next.md, memory); docs commit; post-commit harness.
+
+---
+
 ## APPENDIX A: EMERGENCY PROCEDURES
 
 **A1 — smoke diverges after ustring**: string funcs are ubiquitous — do NOT

@@ -74,7 +74,7 @@ OBJS = \
   $A/trampoline_mbc.o \
   $K/trap.o \
   $A/usyscall.o \
-  $K/sysproc.o \
+  $A/usysproc.o \
   $A/ubio.o \
   $K/fs.o \
   $A/ulog.o \
@@ -119,6 +119,9 @@ OBJS = \
 #                         live at fsinit; commit machinery dormant)
 #   $K/file.o           → replaced by $A/ufile.o (ftable + devsw[] — the
 #                         console stack's link anchor; bodies dormant)
+# Track 2 Phase 2.4 (ADR-081) — kernel core, tranche 3:
+#   $K/sysproc.o        → replaced by $A/usysproc.o (runtime-dead wrappers;
+#                         linked via usyscall's syscalls[] table)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
