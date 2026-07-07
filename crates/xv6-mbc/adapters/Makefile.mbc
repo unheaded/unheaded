@@ -75,7 +75,7 @@ OBJS = \
   $K/trap.o \
   $A/usyscall.o \
   $K/sysproc.o \
-  $K/bio.o \
+  $A/ubio.o \
   $K/fs.o \
   $K/log.o \
   $A/usleeplock.o \
@@ -113,6 +113,8 @@ OBJS = \
 # Track 2 Phase 2.4 (ADR-081) — kernel core, tranche 2:
 #   $K/main.o           → replaced by $A/umain.o (the boot spine; 14 init-
 #                         bisection markers print INTO the goldens)
+#   $K/bio.o            → replaced by $A/ubio.o (LRU buffer cache; binit +
+#                         fsinit-era bread live via blk-ramdisk)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
