@@ -80,7 +80,7 @@ OBJS = \
   $A/ulog.o \
   $A/usleeplock.o \
   $A/ufile.o \
-  $K/pipe.o \
+  $A/upipe.o \
   $K/exec.o \
   $A/usysfile.o \
   $A/kernelvec_mbc.o \
@@ -124,6 +124,8 @@ OBJS = \
 #                         linked via usyscall's syscalls[] table)
 #   $K/sysfile.o        → replaced by $A/usysfile.o (fd/FS wrappers; BPF
 #                         fs_walk owns the live surface)
+#   $K/pipe.o           → replaced by $A/upipe.o (pipe(4) unimplemented in
+#                         BPF dispatch; linked for fileclose/sysfile)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
