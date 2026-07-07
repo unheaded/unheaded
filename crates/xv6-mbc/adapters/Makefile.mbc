@@ -77,7 +77,7 @@ OBJS = \
   $K/sysproc.o \
   $A/ubio.o \
   $K/fs.o \
-  $K/log.o \
+  $A/ulog.o \
   $A/usleeplock.o \
   $K/file.o \
   $K/pipe.o \
@@ -115,6 +115,8 @@ OBJS = \
 #                         bisection markers print INTO the goldens)
 #   $K/bio.o            → replaced by $A/ubio.o (LRU buffer cache; binit +
 #                         fsinit-era bread live via blk-ramdisk)
+#   $K/log.o            → replaced by $A/ulog.o (redo log; recover_from_log
+#                         live at fsinit; commit machinery dormant)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
