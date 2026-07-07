@@ -66,7 +66,7 @@ OBJS = \
   $A/syscall_shims.o \
   $K/kalloc.o \
   $K/spinlock.o \
-  $K/string.o \
+  $A/ustring.o \
   $K/main.o \
   $K/vm.o \
   $K/proc.o \
@@ -99,6 +99,9 @@ OBJS = \
 #   $K/printf.o         → replaced by $A/uprintf.o (every kernel boot print)
 #   $K/console.o        → replaced by $A/uconsole.o (top half; bottom half
 #                         is console-mmio.o — console stack 100% ours)
+# Track 2 Phase 2.4 (ADR-081) — kernel core becomes OURS (tranche 1):
+#   $K/string.o         → replaced by $A/ustring.o (mem*/str* primitives —
+#                         every TTY byte and page fill transits these)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
