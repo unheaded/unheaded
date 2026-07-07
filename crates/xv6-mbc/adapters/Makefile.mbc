@@ -81,7 +81,7 @@ OBJS = \
   $A/usleeplock.o \
   $A/ufile.o \
   $A/upipe.o \
-  $K/exec.o \
+  $A/uexec.o \
   $A/usysfile.o \
   $A/kernelvec_mbc.o \
   $A/blk-ramdisk.o \
@@ -134,6 +134,8 @@ OBJS = \
 #                         table decorative, BPF translate_address rules)
 #   $K/trap.o           → replaced by $A/utrap.o (UPC_FLAT_TRAMPOLINE
 #                         stvec; usertrap/kerneltrap dormant)
+#   $K/exec.o           → replaced by $A/uexec.o (kexec sentinels + the
+#                         MBC-userland epc=0 path; ELF loader dormant)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
