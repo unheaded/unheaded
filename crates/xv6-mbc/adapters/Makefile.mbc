@@ -72,7 +72,7 @@ OBJS = \
   $K/proc.o \
   $A/swtch_mbc.o \
   $A/trampoline_mbc.o \
-  $K/trap.o \
+  $A/utrap.o \
   $A/usyscall.o \
   $A/usysproc.o \
   $A/ubio.o \
@@ -132,6 +132,8 @@ OBJS = \
 # Track 2 Phase 2.4 (ADR-081) — kernel core, tranche 4 (the summit):
 #   $K/vm.o             → replaced by $A/uvm.o (UPC_SKIP_KVMINIT — page
 #                         table decorative, BPF translate_address rules)
+#   $K/trap.o           → replaced by $A/utrap.o (UPC_FLAT_TRAMPOLINE
+#                         stvec; usertrap/kerneltrap dormant)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
