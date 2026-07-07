@@ -111,6 +111,17 @@ The syscall fan-out landed as five gates, each with its own root-cause hunt (ses
 
 Since then: `read(5)` reads `>12 KiB` files via the single-indirect block; the code-store maps grew behind a `large-image` feature (option A for Linux-scale images); the whole thing is guarded by `scripts/upc-regression.sh` (load-tests both the xv6/ascend and Doom/non-ascend builds).
 
+### Track 2 — the ownership ladder: xv6 → Unheaded Linux (2026-07-04 → 2026-07-07)
+
+[ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md) chose "evolve from xv6, never break the boot" over vendoring uClinux. Four phases replaced every MIT source in the boot, one green commit per file, with the vendored MIT tree kept unwired as reference:
+
+- **Phase 2.1 — own PID 1 (2026-07-04).** `user/uinit.c` boots as init via `--userland`, banner token `0xP1D1-0UR5`.
+- **Phase 2.2 — own the shell + coreutils (2026-07-05).** uecho/ucat/uwc/uls, then `user/ush.c` — EXEC-only and malloc-free, because stock sh's parser malloc'd through the unimplemented `sbrk(12)` and worked by accident. Equivalence proved byte-for-byte against golden boot captures (TTY + `forks=/waitpid=/tty_r=` stats).
+- **Phase 2.3 — own the kernel edges (2026-07-05).** uentry.S, usyscall.c, uprintf.c, uconsole.c. The translation-count tripwire emerged here: verbatim-in-behavior bodies compile to the exact same instruction count (7,552 RV32I → 11,764 MBC), so any drift flags a semantic change for free.
+- **Phase 2.4 — own the kernel core (2026-07-07, four tranches in one day).** All 16 remaining MIT kernel files → `adapters/u*.c`: string/spinlock/sleeplock/kalloc, main/bio/log/file, sysproc/sysfile/pipe/fs, and the summit vm/trap/exec/proc. Bodies carried verbatim (generated `cat header + source`, zero transcription risk), every Phase 1.x patch preserved. The summit gate: `target/xv6-mbc.mbc` hashed **byte-identical across all four final swaps** — provably a pure provenance change. **The kernel link now contains zero MIT objects.**
+
+The first *evolution* question — waking the dormant kernel syscall path (today the BPF ecall dispatch owns the whole user syscall surface) — is forged as a decision brief with a staged gate ladder in [`docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md`](../docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md), including the two read-verified hazards: uservec's unpatched entry half, and the dual-books process state (kernel `proc[]` knows only init; BPF-forked children live solely in PROC_TABLE).
+
 ## Reproduction recipe
 
 ```bash
@@ -138,7 +149,7 @@ Expected boot log includes `Userland MBC: patched 41 CALL targets`, then the ker
 
 ## What's next
 
-Phase 1 (xv6) is complete. The path forward is **Unheaded Linux** ([ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md)): rather than vendor uClinux + busybox, build our own minimal OS from scratch on this substrate, evolving from xv6 (own PID 1 → shell → kernel edges → kernel core), scaling toward the Yggdrasil golden image. Long-term. The two-track roadmap is [`docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md`](../docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md); near-term Track 1 keeps hardening the UPC substrate (FS stretch, the `upc-api` guest contract, code-store readiness). The stage-1 stub `crates/upc-bootstub/` builds end-to-end and stands ready for a kernel-class guest.
+The ownership ladder is climbed: every byte of the boot — userland, kernel edges, kernel core — is Unheaded-authored (Phase 2.4 gate met 2026-07-07; the ADR-081 Q5 naming ceremony is pending). What remains is *evolution*: waking the kernel's own syscall path ([`EVOLUTION-1-TRAP-FLIP.md`](../docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md) — three architecture [DECIDE]s open), Phase 2.5 golden-image scaling toward Yggdrasil (ADR-081 Q4), and Track 1 substrate work (device inodes, verifier-headroom reclamation, file writes). Roadmap: [`docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md`](../docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md).
 
 ## Demo surface
 
