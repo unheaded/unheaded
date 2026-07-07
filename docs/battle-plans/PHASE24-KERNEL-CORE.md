@@ -228,6 +228,57 @@ carried over byte-for-byte (the markers are IN the goldens). **Time**: ~35m.
 
 ---
 
+## TRANCHE 2 DETAILED STEPS (forged 2026-07-07 at tranche start, per the
+## tranche-map contract) — main.c, bio.c, log.c, file.c (Steps T2-1..T2-40)
+
+**Goal**: the init sequence and the FS support layer (buffer cache, redo log,
+fd table) are ours. **Patch audit (from source read)**: main.c PATCHED —
+14 mmio_puts markers (each IS golden TTY content), plicinit/plicinithart/
+virtio_disk_init commented out with their exact comments, `volatile static
+int started`; bio.c / log.c / file.c pristine MIT. **Live map**: main()
+entirely boot-hot; binit live; initlog live via forkret→fsinit
+(recover_from_log READS the log header from fs.img through bread → the
+blk-ramdisk adapter); fileinit + devsw[] live (uconsole.c wires
+devsw[CONSOLE] — the array LIVES in file.c); bodies of fileread/filewrite/
+filealloc + log commit paths dormant (BPF owns fd I/O) — keep stock bounds
+verbatim.
+
+Same loop as T1 per file (write u-file → OBJS swap → kbuild → count
+7,552→11,764 → FILE symbol → smoke vs golden → 16-gate harness → commit
+`--no-gpg-sign`). Same stuck protocol (2 attempts → unwire, note, next).
+
+- [ ] **T2-1..4** PREFLIGHT: tree clean at T1-docs HEAD; goldens 36 files
+  (reboot check!); post-docs harness ALL GREEN = baseline.
+- [ ] **T2-5..13** FILE 1 — `$AD/umain.c`: markers VERBATIM (after
+  consoleinit/printfinit/kinit/kvminit/kvminithart/procinit/trapinit/
+  trapinithart/binit/iinit/fileinit/userinit/started=1 + the three printf
+  boot lines); commented-out plic/virtio calls kept as comments; `volatile
+  static int started` + both __sync_synchronize(); scheduler() tail-call.
+  Commit subject `… kernel core: main (umain.c)`.
+- [ ] **T2-14..22** FILE 2 — `$AD/ubio.c`: binit's insert-at-head LRU
+  construction; bget forward-cached / backward-LRU two-pass + "bget: no
+  buffers" panic; holdingsleep panics in bwrite/brelse; brelse MRU re-link;
+  bpin/bunpin. virtio_disk_rw extern resolves to blk-ramdisk.c (Phase 1.1
+  adapter) — unchanged. Commit `… kernel core: bio (ubio.c)`.
+- [ ] **T2-23..31** FILE 3 — `$AD/ulog.c`: "initlog: too big logheader"
+  sizeof guard; recover_from_log boot path (read_head → install_trans(1) →
+  clear); begin_op/end_op sleep-wakeup protocol + "log.committing" panic;
+  log absorption loop in log_write + its two panics; install_trans's
+  `recovering` printf kept verbatim. Commit `… kernel core: log (ulog.c)`.
+- [ ] **T2-32..40** FILE 4 — `$AD/ufile.c`: devsw[NDEV] + ftable globals
+  (devsw is referenced by uconsole.c consoleinit — link must keep it here);
+  fileclose's struct-copy-then-release pattern; filestat copyout; fileread/
+  filewrite dispatch incl. filewrite's MAXOPBLOCKS batching formula; panics
+  "filedup"/"fileclose"/"fileread"/"filewrite". Commit
+  `… kernel core: file (ufile.c). Tranche 2 COMPLETE`.
+- [ ] **T2-SWEEP+SHIP**: 12-golden sweep 12/12; compliance (SPDX 8/8 total,
+  MIT untouched, `$K/` census = 8: vm proc trap sysproc fs pipe exec
+  sysfile); docs (ADR-081 bullet, master plan, session log
+  `references/phase24-t2-<date>.md`, T2 banner here, next.md, memory);
+  docs commit; post-commit harness ALL GREEN.
+
+---
+
 ## APPENDIX A: EMERGENCY PROCEDURES
 
 **A1 — smoke diverges after ustring**: string funcs are ubiquitous — do NOT

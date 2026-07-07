@@ -67,7 +67,7 @@ OBJS = \
   $A/ukalloc.o \
   $A/uspinlock.o \
   $A/ustring.o \
-  $K/main.o \
+  $A/umain.o \
   $K/vm.o \
   $K/proc.o \
   $A/swtch_mbc.o \
@@ -110,6 +110,9 @@ OBJS = \
 #   $K/kalloc.o         → replaced by $A/ukalloc.o (freerange ~1900-page
 #                         walk; mmio_puts markers + kfree probe ladder are
 #                         IN the goldens; UPC_SKIP_* memset ifdefs kept)
+# Track 2 Phase 2.4 (ADR-081) — kernel core, tranche 2:
+#   $K/main.o           → replaced by $A/umain.o (the boot spine; 14 init-
+#                         bisection markers print INTO the goldens)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
