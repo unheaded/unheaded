@@ -100,3 +100,64 @@ plan + four-lens panel at kickoff; do NOT forge steps now.
 Renaming (Q5 ceremony is Stevie's, pre-requisite to nothing here); Phase 2.5
 reconciliation (ADR-081 Q4, separate brief if wanted); performance work on
 the translated path.
+
+---
+
+## APPENDIX — STAGE 0 DELIVERABLE (completed 2026-07-07, read-verified)
+
+### A. The entry half IS the predicted footgun (confirmed by read)
+
+`adapters/trampoline_mbc.S` uservec still executes `li a0, TRAPFRAME` and
+saves all user registers to the high VA 0x7FFFE000 (lines 37-63), then
+loads the kernel sp from `4(a0)`. Under UPC, translate_address has no entry
+for that VA: **every register save silently drops, and `lw sp, 4(a0)`
+returns 0** — instant kernel-stack corruption on the first injected trap.
+Only the userret half carries the UPC_FLAT_TRAMPOLINE patch (a1 =
+p->trapframe low PA, Phase 1.6). Stage 1 therefore has a hard kernel-side
+precondition:
+
+**Pre-step S1.0 (kernel-side only, no eBPF)**: adopt upstream xv6's modern
+sscratch pattern — usertrapret stores p->trapframe (low PA from kalloc,
+inside RAM_MAP, so stores translate fine) into sscratch; uservec becomes
+`csrrw a0, sscratch, a0` (swap user-a0 ↔ trapframe pointer), saves at
+20(a0)…, then stores the swapped-out user a0 via a second csrr. CSRs are
+memory-mapped at 0x000F000+ so csrrw already translates. This can land
+green under the existing gates (dormant code, .mbc byte-identity WON'T hold
+— it's a real change — so it ships under smoke + harness + sweep instead,
+with the disasm diff recorded). It stays unexercised until Stage 1's
+injection, but it converts Stage 1 from "two unknowns" to "one".
+
+usertrapret (utrap.c) must also populate kernel_sp/kernel_trap/
+kernel_satp/kernel_hartid in the trapframe each return — stock does; verify
+the dormant body still does after the sscratch change.
+
+### B. State-ownership matrix (who holds truth today)
+
+| Domain | BPF-side truth | Kernel-side today | Migration meaning |
+|--------|----------------|-------------------|-------------------|
+| fd table | FD_INODE_MAP {inum, offset} per fd | ftable/ofile init empty, never populated post-boot | kernel open()/dup() populate ofile; fs_walk retires per-syscall |
+| processes | PROC_TABLE (8 slots, pgd, saved state); BPF SYS_fork clones child state directly | proc[] knows ONLY init (userinit); BPF-forked children have NO kernel proc entry — **dual books** | kfork becomes authoritative; PROC_TABLE derives from proc[] (or retires); the ADR-074 pgd hook re-anchors |
+| console in | BPF KBD ring feeds read(5) directly | cons.buf dormant (consoleintr never fires) | consoleintr wakes; KBD ring becomes the interrupt source |
+| console out | SYS_write emits to TTY MMIO per byte | consolewrite dormant | write(fd=1) routes devsw → uconsole → console-mmio |
+| FS reads | in-BPF fs_walk over fs.img in RAM_MAP (ADR-078) | bcache/inodes live at boot only (fsinit/iinit) | readi/namex become the read path; fs_walk retires |
+| memory/sz | none (sbrk unimplemented) | growproc/vmfault exist, never called | sbrk ARRIVES (new capability, no migration) — usertests' hardest dependency |
+
+The **dual-books processes row is the sleeper risk**: any Stage 2 sequencing
+must reconcile proc[] before fork/exec/wait migrate — until then the kernel
+scheduler only ever schedules init's descendants it knows about (today:
+none). getpid (Stage 1) dodges this: myproc() inside the injected trap
+context depends on cpu->proc, which is only valid for kernel-known procs —
+**so even Stage 1-getpid must verify what cpu->proc holds when the trapped
+process is BPF-forked sh, not init**. If it holds stale init, sys_getpid
+returns the WRONG pid — which is itself a perfect falsification gate:
+expected-wrong-answer proves the dual-books diagnosis; expected-right
+proves more state syncs than believed. Either result is informative; the
+gate should assert the OBSERVED value and document it.
+
+### C. Corrected Stage 1 scope
+
+Stage 1 = S1.0 (uservec sscratch fix, kernel-side, green under standard
+gates) + S1.1 (BPF injection for nr==11 behind a feature guard) + S1.2
+(getpid probe program + dual-books observation gate). Verifier delta
+expectation unchanged (~net-zero). Rollback: S1.1 guard flag; S1.0 can stay
+(dormant-but-correct either way).
