@@ -174,7 +174,7 @@ MBC — GCC -O2 folds our restructures flat):
 **Remaining MIT in the kernel link: core only** (kalloc spinlock string main vm proc trap
 sysproc bio fs log sleeplock file pipe exec sysfile) — exactly the Phase 2.4 scope.
 
-### Phase 2.4 — Own the kernel core ◐ TRANCHE 1 COMPLETE 2026-07-07
+### Phase 2.4 — Own the kernel core ◑ TRANCHES 1+2 COMPLETE 2026-07-07 (8/16 files ours)
 Our implementations of the MMU, scheduler, and FS. At the end of this phase it is **Unheaded Linux**,
 not xv6 — 100% ours. **Gate:** full corpus green on an all-ours kernel; Lore has blessed the name
 (it's from-scratch, disambiguate from the GPL Linux mark — ADR-081 Q5).
@@ -182,8 +182,13 @@ not xv6 — 100% ours. **Gate:** full corpus green on an all-ours kernel; Lore h
   boot-hot leaves — replaced via `adapters/u*.c`, one green commit each; 12/12 golden sweep
   byte-identical; translation count 7,552 → 11,764 invariant; verifier budgets exact. Battle plan
   `docs/battle-plans/PHASE24-KERNEL-CORE.md`; log `references/phase24-t1-2026-07-07.md`.
-- Remaining MIT (12): **T2** main/bio/log/file → **T3** sysproc/sysfile/pipe/fs → **T4 summit**
-  vm/proc/trap/exec + usertests runtime gates + the Lore naming ceremony.
+- **T2 SHIPPED 2026-07-07 (same day)** (`e7495a95`→`3ea6ecf2`): main, bio, log, file — the init
+  spine + FS support layer. umain's 14 init-bisection markers are golden content (strongest
+  per-file gate); ulog's recover_from_log is boot-live through blk-ramdisk; ufile anchors
+  devsw[] for the console stack. 12/12 sweep byte-identical again. Log
+  `references/phase24-t2-2026-07-07.md`.
+- Remaining MIT (8): **T3** sysproc/sysfile/pipe/fs → **T4 summit** vm/proc/trap/exec +
+  usertests runtime gates + the Lore naming ceremony.
 
 ### Phase 2.5 — Golden-image scaling (Yggdrasil reconciliation)
 Take Unheaded Linux from UPC-only toward the production golden image (ADR-69420): bare-metal target,

@@ -133,3 +133,14 @@ chain-of-custody for compliance), a different, owned upstream.
   file → T3 sysproc/sysfile/pipe/fs → T4 summit vm/proc/trap/exec + Lore naming, Q5). Battle
   plan `docs/battle-plans/PHASE24-KERNEL-CORE.md`; session log
   `references/phase24-t1-2026-07-07.md`. Zero eBPF change (900,031 / 737,087 exact).
+- **2026-07-07 — Phase 2.4 Tranche 2 (kernel core: init spine + FS support) SHIPPED (same
+  day).** main, bio, log, file out of the kernel link: `adapters/umain.c` (`e7495a95` — all 14
+  Phase 1.4 init-bisection markers print INTO the goldens, making its smoke the strongest
+  per-file gate in the phase), `adapters/ubio.c` (`61073f2e`), `adapters/ulog.c` (`03c9e4e0` —
+  recover_from_log at fsinit is boot-live, reading the fs.img log header and writing the
+  cleared header back through blk-ramdisk), `adapters/ufile.c` (`3ea6ecf2` — devsw[] lives
+  here; uconsole's consoleinit wires devsw[CONSOLE] into it). Same verbatim-body method;
+  translation count 7,552 → 11,764 and verifier budgets exact every build; 12/12 sweep
+  byte-identical. **MIT remaining in the link: 8** — T3 sysproc/sysfile/pipe/fs, then the T4
+  summit vm/proc/trap/exec (+ usertests gates + Lore naming, Q5). Session log
+  `references/phase24-t2-2026-07-07.md`.

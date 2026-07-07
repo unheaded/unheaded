@@ -15,6 +15,14 @@
 > kfree-C · freerange exit. Session log:
 > `references/phase24-t1-2026-07-07.md`.
 
+> **✅ TRANCHE 2 SHIPPED 2026-07-07 (same day)** — commits `e7495a95`
+> (umain.c + the T2 detailed steps below) → `61073f2e` (ubio.c) → `03c9e4e0`
+> (ulog.c) → `3ea6ecf2` (ufile.c) + docs. Init spine + FS support layer ours;
+> MIT remaining = 8 (T3 sysproc/sysfile/pipe/fs → T4 summit vm/proc/trap/
+> exec). Same gates, same invariants (count 7,552 → 11,764 every build;
+> verifier 900,031 / 737,087 exact; 12/12 sweep byte-identical). Session log:
+> `references/phase24-t2-2026-07-07.md`.
+
 **Date**: 2026-07-05
 **Sprint**: Track 2 Phase 2.4 — own the kernel core (ADR-081). Replace the 16
 remaining MIT kernel files. At the end it is **Unheaded Linux, not xv6** (Lore
