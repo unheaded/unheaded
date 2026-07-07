@@ -69,7 +69,7 @@ OBJS = \
   $A/ustring.o \
   $A/umain.o \
   $A/uvm.o \
-  $K/proc.o \
+  $A/uproc.o \
   $A/swtch_mbc.o \
   $A/trampoline_mbc.o \
   $A/utrap.o \
@@ -136,6 +136,9 @@ OBJS = \
 #                         stvec; usertrap/kerneltrap dormant)
 #   $K/exec.o           → replaced by $A/uexec.o (kexec sentinels + the
 #                         MBC-userland epc=0 path; ELF loader dormant)
+#   $K/proc.o           → replaced by $A/uproc.o (THE LAST MIT FILE —
+#                         scheduler/forkret markers in goldens; kstack
+#                         from kalloc; uvmcreate(pid) per-pid pgd)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
