@@ -68,7 +68,7 @@ OBJS = \
   $A/uspinlock.o \
   $A/ustring.o \
   $A/umain.o \
-  $K/vm.o \
+  $A/uvm.o \
   $K/proc.o \
   $A/swtch_mbc.o \
   $A/trampoline_mbc.o \
@@ -129,6 +129,9 @@ OBJS = \
 #   $K/fs.o             → replaced by $A/ufs.o (on-disk FS; iinit + fsinit
 #                         boot-live via blk-ramdisk; walks dormant — the
 #                         in-BPF fs_walk owns user FS reads)
+# Track 2 Phase 2.4 (ADR-081) — kernel core, tranche 4 (the summit):
+#   $K/vm.o             → replaced by $A/uvm.o (UPC_SKIP_KVMINIT — page
+#                         table decorative, BPF translate_address rules)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<

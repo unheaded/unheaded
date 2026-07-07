@@ -335,6 +335,57 @@ T1/T2.
 
 ---
 
+## TRANCHE 4 DETAILED STEPS (forged 2026-07-07 at tranche start) — THE
+## SUMMIT: vm.c, proc.c, trap.c, exec.c (Steps T4-1..T4-44)
+
+**Goal**: the last four MIT files leave the link. When T4 ships, the kernel
+is 100% Unheaded-authored — it isn't xv6 anymore (naming ceremony queued for
+Stevie/Lore, ADR-081 Q5 — Claude does not self-bless).
+
+**Patch audit (read)**: all four PATCHED, Phase 1.2-1.7 provenance, carried
+VERBATIM via the T3 cat method: vm.c `UPC_SKIP_KVMINIT` (page table
+decorative — BPF translate_address authoritative; kvmmap calls skipped);
+trap.c `UPC_FLAT_TRAMPOLINE` STVEC at uservec's link address; proc.c kstack
+from kalloc (KSTACK VA past RAM_MAP window), `uvmcreate(p->pid)` per-pid pgd
+(ADR-074), sched/forkret mmio markers + F1/F2 bisect chars (golden TTY
+content), flat-trampoline userret(satp, p->trapframe) call (Phase 1.6);
+exec.c kexec `$`/`%` sentinels + `KX:enter` + the MBC-userland non-ELF path
+(epc=0, sp=0x500000-16, a0=1, a1=0 — Gate B/C provenance).
+
+**The T4 gate upgrade — .mbc byte-identity**: because bodies are verbatim,
+the correct summit gate is stronger than usertests: the translated
+`target/xv6-mbc.mbc` artifact must be BYTE-IDENTICAL before and after each
+swap (sha256). If it is, the swap is a pure provenance change — no runtime
+gate can distinguish the kernels, by construction. (usertests-subset gates
+remain queued for the day the code EVOLVES — the trap→syscall() flip etc. —
+per the original tranche map; they gate change, not ownership.) Fallback if
+the hash unexpectedly differs (e.g. path metadata leaks into the artifact):
+objdump -d both kernel.elf builds and diff the disassembly; STOP if real
+code drift appears. Smoke + 16-gate harness + 12-sweep still run per file.
+
+- [ ] **T4-1..4** PREFLIGHT: tree clean at T3-docs HEAD; goldens 36; T3
+  post-docs harness ALL GREEN; record baseline `sha256sum target/xv6-mbc.mbc`
+  from a fresh kbuild at HEAD.
+- [ ] **T4-5..14** FILE 1 — `$AD/uvm.c`: UPC_SKIP_KVMINIT block verbatim.
+  Gate: .mbc sha unchanged + smoke + harness. Commit `… kernel core: vm
+  (uvm.c)`.
+- [ ] **T4-15..24** FILE 2 — `$AD/utrap.c`: UPC_FLAT_TRAMPOLINE stvec.
+  Commit `… kernel core: trap (utrap.c)`.
+- [ ] **T4-25..34** FILE 3 — `$AD/uexec.c`: kexec sentinels + MBC-userland
+  path. Commit `… kernel core: exec (uexec.c)`.
+- [ ] **T4-35..44** FILE 4 — `$AD/uproc.c` (742 lines, the last MIT file):
+  kstack patch, uvmcreate(pid), sched/forkret markers, flat userret.
+  Commit `… kernel core: proc (uproc.c). Tranche 4 COMPLETE — the kernel
+  is 100% Unheaded-authored`.
+- [ ] **T4-SWEEP+SHIP**: 12-golden sweep 12/12; compliance (SPDX 16/16, MIT
+  sixteen untouched, `$K/` census = 0 C objects); docs (ADR-081 bullet +
+  the "not xv6 anymore" milestone, master plan Phase 2.4 ✓ COMPLETE,
+  session log `references/phase24-t4-<date>.md`, T4 banner, next.md,
+  memory); docs commit; post-commit harness; **naming ceremony handoff to
+  Stevie/Lore** (ADR-081 Q5 stays open until blessed).
+
+---
+
 ## APPENDIX A: EMERGENCY PROCEDURES
 
 **A1 — smoke diverges after ustring**: string funcs are ubiquitous — do NOT
