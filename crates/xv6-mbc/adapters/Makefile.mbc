@@ -76,7 +76,7 @@ OBJS = \
   $A/usyscall.o \
   $A/usysproc.o \
   $A/ubio.o \
-  $K/fs.o \
+  $A/ufs.o \
   $A/ulog.o \
   $A/usleeplock.o \
   $A/ufile.o \
@@ -126,6 +126,9 @@ OBJS = \
 #                         fs_walk owns the live surface)
 #   $K/pipe.o           → replaced by $A/upipe.o (pipe(4) unimplemented in
 #                         BPF dispatch; linked for fileclose/sysfile)
+#   $K/fs.o             → replaced by $A/ufs.o (on-disk FS; iinit + fsinit
+#                         boot-live via blk-ramdisk; walks dormant — the
+#                         in-BPF fs_walk owns user FS reads)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
