@@ -82,7 +82,7 @@ OBJS = \
   $A/ufile.o \
   $K/pipe.o \
   $K/exec.o \
-  $K/sysfile.o \
+  $A/usysfile.o \
   $A/kernelvec_mbc.o \
   $A/blk-ramdisk.o \
   $A/libgcc_stubs.o
@@ -122,6 +122,8 @@ OBJS = \
 # Track 2 Phase 2.4 (ADR-081) — kernel core, tranche 3:
 #   $K/sysproc.o        → replaced by $A/usysproc.o (runtime-dead wrappers;
 #                         linked via usyscall's syscalls[] table)
+#   $K/sysfile.o        → replaced by $A/usysfile.o (fd/FS wrappers; BPF
+#                         fs_walk owns the live surface)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
