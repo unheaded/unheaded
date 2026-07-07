@@ -64,7 +64,7 @@ OBJS = \
   $A/uprintf.o \
   $A/console-mmio.o \
   $A/syscall_shims.o \
-  $K/kalloc.o \
+  $A/ukalloc.o \
   $A/uspinlock.o \
   $A/ustring.o \
   $K/main.o \
@@ -107,6 +107,9 @@ OBJS = \
 #                         pop_off discipline live even single-hart)
 #   $K/sleeplock.o      → replaced by $A/usleeplock.o (bio/log/inode init
 #                         live; "sleep lock" inner-guard name quirk kept)
+#   $K/kalloc.o         → replaced by $A/ukalloc.o (freerange ~1900-page
+#                         walk; mmio_puts markers + kfree probe ladder are
+#                         IN the goldens; UPC_SKIP_* memset ifdefs kept)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
