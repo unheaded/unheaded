@@ -33,6 +33,16 @@
 > invariants held (count 7,552 → 11,764; verifier exact; 12/12 sweep).
 > Session log: `references/phase24-t3-2026-07-07.md`.
 
+> **✅ TRANCHE 4 SHIPPED 2026-07-07 — PHASE 2.4 COMPLETE. THE KERNEL LINK IS
+> 100% UNHEADED-AUTHORED.** Commits `4be13c1b` (uvm.c + the T4 steps below)
+> → `6ad2a9aa` (utrap.c) → `c49f8461` (uexec.c) → `26f29327` (uproc.c — the
+> LAST MIT file) + docs. Summit gate: `target/xv6-mbc.mbc` byte-identical
+> (sha256 cda1b326…) at baseline and after every swap — pure provenance
+> change, provably indistinguishable at runtime. OBJS census: ZERO $K/
+> objects; vendored MIT tree untouched as reference. usertests gates queued
+> for the first EVOLUTION of the owned kernel; **Q5 naming ceremony queued
+> for Stevie/Lore.** Session log: `references/phase24-t4-2026-07-07.md`.
+
 **Date**: 2026-07-05
 **Sprint**: Track 2 Phase 2.4 — own the kernel core (ADR-081). Replace the 16
 remaining MIT kernel files. At the end it is **Unheaded Linux, not xv6** (Lore

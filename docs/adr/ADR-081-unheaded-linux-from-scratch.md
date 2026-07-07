@@ -155,3 +155,17 @@ chain-of-custody for compliance), a different, owned upstream.
   in the link: 4 — vm, proc, trap, exec. The T4 summit is all that stands between this kernel
   and "not xv6 anymore"** (needs NEW runtime gates — usertests subset — plus the Lore naming
   ceremony, Q5). Session log `references/phase24-t3-2026-07-07.md`.
+- **2026-07-07 — Phase 2.4 COMPLETE: Tranche 4, the summit, SHIPPED (fourth tranche same
+  day). The kernel link is 100% Unheaded-authored.** vm, trap, exec, proc out:
+  `adapters/uvm.c` (`4be13c1b`), `adapters/utrap.c` (`6ad2a9aa`), `adapters/uexec.c`
+  (`c49f8461`), `adapters/uproc.c` (`26f29327` — the LAST MIT file). The T4 gate upgrade
+  settled the summit question: with verbatim bodies, `target/xv6-mbc.mbc` hashed
+  **byte-identical (sha256) at baseline and after every swap** — pure provenance change,
+  provably indistinguishable at runtime; usertests-subset gates stay queued for the first
+  EVOLUTION of the owned kernel (e.g. the trap→syscall() flip), since they gate change, not
+  ownership. All Phase 1.2-1.7 patches carried verbatim (UPC_SKIP_KVMINIT,
+  UPC_FLAT_TRAMPOLINE stvec/userret, kexec MBC-userland path, kstack-from-kalloc,
+  uvmcreate(pid), sched/forkret golden markers). OBJS census: ZERO $K/ objects; vendored MIT
+  tree untouched as reference. **Phase 2.4's gate — full corpus green on an all-ours kernel —
+  is MET.** The Q5 naming ceremony (Lore blesses "Unheaded Linux") is Stevie's to perform;
+  Q5 stays open until blessed. Session log `references/phase24-t4-2026-07-07.md`.

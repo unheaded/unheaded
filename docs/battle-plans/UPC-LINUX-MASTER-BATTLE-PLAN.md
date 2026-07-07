@@ -174,7 +174,7 @@ MBC — GCC -O2 folds our restructures flat):
 **Remaining MIT in the kernel link: core only** (kalloc spinlock string main vm proc trap
 sysproc bio fs log sleeplock file pipe exec sysfile) — exactly the Phase 2.4 scope.
 
-### Phase 2.4 — Own the kernel core ◕ TRANCHES 1+2+3 COMPLETE 2026-07-07 (12/16 files ours)
+### Phase 2.4 — Own the kernel core ✓ COMPLETE 2026-07-07 (16/16 — the kernel link is 100% ours)
 Our implementations of the MMU, scheduler, and FS. At the end of this phase it is **Unheaded Linux**,
 not xv6 — 100% ours. **Gate:** full corpus green on an all-ours kernel; Lore has blessed the name
 (it's from-scratch, disambiguate from the GPL Linux mark — ADR-081 Q5).
@@ -191,9 +191,13 @@ not xv6 — 100% ours. **Gate:** full corpus green on an all-ours kernel; Lore h
   the last pristine-MIT files. ufs.c is the largest single MIT file (720 lines; iinit/fsinit
   boot-live, walks dormant behind in-BPF fs_walk). u-files generated header + verbatim body
   via cat. 12/12 sweep byte-identical. Log `references/phase24-t3-2026-07-07.md`.
-- Remaining MIT (4): **T4 summit** vm/proc/trap/exec — heavily patched, scheduler live.
-  Needs NEW runtime gates (usertests subset; consider flipping trap→syscall() live as its own
-  gate) + the Lore naming ceremony. Own session recommended.
+- **T4 SHIPPED 2026-07-07 (same day)** (`4be13c1b`→`26f29327`): vm, trap, exec, proc — the
+  summit. Gate upgrade: `target/xv6-mbc.mbc` byte-identical (sha256) across all four swaps —
+  pure provenance change. All Phase 1.2-1.7 patches verbatim. OBJS census: ZERO $K/ objects.
+  **Phase 2.4 gate MET: full corpus green on an all-ours kernel.** usertests gates queued for
+  the first evolution (trap→syscall() flip); **Q5 naming ceremony queued for Stevie/Lore** —
+  the "Lore has blessed the name" clause stays open until performed. Log
+  `references/phase24-t4-2026-07-07.md`.
 
 ### Phase 2.5 — Golden-image scaling (Yggdrasil reconciliation)
 Take Unheaded Linux from UPC-only toward the production golden image (ADR-69420): bare-metal target,
