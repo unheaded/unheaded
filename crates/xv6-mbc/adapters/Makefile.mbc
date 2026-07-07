@@ -79,7 +79,7 @@ OBJS = \
   $K/fs.o \
   $A/ulog.o \
   $A/usleeplock.o \
-  $K/file.o \
+  $A/ufile.o \
   $K/pipe.o \
   $K/exec.o \
   $K/sysfile.o \
@@ -117,6 +117,8 @@ OBJS = \
 #                         fsinit-era bread live via blk-ramdisk)
 #   $K/log.o            → replaced by $A/ulog.o (redo log; recover_from_log
 #                         live at fsinit; commit machinery dormant)
+#   $K/file.o           → replaced by $A/ufile.o (ftable + devsw[] — the
+#                         console stack's link anchor; bodies dormant)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
