@@ -78,7 +78,7 @@ OBJS = \
   $K/bio.o \
   $K/fs.o \
   $K/log.o \
-  $K/sleeplock.o \
+  $A/usleeplock.o \
   $K/file.o \
   $K/pipe.o \
   $K/exec.o \
@@ -105,6 +105,8 @@ OBJS = \
 #   $K/spinlock.o       → replaced by $A/uspinlock.o (cons.lock on every
 #                         print, kmem.lock per freerange page; push_off/
 #                         pop_off discipline live even single-hart)
+#   $K/sleeplock.o      → replaced by $A/usleeplock.o (bio/log/inode init
+#                         live; "sleep lock" inner-guard name quirk kept)
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
