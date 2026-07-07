@@ -121,3 +121,15 @@ chain-of-custody for compliance), a different, owned upstream.
   byte-identical per edge; verifier 900,031 exact. **MIT remaining in the link: kernel core
   only** — Phase 2.4 (own the kernel core → it stops being xv6) is next and needs its own
   battle plan.
+- **2026-07-07 — Phase 2.4 Tranche 1 (kernel core: boot-hot leaves) SHIPPED.** string,
+  spinlock, sleeplock, kalloc out of the kernel link, one green commit each: `adapters/ustring.c`
+  (`ab9ccc25`), `adapters/uspinlock.c` (`6cfb000c`), `adapters/usleeplock.c` (`285816e5`),
+  `adapters/ukalloc.c` (`75b0cc61`). Bodies verbatim (merger doctrine: GCC -O2 folds to identical
+  code — translation count 7,552 → 11,764 held every build); kalloc carries the Phase 1.4
+  mmio_puts markers + kfree probe ladder that print IN the goldens, so byte-identical smoke is a
+  byte-exact proof. Goldens recaptured from HEAD after another /tmp-reboot strike (2.2/2.3
+  equivalence already committed → HEAD is the valid baseline; retires the `ls` sh-size special
+  case). 12/12 sweep byte-identical. MIT remaining in the link: 12 core files (T2 main/bio/log/
+  file → T3 sysproc/sysfile/pipe/fs → T4 summit vm/proc/trap/exec + Lore naming, Q5). Battle
+  plan `docs/battle-plans/PHASE24-KERNEL-CORE.md`; session log
+  `references/phase24-t1-2026-07-07.md`. Zero eBPF change (900,031 / 737,087 exact).

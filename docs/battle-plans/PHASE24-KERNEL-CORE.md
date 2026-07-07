@@ -1,5 +1,20 @@
 # PHASE 2.4 — KERNEL CORE BATTLE PLAN — Tranche Structure, T1 Detailed (68 Steps)
 
+> **✅ TRANCHE 1 SHIPPED 2026-07-07** — commits `ab9ccc25` (ustring.c + this
+> plan) → `6cfb000c` (uspinlock.c) → `285816e5` (usleeplock.c) → `75b0cc61`
+> (ukalloc.c) + docs. The four boot-hot leaves out of the link; MIT remaining =
+> 12 core files (T2 main/bio/log/file → T3 sysproc/sysfile/pipe/fs → T4 summit
+> vm/proc/trap/exec). Gates: smoke + 16-gate harness ALL GREEN per file; final
+> sweep 12/12 byte-identical (TTY+stats). Translation count invariant every
+> build: 7,552 RV32I → 11,764 MBC. Verifier 900,031 (90.0%) EXACT, Doom
+> 737,087. H1 was FALSE at preflight — a reboot had killed the /tmp goldens
+> (third strike); recaptured all 12 from HEAD `c10f5fb5` instead of the A7
+> stock-revert dance (2.2/2.3 equivalence already committed → HEAD is the
+> valid baseline; retires the `ls` sh-size special case). ukalloc's probe
+> ladder observed live in stock order: freerange enter · kfree-A · kfree-B ·
+> kfree-C · freerange exit. Session log:
+> `references/phase24-t1-2026-07-07.md`.
+
 **Date**: 2026-07-05
 **Sprint**: Track 2 Phase 2.4 — own the kernel core (ADR-081). Replace the 16
 remaining MIT kernel files. At the end it is **Unheaded Linux, not xv6** (Lore
