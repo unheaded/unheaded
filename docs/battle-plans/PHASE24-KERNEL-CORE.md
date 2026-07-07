@@ -23,6 +23,16 @@
 > verifier 900,031 / 737,087 exact; 12/12 sweep byte-identical). Session log:
 > `references/phase24-t2-2026-07-07.md`.
 
+> **✅ TRANCHE 3 SHIPPED 2026-07-07 (same day, third tranche)** — commits
+> `3d9534ba` (usysproc.c + the T3 detailed steps below) → `c766fcc7`
+> (usysfile.c) → `1324fbfe` (upipe.c) → `8ef4e89c` (ufs.c) + docs. The last
+> pristine-MIT files; u-files generated header + VERBATIM body via cat
+> (zero transcription risk on ufs.c's 720 lines). **MIT remaining = 4: the
+> T4 summit (vm/proc/trap/exec)** — heavily patched, scheduler live, needs
+> NEW runtime gates (usertests subset) — own session recommended. Same
+> invariants held (count 7,552 → 11,764; verifier exact; 12/12 sweep).
+> Session log: `references/phase24-t3-2026-07-07.md`.
+
 **Date**: 2026-07-05
 **Sprint**: Track 2 Phase 2.4 — own the kernel core (ADR-081). Replace the 16
 remaining MIT kernel files. At the end it is **Unheaded Linux, not xv6** (Lore

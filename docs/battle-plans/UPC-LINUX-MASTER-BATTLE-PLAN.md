@@ -174,7 +174,7 @@ MBC — GCC -O2 folds our restructures flat):
 **Remaining MIT in the kernel link: core only** (kalloc spinlock string main vm proc trap
 sysproc bio fs log sleeplock file pipe exec sysfile) — exactly the Phase 2.4 scope.
 
-### Phase 2.4 — Own the kernel core ◑ TRANCHES 1+2 COMPLETE 2026-07-07 (8/16 files ours)
+### Phase 2.4 — Own the kernel core ◕ TRANCHES 1+2+3 COMPLETE 2026-07-07 (12/16 files ours)
 Our implementations of the MMU, scheduler, and FS. At the end of this phase it is **Unheaded Linux**,
 not xv6 — 100% ours. **Gate:** full corpus green on an all-ours kernel; Lore has blessed the name
 (it's from-scratch, disambiguate from the GPL Linux mark — ADR-081 Q5).
@@ -187,8 +187,13 @@ not xv6 — 100% ours. **Gate:** full corpus green on an all-ours kernel; Lore h
   per-file gate); ulog's recover_from_log is boot-live through blk-ramdisk; ufile anchors
   devsw[] for the console stack. 12/12 sweep byte-identical again. Log
   `references/phase24-t2-2026-07-07.md`.
-- Remaining MIT (8): **T3** sysproc/sysfile/pipe/fs → **T4 summit** vm/proc/trap/exec +
-  usertests runtime gates + the Lore naming ceremony.
+- **T3 SHIPPED 2026-07-07 (same day)** (`3d9534ba`→`8ef4e89c`): sysproc, sysfile, pipe, fs —
+  the last pristine-MIT files. ufs.c is the largest single MIT file (720 lines; iinit/fsinit
+  boot-live, walks dormant behind in-BPF fs_walk). u-files generated header + verbatim body
+  via cat. 12/12 sweep byte-identical. Log `references/phase24-t3-2026-07-07.md`.
+- Remaining MIT (4): **T4 summit** vm/proc/trap/exec — heavily patched, scheduler live.
+  Needs NEW runtime gates (usertests subset; consider flipping trap→syscall() live as its own
+  gate) + the Lore naming ceremony. Own session recommended.
 
 ### Phase 2.5 — Golden-image scaling (Yggdrasil reconciliation)
 Take Unheaded Linux from UPC-only toward the production golden image (ADR-69420): bare-metal target,

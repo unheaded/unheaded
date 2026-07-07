@@ -144,3 +144,14 @@ chain-of-custody for compliance), a different, owned upstream.
   byte-identical. **MIT remaining in the link: 8** — T3 sysproc/sysfile/pipe/fs, then the T4
   summit vm/proc/trap/exec (+ usertests gates + Lore naming, Q5). Session log
   `references/phase24-t2-2026-07-07.md`.
+- **2026-07-07 — Phase 2.4 Tranche 3 (kernel core: syscall wrappers + on-disk FS) SHIPPED
+  (third tranche same day).** The last pristine-MIT files out of the link:
+  `adapters/usysproc.c` (`3d9534ba`), `adapters/usysfile.c` (`c766fcc7`), `adapters/upipe.c`
+  (`1324fbfe`), `adapters/ufs.c` (`8ef4e89c` — the largest single MIT file, 720 lines; iinit +
+  fsinit boot-live through blk-ramdisk, walks dormant behind the in-BPF fs_walk). u-files
+  generated mechanically (header + verbatim body via cat — zero transcription risk); dormant
+  bodies keep stock bounds verbatim (they are the trap-flip's attack surface). Count
+  7,552 → 11,764 and budgets exact every build; 12/12 sweep byte-identical. **MIT remaining
+  in the link: 4 — vm, proc, trap, exec. The T4 summit is all that stands between this kernel
+  and "not xv6 anymore"** (needs NEW runtime gates — usertests subset — plus the Lore naming
+  ceremony, Q5). Session log `references/phase24-t3-2026-07-07.md`.
