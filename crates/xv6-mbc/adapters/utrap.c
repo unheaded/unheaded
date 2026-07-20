@@ -139,6 +139,14 @@ prepare_return(void)
   p->trapframe->kernel_trap = (uint64)usertrap;
   p->trapframe->kernel_hartid = r_tp();         // hartid for cpuid()
 
+  // EVOLUTION-1 S1.0: stash p->trapframe (a low PA from kalloc, inside
+  // RAM_MAP so the memory-mapped CSR store translates) in sscratch. uservec
+  // recovers it on the next trap instead of `li a0, TRAPFRAME` — the high
+  // TRAPFRAME VA has no UPC translation, so the stock save path silently
+  // drops. Dormant until S1.1 routes a real trap through STVEC; the write
+  // itself is inert on the live path (nothing reads sscratch until uservec).
+  w_sscratch((uint64)p->trapframe);
+
   // set up the registers that trampoline.S's sret will use
   // to get to user space.
   

@@ -58,14 +58,21 @@ Scientist).*
       (`relocate_call_word`, `relocate_rv2mbc_entry`, `fnv1a` vs canonical FNV-1a; 11 tests);
       doom-runner already has 24 tests over its load logic. REMAINS: full map-population byte
       capture (exact ROM/RV2MBC slots + entry PC + BootParams) as the ultimate no-regression oracle.
-- [ ] **1.2.3** Introduce `Workload` as a descriptor both loaders construct internally; route the
-      existing load code through one shared `load(workload, &mut runner)`; re-assert byte-identical
-      maps at each step.
-- [ ] **1.2.4** Add BlackMage's validation hooks to the shared loader: image fits ROM_MAP (guard
-      exists), **rv2mbc SHA integrity** (ADR-075 gate), **surface allowlist** (refuse a guest whose
-      declared syscalls exceed the loaded object's feature set), per-pid **slice non-overlap**.
-- [ ] **1.2.5 GATE:** both loaders build a `Workload` and call one validated loader; golden tests
-      byte-identical; Doom + xv6 green. "Add a guest" is now declarative.
+- [x] **1.2.3** SHIPPED 2026-07-04 (`67d4d4ea`, Stevie-authorized). Both loaders build a
+      `Workload` and route ROM/RV2MBC population through one shared
+      `upc_api::load(&Workload, &MapCapacities, &mut impl ImageSink)`; `load()` runs `validate()`
+      fail-closed before touching a map. Byte-identical oracle = `RecordingSink` characterization
+      tests; verifier budget unchanged (pure host-side refactor); live Doom 745 frames.
+- [~] **1.2.4** BlackMage's validation hooks — **descriptor-derivable checks DONE** in
+      `upc_api::validate` (image fits ROM_MAP, rv2mbc bounds + every branch target in-ROM, entry PC
+      in-image, surface allowlist non-empty/unambiguous, bootstub⇒ascend). **rv2mbc SHA integrity**
+      wired for the kernel image (loader-side, ADR-075 gate). REMAINS (named-but-deferred, the
+      shared loader's I/O-time gates, `workload.rs` doc): surface-vs-**loaded-object** feature check
+      + per-pid MMU **slice non-overlap** — both need a design pass (how the host learns the object's
+      surface / whether slice geometry is a `Workload` field).
+- [~] **1.2.5 GATE:** substance MET — both loaders construct a `Workload` and call the one validated
+      `load()`; upc-api characterization tests byte-identical; Doom + xv6 green in the regression
+      harness. Formal close waits on the 1.2.4 I/O-time gates. "Add a guest" is declarative today.
 
 ### Epic 1.3 — Extend xv6 OS-primitive coverage (FS stretch + syscalls)
 *Grows the substrate's primitives — every one is reusable by Unheaded Linux. Each is one bounded,

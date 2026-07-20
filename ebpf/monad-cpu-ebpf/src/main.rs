@@ -403,6 +403,14 @@ const STAT_TLB_HITS: u32 = 18; // TLB hits (Level 4d MMU)
 const STAT_TLB_MISSES: u32 = 19; // TLB misses — page table walk required (Level 4d MMU)
 const STAT_TTY_READS: u32 = 20; // TTY read operations (SYS_READ from fd 0) (Level 5b)
 const STAT_WAITPIDS: u32 = 21; // SYS_WAITPID calls (Level 5b)
+                               // EVOLUTION-1 S1.1 guard flag. When true, xv6 getpid (11) is serviced by the
+                               // OWNED kernel via a real injected ecall trap (uservec → usertrap → syscall() →
+                               // sys_getpid → usertrapret → SRET) instead of the in-BPF one-liner. Default OFF
+                               // keeps the baseline green (getpid is not in the boot corpus); flip to true to
+                               // exercise the entry half and measure the verifier delta + observed pid.
+                               // Rollback = this one flag. See references/evolution1-stage1-2026-07-19.md.
+const GETPID_INJECT: bool = false;
+
 const STAT_TRIVIAL_SYSCALLS: u32 = 22; // Trivial FUZIX stub syscalls (Level 5c)
 const STAT_MODERATE_SYSCALLS: u32 = 23; // Moderate FUZIX syscalls (Level 5d: ioctl, signal, stat, pipe, etc.)
 
@@ -2466,12 +2474,57 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 11 {
                 // ── xv6 SYS_getpid (11) — RV32I ecall path (Gate 4) ──────────
                 // ascend-only (xv6 syscall; Doom never issues it).
-                // Return the running pid (a0) so a userland process can
-                // self-verify it is executing AS the pid whose per-pid physical
-                // slice it expects — part of proving "per-pid" isolation, not
-                // just "per-fork". 0 = init; children are 1.. . Not handled in
-                // the original Phase 1.6 path (init/sh/gate2 don't call it).
-                cpu.regs[8] = cpu.current_pid as u32;
+                if GETPID_INJECT {
+                    // ── EVOLUTION-1 S1.1: route getpid through the OWNED kernel
+                    // by INJECTING a real ecall trap instead of servicing it
+                    // here. This is the inverse of the SRET handler above and
+                    // wakes the S1.0 uservec entry path.
+                    //
+                    // SEPC = the ecall's byte address. The translator carries
+                    // the ecall's rv_word in imm16 (S1.1); shift back to a byte
+                    // address. The kernel's usertrap does epc += 4 and SRET
+                    // masks (sepc>>2)&0xFFFF, so the low 16 bits suffice.
+                    let sepc = imm << 2;
+                    mem_write_word((0xF000 + 0x141 * 4) >> 2, sepc); // SEPC
+                    mem_write_word((0xF000 + 0x142 * 4) >> 2, 8); // SCAUSE = 8 (ecall from U)
+                                                                  // sstatus: trap from U-mode → SPP←0; SPIE←SIE; SIE←0.
+                    let sstatus = mem_read_word((0xF000 + 0x100 * 4) >> 2);
+                    let sie = (sstatus >> 1) & 1;
+                    let new_sstatus =
+                        (sstatus & !(1u32 << 8) & !(1u32 << 5) & !(1u32 << 1)) | (sie << 5);
+                    mem_write_word((0xF000 + 0x100 * 4) >> 2, new_sstatus);
+                    // Enter supervisor mode BEFORE the RV2MBC lookup so the
+                    // kernel base (0) is used for STVEC, not the user base.
+                    cpu.priv_level = 1;
+                    // Vector to STVEC (prepare_return set it to uservec). Same
+                    // guarded RV2MBC translation as MRET/SRET — a default-zero
+                    // slot must not silently route PC to 0.
+                    let stvec = mem_read_word((0xF000 + 0x105 * 4) >> 2);
+                    let rv_word = (stvec >> 2) & 0xFFFF;
+                    cpu.pc = match RV2MBC_MAP.get(rv_word.wrapping_add(rv2mbc_branch_base(cpu))) {
+                        Some(mbc_idx) if *mbc_idx != 0 => *mbc_idx & 0xFFFF,
+                        _ => {
+                            mem_write_word(0xE0068 >> 2, 0xDEAD0011); // getpid-inject STVEC unmapped
+                            mem_write_word(0xE006C >> 2, stvec);
+                            halt_diag(
+                                stvec,
+                                rv2mbc_base_of(cpu),
+                                cpu.current_pid as u32,
+                                prev_pc,
+                                0x11,
+                            );
+                            cpu.halted = 1;
+                            increment_stat(STAT_ROM_FAULT);
+                            cpu.pc
+                        }
+                    };
+                    cpu.reservation_address = 0xFFFF_FFFF;
+                } else {
+                    // Baseline (retired when INJECT flips on): return the running
+                    // pid (a0) so a userland process can self-verify it runs AS
+                    // the pid whose per-pid slice it expects. 0 = init; 1.. kids.
+                    cpu.regs[8] = cpu.current_pid as u32;
+                }
             } else if cfg!(feature = "ascend-linux") && syscall_nr == 13 {
                 // ── xv6 SYS_pause (13) → cooperative YIELD (Gate 4, 2026-05-31) ─
                 // ascend-only (xv6 scheduler yield; Doom never issues it).

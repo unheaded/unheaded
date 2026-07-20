@@ -27,15 +27,24 @@ uservec:
         # user page table.
         #
 
-        # save user a0 in sscratch so
-        # a0 can be used to get at TRAPFRAME.
-        csrw sscratch, a0
+        # UPC sscratch pattern (EVOLUTION-1 S1.0). usertrapret/forkret store
+        # p->trapframe (a low PA from kalloc, inside RAM_MAP so the
+        # memory-mapped CSR store translates) into sscratch before returning
+        # to user. We recover it here WITHOUT `li a0, TRAPFRAME`: the high
+        # TRAPFRAME VA (0x7FFFE000) has no UPC translation, so every save
+        # below would silently drop (the Phase 1.4-1.6 silent-store-drop
+        # class — see next.md footguns).
+        #
+        # NOTE: upstream's one-instruction swap `csrrw a0, sscratch, a0`
+        # cannot be used here. The rv32i->mbc translator lowers CSRRW to
+        # "read old CSR into rd; THEN store rs1 to CSR" (translator.rs, the
+        # 0x73/funct3==1 arm), so when rd==rs1 the read clobbers the source
+        # before the store and sscratch would end up holding the trapframe
+        # instead of the user's a0. Split into two well-translated CSR ops,
+        # using mscratch (0x340, otherwise unused on the UPC) to stash a0.
+        csrw mscratch, a0        # mscratch = user a0
+        csrr a0, sscratch        # a0 = p->trapframe (low PA; translates)
 
-        # each process has a separate p->trapframe memory area,
-        # but it's mapped to the same virtual address
-        # (TRAPFRAME) in every process's user page table.
-        li a0, TRAPFRAME
-        
         # save the user registers in TRAPFRAME
         sw ra, 20(a0)
         sw sp, 24(a0)
@@ -58,8 +67,8 @@ uservec:
         # Trapframe offsets 88..124 remain reserved (struct field comments
         # in proc.h preserve the layout); they're never read or written here.
 
-	# save the user a0 in p->trapframe->a0
-        csrr t0, sscratch
+	# save the user a0 in p->trapframe->a0 (stashed in mscratch above)
+        csrr t0, mscratch
         sw t0, 56(a0)
 
         # initialize kernel stack pointer, from p->trapframe->kernel_sp
@@ -104,6 +113,18 @@ userret:
         # return 0 (out-of-range mem_read_word fallback) and trash sp.
         # forkret passes p->trapframe (low PA from kalloc) as a1; use
         # that directly. Phase 1.6 SYS_write byte-path fix.
+        #
+        # EVOLUTION-1 S1.2 OPEN BLOCKER: an injected trap (getpid, S1.1) falls
+        # through uservec -> usertrap -> here with a1 holding a stale user
+        # value, so `mv a0, a1` restores from a garbage base on that path
+        # (injected getpid returns to user with a corrupt sp). Recovering the
+        # trapframe from sscratch instead — which prepare_return sets, and which
+        # uservec reads correctly at trap-entry — breaks forkret's own userret:
+        # sscratch does NOT read back as p->trapframe here (pre- OR post- the
+        # satp switch — both falsified), even though nothing between
+        # prepare_return and userret writes CSR 0x140. Root cause unpinned;
+        # needs an sscratch-vs-a1 dump in userret. See
+        # references/evolution1-stage1-2026-07-19.md.
         mv a0, a1
 #else
         li a0, TRAPFRAME

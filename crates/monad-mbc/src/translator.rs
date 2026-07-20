@@ -1031,10 +1031,16 @@ impl Translator {
                     0 => {
                         // ECALL / EBREAK / MRET / SRET / WFI / SFENCE.VMA — by full insn
                         match (funct7, imm_bits) {
-                            (_, 0x000) => self.emit(op::SYSCALL, 0, 0, 0), // ECALL
-                            (_, 0x001) => self.emit(op::HALT, 0, 0, 0),    // EBREAK
-                            (_, 0x302) => self.emit(op::MRET, 0, 0, 0),    // MRET
-                            (_, 0x102) => self.emit(op::SRET, 0, 0, 0),    // SRET
+                            // ECALL. imm16 carries the ecall's rv_word ((pc>>2)
+                            // & 0xFFFF) so a trap-injecting SYSCALL handler can
+                            // recover SEPC without an MBC→RV reverse map
+                            // (EVOLUTION-1 S1.1). Inert for every existing
+                            // handler — none read a SYSCALL's imm16; it dispatches
+                            // on a7. The &0xFFFF window matches the RV2MBC lookup.
+                            (_, 0x000) => self.emit(op::SYSCALL, 0, 0, ((pc >> 2) & 0xFFFF) as u16), // ECALL
+                            (_, 0x001) => self.emit(op::HALT, 0, 0, 0), // EBREAK
+                            (_, 0x302) => self.emit(op::MRET, 0, 0, 0), // MRET
+                            (_, 0x102) => self.emit(op::SRET, 0, 0, 0), // SRET
                             (_, 0x105) => { /* WFI — wait for interrupt; emit nothing (busy-wait) */
                             }
                             (0x09, _) => self.emit(op::FENCE, 0, 0, 0), // SFENCE.VMA → FENCE
