@@ -64,6 +64,50 @@ a falsification gate, not a destination.
 2. **D2**: Unfreeze eBPF spend for Stage 1 (small, measurable, reversible)?
 3. **D3**: If D1=(a) or (c): sequence Stage 2 against Phase 2.5 / Track 1.
 
+### [DECIDED 2026-07-17] — Stevie's calls (architect + scientist consulted)
+
+Both `unheaded-architect` and `unheaded-scientist` were consulted on D1 and
+converged independently on **(c)**.
+
+- **D1 = (c) HYBRID.** Hot + BPF-state-coherent syscalls STAY in BPF; cold /
+  complex / memory-bound syscalls MIGRATE to the owned kernel. The split, by
+  frequency × state-coherence:
+  - **STAY IN BPF** (identity + hot path): `write`/`read` console I/O (per-byte,
+    the live interactive faucet; devsw already treats console as a device);
+    `fork`/`exec`/`wait` (hottest process ops AND the dual-books
+    PROC_TABLE-vs-`proc[]` split-brain — migrate LAST, possibly never, and only
+    behind a dedicated `proc[]`-reconciliation sprint).
+  - **MIGRATE TO KERNEL** (authenticity + verifier relief): `getpid`/`pause`/
+    `yield` (Stage 1); the **FS-metadata bundle** `open`/`close`/`dup`/`fstat`
+    + file read/write path (`fs_walk` → `readi`/`namex`) migrated as ONE unit
+    (splitting it = FD-table split-brain); `sbrk` (ARRIVES kernel-only — memory
+    authority, usertests' hardest dep); the never-implemented `pipe`/`kill`/
+    `mkdir`/`unlink`/`link`/`chdir`/`sleep` (ARRIVE in kernel, cheap authenticity).
+  - **Architect's dealbreaker (would flip to (b))**: only if the owned kernel
+    NEVER needs memory authority — i.e. if real `sbrk`/usertests is not a genuine
+    destination. ADR-081 funds Unheaded Linux as that destination, so (c) holds.
+  - **How far (c) reaches is NOT decided in advance.** Per the Scientist: Stage 1
+    getpid is a falsification experiment whose result is independent of the
+    steady-state declaration. The **sign of the getpid verifier-delta** tunes the
+    reach: net-negative → the migration ladder is self-funding (push toward (a));
+    net-zero/positive → keep (c) minimal, migrate only where authenticity demands.
+  - **Scientist's caveat (do not over-read Stage 1)**: getpid is a *biased
+    estimator* — the cheapest, most stateless syscall by design. A green /
+    correct-pid result says nothing about the hot, *state-mutating* syscalls
+    (fork/exec) that actually decide migration cost. Stage 1 falsifies the
+    entry-half footgun and observes the dual-books split; it does NOT license
+    generalizing to the write side.
+
+- **D2 = YES — unfreeze for Stage 1.** Small, guard-flagged, reversible; net-zero
+  verifier expected (one injection block vs one retired handler). Stage 1 is both
+  the first rung of (c) and the experiment that tunes it.
+
+- **D3 = Stage 1 FIRST, then reassess.** Stage 2 (the migration ladder) is a
+  separate Warmonger battle plan, gated on the Stage 1 verifier-delta measurement
+  + a `proc[]`-reconciliation prerequisite before any fork/exec/wait migration.
+  It is NOT sequenced ahead of the parallel Debian/Yggdrasil track (ADR-081 Q4),
+  which stays Age-2-deferred.
+
 ## Gate ladder (each stage independently shippable + reversible)
 
 ### Stage 0 — no eBPF, no unfreeze needed (~1 session)

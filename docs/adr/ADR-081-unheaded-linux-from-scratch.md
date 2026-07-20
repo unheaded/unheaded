@@ -58,9 +58,22 @@ chain-of-custody for compliance), a different, owned upstream.
    is a large surface that fights the verifier budget; a minimal own-ABI is leanest. *Likely:*
    minimal own-ABI first, a Linux-ABI subset later only where it earns its keep.
 4. **Yggdrasil reconciliation** — does Unheaded-Linux-on-UPC eventually replace the Debian anchor,
-   stay UPC-only, or become a parallel bare-metal track? *Defer* to Age 2 Yggdrasil first-artifacts.
-5. **Naming** — "Unheaded Linux" is the working brand; since it is from-scratch (not the Linux
-   kernel), Lore should bless the name and disambiguate from the GPL "Linux" mark.
+   stay UPC-only, or become a parallel bare-metal track? **RESOLVED 2026-07-17 (Stevie): PARALLEL
+   TRACK.** The Debian soft-fork stays — it is the practical security substrate. Unheaded is IaC +
+   compliance templating baked into one; when SOC2 / NIST 800-53 / etc. controls are selected it
+   must be *impossible* to deviate or drift from them, and rapidly forking Debian's latest CVE
+   patches is what makes Unheaded a tool someone could actually deploy. Unheaded-Linux-on-UPC does
+   NOT replace that anchor. Its future home is a *parallel* niche: ultra-lightweight single-binary
+   VMs — monitoring, key enforcement/rotation, and similar — run in large pools (think ultra-light
+   K8s-container density, many nodes), and as substrate for the full BGP mesh vision. Age 2
+   Yggdrasil first-artifacts still gate the Debian-anchor pipeline; the UPC track proceeds
+   independently under EVOLUTION-1 / Track 1.
+5. **Naming** — **RESOLVED 2026-07-17 (Stevie): working name `unheadnix`, ceremony deferred.**
+   Unlikely to be adopted outside this project, so the ceremony is low-priority; `unheadnix` (one
+   word, a nod to "unheaded") is the leaning pick precisely because a single token makes a future
+   find-and-replace trivial if the name changes. Not urgent to formalize; Lore's blessing +
+   GPL-"Linux"-mark disambiguation stay deferred. Keep "Unheaded Linux" as the descriptive phrase in
+   docs meanwhile.
 
 ## Consequences
 
@@ -169,3 +182,12 @@ chain-of-custody for compliance), a different, owned upstream.
   tree untouched as reference. **Phase 2.4's gate — full corpus green on an all-ours kernel —
   is MET.** The Q5 naming ceremony (Lore blesses "Unheaded Linux") is Stevie's to perform;
   Q5 stays open until blessed. Session log `references/phase24-t4-2026-07-07.md`.
+- **2026-07-17 — Decision cycle: EVOLUTION-1 D1/D2/D3 + Q4/Q5 settled.** Q4 resolved PARALLEL
+  (Debian soft-fork stays as the compliance/CVE substrate; UPC track is a parallel niche for
+  ultra-light single-binary pool VMs + BGP-mesh substrate — see Q4 above). Q5 resolved to working
+  name `unheadnix`, ceremony deferred (one-word for cheap find-replace). EVOLUTION-1 D1 = (c)
+  HYBRID (architect + scientist consulted, both converged; migration reach tuned by the Stage 1
+  getpid verifier-delta sign), D2 = YES (unfreeze for Stage 1), D3 = Stage 1 first then reassess.
+  Full record in `docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md` §[DECIDED 2026-07-17]. No code this
+  cycle — next handoff points directly at EVOLUTION-1 Stage 1 (S1.0 sscratch fix → S1.1 guarded
+  injection → S1.2 getpid probe).
