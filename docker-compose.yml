@@ -688,8 +688,11 @@ services:
       WOTAN_ADDR: "wotan:18000"
       WOTAN_GRPC_ADDR: "wotan:18001"
       SERVICES_FILE: "/etc/unheaded/services.txt"
+      HOST_PROC: "/host/proc"   # read the bare-metal host's /proc, not the container's namespaced view
     volumes:
       - ./config/dashboard/services.txt:/etc/unheaded/services.txt:ro
+      - /proc:/host/proc:ro     # host procfs → real host process & connection counts
+      - /etc/hostname:/host/etc/hostname:ro   # host hostname (UTS-namespaced sysctl can't be read from a container)
     command: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--ws-allowed-origins", "*"]
     ports:
       - "20000:20000"
