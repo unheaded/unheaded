@@ -19,3 +19,7 @@ cover.out
 
 # Nix build output
 result
+
+# Rust build output for ALL crates (~1.5G) — never needed by Go image builds
+crates/*/target/
+**/target/
