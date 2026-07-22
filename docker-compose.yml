@@ -390,11 +390,13 @@ services:
       - /tmp:size=64M
     environment:
       LOG_LEVEL: info
+      WOTAN_TOPIC_CONFIG: /etc/wotan/wotan.yaml   # auto-approve allowlist; without it every subscriber stays pending_approval
     ports:
       - "18001:18001"     # gRPC streaming
       - "18000:18000"     # HTTP REST API
     volumes:
       - /var/log/unheaded/wotan:/var/log/unheaded:rw
+      - ./configs/wotan.yaml:/etc/wotan/wotan.yaml:ro
     networks:
       - control
       - data
