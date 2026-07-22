@@ -215,6 +215,25 @@ a:hover {
     gap: var(--spacing-lg);
 }
 
+.header-nav {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+}
+
+.header-nav a {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    letter-spacing: 0.05em;
+    transition: color 0.2s ease;
+}
+
+.header-nav a:hover {
+    color: var(--text-primary);
+}
+
 /* ============================================
    Connection Status
    ============================================ */

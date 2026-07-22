@@ -699,7 +699,7 @@ const pageTemplate = `<!DOCTYPE html>
                 <div class="subtitle">wiki</div>
             </div>
             <div class="sidebar-links">
-                <a href="/">Dashboard</a> | <a href="/kanban">Kanban</a> | <a href="/health">Health</a>
+                <a href="http://192.168.69.184:20000">Dashboard</a> | <a href="http://192.168.69.184:20001">Kanban</a> | <a href="http://192.168.69.184:16666">Doom</a>
             </div>
             <nav>
                 <ul>
