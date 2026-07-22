@@ -451,6 +451,23 @@ const pageTemplate = `<!DOCTYPE html>
             letter-spacing: 0.1em;
         }
 
+        .sidebar-links {
+            padding: 0 20px 16px;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 16px;
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .sidebar-links a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .sidebar-links a:hover {
+            text-decoration: underline;
+        }
+
         .sidebar nav ul {
             list-style: none;
         }
@@ -681,6 +698,9 @@ const pageTemplate = `<!DOCTYPE html>
                 <h1>(u)nheaded</h1>
                 <div class="subtitle">wiki</div>
             </div>
+            <div class="sidebar-links">
+                <a href="/">Dashboard</a> | <a href="/kanban">Kanban</a> | <a href="/health">Health</a>
+            </div>
             <nav>
                 <ul>
                 {{range .NavItems}}
@@ -690,7 +710,6 @@ const pageTemplate = `<!DOCTYPE html>
             </nav>
             <div class="sidebar-footer">
                 <p>v{{.Version}}</p>
-                <p><a href="/">Dashboard</a> | <a href="/kanban">Kanban</a> | <a href="/health">Health</a></p>
             </div>
         </aside>
         <main class="main">
