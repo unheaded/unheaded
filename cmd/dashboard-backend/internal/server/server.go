@@ -2976,10 +2976,10 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 			info.Online = true
 			info.Goroutines = runtime.NumGoroutine()
 			info.UptimeSeconds = readSystemUptime()
-			info.Hostname, _ = os.Hostname()
+			info.Hostname = hostHostname()
 
 			// Kernel
-			if data, err := os.ReadFile("/proc/version"); err == nil {
+			if data, err := os.ReadFile(procRoot + "/version"); err == nil {
 				fields := strings.Fields(string(data))
 				if len(fields) >= 3 {
 					info.Kernel = fields[2]
@@ -3045,10 +3045,41 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// readLocalCPUPercent reads aggregate CPU usage from /proc/stat.
+// procRoot is the procfs the host-metrics readers use. In a container, mount
+// the host's /proc and set HOST_PROC=/host/proc so the dashboard reports the
+// bare-metal host's health (hostname, process/connection counts) rather than
+// the container's namespaced view. Defaults to /proc.
+var procRoot = resolveProcRoot()
+
+func resolveProcRoot() string {
+	if p := os.Getenv("HOST_PROC"); p != "" {
+		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
+			return p
+		}
+	}
+	return "/proc"
+}
+
+// hostHostname returns the bare-metal host's hostname (via procRoot), falling
+// back to the container hostname if the host procfs isn't mounted.
+func hostHostname() string {
+	// Host's /etc/hostname is a plain file — unlike /proc/sys/kernel/hostname,
+	// which is UTS-namespaced and returns the container's name even via host /proc.
+	for _, p := range []string{"/host/etc/hostname", procRoot + "/sys/kernel/hostname"} {
+		if data, err := os.ReadFile(p); err == nil {
+			if h := strings.TrimSpace(string(data)); h != "" {
+				return h
+			}
+		}
+	}
+	h, _ := os.Hostname()
+	return h
+}
+
+// readLocalCPUPercent reads aggregate CPU usage from <procRoot>/stat.
 // Returns percentage of non-idle CPU time.
 func readLocalCPUPercent() float64 {
-	f, err := os.Open("/proc/stat")
+	f, err := os.Open(procRoot + "/stat")
 	if err != nil {
 		return 0
 	}
@@ -3096,7 +3127,7 @@ type memInfoResult struct {
 // readLocalMemInfo reads memory and swap from /proc/meminfo.
 func readLocalMemInfo() memInfoResult {
 	var r memInfoResult
-	f, err := os.Open("/proc/meminfo")
+	f, err := os.Open(procRoot + "/meminfo")
 	if err != nil {
 		return r
 	}
@@ -3150,7 +3181,7 @@ func readLocalMemInfo() memInfoResult {
 
 // readLocalLoadAvg reads 1/5/15 minute load averages from /proc/loadavg.
 func readLocalLoadAvg() (load1, load5, load15 float64) {
-	data, err := os.ReadFile("/proc/loadavg")
+	data, err := os.ReadFile(procRoot + "/loadavg")
 	if err != nil {
 		return 0, 0, 0
 	}
@@ -3169,7 +3200,7 @@ func readLocalLoadAvg() (load1, load5, load15 float64) {
 
 // readSystemUptime reads system uptime from /proc/uptime in seconds.
 func readSystemUptime() float64 {
-	data, err := os.ReadFile("/proc/uptime")
+	data, err := os.ReadFile(procRoot + "/uptime")
 	if err != nil {
 		return 0
 	}
@@ -3234,6 +3265,13 @@ func readLocalDisks() []DiskInfo {
 		}
 		seen[device] = true
 
+		// Skip single-file bind mounts (docker injects /etc/resolv.conf,
+		// /etc/hosts, and config-file mounts; statfs on them reports the host
+		// filesystem but the mount path is a file, not a drive).
+		if fi, err := os.Stat(mount); err != nil || !fi.IsDir() {
+			continue
+		}
+
 		var stat syscallStatfs
 		if err := statfs(mount, &stat); err != nil {
 			continue
@@ -3254,13 +3292,31 @@ func readLocalDisks() []DiskInfo {
 			UsePercent: pct,
 		})
 	}
+	// Container roots are overlay (skipped above); if no real drive surfaced,
+	// report the root filesystem so host disk usage still shows a sane label.
+	if len(disks) == 0 {
+		var stat syscallStatfs
+		if err := statfs("/", &stat); err == nil && stat.Blocks > 0 {
+			total := stat.Blocks * uint64(stat.Bsize)
+			free := stat.Bavail * uint64(stat.Bsize)
+			used := total - (stat.Bfree * uint64(stat.Bsize))
+			var pct float64
+			if total > 0 {
+				pct = float64(used) / float64(total) * 100
+			}
+			disks = append(disks, DiskInfo{
+				Mount: "/", Filesystem: "root",
+				SizeBytes: total, UsedBytes: used, AvailBytes: free, UsePercent: pct,
+			})
+		}
+	}
 	return disks
 }
 
 // readLocalNetConnections counts TCP connection states from /proc/net/tcp and /proc/net/tcp6.
 func readLocalNetConnections() NetConnections {
 	var nc NetConnections
-	for _, path := range []string{"/proc/net/tcp", "/proc/net/tcp6"} {
+	for _, path := range []string{procRoot + "/net/tcp", procRoot + "/net/tcp6"} {
 		f, err := os.Open(path)
 		if err != nil {
 			continue
@@ -3289,7 +3345,7 @@ func readLocalNetConnections() NetConnections {
 
 // readLocalProcessCounts counts total processes and zombies from /proc.
 func readLocalProcessCounts() (total, zombie int) {
-	entries, err := os.ReadDir("/proc")
+	entries, err := os.ReadDir(procRoot)
 	if err != nil {
 		return 0, 0
 	}
@@ -3303,7 +3359,7 @@ func readLocalProcessCounts() (total, zombie int) {
 		}
 		total++
 		// Check status for zombie
-		statPath := "/proc/" + e.Name() + "/stat"
+		statPath := procRoot + "/" + e.Name() + "/stat"
 		data, err := os.ReadFile(statPath)
 		if err != nil {
 			continue
