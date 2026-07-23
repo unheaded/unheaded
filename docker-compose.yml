@@ -146,7 +146,7 @@ services:
       - "${TRAEFIK_HTTPS_PORT:-443}:443"      # HTTPS + HTTP/3 (QUIC)
       - "${TRAEFIK_HTTPS_PORT:-443}:443/udp"  # QUIC UDP
       - "${TRAEFIK_GRPC_PORT:-50051}:50051"   # gRPC
-      - "21000:21000"   # Traefik dashboard (dev only)
+      - "127.0.0.1:21000:21000"   # Traefik dashboard (dev only) — loopback: operator-local, not LAN
     volumes:
       - "/var/run/docker.sock:/var/run/docker.sock:ro"
       - "traefik-certs:/certs"
@@ -219,7 +219,7 @@ services:
       POSTGRES_USER: unheaded
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-unheaded_dev}
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"   # loopback only — host clients use localhost, containers use docker DNS; keeps The Well off the LAN
     volumes:
       - postgres-data:/var/lib/postgresql/data
       - ./db/migrations:/docker-entrypoint-initdb.d
@@ -252,8 +252,8 @@ services:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-changeme}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ports:
-      - "8123:8123"  # HTTP interface
-      - "9000:9000"  # Native TCP
+      - "127.0.0.1:8123:8123"  # HTTP interface — loopback only (off the LAN)
+      - "127.0.0.1:9000:9000"  # Native TCP — loopback only (off the LAN)
     volumes:
       - clickhouse-data:/var/lib/clickhouse
     networks:
