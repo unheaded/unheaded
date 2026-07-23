@@ -430,14 +430,19 @@ const pageTemplate = `<!DOCTYPE html>
             position: sticky;
             top: 0;
             height: 100vh;
-            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .sidebar-brand {
             padding: 0 20px 20px;
             border-bottom: 1px solid var(--border);
             margin-bottom: 16px;
+            flex-shrink: 0;
         }
+
+        .sidebar-brand a { text-decoration: none; }
 
         .sidebar-brand h1 {
             font-size: 14px;
@@ -460,6 +465,7 @@ const pageTemplate = `<!DOCTYPE html>
             margin-bottom: 16px;
             font-size: 12px;
             color: var(--text-secondary);
+            flex-shrink: 0;
         }
 
         .sidebar-links a {
@@ -469,6 +475,28 @@ const pageTemplate = `<!DOCTYPE html>
 
         .sidebar-links a:hover {
             text-decoration: underline;
+        }
+
+        /* Pinned "Home" link (returns to the wiki root without scrolling up). */
+        .sidebar-home {
+            display: block;
+            padding: 8px 20px;
+            margin-bottom: 8px;
+            color: var(--accent);
+            text-decoration: none;
+            font-size: 14px;
+            flex-shrink: 0;
+        }
+
+        .sidebar-home:hover {
+            background: var(--bg-tertiary);
+        }
+
+        /* Only the article list scrolls; brand + cross-app links stay pinned. */
+        .sidebar nav {
+            flex: 1;
+            overflow-y: auto;
+            min-height: 0;
         }
 
         .sidebar nav ul {
@@ -502,6 +530,7 @@ const pageTemplate = `<!DOCTYPE html>
             margin-top: 16px;
             font-size: 12px;
             color: var(--text-secondary);
+            flex-shrink: 0;
         }
 
         .sidebar-footer a {
@@ -698,12 +727,15 @@ const pageTemplate = `<!DOCTYPE html>
     <div class="layout">
         <aside class="sidebar">
             <div class="sidebar-brand">
-                <h1>(u)nheaded</h1>
-                <div class="subtitle">wiki</div>
+                <a href="/wiki/">
+                    <h1>(u)nheaded</h1>
+                    <div class="subtitle">wiki</div>
+                </a>
             </div>
             <div class="sidebar-links">
                 <a href="http://192.168.69.184:20000">Dashboard</a> | <a href="http://192.168.69.184:20001">Kanban</a> | <a href="http://192.168.69.184:16666">Doom</a> | <a href="http://192.168.69.184:20103">Zhenai</a>
             </div>
+            <a href="/wiki/" class="sidebar-home">&#8962; Home</a>
             <nav>
                 <ul>
                 {{range .NavItems}}
