@@ -9,7 +9,7 @@ Unheaded is a configuration management automation platform that delivers configu
 
 ## Design Principles
 
-1. **Security First** - eBPF traceability, immutable infrastructure, zero user data access
+1. **Security First** - eBPF traceability, immutable infrastructure, NIST 800-207 Zero Trust Architecture
 2. **Observable by Default** - Packet-level visibility from L2-L7
 3. **Declarative Everything** - NixOS containers, version-controlled configs
 4. **Self-Hosting** - Self-hosting validation (Kanban app proves it)

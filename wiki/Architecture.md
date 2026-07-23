@@ -2,7 +2,7 @@
 
 ## Overview
 
-Unheaded is a configuration management automation platform built on 6 layers, from bare metal infrastructure up through a user-facing dashboard. The platform delivers production-ready infrastructure for SaaS applications, with eBPF-based observability at every hop and zero user data access by architectural design.
+Unheaded is a configuration management automation platform built on 6 layers, from bare metal infrastructure up through a user-facing dashboard. The platform delivers production-ready infrastructure for SaaS applications, with eBPF-based observability at every hop and NIST 800-207 Zero Trust Architecture by architectural design.
 
 ---
 
