@@ -55,7 +55,7 @@ func wsURL(hs *httptest.Server) string {
 
 func dialWS(t *testing.T, url string) *gorillaWS.Conn {
 	t.Helper()
-	conn, dialResp, err := gorillaWS.DefaultDialer.Dial(url, nil)
+	conn, dialResp, err := gorillaWS.DefaultDialer.Dial(url, testOriginHeader(url))
 	if dialResp != nil {
 		_ = dialResp.Body.Close()
 	}
@@ -405,6 +405,7 @@ func TestUpgrade_OriginRejected(t *testing.T) {
 	srv, _ := NewServer(cfg, discardLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	req.Header.Set("Origin", "http://example.com")
 	req.Header.Set("Origin", "https://evil.com")
 	w := httptest.NewRecorder()
 	_, err := srv.upgradeConnection(w, req)
@@ -421,6 +422,7 @@ func TestUpgrade_MissingUpgradeHeader(t *testing.T) {
 	srv, _ := NewServer(cfg, discardLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	req.Header.Set("Origin", "http://example.com")
 	// No Upgrade header
 	w := httptest.NewRecorder()
 	_, err := srv.upgradeConnection(w, req)
@@ -437,6 +439,7 @@ func TestUpgrade_InvalidConnectionHeader(t *testing.T) {
 	srv, _ := NewServer(cfg, discardLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	req.Header.Set("Origin", "http://example.com")
 	req.Header.Set("Upgrade", "websocket")
 	req.Header.Set("Connection", "keep-alive") // missing "Upgrade" token
 	w := httptest.NewRecorder()
@@ -451,6 +454,7 @@ func TestUpgrade_MissingWebSocketKey(t *testing.T) {
 	srv, _ := NewServer(cfg, discardLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	req.Header.Set("Origin", "http://example.com")
 	req.Header.Set("Upgrade", "websocket")
 	req.Header.Set("Connection", "Upgrade")
 	// No Sec-WebSocket-Key
@@ -469,6 +473,7 @@ func TestUpgrade_HijackNotSupported(t *testing.T) {
 	srv, _ := NewServer(cfg, discardLogger())
 
 	req := httptest.NewRequest(http.MethodGet, "/ws", nil)
+	req.Header.Set("Origin", "http://example.com")
 	req.Header.Set("Upgrade", "websocket")
 	req.Header.Set("Connection", "Upgrade")
 	req.Header.Set("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
@@ -500,7 +505,7 @@ func TestHandleWebSocket_ServerShutdown(t *testing.T) {
 	cancel()
 
 	// Attempt a new WS connection — should be rejected
-	_, resp, err := gorillaWS.DefaultDialer.Dial(wsURL(hs), nil)
+	_, resp, err := gorillaWS.DefaultDialer.Dial(wsURL(hs), testOriginHeader(wsURL(hs)))
 	if resp != nil {
 		defer func() { _ = resp.Body.Close() }()
 	}

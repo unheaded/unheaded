@@ -17,6 +17,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -59,7 +60,7 @@ type Config struct {
 	PingInterval   time.Duration // Interval between ping frames
 	BufferSize     int           // Message buffer size per client
 	MaxMessageSize int64         // Maximum message size in bytes
-	AllowedOrigins []string      // Allowed origins for CORS validation (empty = allow all)
+	AllowedOrigins []string      // Exact-match allowlist; empty = same-origin default (see originPermitted). NOT a wildcard: "*" matches nothing.
 }
 
 // DefaultConfig returns default WebSocket configuration
@@ -345,11 +346,15 @@ func (s *Server) upgradeConnection(w http.ResponseWriter, r *http.Request) (net.
 		return nil, errors.New("method not allowed")
 	}
 
-	// CORS origin validation - prevents cross-origin WebSocket hijacking
+	// CORS origin validation - prevents cross-origin WebSocket hijacking.
+	// Browsers always send Origin on the WS handshake, so a missing Origin is a
+	// non-browser / origin-suppressed client and is denied. An explicit allowlist
+	// (config.AllowedOrigins) wins; otherwise the default is a same-origin check.
 	origin := r.Header.Get("Origin")
-	if origin != "" && !s.isOriginAllowed(origin) {
+	if !s.originPermitted(origin, r) {
 		s.log.Warn().
 			Str("origin", origin).
+			Str("request_host", r.Host).
 			Msg("WebSocket connection rejected: origin not allowed")
 		http.Error(w, "origin not allowed", http.StatusForbidden)
 		return nil, errors.New("origin not allowed")
@@ -744,6 +749,31 @@ func DefaultAllowedOrigins() []string {
 		"https://localhost:20001",
 		"https://localhost:3000",
 	}
+}
+
+// originPermitted is the live WebSocket origin gate. A missing Origin is denied
+// (browsers always send one on the WS handshake; a header-less client is non-
+// browser or origin-suppressed). When an explicit allowlist is configured it
+// wins (exact match). Otherwise the default is same-origin: the Origin's host
+// must equal the request Host — which works from localhost, the LAN IP, and any
+// future reverse proxy without a hardcoded list, while still blocking classic
+// cross-origin WebSocket hijacking.
+//
+// Note: same-origin remains bypassable via DNS rebinding (attacker controls both
+// Origin and Host); a Host-header allowlist and per-connection auth on /ws are the
+// documented follow-ups for any non-LAN exposure.
+func (s *Server) originPermitted(origin string, r *http.Request) bool {
+	if origin == "" {
+		return false
+	}
+	if len(s.config.AllowedOrigins) > 0 {
+		return s.isOriginAllowed(origin)
+	}
+	u, err := url.Parse(origin)
+	if err != nil || u.Host == "" {
+		return false
+	}
+	return strings.EqualFold(u.Host, r.Host)
 }
 
 // isOriginAllowed checks if the given origin is in the allowed list.

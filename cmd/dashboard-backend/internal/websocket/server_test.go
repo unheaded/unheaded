@@ -22,6 +22,14 @@ func testLogger() *logger.Logger {
 	return logger.New(io.Discard)
 }
 
+// testOriginHeader returns a same-origin request header for the given ws:// URL,
+// so test dials satisfy the server's same-origin gate (which denies a missing
+// Origin). The Origin host is derived from the dial URL, so it always matches the
+// request Host.
+func testOriginHeader(wsURL string) http.Header {
+	return http.Header{"Origin": []string{"http" + strings.TrimPrefix(wsURL, "ws")}}
+}
+
 // TestServer_NewServer tests server creation
 func TestServer_NewServer(t *testing.T) {
 	tests := []struct {
@@ -99,7 +107,7 @@ func TestServer_HandleConnection(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
 
 	// Connect client
-	conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, testOriginHeader(wsURL))
 	if dialResp != nil {
 		_ = dialResp.Body.Close()
 	}
@@ -153,7 +161,7 @@ func TestServer_Broadcast(t *testing.T) {
 	// Connect 3 clients
 	clients := make([]*websocket.Conn, 3)
 	for i := 0; i < 3; i++ {
-		conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, testOriginHeader(wsURL))
 		if dialResp != nil {
 			_ = dialResp.Body.Close()
 		}
@@ -215,7 +223,7 @@ func TestServer_MaxConnections(t *testing.T) {
 	// Connect max clients
 	clients := make([]*websocket.Conn, 2)
 	for i := 0; i < 2; i++ {
-		conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, testOriginHeader(wsURL))
 		if dialResp != nil {
 			_ = dialResp.Body.Close()
 		}
@@ -229,7 +237,7 @@ func TestServer_MaxConnections(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Try to exceed limit
-	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, testOriginHeader(wsURL))
 	if resp != nil {
 		defer func() { _ = resp.Body.Close() }()
 	}
@@ -269,7 +277,7 @@ func TestServer_Shutdown(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
 
 	// Connect client
-	conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, testOriginHeader(wsURL))
 	if dialResp != nil {
 		_ = dialResp.Body.Close()
 	}
@@ -322,7 +330,7 @@ func TestServer_ConcurrentBroadcast(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
 
 	// Connect client
-	conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, testOriginHeader(wsURL))
 	if dialResp != nil {
 		_ = dialResp.Body.Close()
 	}
