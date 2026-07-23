@@ -412,6 +412,18 @@ pub const VIEWER_HTML: &str = r##"<!DOCTYPE html>
     #fps {
       color: #0f0;
     }
+    #kingdom-nav {
+      margin-top: 12px;
+      font-size: 12px;
+      display: flex;
+      gap: 20px;
+    }
+    #kingdom-nav a {
+      color: #888;
+      text-decoration: none;
+      letter-spacing: 0.05em;
+    }
+    #kingdom-nav a:hover { color: #ff5c00; }
   </style>
 </head>
 <body>
@@ -422,6 +434,12 @@ pub const VIEWER_HTML: &str = r##"<!DOCTYPE html>
     frames: <span id="fcount">0</span> |
     fps: <span id="fps">0</span>
   </div>
+  <nav id="kingdom-nav">
+    <a href="http://192.168.69.184:20000">dashboard</a>
+    <a href="http://192.168.69.184:20001">kanban</a>
+    <a href="http://192.168.69.184:20002">wiki</a>
+    <a href="http://192.168.69.184:20103">zhenai</a>
+  </nav>
   <script>
     const canvas = document.getElementById('doom');
     const ctx = canvas.getContext('2d');
