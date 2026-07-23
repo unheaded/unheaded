@@ -12,18 +12,21 @@
 <body>
     <div id="app">
         <!-- Header -->
-        <header class="kingdom-header">
+        <header class="header">
             <div class="header-left">
-                <a href="#" class="kingdom-title-link" id="scrollToTop" title="Scroll to top">
-                    <h1 class="kingdom-title">(u)nheaded</h1>
-                    <span class="header-divider"></span>
-                    <span class="board-title">kanban</span>
-                </a>
-                <span class="header-divider"></span>
-                <nav class="header-nav">
-                    <a href="http://192.168.69.184:20000">dashboard</a>
-                    <a href="http://192.168.69.184:20002">wiki</a>
-                    <a href="http://192.168.69.184:16666">doom</a>
+                <h1 class="logo" id="scrollToTop" title="Scroll to top" style="cursor:pointer;">
+                    <span class="logo-text">(u)nheaded</span>
+                    <span style="color:#333;margin:0 0.5rem;">|</span>
+                    <span style="color:#888;font-size:0.75rem;letter-spacing:0.1em;">kanban</span>
+                </h1>
+            </div>
+            <div class="header-center">
+                <nav class="nav-tabs" id="nav-tabs">
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:20000">Dashboard</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:3001">Grafana</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:20002">Wiki</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:16666">Doom</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:20103">Zhenai</a>
                 </nav>
             </div>
             <div class="header-right">

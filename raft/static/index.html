@@ -63,6 +63,24 @@
         .logo h1 { font-family: var(--font-heading); color: var(--accent); font-size: 1.5em; letter-spacing: 0.3em; font-weight: 300; }
         .logo .sub { color: var(--text-dim); font-size: 0.7em; letter-spacing: 0.1em; }
         .header-right { display: flex; align-items: center; gap: 16px; }
+        .kingdom-nav { display: flex; align-items: center; gap: 4px; }
+        .kingdom-nav a {
+            font-family: var(--font-mono);
+            font-size: 0.8em;
+            letter-spacing: 0.05em;
+            color: var(--text-dim);
+            text-decoration: none;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+        }
+        .kingdom-nav a:hover {
+            color: var(--accent);
+            background: var(--accent-dim);
+            border-color: var(--accent);
+        }
+        @media (max-width: 720px) { .kingdom-nav { display: none; } }
         .status-dot {
             width: 8px; height: 8px;
             border-radius: 50%;
@@ -1017,6 +1035,12 @@
                 <div class="sub">Unheaded Champion</div>
             </div>
         </div>
+        <nav class="kingdom-nav">
+            <a href="http://192.168.69.184:20000">Dashboard</a>
+            <a href="http://192.168.69.184:20001">Kanban</a>
+            <a href="http://192.168.69.184:20002">Wiki</a>
+            <a href="http://192.168.69.184:16666">Doom</a>
+        </nav>
         <div class="header-right">
             <div class="stats" id="model-info"></div>
             <div class="status-dot" id="status-dot"></div>

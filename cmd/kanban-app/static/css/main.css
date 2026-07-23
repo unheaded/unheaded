@@ -215,23 +215,88 @@ a:hover {
     gap: var(--spacing-lg);
 }
 
-.header-nav {
+/* ── Dashboard-mirrored header + nav tabs ──────────────────────────────────
+   Aliases map the dashboard's variable names onto Kanban's design system so the
+   dashboard header/nav CSS can be reused verbatim. */
+:root {
+    --bg-primary: var(--kingdom-bg-primary);
+    --bg-secondary: var(--kingdom-bg-secondary);
+    --bg-card: var(--kingdom-bg-card);
+    --bg-hover: var(--kingdom-bg-hover);
+    --gold: var(--kingdom-gold);
+    --status-healthy: var(--status-success);
+    --status-unhealthy: var(--status-error);
+    --radius-round: 50%;
+}
+
+.header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: var(--spacing-md) var(--spacing-lg);
+    background: rgba(17, 17, 17, 0.8);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border-color);
+    position: sticky;
+    top: 0;
+    z-index: var(--z-sticky);
+}
+
+.header .header-left,
+.header .header-right {
     display: flex;
     align-items: center;
     gap: var(--spacing-md);
 }
 
-.header-nav a {
+.header .logo {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
     font-family: var(--font-mono);
-    font-size: 1rem;
-    color: var(--text-secondary);
-    text-decoration: none;
-    letter-spacing: 0.05em;
-    transition: color 0.2s ease;
+    font-size: 0.875rem;
+    font-weight: 300;
+    color: var(--text-muted);
+    letter-spacing: 0.3em;
+    text-transform: lowercase;
+    margin: 0;
 }
 
-.header-nav a:hover {
+.nav-tabs {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    background: var(--bg-primary);
+    border-radius: var(--radius-md);
+    border: 1px solid var(--border-color);
+    overflow: hidden;
+}
+
+.nav-tab {
+    padding: var(--spacing-sm) var(--spacing-md);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+    font-family: var(--font-sans);
+    text-decoration: none;
+}
+
+.nav-tab:hover {
     color: var(--text-primary);
+    background: var(--bg-hover);
+}
+
+.nav-tab.active {
+    color: var(--gold);
+    border-bottom-color: var(--gold);
+    background: var(--bg-secondary);
 }
 
 /* ============================================
