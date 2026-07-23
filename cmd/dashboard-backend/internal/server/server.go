@@ -470,8 +470,8 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		configLoader:      cfgLoader,
 		doomState:         &DoomState{},
 		hosts: []KingdomHost{
-			{ID: "west", Addr: "192.168.13.2", Type: "bare-metal", MetricsURL: ""},
-			{ID: "east", Addr: "192.168.13.1", Type: "bare-metal", MetricsURL: "http://192.168.13.1:18000/metrics"},
+			{ID: "west", Addr: "192.168.13.2", Type: "bare-metal", MetricsURL: "http://192.168.13.2:9110/host-summary"},
+			{ID: "east", Addr: "192.168.13.1", Type: "bare-metal", MetricsURL: "http://192.168.13.1:9110/host-summary"},
 		},
 		startedAt:        time.Now(),
 		shutdown:         make(chan struct{}),
@@ -3010,29 +3010,14 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 			// Process counts
 			info.ProcessTotal, info.ProcessZombie = readLocalProcessCounts()
 		} else {
-			// Remote host — try to fetch Prometheus metrics
+			// host-agent — fetch its /host-summary JSON: real bare-metal metrics
+			// (every disk/partition, real process & connection counts, hostname).
 			info.Online = false
 			ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 			body, err := fetchURL(ctx, h.MetricsURL)
 			cancel()
-			if err == nil {
+			if err == nil && json.Unmarshal([]byte(body), &info) == nil {
 				info.Online = true
-				pm := parsePrometheusText(body)
-				if v, ok := pm["go_goroutines"]; ok {
-					info.Goroutines = int(v)
-				}
-				if v, ok := pm["process_start_time_seconds"]; ok {
-					info.UptimeSeconds = float64(time.Now().Unix()) - v
-				}
-				if v, ok := pm["go_memstats_sys_bytes"]; ok {
-					info.MemoryTotal = uint64(v)
-				}
-				if v, ok := pm["go_memstats_alloc_bytes"]; ok {
-					info.MemoryUsed = uint64(v)
-				}
-				if info.MemoryTotal > 0 {
-					info.MemoryPercent = float64(info.MemoryUsed) / float64(info.MemoryTotal) * 100
-				}
 			}
 		}
 
@@ -3221,8 +3206,21 @@ func statfs(path string, stat *syscallStatfs) error {
 }
 
 // readLocalDisks reads disk usage for real filesystems via /proc/mounts + Statfs.
+// diskRoot is the prefix under which the host's real mounts are reachable for
+// statfs. In a container, bind-mount the host root (rslave) at /host/root and
+// set HOST_ROOT=/host/root so every host filesystem (/, /var, /boot, ...) is
+// measurable; empty (native) statfs's the mount paths directly.
+var diskRoot = os.Getenv("HOST_ROOT")
+
+func diskStatfsPath(mount string) string {
+	if diskRoot == "" {
+		return mount
+	}
+	return strings.TrimRight(diskRoot, "/") + mount
+}
+
 func readLocalDisks() []DiskInfo {
-	f, err := os.Open("/proc/mounts")
+	f, err := os.Open(procRoot + "/mounts")
 	if err != nil {
 		return nil
 	}
@@ -3265,15 +3263,16 @@ func readLocalDisks() []DiskInfo {
 		}
 		seen[device] = true
 
-		// Skip single-file bind mounts (docker injects /etc/resolv.conf,
-		// /etc/hosts, and config-file mounts; statfs on them reports the host
-		// filesystem but the mount path is a file, not a drive).
-		if fi, err := os.Stat(mount); err != nil || !fi.IsDir() {
+		// Resolve to a path this process can statfs (host-root prefix inside a
+		// container). Skip single-file bind mounts (mount point is a file, not a
+		// drive — e.g. docker's /etc/resolv.conf).
+		abs := diskStatfsPath(mount)
+		if fi, err := os.Stat(abs); err != nil || !fi.IsDir() {
 			continue
 		}
 
 		var stat syscallStatfs
-		if err := statfs(mount, &stat); err != nil {
+		if err := statfs(abs, &stat); err != nil {
 			continue
 		}
 		total := stat.Blocks * uint64(stat.Bsize)
@@ -3292,11 +3291,15 @@ func readLocalDisks() []DiskInfo {
 			UsePercent: pct,
 		})
 	}
-	// Container roots are overlay (skipped above); if no real drive surfaced,
-	// report the root filesystem so host disk usage still shows a sane label.
+	// If nothing surfaced (e.g. container root is overlay and no host mounts are
+	// visible), report the reachable root filesystem as "/".
 	if len(disks) == 0 {
+		root := "/"
+		if diskRoot != "" {
+			root = diskRoot
+		}
 		var stat syscallStatfs
-		if err := statfs("/", &stat); err == nil && stat.Blocks > 0 {
+		if err := statfs(root, &stat); err == nil && stat.Blocks > 0 {
 			total := stat.Blocks * uint64(stat.Bsize)
 			free := stat.Bavail * uint64(stat.Bsize)
 			used := total - (stat.Bfree * uint64(stat.Bsize))
