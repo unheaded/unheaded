@@ -45,7 +45,7 @@
 
         charts: { maxDataPoints: 60 },
         flow: { maxNodes: 40, maxFlows: 80 },
-        events: { maxItems: 400 }
+        events: { maxItems: 800, rowsPerSec: 12 }
     };
 
     // ======================================================================
@@ -536,7 +536,7 @@
         });
         state.eventStreamTotal += events.length;
         var shown = normalized.filter(function(ev) {
-            return isPacketEvent(ev) ? (++_pktSampleN % 100 === 0) : true;
+            return isPacketEvent(ev) ? (++_pktSampleN % 1000 === 0) : true;
         });
         state.ebpfEvents = shown.concat(state.ebpfEvents).slice(0, CONFIG.events.maxItems);
         if (shown.length && !state.eventStreamPaused && state.activePage === 'events') {
@@ -617,7 +617,7 @@
         var evType = type.replace('ebpf_', '');
         state.eventStreamTotal++; // count every event (keeps total/rate accurate)
         // 1-in-100 sampling of the packet firehose; other types pass through.
-        if (evType === 'packet' && (++_pktSampleN % 100 !== 0)) return;
+        if (evType === 'packet' && (++_pktSampleN % 1000 !== 0)) return;
         var ev = {
             type: evType,
             event_type: evType,
@@ -708,9 +708,9 @@
         { id: 'cpu',      label: 'CPU',        f: function (h) { return (h.cpu_percent || 0) / 100; },    t: function (h) { return Math.round(h.cpu_percent || 0) + '%'; },    c: function (h) { return gaugeColor(h.cpu_percent || 0); } },
         { id: 'mem',      label: 'Memory',     f: function (h) { return (h.memory_percent || 0) / 100; }, t: function (h) { return Math.round(h.memory_percent || 0) + '%'; }, c: function (h) { return gaugeColor(h.memory_percent || 0); } },
         { id: 'swap',     label: 'Swap',       f: function (h) { return (h.swap_percent || 0) / 100; },   t: function (h) { return h.swap_total ? Math.round(h.swap_percent || 0) + '%' : '—'; }, c: function (h) { return h.swap_total ? gaugeColor(h.swap_percent || 0) : '#30363d'; } },
-        { id: 'load1',    label: 'Load 1m',    f: function (h) { return Math.min((h.load_1m || 0) / cores(h), 1); },  t: function (h) { return Math.round((h.load_1m || 0) / cores(h) * 100) + '%'; },  c: function (h) { return gaugeColor((h.load_1m || 0) / cores(h) * 100); } },
-        { id: 'load5',    label: 'Load 5m',    f: function (h) { return Math.min((h.load_5m || 0) / cores(h), 1); },  t: function (h) { return Math.round((h.load_5m || 0) / cores(h) * 100) + '%'; },  c: function (h) { return gaugeColor((h.load_5m || 0) / cores(h) * 100); } },
-        { id: 'load15',   label: 'Load 15m',   f: function (h) { return Math.min((h.load_15m || 0) / cores(h), 1); }, t: function (h) { return Math.round((h.load_15m || 0) / cores(h) * 100) + '%'; }, c: function (h) { return gaugeColor((h.load_15m || 0) / cores(h) * 100); } },
+        { id: 'load1',    label: 'Load 1m',    f: function (h) { return Math.min((h.load_1m || 0) / cores(h), 1); },  t: function (h) { return Math.round(Math.min((h.load_1m || 0) / cores(h) * 100, 100)) + '%'; },  c: function (h) { return gaugeColor((h.load_1m || 0) / cores(h) * 100); } },
+        { id: 'load5',    label: 'Load 5m',    f: function (h) { return Math.min((h.load_5m || 0) / cores(h), 1); },  t: function (h) { return Math.round(Math.min((h.load_5m || 0) / cores(h) * 100, 100)) + '%'; },  c: function (h) { return gaugeColor((h.load_5m || 0) / cores(h) * 100); } },
+        { id: 'load15',   label: 'Load 15m',   f: function (h) { return Math.min((h.load_15m || 0) / cores(h), 1); }, t: function (h) { return Math.round(Math.min((h.load_15m || 0) / cores(h) * 100, 100)) + '%'; }, c: function (h) { return gaugeColor((h.load_15m || 0) / cores(h) * 100); } },
         { id: 'diskroot', label: 'Disk /',     f: function (h) { return rootDiskPct(h) / 100; },          t: function (h) { return Math.round(rootDiskPct(h)) + '%'; },        c: function (h) { return gaugeColor(rootDiskPct(h)); } },
         { id: 'diskbusy', label: 'Disk busy',  f: function (h) { return busiestDisk(h).pct / 100; },      t: function (h) { return Math.round(busiestDisk(h).pct) + '%'; },    c: function (h) { return gaugeColor(busiestDisk(h).pct); } },
         { id: 'procs',    label: 'Processes',  f: function (h) { return Math.min((h.process_total || 0) / 1024, 1); }, t: function (h) { return formatNumber(h.process_total || 0); }, c: function (h) { return gc3(h.process_total || 0, 700, 950); } },
@@ -1321,7 +1321,16 @@
             }
             return true;
         });
-        filtered.forEach(function(ev) {
+        // Readability cap: append at most CONFIG.events.rowsPerSec rows/sec to the
+        // visible feed, no matter the ingest rate (token bucket, small burst
+        // allowance). Every event is still counted in the total/rate upstream.
+        var _now = Date.now();
+        var _rps = CONFIG.events.rowsPerSec || 12;
+        state._feedBudget = Math.min((state._feedBudget || 0) + (_now - (state._feedTs || _now)) / 1000 * _rps, _rps);
+        state._feedTs = _now;
+        var shown = [];
+        for (var _fi = 0; _fi < filtered.length && state._feedBudget >= 1; _fi++) { shown.push(filtered[_fi]); state._feedBudget -= 1; }
+        shown.forEach(function(ev) {
             var type = ev.type || ev.event_type || 'packet';
             var time = ev.timestamp ? new Date(ev.timestamp).toLocaleTimeString() : new Date().toLocaleTimeString();
             var msg = ev.message || ev.summary || JSON.stringify(ev.data || ev).slice(0, 120);
