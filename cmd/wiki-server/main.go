@@ -204,7 +204,10 @@ func (ws *WikiServer) renderPage(slug string) (string, string, error) {
 	if err != nil {
 		return "", "", fmt.Errorf("resolve path: %w", err)
 	}
-	if !strings.HasPrefix(absPath, ws.wikiDir) {
+	// Require absPath to be wikiDir itself or strictly beneath it. A bare
+	// HasPrefix would also match a sibling dir sharing the prefix (e.g. wikiDir
+	// "…/wiki" matching "…/wiki-secrets"); the trailing separator closes that.
+	if absPath != ws.wikiDir && !strings.HasPrefix(absPath, ws.wikiDir+string(os.PathSeparator)) {
 		return "", "", fmt.Errorf("path traversal attempt blocked")
 	}
 

@@ -351,6 +351,21 @@ type TraceBuffer struct {
 	mu     sync.RWMutex
 }
 
+// withSecurityHeaders sets clickjacking / MIME-sniff / referrer protections on
+// every response. Deliberately no Content-Security-Policy: the vanilla-JS SPA
+// uses inline styles and handlers that a strict default-src 'self' would break;
+// CSP is a separate follow-up once those are refactored.
+func withSecurityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-XSS-Protection", "1; mode=block")
+		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
+		next.ServeHTTP(w, r)
+	})
+}
+
 // NewTraceBuffer creates a new trace buffer with the given capacity.
 func NewTraceBuffer(size int) *TraceBuffer {
 	return &TraceBuffer{
@@ -508,6 +523,9 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 			&auth.MultiAuthenticator{Authenticators: buildDashboardAuthenticators(authCfg)},
 		), "/health", "/ready", "/metrics", "/ws")(s.mux)
 	}
+	// Security headers on every response. No CSP: the dashboard SPA relies on
+	// inline styles/handlers that a strict default-src would break.
+	httpHandler = withSecurityHeaders(httpHandler)
 
 	s.httpServer = &http.Server{
 		Addr:           config.ListenAddr,
