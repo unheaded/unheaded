@@ -862,6 +862,17 @@ var DefaultServiceEndpoints = map[string]string{
 	"gateway":      "localhost:21000",
 }
 
+// serviceHealthPaths overrides the default "/health" liveness path for services
+// whose liveness lives elsewhere (Grafana + vor at /api/health, the Doom bridge
+// which only serves "/", Traefik's dashboard at /dashboard). Keys must match the
+// service name used in the endpoint map / overrides file.
+var serviceHealthPaths = map[string]string{
+	"grafana": "/api/health",
+	"vor":     "/api/health",
+	"doom":    "/",
+	"gateway": "/dashboard",
+}
+
 // RegisterKingdomServices registers the standard Kingdom services for monitoring.
 // If overrides is non-nil, entries override the default addresses (format: "host:port").
 func (m *Monitor) RegisterKingdomServices(overrides map[string]string) {
@@ -874,10 +885,14 @@ func (m *Monitor) RegisterKingdomServices(overrides map[string]string) {
 	}
 
 	for name, hostPort := range endpoints {
+		path := "/health"
+		if p, ok := serviceHealthPaths[name]; ok {
+			path = p
+		}
 		target := &ServiceTarget{
 			Name:      name,
-			HealthURL: fmt.Sprintf("http://%s/health", hostPort),
-			ReadyURL:  fmt.Sprintf("http://%s/ready", hostPort),
+			HealthURL: fmt.Sprintf("http://%s%s", hostPort, path),
+			ReadyURL:  fmt.Sprintf("http://%s%s", hostPort, path),
 			Tags:      []string{"kingdom"},
 		}
 		if err := m.RegisterTarget(target); err != nil {

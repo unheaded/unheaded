@@ -8,3 +8,19 @@ monad=monad:19004
 sophia=sophia:19005
 wotan=wotan:18000
 cuirass=cuirass:19006
+
+# Host-native + containerized services, reached via the br-unhe-data gateway
+# (172.28.1.1 — stable, subnet pinned in docker-compose.yml). The dashboard
+# container can't hit host loopback, so vor + llama-server (bound to 127.0.0.1
+# on the host) are fronted by a socat proxy on that same gateway, keeping them
+# off the LAN. Custom liveness paths are in health.go serviceHealthPaths.
+doom=172.28.1.1:16666
+wiki=172.28.1.1:20002
+zhenai=172.28.1.1:20103
+grafana=172.28.1.1:3001
+victoriametrics=172.28.1.1:8428
+kanban=172.28.1.1:20001
+host-agent=172.28.1.1:9110
+llama-server=172.28.1.1:8081
+vor=172.28.1.1:9876
+gateway=172.28.1.1:21000
