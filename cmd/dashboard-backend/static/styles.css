@@ -1207,9 +1207,68 @@ body {
 
 .latency-summary-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-columns: repeat(5, 1fr);
     gap: var(--spacing-md);
 }
+@media (max-width: 900px) { .latency-summary-grid { grid-template-columns: repeat(2, 1fr); } }
+
+/* Latency Overview: head + worst-op hero + KPI tiles + p99 trend legend. */
+.latency-overview-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: var(--spacing-md);
+}
+.panel-freshness { font-size: 0.72rem; color: var(--text-muted, #8b949e); }
+.panel-freshness.stale { color: #ff9800; }
+
+.latency-hero {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-left: 4px solid #4a9eff;
+    background: var(--bg-card);
+    border-radius: var(--radius-md);
+    margin-bottom: var(--spacing-md);
+    min-height: 78px;
+}
+.latency-hero .lat-hero-label {
+    font-size: 0.72rem;
+    color: var(--text-muted, #8b949e);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.latency-hero .lat-hero-value {
+    font-size: 2.2rem;
+    font-weight: 700;
+    font-family: var(--font-mono, monospace);
+    line-height: 1.15;
+}
+.latency-hero .lat-hero-op { font-size: 0.85rem; color: var(--text-secondary, #c9d1d9); font-family: var(--font-mono, monospace); }
+.latency-hero-empty { color: var(--text-muted, #8b949e); }
+
+.lat-kpi {
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    padding: var(--spacing-md);
+}
+.lat-kpi-label {
+    font-size: 0.7rem;
+    color: var(--text-muted, #8b949e);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+}
+.lat-kpi-value { font-size: 1.5rem; font-weight: 600; font-family: var(--font-mono, monospace); }
+
+.latency-legend { display: flex; flex-wrap: wrap; gap: var(--spacing-md); margin-top: var(--spacing-sm); }
+.latency-legend .chip { display: flex; align-items: center; gap: 6px; font-size: 0.72rem; color: var(--text-secondary, #c9d1d9); font-family: var(--font-mono, monospace); }
+.latency-legend .dot { width: 10px; height: 10px; border-radius: 50%; }
+
+.latency-percentiles .badge.n { background: var(--bg-tertiary, #161616); color: var(--text-secondary, #8b949e); border: 1px solid var(--border-color); }
+.latency-percentiles .badge.n.dim { opacity: 0.45; }
 
 .latency-chart-card {
     background: var(--bg-card);

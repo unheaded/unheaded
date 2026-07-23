@@ -81,6 +81,7 @@
         eventStreamTotal: 0,
 
         latencyHistory: [],
+        latencyP99Hist: {},
         metricsHistory: { requests: [], latency: [], timestamps: [] },
         selectedHostData: null,
 
@@ -173,7 +174,7 @@
         if (page === 'latency' && state.latencyData) {
             renderLatencySummary(state.latencyData);
             renderLatencyCharts(state.latencyData);
-            renderLatencyHistory(state.latencyData);
+            renderLatencyP99Trend();
         }
     }
 
@@ -472,10 +473,13 @@
             data.operations = ops;
         }
         state.latencyData = data;
+        state.lastFetch = state.lastFetch || {};
+        state.lastFetch.latency = Date.now();
+        accumulateLatencyHistory(data); // grow the trend even when the tab is hidden
         if (state.activePage === 'latency') {
             renderLatencySummary(data);
             renderLatencyCharts(data);
-            renderLatencyHistory(data);
+            renderLatencyP99Trend();
         }
     }
 
@@ -782,6 +786,16 @@
         return '#00d26a';               // green
     }
 
+    // ── Latency SLO thresholds + colors ────────────────────────────────────
+    // Per-op [warn, crit] p99 in ms; "over SLO" = p99 >= crit.
+    var LAT_SLO = { tcp_connect: [50, 200], tcp_accept: [20, 100], tcp_send: [10, 50], tcp_recv: [10, 50] };
+    function latSLO(op) { return LAT_SLO[op] || [50, 200]; }
+    function latColor(op, ms) { var s = latSLO(op); return ms >= s[1] ? '#ff4757' : ms >= s[0] ? '#ff9800' : ms >= s[0] / 2 ? '#ffd700' : '#00d26a'; }
+    // Generic (op-less) latency health color for global figures.
+    function latencyHealthColor(ms) { return ms >= 200 ? '#ff4757' : ms >= 50 ? '#ff9800' : ms >= 10 ? '#ffd700' : '#00d26a'; }
+    var OP_COLORS = { tcp_connect: '#4a9eff', tcp_accept: '#a78bfa', tcp_send: '#4ade80', tcp_recv: '#fbbf24' };
+    function opColor(n) { return OP_COLORS[n] || '#888888'; }
+
     // ======================================================================
     // Flow Graph — Canvas (real eBPF data from /api/v1/flows)
     // ======================================================================
@@ -1029,37 +1043,52 @@
     // ======================================================================
     // Latency Page
     // ======================================================================
+    function kpiTile(label, value, color) {
+        return '<div class="lat-kpi"><div class="lat-kpi-label">' + label + '</div>' +
+               '<div class="lat-kpi-value"' + (color ? ' style="color:' + color + '"' : '') + '>' + value + '</div></div>';
+    }
+
+    // Latency Overview = a worst-op p99 hero + 5 KPI tiles. Replaces the old
+    // per-op badge grid that just echoed what "Latency by Operation" shows.
     function renderLatencySummary(data) {
+        var heroEl = document.getElementById('latency-hero');
         if (!el.latencySummaryGrid) return;
-        // Handle "not active" response
-        if (data.message && !data.operations) {
-            el.latencySummaryGrid.innerHTML =
-                '<div class="latency-chart-card" style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:var(--spacing-xl)">' +
-                '<p>' + esc(data.message) + '</p></div>';
-            return;
-        }
+        var setHeroMsg = function(msg) {
+            if (heroEl) heroEl.innerHTML = '<div class="latency-hero-empty">' + esc(msg) + '</div>';
+            el.latencySummaryGrid.innerHTML = '';
+        };
+        if (data.message && !data.operations) { setHeroMsg(data.message); return; }
         var ops = data.operations || data;
         if (typeof ops !== 'object') return;
-        var keys = Object.keys(ops);
-        if (keys.length === 0) {
-            el.latencySummaryGrid.innerHTML =
-                '<div class="latency-chart-card" style="grid-column:1/-1;text-align:center;color:var(--text-muted);padding:var(--spacing-xl)">' +
-                '<p>No latency data yet. Waiting for eBPF events...</p></div>';
-            return;
-        }
-        var html = '';
+        var keys = Object.keys(ops).filter(function(k) { return ops[k] && typeof ops[k].p99 === 'number'; });
+        if (keys.length === 0) { setHeroMsg('No latency data yet. Waiting for eBPF events…'); return; }
+
+        var worst = { name: '', p99: -1 }, p99max = 0, sw50 = 0, sn = 0, samples = 0, over = 0;
         keys.forEach(function(name) {
             var op = ops[name];
-            var u = op.unit || 'ms';
-            html += '<div class="latency-chart-card">' +
-                '<h3 class="chart-title">' + esc(name) + '</h3>' +
-                '<div class="latency-percentiles">' +
-                    '<span class="badge p50">P50: ' + (op.p50 || 0).toFixed(2) + u + '</span>' +
-                    '<span class="badge p90">P90: ' + (op.p90 || 0).toFixed(2) + u + '</span>' +
-                    '<span class="badge p99">P99: ' + (op.p99 || 0).toFixed(2) + u + '</span>' +
-                '</div></div>';
+            if (op.p99 > worst.p99) worst = { name: name, p99: op.p99 };
+            if (op.p99 > p99max) p99max = op.p99;
+            sw50 += (op.p50 || 0) * (op.sample_count || 0); sn += (op.sample_count || 0);
+            samples += (op.sample_count || 0);
+            if (op.p99 >= latSLO(name)[1]) over++;
         });
-        el.latencySummaryGrid.innerHTML = html;
+        var gp50 = sn > 0 ? sw50 / sn : 0;
+
+        if (heroEl) {
+            var hc = latColor(worst.name, worst.p99);
+            heroEl.style.borderLeftColor = hc;
+            heroEl.innerHTML =
+                '<div class="lat-hero-main">' +
+                '<div class="lat-hero-label">Worst operation · p99</div>' +
+                '<div class="lat-hero-value" style="color:' + hc + '">' + worst.p99.toFixed(2) + ' ms</div>' +
+                '<div class="lat-hero-op">' + esc(worst.name) + '</div></div>';
+        }
+        el.latencySummaryGrid.innerHTML =
+            kpiTile('Ops over SLO', over + ' / ' + keys.length, over > 0 ? '#ff4757' : '#00d26a') +
+            kpiTile('Global p50', gp50.toFixed(2) + ' ms', '') +
+            kpiTile('Global p99', p99max.toFixed(2) + ' ms', latencyHealthColor(p99max)) +
+            kpiTile('Samples (60s)', formatNumber(samples), '') +
+            kpiTile('Active ops', '' + keys.length, '');
     }
 
     function renderLatencyCharts(data) {
@@ -1069,60 +1098,74 @@
             'tcp_connect': 'latency-chart-connect',
             'tcp_send': 'latency-chart-send',
             'tcp_recv': 'latency-chart-recv',
-            'tcp_accept': 'latency-chart-http'
+            'tcp_accept': 'latency-chart-accept'
         };
         Object.keys(mapping).forEach(function(opName) {
             var canvas = document.getElementById(mapping[opName]);
             if (!canvas) return;
+            var card = canvas.closest ? canvas.closest('.latency-chart-card') : null;
             var op = ops[opName];
-            if (!op) { drawEmpty(canvas, opName); return; }
+            if (!op) { if (card) card.style.borderLeft = ''; drawEmpty(canvas, opName); return; }
+            if (card) card.style.borderLeft = '3px solid ' + latColor(opName, op.p99 || 0);
             drawBarChart(canvas, op);
             var pEl = document.getElementById('percentiles-' + mapping[opName].split('-').pop());
             if (pEl) {
                 var u = op.unit || 'ms';
+                var lowN = (op.sample_count || 0) < 30;
                 pEl.innerHTML =
                     '<span class="badge p50">P50: ' + (op.p50 || 0).toFixed(2) + u + '</span>' +
                     '<span class="badge p90">P90: ' + (op.p90 || 0).toFixed(2) + u + '</span>' +
-                    '<span class="badge p99">P99: ' + (op.p99 || 0).toFixed(2) + u + '</span>';
+                    '<span class="badge p99">P99: ' + (op.p99 || 0).toFixed(2) + u + '</span>' +
+                    '<span class="badge n' + (lowN ? ' dim' : '') + '">n=' + formatNumber(op.sample_count || 0) + '</span>';
             }
         });
     }
 
+    // P50/P90/P99 bars, health-colored by absolute value, with a ms axis and a
+    // dashed mean marker (the backend sends no histogram buckets, so we surface
+    // the percentiles + mean we already have).
     function drawBarChart(canvas, op) {
         var _c = fitCanvas(canvas);
         var ctx = _c.ctx, W = _c.w, H = _c.h;
         ctx.clearRect(0, 0, W, H);
 
-        var buckets = op.histogram || op.buckets;
-        if (buckets && Array.isArray(buckets) && buckets.length > 0) {
-            var maxC = Math.max.apply(null, buckets.map(function(b) { return b.count || 0; })) || 1;
-            var bw = (W - 20) / buckets.length;
-            buckets.forEach(function(b, i) {
-                var bh = ((b.count || 0) / maxC) * (H - 35);
-                ctx.fillStyle = '#4ecdc4';
-                ctx.fillRect(10 + i * bw + 1, H - 25 - bh, bw - 2, bh);
-            });
-            return;
+        var vals = [
+            { label: 'P50', value: op.p50 || 0 },
+            { label: 'P90', value: op.p90 || 0 },
+            { label: 'P99', value: op.p99 || 0 }
+        ];
+        var maxV = Math.max.apply(null, vals.map(function(v) { return v.value; }).concat([op.mean || 0])) || 1;
+        var base = H - 26, top = 22;
+
+        // gridlines + ms axis (left)
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+        ctx.fillStyle = '#6c757d'; ctx.font = '9px monospace'; ctx.textAlign = 'left';
+        for (var g = 0; g <= 2; g++) {
+            var gy = base - g * (base - top) / 2;
+            ctx.beginPath(); ctx.moveTo(32, gy); ctx.lineTo(W - 6, gy); ctx.stroke();
+            ctx.fillText((maxV * g / 2).toFixed(0) + 'ms', 2, gy + 3);
         }
 
-        // Fallback: draw P50/P90/P99 as bars
-        var vals = [
-            { label: 'P50', value: op.p50 || 0, color: '#00d26a' },
-            { label: 'P90', value: op.p90 || 0, color: '#ffd700' },
-            { label: 'P99', value: op.p99 || 0, color: '#ff4757' }
-        ];
-        var maxV = Math.max.apply(null, vals.map(function(v) { return v.value; })) || 1;
-        var bw = W / 7;
+        var bw = (W - 42) / 7;
         vals.forEach(function(v, i) {
-            var bh = (v.value / maxV) * (H - 50);
-            var x = bw + i * bw * 2;
-            ctx.fillStyle = v.color;
-            ctx.fillRect(x, H - 30 - bh, bw, bh);
-            ctx.fillStyle = '#f8f9fa'; ctx.font = '11px monospace'; ctx.textAlign = 'center';
-            ctx.fillText(v.value.toFixed(1), x + bw / 2, H - 34 - bh);
+            var bh = (v.value / maxV) * (base - top);
+            var x = 36 + (i * 2 + 0.5) * bw;
+            ctx.fillStyle = latencyHealthColor(v.value);
+            ctx.fillRect(x, base - bh, bw, bh);
+            ctx.fillStyle = '#f8f9fa'; ctx.font = '10px monospace'; ctx.textAlign = 'center';
+            ctx.fillText(v.value.toFixed(1), x + bw / 2, base - bh - 4);
             ctx.fillStyle = '#adb5bd';
-            ctx.fillText(v.label, x + bw / 2, H - 8);
+            ctx.fillText(v.label, x + bw / 2, base + 12);
         });
+
+        // dashed mean marker
+        if (op.mean) {
+            var my = base - (op.mean / maxV) * (base - top);
+            ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.setLineDash([4, 3]);
+            ctx.beginPath(); ctx.moveTo(32, my); ctx.lineTo(W - 6, my); ctx.stroke(); ctx.setLineDash([]);
+            ctx.fillStyle = '#adb5bd'; ctx.font = '9px monospace'; ctx.textAlign = 'right';
+            ctx.fillText('mean', W - 8, my - 3);
+        }
     }
 
     function drawEmpty(canvas, label) {
@@ -1133,16 +1176,67 @@
         ctx.textAlign = 'center'; ctx.fillText('No data for ' + label, _c.w / 2, _c.h / 2);
     }
 
-    function renderLatencyHistory(data) {
-        if (!el.latencyHistoryCanvas) return;
+    // Accumulate a per-op p99 series (runs every poll, tab open or not).
+    function accumulateLatencyHistory(data) {
         var ops = data.operations || data;
         if (typeof ops !== 'object') return;
-        var avg = 0, cnt = 0;
-        Object.keys(ops).forEach(function(k) { if (ops[k].p50) { avg += ops[k].p50; cnt++; } });
-        if (cnt > 0) avg /= cnt;
-        state.latencyHistory.push(avg);
-        if (state.latencyHistory.length > CONFIG.charts.maxDataPoints) state.latencyHistory.shift();
-        drawSparkline(el.latencyHistoryCanvas, state.latencyHistory, '#ffd700');
+        var cap = CONFIG.charts.maxDataPoints;
+        Object.keys(ops).forEach(function(name) {
+            if (!ops[name] || typeof ops[name].p99 !== 'number') return;
+            if (!state.latencyP99Hist[name]) state.latencyP99Hist[name] = [];
+            var arr = state.latencyP99Hist[name];
+            arr.push(ops[name].p99);
+            if (arr.length > cap) arr.shift();
+        });
+    }
+
+    function renderLatencyP99Trend() {
+        if (!el.latencyHistoryCanvas) return;
+        drawMultiLine(el.latencyHistoryCanvas, state.latencyP99Hist, opColor);
+        var legEl = document.getElementById('latency-p99-legend');
+        if (legEl) {
+            legEl.innerHTML = Object.keys(state.latencyP99Hist).map(function(name) {
+                var arr = state.latencyP99Hist[name];
+                var cur = arr.length ? arr[arr.length - 1] : 0;
+                return '<span class="chip"><span class="dot" style="background:' + opColor(name) + '"></span>' +
+                       esc(name) + ' ' + cur.toFixed(1) + 'ms</span>';
+            }).join('');
+        }
+    }
+
+    // One line per series on a shared y-scale, with a left ms axis.
+    function drawMultiLine(canvas, seriesMap, colorFn) {
+        var _c = fitCanvas(canvas);
+        var ctx = _c.ctx, W = _c.w, H = _c.h, pad = 24;
+        ctx.clearRect(0, 0, W, H);
+        var names = Object.keys(seriesMap).filter(function(n) { return seriesMap[n].length >= 2; });
+        if (names.length === 0) {
+            ctx.fillStyle = '#6c757d'; ctx.font = '12px sans-serif'; ctx.textAlign = 'center';
+            ctx.fillText('Accumulating p99 trend…', W / 2, H / 2); return;
+        }
+        var maxV = 0, maxLen = 0;
+        names.forEach(function(n) {
+            seriesMap[n].forEach(function(v) { if (v > maxV) maxV = v; });
+            if (seriesMap[n].length > maxLen) maxLen = seriesMap[n].length;
+        });
+        maxV = maxV || 1;
+        ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+        ctx.fillStyle = '#6c757d'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
+        for (var g = 0; g <= 3; g++) {
+            var gy = pad + g * (H - 2 * pad) / 3;
+            ctx.beginPath(); ctx.moveTo(42, gy); ctx.lineTo(W - 6, gy); ctx.stroke();
+            ctx.fillText((maxV * (3 - g) / 3).toFixed(0) + 'ms', 38, gy + 3);
+        }
+        names.forEach(function(n) {
+            var arr = seriesMap[n];
+            ctx.beginPath(); ctx.strokeStyle = colorFn(n); ctx.lineWidth = 2;
+            arr.forEach(function(v, i) {
+                var x = 44 + (i / (maxLen - 1)) * (W - 52);
+                var y = H - pad - (v / maxV) * (H - 2 * pad);
+                if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+            });
+            ctx.stroke();
+        });
     }
 
     function drawSparkline(canvas, data, lineColor) {
