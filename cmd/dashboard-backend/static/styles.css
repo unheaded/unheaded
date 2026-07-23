@@ -617,6 +617,16 @@ body {
     gap: var(--spacing-xs);
 }
 
+/* Gauge canvases MUST have a fixed CSS display size. Without it, offsetWidth
+   follows the width/height attributes (the backing store), so fitCanvas's
+   devicePixelRatio scaling feeds back on every render (120 -> 120*dpr ->
+   120*dpr^2 ...) and the canvas balloons each poll. Pinning the CSS size
+   decouples layout from the backing store, exactly like the latency canvases. */
+.gauge-wrapper canvas {
+    width: 120px;
+    height: 120px;
+}
+
 .gauge-label {
     font-size: 0.75rem;
     color: var(--text-secondary);
@@ -1219,6 +1229,16 @@ body {
     gap: var(--spacing-md);
 }
 
+/* Latency canvases: responsive width, fixed display height. The JS renders them
+   at CSS-size x devicePixelRatio (fitCanvas) so they stay sharp instead of
+   upscaling the fixed 500x200 backing store. */
+.latency-chart-card canvas,
+.latency-history-wrapper canvas {
+    width: 100%;
+    height: 200px;
+    display: block;
+}
+
 .latency-percentiles {
     display: flex;
     align-items: center;
@@ -1669,8 +1689,17 @@ body {
     font-size: 0.75rem;
 }
 
-.disk-bar-track {
+/* Center the fixed-width bar in the space between the device name and the
+   percentage, instead of stretching it (flex:1) to a row-dependent length. */
+.disk-bar-slot {
     flex: 1;
+    display: flex;
+    justify-content: center;
+}
+
+.disk-bar-track {
+    flex: none;
+    width: 300px;
     height: 6px;
     background: #1e2746;
     border-radius: 3px;
@@ -1684,12 +1713,26 @@ body {
 }
 
 .disk-mount {
-    min-width: 80px;
+    width: 70px;
+    flex: none;
     color: var(--text-secondary);
 }
 
+/* Fixed width so bars start at the same x on every row (vertical alignment);
+   long device names ellipsize (full name on hover via title attr). */
+.disk-device {
+    width: 240px;
+    flex: none;
+    color: var(--text-secondary);
+    opacity: 0.65;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
 .disk-pct {
-    min-width: 40px;
+    width: 48px;
+    flex: none;
     text-align: right;
 }
 
