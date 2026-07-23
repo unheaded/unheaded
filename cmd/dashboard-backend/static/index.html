@@ -245,9 +245,13 @@
         <!-- ================================================================ -->
         <main class="page-content" id="page-latency">
             <section class="section section-latency-summary">
-                <h2 class="section-title">Latency Overview</h2>
+                <div class="latency-overview-head">
+                    <h2 class="section-title" style="margin-bottom:0;">Latency Overview</h2>
+                    <span class="panel-freshness" id="latency-fresh">--</span>
+                </div>
+                <div class="latency-hero" id="latency-hero"></div>
                 <div class="latency-summary-grid" id="latency-summary-grid">
-                    <!-- Dynamically populated -->
+                    <!-- KPI tiles, dynamically populated -->
                 </div>
             </section>
 
@@ -272,18 +276,19 @@
                     </div>
                     <div class="latency-chart-card">
                         <h3 class="chart-title">tcp_accept</h3>
-                        <canvas id="latency-chart-http" width="500" height="200"></canvas>
-                        <div class="latency-percentiles" id="percentiles-http"></div>
+                        <canvas id="latency-chart-accept" width="500" height="200"></canvas>
+                        <div class="latency-percentiles" id="percentiles-accept"></div>
                     </div>
                 </div>
             </section>
 
             <!-- Latency sparkline history -->
             <section class="section section-latency-history">
-                <h2 class="section-title">Latency Trend (60s)</h2>
+                <h2 class="section-title">P99 by Operation (60s)</h2>
                 <div class="latency-history-wrapper">
                     <canvas id="latency-history-canvas" width="1200" height="200"></canvas>
                 </div>
+                <div class="latency-legend" id="latency-p99-legend"></div>
             </section>
         </main>
 
