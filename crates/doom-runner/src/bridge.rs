@@ -409,6 +409,11 @@ pub const VIEWER_HTML: &str = r##"<!DOCTYPE html>
       font-size: 11px;
       color: #666;
     }
+    #controls {
+      margin-top: 8px;
+      font-size: 11px;
+      color: #888;
+    }
     #fps {
       color: #0f0;
     }
@@ -434,6 +439,7 @@ pub const VIEWER_HTML: &str = r##"<!DOCTYPE html>
     frames: <span id="fcount">0</span> |
     fps: <span id="fps">0</span>
   </div>
+  <div id="controls">Arrows: move / turn &middot; Ctrl: fire &middot; Space: use / open &middot; Shift: run &middot; Alt: strafe &middot; 1-7: weapons</div>
   <nav id="kingdom-nav">
     <a href="http://192.168.69.184:20000">dashboard</a>
     <a href="http://192.168.69.184:20001">kanban</a>
