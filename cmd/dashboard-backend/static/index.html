@@ -96,71 +96,16 @@
             </section>
 
             <!-- eBPF Stats + Gauges -->
-            <div class="overview-row">
-                <section class="section section-ebpf-stats">
-                    <h2 class="section-title">eBPF Program Stats</h2>
-                    <div class="ebpf-stats-grid" id="ebpf-stats-grid">
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Packets Ingested</div>
-                            <div class="ebpf-stat-value" id="stat-packets">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Flows Tracked</div>
-                            <div class="ebpf-stat-value" id="stat-flows">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Latency Samples</div>
-                            <div class="ebpf-stat-value" id="stat-latency-samples">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Parse Errors</div>
-                            <div class="ebpf-stat-value error" id="stat-errors">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Compute Events</div>
-                            <div class="ebpf-stat-value" id="stat-compute">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Anamnesis Events</div>
-                            <div class="ebpf-stat-value" id="stat-anamnesis">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Events/sec</div>
-                            <div class="ebpf-stat-value" id="stat-eps">0</div>
-                        </div>
-                        <div class="ebpf-stat-card">
-                            <div class="ebpf-stat-label">Uptime</div>
-                            <div class="ebpf-stat-value" id="stat-uptime">--</div>
-                        </div>
-                    </div>
-                </section>
-
-                <section class="section section-gauges">
-                    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
-                        <h2 class="section-title" style="margin-bottom:0;">System Resources</h2>
-                        <select id="host-selector" style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:0.25rem 0.5rem;font-family:var(--font-mono);font-size:0.75rem;">
-                            <option value="west">west (local)</option>
-                        </select>
-                    </div>
-                    <div class="gauges-container">
-                        <div class="gauge-wrapper">
-                            <canvas id="cpu-gauge" width="120" height="120"></canvas>
-                            <div class="gauge-label">CPU</div>
-                            <div class="gauge-value" id="cpu-value">--%</div>
-                        </div>
-                        <div class="gauge-wrapper">
-                            <canvas id="memory-gauge" width="120" height="120"></canvas>
-                            <div class="gauge-label">Memory</div>
-                            <div class="gauge-value" id="memory-value">--%</div>
-                        </div>
-                        <div class="gauge-wrapper">
-                            <canvas id="goroutines-gauge" width="120" height="120"></canvas>
-                            <div class="gauge-label">Goroutines</div>
-                            <div class="gauge-value" id="goroutines-value">--</div>
-                        </div>
-                    </div>
-                </section>
-            </div>
+            <!-- System Resources: full-width band, 14 host gauges (2x7), JS-built from GAUGE_DEFS -->
+            <section class="section section-gauges">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.5rem;">
+                    <h2 class="section-title" style="margin-bottom:0;">System Resources</h2>
+                    <select id="host-selector" style="background:#0d1117;color:#c9d1d9;border:1px solid #30363d;border-radius:4px;padding:0.25rem 0.5rem;font-family:var(--font-mono);font-size:0.75rem;">
+                        <option value="west">west (local)</option>
+                    </select>
+                </div>
+                <div class="gauges-container" id="gauges-container"></div>
+            </section>
 
             <!-- System Details (from system-summary metrics) -->
             <section class="section section-system-details" id="section-system-details" style="display:none;">
@@ -203,6 +148,45 @@
                 <div class="services-grid" id="services-grid">
                     <div class="service-card placeholder">
                         <div class="service-skeleton"></div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- eBPF Program Stats — moved below Service Health -->
+            <section class="section section-ebpf-stats">
+                <h2 class="section-title">eBPF Program Stats</h2>
+                <div class="ebpf-stats-grid" id="ebpf-stats-grid">
+                    <div class="ebpf-stat-card">
+                        <div class="ebpf-stat-label">Packets Ingested</div>
+                        <div class="ebpf-stat-value" id="stat-packets">0</div>
+                    </div>
+                    <div class="ebpf-stat-card">
+                        <div class="ebpf-stat-label">Flows Tracked</div>
+                        <div class="ebpf-stat-value" id="stat-flows">0</div>
+                    </div>
+                    <div class="ebpf-stat-card">
+                        <div class="ebpf-stat-label">Latency Samples</div>
+                        <div class="ebpf-stat-value" id="stat-latency-samples">0</div>
+                    </div>
+                    <div class="ebpf-stat-card">
+                        <div class="ebpf-stat-label">Parse Errors</div>
+                        <div class="ebpf-stat-value error" id="stat-errors">0</div>
+                    </div>
+                    <div class="ebpf-stat-card">
+                        <div class="ebpf-stat-label">Compute Events</div>
+                        <div class="ebpf-stat-value" id="stat-compute">0</div>
+                    </div>
+                    <div class="ebpf-stat-card">
+                        <div class="ebpf-stat-label">Anamnesis Events</div>
+                        <div class="ebpf-stat-value" id="stat-anamnesis">0</div>
+                    </div>
+                    <div class="ebpf-stat-card">
+                        <div class="ebpf-stat-label">Events/sec</div>
+                        <div class="ebpf-stat-value" id="stat-eps">0</div>
+                    </div>
+                    <div class="ebpf-stat-card">
+                        <div class="ebpf-stat-label">Uptime</div>
+                        <div class="ebpf-stat-value" id="stat-uptime">--</div>
                     </div>
                 </div>
             </section>
