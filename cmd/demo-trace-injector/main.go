@@ -136,7 +136,11 @@ func main() {
 			tid := newTID()
 			fe := flowEvent{
 				TimestampNs: now,
-				FlowKey:     flowKey{a.ip, b.ip, uint16(32000 + rand.Intn(4000)), b.port, 6},
+				// Deterministic src port per service pair keeps the flow-key
+				// cardinality bounded (<=56 for 8 services) so the dashboard's
+				// flow map stays small instead of growing toward MaxFlows (65536)
+				// and OOMing. Random per-event ports created ~unbounded flows.
+				FlowKey: flowKey{a.ip, b.ip, uint16(32000) + uint16(a.id)*8 + uint16(b.id), b.port, 6},
 				FlowState: flowState{
 					TraceID: tid, StartNs: start, LastSeenNs: now,
 					PacketsIn:  uint64(rand.Intn(4000) + 200),
