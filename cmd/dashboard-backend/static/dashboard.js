@@ -401,7 +401,8 @@
                     var color = pct > 89 ? '#ff4757' : pct > 75 ? '#ff9800' : '#00d26a';
                     html += '<div class="disk-bar-wrap">' +
                         '<span class="disk-mount">' + esc(d.mount) + '</span>' +
-                        '<div class="disk-bar-track"><div class="disk-bar-fill" style="width:' + pct + '%;background:' + color + ';"></div></div>' +
+                        '<span class="disk-device" title="' + esc(d.filesystem || '') + '">' + esc(d.filesystem || '—') + '</span>' +
+                        '<div class="disk-bar-slot"><div class="disk-bar-track"><div class="disk-bar-fill" style="width:' + pct + '%;background:' + color + ';"></div></div></div>' +
                         '<span class="disk-pct">' + pct + '%</span>' +
                         '<span style="color:#8b949e;min-width:70px;">' + formatBytesLong(d.used_bytes || 0) + '/' + formatBytesLong(d.size_bytes || 0) + '</span>' +
                         '</div>';
@@ -426,6 +427,28 @@
         state.flows = flows;
         state.flowSource = data.source || 'unknown';
         var stats = data.stats || {};
+        // The backend exposes cumulative counters (total_packets/total_bytes) but
+        // not rates. Derive Bytes/s and Packets/s from the deltas over real time,
+        // updating only every >=0.75s so the value is stable regardless of how
+        // often this runs (poll + WS). Guarded against counter resets (restart).
+        var nowMs = Date.now();
+        if (typeof stats.total_packets === 'number' && typeof stats.total_bytes === 'number') {
+            var prev = state.prevFlowTotals;
+            if (prev) {
+                var dt = (nowMs - prev.ts) / 1000;
+                if (dt >= 0.75) {
+                    var dp = stats.total_packets - prev.packets;
+                    var db = stats.total_bytes - prev.bytes;
+                    if (dp >= 0) state.flowPktsRate = dp / dt;
+                    if (db >= 0) state.flowBytesRate = db / dt;
+                    state.prevFlowTotals = { ts: nowMs, packets: stats.total_packets, bytes: stats.total_bytes };
+                }
+            } else {
+                state.prevFlowTotals = { ts: nowMs, packets: stats.total_packets, bytes: stats.total_bytes };
+            }
+        }
+        if (state.flowBytesRate != null) stats.bytes_per_sec = state.flowBytesRate;
+        if (state.flowPktsRate != null) stats.packets_per_sec = state.flowPktsRate;
         setText(el.flowGraphCount, flows.length);
         setText(el.activeFlowsCount, flows.length);
         setText(el.flowBytesSec, formatBytes(stats.bytes_per_sec || 0));
@@ -666,10 +689,25 @@
         setText(el.goroutinesValue, state.gauges.goroutines);
     }
 
+    // Render a canvas at its CSS display size x devicePixelRatio so it stays
+    // crisp on hi-DPI and when CSS upscales the backing store. Returns the 2d
+    // context (scaled to CSS pixels) plus the CSS width/height to draw against.
+    function fitCanvas(canvas) {
+        var dpr = window.devicePixelRatio || 1;
+        var w = canvas.offsetWidth || canvas.width;
+        var h = canvas.offsetHeight || canvas.height;
+        var bw = Math.round(w * dpr), bh = Math.round(h * dpr);
+        if (canvas.width !== bw) canvas.width = bw;
+        if (canvas.height !== bh) canvas.height = bh;
+        var ctx = canvas.getContext('2d');
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        return { ctx: ctx, w: w, h: h };
+    }
+
     function drawGauge(canvas, fraction, color) {
         if (!canvas) return;
-        var ctx = canvas.getContext('2d');
-        var w = canvas.width, h = canvas.height;
+        var _c = fitCanvas(canvas);
+        var ctx = _c.ctx, w = _c.w, h = _c.h;
         var cx = w / 2, cy = h / 2, r = Math.min(w, h) / 2 - 10;
         var startA = 0.75 * Math.PI, endA = 2.25 * Math.PI;
         ctx.clearRect(0, 0, w, h);
@@ -993,8 +1031,8 @@
     }
 
     function drawBarChart(canvas, op) {
-        var ctx = canvas.getContext('2d');
-        var W = canvas.width, H = canvas.height;
+        var _c = fitCanvas(canvas);
+        var ctx = _c.ctx, W = _c.w, H = _c.h;
         ctx.clearRect(0, 0, W, H);
 
         var buckets = op.histogram || op.buckets;
@@ -1030,10 +1068,11 @@
     }
 
     function drawEmpty(canvas, label) {
-        var ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        var _c = fitCanvas(canvas);
+        var ctx = _c.ctx;
+        ctx.clearRect(0, 0, _c.w, _c.h);
         ctx.fillStyle = '#6c757d'; ctx.font = '12px -apple-system, sans-serif';
-        ctx.textAlign = 'center'; ctx.fillText('No data for ' + label, canvas.width / 2, canvas.height / 2);
+        ctx.textAlign = 'center'; ctx.fillText('No data for ' + label, _c.w / 2, _c.h / 2);
     }
 
     function renderLatencyHistory(data) {
@@ -1050,8 +1089,8 @@
 
     function drawSparkline(canvas, data, lineColor) {
         if (!canvas || data.length < 2) return;
-        var ctx = canvas.getContext('2d');
-        var W = canvas.width, H = canvas.height, pad = 20;
+        var _c = fitCanvas(canvas);
+        var ctx = _c.ctx, W = _c.w, H = _c.h, pad = 20;
         ctx.clearRect(0, 0, W, H);
         var maxV = Math.max.apply(null, data) || 1;
         var minV = Math.min.apply(null, data);
