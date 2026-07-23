@@ -688,12 +688,16 @@ services:
       WOTAN_ADDR: "wotan:18000"
       WOTAN_GRPC_ADDR: "wotan:18001"
       SERVICES_FILE: "/etc/unheaded/services.txt"
-      HOST_PROC: "/host/proc"   # read the bare-metal host's /proc, not the container's namespaced view
+      HOST_PROC: "/host/proc"   # kept for the (now-fallback) local reader; host metrics come from the host-agent
     volumes:
       - ./config/dashboard/services.txt:/etc/unheaded/services.txt:ro
-      - /proc:/host/proc:ro     # host procfs → real host process & connection counts
-      - /etc/hostname:/host/etc/hostname:ro   # host hostname (UTS-namespaced sysctl can't be read from a container)
-    command: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--ws-allowed-origins", "*"]
+      - /proc:/host/proc:ro
+      - /etc/hostname:/host/etc/hostname:ro
+    # No --ws-allowed-origins: the WS server defaults to a same-origin check
+    # (Origin host == request Host), which works from localhost, the LAN IP, and
+    # any future reverse proxy. A literal "*" here is NOT allow-all — isOriginAllowed
+    # does exact matching, so "*" silently denies every real browser origin.
+    command: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001"]
     ports:
       - "20000:20000"
     networks:
@@ -717,7 +721,7 @@ services:
     deploy:
       resources:
         limits:
-          memory: 256M
+          memory: 768M
           cpus: "0.5"
 
   # --- Kanban App: The Meta Moment (Self-Hosting Proof) ---
