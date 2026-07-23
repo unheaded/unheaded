@@ -2960,6 +2960,7 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 		Type          string  `json:"type"`
 		Online        bool    `json:"online"`
 		CPUPercent    float64 `json:"cpu_percent"`
+		CPUCount      int     `json:"cpu_count"`
 		MemoryTotal   uint64  `json:"memory_total"`
 		MemoryUsed    uint64  `json:"memory_used"`
 		MemoryPercent float64 `json:"memory_percent"`

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -49,6 +50,7 @@ type NetConnections struct {
 // HostSummary mirrors the dashboard's per-host HostInfo JSON.
 type HostSummary struct {
 	CPUPercent    float64        `json:"cpu_percent"`
+	CPUCount      int            `json:"cpu_count"`
 	MemoryTotal   uint64         `json:"memory_total"`
 	MemoryUsed    uint64         `json:"memory_used"`
 	MemoryPercent float64        `json:"memory_percent"`
@@ -298,6 +300,7 @@ func collect(host string) HostSummary {
 	}
 	return HostSummary{
 		CPUPercent:  cpuPercent(),
+		CPUCount:    runtime.NumCPU(),
 		MemoryTotal: mt, MemoryUsed: mu, MemoryPercent: mp,
 		SwapTotal: st, SwapUsed: su, SwapPercent: sp,
 		Load1m: l1, Load5m: l5, Load15m: l15,

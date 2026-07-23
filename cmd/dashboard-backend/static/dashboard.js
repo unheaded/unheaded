@@ -45,7 +45,7 @@
 
         charts: { maxDataPoints: 60 },
         flow: { maxNodes: 40, maxFlows: 80 },
-        events: { maxItems: 200 }
+        events: { maxItems: 400 }
     };
 
     // ======================================================================
@@ -82,7 +82,7 @@
 
         latencyHistory: [],
         metricsHistory: { requests: [], latency: [], timestamps: [] },
-        gauges: { cpu: 0, memory: 0, goroutines: 0 },
+        selectedHostData: null,
 
         animationFrame: null,
         startTime: Date.now()
@@ -116,12 +116,7 @@
         el.statUptime = document.getElementById('stat-uptime');
 
         el.hostSelector = document.getElementById('host-selector');
-        el.cpuGauge = document.getElementById('cpu-gauge');
-        el.memoryGauge = document.getElementById('memory-gauge');
-        el.goroutinesGauge = document.getElementById('goroutines-gauge');
-        el.cpuValue = document.getElementById('cpu-value');
-        el.memoryValue = document.getElementById('memory-value');
-        el.goroutinesValue = document.getElementById('goroutines-value');
+        buildGauges();
 
         el.flowCanvas = document.getElementById('flow-canvas');
         el.flowGraphCount = document.getElementById('flow-graph-count');
@@ -302,14 +297,8 @@
 
     function updateStatsData(data) {
         state.stats = data;
-        // Gauges are now driven by /api/v1/hosts (refreshHosts), not stats.
-        // Direct flat fields from WS messages can still override.
-        if (data.cpu !== undefined) state.gauges.cpu = data.cpu;
-        if (data.memory !== undefined) state.gauges.memory = data.memory;
-        if (data.goroutines !== undefined) state.gauges.goroutines = data.goroutines;
-        if (data.cpu !== undefined || data.memory !== undefined || data.goroutines !== undefined) {
-            updateGauges();
-        }
+        // Gauges are driven entirely by /api/v1/hosts (refreshHosts / the host
+        // selector), not by stats WS messages.
     }
 
     function updateHostsData(data) {
@@ -336,11 +325,7 @@
         for (var i = 0; i < hosts.length; i++) {
             if (hosts[i].id === state.selectedHost) { selected = hosts[i]; break; }
         }
-        if (selected && selected.online) {
-            state.gauges.cpu = selected.cpu_percent || 0;
-            state.gauges.memory = selected.memory_percent || 0;
-            state.gauges.goroutines = selected.goroutines || 0;
-        }
+        state.selectedHostData = (selected && selected.online) ? selected : null;
         updateGauges();
         renderSystemDetails(selected);
     }
@@ -523,6 +508,14 @@
         state.ebpfActive = data.active === true;
     }
 
+    // Packet events are a firehose (they dominate the "All Services" view). We
+    // show only 1 in 100 of them in the feed while still counting every event in
+    // the total/rate. Other, lower-rate event types pass through unsampled.
+    var _pktSampleN = 0;
+    function isPacketEvent(ev) {
+        return ev.type === 'packet' || (ev.topic || '').indexOf('packet') >= 0;
+    }
+
     function updateEBPFEvents(data) {
         var events = data.events || data;
         if (!Array.isArray(events) || events.length === 0) return;
@@ -537,10 +530,13 @@
                 summary: ev.message || ev.summary || JSON.stringify(ev).slice(0, 120)
             };
         });
-        state.ebpfEvents = normalized.concat(state.ebpfEvents).slice(0, CONFIG.events.maxItems);
         state.eventStreamTotal += events.length;
-        if (!state.eventStreamPaused && state.activePage === 'events') {
-            appendEventStreamItems(normalized);
+        var shown = normalized.filter(function(ev) {
+            return isPacketEvent(ev) ? (++_pktSampleN % 100 === 0) : true;
+        });
+        state.ebpfEvents = shown.concat(state.ebpfEvents).slice(0, CONFIG.events.maxItems);
+        if (shown.length && !state.eventStreamPaused && state.activePage === 'events') {
+            appendEventStreamItems(shown);
         }
     }
 
@@ -615,6 +611,9 @@
     function addEBPFEvent(type, data) {
         // eBPF events from WS — add to event stream and update counters
         var evType = type.replace('ebpf_', '');
+        state.eventStreamTotal++; // count every event (keeps total/rate accurate)
+        // 1-in-100 sampling of the packet firehose; other types pass through.
+        if (evType === 'packet' && (++_pktSampleN % 100 !== 0)) return;
         var ev = {
             type: evType,
             event_type: evType,
@@ -625,7 +624,6 @@
         };
         state.ebpfEvents.unshift(ev);
         if (state.ebpfEvents.length > CONFIG.events.maxItems) state.ebpfEvents.pop();
-        state.eventStreamTotal++;
         if (!state.eventStreamPaused && state.activePage === 'events') {
             appendEventStreamItems([ev]);
         }
@@ -679,14 +677,72 @@
     // ======================================================================
     // Overview — Gauges
     // ======================================================================
+    // ── System Resources: 14 host gauges (2 x 7), data-driven ──────────────
+    // Each def: f(host)->fraction[0,1], t(host)->value text, c(host)->color.
+    // drawGauge is unchanged: bounded metrics (%) are true rings; counts/load
+    // are normalized against soft caps and colored by absolute thresholds.
+    function gc3(v, amber, red) { return v > red ? '#ff4757' : v > amber ? '#ff9800' : '#00d26a'; }
+    function nconn(h, k) { return (h.net_connections || {})[k] || 0; }
+    function busiestDisk(h) {
+        var m = 0, name = '';
+        (h.disks || []).forEach(function (d) { if ((d.use_percent || 0) > m) { m = d.use_percent; name = d.mount; } });
+        return { pct: m, mount: name };
+    }
+    function rootDiskPct(h) {
+        var r = (h.disks || []).filter(function (d) { return d.mount === '/'; })[0];
+        return r ? (r.use_percent || 0) : 0;
+    }
+    function cores(h) { return h.cpu_count && h.cpu_count > 0 ? h.cpu_count : 1; }
+    function loadC(h, v) { var r = v / cores(h); return r > 1 ? '#ff4757' : r > 0.7 ? '#ff9800' : '#00d26a'; }
+    function upShort(s) {
+        s = s || 0;
+        if (s >= 86400) return Math.floor(s / 86400) + 'd';
+        if (s >= 3600) return Math.floor(s / 3600) + 'h';
+        return Math.floor(s / 60) + 'm';
+    }
+    var GAUGE_DEFS = [
+        { id: 'cpu',      label: 'CPU',        f: function (h) { return (h.cpu_percent || 0) / 100; },    t: function (h) { return Math.round(h.cpu_percent || 0) + '%'; },    c: function (h) { return gaugeColor(h.cpu_percent || 0); } },
+        { id: 'mem',      label: 'Memory',     f: function (h) { return (h.memory_percent || 0) / 100; }, t: function (h) { return Math.round(h.memory_percent || 0) + '%'; }, c: function (h) { return gaugeColor(h.memory_percent || 0); } },
+        { id: 'swap',     label: 'Swap',       f: function (h) { return (h.swap_percent || 0) / 100; },   t: function (h) { return h.swap_total ? Math.round(h.swap_percent || 0) + '%' : '—'; }, c: function (h) { return h.swap_total ? gaugeColor(h.swap_percent || 0) : '#30363d'; } },
+        { id: 'load1',    label: 'Load 1m',    f: function (h) { return Math.min((h.load_1m || 0) / cores(h), 1); },  t: function (h) { return (h.load_1m || 0).toFixed(2); },  c: function (h) { return loadC(h, h.load_1m || 0); } },
+        { id: 'load5',    label: 'Load 5m',    f: function (h) { return Math.min((h.load_5m || 0) / cores(h), 1); },  t: function (h) { return (h.load_5m || 0).toFixed(2); },  c: function (h) { return loadC(h, h.load_5m || 0); } },
+        { id: 'load15',   label: 'Load 15m',   f: function (h) { return Math.min((h.load_15m || 0) / cores(h), 1); }, t: function (h) { return (h.load_15m || 0).toFixed(2); }, c: function (h) { return loadC(h, h.load_15m || 0); } },
+        { id: 'diskroot', label: 'Disk /',     f: function (h) { return rootDiskPct(h) / 100; },          t: function (h) { return Math.round(rootDiskPct(h)) + '%'; },        c: function (h) { return gc3(rootDiskPct(h), 75, 89); } },
+        { id: 'diskbusy', label: 'Disk busy',  f: function (h) { return busiestDisk(h).pct / 100; },      t: function (h) { return Math.round(busiestDisk(h).pct) + '%'; },    c: function (h) { return gc3(busiestDisk(h).pct, 75, 89); } },
+        { id: 'procs',    label: 'Processes',  f: function (h) { return Math.min((h.process_total || 0) / 1024, 1); }, t: function (h) { return formatNumber(h.process_total || 0); }, c: function (h) { return gc3(h.process_total || 0, 700, 950); } },
+        { id: 'zombie',   label: 'Zombies',    f: function (h) { return Math.min((h.process_zombie || 0) / 16, 1); }, t: function (h) { return '' + (h.process_zombie || 0); }, c: function (h) { return (h.process_zombie || 0) > 0 ? '#ff4757' : '#00d26a'; } },
+        { id: 'estab',    label: 'Est Conn',   f: function (h) { return Math.min(nconn(h, 'established') / 1000, 1); }, t: function (h) { return formatNumber(nconn(h, 'established')); }, c: function () { return '#4a9eff'; } },
+        { id: 'timew',    label: 'TIME_WAIT',  f: function (h) { return Math.min(nconn(h, 'time_wait') / 2000, 1); },  t: function (h) { return formatNumber(nconn(h, 'time_wait')); },  c: function (h) { return gc3(nconn(h, 'time_wait'), 1500, 1900); } },
+        { id: 'closew',   label: 'CLOSE_WAIT', f: function (h) { return Math.min(nconn(h, 'close_wait') / 200, 1); },  t: function (h) { return formatNumber(nconn(h, 'close_wait')); },  c: function (h) { return gc3(nconn(h, 'close_wait'), 10, 50); } },
+        { id: 'uptime',   label: 'Uptime',     f: function (h) { return Math.min((h.uptime_seconds || 0) / (30 * 86400), 1); }, t: function (h) { return upShort(h.uptime_seconds); }, c: function () { return '#4a9eff'; } }
+    ];
+
+    function buildGauges() {
+        var c = document.getElementById('gauges-container');
+        if (!c) return;
+        c.innerHTML = '';
+        GAUGE_DEFS.forEach(function (g) {
+            var w = document.createElement('div');
+            w.className = 'gauge-wrapper';
+            w.innerHTML = '<canvas id="gauge-' + g.id + '" width="120" height="120"></canvas>' +
+                '<div class="gauge-label">' + g.label + '</div>' +
+                '<div class="gauge-value" id="gval-' + g.id + '">--</div>';
+            c.appendChild(w);
+            g._c = w.querySelector('canvas');
+            g._v = w.querySelector('.gauge-value');
+        });
+    }
+
     function updateGauges() {
-        drawGauge(el.cpuGauge, state.gauges.cpu / 100, gaugeColor(state.gauges.cpu));
-        setText(el.cpuValue, state.gauges.cpu.toFixed(0) + '%');
-        drawGauge(el.memoryGauge, state.gauges.memory / 100, gaugeColor(state.gauges.memory));
-        setText(el.memoryValue, state.gauges.memory.toFixed(0) + '%');
-        var gNorm = Math.min(state.gauges.goroutines / 500, 1);
-        drawGauge(el.goroutinesGauge, gNorm, '#ffd700');
-        setText(el.goroutinesValue, state.gauges.goroutines);
+        var h = state.selectedHostData;
+        GAUGE_DEFS.forEach(function (g) {
+            if (!g._c) return;
+            if (!h) { drawGauge(g._c, 0, '#30363d'); setText(g._v, '--'); return; }
+            var frac = g.f(h);
+            frac = Math.max(0, Math.min(isFinite(frac) ? frac : 0, 1));
+            drawGauge(g._c, frac, g.c(h));
+            setText(g._v, g.t(h));
+        });
     }
 
     // Render a canvas at its CSS display size x devicePixelRatio so it stays
