@@ -345,7 +345,9 @@
         if (host.addr) hostLines += '\n' + host.addr;
         setText(el.sysHostInfo, hostLines);
 
-        // Load average
+        // Load average — header carries the host's core count (load is per-core).
+        var lh = document.getElementById('sys-load-header');
+        if (lh) lh.textContent = 'Load Average (' + (host.cpu_count || '?') + ' cores)';
         var l1 = (host.load_1m || 0).toFixed(2);
         var l5 = (host.load_5m || 0).toFixed(2);
         var l15 = (host.load_15m || 0).toFixed(2);
@@ -697,6 +699,14 @@
         return r ? (r.use_percent || 0) : 0;
     }
     function cores(h) { return h.cpu_count && h.cpu_count > 0 ? h.cpu_count : 1; }
+    // Aggregate disk usage across all of a host's mounts.
+    function diskAgg(h) { var u = 0, t = 0; (h.disks || []).forEach(function (d) { u += d.used_bytes || 0; t += d.size_bytes || 0; }); return { used: u, total: t }; }
+    // Healthy / total across the kingdom services (global, not host-scoped).
+    function svcCounts() {
+        var s = state.services, v = [];
+        if (Array.isArray(s)) v = s; else if (s && typeof s === 'object') v = Object.keys(s).map(function (k) { return s[k]; });
+        return { up: v.filter(function (x) { return x && x.status === 'healthy'; }).length, total: v.length };
+    }
     function loadC(h, v) { var r = v / cores(h); return r > 1 ? '#ff4757' : r > 0.7 ? '#ff9800' : '#00d26a'; }
     function upShort(s) {
         s = s || 0;
@@ -708,9 +718,9 @@
         { id: 'cpu',      label: 'CPU',        f: function (h) { return (h.cpu_percent || 0) / 100; },    t: function (h) { return Math.round(h.cpu_percent || 0) + '%'; },    c: function (h) { return gaugeColor(h.cpu_percent || 0); } },
         { id: 'mem',      label: 'Memory',     f: function (h) { return (h.memory_percent || 0) / 100; }, t: function (h) { return Math.round(h.memory_percent || 0) + '%'; }, c: function (h) { return gaugeColor(h.memory_percent || 0); } },
         { id: 'swap',     label: 'Swap',       f: function (h) { return (h.swap_percent || 0) / 100; },   t: function (h) { return h.swap_total ? Math.round(h.swap_percent || 0) + '%' : '—'; }, c: function (h) { return h.swap_total ? gaugeColor(h.swap_percent || 0) : '#30363d'; } },
-        { id: 'load1',    label: 'Load 1m',    f: function (h) { return Math.min((h.load_1m || 0) / cores(h), 1); },  t: function (h) { return Math.round(Math.min((h.load_1m || 0) / cores(h) * 100, 100)) + '%'; },  c: function (h) { return gaugeColor((h.load_1m || 0) / cores(h) * 100); } },
-        { id: 'load5',    label: 'Load 5m',    f: function (h) { return Math.min((h.load_5m || 0) / cores(h), 1); },  t: function (h) { return Math.round(Math.min((h.load_5m || 0) / cores(h) * 100, 100)) + '%'; },  c: function (h) { return gaugeColor((h.load_5m || 0) / cores(h) * 100); } },
-        { id: 'load15',   label: 'Load 15m',   f: function (h) { return Math.min((h.load_15m || 0) / cores(h), 1); }, t: function (h) { return Math.round(Math.min((h.load_15m || 0) / cores(h) * 100, 100)) + '%'; }, c: function (h) { return gaugeColor((h.load_15m || 0) / cores(h) * 100); } },
+        { id: 'flows',    label: 'Active Flows', f: function () { return Math.min((state.flows || []).length / 200, 1); }, t: function () { return formatNumber((state.flows || []).length); }, c: function () { return '#4a9eff'; } },
+        { id: 'services', label: 'Services Up',   f: function () { var v = svcCounts(); return v.total ? v.up / v.total : 0; }, t: function () { var v = svcCounts(); return v.up + '/' + v.total; }, c: function () { var v = svcCounts(); return v.total === 0 ? '#30363d' : v.up === v.total ? '#00d26a' : (v.up / v.total) >= 0.75 ? '#ffd700' : '#ff4757'; } },
+        { id: 'storage',  label: 'Storage',       f: function (h) { var t = diskAgg(h); return t.total ? t.used / t.total : 0; }, t: function (h) { var t = diskAgg(h); return t.total ? Math.round(t.used / t.total * 100) + '%' : '--'; }, c: function (h) { var t = diskAgg(h); return gaugeColor(t.total ? t.used / t.total * 100 : 0); } },
         { id: 'diskroot', label: 'Disk /',     f: function (h) { return rootDiskPct(h) / 100; },          t: function (h) { return Math.round(rootDiskPct(h)) + '%'; },        c: function (h) { return gaugeColor(rootDiskPct(h)); } },
         { id: 'diskbusy', label: 'Disk busy',  f: function (h) { return busiestDisk(h).pct / 100; },      t: function (h) { return Math.round(busiestDisk(h).pct) + '%'; },    c: function (h) { return gaugeColor(busiestDisk(h).pct); } },
         { id: 'procs',    label: 'Processes',  f: function (h) { return Math.min((h.process_total || 0) / 1024, 1); }, t: function (h) { return formatNumber(h.process_total || 0); }, c: function (h) { return gc3(h.process_total || 0, 700, 950); } },
