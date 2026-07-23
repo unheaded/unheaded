@@ -704,11 +704,11 @@
         { id: 'cpu',      label: 'CPU',        f: function (h) { return (h.cpu_percent || 0) / 100; },    t: function (h) { return Math.round(h.cpu_percent || 0) + '%'; },    c: function (h) { return gaugeColor(h.cpu_percent || 0); } },
         { id: 'mem',      label: 'Memory',     f: function (h) { return (h.memory_percent || 0) / 100; }, t: function (h) { return Math.round(h.memory_percent || 0) + '%'; }, c: function (h) { return gaugeColor(h.memory_percent || 0); } },
         { id: 'swap',     label: 'Swap',       f: function (h) { return (h.swap_percent || 0) / 100; },   t: function (h) { return h.swap_total ? Math.round(h.swap_percent || 0) + '%' : '—'; }, c: function (h) { return h.swap_total ? gaugeColor(h.swap_percent || 0) : '#30363d'; } },
-        { id: 'load1',    label: 'Load 1m',    f: function (h) { return Math.min((h.load_1m || 0) / cores(h), 1); },  t: function (h) { return (h.load_1m || 0).toFixed(2); },  c: function (h) { return loadC(h, h.load_1m || 0); } },
-        { id: 'load5',    label: 'Load 5m',    f: function (h) { return Math.min((h.load_5m || 0) / cores(h), 1); },  t: function (h) { return (h.load_5m || 0).toFixed(2); },  c: function (h) { return loadC(h, h.load_5m || 0); } },
-        { id: 'load15',   label: 'Load 15m',   f: function (h) { return Math.min((h.load_15m || 0) / cores(h), 1); }, t: function (h) { return (h.load_15m || 0).toFixed(2); }, c: function (h) { return loadC(h, h.load_15m || 0); } },
-        { id: 'diskroot', label: 'Disk /',     f: function (h) { return rootDiskPct(h) / 100; },          t: function (h) { return Math.round(rootDiskPct(h)) + '%'; },        c: function (h) { return gc3(rootDiskPct(h), 75, 89); } },
-        { id: 'diskbusy', label: 'Disk busy',  f: function (h) { return busiestDisk(h).pct / 100; },      t: function (h) { return Math.round(busiestDisk(h).pct) + '%'; },    c: function (h) { return gc3(busiestDisk(h).pct, 75, 89); } },
+        { id: 'load1',    label: 'Load 1m',    f: function (h) { return Math.min((h.load_1m || 0) / cores(h), 1); },  t: function (h) { return Math.round((h.load_1m || 0) / cores(h) * 100) + '%'; },  c: function (h) { return gaugeColor((h.load_1m || 0) / cores(h) * 100); } },
+        { id: 'load5',    label: 'Load 5m',    f: function (h) { return Math.min((h.load_5m || 0) / cores(h), 1); },  t: function (h) { return Math.round((h.load_5m || 0) / cores(h) * 100) + '%'; },  c: function (h) { return gaugeColor((h.load_5m || 0) / cores(h) * 100); } },
+        { id: 'load15',   label: 'Load 15m',   f: function (h) { return Math.min((h.load_15m || 0) / cores(h), 1); }, t: function (h) { return Math.round((h.load_15m || 0) / cores(h) * 100) + '%'; }, c: function (h) { return gaugeColor((h.load_15m || 0) / cores(h) * 100); } },
+        { id: 'diskroot', label: 'Disk /',     f: function (h) { return rootDiskPct(h) / 100; },          t: function (h) { return Math.round(rootDiskPct(h)) + '%'; },        c: function (h) { return gaugeColor(rootDiskPct(h)); } },
+        { id: 'diskbusy', label: 'Disk busy',  f: function (h) { return busiestDisk(h).pct / 100; },      t: function (h) { return Math.round(busiestDisk(h).pct) + '%'; },    c: function (h) { return gaugeColor(busiestDisk(h).pct); } },
         { id: 'procs',    label: 'Processes',  f: function (h) { return Math.min((h.process_total || 0) / 1024, 1); }, t: function (h) { return formatNumber(h.process_total || 0); }, c: function (h) { return gc3(h.process_total || 0, 700, 950); } },
         { id: 'zombie',   label: 'Zombies',    f: function (h) { return Math.min((h.process_zombie || 0) / 16, 1); }, t: function (h) { return '' + (h.process_zombie || 0); }, c: function (h) { return (h.process_zombie || 0) > 0 ? '#ff4757' : '#00d26a'; } },
         { id: 'estab',    label: 'Est Conn',   f: function (h) { return Math.min(nconn(h, 'established') / 1000, 1); }, t: function (h) { return formatNumber(nconn(h, 'established')); }, c: function () { return '#4a9eff'; } },
@@ -774,10 +774,12 @@
         ctx.strokeStyle = color; ctx.lineWidth = 8; ctx.lineCap = 'round'; ctx.stroke();
     }
 
+    // Percentage-gauge color scale: 0-25 green, 26-50 yellow, 51-75 orange, 76-100 red.
     function gaugeColor(pct) {
-        if (pct > 80) return '#ff4757';
-        if (pct > 60) return '#ff9800';
-        return '#00d26a';
+        if (pct > 75) return '#ff4757'; // red
+        if (pct > 50) return '#ff9800'; // orange
+        if (pct > 25) return '#ffd700'; // yellow
+        return '#00d26a';               // green
     }
 
     // ======================================================================
