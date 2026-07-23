@@ -158,7 +158,8 @@ func (ws *WikiServer) listPages() []NavItem {
 		}
 		name := strings.TrimSuffix(entry.Name(), ".md")
 		if name == "README" {
-			items = append(items, NavItem{Slug: "", Title: "Home"})
+			// README is the wiki homepage (/wiki/), reached via the pinned "Top"
+			// link, so it is not repeated as an entry in the article list.
 			continue
 		}
 		title := slugToTitle(name)
@@ -735,7 +736,7 @@ const pageTemplate = `<!DOCTYPE html>
             <div class="sidebar-links">
                 <a href="http://192.168.69.184:20000">Dashboard</a> | <a href="http://192.168.69.184:20001">Kanban</a> | <a href="http://192.168.69.184:16666">Doom</a> | <a href="http://192.168.69.184:20103">Zhenai</a>
             </div>
-            <a href="/wiki/" class="sidebar-home">&#8962; Home</a>
+            <a href="/wiki/" class="sidebar-home">&#8962; Top</a>
             <nav>
                 <ul>
                 {{range .NavItems}}
