@@ -15,7 +15,7 @@ Computational completeness proven by running Doom (1993) inside eBPF: MBC byteco
 ### Core
 - **[Architecture](architecture.md)** — 6-layer system, Monad wire format, eBPF execution model
 - **[Protocol Specifications](protocol-specs.md)** — Monad, Wotan, Sophia
-- **[Security](security.md)** — Zero user data access (architectural), Lich campaigns
+- **[Security](security.md)** — NIST 800-207 Zero Trust Architecture (architectural), Lich campaigns
 
 ### Doom-over-IPv6
 - **[Doom over IPv6](doom-over-ipv6.md)** — Technical narrative

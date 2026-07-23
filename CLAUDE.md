@@ -155,6 +155,13 @@ All services publish structured logs to Wotan topic `logs.<service>.<level>`. Lo
 - TLS 1.3 minimum for external traffic
 - Secrets: never in code, environment, or logs
 
+**Terminology (internal vs user-facing):** Keep saying **"zero user data access"**
+here and in code/ADRs — it is precise and load-bearing for how we design. On
+**user-facing** surfaces (the wiki, public architecture docs, adopter messaging),
+frame the same property as **"NIST 800-207 Zero Trust Architecture"** — the
+compliance-framework name adopters recognize. Same guarantee, two audiences. See
+`docs/adr/ADR-083-terminology-conventions.md`.
+
 **Test every PR for:**
 - Does this access user data? → BLOCK
 - Does this weaken isolation? → BLOCK

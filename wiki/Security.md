@@ -2,9 +2,9 @@
 
 ## Principles
 
-### Zero User Data Access
+### NIST 800-207 Zero Trust Architecture
 
-The foundational security principle of the Unheaded Kingdom: **zero user data access** is enforced architecturally, not by policy. User applications ("the head") are isolated by design -- they communicate only through the gateway and never have access to infrastructure internals.
+The foundational security principle of the Unheaded Kingdom: **NIST 800-207 Zero Trust Architecture** is enforced architecturally, not by policy. User applications ("the head") are isolated by design -- they communicate only through the gateway and never have access to infrastructure internals.
 
 **Isolation enforcement:**
 - User containers cannot subscribe to Wotan infrastructure topics
@@ -127,7 +127,7 @@ The Unheaded architecture is designed to satisfy multiple compliance frameworks:
 | ITAR | Planned | Data residency, access controls |
 | GDPR | Planned | Data minimization, right to erasure |
 
-The zero user data access principle provides a strong foundation: if the infrastructure cannot access user data, most data protection requirements are satisfied by architecture.
+The NIST 800-207 Zero Trust Architecture principle provides a strong foundation: if the infrastructure cannot access user data, most data protection requirements are satisfied by architecture.
 
 ---
 
