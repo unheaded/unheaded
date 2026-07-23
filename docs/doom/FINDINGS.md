@@ -665,3 +665,47 @@ This confirmed that all fopen/read/lseek operations correctly route through
 the fd table to the memory-mapped WAD region. The diagnostic was used to
 verify that W_ReadLump and W_CacheLumpNum read correct lump offsets and
 sizes.
+
+## 2026-07-23 — Black screen: stuck before video init (frames all-zero)
+
+**Symptom:** DOOM rendered earlier the same session, then went to a black
+screen and did not recover across restarts (including a user force-kill).
+
+**Definitive diagnosis (do not re-litigate):** the bridge WebSocket delivers
+frames fine — `64768 B` each (`768` palette + `64000` screen indices), the
+exact size `bridge.rs` VIEWER_HTML decodes — but **every byte is zero**:
+palette `0/768` non-zero, screen all pixel-index `0`. So the CPU is executing
+(injector drove `13.7B+` instructions) yet never runs `I_SetPalette` (palette
+would be non-zero) and never writes a pixel. **DOOM is stuck before video
+init**, i.e. the compute-side PC-corruption / NOP-loop class of blocker — not a
+display bug.
+
+**How to reproduce the check (fast):**
+```
+python3 -c "import asyncio,websockets,collections;\
+async def m():\
+ import websockets;\
+ ws=await websockets.connect('ws://localhost:16666/ws',max_size=None);\
+ f=[await ws.recv() for _ in range(5)][-1];\
+ print('pal',sum(1 for b in f[:768] if b),'scr',sum(1 for b in f[768:] if b));\
+asyncio.run(m())"
+```
+Non-zero palette/screen ⇒ rendering. All-zero ⇒ stuck (current state).
+
+**Ruled out this session:**
+- NOT the viewer nav links (HTML-only; frame format verified correct).
+- NOT stale processes/BPF state — killed all `doom-runner`/`doom-go-injector`,
+  `ring teardown`, `rm -rf /sys/fs/bpf/unheaded`, deleted all `monad*` netns,
+  no host XDP. Pipeline reloads clean (ROM/CPU/RAM maps PASS, `IWAD` verified).
+- NOT the WS/render path (frames reach the browser; `client lagged` logged).
+- Render code is byte-identical to when it worked (rebuilds only touched HTML),
+  so this is an execution/runtime landing state, not a code regression in
+  `bridge.rs`.
+
+**Next steps for the debug session (Marshal-overseen):** PC-trace the executor
+to find where it loops instead of reaching `I_InitGraphics`/`I_SetPalette`;
+verify `ebpf/target/bpfel-unknown-none/release/monad-cpu-ebpf` is the
+**non-ascend** DOOM build (an `--features ascend-linux` object overwriting that
+path would change interpreter semantics); confirm `./doom/doom.{mbc,elf,rv2mbc}`
+integrity. Pipeline invocation + injector are in `docs/doom/RUNBOOK.md` and
+`~/tmp/next.md`.
