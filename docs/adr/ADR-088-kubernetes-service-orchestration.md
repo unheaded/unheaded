@@ -1,4 +1,4 @@
-# ADR-088 — Kubernetes as Kingdom Service Orchestration Layer
+# ADR-088 — Kingdom Deployment Substrate Ladder
 
 **Status:** Planned
 **Date:** 2026-07-24
@@ -9,66 +9,145 @@
 
 ## Context
 
-The Kingdom currently runs 15+ services across two bare-metal hosts (WEST +
-EAST): Wotan, Timeguru, Captain, Architect, Micromanager, Monad, Sophia,
-Dashboard, Kanban, unheaded-daemon, Akira, Huginn, VictoriaMetrics, Grafana,
-Zhenai, plus the DOOM pipeline and the UPC stack. This is closer to a real
-small-startup production environment than a lab — the scale and service
-interdependencies are genuine.
+The Kingdom runs 15+ services across two bare-metal hosts: Wotan, Timeguru,
+Captain, Architect, Micromanager, Monad, Sophia, Dashboard, Kanban,
+unheaded-daemon, Akira, Huginn, VictoriaMetrics, Grafana, Zhenai, the DOOM
+pipeline, and the UPC stack. This is production-equivalent scale for a small
+startup — real traffic, real interdependencies, real failure modes.
 
-Unheaded's core technical moat is the custom protocol stack (Wotan, Monad,
-Sophia, the eBPF/UPC execution layer). That does not change. Kubernetes is
-one of the IaC output targets Unheaded already supports (ADR-002) — it is
-an additional deployment substrate, not a replacement for anything.
+Unheaded's core moat is the custom protocol stack (Wotan, Monad, Sophia, the
+eBPF/UPC layer). That is not in scope here. This ADR is about **how services
+are deployed and managed** on the hosts that run them.
 
-The primary motivation for K8s integration here is **learning by doing on a
-real system**. Toy labs and official exam demos have 2-3 services. The Kingdom
-has 15+, real observability, real inter-service traffic, real failure modes.
-That is a meaningfully different learning environment and a better CKA
-preparation surface.
+The deployment surface is intentionally a learning ladder. K8s, Terraform,
+Ansible, NixOS, and traditional package management (.deb/.rpm, apt repo) are
+all industry-standard skills that are explicitly tested in SRE, systems
+engineer, infra engineer, and network engineer hiring. Running all of these
+against 15+ real services — breaking them, fixing them, writing runbooks — is
+a more effective preparation environment than any certification lab or online
+course, because the complexity and failure modes are real.
+
+Current deployment methods:
+- **Docker Compose** (WEST) — full stack, fast iteration
+- **systemd units** (EAST) — bare-metal agents (huginn, etc.)
+- **NixOS** — container definitions exist in `nix/`; not yet exercised live
 
 ---
 
 ## Decision
 
-Add Kubernetes as an **additional, optional** deployment target for Kingdom
-services, running alongside the existing Compose + systemd setup. Neither is
-replaced. The custom Unheaded stack (Wotan bus, Monad wire format, eBPF
-pipeline, UPC) remains the core platform. K8s is one substrate it can deploy
-to — the same relationship it has with Ansible, Terraform, and the other IaC
-backends.
+Treat the Kingdom's deployment surface as a **ladder of substrates**, each
+additive and optional. Nothing is replaced; substrates are added when there
+is a learning goal or operational need that justifies them. The custom protocol
+stack is the constant; the deployment layer is the variable.
 
-The Kingdom's production-scale service count makes it a legitimate K8s learning
-environment. Manifests live in `k8s/` in the repo and are the primary study
-material for CKA certification.
+```
+Substrate ladder (low → high complexity):
+  .deb / .rpm packages   — traditional Linux packaging; apt/yum installs
+  apt/rpm repository     — self-hosted; ADR-085 CI/CD artifact store
+  systemd units          — bare-metal always-on (huginn, victoria) ← current
+  Docker Compose         — full-stack local + WEST ← current
+  NixOS                  — reproducible, declarative; nix/ already scaffolded
+  Ansible                — push-based config management across hosts
+  Terraform              — infrastructure provisioning (cloud or bare-metal)
+  Kubernetes             — container scheduling, DaemonSets, HA Deployments
+    └── GitOps (ArgoCD / Flux) — K8s declarative sync from repo
+```
 
----
-
-## Rationale
-
-**Why K8s alongside, not instead of, the custom solution:**
-
-- The Unheaded protocol (Wotan, Monad, eBPF) IS the moat. K8s doesn't touch
-  that. It's a scheduling and deployment layer on top.
-- Unheaded already outputs K8s manifests as one of its IaC backends. Exercising
-  that backend on the Kingdom itself is the meta moment for this layer.
-- Compose + systemd stay. They're simpler for fast iteration and DOOM/UPC work
-  that doesn't benefit from container scheduling semantics.
-
-**Why the Kingdom is the right lab for CKA prep:**
-
-- 15+ services, real traffic, real inter-service dependencies, real observability
-  data. This is what a 10-person startup's cluster looks like — not a toy.
-- Huginn as a DaemonSet exercises the exact CKA topic of "deploy to every node
-  automatically." The exam asks you to understand it; the Kingdom makes you live it.
-- Breaking a real service (wotan goes down, huginn loses its push target) and
-  recovering it under K8s is a better diagnostic exercise than staged exam scenarios.
-- CKA prep on your own infrastructure also builds the muscle memory for production
-  on-call work — not just exam pass/fail.
+No substrate is "the answer." Each has a place:
+- huginn: systemd (always-on, near-zero overhead) AND K8s DaemonSet (fleet scaling)
+- victoria: Compose (single-host) AND K8s StatefulSet (when HA matters)
+- new hosts: apt install unheaded-huginn OR kubeadm join — both valid
+- OS baseline: Yggdrasil (ADR-69420) built from NixOS or Debian, both supported
 
 ---
 
-## Architecture Target
+## Substrate Details
+
+### .deb / .rpm + Self-Hosted Repository (ADR-085)
+
+The CI/CD artifact pipeline (ADR-085) produces `.deb` packages for every
+Kingdom binary. A self-hosted apt repo on WEST means `apt install unheaded-huginn`
+works on any Debian/Ubuntu host — no manual binary copy, no build tools required.
+
+**What this exercises:** package lifecycle (pre/post-install scripts, conffiles,
+version pinning), apt repo management (reprepro or aptly), dependency declaration,
+upgrade paths. These are bread-and-butter SRE skills tested in every infra interview.
+
+**Mapping to `deploy/systemd/`:** the `.deb` packages install the systemd units
+from `deploy/systemd/` automatically. `apt install unheaded-huginn` = binary +
+unit file + default config in one step.
+
+### NixOS
+
+NixOS container definitions live in `nix/` and cover all core services. The
+value of NixOS at the Kingdom scale: reproductible builds, atomic rollback,
+and a declarative OS config that can be version-controlled exactly like the
+application code.
+
+**What this exercises:** Nix expression language, NixOS module system, flake
+pinning, cross-compilation (relevant for Yggdrasil ARM targets), declarative
+OS config vs. imperative config management. Increasingly asked about in senior
+SRE roles at companies using NixOS (e.g. Replit, Shopify infra teams).
+
+**Current state:** scaffolded, not live. Activating means booting a host from
+a NixOS flake and validating the Kingdom services start correctly from the
+NixOS module definitions.
+
+### Ansible
+
+Ansible is the config management tool most frequently asked about in SRE/infra
+interviews and is the standard tool for Junos network device management (ADR-087).
+The Kingdom has enough hosts and enough config surface to write real roles, not
+toy playbooks.
+
+**Kingdom Ansible roles (planned):**
+```
+ansible/
+  inventory/
+    hosts.yaml            # WEST, EAST, future nodes
+  group_vars/
+    kingdom.yaml          # shared vars (huginn port, victoria URL, etc.)
+  host_vars/
+    west.yaml
+    east.yaml
+  roles/
+    kingdom-base/         # packages, users, sysctl, firewall baseline
+    huginn/               # install binary + unit + config
+    victoria/             # docker + compose for victoria only
+    network-device/       # NTP, DNS, syslog; Junos NETCONF (ADR-087)
+  playbooks/
+    site.yaml             # full desired state
+    check.yaml            # --check --diff only (CI gate)
+```
+
+**What this exercises:** idempotent role design, Ansible facts, inventory
+management, vault for secrets, handlers, templates (Jinja2), CI gate with
+`ansible-lint`. These are pass/fail questions on SRE/infra job applications.
+
+### Terraform
+
+Terraform is the standard for provisioning cloud infrastructure and is tested
+in every cloud-focused SRE and platform engineering role. The Kingdom's bare
+metal is too small to justify Terraform for physical hosts, but it's the right
+tool for:
+
+- Provisioning cloud VMs (if/when the Kingdom gets a cloud node for WireGuard
+  exit or Yggdrasil PXE relay)
+- Declaring DNS records, firewall rules, or object storage as code
+- Exercising the plan/apply/destroy lifecycle on real resources
+
+**Planned:** a `terraform/` directory with modules for cloud provider resources
+that complement the bare-metal core. Not scheduled — deferred until there's a
+cloud resource to manage.
+
+### Kubernetes
+
+See Architecture Target and Rollout Path sections below.
+
+---
+
+## Kubernetes Architecture Target
 
 ```
 Kingdom K8s Cluster (future)
@@ -84,50 +163,25 @@ Kingdom K8s Cluster (future)
       huginn DaemonSet (automatic, zero config)
 ```
 
-**Key design choices:**
-
-- **huginn as DaemonSet** — one pod per node, automatically. No manual unit
-  installs on new hosts. This is the biggest operational win.
-- **Muninn HA as Deployment (replicas: n+1)** — K8s handles pod restarts,
-  rescheduling, and the fixed ClusterIP that huginn pushes to. Replaces the
-  haproxy/nginx proxy planned in ADR-086.
+**Key choices:**
+- **huginn as DaemonSet** — lands automatically on every node. Zero manual install.
+- **Muninn HA as Deployment (replicas: n+1)** — ClusterIP replaces the haproxy/nginx
+  proxy plan from ADR-086.
 - **VictoriaMetrics as StatefulSet** — persistent volume, stable pod identity.
-- **Wotan as Deployment** — stateless enough for replicas once Wotan supports it.
-- **Network policies** — enforce the same deny-by-default isolation we apply
-  everywhere. Pods can only talk to explicitly allowed peers.
-- **RBAC** — one ServiceAccount per service, minimum permissions. Mirrors the
-  CapabilityBoundingSet discipline in systemd units.
-
----
-
-## GitOps Layout
+- **NetworkPolicy** — deny-by-default, same discipline as the systemd units.
+- **RBAC** — one ServiceAccount per service, minimum permissions.
 
 ```
 k8s/
-  namespaces/
-    kingdom.yaml          # namespace: kingdom
+  namespaces/kingdom.yaml
   rbac/
-    service-accounts.yaml
-    roles.yaml
-  daemonsets/
-    huginn.yaml
-  statefulsets/
-    victoria.yaml
-    wotan.yaml            # when Wotan gains HA support
-  deployments/
-    muninn.yaml           # replicas: 2 (n+1)
-    dashboard.yaml
-    kanban.yaml
-    unheaded-daemon.yaml
-  services/
-    victoria-svc.yaml     # ClusterIP — huginn push target
-    muninn-svc.yaml       # ClusterIP — stable endpoint for huginn
-  configmaps/
-    huginn-config.yaml    # huginn.yaml baked in
-  secrets/
-    .gitkeep              # secrets via Sealed Secrets or SOPS, never plaintext
-  helm/
-    kingdom/              # umbrella chart wrapping the above
+  daemonsets/huginn.yaml
+  statefulsets/victoria.yaml
+  deployments/{muninn,dashboard,kanban,unheaded-daemon}.yaml
+  services/{victoria-svc,muninn-svc}.yaml
+  configmaps/huginn-config.yaml
+  secrets/.gitkeep           # Sealed Secrets or SOPS — never plaintext
+  helm/kingdom/              # umbrella Helm chart
 ```
 
 CI gate: `kubectl apply --dry-run=server` on every PR touching `k8s/`.
@@ -136,72 +190,63 @@ CI gate: `kubectl apply --dry-run=server` on every PR touching `k8s/`.
 
 ## Rollout Path
 
-**Phase 1 — k3s single-node (CKA study starts here)**
-- Stand up a single-node k3s cluster (spare machine or VM on WEST).
+**Phase 1 — k3s single-node (CKA study, no impact on WEST/EAST)**
+- Single-node k3s on a spare machine or VM.
 - Write and validate huginn DaemonSet, victoria StatefulSet, Muninn Deployment.
-- Verify DaemonSet auto-scheduling and ClusterIP stability.
-- This is the primary CKA study environment; break things freely.
 - Compose + systemd on WEST/EAST are completely unaffected.
 
-**Phase 2 — Two-node cluster alongside existing setup**
-- Add EAST as a K8s worker node (WEST stays control plane + worker).
-- Run huginn both ways simultaneously: systemd unit (always-on, battle-tested)
-  AND DaemonSet (K8s path). Compare behaviour; validate the K8s path matches.
-- victoria runs in both Compose (primary) and K8s (parallel experiment).
-- Neither is removed until K8s path has proven equal uptime.
+**Phase 2 — Parallel operation on WEST + EAST**
+- EAST joins as K8s worker. Run huginn both ways simultaneously; validate parity.
+- Neither path removed until K8s has proven equal uptime.
 
 **Phase 3 — K8s as preferred path for new services**
-- New services get K8s manifests first, Compose second.
-- Existing services stay on Compose/systemd until they need a reason to move
-  (scaling, HA, new-node rollout). No forced migration.
-- ArgoCD or Flux for GitOps once the manifests are stable.
-- `deploy/systemd/` stays in the repo permanently — it's the bare-metal
-  fallback for hosts that aren't in the cluster.
+- New services get K8s manifests first. Existing services move only when there's
+  a reason (HA, new-node rollout, scaling). No forced migration.
+- ArgoCD or Flux for GitOps sync.
+- `deploy/systemd/` stays permanently as the bare-metal fallback.
 
 ---
 
-## CKA Alignment
+## Certification Alignment
 
-The CKA exam covers exactly what this lab will exercise:
+| Cert / Skill | Kingdom workload that exercises it |
+|---|---|
+| **CKA** — cluster architecture | WEST control plane + EAST worker |
+| **CKA** — DaemonSets | huginn on every node automatically |
+| **CKA** — StatefulSets / PV | VictoriaMetrics with persistent storage |
+| **CKA** — Services / NetworkPolicy | Muninn ClusterIP, deny-by-default policies |
+| **CKA** — RBAC | Per-service ServiceAccounts |
+| **CKA** — Troubleshooting | Breaking and recovering real services |
+| **RHCSA / LPIC** — package mgmt | apt repo, .deb lifecycle, systemd units |
+| **JNCIA / net eng** — Ansible | Junos NETCONF roles, network GitOps (ADR-087) |
+| **Terraform associate** | Cloud node provisioning, DNS-as-code |
+| **NixOS / platform eng** | Yggdrasil golden image, declarative OS config |
 
-| CKA Domain | Kingdom workload that exercises it |
-|------------|-----------------------------------|
-| Cluster architecture | WEST control plane + EAST worker setup |
-| Workloads & scheduling | huginn DaemonSet, Muninn Deployment |
-| Services & networking | ClusterIP for victoria/Muninn, NetworkPolicy |
-| Storage | VictoriaMetrics PersistentVolume |
-| Troubleshooting | Breaking and fixing real services |
-| Security | RBAC, NetworkPolicy, SecurityContext (mirrors systemd hardening) |
-
-The K8s SecurityContext fields map 1:1 to what we already write in systemd:
-`allowPrivilegeEscalation: false` = `NoNewPrivileges`, `readOnlyRootFilesystem`
-= `ProtectSystem=strict`, `capabilities.drop: [ALL]` = `CapabilityBoundingSet=`.
-Existing systemd hardening discipline transfers directly.
+The K8s SecurityContext fields map 1:1 to the systemd hardening already in
+place: `allowPrivilegeEscalation: false` = `NoNewPrivileges`,
+`readOnlyRootFilesystem` = `ProtectSystem=strict`,
+`capabilities.drop: [ALL]` = `CapabilityBoundingSet=`. No new discipline
+required — apply what we already know.
 
 ---
 
 ## Consequences
 
-- The custom Unheaded protocol stack is unchanged. K8s is a deployment surface,
-  not a replacement for Wotan, Monad, or the eBPF layer.
-- Compose + systemd stay in the repo and stay operational. They're the faster
-  iteration path for UPC/DOOM/kernel work where container scheduling is overhead.
-- New hosts can join via `kubeadm join` — huginn DaemonSet lands automatically.
-  Or they get the systemd unit installed manually. Both are valid.
-- Muninn HA simplifies: ClusterIP Service replaces the haproxy/nginx proxy plan
-  from ADR-086 when the K8s path is ready.
-- The Kingdom IaC layer generates K8s manifests; the platform can deploy itself
-  to a K8s substrate it also manages. Meta moment for this layer.
-- CKA study happens on 15+ real services with real interdependencies, not a
-  staged 2-service exam demo. The knowledge transfers to production on-call work.
+- The custom Unheaded protocol stack (Wotan, Monad, eBPF, UPC) is unchanged.
+- Every substrate is additive. Compose + systemd stay operational indefinitely.
+- The Kingdom at 15+ services is a legitimate production-equivalent lab. Skills
+  built here transfer directly to senior SRE / infra / network engineer roles —
+  not as "I did the course" but as "I ran this in production and broke it."
+- The Unheaded IaC layer generates artifacts for all of these substrates. The
+  platform manages itself via its own output — that is the meta moment.
 
 ---
 
 ## Related
 
-- ADR-002 — IaC backend strategy (K8s is one of the interchangeable backends)
-- ADR-084 — Huginn (DaemonSet target)
-- ADR-085 — CI/CD artifact layout (K8s manifests alongside .deb packages)
-- ADR-086 — Muninn HA (Deployment + ClusterIP replaces haproxy/nginx plan)
-- ADR-087 — NOC (Kvasir as a Deployment; network device manifests in k8s/)
-- `docs/adr/ADR-69420` — Yggdrasil golden image (K8s worker node OS baseline)
+- ADR-002 — IaC backend strategy (Ansible, Terraform, K8s as interchangeable outputs)
+- ADR-084 — Huginn (DaemonSet + systemd dual deployment)
+- ADR-085 — CI/CD artifact layout (.deb packages, apt repo)
+- ADR-086 — Muninn HA (Deployment + ClusterIP when K8s path is ready)
+- ADR-087 — NOC (Ansible for Junos, Kvasir as K8s Deployment)
+- ADR-69420 — Yggdrasil golden image (NixOS or Debian baseline)
