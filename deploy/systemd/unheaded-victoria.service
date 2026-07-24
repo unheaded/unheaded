@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# unheaded-victoria — VictoriaMetrics TSDB (metric history for huginn + Kingdom)
+# See: docs/adr/ADR-084-huginn-host-metrics-agent.md
+#
+# ALWAYS-ON: victoria runs at boot. Enable once:
+#   sudo cp deploy/systemd/unheaded-victoria.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now unheaded-victoria
+#
+# Grafana is NOT started by this unit — start manually when needed:
+#   cd ~/tmp/unheaded && sudo docker compose up grafana -d
+
+[Unit]
+Description=Unheaded VictoriaMetrics TSDB
+Documentation=https://docs.victoriametrics.com/
+After=docker.service network-online.target
+Requires=docker.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/govan/tmp/unheaded
+ExecStart=/usr/bin/docker compose up victoria -d
+ExecStop=/usr/bin/docker compose stop victoria
+TimeoutStartSec=60
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
