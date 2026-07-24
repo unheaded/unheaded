@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Install:
+#   sudo cp deploy/systemd/unheaded-kanban.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start unheaded-kanban    # manual only — NOT enabled on boot
+
+[Unit]
+Description=Unheaded kanban — task board (the meta moment)
+Documentation=https://github.com/unheaded/unheaded/tree/main/cmd/kanban-app
+After=network-online.target unheaded-wotan.service
+Wants=network-online.target
+Requires=unheaded-wotan.service
+
+[Service]
+Type=simple
+User=unheaded
+Group=unheaded
+EnvironmentFile=-/etc/unheaded/kanban.env
+ExecStart=/usr/local/bin/kanban-app --port 16668
+WorkingDirectory=/var/lib/unheaded/kanban
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=15s
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+PrivateTmp=yes
+PrivateDevices=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/unheaded/kanban
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged ~@resources ~@reboot ~@module ~@swap
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

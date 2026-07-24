@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Install:
+#   sudo cp deploy/systemd/unheaded-wotan.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start unheaded-wotan    # manual only — NOT enabled on boot
+
+[Unit]
+Description=Unheaded Wotan — message bus and distributed memory
+Documentation=https://github.com/unheaded/unheaded/tree/main/services/wotan
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=unheaded
+Group=unheaded
+EnvironmentFile=-/etc/unheaded/wotan.env
+ExecStart=/usr/local/bin/wotan \
+    --http-addr :18000 \
+    --grpc-addr :18001 \
+    --topic-config /etc/unheaded/wotan-topics.yaml
+WorkingDirectory=/var/lib/unheaded/wotan
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20s
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+PrivateTmp=yes
+PrivateDevices=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/unheaded/wotan
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged ~@resources ~@reboot ~@module ~@swap
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
