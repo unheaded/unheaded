@@ -6,6 +6,7 @@
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
 **ADR-085 added 2026-07-24:** CI/CD artifact layout — canonical `/var/` hierarchy for binaries, data, config, APT repo; 4-phase implementation plan (binary install → .deb → CI pipeline → registry).
 **ADR-086 added 2026-07-24:** Muninn observability fan-out pipeline — routes host metrics, logs, and auth events to VictoriaMetrics, PostgreSQL, and SIEM; SSH/TTY login history to `ops.login_events`; YAML-configured routing rules.
+**ADR-087 added 2026-07-24:** NOC — network device monitoring and config management. Kvasir (IPFIX/NetFlow/sFlow collector wrapping GoFlow2), Muninn syslog extension, Huginn SNMP extension, Ansible+NETCONF/YANG GitOps for Junos. JNCIA lab alignment.
 
 ## Status Summary
 
