@@ -9,11 +9,22 @@
 
 ## Context
 
-The Kingdom runs 15+ services across two bare-metal hosts: Wotan, Timeguru,
-Captain, Architect, Micromanager, Monad, Sophia, Dashboard, Kanban,
-unheaded-daemon, Akira, Huginn, VictoriaMetrics, Grafana, Zhenai, the DOOM
-pipeline, and the UPC stack. This is production-equivalent scale for a small
-startup — real traffic, real interdependencies, real failure modes.
+The Kingdom runs **56 service-level components** across two bare-metal hosts
+(WEST + EAST), organized into 7 tiers:
+
+| Tier | Services | Count |
+|---|---|---|
+| eBPF kernel programs | packet-marker, flow-tracker, latency-probe, firewall-ebpf, shield-ebpf, monad-cpu-ebpf (UPC), af-xdp, qos-ebpf, anomaly-ebpf, canary-ebpf, compliance-ebpf, failover-ebpf, hop-ebpf, maglev-ebpf, nfv-ebpf, version-ebpf, xdp-redirect, yaldabaoth-ebpf, syscall-tracer | 19 |
+| Infrastructure (Docker) | traefik, victoria, postgres (3 DBs: app/ops/config), clickhouse, vector, grafana, coredns | 7 |
+| Application services (Docker) | wotan, timeguru, captain, architect, micromanager, monad, sophia, dashboard-backend, kanban-app, cuirass | 10 |
+| Native bare-metal daemons | huginn, unheaded-daemon, akira, trace-collector-go, protocol-api, wiki-server, heimdall-daemon, gjallarhorn-listener, upc-tty-bridge, demo-trace-injector, routing-health | 11 |
+| DOOM pipeline | doom-runner (Rust/Aya), doom-bridge, doom-loader | 3 |
+| Zhenai AI stack | zhen_app (Flask RAG + web UI), zhen_mcp_server (7 MCP tools), zhen_scheduler, llama.cpp inference, zhend (Rust gossip substrate) | 5 |
+| Network | WireGuard (WEST↔EAST overlay) | 1 |
+| **Total** | | **56** |
+
+This is production-equivalent scale for a small startup — real traffic, real
+interdependencies, real failure modes across every tier from kernel to web UI.
 
 Unheaded's core moat is the custom protocol stack (Wotan, Monad, Sophia, the
 eBPF/UPC layer). That is not in scope here. This ADR is about **how services
