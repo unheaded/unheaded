@@ -697,6 +697,7 @@
       const $ = id => document.getElementById(id);
       let ws = null;
       let ebpfActive = false;
+      let traceSkip = 0;
 
       // ── API fetchers ──────────────────────────────────────────────────
       async function api(path) {
@@ -1253,7 +1254,8 @@
             break;
           }
           case 'trace': {
-            // Append trace event to table (live)
+            // Throttle: only process every 4th event (1/4 current speed)
+            if (traceSkip++ % 8 !== 0) break;
             const tbody = $('traceTableBody');
             if (tbody.children.length > 100) tbody.removeChild(tbody.lastChild);
             const row = document.createElement('tr');
@@ -1323,7 +1325,7 @@
 
         // Periodic refresh (every 5s — real data from trace-collector → Wotan → dashboard-backend)
         setInterval(refreshFlows, 5000);
-        setInterval(refreshEBPFEvents, 3000);
+        setInterval(refreshEBPFEvents, 24000);
         setInterval(refreshEBPFStats, 5000);
         setInterval(refreshLatency, 5000);
         setInterval(refreshStats, 10000);
