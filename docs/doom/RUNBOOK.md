@@ -155,7 +155,7 @@ sudo ./crates/doom-runner/target/release/doom-runner run \
   --doom-mbc demos/doom/doom.mbc \
   --doom-elf  demos/doom/doom.elf \
   --rv2mbc   demos/doom/doom.rv2mbc \
-  --wad      ~/tmp/projects/doom-related/doom1.wad \
+  --wad      /home/govan/tmp/projects/doom-related/doom1.wad \
   --hops 2
 ```
 
