@@ -1,232 +1,401 @@
-# Doom-over-IPv6 -- Operational Runbook
+# DOOM on the UPC — Operational Runbook
 
-**Last updated:** 2026-03-30
-**Prerequisite:** This runbook assumes `scripts/clean-artifacts.sh --nuke` has been run.
-All build artifacts must be rebuilt from source.
+**Last updated:** 2026-07-24
+**Status:** Playable. E1M1 completable, E1M2 loads with texture issues.
+**Working directory for all commands:** `~/tmp/unheaded`
+
+---
+
+## Quick reference
+
+```
+START:    sudo systemctl start unheaded-doom.target
+STOP:     sudo systemctl stop  unheaded-doom.target
+BROWSER:  http://localhost:16666/
+```
+
+If systemd units aren't installed yet, or you need to start manually, follow
+the sections below in order.
+
+---
 
 ## Prerequisites
 
-**Tools required:**
-- `riscv64-unknown-elf-gcc` (RISC-V cross-compiler, RV32I capable)
-- `cargo` + Rust toolchain (for doom-runner and rv32i-to-mbc)
-- `bpftool` (for XDP attachment and map inspection)
-- Linux kernel 5.15+ with BTF support (for tail calls)
-- Firefox or Chrome (for canvas viewer)
+### Tools (should already be present on WEST)
 
-**Source locations (never modified):**
-- id DOOM: `~/tmp/projects/DOOM/linuxdoom-1.10/` (62 .c files, GPL-2.0)
-- WAD: `~/tmp/projects/doom-related/DOOM.WAD` (12,408,292 bytes, retail Steam)
-
-**Working directory for all commands:**
 ```bash
-cd ~/tmp/unheaded
+which riscv64-unknown-elf-gcc   # RISC-V cross-compiler
+which bpftool                   # BPF inspection + attach
+which go                        # Go toolchain
 ```
 
-## Step 1: Build the MBC Translator
+If any are missing: `sudo apt install binutils-riscv64-unknown-elf gcc-riscv64-unknown-elf bpftool`
 
-The translator converts RV32I ELF to MBC bytecode.
+### WAD file
+
+Shareware (free, sufficient for E1):
+```
+~/tmp/projects/doom-related/doom1.wad
+```
+
+Retail (full game):
+```
+~/tmp/projects/doom-related/DOOM.WAD
+```
+
+---
+
+## Part 1 — Build (one-time, or after source changes)
+
+Skip to Part 2 if the binaries below already exist.
+
+### Check what's built
 
 ```bash
+ls -lh crates/doom-runner/target/release/doom-runner          # Rust runtime
+ls -lh ebpf/target/bpfel-unknown-none/release/monad-cpu-ebpf  # eBPF kernel prog
+ls -lh demos/doom/doom.mbc                                     # DOOM MBC bytecode
+ls -lh cmd/doom-go-injector/doom-go-injector                   # Packet injector
+```
+
+### Build 1: DOOM MBC bytecode (needs RISC-V compiler — most likely missing)
+
+This compiles id DOOM C source → RV32I ELF → MBC bytecode. Takes ~30 seconds.
+
+```bash
+# Build the RV32I-to-MBC translator first
 cd crates/monad-mbc && cargo build --release --bin rv32i-to-mbc && cd ../..
-```
 
-**Verify:** `ls crates/monad-mbc/target/release/rv32i-to-mbc` exists.
-
-## Step 2: Build the Doom MBC Binary
-
-Compiles id DOOM source + MBC platform stubs -> RV32I ELF -> MBC bytecode.
-
-```bash
+# Build DOOM
 cd demos/doom && make clean && make && cd ../..
 ```
 
-**Expected output:**
+Expected output ends with:
 ```
-[CC] .../am_map.c (id DOOM)
-... (57 id DOOM files + 4 MBC stubs + 3 support files)
-[Link] doom.elf
 [Translate] RV32I -> MBC
 Instructions: 85454
 ```
 
-**Verify:**
+Verify:
 ```bash
-ls -la demos/doom/doom.elf demos/doom/doom.mbc demos/doom/doom.rv2mbc
-# doom.elf: ~1.4 MiB (RV32I bare-metal ELF)
-# doom.mbc: ~334 KiB (MBC bytecode)
-# doom.rv2mbc: address translation map
+ls -lh demos/doom/doom.mbc   # ~334 KB
+ls -lh demos/doom/doom.elf   # ~1.4 MB
+ls -lh demos/doom/doom.rv2mbc
 ```
 
-**If it fails:** Check that `riscv64-unknown-elf-gcc` is on PATH and that the
-Makefile's `IDDOOM_DIR` points to `~/tmp/projects/DOOM/linuxdoom-1.10`.
+**If `make` fails:** check `IDDOOM_DIR` in `demos/doom/Makefile` points to
+`~/tmp/projects/DOOM/linuxdoom-1.10`.
 
-## Step 3: Build the eBPF Program
+### Build 2: eBPF kernel program (DOOM mode — NOT ascend-linux)
 
 ```bash
-make ebpf-monad-cpu
+cd ebpf && cargo +nightly build -p monad-cpu-ebpf \
+  --target bpfel-unknown-none \
+  -Z build-std=core \
+  --release
+cd ..
 ```
 
-**Verify:**
+**Critical:** do NOT add `--features ascend-linux`. That flag changes the MBC
+interpreter semantics for xv6/Linux. Using it will produce a black screen.
+
+Verify it's the DOOM build:
 ```bash
-ls ebpf/target/bpfel-unknown-none/release/monad-cpu-ebpf
+strings ebpf/target/bpfel-unknown-none/release/monad-cpu-ebpf | grep "ascend"
+# Should print nothing. If it prints "ascend-linux", rebuild without the flag.
 ```
 
-## Step 4: Build doom-runner
+### Build 3: doom-runner (Rust)
 
 ```bash
 cd crates/doom-runner && cargo build --release && cd ../..
 ```
 
-**Verify:**
-```bash
-ls crates/doom-runner/target/release/doom-runner
-```
-
-## Step 5: Validate Memory Layout
-
-Optional but recommended. Prints the full address map and checks for overlaps.
+### Build 4: doom-go-injector (Go)
 
 ```bash
-sudo ./crates/doom-runner/target/release/doom-runner layout
+cd cmd/doom-go-injector && go build -o doom-go-injector . && cd ../..
 ```
 
-**Expected:** "Layout validation: PASS"
+Verify:
+```bash
+ls -lh cmd/doom-go-injector/doom-go-injector
+```
 
-## Step 6: Launch doom-runner
+---
 
-This sets up the network ring, loads XDP + all data into BPF maps, and starts
-the WebSocket bridge.
+## Part 2 — Teardown (always run before starting)
+
+If DOOM was previously running (or killed with `kill PID`), stale network
+namespaces and BPF state will prevent a clean start. Always tear down first.
+
+```bash
+# Kill any leftover processes
+sudo pkill -f doom-go-injector 2>/dev/null || true
+sudo pkill -f doom-runner     2>/dev/null || true
+
+# Tear down the ring (removes monad0/monad1 namespaces + veth pairs + BPF pins)
+sudo ./scripts/doom-ring.sh teardown
+
+# Confirm namespaces are gone
+ip netns list | grep monad  # should print nothing
+```
+
+---
+
+## Part 3 — Startup (manual, step by step)
+
+### Step 1: Start doom-runner
+
+doom-runner creates the ring, loads DOOM into BPF maps, and starts the WebSocket
+bridge on port 16666. Run it in a terminal you can watch.
 
 ```bash
 sudo ./crates/doom-runner/target/release/doom-runner run \
   --doom-mbc demos/doom/doom.mbc \
-  --doom-elf demos/doom/doom.elf \
-  --rv2mbc demos/doom/doom.rv2mbc \
-  --wad ~/tmp/projects/doom-related/DOOM.WAD \
-  --hops 2 &
+  --doom-elf  demos/doom/doom.elf \
+  --rv2mbc   demos/doom/doom.rv2mbc \
+  --wad      ~/tmp/projects/doom-related/doom1.wad \
+  --hops 2
 ```
 
-**Expected output (in order):**
+Wait for this line before continuing:
 ```
-doom-runner: Aya-based full pipeline (no pins, no mismatches)
+bridge: server ready
+```
+
+The full startup takes 5–15 seconds. Expected output sequence:
+```
+doom-runner: Aya-based full pipeline
 memory layout validated
 network ring ready (2 hops)
-loading eBPF program from ...
-eBPF object loaded
-maps created by eBPF program: [...]
-monad_cpu XDP program loaded into kernel
-tail call chain: TAIL_CALL_PROGS[0] = monad_cpu (self), 256 insns/tick (16 rounds x 16 insns)
-... parsing, writing, verifying ...
-ROM_MAP: PASS (...)
-CPU_MAP: PASS (...)
+loading eBPF program...
+ROM_MAP: PASS
+CPU_MAP: PASS
 RAM_MAP: PASS (WAD magic = 'IWAD')
-STATS: PASS (empty)
 doom-runner: pipeline complete in X.Xs
 bridge: listening on http://0.0.0.0:16666
 bridge: server ready
 ```
 
-**Wait ~6 seconds** for the bridge to stabilize before proceeding.
+If you see `WAD magic` fail: check the `--wad` path. Use the full path, not `~`.
 
-## Step 7: Attach XDP to Network Namespaces
+### Step 2: Attach XDP (the critical step — do this every restart)
 
-doom-runner loads the XDP program but namespace attachment requires `nsenter`:
+doom-runner loads the XDP program but deliberately does not attach it
+(main.rs:429-436). Without this step, packets flow through the ring but never
+trigger any eBPF execution — CPU_MAP stays at PC=0 and every frame is black.
+
+Open a second terminal and run:
 
 ```bash
-PROG_ID=$(sudo bpftool prog list | grep monad_cpu | tail -1 | awk '{print $1}' | tr -d ':')
+cd ~/tmp/unheaded
+
+# Get the program ID
+PROG_ID=$(sudo bpftool prog list | grep "name monad_cpu" | tail -1 | awk '{print $1}' | tr -d ':')
+echo "Program ID: $PROG_ID"
+# Should print a number (e.g. "Program ID: 276"). If empty, doom-runner isn't up yet.
+
+# Attach to both ring ingress interfaces
+# (xdpgeneric = software XDP mode, required for veth interfaces)
 sudo ip netns exec monad1 bpftool net attach xdpgeneric id $PROG_ID dev veth01p
 sudo ip netns exec monad0 bpftool net attach xdpgeneric id $PROG_ID dev veth10p
 ```
 
-**Verify:**
+Verify the attach worked:
 ```bash
-sudo ip netns exec monad0 bpftool net list
-# Should show monad_cpu attached to veth10p
 sudo ip netns exec monad1 bpftool net list
-# Should show monad_cpu attached to veth01p
+# Should show: xdp: monad_cpu  id=<N>  on veth01p
+
+sudo ip netns exec monad0 bpftool net list
+# Should show: xdp: monad_cpu  id=<N>  on veth10p
 ```
 
-## Step 8: Start Packet Injection
+### Step 3: Start the packet injector
 
-Packets drive execution. Each packet traverses the ring and triggers MBC execution.
+The injector circulates packets through the ring. Each packet triggers one
+monad_cpu XDP execution = one DOOM instruction tick.
 
 ```bash
-SRC_MAC=$(sudo ip netns exec monad0 ip link show veth01 | awk '/ether/ {print $2}')
-DST_MAC=$(sudo ip netns exec monad1 ip link show veth01p | awk '/ether/ {print $2}')
-sudo nsenter --net=/var/run/netns/monad0 ./bin/doom-go-injector \
-  --src-mac "$SRC_MAC" --dst-mac "$DST_MAC" --iface veth01 \
-  --count 0 --mode sendmmsg --batch 200 &
+SRC_MAC=$(sudo ip netns exec monad0 ip link show veth01  | awk '/ether/{print $2}')
+DST_MAC=$(sudo ip netns exec monad1 ip link show veth01p | awk '/ether/{print $2}')
+
+sudo ip netns exec monad0 \
+  ./cmd/doom-go-injector/doom-go-injector \
+    -iface veth01 \
+    -src-mac $SRC_MAC \
+    -dst-mac $DST_MAC \
+    -mode sendmmsg \
+    -batch 64 \
+    -flow-label 222 \
+    -count 0 \
+  &>/tmp/doom-injector.log &
+
+echo "Injector PID: $!"
 ```
 
-**Note:** `--count 0` means infinite. The injector runs until killed.
+Verify after 3 seconds:
+```bash
+grep "pkt/s" /tmp/doom-injector.log | tail -3
+# Should show packet rate, e.g. "19500 pkt/s"
+```
 
-## Step 9: Play Doom
+### Step 4: Open the browser
 
-Open **http://localhost:16666** in Firefox or Chrome.
+```
+http://localhost:16666/
+```
 
-**Controls:**
+You should see the DOOM title screen within a few seconds.
+
+---
+
+## Verification — is DOOM actually rendering?
+
+If the browser shows black, run this check:
+
+```bash
+python3 -c "
+import asyncio, websockets
+
+async def check():
+    ws = await websockets.connect('ws://localhost:16666/ws', max_size=None)
+    frame = (await ws.recv() for _ in range(5))
+    f = None
+    async for _ in range(5):
+        f = await ws.recv()
+    palette_nonzero = sum(1 for b in f[:768] if b)
+    screen_nonzero  = sum(1 for b in f[768:] if b)
+    print(f'palette nonzero bytes: {palette_nonzero}/768')
+    print(f'screen  nonzero bytes: {screen_nonzero}/64000')
+    if palette_nonzero == 0:
+        print('BLACK SCREEN — XDP not attached or injector not running')
+    else:
+        print('RENDERING OK')
+
+asyncio.run(check())
+"
+```
+
+Alternative quick check via bpftool:
+```bash
+# CPU_MAP key 0xde = register file for core 0 — PC should be advancing
+sudo bpftool map lookup name CPU_MAP key hex de 00 00 00
+# Look for "value: XX XX XX XX" where first 4 bytes (PC) are non-zero and changing
+
+# SCREEN_MAP should have non-zero entries
+MAP_ID=$(sudo bpftool map list | awk '/SCREEN_MAP/{print $1}' | tr -d ':')
+sudo bpftool map dump id $MAP_ID 2>/dev/null | grep -c "value" | xargs echo "SCREEN_MAP entries:"
+```
+
+---
+
+## Systemd startup (preferred once units are installed)
+
+Install once:
+```bash
+sudo cp deploy/systemd/unheaded-doom*.service /etc/systemd/system/
+sudo cp deploy/systemd/unheaded-doom.target   /etc/systemd/system/
+sudo systemctl daemon-reload
+```
+
+Then every session:
+```bash
+# Start full pipeline (ring + runner + XDP attach + injector)
+sudo systemctl start unheaded-doom.target
+
+# Status
+sudo systemctl status unheaded-doom-ring unheaded-doom-runner unheaded-doom-injector
+
+# Stop and clean up
+sudo systemctl stop unheaded-doom.target
+```
+
+The systemd units handle the XDP attach automatically via `doom-xdp-attach.sh`
+as an `ExecStartPost=` step in `unheaded-doom-runner.service`.
+
+---
+
+## Shutdown
+
+### Via systemd (preferred)
+```bash
+sudo systemctl stop unheaded-doom.target
+# This stops injector, runner, and runs ring teardown automatically.
+```
+
+### Manual
+```bash
+sudo pkill -f doom-go-injector
+sudo pkill -f doom-runner
+sudo ./scripts/doom-ring.sh teardown
+
+# Confirm clean
+ip netns list | grep monad   # should be empty
+sudo bpftool prog list | grep monad_cpu  # should be empty
+```
+
+---
+
+## Controls
+
 | Key | Action |
 |-----|--------|
-| Arrow keys / WASD | Move and turn |
-| Ctrl / L | Fire weapon |
-| Space | Use (open doors, switches) |
-| Enter | Menu select / start game |
+| Arrow keys | Move / turn |
+| Ctrl | Fire |
+| Space | Use (doors, switches) |
+| Enter | Select / start game |
 | Escape | Menu / pause |
 | Shift | Run |
-| Alt | Strafe modifier |
-| < , > | Strafe left/right |
-| 1-7 | Switch weapon |
-| F1-F12 | Function keys |
+| 1–7 | Switch weapon |
 
-**What you should see:**
-1. Title screen with DOOM logo and correct colors
-2. Demo playback (Doom plays itself in attract mode)
-3. Press Enter to start New Game
-4. Full gameplay: movement, shooting, doors, HUD
+---
 
 ## Monitoring
 
-### Instruction Count
 ```bash
+# Instruction count (total MBC instructions executed)
 sudo bpftool map lookup name STATS key hex 02 00 00 00
-# Returns total MBC instructions executed
-```
 
-### Current PC (check for corruption)
-```bash
+# Current PC (should be non-zero and advancing)
 sudo bpftool map lookup name CPU_MAP key hex de 00 00 00
-# PC should be in range 0 to ~85454 (ROM size)
+
+# Injector packet rate
+tail -f /tmp/doom-injector.log
+
+# doom-runner log (if run via systemd)
+sudo journalctl -u unheaded-doom-runner -f
 ```
 
-### Screen Pixels (non-zero = rendering active)
-```bash
-sudo bpftool map dump name SCREEN_MAP | grep -cv "value: 00$"
-```
-
-### Bridge FPS
-The browser status bar shows: connected | frames: N | fps: X.X
-
-## Teardown
-
-```bash
-# Kill injector
-sudo pkill doom-go-injector
-
-# Kill doom-runner (Ctrl-C in its terminal, or:)
-sudo pkill doom-runner
-
-# Tear down network ring
-sudo ./crates/doom-runner/target/release/doom-runner ring teardown
-```
+---
 
 ## Troubleshooting
 
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| "WAD magic" verification fails | Wrong WAD path or file | Check `--wad` points to valid DOOM.WAD |
-| Black screen in browser | doom-runner not started, or injector not running | Check steps 6-8 |
-| "disconnected" in browser | Bridge not running | Check doom-runner is alive |
-| PC > 85454 | PC corruption | See FINDINGS.md, check for regression |
-| No key response | KBD_MAP not draining | Check I_StartTic loop runs |
-| "failed to load eBPF object" | Missing eBPF build | Run step 3 |
-| "monad_cpu XDP program not found" | Wrong eBPF object | Check --ebpf-obj path |
+| Symptom | Most likely cause | Fix |
+|---------|-------------------|-----|
+| `doom.mbc: No such file` | doom.mbc not built | Part 1 Build 1 |
+| `doom-go-injector: not found` | injector not built | Part 1 Build 4 |
+| Black screen, palette=0 | XDP not attached | Step 2 (attach) |
+| Black screen, palette non-zero | DOOM stuck pre-video-init (PC corruption) | See FINDINGS.md 2026-07-23 entry |
+| `WAD magic verification fails` | Wrong WAD path | Use full path, check file exists |
+| `monad0 not found` / `ip netns exec: ...` | Stale ring or ring not set up | Run teardown then retry from Step 1 |
+| `name monad_cpu` not found in bpftool | doom-runner not started yet or crashed | Check doom-runner terminal output |
+| Injector starts but `pkt/s` = 0 | XDP not attached (packets flow but no hook) | Step 2 |
+| Browser shows "disconnected" | doom-runner crashed or bridge not up | Check doom-runner is still running |
+| eBPF load fails with verifier error | ascend-linux eBPF object used | Rebuild eBPF without `--features ascend-linux` |
+| Ring setup fails "namespace exists" | Stale namespaces from previous kill | Run teardown first, then setup |
+
+---
+
+## Known issues
+
+1. **XDP attach is manual** — doom-runner loads the XDP program but defers
+   attachment (main.rs:429-436). The `doom-xdp-attach.sh` script and the
+   systemd `ExecStartPost=` handle this automatically. If starting manually,
+   Step 2 is mandatory every restart.
+
+2. **E1M2 texture corruption** — some textures render incorrectly on E1M2.
+   E1M1 is fully playable. See FINDINGS.md.
+
+3. **WAD size limit** — the original 12MB retail WAD has a hardcoded size
+   check in memory.rs. doom1.wad (shareware, ~4MB) works cleanly.

@@ -45,8 +45,9 @@ fi
 attach_iface() {
     local ns=$1 iface=$2
     if ip netns exec "$ns" ip link show "$iface" &>/dev/null; then
-        log "attaching xdp id=$PROG_ID to $ns/$iface"
-        ip netns exec "$ns" bpftool net attach xdp id "$PROG_ID" dev "$iface" 2>/dev/null || {
+        log "attaching xdpgeneric id=$PROG_ID to $ns/$iface"
+        # xdpgeneric = software XDP fallback; required for veth interfaces
+        ip netns exec "$ns" bpftool net attach xdpgeneric id "$PROG_ID" dev "$iface" 2>/dev/null || {
             # Already attached is not an error
             log "  (may already be attached — continuing)"
         }
