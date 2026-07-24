@@ -20,6 +20,10 @@ manually with `sudo docker compose up grafana -d` when you want dashboards.
 |---------------------------------|---------------|------------------------------------|
 | `huginn.service`                | 9110          | Host metrics agent — **boot-enabled** (ADR-084) |
 | `unheaded-victoria.service`     | 8428          | VictoriaMetrics TSDB — **boot-enabled**     |
+| `unheaded-doom.target`          | —             | **DOOM pipeline target** — starts all 3 units below |
+| `unheaded-doom-ring.service`    | —             | monad netns ring setup (one-shot)  |
+| `unheaded-doom-runner.service`  | —             | Aya MBC executor + ROM + XDP attach |
+| `unheaded-doom-injector.service`| —             | packet circulator (monad clock)    |
 | `unheaded-wotan.service`        | 18000, 18001  | Start first — others depend on it  |
 | `unheaded-timeguru.service`     | 19000         |                                    |
 | `unheaded-architect.service`    | 19001         |                                    |
@@ -62,6 +66,33 @@ sudo systemctl start unheaded-wotan
 sudo systemctl start unheaded-timeguru unheaded-architect unheaded-captain \
     unheaded-micromanager unheaded-monad unheaded-sophia
 sudo systemctl start unheaded-dashboard unheaded-kanban unheaded-daemon unheaded-akira
+```
+
+## DOOM on the UPC (full pipeline)
+
+```bash
+# Start everything: ring → runner (+ XDP attach) → injector
+sudo systemctl start unheaded-doom.target
+
+# Stop everything cleanly (ring teardown included)
+sudo systemctl stop unheaded-doom.target
+
+# Status
+sudo systemctl status unheaded-doom-ring unheaded-doom-runner unheaded-doom-injector
+
+# Verify DOOM is rendering (non-zero SCREEN_MAP entries)
+MAP_ID=$(sudo bpftool map list | awk '/SCREEN_MAP/{print $1}' | tr -d ':')
+sudo bpftool map dump id $MAP_ID 2>/dev/null | grep -c '"value"'
+# Then open http://localhost:16666/
+```
+
+The XDP attach step (the known bug in doom-runner main.rs:429-436) is handled
+automatically by `ExecStartPost=doom-xdp-attach.sh` in doom-runner.service.
+No manual bpftool command needed.
+
+The dashboard web GUI runs via Docker Compose (not this target):
+```bash
+cd ~/tmp/unheaded && sudo docker compose up dashboard-backend -d
 ```
 
 ## Grafana (optional, on demand)

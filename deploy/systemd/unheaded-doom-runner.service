@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# unheaded-doom-runner — Doom on the UPC (Aya/eBPF MBC executor + ROM loader)
+#
+# Loads the monad_cpu XDP program and Doom ROM into BPF maps.
+# ExecStartPost attaches the XDP program to the ring interfaces — this is the
+# manual step that doom-runner defers (main.rs:429-436). Without it, CPU_MAP
+# stays frozen at PC=0 and frames are black.
+#
+# Requires: unheaded-doom-ring.service (ring must exist before BPF loads)
+
+[Unit]
+Description=DOOM on the UPC — Aya MBC executor + ROM loader
+Documentation=file:///home/govan/tmp/unheaded/docs/doom/FINDINGS.md
+After=unheaded-doom-ring.service
+Requires=unheaded-doom-ring.service
+PartOf=unheaded-doom.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/govan/tmp/unheaded
+
+ExecStart=/home/govan/tmp/unheaded/crates/doom-runner/target/release/doom-runner \
+    --wad /home/govan/tmp/DOOM_wads/doom1.wad
+
+# XDP attach: doom-runner loads the prog but does NOT attach it.
+# This runs after the process is up and the prog is in the kernel.
+ExecStartPost=/home/govan/tmp/unheaded/scripts/doom-xdp-attach.sh 20
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStartSec=60
+TimeoutStopSec=10
+
+[Install]
+WantedBy=unheaded-doom.target

@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# unheaded-doom-ring — DOOM network namespace ring setup (one-shot)
+#
+# Creates the 2-namespace veth ring that the monad_cpu XDP program runs on.
+# Must complete before doom-runner or doom-injector start.
+#
+# Install + start:
+#   sudo cp deploy/systemd/unheaded-doom-*.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start unheaded-doom-ring   # sets up the ring
+#   sudo systemctl start unheaded-doom-runner  # loads BPF + attaches XDP
+#   sudo systemctl start unheaded-doom-injector # circulates packets
+#
+# Or use the target to start everything at once:
+#   sudo systemctl start unheaded-doom.target
+
+[Unit]
+Description=DOOM on the UPC — monad packet ring setup
+Documentation=file:///home/govan/tmp/unheaded/docs/doom/ARCHITECTURE.md
+After=network.target
+# Teardown on stop so the ring is clean on next start
+StopWhenUnneeded=no
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=/home/govan/tmp/unheaded
+
+# Teardown any stale ring from a previous session before setup
+ExecStartPre=-/home/govan/tmp/unheaded/scripts/doom-ring.sh teardown
+ExecStart=/home/govan/tmp/unheaded/scripts/doom-ring.sh setup
+ExecStop=/home/govan/tmp/unheaded/scripts/doom-ring.sh teardown
+
+TimeoutStartSec=30
+TimeoutStopSec=15
+
+[Install]
+WantedBy=multi-user.target
