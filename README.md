@@ -1,5 +1,7 @@
 # Unheaded
 
+https://github.com/user-attachments/assets/59049105-a48c-40e1-a6fc-051649e6c59c
+
 Unheaded is a configuration-management automation platform. It provisions backend
 infrastructure — service mesh, observability, security, control plane — from declarative
 configuration. State is encoded in a 20-byte register carried in IPv6 Hop-by-Hop headers
