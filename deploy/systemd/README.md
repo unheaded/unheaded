@@ -3,13 +3,23 @@
 Systemd units for all Kingdom services that run natively on EAST.
 WEST runs these via Docker (`docker compose`); EAST runs them via systemd.
 
-Units are **installed but not enabled** — they do not start on boot.
-Start them explicitly with `systemctl start <unit>`.
+## Boot policy
+
+| Unit                            | Boot policy        | Rationale                                    |
+|---------------------------------|--------------------|----------------------------------------------|
+| `huginn.service`                | **enabled**        | Always-on; historical metrics need no gap    |
+| `unheaded-victoria.service`     | **enabled**        | TSDB backing store for huginn                |
+| All other units                 | disabled (manual)  | Dev/staging services, start per session      |
+
+Grafana is NOT auto-started — resource cost isn't worth it when idle. Start it
+manually with `sudo docker compose up grafana -d` when you want dashboards.
 
 ## Services
 
 | Unit file                       | Port(s)       | Notes                              |
 |---------------------------------|---------------|------------------------------------|
+| `huginn.service`                | 9110          | Host metrics agent — **boot-enabled** (ADR-084) |
+| `unheaded-victoria.service`     | 8428          | VictoriaMetrics TSDB — **boot-enabled**     |
 | `unheaded-wotan.service`        | 18000, 18001  | Start first — others depend on it  |
 | `unheaded-timeguru.service`     | 19000         |                                    |
 | `unheaded-architect.service`    | 19001         |                                    |
@@ -21,7 +31,6 @@ Start them explicitly with `systemctl start <unit>`.
 | `unheaded-kanban.service`       | 16668         |                                    |
 | `unheaded-daemon.service`       | 17000, 17001  | Control plane / drift detection    |
 | `unheaded-akira.service`        | 19100         | Health monitor                     |
-| `huginn.service`                | 9110          | Host metrics agent (ADR-084)       |
 
 ## Install (on EAST)
 
@@ -40,23 +49,28 @@ for svc in wotan timeguru captain architect micromanager monad sophia dashboard 
 done
 
 sudo systemctl daemon-reload
+
+# Enable always-on services (huginn + victoria)
+sudo systemctl enable --now huginn
+sudo systemctl enable --now unheaded-victoria
 ```
 
-## Start order
+## Manual session start (other services)
 
 ```bash
 sudo systemctl start unheaded-wotan
 sudo systemctl start unheaded-timeguru unheaded-architect unheaded-captain \
     unheaded-micromanager unheaded-monad unheaded-sophia
 sudo systemctl start unheaded-dashboard unheaded-kanban unheaded-daemon unheaded-akira
-sudo systemctl start huginn
 ```
 
-## Do NOT enable on boot
+## Grafana (optional, on demand)
 
-These units intentionally have no `systemctl enable`. EAST is a staging host;
-services are started manually per session. If auto-start is ever needed, revisit
-as a deliberate decision.
+```bash
+cd ~/tmp/unheaded && sudo docker compose up grafana -d
+# Stop when done:
+cd ~/tmp/unheaded && sudo docker compose stop grafana
+```
 
 ## Binary paths
 

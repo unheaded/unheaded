@@ -2,12 +2,12 @@
 # huginn — host metrics agent (Odin's raven; observes all Kingdom hosts)
 # See: docs/adr/ADR-084-huginn-host-metrics-agent.md
 #
-# Install:
+# ALWAYS-ON: huginn runs at boot with restart-on-failure. Enable once:
 #   sudo cp deploy/systemd/huginn.service /etc/systemd/system/
 #   sudo cp deploy/systemd/huginn.env.example /etc/huginn.env
 #   sudo $EDITOR /etc/huginn.env   # set HUGINN_VM for this host's Victoria target
 #   sudo systemctl daemon-reload
-#   sudo systemctl start huginn    # manual only — NOT enabled on boot
+#   sudo systemctl enable --now huginn
 #
 # On EAST: set HUGINN_VM=http://192.168.13.1:8428 (push to WEST's VictoriaMetrics)
 # On WEST: set HUGINN_VM=http://localhost:8428
@@ -27,7 +27,7 @@ ExecStart=/usr/local/bin/huginn \
     -listen :9110 \
     -vm ${HUGINN_VM:-http://localhost:8428} \
     -interval 10s
-Restart=on-failure
+Restart=always
 RestartSec=5s
 TimeoutStopSec=10s
 
