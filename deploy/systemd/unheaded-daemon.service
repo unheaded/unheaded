@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Install:
+#   sudo cp deploy/systemd/unheaded-daemon.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl start unheaded-daemon    # manual only — NOT enabled on boot
+
+[Unit]
+Description=Unheaded daemon — control plane (drift detection + reconciliation)
+Documentation=https://github.com/unheaded/unheaded/tree/main/cmd/unheaded-daemon
+After=network-online.target unheaded-wotan.service
+Wants=network-online.target
+Requires=unheaded-wotan.service
+
+[Service]
+Type=simple
+User=unheaded
+Group=unheaded
+EnvironmentFile=-/etc/unheaded/daemon.env
+ExecStart=/usr/local/bin/unheaded-daemon \
+    --http-port 17000 \
+    --grpc-port 17001
+WorkingDirectory=/var/lib/unheaded/daemon
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=30s
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+PrivateTmp=yes
+PrivateDevices=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ReadWritePaths=/var/lib/unheaded/daemon /var/lib/unheaded/state
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged ~@resources ~@reboot ~@module ~@swap
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

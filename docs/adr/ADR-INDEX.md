@@ -1,7 +1,9 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-05-11
-**Total:** 71 ADRs (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-027-065 across sessions; ADR-066/067/072/073 added; ADR-69420 pipe-dream)
+**Last updated:** 2026-07-24
+**Total:** 72 ADRs (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-027-065 across sessions; ADR-066/067/072/073 added; ADR-69420 pipe-dream; ADR-084 huginn)
+
+**ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
 
 ## Status Summary
 
