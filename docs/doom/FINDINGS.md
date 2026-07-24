@@ -709,3 +709,42 @@ verify `ebpf/target/bpfel-unknown-none/release/monad-cpu-ebpf` is the
 path would change interpreter semantics); confirm `./doom/doom.{mbc,elf,rv2mbc}`
 integrity. Pipeline invocation + injector are in `docs/doom/RUNBOOK.md` and
 `~/tmp/next.md`.
+
+## 2026-07-24 — Black screen root cause: XDP never attached (session startup regression)
+
+**Root cause confirmed:** `doom-runner run` loads the Aya XDP program into the kernel
+(monad_cpu, id=276 in this session) but **never attaches it to any interface**. Lines
+429-436 of `crates/doom-runner/src/main.rs` explicitly defer attachment with a comment:
+"For now, log and continue. The XDP program will be attached after we move to the
+namespace." There is no code path that performs this attachment.
+
+When DOOM was killed with `kill PID`, the running process died and with it, the Aya-held
+BPF program + maps were released. On restart, a fresh eBPF object was loaded but never
+attached → injector packets flowed through veth interfaces without hitting any XDP hook →
+CPU_MAP never updated (PC=0, insn_count=0 across all readings) → frames all-zero.
+
+**Fix (manual, each restart):**
+```bash
+# After doom-runner run is live, attach XDP program by its kernel ID:
+PROG_ID=$(sudo bpftool prog list | grep monad_cpu | awk '{print $1}' | tr -d ':')
+sudo ip netns exec monad1 bpftool net attach xdp id $PROG_ID dev veth01p
+sudo ip netns exec monad0 bpftool net attach xdp id $PROG_ID dev veth10p
+```
+
+**Permanent fix needed:** In `crates/doom-runner/src/main.rs` Step 3, replace the
+"log and continue" block with:
+```
+// After program.load(), get the prog FD and attach via nsenter + bpftool
+// OR: use Aya's XDP link attach API which supports netns via open_fd
+```
+
+The ring teardown (`ring.rs:260`) correctly runs `ip link set veth{prev}{i}p xdp off`
+inside each namespace, which proves the topology: XDP must run on `veth01p` (monad1)
+and `veth10p` (monad0) — the ingress sides of each hop.
+
+**Verification after attaching:**
+- `sudo bpftool map lookup id <CPU_MAP_ID> key 0xde 0x00 0x00 0x00` → PC/insn_count advance
+- python3 WS check → palette_nonzero > 0
+
+**State at recovery (2026-07-24):** palette_nonzero=680, screen_nonzero=64000, 19.5K pkt/s,
+534B insns/s. DOOM rendering confirmed.

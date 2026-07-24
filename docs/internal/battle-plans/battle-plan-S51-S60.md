@@ -1492,7 +1492,7 @@ Confidence: Medium-High (hardware availability is the variable)
   - Key capabilities: eBPF tracing, 25 services, IaC backends, zero data access
 - [ ] **Step 19** [W]: Add feature highlights section:
   - Packet tracing (eBPF + dashboard)
-  - Computational completeness (DOOM over IPv6)
+  - Computational completeness (DOOM on the UPC)
   - AI integration (first "head" in armor)
   - Self-hosting proof (Meta Moment)
 - [ ] **Step 20** [W]: Add architecture diagram (SVG or ASCII)

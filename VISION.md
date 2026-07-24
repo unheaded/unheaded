@@ -89,7 +89,7 @@ Success criteria: Anyone can implement the protocol independently. Protocol is p
 
 **Metrics embedded IN packets, not alongside them.** Datadog, New Relic, Honeycomb—they all sidecar observability agents. Unheaded embeds metrics directly into packet headers. Zero additional wire bytes. Zero application overhead. Full-fidelity tracing as a side effect of packet processing.
 
-**DOOM over IPv6 as a compute proof.** We implemented a Towers of Hanoi solver in LISP, compiled it to BPF, and ran it inside the kernel. Not as a research project—as a real service on port 16680. Proves that Unheaded's BPF layer is a general-purpose compute substrate. Network-level machine learning, anomaly detection, cryptographic operations—all in kernel space.
+**DOOM on the UPC as a compute proof.** We implemented a Towers of Hanoi solver in LISP, compiled it to BPF, and ran it inside the kernel. Not as a research project—as a real service on port 16680. Proves that Unheaded's BPF layer is a general-purpose compute substrate. Network-level machine learning, anomaly detection, cryptographic operations—all in kernel space.
 
 **The Lich as a continuous adversary.** Every infrastructure has security bugs. The Lich is a simulated attacker that runs inside Unheaded, probing for vulnerabilities, testing policy enforcement, validating isolation. Red team automated. Every deploy, the Lich attacks. Every deploy, we verify the armor holds.
 

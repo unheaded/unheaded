@@ -1,0 +1,308 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: west-startup-order
+  description: Canonical startup sequence for all Unheaded services on WEST host
+  owner: architect
+  estimated_duration: 8m
+  risk: low
+  requires_sudo: true
+  last_verified: "2026-07-24"
+
+preconditions:
+  - check: "test -d ~/tmp/unheaded"
+    description: "Unheaded repo present"
+  - check: "docker compose -f ~/tmp/unheaded/docker-compose.yml ps 2>/dev/null | grep -q . || true"
+    description: "Docker daemon reachable"
+  - check: "test -f /var/zhen/models/qwen2.5-coder-7b-instruct-q4_k_m.gguf"
+    description: "Qwen-Coder-7B GGUF present for llama-server"
+  - check: "which cs"
+    description: "vor (cs) binary present"
+
+env:
+  PROJECT_ROOT: "~/tmp/unheaded"
+  LLAMA_BIN: "~/tmp/unheaded/llama.cpp/build/bin/llama-server"
+  MODEL: "/var/zhen/models/qwen2.5-coder-7b-instruct-q4_k_m.gguf"
+
+# ─── TIER 0: Data persistence ─────────────────────────────────────────────────
+# Must come first. Everything else depends on postgres for state.
+#
+# ─── TIER 1: Message bus + routing ────────────────────────────────────────────
+# wotan, victoria, traefik, coredns.
+#
+# ─── TIER 2: Observability ────────────────────────────────────────────────────
+# clickhouse, grafana. Grafana runs migrations on first boot (~2m).
+#
+# ─── TIER 3: Core services ────────────────────────────────────────────────────
+# timeguru, captain, architect, micromanager, monad, sophia, cuirass.
+# All depend on wotan + postgres.
+#
+# ─── TIER 4: Applications ─────────────────────────────────────────────────────
+# dashboard, kanban. Depend on core services + postgres.
+#
+# Tiers 0-4 all start via a single `docker compose up -d`.
+# ──────────────────────────────────────────────────────────────────────────────
+
+steps:
+  # ── Tiers 0-4: Docker stack ────────────────────────────────────────────────
+
+  - name: docker-stack-up
+    action: shell
+    command: |
+      cd ~/tmp/unheaded
+      sudo docker compose up -d
+    verify: |
+      sudo docker ps --format '{{.Names}}\t{{.Status}}' | grep unheaded | grep -v Exited
+    description: "Start all Docker containers (postgres → wotan → services → dashboard)"
+    on_fail: "Check logs: sudo docker compose logs <service>"
+
+  - name: wait-postgres-healthy
+    action: shell
+    command: |
+      for i in $(seq 1 20); do
+        sudo docker inspect unheaded-postgres --format '{{.State.Health.Status}}' 2>/dev/null | grep -q healthy && break
+        sleep 2
+      done
+    verify: "sudo docker inspect unheaded-postgres --format '{{.State.Health.Status}}' | grep -q healthy"
+    description: "Wait for postgres to be healthy before proceeding"
+
+  - name: fix-kanban-if-exited
+    action: shell
+    command: |
+      STATUS=$(sudo docker inspect unheaded-kanban --format '{{.State.Status}}' 2>/dev/null)
+      if [[ "$STATUS" == "exited" ]]; then
+        sudo docker start unheaded-kanban
+        echo "kanban restarted"
+      else
+        echo "kanban already running: $STATUS"
+      fi
+    description: "kanban sometimes exits 0 on first compose up — restart if needed"
+
+  - name: check-core-health
+    action: shell
+    command: |
+      echo "=== Core container status ==="
+      sudo docker ps --format 'table {{.Names}}\t{{.Status}}' | grep unheaded | sort
+    description: "Visual health check — grafana/clickhouse may show 'unhealthy' while initializing; that clears in ~2m"
+
+  # ── Tier 5a: Inference (required before zhenai) ────────────────────────────
+
+  - name: start-llama-server
+    action: shell
+    command: |
+      if ss -lnt | grep -q ':8081'; then
+        echo "llama-server already on :8081"
+      else
+        nohup ~/tmp/unheaded/llama.cpp/build/bin/llama-server \
+          -m /var/zhen/models/qwen2.5-coder-7b-instruct-q4_k_m.gguf \
+          --host 127.0.0.1 --port 8081 \
+          --n-gpu-layers 999 --ctx-size 16384 \
+          --threads 6 \
+          &> /tmp/llama-server.log &
+        echo "llama-server PID: $!"
+        # Wait for model load (~20s first time, includes GPU offload fit)
+        for i in $(seq 1 30); do
+          curl -sf http://127.0.0.1:8081/health > /dev/null 2>&1 && break
+          sleep 2
+        done
+      fi
+    verify: "curl -sf http://127.0.0.1:8081/health > /dev/null"
+    description: "Start llama-server with Qwen-Coder-7B on GPU (ROCm). First load takes ~20s for GPU fit."
+    on_fail: "tail -20 /tmp/llama-server.log"
+
+  # ── Tier 5b: Retrieval (required before zhenai) ────────────────────────────
+
+  - name: start-vor
+    action: shell
+    command: |
+      if ss -lnt | grep -q ':9876'; then
+        echo "vor already on :9876"
+      else
+        nohup cs serve &> /tmp/vor.log &
+        echo "vor PID: $!"
+        for i in $(seq 1 15); do
+          curl -sf http://127.0.0.1:9876/api/health > /dev/null 2>&1 && break
+          sleep 1
+        done
+      fi
+    verify: "curl -sf http://127.0.0.1:9876/api/health > /dev/null"
+    description: "Start vor (cs serve) corpus server on :9876"
+    on_fail: "tail -10 /tmp/vor.log"
+
+  # ── Tier 5c: Wiki ──────────────────────────────────────────────────────────
+
+  - name: start-wiki
+    action: shell
+    command: |
+      if ss -lnt | grep -q ':20002'; then
+        echo "wiki-server already on :20002"
+      else
+        # wiki-server binary lives in the repo bin/ or is a system install
+        cd ~/tmp/unheaded
+        nohup wiki-server &> /tmp/wiki-server.log &
+        echo "wiki-server PID: $!"
+      fi
+    description: "Start wiki-server on :20002 (optional — skip if not installed)"
+
+  # ── Tier 5d: Zhenai web UI (depends on llama-server + vor + postgres) ──────
+
+  - name: start-zhenai
+    action: shell
+    command: |
+      if ss -lnt | grep -q ':20103'; then
+        echo "zhenai already on :20103"
+      else
+        cd ~/tmp/unheaded/raft
+        ./start-zhen.sh
+      fi
+    verify: "curl -sf http://localhost:20103/health > /dev/null"
+    description: "Start Zhen web UI on :20103 (UI only; add -gated for mutation mode)"
+    on_fail: "tail -20 /tmp/zhen-webapp.log"
+
+  # ── Tier 6: Observability agents ───────────────────────────────────────────
+
+  - name: build-and-start-host-agent
+    action: shell
+    command: |
+      if ss -lnt | grep -q ':9110'; then
+        echo "host-agent already on :9110"
+      else
+        cd ~/tmp/unheaded
+        go build -o bin/host-agent ./cmd/host-agent/
+        nohup ./bin/host-agent &> /tmp/host-agent.log &
+        echo "host-agent PID: $!"
+      fi
+    description: "Build and start host-agent metrics publisher on :9110"
+
+  - name: build-and-start-demo-trace-injector
+    action: shell
+    command: |
+      cd ~/tmp/unheaded
+      go build -o bin/demo-trace-injector ./cmd/demo-trace-injector/
+      nohup ./bin/demo-trace-injector &> /tmp/demo-injector.log &
+      echo "demo-trace-injector PID: $!"
+    description: "Build and start demo-trace-injector (publishes eBPF flow/latency/packet events to wotan)"
+    on_fail: "tail -10 /tmp/demo-injector.log"
+
+  # ── Tier 7: DOOM pipeline (optional, requires prior netns teardown) ─────────
+  # Run doom-ring-setup.yaml for full teardown + setup.
+  # If doom-runner is already running, the critical step is the XDP attach.
+
+  - name: doom-start-runner
+    action: shell
+    command: |
+      cd ~/tmp/unheaded
+      # Non-ascend eBPF build (DOOM, not ASCEND-LINUX)
+      cd ebpf && ~/.cargo/bin/cargo +nightly build -p monad-cpu-ebpf \
+        --target bpfel-unknown-none -Z build-std=core --release 2>/dev/null
+      cd ..
+
+      # Full ring teardown (clears stale state)
+      sudo pkill doom-go-injector 2>/dev/null || true
+      sudo scripts/doom-ring.sh teardown 2>/dev/null || true
+      sleep 1
+      sudo scripts/doom-ring.sh setup
+
+      # Start doom-runner in background
+      sudo nohup ./crates/doom-runner/target/release/doom-runner \
+        --wad ~/tmp/DOOM_wads/doom1.wad \
+        &> /tmp/doom-runner.log &
+      sleep 3
+    description: "Setup doom ring and start doom-runner (loads BPF programs + maps)"
+
+  - name: doom-attach-xdp
+    action: shell
+    command: |
+      # CRITICAL: doom-runner loads the XDP prog but does NOT attach it (main.rs:429-436).
+      # Without this step, CPU_MAP stays frozen at PC=0 and all frames are zero/black.
+      PROG_ID=$(sudo bpftool prog list | grep monad_cpu | awk '{print $1}' | tr -d ':')
+      echo "XDP prog id: $PROG_ID"
+      sudo ip netns exec monad1 bpftool net attach xdp id $PROG_ID dev veth01p
+      sudo ip netns exec monad0 bpftool net attach xdp id $PROG_ID dev veth10p
+      echo "XDP attached to monad1:veth01p and monad0:veth10p"
+    verify: |
+      sudo bpftool map lookup id \
+        $(sudo bpftool map list | awk '/CPU_MAP/{print $1}' | tr -d ':') \
+        key 0xde 0x00 0x00 0x00 2>/dev/null | grep -v 'key not found' || true
+    description: "CRITICAL: manually attach XDP prog to ring interfaces (bug in doom-runner defers this)"
+    on_fail: |
+      Check PROG_ID: sudo bpftool prog list | grep monad_cpu
+      Check netns:   ip netns list
+
+  - name: doom-start-injector
+    action: shell
+    command: |
+      cd ~/tmp/unheaded
+      SRC=$(sudo ip netns exec monad0 cat /sys/class/net/veth01/address)
+      DST=$(sudo ip netns exec monad1 cat /sys/class/net/veth01p/address)
+      sudo ip netns exec monad0 \
+        ./cmd/doom-go-injector/doom-go-injector \
+          -iface veth01 -src-mac $SRC -dst-mac $DST \
+          -mode sendmmsg -batch 64 -flow-label 222 -count 0 \
+          &> /tmp/doom-injector.log &
+      echo "injector PID: $!"
+    verify: |
+      sleep 3 && grep -q 'pkt/s' /tmp/doom-injector.log || \
+        echo "WARNING: injector log not showing pkt/s yet, may still be initializing"
+    description: "Start doom-go-injector packet circulator"
+
+  - name: doom-verify-rendering
+    action: shell
+    command: |
+      # Check SCREEN_MAP is non-zero (Doom rendering pixels)
+      MAP_ID=$(sudo bpftool map list | awk '/SCREEN_MAP/{print $1}' | tr -d ':')
+      COUNT=$(sudo bpftool map dump id $MAP_ID 2>/dev/null | grep -c '"value"' || echo 0)
+      echo "SCREEN_MAP entries written: $COUNT"
+      echo "Open http://localhost:16666/ to see DOOM"
+    description: "Verify DOOM is rendering (non-zero SCREEN_MAP)"
+
+verification:
+  - name: full-status
+    action: shell
+    command: |
+      echo "=== Docker containers ==="
+      sudo docker ps --format 'table {{.Names}}\t{{.Status}}' | grep unheaded | sort
+      echo ""
+      echo "=== Native services ==="
+      ss -lnt | grep -E ':(8081|9876|9110|20002|20103|20105|16666)' | awk '{print $4}'
+      echo ""
+      echo "=== DOOM ==="
+      sudo bpftool prog list 2>/dev/null | grep monad_cpu || echo "(not running)"
+    description: "Full service status sweep"
+
+notes: |
+  STARTUP ORDER RATIONALE
+  ========================
+  Tier 0 (postgres) → Tier 1 (wotan, victoria, traefik, coredns) → Tier 2 (clickhouse, grafana)
+  → Tier 3 (timeguru, captain, architect, micromanager, monad, sophia, cuirass)
+  → Tier 4 (dashboard, kanban) → Tier 5 (llama-server → vor → wiki → zhenai)
+  → Tier 6 (host-agent, demo-trace-injector) → Tier 7 (DOOM, optional)
+
+  Tiers 0-4 = docker compose up -d (single command, compose handles internal deps).
+  Tier 5 must be ordered: llama-server first, vor second, then zhenai (start-zhen.sh
+  pre-flight checks both).
+
+  KNOWN ISSUES
+  ============
+  1. doom-runner XDP defer (main.rs:429-436): XDP program is loaded but NOT attached.
+     Always run the doom-attach-xdp step after doom-runner starts. Tracked in FINDINGS.md.
+
+  2. kanban exits 0 after compose up: safe to restart with `docker start unheaded-kanban`.
+
+  3. grafana + clickhouse show 'unhealthy' for ~2m after start while running migrations.
+     They self-clear. Do not restart them during this window.
+
+  4. timeguru SQLite needs /data (not /app/data). tmpfs in compose is mounted at /data
+     with uid=1000,gid=1000. Fixed in docker-compose.yml 2026-07-24.
+
+  MEMORY LIMITS (tuned 2026-07-24)
+  ==================================
+  grafana:    512M (was 256M, was hitting 94%)
+  clickhouse: 2G   (was 1G, was hitting 95%)
+
+  STOPPING ALL SERVICES
+  ======================
+  Native:  pkill -f zhen_app.py; pkill -f llama-server; pkill -f 'cs serve'
+           pkill -f wiki-server; pkill -f host-agent; pkill -f demo-trace-injector
+  Docker:  cd ~/tmp/unheaded && sudo docker compose down
+  DOOM:    sudo pkill doom-go-injector; sudo scripts/doom-ring.sh teardown

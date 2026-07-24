@@ -21,7 +21,7 @@ Bytecode) instructions per tick, then returns `XDP_TX` to bounce the packet
 for the next tick -- achieving cache-warm continuous execution.
 
 The UPC was originally built as a computational completeness proof for the
-Unheaded Protocol (running DOOM over IPv6), but has evolved into a full
+Unheaded Protocol (running DOOM on the UPC), but has evolved into a full
 operating system target with process scheduling, virtual memory, a block
 device, a filesystem, and a Linux-compatible syscall interface.
 
