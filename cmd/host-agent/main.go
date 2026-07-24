@@ -346,13 +346,39 @@ func promText(host string, s HostSummary) string {
 }
 
 func main() {
-	host := flag.String("host", "", "host label (default: hostname)")
-	listen := flag.String("listen", ":9110", "listen address for /host-summary and /metrics")
-	vm := flag.String("vm", "http://localhost:8428", "VictoriaMetrics base URL (empty to disable push)")
-	interval := flag.Duration("interval", 10*time.Second, "collection/push interval")
+	// Config file is loaded first; CLI flags override individual fields.
+	configPath := flag.String("config", "/etc/huginn.yaml", "path to YAML config file (optional)")
+	flagHost := flag.String("host", "", "host label override (default: hostname or config)")
+	flagListen := flag.String("listen", "", "listen address override")
+	flagVM := flag.String("vm", "", "VictoriaMetrics URL override (empty string = no override)")
+	flagInterval := flag.Duration("interval", 0, "collection/push interval override")
 	flag.Parse()
 
-	label := *host
+	cfg, err := loadConfig(*configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "huginn: config load error: %v\n", err)
+		os.Exit(1)
+	}
+
+	// CLI flags win over config file when explicitly set.
+	if *flagHost != "" {
+		cfg.HostLabel = *flagHost
+	}
+	if *flagListen != "" {
+		cfg.Listen = *flagListen
+	}
+	if *flagVM != "" {
+		cfg.Sinks.VictoriaMetrics.URL = *flagVM
+		cfg.Sinks.VictoriaMetrics.Enabled = true
+	}
+	if *flagInterval != 0 {
+		cfg.Collection.Interval = duration{*flagInterval}
+		cfg.Collection.DiskInterval = duration{*flagInterval}
+		cfg.Collection.ProcessInterval = duration{*flagInterval}
+		cfg.Sinks.VictoriaMetrics.PushInterval = duration{*flagInterval}
+	}
+
+	label := cfg.HostLabel
 	if label == "" {
 		label, _ = os.Hostname()
 	}
@@ -371,28 +397,33 @@ func main() {
 	})
 
 	go func() {
-		if *vm == "" {
+		if !cfg.Sinks.VictoriaMetrics.Enabled || cfg.Sinks.VictoriaMetrics.URL == "" {
 			return
 		}
-		url := strings.TrimRight(*vm, "/") + "/api/v1/import/prometheus"
+		pushURL := strings.TrimRight(cfg.Sinks.VictoriaMetrics.URL, "/") + "/api/v1/import/prometheus"
 		client := &http.Client{Timeout: 5 * time.Second}
 		for {
 			body := promText(label, collect(label))
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			req, _ := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader([]byte(body)))
+			req, _ := http.NewRequestWithContext(ctx, "POST", pushURL, bytes.NewReader([]byte(body)))
 			if resp, err := client.Do(req); err == nil {
 				resp.Body.Close()
 			} else {
-				fmt.Fprintf(os.Stderr, "vm push failed: %v\n", err)
+				fmt.Fprintf(os.Stderr, "huginn: vm push failed: %v\n", err)
 			}
 			cancel()
-			time.Sleep(*interval)
+			time.Sleep(cfg.Sinks.VictoriaMetrics.PushInterval.Duration)
 		}
 	}()
 
-	fmt.Fprintf(os.Stderr, "host-agent: host=%s listen=%s vm=%s interval=%s\n", label, *listen, *vm, *interval)
-	if err := http.ListenAndServe(*listen, nil); err != nil {
-		fmt.Fprintf(os.Stderr, "listen: %v\n", err)
+	fmt.Fprintf(os.Stderr, "huginn: host=%s listen=%s vm=%s push_interval=%s disk_interval=%s\n",
+		label, cfg.Listen,
+		cfg.Sinks.VictoriaMetrics.URL,
+		cfg.Sinks.VictoriaMetrics.PushInterval,
+		cfg.Collection.DiskInterval,
+	)
+	if err := http.ListenAndServe(cfg.Listen, nil); err != nil {
+		fmt.Fprintf(os.Stderr, "huginn: listen: %v\n", err)
 		os.Exit(1)
 	}
 }

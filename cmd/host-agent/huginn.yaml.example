@@ -1,0 +1,20 @@
+# huginn.yaml — host metrics agent configuration
+# Copy to /etc/huginn.yaml and adjust for this host.
+# All fields are optional; omitted fields use built-in defaults.
+
+# listen: ":9110"
+# host_label: ""    # defaults to hostname
+
+collection:
+  interval: 10s         # default poll interval for CPU/mem/net
+  disk_interval: 30s    # filesystems change slowly
+  process_interval: 15s # process counts
+
+sinks:
+  victoria_metrics:
+    enabled: true
+    # WEST: push to local Victoria (Docker)
+    url: "http://localhost:8428"
+    # EAST: push to WEST over P2P link
+    # url: "http://192.168.13.1:8428"
+    push_interval: 10s
