@@ -7,7 +7,7 @@
 **ADR-085 added 2026-07-24:** CI/CD artifact layout — canonical `/var/` hierarchy for binaries, data, config, APT repo; 4-phase implementation plan (binary install → .deb → CI pipeline → registry).
 **ADR-086 added 2026-07-24:** Muninn observability fan-out pipeline — routes host metrics, logs, and auth events to VictoriaMetrics, PostgreSQL, and SIEM; SSH/TTY login history to `ops.login_events`; YAML-configured routing rules.
 **ADR-087 added 2026-07-24:** NOC — network device monitoring and config management. Kvasir (IPFIX/NetFlow/sFlow collector wrapping GoFlow2), Muninn syslog extension, Huginn SNMP extension, Ansible+NETCONF/YANG GitOps for Junos. JNCIA lab alignment.
-**ADR-088 added 2026-07-24:** Kubernetes as Kingdom service orchestration layer — huginn DaemonSet (zero-touch on new nodes), Muninn HA Deployment (replaces ADR-086 haproxy plan), victoria StatefulSet; migration path from Compose+systemd; CKA certification alignment.
+**ADR-088 added 2026-07-24:** Kingdom deployment substrate ladder — Compose+systemd+NixOS+Ansible+Terraform+K8s+.deb/apt as additive, optional substrates on top of the custom protocol stack. K8s DaemonSet/StatefulSet/Deployment targets, Ansible roles, apt repo, NixOS modules; certification alignment table (CKA, JNCIA, Terraform associate, RHCSA).
 
 ## Status Summary
 
