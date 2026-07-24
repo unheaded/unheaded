@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# unheaded-doom-injector — DOOM packet circulator (monad ring heartbeat)
+#
+# Injects IPv6 packets into the monad ring, driving the MBC clock.
+# Each packet triggers one monad_cpu XDP execution = one Doom instruction.
+# Must start AFTER doom-runner has loaded BPF maps AND XDP is attached.
+
+[Unit]
+Description=DOOM on the UPC — monad packet injector
+Documentation=file:///home/govan/tmp/unheaded/docs/doom/ARCHITECTURE.md
+After=unheaded-doom-runner.service
+Requires=unheaded-doom-runner.service
+PartOf=unheaded-doom.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/govan/tmp/unheaded
+
+# Derive MACs from the live ring interfaces at start time
+ExecStartPre=/bin/bash -c '\
+    SRC=$(ip netns exec monad0 cat /sys/class/net/veth01/address 2>/dev/null) && \
+    DST=$(ip netns exec monad1 cat /sys/class/net/veth01p/address 2>/dev/null) && \
+    echo "SRC_MAC=$SRC" > /run/doom-injector.env && \
+    echo "DST_MAC=$DST" >> /run/doom-injector.env'
+EnvironmentFile=/run/doom-injector.env
+
+ExecStart=/bin/bash -c '\
+    exec ip netns exec monad0 \
+    /home/govan/tmp/unheaded/cmd/doom-go-injector/doom-go-injector \
+        -iface veth01 \
+        -src-mac $SRC_MAC \
+        -dst-mac $DST_MAC \
+        -mode sendmmsg \
+        -batch 64 \
+        -flow-label 222 \
+        -count 0'
+
+Restart=on-failure
+RestartSec=3s
+TimeoutStartSec=20
+TimeoutStopSec=5
+
+[Install]
+WantedBy=unheaded-doom.target

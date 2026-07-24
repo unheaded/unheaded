@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# unheaded-doom.target — start/stop the full DOOM on the UPC pipeline
+#
+# One command brings up or tears down the entire DOOM stack:
+#
+#   sudo systemctl start unheaded-doom.target    # full pipeline up
+#   sudo systemctl stop  unheaded-doom.target    # full pipeline down
+#
+# Pipeline order (enforced by After=/Requires= in each unit):
+#   1. unheaded-doom-ring     — netns + veth ring (teardown+setup)
+#   2. unheaded-doom-runner   — loads BPF maps + ROM; post-start XDP attach
+#   3. unheaded-doom-injector — packet circulator, drives MBC clock
+#
+# Web GUI (dashboard) is NOT part of this target — it runs via Docker Compose
+# as part of the main stack. Start it with:
+#   cd ~/tmp/unheaded && sudo docker compose up dashboard-backend -d
+#
+# Verify DOOM is rendering:
+#   sudo bpftool map list | grep SCREEN_MAP
+#   open http://localhost:16666/
+
+[Unit]
+Description=DOOM on the UPC — full pipeline target
+Documentation=file:///home/govan/tmp/unheaded/docs/doom/RUNBOOK.md
+Wants=unheaded-doom-ring.service unheaded-doom-runner.service unheaded-doom-injector.service
+After=unheaded-doom-ring.service unheaded-doom-runner.service unheaded-doom-injector.service
