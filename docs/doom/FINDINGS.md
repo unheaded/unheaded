@@ -748,3 +748,23 @@ and `veth10p` (monad0) — the ingress sides of each hop.
 
 **State at recovery (2026-07-24):** palette_nonzero=680, screen_nonzero=64000, 19.5K pkt/s,
 534B insns/s. DOOM rendering confirmed.
+
+---
+
+## 2026-07-24 — Demo4 Crash: Root Cause + Fix
+
+**Symptom:** DOOM rendered ~5s of frames then halted. PC=7972, halted=1, reason=0x80 (HALT opcode = exit() called).
+
+**Diagnosis:**
+- Read RAM_MAP at 0x03200000 (DEBUG_MSG_ADDR): `W_GetNumForName: demo4 not found!`
+- DOOM's `D_DoAdvanceDemo()` cycles through demo sequences. For `gamemode=retail` it uses `%7` (sequences 0-6); sequence 6 calls `G_DeferedPlayDemo("demo4")`.
+- `libc_stubs.c` `access()` stub was matching `doomu.wad` → `gamemode=retail` → demo loop included case 6.
+- `doom1.wad` (shareware) has no DEMO4 lump → `W_GetNumForName` calls `I_Error` → `exit()` → HALT.
+
+**Fix:** Changed `access()` stub to match `doom1.wad` → `gamemode=shareware`. Shareware uses `%6` (sequences 0-5), case 6 (demo4) never reached.
+
+**File:** `demos/doom/libc_stubs.c` — `access()` function, WAD filename match.
+
+**Rebuild required after this change:** `cd demos/doom && make`
+
+**Verification:** After fix, DOOM ran past the 5s mark, insn_count advancing, no STAT_HALTED entry in STATS map.

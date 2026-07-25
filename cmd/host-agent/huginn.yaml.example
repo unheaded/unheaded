@@ -18,3 +18,15 @@ sinks:
     # EAST: push to WEST over P2P link
     # url: "http://192.168.13.1:8428"
     push_interval: 10s
+
+# databases: optional — omit entirely on hosts without The Well.
+# Each entry opens one connection and collects pg_stat_database metrics.
+# Use huginn_reader (pg_monitor role) — never a write-capable user.
+#
+# databases:
+#   - name: well-app
+#     dsn: "postgres://huginn_reader:huginn_reader_dev@localhost:5432/unheaded_app?sslmode=disable"
+#   - name: well-ops
+#     dsn: "postgres://huginn_reader:huginn_reader_dev@localhost:5432/unheaded_ops?sslmode=disable"
+#   - name: well-config
+#     dsn: "postgres://huginn_reader:huginn_reader_dev@localhost:5432/unheaded_config?sslmode=disable"

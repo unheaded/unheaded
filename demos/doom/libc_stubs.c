@@ -992,11 +992,11 @@ int access(const char *path, int mode) {
         if (path[i] == '/' || path[i] == '\\') base = path + i + 1;
     }
 
-    // Match doomu.wad for gamemode=retail (Ultimate DOOM, 4 episodes)
-    // OR doom.wad for gamemode=registered (3 episodes)
-    // Ultimate DOOM WAD has HELP1 but not HELP2. Registered looks for HELP2.
-    // Use doomu.wad to get retail mode which matches the WAD contents.
-    if (strcasecmp(base, "doomu.wad") == 0 || strcasecmp(base, "doom.wad") == 0) {
+    // Match doom1.wad for gamemode=shareware. Shareware demo loop uses %6
+    // (sequences 0-5 only), so case 6 (demo4) is never reached. Prior stub
+    // matched doomu.wad/doom.wad → gamemode=retail → %7 → tried to load
+    // demo4 which doom1.wad doesn't have, causing I_Error exit after ~5s.
+    if (strcasecmp(base, "doom1.wad") == 0) {
         debug_breadcrumb(0x00A0);  // matched WAD
         return 0;
     }

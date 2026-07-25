@@ -20,6 +20,7 @@ type Config struct {
 
 	Collection CollectionConfig `yaml:"collection"`
 	Sinks      SinksConfig      `yaml:"sinks"`
+	Databases  []DBConfig       `yaml:"databases"`
 }
 
 type CollectionConfig struct {
