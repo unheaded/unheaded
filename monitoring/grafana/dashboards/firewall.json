@@ -25,7 +25,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "P4169E866C3094E38"
       },
       "fieldConfig": {
         "defaults": {
@@ -122,7 +122,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "P4169E866C3094E38"
       },
       "fieldConfig": {
         "defaults": {
@@ -186,7 +186,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "P4169E866C3094E38"
       },
       "fieldConfig": {
         "defaults": {
@@ -273,7 +273,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "P4169E866C3094E38"
       },
       "fieldConfig": {
         "defaults": {
@@ -367,7 +367,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "P4169E866C3094E38"
       },
       "fieldConfig": {
         "defaults": {
@@ -426,7 +426,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "P4169E866C3094E38"
       },
       "fieldConfig": {
         "defaults": {
@@ -513,7 +513,7 @@
     {
       "datasource": {
         "type": "prometheus",
-        "uid": "prometheus"
+        "uid": "P4169E866C3094E38"
       },
       "fieldConfig": {
         "defaults": {

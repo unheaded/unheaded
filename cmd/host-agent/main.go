@@ -384,13 +384,27 @@ func main() {
 	}
 	cpuPercent() // prime the CPU delta
 
+	var dbc *dbCollector
+	if len(cfg.Databases) > 0 {
+		dbc = newDBCollector(cfg.Databases)
+		fmt.Fprintf(os.Stderr, "huginn: db collector active (%d databases)\n", len(cfg.Databases))
+	}
+
+	allMetrics := func() string {
+		body := promText(label, collect(label))
+		if dbc != nil {
+			body += promTextDB(label, dbc.collect())
+		}
+		return body
+	}
+
 	http.HandleFunc("/host-summary", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(collect(label))
 	})
 	http.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-		fmt.Fprint(w, promText(label, collect(label)))
+		fmt.Fprint(w, allMetrics())
 	})
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte(`{"status":"ok"}`))
@@ -403,7 +417,7 @@ func main() {
 		pushURL := strings.TrimRight(cfg.Sinks.VictoriaMetrics.URL, "/") + "/api/v1/import/prometheus"
 		client := &http.Client{Timeout: 5 * time.Second}
 		for {
-			body := promText(label, collect(label))
+			body := allMetrics()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			req, _ := http.NewRequestWithContext(ctx, "POST", pushURL, bytes.NewReader([]byte(body)))
 			if resp, err := client.Do(req); err == nil {

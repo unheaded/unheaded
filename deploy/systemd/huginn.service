@@ -25,7 +25,7 @@ Group=unheaded
 EnvironmentFile=-/etc/huginn.env
 ExecStart=/usr/local/bin/huginn \
     -listen :9110 \
-    -vm ${HUGINN_VM:-http://localhost:8428} \
+    -vm ${HUGINN_VM} \
     -interval 10s
 Restart=always
 RestartSec=5s
