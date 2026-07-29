@@ -23,9 +23,80 @@ is_first_party_cargo() {
         cmd/trace-collector/Cargo.toml) return 0 ;;
         # ASCEND-LINUX boot tooling per references/battle-plan-ascend-linux-2026-05-08.md
         cmd/upc-bootctl/Cargo.toml) return 0 ;;
+        cmd/waf/Cargo.toml) return 0 ;;
     esac
     return 1
 }
+
+# First-party crate NAMES, as they appear in `cargo license` output. Every
+# crate in this repo is GPL by project license, so `cargo license` reports our
+# OWN crates as copyleft. That is the project license working as intended, not
+# third-party contamination — the dependency scan below must skip them.
+FIRST_PARTY_CRATES="$(
+    find "${REPO_ROOT}" -name 'Cargo.toml' -not -path '*/target/*' -print0 \
+    | xargs -0 -n1 awk '
+        /^\[package\]/ { in_pkg = 1; next }
+        /^\[/          { in_pkg = 0 }
+        in_pkg && /^[[:space:]]*name[[:space:]]*=/ {
+            sub(/.*=[[:space:]]*"?/, ""); sub(/".*/, ""); print; exit
+        }' \
+    | sort -u
+)"
+
+is_first_party_crate() {
+    printf '%s\n' "${FIRST_PARTY_CRATES}" | grep -qxF "$1"
+}
+
+# Classify an SPDX license expression into PERMISSIVE / GPL / LGPL / AGPL.
+#
+# A dual license offering a permissive alternative — e.g. r-efi's
+# "Apache-2.0 OR LGPL-2.1-or-later OR MIT" — imposes no copyleft obligation on
+# us, because we elect the permissive branch. Only when EVERY alternative is
+# copyleft does the obligation actually bind. A plain substring grep for "GPL"
+# gets this wrong in both directions, which is what this function exists to fix.
+spdx_class() {
+    local expr="$1" rest operand
+    if printf '%s' "${expr}" | grep -q ' OR '; then
+        rest="${expr}"
+        while [ -n "${rest}" ]; do
+            operand="${rest%% OR *}"
+            if [ "${operand}" = "${rest}" ]; then
+                rest=""
+            else
+                rest="${rest#* OR }"
+            fi
+            operand="$(printf '%s' "${operand}" | tr -d '()' | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')"
+            case "${operand}" in
+                MIT|MIT-0|ISC|Zlib|0BSD|BSD-2-Clause|BSD-3-Clause|Unlicense|CC0-1.0|Apache-2.0*)
+                    echo "PERMISSIVE"; return ;;
+            esac
+        done
+    fi
+    case "${expr}" in
+        *AGPL*) echo "AGPL" ;;
+        *LGPL*) echo "LGPL" ;;
+        # GPL-2.0-only is ONE-WAY INCOMPATIBLE with this project.
+        # The Kingdom is GPL-3.0-or-later. A GPL-2.0-*or-later* dependency is
+        # fine — we elect 3.0. A GPL-2.0-*only* dependency cannot be combined
+        # with GPL-3.0 code at all, and we cannot downgrade to satisfy it.
+        # Bare "GPL-2.0" is treated as -only: SPDX deprecated the ambiguous
+        # form, and assuming the permissive reading of an ambiguous grant is
+        # exactly the assumption that loses.
+        # First-party crates (monad-common, ebpf/*) are GPL-2.0 because the
+        # kernel requires it, and are skipped before this function is reached.
+        *GPL-2.0-or-later*|*GPL-2.0+*) echo "GPL" ;;
+        *GPL-2.0*)                     echo "GPL2_ONLY" ;;
+        *GPL*)                         echo "GPL" ;;
+        *)                             echo "PERMISSIVE" ;;
+    esac
+}
+
+# Sourcing this script with GPL_BOUNDARY_LIB_ONLY=1 loads the classifier
+# helpers above without running the scan, so they can be unit-tested directly.
+# See scripts/test-gpl-boundary-classifier.sh.
+if [ "${GPL_BOUNDARY_LIB_ONLY:-0}" = "1" ]; then
+    return 0 2>/dev/null || exit 0
+fi
 
 FAIL=0
 TOTAL_FILES=0
@@ -157,6 +228,8 @@ echo "--- Cargo.toml Dependency License Check ---" >> "${REPORT}"
 
 CARGO_GPL_FOUND=0
 FIRST_PARTY_GPL_COUNT=0
+CARGO_GPL_DEP_COUNT=0
+CARGO_LGPL_COUNT=0
 while IFS= read -r -d '' cargo_toml; do
     rel_path="${cargo_toml#${REPO_ROOT}/}"
     # Check the license field in Cargo.toml for GPL/AGPL
@@ -174,18 +247,40 @@ while IFS= read -r -d '' cargo_toml; do
         fi
     fi
 
-    # If cargo-license is available, do a deeper check (this scans
-    # dependencies via Cargo.lock — the actually meaningful contamination
-    # signal — and applies to first-party crates too).
+    # If cargo-license is available, do a deeper check over the RESOLVED
+    # dependency graph (via Cargo.lock) — the actually meaningful contamination
+    # signal. Policy matches the Go scan above: the project is GPL-3.0-or-later,
+    # so a GPL dependency is expected and fine; AGPL is an escalation of our
+    # obligations and fails; LGPL-only differs enough to warrant a warning.
     CARGO_DIR=$(dirname "${cargo_toml}")
     if command -v cargo-license &>/dev/null && [ -f "${CARGO_DIR}/Cargo.lock" ]; then
-        CARGO_GPL=$(cd "${CARGO_DIR}" && cargo license 2>/dev/null | grep -iE 'GPL|AGPL' || true)
-        if [ -n "${CARGO_GPL}" ]; then
-            echo "FAIL: GPL/AGPL dependency in ${rel_path}:" >> "${REPORT}"
-            echo "  ${CARGO_GPL}" >> "${REPORT}"
-            CARGO_GPL_FOUND=1
-            FAIL=1
-        fi
+        while IFS= read -r dep_line; do
+            # `cargo license -d` emits one crate per line: `name: version, "SPDX",`
+            dep_name="${dep_line%%:*}"
+            [ -n "${dep_name}" ] || continue
+            is_first_party_crate "${dep_name}" && continue
+            dep_lic="$(printf '%s' "${dep_line}" | sed 's/^[^"]*"//; s/",[[:space:]]*$//')"
+            case "$(spdx_class "${dep_lic}")" in
+                AGPL)
+                    echo "FAIL: AGPL dependency ${dep_name} (${dep_lic}) in ${rel_path}" >> "${REPORT}"
+                    CARGO_GPL_FOUND=1
+                    FAIL=1
+                    ;;
+                GPL2_ONLY)
+                    echo "FAIL: GPL-2.0-only dependency ${dep_name} (${dep_lic}) in ${rel_path} — incompatible with GPL-3.0-or-later; cannot be combined" >> "${REPORT}"
+                    CARGO_GPL_FOUND=1
+                    FAIL=1
+                    ;;
+                LGPL)
+                    echo "WARN: LGPL-only dependency ${dep_name} (${dep_lic}) in ${rel_path}" >> "${REPORT}"
+                    CARGO_LGPL_COUNT=$((CARGO_LGPL_COUNT + 1))
+                    ;;
+                GPL)
+                    echo "INFO: GPL dependency ${dep_name} (${dep_lic}) in ${rel_path} (compatible — project is GPL-3.0-or-later)" >> "${REPORT}"
+                    CARGO_GPL_DEP_COUNT=$((CARGO_GPL_DEP_COUNT + 1))
+                    ;;
+            esac
+        done < <(cd "${CARGO_DIR}" && cargo license -d 2>/dev/null || true)
     fi
 done < <(find "${REPO_ROOT}" -name 'Cargo.toml' -not -path '*/target/*' -print0)
 
@@ -193,8 +288,12 @@ if [ "${FIRST_PARTY_GPL_COUNT}" -gt 0 ]; then
     echo "INFO: ${FIRST_PARTY_GPL_COUNT} first-party Cargo manifests are GPL-licensed (intentional, project license)" >> "${REPORT}"
 fi
 
+if [ "${CARGO_GPL_DEP_COUNT}" -gt 0 ] || [ "${CARGO_LGPL_COUNT}" -gt 0 ]; then
+    echo "INFO: third-party copyleft deps — GPL: ${CARGO_GPL_DEP_COUNT}, LGPL-only: ${CARGO_LGPL_COUNT}" >> "${REPORT}"
+fi
+
 if [ "${CARGO_GPL_FOUND}" -eq 0 ]; then
-    echo "PASS: No GPL/AGPL patterns detected in Cargo.toml files" >> "${REPORT}"
+    echo "PASS: No AGPL contamination in Cargo dependency graphs" >> "${REPORT}"
 fi
 echo "" >> "${REPORT}"
 
