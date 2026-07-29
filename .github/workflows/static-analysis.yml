@@ -1,0 +1,114 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# Static analysis for the languages gosec does not cover. Before this file,
+# CI analysed Go only — while the tree also carries ~53K LOC of Rust, 154
+# shell scripts, 70 Python files and 40 JS files. The shell surface is the
+# one that matters most operationally: those scripts drive boot recipes and
+# runbooks against live hardware under sudo.
+#
+# Ratchet policy, same as gosec (docs/security/findings-remediation-2026-07-29.md):
+# a linter lands NON-GATING first so its baseline is measured honestly, then
+# flips to gating once the backlog is worked. `continue-on-error: true` here
+# is a deliberate, temporary, documented state — not a permanent excuse.
+# Measured baselines at time of writing: shellcheck 361 (11 error / 98 warning
+# / 252 note), clippy 13 in crates/monad-mbc alone.
+name: Static Analysis
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  shellcheck:
+    name: Shell (shellcheck)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - name: Install shellcheck
+        run: sudo apt-get update -qq && sudo apt-get install -y shellcheck
+
+      # Errors only — these are correctness bugs (e.g. SC2148 missing shebang,
+      # so the analysed shell is a guess), not style. Gating from day one.
+      - name: shellcheck (errors — GATING)
+        run: |
+          git ls-files '*.sh' | xargs -r shellcheck -S error -f gcc
+
+      - name: shellcheck (warnings + notes — reporting)
+        continue-on-error: true
+        run: |
+          git ls-files '*.sh' | xargs -r shellcheck -f gcc
+
+  clippy:
+    name: Rust (clippy)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      # NOTE: there is no root Cargo.toml. `cargo clippy --workspace` from the
+      # repo root silently does NOTHING and exits 0 — it reads as "clean" when
+      # it means "never ran". The tree has ~14 independent workspaces, so they
+      # MUST be iterated explicitly. Do not "simplify" this loop.
+      - name: clippy (all workspaces)
+        continue-on-error: true
+        run: |
+          fail=0
+          for d in $(git ls-files '*/Cargo.toml' | xargs -n1 dirname | sort -u); do
+            echo "::group::clippy $d"
+            (cd "$d" && cargo clippy --all-targets --quiet) || fail=1
+            echo "::endgroup::"
+          done
+          exit $fail
+
+  python:
+    name: Python (ruff + bandit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet ruff bandit
+
+      - name: ruff
+        continue-on-error: true
+        run: ruff check .
+
+      # bandit is the Python analogue of gosec — security-focused, not style.
+      - name: bandit
+        continue-on-error: true
+        run: bandit -r . -ll -x ./llama.cpp,./target,./node_modules
+
+  dockerfiles:
+    name: Dockerfiles (hadolint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      # trivy misconfig flags DS-0002 "Image user should not be 'root'" across
+      # 6+ Dockerfiles. hadolint catches the same class earlier and explains it
+      # better. Pairs with the pkg/uids run-as-identity registry, which today
+      # covers only the K8s telemetry tier.
+      - name: hadolint
+        continue-on-error: true
+        run: |
+          docker run --rm -i hadolint/hadolint:latest-alpine hadolint --no-color - \
+            < /dev/null || true
+          fail=0
+          for f in $(git ls-files '*Dockerfile*'); do
+            echo "::group::hadolint $f"
+            docker run --rm -i hadolint/hadolint:latest-alpine hadolint --no-color - < "$f" || fail=1
+            echo "::endgroup::"
+          done
+          exit $fail

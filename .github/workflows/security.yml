@@ -74,6 +74,42 @@ jobs:
           sarif_file: gosec-results.sarif
 
   # ============================================================================
+  # Secret Scanning
+  # ============================================================================
+  gitleaks:
+    name: Secret Scan (gitleaks)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0   # full history — see note below
+
+      # trivy's secret scanner covers the working tree. It does NOT cover git
+      # HISTORY, and a credential committed then deleted is still public the
+      # moment the repo is. A history scan on 2026-07-29 found 76 findings
+      # across 2149 commits (2026-02-23 -> 2026-05-12), including what appear
+      # to be real firewall admin credentials, a grafana admin password and a
+      # grafana secret_key.
+      #
+      # .gitleaksignore holds fingerprints for those PRE-EXISTING findings so
+      # this gate protects against NEW leaks today. It may only SHRINK: a new
+      # leak is never added to it — rotate the credential and remove the line.
+      #
+      # HARD PRE-PUBLIC BLOCKER: the baselined findings must be triaged,
+      # rotated, and (if real) excised from history before this repo goes
+      # public. See docs/security/PRE-PUBLIC-BLOCKERS.md.
+      - name: gitleaks (working tree — GATING)
+        run: |
+          curl -sSfL https://github.com/gitleaks/gitleaks/releases/download/v8.28.0/gitleaks_8.28.0_linux_x64.tar.gz \
+            | tar xz -C /tmp gitleaks
+          /tmp/gitleaks dir --no-banner --redact --exit-code 1 .
+
+      - name: gitleaks (full history — reporting until history is remediated)
+        continue-on-error: true
+        run: /tmp/gitleaks git --no-banner --redact --exit-code 1 .
+
+  # ============================================================================
   # Rust Security
   # ============================================================================
   cargo-audit:
@@ -253,7 +289,7 @@ jobs:
     name: Security Gate
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [govulncheck, gosec, cargo-audit, trivy-fs]
+    needs: [govulncheck, gosec, gitleaks, cargo-audit, trivy-fs]
     if: always()
     steps:
       - name: Check all security scans passed
