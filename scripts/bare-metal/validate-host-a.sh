@@ -8,6 +8,16 @@
 
 set -euo pipefail
 
+# Firewall API credentials come from the environment — never the source tree.
+#
+# These were previously inline in the curl calls below, which put working
+# OPNsense admin credentials in git history (gitleaks: curl-auth-user). They
+# must be rotated regardless of this change; see
+# docs/security/PRE-PUBLIC-BLOCKERS.md.
+: "${OPNSENSE_API_KEY:?set OPNSENSE_API_KEY — firewall API credentials are no longer embedded in this script}"
+: "${OPNSENSE_API_SECRET:?set OPNSENSE_API_SECRET — firewall API credentials are no longer embedded in this script}"
+
+
 # version_ge <have> <want> — true if $1 >= $2, compared as VERSIONS.
 #
 # The checks below previously used bash's [[ "$a" > "$b" ]], which is a
@@ -188,7 +198,7 @@ else
 fi
 
 print_check "OPNsense firewall rules include HbH (Monad passthrough)"
-if curl -sk -u root:opnsense https://192.168.1.1:443/api/firewall/filter/searchRule 2>/dev/null | \
+if curl -sk -u "${OPNSENSE_API_KEY}:${OPNSENSE_API_SECRET}" https://192.168.1.1:443/api/firewall/filter/searchRule 2>/dev/null | \
    python3 -c "import sys, json; rules = json.load(sys.stdin).get('rows', []); hbh = [r for r in rules if 'HbH' in r.get('description','')]; sys.exit(0 if hbh else 1)"; then
   pass
   json_add_result "opnsense_hbh_rules" "PASS"

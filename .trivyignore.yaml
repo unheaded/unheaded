@@ -1,0 +1,56 @@
+# Trivy ignore file — per-finding rationale, NOT a blanket suppression.
+#
+# Same ratchet policy as the gosec exclusion list
+# (docs/security/findings-remediation-2026-07-29.md): this file may only
+# SHRINK. A new finding is never added here to make a build pass — it gets
+# fixed, or it gets an entry that explains why the check does not apply, with
+# enough detail that a reviewer can disagree.
+#
+# Every entry below states WHY the container needs the privilege, not merely
+# that it currently has it.
+
+misconfigurations:
+  # ── DS-0002: "Image user should not be 'root'" ────────────────────────────
+  #
+  # These are routing and firewall daemons. They need CAP_NET_ADMIN to program
+  # the kernel routing table / netfilter, and the ones that can drop privileges
+  # already do so internally after binding — which is the upstream-recommended
+  # pattern for each, not an oversight:
+  #
+  #   bird  — Dockerfile creates bird:153 and bird drops to it via its config
+  #   frr   — built with --enable-user=frr --enable-group=frr, so the daemons
+  #           run as frr; only the supervisor starts as root
+  #   ospf  — same FRR-family pattern
+  #
+  # Forcing USER at the image level would break privilege-dropping daemons,
+  # which need to start privileged in order to drop. The correct control here
+  # is capability scoping at the runtime (cap_drop: ALL + cap_add: NET_ADMIN),
+  # tracked separately.
+  - id: DS-0002
+    paths:
+      - "docker/firewall/bird/Dockerfile"
+      - "docker/firewall/frr/Dockerfile"
+      - "docker/routing/ospf/Dockerfile"
+      - "routing/bird/Dockerfile"
+      - "routing/frr/Dockerfile"
+    statement: >-
+      Routing daemon requiring CAP_NET_ADMIN; drops to a dedicated unprivileged
+      user internally after start (bird:153 / frr via --enable-user). Runtime
+      capability scoping is the applicable control, not image-level USER.
+
+  # ipfire and opnsense are full firewall appliance images that manage
+  # interfaces, netfilter and their own service supervision. They have no
+  # privilege-dropping story today and genuinely run as root.
+  #
+  # NOT a false positive — a real accepted risk, and the weakest entry in this
+  # file. Tracked in docs/security/findings-remediation-2026-07-29.md; these
+  # should either gain a dedicated user or be confined by runtime capability
+  # scoping before anything outside the lab depends on them.
+  - id: DS-0002
+    paths:
+      - "docker/firewall/ipfire/Dockerfile"
+      - "docker/firewall/opnsense/Dockerfile"
+    statement: >-
+      Firewall appliance image with no privilege-dropping path today. ACCEPTED
+      RISK, not a false positive — needs a dedicated user or runtime capability
+      confinement before production exposure.

@@ -188,12 +188,16 @@ jobs:
       # (DS-0002) and default security contexts (KSV-0118). Non-gating for
       # now while that backlog is worked; ratchet the severity down as
       # categories close. Tracked in the remediation doc.
+      # trivyignores is REQUIRED here: trivy does not auto-discover
+      # .trivyignore.yaml in this mode. Verified — without the flag the file is
+      # decorative and every documented exception is silently ignored.
       - name: Trivy IaC misconfiguration scan
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: fs
           scan-ref: '.'
           scanners: misconfig
+          trivyignores: .trivyignore.yaml
           exit-code: '0'
 
       - name: Upload Trivy results

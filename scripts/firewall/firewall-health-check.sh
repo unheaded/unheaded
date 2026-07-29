@@ -5,6 +5,16 @@
 
 set -euo pipefail
 
+# Firewall API credentials come from the environment — never the source tree.
+#
+# These were previously inline in the curl calls below, which put working
+# OPNsense admin credentials in git history (gitleaks: curl-auth-user). They
+# must be rotated regardless of this change; see
+# docs/security/PRE-PUBLIC-BLOCKERS.md.
+: "${OPNSENSE_API_KEY:?set OPNSENSE_API_KEY — firewall API credentials are no longer embedded in this script}"
+: "${OPNSENSE_API_SECRET:?set OPNSENSE_API_SECRET — firewall API credentials are no longer embedded in this script}"
+
+
 HOST_A_FW="${HOST_A_FW:-10.20.0.1}"   # OPNsense LAN IP
 HOST_B_FW="${HOST_B_FW:-10.20.0.1}"   # IPFire LAN IP (from host-b)
 WG_PEER_A="fd00:dead:beef::1"
@@ -29,10 +39,10 @@ echo "========================================"
 
 echo ""
 echo "[ OPNsense (host-a) ]"
-check "OPNsense API reachable" "curl -sk -u root:opnsense https://${HOST_A_FW}/api/core/firmware/info"
+check "OPNsense API reachable" "curl -sk -u "${OPNSENSE_API_KEY}:${OPNSENSE_API_SECRET}" https://${HOST_A_FW}/api/core/firmware/info"
 check "WireGuard UDP 51820 open" "nc -zu ${HOST_A_FW} 51820"
 check "HTTPS 443 open" "nc -z ${HOST_A_FW} 443"
-check "Monad HbH rule active" "curl -sk -u root:opnsense https://${HOST_A_FW}/api/firewall/filter/searchRule | grep -qi 'HbH'"
+check "Monad HbH rule active" "curl -sk -u "${OPNSENSE_API_KEY}:${OPNSENSE_API_SECRET}" https://${HOST_A_FW}/api/firewall/filter/searchRule | grep -qi 'HbH'"
 
 echo ""
 echo "[ FRR BGP (host-a) ]"
