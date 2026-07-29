@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -477,6 +478,41 @@ func (s *ImageStore) ExtractImage(imageID, destDir string) error {
 const maxExtractedFileSize int64 = 5 << 30
 
 // extractLayer extracts a layer tarball to a directory.
+// withinDir reports whether path is contained by dir.
+//
+// This replaces a `strings.HasPrefix(filepath.Clean(target), filepath.Clean(dest))`
+// check, which is a well-known false-containment bug: with dest="/var/lib/store",
+// the path "/var/lib/storeEVIL/x" passes HasPrefix while living entirely outside
+// the store. filepath.Rel compares path *elements*, so it does not.
+func withinDir(dir, path string) bool {
+	rel, err := filepath.Rel(filepath.Clean(dir), filepath.Clean(path))
+	if err != nil {
+		return false
+	}
+	return rel != ".." && !strings.HasPrefix(rel, ".."+string(os.PathSeparator))
+}
+
+// resolveLinkTarget resolves a tar link target the way the HOST filesystem will
+// during extraction — which is the only interpretation that matters for safety.
+//
+// A previous version treated an absolute linkname as image-relative
+// (destDir + linkname). That validated one path while os.Symlink stored a
+// different one: an absolute link to /outside passed the check as
+// <destDir>/outside, then a later entry writing "evil/pwn" followed the real
+// symlink and landed outside destDir. Validating something other than what you
+// create is not a check.
+//
+// So: absolute links are treated as host-absolute, relative links resolve
+// against the directory holding the link. An image that ships absolute internal
+// symlinks will have them skipped rather than extracted — the conservative
+// direction, and the one that cannot escape.
+func resolveLinkTarget(destDir, linkPath, linkname string) string {
+	if filepath.IsAbs(linkname) {
+		return filepath.Clean(linkname)
+	}
+	return filepath.Join(filepath.Dir(linkPath), linkname)
+}
+
 func extractLayer(layerPath, destDir string) error {
 	f, err := os.Open(layerPath) // #nosec G304 -- container store path derived from the runtime root
 	if err != nil {
@@ -513,7 +549,7 @@ func extractLayer(layerPath, destDir string) error {
 			// This is a whiteout file - delete the corresponding file
 			target := filepath.Join(destDir, filepath.Dir(name), strings.TrimPrefix(filepath.Base(name), ".wh."))
 			// Guard against malicious whiteout-name path traversal (Zip Slip).
-			if !strings.HasPrefix(filepath.Clean(target), filepath.Clean(destDir)) {
+			if !withinDir(destDir, target) {
 				continue
 			}
 			_ = os.RemoveAll(target)
@@ -523,7 +559,7 @@ func extractLayer(layerPath, destDir string) error {
 		targetPath := filepath.Join(destDir, name)
 
 		// Validate path to prevent directory traversal
-		if !strings.HasPrefix(filepath.Clean(targetPath), filepath.Clean(destDir)) {
+		if !withinDir(destDir, targetPath) {
 			continue // Skip files outside destDir
 		}
 
@@ -536,7 +572,7 @@ func extractLayer(layerPath, destDir string) error {
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 				return err
 			}
-			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode)) // #nosec G304 -- container store path derived from the runtime root
+			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC|syscall.O_NOFOLLOW, os.FileMode(header.Mode)) // #nosec G304 -- container store path derived from the runtime root
 			if err != nil {
 				return err
 			}
@@ -552,6 +588,13 @@ func extractLayer(layerPath, destDir string) error {
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 				return err
 			}
+			// The link TARGET must be validated, not just the link's own path.
+			// Without this, a layer can ship `evil -> /etc/cron.d` and then a
+			// later entry `evil/pwn`, whose targetPath passes the lexical check
+			// above while the write follows the symlink outside destDir.
+			if !withinDir(destDir, resolveLinkTarget(destDir, targetPath, header.Linkname)) {
+				continue // Skip symlinks escaping destDir
+			}
 			_ = os.Remove(targetPath) // Remove existing
 			if err := os.Symlink(header.Linkname, targetPath); err != nil {
 				return err
@@ -561,6 +604,11 @@ func extractLayer(layerPath, destDir string) error {
 				return err
 			}
 			linkTarget := filepath.Join(destDir, header.Linkname)
+			// Unvalidated, `../../../etc/shadow` would hardlink a host file into
+			// the container rootfs — readable by anything running in it.
+			if !withinDir(destDir, linkTarget) {
+				continue // Skip hardlinks escaping destDir
+			}
 			_ = os.Remove(targetPath)
 			if err := os.Link(linkTarget, targetPath); err != nil {
 				return err
