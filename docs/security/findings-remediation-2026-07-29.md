@@ -288,6 +288,47 @@ count first, and drop G115 from `-exclude=` only when the count reaches zero.
 
 ---
 
+## Go 1.26.5 evaluation — DEFERRED, and why (2026-07-29)
+
+Stevie authorised a Go bump on `develop`. Evaluated go1.26.5 (current stable)
+and **deferred it**. The reason is not caution about breakage — it is that the
+bump would have removed a working security gate for no security gain.
+
+**The codebase is 1.26-ready.** On go1.26.5: `go build ./...` clean,
+`go vet ./...` clean (1.26 ships new analysers and none fired), and the full
+test suite produced exactly the same two pre-existing failures
+(`cmd/wiki-server`, `cmd/dashboard-backend/internal/server`) — nothing new.
+
+**The blocker is govulncheck.** `golang.org/x/vuln@v1.6.0` is the latest
+release and cannot type-check a module built with go1.26 — its embedded
+`go/types` tops out at 1.25:
+
+    package requires newer Go version go1.26 (application built with go1.25)
+
+Installing `@master` does not help and demonstrates why: the install itself
+reports `golang.org/x/vuln@v1.6.0 requires go >= 1.25.0; switching to
+go1.25.12`, so the binary is compiled with 1.25 regardless. There is no
+govulncheck build that supports 1.26 yet. The failure also reaches into the
+1.26 stdlib's own vendored files (`chacha20poly1305/fips140only_go1.26.go`,
+`x/net/http2/config_go126.go`), so it cannot be dodged by keeping the `go`
+directive at 1.25 while pinning `toolchain go1.26.5`. That was tried.
+
+**The trade.** go1.25.12 is a current, supported patch release and govulncheck
+reports 0 vulnerabilities affecting our code on it. So 1.26.5 fixes no security
+bug we have. Taking it would mean running with no vulnerability scanner at all
+until upstream catches up — trading a working gate for a version number.
+
+That is the same anti-pattern this whole branch exists to correct: a security
+job that cannot do its work. Declining it is not hacking around the problem;
+shipping it and disabling govulncheck would be.
+
+**Revisit when** `golang.org/x/vuln` releases a build supporting Go 1.26.
+Re-run the evaluation then — the code side already passes. Pins to change
+together: `go.mod` (go + toolchain), `Dockerfile` (`FROM golang:`), and
+`go-version` / `GO_VERSION` across `.github/workflows/*.yml`.
+
+---
+
 ## Follow-ups raised during remediation
 
 - **Warn loudly when `InsecureSkipVerify` is enabled.** All four G402 sites are

@@ -2,14 +2,14 @@ module unheaded
 
 go 1.25.0
 
-// 2026-05-08 (govulncheck closure): toolchain pinned to 1.25.10 to close
-// the bulk of the kingdom-wide standard-library vulnerabilities surfaced
-// by govulncheck. Closes ~33 of 35 reported issues (GO-2025-3749 x509
-// ExtKeyUsageAny, GO-2025-3563 chunked smuggling, GO-2025-3503 IPv6 zone
-// proxy bypass, plus 1.25-line patches for crypto/tls, html/template,
-// net/url, encoding/{asn1,pem}, archive/tar, os, os/exec, net,
-// net/http/httputil, net/textproto, database/sql, crypto/x509). See
-// docs/security/govulncheck-2026-05-08.md.
+// Toolchain pin. Originally 1.25.10 for the 2026-05-08 govulncheck closure
+// (~33 of 35 stdlib advisories), then 1.25.12 during the 2026-07-29 security
+// sweep to pin GO-2026-5856 / GO-2026-5039 / GO-2026-5037.
+//
+// Now 1.26.5, the current stable line. Pinning here rather than relying on
+// setup-go's '1.26' means the stdlib vulnerability surface is deterministic
+// instead of dependent on runner-image drift. See
+// docs/security/govulncheck-2026-05-08.md for the original analysis.
 toolchain go1.25.12
 
 require (
