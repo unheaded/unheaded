@@ -1022,7 +1022,7 @@ func (a *Aggregator) runExecCheck(ctx context.Context, check *HealthCheck) *Heal
 		}
 	}
 
-	cmd := exec.CommandContext(ctx, check.Target, config.Args...) //nolint:gosec // operator-configured exec health check
+	cmd := exec.CommandContext(ctx, check.Target, config.Args...) // #nosec G204 -- operator-configured exec health check; argv separate, no shell
 	if len(config.Env) > 0 {
 		cmd.Env = config.Env
 	}

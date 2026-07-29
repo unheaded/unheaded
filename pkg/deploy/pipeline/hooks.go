@@ -253,7 +253,7 @@ func (e *HookExecutor) executeExecHook(ctx context.Context, hook *Hook, result *
 		args = []string{}
 	}
 
-	cmd := exec.CommandContext(ctx, hook.Config.Command, args...) //nolint:gosec // operator-configured deploy hook
+	cmd := exec.CommandContext(ctx, hook.Config.Command, args...) // #nosec G204 -- operator-configured deploy hook; running supplied code is the feature
 
 	// Set working directory
 	if hook.Config.Dir != "" {
@@ -476,7 +476,7 @@ func (e *HookExecutor) executeScriptHook(ctx context.Context, hook *Hook, result
 	// interpreter is resolved via exec.LookPath so PATH cannot be
 	// hijacked, and the script is written to a temp file with 0500
 	// perms so only the deploy daemon's UID can execute it.
-	cmd := exec.CommandContext(ctx, interpreterPath, absScriptPath) //nolint:gosec // hook scripts are arbitrary code by design
+	cmd := exec.CommandContext(ctx, interpreterPath, absScriptPath) // #nosec G204 -- operator-configured deploy hook; running supplied code is the feature
 
 	// Set working directory if specified
 	if hook.Config.Dir != "" {

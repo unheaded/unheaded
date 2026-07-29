@@ -1142,7 +1142,7 @@ func (b *Builder) runNixBuild(ctx context.Context, spec *BuildSpec) (*nixBuildRe
 	}
 	args = append(args, spec.Options.ExtraArgs...)
 
-	cmd := exec.CommandContext(ctx, b.config.NixBinary, args...)
+	cmd := exec.CommandContext(ctx, b.config.NixBinary, args...) // #nosec G204 -- fixed nix binary; path/attr passed as separate argv, no shell
 
 	// Capture output
 	var stdout, stderr strings.Builder
@@ -1379,7 +1379,7 @@ func (b *Builder) ImportToLXD(ctx context.Context, result *BuildResult, lxdClien
 	alias := fmt.Sprintf("unheaded-%s-%s", result.Spec.ContainerName, result.ImageHash[:12])
 
 	// Import using lxc image import command (via exec since client interface may not have it)
-	cmd := exec.CommandContext(ctx, "lxc", "image", "import", result.ImagePath, "--alias", alias)
+	cmd := exec.CommandContext(ctx, "lxc", "image", "import", result.ImagePath, "--alias", alias) // #nosec G204 -- fixed nix binary; path/attr passed as separate argv, no shell
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		importsTotal.WithLabelValues(result.Spec.ContainerName, "failed").Inc()
@@ -1455,7 +1455,7 @@ func ParseFlake(path string) (*FlakeConfig, error) {
 	}
 
 	// Get flake metadata using nix command
-	cmd := exec.Command("nix", "flake", "metadata", path, "--json")
+	cmd := exec.Command("nix", "flake", "metadata", path, "--json") // #nosec G204 -- fixed nix binary; path/attr passed as separate argv, no shell
 	output, err := cmd.Output()
 	if err != nil {
 		// Try to parse flake.nix directly as fallback
@@ -1528,7 +1528,7 @@ func ParseFlake(path string) (*FlakeConfig, error) {
 	}
 
 	// Get flake outputs
-	cmd = exec.Command("nix", "flake", "show", path, "--json")
+	cmd = exec.Command("nix", "flake", "show", path, "--json") // #nosec G204 -- fixed nix binary; path/attr passed as separate argv, no shell
 	output, err = cmd.Output()
 	if err == nil {
 		var outputs map[string]interface{}
@@ -1717,7 +1717,7 @@ func ListFlakeContainers(path string) ([]string, error) {
 
 // ValidateFlake validates a flake configuration.
 func ValidateFlake(path string) error {
-	cmd := exec.Command("nix", "flake", "check", path)
+	cmd := exec.Command("nix", "flake", "check", path) // #nosec G204 -- fixed nix binary; path/attr passed as separate argv, no shell
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("%w: %s", ErrFlakeParseError, string(output))

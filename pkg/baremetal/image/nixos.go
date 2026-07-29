@@ -69,7 +69,7 @@ func (b *NixOSBuilder) buildSystem(ctx context.Context, flakeRef, system string)
 	// Build the toplevel derivation
 	attribute := fmt.Sprintf("%s#nixosConfigurations.%s.config.system.build.toplevel", flakeRef, system)
 
-	cmd := exec.CommandContext(ctx, "nix", "build",
+	cmd := exec.CommandContext(ctx, "nix", "build", // #nosec G204 -- fixed binary; path/attr passed as separate argv, no shell
 		"--no-link",
 		"--print-out-paths",
 		attribute,
@@ -143,7 +143,7 @@ func (b *NixOSBuilder) buildSquashFS(ctx context.Context, storePath string) (str
 	defer func() { _ = os.Remove(listPath) }()
 
 	// Build squashfs
-	cmd := exec.CommandContext(ctx, "mksquashfs",
+	cmd := exec.CommandContext(ctx, "mksquashfs", // #nosec G204 -- fixed binary; path/attr passed as separate argv, no shell
 		"-",
 		outputPath,
 		"-comp", "zstd",
@@ -162,7 +162,7 @@ func (b *NixOSBuilder) buildSquashFS(ctx context.Context, storePath string) (str
 
 // getStoreClosure returns the store closure for a path.
 func (b *NixOSBuilder) getStoreClosure(ctx context.Context, storePath string) ([]string, error) {
-	cmd := exec.CommandContext(ctx, "nix-store", "-qR", storePath)
+	cmd := exec.CommandContext(ctx, "nix-store", "-qR", storePath) // #nosec G204 -- fixed binary; path/attr passed as separate argv, no shell
 	output, err := cmd.Output()
 	if err != nil {
 		return nil, err
@@ -179,7 +179,7 @@ func (b *NixOSBuilder) BuildNetboot(ctx context.Context, flakeRef, system string
 	// Build the netboot derivation
 	attribute := fmt.Sprintf("%s#nixosConfigurations.%s.config.system.build.netboot", flakeRef, system)
 
-	cmd := exec.CommandContext(ctx, "nix", "build",
+	cmd := exec.CommandContext(ctx, "nix", "build", // #nosec G204 -- fixed binary; path/attr passed as separate argv, no shell
 		"--no-link",
 		"--print-out-paths",
 		attribute,
@@ -218,7 +218,7 @@ func (b *NixOSBuilder) BuildKexec(ctx context.Context, flakeRef, system string) 
 	// Build the kexec derivation
 	attribute := fmt.Sprintf("%s#nixosConfigurations.%s.config.system.build.kexec", flakeRef, system)
 
-	cmd := exec.CommandContext(ctx, "nix", "build",
+	cmd := exec.CommandContext(ctx, "nix", "build", // #nosec G204 -- fixed binary; path/attr passed as separate argv, no shell
 		"--no-link",
 		"--print-out-paths",
 		attribute,
@@ -255,7 +255,7 @@ func (b *NixOSBuilder) BuildKexec(ctx context.Context, flakeRef, system string) 
 // GenerateHardwareConfig generates hardware configuration for a machine.
 func (b *NixOSBuilder) GenerateHardwareConfig(ctx context.Context, targetHost string) (string, error) {
 	// SSH to the target and run nixos-generate-config
-	cmd := exec.CommandContext(ctx, "ssh", targetHost,
+	cmd := exec.CommandContext(ctx, "ssh", targetHost, // #nosec G204 -- fixed binary; path/attr passed as separate argv, no shell
 		"nixos-generate-config", "--show-hardware-config",
 	)
 

@@ -99,7 +99,7 @@ func (n *NixOSCollector) collectSystemdUnits(ctx context.Context) []Sample {
 	ctx, cancel := context.WithTimeout(ctx, n.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, n.systemctlPath, "list-units", "--output=json", "--no-pager")
+	cmd := exec.CommandContext(ctx, n.systemctlPath, "list-units", "--output=json", "--no-pager") // #nosec G204 -- fixed systemctl/journalctl path from config; args are literals
 	output, err := cmd.Output()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: systemctl failed: %v\n", err)
@@ -169,7 +169,7 @@ func (n *NixOSCollector) collectJournalErrors(ctx context.Context) []Sample {
 	ctx, cancel := context.WithTimeout(ctx, n.timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, n.journalctlPath, "-p", "err", "-n", "0", "--output=json", "--no-pager")
+	cmd := exec.CommandContext(ctx, n.journalctlPath, "-p", "err", "-n", "0", "--output=json", "--no-pager") // #nosec G204 -- fixed systemctl/journalctl path from config; args are literals
 	output, err := cmd.Output()
 	if err != nil {
 		// journalctl might not be available, which is OK

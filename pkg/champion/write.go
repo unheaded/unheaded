@@ -318,7 +318,7 @@ func (c *Champion) RunbookExecute(ctx context.Context, name string, dryRun bool)
 	cmdCtx, cancel := context.WithTimeout(ctx, 10*time.Minute)
 	defer cancel()
 
-	cmd := exec.CommandContext(cmdCtx, "python3", args...) //nolint:gosec // args are programmatically constructed, python3 is fixed
+	cmd := exec.CommandContext(cmdCtx, "python3", args...) // #nosec G204 -- runbook path validated inside runbooks/ (see above); python3 fixed, argv programmatic
 	cmd.Dir = c.config.ProjectRoot
 	out, runErr := cmd.CombinedOutput()
 	elapsed := time.Since(start)

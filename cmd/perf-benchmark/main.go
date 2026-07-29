@@ -80,7 +80,7 @@ func main() {
 // p2pDirectLatency measures ICMP ping latency over the direct P2P link.
 func p2pDirectLatency(iterations int) error {
 	for i := 0; i < iterations; i++ {
-		out, err := exec.Command("ping", "-c", "1", "-W", "3", *eastP2P).CombinedOutput()
+		out, err := exec.Command("ping", "-c", "1", "-W", "3", *eastP2P).CombinedOutput() // #nosec G204 -- fixed ping binary; target from an operator CLI flag, argv separate
 		if err != nil {
 			return fmt.Errorf("ping %s: %w (output: %s)", *eastP2P, err, strings.TrimSpace(string(out)))
 		}
@@ -91,10 +91,10 @@ func p2pDirectLatency(iterations int) error {
 // wireguardIPv6Latency measures ICMP6 ping latency over the WireGuard tunnel.
 func wireguardIPv6Latency(iterations int) error {
 	for i := 0; i < iterations; i++ {
-		out, err := exec.Command("ping6", "-c", "1", "-W", "3", *eastWG).CombinedOutput()
+		out, err := exec.Command("ping6", "-c", "1", "-W", "3", *eastWG).CombinedOutput() // #nosec G204 -- fixed ping binary; target from an operator CLI flag, argv separate
 		if err != nil {
 			// Try ping -6 as fallback (some systems use ping -6 instead of ping6)
-			out2, err2 := exec.Command("ping", "-6", "-c", "1", "-W", "3", *eastWG).CombinedOutput()
+			out2, err2 := exec.Command("ping", "-6", "-c", "1", "-W", "3", *eastWG).CombinedOutput() // #nosec G204 -- fixed ping binary; target from an operator CLI flag, argv separate
 			if err2 != nil {
 				return fmt.Errorf("ping6 %s: %w (output: %s / %s)", *eastWG, err, strings.TrimSpace(string(out)), strings.TrimSpace(string(out2)))
 			}
