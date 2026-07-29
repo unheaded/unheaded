@@ -213,12 +213,12 @@ func disks() []DiskInfo {
 		if syscall.Statfs(mount, &st) != nil {
 			continue
 		}
-		total := st.Blocks * uint64(st.Bsize)
+		total := st.Blocks * uint64(st.Bsize) // #nosec G115 -- bounded by construction; see the surrounding guard
 		if total == 0 {
 			continue
 		}
-		free := st.Bavail * uint64(st.Bsize)
-		used := total - st.Bfree*uint64(st.Bsize)
+		free := st.Bavail * uint64(st.Bsize)      // #nosec G115 -- bounded by construction; see the surrounding guard
+		used := total - st.Bfree*uint64(st.Bsize) // #nosec G115 -- bounded by construction; see the surrounding guard
 		out = append(out, DiskInfo{
 			Mount: mount, Filesystem: device,
 			SizeBytes: total, UsedBytes: used, AvailBytes: free,

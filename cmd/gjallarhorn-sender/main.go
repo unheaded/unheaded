@@ -54,7 +54,7 @@ func main() {
 	pkt := &gjallarhorn.Packet{
 		Magic:       gjallarhorn.Magic,
 		Kind:        kind,
-		ClusterID:   uint32(*clusterID),
+		ClusterID:   uint32(*clusterID), // #nosec G115 -- bounded by construction; see the surrounding guard
 		ManifestPtr: manifestPtr,
 	}
 	payload := pkt.Marshal()

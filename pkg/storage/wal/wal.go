@@ -468,7 +468,7 @@ func encodeEntry(seq uint64, data []byte) []byte {
 
 	// Write header
 	binary.BigEndian.PutUint64(buf[0:8], seq)
-	binary.BigEndian.PutUint32(buf[8:12], uint32(len(data)))
+	binary.BigEndian.PutUint32(buf[8:12], uint32(len(data))) // #nosec G115 -- bounded by the length of an already-allocated slice
 	binary.BigEndian.PutUint32(buf[12:16], crc)
 
 	// Write data

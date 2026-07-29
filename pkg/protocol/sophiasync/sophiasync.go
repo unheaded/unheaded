@@ -399,7 +399,7 @@ func encodeDelta(delta *DictionaryDelta) ([]byte, error) {
 
 	// Encode additions count
 	addCount := make([]byte, 4)
-	binary.BigEndian.PutUint32(addCount, uint32(len(delta.Additions)))
+	binary.BigEndian.PutUint32(addCount, uint32(len(delta.Additions))) // #nosec G115 -- bounded by the length of an already-allocated slice
 	buf = append(buf, addCount...)
 
 	// Encode additions
@@ -409,7 +409,7 @@ func encodeDelta(delta *DictionaryDelta) ([]byte, error) {
 		buf = append(buf, indexBytes...)
 
 		lenBytes := make([]byte, 4)
-		binary.BigEndian.PutUint32(lenBytes, uint32(len(entry.Value)))
+		binary.BigEndian.PutUint32(lenBytes, uint32(len(entry.Value))) // #nosec G115 -- bounded by the length of an already-allocated slice
 		buf = append(buf, lenBytes...)
 
 		buf = append(buf, []byte(entry.Value)...)
@@ -417,7 +417,7 @@ func encodeDelta(delta *DictionaryDelta) ([]byte, error) {
 
 	// Encode removals count
 	remCount := make([]byte, 4)
-	binary.BigEndian.PutUint32(remCount, uint32(len(delta.Removals)))
+	binary.BigEndian.PutUint32(remCount, uint32(len(delta.Removals))) // #nosec G115 -- bounded by the length of an already-allocated slice
 	buf = append(buf, remCount...)
 
 	// Encode removals
@@ -429,7 +429,7 @@ func encodeDelta(delta *DictionaryDelta) ([]byte, error) {
 
 	// Encode signature length and signature
 	sigLen := make([]byte, 4)
-	binary.BigEndian.PutUint32(sigLen, uint32(len(delta.Signature)))
+	binary.BigEndian.PutUint32(sigLen, uint32(len(delta.Signature))) // #nosec G115 -- bounded by the length of an already-allocated slice
 	buf = append(buf, sigLen...)
 	buf = append(buf, delta.Signature...)
 

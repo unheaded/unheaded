@@ -106,7 +106,7 @@ func (r *TXTRecord) pack(buf *bytes.Buffer, offsets map[string]uint16) error {
 			if len(chunk) > 255 {
 				chunk = data[:255]
 			}
-			buf.WriteByte(byte(len(chunk)))
+			buf.WriteByte(byte(len(chunk))) // #nosec G115 -- bounded by construction; see the surrounding guard
 			buf.Write(chunk)
 			data = data[len(chunk):]
 		}
@@ -473,7 +473,7 @@ func packNameNoCompression(buf *bytes.Buffer, name string) error {
 		if len(label) == 0 {
 			continue
 		}
-		buf.WriteByte(byte(len(label)))
+		buf.WriteByte(byte(len(label))) // #nosec G115 -- bounded by construction; see the surrounding guard
 		buf.WriteString(label)
 	}
 

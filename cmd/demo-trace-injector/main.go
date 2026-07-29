@@ -143,10 +143,10 @@ func main() {
 				FlowKey: flowKey{a.ip, b.ip, uint16(32000) + uint16(a.id)*8 + uint16(b.id), b.port, 6},
 				FlowState: flowState{
 					TraceID: tid, StartNs: start, LastSeenNs: now,
-					PacketsIn:  uint64(rand.Intn(4000) + 200),     // #nosec G404 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
-					PacketsOut: uint64(rand.Intn(4000) + 200),     // #nosec G404 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
-					BytesIn:    uint64(rand.Intn(900000) + 20000), // #nosec G404 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
-					BytesOut:   uint64(rand.Intn(900000) + 20000), // #nosec G404 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
+					PacketsIn:  uint64(rand.Intn(4000) + 200),     // #nosec G404,G115 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
+					PacketsOut: uint64(rand.Intn(4000) + 200),     // #nosec G404,G115 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
+					BytesIn:    uint64(rand.Intn(900000) + 20000), // #nosec G404,G115 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
+					BytesOut:   uint64(rand.Intn(900000) + 20000), // #nosec G404,G115 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
 					State:      "established",
 				},
 				EventType: "update",
@@ -162,13 +162,13 @@ func main() {
 				pe := packetEvent{
 					TimestampNs: now, TraceID: tid,
 					FlowKey:   fe.FlowKey,
-					PacketLen: uint32(rand.Intn(1400) + 60), // #nosec G404 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
+					PacketLen: uint32(rand.Intn(1400) + 60), // #nosec G404,G115 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
 					Action:    "pass", Direction: dir,
 					Mesh: &meshMeta{
 						Version: 1, SrcServiceID: a.id, DstServiceID: b.id,
-						HopCount: uint8(1 + rand.Intn(2)), FlowFlags: []string{"traced"}, // #nosec G404 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
+						HopCount: uint8(1 + rand.Intn(2)), FlowFlags: []string{"traced"}, // #nosec G404,G115 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
 						TraceHash: "0xUNHD", QosClass: 0, NatType: "none",
-						LatencyHintNs: uint32(rand.Intn(400000) + 50000), // #nosec G404 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
+						LatencyHintNs: uint32(rand.Intn(400000) + 50000), // #nosec G404,G115 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
 					},
 				}
 				publish(ctx, c, "ebpf.packet.events", pe)
@@ -181,8 +181,8 @@ func main() {
 			for s := 0; s < 8; s++ {
 				le := latencyEvent{
 					TimestampNs: now, TraceID: newTID(),
-					PID: uint32(1000 + rand.Intn(9000)), TID: uint32(1000 + rand.Intn(9000)), // #nosec G404 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
-					LatencyNs: lo.base + uint64(rand.Int63n(int64(lo.span))), // #nosec G404 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
+					PID: uint32(1000 + rand.Intn(9000)), TID: uint32(1000 + rand.Intn(9000)), // #nosec G404,G115 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
+					LatencyNs: lo.base + uint64(rand.Int63n(int64(lo.span))), // #nosec G404,G115 -- synthetic demo traffic; production trace IDs use UUIDv7 (pkg/trace)
 					Operation: lo.op,
 				}
 				publish(ctx, c, "ebpf.latency.events", le)

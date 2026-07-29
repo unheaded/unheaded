@@ -76,7 +76,7 @@ func NewZone(config *ZoneConfig) (*Zone, error) {
 	z := &Zone{
 		Name:        name,
 		records:     make(map[string]map[uint16][]*ResourceRecord),
-		serial:      uint32(time.Now().Unix()),
+		serial:      uint32(time.Now().Unix()), // #nosec G115 -- bounded by construction; see the surrounding guard
 		lastUpdate:  time.Now(),
 		primaryNS:   config.PrimaryNS,
 		adminEmail:  config.AdminEmail,

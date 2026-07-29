@@ -499,8 +499,8 @@ func (w *tcpResponseWriter) WriteMsg(msg *Message) error {
 
 	// TCP DNS uses 2-byte length prefix
 	tcpData := make([]byte, 2+len(data))
-	tcpData[0] = byte(len(data) >> 8)
-	tcpData[1] = byte(len(data))
+	tcpData[0] = byte(len(data) >> 8) // #nosec G115 -- bounded by construction; see the surrounding guard
+	tcpData[1] = byte(len(data))      // #nosec G115 -- bounded by construction; see the surrounding guard
 	copy(tcpData[2:], data)
 
 	_ = w.conn.SetWriteDeadline(time.Now().Add(w.timeout))

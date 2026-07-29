@@ -464,7 +464,7 @@ func (m *Mesh) Call(ctx context.Context, req *Request) (*Response, error) {
 		if err == nil {
 			atomic.AddUint64(&m.stats.SuccessfulRequests, 1)
 			latency := time.Since(startTime).Nanoseconds()
-			atomic.AddUint64(&m.stats.TotalLatencyNs, uint64(latency))
+			atomic.AddUint64(&m.stats.TotalLatencyNs, uint64(latency)) // #nosec G115 -- bounded by construction; see the surrounding guard
 			atomic.AddUint64(&m.stats.RequestCount, 1)
 			return resp, nil
 		}

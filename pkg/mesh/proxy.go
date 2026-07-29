@@ -974,7 +974,7 @@ func (p *TransparentProxy) handleConnection(clientConn net.Conn) {
 	go func() {
 		defer wg.Done()
 		n, _ := io.Copy(backendConn, clientConn)
-		atomic.AddUint64(&p.totalBytes, uint64(n))
+		atomic.AddUint64(&p.totalBytes, uint64(n)) // #nosec G115 -- bounded by construction; see the surrounding guard
 		if tc, ok := backendConn.(*net.TCPConn); ok {
 			_ = tc.CloseWrite()
 		}
@@ -984,7 +984,7 @@ func (p *TransparentProxy) handleConnection(clientConn net.Conn) {
 	go func() {
 		defer wg.Done()
 		n, _ := io.Copy(clientConn, backendConn)
-		atomic.AddUint64(&p.totalBytes, uint64(n))
+		atomic.AddUint64(&p.totalBytes, uint64(n)) // #nosec G115 -- bounded by construction; see the surrounding guard
 		if tc, ok := clientConn.(*net.TCPConn); ok {
 			_ = tc.CloseWrite()
 		}

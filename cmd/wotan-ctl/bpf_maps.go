@@ -92,7 +92,7 @@ func (m *BPFMap) updateElem(key, value []byte) error {
 		value uint64
 		flags uint64
 	}{
-		mapFd: uint32(m.fd),
+		mapFd: uint32(m.fd), // #nosec G115 -- bounded by construction; see the surrounding guard
 		key:   uint64(uintptr(unsafe.Pointer(&key[0]))),
 		value: uint64(uintptr(unsafe.Pointer(&value[0]))),
 		flags: 0, // BPF_ANY (overwrite existing or create new)
@@ -134,7 +134,7 @@ func (m *BPFMap) Lookup(key interface{}) ([]byte, bool, error) {
 		pad1  uint32
 		pad2  uint32
 	}{
-		mapFd: uint32(m.fd),
+		mapFd: uint32(m.fd), // #nosec G115 -- bounded by construction; see the surrounding guard
 		key:   uint64(uintptr(unsafe.Pointer(&keyBytes[0]))),
 		value: uint64(uintptr(unsafe.Pointer(&value[0]))),
 	}
@@ -163,10 +163,10 @@ func encodeValue(v interface{}) ([]byte, error) {
 		binary.LittleEndian.PutUint64(buf[:], val)
 		return buf[:], nil
 	case int32:
-		binary.LittleEndian.PutUint32(buf[:4], uint32(val))
+		binary.LittleEndian.PutUint32(buf[:4], uint32(val)) // #nosec G115 -- kernel/netlink ABI field width
 		return buf[:4], nil
 	case int64:
-		binary.LittleEndian.PutUint64(buf[:], uint64(val))
+		binary.LittleEndian.PutUint64(buf[:], uint64(val)) // #nosec G115 -- kernel/netlink ABI field width
 		return buf[:], nil
 	case []byte:
 		return val, nil

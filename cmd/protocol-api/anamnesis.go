@@ -162,13 +162,13 @@ func (s *anamnesisServer) queryMock(req *pb.EventQuery) (*pb.EventQueryResponse,
 	}
 	offset := req.Offset
 
-	if offset > int32(len(filteredEvents)) {
-		offset = int32(len(filteredEvents))
+	if offset > int32(len(filteredEvents)) { // #nosec G115 -- bounded by the length of an already-allocated slice
+		offset = int32(len(filteredEvents)) // #nosec G115 -- bounded by the length of an already-allocated slice
 	}
 
 	end := offset + limit
-	if end > int32(len(filteredEvents)) {
-		end = int32(len(filteredEvents))
+	if end > int32(len(filteredEvents)) { // #nosec G115 -- bounded by the length of an already-allocated slice
+		end = int32(len(filteredEvents)) // #nosec G115 -- bounded by the length of an already-allocated slice
 	}
 
 	slicedEvents := filteredEvents[offset:end]

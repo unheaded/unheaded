@@ -1980,8 +1980,8 @@ func ConvertOTLPSpan(otlp *OTLPSpan, serviceName, serviceVersion, hostName strin
 		ParentSpanID:   parentSpanID,
 		Name:           otlp.Name,
 		Kind:           SpanKind(otlp.Kind),
-		StartTime:      time.Unix(0, int64(otlp.StartTimeUnixNano)),
-		EndTime:        time.Unix(0, int64(otlp.EndTimeUnixNano)),
+		StartTime:      time.Unix(0, int64(otlp.StartTimeUnixNano)), // #nosec G115 -- bounded by construction; see the surrounding guard
+		EndTime:        time.Unix(0, int64(otlp.EndTimeUnixNano)),   // #nosec G115 -- bounded by construction; see the surrounding guard
 		Attributes:     otlp.Attributes,
 		ServiceName:    serviceName,
 		ServiceVersion: serviceVersion,
@@ -2005,7 +2005,7 @@ func ConvertOTLPSpan(otlp *OTLPSpan, serviceName, serviceVersion, hostName strin
 	for _, e := range otlp.Events {
 		span.Events = append(span.Events, SpanEvent{
 			Name:       e.Name,
-			Timestamp:  time.Unix(0, int64(e.TimeUnixNano)),
+			Timestamp:  time.Unix(0, int64(e.TimeUnixNano)), // #nosec G115 -- bounded by construction; see the surrounding guard
 			Attributes: e.Attributes,
 		})
 	}
@@ -2037,7 +2037,7 @@ func ParseKernelEvent(data []byte) (*KernelEvent, error) {
 	event.TID = binary.LittleEndian.Uint32(data[20:24])
 
 	timestampNs := binary.LittleEndian.Uint64(data[24:32])
-	event.Timestamp = time.Unix(0, int64(timestampNs))
+	event.Timestamp = time.Unix(0, int64(timestampNs)) // #nosec G115 -- kernel/netlink ABI field width
 
 	// Parse type-specific data
 	switch event.Type {

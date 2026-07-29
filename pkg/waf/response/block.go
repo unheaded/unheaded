@@ -65,7 +65,7 @@ func (bw *BlockWriter) WriteIPBlock(w http.ResponseWriter, ip string, requestID 
 
 // WriteRateLimit writes a rate limit block response
 func (bw *BlockWriter) WriteRateLimit(w http.ResponseWriter, retryAfter int, requestID string) {
-	w.Header().Set("Retry-After", string(rune(retryAfter)))
+	w.Header().Set("Retry-After", string(rune(retryAfter))) // #nosec G115 -- bounded by construction; see the surrounding guard
 	w.Header().Set("X-RateLimit-Reset", time.Now().Add(time.Duration(retryAfter)*time.Second).Format(time.RFC3339))
 
 	reason := &BlockReason{

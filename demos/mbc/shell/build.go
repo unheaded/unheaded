@@ -7,10 +7,10 @@
 //   - Prints "mbc-linux> " prompt to stdout (fd 1)
 //   - Reads a line from stdin (fd 0), one byte at a time until '\n'
 //   - Recognizes built-in commands:
-//       exit   — calls SYS_EXIT(0)
-//       help   — prints list of available commands
+//     exit   — calls SYS_EXIT(0)
+//     help   — prints list of available commands
 //   - Recognizes external commands (fork + exec):
-//       echo, cat, ls, ps, uname, uptime
+//     echo, cat, ls, ps, uname, uptime
 //   - Unknown commands: prints "unknown command\n" and loops
 //
 // MBC instruction format: [opcode:8][dst:4][src:4][imm16:16]
@@ -116,10 +116,10 @@ func main() {
 	loopStart := len(code)
 
 	// Print "mbc-linux> " prompt
-	emit(MOVI, 0, 0, SYS_WRITE)    // r0 = SYS_WRITE
-	emit(MOVI, 1, 0, 1)            // r1 = stdout
-	promptInstr := emit(MOVI, 2, 0, 0) // r2 = prompt addr (patched)
-	emit(MOVI, 3, 0, uint16(len(prompt)))
+	emit(MOVI, 0, 0, SYS_WRITE)           // r0 = SYS_WRITE
+	emit(MOVI, 1, 0, 1)                   // r1 = stdout
+	promptInstr := emit(MOVI, 2, 0, 0)    // r2 = prompt addr (patched)
+	emit(MOVI, 3, 0, uint16(len(prompt))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	emit(INT, 0, 0, 0x80)
 
 	// ═══════════════════════════════════════════════════════════════
@@ -144,9 +144,9 @@ func main() {
 
 	// Store byte into line buffer at offset r9
 	// r5 = buffer_base + offset
-	emit(MOV, 5, 8, 0)  // r5 = r8 (buffer base)
-	emit(ADD, 5, 9, 0)  // r5 = r5 + r9
-	emit(STB, 4, 5, 0)  // store r4 at [r5]
+	emit(MOV, 5, 8, 0) // r5 = r8 (buffer base)
+	emit(ADD, 5, 9, 0) // r5 = r5 + r9
+	emit(STB, 4, 5, 0) // store r4 at [r5]
 	emit(MOVI, 10, 0, 1)
 	emit(ADD, 9, 10, 0) // r9++ (offset)
 
@@ -154,8 +154,8 @@ func main() {
 	emit(MOVI, 6, 0, 0x0A)
 	emit(CMP, 4, 6, 0)
 	// If not newline, loop back to read more
-	readJmpOffset := int16(readLoopStart - (len(code) + 1))
-	emit(JNZ, 0, 0, uint16(readJmpOffset))
+	readJmpOffset := int16(readLoopStart - (len(code) + 1)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	emit(JNZ, 0, 0, uint16(readJmpOffset))                  // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	// ═══════════════════════════════════════════════════════════════
 	// GOT A LINE — check for commands
@@ -166,7 +166,7 @@ func main() {
 	emit(CMP, 9, 6, 0)
 	notExitLen := emit(JNZ, 0, 0, 0) // if len != 5, skip exit check
 
-	emit(LD, 4, 8, 0) // r4 = first 4 bytes of buffer
+	emit(LD, 4, 8, 0)                      // r4 = first 4 bytes of buffer
 	exitWordInstr := emit(LOAD32, 6, 0, 0) // r6 = "exit" as u32
 	exitWordData := emit(NOP, 0, 0, 0)     // second word of LOAD32
 
@@ -186,7 +186,7 @@ func main() {
 	emit(CMP, 9, 6, 0)
 	notHelpLen := emit(JNZ, 0, 0, 0) // if len != 5, skip help check
 
-	emit(LD, 4, 8, 0) // r4 = first 4 bytes
+	emit(LD, 4, 8, 0)                      // r4 = first 4 bytes
 	helpWordInstr := emit(LOAD32, 6, 0, 0) // r6 = "help" as u32
 	helpWordData := emit(NOP, 0, 0, 0)
 
@@ -196,13 +196,13 @@ func main() {
 	// It IS "help" — print help message
 	emit(MOVI, 0, 0, SYS_WRITE)
 	emit(MOVI, 1, 0, 1)
-	helpMsgInstr := emit(MOVI, 2, 0, 0) // patched
-	emit(MOVI, 3, 0, uint16(len(helpMsg)))
+	helpMsgInstr := emit(MOVI, 2, 0, 0)    // patched
+	emit(MOVI, 3, 0, uint16(len(helpMsg))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	emit(INT, 0, 0, 0x80)
 
 	// Jump back to loop
-	helpDoneJmpOffset := int16(loopStart - (len(code) + 1))
-	emit(JMP, 0, 0, uint16(helpDoneJmpOffset))
+	helpDoneJmpOffset := int16(loopStart - (len(code) + 1)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	emit(JMP, 0, 0, uint16(helpDoneJmpOffset))              // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	notHelpTarget := len(code)
 
@@ -219,6 +219,7 @@ func main() {
 	cmdPatches := make([]cmdPatch, len(commands))
 
 	for i, cmd := range commands {
+		// #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 		expectedLen := uint16(len(cmd.name) + 1) // name + '\n'
 
 		emit(MOVI, 6, 0, expectedLen)
@@ -250,15 +251,15 @@ func main() {
 		emit(INT, 0, 0, 0x80)
 
 		// Jump back to loop
-		parentJmpOffset := int16(loopStart - (len(code) + 1))
-		emit(JMP, 0, 0, uint16(parentJmpOffset))
+		parentJmpOffset := int16(loopStart - (len(code) + 1)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+		emit(JMP, 0, 0, uint16(parentJmpOffset))              // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 		// Child: execve(path, NULL, NULL)
 		childTarget := len(code)
 		emit(MOVI, 0, 0, SYS_EXECVE)
 		cmdPatches[i].pathInstr = emit(MOVI, 1, 0, 0) // patched to path addr
-		emit(MOVI, 2, 0, 0) // argv = NULL
-		emit(MOVI, 3, 0, 0) // envp = NULL
+		emit(MOVI, 2, 0, 0)                           // argv = NULL
+		emit(MOVI, 3, 0, 0)                           // envp = NULL
 		emit(INT, 0, 0, 0x80)
 
 		// If execve fails, exit(1)
@@ -267,8 +268,8 @@ func main() {
 		emit(INT, 0, 0, 0x80)
 
 		// Patch child JZ
-		childOffset := int16(childTarget - (childJmpInstr + 1))
-		code[childJmpInstr] = encode(JZ, 0, 0, uint16(childOffset))
+		childOffset := int16(childTarget - (childJmpInstr + 1))     // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+		code[childJmpInstr] = encode(JZ, 0, 0, uint16(childOffset)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	}
 
 	// ── Unknown command — print error, loop ──────────────────────
@@ -276,19 +277,19 @@ func main() {
 
 	emit(MOVI, 0, 0, SYS_WRITE)
 	emit(MOVI, 1, 0, 1)
-	unknownMsgInstr := emit(MOVI, 2, 0, 0) // patched
-	emit(MOVI, 3, 0, uint16(len(unknownMsg)))
+	unknownMsgInstr := emit(MOVI, 2, 0, 0)    // patched
+	emit(MOVI, 3, 0, uint16(len(unknownMsg))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	emit(INT, 0, 0, 0x80)
 
 	// Jump back to loop
-	unknownJmpOffset := int16(loopStart - (len(code) + 1))
-	emit(JMP, 0, 0, uint16(unknownJmpOffset))
+	unknownJmpOffset := int16(loopStart - (len(code) + 1)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	emit(JMP, 0, 0, uint16(unknownJmpOffset))              // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	// ═══════════════════════════════════════════════════════════════
 	// DATA SECTION
 	// ═══════════════════════════════════════════════════════════════
 	codeWords := len(code)
-	dataOffset := uint16(codeWords * 4)
+	dataOffset := uint16(codeWords * 4) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	// Build data segment
 	var dataWords []uint32
@@ -299,7 +300,7 @@ func main() {
 		addr := currentDataAddr
 		words := packStringWords(s)
 		dataWords = append(dataWords, words...)
-		currentDataAddr += uint16(len(words) * 4)
+		currentDataAddr += uint16(len(words) * 4) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 		return addr
 	}
 
@@ -347,12 +348,12 @@ func main() {
 	code[helpWordData] = helpWord
 
 	// Patch JNZ for not-exit branches
-	code[notExitLen] = encode(JNZ, 0, 0, uint16(int16(notExitTarget-(notExitLen+1))))
-	code[notExitCmp] = encode(JNZ, 0, 0, uint16(int16(notExitTarget-(notExitCmp+1))))
+	code[notExitLen] = encode(JNZ, 0, 0, uint16(int16(notExitTarget-(notExitLen+1)))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	code[notExitCmp] = encode(JNZ, 0, 0, uint16(int16(notExitTarget-(notExitCmp+1)))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	// Patch JNZ for not-help branches
-	code[notHelpLen] = encode(JNZ, 0, 0, uint16(int16(notHelpTarget-(notHelpLen+1))))
-	code[notHelpCmp] = encode(JNZ, 0, 0, uint16(int16(notHelpTarget-(notHelpCmp+1))))
+	code[notHelpLen] = encode(JNZ, 0, 0, uint16(int16(notHelpTarget-(notHelpLen+1)))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	code[notHelpCmp] = encode(JNZ, 0, 0, uint16(int16(notHelpTarget-(notHelpCmp+1)))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	// Patch command check branches
 	for i, cmd := range commands {
@@ -369,8 +370,8 @@ func main() {
 		}
 		_ = cp.notMatchLen // kept on local for future debug printing
 
-		code[cp.notMatchLen] = encode(JNZ, 0, 0, uint16(int16(nextTarget-(cp.notMatchLen+1))))
-		code[cp.notMatchCmp] = encode(JNZ, 0, 0, uint16(int16(nextTarget-(cp.notMatchCmp+1))))
+		code[cp.notMatchLen] = encode(JNZ, 0, 0, uint16(int16(nextTarget-(cp.notMatchLen+1)))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+		code[cp.notMatchCmp] = encode(JNZ, 0, 0, uint16(int16(nextTarget-(cp.notMatchCmp+1)))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 		// Patch command name word (first 4 bytes of command name, padded)
 		nameBytes := make([]byte, 4)
@@ -441,12 +442,15 @@ func createUPCFlat(text []uint32, data []uint32, bssWords uint32, stackSize uint
 	// Header
 	copy(out[0:4], upcFlatMagic)
 	binary.LittleEndian.PutUint32(out[4:8], upcFlatVersion)
-	binary.LittleEndian.PutUint32(out[8:12], 0)                    // entry = 0
-	binary.LittleEndian.PutUint32(out[12:16], uint32(len(text)))   // text size
-	binary.LittleEndian.PutUint32(out[16:20], uint32(len(text)))   // data start
-	binary.LittleEndian.PutUint32(out[20:24], uint32(len(data)))   // data size
-	binary.LittleEndian.PutUint32(out[24:28], bssWords)            // bss size
-	binary.LittleEndian.PutUint32(out[28:32], stackSize)           // stack size
+	binary.LittleEndian.PutUint32(out[8:12], 0) // entry = 0
+	// #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	binary.LittleEndian.PutUint32(out[12:16], uint32(len(text))) // text size
+	// #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	binary.LittleEndian.PutUint32(out[16:20], uint32(len(text))) // data start
+	// #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	binary.LittleEndian.PutUint32(out[20:24], uint32(len(data))) // data size
+	binary.LittleEndian.PutUint32(out[24:28], bssWords)          // bss size
+	binary.LittleEndian.PutUint32(out[28:32], stackSize)         // stack size
 
 	// Text
 	off := upcFlatHeaderSize

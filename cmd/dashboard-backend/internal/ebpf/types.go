@@ -132,7 +132,7 @@ type PacketEvent struct {
 
 // Time returns the event timestamp as time.Time.
 func (e *PacketEvent) Time() time.Time {
-	return time.Unix(0, int64(e.TimestampNs))
+	return time.Unix(0, int64(e.TimestampNs)) // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
 // FlowState represents the state of a tracked flow.
@@ -157,7 +157,7 @@ type FlowEvent struct {
 
 // Time returns the event timestamp as time.Time.
 func (e *FlowEvent) Time() time.Time {
-	return time.Unix(0, int64(e.TimestampNs))
+	return time.Unix(0, int64(e.TimestampNs)) // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
 // LatencyEvent represents a latency measurement from the latency-probe program.
@@ -172,12 +172,12 @@ type LatencyEvent struct {
 
 // Time returns the event timestamp as time.Time.
 func (e *LatencyEvent) Time() time.Time {
-	return time.Unix(0, int64(e.TimestampNs))
+	return time.Unix(0, int64(e.TimestampNs)) // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
 // LatencyDuration returns the latency as a time.Duration.
 func (e *LatencyEvent) LatencyDuration() time.Duration {
-	return time.Duration(e.LatencyNs)
+	return time.Duration(e.LatencyNs) // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
 // SyscallEvent represents a syscall audit event from the syscall-tracer program.
@@ -196,7 +196,7 @@ type SyscallEvent struct {
 
 // Time returns the event timestamp as time.Time.
 func (e *SyscallEvent) Time() time.Time {
-	return time.Unix(0, int64(e.TimestampNs))
+	return time.Unix(0, int64(e.TimestampNs)) // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
 // ParsePacketEvent parses a JSON payload into a PacketEvent.

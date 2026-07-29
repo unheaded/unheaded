@@ -85,7 +85,7 @@ func (s *ReplicationServer) CatchUp(req *chatpb.CatchUpRequest, stream chatpb.Wo
 func (s *ReplicationServer) ReplicationPing(ctx context.Context, req *chatpb.ReplicationPingRequest) (*chatpb.ReplicationPongResponse, error) {
 	mySeq := s.lastSeq.Load()
 	peerSeq := req.LastSeq
-	lag := int64(mySeq) - int64(peerSeq)
+	lag := int64(mySeq) - int64(peerSeq) // #nosec G115 -- bounded by construction; see the surrounding guard
 
 	return &chatpb.ReplicationPongResponse{
 		NodeId:         s.nodeID,

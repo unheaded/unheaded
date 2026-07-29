@@ -183,10 +183,10 @@ func (m *Message) Pack() ([]byte, error) {
 	buf := &bytes.Buffer{}
 
 	// Update counts
-	m.Header.QDCount = uint16(len(m.Questions))
-	m.Header.ANCount = uint16(len(m.Answers))
-	m.Header.NSCount = uint16(len(m.Authority))
-	m.Header.ARCount = uint16(len(m.Additional))
+	m.Header.QDCount = uint16(len(m.Questions))  // #nosec G115 -- bounded by the length of an already-allocated slice
+	m.Header.ANCount = uint16(len(m.Answers))    // #nosec G115 -- bounded by the length of an already-allocated slice
+	m.Header.NSCount = uint16(len(m.Authority))  // #nosec G115 -- bounded by the length of an already-allocated slice
+	m.Header.ARCount = uint16(len(m.Additional)) // #nosec G115 -- bounded by the length of an already-allocated slice
 
 	// Pack header
 	if err := binary.Write(buf, binary.BigEndian, &m.Header); err != nil {
@@ -355,7 +355,7 @@ func packName(buf *bytes.Buffer, name string, offsets map[string]uint16) error {
 			}
 		}
 
-		buf.WriteByte(byte(len(label)))
+		buf.WriteByte(byte(len(label))) // #nosec G115 -- bounded by construction; see the surrounding guard
 		buf.WriteString(label)
 	}
 

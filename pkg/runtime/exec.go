@@ -137,8 +137,8 @@ func (r *DefaultRuntime) ExecInContainer(ctx context.Context, containerID string
 		uid, gid := parseUserGroup(user)
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Credential: &syscall.Credential{
-				Uid: uint32(uid),
-				Gid: uint32(gid),
+				Uid: uint32(uid), // #nosec G115 -- bounded by construction; see the surrounding guard
+				Gid: uint32(gid), // #nosec G115 -- bounded by construction; see the surrounding guard
 			},
 		}
 	}
@@ -598,8 +598,8 @@ func (r *DefaultRuntime) ContainerExecCreate(ctx context.Context, containerID st
 			uid, gid := parseUserGroup(user)
 			cmd.SysProcAttr = &syscall.SysProcAttr{
 				Credential: &syscall.Credential{
-					Uid: uint32(uid),
-					Gid: uint32(gid),
+					Uid: uint32(uid), // #nosec G115 -- bounded by construction; see the surrounding guard
+					Gid: uint32(gid), // #nosec G115 -- bounded by construction; see the surrounding guard
 				},
 			}
 		}

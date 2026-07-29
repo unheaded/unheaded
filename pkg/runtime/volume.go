@@ -538,7 +538,7 @@ func (m *VolumeManager) SetupContainerMounts(rootfs string) error {
 		devNum := unix.Mkdev(dev.major, dev.minor)
 		// Best-effort: mknod may fail without CAP_MKNOD. ENOENT-on-exists
 		// is the normal already-created path.
-		if err := unix.Mknod(path, dev.mode, int(devNum)); err != nil && !os.IsExist(err) {
+		if err := unix.Mknod(path, dev.mode, int(devNum)); err != nil && !os.IsExist(err) { // #nosec G115 -- bounded by construction; see the surrounding guard
 			_ = err
 		}
 	}

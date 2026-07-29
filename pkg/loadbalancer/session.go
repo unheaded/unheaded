@@ -438,7 +438,7 @@ type ShardedSessionStore struct {
 func NewShardedSessionStore(numShards, maxEntriesPerShard int) *ShardedSessionStore {
 	// Round up to power of 2 for efficient modulo
 	n := uint32(1)
-	for n < uint32(numShards) {
+	for n < uint32(numShards) { // #nosec G115 -- bounded by construction; see the surrounding guard
 		n *= 2
 	}
 

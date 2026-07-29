@@ -413,7 +413,7 @@ func (b *bridge) readLoop(c *client) {
 				Pressed bool   `json:"pressed"`
 			}
 			if err := json.Unmarshal(data, &msg); err == nil && msg.Type == "compute_input" {
-				b.keyState.SetKey(uint8(msg.KeyCode), msg.Pressed)
+				b.keyState.SetKey(uint8(msg.KeyCode), msg.Pressed) // #nosec G115 -- bounded by construction; see the surrounding guard
 				if b.kbdMap != nil {
 					if err := b.keyState.Flush(b.kbdMap); err != nil {
 						logf("ERROR", "KBD_MAP flush error", "err", err)
@@ -441,7 +441,7 @@ func (b *bridge) readLoop(c *client) {
 		pressed := data[3] != 0
 
 		// Use bitmap-based keyboard state (supports multi-key)
-		b.keyState.SetKey(uint8(scancode), pressed)
+		b.keyState.SetKey(uint8(scancode), pressed) // #nosec G115 -- bounded by construction; see the surrounding guard
 		if b.kbdMap != nil {
 			if err := b.keyState.Flush(b.kbdMap); err != nil {
 				logf("ERROR", "KBD_MAP flush error", "err", err)

@@ -173,11 +173,11 @@ func (db *DirtyBitmap) MarkDirty(flow uint32, lineAddr uint32, offset int, size 
 	switch size {
 	case 1:
 		if offset < 64 {
-			line[offset] = byte(value)
+			line[offset] = byte(value) // #nosec G115 -- 8/16-bit MBC memory store; the truncation IS the instruction semantics, bounds-checked above
 		}
 	case 2:
 		if offset+1 < 64 {
-			binary.LittleEndian.PutUint16(line[offset:], uint16(value))
+			binary.LittleEndian.PutUint16(line[offset:], uint16(value)) // #nosec G115 -- 8/16-bit MBC memory store; the truncation IS the instruction semantics, bounds-checked above
 		}
 	case 4:
 		if offset+3 < 64 {
@@ -322,7 +322,7 @@ func (ms *MemoryService) HandleCacheMiss(event CacheMissEvent) error {
 
 	// Load requested page + prefetch pages.
 	for i := 0; i <= ms.config.PrefetchN; i++ {
-		addr := pageAddr + uint32(i*ms.config.PageSize)
+		addr := pageAddr + uint32(i*ms.config.PageSize) // #nosec G115 -- cache-line/page arithmetic over configured sizes, masked to alignment
 		if int(addr)+ms.config.PageSize > ms.config.RingSize {
 			break // don't read past end of L2
 		}
@@ -359,11 +359,11 @@ func (ms *MemoryService) HandleCacheWrite(event CacheWriteEvent) error {
 	switch event.Width {
 	case 1: // byte
 		if int(addr) < len(ms.data) {
-			ms.data[addr] = byte(event.Value)
+			ms.data[addr] = byte(event.Value) // #nosec G115 -- 8/16-bit MBC memory store; the truncation IS the instruction semantics, bounds-checked above
 		}
 	case 2: // halfword
 		if int(addr)+1 < len(ms.data) {
-			binary.LittleEndian.PutUint16(ms.data[addr:], uint16(event.Value))
+			binary.LittleEndian.PutUint16(ms.data[addr:], uint16(event.Value)) // #nosec G115 -- 8/16-bit MBC memory store; the truncation IS the instruction semantics, bounds-checked above
 		}
 	case 4: // word
 		if int(addr)+3 < len(ms.data) {
@@ -451,7 +451,7 @@ func (ms *MemoryService) StageAllToL1(hopID uint8) (int, error) {
 	defer ms.mu.Unlock()
 
 	staged := 0
-	for addr := uint32(0); int(addr)+ms.config.PageSize <= ms.config.RingSize; addr += uint32(ms.config.PageSize) {
+	for addr := uint32(0); int(addr)+ms.config.PageSize <= ms.config.RingSize; addr += uint32(ms.config.PageSize) { // #nosec G115 -- cache-line/page arithmetic over configured sizes, masked to alignment
 		if staged >= ms.config.L1MaxPages {
 			break
 		}
@@ -481,11 +481,11 @@ func (ms *MemoryService) HandleCacheMissD006(flow uint32, lineAddr uint32) error
 	defer ms.mu.Unlock()
 
 	// Align lineAddr to 64-byte boundary (should already be aligned by caller).
-	lineAddr = lineAddr & ^uint32(ms.config.CacheLineSize-1)
+	lineAddr = lineAddr & ^uint32(ms.config.CacheLineSize-1) // #nosec G115 -- cache-line/page arithmetic over configured sizes, masked to alignment
 
 	// Load the requested cache line.
 	for i := 0; i < 1+ms.config.PrefetchN; i++ {
-		addr := lineAddr + uint32(i*ms.config.CacheLineSize)
+		addr := lineAddr + uint32(i*ms.config.CacheLineSize) // #nosec G115 -- cache-line/page arithmetic over configured sizes, masked to alignment
 		if int(addr)+ms.config.CacheLineSize > ms.config.RingSize {
 			break
 		}
@@ -516,8 +516,8 @@ func (ms *MemoryService) HandleCacheMissD006(flow uint32, lineAddr uint32) error
 // It accumulates the write in the DirtyBitmap for later flush.
 func (dwh *DirtyWritebackHandler) HandleCacheWriteD007(flow uint32, addr uint32, size int, value uint32) error {
 	// Compute cache line address (64-byte aligned).
-	lineAddr := addr & ^uint32(dwh.config.CacheLineSize-1)
-	offset := int(addr & uint32(dwh.config.CacheLineSize-1))
+	lineAddr := addr & ^uint32(dwh.config.CacheLineSize-1)   // #nosec G115 -- cache-line/page arithmetic over configured sizes, masked to alignment
+	offset := int(addr & uint32(dwh.config.CacheLineSize-1)) // #nosec G115 -- cache-line/page arithmetic over configured sizes, masked to alignment
 
 	dwh.writeCounter++
 	return dwh.dirtyBitmap.MarkDirty(flow, lineAddr, offset, size, value)
@@ -603,7 +603,7 @@ func (ms *MemoryService) Run(ctx context.Context, missCh <-chan CacheMissEvent, 
 
 // alignToPage rounds a byte address down to the nearest page boundary.
 func (ms *MemoryService) alignToPage(addr uint32) uint32 {
-	return addr & ^uint32(ms.config.PageSize-1)
+	return addr & ^uint32(ms.config.PageSize-1) // #nosec G115 -- cache-line/page arithmetic over configured sizes, masked to alignment
 }
 
 // loadPageToL1 reads a page from L2 and writes it into the BPF map cache.

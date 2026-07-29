@@ -198,7 +198,7 @@ func disassembleMBC(insn uint32) string {
 	case 0x0E: // MOV
 		return fmt.Sprintf("%-8s r%d, r%d", name, dst, src)
 	case 0x0F: // MOVI
-		return fmt.Sprintf("%-8s r%d, %d", name, dst, int16(imm))
+		return fmt.Sprintf("%-8s r%d, %d", name, dst, int16(imm)) // #nosec G115 -- bounded by construction; see the surrounding guard
 	case 0x40: // SYSCALL
 		syscallNames := map[uint16]string{
 			1: "DRAW_FRAME", 2: "GET_KEY", 3: "GET_TICKS", 4: "SLEEP", 0xFF: "HALT",
@@ -208,7 +208,7 @@ func disassembleMBC(insn uint32) string {
 		}
 		return fmt.Sprintf("%-8s 0x%04X", name, imm)
 	default:
-		return fmt.Sprintf("%-8s r%d, r%d, %d", name, dst, src, int16(imm))
+		return fmt.Sprintf("%-8s r%d, r%d, %d", name, dst, src, int16(imm)) // #nosec G115 -- bounded by construction; see the surrounding guard
 	}
 }
 

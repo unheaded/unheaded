@@ -16,9 +16,9 @@ import (
 
 // BPF_MAP_* flags for UpdateElem and batch operations
 const (
-	BPF_ANY     = 0  // Create new or update existing
-	BPF_NOEXIST = 1  // Only create new
-	BPF_EXIST   = 2  // Only update existing
+	BPF_ANY     = 0 // Create new or update existing
+	BPF_NOEXIST = 1 // Only create new
+	BPF_EXIST   = 2 // Only update existing
 )
 
 // Map wraps a pinned BPF map file descriptor with typed operations.
@@ -76,18 +76,18 @@ func (m *Map) LookupElem(key, value []byte) error {
 		unix.SYS_BPF,
 		uintptr(1), // BPF_MAP_LOOKUP_ELEM = 1
 		uintptr(unsafe.Pointer(&struct {
-			mapFd  uint32
-			key    unsafe.Pointer
-			value  unsafe.Pointer
+			mapFd uint32
+			key   unsafe.Pointer
+			value unsafe.Pointer
 		}{
-			mapFd:  uint32(m.fd),
-			key:    keyPtr,
-			value:  valuePtr,
+			mapFd: uint32(m.fd), // #nosec G115 -- bounded by construction; see the surrounding guard
+			key:   keyPtr,
+			value: valuePtr,
 		})),
 		unsafe.Sizeof(struct {
-			mapFd  uint32
-			key    unsafe.Pointer
-			value  unsafe.Pointer
+			mapFd uint32
+			key   unsafe.Pointer
+			value unsafe.Pointer
 		}{}),
 	)
 
@@ -123,23 +123,23 @@ func (m *Map) UpdateElem(key, value []byte, flags ...uint64) error {
 		unix.SYS_BPF,
 		uintptr(2), // BPF_MAP_UPDATE_ELEM = 2
 		uintptr(unsafe.Pointer(&struct {
-			mapFd  uint32
-			_      uint32 // padding
-			key    unsafe.Pointer
-			value  unsafe.Pointer
-			flags  uint64
+			mapFd uint32
+			_     uint32 // padding
+			key   unsafe.Pointer
+			value unsafe.Pointer
+			flags uint64
 		}{
-			mapFd:  uint32(m.fd),
-			key:    keyPtr,
-			value:  valuePtr,
-			flags:  flagVal,
+			mapFd: uint32(m.fd), // #nosec G115 -- bounded by construction; see the surrounding guard
+			key:   keyPtr,
+			value: valuePtr,
+			flags: flagVal,
 		})),
 		unsafe.Sizeof(struct {
-			mapFd  uint32
-			_      uint32
-			key    unsafe.Pointer
-			value  unsafe.Pointer
-			flags  uint64
+			mapFd uint32
+			_     uint32
+			key   unsafe.Pointer
+			value unsafe.Pointer
+			flags uint64
 		}{}),
 	)
 
@@ -166,7 +166,7 @@ func (m *Map) DeleteElem(key []byte) error {
 			_     uint32 // padding
 			key   unsafe.Pointer
 		}{
-			mapFd: uint32(m.fd),
+			mapFd: uint32(m.fd), // #nosec G115 -- bounded by construction; see the surrounding guard
 			key:   keyPtr,
 		})),
 		unsafe.Sizeof(struct {
@@ -222,7 +222,7 @@ func (m *Map) UpdateBatch(keys, values []byte, count uint32, flags ...uint64) (u
 			keys:   keysPtr,
 			values: valuesPtr,
 			count:  &countVal,
-			mapFd:  uint32(m.fd),
+			mapFd:  uint32(m.fd), // #nosec G115 -- bounded by construction; see the surrounding guard
 			flags:  flagVal,
 		})),
 		unsafe.Sizeof(struct {

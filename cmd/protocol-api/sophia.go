@@ -191,20 +191,20 @@ func (s *sophiaServer) listMock(req *pb.DictionaryListRequest) (*pb.DictionaryLi
 	}
 	offset := req.Offset
 
-	if offset > int32(len(allDicts)) {
-		offset = int32(len(allDicts))
+	if offset > int32(len(allDicts)) { // #nosec G115 -- bounded by the length of an already-allocated slice
+		offset = int32(len(allDicts)) // #nosec G115 -- bounded by the length of an already-allocated slice
 	}
 
 	end := offset + limit
-	if end > int32(len(allDicts)) {
-		end = int32(len(allDicts))
+	if end > int32(len(allDicts)) { // #nosec G115 -- bounded by the length of an already-allocated slice
+		end = int32(len(allDicts)) // #nosec G115 -- bounded by the length of an already-allocated slice
 	}
 
 	slicedDicts := allDicts[offset:end]
 
 	return &pb.DictionaryListResponse{
 		Dictionaries: slicedDicts,
-		Total:        int32(len(allDicts)),
+		Total:        int32(len(allDicts)), // #nosec G115 -- bounded by the length of an already-allocated slice
 	}, nil
 }
 

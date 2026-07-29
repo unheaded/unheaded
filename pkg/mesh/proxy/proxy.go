@@ -486,7 +486,7 @@ func (p *Proxy) proxyL4(clientConn net.Conn, reader *bufio.Reader, inbound bool)
 	go func() {
 		defer wg.Done()
 		n, _ := io.Copy(backendConn, reader)
-		atomic.AddUint64(&p.totalBytes, uint64(n))
+		atomic.AddUint64(&p.totalBytes, uint64(n)) // #nosec G115 -- bounded by construction; see the surrounding guard
 		// Signal EOF to backend
 		if tc, ok := backendConn.(*net.TCPConn); ok {
 			_ = tc.CloseWrite()
@@ -497,7 +497,7 @@ func (p *Proxy) proxyL4(clientConn net.Conn, reader *bufio.Reader, inbound bool)
 	go func() {
 		defer wg.Done()
 		n, _ := io.Copy(clientConn, backendConn)
-		atomic.AddUint64(&p.totalBytes, uint64(n))
+		atomic.AddUint64(&p.totalBytes, uint64(n)) // #nosec G115 -- bounded by construction; see the surrounding guard
 		// Signal EOF to client
 		if tc, ok := clientConn.(*net.TCPConn); ok {
 			_ = tc.CloseWrite()

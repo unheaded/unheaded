@@ -565,14 +565,14 @@ func extractLayer(layerPath, destDir string) error {
 
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode)); err != nil {
+			if err := os.MkdirAll(targetPath, os.FileMode(header.Mode)); err != nil { // #nosec G115 -- UNFS inode field; bounded by the filesystem image size
 				return err
 			}
 		case tar.TypeReg:
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 				return err
 			}
-			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC|syscall.O_NOFOLLOW, os.FileMode(header.Mode)) // #nosec G304 -- container store path derived from the runtime root
+			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC|syscall.O_NOFOLLOW, os.FileMode(header.Mode)) // #nosec G304,G115 -- container store path derived from the runtime root
 			if err != nil {
 				return err
 			}

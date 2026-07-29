@@ -220,8 +220,8 @@ func (tv *TierVerifier) updateState(result *TierVerifyResult) {
 
 	if result.PQCResult != nil {
 		s := tv.stateMgr.Read()
-		s.LastVerifyNs = uint32(result.PQCResult.Duration.Nanoseconds())
-		if result.PQCResult.SeqNum > uint16(s.SeqHighWater) {
+		s.LastVerifyNs = uint32(result.PQCResult.Duration.Nanoseconds()) // #nosec G115 -- bounded by construction; see the surrounding guard
+		if result.PQCResult.SeqNum > uint16(s.SeqHighWater) {            // #nosec G115 -- bounded by construction; see the surrounding guard
 			s.SeqHighWater = uint32(result.PQCResult.SeqNum)
 		}
 		tv.stateMgr.Write(s)

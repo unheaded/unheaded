@@ -158,9 +158,9 @@ func (sv *SovereignVerifier) PrecomputeSovereignSigs(
 		sigEntry := &sophia.PQCSigEntry{
 			AlgoID:    signer.AlgoID,
 			ParamSet:  signer.ParamSet,
-			Tier:      0x03, // SOVEREIGN
-			Status:    0x01, // active
-			SigLen:    uint32(len(sig)),
+			Tier:      0x03,             // SOVEREIGN
+			Status:    0x01,             // active
+			SigLen:    uint32(len(sig)), // #nosec G115 -- bounded by the length of an already-allocated slice
 			Signature: sig,
 		}
 		sigRef, err := mapMgr.LoadSignature(sigEntry)

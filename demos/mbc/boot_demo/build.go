@@ -110,7 +110,7 @@ func main() {
 
 	strLens := make(map[string]uint16)
 	for _, s := range strings {
-		strLens[s.label] = uint16(len(s.data))
+		strLens[s.label] = uint16(len(s.data)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	}
 
 	var code []uint32
@@ -152,9 +152,9 @@ func main() {
 	emit(MOV, 7, 0, 0) // 7: r7 = fork return value
 
 	// Check if child (r0 == 0)
-	emit(MOVI, 6, 0, 0)                   // 8: r6 = 0
-	emit(CMP, 0, 6, 0)                    // 9: CMP r0, r6
-	childJmpInstr := emit(JZ, 0, 0, 0)    // 10: JZ child_process (patched)
+	emit(MOVI, 6, 0, 0)                // 8: r6 = 0
+	emit(CMP, 0, 6, 0)                 // 9: CMP r0, r6
+	childJmpInstr := emit(JZ, 0, 0, 0) // 10: JZ child_process (patched)
 
 	// ── Parent path ──────────────────────────────────────────────
 	// SYS_WAITPID on child (r7 = child_pid)
@@ -178,26 +178,26 @@ func main() {
 
 	// SYS_EXECVE: r1 = entry point of /bin/sh (word address in ROM)
 	// The shell entry point will be patched after we know the layout.
-	emit(MOVI, 0, 0, SYS_EXECVE)      // 27
+	emit(MOVI, 0, 0, SYS_EXECVE)           // 27
 	shellEntryInstr := emit(MOVI, 1, 0, 0) // 28: patched
-	emit(INT, 0, 0, 0x80)             // 29
+	emit(INT, 0, 0, 0x80)                  // 29
 	// If execve succeeds, execution continues at the shell entry point.
 	// If it fails (shouldn't happen), fall through to halt.
 	emit(HALT, 0, 0, 0) // 30: fallback
 
 	// ── Patch child JZ offset ────────────────────────────────────
-	childOffset := int16(childStart - (childJmpInstr + 1))
-	code[childJmpInstr] = encode(JZ, 0, 0, uint16(childOffset))
+	childOffset := int16(childStart - (childJmpInstr + 1))      // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	code[childJmpInstr] = encode(JZ, 0, 0, uint16(childOffset)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	// ── Data section ─────────────────────────────────────────────
 	codeWords := len(code)
-	dataByteOffset := uint16(codeWords * 4)
+	dataByteOffset := uint16(codeWords * 4) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	strOffsets := make(map[string]uint16)
 	currentOffset := uint16(0)
 	for _, s := range strings {
 		strOffsets[s.label] = dataByteOffset + currentOffset
-		blen := uint16(len(s.data))
+		blen := uint16(len(s.data)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 		aligned := (blen + 3) & ^uint16(3)
 		currentOffset += aligned
 	}
@@ -229,54 +229,58 @@ func main() {
 	}
 
 	// Print prompt
-	shellEmit(MOVI, 0, 0, SYS_WRITE)                     // sh+0
-	shellEmit(MOVI, 1, 0, 1)                              // sh+1
-	shellPromptAddrInstr := shellEmit(MOVI, 2, 0, 0)      // sh+2: patched
-	shellEmit(MOVI, 3, 0, uint16(len(shellPrompt)))       // sh+3
-	shellEmit(INT, 0, 0, 0x80)                            // sh+4
+	shellEmit(MOVI, 0, 0, SYS_WRITE)                 // sh+0
+	shellEmit(MOVI, 1, 0, 1)                         // sh+1
+	shellPromptAddrInstr := shellEmit(MOVI, 2, 0, 0) // sh+2: patched
+	// #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	shellEmit(MOVI, 3, 0, uint16(len(shellPrompt))) // sh+3
+	shellEmit(INT, 0, 0, 0x80)                      // sh+4
 
 	// Read 1 byte from stdin
-	shellEmit(MOVI, 0, 0, SYS_READ)                      // sh+5
-	shellEmit(MOVI, 1, 0, 0)                              // sh+6: fd=stdin
-	shellReadBufInstr := shellEmit(MOVI, 2, 0, 0)         // sh+7: patched
-	shellEmit(MOVI, 3, 0, 1)                              // sh+8
-	shellEmit(INT, 0, 0, 0x80)                            // sh+9
+	shellEmit(MOVI, 0, 0, SYS_READ)               // sh+5
+	shellEmit(MOVI, 1, 0, 0)                      // sh+6: fd=stdin
+	shellReadBufInstr := shellEmit(MOVI, 2, 0, 0) // sh+7: patched
+	shellEmit(MOVI, 3, 0, 1)                      // sh+8
+	shellEmit(INT, 0, 0, 0x80)                    // sh+9
 
 	// If read returned 0, exit (EOF / no input)
-	shellEmit(MOVI, 6, 0, 0)                              // sh+10
-	shellEmit(CMP, 0, 6, 0)                               // sh+11
-	shellExitJmpInstr := shellEmit(JZ, 0, 0, 0)           // sh+12: patched
+	shellEmit(MOVI, 6, 0, 0)                    // sh+10
+	shellEmit(CMP, 0, 6, 0)                     // sh+11
+	shellExitJmpInstr := shellEmit(JZ, 0, 0, 0) // sh+12: patched
 
 	// Echo byte back
-	shellEmit(MOVI, 0, 0, SYS_WRITE)                     // sh+13
-	shellEmit(MOVI, 1, 0, 1)                              // sh+14
+	shellEmit(MOVI, 0, 0, SYS_WRITE) // sh+13
+	shellEmit(MOVI, 1, 0, 1)         // sh+14
 	// reuse readbuf addr
-	shellEchoBufInstr := shellEmit(MOVI, 2, 0, 0)         // sh+15: patched
-	shellEmit(MOVI, 3, 0, 1)                              // sh+16
-	shellEmit(INT, 0, 0, 0x80)                            // sh+17
+	shellEchoBufInstr := shellEmit(MOVI, 2, 0, 0) // sh+15: patched
+	shellEmit(MOVI, 3, 0, 1)                      // sh+16
+	shellEmit(INT, 0, 0, 0x80)                    // sh+17
 
 	// Loop back to prompt
-	shellLoopOffset := int16(0 - (len(shellCode) + 1))
-	shellEmit(JMP, 0, 0, uint16(shellLoopOffset))         // sh+18
+	shellLoopOffset := int16(0 - (len(shellCode) + 1)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	// #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	shellEmit(JMP, 0, 0, uint16(shellLoopOffset)) // sh+18
 
 	// Exit path: print bye and exit
 	shellExitStart := len(shellCode)
-	shellEmit(MOVI, 0, 0, SYS_WRITE)                     // sh+19
-	shellEmit(MOVI, 1, 0, 1)                              // sh+20
-	shellByeAddrInstr := shellEmit(MOVI, 2, 0, 0)         // sh+21: patched
-	shellEmit(MOVI, 3, 0, uint16(len(shellBye)))          // sh+22
-	shellEmit(INT, 0, 0, 0x80)                            // sh+23
+	shellEmit(MOVI, 0, 0, SYS_WRITE)              // sh+19
+	shellEmit(MOVI, 1, 0, 1)                      // sh+20
+	shellByeAddrInstr := shellEmit(MOVI, 2, 0, 0) // sh+21: patched
+	// #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	shellEmit(MOVI, 3, 0, uint16(len(shellBye))) // sh+22
+	shellEmit(INT, 0, 0, 0x80)                   // sh+23
 
-	shellEmit(MOVI, 0, 0, SYS_EXIT)                      // sh+24
-	shellEmit(MOVI, 1, 0, 0)                              // sh+25
-	shellEmit(INT, 0, 0, 0x80)                            // sh+26
+	shellEmit(MOVI, 0, 0, SYS_EXIT) // sh+24
+	shellEmit(MOVI, 1, 0, 0)        // sh+25
+	shellEmit(INT, 0, 0, 0x80)      // sh+26
 
 	// Patch shell exit JZ offset
-	shellExitOffset := int16(shellExitStart - (shellExitJmpInstr + 1))
-	shellCode[shellExitJmpInstr] = encode(JZ, 0, 0, uint16(shellExitOffset))
+	shellExitOffset := int16(shellExitStart - (shellExitJmpInstr + 1))       // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	shellCode[shellExitJmpInstr] = encode(JZ, 0, 0, uint16(shellExitOffset)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	// Shell data section
 	shellCodeWords := len(shellCode)
+	// #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	shellDataByteBase := uint16(shellCodeWords * 4) // relative to shell start
 
 	promptWords := packStringWords(shellPrompt)
@@ -284,8 +288,8 @@ func main() {
 	readBufWord := uint32(0) // 1 word read buffer
 
 	promptAddr := shellDataByteBase
-	byeAddr := shellDataByteBase + uint16(len(promptWords)*4)
-	readBufAddr := byeAddr + uint16(len(byeWords)*4)
+	byeAddr := shellDataByteBase + uint16(len(promptWords)*4) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	readBufAddr := byeAddr + uint16(len(byeWords)*4)          // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	shellCode[shellPromptAddrInstr] = encode(MOVI, 2, 0, promptAddr)
 	shellCode[shellReadBufInstr] = encode(MOVI, 2, 0, readBufAddr)
@@ -307,7 +311,7 @@ func main() {
 	initBin := append(code, dataWords...)
 
 	// Shell entry point in the combined ROM (word address)
-	shellEntryWordAddr := uint16(len(initBin))
+	shellEntryWordAddr := uint16(len(initBin)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	code[shellEntryInstr] = encode(MOVI, 1, 0, shellEntryWordAddr)
 
 	// Relocate shell data addresses: add (shellEntryWordAddr * 4) to each
@@ -425,7 +429,7 @@ func addFile(fs []uint32, name string, data []byte, mode uint32, fileType uint32
 
 	blocksNeeded := uint32(0)
 	if len(data) > 0 {
-		blocksNeeded = (uint32(len(data)) + UNFSBlockSize - 1) / UNFSBlockSize
+		blocksNeeded = (uint32(len(data)) + UNFSBlockSize - 1) / UNFSBlockSize // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	}
 
 	// Find contiguous free blocks (simple: use first_data + scan)
@@ -438,7 +442,7 @@ func addFile(fs []uint32, name string, data []byte, mode uint32, fileType uint32
 	for i := 0; i < 7; i++ {
 		fs[off+i] = binary.LittleEndian.Uint32(nameBytes[i*4 : i*4+4])
 	}
-	fs[off+7] = uint32(len(data))
+	fs[off+7] = uint32(len(data)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	fs[off+8] = mode
 	fs[off+9] = blockStart
 	fs[off+10] = blocksNeeded

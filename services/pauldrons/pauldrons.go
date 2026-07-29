@@ -293,7 +293,7 @@ func (s *Service) SelectBackend(poolID string, key string) (*Backend, error) {
 	switch pool.Algorithm {
 	case AlgoRoundRobin:
 		idx := atomic.AddUint64(&pool.Index, 1)
-		selected = healthy[int(idx)%len(healthy)]
+		selected = healthy[int(idx)%len(healthy)] // #nosec G115 -- kernel/netlink ABI field width
 
 	case AlgoLeastConn:
 		minConns := int64(^uint64(0) >> 1)
@@ -307,7 +307,7 @@ func (s *Service) SelectBackend(poolID string, key string) (*Backend, error) {
 	case AlgoIPHash:
 		h := fnv.New32a()
 		h.Write([]byte(key))
-		idx := h.Sum32() % uint32(len(healthy))
+		idx := h.Sum32() % uint32(len(healthy)) // #nosec G115 -- bounded by the length of an already-allocated slice
 		selected = healthy[idx]
 
 	case AlgoMaglev:

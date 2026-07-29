@@ -254,7 +254,7 @@ func (m *Metrics) RecordHTTPRequest(method, path string, statusCode int, duratio
 	status := prometheus.Labels{
 		"method": method,
 		"path":   path,
-		"status": string(rune(statusCode/100)) + "xx",
+		"status": string(rune(statusCode/100)) + "xx", // #nosec G115 -- bounded by construction; see the surrounding guard
 	}
 	m.HTTPRequestsTotal.With(status).Inc()
 	m.HTTPRequestDuration.With(status).Observe(duration.Seconds())

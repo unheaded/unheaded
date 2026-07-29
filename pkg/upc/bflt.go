@@ -48,11 +48,12 @@ const (
 // all in little-endian format.
 func CreateUPCFlat(text []uint32, data []uint32, bssWords uint32, stackSize uint32) []byte {
 	hdr := UPCFlatHeader{
-		Version:   UPCFlatVersion,
-		Entry:     0, // default entry at first text word
-		TextSize:  uint32(len(text)),
+		Version:  UPCFlatVersion,
+		Entry:    0,                 // default entry at first text word
+		TextSize: uint32(len(text)), // #nosec G115 -- bounded by the length of an already-allocated slice
+		// #nosec G115 -- bounded by the length of an already-allocated slice
 		DataStart: uint32(len(text)), // data follows text, in words from payload start
-		DataSize:  uint32(len(data)),
+		DataSize:  uint32(len(data)), // #nosec G115 -- bounded by the length of an already-allocated slice
 		BSSSize:   bssWords,
 		StackSize: stackSize,
 	}

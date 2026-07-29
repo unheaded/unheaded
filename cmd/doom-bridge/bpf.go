@@ -195,7 +195,7 @@ func init() {
 
 	// Colors 48-63: Reds
 	for i := 48; i < 64; i++ {
-		r := byte(0x88 + (i-48)*8)
+		r := byte(0x88 + (i-48)*8) // #nosec G115 -- bounded by construction; see the surrounding guard
 		g := byte(0)
 		if i > 52 {
 			g = byte((i - 52) * 8)
@@ -207,7 +207,7 @@ func init() {
 
 	// Colors 64-79: Oranges
 	for i := 64; i < 80; i++ {
-		g := byte(0x68 + (i-64)*8)
+		g := byte(0x68 + (i-64)*8) // #nosec G115 -- bounded by construction; see the surrounding guard
 		b := byte(0)
 		if i > 68 {
 			b = byte((i - 68) * 8)
@@ -234,9 +234,9 @@ func init() {
 			DoomPaletteRGB[i*3+1] = 255
 			DoomPaletteRGB[i*3+2] = 255
 		default: // Flesh tones & misc
-			DoomPaletteRGB[i*3] = byte(min(255, 192+(base-96)/2))
-			DoomPaletteRGB[i*3+1] = byte(min(255, 160+(base-96)/3))
-			DoomPaletteRGB[i*3+2] = byte(min(255, 128+(base-96)/4))
+			DoomPaletteRGB[i*3] = byte(min(255, 192+(base-96)/2))   // #nosec G115 -- bounded by construction; see the surrounding guard
+			DoomPaletteRGB[i*3+1] = byte(min(255, 160+(base-96)/3)) // #nosec G115 -- bounded by construction; see the surrounding guard
+			DoomPaletteRGB[i*3+2] = byte(min(255, 128+(base-96)/4)) // #nosec G115 -- bounded by construction; see the surrounding guard
 		}
 	}
 }

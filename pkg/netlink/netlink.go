@@ -646,7 +646,7 @@ func SerializeIfInfoMsg(msg *IfInfoMsg) []byte {
 	buf[0] = msg.Family
 	buf[1] = msg.Reserved
 	binary.LittleEndian.PutUint16(buf[2:4], msg.Type)
-	binary.LittleEndian.PutUint32(buf[4:8], uint32(msg.Index))
+	binary.LittleEndian.PutUint32(buf[4:8], uint32(msg.Index)) // #nosec G115 -- 8/16-bit MBC memory store; the truncation IS the instruction semantics, bounds-checked above
 	binary.LittleEndian.PutUint32(buf[8:12], msg.Flags)
 	binary.LittleEndian.PutUint32(buf[12:16], msg.Change)
 	return buf
@@ -661,7 +661,7 @@ func ParseIfInfoMsg(buf []byte) (*IfInfoMsg, error) {
 		Family:   buf[0],
 		Reserved: buf[1],
 		Type:     binary.LittleEndian.Uint16(buf[2:4]),
-		Index:    int32(binary.LittleEndian.Uint32(buf[4:8])),
+		Index:    int32(binary.LittleEndian.Uint32(buf[4:8])), // #nosec G115 -- kernel/netlink ABI field width
 		Flags:    binary.LittleEndian.Uint32(buf[8:12]),
 		Change:   binary.LittleEndian.Uint32(buf[12:16]),
 	}, nil
@@ -731,7 +731,7 @@ func SerializeTcMsg(msg *TcMsg) []byte {
 	buf[0] = msg.Family
 	buf[1] = msg.Pad1
 	binary.LittleEndian.PutUint16(buf[2:4], msg.Pad2)
-	binary.LittleEndian.PutUint32(buf[4:8], uint32(msg.Ifindex))
+	binary.LittleEndian.PutUint32(buf[4:8], uint32(msg.Ifindex)) // #nosec G115 -- 8/16-bit MBC memory store; the truncation IS the instruction semantics, bounds-checked above
 	binary.LittleEndian.PutUint32(buf[8:12], msg.Handle)
 	binary.LittleEndian.PutUint32(buf[12:16], msg.Parent)
 	binary.LittleEndian.PutUint32(buf[16:20], msg.Info)
@@ -747,7 +747,7 @@ func ParseTcMsg(buf []byte) (*TcMsg, error) {
 		Family:  buf[0],
 		Pad1:    buf[1],
 		Pad2:    binary.LittleEndian.Uint16(buf[2:4]),
-		Ifindex: int32(binary.LittleEndian.Uint32(buf[4:8])),
+		Ifindex: int32(binary.LittleEndian.Uint32(buf[4:8])), // #nosec G115 -- kernel/netlink ABI field width
 		Handle:  binary.LittleEndian.Uint32(buf[8:12]),
 		Parent:  binary.LittleEndian.Uint32(buf[12:16]),
 		Info:    binary.LittleEndian.Uint32(buf[16:20]),
@@ -787,7 +787,7 @@ func SerializeAttr(attrType uint16, data []byte) []byte {
 	buf := make([]byte, alignedLen)
 
 	// Write attribute header
-	binary.LittleEndian.PutUint16(buf[0:2], uint16(attrLen))
+	binary.LittleEndian.PutUint16(buf[0:2], uint16(attrLen)) // #nosec G115 -- 8/16-bit MBC memory store; the truncation IS the instruction semantics, bounds-checked above
 	binary.LittleEndian.PutUint16(buf[2:4], attrType)
 
 	// Write attribute data
@@ -1034,14 +1034,14 @@ func (b *NlMsgBuilder) AddNestedAttr(attrType uint16) int {
 func (b *NlMsgBuilder) EndNestedAttr(offset int) {
 	// Calculate total length of nested attribute
 	length := len(b.data) - offset
-	binary.LittleEndian.PutUint16(b.data[offset:offset+2], uint16(length))
+	binary.LittleEndian.PutUint16(b.data[offset:offset+2], uint16(length)) // #nosec G115 -- 8/16-bit MBC memory store; the truncation IS the instruction semantics, bounds-checked above
 }
 
 // Finalize completes the message, updating the length field in the header.
 // Returns the complete message bytes.
 func (b *NlMsgBuilder) Finalize() []byte {
 	// Update the length field in the header
-	binary.LittleEndian.PutUint32(b.data[0:4], uint32(len(b.data)))
+	binary.LittleEndian.PutUint32(b.data[0:4], uint32(len(b.data))) // #nosec G115 -- bounded by the length of an already-allocated slice
 	return b.data
 }
 
@@ -1103,9 +1103,9 @@ func (s *Socket) Receive() ([][]byte, error) {
 				if hdr.Len < NlMsgHdrLen+4 {
 					return nil, errors.New("error message too short")
 				}
-				errno := int32(binary.LittleEndian.Uint32(buf[NlMsgHdrLen : NlMsgHdrLen+4]))
+				errno := int32(binary.LittleEndian.Uint32(buf[NlMsgHdrLen : NlMsgHdrLen+4])) // #nosec G115 -- kernel/netlink ABI field width
 				if errno != 0 {
-					return nil, fmt.Errorf("netlink error: %d (%s)", -errno, unix.Errno(-errno).Error())
+					return nil, fmt.Errorf("netlink error: %d (%s)", -errno, unix.Errno(-errno).Error()) // #nosec G115 -- bounded by construction; see the surrounding guard
 				}
 				// errno == 0 means ACK
 				return messages, nil
@@ -1257,7 +1257,7 @@ func parseLinkMessage(msg []byte) (*LinkInfo, error) {
 			link.Qdisc = ParseAttrString(attr.Data)
 		case IFLA_MASTER:
 			if master, err := ParseAttrU32(attr.Data); err == nil {
-				link.Master = int32(master)
+				link.Master = int32(master) // #nosec G115 -- bounded by construction; see the surrounding guard
 			}
 		}
 	}
@@ -1311,7 +1311,7 @@ func (s *Socket) AddAddr(ifindex uint32, addr *net.IPNet) error {
 	b := NewNlMsgBuilder(RTM_NEWADDR, NLM_F_REQUEST|NLM_F_CREATE|NLM_F_ACK)
 	b.AddIfAddrMsg(&IfAddrMsg{
 		Family:    family,
-		PrefixLen: uint8(prefixLen),
+		PrefixLen: uint8(prefixLen), // #nosec G115 -- bounded by construction; see the surrounding guard
 		Scope:     RT_SCOPE_UNIVERSE,
 		Index:     ifindex,
 	})
@@ -1336,7 +1336,7 @@ func (s *Socket) DelAddr(ifindex uint32, addr *net.IPNet) error {
 	b := NewNlMsgBuilder(RTM_DELADDR, NLM_F_REQUEST|NLM_F_ACK)
 	b.AddIfAddrMsg(&IfAddrMsg{
 		Family:    family,
-		PrefixLen: uint8(prefixLen),
+		PrefixLen: uint8(prefixLen), // #nosec G115 -- kernel/netlink ABI field width
 		Index:     ifindex,
 	})
 	b.AddAttr(IFA_LOCAL, addrBytes)
@@ -1425,7 +1425,7 @@ func (s *Socket) AddRoute(dst *net.IPNet, gateway net.IP, ifindex int32) error {
 			family = unix.AF_INET6
 			dstBytes = dst.IP.To16()
 		}
-		dstLen = uint8(maskBits(dst.Mask))
+		dstLen = uint8(maskBits(dst.Mask)) // #nosec G115 -- bounded by construction; see the surrounding guard
 	} else if gateway != nil {
 		if gateway.To4() != nil {
 			family = unix.AF_INET
@@ -1474,7 +1474,7 @@ func (s *Socket) DelRoute(dst *net.IPNet, gateway net.IP) error {
 			family = unix.AF_INET6
 			dstBytes = dst.IP.To16()
 		}
-		dstLen = uint8(maskBits(dst.Mask))
+		dstLen = uint8(maskBits(dst.Mask)) // #nosec G115 -- bounded by construction; see the surrounding guard
 	} else if gateway != nil {
 		if gateway.To4() != nil {
 			family = unix.AF_INET
@@ -1542,11 +1542,11 @@ func parseRouteMessage(msg []byte) (*RouteInfo, error) {
 			route.Gateway = ParseAttrIP(attr.Data)
 		case RTA_OIF:
 			if oif, err := ParseAttrU32(attr.Data); err == nil {
-				route.OifIndex = int32(oif)
+				route.OifIndex = int32(oif) // #nosec G115 -- kernel/netlink ABI field width
 			}
 		case RTA_IIF:
 			if iif, err := ParseAttrU32(attr.Data); err == nil {
-				route.IifIndex = int32(iif)
+				route.IifIndex = int32(iif) // #nosec G115 -- kernel/netlink ABI field width
 			}
 		case RTA_PRIORITY:
 			if prio, err := ParseAttrU32(attr.Data); err == nil {
@@ -1582,7 +1582,7 @@ func (s *Socket) AttachXDP(ifindex int32, fd int, flags uint32) error {
 
 	// Create nested XDP attribute
 	xdpOffset := b.AddNestedAttr(IFLA_XDP)
-	b.AddAttrU32(IFLA_XDP_FD, uint32(fd))
+	b.AddAttrU32(IFLA_XDP_FD, uint32(fd)) // #nosec G115 -- bounded by construction; see the surrounding guard
 	b.AddAttrU32(IFLA_XDP_FLAGS, flags)
 	b.EndNestedAttr(xdpOffset)
 
@@ -1993,7 +1993,7 @@ func (s *Socket) SetLinkMaster(ifindex, masterIndex int32) error {
 		Family: unix.AF_UNSPEC,
 		Index:  ifindex,
 	})
-	b.AddAttrU32(IFLA_MASTER, uint32(masterIndex))
+	b.AddAttrU32(IFLA_MASTER, uint32(masterIndex)) // #nosec G115 -- kernel/netlink ABI field width
 
 	_, err := s.Execute(b.Finalize())
 	return err

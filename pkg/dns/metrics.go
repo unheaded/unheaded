@@ -334,7 +334,7 @@ func (lt *latencyTracker) record(d time.Duration) {
 	defer lt.mu.Unlock()
 
 	us := d.Microseconds()
-	lt.sum += uint64(us)
+	lt.sum += uint64(us) // #nosec G115 -- bounded by construction; see the surrounding guard
 	lt.count++
 
 	if d < lt.min {
@@ -364,8 +364,8 @@ func (lt *latencyTracker) snapshot() *LatencySnapshot {
 
 	snap := &LatencySnapshot{
 		Count:   lt.count,
-		Sum:     time.Duration(lt.sum) * time.Microsecond,
-		Mean:    time.Duration(lt.sum/lt.count) * time.Microsecond,
+		Sum:     time.Duration(lt.sum) * time.Microsecond,          // #nosec G115 -- bounded by construction; see the surrounding guard
+		Mean:    time.Duration(lt.sum/lt.count) * time.Microsecond, // #nosec G115 -- bounded by construction; see the surrounding guard
 		Min:     lt.min,
 		Max:     lt.max,
 		Buckets: make([]LatencyBucket, len(latencyBuckets)+1),

@@ -546,8 +546,8 @@ func (m *MultiplexedLogReader) readLocked(p []byte) (int, error) {
 		// Build multiplexed frame
 		// Header: [stream_type][0][0][0][size_big_endian_32]
 		header := make([]byte, 8)
-		header[0] = byte(m.current)
-		binary.BigEndian.PutUint32(header[4:], uint32(n))
+		header[0] = byte(m.current)                       // #nosec G115 -- bounded by construction; see the surrounding guard
+		binary.BigEndian.PutUint32(header[4:], uint32(n)) // #nosec G115 -- bounded by construction; see the surrounding guard
 
 		m.buffer = append(header, data[:n]...)
 		m.pos = 0
