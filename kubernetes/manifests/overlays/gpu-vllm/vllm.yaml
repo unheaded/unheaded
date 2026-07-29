@@ -24,6 +24,15 @@ spec:
     spec:
       nodeSelector:
         amd.com/gpu: "true"
+      # runAsUser is NOT set (trivy KSV-0012). ROCm needs /dev/kfd and /dev/dri,
+      # which the host exposes to the `render` and `video` groups — and those
+      # GIDs differ between distros. Pinning a UID/supplementalGroups without
+      # checking the actual GIDs on WEST would silently break GPU access, which
+      # fails as a model-load error rather than anything obviously
+      # security-related.
+      #
+      # TODO(WEST): read the render/video GIDs off the host, then set
+      # runAsUser from pkg/uids plus supplementalGroups here.
       securityContext:
         seccompProfile:
           type: RuntimeDefault

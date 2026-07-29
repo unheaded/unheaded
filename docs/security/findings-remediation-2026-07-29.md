@@ -329,6 +329,31 @@ together: `go.mod` (go + toolchain), `Dockerfile` (`FROM golang:`), and
 
 ---
 
+## Blocked on a live cluster (WEST) — 12 findings
+
+Everything remaining in trivy misconfig above LOW needs a running cluster to
+resolve safely. Listing them so they are tracked rather than quietly dropped:
+
+| Count | Rule | What it needs |
+|---|---|---|
+| 2 CRITICAL | KSV-0041 / KSV-0046 | haproxy-ingress RBAC. The `["*"]` is bounded to HAProxy's own CRD API groups; the `secrets` write is needed for TLS cert handling and mirrors upstream haproxytech. Narrowing it wrong breaks ingress TLS. |
+| 5 HIGH | KSV-0014 | `readOnlyRootFilesystem` on void-collector, haproxy-ingress, clickhouse, vllm, wireguard. Each writes at runtime; the fix is an emptyDir split that must be validated against a live pod. haproxy-ingress already carries its own note saying exactly this. |
+| 5 MEDIUM | KSV-0012 | Runs-as-root on the privileged daemonsets. **Deliberately NOT ignored** — these are genuine. Fixing them needs host-specific facts: the render/video GIDs for vllm's ROCm access, and whether CAP_BPF works non-root for the given kernel on void-collector. |
+
+The pattern in all three: the safe fix depends on a fact about the running host
+that cannot be read from the repo. Guessing produces a manifest that looks
+hardened and fails at runtime — GPU access dies as a model-load error, eBPF
+load dies as a verifier error, neither of which reads as a security problem
+when someone debugs it later.
+
+`TODO(WEST)` markers are in `deploy/k8s/ebpf/void-collector-daemonset.yaml` and
+`kubernetes/manifests/overlays/gpu-vllm/vllm.yaml` at the exact lines to change.
+
+The 364 LOW are resource limits and quotas (KSV-0039/0040 alone are 247 of
+them) — operational hygiene rather than security posture.
+
+---
+
 ## Follow-ups raised during remediation
 
 - **Warn loudly when `InsecureSkipVerify` is enabled.** All four G402 sites are

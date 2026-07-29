@@ -46,6 +46,10 @@ spec:
             cpu: "500m"
         securityContext:
           privileged: false
+          # Loading BPF programs with CAP_BPF/CAP_PERFMON does not require
+          # gaining privileges beyond the caps already granted, so this costs
+          # nothing here and closes trivy KSV-0001.
+          allowPrivilegeEscalation: false
           capabilities:
             add: ["BPF", "PERFMON", "NET_ADMIN"]
             drop: ["ALL"]
