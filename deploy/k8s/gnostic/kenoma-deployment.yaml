@@ -21,7 +21,7 @@ spec:
       securityContext: { runAsUser: 16761, runAsGroup: 16761, fsGroup: 16761, runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
       containers:
       - name: kenoma
-        image: unheaded/kenoma:0.1.0-alpha
+        image: ghcr.io/unheaded/kenoma:0.1.0-alpha
         resources:
           requests: { memory: "128Mi", cpu: "100m" }
           limits: { memory: "512Mi", cpu: "500m" }

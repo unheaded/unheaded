@@ -20,7 +20,7 @@ spec:
       securityContext: { runAsUser: 16762, runAsGroup: 16762, fsGroup: 16762, runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
       containers:
       - name: pleroma
-        image: unheaded/pleroma:0.1.0-alpha
+        image: ghcr.io/unheaded/pleroma:0.1.0-alpha
         resources:
           requests: { memory: "128Mi", cpu: "100m" }
           limits: { memory: "256Mi", cpu: "250m" }

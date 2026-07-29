@@ -33,7 +33,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: helm-runtime
-        image: unheaded/helm-runtime:0.1.0-alpha
+        image: ghcr.io/unheaded/helm-runtime:0.1.0-alpha
         resources:
           requests: { memory: "256Mi", cpu: "200m" }
           limits: { memory: "1Gi", cpu: "1000m" }

@@ -37,7 +37,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: shield
-        image: unheaded/shield:0.1.0-alpha
+        image: ghcr.io/unheaded/shield:0.1.0-alpha
         resources:
           requests: { memory: "128Mi", cpu: "200m" }
           limits: { memory: "512Mi", cpu: "500m" }

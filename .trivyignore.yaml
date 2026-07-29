@@ -137,3 +137,23 @@ misconfigurations:
       Kustomize strategic-merge patch; the base sets
       readOnlyRootFilesystem: true.
 
+  # ── KSV-0125: "image from an untrusted registry" ──────────────────────────
+  #
+  # trivy checks against its OWN built-in list of well-known registries. It has
+  # no way to know ghcr.io/unheaded is ours, so every first-party image trips
+  # this regardless of which registry we choose — the count does not move when
+  # the image reference is corrected.
+  #
+  # Registry trust IS enforced here, by an admission policy rather than by the
+  # scanner: deploy/k8s/policies/enforce-trusted-registries.yaml. That
+  # allowlist was tightened alongside this entry — bare "unheaded/" was removed
+  # because Docker resolves an unqualified namespace to docker.io/unheaded, an
+  # org this project does not demonstrably control, so a squatted or mistyped
+  # namespace could have satisfied the policy. All first-party manifests now
+  # use ghcr.io/unheaded, which follows the GitHub org.
+  - id: KSV-0125
+    statement: >-
+      Registry trust is enforced by deploy/k8s/policies/enforce-trusted-registries.yaml,
+      not by trivy's built-in registry list, which cannot know ghcr.io/unheaded
+      is first-party.
+

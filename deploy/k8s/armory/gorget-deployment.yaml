@@ -34,7 +34,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: gorget
-        image: unheaded/gorget:0.1.0-alpha
+        image: ghcr.io/unheaded/gorget:0.1.0-alpha
         resources:
           requests: { memory: "128Mi", cpu: "100m" }
           limits: { memory: "256Mi", cpu: "250m" }
