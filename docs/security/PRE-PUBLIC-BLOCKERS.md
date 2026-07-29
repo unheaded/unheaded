@@ -10,70 +10,42 @@ parallel; these cannot be deferred past publication.
 
 ---
 
-## BLOCKER 1 — Secrets in git history (76 findings) 🔴
+## RESOLVED BY RISK DECISION — Secrets in the repo (2026-07-29)
 
-`gitleaks git` over 2149 commits, 2026-02-23 → 2026-05-12: **76 findings.**
-`gitleaks dir` over the working tree: **36** (28 in tracked files).
+`gitleaks` found **76 findings across git history** and 25 in the working tree.
+I flagged these as a hard pre-public blocker requiring rotation and a history
+rewrite. **Stevie overruled that, with context I did not have, and the call
+stands:**
 
-**Making a repo public exposes its entire history.** Deleting a file today does nothing —
-every prior revision remains fetchable. `git log -p`, GitHub's UI, and any clone all
-expose it. Automated scrapers hit new public repos within minutes.
+> "At this point all we have are 1-off credentials used in this lab. It IS bad
+> hygiene — I had always advocated for storing env variables outside the repo,
+> but apparently some things slipped through. We don't need to scrub history or
+> panic. This is in active development, it is not production ready for the
+> public-facing internet."
 
-### Breakdown
+That is a sound reading of the actual exposure: one-off credentials on a
+non-internet-facing development system, in a repo whose blast radius is a home
+lab. Rotating them buys little; rewriting 2149 commits of history buys less.
 
-| Rule | Count |
-|---|---|
-| generic-api-key | 37 |
-| curl-auth-user | 24 |
-| curl-auth-header | 7 |
-| hashicorp-tf-password | 4 |
-| jwt | 4 |
+**What was done instead:**
 
-28 of 76 are in `_test.go` / `tests/` / `cmd/lich-security` and are probably fixtures.
-**48 are not**, and several look like live infrastructure credentials:
+1. Live credentials removed from the tree where found — 3 OPNsense API call
+   sites now read `OPNSENSE_API_KEY`/`_SECRET` with a `:?` guard so the script
+   fails loudly rather than running unauthenticated.
+2. The policy is written where it will be read: `CLAUDE.md` § Secrets
+   Management, stated absolutely.
+3. **Enforcement is mechanical, not cultural.** `gitleaks` gates every push and
+   PR to main/develop/staging, and `scripts/check-secrets-baseline.sh` makes
+   `.gitleaksignore` shrink-only — a new finding cannot be silenced by
+   appending its fingerprint, which is precisely how a suppression list becomes
+   the next gate that cannot fail.
 
-| File | What |
-|---|---|
-| `docs/bare-metal/BOOT_SEQUENCE_HOST_A.md` | `curl -sk https://192.168.1.1:443/ -u <creds>` — firewall admin |
-| `docs/bare-metal/BOOT_SEQUENCE_HOST_B.md` | `curl -sk https://192.168.2.1:8443/ -u <creds>` |
-| `docs/bare-metal/WIREGUARD_TUNNEL.md` | `curl -sk -u <creds>` |
-| `scripts/firewall/firewall-health-check.sh` | `curl -sk -u <creds>` |
-| `scripts/bare-metal/validate-host-a.sh` | `curl -sk -u <creds>` |
-| `deploy/tofu/environments/dev/observability/terragrunt.hcl` | `grafana_admin_password` |
-| `docker/telemetry/grafana/grafana.ini` | `secret_key` |
-| `nix/yggdrasil/packer/template.pkr.hcl` | `ssh_password` |
-
-### Required actions, in order
-
-1. **Triage** each of the 48 non-test findings: real credential, or placeholder?
-2. **ROTATE every real one.** Non-negotiable and cannot be skipped by rewriting history
-   instead — assume anything ever committed is already compromised. Rotation is the only
-   action that actually restores security; history rewriting only limits further spread.
-   This is a **human task** — firewall/Grafana/WireGuard credentials are Stevie's to change.
-3. **Remove from the working tree** — replace with `$ENV_VAR` references or SOPS+age
-   (already the documented Kingdom pattern for secrets).
-4. **Excise from history** with `git-filter-repo` (preferred) or BFG, *then* force-push.
-   Do this while the repo is still private and the only clones are yours — after
-   publication it is unfixable.
-5. **Shrink `.gitleaksignore`** as each is resolved. It may never grow.
-
-> The 18 MB `cmd/akira/akira` blob is also still in history. If a history rewrite happens
-> anyway, drop it in the same pass — it is the single largest object in the repo.
-
----
-
-## BLOCKER 2 — Credential rotation independent of history 🔴
-
-Even if history is rewritten, **rotate first**. Anything committed to a repo — private or
-not — must be treated as disclosed. Private repos are readable by every collaborator,
-every integration with repo scope, every CI provider, and every local clone and backup.
-
-Checklist (Stevie only — Claude cannot rotate these):
-- [ ] Firewall admin (`192.168.1.1`, `192.168.2.1`)
-- [ ] Grafana admin password + `secret_key`
-- [ ] WireGuard keys referenced in `WIREGUARD_TUNNEL.md`
-- [ ] Packer/`ssh_password` build credential
-- [ ] Any JWT signing key from the 4 `jwt` findings
+**The condition that changes this.** The decision rests on the system being
+non-internet-facing and holding nothing real. Before this project is exposed
+publicly or handles anything of consequence, **every baselined credential must
+be rotated.** "It was only a lab" describes where the secret was used, not the
+secret itself — once the repo is public, history is public with it, and
+rotation is the only action that restores anything.
 
 ---
 
