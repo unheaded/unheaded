@@ -31,7 +31,7 @@ var (
 )
 
 const (
-	apiKeyHeader = "X-API-Key"
+	apiKeyHeader = "X-API-Key" // #nosec G101 -- HTTP header NAME, not a key value
 	version      = "0.1.0"
 	drainTimeout = 30 * time.Second
 	rateLimitQPS = 1000

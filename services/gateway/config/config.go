@@ -152,6 +152,7 @@ func DefaultConfig() *Config {
 			BurstSize:      200,
 			CleanupPeriod:  time.Minute,
 		},
+		// #nosec G101 -- APIKeyHeader is an HTTP header NAME, not a key value
 		Auth: AuthConfig{
 			Enabled:      false,
 			APIKeyHeader: "X-API-Key",
