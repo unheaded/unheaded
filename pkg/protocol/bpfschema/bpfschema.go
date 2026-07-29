@@ -37,10 +37,10 @@ const (
 	MapRingPath = "unhd_ring_path"
 
 	// Q5: Flow migration validation tokens (RFC 9000 §9).
-	MapMigrationTokens = "unhd_migration_tokens"
+	MapMigrationTokens = "unhd_migration_tokens" // #nosec G101 -- BPF map name, not a token value
 
 	// Q6: Shield retry tokens with HMAC validation (RFC 9000 §8.1.2).
-	MapRetryTokens = "unhd_retry_tokens"
+	MapRetryTokens = "unhd_retry_tokens" // #nosec G101 -- BPF map name, not a token value
 
 	// H1: Sophia dictionary encoder/decoder ACK state (RFC 9114 §4.1).
 	MapSophiaSync = "unhd_sophia_sync"

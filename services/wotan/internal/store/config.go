@@ -65,7 +65,9 @@ type Config struct {
 	CompactionInterval string `json:"compaction_interval" yaml:"compaction_interval"`
 
 	// ConnStr is the PostgreSQL connection string (for postgres and hybrid stores).
-	// Default: "postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable"
+	// REQUIRED for those types — there is deliberately no default. See
+	// errMissingConnStr; pkg/database/validate.go already rejects the password
+	// this previously defaulted to.
 	ConnStr string `json:"conn_str" yaml:"conn_str"`
 }
 
@@ -149,14 +151,14 @@ func New(cfg Config) (MessageStore, error) {
 			connStr = cfg.DataDir // Legacy: DataDir as connstr fallback
 		}
 		if connStr == "" {
-			connStr = "postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable"
+			return nil, errMissingConnStr(PostgresStoreType)
 		}
 		return NewPGStore(connStr, capacity)
 
 	case HybridStoreType:
 		connStr := cfg.ConnStr
 		if connStr == "" {
-			connStr = "postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable"
+			return nil, errMissingConnStr(HybridStoreType)
 		}
 		walDir := cfg.DataDir
 		if walDir == "" {
@@ -177,4 +179,21 @@ func MustNew(cfg Config) MessageStore {
 		panic(err)
 	}
 	return store
+}
+
+// errMissingConnStr reports an absent Postgres connection string.
+//
+// This previously fell back to a hardcoded
+// "postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable".
+// A shipped default credential is worse than a startup failure in two ways:
+// the password is public in the source tree, and sslmode=disable means the
+// connection carries it in cleartext. Worse, the fallback was silent — a
+// deploy with a missing or misspelled ConnStr looked healthy locally (where
+// that database happens to exist) and would fail confusingly anywhere else.
+//
+// Failing here is deliberate: misconfiguration should be loud.
+func errMissingConnStr(t StoreType) error {
+	return fmt.Errorf(
+		"store: %s requires an explicit connection string (Config.ConnStr); "+
+			"refusing to fall back to a built-in credential", t)
 }
