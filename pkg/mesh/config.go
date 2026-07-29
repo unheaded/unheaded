@@ -753,7 +753,7 @@ func ConfigFromFile(path string) (*Config, error) {
 		return DefaultConfig(), nil
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied configuration file path
 	if err != nil {
 		if os.IsNotExist(err) {
 			// File not found: fall back to defaults (non-fatal)

@@ -52,7 +52,7 @@ func NewAuditLogger(w io.Writer, serviceName string) *AuditLogger {
 // NewFileAuditLogger creates an audit logger that appends to a file.
 // Creates the file if it doesn't exist.
 func NewFileAuditLogger(path, serviceName string) (*AuditLogger, error) {
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600)
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0600) // #nosec G304 -- auth store path from configuration, not from a request
 	if err != nil {
 		return nil, err
 	}

@@ -172,7 +172,7 @@ func (p *Provider) InitializeWithFiles(certFile, keyFile, caFile string) error {
 	p.cert = &cert
 
 	// Load CA certificate
-	caPEM, err := os.ReadFile(caFile)
+	caPEM, err := os.ReadFile(caFile) // #nosec G304 -- PKI path derived from the configured pki dir
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrCertificateLoadFailed, err)
 	}

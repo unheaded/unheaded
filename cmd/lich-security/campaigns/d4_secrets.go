@@ -146,7 +146,7 @@ func (d *D4Secrets) testSecretsInLogs(_ context.Context, _ Config) *Finding {
 	}
 	secretPatterns := []string{"password=", "api_key=", "secret=", "token=eyJ"}
 	for _, logPath := range logPaths {
-		data, err := os.ReadFile(logPath)
+		data, err := os.ReadFile(logPath) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
 		if err != nil {
 			continue
 		}

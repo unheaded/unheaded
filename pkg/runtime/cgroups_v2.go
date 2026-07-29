@@ -337,7 +337,7 @@ func isCgroupV2Unified(path string) bool {
 func (m *CgroupV2Manager) enableControllersInSubtree(path string) error {
 	// Read available controllers
 	controllersPath := filepath.Join(path, "cgroup.controllers")
-	data, err := os.ReadFile(controllersPath)
+	data, err := os.ReadFile(controllersPath) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return err
 	}
@@ -852,7 +852,7 @@ func (m *CgroupV2Manager) readMemoryEvents(fullPath string, events *MemoryEvents
 // readIOStats reads IO statistics.
 func (m *CgroupV2Manager) readIOStats(fullPath string, stats *CgroupIOStats) error {
 	ioStatPath := filepath.Join(fullPath, "io.stat")
-	data, err := os.ReadFile(ioStatPath)
+	data, err := os.ReadFile(ioStatPath) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return err
 	}
@@ -941,7 +941,7 @@ func (m *CgroupV2Manager) readPressureStats(fullPath string, stats *CgroupPressu
 
 // readPressureFile reads a pressure file and parses its content.
 func (m *CgroupV2Manager) readPressureFile(path string) (*PressureData, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return nil, err
 	}
@@ -1112,7 +1112,7 @@ func (m *CgroupV2Manager) ListProcesses(containerID string) ([]int, error) {
 
 // readProcsFile reads process IDs from a cgroup.procs or cgroup.threads file.
 func (m *CgroupV2Manager) readProcsFile(path string) ([]int, error) {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return nil, err
 	}
@@ -1437,7 +1437,7 @@ func (m *CgroupV2Manager) StopEventWatcher(containerID string) {
 // GetAvailableControllersV2 returns the list of available cgroup v2 controllers.
 func (m *CgroupV2Manager) GetAvailableControllersV2() ([]string, error) {
 	controllersPath := filepath.Join(m.root, m.parentPath, "cgroup.controllers")
-	data, err := os.ReadFile(controllersPath)
+	data, err := os.ReadFile(controllersPath) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return nil, err
 	}
@@ -1448,7 +1448,7 @@ func (m *CgroupV2Manager) GetAvailableControllersV2() ([]string, error) {
 // GetSubtreeControllersV2 returns the list of enabled subtree controllers.
 func (m *CgroupV2Manager) GetSubtreeControllersV2() ([]string, error) {
 	subtreePath := filepath.Join(m.root, m.parentPath, "cgroup.subtree_control")
-	data, err := os.ReadFile(subtreePath)
+	data, err := os.ReadFile(subtreePath) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return nil, err
 	}
@@ -1657,7 +1657,7 @@ func writeCgroupFile(cgroupPath, filename, content string) error {
 // readCgroupFileV2 reads content from a cgroup file.
 func readCgroupFileV2(cgroupPath, filename string) (string, error) {
 	path := filepath.Join(cgroupPath, filename)
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return "", err
 	}
@@ -1666,7 +1666,7 @@ func readCgroupFileV2(cgroupPath, filename string) (string, error) {
 
 // readKeyValueFileV2 reads a key-value cgroup file.
 func readKeyValueFileV2(path string) (map[string]string, error) {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return nil, err
 	}

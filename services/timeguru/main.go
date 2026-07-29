@@ -136,7 +136,7 @@ func main() {
 func loadTimeline(path string) error {
 	// path is operator-controlled (config-supplied or default
 	// references/timeline.md), not user-supplied per request.
-	data, err := os.ReadFile(path) // #nosec G703 -- operator-controlled config path
+	data, err := os.ReadFile(path) // #nosec G703,G304 -- operator-controlled config path
 	if err != nil {
 		return err
 	}

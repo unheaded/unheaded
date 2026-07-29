@@ -132,7 +132,7 @@ func (fs *FileStorage) GetDecision(ctx context.Context, id string) (*Decision, e
 	}
 
 	// filePath validated by fs.safeFilePath above.
-	data, err := os.ReadFile(filePath) // #nosec G703 -- validated by safeFilePath
+	data, err := os.ReadFile(filePath) // #nosec G703,G304 -- validated by safeFilePath
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, errors.New("decision not found")
@@ -228,7 +228,7 @@ func (fs *FileStorage) loadAll(ctx context.Context) error {
 
 		filePath := filepath.Join(fs.basePath, entry.Name())
 
-		data, err := os.ReadFile(filePath)
+		data, err := os.ReadFile(filePath) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
 		if err != nil {
 			continue // Skip on error
 		}

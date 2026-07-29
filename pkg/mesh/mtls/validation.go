@@ -98,7 +98,7 @@ func ParseCertificateInfo(cert *x509.Certificate) *CertificateInfo {
 
 // LoadCertificateFromFile loads and parses a certificate from a file.
 func LoadCertificateFromFile(path string) (*x509.Certificate, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- PKI path derived from the configured pki dir
 	if err != nil {
 		return nil, err
 	}
@@ -113,7 +113,7 @@ func LoadCertificateFromFile(path string) (*x509.Certificate, error) {
 
 // LoadCertificateChainFromFile loads a certificate chain from a file.
 func LoadCertificateChainFromFile(path string) ([]*x509.Certificate, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- PKI path derived from the configured pki dir
 	if err != nil {
 		return nil, err
 	}

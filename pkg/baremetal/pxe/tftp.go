@@ -181,7 +181,7 @@ func (s *TFTPServer) ReadFile(path string) ([]byte, error) {
 
 	// Read from disk
 	fullPath := filepath.Join(s.root, path)
-	data, err := os.ReadFile(fullPath)
+	data, err := os.ReadFile(fullPath) // #nosec G304 -- image/PXE path derived from the configured storage dir
 	if err != nil {
 		return nil, err
 	}

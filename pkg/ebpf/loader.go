@@ -3207,7 +3207,7 @@ func registerKprobe(funcName string, ret bool) (uint64, error) {
 
 	// Read probe ID
 	idPath := fmt.Sprintf("/sys/kernel/debug/tracing/events/kprobes/%s/id", probeName)
-	idData, err := os.ReadFile(idPath)
+	idData, err := os.ReadFile(idPath) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 	if err != nil {
 		return 0, fmt.Errorf("read probe id: %w", err)
 	}
@@ -3239,7 +3239,7 @@ func (l *NativeLoader) attachTracepoint(loaded *loadedProgram) error {
 
 	// Get tracepoint ID
 	idPath := fmt.Sprintf("/sys/kernel/debug/tracing/events/%s/%s/id", category, name)
-	idData, err := os.ReadFile(idPath)
+	idData, err := os.ReadFile(idPath) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 	if err != nil {
 		return fmt.Errorf("read tracepoint id: %w", err)
 	}
@@ -4168,7 +4168,7 @@ func loadKernelBTF(path string) (int, error) {
 	// For other paths, we'd need to load the file
 
 	// Try the raw BTF blob via bpf syscall
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 	if err != nil {
 		return -1, err
 	}

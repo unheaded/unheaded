@@ -118,7 +118,7 @@ func ClientTLSConfig(cfg Config) (*tls.Config, error) {
 }
 
 func loadCACertPool(caPath string) (*x509.CertPool, error) {
-	caPEM, err := os.ReadFile(caPath)
+	caPEM, err := os.ReadFile(caPath) // #nosec G304 -- PKI path derived from the configured pki dir
 	if err != nil {
 		return nil, err
 	}

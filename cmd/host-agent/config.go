@@ -82,7 +82,7 @@ func loadConfig(path string) (Config, error) {
 	if path == "" {
 		return cfg, nil
 	}
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied configuration file path
 	if err != nil {
 		if os.IsNotExist(err) {
 			return cfg, nil // config file is optional

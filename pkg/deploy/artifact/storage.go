@@ -153,7 +153,7 @@ func (s *FileStorage) Put(ctx context.Context, key string, reader io.Reader) (st
 	}
 
 	// Create file
-	file, err := os.Create(filePath)
+	file, err := os.Create(filePath) // #nosec G304 -- internal store path derived from the configured root
 	if err != nil {
 		return "", 0, fmt.Errorf("failed to create file: %w", err)
 	}
@@ -178,7 +178,7 @@ func (s *FileStorage) Get(ctx context.Context, ref string) (io.ReadCloser, error
 	}
 
 	filePath := filepath.Join(s.basePath, ref)
-	file, err := os.Open(filePath)
+	file, err := os.Open(filePath) // #nosec G304 -- internal store path derived from the configured root
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrArtifactNotFound

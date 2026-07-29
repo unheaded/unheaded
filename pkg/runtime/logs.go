@@ -105,7 +105,7 @@ func (r *DefaultRuntime) GetContainerLogs(ctx context.Context, containerID strin
 	}
 
 	// Open log file
-	file, err := os.Open(logPath)
+	file, err := os.Open(logPath) // #nosec G304 -- container store path derived from the runtime root
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Return empty reader if no logs yet
@@ -322,7 +322,7 @@ func NewLogWriter(path string, stream StreamType, maxSize int64, maxFiles int) (
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644) // #nosec G302 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644) // #nosec G302,G304 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 	if err != nil {
 		return nil, fmt.Errorf("failed to open log file: %w", err)
 	}

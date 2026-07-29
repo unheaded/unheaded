@@ -12,7 +12,7 @@ import (
 // LoadKernel reads a kernel binary and returns it as u32 words for RAM_MAP.
 // The file is padded to 4-byte alignment if necessary.
 func LoadKernel(path string) ([]uint32, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 	if err != nil {
 		return nil, fmt.Errorf("read kernel: %w", err)
 	}

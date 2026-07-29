@@ -2998,7 +2998,7 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 			info.Hostname = hostHostname()
 
 			// Kernel
-			if data, err := os.ReadFile(procRoot + "/version"); err == nil {
+			if data, err := os.ReadFile(procRoot + "/version"); err == nil { // #nosec G304 -- procfs path from the operator-set HOST_PROC env var, validated at startup
 				fields := strings.Fields(string(data))
 				if len(fields) >= 3 {
 					info.Kernel = fields[2]
@@ -3074,7 +3074,7 @@ func hostHostname() string {
 	// Host's /etc/hostname is a plain file — unlike /proc/sys/kernel/hostname,
 	// which is UTS-namespaced and returns the container's name even via host /proc.
 	for _, p := range []string{"/host/etc/hostname", procRoot + "/sys/kernel/hostname"} {
-		if data, err := os.ReadFile(p); err == nil {
+		if data, err := os.ReadFile(p); err == nil { // #nosec G304 -- procfs path from the operator-set HOST_PROC env var, validated at startup
 			if h := strings.TrimSpace(string(data)); h != "" {
 				return h
 			}
@@ -3087,7 +3087,7 @@ func hostHostname() string {
 // readLocalCPUPercent reads aggregate CPU usage from <procRoot>/stat.
 // Returns percentage of non-idle CPU time.
 func readLocalCPUPercent() float64 {
-	f, err := os.Open(procRoot + "/stat")
+	f, err := os.Open(procRoot + "/stat") // #nosec G304 -- procfs path from the operator-set HOST_PROC env var, validated at startup
 	if err != nil {
 		return 0
 	}
@@ -3135,7 +3135,7 @@ type memInfoResult struct {
 // readLocalMemInfo reads memory and swap from /proc/meminfo.
 func readLocalMemInfo() memInfoResult {
 	var r memInfoResult
-	f, err := os.Open(procRoot + "/meminfo")
+	f, err := os.Open(procRoot + "/meminfo") // #nosec G304 -- procfs path from the operator-set HOST_PROC env var, validated at startup
 	if err != nil {
 		return r
 	}
@@ -3189,7 +3189,7 @@ func readLocalMemInfo() memInfoResult {
 
 // readLocalLoadAvg reads 1/5/15 minute load averages from /proc/loadavg.
 func readLocalLoadAvg() (load1, load5, load15 float64) {
-	data, err := os.ReadFile(procRoot + "/loadavg")
+	data, err := os.ReadFile(procRoot + "/loadavg") // #nosec G304 -- procfs path from the operator-set HOST_PROC env var, validated at startup
 	if err != nil {
 		return 0, 0, 0
 	}
@@ -3208,7 +3208,7 @@ func readLocalLoadAvg() (load1, load5, load15 float64) {
 
 // readSystemUptime reads system uptime from /proc/uptime in seconds.
 func readSystemUptime() float64 {
-	data, err := os.ReadFile(procRoot + "/uptime")
+	data, err := os.ReadFile(procRoot + "/uptime") // #nosec G304 -- procfs path from the operator-set HOST_PROC env var, validated at startup
 	if err != nil {
 		return 0
 	}
@@ -3243,7 +3243,7 @@ func diskStatfsPath(mount string) string {
 }
 
 func readLocalDisks() []DiskInfo {
-	f, err := os.Open(procRoot + "/mounts")
+	f, err := os.Open(procRoot + "/mounts") // #nosec G304 -- procfs path from the operator-set HOST_PROC env var, validated at startup
 	if err != nil {
 		return nil
 	}
@@ -3343,7 +3343,7 @@ func readLocalDisks() []DiskInfo {
 func readLocalNetConnections() NetConnections {
 	var nc NetConnections
 	for _, path := range []string{procRoot + "/net/tcp", procRoot + "/net/tcp6"} {
-		f, err := os.Open(path)
+		f, err := os.Open(path) // #nosec G304 -- procfs path from the operator-set HOST_PROC env var, validated at startup
 		if err != nil {
 			continue
 		}
@@ -3386,7 +3386,7 @@ func readLocalProcessCounts() (total, zombie int) {
 		total++
 		// Check status for zombie
 		statPath := procRoot + "/" + e.Name() + "/stat"
-		data, err := os.ReadFile(statPath)
+		data, err := os.ReadFile(statPath) // #nosec G304 -- procfs path from the operator-set HOST_PROC env var, validated at startup
 		if err != nil {
 			continue
 		}

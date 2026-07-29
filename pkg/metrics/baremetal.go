@@ -82,7 +82,7 @@ func (b *BareMetalCollector) collectMemory() []Sample {
 	baseLabels := map[string]string{"collector": "baremetal"}
 
 	path := filepath.Join(b.procRoot, "meminfo")
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- procfs/sysfs metrics path, fixed prefix + literal suffix
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: cannot read %s: %v\n", path, err)
 		return samples
@@ -155,7 +155,7 @@ func (b *BareMetalCollector) collectLoadAverage() []Sample {
 	baseLabels := map[string]string{"collector": "baremetal"}
 
 	path := filepath.Join(b.procRoot, "loadavg")
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- procfs/sysfs metrics path, fixed prefix + literal suffix
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: cannot read %s: %v\n", path, err)
 		return samples
@@ -212,7 +212,7 @@ func (b *BareMetalCollector) collectCPU() []Sample {
 	var samples []Sample
 
 	path := filepath.Join(b.procRoot, "stat")
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- procfs/sysfs metrics path, fixed prefix + literal suffix
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: cannot read %s: %v\n", path, err)
 		return samples
@@ -352,7 +352,7 @@ func (b *BareMetalCollector) parseNetStats(netPath string, ifName string) map[st
 	metrics := []string{"rx_bytes", "rx_packets", "tx_bytes", "tx_packets"}
 	for _, metric := range metrics {
 		filePath := filepath.Join(statsPath, metric)
-		data, err := os.ReadFile(filePath)
+		data, err := os.ReadFile(filePath) // #nosec G304 -- procfs/sysfs metrics path, fixed prefix + literal suffix
 		if err != nil {
 			continue
 		}

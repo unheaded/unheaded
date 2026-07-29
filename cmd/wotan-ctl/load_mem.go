@@ -85,7 +85,7 @@ Examples:
 // loadMem loads binary data into the Wotan L2 ring buffer.
 func loadMem(ctx *Context, flowLabel uint64, baseAddr uint64, filePath string, wotanAddr string, mapPinPath string, warm bool, verify bool) error {
 	// 1. Read binary file
-	data, err := os.ReadFile(filePath)
+	data, err := os.ReadFile(filePath) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 	if err != nil {
 		return fmt.Errorf("read file: %w", err)
 	}

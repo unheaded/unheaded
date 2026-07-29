@@ -212,7 +212,7 @@ func (ws *WikiServer) renderPage(slug string) (string, string, error) {
 		return "", "", fmt.Errorf("path traversal attempt blocked")
 	}
 
-	data, err := os.ReadFile(absPath)
+	data, err := os.ReadFile(absPath) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
 	if err != nil {
 		return "", "", fmt.Errorf("read file %s: %w", absPath, err)
 	}

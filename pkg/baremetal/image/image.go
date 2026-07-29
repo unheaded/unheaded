@@ -267,13 +267,13 @@ func (m *Manager) ImportImage(ctx context.Context, id string, kernelPath, initrd
 
 // copyFile copies a file and returns its checksum.
 func (m *Manager) copyFile(src, dst string) (string, int64, error) {
-	srcFile, err := os.Open(src)
+	srcFile, err := os.Open(src) // #nosec G304 -- image/PXE path derived from the configured storage dir
 	if err != nil {
 		return "", 0, err
 	}
 	defer func() { _ = srcFile.Close() }()
 
-	dstFile, err := os.Create(dst)
+	dstFile, err := os.Create(dst) // #nosec G304 -- image/PXE path derived from the configured storage dir
 	if err != nil {
 		return "", 0, err
 	}
@@ -359,7 +359,7 @@ func (m *Manager) VerifyImage(ctx context.Context, id string) error {
 
 // verifyChecksum verifies a file's checksum.
 func (m *Manager) verifyChecksum(path, expected string) error {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- image/PXE path derived from the configured storage dir
 	if err != nil {
 		return err
 	}

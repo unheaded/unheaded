@@ -79,7 +79,7 @@ Examples:
 // loadRom loads MBC bytecode into the rom_map.
 func loadRom(ctx *Context, flowLabel uint64, filePath string, mapPinPath string, stats bool, disasm bool, reset bool) error {
 	// 1. Read .mbc file (sequence of little-endian u32 instruction words)
-	data, err := os.ReadFile(filePath)
+	data, err := os.ReadFile(filePath) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 	if err != nil {
 		return fmt.Errorf("read file: %w", err)
 	}

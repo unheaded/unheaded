@@ -160,7 +160,7 @@ func (c *Client) Initialize(ctx context.Context) error {
 
 // loadKeyFromFile reads a PEM-encoded ECDSA private key from disk.
 func loadKeyFromFile(path string) (*ecdsa.PrivateKey, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- certificate store path derived from the configured PKI dir
 	if err != nil {
 		return nil, err
 	}

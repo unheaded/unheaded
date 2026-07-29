@@ -89,7 +89,7 @@ func (m *NamespaceManager) CreateNamespaces(id string, types []NamespaceType) (*
 
 // createNamespaceBindTarget creates a file for namespace bind mounting.
 func createNamespaceBindTarget(path string) error {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL, 0444) // #nosec G302 -- 0444 — read-only marker file, no secret content
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL, 0444) // #nosec G302,G304 -- 0444 — read-only marker file, no secret content
 	if err != nil {
 		if os.IsExist(err) {
 			return nil

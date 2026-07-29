@@ -226,7 +226,7 @@ func (s *FileStore) Close() error {
 // loadIndex loads the certificate index from disk.
 func (s *FileStore) loadIndex() error {
 	indexPath := filepath.Join(s.path, "index.json")
-	data, err := os.ReadFile(indexPath)
+	data, err := os.ReadFile(indexPath) // #nosec G304 -- certificate store path derived from the configured PKI dir
 	if err != nil {
 		return err
 	}

@@ -159,7 +159,7 @@ func (c *Champion) ReadFile(ctx context.Context, path string) (string, error) {
 	}
 
 	// Read file
-	data, err := os.ReadFile(absPath)
+	data, err := os.ReadFile(absPath) // #nosec G304 -- sandboxed path — validated by validatePath (no .., blocklist, allowed-prefix check)
 	if err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return "", fmt.Errorf("read file: %w", err)

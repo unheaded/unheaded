@@ -109,7 +109,7 @@ func (w *ConfigWatcher) scan() {
 		}
 
 		configPath := filepath.Join(w.dir, entry.Name(), "config.yaml")
-		data, err := os.ReadFile(configPath)
+		data, err := os.ReadFile(configPath) // #nosec G304 -- operator-supplied configuration file path
 		if err != nil {
 			continue // no config.yaml in this subdir
 		}

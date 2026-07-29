@@ -682,7 +682,7 @@ func (t *TimeoutConfig) Validate() error {
 
 // LoadConfig loads configuration from a JSON file.
 func LoadConfig(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied configuration file path
 	if err != nil {
 		return nil, fmt.Errorf("read config file: %w", err)
 	}
