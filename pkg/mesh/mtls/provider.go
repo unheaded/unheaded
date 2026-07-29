@@ -417,8 +417,10 @@ func (p *Provider) buildTLSConfigs() {
 			defer p.mu.RUnlock()
 			return p.cert, nil
 		},
-		VerifyPeerCertificate:  p.verifyPeerCertificate,
-		InsecureSkipVerify:     p.config.SkipVerify, //nolint:gosec // gated behind opt-in config field
+		VerifyPeerCertificate: p.verifyPeerCertificate,
+		// #nosec G402 -- opt-in config field, defaults false; VerifyPeerCertificate
+		// above still runs even when true, so peer certs are not left unchecked
+		InsecureSkipVerify:     p.config.SkipVerify,
 		SessionTicketsDisabled: true,
 	}
 }

@@ -774,7 +774,7 @@ func (t *TLSConfig) BuildTLSConfig() (*tls.Config, error) {
 // BuildBackendTLSConfig builds a *tls.Config for backend connections.
 func (b *BackendTLSConfig) BuildTLSConfig() (*tls.Config, error) {
 	tlsConfig := &tls.Config{
-		InsecureSkipVerify: b.InsecureSkipVerify,
+		InsecureSkipVerify: b.InsecureSkipVerify, // #nosec G402 -- per-backend opt-in config field, defaults false
 		MinVersion:         tls.VersionTLS12,
 	}
 

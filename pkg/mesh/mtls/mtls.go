@@ -315,8 +315,10 @@ func (m *Manager) buildTLSConfigs() {
 		GetClientCertificate: func(*tls.CertificateRequestInfo) (*tls.Certificate, error) {
 			return m.getTLSCertificate()
 		},
-		VerifyPeerCertificate:  m.verifier.VerifyPeerCertificate,
-		InsecureSkipVerify:     m.config.SkipVerify, //nolint:gosec // gated behind opt-in config field
+		VerifyPeerCertificate: m.verifier.VerifyPeerCertificate,
+		// #nosec G402 -- opt-in config field, defaults false; VerifyPeerCertificate
+		// above still runs even when true, so peer certs are not left unchecked
+		InsecureSkipVerify:     m.config.SkipVerify,
 		SessionTicketsDisabled: true,
 	}
 }
