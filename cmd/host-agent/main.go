@@ -436,7 +436,19 @@ func main() {
 		cfg.Sinks.VictoriaMetrics.PushInterval,
 		cfg.Collection.DiskInterval,
 	)
-	if err := http.ListenAndServe(cfg.Listen, nil); err != nil {
+	// http.ListenAndServe uses a zero-value Server: no ReadHeaderTimeout, no
+	// ReadTimeout, no WriteTimeout, no IdleTimeout. A client can hold
+	// connections open indefinitely sending headers a byte at a time until the
+	// agent exhausts its connection budget. gosec G114.
+	srv := &http.Server{
+		Addr:              cfg.Listen,
+		Handler:           nil, // http.DefaultServeMux, as before
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil {
 		fmt.Fprintf(os.Stderr, "huginn: listen: %v\n", err)
 		os.Exit(1)
 	}

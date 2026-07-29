@@ -918,6 +918,10 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 		ReadTimeout:    10 * time.Second,
 		WriteTimeout:   10 * time.Second,
 		MaxHeaderBytes: 1 << 20, // 1 MB
+		// ReadHeaderTimeout bounds slowloris; this server already sets
+		// Read/WriteTimeout above. gosec G112.
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	go func() {
@@ -995,6 +999,13 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer) {
 		Addr:           *httpAddr,
 		Handler:        anamnesisHandler,
 		MaxHeaderBytes: 1 << 20, // 1 MB
+		// Timeouts match the service template in pkg/service/service.go.
+		// Without ReadHeaderTimeout a client can hold the connection open
+		// sending headers a byte at a time (slowloris). gosec G112.
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 	go func() {
 		log.Info().Str("addr", *httpAddr).Msg("HTTP server starting")

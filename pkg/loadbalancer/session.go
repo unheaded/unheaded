@@ -360,7 +360,7 @@ func (sm *SessionManager) extractHeaderKey(r *http.Request) string {
 
 // setCookie sets the session cookie on the response.
 func (sm *SessionManager) setCookie(w http.ResponseWriter, value string) {
-	cookie := &http.Cookie{
+	cookie := &http.Cookie{ // #nosec G124 -- attributes come from config; DefaultConfig sets HTTPOnly+Secure+SameSite=lax
 		Name:     sm.config.CookieName,
 		Value:    value,
 		Path:     sm.config.CookiePath,
@@ -376,6 +376,11 @@ func (sm *SessionManager) setCookie(w http.ResponseWriter, value string) {
 		cookie.SameSite = http.SameSiteLaxMode
 	case "none":
 		cookie.SameSite = http.SameSiteNoneMode
+	default:
+		// Unset means SameSiteDefaultMode, i.e. no attribute emitted and no
+		// CSRF protection. Fall back to Lax rather than nothing — this covers
+		// SessionConfigs not built via DefaultConfig(). gosec G124.
+		cookie.SameSite = http.SameSiteLaxMode
 	}
 
 	http.SetCookie(w, cookie)

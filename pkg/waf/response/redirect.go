@@ -5,6 +5,7 @@
 package response
 
 import (
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,6 +16,8 @@ type RedirectHandler struct {
 	defaultURL    string
 	preserveQuery bool
 	permanent     bool
+	// allowedHosts gates the Host-header-derived redirects. See trustedHost.
+	allowedHosts []string
 }
 
 // NewRedirectHandler creates a new redirect handler
@@ -34,6 +37,38 @@ func (rh *RedirectHandler) SetPreserveQuery(preserve bool) {
 // SetPermanent sets whether to use permanent redirects (301)
 func (rh *RedirectHandler) SetPermanent(permanent bool) {
 	rh.permanent = permanent
+}
+
+// SetAllowedHosts declares the hostnames this handler may redirect to when it
+// derives the target from the request's Host header.
+func (rh *RedirectHandler) SetAllowedHosts(hosts []string) {
+	rh.allowedHosts = hosts
+}
+
+// trustedHost reports whether r.Host may be used to build a redirect target.
+//
+// r.Host is the client-supplied Host header. RedirectToHTTPS/WWW/NonWWW used
+// to interpolate it straight into a Location, so a request carrying
+// `Host: evil.com` produced `301 Location: https://evil.com/...` — an open
+// redirect, and a cache-poisoning primitive, served by the WAF itself.
+//
+// Fails CLOSED: with no allowlist configured, no Host is trusted and callers
+// fall back to defaultURL. A redirect that goes somewhere useless is a bug; a
+// redirect that goes wherever an attacker asks is a vulnerability.
+func (rh *RedirectHandler) trustedHost(host string) bool {
+	if host == "" {
+		return false
+	}
+	// Strip any port before comparing.
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	for _, allowed := range rh.allowedHosts {
+		if host == allowed || strings.HasSuffix(host, "."+allowed) {
+			return true
+		}
+	}
+	return false
 }
 
 // Redirect performs a redirect
@@ -108,12 +143,20 @@ func (rh *RedirectHandler) RedirectWithMessage(w http.ResponseWriter, r *http.Re
 
 // RedirectToHTTPS redirects HTTP to HTTPS
 func (rh *RedirectHandler) RedirectToHTTPS(w http.ResponseWriter, r *http.Request) {
+	if !rh.trustedHost(r.Host) {
+		http.Redirect(w, r, rh.defaultURL, http.StatusMovedPermanently)
+		return
+	}
 	target := "https://" + r.Host + r.RequestURI
 	http.Redirect(w, r, target, http.StatusMovedPermanently)
 }
 
 // RedirectToWWW redirects to www subdomain
 func (rh *RedirectHandler) RedirectToWWW(w http.ResponseWriter, r *http.Request) {
+	if !rh.trustedHost(r.Host) {
+		http.Redirect(w, r, rh.defaultURL, http.StatusMovedPermanently)
+		return
+	}
 	host := r.Host
 	if !strings.HasPrefix(host, "www.") {
 		host = "www." + host
@@ -130,6 +173,10 @@ func (rh *RedirectHandler) RedirectToWWW(w http.ResponseWriter, r *http.Request)
 
 // RedirectToNonWWW redirects to non-www
 func (rh *RedirectHandler) RedirectToNonWWW(w http.ResponseWriter, r *http.Request) {
+	if !rh.trustedHost(r.Host) {
+		http.Redirect(w, r, rh.defaultURL, http.StatusMovedPermanently)
+		return
+	}
 	host := strings.TrimPrefix(r.Host, "www.")
 
 	scheme := "https"

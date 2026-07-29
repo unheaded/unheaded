@@ -707,7 +707,11 @@ func TestSessionManager_CookieSameSite(t *testing.T) {
 		{"strict", http.SameSiteStrictMode},
 		{"lax", http.SameSiteLaxMode},
 		{"none", http.SameSiteNoneMode},
-		{"", 0}, // default
+		// Unset no longer means "emit no SameSite attribute". SameSiteDefaultMode
+		// gives no CSRF protection at all, so setCookie falls back to Lax
+		// (gosec G124). This case previously asserted 0 — it was encoding the
+		// weakness rather than testing the behaviour we want.
+		{"", http.SameSiteLaxMode},
 	}
 
 	for _, tt := range tests {
