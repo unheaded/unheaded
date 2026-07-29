@@ -140,7 +140,7 @@ func updateGoldenFile(t goldenTB, path string, content []byte) bool {
 func compareGoldenFile(t goldenTB, path string, actual []byte) bool {
 	t.Helper()
 
-	expected, err := os.ReadFile(path)
+	expected, err := os.ReadFile(path) // #nosec G304 -- test-fixture path built from the test name
 	if err != nil {
 		if os.IsNotExist(err) {
 			t.Errorf("Golden file does not exist: %s\nRun with -update to create it", path)
@@ -368,13 +368,13 @@ func LoadGoldenTestCases(t *testing.T, dir string) []GoldenTestCase {
 		name := entry.Name()
 		caseDir := filepath.Join(dir, name)
 
-		input, err := os.ReadFile(filepath.Join(caseDir, "input"))
+		input, err := os.ReadFile(filepath.Join(caseDir, "input")) // #nosec G304 -- test-fixture path built from the test name
 		if err != nil {
 			t.Errorf("Failed to read input for test case %s: %v", name, err)
 			continue
 		}
 
-		expected, err := os.ReadFile(filepath.Join(caseDir, "expected"))
+		expected, err := os.ReadFile(filepath.Join(caseDir, "expected")) // #nosec G304 -- test-fixture path built from the test name
 		if err != nil {
 			t.Errorf("Failed to read expected output for test case %s: %v", name, err)
 			continue

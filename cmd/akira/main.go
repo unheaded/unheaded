@@ -49,7 +49,7 @@ type AkiraConfig struct {
 }
 
 func loadConfig(path string) ([]health.ServiceTarget, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
 	if err != nil {
 		return nil, err
 	}

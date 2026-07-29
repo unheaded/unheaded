@@ -912,7 +912,7 @@ func (pc *PolicyController) loadPoliciesFromDir(dir string) error {
 
 // loadPolicyFromFile loads a single policy from a file
 func (pc *PolicyController) loadPolicyFromFile(path string) error {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- internal state path from configuration
 	if err != nil {
 		return fmt.Errorf("read file %s: %w", path, err)
 	}
@@ -1929,7 +1929,7 @@ func (pc *PolicyController) ApplyPolicyToNamespace(ctx context.Context, policy *
 
 // ValidatePolicyFile validates a policy file without loading it
 func ValidatePolicyFile(path string) error {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- internal state path from configuration
 	if err != nil {
 		return fmt.Errorf("read file: %w", err)
 	}

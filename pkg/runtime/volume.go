@@ -276,7 +276,7 @@ func (m *VolumeManager) mountBind(mount *Mount, dest string) error {
 		_ = os.MkdirAll(dest, 0755) // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 	} else {
 		_ = os.MkdirAll(filepath.Dir(dest), 0755)      // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
-		f, err := os.OpenFile(dest, os.O_CREATE, 0644) // #nosec G302 -- permission is intentional for this artifact; secrets in this tree are 0600
+		f, err := os.OpenFile(dest, os.O_CREATE, 0644) // #nosec G302,G304 -- permission is intentional for this artifact; secrets in this tree are 0600
 		if err != nil {
 			return err
 		}

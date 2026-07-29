@@ -18,7 +18,7 @@ type PolicyFile struct {
 
 // ParsePolicyFile reads and parses a YAML policy file from disk.
 func ParsePolicyFile(path string) (*PolicyFile, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied configuration file path
 	if err != nil {
 		return nil, fmt.Errorf("pqc_policy: read file: %w", err)
 	}

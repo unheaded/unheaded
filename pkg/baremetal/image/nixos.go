@@ -111,7 +111,7 @@ func (b *NixOSBuilder) extractNetbootArtifacts(ctx context.Context, storePath st
 
 	// Read kernel parameters
 	kernelParamsPath := filepath.Join(storePath, "kernel-params")
-	if data, err := os.ReadFile(kernelParamsPath); err == nil {
+	if data, err := os.ReadFile(kernelParamsPath); err == nil { // #nosec G304 -- image/PXE path derived from the configured storage dir
 		result.KernelParams = strings.TrimSpace(string(data))
 	}
 
@@ -204,7 +204,7 @@ func (b *NixOSBuilder) BuildNetboot(ctx context.Context, flakeRef, system string
 
 	// Read kernel params
 	paramsPath := filepath.Join(storePath, "netboot-params")
-	if data, err := os.ReadFile(paramsPath); err == nil {
+	if data, err := os.ReadFile(paramsPath); err == nil { // #nosec G304 -- image/PXE path derived from the configured storage dir
 		result.KernelParams = strings.TrimSpace(string(data))
 	}
 

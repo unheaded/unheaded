@@ -686,7 +686,7 @@ func (r *Reconciler) LoadDesiredState(path string) (*DesiredState, error) {
 		return nil, ErrInvalidStatePath
 	}
 
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- internal state path from configuration
 	if err != nil {
 		return nil, fmt.Errorf("read state file: %w", err)
 	}

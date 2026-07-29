@@ -808,7 +808,7 @@ func (w *FlakeWatcher) checkChanges() {
 // getLockHash computes hash of flake.lock.
 func (w *FlakeWatcher) getLockHash(path string) (string, error) {
 	lockPath := filepath.Join(path, "flake.lock")
-	data, err := os.ReadFile(lockPath)
+	data, err := os.ReadFile(lockPath) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 	if err != nil {
 		return "", err
 	}
@@ -1195,7 +1195,7 @@ func (b *Builder) extractContainerImage(storePath, containerName string) (string
 	imagePath := matches[0]
 
 	// Compute hash
-	f, err := os.Open(imagePath)
+	f, err := os.Open(imagePath) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 	if err != nil {
 		return "", "", 0, err
 	}
@@ -1449,7 +1449,7 @@ func ParseFlake(path string) (*FlakeConfig, error) {
 
 	// Compute lock hash
 	lockPath := filepath.Join(path, "flake.lock")
-	if data, err := os.ReadFile(lockPath); err == nil {
+	if data, err := os.ReadFile(lockPath); err == nil { // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 		h := sha256.Sum256(data)
 		config.LockHash = hex.EncodeToString(h[:])[:16]
 	}
@@ -1543,7 +1543,7 @@ func ParseFlake(path string) (*FlakeConfig, error) {
 // parseFlakeFile parses flake.nix file directly (fallback).
 func parseFlakeFile(config *FlakeConfig) (*FlakeConfig, error) {
 	flakePath := filepath.Join(config.Path, "flake.nix")
-	data, err := os.ReadFile(flakePath)
+	data, err := os.ReadFile(flakePath) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 	if err != nil {
 		return nil, err
 	}
@@ -1683,14 +1683,14 @@ func ComputeFlakeHash(path string) (string, error) {
 	h := sha256.New()
 
 	// Hash flake.nix
-	flakeData, err := os.ReadFile(filepath.Join(path, "flake.nix"))
+	flakeData, err := os.ReadFile(filepath.Join(path, "flake.nix")) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 	if err != nil {
 		return "", err
 	}
 	h.Write(flakeData)
 
 	// Hash flake.lock if exists
-	lockData, err := os.ReadFile(filepath.Join(path, "flake.lock"))
+	lockData, err := os.ReadFile(filepath.Join(path, "flake.lock")) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 	if err == nil {
 		h.Write(lockData)
 	}

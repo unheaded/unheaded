@@ -197,7 +197,7 @@ func (f *FilesystemStore) Get(ctx context.Context, bucket, key string) (io.ReadC
 
 	objectPath := filepath.Join(f.root, bucket, key)
 
-	file, err := os.Open(objectPath)
+	file, err := os.Open(objectPath) // #nosec G304 -- internal store path derived from the configured root
 	if err != nil {
 		if os.IsNotExist(err) {
 			recordOp("filesystem", "get", "not_found", time.Since(start).Seconds())
@@ -597,7 +597,7 @@ func (f *FilesystemStore) writeMetadata(objectPath string, info *storage.ObjectI
 
 func (f *FilesystemStore) readMetadata(objectPath string) (*storage.ObjectInfo, error) {
 	metadataPath := objectPath + ".meta"
-	data, err := os.ReadFile(metadataPath)
+	data, err := os.ReadFile(metadataPath) // #nosec G304 -- internal store path derived from the configured root
 	if err != nil {
 		return nil, err
 	}

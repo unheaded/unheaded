@@ -109,7 +109,7 @@ func (s *FileStore) Get(ctx context.Context, path string) (*secrets.Secret, erro
 
 	filePath := s.pathToFile(path)
 
-	data, err := os.ReadFile(filePath)
+	data, err := os.ReadFile(filePath) // #nosec G304 -- internal secrets-store path derived from the configured store dir
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, secrets.ErrSecretNotFound

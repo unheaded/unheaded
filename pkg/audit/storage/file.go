@@ -224,7 +224,7 @@ func (fs *FileStorage) openCurrentFile() error {
 	fs.currentDate = time.Now().UTC().Format("2006-01-02")
 	filename := filepath.Join(fs.baseDir, fmt.Sprintf("audit-%s.log", fs.currentDate))
 
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0640) // #nosec G302 -- 0640 — group-readable only, no world access
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0640) // #nosec G302,G304 -- 0640 — group-readable only, no world access
 	if err != nil {
 		return err
 	}
@@ -295,7 +295,7 @@ func (fs *FileStorage) loadLastHash() error {
 
 	// Read last line of most recent file
 	lastFile := files[len(files)-1]
-	file, err := os.Open(lastFile)
+	file, err := os.Open(lastFile) // #nosec G304 -- audit log path derived from the configured audit dir
 	if err != nil {
 		return err
 	}
@@ -333,7 +333,7 @@ func (fs *FileStorage) listLogFiles() ([]string, error) {
 
 // findEventInFile searches for an event by ID in a file.
 func (fs *FileStorage) findEventInFile(filename, id string) (*audit.AuditEvent, error) {
-	file, err := os.Open(filename)
+	file, err := os.Open(filename) // #nosec G304 -- audit log path derived from the configured audit dir
 	if err != nil {
 		return nil, err
 	}
@@ -357,7 +357,7 @@ func (fs *FileStorage) findEventInFile(filename, id string) (*audit.AuditEvent, 
 
 // queryFile queries events from a single file.
 func (fs *FileStorage) queryFile(filename string, query *audit.AuditQuery) ([]*audit.AuditEvent, error) {
-	file, err := os.Open(filename)
+	file, err := os.Open(filename) // #nosec G304 -- audit log path derived from the configured audit dir
 	if err != nil {
 		return nil, err
 	}

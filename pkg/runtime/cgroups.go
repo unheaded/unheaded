@@ -119,7 +119,7 @@ func isCgroupV2(path string) bool {
 func (m *CgroupManager) enableControllers(path string) error {
 	// Read available controllers
 	controllersPath := filepath.Join(path, "cgroup.controllers")
-	data, err := os.ReadFile(controllersPath)
+	data, err := os.ReadFile(controllersPath) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return err
 	}
@@ -501,7 +501,7 @@ func (m *CgroupManager) GetStats(cgroupPath string) (*CgroupStats, error) {
 	}
 
 	// Read IO stats
-	if ioStat, err := os.ReadFile(filepath.Join(fullPath, "io.stat")); err == nil {
+	if ioStat, err := os.ReadFile(filepath.Join(fullPath, "io.stat")); err == nil { // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 		lines := strings.Split(string(ioStat), "\n")
 		for _, line := range lines {
 			if line == "" {
@@ -600,7 +600,7 @@ func writeFile(cgroupPath, filename, content string) error {
 // readFile reads content from a cgroup file.
 func readFile(cgroupPath, filename string) (string, error) {
 	path := filepath.Join(cgroupPath, filename)
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return "", err
 	}
@@ -609,7 +609,7 @@ func readFile(cgroupPath, filename string) (string, error) {
 
 // readKeyValueFile reads a key-value cgroup file.
 func readKeyValueFile(path string) (map[string]string, error) {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return nil, err
 	}
@@ -630,7 +630,7 @@ func readKeyValueFile(path string) (map[string]string, error) {
 
 // readProcs reads process IDs from a cgroup.procs file.
 func readProcs(path string) ([]int, error) {
-	file, err := os.Open(path)
+	file, err := os.Open(path) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return nil, err
 	}
@@ -668,7 +668,7 @@ const (
 // IsControllerAvailable checks if a controller is available.
 func (m *CgroupManager) IsControllerAvailable(controller CgroupController) bool {
 	controllersPath := filepath.Join(m.root, m.parentPath, "cgroup.controllers")
-	data, err := os.ReadFile(controllersPath)
+	data, err := os.ReadFile(controllersPath) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return false
 	}
@@ -685,7 +685,7 @@ func (m *CgroupManager) IsControllerAvailable(controller CgroupController) bool 
 // GetAvailableControllers returns the list of available controllers.
 func (m *CgroupManager) GetAvailableControllers() []CgroupController {
 	controllersPath := filepath.Join(m.root, m.parentPath, "cgroup.controllers")
-	data, err := os.ReadFile(controllersPath)
+	data, err := os.ReadFile(controllersPath) // #nosec G304 -- cgroup filesystem path under /sys/fs/cgroup; root-only, not user-supplied
 	if err != nil {
 		return nil
 	}

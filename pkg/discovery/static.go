@@ -25,7 +25,7 @@ type StaticEntry struct {
 
 // LoadStaticConfig loads the static service map from a YAML file.
 func LoadStaticConfig(path string) (*StaticConfig, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied configuration file path
 	if err != nil {
 		return nil, fmt.Errorf("read static config: %w", err)
 	}

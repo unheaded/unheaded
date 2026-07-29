@@ -167,7 +167,7 @@ func (a *APIKeyAuthenticator) checkRateLimit(keyID string) bool {
 
 // loadKeysFromFile reads API keys from a file (one per line).
 func loadKeysFromFile(path string) ([]string, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- auth store path from configuration, not from a request
 	if err != nil {
 		return nil, err
 	}

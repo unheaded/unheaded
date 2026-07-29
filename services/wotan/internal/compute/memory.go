@@ -770,7 +770,7 @@ const walRecordSize = 8 + 4 + 64 // 76 bytes
 // durability. For high-throughput workloads a buffered writer with periodic
 // fsync would be preferable, but correctness comes first.
 func walAppend(path string, lineAddr uint32, data []byte) error {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600) // #nosec G304 -- internal state path from configuration
 	if err != nil {
 		return err
 	}

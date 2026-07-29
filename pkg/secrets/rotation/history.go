@@ -424,7 +424,7 @@ func (s *FileHistoryStore) Get(id string) (*RotationRecord, error) {
 	defer s.mu.RUnlock()
 
 	filePath := s.recordPath(id)
-	data, err := os.ReadFile(filePath)
+	data, err := os.ReadFile(filePath) // #nosec G304 -- internal secrets-store path derived from the configured store dir
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrHistoryNotFound
@@ -465,7 +465,7 @@ func (s *FileHistoryStore) Query(ctx context.Context, filter HistoryFilter) ([]*
 		}
 
 		filePath := filepath.Join(s.basePath, entry.Name())
-		data, err := os.ReadFile(filePath)
+		data, err := os.ReadFile(filePath) // #nosec G304 -- internal secrets-store path derived from the configured store dir
 		if err != nil {
 			continue
 		}
@@ -578,7 +578,7 @@ func (s *FileHistoryStore) Prune(ctx context.Context, olderThan time.Duration) (
 		}
 
 		filePath := filepath.Join(s.basePath, entry.Name())
-		data, err := os.ReadFile(filePath)
+		data, err := os.ReadFile(filePath) // #nosec G304 -- internal secrets-store path derived from the configured store dir
 		if err != nil {
 			continue
 		}

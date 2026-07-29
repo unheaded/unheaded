@@ -22,7 +22,7 @@ import (
 // malformed, or fails validation.
 func LoadServiceConfig(path string) (*ServiceConfig, error) {
 	// Read the file
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied configuration file path
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, fmt.Errorf("loading %s: service config file not found: %w", path, err)

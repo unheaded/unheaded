@@ -148,7 +148,7 @@ func runMkfs(ctx *Context, output, mapPinPath string, dryRun bool) error {
 
 // writeRamdiskImage writes the filesystem words to a binary file.
 func writeRamdiskImage(fs []uint32, path string) error {
-	f, err := os.Create(path)
+	f, err := os.Create(path) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 	if err != nil {
 		return err
 	}

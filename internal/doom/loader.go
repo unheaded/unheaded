@@ -23,7 +23,7 @@ type ROM struct {
 // the parsed ROM. The file must contain a sequence of little-endian u32
 // instruction words (size must be a multiple of 4, max 1 MiB).
 func LoadROM(path string) (*ROM, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- build/ROM artifact path from a configured or CLI-supplied location
 	if err != nil {
 		return nil, fmt.Errorf("read ROM file: %w", err)
 	}

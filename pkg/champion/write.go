@@ -41,7 +41,7 @@ func (c *Champion) WriteFile(ctx context.Context, path, content string) error {
 
 	// Snapshot: capture current state (if file exists)
 	var before string
-	if data, err := os.ReadFile(absPath); err == nil {
+	if data, err := os.ReadFile(absPath); err == nil { // #nosec G304 -- sandboxed path — validated by validatePath (no .., blocklist, allowed-prefix check)
 		before = string(data)
 	}
 
@@ -88,7 +88,7 @@ func (c *Champion) PatchFile(ctx context.Context, path, oldText, newText string)
 	}
 
 	// Read current content
-	data, err := os.ReadFile(absPath)
+	data, err := os.ReadFile(absPath) // #nosec G304 -- sandboxed path — validated by validatePath (no .., blocklist, allowed-prefix check)
 	if err != nil {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return fmt.Errorf("read file: %w", err)

@@ -196,7 +196,7 @@ func DefaultConfig() *Config {
 
 // LoadFromFile loads configuration from a JSON file.
 func LoadFromFile(path string) (*Config, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) // #nosec G304 -- operator-supplied configuration file path
 	if err != nil {
 		return nil, err
 	}

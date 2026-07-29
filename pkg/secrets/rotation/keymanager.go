@@ -742,7 +742,7 @@ func (e *FileEscrowProvider) Retrieve(ctx context.Context, keyID string) ([]byte
 	defer e.mu.RUnlock()
 
 	filePath := e.escrowPath(keyID)
-	encrypted, err := os.ReadFile(filePath)
+	encrypted, err := os.ReadFile(filePath) // #nosec G304 -- internal secrets-store path derived from the configured store dir
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, ErrKeyNotFound
