@@ -306,7 +306,7 @@ func (s *Service) SelectBackend(poolID string, key string) (*Backend, error) {
 
 	case AlgoIPHash:
 		h := fnv.New32a()
-		h.Write([]byte(key))
+		h.Write([]byte(key))                    // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 		idx := h.Sum32() % uint32(len(healthy)) // #nosec G115 -- bounded by the length of an already-allocated slice
 		selected = healthy[idx]
 
@@ -314,7 +314,7 @@ func (s *Service) SelectBackend(poolID string, key string) (*Backend, error) {
 		table := s.maglevTable[poolID]
 		if len(table) > 0 {
 			h := fnv.New32a()
-			h.Write([]byte(key))
+			h.Write([]byte(key)) // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 			idx := table[int(h.Sum32())%len(table)]
 			if idx < len(healthy) {
 				selected = healthy[idx]
@@ -333,7 +333,7 @@ func (s *Service) SelectBackend(poolID string, key string) (*Backend, error) {
 			selected = healthy[0]
 		} else {
 			h := fnv.New32a()
-			h.Write([]byte(key))
+			h.Write([]byte(key)) // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 			target := int(h.Sum32()) % totalWeight
 			for _, b := range healthy {
 				target -= b.Weight
@@ -471,7 +471,7 @@ func (s *Service) Stats() map[string]interface{} {
 func (s *Service) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"status":  "healthy",
 			"service": "pauldrons",
 		})
@@ -479,7 +479,7 @@ func (s *Service) RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"ready":   true,
 			"service": "pauldrons",
 		})

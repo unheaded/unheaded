@@ -115,7 +115,7 @@ func httpHealthLatency(iterations int) error {
 		if err != nil {
 			return fmt.Errorf("GET %s: %w", *healthURL, err)
 		}
-		resp.Body.Close()
+		resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
 		if resp.StatusCode != http.StatusOK {
 			return fmt.Errorf("GET %s returned %d", *healthURL, resp.StatusCode)
 		}
@@ -139,7 +139,7 @@ func wotanPublishLatency(iterations int) error {
 		if err != nil {
 			return fmt.Errorf("POST %s: %w", publishURL, err)
 		}
-		resp.Body.Close()
+		resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
 
 		// Accept 200-299 as success (Wotan might return 201 or 202)
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {

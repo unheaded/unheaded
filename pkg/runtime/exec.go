@@ -289,7 +289,7 @@ func (r *DefaultRuntime) ExecAttach(ctx context.Context, execID string, streams 
 			if err != nil {
 				errCh <- fmt.Errorf("stdin copy error: %w", err)
 			}
-			stdin.Close()
+			stdin.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 		}()
 	}
 

@@ -280,7 +280,7 @@ func (s *WireComplianceService) registerRoutes(mux *http.ServeMux) {
 // handleHealth responds with service health status.
 func (s *WireComplianceService) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":    "healthy",
 		"service":   "wire-compliance",
 		"timestamp": time.Now(),
@@ -290,7 +290,7 @@ func (s *WireComplianceService) handleHealth(w http.ResponseWriter, r *http.Requ
 // handleReady responds with readiness status.
 func (s *WireComplianceService) handleReady(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"ready":   atomic.LoadInt32(&s.started) == 1,
 		"service": "wire-compliance",
 	})
@@ -342,7 +342,7 @@ func (s *WireComplianceService) handleComplianceScore(w http.ResponseWriter, r *
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(sc)
+	json.NewEncoder(w).Encode(sc) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleViolations handles GET for /api/v1/compliance/violations (paginated).
@@ -378,7 +378,7 @@ func (s *WireComplianceService) handleViolations(w http.ResponseWriter, r *http.
 	page := violations[offset:end]
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"violations": page,
 		"total":      total,
 		"offset":     offset,
@@ -421,7 +421,7 @@ func (s *WireComplianceService) handleViolationHeatmap(w http.ResponseWriter, r 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"heatmap": entries,
 		"count":   len(entries),
 	})
@@ -449,7 +449,7 @@ func (s *WireComplianceService) listPolicies(w http.ResponseWriter, _ *http.Requ
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"policies": policies,
 		"count":    len(policies),
 	})
@@ -501,7 +501,7 @@ func (s *WireComplianceService) updatePolicy(w http.ResponseWriter, r *http.Requ
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(&policy)
+	json.NewEncoder(w).Encode(&policy) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleAudit handles GET for /api/v1/compliance/audit with search filters.
@@ -544,7 +544,7 @@ func (s *WireComplianceService) handleAudit(w http.ResponseWriter, r *http.Reque
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"audit_entries": results,
 		"count":         len(results),
 	})
@@ -565,7 +565,7 @@ func (s *WireComplianceService) handleZones(w http.ResponseWriter, r *http.Reque
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"zones": zones,
 		"count": len(zones),
 	})

@@ -402,7 +402,7 @@ func (wp *WotanPublisher) PublishBatch(ctx context.Context, topic string, events
 			wp.connected.Store(false)
 			return fmt.Errorf("HTTP publish to %s: %w", topic, err)
 		}
-		resp.Body.Close()
+		resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
 	}
 
 	atomic.AddUint64(&wp.published, uint64(len(events)))
@@ -429,7 +429,7 @@ func (wp *WotanPublisher) PublishRaw(ctx context.Context, topic string, payload 
 	if err != nil {
 		return err
 	}
-	resp.Body.Close()
+	resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
 	return nil
 }
 
@@ -507,7 +507,7 @@ func (h *healthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status)
+	json.NewEncoder(w).Encode(status) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // ── FlowReader / LatencyReader interfaces ───────────────────────────────

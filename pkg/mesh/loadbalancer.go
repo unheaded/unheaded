@@ -391,7 +391,7 @@ func (h *IPHashBalancer) SelectWithContext(endpoints []*Endpoint, ctx *SelectCon
 
 	// FNV-1a hash
 	hasher := fnv.New32a()
-	hasher.Write([]byte(key))
+	hasher.Write([]byte(key)) // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 	hash := hasher.Sum32()
 
 	return endpoints[hash%uint32(n)] // #nosec G115 -- bounded by construction; see the surrounding guard
@@ -490,7 +490,7 @@ func (c *ConsistentHashBalancer) SelectWithContext(endpoints []*Endpoint, ctx *S
 // hash computes FNV-1a hash.
 func (c *ConsistentHashBalancer) hash(key string) uint32 {
 	hasher := fnv.New32a()
-	hasher.Write([]byte(key))
+	hasher.Write([]byte(key)) // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 	return hasher.Sum32()
 }
 

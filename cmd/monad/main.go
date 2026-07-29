@@ -442,7 +442,7 @@ func (hs *HTTPServer) healthHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"service":   "monad",
 		"status":    "healthy",
 		"version":   Version,
@@ -468,7 +468,7 @@ func (hs *HTTPServer) readyHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":  "ready",
 		"service": "monad",
 	})
@@ -814,7 +814,7 @@ func (hs *HTTPServer) writeSuccess(w http.ResponseWriter, code int, data interfa
 		},
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // writeError writes an error response
@@ -845,7 +845,7 @@ func (hs *HTTPServer) writeError(w http.ResponseWriter, code int, errCode, msg s
 		},
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // getNextRequestID returns the next request ID

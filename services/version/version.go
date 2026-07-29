@@ -237,7 +237,7 @@ func (s *Service) listTranslationRules(w http.ResponseWriter, _ *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"rules": rules,
 		"count": len(rules),
 	})
@@ -255,7 +255,7 @@ func (s *Service) getTranslationRule(w http.ResponseWriter, _ *http.Request, src
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(rule)
+	json.NewEncoder(w).Encode(rule) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // createOrUpdateTranslationRule creates or updates a translation rule.
@@ -290,7 +290,7 @@ func (s *Service) createOrUpdateTranslationRule(w http.ResponseWriter, r *http.R
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(rule)
+	json.NewEncoder(w).Encode(rule) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // deleteTranslationRule removes a translation rule.
@@ -311,7 +311,7 @@ func (s *Service) deleteTranslationRule(w http.ResponseWriter, _ *http.Request, 
 		Msg("translation rule deleted")
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status": "deleted",
 	})
 }
@@ -331,7 +331,7 @@ func (s *Service) handleServiceVersions(w http.ResponseWriter, r *http.Request) 
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"services": versions,
 		"count":    len(versions),
 	})
@@ -389,7 +389,7 @@ func (s *Service) handleServiceByID(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.serviceVersions[serviceID])
+	json.NewEncoder(w).Encode(s.serviceVersions[serviceID]) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleTranslationStats returns translation statistics.
@@ -404,7 +404,7 @@ func (s *Service) handleTranslationStats(w http.ResponseWriter, r *http.Request)
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	json.NewEncoder(w).Encode(stats) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleHeatmap returns version distribution data.
@@ -420,7 +420,7 @@ func (s *Service) handleHeatmap(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"entries": heatmap,
 		"count":   len(heatmap),
 	})
@@ -429,7 +429,7 @@ func (s *Service) handleHeatmap(w http.ResponseWriter, r *http.Request) {
 // handleHealth returns service health status.
 func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":  "healthy",
 		"service": "version",
 	})
@@ -438,7 +438,7 @@ func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
 // handleReady returns service readiness status.
 func (s *Service) handleReady(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"ready":   true,
 		"service": "version",
 	})

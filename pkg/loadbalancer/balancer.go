@@ -580,7 +580,7 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (h *APIHandler) handleStats(w http.ResponseWriter, r *http.Request) {
 	stats := h.balancer.Stats()
-	json.NewEncoder(w).Encode(stats)
+	json.NewEncoder(w).Encode(stats) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (h *APIHandler) handleListBackends(w http.ResponseWriter, r *http.Request) {
@@ -589,7 +589,7 @@ func (h *APIHandler) handleListBackends(w http.ResponseWriter, r *http.Request) 
 	for i, b := range backends {
 		result[i] = b.Stats()
 	}
-	json.NewEncoder(w).Encode(result)
+	json.NewEncoder(w).Encode(result) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (h *APIHandler) handleAddBackend(w http.ResponseWriter, r *http.Request) {
@@ -600,20 +600,20 @@ func (h *APIHandler) handleAddBackend(w http.ResponseWriter, r *http.Request) {
 		// via crafted error strings (e.g., containing quotes).
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 
 	if err := h.balancer.AddBackend(config); err != nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"status": "created"})
+	json.NewEncoder(w).Encode(map[string]string{"status": "created"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (h *APIHandler) handleRemoveBackend(w http.ResponseWriter, r *http.Request) {
@@ -622,11 +622,11 @@ func (h *APIHandler) handleRemoveBackend(w http.ResponseWriter, r *http.Request)
 		// SECURITY: Use json.Encode for error messages to prevent JSON injection
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+		json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "removed"})
+	json.NewEncoder(w).Encode(map[string]string{"status": "removed"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (h *APIHandler) handleBackendAction(w http.ResponseWriter, r *http.Request) {
@@ -657,11 +657,11 @@ func (h *APIHandler) handleBackendAction(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]string{"status": action})
+	json.NewEncoder(w).Encode(map[string]string{"status": action}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (h *APIHandler) handleGetConfig(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(h.balancer.Config())
+	json.NewEncoder(w).Encode(h.balancer.Config()) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // splitPath splits a path into parts.

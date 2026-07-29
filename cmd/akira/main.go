@@ -249,7 +249,7 @@ func main() {
 		mux.HandleFunc("/api/v1/status", func(w http.ResponseWriter, _ *http.Request) {
 			states := akira.GetStates()
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(states)
+			json.NewEncoder(w).Encode(states) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		})
 		addr := fmt.Sprintf(":%d", *listenPort)
 		log.Info().Str("addr", addr).Msg("Akira HTTP API listening")

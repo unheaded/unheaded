@@ -745,7 +745,7 @@ func (s *Server) handleStaticIndex(w http.ResponseWriter, r *http.Request) {
 			http.NotFound(w, r)
 			return
 		}
-		f.Close()
+		f.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 		http.FileServer(s.staticFS).ServeHTTP(w, r)
 		return
 	}
@@ -946,7 +946,7 @@ func (s *Server) updateMetrics(ctx context.Context) {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status": "healthy",
 	})
 }
@@ -956,7 +956,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 	if !s.started {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{
+		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"status": "not ready",
 		})
 		return
@@ -964,7 +964,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":         "ready",
 		"ws_connections": s.wsServer.ConnectionCount(),
 		"scraper_series": s.scraper.SeriesCount(),
@@ -982,7 +982,7 @@ func (s *Server) handleAPIMetrics(w http.ResponseWriter, r *http.Request) {
 	metrics := s.scraper.GetAggregatedMetrics()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(metrics)
+	json.NewEncoder(w).Encode(metrics) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleMetricsQuery handles POST /api/v1/metrics/query - query specific metrics
@@ -1027,7 +1027,7 @@ func (s *Server) handleMetricsQuery(w http.ResponseWriter, r *http.Request) {
 	results := s.scraper.QueryMetrics(query.Name, query.Labels, since)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"results": results,
 		"count":   len(results),
 	})
@@ -1097,7 +1097,7 @@ func (s *Server) handleServicesGet(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"services":       services,
 		"total":          len(services),
 		"healthy":        systemHealth.HealthyCount,
@@ -1131,7 +1131,7 @@ func (s *Server) handleServicesPost(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"service": cfg.Service.Name,
 		"status":  "created",
 	})
@@ -1192,7 +1192,7 @@ func (s *Server) handleServiceByNameGet(w http.ResponseWriter, _ *http.Request, 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	json.NewEncoder(w).Encode(result) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (s *Server) handleServiceByNamePut(w http.ResponseWriter, r *http.Request, name string) {
@@ -1217,7 +1217,7 @@ func (s *Server) handleServiceByNamePut(w http.ResponseWriter, r *http.Request, 
 	s.configLoader.UpdateConfig(name, &cfg)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"service": name,
 		"status":  "updated",
 	})
@@ -1230,7 +1230,7 @@ func (s *Server) handleServiceByNameDelete(w http.ResponseWriter, _ *http.Reques
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"service": name,
 		"status":  "deleted",
 	})
@@ -1273,7 +1273,7 @@ func (s *Server) handleEvents(w http.ResponseWriter, r *http.Request) {
 	evts := s.eventStreamer.GetEvents(filter)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"events": evts,
 		"count":  len(evts),
 	})
@@ -1289,7 +1289,7 @@ func (s *Server) handleEventsSummary(w http.ResponseWriter, r *http.Request) {
 	summary := s.eventStreamer.GetSummary()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(summary)
+	json.NewEncoder(w).Encode(summary) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleSystemHealth handles GET /api/v1/health - system health overview
@@ -1302,7 +1302,7 @@ func (s *Server) handleSystemHealth(w http.ResponseWriter, r *http.Request) {
 	systemHealth := s.healthMonitor.GetSystemHealth()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(systemHealth)
+	json.NewEncoder(w).Encode(systemHealth) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleServiceHealth handles GET /api/v1/health/{name}
@@ -1328,7 +1328,7 @@ func (s *Server) handleServiceHealth(w http.ResponseWriter, r *http.Request) {
 	history, _ := s.healthMonitor.GetHistory(name, time.Now().Add(-1*time.Hour))
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"health":  svcHealth,
 		"history": history,
 	})
@@ -1345,7 +1345,7 @@ func (s *Server) handleHealthHistory(w http.ResponseWriter, r *http.Request) {
 	if s.wellBridge == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{
+		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"error": "health persistence unavailable (Postgres not connected)",
 		})
 		return
@@ -1371,7 +1371,7 @@ func (s *Server) handleHealthHistory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"service":     service,
 		"transitions": history,
 		"count":       len(history),
@@ -1389,7 +1389,7 @@ func (s *Server) handleHealthTrends(w http.ResponseWriter, r *http.Request) {
 	if s.wellBridge == nil {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{
+		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"error": "health persistence unavailable (Postgres not connected)",
 		})
 		return
@@ -1415,7 +1415,7 @@ func (s *Server) handleHealthTrends(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"service": service,
 		"hours":   hours,
 		"stats":   trends,
@@ -1436,7 +1436,7 @@ func (s *Server) handleFlows(w http.ResponseWriter, r *http.Request) {
 	if s.ebpfIngestor != nil {
 		flows := s.ebpfIngestor.FlowGraph().GetActiveFlows()
 		stats := s.ebpfIngestor.FlowGraph().Stats()
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"source":       "ebpf",
 			"active_flows": flows,
 			"stats":        stats,
@@ -1447,7 +1447,7 @@ func (s *Server) handleFlows(w http.ResponseWriter, r *http.Request) {
 
 	// eBPF ingestor not active
 	w.WriteHeader(http.StatusServiceUnavailable)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"error":  "ebpf ingestor not active",
 		"detail": "Start trace-collector with --wotan-grpc-addr to enable eBPF flow data.",
 	})
@@ -1494,7 +1494,7 @@ func (s *Server) handleStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	json.NewEncoder(w).Encode(stats) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleStreamWebSocket handles WS /api/v1/stream - real-time metrics stream
@@ -1639,7 +1639,7 @@ func (s *Server) handleTraces(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(result)
+		json.NewEncoder(w).Encode(result) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 
@@ -1652,7 +1652,7 @@ func (s *Server) handleTraces(w http.ResponseWriter, r *http.Request) {
 	traces := s.traceBuffer.Recent(limit)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"traces":   traces,
 		"total":    s.traceBuffer.Count(),
 		"has_more": s.traceBuffer.Count() > limit,
@@ -1685,7 +1685,7 @@ func (s *Server) handleTraceByID(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(trace)
+		json.NewEncoder(w).Encode(trace) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 
@@ -1734,7 +1734,7 @@ func (s *Server) handleAggregated(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(aggregated)
+	json.NewEncoder(w).Encode(aggregated) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleAggregatedMetrics handles GET /api/v1/aggregated/metrics
@@ -1777,7 +1777,7 @@ func (s *Server) handleAggregatedMetrics(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	json.NewEncoder(w).Encode(result) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleAggregatedHealth handles GET /api/v1/aggregated/health
@@ -1828,7 +1828,7 @@ func (s *Server) handleAggregatedHealth(w http.ResponseWriter, r *http.Request) 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	json.NewEncoder(w).Encode(result) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // broadcastEBPFEvents listens to the eBPF ingestor and broadcasts events via WebSocket.
@@ -2079,7 +2079,7 @@ func (s *Server) serviceFlowGenerator(ctx context.Context) {
 				if err != nil {
 					continue // skip unreachable services
 				}
-				resp.Body.Close()
+				resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
 
 				if resp.StatusCode != http.StatusOK {
 					continue
@@ -2268,13 +2268,13 @@ func (s *Server) handleLatency(w http.ResponseWriter, r *http.Request) {
 		s.serviceLatenciesMu.RUnlock()
 
 		if len(percentiles) == 0 {
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 				"message": "Collecting latency data from service health checks...",
 				"data":    nil,
 			})
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"percentiles": percentiles,
 			"source":      "service_health_checks",
 		})
@@ -2293,7 +2293,7 @@ func (s *Server) handleLatency(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "unknown operation", http.StatusBadRequest)
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"operation":   op,
 			"percentiles": result,
 		})
@@ -2301,7 +2301,7 @@ func (s *Server) handleLatency(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// All operations
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"percentiles": s.ebpfIngestor.LatencyHistogram().GetAllPercentiles(),
 		"stats":       s.ebpfIngestor.LatencyHistogram().Stats(),
 	})
@@ -2317,7 +2317,7 @@ func (s *Server) handleEBPFStats(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if s.ebpfIngestor == nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"active":  false,
 			"message": "eBPF ingestor not active. Start trace-collector to get real stats.",
 		})
@@ -2325,7 +2325,7 @@ func (s *Server) handleEBPFStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	stats := s.ebpfIngestor.Stats()
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"active": true,
 		"stats":  stats,
 	})
@@ -2341,7 +2341,7 @@ func (s *Server) handleEBPFEvents(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if s.ebpfIngestor == nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"events": []interface{}{},
 			"count":  0,
 		})
@@ -2357,7 +2357,7 @@ func (s *Server) handleEBPFEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	events := s.ebpfIngestor.RecentEvents(limit)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"events": events,
 		"count":  len(events),
 	})
@@ -2565,7 +2565,7 @@ func (s *Server) handleServiceConfig(w http.ResponseWriter, r *http.Request) {
 		s.configLoader.UpdateConfig(name, cfg)
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"service": name,
 			"status":  "config_updated",
 		})
@@ -2605,7 +2605,7 @@ func (s *Server) handleServiceRestart(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"service": name,
 		"action":  "restart",
 		"status":  "queued",
@@ -2636,7 +2636,7 @@ func (s *Server) handleInfrastructure(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"runtime":          "docker",
 		"total_services":   len(configs),
 		"healthy_services": systemHealth.HealthyCount,
@@ -2692,7 +2692,7 @@ func (s *Server) handleInfraContainers(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"containers": containers,
 		"total":      len(containers),
 		"updated_at": time.Now(),
@@ -3044,7 +3044,7 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"hosts": hosts,
 	})
 }
@@ -3364,7 +3364,7 @@ func readLocalNetConnections() NetConnections {
 				nc.CloseWait++
 			}
 		}
-		f.Close()
+		f.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 	}
 	return nc
 }

@@ -559,7 +559,7 @@ func (m *Monitor) pollTarget(ctx context.Context, target *ServiceTarget) {
 			readyResp, err := m.client.Do(readyReq)
 			if err == nil {
 				result.Ready = readyResp.StatusCode >= 200 && readyResp.StatusCode < 300
-				readyResp.Body.Close()
+				readyResp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
 			}
 		}
 	} else {

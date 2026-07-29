@@ -88,7 +88,7 @@ func (r *ContainerRegistry) Push(ctx context.Context, name string, tags []string
 		if err != nil {
 			return "", fmt.Errorf("failed to push to registry: %w", err)
 		}
-		resp.Body.Close()
+		resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
 
 		if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated {
 			return "", fmt.Errorf("registry returned status %d", resp.StatusCode)
@@ -139,7 +139,7 @@ func (r *ContainerRegistry) Pull(ctx context.Context, name, tag string) (io.Read
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
+		resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
 		return nil, nil, fmt.Errorf("registry returned status %d", resp.StatusCode)
 	}
 
@@ -407,7 +407,7 @@ func (m *RegistryMirror) Pull(ctx context.Context, name, tag string) (io.ReadClo
 
 	// Cache the content
 	content, err := io.ReadAll(reader)
-	reader.Close()
+	reader.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to read content: %w", err)
 	}

@@ -420,7 +420,7 @@ func (im *IPHashSessionManager) GetBackend(clientIP string) (*Backend, error) {
 
 	// Hash the client IP
 	h := fnv.New32a()
-	h.Write([]byte(clientIP))
+	h.Write([]byte(clientIP)) // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 	hash := h.Sum32()
 
 	// Select backend based on hash
@@ -456,7 +456,7 @@ func NewShardedSessionStore(numShards, maxEntriesPerShard int) *ShardedSessionSt
 // getShard returns the shard for a key.
 func (ss *ShardedSessionStore) getShard(key string) *MemorySessionStore {
 	h := fnv.New32a()
-	h.Write([]byte(key))
+	h.Write([]byte(key)) // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 	idx := h.Sum32() & ss.shardMask
 	return ss.shards[idx]
 }

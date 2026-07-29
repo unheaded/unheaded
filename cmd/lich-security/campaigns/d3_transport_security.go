@@ -97,7 +97,7 @@ func (d *D3TransportSecurity) testWeakTLSVersion(_ context.Context, cfg Config) 
 			},
 		)
 		if err == nil {
-			conn.Close()
+			conn.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 			verName := "TLS 1.0"
 			if ver == tls.VersionTLS11 {
 				verName = "TLS 1.1"
@@ -126,7 +126,7 @@ func (d *D3TransportSecurity) testInvalidCert(_ context.Context, cfg Config) *Fi
 	if err != nil {
 		return nil // Connection failed — either mTLS enforced or service not running.
 	}
-	conn.Close()
+	conn.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 	// If we connected without a client cert and the server requires mTLS,
 	// we'd get a handshake error. Getting here means mTLS may not be enforced.
 	// However, some servers only check on RPC call, not handshake.
@@ -173,7 +173,7 @@ func (d *D3TransportSecurity) testTLS12Minimum(_ context.Context, cfg Config) *F
 	if err != nil {
 		return nil // Service not running.
 	}
-	conn.Close()
+	conn.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 	return nil
 }
 

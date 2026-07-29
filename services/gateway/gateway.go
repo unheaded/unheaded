@@ -85,10 +85,10 @@ type Gateway struct {
 	// http3Server (interface{} placeholder) was here for an HTTP/3 listener
 	// but no code path ever assigned or read it. When HTTP/3 lands, declare
 	// at the same time as Start/Stop wiring.
-	healthMgr     *healthManager
-	mu            sync.RWMutex
-	running       bool
-	alertCancel   context.CancelFunc // for cancelling alert listener
+	healthMgr   *healthManager
+	mu          sync.RWMutex
+	running     bool
+	alertCancel context.CancelFunc // for cancelling alert listener
 }
 
 // New creates a new Gateway instance.
@@ -415,7 +415,7 @@ func (g *Gateway) healthHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 
-	json.NewEncoder(w).Encode(status)
+	json.NewEncoder(w).Encode(status) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // livenessHandler handles Kubernetes liveness probe.

@@ -1797,7 +1797,7 @@ func (c *Collector) handleTraces(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	json.NewEncoder(w).Encode(result) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (c *Collector) handleTrace(w http.ResponseWriter, r *http.Request) {
@@ -1831,7 +1831,7 @@ func (c *Collector) handleTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(trace)
+	json.NewEncoder(w).Encode(trace) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (c *Collector) handleTraceStream(w http.ResponseWriter, r *http.Request) {
@@ -1899,7 +1899,7 @@ func (c *Collector) handleStats(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // ============================================================================

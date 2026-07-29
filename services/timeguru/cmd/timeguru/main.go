@@ -421,7 +421,7 @@ func initWotan(httpAddr, grpcAddr string) (*wotanClient.Client, error) {
 	// Subscribe to timeline updates topic
 	subscriber, err := client.Subscribe(ctx, wotanTopic, wotanDisplayName)
 	if err != nil {
-		client.Close()
+		client.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 		return nil, fmt.Errorf("subscribe to %s: %w", wotanTopic, err)
 	}
 

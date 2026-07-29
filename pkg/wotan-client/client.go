@@ -54,7 +54,7 @@ type pendingMessage struct {
 func drainBody(resp *http.Response) {
 	if resp != nil && resp.Body != nil {
 		_, _ = io.Copy(io.Discard, resp.Body)
-		resp.Body.Close()
+		resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
 	}
 }
 

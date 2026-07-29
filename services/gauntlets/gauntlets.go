@@ -316,7 +316,7 @@ func (s *Service) HTTPHandler() http.Handler {
 		if !result.Success {
 			w.WriteHeader(http.StatusBadRequest)
 		}
-		json.NewEncoder(w).Encode(result)
+		json.NewEncoder(w).Encode(result) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 	})
 }
 
