@@ -38,7 +38,7 @@ func NewFileStorage(basePath string) (*FileStorage, error) {
 	// Create directory if it doesn't exist. basePath comes from
 	// CAPTAIN_DATA_DIR env var or hardcoded /var/lib/unheaded/captain — both
 	// operator-controlled, not user-supplied per request.
-	if err := os.MkdirAll(basePath, 0700); err != nil { //nolint:gosec // G703: operator-controlled basePath
+	if err := os.MkdirAll(basePath, 0700); err != nil { // #nosec G703 -- operator-controlled basePath
 		return nil, fmt.Errorf("create directory: %w", err)
 	}
 
@@ -92,13 +92,13 @@ func (fs *FileStorage) SaveDecision(ctx context.Context, d *Decision) error {
 	// length, traversal markers (`.`, `..`, `/`), and alphanumeric+underscore+
 	// hyphen-only characters.
 	tmpPath := filePath + ".tmp"
-	if err := os.WriteFile(tmpPath, data, 0600); err != nil { //nolint:gosec // G703: validated by safeFilePath
+	if err := os.WriteFile(tmpPath, data, 0600); err != nil { // #nosec G703 -- validated by safeFilePath
 		return fmt.Errorf("write temporary file: %w", err)
 	}
 
 	// Atomic rename (same path-validation guarantee).
-	if err := os.Rename(tmpPath, filePath); err != nil { //nolint:gosec // G703: validated by safeFilePath
-		_ = os.Remove(tmpPath) //nolint:gosec // G703: validated by safeFilePath
+	if err := os.Rename(tmpPath, filePath); err != nil { // #nosec G703 -- validated by safeFilePath
+		_ = os.Remove(tmpPath) // #nosec G703 -- validated by safeFilePath
 		return fmt.Errorf("rename file: %w", err)
 	}
 
@@ -132,7 +132,7 @@ func (fs *FileStorage) GetDecision(ctx context.Context, id string) (*Decision, e
 	}
 
 	// filePath validated by fs.safeFilePath above.
-	data, err := os.ReadFile(filePath) //nolint:gosec // G703: validated by safeFilePath
+	data, err := os.ReadFile(filePath) // #nosec G703 -- validated by safeFilePath
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil, errors.New("decision not found")

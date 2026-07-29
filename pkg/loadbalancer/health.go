@@ -59,7 +59,7 @@ func NewHealthChecker(config HealthCheckConfig, pool *BackendPool) *HealthChecke
 			// for actual proxy traffic is enforced upstream via pkg/mesh/mtls.
 			// Health probes do NOT carry user data; the trade-off is acceptable.
 			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: true, //nolint:gosec // G402: health-probe-only path; see comment above
+			InsecureSkipVerify: true, // #nosec G402 -- health-probe-only path; see comment above
 		},
 		DialContext: (&net.Dialer{
 			Timeout:   config.Timeout,

@@ -3056,8 +3056,12 @@ func (s *Server) handleHosts(w http.ResponseWriter, r *http.Request) {
 var procRoot = resolveProcRoot()
 
 func resolveProcRoot() string {
+	// HOST_PROC is an operator-set deployment variable naming the procfs mount
+	// (e.g. /host/proc when running containerised). It is read once at startup
+	// from the process environment, never from a request, so it is not
+	// attacker-controlled in the G703 sense.
 	if p := os.Getenv("HOST_PROC"); p != "" {
-		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
+		if fi, err := os.Stat(p); err == nil && fi.IsDir() { // #nosec G703 -- operator-set env var, read at startup
 			return p
 		}
 	}

@@ -357,7 +357,7 @@ func (m *CgroupV2Manager) enableControllersInSubtree(path string) error {
 	// constructed from operator config + container ID; not user-supplied.
 	// 0644 is the kernel-required perms for cgroup control files.
 	subtreeControl := filepath.Join(path, "cgroup.subtree_control")
-	return os.WriteFile(subtreeControl, []byte(strings.Join(toEnable, " ")), 0644) //nolint:gosec // G703,G306: cgroup mount path; 0644 is kernel-mandated for cgroup control files
+	return os.WriteFile(subtreeControl, []byte(strings.Join(toEnable, " ")), 0644) // #nosec G703,G306 -- cgroup mount path; 0644 is kernel-mandated for cgroup control files
 }
 
 // CreateCgroupV2 creates a cgroup with full v2 configuration.

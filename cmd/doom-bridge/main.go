@@ -145,7 +145,7 @@ func main() {
 			filepath.Join(filepath.Dir(os.Args[0]), "..", "..", "demos", "doom"),
 		}
 		for _, c := range candidates {
-			if info, err := os.Stat(c); err == nil && info.IsDir() { //nolint:gosec // G703: hardcoded candidate paths
+			if info, err := os.Stat(c); err == nil && info.IsDir() { // #nosec G703 -- hardcoded candidate paths
 				static = c
 				break
 			}

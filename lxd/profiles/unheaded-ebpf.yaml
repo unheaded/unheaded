@@ -5,12 +5,35 @@
 # Apply: lxc profile create unheaded-ebpf < profiles/unheaded-ebpf.yaml
 # Usage: lxc launch IMAGE NAME --profile unheaded-base --profile unheaded-ebpf
 
+# SECURITY POSTURE — READ BEFORE EDITING
+#
+# This profile says "unprivileged with specific caps — no privileged:true",
+# but the settings below combined were equivalent to privileged, and in one
+# respect worse, because the label implied otherwise:
+#
+#   - cap_sys_admin is kept, which is close to root by itself
+#   - raw.idmap "both 0 0" maps container root onto HOST root, so userns
+#     provides no containment for uid 0
+#   - lxc.apparmor.profile = unconfined removes MAC entirely
+#   - lxc.seccomp.profile = (empty) removes syscall filtering entirely
+#   - lxc.cgroup2.devices.allow = a granted EVERY device node
+#
+# Chain: any code execution in this container is host root. cap_sys_admin
+# plus an identity-mapped uid 0 plus no AppArmor plus no seccomp plus full
+# device access means a compromised eBPF toolchain owns the host directly —
+# no escape technique required.
+#
+# The blanket device rule is removed below because nothing needs it. The
+# other four are load-bearing for the current UPC / ASCEND-LINUX pipeline
+# (BPF verifier access, XDP attach, /dev/kvm) and are NOT changed here —
+# tightening them needs a live boot test on WEST before it can ship. Tracked
+# for that follow-up; do not treat this profile as hardened in the meantime,
+# and do not apply it to anything outside the eBPF build/test containers.
 config:
   # eBPF capability grants (unprivileged with specific caps — no privileged:true)
   raw.lxc: |
     lxc.cap.keep = cap_bpf cap_net_admin cap_net_raw cap_sys_admin cap_sys_resource cap_perfmon
     lxc.cgroup2.devices.allow = c 10:232 rwm
-    lxc.cgroup2.devices.allow = a
     lxc.apparmor.profile = unconfined
     lxc.seccomp.profile =
 
