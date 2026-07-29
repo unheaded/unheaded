@@ -217,6 +217,47 @@ An undocumented election is harder to defend than a documented one.
 
 ---
 
+## G115 classification (measured 2026-07-29)
+
+393 findings. Triaged by conversion type and code pattern rather than site by
+site, because the useful question is which conversions can actually truncate a
+value that matters.
+
+**The real bug it surfaced** — DNS name-compression pointers. `0xC000 | offset`
+does not fail on an oversized offset, it merges into the marker bits, so any
+message past 16 KiB emitted pointers to the wrong name. Fixed with
+`MaxCompressionOffset`; see the commit and `pkg/dns/compression_test.go`.
+
+**Checked and clean** — the other parsing paths:
+- `pkg/netlink` — `int32(binary.LittleEndian.Uint32(...))` is a kernel-ABI
+  round-trip; ifindex genuinely is int32. `uint8(prefixLen)` holds a 0-128 CIDR
+  prefix.
+- `pkg/waf/detection/ssrf.go` — `byte(num>>N)` is deliberate octet extraction.
+- `pkg/upc/filesystem.go` — inode size bounded by the filesystem.
+- `pkg/dns` label lengths were already validated against MaxLabelLength before
+  the `byte()` conversion.
+
+**Provably safe by pattern (187):**
+
+| Class | Count | Why |
+|---|---|---|
+| `len-bounded` — `uintN(len(x))` | 92 | bounded by an existing allocation |
+| `codegen-const` — `demos/`, `arch/` | 53 | assembler/build generators over internal constants |
+| `abi-roundtrip` — kernel struct fields | 26 | width fixed by the kernel ABI |
+| `octet-extract` — `byte(x>>N)` | 16 | deliberate byte extraction, safe by construction |
+
+**Needs individual review (206)**, concentrated in:
+`pkg/ebpf/loader.go` (43), `cmd/demo-trace-injector` (11),
+`cmd/doom-go-injector` (10), `pkg/netlink` (9),
+`services/wotan/internal/compute/memory.go` (9), then a long tail.
+
+This is the remaining grind and is honestly several sessions of work. It should
+NOT be closed with a blanket annotation — that reproduces the `//nolint`
+failure this whole programme exists to correct. Work it file by file, highest
+count first, and drop G115 from `-exclude=` only when the count reaches zero.
+
+---
+
 ## Follow-ups raised during remediation
 
 - **Warn loudly when `InsecureSkipVerify` is enabled.** All four G402 sites are
