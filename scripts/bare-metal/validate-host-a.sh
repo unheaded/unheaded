@@ -8,6 +8,18 @@
 
 set -euo pipefail
 
+# version_ge <have> <want> — true if $1 >= $2, compared as VERSIONS.
+#
+# The checks below previously used bash's [[ "$a" > "$b" ]], which is a
+# LEXICOGRAPHIC string comparison, not a numeric one. That silently passed
+# older kernels: [[ "5.9" > "5.18" ]] is TRUE because "9" sorts after "1".
+# A host running 5.9 cleared a ">= 5.17" gate that exists precisely because
+# the eBPF features this project needs landed in 5.17.
+version_ge() {
+    [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
+}
+
+
 # Options
 output_json=${1:-}
 
@@ -88,7 +100,7 @@ fi
 
 print_check "Kernel version >= 5.17"
 kernel=$(uname -r | cut -d. -f1,2)
-if [[ "$kernel" > "5.17" ]] || [[ "$kernel" == "5.17" ]]; then
+if version_ge "$kernel" "5.17"; then
   pass
   json_add_result "kernel_version" "PASS" "$(uname -r)"
 else

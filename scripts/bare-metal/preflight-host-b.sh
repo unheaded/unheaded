@@ -9,6 +9,18 @@
 
 set -euo pipefail
 
+# version_ge <have> <want> — true if $1 >= $2, compared as VERSIONS.
+#
+# The checks below previously used bash's [[ "$a" > "$b" ]], which is a
+# LEXICOGRAPHIC string comparison, not a numeric one. That silently passed
+# older kernels: [[ "5.9" > "5.18" ]] is TRUE because "9" sorts after "1".
+# A host running 5.9 cleared a ">= 5.17" gate that exists precisely because
+# the eBPF features this project needs landed in 5.17.
+version_ge() {
+    [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" = "$2" ]
+}
+
+
 # Color codes
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -55,7 +67,7 @@ print_header "1. KERNEL REQUIREMENTS"
 
 print_check "Kernel version >= 5.17"
 kernel_version=$(uname -r | cut -d. -f1,2)
-if [[ "$kernel_version" > "5.17" ]] || [[ "$kernel_version" == "5.17" ]]; then
+if version_ge "$kernel_version" "5.17"; then
   pass
 else
   fail
@@ -211,7 +223,7 @@ print_header "5. BUILD ENVIRONMENT"
 print_check "Go 1.24+ available"
 if command -v go >/dev/null 2>&1; then
   go_version=$(go version | awk '{print $3}' | sed 's/go//')
-  if [[ "$go_version" > "1.24" ]] || [[ "$go_version" == "1.24" ]]; then
+  if version_ge "$go_version" "1.24"; then
     pass
   else
     fail
