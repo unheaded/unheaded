@@ -21,7 +21,7 @@ type ServiceAuthConfig struct {
 
 	// APIKeys is the list of valid API keys.
 	// Read from AUTH_API_KEYS env var (comma-separated) or AUTH_API_KEY_FILE.
-	APIKeys []string //nolint:gosec // G117: field intentionally named APIKeys; populated at runtime, not committed.
+	APIKeys []string // #nosec G117 -- field intentionally named APIKeys; populated at runtime, not committed.
 
 	// APIKeyFile is the path to a file containing API keys.
 	APIKeyFile string

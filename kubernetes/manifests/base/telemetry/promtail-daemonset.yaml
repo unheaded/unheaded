@@ -2,7 +2,18 @@
 # Copyright (c) 2024-2026 Stevie Bellis.
 
 # Hardening exception: promtail mounts host log dirs (read-only) to tail
-# container stdout. Runs nonroot where the runtime permits log readability.
+# container stdout.
+#
+# This previously left runAsUser unset, so promtail inherited the image
+# default and ran as root — with hostPath mounts of /var/log/pods and
+# /var/lib/docker/containers. Root plus a host mount of every container's logs
+# is the widest identity in the telemetry tier, and it was the only one not
+# pinned. It now runs as its own dedicated UID from pkg/uids.
+#
+# NOTE for WEST/EAST rollout: /var/log/pods entries are often root-owned, so a
+# non-root promtail may need the host log group added via supplementalGroups
+# (node-dependent). If log ingestion goes quiet after this change, that is the
+# cause — fix it with a supplemental group, not by reverting to root.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -23,6 +34,9 @@ spec:
     spec:
       serviceAccountName: prometheus
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 16704
+        runAsGroup: 16704
         seccompProfile:
           type: RuntimeDefault
       containers:

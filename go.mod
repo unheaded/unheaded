@@ -10,7 +10,7 @@ go 1.25.0
 // net/url, encoding/{asn1,pem}, archive/tar, os, os/exec, net,
 // net/http/httputil, net/textproto, database/sql, crypto/x509). See
 // docs/security/govulncheck-2026-05-08.md.
-toolchain go1.25.10
+toolchain go1.25.12
 
 require (
 	github.com/BurntSushi/toml v1.6.0
@@ -25,13 +25,13 @@ require (
 	github.com/rs/zerolog v1.31.0
 	github.com/sony/gobreaker v0.5.0
 	github.com/unheaded/doomgeneric v0.0.0
-	github.com/yuin/goldmark v1.7.16
-	golang.org/x/crypto v0.50.0
-	golang.org/x/sys v0.43.0
-	golang.org/x/text v0.36.0
+	github.com/yuin/goldmark v1.7.17
+	golang.org/x/crypto v0.53.0
+	golang.org/x/sys v0.46.0
+	golang.org/x/text v0.39.0
 	golang.org/x/time v0.5.0
-	google.golang.org/grpc v1.79.3
-	google.golang.org/protobuf v1.36.10
+	google.golang.org/grpc v1.82.1
+	google.golang.org/protobuf v1.36.11
 	gopkg.in/yaml.v3 v3.0.1
 	modernc.org/sqlite v1.44.3
 )
@@ -55,8 +55,8 @@ require (
 	github.com/prometheus/procfs v0.12.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
-	golang.org/x/net v0.53.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20251202230838-ff82c1b0f217 // indirect
+	golang.org/x/net v0.56.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
 	modernc.org/libc v1.67.6 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect

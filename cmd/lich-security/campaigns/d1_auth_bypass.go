@@ -195,7 +195,7 @@ func doHTTPRequest(ctx context.Context, url, method string, headers map[string]s
 	client := &http.Client{
 		Timeout: 10 * time.Second,
 		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, // #nosec G402 -- Lich TLS-audit campaign: probing the target's TLS posture IS the test
 		},
 	}
 	resp, err := client.Do(req)

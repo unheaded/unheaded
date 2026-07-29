@@ -93,7 +93,7 @@ func (d *D3TransportSecurity) testWeakTLSVersion(_ context.Context, cfg Config) 
 			&tls.Config{
 				MinVersion:         ver,
 				MaxVersion:         ver,
-				InsecureSkipVerify: true,
+				InsecureSkipVerify: true, // #nosec G402 -- Lich TLS-audit campaign: probing the target's TLS posture IS the test
 			},
 		)
 		if err == nil {
@@ -120,7 +120,7 @@ func (d *D3TransportSecurity) testInvalidCert(_ context.Context, cfg Config) *Fi
 		&net.Dialer{Timeout: 5 * time.Second},
 		"tcp", cfg.WotanAddr,
 		&tls.Config{
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, // #nosec G402 -- Lich TLS-audit campaign: probing the target's TLS posture IS the test
 		},
 	)
 	if err != nil {
@@ -167,7 +167,7 @@ func (d *D3TransportSecurity) testTLS12Minimum(_ context.Context, cfg Config) *F
 		"tcp", extractHost(cfg.GatewayAddr),
 		&tls.Config{
 			MinVersion:         tls.VersionTLS12,
-			InsecureSkipVerify: true,
+			InsecureSkipVerify: true, // #nosec G402 -- Lich TLS-audit campaign: probing the target's TLS posture IS the test
 		},
 	)
 	if err != nil {

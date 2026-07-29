@@ -35,8 +35,8 @@ spec:
       serviceAccountName: prometheus
       securityContext:
         runAsNonRoot: true
-        runAsUser: 65534
-        fsGroup: 65534
+        runAsUser: 16700
+        fsGroup: 16700
         seccompProfile:
           type: RuntimeDefault
       containers:
