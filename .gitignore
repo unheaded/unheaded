@@ -257,3 +257,11 @@ eval/coding-gate/ci-runs/
 # WAVE16 — model vetting downloads (never commit GGUFs)
 *.gguf
 /var/zhen/models/
+
+# Compiled service binaries — never commit build output.
+# syft reads dependency graphs out of ELF build-info, so a committed binary
+# injects its build-time dependency versions into every SBOM scan forever
+# (cmd/akira/akira froze grpc v1.65.0 + stdlib go1.24.0 into CI findings).
+cmd/akira/akira
+cmd/host-agent/host-agent
+/host-agent
