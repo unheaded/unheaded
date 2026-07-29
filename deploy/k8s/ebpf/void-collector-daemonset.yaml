@@ -36,7 +36,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: collector
-        image: unheaded/void-collector:latest
+        image: unheaded/void-collector:0.1.0-alpha
         resources:
           requests:
             memory: "128Mi"

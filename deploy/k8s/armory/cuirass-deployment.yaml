@@ -34,7 +34,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: cuirass
-        image: unheaded/cuirass:latest
+        image: unheaded/cuirass:0.1.0-alpha
         resources:
           requests:
             memory: "128Mi"
