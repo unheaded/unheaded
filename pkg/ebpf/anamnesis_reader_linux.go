@@ -68,7 +68,7 @@ func OpenPinnedAnamnesisReader(ctx context.Context, pinPath string, bufSize int)
 func getRingbufSize(mapFD int) (int, error) {
 	info := bpfMapInfo{}
 	attr := bpfObjGetInfoAttr{
-		BPFFD:   uint32(mapFD),
+		BPFFD:   uint32(mapFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		InfoLen: uint32(unsafe.Sizeof(info)),
 		Info:    uint64(uintptr(unsafe.Pointer(&info))),
 	}
@@ -99,7 +99,7 @@ func pinnedRingbufPoller(ctx context.Context, mapFD int, mmapData []byte,
 	dataStart := pageSize
 
 	pollFDs := []unix.PollFd{{
-		Fd:     int32(mapFD),
+		Fd:     int32(mapFD), // #nosec G115 -- poll(2) FD field is int32 by ABI
 		Events: unix.POLLIN,
 	}}
 
@@ -130,7 +130,7 @@ func pinnedRingbufPoller(ctx context.Context, mapFD int, mmapData []byte,
 				break
 			}
 
-			offset := int(cons % uint64(ringSize))
+			offset := int(cons % uint64(ringSize)) // #nosec G115 -- bounded by the modulo against ringSize
 			hdr := (*ringbufHeader)(unsafe.Pointer(&mmapData[dataStart+offset]))
 			recordLen := hdr.Len
 
@@ -141,7 +141,7 @@ func pinnedRingbufPoller(ctx context.Context, mapFD int, mmapData []byte,
 			dataLen := recordLen & ^uint32(BPF_RINGBUF_BUSY_BIT|BPF_RINGBUF_DISCARD_BIT)
 
 			if recordLen&BPF_RINGBUF_DISCARD_BIT != 0 {
-				*consumerPos = cons + uint64(roundUp(int(BPF_RINGBUF_HDR_SZ+dataLen), 8))
+				*consumerPos = cons + uint64(roundUp(int(BPF_RINGBUF_HDR_SZ+dataLen), 8)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 				continue
 			}
 
@@ -149,7 +149,7 @@ func pinnedRingbufPoller(ctx context.Context, mapFD int, mmapData []byte,
 			data := make([]byte, dataLen)
 			copy(data, mmapData[dataOffset:dataOffset+int(dataLen)])
 
-			*consumerPos = cons + uint64(roundUp(int(BPF_RINGBUF_HDR_SZ+dataLen), 8))
+			*consumerPos = cons + uint64(roundUp(int(BPF_RINGBUF_HDR_SZ+dataLen), 8)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 
 			select {
 			case out <- data:

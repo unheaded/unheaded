@@ -126,7 +126,7 @@ func bpfSyscall(cmd int, attr unsafe.Pointer, size uintptr) (int, error) {
 // bpfMapUpdateElem updates or inserts an element in a BPF map
 func (ml *MapLoader) bpfMapUpdateElem(key, value unsafe.Pointer) error {
 	attr := bpfMapOpAttr{
-		MapFD: uint32(ml.mapFD),
+		MapFD: uint32(ml.mapFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		Key:   uint64(uintptr(key)),
 		Value: uint64(uintptr(value)),
 		Flags: BPF_ANY,
