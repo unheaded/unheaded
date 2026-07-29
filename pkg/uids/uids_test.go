@@ -68,26 +68,31 @@ var (
 // YAML that actually gets applied. Any manifest that runs as root, omits an
 // identity, or disagrees with pkg/uids fails the build here.
 func TestManifestsMatchRegistry(t *testing.T) {
-	dir := filepath.Join("..", "..", "kubernetes", "manifests", "base", "telemetry")
+	base := filepath.Join("..", "..", "kubernetes", "manifests", "base")
 
+	// Find a manifest for each service anywhere under manifests/base. Services
+	// deployed only by the Helm chart have none here; those are covered by
+	// TestHelmValuesMatchRegistry instead. Skipping them is deliberate — the
+	// point is that wherever a service IS declared, it matches the registry.
+	found := 0
 	for service, want := range Registry {
 		var path string
-		for _, candidate := range []string{
-			service + ".yaml",
-			service + "-daemonset.yaml",
-		} {
-			p := filepath.Join(dir, candidate)
-			if _, err := os.Stat(p); err == nil {
-				path = p
-				break
+		_ = filepath.WalkDir(base, func(p string, e os.DirEntry, err error) error {
+			if err != nil || e.IsDir() || path != "" {
+				return nil //nolint:nilerr // a missing dir is not fatal here
 			}
-		}
+			name := e.Name()
+			if name == service+".yaml" || name == service+"-daemonset.yaml" {
+				path = p
+			}
+			return nil
+		})
 		if path == "" {
-			t.Errorf("%s: no manifest found in %s", service, dir)
-			continue
+			continue // Helm-only service
 		}
+		found++
 
-		data, err := os.ReadFile(path) //nolint:gosec // fixed repo-relative path
+		data, err := os.ReadFile(path) //nolint:gosec // path built by walking a fixed repo dir
 		if err != nil {
 			t.Errorf("%s: %v", service, err)
 			continue
@@ -118,5 +123,9 @@ func TestManifestsMatchRegistry(t *testing.T) {
 					service, filepath.Base(path), fg, want)
 			}
 		}
+	}
+
+	if found == 0 {
+		t.Error("no manifests matched any registry entry — the walk is probably looking in the wrong place")
 	}
 }

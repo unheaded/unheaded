@@ -68,18 +68,51 @@ Image reference from global + service values.
 {{/*
 Security context (shared across all services).
 */}}
+{{/*
+Container securityContext.
+
+Takes a dict of "ctx" (the root context) and "uid" (the service's own UID from
+pkg/uids). Falls back to global.security.runAsUser only if a service has no uid,
+which should not happen — the fallback exists so a new service fails visibly on
+a shared identity rather than silently inheriting root.
+
+Every service gets its OWN uid. A single shared runAsUser means a compromise of
+any one service can read and rewrite every other's on-disk state, and makes file
+ownership useless for attributing writes during an audit.
+*/}}
 {{- define "unheaded.securityContext" -}}
+{{- $ctx := .ctx -}}
+{{- $uid := .uid | default $ctx.Values.global.security.runAsUser -}}
 securityContext:
-  readOnlyRootFilesystem: {{ .Values.global.security.readOnlyRootFilesystem }}
-  runAsNonRoot: {{ .Values.global.security.runAsNonRoot }}
-  runAsUser: {{ .Values.global.security.runAsUser }}
-  runAsGroup: {{ .Values.global.security.runAsGroup }}
-  allowPrivilegeEscalation: {{ .Values.global.security.allowPrivilegeEscalation }}
+  readOnlyRootFilesystem: {{ $ctx.Values.global.security.readOnlyRootFilesystem }}
+  runAsNonRoot: {{ $ctx.Values.global.security.runAsNonRoot }}
+  runAsUser: {{ $uid }}
+  runAsGroup: {{ $uid }}
+  allowPrivilegeEscalation: {{ $ctx.Values.global.security.allowPrivilegeEscalation }}
   capabilities:
     drop:
       - ALL
   seccompProfile:
-    type: {{ .Values.global.security.seccompProfile }}
+    type: {{ $ctx.Values.global.security.seccompProfile }}
+{{- end }}
+
+{{/*
+Pod-level securityContext.
+
+Distinct from the container one: fsGroup governs ownership of mounted volumes,
+and runAsNonRoot here also covers initContainers and any sidecar injected later,
+which a container-level context does not. trivy KSV-0118 flags its absence.
+*/}}
+{{- define "unheaded.podSecurityContext" -}}
+{{- $ctx := .ctx -}}
+{{- $uid := .uid | default $ctx.Values.global.security.runAsUser -}}
+securityContext:
+  runAsNonRoot: {{ $ctx.Values.global.security.runAsNonRoot }}
+  runAsUser: {{ $uid }}
+  runAsGroup: {{ $uid }}
+  fsGroup: {{ $uid }}
+  seccompProfile:
+    type: {{ $ctx.Values.global.security.seccompProfile }}
 {{- end }}
 
 {{/*

@@ -54,6 +54,19 @@ func TestBPFAttrLayout(t *testing.T) {
 		}
 	})
 
+	t.Run("batch", func(t *testing.T) {
+		var a bpfMapBatchAttr
+		if got, want := unsafe.Offsetof(a.count), uintptr(32); got != want {
+			t.Errorf("count offset = %d, want %d", got, want)
+		}
+		if got, want := unsafe.Offsetof(a.flags), uintptr(48); got != want {
+			t.Errorf("flags offset = %d, want %d (explicit pad after mapFd)", got, want)
+		}
+		if got, want := unsafe.Sizeof(a), uintptr(56); got != want {
+			t.Errorf("size = %d, want %d", got, want)
+		}
+	})
+
 	t.Run("delete", func(t *testing.T) {
 		var a bpfMapDeleteAttr
 		if got, want := unsafe.Offsetof(a.key), uintptr(8); got != want {

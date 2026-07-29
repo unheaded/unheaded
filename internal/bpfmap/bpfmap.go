@@ -45,6 +45,17 @@ type bpfMapDeleteAttr struct {
 	key   unsafe.Pointer
 }
 
+type bpfMapBatchAttr struct {
+	inBatch  unsafe.Pointer
+	outBatch unsafe.Pointer
+	keys     unsafe.Pointer
+	values   unsafe.Pointer
+	count    *uint32
+	mapFd    uint32
+	_        uint32 // padding
+	flags    uint64
+}
+
 // BPF_MAP_* flags for UpdateElem and batch operations
 const (
 	BPF_ANY     = 0 // Create new or update existing
@@ -212,37 +223,18 @@ func (m *Map) UpdateBatch(keys, values []byte, count uint32, flags ...uint64) (u
 	valuesPtr := unsafe.Pointer(&values[0]) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 	countVal := count
 
-	// #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+	batchAttr := bpfMapBatchAttr{
+		keys:   keysPtr,
+		values: valuesPtr,
+		count:  &countVal,
+		mapFd:  uint32(m.fd), // #nosec G115 -- fd from the kernel, small non-negative
+		flags:  flagVal,
+	}
 	_, _, errno := unix.Syscall(
 		unix.SYS_BPF,
-		uintptr(12), // BPF_MAP_LOOKUP_BATCH = 12 (or use 13/14 for UPDATE_BATCH variant)
-		// #nosec G103 -- Pointer->uintptr in a syscall arg list; the struct is a kernel ABI mirror
-		uintptr(unsafe.Pointer(&struct {
-			inBatch  unsafe.Pointer
-			outBatch unsafe.Pointer
-			keys     unsafe.Pointer
-			values   unsafe.Pointer
-			count    *uint32
-			mapFd    uint32
-			_        uint32
-			flags    uint64
-		}{
-			keys:   keysPtr,
-			values: valuesPtr,
-			count:  &countVal,
-			mapFd:  uint32(m.fd), // #nosec G115 -- bounded by construction; see the surrounding guard
-			flags:  flagVal,
-		})),
-		unsafe.Sizeof(struct {
-			inBatch  unsafe.Pointer
-			outBatch unsafe.Pointer
-			keys     unsafe.Pointer
-			values   unsafe.Pointer
-			count    *uint32
-			mapFd    uint32
-			_        uint32
-			flags    uint64
-		}{}),
+		uintptr(12),                         // BPF_MAP_LOOKUP_BATCH = 12 (or use 13/14 for UPDATE_BATCH variant)
+		uintptr(unsafe.Pointer(&batchAttr)), // #nosec G103 -- Pointer->uintptr in a syscall arg list (unsafe.Pointer rule 4)
+		unsafe.Sizeof(bpfMapBatchAttr{}),
 	)
 
 	if errno != 0 && errno != unix.ENOENT {
