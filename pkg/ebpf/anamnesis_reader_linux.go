@@ -70,10 +70,10 @@ func getRingbufSize(mapFD int) (int, error) {
 	attr := bpfObjGetInfoAttr{
 		BPFFD:   uint32(mapFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		InfoLen: uint32(unsafe.Sizeof(info)),
-		Info:    uint64(uintptr(unsafe.Pointer(&info))),
+		Info:    uint64(uintptr(unsafe.Pointer(&info))), // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	}
 
-	_, err := bpfSyscall(BPF_OBJ_GET_INFO_BY_FD, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	_, err := bpfSyscall(BPF_OBJ_GET_INFO_BY_FD, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return 0, err
 	}
@@ -94,8 +94,8 @@ func pinnedRingbufPoller(ctx context.Context, mapFD int, mmapData []byte,
 	defer func() { _ = unix.Munmap(mmapData) }()
 	defer func() { _ = unix.Close(mapFD) }()
 
-	consumerPos := (*uint64)(unsafe.Pointer(&mmapData[0]))
-	producerPos := (*uint64)(unsafe.Pointer(&mmapData[pageSize-8]))
+	consumerPos := (*uint64)(unsafe.Pointer(&mmapData[0]))          // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
+	producerPos := (*uint64)(unsafe.Pointer(&mmapData[pageSize-8])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 	dataStart := pageSize
 
 	pollFDs := []unix.PollFd{{
@@ -130,8 +130,8 @@ func pinnedRingbufPoller(ctx context.Context, mapFD int, mmapData []byte,
 				break
 			}
 
-			offset := int(cons % uint64(ringSize)) // #nosec G115 -- bounded by the modulo against ringSize
-			hdr := (*ringbufHeader)(unsafe.Pointer(&mmapData[dataStart+offset]))
+			offset := int(cons % uint64(ringSize))                               // #nosec G115 -- bounded by the modulo against ringSize
+			hdr := (*ringbufHeader)(unsafe.Pointer(&mmapData[dataStart+offset])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 			recordLen := hdr.Len
 
 			if recordLen&BPF_RINGBUF_BUSY_BIT != 0 {

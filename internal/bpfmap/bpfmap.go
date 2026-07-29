@@ -14,6 +14,37 @@ import (
 	"golang.org/x/sys/unix"
 )
 
+// Kernel bpf(2) attribute mirrors.
+//
+// These were previously repeated as anonymous structs inline inside each
+// unix.Syscall argument list, which made the unsafe.Pointer expression span
+// 8-16 lines. gosec anchors a #nosec to the flagged node's line, and any edit
+// above shifted every subsequent anchor — annotating them reliably was not
+// possible while they stayed inline. Naming them keeps each syscall argument
+// on a single line and removes the duplication at the same time.
+//
+// Layout must match union bpf_attr in include/uapi/linux/bpf.h exactly,
+// including the explicit padding after mapFd on 64-bit.
+type bpfMapLookupAttr struct {
+	mapFd uint32
+	key   unsafe.Pointer
+	value unsafe.Pointer
+}
+
+type bpfMapUpdateAttr struct {
+	mapFd uint32
+	_     uint32 // padding
+	key   unsafe.Pointer
+	value unsafe.Pointer
+	flags uint64
+}
+
+type bpfMapDeleteAttr struct {
+	mapFd uint32
+	_     uint32 // padding
+	key   unsafe.Pointer
+}
+
 // BPF_MAP_* flags for UpdateElem and batch operations
 const (
 	BPF_ANY     = 0 // Create new or update existing
@@ -69,26 +100,19 @@ func (m *Map) LookupElem(key, value []byte) error {
 	}
 
 	// Use unsafe pointers for BPF syscall
-	keyPtr := unsafe.Pointer(&key[0])
-	valuePtr := unsafe.Pointer(&value[0])
+	keyPtr := unsafe.Pointer(&key[0])     // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
+	valuePtr := unsafe.Pointer(&value[0]) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 
+	lookupAttr := bpfMapLookupAttr{
+		mapFd: uint32(m.fd), // #nosec G115 -- fd from the kernel, small non-negative
+		key:   keyPtr,
+		value: valuePtr,
+	}
 	_, _, errno := unix.Syscall(
 		unix.SYS_BPF,
-		uintptr(1), // BPF_MAP_LOOKUP_ELEM = 1
-		uintptr(unsafe.Pointer(&struct {
-			mapFd uint32
-			key   unsafe.Pointer
-			value unsafe.Pointer
-		}{
-			mapFd: uint32(m.fd), // #nosec G115 -- bounded by construction; see the surrounding guard
-			key:   keyPtr,
-			value: valuePtr,
-		})),
-		unsafe.Sizeof(struct {
-			mapFd uint32
-			key   unsafe.Pointer
-			value unsafe.Pointer
-		}{}),
+		uintptr(1),                           // BPF_MAP_LOOKUP_ELEM = 1
+		uintptr(unsafe.Pointer(&lookupAttr)), // #nosec G103 -- Pointer->uintptr in a syscall arg list (unsafe.Pointer rule 4)
+		unsafe.Sizeof(bpfMapLookupAttr{}),
 	)
 
 	if errno != 0 {
@@ -116,31 +140,20 @@ func (m *Map) UpdateElem(key, value []byte, flags ...uint64) error {
 		flagVal = flags[0]
 	}
 
-	keyPtr := unsafe.Pointer(&key[0])
-	valuePtr := unsafe.Pointer(&value[0])
+	keyPtr := unsafe.Pointer(&key[0])     // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
+	valuePtr := unsafe.Pointer(&value[0]) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 
+	updateAttr := bpfMapUpdateAttr{
+		mapFd: uint32(m.fd), // #nosec G115 -- fd from the kernel, small non-negative
+		key:   keyPtr,
+		value: valuePtr,
+		flags: flagVal,
+	}
 	_, _, errno := unix.Syscall(
 		unix.SYS_BPF,
-		uintptr(2), // BPF_MAP_UPDATE_ELEM = 2
-		uintptr(unsafe.Pointer(&struct {
-			mapFd uint32
-			_     uint32 // padding
-			key   unsafe.Pointer
-			value unsafe.Pointer
-			flags uint64
-		}{
-			mapFd: uint32(m.fd), // #nosec G115 -- bounded by construction; see the surrounding guard
-			key:   keyPtr,
-			value: valuePtr,
-			flags: flagVal,
-		})),
-		unsafe.Sizeof(struct {
-			mapFd uint32
-			_     uint32
-			key   unsafe.Pointer
-			value unsafe.Pointer
-			flags uint64
-		}{}),
+		uintptr(2),                           // BPF_MAP_UPDATE_ELEM = 2
+		uintptr(unsafe.Pointer(&updateAttr)), // #nosec G103 -- Pointer->uintptr in a syscall arg list (unsafe.Pointer rule 4)
+		unsafe.Sizeof(bpfMapUpdateAttr{}),
 	)
 
 	if errno != 0 {
@@ -156,24 +169,17 @@ func (m *Map) DeleteElem(key []byte) error {
 		return fmt.Errorf("bpfmap: map is closed")
 	}
 
-	keyPtr := unsafe.Pointer(&key[0])
+	keyPtr := unsafe.Pointer(&key[0]) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 
+	deleteAttr := bpfMapDeleteAttr{
+		mapFd: uint32(m.fd), // #nosec G115 -- fd from the kernel, small non-negative
+		key:   keyPtr,
+	}
 	_, _, errno := unix.Syscall(
 		unix.SYS_BPF,
-		uintptr(3), // BPF_MAP_DELETE_ELEM = 3
-		uintptr(unsafe.Pointer(&struct {
-			mapFd uint32
-			_     uint32 // padding
-			key   unsafe.Pointer
-		}{
-			mapFd: uint32(m.fd), // #nosec G115 -- bounded by construction; see the surrounding guard
-			key:   keyPtr,
-		})),
-		unsafe.Sizeof(struct {
-			mapFd uint32
-			_     uint32
-			key   unsafe.Pointer
-		}{}),
+		uintptr(3),                           // BPF_MAP_DELETE_ELEM = 3
+		uintptr(unsafe.Pointer(&deleteAttr)), // #nosec G103 -- Pointer->uintptr in a syscall arg list (unsafe.Pointer rule 4)
+		unsafe.Sizeof(bpfMapDeleteAttr{}),
 	)
 
 	if errno != 0 {
@@ -202,13 +208,15 @@ func (m *Map) UpdateBatch(keys, values []byte, count uint32, flags ...uint64) (u
 		flagVal = flags[0]
 	}
 
-	keysPtr := unsafe.Pointer(&keys[0])
-	valuesPtr := unsafe.Pointer(&values[0])
+	keysPtr := unsafe.Pointer(&keys[0])     // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
+	valuesPtr := unsafe.Pointer(&values[0]) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 	countVal := count
 
+	// #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
 	_, _, errno := unix.Syscall(
 		unix.SYS_BPF,
 		uintptr(12), // BPF_MAP_LOOKUP_BATCH = 12 (or use 13/14 for UPDATE_BATCH variant)
+		// #nosec G103 -- Pointer->uintptr in a syscall arg list; the struct is a kernel ABI mirror
 		uintptr(unsafe.Pointer(&struct {
 			inBatch  unsafe.Pointer
 			outBatch unsafe.Pointer

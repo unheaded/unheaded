@@ -41,8 +41,8 @@ func getOriginalDst(conn net.Conn) (string, error) {
 			fd,
 			syscall.SOL_IP,
 			soOriginalDst,
-			uintptr(unsafe.Pointer(&sa4)),
-			uintptr(unsafe.Pointer(&sz)),
+			uintptr(unsafe.Pointer(&sa4)), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+			uintptr(unsafe.Pointer(&sz)),  // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
 			0,
 		)
 		if errno != 0 {
