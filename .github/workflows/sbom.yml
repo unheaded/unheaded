@@ -19,7 +19,7 @@ jobs:
       with:
         sbom: sbom.spdx.json
         fail-build: true
-        severity-cutoff: high
+        severity-cutoff: medium
     - name: Upload SBOM
       uses: actions/upload-artifact@v5
       with:

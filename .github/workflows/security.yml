@@ -125,23 +125,23 @@ jobs:
       - name: Install cargo-audit
         run: cargo install cargo-audit
 
-      # No `|| true`. These steps previously swallowed the exit code, so the
-      # job reported success over a live advisory — RUSTSEC-2026-0204
-      # (crossbeam-epoch) sat green in CI from 2026-07-06 until 2026-07-29.
-      # A scanner that cannot fail is not a gate.
-      - name: Audit ebpf workspace
-        working-directory: ebpf
-        run: cargo audit --format json > /tmp/audit-ebpf.json
-
-      - name: Audit cmd/trace-collector
-        if: always()
-        working-directory: cmd/trace-collector
-        run: cargo audit --format json > /tmp/audit-trace.json
-
-      - name: Audit crates/monad-mbc
-        if: always()
-        working-directory: crates/monad-mbc
-        run: cargo audit --format json > /tmp/audit-mbc.json
+      # Discover workspaces rather than listing them. The previous version
+      # hardcoded ebpf, cmd/trace-collector and crates/monad-mbc — so
+      # crates/zhend and cmd/upc-bootctl were NEVER audited. crates/zhend was
+      # carrying RUSTSEC-2026-0204 (crossbeam-epoch) unnoticed as a result.
+      #
+      # No `|| true`: these steps previously swallowed the exit code, so the
+      # job reported success over live advisories. A scanner that cannot fail
+      # is not a gate.
+      - name: Audit all Rust workspaces
+        run: |
+          fail=0
+          for d in $(git ls-files '*/Cargo.lock' | xargs -n1 dirname | sort -u); do
+            echo "::group::cargo audit $d"
+            (cd "$d" && cargo audit --format json > "/tmp/audit-$(echo "$d" | tr / -).json") || fail=1
+            echo "::endgroup::"
+          done
+          exit $fail
 
       - name: Upload audit reports
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
