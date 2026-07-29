@@ -26,7 +26,7 @@ type weightRange struct {
 // NewWeighted creates a new weighted random balancer.
 func NewWeighted() *Weighted {
 	return &Weighted{
-		rng:    rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng:    rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- weighted backend selection, not security-bearing
 		ranges: make([]weightRange, 0),
 	}
 }

@@ -271,7 +271,7 @@ type WeightedBalancer struct {
 func NewWeightedBalancer() *WeightedBalancer {
 	return &WeightedBalancer{
 		BaseBalancer: newBaseBalancer(LoadBalancerWeighted),
-		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng:          rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- backend selection, not security-bearing
 	}
 }
 
@@ -333,7 +333,7 @@ type RandomBalancer struct {
 func NewRandomBalancer() *RandomBalancer {
 	return &RandomBalancer{
 		BaseBalancer: newBaseBalancer(LoadBalancerRandom),
-		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng:          rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- backend selection, not security-bearing
 	}
 }
 
@@ -577,7 +577,7 @@ func NewP2CBalancer() *P2CBalancer {
 	return &P2CBalancer{
 		BaseBalancer: newBaseBalancer("p2c"),
 		connections:  make(map[string]*int64),
-		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng:          rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- backend selection, not security-bearing
 	}
 }
 
@@ -821,7 +821,7 @@ func NewSubsetBalancer(subsetSize int) *SubsetBalancer {
 		subsetSize:   subsetSize,
 		subsets:      make(map[string][]*Endpoint),
 		fallback:     NewRoundRobinBalancer(),
-		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng:          rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- backend selection, not security-bearing
 	}
 }
 

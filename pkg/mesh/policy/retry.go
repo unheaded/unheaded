@@ -33,7 +33,7 @@ type Retryer struct {
 func NewRetryer(policy *RetryPolicy) *Retryer {
 	return &Retryer{
 		policy: policy,
-		rng:    rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng:    rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- retry backoff jitter, not security-bearing
 	}
 }
 
@@ -244,7 +244,7 @@ func NewBackoffCalculator(base, max time.Duration, jitter float64) *BackoffCalcu
 		Base:   base,
 		Max:    max,
 		Jitter: jitter,
-		rng:    rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng:    rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- retry backoff jitter, not security-bearing
 	}
 }
 

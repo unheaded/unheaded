@@ -214,7 +214,7 @@ type RandomAlgorithm struct {
 // NewRandomAlgorithm creates a new random algorithm.
 func NewRandomAlgorithm() *RandomAlgorithm {
 	return &RandomAlgorithm{
-		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng: rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- task placement selection, not security-bearing
 	}
 }
 

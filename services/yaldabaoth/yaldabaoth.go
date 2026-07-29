@@ -277,7 +277,7 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Ser
 		log:         log,
 		wotan:       wotan,
 		config:      cfg,
-		rng:         rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng:         rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- chaos fault-injection sampling, not security-bearing
 		experiments: make(map[string]*Experiment),
 		injectors:   make(map[ExperimentType]FaultInjector),
 		reversers:   make(map[ExperimentType]FaultReverser),

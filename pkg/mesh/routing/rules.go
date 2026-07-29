@@ -66,7 +66,7 @@ func (r *Rule) selectDestination(req *Request) *RouteMatch {
 	}
 
 	// Weighted random selection
-	target := rand.Intn(totalWeight)
+	target := rand.Intn(totalWeight) // #nosec G404 -- weighted route selection, not security-bearing
 	cumulative := 0
 
 	var selected *Destination

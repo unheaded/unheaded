@@ -154,7 +154,7 @@ type RandomLoadBalancer struct {
 func NewRandomLoadBalancer(backends []string, log *logger.Logger) *RandomLoadBalancer {
 	return &RandomLoadBalancer{
 		BaseLoadBalancer: NewBaseLoadBalancer(backends, log),
-		rng:              rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng:              rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- backend selection, not security-bearing
 	}
 }
 

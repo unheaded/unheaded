@@ -302,7 +302,7 @@ func generateDryRunScreen(frame uint64) []byte {
 
 			if y > 160 {
 				fireIntensity := float64(y-160) / 40.0
-				idx = uint8(float64(idx)*(1.0-fireIntensity) + fireIntensity*float64(32+rand.Intn(16)))
+				idx = uint8(float64(idx)*(1.0-fireIntensity) + fireIntensity*float64(32+rand.Intn(16))) // #nosec G404 -- visual fire effect dithering
 			}
 
 			pixels[y*screenWidth+x] = idx

@@ -22,7 +22,7 @@ type Weighted struct {
 // NewWeighted creates a new weighted random balancer.
 func NewWeighted(endpoints []*Endpoint) *Weighted {
 	w := &Weighted{
-		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng: rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- weighted backend selection, not security-bearing
 	}
 	w.Update(endpoints)
 	return w
@@ -110,7 +110,7 @@ type Random struct {
 func NewRandom(endpoints []*Endpoint) *Random {
 	return &Random{
 		endpoints: filterHealthy(endpoints),
-		rng:       rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng:       rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- weighted backend selection, not security-bearing
 	}
 }
 
