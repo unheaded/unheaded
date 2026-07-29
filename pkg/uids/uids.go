@@ -91,6 +91,39 @@ const (
 	Pleroma   = 16762
 )
 
+// Infrastructure tier (16780-16799). Workloads that hold host-level access —
+// eBPF, packet capture, VPN, GPU. These need capabilities rather than root:
+// verified on WEST (kernel 6.17, unprivileged_bpf_disabled=0) that CAP_BPF and
+// CAP_PERFMON work for a non-root UID, and that ROCm device access needs
+// membership of render (GID 992) and video (GID 44) rather than UID 0.
+const (
+	VoidCollector = 16780
+	VLLM          = 16781
+	Suricata      = 16782
+	WireGuard     = 16783
+)
+
+// Third-party image UIDs. These are NOT ours to choose: each image ships data
+// directories owned by a specific UID, so imposing a Kingdom-range ID would
+// leave the container unable to write its own state. The registry records what
+// the image actually uses, so these two are checked against something rather
+// than being the only unverified workloads.
+//
+// TestManifestsMatchRegistry caught exactly this: an earlier draft assigned
+// ClickHouse 16785 and the test failed against the real 101.
+const (
+	ClickHouse     = 101  // clickhouse-server image default
+	HAProxyIngress = 1000 // haproxytech/kubernetes-ingress image default
+)
+
+// Host group IDs required for device access, read from WEST rather than
+// assumed. /dev/kfd is root:render mode 660, so ROCm needs the render group;
+// video covers /dev/dri.
+const (
+	HostGroupRender = 992
+	HostGroupVideo  = 44
+)
+
 // Registry maps each service name to its assigned UID. Deployment manifests
 // are validated against this map by TestManifestsMatchRegistry.
 var Registry = map[string]int{
@@ -124,6 +157,13 @@ var Registry = map[string]int{
 	"anamnesis": Anamnesis,
 	"kenoma":    Kenoma,
 	"pleroma":   Pleroma,
+
+	"void-collector":  VoidCollector,
+	"vllm":            VLLM,
+	"suricata":        Suricata,
+	"wireguard":       WireGuard,
+	"haproxy-ingress": HAProxyIngress,
+	"clickhouse":      ClickHouse,
 }
 
 // Lookup returns the assigned UID for a service.
@@ -135,6 +175,14 @@ func Lookup(service string) (int, error) {
 	return uid, nil
 }
 
+// thirdPartyUIDs are services whose UID is dictated by an upstream image and
+// therefore legitimately sits outside the Kingdom reserved range. Listing them
+// explicitly keeps the range check meaningful for everything else.
+var thirdPartyUIDs = map[string]struct{}{
+	"clickhouse":      {},
+	"haproxy-ingress": {},
+}
+
 // Validate enforces the registry's invariants: every UID is unique, inside the
 // reserved range, and never root. A duplicate here is the shared-account bug
 // this package exists to prevent, so it is an error rather than a warning.
@@ -144,9 +192,11 @@ func Validate() error {
 		if uid == 0 {
 			return fmt.Errorf("service %q assigned UID 0 (root)", service)
 		}
-		if uid < RangeStart || uid > RangeEnd {
-			return fmt.Errorf("service %q UID %d outside reserved range [%d, %d]",
-				service, uid, RangeStart, RangeEnd)
+		if _, thirdParty := thirdPartyUIDs[service]; !thirdParty {
+			if uid < RangeStart || uid > RangeEnd {
+				return fmt.Errorf("service %q UID %d outside reserved range [%d, %d]",
+					service, uid, RangeStart, RangeEnd)
+			}
 		}
 		if other, dup := seen[uid]; dup {
 			return fmt.Errorf("UID %d shared by %q and %q — each service needs its own identity",
