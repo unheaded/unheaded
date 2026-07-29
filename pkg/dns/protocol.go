@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 )
 
@@ -73,6 +74,17 @@ const MaxNameLength = 255
 
 // MaxLabelLength is the maximum label length
 const MaxLabelLength = 63
+
+// MaxCompressionOffset is the largest offset a DNS name-compression pointer can
+// encode. RFC 1035 s4.1.4 gives the pointer 14 bits, with the top two bits set
+// to 11 as the marker, so any offset >= 0x4000 is unrepresentable.
+//
+// This matters because `ptr := 0xC000 | offset` does not fail on an oversized
+// offset — it silently drops the overlapping bits. An offset of 0x4000 ORs to
+// 0xC000, i.e. a pointer to byte 0. For messages larger than 16 KiB (reachable
+// over TCP or with EDNS0) that produced pointers aimed at the wrong name, and
+// a resolver following them sees a malformed message or a compression loop.
+const MaxCompressionOffset = 0x4000
 
 // Errors
 var (
@@ -313,8 +325,12 @@ func packName(buf *bytes.Buffer, name string, offsets map[string]uint16) error {
 		return nil
 	}
 
-	// Store offset for compression
-	offsets[name] = uint16(buf.Len())
+	// Store offset for compression, but only if it is representable in the
+	// 14 bits a pointer allows. Beyond that we simply forgo compressing this
+	// name — a longer message is correct; a bad pointer is not.
+	if buf.Len() < MaxCompressionOffset {
+		offsets[name] = uint16(buf.Len()) // #nosec G115 -- bounded by MaxCompressionOffset above
+	}
 
 	// Split into labels
 	labels := strings.Split(name, ".")
@@ -334,7 +350,9 @@ func packName(buf *bytes.Buffer, name string, offsets map[string]uint16) error {
 				_ = binary.Write(buf, binary.BigEndian, uint16(ptr))
 				return nil
 			}
-			offsets[suffix] = uint16(buf.Len())
+			if buf.Len() < MaxCompressionOffset {
+				offsets[suffix] = uint16(buf.Len()) // #nosec G115 -- bounded by MaxCompressionOffset above
+			}
 		}
 
 		buf.WriteByte(byte(len(label)))
@@ -423,7 +441,13 @@ func packResourceRecord(buf *bytes.Buffer, rr *ResourceRecord, offsets map[strin
 	}
 
 	rdata := rdataBuf.Bytes()
-	if err := binary.Write(buf, binary.BigEndian, uint16(len(rdata))); err != nil {
+	// RDLENGTH is a 16-bit field. Truncating here would emit a length that
+	// disagrees with the bytes that follow, desynchronising every parser
+	// reading the rest of the message.
+	if len(rdata) > math.MaxUint16 {
+		return fmt.Errorf("dns: rdata %d bytes exceeds the 16-bit RDLENGTH field", len(rdata))
+	}
+	if err := binary.Write(buf, binary.BigEndian, uint16(len(rdata))); err != nil { // #nosec G115 -- bounded by the MaxUint16 check above
 		return err
 	}
 	buf.Write(rdata)
