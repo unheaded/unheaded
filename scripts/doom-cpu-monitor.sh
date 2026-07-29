@@ -297,7 +297,7 @@ while true; do
 
     # Check duration
     if [[ $DURATION -gt 0 ]]; then
-        local elapsed=$(( $(date +%s) - START_TIME ))
+        elapsed=$(( $(date +%s) - START_TIME ))
         if [[ $elapsed -ge $DURATION ]]; then
             emit INFO "Duration reached (${DURATION}s)"
             break
@@ -330,7 +330,6 @@ while true; do
 
     # ── Check: BSS corruption (Bug 23) ──────────────────────────────────
     if [[ -n "$INITIALIZED_ADDR" && -e "$RAM_MAP_PIN" ]]; then
-        local init_val
         init_val=$(read_ram_word "$(printf '%d' "$INITIALIZED_ADDR")")
         if [[ "$init_val" != "error" && "$init_val" == "0" && $insn_count -gt 1000 ]]; then
             emit FAIL "bss_corruption initialized=0 at ${INITIALIZED_ADDR} (insn_count=${insn_count})"

@@ -35,7 +35,11 @@ echo "[1/4] Generating Go dependency SBOM..."
 cd "$PROJECT_ROOT"
 go list -m -json all 2>/dev/null > /tmp/go-modules-raw.json || true
 
-python3 - "$TODAY" < /tmp/go-modules-raw.json > "$SBOM_DIR/go-dependencies.json" << 'PYEOF'
+# NOTE: no stdin redirect here — the heredoc IS stdin (it carries the script).
+# A "< /tmp/go-modules-raw.json" used to sit here, competing with the heredoc
+# and silently losing. It was redundant regardless: the script opens that path
+# directly (see the raw = open(...) line below).
+python3 - "$TODAY" > "$SBOM_DIR/go-dependencies.json" << 'PYEOF'
 import json, sys
 
 TODAY = sys.argv[1] if len(sys.argv) > 1 else "unknown"
