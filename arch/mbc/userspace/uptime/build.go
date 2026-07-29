@@ -91,7 +91,7 @@ func main() {
 	// ── Output: UPCFlat ──────────────────────────────────────────
 	upcfBin := createUPCFlat(code, dataWords, 0, 2048)
 
-	if err := os.WriteFile("uptime.upcf", upcfBin, 0o644); err != nil {
+	if err := os.WriteFile("uptime.upcf", upcfBin, 0o644); err != nil { // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}

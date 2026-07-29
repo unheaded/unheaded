@@ -43,7 +43,7 @@ func NewFilesystemStore(cfg Config) (*FilesystemStore, error) {
 	}
 
 	// Create root directory
-	if err := os.MkdirAll(root, 0755); err != nil {
+	if err := os.MkdirAll(root, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("filesystem: create root directory: %w", err)
 	}
 
@@ -80,7 +80,7 @@ func (f *FilesystemStore) Put(ctx context.Context, bucket, key string, reader io
 
 	// Ensure bucket directory exists
 	bucketPath := filepath.Join(f.root, bucket)
-	if err := os.MkdirAll(bucketPath, 0755); err != nil {
+	if err := os.MkdirAll(bucketPath, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		recordOp("filesystem", "put", "error", time.Since(start).Seconds())
 		return nil, fmt.Errorf("filesystem: create bucket directory: %w", err)
 	}
@@ -88,7 +88,7 @@ func (f *FilesystemStore) Put(ctx context.Context, bucket, key string, reader io
 	// Create object path (handle nested keys)
 	objectPath := filepath.Join(bucketPath, key)
 	objectDir := filepath.Dir(objectPath)
-	if err := os.MkdirAll(objectDir, 0755); err != nil {
+	if err := os.MkdirAll(objectDir, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		recordOp("filesystem", "put", "error", time.Since(start).Seconds())
 		return nil, fmt.Errorf("filesystem: create object directory: %w", err)
 	}
@@ -432,7 +432,7 @@ func (f *FilesystemStore) CreateBucket(ctx context.Context, bucket string) error
 	}
 
 	bucketPath := filepath.Join(f.root, bucket)
-	if err := os.MkdirAll(bucketPath, 0755); err != nil {
+	if err := os.MkdirAll(bucketPath, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		recordOp("filesystem", "create_bucket", "error", time.Since(start).Seconds())
 		return fmt.Errorf("filesystem: create bucket: %w", err)
 	}
@@ -592,7 +592,7 @@ func (f *FilesystemStore) writeMetadata(objectPath string, info *storage.ObjectI
 		info.ETag,
 		info.LastModified.Format(time.RFC3339),
 	)
-	return os.WriteFile(metadataPath, []byte(data), 0644)
+	return os.WriteFile(metadataPath, []byte(data), 0644) // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 }
 
 func (f *FilesystemStore) readMetadata(objectPath string) (*storage.ObjectInfo, error) {

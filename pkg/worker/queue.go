@@ -363,7 +363,7 @@ func (pq *PersistentQueue) save() error {
 		return err
 	}
 
-	return os.WriteFile(pq.path, data, 0640)
+	return os.WriteFile(pq.path, data, 0640) // #nosec G306 -- 0640 — group-readable only, no world access
 }
 
 // load restores the queue from disk.

@@ -224,7 +224,7 @@ func (fs *FileStorage) openCurrentFile() error {
 	fs.currentDate = time.Now().UTC().Format("2006-01-02")
 	filename := filepath.Join(fs.baseDir, fmt.Sprintf("audit-%s.log", fs.currentDate))
 
-	file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0640)
+	file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0640) // #nosec G302 -- 0640 — group-readable only, no world access
 	if err != nil {
 		return err
 	}

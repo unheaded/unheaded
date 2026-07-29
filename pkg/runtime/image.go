@@ -110,13 +110,13 @@ type layerInfo struct {
 
 // NewImageStore creates a new image store.
 func NewImageStore(root string, registryConfig *RegistryConfig) (*ImageStore, error) {
-	if err := os.MkdirAll(root, 0755); err != nil {
+	if err := os.MkdirAll(root, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("failed to create image store root: %w", err)
 	}
 
 	// Create subdirectories
 	for _, subdir := range []string{"layers", "manifests", "blobs", "refs"} {
-		if err := os.MkdirAll(filepath.Join(root, subdir), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(root, subdir), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 			return nil, fmt.Errorf("failed to create %s directory: %w", subdir, err)
 		}
 	}
@@ -280,7 +280,7 @@ func (s *ImageStore) PullImage(ctx context.Context, ref string, options *ImagePu
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal manifest: %w", err)
 	}
-	if err := os.WriteFile(manifestPath, manifestData, 0644); err != nil {
+	if err := os.WriteFile(manifestPath, manifestData, 0644); err != nil { // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 		return nil, fmt.Errorf("failed to write manifest: %w", err)
 	}
 
@@ -533,7 +533,7 @@ func extractLayer(layerPath, destDir string) error {
 				return err
 			}
 		case tar.TypeReg:
-			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 				return err
 			}
 			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, os.FileMode(header.Mode))
@@ -549,7 +549,7 @@ func extractLayer(layerPath, destDir string) error {
 			}
 			_ = outFile.Close()
 		case tar.TypeSymlink:
-			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 				return err
 			}
 			_ = os.Remove(targetPath) // Remove existing
@@ -557,7 +557,7 @@ func extractLayer(layerPath, destDir string) error {
 				return err
 			}
 		case tar.TypeLink:
-			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil {
+			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 				return err
 			}
 			linkTarget := filepath.Join(destDir, header.Linkname)
@@ -781,7 +781,7 @@ func (s *ImageStore) fetchLayer(ctx context.Context, ref *imageReference, layer 
 	}
 
 	// Write layer
-	if err := os.WriteFile(layerPath, data, 0644); err != nil {
+	if err := os.WriteFile(layerPath, data, 0644); err != nil { // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 		return "", "", err
 	}
 
@@ -853,7 +853,7 @@ func (s *ImageStore) fetchBlob(ctx context.Context, ref *imageReference, digest 
 	}
 
 	// Best-effort: blob cache write; the data is already in memory.
-	_ = os.WriteFile(blobPath, data, 0644)
+	_ = os.WriteFile(blobPath, data, 0644) // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 
 	return data, nil
 }

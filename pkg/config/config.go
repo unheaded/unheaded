@@ -800,7 +800,7 @@ func (c *Config) WriteToFile(path string) error {
 		return err
 	}
 
-	return os.WriteFile(path, content, 0640)
+	return os.WriteFile(path, content, 0640) // #nosec G306 -- 0640 — group-readable only, no world access
 }
 
 // mapToTOML converts a map to TOML format.

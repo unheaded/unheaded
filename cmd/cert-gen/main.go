@@ -82,7 +82,7 @@ func main() {
 	caPath := filepath.Join(*outDir, "ca.pem")
 	caKeyPath := filepath.Join(*outDir, "ca-key.pem")
 
-	if err := os.WriteFile(caPath, ca.CertPEM(), 0644); err != nil {
+	if err := os.WriteFile(caPath, ca.CertPEM(), 0644); err != nil { // #nosec G306 -- 0644 — X.509 certificates are public material; private keys alongside are 0600
 		fmt.Fprintf(os.Stderr, "error: write %s: %v\n", caPath, err)
 		os.Exit(1)
 	}
@@ -129,7 +129,7 @@ func main() {
 		certPath := filepath.Join(*outDir, svc.Name+".pem")
 		keyPath := filepath.Join(*outDir, svc.Name+"-key.pem")
 
-		if err := os.WriteFile(certPath, cert.CertPEM, 0644); err != nil {
+		if err := os.WriteFile(certPath, cert.CertPEM, 0644); err != nil { // #nosec G306 -- 0644 — X.509 certificates are public material; private keys alongside are 0600
 			fmt.Fprintf(os.Stderr, "error: write %s: %v\n", certPath, err)
 			os.Exit(1)
 		}

@@ -89,7 +89,7 @@ func NewCgroupManager(driver, parentPath string) (*CgroupManager, error) {
 
 	// Create parent cgroup
 	parentFullPath := filepath.Join(root, parentPath)
-	if err := os.MkdirAll(parentFullPath, 0755); err != nil {
+	if err := os.MkdirAll(parentFullPath, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("failed to create parent cgroup: %w", err)
 	}
 
@@ -143,7 +143,7 @@ func (m *CgroupManager) enableControllers(path string) error {
 	}
 
 	subtreeControl := filepath.Join(path, "cgroup.subtree_control")
-	return os.WriteFile(subtreeControl, []byte(strings.Join(toEnable, " ")), 0644)
+	return os.WriteFile(subtreeControl, []byte(strings.Join(toEnable, " ")), 0644) // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 }
 
 // CreateCgroup creates a cgroup for a container.
@@ -156,7 +156,7 @@ func (m *CgroupManager) CreateCgroup(containerID string, resources *ResourceConf
 	fullPath := filepath.Join(m.root, cgroupPath)
 
 	// Create cgroup directory
-	if err := os.MkdirAll(fullPath, 0755); err != nil {
+	if err := os.MkdirAll(fullPath, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return "", fmt.Errorf("failed to create cgroup: %w", err)
 	}
 
@@ -594,7 +594,7 @@ func (m *CgroupManager) ListProcesses(cgroupPath string) ([]int, error) {
 // writeFile writes content to a cgroup file.
 func writeFile(cgroupPath, filename, content string) error {
 	path := filepath.Join(cgroupPath, filename)
-	return os.WriteFile(path, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content), 0644) // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 }
 
 // readFile reads content from a cgroup file.

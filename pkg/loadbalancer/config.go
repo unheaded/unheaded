@@ -706,7 +706,7 @@ func SaveConfig(config *Config, path string) error {
 		return fmt.Errorf("marshal config: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0640); err != nil {
+	if err := os.WriteFile(path, data, 0640); err != nil { // #nosec G306 -- 0640 — group-readable only, no world access
 		return fmt.Errorf("write config file: %w", err)
 	}
 

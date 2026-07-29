@@ -103,7 +103,7 @@ func (s *Syncer) Sync(tl *timeline.Timeline) *SyncResult {
 			continue
 		}
 
-		if err := os.WriteFile(path, data, 0640); err != nil {
+		if err := os.WriteFile(path, data, 0640); err != nil { // #nosec G306 -- 0640 — group-readable only, no world access
 			result.Errors = append(result.Errors, fmt.Errorf("write %s: %w", path, err))
 			continue
 		}

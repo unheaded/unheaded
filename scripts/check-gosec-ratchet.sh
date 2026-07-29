@@ -60,6 +60,31 @@ if [ -n "${ADDED}" ]; then
     exit 1
 fi
 
+# ── Guard 2: no #nosec shadowed by a leading //nolint ────────────────────────
+#
+# gosec only honours a suppression comment that LEADS with "#nosec". A line
+# like:
+#     foo() //nolint:gosec // public cert // #nosec G306 -- reason
+# looks annotated in review and is completely inert — gosec never sees it.
+#
+# This repo shipped ~20 such annotations. They read as dispositions and
+# suppressed nothing, which is how the gosec job came to report findings
+# everyone believed were already handled. Catch it mechanically instead of
+# hoping the next reviewer spots it.
+SHADOWED="$(grep -rn '//nolint[^\n]*#nosec' --include='*.go' "${REPO_ROOT}" 2>/dev/null || true)"
+if [ -n "${SHADOWED}" ]; then
+    echo "============================================================"
+    echo "  FAIL: #nosec shadowed by a leading //nolint"
+    echo "============================================================"
+    echo
+    printf '%s\n' "${SHADOWED}"
+    echo
+    echo "  gosec only honours '#nosec' when it LEADS the comment."
+    echo "  Rewrite as:  // #nosec Gxxx -- reason"
+    echo "============================================================"
+    exit 1
+fi
+
 echo "PASS: gosec ratchet intact — $(printf '%s\n' "${CURRENT}" | wc -l)/$(printf '%s\n' "${ALLOWED}" | wc -l) baseline rules still excluded."
 if [ -n "${REMOVED}" ]; then
     echo

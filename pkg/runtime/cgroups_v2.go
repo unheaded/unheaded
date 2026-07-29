@@ -307,7 +307,7 @@ func NewCgroupV2Manager(parentPath string) (*CgroupV2Manager, error) {
 
 	// Create parent cgroup
 	parentFullPath := filepath.Join(root, parentPath)
-	if err := os.MkdirAll(parentFullPath, 0755); err != nil {
+	if err := os.MkdirAll(parentFullPath, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("failed to create parent cgroup: %w", err)
 	}
 
@@ -370,7 +370,7 @@ func (m *CgroupV2Manager) CreateCgroupV2(containerID string, config *CgroupV2Con
 	fullPath := filepath.Join(m.root, cgroupPath)
 
 	// Create cgroup directory
-	if err := os.MkdirAll(fullPath, 0755); err != nil {
+	if err := os.MkdirAll(fullPath, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return "", fmt.Errorf("failed to create cgroup directory: %w", err)
 	}
 
@@ -1500,7 +1500,7 @@ func (m *CgroupV2Manager) KillAll(containerID string) error {
 
 	// Use cgroup.kill if available (kernel 5.14+)
 	killPath := filepath.Join(fullPath, "cgroup.kill")
-	if err := os.WriteFile(killPath, []byte("1"), 0644); err == nil {
+	if err := os.WriteFile(killPath, []byte("1"), 0644); err == nil { // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 		return nil
 	}
 
@@ -1651,7 +1651,7 @@ func (m *CgroupV2Manager) Close() error {
 // writeCgroupFile writes content to a cgroup file.
 func writeCgroupFile(cgroupPath, filename, content string) error {
 	path := filepath.Join(cgroupPath, filename)
-	return os.WriteFile(path, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content), 0644) // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 }
 
 // readCgroupFileV2 reads content from a cgroup file.

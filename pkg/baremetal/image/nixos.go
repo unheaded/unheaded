@@ -137,7 +137,7 @@ func (b *NixOSBuilder) buildSquashFS(ctx context.Context, storePath string) (str
 
 	// Create file list for squashfs
 	listPath := filepath.Join(b.cachePath, fmt.Sprintf("closure-%d.list", time.Now().UnixNano()))
-	if err := os.WriteFile(listPath, []byte(strings.Join(closurePaths, "\n")), 0644); err != nil {
+	if err := os.WriteFile(listPath, []byte(strings.Join(closurePaths, "\n")), 0644); err != nil { // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 		return "", fmt.Errorf("writing closure list: %w", err)
 	}
 	defer func() { _ = os.Remove(listPath) }()

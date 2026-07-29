@@ -44,7 +44,7 @@ type NamespaceInfo struct {
 // NewNamespaceManager creates a new namespace manager.
 func NewNamespaceManager() (*NamespaceManager, error) {
 	nsBasePath := "/var/run/unheaded/ns"
-	if err := os.MkdirAll(nsBasePath, 0755); err != nil {
+	if err := os.MkdirAll(nsBasePath, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("failed to create namespace base path: %w", err)
 	}
 
@@ -67,7 +67,7 @@ func (m *NamespaceManager) CreateNamespaces(id string, types []NamespaceType) (*
 
 	// Create namespace directory
 	nsDir := filepath.Join(m.nsBasePath, id)
-	if err := os.MkdirAll(nsDir, 0755); err != nil {
+	if err := os.MkdirAll(nsDir, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("failed to create namespace directory: %w", err)
 	}
 
@@ -89,7 +89,7 @@ func (m *NamespaceManager) CreateNamespaces(id string, types []NamespaceType) (*
 
 // createNamespaceBindTarget creates a file for namespace bind mounting.
 func createNamespaceBindTarget(path string) error {
-	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL, 0444)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL, 0444) // #nosec G302 -- 0444 — read-only marker file, no secret content
 	if err != nil {
 		if os.IsExist(err) {
 			return nil
@@ -240,7 +240,7 @@ func (m *NamespaceManager) CreateNetworkNamespace(id string) (string, error) {
 	defer m.mu.Unlock()
 
 	nsPath := filepath.Join(m.nsBasePath, id, "net")
-	if err := os.MkdirAll(filepath.Dir(nsPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(nsPath), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return "", err
 	}
 
@@ -437,7 +437,7 @@ func (m *NamespaceManager) CreateUserNamespace(id string, uidMappings, gidMappin
 	defer m.mu.Unlock()
 
 	nsPath := filepath.Join(m.nsBasePath, id, "user")
-	if err := os.MkdirAll(filepath.Dir(nsPath), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(nsPath), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return "", err
 	}
 

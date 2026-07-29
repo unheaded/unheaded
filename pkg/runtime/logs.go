@@ -318,11 +318,11 @@ type LogWriter struct {
 // NewLogWriter creates a new log writer.
 func NewLogWriter(path string, stream StreamType, maxSize int64, maxFiles int) (*LogWriter, error) {
 	// Ensure directory exists
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("failed to create log directory: %w", err)
 	}
 
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644) // #nosec G302 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 	if err != nil {
 		return nil, fmt.Errorf("failed to open log file: %w", err)
 	}
@@ -407,7 +407,7 @@ func (lw *LogWriter) rotate() error {
 	_ = os.Rename(lw.path, lw.path+".1")
 
 	// Create new file
-	file, err := os.OpenFile(lw.path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
+	file, err := os.OpenFile(lw.path, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644) // #nosec G302 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 	if err != nil {
 		return err
 	}

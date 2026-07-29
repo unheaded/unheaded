@@ -104,7 +104,7 @@ func NewManager(config *Config) (*Manager, error) {
 	// Ensure directories exist (unless skipped for testing)
 	if !config.SkipDirectoryInit {
 		for _, dir := range []string{config.StoragePath, config.CachePath} {
-			if err := os.MkdirAll(dir, 0755); err != nil {
+			if err := os.MkdirAll(dir, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 				return nil, fmt.Errorf("creating directory %s: %w", dir, err)
 			}
 		}
@@ -213,7 +213,7 @@ func (m *Manager) ListImages(ctx context.Context) ([]*ImageInfo, error) {
 // ImportImage imports an image from a path.
 func (m *Manager) ImportImage(ctx context.Context, id string, kernelPath, initrdPath, rootfsPath string) (*ImageInfo, error) {
 	imagePath := filepath.Join(m.config.StoragePath, id)
-	if err := os.MkdirAll(imagePath, 0755); err != nil {
+	if err := os.MkdirAll(imagePath, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("creating image directory: %w", err)
 	}
 

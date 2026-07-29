@@ -127,7 +127,7 @@ func updateGoldenFile(t goldenTB, path string, content []byte) bool {
 		return false
 	}
 
-	if err := os.WriteFile(path, content, 0640); err != nil {
+	if err := os.WriteFile(path, content, 0640); err != nil { // #nosec G306 -- 0640 — group-readable only, no world access
 		t.Errorf("Failed to write golden file: %v", err)
 		return false
 	}
@@ -401,7 +401,7 @@ func RunGoldenTestCases(t *testing.T, dir string, fn func(input []byte) []byte) 
 
 			if *updateGolden {
 				expectedPath := filepath.Join(dir, tc.Name, "expected")
-				if err := os.WriteFile(expectedPath, actual, 0640); err != nil {
+				if err := os.WriteFile(expectedPath, actual, 0640); err != nil { // #nosec G306 -- 0640 — group-readable only, no world access
 					t.Errorf("Failed to update expected file: %v", err)
 				}
 				return

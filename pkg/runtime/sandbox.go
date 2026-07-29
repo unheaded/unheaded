@@ -250,7 +250,7 @@ func (r *DefaultRuntime) CreateSandbox(ctx context.Context, config *SandboxConfi
 
 	// Create sandbox directory
 	sandboxRoot := filepath.Join(r.config.Root, "sandboxes", config.ID)
-	if err := os.MkdirAll(sandboxRoot, 0755); err != nil {
+	if err := os.MkdirAll(sandboxRoot, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("failed to create sandbox directory: %w", err)
 	}
 
@@ -400,7 +400,7 @@ func (r *DefaultRuntime) setupSandboxDNS(sandboxRoot string, dnsConfig *DNSConfi
 		content += fmt.Sprintf("options %s\n", opt)
 	}
 
-	return os.WriteFile(resolvConfPath, []byte(content), 0644)
+	return os.WriteFile(resolvConfPath, []byte(content), 0644) // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 }
 
 // setupSandboxNetwork sets up networking for a sandbox.
