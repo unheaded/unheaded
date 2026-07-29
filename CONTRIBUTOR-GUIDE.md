@@ -141,16 +141,38 @@ Examples:
 - `s51-security-hardening`
 - `s50-protocol-optimization`
 
+### Long-lived branches
+
+| Branch | Role | Who merges here |
+|--------|------|-----------------|
+| `main` | Release branch. Reflects what is deployed on WEST/EAST. Always green, always tagged. | Only `develop`, via a promotion PR |
+| `develop` | Permanent integration branch. Default target for all work. | Feature branches, via PR |
+
+`develop` is branched from `main` and never deleted. `main` only ever moves
+forward by merging `develop`, so a broken feature branch cannot reach the
+deployed branch without passing through two gates.
+
 ### Workflow
 
-1. Create a branch from `main` with the sprint naming convention
+1. Create a branch from **`develop`** with the sprint naming convention
 2. Make commits with clear, atomic changes
-3. Push to origin and create a pull request
+3. Push to origin and open a pull request **targeting `develop`**
 4. Address code review feedback
-5. Squash and merge into `main` (CI must pass)
+5. Squash and merge into `develop` (CI must pass)
 6. Update battle plan in `docs/sessions/` with completion status
 
-**No direct commits to `main` are permitted.**
+### Promotion to `main`
+
+When `develop` is green and a set of work is ready to deploy:
+
+1. Open a PR from `develop` → `main`
+2. Use a **merge commit**, not a squash — squashing here would flatten the
+   individual feature commits that were already reviewed on `develop`, and
+   would make `develop` and `main` diverge permanently, so every later
+   promotion PR would replay the same diffs
+3. Tag `main` after the merge
+
+**No direct commits to `main` or `develop` are permitted.**
 
 ---
 
