@@ -353,7 +353,7 @@ func watchTimelineFile(ctx context.Context, filePath string, store *storage.Stor
 
 				// Publish update event to Wotan if connected
 				if wotan != nil {
-					go publishTimelineUpdate(wotan, "timeline_reloaded")
+					go publishTimelineUpdate(wotan, "timeline_reloaded") // #nosec G118 -- fire-and-forget Wotan publish from a long-lived file watcher; not request-scoped
 				}
 			}
 		}

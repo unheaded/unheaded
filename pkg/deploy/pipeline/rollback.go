@@ -444,7 +444,8 @@ func (m *RollbackManager) Initiate(ctx context.Context, request *RollbackRequest
 	m.mu.Unlock()
 
 	// Execute rollback
-	go m.executeRollback(context.Background(), rollback)
+	// Detach lifetime, keep trace values — see pkg/deploy/deploy.go.
+	go m.executeRollback(context.WithoutCancel(ctx), rollback)
 
 	return rollback, nil
 }

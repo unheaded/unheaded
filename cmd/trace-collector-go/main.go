@@ -898,7 +898,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 	}()
 
 	// Start publisher flush loop
-	go publisher.Run(ctx)
+	go publisher.Run(ctx) // #nosec G118 -- publisher.Run already takes and honours ctx
 
 	// Start HTTP server
 	mux := http.NewServeMux()

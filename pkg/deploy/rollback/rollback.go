@@ -260,7 +260,8 @@ func (m *Manager) Rollback(ctx context.Context, request *RollbackRequest) (*Roll
 	m.mu.Unlock()
 
 	// Execute rollback
-	go m.executeRollback(context.Background(), rollback, targetDeployment)
+	// Detach lifetime, keep trace values — see pkg/deploy/deploy.go.
+	go m.executeRollback(context.WithoutCancel(ctx), rollback, targetDeployment)
 
 	return rollback, nil
 }

@@ -371,7 +371,7 @@ func (mi *MeshIntegration) WatchService(ctx context.Context, name string) error 
 		return nil // Already watching
 	}
 
-	watchCtx, cancel := context.WithCancel(ctx)
+	watchCtx, cancel := context.WithCancel(ctx) // #nosec G118 -- cancel stored in mi.watchers and invoked at mesh_integration.go:154/387
 	mi.watchers[name] = cancel
 	mi.mu.Unlock()
 
