@@ -119,6 +119,7 @@ func (ds *DatabaseStorage) Store(ctx context.Context, event *audit.AuditEvent) e
 		requestID = sql.NullString{String: event.Source.RequestID, Valid: event.Source.RequestID != ""}
 	}
 
+	// #nosec G201 -- table name validated by validTableName regex at construction; all user values use ? placeholders
 	query := fmt.Sprintf(`
 		INSERT INTO %s (
 			id, timestamp, event_type, severity, action, outcome,
@@ -183,6 +184,7 @@ func (ds *DatabaseStorage) storeInTx(ctx context.Context, tx *sql.Tx, event *aud
 		requestID = sql.NullString{String: event.Source.RequestID, Valid: event.Source.RequestID != ""}
 	}
 
+	// #nosec G201 -- table name validated by validTableName regex at construction; all user values use ? placeholders
 	query := fmt.Sprintf(`
 		INSERT INTO %s (
 			id, timestamp, event_type, severity, action, outcome,
@@ -206,6 +208,7 @@ func (ds *DatabaseStorage) storeInTx(ctx context.Context, tx *sql.Tx, event *aud
 
 // Get retrieves a single event by ID.
 func (ds *DatabaseStorage) Get(ctx context.Context, id string) (*audit.AuditEvent, error) {
+	// #nosec G201 -- table name validated by validTableName regex at construction; all user values use ? placeholders
 	query := fmt.Sprintf(`
 		SELECT id, timestamp, event_type, severity, action, outcome,
 			actor_id, actor_type, actor_name,
@@ -242,6 +245,7 @@ func (ds *DatabaseStorage) Query(ctx context.Context, query *audit.AuditQuery) (
 
 // GetLastHash returns the hash of the most recent event.
 func (ds *DatabaseStorage) GetLastHash(ctx context.Context) (string, error) {
+	// #nosec G201 -- table name validated by validTableName regex at construction; all user values use ? placeholders
 	query := fmt.Sprintf(`
 		SELECT hash FROM %s ORDER BY timestamp DESC, id DESC LIMIT 1
 	`, ds.tableName)
@@ -257,7 +261,7 @@ func (ds *DatabaseStorage) GetLastHash(ctx context.Context) (string, error) {
 // Count returns the number of events matching the query.
 func (ds *DatabaseStorage) Count(ctx context.Context, query *audit.AuditQuery) (int64, error) {
 	where, args := ds.buildWhereClause(query)
-	sqlQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s %s", ds.tableName, where)
+	sqlQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s %s", ds.tableName, where) // #nosec G201 -- table name validated by validTableName regex at construction; all user values use ? placeholders
 
 	var count int64
 	err := ds.db.QueryRowContext(ctx, sqlQuery, args...).Scan(&count)

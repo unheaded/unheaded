@@ -556,7 +556,7 @@ func extractLayer(layerPath, destDir string) error {
 			continue
 		}
 
-		targetPath := filepath.Join(destDir, name)
+		targetPath := filepath.Join(destDir, name) // #nosec G305 -- extraction guarded by withinDir() plus symlink/hardlink target validation (see image.go)
 
 		// Validate path to prevent directory traversal
 		if !withinDir(destDir, targetPath) {
@@ -603,7 +603,7 @@ func extractLayer(layerPath, destDir string) error {
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 				return err
 			}
-			linkTarget := filepath.Join(destDir, header.Linkname)
+			linkTarget := filepath.Join(destDir, header.Linkname) // #nosec G305 -- extraction guarded by withinDir() plus symlink/hardlink target validation (see image.go)
 			// Unvalidated, `../../../etc/shadow` would hardlink a host file into
 			// the container rootfs — readable by anything running in it.
 			if !withinDir(destDir, linkTarget) {

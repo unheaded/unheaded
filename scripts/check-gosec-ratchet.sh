@@ -60,6 +60,44 @@ if [ -n "${ADDED}" ]; then
     exit 1
 fi
 
+# ── Guard 3: no #nosec swallowed by a string literal ─────────────────────────
+#
+# Appending "// #nosec ..." to a line ending in an opening backtick puts the
+# annotation INSIDE the raw string, not in a comment. Go still compiles: the
+# text simply becomes string content. That is how a bulk annotation pass turned
+#     query := fmt.Sprintf(`
+# into a SQL statement whose first line was "// #nosec G201 -- ...".
+#
+# The build cannot catch this and neither can gosec. Check it directly.
+if command -v python3 >/dev/null 2>&1; then
+    SWALLOWED="$(cd "${REPO_ROOT}" && git ls-files '*.go' | python3 -c '
+import sys
+bad=[]
+for f in sys.stdin.read().split():
+    try: src=open(f).read()
+    except OSError: continue
+    if "#nosec" not in src: continue
+    raw=False
+    for n,l in enumerate(src.split("\n"),1):
+        if "#nosec" in l and (raw or l.split("#nosec")[0].count("`")%2==1):
+            bad.append(f"{f}:{n}")
+        raw ^= (l.count("`")%2==1)
+print("\n".join(bad))
+')"
+    if [ -n "${SWALLOWED}" ]; then
+        echo "============================================================"
+        echo "  FAIL: #nosec swallowed by a string literal"
+        echo "============================================================"
+        echo
+        printf '    %s\n' ${SWALLOWED}
+        echo
+        echo "  The annotation is string CONTENT, not a comment — it suppresses"
+        echo "  nothing and corrupts the literal. Put it on the line ABOVE."
+        echo "============================================================"
+        exit 1
+    fi
+fi
+
 # ── Guard 2: no #nosec shadowed by a leading //nolint ────────────────────────
 #
 # gosec only honours a suppression comment that LEADS with "#nosec". A line

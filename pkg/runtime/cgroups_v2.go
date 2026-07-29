@@ -1227,7 +1227,7 @@ func (w *CgroupEventWatcher) processEvents(containerID string) {
 			}
 
 			// Get watch descriptor
-			wd := int(buf[offset]) | int(buf[offset+1])<<8 | int(buf[offset+2])<<16 | int(buf[offset+3])<<24
+			wd := int(buf[offset]) | int(buf[offset+1])<<8 | int(buf[offset+2])<<16 | int(buf[offset+3])<<24 // #nosec G602 -- bounded by the offset+SizeofInotifyEvent > n check immediately above
 
 			// Look up the file path for this watch
 			filePath, ok := w.watches[wd]

@@ -263,6 +263,11 @@ func TestRedirectHandler_RedirectWithMessage_TargetWithQuery(t *testing.T) {
 
 func TestRedirectHandler_RedirectToHTTPS(t *testing.T) {
 	rh := NewRedirectHandler("")
+	// Host-derived redirects now require an explicit allowlist — r.Host is
+	// client-controlled and was an open-redirect vector (gosec G710). The
+	// unconfigured fail-closed path is covered by
+	// TestHostDerivedRedirects_FailClosed.
+	rh.SetAllowedHosts([]string{"example.com"})
 	req := httptest.NewRequest("GET", "http://example.com/path?q=1", nil)
 	req.Host = "example.com"
 	w := httptest.NewRecorder()
@@ -284,6 +289,11 @@ func TestRedirectHandler_RedirectToHTTPS(t *testing.T) {
 
 func TestRedirectHandler_RedirectToWWW_NoWWW(t *testing.T) {
 	rh := NewRedirectHandler("")
+	// Host-derived redirects now require an explicit allowlist — r.Host is
+	// client-controlled and was an open-redirect vector (gosec G710). The
+	// unconfigured fail-closed path is covered by
+	// TestHostDerivedRedirects_FailClosed.
+	rh.SetAllowedHosts([]string{"example.com"})
 	req := httptest.NewRequest("GET", "http://example.com/path", nil)
 	req.Host = "example.com"
 	w := httptest.NewRecorder()
@@ -316,6 +326,11 @@ func TestRedirectHandler_RedirectToWWW_AlreadyWWW(t *testing.T) {
 
 func TestRedirectHandler_RedirectToWWW_HTTPS(t *testing.T) {
 	rh := NewRedirectHandler("")
+	// Host-derived redirects now require an explicit allowlist — r.Host is
+	// client-controlled and was an open-redirect vector (gosec G710). The
+	// unconfigured fail-closed path is covered by
+	// TestHostDerivedRedirects_FailClosed.
+	rh.SetAllowedHosts([]string{"example.com"})
 	req := httptest.NewRequest("GET", "https://example.com/path", nil)
 	req.Host = "example.com"
 	req.TLS = &tls.ConnectionState{} // Mark as TLS
@@ -335,6 +350,11 @@ func TestRedirectHandler_RedirectToWWW_HTTPS(t *testing.T) {
 
 func TestRedirectHandler_RedirectToNonWWW(t *testing.T) {
 	rh := NewRedirectHandler("")
+	// Host-derived redirects now require an explicit allowlist — r.Host is
+	// client-controlled and was an open-redirect vector (gosec G710). The
+	// unconfigured fail-closed path is covered by
+	// TestHostDerivedRedirects_FailClosed.
+	rh.SetAllowedHosts([]string{"example.com"})
 	req := httptest.NewRequest("GET", "/path", nil)
 	req.Host = "www.example.com"
 	req.RequestURI = "/path"
@@ -356,6 +376,8 @@ func TestRedirectHandler_RedirectToNonWWW(t *testing.T) {
 
 func TestRedirectHandler_RedirectToNonWWW_AlreadyNonWWW(t *testing.T) {
 	rh := NewRedirectHandler("")
+	// Host-derived redirect: requires an explicit allowlist (gosec G710).
+	rh.SetAllowedHosts([]string{"example.com"})
 	req := httptest.NewRequest("GET", "http://example.com/path", nil)
 	req.Host = "example.com"
 	w := httptest.NewRecorder()
@@ -370,6 +392,8 @@ func TestRedirectHandler_RedirectToNonWWW_AlreadyNonWWW(t *testing.T) {
 
 func TestRedirectHandler_RedirectToNonWWW_HTTPS(t *testing.T) {
 	rh := NewRedirectHandler("")
+	// Host-derived redirect: requires an explicit allowlist (gosec G710).
+	rh.SetAllowedHosts([]string{"example.com"})
 	req := httptest.NewRequest("GET", "https://www.example.com/path", nil)
 	req.Host = "www.example.com"
 	req.TLS = &tls.ConnectionState{}

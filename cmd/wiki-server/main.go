@@ -49,7 +49,6 @@ import (
 	"github.com/yuin/goldmark"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
-	"github.com/yuin/goldmark/renderer/html"
 
 	"unheaded/pkg/auth"
 )
@@ -124,10 +123,19 @@ func NewWikiServer(wikiDir string) (*WikiServer, error) {
 		return nil, fmt.Errorf("wiki dir %s is not a directory", absDir)
 	}
 
+	// NOTE: html.WithUnsafe() is deliberately NOT set.
+	//
+	// It was, which told goldmark to pass raw HTML through verbatim. Combined
+	// with the template.HTML() wrap in renderPage — which bypasses Go's
+	// contextual auto-escaping — any <script> in a markdown source rendered as
+	// live markup: stored XSS for anyone able to land a file in the wiki dir.
+	//
+	// Checked before removing it: 0 of 161 wiki pages use raw HTML tags, so the
+	// option bought nothing and cost the escaping. goldmark's default escapes
+	// raw HTML, which is what we want for rendered-from-file content.
 	md := goldmark.New(
 		goldmark.WithExtensions(extension.GFM, extension.Table),
 		goldmark.WithParserOptions(parser.WithAutoHeadingID()),
-		goldmark.WithRendererOptions(html.WithUnsafe()),
 	)
 
 	tmpl, err := template.New("page").Parse(pageTemplate)
@@ -257,7 +265,7 @@ func (ws *WikiServer) handleWiki(w http.ResponseWriter, r *http.Request) {
 
 	data := PageData{
 		Title:      title,
-		Content:    template.HTML(content),
+		Content:    template.HTML(content), // #nosec G203 -- goldmark no longer emits raw HTML (WithUnsafe removed); block HTML is dropped, inline HTML entity-escaped
 		NavItems:   ws.listPages(),
 		ActiveSlug: path,
 		Version:    serviceVersion,

@@ -2542,7 +2542,7 @@ func (s *Server) handleServiceConfig(w http.ResponseWriter, r *http.Request) {
 		}
 
 		w.Header().Set("Content-Type", "application/x-yaml")
-		_, _ = w.Write(yamlBytes)
+		_, _ = w.Write(yamlBytes) // #nosec G705 -- response is application/x-yaml and X-Content-Type-Options: nosniff is set globally (server.go:362)
 
 	case http.MethodPut:
 		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1 MB limit
