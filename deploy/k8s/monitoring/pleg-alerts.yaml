@@ -16,7 +16,7 @@ spec:
         severity: critical
         team: platform
       annotations:
-        summary: "PLEG relist duration p99 > 10s on {{ \$labels.node }}"
+        summary: 'PLEG relist duration p99 > 10s on {{ $labels.node }}'
         description: "Kubelet PLEG is stalling — risk of NodeNotReady cascade. Check DaemonSet resource consumption."
         runbook_url: "https://wiki.unheaded.dev/runbooks/pleg-stall"
     - alert: KubeletNotReady
@@ -26,5 +26,5 @@ spec:
         severity: critical
         team: platform
       annotations:
-        summary: "Node {{ \$labels.node }} NotReady for > 2 minutes"
+        summary: 'Node {{ $labels.node }} NotReady for > 2 minutes'
         description: "Node is unhealthy. Check kubelet logs, PLEG health, and memory pressure."

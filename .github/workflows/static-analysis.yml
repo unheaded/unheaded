@@ -24,6 +24,25 @@ permissions:
   contents: read
 
 jobs:
+  manifests:
+    name: YAML manifests parse
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet pyyaml
+
+      # Gating from day one — the tree is clean as of 2026-07-29, after fixing
+      # deploy/k8s/monitoring/pleg-alerts.yaml, which used an invalid \$ escape
+      # inside a double-quoted scalar and therefore could not be applied at all.
+      # Nothing had ever parsed the manifests, so a whole set of PLEG alert
+      # rules was silently absent from the cluster.
+      - name: Parse every tracked YAML
+        run: ./scripts/check-manifest-yaml.sh
+
   shellcheck:
     name: Shell (shellcheck)
     runs-on: ubuntu-latest

@@ -15,7 +15,10 @@ spec:
     spec:
       serviceAccountName: anamnesis
       automountServiceAccountToken: false
-      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      # Dedicated run-as identity from pkg/uids. runAsNonRoot alone stops root
+      # but leaves the UID to whatever the image declares, so two services can
+      # silently share one.
+      securityContext: { runAsUser: 16760, runAsGroup: 16760, fsGroup: 16760, runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
       containers:
       - name: anamnesis
         image: unheaded/anamnesis:latest

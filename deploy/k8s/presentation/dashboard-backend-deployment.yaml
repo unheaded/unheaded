@@ -24,6 +24,13 @@ spec:
       priorityClassName: unheaded-standard
       automountServiceAccountToken: false
       securityContext:
+        # Dedicated run-as identity from pkg/uids. runAsNonRoot alone stops
+        # root but leaves the UID to whatever the image declares, so two
+        # services can silently share one and file ownership tells an
+        # auditor nothing about which of them wrote what.
+        runAsUser: 16728
+        runAsGroup: 16728
+        fsGroup: 16728
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
