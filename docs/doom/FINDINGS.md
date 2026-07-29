@@ -1,5 +1,48 @@
 # Doom Findings -- Session 2026-03-29
 
+> ## ✅ 2026-07-29 — Retail DOOM.WAD restored; IWAD flavour now detected, not hardcoded
+> **Symptom:** shareware `doom1.wad` ran fine, retail `DOOM.WAD` did not.
+>
+> **Root cause:** the `access()` stub in `demos/doom/libc_stubs.c` hardcoded a single
+> filename. id DOOM's `IdentifyVersion()` (d_main.c) selects `gamemode` by `access()`-probing
+> `doom2f.wad → doom2.wad → plutonia.wad → tnt.wad → doomu.wad → doom.wad → doom1.wad` and
+> taking the first hit, so whichever name the stub reports as present **pins the game mode for
+> the whole build**. Commit `625c0b9b` changed that name from `doomu.wad`/`doom.wad` to
+> `doom1.wad` to fix a shareware DEMO4 crash — a correct fix for shareware that silently made
+> retail unrunnable. The two IWADs cannot share one hardcoded name:
+>
+> | IWAD | Needs mode | Because |
+> |------|-----------|---------|
+> | `doom1.wad` (4,196,020 B) | shareware | demo loop is `%6`; the WAD has no `DEMO4` — `retail` mode `I_Error`s ~5s in |
+> | `DOOM.WAD` (12,408,292 B) | retail | Ultimate DOOM has `E4M1` + `DEMO4` but **no `HELP2`**, which `registered` mode requires |
+>
+> Note this was never a WAD *size* problem — `WAD_MAX_SIZE` was already 16 MiB and the real
+> size was already published via `WAD_SIZE_ADDR`. The old RUNBOOK "known issue #3" blaming a
+> size check was a red herring and has been corrected.
+>
+> **Fix:** detect the flavour from the lump directory at load time instead of hardcoding it.
+> `loader::detect_iwad_flavour()` scans for `MAP01` → commercial, `E4M1` → retail, `E2M1` →
+> registered, else shareware, and doom-runner writes the matching probe name to a new
+> `WAD_IWAD_NAME_ADDR` (0x01BF_FFC0, 16 B) in the scratch page just below `WAD_SIZE_ADDR`.
+> `access()` compares the basename against that string. Detection is content-based on purpose:
+> the retail IWAD ships *named* `DOOM.WAD`, which maps to the wrong (`registered`) mode.
+>
+> **Verified 2026-07-29** on WEST, full pipeline (ring + XDP + injector, ~89k pkt/s):
+> - `DOOM.WAD` → `detected IWAD flavour: Retail (2306 lumps) — probe name 'doomu.wad'`;
+>   renders **THE ULTIMATE DOOM** title screen + the retail credits page ("SPECIAL THANKS TO
+>   EPISODE FOUR"); ran >10 min / 13.4M packets / ~878B instructions with no `I_Error`.
+> - `doom1.wad` → `Shareware (1264 lumps) — probe name 'doom1.wad'`; renders the shareware
+>   title screen ("$9.00" banner) and survives well past the old ~5s DEMO4 crash. No regression.
+>
+> **Testing gotcha:** `pkill -f doom-runner` did not reliably kill the sudo-launched runner. A
+> stale instance kept port 16666 and the "shareware" run died with `Address already in use`
+> while the bridge happily served *retail* frames — briefly looked like a shareware bug.
+> Check `ss -lntp | grep 16666` is empty between runs, and kill by PID.
+>
+> Also fixed in passing: `deploy/systemd/unheaded-doom-runner.service` was missing the `run`
+> subcommand and the required `--doom-mbc`/`--doom-elf` args, and pointed `--wad` at a
+> nonexistent path — systemd startup could not have worked as written.
+
 > ## ✅ 2026-07-03 UPDATE — Doom RAN with ADR-079 live; PC valid, no corruption
 > Brought Doom online through the full doom-runner pipeline (commit `7eba83e0`). **Doom loads,
 > executes, and renders**: PC stays in valid ROM range (sampled 0x130bb ≪ 86463 — NO corruption

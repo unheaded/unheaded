@@ -258,6 +258,100 @@ pub fn load_wad(wad_path: &Path) -> Result<Vec<u8>> {
     Ok(wad_bytes)
 }
 
+/// The IWAD flavours id DOOM can identify, and the probe name that selects each.
+///
+/// `IdentifyVersion()` in d_main.c `access()`-probes a fixed list of filenames and
+/// sets `gamemode` from the first hit. Our `access()` stub reports exactly one of
+/// them as present, so detecting the flavour here is what lets the same build run
+/// shareware, registered, retail, or commercial IWADs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IwadFlavour {
+    /// Doom II / Final Doom — `MAP01` present. gamemode = commercial.
+    Commercial,
+    /// Ultimate DOOM — `E4M1` present. gamemode = retail (4 episodes, has DEMO4).
+    Retail,
+    /// Registered DOOM — `E2M1` present, no `E4M1`. gamemode = registered.
+    Registered,
+    /// Shareware DOOM — `E1M1` only. gamemode = shareware (demo loop has no DEMO4).
+    Shareware,
+}
+
+impl IwadFlavour {
+    /// The filename `IdentifyVersion()` probes to select this flavour.
+    pub fn probe_name(self) -> &'static str {
+        match self {
+            Self::Commercial => "doom2.wad",
+            Self::Retail => "doomu.wad",
+            Self::Registered => "doom.wad",
+            Self::Shareware => "doom1.wad",
+        }
+    }
+}
+
+/// Detect the IWAD flavour from the lump directory.
+///
+/// Content-based, not filename-based: the retail IWAD ships as `DOOM.WAD`, but
+/// that name maps to gamemode = registered, which then demands a `HELP2` lump
+/// that Ultimate DOOM does not have. Marker lumps are the only reliable signal.
+pub fn detect_iwad_flavour(wad: &[u8]) -> Result<IwadFlavour> {
+    if wad.len() < 12 {
+        bail!("WAD is only {} bytes — too short for a header", wad.len());
+    }
+    if &wad[..4] != b"IWAD" && &wad[..4] != b"PWAD" {
+        bail!(
+            "WAD magic is {:?}, expected 'IWAD' or 'PWAD'",
+            String::from_utf8_lossy(&wad[..4]),
+        );
+    }
+
+    let num_lumps = i32::from_le_bytes([wad[4], wad[5], wad[6], wad[7]]);
+    let dir_ofs = i32::from_le_bytes([wad[8], wad[9], wad[10], wad[11]]);
+    if num_lumps < 0 || dir_ofs < 0 {
+        bail!("WAD directory header is negative (numlumps={num_lumps}, infotableofs={dir_ofs})");
+    }
+    let (num_lumps, dir_ofs) = (num_lumps as usize, dir_ofs as usize);
+
+    let dir_end = dir_ofs
+        .checked_add(num_lumps * 16)
+        .context("WAD directory extent overflowed")?;
+    if dir_end > wad.len() {
+        bail!(
+            "WAD directory ends at {dir_end} but file is only {} bytes",
+            wad.len(),
+        );
+    }
+
+    let (mut has_map01, mut has_e4m1, mut has_e2m1) = (false, false, false);
+    for i in 0..num_lumps {
+        let name_bytes = &wad[dir_ofs + i * 16 + 8..dir_ofs + i * 16 + 16];
+        let name_len = name_bytes.iter().position(|&b| b == 0).unwrap_or(8);
+        let name = String::from_utf8_lossy(&name_bytes[..name_len]).to_ascii_uppercase();
+        match name.as_str() {
+            "MAP01" => has_map01 = true,
+            "E4M1" => has_e4m1 = true,
+            "E2M1" => has_e2m1 = true,
+            _ => {}
+        }
+    }
+
+    let flavour = if has_map01 {
+        IwadFlavour::Commercial
+    } else if has_e4m1 {
+        IwadFlavour::Retail
+    } else if has_e2m1 {
+        IwadFlavour::Registered
+    } else {
+        IwadFlavour::Shareware
+    };
+
+    info!(
+        "detected IWAD flavour: {flavour:?} ({} lumps) — probe name '{}'",
+        num_lumps,
+        flavour.probe_name(),
+    );
+    Ok(flavour)
+}
+
 /// Pack a byte slice into word-aligned u32 values (little-endian).
 /// Pads the final word with zeros if the data length is not a multiple of 4.
 pub fn bytes_to_words(data: &[u8]) -> Vec<u32> {
@@ -417,5 +511,105 @@ mod tests {
     fn heap_break_is_at_heap_start() {
         let (_, value) = heap_break_word();
         assert_eq!(value, memory::HEAP_START);
+    }
+
+    /// Build a minimal but structurally valid IWAD containing the given lump names.
+    fn synth_iwad(lumps: &[&str]) -> Vec<u8> {
+        let dir_ofs = 12u32;
+        let mut wad = Vec::new();
+        wad.extend_from_slice(b"IWAD");
+        wad.extend_from_slice(&(lumps.len() as u32).to_le_bytes());
+        wad.extend_from_slice(&dir_ofs.to_le_bytes());
+        for name in lumps {
+            wad.extend_from_slice(&0u32.to_le_bytes()); // filepos
+            wad.extend_from_slice(&0u32.to_le_bytes()); // size
+            let mut padded = [0u8; 8];
+            padded[..name.len()].copy_from_slice(name.as_bytes());
+            wad.extend_from_slice(&padded);
+        }
+        wad
+    }
+
+    #[test]
+    fn detects_shareware() {
+        let wad = synth_iwad(&["E1M1", "PLAYPAL"]);
+        assert_eq!(detect_iwad_flavour(&wad).unwrap(), IwadFlavour::Shareware);
+    }
+
+    #[test]
+    fn detects_registered() {
+        let wad = synth_iwad(&["E1M1", "E2M1", "E3M1"]);
+        assert_eq!(detect_iwad_flavour(&wad).unwrap(), IwadFlavour::Registered);
+    }
+
+    /// Ultimate DOOM ships as DOOM.WAD but must map to `doomu.wad`/retail: the
+    /// `doom.wad`/registered path demands a HELP2 lump it does not contain.
+    #[test]
+    fn detects_retail_from_e4m1() {
+        let wad = synth_iwad(&["E1M1", "E2M1", "E3M1", "E4M1", "DEMO4"]);
+        assert_eq!(detect_iwad_flavour(&wad).unwrap(), IwadFlavour::Retail);
+        assert_eq!(IwadFlavour::Retail.probe_name(), "doomu.wad");
+    }
+
+    /// MAP01 wins over episode markers — Doom II has no ExMy lumps, but a PWAD
+    /// merge or odd IWAD should still resolve to commercial.
+    #[test]
+    fn detects_commercial() {
+        let wad = synth_iwad(&["MAP01", "E1M1"]);
+        assert_eq!(detect_iwad_flavour(&wad).unwrap(), IwadFlavour::Commercial);
+    }
+
+    #[test]
+    fn rejects_non_wad() {
+        assert!(detect_iwad_flavour(b"not a wad at all").is_err());
+    }
+
+    #[test]
+    fn rejects_truncated_directory() {
+        let mut wad = synth_iwad(&["E1M1"]);
+        wad.truncate(20); // header claims 1 lump, directory is cut short
+        assert!(detect_iwad_flavour(&wad).is_err());
+    }
+
+    /// Detection must work on the real IWADs, not just synthetic ones.
+    /// Skips silently on machines without the WAD files.
+    #[test]
+    fn detects_real_iwads_when_present() {
+        let cases = [
+            ("doom1.wad", IwadFlavour::Shareware),
+            ("DOOM.WAD", IwadFlavour::Retail),
+        ];
+        for (file, expected) in cases {
+            let path = std::path::Path::new("/home/govan/tmp/projects/doom-related").join(file);
+            let Ok(bytes) = std::fs::read(&path) else {
+                continue;
+            };
+            assert_eq!(
+                detect_iwad_flavour(&bytes).unwrap(),
+                expected,
+                "{file} should detect as {expected:?}",
+            );
+        }
+    }
+
+    /// The probe-name region must be inside the scratch page and must not
+    /// overlap WAD_SIZE_ADDR or the WAD data itself.
+    #[test]
+    fn iwad_name_region_does_not_collide() {
+        let name_end = memory::WAD_IWAD_NAME_ADDR + memory::WAD_IWAD_NAME_SIZE;
+        assert!(memory::WAD_IWAD_NAME_ADDR > memory::HEAP_PTR_ADDR);
+        assert!(name_end <= memory::WAD_SIZE_ADDR);
+        assert!(memory::WAD_SIZE_ADDR + 4 <= memory::WAD_BASE);
+        assert_eq!(memory::WAD_IWAD_NAME_ADDR % 4, 0);
+        assert_eq!(memory::WAD_IWAD_NAME_SIZE % 4, 0);
+        // Every probe name must fit with room for a NUL terminator.
+        for f in [
+            IwadFlavour::Commercial,
+            IwadFlavour::Retail,
+            IwadFlavour::Registered,
+            IwadFlavour::Shareware,
+        ] {
+            assert!(f.probe_name().len() < memory::WAD_IWAD_NAME_SIZE as usize);
+        }
     }
 }

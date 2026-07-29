@@ -712,12 +712,29 @@ int sscanf(const char *str, const char *fmt, ...) {
 
 #define WAD_BASE      0x01C00000
 #define WAD_SIZE_ADDR 0x01BFFFF0  // doom-runner writes actual WAD byte count here
+#define WAD_IWAD_NAME_ADDR 0x01BFFFC0  // doom-runner writes the IWAD probe name here
+#define WAD_IWAD_NAME_SIZE 16
 
 // Read actual WAD size from RAM_MAP (written by doom-runner at load time).
 // Falls back to 16 MiB if the address is zero (safety net).
 static unsigned int get_wad_size(void) {
     unsigned int sz = *(volatile unsigned int *)WAD_SIZE_ADDR;
     return (sz > 0) ? sz : (16 * 1024 * 1024);
+}
+
+// Read the canonical IWAD probe name that doom-runner detected from the lump
+// directory (see loader.rs detect_iwad_flavour). access() reports only this one
+// name as present, which is what selects gamemode in IdentifyVersion().
+// Falls back to shareware if the region is empty (older runner, no name written).
+static const char *get_iwad_probe_name(void) {
+    static char name[WAD_IWAD_NAME_SIZE + 1];
+    const volatile char *src = (const volatile char *)WAD_IWAD_NAME_ADDR;
+
+    for (int i = 0; i < WAD_IWAD_NAME_SIZE; i++)
+        name[i] = src[i];
+    name[WAD_IWAD_NAME_SIZE] = '\0';  // guarantee termination even if unset
+
+    return (name[0] != '\0') ? name : "doom1.wad";
 }
 
 // File table for memory-mapped WAD access.
@@ -974,16 +991,21 @@ int access(const char *path, int mode) {
     }
     access_call_count++;
 
-    // Only report the specific WAD that doom-runner loaded at WAD_BASE.
-    // IdentifyVersion() probes for doom2f.wad, doom2.wad, plutonia.wad,
-    // tnt.wad, doomu.wad, doom.wad, doom1.wad — in that order. Matching
-    // ANY .wad caused gamemode=commercial (doom2f.wad hit first), which
-    // loads Doom II switch textures (SW1PANEL etc.) that don't exist in
-    // the retail DOOM 1 WAD, crashing R_TextureNumForName.
+    // Only report the ONE probe name that matches the WAD doom-runner loaded.
     //
-    // We have retail DOOM 1 (Ultimate DOOM, 12,408,292 bytes). Match only
-    // "doom.wad" so IdentifyVersion sets gamemode=registered, episode=2,
-    // loading only DOOM 1 switches whose textures exist in the WAD.
+    // IdentifyVersion() probes doom2f.wad, doom2.wad, plutonia.wad, tnt.wad,
+    // doomu.wad, doom.wad, doom1.wad — in that order — and takes the first hit
+    // as the gamemode. Matching ANY .wad yields gamemode=commercial (doom2f.wad
+    // hits first), which loads Doom II switch textures (SW1PANEL etc.) absent
+    // from DOOM 1 IWADs, crashing R_TextureNumForName.
+    //
+    // Which single name to match depends on the IWAD, so it cannot be hardcoded:
+    //   doom1.wad -> shareware  (demo loop %6; the WAD has no DEMO4)
+    //   doom.wad  -> registered (needs HELP2, which Ultimate DOOM lacks)
+    //   doomu.wad -> retail     (4 episodes + DEMO4; correct for Ultimate DOOM)
+    //   doom2.wad -> commercial
+    // doom-runner inspects the lump directory at load time and writes the right
+    // name to WAD_IWAD_NAME_ADDR. We just compare against it.
     size_t plen = strlen(path);
 
     // Extract basename: find last '/' or start of string
@@ -992,11 +1014,7 @@ int access(const char *path, int mode) {
         if (path[i] == '/' || path[i] == '\\') base = path + i + 1;
     }
 
-    // Match doom1.wad for gamemode=shareware. Shareware demo loop uses %6
-    // (sequences 0-5 only), so case 6 (demo4) is never reached. Prior stub
-    // matched doomu.wad/doom.wad → gamemode=retail → %7 → tried to load
-    // demo4 which doom1.wad doesn't have, causing I_Error exit after ~5s.
-    if (strcasecmp(base, "doom1.wad") == 0) {
+    if (strcasecmp(base, get_iwad_probe_name()) == 0) {
         debug_breadcrumb(0x00A0);  // matched WAD
         return 0;
     }

@@ -38,10 +38,31 @@ Shareware (free, sufficient for E1):
 ~/tmp/projects/doom-related/doom1.wad
 ```
 
-Retail (full game):
+Retail (full game — Ultimate DOOM, 4 episodes):
 ```
 ~/tmp/projects/doom-related/DOOM.WAD
 ```
+
+Either works with the same build. Pass the one you want to `--wad` (full path,
+not `~`); doom-runner reads the lump directory and picks the game mode itself:
+
+| IWAD contains | Detected flavour | gamemode   |
+|---------------|------------------|------------|
+| `MAP01`       | Commercial       | commercial |
+| `E4M1`        | Retail           | retail     |
+| `E2M1`        | Registered       | registered |
+| `E1M1` only   | Shareware        | shareware  |
+
+Confirm the detection in the runner log:
+```
+detected IWAD flavour: Retail (2306 lumps) — probe name 'doomu.wad'
+```
+
+Why this matters: id DOOM's `IdentifyVersion()` picks the game mode by
+`access()`-probing filenames, and our stub can report exactly one of them as
+present. Getting it wrong is not cosmetic — `registered` demands a `HELP2` lump
+Ultimate DOOM lacks, and `retail` plays a `DEMO4` that shareware lacks (that
+one used to `I_Error` out about 5 seconds in).
 
 ---
 
@@ -101,9 +122,11 @@ interpreter semantics for xv6/Linux. Using it will produce a black screen.
 
 Verify it's the DOOM build:
 ```bash
-strings ebpf/target/bpfel-unknown-none/release/monad-cpu-ebpf | grep "ascend"
-# Should print nothing. If it prints "ascend-linux", rebuild without the flag.
+strings ebpf/target/bpfel-unknown-none/release/monad-cpu-ebpf | grep 'feature = "ascend-linux"'
 ```
+Lines like `if !cfg!(feature = "ascend-linux") && ...` are **expected** — they are
+source text embedded in debug info, not evidence the feature is on. A plain
+`grep ascend` matches them and is a false positive; don't rebuild on that alone.
 
 ### Build 3: doom-runner (Rust)
 
@@ -326,14 +349,21 @@ sudo systemctl stop unheaded-doom.target
 
 ### Manual
 ```bash
-sudo pkill -f doom-go-injector
-sudo pkill -f doom-runner
+sudo pkill -9 -f doom-go-injector
+
+# pkill -f doom-runner is NOT reliable for the sudo-launched runner — kill by PID.
+pgrep -f "doom-runner run" | xargs -r sudo kill -9
+
 sudo ./scripts/doom-ring.sh teardown
 
-# Confirm clean
-ip netns list | grep monad   # should be empty
-sudo bpftool prog list | grep monad_cpu  # should be empty
+# Confirm clean — all three must come back empty
+ip netns list | grep monad               # namespaces gone
+sudo ss -lntp | grep 16666               # bridge port released
+sudo bpftool prog list | grep monad_cpu  # BPF program unloaded
 ```
+
+The port check is the one that bites: a surviving runner keeps serving frames from
+the *old* WAD while the next start silently dies on `Address already in use`.
 
 ---
 
@@ -384,6 +414,9 @@ sudo journalctl -u unheaded-doom-runner -f
 | Browser shows "disconnected" | doom-runner crashed or bridge not up | Check doom-runner is still running |
 | eBPF load fails with verifier error | ascend-linux eBPF object used | Rebuild eBPF without `--features ascend-linux` |
 | Ring setup fails "namespace exists" | Stale namespaces from previous kill | Run teardown first, then setup |
+| `Error: Address already in use (os error 98)` | A previous doom-runner still holds port 16666 — `pkill -f doom-runner` does **not** reliably kill the sudo-launched process | `pgrep -f "doom-runner run" \| xargs -r sudo kill -9`, then confirm `sudo ss -lntp \| grep 16666` is empty |
+| Frames look like the *previous* WAD | Stale runner still serving; the new one exited on the bind error above | Same fix. Always check the new runner logged `server ready` and the expected `detected IWAD flavour` line |
+| Wrong episodes / crash ~5s in / missing texture `I_Error` | IWAD flavour mismatch | Check the `detected IWAD flavour` line matches your WAD (see "WAD file" above) |
 
 ---
 
@@ -397,5 +430,7 @@ sudo journalctl -u unheaded-doom-runner -f
 2. **E1M2 texture corruption** — some textures render incorrectly on E1M2.
    E1M1 is fully playable. See FINDINGS.md.
 
-3. **WAD size limit** — the original 12MB retail WAD has a hardcoded size
-   check in memory.rs. doom1.wad (shareware, ~4MB) works cleanly.
+3. ~~**WAD size limit**~~ — resolved. `WAD_MAX_SIZE` is 16 MiB and the actual
+   size is published to the guest at `WAD_SIZE_ADDR`. Both the retail
+   `DOOM.WAD` (12,408,292 bytes) and shareware `doom1.wad` (4,196,020 bytes)
+   load and run.
