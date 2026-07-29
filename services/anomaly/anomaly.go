@@ -284,7 +284,7 @@ func (s *Service) handleTopAnomalies(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"flows": scores,
 		"count": len(scores),
 	})
@@ -328,7 +328,7 @@ func (s *Service) handleHeatmap(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"cells": cells,
 		"count": len(cells),
 	})
@@ -365,7 +365,7 @@ func (s *Service) handleBaseline(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	json.NewEncoder(w).Encode(response) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleModelConfig returns the active model metadata.
@@ -380,7 +380,7 @@ func (s *Service) handleModelConfig(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(config)
+	json.NewEncoder(w).Encode(config) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleModelUpdate updates the model weights (push to BPF map).
@@ -418,7 +418,7 @@ func (s *Service) handleModelUpdate(w http.ResponseWriter, r *http.Request) {
 		Msg("model updated")
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(config)
+	json.NewEncoder(w).Encode(config) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleThresholdOverride allows manual threshold override for a service.
@@ -456,7 +456,7 @@ func (s *Service) handleThresholdOverride(w http.ResponseWriter, r *http.Request
 		Msg("threshold manually overridden")
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.thresholds[serviceID])
+	json.NewEncoder(w).Encode(s.thresholds[serviceID]) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleAlerts returns recent alerts.
@@ -489,7 +489,7 @@ func (s *Service) handleAlerts(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"alerts": alerts,
 		"count":  len(alerts),
 	})
@@ -498,7 +498,7 @@ func (s *Service) handleAlerts(w http.ResponseWriter, r *http.Request) {
 // handleHealth returns service health status.
 func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":  "healthy",
 		"service": "anomaly",
 	})
@@ -507,7 +507,7 @@ func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
 // handleReady returns service readiness status.
 func (s *Service) handleReady(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"ready":   true,
 		"service": "anomaly",
 	})

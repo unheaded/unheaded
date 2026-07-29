@@ -161,7 +161,7 @@ func openAFPacket(ifaceName string) (int, *unix.SockaddrLinklayer, error) {
 	// Look up interface index.
 	iface, err := net.InterfaceByName(ifaceName)
 	if err != nil {
-		unix.Close(fd)
+		unix.Close(fd) // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 		return -1, nil, fmt.Errorf("interface %q: %w", ifaceName, err)
 	}
 
@@ -172,7 +172,7 @@ func openAFPacket(ifaceName string) (int, *unix.SockaddrLinklayer, error) {
 	}
 
 	if err := unix.Bind(fd, sll); err != nil {
-		unix.Close(fd)
+		unix.Close(fd) // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 		return -1, nil, fmt.Errorf("bind(%s): %w", ifaceName, err)
 	}
 

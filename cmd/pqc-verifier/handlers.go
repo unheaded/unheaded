@@ -135,7 +135,7 @@ func (h *Handlers) handleVerify(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (h *Handlers) handleVerifySovereign(w http.ResponseWriter, r *http.Request) {
@@ -185,12 +185,12 @@ func (h *Handlers) handleVerifySovereign(w http.ResponseWriter, r *http.Request)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (h *Handlers) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":  "healthy",
 		"service": "pqc-verifier",
 		"uptime":  time.Since(h.startTime).String(),
@@ -200,11 +200,11 @@ func (h *Handlers) handleHealth(w http.ResponseWriter, _ *http.Request) {
 func (h *Handlers) handleReady(w http.ResponseWriter, _ *http.Request) {
 	if !h.ready.Load() {
 		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{"status": "not_ready"})
+		json.NewEncoder(w).Encode(map[string]string{"status": "not_ready"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{"status": "ready"})
+	json.NewEncoder(w).Encode(map[string]string{"status": "ready"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (h *Handlers) handleMetrics(w http.ResponseWriter, _ *http.Request) {
@@ -215,7 +215,7 @@ func (h *Handlers) handleMetrics(w http.ResponseWriter, _ *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	json.NewEncoder(w).Encode(stats) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // SetReady sets the readiness state.

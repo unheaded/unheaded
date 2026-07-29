@@ -244,12 +244,12 @@ func buildKanbanStore(kind string) (champion.KanbanStore, error) {
 		pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := db.PingContext(pingCtx); err != nil {
-			db.Close()
+			db.Close() // #nosec G104 -- cleanup on an error path; the function is already returning the failure that matters
 			return nil, fmt.Errorf("ping postgres for kanban: %w", err)
 		}
 		store, err := newPGKanbanStore(pingCtx, db)
 		if err != nil {
-			db.Close()
+			db.Close() // #nosec G104 -- cleanup on an error path; the function is already returning the failure that matters
 			return nil, err
 		}
 		fmt.Fprintf(os.Stderr, "zhen-agentd: connected to PostgreSQL kanban store; schema migrated\n")
@@ -304,12 +304,12 @@ func buildActionStore(kind string) (champion.ActionStore, error) {
 		pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		if err := db.PingContext(pingCtx); err != nil {
-			db.Close()
+			db.Close() // #nosec G104 -- cleanup on an error path; the function is already returning the failure that matters
 			return nil, fmt.Errorf("ping postgres: %w", err)
 		}
 		store := pgstore.New(db)
 		if err := store.Migrate(pingCtx); err != nil {
-			db.Close()
+			db.Close() // #nosec G104 -- cleanup on an error path; the function is already returning the failure that matters
 			return nil, fmt.Errorf("apply schema: %w", err)
 		}
 		fmt.Fprintf(os.Stderr, "zhen-agentd: connected to PostgreSQL audit store; schema migrated\n")

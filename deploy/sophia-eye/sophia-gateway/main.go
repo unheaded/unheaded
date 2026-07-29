@@ -466,7 +466,7 @@ func (sg *SophiaGateway) handleMetrics(w http.ResponseWriter, r *http.Request) {
 func (sg *SophiaGateway) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":     "healthy",
 		"service":    sg.serviceName,
 		"timestamp":  time.Now().Unix(),
@@ -478,17 +478,17 @@ func (sg *SophiaGateway) handleReady(w http.ResponseWriter, r *http.Request) {
 	if sg.registered {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "ready"})
+		json.NewEncoder(w).Encode(map[string]string{"status": "ready"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusServiceUnavailable)
-	json.NewEncoder(w).Encode(map[string]string{"status": "not_ready"})
+	json.NewEncoder(w).Encode(map[string]string{"status": "not_ready"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (sg *SophiaGateway) handleModels(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"models": []map[string]string{
 			{"name": "deepseek-r1-7b", "type": "llm", "endpoint": sg.vllmAddr},
 			{"name": "qwen2.5-coder-7b", "type": "code", "endpoint": sg.qwenAddr},

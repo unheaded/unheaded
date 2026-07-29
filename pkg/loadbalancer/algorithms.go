@@ -116,7 +116,7 @@ func (i *IPHashState) Select(ctx context.Context, key string, backends []*Backen
 
 	// Hash the IP
 	h := fnv.New32a()
-	h.Write([]byte(ip))
+	h.Write([]byte(ip)) // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 	hash := h.Sum32()
 
 	// Select backend based on hash
@@ -354,7 +354,7 @@ func (ch *ConsistentHashState) rebuild(backends []*Backend) {
 		for i := 0; i < ch.replicas; i++ {
 			key := b.Config.Name + ":" + string(rune(i))
 			h := fnv.New32a()
-			h.Write([]byte(key))
+			h.Write([]byte(key)) // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 			ch.ring = append(ch.ring, hashNode{
 				hash:    h.Sum32(),
 				backend: b,
@@ -383,7 +383,7 @@ func (ch *ConsistentHashState) Select(ctx context.Context, key string, backends 
 
 	// Hash the key
 	h := fnv.New32a()
-	h.Write([]byte(key))
+	h.Write([]byte(key)) // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 	hash := h.Sum32()
 
 	// Binary search for the first node with hash >= key hash
@@ -697,7 +697,7 @@ func (s *SourcePortHashState) Select(ctx context.Context, key string, backends [
 
 	// Hash the port
 	h := fnv.New32a()
-	h.Write([]byte(port))
+	h.Write([]byte(port)) // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 	hash := h.Sum32()
 
 	return backends[int(hash)%len(backends)], nil
@@ -766,11 +766,11 @@ func (m *MaglevHashState) rebuild() {
 
 func (m *MaglevHashState) generatePermutation(name string) []int {
 	h1 := fnv.New64()
-	h1.Write([]byte(name))
+	h1.Write([]byte(name))                     // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 	offset := h1.Sum64() % uint64(m.tableSize) // #nosec G115 -- Maglev table index, bounded by the modulo against tableSize
 
 	h2 := fnv.New64a()
-	h2.Write([]byte(name))
+	h2.Write([]byte(name))                         // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 	skip := h2.Sum64()%(uint64(m.tableSize)-1) + 1 // #nosec G115 -- Maglev table index, bounded by the modulo against tableSize
 
 	permutation := make([]int, m.tableSize)
@@ -794,7 +794,7 @@ func (m *MaglevHashState) Select(ctx context.Context, key string, backends []*Ba
 	}
 
 	h := fnv.New64a()
-	h.Write([]byte(key))
+	h.Write([]byte(key))                   // #nosec G104 -- hash.Write never returns an error (documented in hash.Hash)
 	idx := h.Sum64() % uint64(m.tableSize) // #nosec G115 -- Maglev table index, bounded by the modulo against tableSize
 
 	// Find first healthy backend starting from idx

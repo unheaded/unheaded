@@ -62,7 +62,7 @@ func NewStore(dbPath string) (*Store, error) {
 
 	// Test connection
 	if err := db.Ping(); err != nil {
-		db.Close()
+		db.Close() // #nosec G104 -- cleanup on an error path; the function is already returning the failure that matters
 		return nil, fmt.Errorf("ping database: %w", err)
 	}
 
@@ -70,7 +70,7 @@ func NewStore(dbPath string) (*Store, error) {
 
 	// Initialize schema
 	if err := store.initSchema(); err != nil {
-		db.Close()
+		db.Close() // #nosec G104 -- cleanup on an error path; the function is already returning the failure that matters
 		return nil, fmt.Errorf("initialize schema: %w", err)
 	}
 

@@ -126,7 +126,7 @@ func (h *DoomHandler) HandleScreen(w http.ResponseWriter, r *http.Request) {
 			Data:   encoded,
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 
@@ -197,7 +197,7 @@ func (h *DoomHandler) HandleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // HandleInput handles POST /doom/input.
@@ -228,7 +228,7 @@ func (h *DoomHandler) HandleInput(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"ok":      true,
 		"key":     input.Key,
 		"pressed": input.Pressed,

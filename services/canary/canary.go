@@ -231,7 +231,7 @@ func (s *Service) registerRoutes(mux *http.ServeMux) {
 // handleHealth responds with service health status.
 func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":    "healthy",
 		"service":   "canary",
 		"timestamp": time.Now(),
@@ -241,7 +241,7 @@ func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
 // handleReady responds with readiness status.
 func (s *Service) handleReady(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"ready":   atomic.LoadInt32(&s.started) == 1,
 		"service": "canary",
 	})
@@ -303,7 +303,7 @@ func (s *Service) listCanaries(w http.ResponseWriter, _ *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"canaries": deployments,
 		"count":    len(deployments),
 	})
@@ -368,7 +368,7 @@ func (s *Service) createCanary(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(deployment)
+	json.NewEncoder(w).Encode(deployment) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleCanaryByID dispatches requests for /api/v1/canaries/{service_id}/*.
@@ -415,7 +415,7 @@ func (s *Service) getCanary(w http.ResponseWriter, _ *http.Request, serviceID st
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(deployment)
+	json.NewEncoder(w).Encode(deployment) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // getCanaryMetrics returns canary vs stable metrics comparison.
@@ -448,7 +448,7 @@ func (s *Service) getCanaryMetrics(w http.ResponseWriter, _ *http.Request, servi
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(comparison)
+	json.NewEncoder(w).Encode(comparison) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // promoteCanary force-promotes a canary to stable (100% traffic).
@@ -477,7 +477,7 @@ func (s *Service) promoteCanary(w http.ResponseWriter, _ *http.Request, serviceI
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(deployment)
+	json.NewEncoder(w).Encode(deployment) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // rollbackCanary forces an immediate rollback to stable.
@@ -507,7 +507,7 @@ func (s *Service) rollbackCanary(w http.ResponseWriter, _ *http.Request, service
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(deployment)
+	json.NewEncoder(w).Encode(deployment) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // abortCanary aborts a canary deployment and performs rollback.

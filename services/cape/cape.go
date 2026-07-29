@@ -358,7 +358,7 @@ func (s *Service) registerBuiltinRoutes() {
 	// Health check
 	_ = s.GET("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"status":    "healthy",
 			"service":   "cape",
 			"timestamp": time.Now(),
@@ -368,7 +368,7 @@ func (s *Service) registerBuiltinRoutes() {
 	// Readiness check
 	_ = s.GET("/ready", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"ready":   true,
 			"service": "cape",
 		})
@@ -401,7 +401,7 @@ func (s *Service) registerBuiltinRoutes() {
 	// Routes listing
 	_ = s.GET("/routes", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(s.ListRoutes())
+		json.NewEncoder(w).Encode(s.ListRoutes()) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 	})
 }
 

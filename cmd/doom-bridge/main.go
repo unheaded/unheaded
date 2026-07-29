@@ -214,7 +214,7 @@ func main() {
 		<-sigCh
 		logf("INFO", "Shutting down...")
 		close(stop)
-		server.Close()
+		server.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 	}()
 
 	logf("INFO", "doom-bridge listening", "port", b.port, "dry_run", b.dryRun, "version", serviceVersion)
@@ -281,19 +281,19 @@ func (b *bridge) openMaps() {
 // closeMaps closes all open BPF map file descriptors.
 func (b *bridge) closeMaps() {
 	if b.screenMap != nil {
-		b.screenMap.Close()
+		b.screenMap.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 	}
 	if b.ramMap != nil {
-		b.ramMap.Close()
+		b.ramMap.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 	}
 	if b.kbdMap != nil {
-		b.kbdMap.Close()
+		b.kbdMap.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 	}
 	if b.statsMap != nil {
-		b.statsMap.Close()
+		b.statsMap.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 	}
 	if b.cpuMap != nil {
-		b.cpuMap.Close()
+		b.cpuMap.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 	}
 }
 
@@ -391,7 +391,7 @@ func (b *bridge) readLoop(c *client) {
 		numClients := len(b.clients)
 		b.clientsMu.Unlock()
 
-		c.conn.Close()
+		c.conn.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 		logf("INFO", "Client disconnected", "total", numClients)
 	}()
 

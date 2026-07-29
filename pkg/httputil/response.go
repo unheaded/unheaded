@@ -43,7 +43,7 @@ func WriteSuccess(w http.ResponseWriter, status int, data interface{}) {
 		},
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // WriteError writes an error JSON response with the standard envelope.
@@ -62,7 +62,7 @@ func WriteError(w http.ResponseWriter, status int, code, message string) {
 		},
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // WriteErrorWithDetails writes an error response including extra detail (e.g. from err.Error()).
@@ -82,7 +82,7 @@ func WriteErrorWithDetails(w http.ResponseWriter, status int, code, message, det
 		},
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // WriteJSON writes an arbitrary value as JSON. Use this for responses that don't
@@ -90,5 +90,5 @@ func WriteErrorWithDetails(w http.ResponseWriter, status int, code, message, det
 func WriteJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	json.NewEncoder(w).Encode(v) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }

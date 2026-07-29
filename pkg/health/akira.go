@@ -119,7 +119,7 @@ func (w *Akira) CheckService(target ServiceTarget) HealthReport {
 		report.Healthy = false
 		report.Error = err.Error()
 	} else {
-		resp.Body.Close()
+		resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
 		report.Healthy = resp.StatusCode == http.StatusOK
 		if !report.Healthy {
 			report.Error = fmt.Sprintf("HTTP %d", resp.StatusCode)

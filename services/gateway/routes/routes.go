@@ -212,7 +212,7 @@ func (r *Router) Info() []RouteInfo {
 func writeNotFound(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusNotFound)
-	json.NewEncoder(w).Encode(map[string]string{
+	json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"error":   "not_found",
 		"message": "No route matched the request path",
 	})
@@ -237,5 +237,5 @@ func (h *RoutesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	infos := h.router.Info()
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(infos)
+	json.NewEncoder(w).Encode(infos) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }

@@ -231,7 +231,7 @@ func (s *Service) registerRoutes(mux *http.ServeMux) {
 // handleHealth responds with service health status.
 func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":    "healthy",
 		"service":   "selfheal",
 		"timestamp": time.Now(),
@@ -241,7 +241,7 @@ func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
 // handleReady responds with readiness status.
 func (s *Service) handleReady(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"ready":   atomic.LoadInt32(&s.started) == 1,
 		"service": "selfheal",
 	})
@@ -311,7 +311,7 @@ func (s *Service) handleEndpoints(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"endpoints": endpoints,
 		"count":     len(endpoints),
 	})
@@ -358,7 +358,7 @@ func (s *Service) getEndpointHealth(w http.ResponseWriter, _ *http.Request, endp
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(ep)
+	json.NewEncoder(w).Encode(ep) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // triggerFailover performs manual failover for an endpoint.
@@ -409,7 +409,7 @@ func (s *Service) triggerFailover(w http.ResponseWriter, _ *http.Request, endpoi
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(event)
+	json.NewEncoder(w).Encode(event) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // triggerRecovery performs manual recovery for an endpoint.
@@ -442,7 +442,7 @@ func (s *Service) triggerRecovery(w http.ResponseWriter, _ *http.Request, endpoi
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"endpoint_id":  endpointID,
 		"health_score": ep.HealthScore,
 		"circuit":      ep.CircuitState,
@@ -472,7 +472,7 @@ func (s *Service) listBackups(w http.ResponseWriter, _ *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"backups": rosters,
 		"count":   len(rosters),
 	})
@@ -514,7 +514,7 @@ func (s *Service) updateBackup(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(roster)
+	json.NewEncoder(w).Encode(roster) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleCircuitBreakers returns all circuit breaker states.
@@ -532,7 +532,7 @@ func (s *Service) handleCircuitBreakers(w http.ResponseWriter, r *http.Request) 
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"circuit_breakers": breakers,
 		"count":            len(breakers),
 	})

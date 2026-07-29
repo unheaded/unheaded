@@ -354,7 +354,7 @@ func (s *Service) Stats() map[string]interface{} {
 func (s *Service) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"status":  "healthy",
 			"service": "cuirass",
 		})
@@ -362,7 +362,7 @@ func (s *Service) RegisterRoutes(mux *http.ServeMux) {
 
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"ready":   true,
 			"service": "cuirass",
 		})

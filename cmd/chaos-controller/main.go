@@ -405,13 +405,13 @@ func (cc *ChaosController) handleInjectRule(w http.ResponseWriter, r *http.Reque
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(rule)
+	json.NewEncoder(w).Encode(rule) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (cc *ChaosController) handleListRules(w http.ResponseWriter, _ *http.Request) {
 	rules := cc.ListRules()
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"rules": rules,
 		"count": len(rules),
 	})
@@ -432,13 +432,13 @@ func (cc *ChaosController) handleRemoveRule(w http.ResponseWriter, r *http.Reque
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "removed", "rule_id": id})
+	json.NewEncoder(w).Encode(map[string]string{"status": "removed", "rule_id": id}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (cc *ChaosController) handleListEvents(w http.ResponseWriter, _ *http.Request) {
 	events := cc.RecentEvents(100)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"events": events,
 		"count":  len(events),
 	})
@@ -470,7 +470,7 @@ func (cc *ChaosController) handleStartGameDay(w http.ResponseWriter, r *http.Req
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{
+	json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":   "scheduled",
 		"scenario": scenario.Name,
 	})
@@ -484,19 +484,19 @@ func (cc *ChaosController) handleGameDayStatus(w http.ResponseWriter, _ *http.Re
 
 	status := cc.gameDaySched.Status()
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status)
+	json.NewEncoder(w).Encode(status) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (cc *ChaosController) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (cc *ChaosController) handleReady(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ready"})
+	json.NewEncoder(w).Encode(map[string]string{"status": "ready"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (cc *ChaosController) handleMetrics(w http.ResponseWriter, _ *http.Request) {
@@ -509,7 +509,7 @@ func (cc *ChaosController) handleMetrics(w http.ResponseWriter, _ *http.Request)
 	cc.eventsMu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"active_rules":  ruleCount,
 		"total_events":  eventCount,
 		"audit_entries": cc.audit.Len(),

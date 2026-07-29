@@ -39,5 +39,5 @@ func DecodeKeygenRequest(r *http.Request) (*KeygenRequest, error) {
 func WriteJSON(w http.ResponseWriter, status int, v interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(v)
+	json.NewEncoder(w).Encode(v) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }

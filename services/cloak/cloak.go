@@ -515,7 +515,7 @@ func (s *Service) HTTPHandler() http.Handler {
 // handleHealth returns health status for the cloak service.
 func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":  "healthy",
 		"service": "cloak",
 	})
@@ -524,7 +524,7 @@ func (s *Service) handleHealth(w http.ResponseWriter, r *http.Request) {
 // handleReady returns readiness status for the cloak service.
 func (s *Service) handleReady(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"ready":   true,
 		"service": "cloak",
 	})
@@ -556,7 +556,7 @@ func (s *Service) handleIndex(w http.ResponseWriter, r *http.Request) {
 
 func (s *Service) handleDashboards(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(s.ListDashboards(""))
+	json.NewEncoder(w).Encode(s.ListDashboards("")) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (s *Service) handleSessions(w http.ResponseWriter, r *http.Request) {
@@ -565,7 +565,7 @@ func (s *Service) handleSessions(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"active_sessions": count,
 	})
 }
@@ -573,7 +573,7 @@ func (s *Service) handleSessions(w http.ResponseWriter, r *http.Request) {
 func (s *Service) handleNotifications(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	// Would get user from auth context
-	json.NewEncoder(w).Encode([]interface{}{})
+	json.NewEncoder(w).Encode([]interface{}{}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (s *Service) broadcastLoop(ctx context.Context) {

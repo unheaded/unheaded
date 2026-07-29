@@ -31,7 +31,7 @@ func Connect(ctx context.Context, cfg Config) (*sql.DB, error) {
 	defer cancel()
 
 	if err := db.PingContext(pingCtx); err != nil {
-		db.Close()
+		db.Close() // #nosec G104 -- cleanup on an error path; the function is already returning the failure that matters
 		return nil, fmt.Errorf("database ping: %w", err)
 	}
 

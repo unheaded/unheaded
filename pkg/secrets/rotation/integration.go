@@ -597,13 +597,36 @@ func (dci *DatabaseCredentialIntegration) RotateCredentials(ctx context.Context,
 	newConfig := config
 	newConfig.Password = newPassword
 	if err := driver.ValidateCredentials(ctx, newConfig); err != nil {
-		// Rollback
-		db2, _ := driver.Connect(ctx, config)
-		if db2 != nil {
-			_ = driver.RotateCredentials(ctx, db2, config.Username, config.Password)
-			db2.Close()
+		// Roll back to the previous password.
+		//
+		// Both the reconnect and the rollback rotation used to be discarded.
+		// That mattered: if either fails, the DATABASE is left on newPassword
+		// while the secret store still holds the old one (newSecret is never
+		// persisted on this path), so the service is locked out of its own
+		// database — and the caller saw only "validate new credentials", with
+		// nothing to indicate manual reconciliation was required.
+		var rollbackErr error
+		db2, connErr := driver.Connect(ctx, config)
+		switch {
+		case connErr != nil:
+			rollbackErr = fmt.Errorf("reconnect for rollback: %w", connErr)
+		default:
+			if rbErr := driver.RotateCredentials(ctx, db2, config.Username, config.Password); rbErr != nil {
+				rollbackErr = fmt.Errorf("restore previous password: %w", rbErr)
+			}
+			if closeErr := db2.Close(); closeErr != nil && rollbackErr == nil {
+				rollbackErr = fmt.Errorf("close rollback connection: %w", closeErr)
+			}
 		}
+
 		integrationErrors.WithLabels(metrics.Labels{"type": "database", "error_type": "validation_failed"}).Inc()
+
+		if rollbackErr != nil {
+			integrationErrors.WithLabels(metrics.Labels{"type": "database", "error_type": "rollback_failed"}).Inc()
+			return nil, fmt.Errorf(
+				"validate new credentials: %w; ROLLBACK ALSO FAILED (%v) — the database password may no longer match the stored secret and manual reconciliation is required",
+				err, rollbackErr)
+		}
 		return nil, fmt.Errorf("validate new credentials: %w", err)
 	}
 

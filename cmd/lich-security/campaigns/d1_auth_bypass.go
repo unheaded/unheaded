@@ -203,7 +203,7 @@ func doHTTPRequest(ctx context.Context, url, method string, headers map[string]s
 		return nil, err
 	}
 	_, _ = io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
 	return resp, nil
 }
 

@@ -63,5 +63,5 @@ func WriteDegraded(w http.ResponseWriter, service, version string) {
 func writeHealthResponse(w http.ResponseWriter, status int, resp Response) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }

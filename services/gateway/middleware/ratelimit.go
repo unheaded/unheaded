@@ -249,7 +249,7 @@ func (rl *RateLimiter) writeRateLimitError(w http.ResponseWriter, bucket *TokenB
 	w.Header().Set("X-RateLimit-Remaining", "0")
 	w.WriteHeader(http.StatusTooManyRequests)
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"error":       "rate_limit_exceeded",
 		"message":     "Too many requests. Please try again later.",
 		"retry_after": 1,

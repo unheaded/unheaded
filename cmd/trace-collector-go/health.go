@@ -189,7 +189,7 @@ func (h *HealthHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatus)
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // ── Ready handler (/ready) ────────────────────────────────────────────────
@@ -220,7 +220,7 @@ func (h *ReadyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatus)
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // ── Traces API handler (/api/v1/traces) ───────────────────────────────────
@@ -234,7 +234,7 @@ func (h *TracesHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	traces := h.State.GetRecentTraces(100)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(struct {
+	json.NewEncoder(w).Encode(struct { // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		Count  int                 `json:"count"`
 		Traces []*recentTraceEntry `json:"traces"`
 	}{
@@ -279,5 +279,5 @@ func (h *StatsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	json.NewEncoder(w).Encode(resp) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }

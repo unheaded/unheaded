@@ -585,7 +585,7 @@ func (s *Service) registerRoutes(mux *http.ServeMux) {
 func (s *Service) handleHops(w http.ResponseWriter, _ *http.Request) {
 	hops := s.RecentHops(5)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"hops":  hops,
 		"count": len(hops),
 	})
@@ -594,7 +594,7 @@ func (s *Service) handleHops(w http.ResponseWriter, _ *http.Request) {
 func (s *Service) handlePaths(w http.ResponseWriter, _ *http.Request) {
 	paths := s.RecentPaths(100)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"paths": paths,
 		"count": len(paths),
 	})
@@ -612,7 +612,7 @@ func (s *Service) handleServiceLatency(w http.ResponseWriter, r *http.Request) {
 
 	aggs := s.ServiceLatency(svcID)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"service_id": svcID,
 		"aggregates": aggs,
 		"count":      len(aggs),
@@ -622,7 +622,7 @@ func (s *Service) handleServiceLatency(w http.ResponseWriter, r *http.Request) {
 func (s *Service) handleAggregate(w http.ResponseWriter, _ *http.Request) {
 	aggs := s.RecentAggregates(100)
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"aggregates": aggs,
 		"count":      len(aggs),
 	})
@@ -631,17 +631,17 @@ func (s *Service) handleAggregate(w http.ResponseWriter, _ *http.Request) {
 func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (s *Service) handleReady(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ready"})
+	json.NewEncoder(w).Encode(map[string]string{"status": "ready"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (s *Service) handleMetrics(w http.ResponseWriter, _ *http.Request) {
 	stats := s.Stats()
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	json.NewEncoder(w).Encode(stats) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }

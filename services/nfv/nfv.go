@@ -285,7 +285,7 @@ func (s *Service) listChains(w http.ResponseWriter, _ *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"chains": chains,
 		"count":  len(chains),
 	})
@@ -303,7 +303,7 @@ func (s *Service) getChain(w http.ResponseWriter, _ *http.Request, chainID int) 
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(chain)
+	json.NewEncoder(w).Encode(chain) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // createOrUpdateChain creates or updates a chain definition.
@@ -365,7 +365,7 @@ func (s *Service) createOrUpdateChain(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(chain)
+	json.NewEncoder(w).Encode(chain) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // deleteChain removes a chain definition.
@@ -394,7 +394,7 @@ func (s *Service) deleteChain(w http.ResponseWriter, r *http.Request, chainID in
 	})
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]string{
+	json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status": "deleted",
 	})
 }
@@ -416,7 +416,7 @@ func (s *Service) getChainTelemetry(w http.ResponseWriter, _ *http.Request, chai
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(stats)
+	json.NewEncoder(w).Encode(stats) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleFunctions handles GET on /api/v1/functions.
@@ -434,7 +434,7 @@ func (s *Service) handleFunctions(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"functions": functions,
 		"count":     len(functions),
 	})
@@ -493,7 +493,7 @@ func (s *Service) handleFunctionReload(w http.ResponseWriter, r *http.Request) {
 		Msg("function hot-reloaded")
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":       "reloaded",
 		"name":         req.Name,
 		"prog_fd":      req.ProgFD,
@@ -504,7 +504,7 @@ func (s *Service) handleFunctionReload(w http.ResponseWriter, r *http.Request) {
 // handleHealth returns service health status.
 func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":  "healthy",
 		"service": "nfv",
 	})
@@ -513,7 +513,7 @@ func (s *Service) handleHealth(w http.ResponseWriter, _ *http.Request) {
 // handleReady returns service readiness status.
 func (s *Service) handleReady(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"ready":   true,
 		"service": "nfv",
 	})

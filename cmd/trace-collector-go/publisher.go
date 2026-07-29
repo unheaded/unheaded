@@ -172,7 +172,7 @@ func (tp *TracePublisher) Connect(ctx context.Context) error {
 	}
 	for _, topic := range topics {
 		if _, err := tsc.Subscribe(ctx, topic, "trace-collector-go"); err != nil {
-			tsc.Close()
+			tsc.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 			return fmt.Errorf("subscribe to %s: %w", topic, err)
 		}
 	}
@@ -283,7 +283,7 @@ func (tp *TracePublisher) Run(ctx context.Context) {
 			tp.Flush(context.Background())
 			// Close gRPC connection
 			if tp.tsc != nil {
-				tp.tsc.Close()
+				tp.tsc.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 			}
 			log.Info().Msg("trace publisher stopped")
 			return

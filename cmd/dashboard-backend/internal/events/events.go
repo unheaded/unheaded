@@ -389,7 +389,7 @@ func (s *Streamer) Stop() error {
 	s.connMu.Unlock()
 
 	if client != nil {
-		client.Close()
+		client.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 	}
 
 	close(s.doneCh)
@@ -484,7 +484,7 @@ func (s *Streamer) disconnect() {
 	s.connMu.Unlock()
 
 	if client != nil {
-		client.Close()
+		client.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 	}
 }
 

@@ -1472,7 +1472,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 			w.WriteHeader(http.StatusServiceUnavailable)
 		}
 
-		json.NewEncoder(w).Encode(health)
+		json.NewEncoder(w).Encode(health) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 	})
 
 	// GET /health/{name} - specific check health
@@ -1499,7 +1499,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(result)
+		json.NewEncoder(w).Encode(result) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 	})
 
 	// GET /checks - list all checks
@@ -1511,7 +1511,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 
 		checks := a.GetChecks()
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"checks": checks,
 			"count":  len(checks),
 		})
@@ -1552,7 +1552,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"name":     name,
 			"duration": duration.String(),
 			"results":  history,
@@ -1585,7 +1585,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]string{
+		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"status":  "registered",
 			"name":    check.Name,
 			"message": fmt.Sprintf("Check %s registered successfully", check.Name),
@@ -1615,7 +1615,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]string{
+		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"status":  "unregistered",
 			"name":    name,
 			"message": fmt.Sprintf("Check %s unregistered successfully", name),
@@ -1631,7 +1631,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 
 		results := a.RunChecks(r.Context())
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"results": results,
 			"count":   len(results),
 		})
@@ -1647,7 +1647,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 		health := a.GetSystemHealth()
 		if health.Status == StatusUnhealthy {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(map[string]string{
+			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 				"status": "not ready",
 				"reason": health.Message,
 			})
@@ -1655,7 +1655,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
+		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"status": "ready",
 		})
 	})
@@ -1668,7 +1668,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 		}
 
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{
+		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"status": "alive",
 		})
 	})

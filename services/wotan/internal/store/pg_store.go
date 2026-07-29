@@ -34,7 +34,7 @@ func NewPGStore(connStr string, capacity int) (*PGStore, error) {
 	db.SetConnMaxLifetime(5 * time.Minute)
 
 	if err := db.Ping(); err != nil {
-		db.Close()
+		db.Close() // #nosec G104 -- cleanup on an error path; the function is already returning the failure that matters
 		return nil, fmt.Errorf("pg_store: ping: %w", err)
 	}
 

@@ -118,7 +118,7 @@ func (d *D6DenialOfService) testConnectionExhaustion(_ context.Context, cfg Conf
 
 	// Clean up.
 	for _, c := range conns {
-		c.Close()
+		c.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 	}
 
 	if len(conns) >= maxConns {
@@ -166,7 +166,7 @@ func (d *D6DenialOfService) testRequestTimeout(ctx context.Context, cfg Config) 
 		return nil
 	}
 	_, _ = io.Copy(io.Discard, resp.Body)
-	resp.Body.Close()
+	resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
 
 	if elapsed > 30*time.Second {
 		return &Finding{

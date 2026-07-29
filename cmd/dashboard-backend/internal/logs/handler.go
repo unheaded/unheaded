@@ -70,7 +70,7 @@ func (h *LogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(entries)
+	json.NewEncoder(w).Encode(entries) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // parseTime tries RFC3339 first, then Unix timestamp.

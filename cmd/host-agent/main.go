@@ -252,7 +252,7 @@ func netConns() NetConnections {
 				nc.CloseWait++
 			}
 		}
-		f.Close()
+		f.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 	}
 	return nc
 }
@@ -407,7 +407,7 @@ func main() {
 		fmt.Fprint(w, allMetrics())
 	})
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"status":"ok"}`))
+		w.Write([]byte(`{"status":"ok"}`)) // #nosec G104 -- response already committed; a write failure means the client disconnected
 	})
 
 	go func() {
@@ -421,7 +421,7 @@ func main() {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			req, _ := http.NewRequestWithContext(ctx, "POST", pushURL, bytes.NewReader([]byte(body)))
 			if resp, err := client.Do(req); err == nil {
-				resp.Body.Close()
+				resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
 			} else {
 				fmt.Fprintf(os.Stderr, "huginn: vm push failed: %v\n", err)
 			}

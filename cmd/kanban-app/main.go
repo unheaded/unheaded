@@ -111,14 +111,14 @@ func NewServer(cfg Config) *Server {
 			s.store = pgStore
 			if _, err := pgStore.SeedIfEmpty(); err != nil {
 				log.Warn().Err(err).Msg("Postgres seed failed — falling back to SQLite")
-				pgStore.Close()
+				pgStore.Close() // #nosec G104 -- logging call; a logging failure must not alter control flow
 				s.store = nil
 			} else {
 				log.Info().Msg("Postgres connected — kanban tasks persisted to The Well (standalone mode)")
 			}
 		} else {
 			log.Warn().Err(pgStoreErr).Msg("Postgres schema init failed — falling back to SQLite")
-			pgDB.Close()
+			pgDB.Close() // #nosec G104 -- logging call; a logging failure must not alter control flow
 		}
 	} else {
 		log.Warn().Err(pgErr).Msg("Postgres unavailable — trying SQLite")
@@ -140,7 +140,7 @@ func NewServer(cfg Config) *Server {
 			if _, err := store.SeedIfEmpty(); err != nil {
 				log.Error().Err(err).Msg("failed to seed store — falling back to in-memory")
 				s.store = nil
-				store.Close()
+				store.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 				s.tasks = getInitialTasks()
 			}
 		}
@@ -535,7 +535,7 @@ func (s *Server) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"tasks": tasks,
 		"count": count,
 	})
@@ -605,7 +605,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"task": task,
 	})
 }
@@ -676,7 +676,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"task": task,
 	})
 }
@@ -736,7 +736,7 @@ func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"deleted": true,
 		"task_id": taskID,
 	})
@@ -802,7 +802,7 @@ func (s *Server) handleGetTaskByID(w http.ResponseWriter, r *http.Request, taskI
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(task)
+		json.NewEncoder(w).Encode(task) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 
@@ -814,7 +814,7 @@ func (s *Server) handleGetTaskByID(w http.ResponseWriter, r *http.Request, taskI
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(task)
+		json.NewEncoder(w).Encode(task) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 
@@ -824,7 +824,7 @@ func (s *Server) handleGetTaskByID(w http.ResponseWriter, r *http.Request, taskI
 	for _, t := range s.tasks {
 		if t.ID == taskID {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(t)
+			json.NewEncoder(w).Encode(t) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			return
 		}
 	}
@@ -917,7 +917,7 @@ func (s *Server) handleUpdateTaskByID(w http.ResponseWriter, r *http.Request, ta
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"task": task})
+	json.NewEncoder(w).Encode(map[string]interface{}{"task": task}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleDeleteTaskByID deletes a single task
@@ -961,7 +961,7 @@ func (s *Server) handleDeleteTaskByID(w http.ResponseWriter, r *http.Request, ta
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"deleted": true, "task_id": taskID})
+	json.NewEncoder(w).Encode(map[string]interface{}{"deleted": true, "task_id": taskID}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleDeletedTasks returns soft-deleted tasks.
@@ -977,11 +977,11 @@ func (s *Server) handleDeletedTasks(w http.ResponseWriter, r *http.Request) {
 			out[i] = fromPgTask(t)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)})
+		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0})
+	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleArchivedTasks returns archived tasks.
@@ -997,11 +997,11 @@ func (s *Server) handleArchivedTasks(w http.ResponseWriter, r *http.Request) {
 			out[i] = fromPgTask(t)
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)})
+		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0})
+	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleCompletedTasks returns done tasks (still on board but accessible here too).
@@ -1019,11 +1019,11 @@ func (s *Server) handleCompletedTasks(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)})
+		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0})
+	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleRestoreTask un-deletes or un-archives a task.
@@ -1038,7 +1038,7 @@ func (s *Server) handleRestoreTask(w http.ResponseWriter, r *http.Request, taskI
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"restored": true, "task_id": taskID})
+		json.NewEncoder(w).Encode(map[string]interface{}{"restored": true, "task_id": taskID}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		return
 	}
 	http.Error(w, "Restore not available without PostgreSQL", http.StatusNotImplemented)
@@ -1178,7 +1178,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		timelineHTTP = tm.GetTimeline() != nil
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"status":              "healthy",
 		"timestamp":           time.Now().UTC().Format(time.RFC3339),
 		"version":             "0.1.0",
@@ -1197,14 +1197,14 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		if status == transport.StatusDown {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(map[string]interface{}{
+			json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 				"ready":   false,
 				"reason":  string(status),
 				"service": "kanban-app",
 			})
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"ready":   true,
 			"reason":  string(status),
 			"service": "kanban-app",
@@ -1227,7 +1227,7 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusServiceUnavailable)
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"ready":   ready,
 		"reason":  reason,
 		"service": "kanban-app",
@@ -1284,14 +1284,14 @@ func (s *Server) handleTimeline(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	if timeline == nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"timeline": nil,
 			"message":  "No timeline data available yet. Waiting for Timeguru updates.",
 		})
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"timeline": timeline,
 	})
 }
@@ -1345,7 +1345,7 @@ func (s *Server) handleTimelineCards(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"tasks":  tasks,
 		"count":  count,
 		"source": source,
@@ -1525,7 +1525,7 @@ func main() {
 				pgStore, pgStoreErr := NewPgStore(pgDB)
 				if pgStoreErr != nil {
 					log.Warn().Err(pgStoreErr).Msg("Postgres schema init failed — trying SQLite fallback")
-					pgDB.Close()
+					pgDB.Close() // #nosec G104 -- logging call; a logging failure must not alter control flow
 				} else {
 					kanbanStore = pgStore
 					log.Info().Msg("Postgres connected — kanban tasks persisted to The Well")

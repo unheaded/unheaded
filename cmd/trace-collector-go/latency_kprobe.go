@@ -128,7 +128,7 @@ func LoadLatencyKprobes(elfPath string) (*LatencyKprobeLoader, *ciliumebpf.Map, 
 // Close detaches all kprobes and releases the collection.
 func (l *LatencyKprobeLoader) Close() {
 	for _, lnk := range l.links {
-		lnk.Close()
+		lnk.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 	}
 	if l.collection != nil {
 		l.collection.Close()
