@@ -403,11 +403,19 @@ func DefaultConfig() *Config {
 			PassiveErrorWindow:    30 * time.Second,
 		},
 		SessionPersistence: SessionPersistenceConfig{
-			Type:           SessionPersistenceNone,
-			TTL:            30 * time.Minute,
-			CookieName:     "SERVERID",
-			CookiePath:     "/",
+			Type:       SessionPersistenceNone,
+			TTL:        30 * time.Minute,
+			CookieName: "SERVERID",
+			CookiePath: "/",
+			// Session cookie hardening (gosec G124). HTTPOnly was already set;
+			// Secure and SameSite were not, so the default session cookie could
+			// be sent over plaintext and offered no CSRF protection.
+			// NOTE: CookieSecure=true means browsers will not send this cookie
+			// over plain HTTP. Local/dev setups on http:// must set it false
+			// explicitly — the default is the safe one.
 			CookieHTTPOnly: true,
+			CookieSecure:   true,
+			CookieSameSite: "lax",
 			MaxEntries:     100000,
 		},
 		Timeouts: TimeoutConfig{

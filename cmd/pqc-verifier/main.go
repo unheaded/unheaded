@@ -20,6 +20,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"unheaded/pkg/policy"
 	"unheaded/pkg/ports"
@@ -92,6 +93,14 @@ func run(logOut io.Writer, _ []string) error {
 		Addr:           addr,
 		Handler:        mux,
 		MaxHeaderBytes: 1 << 20,
+		// Timeouts match the service template in pkg/service/service.go.
+		// Without ReadHeaderTimeout a client can hold a connection open sending
+		// headers a byte at a time (slowloris) until the server exhausts its
+		// connection budget. gosec G112.
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	// Graceful shutdown.

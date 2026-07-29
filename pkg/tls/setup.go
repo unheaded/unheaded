@@ -6,6 +6,7 @@ package tls
 import (
 	"net/http"
 	"os"
+	"time"
 )
 
 // ServiceTLSConfig is loaded from environment variables. All fields are optional.
@@ -52,9 +53,15 @@ func LoadServiceTLSConfig() ServiceTLSConfig {
 func MaybeWrapServer(addr string, handler http.Handler) (srv *http.Server, tlsEnabled bool, err error) {
 	cfg := LoadServiceTLSConfig()
 	if !cfg.Enabled {
+		// The TLS path in pkg/tls/server.go sets these; this plaintext path did
+		// not, leaving the non-TLS listener exposed to slowloris. gosec G112.
 		return &http.Server{
-			Addr:    addr,
-			Handler: handler,
+			Addr:              addr,
+			Handler:           handler,
+			ReadHeaderTimeout: 10 * time.Second,
+			ReadTimeout:       30 * time.Second,
+			WriteTimeout:      30 * time.Second,
+			IdleTimeout:       60 * time.Second,
 		}, false, nil
 	}
 

@@ -134,7 +134,7 @@ func (r *RequestBuilder) WithCookie(cookie *http.Cookie) *RequestBuilder {
 
 // WithCookieSimple adds a simple cookie to the request.
 func (r *RequestBuilder) WithCookieSimple(name, value string) *RequestBuilder {
-	return r.WithCookie(&http.Cookie{Name: name, Value: value})
+	return r.WithCookie(&http.Cookie{Name: name, Value: value}) // #nosec G124 -- test helper building a REQUEST cookie (client side), not a Set-Cookie response
 }
 
 // WithBasicAuth sets basic authentication.

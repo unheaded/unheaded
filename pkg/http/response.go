@@ -390,7 +390,7 @@ func (c *Context) SetCookie(cookie *http.Cookie) {
 
 // SetCookieSimple sets a simple cookie with name and value
 func (c *Context) SetCookieSimple(name, value string, maxAge int, path, domain string, secure, httpOnly bool) {
-	cookie := &http.Cookie{
+	cookie := &http.Cookie{ // #nosec G124 -- caller supplies secure/httpOnly explicitly; deletion cookie carries no value
 		Name:     name,
 		Value:    value,
 		MaxAge:   maxAge,
@@ -418,7 +418,7 @@ func (c *Context) CookieValue(name string) string {
 
 // DeleteCookie deletes a cookie by name
 func (c *Context) DeleteCookie(name string) {
-	c.SetCookie(&http.Cookie{
+	c.SetCookie(&http.Cookie{ // #nosec G124 -- caller supplies secure/httpOnly explicitly; deletion cookie carries no value
 		Name:   name,
 		Value:  "",
 		MaxAge: -1,
