@@ -14,7 +14,10 @@ spec:
     spec:
       serviceAccountName: pleroma
       automountServiceAccountToken: false
-      securityContext: { runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
+      # Dedicated run-as identity from pkg/uids. runAsNonRoot alone stops root
+      # but leaves the UID to whatever the image declares, so two services can
+      # silently share one.
+      securityContext: { runAsUser: 16762, runAsGroup: 16762, fsGroup: 16762, runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
       containers:
       - name: pleroma
         image: unheaded/pleroma:latest

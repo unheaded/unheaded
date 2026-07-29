@@ -70,6 +70,27 @@ const (
 	Gateway          = 16730
 )
 
+// Armory tier (16740-16759). Infrastructure components under deploy/k8s/armory.
+// These manifests set runAsNonRoot but no runAsUser, which stops root without
+// giving each service an identity of its own — the UID then comes from whatever
+// the image happens to declare, and two images can easily share one.
+const (
+	Cuirass     = 16740
+	Gauntlets   = 16741
+	Gorget      = 16742
+	HelmRuntime = 16743
+	Pauldrons   = 16744
+	Shield      = 16745
+	Sword       = 16746
+)
+
+// Gnostic tier (16760-16779). State and history services.
+const (
+	Anamnesis = 16760
+	Kenoma    = 16761
+	Pleroma   = 16762
+)
+
 // Registry maps each service name to its assigned UID. Deployment manifests
 // are validated against this map by TestManifestsMatchRegistry.
 var Registry = map[string]int{
@@ -91,6 +112,18 @@ var Registry = map[string]int{
 	"dashboard-backend": DashboardBackend,
 	"kanban-app":        KanbanApp,
 	"gateway":           Gateway,
+
+	"cuirass":      Cuirass,
+	"gauntlets":    Gauntlets,
+	"gorget":       Gorget,
+	"helm-runtime": HelmRuntime,
+	"pauldrons":    Pauldrons,
+	"shield":       Shield,
+	"sword":        Sword,
+
+	"anamnesis": Anamnesis,
+	"kenoma":    Kenoma,
+	"pleroma":   Pleroma,
 }
 
 // Lookup returns the assigned UID for a service.
