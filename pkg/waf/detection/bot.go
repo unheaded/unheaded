@@ -7,7 +7,7 @@
 package detection
 
 import (
-	"crypto/md5" //nolint:gosec // bot fingerprint hash, not security primitive
+	"crypto/md5" // #nosec G501 -- md5 imported for a non-cryptographic digest, see the use site
 	"encoding/hex"
 	"net"
 	"net/http"
@@ -366,7 +366,7 @@ func (d *BotDetector) generateFingerprint(req *http.Request) *BrowserFingerprint
 	// MD5 is sufficient — this is a non-cryptographic identity bucket,
 	// not an integrity or authentication primitive. (gosec G401/G501.)
 	data := fp.UserAgent + "|" + fp.AcceptLanguage + "|" + fp.AcceptEncoding + "|" + fp.HeaderOrder
-	hash := md5.Sum([]byte(data)) //nolint:gosec // MD5 is fine for fingerprint grouping
+	hash := md5.Sum([]byte(data)) // #nosec G401 -- non-cryptographic digest (ETag / fingerprint / page checksum), not an integrity or auth primitive
 	fp.Hash = hex.EncodeToString(hash[:])
 
 	// Store fingerprint

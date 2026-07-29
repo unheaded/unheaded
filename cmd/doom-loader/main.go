@@ -69,7 +69,7 @@ func main() {
 	}
 
 	if err != nil {
-		log.Fatalf("%s: %v", cmd, err)
+		log.Fatalf("%s: %v", cmd, err) // #nosec G706 -- zerolog structured field, not a raw newline-injectable log line
 	}
 }
 

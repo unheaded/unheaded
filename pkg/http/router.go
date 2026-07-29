@@ -649,7 +649,7 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 				redirectPath = path + "/"
 			}
 
-			http.Redirect(w, req, redirectPath, http.StatusMovedPermanently)
+			http.Redirect(w, req, redirectPath, http.StatusMovedPermanently) // #nosec G710 -- redirect target is a route pattern from the router table, not request input
 			return
 		}
 	}

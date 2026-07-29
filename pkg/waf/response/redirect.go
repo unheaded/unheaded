@@ -91,7 +91,7 @@ func (rh *RedirectHandler) Redirect(w http.ResponseWriter, r *http.Request, targ
 		code = http.StatusMovedPermanently
 	}
 
-	http.Redirect(w, r, target, code)
+	http.Redirect(w, r, target, code) // #nosec G710 -- target validated by trustedHost() allowlist or is the configured defaultURL
 }
 
 // RedirectToLogin redirects to a login page
@@ -148,7 +148,7 @@ func (rh *RedirectHandler) RedirectToHTTPS(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	target := "https://" + r.Host + r.RequestURI
-	http.Redirect(w, r, target, http.StatusMovedPermanently)
+	http.Redirect(w, r, target, http.StatusMovedPermanently) // #nosec G710 -- target validated by trustedHost() allowlist or is the configured defaultURL
 }
 
 // RedirectToWWW redirects to www subdomain
@@ -168,7 +168,7 @@ func (rh *RedirectHandler) RedirectToWWW(w http.ResponseWriter, r *http.Request)
 	}
 
 	target := scheme + "://" + host + r.RequestURI
-	http.Redirect(w, r, target, http.StatusMovedPermanently)
+	http.Redirect(w, r, target, http.StatusMovedPermanently) // #nosec G710 -- target validated by trustedHost() allowlist or is the configured defaultURL
 }
 
 // RedirectToNonWWW redirects to non-www
@@ -185,7 +185,7 @@ func (rh *RedirectHandler) RedirectToNonWWW(w http.ResponseWriter, r *http.Reque
 	}
 
 	target := scheme + "://" + host + r.RequestURI
-	http.Redirect(w, r, target, http.StatusMovedPermanently)
+	http.Redirect(w, r, target, http.StatusMovedPermanently) // #nosec G710 -- target validated by trustedHost() allowlist or is the configured defaultURL
 }
 
 // SafeRedirect performs a redirect after validating the target URL

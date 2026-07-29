@@ -6,7 +6,7 @@ package object
 import (
 	"bytes"
 	"context"
-	"crypto/md5" //nolint:gosec // S3-compatible ETag, not security primitive
+	"crypto/md5" // #nosec G501 -- md5 imported for a non-cryptographic digest, see the use site
 	"encoding/hex"
 	"fmt"
 	"io"
@@ -108,7 +108,7 @@ func (f *FilesystemStore) Put(ctx context.Context, bucket, key string, reader io
 	// Copy data and calculate MD5 for the ETag header (S3-compatible
 	// content fingerprint; not a security primitive — gosec G401/G501
 	// false-positive on this established convention).
-	hash := md5.New() //nolint:gosec // MD5 is the canonical S3 ETag
+	hash := md5.New() // #nosec G401 -- non-cryptographic digest (ETag / fingerprint / page checksum), not an integrity or auth primitive
 	writer := io.MultiWriter(tmpFile, hash)
 
 	size, err := io.Copy(writer, reader)

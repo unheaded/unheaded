@@ -8,7 +8,7 @@ package websocket
 import (
 	"bufio"
 	"context"
-	"crypto/sha1" //nolint:gosec // RFC 6455 §4.2.2 mandates SHA-1 for WebSocket handshake
+	"crypto/sha1" // #nosec G505 -- RFC 6455 s4.2.2 MANDATES SHA-1 for the WebSocket handshake accept key
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -422,7 +422,7 @@ func (s *Server) upgradeConnection(w http.ResponseWriter, r *http.Request) (net.
 // RFC 6455 §4.2.2 requires SHA-1 for the WebSocket handshake; this is a
 // protocol fingerprint, not a security primitive. (gosec G401 false-positive.)
 func computeAcceptKey(key string) string {
-	h := sha1.New() //nolint:gosec // RFC 6455 mandates SHA-1 for the WebSocket handshake
+	h := sha1.New() // #nosec G401 -- non-cryptographic digest (ETag / fingerprint / page checksum), not an integrity or auth primitive
 	h.Write([]byte(key + websocketGUID))
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
