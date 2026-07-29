@@ -88,6 +88,19 @@ pub const HEAP_PTR_ADDR: u32 = 0x01BF_0000;
 /// libc_stubs.c open() reads from this address instead of using a hardcoded constant.
 pub const WAD_SIZE_ADDR: u32 = 0x01BF_FFF0;
 
+/// Canonical IWAD probe name — written by doom-runner at load time.
+/// 16 bytes, NUL-terminated ASCII (e.g. "doomu.wad").
+///
+/// id DOOM's `IdentifyVersion()` picks `gamemode` by `access()`-probing a fixed
+/// list of IWAD names. Our `access()` stub can only report one of them as
+/// present, and that choice determines the game mode for the whole run. Rather
+/// than hardcode it (which pins the build to a single IWAD), doom-runner
+/// detects the IWAD from its lump directory and publishes the matching probe
+/// name here; libc_stubs.c `access()` compares against it.
+pub const WAD_IWAD_NAME_ADDR: u32 = 0x01BF_FFC0;
+/// Size of the IWAD probe name region in bytes (must be a multiple of 4).
+pub const WAD_IWAD_NAME_SIZE: u32 = 16;
+
 /// WAD data region (memory-mapped into RAM).
 /// Retail DOOM.WAD = 12,408,292 bytes (~12.4 MiB). Shareware doom1.wad = 4,196,020 bytes.
 pub const WAD_BASE: u32 = 0x01C0_0000;

@@ -751,6 +751,21 @@ fn verify_maps(
             "RAM_MAP: WAD size {} bytes written to {wad_size_word:#x}",
             wad_data.len()
         );
+
+        // Publish the canonical IWAD probe name so libc_stubs.c access() can report
+        // the right filename to IdentifyVersion(). Without this the gamemode is
+        // pinned at build time and only one IWAD flavour ever works.
+        let flavour = loader::detect_iwad_flavour(wad_data)?;
+        let probe = flavour.probe_name();
+        let mut name_buf = [0u8; memory::WAD_IWAD_NAME_SIZE as usize];
+        // probe_name() values are all well under the buffer; NUL terminator is
+        // guaranteed because the buffer starts zeroed and is strictly longer.
+        name_buf[..probe.len()].copy_from_slice(probe.as_bytes());
+        let name_base_word = memory::WAD_IWAD_NAME_ADDR / 4;
+        for (i, word) in loader::bytes_to_words(&name_buf).into_iter().enumerate() {
+            ram_map.set(name_base_word + i as u32, word, 0)?;
+        }
+        info!("RAM_MAP: IWAD probe name '{probe}' written to {name_base_word:#x} ({flavour:?})");
     }
 
     // Verify STATS map is empty/zeroed

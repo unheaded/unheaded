@@ -19,8 +19,15 @@ PartOf=unheaded-doom.target
 Type=simple
 WorkingDirectory=/home/govan/tmp/unheaded
 
-ExecStart=/home/govan/tmp/unheaded/crates/doom-runner/target/release/doom-runner \
-    --wad /home/govan/tmp/DOOM_wads/doom1.wad
+# The `run` subcommand is required, as are --doom-mbc and --doom-elf (no defaults).
+# Swap --wad for doom1.wad to run shareware; doom-runner detects the IWAD flavour
+# from the lump directory, so no rebuild is needed to change WADs.
+ExecStart=/home/govan/tmp/unheaded/crates/doom-runner/target/release/doom-runner run \
+    --doom-mbc /home/govan/tmp/unheaded/demos/doom/doom.mbc \
+    --doom-elf /home/govan/tmp/unheaded/demos/doom/doom.elf \
+    --rv2mbc   /home/govan/tmp/unheaded/demos/doom/doom.rv2mbc \
+    --wad      /home/govan/tmp/projects/doom-related/DOOM.WAD \
+    --hops 2
 
 # XDP attach: doom-runner loads the prog but does NOT attach it.
 # This runs after the process is up and the prog is in the kernel.
