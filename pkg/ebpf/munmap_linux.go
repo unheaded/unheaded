@@ -7,8 +7,6 @@
 package ebpf
 
 import (
-	"unsafe"
-
 	"golang.org/x/sys/unix"
 )
 
@@ -16,18 +14,28 @@ import (
 //
 // `addr` is the value returned by an earlier mmap(2) syscall on a BPF map FD.
 // It is NOT a Go-managed pointer — the GC has no awareness of the underlying
-// memory, so converting via unsafe.Pointer is safe (the standard go-vet
-// `unsafeptr` warning is a known false-positive for kernel-owned regions).
+// memory.
 //
-// We isolate this conversion in a small dedicated function so the lint
-// suppression has a single, documented home rather than being scattered
-// across two call sites in loader.go.
+// This previously built a []byte via
 //
-//nolint:govet,gosec // kernel mmap address; GC reachability does not apply.
+//	unsafe.Slice((*byte)(unsafe.Pointer(addr)), size)
+//
+// purely to satisfy unix.Munmap's signature, and carried a
+// `//nolint:govet,gosec` comment to silence the resulting unsafeptr warning.
+// That suppression never worked: `//nolint` is golangci-lint syntax and
+// `go vet` does not parse it, so the warning had been failing `go vet` — and
+// the pre-commit hook — the entire time it was there.
+//
+// Rather than hunt for a directive that does suppress it, the conversion is
+// gone. munmap(2) takes an address and a length, so the syscall can be
+// invoked with the raw uintptr directly: no unsafe.Pointer, nothing for
+// unsafeptr to flag, and no reliance on a lint escape hatch.
 func munmapKernelRegion(addr uintptr, size int) error {
 	if addr == 0 || size == 0 {
 		return nil
 	}
-	mem := unsafe.Slice((*byte)(unsafe.Pointer(addr)), size)
-	return unix.Munmap(mem)
+	if _, _, errno := unix.Syscall(unix.SYS_MUNMAP, addr, uintptr(size), 0); errno != 0 {
+		return errno
+	}
+	return nil
 }
