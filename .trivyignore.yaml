@@ -157,3 +157,79 @@ misconfigurations:
       not by trivy's built-in registry list, which cannot know ghcr.io/unheaded
       is first-party.
 
+  # ── MEDIUM triage (2026-07-29) ───────────────────────────────────────────
+
+  # Pattern-match false positives. Neither value is a secret; trivy matched on
+  # the KEY NAME, not the content:
+  #   UNHEADED_NETWORK_MTU: "1380"   — an MTU
+  #   ssl-redirect-port:    "21443"  — a port number
+  - id: KSV-01010
+    paths:
+      - "kubernetes/manifests/base/config/configmap-shared.yaml"
+      - "kubernetes/manifests/base/haproxy-ingress/configmap.yaml"
+    statement: >-
+      Values are an MTU (1380) and a port (21443). trivy matched the key names,
+      not sensitive content.
+
+  # The armory control plane reconciles Deployments, so it needs to see and
+  # patch them. Checked the actual verbs rather than the rule title: read-only
+  # on pods/services/endpoints/configmaps/pods-log, update+patch on
+  # deployments/replicasets, NO create or delete on pods, and NO access to
+  # secrets at all — which is the verb that would make this dangerous.
+  - id: KSV-0048
+    paths:
+      - "deploy/k8s/rbac/armory-role.yaml"
+    statement: >-
+      Control plane reconciling Deployments. Read-only except update/patch on
+      deployments/replicasets; no pod create/delete and no secrets access.
+
+  # Same inherent-access set already documented above for KSV-0009/0119/0120:
+  # a packet-capture IDS, a VPN loading a kernel module, an eBPF collector and
+  # host metrics. The capability and the hostPath ARE the function.
+  - id: KSV-0022
+    paths:
+      - "deploy/k8s/ebpf/void-collector-daemonset.yaml"
+      - "kubernetes/manifests/base/suricata/daemonset.yaml"
+      - "kubernetes/manifests/overlays/wireguard/wireguard.yaml"
+      - "kubernetes/manifests/overlays/gpu-vllm/vllm.yaml"
+    statement: >-
+      Capabilities are scoped and additive over drop:ALL — BPF/PERFMON for the
+      collector, NET_RAW for the IDS, SYS_MODULE for the VPN, SYS_PTRACE for
+      the ROCm runtime.
+
+  - id: KSV-0023
+    paths:
+      - "deploy/k8s/ebpf/void-collector-daemonset.yaml"
+      - "kubernetes/manifests/base/telemetry/node-exporter-daemonset.yaml"
+      - "kubernetes/manifests/base/telemetry/promtail-daemonset.yaml"
+      - "kubernetes/manifests/overlays/wireguard/wireguard.yaml"
+      - "kubernetes/manifests/overlays/gpu-vllm/vllm.yaml"
+    statement: >-
+      hostPath IS the data source: bpffs, /proc and /sys, container logs, and
+      the ROCm device nodes /dev/kfd and /dev/dri.
+
+  # Kustomize strategic-merge patch, scanned standalone — see the KSV-0118
+  # entry above. The base sets allowPrivilegeEscalation:false and
+  # seccompProfile: RuntimeDefault.
+  - id: KSV-0001
+    paths:
+      - "deploy/k8s/armory/cuirass-deployment-with-secrets.yaml"
+    statement: >-
+      Kustomize patch; base sets allowPrivilegeEscalation: false.
+
+  - id: KSV-0104
+    paths:
+      - "deploy/k8s/armory/cuirass-deployment-with-secrets.yaml"
+    statement: >-
+      Kustomize patch; base sets seccompProfile: RuntimeDefault.
+
+  # SSH into a firewall appliance image is how these are administered. Same
+  # ACCEPTED RISK as their DS-0002 entry above, not a false positive.
+  - id: DS-0004
+    paths:
+      - "docker/firewall/ipfire/Dockerfile"
+      - "docker/firewall/opnsense/Dockerfile"
+    statement: >-
+      Firewall appliance management interface. ACCEPTED RISK, tracked with the
+      DS-0002 entry for the same images.
+
