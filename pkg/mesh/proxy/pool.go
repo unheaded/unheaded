@@ -104,7 +104,7 @@ func NewConnectionPool(config *PoolConfig) *ConnectionPool {
 		// not user-supplied at request time. SSRF surface is gated upstream
 		// at the load-balancer / mesh-policy layer, not here.
 		dial = func(network, address string, timeout time.Duration) (net.Conn, error) {
-			return net.DialTimeout(network, address, timeout) //nolint:gosec // G704: configured backend address, not user-controlled
+			return net.DialTimeout(network, address, timeout) // #nosec G704 -- configured backend address, not user-controlled
 		}
 	}
 

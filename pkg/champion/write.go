@@ -54,7 +54,7 @@ func (c *Champion) WriteFile(ctx context.Context, path, content string) error {
 
 	// path is gated by c.validatePath(path) at line 31 — sandbox enforces
 	// no `..`, denied-paths blocklist, and allowed-paths prefix-check.
-	if err := os.WriteFile(absPath, []byte(content), 0644); err != nil { //nolint:gosec // G703: validated by c.validatePath
+	if err := os.WriteFile(absPath, []byte(content), 0644); err != nil { // #nosec G703 -- validated by c.validatePath
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return fmt.Errorf("write file: %w", err)
 	}
@@ -103,7 +103,7 @@ func (c *Champion) PatchFile(ctx context.Context, path, oldText, newText string)
 	}
 
 	// path is gated by c.validatePath(path) at line 77 — same sandbox rules.
-	if err := os.WriteFile(absPath, []byte(after), 0644); err != nil { //nolint:gosec // G703: validated by c.validatePath
+	if err := os.WriteFile(absPath, []byte(after), 0644); err != nil { // #nosec G703 -- validated by c.validatePath
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
 		return fmt.Errorf("write patched file: %w", err)
 	}
