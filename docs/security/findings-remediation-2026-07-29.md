@@ -217,6 +217,26 @@ An undocumented election is harder to defend than a documented one.
 
 ---
 
+## Follow-ups raised during remediation
+
+- **Warn loudly when `InsecureSkipVerify` is enabled.** All four G402 sites are
+  config-driven and default to `false`, and the two mTLS ones still run
+  `VerifyPeerCertificate` (Go invokes it even when `InsecureSkipVerify` is true), so
+  peer certs are not left unchecked. But enabling them is currently *silent* — the
+  same silent-fallback shape as the wotan credential default that G101 removed.
+  `pkg/mesh/mtls/provider.go` has no logger in scope, so this needs a small plumbing
+  change rather than a one-liner. Sites: `pkg/mesh/mtls/provider.go:421`,
+  `pkg/mesh/mtls/mtls.go:319`, `pkg/loadbalancer/config.go:777`,
+  `pkg/alerting/notify/email.go:196`.
+
+- **`//nolint` is inert for more than gosec.** `go vet` does not parse it either —
+  `pkg/ebpf/munmap_linux.go` carried `//nolint:govet,gosec` and had been failing
+  `go vet` (and the pre-commit hook) the whole time. Fixed by removing the
+  `unsafe.Pointer` conversion outright. Worth grepping for other `//nolint` uses that
+  are load-bearing in someone's head but inert in the toolchain.
+
+---
+
 ## Standing rules
 
 1. **No new findings.** Once a rule leaves `-exclude`, it never goes back. A PR that

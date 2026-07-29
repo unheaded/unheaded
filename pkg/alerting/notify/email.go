@@ -193,7 +193,7 @@ func (e *EmailChannel) sendMail(ctx context.Context, msg []byte) error {
 	if e.config.RequireTLS {
 		tlsConfig := &tls.Config{
 			ServerName:         e.config.SMTPHost,
-			InsecureSkipVerify: e.config.TLSInsecure,
+			InsecureSkipVerify: e.config.TLSInsecure, // #nosec G402 -- opt-in SMTP config field, defaults false
 		}
 		if err := client.StartTLS(tlsConfig); err != nil {
 			return fmt.Errorf("failed to start TLS: %w", err)
