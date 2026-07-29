@@ -54,3 +54,86 @@ misconfigurations:
       Firewall appliance image with no privilege-dropping path today. ACCEPTED
       RISK, not a false positive — needs a dedicated user or runtime capability
       confinement before production exposure.
+
+  # ── Host access that is inherent to the workload ──────────────────────────
+  #
+  # These are not hardening gaps; the capability IS the function. Each was
+  # checked against what the workload actually does, not waved through:
+  #
+  #   suricata       an IDS that reads raw packets off the wire. hostNetwork +
+  #                  NET_RAW is the entire point; without it there is nothing
+  #                  to inspect.
+  #   wireguard      a VPN. SYS_MODULE loads the kernel module, NET_ADMIN
+  #                  configures the interface, hostNetwork carries the tunnel.
+  #   void-collector the eBPF collector. Already the best-scoped of the three:
+  #                  privileged:false with only BPF, PERFMON and NET_ADMIN.
+  #   node-exporter  host metrics. hostPID and the /proc,/sys mounts ARE the
+  #                  data source; without them it exports nothing.
+  #
+  # The applicable control for all four is capability scoping (which they
+  # already do — none uses privileged:true) plus the dedicated UIDs now
+  # assigned in pkg/uids. Removing the access would remove the service.
+  - id: KSV-0009
+    paths:
+      - "kubernetes/manifests/base/suricata/daemonset.yaml"
+      - "kubernetes/manifests/overlays/wireguard/wireguard.yaml"
+      - "deploy/k8s/ebpf/void-collector-daemonset.yaml"
+      - "kubernetes/manifests/base/telemetry/node-exporter-daemonset.yaml"
+    statement: >-
+      hostNetwork is inherent: packet-capture IDS, VPN tunnel, eBPF collector
+      and host metrics respectively. Capability-scoped, none privileged:true.
+
+  - id: KSV-0119
+    paths:
+      - "kubernetes/manifests/base/suricata/daemonset.yaml"
+    statement: >-
+      NET_RAW is what lets Suricata read raw packets. Without it the IDS has
+      no input.
+
+  - id: KSV-0120
+    paths:
+      - "kubernetes/manifests/overlays/wireguard/wireguard.yaml"
+    statement: >-
+      SYS_MODULE loads the WireGuard kernel module. Removing it removes the VPN.
+
+  - id: KSV-0010
+    paths:
+      - "kubernetes/manifests/base/telemetry/node-exporter-daemonset.yaml"
+    statement: >-
+      hostPID is node-exporter's data source for process metrics.
+
+  - id: KSV-0024
+    paths:
+      - "kubernetes/manifests/base/telemetry/node-exporter-daemonset.yaml"
+      - "kubernetes/manifests/overlays/wireguard/wireguard.yaml"
+    statement: >-
+      Host ports: node-exporter is scraped per-node; WireGuard needs a stable
+      UDP listener reachable from outside the cluster.
+
+  - id: KSV-0121
+    paths:
+      - "kubernetes/manifests/base/telemetry/node-exporter-daemonset.yaml"
+    statement: >-
+      The /proc and /sys hostPath mounts ARE the metric source. Both read-only.
+
+  # ── Kustomize strategic-merge patch, scanned standalone ───────────────────
+  #
+  # Not a real finding. This file is a PATCH that adds a CSI secret mount; it
+  # is merged onto cuirass-deployment.yaml, which carries the full security
+  # context (runAsNonRoot, runAsUser 16740, readOnlyRootFilesystem: true,
+  # capabilities drop ALL). trivy scans the patch in isolation and therefore
+  # sees a bare pod spec.
+  - id: KSV-0118
+    paths:
+      - "deploy/k8s/armory/cuirass-deployment-with-secrets.yaml"
+    statement: >-
+      Kustomize strategic-merge patch; the base carries the full security
+      context. trivy scans the patch standalone.
+
+  - id: KSV-0014
+    paths:
+      - "deploy/k8s/armory/cuirass-deployment-with-secrets.yaml"
+    statement: >-
+      Kustomize strategic-merge patch; the base sets
+      readOnlyRootFilesystem: true.
+

@@ -20,6 +20,20 @@ spec:
       hostNetwork: true
       hostPID: false
       priorityClassName: unheaded-critical
+      # Pod-level context (trivy KSV-0118). seccompProfile only, deliberately.
+      #
+      # runAsUser is NOT set here. This collector needs CAP_BPF and CAP_PERFMON,
+      # and whether those work for a non-root UID depends on kernel version and
+      # the BPF operations used — asserting an unvalidated UID risks silently
+      # breaking eBPF load on WEST/EAST. The capabilities are already tightly
+      # scoped (privileged:false, drop ALL, add only BPF/PERFMON/NET_ADMIN),
+      # which is the control that matters most here.
+      #
+      # TODO(WEST): validate a dedicated UID from pkg/uids against a live BPF
+      # load, then pin runAsUser/runAsGroup here as the other tiers do.
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: collector
         image: unheaded/void-collector:latest
