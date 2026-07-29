@@ -390,7 +390,7 @@ func (s *Service) RunExperiment(ctx context.Context, experimentID string) error 
 	}
 
 	// Create cancellable context
-	expCtx, cancel := context.WithCancel(ctx)
+	expCtx, cancel := context.WithCancel(ctx) // #nosec G118 -- cancel stored in s.runningExps and invoked at yaldabaoth.go:309
 	s.runningExps[experimentID] = cancel
 
 	now := time.Now()

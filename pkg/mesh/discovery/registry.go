@@ -391,7 +391,7 @@ func (ir *InstanceRegistrar) Start(ctx context.Context) error {
 	}
 
 	// Start heartbeat loop
-	go ir.heartbeatLoop()
+	go ir.heartbeatLoop() // #nosec G118 -- long-lived heartbeat loop, owned by the registry not a request
 
 	return nil
 }

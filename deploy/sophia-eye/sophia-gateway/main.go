@@ -56,14 +56,14 @@ type SophiaServiceEntry struct {
 
 // InferenceRecord represents an inference request recorded in Anamnesis
 type InferenceRecord struct {
-	ServiceName     string `json:"service_name"`
-	Model           string `json:"model"`
-	PromptTokens    int    `json:"prompt_tokens"`
-	CompletionTokens int   `json:"completion_tokens"`
-	LatencyMs       float64 `json:"latency_ms"`
-	Timestamp       int64  `json:"timestamp"`
-	Status          string `json:"status"`
-	ErrorMessage    string `json:"error_message,omitempty"`
+	ServiceName      string  `json:"service_name"`
+	Model            string  `json:"model"`
+	PromptTokens     int     `json:"prompt_tokens"`
+	CompletionTokens int     `json:"completion_tokens"`
+	LatencyMs        float64 `json:"latency_ms"`
+	Timestamp        int64   `json:"timestamp"`
+	Status           string  `json:"status"`
+	ErrorMessage     string  `json:"error_message,omitempty"`
 }
 
 // WotanMetric represents an observability event for Wotan
@@ -435,7 +435,8 @@ func (sg *SophiaGateway) handleChat(w http.ResponseWriter, r *http.Request) {
 		Timestamp:        time.Now().Unix(),
 		Status:           "success",
 	}
-	go func() { _ = sg.recordInferenceToAnamnesis(context.Background(), record) }()
+	// Detach from the request, keep trace values.
+	go func() { _ = sg.recordInferenceToAnamnesis(context.WithoutCancel(r.Context()), record) }()
 
 	// Report to Wotan
 	metric := WotanMetric{
@@ -450,7 +451,8 @@ func (sg *SophiaGateway) handleChat(w http.ResponseWriter, r *http.Request) {
 			"completion_tokens": fmt.Sprintf("%d", inferenceResp.Usage.CompletionTokens),
 		},
 	}
-	go func() { _ = sg.reportToWotan(context.Background(), metric) }()
+	// Detach from the request, keep trace values.
+	go func() { _ = sg.reportToWotan(context.WithoutCancel(r.Context()), metric) }()
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(resp.StatusCode)

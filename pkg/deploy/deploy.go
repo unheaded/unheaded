@@ -509,7 +509,11 @@ func (e *Engine) Deploy(ctx context.Context, spec *DeploymentSpec) (*Deployment,
 	})
 
 	// Start deployment in background
-	go e.runDeployment(context.Background(), deployment)
+	// Detach from the request lifetime — a deployment must not be cancelled
+	// when the HTTP handler returns — but keep ctx VALUES so the trace ID
+	// survives. context.Background() dropped it, making background
+	// deployments invisible to trace correlation.
+	go e.runDeployment(context.WithoutCancel(ctx), deployment)
 
 	return deployment, nil
 }

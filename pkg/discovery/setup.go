@@ -78,7 +78,7 @@ func SetupServiceDiscovery(ctx context.Context, conn transport.Connection, name 
 	}
 
 	// Deregister on context cancellation.
-	go func() {
+	go func() { // #nosec G118 -- goroutine exists solely to observe ctx.Done() and deregister
 		<-ctx.Done()
 		if err := reg.Deregister(context.Background()); err != nil {
 			log.Printf("[discovery] %s: deregistration failed: %v", name, err)

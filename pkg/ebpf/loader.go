@@ -3785,7 +3785,7 @@ func (l *NativeLoader) ReadRingbuf(ctx context.Context, programName, mapName str
 	events := make(chan []byte, 1024)
 
 	// Create cancellable context
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx) // #nosec G118 -- cancel stored in loaded.cancelFns and invoked at loader.go:2268/4011
 	loaded.cancelFns = append(loaded.cancelFns, cancel)
 
 	// Start reader goroutine
@@ -3930,7 +3930,7 @@ func (l *NativeLoader) ReadPerfEvents(ctx context.Context, programName, mapName 
 	// This is simplified - full implementation would handle all CPUs
 	events := make(chan []byte, 1024)
 
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithCancel(ctx) // #nosec G118 -- cancel stored in loaded.cancelFns and invoked at loader.go:2268/4011
 	loaded.cancelFns = append(loaded.cancelFns, cancel)
 
 	// Start reader

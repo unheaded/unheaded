@@ -357,7 +357,8 @@ func (p *bareMetalProvisioner) Provision(ctx context.Context, spec *MachineSpec)
 	p.initProvisioningStatus(spec.ID)
 
 	// Start provisioning workflow in background
-	go p.runProvisioningWorkflow(context.Background(), machine)
+	// Detach lifetime, keep trace values — see pkg/deploy/deploy.go.
+	go p.runProvisioningWorkflow(context.WithoutCancel(ctx), machine)
 
 	return machine, nil
 }
