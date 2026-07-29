@@ -255,7 +255,7 @@ func (ws *weightedSelector) select_() *ServiceEndpoint {
 		return nil
 	}
 
-	r := rand.Intn(ws.total)
+	r := rand.Intn(ws.total) // #nosec G404 -- weighted endpoint selection, not security-bearing
 	for i, w := range ws.weights {
 		r -= w
 		if r < 0 {
@@ -660,7 +660,7 @@ func (sd *EnhancedServiceDiscovery) selectRandom(svc *ServiceDefinition) (*Servi
 	if len(healthy) == 0 {
 		return nil, ErrNoHealthyEndpoints
 	}
-	return healthy[rand.Intn(len(healthy))], nil
+	return healthy[rand.Intn(len(healthy))], nil // #nosec G404 -- weighted endpoint selection, not security-bearing
 }
 
 func (sd *EnhancedServiceDiscovery) selectFirstHealthy(svc *ServiceDefinition) (*ServiceEndpoint, error) {

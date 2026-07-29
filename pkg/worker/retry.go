@@ -76,7 +76,7 @@ func NewRetryer(config *RetryConfig) *Retryer {
 	}
 	return &Retryer{
 		config: config,
-		rng:    rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng:    rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- retry backoff jitter, not security-bearing
 	}
 }
 

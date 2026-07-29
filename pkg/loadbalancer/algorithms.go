@@ -301,7 +301,7 @@ type RandomState struct {
 // NewRandomState creates a new random state.
 func NewRandomState() *RandomState {
 	return &RandomState{
-		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng: rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- backend selection, not security-bearing
 	}
 }
 
@@ -644,7 +644,7 @@ type TwoRandomChoicesState struct {
 // NewTwoRandomChoicesState creates a new two random choices state.
 func NewTwoRandomChoicesState() *TwoRandomChoicesState {
 	return &TwoRandomChoicesState{
-		rng: rand.New(rand.NewSource(time.Now().UnixNano())),
+		rng: rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- backend selection, not security-bearing
 	}
 }
 
