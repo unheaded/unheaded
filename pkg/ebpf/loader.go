@@ -1142,7 +1142,7 @@ func bpfMapCreate(mapType, keySize, valueSize, maxEntries, flags uint32, name st
 	}
 	copy(attr.MapName[:], name)
 
-	fd, err := bpfSyscall(BPF_MAP_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	fd, err := bpfSyscall(BPF_MAP_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return -1, fmt.Errorf("%w: map_create %s: %v", ErrSyscallFailed, name, err)
 	}
@@ -1158,7 +1158,7 @@ func bpfMapLookupElem(mapFD int, key, value unsafe.Pointer) error {
 		Value: uint64(uintptr(value)),
 	}
 
-	_, err := bpfSyscall(BPF_MAP_LOOKUP_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	_, err := bpfSyscall(BPF_MAP_LOOKUP_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return fmt.Errorf("%w: map_lookup: %v", ErrSyscallFailed, err)
 	}
@@ -1175,7 +1175,7 @@ func bpfMapUpdateElem(mapFD int, key, value unsafe.Pointer, flags uint64) error 
 		Flags: flags,
 	}
 
-	_, err := bpfSyscall(BPF_MAP_UPDATE_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	_, err := bpfSyscall(BPF_MAP_UPDATE_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return fmt.Errorf("%w: map_update: %v", ErrSyscallFailed, err)
 	}
@@ -1190,7 +1190,7 @@ func bpfMapDeleteElem(mapFD int, key unsafe.Pointer) error {
 		Key:   uint64(uintptr(key)),
 	}
 
-	_, err := bpfSyscall(BPF_MAP_DELETE_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	_, err := bpfSyscall(BPF_MAP_DELETE_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return fmt.Errorf("%w: map_delete: %v", ErrSyscallFailed, err)
 	}
@@ -1206,7 +1206,7 @@ func bpfMapGetNextKey(mapFD int, key, nextKey unsafe.Pointer) error {
 		Value: uint64(uintptr(nextKey)),
 	}
 
-	_, err := bpfSyscall(BPF_MAP_GET_NEXT_KEY, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	_, err := bpfSyscall(BPF_MAP_GET_NEXT_KEY, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return err // Return raw error for ENOENT check
 	}
@@ -1229,15 +1229,15 @@ func bpfProgLoad(progType uint32, insns []byte, license string, logBuf []byte, b
 	attr := bpfProgLoadAttr{
 		ProgType: progType,
 		InsnCnt:  insnCnt,
-		Insns:    uint64(uintptr(unsafe.Pointer(&insns[0]))),
-		License:  uint64(uintptr(unsafe.Pointer(&licenseBytes[0]))),
+		Insns:    uint64(uintptr(unsafe.Pointer(&insns[0]))),        // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+		License:  uint64(uintptr(unsafe.Pointer(&licenseBytes[0]))), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
 	}
 
 	// Set up log buffer if provided
 	if len(logBuf) > 0 {
 		attr.LogLevel = 1
-		attr.LogSize = uint32(len(logBuf)) // #nosec G115 -- bounded by the buffer this code allocated; BPF verifier caps programs at 1M instructions
-		attr.LogBuf = uint64(uintptr(unsafe.Pointer(&logBuf[0])))
+		attr.LogSize = uint32(len(logBuf))                        // #nosec G115 -- bounded by the buffer this code allocated; BPF verifier caps programs at 1M instructions
+		attr.LogBuf = uint64(uintptr(unsafe.Pointer(&logBuf[0]))) // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
 	}
 
 	// Add BTF if available
@@ -1245,7 +1245,7 @@ func bpfProgLoad(progType uint32, insns []byte, license string, logBuf []byte, b
 		attr.ProgBTFFD = uint32(btfFD) // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 	}
 
-	fd, err := bpfSyscall(BPF_PROG_LOAD, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	fd, err := bpfSyscall(BPF_PROG_LOAD, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 
 	// Extract verifier log
 	var verifierLog string
@@ -1269,11 +1269,11 @@ func bpfObjPin(fd int, pathname string) error {
 	pathBytes := append([]byte(pathname), 0)
 
 	attr := bpfObjAttr{
-		Pathname: uint64(uintptr(unsafe.Pointer(&pathBytes[0]))),
-		BPFFD:    uint32(fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
+		Pathname: uint64(uintptr(unsafe.Pointer(&pathBytes[0]))), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+		BPFFD:    uint32(fd),                                     // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 	}
 
-	_, err := bpfSyscall(BPF_OBJ_PIN, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	_, err := bpfSyscall(BPF_OBJ_PIN, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return fmt.Errorf("%w: obj_pin %s: %v", ErrSyscallFailed, pathname, err)
 	}
@@ -1286,10 +1286,10 @@ func bpfObjGet(pathname string) (int, error) {
 	pathBytes := append([]byte(pathname), 0)
 
 	attr := bpfObjAttr{
-		Pathname: uint64(uintptr(unsafe.Pointer(&pathBytes[0]))),
+		Pathname: uint64(uintptr(unsafe.Pointer(&pathBytes[0]))), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
 	}
 
-	fd, err := bpfSyscall(BPF_OBJ_GET, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	fd, err := bpfSyscall(BPF_OBJ_GET, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return -1, fmt.Errorf("%w: obj_get %s: %v", ErrSyscallFailed, pathname, err)
 	}
@@ -1305,7 +1305,7 @@ func bpfProgAttach(progFD, targetFD int, attachType uint32) error {
 		AttachType:  attachType,
 	}
 
-	_, err := bpfSyscall(BPF_PROG_ATTACH, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	_, err := bpfSyscall(BPF_PROG_ATTACH, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return fmt.Errorf("%w: prog_attach: %v", ErrSyscallFailed, err)
 	}
@@ -1325,7 +1325,7 @@ func bpfProgDetach(progFD, targetFD int, attachType uint32) error {
 		AttachType:  attachType,
 	}
 
-	_, err := bpfSyscall(BPF_PROG_DETACH, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	_, err := bpfSyscall(BPF_PROG_DETACH, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return fmt.Errorf("%w: prog_detach: %v", ErrSyscallFailed, err)
 	}
@@ -1341,7 +1341,7 @@ func bpfLinkCreate(progFD, targetFD int, attachType uint32) (int, error) {
 		AttachType: attachType,
 	}
 
-	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return -1, fmt.Errorf("%w: link_create: %v", ErrSyscallFailed, err)
 	}
@@ -1356,10 +1356,10 @@ func bpfGetProgInfo(fd int) (*bpfProgInfo, error) {
 	attr := bpfObjGetInfoAttr{
 		BPFFD:   uint32(fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		InfoLen: uint32(unsafe.Sizeof(*info)),
-		Info:    uint64(uintptr(unsafe.Pointer(info))),
+		Info:    uint64(uintptr(unsafe.Pointer(info))), // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	}
 
-	_, err := bpfSyscall(BPF_OBJ_GET_INFO_BY_FD, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	_, err := bpfSyscall(BPF_OBJ_GET_INFO_BY_FD, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return nil, fmt.Errorf("%w: get_info: %v", ErrSyscallFailed, err)
 	}
@@ -1374,10 +1374,10 @@ func bpfGetMapInfo(fd int) (*bpfMapInfo, error) {
 	attr := bpfObjGetInfoAttr{
 		BPFFD:   uint32(fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		InfoLen: uint32(unsafe.Sizeof(*info)),
-		Info:    uint64(uintptr(unsafe.Pointer(info))),
+		Info:    uint64(uintptr(unsafe.Pointer(info))), // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	}
 
-	_, err := bpfSyscall(BPF_OBJ_GET_INFO_BY_FD, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	_, err := bpfSyscall(BPF_OBJ_GET_INFO_BY_FD, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return nil, fmt.Errorf("%w: get_map_info: %v", ErrSyscallFailed, err)
 	}
@@ -2042,8 +2042,8 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 		}
 		// Populate the rodata map with the section data
 		key := uint32(0)
-		if err := bpfMapUpdateElem(rodataFD, unsafe.Pointer(&key),
-			unsafe.Pointer(&prog.Instructions[0]), 0); err != nil {
+		if err := bpfMapUpdateElem(rodataFD, unsafe.Pointer(&key), // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
+			unsafe.Pointer(&prog.Instructions[0]), 0); err != nil { // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 			_ = unix.Close(rodataFD)
 			for _, m := range loaded.maps {
 				_ = unix.Close(m.fd)
@@ -2619,7 +2619,7 @@ func (l *NativeLoader) attachXDPLink(loaded *loadedProgram, ifIndex int) (int, e
 		attr.Flags = XDP_FLAGS_HW_MODE
 	}
 
-	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return -1, err
 	}
@@ -2657,26 +2657,26 @@ func (l *NativeLoader) attachXDPNetlink(loaded *loadedProgram, ifIndex int) erro
 	buf := make([]byte, totalLen)
 
 	// Write nlmsghdr
-	nlh := (*nlMsgHdr)(unsafe.Pointer(&buf[0]))
+	nlh := (*nlMsgHdr)(unsafe.Pointer(&buf[0])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 	nlh.Len = totalLen
 	nlh.Type = RTM_SETLINK
 	nlh.Flags = NLM_F_REQUEST | NLM_F_ACK
 	nlh.Seq = 1
 
 	// Write ifinfomsg
-	ifi := (*ifInfoMsg)(unsafe.Pointer(&buf[16]))
+	ifi := (*ifInfoMsg)(unsafe.Pointer(&buf[16])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 	ifi.Family = unix.AF_UNSPEC
 	ifi.Index = int32(ifIndex) // #nosec G115 -- kernel ABI: ifindex is int32
 
 	// Write IFLA_XDP attribute (nested)
 	offset := 32
-	xdpAttr := (*nlAttr)(unsafe.Pointer(&buf[offset]))
+	xdpAttr := (*nlAttr)(unsafe.Pointer(&buf[offset])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 	xdpAttr.Len = xdpAttrLen
 	xdpAttr.Type = IFLA_XDP | 0x8000 // NLA_F_NESTED
 	offset += 4
 
 	// Write XDP_FD attribute
-	fdAttr := (*nlAttr)(unsafe.Pointer(&buf[offset]))
+	fdAttr := (*nlAttr)(unsafe.Pointer(&buf[offset])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 	fdAttr.Len = xdpFDAttrLen
 	fdAttr.Type = IFLA_XDP_FD
 	offset += 4
@@ -2697,7 +2697,7 @@ func (l *NativeLoader) attachXDPNetlink(loaded *loadedProgram, ifIndex int) erro
 		flags = 0
 	}
 
-	flagsAttr := (*nlAttr)(unsafe.Pointer(&buf[offset]))
+	flagsAttr := (*nlAttr)(unsafe.Pointer(&buf[offset])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 	flagsAttr.Len = xdpFlagsAttrLen
 	flagsAttr.Type = IFLA_XDP_FLAGS
 	offset += 4
@@ -2718,7 +2718,7 @@ func (l *NativeLoader) attachXDPNetlink(loaded *loadedProgram, ifIndex int) erro
 
 	// Check for error in response
 	if n >= 20 {
-		respNlh := (*nlMsgHdr)(unsafe.Pointer(&recvBuf[0]))
+		respNlh := (*nlMsgHdr)(unsafe.Pointer(&recvBuf[0])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 		if respNlh.Type == unix.NLMSG_ERROR {
 			errCode := int32(binary.LittleEndian.Uint32(recvBuf[16:])) // #nosec G115 -- netlink errno round-trip; kernel returns a negative int32
 			if errCode != 0 {
@@ -2752,7 +2752,7 @@ func getInterfaceByName(name string) (*interfaceInfo, error) {
 	copy(ifr[:], name)
 
 	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd),
-		unix.SIOCGIFINDEX, uintptr(unsafe.Pointer(&ifr[0])))
+		unix.SIOCGIFINDEX, uintptr(unsafe.Pointer(&ifr[0]))) // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
 	if errno != 0 {
 		return nil, errno
 	}
@@ -2822,7 +2822,7 @@ func (l *NativeLoader) attachTCX(loaded *loadedProgram, ifIndex int) (int, error
 		AttachType:  attachType,
 	}
 
-	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return -1, err
 	}
@@ -2882,14 +2882,14 @@ func (l *NativeLoader) createClsactQdisc(sock int, ifIndex int) error {
 	buf := make([]byte, totalLen)
 
 	// Write nlmsghdr
-	nlh := (*nlMsgHdr)(unsafe.Pointer(&buf[0]))
-	nlh.Len = uint32(totalLen) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+	nlh := (*nlMsgHdr)(unsafe.Pointer(&buf[0])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
+	nlh.Len = uint32(totalLen)                  // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 	nlh.Type = RTM_NEWQDISC
 	nlh.Flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_EXCL
 	nlh.Seq = 2
 
 	// Write tcmsg
-	tcm := (*tcMsg)(unsafe.Pointer(&buf[16]))
+	tcm := (*tcMsg)(unsafe.Pointer(&buf[16])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 	tcm.Family = unix.AF_UNSPEC
 	tcm.Ifindex = int32(ifIndex) // #nosec G115 -- kernel ABI: ifindex is int32
 	tcm.Handle = TC_H_CLSACT
@@ -2897,8 +2897,8 @@ func (l *NativeLoader) createClsactQdisc(sock int, ifIndex int) error {
 
 	// Write TCA_KIND attribute
 	offset := 36
-	kindNla := (*nlAttr)(unsafe.Pointer(&buf[offset]))
-	kindNla.Len = uint16(4 + len(kindAttr)) // #nosec G115 -- netlink attribute length; payload is a fixed short kind string, far below 65535
+	kindNla := (*nlAttr)(unsafe.Pointer(&buf[offset])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
+	kindNla.Len = uint16(4 + len(kindAttr))            // #nosec G115 -- netlink attribute length; payload is a fixed short kind string, far below 65535
 	kindNla.Type = TCA_KIND
 	copy(buf[offset+4:], kindAttr)
 
@@ -2957,14 +2957,14 @@ func (l *NativeLoader) addTCBPFFilter(sock int, loaded *loadedProgram, ifIndex i
 	buf := make([]byte, totalLen)
 
 	// Write nlmsghdr
-	nlh := (*nlMsgHdr)(unsafe.Pointer(&buf[0]))
-	nlh.Len = uint32(totalLen) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
-	nlh.Type = 44              // RTM_NEWTFILTER
+	nlh := (*nlMsgHdr)(unsafe.Pointer(&buf[0])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
+	nlh.Len = uint32(totalLen)                  // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+	nlh.Type = 44                               // RTM_NEWTFILTER
 	nlh.Flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_EXCL
 	nlh.Seq = 3
 
 	// Write tcmsg
-	tcm := (*tcMsg)(unsafe.Pointer(&buf[16]))
+	tcm := (*tcMsg)(unsafe.Pointer(&buf[16])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 	tcm.Family = unix.AF_UNSPEC
 	tcm.Ifindex = int32(ifIndex) // #nosec G115 -- kernel ABI: ifindex is int32
 	tcm.Parent = parent
@@ -2973,16 +2973,16 @@ func (l *NativeLoader) addTCBPFFilter(sock int, loaded *loadedProgram, ifIndex i
 
 	// Write TCA_KIND attribute
 	offset := 36
-	kindNla := (*nlAttr)(unsafe.Pointer(&buf[offset]))
-	kindNla.Len = uint16(4 + len(kindAttr)) // #nosec G115 -- netlink attribute length; payload is a fixed short kind string, far below 65535
+	kindNla := (*nlAttr)(unsafe.Pointer(&buf[offset])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
+	kindNla.Len = uint16(4 + len(kindAttr))            // #nosec G115 -- netlink attribute length; payload is a fixed short kind string, far below 65535
 	kindNla.Type = TCA_KIND
 	copy(buf[offset+4:], kindAttr)
 	offset += kindAttrLen
 
 	// Write TCA_OPTIONS attribute (nested)
-	optNla := (*nlAttr)(unsafe.Pointer(&buf[offset]))
-	optNla.Len = uint16(4 + optionsLen) // #nosec G115 -- netlink attribute length; payload is a fixed short kind string, far below 65535
-	optNla.Type = TCA_OPTIONS | 0x8000  // NLA_F_NESTED
+	optNla := (*nlAttr)(unsafe.Pointer(&buf[offset])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
+	optNla.Len = uint16(4 + optionsLen)               // #nosec G115 -- netlink attribute length; payload is a fixed short kind string, far below 65535
+	optNla.Type = TCA_OPTIONS | 0x8000                // NLA_F_NESTED
 	offset += 4
 	copy(buf[offset:], bpfFDAttr)
 	offset += len(bpfFDAttr)
@@ -3006,7 +3006,7 @@ func (l *NativeLoader) receiveNetlinkAck(sock int) error {
 	}
 
 	if n >= 20 {
-		respNlh := (*nlMsgHdr)(unsafe.Pointer(&recvBuf[0]))
+		respNlh := (*nlMsgHdr)(unsafe.Pointer(&recvBuf[0])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 		if respNlh.Type == unix.NLMSG_ERROR {
 			errCode := int32(binary.LittleEndian.Uint32(recvBuf[16:])) // #nosec G115 -- netlink errno round-trip; kernel returns a negative int32
 			if errCode != 0 {
@@ -3096,15 +3096,15 @@ func (l *NativeLoader) attachKprobeLink(loaded *loadedProgram, funcName string, 
 	}
 
 	// For PMU-based kprobes, the function name goes in config1
-	attr.ExtConfig = uint64(uintptr(unsafe.Pointer(&funcNameBytes[0])))
+	attr.ExtConfig = uint64(uintptr(unsafe.Pointer(&funcNameBytes[0]))) // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
 
 	// Call perf_event_open
 	perfFD, _, errno := unix.Syscall6(
 		unix.SYS_PERF_EVENT_OPEN,
-		uintptr(unsafe.Pointer(&attr)),
-		uintptr(0xffffffff), // pid = -1 (all processes)
-		uintptr(0),          // cpu = 0
-		uintptr(0xffffffff), // group_fd = -1
+		uintptr(unsafe.Pointer(&attr)), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+		uintptr(0xffffffff),            // pid = -1 (all processes)
+		uintptr(0),                     // cpu = 0
+		uintptr(0xffffffff),            // group_fd = -1
 		uintptr(PERF_FLAG_FD_CLOEXEC),
 		0,
 	)
@@ -3142,10 +3142,10 @@ func (l *NativeLoader) attachKprobePerf(loaded *loadedProgram, funcName string, 
 
 	perfFD, _, errno := unix.Syscall6(
 		unix.SYS_PERF_EVENT_OPEN,
-		uintptr(unsafe.Pointer(&attr)),
-		uintptr(0xffffffff), // pid = -1
-		uintptr(0),          // cpu = 0
-		uintptr(0xffffffff), // group_fd = -1
+		uintptr(unsafe.Pointer(&attr)), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+		uintptr(0xffffffff),            // pid = -1
+		uintptr(0),                     // cpu = 0
+		uintptr(0xffffffff),            // group_fd = -1
 		uintptr(PERF_FLAG_FD_CLOEXEC),
 		0,
 	)
@@ -3284,7 +3284,7 @@ func (l *NativeLoader) attachTracepointLink(loaded *loadedProgram, tpID uint64) 
 
 	perfFD, _, errno := unix.Syscall6(
 		unix.SYS_PERF_EVENT_OPEN,
-		uintptr(unsafe.Pointer(&attr)),
+		uintptr(unsafe.Pointer(&attr)), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
 		uintptr(0xffffffff),
 		uintptr(0),
 		uintptr(0xffffffff),
@@ -3317,7 +3317,7 @@ func (l *NativeLoader) attachTracepointPerf(loaded *loadedProgram, tpID uint64) 
 
 	perfFD, _, errno := unix.Syscall6(
 		unix.SYS_PERF_EVENT_OPEN,
-		uintptr(unsafe.Pointer(&attr)),
+		uintptr(unsafe.Pointer(&attr)), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
 		uintptr(0xffffffff),
 		uintptr(0),
 		uintptr(0xffffffff),
@@ -3370,10 +3370,10 @@ func (l *NativeLoader) attachRawTracepoint(loaded *loadedProgram) error {
 	}{
 		ProgFD:     uint32(loaded.fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		AttachType: BPF_TRACE_RAW_TP,
-		RawTPName:  uint64(uintptr(unsafe.Pointer(&tpNameBytes[0]))),
+		RawTPName:  uint64(uintptr(unsafe.Pointer(&tpNameBytes[0]))), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
 	}
 
-	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	fd, err := bpfSyscall(BPF_LINK_CREATE, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return fmt.Errorf("raw tracepoint attach: %w", err)
 	}
@@ -3562,7 +3562,7 @@ func (l *NativeLoader) ReadMap(ctx context.Context, programName, mapName string,
 	// Allocate value buffer
 	value := make([]byte, m.info.ValueSize)
 
-	err := bpfMapLookupElem(m.fd, unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0]))
+	err := bpfMapLookupElem(m.fd, unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0])) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 	if err != nil {
 		if errors.Is(err, syscall.ENOENT) {
 			return nil, nil
@@ -3596,7 +3596,7 @@ func (l *NativeLoader) WriteMap(ctx context.Context, programName, mapName string
 		return ErrMapNotFound
 	}
 
-	err := bpfMapUpdateElem(m.fd, unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0]), BPF_ANY)
+	err := bpfMapUpdateElem(m.fd, unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0]), BPF_ANY) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 	if err != nil {
 		return err
 	}
@@ -3627,7 +3627,7 @@ func (l *NativeLoader) DeleteMapEntry(ctx context.Context, programName, mapName 
 		return ErrMapNotFound
 	}
 
-	err := bpfMapDeleteElem(m.fd, unsafe.Pointer(&key[0]))
+	err := bpfMapDeleteElem(m.fd, unsafe.Pointer(&key[0])) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 	if err != nil {
 		if errors.Is(err, syscall.ENOENT) {
 			return nil
@@ -3686,10 +3686,10 @@ func (l *NativeLoader) IterateMap(ctx context.Context, programName, mapName stri
 			keyPtr = nil
 			first = false
 		} else {
-			keyPtr = unsafe.Pointer(&key[0])
+			keyPtr = unsafe.Pointer(&key[0]) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 		}
 
-		err := bpfMapGetNextKey(mapFD, keyPtr, unsafe.Pointer(&nextKey[0]))
+		err := bpfMapGetNextKey(mapFD, keyPtr, unsafe.Pointer(&nextKey[0])) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 		if err != nil {
 			if errors.Is(err, syscall.ENOENT) {
 				// End of iteration
@@ -3702,7 +3702,7 @@ func (l *NativeLoader) IterateMap(ctx context.Context, programName, mapName stri
 		copy(key, nextKey)
 
 		// Lookup value
-		err = bpfMapLookupElem(mapFD, unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0]))
+		err = bpfMapLookupElem(mapFD, unsafe.Pointer(&key[0]), unsafe.Pointer(&value[0])) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 		if err != nil {
 			if errors.Is(err, syscall.ENOENT) {
 				// Key was deleted, continue
@@ -3790,7 +3790,7 @@ func (l *NativeLoader) ReadRingbuf(ctx context.Context, programName, mapName str
 		return nil, fmt.Errorf("mmap ringbuf: %w", err)
 	}
 
-	m.mmapAddr = uintptr(unsafe.Pointer(&addr[0]))
+	m.mmapAddr = uintptr(unsafe.Pointer(&addr[0])) // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
 	m.mmapSize = mmapSize
 
 	// Create event channel
@@ -3820,8 +3820,8 @@ func (l *NativeLoader) ringbufReader(ctx context.Context, loaded *loadedProgram,
 	// Pages 1+: Data area (mapped twice for wrap-around)
 
 	// Consumer and producer positions are at fixed offsets
-	consumerPos := (*uint64)(unsafe.Pointer(&mmapData[0]))
-	producerPos := (*uint64)(unsafe.Pointer(&mmapData[pageSize-8]))
+	consumerPos := (*uint64)(unsafe.Pointer(&mmapData[0]))          // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
+	producerPos := (*uint64)(unsafe.Pointer(&mmapData[pageSize-8])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 	dataStart := pageSize
 
 	pollFDs := []unix.PollFd{{
@@ -3862,7 +3862,7 @@ func (l *NativeLoader) ringbufReader(ctx context.Context, loaded *loadedProgram,
 			offset := int(cons % uint64(ringSize)) // #nosec G115 -- bounded by the modulo against ringSize
 
 			// Read header
-			hdr := (*ringbufHeader)(unsafe.Pointer(&mmapData[dataStart+offset]))
+			hdr := (*ringbufHeader)(unsafe.Pointer(&mmapData[dataStart+offset])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 			recordLen := hdr.Len
 
 			// Check if record is ready (busy bit clear)
@@ -4191,10 +4191,11 @@ func loadKernelBTF(path string) (int, error) {
 		BTFSize uint32
 		_       [52]byte
 	}{
-		BTF:     uint64(uintptr(unsafe.Pointer(&data[0]))),
-		BTFSize: uint32(len(data)), // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+		BTF:     uint64(uintptr(unsafe.Pointer(&data[0]))), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
+		BTFSize: uint32(len(data)),                         // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 	}
 
+	// #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	fd, err := bpfSyscall(18, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // BPF_BTF_LOAD = 18
 	if err != nil {
 		return -1, err

@@ -189,7 +189,7 @@ func openAFPacket(ifaceName string) (int, *unix.SockaddrLinklayer, error) {
 func htons(v uint16) uint16 {
 	b := make([]byte, 2)
 	binary.BigEndian.PutUint16(b, v)
-	return *(*uint16)(unsafe.Pointer(&b[0]))
+	return *(*uint16)(unsafe.Pointer(&b[0])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
 }
 
 // injectSteady sends packets with a fixed inter-packet delay.
@@ -326,7 +326,7 @@ func injectSendmmsg(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count, batc
 	}
 
 	msgs := make([]mmsghdr, batchSize)
-	addrPtr := unsafe.Pointer(&rawAddr[0])
+	addrPtr := unsafe.Pointer(&rawAddr[0]) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 	for i := range msgs {
 		msgs[i].Hdr.Name = (*byte)(addrPtr)
 		msgs[i].Hdr.Namelen = uint32(len(rawAddr))
@@ -357,7 +357,7 @@ func injectSendmmsg(fd int, sll *unix.SockaddrLinklayer, pkt []byte, count, batc
 		n, _, errno := syscall.Syscall6(
 			unix.SYS_SENDMMSG,
 			uintptr(fd),
-			uintptr(unsafe.Pointer(&msgs[0])),
+			uintptr(unsafe.Pointer(&msgs[0])), // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
 			uintptr(batch),
 			0, 0, 0,
 		)

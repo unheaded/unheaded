@@ -2101,7 +2101,7 @@ var (
 
 func file_unheaded_v1_protocol_proto_rawDescGZIP() []byte {
 	file_unheaded_v1_protocol_proto_rawDescOnce.Do(func() {
-		file_unheaded_v1_protocol_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_unheaded_v1_protocol_proto_rawDesc), len(file_unheaded_v1_protocol_proto_rawDesc)))
+		file_unheaded_v1_protocol_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_unheaded_v1_protocol_proto_rawDesc), len(file_unheaded_v1_protocol_proto_rawDesc))) // #nosec G103 -- protoc-gen-go generated protoimpl code, not hand-written
 	})
 	return file_unheaded_v1_protocol_proto_rawDescData
 }
@@ -2194,7 +2194,7 @@ func file_unheaded_v1_protocol_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_unheaded_v1_protocol_proto_rawDesc), len(file_unheaded_v1_protocol_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_unheaded_v1_protocol_proto_rawDesc), len(file_unheaded_v1_protocol_proto_rawDesc)), // #nosec G103 -- protoc-gen-go generated protoimpl code, not hand-written
 			NumEnums:      2,
 			NumMessages:   25,
 			NumExtensions: 0,

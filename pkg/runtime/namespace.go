@@ -376,7 +376,7 @@ type ifreqFlags struct {
 
 // ioctlIfreqFlags performs an ioctl with ifreqFlags.
 func ioctlIfreqFlags(fd int, req uint, ifreq *ifreqFlags) error {
-	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(req), uintptr(unsafe.Pointer(ifreq)))
+	_, _, errno := unix.Syscall(unix.SYS_IOCTL, uintptr(fd), uintptr(req), uintptr(unsafe.Pointer(ifreq))) // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
 	if errno != 0 {
 		return errno
 	}

@@ -132,7 +132,7 @@ func (ml *MapLoader) bpfMapUpdateElem(key, value unsafe.Pointer) error {
 		Flags: BPF_ANY,
 	}
 
-	_, err := bpfSyscall(BPF_MAP_UPDATE_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
+	_, err := bpfSyscall(BPF_MAP_UPDATE_ELEM, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // #nosec G103 -- compile-time size of a fixed kernel struct; no pointer is dereferenced
 	if err != nil {
 		return fmt.Errorf("maploader: %s: map update: %w", ml.name, err)
 	}
@@ -167,7 +167,7 @@ func (ml *MapLoader) LoadMap(key, value interface{}) error {
 	keyBytes := keyBuf.Bytes()
 	valueBytes := valueBuf.Bytes()
 
-	return ml.bpfMapUpdateElem(unsafe.Pointer(&keyBytes[0]), unsafe.Pointer(&valueBytes[0]))
+	return ml.bpfMapUpdateElem(unsafe.Pointer(&keyBytes[0]), unsafe.Pointer(&valueBytes[0])) // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 }
 
 // LoadMapBatch loads multiple key-value pairs into the map.
@@ -212,7 +212,7 @@ func (ml *MapLoader) LoadMapArray(entries []interface{}) error {
 		keyBytes := keyBuf.Bytes()
 		valueBytes := valueBuf.Bytes()
 
-		if err := ml.bpfMapUpdateElem(unsafe.Pointer(&keyBytes[0]), unsafe.Pointer(&valueBytes[0])); err != nil {
+		if err := ml.bpfMapUpdateElem(unsafe.Pointer(&keyBytes[0]), unsafe.Pointer(&valueBytes[0])); err != nil { // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 			return err
 		}
 	}
@@ -242,7 +242,7 @@ func (ml *MapLoader) LoadErrorCounters() error {
 		}
 
 		keyBytes := keyBuf.Bytes()
-		if err := ml.bpfMapUpdateElem(unsafe.Pointer(&keyBytes[0]), unsafe.Pointer(&value)); err != nil {
+		if err := ml.bpfMapUpdateElem(unsafe.Pointer(&keyBytes[0]), unsafe.Pointer(&value)); err != nil { // #nosec G103 -- BPF/netlink kernel ABI boundary; no uintptr->Pointer round-trip (go vet unsafeptr is clean)
 			return err
 		}
 	}

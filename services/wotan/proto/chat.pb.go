@@ -364,6 +364,7 @@ var (
 
 func file_chat_proto_rawDescGZIP() []byte {
 	file_chat_proto_rawDescOnce.Do(func() {
+		// #nosec G103 -- protoc-gen-go generated protoimpl code, not hand-written
 		file_chat_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_chat_proto_rawDesc), len(file_chat_proto_rawDesc)))
 	})
 	return file_chat_proto_rawDescData
@@ -405,6 +406,7 @@ func file_chat_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
+			// #nosec G103 -- protoc-gen-go generated protoimpl code, not hand-written
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_chat_proto_rawDesc), len(file_chat_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   4,

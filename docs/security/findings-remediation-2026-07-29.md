@@ -217,6 +217,36 @@ An undocumented election is harder to defend than a documented one.
 
 ---
 
+## STATUS: gosec ratchet FULLY CLOSED (2026-07-29)
+
+`gosec` now runs with **no rule exclusions** and exits 0. The baseline file is
+empty; `check-gosec-ratchet.sh` reports "ratchet fully closed".
+
+Journey: 26 excluded rules -> 0. 1172 findings -> 0.
+
+Real bugs found and fixed along the way, every one of them in a MEDIUM or LOW
+rule that a severity filter would have hidden:
+
+| Finding | Rule | Where |
+|---|---|---|
+| Container layer extraction escape (3 vectors) | G305 | `pkg/runtime/image.go` |
+| Host-header open redirect | G710 | `pkg/waf/response/redirect.go` |
+| Stored XSS in the wiki renderer | G203 | `cmd/wiki-server` |
+| DNS compression pointers corrupt past 16 KiB | G115 | `pkg/dns/protocol.go` |
+| ELF relocation bounds check passes on negative int | G115 | `pkg/ebpf/loader.go` |
+| Credential-rotation rollback failed silently | G104 | `pkg/secrets/rotation` |
+| Hardcoded DB credential fallback | G101 | `services/wotan/.../store` |
+| Slowloris on 5 listeners | G112/G114 | various |
+| Insecure session-cookie defaults | G124 | `pkg/loadbalancer` |
+| Audit log world-readable | G302 | `pkg/network/policy_controller.go` |
+| Kernel version gates comparing strings | shellcheck | `scripts/bare-metal/*` |
+
+Plus, outside gosec: `cargo-audit` was auditing 3 of 16 Rust workspaces (two
+were carrying live advisories), trivy's misconfig and secret scanners were
+never enabled, and 76 secrets sit in git history — see PRE-PUBLIC-BLOCKERS.md.
+
+---
+
 ## G115 classification (measured 2026-07-29)
 
 393 findings. Triaged by conversion type and code pattern rather than site by
