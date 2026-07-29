@@ -51,6 +51,25 @@ const (
 	NodeExporter    = 16705
 )
 
+// Kingdom services tier (16720-16759). These are Unheaded's own Go binaries
+// deployed by the Helm chart. They previously all shared global.security.runAsUser
+// = 1000 — the same shared-account problem as the telemetry tier, one layer up,
+// and 1000 is the first normal-user UID on most Linux systems, so it collides
+// with a real human account wherever userns mapping or a hostPath is in play.
+const (
+	Wotan            = 16720
+	UnheadedDaemon   = 16721
+	Timeguru         = 16722
+	Architect        = 16723
+	Captain          = 16724
+	Micromanager     = 16725
+	Monad            = 16726
+	Sophia           = 16727
+	DashboardBackend = 16728
+	KanbanApp        = 16729
+	Gateway          = 16730
+)
+
 // Registry maps each service name to its assigned UID. Deployment manifests
 // are validated against this map by TestManifestsMatchRegistry.
 var Registry = map[string]int{
@@ -60,6 +79,18 @@ var Registry = map[string]int{
 	"victoriametrics": VictoriaMetrics,
 	"promtail":        Promtail,
 	"node-exporter":   NodeExporter,
+
+	"wotan":             Wotan,
+	"unheaded-daemon":   UnheadedDaemon,
+	"timeguru":          Timeguru,
+	"architect":         Architect,
+	"captain":           Captain,
+	"micromanager":      Micromanager,
+	"monad":             Monad,
+	"sophia":            Sophia,
+	"dashboard-backend": DashboardBackend,
+	"kanban-app":        KanbanApp,
+	"gateway":           Gateway,
 }
 
 // Lookup returns the assigned UID for a service.

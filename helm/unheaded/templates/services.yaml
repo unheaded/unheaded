@@ -41,6 +41,7 @@ spec:
       # which breaks listen-address parsing). Disable service-link env vars
       # cluster-wide; services discover peers via stable DNS names instead.
       enableServiceLinks: false
+      {{- include "unheaded.podSecurityContext" (dict "ctx" $ "uid" $svc.uid) | nindent 6 }}
       containers:
         - name: {{ $name }}
           image: {{ include "unheaded.image" (dict "ctx" $ "image" $svc.image) }}
@@ -60,7 +61,7 @@ spec:
               value: json
           resources:
             {{- toYaml $svc.resources | nindent 12 }}
-          {{- include "unheaded.securityContext" $ | nindent 10 }}
+          {{- include "unheaded.securityContext" (dict "ctx" $ "uid" $svc.uid) | nindent 10 }}
           {{- include "unheaded.probes" $ | nindent 10 }}
           {{- with $svc.volumeMounts }}
           volumeMounts:

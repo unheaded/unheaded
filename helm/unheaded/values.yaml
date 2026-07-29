@@ -11,8 +11,14 @@ global:
   security:
     readOnlyRootFilesystem: true
     runAsNonRoot: true
-    runAsUser: 1000
-    runAsGroup: 1000
+    # FALLBACK ONLY. Every service sets its own `uid:` below, from pkg/uids.
+    # A single shared runAsUser across all services means a compromise of any
+    # one can read and rewrite every other's state, and makes file ownership
+    # useless for attributing writes. 1000 was also the worst possible choice:
+    # it is the first normal-user UID on most Linux systems, so it collides
+    # with a real human account under userns mapping or a hostPath.
+    runAsUser: 16799
+    runAsGroup: 16799
     allowPrivilegeEscalation: false
     dropAllCapabilities: true
     seccompProfile: RuntimeDefault
@@ -21,6 +27,8 @@ global:
 
 wotan:
   enabled: true
+  # Dedicated run-as identity — see pkg/uids (single source of truth).
+  uid: 16720
   replicas: 1
   image:
     repository: unheaded/wotan
@@ -40,6 +48,8 @@ wotan:
 
 unheadedDaemon:
   enabled: true
+  # Dedicated run-as identity — see pkg/uids (single source of truth).
+  uid: 16721
   replicas: 1
   image:
     repository: unheaded/unheaded-daemon
@@ -58,6 +68,8 @@ unheadedDaemon:
 
 timeguru:
   enabled: true
+  # Dedicated run-as identity — see pkg/uids (single source of truth).
+  uid: 16722
   replicas: 2
   image:
     repository: unheaded/timeguru
@@ -73,6 +85,8 @@ timeguru:
 
 architect:
   enabled: true
+  # Dedicated run-as identity — see pkg/uids (single source of truth).
+  uid: 16723
   replicas: 1
   image:
     repository: unheaded/architect
@@ -88,6 +102,8 @@ architect:
 
 captain:
   enabled: true
+  # Dedicated run-as identity — see pkg/uids (single source of truth).
+  uid: 16724
   replicas: 1
   image:
     repository: unheaded/captain
@@ -103,6 +119,8 @@ captain:
 
 micromanager:
   enabled: true
+  # Dedicated run-as identity — see pkg/uids (single source of truth).
+  uid: 16725
   replicas: 1
   image:
     repository: unheaded/micromanager
@@ -118,6 +136,8 @@ micromanager:
 
 monad:
   enabled: true
+  # Dedicated run-as identity — see pkg/uids (single source of truth).
+  uid: 16726
   replicas: 1
   image:
     repository: unheaded/monad
@@ -133,6 +153,8 @@ monad:
 
 sophia:
   enabled: true
+  # Dedicated run-as identity — see pkg/uids (single source of truth).
+  uid: 16727
   replicas: 1
   image:
     repository: unheaded/sophia
@@ -150,6 +172,8 @@ sophia:
 
 dashboardBackend:
   enabled: true
+  # Dedicated run-as identity — see pkg/uids (single source of truth).
+  uid: 16728
   replicas: 1
   image:
     repository: unheaded/dashboard-backend
@@ -165,6 +189,8 @@ dashboardBackend:
 
 kanbanApp:
   enabled: true
+  # Dedicated run-as identity — see pkg/uids (single source of truth).
+  uid: 16729
   replicas: 1
   image:
     repository: unheaded/kanban-app
@@ -182,6 +208,8 @@ kanbanApp:
 
 gateway:
   enabled: true
+  # Dedicated run-as identity — see pkg/uids (single source of truth).
+  uid: 16730
   replicas: 1
   image:
     repository: nginx
