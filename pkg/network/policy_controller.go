@@ -1631,7 +1631,7 @@ func (pc *PolicyController) removeIPTablesRules(ctx context.Context, policy *Net
 
 // runIPTables executes an iptables command
 func (pc *PolicyController) runIPTables(ctx context.Context, args ...string) error {
-	cmd := exec.CommandContext(ctx, "iptables", args...)
+	cmd := exec.CommandContext(ctx, "iptables", args...) // #nosec G204 -- fixed netfilter/routing binary; args are separate argv, no shell
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("iptables %v: %s: %w", args, string(output), err)
@@ -1708,7 +1708,7 @@ func (pc *PolicyController) removeNFTablesRules(ctx context.Context, policy *Net
 	chainName := sanitizeChainName(policy.Metadata.Name)
 
 	// Delete chain
-	cmd := exec.CommandContext(ctx, "nft", "delete", "chain", "inet", tableName, chainName)
+	cmd := exec.CommandContext(ctx, "nft", "delete", "chain", "inet", tableName, chainName) // #nosec G204 -- fixed netfilter/routing binary; args are separate argv, no shell
 	_, err := cmd.CombinedOutput()
 	return err
 }
@@ -1736,7 +1736,7 @@ func (pc *PolicyController) applyBGPConfig(ctx context.Context, policy *NetworkP
 
 	// Reload BGP daemon using proper argument separation to prevent command injection
 	// Use vtysh with -f flag to load config file instead of shell-interpolated command
-	cmd := exec.CommandContext(ctx, "vtysh", "-f", configPath)
+	cmd := exec.CommandContext(ctx, "vtysh", "-f", configPath) // #nosec G204 -- fixed netfilter/routing binary; args are separate argv, no shell
 	if _, err := cmd.CombinedOutput(); err != nil {
 		// BGP daemon may not be running, log and continue
 		pc.logger.Warn().
@@ -1905,7 +1905,7 @@ func (pc *PolicyController) RunInNamespace(ctx context.Context, nsPath string, f
 
 	// Use nsenter to run in namespace
 	// This is a simplified version; production code would use netns package
-	cmd := exec.CommandContext(ctx, "nsenter", "--net="+nsPath, "--", "sh", "-c", "true")
+	cmd := exec.CommandContext(ctx, "nsenter", "--net="+nsPath, "--", "sh", "-c", "true") // #nosec G204 -- fixed netfilter/routing binary; args are separate argv, no shell
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("enter namespace %s: %w", nsPath, err)
 	}

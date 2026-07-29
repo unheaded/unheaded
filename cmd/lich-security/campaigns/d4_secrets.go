@@ -194,7 +194,7 @@ func (d *D4Secrets) testGitHistorySecrets(_ context.Context, _ Config) *Finding 
 		return nil
 	}
 	// Quick check: search recent git log for obvious secret patterns.
-	cmd := exec.Command("git", "-C", repoRoot, "log", "--oneline", "-100", "--diff-filter=A", "--name-only")
+	cmd := exec.Command("git", "-C", repoRoot, "log", "--oneline", "-100", "--diff-filter=A", "--name-only") // #nosec G204 -- Lich audit campaign; fixed git/grep binary, argv separate
 	out, err := cmd.Output()
 	if err != nil {
 		return nil
@@ -236,7 +236,7 @@ func findRepoRoot() string {
 }
 
 func grepSourceFiles(root, pattern string) []string {
-	cmd := exec.Command("grep", "-r", "-l", "-i", pattern, "--include=*.go", root)
+	cmd := exec.Command("grep", "-r", "-l", "-i", pattern, "--include=*.go", root) // #nosec G204 -- Lich audit campaign; fixed git/grep binary, argv separate
 	out, _ := cmd.Output()
 	var results []string
 	for _, line := range strings.Split(strings.TrimSpace(string(out)), "\n") {

@@ -124,7 +124,7 @@ func (r *DefaultRuntime) ExecInContainer(ctx context.Context, containerID string
 	// supplied commands inside the container's namespace. The security
 	// boundary is the container isolation (cgroups + namespaces +
 	// seccomp + cap drop), NOT command-string filtering.
-	cmd := exec.CommandContext(ctx, config.Command[0], config.Command[1:]...) //nolint:gosec // container exec by design
+	cmd := exec.CommandContext(ctx, config.Command[0], config.Command[1:]...) // #nosec G204 -- container exec by design; argv passed directly to execve, no shell
 	cmd.Dir = rootfs + workDir
 	cmd.Env = env
 
@@ -249,7 +249,7 @@ func (r *DefaultRuntime) wrapWithNsenter(ctx context.Context, pid int, command [
 	args = append(args, "--")
 	args = append(args, command...)
 
-	cmd := exec.CommandContext(ctx, "nsenter", args...) //nolint:gosec // container exec via nsenter, by design
+	cmd := exec.CommandContext(ctx, "nsenter", args...) // #nosec G204 -- container exec by design; argv passed directly to execve, no shell
 	cmd.Env = env
 
 	return cmd
@@ -586,7 +586,7 @@ func (r *DefaultRuntime) ContainerExecCreate(ctx context.Context, containerID st
 	if pid > 0 {
 		cmd = r.wrapWithNsenter(ctx, pid, config.Command, env, workDir, config.User)
 	} else {
-		cmd = exec.CommandContext(ctx, config.Command[0], config.Command[1:]...) //nolint:gosec // container exec by design
+		cmd = exec.CommandContext(ctx, config.Command[0], config.Command[1:]...) // #nosec G204 -- container exec by design; argv passed directly to execve, no shell
 		cmd.Dir = rootfs + workDir
 		cmd.Env = env
 

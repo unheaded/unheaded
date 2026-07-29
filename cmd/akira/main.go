@@ -193,7 +193,7 @@ func main() {
 				Int("attempt", s.AutoRestarts+1).
 				Msg("attempting auto-restart via systemctl")
 
-			cmd := exec.Command("systemctl", "restart", svcUnit) //nolint:gosec // svcUnit comes from kingdom service registry, not user input
+			cmd := exec.Command("systemctl", "restart", svcUnit) // #nosec G204 -- unit name from the kingdom service registry, not user input
 			if out, err := cmd.CombinedOutput(); err != nil {
 				log.Error().
 					Err(err).

@@ -184,7 +184,7 @@ func (r *DefaultRuntime) StartContainer(ctx context.Context, containerID string)
 
 	// G204: container start runs caller-supplied cmd inside the
 	// container's namespace. Same boundary as exec.go:124 above.
-	proc := exec.CommandContext(ctx, cmd[0], cmd[1:]...) //nolint:gosec // container start by design
+	proc := exec.CommandContext(ctx, cmd[0], cmd[1:]...) // #nosec G204 -- container start by design; argv passed directly, no shell
 	proc.Dir = c.rootfs
 	proc.Env = c.config.Env
 
