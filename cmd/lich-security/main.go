@@ -108,5 +108,5 @@ func writeReport(path, content string) error {
 			return err
 		}
 	}
-	return os.WriteFile(path, []byte(content), 0640)
+	return os.WriteFile(path, []byte(content), 0640) // #nosec G306 -- 0640 — group-readable only, no world access
 }

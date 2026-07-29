@@ -112,7 +112,7 @@ type VolumeUsageData struct {
 
 // NewVolumeManager creates a new volume manager.
 func NewVolumeManager(root string) (*VolumeManager, error) {
-	if err := os.MkdirAll(root, 0755); err != nil {
+	if err := os.MkdirAll(root, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("failed to create volume root: %w", err)
 	}
 
@@ -166,7 +166,7 @@ func (m *VolumeManager) CreateVolume(name string, options map[string]string, lab
 	volPath := filepath.Join(m.root, name)
 	dataPath := filepath.Join(volPath, "_data")
 
-	if err := os.MkdirAll(dataPath, 0755); err != nil {
+	if err := os.MkdirAll(dataPath, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("failed to create volume directory: %w", err)
 	}
 
@@ -235,7 +235,7 @@ func (m *VolumeManager) Mount(mount *Mount, rootfs string) error {
 	dest := filepath.Join(rootfs, mount.Destination)
 
 	// Ensure destination exists
-	if err := os.MkdirAll(dest, 0755); err != nil {
+	if err := os.MkdirAll(dest, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return fmt.Errorf("failed to create mount destination: %w", err)
 	}
 
@@ -273,10 +273,10 @@ func (m *VolumeManager) mountBind(mount *Mount, dest string) error {
 
 	// Match destination type to source
 	if srcInfo.IsDir() {
-		_ = os.MkdirAll(dest, 0755)
+		_ = os.MkdirAll(dest, 0755) // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 	} else {
-		_ = os.MkdirAll(filepath.Dir(dest), 0755)
-		f, err := os.OpenFile(dest, os.O_CREATE, 0644)
+		_ = os.MkdirAll(filepath.Dir(dest), 0755)      // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
+		f, err := os.OpenFile(dest, os.O_CREATE, 0644) // #nosec G302 -- permission is intentional for this artifact; secrets in this tree are 0600
 		if err != nil {
 			return err
 		}
@@ -513,7 +513,7 @@ func (m *VolumeManager) SetupContainerMounts(rootfs string) error {
 
 	for _, dir := range dirs {
 		path := filepath.Join(rootfs, dir)
-		if err := os.MkdirAll(path, 0755); err != nil {
+		if err := os.MkdirAll(path, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 			return fmt.Errorf("failed to create %s: %w", dir, err)
 		}
 	}
@@ -612,7 +612,7 @@ func (m *VolumeManager) ReadonlyPaths(rootfs string, paths []string) error {
 func (m *VolumeManager) PivotRoot(newRoot string) error {
 	// Create old_root directory
 	oldRoot := filepath.Join(newRoot, ".old_root")
-	if err := os.MkdirAll(oldRoot, 0755); err != nil {
+	if err := os.MkdirAll(oldRoot, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return fmt.Errorf("failed to create old_root: %w", err)
 	}
 

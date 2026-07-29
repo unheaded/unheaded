@@ -448,7 +448,7 @@ func (c *BuildCache) persist(entry *CacheEntry) error {
 	}
 
 	entryPath := filepath.Join(c.cacheDir, entry.Key+".json")
-	return os.WriteFile(entryPath, data, 0640)
+	return os.WriteFile(entryPath, data, 0640) // #nosec G306 -- 0640 — group-readable only, no world access
 }
 
 // evictOldest removes the least recently accessed entry.

@@ -62,12 +62,12 @@ func NewTFTPServer(address, root string) (*TFTPServer, error) {
 func NewTFTPServerWithOptions(address, root string, skipDirInit bool) (*TFTPServer, error) {
 	if !skipDirInit {
 		// Ensure root directory exists
-		if err := os.MkdirAll(root, 0755); err != nil {
+		if err := os.MkdirAll(root, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 			return nil, fmt.Errorf("creating TFTP root: %w", err)
 		}
 
 		// Create pxelinux.cfg directory
-		if err := os.MkdirAll(filepath.Join(root, "pxelinux.cfg"), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Join(root, "pxelinux.cfg"), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 			return nil, fmt.Errorf("creating pxelinux.cfg: %w", err)
 		}
 	}
@@ -122,12 +122,12 @@ func (s *TFTPServer) WriteFile(path string, data []byte) error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(fullPath)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return fmt.Errorf("creating directory: %w", err)
 	}
 
 	// Write file
-	if err := os.WriteFile(fullPath, data, 0644); err != nil {
+	if err := os.WriteFile(fullPath, data, 0644); err != nil { // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 		return fmt.Errorf("writing file: %w", err)
 	}
 

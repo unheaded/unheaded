@@ -99,7 +99,7 @@ func (f *Fixture) TempFile(name, content string) string {
 	dir := f.TempDir()
 	path := filepath.Join(dir, name)
 
-	if err := os.WriteFile(path, []byte(content), 0640); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0640); err != nil { // #nosec G306 -- 0640 — group-readable only, no world access
 		f.t.Fatalf("Failed to create temp file: %v", err)
 	}
 

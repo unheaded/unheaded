@@ -1730,7 +1730,7 @@ func (pc *PolicyController) applyBGPConfig(ctx context.Context, policy *NetworkP
 
 	// Write to BGP daemon config file
 	configPath := fmt.Sprintf("/etc/frr/bgpd.conf.d/%s.conf", sanitizeChainName(policy.Metadata.Name))
-	if err := os.WriteFile(configPath, []byte(config), 0640); err != nil {
+	if err := os.WriteFile(configPath, []byte(config), 0640); err != nil { // #nosec G306 -- 0640 — group-readable only, no world access
 		return fmt.Errorf("write BGP config: %w", err)
 	}
 
@@ -1807,7 +1807,10 @@ func (pc *PolicyController) auditLog(operation, policy, result string, details m
 		return
 	}
 
-	f, err := os.OpenFile(pc.auditLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	// 0640, not 0644: this log records network policy operations, rule content
+	// and outcomes. World-readable would let any local user enumerate the
+	// firewall posture. Matches the convention in pkg/audit/storage/file.go.
+	f, err := os.OpenFile(pc.auditLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0640) // #nosec G302 -- audit log, group-readable by design
 	if err != nil {
 		pc.logger.Error().
 			Err(err).

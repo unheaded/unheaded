@@ -29,7 +29,7 @@ type Segment struct {
 
 // CreateSegment creates a new segment file.
 func CreateSegment(path string, syncWrites bool) (*Segment, error) {
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0644)
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR|os.O_TRUNC, 0644) // #nosec G302 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 	if err != nil {
 		return nil, fmt.Errorf("create segment: %w", err)
 	}
@@ -44,7 +44,7 @@ func CreateSegment(path string, syncWrites bool) (*Segment, error) {
 
 // OpenSegment opens an existing segment file.
 func OpenSegment(path string, syncWrites bool) (*Segment, error) {
-	file, err := os.OpenFile(path, os.O_RDWR, 0644)
+	file, err := os.OpenFile(path, os.O_RDWR, 0644) // #nosec G302 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 	if err != nil {
 		return nil, fmt.Errorf("open segment: %w", err)
 	}

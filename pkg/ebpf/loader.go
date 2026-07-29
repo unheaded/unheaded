@@ -2108,7 +2108,7 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 	// Pin program if requested
 	if spec.PinPath != "" {
 		pinPath := filepath.Join(l.config.PinPath, spec.PinPath)
-		if err := os.MkdirAll(filepath.Dir(pinPath), 0755); err != nil {
+		if err := os.MkdirAll(filepath.Dir(pinPath), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 			_ = unix.Close(progFD)
 			for _, m := range loaded.maps {
 				_ = unix.Close(m.fd)
@@ -2128,7 +2128,7 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 	for mapName, pinPath := range spec.MapPinPaths {
 		if m, ok := loaded.maps[mapName]; ok {
 			fullPath := filepath.Join(l.config.PinPath, pinPath)
-			if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err == nil {
+			if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err == nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 				_ = bpfObjPin(m.fd, fullPath)
 				m.info.PinPath = fullPath
 			}
@@ -4197,7 +4197,7 @@ func ensureBPFFS(path string) error {
 		return nil
 	}
 
-	if err := os.MkdirAll(path, 0755); err != nil {
+	if err := os.MkdirAll(path, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return fmt.Errorf("create bpf mount point: %w", err)
 	}
 

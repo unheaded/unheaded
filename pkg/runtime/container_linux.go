@@ -73,7 +73,7 @@ func (r *DefaultRuntime) CreateContainer(ctx context.Context, config *ContainerC
 	bundlePath := filepath.Join(containerRoot, "bundle")
 	rootfs := filepath.Join(bundlePath, "rootfs")
 
-	if err := os.MkdirAll(rootfs, 0755); err != nil {
+	if err := os.MkdirAll(rootfs, 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 		return nil, fmt.Errorf("failed to create container rootfs: %w", err)
 	}
 
@@ -97,7 +97,7 @@ func (r *DefaultRuntime) CreateContainer(ctx context.Context, config *ContainerC
 		return nil, fmt.Errorf("failed to marshal OCI spec: %w", err)
 	}
 
-	if err := os.WriteFile(specPath, specData, 0644); err != nil {
+	if err := os.WriteFile(specPath, specData, 0644); err != nil { // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 		_ = os.RemoveAll(containerRoot)
 		return nil, fmt.Errorf("failed to write OCI spec: %w", err)
 	}
@@ -222,7 +222,7 @@ func (r *DefaultRuntime) StartContainer(ctx context.Context, containerID string)
 	}
 
 	// Setup stdio
-	logFile, err := os.OpenFile(c.logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	logFile, err := os.OpenFile(c.logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644) // #nosec G302 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 	if err != nil {
 		return fmt.Errorf("failed to open log file: %w", err)
 	}
@@ -271,7 +271,7 @@ func (r *DefaultRuntime) StartContainer(ctx context.Context, containerID string)
 
 	// Best-effort: PID file is informational; cgroup attach may race
 	// with cgroup teardown if the runtime restarted concurrently.
-	_ = os.WriteFile(c.pidFile, []byte(fmt.Sprintf("%d", proc.Process.Pid)), 0644)
+	_ = os.WriteFile(c.pidFile, []byte(fmt.Sprintf("%d", proc.Process.Pid)), 0644) // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 	if c.cgroupPath != "" {
 		_ = r.cgroups.AddProcess(c.cgroupPath, proc.Process.Pid)
 	}

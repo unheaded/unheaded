@@ -454,7 +454,7 @@ func (e *HookExecutor) executeScriptHook(ctx context.Context, hook *Hook, result
 	// Set executable permissions (owner read/execute only for security).
 	// tmpPath comes from os.CreateTemp — not user-influenced; gosec G302/
 	// G703 false positives.
-	if err := os.Chmod(tmpPath, 0500); err != nil { //nolint:gosec // tmpPath from os.CreateTemp; 0500 is intentional owner-exec-only
+	if err := os.Chmod(tmpPath, 0500); err != nil { // #nosec G302 -- 0500 owner read+execute only, deliberately restrictive for a hook script
 		return fmt.Errorf("failed to set script permissions: %w", err)
 	}
 

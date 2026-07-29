@@ -3,16 +3,17 @@
 // Generates rootfs.img — a UNFS filesystem image for MBC Linux boot.
 //
 // Contents:
-//   /init           — PID 1 init process (from arch/mbc/boot/init/init.upcf)
-//   /bin/sh         — interactive shell  (from demos/mbc/shell/shell.upcf)
-//   /bin/echo       — echo command       (from arch/mbc/userspace/echo/echo.upcf)
-//   /bin/cat        — cat command         (from arch/mbc/userspace/cat/cat.upcf)
-//   /bin/ls         — list files          (from arch/mbc/userspace/ls/ls.upcf)
-//   /bin/ps         — process status      (from arch/mbc/userspace/ps/ps.upcf)
-//   /bin/uname      — system info         (from arch/mbc/userspace/uname/uname.upcf)
-//   /bin/uptime     — uptime              (from arch/mbc/userspace/uptime/uptime.upcf)
-//   /dev/console    — console device node (type=device)
-//   /etc/hostname   — hostname file ("mbc-linux\n")
+//
+//	/init           — PID 1 init process (from arch/mbc/boot/init/init.upcf)
+//	/bin/sh         — interactive shell  (from demos/mbc/shell/shell.upcf)
+//	/bin/echo       — echo command       (from arch/mbc/userspace/echo/echo.upcf)
+//	/bin/cat        — cat command         (from arch/mbc/userspace/cat/cat.upcf)
+//	/bin/ls         — list files          (from arch/mbc/userspace/ls/ls.upcf)
+//	/bin/ps         — process status      (from arch/mbc/userspace/ps/ps.upcf)
+//	/bin/uname      — system info         (from arch/mbc/userspace/uname/uname.upcf)
+//	/bin/uptime     — uptime              (from arch/mbc/userspace/uptime/uptime.upcf)
+//	/dev/console    — console device node (type=device)
+//	/etc/hostname   — hostname file ("mbc-linux\n")
 //
 // The image is a raw UNFS filesystem suitable for use as a ramdisk root.
 // Boot with: --ramdisk rootfs.img --args "root=/dev/ram0"
@@ -191,7 +192,7 @@ func main() {
 	// Write filesystem image to disk
 	outputPath := filepath.Join("arch", "mbc", "boot", "rootfs.img")
 	imgBytes := fsToBytes(fs)
-	if err := os.WriteFile(outputPath, imgBytes, 0o644); err != nil {
+	if err := os.WriteFile(outputPath, imgBytes, 0o644); err != nil { // #nosec G306 -- 0644 — non-sensitive artifact; secrets in this tree are written 0600
 		fmt.Fprintf(os.Stderr, "error writing %s: %v\n", outputPath, err)
 		os.Exit(1)
 	}

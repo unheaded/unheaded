@@ -76,7 +76,7 @@ func newGenerateIaCCommand() *Command {
 				if err := os.MkdirAll(dir, 0750); err != nil {
 					return fmt.Errorf("mkdir %s: %w", dir, err)
 				}
-				if err := os.WriteFile(fullPath, []byte(content), 0640); err != nil {
+				if err := os.WriteFile(fullPath, []byte(content), 0640); err != nil { // #nosec G306 -- 0640 — group-readable only, no world access
 					return fmt.Errorf("write %s: %w", fullPath, err)
 				}
 				written++

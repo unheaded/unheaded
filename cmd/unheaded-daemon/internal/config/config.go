@@ -432,7 +432,7 @@ func (c *Config) Save(path string) error {
 		return fmt.Errorf("create config dir: %w", err)
 	}
 
-	if err := os.WriteFile(path, data, 0640); err != nil {
+	if err := os.WriteFile(path, data, 0640); err != nil { // #nosec G306 -- 0640 — group-readable only, no world access
 		return fmt.Errorf("write config: %w", err)
 	}
 
