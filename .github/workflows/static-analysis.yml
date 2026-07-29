@@ -17,7 +17,7 @@ name: Static Analysis
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, staging]
   pull_request:
 
 permissions:

@@ -475,21 +475,45 @@ networking.firewall = {
 
 ### Secrets Management
 
-**NEVER:**
-- Hard-code secrets
-- Put secrets in environment variables visible to ps
-- Log secrets
-- Store secrets in Git
+**CREDENTIALS ARE NEVER STORED IN THIS REPO.** Not in code, not in manifests,
+not in scripts, not in docs, not in test fixtures. This is absolute — a
+credential in the tree is a credential in git history, and history outlives
+every deletion.
 
-**ALWAYS:**
-- Use SOPS + age for encrypted secrets
-- Mount secrets as files (not env vars)
-- Rotate regularly
-- Audit access
+Read them from the environment instead, with a guard that fails loudly when
+unset rather than proceeding unauthenticated:
 
----
+```bash
+: "${OPNSENSE_API_KEY:?set OPNSENSE_API_KEY — credentials are not stored in this repo}"
+curl -sk -u "${OPNSENSE_API_KEY}:${OPNSENSE_API_SECRET}" https://...
+```
 
-## 📊 Observability Standards
+```go
+// Never a default. A shipped fallback credential is worse than a startup
+// failure: the password is public, and misconfiguration becomes silent.
+if cfg.ConnStr == "" {
+    return nil, errMissingConnStr(PostgresStoreType)
+}
+```
+
+**Enforced by CI, not by discipline:**
+- `gitleaks` scans the working tree on every push/PR to main, develop and
+  staging, and gates the security workflow.
+- `scripts/check-secrets-baseline.sh` ensures `.gitleaksignore` may only
+  SHRINK. A new finding cannot be silenced by appending its fingerprint.
+- `trivy --scanners secret` runs alongside it.
+
+**On the existing baseline (2026-07-29):** a sweep found 76 secrets in history
+and 25 in the tree. Stevie's call, recorded rather than re-litigated: these are
+one-off lab credentials on a non-internet-facing development system, so no
+history rewrite and no rotation scramble. It is bad hygiene that slipped
+through, not an incident.
+
+That assessment is tied to the current posture. **It stops holding the moment
+this project is exposed to the public internet or handles anything real** — at
+which point every baselined credential must be rotated before exposure, since
+"it was only a lab" is not a property of the secret, it is a property of where
+it was used.
 
 ### Metrics (Prometheus)
 
