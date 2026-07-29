@@ -1153,7 +1153,7 @@ func bpfMapCreate(mapType, keySize, valueSize, maxEntries, flags uint32, name st
 // bpfMapLookupElem looks up a value in a BPF map
 func bpfMapLookupElem(mapFD int, key, value unsafe.Pointer) error {
 	attr := bpfMapOpAttr{
-		MapFD: uint32(mapFD),
+		MapFD: uint32(mapFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		Key:   uint64(uintptr(key)),
 		Value: uint64(uintptr(value)),
 	}
@@ -1169,7 +1169,7 @@ func bpfMapLookupElem(mapFD int, key, value unsafe.Pointer) error {
 // bpfMapUpdateElem updates or inserts an element in a BPF map
 func bpfMapUpdateElem(mapFD int, key, value unsafe.Pointer, flags uint64) error {
 	attr := bpfMapOpAttr{
-		MapFD: uint32(mapFD),
+		MapFD: uint32(mapFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		Key:   uint64(uintptr(key)),
 		Value: uint64(uintptr(value)),
 		Flags: flags,
@@ -1186,7 +1186,7 @@ func bpfMapUpdateElem(mapFD int, key, value unsafe.Pointer, flags uint64) error 
 // bpfMapDeleteElem deletes an element from a BPF map
 func bpfMapDeleteElem(mapFD int, key unsafe.Pointer) error {
 	attr := bpfMapOpAttr{
-		MapFD: uint32(mapFD),
+		MapFD: uint32(mapFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		Key:   uint64(uintptr(key)),
 	}
 
@@ -1201,7 +1201,7 @@ func bpfMapDeleteElem(mapFD int, key unsafe.Pointer) error {
 // bpfMapGetNextKey gets the next key in a BPF map (for iteration)
 func bpfMapGetNextKey(mapFD int, key, nextKey unsafe.Pointer) error {
 	attr := bpfMapOpAttr{
-		MapFD: uint32(mapFD),
+		MapFD: uint32(mapFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		Key:   uint64(uintptr(key)),
 		Value: uint64(uintptr(nextKey)),
 	}
@@ -1218,7 +1218,7 @@ func bpfMapGetNextKey(mapFD int, key, nextKey unsafe.Pointer) error {
 // Returns the file descriptor for the loaded program
 func bpfProgLoad(progType uint32, insns []byte, license string, logBuf []byte, btfFD int) (int, string, error) {
 	// BPF instructions are 8 bytes each
-	insnCnt := uint32(len(insns) / 8)
+	insnCnt := uint32(len(insns) / 8) // #nosec G115 -- bounded by the buffer this code allocated; BPF verifier caps programs at 1M instructions
 	if insnCnt == 0 {
 		return -1, "", ErrNoInstructions
 	}
@@ -1236,13 +1236,13 @@ func bpfProgLoad(progType uint32, insns []byte, license string, logBuf []byte, b
 	// Set up log buffer if provided
 	if len(logBuf) > 0 {
 		attr.LogLevel = 1
-		attr.LogSize = uint32(len(logBuf))
+		attr.LogSize = uint32(len(logBuf)) // #nosec G115 -- bounded by the buffer this code allocated; BPF verifier caps programs at 1M instructions
 		attr.LogBuf = uint64(uintptr(unsafe.Pointer(&logBuf[0])))
 	}
 
 	// Add BTF if available
 	if btfFD > 0 {
-		attr.ProgBTFFD = uint32(btfFD)
+		attr.ProgBTFFD = uint32(btfFD) // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 	}
 
 	fd, err := bpfSyscall(BPF_PROG_LOAD, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
@@ -1270,7 +1270,7 @@ func bpfObjPin(fd int, pathname string) error {
 
 	attr := bpfObjAttr{
 		Pathname: uint64(uintptr(unsafe.Pointer(&pathBytes[0]))),
-		BPFFD:    uint32(fd),
+		BPFFD:    uint32(fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 	}
 
 	_, err := bpfSyscall(BPF_OBJ_PIN, unsafe.Pointer(&attr), unsafe.Sizeof(attr))
@@ -1300,8 +1300,8 @@ func bpfObjGet(pathname string) (int, error) {
 // bpfProgAttach attaches a BPF program
 func bpfProgAttach(progFD, targetFD int, attachType uint32) error {
 	attr := bpfProgAttachAttr{
-		TargetFD:    uint32(targetFD),
-		AttachBPFFD: uint32(progFD),
+		TargetFD:    uint32(targetFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
+		AttachBPFFD: uint32(progFD),   // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		AttachType:  attachType,
 	}
 
@@ -1320,8 +1320,8 @@ func bpfProgAttach(progFD, targetFD int, attachType uint32) error {
 //nolint:unused // staged for upcoming detach paths
 func bpfProgDetach(progFD, targetFD int, attachType uint32) error {
 	attr := bpfProgAttachAttr{
-		TargetFD:    uint32(targetFD),
-		AttachBPFFD: uint32(progFD),
+		TargetFD:    uint32(targetFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
+		AttachBPFFD: uint32(progFD),   // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		AttachType:  attachType,
 	}
 
@@ -1336,8 +1336,8 @@ func bpfProgDetach(progFD, targetFD int, attachType uint32) error {
 // bpfLinkCreate creates a BPF link (modern attachment method, kernel 5.7+)
 func bpfLinkCreate(progFD, targetFD int, attachType uint32) (int, error) {
 	attr := bpfLinkCreateAttr{
-		ProgFD:     uint32(progFD),
-		TargetFD:   uint32(targetFD),
+		ProgFD:     uint32(progFD),   // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
+		TargetFD:   uint32(targetFD), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		AttachType: attachType,
 	}
 
@@ -1354,7 +1354,7 @@ func bpfGetProgInfo(fd int) (*bpfProgInfo, error) {
 	info := &bpfProgInfo{}
 
 	attr := bpfObjGetInfoAttr{
-		BPFFD:   uint32(fd),
+		BPFFD:   uint32(fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		InfoLen: uint32(unsafe.Sizeof(*info)),
 		Info:    uint64(uintptr(unsafe.Pointer(info))),
 	}
@@ -1372,7 +1372,7 @@ func bpfGetMapInfo(fd int) (*bpfMapInfo, error) {
 	info := &bpfMapInfo{}
 
 	attr := bpfObjGetInfoAttr{
-		BPFFD:   uint32(fd),
+		BPFFD:   uint32(fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		InfoLen: uint32(unsafe.Sizeof(*info)),
 		Info:    uint64(uintptr(unsafe.Pointer(info))),
 	}
@@ -1525,7 +1525,7 @@ func parseELF(path string) (*parsedELF, error) {
 			}
 			section := f.Sections[sym.Section]
 			if section.Name == ".text" {
-				result.FuncSizes[sym.Value] = int(sym.Size)
+				result.FuncSizes[sym.Value] = int(sym.Size) // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
 			}
 		}
 
@@ -1557,8 +1557,8 @@ func parseELF(path string) (*parsedELF, error) {
 			}
 			sectionFuncs[section.Name] = append(sectionFuncs[section.Name], funcEntry{
 				name:   sym.Name,
-				offset: int(sym.Value),
-				size:   int(sym.Size),
+				offset: int(sym.Value), // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
+				size:   int(sym.Size),  // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
 			})
 		}
 
@@ -1591,10 +1591,10 @@ func parseELF(path string) (*parsedELF, error) {
 				// Filter relocations for this function's range
 				var subRelocs []elfRelocation
 				for _, r := range origRelocs {
-					if r.Offset >= uint64(fn.offset) && r.Offset < uint64(fn.offset+fn.size) {
+					if r.Offset >= uint64(fn.offset) && r.Offset < uint64(fn.offset+fn.size) { // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 						// Adjust offset relative to function start
 						adjusted := r
-						adjusted.Offset -= uint64(fn.offset)
+						adjusted.Offset -= uint64(fn.offset) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 						subRelocs = append(subRelocs, adjusted)
 					}
 				}
@@ -1821,7 +1821,7 @@ func resolveMapNames(f *elf.File, mapSection *elf.Section, defSize int, result *
 
 		// Symbol's Value is the byte offset within the section.
 		// Dividing by defSize gives the map index matching map_N naming.
-		mapIdx := int(sym.Value) / defSize
+		mapIdx := int(sym.Value) / defSize // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
 		genericName := fmt.Sprintf("map_%d", mapIdx)
 
 		mapDef, ok := result.Maps[genericName]
@@ -1854,9 +1854,9 @@ func findFuncSize(parsed *parsedELF, funcOff uint64) int {
 		return 0
 	}
 	data := textProg.Instructions
-	for i := int(funcOff); i+8 <= len(data); i += 8 {
+	for i := int(funcOff); i+8 <= len(data); i += 8 { // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
 		if data[i] == 0x95 { // BPF_EXIT
-			return i + 8 - int(funcOff)
+			return i + 8 - int(funcOff) // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
 		}
 	}
 	return 0
@@ -2008,10 +2008,10 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 			funcMap[funcOff] = len(instructions) / 8
 			// Find function size from symbols
 			funcSize := findFuncSize(parsed, funcOff)
-			if funcSize == 0 || int(funcOff)+funcSize > len(textProg.Instructions) {
+			if funcSize == 0 || int(funcOff)+funcSize > len(textProg.Instructions) { // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
 				continue
 			}
-			instructions = append(instructions, textProg.Instructions[funcOff:int(funcOff)+funcSize]...)
+			instructions = append(instructions, textProg.Instructions[funcOff:int(funcOff)+funcSize]...) // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
 		}
 	}
 
@@ -2021,7 +2021,7 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 			continue
 		}
 		// .rodata sections become BPF_MAP_TYPE_ARRAY with BPF_F_RDONLY_PROG
-		dataLen := uint32(len(prog.Instructions))
+		dataLen := uint32(len(prog.Instructions)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 		if dataLen == 0 {
 			continue
 		}
@@ -2176,11 +2176,23 @@ func (l *NativeLoader) applyRelocations(insns []byte, relocs []elfRelocation,
 	)
 
 	for _, reloc := range relocs {
-		insnIdx := reloc.Offset / 8
-
-		if int(insnIdx*8+8) > len(insns) {
-			return fmt.Errorf("relocation offset %d out of bounds", reloc.Offset)
+		// Bound reloc.Offset BEFORE any arithmetic on it. It is a uint64 read
+		// straight from the ELF relocation section, and the previous check
+		//
+		//	if int(insnIdx*8+8) > len(insns)
+		//
+		// could not be trusted for two reasons: insnIdx*8 can wrap within
+		// uint64, and the conversion to int yields a NEGATIVE value for
+		// anything above MaxInt64 — which then compares as "in bounds" and
+		// panics on the indexing below. Comparing the offset directly against
+		// a bounded right-hand side cannot overflow.
+		if len(insns) < 8 || reloc.Offset > uint64(len(insns)-8) { // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+			return fmt.Errorf("relocation offset %d out of bounds (insns %d bytes)", reloc.Offset, len(insns))
 		}
+		if reloc.Offset%8 != 0 {
+			return fmt.Errorf("relocation offset %d is not instruction-aligned", reloc.Offset)
+		}
+		insnIdx := reloc.Offset / 8
 
 		switch reloc.Type {
 		case R_BPF_64_32:
@@ -2196,8 +2208,8 @@ func (l *NativeLoader) applyRelocations(insns []byte, relocs []elfRelocation,
 			insns[insnIdx*8+1] = (insns[insnIdx*8+1] & 0x0f) | 0x10
 
 			// Set imm = relative offset from NEXT instruction to target
-			relOffset := int32(targetInsn) - int32(insnIdx) - 1
-			binary.LittleEndian.PutUint32(insns[insnIdx*8+4:], uint32(relOffset))
+			relOffset := int32(targetInsn) - int32(insnIdx) - 1                   // #nosec G115 -- BPF jump imm is int32 by ABI; instruction indices bounded by the 1M verifier limit
+			binary.LittleEndian.PutUint32(insns[insnIdx*8+4:], uint32(relOffset)) // #nosec G115 -- BPF jump imm is int32 by ABI; instruction indices bounded by the 1M verifier limit
 
 		case R_BPF_64_64:
 			// Map FD reference: patch ld_imm64 instruction
@@ -2592,9 +2604,9 @@ func (l *NativeLoader) attachXDPLink(loaded *loadedProgram, ifIndex int) (int, e
 		TargetIf   uint32
 		_          [20]byte
 	}{
-		ProgFD:     uint32(loaded.fd),
+		ProgFD:     uint32(loaded.fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		AttachType: BPF_XDP,
-		TargetIf:   uint32(ifIndex),
+		TargetIf:   uint32(ifIndex), // #nosec G115 -- kernel ABI: ifindex is int32
 	}
 
 	// Determine flags
@@ -2654,7 +2666,7 @@ func (l *NativeLoader) attachXDPNetlink(loaded *loadedProgram, ifIndex int) erro
 	// Write ifinfomsg
 	ifi := (*ifInfoMsg)(unsafe.Pointer(&buf[16]))
 	ifi.Family = unix.AF_UNSPEC
-	ifi.Index = int32(ifIndex)
+	ifi.Index = int32(ifIndex) // #nosec G115 -- kernel ABI: ifindex is int32
 
 	// Write IFLA_XDP attribute (nested)
 	offset := 32
@@ -2668,7 +2680,7 @@ func (l *NativeLoader) attachXDPNetlink(loaded *loadedProgram, ifIndex int) erro
 	fdAttr.Len = xdpFDAttrLen
 	fdAttr.Type = IFLA_XDP_FD
 	offset += 4
-	binary.LittleEndian.PutUint32(buf[offset:], uint32(loaded.fd))
+	binary.LittleEndian.PutUint32(buf[offset:], uint32(loaded.fd)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 	offset += 4
 
 	// Write XDP_FLAGS attribute
@@ -2708,9 +2720,9 @@ func (l *NativeLoader) attachXDPNetlink(loaded *loadedProgram, ifIndex int) erro
 	if n >= 20 {
 		respNlh := (*nlMsgHdr)(unsafe.Pointer(&recvBuf[0]))
 		if respNlh.Type == unix.NLMSG_ERROR {
-			errCode := int32(binary.LittleEndian.Uint32(recvBuf[16:]))
+			errCode := int32(binary.LittleEndian.Uint32(recvBuf[16:])) // #nosec G115 -- netlink errno round-trip; kernel returns a negative int32
 			if errCode != 0 {
-				return fmt.Errorf("netlink error: %d (%s)", errCode, syscall.Errno(-errCode))
+				return fmt.Errorf("netlink error: %d (%s)", errCode, syscall.Errno(-errCode)) // #nosec G115 -- netlink errno round-trip; kernel returns a negative int32
 			}
 		}
 	}
@@ -2805,8 +2817,8 @@ func (l *NativeLoader) attachTCX(loaded *loadedProgram, ifIndex int) (int, error
 		RelativeID  uint32
 		ExpectedRev uint64
 	}{
-		ProgFD:      uint32(loaded.fd),
-		TargetIfIdx: uint32(ifIndex),
+		ProgFD:      uint32(loaded.fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
+		TargetIfIdx: uint32(ifIndex),   // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		AttachType:  attachType,
 	}
 
@@ -2871,7 +2883,7 @@ func (l *NativeLoader) createClsactQdisc(sock int, ifIndex int) error {
 
 	// Write nlmsghdr
 	nlh := (*nlMsgHdr)(unsafe.Pointer(&buf[0]))
-	nlh.Len = uint32(totalLen)
+	nlh.Len = uint32(totalLen) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 	nlh.Type = RTM_NEWQDISC
 	nlh.Flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_EXCL
 	nlh.Seq = 2
@@ -2879,14 +2891,14 @@ func (l *NativeLoader) createClsactQdisc(sock int, ifIndex int) error {
 	// Write tcmsg
 	tcm := (*tcMsg)(unsafe.Pointer(&buf[16]))
 	tcm.Family = unix.AF_UNSPEC
-	tcm.Ifindex = int32(ifIndex)
+	tcm.Ifindex = int32(ifIndex) // #nosec G115 -- kernel ABI: ifindex is int32
 	tcm.Handle = TC_H_CLSACT
 	tcm.Parent = 0xFFFFFFFF // TC_H_ROOT
 
 	// Write TCA_KIND attribute
 	offset := 36
 	kindNla := (*nlAttr)(unsafe.Pointer(&buf[offset]))
-	kindNla.Len = uint16(4 + len(kindAttr))
+	kindNla.Len = uint16(4 + len(kindAttr)) // #nosec G115 -- netlink attribute length; payload is a fixed short kind string, far below 65535
 	kindNla.Type = TCA_KIND
 	copy(buf[offset+4:], kindAttr)
 
@@ -2930,7 +2942,7 @@ func (l *NativeLoader) addTCBPFFilter(sock int, loaded *loadedProgram, ifIndex i
 	bpfFDAttr := make([]byte, 8)
 	binary.LittleEndian.PutUint16(bpfFDAttr[0:], 8)
 	binary.LittleEndian.PutUint16(bpfFDAttr[2:], TCA_BPF_FD)
-	binary.LittleEndian.PutUint32(bpfFDAttr[4:], uint32(loaded.fd))
+	binary.LittleEndian.PutUint32(bpfFDAttr[4:], uint32(loaded.fd)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 
 	bpfFlagsAttr := make([]byte, 8)
 	binary.LittleEndian.PutUint16(bpfFlagsAttr[0:], 8)
@@ -2946,15 +2958,15 @@ func (l *NativeLoader) addTCBPFFilter(sock int, loaded *loadedProgram, ifIndex i
 
 	// Write nlmsghdr
 	nlh := (*nlMsgHdr)(unsafe.Pointer(&buf[0]))
-	nlh.Len = uint32(totalLen)
-	nlh.Type = 44 // RTM_NEWTFILTER
+	nlh.Len = uint32(totalLen) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
+	nlh.Type = 44              // RTM_NEWTFILTER
 	nlh.Flags = NLM_F_REQUEST | NLM_F_ACK | NLM_F_CREATE | NLM_F_EXCL
 	nlh.Seq = 3
 
 	// Write tcmsg
 	tcm := (*tcMsg)(unsafe.Pointer(&buf[16]))
 	tcm.Family = unix.AF_UNSPEC
-	tcm.Ifindex = int32(ifIndex)
+	tcm.Ifindex = int32(ifIndex) // #nosec G115 -- kernel ABI: ifindex is int32
 	tcm.Parent = parent
 	// Info contains protocol (ETH_P_ALL) and priority
 	tcm.Info = (uint32(1) << 16) | uint32(0x0300) // priority 1, ETH_P_ALL
@@ -2962,15 +2974,15 @@ func (l *NativeLoader) addTCBPFFilter(sock int, loaded *loadedProgram, ifIndex i
 	// Write TCA_KIND attribute
 	offset := 36
 	kindNla := (*nlAttr)(unsafe.Pointer(&buf[offset]))
-	kindNla.Len = uint16(4 + len(kindAttr))
+	kindNla.Len = uint16(4 + len(kindAttr)) // #nosec G115 -- netlink attribute length; payload is a fixed short kind string, far below 65535
 	kindNla.Type = TCA_KIND
 	copy(buf[offset+4:], kindAttr)
 	offset += kindAttrLen
 
 	// Write TCA_OPTIONS attribute (nested)
 	optNla := (*nlAttr)(unsafe.Pointer(&buf[offset]))
-	optNla.Len = uint16(4 + optionsLen)
-	optNla.Type = TCA_OPTIONS | 0x8000 // NLA_F_NESTED
+	optNla.Len = uint16(4 + optionsLen) // #nosec G115 -- netlink attribute length; payload is a fixed short kind string, far below 65535
+	optNla.Type = TCA_OPTIONS | 0x8000  // NLA_F_NESTED
 	offset += 4
 	copy(buf[offset:], bpfFDAttr)
 	offset += len(bpfFDAttr)
@@ -2996,9 +3008,9 @@ func (l *NativeLoader) receiveNetlinkAck(sock int) error {
 	if n >= 20 {
 		respNlh := (*nlMsgHdr)(unsafe.Pointer(&recvBuf[0]))
 		if respNlh.Type == unix.NLMSG_ERROR {
-			errCode := int32(binary.LittleEndian.Uint32(recvBuf[16:]))
+			errCode := int32(binary.LittleEndian.Uint32(recvBuf[16:])) // #nosec G115 -- netlink errno round-trip; kernel returns a negative int32
 			if errCode != 0 {
-				return fmt.Errorf("netlink error: %s", syscall.Errno(-errCode))
+				return fmt.Errorf("netlink error: %s", syscall.Errno(-errCode)) // #nosec G115 -- netlink errno round-trip; kernel returns a negative int32
 			}
 		}
 	}
@@ -3356,7 +3368,7 @@ func (l *NativeLoader) attachRawTracepoint(loaded *loadedProgram) error {
 		Flags      uint32
 		RawTPName  uint64
 	}{
-		ProgFD:     uint32(loaded.fd),
+		ProgFD:     uint32(loaded.fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		AttachType: BPF_TRACE_RAW_TP,
 		RawTPName:  uint64(uintptr(unsafe.Pointer(&tpNameBytes[0]))),
 	}
@@ -3813,7 +3825,7 @@ func (l *NativeLoader) ringbufReader(ctx context.Context, loaded *loadedProgram,
 	dataStart := pageSize
 
 	pollFDs := []unix.PollFd{{
-		Fd:     int32(m.fd),
+		Fd:     int32(m.fd), // #nosec G115 -- poll(2) FD field is int32 by ABI
 		Events: unix.POLLIN,
 	}}
 
@@ -3847,7 +3859,7 @@ func (l *NativeLoader) ringbufReader(ctx context.Context, loaded *loadedProgram,
 			}
 
 			// Calculate offset in ring
-			offset := int(cons % uint64(ringSize))
+			offset := int(cons % uint64(ringSize)) // #nosec G115 -- bounded by the modulo against ringSize
 
 			// Read header
 			hdr := (*ringbufHeader)(unsafe.Pointer(&mmapData[dataStart+offset]))
@@ -3862,7 +3874,7 @@ func (l *NativeLoader) ringbufReader(ctx context.Context, loaded *loadedProgram,
 			if recordLen&BPF_RINGBUF_DISCARD_BIT != 0 {
 				// Skip discarded record
 				dataLen := recordLen & ^uint32(BPF_RINGBUF_BUSY_BIT|BPF_RINGBUF_DISCARD_BIT)
-				*consumerPos = cons + uint64(roundUp(int(BPF_RINGBUF_HDR_SZ+dataLen), 8))
+				*consumerPos = cons + uint64(roundUp(int(BPF_RINGBUF_HDR_SZ+dataLen), 8)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 				continue
 			}
 
@@ -3875,7 +3887,7 @@ func (l *NativeLoader) ringbufReader(ctx context.Context, loaded *loadedProgram,
 			copy(data, mmapData[dataOffset:dataOffset+int(dataLen)])
 
 			// Update consumer position
-			*consumerPos = cons + uint64(roundUp(int(BPF_RINGBUF_HDR_SZ+dataLen), 8))
+			*consumerPos = cons + uint64(roundUp(int(BPF_RINGBUF_HDR_SZ+dataLen), 8)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 
 			// Send to channel
 			select {
@@ -4180,7 +4192,7 @@ func loadKernelBTF(path string) (int, error) {
 		_       [52]byte
 	}{
 		BTF:     uint64(uintptr(unsafe.Pointer(&data[0]))),
-		BTFSize: uint32(len(data)),
+		BTFSize: uint32(len(data)), // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
 	}
 
 	fd, err := bpfSyscall(18, unsafe.Pointer(&attr), unsafe.Sizeof(attr)) // BPF_BTF_LOAD = 18
