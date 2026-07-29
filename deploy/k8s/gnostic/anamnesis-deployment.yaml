@@ -21,7 +21,7 @@ spec:
       securityContext: { runAsUser: 16760, runAsGroup: 16760, fsGroup: 16760, runAsNonRoot: true, seccompProfile: { type: RuntimeDefault } }
       containers:
       - name: anamnesis
-        image: unheaded/anamnesis:latest
+        image: unheaded/anamnesis:0.1.0-alpha
         resources:
           requests: { memory: "256Mi", cpu: "200m" }
           limits: { memory: "1Gi", cpu: "1000m" }

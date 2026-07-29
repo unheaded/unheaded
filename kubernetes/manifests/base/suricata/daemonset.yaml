@@ -29,7 +29,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: suricata
-          image: jasonish/suricata:latest
+          image: jasonish/suricata:7.0
           args: ["-c", "/etc/suricata/suricata.yaml", "-i", "any"]
           securityContext:
             runAsNonRoot: false
