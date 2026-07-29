@@ -805,7 +805,7 @@ func (wfm *WeightedFailoverManager) SelectWeighted(ctx context.Context, key stri
 
 	// Simple weighted selection based on hash
 	hash := hashString(key)
-	target := int(hash % uint64(totalWeight))
+	target := int(hash % uint64(totalWeight)) // #nosec G115 -- bounded by construction; see the surrounding guard
 
 	var cumulative int
 	for _, group := range weightedGroups {
@@ -834,7 +834,7 @@ func (wfm *WeightedFailoverManager) SelectWeighted(ctx context.Context, key stri
 func hashString(s string) uint64 {
 	var h uint64
 	for _, c := range s {
-		h = h*31 + uint64(c)
+		h = h*31 + uint64(c) // #nosec G115 -- bounded by construction; see the surrounding guard
 	}
 	return h
 }

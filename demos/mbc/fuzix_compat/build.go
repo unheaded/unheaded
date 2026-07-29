@@ -3,13 +3,13 @@
 // Generates fuzix_compat.bin — a FUZIX compatibility test kernel for the UPC.
 //
 // Exercises the syscall surface required for FUZIX boot-to-shell:
-//   1. SYS_WRITE "Hello\n" to stdout (fd 1)
-//   2. SYS_FORK  -> parent waits (SYS_WAITPID), child prints "Child\n"
-//   3. SYS_READ  from stdin (1 byte)
-//   4. SYS_BRK   to allocate heap
-//   5. SYS_READ_BLOCK to read block 0 from ramdisk
-//   6. SYS_OPEN / SYS_CLOSE stubs
-//   7. SYS_EXIT  with return code 0
+//  1. SYS_WRITE "Hello\n" to stdout (fd 1)
+//  2. SYS_FORK  -> parent waits (SYS_WAITPID), child prints "Child\n"
+//  3. SYS_READ  from stdin (1 byte)
+//  4. SYS_BRK   to allocate heap
+//  5. SYS_READ_BLOCK to read block 0 from ramdisk
+//  6. SYS_OPEN / SYS_CLOSE stubs
+//  7. SYS_EXIT  with return code 0
 //
 // MBC instruction format: [opcode:8][dst:4][src:4][imm16:16]
 // Syscall convention: r0=syscall_nr, r1-r3=args, INT 0x80, result in r0.
@@ -23,27 +23,27 @@ import (
 
 // ── MBC Opcodes (from monad-common mbc_opcodes) ──────────────────────
 const (
-	NOP      = 0x00
-	ADD      = 0x01
-	SUB      = 0x02
-	MOV      = 0x0E
-	MOVI     = 0x0F
-	CMP      = 0x10
-	INT      = 0x17
-	IRET     = 0x18
-	PUSH     = 0x1A
-	POP      = 0x1B
-	LOAD32   = 0x1C // LOAD_IMM32: two-word instruction
-	JMP      = 0x20
-	JZ       = 0x21
-	JNZ      = 0x22
-	CALL     = 0x27
-	RET      = 0x28
-	LD       = 0x30
-	ST       = 0x31
-	LDB      = 0x32
-	STB      = 0x33
-	HALT     = 0xFF
+	NOP    = 0x00
+	ADD    = 0x01
+	SUB    = 0x02
+	MOV    = 0x0E
+	MOVI   = 0x0F
+	CMP    = 0x10
+	INT    = 0x17
+	IRET   = 0x18
+	PUSH   = 0x1A
+	POP    = 0x1B
+	LOAD32 = 0x1C // LOAD_IMM32: two-word instruction
+	JMP    = 0x20
+	JZ     = 0x21
+	JNZ    = 0x22
+	CALL   = 0x27
+	RET    = 0x28
+	LD     = 0x30
+	ST     = 0x31
+	LDB    = 0x32
+	STB    = 0x33
+	HALT   = 0xFF
 )
 
 // ── Linux-compatible syscall numbers (INT 0x80, mbc_linux_syscalls) ──
@@ -109,7 +109,7 @@ func main() {
 
 	strLens := make(map[string]uint16)
 	for _, s := range strings {
-		strLens[s.label] = uint16(len(s.data))
+		strLens[s.label] = uint16(len(s.data)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	}
 
 	// ── Emit instructions ────────────────────────────────────────
@@ -176,9 +176,9 @@ func main() {
 	emit(MOVI, 1, 0, 0) // query
 	emit(INT, 0, 0, 0x80)
 	// r0 = current break. Now set new break = current + 4096
-	emit(MOV, 8, 0, 0) // r8 = old break
+	emit(MOV, 8, 0, 0)       // r8 = old break
 	emit(MOVI, 9, 0, 0x1000) // r9 = 4096
-	emit(ADD, 8, 9, 0) // r8 = old_break + 4096
+	emit(ADD, 8, 9, 0)       // r8 = old_break + 4096
 	emit(MOVI, 0, 0, SYS_BRK)
 	emit(MOV, 1, 8, 0) // r1 = new break
 	emit(INT, 0, 0, 0x80)
@@ -238,14 +238,14 @@ func main() {
 
 	// ── Compute data offset and patch ────────────────────────────
 	codeWords := len(code)
-	dataByteOffset := uint16(codeWords * 4)
+	dataByteOffset := uint16(codeWords * 4) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	// Compute per-string byte offsets.
 	strOffsets := make(map[string]uint16)
 	currentOffset := uint16(0)
 	for _, s := range strings {
 		strOffsets[s.label] = dataByteOffset + currentOffset
-		blen := uint16(len(s.data))
+		blen := uint16(len(s.data)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 		aligned := (blen + 3) & ^uint16(3)
 		currentOffset += aligned
 	}
@@ -257,8 +257,8 @@ func main() {
 	}
 
 	// Patch child_process JZ offset.
-	childOffset := int16(childStart - (childJmpInstr + 1))
-	code[childJmpInstr] = encode(JZ, 0, 0, uint16(childOffset))
+	childOffset := int16(childStart - (childJmpInstr + 1))      // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	code[childJmpInstr] = encode(JZ, 0, 0, uint16(childOffset)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	// ── Pack data words ──────────────────────────────────────────
 	var dataWords []uint32

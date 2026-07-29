@@ -245,7 +245,7 @@ func (m *MockLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 
 	info := &ProgramInfo{
 		Name:       spec.Name,
-		ID:         uint32(len(m.programs) + 1),
+		ID:         uint32(len(m.programs) + 1), // #nosec G115 -- bounded by the length of an already-allocated slice
 		Type:       spec.Type,
 		Tag:        fmt.Sprintf("tag-%s-%d", spec.Name, time.Now().Unix()),
 		JitedSize:  4096,
@@ -281,7 +281,7 @@ func (m *MockLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 func (m *MockLoader) createDefaultMaps(prog, name string, mapType MapType, keySize, valueSize, maxEntries uint32) {
 	mapInfo := &MapInfo{
 		Name:       name,
-		ID:         uint32(len(m.maps[prog]) + 1),
+		ID:         uint32(len(m.maps[prog]) + 1), // #nosec G115 -- bounded by the length of an already-allocated slice
 		Type:       mapType,
 		KeySize:    keySize,
 		ValueSize:  valueSize,

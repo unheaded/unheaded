@@ -65,13 +65,13 @@ func (pm *PrefetchManager) AddHint(flowLabel uint32, baseAddr uint32, pageCount 
 	defer pm.mu.Unlock()
 
 	// Check global limit
-	if uint16(len(pm.hints)) >= pm.maxOutstandingPrefetch {
+	if uint16(len(pm.hints)) >= pm.maxOutstandingPrefetch { // #nosec G115 -- bounded by the length of an already-allocated slice
 		return 0, fmt.Errorf("exceeded maximum outstanding prefetch hints: %d", pm.maxOutstandingPrefetch)
 	}
 
 	// Check per-flow limit
 	flowCount := len(pm.flowHints[flowLabel])
-	if uint16(flowCount) >= pm.maxOutstandingPerFlow {
+	if uint16(flowCount) >= pm.maxOutstandingPerFlow { // #nosec G115 -- bounded by construction; see the surrounding guard
 		return 0, fmt.Errorf("exceeded maximum prefetch hints for flow %d: %d", flowLabel, pm.maxOutstandingPerFlow)
 	}
 
@@ -177,7 +177,7 @@ func (pm *PrefetchManager) OutstandingCount() uint16 {
 	pm.mu.RLock()
 	defer pm.mu.RUnlock()
 
-	return uint16(len(pm.hints))
+	return uint16(len(pm.hints)) // #nosec G115 -- bounded by the length of an already-allocated slice
 }
 
 // SetMaxOutstanding updates the maximum outstanding prefetch limit.

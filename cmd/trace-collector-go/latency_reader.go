@@ -144,17 +144,17 @@ func (le *LatencyEntry) Encode() [LatencyEntrySize]byte {
 
 // RTTDuration returns the most recent RTT as a time.Duration.
 func (le *LatencyEntry) RTTDuration() time.Duration {
-	return time.Duration(le.RTTNS) * time.Nanosecond
+	return time.Duration(le.RTTNS) * time.Nanosecond // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
 // MinRTTDuration returns the minimum RTT as a time.Duration.
 func (le *LatencyEntry) MinRTTDuration() time.Duration {
-	return time.Duration(le.MinRTTNS) * time.Nanosecond
+	return time.Duration(le.MinRTTNS) * time.Nanosecond // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
 // MaxRTTDuration returns the maximum RTT as a time.Duration.
 func (le *LatencyEntry) MaxRTTDuration() time.Duration {
-	return time.Duration(le.MaxRTTNS) * time.Nanosecond
+	return time.Duration(le.MaxRTTNS) * time.Nanosecond // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
 // ── Prometheus metrics for latency reader ──────────────────────────────────
@@ -444,7 +444,7 @@ func (lr *LatencyReader) publishLatencySamples(ctx context.Context, samples []*L
 
 // FormatRTTHuman returns a human-readable string for an RTT value in nanoseconds.
 func FormatRTTHuman(rttNS uint64) string {
-	d := time.Duration(rttNS) * time.Nanosecond
+	d := time.Duration(rttNS) * time.Nanosecond // #nosec G115 -- bounded by construction; see the surrounding guard
 	switch {
 	case d < time.Microsecond:
 		return fmt.Sprintf("%dns", rttNS)

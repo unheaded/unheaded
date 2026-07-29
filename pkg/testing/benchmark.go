@@ -44,7 +44,7 @@ func (r BenchmarkResult) AllocsPerOp() uint64 {
 	if r.N == 0 {
 		return 0
 	}
-	return r.Allocs / uint64(r.N)
+	return r.Allocs / uint64(r.N) // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
 // BytesPerOp returns bytes allocated per operation.
@@ -52,7 +52,7 @@ func (r BenchmarkResult) BytesPerOp() uint64 {
 	if r.N == 0 {
 		return 0
 	}
-	return r.AllocBytes / uint64(r.N)
+	return r.AllocBytes / uint64(r.N) // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
 // String returns a formatted string representation.
@@ -319,7 +319,7 @@ func (m *MemoryBenchmark) AllocBytes() uint64 {
 
 // HeapAlloc returns the heap allocation difference.
 func (m *MemoryBenchmark) HeapAlloc() int64 {
-	return int64(m.after.HeapAlloc) - int64(m.before.HeapAlloc)
+	return int64(m.after.HeapAlloc) - int64(m.before.HeapAlloc) // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
 // String returns a formatted string representation.

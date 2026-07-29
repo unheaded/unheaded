@@ -69,7 +69,7 @@ func PrepareBootMemory(cfg BootConfig) (map[uint32]uint32, error) {
 		if err != nil {
 			return nil, err
 		}
-		params.KernelSize = uint32(len(kernelWords) * 4)
+		params.KernelSize = uint32(len(kernelWords) * 4) // #nosec G115 -- bounded by the length of an already-allocated slice
 		baseWord := cfg.KernelLoadAddr >> 2
 		for i, word := range kernelWords {
 			mem[baseWord+uint32(i)] = word
@@ -82,7 +82,7 @@ func PrepareBootMemory(cfg BootConfig) (map[uint32]uint32, error) {
 		if err != nil {
 			return nil, err
 		}
-		params.RamdiskSize = uint32(len(rdWords) * 4)
+		params.RamdiskSize = uint32(len(rdWords) * 4) // #nosec G115 -- bounded by the length of an already-allocated slice
 		params.RamdiskAddr = cfg.RamdiskAddr
 		baseWord := cfg.RamdiskAddr >> 2
 		for i, word := range rdWords {
@@ -93,7 +93,7 @@ func PrepareBootMemory(cfg BootConfig) (map[uint32]uint32, error) {
 	// 6. Store boot args if specified
 	if cfg.BootArgs != "" {
 		params.BootArgsAddr = BootArgsBase
-		params.BootArgsLen = uint32(len(cfg.BootArgs))
+		params.BootArgsLen = uint32(len(cfg.BootArgs)) // #nosec G115 -- bounded by the length of an already-allocated slice
 		argsBytes := []byte(cfg.BootArgs)
 		// Pad to 4-byte alignment
 		for len(argsBytes)%4 != 0 {

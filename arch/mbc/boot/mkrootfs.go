@@ -268,7 +268,7 @@ func addFile(fs []uint32, name string, data []byte, mode uint32, fileType uint32
 	// Calculate blocks needed
 	blocksNeeded := uint32(0)
 	if len(data) > 0 {
-		blocksNeeded = (uint32(len(data)) + unfsBlockSize - 1) / unfsBlockSize
+		blocksNeeded = (uint32(len(data)) + unfsBlockSize - 1) / unfsBlockSize // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	}
 
 	if blocksNeeded > sb.FreeBlks {
@@ -283,7 +283,7 @@ func addFile(fs []uint32, name string, data []byte, mode uint32, fileType uint32
 
 	// Build and write inode
 	ino := inode{
-		Size:       uint32(len(data)),
+		Size:       uint32(len(data)), // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 		Mode:       mode,
 		BlockStart: blockStart,
 		BlockCount: blocksNeeded,

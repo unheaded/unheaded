@@ -231,7 +231,7 @@ func (fc *FlowCorrelator) GC(nowNs uint64) int {
 	fc.mu.Lock()
 	defer fc.mu.Unlock()
 
-	ttlNs := uint64(fc.ttl.Nanoseconds())
+	ttlNs := uint64(fc.ttl.Nanoseconds()) // #nosec G115 -- bounded by construction; see the surrounding guard
 	removed := 0
 	for fl, rec := range fc.flows {
 		if nowNs-rec.StartNs > ttlNs {

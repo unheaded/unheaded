@@ -124,7 +124,7 @@ func (m *Map) LookupElem(keyBytes []byte, valueSize int) ([]byte, error) {
 		key   uint64
 		value uint64
 	}{
-		mapFd: uint32(m.fd),
+		mapFd: uint32(m.fd), // #nosec G115 -- bounded by construction; see the surrounding guard
 		key:   uint64(uintptr(unsafe.Pointer(&keyBytes[0]))),
 		value: uint64(uintptr(unsafe.Pointer(&value[0]))),
 	}
@@ -149,7 +149,7 @@ func (m *Map) UpdateElem(keyBytes, valueBytes []byte) error {
 		value uint64
 		flags uint64
 	}{
-		mapFd: uint32(m.fd),
+		mapFd: uint32(m.fd), // #nosec G115 -- bounded by construction; see the surrounding guard
 		key:   uint64(uintptr(unsafe.Pointer(&keyBytes[0]))),
 		value: uint64(uintptr(unsafe.Pointer(&valueBytes[0]))),
 		flags: 0, // BPF_ANY
@@ -206,7 +206,7 @@ func (m *Map) LookupBatch(count uint32, keySize, valueSize int) ([]byte, []byte,
 			keys:     uint64(uintptr(unsafe.Pointer(&keys[kOff]))),
 			values:   uint64(uintptr(unsafe.Pointer(&values[vOff]))),
 			count:    remaining,
-			mapFd:    uint32(m.fd),
+			mapFd:    uint32(m.fd), // #nosec G115 -- bounded by construction; see the surrounding guard
 		}
 
 		_, _, errno := unix.Syscall(unix.SYS_BPF, bpfMapLookupBatch, uintptr(unsafe.Pointer(&attr)), unsafe.Sizeof(attr))

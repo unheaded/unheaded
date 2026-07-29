@@ -73,8 +73,8 @@ func main() {
 	emit(INT, 0, 0, 0x80)
 
 	// Jump back to loop start
-	loopJmpOffset := int16(loopStart - (len(code) + 1))
-	emit(JMP, 0, 0, uint16(loopJmpOffset))
+	loopJmpOffset := int16(loopStart - (len(code) + 1)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	emit(JMP, 0, 0, uint16(loopJmpOffset))              // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	// ── Exit path ────────────────────────────────────────────────
 	exitTarget := len(code)
@@ -85,12 +85,12 @@ func main() {
 	emit(HALT, 0, 0, 0)
 
 	// Patch exit jump
-	exitOffset := int16(exitTarget - (exitJmpInstr + 1))
-	code[exitJmpInstr] = encode(JZ, 0, 0, uint16(exitOffset))
+	exitOffset := int16(exitTarget - (exitJmpInstr + 1))      // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	code[exitJmpInstr] = encode(JZ, 0, 0, uint16(exitOffset)) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	// ── Data segment (1-word read buffer) ────────────────────────
 	codeWords := len(code)
-	dataOffset := uint16(codeWords * 4)
+	dataOffset := uint16(codeWords * 4) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	bufAddr := dataOffset
 
 	code[bufInstr] = encode(MOVI, 2, 0, bufAddr)
@@ -125,9 +125,9 @@ func createUPCFlat(text []uint32, data []uint32, bssWords uint32, stackSize uint
 	copy(out[0:4], upcFlatMagic)
 	binary.LittleEndian.PutUint32(out[4:8], upcFlatVersion)
 	binary.LittleEndian.PutUint32(out[8:12], 0)
-	binary.LittleEndian.PutUint32(out[12:16], uint32(len(text)))
-	binary.LittleEndian.PutUint32(out[16:20], uint32(len(text)))
-	binary.LittleEndian.PutUint32(out[20:24], uint32(len(data)))
+	binary.LittleEndian.PutUint32(out[12:16], uint32(len(text))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	binary.LittleEndian.PutUint32(out[16:20], uint32(len(text))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	binary.LittleEndian.PutUint32(out[20:24], uint32(len(data))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	binary.LittleEndian.PutUint32(out[24:28], bssWords)
 	binary.LittleEndian.PutUint32(out[28:32], stackSize)
 

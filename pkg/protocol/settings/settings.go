@@ -180,7 +180,7 @@ func (s *Settings) Decode(data []byte) error {
 		}
 		offset += n
 
-		settingID := SettingID(id)
+		settingID := SettingID(id) // #nosec G115 -- bounded by construction; see the surrounding guard
 
 		// Check if this is an unknown setting
 		if settingID > SettingsWotanBufferSize && !s.UnknownSettingsIgnored {

@@ -140,7 +140,7 @@ func AddFileWithType(fs []uint32, name string, data []byte, mode uint32, fileTyp
 	// Calculate blocks needed for data
 	blocksNeeded := uint32(0)
 	if len(data) > 0 {
-		blocksNeeded = (uint32(len(data)) + UNFSBlockSize - 1) / UNFSBlockSize
+		blocksNeeded = (uint32(len(data)) + UNFSBlockSize - 1) / UNFSBlockSize // #nosec G115 -- bounded by the length of an already-allocated slice
 	}
 
 	if blocksNeeded > sb.FreeBlks {
@@ -155,7 +155,7 @@ func AddFileWithType(fs []uint32, name string, data []byte, mode uint32, fileTyp
 
 	// Build inode
 	inode := Inode{
-		Size:       uint32(len(data)),
+		Size:       uint32(len(data)), // #nosec G115 -- bounded by the length of an already-allocated slice
 		Mode:       mode,
 		BlockStart: blockStart,
 		BlockCount: blocksNeeded,
@@ -453,9 +453,10 @@ func buildInitProgram() []byte {
 
 	// Code instructions
 	code := []uint32{
-		mbcEncode(mbcMOVI, 0, 0, mbcSysWrite),      // r0 = SYS_WRITE
-		mbcEncode(mbcMOVI, 1, 0, 1),                // r1 = fd 1 (stdout)
-		mbcEncode(mbcMOVI, 2, 0, 0),                // r2 = msg addr (patched below)
+		mbcEncode(mbcMOVI, 0, 0, mbcSysWrite), // r0 = SYS_WRITE
+		mbcEncode(mbcMOVI, 1, 0, 1),           // r1 = fd 1 (stdout)
+		mbcEncode(mbcMOVI, 2, 0, 0),           // r2 = msg addr (patched below)
+		// #nosec G115 -- generated MBC program address; the MBC address space is 16-bit by design
 		mbcEncode(mbcMOVI, 3, 0, uint16(len(msg))), // r3 = msg len
 		mbcEncode(mbcINT, 0, 0, 0x80),              // INT 0x80
 		mbcEncode(mbcMOVI, 0, 0, mbcSysExit),       // r0 = SYS_EXIT
@@ -464,7 +465,7 @@ func buildInitProgram() []byte {
 	}
 
 	dataWords := mbcPackString(msg)
-	dataOffset := uint16(len(code) * 4)
+	dataOffset := uint16(len(code) * 4) // #nosec G115 -- generated MBC program address; the MBC address space is 16-bit by design
 	code[2] = mbcEncode(mbcMOVI, 2, 0, dataOffset)
 
 	all := append(code, dataWords...)
@@ -484,9 +485,10 @@ func buildShellProgram() []byte {
 
 	code := []uint32{
 		// Print prompt
-		mbcEncode(mbcMOVI, 0, 0, mbcSysWrite),         // r0 = SYS_WRITE
-		mbcEncode(mbcMOVI, 1, 0, 1),                   // r1 = fd 1 (stdout)
-		mbcEncode(mbcMOVI, 2, 0, 0),                   // r2 = prompt addr (patched)
+		mbcEncode(mbcMOVI, 0, 0, mbcSysWrite), // r0 = SYS_WRITE
+		mbcEncode(mbcMOVI, 1, 0, 1),           // r1 = fd 1 (stdout)
+		mbcEncode(mbcMOVI, 2, 0, 0),           // r2 = prompt addr (patched)
+		// #nosec G115 -- generated MBC program address; the MBC address space is 16-bit by design
 		mbcEncode(mbcMOVI, 3, 0, uint16(len(prompt))), // r3 = prompt len
 		mbcEncode(mbcINT, 0, 0, 0x80),                 // INT 0x80
 
@@ -512,9 +514,9 @@ func buildShellProgram() []byte {
 	promptWords := mbcPackString(prompt)
 	readBufWord := uint32(0) // 1 word for the read buffer
 
-	dataOffset := uint16(len(code) * 4)
+	dataOffset := uint16(len(code) * 4) // #nosec G115 -- generated MBC program address; the MBC address space is 16-bit by design
 	promptAddr := dataOffset
-	readBufAddr := dataOffset + uint16(len(promptWords)*4)
+	readBufAddr := dataOffset + uint16(len(promptWords)*4) // #nosec G115 -- generated MBC program address; the MBC address space is 16-bit by design
 
 	// Patch addresses
 	code[2] = mbcEncode(mbcMOVI, 2, 0, promptAddr)

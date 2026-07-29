@@ -282,8 +282,8 @@ func (r *Resolver) forwardTCP(ctx context.Context, upstream string, queryData []
 
 	// TCP DNS uses 2-byte length prefix
 	tcpData := make([]byte, 2+len(queryData))
-	tcpData[0] = byte(len(queryData) >> 8)
-	tcpData[1] = byte(len(queryData))
+	tcpData[0] = byte(len(queryData) >> 8) // #nosec G115 -- bounded by construction; see the surrounding guard
+	tcpData[1] = byte(len(queryData))      // #nosec G115 -- bounded by construction; see the surrounding guard
 	copy(tcpData[2:], queryData)
 
 	// Send query

@@ -64,7 +64,7 @@ func main() {
 	emit(MOVI, 0, 0, SYS_WRITE)
 	emit(MOVI, 1, 0, 1) // stdout
 	msgInstr := emit(MOVI, 2, 0, 0)
-	emit(MOVI, 3, 0, uint16(len(msg)))
+	emit(MOVI, 3, 0, uint16(len(msg))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	emit(INT, 0, 0, 0x80)
 
 	// SYS_EXIT(0)
@@ -75,7 +75,7 @@ func main() {
 
 	// ── Data segment ─────────────────────────────────────────────
 	codeWords := len(code)
-	dataOffset := uint16(codeWords * 4)
+	dataOffset := uint16(codeWords * 4) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 
 	msgWords := packStringWords(msg)
 	msgAddr := dataOffset
@@ -112,9 +112,9 @@ func createUPCFlat(text []uint32, data []uint32, bssWords uint32, stackSize uint
 	copy(out[0:4], upcFlatMagic)
 	binary.LittleEndian.PutUint32(out[4:8], upcFlatVersion)
 	binary.LittleEndian.PutUint32(out[8:12], 0)
-	binary.LittleEndian.PutUint32(out[12:16], uint32(len(text)))
-	binary.LittleEndian.PutUint32(out[16:20], uint32(len(text)))
-	binary.LittleEndian.PutUint32(out[20:24], uint32(len(data)))
+	binary.LittleEndian.PutUint32(out[12:16], uint32(len(text))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	binary.LittleEndian.PutUint32(out[16:20], uint32(len(text))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
+	binary.LittleEndian.PutUint32(out[20:24], uint32(len(data))) // #nosec G115 -- MBC program generator over internal constants; the MBC address space is 16-bit by design
 	binary.LittleEndian.PutUint32(out[24:28], bssWords)
 	binary.LittleEndian.PutUint32(out[28:32], stackSize)
 

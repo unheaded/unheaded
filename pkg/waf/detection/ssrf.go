@@ -800,9 +800,9 @@ func ParseIPFromDecimal(decimal string) net.IP {
 
 	return net.IPv4(
 		byte(num>>24),
-		byte(num>>16),
-		byte(num>>8),
-		byte(num),
+		byte(num>>16), // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
+		byte(num>>8),  // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
+		byte(num),     // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
 	)
 }
 
@@ -818,9 +818,9 @@ func ParseIPFromHex(hex string) net.IP {
 
 	return net.IPv4(
 		byte(num>>24),
-		byte(num>>16),
-		byte(num>>8),
-		byte(num),
+		byte(num>>16), // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
+		byte(num>>8),  // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
+		byte(num),     // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
 	)
 }
 

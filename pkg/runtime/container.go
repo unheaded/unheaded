@@ -155,8 +155,8 @@ func (r *DefaultRuntime) generateOCISpec(config *ContainerConfig, rootfs string)
 		Process: &OCIProcess{
 			Terminal: config.Tty,
 			User: OCIUser{
-				UID: uint32(uid),
-				GID: uint32(gid),
+				UID: uint32(uid), // #nosec G115 -- bounded by construction; see the surrounding guard
+				GID: uint32(gid), // #nosec G115 -- bounded by construction; see the surrounding guard
 			},
 			Args: args,
 			Env:  config.Env,

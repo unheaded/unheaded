@@ -767,15 +767,15 @@ func (m *MaglevHashState) rebuild() {
 func (m *MaglevHashState) generatePermutation(name string) []int {
 	h1 := fnv.New64()
 	h1.Write([]byte(name))
-	offset := h1.Sum64() % uint64(m.tableSize)
+	offset := h1.Sum64() % uint64(m.tableSize) // #nosec G115 -- Maglev table index, bounded by the modulo against tableSize
 
 	h2 := fnv.New64a()
 	h2.Write([]byte(name))
-	skip := h2.Sum64()%(uint64(m.tableSize)-1) + 1
+	skip := h2.Sum64()%(uint64(m.tableSize)-1) + 1 // #nosec G115 -- Maglev table index, bounded by the modulo against tableSize
 
 	permutation := make([]int, m.tableSize)
 	for i := 0; i < m.tableSize; i++ {
-		permutation[i] = int((offset + uint64(i)*skip) % uint64(m.tableSize))
+		permutation[i] = int((offset + uint64(i)*skip) % uint64(m.tableSize)) // #nosec G115 -- Maglev table index, bounded by the modulo against tableSize
 	}
 	return permutation
 }
@@ -795,11 +795,11 @@ func (m *MaglevHashState) Select(ctx context.Context, key string, backends []*Ba
 
 	h := fnv.New64a()
 	h.Write([]byte(key))
-	idx := h.Sum64() % uint64(m.tableSize)
+	idx := h.Sum64() % uint64(m.tableSize) // #nosec G115 -- Maglev table index, bounded by the modulo against tableSize
 
 	// Find first healthy backend starting from idx
 	for i := 0; i < m.tableSize; i++ {
-		backend := m.table[(int(idx)+i)%m.tableSize]
+		backend := m.table[(int(idx)+i)%m.tableSize] // #nosec G115 -- Maglev table index, bounded by the modulo against tableSize
 		if backend != nil && backend.IsHealthy() {
 			return backend, nil
 		}

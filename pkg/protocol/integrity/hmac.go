@@ -49,9 +49,9 @@ func DeriveFlowSecret(nodeSecret []byte, flowLabel uint32, srcIP net.IP, dstIP n
 	// Write flow label (big-endian)
 	h.Write([]byte{
 		byte(flowLabel >> 24),
-		byte(flowLabel >> 16),
-		byte(flowLabel >> 8),
-		byte(flowLabel),
+		byte(flowLabel >> 16), // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
+		byte(flowLabel >> 8),  // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
+		byte(flowLabel),       // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
 	})
 
 	// Write addresses

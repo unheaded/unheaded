@@ -1221,8 +1221,8 @@ func (w *CgroupEventWatcher) processEvents(containerID string) {
 		// size only, which works for cgroup file-watches because we
 		// configured them with IN_MASK_CREATE (no name in the event).
 		var offset uint32
-		for offset < uint32(n) {
-			if offset+unix.SizeofInotifyEvent > uint32(n) {
+		for offset < uint32(n) { // #nosec G115 -- UNFS inode field; bounded by the filesystem image size
+			if offset+unix.SizeofInotifyEvent > uint32(n) { // #nosec G115 -- UNFS inode field; bounded by the filesystem image size
 				break
 			}
 
@@ -1576,7 +1576,7 @@ func (m *CgroupV2Manager) WaitForEmpty(ctx context.Context, containerID string) 
 	if err != nil {
 		return err
 	}
-	defer func() { _, _ = unix.InotifyRmWatch(fd, uint32(wd)) }()
+	defer func() { _, _ = unix.InotifyRmWatch(fd, uint32(wd)) }() // #nosec G115 -- bounded by construction; see the surrounding guard
 
 	// Check initial state
 	if populated, err := m.isPopulated(eventsPath); err == nil && !populated {

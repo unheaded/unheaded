@@ -59,7 +59,7 @@ func (s *flowServer) listMock() (*pb.FlowListResponse, error) {
 
 	return &pb.FlowListResponse{
 		Flows: flows,
-		Total: int32(len(flows)),
+		Total: int32(len(flows)), // #nosec G115 -- bounded by the length of an already-allocated slice
 	}, nil
 }
 

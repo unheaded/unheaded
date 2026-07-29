@@ -235,7 +235,7 @@ func calculatePathLatency(hops []HopData) time.Duration {
 		first := hops[0].TimestampNS
 		last := hops[len(hops)-1].TimestampNS
 		if first > 0 && last > first {
-			return time.Duration(last-first) * time.Nanosecond
+			return time.Duration(last-first) * time.Nanosecond // #nosec G115 -- bounded by construction; see the surrounding guard
 		}
 	}
 

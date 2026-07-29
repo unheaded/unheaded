@@ -98,7 +98,18 @@ print("\n".join(bad))
     fi
 fi
 
-# ── Guard 2: no #nosec shadowed by a leading //nolint ────────────────────────
+# ── Guard 2: #nosec must LEAD its comment ────────────────────────────────────
+#
+# gosec only honours a suppression when the comment text begins with "#nosec".
+# ANY text in front of it makes the annotation inert — not just //nolint:
+#
+#     foo() //nolint:gosec // reason // #nosec G306 -- ...   <- inert
+#     emit(...)            // 63: JMP // #nosec G115 -- ...  <- also inert
+#
+# The second form is easy to create by appending to a line that already had a
+# trailing comment, and it reads as annotated. This repo shipped ~20 of the
+# first kind; a bulk pass in this branch created 13 of the second. Both are
+# caught here by requiring #nosec to be the first thing in its comment.
 #
 # gosec only honours a suppression comment that LEADS with "#nosec". A line
 # like:
@@ -109,10 +120,23 @@ fi
 # suppressed nothing, which is how the gosec job came to report findings
 # everyone believed were already handled. Catch it mechanically instead of
 # hoping the next reviewer spots it.
-SHADOWED="$(grep -rn '//nolint[^\n]*#nosec' --include='*.go' "${REPO_ROOT}" 2>/dev/null || true)"
+SHADOWED="$(cd "${REPO_ROOT}" && git ls-files '*.go' | python3 -c '
+import sys
+bad=[]
+for f in sys.stdin.read().split():
+    try: src=open(f).read()
+    except OSError: continue
+    if "#nosec" not in src: continue
+    for n,l in enumerate(src.split("\n"),1):
+        if "#nosec" not in l: continue
+        i=l.find("//")
+        if i>=0 and not l[i+2:].strip().startswith("#nosec"):
+            bad.append(f"{f}:{n}")
+print("\n".join(bad))
+' 2>/dev/null || true)"
 if [ -n "${SHADOWED}" ]; then
     echo "============================================================"
-    echo "  FAIL: #nosec shadowed by a leading //nolint"
+    echo "  FAIL: #nosec does not lead its comment (annotation is inert)"
     echo "============================================================"
     echo
     printf '%s\n' "${SHADOWED}"

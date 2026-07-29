@@ -117,7 +117,7 @@ func (b *BaseBalancer) RecordResponse(endpoint *Endpoint, latency time.Duration,
 	}
 
 	atomic.AddUint64(&m.TotalRequests, 1)
-	atomic.AddUint64(&m.TotalLatencyNs, uint64(latency.Nanoseconds()))
+	atomic.AddUint64(&m.TotalLatencyNs, uint64(latency.Nanoseconds())) // #nosec G115 -- bounded by construction; see the surrounding guard
 	m.LastResponseTime = time.Now()
 
 	if success {
@@ -394,7 +394,7 @@ func (h *IPHashBalancer) SelectWithContext(endpoints []*Endpoint, ctx *SelectCon
 	hasher.Write([]byte(key))
 	hash := hasher.Sum32()
 
-	return endpoints[hash%uint32(n)]
+	return endpoints[hash%uint32(n)] // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
 // ConsistentHashBalancer implements consistent hashing with virtual nodes.

@@ -82,7 +82,7 @@ type CorrelatedFlow struct {
 
 // RTTDuration returns the RTT as a time.Duration.
 func (cf *CorrelatedFlow) RTTDuration() time.Duration {
-	return time.Duration(cf.RTTNS) * time.Nanosecond
+	return time.Duration(cf.RTTNS) * time.Nanosecond // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
 // ── PacketCorrelator ────────────────────────────────────────────────────────
@@ -218,7 +218,7 @@ func (pc *PacketCorrelator) GC(nowNS uint64) int {
 
 	atomic.AddUint64(&pc.stats.GCCycles, 1)
 
-	ttlNS := uint64(pc.config.FlowTTL.Nanoseconds())
+	ttlNS := uint64(pc.config.FlowTTL.Nanoseconds()) // #nosec G115 -- bounded by construction; see the surrounding guard
 	removed := 0
 
 	for ft, flow := range pc.flows {

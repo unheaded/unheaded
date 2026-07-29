@@ -91,7 +91,7 @@ func (s *PQCState) MarshalTo(dst []byte) error {
 	binary.BigEndian.PutUint32(dst[0x04:], s.KeyCount)
 	binary.BigEndian.PutUint32(dst[0x08:], s.VerifyPass)
 	binary.BigEndian.PutUint32(dst[0x0C:], s.VerifyFail)
-	binary.BigEndian.PutUint64(dst[0x10:], uint64(s.LastRotation))
+	binary.BigEndian.PutUint64(dst[0x10:], uint64(s.LastRotation)) // #nosec G115 -- UNFS inode field; bounded by the filesystem image size
 	dst[0x18] = s.PolicyMode
 	dst[0x19] = s.ActiveTier
 	binary.BigEndian.PutUint16(dst[0x1A:], s.KEMTunnels)
@@ -124,7 +124,7 @@ func UnmarshalPQCState(b []byte) (PQCState, error) {
 		KeyCount:     binary.BigEndian.Uint32(b[0x04:]),
 		VerifyPass:   binary.BigEndian.Uint32(b[0x08:]),
 		VerifyFail:   binary.BigEndian.Uint32(b[0x0C:]),
-		LastRotation: int64(binary.BigEndian.Uint64(b[0x10:])),
+		LastRotation: int64(binary.BigEndian.Uint64(b[0x10:])), // #nosec G115 -- UNFS inode field; bounded by the filesystem image size
 		PolicyMode:   b[0x18],
 		ActiveTier:   b[0x19],
 		KEMTunnels:   binary.BigEndian.Uint16(b[0x1A:]),

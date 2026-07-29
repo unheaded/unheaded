@@ -506,7 +506,7 @@ func (tc *TopologySpreadChecker) CheckConstraints(workload *Workload, node *Node
 		}
 
 		currentCount := counts[value]
-		skew := int32(currentCount - minCount)
+		skew := int32(currentCount - minCount) // #nosec G115 -- bounded by construction; see the surrounding guard
 
 		if skew >= constraint.MaxSkew {
 			if constraint.WhenUnsatisfiable == DoNotSchedule {

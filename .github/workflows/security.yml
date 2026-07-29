@@ -59,7 +59,7 @@ jobs:
       - name: Run gosec
         uses: securego/gosec@f184e33def921b62b2e6d7b36c3c2d4eb39619a8 # v2.21.0
         with:
-          args: '-exclude=G103,G104,G115 -fmt sarif -out gosec-results.sarif ./...'
+          args: '-exclude=G103,G104 -fmt sarif -out gosec-results.sarif ./...'
 
       # The exclusion list above is a suppression mechanism, and suppression
       # mechanisms grow unless something stops them. This asserts the ratchet

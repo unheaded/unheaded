@@ -115,7 +115,7 @@ func (m *MetricsMiddleware) TopicMetrics(topic string) (count uint64, avgDuratio
 
 	count = m.counts[topic]
 	if count > 0 {
-		avgDuration = m.durations[topic] / time.Duration(count)
+		avgDuration = m.durations[topic] / time.Duration(count) // #nosec G115 -- bounded by construction; see the surrounding guard
 	}
 	errors = m.errors[topic]
 	return
@@ -128,7 +128,7 @@ func (m *MetricsMiddleware) TotalMetrics() (count uint64, avgDuration time.Durat
 
 	count = m.totalCount
 	if count > 0 {
-		avgDuration = m.totalLatency / time.Duration(count)
+		avgDuration = m.totalLatency / time.Duration(count) // #nosec G115 -- bounded by construction; see the surrounding guard
 	}
 	errors = m.totalErrors
 	return

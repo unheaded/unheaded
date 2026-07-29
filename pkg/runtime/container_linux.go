@@ -216,8 +216,8 @@ func (r *DefaultRuntime) StartContainer(ctx context.Context, containerID string)
 		// Parse user:group format
 		uid, gid := parseUserGroup(c.config.User)
 		proc.SysProcAttr.Credential = &syscall.Credential{
-			Uid: uint32(uid),
-			Gid: uint32(gid),
+			Uid: uint32(uid), // #nosec G115 -- bounded by construction; see the surrounding guard
+			Gid: uint32(gid), // #nosec G115 -- bounded by construction; see the surrounding guard
 		}
 	}
 

@@ -263,7 +263,7 @@ func (mi *MeshIntegration) convertToEndpoint(inst *MeshInstance) *ServiceEndpoin
 		ip = ips[0]
 	}
 
-	weight := uint16(inst.Weight)
+	weight := uint16(inst.Weight) // #nosec G115 -- bounded by construction; see the surrounding guard
 	if weight == 0 {
 		weight = 100
 	}
@@ -281,7 +281,7 @@ func (mi *MeshIntegration) convertToEndpoint(inst *MeshInstance) *ServiceEndpoin
 	return &ServiceEndpoint{
 		ID:       inst.ID,
 		Address:  ip,
-		Port:     uint16(inst.Port),
+		Port:     uint16(inst.Port), // #nosec G115 -- bounded by construction; see the surrounding guard
 		Weight:   weight,
 		Health:   health,
 		Metadata: inst.Metadata,

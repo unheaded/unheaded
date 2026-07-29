@@ -70,13 +70,13 @@ func DeriveNonce(sharedSecret []byte, counter uint64) ([]byte, error) {
 	salt := []byte("unheaded-pqc-nonce-v1")
 	info := make([]byte, 8)
 	info[0] = byte(counter >> 56)
-	info[1] = byte(counter >> 48)
-	info[2] = byte(counter >> 40)
-	info[3] = byte(counter >> 32)
-	info[4] = byte(counter >> 24)
-	info[5] = byte(counter >> 16)
-	info[6] = byte(counter >> 8)
-	info[7] = byte(counter)
+	info[1] = byte(counter >> 48) // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
+	info[2] = byte(counter >> 40) // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
+	info[3] = byte(counter >> 32) // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
+	info[4] = byte(counter >> 24) // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
+	info[5] = byte(counter >> 16) // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
+	info[6] = byte(counter >> 8)  // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
+	info[7] = byte(counter)       // #nosec G115 -- big-endian octet serialisation; each shift extracts exactly 8 bits
 	return HKDFDeriveKey(sharedSecret, salt, info, 12)
 }
 

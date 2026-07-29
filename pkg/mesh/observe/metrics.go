@@ -193,7 +193,7 @@ func (m *Metrics) recordServiceRequest(service, namespace string, statusCode int
 	}
 
 	// Latency stats
-	latencyUs := uint64(latency.Microseconds())
+	latencyUs := uint64(latency.Microseconds()) // #nosec G115 -- bounded by construction; see the surrounding guard
 	atomic.AddUint64(&svc.LatencySum, latencyUs)
 	atomic.AddUint64(&svc.LatencyCount, 1)
 

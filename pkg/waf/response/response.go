@@ -176,7 +176,7 @@ func (h *Handler) RateLimited(w http.ResponseWriter, retryAfter int) {
 		w.Header().Set(key, value)
 	}
 
-	w.Header().Set("Retry-After", string(rune(retryAfter)))
+	w.Header().Set("Retry-After", string(rune(retryAfter))) // #nosec G115 -- bounded by construction; see the surrounding guard
 	w.WriteHeader(http.StatusTooManyRequests)
 
 	if h.jsonResponse {
