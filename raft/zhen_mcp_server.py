@@ -34,7 +34,7 @@ from pathlib import Path
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
-from mcp.types import Tool, TextContent
+from mcp.types import TextContent, Tool
 
 # --- Configuration ---
 PROJECT_ROOT = Path.home() / "tmp" / "unheaded"
@@ -64,7 +64,7 @@ def validate_path(path: str) -> tuple[str | None, str | None]:
     for allowed in ALLOWED_PATHS:
         if abs_path.startswith(os.path.abspath(allowed)):
             return abs_path, None
-    return None, f"Path outside sandbox"
+    return None, "Path outside sandbox"
 
 
 # --- MCP Server ---

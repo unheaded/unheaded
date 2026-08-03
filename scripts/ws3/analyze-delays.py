@@ -73,7 +73,7 @@ def main():
 
     if not log_files:
         print(f"No delay test logs found in {args.results_dir}/", file=sys.stderr)
-        print(f"Run scripts/ws3/delay-profile.sh first.", file=sys.stderr)
+        print("Run scripts/ws3/delay-profile.sh first.", file=sys.stderr)
         sys.exit(1)
 
     results = {}
@@ -125,10 +125,10 @@ def main():
     else:
         if ok_tests:
             fastest = min(ok_tests, key=lambda x: x[1]["delay_us"])
-            print(f"No faults detected across all delays.")
+            print("No faults detected across all delays.")
             print(f"Fastest safe delay: {fastest[1]['delay_us']}us "
                   f"({fastest[1]['pps']:.0f} pps, ~{estimate_fps(fastest[1]['pps']):.1f} fps)")
-            print(f"\nH1 CONFIRMED: Python socket.send() is the bottleneck, not XDP.")
+            print("\nH1 CONFIRMED: Python socket.send() is the bottleneck, not XDP.")
         else:
             print("No results to analyze.")
 

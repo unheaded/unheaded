@@ -10,9 +10,6 @@ Heuristic grades are SUGGESTED, not authoritative — final grades require
 human review of the 🔴 candidates.
 """
 import re
-import sys
-import os
-import json
 from pathlib import Path
 
 PROBE_DIR = Path("/home/govan/tmp/unheaded/eval/coding-gate/probe-2026-05-02")

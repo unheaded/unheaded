@@ -13,11 +13,8 @@ Also ingests CLAUDE.md as a high-priority chunk.
 Output: ~/tmp/unheaded/raft/corpus/ring1_skills.jsonl
 """
 import json
-import os
-import subprocess
 import zipfile
 from pathlib import Path
-
 
 SKILLS_DIR = Path.home() / 'tmp' / 'unheaded' / 'skills'
 CORPUS_OUT = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus' / 'ring1_skills.jsonl'
@@ -172,8 +169,7 @@ def ingest_skills():
     # --- Write output ---
     CORPUS_OUT.parent.mkdir(parents=True, exist_ok=True)
     with open(CORPUS_OUT, 'w', encoding='utf-8') as f:
-        for rec in records:
-            f.write(json.dumps(rec, ensure_ascii=False) + '\n')
+        f.writelines(json.dumps(rec, ensure_ascii=False) + '\n' for rec in records)
 
     total_tokens = sum(r['tokens'] for r in records)
     print(f"\n{'='*60}")

@@ -10,9 +10,8 @@ Usage:
 """
 
 import argparse
-import struct
-import sys
 import os
+import struct
 
 
 def read_zlora(path):
@@ -176,8 +175,7 @@ def write_gguf_lora(zlora, output_path):
         f.write(b'\x00' * padding)
 
         # Write tensor data
-        for data in tensor_data:
-            f.write(data)
+        f.writelines(tensor_data)
 
     size_mb = os.path.getsize(output_path) / 1e6
     print(f"  Written: {output_path} ({size_mb:.1f} MB)")

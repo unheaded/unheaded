@@ -183,7 +183,7 @@ def main():
         print(f"  sudo ip netns exec monad0 python3 {sys.argv[0]} ...", file=sys.stderr)
         sys.exit(1)
 
-    print(f"=== Doom Ring Injector ===")
+    print("=== Doom Ring Injector ===")
     print(f"  Mode: {args.mode}")
     print(f"  Count: {args.count}")
     print(f"  Flow label: 0x{args.flow_label:X}")
