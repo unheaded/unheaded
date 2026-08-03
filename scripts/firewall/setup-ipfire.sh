@@ -15,12 +15,15 @@ echo "Unheaded IPFire 2.29 Setup"
 echo "Host: ${IPFIRE_HOST}"
 echo "========================================"
 
+# shellcheck disable=SC2086  # SSH_OPTS is a list of -o flags; must split
 ssh_cmd() { ssh $SSH_OPTS "${IPFIRE_USER}@${IPFIRE_HOST}" "$@"; }
+# shellcheck disable=SC2086  # SSH_OPTS is a list of -o flags; must split
 scp_file() { scp $SSH_OPTS "$1" "${IPFIRE_USER}@${IPFIRE_HOST}:$2"; }
 
 wait_for_ipfire() {
     echo "[wait] Waiting for IPFire SSH..."
     local retries=30
+    # shellcheck disable=SC2086  # SSH_OPTS is a list of -o flags; must split
     while ! ssh $SSH_OPTS -o BatchMode=yes "${IPFIRE_USER}@${IPFIRE_HOST}" true 2>/dev/null; do
         retries=$((retries - 1))
         [[ $retries -eq 0 ]] && echo "ERROR: IPFire SSH timeout" && exit 1

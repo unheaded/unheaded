@@ -94,7 +94,7 @@ declare -A PROXY_MAP=(
 for ctr in "${!PROXY_MAP[@]}"; do
     port="${PROXY_MAP[$ctr]}"
     lxc config device add "$ctr" "proxy${port}" proxy \
-        listen=tcp:0.0.0.0:${port} connect=tcp:127.0.0.1:${port} 2>/dev/null || true
+        "listen=tcp:0.0.0.0:${port}" "connect=tcp:127.0.0.1:${port}" 2>/dev/null || true
 done
 
 # ── 3.5 Start EAST services ────────────────────────────────────────────

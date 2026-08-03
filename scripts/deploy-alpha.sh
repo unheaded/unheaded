@@ -290,13 +290,13 @@ for svc in "${DEPLOY_ORDER[@]}"; do
 
     # Write environment file
     if [[ -n "$local_env" ]]; then
-        printf "$local_env\n" | lxc exec "$cname" -- tee /app/${svc}.env > /dev/null
+        printf "$local_env\n" | lxc exec "$cname" -- tee "/app/${svc}.env" > /dev/null
     else
-        lxc exec "$cname" -- touch /app/${svc}.env
+        lxc exec "$cname" -- touch "/app/${svc}.env"
     fi
 
     # Write systemd unit
-    cat <<UNIT | lxc exec "$cname" -- tee /etc/systemd/system/${svc}.service > /dev/null
+    cat <<UNIT | lxc exec "$cname" -- tee "/etc/systemd/system/${svc}.service" > /dev/null
 [Unit]
 Description=Unheaded ${svc}
 After=network-online.target

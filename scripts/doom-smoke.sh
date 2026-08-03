@@ -177,7 +177,7 @@ cleanup() {
         log_info "Skipping teardown (--no-teardown)"
     fi
 
-    exit $exit_code
+    exit "$exit_code"
 }
 
 trap cleanup EXIT INT TERM
