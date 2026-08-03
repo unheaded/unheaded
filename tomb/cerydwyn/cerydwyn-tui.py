@@ -149,10 +149,10 @@ class CerydwynConversation:
         self.system_prompt = load_system_prompt()
 
     def add_query(self, query):
-        self.messages.append(("user", query, datetime.now()))
+        self.messages.append(("user", query, datetime.now().astimezone()))
 
     def add_response(self, response):
-        self.messages.append(("cerydwyn", response, datetime.now()))
+        self.messages.append(("cerydwyn", response, datetime.now().astimezone()))
 
     def get_context_prompt(self, query, rag_context=""):
         """Build a full prompt with conversation history and RAG context."""
@@ -179,7 +179,7 @@ class CerydwynConversation:
         """Export the conversation to a markdown file."""
         lines = [
             "# Cerydwyn Conversation Log",
-            f"**Date:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+            f"**Date:** {datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S')}",
             f"**Model:** {CERYDWYN_MODEL}",
             f"**Messages:** {len(self.messages)}",
             "",
@@ -372,7 +372,7 @@ class CerydwynTUI:
     def export_conversation(self):
         """Export current conversation to markdown."""
         os.makedirs(EXPORT_DIR, exist_ok=True)
-        filename = f"cerydwyn-session-{datetime.now().strftime('%Y%m%d-%H%M%S')}.md"
+        filename = f"cerydwyn-session-{datetime.now().astimezone().strftime('%Y%m%d-%H%M%S')}.md"
         filepath = os.path.join(EXPORT_DIR, filename)
         self.conversation.export_markdown(filepath)
         self.status_message = f"Exported to {filepath}"
@@ -525,7 +525,7 @@ def run_batch_mode(query_file):
 
     # Export all results
     os.makedirs(EXPORT_DIR, exist_ok=True)
-    export_path = os.path.join(EXPORT_DIR, f"batch-{datetime.now().strftime('%Y%m%d-%H%M%S')}.md")
+    export_path = os.path.join(EXPORT_DIR, f"batch-{datetime.now().astimezone().strftime('%Y%m%d-%H%M%S')}.md")
     conversation.export_markdown(export_path)
     print(f"\n[Exported to {export_path}]")
 
