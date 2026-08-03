@@ -15,7 +15,7 @@ ADR: ADR-024 Phase 3 — Session-to-runbook extraction
 import argparse
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 
 import yaml
 
@@ -73,7 +73,7 @@ def commands_to_runbook(commands, name, description=''):
             'estimated_duration': f'{max(1, len(steps) * 2)}m',
             'risk': 'medium',
             'requires_sudo': any('sudo' in s.get('command', '') for s in steps),
-            'generated_at': datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%SZ'),
+            'generated_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
         },
         'steps': steps,
     }
