@@ -38,6 +38,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
 from flask import Flask, jsonify, request, send_file
@@ -46,6 +47,27 @@ from flask_cors import CORS
 # Add scripts dir to path for RAG import
 sys.path.insert(0, str(Path(__file__).parent / 'scripts'))
 from zhen_rag import RAGPipeline
+
+
+def _http_url_from_env(var: str, default: str) -> str:
+    """Read a service URL from the environment, rejecting non-HTTP schemes.
+
+    These values are fed straight to urllib.request.urlopen, which happily
+    accepts file:// and other schemes — so an operator (or anything able to set
+    the environment) could turn a service probe into a local file read. The
+    scheme is checked once here, at the boundary, rather than at each of the
+    ~35 urlopen call sites downstream. Fails loudly rather than falling back to
+    the default, matching the house rule for env-derived configuration.
+    """
+    value = os.environ.get(var, default)
+    scheme = urlsplit(value).scheme
+    if scheme not in ('http', 'https'):
+        raise ValueError(
+            f"{var} must be an http:// or https:// URL; got scheme {scheme!r}. "
+            "urlopen would otherwise accept file:// and read local files."
+        )
+    return value
+
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 CORS(app)
@@ -87,9 +109,9 @@ try:
     _proxy = _proxy_env in ('true', '1', 'yes', 'on')
     rag = RAGPipeline(
         index_dir, corpus_file,
-        vor_url=os.environ.get('VOR_URL', 'http://localhost:9876'),
-        inference_url=os.environ.get('ZHEN_INFERENCE_URL', 'http://localhost:8081'),
-        agentd_url=os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105'),
+        vor_url=_http_url_from_env('VOR_URL', 'http://localhost:9876'),
+        inference_url=_http_url_from_env('ZHEN_INFERENCE_URL', 'http://localhost:8081'),
+        agentd_url=_http_url_from_env('ZHEN_AGENTD_URL', 'http://localhost:20105'),
         # Model name is metadata in the OpenAI-compat protocol — llama-server
         # serves whatever GGUF is loaded regardless of this string. Setting
         # ZHEN_MODEL keeps the response.model field accurate for the UI/logs.
@@ -108,6 +130,7 @@ except Exception as e:
 # Nothing in this app calls basicConfig or configures handlers, so records reach
 # the same place either way; this just stops the module from reconfiguring the
 # root logger as a side effect of its first logging.info() call.
+
 log = logging.getLogger(__name__)
 
 pg_conn = None
