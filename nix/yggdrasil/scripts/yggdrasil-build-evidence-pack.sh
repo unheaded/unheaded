@@ -24,7 +24,10 @@ if [ ! -f "$ISO_PATH" ]; then
 fi
 
 WORK=$(mktemp -d -t yggdrasil-evidence-XXXXXX)
-trap "rm -rf $WORK" EXIT
+# Single quotes: the trap body must expand when the signal fires, not when
+# the trap is installed. Both are safe today because WORK is assigned above,
+# but the double-quoted form silently breaks the moment either moves.
+trap 'rm -rf "$WORK"' EXIT
 
 ISO_SHA=$(sha256sum "$ISO_PATH" | awk '{print $1}')
 ISO_SIZE=$(stat -c%s "$ISO_PATH")

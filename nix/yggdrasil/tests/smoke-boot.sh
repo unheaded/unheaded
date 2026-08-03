@@ -37,7 +37,8 @@ qemu-system-x86_64 \
     -pidfile /tmp/yggdrasil-smoke-qemu.pid
 
 QEMU_PID=$(cat /tmp/yggdrasil-smoke-qemu.pid)
-trap "kill $QEMU_PID 2>/dev/null; rm -f /tmp/yggdrasil-smoke-qemu.pid" EXIT
+# Single quotes: expand at signal time, not at trap-install time.
+trap 'kill "$QEMU_PID" 2>/dev/null; rm -f /tmp/yggdrasil-smoke-qemu.pid' EXIT
 
 # Wait for SSH
 echo "Waiting up to ${TIMEOUT_BOOT}s for SSH..."

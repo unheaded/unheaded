@@ -62,5 +62,6 @@ echo ""
 echo "Press Ctrl+C to stop the demo."
 
 # Wait for kanban-app to exit or user interrupt
-trap "echo 'Stopping kanban-app...'; kill $KANBAN_PID 2>/dev/null; exit 0" INT TERM
+# Single quotes: expand at signal time, not at trap-install time.
+trap 'echo "Stopping kanban-app..."; kill "$KANBAN_PID" 2>/dev/null; exit 0' INT TERM
 wait "$KANBAN_PID"
