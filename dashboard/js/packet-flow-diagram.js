@@ -682,7 +682,6 @@ var PacketFlowDiagram = (function() {
      */
     function addTraffic(sourceId, targetId, latencyMs) {
         var key = sourceId + '-' + targetId;
-        var reverseKey = targetId + '-' + sourceId;
 
         // Update traffic counts
         state.trafficCounts[key] = (state.trafficCounts[key] || 0) + 1;

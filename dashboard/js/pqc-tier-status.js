@@ -149,7 +149,7 @@ var PqcTierStatus = (function() {
 
         if (tierData.tiers) {
             for (var key in tierData.tiers) {
-                if (tierData.tiers.hasOwnProperty(key) && state.tierData.hasOwnProperty(key)) {
+                if (Object.prototype.hasOwnProperty.call(tierData.tiers, key) && Object.prototype.hasOwnProperty.call(state.tierData, key)) {
                     var d = tierData.tiers[key];
                     if (d.active != null) state.tierData[key].active = d.active;
                     if (d.mode != null) state.tierData[key].mode = d.mode;

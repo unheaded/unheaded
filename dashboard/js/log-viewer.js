@@ -143,7 +143,7 @@ const LogViewer = {
                 if (this.countEl) {
                     this.countEl.textContent = this.entries.length + ' entries';
                 }
-            } catch (e) {
+            } catch {
                 // skip malformed
             }
         };

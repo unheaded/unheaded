@@ -368,7 +368,7 @@ var TraceSearch = (function() {
                         addTrace(data);
                     }
                     applyFilters();
-                } catch (err) { /* ignore parse errors */ }
+                } catch { /* ignore parse errors */ }
             };
             state.ws.onclose = function() {
                 if (state.liveMode) {

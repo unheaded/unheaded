@@ -189,7 +189,11 @@ jobs:
         with:
           node-version: '22'
 
-      # Non-gating while the backlog is worked, same ratchet policy as the rest.
+      # GATING as of 2026-08-03. Baseline 57 -> 0 the same day, with no rule-ID
+      # exclusions: every finding was fixed, or annotated with the reason it does
+      # not apply. The only suppression is the Anamnesis event-code table in
+      # doom-viewport.js, kept complete because a partial copy of a wire-protocol
+      # registry is how two copies drift apart.
       #
       # First measurement of this surface, 2026-08-03: 40 tracked files, ~21K
       # lines, and no eslint config or package.json had ever existed. Honest
@@ -209,8 +213,7 @@ jobs:
       # getFriendlyErrorMessage, which is defined only inside a different
       # file's IIFE, so saving a failed task threw ReferenceError from the
       # error handler itself. Fixed.
-      - name: eslint
-        continue-on-error: true
+      - name: eslint (GATING)
         run: npx --yes eslint@9.39.5 .
 
   dockerfiles:

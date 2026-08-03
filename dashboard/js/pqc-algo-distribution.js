@@ -131,7 +131,7 @@ var PqcAlgoDistribution = (function() {
 
         if (algoData.counts) {
             for (var key in algoData.counts) {
-                if (algoData.counts.hasOwnProperty(key)) {
+                if (Object.prototype.hasOwnProperty.call(algoData.counts, key)) {
                     state.counts[key] = algoData.counts[key];
                 }
             }
