@@ -26,7 +26,7 @@ Usage:
   # }
 """
 
-# ruff: noqa: ASYNC210, ASYNC221, ASYNC230, ASYNC240
+# ruff: noqa: ASYNC210, ASYNC221, ASYNC230
 #
 # The tool handlers below make blocking calls — open(), urllib.request.urlopen()
 # and subprocess.run() — from inside `async def`. Under the transport this server

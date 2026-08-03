@@ -11,7 +11,12 @@
 # a linter lands NON-GATING first so its baseline is measured honestly, then
 # flips to gating once the backlog is worked. `continue-on-error: true` here
 # is a deliberate, temporary, documented state — not a permanent excuse.
-# Measured baselines: shellcheck 361 (11 error / 98 warning / 252 note);
+# Measured baselines (2026-08-03 re-measure): shellcheck 359 -> 281, 0 errors
+# throughout — the header's old "361 with 11 error" was stale, the errors had
+# been cleared without it being updated. ruff 427 -> 0 (gating, ratcheted).
+# bandit 212 -> 173, 43 after rule-ID skips. eslint measured for the first
+# time: 57. Historical figures below kept for provenance:
+# shellcheck 361 (11 error / 98 warning / 252 note);
 # clippy 348 warnings / 0 errors across all 16 workspaces (the earlier
 # "13 in crates/monad-mbc alone" was one workspace, not the tree); ruff 673;
 # bandit 2 high / 51 medium / 163 low over 17.3K lines of Python.
@@ -120,21 +125,40 @@ jobs:
       - name: Python parses at all (GATING)
         run: ./scripts/check-python-syntax.sh
 
-      # Non-gating while the backlog is worked. Baseline 427 after applying
-      # ruff's safe autofixes (246 of the original 673); the remaining 38
-      # need --unsafe-fixes and manual review. Not yet ratcheted — flip to
-      # scripts/-based gating once the count is worked down.
-      - name: ruff
-        continue-on-error: true
-        run: ruff check .
+      # GATING, ratcheted to zero (2026-08-03, Staging Ladder Phase 14).
+      # 427 -> 0 with two rule/path exclusions, each documented in the script:
+      # vendored crates/xv6-mbc/upstream, and BLE001 (134 blind excepts, measured
+      # and costed in docs/security/exception-handling-triage-2026-08-03.md —
+      # parked for attended work, not silently suppressed).
+      #
+      # 104 of the original 427 were one notebook that had never parsed; see
+      # scripts/check-python-syntax.sh, which now covers .ipynb for that reason.
+      - name: ruff (GATING, ratcheted)
+        run: ./scripts/check-ruff.sh
 
       # bandit is the Python analogue of gosec — security-focused, not style.
-      # Both HIGH findings are fixed (md5 cache key -> usedforsecurity=False;
-      # run-runbook.py shell=True dispositioned in-line as by-design). The
-      # 51 MEDIUM / 163 LOW remain.
+      #
+      # `-ll` was REMOVED on 2026-08-03. It is a severity filter, and it was
+      # hiding 132 LOW findings — precisely what the ratchet policy forbids
+      # (fix all severities; ratchet by rule ID, never by severity). It had been
+      # inherited from the day this job landed.
+      #
+      # Skips below are dispositioned as groups in
+      # docs/security/bandit-disposition-2026-08-03.md, each with the check that
+      # was actually run: B603/B607/B404 (this repo drives cargo/go/bpftool/ip/
+      # lxc/ssh — no argument is attacker-influenced), B311 (verified none feeds
+      # a token, key or nonce), B605 (one os.popen with a fixed literal pipeline,
+      # no interpolation), B101 (none guards a security property).
+      #
+      # Still NON-GATING, deliberately: what survives the skips is 43 findings
+      # in four groups that need a decision, not a fix — B310 (35), B615, B314,
+      # B104, B405. Flipping to gating before those are decided would only
+      # invite another blanket suppression.
       - name: bandit
         continue-on-error: true
-        run: bandit -r . -ll -x ./llama.cpp,./target,./node_modules
+        run: >
+          bandit -r . -x ./llama.cpp,./target,./node_modules
+          --skip B603,B607,B404,B311,B605,B101
 
   javascript:
     name: JavaScript (eslint)
