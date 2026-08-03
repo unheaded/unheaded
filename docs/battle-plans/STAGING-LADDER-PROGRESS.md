@@ -85,7 +85,10 @@ compares against this baseline, not against zero.
 | 35 | — | — | (log) | progress log through Phase 12 | — | no |
 | 36 | — | 14 | `6925c775` | **ruff GATING at 0**; bandit loses its `-ll` severity filter | **ruff ratcheted** | no |
 | 37 | — | 15 | `315ad4cd` | decision queue — 10 items costed for Stevie | — | no |
-| 38 | R1 | post | `93c42495` | **SC2086 → 0** — one real quoting bug in a credential path | **shellcheck 281 → 246** | no |
+| 38 | R1 | post | `93c42495` | **SC2086 → 0** — one real quoting bug in a credential path | shellcheck 281 → 246 | no |
+| 39 | — | — | (log) | progress log through SC2086 | — | no |
+| 40 | R1 | post | `c5133060` | stderr escaping a soak log; 3 traps; 2 bare `cd` | warnings 20 → 14 | no |
+| 41 | R1 | post | `2cd73ed3` | **shellcheck now GATING at warning level, 0 exclusions** | **warnings 98 → 0** | no |
 
 **Current state**: `go test ./...` = 244 packages ok, **0 failures**.
 **ruff 427 → 139 (−67%)** · **bandit 212 → 173**, and only **43** survive the proposed rule-ID skip · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
