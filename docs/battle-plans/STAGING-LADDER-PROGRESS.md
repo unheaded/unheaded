@@ -71,10 +71,13 @@ compares against this baseline, not against zero.
 | 21 | R2 | 7 | `90307f1b` | noqa-comment trap + stale binding | ruff 180 → 176 | no |
 | 22 | — | — | (log) | progress log through Phase 7 | — | no |
 | 23 | R2 | 8a | `fb5d7091` | **E722 → 0** — bare except no longer eats Ctrl-C | ruff 176 → 170 | no |
-| 24 | R2 | 8b | `6618561e` | **S110 → 0** — silent swallows now visible | **ruff 170 → 146** | no |
+| 24 | R2 | 8b | `6618561e` | **S110 → 0** — silent swallows now visible | ruff 170 → 146 | no |
+| 25 | R2 | 8c | `725b4e3d` | BLE001 triaged (not fixed) — decision doc | — | no |
+| 26 | R3 | 13 | `bbfb4806` | async blocking calls annotated w/ expiry condition | ruff 146 → 139 | no |
+| 27 | R2 | 9/10 | `71f43a11` | B105 false positive + env URL scheme guard | **bandit 212 → 183** | no |
 
 **Current state**: `go test ./...` = 244 packages ok, **0 failures**.
-**ruff 427 → 146 (−66%)** · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
+**ruff 427 → 139 (−67%)** · **bandit 212 → 183** · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
 
 ---
 
