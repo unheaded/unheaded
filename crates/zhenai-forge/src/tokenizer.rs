@@ -135,38 +135,44 @@ pub fn extract_vocabulary_from_gguf(path: &str) -> Result<Vec<String>, String> {
     pos += 4; // version
 
     // Counts
-    let _n_tensors = u64::from_le_bytes(data[pos..pos+8].try_into().unwrap());
+    let _n_tensors = u64::from_le_bytes(data[pos..pos + 8].try_into().unwrap());
     pos += 8;
-    let n_metadata = u64::from_le_bytes(data[pos..pos+8].try_into().unwrap());
+    let n_metadata = u64::from_le_bytes(data[pos..pos + 8].try_into().unwrap());
     pos += 8;
 
     // Scan metadata for tokenizer.ggml.tokens
     for _ in 0..n_metadata {
         // Read key
-        let key_len = u64::from_le_bytes(data[pos..pos+8].try_into().unwrap()) as usize;
+        let key_len = u64::from_le_bytes(data[pos..pos + 8].try_into().unwrap()) as usize;
         pos += 8;
-        let key = std::str::from_utf8(&data[pos..pos+key_len]).unwrap_or("").to_string();
+        let key = std::str::from_utf8(&data[pos..pos + key_len])
+            .unwrap_or("")
+            .to_string();
         pos += key_len;
 
         // Read value type
-        let vtype = u32::from_le_bytes(data[pos..pos+4].try_into().unwrap());
+        let vtype = u32::from_le_bytes(data[pos..pos + 4].try_into().unwrap());
         pos += 4;
 
-        if key == "tokenizer.ggml.tokens" && vtype == 9 { // ARRAY type
-            let elem_type = u32::from_le_bytes(data[pos..pos+4].try_into().unwrap());
+        if key == "tokenizer.ggml.tokens" && vtype == 9 {
+            // ARRAY type
+            let elem_type = u32::from_le_bytes(data[pos..pos + 4].try_into().unwrap());
             pos += 4;
-            let count = u64::from_le_bytes(data[pos..pos+8].try_into().unwrap()) as usize;
+            let count = u64::from_le_bytes(data[pos..pos + 8].try_into().unwrap()) as usize;
             pos += 8;
 
-            if elem_type != 8 { // Must be STRING array
+            if elem_type != 8 {
+                // Must be STRING array
                 return Err(format!("Token array is type {} not STRING", elem_type));
             }
 
             let mut tokens = Vec::with_capacity(count);
             for _ in 0..count {
-                let str_len = u64::from_le_bytes(data[pos..pos+8].try_into().unwrap()) as usize;
+                let str_len = u64::from_le_bytes(data[pos..pos + 8].try_into().unwrap()) as usize;
                 pos += 8;
-                let s = std::str::from_utf8(&data[pos..pos+str_len]).unwrap_or("").to_string();
+                let s = std::str::from_utf8(&data[pos..pos + str_len])
+                    .unwrap_or("")
+                    .to_string();
                 pos += str_len;
                 tokens.push(s);
             }
@@ -184,32 +190,34 @@ pub fn extract_vocabulary_from_gguf(path: &str) -> Result<Vec<String>, String> {
 /// Skip over a GGUF value in the byte stream.
 fn skip_gguf_value(data: &[u8], mut pos: usize, vtype: u32) -> usize {
     match vtype {
-        0 => pos + 1,   // u8
-        1 => pos + 1,   // i8
-        2 => pos + 2,   // u16
-        3 => pos + 2,   // i16
-        4 => pos + 4,   // u32
-        5 => pos + 4,   // i32
-        6 => pos + 4,   // f32
-        7 => pos + 1,   // bool
-        8 => { // string
-            let len = u64::from_le_bytes(data[pos..pos+8].try_into().unwrap()) as usize;
+        0 => pos + 1, // u8
+        1 => pos + 1, // i8
+        2 => pos + 2, // u16
+        3 => pos + 2, // i16
+        4 => pos + 4, // u32
+        5 => pos + 4, // i32
+        6 => pos + 4, // f32
+        7 => pos + 1, // bool
+        8 => {
+            // string
+            let len = u64::from_le_bytes(data[pos..pos + 8].try_into().unwrap()) as usize;
             pos + 8 + len
         }
-        9 => { // array
-            let elem_type = u32::from_le_bytes(data[pos..pos+4].try_into().unwrap());
+        9 => {
+            // array
+            let elem_type = u32::from_le_bytes(data[pos..pos + 4].try_into().unwrap());
             pos += 4;
-            let count = u64::from_le_bytes(data[pos..pos+8].try_into().unwrap()) as usize;
+            let count = u64::from_le_bytes(data[pos..pos + 8].try_into().unwrap()) as usize;
             pos += 8;
             for _ in 0..count {
                 pos = skip_gguf_value(data, pos, elem_type);
             }
             pos
         }
-        10 => pos + 8,  // u64
-        11 => pos + 8,  // i64
-        12 => pos + 8,  // f64
-        _ => pos + 4,   // unknown, guess 4 bytes
+        10 => pos + 8, // u64
+        11 => pos + 8, // i64
+        12 => pos + 8, // f64
+        _ => pos + 4,  // unknown, guess 4 bytes
     }
 }
 
@@ -260,8 +268,10 @@ mod tests {
         // Decode back
         let decoded = tokenizer.decode(&ids);
         println!("Decoded: {:?}", decoded);
-        assert!(decoded.contains("Hello") || decoded.contains("ello"),
-            "Decoded should contain original text");
+        assert!(
+            decoded.contains("Hello") || decoded.contains("ello"),
+            "Decoded should contain original text"
+        );
     }
 
     #[test]

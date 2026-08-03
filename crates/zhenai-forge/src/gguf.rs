@@ -59,14 +59,43 @@ const GGUF_TYPE_FLOAT64: u32 = 12;
 
 // GGUF tensor types (quantization formats). Order MUST match GGML enum.
 const GGML_TYPE_NAMES: &[&str] = &[
-    "F32", "F16", "Q4_0", "Q4_1", "Q4_2", "Q4_3", "Q5_0", "Q5_1",
-    "Q8_0", "Q8_1", "Q2_K", "Q3_K", "Q4_K", "Q5_K", "Q6_K", "Q8_K",
-    "IQ2_XXS", "IQ2_XS", "IQ3_XXS", "IQ1_S", "IQ4_NL", "IQ3_S",
-    "IQ2_S", "IQ4_XS", "I8", "I16", "I32", "I64", "F64", "IQ1_M",
-    "BF16",   // index 30 — Gemma 4 weights ship as bf16
-    "Q4_0_4_4", "Q4_0_4_8", "Q4_0_8_8",  // 31, 32, 33 (deprecated tile formats)
-    "TQ1_0", "TQ2_0",  // 34, 35 (ternary)
-    "IQ4_NL_4_4",      // 36
+    "F32",
+    "F16",
+    "Q4_0",
+    "Q4_1",
+    "Q4_2",
+    "Q4_3",
+    "Q5_0",
+    "Q5_1",
+    "Q8_0",
+    "Q8_1",
+    "Q2_K",
+    "Q3_K",
+    "Q4_K",
+    "Q5_K",
+    "Q6_K",
+    "Q8_K",
+    "IQ2_XXS",
+    "IQ2_XS",
+    "IQ3_XXS",
+    "IQ1_S",
+    "IQ4_NL",
+    "IQ3_S",
+    "IQ2_S",
+    "IQ4_XS",
+    "I8",
+    "I16",
+    "I32",
+    "I64",
+    "F64",
+    "IQ1_M",
+    "BF16", // index 30 — Gemma 4 weights ship as bf16
+    "Q4_0_4_4",
+    "Q4_0_4_8",
+    "Q4_0_8_8", // 31, 32, 33 (deprecated tile formats)
+    "TQ1_0",
+    "TQ2_0",      // 34, 35 (ternary)
+    "IQ4_NL_4_4", // 36
 ];
 
 /// Reader cursor over mmap'd bytes.
@@ -231,12 +260,12 @@ fn ggml_type_size(ttype: u32) -> u64 {
         7 => 22,   // Q5_1
         8 => 34,   // Q8_0
         9 => 40,   // Q8_1
-        10 => 84,   // Q2_K (256 elements per block, 84 bytes)
-        11 => 110,  // Q3_K (256/110)
-        12 => 144,  // Q4_K (256/144)
-        13 => 176,  // Q5_K (256/176)
-        14 => 210,  // Q6_K (256/210)
-        15 => 292,  // Q8_K (256/292)
+        10 => 84,  // Q2_K (256 elements per block, 84 bytes)
+        11 => 110, // Q3_K (256/110)
+        12 => 144, // Q4_K (256/144)
+        13 => 176, // Q5_K (256/176)
+        14 => 210, // Q6_K (256/210)
+        15 => 292, // Q8_K (256/292)
         30 => 2,   // BF16 — 2 bytes per element
         _ => 0,
     }
@@ -267,13 +296,16 @@ impl GgufFile {
         if magic != GGUF_MAGIC {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
-                format!("Not a GGUF file (magic: 0x{:08X}, expected 0x{:08X})", magic, GGUF_MAGIC),
+                format!(
+                    "Not a GGUF file (magic: 0x{:08X}, expected 0x{:08X})",
+                    magic, GGUF_MAGIC
+                ),
             ));
         }
 
         // Version
         let version = reader.read_u32();
-        if version < 2 || version > 3 {
+        if !(2..=3).contains(&version) {
             return Err(io::Error::new(
                 io::ErrorKind::InvalidData,
                 format!("Unsupported GGUF version: {} (expected 2 or 3)", version),
@@ -302,7 +334,11 @@ impl GgufFile {
             let ttype = reader.read_u32();
             let offset = reader.read_u64();
 
-            let num_elements = if dimensions.is_empty() { 0 } else { dimensions.iter().product() };
+            let num_elements = if dimensions.is_empty() {
+                0
+            } else {
+                dimensions.iter().product()
+            };
 
             // Calculate byte size from type and element count
             let block_sz = ggml_block_size(ttype);

@@ -17,7 +17,9 @@ impl Lcg {
     pub fn new(seed: u64) -> Self {
         // Avoid degenerate zero-state by mixing with a SplitMix64 constant.
         let s = seed.wrapping_add(0x9E3779B97F4A7C15);
-        Self { state: if s == 0 { 0x9E3779B97F4A7C15 } else { s } }
+        Self {
+            state: if s == 0 { 0x9E3779B97F4A7C15 } else { s },
+        }
     }
     pub fn next_u64(&mut self) -> u64 {
         let mut x = self.state;
@@ -29,11 +31,15 @@ impl Lcg {
     }
     /// Uniform [0, n). Unbiased rejection sampling on the full 64-bit value.
     pub fn next_range(&mut self, n: u64) -> u64 {
-        if n == 0 { return 0; }
+        if n == 0 {
+            return 0;
+        }
         let limit = u64::MAX - (u64::MAX % n);
         loop {
             let r = self.next_u64();
-            if r < limit { return r % n; }
+            if r < limit {
+                return r % n;
+            }
         }
     }
     /// Uniform f32 in [0, 1).
@@ -45,7 +51,10 @@ impl Lcg {
 /// Percentile-method bootstrap 95% CI for the mean of a sample.
 /// Returns `(lo, hi)`. Deterministic given the seed. Panics on empty input.
 pub fn bootstrap_ci_95(samples: &[f32], n_resamples: usize, seed: u64) -> (f32, f32) {
-    assert!(!samples.is_empty(), "bootstrap_ci_95 requires non-empty sample");
+    assert!(
+        !samples.is_empty(),
+        "bootstrap_ci_95 requires non-empty sample"
+    );
     let n = samples.len();
     let mut rng = Lcg::new(seed);
     let mut means: Vec<f32> = Vec::with_capacity(n_resamples);
@@ -69,10 +78,16 @@ pub fn bootstrap_ci_95(samples: &[f32], n_resamples: usize, seed: u64) -> (f32, 
 /// same bootstrap indices drive both numerator and denominator — this
 /// captures correlation between pre/post measurements on the same sequences.
 pub fn bootstrap_ratio_ci_95(
-    pre: &[f32], post: &[f32], n_resamples: usize, seed: u64,
+    pre: &[f32],
+    post: &[f32],
+    n_resamples: usize,
+    seed: u64,
 ) -> (f32, f32) {
     assert_eq!(pre.len(), post.len(), "pre/post must pair 1:1 per sequence");
-    assert!(!pre.is_empty(), "bootstrap_ratio_ci_95 requires non-empty sample");
+    assert!(
+        !pre.is_empty(),
+        "bootstrap_ratio_ci_95 requires non-empty sample"
+    );
     let n = pre.len();
     let mut rng = Lcg::new(seed);
     let mut ratios: Vec<f32> = Vec::with_capacity(n_resamples);
@@ -84,8 +99,14 @@ pub fn bootstrap_ratio_ci_95(
             num += post[i] as f64;
             den += pre[i] as f64;
         }
-        let r = if den > 0.0 { (num / den) as f32 } else { f32::NAN };
-        if r.is_finite() { ratios.push(r); }
+        let r = if den > 0.0 {
+            (num / den) as f32
+        } else {
+            f32::NAN
+        };
+        if r.is_finite() {
+            ratios.push(r);
+        }
     }
     assert!(!ratios.is_empty(), "all bootstrap samples non-finite");
     ratios.sort_by(|a, b| a.partial_cmp(b).unwrap());
@@ -120,7 +141,11 @@ pub fn linear_fit(xs: &[f64], ys: &[f64]) -> (f64, f64, f64) {
         ss_res += r * r;
     }
     let dof = (n - 2.0).max(1.0);
-    let se = if sxx > 0.0 { (ss_res / dof / sxx).sqrt() } else { 0.0 };
+    let se = if sxx > 0.0 {
+        (ss_res / dof / sxx).sqrt()
+    } else {
+        0.0
+    };
     (slope, intercept, se)
 }
 
@@ -132,9 +157,7 @@ pub fn fit_power_law_beta(ts: &[usize], gaps: &[f32]) -> (f64, f64, f64) {
     assert_eq!(ts.len(), gaps.len());
     assert!(ts.len() >= 2, "fit_power_law_beta requires ≥2 points");
     let xs: Vec<f64> = ts.iter().map(|&t| (t as f64).ln()).collect();
-    let ys: Vec<f64> = gaps.iter()
-        .map(|&g| (g.max(1e-9) as f64).ln())
-        .collect();
+    let ys: Vec<f64> = gaps.iter().map(|&g| (g.max(1e-9) as f64).ln()).collect();
     let (slope, _intercept, se) = linear_fit(&xs, &ys);
     let lo = slope - 1.96 * se;
     let hi = slope + 1.96 * se;
@@ -164,8 +187,11 @@ mod tests {
         }
         // Each bucket should be within 5% of 10_000.
         for c in counts.iter() {
-            assert!(*c >= 9_000 && *c <= 11_000,
-                "LCG bucket imbalance: {:?}", counts);
+            assert!(
+                *c >= 9_000 && *c <= 11_000,
+                "LCG bucket imbalance: {:?}",
+                counts
+            );
         }
     }
 
@@ -203,8 +229,12 @@ mod tests {
             .map(|&v| v + (rng.next_f32_unit() - 0.5) * 0.4)
             .collect();
         let (lo, hi) = bootstrap_ratio_ci_95(&pre, &post, 2000, 77);
-        assert!(lo < 1.0 && hi > 1.0,
-            "CI should span 1.0 for paired no-effect: ({}, {})", lo, hi);
+        assert!(
+            lo < 1.0 && hi > 1.0,
+            "CI should span 1.0 for paired no-effect: ({}, {})",
+            lo,
+            hi
+        );
     }
 
     #[test]
@@ -222,9 +252,16 @@ mod tests {
         let (pre_l, post_l) = gen_independent(512, &mut rng_l);
         let (s_lo, s_hi) = bootstrap_ratio_ci_95(&pre_s, &post_s, 2000, 3);
         let (l_lo, l_hi) = bootstrap_ratio_ci_95(&pre_l, &post_l, 2000, 3);
-        assert!(l_hi - l_lo < s_hi - s_lo,
+        assert!(
+            l_hi - l_lo < s_hi - s_lo,
             "larger N should narrow CI: small=({:.3},{:.3}) w={:.3}, large=({:.3},{:.3}) w={:.3}",
-            s_lo, s_hi, s_hi - s_lo, l_lo, l_hi, l_hi - l_lo);
+            s_lo,
+            s_hi,
+            s_hi - s_lo,
+            l_lo,
+            l_hi,
+            l_hi - l_lo
+        );
     }
 
     #[test]
