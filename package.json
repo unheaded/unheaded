@@ -1,0 +1,8 @@
+{
+  "name": "unheaded-frontend-lint",
+  "private": true,
+  "description": "Lint-only manifest. The dashboard and kanban front ends are deliberately dependency-free vanilla JS (see CLAUDE.md); this file exists solely to pin eslint so the measured baseline means the same thing on every run, the same way ruff and bandit are pinned in the workflow.",
+  "devDependencies": {
+    "eslint": "9.39.5"
+  }
+}
