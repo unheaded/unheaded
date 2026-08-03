@@ -17,7 +17,6 @@ If unsloth is available, it will be preferred for faster training.
 """
 
 import json
-import os
 import sys
 from pathlib import Path
 
@@ -169,9 +168,9 @@ def load_training_data():
 
 def setup_model_and_tokenizer(has_bnb: bool):
     """Load base model with 4-bit quantization and apply LoRA."""
-    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
-    from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
     import torch
+    from peft import LoraConfig, get_peft_model, prepare_model_for_kbit_training
+    from transformers import AutoModelForCausalLM, AutoTokenizer, BitsAndBytesConfig
 
     print(f"\nLoading base model: {CONFIG['base_model']}")
 
@@ -235,8 +234,8 @@ def setup_model_and_tokenizer(has_bnb: bool):
 
 def train(model, tokenizer, train_dataset, eval_dataset):
     """Run the QLoRA training loop."""
-    from trl import SFTTrainer
     from transformers import TrainingArguments
+    from trl import SFTTrainer
 
     # Ensure output directories exist
     CHECKPOINT_DIR.mkdir(parents=True, exist_ok=True)
@@ -349,10 +348,10 @@ def main():
 
     # Check training data exists
     if not TRAIN_PATH.exists() or not EVAL_PATH.exists():
-        print(f"\nERROR: Training data not found.")
+        print("\nERROR: Training data not found.")
         print(f"  Expected: {TRAIN_PATH}")
         print(f"  Expected: {EVAL_PATH}")
-        print(f"\nRun 07_prepare_training.py first.")
+        print("\nRun 07_prepare_training.py first.")
         sys.exit(1)
 
     # Load data
@@ -371,7 +370,7 @@ def main():
     print("=" * 60)
     print("Training complete!")
     print(f"Adapter weights: {CHECKPOINT_DIR / 'final-adapter'}")
-    print(f"Next step: Run 09_merge_and_quantize.sh to create GGUF")
+    print("Next step: Run 09_merge_and_quantize.sh to create GGUF")
     print("=" * 60)
 
 

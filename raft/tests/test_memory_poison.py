@@ -45,11 +45,9 @@ in this environment" rather than a false-positive failure.
 import json
 import os
 import socket
-import time
 import uuid
 
 import pytest
-
 
 # --- Environment probes ----------------------------------------------------
 

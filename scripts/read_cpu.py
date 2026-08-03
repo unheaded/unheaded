@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Read and parse CPU state for instance 0xDE."""
-import subprocess, struct, re
+import re
+import struct
+import subprocess
 
 result = subprocess.run(['sudo', 'bpftool', 'map', 'lookup', 'pinned',
     '/sys/fs/bpf/unheaded/doom-ring/maps/CPU_MAP', 'key', '222', '0', '0', '0'],

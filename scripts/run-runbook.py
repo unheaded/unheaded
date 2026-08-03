@@ -20,7 +20,6 @@ import argparse
 import os
 import subprocess
 import sys
-import time
 
 import yaml
 
@@ -48,7 +47,24 @@ def run_command(cmd, timeout=120, env=None, dry_run=False):
         return 0, "(dry run)", ""
 
     try:
-        result = subprocess.run(
+        # bandit B602 (shell=True) — accepted, by design.
+        #
+        # A runbook step IS a shell command line: runbooks/ use pipes,
+        # redirects, && chains and globs throughout. Rewriting them as argv
+        # lists would mean reimplementing a shell.
+        #
+        # There is no injection boundary to cross here. Both `cmd` and the
+        # `env` values interpolated into it come from the SAME runbook YAML
+        # file (main() reads them from runbook["env"]); nothing is taken from
+        # argv, stdin, the network or the environment. Executing a runbook is
+        # exactly as privileged as running the shell script it encodes — the
+        # trust boundary is the file, and it is a repo-controlled artifact.
+        #
+        # This stops holding if a runbook ever takes untrusted parameters
+        # (e.g. a --set KEY=VALUE flag, or values fetched from a service). At
+        # that point the interpolation into a shell string becomes a real
+        # injection path and this must move to an argv list.
+        result = subprocess.run(  # nosec B602 - see comment above
             cmd, shell=True, capture_output=True, text=True,
             timeout=timeout, env={**os.environ, **(env or {})}
         )
@@ -136,7 +152,7 @@ def execute_steps(runbook, env, dry_run=False, start_step=0):
         if verify and not dry_run:
             vcode, _, verr = run_command(verify, timeout=30, env=env)
             if vcode == 0:
-                print(f"    [VERIFIED]")
+                print("    [VERIFIED]")
             else:
                 print(f"    [VERIFY FAIL] {verr[:200]}")
                 if on_fail:
@@ -205,7 +221,7 @@ def main():
         execute_rollback(runbook, env, failed, dry_run=args.dry_run)
         sys.exit(1)
     else:
-        print(f"\n[SUCCESS] Runbook completed.")
+        print("\n[SUCCESS] Runbook completed.")
         sys.exit(0)
 
 

@@ -19,17 +19,13 @@ Memory recall semantics (T1 closure):
     as a side-channel ("matched_memory" field), but query() always
     runs the full RAG path.
 """
-import json
 import os
 import re
-import time
 from pathlib import Path
 from urllib.parse import quote, urlencode
 
-import numpy as np
 import requests
 from sentence_transformers import SentenceTransformer
-
 
 # Default URLs — match the live Go-stack backends.
 DEFAULT_VOR_URL = "http://localhost:9876"

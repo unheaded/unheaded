@@ -35,14 +35,13 @@ References:
 """
 
 import argparse
-import socket
-import struct
-import time
-import signal
-import sys
 import os
 import random
-from typing import Tuple, List
+import signal
+import socket
+import struct
+import sys
+import time
 
 
 class CRC16:
@@ -53,7 +52,7 @@ class CRC16:
         self.init = init
         self.table = self._build_table()
 
-    def _build_table(self) -> List[int]:
+    def _build_table(self) -> list[int]:
         """Build lookup table for fast CRC computation."""
         table = []
         for i in range(256):
@@ -304,7 +303,7 @@ class PacketInjector:
                 socket.AF_PACKET, socket.SOCK_RAW, socket.htons(0x800)
             )
             self.if_index = socket.if_nametoindex(self.interface)
-        except (OSError, socket.error) as e:
+        except OSError as e:
             raise RuntimeError(
                 f"Failed to open packet socket on {self.interface}: {e}\n"
                 f"Note: AF_PACKET requires root privileges and valid interface.\n"
@@ -566,14 +565,14 @@ def main():
 
     # Dry-run mode
     if args.dry_run:
-        print(f"=== Doom Packet (Dry-Run) ===")
+        print("=== Doom Packet (Dry-Run) ===")
         print(f"Flow Label:  0x{args.flow_label:05x}")
         print(f"Trace ID:    0x{args.trace_id:08x}")
         print(f"Src Service: 0x{args.src_service:02x}")
         print(f"Dst Service: 0x{args.dst_service:02x}")
         print(f"Packet Size: {len(packet)} bytes\n")
         print(DoomPacket.hex_dump(packet))
-        print(f"\n=== Hex String ===")
+        print("\n=== Hex String ===")
         print(packet.hex())
         return
 

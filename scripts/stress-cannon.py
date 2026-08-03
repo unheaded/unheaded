@@ -20,7 +20,6 @@ import argparse
 import os
 import socket
 import struct
-import sys
 import threading
 import time
 from collections import deque
@@ -129,7 +128,7 @@ class StressMetrics:
 
     def final_report(self):
         elapsed = time.monotonic() - self.start_time
-        print(f"\n\n=== Final Stats ===")
+        print("\n\n=== Final Stats ===")
         print(f"  Total packets: {self.total_sent:,}")
         print(f"  Total bytes:   {self.total_bytes:,}")
         print(f"  Total errors:  {self.total_errors:,}")
@@ -299,7 +298,7 @@ STAT_NAMES = {
 
 def run_flood(args):
     """Main flood coordinator."""
-    print(f"=== Phase 10 Stress Cannon (kernel sockets) ===")
+    print("=== Phase 10 Stress Cannon (kernel sockets) ===")
     print(f"  Mode:      {args.mode}")
     print(f"  Rate:      {'wire speed' if args.rate == 0 else f'{args.rate} pps'}")
     print(f"  Threads:   {args.threads}")
@@ -317,12 +316,12 @@ def run_flood(args):
     # Snapshot BPF stats before
     stats_before = read_bpf_stats()
     if stats_before:
-        print(f"\n  BPF STATS (before):")
+        print("\n  BPF STATS (before):")
         for k in sorted(stats_before.keys()):
             name = STAT_NAMES.get(k, f"UNKNOWN_{k}")
             print(f"    {name}: {stats_before[k]:,}")
 
-    print(f"\nPress Ctrl+C to stop\n")
+    print("\nPress Ctrl+C to stop\n")
 
     metrics = StressMetrics()
     stop_event = threading.Event()
@@ -348,7 +347,7 @@ def run_flood(args):
     # Snapshot BPF stats after
     stats_after = read_bpf_stats()
     if stats_after:
-        print(f"\n  BPF STATS (after):")
+        print("\n  BPF STATS (after):")
         for k in sorted(stats_after.keys()):
             name = STAT_NAMES.get(k, f"UNKNOWN_{k}")
             before = stats_before.get(k, 0)

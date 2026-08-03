@@ -31,15 +31,14 @@
 #   VLLM_IMAGE     (default: rocm/vllm:latest)
 # ═══════════════════════════════════════════════════════════════════════════
 
+import argparse
+import json
 import os
-import sys
 import shutil
 import subprocess
+import sys
 import time
-import json
-import argparse
-from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # ─────────────────────────────────────────────────────────────────────────
 # CONFIGURATION
@@ -104,7 +103,7 @@ def load_state() -> dict:
         try:
             with open(STATE_FILE, "r") as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             return {"models": {}, "launches": []}
     return {"models": {}, "launches": []}
 
@@ -260,7 +259,7 @@ def transfer_model(model_name: str, dry_run: bool = False) -> bool:
 
     if not os.path.exists(vault_dir):
         err(f"Model '{model_name}' not found in vault: {vault_dir}")
-        info(f"Available in vault:")
+        info("Available in vault:")
         for m in list_vault_models():
             print(f"  {m['name']:40s} {m['size_gb']:.1f}GB")
         return False
@@ -502,6 +501,12 @@ def display_status():
 # MAIN
 # ─────────────────────────────────────────────────────────────────────────
 def main():
+    # Must precede the first READ of THRESHOLD_PCT below (the --threshold
+    # default). Python requires `global` before any use of the name in the
+    # function, so declaring it further down next to the assignment was a
+    # SyntaxError and this script could never be imported or run at all.
+    global THRESHOLD_PCT
+
     parser = argparse.ArgumentParser(
         description="Mad Scientist Model Tiering — Vault (HDD) ↔ Runway (NVMe)",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -531,8 +536,7 @@ Environment:
 
     args = parser.parse_args()
 
-    # Override threshold if specified
-    global THRESHOLD_PCT
+    # Override threshold if specified (declared global at the top of main)
     THRESHOLD_PCT = args.threshold
 
     print(f"{C.MAGENTA}{C.BOLD}")

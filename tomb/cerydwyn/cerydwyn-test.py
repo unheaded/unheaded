@@ -228,7 +228,7 @@ def test_grimoire_exists(result):
         if VERBOSE:
             result.details = f"Found: {found_dirs}"
     else:
-        result.message = f"Grimoire exists but no expected subdirs found"
+        result.message = "Grimoire exists but no expected subdirs found"
 
 
 def test_cerydwyn_directories(result):
@@ -254,7 +254,7 @@ def test_ollama_binary(result):
             result.passed = True
             result.message = f"Ollama binary executable at {binary_path}"
         else:
-            result.message = f"Ollama binary exists but not executable"
+            result.message = "Ollama binary exists but not executable"
     else:
         result.message = f"Ollama binary not found at {binary_path}"
 

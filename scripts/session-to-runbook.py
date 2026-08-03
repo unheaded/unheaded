@@ -15,8 +15,9 @@ ADR: ADR-024 Phase 3 — Session-to-runbook extraction
 import argparse
 import re
 import sys
-import yaml
 from datetime import datetime
+
+import yaml
 
 
 def extract_commands(text):

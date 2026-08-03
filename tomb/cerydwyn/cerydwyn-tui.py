@@ -20,12 +20,9 @@ import curses
 import json
 import os
 import re
-import subprocess
 import sys
 import textwrap
-import time
 from datetime import datetime
-from pathlib import Path
 
 # --- Configuration ---
 OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://127.0.0.1:11434")
@@ -315,8 +312,7 @@ class CerydwynTUI:
 
         # Calculate visible window
         total_lines = len(self.display_lines)
-        if self.scroll_offset > max(0, total_lines - display_height):
-            self.scroll_offset = max(0, total_lines - display_height)
+        self.scroll_offset = min(self.scroll_offset, max(0, total_lines - display_height))
 
         # Auto-scroll to bottom if near the end
         if total_lines <= display_height:

@@ -4,12 +4,10 @@ Chunked embedding for large corpus — processes in batches to avoid OOM.
 Builds combined FAISS index from Ring 1 + Ring 2-4 corpus.
 """
 import json
-import os
-import sys
 import time
-import numpy as np
-import faiss
 from pathlib import Path
+
+import faiss
 from sentence_transformers import SentenceTransformer
 
 RING1_CORPUS = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus' / 'ring1.jsonl'

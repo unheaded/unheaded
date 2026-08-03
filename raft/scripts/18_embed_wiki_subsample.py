@@ -10,9 +10,10 @@ SPDX-License-Identifier: GPL-3.0-or-later
 import json
 import sys
 import time
-import numpy as np
-import faiss
 from pathlib import Path
+
+import faiss
+import numpy as np
 from sentence_transformers import SentenceTransformer
 
 INDEX_DIR = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'index'

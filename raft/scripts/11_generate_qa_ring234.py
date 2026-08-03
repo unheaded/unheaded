@@ -16,12 +16,12 @@ Filters:
 
 Output: raft_dataset_ring234.jsonl (same format as raft_dataset.jsonl)
 """
-import sys
+import argparse
 import json
-import time
 import random
 import re
-import argparse
+import sys
+import time
 from pathlib import Path
 
 CORPUS_FILE = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus' / 'ring234.jsonl'
@@ -279,12 +279,12 @@ def main():
         r = requests.get('http://localhost:20100/v1/models', timeout=5)
         if r.status_code == 200:
             models = r.json()
-            print(f"  Server OK: {models.get('models', [{}])[0].get('name', 'unknown')}" if 'models' in models else f"  Server OK")
+            print(f"  Server OK: {models.get('models', [{}])[0].get('name', 'unknown')}" if 'models' in models else "  Server OK")
         else:
             print(f"  WARNING: Server returned {r.status_code}")
     except Exception as e:
         print(f"  ERROR: Cannot reach inference server: {e}")
-        print(f"  Make sure llama-server is running on port 20100")
+        print("  Make sure llama-server is running on port 20100")
         sys.exit(1)
 
     # Generate QA pairs

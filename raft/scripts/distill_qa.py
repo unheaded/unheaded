@@ -23,13 +23,13 @@ Usage:
 """
 
 import argparse
+import fnmatch
+import glob
+import hashlib
 import json
 import os
 import sys
 import time
-import fnmatch
-import glob
-import hashlib
 from pathlib import Path
 
 try:
@@ -440,8 +440,7 @@ Output as a JSON array: [{{"question": "...", "answer": "..."}}]"""
         # Parse JSON — handle common issues
         if text.startswith("```"):
             text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
+            text = text.removeprefix("json")
         text = text.strip()
 
         pairs = json.loads(text)
@@ -471,8 +470,14 @@ Output as a JSON array: [{{"question": "...", "answer": "..."}}]"""
 
 
 def file_hash(path: str) -> str:
-    """Short hash of file path for checkpoint tracking."""
-    return hashlib.md5(path.encode()).hexdigest()[:12]
+    """Short hash of file path for checkpoint tracking.
+
+    Not a security primitive: this is a filename-shortening cache key for
+    resuming distillation runs. Collisions cost a redone chunk, nothing more.
+    usedforsecurity=False says so to the reader and to bandit (B324) instead
+    of leaving a bare md5() that looks like a bad crypto choice.
+    """
+    return hashlib.md5(path.encode(), usedforsecurity=False).hexdigest()[:12]
 
 
 def main():
@@ -505,20 +510,20 @@ def main():
         try:
             r = requests.get(f"{args.inference_url}/health", timeout=5)
             r.raise_for_status()
-            print(f"=== Zhenai LOCAL Distillation (Mistral-7B) ===")
+            print("=== Zhenai LOCAL Distillation (Mistral-7B) ===")
         except Exception as e:
             print(f"ERROR: Local inference not reachable at {args.inference_url}: {e}")
             print("Start llama-server first, or run without --local for Claude API")
             sys.exit(1)
     else:
         client = anthropic.Anthropic()  # Uses ANTHROPIC_API_KEY env var
-        print(f"=== Zhenai Training Data Distillation (Claude API) ===")
+        print("=== Zhenai Training Data Distillation (Claude API) ===")
 
     mode = "local (Mistral-7B)" if args.local else args.model
     print(f"  Mode:   {mode}")
     print(f"  Output: {args.output}")
     if args.repo:
-        print(f"  Scope:  FULL REPO (all source + docs + skills)")
+        print("  Scope:  FULL REPO (all source + docs + skills)")
     print()
 
     # Load checkpoint (for resumability)
@@ -626,7 +631,7 @@ def main():
     elapsed = time.time() - start
 
     print()
-    print(f"=== Distillation Complete ===")
+    print("=== Distillation Complete ===")
     print(f"  Documents: {total_docs}")
     print(f"  QA Pairs:  {total_pairs}")
     print(f"  Time:      {elapsed:.0f}s ({elapsed/60:.1f} min)")

@@ -8,7 +8,14 @@
 # ./test-xv6.py crash  (runs the crash tests)
 # ./test-xv6.py log (runs the log crash test)
 
-import argparse, os, inspect, re, signal, subprocess, sys, time
+import argparse
+import inspect
+import os
+import re
+import signal
+import subprocess
+import sys
+import time
 from subprocess import run
 
 parser = argparse.ArgumentParser()
@@ -16,7 +23,7 @@ parser.add_argument('testrex', help="test name or regular expression")
 parser.add_argument("-q", action='store_true', help="usertests quick")
 args = parser.parse_args()
 
-class QEMU(object):
+class QEMU:
 
     def __init__(self, reset=False):
         if reset:
