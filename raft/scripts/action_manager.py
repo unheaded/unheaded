@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 ActionManager — INTENT -> SNAPSHOT -> EXECUTE -> RECORD -> AUDIT
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Tests for ActionManager — Zhen Champion Agent action framework.
 
