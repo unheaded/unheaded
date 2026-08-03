@@ -11,8 +11,12 @@
 # a linter lands NON-GATING first so its baseline is measured honestly, then
 # flips to gating once the backlog is worked. `continue-on-error: true` here
 # is a deliberate, temporary, documented state — not a permanent excuse.
-# Measured baselines at time of writing: shellcheck 361 (11 error / 98 warning
-# / 252 note), clippy 13 in crates/monad-mbc alone.
+# Measured baselines: shellcheck 361 (11 error / 98 warning / 252 note);
+# clippy 348 warnings / 0 errors across all 16 workspaces (the earlier
+# "13 in crates/monad-mbc alone" was one workspace, not the tree); ruff 673;
+# bandit 2 high / 51 medium / 163 low over 17.3K lines of Python.
+#
+# clippy has since flipped to GATING with a ratchet — see the clippy job.
 name: Static Analysis
 
 on:
@@ -73,20 +77,26 @@ jobs:
         with:
           components: clippy
 
-      # NOTE: there is no root Cargo.toml. `cargo clippy --workspace` from the
-      # repo root silently does NOTHING and exits 0 — it reads as "clean" when
-      # it means "never ran". The tree has ~14 independent workspaces, so they
-      # MUST be iterated explicitly. Do not "simplify" this loop.
-      - name: clippy (all workspaces)
-        continue-on-error: true
-        run: |
-          fail=0
-          for d in $(git ls-files '*/Cargo.toml' | xargs -n1 dirname | sort -u); do
-            echo "::group::clippy $d"
-            (cd "$d" && cargo clippy --all-targets --quiet) || fail=1
-            echo "::endgroup::"
-          done
-          exit $fail
+      # Nightly is required for the two bare-metal workspaces: they target
+      # bpfel-unknown-none with build-std=["core"] (see ebpf/rust-toolchain.toml).
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: clippy, rust-src
+
+      # GATING. The invocation lives in a script because the previous inline
+      # loop was wrong in two ways that `continue-on-error: true` concealed —
+      # it iterated workspace members as well as roots (triple-counting every
+      # ebpf/ finding), and it passed --all-targets to no_std bare-metal
+      # workspaces, producing 1391 phantom "cannot find macro `assert_eq`"
+      # errors. The job was structurally red and could never have been flipped
+      # to gating. See the header of scripts/check-clippy.sh.
+      #
+      # Honest baseline after the fix: 348 warnings, 0 errors. The six real
+      # errors it exposed are fixed, including a Gemma 4 hparam guard that
+      # compared a field to itself and an ebpf-collector crate that did not
+      # compile at all.
+      - name: clippy (all workspaces — GATING, ratcheted)
+        run: ./scripts/check-clippy.sh
 
   python:
     name: Python (ruff + bandit)
@@ -97,13 +107,31 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install --quiet ruff bandit
+      # PINNED. Unpinned, every upstream release silently moves the baselines
+      # these jobs are measured against — ruff in particular changes its
+      # default rule set between minor versions, so "673 findings" would mean
+      # a different thing each week. Bump deliberately, re-measure, commit.
+      - run: pip install --quiet ruff==0.16.0 bandit==1.9.4
 
+      # GATING, and it caught a real one: scripts/vault-to-runway.py had a
+      # SyntaxError at HEAD and could not run at all. ruff does not flag that
+      # class and bandit silently skips files it cannot parse, so both read
+      # "clean" on a script that was dead. Compile before you lint.
+      - name: Python parses at all (GATING)
+        run: ./scripts/check-python-syntax.sh
+
+      # Non-gating while the backlog is worked. Baseline 427 after applying
+      # ruff's safe autofixes (246 of the original 673); the remaining 38
+      # need --unsafe-fixes and manual review. Not yet ratcheted — flip to
+      # scripts/-based gating once the count is worked down.
       - name: ruff
         continue-on-error: true
         run: ruff check .
 
       # bandit is the Python analogue of gosec — security-focused, not style.
+      # Both HIGH findings are fixed (md5 cache key -> usedforsecurity=False;
+      # run-runbook.py shell=True dispositioned in-line as by-design). The
+      # 51 MEDIUM / 163 LOW remain.
       - name: bandit
         continue-on-error: true
         run: bandit -r . -ll -x ./llama.cpp,./target,./node_modules

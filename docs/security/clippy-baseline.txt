@@ -1,0 +1,3 @@
+# clippy baseline — regenerate with ./scripts/check-clippy.sh --update
+# Ratchet: this count may only SHRINK. See scripts/check-clippy.sh.
+0
