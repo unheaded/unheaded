@@ -136,6 +136,40 @@ jobs:
         continue-on-error: true
         run: bandit -r . -ll -x ./llama.cpp,./target,./node_modules
 
+  javascript:
+    name: JavaScript (eslint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Non-gating while the backlog is worked, same ratchet policy as the rest.
+      #
+      # First measurement of this surface, 2026-08-03: 40 tracked files, ~21K
+      # lines, and no eslint config or package.json had ever existed. Honest
+      # baseline is 57 — 42 no-unused-vars, 9 no-redeclare, 5
+      # no-prototype-builtins, 1 no-empty.
+      #
+      # Two corrections were needed before that number meant anything. A first
+      # run reported 435, but ~250 of those came from generated rustdoc under
+      # crates/upc-api/target/doc, which is untracked and gitignored — the
+      # ignore glob has to be "**/target/**", because cargo writes a target/
+      # inside every crate, not just at the repo root. Another 94 were
+      # cross-file globals: these pages load several <script> tags sharing one
+      # global scope, and eslint lints one file at a time. Those are declared
+      # in eslint.config.js with the file that defines each.
+      #
+      # The run also found one real bug: kanban/js/task-modal.js called
+      # getFriendlyErrorMessage, which is defined only inside a different
+      # file's IIFE, so saving a failed task threw ReferenceError from the
+      # error handler itself. Fixed.
+      - name: eslint
+        continue-on-error: true
+        run: npx --yes eslint@9.39.5 .
+
   dockerfiles:
     name: Dockerfiles (hadolint)
     runs-on: ubuntu-latest

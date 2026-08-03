@@ -7,6 +7,38 @@
     // API config (matches timeline-reader)
     const API_BASE = '/api/v1';
 
+    // Convert raw errors to user-friendly messages.
+    //
+    // This was previously CALLED here but defined only inside timeline-reader.js's
+    // own IIFE, so it was never in scope at the call site below — saving a task
+    // that failed threw ReferenceError from the error handler itself, replacing a
+    // friendly message with a crash on the path that was already going wrong.
+    // Found by the first eslint run over this tree (no-undef), 2026-08-03.
+    //
+    // Copied rather than hoisted to a shared global, because hoisting means a new
+    // script file and HTML changes in every page that loads these. That
+    // consolidation — there are now three copies, here, timeline-reader.js and
+    // dashboard/js/metrics.js — is flagged for the ADR-090 sweep.
+    function getFriendlyErrorMessage(error) {
+        var msg = error.message || String(error);
+        if (msg.includes('Failed to fetch') || msg.includes('NetworkError')) {
+            return 'Cannot reach the server. Check your connection.';
+        }
+        if (msg.includes('HTTP 500') || msg.includes('HTTP 502') || msg.includes('HTTP 503')) {
+            return 'Server is temporarily unavailable.';
+        }
+        if (msg.includes('HTTP 401') || msg.includes('HTTP 403')) {
+            return 'Authentication error.';
+        }
+        if (msg.includes('HTTP 404')) {
+            return 'Task endpoint not found.';
+        }
+        if (msg.includes('timeout') || msg.includes('Timeout')) {
+            return 'Server response timed out.';
+        }
+        return 'Connection error';
+    }
+
     // State
     let currentTask = null;
     let isEditMode = false;
