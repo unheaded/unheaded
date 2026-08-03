@@ -171,7 +171,7 @@ pub fn send_trigger(count: u32, instance: u8) -> Result<()> {
         eprintln!("doom-tick.py stderr: {}", stderr);
     } else {
         // Show last line of stdout for visibility
-        let last = stdout.lines().rev().next().unwrap_or("");
+        let last = stdout.lines().next_back().unwrap_or("");
         eprintln!("doom-tick.py: {}", last);
     }
     Ok(())

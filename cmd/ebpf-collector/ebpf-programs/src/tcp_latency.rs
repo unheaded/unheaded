@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! TCP latency probe — measures tcp_sendmsg/tcp_recvmsg call duration.
 //!
 //! Attaches kprobe to tcp_sendmsg entry and kretprobe to return.
@@ -13,8 +16,7 @@ use aya_ebpf::{
     maps::{HashMap, RingBuf},
     programs::{ProbeContext, RetProbeContext},
 };
-use aya_log_ebpf::info;
-use ebpf_common::{LatencyEvent, OP_TCP_SEND, OP_TCP_RECV, RING_BUF_SIZE};
+use ebpf_common::{LatencyEvent, OP_TCP_RECV, OP_TCP_SEND, RING_BUF_SIZE};
 
 /// Inflight tracking: pid_tgid → start timestamp (ns)
 #[map]
@@ -28,43 +30,31 @@ static LATENCY_EVENTS: RingBuf = RingBuf::with_byte_size(RING_BUF_SIZE, 0);
 
 #[kprobe]
 pub fn tcp_sendmsg_enter(ctx: ProbeContext) -> u32 {
-    match try_entry(&ctx) {
-        Ok(ret) => ret,
-        Err(_) => 0,
-    }
+    try_entry(&ctx).unwrap_or_default()
 }
 
 #[kretprobe]
-pub fn tcp_sendmsg_exit(ctx: RetProbeContext) -> u32 {
-    match try_exit(OP_TCP_SEND) {
-        Ok(ret) => ret,
-        Err(_) => 0,
-    }
+pub fn tcp_sendmsg_exit(_ctx: RetProbeContext) -> u32 {
+    try_exit(OP_TCP_SEND).unwrap_or_default()
 }
 
 // --- tcp_recvmsg ---
 
 #[kprobe]
 pub fn tcp_recvmsg_enter(ctx: ProbeContext) -> u32 {
-    match try_entry(&ctx) {
-        Ok(ret) => ret,
-        Err(_) => 0,
-    }
+    try_entry(&ctx).unwrap_or_default()
 }
 
 #[kretprobe]
-pub fn tcp_recvmsg_exit(ctx: RetProbeContext) -> u32 {
-    match try_exit(OP_TCP_RECV) {
-        Ok(ret) => ret,
-        Err(_) => 0,
-    }
+pub fn tcp_recvmsg_exit(_ctx: RetProbeContext) -> u32 {
+    try_exit(OP_TCP_RECV).unwrap_or_default()
 }
 
 // --- Shared entry/exit logic ---
 
 #[inline(always)]
 fn try_entry(_ctx: &ProbeContext) -> Result<u32, ()> {
-    let pid_tgid = unsafe { aya_ebpf::helpers::bpf_get_current_pid_tgid() };
+    let pid_tgid = aya_ebpf::helpers::bpf_get_current_pid_tgid();
     let ts = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
 
     // Store start time keyed by pid_tgid
@@ -74,8 +64,13 @@ fn try_entry(_ctx: &ProbeContext) -> Result<u32, ()> {
 }
 
 #[inline(always)]
-fn try_exit(_ctx: &ProbeContext, operation: u8) -> Result<u32, ()> {
-    let pid_tgid = unsafe { aya_ebpf::helpers::bpf_get_current_pid_tgid() };
+// No context parameter: the callers are kretprobes holding a RetProbeContext,
+// not a ProbeContext, so the old `_ctx: &ProbeContext` could never be passed
+// and both call sites omitted it — this crate did not compile (E0061). The
+// parameter was unused anyway, so drop it rather than thread the right type
+// through for nothing.
+fn try_exit(operation: u8) -> Result<u32, ()> {
+    let pid_tgid = aya_ebpf::helpers::bpf_get_current_pid_tgid();
     let now = unsafe { aya_ebpf::helpers::bpf_ktime_get_ns() };
 
     // Look up start time
@@ -100,9 +95,7 @@ fn try_exit(_ctx: &ProbeContext, operation: u8) -> Result<u32, ()> {
 
     // Emit to ring buffer
     if let Some(mut buf) = LATENCY_EVENTS.reserve::<LatencyEvent>(0) {
-        unsafe {
-            buf.write(event);
-        }
+        buf.write(event);
         buf.submit(0);
     }
 
