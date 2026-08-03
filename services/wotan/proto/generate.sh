@@ -3,8 +3,10 @@
 
 set -e
 
-# Add GOPATH/bin to PATH for protoc plugins
-export PATH=$PATH:$(go env GOPATH)/bin
+# Add GOPATH/bin to PATH for protoc plugins. Split from the export so a failing
+# `go env` is visible rather than silently producing PATH=$PATH:/bin.
+GOPATH_BIN="$(go env GOPATH)/bin"
+export PATH="${PATH}:${GOPATH_BIN}"
 
 # Check if protoc is installed
 if ! command -v protoc &> /dev/null; then

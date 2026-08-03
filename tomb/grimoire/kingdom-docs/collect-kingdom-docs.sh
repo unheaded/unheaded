@@ -114,7 +114,8 @@ collect() {
     for pattern in "${patterns[@]}"; do
         while IFS= read -r -d '' file; do
             local rel_path="${file#${src}/}"
-            local target_dir="${dest}/$(dirname "${rel_path}")"
+            local target_dir
+            target_dir="${dest}/$(dirname "${rel_path}")"
             mkdir -p "${target_dir}"
             cp "${file}" "${target_dir}/"
             ((count++))
@@ -229,7 +230,8 @@ main() {
     for ext in yaml yml toml json; do
         while IFS= read -r -d '' file; do
             local rel_path="${file#${REPO_ROOT}/}"
-            local target_dir="${OUTPUT_DIR}/configs/$(dirname "${rel_path}")"
+            local target_dir
+            target_dir="${OUTPUT_DIR}/configs/$(dirname "${rel_path}")"
             mkdir -p "${target_dir}"
             cp "${file}" "${target_dir}/"
         done < <(find "${REPO_ROOT}/configs" -type f -name "*.${ext}" -print0 2>/dev/null)

@@ -52,7 +52,8 @@ ts() { date '+%Y-%m-%d %H:%M:%S'; }
 emit() {
     local level="$1"
     shift
-    local msg="[$(ts)] ${level} $*"
+    local msg
+    msg="[$(ts)] ${level} $*"
     if [[ $QUIET -eq 0 ]]; then
         case "$level" in
             OK)   echo -e "${GREEN}${msg}${NC}" ;;

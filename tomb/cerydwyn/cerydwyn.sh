@@ -251,7 +251,8 @@ log_query() {
 
     mkdir -p "$LOG_DIR"
 
-    local logfile="${LOG_DIR}/cerydwyn-$(date '+%Y-%m-%d').log"
+    local logfile
+    logfile="${LOG_DIR}/cerydwyn-$(date '+%Y-%m-%d').log"
     {
         echo "---"
         echo "timestamp: $(timestamp)"
