@@ -32,9 +32,9 @@ def main() -> int:
     try:
         ids = json.loads(raw)
         if not isinstance(ids, list):
-            raise ValueError("expected a JSON array of ints")
+            raise TypeError("expected a JSON array of ints")
         ids = [int(x) for x in ids]
-    except (ValueError, json.JSONDecodeError) as e:
+    except (TypeError, ValueError, json.JSONDecodeError) as e:
         print(f"parse: {e}", file=sys.stderr)
         return 2
 

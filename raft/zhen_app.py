@@ -104,6 +104,12 @@ except Exception as e:
 # ---------------------------------------------------------------------------
 # PostgreSQL — optional conversation logging (The Well)
 # ---------------------------------------------------------------------------
+# Module logger rather than the logging.* root convenience functions (LOG015).
+# Nothing in this app calls basicConfig or configures handlers, so records reach
+# the same place either way; this just stops the module from reconfiguring the
+# root logger as a side effect of its first logging.info() call.
+log = logging.getLogger(__name__)
+
 pg_conn = None
 _session_id = str(uuid.uuid4())
 
@@ -143,17 +149,16 @@ def _pg_connect():
             connect_timeout=3,
         )
         conn.autocommit = True
-        logging.info("[zhen] Connected to The Well (PostgreSQL)")
+        log.info("[zhen] Connected to The Well (PostgreSQL)")
         return conn
     except Exception as e:
-        logging.warning(f"[zhen] The Well not available — conversations will not be persisted: {e}")
+        log.warning(f"[zhen] The Well not available — conversations will not be persisted: {e}")
         return None
 
 pg_conn = _pg_connect()
 
 # Ensure zhen_memories table exists
 def _ensure_memories_table():
-    global pg_conn
     if pg_conn is None:
         return
     try:
@@ -171,7 +176,7 @@ def _ensure_memories_table():
         """)
         cur.close()
     except Exception as e:
-        logging.warning(f"[zhen] Failed to create zhen_memories table: {e}")
+        log.warning(f"[zhen] Failed to create zhen_memories table: {e}")
 
 _ensure_memories_table()
 
@@ -191,7 +196,7 @@ def _pg_log(role, content, sources='[]', model='', tokens_input=0, tokens_output
         )
         cur.close()
     except Exception as e:
-        logging.warning(f"[zhen] Failed to log conversation: {e}")
+        log.warning(f"[zhen] Failed to log conversation: {e}")
         # Attempt reconnect on next call
         try:
             pg_conn.close()
@@ -202,7 +207,6 @@ def _pg_log(role, content, sources='[]', model='', tokens_input=0, tokens_output
 
 def _recall_semantic(search_term, days=30, k=20):
     """Semantic search fallback for recall — embed the query, search conversations via cosine similarity."""
-    global pg_conn
     if pg_conn is None or rag is None:
         return []
     try:
@@ -244,13 +248,12 @@ def _recall_semantic(search_term, days=30, k=20):
                 results.append(rows[idx])
         return results
     except Exception as e:
-        logging.warning(f"[zhen] Semantic recall failed: {e}")
+        log.warning(f"[zhen] Semantic recall failed: {e}")
         return []
 
 
 def _search_memories(question, threshold=0.9):
     """Search zhen_memories for a cached answer using embedding similarity."""
-    global pg_conn
     if pg_conn is None or rag is None:
         return None
     try:
@@ -282,7 +285,7 @@ def _search_memories(question, threshold=0.9):
             return best_match
         return None
     except Exception as e:
-        logging.warning(f"[zhen] Memory search failed: {e}")
+        log.warning(f"[zhen] Memory search failed: {e}")
         return None
 
 
@@ -856,7 +859,6 @@ backend {svc_name}_back
             days = 30
             search_term = search_term.replace('last month', '').strip() or 'conversation'
 
-        global pg_conn
         if pg_conn is None:
             return {'answer': 'The Well is not connected — conversation history unavailable.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
@@ -1743,7 +1745,6 @@ def get_skill(name):
 @app.route('/api/v1/conversations', methods=['GET'])
 def list_conversations():
     """List recent conversations from The Well."""
-    global pg_conn
     if pg_conn is None:
         return jsonify({'error': 'The Well is not connected', 'conversations': []}), 200
 
@@ -1776,14 +1777,13 @@ def list_conversations():
             })
         return jsonify({'conversations': conversations, 'total': len(conversations)})
     except Exception as e:
-        logging.warning(f"[zhen] Failed to list conversations: {e}")
+        log.warning(f"[zhen] Failed to list conversations: {e}")
         return jsonify({'error': str(e), 'conversations': []}), 500
 
 
 @app.route('/api/v1/conversations/search', methods=['GET'])
 def search_conversations():
     """Full-text search over conversations using PostgreSQL tsvector."""
-    global pg_conn
     if pg_conn is None:
         return jsonify({'error': 'The Well is not connected', 'results': []}), 200
 
@@ -1823,7 +1823,7 @@ def search_conversations():
             })
         return jsonify({'query': q, 'results': results, 'total': len(results)})
     except Exception as e:
-        logging.warning(f"[zhen] Failed to search conversations: {e}")
+        log.warning(f"[zhen] Failed to search conversations: {e}")
         return jsonify({'error': str(e), 'results': []}), 500
 
 
@@ -1834,7 +1834,6 @@ def search_conversations():
 @app.route('/api/v1/remember', methods=['POST'])
 def remember():
     """Mark an answer as worth remembering for future queries."""
-    global pg_conn
     if pg_conn is None:
         return jsonify({'error': 'The Well is not connected — cannot persist memories'}), 503
 
@@ -1863,14 +1862,13 @@ def remember():
 
         return jsonify({'status': 'remembered', 'memory_id': mem_id})
     except Exception as e:
-        logging.warning(f"[zhen] Failed to remember: {e}")
+        log.warning(f"[zhen] Failed to remember: {e}")
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/v1/forget', methods=['POST'])
 def forget():
     """Remove a memory by ID."""
-    global pg_conn
     if pg_conn is None:
         return jsonify({'error': 'The Well is not connected'}), 503
 
