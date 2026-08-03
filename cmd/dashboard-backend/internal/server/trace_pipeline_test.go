@@ -30,6 +30,14 @@ import (
 	"unheaded/pkg/logger"
 )
 
+// sameOriginHeader builds the Origin header a browser would send when opening a
+// WebSocket against serverURL. The upgrade handler denies an empty Origin and
+// requires a same-origin (or explicitly allowlisted) value, so tests that want a
+// successful upgrade have to supply one.
+func sameOriginHeader(serverURL string) http.Header {
+	return http.Header{"Origin": []string{serverURL}}
+}
+
 // testLogger creates a logger that discards output for testing.
 func testPipelineLogger() *logger.Logger {
 	return logger.New(io.Discard)
@@ -72,8 +80,12 @@ func TestTracePipelineE2E(t *testing.T) {
 
 	wsURL := "ws" + strings.TrimPrefix(httpServer.URL, "http")
 
-	// Connect a WebSocket client
-	conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	// Connect a WebSocket client. The upgrade handler rejects an absent or
+	// cross-origin Origin header to prevent cross-origin WebSocket hijacking,
+	// and gorilla's DefaultDialer sends none — so send the same-origin header a
+	// browser would. Dialing without it is exactly what the guard is there to
+	// refuse; asserting that is TestHandleWebSocket's job, not this test's.
+	conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, sameOriginHeader(httpServer.URL))
 	if dialResp != nil {
 		_ = dialResp.Body.Close() // 101 Switching Protocols handshake response
 	}
@@ -287,7 +299,7 @@ func TestTracePipelineMultipleWebSocketClients(t *testing.T) {
 	const numClients = 3
 	clients := make([]*websocket.Conn, numClients)
 	for i := 0; i < numClients; i++ {
-		conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+		conn, dialResp, err := websocket.DefaultDialer.Dial(wsURL, sameOriginHeader(httpServer.URL))
 		if dialResp != nil {
 			_ = dialResp.Body.Close()
 		}
