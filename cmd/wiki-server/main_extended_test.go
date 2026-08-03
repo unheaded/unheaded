@@ -109,20 +109,17 @@ func TestListPages_SortOrder(t *testing.T) {
 	}
 
 	items := ws.listPages()
-	if len(items) != 3 {
-		t.Fatalf("expected 3 items, got %d", len(items))
+	// README is excluded from the article list (879c91cf), leaving alpha + zebra.
+	if len(items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(items))
 	}
 
-	// Home (README) should be first.
-	if items[0].Title != "Home" {
-		t.Errorf("first item should be Home, got %q", items[0].Title)
+	// Alphabetical: Alpha before Zebra.
+	if items[0].Title != "Alpha" {
+		t.Errorf("first item should be Alpha, got %q", items[0].Title)
 	}
-	// Then alphabetical: Alpha before Zebra.
-	if items[1].Title != "Alpha" {
-		t.Errorf("second item should be Alpha, got %q", items[1].Title)
-	}
-	if items[2].Title != "Zebra" {
-		t.Errorf("third item should be Zebra, got %q", items[2].Title)
+	if items[1].Title != "Zebra" {
+		t.Errorf("second item should be Zebra, got %q", items[1].Title)
 	}
 }
 
@@ -886,9 +883,14 @@ func TestConstants(t *testing.T) {
 
 func TestListPages_SortComparatorAllBranches(t *testing.T) {
 	dir := t.TempDir()
-	// Create README (slug="") plus multiple pages to exercise all sort branches.
-	// Position README between other files alphabetically so it appears at various
-	// indices during sort, exercising both the i and j comparator branches.
+	// This test used to place README (slug="") among the other files to drive the
+	// comparator's empty-slug branches from both the i and j sides. Since 879c91cf
+	// listPages skips README entirely, so no listed item can have an empty slug by
+	// that route and those branches are no longer reachable here — the comparator
+	// now only ever compares titles. Left as broad coverage of the title ordering
+	// across several files; the empty-slug branches are noted for the ADR-090
+	// sweep rather than removed at this rung, because a file named literally
+	// ".md" would still produce an empty slug.
 	os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Home\n"), 0644)
 	os.WriteFile(filepath.Join(dir, "beta.md"), []byte("# Beta\n"), 0644)
 	os.WriteFile(filepath.Join(dir, "alpha.md"), []byte("# Alpha\n"), 0644)
@@ -902,20 +904,24 @@ func TestListPages_SortComparatorAllBranches(t *testing.T) {
 	}
 
 	items := ws.listPages()
-	if len(items) != 6 {
-		t.Fatalf("expected 6 items, got %d", len(items))
+	// Six files written, README excluded => five listed.
+	if len(items) != 5 {
+		t.Fatalf("expected 5 items, got %d", len(items))
 	}
 
-	// Verify Home is first.
-	if items[0].Title != "Home" {
-		t.Errorf("item[0] expected Home, got %q", items[0].Title)
+	// "Aaa" sorts first among aaa/alpha/beta/gamma/zzz.
+	if items[0].Title != "Aaa" {
+		t.Errorf("item[0] expected Aaa, got %q", items[0].Title)
 	}
-	if items[0].Slug != "" {
-		t.Errorf("Home slug should be empty, got %q", items[0].Slug)
+	// No listed item may carry an empty slug now that README is skipped.
+	for i, it := range items {
+		if it.Slug == "" {
+			t.Errorf("item[%d] has empty slug; README should have been excluded", i)
+		}
 	}
 
-	// Verify remaining are alphabetical.
-	for i := 2; i < len(items); i++ {
+	// Verify all are alphabetical.
+	for i := 1; i < len(items); i++ {
 		if items[i-1].Title > items[i].Title {
 			t.Errorf("items not sorted: %q > %q at indices %d,%d", items[i-1].Title, items[i].Title, i-1, i)
 		}
