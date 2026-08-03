@@ -62,7 +62,7 @@ compares against this baseline, not against zero.
 | 12 | R1 | 6 | `6218e9bf` | timezone-aware datetimes, no clock moved | ruff 272 → 254 | no |
 | 13 | R2 | 7A | `a11894b9` | notebook unused imports + dead f-prefixes | ruff 254 → 243 | no |
 | 14 | R2 | 7A | `1af220d2` | F841 / RUF059 / PLR1722 | ruff 243 → 228 | no |
-| 15 | — | — | `4a24b0dd` | progress log through Phase 7A | — | no |
+| 15 | — | — | `c2ad00c9` | progress log through Phase 7A | — | no |
 | 16 | R2 | 7B | `8d07d33d` | PIE810 / ISC004 / C401 / PERF102 / SIM101 / TRY201 / RUF013 | **ruff 228 → 210** | no |
 
 **Current state**: `go test ./...` = 244 packages ok, **0 failures**.
