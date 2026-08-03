@@ -319,7 +319,7 @@ def test_h3_memory_poison_does_not_dispatch(pg_conn, seeded_poison):
     # dispatched, so no audit row exists for them.
     if has_actions_table:
         cur = pg_conn.cursor()
-        smuggled_tools = tuple(set(f["tool"] for f in POISON_FIXTURES))
+        smuggled_tools = tuple({f["tool"] for f in POISON_FIXTURES})
         cur.execute(
             """SELECT id, action_type, intent, status
                  FROM zhen_actions

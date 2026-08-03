@@ -244,10 +244,10 @@ class MbcAssembler:
         """Resolve a token to an integer value."""
         tok = tok.strip()
         # Hex literal
-        if tok.startswith("0x") or tok.startswith("0X"):
+        if tok.startswith(("0x", "0X")):
             return int(tok, 16)
         # Binary literal
-        if tok.startswith("0b") or tok.startswith("0B"):
+        if tok.startswith(("0b", "0B")):
             return int(tok, 2)
         # Decimal literal (possibly negative)
         if re.match(r"^-?\d+$", tok):
