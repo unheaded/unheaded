@@ -283,7 +283,7 @@ var PqcVerifyTimeline = (function() {
         ctx.stroke();
     }
 
-    function drawTooltip(ctx, data, pad, plotW, plotH, yMax, w, h) {
+    function drawTooltip(ctx, data, pad, plotW, plotH, yMax, w, _h) {
         var mx = state.mouse.x;
         if (mx < pad.left || mx > pad.left + plotW) return;
 

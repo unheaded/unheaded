@@ -88,23 +88,6 @@ export default [
                 HTMLAnchorElement: "readonly",
                 HTMLLinkElement: "readonly",
 
-                // Cross-file globals. These pages load several <script> tags that
-                // share one global scope, so a symbol defined in api.js is used in
-                // app.js. eslint lints one file at a time and cannot see that, so
-                // each has to be declared here or it reads as 96 undefined-variable
-                // errors that are not bugs. Each name below was verified to have
-                // exactly one defining file.
-                API: "readonly",              // cmd/kanban-app/static/js/api.js
-                App: "readonly",              // cmd/kanban-app/static/js/app.js
-                Board: "readonly",            // cmd/kanban-app/static/js/board.js
-                Cards: "readonly",            // cmd/kanban-app/static/js/cards.js
-                WebSocketClient: "readonly",  // cmd/kanban-app/static/js/websocket.js
-                //
-                // Declaring these costs 5 no-redeclare findings — one per
-                // defining file, which now declares a name the config also
-                // declares. That is left in the baseline deliberately rather
-                // than suppressed: it is accurate, and it is the signal that
-                // would tell you if one of these ever gained a second definer.
             },
         },
         rules: {
@@ -162,7 +145,14 @@ export default [
             "no-unsafe-optional-chaining": "error",
             "no-unused-labels": "error",
             "no-unused-private-class-members": "error",
-            "no-unused-vars": "error",
+            // `_`-prefixed parameters and caught errors are the conventional way to
+            // say "this argument is part of the signature but deliberately unused" —
+            // dropping it would change the callback's arity and mislead the reader.
+            "no-unused-vars": ["error", {
+                argsIgnorePattern: "^_",
+                varsIgnorePattern: "^_",
+                caughtErrorsIgnorePattern: "^_",
+            }],
             "no-useless-backreference": "error",
             "no-useless-catch": "error",
             "no-useless-escape": "error",

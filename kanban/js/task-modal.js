@@ -45,7 +45,7 @@
     let isDeleting = false;
 
     // DOM references (cached on first use)
-    let overlay, container, closeBtn;
+    let overlay, closeBtn;
     let viewMode, editMode;
     let viewActions, editActions;
     let deleteConfirm;
@@ -63,7 +63,6 @@
     // Initialize DOM references
     function cacheDom() {
         overlay = document.getElementById('task-modal-overlay');
-        container = overlay.querySelector('.modal-container');
         closeBtn = document.getElementById('modal-close-btn');
 
         viewMode = document.getElementById('modal-view-mode');

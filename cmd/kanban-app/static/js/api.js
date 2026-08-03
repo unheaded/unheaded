@@ -18,7 +18,7 @@ const API = (function() {
     };
 
     // Request queue for offline support (future enhancement)
-    const requestQueue = [];
+    const _requestQueue = [];
 
     /**
      * Custom error class for API errors

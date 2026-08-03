@@ -399,7 +399,7 @@ var AnomalyHeatmap = (function() {
         var bucketColors = ['#ff4757', '#ff9800', '#ffd700', '#00d26a', '#4ecdc4'];
 
         for (var si = 0; si < data.length; si++) {
-            var buckets = data[si].buckets || [];
+            const buckets = data[si].buckets || [];
             var numBuckets = buckets.length;
             var subBarW = numBuckets > 0 ? (barGroupW - gap) / numBuckets : barGroupW - gap;
 

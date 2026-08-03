@@ -492,7 +492,7 @@ window.UnheadedMonad = {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
-      .then(data => {
+      .then(_data => {
         this.chaosActive = true;
         this.chaosMode = mode;
         this.chaosFlowLabel = flowLabel;
@@ -528,7 +528,7 @@ window.UnheadedMonad = {
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         return res.json();
       })
-      .then(data => {
+      .then(_data => {
         this.chaosActive = false;
         this.chaosMode = null;
         this.chaosFlowLabel = null;
