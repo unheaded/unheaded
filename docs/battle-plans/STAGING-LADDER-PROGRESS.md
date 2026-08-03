@@ -63,10 +63,15 @@ compares against this baseline, not against zero.
 | 13 | R2 | 7A | `a11894b9` | notebook unused imports + dead f-prefixes | ruff 254 → 243 | no |
 | 14 | R2 | 7A | `1af220d2` | F841 / RUF059 / PLR1722 | ruff 243 → 228 | no |
 | 15 | — | — | `c2ad00c9` | progress log through Phase 7A | — | no |
-| 16 | R2 | 7B | `8d07d33d` | PIE810 / ISC004 / C401 / PERF102 / SIM101 / TRY201 / RUF013 | **ruff 228 → 210** | no |
+| 16 | R2 | 7B | `8d07d33d` | PIE810 / ISC004 / C401 / PERF102 / SIM101 / TRY201 / RUF013 | ruff 228 → 210 | no |
+| 17 | — | — | `94a87a16` | progress log through 7B | — | no |
+| 18 | — | — | (sha fix) | correct a SHA in the table | — | no |
+| 19 | R2 | 7C | `9ed74515` | module logger, read-only globals, TRY004 trap | ruff 210 → 189 | no |
+| 20 | R2 | 7C | `896f302e` | SIM115 / SIM102 / TRY002 | ruff 189 → 180 | no |
+| 21 | R2 | 7 | `90307f1b` | noqa-comment trap + stale binding | **ruff 180 → 176** | no |
 
 **Current state**: `go test ./...` = 244 packages ok, **0 failures**.
-**ruff 427 → 210 (−51%)** · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
+**ruff 427 → 176 (−59%)** · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
 
 ---
 
