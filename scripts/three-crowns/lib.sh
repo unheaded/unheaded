@@ -358,7 +358,12 @@ EOF
 }
 
 # ── Print the final report ──────────────────────────────────────────────
+# REPORT_FILE is written at runtime by the phase scripts; every PHASE_* and UI_*
+# name used in this function is defined there, which shellcheck cannot follow.
+# The directive sits on the function so it covers the uses, not just the source.
+# shellcheck disable=SC2154
 print_report() {
+    # shellcheck source=/dev/null
     source "$REPORT_FILE"
     echo ""
     echo -e "${TC_CYAN}${TC_BOLD}"

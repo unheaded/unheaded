@@ -208,6 +208,8 @@ echo -e "${BLUE}[1/2]${NC} Compiling C -> RV32I ELF..."
 # Build the GCC command
 # -ffixed-x16 through -ffixed-x31: restrict GCC to only use x0-x15
 # (MBC only has 16 registers: r0-r15)
+# shellcheck disable=SC2054  # the comma is inside -Wl,-Ttext=0x0, which is one
+# GCC argument, not an array separator.
 GCC_CMD=(
     "$CC"
     -march=rv32i
