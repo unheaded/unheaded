@@ -68,10 +68,13 @@ compares against this baseline, not against zero.
 | 18 | — | — | (sha fix) | correct a SHA in the table | — | no |
 | 19 | R2 | 7C | `9ed74515` | module logger, read-only globals, TRY004 trap | ruff 210 → 189 | no |
 | 20 | R2 | 7C | `896f302e` | SIM115 / SIM102 / TRY002 | ruff 189 → 180 | no |
-| 21 | R2 | 7 | `90307f1b` | noqa-comment trap + stale binding | **ruff 180 → 176** | no |
+| 21 | R2 | 7 | `90307f1b` | noqa-comment trap + stale binding | ruff 180 → 176 | no |
+| 22 | — | — | (log) | progress log through Phase 7 | — | no |
+| 23 | R2 | 8a | `fb5d7091` | **E722 → 0** — bare except no longer eats Ctrl-C | ruff 176 → 170 | no |
+| 24 | R2 | 8b | `6618561e` | **S110 → 0** — silent swallows now visible | **ruff 170 → 146** | no |
 
 **Current state**: `go test ./...` = 244 packages ok, **0 failures**.
-**ruff 427 → 176 (−59%)** · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
+**ruff 427 → 146 (−66%)** · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
 
 ---
 
