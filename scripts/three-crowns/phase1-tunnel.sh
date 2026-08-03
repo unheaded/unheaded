@@ -132,7 +132,7 @@ tc_log "1.6 Verifying BGP peering..."
 
 tc_log "  Waiting for BGP session establishment (up to 30s)..."
 bgp_established=false
-for i in $(seq 1 15); do
+for _ in $(seq 1 15); do
     bgp_summary=$(sudo vtysh -c "show bgp summary" 2>/dev/null || true)
     if echo "$bgp_summary" | grep -qi "established\|estab"; then
         bgp_established=true

@@ -28,7 +28,6 @@ RED='\033[0;31m'
 ORANGE='\033[0;33m'
 YELLOW='\033[1;33m'
 CYAN='\033[0;36m'
-GREEN='\033[0;32m'
 GRAY='\033[0;90m'
 NC='\033[0m'
 
@@ -158,7 +157,6 @@ SEVERITY_COUNTS[MEDIUM]=0
 SEVERITY_COUNTS[LOW]=0
 SEVERITY_COUNTS[INFO]=0
 
-declare -a FINDINGS=()
 
 # Analyze crash files
 if [[ -d "${CRASH_DIR}" ]] && [[ "$(ls -A "${CRASH_DIR}" 2>/dev/null)" ]]; then

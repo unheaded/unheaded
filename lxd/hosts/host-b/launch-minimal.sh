@@ -20,8 +20,6 @@ declare -a LAUNCHED_OK=()
 declare -a LAUNCHED_FAIL=()
 
 # Configuration
-readonly NETWORK="unheaded-outpost"
-readonly STORAGE_POOL="unheaded-minimal"
 
 # Utility functions
 log_info() {

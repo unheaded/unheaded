@@ -53,6 +53,12 @@ RETRY_DELAY=5
 SSH_TIMEOUT=10
 DRY_RUN=0
 PHASE=""
+# shellcheck disable=SC2034  # parsed and advertised, but nothing reads it yet.
+# --verbose is listed in --help ("Enable verbose output") and sets this at the
+# arg-parsing case, so the flag is accepted and silently does nothing. Deleting
+# the variable would be the wrong fix: the bug is the unimplemented behaviour,
+# not the assignment. Either wire it up or drop it from --help — flagged for
+# review rather than decided here.
 VERBOSE=0
 
 # Tomb VM paths
@@ -2065,6 +2071,8 @@ list_phases() {
 main() {
     # Parse arguments
     while [ $# -gt 0 ]; do
+        # shellcheck disable=SC2034  # VERBOSE below is set here but never read;
+        # see its declaration for why it is flagged rather than deleted.
         case "$1" in
             --target)   TOMB_TARGET="$2"; shift 2 ;;
             --phase)    PHASE="$2"; shift 2 ;;

@@ -69,7 +69,7 @@ if [[ "$GATED_FLAG" == "-gated" ]]; then
             -project-root "$HOME/tmp/unheaded" \
             > /tmp/zhen-agentd.log 2>&1 &
         echo "  zhen-agentd PID: $!"
-        for i in $(seq 1 10); do
+        for _ in $(seq 1 10); do
             curl -sf http://127.0.0.1:20105/health > /dev/null && break
             sleep 1
         done

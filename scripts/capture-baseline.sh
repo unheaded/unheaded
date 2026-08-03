@@ -11,7 +11,6 @@ IFS=$'\n\t'
 # Color codes for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
@@ -59,11 +58,6 @@ fi
 mkdir -p "$OUTPUT_DIR"
 
 # Initialize JSON object
-declare -A json_data
-json_data[timestamp]="$TIMESTAMP"
-json_data[hostname]="$HOSTNAME_DETECTED"
-json_data[host_role]="$HOST_ROLE"
-json_data[capture_date]="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
 # Helper functions
 log_section() {

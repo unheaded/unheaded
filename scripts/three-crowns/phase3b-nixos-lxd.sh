@@ -98,7 +98,7 @@ wait
 
 # Wait for all containers to be RUNNING
 tc_log "  Waiting for containers to start..."
-for attempt in $(seq 1 12); do
+for _ in $(seq 1 12); do
     running=$(lxc list unheaded- -cn,s --format csv 2>/dev/null | grep RUNNING | wc -l)
     if [[ $running -ge ${#NIXOS_SERVICES[@]} ]]; then
         break

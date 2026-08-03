@@ -22,9 +22,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-HARNESS_DIR="${SCRIPT_DIR}/harnesses"
-SEEDS_DIR="${SCRIPT_DIR}/seeds"
-CONFIG_FILE="${SCRIPT_DIR}/config/lich.yaml"
 
 # Defaults (overridden by config/flags)
 FUZZ_TIME="${FUZZ_TIME:-60s}"
@@ -232,7 +229,6 @@ run_fuzz_harness() {
 }
 
 run_all_harnesses() {
-    local active_jobs=0
     local total=0
     local started=0
 

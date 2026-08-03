@@ -11,7 +11,6 @@ WEST_P2P="192.168.13.2"
 EAST_P2P="192.168.13.1"
 WG_PORT=51820
 WG_IFACE="wg0"
-WG_NETWORK="fd00:dead:beef::/48"
 WEST_WG_ADDR="fd00:dead:beef::1/64"
 EAST_WG_ADDR="fd00:dead:beef::2/64"
 KEY_DIR="/tmp/wireguard-keys"

@@ -8,9 +8,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROFILES_DIR="${SCRIPT_DIR}/profiles"
-CLOUD_INIT_DIR="${SCRIPT_DIR}/cloud-init"
-NETWORKS_DIR="${SCRIPT_DIR}/networks"
-STORAGE_DIR="${SCRIPT_DIR}/storage"
 
 # Color output
 RED='\033[0;31m'

@@ -12,7 +12,6 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DOOM_BRIDGE_BIN="/tmp/doom-bridge-ws1-test"
 PORT=16660  # Use high port to avoid conflicts
-TIMEOUT=10
 PASSED=0
 FAILED=0
 
