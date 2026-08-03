@@ -568,7 +568,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             try:
                 ur.urlopen(f'http://localhost:{port}/health', timeout=2)
                 healthy += 1
-            except: pass
+            except Exception as e:
+                log.debug('[zhen] health probe failed for %s:%s: %s', name, port, e)
         lines.append(f'**Services:** {healthy}/{len(services)} healthy')
 
         # Memory
@@ -582,7 +583,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             avail = mem.get('MemAvailable', 0) // 1024
             swap_used = (mem.get('SwapTotal', 0) - mem.get('SwapFree', 0)) // 1024
             lines.append(f'**Memory:** {total - avail}MB / {total}MB (swap: {swap_used}MB)')
-        except: pass
+        except Exception as e:
+            log.debug('[zhen] memory stat unavailable: %s', e)
 
         # Disk
         try:
@@ -590,7 +592,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             for line in result.stdout.strip().split('\n')[1:]:
                 parts = line.split()
                 lines.append(f'**Disk /:** {parts[2]} used / {parts[1]} ({parts[4]})')
-        except: pass
+        except Exception as e:
+            log.debug('[zhen] disk stat unavailable: %s', e)
 
         # GPU
         try:
@@ -599,7 +602,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
                 if 'Temp' in line and '°C' in line:
                     lines.append(f'**GPU:** {line.strip()}')
                     break
-        except: pass
+        except Exception as e:
+            log.debug('[zhen] GPU stat unavailable: %s', e)
 
         # Training
         try:
@@ -607,14 +611,16 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
                 last = [l for l in f if 'Loss' in l]
                 if last:
                     lines.append(f'**Training:** {last[-1].strip()}')
-        except: pass
+        except Exception as e:
+            log.debug('[zhen] training log unavailable: %s', e)
 
         # Packages
         try:
             result = sp.run(['dpkg', '-l'], capture_output=True, text=True, timeout=5, check=False)
             pkg_count = len([l for l in result.stdout.split('\n') if 'unheaded' in l])
             lines.append(f'**Packages:** {pkg_count} installed')
-        except: pass
+        except Exception as e:
+            log.debug('[zhen] package count unavailable: %s', e)
 
         # EAST
         try:
@@ -623,7 +629,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
                 lines.append(f'**EAST:** {result.stdout.strip()}')
             else:
                 lines.append('**EAST:** unreachable')
-        except:
+        except Exception as e:
+            log.debug('[zhen] EAST probe failed: %s', e)
             lines.append('**EAST:** unreachable')
 
         return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
