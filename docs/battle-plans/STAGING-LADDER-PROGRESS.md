@@ -82,6 +82,9 @@ compares against this baseline, not against zero.
 | 32 | R3 | 11 | `2c760ab7` | **eslint measured for the first time** + a real bug fixed | eslint → 57 | no |
 | 33 | — | — | (log) | progress log through Phase 11 | — | no |
 | 34 | R3 | 12 | `700b80c0` | **FillRing had the same wraparound bug**; 3 red-then-green tests | — | no |
+| 35 | — | — | (log) | progress log through Phase 12 | — | no |
+| 36 | — | 14 | `6925c775` | **ruff GATING at 0**; bandit loses its `-ll` severity filter | **ruff ratcheted** | no |
+| 37 | — | 15 | (this) | decision queue — 10 items costed for Stevie | — | no |
 
 **Current state**: `go test ./...` = 244 packages ok, **0 failures**.
 **ruff 427 → 139 (−67%)** · **bandit 212 → 173**, and only **43** survive the proposed rule-ID skip · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
@@ -158,6 +161,15 @@ compares against this baseline, not against zero.
   debug branch covered exactly this and was followed.
 
 ---
+
+## The ladder is complete
+
+Phases 0-15 are done. Phase 16 (handoff) is `~/tmp/next.md`.
+
+What is left is **not work, it is decisions** — 10 of them, costed in
+`docs/battle-plans/STAGING-LADDER-DECISIONS.md`. The largest is D1 (134 blind excepts,
+71 of them silent), which is parked behind the ruff ratchet's one rule-ID exclusion and
+is best done as the first exercise of the ADR-090 sweep.
 
 ## Where the run stopped
 
