@@ -53,8 +53,12 @@ compares against this baseline, not against zero.
 | 3 | R0 | 2 | `0584650e` | Notebook repair + notebook syntax gate | **ruff 427 → 335** | no |
 | 4 | R1 | 1.5 | `e634508e` | wiki-server stale test assertions | failures 6 → 2 | no |
 | 5 | R1 | 1.5 | `cc0e0390` | dashboard-backend WebSocket Origin header | **failures 2 → 0** | no |
+| 6 | R0 | 3 | `4c46d279` | Shebang/exec-bit reconciliation + dead shebang repair | ruff 335 → 302 | no |
+| 7 | R1 | 4a | `2542d3fc` | shellcheck SC2155 declare-and-assign split | **shellcheck 359 → 343** | no |
+| 8 | R1 | 5 | `011b1f50` | explicit `check=False` on subprocess.run | ruff 302 → 272 | no |
 
-**Current state**: `go test ./...` = 244 packages ok, **0 failures**. ruff 335.
+**Current state**: `go test ./...` = 244 packages ok, **0 failures**.
+**ruff 427 → 272 (−36%)** · **shellcheck 359 → 343** · clippy still 0 · bandit untouched at 212.
 
 ---
 
@@ -79,6 +83,24 @@ compares against this baseline, not against zero.
    3 unterminated strings generated 104 of 427 findings. The ruff number was never as bad
    as it looked.
 
+5. **`scripts/bulk_inject.py` could never have run.** Its first line was
+   `#\!/usr/bin/env python3` — bytes `23 5c 21`, a backslash-escaped `!` that leaked in
+   from a shell heredoc written to dodge history expansion. `#\!` is not a shebang, so
+   the kernel handed the file to `/bin/sh`, which tried to execute the docstring as a
+   command and resolved `import` to ImageMagick. The file is mode 775, so someone
+   intended it to be executable. Repaired and verified.
+
+6. **The shellcheck baseline in CI is stale.** `static-analysis.yml`'s header records
+   361 findings with 11 errors. Measured today: 359, with **0** errors. The errors were
+   cleared at some point without the header being updated. Worth fixing when the ratchet
+   lands in Phase 14, since that header is what future sessions measure against.
+
+7. **Vendored code has been edited before.** `5b80e288` applied ruff autofixes to
+   `crates/xv6-mbc/upstream/test-xv6.py`, which is vendored xv6-riscv from `28d5ac98`.
+   Not reverted (harmless, and reverting adds churn), but the Phase 14 ruff ratchet
+   should exclude `crates/xv6-mbc/upstream/` by path so upstream findings stop counting
+   as ours. This is also open question 1 in ADR-090.
+
 ---
 
 ## Deviations from the plan as written
@@ -93,6 +115,50 @@ compares against this baseline, not against zero.
 
 ---
 
+## Where the run stopped
+
+Phases 0-5 complete (plus the added 1.5). **Next up: Phase 4b** (shellcheck `SC2034`,
+62 sites — needs care, the rule cannot see cross-file consumers in sourced scripts),
+then Phase 6 (`DTZ` timezone, 18), Phase 7 (ruff misc, ~55), then the big one,
+Phase 8 (exception handling, 164).
+
+Remaining ruff by rule at this point:
+
+```
+123 BLE001   blind-except            <- Phase 8
+ 30 S110     try-except-pass         <- Phase 8
+ 16 DTZ005   datetime-without-tz     <- Phase 6
+ 11 E722     bare-except             <- Phase 8
+  9 LOG015   root-logger-call        <- Phase 7
+  8 F841     unused-variable         <- Phase 7
+  8 PLW0602  global-not-assigned     <- Phase 7
+  7 PIE810   multiple-startswith     <- Phase 7
+  6 RUF059   unused-unpacked         <- Phase 7
+  5 ASYNC230 blocking-open-in-async  <- Phase 13
+  5 F401     unused-import           <- Phase 7
+  5 F541     f-string-no-placeholder <- Phase 7
+      ... remainder single-digit
+```
+
 ## Stuck items
 
-_none yet_
+_none._ No phase has hit the Skip Protocol.
+
+## Promotion, when you're ready
+
+Each commit is independently revertible and reviewable in ladder order. Review from
+the bottom rung up; you can stop anywhere and the tree is still whole.
+
+```bash
+cd ~/tmp/unheaded
+git log --oneline develop..staging          # the ladder, oldest first at the bottom
+git show <sha>                              # review one rung
+```
+
+**Before anything crosses into `main`, re-sign it** — every commit above was made with
+`--no-gpg-sign` because gpg-agent had no cached key overnight (ADR-089 §exit gate):
+
+```bash
+ssh-add ~/.ssh/id_ed25519
+git rebase --exec 'git commit --amend --no-edit -S' b39fb207
+```
