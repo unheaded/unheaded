@@ -49,7 +49,11 @@ MODELS_DIR="${MODELS_DIR:-/var/zhen/models}"
 declare -A MODEL_FILE
 MODEL_FILE[qwen-7b]="qwen2.5-coder-7b-instruct-q4_k_m.gguf"
 MODEL_FILE[deepseek]="DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
-MODEL_FILE[gemma]="gemma-4-E2B-it.gguf"
+# gemma removed 2026-07-31: the E2B GGUF on disk was an 8.7 GiB quant, not the
+# 3.2 GB Q4 that ADR-049/WAVE10E actually selected. It did not fit this box's
+# 12 GB VRAM and OOM'd the 14 GB host loading it. WAVE16 had already vetted it
+# out of the coding gate in favour of qwen-coder-14b. Re-add with a Q4 E2B
+# (or on a bigger GPU) — the forge's Gemma 4 support is untouched.
 MODEL_FILE[deepseek-cpu]="DeepSeek-Coder-V2-Lite-Instruct-Q4_K_M.gguf"
 # WAVE16 candidates downloaded 2026-05-04 — bench-test pending
 MODEL_FILE[qwen-coder-14b]="Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf"
@@ -61,7 +65,6 @@ MODEL_FILE[qwen-coder-14b]="Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf"
 declare -A MODEL_FLAGS
 MODEL_FLAGS[qwen-7b]="--ctx-size 16384"
 MODEL_FLAGS[deepseek]="--ctx-size 4096 --parallel 1 --cache-type-k q8_0"
-MODEL_FLAGS[gemma]="--ctx-size 8192"
 # deepseek-cpu: 27-layer model; first 20 expert layers go to system RAM
 # (~6 GB), remaining 7 layers + attention stay on GPU (~5 GB VRAM).
 # Speed expectation: 10-15 tok/s vs full-GPU 70 tok/s, but quality +.
@@ -76,7 +79,6 @@ MODEL_FLAGS[qwen-coder-14b]="--ctx-size 8192 --parallel 1 --n-gpu-layers 30"
 declare -A MODEL_NAME
 MODEL_NAME[qwen-7b]="qwen2.5-coder-7b-instruct"
 MODEL_NAME[deepseek]="deepseek-coder-v2-lite-instruct"
-MODEL_NAME[gemma]="gemma-4-E2B-it"
 MODEL_NAME[deepseek-cpu]="deepseek-coder-v2-lite-cpu-moe"
 MODEL_NAME[qwen-coder-14b]="qwen2.5-coder-14b-instruct"
 
@@ -105,6 +107,74 @@ fi
 
 FLAGS="${MODEL_FLAGS[$KEY]}"
 NAME="${MODEL_NAME[$KEY]}"
+
+# ─────────────────────── Preflight fit check ───────────────────────
+# Refuse to launch a model that cannot fit, instead of letting llama-server
+# start and take the box down with it. This exists because the UI dropdown is
+# a one-click path to loading multi-GB weights: before this, picking a model
+# too large for the hardware would thrash into swap and lock the desktop,
+# with no way to cancel short of a hard reset. An error message is a much
+# better outcome than an unresponsive machine.
+#
+# The budget is deliberately conservative and deliberately EXCLUDES swap.
+# There is 34 GB of swap on this box, which is exactly the resource that
+# turns "process gets OOM-killed" (survivable) into "system livelocks"
+# (not survivable). Fitting in swap is not fitting.
+#
+# The estimate is weights + FIT_MARGIN_PCT for KV cache, compute buffers and
+# llama.cpp's own overhead. It is an estimate, not a simulation — the real
+# KV cost depends on ctx-size and the architecture's head layout. If it is
+# wrong for a model you know fits, set ZHEN_SKIP_FIT_CHECK=1 to bypass.
+FIT_MARGIN_PCT="${FIT_MARGIN_PCT:-15}"
+# Leave this much VRAM/RAM unclaimed so the desktop and compositor survive.
+FIT_RESERVE_BYTES="${FIT_RESERVE_BYTES:-536870912}"  # 512 MiB
+
+if [[ "${ZHEN_SKIP_FIT_CHECK:-0}" != "1" ]]; then
+    GGUF_BYTES=$(stat -c %s "$GGUF")
+    NEED_BYTES=$(( GGUF_BYTES * (100 + FIT_MARGIN_PCT) / 100 ))
+
+    # Free VRAM on card0. rocm-smi's CSV is the stable interface; the
+    # human-readable output has shifted format between ROCm releases.
+    VRAM_FREE=0
+    if command -v rocm-smi >/dev/null 2>&1; then
+        VRAM_FREE=$(rocm-smi --showmeminfo vram --csv 2>/dev/null \
+            | awk -F, '$1=="card0" {printf "%d", $2 - $3}')
+        [[ -n "$VRAM_FREE" ]] || VRAM_FREE=0
+    fi
+
+    # MemAvailable, not MemFree: it accounts for reclaimable page cache.
+    RAM_AVAIL=$(( $(awk '/^MemAvailable:/ {print $2}' /proc/meminfo) * 1024 ))
+
+    # Does this config keep every layer on the GPU? The launch line passes
+    # --n-gpu-layers 999, but a per-model --n-gpu-layers or --n-cpu-moe in
+    # FLAGS appears later on the command line and wins.
+    if [[ "$FLAGS" == *"--n-cpu-moe"* || "$FLAGS" == *"--n-gpu-layers"* ]]; then
+        OFFLOAD="partial"
+        BUDGET=$(( VRAM_FREE + RAM_AVAIL - FIT_RESERVE_BYTES ))
+    else
+        OFFLOAD="full-gpu"
+        BUDGET=$(( VRAM_FREE - FIT_RESERVE_BYTES ))
+    fi
+
+    hb() { numfmt --to=iec-i --suffix=B "$1" 2>/dev/null || echo "${1}B"; }
+
+    if (( BUDGET <= 0 || NEED_BYTES > BUDGET )); then
+        echo "[switch-model] ✗ REFUSING to load '$KEY' — it will not fit." >&2
+        echo "               weights:   $(hb "$GGUF_BYTES")" >&2
+        echo "               estimated: $(hb "$NEED_BYTES")  (+${FIT_MARGIN_PCT}% KV/buffers)" >&2
+        echo "               offload:   $OFFLOAD" >&2
+        echo "               free VRAM: $(hb "$VRAM_FREE")" >&2
+        echo "               avail RAM: $(hb "$RAM_AVAIL")  (swap deliberately not counted)" >&2
+        echo "               budget:    $(hb "$BUDGET")  (after $(hb "$FIT_RESERVE_BYTES") reserve)" >&2
+        echo "" >&2
+        echo "  Loading it anyway would swap-thrash and can lock up the desktop." >&2
+        echo "  Use a smaller quant, or free VRAM/RAM and retry." >&2
+        echo "  To override if you are sure: ZHEN_SKIP_FIT_CHECK=1 $0 $KEY" >&2
+        exit 3
+    fi
+
+    echo "[switch-model] fit ok: need $(hb "$NEED_BYTES") of $(hb "$BUDGET") ($OFFLOAD)"
+fi
 
 echo "[switch-model] swapping to '$KEY' ($NAME)"
 echo "[switch-model]   gguf:  $GGUF"
