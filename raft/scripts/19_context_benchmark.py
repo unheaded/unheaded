@@ -174,8 +174,8 @@ def get_vram_usage():
         pass
     # Fallback: try /sys
     try:
-        used = int(open('/sys/class/drm/card1/device/mem_info_vram_used').read().strip())
-        total = int(open('/sys/class/drm/card1/device/mem_info_vram_total').read().strip())
+        used = int(Path('/sys/class/drm/card1/device/mem_info_vram_used').read_text().strip())
+        total = int(Path('/sys/class/drm/card1/device/mem_info_vram_total').read_text().strip())
         return {'used_mb': used / (1024 * 1024), 'total_mb': total / (1024 * 1024)}
     except Exception:
         return {'used_mb': 0, 'total_mb': 0}

@@ -137,7 +137,9 @@ def restart_zhen():
     subprocess.Popen(
         [str(venv_python), str(zhen_app)],
         cwd=str(RAFT_DIR),
-        stdout=open('/tmp/zhen-webapp.log', 'w'),
+        # noqa on purpose: this handle is owned by the child process for its
+        # lifetime. A context manager would close it the moment Popen returns.
+        stdout=open('/tmp/zhen-webapp.log', 'w'),  # noqa: SIM115
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )

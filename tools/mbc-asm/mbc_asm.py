@@ -323,10 +323,9 @@ class MbcAssembler:
                     else:
                         word_addr += 1
 
-            if line.label:
-                if section == ".text":
-                    self.symbols[line.label] = word_addr
-                # .data labels resolved in pass1b after we know text size
+            if line.label and section == ".text":
+                self.symbols[line.label] = word_addr
+                # .data labels are resolved in pass1b, once the text size is known
 
             if line.mnemonic:
                 word_addr += 1
