@@ -630,7 +630,9 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
 
         # Training
         try:
-            with open('/tmp/forge-production.log') as f:
+            # nosec B108 - fixed path is the interface: zhenai-forge writes this
+            # log and this block reads it to report training status. Read-only here.
+            with open('/tmp/forge-production.log') as f:  # nosec B108
                 last = [l for l in f if 'Loss' in l]
                 if last:
                     lines.append(f'**Training:** {last[-1].strip()}')

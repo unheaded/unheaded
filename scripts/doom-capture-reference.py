@@ -46,7 +46,7 @@ DEFAULT_REF_DIR = os.path.join(PROJECT_ROOT, "tests", "doom-reference")
 # DOOM ELF paths for build hash
 DOOM_ELF_PATHS = [
     os.path.join(PROJECT_ROOT, "doom", "doomgeneric", "doomgeneric", "doom.elf"),
-    "/tmp/doom-build/doom.elf",
+    "/tmp/doom-build/doom.elf",  # nosec B108 - the doom Makefile writes here by name
 ]
 
 # ── DOOM PLAYPAL — 256 RGB entries from doom1.wad ───────────────────────────

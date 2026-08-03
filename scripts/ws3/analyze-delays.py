@@ -61,7 +61,8 @@ def estimate_fps(pps):
 
 def main():
     parser = argparse.ArgumentParser(description="Analyze WS3 delay profiling results")
-    parser.add_argument("--results-dir", default="/tmp/ws3-results",
+    # nosec B108 - a default the operator overrides with --results-dir
+    parser.add_argument("--results-dir", default="/tmp/ws3-results",  # nosec B108
                         help="Directory containing delay test logs")
     parser.add_argument("--json", action="store_true",
                         help="Output as JSON")
