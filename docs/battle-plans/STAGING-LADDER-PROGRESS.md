@@ -84,7 +84,8 @@ compares against this baseline, not against zero.
 | 34 | R3 | 12 | `700b80c0` | **FillRing had the same wraparound bug**; 3 red-then-green tests | — | no |
 | 35 | — | — | (log) | progress log through Phase 12 | — | no |
 | 36 | — | 14 | `6925c775` | **ruff GATING at 0**; bandit loses its `-ll` severity filter | **ruff ratcheted** | no |
-| 37 | — | 15 | (this) | decision queue — 10 items costed for Stevie | — | no |
+| 37 | — | 15 | `315ad4cd` | decision queue — 10 items costed for Stevie | — | no |
+| 38 | R1 | post | `93c42495` | **SC2086 → 0** — one real quoting bug in a credential path | **shellcheck 281 → 246** | no |
 
 **Current state**: `go test ./...` = 244 packages ok, **0 failures**.
 **ruff 427 → 139 (−67%)** · **bandit 212 → 173**, and only **43** survive the proposed rule-ID skip · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
