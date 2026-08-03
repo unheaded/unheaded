@@ -3,6 +3,7 @@
 import re
 import struct
 import subprocess
+import sys
 
 result = subprocess.run(['sudo', 'bpftool', 'map', 'lookup', 'pinned',
     '/sys/fs/bpf/unheaded/doom-ring/maps/CPU_MAP', 'key', '222', '0', '0', '0'],
@@ -21,7 +22,7 @@ if not hex_vals:
     print("ERROR: Could not read CPU state")
     print("Raw:", output[:500])
     print("Stderr:", result.stderr[:500])
-    exit(1)
+    sys.exit(1)
 
 raw = bytes(int(h, 16) for h in hex_vals)
 print(f"=== CPU STATE (instance 0xDE) === ({len(raw)} bytes)")

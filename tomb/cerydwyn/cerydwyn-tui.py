@@ -238,7 +238,7 @@ class CerydwynTUI:
         return max_y, max_x
 
     def draw_header(self):
-        max_y, max_x = self.get_dimensions()
+        _max_y, max_x = self.get_dimensions()
         header = " TOMB OF KNOWLEDGE -- THE CERYDWYN "
         header = header.center(max_x - 1)
         try:

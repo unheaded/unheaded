@@ -337,7 +337,7 @@ class ActionManager:
             if row is None:
                 raise ValueError(f"Action {action_id} not found")
 
-            session_id, action_type, intent, status, revertable, trace_id = row
+            session_id, action_type, intent, status, _revertable, trace_id = row
 
             if status == 'reverted':
                 raise ValueError(f"Action {action_id} is already reverted")

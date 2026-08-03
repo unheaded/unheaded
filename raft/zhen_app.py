@@ -796,7 +796,7 @@ backend {svc_name}_back
         interval = parts[-1] if len(parts) > 3 else '30m'
         try:
             from zhen_scheduler import add_schedule
-            entry = add_schedule(name, interval)
+            add_schedule(name, interval)
             return {'answer': f'Scheduled `{name}` every {interval}.\n\nTo start the scheduler daemon: `python3 zhen_scheduler.py`', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
         except Exception as e:
             return {'answer': f'Schedule error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True

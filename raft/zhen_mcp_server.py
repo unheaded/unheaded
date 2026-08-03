@@ -226,7 +226,7 @@ async def tool_service_health(args: dict):
     for name, port in SERVICES.items():
         try:
             req = urllib.request.Request(f"http://localhost:{port}/health", method="GET")
-            with urllib.request.urlopen(req, timeout=2) as resp:
+            with urllib.request.urlopen(req, timeout=2):
                 results.append(f"  [OK]   {name} (:{port})")
                 healthy += 1
         except Exception:

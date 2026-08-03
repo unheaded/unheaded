@@ -292,7 +292,7 @@ def transfer_model(model_name: str, dry_run: bool = False) -> bool:
     # rsync: differential, resumable, progress
     info(f"rsync {vault_dir} → {RUNWAY_PATH}")
     try:
-        result = subprocess.run(
+        subprocess.run(
             [
                 "rsync", "-ah", "--progress", "--partial",
                 "--info=progress2",
