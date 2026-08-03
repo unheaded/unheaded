@@ -38,7 +38,7 @@ compares against this baseline, not against zero.
 | ruff | 427 |
 | bandit | 212 (0 HIGH / 51 MEDIUM / 161 LOW) |
 | shellcheck | 350 (0 error / 98 warning / 252 note) |
-| eslint | unmeasured — no config, no `package.json` |
+| eslint | unmeasured — no config, no `package.json` (**now 57**) |
 | clippy | 0 (gating) |
 | `monad-cpu-ebpf --features ascend-linux` | 901,888 bytes |
 
@@ -77,7 +77,9 @@ compares against this baseline, not against zero.
 | 27 | R2 | 9/10 | `71f43a11` | B105 false positive + env URL scheme guard | bandit 212 → 183 | no |
 | 28 | — | — | (log) | progress log through Phase 9 | — | no |
 | 29 | R2 | 9 | `e4461566` | B108 /tmp paths dispositioned per interface | bandit 183 → 173 | no |
-| 30 | R2 | 9/10 | `70b917da` | bandit group disposition + CI severity-filter finding | **43 left to decide** | no |
+| 30 | R2 | 9/10 | `70b917da` | bandit group disposition + CI severity-filter finding | 43 left to decide | no |
+| 31 | — | — | (log) | progress log through Phase 9/10 | — | no |
+| 32 | R3 | 11 | `2c760ab7` | **eslint measured for the first time** + a real bug fixed | **eslint → 57** | no |
 
 **Current state**: `go test ./...` = 244 packages ok, **0 failures**.
 **ruff 427 → 139 (−67%)** · **bandit 212 → 173**, and only **43** survive the proposed rule-ID skip · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
