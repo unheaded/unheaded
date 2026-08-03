@@ -56,9 +56,11 @@ compares against this baseline, not against zero.
 | 6 | R0 | 3 | `4c46d279` | Shebang/exec-bit reconciliation + dead shebang repair | ruff 335 → 302 | no |
 | 7 | R1 | 4a | `2542d3fc` | shellcheck SC2155 declare-and-assign split | **shellcheck 359 → 343** | no |
 | 8 | R1 | 5 | `011b1f50` | explicit `check=False` on subprocess.run | ruff 302 → 272 | no |
+| 9 | — | — | `e9692dab` | progress log through Phase 5 | — | no |
+| 10 | R1 | 4b | `ff8d090a` | shellcheck SC2034, consumers verified first | **shellcheck 343 → 281** | no |
 
 **Current state**: `go test ./...` = 244 packages ok, **0 failures**.
-**ruff 427 → 272 (−36%)** · **shellcheck 359 → 343** · clippy still 0 · bandit untouched at 212.
+**ruff 427 → 272 (−36%)** · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
 
 ---
 
@@ -95,7 +97,25 @@ compares against this baseline, not against zero.
    cleared at some point without the header being updated. Worth fixing when the ratchet
    lands in Phase 14, since that header is what future sessions measure against.
 
-7. **Vendored code has been edited before.** `5b80e288` applied ruff autofixes to
+7. **A CI gate does not check the thing it computes.** `scripts/bpf-verifier-check.sh`
+   captures `BUILD_EXIT=$?` after `cargo build --release` and an `ERRORS` count of
+   `^error[` lines, then reads **neither**. Only `LINK_ERRORS` feeds `FAILURES`. A BPF
+   program that fails to compile with an ordinary `error[E0433]` leaves this gate
+   reporting success. Both variables were kept and annotated rather than deleted — they
+   are the only evidence the check was intended. **Wiring it in can turn CI red
+   immediately, so it needs your call, not mine.**
+
+8. **Two advertised CLI flags do nothing.** `tomb/provision.sh --verbose` and
+   `scripts/pre-flight-check.sh --strict` are both documented in their usage text,
+   parsed into a variable, and never read. Accepted silently, no effect. Flagged rather
+   than deleted, because the bug is the missing behaviour, not the assignment.
+
+9. **`scripts/doom-test.sh` prints a variable that is never assigned.** The SCREEN_MAP
+   sample line renders `${pixel_8000}`, which nothing sets, so it always shows `??`. The
+   declaration named `pixel_32000` — a third sample read that was intended and never
+   written. Cosmetic, but it means that diagnostic has never shown real data.
+
+10. **Vendored code has been edited before.** `5b80e288` applied ruff autofixes to
    `crates/xv6-mbc/upstream/test-xv6.py`, which is vendored xv6-riscv from `28d5ac98`.
    Not reverted (harmless, and reverting adds churn), but the Phase 14 ruff ratchet
    should exclude `crates/xv6-mbc/upstream/` by path so upstream findings stop counting
@@ -117,10 +137,8 @@ compares against this baseline, not against zero.
 
 ## Where the run stopped
 
-Phases 0-5 complete (plus the added 1.5). **Next up: Phase 4b** (shellcheck `SC2034`,
-62 sites — needs care, the rule cannot see cross-file consumers in sourced scripts),
-then Phase 6 (`DTZ` timezone, 18), Phase 7 (ruff misc, ~55), then the big one,
-Phase 8 (exception handling, 164).
+Phases 0-5 and 4b complete (plus the added 1.5). **Next up: Phase 6** (`DTZ` timezone,
+18), then Phase 7 (ruff misc, ~55), then the big one, Phase 8 (exception handling, 164).
 
 Remaining ruff by rule at this point:
 
@@ -139,6 +157,22 @@ Remaining ruff by rule at this point:
   5 F541     f-string-no-placeholder <- Phase 7
       ... remainder single-digit
 ```
+
+### Two near-misses worth knowing about
+
+Both were caught by verification, not by review, which is the argument for the
+`[V]` gates being non-optional:
+
+- Deleting SC2034 sites **by line number** removed a `for attempt in ...; do` loop
+  *header* in `phase3b-nixos-lxd.sh`, orphaning its body. `bash -n` caught it.
+- The same pass deleted `local pixel_0 pixel_100 pixel_32000`, where only the third
+  was unused — silently promoting two live variables to globals. An audit of every
+  deleted line against "is this a plain assignment?" caught it.
+
+Similarly in Phase 5, anchoring an AST insertion on the closing paren orphaned
+`, check=False)` onto its own line in five multi-line calls; the notebook-aware
+syntax gate from Phase 2 caught all five. **That gate has now paid for itself
+three times in one session.**
 
 ## Stuck items
 
