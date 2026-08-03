@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Configuration module for THE SHIELD
 //!
 //! Handles TOML configuration parsing for the WAF/Gateway.
@@ -408,12 +411,12 @@ impl Default for MetricsConfig {
 impl Config {
     /// Load configuration from a TOML file
     pub fn load<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
-        let content = fs::read_to_string(path.as_ref()).map_err(|e| ConfigError::IoError {
+        let content = fs::read_to_string(path.as_ref()).map_err(|e| ConfigError::Io {
             path: path.as_ref().display().to_string(),
             source: e,
         })?;
 
-        let config: Config = toml::from_str(&content).map_err(|e| ConfigError::ParseError {
+        let config: Config = toml::from_str(&content).map_err(|e| ConfigError::Parse {
             message: e.to_string(),
         })?;
 
@@ -421,12 +424,15 @@ impl Config {
         Ok(config)
     }
 
-    /// Load configuration from a string
-    pub fn from_str(content: &str) -> Result<Self, ConfigError> {
-        let config: Config =
-            toml::from_str(content).map_err(|e| ConfigError::ParseError {
-                message: e.to_string(),
-            })?;
+    /// Load configuration from a string.
+    ///
+    /// Prefer `content.parse::<Config>()`; this is the inherent form kept so
+    /// existing call sites read unchanged. Both go through the same
+    /// [`FromStr`] implementation.
+    pub fn parse_toml(content: &str) -> Result<Self, ConfigError> {
+        let config: Config = toml::from_str(content).map_err(|e| ConfigError::Parse {
+            message: e.to_string(),
+        })?;
 
         config.validate()?;
         Ok(config)
@@ -436,21 +442,21 @@ impl Config {
     fn validate(&self) -> Result<(), ConfigError> {
         // Validate server config
         if self.server.http_port == 0 && self.tls.is_none() {
-            return Err(ConfigError::ValidationError {
+            return Err(ConfigError::Validation {
                 message: "Either HTTP port or TLS must be configured".to_string(),
             });
         }
 
         // Validate backends
         if self.backends.is_empty() {
-            return Err(ConfigError::ValidationError {
+            return Err(ConfigError::Validation {
                 message: "At least one backend must be configured".to_string(),
             });
         }
 
         for backend in &self.backends {
             if backend.address.is_empty() {
-                return Err(ConfigError::ValidationError {
+                return Err(ConfigError::Validation {
                     message: format!("Backend '{}' has empty address", backend.name),
                 });
             }
@@ -459,12 +465,12 @@ impl Config {
         // Validate TLS config if present
         if let Some(ref tls) = self.tls {
             if !Path::new(&tls.cert_path).exists() {
-                return Err(ConfigError::ValidationError {
+                return Err(ConfigError::Validation {
                     message: format!("TLS certificate not found: {}", tls.cert_path),
                 });
             }
             if !Path::new(&tls.key_path).exists() {
-                return Err(ConfigError::ValidationError {
+                return Err(ConfigError::Validation {
                     message: format!("TLS key not found: {}", tls.key_path),
                 });
             }
@@ -474,7 +480,7 @@ impl Config {
         let mut rule_ids = HashSet::new();
         for rule in &self.rules {
             if !rule_ids.insert(&rule.id) {
-                return Err(ConfigError::ValidationError {
+                return Err(ConfigError::Validation {
                     message: format!("Duplicate rule ID: {}", rule.id),
                 });
             }
@@ -483,7 +489,7 @@ impl Config {
             match rule.action.as_str() {
                 "block" | "allow" | "log" | "limit" => {}
                 _ => {
-                    return Err(ConfigError::ValidationError {
+                    return Err(ConfigError::Validation {
                         message: format!(
                             "Invalid action '{}' for rule '{}'. Must be: block, allow, log, limit",
                             rule.action, rule.id
@@ -496,7 +502,7 @@ impl Config {
             match rule.target.as_str() {
                 "query" | "path" | "header" | "body" | "all" | "method" | "uri" => {}
                 _ => {
-                    return Err(ConfigError::ValidationError {
+                    return Err(ConfigError::Validation {
                         message: format!(
                             "Invalid target '{}' for rule '{}'. Must be: query, path, header, body, method, uri, all",
                             rule.target, rule.id
@@ -507,7 +513,7 @@ impl Config {
 
             // Rate limit rules must have rate and per
             if rule.action == "limit" && (rule.rate.is_none() || rule.per.is_none()) {
-                return Err(ConfigError::ValidationError {
+                return Err(ConfigError::Validation {
                     message: format!(
                         "Rate limit rule '{}' must specify 'rate' and 'per'",
                         rule.id
@@ -549,14 +555,14 @@ impl Config {
 /// Configuration errors
 #[derive(Debug)]
 pub enum ConfigError {
-    IoError {
+    Io {
         path: String,
         source: std::io::Error,
     },
-    ParseError {
+    Parse {
         message: String,
     },
-    ValidationError {
+    Validation {
         message: String,
     },
 }
@@ -564,13 +570,13 @@ pub enum ConfigError {
 impl std::fmt::Display for ConfigError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ConfigError::IoError { path, source } => {
+            ConfigError::Io { path, source } => {
                 write!(f, "Failed to read config file '{}': {}", path, source)
             }
-            ConfigError::ParseError { message } => {
+            ConfigError::Parse { message } => {
                 write!(f, "Failed to parse config: {}", message)
             }
-            ConfigError::ValidationError { message } => {
+            ConfigError::Validation { message } => {
                 write!(f, "Config validation failed: {}", message)
             }
         }
@@ -596,7 +602,24 @@ pub fn parse_duration(s: &str) -> Result<Duration, String> {
         "m" => Ok(Duration::from_secs(num * 60)),
         "h" => Ok(Duration::from_secs(num * 3600)),
         "d" => Ok(Duration::from_secs(num * 86400)),
-        _ => Err(format!("Invalid duration unit: {}. Use s, m, h, or d", unit)),
+        _ => Err(format!(
+            "Invalid duration unit: {}. Use s, m, h, or d",
+            unit
+        )),
+    }
+}
+
+impl std::str::FromStr for Config {
+    type Err = ConfigError;
+
+    /// Parse a TOML configuration, then validate it.
+    ///
+    /// This exists because an inherent `Config::from_str` shadowed
+    /// `std::str::FromStr::from_str` without implementing it — a call site
+    /// reading `Config::from_str(s)` looked like the standard trait and was
+    /// not, and `s.parse()` did not work at all. Now it does.
+    fn from_str(content: &str) -> Result<Self, Self::Err> {
+        Config::parse_toml(content)
     }
 }
 
@@ -633,7 +656,7 @@ action = "block"
 log = true
 "#;
 
-        let config = Config::from_str(config_str).unwrap();
+        let config: Config = config_str.parse().unwrap();
         assert_eq!(config.server.listen, "127.0.0.1");
         assert_eq!(config.backends.len(), 1);
         assert_eq!(config.rules.len(), 1);

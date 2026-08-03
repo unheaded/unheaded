@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Circuit Breaker for THE SHIELD
 //!
 //! Implements the circuit breaker pattern to protect backends from cascading failures.
@@ -35,6 +38,9 @@ impl CircuitState {
 /// Configuration for a circuit breaker
 #[derive(Debug, Clone)]
 pub struct CircuitBreakerConfig {
+    /// Whether the breaker is consulted at all (`[circuit_breaker] enabled`).
+    /// Was parsed from config and never read, so disabling it did nothing.
+    pub enabled: bool,
     /// Number of failures before opening the circuit
     pub failure_threshold: u32,
     /// Number of successes in half-open state before closing
@@ -50,6 +56,7 @@ pub struct CircuitBreakerConfig {
 impl Default for CircuitBreakerConfig {
     fn default() -> Self {
         Self {
+            enabled: true,
             failure_threshold: 5,
             success_threshold: 3,
             reset_timeout: Duration::from_secs(60),
@@ -330,6 +337,12 @@ impl CircuitBreakerManager {
         }
     }
 
+    /// Whether circuit breaking is enforced. When false, callers must skip
+    /// the breaker entirely and treat every backend as available.
+    pub fn is_enabled(&self) -> bool {
+        self.default_config.enabled
+    }
+
     /// Get or create a circuit breaker for a backend
     pub async fn get(&self, backend: &str) -> Arc<CircuitBreaker> {
         // Fast path: read lock
@@ -432,6 +445,7 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_closed() {
         let cb = CircuitBreaker::new(CircuitBreakerConfig {
+            enabled: true,
             failure_threshold: 3,
             success_threshold: 2,
             reset_timeout: Duration::from_secs(1),
@@ -450,6 +464,7 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_opens_on_failures() {
         let cb = CircuitBreaker::new(CircuitBreakerConfig {
+            enabled: true,
             failure_threshold: 3,
             success_threshold: 2,
             reset_timeout: Duration::from_secs(1),
@@ -473,6 +488,7 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_half_open_transition() {
         let cb = CircuitBreaker::new(CircuitBreakerConfig {
+            enabled: true,
             failure_threshold: 2,
             success_threshold: 2,
             reset_timeout: Duration::from_millis(100),
@@ -498,6 +514,7 @@ mod tests {
     #[tokio::test]
     async fn test_circuit_breaker_closes_on_success() {
         let cb = CircuitBreaker::new(CircuitBreakerConfig {
+            enabled: true,
             failure_threshold: 2,
             success_threshold: 2,
             reset_timeout: Duration::from_millis(50),
@@ -539,5 +556,27 @@ mod tests {
         // Getting same name should return same instance
         let cb1_again = manager.get("backend1").await;
         assert!(Arc::ptr_eq(&cb1, &cb1_again));
+    }
+
+    /// `[circuit_breaker] enabled` must actually reach the manager.
+    ///
+    /// This config field was parsed and then never read: `main.rs` built the
+    /// manager from `failure_threshold` / `success_threshold` / the timeouts
+    /// and dropped `enabled` on the floor, so setting it to false left the
+    /// breaker fully active. This test is what stops it going inert again.
+    #[test]
+    fn enabled_flag_reaches_the_manager() {
+        let on = CircuitBreakerManager::new(CircuitBreakerConfig::default());
+        assert!(on.is_enabled(), "default config must enforce breaking");
+
+        let off = CircuitBreakerManager::new(CircuitBreakerConfig {
+            enabled: false,
+            ..Default::default()
+        });
+        assert!(
+            !off.is_enabled(),
+            "enabled: false must disable breaking — if this fails, the config \
+             toggle is decorative again and proxy.rs will still short backends"
+        );
     }
 }

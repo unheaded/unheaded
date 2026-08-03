@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Prometheus Metrics for THE SHIELD
 //!
 //! Implements Prometheus-compatible metrics export without external dependencies.
@@ -170,9 +173,19 @@ impl Default for Histogram {
 /// Labels for metric dimensions
 pub type Labels = HashMap<String, String>;
 
+/// A metric's label values, ordered to match its `label_names`. Used as the
+/// map key that identifies one label combination (one time series).
+type LabelKey = Vec<(String, String)>;
+
+/// Per-label-combination counter series.
+type CounterSeries = RwLock<HashMap<LabelKey, Arc<Counter>>>;
+
+/// Per-label-combination histogram series.
+type HistogramSeries = RwLock<HashMap<LabelKey, Arc<Histogram>>>;
+
 /// A counter with labels
 pub struct LabeledCounter {
-    counters: RwLock<HashMap<Vec<(String, String)>, Arc<Counter>>>,
+    counters: CounterSeries,
     label_names: Vec<String>,
 }
 
@@ -185,8 +198,38 @@ impl LabeledCounter {
         }
     }
 
+    /// Enforce the invariant documented on [`LabelKey`]: the label values
+    /// handed to `with_labels` must match the declared `label_names`, in
+    /// order.
+    ///
+    /// Prometheus requires every series of a metric family to carry the same
+    /// label set. If two call sites pass different names — or the same names
+    /// in a different order — the export produces series that disagree, and a
+    /// scraper is entitled to reject the whole family. Nothing checked this
+    /// before, which is why `label_names` read as dead.
+    ///
+    /// `debug_assert` rather than a runtime check on purpose: this sits in the
+    /// per-request hot path, and the label set is fixed by the call site at
+    /// compile time, not by request data. A mismatch is a coding error, caught
+    /// by the test suite, and costs nothing in release.
+    fn assert_label_schema(&self, labels: &[(&str, &str)]) {
+        debug_assert!(
+            labels.len() == self.label_names.len()
+                && labels
+                    .iter()
+                    .zip(&self.label_names)
+                    .all(|((k, _), declared)| k == declared),
+            "label set {:?} does not match declared names {:?} — \
+             Prometheus requires a consistent label set per metric family",
+            labels.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
+            self.label_names,
+        );
+    }
+
     /// Get or create a counter for the given label values
     pub async fn with_labels(&self, labels: &[(&str, &str)]) -> Arc<Counter> {
+        self.assert_label_schema(labels);
+
         let key: Vec<_> = labels
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
@@ -220,7 +263,7 @@ impl LabeledCounter {
 
 /// A histogram with labels
 pub struct LabeledHistogram {
-    histograms: RwLock<HashMap<Vec<(String, String)>, Arc<Histogram>>>,
+    histograms: HistogramSeries,
     label_names: Vec<String>,
     buckets: Vec<f64>,
 }
@@ -237,8 +280,26 @@ impl LabeledHistogram {
         }
     }
 
+    /// Enforce the same label-schema invariant as [`LabeledCounter`]; see
+    /// `LabeledCounter::assert_label_schema` for why this is a `debug_assert`.
+    fn assert_label_schema(&self, labels: &[(&str, &str)]) {
+        debug_assert!(
+            labels.len() == self.label_names.len()
+                && labels
+                    .iter()
+                    .zip(&self.label_names)
+                    .all(|((k, _), declared)| k == declared),
+            "label set {:?} does not match declared names {:?} — \
+             Prometheus requires a consistent label set per metric family",
+            labels.iter().map(|(k, _)| *k).collect::<Vec<_>>(),
+            self.label_names,
+        );
+    }
+
     /// Get or create a histogram for the given label values
     pub async fn with_labels(&self, labels: &[(&str, &str)]) -> Arc<Histogram> {
+        self.assert_label_schema(labels);
+
         let key: Vec<_> = labels
             .iter()
             .map(|(k, v)| (k.to_string(), v.to_string()))
@@ -337,7 +398,9 @@ impl MetricsRegistry {
         ));
 
         // Requests in flight
-        output.push_str("# HELP shield_requests_in_flight Current number of requests being processed\n");
+        output.push_str(
+            "# HELP shield_requests_in_flight Current number of requests being processed\n",
+        );
         output.push_str("# TYPE shield_requests_in_flight gauge\n");
         output.push_str(&format!(
             "shield_requests_in_flight {}\n\n",
@@ -372,7 +435,10 @@ impl MetricsRegistry {
         output.push_str("# TYPE shield_requests_total counter\n");
         for (labels, value) in self.requests_total.all().await {
             let label_str = format_labels(&labels);
-            output.push_str(&format!("shield_requests_total{{{}}} {}\n", label_str, value));
+            output.push_str(&format!(
+                "shield_requests_total{{{}}} {}\n",
+                label_str, value
+            ));
         }
         output.push('\n');
 
@@ -389,7 +455,9 @@ impl MetricsRegistry {
         output.push('\n');
 
         // Rate limited requests
-        output.push_str("# HELP shield_rate_limited_requests_total Requests rejected by rate limiter\n");
+        output.push_str(
+            "# HELP shield_rate_limited_requests_total Requests rejected by rate limiter\n",
+        );
         output.push_str("# TYPE shield_rate_limited_requests_total counter\n");
         for (labels, value) in self.rate_limited_requests.all().await {
             let label_str = format_labels(&labels);
@@ -413,7 +481,9 @@ impl MetricsRegistry {
         output.push('\n');
 
         // Circuit breaker
-        output.push_str("# HELP shield_circuit_breaker_state_changes_total Circuit breaker state changes\n");
+        output.push_str(
+            "# HELP shield_circuit_breaker_state_changes_total Circuit breaker state changes\n",
+        );
         output.push_str("# TYPE shield_circuit_breaker_state_changes_total counter\n");
         for (labels, value) in self.circuit_breaker_state.all().await {
             let label_str = format_labels(&labels);
@@ -481,7 +551,8 @@ impl MetricsRegistry {
         output.push('\n');
 
         // Rule evaluation histogram
-        output.push_str("# HELP shield_rule_evaluation_duration_seconds WAF rule evaluation time\n");
+        output
+            .push_str("# HELP shield_rule_evaluation_duration_seconds WAF rule evaluation time\n");
         output.push_str("# TYPE shield_rule_evaluation_duration_seconds histogram\n");
         let mut cumulative = 0u64;
         for (bound, count) in self.rule_evaluation_duration.buckets() {
@@ -565,6 +636,36 @@ impl Timer {
 mod tests {
     use super::*;
 
+    #[tokio::test]
+    async fn declared_label_names_are_enforced() {
+        let counter = LabeledCounter::new(&["method", "path"]);
+
+        // The declared schema, in the declared order, is accepted.
+        counter
+            .with_labels(&[("method", "GET"), ("path", "/")])
+            .await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "does not match declared names")]
+    async fn wrong_label_order_is_rejected() {
+        // Same names, swapped order. Prometheus treats this as a different
+        // label set for the same family, so the export would disagree with
+        // itself. Before `label_names` was actually read, this passed
+        // silently.
+        let counter = LabeledCounter::new(&["method", "path"]);
+        counter
+            .with_labels(&[("path", "/"), ("method", "GET")])
+            .await;
+    }
+
+    #[tokio::test]
+    #[should_panic(expected = "does not match declared names")]
+    async fn undeclared_label_is_rejected() {
+        let hist = LabeledHistogram::new(&["method"]);
+        hist.with_labels(&[("backend", "api")]).await;
+    }
+
     #[test]
     fn test_counter() {
         let counter = Counter::new();
@@ -619,11 +720,15 @@ mod tests {
     async fn test_labeled_counter() {
         let counter = LabeledCounter::new(&["method", "status"]);
 
-        let c1 = counter.with_labels(&[("method", "GET"), ("status", "200")]).await;
+        let c1 = counter
+            .with_labels(&[("method", "GET"), ("status", "200")])
+            .await;
         c1.inc();
         c1.inc();
 
-        let c2 = counter.with_labels(&[("method", "POST"), ("status", "201")]).await;
+        let c2 = counter
+            .with_labels(&[("method", "POST"), ("status", "201")])
+            .await;
         c2.inc();
 
         let all = counter.all().await;

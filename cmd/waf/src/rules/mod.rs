@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! WAF Rule Engine for THE SHIELD
 //!
 //! This module provides the core rule engine that evaluates incoming requests
@@ -12,6 +15,10 @@ use crate::config::RuleConfig;
 use matcher::{CompiledRule, RequestData};
 use std::collections::HashMap;
 use std::net::IpAddr;
+
+/// A parsed IP list, split into exact addresses and CIDR ranges.
+/// `.0` is matched by set lookup; `.1` needs a prefix-length comparison.
+type ParsedIpList = (std::collections::HashSet<IpAddr>, Vec<(IpAddr, u8)>);
 
 pub use actions::RuleDecision;
 pub use matcher::PatternMatcher;
@@ -99,9 +106,7 @@ impl RuleEngine {
     }
 
     /// Parse IP list into individual IPs and CIDR ranges
-    fn parse_ip_list(
-        ips: &[String],
-    ) -> Result<(std::collections::HashSet<IpAddr>, Vec<(IpAddr, u8)>), RuleEngineError> {
+    fn parse_ip_list(ips: &[String]) -> Result<ParsedIpList, RuleEngineError> {
         let mut ip_set = std::collections::HashSet::new();
         let mut cidr_list = Vec::new();
 
@@ -392,10 +397,10 @@ impl RuleEngine {
             if matches!(
                 name_lower.as_str(),
                 "referer" | "user-agent" | "cookie" | "x-forwarded-for" | "content-type"
-            )
-                && matcher.is_match(value) {
-                    return true;
-                }
+            ) && matcher.is_match(value)
+            {
+                return true;
+            }
         }
 
         false
@@ -452,12 +457,7 @@ mod tests {
 
     #[test]
     fn test_ip_blocklist() {
-        let engine = RuleEngine::new(
-            &[],
-            &[],
-            &["192.168.1.100".to_string()],
-        )
-        .unwrap();
+        let engine = RuleEngine::new(&[], &[], &["192.168.1.100".to_string()]).unwrap();
 
         let request = create_test_request("/api/test", None);
         let result = engine.evaluate(&request);
@@ -468,12 +468,7 @@ mod tests {
 
     #[test]
     fn test_ip_allowlist() {
-        let engine = RuleEngine::new(
-            &[],
-            &["192.168.1.100".to_string()],
-            &[],
-        )
-        .unwrap();
+        let engine = RuleEngine::new(&[], &["192.168.1.100".to_string()], &[]).unwrap();
 
         let request = create_test_request("/api/test", None);
         let result = engine.evaluate(&request);
@@ -484,12 +479,7 @@ mod tests {
 
     #[test]
     fn test_cidr_matching() {
-        let engine = RuleEngine::new(
-            &[],
-            &[],
-            &["192.168.1.0/24".to_string()],
-        )
-        .unwrap();
+        let engine = RuleEngine::new(&[], &[], &["192.168.1.0/24".to_string()]).unwrap();
 
         let request = create_test_request("/api/test", None);
         let result = engine.evaluate(&request);

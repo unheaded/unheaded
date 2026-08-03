@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Reverse Proxy for THE SHIELD
 //!
 //! High-performance reverse proxy with connection pooling.
@@ -106,11 +109,10 @@ impl ConnectionPool {
         }
 
         // Create a new connection
-        let stream =
-            timeout(self.connect_timeout, TcpStream::connect(self.address))
-                .await
-                .map_err(|_| ProxyError::Timeout)?
-                .map_err(|e| ProxyError::ConnectionFailed(e.to_string()))?;
+        let stream = timeout(self.connect_timeout, TcpStream::connect(self.address))
+            .await
+            .map_err(|_| ProxyError::Timeout)?
+            .map_err(|e| ProxyError::ConnectionFailed(e.to_string()))?;
 
         // Set TCP options for performance
         stream.set_nodelay(true).ok();
@@ -334,31 +336,37 @@ impl ReverseProxy {
         mut request: Request<Full<Bytes>>,
     ) -> Result<Response<Full<Bytes>>, ProxyError> {
         // Select a backend
-        let backend = self
-            .load_balancer
-            .select()
-            .ok_or(ProxyError::NoBackends)?;
+        let backend = self.load_balancer.select().ok_or(ProxyError::NoBackends)?;
 
-        // Check circuit breaker
-        let circuit_breaker = self.circuit_breakers.get(&backend.name).await;
-        if circuit_breaker.state().await == CircuitState::Open {
-            self.metrics
-                .backend_errors
-                .with_labels(&[("backend", &backend.name), ("error_type", "circuit_open")])
-                .await
-                .inc();
-            return Err(ProxyError::CircuitOpen);
-        }
+        // Check circuit breaker — when disabled, no breaker is fetched, so
+        // nothing is consulted AND nothing is recorded for this request.
+        // `None` here means "breaking is off", not "backend is healthy".
+        let circuit_breaker = if self.circuit_breakers.is_enabled() {
+            let cb = self.circuit_breakers.get(&backend.name).await;
+            if cb.state().await == CircuitState::Open {
+                self.metrics
+                    .backend_errors
+                    .with_labels(&[("backend", &backend.name), ("error_type", "circuit_open")])
+                    .await
+                    .inc();
+                return Err(ProxyError::CircuitOpen);
+            }
 
-        if !circuit_breaker.allow_request().await {
-            return Err(ProxyError::CircuitOpen);
-        }
+            if !cb.allow_request().await {
+                return Err(ProxyError::CircuitOpen);
+            }
+            Some(cb)
+        } else {
+            None
+        };
 
         // Get connection from pool
         let stream = match backend.get_connection().await {
             Ok(s) => s,
             Err(e) => {
-                circuit_breaker.record_failure().await;
+                if let Some(cb) = &circuit_breaker {
+                    cb.record_failure().await;
+                }
                 self.metrics
                     .backend_errors
                     .with_labels(&[("backend", &backend.name), ("error_type", "connection")])
@@ -370,10 +378,9 @@ impl ReverseProxy {
 
         // Update request headers
         let host = backend.address.to_string();
-        request.headers_mut().insert(
-            hyper::header::HOST,
-            host.parse().unwrap(),
-        );
+        request
+            .headers_mut()
+            .insert(hyper::header::HOST, host.parse().unwrap());
 
         // Add X-Forwarded headers
         // Note: In production, you'd want to preserve existing values
@@ -381,22 +388,22 @@ impl ReverseProxy {
         // before headers_mut() mutates the same request.
         let client_addr = request.extensions().get::<SocketAddr>().copied();
         if let Some(addr) = client_addr {
-            request.headers_mut().insert(
-                "X-Forwarded-For",
-                addr.ip().to_string().parse().unwrap(),
-            );
+            request
+                .headers_mut()
+                .insert("X-Forwarded-For", addr.ip().to_string().parse().unwrap());
         }
 
-        request.headers_mut().insert(
-            "X-Forwarded-Proto",
-            "http".parse().unwrap(),
-        );
+        request
+            .headers_mut()
+            .insert("X-Forwarded-Proto", "http".parse().unwrap());
 
         // Create HTTP connection
         let (mut sender, conn) = match http1::handshake(TokioIo::new(stream)).await {
             Ok(c) => c,
             Err(e) => {
-                circuit_breaker.record_failure().await;
+                if let Some(cb) = &circuit_breaker {
+                    cb.record_failure().await;
+                }
                 self.metrics
                     .backend_errors
                     .with_labels(&[("backend", &backend.name), ("error_type", "handshake")])
@@ -417,7 +424,9 @@ impl ReverseProxy {
         let response = match timeout(self.request_timeout, sender.send_request(request)).await {
             Ok(Ok(resp)) => resp,
             Ok(Err(e)) => {
-                circuit_breaker.record_failure().await;
+                if let Some(cb) = &circuit_breaker {
+                    cb.record_failure().await;
+                }
                 self.metrics
                     .backend_errors
                     .with_labels(&[("backend", &backend.name), ("error_type", "request")])
@@ -426,7 +435,9 @@ impl ReverseProxy {
                 return Err(ProxyError::ForwardFailed(e.to_string()));
             }
             Err(_) => {
-                circuit_breaker.record_failure().await;
+                if let Some(cb) = &circuit_breaker {
+                    cb.record_failure().await;
+                }
                 self.metrics
                     .backend_errors
                     .with_labels(&[("backend", &backend.name), ("error_type", "timeout")])
@@ -437,7 +448,9 @@ impl ReverseProxy {
         };
 
         // Record success
-        circuit_breaker.record_success().await;
+        if let Some(cb) = &circuit_breaker {
+            cb.record_success().await;
+        }
 
         // Convert response body
         let (parts, body) = response.into_parts();
@@ -467,7 +480,9 @@ impl ReverseProxy {
                 "No healthy backends available",
             ),
             ProxyError::Timeout => (StatusCode::GATEWAY_TIMEOUT, "Backend timeout"),
-            ProxyError::ConnectionFailed(_) => (StatusCode::BAD_GATEWAY, "Backend connection failed"),
+            ProxyError::ConnectionFailed(_) => {
+                (StatusCode::BAD_GATEWAY, "Backend connection failed")
+            }
             ProxyError::ForwardFailed(_) => (StatusCode::BAD_GATEWAY, "Request forwarding failed"),
             ProxyError::InvalidConfig(_) => {
                 (StatusCode::INTERNAL_SERVER_ERROR, "Configuration error")
@@ -526,10 +541,7 @@ impl HealthChecker {
 
     /// Check a single backend
     async fn check_backend(&self, backend: &Backend) -> bool {
-        let path = backend
-            .health_check_path
-            .as_deref()
-            .unwrap_or("/health");
+        let path = backend.health_check_path.as_deref().unwrap_or("/health");
 
         match timeout(self.timeout, TcpStream::connect(backend.address)).await {
             Ok(Ok(stream)) => {
@@ -641,20 +653,26 @@ mod tests {
     #[test]
     fn test_load_balancer_round_robin() {
         let backends = vec![
-            Arc::new(Backend::from_config(&BackendConfig {
-                name: "b1".to_string(),
-                address: "127.0.0.1:8001".to_string(),
-                weight: 1,
-                health_check_path: None,
-                pool_size: 10,
-            }).unwrap()),
-            Arc::new(Backend::from_config(&BackendConfig {
-                name: "b2".to_string(),
-                address: "127.0.0.1:8002".to_string(),
-                weight: 1,
-                health_check_path: None,
-                pool_size: 10,
-            }).unwrap()),
+            Arc::new(
+                Backend::from_config(&BackendConfig {
+                    name: "b1".to_string(),
+                    address: "127.0.0.1:8001".to_string(),
+                    weight: 1,
+                    health_check_path: None,
+                    pool_size: 10,
+                })
+                .unwrap(),
+            ),
+            Arc::new(
+                Backend::from_config(&BackendConfig {
+                    name: "b2".to_string(),
+                    address: "127.0.0.1:8002".to_string(),
+                    weight: 1,
+                    health_check_path: None,
+                    pool_size: 10,
+                })
+                .unwrap(),
+            ),
         ];
 
         let lb = LoadBalancer::new(backends, LoadBalanceStrategy::RoundRobin);
@@ -670,13 +688,16 @@ mod tests {
 
     #[test]
     fn test_load_balancer_no_healthy() {
-        let backend = Arc::new(Backend::from_config(&BackendConfig {
-            name: "b1".to_string(),
-            address: "127.0.0.1:8001".to_string(),
-            weight: 1,
-            health_check_path: None,
-            pool_size: 10,
-        }).unwrap());
+        let backend = Arc::new(
+            Backend::from_config(&BackendConfig {
+                name: "b1".to_string(),
+                address: "127.0.0.1:8001".to_string(),
+                weight: 1,
+                health_check_path: None,
+                pool_size: 10,
+            })
+            .unwrap(),
+        );
 
         backend.set_healthy(false);
 
