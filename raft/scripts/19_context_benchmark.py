@@ -12,6 +12,7 @@ Dependent variables: generation speed (tok/s), VRAM usage, first-token latency, 
 Output: raft/experiments/context_window_benchmark.json
 """
 import json
+import logging
 import os
 import signal
 import subprocess
@@ -19,6 +20,10 @@ import time
 from pathlib import Path
 
 import requests
+
+# Module logger. These handlers skip an item that could not be read; at debug
+# level the reason is available when you need it and silent when you do not.
+log = logging.getLogger(__name__)
 
 # ─── Config ──────────────────────────────────────────────────────────────────
 
@@ -106,8 +111,8 @@ def kill_existing_llama():
                 except (ProcessLookupError, ValueError):
                     pass
             time.sleep(2)
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug('skipped: %s', e)
 
 
 def start_llama_server(context_size):
@@ -143,8 +148,8 @@ def start_llama_server(context_size):
             r = requests.get(f'{INFERENCE_URL}/v1/models', timeout=3)
             if r.status_code == 200:
                 return proc
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug('skipped: %s', e)
         time.sleep(2)
 
     proc.terminate()
@@ -170,8 +175,8 @@ def get_vram_usage():
                             'used_mb': int(used) / (1024 * 1024),
                             'total_mb': int(total) / (1024 * 1024),
                         }
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug('skipped: %s', e)
     # Fallback: try /sys
     try:
         used = int(Path('/sys/class/drm/card1/device/mem_info_vram_used').read_text().strip())

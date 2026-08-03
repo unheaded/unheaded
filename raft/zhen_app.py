@@ -200,8 +200,8 @@ def _pg_log(role, content, sources='[]', model='', tokens_input=0, tokens_output
         # Attempt reconnect on next call
         try:
             pg_conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug('[zhen] could not close the dead Postgres handle before reconnect: %s', e)
         pg_conn = _pg_connect()
 
 
@@ -445,8 +445,8 @@ def _build_live_context(question, max_chars=4096):
             if len(names) > 25:
                 lines.append(f'  ... and {len(names) - 25} more')
             parts.append('\n'.join(lines))
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug('[zhen] kanban name list omitted from context: %s', e)
 
         if pg_conn is not None:
             try:
@@ -467,8 +467,8 @@ def _build_live_context(question, max_chars=4096):
                         lines.append(f'  #{rid} [{planned}] {status} '
                                      f'({elapsed_ms or 0}ms): {intent or ""}')
                     parts.append('\n'.join(lines))
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug('[zhen] recent-runs list omitted from context: %s', e)
 
     if 'health' in intents:
         # Quick probes; same shape as /api/v1/system/state.
@@ -725,8 +725,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             for unit in failed_units:
                 lines.append(f'  ⚠ {unit} — **DRIFT: systemd unit FAILED**')
                 drifts += 1
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug('[zhen] systemd drift check skipped: %s', e)
 
         if drifts == 0:
             lines.append('\n**No drift detected.** All services aligned with desired state.')
@@ -1016,8 +1016,8 @@ def query():
                         f"served_by: local llama-server on AMD RX 7700 XT (ROCm)\n"
                         f"persona: zhen (真爱), chat surface of the Unheaded Kingdom\n"
                     )
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug('[zhen] inference metadata omitted from context: %s', e)
         if identity_block:
             live_ctx = identity_block + ('\n\n' + live_ctx if live_ctx else '')
 
@@ -1322,8 +1322,8 @@ def stats():
                 # the file-identity match the UI poll needs.
                 loaded = loaded.removesuffix('.gguf')
                 inference_model = loaded
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug('[zhen] could not resolve the loaded model label: %s', e)
 
     return jsonify({
         'backend':           'vor',
@@ -1683,8 +1683,8 @@ def list_skills():
                                         triggers = [t.strip().rstrip('.') for t in trig_text.split(',') if t.strip()]
                                 description = ' '.join(desc_lines).strip()
                         break
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug('[zhen] runbook description parse failed: %s', e)
 
         skills.append({
             'name': name,
@@ -2138,8 +2138,8 @@ def execute_runbook(name):
                     'trust_level': TRUST_LEVEL,
                     'risk': risk,
                 }), 403
-        except Exception:
-            pass  # parse failure is non-blocking — let the daemon's gate decide
+        except Exception as e:
+            log.debug('[zhen] risk-gate parse failed; the daemon gate decides: %s', e)
 
     # Compute the runbook name argument the way Champion.RunbookExecute
     # expects it: "<category>/<runbook>" relative to the runbooks/ dir,
