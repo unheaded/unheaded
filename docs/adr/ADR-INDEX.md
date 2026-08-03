@@ -1,13 +1,18 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-07-24
-**Total:** 73 ADRs (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-027-065 across sessions; ADR-066/067/072/073 added; ADR-69420 pipe-dream; ADR-084 huginn; ADR-088 kubernetes)
+**Last updated:** 2026-08-03
+**Total:** 75 ADRs (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-027-065 across sessions; ADR-066/067/072/073 added; ADR-69420 pipe-dream; ADR-084 huginn; ADR-088 kubernetes; ADR-089 promotion workflow; ADR-090 total source sweep)
+
+> **Index gap:** ADR-082 and ADR-083 exist on disk but have never been registered here
+> or in the table below. Noted 2026-08-03; needs a Librarian pass.
 
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
 **ADR-085 added 2026-07-24:** CI/CD artifact layout — canonical `/var/` hierarchy for binaries, data, config, APT repo; 4-phase implementation plan (binary install → .deb → CI pipeline → registry).
 **ADR-086 added 2026-07-24:** Muninn observability fan-out pipeline — routes host metrics, logs, and auth events to VictoriaMetrics, PostgreSQL, and SIEM; SSH/TTY login history to `ops.login_events`; YAML-configured routing rules.
 **ADR-087 added 2026-07-24:** NOC — network device monitoring and config management. Kvasir (IPFIX/NetFlow/sFlow collector wrapping GoFlow2), Muninn syslog extension, Huginn SNMP extension, Ansible+NETCONF/YANG GitOps for Junos. JNCIA lab alignment.
 **ADR-088 added 2026-07-24:** Kingdom deployment substrate ladder — Compose+systemd+NixOS+Ansible+Terraform+K8s+.deb/apt as additive, optional substrates on top of the custom protocol stack. K8s DaemonSet/StatefulSet/Deployment targets, Ansible roles, apt repo, NixOS modules; certification alignment table (CKA, JNCIA, Terraform associate, RHCSA).
+**ADR-089 added 2026-08-03:** `develop` → `staging` → `main` promotion workflow — three long-lived branches, each answering a different question (does it work / does it break anything else / do we stand behind it). One-reviewable-unit-per-commit rule, EAST as the staging deploy target, never-promote-red, shrink-only baselines, revert-not-force-push rollback. **Accepted.**
+**ADR-090 added 2026-08-03:** The Total Source Sweep — read all 1,836 tracked source files exactly once, in fixed order, recording a per-file verdict in a resumable TSV ledger. Rubric for what counts as slop, and an explicit "NOT slop" list (defensive checks, tests, clarity, why-comments) so a LOC-reduction campaign cannot damage the tree. **Proposed** — activates after the Staging Ladder sprint.
 
 ## Status Summary
 
