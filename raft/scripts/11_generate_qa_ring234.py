@@ -186,9 +186,9 @@ Respond in this exact JSON format:
 
             if json_match:
                 qa = json.loads(json_match.group())
-                if 'question' in qa and 'answer' in qa:
-                    if len(qa['question']) > 10 and len(qa['answer']) > 20:
-                        return qa
+                if ('question' in qa and 'answer' in qa
+                        and len(qa['question']) > 10 and len(qa['answer']) > 20):
+                    return qa
 
             if attempt < max_retries:
                 time.sleep(1)
