@@ -61,10 +61,12 @@ compares against this baseline, not against zero.
 | 11 | — | — | `39c19b19` | progress log through Phase 4b | — | no |
 | 12 | R1 | 6 | `6218e9bf` | timezone-aware datetimes, no clock moved | ruff 272 → 254 | no |
 | 13 | R2 | 7A | `a11894b9` | notebook unused imports + dead f-prefixes | ruff 254 → 243 | no |
-| 14 | R2 | 7A | `1af220d2` | F841 / RUF059 / PLR1722 | **ruff 243 → 228** | no |
+| 14 | R2 | 7A | `1af220d2` | F841 / RUF059 / PLR1722 | ruff 243 → 228 | no |
+| 15 | — | — | `4a24b0dd` | progress log through Phase 7A | — | no |
+| 16 | R2 | 7B | `8d07d33d` | PIE810 / ISC004 / C401 / PERF102 / SIM101 / TRY201 / RUF013 | **ruff 228 → 210** | no |
 
 **Current state**: `go test ./...` = 244 packages ok, **0 failures**.
-**ruff 427 → 228 (−47%)** · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
+**ruff 427 → 210 (−51%)** · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
 
 ---
 
@@ -141,9 +143,18 @@ compares against this baseline, not against zero.
 
 ## Where the run stopped
 
-Phases 0-6 and 4b complete, plus Phase 7 Batch A. **Next up: Phase 7 Batch B/C**
-(PIE810, ISC004, C401, PERF102, SIM*, LOG015, TRY*, PLW0602 — ~40 sites), then the big
-one, Phase 8 (exception handling: BLE001 123 + S110 30 + E722 11 = 164 sites).
+Phases 0-6, 4b, and Phase 7 Batches A+B complete. **Next up: Phase 7 Batch C**
+(LOG015 9, PLW0602 8, SIM115 5, SIM102 3, TRY002 3, TRY004 1, UP031 1, PLC0206 2,
+SIM103 2 — ~34 sites), then the big one, Phase 8 (exception handling:
+BLE001 123 + S110 30 + E722 11 = **164 sites**, ~38% of the original backlog).
+
+**Phase 8 is the one that will want your eye.** Every site is a judgement about what
+an `except Exception:` is allowed to swallow, and there is no autofix. The plan's
+approach is a per-site worksheet at
+`docs/security/exception-handling-triage-2026-08-03.md` — a row per site with what the
+try body can raise and the chosen disposition (narrow / keep-but-log / keep-annotated)
+— written *before* any edit, so the commit is reviewable as reasoning rather than as
+164 scattered diffs.
 
 Remaining ruff by rule (228 total, 3 of them in vendored xv6 upstream):
 
