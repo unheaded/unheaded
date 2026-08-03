@@ -74,10 +74,13 @@ compares against this baseline, not against zero.
 | 24 | R2 | 8b | `6618561e` | **S110 → 0** — silent swallows now visible | ruff 170 → 146 | no |
 | 25 | R2 | 8c | `725b4e3d` | BLE001 triaged (not fixed) — decision doc | — | no |
 | 26 | R3 | 13 | `bbfb4806` | async blocking calls annotated w/ expiry condition | ruff 146 → 139 | no |
-| 27 | R2 | 9/10 | `71f43a11` | B105 false positive + env URL scheme guard | **bandit 212 → 183** | no |
+| 27 | R2 | 9/10 | `71f43a11` | B105 false positive + env URL scheme guard | bandit 212 → 183 | no |
+| 28 | — | — | (log) | progress log through Phase 9 | — | no |
+| 29 | R2 | 9 | `e4461566` | B108 /tmp paths dispositioned per interface | bandit 183 → 173 | no |
+| 30 | R2 | 9/10 | `70b917da` | bandit group disposition + CI severity-filter finding | **43 left to decide** | no |
 
 **Current state**: `go test ./...` = 244 packages ok, **0 failures**.
-**ruff 427 → 139 (−67%)** · **bandit 212 → 183** · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
+**ruff 427 → 139 (−67%)** · **bandit 212 → 173**, and only **43** survive the proposed rule-ID skip · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
 
 ---
 
