@@ -98,7 +98,7 @@ TEST_QUERIES = [
 def kill_existing_llama():
     """Kill any running llama-server on our port."""
     try:
-        result = subprocess.run(['lsof', '-ti', f':{PORT}'], capture_output=True, text=True)
+        result = subprocess.run(['lsof', '-ti', f':{PORT}'], capture_output=True, text=True, check=False)
         if result.stdout.strip():
             for pid in result.stdout.strip().split('\n'):
                 try:
@@ -156,7 +156,7 @@ def get_vram_usage():
     try:
         result = subprocess.run(
             ['rocm-smi', '--showmeminfo', 'vram', '--json'],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, timeout=5, check=False,
         )
         if result.returncode == 0:
             data = json.loads(result.stdout)

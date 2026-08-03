@@ -325,12 +325,12 @@ def stop_vllm():
     try:
         result = subprocess.run(
             ["docker", "inspect", VLLM_CONTAINER],
-            capture_output=True, text=True,
+            capture_output=True, text=True, check=False,
         )
         if result.returncode == 0:
             info(f"Stopping existing vLLM container: {VLLM_CONTAINER}")
-            subprocess.run(["docker", "stop", VLLM_CONTAINER], capture_output=True)
-            subprocess.run(["docker", "rm", VLLM_CONTAINER], capture_output=True)
+            subprocess.run(["docker", "stop", VLLM_CONTAINER], capture_output=True, check=False)
+            subprocess.run(["docker", "rm", VLLM_CONTAINER], capture_output=True, check=False)
     except FileNotFoundError:
         err("Docker not found!")
 
@@ -420,7 +420,7 @@ def launch_vllm(model_name: str, dry_run: bool = False) -> bool:
             try:
                 health = subprocess.run(
                     ["curl", "-sf", f"http://localhost:{VLLM_PORT}/health"],
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True, text=True, timeout=5, check=False,
                 )
                 if health.returncode == 0:
                     ok(f"vLLM healthy after {(i+1)*5}s!")
@@ -477,7 +477,7 @@ def display_status():
     try:
         result = subprocess.run(
             ["docker", "inspect", "--format", "{{.State.Status}}", VLLM_CONTAINER],
-            capture_output=True, text=True,
+            capture_output=True, text=True, check=False,
         )
         if result.returncode == 0:
             status = result.stdout.strip()
@@ -485,7 +485,7 @@ def display_status():
             if status == "running":
                 health = subprocess.run(
                     ["curl", "-sf", f"http://localhost:{VLLM_PORT}/health"],
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True, text=True, timeout=5, check=False,
                 )
                 if health.returncode == 0:
                     ok(f"API healthy on port {VLLM_PORT}")

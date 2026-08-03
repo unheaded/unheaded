@@ -6,7 +6,7 @@ import subprocess
 
 result = subprocess.run(['sudo', 'bpftool', 'map', 'lookup', 'pinned',
     '/sys/fs/bpf/unheaded/doom-ring/maps/CPU_MAP', 'key', '222', '0', '0', '0'],
-    capture_output=True, text=True)
+    capture_output=True, text=True, check=False)
 
 output = result.stdout
 # Try 0xNN format first
