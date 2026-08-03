@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Span representation for distributed tracing.
 //!
 //! A span represents a single operation within a trace.
@@ -28,7 +31,6 @@ pub enum SpanKind {
     Consumer,
 }
 
-
 /// Span status
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -42,7 +44,6 @@ pub enum SpanStatus {
     /// Operation failed
     Error,
 }
-
 
 /// A span event (point-in-time occurrence within a span)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -495,7 +496,9 @@ mod tests {
         let i: AttributeValue = 42i64.into();
         assert!(matches!(i, AttributeValue::Int(42)));
 
-        let f: AttributeValue = 3.14f64.into();
+        // Not 3.14: clippy::approx_constant reads it as a botched f64::consts::PI.
+        // The test only needs some f64, so use one that isn't near a constant.
+        let f: AttributeValue = 42.5f64.into();
         assert!(matches!(f, AttributeValue::Float(_)));
 
         let b: AttributeValue = true.into();

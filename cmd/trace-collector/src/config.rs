@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Configuration management for the trace collector.
 
 use std::path::Path;
@@ -20,6 +23,14 @@ pub struct Config {
     #[serde(default = "default_perf_buffer_pages")]
     pub perf_buffer_pages: usize,
 
+    /// Ring-buffer poll interval, in milliseconds.
+    ///
+    /// Bounds how long a reader blocks in `poll()` before re-checking the
+    /// shutdown flag, so it is also the worst-case shutdown latency. Lower
+    /// values shorten that at the cost of more wakeups.
+    #[serde(default = "default_poll_timeout_ms")]
+    pub poll_timeout_ms: u64,
+
     /// Wotan publisher configuration
     #[serde(default)]
     pub publisher: PublisherConfig,
@@ -39,6 +50,7 @@ impl Default for Config {
             event_queue_size: default_event_queue_size(),
             ringbuf_size: default_ringbuf_size(),
             perf_buffer_pages: default_perf_buffer_pages(),
+            poll_timeout_ms: default_poll_timeout_ms(),
             publisher: PublisherConfig::default(),
             filters: FilterConfig::default(),
             metrics: MetricsConfig::default(),
@@ -159,6 +171,10 @@ fn default_ringbuf_size() -> usize {
 
 fn default_perf_buffer_pages() -> usize {
     64 // 256 KB per CPU
+}
+
+fn default_poll_timeout_ms() -> u64 {
+    100
 }
 
 fn default_batch_size() -> usize {
