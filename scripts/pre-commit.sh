@@ -65,7 +65,9 @@ echo "=== Results: ${PASS} passed, ${FAIL} failed ==="
 
 if [ "${FAIL}" -gt 0 ]; then
     echo ""
-    printf "Failed checks:${ERRORS}\n"
+    # %b, not %s: ERRORS accumulates \n escapes that printf must expand, but the
+    # check names interpolated into it are data and must not be a format string.
+    printf 'Failed checks:%b\n' "${ERRORS}"
     echo ""
     echo "Commit blocked. Fix the issues above and try again."
     echo "To bypass (not recommended): git commit --no-verify"
