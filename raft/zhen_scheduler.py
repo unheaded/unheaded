@@ -96,8 +96,8 @@ def heartbeat():
         pct_used = (1 - st.f_bavail / st.f_blocks) * 100
         if pct_used > 85:
             issues.append(f'Disk / is {pct_used:.0f}% full')
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug('skipped: %s', e)
 
     # Check swap usage
     try:
@@ -113,8 +113,8 @@ def heartbeat():
             swap_pct = (1 - swap_free / swap_total) * 100
             if swap_pct > 50:
                 issues.append(f'Swap is {swap_pct:.0f}% used')
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug('skipped: %s', e)
 
     if issues:
         log.warning(f'HEARTBEAT ALERT: {len(issues)} issues — ' + '; '.join(issues))

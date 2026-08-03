@@ -27,10 +27,15 @@ import fnmatch
 import glob
 import hashlib
 import json
+import logging
 import os
 import sys
 import time
 from pathlib import Path
+
+# Module logger. These handlers skip an item that could not be read; at debug
+# level the reason is available when you need it and silent when you do not.
+log = logging.getLogger(__name__)
 
 try:
     import anthropic
@@ -201,8 +206,8 @@ def collect_files(category_name: str, category: dict) -> list[tuple[str, str]]:
                     content = Path(f).read_text(errors="replace")
                     if len(content) > 100:
                         files.append((f, content))
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug('skipped: %s', e)
 
     if "pattern" in category and "glob_dirs" not in category:
         for f in sorted(glob.glob(category["pattern"], recursive=True)):
@@ -211,8 +216,8 @@ def collect_files(category_name: str, category: dict) -> list[tuple[str, str]]:
                     content = Path(f).read_text(errors="replace")
                     if len(content) > 100:
                         files.append((f, content))
-                except Exception:
-                    pass
+                except Exception as e:
+                    log.debug('skipped: %s', e)
 
     if "glob_dirs" in category:
         search_subdir = category.get("search_subdir", "")
@@ -233,8 +238,8 @@ def collect_files(category_name: str, category: dict) -> list[tuple[str, str]]:
                             content = Path(fp).read_text(errors="replace")
                             if len(content) > 100:
                                 files.append((fp, content))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log.debug('skipped: %s', e)
 
     if "root_dir" in category:
         exts = set(category.get("extensions", []))
@@ -251,8 +256,8 @@ def collect_files(category_name: str, category: dict) -> list[tuple[str, str]]:
                                 if max_content > 0 and len(content) > max_content:
                                     content = content[:max_content] + "\n\n[... truncated for length ...]"
                                 files.append((fp, content))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log.debug('skipped: %s', e)
 
     if "dirs" in category:
         exts = set(category.get("extensions", []))
@@ -267,8 +272,8 @@ def collect_files(category_name: str, category: dict) -> list[tuple[str, str]]:
                             content = Path(fp).read_text(errors="replace")
                             if len(content) > 100:
                                 files.append((fp, content))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log.debug('skipped: %s', e)
 
     max_files = category.get("max_files", 500)
     if len(files) > max_files:
@@ -319,8 +324,8 @@ def collect_full_repo() -> list[tuple[str, dict, str, str]]:
                 prompt_prefix, qa_count = extensions[ext]
                 cat = {"prompt_prefix": f"{prompt_prefix} from the Unheaded Kingdom", "qa_count": qa_count}
                 files.append(("repo", cat, fp, content))
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug('skipped: %s', e)
 
     # Also add skill files
     skills_dir = os.path.expanduser("~/.claude/skills/")
@@ -335,8 +340,8 @@ def collect_full_repo() -> list[tuple[str, dict, str, str]]:
                             if len(content) > 100:
                                 cat = {"prompt_prefix": "Kingdom skill definition", "qa_count": 10}
                                 files.append(("skills", cat, fp, content))
-                        except Exception:
-                            pass
+                        except Exception as e:
+                            log.debug('skipped: %s', e)
 
     return files
 
