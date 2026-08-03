@@ -1,4 +1,4 @@
-#\!/usr/bin/env python3
+#!/usr/bin/env python3
 """Fast bulk packet injector for Doom ring. Run inside monad0 namespace.
 Adds a small delay between packets to prevent drops."""
 import socket
