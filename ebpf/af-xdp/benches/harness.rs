@@ -100,18 +100,6 @@ impl BenchRunner {
         }
     }
 
-    /// Run the benchmark with a setup/teardown wrapper.
-    /// `setup` is called once before all iterations.
-    /// `f` receives the shared state and iteration index.
-    pub fn run_with_setup<S, F: FnMut(&mut S, u32)>(&mut self, mut state: S, mut f: F) {
-        self.results.clear();
-        for i in 0..self.iterations {
-            let start = Instant::now();
-            f(&mut state, i);
-            self.results.push(start.elapsed());
-        }
-    }
-
     /// Compute the report from collected results.
     /// `throughput_unit` describes what's being measured (e.g., "frames/sec", "ops/sec").
     /// `items_per_iter` is the number of logical items per iteration (for throughput calc).
@@ -316,7 +304,7 @@ mod tests {
 
     #[test]
     fn test_percentile_sorted() {
-        let durations: Vec<Duration> = (1..=100).map(|i| Duration::from_nanos(i)).collect();
+        let durations: Vec<Duration> = (1..=100).map(Duration::from_nanos).collect();
         assert_eq!(percentile(&durations, 50), Duration::from_nanos(50));
         assert_eq!(percentile(&durations, 99), Duration::from_nanos(99));
         assert_eq!(percentile(&durations, 100), Duration::from_nanos(100));

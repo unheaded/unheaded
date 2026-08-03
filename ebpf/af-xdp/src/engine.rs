@@ -296,7 +296,6 @@ impl Drop for XdpEngine {
 /// For lowest latency, use SO_BUSY_POLL instead.
 pub struct EventLoop {
     epoll_fd: RawFd,
-    socket_fd: RawFd,
 }
 
 impl EventLoop {
@@ -317,14 +316,15 @@ impl EventLoop {
             libc_epoll_ctl(epoll_fd, 1, socket_fd, &mut event) // EPOLL_CTL_ADD=1
         };
         if ret < 0 {
-            unsafe { crate::syscall::close(epoll_fd) };
+            // Cleanup path: the ADD already failed, nothing to recover.
+            let _ = unsafe { crate::syscall::close(epoll_fd) };
             return Err("epoll_ctl ADD failed");
         }
 
-        Ok(EventLoop {
-            epoll_fd,
-            socket_fd,
-        })
+        // `socket_fd` is deliberately not retained: it is registered with
+        // epoll above, and this type does not own it (Drop closes only
+        // `epoll_fd`). Storing a borrowed fd invites a double close.
+        Ok(EventLoop { epoll_fd })
     }
 
     /// Wait for events with timeout (milliseconds).
@@ -348,7 +348,8 @@ impl EventLoop {
 
 impl Drop for EventLoop {
     fn drop(&mut self) {
-        unsafe { crate::syscall::close(self.epoll_fd) };
+        // Drop cannot report failure; closing is best-effort.
+        let _ = unsafe { crate::syscall::close(self.epoll_fd) };
     }
 }
 
