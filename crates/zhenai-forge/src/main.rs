@@ -1,31 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
 
-//! # Zhenai Forge
+//! # Zhenai Forge — command-line interface
 //!
-//! Custom Rust LoRA fine-tuning tool for GGUF models.
-//! Reads quantized models directly (no fp16 decompression),
-//! trains LoRA adapters on GPU via ROCm/HIP.
-//!
-//! Usage:
-//!   zhenai-forge train --model model.gguf --data train.jsonl --output lora.gguf
-//!   zhenai-forge eval --model model.gguf --lora lora.gguf --data eval.jsonl
+//! Argument parsing and subcommand dispatch. Everything it drives lives in
+//! the `zhenai_forge` library crate (`src/lib.rs`), which is where the
+//! training and evaluation code — and the notes on this crate's lint
+//! exemptions — live.
 
-mod backend;
-mod backward;
-mod data;
-mod eval;
-mod eval_stats;
-mod forward;
-mod hip_kernels;
-mod gemma4;
-mod gemma4_gpu;
-mod gguf;
-mod hip;
-mod lora;
-mod quant;
-mod tokenizer;
-mod train;
+use zhenai_forge::*;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();
@@ -97,17 +80,50 @@ fn cmd_train_gemma4(args: &[String]) {
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
-            "--model"        => { model_path = args[i + 1].clone(); i += 2; }
-            "--data"         => { data_path = args[i + 1].clone(); i += 2; }
-            "--output"       => { output_path = args[i + 1].clone(); i += 2; }
-            "--rank"         => { rank = args[i + 1].parse().unwrap(); i += 2; }
-            "--alpha"        => { alpha = args[i + 1].parse().unwrap(); i += 2; }
-            "--lr"           => { lr = args[i + 1].parse().unwrap(); i += 2; }
-            "--steps"        => { steps = args[i + 1].parse().unwrap(); i += 2; }
-            "--answer-start" => { answer_start = args[i + 1].parse().unwrap(); i += 2; }
-            "--save-every"   => { save_every = args[i + 1].parse().unwrap(); i += 2; }
-            "--cpu"          => { cpu_only = true; i += 1; }
-            _ => { eprintln!("unknown arg: {}", args[i]); i += 1; }
+            "--model" => {
+                model_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--data" => {
+                data_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--output" => {
+                output_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--rank" => {
+                rank = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--alpha" => {
+                alpha = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--lr" => {
+                lr = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--steps" => {
+                steps = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--answer-start" => {
+                answer_start = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--save-every" => {
+                save_every = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--cpu" => {
+                cpu_only = true;
+                i += 1;
+            }
+            _ => {
+                eprintln!("unknown arg: {}", args[i]);
+                i += 1;
+            }
         }
     }
 
@@ -119,11 +135,17 @@ fn cmd_train_gemma4(args: &[String]) {
     println!("Loading Gemma 4 GGUF: {}", model_path);
     let model = match gguf::GgufFile::open(&model_path) {
         Ok(m) => m,
-        Err(e) => { eprintln!("Failed to open: {}", e); std::process::exit(1); }
+        Err(e) => {
+            eprintln!("Failed to open: {}", e);
+            std::process::exit(1);
+        }
     };
     let weights = match gemma4::CpuWeightsGemma4::load(&model) {
         Ok(w) => w,
-        Err(e) => { eprintln!("Failed to load: {}", e); std::process::exit(1); }
+        Err(e) => {
+            eprintln!("Failed to load: {}", e);
+            std::process::exit(1);
+        }
     };
     weights.print_summary();
 
@@ -135,12 +157,16 @@ fn cmd_train_gemma4(args: &[String]) {
     println!("\nLoading training data: {}", data_path);
     let data = match std::fs::read_to_string(&data_path) {
         Ok(s) => s,
-        Err(e) => { eprintln!("Failed to read data: {}", e); std::process::exit(1); }
+        Err(e) => {
+            eprintln!("Failed to read data: {}", e);
+            std::process::exit(1);
+        }
     };
     // Use serde_json so the JSON `answer_start` field is read as an integer
     // rather than absorbed into the tokens vector by a naive non-digit-split
     // (the WAVE14 H6 root cause — see notes/wave14-h2h6-analysis.md).
-    let examples: Vec<TrainExample> = data.lines()
+    let examples: Vec<TrainExample> = data
+        .lines()
         .filter(|l| !l.trim().is_empty())
         .filter_map(|l| serde_json::from_str::<TrainExample>(l).ok())
         .filter(|ex| ex.tokens.len() >= 2)
@@ -150,9 +176,16 @@ fn cmd_train_gemma4(args: &[String]) {
         eprintln!("No valid examples found");
         std::process::exit(1);
     }
-    let n_with_answer_start = examples.iter().filter(|ex| ex.answer_start.is_some()).count();
-    println!("  Per-example answer_start present in {}/{} examples (CLI fallback={})",
-        n_with_answer_start, examples.len(), answer_start);
+    let n_with_answer_start = examples
+        .iter()
+        .filter(|ex| ex.answer_start.is_some())
+        .count();
+    println!(
+        "  Per-example answer_start present in {}/{} examples (CLI fallback={})",
+        n_with_answer_start,
+        examples.len(),
+        answer_start
+    );
 
     // Select backend at runtime. The training loop itself is generic over
     // B: ForgeBackend, so every backend (CPU, hybrid-matmul, future
@@ -164,7 +197,7 @@ fn cmd_train_gemma4(args: &[String]) {
         println!("\n--cpu requested — using CpuBackend.");
         None
     } else {
-        use backend::ForgeBackend as _;  // bring method into scope
+        use backend::ForgeBackend as _; // bring method into scope
         println!("\nUploading Gemma 4 weights to GPU (PleMode::Cpu) — HybridMatmulBackend...");
         match hybrid_backend.upload_weights(&weights) {
             Ok(g) => {
@@ -178,12 +211,19 @@ fn cmd_train_gemma4(args: &[String]) {
         }
     };
 
-    let path_label = if hybrid_handle.is_some() { "hybrid-matmul (GPU fwd+bwd matmuls)" } else { "cpu" };
-    println!("\nTraining for {} steps (lr={}, answer_start={}, backend={})...",
-        steps, lr, answer_start, path_label);
+    let path_label = if hybrid_handle.is_some() {
+        "hybrid-matmul (GPU fwd+bwd matmuls)"
+    } else {
+        "cpu"
+    };
+    println!(
+        "\nTraining for {} steps (lr={}, answer_start={}, backend={})...",
+        steps, lr, answer_start, path_label
+    );
 
     // Generic training loop — instantiated once per backend. Returns
     // total_loss so the caller can print the per-step average.
+    #[allow(clippy::too_many_arguments)] // numerical/GPU kernel signature — see crate note
     fn run_loop<B: backend::ForgeBackend>(
         backend: &B,
         weights: &gemma4::CpuWeightsGemma4,
@@ -200,7 +240,7 @@ fn cmd_train_gemma4(args: &[String]) {
         let mut total_loss = 0.0f64;
         for step in 1..=steps {
             let example = &examples[(step - 1) % examples.len()];
-            crate::gemma4_gpu::profile_reset();
+            zhenai_forge::gemma4_gpu::profile_reset();
             let step_start = std::time::Instant::now();
             // Prefer the per-example JSON answer_start; fall back to the CLI
             // flag (default 1) when absent. The earlier `.min(tokens.len()/2)`
@@ -214,13 +254,21 @@ fn cmd_train_gemma4(args: &[String]) {
             // Defensive: cap at tokens.len()-2 so we always have at least one
             // loss position; for malformed answer_start (≥ tokens.len()) this
             // collapses to "predict the last token only", which is correct.
-            let effective_answer_start = example.answer_start
+            let effective_answer_start = example
+                .answer_start
                 .unwrap_or(cli_answer_start)
                 .min(example.tokens.len().saturating_sub(2));
-            let loss = backend.train_step(
-                weights, handle, lora, &example.tokens,
-                effective_answer_start, lr, step as u32,
-            ).expect("train step");
+            let loss = backend
+                .train_step(
+                    weights,
+                    handle,
+                    lora,
+                    &example.tokens,
+                    effective_answer_start,
+                    lr,
+                    step as u32,
+                )
+                .expect("train step");
             total_loss += loss as f64;
             let avg_loss = total_loss / step as f64;
             let step_secs = step_start.elapsed().as_secs_f64();
@@ -228,8 +276,8 @@ fn cmd_train_gemma4(args: &[String]) {
             let eta_min = (steps - step) as f64 * step_secs / 60.0;
             println!("  [step {}/{}] loss={:.4} avg={:.4} step_time={:.1}s elapsed={:.1}m eta={:.1}m  (backend={})",
                 step, steps, loss, avg_loss, step_secs, elapsed_min, eta_min, backend.name());
-            if crate::gemma4_gpu::profile_enabled() {
-                let (method_ns, sgemm_ns, n_calls) = crate::gemma4_gpu::profile_snapshot();
+            if zhenai_forge::gemma4_gpu::profile_enabled() {
+                let (method_ns, sgemm_ns, n_calls) = zhenai_forge::gemma4_gpu::profile_snapshot();
                 let method_s = method_ns as f64 / 1e9;
                 let sgemm_s = sgemm_ns as f64 / 1e9;
                 let overhead_s = method_s - sgemm_s;
@@ -256,12 +304,28 @@ fn cmd_train_gemma4(args: &[String]) {
     let wall_start = std::time::Instant::now();
     let final_total_loss = match hybrid_handle {
         Some(ref h) => run_loop(
-            &hybrid_backend, &weights, h, &mut lora,
-            &examples, steps, answer_start, lr, save_every, &output_path,
+            &hybrid_backend,
+            &weights,
+            h,
+            &mut lora,
+            &examples,
+            steps,
+            answer_start,
+            lr,
+            save_every,
+            &output_path,
         ),
         None => run_loop(
-            &cpu_backend_fallback, &weights, &(), &mut lora,
-            &examples, steps, answer_start, lr, save_every, &output_path,
+            &cpu_backend_fallback,
+            &weights,
+            &(),
+            &mut lora,
+            &examples,
+            steps,
+            answer_start,
+            lr,
+            save_every,
+            &output_path,
         ),
     };
 
@@ -300,11 +364,20 @@ fn cmd_info(args: &[String]) {
             sorted_keys.sort();
             for key in &sorted_keys {
                 let val = &model.metadata[*key];
-                let show = key.contains("name") || key.contains("arch") || key.contains("context")
-                    || key.contains("block_count") || key.contains("embedding")
-                    || key.contains("tokenizer.ggml.model") || key.contains("bos") || key.contains("eos")
+                let show = key.contains("name")
+                    || key.contains("arch")
+                    || key.contains("context")
+                    || key.contains("block_count")
+                    || key.contains("embedding")
+                    || key.contains("tokenizer.ggml.model")
+                    || key.contains("bos")
+                    || key.contains("eos")
                     || key.contains("vocab");
-                let truncated = if val.len() > 80 { format!("{}...", &val[..80]) } else { val.clone() };
+                let truncated = if val.len() > 80 {
+                    format!("{}...", &val[..80])
+                } else {
+                    val.clone()
+                };
                 if show {
                     println!("  {}: {}", key, truncated);
                 }
@@ -319,12 +392,18 @@ fn cmd_info(args: &[String]) {
             if args.len() > 1 && args[1] == "--verbose" {
                 println!("\n  All tensors:");
                 for t in &model.tensors {
-                    println!("    {} [{}] {:?} ({:.1} MB)", t.name, t.tensor_type,
-                        t.dimensions, t.byte_size as f64 / 1e6);
+                    println!(
+                        "    {} [{}] {:?} ({:.1} MB)",
+                        t.name,
+                        t.tensor_type,
+                        t.dimensions,
+                        t.byte_size as f64 / 1e6
+                    );
                 }
             } else {
                 // Show unique name patterns
-                let mut patterns: std::collections::HashSet<String> = std::collections::HashSet::new();
+                let mut patterns: std::collections::HashSet<String> =
+                    std::collections::HashSet::new();
                 for t in &model.tensors {
                     let pattern = t.name.replace(|c: char| c.is_ascii_digit(), "N");
                     patterns.insert(pattern);
@@ -338,7 +417,8 @@ fn cmd_info(args: &[String]) {
             }
 
             // Summarize tensor types
-            let mut type_counts: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+            let mut type_counts: std::collections::HashMap<String, usize> =
+                std::collections::HashMap::new();
             let mut total_bytes: u64 = 0;
             for t in &model.tensors {
                 *type_counts.entry(t.tensor_type.clone()).or_default() += 1;
@@ -362,8 +442,16 @@ fn cmd_info(args: &[String]) {
                 println!("\n  LoRA budget (rank {}):", rank);
                 println!("    Trainable params: {}", lora_params);
                 println!("    LoRA size:        {:.1} MB", lora_bytes as f64 / 1e6);
-                println!("    Base params:      {:.1}B", model.tensors.iter().map(|t| t.num_elements).sum::<u64>() as f64 / 1e9);
-                println!("    Trainable ratio:  {:.3}%", lora_params as f64 / model.tensors.iter().map(|t| t.num_elements).sum::<u64>() as f64 * 100.0);
+                println!(
+                    "    Base params:      {:.1}B",
+                    model.tensors.iter().map(|t| t.num_elements).sum::<u64>() as f64 / 1e9
+                );
+                println!(
+                    "    Trainable ratio:  {:.3}%",
+                    lora_params as f64
+                        / model.tensors.iter().map(|t| t.num_elements).sum::<u64>() as f64
+                        * 100.0
+                );
             }
         }
         Err(e) => {
@@ -379,15 +467,41 @@ fn cmd_train(args: &[String]) {
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
-            "--model" => { config.model_path = args[i + 1].clone(); i += 2; }
-            "--data" => { config.data_path = args[i + 1].clone(); i += 2; }
-            "--output" => { config.output_path = args[i + 1].clone(); i += 2; }
-            "--rank" => { config.rank = args[i + 1].parse().unwrap(); i += 2; }
-            "--epochs" => { config.epochs = args[i + 1].parse().unwrap(); i += 2; }
-            "--lr" => { config.lr = args[i + 1].parse().unwrap(); i += 2; }
-            "--batch-size" => { config.batch_size = args[i + 1].parse().unwrap(); i += 2; }
-            "--max-seq-len" => { config.max_seq_len = args[i + 1].parse().unwrap(); i += 2; }
-            _ => { i += 1; }
+            "--model" => {
+                config.model_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--data" => {
+                config.data_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--output" => {
+                config.output_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--rank" => {
+                config.rank = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--epochs" => {
+                config.epochs = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--lr" => {
+                config.lr = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--batch-size" => {
+                config.batch_size = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--max-seq-len" => {
+                config.max_seq_len = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            _ => {
+                i += 1;
+            }
         }
     }
 
@@ -423,12 +537,30 @@ fn cmd_eval_gemma4(args: &[String]) {
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
-            "--model"        => { model_path = args[i + 1].clone(); i += 2; }
-            "--data"         => { data_path = args[i + 1].clone(); i += 2; }
-            "--lora"         => { lora_path = args[i + 1].clone(); i += 2; }
-            "--answer-start" => { answer_start = args[i + 1].parse().unwrap(); i += 2; }
-            "--cpu"          => { cpu_only = true; i += 1; }
-            _ => { eprintln!("unknown arg: {}", args[i]); i += 1; }
+            "--model" => {
+                model_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--data" => {
+                data_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--lora" => {
+                lora_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--answer-start" => {
+                answer_start = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--cpu" => {
+                cpu_only = true;
+                i += 1;
+            }
+            _ => {
+                eprintln!("unknown arg: {}", args[i]);
+                i += 1;
+            }
         }
     }
     if model_path.is_empty() || data_path.is_empty() {
@@ -438,21 +570,37 @@ fn cmd_eval_gemma4(args: &[String]) {
 
     println!("Loading Gemma 4 GGUF: {}", model_path);
     let model = match gguf::GgufFile::open(&model_path) {
-        Ok(m) => m, Err(e) => { eprintln!("open: {}", e); std::process::exit(1); }
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("open: {}", e);
+            std::process::exit(1);
+        }
     };
     let weights = match gemma4::CpuWeightsGemma4::load(&model) {
-        Ok(w) => w, Err(e) => { eprintln!("load: {}", e); std::process::exit(1); }
+        Ok(w) => w,
+        Err(e) => {
+            eprintln!("load: {}", e);
+            std::process::exit(1);
+        }
     };
 
     let lora_opt = if !lora_path.is_empty() {
         match gemma4::Gemma4LoraAdapters::load(&lora_path) {
             Ok(l) => {
-                println!("Loaded LoRA: {} (rank={}, alpha={})", lora_path, l.rank, l.alpha);
+                println!(
+                    "Loaded LoRA: {} (rank={}, alpha={})",
+                    lora_path, l.rank, l.alpha
+                );
                 Some(l)
             }
-            Err(e) => { eprintln!("LoRA load: {}", e); std::process::exit(1); }
+            Err(e) => {
+                eprintln!("LoRA load: {}", e);
+                std::process::exit(1);
+            }
         }
-    } else { None };
+    } else {
+        None
+    };
 
     println!("Loading eval data: {}", data_path);
     // H7 fix (2026-04-29) — was using the same naive non-digit-split parser
@@ -460,22 +608,30 @@ fn cmd_eval_gemma4(args: &[String]) {
     // JSON `answer_start` field is read as an integer rather than absorbed
     // into the tokens vector. Mirrors `eval::load_tokenized_jsonl` shape.
     let data = std::fs::read_to_string(&data_path).expect("read eval data");
-    let parsed: Vec<TrainExample> = data.lines()
+    let parsed: Vec<TrainExample> = data
+        .lines()
         .filter(|l| !l.trim().is_empty())
         .filter_map(|l| serde_json::from_str::<TrainExample>(l).ok())
         .filter(|ex| ex.tokens.len() >= 2)
         .collect();
     let n_with_answer_start = parsed.iter().filter(|ex| ex.answer_start.is_some()).count();
     let examples: Vec<Vec<u32>> = parsed.iter().map(|ex| ex.tokens.clone()).collect();
-    let per_example_answer_starts: Vec<usize> = parsed.iter()
+    let per_example_answer_starts: Vec<usize> = parsed
+        .iter()
         .map(|ex| ex.answer_start.unwrap_or(answer_start))
         .collect();
-    println!("  {} eval sequences loaded ({} with per-example answer_start, CLI fallback={})",
-        examples.len(), n_with_answer_start, answer_start);
+    println!(
+        "  {} eval sequences loaded ({} with per-example answer_start, CLI fallback={})",
+        examples.len(),
+        n_with_answer_start,
+        answer_start
+    );
     // Use the first per-example answer_start as the harness scalar default;
     // the per-example vector wires through to anywhere the harness honors it.
-    let harness_default_answer_start = per_example_answer_starts.first()
-        .copied().unwrap_or(answer_start);
+    let harness_default_answer_start = per_example_answer_starts
+        .first()
+        .copied()
+        .unwrap_or(answer_start);
 
     let cpu_backend = backend::CpuBackend;
     let hybrid_backend = backend::HybridMatmulBackend::default();
@@ -484,8 +640,14 @@ fn cmd_eval_gemma4(args: &[String]) {
     } else {
         use backend::ForgeBackend as _;
         match hybrid_backend.upload_weights(&weights) {
-            Ok(g) => { println!("GPU upload OK ({:.2} GB VRAM)", g.vram_used_gb()); Some(g) }
-            Err(e) => { eprintln!("GPU upload failed ({}); falling back to CPU.", e); None }
+            Ok(g) => {
+                println!("GPU upload OK ({:.2} GB VRAM)", g.vram_used_gb());
+                Some(g)
+            }
+            Err(e) => {
+                eprintln!("GPU upload failed ({}); falling back to CPU.", e);
+                None
+            }
         }
     };
 
@@ -516,36 +678,67 @@ fn cmd_eval_gemma4(args: &[String]) {
         let t0 = std::time::Instant::now();
         for (idx, tokens) in harness.eval.iter().enumerate() {
             match harness.forward_loss_with_backend(backend, weights, handle, lora, tokens) {
-                Ok(l) if l.is_finite() => { total += l as f64; n += 1; }
-                Ok(_) => { eprintln!("  [seq {}] loss non-finite, skipping", idx); }
-                Err(e) => { eprintln!("  [seq {}] forward error: {}", idx, e); }
+                Ok(l) if l.is_finite() => {
+                    total += l as f64;
+                    n += 1;
+                }
+                Ok(_) => {
+                    eprintln!("  [seq {}] loss non-finite, skipping", idx);
+                }
+                Err(e) => {
+                    eprintln!("  [seq {}] forward error: {}", idx, e);
+                }
             }
             if (idx + 1) % 25 == 0 {
-                let avg = if n > 0 { (total / n as f64) as f32 } else { f32::NAN };
+                let avg = if n > 0 {
+                    (total / n as f64) as f32
+                } else {
+                    f32::NAN
+                };
                 let elapsed = t0.elapsed().as_secs_f64();
-                let eta = if idx > 0 { elapsed * (harness.eval.len() - idx - 1) as f64 / (idx + 1) as f64 } else { 0.0 };
-                println!("  [{}/{}] running avg loss = {:.4}  elapsed {:.0}s  eta {:.0}s",
-                    idx + 1, harness.eval.len(), avg, elapsed, eta);
+                let eta = if idx > 0 {
+                    elapsed * (harness.eval.len() - idx - 1) as f64 / (idx + 1) as f64
+                } else {
+                    0.0
+                };
+                println!(
+                    "  [{}/{}] running avg loss = {:.4}  elapsed {:.0}s  eta {:.0}s",
+                    idx + 1,
+                    harness.eval.len(),
+                    avg,
+                    elapsed,
+                    eta
+                );
             }
         }
-        let mean = if n > 0 { (total / n as f64) as f32 } else { f32::NAN };
+        let mean = if n > 0 {
+            (total / n as f64) as f32
+        } else {
+            f32::NAN
+        };
         (mean, n)
     }
 
     println!("\n=== EVAL: base model (no LoRA) ===");
     let (base_loss, base_n) = match &hybrid_handle {
         Some(h) => score(&hybrid_backend, &harness, &weights, h, None),
-        None    => score(&cpu_backend,    &harness, &weights, &(), None),
+        None => score(&cpu_backend, &harness, &weights, &(), None),
     };
-    println!("  mean CE loss (base):      {:.4}  (n={})", base_loss, base_n);
+    println!(
+        "  mean CE loss (base):      {:.4}  (n={})",
+        base_loss, base_n
+    );
 
     if let Some(ref l) = lora_opt {
         println!("\n=== EVAL: with LoRA ===");
         let (lora_loss, lora_n) = match &hybrid_handle {
             Some(h) => score(&hybrid_backend, &harness, &weights, h, Some(l)),
-            None    => score(&cpu_backend,    &harness, &weights, &(), Some(l)),
+            None => score(&cpu_backend, &harness, &weights, &(), Some(l)),
         };
-        println!("  mean CE loss (+ LoRA):    {:.4}  (n={})", lora_loss, lora_n);
+        println!(
+            "  mean CE loss (+ LoRA):    {:.4}  (n={})",
+            lora_loss, lora_n
+        );
         println!("  delta (base - LoRA):      {:+.4}", base_loss - lora_loss);
         if lora_loss < base_loss {
             println!("  PHASE 7 EXIT GATE:        ✅ eval descended below base");
@@ -599,21 +792,66 @@ fn cmd_generate_gemma4(args: &[String]) {
     let mut i = 0;
     while i < args.len() {
         match args[i].as_str() {
-            "--model"           => { model_path = args[i+1].clone(); i += 2; }
-            "--lora"            => { lora_path = args[i+1].clone(); i += 2; }
-            "--prompt"          => { prompt_raw = args[i+1].clone(); i += 2; }
-            "--gemma-prompt"    => { prompt_gemma = args[i+1].clone(); i += 2; }
-            "--tokens"          => { prompt_tokens_json = args[i+1].clone(); i += 2; }
-            "--max-new-tokens"  => { max_new_tokens = args[i+1].parse().unwrap(); i += 2; }
-            "--temperature"     => { temperature = args[i+1].parse().unwrap(); i += 2; }
-            "--top-k"           => { top_k = args[i+1].parse().unwrap(); i += 2; }
-            "--top-p"           => { top_p = args[i+1].parse().unwrap(); i += 2; }
-            "--rep-penalty"     => { rep_penalty = args[i+1].parse().unwrap(); i += 2; }
-            "--rep-penalty-window" => { rep_penalty_window = args[i+1].parse().unwrap(); i += 2; }
-            "--seed"            => { seed = args[i+1].parse().unwrap(); i += 2; }
-            "--cpu"             => { cpu_only = true; i += 1; }
-            "--quiet"           => { quiet = true; i += 1; }
-            _ => { eprintln!("unknown arg: {}", args[i]); i += 1; }
+            "--model" => {
+                model_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--lora" => {
+                lora_path = args[i + 1].clone();
+                i += 2;
+            }
+            "--prompt" => {
+                prompt_raw = args[i + 1].clone();
+                i += 2;
+            }
+            "--gemma-prompt" => {
+                prompt_gemma = args[i + 1].clone();
+                i += 2;
+            }
+            "--tokens" => {
+                prompt_tokens_json = args[i + 1].clone();
+                i += 2;
+            }
+            "--max-new-tokens" => {
+                max_new_tokens = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--temperature" => {
+                temperature = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--top-k" => {
+                top_k = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--top-p" => {
+                top_p = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--rep-penalty" => {
+                rep_penalty = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--rep-penalty-window" => {
+                rep_penalty_window = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--seed" => {
+                seed = args[i + 1].parse().unwrap();
+                i += 2;
+            }
+            "--cpu" => {
+                cpu_only = true;
+                i += 1;
+            }
+            "--quiet" => {
+                quiet = true;
+                i += 1;
+            }
+            _ => {
+                eprintln!("unknown arg: {}", args[i]);
+                i += 1;
+            }
         }
     }
 
@@ -629,23 +867,43 @@ fn cmd_generate_gemma4(args: &[String]) {
         std::process::exit(1);
     }
 
-    if !quiet { eprintln!("Loading Gemma 4 GGUF: {}", model_path); }
+    if !quiet {
+        eprintln!("Loading Gemma 4 GGUF: {}", model_path);
+    }
     let model = match gguf::GgufFile::open(&model_path) {
-        Ok(m) => m, Err(e) => { eprintln!("open: {}", e); std::process::exit(1); }
+        Ok(m) => m,
+        Err(e) => {
+            eprintln!("open: {}", e);
+            std::process::exit(1);
+        }
     };
     let weights = match gemma4::CpuWeightsGemma4::load(&model) {
-        Ok(w) => w, Err(e) => { eprintln!("load: {}", e); std::process::exit(1); }
+        Ok(w) => w,
+        Err(e) => {
+            eprintln!("load: {}", e);
+            std::process::exit(1);
+        }
     };
 
     let lora_opt = if !lora_path.is_empty() {
         match gemma4::Gemma4LoraAdapters::load(&lora_path) {
             Ok(l) => {
-                if !quiet { eprintln!("Loaded LoRA: {} (rank={}, alpha={})", lora_path, l.rank, l.alpha); }
+                if !quiet {
+                    eprintln!(
+                        "Loaded LoRA: {} (rank={}, alpha={})",
+                        lora_path, l.rank, l.alpha
+                    );
+                }
                 Some(l)
             }
-            Err(e) => { eprintln!("LoRA load: {}", e); std::process::exit(1); }
+            Err(e) => {
+                eprintln!("LoRA load: {}", e);
+                std::process::exit(1);
+            }
         }
-    } else { None };
+    } else {
+        None
+    };
 
     // Tokenize the prompt. Three paths:
     //   - --tokens: parse JSON array directly, no tokenizer needed.
@@ -653,54 +911,75 @@ fn cmd_generate_gemma4(args: &[String]) {
     //   - --prompt: use the in-tree GGUF tokenizer (greedy longest-match).
     let mut tokens: Vec<u32> = if !prompt_tokens_json.is_empty() {
         parse_tokens_json(&prompt_tokens_json).unwrap_or_else(|e| {
-            eprintln!("--tokens parse: {}", e); std::process::exit(1);
+            eprintln!("--tokens parse: {}", e);
+            std::process::exit(1);
         })
     } else if !prompt_gemma.is_empty() {
         encode_via_gemma_venv(&prompt_gemma).unwrap_or_else(|e| {
-            eprintln!("gemma-prompt encode failed: {}", e); std::process::exit(1);
+            eprintln!("gemma-prompt encode failed: {}", e);
+            std::process::exit(1);
         })
     } else {
         // --prompt: in-tree tokenizer
         let vocab = match tokenizer::extract_vocabulary_from_gguf(&model_path) {
             Ok(v) => v,
-            Err(e) => { eprintln!("vocab extract: {}", e); std::process::exit(1); }
+            Err(e) => {
+                eprintln!("vocab extract: {}", e);
+                std::process::exit(1);
+            }
         };
         let tok = tokenizer::Tokenizer::from_tokens(vocab, W13_GEMMA_BOS, W13_GEMMA_EOS);
         tok.encode(&prompt_raw)
     };
 
     if !quiet {
-        eprintln!("Prompt tokens: {} (first 8: {:?})",
-            tokens.len(), &tokens[..tokens.len().min(8)]);
+        eprintln!(
+            "Prompt tokens: {} (first 8: {:?})",
+            tokens.len(),
+            &tokens[..tokens.len().min(8)]
+        );
     }
     if tokens.is_empty() {
-        eprintln!("empty prompt after tokenization"); std::process::exit(1);
+        eprintln!("empty prompt after tokenization");
+        std::process::exit(1);
     }
 
     // Cap so prompt + new tokens stays in trained seq range.
     let allowed_new = W13_MAX_SEQ.saturating_sub(tokens.len());
     if allowed_new == 0 {
-        eprintln!("prompt already {} tokens — at or beyond MAX_SEQ={}; truncate or shorten.",
-            tokens.len(), W13_MAX_SEQ);
+        eprintln!(
+            "prompt already {} tokens — at or beyond MAX_SEQ={}; truncate or shorten.",
+            tokens.len(),
+            W13_MAX_SEQ
+        );
         std::process::exit(1);
     }
     let effective_new = max_new_tokens.min(allowed_new);
     if effective_new < max_new_tokens && !quiet {
-        eprintln!("max_new_tokens capped {} → {} (prompt {} + new ≤ {})",
-            max_new_tokens, effective_new, tokens.len(), W13_MAX_SEQ);
+        eprintln!(
+            "max_new_tokens capped {} → {} (prompt {} + new ≤ {})",
+            max_new_tokens,
+            effective_new,
+            tokens.len(),
+            W13_MAX_SEQ
+        );
     }
 
     // Backend selection (mirror train-gemma4 path).
     let cpu_backend_fallback = backend::CpuBackend;
     let hybrid_backend = backend::HybridMatmulBackend::default();
     let hybrid_handle: Option<gemma4_gpu::Gemma4GpuWeights> = if cpu_only {
-        if !quiet { eprintln!("--cpu: CpuBackend forward"); }
+        if !quiet {
+            eprintln!("--cpu: CpuBackend forward");
+        }
         None
     } else {
         use backend::ForgeBackend as _;
         match hybrid_backend.upload_weights(&weights) {
             Ok(g) => {
-                if !quiet { eprintln!("GPU upload: {:.2} GB VRAM", g.vram_used_gb()); }
+                if !quiet {
+                    eprintln!("GPU upload: {:.2} GB VRAM", g.vram_used_gb());
+                }
                 Some(g)
             }
             Err(e) => {
@@ -722,11 +1001,18 @@ fn cmd_generate_gemma4(args: &[String]) {
     for step in 0..effective_new {
         let logits_full = match hybrid_handle.as_ref() {
             Some(g) => gemma4_gpu::forward_gemma4_gpu(&weights, g, lora_opt.as_ref(), &tokens),
-            None => Ok(gemma4::forward_gemma4_with_lora(&weights, lora_opt.as_ref(), &tokens)),
+            None => Ok(gemma4::forward_gemma4_with_lora(
+                &weights,
+                lora_opt.as_ref(),
+                &tokens,
+            )),
         };
         let (logits, _caches) = match logits_full {
             Ok(x) => x,
-            Err(e) => { eprintln!("\nforward failed at step {}: {}", step, e); break; }
+            Err(e) => {
+                eprintln!("\nforward failed at step {}: {}", step, e);
+                break;
+            }
         };
         let vocab = weights.hparams.vocab_size;
         let row_off = (tokens.len() - 1) * vocab;
@@ -748,14 +1034,17 @@ fn cmd_generate_gemma4(args: &[String]) {
             &mut rng_state,
         );
         if !next.is_finite_id() {
-            eprintln!("\nsampler returned invalid id; halting"); break;
+            eprintln!("\nsampler returned invalid id; halting");
+            break;
         }
         let next_id = next.id;
         tokens.push(next_id);
         steps_done += 1;
 
         if stop_tokens.contains(&next_id) {
-            if !quiet { eprintln!("\n[stop token id={} at step {}]", next_id, step + 1); }
+            if !quiet {
+                eprintln!("\n[stop token id={} at step {}]", next_id, step + 1);
+            }
             break;
         }
     }
@@ -763,16 +1052,23 @@ fn cmd_generate_gemma4(args: &[String]) {
 
     // Output the completion (tokens after the prompt).
     let completion = &tokens[prompt_len..];
-    eprintln!("\n--- raw completion token IDs ({}): {:?} ---",
-        completion.len(), completion);
+    eprintln!(
+        "\n--- raw completion token IDs ({}): {:?} ---",
+        completion.len(),
+        completion
+    );
     let completion_text = decode_via_gemma_venv(completion).unwrap_or_else(|e| {
         eprintln!("decode failed: {}; falling back to raw token ids", e);
         format!("{:?}", completion)
     });
 
     if !quiet {
-        eprintln!("\n--- generated {} tokens in {:.1}s ({:.2}s/tok) ---",
-            steps_done, elapsed, elapsed / steps_done.max(1) as f64);
+        eprintln!(
+            "\n--- generated {} tokens in {:.1}s ({:.2}s/tok) ---",
+            steps_done,
+            elapsed,
+            elapsed / steps_done.max(1) as f64
+        );
     }
     println!("{}", completion_text.trim_end());
 }
@@ -787,13 +1083,20 @@ fn parse_tokens_json(raw: &str) -> Result<Vec<u32>, String> {
     } else {
         return Err(format!("no '[' in {:?}", &s[..s.len().min(80)]));
     };
-    let end = inner.rfind(']').ok_or_else(|| "no ']' in tokens".to_string())?;
+    let end = inner
+        .rfind(']')
+        .ok_or_else(|| "no ']' in tokens".to_string())?;
     let body = &inner[1..end];
     let mut out = Vec::new();
     for chunk in body.split(',') {
         let t = chunk.trim();
-        if t.is_empty() { continue; }
-        out.push(t.parse::<u32>().map_err(|e| format!("parse {:?}: {}", t, e))?);
+        if t.is_empty() {
+            continue;
+        }
+        out.push(
+            t.parse::<u32>()
+                .map_err(|e| format!("parse {:?}: {}", t, e))?,
+        );
     }
     if out.is_empty() {
         return Err("empty token array".into());
@@ -805,8 +1108,8 @@ fn parse_tokens_json(raw: &str) -> Result<Vec<u32>, String> {
 /// Gemma-4 chat template). Returns token ids ending with the
 /// start-of-model-turn marker, ready for generation.
 fn encode_via_gemma_venv(prompt: &str) -> Result<Vec<u32>, String> {
-    use std::process::{Command, Stdio};
     use std::io::Write;
+    use std::process::{Command, Stdio};
     let mut child = Command::new("/home/govan/tmp/gemma4-venv/bin/python")
         .arg("/home/govan/tmp/unheaded/scripts/gemma4-encode-prompt.py")
         .arg("-")
@@ -817,12 +1120,19 @@ fn encode_via_gemma_venv(prompt: &str) -> Result<Vec<u32>, String> {
         .map_err(|e| format!("spawn encode: {}", e))?;
     {
         let stdin = child.stdin.as_mut().ok_or("encode: no stdin")?;
-        stdin.write_all(prompt.as_bytes()).map_err(|e| format!("encode write: {}", e))?;
+        stdin
+            .write_all(prompt.as_bytes())
+            .map_err(|e| format!("encode write: {}", e))?;
     }
-    let out = child.wait_with_output().map_err(|e| format!("encode wait: {}", e))?;
+    let out = child
+        .wait_with_output()
+        .map_err(|e| format!("encode wait: {}", e))?;
     if !out.status.success() {
-        return Err(format!("encode exit {:?}: {}", out.status,
-            String::from_utf8_lossy(&out.stderr)));
+        return Err(format!(
+            "encode exit {:?}: {}",
+            out.status,
+            String::from_utf8_lossy(&out.stderr)
+        ));
     }
     let body = String::from_utf8_lossy(&out.stdout);
     parse_tokens_json(body.trim())
@@ -831,8 +1141,8 @@ fn encode_via_gemma_venv(prompt: &str) -> Result<Vec<u32>, String> {
 /// Decode token ids back to text via the gemma4-venv Python helper. Slower
 /// than an in-tree decoder but matches encoding round-trip exactly.
 fn decode_via_gemma_venv(ids: &[u32]) -> Result<String, String> {
-    use std::process::{Command, Stdio};
     use std::io::Write;
+    use std::process::{Command, Stdio};
     let json_in = serde_json_array(ids);
     let mut child = Command::new("/home/govan/tmp/gemma4-venv/bin/python")
         .arg("/home/govan/tmp/unheaded/scripts/gemma4-decode-tokens.py")
@@ -843,12 +1153,19 @@ fn decode_via_gemma_venv(ids: &[u32]) -> Result<String, String> {
         .map_err(|e| format!("spawn decode: {}", e))?;
     {
         let stdin = child.stdin.as_mut().ok_or("decode: no stdin")?;
-        stdin.write_all(json_in.as_bytes()).map_err(|e| format!("decode write: {}", e))?;
+        stdin
+            .write_all(json_in.as_bytes())
+            .map_err(|e| format!("decode write: {}", e))?;
     }
-    let out = child.wait_with_output().map_err(|e| format!("decode wait: {}", e))?;
+    let out = child
+        .wait_with_output()
+        .map_err(|e| format!("decode wait: {}", e))?;
     if !out.status.success() {
-        return Err(format!("decode exit {:?}: {}", out.status,
-            String::from_utf8_lossy(&out.stderr)));
+        return Err(format!(
+            "decode exit {:?}: {}",
+            out.status,
+            String::from_utf8_lossy(&out.stderr)
+        ));
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
@@ -857,7 +1174,9 @@ fn serde_json_array(ids: &[u32]) -> String {
     let mut s = String::with_capacity(ids.len() * 6 + 2);
     s.push('[');
     for (i, id) in ids.iter().enumerate() {
-        if i > 0 { s.push(','); }
+        if i > 0 {
+            s.push(',');
+        }
         s.push_str(&id.to_string());
     }
     s.push(']');
@@ -865,9 +1184,13 @@ fn serde_json_array(ids: &[u32]) -> String {
 }
 
 #[derive(Clone, Copy)]
-struct SampledToken { id: u32 }
+struct SampledToken {
+    id: u32,
+}
 impl SampledToken {
-    fn is_finite_id(&self) -> bool { self.id != u32::MAX }
+    fn is_finite_id(&self) -> bool {
+        self.id != u32::MAX
+    }
 }
 
 /// Pick the next token from a logits row.
@@ -901,7 +1224,9 @@ fn sample_next(
         // row, not N times.
         let mut seen = std::collections::HashSet::new();
         for &tok in past_tokens {
-            if !seen.insert(tok) { continue; }
+            if !seen.insert(tok) {
+                continue;
+            }
             let i = tok as usize;
             if i < adjusted.len() && adjusted[i].is_finite() {
                 if adjusted[i] >= 0.0 {
@@ -917,13 +1242,18 @@ fn sample_next(
         let mut best_id: u32 = 0;
         let mut best_v = f32::NEG_INFINITY;
         for (i, &v) in adjusted.iter().enumerate() {
-            if v > best_v { best_v = v; best_id = i as u32; }
+            if v > best_v {
+                best_v = v;
+                best_id = i as u32;
+            }
         }
         return SampledToken { id: best_id };
     }
 
     // Build (id, scaled_logit) and find max for numerical stability.
-    let mut scored: Vec<(u32, f32)> = adjusted.iter().enumerate()
+    let mut scored: Vec<(u32, f32)> = adjusted
+        .iter()
+        .enumerate()
         .filter(|(_, v)| v.is_finite())
         .map(|(i, &v)| (i as u32, v / temperature))
         .collect();
@@ -937,14 +1267,17 @@ fn sample_next(
     }
 
     // Convert to probabilities.
-    let mut probs: Vec<(u32, f32)> = scored.iter()
+    let mut probs: Vec<(u32, f32)> = scored
+        .iter()
         .map(|(id, lv)| (*id, (lv - max_v).exp()))
         .collect();
     let z: f32 = probs.iter().map(|(_, p)| *p).sum();
     if z <= 0.0 {
         return SampledToken { id: probs[0].0 };
     }
-    for (_, p) in probs.iter_mut() { *p /= z; }
+    for (_, p) in probs.iter_mut() {
+        *p /= z;
+    }
 
     // Apply top-p (nucleus): sort desc by prob, keep prefix s.t. cumulative ≥ top_p.
     if top_p < 1.0 && top_p > 0.0 {
@@ -953,24 +1286,33 @@ fn sample_next(
         let mut cutoff = probs.len();
         for (i, (_, p)) in probs.iter().enumerate() {
             cum += *p;
-            if cum >= top_p { cutoff = i + 1; break; }
+            if cum >= top_p {
+                cutoff = i + 1;
+                break;
+            }
         }
         probs.truncate(cutoff);
         let z2: f32 = probs.iter().map(|(_, p)| *p).sum();
         if z2 > 0.0 {
-            for (_, p) in probs.iter_mut() { *p /= z2; }
+            for (_, p) in probs.iter_mut() {
+                *p /= z2;
+            }
         }
     }
 
     // Multinomial sample using LCG.
-    *rng = rng.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+    *rng = rng
+        .wrapping_mul(6364136223846793005)
+        .wrapping_add(1442695040888963407);
     let r: f32 = ((*rng >> 33) as f32) / ((u32::MAX as f32) + 1.0);
     let mut acc = 0.0f32;
     let mut picked = probs[0].0;
     for (id, p) in &probs {
         acc += *p;
-        if r <= acc { picked = *id; break; }
+        if r <= acc {
+            picked = *id;
+            break;
+        }
     }
     SampledToken { id: picked }
 }
-

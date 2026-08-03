@@ -13,8 +13,8 @@
 //! Architecture spec: `notes/gemma4-arch-spec.md`
 //! Math notes: `notes/phase1-attention-math.md`
 
-use crate::gguf::{Architecture, GgufFile};
 use crate::forward;
+use crate::gguf::{Architecture, GgufFile};
 use crate::lora::LoraLayer;
 use half::bf16;
 use std::collections::HashMap;
@@ -83,13 +83,44 @@ impl Gemma4Hparams {
         let n_head_kv = getu("attention.head_count_kv")? as usize;
         let head_dim_full = getu("attention.key_length")? as usize;
         let head_dim_swa = getu("attention.key_length_swa")? as usize;
+
+        // Gemma 4 requires n_embd_head_k == n_embd_head_v: the whole attention
+        // path (KV cache layout, the wo input dim, the unified KV gradient
+        // routing for layers 20-34) assumes one head_dim per layer. A GGUF with
+        // distinct key/value lengths would silently produce wrong shapes.
+        //
+        // This validation existed in load() but compared key_length to ITSELF
+        // (`head_dim_full != head_dim_full`), so it could never fire — the
+        // value_length keys were never read at all. clippy::eq_op caught it.
+        //
+        // value_length is optional: models that omit it have nothing to
+        // violate, and head_dim is derived from key_length either way.
+        for (k_key, v_key, k_val) in [
+            (
+                "attention.key_length",
+                "attention.value_length",
+                head_dim_full,
+            ),
+            (
+                "attention.key_length_swa",
+                "attention.value_length_swa",
+                head_dim_swa,
+            ),
+        ] {
+            if let Some(v_val) = model.get_arch_u32_or_first(v_key) {
+                if v_val as usize != k_val {
+                    return Err(format!(
+                        "Gemma 4 spec violation: {} ({}) != {} ({})",
+                        k_key, k_val, v_key, v_val
+                    ));
+                }
+            }
+        }
         let n_layer_kv_from_start = getu("attention.shared_kv_layers")? as usize;
         let sliding_window = getu("attention.sliding_window")? as usize;
         let n_embd_per_layer = getu("embedding_length_per_layer_input").unwrap_or(0) as usize;
         let rms_norm_eps = getf("attention.layer_norm_rms_epsilon")?;
-        let final_logit_softcapping = model
-            .get_arch_f32("final_logit_softcapping")
-            .unwrap_or(0.0);
+        let final_logit_softcapping = model.get_arch_f32("final_logit_softcapping").unwrap_or(0.0);
         let rope_freq_base_full = getf("rope.freq_base")?;
         let rope_freq_base_swa = getf("rope.freq_base_swa")?;
         let rope_dim_full = getu("rope.dimension_count")? as usize;
@@ -110,15 +141,19 @@ impl Gemma4Hparams {
         // for E2B). Full layers have wq.shape[1] = n_head * head_dim_full
         // (e.g. 4096). The GGUF metadata key `attention.sliding_window_pattern`
         // is unreliable (E2B stores it as a single bool, not a per-layer array).
-        let layer_is_sliding = (0..n_layer).map(|il| {
-            let wq_name = format!("blk.{}.attn_q.weight", il);
-            let q_out_dim = model.tensors.iter()
-                .find(|t| t.name == wq_name)
-                .and_then(|t| t.dimensions.last().copied())
-                .unwrap_or(0) as usize;
-            let head_dim_per_layer = q_out_dim / n_head.max(1);
-            head_dim_per_layer == head_dim_swa
-        }).collect();
+        let layer_is_sliding = (0..n_layer)
+            .map(|il| {
+                let wq_name = format!("blk.{}.attn_q.weight", il);
+                let q_out_dim = model
+                    .tensors
+                    .iter()
+                    .find(|t| t.name == wq_name)
+                    .and_then(|t| t.dimensions.last().copied())
+                    .unwrap_or(0) as usize;
+                let head_dim_per_layer = q_out_dim / n_head.max(1);
+                head_dim_per_layer == head_dim_swa
+            })
+            .collect();
 
         Ok(Self {
             n_layer,
@@ -187,7 +222,10 @@ impl Gemma4Hparams {
 /// More reliable than the `feed_forward_length` GGUF metadata key, which
 /// for Gemma 4 stores 2*n_ff (combined gate+up) due to use_double_wide_mlp.
 fn ffn_dim_from_tensors(model: &GgufFile) -> Option<usize> {
-    let t = model.tensors.iter().find(|t| t.name == "blk.0.ffn_gate.weight")?;
+    let t = model
+        .tensors
+        .iter()
+        .find(|t| t.name == "blk.0.ffn_gate.weight")?;
     t.dimensions.last().copied().map(|d| d as usize)
 }
 
@@ -199,33 +237,33 @@ pub struct CpuWeightsGemma4 {
 
     // Globals
     pub token_embd: Vec<bf16>,           // [n_embd, n_vocab]
-    pub output_norm: Vec<f32>,            // [n_embd]
+    pub output_norm: Vec<f32>,           // [n_embd]
     pub per_layer_token_embd: Vec<bf16>, // [n_embd_per_layer * n_layer, n_vocab]
     pub per_layer_model_proj: Vec<bf16>, // [n_embd, n_embd_per_layer * n_layer]
     pub per_layer_proj_norm: Vec<f32>,   // [n_embd_per_layer]
     pub rope_freqs: Vec<f32>,            // [head_dim_full / 2] — proportional RoPE table
 
     // Per-layer attention
-    pub attn_norm: Vec<Vec<f32>>,         // [n_layer][n_embd]
-    pub wq: Vec<Vec<bf16>>,               // [n_layer][n_embd, n_head*head_dim]
-    pub wk: Vec<Option<Vec<bf16>>>,       // [n_layer][n_embd, n_head_kv*head_dim] — None if !has_kv
-    pub wv: Vec<Option<Vec<bf16>>>,       // [n_layer][n_embd, n_head_kv*head_dim] — None if missing
-    pub wo: Vec<Vec<bf16>>,               // [n_layer][n_head*head_dim, n_embd]
-    pub attn_q_norm: Vec<Vec<f32>>,       // [n_layer][head_dim]
+    pub attn_norm: Vec<Vec<f32>>,           // [n_layer][n_embd]
+    pub wq: Vec<Vec<bf16>>,                 // [n_layer][n_embd, n_head*head_dim]
+    pub wk: Vec<Option<Vec<bf16>>>, // [n_layer][n_embd, n_head_kv*head_dim] — None if !has_kv
+    pub wv: Vec<Option<Vec<bf16>>>, // [n_layer][n_embd, n_head_kv*head_dim] — None if missing
+    pub wo: Vec<Vec<bf16>>,         // [n_layer][n_head*head_dim, n_embd]
+    pub attn_q_norm: Vec<Vec<f32>>, // [n_layer][head_dim]
     pub attn_k_norm: Vec<Option<Vec<f32>>>, // [n_layer][head_dim] — None if !has_kv
     pub post_attention_norm: Vec<Vec<f32>>, // [n_layer][n_embd]
 
     // Per-layer FFN
-    pub ffn_norm: Vec<Vec<f32>>,          // [n_layer][n_embd]
-    pub ffn_gate: Vec<Vec<bf16>>,         // [n_layer][n_embd, n_ff]
-    pub ffn_up: Vec<Vec<bf16>>,           // [n_layer][n_embd, n_ff]
-    pub ffn_down: Vec<Vec<bf16>>,         // [n_layer][n_ff, n_embd]
-    pub post_ffw_norm: Vec<Vec<f32>>,     // [n_layer][n_embd]
+    pub ffn_norm: Vec<Vec<f32>>,      // [n_layer][n_embd]
+    pub ffn_gate: Vec<Vec<bf16>>,     // [n_layer][n_embd, n_ff]
+    pub ffn_up: Vec<Vec<bf16>>,       // [n_layer][n_embd, n_ff]
+    pub ffn_down: Vec<Vec<bf16>>,     // [n_layer][n_ff, n_embd]
+    pub post_ffw_norm: Vec<Vec<f32>>, // [n_layer][n_embd]
 
     // Per-layer PLE
-    pub inp_gate: Vec<Vec<bf16>>,         // [n_layer][n_embd, n_embd_per_layer]
-    pub proj: Vec<Vec<bf16>>,             // [n_layer][n_embd_per_layer, n_embd]
-    pub post_norm: Vec<Vec<f32>>,         // [n_layer][n_embd]
+    pub inp_gate: Vec<Vec<bf16>>, // [n_layer][n_embd, n_embd_per_layer]
+    pub proj: Vec<Vec<bf16>>,     // [n_layer][n_embd_per_layer, n_embd]
+    pub post_norm: Vec<Vec<f32>>, // [n_layer][n_embd]
 
     // Optional per-layer
     pub layer_output_scale: Vec<Option<f32>>, // [n_layer] — single scalar each
@@ -238,14 +276,13 @@ impl CpuWeightsGemma4 {
     pub fn load(model: &GgufFile) -> Result<Self, String> {
         let hparams = Gemma4Hparams::from_gguf(model)?;
 
-        if hparams.head_dim_full != hparams.head_dim_full
-            || hparams.head_dim_swa != hparams.head_dim_swa
-        {
-            return Err("Gemma 4 spec violation: head_dim_k != head_dim_v".into());
-        }
+        // head_dim_k == head_dim_v is validated in Gemma4Hparams::from_gguf,
+        // which is the only place the value_length keys are readable.
 
-        println!("  Loading Gemma 4 weights ({} layers, n_embd={}, vocab={}):",
-            hparams.n_layer, hparams.n_embd, hparams.vocab_size);
+        println!(
+            "  Loading Gemma 4 weights ({} layers, n_embd={}, vocab={}):",
+            hparams.n_layer, hparams.n_embd, hparams.vocab_size
+        );
 
         let load_bf16 = |name: &str| -> Result<Vec<bf16>, String> {
             let tensor = model
@@ -270,7 +307,8 @@ impl CpuWeightsGemma4 {
                     let mut out = Vec::with_capacity(n);
                     let mut i = 0;
                     while i + 3 < data.len() && out.len() < n {
-                        let f = f32::from_le_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]]);
+                        let f =
+                            f32::from_le_bytes([data[i], data[i + 1], data[i + 2], data[i + 3]]);
                         out.push(bf16::from_f32(f));
                         i += 4;
                     }
@@ -411,8 +449,16 @@ impl CpuWeightsGemma4 {
             + self.per_layer_token_embd.len()
             + self.per_layer_model_proj.len()
             + self.wq.iter().map(|v| v.len()).sum::<usize>()
-            + self.wk.iter().filter_map(|o| o.as_ref().map(|v| v.len())).sum::<usize>()
-            + self.wv.iter().filter_map(|o| o.as_ref().map(|v| v.len())).sum::<usize>()
+            + self
+                .wk
+                .iter()
+                .filter_map(|o| o.as_ref().map(|v| v.len()))
+                .sum::<usize>()
+            + self
+                .wv
+                .iter()
+                .filter_map(|o| o.as_ref().map(|v| v.len()))
+                .sum::<usize>()
             + self.wo.iter().map(|v| v.len()).sum::<usize>()
             + self.ffn_gate.iter().map(|v| v.len()).sum::<usize>()
             + self.ffn_up.iter().map(|v| v.len()).sum::<usize>()
@@ -426,13 +472,26 @@ impl CpuWeightsGemma4 {
             + self.rope_freqs.len()
             + self.attn_norm.iter().map(|v| v.len()).sum::<usize>()
             + self.attn_q_norm.iter().map(|v| v.len()).sum::<usize>()
-            + self.attn_k_norm.iter().filter_map(|o| o.as_ref().map(|v| v.len())).sum::<usize>()
-            + self.post_attention_norm.iter().map(|v| v.len()).sum::<usize>()
+            + self
+                .attn_k_norm
+                .iter()
+                .filter_map(|o| o.as_ref().map(|v| v.len()))
+                .sum::<usize>()
+            + self
+                .post_attention_norm
+                .iter()
+                .map(|v| v.len())
+                .sum::<usize>()
             + self.ffn_norm.iter().map(|v| v.len()).sum::<usize>()
             + self.post_ffw_norm.iter().map(|v| v.len()).sum::<usize>()
             + self.post_norm.iter().map(|v| v.len()).sum::<usize>();
         total += (f32_total * 4) as u64;
-        total += self.layer_output_scale.iter().filter(|o| o.is_some()).count() as u64 * 4;
+        total += self
+            .layer_output_scale
+            .iter()
+            .filter(|o| o.is_some())
+            .count() as u64
+            * 4;
         total
     }
 
@@ -487,13 +546,25 @@ impl Gemma4LoraAdapters {
             let has_kv = hparams.has_kv(il);
             let layer_loras: [Option<LoraLayer>; 4] = [
                 Some(LoraLayer::new(n_embd, q_out, rank)),
-                if has_kv { Some(LoraLayer::new(n_embd, kv_out, rank)) } else { None },
-                if has_kv { Some(LoraLayer::new(n_embd, kv_out, rank)) } else { None },
+                if has_kv {
+                    Some(LoraLayer::new(n_embd, kv_out, rank))
+                } else {
+                    None
+                },
+                if has_kv {
+                    Some(LoraLayer::new(n_embd, kv_out, rank))
+                } else {
+                    None
+                },
                 Some(LoraLayer::new(q_out, n_embd, rank)),
             ];
             layers.push(layer_loras);
         }
-        Self { layers, rank, alpha }
+        Self {
+            layers,
+            rank,
+            alpha,
+        }
     }
 
     pub fn scale(&self) -> f32 {
@@ -502,18 +573,21 @@ impl Gemma4LoraAdapters {
 
     /// Count active (non-None) LoRA targets.
     pub fn n_active_targets(&self) -> usize {
-        self.layers.iter()
+        self.layers
+            .iter()
             .flat_map(|l| l.iter())
             .filter(|o| o.is_some())
             .count()
     }
 
     pub fn size_bytes(&self) -> u64 {
-        self.layers.iter()
+        self.layers
+            .iter()
             .flat_map(|l| l.iter())
             .filter_map(|o| o.as_ref())
             .map(|l| l.num_params())
-            .sum::<u64>() * 4  // f32
+            .sum::<u64>()
+            * 4 // f32
     }
 
     /// Save adapter to disk in ZLG4 format (custom binary, distinct from
@@ -564,12 +638,14 @@ impl Gemma4LoraAdapters {
         }
         let mut p = 5usize;
         let read_u32 = |b: &[u8], pos: &mut usize| -> u32 {
-            let v = u32::from_le_bytes([b[*pos], b[*pos+1], b[*pos+2], b[*pos+3]]);
-            *pos += 4; v
+            let v = u32::from_le_bytes([b[*pos], b[*pos + 1], b[*pos + 2], b[*pos + 3]]);
+            *pos += 4;
+            v
         };
         let read_f32 = |b: &[u8], pos: &mut usize| -> f32 {
-            let v = f32::from_le_bytes([b[*pos], b[*pos+1], b[*pos+2], b[*pos+3]]);
-            *pos += 4; v
+            let v = f32::from_le_bytes([b[*pos], b[*pos + 1], b[*pos + 2], b[*pos + 3]]);
+            *pos += 4;
+            v
         };
         let n_layer = read_u32(&bytes, &mut p) as usize;
         let rank = read_u32(&bytes, &mut p);
@@ -577,13 +653,17 @@ impl Gemma4LoraAdapters {
 
         let mut layers = Vec::with_capacity(n_layer);
         for _ in 0..n_layer {
-            let mut slots: [Option<LoraLayer>; 4] =
-                [None, None, None, None];
+            let mut slots: [Option<LoraLayer>; 4] = [None, None, None, None];
             for slot in slots.iter_mut() {
-                if p >= bytes.len() { return Err(err("truncated")); }
-                let present = bytes[p]; p += 1;
+                if p >= bytes.len() {
+                    return Err(err("truncated"));
+                }
+                let present = bytes[p];
+                p += 1;
                 if present == 1 {
-                    if p + 8 > bytes.len() { return Err(err("truncated")); }
+                    if p + 8 > bytes.len() {
+                        return Err(err("truncated"));
+                    }
                     let input_dim = read_u32(&bytes, &mut p);
                     let output_dim = read_u32(&bytes, &mut p);
                     let a_size = (input_dim * rank) as usize;
@@ -592,9 +672,13 @@ impl Gemma4LoraAdapters {
                         return Err(err("truncated tensor"));
                     }
                     let mut a = Vec::with_capacity(a_size);
-                    for _ in 0..a_size { a.push(read_f32(&bytes, &mut p)); }
+                    for _ in 0..a_size {
+                        a.push(read_f32(&bytes, &mut p));
+                    }
                     let mut b = Vec::with_capacity(b_size);
-                    for _ in 0..b_size { b.push(read_f32(&bytes, &mut p)); }
+                    for _ in 0..b_size {
+                        b.push(read_f32(&bytes, &mut p));
+                    }
                     let mut layer = LoraLayer::new(input_dim, output_dim, rank);
                     layer.a = a;
                     layer.b = b;
@@ -603,7 +687,11 @@ impl Gemma4LoraAdapters {
             }
             layers.push(slots);
         }
-        Ok(Self { layers, rank, alpha })
+        Ok(Self {
+            layers,
+            rank,
+            alpha,
+        })
     }
 }
 
@@ -649,11 +737,11 @@ pub struct Gemma4LayerCache {
 /// PLE chain intermediates per layer. Stored only when n_embd_per_layer > 0
 /// (i.e., the model has Per-Layer Embeddings, true for E2B/E4B).
 pub struct Gemma4PleCache {
-    pub pe_in: Vec<f32>,              // [seq, n_embd] — input to PLE chain (= post_ffw_residual)
-    pub gate_pre_gelu: Vec<f32>,      // [seq, n_embd_per_layer] — pre-GELU
-    pub gate_post_gelu: Vec<f32>,     // [seq, n_embd_per_layer] — after GELU, before * inp_layer
-    pub inp_layer_slice: Vec<f32>,    // [seq, n_embd_per_layer] — frozen lookup
-    pub proj_out_pre_norm: Vec<f32>,  // [seq, n_embd] — pre-RMSNorm
+    pub pe_in: Vec<f32>, // [seq, n_embd] — input to PLE chain (= post_ffw_residual)
+    pub gate_pre_gelu: Vec<f32>, // [seq, n_embd_per_layer] — pre-GELU
+    pub gate_post_gelu: Vec<f32>, // [seq, n_embd_per_layer] — after GELU, before * inp_layer
+    pub inp_layer_slice: Vec<f32>, // [seq, n_embd_per_layer] — frozen lookup
+    pub proj_out_pre_norm: Vec<f32>, // [seq, n_embd] — pre-RMSNorm
 }
 
 /// Convert a bf16 weight vector to f32 (CPU).
@@ -666,14 +754,25 @@ pub struct Gemma4PleCache {
 fn bf16_to_f32_vec(w: &[bf16]) -> Vec<f32> {
     let n = w.len();
     let mut out: Vec<f32> = Vec::with_capacity(n);
-    // SAFETY: about to write all n elements before any read.
-    unsafe { out.set_len(n); }
-    let dst = out.as_mut_slice();
+
+    // Write into the spare capacity as MaybeUninit rather than set_len'ing
+    // first and writing into a &mut [f32] that briefly aliases uninitialized
+    // memory. The old form was clippy::uninit_vec (deny-by-default): holding
+    // a &mut [f32] over uninit bytes is UB even if every slot is written
+    // before any read. This keeps the same single allocation and the same
+    // flat loop, so it still autovectorizes.
+    let dst = out.spare_capacity_mut();
     // bf16 IS the upper 16 bits of f32 — shift left by 16 to convert.
     // half::bf16::to_bits returns u16. Doing this inline (vs to_f32) lets
     // LLVM vectorize the loop with AVX2 vpunpcklwd / vpshufd / vpsllqi etc.
     for i in 0..n {
-        dst[i] = f32::from_bits((w[i].to_bits() as u32) << 16);
+        dst[i].write(f32::from_bits((w[i].to_bits() as u32) << 16));
+    }
+
+    // SAFETY: the loop above initialized exactly n slots, and out was
+    // allocated with capacity n.
+    unsafe {
+        out.set_len(n);
     }
     out
 }
@@ -696,7 +795,14 @@ fn matmul_x_wt(a: &[f32], w: &[f32], m: usize, n: usize, k: usize) -> Vec<f32> {
 
 /// Apply per-head RMSNorm over the last axis.
 /// x: [seq, n_head, head_dim]; weight: [head_dim]
-fn per_head_rmsnorm(x: &[f32], weight: &[f32], seq: usize, n_head: usize, head_dim: usize, eps: f32) -> Vec<f32> {
+fn per_head_rmsnorm(
+    x: &[f32],
+    weight: &[f32],
+    seq: usize,
+    n_head: usize,
+    head_dim: usize,
+    eps: f32,
+) -> Vec<f32> {
     let mut out = vec![0.0f32; x.len()];
     for s in 0..seq {
         for h in 0..n_head {
@@ -728,11 +834,11 @@ pub fn forward_gemma4(
 struct ProfTimes {
     enabled: bool,
     t_bf16conv: f64,
-    t_qkvo_proj: f64,   // Q + K + V + O matmul (excludes LoRA add)
+    t_qkvo_proj: f64, // Q + K + V + O matmul (excludes LoRA add)
     t_qkvo_lora: f64,
     t_attention: f64,
-    t_norms: f64,       // attn_norm, post_attn_norm, ffn_norm, post_ffw_norm
-    t_ffn: f64,         // gate, up, down matmul
+    t_norms: f64, // attn_norm, post_attn_norm, ffn_norm, post_ffw_norm
+    t_ffn: f64,   // gate, up, down matmul
     t_rope: f64,
     t_ple: f64,
     t_lm_head: f64,
@@ -741,26 +847,74 @@ struct ProfTimes {
 impl ProfTimes {
     fn from_env() -> Self {
         let enabled = std::env::var("FORGE_GEMMA4_PROFILE")
-            .map(|v| v == "1").unwrap_or(false);
-        Self { enabled, ..Default::default() }
+            .map(|v| v == "1")
+            .unwrap_or(false);
+        Self {
+            enabled,
+            ..Default::default()
+        }
     }
     // (timing recorded inline at call sites; no closure helper)
     fn report(&self) {
-        if !self.enabled { return; }
-        let total = self.t_bf16conv + self.t_qkvo_proj + self.t_qkvo_lora
-            + self.t_attention + self.t_norms + self.t_ffn + self.t_rope
-            + self.t_ple + self.t_lm_head;
+        if !self.enabled {
+            return;
+        }
+        let total = self.t_bf16conv
+            + self.t_qkvo_proj
+            + self.t_qkvo_lora
+            + self.t_attention
+            + self.t_norms
+            + self.t_ffn
+            + self.t_rope
+            + self.t_ple
+            + self.t_lm_head;
         eprintln!("  [PROF] total={:.2}s breakdown:", total);
         let pct = |t: f64| if total > 0.0 { 100.0 * t / total } else { 0.0 };
-        eprintln!("    bf16→f32 conversion : {:6.2}s ({:5.1}%)", self.t_bf16conv, pct(self.t_bf16conv));
-        eprintln!("    Q/K/V/O projections : {:6.2}s ({:5.1}%)", self.t_qkvo_proj, pct(self.t_qkvo_proj));
-        eprintln!("    Q/K/V/O LoRA        : {:6.2}s ({:5.1}%)", self.t_qkvo_lora, pct(self.t_qkvo_lora));
-        eprintln!("    attention math      : {:6.2}s ({:5.1}%)", self.t_attention, pct(self.t_attention));
-        eprintln!("    RMSNorm             : {:6.2}s ({:5.1}%)", self.t_norms, pct(self.t_norms));
-        eprintln!("    FFN matmuls         : {:6.2}s ({:5.1}%)", self.t_ffn, pct(self.t_ffn));
-        eprintln!("    RoPE                : {:6.2}s ({:5.1}%)", self.t_rope, pct(self.t_rope));
-        eprintln!("    PLE chain           : {:6.2}s ({:5.1}%)", self.t_ple, pct(self.t_ple));
-        eprintln!("    LM head             : {:6.2}s ({:5.1}%)", self.t_lm_head, pct(self.t_lm_head));
+        eprintln!(
+            "    bf16→f32 conversion : {:6.2}s ({:5.1}%)",
+            self.t_bf16conv,
+            pct(self.t_bf16conv)
+        );
+        eprintln!(
+            "    Q/K/V/O projections : {:6.2}s ({:5.1}%)",
+            self.t_qkvo_proj,
+            pct(self.t_qkvo_proj)
+        );
+        eprintln!(
+            "    Q/K/V/O LoRA        : {:6.2}s ({:5.1}%)",
+            self.t_qkvo_lora,
+            pct(self.t_qkvo_lora)
+        );
+        eprintln!(
+            "    attention math      : {:6.2}s ({:5.1}%)",
+            self.t_attention,
+            pct(self.t_attention)
+        );
+        eprintln!(
+            "    RMSNorm             : {:6.2}s ({:5.1}%)",
+            self.t_norms,
+            pct(self.t_norms)
+        );
+        eprintln!(
+            "    FFN matmuls         : {:6.2}s ({:5.1}%)",
+            self.t_ffn,
+            pct(self.t_ffn)
+        );
+        eprintln!(
+            "    RoPE                : {:6.2}s ({:5.1}%)",
+            self.t_rope,
+            pct(self.t_rope)
+        );
+        eprintln!(
+            "    PLE chain           : {:6.2}s ({:5.1}%)",
+            self.t_ple,
+            pct(self.t_ple)
+        );
+        eprintln!(
+            "    LM head             : {:6.2}s ({:5.1}%)",
+            self.t_lm_head,
+            pct(self.t_lm_head)
+        );
         eprintln!("    layers:             : {}", self.n_layers);
     }
 }
@@ -817,10 +971,14 @@ pub fn forward_gemma4_with_lora(
         // 2b. Q projection: [seq, q_out_dim] = normed @ wq^T + LoRA_Q
         let _t = std::time::Instant::now();
         let wq_f32 = bf16_to_f32_vec(&weights.wq[il]);
-        if prof.enabled { prof.t_bf16conv += _t.elapsed().as_secs_f64(); }
+        if prof.enabled {
+            prof.t_bf16conv += _t.elapsed().as_secs_f64();
+        }
         let _t = std::time::Instant::now();
         let mut q = matmul_x_wt(&normed, &wq_f32, seq, q_out_dim, n_embd);
-        if prof.enabled { prof.t_qkvo_proj += _t.elapsed().as_secs_f64(); }
+        if prof.enabled {
+            prof.t_qkvo_proj += _t.elapsed().as_secs_f64();
+        }
         if let Some(lora_set) = lora {
             if let Some(lq) = &lora_set.layers[il][0] {
                 let scale = lora_set.scale();
@@ -881,7 +1039,10 @@ pub fn forward_gemma4_with_lora(
         let q_normed = per_head_rmsnorm(
             &q,
             &weights.attn_q_norm[il],
-            seq, n_head, head_dim, h.rms_norm_eps,
+            seq,
+            n_head,
+            head_dim,
+            h.rms_norm_eps,
         );
         let k_normed = if let Some(k_norm) = &weights.attn_k_norm[il] {
             per_head_rmsnorm(&k_flat, k_norm, seq, n_head_kv, head_dim, h.rms_norm_eps)
@@ -912,8 +1073,12 @@ pub fn forward_gemma4_with_lora(
         let freq_base = h.rope_freq_base(il);
         let (cos_table, sin_table) = forward::rope_freqs(seq, rope_dim, freq_base);
 
-        let q_rot = rope_apply_partial(&q_normed, &cos_table, &sin_table, seq, n_head, head_dim, rope_dim);
-        let k_rot = rope_apply_partial(&k_normed, &cos_table, &sin_table, seq, n_head_kv, head_dim, rope_dim);
+        let q_rot = rope_apply_partial(
+            &q_normed, &cos_table, &sin_table, seq, n_head, head_dim, rope_dim,
+        );
+        let k_rot = rope_apply_partial(
+            &k_normed, &cos_table, &sin_table, seq, n_head_kv, head_dim, rope_dim,
+        );
 
         // 2f. Real attention with hybrid mask
         let mask = if h.is_sliding(il) {
@@ -923,10 +1088,11 @@ pub fn forward_gemma4_with_lora(
         };
         let _t = std::time::Instant::now();
         let (attn_out_head, attn_cache) = forward::attention_forward(
-            &q_rot, &k_rot, &v_normed,
-            n_head, n_head_kv, head_dim, seq, mask,
+            &q_rot, &k_rot, &v_normed, n_head, n_head_kv, head_dim, seq, mask,
         );
-        if prof.enabled { prof.t_attention += _t.elapsed().as_secs_f64(); }
+        if prof.enabled {
+            prof.t_attention += _t.elapsed().as_secs_f64();
+        }
         // attn_out_head shape: [seq, n_head, head_dim] — flatten to [seq, q_out_dim]
         // (already contiguous in that order)
 
@@ -974,7 +1140,9 @@ pub fn forward_gemma4_with_lora(
         let ffn_gate_f32 = bf16_to_f32_vec(&weights.ffn_gate[il]);
         let ffn_up_f32 = bf16_to_f32_vec(&weights.ffn_up[il]);
         let ffn_down_f32 = bf16_to_f32_vec(&weights.ffn_down[il]);
-        if prof.enabled { prof.t_bf16conv += _t.elapsed().as_secs_f64(); }
+        if prof.enabled {
+            prof.t_bf16conv += _t.elapsed().as_secs_f64();
+        }
         let _t = std::time::Instant::now();
         let gate_pre = matmul_x_wt(&ffn_normed, &ffn_gate_f32, seq, h.n_ff, n_embd);
         let up_pre = matmul_x_wt(&ffn_normed, &ffn_up_f32, seq, h.n_ff, n_embd);
@@ -983,7 +1151,9 @@ pub fn forward_gemma4_with_lora(
             ffn_hidden[i] = forward::gelu_tanh_approx(gate_pre[i]) * up_pre[i];
         }
         let ffn_out = matmul_x_wt(&ffn_hidden, &ffn_down_f32, seq, n_embd, h.n_ff);
-        if prof.enabled { prof.t_ffn += _t.elapsed().as_secs_f64(); }
+        if prof.enabled {
+            prof.t_ffn += _t.elapsed().as_secs_f64();
+        }
 
         // 2j. post_ffw_norm + residual (forming layer output for next iteration)
         let mut layer_out = vec![0.0f32; seq * n_embd];
@@ -1087,17 +1257,15 @@ pub fn forward_gemma4_with_lora(
     //    logits[s, v] = tok_embd[v, :] . final_hidden[s, :]
     let _t = std::time::Instant::now();
     let tok_embd_f32 = bf16_to_f32_vec(&weights.token_embd);
-    if prof.enabled { prof.t_bf16conv += _t.elapsed().as_secs_f64(); }
+    if prof.enabled {
+        prof.t_bf16conv += _t.elapsed().as_secs_f64();
+    }
     let _t = std::time::Instant::now();
     // tok_embd is stored as [vocab, n_embd] row-major. Match shape.
-    let logits = matmul_x_wt(
-        &final_hidden,
-        &tok_embd_f32,
-        seq,
-        h.vocab_size,
-        n_embd,
-    );
-    if prof.enabled { prof.t_lm_head += _t.elapsed().as_secs_f64(); }
+    let logits = matmul_x_wt(&final_hidden, &tok_embd_f32, seq, h.vocab_size, n_embd);
+    if prof.enabled {
+        prof.t_lm_head += _t.elapsed().as_secs_f64();
+    }
     prof.n_layers = h.n_layer;
     prof.report();
 
@@ -1183,7 +1351,13 @@ fn compute_inp_per_layer(
 /// Slice the per-layer chunk for layer `l` from inp_per_layer.
 /// Source: [seq, n_layer, n_epl] flattened.
 /// Returns: [seq, n_epl].
-fn slice_layer(inp_per_layer: &[f32], seq: usize, n_layer: usize, n_epl: usize, l: usize) -> Vec<f32> {
+fn slice_layer(
+    inp_per_layer: &[f32],
+    seq: usize,
+    n_layer: usize,
+    n_epl: usize,
+    l: usize,
+) -> Vec<f32> {
     let mut out = Vec::with_capacity(seq * n_epl);
     for t in 0..seq {
         let off = t * n_layer * n_epl + l * n_epl;
@@ -1215,7 +1389,7 @@ fn rope_apply_partial(
                 let si = sin[s * half + d];
                 let xe = x[off + 2 * d];
                 let xo = x[off + 2 * d + 1];
-                out[off + 2 * d]     = xe * c - xo * si;
+                out[off + 2 * d] = xe * c - xo * si;
                 out[off + 2 * d + 1] = xe * si + xo * c;
             }
             // Dims [rope_dim..head_dim] already copied from x unchanged.
@@ -1326,7 +1500,7 @@ fn rope_backward_partial(
                 let si = sin[s * half + d];
                 let ge = grad_rotated[off + 2 * d];
                 let go = grad_rotated[off + 2 * d + 1];
-                out[off + 2 * d]     = ge * c + go * si;
+                out[off + 2 * d] = ge * c + go * si;
                 out[off + 2 * d + 1] = -ge * si + go * c;
             }
         }
@@ -1366,6 +1540,7 @@ fn build_producer_table(h: &Gemma4Hparams) -> Vec<Option<usize>> {
     let mut last_full_producer: Option<usize> = None;
     let mut last_sliding_producer: Option<usize> = None;
     let mut producers = vec![None; h.n_layer];
+    #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
     for il in 0..h.n_layer {
         if h.has_kv(il) {
             // Update the running last producer for this attention type
@@ -1389,8 +1564,8 @@ fn build_producer_table(h: &Gemma4Hparams) -> Vec<Option<usize>> {
 /// grad_k_rot is in post-gqa-collapse, post-RoPE, pre-K-norm shape.
 /// grad_v_post_norm is in post-gqa-collapse, post-V-norm shape.
 struct SharedKvGrads {
-    grad_k_rot: Vec<f32>,         // [seq, n_head_kv, head_dim]
-    grad_v_post_norm: Vec<f32>,   // [seq, n_head_kv, head_dim]
+    grad_k_rot: Vec<f32>,       // [seq, n_head_kv, head_dim]
+    grad_v_post_norm: Vec<f32>, // [seq, n_head_kv, head_dim]
 }
 
 /// Same as `backward_gemma4` but accumulates LoRA gradients when `lora` is
@@ -1459,15 +1634,21 @@ pub fn backward_gemma4_with_lora(
     let last_cache = caches.last().expect("at least one layer cache");
     let grad_hidden = if let Some(g) = gpu {
         crate::gemma4_gpu::rmsnorm_batch_bwd_on_gpu(
-            &grad_final_hidden, &last_cache.post_ffw_residual,
-            &g.output_norm, h.rms_norm_eps, seq, n_embd,
-        ).expect("gpu site 18 output_norm_bwd")
+            &grad_final_hidden,
+            &last_cache.post_ffw_residual,
+            &g.output_norm,
+            h.rms_norm_eps,
+            seq,
+            n_embd,
+        )
+        .expect("gpu site 18 output_norm_bwd")
     } else {
         let mut grad_hidden = vec![0.0f32; seq * n_embd];
         for s in 0..seq {
             let input_row = &last_cache.post_ffw_residual[s * n_embd..(s + 1) * n_embd];
             let go_row = &grad_final_hidden[s * n_embd..(s + 1) * n_embd];
-            let gi = backward::rmsnorm_backward(input_row, &weights.output_norm, go_row, h.rms_norm_eps);
+            let gi =
+                backward::rmsnorm_backward(input_row, &weights.output_norm, go_row, h.rms_norm_eps);
             grad_hidden[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
         }
         grad_hidden
@@ -1533,15 +1714,25 @@ pub fn backward_gemma4_with_lora(
             // WAVE12 Phase 2 — Site 16: PLE post_norm rmsnorm_bwd on GPU.
             let grad_proj_out_pre_norm = if let Some(g) = gpu {
                 crate::gemma4_gpu::rmsnorm_batch_bwd_on_gpu(
-                    &grad_proj_normed, &ple.proj_out_pre_norm,
-                    &g.post_norm[il], h.rms_norm_eps, seq, n_embd,
-                ).expect("gpu site 16 ple_post_norm_bwd")
+                    &grad_proj_normed,
+                    &ple.proj_out_pre_norm,
+                    &g.post_norm[il],
+                    h.rms_norm_eps,
+                    seq,
+                    n_embd,
+                )
+                .expect("gpu site 16 ple_post_norm_bwd")
             } else {
                 let mut grad_proj_out_pre_norm = vec![0.0f32; seq * n_embd];
                 for s in 0..seq {
                     let input_row = &ple.proj_out_pre_norm[s * n_embd..(s + 1) * n_embd];
                     let go_row = &grad_proj_normed[s * n_embd..(s + 1) * n_embd];
-                    let gi = backward::rmsnorm_backward(input_row, &weights.post_norm[il], go_row, h.rms_norm_eps);
+                    let gi = backward::rmsnorm_backward(
+                        input_row,
+                        &weights.post_norm[il],
+                        go_row,
+                        h.rms_norm_eps,
+                    );
                     grad_proj_out_pre_norm[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
                 }
                 grad_proj_out_pre_norm
@@ -1569,13 +1760,13 @@ pub fn backward_gemma4_with_lora(
             // WAVE12 Phase 2 — Site 17: PLE unfused gelu_bwd on GPU.
             //   grad_gate_pre = grad_gate_post * gelu_tanh_approx_prime(gate_pre)
             let grad_gate_pre = if let Some(_g) = gpu {
-                crate::gemma4_gpu::gelu_batch_bwd_on_gpu(
-                    &grad_gate_post, &ple.gate_pre_gelu,
-                ).expect("gpu site 17 ple_gelu_bwd")
+                crate::gemma4_gpu::gelu_batch_bwd_on_gpu(&grad_gate_post, &ple.gate_pre_gelu)
+                    .expect("gpu site 17 ple_gelu_bwd")
             } else {
                 let mut grad_gate_pre = vec![0.0f32; seq * n_epl];
                 for i in 0..grad_gate_pre.len() {
-                    grad_gate_pre[i] = grad_gate_post[i] * gelu_tanh_approx_prime(ple.gate_pre_gelu[i]);
+                    grad_gate_pre[i] =
+                        grad_gate_post[i] * gelu_tanh_approx_prime(ple.gate_pre_gelu[i]);
                 }
                 grad_gate_pre
             };
@@ -1618,15 +1809,25 @@ pub fn backward_gemma4_with_lora(
         // WAVE12 Phase 2 — Site 9: post_ffw_norm rmsnorm_bwd on GPU.
         let grad_ffn_out = if let Some(g) = gpu {
             crate::gemma4_gpu::rmsnorm_batch_bwd_on_gpu(
-                &grad_hidden, &ffn_out_full,
-                &g.post_ffw_norm[il], h.rms_norm_eps, seq, n_embd,
-            ).expect("gpu site 9 post_ffw_norm_bwd")
+                &grad_hidden,
+                &ffn_out_full,
+                &g.post_ffw_norm[il],
+                h.rms_norm_eps,
+                seq,
+                n_embd,
+            )
+            .expect("gpu site 9 post_ffw_norm_bwd")
         } else {
             let mut grad_ffn_out = vec![0.0f32; seq * n_embd];
             for s in 0..seq {
                 let row_ffn_out = &ffn_out_full[s * n_embd..(s + 1) * n_embd];
                 let go_row = &grad_hidden[s * n_embd..(s + 1) * n_embd];
-                let gi = backward::rmsnorm_backward(row_ffn_out, &weights.post_ffw_norm[il], go_row, h.rms_norm_eps);
+                let gi = backward::rmsnorm_backward(
+                    row_ffn_out,
+                    &weights.post_ffw_norm[il],
+                    go_row,
+                    h.rms_norm_eps,
+                );
                 grad_ffn_out[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
             }
             grad_ffn_out
@@ -1647,8 +1848,11 @@ pub fn backward_gemma4_with_lora(
         //   grad_up_pre[i]   = grad_ffn_hidden[i] * gelu_tanh(gate_pre[i])
         let (grad_gate_pre, grad_up_pre) = if let Some(_g) = gpu {
             crate::gemma4_gpu::gelu_mul_batch_bwd_on_gpu(
-                &grad_ffn_hidden, &cache.ffn_gate_pre, &cache.ffn_up_pre,
-            ).expect("gpu site 11 gelu_mul_bwd")
+                &grad_ffn_hidden,
+                &cache.ffn_gate_pre,
+                &cache.ffn_up_pre,
+            )
+            .expect("gpu site 11 gelu_mul_bwd")
         } else {
             let mut grad_gate_pre = vec![0.0f32; seq * h.n_ff];
             let mut grad_up_pre = vec![0.0f32; seq * h.n_ff];
@@ -1688,9 +1892,14 @@ pub fn backward_gemma4_with_lora(
         // Output accumulates into grad_post_attn (residual-gradient sum).
         if let Some(g) = gpu {
             let grad_ffn_norm_in = crate::gemma4_gpu::rmsnorm_batch_bwd_on_gpu(
-                &grad_ffn_normed, &cache.post_attn_residual,
-                &g.ffn_norm[il], h.rms_norm_eps, seq, n_embd,
-            ).expect("gpu site 10 ffn_norm_bwd");
+                &grad_ffn_normed,
+                &cache.post_attn_residual,
+                &g.ffn_norm[il],
+                h.rms_norm_eps,
+                seq,
+                n_embd,
+            )
+            .expect("gpu site 10 ffn_norm_bwd");
             for i in 0..grad_post_attn.len() {
                 grad_post_attn[i] += grad_ffn_norm_in[i];
             }
@@ -1698,7 +1907,12 @@ pub fn backward_gemma4_with_lora(
             for s in 0..seq {
                 let input_row = &cache.post_attn_residual[s * n_embd..(s + 1) * n_embd];
                 let go_row = &grad_ffn_normed[s * n_embd..(s + 1) * n_embd];
-                let gi = backward::rmsnorm_backward(input_row, &weights.ffn_norm[il], go_row, h.rms_norm_eps);
+                let gi = backward::rmsnorm_backward(
+                    input_row,
+                    &weights.ffn_norm[il],
+                    go_row,
+                    h.rms_norm_eps,
+                );
                 for d in 0..n_embd {
                     grad_post_attn[s * n_embd + d] += gi[d];
                 }
@@ -1722,15 +1936,25 @@ pub fn backward_gemma4_with_lora(
         // WAVE12 Phase 2 — Site 6: rmsnorm_bwd on GPU (batched, replaces per-row CPU loop).
         let grad_o_out = if let Some(g) = gpu {
             crate::gemma4_gpu::rmsnorm_batch_bwd_on_gpu(
-                &grad_post_attn, &o_out_full,
-                &g.post_attention_norm[il], h.rms_norm_eps, seq, n_embd,
-            ).expect("gpu site 6 post_attention_norm_bwd")
+                &grad_post_attn,
+                &o_out_full,
+                &g.post_attention_norm[il],
+                h.rms_norm_eps,
+                seq,
+                n_embd,
+            )
+            .expect("gpu site 6 post_attention_norm_bwd")
         } else {
             let mut grad_o_out = vec![0.0f32; seq * n_embd];
             for s in 0..seq {
                 let row_o = &o_out_full[s * n_embd..(s + 1) * n_embd];
                 let go_row = &grad_post_attn[s * n_embd..(s + 1) * n_embd];
-                let gi = backward::rmsnorm_backward(row_o, &weights.post_attention_norm[il], go_row, h.rms_norm_eps);
+                let gi = backward::rmsnorm_backward(
+                    row_o,
+                    &weights.post_attention_norm[il],
+                    go_row,
+                    h.rms_norm_eps,
+                );
                 grad_o_out[s * n_embd..(s + 1) * n_embd].copy_from_slice(&gi);
             }
             grad_o_out
@@ -1757,10 +1981,15 @@ pub fn backward_gemma4_with_lora(
                 &cache.k_rot,
                 &cache.v,
                 &cache.attn_cache,
-                n_head, n_head_kv, head_dim, seq,
-            ).expect("gpu attention backward")
+                n_head,
+                n_head_kv,
+                head_dim,
+                seq,
+            )
+            .expect("gpu attention backward")
         } else {
-            let k_rot_expanded = backward::gqa_expand(&cache.k_rot, n_head, n_head_kv, head_dim, seq);
+            let k_rot_expanded =
+                backward::gqa_expand(&cache.k_rot, n_head, n_head_kv, head_dim, seq);
             let v_expanded = backward::gqa_expand(&cache.v, n_head, n_head_kv, head_dim, seq);
             let (gq, gke, gve) = backward::attention_backward(
                 &grad_attn_out,
@@ -1768,7 +1997,9 @@ pub fn backward_gemma4_with_lora(
                 &k_rot_expanded,
                 &v_expanded,
                 &cache.attn_cache,
-                n_head, head_dim, seq,
+                n_head,
+                head_dim,
+                seq,
             );
             let gk = backward::gqa_collapse(&gke, n_head, n_head_kv, head_dim, seq);
             let gv = backward::gqa_collapse(&gve, n_head, n_head_kv, head_dim, seq);
@@ -1785,21 +2016,25 @@ pub fn backward_gemma4_with_lora(
                 // Sanity: shapes must match (same attention type → same head_dim,
                 // same kv_out_dim; producer and consumer's seq is identical).
                 if entry.grad_k_rot.len() == grad_k_rot.len() {
-                    for i in 0..grad_k_rot.len() {
-                        entry.grad_k_rot[i] += grad_k_rot[i];
+                    for (dst, src) in entry.grad_k_rot.iter_mut().zip(grad_k_rot.iter()) {
+                        *dst += *src;
                     }
                 }
                 if entry.grad_v_post_norm.len() == grad_v.len() {
-                    for i in 0..grad_v.len() {
-                        entry.grad_v_post_norm[i] += grad_v[i];
+                    for (dst, src) in entry.grad_v_post_norm.iter_mut().zip(grad_v.iter()) {
+                        *dst += *src;
                     }
                 }
             }
             // Zero out local consumer grads — they're now routed.
             // (The consumer has no wk/wv to apply them to anyway; zeroing
             // makes the downstream branch produce zero grad_normed_k/v.)
-            for v in grad_k_rot.iter_mut() { *v = 0.0; }
-            for v in grad_v.iter_mut() { *v = 0.0; }
+            for v in grad_k_rot.iter_mut() {
+                *v = 0.0;
+            }
+            for v in grad_v.iter_mut() {
+                *v = 0.0;
+            }
         } else {
             // Phase 4 — if THIS is a producer, ADD any consumer contributions
             // to our own K/V grads before continuing through RoPE/norm backward.
@@ -1819,17 +2054,45 @@ pub fn backward_gemma4_with_lora(
         let (cos_table, sin_table) = forward::rope_freqs(seq, rope_dim, freq_base);
         let (grad_q_normed, grad_k_normed) = if let Some(_g) = gpu {
             let gq = crate::gemma4_gpu::rope_batch_bwd_on_gpu(
-                &grad_q_rot, &cos_table, &sin_table,
-                seq, n_head, head_dim, rope_dim,
-            ).expect("gpu site 12 rope_bwd Q");
+                &grad_q_rot,
+                &cos_table,
+                &sin_table,
+                seq,
+                n_head,
+                head_dim,
+                rope_dim,
+            )
+            .expect("gpu site 12 rope_bwd Q");
             let gk = crate::gemma4_gpu::rope_batch_bwd_on_gpu(
-                &grad_k_rot, &cos_table, &sin_table,
-                seq, n_head_kv, head_dim, rope_dim,
-            ).expect("gpu site 12 rope_bwd K");
+                &grad_k_rot,
+                &cos_table,
+                &sin_table,
+                seq,
+                n_head_kv,
+                head_dim,
+                rope_dim,
+            )
+            .expect("gpu site 12 rope_bwd K");
             (gq, gk)
         } else {
-            let gq = rope_backward_partial(&grad_q_rot, &cos_table, &sin_table, seq, n_head, head_dim, rope_dim);
-            let gk = rope_backward_partial(&grad_k_rot, &cos_table, &sin_table, seq, n_head_kv, head_dim, rope_dim);
+            let gq = rope_backward_partial(
+                &grad_q_rot,
+                &cos_table,
+                &sin_table,
+                seq,
+                n_head,
+                head_dim,
+                rope_dim,
+            );
+            let gk = rope_backward_partial(
+                &grad_k_rot,
+                &cos_table,
+                &sin_table,
+                seq,
+                n_head_kv,
+                head_dim,
+                rope_dim,
+            );
             (gq, gk)
         };
 
@@ -1854,14 +2117,18 @@ pub fn backward_gemma4_with_lora(
                 matmul_x_wt(&cache.normed_input, &wk_f32, seq, kv_out_dim, n_embd)
             };
             let v_pre = if let Some(g) = gpu {
-                let g_wv = g.wv[il].as_ref()
+                let g_wv = g.wv[il]
+                    .as_ref()
                     .or(g.wk[il].as_ref())
                     .expect("gpu wv or wk present on producer");
                 g.matmul_xwt(g_wv, &cache.normed_input, seq, kv_out_dim, n_embd)
                     .expect("gpu site 12 v_pre_norm recon")
             } else {
                 let wk_f32 = bf16_to_f32_vec(wk_cpu);
-                let wv_f32 = weights.wv[il].as_ref().map(|w| bf16_to_f32_vec(w)).unwrap_or(wk_f32);
+                let wv_f32 = weights.wv[il]
+                    .as_ref()
+                    .map(|w| bf16_to_f32_vec(w))
+                    .unwrap_or(wk_f32);
                 matmul_x_wt(&cache.normed_input, &wv_f32, seq, kv_out_dim, n_embd)
             };
             (k_pre, v_pre)
@@ -1869,7 +2136,10 @@ pub fn backward_gemma4_with_lora(
             // KV-reusing layer: k_pre_norm is unused (grad_k takes grad_k_normed
             // branch below), v_pre_norm goes to v_norm_backward as zeros (matches
             // former reconstruct_kv_pre_norm None-fallthrough behavior).
-            (vec![0.0f32; seq * kv_out_dim], vec![0.0f32; seq * kv_out_dim])
+            (
+                vec![0.0f32; seq * kv_out_dim],
+                vec![0.0f32; seq * kv_out_dim],
+            )
         };
 
         // WAVE12 Phase 2 — Site 13: per-head rmsnorm backward on GPU for Q and K.
@@ -1878,29 +2148,50 @@ pub fn backward_gemma4_with_lora(
         // ones-weight GpuBuffer — net cost exceeds the CPU loop.
         let grad_q = if let Some(g) = gpu {
             crate::gemma4_gpu::per_head_rmsnorm_batch_bwd_on_gpu(
-                &grad_q_normed, &q_pre_norm,
-                &g.attn_q_norm[il], h.rms_norm_eps,
-                seq, n_head, head_dim,
-            ).expect("gpu site 13 per_head_rms_bwd Q")
+                &grad_q_normed,
+                &q_pre_norm,
+                &g.attn_q_norm[il],
+                h.rms_norm_eps,
+                seq,
+                n_head,
+                head_dim,
+            )
+            .expect("gpu site 13 per_head_rms_bwd Q")
         } else {
             per_head_rmsnorm_backward(
-                &grad_q_normed, &q_pre_norm, &weights.attn_q_norm[il],
-                seq, n_head, head_dim, h.rms_norm_eps,
+                &grad_q_normed,
+                &q_pre_norm,
+                &weights.attn_q_norm[il],
+                seq,
+                n_head,
+                head_dim,
+                h.rms_norm_eps,
             )
         };
         let grad_k = if let Some(k_norm_w) = &weights.attn_k_norm[il] {
             if let Some(g) = gpu {
-                let g_kn = g.attn_k_norm[il].as_ref()
+                let g_kn = g.attn_k_norm[il]
+                    .as_ref()
                     .expect("gpu attn_k_norm mirror present when CPU has k_norm");
                 crate::gemma4_gpu::per_head_rmsnorm_batch_bwd_on_gpu(
-                    &grad_k_normed, &k_pre_norm,
-                    g_kn, h.rms_norm_eps,
-                    seq, n_head_kv, head_dim,
-                ).expect("gpu site 13 per_head_rms_bwd K")
+                    &grad_k_normed,
+                    &k_pre_norm,
+                    g_kn,
+                    h.rms_norm_eps,
+                    seq,
+                    n_head_kv,
+                    head_dim,
+                )
+                .expect("gpu site 13 per_head_rms_bwd K")
             } else {
                 per_head_rmsnorm_backward(
-                    &grad_k_normed, &k_pre_norm, k_norm_w,
-                    seq, n_head_kv, head_dim, h.rms_norm_eps,
+                    &grad_k_normed,
+                    &k_pre_norm,
+                    k_norm_w,
+                    seq,
+                    n_head_kv,
+                    head_dim,
+                    h.rms_norm_eps,
                 )
             }
         } else {
@@ -1910,7 +2201,10 @@ pub fn backward_gemma4_with_lora(
         let grad_v_pre = v_norm_backward(
             &grad_v,
             &v_pre_norm,
-            seq, n_head_kv, head_dim, h.rms_norm_eps,
+            seq,
+            n_head_kv,
+            head_dim,
+            h.rms_norm_eps,
         );
 
         // Backward through Q, K, V projections (input was cache.normed_input).
@@ -1927,7 +2221,9 @@ pub fn backward_gemma4_with_lora(
         let (grad_normed_k, grad_normed_v) = if let Some(wk) = &weights.wk[il] {
             // Site 9 — wk backward
             let gnk = if let Some(g) = gpu {
-                let g_wk = g.wk[il].as_ref().expect("gpu wk mirror present on producer layer");
+                let g_wk = g.wk[il]
+                    .as_ref()
+                    .expect("gpu wk mirror present on producer layer");
                 g.matmul_grad_x(g_wk, &grad_k, seq, kv_out_dim, n_embd)
                     .expect("gpu site 9 wk_grad")
             } else {
@@ -1936,14 +2232,18 @@ pub fn backward_gemma4_with_lora(
             };
             // Site 10 — wv backward (wv falls back to wk on Gemma 4 if absent)
             let gnv = if let Some(g) = gpu {
-                let g_wv = g.wv[il].as_ref()
+                let g_wv = g.wv[il]
+                    .as_ref()
                     .or(g.wk[il].as_ref())
                     .expect("gpu wv or wk mirror present on producer layer");
                 g.matmul_grad_x(g_wv, &grad_v_pre, seq, kv_out_dim, n_embd)
                     .expect("gpu site 10 wv_grad")
             } else {
                 let wk_f32 = bf16_to_f32_vec(wk);
-                let wv_f32 = weights.wv[il].as_ref().map(|w| bf16_to_f32_vec(w)).unwrap_or(wk_f32);
+                let wv_f32 = weights.wv[il]
+                    .as_ref()
+                    .map(|w| bf16_to_f32_vec(w))
+                    .unwrap_or(wk_f32);
                 matmul_grad_x(&grad_v_pre, &wv_f32, seq, kv_out_dim, n_embd)
             };
             (gnk, gnv)
@@ -1957,14 +2257,46 @@ pub fn backward_gemma4_with_lora(
         if let Some(ls) = lora.as_mut() {
             let scale = ls.scale();
             // Q target (0) — always present
-            accumulate_lora_grad(&mut ls.layers[il][0], &cache.normed_input, &grad_q, seq, n_embd, q_out_dim, scale);
+            accumulate_lora_grad(
+                &mut ls.layers[il][0],
+                &cache.normed_input,
+                &grad_q,
+                seq,
+                n_embd,
+                q_out_dim,
+                scale,
+            );
             // K target (1) — present only for KV-producing layers
-            if let Some(_) = &weights.wk[il] {
-                accumulate_lora_grad(&mut ls.layers[il][1], &cache.normed_input, &grad_k, seq, n_embd, kv_out_dim, scale);
-                accumulate_lora_grad(&mut ls.layers[il][2], &cache.normed_input, &grad_v_pre, seq, n_embd, kv_out_dim, scale);
+            if weights.wk[il].is_some() {
+                accumulate_lora_grad(
+                    &mut ls.layers[il][1],
+                    &cache.normed_input,
+                    &grad_k,
+                    seq,
+                    n_embd,
+                    kv_out_dim,
+                    scale,
+                );
+                accumulate_lora_grad(
+                    &mut ls.layers[il][2],
+                    &cache.normed_input,
+                    &grad_v_pre,
+                    seq,
+                    n_embd,
+                    kv_out_dim,
+                    scale,
+                );
             }
             // O target (3) — input was attn_out_head, output grad is grad_o_out
-            accumulate_lora_grad(&mut ls.layers[il][3], &cache.attn_out, &grad_o_out, seq, q_out_dim, n_embd, scale);
+            accumulate_lora_grad(
+                &mut ls.layers[il][3],
+                &cache.attn_out,
+                &grad_o_out,
+                seq,
+                q_out_dim,
+                n_embd,
+                scale,
+            );
         }
 
         // Sum Q, K, V contributions to normed input
@@ -1976,31 +2308,33 @@ pub fn backward_gemma4_with_lora(
         // Backward through attn_norm → grad to hidden_incoming (add residual)
         // We need the ORIGINAL layer input (hidden before this layer's attn_norm).
         // That's the layer_out of the PREVIOUS layer (or embedding for layer 0).
-        let layer_input = if il > 0 {
-            &caches[il - 1].post_ffw_residual[..]
-        } else {
-            // Layer 0 input = scaled embedding. Reconstruct.
-            // Compute on demand:
-            &compute_embed_input(weights, tokens)[..]
-            // NOTE: this borrows a temporary — we need to hold it.
+        // Layer 0's input is the scaled embedding, which has to be
+        // materialized and held for as long as it is borrowed. Every later
+        // layer just borrows the previous layer's cached residual.
+        //
+        // This used to compute the layer-0 embedding TWICE: a redundant
+        // `let layer_input = ...` binding sat above, called
+        // `compute_embed_input`, and was discarded through a `let _ =` with a
+        // "clean up" note. Cleaned up 2026-08-03 — one call, one binding.
+        let layer_input_owned: Option<Vec<f32>> =
+            (il == 0).then(|| compute_embed_input(weights, tokens));
+        let layer_input_ref: &[f32] = match &layer_input_owned {
+            Some(embed) => embed.as_slice(),
+            None => &caches[il - 1].post_ffw_residual,
         };
-        let mut layer_input_owned: Option<Vec<f32>> = None;
-        let layer_input_ref: &[f32] = if il > 0 {
-            &caches[il - 1].post_ffw_residual
-        } else {
-            layer_input_owned = Some(compute_embed_input(weights, tokens));
-            layer_input_owned.as_ref().unwrap().as_slice()
-        };
-        // The above `let layer_input =` is redundant with the one below; clean up.
-        let _ = layer_input;
 
         // WAVE12 Phase 2 — Site 15: attn_norm rmsnorm_bwd on GPU.
         // Output accumulates into grad_hidden_incoming (residual sum).
         if let Some(g) = gpu {
             let grad_attn_norm_in = crate::gemma4_gpu::rmsnorm_batch_bwd_on_gpu(
-                &grad_normed, layer_input_ref,
-                &g.attn_norm[il], h.rms_norm_eps, seq, n_embd,
-            ).expect("gpu site 15 attn_norm_bwd");
+                &grad_normed,
+                layer_input_ref,
+                &g.attn_norm[il],
+                h.rms_norm_eps,
+                seq,
+                n_embd,
+            )
+            .expect("gpu site 15 attn_norm_bwd");
             for i in 0..grad_hidden_incoming.len() {
                 grad_hidden_incoming[i] += grad_attn_norm_in[i];
             }
@@ -2008,7 +2342,12 @@ pub fn backward_gemma4_with_lora(
             for s in 0..seq {
                 let input_row = &layer_input_ref[s * n_embd..(s + 1) * n_embd];
                 let go_row = &grad_normed[s * n_embd..(s + 1) * n_embd];
-                let gi = backward::rmsnorm_backward(input_row, &weights.attn_norm[il], go_row, h.rms_norm_eps);
+                let gi = backward::rmsnorm_backward(
+                    input_row,
+                    &weights.attn_norm[il],
+                    go_row,
+                    h.rms_norm_eps,
+                );
                 for d in 0..n_embd {
                     grad_hidden_incoming[s * n_embd + d] += gi[d];
                 }
@@ -2037,7 +2376,14 @@ pub fn train_step_gemma4(
 ) -> f32 {
     let (logits, caches) = forward_gemma4_with_lora(weights, Some(lora), tokens);
     let (loss, _health) = backward_gemma4_with_lora(
-        weights, None, Some(lora), &caches, &logits, tokens, answer_start);
+        weights,
+        None,
+        Some(lora),
+        &caches,
+        &logits,
+        tokens,
+        answer_start,
+    );
 
     // Gradient clip + Adam step per LoRA layer
     let clip_threshold = 1.0f32;
@@ -2045,15 +2391,22 @@ pub fn train_step_gemma4(
         for t in 0..4 {
             if let Some(lora_layer) = &mut lora.layers[il][t] {
                 // Compute grad norm
-                let grad_norm_sq: f32 = lora_layer.grad_a.iter()
+                let grad_norm_sq: f32 = lora_layer
+                    .grad_a
+                    .iter()
                     .chain(lora_layer.grad_b.iter())
-                    .map(|g| g * g).sum();
+                    .map(|g| g * g)
+                    .sum();
                 let grad_norm = grad_norm_sq.sqrt();
                 // Clip
                 if grad_norm > clip_threshold {
                     let scale = clip_threshold / grad_norm;
-                    for g in lora_layer.grad_a.iter_mut() { *g *= scale; }
-                    for g in lora_layer.grad_b.iter_mut() { *g *= scale; }
+                    for g in lora_layer.grad_a.iter_mut() {
+                        *g *= scale;
+                    }
+                    for g in lora_layer.grad_b.iter_mut() {
+                        *g *= scale;
+                    }
                 }
                 // Adam step (with NaN guard from lora.rs)
                 lora_layer.adam_step(lr, 0.9, 0.999, 1e-8, step);
@@ -2067,14 +2420,16 @@ pub fn train_step_gemma4(
 /// Does nothing if `lora_opt` is None.
 fn accumulate_lora_grad(
     lora_opt: &mut Option<LoraLayer>,
-    input_tensor: &[f32],    // [seq, input_dim]
+    input_tensor: &[f32],       // [seq, input_dim]
     grad_output_tensor: &[f32], // [seq, output_dim]
     seq: usize,
     input_dim: usize,
     output_dim: usize,
     scale: f32,
 ) {
-    let Some(lora_layer) = lora_opt.as_mut() else { return; };
+    let Some(lora_layer) = lora_opt.as_mut() else {
+        return;
+    };
     let rank = lora_layer.rank as usize;
     for s in 0..seq {
         let inp = &input_tensor[s * input_dim..(s + 1) * input_dim];
@@ -2083,9 +2438,13 @@ fn accumulate_lora_grad(
         let (_, hidden) = lora_layer.forward_with_hidden(inp);
         debug_assert_eq!(hidden.len(), rank);
         let (ga, gb) = crate::backward::lora_backward(
-            inp, &hidden, go,
-            &lora_layer.a, &lora_layer.b,
-            input_dim, output_dim, rank,
+            inp,
+            &hidden,
+            go,
+            &lora_layer.b,
+            input_dim,
+            output_dim,
+            rank,
             scale,
         );
         for (i, v) in ga.iter().enumerate() {
@@ -2103,7 +2462,7 @@ fn accumulate_lora_grad(
 
 /// GELU-tanh derivative: d/dx [0.5 * x * (1 + tanh(k*(x + α*x^3)))]
 fn gelu_tanh_approx_prime(x: f32) -> f32 {
-    const SQRT_2_OVER_PI: f32 = 0.7978845608028654;
+    const SQRT_2_OVER_PI: f32 = 0.797_884_6;
     const ALPHA: f32 = 0.044715;
     let inner = SQRT_2_OVER_PI * (x + ALPHA * x * x * x);
     let th = inner.tanh();
@@ -2126,6 +2485,12 @@ fn compute_embed_input(weights: &CpuWeightsGemma4, tokens: &[u32]) -> Vec<f32> {
 // silence the unused import for now
 #[allow(dead_code)]
 fn _hashmap_keepalive() {
+    let _: HashMap<String, String> = HashMap::new();
+}
+
+// Suppress warnings for the unused HashMap import — kept for future tensor mapping use
+#[allow(dead_code)]
+fn _suppress_unused() {
     let _: HashMap<String, String> = HashMap::new();
 }
 
@@ -2227,8 +2592,8 @@ mod tests {
         let mut lora = Gemma4LoraAdapters::new(&weights.hparams, 16, 32.0);
 
         let tokens: Vec<u32> = vec![2, 1000, 2000, 3000, 4000, 5000];
-        let answer_start = 3;  // train on tokens 3, 4, 5
-        let lr = 3e-3f32;  // aggressive lr for smoke test
+        let answer_start = 3; // train on tokens 3, 4, 5
+        let lr = 3e-3f32; // aggressive lr for smoke test
 
         println!("Running {} training steps on fixed tokens...", 3);
         let mut losses = Vec::new();
@@ -2236,15 +2601,24 @@ mod tests {
             let t0 = std::time::Instant::now();
             let loss = train_step_gemma4(&weights, &mut lora, &tokens, answer_start, lr, step);
             losses.push(loss);
-            println!("  [step {}] loss={:.4} ({:.1}s)", step, loss, t0.elapsed().as_secs_f64());
+            println!(
+                "  [step {}] loss={:.4} ({:.1}s)",
+                step,
+                loss,
+                t0.elapsed().as_secs_f64()
+            );
             assert!(loss.is_finite(), "loss must be finite at step {}", step);
         }
 
         println!("\nLoss trajectory: {:?}", losses);
         // On a fixed training example with aggressive lr, loss should decrease
         // monotonically over 3 steps. Allow some slack (step 3 <= step 1 is sufficient).
-        assert!(losses[2] <= losses[0],
-            "loss should decrease: start={} end={}", losses[0], losses[2]);
+        assert!(
+            losses[2] <= losses[0],
+            "loss should decrease: start={} end={}",
+            losses[0],
+            losses[2]
+        );
         println!("✓ Loss descended: {:.4} → {:.4}", losses[0], losses[2]);
     }
 
@@ -2259,8 +2633,11 @@ mod tests {
         let weights = CpuWeightsGemma4::load(&model).expect("load");
         let mut lora = Gemma4LoraAdapters::new(&weights.hparams, 16, 32.0);
 
-        println!("LoRA: {} active targets, {:.1} MB",
-            lora.n_active_targets(), lora.size_bytes() as f64 / 1e6);
+        println!(
+            "LoRA: {} active targets, {:.1} MB",
+            lora.n_active_targets(),
+            lora.size_bytes() as f64 / 1e6
+        );
 
         let tokens: Vec<u32> = vec![2, 1000, 2000, 3000];
         let t0 = std::time::Instant::now();
@@ -2269,9 +2646,19 @@ mod tests {
 
         let t1 = std::time::Instant::now();
         let (loss, _health) = backward_gemma4_with_lora(
-            &weights, None, Some(&mut lora), &caches, &logits, &tokens, 1);
-        println!("  Backward (with LoRA grad accum): {:.1}s, loss={:.4}",
-            t1.elapsed().as_secs_f64(), loss);
+            &weights,
+            None,
+            Some(&mut lora),
+            &caches,
+            &logits,
+            &tokens,
+            1,
+        );
+        println!(
+            "  Backward (with LoRA grad accum): {:.1}s, loss={:.4}",
+            t1.elapsed().as_secs_f64(),
+            loss
+        );
 
         // Count LoRA grad health per target/layer
         let mut healthy = 0;
@@ -2281,13 +2668,21 @@ mod tests {
         let target_names = ["Q", "K", "V", "O"];
         println!("\nLoRA grad health:");
         for il in 0..weights.hparams.n_layer {
+            #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
             for t in 0..4 {
                 if let Some(layer_l) = &lora.layers[il][t] {
                     total += 1;
-                    let has_nan = layer_l.grad_a.iter().chain(layer_l.grad_b.iter())
+                    let has_nan = layer_l
+                        .grad_a
+                        .iter()
+                        .chain(layer_l.grad_b.iter())
                         .any(|v| v.is_nan());
-                    let sum_sq: f32 = layer_l.grad_a.iter().chain(layer_l.grad_b.iter())
-                        .map(|v| v * v).sum();
+                    let sum_sq: f32 = layer_l
+                        .grad_a
+                        .iter()
+                        .chain(layer_l.grad_b.iter())
+                        .map(|v| v * v)
+                        .sum();
                     let norm = sum_sq.sqrt();
                     if has_nan {
                         nan_count += 1;
@@ -2298,17 +2693,26 @@ mod tests {
                     }
                     // Print only transitions / edge cases
                     if il < 2 || il >= weights.hparams.n_layer - 2 {
-                        println!("  L{:2}T{}({}): norm={:.3e} nan={}", il, t, target_names[t], norm, has_nan);
+                        println!(
+                            "  L{:2}T{}({}): norm={:.3e} nan={}",
+                            il, t, target_names[t], norm, has_nan
+                        );
                     }
                 }
             }
         }
-        println!("\nLoRA target summary: healthy={}/{} zero={} nan={}",
-            healthy, total, zero_count, nan_count);
+        println!(
+            "\nLoRA target summary: healthy={}/{} zero={} nan={}",
+            healthy, total, zero_count, nan_count
+        );
 
         assert_eq!(nan_count, 0, "no NaN LoRA gradients");
-        assert!(healthy > total / 2,
-            "at least half of LoRA targets should have healthy grads, got {}/{}", healthy, total);
+        assert!(
+            healthy > total / 2,
+            "at least half of LoRA targets should have healthy grads, got {}/{}",
+            healthy,
+            total
+        );
     }
 
     #[test]
@@ -2331,40 +2735,71 @@ mod tests {
         println!("Backward...");
         let t1 = std::time::Instant::now();
         let (loss, health) = backward_gemma4(&weights, &caches, &logits, &tokens, 1);
-        println!("  Backward: {:.1}s, loss={:.4}", t1.elapsed().as_secs_f64(), loss);
+        println!(
+            "  Backward: {:.1}s, loss={:.4}",
+            t1.elapsed().as_secs_f64(),
+            loss
+        );
 
         // Print health per layer
         println!("\nPer-layer grad health (incoming gradient at each layer's output):");
         println!("  layer | type   | KV   | grad_norm     | NaN | Inf | nonzero");
         for (idx, hh) in health.iter().enumerate() {
             let _ = idx;
-            println!("  {:3}   | {:6} | {:5} | {:13.4e} | {:3} | {:3} | {}",
+            println!(
+                "  {:3}   | {:6} | {:5} | {:13.4e} | {:3} | {:3} | {}",
                 hh.layer,
                 if hh.is_sliding { "slide" } else { "full" },
                 if hh.has_kv { "yes" } else { "no" },
-                hh.grad_norm, hh.has_nan, hh.has_inf, hh.nonzero);
+                hh.grad_norm,
+                hh.has_nan,
+                hh.has_inf,
+                hh.nonzero
+            );
         }
 
         // Exit gate assertions
         assert!(loss.is_finite(), "loss must be finite, got {}", loss);
         let any_nan = health.iter().any(|h| h.has_nan);
         let any_inf = health.iter().any(|h| h.has_inf);
-        let n_zero = health.iter().filter(|h| !h.nonzero && !h.has_nan && !h.has_inf).count();
-        let n_healthy = health.iter().filter(|h| h.nonzero && !h.has_nan && !h.has_inf).count();
+        let n_zero = health
+            .iter()
+            .filter(|h| !h.nonzero && !h.has_nan && !h.has_inf)
+            .count();
+        let n_healthy = health
+            .iter()
+            .filter(|h| h.nonzero && !h.has_nan && !h.has_inf)
+            .count();
 
         println!("\nGrad health summary:");
-        println!("  healthy={}/{} zero={} nan={} inf={}",
-            n_healthy, health.len(), n_zero,
+        println!(
+            "  healthy={}/{} zero={} nan={} inf={}",
+            n_healthy,
+            health.len(),
+            n_zero,
             health.iter().filter(|h| h.has_nan).count(),
-            health.iter().filter(|h| h.has_inf).count());
+            health.iter().filter(|h| h.has_inf).count()
+        );
 
-        assert!(!any_nan, "WAVE10F exit gate FAILED: NaN gradients in {}/{} layers",
-            health.iter().filter(|h| h.has_nan).count(), health.len());
-        assert!(!any_inf, "WAVE10F exit gate FAILED: Inf gradients in {}/{} layers",
-            health.iter().filter(|h| h.has_inf).count(), health.len());
-        assert_eq!(n_healthy, health.len(),
+        assert!(
+            !any_nan,
+            "WAVE10F exit gate FAILED: NaN gradients in {}/{} layers",
+            health.iter().filter(|h| h.has_nan).count(),
+            health.len()
+        );
+        assert!(
+            !any_inf,
+            "WAVE10F exit gate FAILED: Inf gradients in {}/{} layers",
+            health.iter().filter(|h| h.has_inf).count(),
+            health.len()
+        );
+        assert_eq!(
+            n_healthy,
+            health.len(),
             "WAVE10F exit gate FAILED: only {}/{} layers have healthy gradients",
-            n_healthy, health.len());
+            n_healthy,
+            health.len()
+        );
     }
 
     #[test]
@@ -2384,12 +2819,19 @@ mod tests {
         let start = std::time::Instant::now();
         let (logits, caches) = forward_gemma4(&weights, &tokens);
         let elapsed = start.elapsed().as_secs_f64();
-        println!("Forward took {:.2}s, {} layer caches, {} logits",
-            elapsed, caches.len(), logits.len());
+        println!(
+            "Forward took {:.2}s, {} layer caches, {} logits",
+            elapsed,
+            caches.len(),
+            logits.len()
+        );
 
         assert_eq!(caches.len(), weights.hparams.n_layer, "one cache per layer");
-        assert_eq!(logits.len(), tokens.len() * weights.hparams.vocab_size,
-            "logits = seq × vocab");
+        assert_eq!(
+            logits.len(),
+            tokens.len() * weights.hparams.vocab_size,
+            "logits = seq × vocab"
+        );
 
         // All logits finite
         let n_nan = logits.iter().filter(|x| x.is_nan()).count();
@@ -2401,8 +2843,12 @@ mod tests {
         let softcap = weights.hparams.final_logit_softcapping;
         if softcap > 0.0 {
             let max_abs = logits.iter().cloned().fold(0.0f32, |a, x| a.max(x.abs()));
-            assert!(max_abs <= softcap + 1e-3,
-                "|logit| = {} exceeds softcap {}", max_abs, softcap);
+            assert!(
+                max_abs <= softcap + 1e-3,
+                "|logit| = {} exceeds softcap {}",
+                max_abs,
+                softcap
+            );
         }
 
         // Top-5 tokens for last position as sanity check
@@ -2411,8 +2857,10 @@ mod tests {
         let last_logits = &logits[last_pos * vocab..(last_pos + 1) * vocab];
         let mut indexed: Vec<(usize, f32)> = last_logits.iter().copied().enumerate().collect();
         indexed.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
-        println!("Top-5 tokens for last position: {:?}",
-            &indexed[..5.min(indexed.len())]);
+        println!(
+            "Top-5 tokens for last position: {:?}",
+            &indexed[..5.min(indexed.len())]
+        );
     }
 
     #[test]
@@ -2424,20 +2872,19 @@ mod tests {
         }
         let model = GgufFile::open(model_path).unwrap();
         let hparams = Gemma4Hparams::from_gguf(&model).expect("hparams");
-        let full_indices: Vec<usize> = hparams.layer_is_sliding
-            .iter().enumerate()
+        let full_indices: Vec<usize> = hparams
+            .layer_is_sliding
+            .iter()
+            .enumerate()
             .filter_map(|(i, &s)| if !s { Some(i) } else { None })
             .collect();
         // Per HF config.json layer_types and verified blk.{N}.attn_q.weight
         // shapes (full = 4096 = 8*512, sliding = 2048 = 8*256), full layers
         // are at indices [4, 9, 14, 19, 24, 29, 34].
-        assert_eq!(full_indices, vec![4, 9, 14, 19, 24, 29, 34],
-            "full-attention layers should be at indices [4,9,14,19,24,29,34]");
+        assert_eq!(
+            full_indices,
+            vec![4, 9, 14, 19, 24, 29, 34],
+            "full-attention layers should be at indices [4,9,14,19,24,29,34]"
+        );
     }
-}
-
-// Suppress warnings for the unused HashMap import — kept for future tensor mapping use
-#[allow(dead_code)]
-fn _suppress_unused() {
-    let _: HashMap<String, String> = HashMap::new();
 }
