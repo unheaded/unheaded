@@ -361,7 +361,7 @@ def _build_live_context(question, max_chars=4096):
             # Per-status listings (top N by recency) so the model never has to
             # infer counts from a truncated cross-status sample.
             status_lists = {}
-            for status_key, total in counts.items():
+            for status_key in counts:
                 cur.execute("""
                     SELECT id, title, owner, progress
                       FROM kanban_tasks
@@ -378,12 +378,16 @@ def _build_live_context(question, max_chars=4096):
             lines = [
                 '## Kanban tasks (live from PG, AUTHORITATIVE)',
                 f'Total active (excludes deleted/archived): {total_active}',
-                f'Canonical status vocabulary on this board: {status_keys_csv}.'
-                ' (There is no separate "backlog" column — unstarted work lives'
-                ' in `todo`. "Completed" maps to `done`.)',
+                (
+                    f'Canonical status vocabulary on this board: {status_keys_csv}.'
+                    ' (There is no separate "backlog" column — unstarted work lives'
+                    ' in `todo`. "Completed" maps to `done`.)'
+                ),
                 '',
-                'EXACT COUNTS BY STATUS (use these numbers — the per-status'
-                ' listings below are samples, not the full set):',
+                (
+                    'EXACT COUNTS BY STATUS (use these numbers — the per-status'
+                    ' listings below are samples, not the full set):'
+                ),
             ]
             for s in sorted(counts.keys()):
                 lines.append(f'  - {s}: {counts[s]}')
@@ -640,7 +644,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
         return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # Run runbook
-    if q.startswith('run ') or q.startswith('execute '):
+    if q.startswith(('run ', 'execute ')):
         import subprocess as sp
         parts = q.split(None, 2)
         dry_run = '--dry' in q or '--dry-run' in q
@@ -891,7 +895,7 @@ backend {svc_name}_back
             return {'answer': f'Recall search error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # "what did we decide about X" — search conversation history for decisions
-    if q.startswith('what did we decide') or q.startswith('what was decided'):
+    if q.startswith(('what did we decide', 'what was decided')):
         topic = q.split('about', 1)[-1].strip().strip('?') if 'about' in q else q.split('decide', 1)[-1].strip().strip('?')
         if not topic:
             return {'answer': 'Usage: `what did we decide about <topic>?`', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
@@ -1661,7 +1665,7 @@ def list_skills():
                                         if val and val != '|':
                                             desc_lines.append(val)
                                         in_desc = True
-                                    elif in_desc and (line.startswith('  ') or line.startswith('\t')):
+                                    elif in_desc and line.startswith(('  ', '\t')):
                                         desc_lines.append(line.strip())
                                     elif in_desc:
                                         in_desc = False

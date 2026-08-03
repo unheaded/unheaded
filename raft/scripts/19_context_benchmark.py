@@ -161,7 +161,7 @@ def get_vram_usage():
         if result.returncode == 0:
             data = json.loads(result.stdout)
             # Parse rocm-smi JSON output
-            for card_id, card_data in data.items():
+            for card_data in data.values():
                 if isinstance(card_data, dict):
                     used = card_data.get('VRAM Total Used Memory (B)', 0)
                     total = card_data.get('VRAM Total Memory (B)', 0)

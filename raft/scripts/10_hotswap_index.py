@@ -56,7 +56,7 @@ def get_ids_count(ids_path):
     try:
         with open(ids_path, 'r') as f:
             data = json.load(f)
-        if isinstance(data, list) or isinstance(data, dict):
+        if isinstance(data, (list, dict)):
             return len(data)
         return 0
     except Exception:
@@ -81,7 +81,7 @@ def atomic_symlink(target, link_path):
         tmp_link.rename(link_path)
     except Exception as e:
         tmp_link.unlink(missing_ok=True)
-        raise e
+        raise
 
 
 def setup_initial_symlinks():

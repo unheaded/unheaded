@@ -531,7 +531,7 @@ def main():
     completed = set()
     if os.path.exists(checkpoint_path):
         with open(checkpoint_path) as f:
-            completed = set(line.strip() for line in f)
+            completed = {line.strip() for line in f}
         print(f"  Resuming: {len(completed)} documents already processed")
 
     # Collect all files

@@ -162,8 +162,7 @@ def decoded_text(path):
             continue
         is_init = (
             s.startswith(INIT_PREFIXES)
-            or s.startswith("[")
-            or s.startswith("=")
+            or s.startswith(("[", "="))
             or any(sub in s for sub in INIT_SUBSTRINGS)
         )
         if is_init:
