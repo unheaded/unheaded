@@ -82,9 +82,7 @@ SKIP_PATH_PATTERNS = (
 
 def is_walked(path: Path) -> bool:
     p = str(path)
-    if any(s in p for s in SKIP_PATH_PATTERNS):
-        return False
-    return True
+    return not any(s in p for s in SKIP_PATH_PATTERNS)
 
 
 def walk_unheaded_go() -> list[dict]:

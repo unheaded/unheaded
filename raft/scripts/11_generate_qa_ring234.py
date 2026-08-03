@@ -74,7 +74,10 @@ def is_quality_chunk(chunk):
     # Skip chunks that are just tables or lists of imports
     if content.count('import ') > 10:
         return False
-    if content.count('|') > content.count('\n') * 0.5 and content.count('|') > 20:
+    # noqa on the guard below, not the return: collapsing only the last guard of
+    # a three-guard chain into `return not (...)` reads worse than the two guards
+    # above it, and would leave this function inconsistent with itself.
+    if content.count('|') > content.count('\n') * 0.5 and content.count('|') > 20:  # noqa: SIM103
         return False
 
     return True
@@ -84,8 +87,8 @@ def sample_chunks(limit_per_ring=None):
     """Sample high-quality chunks from ring234.jsonl."""
     targets = dict(RING_TARGETS)
     if limit_per_ring:
-        for ring in targets:
-            targets[ring] = min(targets[ring], limit_per_ring)
+        for ring, target in targets.items():
+            targets[ring] = min(target, limit_per_ring)
 
     # Collect candidates per ring
     candidates = {2: [], 3: [], 4: []}
@@ -252,8 +255,8 @@ def main():
     # Scale targets proportionally if batch != 200
     if args.batch != 200:
         scale = args.batch / 200
-        for ring in RING_TARGETS:
-            RING_TARGETS[ring] = max(1, int(RING_TARGETS[ring] * scale))
+        for ring, target in RING_TARGETS.items():
+            RING_TARGETS[ring] = max(1, int(target * scale))
         print(f"  Scaled targets: {RING_TARGETS}")
 
     # Sample chunks
