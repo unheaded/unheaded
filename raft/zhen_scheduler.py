@@ -61,7 +61,7 @@ def execute_runbook(name, dry_run=False):
 
     log.info(f'Executing runbook: {name} {"(dry-run)" if dry_run else ""}')
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300, check=False)
         if result.returncode == 0:
             log.info(f'Runbook {name}: SUCCESS')
         else:

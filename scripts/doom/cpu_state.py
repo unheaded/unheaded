@@ -32,7 +32,7 @@ def bpftool_lookup(map_path, key_bytes):
     cmd = [
         "bpftool", "map", "lookup", "pinned", map_path, "key"
     ] + key_args
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         print(f"ERROR: bpftool failed: {result.stderr.strip()}", file=sys.stderr)
         sys.exit(1)
@@ -133,7 +133,7 @@ def cmd_reset(args):
         + ["value"]
         + [str(b) for b in state]
     )
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, check=False)
     if result.returncode != 0:
         print(f"ERROR: {result.stderr.strip()}", file=sys.stderr)
         sys.exit(1)

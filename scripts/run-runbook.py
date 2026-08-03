@@ -66,7 +66,7 @@ def run_command(cmd, timeout=120, env=None, dry_run=False):
         # injection path and this must move to an argv list.
         result = subprocess.run(  # nosec B602 - see comment above
             cmd, shell=True, capture_output=True, text=True,
-            timeout=timeout, env={**os.environ, **(env or {})}
+            timeout=timeout, env={**os.environ, **(env or {})}, check=False
         )
         return result.returncode, result.stdout.strip(), result.stderr.strip()
     except subprocess.TimeoutExpired:

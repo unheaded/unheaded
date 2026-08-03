@@ -312,7 +312,7 @@ async def tool_runbook_execute(args: dict):
         cmd.append("--dry-run")
     cmd.append(matches[0])
     try:
-        result = sp.run(cmd, capture_output=True, text=True, timeout=600)
+        result = sp.run(cmd, capture_output=True, text=True, timeout=600, check=False)
         output = result.stdout + ("\n" + result.stderr if result.stderr else "")
         status = "SUCCESS" if result.returncode == 0 else "FAILED"
         return [TextContent(type="text", text=f"Runbook {name}: {status}\n\n{output[-3000:]}")]

@@ -579,7 +579,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
 
         # Disk
         try:
-            result = sp.run(['df', '-h', '/'], capture_output=True, text=True, timeout=5)
+            result = sp.run(['df', '-h', '/'], capture_output=True, text=True, timeout=5, check=False)
             for line in result.stdout.strip().split('\n')[1:]:
                 parts = line.split()
                 lines.append(f'**Disk /:** {parts[2]} used / {parts[1]} ({parts[4]})')
@@ -587,7 +587,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
 
         # GPU
         try:
-            result = sp.run(['rocm-smi'], capture_output=True, text=True, timeout=5)
+            result = sp.run(['rocm-smi'], capture_output=True, text=True, timeout=5, check=False)
             for line in result.stdout.split('\n'):
                 if 'Temp' in line and '°C' in line:
                     lines.append(f'**GPU:** {line.strip()}')
@@ -604,14 +604,14 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
 
         # Packages
         try:
-            result = sp.run(['dpkg', '-l'], capture_output=True, text=True, timeout=5)
+            result = sp.run(['dpkg', '-l'], capture_output=True, text=True, timeout=5, check=False)
             pkg_count = len([l for l in result.stdout.split('\n') if 'unheaded' in l])
             lines.append(f'**Packages:** {pkg_count} installed')
         except: pass
 
         # EAST
         try:
-            result = sp.run(['ssh', 'govan@east', 'uptime'], capture_output=True, text=True, timeout=5)
+            result = sp.run(['ssh', 'govan@east', 'uptime'], capture_output=True, text=True, timeout=5, check=False)
             if result.returncode == 0:
                 lines.append(f'**EAST:** {result.stdout.strip()}')
             else:
@@ -655,7 +655,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             cmd.append('--dry-run')
         cmd.append(matches[0])
         try:
-            result = sp.run(cmd, capture_output=True, text=True, timeout=120)
+            result = sp.run(cmd, capture_output=True, text=True, timeout=120, check=False)
             status = 'SUCCESS' if result.returncode == 0 else 'FAILED'
             output = result.stdout[-3000:]
             return {'answer': f'**Runbook {name}: {status}**\n\n```\n{output}\n```', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
@@ -706,7 +706,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
         import subprocess as sp
         try:
             result = sp.run(['systemctl', 'list-units', '--type=service', '--state=failed', '--no-pager', '-q'],
-                          capture_output=True, text=True, timeout=5)
+                          capture_output=True, text=True, timeout=5, check=False)
             failed_units = [l.strip().split()[0] for l in result.stdout.strip().split('\n') if l.strip() and 'unheaded' in l]
             for unit in failed_units:
                 lines.append(f'  ⚠ {unit} — **DRIFT: systemd unit FAILED**')
@@ -826,8 +826,8 @@ backend {svc_name}_back
     # Emergency stop
     if q in ('emergency stop', 'stop all', 'kill all'):
         import subprocess as sp
-        sp.run(['pkill', '-f', 'zhen_scheduler'], capture_output=True)
-        sp.run(['pkill', '-f', 'run-runbook'], capture_output=True)
+        sp.run(['pkill', '-f', 'zhen_scheduler'], capture_output=True, check=False)
+        sp.run(['pkill', '-f', 'run-runbook'], capture_output=True, check=False)
         return {'answer': '**EMERGENCY STOP** — All scheduled jobs killed. Runbook executions terminated.\n\nManual-only mode until scheduler is restarted.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # Trust level

@@ -99,7 +99,7 @@ def find_zhen_pid():
     try:
         result = subprocess.run(
             ['pgrep', '-f', 'python.*zhen_app.py'],
-            capture_output=True, text=True
+            capture_output=True, text=True, check=False
         )
         pids = [int(p) for p in result.stdout.strip().split('\n') if p.strip()]
         return pids
