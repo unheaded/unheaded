@@ -67,6 +67,7 @@ check "llama-server reachable at $LLAMA_URL" \
 
 echo ""
 echo "Configuration:"
+# shellcheck disable=SC2088  # display string only; the test below uses $HOME
 check_warn "~/.config/cs/sources/ exists (Phase A symlink discovery)" \
     "[[ -d $HOME/.config/cs/sources ]]" \
     "mkdir -p ~/.config/cs/sources && ln -s /home/govan/tmp/unheaded ~/.config/cs/sources/unheaded"

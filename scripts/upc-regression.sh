@@ -116,6 +116,8 @@ if [ -f "$WAD" ]; then
   { sudo pkill -9 -f "doom-runner run"; sudo "$DR" ring teardown --hops 2; } >/dev/null 2>&1
   # setsid detaches doom-runner into its own session so SIGKILL'ing it later
   # produces no job-control noise in this shell.
+  # shellcheck disable=SC2024  # the redirect is deliberately unprivileged: LOG is a
+  # user-owned mktemp file, and keeping it user-owned is what we want.
   ( cd "$ROOT" && sudo UPC_VERIFIER_STATS=1 setsid "$DR" run --doom-mbc doom/doom.mbc \
     --doom-elf doom/doom.elf --rv2mbc doom/doom.rv2mbc --wad "$WAD" --hops 2 >"$LOG" 2>&1 & ) 2>/dev/null
   for _ in $(seq 1 20); do

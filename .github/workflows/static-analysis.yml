@@ -61,13 +61,32 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update -qq && sudo apt-get install -y shellcheck
 
-      # Errors only — these are correctness bugs (e.g. SC2148 missing shebang,
-      # so the analysed shell is a guess), not style. Gating from day one.
-      - name: shellcheck (errors — GATING)
+      # GATING at WARNING level as of 2026-08-03 (was errors-only).
+      #
+      # Every warning was fixed or annotated with the reason it does not apply —
+      # NOT excluded by rule ID. That distinction is the point: excluding SC2086,
+      # SC2015 and SC2059 to force a green gate would have been a rubber stamp.
+      #
+      # Warnings 98 -> 0. Real defects found on the way:
+      #   - firewall-health-check.sh built a command whose inner quotes closed the
+      #     outer string, so OPNsense credentials expanded UNQUOTED and were
+      #     word-split twice (once at construction, once at check()'s eval).
+      #   - ws3/sustained-test.sh used `2>&1 > "$LOG"`, so stderr stayed on the
+      #     terminal and the soak-test log lost exactly the error output.
+      #   - three traps used double quotes, freezing their bodies at install time
+      #     instead of expanding at signal time.
+      #   - two bare `cd` calls, one of them in this very CI gate directory.
+      #   - 08-reproducibility-clean.sh piped find|xargs without -print0, so any
+      #     filename containing a space kept a non-deterministic mtime — in the
+      #     provisioner whose whole job is deterministic mtimes.
+      - name: shellcheck (warnings + errors — GATING)
         run: |
-          git ls-files '*.sh' | xargs -r shellcheck -S error -f gcc
+          git ls-files '*.sh' | xargs -r shellcheck -S warning -f gcc
 
-      - name: shellcheck (warnings + notes — reporting)
+      # 226 notes remain (SC2317 unreachable, SC2015 A&&B||C, SC2059 printf,
+      # SC1091 unfollowable source, SC2012 ls parsing). Reporting only — these
+      # are style and cross-file-visibility observations, not defects.
+      - name: shellcheck (notes — reporting)
         continue-on-error: true
         run: |
           git ls-files '*.sh' | xargs -r shellcheck -f gcc
