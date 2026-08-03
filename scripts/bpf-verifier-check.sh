@@ -19,7 +19,7 @@ echo ""
 
 # ---- Phase 1: Compilation ----
 echo "=== Phase 1: Compile all BPF programs ==="
-cd "$BPF_DIR"
+cd "$BPF_DIR" || { echo "FATAL: cannot cd to $BPF_DIR" >&2; exit 1; }
 
 BUILD_OUTPUT=$(cargo build --release 2>&1)
 # shellcheck disable=SC2034  # captured but never checked — see the note below.
