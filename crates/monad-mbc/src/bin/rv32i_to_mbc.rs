@@ -271,7 +271,7 @@ fn main() {
                     data_blob.extend_from_slice(bytes);
                     // Pad to 4-byte alignment so subsequent record headers
                     // are naturally aligned.
-                    while data_blob.len() % 4 != 0 {
+                    while !data_blob.len().is_multiple_of(4) {
                         data_blob.push(0);
                     }
                 }

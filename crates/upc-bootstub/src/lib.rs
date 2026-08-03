@@ -107,6 +107,11 @@ mod tests {
         assert_eq!(BOOTSTUB_ENTRY_PC, 0x4000);
     }
 
+    // Constant-vs-constant by design: these assertions guard the UPC boot
+    // memory map. If someone moves KERNEL_ENTRY_ADDR or BOOTSTUB_LOAD_ADDR
+    // into an overlapping range, this test is what catches it. Being
+    // compile-time decidable is the feature.
+    #[allow(clippy::assertions_on_constants)]
     #[test]
     fn kernel_entry_is_above_bootstub_region() {
         // Bootstub occupies byte 0x10000..0x1FFFF (64 KB). Kernel image
@@ -115,6 +120,7 @@ mod tests {
         assert!(KERNEL_ENTRY_ADDR > BOOTSTUB_LOAD_ADDR);
     }
 
+    #[allow(clippy::assertions_on_constants)] // layout guard — see note above
     #[test]
     fn initramfs_addr_does_not_collide_with_rom() {
         // ROM_MAP is 64 KB max addressable as bytes (16384 word slots).

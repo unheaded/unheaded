@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! XDP packet counter — captures packet metadata and emits to ring buffer.
 //!
 //! Attaches to a network interface via XDP. Parses Ethernet → IPv4/IPv6
@@ -16,10 +19,8 @@ use aya_ebpf::{
     maps::RingBuf,
     programs::XdpContext,
 };
-use aya_log_ebpf::info;
-use core::mem;
 use ebpf_common::{
-    PacketEvent, AF_INET, AF_INET6, FLOW_FLAG_SYN_SEEN, FLOW_FLAG_EST, RING_BUF_SIZE,
+    PacketEvent, AF_INET, AF_INET6, FLOW_FLAG_EST, FLOW_FLAG_SYN_SEEN, RING_BUF_SIZE,
 };
 
 #[map]
@@ -158,8 +159,7 @@ fn try_packet_counter(ctx: &XdpContext) -> Result<u32, ()> {
                 return Ok(xdp_action::XDP_PASS);
             }
             event.src_port = u16::from_be(unsafe { *(transport_offset as *const u16) });
-            event.dst_port =
-                u16::from_be(unsafe { *((transport_offset + 2) as *const u16) });
+            event.dst_port = u16::from_be(unsafe { *((transport_offset + 2) as *const u16) });
 
             // TCP flags at offset 13
             let flags = unsafe { *((transport_offset + 13) as *const u8) };
@@ -181,8 +181,7 @@ fn try_packet_counter(ctx: &XdpContext) -> Result<u32, ()> {
                 return Ok(xdp_action::XDP_PASS);
             }
             event.src_port = u16::from_be(unsafe { *(transport_offset as *const u16) });
-            event.dst_port =
-                u16::from_be(unsafe { *((transport_offset + 2) as *const u16) });
+            event.dst_port = u16::from_be(unsafe { *((transport_offset + 2) as *const u16) });
         }
         _ => {
             // Other protocols — emit event with zero ports
@@ -191,9 +190,7 @@ fn try_packet_counter(ctx: &XdpContext) -> Result<u32, ()> {
 
     // Emit event to ring buffer
     if let Some(mut buf) = EVENTS.reserve::<PacketEvent>(0) {
-        unsafe {
-            buf.write(event);
-        }
+        buf.write(event);
         buf.submit(0);
     }
 

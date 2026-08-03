@@ -165,7 +165,7 @@ impl BootRunner {
         text_rv_word_base: u32,
         expected_sha: Option<&str>,
     ) -> Result<()> {
-        if bytes.len() % 4 != 0 {
+        if !bytes.len().is_multiple_of(4) {
             bail!("rv2mbc file length {} not 4-byte aligned", bytes.len());
         }
         // Compute SHA-256 BEFORE touching BPF maps so a mismatch leaves
@@ -354,7 +354,7 @@ impl BootRunner {
             let bytes = blob[off..off + len].to_vec();
             off += len;
             // Skip the 4-byte alignment padding the writer added.
-            while off % 4 != 0 && off < blob.len() {
+            while !off.is_multiple_of(4) && off < blob.len() {
                 off += 1;
             }
             regions.push((byte_addr, bytes));
@@ -397,7 +397,7 @@ impl BootRunner {
             }
             regions.push((byte_addr, blob[off..off + len].to_vec()));
             off += len;
-            while off % 4 != 0 && off < blob.len() {
+            while !off.is_multiple_of(4) && off < blob.len() {
                 off += 1;
             }
         }

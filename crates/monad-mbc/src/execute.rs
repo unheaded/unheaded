@@ -343,6 +343,12 @@ impl Cpu {
                 set_flags(self, result, carry);
                 self.state.regs[dst] = result;
             }
+            // clippy::manual_checked_ops suggests checked_div here. It is wrong for
+            // this instruction: division by zero is not an error case, it is a
+            // DEFINED result of the MBC ISA (saturate to 0xFFFFFFFF, set carry).
+            // The two branches also set different flags, so they are not a
+            // checked-division shape at all.
+            #[allow(clippy::manual_checked_ops)]
             op::DIV => {
                 if self.state.regs[src] == 0 {
                     // Division by zero: saturate to 0xFFFFFFFF
