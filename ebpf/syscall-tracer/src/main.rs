@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Unheaded Kingdom - Syscall Tracer Raw Tracepoint Program
 //!
 //! THE WHISPERING VOID audits all system calls for security.
@@ -118,15 +121,10 @@ fn try_sys_enter(ctx: &RawTracePointContext) -> Result<u32, ()> {
 
     // Get process info
     let pid_tgid = bpf_get_current_pid_tgid();
-    let pid = (pid_tgid >> 32) as u32;
-    let tid = pid_tgid as u32;
-
-    let uid_gid = bpf_get_current_uid_gid();
-    let uid = uid_gid as u32;
-    let gid = (uid_gid >> 32) as u32;
+    let ids = TaskIds::current();
 
     // Check if we should trace this syscall
-    if !should_trace(syscall_nr, pid, uid) {
+    if !should_trace(syscall_nr, ids.pid, ids.uid) {
         increment_stat(STAT_FILTERED_OUT);
         return Ok(0);
     }
@@ -139,10 +137,7 @@ fn try_sys_enter(ctx: &RawTracePointContext) -> Result<u32, ()> {
 
     // Send event
     send_syscall_event(
-        pid,
-        tid,
-        uid,
-        gid,
+        ids,
         syscall_nr,
         syscall_args,
         0, // no return value yet
@@ -171,12 +166,7 @@ fn try_sys_exit(ctx: &RawTracePointContext) -> Result<u32, ()> {
     let ret = args.ret;
 
     let pid_tgid = bpf_get_current_pid_tgid();
-    let pid = (pid_tgid >> 32) as u32;
-    let tid = pid_tgid as u32;
-
-    let uid_gid = bpf_get_current_uid_gid();
-    let uid = uid_gid as u32;
-    let gid = (uid_gid >> 32) as u32;
+    let ids = TaskIds::current();
 
     // Check if we tracked this syscall entry
     let tracked = unsafe { INFLIGHT_SYSCALLS.get(&pid_tgid) };
@@ -191,17 +181,7 @@ fn try_sys_exit(ctx: &RawTracePointContext) -> Result<u32, ()> {
     let comm = bpf_get_current_comm().unwrap_or_default();
 
     // Send exit event (args are not available at exit, use zeros)
-    send_syscall_event(
-        pid,
-        tid,
-        uid,
-        gid,
-        syscall_nr,
-        [0; 6],
-        ret,
-        comm,
-        SyscallEventType::Exit,
-    );
+    send_syscall_event(ids, syscall_nr, [0; 6], ret, comm, SyscallEventType::Exit);
 
     Ok(0)
 }
@@ -261,19 +241,44 @@ fn should_trace(syscall_nr: i64, pid: u32, uid: u32) -> bool {
     true
 }
 
-/// Send syscall event to userspace.
-#[inline(always)]
-fn send_syscall_event(
+/// Identity of the task that made the syscall.
+///
+/// Grouped rather than passed as four adjacent `u32`s: `(pid, tid, uid, gid)`
+/// is exactly the shape where a transposed call site still compiles, and both
+/// call sites were deriving these with the same six lines of bit-shuffling.
+#[derive(Clone, Copy)]
+struct TaskIds {
     pid: u32,
     tid: u32,
     uid: u32,
     gid: u32,
+}
+
+impl TaskIds {
+    #[inline(always)]
+    fn current() -> Self {
+        let pid_tgid = bpf_get_current_pid_tgid();
+        let uid_gid = bpf_get_current_uid_gid();
+        Self {
+            pid: (pid_tgid >> 32) as u32,
+            tid: pid_tgid as u32,
+            uid: uid_gid as u32,
+            gid: (uid_gid >> 32) as u32,
+        }
+    }
+}
+
+/// Send syscall event to userspace.
+#[inline(always)]
+fn send_syscall_event(
+    ids: TaskIds,
     syscall_nr: i64,
     args: [u64; 6],
     ret: i64,
     comm: [u8; 16],
     event_type: SyscallEventType,
 ) {
+    let TaskIds { pid, tid, uid, gid } = ids;
     let now = unsafe { bpf_ktime_get_ns() };
 
     let event = SyscallEvent {

@@ -122,6 +122,7 @@ const STAT_RATE_LIMITED: u32 = 10;
 const STAT_LB_ROUTED: u32 = 11;
 
 // ── Config keys ───────────────────────────────────────────────────────────────
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const CFG_NODE_ID: u32 = 0;
 const CFG_DEFAULT_CHAIN_ID: u32 = 1;
 const CFG_RATE_TOKENS_PER_SEC: u32 = 2;
@@ -324,8 +325,8 @@ fn try_nfv_firewall(ctx: &XdpContext) -> Result<u32, ()> {
 
     // Read source IPv6 address
     let mut src_addr = [0u8; 16];
-    for i in 0..16usize {
-        src_addr[i] = unsafe {
+    for (i, b) in src_addr.iter_mut().enumerate() {
+        *b = unsafe {
             core::ptr::read_volatile(core::hint::black_box(
                 (data + ETH_HLEN + 8 + i) as *const u8,
             ))
@@ -371,8 +372,8 @@ fn try_nfv_nat(ctx: &XdpContext) -> Result<u32, ()> {
 
     // Read source IPv6 address for NAT lookup
     let mut src_addr = [0u8; 16];
-    for i in 0..16usize {
-        src_addr[i] = unsafe {
+    for (i, b) in src_addr.iter_mut().enumerate() {
+        *b = unsafe {
             core::ptr::read_volatile(core::hint::black_box(
                 (data + ETH_HLEN + 8 + i) as *const u8,
             ))
@@ -384,11 +385,11 @@ fn try_nfv_nat(ctx: &XdpContext) -> Result<u32, ()> {
         // Rewrite source IPv6 address in-place
         let addr_offset = data + ETH_HLEN + 8; // offset of src addr in IPv6 header
         if addr_offset + 16 <= data_end {
-            for i in 0..16usize {
+            for (i, b) in new_addr.iter().enumerate() {
                 unsafe {
                     core::ptr::write_volatile(
                         core::hint::black_box((addr_offset + i) as *mut u8),
-                        new_addr[i],
+                        *b,
                     );
                 }
             }

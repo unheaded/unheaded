@@ -31,8 +31,8 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN,
-    IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
+    flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
+    MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
@@ -158,9 +158,11 @@ const STAT_TCP_RST: u32 = 13;
 const CFG_HOP_ID: u32 = 0;
 const CFG_DEFAULT_POLICY: u32 = 1;
 const CFG_CONNTRACK_TIMEOUT: u32 = 2;
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const CFG_MAX_CONNECTIONS: u32 = 3;
 
 // ── Sophia dictionary IDs ─────────────────────────────────────────────────────
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const SOPHIA_DICT_POLICY: u8 = 0x10;
 
 // ── Wire-format helpers ───────────────────────────────────────────────────────
@@ -301,42 +303,43 @@ fn try_firewall_xdp(ctx: &XdpContext) -> Result<u32, ()> {
 
     // ── Parse Transport Header ──────────────────────────────────────────────
     let transport_start = hbh_start + hbh_total;
-    let mut src_port: u16 = 0;
-    let mut dst_port: u16 = 0;
-    let mut tcp_flags_byte: u8 = 0;
     let payload_len = if data_end > transport_start {
         (data_end - transport_start) as u32
     } else {
         0
     };
 
-    if transport_proto == IPPROTO_TCP {
+    // Bound once per path rather than default-initialized and overwritten:
+    // the non-TCP/UDP arm returns, so there is no path on which a default
+    // port value could reach the conntrack key.
+    let (src_port, dst_port, tcp_flags_byte) = if transport_proto == IPPROTO_TCP {
         if transport_start + TCP_HDR_LEN > data_end {
             return Ok(xdp_action::XDP_PASS);
         }
         let tcp = unsafe { &*(transport_start as *const TcpHdr) };
-        src_port =
+        let src =
             u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(tcp.src_port)) });
-        dst_port =
+        let dst =
             u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(tcp.dst_port)) });
         // TCP flags are in the low 8 bits of the off_flags field.
         let off_flags =
             u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(tcp.off_flags)) });
-        tcp_flags_byte = (off_flags & 0x3F) as u8;
+        (src, dst, (off_flags & 0x3F) as u8)
     } else if transport_proto == IPPROTO_UDP {
         if transport_start + UDP_HDR_LEN > data_end {
             return Ok(xdp_action::XDP_PASS);
         }
         let udp = unsafe { &*(transport_start as *const UdpHdr) };
-        src_port =
+        let src =
             u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(udp.src_port)) });
-        dst_port =
+        let dst =
             u16::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(udp.dst_port)) });
+        (src, dst, 0u8)
     } else {
         // Non-TCP/UDP: pass through without firewall processing.
         increment_stat(STAT_ALLOWED);
         return Ok(xdp_action::XDP_PASS);
-    }
+    };
 
     // ── Build Connection Tracking Key ────────────────────────────────────────
     let ct_key = ConnTrackKey {
@@ -351,7 +354,7 @@ fn try_firewall_xdp(ctx: &XdpContext) -> Result<u32, ()> {
     // ── Connection Tracking Lookup ──────────────────────────────────────────
     let now = unsafe { bpf_ktime_get_ns() };
 
-    if let Some(conn) = unsafe { CONNTRACK.get_ptr_mut(&ct_key) } {
+    if let Some(conn) = CONNTRACK.get_ptr_mut(&ct_key) {
         // Existing connection — update state.
         let conn_ref = unsafe { &mut *conn };
         conn_ref.last_seen = now;
@@ -467,12 +470,11 @@ fn update_tcp_state(conn: &mut ConnState, tcp_flags: u8) {
             // Final ACK of 3-way handshake — ESTABLISHED.
             conn.state = TcpConnState::Established as u8;
         }
-    } else if current == TcpConnState::Established as u8
-        && tcp_flags & TCP_FIN != 0 {
-            // FIN received — begin closing.
-            conn.state = TcpConnState::Closing as u8;
-            increment_stat(STAT_TCP_FIN);
-        }
+    } else if current == TcpConnState::Established as u8 && tcp_flags & TCP_FIN != 0 {
+        // FIN received — begin closing.
+        conn.state = TcpConnState::Closing as u8;
+        increment_stat(STAT_TCP_FIN);
+    }
     // CLOSING state: stays closing until entry is reaped by timeout.
 }
 

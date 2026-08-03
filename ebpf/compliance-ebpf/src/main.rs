@@ -38,13 +38,15 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
-    MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
+    flags, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN,
+    MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
 // ── Classification levels (K1|K0 bits) ──────────────────────────────────────
 
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const CLASS_PUBLIC: u8 = 0b00;
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const CLASS_INTERNAL: u8 = 0b01;
 const CLASS_SENSITIVE: u8 = 0b10;
 const CLASS_SOVEREIGN_PII: u8 = 0b11;
@@ -106,10 +108,13 @@ const STAT_POLICY_VIOLATIONS: u32 = 3;
 const STAT_PII_EGRESS_BLOCKED: u32 = 4;
 const STAT_ENCRYPTION_VIOLATIONS: u32 = 5;
 const STAT_AUDIT_RECORDS: u32 = 6;
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const STAT_EVENTS_SENT: u32 = 7;
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const STAT_EVENTS_DROPPED: u32 = 8;
 
 // ── Config keys ──────────────────────────────────────────────────────────────
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const CFG_HOP_ID: u32 = 0;
 const CFG_LOCAL_ZONE_ID: u32 = 1;
 
@@ -434,19 +439,11 @@ fn read_monad_from_pkt(start: usize, data_end: usize) -> Result<Monad, ()> {
     Ok(Monad::from_bytes(bytes))
 }
 
-/// Write a mutated [`Monad`] back into packet memory at the same offset.
-#[inline(always)]
-fn write_monad_to_pkt(start: usize, data_end: usize, m: &Monad) -> Result<(), ()> {
-    if start + MONAD_SIZE > data_end {
-        return Err(());
-    }
-    let bytes = m.to_bytes();
-    #[allow(clippy::needless_range_loop)]
-    for i in 0..20usize {
-        unsafe { core::ptr::write_volatile((start + i) as *mut u8, bytes[i]) };
-    }
-    Ok(())
-}
+// A `write_monad_to_pkt` helper lived here, carried over from the program
+// template. Removed 2026-08-03: this program binds the Monad immutably and
+// never mutates it — it is a read-only classifier, so there was nothing to
+// write back. Restore it from git if this program ever needs to rewrite the
+// register in place.
 
 // ── Config / stats helpers ────────────────────────────────────────────────────
 

@@ -204,7 +204,7 @@ pub fn indirect_block(addrs: &[u32; NDIRECT + 1]) -> u32 {
 #[inline(always)]
 pub fn dirent_inum(block_words: &[u32], idx: u32) -> Option<u16> {
     let w = (idx * DIRENT_BYTES / 4) as usize; // 4 words per 16-byte dirent
-    Some((block_words.get(w)?.clone() & 0xFFFF) as u16)
+    Some((*block_words.get(w)? & 0xFFFF) as u16)
 }
 
 /// 14-byte name of directory entry `idx`, NUL-padded (NOT NUL-terminated when

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Unheaded Protocol — Yaldabaoth eBPF Program
 //!
 //! **The Demiurge of Chaos** — TC egress classifier that deliberately corrupts,
@@ -330,8 +333,8 @@ fn apply_marker(ctx: &mut TcContext, monad: &mut Monad) -> Result<(), ()> {
 fn load_monad_tc(ctx: &TcContext, pkt_offset: usize) -> Result<Monad, ()> {
     let mut bytes = [0u8; 20];
     // Exactly 20 iterations — verifier-trivial.
-    for i in 0..20usize {
-        bytes[i] = ctx.load::<u8>(pkt_offset + i).map_err(|_| ())?;
+    for (i, b) in bytes.iter_mut().enumerate() {
+        *b = ctx.load::<u8>(pkt_offset + i).map_err(|_| ())?;
     }
     Ok(Monad::from_bytes(bytes))
 }
@@ -340,8 +343,8 @@ fn load_monad_tc(ctx: &TcContext, pkt_offset: usize) -> Result<Monad, ()> {
 #[inline(always)]
 fn write_monad_tc(ctx: &mut TcContext, pkt_offset: usize, m: &Monad) -> Result<(), ()> {
     let bytes = m.to_bytes();
-    for i in 0..20usize {
-        ctx.store(pkt_offset + i, &bytes[i], 0).map_err(|_| ())?;
+    for (i, b) in bytes.iter().enumerate() {
+        ctx.store(pkt_offset + i, b, 0).map_err(|_| ())?;
     }
     Ok(())
 }
