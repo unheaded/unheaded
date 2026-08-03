@@ -26,6 +26,23 @@ Usage:
   # }
 """
 
+# ruff: noqa: ASYNC210, ASYNC221, ASYNC230, ASYNC240
+#
+# The tool handlers below make blocking calls — open(), urllib.request.urlopen()
+# and subprocess.run() — from inside `async def`. Under the transport this server
+# actually runs on that is not a defect: stdio_server() serves exactly one client
+# (Claude Code), and app.run awaits each tool call to completion before reading
+# the next request, so there is no second coroutine for a blocking call to stall.
+# Converting them would mean asyncio.to_thread wrappers everywhere plus a new
+# async HTTP dependency, in exchange for no observable behaviour change.
+#
+# REVISIT THIS IF THE SSE TRANSPORT IS EVER ENABLED. The module docstring above
+# already advertises SSE "for web clients"; the moment more than one client can
+# be connected at once, every one of these becomes a real event-loop stall —
+# service_health alone probes 10 services at a 2s timeout, so it can hold the
+# loop for 20 seconds. At that point the fix is asyncio.to_thread for the file
+# and subprocess calls and a genuinely async HTTP client for the health probes.
+
 import glob
 import json
 import os
