@@ -87,6 +87,7 @@ while IFS= read -r line; do
         sysflag="-system-prompt-file=$PROBE_SYSTEM"
     fi
 
+    # shellcheck disable=SC2086  # $sysflag may be empty or a multi-word flag pair
     if "$ZHEN_RAG" \
         -temperature 0 \
         -seed "$PROBE_SEED" \

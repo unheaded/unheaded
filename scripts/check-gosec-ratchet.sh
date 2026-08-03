@@ -45,6 +45,7 @@ if [ -n "${ADDED}" ]; then
     echo "============================================================"
     echo
     echo "  New rule suppressions not present in the baseline:"
+    # shellcheck disable=SC2086  # deliberate split: one rule ID per line
     printf '    %s\n' ${ADDED}
     echo
     echo "  The exclusion list may only shrink. Suppressing a new rule"
@@ -89,7 +90,8 @@ print("\n".join(bad))
         echo "  FAIL: #nosec swallowed by a string literal"
         echo "============================================================"
         echo
-        printf '    %s\n' ${SWALLOWED}
+        # shellcheck disable=SC2086  # deliberate split: one rule ID per line
+    printf '    %s\n' ${SWALLOWED}
         echo
         echo "  The annotation is string CONTENT, not a comment — it suppresses"
         echo "  nothing and corrupts the literal. Put it on the line ABOVE."
@@ -151,6 +153,7 @@ echo "PASS: gosec ratchet intact — $(printf '%s\n' "${CURRENT}" | wc -l)/$(pri
 if [ -n "${REMOVED}" ]; then
     echo
     echo "  Progress — these rules are now ENFORCED and can never be re-added:"
+    # shellcheck disable=SC2086  # deliberate split: one rule ID per line
     printf '    %s\n' ${REMOVED}
     echo
     echo "  Update the baseline to lock the win in:"

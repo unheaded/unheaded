@@ -15,6 +15,8 @@ SSH_PORT="${SSH_PORT:-2222}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/yggdrasil-smoke-key}"
 
 # Locate the image
+# shellcheck disable=SC2086  # IMAGE defaults to a *.qcow2 glob; quoting would
+# stop it expanding and ls would look for a file literally named '*.qcow2'.
 IMG_PATH=$(ls $IMAGE 2>/dev/null | head -1 || true)
 if [ -z "$IMG_PATH" ]; then
     echo "FAIL: no qcow2 image found matching $IMAGE"

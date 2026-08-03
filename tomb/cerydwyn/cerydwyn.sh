@@ -117,7 +117,7 @@ rag_retrieve() {
         return
     fi
 
-    log_verbose "Keywords: $(echo $keywords | tr '\n' ' ')"
+    log_verbose "Keywords: $(echo "$keywords" | tr '\n' ' ')"
 
     # Search across Grimoire directories
     local search_dirs=(

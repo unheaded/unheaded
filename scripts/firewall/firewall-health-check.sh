@@ -39,10 +39,14 @@ echo "========================================"
 
 echo ""
 echo "[ OPNsense (host-a) ]"
-check "OPNsense API reachable" "curl -sk -u "${OPNSENSE_API_KEY}:${OPNSENSE_API_SECRET}" https://${HOST_A_FW}/api/core/firmware/info"
+# The inner quotes here must be escaped: check() runs `eval "$cmd"`, and an
+# unescaped inner quote closes the outer string, so the credentials expanded
+# outside quotes and were word-split twice — once at construction, once at
+# eval. An API key containing a space or a glob character broke the command.
+check "OPNsense API reachable" "curl -sk -u \"\${OPNSENSE_API_KEY}:\${OPNSENSE_API_SECRET}\" https://${HOST_A_FW}/api/core/firmware/info"
 check "WireGuard UDP 51820 open" "nc -zu ${HOST_A_FW} 51820"
 check "HTTPS 443 open" "nc -z ${HOST_A_FW} 443"
-check "Monad HbH rule active" "curl -sk -u "${OPNSENSE_API_KEY}:${OPNSENSE_API_SECRET}" https://${HOST_A_FW}/api/firewall/filter/searchRule | grep -qi 'HbH'"
+check "Monad HbH rule active" "curl -sk -u \"\${OPNSENSE_API_KEY}:\${OPNSENSE_API_SECRET}\" https://${HOST_A_FW}/api/firewall/filter/searchRule | grep -qi 'HbH'"
 
 echo ""
 echo "[ FRR BGP (host-a) ]"
