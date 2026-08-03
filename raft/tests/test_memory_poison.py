@@ -170,7 +170,7 @@ if not _webapp_alive():
 if not _pg_alive():
     SKIP_REASON.append(f"postgres at {PG_HOST}:{PG_PORT} not reachable")
 try:
-    import numpy as np
+    import numpy as np  # noqa: F401 - imported to test availability; see except below
     from sentence_transformers import SentenceTransformer
 except ImportError as exc:
     SKIP_REASON.append(f"sentence-transformers / numpy import failed: {exc}")
