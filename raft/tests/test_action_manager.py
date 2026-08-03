@@ -314,7 +314,7 @@ class TestExecuteAction(unittest.TestCase):
                 }],
             }
 
-        result = self.am.execute_action(action_id, executor)
+        self.am.execute_action(action_id, executor)
 
         # Check action status
         action = self.conn._db['actions'][action_id]

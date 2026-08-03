@@ -72,8 +72,6 @@ def write_gguf_lora(zlora, output_path):
     n_head_kv = 8
     head_dim = n // 32  # 128
     kv_dim = n_head_kv * head_dim  # 1024
-    # Output dimension per target: Q=4096, K=1024, V=1024, O=4096
-    target_out_dims = [n, kv_dim, kv_dim, n]
 
     # For now, write a simple binary that can be loaded
     # Full GGUF LoRA format requires proper GGUF header + tensor info

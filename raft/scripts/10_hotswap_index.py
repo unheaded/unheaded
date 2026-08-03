@@ -131,7 +131,6 @@ def restart_zhen():
 
     # Restart
     print("  Starting Zhen Web UI...")
-    env = os.environ.copy()
     venv_python = Path.home() / '.venv' / 'zhen' / 'bin' / 'python3'
     zhen_app = RAFT_DIR / 'zhen_app.py'
 
@@ -225,9 +224,9 @@ def swap_to_combined():
 
     # Get before stats
     print("\n[2/5] Before stats...")
-    old_count, old_dim = None, None
+    old_count, _old_dim = None, None
     if ACTIVE_INDEX.exists():
-        old_count, old_dim = get_vector_count(ACTIVE_INDEX)
+        old_count, _old_dim = get_vector_count(ACTIVE_INDEX)
         old_ids = get_ids_count(ACTIVE_IDS) if ACTIVE_IDS.exists() else 0
         print(f"  Current: {old_count:,} vectors, {old_ids:,} IDs")
     else:
@@ -235,7 +234,7 @@ def swap_to_combined():
 
     # Get new stats
     print("\n[3/5] New index stats...")
-    new_count, new_dim = get_vector_count(COMBINED_INDEX)
+    new_count, _new_dim = get_vector_count(COMBINED_INDEX)
     print(f"  Combined: {new_count:,} vectors, {combined_ids_count:,} IDs")
 
     # Sanity: IDs should match vectors
