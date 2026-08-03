@@ -570,7 +570,7 @@ def main():
     output_file = None
     checkpoint_file = None
     if not args.dry_run:
-        # noqa on purpose: both handles stay open for the whole run so the
+        # Deliberate: both handles stay open for the whole run so the
         # checkpoint/resume path can append incrementally. Wrapping them in a
         # context manager here would need the entire run loop moved inside it.
         output_file = open(args.output, "a")  # noqa: SIM115  (resumability)

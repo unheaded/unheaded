@@ -79,7 +79,7 @@ def atomic_symlink(target, link_path):
         tmp_link.unlink(missing_ok=True)
         tmp_link.symlink_to(target)
         tmp_link.rename(link_path)
-    except Exception as e:
+    except Exception:
         tmp_link.unlink(missing_ok=True)
         raise
 
@@ -137,7 +137,7 @@ def restart_zhen():
     subprocess.Popen(
         [str(venv_python), str(zhen_app)],
         cwd=str(RAFT_DIR),
-        # noqa on purpose: this handle is owned by the child process for its
+        # Deliberate: this handle is owned by the child process for its whole
         # lifetime. A context manager would close it the moment Popen returns.
         stdout=open('/tmp/zhen-webapp.log', 'w'),  # noqa: SIM115
         stderr=subprocess.STDOUT,

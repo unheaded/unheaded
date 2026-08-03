@@ -74,9 +74,9 @@ def is_quality_chunk(chunk):
     # Skip chunks that are just tables or lists of imports
     if content.count('import ') > 10:
         return False
-    # noqa on the guard below, not the return: collapsing only the last guard of
-    # a three-guard chain into `return not (...)` reads worse than the two guards
-    # above it, and would leave this function inconsistent with itself.
+    # Suppression sits on the guard below, not the return: collapsing only the
+    # last guard of a three-guard chain into `return not (...)` reads worse than
+    # the two guards above it, and leaves the function inconsistent with itself.
     if content.count('|') > content.count('\n') * 0.5 and content.count('|') > 20:  # noqa: SIM103
         return False
 
