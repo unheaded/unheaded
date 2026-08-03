@@ -432,7 +432,6 @@ printf "%b\n" "${CYAN}${BOLD}── Memory ──${RESET}"
 if [[ -r /proc/meminfo ]]; then
   mem_total=$(awk '/MemTotal:/ {print $2}' /proc/meminfo)
   mem_avail=$(awk '/MemAvailable:/ {print $2}' /proc/meminfo)
-  mem_free=$(awk '/MemFree:/ {print $2}' /proc/meminfo)
   mem_buffers=$(awk '/Buffers:/ {print $2}' /proc/meminfo)
   mem_cached=$(awk '/^Cached:/ {print $2}' /proc/meminfo)
   mem_used=$((mem_total - mem_avail))
@@ -643,7 +642,6 @@ echo
 # ----------------------------------------------------------------------------
 if (( SYSTEM_SUMMARY_SHOW_CERTS == 1 )) && [[ -d /etc/letsencrypt/live ]]; then
   printf "%b\n" "${CYAN}${BOLD}── SSL Certificates ──${RESET}"
-  WARN_SECS=$((SYSTEM_SUMMARY_CERT_WARN_DAYS * 86400))
   for cert in /etc/letsencrypt/live/*/cert.pem; do
     [[ -f "$cert" ]] || continue
     domain=$(basename "$(dirname "$cert")")

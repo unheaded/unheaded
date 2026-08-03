@@ -52,7 +52,7 @@ if [ -f "${LOG_DIR}/eve.json" ]; then
     tail -f "${LOG_DIR}/eve.json" &
 else
     echo "WARNING: EVE JSON not yet created, waiting..."
-    for i in {1..30}; do
+    for _ in {1..30}; do
         if [ -f "${LOG_DIR}/eve.json" ]; then
             echo "EVE JSON ready, tailing to stdout..."
             tail -f "${LOG_DIR}/eve.json" &

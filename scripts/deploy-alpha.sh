@@ -235,7 +235,7 @@ for svc in "${DEPLOY_ORDER[@]}"; do
         ipv4.address="$ip"
 
     # Wait for container to be running
-    for i in $(seq 1 30); do
+    for _ in $(seq 1 30); do
         state=$(lxc info "$cname" 2>/dev/null | grep "^Status:" | awk '{print $2}')
         if [[ "$state" == "RUNNING" ]]; then
             break
