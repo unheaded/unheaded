@@ -97,7 +97,8 @@ build_binary() {
 
         # Verify binary was created and is executable
         if [ -f "${output_path}" ] && [ -x "${output_path}" ]; then
-            local size=$(du -h "${output_path}" | cut -f1)
+            local size
+            size=$(du -h "${output_path}" | cut -f1)
             log_success "${binary_name} built successfully (${size})"
             return 0
         else
@@ -244,7 +245,8 @@ main() {
     log_info "============="
 
     if [ -d "${OUTPUT_DIR}" ]; then
-        local binary_count=$(find "${OUTPUT_DIR}" -type f -executable 2>/dev/null | wc -l || echo "0")
+        local binary_count
+        binary_count=$(find "${OUTPUT_DIR}" -type f -executable 2>/dev/null | wc -l || echo "0")
         log_info "Binaries created: ${binary_count}"
         log_info "Output directory: ${OUTPUT_DIR}"
 
