@@ -58,9 +58,13 @@ compares against this baseline, not against zero.
 | 8 | R1 | 5 | `011b1f50` | explicit `check=False` on subprocess.run | ruff 302 → 272 | no |
 | 9 | — | — | `e9692dab` | progress log through Phase 5 | — | no |
 | 10 | R1 | 4b | `ff8d090a` | shellcheck SC2034, consumers verified first | **shellcheck 343 → 281** | no |
+| 11 | — | — | `39c19b19` | progress log through Phase 4b | — | no |
+| 12 | R1 | 6 | `6218e9bf` | timezone-aware datetimes, no clock moved | ruff 272 → 254 | no |
+| 13 | R2 | 7A | `a11894b9` | notebook unused imports + dead f-prefixes | ruff 254 → 243 | no |
+| 14 | R2 | 7A | `1af220d2` | F841 / RUF059 / PLR1722 | **ruff 243 → 228** | no |
 
 **Current state**: `go test ./...` = 244 packages ok, **0 failures**.
-**ruff 427 → 272 (−36%)** · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
+**ruff 427 → 228 (−47%)** · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
 
 ---
 
@@ -137,24 +141,24 @@ compares against this baseline, not against zero.
 
 ## Where the run stopped
 
-Phases 0-5 and 4b complete (plus the added 1.5). **Next up: Phase 6** (`DTZ` timezone,
-18), then Phase 7 (ruff misc, ~55), then the big one, Phase 8 (exception handling, 164).
+Phases 0-6 and 4b complete, plus Phase 7 Batch A. **Next up: Phase 7 Batch B/C**
+(PIE810, ISC004, C401, PERF102, SIM*, LOG015, TRY*, PLW0602 — ~40 sites), then the big
+one, Phase 8 (exception handling: BLE001 123 + S110 30 + E722 11 = 164 sites).
 
-Remaining ruff by rule at this point:
+Remaining ruff by rule (228 total, 3 of them in vendored xv6 upstream):
 
 ```
-123 BLE001   blind-except            <- Phase 8
+123 BLE001   blind-except            <- Phase 8  (the 4h one)
  30 S110     try-except-pass         <- Phase 8
- 16 DTZ005   datetime-without-tz     <- Phase 6
  11 E722     bare-except             <- Phase 8
-  9 LOG015   root-logger-call        <- Phase 7
-  8 F841     unused-variable         <- Phase 7
-  8 PLW0602  global-not-assigned     <- Phase 7
-  7 PIE810   multiple-startswith     <- Phase 7
-  6 RUF059   unused-unpacked         <- Phase 7
+  9 LOG015   root-logger-call        <- Phase 7C
+  8 PLW0602  global-not-assigned     <- Phase 7B
+  7 PIE810   multiple-startswith     <- Phase 7B
   5 ASYNC230 blocking-open-in-async  <- Phase 13
-  5 F401     unused-import           <- Phase 7
-  5 F541     f-string-no-placeholder <- Phase 7
+  5 SIM115   open-without-context    <- Phase 7B
+  4 ISC004   implicit-str-concat     <- Phase 7B
+  3 SIM102   collapsible-if          <- Phase 7B
+  3 TRY002   raise-vanilla-class     <- Phase 7C
       ... remainder single-digit
 ```
 
