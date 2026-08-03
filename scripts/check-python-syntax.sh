@@ -17,6 +17,16 @@
 # This is deliberately the dumbest possible check — compile, don't lint. It
 # cannot have opinions to argue with, and it cannot be satisfied by a file
 # that does not run.
+#
+# 2026-08-03: extended to .ipynb after the exact same blind spot showed up one
+# artifact class over. notebooks/02_hypothesis_matrix.ipynb had three code
+# cells that could not parse — labels written as 'H1 RAM<newline>(MB)' where
+# 'H1 RAM\n(MB)' was meant, so every one was an unterminated string literal.
+# It was born that way in 3dbd7eee and had never been run. This check was
+# GATING and green the whole time, because it only ever looked at *.py.
+#
+# That single file was 104 of ruff's 427 findings — the parser cascades — so
+# it also made the ruff baseline read far worse than the tree deserved.
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -42,16 +52,58 @@ while IFS= read -r f; do
     fi
 done < <(git ls-files '*.py')
 
+# Notebooks: compile each code cell independently. Cells are not a single
+# module — a NameError across cells is normal and expected — so this compiles
+# per cell and reports the cell index, which is what Jupyter shows you.
+# stdlib only (json + compile); no nbformat dependency.
+NB_COUNT=0
+while IFS= read -r f; do
+    [ -f "${f}" ] || continue
+    NB_COUNT=$((NB_COUNT + 1))
+    if ! err="$(python3 - "${f}" <<'PY' 2>&1
+import json, sys
+path = sys.argv[1]
+try:
+    nb = json.load(open(path, encoding="utf-8"))
+except Exception as e:
+    print(f"not valid notebook JSON: {e}")
+    sys.exit(1)
+bad = 0
+for i, cell in enumerate(nb.get("cells", [])):
+    if cell.get("cell_type") != "code":
+        continue
+    src = "".join(cell.get("source", []))
+    try:
+        compile(src, f"{path}:cell{i}", "exec")
+    except SyntaxError as e:
+        bad += 1
+        print(f"cell {i}, line {e.lineno}: {e.msg}")
+sys.exit(1 if bad else 0)
+PY
+    )"; then
+        if [ "${FAILED}" -eq 0 ]; then
+            echo "============================================================"
+            echo "  FAIL: Python files that do not parse"
+            echo "============================================================"
+            echo
+        fi
+        echo "  ${f}"
+        printf '%s\n' "${err}" | sed 's/^/      /'
+        echo
+        FAILED=$((FAILED + 1))
+    fi
+done < <(git ls-files '*.ipynb')
+
 # py_compile litters __pycache__ next to sources; don't leave the tree dirty.
 find . -name '__pycache__' -type d -prune -exec rm -rf {} + 2>/dev/null || true
 
 if [ "${FAILED}" -gt 0 ]; then
-    echo "  ${FAILED} of ${COUNT} tracked Python files do not compile."
+    echo "  ${FAILED} of $((COUNT + NB_COUNT)) tracked Python files/notebooks do not compile."
     echo "  A file that cannot parse cannot run, and no linter output about"
     echo "  it means anything until this passes."
     echo "============================================================"
     exit 1
 fi
 
-echo "PASS: all ${COUNT} tracked Python files parse."
+echo "PASS: all ${COUNT} tracked Python files and ${NB_COUNT} notebooks parse."
 exit 0
