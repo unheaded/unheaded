@@ -32,7 +32,7 @@ import sys
 # Reuse the gate logic from the LoRA scorer.
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-PROMPT_DIR = "/tmp/wave14-phase2"
+PROMPT_DIR = "/tmp/wave14-phase2"  # nosec B108 - scratch dir for a one-off experiment
 INDEX_DIR = "/home/govan/tmp/unheaded/raft/index"
 CORPUS_FILE = "/home/govan/tmp/unheaded/raft/index/combined_corpus.jsonl"
 OUT_PATH = "/home/govan/tmp/unheaded/crates/zhenai-forge/notes/wave14-runB-rag-baseline.md"
