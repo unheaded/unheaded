@@ -78,13 +78,41 @@ The same `.min(self.size)` clamp was added to `RxRing::recv`, which had correct
 wrapping arithmetic but no ring-size bound — there, an over-large delta would
 have re-served stale descriptors as live packets.
 
-## Test status
+## Test status — closed 2026-08-03
 
-`ebpf/af-xdp`: 37 tests pass. **None of them cover this.** The ring types
-require a live AF_XDP socket (`CAP_NET_ADMIN`) and mmap'd kernel rings, so the
-existing suite exercises construction and validation paths only. A regression
-test would need either a fake ring backed by ordinary memory — the ring structs
-would have to be constructible from raw pointers for that — or a privileged
-integration test. Worth doing; the fix here is reasoned from the arithmetic,
-not demonstrated by a failing-then-passing test, and that distinction should
-not get lost.
+**Covered.** Three regression tests in `ebpf/af-xdp/src/umem.rs`, taking the
+fake-ring route this section proposed: `FillRing` and `CompletionRing` gained
+`#[cfg(test)] unsafe fn from_raw_for_test`, so a ring can be driven over
+ordinary heap memory with no AF_XDP socket and no `CAP_NET_ADMIN`. The
+privileged-integration-test alternative was rejected for the obvious reason —
+it would be skipped in exactly the environment meant to catch the regression.
+
+  - `completion_ring_consume_survives_counter_wraparound`
+  - `fill_ring_free_slots_survives_counter_wraparound`
+  - `fill_ring_free_slots_never_exceeds_size`
+
+Each was verified red-then-green: with the wrapping arithmetic reverted, all
+three panic with "attempt to subtract with overflow"; with it restored, the
+suite is 34 pass / 0 fail.
+
+## A second, unfixed instance of the same bug — found 2026-08-03
+
+Writing the test surfaced that **`FillRing` had never been fixed.** The
+2026-08-03 work corrected `CompletionRing::consume`; `xsk.rs` and `ring.rs` had
+always used the wrapping form; `FillRing::produce` and `FillRing::free_slots`
+were the last plain-arithmetic ring in the tree, in four places.
+
+This instance is arguably worse than the one originally reported. In
+`CompletionRing` a bad delta produced an over-large `Vec::with_capacity`. In
+`FillRing` the bad delta lands in `free_slots`, which is the *only* thing
+stopping userspace from producing into slots the kernel has not consumed yet:
+
+```rust
+let free_slots = self.size - (producer - consumer);   // both subtractions underflow
+let count = (addrs.len() as u32).min(free_slots);     // bound is now meaningless
+```
+
+A wrong `free_slots` does not merely allocate badly — it hands the kernel frame
+addresses that are still in flight. Fixed to match `xsk.rs`'s long-standing
+form, and `fill_ring_free_slots_never_exceeds_size` now asserts the invariant
+directly across four desynchronized producer/consumer pairs.

@@ -207,6 +207,35 @@ pub struct FillRing {
 }
 
 impl FillRing {
+    /// Build a ring over caller-supplied memory, for tests only.
+    ///
+    /// The real constructor mmaps a region the kernel allocated, which needs a
+    /// live AF_XDP socket and CAP_NET_ADMIN — neither of which CI has. A test
+    /// that cannot run is not a test, so the index arithmetic is made reachable
+    /// from ordinary heap memory instead. `map_addr` is left null; `Drop`
+    /// already null-checks before calling munmap, so nothing is unmapped.
+    ///
+    /// # Safety
+    /// The caller must keep the backing storage alive for the ring's lifetime
+    /// and must pass a power-of-two `size` matching the `descs` length.
+    #[cfg(test)]
+    pub(crate) unsafe fn from_raw_for_test(
+        producer: *mut u32,
+        consumer: *const u32,
+        descs: *mut u64,
+        size: u32,
+    ) -> Self {
+        Self {
+            producer,
+            consumer,
+            descs,
+            size,
+            mask: size - 1,
+            map_addr: core::ptr::null_mut(),
+            map_size: 0,
+        }
+    }
+
     /// Create fill ring by mmap'ing the kernel-allocated region.
     pub fn new(
         sock_fd: i32,
@@ -243,31 +272,49 @@ impl FillRing {
 
     /// Push a batch of frame addresses into the fill ring.
     /// Returns the number of addresses actually pushed (may be less if ring is full).
+    ///
+    /// # Wraparound
+    ///
+    /// The producer/consumer counters are free-running `u32` shared with the
+    /// kernel; they are never reset, so they wrap after 4G frames. Every delta
+    /// here must therefore use wrapping arithmetic. Plain `producer - consumer`
+    /// underflows on the first wrap — a debug panic, or in release a value near
+    /// 4.29e9 that then underflows `self.size - ...` a second time and yields a
+    /// nonsense `free_slots`. Because `free_slots` is what stops this ring from
+    /// overrunning slots the kernel has not consumed yet, a wrong value there
+    /// does not merely allocate badly: it lets userspace hand the kernel frame
+    /// addresses that are still in flight.
+    ///
+    /// `CompletionRing::consume` was fixed for the same class of bug on
+    /// 2026-08-03; `xsk.rs` has always used the wrapping form. This ring was the
+    /// last one in the tree still using plain arithmetic.
     pub fn produce(&mut self, addrs: &[u64]) -> u32 {
         unsafe {
             syscall::smp_rmb();
             let producer = *self.producer;
             let consumer = *self.consumer;
-            let free_slots = self.size - (producer - consumer);
+            let free_slots = self.size.wrapping_sub(producer.wrapping_sub(consumer));
             let count = (addrs.len() as u32).min(free_slots);
 
             for i in 0..count {
-                let idx = ((producer + i) & self.mask) as usize;
+                let idx = ((producer.wrapping_add(i)) & self.mask) as usize;
                 *self.descs.add(idx) = addrs[i as usize];
             }
 
             syscall::smp_wmb();
-            *self.producer = producer + count;
+            *self.producer = producer.wrapping_add(count);
             count
         }
     }
 
     /// Get number of free slots in the ring.
+    ///
+    /// Uses wrapping arithmetic for the same reason as [`FillRing::produce`].
     pub fn free_slots(&self) -> u32 {
         unsafe {
             let producer = *self.producer;
             let consumer = *self.consumer;
-            self.size - (producer - consumer)
+            self.size.wrapping_sub(producer.wrapping_sub(consumer))
         }
     }
 }
@@ -307,6 +354,29 @@ pub struct CompletionRing {
 }
 
 impl CompletionRing {
+    /// Build a ring over caller-supplied memory, for tests only.
+    /// See [`FillRing::from_raw_for_test`] for why this exists.
+    ///
+    /// # Safety
+    /// Same contract as [`FillRing::from_raw_for_test`].
+    #[cfg(test)]
+    pub(crate) unsafe fn from_raw_for_test(
+        consumer: *mut u32,
+        producer: *const u32,
+        descs: *const u64,
+        size: u32,
+    ) -> Self {
+        Self {
+            consumer,
+            producer,
+            descs,
+            size,
+            mask: size - 1,
+            map_addr: core::ptr::null_mut(),
+            map_size: 0,
+        }
+    }
+
     /// Create completion ring by mmap'ing the kernel-allocated region.
     pub fn new(
         sock_fd: i32,
@@ -425,6 +495,108 @@ pub fn validate_config(config: &XskConfig) -> Result<(), &'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ---- ring counter wraparound -------------------------------------------
+    //
+    // The producer/consumer indices these rings share with the kernel are
+    // free-running u32 that are never reset. They wrap after 4G frames — about
+    // an hour at 920 Kpps, which this pipeline has been benchmarked at. No
+    // attacker is required, only uptime.
+    //
+    // These tests drive the counters across the u32 boundary in ordinary heap
+    // memory. Both fail if the wrapping arithmetic is reverted to plain `-`:
+    // in debug that is an overflow panic, in release a nonsense delta.
+
+    const RING_SIZE: u32 = 8;
+
+    #[test]
+    fn completion_ring_consume_survives_counter_wraparound() {
+        let descs: Vec<u64> = (0..RING_SIZE as u64).map(|i| i * 4096).collect();
+        // Producer has wrapped past u32::MAX; consumer has not yet.
+        let mut consumer: u32 = u32::MAX - 1;
+        let producer: u32 = 2; // 4 frames produced across the boundary
+
+        let mut ring = unsafe {
+            CompletionRing::from_raw_for_test(
+                &mut consumer as *mut u32,
+                &producer as *const u32,
+                descs.as_ptr(),
+                RING_SIZE,
+            )
+        };
+
+        let got = ring.consume();
+
+        // producer.wrapping_sub(consumer) == 4. Plain subtraction would give a
+        // value near 4.29e9, which then feeds Vec::with_capacity.
+        assert_eq!(got.len(), 4, "expected the 4 frames straddling the wrap");
+        assert!(
+            got.len() as u32 <= RING_SIZE,
+            "consume() must never report more entries than the ring holds"
+        );
+        assert_eq!(consumer, 2, "consumer must advance across the boundary");
+    }
+
+    #[test]
+    fn fill_ring_free_slots_survives_counter_wraparound() {
+        let mut descs = vec![0u64; RING_SIZE as usize];
+        let mut producer: u32 = u32::MAX - 1;
+        let consumer: u32 = u32::MAX - 3; // 2 slots outstanding
+
+        let mut ring = unsafe {
+            FillRing::from_raw_for_test(
+                &mut producer as *mut u32,
+                &consumer as *const u32,
+                descs.as_mut_ptr(),
+                RING_SIZE,
+            )
+        };
+
+        // size - (producer - consumer) == 8 - 2 == 6 free slots.
+        assert_eq!(ring.free_slots(), RING_SIZE - 2);
+
+        // Push enough to carry the producer index past u32::MAX.
+        let addrs: Vec<u64> = (0..6).map(|i| i * 4096).collect();
+        let pushed = ring.produce(&addrs);
+
+        assert_eq!(pushed, 6, "all 6 free slots should accept a frame");
+        assert_eq!(
+            producer,
+            (u32::MAX - 1).wrapping_add(6),
+            "producer must wrap rather than overflow"
+        );
+        assert_eq!(ring.free_slots(), 0, "ring should now be full");
+    }
+
+    #[test]
+    fn fill_ring_free_slots_never_exceeds_size() {
+        // A desynchronized pair must not yield a free_slots larger than the
+        // ring — that is what would let userspace hand the kernel frames it has
+        // not finished with.
+        let mut descs = vec![0u64; RING_SIZE as usize];
+        for (p, c) in [
+            (0u32, 0u32),
+            (RING_SIZE, 0),
+            (u32::MAX, u32::MAX),
+            (0, u32::MAX),
+        ] {
+            let mut producer = p;
+            let consumer = c;
+            let ring = unsafe {
+                FillRing::from_raw_for_test(
+                    &mut producer as *mut u32,
+                    &consumer as *const u32,
+                    descs.as_mut_ptr(),
+                    RING_SIZE,
+                )
+            };
+            let free = ring.free_slots();
+            assert!(
+                free <= RING_SIZE,
+                "free_slots()={free} exceeds ring size {RING_SIZE} for producer={p} consumer={c}"
+            );
+        }
+    }
 
     fn test_config(frame_count: u32) -> XskConfig {
         XskConfig {
