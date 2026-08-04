@@ -13,6 +13,28 @@ Ordered by how much is blocked behind them.
 
 ---
 
+## Decision procedure (Stevie, 2026-08-04)
+
+Where a decision below is blocked only on Stevie's input, it may instead be settled by a
+**2/3 vote of `unheaded-developer`, `unheaded-architect`, `unheaded-micromanager`**. Items
+blocked on something else — account access (D9), live hardware (D8), a live-traffic
+availability trade (D2) — are not unblocked by a vote and stay queued.
+
+**First use — where unattended commits land. Unanimous 3/3: stay on `staging`.**
+
+- *Developer* ("git is truth"): these fixes edit files whose current content exists only on
+  `staging`. Basing them on `develop` at `b39fb207` means patching text that isn't there.
+- *Architect* ("architectural decisions are irreversible"): re-parenting 46 commits is a
+  history rewrite Stevie owns. Zero benefit while he is asleep, real blast radius.
+- *Micromanager* (one-reviewable-unit-per-commit): what gets reviewed is a linear stack of
+  self-contained commits. The branch *name* is not the deliverable.
+
+**Consequence — first agenda item for the in-person session:** `develop` and `staging` have
+diverged in the wrong direction for the flow Stevie described (`develop → staging → main`,
+promoted commit by commit). Reconciling them is a branch-pointer move, and it is his.
+
+---
+
 ## D1 — `BLE001`: 134 blind exception handlers
 
 **Blocks:** removing the last rule-ID exclusion from the ruff ratchet.
@@ -64,19 +86,19 @@ topology. Not mine.
 
 ## D3 — `scripts/bpf-verifier-check.sh` computes a build result and never checks it
 
-**Found this run.** The script runs `cargo build --release`, captures `BUILD_EXIT=$?` and
-a count of `^error[` lines, then reads **neither**. Only `LINK_ERRORS` feeds `FAILURES`.
+**CLOSED 2026-08-04 (`f80576ea`).** The blocking question was whether wiring it in turns
+CI red on landing. It does not: `cd ebpf && cargo build --release` exits 0 with zero
+`error[` lines, so the fix is verified inert on the current baseline. That made this a
+decision with only one live branch, so it was taken rather than queued.
 
-**A BPF program that fails to compile with an ordinary `error[E0433]` leaves this gate
-reporting success.**
+`BUILD_EXIT` is now the authoritative signal — it is non-zero for every failure mode,
+including the ones neither grep matches (`error:` with no code, a panicking build script,
+a malformed `Cargo.toml`). `ERRORS`/`LINK_ERRORS` were demoted to selecting a diagnostic,
+with the build tail printed when neither matches so a failure can never be silent.
 
-Both variables were kept and annotated rather than deleted — they are the only remaining
-evidence the check was intended.
-
-**Why it is not already fixed:** wiring it in can turn CI red the moment it lands, and
-whether that is acceptable depends on whether anything currently fails to build. Cheap to
-find out (`cd ebpf && cargo build --release 2>&1 | grep -c '^error\['`), but the
-consequence of a red gate is yours to accept.
+Both paths exercised: real tree → `GATE: PASSED`, exit 0; a `cargo` stub exiting 101 →
+`GATE: FAILED`, exit 1. Before the fix that same stub produced `GATE: PASSED` — that is
+the regression this closes. `ascend-linux` rebuilt afterwards: 901,888 bytes, unchanged.
 
 ---
 
@@ -162,11 +184,24 @@ Needs your account. Everything else in ADR-089 is in force already.
 
 ---
 
-## Two smaller ones, for completeness
+## Two smaller ones — both CLOSED 2026-08-04
 
-- **`tomb/provision.sh --verbose` and `scripts/pre-flight-check.sh --strict`** are both
-  documented in usage, parsed into a variable, and never read. Either wire them up or drop
-  them from `--help`; right now the help text is lying.
-- **`scripts/doom-test.sh` prints `${pixel_8000}`**, which nothing assigns — that
-  SCREEN_MAP diagnostic has always shown `??`. The declaration named `pixel_32000`, so a
-  third sample read was intended and never written.
+- **`tomb/provision.sh --verbose` and `scripts/pre-flight-check.sh --strict`** — wired up
+  (`8724db32`) rather than dropped from `--help`, since in both cases the advertised
+  behaviour is the useful one. `_log` mirrors to stderr under `VERBOSE=1` (one site covers
+  every SSH/SCP trace); `--strict` folds `optional_failed` into the blocking count, and its
+  case arm — which never even set `STRICT_MODE` — now does. Default behaviour unchanged:
+  of the eight `(strict, required, optional)` combinations exactly one verdict differs, and
+  only with `--strict` passed.
+
+- **`scripts/doom-test.sh` `${pixel_8000}`** — **the previous entry here was wrong**
+  (`cb9496db`). `git blame` shows `c7831cad` (2026-03-03) assigns it at line 624; the read
+  has worked for five months. What was actually broken is that `c7831cad` left the `local`
+  line naming the *old* `pixel_32000`, so `pixel_8000` leaked into the caller's scope on
+  every invocation. `ff8d090a` deleted the stale name correctly and then drew the wrong
+  conclusion about the one that replaced it. Fixed by declaring it; no output change.
+
+  Worth generalising: that note asserted a runtime symptom (`always renders as '??'`) from
+  reading a declaration line alone. Cheap to check, and `git blame` on the *assignment*
+  would have caught it. Treat "flagged, not fixed" annotations from the ladder as claims
+  needing verification, not as findings.
