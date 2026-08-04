@@ -166,7 +166,9 @@ jobs:
   rust-test:
     name: Rust Test (stable, host-testable crates)
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # 15 was not enough once the crates below were actually wired in: zhend has a
+    # single integration test measured at 325s, on top of its compile.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
@@ -181,11 +183,39 @@ jobs:
           workspaces: |
             ebpf -> target
             crates/monad-mbc -> target
+            crates/zhend -> target
+            crates/zhenai-forge -> target
           key: ${{ runner.os }}-cargo-${{ env.RUST_STABLE }}
 
-      - name: Test monad-common (host, with race-equivalent --test-threads=1 for determinism)
-        working-directory: ebpf
-        run: cargo test -p monad-common -- --nocapture
+      # NOT `working-directory: ebpf`. Cargo reads .cargo/config.toml from the
+      # working directory, and ebpf/.cargo/config.toml pins
+      # `[build] target = "bpfel-unknown-none"` with build-std. Under that,
+      # `cargo test` compiles the test harness for a bare-metal target with no
+      # std and no test crate, so the step could never pass:
+      #   error[E0463]: can't find crate for `std`
+      #   note: the `bpfel-unknown-none` target may not be installed
+      # Running from the repo root with --manifest-path picks the host target.
+      - name: Test ebpf host crates (monad-common, af-xdp, common, pqc-common)
+        run: |
+          set -euo pipefail
+          for c in monad-common af-xdp af-xdp-common common pqc-common; do
+            echo "::group::cargo test $c"
+            cargo test --manifest-path "ebpf/$c/Cargo.toml" -- --nocapture
+            echo "::endgroup::"
+          done
+
+      # The remaining crates. Each was previously built by no CI job at all.
+      # latency-probe, packet-marker and monad-cpu-ebpf are deliberately absent:
+      # they are #![no_std] BPF programs and cannot link a host test harness
+      # (duplicate lang item `panic_impl`).
+      - name: Test standalone crates (zhend, zhenai-forge, doom-runner, upc-*, xv6-mbc)
+        run: |
+          set -euo pipefail
+          for c in zhend zhenai-forge doom-runner upc-api upc-bootstub xv6-mbc; do
+            echo "::group::cargo test $c"
+            cargo test --manifest-path "crates/$c/Cargo.toml"
+            echo "::endgroup::"
+          done
 
       - name: Test monad-mbc (assembler, disasm, translator)
         working-directory: crates/monad-mbc

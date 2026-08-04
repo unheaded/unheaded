@@ -178,9 +178,15 @@ Needs your account. Everything else in ADR-089 is in force already.
    replacing it with Unheaded-authored code.)
 2. **`docs/`** — 345K lines, larger than any code surface. In scope for a separate sweep,
    or out entirely? ADR-090 covers source only.
-3. **The 28 `#[ignore]`d `zhenai-forge` tests** — restore (needs the right Gemma-4 GGUF
-   re-acquired) or delete? They are currently neither running nor removed, which is the
-   worst of both.
+3. ~~**The 28 `#[ignore]`d `zhenai-forge` tests**~~ — **the premise was wrong, closed
+   2026-08-04.** They are not "neither running nor removed": every one carries a reason
+   and a way to run it, e.g.
+
+   > `#[ignore] // heavy: loads ~9 GB Gemma-4 GGUF + uploads to GPU — OOM risk on 14 GB dev box; run on east/west or via cargo test -- --ignored`
+
+   That is a deliberate resource guard, not abandonment — and the other **104 tests in
+   the crate pass**, which nobody could have known, because *no CI job ran this crate at
+   all* until `<this commit>`. Nothing to decide: keep them, run them on east/west.
 
 ---
 
