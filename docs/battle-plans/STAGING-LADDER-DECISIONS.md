@@ -186,7 +186,7 @@ Needs your account. Everything else in ADR-089 is in force already.
 
    That is a deliberate resource guard, not abandonment — and the other **104 tests in
    the crate pass**, which nobody could have known, because *no CI job ran this crate at
-   all* until `<this commit>`. Nothing to decide: keep them, run them on east/west.
+   all* until `22f180da`. Nothing to decide: keep them, run them on east/west.
 
 ---
 
