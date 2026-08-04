@@ -109,21 +109,21 @@ steps:
     status: done
 
   - name: test-dns-resolution
-    action: shell
+    action: manual
     command: "dig @<container-ip> google.com +short"
     verify: "dig @<container-ip> google.com +short | grep -q '[0-9]'"
     status: done
     result: "Resolves to 142.251.x.x (Google IPs)"
 
   - name: test-ad-blocking
-    action: shell
+    action: manual
     command: "dig @<container-ip> ads.doubleclick.net +short"
     verify: "Returns NXDOMAIN (blocked)"
     status: done
     result: "NXDOMAIN — ads.doubleclick.net blocked successfully"
 
   - name: test-custom-dns
-    action: shell
+    action: manual
     command: |
       dig @<container-ip> west.lab +short    # expect 192.168.69.184
       dig @<container-ip> east.lab +short    # expect 192.168.13.1
@@ -132,7 +132,7 @@ steps:
     result: "All custom records resolve correctly"
 
   - name: switch-host-dns
-    action: shell
+    action: manual
     command: "sudo resolvectl dns $(ip route show default | awk '{print $5}') <container-ip>"
     verify: "resolvectl query google.com"
     status: pending

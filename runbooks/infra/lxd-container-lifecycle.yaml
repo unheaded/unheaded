@@ -39,12 +39,12 @@ steps:
     description: "Open interactive shell in container"
 
   - name: push-file
-    action: shell
+    action: manual
     command: "lxc file push <local_path> ${CONTAINER}/<remote_path>"
     description: "Copy file into container"
 
   - name: pull-file
-    action: shell
+    action: manual
     command: "lxc file pull ${CONTAINER}/<remote_path> <local_path>"
     description: "Copy file out of container"
 
@@ -54,7 +54,7 @@ steps:
     verify: "lxc info ${CONTAINER} | grep -q snap-"
 
   - name: restore-snapshot
-    action: shell
+    action: manual
     command: "lxc restore ${CONTAINER} <snapshot_name>"
     description: "Restore container to snapshot state"
 
