@@ -220,7 +220,15 @@
     # =========================================================================
     # Track security events for SIEM integration
     # =========================================================================
-    security.audit.enable = true;
+    # mkDefault, not a plain definition: nixpkgs' virtualisation/container-config
+    # sets this to false for any config with boot.isContainer, because the kernel
+    # audit subsystem is not namespaced and cannot work inside a container. At
+    # equal priority the two definitions conflict and the whole configuration
+    # fails to evaluate — which is what happened to `cuirass`, the only container
+    # that enables containers/base.nix and so the only one that sets
+    # boot.isContainer. As a default this stays true everywhere it can apply and
+    # yields to the container profile where auditing is impossible anyway.
+    security.audit.enable = lib.mkDefault true;
     security.audit.rules = [
       # Monitor privilege escalation attempts
       "-a exit,always -F arch=b64 -S execve -F euid=0 -k privileged"
