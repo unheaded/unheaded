@@ -79,8 +79,11 @@ services:
       - GF_LOG_LEVEL=info
       - GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH=/var/lib/grafana/dashboards/kingdom-overview.json
     volumes:
-      - ./grafana/provisioning/datasources:/etc/grafana/provisioning/datasources:ro
-      - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
+      # One mount for the whole provisioning tree, matching monitoring/. The two
+      # separate mounts this replaces both pointed at host paths that did not
+      # exist — docker created them as empty root-owned directories, so Grafana
+      # started with no datasources and no dashboards, every time.
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
       - grafana-data:/var/lib/grafana
     networks:
