@@ -34,8 +34,16 @@ var (
 
 var (
 	// Phase headers: ### Age 1: The Alpha Ascension or ### Phase 1: Alpha
-	// Also captures status in parentheses like (COMPLETE ✓) or (IN PROGRESS 🚀)
-	phaseHeaderRe = regexp.MustCompile(`^###\s+(Age|Phase|Epoch)\s+(\d+(?:\.\d+)?):?\s+(.+?)\s*(?:\(([A-Z\s✓✅🚀_-]+)\))?$`)
+	// Also captures a trailing parenthesised status: (COMPLETE ✓),
+	// (🔄 IN PROGRESS), (📋 PLANNED), (IN PROGRESS 🚀).
+	//
+	// The status group matches any parenthesised run containing a status
+	// KEYWORD, rather than enumerating the emoji that may sit beside it. The
+	// previous class `[A-Z\s✓✅🚀_-]+` listed ✓✅🚀 but not 🔄 or 📋 — the two
+	// markers references/timeline.md actually uses — so those headers failed to
+	// match the group at all. `(.+?)` then swallowed the marker into the phase
+	// name and the status silently fell through to its default.
+	phaseHeaderRe = regexp.MustCompile(`^###\s+(Age|Phase|Epoch)\s+(\d+(?:\.\d+)?):?\s+(.+?)\s*(?:\(([^()]*(?i:COMPLETE|PROGRESS|PLANNED|BLOCK)[^()]*)\))?$`)
 
 	// Milestone headers: #### Epoch 1.1: The Whispering Void Awakens
 	milestoneHeaderRe = regexp.MustCompile(`^####\s+(Epoch|Milestone)\s+(\d+(?:\.\d+)?):?\s+(.+)$`)
@@ -55,8 +63,17 @@ var (
 	// Risk patterns: Risk: Medium or **Risk:** High
 	riskRe = regexp.MustCompile(`(?i)(?:\*{2})?Risk:(?:\*{2})?\s*(low|medium|high)`)
 
-	// Progress patterns: 25% FORGED or 60% complete
-	progressRe = regexp.MustCompile(`(\d+)%\s*(?:FORGED|complete|done)?`)
+	// Progress patterns: 25% FORGED or 60% complete.
+	//
+	// The fractional part is captured so a decimal does not truncate to its
+	// fraction: `(\d+)%` matched "7%" inside "73.7%" and reported progress 7.
+	progressRe = regexp.MustCompile(`(\d+)(?:\.\d+)?%\s*(?:FORGED|complete|done)?`)
+
+	// An explicit declaration: "**Progress:** ~70%" / "Progress: 70%".
+	// This takes precedence over any percentage merely mentioned in the section
+	// body — every match used to overwrite the field, so the last incidental
+	// number in a section won.
+	progressDeclRe = regexp.MustCompile(`(?i)^\s*[*_]{0,2}Progress[*_]{0,2}\s*:?\s*[*_]{0,2}\s*[~≈]?\s*(\d+)(?:\.\d+)?\s*%`)
 
 	// Owner patterns: Owner: Agent 5 or **Owner:** The Architect
 	ownerRe = regexp.MustCompile(`(?i)(?:\*{2})?Owner:(?:\*{2})?\s*(.+?)(?:\s*$|,|\|)`)
@@ -121,6 +138,11 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 	}
 
 	var currentPhase *timeline.Phase
+	// True when the current phase's status came from its header marker, so
+	// body text must not override it.
+	var phaseStatusFromHeader bool
+	// True once the current phase declared its own "Progress: N%" line.
+	var phaseProgressDeclared bool
 	var currentMilestone *timeline.Milestone
 	var lineNum int
 
@@ -175,8 +197,11 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 			}
 
 			// Check for status in header
+			phaseStatusFromHeader = false
+			phaseProgressDeclared = false
 			if len(phaseMatch) > 4 && phaseMatch[4] != "" {
 				currentPhase.Status = parseStatus(phaseMatch[4])
+				phaseStatusFromHeader = true
 			}
 
 			continue
@@ -212,7 +237,12 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 			if status != "" {
 				if currentMilestone != nil && currentMilestone.Status == "pending" {
 					currentMilestone.Status = status
-				} else if currentPhase != nil && currentPhase.Status == "planned" {
+				} else if currentPhase != nil && !phaseStatusFromHeader && currentPhase.Status == "planned" {
+					// Only infer a phase status from body text when the header did
+					// not state one. Without this guard a phase declared PLANNED is
+					// flipped to completed by the first body line that happens to
+					// contain the word COMPLETE — which is how "The Scaling Era
+					// (📋 PLANNED)" came out as status "completed", 0%%.
 					currentPhase.Status = status
 				}
 			}
@@ -232,13 +262,23 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 			}
 		}
 
-		// Parse Progress
-		if progressMatch := progressRe.FindStringSubmatch(line); progressMatch != nil {
+		// Parse Progress. An explicit "Progress: N%" declaration wins and cannot
+		// be overwritten by a percentage mentioned later in the same section.
+		if declMatch := progressDeclRe.FindStringSubmatch(line); declMatch != nil {
+			progress := 0
+			_, _ = fmt.Sscanf(declMatch[1], "%d", &progress)
+			if currentMilestone != nil {
+				currentMilestone.Progress = progress
+			} else if currentPhase != nil {
+				currentPhase.Progress = progress
+				phaseProgressDeclared = true
+			}
+		} else if progressMatch := progressRe.FindStringSubmatch(line); progressMatch != nil {
 			progress := 0
 			_, _ = fmt.Sscanf(progressMatch[1], "%d", &progress)
 			if currentMilestone != nil {
 				currentMilestone.Progress = progress
-			} else if currentPhase != nil {
+			} else if currentPhase != nil && !phaseProgressDeclared {
 				currentPhase.Progress = progress
 			}
 		}
