@@ -184,6 +184,46 @@ Needs your account. Everything else in ADR-089 is in force already.
 
 ---
 
+## D12 — two parallel Kubernetes trees, neither declared canonical
+
+**Found 2026-08-04.** `deploy/k8s/` (2026-03-05, "SK8 Convergence") and
+`kubernetes/` (2026-06-26, "Kubernetes the hard way") are both live — the most
+recent commit touching Kubernetes at all, `7153f47a`, touched both.
+
+**Nothing is broken.** Verified: **zero overlapping `(kind, namespace, name)`
+tuples**, and they use disjoint namespaces, so applying both to one cluster does
+not collide. This is a duplication-of-effort question, not a defect, which is why
+it is here and not fixed.
+
+| | `deploy/k8s/` | `kubernetes/` |
+|---|---|---|
+| Shape | raw manifests by Kingdom tier | kustomize `base/` + `overlays/` |
+| Namespaces | `unheaded-armory/-gnostic/-presentation/-system/-ebpf` | `unheaded`, `haproxy-controller` |
+| Has | Gatekeeper `ConstraintTemplate`s, `CiliumNetworkPolicy`, PDBs, `ServiceMonitor`s | service-for-service mirror of the Docker stack, HAProxy ingress edge |
+| Own docs | 1 | 7 |
+| Cited by other docs | 12+ — ADR-064, runbooks, compliance control matrices, K8s threat model | 1 |
+
+Consolidating loses something either way: `kubernetes/` has the structure and the
+documentation, `deploy/k8s/` has the policy layer and every external reference.
+The 3-skill vote came out 2/3 for **documenting, not consolidating** —
+
+- *Architect*: kustomize with base/overlays is the industry-standard shape, and
+  ADR-088's whole premise is practising industry-standard substrates. Would make
+  `kubernetes/` canonical.
+- *Developer*: `deploy/k8s/`'s governance layer has no equivalent in `kubernetes/`.
+  Picking a winner now deletes real work. Merge later, don't choose now.
+- *Micromanager*: two parallel implementations is a maintenance cost, but neither
+  is broken and both are referenced — not an unattended call.
+
+**Done instead:** a cross-reference README in each tree, so nobody has to rediscover
+that the other exists. Neither is declared canonical.
+
+**If you do consolidate**, the migration is "port `deploy/k8s/`'s policy layer onto
+`kubernetes/`'s kustomize base, then re-point the 12 external references" — the
+references are the expensive half, and ADR-088 should record the outcome.
+
+---
+
 ## D11 — `docker/hosts/host-{a,b}` have never been able to start
 
 **Found 2026-08-04.** Both stacks are unusable, and have been since the files were
