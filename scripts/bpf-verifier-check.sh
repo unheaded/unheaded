@@ -22,29 +22,34 @@ echo "=== Phase 1: Compile all BPF programs ==="
 cd "$BPF_DIR" || { echo "FATAL: cannot cd to $BPF_DIR" >&2; exit 1; }
 
 BUILD_OUTPUT=$(cargo build --release 2>&1)
-# shellcheck disable=SC2034  # captured but never checked — see the note below.
 BUILD_EXIT=$?
 
 # Count successful and failed builds
 BUILT=$(echo "$BUILD_OUTPUT" | grep -c "Compiling.*-ebpf\|Compiling.*tracker\|Compiling.*marker\|Compiling.*probe\|Compiling.*tracer" || true)
-# shellcheck disable=SC2034  # captured but never checked — see the note below.
 ERRORS=$(echo "$BUILD_OUTPUT" | grep -c "^error\[" || true)
 LINK_ERRORS=$(echo "$BUILD_OUTPUT" | grep -c "linking with.*failed" || true)
 
-# GAP (found 2026-08-03, not fixed here): BUILD_EXIT and ERRORS are computed and
-# then never read. Only LINK_ERRORS feeds FAILURES below, so a BPF program that
-# fails to compile with an ordinary `error[E0433]` leaves this gate reporting
-# success. Both variables are kept rather than deleted because they are the only
-# remaining evidence that the check was intended.
-#
-# Wiring them in is a behaviour change to a CI gate — it can turn CI red on the
-# spot — so it belongs at a higher rung than a lint sweep. See the decisions doc.
-
+# cargo's exit status is the authoritative signal: it is non-zero for every
+# failure mode, including the ones neither grep below matches (`error: ` with no
+# code, a panicking build script, a broken Cargo.toml). ERRORS and LINK_ERRORS
+# only decide which diagnostic to print. Counted once, so a build that fails both
+# ways is one failure, not three.
 echo "  Compiled: $BUILT programs"
-if [ "$LINK_ERRORS" -gt 0 ]; then
-    echo "  LINK ERRORS: $LINK_ERRORS"
-    echo "$BUILD_OUTPUT" | grep -B1 "linking.*failed" | head -20
-    FAILURES=$((FAILURES + LINK_ERRORS))
+if [ "$BUILD_EXIT" -ne 0 ]; then
+    echo "  BUILD FAILED (cargo exit ${BUILD_EXIT})"
+    if [ "$ERRORS" -gt 0 ]; then
+        echo "  COMPILE ERRORS: $ERRORS"
+        echo "$BUILD_OUTPUT" | grep -A3 "^error\[" | head -40
+    fi
+    if [ "$LINK_ERRORS" -gt 0 ]; then
+        echo "  LINK ERRORS: $LINK_ERRORS"
+        echo "$BUILD_OUTPUT" | grep -B1 "linking.*failed" | head -20
+    fi
+    if [ "$ERRORS" -eq 0 ] && [ "$LINK_ERRORS" -eq 0 ]; then
+        # Neither pattern matched, so the tail is the only evidence of what broke.
+        echo "$BUILD_OUTPUT" | tail -20
+    fi
+    FAILURES=$((FAILURES + 1))
 fi
 
 # ---- Phase 2: Check for known BPF-unfriendly patterns ----
