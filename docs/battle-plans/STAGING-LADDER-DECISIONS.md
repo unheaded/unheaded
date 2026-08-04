@@ -184,6 +184,38 @@ Needs your account. Everything else in ADR-089 is in force already.
 
 ---
 
+## D13 — `lxd/` predates the Port Authority migration, wholesale
+
+**Found 2026-08-04.** The LXD container definitions use an entirely different port
+scheme from every other deployment surface — 50051–50067 for the services,
+plus 8080 (dashboard-backend), 8443 (gateway), 3001/3002 (frontends). Only
+`doom.yaml` (16680) is in the Doom Range.
+
+It is **internally consistent**, which is why this is a decision and not a bug:
+`lxd/` is a coherent pre-migration world, not a tree with stragglers. Fixing one
+file would make it inconsistent with the other nineteen.
+
+Found while chasing `GATEWAY_PORT`, which is read by nothing anywhere —
+`services/gateway/config/config.go:216` reads **`GATEWAY_HTTP_PORT`**. Three
+places set the wrong name:
+
+| where | value | effect |
+|---|---|---|
+| `kubernetes/.../gateway/deployment.yaml` | 21000 | **fixed** — renamed; the value already matched containerPort, both probes and the Service, so it was dead but harmless |
+| `lxd/containers/gateway.yaml` | 8443 | still wrong name. Renaming would make 8443 *take effect*, diverging from the Doom Range 21000/21443 — so it needs the migration decision below, not a rename |
+| `docker/hosts/host-b/docker-compose.yml` | 8080 | same, and that stack cannot start anyway (D11) |
+
+**The decision:** migrate `lxd/` to the Doom Range, or declare it a deliberately
+separate scheme and document why. Either is defensible — LXD containers get their
+own IPs, so the ports need not match the Doom Range to avoid collisions — but
+right now nothing says which it is, and `pkg/ports/ports.go` claims to be the
+single source of truth for the whole Kingdom.
+
+Not taken unattended: it is 20 files of port changes across a deployment surface
+that cannot be tested from here.
+
+---
+
 ## D12 — two parallel Kubernetes trees, neither declared canonical
 
 **Found 2026-08-04.** `deploy/k8s/` (2026-03-05, "SK8 Convergence") and
