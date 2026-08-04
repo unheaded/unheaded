@@ -612,11 +612,7 @@ check_demo_verdict() {
     # Check screen memory has been written (gradient/checkerboard write to SCREEN_MAP)
     if [[ -e "${MAP_PIN}/SCREEN_MAP" ]]; then
         # Read a few pixels to verify screen has non-zero data
-        # NOTE: the echo below prints ${pixel_8000}, which is never assigned —
-        # it always renders as '??'. The old declaration named pixel_32000, so a
-        # third sample read was intended and never written. Flagged, not fixed:
-        # adding the read is a behaviour change, not a lint fix.
-        local pixel_0 pixel_100
+        local pixel_0 pixel_100 pixel_8000
         pixel_0=$(sudo bpftool map lookup pinned "${MAP_PIN}/SCREEN_MAP" \
             key hex 00 00 00 00 2>/dev/null | awk '/^value:/{found=1; next} found{print}' | tr -d ' \n' || true)
         pixel_100=$(sudo bpftool map lookup pinned "${MAP_PIN}/SCREEN_MAP" \
