@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# Sophia's Eye — Prometheus scrape configuration.
+#
+# docker-compose.yml mounts this file at /etc/prometheus/prometheus.yml and
+# passes --config.file pointing at it. Without the file present, docker creates
+# the bind source as an empty DIRECTORY, and prometheus exits because its config
+# path is a directory.
+#
+# Targets use container DNS names on the `sophia-eye` bridge network and the
+# services' INTERNAL ports, not the published 201xx host ports.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    stack: sophia-eye
+
+scrape_configs:
+  # Prometheus itself.
+  - job_name: prometheus
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # The gateway exposes promhttp on METRICS_PORT (9090 in compose), which is a
+  # different listener from its service port (SOPHIA_GATEWAY_PORT, 20105).
+  - job_name: sophia-gateway
+    static_configs:
+      - targets: ['sophia-gateway:9090']
+
+  # vLLM's OpenAI-compatible server exposes /metrics on its serving port.
+  # Both model servers listen on 8000 inside their containers; they differ only
+  # in the host port they publish (20100 / 20101).
+  - job_name: vllm
+    static_configs:
+      - targets: ['vllm:8000']
+        labels:
+          model_role: general
+      - targets: ['qwen-coder:8000']
+        labels:
+          model_role: coder
+
+  - job_name: qdrant
+    static_configs:
+      - targets: ['qdrant:6333']
+
+  # text-embeddings-inference listens on 80 inside the container.
+  - job_name: embeddings
+    static_configs:
+      - targets: ['embeddings:80']
+
+# open-webui is deliberately not scraped: it exposes no Prometheus endpoint.
