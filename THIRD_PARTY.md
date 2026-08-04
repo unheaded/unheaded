@@ -1,7 +1,7 @@
 # Third-Party Dependencies and GPL Boundary
 
 **Project:** Unheaded Kingdom
-**Last updated:** 2026-03-17 (S78 Round Table audit)
+**Last updated:** 2026-08-04 (Python, CDN-loaded JS and llama.cpp added)
 **Main license:** GPL-3.0-or-later (see `/LICENSE`)
 **Canonical third-party inventory location:** This file
 
@@ -14,7 +14,7 @@ This document describes all third-party dependencies used by the Unheaded Kingdo
 The codebase consists of:
 - **Unheaded code:** Licensed under GPL-3.0 (see `/LICENSE`)
 - **DOOM subsystem:** GPL v2.0, architecturally isolated and NOT linked into the main codebase
-- **Third-party dependencies:** Go modules, Rust crates, and JavaScript libraries with permissive licenses
+- **Third-party dependencies:** Go modules, Rust crates, Python packages, and JavaScript libraries — permissive, except psycopg2 (LGPL-with-exceptions, GPL-3.0-compatible)
 - **Protocol specifications:** Published under GPL-3.0/Apache 2.0 to encourage ecosystem adoption
 
 ---
@@ -213,7 +213,8 @@ The following Rust crates are used in the Unheaded Kingdom's eBPF components, tr
 
 ## JavaScript / Dashboard Dependencies
 
-The Unheaded dashboard uses minimal JavaScript. Core libraries:
+The Unheaded dashboard is vanilla JavaScript. `package.json` at the repo root is a
+lint-only manifest (it pins eslint) and ships nothing.
 
 | Library | License | Purpose |
 |---------|---------|---------|
@@ -221,7 +222,74 @@ The Unheaded dashboard uses minimal JavaScript. Core libraries:
 | WebSocket API | Built-in browser API | Real-time DOOM viewport streaming |
 | HTML Canvas 2D | Built-in browser API | Frame rendering |
 
-No npm packages in the shipped dashboard. Configuration and protocol handlers are in `/dashboard/js/` and are MIT.
+**No npm packages are bundled or built.** Three libraries are nevertheless loaded
+at runtime from CDNs by specific HTML pages, which makes them third-party
+dependencies of those pages even though nothing is installed:
+
+| Library | Version | License | Loaded by | Integrity |
+|---------|---------|---------|-----------|-----------|
+| [xterm.js](https://github.com/xtermjs/xterm.js) | 5.3.0 | MIT | `dashboard/upc-console.html` | SRI sha384 |
+| xterm-addon-fit | 0.8.0 | MIT | `dashboard/upc-console.html` | SRI sha384 |
+| [SheetJS](https://sheetjs.com/) `xlsx` | 0.20.3 | Apache-2.0 | `skills/marshal-eval-review.html` | SRI sha384 |
+
+All three are GPL-3.0-compatible (MIT and Apache-2.0 both are, one-way into
+GPL-3.0). Each carries a Subresource Integrity hash — see the note in
+`dashboard/upc-console.html` for how to recompute one when bumping a version.
+
+Google Fonts stylesheets are also loaded by `raft/static/index.html` and
+`skills/marshal-eval-review.html`. They carry no SRI because Google serves
+different CSS per user-agent, so the response is not stable for a given URL.
+
+Configuration and protocol handlers are in `/dashboard/js/` and are GPL-3.0.
+
+---
+
+## Python Dependencies (Zhen / RAFT)
+
+Declared in `raft/requirements.txt` — direct imports only; pip resolves the
+transitive set. Before that file existed, `syft dir:.` found **zero** Python
+packages, so the SBOM and every vulnerability scan downstream of it were blind to
+this entire surface. See `docs/security/python-deps-unscanned-2026-08-04.md`.
+
+| Package | License | Purpose |
+|---------|---------|---------|
+| Flask | BSD-3-Clause | Zhen web UI (`raft/zhen_app.py`, port 20103) |
+| flask-cors | MIT | CORS headers for the same |
+| psycopg2-binary | LGPL-3.0-or-later *(with OpenSSL exception)* | The Well (PostgreSQL) client |
+| requests | Apache-2.0 | HTTP client |
+| faiss-cpu | MIT AND BSD-3-Clause | Vector index |
+| sentence-transformers | Apache-2.0 | Memory embedder (all-MiniLM-L6-v2) |
+| langchain-text-splitters | MIT | Corpus chunking |
+| numpy | BSD-3-Clause (bundles 0BSD, MIT, Zlib) | Numerics |
+| torch | BSD-3-Clause | Training + inference |
+| transformers, datasets, peft, trl | Apache-2.0 | RAFT fine-tuning pipeline |
+| mcp | MIT | MCP server (`raft/zhen_mcp_server.py`) |
+| anthropic | MIT | Claude API client |
+| schedule | MIT | `raft/zhen_scheduler.py` |
+| PyYAML | MIT | Runbook / config parsing |
+| pytest | MIT | Tests |
+
+Every licence above was read from the installed package metadata
+(`importlib.metadata`) in `~/.venv/zhen`, not from memory.
+
+**psycopg2 is the one to watch.** It is LGPL-3.0-or-later, not permissive. That is
+GPL-3.0-compatible — LGPL-3.0 upgrades into GPL-3.0 cleanly — so it raises no
+boundary problem here. It is called from Python at runtime, never linked into a
+Go or Rust binary.
+
+---
+
+## External Runtime Dependencies (not vendored, not tracked)
+
+Cloned or installed locally and required at runtime, so they belong in this
+inventory even though no file of theirs is in the repository:
+
+| Dependency | License | Why it is here | Where |
+|---|---|---|---|
+| [llama.cpp](https://github.com/ggml-org/llama.cpp) | MIT | `llama-server` on :8081 is Zhen's inference backend — `raft/start-zhen.sh` refuses to start without it | `llama.cpp/`, gitignored (`.gitignore:236`) |
+
+MIT is GPL-3.0-compatible. llama.cpp runs as a **separate process** reached over
+HTTP; nothing links against it, so no GPL boundary question arises.
 
 ---
 
@@ -260,9 +328,26 @@ cargo tree             # View dependency tree
 cargo license          # Generate license report (requires: cargo install cargo-license)
 ```
 
+### Python Dependencies
+
+```bash
+pip install -r raft/requirements.txt
+pip-licenses --format=markdown        # requires: pip install pip-licenses
+syft dir:raft -o json | grype sbom:-  # what CI's SBOM step sees
+```
+
+### JavaScript loaded from CDNs
+
+Not installed, so no tool enumerates them. Grep for them instead, and check each
+hit carries an `integrity=` attribute:
+
+```bash
+grep -rn '<script[^>]*src="https' --include=*.html . | grep -v node_modules
+```
+
 ### Verification
 
-1. Check `go.mod` and `Cargo.toml` for declared dependencies
+1. Check `go.mod`, `Cargo.toml` and `raft/requirements.txt` for declared dependencies
 2. Verify license file in each module: `LICENSE`, `LICENSE.md`, `COPYING`
 3. Cross-check with SPDX identifiers on crates.io and pkg.go.dev
 4. Audit any GPL/LGPL dependencies to ensure isolation
