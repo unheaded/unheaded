@@ -1,3 +1,28 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# host-b ("The Outpost") — Docker deployment
+#
+# STATUS: THIS STACK HAS NEVER BEEN ABLE TO START. Use the LXD path instead —
+# lxd/containers/ and lxd/profiles/unheaded-firewall.yaml are complete and are
+# the deployment route that actually works for this tier.
+#
+# One blocker, present since this file was created:
+#
+#   MISSING BUILD CONTEXTS. `ipfire` -> ../firewall/ipfire and
+#   `bird` -> ../firewall/bird. docker/hosts/firewall/ has never existed in this
+#   repo. routing/bird/Dockerfile does exist, but it is not a drop-in
+#   replacement: it does `COPY . /src/bird` and builds BIRD from upstream
+#   source, so it needs a context containing the BIRD source tree (its own
+#   comment says ~/tmp/bird-master/), not the config directory.
+#
+#   compose builds every `build:` service before starting anything, so these two
+#   take the whole stack down with them — including `suricata`, whose own rules
+#   mount was fixed separately and is now correct.
+#
+# See "D11" in docs/battle-plans/STAGING-LADDER-DECISIONS.md. Left in place
+# rather than deleted: it is the record of the intended Docker topology, and
+# every service definition below except the ones named above is sound.
 version: '3.8'
 services:
   ipfire:
@@ -65,7 +90,7 @@ services:
     volumes:
     - bird-data:/etc/bird
     - bird-run:/var/run
-    - ${BIRD_CONF:-./../../routing/bird/bird.conf}:/etc/bird/bird.conf:ro
+    - ${BIRD_CONF:-./../../../routing/bird/bird.conf}:/etc/bird/bird.conf:ro
     depends_on:
       ipfire:
         condition: service_healthy
