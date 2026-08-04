@@ -15,24 +15,29 @@ info:
     name: Unheaded
     email: stevie@bellis.tech
   license:
-    name: Proprietary
+    name: GPL-3.0-or-later
+    url: https://www.gnu.org/licenses/gpl-3.0.html
 
+# Ports are the Doom Range assignments from pkg/ports/ports.go, which is the
+# single source of truth. The pre-Port-Authority 808x ports that were here
+# listed dead endpoints for every service, and gave dashboard-backend and
+# kanban-app the same one.
 servers:
-  - url: http://localhost:8082
+  - url: http://localhost:19000
     description: Timeguru (timeline tracking)
-  - url: http://localhost:8083
+  - url: http://localhost:19002
     description: Captain (strategy service)
-  - url: http://localhost:8084
+  - url: http://localhost:19001
     description: Architect (design service)
-  - url: http://localhost:8085
+  - url: http://localhost:19003
     description: Micromanager (execution service)
-  - url: http://localhost:8086
+  - url: http://localhost:19004
     description: Monad (state management)
-  - url: http://localhost:8087
+  - url: http://localhost:19005
     description: Sophia (knowledge graph)
-  - url: http://localhost:8080
+  - url: http://localhost:20000
     description: Dashboard Backend (metrics aggregation)
-  - url: http://localhost:8080
+  - url: http://localhost:20001
     description: Kanban App (project board)
 
 tags:
