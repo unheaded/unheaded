@@ -225,6 +225,38 @@ Needs your account. Everything else in ADR-089 is in force already.
 
 ---
 
+## D15 — `omitempty` on struct fields: fix all 66, or leave them?
+
+**Found 2026-08-04**, while fixing `services/timeguru` (`081e5152`).
+**Full analysis:** `docs/security/omitempty-on-structs-2026-08-04.md`
+
+`encoding/json` never omits a struct value, so `time.Time` tagged `omitempty`
+always serialises — an unset date emits `"0001-01-01T00:00:00Z"`. **66 fields
+across 24 files** state an intent the encoder silently ignores. 55 are
+`time.Time`; 11 are whole nested config structs that emit a populated tree of
+zero values.
+
+**Not a logic fault.** Go code guards these with `.IsZero()`, which is correct.
+It only shows at the serialisation boundary, which is why every test passes.
+`Secret.IsExpired()` and `Lease.IsExpired()` were both checked specifically and
+are fine.
+
+| Option | Cost | Result |
+|---|---|---|
+| **A — convert all 66 to pointers** | Large. ~100 `.IsZero()` call sites become nil checks, package by package, `-race` after each. | The APIs stop emitting year-1 dates |
+| **B — drop the misleading `omitempty` tags** | Small, mechanical | Output unchanged, but the code stops claiming something untrue |
+| **C — leave, record** | None | Honest backlog; consumers keep seeing `0001-01-01` |
+
+**Recommendation: A, one package at a time, attended.** Not unattended — the
+conversion has a real hazard that bit within a minute in timeguru:
+`time.Time.IsZero` has a *value* receiver, so `!x.IsZero()` on a nil pointer
+panics. The existing tests caught it there; they may not everywhere.
+
+Highest-value packages first, on the basis of who reads the JSON:
+`cmd/dashboard-backend`, `cmd/kanban-app`, `pkg/alerting`, `pkg/secrets`.
+
+---
+
 ## D14 — should `rust-audit` and `security-scan` block a merge?
 
 **Found 2026-08-04.** `ci-protocol.yml`'s `ci-gate` depends on six of its eleven
