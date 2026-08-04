@@ -23,11 +23,8 @@ MIN_KERNEL_MINOR=0
 MIN_DISK_GB=40
 MIN_RAM_GB=8
 UNHEADED_SRC="${UNHEADED_SRC:-/opt/unheaded}"
-# shellcheck disable=SC2034  # parsed and advertised, but nothing reads it yet.
-# --strict is in the usage line at the top of this file and sets this in the
-# arg-parsing case, so the flag is accepted and silently changes nothing.
-# Same class as --verbose in tomb/provision.sh. The bug is the unimplemented
-# behaviour, not the assignment, so this is flagged rather than deleted.
+# --strict promotes the optional checks to blocking. Without it, a run with every
+# optional check failing still exits 0 and prints READY FOR DEPLOYMENT.
 STRICT_MODE=false
 HOSTNAME_DETECTED=$(hostname)
 
@@ -40,6 +37,7 @@ optional_failed=0
 while [[ $# -gt 0 ]]; do
     case $1 in
         --strict)
+            STRICT_MODE=true
             shift
             ;;
         *)
@@ -281,6 +279,13 @@ log_section "Generating JSON Report"
 mkdir -p /var/lib/unheaded
 json_report="/var/lib/unheaded/preflight-${TIMESTAMP}.json"
 
+# What actually blocks deployment. --strict folds the optional checks in, so the
+# JSON verdict and the exit status below cannot disagree.
+blocking_failed=$required_failed
+if [[ "$STRICT_MODE" == "true" ]]; then
+    blocking_failed=$((required_failed + optional_failed))
+fi
+
 cat > "$json_report" << JSON_EOF
 {
   "metadata": {
@@ -300,7 +305,8 @@ cat > "$json_report" << JSON_EOF
     "required_checks_passed": $(($(echo "${#check_results[@]}") - required_failed)),
     "required_checks_failed": $required_failed,
     "optional_checks_failed": $optional_failed,
-    "ready_for_deployment": $(if [[ $required_failed -eq 0 ]]; then echo "true"; else echo "false"; fi)
+    "strict_mode": $STRICT_MODE,
+    "ready_for_deployment": $(if [[ $blocking_failed -eq 0 ]]; then echo "true"; else echo "false"; fi)
   }
 }
 JSON_EOF
@@ -329,10 +335,16 @@ echo "  Failed:  $failed_checks (required)"
 echo "  Warned:  $warn_checks (optional)"
 echo ""
 
-if [[ $required_failed -eq 0 ]]; then
+if [[ $blocking_failed -eq 0 ]]; then
     echo -e "${GREEN}Status: READY FOR DEPLOYMENT${NC}"
     echo "All required checks passed. You may proceed with nixos-rebuild switch."
     exit 0
+elif [[ $required_failed -eq 0 ]]; then
+    # Only reachable under --strict: required all passed, optional did not.
+    echo -e "${RED}Status: NOT READY FOR DEPLOYMENT (--strict)${NC}"
+    echo "All required checks passed, but --strict also blocks on the"
+    echo "$optional_failed failed optional check(s). Re-run without --strict to proceed anyway."
+    exit 1
 else
     echo -e "${RED}Status: NOT READY FOR DEPLOYMENT${NC}"
     echo "Fix the $required_failed failed required check(s) before proceeding."
