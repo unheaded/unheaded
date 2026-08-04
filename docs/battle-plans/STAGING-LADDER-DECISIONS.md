@@ -190,6 +190,37 @@ Needs your account. Everything else in ADR-089 is in force already.
 
 ---
 
+## D14 — should `rust-audit` and `security-scan` block a merge?
+
+**Found 2026-08-04.** `ci-protocol.yml`'s `ci-gate` depends on six of its eleven
+jobs and printed `✅ All CI checks passed — ready to merge`. The five it omits:
+
+| job | what it does | advisory? |
+|---|---|---|
+| `security-scan` | Go Security Scan | **no** — real steps, no `continue-on-error` |
+| `rust-audit` | Rust Security Audit | **no** |
+| `proto-lint` | Proto Lint | no |
+| `integration-test` | its own gate; nothing needs it | no |
+| `benchmark` | PR-only | no |
+
+None is marked advisory, so each can fail while the gate still reports success.
+**The message is fixed** — it now enumerates what it aggregated and names what it
+did not, matching `security.yml`'s `security-gate` and `ci.yml`'s `ci-gate`, both
+of which already did this.
+
+**The decision is whether the two security jobs should move into `needs`.** Not
+taken here for the D3 reason: adding a job to `needs` makes it blocking, and
+whether `security-scan` and `rust-audit` currently pass **cannot be verified from
+this machine** — they need a GitHub runner. Wiring them in blind is exactly how
+you land a red gate.
+
+Cheap to settle: push the branch once, read those two jobs, then add them to
+`needs` if green. Related to **D9** — until branch protection exists, no gate is
+enforced server-side anyway, so this is about the message being truthful more
+than about enforcement.
+
+---
+
 ## D13 — `lxd/` predates the Port Authority migration, wholesale
 
 **Found 2026-08-04.** The LXD container definitions use an entirely different port
