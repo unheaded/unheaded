@@ -251,7 +251,12 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 		// Parse ETA
 		if etaMatch := etaRe.FindStringSubmatch(line); etaMatch != nil {
 			if currentMilestone != nil {
-				currentMilestone.ETA = parseDate(etaMatch[1])
+				// Only set the ETA when the date actually parsed; a zero time
+				// would otherwise be indistinguishable from "no ETA" once the
+				// pointer is non-nil.
+				if d := parseDate(etaMatch[1]); !d.IsZero() {
+					currentMilestone.ETA = &d
+				}
 			}
 		}
 

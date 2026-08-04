@@ -31,16 +31,19 @@ var (
 
 // Milestone represents a single project milestone
 type Milestone struct {
-	ID           string    `json:"id" yaml:"id" toml:"id"`
-	Name         string    `json:"name" yaml:"name" toml:"name"`
-	Status       string    `json:"status" yaml:"status" toml:"status"` // pending, in_progress, completed, blocked
-	ETA          time.Time `json:"eta,omitempty" yaml:"eta,omitempty" toml:"eta,omitempty"`
-	Progress     int       `json:"progress" yaml:"progress" toml:"progress"` // 0-100
-	Owner        string    `json:"owner,omitempty" yaml:"owner,omitempty" toml:"owner,omitempty"`
-	Risk         string    `json:"risk,omitempty" yaml:"risk,omitempty" toml:"risk,omitempty"` // low, medium, high
-	Description  string    `json:"description,omitempty" yaml:"description,omitempty" toml:"description,omitempty"`
-	Tasks        []string  `json:"tasks,omitempty" yaml:"tasks,omitempty" toml:"tasks,omitempty"`
-	Dependencies []string  `json:"dependencies,omitempty" yaml:"dependencies,omitempty" toml:"dependencies,omitempty"`
+	ID     string `json:"id" yaml:"id" toml:"id"`
+	Name   string `json:"name" yaml:"name" toml:"name"`
+	Status string `json:"status" yaml:"status" toml:"status"` // pending, in_progress, completed, blocked
+	// *time.Time, not time.Time: `omitempty` cannot omit a struct, so a zero
+	// time.Time serialises as "0001-01-01T00:00:00Z" and a consumer cannot tell
+	// "no ETA" from "the year 1". nil is omitted.
+	ETA          *time.Time `json:"eta,omitempty" yaml:"eta,omitempty" toml:"eta,omitempty"`
+	Progress     int        `json:"progress" yaml:"progress" toml:"progress"` // 0-100
+	Owner        string     `json:"owner,omitempty" yaml:"owner,omitempty" toml:"owner,omitempty"`
+	Risk         string     `json:"risk,omitempty" yaml:"risk,omitempty" toml:"risk,omitempty"` // low, medium, high
+	Description  string     `json:"description,omitempty" yaml:"description,omitempty" toml:"description,omitempty"`
+	Tasks        []string   `json:"tasks,omitempty" yaml:"tasks,omitempty" toml:"tasks,omitempty"`
+	Dependencies []string   `json:"dependencies,omitempty" yaml:"dependencies,omitempty" toml:"dependencies,omitempty"`
 }
 
 // Validate performs defensive validation on a Milestone
@@ -88,14 +91,15 @@ func (m *Milestone) Validate() error {
 
 // Phase represents a project phase (e.g., Alpha, Beta)
 type Phase struct {
-	ID          string    `json:"id" yaml:"id" toml:"id"`
-	Name        string    `json:"name" yaml:"name" toml:"name"`
-	Status      string    `json:"status" yaml:"status" toml:"status"` // planned, in_progress, completed
-	StartDate   time.Time `json:"start_date,omitempty" yaml:"start_date,omitempty" toml:"start_date,omitempty"`
-	EndDate     time.Time `json:"end_date,omitempty" yaml:"end_date,omitempty" toml:"end_date,omitempty"`
-	Progress    int       `json:"progress" yaml:"progress" toml:"progress"` // 0-100
-	Description string    `json:"description,omitempty" yaml:"description,omitempty" toml:"description,omitempty"`
-	Milestones  []string  `json:"milestones,omitempty" yaml:"milestones,omitempty" toml:"milestones,omitempty"` // References to milestone IDs
+	ID     string `json:"id" yaml:"id" toml:"id"`
+	Name   string `json:"name" yaml:"name" toml:"name"`
+	Status string `json:"status" yaml:"status" toml:"status"` // planned, in_progress, completed
+	// *time.Time for the same reason as Milestone.ETA — see the note there.
+	StartDate   *time.Time `json:"start_date,omitempty" yaml:"start_date,omitempty" toml:"start_date,omitempty"`
+	EndDate     *time.Time `json:"end_date,omitempty" yaml:"end_date,omitempty" toml:"end_date,omitempty"`
+	Progress    int        `json:"progress" yaml:"progress" toml:"progress"` // 0-100
+	Description string     `json:"description,omitempty" yaml:"description,omitempty" toml:"description,omitempty"`
+	Milestones  []string   `json:"milestones,omitempty" yaml:"milestones,omitempty" toml:"milestones,omitempty"` // References to milestone IDs
 }
 
 // Validate performs defensive validation on a Phase
