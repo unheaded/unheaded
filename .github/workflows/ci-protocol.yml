@@ -447,5 +447,21 @@ jobs:
       - rust-test
       - ebpf-build
     steps:
+      # Name what was actually aggregated, the way security.yml's security-gate
+      # and ci.yml's ci-gate already do. "All CI checks passed" was not true:
+      # this job depends on six of the eleven, and the five it omits include
+      # both security jobs. Whether rust-audit and security-scan should block a
+      # merge is D14 in docs/battle-plans/STAGING-LADDER-DECISIONS.md — until
+      # that is decided, the gate should at least not overstate what it checked.
       - name: All required checks passed
-        run: echo "✅ All CI checks passed — ready to merge"
+        run: |
+          echo "go-lint:    ${{ needs.go-lint.result }}"
+          echo "go-test:    ${{ needs.go-test.result }}"
+          echo "go-build:   ${{ needs.go-build.result }}"
+          echo "rust-check: ${{ needs.rust-check.result }}"
+          echo "rust-test:  ${{ needs.rust-test.result }}"
+          echo "ebpf-build: ${{ needs.ebpf-build.result }}"
+          echo ""
+          echo "Required checks passed."
+          echo "NOT covered by this gate: rust-audit, security-scan, proto-lint,"
+          echo "integration-test, benchmark — see D14."
