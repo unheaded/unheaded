@@ -132,6 +132,21 @@ def execute_steps(runbook, env, dry_run=False, start_step=0):
         if desc:
             print(f"           {desc}")
 
+        if action == "manual":
+            # A step the operator performs by hand — it needs a value the runbook
+            # cannot know (a local path, a container IP), or the automation for it
+            # has not been written yet. Print it and move on. Its `verify` is not
+            # run either: verification of a step that did not execute is also the
+            # operator's job, and running it would fail the whole runbook here.
+            print("    [MANUAL] perform this step yourself:")
+            for line in (command or "(see description)").split("\n"):
+                print(f"             {line}")
+            if verify:
+                print("    [MANUAL] then confirm:")
+                for line in verify.split("\n"):
+                    print(f"             {line}")
+            continue
+
         if action == "shell" and command:
             code, out, err = run_command(command, timeout=timeout, env=env, dry_run=dry_run)
 
@@ -205,6 +220,14 @@ def main():
     print(f"  Risk: {meta.get('risk', 'unknown')} | ETA: {meta.get('estimated_duration', '?')}")
     if args.dry_run:
         print("  MODE: DRY RUN (no commands will be executed)")
+    if meta.get("status") in ("stub", "draft"):
+        # `status: stub` was already a convention in the runbooks; nothing read it.
+        # A stub's steps are action: manual placeholders, so without this banner the
+        # run ends in [SUCCESS] having done almost nothing — which on a risk: high
+        # runbook reads as "the cutover ran".
+        print(f"  STATUS: {meta['status'].upper()} — steps are not implemented.")
+        print("          Executing this performs no changes; it is a checklist,")
+        print("          not a script.")
     print("=" * 60)
 
     # Check preconditions
