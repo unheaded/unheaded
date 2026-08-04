@@ -1,6 +1,18 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 -- The Well — Kingdom Persistent Memory
 -- Initial schema for Unheaded services
+--
+-- SUPERSEDED — not applied by db/init.sh. This is the pre-split, single-database
+-- schema. 003_app_schema.sql, 004_ops_schema.sql and 005_config_schema.sql
+-- replaced it when The Well moved to three databases with service-scoped users:
+-- kanban_tasks, timeline_milestones and zhen_conversations now live in
+-- unheaded_app, audit_events in unheaded_ops, kingdom_config in unheaded_config.
+--
+-- Applying it would put a fourth copy of those tables in the maintenance
+-- database, which is the isolation boundary the split exists to create. Kept
+-- rather than deleted because the migration ledger is append-only and this file
+-- is the record of what the schema was before the split.
+-- See docs/adr/ADR-091-the-well-initdb-ordering.md.
 
 -- ═══ KANBAN ═══
 CREATE TABLE IF NOT EXISTS kanban_tasks (
