@@ -428,7 +428,7 @@ func createRichMockTimeline() *timeline.Timeline {
 				Status:      "completed",
 				Progress:    100,
 				Description: "The forging of Wotan",
-				EndDate:     time.Date(2026, 1, 26, 0, 0, 0, 0, time.UTC),
+				EndDate:     tp(time.Date(2026, 1, 26, 0, 0, 0, 0, time.UTC)),
 			},
 			{
 				ID:          "phase-1",
@@ -452,7 +452,7 @@ func createRichMockTimeline() *timeline.Timeline {
 				Progress:    50,
 				Owner:       "Agent 5",
 				Risk:        "medium",
-				ETA:         time.Date(2026, 2, 3, 0, 0, 0, 0, time.UTC),
+				ETA:         tp(time.Date(2026, 2, 3, 0, 0, 0, 0, time.UTC)),
 				Description: "Build eBPF programs for packet tracing",
 				Tasks:       []string{"packet_marker.bpf", "flow_tracker.bpf", "latency_probe.bpf", "integration tests"},
 			},
@@ -614,7 +614,7 @@ func TestTransformToKanbanTasks_SubtaskGeneration(t *testing.T) {
 				Status:   "in_progress",
 				Progress: 50,
 				Owner:    "Agent X",
-				ETA:      time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+				ETA:      tp(time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)),
 				Tasks:    []string{"task-a", "task-b", "task-c", "task-d"},
 			},
 		},
@@ -1428,3 +1428,7 @@ func TestHandlers_ConcurrentMixedRequests(t *testing.T) {
 		<-done
 	}
 }
+
+// tp returns a pointer to t. The date fields are *time.Time so that a zero
+// value can be omitted from JSON/YAML — `omitempty` cannot omit a struct.
+func tp(t time.Time) *time.Time { return &t }

@@ -4,6 +4,8 @@
 package timeline
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 	"time"
 )
@@ -17,7 +19,7 @@ func TestMilestone_Validate_HappyPath(t *testing.T) {
 		ID:          "milestone-1",
 		Name:        "eBPF Foundation",
 		Status:      "in_progress",
-		ETA:         time.Date(2026, 2, 3, 0, 0, 0, 0, time.UTC),
+		ETA:         tp(time.Date(2026, 2, 3, 0, 0, 0, 0, time.UTC)),
 		Progress:    25,
 		Owner:       "Agent 5",
 		Risk:        "medium",
@@ -153,8 +155,8 @@ func TestPhase_Validate_HappyPath(t *testing.T) {
 		ID:         "phase-1",
 		Name:       "Alpha",
 		Status:     "in_progress",
-		StartDate:  time.Date(2026, 1, 26, 0, 0, 0, 0, time.UTC),
-		EndDate:    time.Date(2026, 2, 8, 0, 0, 0, 0, time.UTC),
+		StartDate:  tp(time.Date(2026, 1, 26, 0, 0, 0, 0, time.UTC)),
+		EndDate:    tp(time.Date(2026, 2, 8, 0, 0, 0, 0, time.UTC)),
 		Progress:   25,
 		Milestones: []string{"milestone-1", "milestone-2"},
 	}
@@ -403,3 +405,41 @@ func TestTimeline_GetMilestoneByID_ConcurrentAccess(t *testing.T) {
 		<-done
 	}
 }
+
+// `omitempty` does nothing on a time.Time field: encoding/json only omits zero
+// values of basic kinds, empty maps/slices/strings and nil pointers. A zero
+// time.Time is a struct, so it is always emitted — which is why every phase in
+// references/timeline.json carries "start_date":"0001-01-01T00:00:00Z" despite
+// the tag asking for it to be omitted. A consumer cannot tell "no date" from
+// "the year 1".
+func TestPhase_ZeroDatesAreOmittedFromJSON(t *testing.T) {
+	p := Phase{ID: "phase-0", Name: "The Foundation Stone", Status: "completed"}
+	b, err := json.Marshal(p)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	got := string(b)
+	for _, field := range []string{"start_date", "end_date"} {
+		if strings.Contains(got, field) {
+			t.Errorf("zero %s was serialised, want it omitted: %s", field, got)
+		}
+	}
+	if strings.Contains(got, "0001-01-01") {
+		t.Errorf("zero-value date leaked into JSON: %s", got)
+	}
+}
+
+func TestMilestone_ZeroETAIsOmittedFromJSON(t *testing.T) {
+	m := Milestone{ID: "m-1", Name: "Test", Status: "pending"}
+	b, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if strings.Contains(string(b), "eta") || strings.Contains(string(b), "0001-01-01") {
+		t.Errorf("zero ETA was serialised, want it omitted: %s", string(b))
+	}
+}
+
+// tp returns a pointer to t. The date fields are *time.Time so that a zero
+// value can be omitted from JSON/YAML — `omitempty` cannot omit a struct.
+func tp(t time.Time) *time.Time { return &t }

@@ -45,7 +45,7 @@ func testTimeline() *timeline.Timeline {
 				ID:          "milestone-1.1",
 				Name:        "eBPF Foundation",
 				Status:      "in_progress",
-				ETA:         time.Date(2026, 2, 3, 0, 0, 0, 0, time.UTC),
+				ETA:         tp(time.Date(2026, 2, 3, 0, 0, 0, 0, time.UTC)),
 				Progress:    25,
 				Owner:       "Agent 5",
 				Risk:        "medium",
@@ -448,3 +448,7 @@ func containsSubstring(s, sub string) bool {
 	}
 	return false
 }
+
+// tp returns a pointer to t. The date fields are *time.Time so that a zero
+// value can be omitted from JSON/YAML — `omitempty` cannot omit a struct.
+func tp(t time.Time) *time.Time { return &t }
