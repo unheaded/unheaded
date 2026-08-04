@@ -33,7 +33,10 @@ spec:
       containers:
         - name: wotan
           image: ghcr.io/stevenrbellis/unheaded/wotan:dev
-          args: ["--http-addr", ":18000", "--grpc-addr", ":18001"]
+          # The binary defines -http-port and -grpc-port as ints. --http-addr /
+          # --grpc-addr are not flags it has, and Go's flag package exits 2 on an
+          # unknown one — this pod crash-looped. Same mistake as the systemd unit.
+          args: ["--http-port", "18000", "--grpc-port", "18001"]
           ports:
             - { name: http, containerPort: 18000 }
             - { name: grpc, containerPort: 18001 }
