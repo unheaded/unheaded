@@ -17,8 +17,20 @@
   xterm.js loaded from CDN for the skeleton; production deploy vendors
   this under dashboard/vendor/xterm/ per battle-plan §9 risk register.
   jsdelivr offers MIT-licensed xterm + xterm-css.
+
+  Until that vendoring happens, each asset carries a Subresource Integrity
+  hash. Without one, a compromised or MITM'd CDN can execute arbitrary
+  JavaScript in the page that renders the live UPC kernel console — and this
+  page is where a browser attaches to a TTY. crossorigin="anonymous" is
+  required for the browser to enforce SRI on a cross-origin fetch.
+
+  Hashes are sha384 of the version-pinned URLs, verified stable across two
+  independent fetches. Bumping a version REQUIRES recomputing them:
+    curl -sfL <url> | openssl dgst -sha384 -binary | openssl base64 -A
 -->
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css"
+      integrity="sha384-LJcOxlx9IMbNXDqJ2axpfEQKkAYbFjJfhXexLfiRJhjDU81mzgkiQq8rkV0j6dVh"
+      crossorigin="anonymous">
 <style>
   :root {
     --bg: #0a0a0a;
@@ -58,8 +70,12 @@
 <div id="term"></div>
 <footer>ASCEND-LINUX Mode A · upc-tty-bridge → xterm.js</footer>
 
-<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js"
+        integrity="sha384-/nfmYPUzWMS6v2atn8hbljz7NE0EI1iGx34lJaNzyVjWGDzMv+ciUZUeJpKA3Glc"
+        crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js"
+        integrity="sha384-AQLWHRKAgdTxkolJcLOELg4E9rE89CPE2xMy3tIRFn08NcGKPTsELdvKomqji+DL"
+        crossorigin="anonymous"></script>
 <script>
 (function() {
   'use strict';
