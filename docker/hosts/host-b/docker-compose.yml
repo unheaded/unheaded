@@ -272,7 +272,11 @@ services:
     volumes:
     - suricata_logs:/var/log/suricata
     - ./../../suricata/suricata.yaml:/etc/suricata/suricata.yaml:ro
-    - ./../../routing/suricata/rules:/etc/suricata/rules:ro
+    # Three levels up, not two: this file is docker/hosts/host-b/, and the rules
+    # live at the repo root in routing/suricata/. ../../ landed on
+    # docker/routing/suricata/rules, which does not exist — docker then created
+    # it as an empty directory and suricata started with no rules at all.
+    - ./../../../routing/suricata/rules:/etc/suricata/rules:ro
     - /sys/fs/bpf:/sys/fs/bpf:rw
     healthcheck:
       test:
