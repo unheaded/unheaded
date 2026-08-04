@@ -16,8 +16,8 @@ User=unheaded
 Group=unheaded
 EnvironmentFile=-/etc/unheaded/wotan.env
 ExecStart=/usr/local/bin/wotan \
-    --http-addr :18000 \
-    --grpc-addr :18001 \
+    --http-port 18000 \
+    --grpc-port 18001 \
     --topic-config /etc/unheaded/wotan-topics.yaml
 WorkingDirectory=/var/lib/unheaded/wotan
 Restart=on-failure
