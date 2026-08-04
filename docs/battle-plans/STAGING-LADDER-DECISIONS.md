@@ -184,6 +184,52 @@ Needs your account. Everything else in ADR-089 is in force already.
 
 ---
 
+## D11 — `docker/hosts/host-{a,b}` have never been able to start
+
+**Found 2026-08-04.** Both stacks are unusable, and have been since the files were
+created (`695d0ba4`, 2026-02-26). The LXD path for this tier is complete and
+works — `lxd/containers/{bird,ipfire}.yaml`, `lxd/profiles/unheaded-firewall.yaml`.
+
+**host-a — invalid compose.** `shield` and `unheaded-daemon` each declare *both*
+`network_mode: host` and a `networks:` block with a static IPv6. Mutually
+exclusive, so `docker compose config` refuses the whole project — it does not
+parse, let alone run.
+
+**This needs you, and it is the D5 class: an exposure decision.** Both readings
+are defensible and neither is safe-by-default:
+
+| keep | argument | cost |
+|---|---|---|
+| `network_mode: host` | `shield`'s `cap_add: [BPF, NET_ADMIN, SYS_ADMIN, SYS_RESOURCE]` exists to attach XDP, and XDP inside a container netns sees only the veth, not the host NIC. Packet-zero visibility is the point of Shield. | Breaks `NATS_URL: nats://wotan:4222` — no Docker DNS in the host namespace — and makes every `ports:` mapping meaningless. Puts both services directly on the host's interfaces. |
+| `networks:` + static IPv6 | Docker DNS resolves, `ports:` means something, services stay on the fabric at `fd00:dead:beef:1::201/202`. | Shield cannot do the one job the capability set was granted for. |
+
+The 3-skill vote split — Architect for host mode on architectural grounds,
+Micromanager against deciding exposure unattended, Developer noting neither is
+verifiable without standing the stack up. **Documented, not changed.** Nothing
+regresses by leaving it: it has never run.
+
+**Both hosts — missing build contexts.** `opnsense`/`frr` (host-a) and
+`ipfire`/`bird` (host-b) build from `../firewall/*`. **`docker/hosts/firewall/`
+has never existed in this repo** — `949ed857` added the compose files claiming
+the capability without ever adding the build contexts. compose builds every
+`build:` service before starting anything, so these take the whole stack down
+with them, including host-b's `suricata`, which is otherwise fine.
+
+`routing/frr/Dockerfile` and `routing/bird/Dockerfile` do exist and look like the
+answer. **They are not.** Both do `COPY . /src/<name>` and build the daemon from
+upstream source — their own comments say `~/tmp/frr-master/` and
+`~/tmp/bird-master/` — so they need a context holding that source tree, not the
+config directory. Repointing the contexts would swap one failure for another.
+No equivalent exists anywhere for `opnsense` or `ipfire`, which are KVM appliance
+images.
+
+**Fixed in passing** (same off-by-one as the `suricata` rules mount, and both
+target files exist): `${FRR_CONF:-./../../routing/frr/frr.conf}` and
+`${BIRD_CONF:-./../../routing/bird/bird.conf}` were resolving under `docker/`
+rather than the repo root. Now `../../../`.
+
+---
+
 ## Two smaller ones — both CLOSED 2026-08-04
 
 - **`tomb/provision.sh --verbose` and `scripts/pre-flight-check.sh --strict`** — wired up
