@@ -605,11 +605,29 @@ func (dci *DatabaseCredentialIntegration) RotateCredentials(ctx context.Context,
 		// persisted on this path), so the service is locked out of its own
 		// database — and the caller saw only "validate new credentials", with
 		// nothing to indicate manual reconciliation was required.
+		// Reconnect with the NEW password first.
+		//
+		// RotateCredentials above has already succeeded, so by the time we get
+		// here the DATABASE is on newPassword and ValidateCredentials failed for
+		// some other reason. Connecting with config (the OLD password) therefore
+		// fails authentication in exactly the scenario this rollback exists to
+		// handle, and the restore never runs — the caller just gets
+		// "ROLLBACK ALSO FAILED" without an attempt having been made.
+		//
+		// The old password is still tried as a fallback, for the case where the
+		// rotation did not actually reach the database.
 		var rollbackErr error
-		db2, connErr := driver.Connect(ctx, config)
+		db2, connErr := driver.Connect(ctx, newConfig)
+		if connErr != nil || db2 == nil {
+			db2, connErr = driver.Connect(ctx, config)
+		}
 		switch {
 		case connErr != nil:
 			rollbackErr = fmt.Errorf("reconnect for rollback: %w", connErr)
+		case db2 == nil:
+			// A driver returning (nil, nil) would otherwise panic below —
+			// inside the error-recovery path, which is the worst place for it.
+			rollbackErr = errors.New("reconnect for rollback: driver returned no connection and no error")
 		default:
 			if rbErr := driver.RotateCredentials(ctx, db2, config.Username, config.Password); rbErr != nil {
 				rollbackErr = fmt.Errorf("restore previous password: %w", rbErr)
