@@ -33,16 +33,41 @@ check() {
     fi
 }
 
+# check_api NAME URL [PATTERN] — an authenticated OPNsense API check.
+#
+# Credentials must never reach check(), which runs its argument through `eval`.
+# Interpolating them into that string breaks on any secret containing a space
+# or a glob, and EXECUTES anything after a ';', '$(' or a backtick. Run curl
+# directly with the secret as a properly quoted single argument instead — the
+# same form scripts/bare-metal/validate-host-a.sh:201 already uses.
+check_api() {
+    local name="$1" url="$2" pattern="${3:-}" body ok=1
+    if body="$(curl -sk -u "${OPNSENSE_API_KEY}:${OPNSENSE_API_SECRET}" "$url" 2>/dev/null)"; then
+        if [ -n "$pattern" ] && ! printf '%s' "$body" | grep -qi -- "$pattern"; then
+            ok=0
+        fi
+    else
+        ok=0
+    fi
+    if [ "$ok" -eq 1 ]; then
+        echo "  ✓ $name"
+        PASS=$((PASS+1))
+    else
+        echo "  ✗ $name [FAIL]"
+        FAIL=$((FAIL+1))
+    fi
+}
+
 echo "========================================"
 echo "Unheaded Firewall + Routing Health Check"
 echo "========================================"
 
 echo ""
 echo "[ OPNsense (host-a) ]"
-check "OPNsense API reachable" "curl -sk -u "${OPNSENSE_API_KEY}:${OPNSENSE_API_SECRET}" https://${HOST_A_FW}/api/core/firmware/info"
+check_api "OPNsense API reachable" "https://${HOST_A_FW}/api/core/firmware/info"
 check "WireGuard UDP 51820 open" "nc -zu ${HOST_A_FW} 51820"
 check "HTTPS 443 open" "nc -z ${HOST_A_FW} 443"
-check "Monad HbH rule active" "curl -sk -u "${OPNSENSE_API_KEY}:${OPNSENSE_API_SECRET}" https://${HOST_A_FW}/api/firewall/filter/searchRule | grep -qi 'HbH'"
+check_api "Monad HbH rule active" "https://${HOST_A_FW}/api/firewall/filter/searchRule" "HbH"
 
 echo ""
 echo "[ FRR BGP (host-a) ]"
