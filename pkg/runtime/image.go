@@ -572,6 +572,17 @@ func extractLayer(layerPath, destDir string) error {
 			if err := os.MkdirAll(filepath.Dir(targetPath), 0755); err != nil { // #nosec G301 -- 0755 directory — needs traversal; files within carry their own stricter modes
 				return err
 			}
+			// Remove any existing entry first, exactly as the TypeSymlink and
+			// TypeLink cases below do.
+			//
+			// O_NOFOLLOW makes OpenFile return ELOOP when targetPath is already
+			// a symlink — which is the normal state in a multi-layer image,
+			// where a later layer replaces an earlier layer's symlink with a
+			// regular file (/bin/sh, /etc/mtab, alternatives targets). Without
+			// this Remove, extractLayer returns that ELOOP and ExtractImage
+			// fails the whole image rather than the intended outcome of
+			// refusing to FOLLOW the link while writing.
+			_ = os.Remove(targetPath)
 			outFile, err := os.OpenFile(targetPath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC|syscall.O_NOFOLLOW, os.FileMode(header.Mode)) // #nosec G304,G115 -- container store path derived from the runtime root
 			if err != nil {
 				return err
