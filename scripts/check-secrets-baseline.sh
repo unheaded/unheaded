@@ -15,32 +15,72 @@
 # Policy, per Stevie 2026-07-29: credentials are NEVER stored in the repo. The
 # baselined entries are one-off lab credentials on a non-internet-facing dev
 # system — an accepted, documented risk, not a licence to add more.
+#
+# THIS GATE COMPARES THE FINGERPRINT SET, NOT A COUNT.
+#
+# The first version compared totals only, which did not deliver the invariant
+# stated above: deleting one stale fingerprint and appending a live one keeps
+# the total identical, so a fresh credential passed the gate green. Membership
+# is the property that matters — no fingerprint may APPEAR that is not already
+# in the manifest. Removals are always allowed and lower the ceiling.
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BASELINE="${REPO_ROOT}/.gitleaksignore"
-LIMIT_FILE="${REPO_ROOT}/docs/security/gitleaks-baseline-count.txt"
+MANIFEST="${REPO_ROOT}/docs/security/gitleaks-baseline-fingerprints.txt"
 
 [ -f "${BASELINE}" ] || { echo "PASS: no .gitleaksignore — nothing baselined."; exit 0; }
 
-CURRENT="$(grep -cE '^[a-zA-Z0-9]' "${BASELINE}" 2>/dev/null || echo 0)"
+# grep -c exits 1 on zero matches, so `|| echo 0` would append a SECOND line and
+# every later [ -gt ] would abort with "integer expression expected" — a rc=2
+# that reads as false and falls through to PASS. Collect the lines, then count.
+CURRENT_SET="$(grep -E '^[a-zA-Z0-9]' "${BASELINE}" | sort -u || true)"
+CURRENT_N="$(printf '%s' "${CURRENT_SET}" | grep -c . || true)"
+: "${CURRENT_N:=0}"
 
-if [ ! -f "${LIMIT_FILE}" ]; then
-    echo "${CURRENT}" > "${LIMIT_FILE}"
-    echo "PASS: baseline ceiling initialised at ${CURRENT}."
-    exit 0
+# A missing manifest must FAIL, never self-initialise. Writing the current state
+# and exiting 0 means deleting one unremarkable text file silently re-baselines
+# the gate to whatever is in the tree at that moment — the exact "gate that
+# cannot fail" pattern this script exists to eliminate.
+if [ ! -f "${MANIFEST}" ]; then
+    echo "============================================================"
+    echo "  FAIL: ${MANIFEST#"${REPO_ROOT}/"} is missing."
+    echo "============================================================"
+    echo
+    echo "  This file IS the ceiling. Without it there is nothing to"
+    echo "  ratchet against, so its absence is a failure and never a"
+    echo "  fresh start. Restore it from git:"
+    echo
+    echo "    git checkout -- docs/security/gitleaks-baseline-fingerprints.txt"
+    echo
+    echo "  If you are genuinely establishing a baseline for the first"
+    echo "  time, create it deliberately and say so in the commit:"
+    echo
+    echo "    grep -E '^[a-zA-Z0-9]' .gitleaksignore | sort -u > \\"
+    echo "      docs/security/gitleaks-baseline-fingerprints.txt"
+    echo "============================================================"
+    exit 1
 fi
 
-ALLOWED="$(tr -dc '0-9' < "${LIMIT_FILE}")"
-: "${ALLOWED:=0}"
+ALLOWED_SET="$(grep -E '^[a-zA-Z0-9]' "${MANIFEST}" | sort -u || true)"
+ALLOWED_N="$(printf '%s' "${ALLOWED_SET}" | grep -c . || true)"
+: "${ALLOWED_N:=0}"
 
-if [ "${CURRENT}" -gt "${ALLOWED}" ]; then
+# Set difference: present in .gitleaksignore, absent from the manifest.
+ADDED="$(comm -23 <(printf '%s\n' "${CURRENT_SET}") <(printf '%s\n' "${ALLOWED_SET}") | grep -E '^[a-zA-Z0-9]' || true)"
+
+if [ -n "${ADDED}" ]; then
     echo "============================================================"
-    echo "  FAIL: the secret baseline GREW (${ALLOWED} -> ${CURRENT})"
+    echo "  FAIL: new fingerprints were added to the secret baseline"
     echo "============================================================"
+    echo
+    printf '%s\n' "${ADDED}" | sed 's/^/    + /'
     echo
     echo "  A new secret was baselined instead of removed. Credentials are"
     echo "  never stored in this repo — see CLAUDE.md."
+    echo
+    echo "  Note this fails even if the TOTAL did not grow: swapping a stale"
+    echo "  fingerprint for a live one is exactly the bypass this gate closes."
     echo
     echo "  Fix the finding rather than the baseline:"
     echo "    1. Take the value out of the tree; read it from the environment"
@@ -48,17 +88,14 @@ if [ "${CURRENT}" -gt "${ALLOWED}" ]; then
     echo "       a ':?' guard so the script fails loudly when the var is unset)."
     echo "    2. Rotate it if it ever granted real access."
     echo "    3. Remove its line from .gitleaksignore."
-    echo
-    echo "  The ceiling lives in docs/security/gitleaks-baseline-count.txt and"
-    echo "  should only ever be lowered."
     echo "============================================================"
     exit 1
 fi
 
-if [ "${CURRENT}" -lt "${ALLOWED}" ]; then
-    echo "${CURRENT}" > "${LIMIT_FILE}"
-    echo "PASS: baseline shrank ${ALLOWED} -> ${CURRENT}. Ceiling lowered."
+if [ "${CURRENT_N}" -lt "${ALLOWED_N}" ]; then
+    printf '%s\n' "${CURRENT_SET}" | grep -E '^[a-zA-Z0-9]' > "${MANIFEST}" || true
+    echo "PASS: baseline shrank ${ALLOWED_N} -> ${CURRENT_N}. Ceiling lowered."
     exit 0
 fi
 
-echo "PASS: secret baseline holding at ${CURRENT} entries."
+echo "PASS: secret baseline holding at ${CURRENT_N} entries."
