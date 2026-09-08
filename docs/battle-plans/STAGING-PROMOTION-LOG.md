@@ -327,6 +327,212 @@ you think you are shipping.
 Unchanged and unchangeable at this rung — `main` crash-loops identically, and the
 fix is rung #110 in B8.
 
+## B3 — rungs 30–38, head `197f20a1` — IN STAGING (2026-09-08)
+
+Merged as **`4935f21a`**, a merge commit — not a fast-forward. `staging` diverged
+from `develop` at B2 when the five review fixes landed here, so `--ff-only` fails
+from B3 onward. That is expected and correct; see next.md §2.
+
+**Zero conflicts.** 45 files, +988/−179.
+
+| gate | result |
+|---|---|
+| `go build ./...` | clean |
+| `go vet ./...` | clean (exit 0) — still better than `main` |
+| `go test ./...` | **6 failures, identical to the pre-existing set** (`dashboard-backend/internal/server` ×2, `cmd/wiki-server` ×4); 242 packages ok. Closes at B5. |
+| `check-gosec-ratchet.sh` | PASS |
+| `check-manifest-yaml.sh` | PASS — **new in this batch** |
+| `check-secrets-baseline.sh` | PASS — **new in this batch** |
+| `check-timeline-freshness.sh` | PASS |
+| Rust workspaces | **11 / 11** build |
+| eBPF | builds; `git diff 356cd372 HEAD -- ebpf/` is **empty**, so no size question arises at this rung |
+| docker images | **10 / 10 first-party rebuilt**, stack up, 17 containers |
+| `qa-smoke.sh` | **33 / 35 — equal to B2, no regression** |
+
+### The two failures are still cuirass, and still not ours to fix
+
+`container/cuirass` restarting + `health/cuirass` 000. `main` crash-loops
+identically on the duplicate `/health` pattern registration; B3 touches neither
+`cmd/unheaded-daemon/main.go` nor `pkg/transport/health.go`. Fix is rung #110, B8.
+
+### Two new gate scripts arrived with this batch — and neither could fail
+
+`check-manifest-yaml.sh` and `check-secrets-baseline.sh` came in at rung 38
+(`197f20a1`), the same commit that fixed the security workflows never running on
+`develop`. Both pass on the merged tree, which is what the gate table above
+records.
+
+**Passing was not the same as working.** The `/code-review` pass below found three
+separate defects in `check-secrets-baseline.sh`, any one of which let a live
+credential through green, plus the same shape again in the batch's new
+`pkg/uids` enforcement test. B2's lesson was that a guard which cannot fail is not
+a guard; B3 shipped three more. See the review section for the fixes and the
+red-first verification of each.
+
+### Environment note — the reboot recipe held
+
+Machine had been powered down since 2026-08-10. Every host daemon in next.md §1
+(injector, wiki, llama-server, `cs serve`, zhen_app) was absent while all 17
+containers reported healthy — exactly the ADR-088 confusion the briefing warns
+about. After restoring all five, smoke returned to 33/35 *before* the B3 merge,
+confirming the baseline was environmental and not code.
+
+**The injector gotcha recurred as predicted.** `docker compose up -d --build`
+restarts Wotan, the injector's subscription is lost, and it must be restarted or
+the flow graph freezes. Done; `grep -c forbidden /tmp/injector.log` = 0 after.
+
+**The `pgrep -f` self-kill gotcha bit a third time** (exit 144). `pgrep -f
+demo-trace-inject` matches the shell running that very command. `pgrep -x` cannot
+help — Linux truncates `comm` to 15 chars and `demo-trace-injector` is 19. What
+works: `ps -eo pid,comm --no-headers | awk '$2 ~ /^demo-trace-inj/ {print $1}'` —
+match on `comm`, which never contains the search pattern.
+
+### Signing
+
+`4935f21a` is **unsigned**. `gpg --sign` timed out waiting on a curses pinentry on
+`/dev/pts/1` and the merge aborted with `failed to write commit object`. Re-run
+with `--no-gpg-sign` so QA was not blocked. **This commit needs
+`git commit --amend -S --no-edit` before B3 leaves `staging`** — it is the tip, so
+the amend is cheap now and gets expensive once B4 lands on top.
+
+### `/code-review high` over B3 — 13 findings, 11 fixed, 2 deferred
+
+Same shape as the B2 review, and the same headline lesson: **the batch's two new
+gate scripts and its new enforcement test all passed, and all three could not
+fail.** B2 taught that a guard which cannot fail is not a guard; B3 shipped three
+more of them. Every fix below was verified red-first.
+
+#### Fixed
+
+| # | file | defect |
+|---|---|---|
+| 1 | `deploy/k8s/policies/enforce-trusted-registries.yaml` | **the allowlist ended in bare `ghcr.io/` and `docker.io/`** |
+| 2 | `internal/bpfmap/bpfmap.go` | `UpdateBatch` issued bpf cmd **12 = `BPF_MAP_GET_NEXT_ID`**, not a batch command |
+| 3 | `kubernetes/manifests/base/*` ×11 | all 11 Kingdom services still shared `runAsUser: 65532` |
+| 4 | `pkg/uids/uids_test.go` | the enforcement test could not see any of them |
+| 5 | `pkg/uids/uids_test.go` | walk root excluded `deploy/k8s/**` and `overlays/**` |
+| 6 | `go.mod` | comment said "Now 1.26.5" above `toolchain go1.25.12` |
+| 9 | `.trivyignore.yaml` | KSV-0125 had no `paths:` — a repo-wide suppression |
+| 10 | `scripts/check-secrets-baseline.sh` | compared a **count**, so swapping one fingerprint for another passed |
+| 11 | `scripts/check-secrets-baseline.sh` | missing ceiling file silently re-baselined and passed |
+| 12 | `scripts/check-secrets-baseline.sh` | `grep -cE … \|\| echo 0` yielded `"0\n0"`; every later `[ -gt ]` aborted rc=2 and fell through to PASS |
+| 13 | `.github/workflows/static-analysis.yml` | `setup-python@v5` vs `@v6` everywhere else |
+
+#### #1 — removing `"unheaded/"` was a no-op, and the rest of the list was dead weight
+
+The rego (`trusted-registries.yaml:29`) is a plain `startswith` on the raw image
+string, so a short prefix is a wildcard. With `- "ghcr.io/"` and `- "docker.io/"`
+at the bottom, **`docker.io/unheaded/cuirass:latest` — the exact squatted-namespace
+case the commit's own comment says was closed — was still admitted**, along with
+`ghcr.io/anyone/anything`. All 20-odd specific entries above them were inert.
+
+Rewritten so every namespace is named. Verified by extracting all 41 `image:`
+strings from `kubernetes/manifests`, `deploy/k8s` and `helm` and matching each
+against the list: **38 real images all admitted, 6 squat/typo cases all rejected**
+(the other 3 strings are Helm values keys, not images).
+
+Two adjacent claims were also false and are corrected: `.trivyignore.yaml` said
+"all first-party manifests now use ghcr.io/unheaded" — **12 manifests use
+`ghcr.io/stevenrbellis/unheaded/`**. Both namespaces are now listed explicitly.
+
+Unqualified official images are pinned with their colon (`"busybox:"`, not
+`"busybox"`) so the entry cannot also admit `busybox-evil/…`. Fully qualifying
+them as `docker.io/library/*` is the better fix and is left as a manifest change.
+
+**Also noted, not fixed:** the rego reads `spec.containers` only — `initContainers`
+and `ephemeralContainers` bypass the policy entirely. Separate finding, separate fix.
+
+#### #2 — the batch reviewed the attr struct and never checked the command number
+
+`enum bpf_cmd` puts `BPF_MAP_GET_NEXT_ID` at 12; the batch commands start at 24
+(`LOOKUP_BATCH` 24, `UPDATE_BATCH` **26**). The kernel read the attr as a
+`start_id/next_id` request, wrote nothing, and returned `ENOENT` — which the error
+branch deliberately swallowed as "end of map is normal", so **`UpdateBatch`
+returned `(count, nil)`: full success, zero entries written.**
+
+What makes this worth writing down: B3 *rewrote these exact lines* and added
+`abi_layout_test.go` blessing the attr struct as ABI-correct. The struct was
+correct. The verification was aimed one field away from the defect, which made the
+call look audited.
+
+Three changes: the command is now a named `bpfMapUpdateBatch = 26` constant
+carrying the enum table; `ENOENT` is no longer exempt (that exemption belongs to
+the LOOKUP family — an update has nothing to iterate); and a short write is now
+reported instead of echoing the caller's own count back at them.
+
+**No live callers** — `UpdateBatch` is unreferenced outside its own file, so this
+was latent, not an active data-loss bug.
+
+#### #3/#4/#5 — the guard was aimed at filenames that do not exist
+
+`TestManifestsMatchRegistry` matched `<service>.yaml` and `<service>-daemonset.yaml`.
+The 11 Kingdom services are laid out as `<service>/deployment.yaml`, so the walk
+passed straight over every one of them while they all shared `runAsUser: 65532`.
+The `found == 0` backstop could not catch it either: 8 telemetry files always
+matched, permanently satisfying it.
+
+Rewritten to match by **directory** as well as filename, across three roots
+(`manifests/base`, `manifests/overlays`, `deploy/k8s`). Running it red first
+exposed more than the review reported — including that my own first pass at the
+Helm-only exemption list was wrong, which is the guard doing its job on its author.
+
+The true state it uncovered: `deploy/k8s/` **already had correct per-service UIDs**
+(16740–16746, 16728). It was `kubernetes/manifests/base/` that was stale — and
+cuirass and dashboard-backend exist in **both trees with different UIDs**. All 11
+now carry their registry UID (`runAsUser`, `runAsGroup`, `fsGroup` together).
+
+`found == 0` is replaced by an explicit `helmOnly` list (`haproxy-ingress`,
+`unheaded-daemon`), so a service that *disappears* from the walk now fails instead
+of quietly joining the unchecked majority. Verified both ways: regressing one UID
+to 65532 fails; deleting a manifest the registry claims fails.
+
+**A false positive in the review, worth recording.** Findings #4 and part of #3
+reported anamnesis/kenoma/pleroma as having "no runAsUser" and suricata as running
+as root. The gnostic three *do* set it — in **flow style**
+(`securityContext: { runAsUser: 16760, … }`), which the line-anchored regex could
+not see. The regex now matches both styles. A gate that cries wolf costs the same
+credibility as one that sleeps.
+
+#### Deferred — 2 findings, both needing a live cluster
+
+- **#7** `void-collector-daemonset.yaml` — `/sys/fs/bpf` and `/sys/kernel/debug`
+  are `root:root 0700`, and **`fsGroup` does not apply to hostPath volumes**; the
+  kubelet does not chown them. UID 16780 would fail at map pin / probe attach with
+  `EACCES`. Plausible and specific, but the fix (an initContainer chown, or
+  `BPF_F_*` pinning changes) is unverifiable without a node.
+- **#8** `overlays/gpu-vllm/vllm.yaml` — UID 16781 has no `/etc/passwd` entry, so
+  `HOME=/`, and vLLM/PyTorch/ROCm write `~/.cache/huggingface`, `~/.triton`,
+  `~/.config/miopen` at model load with `/models` mounted read-only. Needs the GPU
+  node to confirm.
+
+Both are the category B3 itself named — "record what needs a live cluster".
+
+**suricata and wireguard were deliberately left unhardened**, and this is now
+explicit in code rather than invisible. `pendingHardening` in `uids_test.go` names
+both with the reason: suricata is `runAsNonRoot: false` with NET_ADMIN/NET_RAW/
+SYS_NICE for AF_PACKET capture on `-i any`; wireguard needs SYS_MODULE to insert
+the kernel module and the lscr.io image's s6 init drops to PUID/PGID itself, so a
+kubelet-set `runAsUser` pre-empts it. The test still asserts their manifests exist
+and still fails if one is deleted — it just does not yet demand the UID. **Emptying
+`pendingHardening` is the definition of done for that follow-up.**
+
+#### The secrets ratchet now enforces what its own header promised
+
+The header said "a new finding cannot be silenced by appending its fingerprint."
+It compared totals, so delete-one-append-one kept the count at 25 and passed green
+with a live credential in the tree. It now compares the fingerprint **set** against
+`docs/security/gitleaks-baseline-fingerprints.txt` (which replaces the count file —
+a file named `-count.txt` holding the authoritative state was itself misleading).
+
+Verified: swapping one fingerprint for another **fails** (the old script passed it);
+a missing manifest **fails** instead of self-initialising; emptying `.gitleaksignore`
+correctly lowers the ceiling 25 → 0, which the `"0\n0"` bug had made impossible.
+
+#### Gates after the fixes
+
+Build clean, vet clean, **same 6 pre-existing test failures and no new ones**,
+4/4 `check-*.sh`, stack rebuilt, **`qa-smoke.sh` 33/35 — unchanged**.
+
 ## PARKED — The Well reachability + client split-brain (Stevie, 2026-08-09)
 
 Raised during B2 QA, **deliberately not acted on.** Stevie is doing lab network
