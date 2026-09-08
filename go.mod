@@ -6,10 +6,19 @@ go 1.25.0
 // (~33 of 35 stdlib advisories), then 1.25.12 during the 2026-07-29 security
 // sweep to pin GO-2026-5856 / GO-2026-5039 / GO-2026-5037.
 //
-// Now 1.26.5, the current stable line. Pinning here rather than relying on
-// setup-go's '1.26' means the stdlib vulnerability surface is deterministic
-// instead of dependent on runner-image drift. See
-// docs/security/govulncheck-2026-05-08.md for the original analysis.
+// Still 1.25.12. Go 1.26.5 was EVALUATED during the 2026-07-29 sweep and
+// DEFERRED: govulncheck cannot type-check a 1.26 module, so adopting it would
+// have blinded the very gate the pin exists to serve. See
+// docs/security/findings-remediation-2026-07-29.md for that decision.
+//
+// (This comment previously read "Now 1.26.5, the current stable line", which
+// contradicted the toolchain directive one line below it and would have told
+// anyone auditing the stdlib CVE surface that the wrong toolchain was in force.)
+//
+// Pinning here rather than relying on setup-go's version selector means the
+// stdlib vulnerability surface is deterministic instead of dependent on
+// runner-image drift. See docs/security/govulncheck-2026-05-08.md for the
+// original analysis.
 toolchain go1.25.12
 
 require (
