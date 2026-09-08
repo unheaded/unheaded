@@ -27,7 +27,7 @@ spec:
           type: RuntimeDefault
       containers:
         - name: wireguard
-          image: lscr.io/linuxserver/wireguard:latest
+          image: lscr.io/linuxserver/wireguard:1.0.20250521
           env:
             - { name: PUID, value: "1000" }
             - { name: PGID, value: "1000" }

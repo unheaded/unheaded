@@ -10,7 +10,11 @@ spec:
     excludedNamespaces: ["kube-system", "gatekeeper-system", "argocd"]
   parameters:
     registries:
-    - "unheaded/"
+    # NOTE: bare "unheaded/" was removed. Docker resolves an unqualified
+    # namespace to docker.io/unheaded — a Docker Hub org this project does not
+    # demonstrably control, so allowing it meant a typo or a squatted namespace
+    # could satisfy the policy. ghcr.io/unheaded follows the GitHub org and is
+    # the registry we actually own.
     - "ghcr.io/unheaded/"
     - "docker.io/library/"
     - "registry.k8s.io/"

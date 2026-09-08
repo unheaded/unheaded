@@ -2,9 +2,9 @@ name: CI (Protocol Foundation)
 
 on:
   push:
-    branches: [main, develop, "theory/protocol-foundation"]
+    branches: [main, develop, staging]
   pull_request:
-    branches: [main, develop, "theory/protocol-foundation"]
+    branches: [main, develop, staging]
 
 permissions:
   contents: read

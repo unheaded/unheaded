@@ -2,11 +2,11 @@ name: Helm Chart Validation
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, staging]
     paths:
       - 'helm/**'
   pull_request:
-    branches: [main]
+    branches: [main, develop, staging]
     paths:
       - 'helm/**'
 

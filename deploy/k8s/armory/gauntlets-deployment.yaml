@@ -25,12 +25,19 @@ spec:
       priorityClassName: unheaded-critical
       automountServiceAccountToken: false
       securityContext:
+        # Dedicated run-as identity from pkg/uids. runAsNonRoot alone stops
+        # root but leaves the UID to whatever the image declares, so two
+        # services can silently share one and file ownership tells an
+        # auditor nothing about which of them wrote what.
+        runAsUser: 16741
+        runAsGroup: 16741
+        fsGroup: 16741
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
       - name: gauntlets
-        image: unheaded/gauntlets:latest
+        image: ghcr.io/unheaded/gauntlets:0.1.0-alpha
         resources:
           requests: { memory: "128Mi", cpu: "100m" }
           limits: { memory: "512Mi", cpu: "500m" }

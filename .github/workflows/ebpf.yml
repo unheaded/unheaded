@@ -2,12 +2,12 @@ name: eBPF & Rust
 
 on:
   push:
-    branches: [main, develop]
+    branches: [main, develop, staging]
     paths:
       - 'ebpf/**'
       - 'cmd/trace-collector/**'
   pull_request:
-    branches: [main]
+    branches: [main, develop, staging]
     paths:
       - 'ebpf/**'
       - 'cmd/trace-collector/**'

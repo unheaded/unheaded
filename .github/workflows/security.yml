@@ -5,9 +5,9 @@ on:
     # Every day at 6 AM UTC
     - cron: '0 6 * * *'
   push:
-    branches: [main]
+    branches: [main, develop, staging]
   pull_request:
-    branches: [main]
+    branches: [main, develop, staging]
 
 permissions:
   contents: read
@@ -105,7 +105,14 @@ jobs:
             | tar xz -C /tmp gitleaks
           /tmp/gitleaks dir --no-banner --redact --exit-code 1 .
 
-      - name: gitleaks (full history — reporting until history is remediated)
+      # The baseline may only shrink. Without this, a gitleaks failure can be
+      # silenced by appending the new fingerprint — turning the gate into
+      # decoration, which is how the other three broken gates in this repo got
+      # that way.
+      - name: Secret baseline may only shrink
+        run: ./scripts/check-secrets-baseline.sh
+
+      - name: gitleaks (full history — reporting only, see PRE-PUBLIC-BLOCKERS.md)
         continue-on-error: true
         run: /tmp/gitleaks git --no-banner --redact --exit-code 1 .
 
