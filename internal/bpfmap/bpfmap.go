@@ -203,6 +203,20 @@ func (m *Map) DeleteElem(key []byte) error {
 	return nil
 }
 
+// bpfMapUpdateBatch is BPF_MAP_UPDATE_BATCH from enum bpf_cmd in linux/bpf.h.
+//
+// This was 12 until 2026-09-08. 12 is BPF_MAP_GET_NEXT_ID, which takes a
+// start_id/next_id attr and ignores everything this call passes: the kernel
+// wrote nothing, returned ENOENT, and the error branch below treats ENOENT as
+// a normal end-of-map, so UpdateBatch reported (count, nil) — full success —
+// having transferred zero entries. The batch commands start at 24:
+//
+//	BPF_MAP_LOOKUP_BATCH            = 24
+//	BPF_MAP_LOOKUP_AND_DELETE_BATCH = 25
+//	BPF_MAP_UPDATE_BATCH            = 26
+//	BPF_MAP_DELETE_BATCH            = 27
+const bpfMapUpdateBatch = 26
+
 // UpdateBatch writes multiple key-value pairs in a single syscall.
 // count is the number of entries to write (len(keys) and len(values) should be count*keySize and count*valueSize).
 // Returns the number of entries successfully written and an error if any operation failed.
@@ -232,16 +246,27 @@ func (m *Map) UpdateBatch(keys, values []byte, count uint32, flags ...uint64) (u
 	}
 	_, _, errno := unix.Syscall(
 		unix.SYS_BPF,
-		uintptr(12),                         // BPF_MAP_LOOKUP_BATCH = 12 (or use 13/14 for UPDATE_BATCH variant)
+		uintptr(bpfMapUpdateBatch),          // BPF_MAP_UPDATE_BATCH
 		uintptr(unsafe.Pointer(&batchAttr)), // #nosec G103 -- Pointer->uintptr in a syscall arg list (unsafe.Pointer rule 4)
 		unsafe.Sizeof(bpfMapBatchAttr{}),
 	)
 
-	if errno != 0 && errno != unix.ENOENT {
+	// ENOENT is NOT normal for UPDATE_BATCH. That exemption belongs to the
+	// LOOKUP_BATCH family, where it signals end-of-map during iteration; an
+	// update has nothing to iterate. It was the second half of the wrong-command
+	// bug above — cmd 12 returned ENOENT every call and this branch swallowed
+	// it, so a write that moved zero bytes was indistinguishable from success.
+	if errno != 0 {
 		return countVal, fmt.Errorf("bpfmap: BPF_MAP_UPDATE_BATCH failed: %v", errno)
 	}
 
-	// ENOENT when reaching end of map is normal
+	// The kernel writes back the number it actually accepted, which may be less
+	// than requested under memory pressure. Report the short write rather than
+	// echoing the caller's own count back at them.
+	if countVal < count {
+		return countVal, fmt.Errorf("bpfmap: BPF_MAP_UPDATE_BATCH short write: %d of %d entries", countVal, count)
+	}
+
 	return countVal, nil
 }
 
