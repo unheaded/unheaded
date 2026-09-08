@@ -10,26 +10,60 @@ spec:
     excludedNamespaces: ["kube-system", "gatekeeper-system", "argocd"]
   parameters:
     registries:
-    # NOTE: bare "unheaded/" was removed. Docker resolves an unqualified
+    # The matcher is a plain startswith() on the raw image string (see the
+    # rego in trusted-registries.yaml), so every entry here is a PREFIX and a
+    # short prefix is a wildcard.
+    #
+    # bare "ghcr.io/" and "docker.io/" used to sit at the bottom of this list.
+    # They prefix-matched every image on either registry, which made all 20-odd
+    # specific entries above them dead weight and admitted exactly the squatted
+    # namespace the note below says was closed. Removing "unheaded/" while
+    # leaving "docker.io/" in place changed nothing: docker.io/unheaded/x still
+    # passed. They are gone; each namespace is now named.
+    #
+    # bare "unheaded/" was also removed. Docker resolves an unqualified
     # namespace to docker.io/unheaded — a Docker Hub org this project does not
     # demonstrably control, so allowing it meant a typo or a squatted namespace
     # could satisfy the policy. ghcr.io/unheaded follows the GitHub org and is
     # the registry we actually own.
+    #
+    # Unqualified official images (busybox, postgres, haproxy) are listed WITH
+    # their colon so "haproxy:" cannot also admit a "haproxy-evil/..." repo.
+    # Fully qualifying them as docker.io/library/* is the better fix and is
+    # tracked separately; it changes the manifests, not just this policy.
+
+    # First-party
     - "ghcr.io/unheaded/"
+    - "ghcr.io/stevenrbellis/unheaded/"
+
+    # Docker Hub official images
     - "docker.io/library/"
+    - "busybox:"
+    - "postgres:"
+    - "haproxy:"
+
+    # Kubernetes / CNCF
     - "registry.k8s.io/"
     - "quay.io/cilium/"
     - "quay.io/argoproj/"
     - "hashicorp/"
     - "secrets-store-csi-driver/"
+    - "fairwinds/"
+
+    # Observability
     - "quay.io/prometheus/"
-    - "grafana/"
-    - "otel/"
-    - "docker.io/grafana/"
-    - "prom/"
     - "quay.io/prometheus-operator/"
     - "quay.io/kiwigrid/"
     - "quay.io/brancz/"
-    - "ghcr.io/"
-    - "docker.io/"
-    - "fairwinds/"
+    - "grafana/"
+    - "docker.io/grafana/"
+    - "prom/"
+    - "otel/"
+    - "timberio/"
+    - "victoriametrics/"
+
+    # Data / network appliances
+    - "clickhouse/"
+    - "haproxytech/"
+    - "jasonish/"
+    - "lscr.io/linuxserver/"

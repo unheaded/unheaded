@@ -149,13 +149,30 @@ misconfigurations:
   # allowlist was tightened alongside this entry — bare "unheaded/" was removed
   # because Docker resolves an unqualified namespace to docker.io/unheaded, an
   # org this project does not demonstrably control, so a squatted or mistyped
-  # namespace could have satisfied the policy. All first-party manifests now
-  # use ghcr.io/unheaded, which follows the GitHub org.
+  # namespace could have satisfied the policy.
+  #
+  # NOTE (2026-09-08): the original wording here claimed "all first-party
+  # manifests now use ghcr.io/unheaded". They do not — 12 manifests under
+  # kubernetes/manifests/base use ghcr.io/stevenrbellis/unheaded/*. BOTH
+  # namespaces are now named explicitly in the allowlist. That claim mattered
+  # because removing "unheaded/" while bare "docker.io/" and "ghcr.io/" were
+  # still in the list changed nothing at all; those wildcards are now gone.
+  # SCOPED with paths:. Without them this entry silenced KSV-0125 repo-wide —
+  # every image on every registry, not just first-party ones — so any
+  # third-party registry added later would have been suppressed on arrival by
+  # an exemption written for our own images. Every other entry in this file is
+  # path-scoped; this one was the exception.
   - id: KSV-0125
+    paths:
+      - "kubernetes/manifests/base/**"
+      - "kubernetes/manifests/overlays/**"
+      - "deploy/k8s/**"
+      - "helm/unheaded/**"
     statement: >-
       Registry trust is enforced by deploy/k8s/policies/enforce-trusted-registries.yaml,
       not by trivy's built-in registry list, which cannot know ghcr.io/unheaded
-      is first-party.
+      is first-party. Scoped to first-party manifest trees so a new third-party
+      registry is not silently exempted by this entry.
 
   # ── MEDIUM triage (2026-07-29) ───────────────────────────────────────────
 
