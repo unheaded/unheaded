@@ -20,9 +20,28 @@ spec:
       hostNetwork: true
       hostPID: false
       priorityClassName: unheaded-critical
+      # Runs as a dedicated UID, not root (trivy KSV-0012 / KSV-0118).
+      #
+      # Loading BPF no longer requires UID 0 on this host — verified rather
+      # than assumed:
+      #   kernel 6.17.0-41           (CAP_BPF/CAP_PERFMON exist since 5.8)
+      #   unprivileged_bpf_disabled = 0
+      # so the capabilities already granted below are sufficient without root.
+      #
+      # If BPF load regresses it appears as a verifier or permission error at
+      # program load, NOT as anything obviously security-shaped — check
+      # /proc/sys/kernel/unprivileged_bpf_disabled and the kernel version
+      # before assuming the manifest is wrong.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 16780
+        runAsGroup: 16780
+        fsGroup: 16780
+        seccompProfile:
+          type: RuntimeDefault
       containers:
       - name: collector
-        image: unheaded/void-collector:latest
+        image: ghcr.io/unheaded/void-collector:0.1.0-alpha
         resources:
           requests:
             memory: "128Mi"
@@ -32,6 +51,10 @@ spec:
             cpu: "500m"
         securityContext:
           privileged: false
+          # Loading BPF programs with CAP_BPF/CAP_PERFMON does not require
+          # gaining privileges beyond the caps already granted, so this costs
+          # nothing here and closes trivy KSV-0001.
+          allowPrivilegeEscalation: false
           capabilities:
             add: ["BPF", "PERFMON", "NET_ADMIN"]
             drop: ["ALL"]

@@ -16,9 +16,9 @@ name: "Timeline Drift Guard"
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop, staging]
   pull_request:
-    branches: [main]
+    branches: [main, develop, staging]
   workflow_dispatch: {}
 
 permissions:

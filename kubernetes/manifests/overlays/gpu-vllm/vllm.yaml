@@ -24,7 +24,23 @@ spec:
     spec:
       nodeSelector:
         amd.com/gpu: "true"
+      # Runs as a dedicated UID, not root (trivy KSV-0012).
+      #
+      # ROCm needs /dev/kfd and /dev/dri. On WEST /dev/kfd is root:render mode
+      # 660, so access comes from GROUP membership rather than UID 0 —
+      # verified by reading the host, not assumed:
+      #   render GID 992, video GID 44   (getent group render video)
+      # Those are recorded as HostGroupRender/HostGroupVideo in pkg/uids.
+      #
+      # If GPU access fails after this change it will surface as a model-load
+      # error, not a permissions one — check the host's render GID first, since
+      # it varies by distro.
       securityContext:
+        runAsNonRoot: true
+        runAsUser: 16781
+        runAsGroup: 16781
+        fsGroup: 16781
+        supplementalGroups: [992, 44]
         seccompProfile:
           type: RuntimeDefault
       containers:
