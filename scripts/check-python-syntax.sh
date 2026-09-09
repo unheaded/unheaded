@@ -73,6 +73,23 @@ for i, cell in enumerate(nb.get("cells", [])):
     if cell.get("cell_type") != "code":
         continue
     src = "".join(cell.get("source", []))
+
+    # Strip IPython magics and shell escapes before compiling.
+    #
+    # `%matplotlib inline`, `!pip install foo` and `?obj` are legal notebook
+    # cell content — Jupyter transforms them away before Python ever sees them.
+    # compile() does not, so without this a perfectly runnable notebook fails
+    # this GATING check with "invalid syntax". No tracked notebook uses magics
+    # today, which made the trap latent rather than absent: the first person to
+    # add one would have turned CI red on working code.
+    #
+    # Blanking rather than deleting the line keeps reported line numbers
+    # aligned with the real cell.
+    src = "\n".join(
+        "" if ln.lstrip().startswith(("%", "!", "?")) else ln
+        for ln in src.split("\n")
+    )
+
     try:
         compile(src, f"{path}:cell{i}", "exec")
     except SyntaxError as e:

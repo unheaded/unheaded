@@ -612,11 +612,18 @@ check_demo_verdict() {
     # Check screen memory has been written (gradient/checkerboard write to SCREEN_MAP)
     if [[ -e "${MAP_PIN}/SCREEN_MAP" ]]; then
         # Read a few pixels to verify screen has non-zero data
-        # NOTE: the echo below prints ${pixel_8000}, which is never assigned —
-        # it always renders as '??'. The old declaration named pixel_32000, so a
-        # third sample read was intended and never written. Flagged, not fixed:
-        # adding the read is a behaviour change, not a lint fix.
-        local pixel_0 pixel_100
+        # NOTE (corrected 2026-09-09): an earlier note here claimed
+        # ${pixel_8000} "is never assigned — it always renders as '??'". That is
+        # wrong; it IS assigned six lines below. The genuinely dead variable was
+        # pixel_32000, which was declared `local` and never assigned, and which
+        # the same sweep deleted. Following the old note would have led someone
+        # to add a redundant third bpftool read, or to file a bug that does not
+        # exist.
+        #
+        # The real (harmless today) artifact: pixel_8000 is assigned WITHOUT
+        # `local`, so it leaks into the caller's scope. Declared here with its
+        # siblings to contain it.
+        local pixel_0 pixel_100 pixel_8000
         pixel_0=$(sudo bpftool map lookup pinned "${MAP_PIN}/SCREEN_MAP" \
             key hex 00 00 00 00 2>/dev/null | awk '/^value:/{found=1; next} found{print}' | tr -d ' \n' || true)
         pixel_100=$(sudo bpftool map lookup pinned "${MAP_PIN}/SCREEN_MAP" \
