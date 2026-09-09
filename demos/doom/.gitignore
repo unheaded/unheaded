@@ -3,4 +3,5 @@ build/
 doom.elf
 doom.mbc
 doom.rv2mbc
+doom.data
 *.o
