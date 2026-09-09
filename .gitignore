@@ -265,3 +265,9 @@ eval/coding-gate/ci-runs/
 cmd/akira/akira
 cmd/host-agent/host-agent
 /host-agent
+
+# Host-local compose overrides. Compose auto-loads this and it wins over
+# docker-compose.yml, so it is the right place for per-machine settings (e.g.
+# restart policies on a dev box that should not resurrect the stack on boot).
+# Never tracked: what one host wants here is wrong for the next one.
+docker-compose.override.yml
