@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# check-gates-can-fail.sh — the meta-gate. Every check-*.sh must be able to FAIL.
+# check-gates-can-fail.sh — the meta-gate. Every gate must be able to FAIL.
 #
 # WHY THIS EXISTS
 #
@@ -305,7 +305,7 @@ if [ "${MODE}" = "--list" ]; then
 fi
 
 echo "============================================================"
-echo "  META-GATE: proving every check-*.sh can actually fail"
+echo "  META-GATE: proving every gate can actually fail"
 echo "============================================================"
 echo
 
@@ -415,6 +415,12 @@ for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort)
         FAILURES=$((FAILURES + 1))
     fi
 done
+
+# Print these EVERY run. A gate we cannot test is a real gap in coverage, and a
+# gap you cannot see is indistinguishable from one that does not exist.
+echo
+echo "  Not provable here (needs sudo / live XDP / real hardware):"
+printf '%s\n' "${NEEDS_HARDWARE}" | awk -F'|' 'NF>=2 {printf "    %-26s %s\n", $1, $2}'
 
 echo
 if [ "${FAILURES}" -gt 0 ]; then
