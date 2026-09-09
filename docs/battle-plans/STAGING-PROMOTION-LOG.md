@@ -533,6 +533,99 @@ correctly lowers the ceiling 25 → 0, which the `"0\n0"` bug had made impossibl
 Build clean, vet clean, **same 6 pre-existing test failures and no new ones**,
 4/4 `check-*.sh`, stack rebuilt, **`qa-smoke.sh` 33/35 — unchanged**.
 
+## B4 — rungs 39–47, head `b39fb207` — IN STAGING (2026-09-09)
+
+Merged as **`50420a2d`**, signed, zero conflicts. 157 files, +9007/−3284.
+
+| gate | result |
+|---|---|
+| `go build` / `go vet` | clean |
+| `go test ./...` | **6 pre-existing failures, no new ones** |
+| `check-clippy.sh` | PASS — **after being fixed; it was reporting green over two non-building workspaces** |
+| `check-python-syntax.sh` | PASS — 70 files |
+| other `check-*.sh` | 4/4 PASS |
+| Rust workspaces | **18 / 18** — up from 16/18, and prior batches only ever checked a hardcoded 11 |
+| docker images | rebuilt, stack up |
+| `qa-smoke.sh` | **33 / 35 — equal to B2 and B3** |
+
+Grafana briefly showed `000` on probe after the rebuild. Not a regression: the
+rebuilt image ran a long schema migration, and it returns 302 on :3001 once
+finished. (It is mapped to **3001**, not 3000.)
+
+### The pattern recurred for a fourth consecutive batch
+
+B2: gosec ratchet guards unreachable. B3: secrets ratchet compared a count, and
+the uids test walked past every violation. B4 shipped `check-clippy.sh` — whose
+own header calls out "green because it could not fail" — and it had the same
+defect twice over:
+
+- its grep only keeps `file:line:col` diagnostics, so target-resolution errors
+  (`error: can't find bin ... --> Cargo.toml`) were dropped, **and** cargo's
+  exit status was never checked. Two workspaces exiting 101 counted as zero
+  warnings and zero errors.
+- a baseline file with no numeric line left `ALLOWED` empty, both comparisons
+  aborted rc=2, and execution fell through to PASS — byte-for-byte the bug
+  fixed in `check-secrets-baseline.sh` the day before.
+
+Both fixed and verified red-first.
+
+### What the fixed gate then found: two crates that never built
+
+Neither is a B4 regression — both predate develop/staging (2026-02-25 and
+2026-04-11). B4 merely added their `Cargo.lock` files, which is how the gate
+discovers workspace roots.
+
+**Root cause in both cases was build-config placement, in mirror image.**
+`ebpf/fuzz` was a host libFuzzer crate trapped *inside* `ebpf/.cargo/config.toml`'s
+bare-metal scope; `heimdall-bpf` was a bare-metal BPF crate sitting *outside* it.
+Cargo resolves `.cargo/config.toml` by walking up the tree and ignores the
+crate's own `[workspace]`, and an inherited `[build] target` cannot be cancelled
+from a child directory — `build-std = []` merges rather than clears. So the fuzz
+crate had to move (`git mv` → `crates/lich-fuzz`), and heimdall got its own
+config plus the `[profile.dev] lto = true` it was missing.
+
+### And what THAT found: the LICH campaign asserted nothing
+
+Disposition set with Micromanager, implemented with Developer, reviewed by
+BlackMage, on Stevie's call to implement real oracles.
+
+All four S21 harnesses had zero call sites for their own verification
+functions, and `is_checksum_valid()` was `self.checksum.is_some() || true`.
+**"28M executions, zero crashes" meant only "nothing panicked."**
+
+Running them for the first time surfaced four defects in the harnesses:
+
+1. `compact()` popped from **both** ends `len-2` times — emptying the WAL for
+   any `len >= 4` — while claiming to keep first and last.
+2. compaction dropped entries without folding their values: silent data loss.
+3. `verify_seqno_monotonicity` required a dense `0,1,2,…` sequence, which the
+   harness's own Phase 5 violates deliberately.
+4. the flow-isolation check read back with the **same** `(cache_key, flow_id)`
+   the write loop had just used, counting self-reads as violations — it fires
+   on almost every input, which is why the harness crashes on its own seeds.
+
+Oracles now use `assert!`, never a returned bool: libFuzzer records an artifact
+on abort only, so an oracle whose result the caller ignores is invisible to the
+fuzzer. That is exactly how this survived six months.
+
+**BlackMage's scope caveat, recorded so it is not lost:** the crate links no
+Unheaded code — the cache, WAL and flow table are models inside the harness
+files. A clean run is *design* validation, not evidence about Wotan or the WAL.
+`crates/monad-mbc/fuzz` already fuzzes the real decoder, and LICH-008/010 target
+Go (`pkg/storage/{cache,wal}`), which Rust libFuzzer can never link. Porting
+those two to `go test -fuzz` is the real follow-up.
+
+### Two working-tree traps hit while landing this
+
+- **libFuzzer crash artifacts.** Negative testing wrote `crash-*` reproducers
+  into the crate dir. They are byte-identical to the triggering input, so git
+  matched them against `seeds/` and reported the seeds as **renamed to the
+  artifacts** — staging a deletion of the corpus. Caught before commit; all 120
+  seeds verified intact and the artifacts are now gitignored.
+- **`check-clippy.sh` reads `git ls-files`,** so mid-`git mv` it lints paths
+  from the index that no longer exist on disk and fails transiently. Harmless,
+  but do not chase it: re-stage and re-run.
+
 ## PARKED — The Well reachability + client split-brain (Stevie, 2026-08-09)
 
 Raised during B2 QA, **deliberately not acted on.** Stevie is doing lab network
