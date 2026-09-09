@@ -15,7 +15,6 @@ import os
 import re
 import sys
 import time
-import uuid
 from xml.etree.ElementTree import iterparse
 
 # ---------------------------------------------------------------------------
@@ -193,7 +192,7 @@ if __name__ == "__main__":
     if not os.path.isfile(xml_path):
         print(f"ERROR: {xml_path} not found.")
         print("The 7z extraction may still be running. Check:")
-        print(f"  tail -f /mnt/hdd/zhen/stackoverflow/extraction.log")
+        print("  tail -f /mnt/hdd/zhen/stackoverflow/extraction.log")
         sys.exit(1)
 
     process_posts(xml_path, output_path, source)

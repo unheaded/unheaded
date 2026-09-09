@@ -32,8 +32,6 @@ struct BenchUmem {
     base: *mut u8,
     /// Total region size
     size: u64,
-    /// Frame size in bytes
-    frame_size: u32,
     /// Free frame offsets (LIFO stack)
     free_frames: Vec<u64>,
 }
@@ -56,7 +54,6 @@ impl BenchUmem {
         BenchUmem {
             base,
             size,
-            frame_size,
             free_frames,
         }
     }
@@ -251,6 +248,15 @@ fn bench_umem_alloc_free() -> (BenchResult, Duration, Duration) {
                 umem.free_frame(addr);
             }
         });
+
+        // The pool must be whole again after 5000 alloc/free cycles. Without
+        // this the benchmark would happily report throughput for a leaking
+        // free path.
+        assert_eq!(
+            umem.free_count(),
+            FRAMES as usize,
+            "UMEM leaked frames across alloc/free cycles"
+        );
 
         runner.report("frames/sec", FRAMES as u64 * 2) // alloc + free = 2 ops per frame
     });

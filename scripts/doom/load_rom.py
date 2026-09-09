@@ -231,7 +231,7 @@ def main():
             args.rv2mbc_map, rv2mbc_data, args.entry_size, "translations"
         )
 
-    print(f"\n=== SUMMARY ===")
+    print("\n=== SUMMARY ===")
     print(f"  ROM: {rom_loaded} instructions loaded ({rom_errors} errors)")
     if rv2mbc_data:
         print(f"  RV2MBC: {rv2mbc_loaded} translations loaded ({rv2mbc_errors} errors)")

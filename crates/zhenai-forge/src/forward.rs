@@ -9,8 +9,6 @@
 //! - Peak additional RAM: ~130MB (one layer's weights in f32)
 
 use crate::gguf::GgufFile;
-use crate::hip::{GpuBuffer, BlasHandle, self};
-use crate::lora::LoraAdapters;
 use crate::quant;
 
 /// Dequantize a named tensor from the GGUF model to f32 on CPU.
@@ -20,19 +18,16 @@ pub fn dequantize_tensor(model: &GgufFile, name: &str) -> Option<Vec<f32>> {
     let data = model.tensor_data(tensor);
 
     match tensor.tensor_type.as_str() {
-        "Q5_K" => {
-            Some(quant::dequantize_q5_k(data, tensor.num_elements as usize))
-        }
+        "Q5_K" => Some(quant::dequantize_q5_k(data, tensor.num_elements as usize)),
         "F32" => {
             // Already f32 — just reinterpret bytes
-            let floats: Vec<f32> = data.chunks_exact(4)
+            let floats: Vec<f32> = data
+                .chunks_exact(4)
                 .map(|b| f32::from_le_bytes([b[0], b[1], b[2], b[3]]))
                 .collect();
             Some(floats)
         }
-        "Q6_K" => {
-            Some(quant::dequantize_q6_k(data, tensor.num_elements as usize))
-        }
+        "Q6_K" => Some(quant::dequantize_q6_k(data, tensor.num_elements as usize)),
         "BF16" => {
             // Gemma 4 base weights ship as bf16 (318 of 601 tensors in E2B-it).
             Some(quant::dequantize_bf16(data, tensor.num_elements as usize))
@@ -57,7 +52,7 @@ pub fn embedding_lookup(embedding_weight: &[f32], embed_dim: usize, token_ids: &
             output.extend_from_slice(&embedding_weight[start..end]);
         } else {
             // Out of vocab — zero vector
-            output.extend(std::iter::repeat(0.0f32).take(embed_dim));
+            output.extend(std::iter::repeat_n(0.0f32, embed_dim));
         }
     }
     output
@@ -70,7 +65,9 @@ pub fn rmsnorm(input: &[f32], weight: &[f32], eps: f32) -> Vec<f32> {
     let ss: f32 = input.iter().map(|x| x * x).sum::<f32>() / n as f32;
     let rms = (ss + eps).sqrt();
 
-    input.iter().zip(weight.iter())
+    input
+        .iter()
+        .zip(weight.iter())
         .map(|(&x, &w)| (x / rms) * w)
         .collect()
 }
@@ -96,7 +93,14 @@ pub fn softmax(logits: &mut [f32]) {
 /// FFN forward pass: SwiGLU (gate * silu(up)) then down projection.
 /// gate_weight: (ffn_dim × embed_dim), up_weight: (ffn_dim × embed_dim), down_weight: (embed_dim × ffn_dim)
 /// Input: (embed_dim,), Output: (embed_dim,)
-pub fn ffn_forward(input: &[f32], gate_w: &[f32], up_w: &[f32], down_w: &[f32], n_embd: usize, n_ff: usize) -> Vec<f32> {
+pub fn ffn_forward(
+    input: &[f32],
+    gate_w: &[f32],
+    up_w: &[f32],
+    down_w: &[f32],
+    n_embd: usize,
+    n_ff: usize,
+) -> Vec<f32> {
     let dims = n_embd.min(512); // Partial dims — 512 for reasonable quality/speed
     let ff_dims = n_ff.min(512);
 
@@ -219,7 +223,7 @@ pub fn rope_apply(
             let sin = freqs_sin[s * half + d];
             let xe = x[s * head_dim + 2 * d];
             let xo = x[s * head_dim + 2 * d + 1];
-            out[s * head_dim + 2 * d]     = xe * cos - xo * sin;
+            out[s * head_dim + 2 * d] = xe * cos - xo * sin;
             out[s * head_dim + 2 * d + 1] = xe * sin + xo * cos;
         }
     }
@@ -261,6 +265,7 @@ impl AttnMask {
 ///
 /// Mistral-7B example: n_heads=32, n_kv_heads=8, head_dim=128.
 /// GQA expansion happens inside (each KV head consumed by 4 query heads).
+#[allow(clippy::too_many_arguments)] // numerical/GPU kernel signature — see crate note
 pub fn attention_forward(
     q_rot: &[f32],
     k_rot: &[f32],
@@ -290,6 +295,7 @@ pub fn attention_forward(
         for i in 0..seq_len {
             // Compute row of pre-softmax scores
             let mut row = vec![f32::NEG_INFINITY; seq_len];
+            #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
             for j in 0..seq_len {
                 if !mask.allows(i, j) {
                     continue; // leave as -inf
@@ -314,6 +320,7 @@ pub fn attention_forward(
             // Step 4: output[i, h] = sum_j attn[i, j] * V[j, h_kv]
             for d in 0..head_dim {
                 let mut sum = 0.0f32;
+                #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
                 for j in 0..seq_len {
                     let v_jd = (j * n_kv_heads + h_kv) * head_dim + d;
                     sum += row[j] * v[v_jd];
@@ -333,7 +340,7 @@ pub fn attention_forward(
 /// This is the approximation used by Gemma 4 / Llama / many transformer
 /// implementations. It differs from the exact GELU (`x * Φ(x)`) by ~1e-3.
 pub fn gelu_tanh_approx(x: f32) -> f32 {
-    const SQRT_2_OVER_PI: f32 = 0.7978845608028654; // sqrt(2.0 / PI)
+    const SQRT_2_OVER_PI: f32 = 0.797_884_6; // sqrt(2.0 / PI)
     const ALPHA: f32 = 0.044715;
     let inner = SQRT_2_OVER_PI * (x + ALPHA * x * x * x);
     0.5 * x * (1.0 + inner.tanh())
@@ -354,9 +361,9 @@ mod tests {
     fn test_embedding_lookup() {
         // 4 vocab × 3 dim embedding
         let weights = vec![
-            1.0, 2.0, 3.0,  // token 0
-            4.0, 5.0, 6.0,  // token 1
-            7.0, 8.0, 9.0,  // token 2
+            1.0, 2.0, 3.0, // token 0
+            4.0, 5.0, 6.0, // token 1
+            7.0, 8.0, 9.0, // token 2
             10.0, 11.0, 12.0, // token 3
         ];
         let tokens = vec![2, 0, 3];
@@ -379,7 +386,11 @@ mod tests {
         let mut logits = vec![1.0, 2.0, 3.0];
         softmax(&mut logits);
         let sum: f32 = logits.iter().sum();
-        assert!((sum - 1.0).abs() < 1e-5, "Softmax should sum to 1, got {}", sum);
+        assert!(
+            (sum - 1.0).abs() < 1e-5,
+            "Softmax should sum to 1, got {}",
+            sum
+        );
         assert!(logits[2] > logits[1] && logits[1] > logits[0]);
     }
 
@@ -387,8 +398,11 @@ mod tests {
     fn test_cross_entropy() {
         let logits = vec![1.0, 5.0, 1.0]; // Token 1 has highest logit
         let loss_correct = cross_entropy_loss(&logits, 1); // Correct prediction
-        let loss_wrong = cross_entropy_loss(&logits, 0);   // Wrong prediction
-        assert!(loss_correct < loss_wrong, "Loss for correct token should be lower");
+        let loss_wrong = cross_entropy_loss(&logits, 0); // Wrong prediction
+        assert!(
+            loss_correct < loss_wrong,
+            "Loss for correct token should be lower"
+        );
     }
 
     #[test]
@@ -426,14 +440,25 @@ mod tests {
         let y = rope_apply(&x, &cos, &sin, seq_len, head_dim);
 
         for s in 0..seq_len {
-            let nx: f32 = (0..head_dim).map(|d| {
-                let v = x[s * head_dim + d]; v * v
-            }).sum();
-            let ny: f32 = (0..head_dim).map(|d| {
-                let v = y[s * head_dim + d]; v * v
-            }).sum();
-            assert!((nx - ny).abs() < 1e-4,
-                "RoPE not norm-preserving at pos {}: |x|^2={} |y|^2={}", s, nx, ny);
+            let nx: f32 = (0..head_dim)
+                .map(|d| {
+                    let v = x[s * head_dim + d];
+                    v * v
+                })
+                .sum();
+            let ny: f32 = (0..head_dim)
+                .map(|d| {
+                    let v = y[s * head_dim + d];
+                    v * v
+                })
+                .sum();
+            assert!(
+                (nx - ny).abs() < 1e-4,
+                "RoPE not norm-preserving at pos {}: |x|^2={} |y|^2={}",
+                s,
+                nx,
+                ny
+            );
         }
     }
 
@@ -460,16 +485,29 @@ mod tests {
         let k = vec![1.0; seq_len * n_kv_heads * head_dim];
         let v = vec![0.5; seq_len * n_kv_heads * head_dim];
 
-        let (out, attn) = attention_forward(&q, &k, &v, n_heads, n_kv_heads, head_dim, seq_len, AttnMask::Causal);
+        let (out, attn) = attention_forward(
+            &q,
+            &k,
+            &v,
+            n_heads,
+            n_kv_heads,
+            head_dim,
+            seq_len,
+            AttnMask::Causal,
+        );
 
         // Position 0 only attends to position 0 → attn[0, 0, 0] = 1.0
-        assert!((attn[0] - 1.0).abs() < 1e-6, "attn[0,0,0] should be 1.0, got {}", attn[0]);
+        assert!(
+            (attn[0] - 1.0).abs() < 1e-6,
+            "attn[0,0,0] should be 1.0, got {}",
+            attn[0]
+        );
         assert_eq!(attn[1], 0.0, "attn[0,0,1] should be 0 (masked)");
         assert_eq!(attn[2], 0.0, "attn[0,0,2] should be 0 (masked)");
 
         // Output[0] should equal V[0] (since attention is one-hot on position 0)
-        for d in 0..head_dim {
-            assert!((out[d] - 0.5).abs() < 1e-5);
+        for (d, &o) in out.iter().take(head_dim).enumerate() {
+            assert!((o - 0.5).abs() < 1e-5, "out[{d}] should be 0.5");
         }
     }
 
@@ -485,12 +523,23 @@ mod tests {
         let k = vec![1.0; seq_len * n_kv_heads * head_dim];
         let v = vec![1.0; seq_len * n_kv_heads * head_dim];
 
-        let (_out, attn) = attention_forward(&q, &k, &v, n_heads, n_kv_heads, head_dim, seq_len,
-            AttnMask::SlidingWindow(2));
+        let (_out, attn) = attention_forward(
+            &q,
+            &k,
+            &v,
+            n_heads,
+            n_kv_heads,
+            head_dim,
+            seq_len,
+            AttnMask::SlidingWindow(2),
+        );
 
         // Position 2's attention: [0]=0 (out of window), [1]=0.5, [2]=0.5
         let row2_off = 2 * seq_len;
-        assert_eq!(attn[row2_off + 0], 0.0, "pos 2 should not attend to pos 0 (window=2)");
+        assert_eq!(
+            attn[row2_off], 0.0,
+            "pos 2 should not attend to pos 0 (window=2)"
+        );
         assert!((attn[row2_off + 1] - 0.5).abs() < 1e-5);
         assert!((attn[row2_off + 2] - 0.5).abs() < 1e-5);
     }
@@ -512,10 +561,18 @@ mod tests {
         let cap = 30.0;
         // Within cap, near-linear
         let small = logit_softcap(5.0, cap);
-        assert!((small - 5.0).abs() < 0.5, "small input should be near-linear");
+        assert!(
+            (small - 5.0).abs() < 0.5,
+            "small input should be near-linear"
+        );
         // Asymptote at cap (tanh saturates to exactly 1.0 in f32 for large inputs).
         let big = logit_softcap(1000.0, cap);
-        assert!(big <= cap, "softcap output {} must not exceed cap {}", big, cap);
+        assert!(
+            big <= cap,
+            "softcap output {} must not exceed cap {}",
+            big,
+            cap
+        );
         assert!(big > cap * 0.99, "softcap should approach cap, got {}", big);
         // Symmetric
         assert!((logit_softcap(7.0, cap) + logit_softcap(-7.0, cap)).abs() < 1e-5);
@@ -534,20 +591,32 @@ mod tests {
 
         // Dequantize the output_norm weight (F32 tensor, small)
         if let Some(data) = dequantize_tensor(&model, "output_norm.weight") {
-            println!("output_norm.weight: {} elements, first 5: {:?}",
-                data.len(), &data[..5.min(data.len())]);
+            println!(
+                "output_norm.weight: {} elements, first 5: {:?}",
+                data.len(),
+                &data[..5.min(data.len())]
+            );
             assert_eq!(data.len(), 4096, "output_norm should be 4096 dim");
             // F32 tensor should have non-zero values
-            assert!(data.iter().any(|&v| v != 0.0), "output_norm should have non-zero values");
+            assert!(
+                data.iter().any(|&v| v != 0.0),
+                "output_norm should have non-zero values"
+            );
         }
 
         // Dequantize a Q5_K tensor (attention weight)
         if let Some(data) = dequantize_tensor(&model, "blk.0.attn_q.weight") {
-            println!("blk.0.attn_q.weight: {} elements, first 5: {:?}",
-                data.len(), &data[..5.min(data.len())]);
-            assert!(data.len() > 0);
+            println!(
+                "blk.0.attn_q.weight: {} elements, first 5: {:?}",
+                data.len(),
+                &data[..5.min(data.len())]
+            );
+            assert!(!data.is_empty());
             // Q5_K dequantized should have non-zero values
-            assert!(data.iter().any(|&v| v != 0.0), "Q5_K dequant should produce non-zero values");
+            assert!(
+                data.iter().any(|&v| v != 0.0),
+                "Q5_K dequant should produce non-zero values"
+            );
         }
     }
 }

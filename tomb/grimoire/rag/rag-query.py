@@ -56,7 +56,6 @@ import logging
 import os
 import sys
 import time
-from pathlib import Path
 from typing import Any
 
 logging.basicConfig(
@@ -251,9 +250,9 @@ def format_text(result: dict) -> str:
         source_type = meta.get("source_type", "unknown")
         lines.append(f"Source: {source} [{source_type}]")
 
-        if "technique_id" in meta and meta["technique_id"]:
+        if meta.get("technique_id"):
             lines.append(f"Technique: {meta['technique_id']}")
-        if "tactic" in meta and meta["tactic"]:
+        if meta.get("tactic"):
             lines.append(f"Tactic: {meta['tactic']}")
         if "collection" in r:
             lines.append(f"Collection: {r['collection']}")

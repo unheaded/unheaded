@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Request Router for THE SHIELD
 //!
 //! Routes incoming requests through the WAF pipeline:
@@ -34,6 +37,11 @@ pub struct Router {
     max_body_size: usize,
     /// Whether to log all requests
     log_all_requests: bool,
+    /// Whether rate limiting is enforced at all (`[rate_limit] enabled`).
+    ///
+    /// This used to be parsed from config and then never read, so setting
+    /// `enabled = false` silently did nothing and the limiter stayed active.
+    rate_limit_enabled: bool,
 }
 
 impl Router {
@@ -52,7 +60,19 @@ impl Router {
             metrics,
             max_body_size,
             log_all_requests: false,
+            rate_limit_enabled: true,
         }
+    }
+
+    /// Enable or disable rate-limit enforcement (`[rate_limit] enabled`).
+    ///
+    /// When false, both the per-IP pre-filter and rule-driven
+    /// `RuleDecision::RateLimit` outcomes are skipped. Rules that resolve to
+    /// RateLimit then fall through as allowed, which is what "rate limiting
+    /// is off" has to mean — the alternative (treating them as blocks) would
+    /// make disabling the limiter *more* restrictive.
+    pub fn set_rate_limit_enabled(&mut self, enabled: bool) {
+        self.rate_limit_enabled = enabled;
     }
 
     /// Set whether to log all requests
@@ -90,7 +110,10 @@ impl Router {
         let hist = self
             .metrics
             .request_duration
-            .with_labels(&[("method", method.as_str()), ("path", &normalize_path(&path))])
+            .with_labels(&[
+                ("method", method.as_str()),
+                ("path", &normalize_path(&path)),
+            ])
             .await;
         hist.observe_duration(duration);
 
@@ -124,8 +147,8 @@ impl Router {
         let path = request.uri().path().to_string();
         let query = request.uri().query().map(|q| q.to_string());
 
-        // Step 1: Rate limiting (per IP)
-        if let Some(ip) = client_ip {
+        // Step 1: Rate limiting (per IP) — skipped entirely when disabled.
+        if let Some(ip) = client_ip.filter(|_| self.rate_limit_enabled) {
             let rate_result = self.rate_limiter.check_ip(ip).await;
             if let RateLimitResult::Limited { retry_after_ms } = rate_result {
                 self.metrics
@@ -203,8 +226,8 @@ impl Router {
             }
 
             RuleDecision::RateLimit { requests, period } => {
-                // Apply rule-specific rate limit
-                if let Some(ip) = client_ip {
+                // Apply rule-specific rate limit (skipped when disabled).
+                if let Some(ip) = client_ip.filter(|_| self.rate_limit_enabled) {
                     let _key = format!("{}:{}", ip, normalize_path(&path));
                     let result = self
                         .rate_limiter
@@ -249,9 +272,7 @@ impl Router {
         // changed to match.
         let body_for_forward = Full::new(Bytes::from(body_bytes.clone().unwrap_or_default()));
 
-        let mut forward_builder = Request::builder()
-            .method(method)
-            .uri(parts.uri);
+        let mut forward_builder = Request::builder().method(method).uri(parts.uri);
 
         for (name, value) in parts.headers.iter() {
             forward_builder = forward_builder.header(name, value);
@@ -260,7 +281,8 @@ impl Router {
         let forward_request = match forward_builder.body(body_for_forward) {
             Ok(mut req) => {
                 if let Some(ip) = client_ip {
-                    req.extensions_mut().insert(std::net::SocketAddr::new(ip, 0));
+                    req.extensions_mut()
+                        .insert(std::net::SocketAddr::new(ip, 0));
                 }
                 req
             }
@@ -397,10 +419,7 @@ fn log_blocked_request(request: &RequestData, result: &EvaluationResult) {
         .map(|ip| ip.to_string())
         .unwrap_or_else(|| "-".to_string());
 
-    let rule_id = result
-        .matched_rule
-        .as_deref()
-        .unwrap_or("unknown");
+    let rule_id = result.matched_rule.as_deref().unwrap_or("unknown");
 
     eprintln!(
         "[BLOCKED] {} {} {} rule={} context={:?}",
@@ -415,10 +434,7 @@ fn log_request_match(request: &RequestData, result: &EvaluationResult) {
         .map(|ip| ip.to_string())
         .unwrap_or_else(|| "-".to_string());
 
-    let rule_id = result
-        .matched_rule
-        .as_deref()
-        .unwrap_or("unknown");
+    let rule_id = result.matched_rule.as_deref().unwrap_or("unknown");
 
     eprintln!(
         "[MATCH] {} {} {} rule={} context={:?}",

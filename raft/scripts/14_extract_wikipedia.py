@@ -14,7 +14,6 @@ Output: ~/tmp/unheaded/raft/corpus/wikipedia.jsonl
 import bz2
 import json
 import re
-import os
 import sys
 import time
 from pathlib import Path

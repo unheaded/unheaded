@@ -3,7 +3,13 @@
 Fast ROM/RV2MBC loader using BPF syscall directly (no subprocess per entry).
 Works on aarch64 (SYS_BPF=280) and x86_64 (SYS_BPF=321).
 """
-import struct, sys, os, ctypes, ctypes.util, time, platform
+import ctypes
+import ctypes.util
+import os
+import platform
+import struct
+import sys
+import time
 
 # BPF commands
 BPF_MAP_UPDATE_ELEM = 2
@@ -68,7 +74,7 @@ def load_map(fd, data, entry_size=4, label="entries"):
             if errors <= 5:
                 print(f"    Error at [{i}]: {e}")
             if errors == 6:
-                print(f"    (suppressing further errors)")
+                print("    (suppressing further errors)")
 
         if (i+1) % 20000 == 0 or i == n-1:
             elapsed = time.time() - start
@@ -108,7 +114,7 @@ def main():
         rv2mbc_n, rv2mbc_err = load_map(rv2mbc_fd, rv2mbc_data, 4, "translations")
         os.close(rv2mbc_fd)
 
-    print(f"\n=== SUMMARY ===")
+    print("\n=== SUMMARY ===")
     print(f"  ROM: {rom_n} instructions loaded ({rom_err} errors)")
     if rv2mbc_path:
         print(f"  RV2MBC: {rv2mbc_n} translations loaded ({rv2mbc_err} errors)")

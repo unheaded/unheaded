@@ -153,6 +153,7 @@ const DEFAULT_CODEL_TARGET_US: u64 = 5_000;
 /// Default CoDel interval: 100ms in nanoseconds.
 const DEFAULT_CODEL_INTERVAL_NS: u64 = 100_000_000;
 /// Nanoseconds per second — for rate conversion.
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const NS_PER_SEC: u64 = 1_000_000_000;
 /// Bits per megabit.
 const BITS_PER_MBIT: u64 = 1_000_000;
@@ -313,7 +314,7 @@ fn try_qos_xdp(ctx: &XdpContext) -> Result<u32, ()> {
         //           = rate_limit_mbps / 8_000
         // To maintain precision, we compute: tokens_to_add = elapsed_ns * rate_limit_mbps / 8_000
 
-        if let Some(bucket) = unsafe { TOKEN_BUCKETS.get_ptr_mut(&flow_id) } {
+        if let Some(bucket) = TOKEN_BUCKETS.get_ptr_mut(&flow_id) {
             let bucket_ref = unsafe { &mut *bucket };
             let elapsed = now.saturating_sub(bucket_ref.last_refill_ns);
 

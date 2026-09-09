@@ -8,7 +8,7 @@
 //! - `.data`    -> RAM_MAP at section's link address
 //! - `.sdata`   -> RAM_MAP at section's link address
 //! - `.rodata`  -> RAM_MAP at section's link address (also in ROM for code, but
-//!                 Doom's rodata is data-referenced, so it needs to be in RAM too)
+//!   Doom's rodata is data-referenced, so it needs to be in RAM too)
 //! - `.srodata` -> RAM_MAP at section's link address
 //! - `.bss`     -> RAM_MAP zeroed (BPF Array is zero-init, but we verify the range)
 //! - WAD file   -> RAM_MAP at WAD_BASE
@@ -594,6 +594,12 @@ mod tests {
 
     /// The probe-name region must be inside the scratch page and must not
     /// overlap WAD_SIZE_ADDR or the WAD data itself.
+    // clippy::assertions_on_constants fires because both sides are consts and
+    // the comparison is decidable at compile time. That is exactly the point:
+    // this test exists to fail the moment someone edits a memory-layout
+    // constant into an overlapping position. A "constant" assertion is the
+    // strongest form of layout guard, not a useless one.
+    #[allow(clippy::assertions_on_constants)]
     #[test]
     fn iwad_name_region_does_not_collide() {
         let name_end = memory::WAD_IWAD_NAME_ADDR + memory::WAD_IWAD_NAME_SIZE;

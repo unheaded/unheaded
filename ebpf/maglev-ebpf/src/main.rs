@@ -97,6 +97,7 @@ const STAT_FORWARDED: u32 = 1;
 const STAT_BACKEND_HITS: u32 = 2;
 const STAT_BACKEND_MISSES: u32 = 3;
 const STAT_REBALANCES: u32 = 4;
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const STAT_HEALTH_CHECKS: u32 = 5;
 const STAT_STICKY_HITS: u32 = 6;
 const STAT_STICKY_MISSES: u32 = 7;
@@ -108,6 +109,7 @@ const STAT_UNHEALTHY_SKIP: u32 = 11;
 // ── Config keys ───────────────────────────────────────────────────────────────
 const CFG_HOP_ID: u32 = 0;
 const CFG_STICKY_SESSIONS: u32 = 1;
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const CFG_HEALTH_CHECK_INTERVAL: u32 = 2;
 const CFG_MAGLEV_TABLE_SIZE: u32 = 3;
 

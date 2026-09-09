@@ -119,8 +119,8 @@ def main():
     # Write the baseline note
     with open(OUT_PATH, "w") as out:
         out.write("# WAVE14 T1.5 — RAG-only baseline (control arm)\n\n")
-        out.write(f"**Generated:** by `scripts/wave14-rag-baseline.py`\n")
-        out.write(f"**Prompts:** `/tmp/wave14-phase2/p[1-8].tokens.json`\n")
+        out.write("**Generated:** by `scripts/wave14-rag-baseline.py`\n")
+        out.write("**Prompts:** `/tmp/wave14-phase2/p[1-8].tokens.json`\n")
         out.write(f"**Index:** `{INDEX_DIR}/active.index` (1.52M-vector FAISS)\n\n")
         out.write("Per-prompt: top-1 retrieved chunk + OPEN/TOPIC gate scoring.\n\n")
         for i, query, top1, open_match, topics in rows:

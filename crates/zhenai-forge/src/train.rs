@@ -15,9 +15,9 @@
 
 use crate::forward;
 use crate::gguf::GgufFile;
-use crate::hip::{GpuBuffer, GpuDevice, self};
+use crate::hip::{self, GpuBuffer, GpuDevice};
 use crate::lora::LoraAdapters;
-use crate::tokenizer::{Tokenizer, extract_vocabulary_from_gguf};
+use crate::tokenizer::{extract_vocabulary_from_gguf, Tokenizer};
 use half::bf16;
 use std::time::Instant;
 
@@ -37,11 +37,16 @@ pub const MIN_FREE_HOST_RAM_BYTES: u64 = 2 * 1024 * 1024 * 1024;
 /// Read /proc/meminfo MemAvailable in bytes. Returns 0 if unreadable —
 /// callers must treat 0 as "unknown" and fail closed.
 fn host_mem_available_bytes() -> u64 {
-    let Ok(s) = std::fs::read_to_string("/proc/meminfo") else { return 0 };
+    let Ok(s) = std::fs::read_to_string("/proc/meminfo") else {
+        return 0;
+    };
     for line in s.lines() {
         if let Some(rest) = line.strip_prefix("MemAvailable:") {
-            let kb: u64 = rest.trim().split_whitespace().next()
-                .and_then(|tok| tok.parse().ok()).unwrap_or(0);
+            let kb: u64 = rest
+                .split_whitespace()
+                .next()
+                .and_then(|tok| tok.parse().ok())
+                .unwrap_or(0);
             return kb * 1024;
         }
     }
@@ -135,19 +140,26 @@ impl GpuModel {
     /// This is the key innovation: no fp16 decompression in RAM.
     pub fn load_from_gguf(model: &GgufFile) -> Result<Self, String> {
         let device = GpuDevice::init(0).map_err(|e| format!("GPU init failed: {}", e))?;
-        println!("  GPU: {} ({:.1} GB VRAM, {} CUs)",
-            device.name, device.vram_bytes as f64 / 1e9, device.compute_units);
+        println!(
+            "  GPU: {} ({:.1} GB VRAM, {} CUs)",
+            device.name,
+            device.vram_bytes as f64 / 1e9,
+            device.compute_units
+        );
 
         let n_layers = model.get_u32("llama.block_count").unwrap_or(32);
         let n_embd = model.get_u32("llama.embedding_length").unwrap_or(4096);
-        let n_vocab = model.get_u32("llama.vocab_size")
+        let n_vocab = model
+            .get_u32("llama.vocab_size")
             .or_else(|| model.get_u32("tokenizer.ggml.tokens").map(|_| 32000))
             .unwrap_or(32000);
         let n_head = model.get_u32("llama.attention.head_count").unwrap_or(32);
         let n_head_kv = model.get_u32("llama.attention.head_count_kv").unwrap_or(8);
 
-        println!("  Architecture: {} layers, {} dim, {} vocab, {} heads ({} kv)",
-            n_layers, n_embd, n_vocab, n_head, n_head_kv);
+        println!(
+            "  Architecture: {} layers, {} dim, {} vocab, {} heads ({} kv)",
+            n_layers, n_embd, n_vocab, n_head, n_head_kv
+        );
 
         // Allocate GPU buffers for each tensor
         let mut weight_buffers = Vec::new();
@@ -177,20 +189,31 @@ impl GpuModel {
                     loaded += 1;
                 }
                 Err(e) => {
-                    println!("  WARNING: Failed to alloc {} bytes for {}: {}",
-                        size, tensor.name, e);
+                    println!(
+                        "  WARNING: Failed to alloc {} bytes for {}: {}",
+                        size, tensor.name, e
+                    );
                     // Continue — some tensors may be optional
                 }
             }
 
             if loaded % 50 == 0 {
-                println!("  Loading tensors: {}/{} ({:.1} MB VRAM)",
-                    loaded, total, total_vram as f64 / 1e6);
+                println!(
+                    "  Loading tensors: {}/{} ({:.1} MB VRAM)",
+                    loaded,
+                    total,
+                    total_vram as f64 / 1e6
+                );
             }
         }
 
         hip::sync().map_err(|e| format!("GPU sync failed: {}", e))?;
-        println!("  Loaded: {}/{} tensors, {:.1} MB VRAM used", loaded, total, total_vram as f64 / 1e6);
+        println!(
+            "  Loaded: {}/{} tensors, {:.1} MB VRAM used",
+            loaded,
+            total,
+            total_vram as f64 / 1e6
+        );
 
         Ok(GpuModel {
             weight_buffers,
@@ -227,18 +250,20 @@ impl GpuModel {
 /// Allocated when FORGE_REAL_ATTENTION=1; unused otherwise.
 #[allow(dead_code)]
 pub struct RealAttnLayerState {
-    pub normed_input: Vec<f32>,    // [seq, n_embd] — RMSNormed input to attention
-    pub q_rot: Vec<f32>,           // [seq, n_heads, head_dim] — post-RoPE Q
-    pub k_rot: Vec<f32>,           // [seq, n_kv_heads, head_dim] — post-RoPE K
-    pub v: Vec<f32>,               // [seq, n_kv_heads, head_dim] — V (no RoPE)
-    pub attn_cache: Vec<f32>,      // [n_heads, seq, seq] — softmax output
-    pub attn_out: Vec<f32>,        // [seq, n_heads, head_dim] — pre-O-proj attn output
+    pub normed_input: Vec<f32>, // [seq, n_embd] — RMSNormed input to attention
+    pub q_rot: Vec<f32>,        // [seq, n_heads, head_dim] — post-RoPE Q
+    pub k_rot: Vec<f32>,        // [seq, n_kv_heads, head_dim] — post-RoPE K
+    pub v: Vec<f32>,            // [seq, n_kv_heads, head_dim] — V (no RoPE)
+    pub attn_cache: Vec<f32>,   // [n_heads, seq, seq] — softmax output
+    pub attn_out: Vec<f32>,     // [seq, n_heads, head_dim] — pre-O-proj attn output
 }
 
 /// Returns true when real-attention path is enabled. Defer to env at every check.
 #[allow(dead_code)]
 fn real_attention_enabled() -> bool {
-    std::env::var("FORGE_REAL_ATTENTION").map(|v| v == "1").unwrap_or(false)
+    std::env::var("FORGE_REAL_ATTENTION")
+        .map(|v| v == "1")
+        .unwrap_or(false)
 }
 
 /// GPU-accelerated trainer — uses hipBLAS sgemm for matrix multiply.
@@ -246,10 +271,10 @@ fn real_attention_enabled() -> bool {
 /// Element-wise ops (RMSNorm, SiLU, softmax) stay on CPU.
 /// Per-layer cached weight buffers on GPU.
 pub struct GpuLayerWeights {
-    pub attn_q: GpuBuffer,  // (n_embd × n_embd) f32
-    pub attn_k: GpuBuffer,  // (kv_dim × n_embd) f32
-    pub attn_v: GpuBuffer,  // (kv_dim × n_embd) f32
-    pub attn_o: GpuBuffer,  // (n_embd × n_embd) f32
+    pub attn_q: GpuBuffer,   // (n_embd × n_embd) f32
+    pub attn_k: GpuBuffer,   // (kv_dim × n_embd) f32
+    pub attn_v: GpuBuffer,   // (kv_dim × n_embd) f32
+    pub attn_o: GpuBuffer,   // (n_embd × n_embd) f32
     pub ffn_gate: GpuBuffer, // (n_ff × n_embd) f32
     pub ffn_up: GpuBuffer,   // (n_ff × n_embd) f32
     pub ffn_down: GpuBuffer, // (n_embd × n_ff) f32
@@ -263,6 +288,15 @@ pub struct GpuBwAttnWeights {
     pub attn_v: GpuBuffer,
     pub attn_o: GpuBuffer,
 }
+
+/// Per-layer, per-position normed inputs produced by the forward pass and
+/// consumed again by backward: indexed `[layer][position][element]`.
+pub type NormedInputs = Vec<Vec<Vec<f32>>>;
+
+/// Attention activations cached lazily for the backward pass, stored as bf16
+/// to halve the transient footprint. `None` means the layer was not lazily
+/// cached. The tuple is `(q, k, v, attn_probs)`.
+type LazyAttnCache = Vec<Option<(Vec<bf16>, Vec<bf16>, Vec<bf16>, Vec<bf16>)>>;
 
 pub struct GpuTrainer {
     pub blas: hip::BlasHandle,
@@ -289,12 +323,20 @@ impl GpuTrainer {
     /// Initialize GPU trainer and cache layer weights to VRAM.
     /// Dequantizes CPU weights → uploads to persistent GPU buffers.
     /// After init, zero weight transfers needed per training step.
-    pub fn new(cpu_weights: &CpuWeights, n_embd: usize, n_ff: usize, n_vocab: usize, max_seq: usize) -> Result<Self, String> {
-        let blas = hip::BlasHandle::new()
-            .map_err(|e| format!("hipBLAS init failed: {}", e))?;
+    /// `pub(crate)`, not `pub`: the `CpuWeights` this needs has private
+    /// fields and a private loader, so no caller outside this crate could
+    /// construct one. Advertising it as public API was a leak, not a feature.
+    pub(crate) fn new(
+        cpu_weights: &CpuWeights,
+        n_embd: usize,
+        n_ff: usize,
+        n_vocab: usize,
+        _max_seq: usize,
+    ) -> Result<Self, String> {
+        let blas = hip::BlasHandle::new().map_err(|e| format!("hipBLAS init failed: {}", e))?;
 
         let n_layers = cpu_weights.attn_q.len();
-        let kv_dim = n_embd * cpu_weights.n_head_kv / cpu_weights.n_head;
+        let _kv_dim = n_embd * cpu_weights.n_head_kv / cpu_weights.n_head;
 
         // Allocate and upload cached layer weights
         println!("  Caching {} layer weights to GPU VRAM...", n_layers);
@@ -321,9 +363,12 @@ impl GpuTrainer {
                 ffn_down: alloc_and_upload(&cpu_weights.ffn_down[l], "ffn_down")?,
             };
 
-            let layer_size = cpu_weights.attn_q[l].len() + cpu_weights.attn_k[l].len()
-                + cpu_weights.attn_v[l].len() + cpu_weights.attn_o[l].len()
-                + cpu_weights.ffn_gate[l].len() + cpu_weights.ffn_up[l].len()
+            let layer_size = cpu_weights.attn_q[l].len()
+                + cpu_weights.attn_k[l].len()
+                + cpu_weights.attn_v[l].len()
+                + cpu_weights.attn_o[l].len()
+                + cpu_weights.ffn_gate[l].len()
+                + cpu_weights.ffn_up[l].len()
                 + cpu_weights.ffn_down[l].len();
             total_cached += layer_size * 4;
             layer_weights.push(lw);
@@ -332,8 +377,7 @@ impl GpuTrainer {
         // Cache output projection
         let output_weight = {
             let size = cpu_weights.output.len() * 4;
-            let buf = GpuBuffer::alloc(size)
-                .map_err(|e| format!("GPU alloc output: {}", e))?;
+            let buf = GpuBuffer::alloc(size).map_err(|e| format!("GPU alloc output: {}", e))?;
             buf.upload_f32(&cpu_weights.output)
                 .map_err(|e| format!("GPU upload output: {}", e))?;
             total_cached += size;
@@ -351,10 +395,16 @@ impl GpuTrainer {
                 "bw_attn upload refused: host MemAvailable {:.2} GB < required {:.2} GB floor. \
                  Stop services to reclaim RAM before retrying.",
                 start_free as f64 / 1e9,
-                MIN_FREE_HOST_RAM_BYTES as f64 / 1e9));
+                MIN_FREE_HOST_RAM_BYTES as f64 / 1e9
+            ));
         }
-        println!("  Wave 10D: caching {} of {} attention layers (cap={}, start_free={:.2} GB)...",
-            layer_cap, n_total, BW_ATTN_MAX_LAYERS, start_free as f64 / 1e9);
+        println!(
+            "  Wave 10D: caching {} of {} attention layers (cap={}, start_free={:.2} GB)...",
+            layer_cap,
+            n_total,
+            BW_ATTN_MAX_LAYERS,
+            start_free as f64 / 1e9
+        );
         let mut bw_attn: Vec<GpuBwAttnWeights> = Vec::with_capacity(layer_cap);
         let mut bw_total = 0usize;
         for l in 0..layer_cap {
@@ -363,8 +413,11 @@ impl GpuTrainer {
             let v = &cpu_weights.all_attn_v[l];
             let o = &cpu_weights.all_attn_o[l];
             if q.is_empty() || k.is_empty() || v.is_empty() || o.is_empty() {
-                return Err(format!("bw_attn upload: layer {} has empty weights — aborting, \
-                    dataset/model mismatch suspected", l));
+                return Err(format!(
+                    "bw_attn upload: layer {} has empty weights — aborting, \
+                    dataset/model mismatch suspected",
+                    l
+                ));
             }
             let free_now = host_mem_available_bytes();
             if free_now != 0 && free_now < MIN_FREE_HOST_RAM_BYTES {
@@ -372,8 +425,11 @@ impl GpuTrainer {
                     "bw_attn upload aborted at layer {}: host MemAvailable fell to {:.2} GB \
                      (< {:.2} GB floor). Cached {} layers so far. Budget derivation is wrong \
                      or the host shed RAM mid-run — return to Phase A.",
-                    l, free_now as f64 / 1e9,
-                    MIN_FREE_HOST_RAM_BYTES as f64 / 1e9, bw_attn.len()));
+                    l,
+                    free_now as f64 / 1e9,
+                    MIN_FREE_HOST_RAM_BYTES as f64 / 1e9,
+                    bw_attn.len()
+                ));
             }
             // bf16 upload: alloc half the VRAM, copy raw bf16 bytes
             let alloc_up_bf16 = |data: &[bf16], name: &str| -> Result<GpuBuffer, String> {
@@ -381,7 +437,8 @@ impl GpuTrainer {
                     .map_err(|e| format!("bw_attn alloc {} layer {}: {}", name, l, e))?;
                 buf.copy_from_host(unsafe {
                     std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * 2)
-                }).map_err(|e| format!("bw_attn upload {} layer {}: {}", name, l, e))?;
+                })
+                .map_err(|e| format!("bw_attn upload {} layer {}: {}", name, l, e))?;
                 Ok(buf)
             };
             let q_buf = alloc_up_bf16(q, "attn_q")?;
@@ -389,43 +446,73 @@ impl GpuTrainer {
             let v_buf = alloc_up_bf16(v, "attn_v")?;
             let o_buf = alloc_up_bf16(o, "attn_o")?;
             bw_total += (q.len() + k.len() + v.len() + o.len()) * 2; // bf16 = 2 bytes
-            bw_attn.push(GpuBwAttnWeights { attn_q: q_buf, attn_k: k_buf, attn_v: v_buf, attn_o: o_buf });
+            bw_attn.push(GpuBwAttnWeights {
+                attn_q: q_buf,
+                attn_k: k_buf,
+                attn_v: v_buf,
+                attn_o: o_buf,
+            });
             if (l + 1) % 4 == 0 {
-                println!("    bw cache: {}/{} layers ({:.2} GB used, {:.2} GB host free)",
-                    l + 1, layer_cap, bw_total as f64 / 1e9, free_now as f64 / 1e9);
+                println!(
+                    "    bw cache: {}/{} layers ({:.2} GB used, {:.2} GB host free)",
+                    l + 1,
+                    layer_cap,
+                    bw_total as f64 / 1e9,
+                    free_now as f64 / 1e9
+                );
             }
         }
         total_cached += bw_total;
         let end_free = host_mem_available_bytes();
-        println!("  Wave 10D bw_attn: {}/{} layers cached, {:.2} GB used, host_free {:.2}→{:.2} GB",
-            bw_attn.len(), n_total, bw_total as f64 / 1e9,
-            start_free as f64 / 1e9, end_free as f64 / 1e9);
+        println!(
+            "  Wave 10D bw_attn: {}/{} layers cached, {:.2} GB used, host_free {:.2}→{:.2} GB",
+            bw_attn.len(),
+            n_total,
+            bw_total as f64 / 1e9,
+            start_free as f64 / 1e9,
+            end_free as f64 / 1e9
+        );
 
         hip::sync().map_err(|e| format!("GPU sync after cache: {}", e))?;
-        println!("  Cached: {:.1} MB weights in GPU VRAM ({} fwd layers + {} bw layers + output)",
-            total_cached as f64 / 1e6, n_layers, bw_attn.len());
+        println!(
+            "  Cached: {:.1} MB weights in GPU VRAM ({} fwd layers + {} bw layers + output)",
+            total_cached as f64 / 1e6,
+            n_layers,
+            bw_attn.len()
+        );
 
         // Working buffers (not cached — reused per step)
         let max_batch = 8;
         let hidden_size = max_batch * n_ff.max(n_embd).max(n_vocab) * 4;
-        let hidden_buf = GpuBuffer::alloc(hidden_size)
-            .map_err(|e| format!("GPU alloc hidden_buf: {}", e))?;
+        let hidden_buf =
+            GpuBuffer::alloc(hidden_size).map_err(|e| format!("GPU alloc hidden_buf: {}", e))?;
 
         let result_size = (n_vocab * max_batch).max(n_ff * max_batch) * 4;
-        let result_buf = GpuBuffer::alloc(result_size)
-            .map_err(|e| format!("GPU alloc result_buf: {}", e))?;
+        let result_buf =
+            GpuBuffer::alloc(result_size).map_err(|e| format!("GPU alloc result_buf: {}", e))?;
 
         // Scratch buffer (reused for misc uploads)
         let weight_buf = GpuBuffer::alloc(n_ff * n_embd * 4)
             .map_err(|e| format!("GPU alloc weight_buf: {}", e))?;
 
-        println!("  Working buffers: hidden={:.1}MB result={:.1}MB",
-            hidden_size as f64 / 1e6, result_size as f64 / 1e6);
+        println!(
+            "  Working buffers: hidden={:.1}MB result={:.1}MB",
+            hidden_size as f64 / 1e6,
+            result_size as f64 / 1e6
+        );
 
         Ok(GpuTrainer {
-            blas, layer_weights, bw_attn, output_weight,
-            hidden_buf, result_buf, weight_buf,
-            n_embd, n_ff, n_vocab, n_cached_layers: n_layers,
+            blas,
+            layer_weights,
+            bw_attn,
+            output_weight,
+            hidden_buf,
+            result_buf,
+            weight_buf,
+            n_embd,
+            n_ff,
+            n_vocab,
+            n_cached_layers: n_layers,
         })
     }
 
@@ -434,21 +521,25 @@ impl GpuTrainer {
     /// Uses hipBLAS column-major: to compute row-major A×B^T, we do col-major B×A^T
     pub fn matmul_weight_t(
         &self,
-        input: &[f32],      // (1 × in_dim) — one position's hidden state
-        weight: &[f32],     // (out_dim × in_dim) — row-major weight matrix
+        input: &[f32],  // (1 × in_dim) — one position's hidden state
+        weight: &[f32], // (out_dim × in_dim) — row-major weight matrix
         out_dim: usize,
         in_dim: usize,
     ) -> Result<Vec<f32>, String> {
         // Upload input to hidden_buf
-        self.hidden_buf.upload_f32(input)
+        self.hidden_buf
+            .upload_f32(input)
             .map_err(|e| format!("upload input: {}", e))?;
 
         // Upload weight to weight_buf (stored row-major = column-major transpose)
-        self.weight_buf.upload_f32(&weight[..out_dim * in_dim])
+        self.weight_buf
+            .upload_f32(&weight[..out_dim * in_dim])
             .map_err(|e| format!("upload weight: {}", e))?;
 
         // Zero result
-        self.result_buf.zero().map_err(|e| format!("zero result: {}", e))?;
+        self.result_buf
+            .zero()
+            .map_err(|e| format!("zero result: {}", e))?;
 
         // hipBLAS column-major: C = alpha * op(A) * op(B) + beta * C
         // We want: result(1×out) = input(1×in) × weight^T(in×out)
@@ -464,24 +555,30 @@ impl GpuTrainer {
         //        = input^T × weight^T (also row-major, same thing for vectors)
         // Col-major: result(out×1) = weight_colmaj^T(out×in) × input(in×1)
         // weight_colmaj is (in_dim × out_dim) so weight_colmaj^T is (out_dim × in_dim) ✓
-        self.blas.sgemm_ex(
-            true,   // transpose A (weight stored as col-major in×out, transpose to out×in)
-            false,  // no transpose B
-            out_dim as i32, // m = rows of result
-            1,              // n = 1 (single position)
-            in_dim as i32,  // k = inner dimension
-            1.0,
-            &self.weight_buf, in_dim as i32,  // lda = in_dim (col-major stride of the stored matrix)
-            &self.hidden_buf, in_dim as i32,  // ldb = in_dim (column height of input vector)
-            0.0,
-            &self.result_buf, out_dim as i32, // ldc = out_dim
-        ).map_err(|e| format!("sgemm: {}", e))?;
+        self.blas
+            .sgemm_ex(
+                true,           // transpose A (weight stored as col-major in×out, transpose to out×in)
+                false,          // no transpose B
+                out_dim as i32, // m = rows of result
+                1,              // n = 1 (single position)
+                in_dim as i32,  // k = inner dimension
+                1.0,
+                &self.weight_buf,
+                in_dim as i32, // lda = in_dim (col-major stride of the stored matrix)
+                &self.hidden_buf,
+                in_dim as i32, // ldb = in_dim (column height of input vector)
+                0.0,
+                &self.result_buf,
+                out_dim as i32, // ldc = out_dim
+            )
+            .map_err(|e| format!("sgemm: {}", e))?;
 
         hip::sync().map_err(|e| format!("sync: {}", e))?;
 
         // Download result
         let mut result = vec![0.0f32; out_dim];
-        self.result_buf.download_f32(&mut result)
+        self.result_buf
+            .download_f32(&mut result)
             .map_err(|e| format!("download result: {}", e))?;
 
         Ok(result)
@@ -501,21 +598,39 @@ impl GpuTrainer {
     ) -> Result<Vec<f32>, String> {
         // Upload only the inputs — clamp to buffer size
         let upload_elems = (n_pos * in_dim).min(self.hidden_buf.len() / 4);
-        self.hidden_buf.upload_f32(&inputs[..upload_elems])
-            .map_err(|e| format!("upload inputs ({} elems, buf {} bytes): {}", upload_elems, self.hidden_buf.len(), e))?;
+        self.hidden_buf
+            .upload_f32(&inputs[..upload_elems])
+            .map_err(|e| {
+                format!(
+                    "upload inputs ({} elems, buf {} bytes): {}",
+                    upload_elems,
+                    self.hidden_buf.len(),
+                    e
+                )
+            })?;
 
-        self.result_buf.zero().map_err(|e| format!("zero result: {}", e))?;
+        self.result_buf
+            .zero()
+            .map_err(|e| format!("zero result: {}", e))?;
 
         // sgemm with cached weight — NO weight upload
-        self.blas.sgemm_ex(
-            true, false,
-            out_dim as i32, n_pos as i32, in_dim as i32,
-            1.0,
-            weight_gpu, in_dim as i32,
-            &self.hidden_buf, in_dim as i32,
-            0.0,
-            &self.result_buf, out_dim as i32,
-        ).map_err(|e| format!("cached sgemm: {}", e))?;
+        self.blas
+            .sgemm_ex(
+                true,
+                false,
+                out_dim as i32,
+                n_pos as i32,
+                in_dim as i32,
+                1.0,
+                weight_gpu,
+                in_dim as i32,
+                &self.hidden_buf,
+                in_dim as i32,
+                0.0,
+                &self.result_buf,
+                out_dim as i32,
+            )
+            .map_err(|e| format!("cached sgemm: {}", e))?;
 
         hip::sync().map_err(|e| format!("sync: {}", e))?;
 
@@ -523,8 +638,14 @@ impl GpuTrainer {
         let max_elems = self.result_buf.len() / 4; // buffer size in f32
         let actual_elems = download_elems.min(max_elems);
         let mut results = vec![0.0f32; actual_elems];
-        self.result_buf.download_f32(&mut results)
-            .map_err(|e| format!("download ({} elems, buf {} bytes): {}", actual_elems, self.result_buf.len(), e))?;
+        self.result_buf.download_f32(&mut results).map_err(|e| {
+            format!(
+                "download ({} elems, buf {} bytes): {}",
+                actual_elems,
+                self.result_buf.len(),
+                e
+            )
+        })?;
         // Extend to full size if buffer was smaller (shouldn't happen with correct sizing)
         results.resize(download_elems, 0.0);
 
@@ -540,7 +661,7 @@ impl GpuTrainer {
     /// (no transpose on either operand)
     pub fn gpu_matmul_grad_input(
         &self,
-        grad_output: &[f32],   // (n_pos × out_dim) row-major
+        grad_output: &[f32],    // (n_pos × out_dim) row-major
         weight_gpu: &GpuBuffer, // cached weight (out_dim × in_dim) row-major
         n_pos: usize,
         out_dim: usize,
@@ -548,24 +669,35 @@ impl GpuTrainer {
     ) -> Result<Vec<f32>, String> {
         // Upload grad_output into hidden_buf (reuse staging)
         let upload_elems = (n_pos * out_dim).min(self.hidden_buf.len() / 4);
-        self.hidden_buf.upload_f32(&grad_output[..upload_elems])
+        self.hidden_buf
+            .upload_f32(&grad_output[..upload_elems])
             .map_err(|e| format!("upload grad_output ({} elems): {}", upload_elems, e))?;
 
-        self.result_buf.zero().map_err(|e| format!("zero result: {}", e))?;
+        self.result_buf
+            .zero()
+            .map_err(|e| format!("zero result: {}", e))?;
 
         // Col-major: result_cm(in_dim, n_pos) = weight_cm(in_dim, out_dim) @ grad_output_cm(out_dim, n_pos)
         // weight is row-major (out_dim × in_dim), col-major view = (in_dim × out_dim), lda = in_dim
         // grad_output is row-major (n_pos × out_dim), col-major view = (out_dim × n_pos), ldb = out_dim
         // result is row-major (n_pos × in_dim), col-major view = (in_dim × n_pos), ldc = in_dim
-        self.blas.sgemm_ex(
-            false, false,
-            in_dim as i32, n_pos as i32, out_dim as i32,
-            1.0,
-            weight_gpu, in_dim as i32,
-            &self.hidden_buf, out_dim as i32,
-            0.0,
-            &self.result_buf, in_dim as i32,
-        ).map_err(|e| format!("grad_input sgemm: {}", e))?;
+        self.blas
+            .sgemm_ex(
+                false,
+                false,
+                in_dim as i32,
+                n_pos as i32,
+                out_dim as i32,
+                1.0,
+                weight_gpu,
+                in_dim as i32,
+                &self.hidden_buf,
+                out_dim as i32,
+                0.0,
+                &self.result_buf,
+                in_dim as i32,
+            )
+            .map_err(|e| format!("grad_input sgemm: {}", e))?;
 
         hip::sync().map_err(|e| format!("sync: {}", e))?;
 
@@ -573,7 +705,8 @@ impl GpuTrainer {
         let max_elems = self.result_buf.len() / 4;
         let actual_elems = download_elems.min(max_elems);
         let mut results = vec![0.0f32; actual_elems];
-        self.result_buf.download_f32(&mut results)
+        self.result_buf
+            .download_f32(&mut results)
             .map_err(|e| format!("download grad_input: {}", e))?;
         results.resize(download_elems, 0.0);
         Ok(results)
@@ -591,23 +724,36 @@ impl GpuTrainer {
     ) -> Result<Vec<f32>, String> {
         // Convert grad_output fp32 → bf16 and upload
         let upload_elems = (n_pos * out_dim).min(self.hidden_buf.len() / 2);
-        let grad_bf16: Vec<bf16> = grad_output[..upload_elems].iter()
-            .map(|f| bf16::from_f32(*f)).collect();
-        self.hidden_buf.copy_from_host(unsafe {
-            std::slice::from_raw_parts(grad_bf16.as_ptr() as *const u8, grad_bf16.len() * 2)
-        }).map_err(|e| format!("upload grad_output bf16 ({} elems): {}", upload_elems, e))?;
+        let grad_bf16: Vec<bf16> = grad_output[..upload_elems]
+            .iter()
+            .map(|f| bf16::from_f32(*f))
+            .collect();
+        self.hidden_buf
+            .copy_from_host(unsafe {
+                std::slice::from_raw_parts(grad_bf16.as_ptr() as *const u8, grad_bf16.len() * 2)
+            })
+            .map_err(|e| format!("upload grad_output bf16 ({} elems): {}", upload_elems, e))?;
 
-        self.result_buf.zero().map_err(|e| format!("zero result: {}", e))?;
+        self.result_buf
+            .zero()
+            .map_err(|e| format!("zero result: {}", e))?;
 
         // bf16 A × bf16 B → fp32 C via hipblasGemmEx
-        self.blas.sgemm_bf16(
-            in_dim as i32, n_pos as i32, out_dim as i32,
-            1.0,
-            weight_gpu, in_dim as i32,
-            &self.hidden_buf, out_dim as i32,
-            0.0,
-            &self.result_buf, in_dim as i32,
-        ).map_err(|e| format!("grad_input sgemm_bf16: {}", e))?;
+        self.blas
+            .sgemm_bf16(
+                in_dim as i32,
+                n_pos as i32,
+                out_dim as i32,
+                1.0,
+                weight_gpu,
+                in_dim as i32,
+                &self.hidden_buf,
+                out_dim as i32,
+                0.0,
+                &self.result_buf,
+                in_dim as i32,
+            )
+            .map_err(|e| format!("grad_input sgemm_bf16: {}", e))?;
 
         hip::sync().map_err(|e| format!("sync: {}", e))?;
 
@@ -615,7 +761,8 @@ impl GpuTrainer {
         let max_elems = self.result_buf.len() / 4;
         let actual_elems = download_elems.min(max_elems);
         let mut results = vec![0.0f32; actual_elems];
-        self.result_buf.download_f32(&mut results)
+        self.result_buf
+            .download_f32(&mut results)
             .map_err(|e| format!("download grad_input: {}", e))?;
         results.resize(download_elems, 0.0);
         Ok(results)
@@ -626,43 +773,53 @@ impl GpuTrainer {
     /// Uploads weight ONCE, all positions in one sgemm call.
     pub fn batched_matmul_weight_t(
         &self,
-        inputs: &[f32],     // (n_pos × in_dim) — multiple positions concatenated
-        weight: &[f32],     // (out_dim × in_dim) — row-major weight matrix
+        inputs: &[f32], // (n_pos × in_dim) — multiple positions concatenated
+        weight: &[f32], // (out_dim × in_dim) — row-major weight matrix
         n_pos: usize,
         out_dim: usize,
         in_dim: usize,
     ) -> Result<Vec<f32>, String> {
         // Upload inputs (n_pos × in_dim) to GPU
-        self.hidden_buf.upload_f32(&inputs[..n_pos * in_dim])
+        self.hidden_buf
+            .upload_f32(&inputs[..n_pos * in_dim])
             .map_err(|e| format!("upload inputs: {}", e))?;
 
         // Upload weight (out_dim × in_dim) to GPU — ONCE
-        self.weight_buf.upload_f32(&weight[..out_dim * in_dim])
+        self.weight_buf
+            .upload_f32(&weight[..out_dim * in_dim])
             .map_err(|e| format!("upload weight: {}", e))?;
 
         // Zero result buffer
-        self.result_buf.zero().map_err(|e| format!("zero result: {}", e))?;
+        self.result_buf
+            .zero()
+            .map_err(|e| format!("zero result: {}", e))?;
 
         // Batched sgemm: result(n_pos × out_dim) = inputs(n_pos × in_dim) × weight^T(in_dim × out_dim)
         // Col-major: result_cm(out_dim × n_pos) = weight_cm^T(out_dim × in_dim) × inputs_cm(in_dim × n_pos)
-        self.blas.sgemm_ex(
-            true,               // transpose A (weight)
-            false,              // no transpose B (inputs)
-            out_dim as i32,     // m = rows of result
-            n_pos as i32,       // n = columns of result (number of positions)
-            in_dim as i32,      // k = inner dimension
-            1.0,
-            &self.weight_buf, in_dim as i32,
-            &self.hidden_buf, in_dim as i32,
-            0.0,
-            &self.result_buf, out_dim as i32,
-        ).map_err(|e| format!("batched sgemm: {}", e))?;
+        self.blas
+            .sgemm_ex(
+                true,           // transpose A (weight)
+                false,          // no transpose B (inputs)
+                out_dim as i32, // m = rows of result
+                n_pos as i32,   // n = columns of result (number of positions)
+                in_dim as i32,  // k = inner dimension
+                1.0,
+                &self.weight_buf,
+                in_dim as i32,
+                &self.hidden_buf,
+                in_dim as i32,
+                0.0,
+                &self.result_buf,
+                out_dim as i32,
+            )
+            .map_err(|e| format!("batched sgemm: {}", e))?;
 
         hip::sync().map_err(|e| format!("sync: {}", e))?;
 
         // Download results (n_pos × out_dim)
         let mut results = vec![0.0f32; n_pos * out_dim];
-        self.result_buf.download_f32(&mut results)
+        self.result_buf
+            .download_f32(&mut results)
             .map_err(|e| format!("download results: {}", e))?;
 
         Ok(results)
@@ -670,22 +827,34 @@ impl GpuTrainer {
 
     /// GPU-accelerated forward loss — BATCHED hipBLAS sgemm.
     /// Returns (loss, per_layer_normed_inputs) — the normed inputs are reused in backward.
-    pub fn forward_loss(
+    pub(crate) fn forward_loss(
         &self,
         cpu_weights: &CpuWeights,
         token_ids: &[u32],
         lora: &LoraAdapters,
         answer_start: usize,
-    ) -> Result<(f32, Vec<Vec<Vec<f32>>>), String> {
-        if token_ids.len() < 2 { return Ok((10.0, Vec::new())); }
+    ) -> Result<(f32, NormedInputs), String> {
+        if token_ids.len() < 2 {
+            return Ok((10.0, Vec::new()));
+        }
 
         let n = cpu_weights.n_embd;
         let seq_len = token_ids.len();
         let loss_start = answer_start.max(1);
         let max_positions: usize = 8;
-        let raw_n = if seq_len > loss_start + 1 { seq_len - loss_start - 1 } else { 0 };
-        if raw_n == 0 { return Ok((10.0, Vec::new())); }
-        let stride = if raw_n > max_positions { raw_n / max_positions } else { 1 };
+        let raw_n = if seq_len > loss_start + 1 {
+            seq_len - loss_start - 1
+        } else {
+            0
+        };
+        if raw_n == 0 {
+            return Ok((10.0, Vec::new()));
+        }
+        let stride = if raw_n > max_positions {
+            raw_n / max_positions
+        } else {
+            1
+        };
 
         // Collect the positions we'll process
         let mut positions: Vec<usize> = Vec::new();
@@ -711,7 +880,9 @@ impl GpuTrainer {
 
         for l_idx in 0..n_layers_fwd {
             let l_abs = layer_offset + l_idx;
-            if l_idx >= cpu_weights.attn_q.len() || l_idx >= cpu_weights.attn_norm.len() { break; }
+            if l_idx >= cpu_weights.attn_q.len() || l_idx >= cpu_weights.attn_norm.len() {
+                break;
+            }
 
             // Batch: extract + normalize hidden states at all positions
             let mut normed_batch = vec![0.0f32; n_pos * n];
@@ -726,8 +897,10 @@ impl GpuTrainer {
             // Q/K/V/O projections — CACHED GPU weights, zero upload per step
             let proj_dims = [n, kv_dim, kv_dim, n];
             let cached_w = [
-                &self.layer_weights[l_idx].attn_q, &self.layer_weights[l_idx].attn_k,
-                &self.layer_weights[l_idx].attn_v, &self.layer_weights[l_idx].attn_o,
+                &self.layer_weights[l_idx].attn_q,
+                &self.layer_weights[l_idx].attn_k,
+                &self.layer_weights[l_idx].attn_v,
+                &self.layer_weights[l_idx].attn_o,
             ];
 
             let mut attn_batch = vec![0.0f32; n_pos * n];
@@ -736,7 +909,8 @@ impl GpuTrainer {
                 let out_dim = proj_dims[t];
 
                 // CACHED sgemm — weight already on GPU, only upload 128KB of hidden states
-                let proj_batch = self.cached_batched_matmul(&normed_batch, gpu_w, n_pos, out_dim, n)?;
+                let proj_batch =
+                    self.cached_batched_matmul(&normed_batch, gpu_w, n_pos, out_dim, n)?;
 
                 // Add LoRA contribution per position (CPU — tiny)
                 for pi in 0..n_pos {
@@ -776,19 +950,38 @@ impl GpuTrainer {
                 }
 
                 // Gate + Up via CACHED GPU weights
-                let gate_batch = self.cached_batched_matmul(&ffn_normed_batch, &self.layer_weights[l_idx].ffn_gate, n_pos, n_ff, n)?;
-                let up_batch = self.cached_batched_matmul(&ffn_normed_batch, &self.layer_weights[l_idx].ffn_up, n_pos, n_ff, n)?;
+                let gate_batch = self.cached_batched_matmul(
+                    &ffn_normed_batch,
+                    &self.layer_weights[l_idx].ffn_gate,
+                    n_pos,
+                    n_ff,
+                    n,
+                )?;
+                let up_batch = self.cached_batched_matmul(
+                    &ffn_normed_batch,
+                    &self.layer_weights[l_idx].ffn_up,
+                    n_pos,
+                    n_ff,
+                    n,
+                )?;
 
                 // SiLU + element-wise (CPU)
                 let mut ffn_hidden_batch = vec![0.0f32; n_pos * n_ff];
                 for pi in 0..n_pos {
                     for i in 0..n_ff {
-                        ffn_hidden_batch[pi * n_ff + i] = forward::silu(gate_batch[pi * n_ff + i]) * up_batch[pi * n_ff + i];
+                        ffn_hidden_batch[pi * n_ff + i] =
+                            forward::silu(gate_batch[pi * n_ff + i]) * up_batch[pi * n_ff + i];
                     }
                 }
 
                 // Down via CACHED GPU weight
-                let ffn_out_batch = self.cached_batched_matmul(&ffn_hidden_batch, &self.layer_weights[l_idx].ffn_down, n_pos, n, n_ff)?;
+                let ffn_out_batch = self.cached_batched_matmul(
+                    &ffn_hidden_batch,
+                    &self.layer_weights[l_idx].ffn_down,
+                    n_pos,
+                    n,
+                    n_ff,
+                )?;
 
                 // FFN residual
                 for (pi, &pos) in positions.iter().enumerate() {
@@ -809,19 +1002,31 @@ impl GpuTrainer {
         }
 
         // Logits via CACHED output weight on GPU
-        let logits_batch = self.cached_batched_matmul(&normed_out_batch, &self.output_weight, n_pos, cpu_weights.n_vocab, n)?;
+        let logits_batch = self.cached_batched_matmul(
+            &normed_out_batch,
+            &self.output_weight,
+            n_pos,
+            cpu_weights.n_vocab,
+            n,
+        )?;
 
         let mut total_loss = 0.0f32;
         let mut count = 0u32;
         for (pi, &pos) in positions.iter().enumerate() {
-            if pos + 1 >= seq_len { continue; }
+            if pos + 1 >= seq_len {
+                continue;
+            }
             let logits = &logits_batch[pi * cpu_weights.n_vocab..(pi + 1) * cpu_weights.n_vocab];
             let target = token_ids[pos + 1] % cpu_weights.n_vocab as u32;
             total_loss += forward::cross_entropy_loss(logits, target);
             count += 1;
         }
 
-        let avg_loss = if count > 0 { total_loss / count as f32 } else { 10.0 };
+        let avg_loss = if count > 0 {
+            total_loss / count as f32
+        } else {
+            10.0
+        };
         Ok((avg_loss, gpu_layer_normed))
     }
 }
@@ -842,25 +1047,38 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
     println!("============================================================\n");
 
     // 1. Load GGUF model metadata
-    let model = GgufFile::open(&config.model_path)
-        .map_err(|e| format!("Failed to open model: {}", e))?;
-    println!("Model: {} tensors, {:.1} MB\n", model.tensors.len(), model.file_size as f64 / 1e6);
+    let model =
+        GgufFile::open(&config.model_path).map_err(|e| format!("Failed to open model: {}", e))?;
+    println!(
+        "Model: {} tensors, {:.1} MB\n",
+        model.tensors.len(),
+        model.file_size as f64 / 1e6
+    );
 
     // 2. Load model to GPU
     println!("Loading model to GPU...");
     let gpu_model = GpuModel::load_from_gguf(&model)?;
-    println!("  VRAM used: {:.1} MB / {:.1} GB available\n",
+    println!(
+        "  VRAM used: {:.1} MB / {:.1} GB available\n",
         gpu_model.vram_used as f64 / 1e6,
-        GpuDevice::init(0).map(|d| d.vram_bytes as f64 / 1e9).unwrap_or(0.0));
+        GpuDevice::init(0)
+            .map(|d| d.vram_bytes as f64 / 1e9)
+            .unwrap_or(0.0)
+    );
 
     // 3. Initialize LoRA adapters (in RAM)
     let mut lora = LoraAdapters::new(gpu_model.n_layers, gpu_model.n_embd, config.rank);
     println!("LoRA initialized:");
     println!("  Rank: {}, Alpha: {}", config.rank, lora.alpha);
-    println!("  Trainable params: {} ({:.1} MB)",
-        lora.num_params(), lora.size_bytes() as f64 / 1e6);
-    println!("  Optimizer states: {:.1} MB\n",
-        lora.size_bytes() as f64 / 1e6 * 4.0); // m, v for A and B
+    println!(
+        "  Trainable params: {} ({:.1} MB)",
+        lora.num_params(),
+        lora.size_bytes() as f64 / 1e6
+    );
+    println!(
+        "  Optimizer states: {:.1} MB\n",
+        lora.size_bytes() as f64 / 1e6 * 4.0
+    ); // m, v for A and B
 
     // 4. Build tokenizer from GGUF vocabulary
     println!("Loading tokenizer from GGUF...");
@@ -869,7 +1087,10 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
     let bos = model.get_u32("tokenizer.ggml.bos_token_id").unwrap_or(1);
     let eos = model.get_u32("tokenizer.ggml.eos_token_id").unwrap_or(2);
     let tokenizer = Tokenizer::from_tokens(vocab, bos, eos);
-    println!("  Vocabulary: {} tokens (BOS={}, EOS={})\n", tokenizer.vocab_size, bos, eos);
+    println!(
+        "  Vocabulary: {} tokens (BOS={}, EOS={})\n",
+        tokenizer.vocab_size, bos, eos
+    );
 
     // 5. Load training data
     let data = load_and_format_training_data(&config.data_path)?;
@@ -882,7 +1103,11 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
     // 4c. Initialize GPU trainer — cache layer weights to VRAM (zero upload per step)
     println!("Initializing GPU trainer (caching weights to VRAM)...");
     let gpu_trainer = GpuTrainer::new(
-        &cpu_weights, cpu_weights.n_embd, cpu_weights.n_ff, cpu_weights.n_vocab, config.max_seq_len,
+        &cpu_weights,
+        cpu_weights.n_embd,
+        cpu_weights.n_ff,
+        cpu_weights.n_vocab,
+        config.max_seq_len,
     )?;
 
     // Path 1: free CPU-side all_attn copies for layers already in bw_attn GPU cache.
@@ -898,8 +1123,11 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
         let _ = std::mem::take(&mut cpu_weights.all_attn_o[l]);
     }
     let post_free = host_mem_available_bytes();
-    println!("  Path 1: freed CPU all_attn for {} GPU-cached layers, host_free now {:.2} GB",
-        freed_layers, post_free as f64 / 1e9);
+    println!(
+        "  Path 1: freed CPU all_attn for {} GPU-cached layers, host_free now {:.2} GB",
+        freed_layers,
+        post_free as f64 / 1e9
+    );
     println!();
 
     // 5. Training loop
@@ -912,15 +1140,19 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
         start_time: start,
     };
 
-    let total_steps = config.epochs as u32 * data.len() as u32;
-    let warmup_steps = (total_steps / 20).max(50).min(200); // 5% warmup, clamped 50-200
+    let total_steps = config.epochs * data.len() as u32;
+    let warmup_steps = (total_steps / 20).clamp(50, 200); // 5% warmup, clamped 50-200
     println!("  LR schedule: cosine annealing, warmup={warmup_steps} steps, peak={:.1e}, total={total_steps}", config.lr);
-    println!("  Gradient accumulation: {} steps (effective batch size {})", config.accum_steps, config.accum_steps);
+    println!(
+        "  Gradient accumulation: {} steps (effective batch size {})",
+        config.accum_steps, config.accum_steps
+    );
     println!("  Max sequence length: {} tokens", config.max_seq_len);
 
     // Tokenizer cache: tokenize all examples once, reuse across epochs
     println!("  Caching tokenized sequences...");
-    let cached_tokens: Vec<Vec<u32>> = data.iter()
+    let cached_tokens: Vec<Vec<u32>> = data
+        .iter()
         .map(|example| {
             let mut ids = tokenizer.encode(example);
             ids.truncate(config.max_seq_len);
@@ -929,17 +1161,23 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
         .collect();
 
     // Cache answer boundaries: find [/INST] position for each example
-    let cached_answer_starts: Vec<usize> = cached_tokens.iter()
+    let cached_answer_starts: Vec<usize> = cached_tokens
+        .iter()
         .map(|ids| find_answer_start(ids, &tokenizer))
         .collect();
 
-    let avg_answer_tokens: f64 = cached_tokens.iter().zip(cached_answer_starts.iter())
+    let avg_answer_tokens: f64 = cached_tokens
+        .iter()
+        .zip(cached_answer_starts.iter())
         .map(|(ids, &start)| (ids.len() - start) as f64)
-        .sum::<f64>() / cached_tokens.len() as f64;
-    println!("  Cached {} sequences (avg {:.0} tokens, avg {:.0} answer tokens)",
+        .sum::<f64>()
+        / cached_tokens.len() as f64;
+    println!(
+        "  Cached {} sequences (avg {:.0} tokens, avg {:.0} answer tokens)",
         cached_tokens.len(),
         cached_tokens.iter().map(|t| t.len()).sum::<usize>() as f64 / cached_tokens.len() as f64,
-        avg_answer_tokens);
+        avg_answer_tokens
+    );
 
     for epoch in 0..config.epochs {
         state.epoch = epoch;
@@ -952,13 +1190,19 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
             let answer_start = cached_answer_starts[i];
             let step_start = Instant::now();
             // Verbose progress: emit BEGIN line every step so user sees liveness
-            println!("  [step {}/{}] begin (tokens={}, answer_start={})", i + 1, cached_tokens.len(), token_ids.len(), answer_start);
+            println!(
+                "  [step {}/{}] begin (tokens={}, answer_start={})",
+                i + 1,
+                cached_tokens.len(),
+                token_ids.len(),
+                answer_start
+            );
             use std::io::Write;
             let _ = std::io::stdout().flush();
 
             // Forward pass via GPU hipBLAS — returns loss + normed inputs for backward reuse
             let (loss, gpu_normed) = if token_ids.len() >= 2 && answer_start < token_ids.len() - 1 {
-                match gpu_trainer.forward_loss(&cpu_weights, &token_ids, &lora, answer_start) {
+                match gpu_trainer.forward_loss(&cpu_weights, token_ids, &lora, answer_start) {
                     Ok((l, normed)) => (l, normed),
                     Err(e) => {
                         eprintln!("  GPU forward error at step {}: {}", state.step, e);
@@ -986,25 +1230,35 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                 // Production default 4. Each position adds one full backward chain
                 // (~16 lazy-layer matmuls), so smoke tests can drop to 1-2.
                 let max_loss_positions: usize = std::env::var("FORGE_MAX_LOSS_POSITIONS")
-                    .ok().and_then(|s| s.parse().ok()).unwrap_or(4);
-                let raw_n_positions = if loss_end > loss_start + 1 { loss_end - loss_start - 1 } else { 1 };
+                    .ok()
+                    .and_then(|s| s.parse().ok())
+                    .unwrap_or(4);
+                let raw_n_positions = if loss_end > loss_start + 1 {
+                    loss_end - loss_start - 1
+                } else {
+                    1
+                };
                 let n_loss_positions = raw_n_positions.min(max_loss_positions);
                 let stride = if raw_n_positions > max_loss_positions {
                     raw_n_positions / max_loss_positions
-                } else { 1 };
+                } else {
+                    1
+                };
 
                 // === Backward uses normed inputs from GPU forward pass ===
                 // GPU forward processed layers [layer_offset..layer_offset+n_cached_layers]
                 // with full base weights. Those normed inputs are in `gpu_normed`.
                 // For layers NOT covered by GPU (0..layer_offset-1), compute LoRA-only.
-                let gpu_layer_offset = cpu_weights.n_layers.saturating_sub(gpu_trainer.n_cached_layers);
+                let gpu_layer_offset = cpu_weights
+                    .n_layers
+                    .saturating_sub(gpu_trainer.n_cached_layers);
                 let scale = lora.alpha / lora.rank as f32;
 
                 // Build the unified normed_per_pos array for all 32 layers
                 let mut layer_normed_per_pos: Vec<Vec<Vec<f32>>> = Vec::new();
 
                 // For layers 0..gpu_layer_offset: LoRA-only forward to get normed inputs
-                let embeddings = forward::embedding_lookup(&cpu_weights.embed, n, &token_ids);
+                let embeddings = forward::embedding_lookup(&cpu_weights.embed, n, token_ids);
                 let mut hidden_bw = embeddings.clone();
 
                 for l in 0..n_layers_total {
@@ -1013,8 +1267,11 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                         layer_normed_per_pos.push(gpu_normed[l - gpu_layer_offset].clone());
                     } else {
                         // Layers not covered by GPU — stream dequantize norm, LoRA-only forward
-                        let attn_norm = forward::dequantize_tensor(&model, &format!("blk.{}.attn_norm.weight", l))
-                            .unwrap_or_else(|| vec![1.0; n]);
+                        let attn_norm = forward::dequantize_tensor(
+                            &model,
+                            &format!("blk.{}.attn_norm.weight", l),
+                        )
+                        .unwrap_or_else(|| vec![1.0; n]);
 
                         let mut pos_normed: Vec<Vec<f32>> = Vec::new();
                         let mut s = loss_start;
@@ -1049,24 +1306,32 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                 // ~2.7 GB transient allocation during backward (peak was ~6.5 GB
                 // in the previous run, ~3.5 GB under the 10 GB cgroup cap).
                 // Path B+C: per-step lazy cache stored as bf16 (~1.35 GB transient, down from 2.7 GB fp32)
-                let f32_to_bf16_vec = |v: Vec<f32>| -> Vec<bf16> {
-                    v.iter().map(|f| bf16::from_f32(*f)).collect()
-                };
-                let mut lazy_attn: Vec<Option<(Vec<bf16>, Vec<bf16>, Vec<bf16>, Vec<bf16>)>>
-                    = Vec::with_capacity(n_layers_total);
+                let f32_to_bf16_vec =
+                    |v: Vec<f32>| -> Vec<bf16> { v.iter().map(|f| bf16::from_f32(*f)).collect() };
+                let mut lazy_attn: LazyAttnCache = Vec::with_capacity(n_layers_total);
                 for l in 0..n_layers_total {
                     let is_lazy = l >= gpu_trainer.bw_attn.len()
                         && l < cpu_weights.all_attn_q.len()
                         && cpu_weights.all_attn_q[l].is_empty();
                     if is_lazy {
-                        let q = forward::dequantize_tensor(&model, &format!("blk.{}.attn_q.weight", l))
-                            .map(&f32_to_bf16_vec).unwrap_or_default();
-                        let k = forward::dequantize_tensor(&model, &format!("blk.{}.attn_k.weight", l))
-                            .map(&f32_to_bf16_vec).unwrap_or_default();
-                        let v = forward::dequantize_tensor(&model, &format!("blk.{}.attn_v.weight", l))
-                            .map(&f32_to_bf16_vec).unwrap_or_default();
-                        let o = forward::dequantize_tensor(&model, &format!("blk.{}.attn_output.weight", l))
-                            .map(&f32_to_bf16_vec).unwrap_or_default();
+                        let q =
+                            forward::dequantize_tensor(&model, &format!("blk.{}.attn_q.weight", l))
+                                .map(&f32_to_bf16_vec)
+                                .unwrap_or_default();
+                        let k =
+                            forward::dequantize_tensor(&model, &format!("blk.{}.attn_k.weight", l))
+                                .map(&f32_to_bf16_vec)
+                                .unwrap_or_default();
+                        let v =
+                            forward::dequantize_tensor(&model, &format!("blk.{}.attn_v.weight", l))
+                                .map(&f32_to_bf16_vec)
+                                .unwrap_or_default();
+                        let o = forward::dequantize_tensor(
+                            &model,
+                            &format!("blk.{}.attn_output.weight", l),
+                        )
+                        .map(&f32_to_bf16_vec)
+                        .unwrap_or_default();
                         lazy_attn.push(Some((q, k, v, o)));
                     } else {
                         lazy_attn.push(None);
@@ -1075,13 +1340,18 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
 
                 for pos_idx in 0..n_loss_positions {
                     let t_pos = loss_start + pos_idx * stride; // strided position in sequence
-                    if t_pos + 1 >= token_ids.len() { break; }
+                    if t_pos + 1 >= token_ids.len() {
+                        break;
+                    }
 
                     // Output logits at this position
                     let h = &hidden_bw[t_pos * n..(t_pos + 1) * n];
                     let normed_out = forward::rmsnorm(h, &cpu_weights.output_norm, 1e-5);
                     let mut logits = vec![0.0f32; vocab_subset];
+                    #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
                     for v in 0..vocab_subset {
+                        #[allow(clippy::needless_range_loop)]
+                        // strided tensor index — see crate note
                         for ii in 0..n {
                             logits[v] += normed_out[ii] * cpu_weights.output[v * n + ii];
                         }
@@ -1095,15 +1365,18 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                     let pos_scale = 1.0 / n_loss_positions as f32;
 
                     let mut grad_normed = vec![0.0f32; n];
+                    #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
                     for ii in 0..n {
+                        #[allow(clippy::needless_range_loop)]
+                        // strided tensor index — see crate note
                         for v in 0..vocab_subset {
                             grad_normed[ii] += grad_logits[v] * cpu_weights.output[v * n + ii];
                         }
                         grad_normed[ii] *= pos_scale;
                     }
 
-                    let mut grad_hidden = backward::rmsnorm_backward(
-                        h, &cpu_weights.output_norm, &grad_normed, 1e-5);
+                    let mut grad_hidden =
+                        backward::rmsnorm_backward(h, &cpu_weights.output_norm, &grad_normed, 1e-5);
 
                     // Through each layer (reverse) — accumulate LoRA gradients
                     // AND propagate grad_hidden through base weights (chain rule fix)
@@ -1117,12 +1390,19 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
 
                         // LoRA backward for all 4 targets
                         for t in 0..4 {
-                            let target_grad: Vec<f32> = grad_hidden.iter().map(|&g| g * 0.25).collect();
-                            let (_lora_out, lora_h) = lora.layers[l][t].forward_with_hidden(normed_input);
+                            let target_grad: Vec<f32> =
+                                grad_hidden.iter().map(|&g| g * 0.25).collect();
+                            let (_lora_out, lora_h) =
+                                lora.layers[l][t].forward_with_hidden(normed_input);
                             let (ga, gb) = backward::lora_backward(
-                                normed_input, &lora_h, &target_grad,
-                                &lora.layers[l][t].a, &lora.layers[l][t].b,
-                                n, n, lora.rank as usize, lora.alpha,
+                                normed_input,
+                                &lora_h,
+                                &target_grad,
+                                &lora.layers[l][t].b,
+                                n,
+                                n,
+                                lora.rank as usize,
+                                lora.alpha,
                             );
 
                             for (ii, &g) in ga.iter().enumerate() {
@@ -1141,36 +1421,67 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                         // weights in the forward pass (l >= gpu_layer_offset). For layers
                         // outside fwd_cache, forward was LoRA-only so backward must match.
                         let kv_dim = n * cpu_weights.n_head_kv / cpu_weights.n_head;
-                        if l >= gpu_layer_offset && l < gpu_trainer.bw_attn.len() && l < cpu_weights.all_attn_norm.len() {
+                        if l >= gpu_layer_offset
+                            && l < gpu_trainer.bw_attn.len()
+                            && l < cpu_weights.all_attn_norm.len()
+                        {
                             let bw = &gpu_trainer.bw_attn[l];
                             // grad_normed = sum_t W_t^T @ (grad_hidden * 0.25)
                             let scaled: Vec<f32> = grad_hidden.iter().map(|g| g * 0.25).collect();
-                            let grad_q = gpu_trainer.gpu_matmul_grad_input_bf16(&scaled, &bw.attn_q, 1, n, n).unwrap_or_default();
+                            let grad_q = gpu_trainer
+                                .gpu_matmul_grad_input_bf16(&scaled, &bw.attn_q, 1, n, n)
+                                .unwrap_or_default();
                             let scaled_kv = &scaled[..kv_dim.min(scaled.len())];
-                            let grad_k = gpu_trainer.gpu_matmul_grad_input_bf16(scaled_kv, &bw.attn_k, 1, kv_dim, n).unwrap_or_default();
-                            let grad_v = gpu_trainer.gpu_matmul_grad_input_bf16(scaled_kv, &bw.attn_v, 1, kv_dim, n).unwrap_or_default();
-                            let grad_o = gpu_trainer.gpu_matmul_grad_input_bf16(&scaled, &bw.attn_o, 1, n, n).unwrap_or_default();
+                            let grad_k = gpu_trainer
+                                .gpu_matmul_grad_input_bf16(scaled_kv, &bw.attn_k, 1, kv_dim, n)
+                                .unwrap_or_default();
+                            let grad_v = gpu_trainer
+                                .gpu_matmul_grad_input_bf16(scaled_kv, &bw.attn_v, 1, kv_dim, n)
+                                .unwrap_or_default();
+                            let grad_o = gpu_trainer
+                                .gpu_matmul_grad_input_bf16(&scaled, &bw.attn_o, 1, n, n)
+                                .unwrap_or_default();
                             let mut grad_normed = vec![0.0f32; n];
                             for j in 0..n {
-                                if j < grad_q.len() { grad_normed[j] += grad_q[j]; }
-                                if j < grad_k.len() { grad_normed[j] += grad_k[j]; }
-                                if j < grad_v.len() { grad_normed[j] += grad_v[j]; }
-                                if j < grad_o.len() { grad_normed[j] += grad_o[j]; }
+                                if j < grad_q.len() {
+                                    grad_normed[j] += grad_q[j];
+                                }
+                                if j < grad_k.len() {
+                                    grad_normed[j] += grad_k[j];
+                                }
+                                if j < grad_v.len() {
+                                    grad_normed[j] += grad_v[j];
+                                }
+                                if j < grad_o.len() {
+                                    grad_normed[j] += grad_o[j];
+                                }
                             }
                             let grad_input_attn = backward::rmsnorm_backward(
-                                normed_input, &cpu_weights.all_attn_norm[l], &grad_normed, 1e-5);
+                                normed_input,
+                                &cpu_weights.all_attn_norm[l],
+                                &grad_normed,
+                                1e-5,
+                            );
                             for i in 0..n {
-                                grad_hidden[i] = grad_hidden[i] + grad_input_attn[i];
+                                grad_hidden[i] += grad_input_attn[i];
                             }
                         } else if l >= gpu_layer_offset && l < cpu_weights.all_attn_q.len() {
                             // CPU backward with bf16→fp32 conversion (only for fwd-cached layers).
                             // Source: lazy_attn[l] (bf16 per-step cache) or cpu_weights.all_attn_* (bf16 eager).
-                            let (q_bf16, k_bf16, v_bf16, o_bf16): (&[bf16], &[bf16], &[bf16], &[bf16]);
+                            let (q_bf16, k_bf16, v_bf16, o_bf16): (
+                                &[bf16],
+                                &[bf16],
+                                &[bf16],
+                                &[bf16],
+                            );
                             if let Some((q, k, v, o)) = &lazy_attn[l] {
                                 if q.is_empty() || k.is_empty() || v.is_empty() || o.is_empty() {
                                     continue;
                                 }
-                                q_bf16 = q; k_bf16 = k; v_bf16 = v; o_bf16 = o;
+                                q_bf16 = q;
+                                k_bf16 = k;
+                                v_bf16 = v;
+                                o_bf16 = o;
                             } else if !cpu_weights.all_attn_q[l].is_empty() {
                                 q_bf16 = &cpu_weights.all_attn_q[l];
                                 k_bf16 = &cpu_weights.all_attn_k[l];
@@ -1187,9 +1498,17 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                                 &grad_hidden,
                                 normed_input,
                                 &cpu_weights.all_attn_norm[l],
-                                &q_f32, &k_f32, &v_f32, &o_f32,
-                                n, kv_dim, kv_dim, n,
-                                None, 0, 0.0,
+                                &q_f32,
+                                &k_f32,
+                                &v_f32,
+                                &o_f32,
+                                n,
+                                kv_dim,
+                                kv_dim,
+                                n,
+                                None,
+                                0,
+                                0.0,
                                 n,
                             );
                         }
@@ -1198,7 +1517,8 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
 
                 // Gradient accumulation: clip + Adam step every accum_steps
                 // FORGE_ACCUM_STEPS env override (diagnostic — defaults to config.accum_steps).
-                let effective_accum = std::env::var("FORGE_ACCUM_STEPS").ok()
+                let effective_accum = std::env::var("FORGE_ACCUM_STEPS")
+                    .ok()
                     .and_then(|v| v.parse::<usize>().ok())
                     .unwrap_or(config.accum_steps);
                 if (i + 1) % effective_accum == 0 || i == data.len() - 1 {
@@ -1208,7 +1528,10 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                     // Experiment B refined (WAVE10E forge bug hunt): env-gated grad health
                     // breakout. Splits "nonzero=0" into zero / NaN / healthy buckets, names
                     // first NaN and first healthy layer so we can localize the bug source.
-                    if std::env::var("FORGE_DEBUG_GRAD_NORMS").map(|v| v == "1").unwrap_or(false) {
+                    if std::env::var("FORGE_DEBUG_GRAD_NORMS")
+                        .map(|v| v == "1")
+                        .unwrap_or(false)
+                    {
                         let n_walked = n_layers_total.min(lora.layers.len());
                         let mut zero_n = 0usize;
                         let mut nan_n = 0usize;
@@ -1223,29 +1546,39 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                                 let mut has_nan = false;
                                 let mut sq: f64 = 0.0;
                                 for g in lyr.grad_a.iter().chain(lyr.grad_b.iter()) {
-                                    if g.is_nan() { has_nan = true; break; }
+                                    if g.is_nan() {
+                                        has_nan = true;
+                                        break;
+                                    }
                                     sq += (*g as f64) * (*g as f64);
                                 }
                                 if has_nan {
                                     nan_n += 1;
-                                    if first_nan.is_none() { first_nan = Some((l, t)); }
+                                    if first_nan.is_none() {
+                                        first_nan = Some((l, t));
+                                    }
                                 } else if sq == 0.0 {
                                     zero_n += 1;
                                 } else {
                                     healthy_n += 1;
                                     healthy_sq_total += sq;
                                     let n = sq.sqrt() as f32;
-                                    if first_healthy.is_none() { first_healthy = Some((l, t, n)); }
+                                    if first_healthy.is_none() {
+                                        first_healthy = Some((l, t, n));
+                                    }
                                     last_healthy = Some((l, t, n));
                                 }
                             }
                         }
                         let names = ["q", "k", "v", "o"];
-                        let nan_str = first_nan.map(|(l,t)| format!("L{}T{}({})", l, t, names[t]))
+                        let nan_str = first_nan
+                            .map(|(l, t)| format!("L{}T{}({})", l, t, names[t]))
                             .unwrap_or_else(|| "-".to_string());
-                        let fh_str = first_healthy.map(|(l,t,n)| format!("L{}T{}({})={:.2e}", l, t, names[t], n))
+                        let fh_str = first_healthy
+                            .map(|(l, t, n)| format!("L{}T{}({})={:.2e}", l, t, names[t], n))
                             .unwrap_or_else(|| "-".to_string());
-                        let lh_str = last_healthy.map(|(l,t,n)| format!("L{}T{}({})={:.2e}", l, t, names[t], n))
+                        let lh_str = last_healthy
+                            .map(|(l, t, n)| format!("L{}T{}({})={:.2e}", l, t, names[t], n))
                             .unwrap_or_else(|| "-".to_string());
                         println!("  [GRAD] step={} healthy={} zero={} nan={} (of {}) | hsum={:.3e} first_nan={} first_h={} last_h={}",
                             state.step, healthy_n, zero_n, nan_n, n_walked * 4,
@@ -1255,25 +1588,41 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                     for l in 0..n_layers_total.min(lora.layers.len()) {
                         for t in 0..4 {
                             // Scale
-                            for g in lora.layers[l][t].grad_a.iter_mut() { *g *= scale; }
-                            for g in lora.layers[l][t].grad_b.iter_mut() { *g *= scale; }
+                            for g in lora.layers[l][t].grad_a.iter_mut() {
+                                *g *= scale;
+                            }
+                            for g in lora.layers[l][t].grad_b.iter_mut() {
+                                *g *= scale;
+                            }
 
                             // Clip
-                            let grad_norm: f32 = lora.layers[l][t].grad_a.iter()
+                            let grad_norm: f32 = lora.layers[l][t]
+                                .grad_a
+                                .iter()
                                 .chain(lora.layers[l][t].grad_b.iter())
-                                .map(|g| g * g).sum::<f32>().sqrt();
+                                .map(|g| g * g)
+                                .sum::<f32>()
+                                .sqrt();
                             if grad_norm > 1.0 {
                                 let clip = 1.0 / grad_norm;
-                                for g in lora.layers[l][t].grad_a.iter_mut() { *g *= clip; }
-                                for g in lora.layers[l][t].grad_b.iter_mut() { *g *= clip; }
+                                for g in lora.layers[l][t].grad_a.iter_mut() {
+                                    *g *= clip;
+                                }
+                                for g in lora.layers[l][t].grad_b.iter_mut() {
+                                    *g *= clip;
+                                }
                             }
 
                             // Adam
                             lora.layers[l][t].adam_step(lr, 0.9, 0.999, 1e-8, state.step + 1);
 
                             // Zero
-                            for g in lora.layers[l][t].grad_a.iter_mut() { *g = 0.0; }
-                            for g in lora.layers[l][t].grad_b.iter_mut() { *g = 0.0; }
+                            for g in lora.layers[l][t].grad_a.iter_mut() {
+                                *g = 0.0;
+                            }
+                            for g in lora.layers[l][t].grad_b.iter_mut() {
+                                *g = 0.0;
+                            }
                         }
                     }
                 }
@@ -1299,18 +1648,27 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
             let _ = std::io::stdout().flush();
 
             // Save checkpoint
-            if state.step > 0 && state.step as usize % config.save_interval == 0 {
+            if state.step > 0 && (state.step as usize).is_multiple_of(config.save_interval) {
                 let cp_path = format!("{}.checkpoint-{}", config.output_path, state.step);
                 lora.save_zlora(&cp_path, &model)
                     .map_err(|e| format!("Checkpoint save failed: {}", e))?;
-                println!("  Checkpoint: {} ({:.1} MB)", cp_path,
-                    std::fs::metadata(&cp_path).map(|m| m.len() as f64 / 1e6).unwrap_or(0.0));
+                println!(
+                    "  Checkpoint: {} ({:.1} MB)",
+                    cp_path,
+                    std::fs::metadata(&cp_path)
+                        .map(|m| m.len() as f64 / 1e6)
+                        .unwrap_or(0.0)
+                );
             }
         }
 
         let avg_epoch_loss = epoch_loss / epoch_steps as f64;
-        println!("  Epoch {} complete | Avg loss: {:.4} | Time: {:.0}s\n",
-            epoch + 1, avg_epoch_loss, start.elapsed().as_secs_f64());
+        println!(
+            "  Epoch {} complete | Avg loss: {:.4} | Time: {:.0}s\n",
+            epoch + 1,
+            avg_epoch_loss,
+            start.elapsed().as_secs_f64()
+        );
     }
 
     // 6. Save final LoRA
@@ -1320,25 +1678,38 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
 
     let total_time = start.elapsed().as_secs_f64();
     let output_size = std::fs::metadata(&config.output_path)
-        .map(|m| m.len() as f64 / 1e6).unwrap_or(0.0);
+        .map(|m| m.len() as f64 / 1e6)
+        .unwrap_or(0.0);
 
     println!("\n============================================================");
     println!("TRAINING COMPLETE");
     println!("============================================================");
-    println!("  Output:    {} ({:.1} MB)", config.output_path, output_size);
+    println!(
+        "  Output:    {} ({:.1} MB)",
+        config.output_path, output_size
+    );
     println!("  Steps:     {}", state.step);
-    println!("  Time:      {:.0}s ({:.1} min)", total_time, total_time / 60.0);
+    println!(
+        "  Time:      {:.0}s ({:.1} min)",
+        total_time,
+        total_time / 60.0
+    );
     println!("  Avg loss:  {:.4}", state.total_loss / state.step as f64);
-    println!("  VRAM used: {:.1} MB (base) + {:.1} MB (LoRA)",
-        gpu_model.vram_used as f64 / 1e6, lora.size_bytes() as f64 / 1e6);
-    println!("  RAM used:  {:.1} MB (LoRA + optimizer)",
-        lora.size_bytes() as f64 / 1e6 * 5.0); // weights + grads + m + v
+    println!(
+        "  VRAM used: {:.1} MB (base) + {:.1} MB (LoRA)",
+        gpu_model.vram_used as f64 / 1e6,
+        lora.size_bytes() as f64 / 1e6
+    );
+    println!(
+        "  RAM used:  {:.1} MB (LoRA + optimizer)",
+        lora.size_bytes() as f64 / 1e6 * 5.0
+    ); // weights + grads + m + v
     Ok(())
 }
 
 /// Dequantized model weights for CPU forward pass.
 /// Only holds the tensors needed for loss computation — not all 291.
-struct CpuWeights {
+pub(crate) struct CpuWeights {
     /// Token embedding: (vocab_size × embed_dim)
     embed: Vec<f32>,
     /// Output projection: (vocab_size × embed_dim)
@@ -1372,6 +1743,10 @@ struct CpuWeights {
     n_embd: usize,
     n_ff: usize,
     n_layers: usize,
+    /// Retained with the rest of the Mistral path (CLAUDE.md "side stuff"
+    /// rule) — the Gemma-4 path carries its own layer bookkeeping, so nothing
+    /// reads this today. Deleting it would reverse a decision already made.
+    #[allow(dead_code)]
     n_total_layers: usize,
     n_head: usize,
     n_head_kv: usize,
@@ -1387,11 +1762,19 @@ impl CpuWeights {
             .ok_or("Failed to dequantize token_embd.weight")?;
         let n_vocab = model.get_u32("llama.vocab_size").unwrap_or(32000) as usize;
         let n_embd = model.get_u32("llama.embedding_length").unwrap_or(4096) as usize;
-        println!("    token_embd: {} elements ({:.1} MB)", embed.len(), embed.len() as f64 * 4.0 / 1e6);
+        println!(
+            "    token_embd: {} elements ({:.1} MB)",
+            embed.len(),
+            embed.len() as f64 * 4.0 / 1e6
+        );
 
         let output = forward::dequantize_tensor(model, "output.weight")
             .ok_or("Failed to dequantize output.weight")?;
-        println!("    output: {} elements ({:.1} MB)", output.len(), output.len() as f64 * 4.0 / 1e6);
+        println!(
+            "    output: {} elements ({:.1} MB)",
+            output.len(),
+            output.len() as f64 * 4.0 / 1e6
+        );
 
         let output_norm = forward::dequantize_tensor(model, "output_norm.weight")
             .ok_or("Failed to dequantize output_norm.weight")?;
@@ -1399,7 +1782,9 @@ impl CpuWeights {
         // Load LAST 4 layers — fits in VRAM alongside quantized model.
         // 4 layers × ~870MB f32 = ~3.5GB + 4.8GB quantized = 8.3GB of 12GB.
         let fwd_cache_cap: u32 = std::env::var("FORGE_FWD_CACHE_LAYERS")
-            .ok().and_then(|s| s.parse().ok()).unwrap_or(4);
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(4);
         let max_layers = n_layers.min(fwd_cache_cap) as usize;
         let layer_start = (n_layers as usize).saturating_sub(max_layers);
         let mut attn_q = Vec::new();
@@ -1423,16 +1808,24 @@ impl CpuWeights {
                 let tensor_name = format!("blk.{}.{}.weight", l, name_suffix);
                 if let Some(w) = forward::dequantize_tensor(model, &tensor_name) {
                     if name_suffix == "attn_q" {
-                        println!("    blk.{} Q/K/V/O: {:.1} MB each", l, w.len() as f64 * 4.0 / 1e6);
+                        println!(
+                            "    blk.{} Q/K/V/O: {:.1} MB each",
+                            l,
+                            w.len() as f64 * 4.0 / 1e6
+                        );
                     }
                     vec.push(w);
                 }
             }
             // Norms
-            if let Some(n) = forward::dequantize_tensor(model, &format!("blk.{}.attn_norm.weight", l)) {
+            if let Some(n) =
+                forward::dequantize_tensor(model, &format!("blk.{}.attn_norm.weight", l))
+            {
                 attn_norm.push(n);
             }
-            if let Some(n) = forward::dequantize_tensor(model, &format!("blk.{}.ffn_norm.weight", l)) {
+            if let Some(n) =
+                forward::dequantize_tensor(model, &format!("blk.{}.ffn_norm.weight", l))
+            {
                 ffn_norm.push(n);
             }
 
@@ -1445,7 +1838,11 @@ impl CpuWeights {
                 let name = format!("blk.{}.{}.weight", l, suffix);
                 if let Some(w) = forward::dequantize_tensor(model, &name) {
                     if suffix == "ffn_gate" {
-                        println!("    blk.{} FFN gate/up/down: {:.1} MB each", l, w.len() as f64 * 4.0 / 1e6);
+                        println!(
+                            "    blk.{} FFN gate/up/down: {:.1} MB each",
+                            l,
+                            w.len() as f64 * 4.0 / 1e6
+                        );
                     }
                     vec.push(w);
                 }
@@ -1457,9 +1854,8 @@ impl CpuWeights {
         // Path B: store as bf16 (halves footprint from ~2.7 GB to ~1.34 GB eager).
         // Lazy layers pushed as empty Vec<bf16> and re-dequantized per step.
         // attn_norm stays fp32 (small + precision-sensitive for RMSNorm).
-        let f32_to_bf16 = |v: Vec<f32>| -> Vec<bf16> {
-            v.iter().map(|f| bf16::from_f32(*f)).collect()
-        };
+        let f32_to_bf16 =
+            |v: Vec<f32>| -> Vec<bf16> { v.iter().map(|f| bf16::from_f32(*f)).collect() };
         println!("  Loading attention weights for chain rule (Wave 10C + 10D Path B+C, bf16)...");
         let n_total_layers = n_layers as usize;
         let eager_cap = BW_ATTN_MAX_LAYERS.min(n_total_layers);
@@ -1470,14 +1866,26 @@ impl CpuWeights {
         let mut all_attn_norm: Vec<Vec<f32>> = Vec::with_capacity(n_total_layers);
         for l in 0..n_total_layers {
             if l < eager_cap {
-                all_attn_q.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_q.weight", l))
-                    .map(&f32_to_bf16).unwrap_or_default());
-                all_attn_k.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_k.weight", l))
-                    .map(&f32_to_bf16).unwrap_or_default());
-                all_attn_v.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_v.weight", l))
-                    .map(&f32_to_bf16).unwrap_or_default());
-                all_attn_o.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_output.weight", l))
-                    .map(&f32_to_bf16).unwrap_or_default());
+                all_attn_q.push(
+                    forward::dequantize_tensor(model, &format!("blk.{}.attn_q.weight", l))
+                        .map(&f32_to_bf16)
+                        .unwrap_or_default(),
+                );
+                all_attn_k.push(
+                    forward::dequantize_tensor(model, &format!("blk.{}.attn_k.weight", l))
+                        .map(&f32_to_bf16)
+                        .unwrap_or_default(),
+                );
+                all_attn_v.push(
+                    forward::dequantize_tensor(model, &format!("blk.{}.attn_v.weight", l))
+                        .map(&f32_to_bf16)
+                        .unwrap_or_default(),
+                );
+                all_attn_o.push(
+                    forward::dequantize_tensor(model, &format!("blk.{}.attn_output.weight", l))
+                        .map(&f32_to_bf16)
+                        .unwrap_or_default(),
+                );
             } else {
                 all_attn_q.push(Vec::new());
                 all_attn_k.push(Vec::new());
@@ -1486,27 +1894,54 @@ impl CpuWeights {
             }
             // attn_norm is small and always needed (both GPU path's rmsnorm_backward
             // and CPU-fallback use it). Keep eager for all layers.
-            all_attn_norm.push(forward::dequantize_tensor(model, &format!("blk.{}.attn_norm.weight", l))
-                .unwrap_or_else(|| vec![1.0; n_embd]));
+            all_attn_norm.push(
+                forward::dequantize_tensor(model, &format!("blk.{}.attn_norm.weight", l))
+                    .unwrap_or_else(|| vec![1.0; n_embd]),
+            );
             if (l + 1) % 8 == 0 {
-                println!("    Loaded {}/{} attn_norm layers ({} Q/K/V/O eager)",
-                    l + 1, n_total_layers, (l + 1).min(eager_cap));
+                println!(
+                    "    Loaded {}/{} attn_norm layers ({} Q/K/V/O eager)",
+                    l + 1,
+                    n_total_layers,
+                    (l + 1).min(eager_cap)
+                );
             }
         }
-        let all_attn_mb: f64 = all_attn_q.iter().chain(all_attn_k.iter())
-            .chain(all_attn_v.iter()).chain(all_attn_o.iter())
-            .map(|v| v.len()).sum::<usize>() as f64 * 2.0 / 1e6; // bf16 = 2 bytes
+        let all_attn_mb: f64 = all_attn_q
+            .iter()
+            .chain(all_attn_k.iter())
+            .chain(all_attn_v.iter())
+            .chain(all_attn_o.iter())
+            .map(|v| v.len())
+            .sum::<usize>() as f64
+            * 2.0
+            / 1e6; // bf16 = 2 bytes
         let lazy_count = n_total_layers - eager_cap;
-        println!("    All-layer attention: {:.1} MB eager ({} layers), {} lazy layers",
-            all_attn_mb, eager_cap, lazy_count);
+        println!(
+            "    All-layer attention: {:.1} MB eager ({} layers), {} lazy layers",
+            all_attn_mb, eager_cap, lazy_count
+        );
 
-        let total_elements: usize = embed.len() + output.len() + output_norm.len()
-            + attn_q.iter().chain(attn_k.iter()).chain(attn_v.iter()).chain(attn_o.iter())
-                .chain(ffn_gate.iter()).chain(ffn_up.iter()).chain(ffn_down.iter())
-                .chain(attn_norm.iter()).chain(ffn_norm.iter())
-                .map(|v| v.len()).sum::<usize>();
+        let total_elements: usize = embed.len()
+            + output.len()
+            + output_norm.len()
+            + attn_q
+                .iter()
+                .chain(attn_k.iter())
+                .chain(attn_v.iter())
+                .chain(attn_o.iter())
+                .chain(ffn_gate.iter())
+                .chain(ffn_up.iter())
+                .chain(ffn_down.iter())
+                .chain(attn_norm.iter())
+                .chain(ffn_norm.iter())
+                .map(|v| v.len())
+                .sum::<usize>();
         let total_mb = total_elements as f64 * 4.0 / 1e6;
-        println!("    Total CPU weights: {:.1} MB (+ {:.1} MB chain rule)", total_mb, all_attn_mb);
+        println!(
+            "    Total CPU weights: {:.1} MB (+ {:.1} MB chain rule)",
+            total_mb, all_attn_mb
+        );
 
         let n_ff = model.get_u32("llama.feed_forward_length").unwrap_or(14336) as usize;
 
@@ -1514,15 +1949,30 @@ impl CpuWeights {
         let n_head_kv = model.get_u32("llama.attention.head_count_kv").unwrap_or(8) as usize;
 
         Ok(CpuWeights {
-            embed, output, output_norm,
-            attn_q, attn_k, attn_v, attn_o,
-            ffn_gate, ffn_up, ffn_down,
-            attn_norm, ffn_norm,
-            all_attn_q, all_attn_k, all_attn_v, all_attn_o, all_attn_norm,
+            embed,
+            output,
+            output_norm,
+            attn_q,
+            attn_k,
+            attn_v,
+            attn_o,
+            ffn_gate,
+            ffn_up,
+            ffn_down,
+            attn_norm,
+            ffn_norm,
+            all_attn_q,
+            all_attn_k,
+            all_attn_v,
+            all_attn_o,
+            all_attn_norm,
             n_ff,
-            n_vocab, n_embd, n_layers: max_layers,
+            n_vocab,
+            n_embd,
+            n_layers: max_layers,
             n_total_layers,
-            n_head, n_head_kv,
+            n_head,
+            n_head_kv,
         })
     }
 
@@ -1531,6 +1981,10 @@ impl CpuWeights {
     /// Forward pass computing loss across ALL answer tokens (multi-position).
     /// For each position t in [answer_start, len-1), predicts token[t+1] from hidden[t].
     /// Returns the average cross-entropy loss across all answer positions.
+    /// CPU reference forward for the retained Mistral path; the live Gemma-4
+    /// path uses `GpuTrainer::forward_loss`. Kept per CLAUDE.md's "side stuff"
+    /// rule, not because anything calls it.
+    #[allow(dead_code)]
     fn forward_loss(&self, token_ids: &[u32], lora: &LoraAdapters, answer_start: usize) -> f32 {
         if token_ids.len() < 2 {
             return 10.0;
@@ -1543,13 +1997,21 @@ impl CpuWeights {
         let loss_start = answer_start.max(1);
         let loss_end = seq_len;
         let max_positions: usize = 16;
-        let raw_n = if loss_end > loss_start + 1 { loss_end - loss_start - 1 } else { 0 };
+        let raw_n = if loss_end > loss_start + 1 {
+            loss_end - loss_start - 1
+        } else {
+            0
+        };
 
         if raw_n == 0 {
             return 10.0;
         }
 
-        let stride = if raw_n > max_positions { raw_n / max_positions } else { 1 };
+        let stride = if raw_n > max_positions {
+            raw_n / max_positions
+        } else {
+            1
+        };
 
         // 1. Embedding lookup for FULL sequence (needed for context)
         let embeddings = forward::embedding_lookup(&self.embed, n, token_ids);
@@ -1579,12 +2041,12 @@ impl CpuWeights {
 
                 // Combined Q/K/V/O projection with LoRA (all 4 targets)
                 let mut attn_output = vec![0.0f32; n];
-                let weights = [
-                    &self.attn_q, &self.attn_k, &self.attn_v, &self.attn_o,
-                ];
+                let weights = [&self.attn_q, &self.attn_k, &self.attn_v, &self.attn_o];
 
                 for (t, w) in weights.iter().enumerate() {
-                    if l >= w.len() { continue; }
+                    if l >= w.len() {
+                        continue;
+                    }
 
                     // LoRA contribution (full dims, rank-16 = fast)
                     let lora_out = lora.layers[l][t].forward(&normed);
@@ -1621,8 +2083,11 @@ impl CpuWeights {
                     let ffn_normed = forward::rmsnorm(&ffn_input, &self.ffn_norm[l], 1e-5);
                     let ffn_out = forward::ffn_forward(
                         &ffn_normed,
-                        &self.ffn_gate[l], &self.ffn_up[l], &self.ffn_down[l],
-                        n, self.n_ff,
+                        &self.ffn_gate[l],
+                        &self.ffn_up[l],
+                        &self.ffn_down[l],
+                        n,
+                        self.n_ff,
                     );
                     for i in 0..n {
                         hidden[s * n + i] += ffn_out[i];
@@ -1646,8 +2111,10 @@ impl CpuWeights {
 
             // Output projection → logits
             let mut logits = vec![0.0f32; vocab_subset];
+            #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
             for v in 0..vocab_subset {
                 let mut sum = 0.0f32;
+                #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
                 for i in 0..n {
                     sum += normed[i] * self.output[v * n + i];
                 }
@@ -1662,7 +2129,11 @@ impl CpuWeights {
             t += stride;
         }
 
-        if count > 0 { total_loss / count as f32 } else { 10.0 }
+        if count > 0 {
+            total_loss / count as f32
+        } else {
+            10.0
+        }
     }
 }
 
@@ -1671,13 +2142,14 @@ impl CpuWeights {
 fn load_and_format_training_data(path: &str) -> Result<Vec<String>, String> {
     use crate::data::{Dataset, TrainingExample};
 
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read {}: {}", path, e))?;
+    let content =
+        std::fs::read_to_string(path).map_err(|e| format!("Failed to read {}: {}", path, e))?;
 
     let mut raft_count = 0;
     let mut simple_count = 0;
 
-    let prompts: Vec<String> = content.lines()
+    let prompts: Vec<String> = content
+        .lines()
         .filter(|l| !l.trim().is_empty())
         .filter_map(|l| {
             let example: TrainingExample = serde_json::from_str(l).ok()?;
@@ -1694,8 +2166,12 @@ fn load_and_format_training_data(path: &str) -> Result<Vec<String>, String> {
         return Err(format!("No valid training examples found in {}", path));
     }
 
-    println!("  Formatted {} prompts ({} RAFT with context, {} simple Q/A)",
-        prompts.len(), raft_count, simple_count);
+    println!(
+        "  Formatted {} prompts ({} RAFT with context, {} simple Q/A)",
+        prompts.len(),
+        raft_count,
+        simple_count
+    );
 
     Ok(prompts)
 }
@@ -1735,7 +2211,10 @@ mod tests {
         assert_eq!(gpu_model.n_layers, 32);
         assert_eq!(gpu_model.n_embd, 4096);
         assert!(gpu_model.vram_used > 0);
-        println!("GPU model loaded: {:.1} MB VRAM", gpu_model.vram_used as f64 / 1e6);
+        println!(
+            "GPU model loaded: {:.1} MB VRAM",
+            gpu_model.vram_used as f64 / 1e6
+        );
     }
 
     /// Wave 10D Path C invariant: CpuWeights::load must eagerly dequantize only
@@ -1754,33 +2233,88 @@ mod tests {
         let n_layers = model.get_u32("llama.block_count").unwrap_or(32);
         let cpu = CpuWeights::load(&model, n_layers).expect("CpuWeights::load failed");
 
-        assert_eq!(cpu.all_attn_q.len(), n_layers as usize, "all_attn_q index range");
-        assert_eq!(cpu.all_attn_norm.len(), n_layers as usize, "all_attn_norm index range");
+        assert_eq!(
+            cpu.all_attn_q.len(),
+            n_layers as usize,
+            "all_attn_q index range"
+        );
+        assert_eq!(
+            cpu.all_attn_norm.len(),
+            n_layers as usize,
+            "all_attn_norm index range"
+        );
 
         // Eager layers: populated.
         for l in 0..BW_ATTN_MAX_LAYERS {
-            assert!(!cpu.all_attn_q[l].is_empty(), "layer {} attn_q should be eager", l);
-            assert!(!cpu.all_attn_k[l].is_empty(), "layer {} attn_k should be eager", l);
-            assert!(!cpu.all_attn_v[l].is_empty(), "layer {} attn_v should be eager", l);
-            assert!(!cpu.all_attn_o[l].is_empty(), "layer {} attn_o should be eager", l);
+            assert!(
+                !cpu.all_attn_q[l].is_empty(),
+                "layer {} attn_q should be eager",
+                l
+            );
+            assert!(
+                !cpu.all_attn_k[l].is_empty(),
+                "layer {} attn_k should be eager",
+                l
+            );
+            assert!(
+                !cpu.all_attn_v[l].is_empty(),
+                "layer {} attn_v should be eager",
+                l
+            );
+            assert!(
+                !cpu.all_attn_o[l].is_empty(),
+                "layer {} attn_o should be eager",
+                l
+            );
         }
         // Lazy layers: Q/K/V/O empty, norm still populated.
         for l in BW_ATTN_MAX_LAYERS..(n_layers as usize) {
-            assert!(cpu.all_attn_q[l].is_empty(), "layer {} attn_q should be lazy", l);
-            assert!(cpu.all_attn_k[l].is_empty(), "layer {} attn_k should be lazy", l);
-            assert!(cpu.all_attn_v[l].is_empty(), "layer {} attn_v should be lazy", l);
-            assert!(cpu.all_attn_o[l].is_empty(), "layer {} attn_o should be lazy", l);
-            assert!(!cpu.all_attn_norm[l].is_empty(), "layer {} attn_norm stays eager", l);
+            assert!(
+                cpu.all_attn_q[l].is_empty(),
+                "layer {} attn_q should be lazy",
+                l
+            );
+            assert!(
+                cpu.all_attn_k[l].is_empty(),
+                "layer {} attn_k should be lazy",
+                l
+            );
+            assert!(
+                cpu.all_attn_v[l].is_empty(),
+                "layer {} attn_v should be lazy",
+                l
+            );
+            assert!(
+                cpu.all_attn_o[l].is_empty(),
+                "layer {} attn_o should be lazy",
+                l
+            );
+            assert!(
+                !cpu.all_attn_norm[l].is_empty(),
+                "layer {} attn_norm stays eager",
+                l
+            );
         }
 
         // Footprint budget: eager all_attn in bf16 < 1.5 GB (16 layers × ~84 MB ≈ 1.34 GB).
-        let bytes: usize = cpu.all_attn_q.iter().chain(cpu.all_attn_k.iter())
-            .chain(cpu.all_attn_v.iter()).chain(cpu.all_attn_o.iter())
-            .map(|v| v.len() * 2).sum(); // bf16 = 2 bytes
-        assert!(bytes < 2 * 1024 * 1024 * 1024,
-            "Path B+C eager all_attn bf16 footprint exceeded 2 GB budget: {} bytes", bytes);
-        println!("Path B+C OK: eager all_attn bf16 {:.2} GB, {} lazy layers",
-            bytes as f64 / 1e9, (n_layers as usize) - BW_ATTN_MAX_LAYERS);
+        let bytes: usize = cpu
+            .all_attn_q
+            .iter()
+            .chain(cpu.all_attn_k.iter())
+            .chain(cpu.all_attn_v.iter())
+            .chain(cpu.all_attn_o.iter())
+            .map(|v| v.len() * 2)
+            .sum(); // bf16 = 2 bytes
+        assert!(
+            bytes < 2 * 1024 * 1024 * 1024,
+            "Path B+C eager all_attn bf16 footprint exceeded 2 GB budget: {} bytes",
+            bytes
+        );
+        println!(
+            "Path B+C OK: eager all_attn bf16 {:.2} GB, {} lazy layers",
+            bytes as f64 / 1e9,
+            (n_layers as usize) - BW_ATTN_MAX_LAYERS
+        );
     }
 
     #[test]
@@ -1814,19 +2348,41 @@ mod tests {
         r_buf.zero().expect("zero r");
 
         // sgemm: result(8×1) = weight^T(8×4) × input(4×1)
-        blas.sgemm_ex(true, false, 8, 1, 4, 1.0, &w_buf, 4, &h_buf, 4, 0.0, &r_buf, 8)
-            .expect("sgemm");
+        blas.sgemm_ex(
+            true, false, 8, 1, 4, 1.0, &w_buf, 4, &h_buf, 4, 0.0, &r_buf, 8,
+        )
+        .expect("sgemm");
         hip::sync().expect("sync");
 
         let mut result = vec![0.0f32; 8];
         r_buf.download_f32(&mut result).expect("download");
 
         println!("GPU cached matmul result: {:?}", result);
-        assert!((result[0] - 1.0).abs() < 0.01, "row0: {} expected 1.0", result[0]);
-        assert!((result[1] - 2.0).abs() < 0.01, "row1: {} expected 2.0", result[1]);
-        assert!((result[4] - 3.0).abs() < 0.01, "row4: {} expected 3.0", result[4]);
-        assert!((result[6] - 10.0).abs() < 0.01, "row6: {} expected 10.0", result[6]);
-        assert!((result[7] - 2.0).abs() < 0.01, "row7: {} expected 2.0", result[7]);
+        assert!(
+            (result[0] - 1.0).abs() < 0.01,
+            "row0: {} expected 1.0",
+            result[0]
+        );
+        assert!(
+            (result[1] - 2.0).abs() < 0.01,
+            "row1: {} expected 2.0",
+            result[1]
+        );
+        assert!(
+            (result[4] - 3.0).abs() < 0.01,
+            "row4: {} expected 3.0",
+            result[4]
+        );
+        assert!(
+            (result[6] - 10.0).abs() < 0.01,
+            "row6: {} expected 10.0",
+            result[6]
+        );
+        assert!(
+            (result[7] - 2.0).abs() < 0.01,
+            "row7: {} expected 2.0",
+            result[7]
+        );
         println!("GPU cached matmul verified");
     }
 
@@ -1836,8 +2392,6 @@ mod tests {
     /// CPU reference: backward::matmul_backward_a
     #[test]
     fn test_gpu_matmul_grad_input() {
-        use crate::backward;
-
         if GpuDevice::init(0).is_err() {
             println!("No GPU, skipping");
             return;
@@ -1883,35 +2437,58 @@ mod tests {
         let result_buf = GpuBuffer::alloc(max_buf).expect("alloc result");
 
         // Inline gpu_matmul_grad_input logic (mirror the method exactly)
-        hidden_buf.upload_f32(&grad_output).expect("upload grad_output");
+        hidden_buf
+            .upload_f32(&grad_output)
+            .expect("upload grad_output");
         result_buf.zero().expect("zero result");
         blas.sgemm_ex(
-            false, false,
-            in_dim as i32, n_pos as i32, out_dim as i32,
+            false,
+            false,
+            in_dim as i32,
+            n_pos as i32,
+            out_dim as i32,
             1.0,
-            &weight_buf, in_dim as i32,
-            &hidden_buf, out_dim as i32,
+            &weight_buf,
+            in_dim as i32,
+            &hidden_buf,
+            out_dim as i32,
             0.0,
-            &result_buf, in_dim as i32,
-        ).expect("sgemm");
+            &result_buf,
+            in_dim as i32,
+        )
+        .expect("sgemm");
         hip::sync().expect("sync");
 
         let mut gpu_grad_input = vec![0.0f32; n_pos * in_dim];
-        result_buf.download_f32(&mut gpu_grad_input).expect("download");
+        result_buf
+            .download_f32(&mut gpu_grad_input)
+            .expect("download");
 
         // Compare
         let mut max_err = 0.0f32;
         for i in 0..cpu_grad_input.len() {
             let err = (cpu_grad_input[i] - gpu_grad_input[i]).abs();
-            let rel = if cpu_grad_input[i].abs() > 1e-6 { err / cpu_grad_input[i].abs() } else { err };
-            if rel > max_err { max_err = rel; }
+            let rel = if cpu_grad_input[i].abs() > 1e-6 {
+                err / cpu_grad_input[i].abs()
+            } else {
+                err
+            };
+            if rel > max_err {
+                max_err = rel;
+            }
             if i < 4 {
-                println!("  [{}] cpu={:.6} gpu={:.6} rel_err={:.6}",
-                    i, cpu_grad_input[i], gpu_grad_input[i], rel);
+                println!(
+                    "  [{}] cpu={:.6} gpu={:.6} rel_err={:.6}",
+                    i, cpu_grad_input[i], gpu_grad_input[i], rel
+                );
             }
         }
         println!("GPU vs CPU max rel error: {:.6}", max_err);
-        assert!(max_err < 1e-3, "GPU backward disagrees with CPU: max_err={}", max_err);
+        assert!(
+            max_err < 1e-3,
+            "GPU backward disagrees with CPU: max_err={}",
+            max_err
+        );
     }
 
     #[test]
@@ -1926,21 +2503,34 @@ mod tests {
 
         // Step 100: end of warmup (at peak)
         let lr100 = cosine_lr(peak, warmup, total, warmup);
-        assert!((lr100 - peak).abs() < 1e-7, "lr100={lr100} should be peak={peak}");
+        assert!(
+            (lr100 - peak).abs() < 1e-7,
+            "lr100={lr100} should be peak={peak}"
+        );
 
         // Step 500: midpoint (between peak and min)
         let lr500 = cosine_lr(peak, 500, total, warmup);
-        assert!(lr500 < peak && lr500 > peak * 0.1, "lr500={lr500} should be between peak and min");
+        assert!(
+            lr500 < peak && lr500 > peak * 0.1,
+            "lr500={lr500} should be between peak and min"
+        );
 
         // Step 1000: end (near min_lr)
         let lr1000 = cosine_lr(peak, total, total, warmup);
-        assert!((lr1000 - peak * 0.1).abs() < 1e-6, "lr1000={lr1000} should be near min={}", peak * 0.1);
+        assert!(
+            (lr1000 - peak * 0.1).abs() < 1e-6,
+            "lr1000={lr1000} should be near min={}",
+            peak * 0.1
+        );
 
         // Monotonic decrease after warmup
         let mut prev = peak;
         for s in (warmup..total).step_by(10) {
             let lr = cosine_lr(peak, s, total, warmup);
-            assert!(lr <= prev + 1e-7, "LR should decrease: step {s}, lr={lr}, prev={prev}");
+            assert!(
+                lr <= prev + 1e-7,
+                "LR should decrease: step {s}, lr={lr}, prev={prev}"
+            );
             prev = lr;
         }
     }

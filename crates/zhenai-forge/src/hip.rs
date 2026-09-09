@@ -91,15 +91,15 @@ pub type HipblasHandle = *mut c_void;
 
 #[repr(i32)]
 pub enum HipblasOperation {
-    None = 111,        // HIPBLAS_OP_N
-    Transpose = 112,   // HIPBLAS_OP_T
+    None = 111,      // HIPBLAS_OP_N
+    Transpose = 112, // HIPBLAS_OP_T
 }
 
 // hipblasDatatype_t values (from hipblas.h — legacy enum, accepted by hipblasGemmEx)
-pub const HIPBLAS_R_16F: i32 = 150;  // float16
-pub const HIPBLAS_R_32F: i32 = 151;  // float32
-pub const HIPBLAS_R_16B: i32 = 168;  // bfloat16
-// hipblasComputeType_t (from hipblas-common.h)
+pub const HIPBLAS_R_16F: i32 = 150; // float16
+pub const HIPBLAS_R_32F: i32 = 151; // float32
+pub const HIPBLAS_R_16B: i32 = 168; // bfloat16
+                                    // hipblasComputeType_t (from hipblas-common.h)
 pub const HIPBLAS_COMPUTE_32F: i32 = 2;
 pub const HIPBLAS_GEMM_DEFAULT: i32 = 160;
 
@@ -112,13 +112,13 @@ extern "C" {
     /// Single-precision general matrix multiply
     pub fn hipblasSgemm(
         handle: HipblasHandle,
-        transa: i32,    // HipblasOperation
+        transa: i32, // HipblasOperation
         transb: i32,
-        m: i32,         // rows of A (and C)
-        n: i32,         // cols of B (and C)
-        k: i32,         // cols of A / rows of B
+        m: i32, // rows of A (and C)
+        n: i32, // cols of B (and C)
+        k: i32, // cols of A / rows of B
         alpha: *const f32,
-        a: *const c_void,  // device pointer
+        a: *const c_void, // device pointer
         lda: i32,
         b: *const c_void,
         ldb: i32,
@@ -131,13 +131,22 @@ extern "C" {
     /// Supports mixed precision: bf16 inputs + fp32 compute + fp32 output.
     pub fn hipblasGemmEx(
         handle: HipblasHandle,
-        transa: i32, transb: i32,
-        m: i32, n: i32, k: i32,
+        transa: i32,
+        transb: i32,
+        m: i32,
+        n: i32,
+        k: i32,
         alpha: *const c_void,
-        a: *const c_void, a_type: i32, lda: i32,
-        b: *const c_void, b_type: i32, ldb: i32,
+        a: *const c_void,
+        a_type: i32,
+        lda: i32,
+        b: *const c_void,
+        b_type: i32,
+        ldb: i32,
         beta: *const c_void,
-        c: *mut c_void, c_type: i32, ldc: i32,
+        c: *mut c_void,
+        c_type: i32,
+        ldc: i32,
         compute_type: i32,
         algo: i32,
     ) -> i32;
@@ -157,68 +166,109 @@ impl BlasHandle {
 
     /// GPU matrix multiply: C = alpha * A * B + beta * C
     /// A: (m × k), B: (k × n), C: (m × n), all in GPU memory
+    #[allow(clippy::too_many_arguments)] // numerical/GPU kernel signature — see crate note
     pub fn sgemm(
         &self,
-        m: i32, n: i32, k: i32,
+        m: i32,
+        n: i32,
+        k: i32,
         alpha: f32,
-        a: &GpuBuffer, lda: i32,
-        b: &GpuBuffer, ldb: i32,
+        a: &GpuBuffer,
+        lda: i32,
+        b: &GpuBuffer,
+        ldb: i32,
         beta: f32,
-        c: &GpuBuffer, ldc: i32,
+        c: &GpuBuffer,
+        ldc: i32,
     ) -> Result<(), HipError> {
         check(unsafe {
             hipblasSgemm(
                 self.handle,
                 HipblasOperation::None as i32,
                 HipblasOperation::None as i32,
-                m, n, k,
+                m,
+                n,
+                k,
                 &alpha,
-                a.as_ptr() as *const c_void, lda,
-                b.as_ptr() as *const c_void, ldb,
+                a.as_ptr() as *const c_void,
+                lda,
+                b.as_ptr() as *const c_void,
+                ldb,
                 &beta,
-                c.as_ptr() as *mut c_void, ldc,
+                c.as_ptr(),
+                ldc,
             )
         })
     }
 
     /// GPU matmul with bf16 inputs and fp32 output: C(fp32) = alpha * A(bf16) * B(bf16) + beta * C(fp32).
     /// Compute is fp32 internally. A: (m × k), B: (k × n), C: (m × n).
+    #[allow(clippy::too_many_arguments)] // numerical/GPU kernel signature — see crate note
     pub fn sgemm_bf16(
         &self,
-        m: i32, n: i32, k: i32,
+        m: i32,
+        n: i32,
+        k: i32,
         alpha: f32,
-        a: &GpuBuffer, lda: i32,
-        b: &GpuBuffer, ldb: i32,
+        a: &GpuBuffer,
+        lda: i32,
+        b: &GpuBuffer,
+        ldb: i32,
         beta: f32,
-        c: &GpuBuffer, ldc: i32,
+        c: &GpuBuffer,
+        ldc: i32,
     ) -> Result<(), HipError> {
         self.sgemm_bf16_ex(false, false, m, n, k, alpha, a, lda, b, ldb, beta, c, ldc)
     }
 
     /// bf16 matmul with transpose flags. Same convention as sgemm_ex but
     /// inputs are bf16 with f32 accumulation. Output stays f32.
+    #[allow(clippy::too_many_arguments)] // numerical/GPU kernel signature — see crate note
     pub fn sgemm_bf16_ex(
         &self,
-        transa: bool, transb: bool,
-        m: i32, n: i32, k: i32,
+        transa: bool,
+        transb: bool,
+        m: i32,
+        n: i32,
+        k: i32,
         alpha: f32,
-        a: &GpuBuffer, lda: i32,
-        b: &GpuBuffer, ldb: i32,
+        a: &GpuBuffer,
+        lda: i32,
+        b: &GpuBuffer,
+        ldb: i32,
         beta: f32,
-        c: &GpuBuffer, ldc: i32,
+        c: &GpuBuffer,
+        ldc: i32,
     ) -> Result<(), HipError> {
-        let op_a = if transa { HipblasOperation::Transpose as i32 } else { HipblasOperation::None as i32 };
-        let op_b = if transb { HipblasOperation::Transpose as i32 } else { HipblasOperation::None as i32 };
+        let op_a = if transa {
+            HipblasOperation::Transpose as i32
+        } else {
+            HipblasOperation::None as i32
+        };
+        let op_b = if transb {
+            HipblasOperation::Transpose as i32
+        } else {
+            HipblasOperation::None as i32
+        };
         check(unsafe {
             hipblasGemmEx(
                 self.handle,
-                op_a, op_b,
-                m, n, k,
+                op_a,
+                op_b,
+                m,
+                n,
+                k,
                 &alpha as *const f32 as *const c_void,
-                a.as_ptr() as *const c_void, HIPBLAS_R_16B, lda,
-                b.as_ptr() as *const c_void, HIPBLAS_R_16B, ldb,
+                a.as_ptr() as *const c_void,
+                HIPBLAS_R_16B,
+                lda,
+                b.as_ptr() as *const c_void,
+                HIPBLAS_R_16B,
+                ldb,
                 &beta as *const f32 as *const c_void,
-                c.as_ptr() as *mut c_void, HIPBLAS_R_32F, ldc,
+                c.as_ptr(),
+                HIPBLAS_R_32F,
+                ldc,
                 HIPBLAS_R_32F,
                 HIPBLAS_GEMM_DEFAULT,
             )
@@ -339,6 +389,16 @@ impl GpuBuffer {
     pub fn len(&self) -> usize {
         self.size
     }
+
+    /// Whether the buffer holds no bytes.
+    ///
+    /// A zero-byte allocation is not a normal state here — every caller sizes
+    /// a buffer from a tensor shape — so this is mostly the companion clippy
+    /// wants alongside `len`. It is still the right question to ask before
+    /// handing the pointer to a kernel.
+    pub fn is_empty(&self) -> bool {
+        self.size == 0
+    }
 }
 
 impl Drop for GpuBuffer {
@@ -373,27 +433,49 @@ impl GpuBuffer {
 impl BlasHandle {
     /// GPU matmul with transpose support: C = alpha * op(A) * op(B) + beta * C
     /// transa/transb: false = no-transpose, true = transpose
+    #[allow(clippy::too_many_arguments)] // numerical/GPU kernel signature — see crate note
     pub fn sgemm_ex(
         &self,
-        transa: bool, transb: bool,
-        m: i32, n: i32, k: i32,
+        transa: bool,
+        transb: bool,
+        m: i32,
+        n: i32,
+        k: i32,
         alpha: f32,
-        a: &GpuBuffer, lda: i32,
-        b: &GpuBuffer, ldb: i32,
+        a: &GpuBuffer,
+        lda: i32,
+        b: &GpuBuffer,
+        ldb: i32,
         beta: f32,
-        c: &GpuBuffer, ldc: i32,
+        c: &GpuBuffer,
+        ldc: i32,
     ) -> Result<(), HipError> {
-        let op_a = if transa { HipblasOperation::Transpose as i32 } else { HipblasOperation::None as i32 };
-        let op_b = if transb { HipblasOperation::Transpose as i32 } else { HipblasOperation::None as i32 };
+        let op_a = if transa {
+            HipblasOperation::Transpose as i32
+        } else {
+            HipblasOperation::None as i32
+        };
+        let op_b = if transb {
+            HipblasOperation::Transpose as i32
+        } else {
+            HipblasOperation::None as i32
+        };
         check(unsafe {
             hipblasSgemm(
-                self.handle, op_a, op_b,
-                m, n, k,
+                self.handle,
+                op_a,
+                op_b,
+                m,
+                n,
+                k,
                 &alpha,
-                a.as_ptr() as *const c_void, lda,
-                b.as_ptr() as *const c_void, ldb,
+                a.as_ptr() as *const c_void,
+                lda,
+                b.as_ptr() as *const c_void,
+                ldb,
                 &beta,
-                c.as_ptr() as *mut c_void, ldc,
+                c.as_ptr(),
+                ldc,
             )
         })
     }
@@ -417,8 +499,12 @@ mod tests {
     fn test_hip_device_init() {
         match GpuDevice::init(0) {
             Ok(dev) => {
-                println!("GPU: {} ({:.1} GB VRAM, {} CUs)",
-                    dev.name, dev.vram_bytes as f64 / 1e9, dev.compute_units);
+                println!(
+                    "GPU: {} ({:.1} GB VRAM, {} CUs)",
+                    dev.name,
+                    dev.vram_bytes as f64 / 1e9,
+                    dev.compute_units
+                );
                 assert!(!dev.name.is_empty());
                 assert!(dev.vram_bytes > 0);
             }
@@ -487,17 +573,36 @@ mod tests {
         b_buf.copy_from_host(bytemuck_cast(&b_data)).expect("H2D B");
         c_buf.copy_from_host(bytemuck_cast(&c_data)).expect("H2D C");
 
-        blas.sgemm(2, 2, 2, 1.0, &a_buf, 2, &b_buf, 2, 0.0, &c_buf, 2).expect("sgemm");
+        blas.sgemm(2, 2, 2, 1.0, &a_buf, 2, &b_buf, 2, 0.0, &c_buf, 2)
+            .expect("sgemm");
         sync().expect("sync");
 
         let mut result = vec![0.0f32; 4];
-        c_buf.copy_to_host(bytemuck_cast_mut(&mut result)).expect("D2H C");
+        c_buf
+            .copy_to_host(bytemuck_cast_mut(&mut result))
+            .expect("D2H C");
 
         // Column-major result: [19, 43, 22, 50]
-        assert!((result[0] - 19.0).abs() < 0.01, "C[0,0] = {} (expected 19)", result[0]);
-        assert!((result[1] - 43.0).abs() < 0.01, "C[1,0] = {} (expected 43)", result[1]);
-        assert!((result[2] - 22.0).abs() < 0.01, "C[0,1] = {} (expected 22)", result[2]);
-        assert!((result[3] - 50.0).abs() < 0.01, "C[1,1] = {} (expected 50)", result[3]);
+        assert!(
+            (result[0] - 19.0).abs() < 0.01,
+            "C[0,0] = {} (expected 19)",
+            result[0]
+        );
+        assert!(
+            (result[1] - 43.0).abs() < 0.01,
+            "C[1,0] = {} (expected 43)",
+            result[1]
+        );
+        assert!(
+            (result[2] - 22.0).abs() < 0.01,
+            "C[0,1] = {} (expected 22)",
+            result[2]
+        );
+        assert!(
+            (result[3] - 50.0).abs() < 0.01,
+            "C[1,1] = {} (expected 50)",
+            result[3]
+        );
 
         println!("hipBLAS SGEMM verified: [[19, 22], [43, 50]]");
     }
@@ -516,31 +621,60 @@ mod tests {
         let a_f32: Vec<f32> = vec![1.0, 3.0, 2.0, 4.0]; // col-major
         let b_f32: Vec<f32> = vec![5.0, 7.0, 6.0, 8.0];
 
-        let a_bf16: Vec<u16> = a_f32.iter().map(|f| half::bf16::from_f32(*f).to_bits()).collect();
-        let b_bf16: Vec<u16> = b_f32.iter().map(|f| half::bf16::from_f32(*f).to_bits()).collect();
+        let a_bf16: Vec<u16> = a_f32
+            .iter()
+            .map(|f| half::bf16::from_f32(*f).to_bits())
+            .collect();
+        let b_bf16: Vec<u16> = b_f32
+            .iter()
+            .map(|f| half::bf16::from_f32(*f).to_bits())
+            .collect();
 
         let a_buf = GpuBuffer::alloc(a_bf16.len() * 2).expect("alloc A");
         let b_buf = GpuBuffer::alloc(b_bf16.len() * 2).expect("alloc B");
         let c_buf = GpuBuffer::alloc(4 * 4).expect("alloc C"); // fp32 output
 
-        a_buf.copy_from_host(unsafe {
-            std::slice::from_raw_parts(a_bf16.as_ptr() as *const u8, a_bf16.len() * 2)
-        }).expect("H2D A");
-        b_buf.copy_from_host(unsafe {
-            std::slice::from_raw_parts(b_bf16.as_ptr() as *const u8, b_bf16.len() * 2)
-        }).expect("H2D B");
+        a_buf
+            .copy_from_host(unsafe {
+                std::slice::from_raw_parts(a_bf16.as_ptr() as *const u8, a_bf16.len() * 2)
+            })
+            .expect("H2D A");
+        b_buf
+            .copy_from_host(unsafe {
+                std::slice::from_raw_parts(b_bf16.as_ptr() as *const u8, b_bf16.len() * 2)
+            })
+            .expect("H2D B");
         c_buf.zero().expect("zero C");
 
-        blas.sgemm_bf16(2, 2, 2, 1.0, &a_buf, 2, &b_buf, 2, 0.0, &c_buf, 2).expect("sgemm_bf16");
+        blas.sgemm_bf16(2, 2, 2, 1.0, &a_buf, 2, &b_buf, 2, 0.0, &c_buf, 2)
+            .expect("sgemm_bf16");
         sync().expect("sync");
 
         let mut result = vec![0.0f32; 4];
-        c_buf.copy_to_host(bytemuck_cast_mut(&mut result)).expect("D2H C");
+        c_buf
+            .copy_to_host(bytemuck_cast_mut(&mut result))
+            .expect("D2H C");
 
-        assert!((result[0] - 19.0).abs() < 0.1, "C[0,0] = {} (expected 19)", result[0]);
-        assert!((result[1] - 43.0).abs() < 0.1, "C[1,0] = {} (expected 43)", result[1]);
-        assert!((result[2] - 22.0).abs() < 0.1, "C[0,1] = {} (expected 22)", result[2]);
-        assert!((result[3] - 50.0).abs() < 0.1, "C[1,1] = {} (expected 50)", result[3]);
+        assert!(
+            (result[0] - 19.0).abs() < 0.1,
+            "C[0,0] = {} (expected 19)",
+            result[0]
+        );
+        assert!(
+            (result[1] - 43.0).abs() < 0.1,
+            "C[1,0] = {} (expected 43)",
+            result[1]
+        );
+        assert!(
+            (result[2] - 22.0).abs() < 0.1,
+            "C[0,1] = {} (expected 22)",
+            result[2]
+        );
+        assert!(
+            (result[3] - 50.0).abs() < 0.1,
+            "C[1,1] = {} (expected 50)",
+            result[3]
+        );
 
         println!("hipBLAS SGEMM bf16 verified: [[19, 22], [43, 50]]");
     }

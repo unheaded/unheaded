@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! THE WHISPERING VOID - Ultra-lean eBPF event collector
 //!
 //! This is the heart of the trace collection infrastructure for the Unheaded Kingdom.
@@ -42,7 +45,7 @@
 //!  └─────────────────────────────────────────────────────────────────┘
 //! ```
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -695,7 +698,7 @@ async fn run_daemon(run_config: RunConfig) -> Result<()> {
 
             let handle = tokio::spawn(async move {
                 tokio::select! {
-                    result = ringbuf_reader.run(event_tx, shutdown_flag) => {
+                    result = ringbuf_reader.run(event_tx, shutdown_flag, run_config.config.poll_timeout_ms) => {
                         if let Err(e) = result {
                             error!(error = %e, "Ring buffer reader error");
                         }
@@ -1017,7 +1020,11 @@ struct BpfProgramStatus {
     attached: bool,
 }
 
-async fn dump_events(ringbuf_path: &PathBuf, max_events: usize, raw: bool) -> Result<()> {
+/// Poll interval for the one-shot `dump` path. Not operator-configurable:
+/// `dump` is an interactive diagnostic, not a long-running collector.
+const DUMP_POLL_TIMEOUT_MS: u64 = 100;
+
+async fn dump_events(ringbuf_path: &Path, max_events: usize, raw: bool) -> Result<()> {
     if !ringbuf_path.exists() {
         anyhow::bail!(
             "Ring buffer path does not exist: {}",
@@ -1040,7 +1047,7 @@ async fn dump_events(ringbuf_path: &PathBuf, max_events: usize, raw: bool) -> Re
 
     let shutdown_clone = Arc::clone(&shutdown);
     let reader_handle = tokio::spawn(async move {
-        let _ = reader.run(tx, shutdown_clone).await;
+        let _ = reader.run(tx, shutdown_clone, DUMP_POLL_TIMEOUT_MS).await;
     });
 
     let mut count = 0;

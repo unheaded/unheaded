@@ -14,12 +14,9 @@ import json
 import os
 import random
 import re
-import sys
 import time
-from pathlib import Path
 
 import faiss
-import numpy as np
 import requests
 from sentence_transformers import SentenceTransformer
 
@@ -207,8 +204,7 @@ def retrieve_chunks(question, index, id_map, corpus_lookup, embedding_model, k=T
 def save_results(results, path):
     """Save results as JSONL."""
     with open(path, "w") as f:
-        for r in results:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(r, ensure_ascii=False) + "\n" for r in results)
 
 
 def main():
@@ -338,7 +334,7 @@ def main():
     # Summary
     elapsed = time.time() - t_start
     print(f"\n{'='*60}")
-    print(f"RAFT QA Generation Complete")
+    print("RAFT QA Generation Complete")
     print(f"{'='*60}")
     print(f"  Total chunks processed: {total}")
     print(f"  QA pairs generated:     {len(results)}")
@@ -347,7 +343,7 @@ def main():
     print(f"  Output:                 {OUTPUT_PATH}")
 
     if results:
-        print(f"\n--- Sample QA pairs (first 3) ---")
+        print("\n--- Sample QA pairs (first 3) ---")
         for j, r in enumerate(results[:3]):
             print(f"\n  [{j+1}] Source: {r['source_file']}")
             print(f"      Q: {r['question']}")
@@ -355,7 +351,7 @@ def main():
             print(f"      Distractors: {len(r['distractor_chunks'])}")
 
     if errors:
-        print(f"\n--- Error summary ---")
+        print("\n--- Error summary ---")
         error_types = {}
         for e in errors:
             t = e["error"].split(":")[0] if ":" in e["error"] else e["error"]

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Pretty-print CPU_MAP state."""
-import subprocess, struct, sys
+import struct
+import subprocess
+import sys
 
 result = subprocess.run(
     ['bpftool', 'map', 'lookup', 'pinned', '/sys/fs/bpf/unheaded/doom-ring/maps/CPU_MAP',

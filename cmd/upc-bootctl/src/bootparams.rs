@@ -89,8 +89,8 @@ impl BootParamsV2 {
     /// SAFETY: BootParamsV2 is `#[repr(C, packed)]`, exactly 256 bytes,
     /// contains only u32/[u32;N] primitives — no padding, no pointers,
     /// no Drop, fully POD.
-    pub fn to_bytes(&self) -> [u8; 256] {
-        unsafe { std::mem::transmute_copy(self) }
+    pub fn to_bytes(self) -> [u8; 256] {
+        unsafe { std::mem::transmute_copy(&self) }
     }
 }
 

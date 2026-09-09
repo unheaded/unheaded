@@ -1,7 +1,10 @@
 #\!/usr/bin/env python3
 """Fast bulk packet injector for Doom ring. Run inside monad0 namespace.
 Adds a small delay between packets to prevent drops."""
-import socket, struct, sys, time
+import socket
+import struct
+import sys
+import time
 
 flow_label = int(sys.argv[1], 0) if len(sys.argv) > 1 else 0xDE
 count = int(sys.argv[2]) if len(sys.argv) > 2 else 1000

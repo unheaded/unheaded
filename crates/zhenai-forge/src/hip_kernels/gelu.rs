@@ -7,20 +7,33 @@ use crate::hip::GpuBuffer;
 
 extern "C" {
     fn wave11_launch_gelu_fwd_f32(
-        out: *mut f32, input: *const f32, n: i32, stream: *mut std::ffi::c_void,
+        out: *mut f32,
+        input: *const f32,
+        n: i32,
+        stream: *mut std::ffi::c_void,
     ) -> i32;
     fn wave11_launch_gelu_bwd_f32(
-        grad_in: *mut f32, grad_out: *const f32, input: *const f32, n: i32,
+        grad_in: *mut f32,
+        grad_out: *const f32,
+        input: *const f32,
+        n: i32,
         stream: *mut std::ffi::c_void,
     ) -> i32;
     fn wave11_launch_gelu_mul_fwd_f32(
-        out: *mut f32, gate_pre: *const f32, up_pre: *const f32, n: i32,
+        out: *mut f32,
+        gate_pre: *const f32,
+        up_pre: *const f32,
+        n: i32,
         stream: *mut std::ffi::c_void,
     ) -> i32;
     fn wave11_launch_gelu_mul_bwd_f32(
-        grad_gate_pre: *mut f32, grad_up_pre: *mut f32,
-        grad_out: *const f32, gate_pre: *const f32, up_pre: *const f32,
-        n: i32, stream: *mut std::ffi::c_void,
+        grad_gate_pre: *mut f32,
+        grad_up_pre: *mut f32,
+        grad_out: *const f32,
+        gate_pre: *const f32,
+        up_pre: *const f32,
+        n: i32,
+        stream: *mut std::ffi::c_void,
     ) -> i32;
 }
 
@@ -36,7 +49,12 @@ pub fn gelu_fwd(out: &GpuBuffer, input: &GpuBuffer, n: usize) -> Result<(), Stri
     super::check_hip(err, "gelu_fwd")
 }
 
-pub fn gelu_bwd(grad_in: &GpuBuffer, grad_out: &GpuBuffer, input: &GpuBuffer, n: usize) -> Result<(), String> {
+pub fn gelu_bwd(
+    grad_in: &GpuBuffer,
+    grad_out: &GpuBuffer,
+    input: &GpuBuffer,
+    n: usize,
+) -> Result<(), String> {
     let err = unsafe {
         wave11_launch_gelu_bwd_f32(
             grad_in.as_ptr() as *mut f32,
@@ -52,7 +70,10 @@ pub fn gelu_bwd(grad_in: &GpuBuffer, grad_out: &GpuBuffer, input: &GpuBuffer, n:
 /// Fused gelu*up forward: out = gelu(gate_pre) * up_pre. One kernel, one
 /// memory pass vs two. Used in FFN forward.
 pub fn gelu_mul_fwd(
-    out: &GpuBuffer, gate_pre: &GpuBuffer, up_pre: &GpuBuffer, n: usize,
+    out: &GpuBuffer,
+    gate_pre: &GpuBuffer,
+    up_pre: &GpuBuffer,
+    n: usize,
 ) -> Result<(), String> {
     let err = unsafe {
         wave11_launch_gelu_mul_fwd_f32(
@@ -68,8 +89,12 @@ pub fn gelu_mul_fwd(
 
 /// Fused gelu*up backward.
 pub fn gelu_mul_bwd(
-    grad_gate_pre: &GpuBuffer, grad_up_pre: &GpuBuffer,
-    grad_out: &GpuBuffer, gate_pre: &GpuBuffer, up_pre: &GpuBuffer, n: usize,
+    grad_gate_pre: &GpuBuffer,
+    grad_up_pre: &GpuBuffer,
+    grad_out: &GpuBuffer,
+    gate_pre: &GpuBuffer,
+    up_pre: &GpuBuffer,
+    n: usize,
 ) -> Result<(), String> {
     let err = unsafe {
         wave11_launch_gelu_mul_bwd_f32(
@@ -101,7 +126,9 @@ mod tests {
         let mut s = seed.wrapping_add(0x9E3779B97F4A7C15);
         let mut v = Vec::with_capacity(n);
         for _ in 0..n {
-            s ^= s >> 12; s ^= s << 25; s ^= s >> 27;
+            s ^= s >> 12;
+            s ^= s << 25;
+            s ^= s >> 27;
             let x = s.wrapping_mul(0x2545F4914F6CDD1D);
             let u = ((x >> 40) as f32) / (1u32 << 24) as f32 * 2.0 - 1.0;
             v.push(u);
@@ -110,7 +137,7 @@ mod tests {
     }
 
     fn gelu_prime(x: f32) -> f32 {
-        const K: f32 = 0.7978845608028654;
+        const K: f32 = 0.797_884_6;
         const ALPHA: f32 = 0.044715;
         let inner = K * (x + ALPHA * x * x * x);
         let th = inner.tanh();
@@ -142,7 +169,11 @@ mod tests {
         let n = 24576usize;
         let x = det_vec(n, 0xC2);
         let go = det_vec(n, 0xC3);
-        let cpu: Vec<f32> = x.iter().zip(&go).map(|(&xi, &goi)| goi * gelu_prime(xi)).collect();
+        let cpu: Vec<f32> = x
+            .iter()
+            .zip(&go)
+            .map(|(&xi, &goi)| goi * gelu_prime(xi))
+            .collect();
 
         let x_buf = GpuBuffer::alloc(n * 4).unwrap();
         let go_buf = GpuBuffer::alloc(n * 4).unwrap();
@@ -165,8 +196,11 @@ mod tests {
         let n = 24576usize;
         let gate = det_vec(n, 0xD1);
         let up = det_vec(n, 0xD2);
-        let cpu: Vec<f32> = gate.iter().zip(&up)
-            .map(|(&g, &u)| gelu_tanh_approx(g) * u).collect();
+        let cpu: Vec<f32> = gate
+            .iter()
+            .zip(&up)
+            .map(|(&g, &u)| gelu_tanh_approx(g) * u)
+            .collect();
 
         let g_buf = GpuBuffer::alloc(n * 4).unwrap();
         let u_buf = GpuBuffer::alloc(n * 4).unwrap();
@@ -190,10 +224,17 @@ mod tests {
         let gate = det_vec(n, 0xE1);
         let up = det_vec(n, 0xE2);
         let go = det_vec(n, 0xE3);
-        let cpu_gate: Vec<f32> = gate.iter().zip(&up).zip(&go)
-            .map(|((&g, &u), &goi)| goi * u * gelu_prime(g)).collect();
-        let cpu_up: Vec<f32> = gate.iter().zip(&go)
-            .map(|(&g, &goi)| goi * gelu_tanh_approx(g)).collect();
+        let cpu_gate: Vec<f32> = gate
+            .iter()
+            .zip(&up)
+            .zip(&go)
+            .map(|((&g, &u), &goi)| goi * u * gelu_prime(g))
+            .collect();
+        let cpu_up: Vec<f32> = gate
+            .iter()
+            .zip(&go)
+            .map(|(&g, &goi)| goi * gelu_tanh_approx(g))
+            .collect();
 
         let g_buf = GpuBuffer::alloc(n * 4).unwrap();
         let u_buf = GpuBuffer::alloc(n * 4).unwrap();

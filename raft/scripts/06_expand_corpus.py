@@ -18,10 +18,8 @@ import html.parser
 import json
 import os
 import subprocess
-import sys
 import time
 import uuid
-from pathlib import Path
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -576,7 +574,7 @@ def phase1_chunking():
         total_tokens += c["tokens"]
 
     print(f"\n{'='*60}")
-    print(f"Ring 2-4 Corpus Expansion Complete")
+    print("Ring 2-4 Corpus Expansion Complete")
     print(f"{'='*60}")
     print(f"Time:          {elapsed:.1f}s")
     print(f"Total chunks:  {len(all_chunks):,}")
@@ -615,7 +613,6 @@ def phase1_chunking():
 def phase2_embed_and_index():
     """Phase 2: Load Ring 1 + Ring 2-4, embed, build combined FAISS index."""
     import faiss
-    import numpy as np
     from sentence_transformers import SentenceTransformer
 
     MODEL_NAME = "all-MiniLM-L6-v2"

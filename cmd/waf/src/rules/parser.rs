@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Rule Parser for THE SHIELD
 //!
 //! Handles parsing of WAF rules from configuration and runtime rule loading.
@@ -145,7 +148,7 @@ impl MethodFilter {
     pub fn from_config(methods: Option<&[String]>) -> Self {
         match methods {
             None => MethodFilter::Any,
-            Some(m) if m.is_empty() => MethodFilter::Any,
+            Some([]) => MethodFilter::Any,
             Some(m) => MethodFilter::Methods(m.iter().map(|s| s.to_uppercase()).collect()),
         }
     }
@@ -178,9 +181,7 @@ pub fn validate_rule(config: &RuleConfig) -> Result<(), String> {
 
     // Validate rate limit if action is limit
     if config.action == "limit" {
-        let rate = config
-            .rate
-            .ok_or("Rate limit rule requires 'rate' field")?;
+        let rate = config.rate.ok_or("Rate limit rule requires 'rate' field")?;
         let per = config
             .per
             .as_ref()

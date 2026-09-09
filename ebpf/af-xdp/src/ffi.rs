@@ -8,7 +8,7 @@
 // checked via null guards at each entry point.
 #![allow(clippy::not_unsafe_ptr_arg_deref)]
 
-use crate::engine::{EngineStats, XdpEngine};
+use crate::engine::XdpEngine;
 use std::ffi::CStr;
 use std::os::raw::{c_char, c_int, c_uint};
 use std::ptr;
@@ -64,7 +64,7 @@ pub extern "C" fn afxdp_create(
         Err(_) => return ptr::null_mut(),
     };
 
-    match XdpEngine::new(iface_str, queue as u32, frame_count as u32) {
+    match XdpEngine::new(iface_str, queue, frame_count) {
         Ok(engine) => Box::into_raw(Box::new(AfxdpHandle {
             engine: Box::into_raw(Box::new(engine)),
         })),
@@ -147,7 +147,7 @@ pub extern "C" fn afxdp_send(
 
     let pkt = crate::engine::PacketBuf {
         addr,
-        len: buf_size as u32,
+        len: buf_size,
     };
 
     engine.tx_burst(&[pkt]) as c_int

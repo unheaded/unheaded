@@ -76,7 +76,7 @@ impl<T: Copy> Ring<T> {
 
     /// Reserve space for `n` entries.
     /// Returns (producer_index, available_slots).
-    pub fn reserve(&mut self, n: u32) -> (u32, u32) {
+    pub fn reserve(&mut self, _n: u32) -> (u32, u32) {
         let prod = unsafe { (*self.prod).load(Ordering::Relaxed) };
         self.cached_cons = unsafe { (*self.cons).load(Ordering::Acquire) };
         let available = self.size.wrapping_sub(prod.wrapping_sub(self.cached_cons));

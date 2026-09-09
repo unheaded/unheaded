@@ -1,41 +1,22 @@
-//! THE SHIELD - WAF/Gateway for the Unheaded Kingdom
-//!
-//! A high-performance Web Application Firewall and reverse proxy gateway
-//! built in pure Rust with minimal dependencies.
-//!
-//! # Features
-//!
-//! - HTTP/HTTPS termination with TLS 1.2/1.3 support
-//! - Rule-based request filtering (SQL injection, XSS, custom patterns)
-//! - IP allowlist/blocklist with CIDR support
-//! - Token bucket rate limiting
-//! - Circuit breaker for backend protection
-//! - Connection pooling for backends
-//! - Prometheus-compatible metrics
-//!
-//! # Performance
-//!
-//! Designed for 100k+ requests per second with sub-millisecond rule evaluation.
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
 
-mod circuit;
-mod config;
-mod metrics;
-mod proxy;
-mod ratelimit;
-mod router;
-mod rules;
-mod server;
-mod tls;
+//! THE SHIELD - command-line entry point.
+//!
+//! This binary is deliberately thin: argument parsing, configuration loading,
+//! and the wiring in [`run`] that assembles the subsystems. Everything it
+//! assembles lives in the `shield` library crate (`src/lib.rs`), which is
+//! where the WAF itself is implemented and documented.
 
-use circuit::{CircuitBreakerConfig, CircuitBreakerManager};
-use config::Config;
-use metrics::MetricsRegistry;
-use proxy::{Backend, HealthChecker, ReverseProxy};
-use ratelimit::RateLimitManager;
-use router::Router;
-use rules::RuleEngine;
-use server::Server;
-use tls::TlsManager;
+use shield::circuit::{CircuitBreakerConfig, CircuitBreakerManager};
+use shield::config::Config;
+use shield::metrics::MetricsRegistry;
+use shield::proxy::{Backend, HealthChecker, ReverseProxy};
+use shield::ratelimit::RateLimitManager;
+use shield::router::Router;
+use shield::rules::RuleEngine;
+use shield::server::Server;
+use shield::tls::TlsManager;
 
 use std::env;
 use std::process;
@@ -188,7 +169,14 @@ async fn main() {
         eprintln!("Configuration OK");
         eprintln!("  Backends: {}", config.backends.len());
         eprintln!("  Rules: {}", config.rules.len());
-        eprintln!("  TLS: {}", if config.tls.is_some() { "enabled" } else { "disabled" });
+        eprintln!(
+            "  TLS: {}",
+            if config.tls.is_some() {
+                "enabled"
+            } else {
+                "disabled"
+            }
+        );
         process::exit(0);
     }
 
@@ -238,6 +226,7 @@ async fn run(config: Config, debug_mode: bool) -> Result<(), Box<dyn std::error:
 
     // Create circuit breaker manager
     let circuit_breakers = Arc::new(CircuitBreakerManager::new(CircuitBreakerConfig {
+        enabled: config.circuit_breaker.enabled,
         failure_threshold: config.circuit_breaker.failure_threshold,
         success_threshold: config.circuit_breaker.success_threshold,
         reset_timeout: Duration::from_secs(config.circuit_breaker.reset_timeout_secs),
@@ -255,7 +244,10 @@ async fn run(config: Config, debug_mode: bool) -> Result<(), Box<dyn std::error:
 
     eprintln!("Configured {} backend(s):", backends.len());
     for backend in &backends {
-        eprintln!("  - {} @ {} (weight: {})", backend.name, backend.address, backend.weight);
+        eprintln!(
+            "  - {} @ {} (weight: {})",
+            backend.name, backend.address, backend.weight
+        );
     }
 
     // Start health checker
@@ -282,6 +274,7 @@ async fn run(config: Config, debug_mode: bool) -> Result<(), Box<dyn std::error:
         metrics.clone(),
         config.server.max_body_size,
     );
+    router.set_rate_limit_enabled(config.rate_limit.enabled);
 
     if debug_mode || config.logging.log_allowed {
         router.set_log_all(true);
@@ -335,7 +328,7 @@ target = "query"
 action = "log"
 "#;
 
-        let config = Config::from_str(config_str).expect("Failed to parse config");
+        let config: Config = config_str.parse().expect("Failed to parse config");
         assert_eq!(config.server.listen, "127.0.0.1");
         assert_eq!(config.backends.len(), 1);
         assert_eq!(config.rules.len(), 1);

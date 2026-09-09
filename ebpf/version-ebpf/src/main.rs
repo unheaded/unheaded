@@ -31,7 +31,8 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
+    flags, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN,
+    MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
@@ -87,6 +88,7 @@ const STAT_EGRESS_TOTAL: u32 = 8;
 const STAT_EGRESS_TRANSLATIONS: u32 = 9;
 
 // ── Config keys ───────────────────────────────────────────────────────────────
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const CFG_NODE_ID: u32 = 0;
 const CFG_DEFAULT_VERSION: u32 = 1;
 const CFG_STRICT_MODE: u32 = 2;
@@ -94,6 +96,7 @@ const CFG_STRICT_MODE: u32 = 2;
 // ── Translation event types ───────────────────────────────────────────────────
 const TRANS_EVENT_INGRESS: u8 = 0x01;
 const TRANS_EVENT_EGRESS: u8 = 0x02;
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const TRANS_EVENT_MISMATCH: u8 = 0x03;
 const TRANS_EVENT_ERROR: u8 = 0x04;
 

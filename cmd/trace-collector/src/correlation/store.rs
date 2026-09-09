@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Trace Storage Backend
 //!
 //! In-memory and file-based storage for trace data with query capabilities.
@@ -691,8 +694,10 @@ mod tests {
 
     #[test]
     fn test_capacity_eviction() {
-        let mut config = TraceStoreConfig::default();
-        config.max_memory_traces = 2;
+        let config = TraceStoreConfig {
+            max_memory_traces: 2,
+            ..Default::default()
+        };
 
         let store = TraceStore::new(config).unwrap();
 

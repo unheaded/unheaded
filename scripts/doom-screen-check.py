@@ -333,7 +333,7 @@ def main():
             status = "PASS" if ref_result["passed"] else "FAIL"
             print(f"  Reference compare: {status} ({ref_result['diff_pct']:.1f}% diff, tolerance {args.tolerance}%)")
         if issues:
-            print(f"  Issues:")
+            print("  Issues:")
             for issue in issues:
                 print(f"    - {issue}")
 
