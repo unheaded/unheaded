@@ -679,6 +679,162 @@ duplicate `/health` registration. Fix is rung #110 in B8. With container
 restart policies now `no` (2026-09-08), it reports `absent` rather than
 `restarting`; same root cause, same score.
 
+## B6 — rungs 70–93, head `015218c7` — IN STAGING (2026-09-09)
+
+Merged as **`c4386755`**. 24 rungs. **Two conflicts, both genuine** — the first
+in the ladder so far.
+
+| gate | result |
+|---|---|
+| `go build` / `go vet` | clean |
+| `go test ./...` | **0 failures** — the B5 bar holds |
+| `check-*.sh` | **8/8 PASS** (`check-ruff.sh` is new) |
+| `check-gates-can-fail.sh` | **7 gates bite**, 2 skipped in `--quick` |
+| shellcheck `-S warning` | **0 / 162 scripts failing** — the flip holds |
+| eslint 9.39.5 | **0 findings** — the flip holds |
+| Rust workspaces | 18 / 18 |
+| docker images | rebuilt, stack up |
+| `qa-smoke.sh` | **33 / 35 — equal to B2–B5** |
+
+### The meta-gate caught its first new gate, which is the whole point
+
+B6 adds `scripts/check-ruff.sh`. The meta-gate **failed the batch**:
+
+```
+  FAIL: gate script(s) with no classification:
+    check-ruff
+```
+
+Before this existed, a new gate landed unproven and coverage shrank silently
+while the run still printed PASS — four batches in a row. Now a new gate is a
+build failure until someone demonstrates it bites.
+
+Registered with an **F841 unused local**: default-on, unambiguous, not arguable
+as a style preference. Deliberately planted outside `crates/xv6-mbc/upstream`,
+which `check-ruff.sh` excludes as vendored — a provocation in an excluded path
+proves nothing.
+
+### Two merge conflicts, and why each resolution went the way it did
+
+**`scripts/bpf-verifier-check.sh`** — staging and B6 independently added the
+same `cd "$BPF_DIR" ||` guard. B6's form sends the message to **stderr**, so
+B6's line was taken and staging's rationale comment kept. Verified the GAP fix
+from the B5 review (cargo's exit code being authoritative) survived the merge.
+
+**`scripts/firewall/firewall-health-check.sh`** — the interesting one. Both
+branches fixed the *same* credential-through-`eval` bug, differently:
+
+- staging (`7530aaef`) added a `check_api` helper that never builds an `eval`
+  string containing the credential at all.
+- B6 escaped the inner quotes so `eval` survives them.
+
+**staging's kept.** Escaping is correct, but it leaves a credential inside
+`eval "$cmd"`; not constructing that string is the stronger property. Verified
+after resolution: `OPNSENSE_API_*` appears only in the `:?` guards and inside
+`check_api`'s direct `curl`, never on an eval path.
+
+### A defect I introduced while documenting the meta-gate
+
+Writing the scope note, I added a comment line beginning with the word
+`shellcheck`. **A comment whose first word is `shellcheck` is parsed as a
+DIRECTIVE**, so the file failed with SC1072/SC1073 — and it committed anyway
+because the command chained with `;` rather than `&&`, so the failing
+`shellcheck` did not stop the `git commit`.
+
+That would have broken B6's newly-gating shellcheck sweep. Amended, and the
+line reworded so it does not lead with the tool name. Two lessons, both cheap:
+chain verification with `&&`, and the same "first word is the directive"
+footgun that `check-ruff.sh`'s own FAIL message warns about for `noqa` applies
+to `shellcheck` too.
+
+### Scope boundary now stated in the script
+
+CI also gates on direct tool invocations — `cargo clippy -- -D warnings`,
+`cargo fmt --check`, `go vet`, `npx eslint`, the shellcheck sweep. Those are
+**out of scope on purpose**: the failure mode the meta-gate catches is custom
+logic getting a verdict wrong, and a bare tool invocation has no logic in
+between to be wrong. Recorded in the script header so the coverage claim is not
+read as broader than it is.
+
+### `/code-review high` over B6 — 5 findings, all 5 fixed
+
+#### #1 HIGH — `except ... as e` shadowing broke read-only mode
+
+`raft/scripts/action_manager.py:92`. `_check_well` catches the health-check
+failure as `e`, then the newly added inner handler rebinds `e` while closing the
+stale connection. **Python implicitly deletes the name at the end of an
+`except ... as` block**, so the outer `e` is gone by the time line 97 formats
+it, and the raise fails with `UnboundLocalError` instead of
+`WellUnavailableError`.
+
+That is the common path, not an edge case: Postgres goes away → `cur.execute`
+raises → closing the dead handle also raises (which is *why* the inner try
+exists) → `_connect()` returns None. **Callers catch `WellUnavailableError` to
+enter read-only mode** and got `UnboundLocalError` instead. Reproduced
+standalone before fixing. Same rename applied at `zhen_app.py:226`, latent today
+only because the outer `e` is consumed one line earlier.
+
+#### #2 MEDIUM — a third vacuous check, this time a unit test
+
+`ebpf/af-xdp/src/umem.rs`. `CompletionRing::consume` clamps its delta with
+`.min(self.size)` and explains why. `FillRing::free_slots` had no clamp, while
+carrying a doc comment asserting it "is what stops this ring from overrunning
+slots the kernel has not consumed yet."
+
+With `producer - consumer > size`, `size.wrapping_sub(delta)` underflows to
+~4.29e9 and `produce()` writes the caller's whole batch over slots the kernel
+still owns — the exact outcome the comment claims to prevent.
+
+**`fill_ring_free_slots_never_exceeds_size` could not catch it.** All four of
+its pairs had `delta <= size`, so the assertion was unreachable. Confirmed by
+adding the missing case *before* fixing anything:
+
+```
+free_slots()=4294967295 exceeds ring size 8 for producer=9 consumer=0
+```
+
+Fixed with a clamp plus `saturating_sub`, over-delta cases added permanently,
+and the repaired test verified to fail against the old expression.
+
+**Third instance of this shape in three batches** — a check whose passing
+carried no information. B4 and B5 were CI gates; this one is a unit test, which
+the meta-gate does not and cannot cover.
+
+#### #3 MEDIUM — the URL guard was not a boundary and could not fail loudly
+
+`_http_url_from_env`'s docstring claims the scheme is checked "once here, at the
+boundary, rather than at each of the ~35 urlopen call sites downstream." It was
+not: `ZHEN_AGENTD_URL` was re-read raw at **four** sites (health probe, model
+switch, system state, runbook execute) and fed straight to `urlopen`, so
+`ZHEN_AGENTD_URL=file:///etc/passwd` still reached `urlopen` there.
+
+It also could not fail loudly — the one guarded call sat inside the module-level
+`try` whose `except Exception` only records `startup_error`, so a rejected
+scheme left the app running with `rag=None` and the unvalidated URL still in
+use on those paths.
+
+The three service URLs are now module constants validated at import, **outside**
+that try, with all four raw reads routed through them. A bad scheme in
+configuration should stop the process, not degrade it. Verified both ways.
+
+#### #4 LOW/MEDIUM — the "now visible" skips were still going nowhere
+
+The sweep replaced `except: pass` with `log.debug('skipped: %s', e)` under the
+banner *"silent exception swallows are now visible"*, promising the reason was
+"available at debug level when you need it".
+
+**Debug was not reachable.** Three standalone entry points never call
+`basicConfig`, so the root logger stayed at WARNING and every record was
+discarded — behaviourally identical to the `pass` it replaced.
+`zhen_scheduler.py` did configure logging, but pinned at INFO, so its two calls
+were dropped just as surely. Each now takes a `LOG_LEVEL` env knob.
+
+#### #5 LOW — indentation flattened by the SC2086/SC2046 pass
+
+Three commands left at column 0 after a directive was inserted above them.
+Cosmetic, but a command at column 0 inside a `while`/`if` reads as though it
+escaped the block. Re-indented.
+
 ### `/code-review high` over B5 — 5 findings, 4 fixed, 1 deliberately not
 
 The sweep was lint hygiene, so most findings are about the sweep's own comments
