@@ -206,7 +206,7 @@
                 updateConnectionStatus('disconnected');
             };
             state.ws.onmessage = handleWebSocketMessage;
-        } catch (e) {
+        } catch {
             scheduleReconnect();
         }
     }
@@ -242,7 +242,7 @@
             }
             else if (type === 'event' || type === 'events') addEvent(data);
             else if (type.indexOf('ebpf_') === 0) addEBPFEvent(type, data);
-        } catch (e) { /* ignore parse errors */ }
+        } catch { /* ignore parse errors */ }
     }
 
     function updateConnectionStatus(status) {
@@ -698,7 +698,6 @@
         var r = (h.disks || []).filter(function (d) { return d.mount === '/'; })[0];
         return r ? (r.use_percent || 0) : 0;
     }
-    function cores(h) { return h.cpu_count && h.cpu_count > 0 ? h.cpu_count : 1; }
     // Aggregate disk usage across all of a host's mounts.
     function diskAgg(h) { var u = 0, t = 0; (h.disks || []).forEach(function (d) { u += d.used_bytes || 0; t += d.size_bytes || 0; }); return { used: u, total: t }; }
     // Healthy / total across the kingdom services (global, not host-scoped).
@@ -707,7 +706,6 @@
         if (Array.isArray(s)) v = s; else if (s && typeof s === 'object') v = Object.keys(s).map(function (k) { return s[k]; });
         return { up: v.filter(function (x) { return x && x.status === 'healthy'; }).length, total: v.length };
     }
-    function loadC(h, v) { var r = v / cores(h); return r > 1 ? '#ff4757' : r > 0.7 ? '#ff9800' : '#00d26a'; }
     function upShort(s) {
         s = s || 0;
         if (s >= 86400) return Math.floor(s / 86400) + 'd';
@@ -1249,35 +1247,6 @@
         });
     }
 
-    function drawSparkline(canvas, data, lineColor) {
-        if (!canvas || data.length < 2) return;
-        var _c = fitCanvas(canvas);
-        var ctx = _c.ctx, W = _c.w, H = _c.h, pad = 20;
-        ctx.clearRect(0, 0, W, H);
-        var maxV = Math.max.apply(null, data) || 1;
-        var minV = Math.min.apply(null, data);
-        var range = maxV - minV || 1;
-
-        // Grid
-        ctx.strokeStyle = 'rgba(255,215,0,0.1)'; ctx.lineWidth = 1;
-        for (var g = 0; g < 4; g++) {
-            var gy = pad + g * ((H - 2 * pad) / 3);
-            ctx.beginPath(); ctx.moveTo(0, gy); ctx.lineTo(W, gy); ctx.stroke();
-        }
-
-        // Line
-        ctx.beginPath(); ctx.strokeStyle = lineColor; ctx.lineWidth = 2;
-        data.forEach(function(v, i) {
-            var x = (i / (data.length - 1)) * (W - 2 * pad) + pad;
-            var y = H - pad - ((v - minV) / range) * (H - 2 * pad);
-            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
-        });
-        ctx.stroke();
-
-        ctx.fillStyle = '#adb5bd'; ctx.font = '10px monospace'; ctx.textAlign = 'right';
-        ctx.fillText(maxV.toFixed(1) + 'ms', W - 4, pad + 10);
-        ctx.fillText(minV.toFixed(1) + 'ms', W - 4, H - pad);
-    }
 
     // ======================================================================
     // Event Stream Page
@@ -1430,11 +1399,6 @@
         return s + 's';
     }
 
-    function formatDuration(ms) {
-        if (ms >= 60000) return (ms / 60000).toFixed(0) + 'm';
-        if (ms >= 1000) return (ms / 1000).toFixed(1) + 's';
-        return ms + 'ms';
-    }
 
     function updateTimestamp() {
         if (el.lastUpdate) el.lastUpdate.textContent = new Date().toLocaleTimeString();

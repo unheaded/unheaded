@@ -6,6 +6,10 @@
 /**
  * Main Application for The Unheaded Kingdom's Kanban Board
  */
+// These pages load several <script> tags sharing one global scope; the names
+// below are defined by sibling files, which eslint cannot see file-by-file.
+/* global API, Board, Cards, WebSocketClient */
+
 const App = (function() {
     'use strict';
 
@@ -576,7 +580,9 @@ const App = (function() {
         var commitsList = document.getElementById('detailCommits');
         if (commitsSection && commitsList) {
             var commits = [];
-            try { commits = JSON.parse(task.commits || '[]'); } catch(e) {}
+            // A malformed commits blob just means no commit list is shown;
+            // commits stays [] and the section below is skipped.
+            try { commits = JSON.parse(task.commits || '[]'); } catch { commits = []; }
             if (commits.length > 0) {
                 commitsSection.hidden = false;
                 commitsList.innerHTML = '';
@@ -707,7 +713,7 @@ const App = (function() {
      * @param {Object} detail - Review detail (task, action)
      */
     async function handleReviewAction(detail) {
-        const { task, action, cardElement } = detail;
+        const { task, action } = detail;
 
         if (!task) return;
 
@@ -748,7 +754,7 @@ const App = (function() {
         Board.showToast('success', 'Review action completed', successMessage);
     }
     async function handleTaskMove(detail) {
-        const { taskId, newStatus, cardElement } = detail;
+        const { taskId, newStatus } = detail;
 
         const task = Board.getTask(taskId);
         if (!task || task.status === newStatus) return;
@@ -761,7 +767,7 @@ const App = (function() {
      * @param {Object} detail - Update details (taskId, updates, cardElement)
      */
     async function handleInlineUpdate(detail) {
-        const { taskId, updates, cardElement } = detail;
+        const { taskId, updates } = detail;
 
         try {
             const updatedTask = await API.tasks.update(taskId, updates);

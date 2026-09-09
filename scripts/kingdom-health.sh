@@ -13,7 +13,7 @@
 set -uo pipefail
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-cd "$PROJECT_ROOT"
+cd "$PROJECT_ROOT" || { echo "FATAL: cannot cd to $PROJECT_ROOT" >&2; exit 1; }
 
 GATES=()
 PASSES=0

@@ -123,7 +123,8 @@ tomb_exec() {
 
     while [ "${attempt}" -le "${MAX_RETRIES}" ]; do
         _log "SSH" "Attempt ${attempt}/${MAX_RETRIES}: ${cmd}"
-        if ssh $(_ssh_opts) -i "${TOMB_SSH_KEY}" \
+        # shellcheck disable=SC2046  # _ssh_opts emits a list of -o flags; must split
+    if ssh $(_ssh_opts) -i "${TOMB_SSH_KEY}" \
                "${TOMB_USER}@${TOMB_TARGET}" "${cmd}" 2>>"${LOG_FILE}"; then
             return 0
         fi
@@ -156,7 +157,8 @@ tomb_scp() {
 
     while [ "${attempt}" -le "${MAX_RETRIES}" ]; do
         _log "SCP" "Attempt ${attempt}/${MAX_RETRIES}: ${src} -> ${dst}"
-        if scp $(_ssh_opts) -i "${TOMB_SSH_KEY}" \
+        # shellcheck disable=SC2046  # _ssh_opts emits a list of -o flags; must split
+    if scp $(_ssh_opts) -i "${TOMB_SSH_KEY}" \
                -r "${src}" "${TOMB_USER}@${TOMB_TARGET}:${dst}" 2>>"${LOG_FILE}"; then
             return 0
         fi

@@ -90,6 +90,7 @@ build_binary() {
     fi
 
     # Build with error handling
+    # shellcheck disable=SC2086  # GO_BUILD_FLAGS must word-split into separate args
     if cd "${source_dir}" && go build \
         ${GO_BUILD_FLAGS} \
         -ldflags "${GO_LDFLAGS_STR}" \

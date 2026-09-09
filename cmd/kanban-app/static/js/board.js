@@ -6,6 +6,10 @@
 /**
  * Board module for The Unheaded Kingdom's Kanban Board
  */
+// These pages load several <script> tags sharing one global scope; the names
+// below are defined by sibling files, which eslint cannot see file-by-file.
+/* global API, Cards */
+
 const Board = (function() {
     'use strict';
 
@@ -149,7 +153,7 @@ const Board = (function() {
                         console.log('[Board] Loaded timeline cards:', tasks.length);
                     }
                 }
-            } catch (timelineError) {
+            } catch {
                 console.log('[Board] Timeline cards not available, falling back to tasks');
             }
 

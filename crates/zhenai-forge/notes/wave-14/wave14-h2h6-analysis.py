@@ -32,7 +32,8 @@ import json
 import re
 from collections import Counter
 
-CORPUS = "/tmp/24h-kingdom-train.jsonl"
+CORPUS = "/tmp/24h-kingdom-train.jsonl"  # nosec B108 - fixed path is the interface;
+# scripts/tokenize-kingdom-for-gemma4.py writes it, this analysis reads it. See CLAUDE.md.
 
 # ----- H2: opening-token frequency at answer_start -----
 opening = Counter()

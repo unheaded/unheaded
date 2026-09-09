@@ -72,7 +72,7 @@ if [ "$HAS_NAMESPACE" = true ] && [ -f "$PROJECT_ROOT/scripts/doom/run.py" ]; th
         --forever \
         --namespace "$NAMESPACE" \
         --auto-restart \
-        2>&1 > "$DOOM_LOG" &
+        > "$DOOM_LOG" 2>&1 &
     DOOM_PID=$!
     echo "  Doom driver PID: $DOOM_PID"
     sleep 5

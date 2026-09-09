@@ -2,6 +2,10 @@
  * Archive/Deleted/Completed viewer for Kanban board.
  * All styles via CSS classes (CSP-compliant, no inline styles).
  */
+// These pages load several <script> tags sharing one global scope; the names
+// below are defined by sibling files, which eslint cannot see file-by-file.
+/* global App, Board */
+
 (function() {
     'use strict';
 

@@ -155,7 +155,7 @@ var PqcMapUtilization = (function() {
 
         if (mapUtilData.maps) {
             for (var key in mapUtilData.maps) {
-                if (mapUtilData.maps.hasOwnProperty(key) && state.mapData.hasOwnProperty(key)) {
+                if (Object.prototype.hasOwnProperty.call(mapUtilData.maps, key) && Object.prototype.hasOwnProperty.call(state.mapData, key)) {
                     var d = mapUtilData.maps[key];
                     if (d.current != null) state.mapData[key].current = d.current;
                     if (d.max != null) state.mapData[key].max = d.max;

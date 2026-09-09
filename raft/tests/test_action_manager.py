@@ -302,7 +302,7 @@ class TestExecuteAction(unittest.TestCase):
             session_id='s1',
             action_type='file.write',
             intent='Write config',
-            parameters={'path': '/tmp/test.conf', 'content': 'new content'},
+            parameters={'path': '/tmp/test.conf', 'content': 'new content'},  # nosec B108 - fixture string, never opened
         )
 
         def executor(params):
@@ -311,7 +311,7 @@ class TestExecuteAction(unittest.TestCase):
                 'result_summary': 'Wrote 42 bytes to /tmp/test.conf',
                 'snapshots': [{
                     'resource_type': 'file',
-                    'resource_id': '/tmp/test.conf',
+                    'resource_id': '/tmp/test.conf',  # nosec B108 - fixture string, never opened
                     'content_before': 'old content',
                     'content_after': 'new content',
                     'metadata': {'permissions': '0644'},
@@ -403,7 +403,7 @@ class TestRevertAction(unittest.TestCase):
             session_id='s1',
             action_type='file.write',
             intent='Write config',
-            parameters={'path': '/tmp/test.conf'},
+            parameters={'path': '/tmp/test.conf'},  # nosec B108 - fixture string, never opened
             revertable=True,
         )
         self.am.execute_action(action_id, lambda p: {
@@ -411,7 +411,7 @@ class TestRevertAction(unittest.TestCase):
             'result_summary': 'Wrote config',
             'snapshots': [{
                 'resource_type': 'file',
-                'resource_id': '/tmp/test.conf',
+                'resource_id': '/tmp/test.conf',  # nosec B108 - fixture string, never opened
                 'content_before': 'original content',
                 'content_after': 'new content',
             }],

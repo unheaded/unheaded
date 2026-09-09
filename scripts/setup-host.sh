@@ -148,7 +148,7 @@ install_dependencies() {
                 bridge-utils \
                 iptables \
                 bpftool \
-                linux-headers-$(uname -r) \
+                "linux-headers-$(uname -r)" \
                 clang llvm \
                 golang-go \
                 rustc cargo \

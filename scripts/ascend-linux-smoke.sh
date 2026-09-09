@@ -91,6 +91,10 @@ step "GPL boundary check (no contamination from new code)" \
     bash -c 'bash scripts/verify-gpl-boundary.sh 2>&1 | grep -q "RESULT: PASS"'
 
 # 12. govulncheck — zero kingdom vulns
+# The tilde below is inside single quotes for THIS shell, so it reaches bash -c
+# literally and is expanded when bash -c parses it. Directive must be the last
+# comment line before the command and must not follow a line continuation.
+# shellcheck disable=SC2088
 step "govulncheck (zero kingdom vulnerabilities)" \
     bash -c '~/go/bin/govulncheck ./... 2>&1 | grep -q "affected by 0 vulnerabilities"'
 

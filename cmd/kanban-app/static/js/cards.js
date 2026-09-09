@@ -79,7 +79,6 @@ const Cards = (function() {
 
         const date = new Date(dateStr);
         const now = new Date();
-        const diffDays = Math.ceil((date - now) / (1000 * 60 * 60 * 24));
 
         // Format options
         const options = { month: 'short', day: 'numeric' };
@@ -615,7 +614,7 @@ const Cards = (function() {
             }
         });
 
-        input.addEventListener('blur', (e) => {
+        input.addEventListener('blur', () => {
             // Small delay to allow button clicks
             setTimeout(() => {
                 if (editingCardId === task.id) {

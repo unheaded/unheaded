@@ -11,7 +11,12 @@
 # a linter lands NON-GATING first so its baseline is measured honestly, then
 # flips to gating once the backlog is worked. `continue-on-error: true` here
 # is a deliberate, temporary, documented state — not a permanent excuse.
-# Measured baselines: shellcheck 361 (11 error / 98 warning / 252 note);
+# Measured baselines (2026-08-03 re-measure): shellcheck 359 -> 281, 0 errors
+# throughout — the header's old "361 with 11 error" was stale, the errors had
+# been cleared without it being updated. ruff 427 -> 0 (gating, ratcheted).
+# bandit 212 -> 173, 43 after rule-ID skips. eslint measured for the first
+# time: 57. Historical figures below kept for provenance:
+# shellcheck 361 (11 error / 98 warning / 252 note);
 # clippy 348 warnings / 0 errors across all 16 workspaces (the earlier
 # "13 in crates/monad-mbc alone" was one workspace, not the tree); ruff 673;
 # bandit 2 high / 51 medium / 163 low over 17.3K lines of Python.
@@ -56,13 +61,32 @@ jobs:
       - name: Install shellcheck
         run: sudo apt-get update -qq && sudo apt-get install -y shellcheck
 
-      # Errors only — these are correctness bugs (e.g. SC2148 missing shebang,
-      # so the analysed shell is a guess), not style. Gating from day one.
-      - name: shellcheck (errors — GATING)
+      # GATING at WARNING level as of 2026-08-03 (was errors-only).
+      #
+      # Every warning was fixed or annotated with the reason it does not apply —
+      # NOT excluded by rule ID. That distinction is the point: excluding SC2086,
+      # SC2015 and SC2059 to force a green gate would have been a rubber stamp.
+      #
+      # Warnings 98 -> 0. Real defects found on the way:
+      #   - firewall-health-check.sh built a command whose inner quotes closed the
+      #     outer string, so OPNsense credentials expanded UNQUOTED and were
+      #     word-split twice (once at construction, once at check()'s eval).
+      #   - ws3/sustained-test.sh used `2>&1 > "$LOG"`, so stderr stayed on the
+      #     terminal and the soak-test log lost exactly the error output.
+      #   - three traps used double quotes, freezing their bodies at install time
+      #     instead of expanding at signal time.
+      #   - two bare `cd` calls, one of them in this very CI gate directory.
+      #   - 08-reproducibility-clean.sh piped find|xargs without -print0, so any
+      #     filename containing a space kept a non-deterministic mtime — in the
+      #     provisioner whose whole job is deterministic mtimes.
+      - name: shellcheck (warnings + errors — GATING)
         run: |
-          git ls-files '*.sh' | xargs -r shellcheck -S error -f gcc
+          git ls-files '*.sh' | xargs -r shellcheck -S warning -f gcc
 
-      - name: shellcheck (warnings + notes — reporting)
+      # 226 notes remain (SC2317 unreachable, SC2015 A&&B||C, SC2059 printf,
+      # SC1091 unfollowable source, SC2012 ls parsing). Reporting only — these
+      # are style and cross-file-visibility observations, not defects.
+      - name: shellcheck (notes — reporting)
         continue-on-error: true
         run: |
           git ls-files '*.sh' | xargs -r shellcheck -f gcc
@@ -120,21 +144,77 @@ jobs:
       - name: Python parses at all (GATING)
         run: ./scripts/check-python-syntax.sh
 
-      # Non-gating while the backlog is worked. Baseline 427 after applying
-      # ruff's safe autofixes (246 of the original 673); the remaining 38
-      # need --unsafe-fixes and manual review. Not yet ratcheted — flip to
-      # scripts/-based gating once the count is worked down.
-      - name: ruff
-        continue-on-error: true
-        run: ruff check .
+      # GATING, ratcheted to zero (2026-08-03, Staging Ladder Phase 14).
+      # 427 -> 0 with two rule/path exclusions, each documented in the script:
+      # vendored crates/xv6-mbc/upstream, and BLE001 (134 blind excepts, measured
+      # and costed in docs/security/exception-handling-triage-2026-08-03.md —
+      # parked for attended work, not silently suppressed).
+      #
+      # 104 of the original 427 were one notebook that had never parsed; see
+      # scripts/check-python-syntax.sh, which now covers .ipynb for that reason.
+      - name: ruff (GATING, ratcheted)
+        run: ./scripts/check-ruff.sh
 
       # bandit is the Python analogue of gosec — security-focused, not style.
-      # Both HIGH findings are fixed (md5 cache key -> usedforsecurity=False;
-      # run-runbook.py shell=True dispositioned in-line as by-design). The
-      # 51 MEDIUM / 163 LOW remain.
+      #
+      # `-ll` was REMOVED on 2026-08-03. It is a severity filter, and it was
+      # hiding 132 LOW findings — precisely what the ratchet policy forbids
+      # (fix all severities; ratchet by rule ID, never by severity). It had been
+      # inherited from the day this job landed.
+      #
+      # Skips below are dispositioned as groups in
+      # docs/security/bandit-disposition-2026-08-03.md, each with the check that
+      # was actually run: B603/B607/B404 (this repo drives cargo/go/bpftool/ip/
+      # lxc/ssh — no argument is attacker-influenced), B311 (verified none feeds
+      # a token, key or nonce), B605 (one os.popen with a fixed literal pipeline,
+      # no interpolation), B101 (none guards a security property).
+      #
+      # Still NON-GATING, deliberately: what survives the skips is 43 findings
+      # in four groups that need a decision, not a fix — B310 (35), B615, B314,
+      # B104, B405. Flipping to gating before those are decided would only
+      # invite another blanket suppression.
       - name: bandit
         continue-on-error: true
-        run: bandit -r . -ll -x ./llama.cpp,./target,./node_modules
+        run: >
+          bandit -r . -x ./llama.cpp,./target,./node_modules
+          --skip B603,B607,B404,B311,B605,B101
+
+  javascript:
+    name: JavaScript (eslint)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # GATING as of 2026-08-03. Baseline 57 -> 0 the same day, with no rule-ID
+      # exclusions: every finding was fixed, or annotated with the reason it does
+      # not apply. The only suppression is the Anamnesis event-code table in
+      # doom-viewport.js, kept complete because a partial copy of a wire-protocol
+      # registry is how two copies drift apart.
+      #
+      # First measurement of this surface, 2026-08-03: 40 tracked files, ~21K
+      # lines, and no eslint config or package.json had ever existed. Honest
+      # baseline is 57 — 42 no-unused-vars, 9 no-redeclare, 5
+      # no-prototype-builtins, 1 no-empty.
+      #
+      # Two corrections were needed before that number meant anything. A first
+      # run reported 435, but ~250 of those came from generated rustdoc under
+      # crates/upc-api/target/doc, which is untracked and gitignored — the
+      # ignore glob has to be "**/target/**", because cargo writes a target/
+      # inside every crate, not just at the repo root. Another 94 were
+      # cross-file globals: these pages load several <script> tags sharing one
+      # global scope, and eslint lints one file at a time. Those are declared
+      # in eslint.config.js with the file that defines each.
+      #
+      # The run also found one real bug: kanban/js/task-modal.js called
+      # getFriendlyErrorMessage, which is defined only inside a different
+      # file's IIFE, so saving a failed task threw ReferenceError from the
+      # error handler itself. Fixed.
+      - name: eslint (GATING)
+        run: npx --yes eslint@9.39.5 .
 
   dockerfiles:
     name: Dockerfiles (hadolint)

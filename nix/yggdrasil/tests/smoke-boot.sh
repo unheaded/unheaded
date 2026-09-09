@@ -15,6 +15,8 @@ SSH_PORT="${SSH_PORT:-2222}"
 SSH_KEY="${SSH_KEY:-$HOME/.ssh/yggdrasil-smoke-key}"
 
 # Locate the image
+# shellcheck disable=SC2086  # IMAGE defaults to a *.qcow2 glob; quoting would
+# stop it expanding and ls would look for a file literally named '*.qcow2'.
 IMG_PATH=$(ls $IMAGE 2>/dev/null | head -1 || true)
 if [ -z "$IMG_PATH" ]; then
     echo "FAIL: no qcow2 image found matching $IMAGE"
@@ -35,7 +37,8 @@ qemu-system-x86_64 \
     -pidfile /tmp/yggdrasil-smoke-qemu.pid
 
 QEMU_PID=$(cat /tmp/yggdrasil-smoke-qemu.pid)
-trap "kill $QEMU_PID 2>/dev/null; rm -f /tmp/yggdrasil-smoke-qemu.pid" EXIT
+# Single quotes: expand at signal time, not at trap-install time.
+trap 'kill "$QEMU_PID" 2>/dev/null; rm -f /tmp/yggdrasil-smoke-qemu.pid' EXIT
 
 # Wait for SSH
 echo "Waiting up to ${TIMEOUT_BOOT}s for SSH..."

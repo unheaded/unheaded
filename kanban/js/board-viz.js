@@ -169,7 +169,7 @@
             try {
                 var parsed = JSON.parse(msg);
                 return parsed.message || parsed.error || 'An update occurred.';
-            } catch (e) {
+            } catch {
                 // Not JSON, use as-is
             }
         }

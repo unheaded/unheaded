@@ -52,6 +52,7 @@ if [ -n "${SERVICES}" ]; then
 fi
 
 echo "[*] Generating PKI..."
+# shellcheck disable=SC2086  # ARGS is an argument list; it must word-split
 "${PROJECT_DIR}/bin/cert-gen" ${ARGS}
 
 echo ""

@@ -844,7 +844,7 @@ const PacketFlowViz = (function() {
         return CONFIG.colors.errorPacket;
     }
 
-    function updateStats(flow) {
+    function updateStats(_flow) {
         state.stats.totalPackets++;
 
         // Calculate average latency
@@ -894,17 +894,6 @@ const PacketFlowViz = (function() {
         state.reconnectTimeout = setTimeout(connectWebSocket, delay);
     }
 
-    function send(message) {
-        if (state.ws && state.ws.readyState === WebSocket.OPEN) {
-            try {
-                state.ws.send(JSON.stringify(message));
-                return true;
-            } catch (error) {
-                console.error('[PacketFlow] Send error:', error);
-            }
-        }
-        return false;
-    }
 
     function updateConnectionStatus(status, labelOverride) {
         var indicator = document.getElementById('packet-flow-status');
@@ -1002,7 +991,7 @@ const PacketFlowViz = (function() {
         }
     }
 
-    function update(deltaTime) {
+    function update(_deltaTime) {
         var now = Date.now();
 
         // Update packets
@@ -1190,7 +1179,6 @@ const PacketFlowViz = (function() {
 
     function drawNodes(ctx, width, height) {
         Object.entries(CONFIG.services).forEach(function(entry) {
-            var id = entry[0];
             var service = entry[1];
             var x = service.x * width;
             var y = service.y * height;
@@ -1262,7 +1250,7 @@ const PacketFlowViz = (function() {
         });
     }
 
-    function drawPackets(ctx, width, height) {
+    function drawPackets(ctx, _width, _height) {
         state.packets.forEach(function(packet) {
             var pos = getPacketPosition(packet);
             if (!pos) return;
@@ -1308,7 +1296,7 @@ const PacketFlowViz = (function() {
         });
     }
 
-    function drawPacketInfo(ctx, width, height) {
+    function drawPacketInfo(ctx, _width, _height) {
         // Draw info for the most recent active packet
         var activePacket = state.packets[state.packets.length - 1];
         if (!activePacket) return;

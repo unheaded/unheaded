@@ -492,7 +492,7 @@ var TraceViewer = (function() {
                 minute: '2-digit',
                 second: '2-digit'
             }) + '.' + String(d.getMilliseconds()).padStart(3, '0');
-        } catch (e) {
+        } catch {
             return '--:--:--';
         }
     }

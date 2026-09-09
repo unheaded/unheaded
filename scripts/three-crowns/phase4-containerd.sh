@@ -72,6 +72,7 @@ declare -A SVC_PORTS=(
 
 # Wotan first
 tc_log "  Starting wotan..."
+# shellcheck disable=SC2086  # SVC_PORTS entry is an argument list; must split
 sudo nerdctl run -d --name unheaded-wotan --network unheaded \
     ${SVC_PORTS[wotan]} \
     -e LOG_LEVEL=info \
@@ -90,6 +91,11 @@ for svc in timeguru captain architect micromanager monad sophia dashboard-backen
         extra_args="--tmpfs /var/lib/unheaded --tmpfs /data"
     fi
 
+    # SVC_PORTS entries and extra_args are argument lists; they must word-split.
+    # The directive has to be the LAST comment line before the command: shellcheck
+    # rejects one placed after a line continuation (SC1126), and it parses a
+    # following comment line as a continuation of the directive itself.
+    # shellcheck disable=SC2086
     sudo nerdctl run -d --name "unheaded-${svc}" --network unheaded \
         ${SVC_PORTS[$svc]} \
         -e LOG_LEVEL=info \

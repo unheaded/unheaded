@@ -36,7 +36,7 @@ cleanup() {
         git reset -q -- "$SCRATCH_DIR" 2>/dev/null || true
         rm -rf "$SCRATCH_DIR"
     fi
-    return $rc
+    return "$rc"
 }
 trap cleanup EXIT
 

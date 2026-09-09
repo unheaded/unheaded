@@ -53,8 +53,11 @@ find /var/log -type f -exec truncate -s 0 {} \; 2>/dev/null || true
 
 # 7. Touch all files to SOURCE_DATE_EPOCH for deterministic mtimes
 echo "[reproducibility] Touch all files to SOURCE_DATE_EPOCH=$SOURCE_DATE_EPOCH"
-find / -path /proc -prune -o -path /sys -prune -o -path /dev -prune -o -path /run -prune -o -print 2>/dev/null \
-    | xargs -r touch -h -d "@$SOURCE_DATE_EPOCH" 2>/dev/null || true
+# -print0/-0: a filename containing a space or newline would otherwise be split
+# by xargs and silently skipped, leaving its mtime non-deterministic — which is
+# precisely what this provisioner exists to prevent.
+find / -path /proc -prune -o -path /sys -prune -o -path /dev -prune -o -path /run -prune -o -print0 2>/dev/null \
+    | xargs -0 -r touch -h -d "@$SOURCE_DATE_EPOCH" 2>/dev/null || true
 
 # 8. Sync + trim
 echo "[reproducibility] Sync + fstrim"
