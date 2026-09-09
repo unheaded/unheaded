@@ -255,6 +255,27 @@ provoke_verify_gpl_boundary() {
         > "${REPO_ROOT}/${f}"
 }
 
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_ruff() {
+    # Contract: ruff reports zero findings, ratcheted by rule ID.
+    # F841 (assigned-but-never-used) is default-on, unambiguous, and cannot be
+    # mistaken for a style preference. Must NOT go under
+    # crates/xv6-mbc/upstream, which the gate excludes as vendored.
+    local f
+    f="$(git -C "${REPO_ROOT}" ls-files '*.py' \
+        | grep -v '^crates/xv6-mbc/upstream/' | head -1)"
+    [ -n "${f}" ] || return 1
+    backup "${f}"
+    cat >> "${REPO_ROOT}/${f}" <<'PROBE'
+
+
+def _meta_gate_probe():
+    unused_local = 42
+    return None
+PROBE
+}
+
 # ---------------------------------------------------------------------------
 # Registry: gate basename -> provoke fn : speed : what the provocation plants
 # ---------------------------------------------------------------------------
@@ -264,6 +285,7 @@ check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not 
 check-secrets-baseline|provoke_secrets_baseline|fast|a new fingerprint appended to .gitleaksignore
 check-python-syntax|provoke_python_syntax|fast|a syntax error in a tracked .py file
 check-timeline-freshness|provoke_timeline_freshness|fast|MAX_AGE_DAYS=-1, which nothing can satisfy
+check-ruff|provoke_ruff|fast|an F841 unused local in a tracked, non-vendored .py
 check-clippy|provoke_clippy|slow|a clippy violation in crates/upc-api
 bpf-verifier-check|provoke_bpf_verifier_check|slow|an undefined symbol in ebpf/flow-tracker
 verify-gpl-boundary|provoke_verify_gpl_boundary|fast|an AGPL license on a non-first-party Cargo.toml
