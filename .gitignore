@@ -271,3 +271,22 @@ cmd/host-agent/host-agent
 # restart policies on a dev box that should not resurrect the stack on boot).
 # Never tracked: what one host wants here is wrong for the next one.
 docker-compose.override.yml
+
+# Docker bind-mount artifact, not source.
+#
+# docker-compose.yml mounts ./db/migrations -> /docker-entrypoint-initdb.d AND
+# nests ./db/init.sh -> /docker-entrypoint-initdb.d/init.sh inside it. Docker
+# has to create that second mountpoint, and because the parent directory is
+# itself a bind of ./db/migrations, the empty mountpoint file materialises on
+# the HOST as db/migrations/init.sh, owned by root, on every stack start.
+#
+# It is 0 bytes and does nothing. Left untracked it blocks `git switch main`
+# with "untracked working tree files would be overwritten" — main tracks this
+# path, almost certainly because an earlier session committed this same
+# artifact. Ignoring it lets git clobber it freely.
+#
+# The real fix is in docker-compose.yml: stop nesting a file bind inside a
+# directory bind of the same target (move init.sh into db/migrations/, or
+# mount it elsewhere). That changes first-init behaviour on a clean volume, so
+# it wants its own commit and a fresh-volume test.
+db/migrations/init.sh
