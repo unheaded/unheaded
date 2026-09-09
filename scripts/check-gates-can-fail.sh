@@ -43,6 +43,29 @@
 # precisely the bug, one level up. A new gate is a build failure until someone
 # writes the provocation that proves it bites.
 #
+# WHAT THIS DOES NOT COVER, deliberately
+#
+# CI also gates on direct tool invocations that are not scripts:
+#   cargo clippy -- -D warnings      (ebpf.yml)
+#   cargo fmt -- --check             (ebpf.yml)
+#   go build ./... / go vet ./...    (ci.yml)
+#   npx eslint .                     (static-analysis.yml)
+#   the shellcheck -S warning sweep  (static-analysis.yml)
+#
+# (that last line is worded to avoid starting with the tool's name — a comment
+#  whose first word is "shellcheck" is parsed as a DIRECTIVE, and this exact
+#  line broke the file with SC1072/SC1073 when first written)
+#
+# Those are out of scope on purpose. The failure mode this script exists to
+# catch is CUSTOM LOGIC getting the verdict wrong — an unreachable guard, a
+# count compared instead of a set, a grep that drops the diagnostic that
+# mattered, an exit code never read. A bare `cargo clippy -- -D warnings` has
+# no such logic: the tool's own exit status IS the verdict, and there is
+# nothing in between to be wrong.
+#
+# The moment one of them gets wrapped in a script with any logic of its own,
+# it becomes discoverable here and must be classified.
+#
 # USAGE
 #   ./scripts/check-gates-can-fail.sh            # all gates
 #   ./scripts/check-gates-can-fail.sh --quick    # skip gates marked SLOW
