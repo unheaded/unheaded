@@ -202,13 +202,11 @@ def worker_thread(thread_id, args, metrics, stop_event):
 
     # Per-thread rate (divide evenly)
     thread_rate = rate // args.threads if rate > 0 else 0
-    interval = 1.0 / thread_rate if thread_rate > 0 else 0
 
     # Ramp mode state
     if args.mode == "ramp":
         current_rate = args.ramp_start // args.threads
         ramp_last = time.monotonic()
-        interval = 1.0 / current_rate if current_rate > 0 else 0
     else:
         current_rate = thread_rate
 
@@ -218,7 +216,6 @@ def worker_thread(thread_id, args, metrics, stop_event):
             now = time.monotonic()
             if now - ramp_last >= args.ramp_interval:
                 current_rate = min(current_rate * 2, 500_000)
-                interval = 1.0 / current_rate if current_rate > 0 else 0
                 ramp_last = now
                 if thread_id == 0:
                     print(f"\n  >>> RAMP: {current_rate * args.threads:,} pps total")

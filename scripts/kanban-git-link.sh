@@ -10,8 +10,6 @@ cd "$(git rev-parse --show-toplevel)"
 SINCE="${1:---since=1 month ago}"
 DB_USER="${WELL_USER:-unheaded}"
 DB_NAME="${WELL_DB:-unheaded}"
-DB_PASS="${WELL_PASSWORD:-unheaded_dev}"
-DB_HOST="${WELL_HOST:-localhost}"
 DOCKER_PG="${DOCKER_PG_CONTAINER:-unheaded-postgres}"
 
 LINKED=0

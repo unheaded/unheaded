@@ -184,7 +184,7 @@ if [[ "$DOCKER_ONLY" != "true" ]]; then
         # After wotan starts, wait for health before continuing
         if [[ "$svc" == "wotan" && "$DRY_RUN" != "true" ]]; then
             log_info "  Waiting for Wotan health..."
-            for i in $(seq 1 15); do
+            for _ in $(seq 1 15); do
                 if curl -sf http://localhost:18000/health > /dev/null 2>&1; then
                     log_success "  Wotan healthy"
                     break

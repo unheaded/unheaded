@@ -104,6 +104,12 @@ except Exception as e:
 # ---------------------------------------------------------------------------
 # PostgreSQL — optional conversation logging (The Well)
 # ---------------------------------------------------------------------------
+# Module logger rather than the logging.* root convenience functions (LOG015).
+# Nothing in this app calls basicConfig or configures handlers, so records reach
+# the same place either way; this just stops the module from reconfiguring the
+# root logger as a side effect of its first logging.info() call.
+log = logging.getLogger(__name__)
+
 pg_conn = None
 _session_id = str(uuid.uuid4())
 
@@ -143,17 +149,16 @@ def _pg_connect():
             connect_timeout=3,
         )
         conn.autocommit = True
-        logging.info("[zhen] Connected to The Well (PostgreSQL)")
+        log.info("[zhen] Connected to The Well (PostgreSQL)")
         return conn
     except Exception as e:
-        logging.warning(f"[zhen] The Well not available — conversations will not be persisted: {e}")
+        log.warning(f"[zhen] The Well not available — conversations will not be persisted: {e}")
         return None
 
 pg_conn = _pg_connect()
 
 # Ensure zhen_memories table exists
 def _ensure_memories_table():
-    global pg_conn
     if pg_conn is None:
         return
     try:
@@ -171,7 +176,7 @@ def _ensure_memories_table():
         """)
         cur.close()
     except Exception as e:
-        logging.warning(f"[zhen] Failed to create zhen_memories table: {e}")
+        log.warning(f"[zhen] Failed to create zhen_memories table: {e}")
 
 _ensure_memories_table()
 
@@ -191,7 +196,7 @@ def _pg_log(role, content, sources='[]', model='', tokens_input=0, tokens_output
         )
         cur.close()
     except Exception as e:
-        logging.warning(f"[zhen] Failed to log conversation: {e}")
+        log.warning(f"[zhen] Failed to log conversation: {e}")
         # Attempt reconnect on next call
         try:
             pg_conn.close()
@@ -202,7 +207,6 @@ def _pg_log(role, content, sources='[]', model='', tokens_input=0, tokens_output
 
 def _recall_semantic(search_term, days=30, k=20):
     """Semantic search fallback for recall — embed the query, search conversations via cosine similarity."""
-    global pg_conn
     if pg_conn is None or rag is None:
         return []
     try:
@@ -244,13 +248,12 @@ def _recall_semantic(search_term, days=30, k=20):
                 results.append(rows[idx])
         return results
     except Exception as e:
-        logging.warning(f"[zhen] Semantic recall failed: {e}")
+        log.warning(f"[zhen] Semantic recall failed: {e}")
         return []
 
 
 def _search_memories(question, threshold=0.9):
     """Search zhen_memories for a cached answer using embedding similarity."""
-    global pg_conn
     if pg_conn is None or rag is None:
         return None
     try:
@@ -282,7 +285,7 @@ def _search_memories(question, threshold=0.9):
             return best_match
         return None
     except Exception as e:
-        logging.warning(f"[zhen] Memory search failed: {e}")
+        log.warning(f"[zhen] Memory search failed: {e}")
         return None
 
 
@@ -361,7 +364,7 @@ def _build_live_context(question, max_chars=4096):
             # Per-status listings (top N by recency) so the model never has to
             # infer counts from a truncated cross-status sample.
             status_lists = {}
-            for status_key, total in counts.items():
+            for status_key in counts:
                 cur.execute("""
                     SELECT id, title, owner, progress
                       FROM kanban_tasks
@@ -378,12 +381,16 @@ def _build_live_context(question, max_chars=4096):
             lines = [
                 '## Kanban tasks (live from PG, AUTHORITATIVE)',
                 f'Total active (excludes deleted/archived): {total_active}',
-                f'Canonical status vocabulary on this board: {status_keys_csv}.'
-                ' (There is no separate "backlog" column — unstarted work lives'
-                ' in `todo`. "Completed" maps to `done`.)',
+                (
+                    f'Canonical status vocabulary on this board: {status_keys_csv}.'
+                    ' (There is no separate "backlog" column — unstarted work lives'
+                    ' in `todo`. "Completed" maps to `done`.)'
+                ),
                 '',
-                'EXACT COUNTS BY STATUS (use these numbers — the per-status'
-                ' listings below are samples, not the full set):',
+                (
+                    'EXACT COUNTS BY STATUS (use these numbers — the per-status'
+                    ' listings below are samples, not the full set):'
+                ),
             ]
             for s in sorted(counts.keys()):
                 lines.append(f'  - {s}: {counts[s]}')
@@ -579,7 +586,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
 
         # Disk
         try:
-            result = sp.run(['df', '-h', '/'], capture_output=True, text=True, timeout=5)
+            result = sp.run(['df', '-h', '/'], capture_output=True, text=True, timeout=5, check=False)
             for line in result.stdout.strip().split('\n')[1:]:
                 parts = line.split()
                 lines.append(f'**Disk /:** {parts[2]} used / {parts[1]} ({parts[4]})')
@@ -587,7 +594,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
 
         # GPU
         try:
-            result = sp.run(['rocm-smi'], capture_output=True, text=True, timeout=5)
+            result = sp.run(['rocm-smi'], capture_output=True, text=True, timeout=5, check=False)
             for line in result.stdout.split('\n'):
                 if 'Temp' in line and '°C' in line:
                     lines.append(f'**GPU:** {line.strip()}')
@@ -604,14 +611,14 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
 
         # Packages
         try:
-            result = sp.run(['dpkg', '-l'], capture_output=True, text=True, timeout=5)
+            result = sp.run(['dpkg', '-l'], capture_output=True, text=True, timeout=5, check=False)
             pkg_count = len([l for l in result.stdout.split('\n') if 'unheaded' in l])
             lines.append(f'**Packages:** {pkg_count} installed')
         except: pass
 
         # EAST
         try:
-            result = sp.run(['ssh', 'govan@east', 'uptime'], capture_output=True, text=True, timeout=5)
+            result = sp.run(['ssh', 'govan@east', 'uptime'], capture_output=True, text=True, timeout=5, check=False)
             if result.returncode == 0:
                 lines.append(f'**EAST:** {result.stdout.strip()}')
             else:
@@ -640,7 +647,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
         return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # Run runbook
-    if q.startswith('run ') or q.startswith('execute '):
+    if q.startswith(('run ', 'execute ')):
         import subprocess as sp
         parts = q.split(None, 2)
         dry_run = '--dry' in q or '--dry-run' in q
@@ -655,7 +662,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             cmd.append('--dry-run')
         cmd.append(matches[0])
         try:
-            result = sp.run(cmd, capture_output=True, text=True, timeout=120)
+            result = sp.run(cmd, capture_output=True, text=True, timeout=120, check=False)
             status = 'SUCCESS' if result.returncode == 0 else 'FAILED'
             output = result.stdout[-3000:]
             return {'answer': f'**Runbook {name}: {status}**\n\n```\n{output}\n```', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
@@ -706,7 +713,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
         import subprocess as sp
         try:
             result = sp.run(['systemctl', 'list-units', '--type=service', '--state=failed', '--no-pager', '-q'],
-                          capture_output=True, text=True, timeout=5)
+                          capture_output=True, text=True, timeout=5, check=False)
             failed_units = [l.strip().split()[0] for l in result.stdout.strip().split('\n') if l.strip() and 'unheaded' in l]
             for unit in failed_units:
                 lines.append(f'  ⚠ {unit} — **DRIFT: systemd unit FAILED**')
@@ -796,7 +803,7 @@ backend {svc_name}_back
         interval = parts[-1] if len(parts) > 3 else '30m'
         try:
             from zhen_scheduler import add_schedule
-            entry = add_schedule(name, interval)
+            add_schedule(name, interval)
             return {'answer': f'Scheduled `{name}` every {interval}.\n\nTo start the scheduler daemon: `python3 zhen_scheduler.py`', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
         except Exception as e:
             return {'answer': f'Schedule error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
@@ -826,8 +833,8 @@ backend {svc_name}_back
     # Emergency stop
     if q in ('emergency stop', 'stop all', 'kill all'):
         import subprocess as sp
-        sp.run(['pkill', '-f', 'zhen_scheduler'], capture_output=True)
-        sp.run(['pkill', '-f', 'run-runbook'], capture_output=True)
+        sp.run(['pkill', '-f', 'zhen_scheduler'], capture_output=True, check=False)
+        sp.run(['pkill', '-f', 'run-runbook'], capture_output=True, check=False)
         return {'answer': '**EMERGENCY STOP** — All scheduled jobs killed. Runbook executions terminated.\n\nManual-only mode until scheduler is restarted.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # Trust level
@@ -852,7 +859,6 @@ backend {svc_name}_back
             days = 30
             search_term = search_term.replace('last month', '').strip() or 'conversation'
 
-        global pg_conn
         if pg_conn is None:
             return {'answer': 'The Well is not connected — conversation history unavailable.', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
@@ -891,7 +897,7 @@ backend {svc_name}_back
             return {'answer': f'Recall search error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # "what did we decide about X" — search conversation history for decisions
-    if q.startswith('what did we decide') or q.startswith('what was decided'):
+    if q.startswith(('what did we decide', 'what was decided')):
         topic = q.split('about', 1)[-1].strip().strip('?') if 'about' in q else q.split('decide', 1)[-1].strip().strip('?')
         if not topic:
             return {'answer': 'Usage: `what did we decide about <topic>?`', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
@@ -1661,7 +1667,7 @@ def list_skills():
                                         if val and val != '|':
                                             desc_lines.append(val)
                                         in_desc = True
-                                    elif in_desc and (line.startswith('  ') or line.startswith('\t')):
+                                    elif in_desc and line.startswith(('  ', '\t')):
                                         desc_lines.append(line.strip())
                                     elif in_desc:
                                         in_desc = False
@@ -1739,7 +1745,6 @@ def get_skill(name):
 @app.route('/api/v1/conversations', methods=['GET'])
 def list_conversations():
     """List recent conversations from The Well."""
-    global pg_conn
     if pg_conn is None:
         return jsonify({'error': 'The Well is not connected', 'conversations': []}), 200
 
@@ -1772,14 +1777,13 @@ def list_conversations():
             })
         return jsonify({'conversations': conversations, 'total': len(conversations)})
     except Exception as e:
-        logging.warning(f"[zhen] Failed to list conversations: {e}")
+        log.warning(f"[zhen] Failed to list conversations: {e}")
         return jsonify({'error': str(e), 'conversations': []}), 500
 
 
 @app.route('/api/v1/conversations/search', methods=['GET'])
 def search_conversations():
     """Full-text search over conversations using PostgreSQL tsvector."""
-    global pg_conn
     if pg_conn is None:
         return jsonify({'error': 'The Well is not connected', 'results': []}), 200
 
@@ -1819,7 +1823,7 @@ def search_conversations():
             })
         return jsonify({'query': q, 'results': results, 'total': len(results)})
     except Exception as e:
-        logging.warning(f"[zhen] Failed to search conversations: {e}")
+        log.warning(f"[zhen] Failed to search conversations: {e}")
         return jsonify({'error': str(e), 'results': []}), 500
 
 
@@ -1830,7 +1834,6 @@ def search_conversations():
 @app.route('/api/v1/remember', methods=['POST'])
 def remember():
     """Mark an answer as worth remembering for future queries."""
-    global pg_conn
     if pg_conn is None:
         return jsonify({'error': 'The Well is not connected — cannot persist memories'}), 503
 
@@ -1859,14 +1862,13 @@ def remember():
 
         return jsonify({'status': 'remembered', 'memory_id': mem_id})
     except Exception as e:
-        logging.warning(f"[zhen] Failed to remember: {e}")
+        log.warning(f"[zhen] Failed to remember: {e}")
         return jsonify({'error': str(e)}), 500
 
 
 @app.route('/api/v1/forget', methods=['POST'])
 def forget():
     """Remove a memory by ID."""
-    global pg_conn
     if pg_conn is None:
         return jsonify({'error': 'The Well is not connected'}), 503
 

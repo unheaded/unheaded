@@ -146,10 +146,9 @@ def sample_stackoverflow(so_path, out_fh):
                 continue
 
             score = rec.get("score", 0)
-            if SO_MED_SCORE <= score < SO_HIGH_SCORE:
-                if random.random() < sample_rate:
-                    out_fh.write(line + "\n")
-                    med_written += 1
+            if SO_MED_SCORE <= score < SO_HIGH_SCORE and random.random() < sample_rate:
+                out_fh.write(line + "\n")
+                med_written += 1
 
     elapsed2 = time.time() - t1
     print(f"  Pass 2 complete in {elapsed2:.0f}s: sampled {med_written:,} medium-score chunks")

@@ -101,7 +101,7 @@ def read_screen_map():
 
     result = subprocess.run(
         ["bpftool", "map", "dump", "pinned", SCREEN_MAP_PIN],
-        capture_output=True, text=True, timeout=30,
+        capture_output=True, text=True, timeout=30, check=False,
     )
     if result.returncode != 0:
         print(f"ERROR: bpftool dump failed: {result.stderr.strip()}", file=sys.stderr)

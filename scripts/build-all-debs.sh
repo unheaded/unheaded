@@ -18,14 +18,6 @@ cd "$PROJECT_ROOT"
 go build -ldflags="-s -w" ./... 2>&1 | tail -3
 echo "  Go build complete"
 
-# Service → binary path mapping
-declare -A SERVICES=(
-    ["wotan"]="services/wotan/cmd/wotan/wotan"
-    ["unheaded-daemon"]="cmd/unheaded-daemon/unheaded-daemon"
-    ["dashboard-backend"]="cmd/dashboard-backend/dashboard-backend"
-    ["kanban-app"]="cmd/kanban-app/kanban-app"
-    ["akira"]="cmd/akira/akira"
-)
 
 # Build binary for each service
 echo ""

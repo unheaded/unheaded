@@ -22,12 +22,23 @@ echo "=== Phase 1: Compile all BPF programs ==="
 cd "$BPF_DIR"
 
 BUILD_OUTPUT=$(cargo build --release 2>&1)
+# shellcheck disable=SC2034  # captured but never checked — see the note below.
 BUILD_EXIT=$?
 
 # Count successful and failed builds
 BUILT=$(echo "$BUILD_OUTPUT" | grep -c "Compiling.*-ebpf\|Compiling.*tracker\|Compiling.*marker\|Compiling.*probe\|Compiling.*tracer" || true)
+# shellcheck disable=SC2034  # captured but never checked — see the note below.
 ERRORS=$(echo "$BUILD_OUTPUT" | grep -c "^error\[" || true)
 LINK_ERRORS=$(echo "$BUILD_OUTPUT" | grep -c "linking with.*failed" || true)
+
+# GAP (found 2026-08-03, not fixed here): BUILD_EXIT and ERRORS are computed and
+# then never read. Only LINK_ERRORS feeds FAILURES below, so a BPF program that
+# fails to compile with an ordinary `error[E0433]` leaves this gate reporting
+# success. Both variables are kept rather than deleted because they are the only
+# remaining evidence that the check was intended.
+#
+# Wiring them in is a behaviour change to a CI gate — it can turn CI red on the
+# spot — so it belongs at a higher rung than a lint sweep. See the decisions doc.
 
 echo "  Compiled: $BUILT programs"
 if [ "$LINK_ERRORS" -gt 0 ]; then

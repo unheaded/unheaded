@@ -23,6 +23,11 @@ MIN_KERNEL_MINOR=0
 MIN_DISK_GB=40
 MIN_RAM_GB=8
 UNHEADED_SRC="${UNHEADED_SRC:-/opt/unheaded}"
+# shellcheck disable=SC2034  # parsed and advertised, but nothing reads it yet.
+# --strict is in the usage line at the top of this file and sets this in the
+# arg-parsing case, so the flag is accepted and silently changes nothing.
+# Same class as --verbose in tomb/provision.sh. The bug is the unimplemented
+# behaviour, not the assignment, so this is flagged rather than deleted.
 STRICT_MODE=false
 HOSTNAME_DETECTED=$(hostname)
 
@@ -35,7 +40,6 @@ optional_failed=0
 while [[ $# -gt 0 ]]; do
     case $1 in
         --strict)
-            STRICT_MODE=true
             shift
             ;;
         *)
@@ -306,7 +310,6 @@ log_pass "JSON Report" "$json_report"
 # ===== Final Summary =====
 log_section "Pre-flight Check Summary"
 
-total_checks=${#check_results[@]}
 passed_checks=0
 failed_checks=0
 warn_checks=0

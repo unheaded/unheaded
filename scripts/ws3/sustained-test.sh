@@ -89,7 +89,6 @@ INJECT_COUNT=$((DURATION * 2000))  # Assume ~2000 pps max throughput.
 
 if [ "$HAS_NAMESPACE" = true ]; then
     START_TIME=$(date +%s)
-    END_TIME=$((START_TIME + DURATION))
 
     if [ "$INJECTOR_TYPE" = "go" ] && [ -x "$GO_INJECTOR" ]; then
         echo "  Using Go injector: $GO_INJECTOR"

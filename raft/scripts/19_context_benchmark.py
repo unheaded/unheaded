@@ -98,7 +98,7 @@ TEST_QUERIES = [
 def kill_existing_llama():
     """Kill any running llama-server on our port."""
     try:
-        result = subprocess.run(['lsof', '-ti', f':{PORT}'], capture_output=True, text=True)
+        result = subprocess.run(['lsof', '-ti', f':{PORT}'], capture_output=True, text=True, check=False)
         if result.stdout.strip():
             for pid in result.stdout.strip().split('\n'):
                 try:
@@ -156,12 +156,12 @@ def get_vram_usage():
     try:
         result = subprocess.run(
             ['rocm-smi', '--showmeminfo', 'vram', '--json'],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, timeout=5, check=False,
         )
         if result.returncode == 0:
             data = json.loads(result.stdout)
             # Parse rocm-smi JSON output
-            for card_id, card_data in data.items():
+            for card_data in data.values():
                 if isinstance(card_data, dict):
                     used = card_data.get('VRAM Total Used Memory (B)', 0)
                     total = card_data.get('VRAM Total Memory (B)', 0)
@@ -174,8 +174,8 @@ def get_vram_usage():
         pass
     # Fallback: try /sys
     try:
-        used = int(open('/sys/class/drm/card1/device/mem_info_vram_used').read().strip())
-        total = int(open('/sys/class/drm/card1/device/mem_info_vram_total').read().strip())
+        used = int(Path('/sys/class/drm/card1/device/mem_info_vram_used').read_text().strip())
+        total = int(Path('/sys/class/drm/card1/device/mem_info_vram_total').read_text().strip())
         return {'used_mb': used / (1024 * 1024), 'total_mb': total / (1024 * 1024)}
     except Exception:
         return {'used_mb': 0, 'total_mb': 0}

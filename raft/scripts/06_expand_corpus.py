@@ -88,7 +88,7 @@ def pdf_to_text(path: str) -> str:
     try:
         result = subprocess.run(
             ["pdftotext", "-layout", path, "-"],
-            capture_output=True, timeout=60
+            capture_output=True, timeout=60, check=False
         )
         return result.stdout.decode("utf-8", errors="ignore")
     except Exception as e:

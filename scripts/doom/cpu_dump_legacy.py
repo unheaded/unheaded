@@ -7,7 +7,7 @@ import sys
 result = subprocess.run(
     ['bpftool', 'map', 'lookup', 'pinned', '/sys/fs/bpf/unheaded/doom-ring/maps/CPU_MAP',
      'key', '0x00', '0x00', '0x00', '0x00'],
-    capture_output=True, text=True
+    capture_output=True, text=True, check=False
 )
 
 if result.returncode != 0:

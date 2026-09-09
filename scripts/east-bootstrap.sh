@@ -30,7 +30,6 @@ EAST_WG_IP="fd00:dead:beef:wg::2"
 WEST_WG_IP="fd00:dead:beef:wg::1"
 EAST_SUBNET="fd00:dead:beef:2::/64"
 EAST_AS=65002
-WEST_AS=65001
 WG_PORT=51820
 WG_MTU=1380
 WG_DIR="/etc/unheaded/wg"

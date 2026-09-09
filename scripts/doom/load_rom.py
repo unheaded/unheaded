@@ -139,7 +139,7 @@ class SlowLoader:
                 + ["value"]
                 + [str(x) for x in val_bytes]
             )
-            result = subprocess.run(cmd, capture_output=True, text=True)
+            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
             if result.returncode != 0:
                 errors += 1
                 if errors <= 5:

@@ -66,7 +66,7 @@ def run_command(cmd, timeout=120, env=None, dry_run=False):
         # injection path and this must move to an argv list.
         result = subprocess.run(  # nosec B602 - see comment above
             cmd, shell=True, capture_output=True, text=True,
-            timeout=timeout, env={**os.environ, **(env or {})}
+            timeout=timeout, env={**os.environ, **(env or {})}, check=False
         )
         return result.returncode, result.stdout.strip(), result.stderr.strip()
     except subprocess.TimeoutExpired:
@@ -92,7 +92,7 @@ def check_preconditions(runbook, env, dry_run):
             print(f"  [DRY RUN] {desc}")
             continue
 
-        code, out, err = run_command(check, timeout=10, env=env)
+        code, _out, err = run_command(check, timeout=10, env=env)
         if code == 0:
             print(f"  [PASS] {desc}")
         elif optional:
@@ -173,7 +173,6 @@ def execute_rollback(runbook, env, failed_step, dry_run=False):
     for rb in rollbacks:
         name = rb.get("name", "rollback")
         command = rb.get("command", "")
-        when = rb.get("when", "")
 
         print(f"  [ROLLBACK] {name}")
         if command:

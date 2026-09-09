@@ -35,7 +35,8 @@ color() {
 
 gate() {
     local name="$1"; shift
-    local start=$(date +%s)
+    local start
+    start=$(date +%s)
     local output
     if output=$("$@" 2>&1); then
         local elapsed=$(($(date +%s) - start))

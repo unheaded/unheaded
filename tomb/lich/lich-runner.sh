@@ -22,9 +22,6 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-HARNESS_DIR="${SCRIPT_DIR}/harnesses"
-SEEDS_DIR="${SCRIPT_DIR}/seeds"
-CONFIG_FILE="${SCRIPT_DIR}/config/lich.yaml"
 
 # Defaults (overridden by config/flags)
 FUZZ_TIME="${FUZZ_TIME:-60s}"
@@ -197,7 +194,8 @@ run_fuzz_harness() {
     local fuzz_func="$2"
     local description="$3"
     local log_file="${LOG_DIR}/lich_${lich_id}_${fuzz_func}.log"
-    local start_time=$(date +%s)
+    local start_time
+    start_time=$(date +%s)
 
     log_info "Starting LICH-${lich_id}: ${fuzz_func} (${description}) [${FUZZ_TIME}]"
 
@@ -210,7 +208,8 @@ run_fuzz_harness() {
         ./tomb/lich/harnesses/ \
         > "${log_file}" 2>&1 || exit_code=$?
 
-    local end_time=$(date +%s)
+    local end_time
+    end_time=$(date +%s)
     local duration=$((end_time - start_time))
 
     if [[ ${exit_code} -eq 0 ]]; then
@@ -230,7 +229,6 @@ run_fuzz_harness() {
 }
 
 run_all_harnesses() {
-    local active_jobs=0
     local total=0
     local started=0
 
@@ -304,7 +302,8 @@ generate_report() {
 
             local exitcode_file="${LOG_DIR}/lich_${lich_id}_${fuzz_func}.exitcode"
             if [[ -f "${exitcode_file}" ]]; then
-                local code=$(cat "${exitcode_file}")
+                local code
+                code=$(cat "${exitcode_file}")
                 if [[ "${code}" == "0" ]]; then
                     printf "  [PASS] LICH-%s %-40s %s\n" "${lich_id}" "${fuzz_func}" "${description}"
                     pass=$((pass + 1))

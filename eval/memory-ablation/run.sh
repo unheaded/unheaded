@@ -104,7 +104,6 @@ while IFS= read -r line; do
         # conversation history. Using a single "Q: ... A: ..." prompt
         # would conflate them; we want the model to see real turns.
         prior_q=$(printf '%s' "$prior" | sed -n 's/^Q: \(.*\)/\1/p' | head -1)
-        prior_a=$(printf '%s' "$prior" | sed -n 's/^A: \(.*\)/\1/p' | head -1)
         if [[ -n "$prior_q" ]]; then
             curl -s --max-time 60 -X POST "$WEBUI_URL/api/v1/query" \
                 -H 'Content-Type: application/json' \

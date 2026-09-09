@@ -30,7 +30,7 @@ echo "  llama-server PID: $LLAMA_PID"
 
 # Wait for it to be ready
 echo "  Waiting for llama-server to load..."
-for i in $(seq 1 60); do
+for _ in $(seq 1 60); do
     if curl -sf http://localhost:20100/health > /dev/null 2>&1; then
         echo "  llama-server ready!"
         break

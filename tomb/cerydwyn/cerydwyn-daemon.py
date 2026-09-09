@@ -90,7 +90,7 @@ class ProcessedTracker:
         if category not in self.processed:
             self.processed[category] = {}
         self.processed[category][item_hash] = {
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now().astimezone().isoformat(),
             "metadata": metadata or {},
         }
         self._save()
@@ -148,14 +148,14 @@ def write_suggestion(category, title, content, metadata=None):
     """Write a suggestion to the suggestions directory."""
     os.makedirs(SUGGESTIONS_DIR, exist_ok=True)
 
-    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    timestamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
     filename = f"{timestamp}-{category}-{title[:40].replace(' ', '-').replace('/', '_')}.md"
     filepath = os.path.join(SUGGESTIONS_DIR, filename)
 
     lines = [
         f"# Cerydwyn Suggestion: {title}",
         f"**Category:** {category}",
-        f"**Generated:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
+        f"**Generated:** {datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S')}",
         f"**Model:** {CERYDWYN_MODEL}",
         "",
     ]
@@ -179,7 +179,7 @@ def write_suggestion(category, title, content, metadata=None):
     latest_path = os.path.join(SUGGESTIONS_DIR, "latest.log")
     try:
         with open(latest_path, "a") as f:
-            f.write(f"[{datetime.now().isoformat()}] {category}: {title} -> {filepath}\n")
+            f.write(f"[{datetime.now().astimezone().isoformat()}] {category}: {title} -> {filepath}\n")
     except OSError:
         pass
 

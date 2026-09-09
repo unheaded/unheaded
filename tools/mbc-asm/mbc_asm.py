@@ -244,10 +244,10 @@ class MbcAssembler:
         """Resolve a token to an integer value."""
         tok = tok.strip()
         # Hex literal
-        if tok.startswith("0x") or tok.startswith("0X"):
+        if tok.startswith(("0x", "0X")):
             return int(tok, 16)
         # Binary literal
-        if tok.startswith("0b") or tok.startswith("0B"):
+        if tok.startswith(("0b", "0B")):
             return int(tok, 2)
         # Decimal literal (possibly negative)
         if re.match(r"^-?\d+$", tok):
@@ -323,10 +323,9 @@ class MbcAssembler:
                     else:
                         word_addr += 1
 
-            if line.label:
-                if section == ".text":
-                    self.symbols[line.label] = word_addr
-                # .data labels resolved in pass1b after we know text size
+            if line.label and section == ".text":
+                self.symbols[line.label] = word_addr
+                # .data labels are resolved in pass1b, once the text size is known
 
             if line.mnemonic:
                 word_addr += 1
