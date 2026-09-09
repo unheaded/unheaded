@@ -89,8 +89,15 @@ class ActionManager:
             logger.warning(f"[ActionManager] Well health check failed: {e}")
             try:
                 self._conn.close()
-            except Exception as e:
-                logger.debug('skipped: %s', e)
+            except Exception as close_err:
+                # NOT `as e`. Python implicitly deletes the name at the end of
+                # an `except ... as` block, so binding `e` here unbinds the
+                # OUTER `e` — and the raise below then failed with
+                # UnboundLocalError instead of WellUnavailableError. That is
+                # the common path (Postgres gone, so closing the dead handle
+                # also raises), and it is exactly the error callers catch to
+                # enter read-only mode.
+                logger.debug('skipped closing stale connection: %s', close_err)
             self._conn = self._connect()
             if self._conn is None:
                 raise WellUnavailableError(

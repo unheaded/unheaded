@@ -89,6 +89,23 @@ if not corpus_file.exists():
 rag = None
 startup_error = None
 
+# Validated ONCE, at module import, OUTSIDE the try below.
+#
+# These used to be evaluated inside that try, whose `except Exception` only
+# records startup_error — so a rejected scheme did not fail loudly, it just
+# left rag=None while the rest of the app carried on. And four call sites
+# (health probe, model switch, system state, runbook execute) re-read
+# ZHEN_AGENTD_URL raw with os.environ.get and fed it straight to urlopen, so
+# ZHEN_AGENTD_URL=file:///etc/passwd still reached urlopen on those paths.
+# The docstring on _http_url_from_env claimed the check happened "once here, at
+# the boundary"; it does now.
+#
+# Deliberately not inside a try: a bad scheme in configuration should stop the
+# process, not degrade it.
+VOR_URL = _http_url_from_env('VOR_URL', 'http://localhost:9876')
+ZHEN_INFERENCE_URL = _http_url_from_env('ZHEN_INFERENCE_URL', 'http://localhost:8081')
+ZHEN_AGENTD_URL = _http_url_from_env('ZHEN_AGENTD_URL', 'http://localhost:20105')
+
 try:
     # WAVE15 Phase 2 amended: chat path stays DIRECT to llama-server.
     # Routing chat through cmd/zhen-agentd /api/v1/agent/ask regressed
@@ -109,9 +126,9 @@ try:
     _proxy = _proxy_env in ('true', '1', 'yes', 'on')
     rag = RAGPipeline(
         index_dir, corpus_file,
-        vor_url=_http_url_from_env('VOR_URL', 'http://localhost:9876'),
-        inference_url=_http_url_from_env('ZHEN_INFERENCE_URL', 'http://localhost:8081'),
-        agentd_url=_http_url_from_env('ZHEN_AGENTD_URL', 'http://localhost:20105'),
+        vor_url=VOR_URL,
+        inference_url=ZHEN_INFERENCE_URL,
+        agentd_url=ZHEN_AGENTD_URL,
         # Model name is metadata in the OpenAI-compat protocol — llama-server
         # serves whatever GGUF is loaded regardless of this string. Setting
         # ZHEN_MODEL keeps the response.model field accurate for the UI/logs.
@@ -223,8 +240,13 @@ def _pg_log(role, content, sources='[]', model='', tokens_input=0, tokens_output
         # Attempt reconnect on next call
         try:
             pg_conn.close()
-        except Exception as e:
-            log.debug('[zhen] could not close the dead Postgres handle before reconnect: %s', e)
+        except Exception as close_err:
+            # NOT `as e` — see the same fix in raft/scripts/action_manager.py.
+            # Binding `e` here unbinds the outer `e` on block exit. Harmless
+            # today only because the outer `e` is consumed at the log.warning
+            # above; any future line referencing it after this point becomes an
+            # UnboundLocalError on the path where Postgres is already broken.
+            log.debug('[zhen] could not close the dead Postgres handle before reconnect: %s', close_err)
         pg_conn = _pg_connect()
 
 
@@ -500,7 +522,7 @@ def _build_live_context(question, max_chars=4096):
         for label, url in [
             ('vor (retrieval)',     f'{rag.vor_url}/api/health' if rag else ''),
             ('llama-server (LLM)',  f'{rag.inference_url}/health' if rag else ''),
-            ('zhen-agentd (gate)',  os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105') + '/health'),
+            ('zhen-agentd (gate)',  ZHEN_AGENTD_URL + '/health'),
             ('kanban-app',          'http://127.0.0.1:20001/health'),
             ('wiki',                'http://127.0.0.1:20002/health'),
             ('dashboard-backend',   'http://127.0.0.1:20000/health'),
@@ -1264,7 +1286,7 @@ def switch_model():
 
     import urllib.error as _ue
     import urllib.request as _ur
-    agentd_url = os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105')
+    agentd_url = ZHEN_AGENTD_URL
     payload = {
         'tool': 'model_switch',
         'args': {'key': key},
@@ -1429,7 +1451,7 @@ def system_state():
 
     # zhen-agentd (mutation gate)
     try:
-        agentd_url = os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105')
+        agentd_url = ZHEN_AGENTD_URL
         with _ur.urlopen(f'{agentd_url}/health', timeout=2) as r:
             state['agentd'] = {'status': 'ok', 'url': agentd_url}
     except Exception:
@@ -2182,7 +2204,7 @@ def execute_runbook(name):
     # Rule 2 (untrusted-justification) is escaped by the direct-user trust
     # label. Rules 1 (path) + 3 (destructive verb) still apply — Champion
     # rejects runbook names with ".." or absolute paths regardless.
-    agentd_url = os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105')
+    agentd_url = ZHEN_AGENTD_URL
     payload = {
         'tool': 'runbook_execute',
         'args': {
