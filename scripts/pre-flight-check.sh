@@ -40,6 +40,15 @@ optional_failed=0
 while [[ $# -gt 0 ]]; do
     case $1 in
         --strict)
+            # Assignment restored 2026-09-09. The SC2034 sweep deleted it,
+            # which left the comment above STRICT_MODE asserting that this case
+            # sets the flag while the body only shifted — so --strict was
+            # accepted, exited 0, and could never become true even once someone
+            # implemented strict mode. Matches the sibling decision in
+            # tomb/provision.sh, which kept `--verbose) VERBOSE=1` and took a
+            # suppression rather than deleting the wiring.
+            # shellcheck disable=SC2034  # nothing reads it yet; see line 26.
+            STRICT_MODE=true
             shift
             ;;
         *)
