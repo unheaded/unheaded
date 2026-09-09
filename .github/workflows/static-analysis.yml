@@ -159,3 +159,47 @@ jobs:
             echo "::endgroup::"
           done
           exit $fail
+
+  # ==========================================================================
+  # META-GATE
+  # ==========================================================================
+  # Four consecutive promotion batches shipped a gate that was green because
+  # it could not fail (gosec ratchet guards, the secrets ratchet and the
+  # pkg/uids manifest test, and check-clippy.sh itself). All four were found
+  # by hand. This asserts the property instead: every check-*.sh must exit
+  # non-zero when its own contract is violated.
+  #
+  # It also FAILS on any check-*.sh with no registered provocation, so a new
+  # unguarded gate cannot silently shrink coverage.
+  #
+  # Full run on the protected branches; --quick on PRs, which skips only the
+  # clippy provocation (the one needing the whole Rust toolchain).
+  meta-gate:
+    name: Gates can actually fail
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0   # timeline freshness compares against history
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - run: pip install --quiet pyyaml
+
+      - name: Install Rust (clippy provocation)
+        if: github.event_name == 'push'
+        run: rustup component add clippy
+
+      - name: Prove every gate bites
+        run: |
+          if [ "${{ github.event_name }}" = "push" ]; then
+            ./scripts/check-gates-can-fail.sh
+          else
+            ./scripts/check-gates-can-fail.sh --quick
+          fi
