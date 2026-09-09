@@ -63,7 +63,7 @@ def sample_chunks(chunks, count):
 
     for c in eligible:
         source = c.get("source", "")
-        if source.endswith(".md") or source.endswith(".go"):
+        if source.endswith((".md", ".go")):
             high_priority.append(c)
         else:
             normal_priority.append(c)

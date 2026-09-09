@@ -16,8 +16,10 @@ readonly BLUE='\033[0;34m'
 readonly NC='\033[0m' # No Color
 
 # Script directory
-readonly SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-readonly REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+readonly SCRIPT_DIR
+REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+readonly REPO_ROOT
 readonly BIN_DIR="${REPO_ROOT}/bin"
 readonly HOST_BIN_DIR="/opt/unheaded/bin"
 

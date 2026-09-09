@@ -531,7 +531,7 @@ def main():
     completed = set()
     if os.path.exists(checkpoint_path):
         with open(checkpoint_path) as f:
-            completed = set(line.strip() for line in f)
+            completed = {line.strip() for line in f}
         print(f"  Resuming: {len(completed)} documents already processed")
 
     # Collect all files
@@ -570,8 +570,11 @@ def main():
     output_file = None
     checkpoint_file = None
     if not args.dry_run:
-        output_file = open(args.output, "a")  # Append mode for resumability
-        checkpoint_file = open(checkpoint_path, "a")
+        # Deliberate: both handles stay open for the whole run so the
+        # checkpoint/resume path can append incrementally. Wrapping them in a
+        # context manager here would need the entire run loop moved inside it.
+        output_file = open(args.output, "a")  # noqa: SIM115  (resumability)
+        checkpoint_file = open(checkpoint_path, "a")  # noqa: SIM115
 
     # Filter already-completed files
     pending = []

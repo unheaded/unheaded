@@ -38,7 +38,7 @@ import shutil
 import subprocess
 import sys
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ─────────────────────────────────────────────────────────────────────────
 # CONFIGURATION
@@ -118,7 +118,7 @@ def save_state(state: dict):
 def touch_model(state: dict, model_name: str, size_bytes: int = 0):
     """Update access time for a model (LRU tracking)."""
     state["models"][model_name] = {
-        "last_access": datetime.now().isoformat(),
+        "last_access": datetime.now(timezone.utc).isoformat(),
         "size_bytes": size_bytes,
         "access_count": state["models"].get(model_name, {}).get("access_count", 0) + 1,
     }
@@ -169,7 +169,7 @@ def list_runway_models() -> list:
                 "path": full,
                 "size_bytes": size,
                 "size_gb": size / (1024**3),
-                "last_access": datetime.fromtimestamp(atime),
+                "last_access": datetime.fromtimestamp(atime, tz=timezone.utc),
             })
     return sorted(models, key=lambda x: x["last_access"])
 
@@ -203,7 +203,7 @@ def purge_oldest(dry_run: bool = False) -> bool:
         return False
 
     oldest = models[0]  # sorted by atime ascending
-    age = datetime.now() - oldest["last_access"]
+    age = datetime.now(timezone.utc) - oldest["last_access"]
 
     info(f"Purging LRU model: {oldest['name']} ({oldest['size_gb']:.1f}GB, last used {age.days}d ago)")
 
@@ -292,7 +292,7 @@ def transfer_model(model_name: str, dry_run: bool = False) -> bool:
     # rsync: differential, resumable, progress
     info(f"rsync {vault_dir} → {RUNWAY_PATH}")
     try:
-        result = subprocess.run(
+        subprocess.run(
             [
                 "rsync", "-ah", "--progress", "--partial",
                 "--info=progress2",
@@ -325,12 +325,12 @@ def stop_vllm():
     try:
         result = subprocess.run(
             ["docker", "inspect", VLLM_CONTAINER],
-            capture_output=True, text=True,
+            capture_output=True, text=True, check=False,
         )
         if result.returncode == 0:
             info(f"Stopping existing vLLM container: {VLLM_CONTAINER}")
-            subprocess.run(["docker", "stop", VLLM_CONTAINER], capture_output=True)
-            subprocess.run(["docker", "rm", VLLM_CONTAINER], capture_output=True)
+            subprocess.run(["docker", "stop", VLLM_CONTAINER], capture_output=True, check=False)
+            subprocess.run(["docker", "rm", VLLM_CONTAINER], capture_output=True, check=False)
     except FileNotFoundError:
         err("Docker not found!")
 
@@ -397,7 +397,7 @@ def launch_vllm(model_name: str, dry_run: bool = False) -> bool:
         state = load_state()
         state["launches"].append({
             "model": model_name,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "port": VLLM_PORT,
             "container": container_id,
         })
@@ -420,7 +420,7 @@ def launch_vllm(model_name: str, dry_run: bool = False) -> bool:
             try:
                 health = subprocess.run(
                     ["curl", "-sf", f"http://localhost:{VLLM_PORT}/health"],
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True, text=True, timeout=5, check=False,
                 )
                 if health.returncode == 0:
                     ok(f"vLLM healthy after {(i+1)*5}s!")
@@ -462,7 +462,7 @@ def display_status():
     if runway_models:
         for m in runway_models:
             total_runway_gb += m["size_gb"]
-            age = datetime.now() - m["last_access"]
+            age = datetime.now(timezone.utc) - m["last_access"]
             age_str = f"{age.days}d" if age.days > 0 else f"{age.seconds//3600}h"
             print(f"  {m['name']:45s} {m['size_gb']:7.1f}GB  (last used: {age_str} ago)")
         total, used, free, pct = get_disk_usage(RUNWAY_PATH)
@@ -477,7 +477,7 @@ def display_status():
     try:
         result = subprocess.run(
             ["docker", "inspect", "--format", "{{.State.Status}}", VLLM_CONTAINER],
-            capture_output=True, text=True,
+            capture_output=True, text=True, check=False,
         )
         if result.returncode == 0:
             status = result.stdout.strip()
@@ -485,7 +485,7 @@ def display_status():
             if status == "running":
                 health = subprocess.run(
                     ["curl", "-sf", f"http://localhost:{VLLM_PORT}/health"],
-                    capture_output=True, text=True, timeout=5,
+                    capture_output=True, text=True, timeout=5, check=False,
                 )
                 if health.returncode == 0:
                     ok(f"API healthy on port {VLLM_PORT}")

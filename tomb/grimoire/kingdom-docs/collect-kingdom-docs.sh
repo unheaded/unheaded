@@ -37,7 +37,6 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # --- Colors ---
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
 NC='\033[0m'
 
 info()  { echo -e "${GREEN}[INFO]${NC} $*"; }
@@ -114,7 +113,8 @@ collect() {
     for pattern in "${patterns[@]}"; do
         while IFS= read -r -d '' file; do
             local rel_path="${file#${src}/}"
-            local target_dir="${dest}/$(dirname "${rel_path}")"
+            local target_dir
+            target_dir="${dest}/$(dirname "${rel_path}")"
             mkdir -p "${target_dir}"
             cp "${file}" "${target_dir}/"
             ((count++))
@@ -229,7 +229,8 @@ main() {
     for ext in yaml yml toml json; do
         while IFS= read -r -d '' file; do
             local rel_path="${file#${REPO_ROOT}/}"
-            local target_dir="${OUTPUT_DIR}/configs/$(dirname "${rel_path}")"
+            local target_dir
+            target_dir="${OUTPUT_DIR}/configs/$(dirname "${rel_path}")"
             mkdir -p "${target_dir}"
             cp "${file}" "${target_dir}/"
         done < <(find "${REPO_ROOT}/configs" -type f -name "*.${ext}" -print0 2>/dev/null)

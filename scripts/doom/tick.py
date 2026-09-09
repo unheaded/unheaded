@@ -274,7 +274,7 @@ class DoomPacket:
 class PacketInjector:
     """Injects packets into network interface via AF_PACKET socket."""
 
-    def __init__(self, interface: str, namespace: str = None):
+    def __init__(self, interface: str, namespace: str | None = None):
         """
         Initialize packet injector.
 
@@ -366,8 +366,10 @@ class PacketInjector:
                 self.namespace,
                 "python3",
                 "-c",
-                f"import socket; s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW); "
-                f"s.sendto(open('{packet_file}', 'rb').read(), ('{self.interface}', 0))",
+                (
+                    "import socket; s = socket.socket(socket.AF_PACKET, socket.SOCK_RAW); "
+                    f"s.sendto(open('{packet_file}', 'rb').read(), ('{self.interface}', 0))"
+                ),
             ]
             subprocess.run(cmd, check=True, capture_output=True)
         finally:

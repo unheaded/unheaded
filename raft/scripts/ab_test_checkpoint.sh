@@ -164,8 +164,6 @@ echo "---"
 echo ""
 
 total=0
-base_wins=0
-lora_wins=0
 memorized=0
 
 for i in "${!QUESTIONS[@]}"; do

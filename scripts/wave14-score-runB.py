@@ -162,8 +162,7 @@ def decoded_text(path):
             continue
         is_init = (
             s.startswith(INIT_PREFIXES)
-            or s.startswith("[")
-            or s.startswith("=")
+            or s.startswith(("[", "="))
             or any(sub in s for sub in INIT_SUBSTRINGS)
         )
         if is_init:
@@ -227,7 +226,7 @@ def score_one(text):
         # Most common single character in raw text
         char_counts = Counter(c for c in raw if c.strip() or c == "\n")
         if char_counts:
-            top_char, top_n = char_counts.most_common(1)[0]
+            _top_char, top_n = char_counts.most_common(1)[0]
             top_char_frac = top_n / max(len(raw), 1)
         else:
             top_char_frac = 0.0

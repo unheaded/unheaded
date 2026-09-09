@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Tests for ActionManager — Zhen Champion Agent action framework.
 
@@ -185,6 +184,10 @@ class MockCursor:
         pass
 
 
+class MockConnectionError(Exception):
+    """Stands in for a psycopg driver failure in the mock connections below."""
+
+
 class MockConnection:
     """Mock psycopg2 connection backed by in-memory dicts."""
 
@@ -200,7 +203,7 @@ class MockConnection:
 
     def cursor(self):
         if self._closed:
-            raise Exception("connection is closed")
+            raise MockConnectionError("connection is closed")
         return MockCursor(self._db)
 
     def commit(self):
@@ -217,10 +220,10 @@ class DeadConnection:
     """Mock connection that always raises on cursor()."""
 
     def cursor(self):
-        raise Exception("connection refused")
+        raise MockConnectionError("connection refused")
 
     def commit(self):
-        raise Exception("connection refused")
+        raise MockConnectionError("connection refused")
 
     def rollback(self):
         pass
@@ -315,7 +318,7 @@ class TestExecuteAction(unittest.TestCase):
                 }],
             }
 
-        result = self.am.execute_action(action_id, executor)
+        self.am.execute_action(action_id, executor)
 
         # Check action status
         action = self.conn._db['actions'][action_id]

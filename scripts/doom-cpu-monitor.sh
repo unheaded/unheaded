@@ -42,7 +42,6 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 CYAN='\033[0;36m'
 BOLD='\033[1m'
-DIM='\033[2m'
 NC='\033[0m'
 
 # ── Logging ──────────────────────────────────────────────────────────────────
@@ -52,7 +51,8 @@ ts() { date '+%Y-%m-%d %H:%M:%S'; }
 emit() {
     local level="$1"
     shift
-    local msg="[$(ts)] ${level} $*"
+    local msg
+    msg="[$(ts)] ${level} $*"
     if [[ $QUIET -eq 0 ]]; then
         case "$level" in
             OK)   echo -e "${GREEN}${msg}${NC}" ;;

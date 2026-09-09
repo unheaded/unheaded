@@ -406,7 +406,8 @@ phase_amd_gpu() {
     step "Adding AMDGPU repository..."
     # Download and install amdgpu-install package
     local amdgpu_deb="amdgpu-install_${AMDGPU_INSTALL_VERSION}_all.deb"
-    local amdgpu_url="https://repo.radeon.com/amdgpu-install/${ROCM_APT_VERSION}/ubuntu/$(lsb_release -cs)/${amdgpu_deb}"
+    local amdgpu_url
+    amdgpu_url="https://repo.radeon.com/amdgpu-install/${ROCM_APT_VERSION}/ubuntu/$(lsb_release -cs)/${amdgpu_deb}"
 
     info "Fetching: ${amdgpu_url}"
     run wget -q "${amdgpu_url}" -O "/tmp/${amdgpu_deb}" || {

@@ -280,7 +280,7 @@ def test_suggestions_writable(result):
 def main():
     print("=" * 60)
     print("  Tomb of Knowledge — Cerydwyn Test Harness")
-    print(f"  {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    print(f"  {datetime.now().astimezone().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  Ollama URL: {OLLAMA_URL}")
     print(f"  Model: {CERYDWYN_MODEL}")
     print(f"  Cerydwyn Root: {CERYDWYN_ROOT}")
@@ -340,12 +340,12 @@ def main():
     # Write results to log
     log_dir = os.path.join(CERYDWYN_ROOT, "logs")
     os.makedirs(log_dir, exist_ok=True)
-    log_file = os.path.join(log_dir, f"test-{datetime.now().strftime('%Y%m%d-%H%M%S')}.json")
+    log_file = os.path.join(log_dir, f"test-{datetime.now().astimezone().strftime('%Y%m%d-%H%M%S')}.json")
     try:
         with open(log_file, "w") as f:
             json.dump(
                 {
-                    "timestamp": datetime.now().isoformat(),
+                    "timestamp": datetime.now().astimezone().isoformat(),
                     "total": total,
                     "passed": passed,
                     "failed": failed,

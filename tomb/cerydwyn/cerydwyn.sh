@@ -24,9 +24,7 @@ CERYDWYN_MODEL="${CERYDWYN_MODEL:-cerydwyn-mistral}"
 GRIMOIRE_ROOT="${GRIMOIRE_ROOT:-/opt/tomb/grimoire}"
 CERYDWYN_ROOT="${CERYDWYN_ROOT:-/opt/tomb/cerydwyn}"
 SYSTEM_PROMPT_FILE="${CERYDWYN_ROOT}/prompts/system-cerydwyn.txt"
-RAG_CONFIG="${CERYDWYN_ROOT}/config/rag-config.json"
 LOG_DIR="${CERYDWYN_ROOT}/logs"
-HISTORY_DIR="${CERYDWYN_ROOT}/history"
 TOP_K=5
 USE_RAG=true
 CONTEXT_FILE=""
@@ -251,7 +249,8 @@ log_query() {
 
     mkdir -p "$LOG_DIR"
 
-    local logfile="${LOG_DIR}/cerydwyn-$(date '+%Y-%m-%d').log"
+    local logfile
+    logfile="${LOG_DIR}/cerydwyn-$(date '+%Y-%m-%d').log"
     {
         echo "---"
         echo "timestamp: $(timestamp)"

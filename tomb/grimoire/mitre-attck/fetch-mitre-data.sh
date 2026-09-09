@@ -38,13 +38,11 @@ declare -A DATASETS=(
 )
 
 # MITRE ATT&CK STIX relationship mapping URL
-MITRE_ATTACK_URL="https://attack.mitre.org"
 
 # --- Colors ---
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
-CYAN='\033[0;36m'
 NC='\033[0m'
 
 info()  { echo -e "${GREEN}[INFO]${NC} $*"; }

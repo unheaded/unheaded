@@ -56,7 +56,7 @@ def get_ids_count(ids_path):
     try:
         with open(ids_path, 'r') as f:
             data = json.load(f)
-        if isinstance(data, list) or isinstance(data, dict):
+        if isinstance(data, (list, dict)):
             return len(data)
         return 0
     except Exception:
@@ -79,9 +79,9 @@ def atomic_symlink(target, link_path):
         tmp_link.unlink(missing_ok=True)
         tmp_link.symlink_to(target)
         tmp_link.rename(link_path)
-    except Exception as e:
+    except Exception:
         tmp_link.unlink(missing_ok=True)
-        raise e
+        raise
 
 
 def setup_initial_symlinks():
@@ -99,7 +99,7 @@ def find_zhen_pid():
     try:
         result = subprocess.run(
             ['pgrep', '-f', 'python.*zhen_app.py'],
-            capture_output=True, text=True
+            capture_output=True, text=True, check=False
         )
         pids = [int(p) for p in result.stdout.strip().split('\n') if p.strip()]
         return pids
@@ -131,14 +131,15 @@ def restart_zhen():
 
     # Restart
     print("  Starting Zhen Web UI...")
-    env = os.environ.copy()
     venv_python = Path.home() / '.venv' / 'zhen' / 'bin' / 'python3'
     zhen_app = RAFT_DIR / 'zhen_app.py'
 
     subprocess.Popen(
         [str(venv_python), str(zhen_app)],
         cwd=str(RAFT_DIR),
-        stdout=open('/tmp/zhen-webapp.log', 'w'),
+        # Deliberate: this handle is owned by the child process for its whole
+        # lifetime. A context manager would close it the moment Popen returns.
+        stdout=open('/tmp/zhen-webapp.log', 'w'),  # noqa: SIM115
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
@@ -225,9 +226,9 @@ def swap_to_combined():
 
     # Get before stats
     print("\n[2/5] Before stats...")
-    old_count, old_dim = None, None
+    old_count, _old_dim = None, None
     if ACTIVE_INDEX.exists():
-        old_count, old_dim = get_vector_count(ACTIVE_INDEX)
+        old_count, _old_dim = get_vector_count(ACTIVE_INDEX)
         old_ids = get_ids_count(ACTIVE_IDS) if ACTIVE_IDS.exists() else 0
         print(f"  Current: {old_count:,} vectors, {old_ids:,} IDs")
     else:
@@ -235,7 +236,7 @@ def swap_to_combined():
 
     # Get new stats
     print("\n[3/5] New index stats...")
-    new_count, new_dim = get_vector_count(COMBINED_INDEX)
+    new_count, _new_dim = get_vector_count(COMBINED_INDEX)
     print(f"  Combined: {new_count:,} vectors, {combined_ids_count:,} IDs")
 
     # Sanity: IDs should match vectors

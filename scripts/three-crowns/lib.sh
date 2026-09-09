@@ -10,6 +10,16 @@
 #   - containerd network must avoid 10.10.10.0/24 (LXD bridge conflict)
 #   - socat is the fastest way to expose EAST dashboard on WEST
 #   - FRR/BIRD need explicit stop — systemctl stop doesn't always stick first try
+#
+# shellcheck disable=SC2034
+# This file is sourced, never executed: its whole contract is to define constants
+# and functions for the phase*.sh scripts. shellcheck analyses one file at a time,
+# so every constant here reads as unused no matter how many consumers it has —
+# BIN_DIR (3 consumers), WEST_HEALTH_PORTS (4), EAST_HEALTH_PORTS (3), SVC_BIN_MAP
+# (2), EAST_P2P (2), WEST_P2P, WEST_WG and EAST_BIN_DIR (1 each) are all live.
+# The directive states what the file is; it is not blanket-suppression. Anything
+# genuinely dead gets deleted rather than covered by this (see EAST_SERVICES,
+# removed 2026-08-03).
 
 # ANSI colors
 readonly TC_RED='\033[0;31m'
@@ -63,10 +73,6 @@ declare -A SVC_BIN_MAP=(
     [monad]=monad [sophia]=sophia
     [dashboard]=dashboard-backend [kanban]=kanban-app
 )
-
-# EAST services (minimal set)
-readonly EAST_SERVICES=(wotan monad sophia dashboard-backend)
-readonly EAST_SERVICE_PORTS=("wotan:18000" "monad:19004" "sophia:19005" "dashboard-backend:20000")
 
 # Report state file
 readonly REPORT_FILE="/tmp/three-crowns-report.env"

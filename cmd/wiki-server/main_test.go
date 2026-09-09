@@ -105,8 +105,11 @@ func TestWikiHomepage(t *testing.T) {
 	if !strings.Contains(html, "(u)nheaded") {
 		t.Error("wiki homepage: missing sidebar brand")
 	}
-	if !strings.Contains(html, "Home") {
-		t.Error("wiki homepage: missing Home nav item")
+	// The pinned link back to the wiki root is labelled "Top", not "Home" —
+	// renamed in 879c91cf when the redundant "Home" article-list entry was
+	// dropped.
+	if !strings.Contains(html, "Top") {
+		t.Error("wiki homepage: missing pinned Top nav item")
 	}
 }
 
@@ -166,13 +169,14 @@ func TestListPages(t *testing.T) {
 	ws := setupTestWiki(t)
 	items := ws.listPages()
 
-	if len(items) != 2 {
-		t.Errorf("listPages: got %d items, want 2", len(items))
+	// README.md is the wiki homepage, reached via the pinned "Top" link, so it
+	// is deliberately NOT repeated in the article list (879c91cf). The fixture
+	// writes README.md + test-page.md, so only test-page.md is listed.
+	if len(items) != 1 {
+		t.Errorf("listPages: got %d items, want 1 (README is excluded)", len(items))
 	}
-
-	// Home should be first.
-	if len(items) > 0 && items[0].Title != "Home" {
-		t.Errorf("listPages: first item should be Home, got %q", items[0].Title)
+	if len(items) > 0 && items[0].Title != "Test Page" {
+		t.Errorf("listPages: first item should be Test Page, got %q", items[0].Title)
 	}
 }
 
