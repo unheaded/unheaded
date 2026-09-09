@@ -4,8 +4,8 @@
 # WHAT: Fuzzing harness crate for Unheaded eBPF programs + wire format
 # WHY:  S25 ran 28M executions with zero crashes — LICH needs a proper home
 # WHO:  Developer + BlackMage (offensive security)
-# WHERE: ebpf/fuzz/Cargo.toml (move this file there)
-# WIRE: Seeds in ebpf/fuzz/seeds/, harnesses in ebpf/fuzz/fuzz_targets/
+# WHERE: ebpf/fuzz/Cargo.toml
+# WIRE: Seeds in ebpf/fuzz/seeds/, harnesses at the crate ROOT (lich_*.rs)
 # =============================================================================
 
 [package]
@@ -19,32 +19,51 @@ license = "UNLICENSED"
 # =============================================================================
 # FUZZ TARGETS
 # =============================================================================
-# Each [[bin]] is a separate fuzzing campaign target
-# Run with: cargo +nightly fuzz run <target_name>
+# Each [[bin]] is a separate fuzzing campaign target.
+# Run with: cargo +nightly fuzz -C ebpf/fuzz run <target_name>
+#
+# These MUST match the files that exist. Until 2026-09-09 this section declared
+# five targets — fuzz_monad_wire, fuzz_sophia_dict, fuzz_crc16,
+# fuzz_exponent_encoding, fuzz_packet_parse — at fuzz_targets/*.rs. None of
+# those files was ever committed; the header above still said "move this file
+# there", so the manifest was a template that never got reconciled with the
+# harnesses actually written alongside it in 94d7ebad (2026-02-25).
+#
+# The effect was that the four REAL harnesses were declared as nothing, so the
+# exact command in README.md — `cargo +nightly fuzz -C ebpf/fuzz run
+# lich_007_mbc` — could not resolve a target, and `cargo build` failed outright
+# with "can't find bin". The S21 LICH campaign was undeployable for 6 months.
+#
+# test/bench = false is REQUIRED, not tidiness: these are `#![no_main]`
+# libFuzzer targets, so a test or bench harness cannot link. scripts/check-clippy.sh
+# lints this workspace with --all-targets and would fail without them.
 
 [[bin]]
-name = "fuzz_monad_wire"
-path = "fuzz_targets/fuzz_monad_wire.rs"
+name = "lich_007_mbc"
+path = "lich_007_mbc.rs"
+test = false
+bench = false
 doc = false
 
 [[bin]]
-name = "fuzz_sophia_dict"
-path = "fuzz_targets/fuzz_sophia_dict.rs"
+name = "lich_008_wotan_cache"
+path = "lich_008_wotan_cache.rs"
+test = false
+bench = false
 doc = false
 
 [[bin]]
-name = "fuzz_crc16"
-path = "fuzz_targets/fuzz_crc16.rs"
+name = "lich_009_flow_collision"
+path = "lich_009_flow_collision.rs"
+test = false
+bench = false
 doc = false
 
 [[bin]]
-name = "fuzz_exponent_encoding"
-path = "fuzz_targets/fuzz_exponent_encoding.rs"
-doc = false
-
-[[bin]]
-name = "fuzz_packet_parse"
-path = "fuzz_targets/fuzz_packet_parse.rs"
+name = "lich_010_wal_integrity"
+path = "lich_010_wal_integrity.rs"
+test = false
+bench = false
 doc = false
 
 # =============================================================================

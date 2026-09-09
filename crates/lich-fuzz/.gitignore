@@ -1,0 +1,13 @@
+# Build output
+target/
+
+# libFuzzer writes reproducer artifacts into the CWD when a run crashes.
+# They are byte-identical to whichever input triggered the fault, so git
+# happily matches them against files in seeds/ and reports the seed as
+# RENAMED to the artifact — which stages a deletion of the corpus.
+# Never track them; copy anything worth keeping into seeds/ deliberately.
+crash-*
+leak-*
+timeout-*
+oom-*
+slow-unit-*

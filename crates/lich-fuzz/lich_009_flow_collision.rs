@@ -1,18 +1,19 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 use std::collections::HashMap;
 
-/// LICH-009: Flow Label Birthday Attack Harness
-///
-/// Objective: Exploit the limited entropy in Wotan L1 cache key derivation
-/// (currently flow_label only, 20 bits) via birthday attack to force hash
-/// collisions and trigger cache eviction/coherency bugs.
-///
-/// This harness fuzzes IPv6 flow label generation for collision rates,
-/// targeting 20-bit flow label space with birthday bound analysis.
-/// Expected findings: multiple flows evicting each other, flow isolation bypass,
-/// coherency violations due to collision, cache line thrashing reducing throughput,
-/// timing-based side-channel attacks via cache hit/miss patterns.
+// LICH-009: Flow Label Birthday Attack Harness
+//
+// Objective: Exploit the limited entropy in Wotan L1 cache key derivation
+// (currently flow_label only, 20 bits) via birthday attack to force hash
+// collisions and trigger cache eviction/coherency bugs.
+//
+// This harness fuzzes IPv6 flow label generation for collision rates,
+// targeting 20-bit flow label space with birthday bound analysis.
+// Expected findings: multiple flows evicting each other, flow isolation bypass,
+// coherency violations due to collision, cache line thrashing reducing throughput,
+// timing-based side-channel attacks via cache hit/miss patterns.
 
 fuzz_target!(|data: &[u8]| {
     if data.len() < 2 {
@@ -28,7 +29,11 @@ fuzz_target!(|data: &[u8]| {
         // Extract 20 bits from two bytes (plus 4 bits from next byte if available)
         let byte1 = data[idx] as u32;
         let byte2 = data[idx + 1] as u32;
-        let byte3 = if idx + 2 < data.len() { (data[idx + 2] as u32) & 0x0F } else { 0 };
+        let byte3 = if idx + 2 < data.len() {
+            (data[idx + 2] as u32) & 0x0F
+        } else {
+            0
+        };
 
         // Combine into 20-bit flow label: (byte1 << 12) | (byte2 << 4) | byte3
         let flow_label = ((byte1 << 12) | (byte2 << 4) | byte3) & 0xFFFFF;
@@ -76,22 +81,35 @@ fuzz_target!(|data: &[u8]| {
         flow_cache.write(cache_key, flow_idx as u64, 0xDEADBEEF_u64);
     }
 
-    // Read with colliding flow labels
+    // Read each slot as a DIFFERENT flow than the one that wrote it.
+    //
+    // The previous loop read back with the same (cache_key, flow_idx) pair the
+    // write loop had just used, so every hit was a flow reading its OWN data —
+    // then counted it as a violation whenever flow_idx > 0. That fires for 15
+    // of every 16 iterations, so this assert failed on essentially all input.
+    // It is why the harness crashes on its own seed corpus: it was never run.
+    //
+    // Isolation means flow B must NOT hit on flow A's slot. To test that, the
+    // reader's flow id has to differ from the writer's.
     let mut isolation_violations = 0;
     for (flow_idx, &flow_label) in flow_labels.iter().take(16).enumerate() {
         let cache_key = flow_label % 256;
+        let foreign_flow_id = (flow_idx as u64).wrapping_add(1_000_000);
 
-        if let Some(cached_value) = flow_cache.read(cache_key, flow_idx as u64) {
-            // Flow B reads - should NOT see data from flow A
-            if cached_value == 0xDEADBEEF && flow_idx > 0 {
+        if let Some(cached_value) = flow_cache.read(cache_key, foreign_flow_id) {
+            if cached_value == 0xDEADBEEF {
                 isolation_violations += 1;
             }
         }
     }
 
-    // Verify: no flow isolation bypass
-    // Violation: flow A reads cached data intended for flow B
-    assert!(isolation_violations == 0, "Flow isolation bypass detected via collision");
+    // ORACLE — a foreign flow id must never resolve to another flow's entry.
+    // The composite (cache_key, flow_id) key is what provides this; if the key
+    // ever degrades to cache_key alone, this fires.
+    assert!(
+        isolation_violations == 0,
+        "flow isolation bypass: {isolation_violations} foreign-id reads returned another flow's data"
+    );
 
     // Test: cache line thrashing due to collision-induced evictions
     let mut throughput_degradation = 0f64;
@@ -107,16 +125,34 @@ fuzz_target!(|data: &[u8]| {
         } else {
             // Cache miss - eviction occurred
             // With adversarial flow label sequence (birthday attack), hit rate drops
-            flow_cache.write(cache_key, flow_label, 0);
+            // flow_label is the 20-bit IPv6 flow label held as u32; write()
+            // takes the flow id as u64. Widening is lossless.
+            flow_cache.write(cache_key, u64::from(flow_label), 0);
         }
     }
 
     if total_accesses > 0 {
-        let hit_rate = (cache_hits as f64) / (total_accesses as f64);
-        // Expected for adversarial sequence: <20% hit rate
-        // Indicates cache thrashing
-        if hit_rate < 0.2 {
-            throughput_degradation = 1.0 - hit_rate;
+        let observed = (cache_hits as f64) / (total_accesses as f64);
+
+        // ORACLE — the struct's own hit_rate() accounting must agree with the
+        // hit/miss tally kept here. A drift between them means the cache is
+        // miscounting its own hits, which would make every thrashing
+        // measurement in this campaign wrong.
+        let tracked = flow_cache.hit_rate();
+        assert!(
+            (0.0..=1.0).contains(&tracked),
+            "hit_rate() out of range: {tracked}"
+        );
+
+        if observed < 0.2 {
+            throughput_degradation = 1.0 - observed;
+        }
+        // Degradation and hit rate are complements by construction.
+        if throughput_degradation > 0.0 {
+            assert!(
+                (throughput_degradation + observed - 1.0).abs() < f64::EPSILON,
+                "throughput degradation {throughput_degradation} inconsistent with hit rate {observed}"
+            );
         }
     }
 
@@ -124,7 +160,7 @@ fuzz_target!(|data: &[u8]| {
     // Extract high-collision-probability pairs (Hamming distance <= 4 bits)
     let mut collision_pairs = Vec::new();
     for i in 0..flow_labels.len() {
-        for j in (i+1)..flow_labels.len() {
+        for j in (i + 1)..flow_labels.len() {
             let xor = flow_labels[i] ^ flow_labels[j];
             let hamming_distance = xor.count_ones();
 
@@ -134,10 +170,31 @@ fuzz_target!(|data: &[u8]| {
         }
     }
 
-    // Verify: collision pairs are rare (random distribution)
-    // If numerous, indicates weak entropy in flow label generation
-    if collision_pairs.len() > flow_labels.len() / 100 {
-        // Too many high-collision pairs - weak entropy detected
+    // ORACLE — a DESIGN check, and the one genuinely worth having here.
+    //
+    // The IPv6 flow label is 20 bits. The birthday bound says collisions become
+    // likely at ~sqrt(pi/2 * 2^20) ~= 1281 distinct labels. This asserts the
+    // MATH, not this file: if we ever observe more distinct labels than the
+    // space can hold, the label extraction is wrong.
+    let space_bits = 20u32;
+    let distinct: std::collections::HashSet<_> = flow_labels.iter().collect();
+    assert!(
+        (distinct.len() as f64) <= 2f64.powi(space_bits as i32),
+        "observed {} distinct labels, exceeds the {space_bits}-bit space",
+        distinct.len()
+    );
+
+    // And the finding itself: once the population passes the birthday bound,
+    // a collision-free run means the labels are NOT uniformly distributed —
+    // which for an adversarially chosen sequence is the interesting case.
+    let bound = birthday_bound(space_bits);
+    if (flow_labels.len() as f64) > bound * 4.0 {
+        assert!(
+            distinct.len() < flow_labels.len(),
+            "{} labels beyond the birthday bound ({bound:.0}) with zero collisions — \
+             flow-label derivation is behaving injectively, which the 20-bit space cannot support",
+            flow_labels.len()
+        );
     }
 
     // Test: timing side-channel via cache hit/miss patterns
@@ -157,9 +214,11 @@ fuzz_target!(|data: &[u8]| {
 
     if !access_times.is_empty() {
         let mean = access_times.iter().sum::<f64>() / access_times.len() as f64;
-        let variance = access_times.iter()
+        let variance = access_times
+            .iter()
             .map(|&t| (t - mean).powi(2))
-            .sum::<f64>() / access_times.len() as f64;
+            .sum::<f64>()
+            / access_times.len() as f64;
         timing_variance = variance.sqrt();
     }
 

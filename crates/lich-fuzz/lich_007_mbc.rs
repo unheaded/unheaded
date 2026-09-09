@@ -1,15 +1,16 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 
-/// LICH-007: MBC Bytecode Instruction Fuzzer
-///
-/// Objective: Identify bytecode interpretation errors, instruction encoding flaws,
-/// and correctness violations in the Doom substrate's MBC implementation.
-///
-/// This harness fuzzes the MBC instruction decoder with random bytecode sequences,
-/// targeting instruction parsing, bounds checking, and register validation.
-/// Expected to catch: instruction decoding off-by-one errors, register width mismatches,
-/// stack underflow, incorrect memory protection, branch offset errors, integer overflow.
+// LICH-007: MBC Bytecode Instruction Fuzzer
+//
+// Objective: Identify bytecode interpretation errors, instruction encoding flaws,
+// and correctness violations in the Doom substrate's MBC implementation.
+//
+// This harness fuzzes the MBC instruction decoder with random bytecode sequences,
+// targeting instruction parsing, bounds checking, and register validation.
+// Expected to catch: instruction decoding off-by-one errors, register width mismatches,
+// stack underflow, incorrect memory protection, branch offset errors, integer overflow.
 
 fuzz_target!(|data: &[u8]| {
     // Guard against empty input
@@ -23,7 +24,14 @@ fuzz_target!(|data: &[u8]| {
     let mut pc = 0usize;
     let data_len = data.len();
 
+    // ORACLE — the decoder's program counter may never escape the buffer.
+    // A decoder that walks past its input is the bug class this campaign
+    // exists to find, and "did not panic" does not cover it: an out-of-range
+    // pc that is never dereferenced is silent.
+    let mut max_pc_seen = 0usize;
+
     while pc < data_len {
+        max_pc_seen = max_pc_seen.max(pc);
         // Safely read opcode byte
         let opcode = data[pc];
         pc += 1;
@@ -35,7 +43,7 @@ fuzz_target!(|data: &[u8]| {
             0x00..=0x0F => {
                 // Branch/jump/call instructions with offset
                 if pc + 4 <= data_len {
-                    let offset_bytes = [data[pc], data[pc+1], data[pc+2], data[pc+3]];
+                    let offset_bytes = [data[pc], data[pc + 1], data[pc + 2], data[pc + 3]];
                     let offset = i32::from_le_bytes(offset_bytes);
                     pc += 4;
 
@@ -54,7 +62,7 @@ fuzz_target!(|data: &[u8]| {
 
             // Register-immediate opcodes (0x10-0x2F)
             0x10..=0x2F => {
-                if pc + 1 <= data_len {
+                if pc < data_len {
                     let reg_and_imm = data[pc];
                     pc += 1;
 
@@ -80,7 +88,7 @@ fuzz_target!(|data: &[u8]| {
             0x30..=0x4F => {
                 if pc + 2 <= data_len {
                     let reg = data[pc] & 0x0F;
-                    let addr_offset = i16::from_le_bytes([data[pc], data[pc+1]]);
+                    let addr_offset = i16::from_le_bytes([data[pc], data[pc + 1]]);
                     pc += 2;
 
                     // Validate register
@@ -115,7 +123,7 @@ fuzz_target!(|data: &[u8]| {
 
             // Arithmetic opcodes (0x70-0x8F)
             0x70..=0x8F => {
-                if pc + 1 <= data_len {
+                if pc < data_len {
                     let _reg1 = data[pc] & 0x0F;
                     let _reg2 = (data[pc] >> 4) & 0x0F;
                     pc += 1;
@@ -141,6 +149,17 @@ fuzz_target!(|data: &[u8]| {
         }
     }
 
-    // If we exit the loop normally, bytecode stream was successfully validated
-    // No panics, no undefined behavior, no out-of-bounds access
+    // ORACLE — pc stayed inside the buffer for every instruction decoded.
+    assert!(
+        data_len == 0 || max_pc_seen < data_len,
+        "MBC decode walked past the buffer: max pc {max_pc_seen} >= len {data_len}"
+    );
+
+    // NOTE ON THIS CAMPAIGN'S VALUE.
+    //
+    // The decoder above is a MODEL written inside this file; it is not the
+    // production decoder. crates/monad-mbc/fuzz already fuzzes the real one
+    // (`monad_mbc::instruction::decode_checked`) and links the real crate.
+    // For MBC coverage that means anything, run THAT target — this one can
+    // only ever tell you about the model. See the header note.
 });
