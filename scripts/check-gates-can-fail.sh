@@ -60,6 +60,7 @@ MODE="${1:-}"
 BACKUP_DIR="$(mktemp -d)"
 TOUCHED=()
 CREATED=()          # files the provocation brought into existence
+CREATED_DIRS=()     # directories it had to mkdir -- see restore_touched
 FAILURES=0
 CHECKED=0
 SKIPPED=0
@@ -87,6 +88,20 @@ restore_all() {
     exit "${rc}"
 }
 trap restore_all EXIT INT TERM
+
+# shellcheck disable=SC2317  # called from provoke_* dispatch
+# Register a directory the provocation creates, so restore removes it.
+#
+# This exists because of a real incident: the verify-gpl-boundary provocation
+# did `mkdir -p vendor/meta-gate-probe`, restore deleted only the FILE, and the
+# empty vendor/ directory it left behind at the module root flipped Go into
+# vendoring mode -- `go build ./...` then failed with "inconsistent vendoring"
+# across every dependency. Git does not track empty directories, so the
+# clean-tree check saw nothing wrong and the damage was invisible.
+# shellcheck disable=SC2317  # called from provoke_* dispatch
+backup_dir() {
+    CREATED_DIRS+=("$1")
+}
 
 # shellcheck disable=SC2317  # called from provoke_* dispatch
 backup() {
@@ -123,8 +138,15 @@ restore_touched() {
         [ -n "${f}" ] || continue
         git -C "${REPO_ROOT}" rm --cached -q --force "${f}" >/dev/null 2>&1 || true
     done
+    # Deepest-first, and rmdir (never rm -rf) so a directory that unexpectedly
+    # still holds something is left alone and reported rather than destroyed.
+    local d
+    for d in $(printf '%s\n' "${CREATED_DIRS[@]:-}" | awk 'NF' | awk '{print length"\t"$0}' | sort -rn | cut -f2-); do
+        rmdir "${REPO_ROOT}/${d}" 2>/dev/null || true
+    done
     TOUCHED=()
     CREATED=()
+    CREATED_DIRS=()
 }
 
 # ---------------------------------------------------------------------------
@@ -219,8 +241,15 @@ provoke_bpf_verifier_check() {
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_verify_gpl_boundary() {
     # Contract: no GPL/AGPL license on a non-first-party Cargo.toml.
-    local f="vendor/meta-gate-probe/Cargo.toml"
-    mkdir -p "${REPO_ROOT}/vendor/meta-gate-probe"
+    # NOT under vendor/. A vendor/ directory at the module root puts Go into
+    # vendoring mode, and an empty one left behind breaks `go build ./...` with
+    # "inconsistent vendoring" for every dependency. third_party/ is
+    # non-first-party as far as is_first_party_cargo() is concerned, which is
+    # all this provocation needs, and Go ignores it entirely.
+    local f="third_party/meta-gate-probe/Cargo.toml"
+    backup_dir "third_party/meta-gate-probe"
+    backup_dir "third_party"
+    mkdir -p "${REPO_ROOT}/third_party/meta-gate-probe"
     backup "${f}"
     printf '[package]\nname = "meta-gate-probe"\nversion = "0.0.0"\nlicense = "AGPL-3.0"\n' \
         > "${REPO_ROOT}/${f}"
