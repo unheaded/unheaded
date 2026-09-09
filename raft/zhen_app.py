@@ -38,6 +38,7 @@ import sys
 import time
 import uuid
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
 from flask import Flask, jsonify, request, send_file
@@ -46,6 +47,27 @@ from flask_cors import CORS
 # Add scripts dir to path for RAG import
 sys.path.insert(0, str(Path(__file__).parent / 'scripts'))
 from zhen_rag import RAGPipeline
+
+
+def _http_url_from_env(var: str, default: str) -> str:
+    """Read a service URL from the environment, rejecting non-HTTP schemes.
+
+    These values are fed straight to urllib.request.urlopen, which happily
+    accepts file:// and other schemes — so an operator (or anything able to set
+    the environment) could turn a service probe into a local file read. The
+    scheme is checked once here, at the boundary, rather than at each of the
+    ~35 urlopen call sites downstream. Fails loudly rather than falling back to
+    the default, matching the house rule for env-derived configuration.
+    """
+    value = os.environ.get(var, default)
+    scheme = urlsplit(value).scheme
+    if scheme not in ('http', 'https'):
+        raise ValueError(
+            f"{var} must be an http:// or https:// URL; got scheme {scheme!r}. "
+            "urlopen would otherwise accept file:// and read local files."
+        )
+    return value
+
 
 app = Flask(__name__, static_folder='static', static_url_path='/static')
 CORS(app)
@@ -87,9 +109,9 @@ try:
     _proxy = _proxy_env in ('true', '1', 'yes', 'on')
     rag = RAGPipeline(
         index_dir, corpus_file,
-        vor_url=os.environ.get('VOR_URL', 'http://localhost:9876'),
-        inference_url=os.environ.get('ZHEN_INFERENCE_URL', 'http://localhost:8081'),
-        agentd_url=os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105'),
+        vor_url=_http_url_from_env('VOR_URL', 'http://localhost:9876'),
+        inference_url=_http_url_from_env('ZHEN_INFERENCE_URL', 'http://localhost:8081'),
+        agentd_url=_http_url_from_env('ZHEN_AGENTD_URL', 'http://localhost:20105'),
         # Model name is metadata in the OpenAI-compat protocol — llama-server
         # serves whatever GGUF is loaded regardless of this string. Setting
         # ZHEN_MODEL keeps the response.model field accurate for the UI/logs.
@@ -108,6 +130,7 @@ except Exception as e:
 # Nothing in this app calls basicConfig or configures handlers, so records reach
 # the same place either way; this just stops the module from reconfiguring the
 # root logger as a side effect of its first logging.info() call.
+
 log = logging.getLogger(__name__)
 
 pg_conn = None
@@ -200,8 +223,8 @@ def _pg_log(role, content, sources='[]', model='', tokens_input=0, tokens_output
         # Attempt reconnect on next call
         try:
             pg_conn.close()
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug('[zhen] could not close the dead Postgres handle before reconnect: %s', e)
         pg_conn = _pg_connect()
 
 
@@ -445,8 +468,8 @@ def _build_live_context(question, max_chars=4096):
             if len(names) > 25:
                 lines.append(f'  ... and {len(names) - 25} more')
             parts.append('\n'.join(lines))
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug('[zhen] kanban name list omitted from context: %s', e)
 
         if pg_conn is not None:
             try:
@@ -467,8 +490,8 @@ def _build_live_context(question, max_chars=4096):
                         lines.append(f'  #{rid} [{planned}] {status} '
                                      f'({elapsed_ms or 0}ms): {intent or ""}')
                     parts.append('\n'.join(lines))
-            except Exception:
-                pass
+            except Exception as e:
+                log.debug('[zhen] recent-runs list omitted from context: %s', e)
 
     if 'health' in intents:
         # Quick probes; same shape as /api/v1/system/state.
@@ -568,7 +591,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             try:
                 ur.urlopen(f'http://localhost:{port}/health', timeout=2)
                 healthy += 1
-            except: pass
+            except Exception as e:
+                log.debug('[zhen] health probe failed for %s:%s: %s', name, port, e)
         lines.append(f'**Services:** {healthy}/{len(services)} healthy')
 
         # Memory
@@ -582,7 +606,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             avail = mem.get('MemAvailable', 0) // 1024
             swap_used = (mem.get('SwapTotal', 0) - mem.get('SwapFree', 0)) // 1024
             lines.append(f'**Memory:** {total - avail}MB / {total}MB (swap: {swap_used}MB)')
-        except: pass
+        except Exception as e:
+            log.debug('[zhen] memory stat unavailable: %s', e)
 
         # Disk
         try:
@@ -590,7 +615,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             for line in result.stdout.strip().split('\n')[1:]:
                 parts = line.split()
                 lines.append(f'**Disk /:** {parts[2]} used / {parts[1]} ({parts[4]})')
-        except: pass
+        except Exception as e:
+            log.debug('[zhen] disk stat unavailable: %s', e)
 
         # GPU
         try:
@@ -599,22 +625,27 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
                 if 'Temp' in line and '°C' in line:
                     lines.append(f'**GPU:** {line.strip()}')
                     break
-        except: pass
+        except Exception as e:
+            log.debug('[zhen] GPU stat unavailable: %s', e)
 
         # Training
         try:
-            with open('/tmp/forge-production.log') as f:
+            # nosec B108 - fixed path is the interface: zhenai-forge writes this
+            # log and this block reads it to report training status. Read-only here.
+            with open('/tmp/forge-production.log') as f:  # nosec B108
                 last = [l for l in f if 'Loss' in l]
                 if last:
                     lines.append(f'**Training:** {last[-1].strip()}')
-        except: pass
+        except Exception as e:
+            log.debug('[zhen] training log unavailable: %s', e)
 
         # Packages
         try:
             result = sp.run(['dpkg', '-l'], capture_output=True, text=True, timeout=5, check=False)
             pkg_count = len([l for l in result.stdout.split('\n') if 'unheaded' in l])
             lines.append(f'**Packages:** {pkg_count} installed')
-        except: pass
+        except Exception as e:
+            log.debug('[zhen] package count unavailable: %s', e)
 
         # EAST
         try:
@@ -623,7 +654,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
                 lines.append(f'**EAST:** {result.stdout.strip()}')
             else:
                 lines.append('**EAST:** unreachable')
-        except:
+        except Exception as e:
+            log.debug('[zhen] EAST probe failed: %s', e)
             lines.append('**EAST:** unreachable')
 
         return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
@@ -718,8 +750,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             for unit in failed_units:
                 lines.append(f'  ⚠ {unit} — **DRIFT: systemd unit FAILED**')
                 drifts += 1
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug('[zhen] systemd drift check skipped: %s', e)
 
         if drifts == 0:
             lines.append('\n**No drift detected.** All services aligned with desired state.')
@@ -1009,8 +1041,8 @@ def query():
                         f"served_by: local llama-server on AMD RX 7700 XT (ROCm)\n"
                         f"persona: zhen (真爱), chat surface of the Unheaded Kingdom\n"
                     )
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug('[zhen] inference metadata omitted from context: %s', e)
         if identity_block:
             live_ctx = identity_block + ('\n\n' + live_ctx if live_ctx else '')
 
@@ -1315,8 +1347,8 @@ def stats():
                 # the file-identity match the UI poll needs.
                 loaded = loaded.removesuffix('.gguf')
                 inference_model = loaded
-    except Exception:
-        pass
+    except Exception as e:
+        log.debug('[zhen] could not resolve the loaded model label: %s', e)
 
     return jsonify({
         'backend':           'vor',
@@ -1676,8 +1708,8 @@ def list_skills():
                                         triggers = [t.strip().rstrip('.') for t in trig_text.split(',') if t.strip()]
                                 description = ' '.join(desc_lines).strip()
                         break
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug('[zhen] runbook description parse failed: %s', e)
 
         skills.append({
             'name': name,
@@ -2131,8 +2163,8 @@ def execute_runbook(name):
                     'trust_level': TRUST_LEVEL,
                     'risk': risk,
                 }), 403
-        except Exception:
-            pass  # parse failure is non-blocking — let the daemon's gate decide
+        except Exception as e:
+            log.debug('[zhen] risk-gate parse failed; the daemon gate decides: %s', e)
 
     # Compute the runbook name argument the way Champion.RunbookExecute
     # expects it: "<category>/<runbook>" relative to the runbooks/ dir,

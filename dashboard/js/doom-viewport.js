@@ -20,7 +20,11 @@
 (function () {
     'use strict';
 
-    // Event type constants (from Anamnesis)
+    // Event type constants — a mirror of the canonical registry in
+    // pkg/ebpf/anamnesis.go. Kept complete rather than trimmed to the subset
+    // this file currently decodes: the value of a wire-protocol table is that
+    // it maps every code, and a partial copy is how the two drift apart.
+    /* eslint-disable no-unused-vars */
     var EventComputeHop   = 0x10;
     var EventCacheMiss    = 0x11;
     var EventMemWrite     = 0x12;
@@ -29,6 +33,7 @@
     var EventKeyRead      = 0x15;
     var EventComputeHalt  = 0x16;
     var EventComputeStall = 0x17;
+    /* eslint-enable no-unused-vars */
 
     // Screen dimensions (MBC framebuffer)
     var SCREEN_W = 320;
@@ -397,7 +402,7 @@
 
         try {
             ws = new WebSocket(wsUrl);
-        } catch (e) {
+        } catch {
             scheduleReconnect();
             return;
         }
@@ -423,7 +428,7 @@
                 try {
                     var msg = JSON.parse(event.data);
                     handleMessage(msg);
-                } catch (e) {
+                } catch {
                     // ignore parse errors
                 }
             }
@@ -605,11 +610,11 @@
 
         // Draw a centered border rectangle.
         var bx = 80, by = 70, bw = 160, bh = 60;
-        for (var x = bx; x < bx + bw; x++) {
+        for (let x = bx; x < bx + bw; x++) {
             screenBuffer[by * SCREEN_W + x] = 44;         // top
             screenBuffer[(by + bh) * SCREEN_W + x] = 44;  // bottom
         }
-        for (var y = by; y <= by + bh; y++) {
+        for (let y = by; y <= by + bh; y++) {
             screenBuffer[y * SCREEN_W + bx] = 44;         // left
             screenBuffer[y * SCREEN_W + bx + bw] = 44;    // right
         }
@@ -676,7 +681,7 @@
         }
 
         // Fill 16-255 with a smooth gradient (HSV sweep).
-        for (var i = 16; i < 256; i++) {
+        for (let i = 16; i < 256; i++) {
             var t = (i - 16) / 240.0;
             var h = t * 360;
             var s = 0.8;

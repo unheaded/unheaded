@@ -89,8 +89,8 @@ class ActionManager:
             logger.warning(f"[ActionManager] Well health check failed: {e}")
             try:
                 self._conn.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug('skipped: %s', e)
             self._conn = self._connect()
             if self._conn is None:
                 raise WellUnavailableError(

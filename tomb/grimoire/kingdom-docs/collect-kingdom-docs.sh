@@ -294,6 +294,8 @@ main() {
         if [[ -d "${pkg_dir}" ]]; then
             local pkg_name
             pkg_name=$(basename "${pkg_dir}")
+            # shellcheck disable=SC2043  # one entry today; kept as a loop so more
+            # doc names can be added without restructuring.
             for doc in README.md; do
                 if [[ -f "${pkg_dir}/${doc}" ]]; then
                     mkdir -p "${OUTPUT_DIR}/pkg/${pkg_name}"

@@ -178,7 +178,8 @@ if [[ "$KEEP_CONTAINERS" != "true" ]]; then
         stragglers=$(docker ps --filter name=unheaded -q 2>/dev/null || true)
         if [[ -n "$stragglers" ]]; then
             log_info "  Stopping straggler containers..."
-            run docker stop $stragglers 2>/dev/null || true
+            # shellcheck disable=SC2086  # a whitespace-separated list of container IDs
+run docker stop $stragglers 2>/dev/null || true
         fi
     fi
 

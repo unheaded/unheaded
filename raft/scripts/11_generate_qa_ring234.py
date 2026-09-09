@@ -18,11 +18,16 @@ Output: raft_dataset_ring234.jsonl (same format as raft_dataset.jsonl)
 """
 import argparse
 import json
+import logging
 import random
 import re
 import sys
 import time
 from pathlib import Path
+
+# Module logger. These handlers skip an item that could not be read; at debug
+# level the reason is available when you need it and silent when you do not.
+log = logging.getLogger(__name__)
 
 CORPUS_FILE = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus' / 'ring234.jsonl'
 OUTPUT_FILE = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'raft_dataset_ring234.jsonl'
@@ -218,8 +223,8 @@ def load_checkpoint():
         try:
             with open(CHECKPOINT_FILE, 'r') as f:
                 return json.load(f)
-        except Exception:
-            pass
+        except Exception as e:
+            log.debug('skipped: %s', e)
     return {'completed_ids': [], 'total_generated': 0, 'total_failed': 0}
 
 

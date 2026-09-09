@@ -196,7 +196,10 @@ const WebSocketClient = (function() {
 
             eventSource.onmessage = (event) => {
                 try {
-                    const data = JSON.parse(event.data);
+                    // Parsed for validation only — a malformed payload throws
+                    // and is handled by the catch below. handleMessage takes the
+                    // raw string, so the result is deliberately not bound.
+                    JSON.parse(event.data);
                     handleMessage({ data: event.data });
                 } catch (error) {
                     console.error('[SSE] Parse error:', error);
@@ -298,7 +301,7 @@ const WebSocketClient = (function() {
 
             try {
                 ws = new WebSocket(url);
-            } catch (error) {
+            } catch {
                 console.warn('[WebSocket] WebSocket not supported, trying SSE fallback');
                 isConnecting = false;
                 connectSSE().then(resolve).catch(reject);

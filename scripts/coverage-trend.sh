@@ -72,7 +72,7 @@ tail -10 "$TREND_FILE" | awk -F',' '
 
 # Check coverage trend
 echo ""
-if [ $(wc -l < "$TREND_FILE") -gt 2 ]; then
+if [ "$(wc -l < "$TREND_FILE")" -gt 2 ]; then
   PREV_COVERAGE=$(tail -2 "$TREND_FILE" | head -1 | cut -d',' -f3)
   CURR_COVERAGE=$TOTAL_COVERAGE
 

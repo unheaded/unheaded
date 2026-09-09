@@ -64,6 +64,11 @@ echo "========================================"
 
 echo ""
 echo "[ OPNsense (host-a) ]"
+# staging and B6 fixed the same credential-through-eval bug two different ways.
+# staging's check_api helper is kept: it never puts the credential on an eval
+# path at all, whereas B6 escaped the inner quotes so eval could survive them.
+# Escaping is correct but keeps a credential inside `eval "$cmd"`; not building
+# that string in the first place is the stronger property.
 check_api "OPNsense API reachable" "https://${HOST_A_FW}/api/core/firmware/info"
 check "WireGuard UDP 51820 open" "nc -zu ${HOST_A_FW} 51820"
 check "HTTPS 443 open" "nc -z ${HOST_A_FW} 443"

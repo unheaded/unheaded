@@ -266,7 +266,7 @@ if [[ $QUIET -eq 0 ]]; then
     echo -e "${CYAN}${BOLD}  Doom CPU Monitor — Continuous Health Polling${NC}"
     echo -e "${CYAN}${BOLD}════════════════════════════════════════════════════════════════${NC}"
     echo -e "  Interval: ${INTERVAL}s  Duration: ${DURATION}s (0=infinite)"
-    echo -e "  SP threshold: $(printf '0x%X' $THRESHOLD_SP_DEC)"
+    echo -e "  SP threshold: $(printf '0x%X' "$THRESHOLD_SP_DEC")"
     [[ -n "$OUTPUT_FILE" ]] && echo -e "  Log file: ${OUTPUT_FILE}"
     echo ""
 fi
@@ -322,10 +322,10 @@ while true; do
 
     # ── Check: Stack drain (Bug 22) ─────────────────────────────────────
     if [[ $sp -lt $THRESHOLD_SP_DEC && $insn_count -gt 0 ]]; then
-        emit FAIL "stack_drain sp=0x$(printf '%X' $sp) threshold=0x$(printf '%X' $THRESHOLD_SP_DEC) insn_count=${insn_count}"
+        emit FAIL "stack_drain sp=0x$(printf '%X' "$sp") threshold=0x$(printf '%X' "$THRESHOLD_SP_DEC") insn_count=${insn_count}"
         ((FAIL_COUNT++)) || true
     else
-        emit OK "sp=0x$(printf '%X' $sp) pc=0x$(printf '%X' $pc) insn=${insn_count} halted=${halted}"
+        emit OK "sp=0x$(printf '%X' "$sp") pc=0x$(printf '%X' "$pc") insn=${insn_count} halted=${halted}"
     fi
 
     # ── Check: BSS corruption (Bug 23) ──────────────────────────────────
@@ -339,7 +339,7 @@ while true; do
 
     # ── Check: Halt detection ────────────────────────────────────────────
     if [[ $halted -ne 0 ]]; then
-        emit WARN "halted=${halted} pc=0x$(printf '%X' $pc) insn=${insn_count}"
+        emit WARN "halted=${halted} pc=0x$(printf '%X' "$pc") insn=${insn_count}"
         ((WARN_COUNT++)) || true
     fi
 

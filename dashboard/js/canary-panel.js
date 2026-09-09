@@ -546,7 +546,7 @@ var CanaryPanel = (function() {
         }
     }
 
-    function drawSimpleAxes(ctx, pad, plotW, plotH, yMinLabel, yMaxLabel, yTitle) {
+    function drawSimpleAxes(ctx, pad, plotW, plotH, yMinLabel, yMaxLabel, _yTitle) {
         ctx.strokeStyle = CONFIG.colors.gridLine;
         ctx.lineWidth = 1;
         ctx.beginPath();

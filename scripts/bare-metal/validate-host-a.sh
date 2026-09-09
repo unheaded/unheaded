@@ -416,7 +416,7 @@ print_header "8. END-TO-END VALIDATION"
 print_check "Ping service subnet IPs (10.10.10.1-10)"
 ping_success=0
 for i in {1..10}; do
-  if timeout 1 ping -c 1 10.10.10.$i >/dev/null 2>&1; then
+  if timeout 1 ping -c 1 "10.10.10.$i" >/dev/null 2>&1; then
     ((ping_success++))
   fi
 done

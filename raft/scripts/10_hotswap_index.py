@@ -139,7 +139,10 @@ def restart_zhen():
         cwd=str(RAFT_DIR),
         # Deliberate: this handle is owned by the child process for its whole
         # lifetime. A context manager would close it the moment Popen returns.
-        stdout=open('/tmp/zhen-webapp.log', 'w'),  # noqa: SIM115
+        # nosec B108 - fixed path is the interface operators tail. Note this is
+        # an open(..., 'w'), so on a shared host a pre-created symlink here would
+        # be truncated; acceptable on a single-user dev box, revisit if that changes.
+        stdout=open('/tmp/zhen-webapp.log', 'w'),  # noqa: SIM115  # nosec B108
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )

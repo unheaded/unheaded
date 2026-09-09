@@ -38,7 +38,7 @@ compares against this baseline, not against zero.
 | ruff | 427 |
 | bandit | 212 (0 HIGH / 51 MEDIUM / 161 LOW) |
 | shellcheck | 350 (0 error / 98 warning / 252 note) |
-| eslint | unmeasured — no config, no `package.json` |
+| eslint | unmeasured — no config, no `package.json` (**now 57**) |
 | clippy | 0 (gating) |
 | `monad-cpu-ebpf --features ascend-linux` | 901,888 bytes |
 
@@ -68,10 +68,34 @@ compares against this baseline, not against zero.
 | 18 | — | — | (sha fix) | correct a SHA in the table | — | no |
 | 19 | R2 | 7C | `9ed74515` | module logger, read-only globals, TRY004 trap | ruff 210 → 189 | no |
 | 20 | R2 | 7C | `896f302e` | SIM115 / SIM102 / TRY002 | ruff 189 → 180 | no |
-| 21 | R2 | 7 | `90307f1b` | noqa-comment trap + stale binding | **ruff 180 → 176** | no |
+| 21 | R2 | 7 | `90307f1b` | noqa-comment trap + stale binding | ruff 180 → 176 | no |
+| 22 | — | — | (log) | progress log through Phase 7 | — | no |
+| 23 | R2 | 8a | `fb5d7091` | **E722 → 0** — bare except no longer eats Ctrl-C | ruff 176 → 170 | no |
+| 24 | R2 | 8b | `6618561e` | **S110 → 0** — silent swallows now visible | ruff 170 → 146 | no |
+| 25 | R2 | 8c | `725b4e3d` | BLE001 triaged (not fixed) — decision doc | — | no |
+| 26 | R3 | 13 | `bbfb4806` | async blocking calls annotated w/ expiry condition | ruff 146 → 139 | no |
+| 27 | R2 | 9/10 | `71f43a11` | B105 false positive + env URL scheme guard | bandit 212 → 183 | no |
+| 28 | — | — | (log) | progress log through Phase 9 | — | no |
+| 29 | R2 | 9 | `e4461566` | B108 /tmp paths dispositioned per interface | bandit 183 → 173 | no |
+| 30 | R2 | 9/10 | `70b917da` | bandit group disposition + CI severity-filter finding | 43 left to decide | no |
+| 31 | — | — | (log) | progress log through Phase 9/10 | — | no |
+| 32 | R3 | 11 | `2c760ab7` | **eslint measured for the first time** + a real bug fixed | eslint → 57 | no |
+| 33 | — | — | (log) | progress log through Phase 11 | — | no |
+| 34 | R3 | 12 | `700b80c0` | **FillRing had the same wraparound bug**; 3 red-then-green tests | — | no |
+| 35 | — | — | (log) | progress log through Phase 12 | — | no |
+| 36 | — | 14 | `6925c775` | **ruff GATING at 0**; bandit loses its `-ll` severity filter | **ruff ratcheted** | no |
+| 37 | — | 15 | `315ad4cd` | decision queue — 10 items costed for Stevie | — | no |
+| 38 | R1 | post | `93c42495` | **SC2086 → 0** — one real quoting bug in a credential path | shellcheck 281 → 246 | no |
+| 39 | — | — | (log) | progress log through SC2086 | — | no |
+| 40 | R1 | post | `c5133060` | stderr escaping a soak log; 3 traps; 2 bare `cd` | warnings 20 → 14 | no |
+| 41 | R1 | post | `2cd73ed3` | **shellcheck now GATING at warning level, 0 exclusions** | warnings 98 → 0 | no |
+| 42 | — | — | (log) | progress log through the shellcheck flip | — | no |
+| 43 | R2 | post | `2769cbdb` | **eslint 57 → 0 and GATING**, 0 exclusions | eslint → 0 | no |
+| 44 | — | — | (log) | progress log through the eslint flip | — | no |
+| 45 | R1 | post | `ca334cca` | printf format-string bug in the pre-commit hook | 2 of 27 SC2059 real | no |
 
 **Current state**: `go test ./...` = 244 packages ok, **0 failures**.
-**ruff 427 → 176 (−59%)** · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
+**ruff 427 → 139 (−67%)** · **bandit 212 → 173**, and only **43** survive the proposed rule-ID skip · **shellcheck 359 → 281 (−22%)** · clippy still 0 · bandit untouched at 212.
 
 ---
 
@@ -145,6 +169,15 @@ compares against this baseline, not against zero.
   debug branch covered exactly this and was followed.
 
 ---
+
+## The ladder is complete
+
+Phases 0-15 are done. Phase 16 (handoff) is `~/tmp/next.md`.
+
+What is left is **not work, it is decisions** — 10 of them, costed in
+`docs/battle-plans/STAGING-LADDER-DECISIONS.md`. The largest is D1 (134 blind excepts,
+71 of them silent), which is parked behind the ruff ratchet's one rule-ID exclusion and
+is best done as the first exercise of the ADR-090 sweep.
 
 ## Where the run stopped
 

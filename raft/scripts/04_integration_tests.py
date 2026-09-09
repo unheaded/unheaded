@@ -11,7 +11,7 @@ import requests
 INFERENCE_URL = "http://localhost:20100"
 RAG_URL = "http://localhost:20103"
 
-PASS = "\033[92mPASS\033[0m"
+PASS = "\033[92mPASS\033[0m"  # nosec B105 - ANSI-green status label, not a credential
 FAIL = "\033[91mFAIL\033[0m"
 SKIP = "\033[93mSKIP\033[0m"
 

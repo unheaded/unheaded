@@ -22,7 +22,10 @@ echo "=== Phase 1: Compile all BPF programs ==="
 # `cd` must not be allowed to fail silently: without the guard, a bad BPF_DIR
 # leaves cargo building whatever happens to be in the current directory and
 # this gate passing on the wrong tree.
-cd "$BPF_DIR" || { echo "FATAL: cannot cd to $BPF_DIR"; exit 1; }
+#
+# staging and B6 arrived at this guard independently; B6's form is kept because
+# it sends the message to stderr.
+cd "$BPF_DIR" || { echo "FATAL: cannot cd to $BPF_DIR" >&2; exit 1; }
 
 BUILD_OUTPUT=$(cargo build --release 2>&1)
 BUILD_EXIT=$?
