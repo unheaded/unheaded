@@ -13,8 +13,8 @@ common patterns, and adversarial inputs for each fuzzing target.
 """
 
 import os
-import struct
 import random
+import struct
 from pathlib import Path
 
 

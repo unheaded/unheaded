@@ -5,9 +5,9 @@
 
 use crate::syscall;
 use af_xdp_common::{
-    CompletionDesc, FillDesc, XskConfig, XskMmapOffsets, XskRingOffsets, XskUmemReg, SOL_XDP,
-    XDP_MMAP_OFFSETS, XDP_PGOFF_COMPLETION_RING, XDP_PGOFF_FILL_RING, XDP_UMEM_COMPLETION_RING,
-    XDP_UMEM_FILL_RING, XDP_UMEM_REG,
+    XskConfig, XskMmapOffsets, XskRingOffsets, XskUmemReg, SOL_XDP, XDP_MMAP_OFFSETS,
+    XDP_PGOFF_COMPLETION_RING, XDP_PGOFF_FILL_RING, XDP_UMEM_COMPLETION_RING, XDP_UMEM_FILL_RING,
+    XDP_UMEM_REG,
 };
 use std::ptr::NonNull;
 
@@ -342,21 +342,33 @@ impl CompletionRing {
 
     /// Drain completed frame addresses from the ring.
     /// Returns a Vec of frame offsets that can be recycled back to the UMEM free pool.
+    ///
+    /// The producer/consumer counters are free-running `u32` that wrap after
+    /// 4G frames, so the delta must be computed with `wrapping_sub`. This used
+    /// to be a plain `producer - consumer`, which on the first wrap either
+    /// panicked on overflow (debug) or produced a ~4-billion `available`
+    /// (release) and asked for a `Vec` that size. `RxRing::recv` already did
+    /// this correctly; the completion ring did not.
+    ///
+    /// The result is additionally clamped to the ring size: a consumer can
+    /// never legitimately be behind by more than one full ring, and without
+    /// the clamp a desynchronized producer index would re-serve stale slots
+    /// as if they were freshly completed frames.
     pub fn consume(&mut self) -> Vec<u64> {
         unsafe {
             syscall::smp_rmb();
             let producer = *self.producer;
             let consumer = *self.consumer;
-            let available = producer - consumer;
+            let available = producer.wrapping_sub(consumer).min(self.size);
 
             let mut addrs = Vec::with_capacity(available as usize);
             for i in 0..available {
-                let idx = ((consumer + i) & self.mask) as usize;
+                let idx = ((consumer.wrapping_add(i)) & self.mask) as usize;
                 addrs.push(*self.descs.add(idx));
             }
 
             syscall::smp_wmb();
-            *self.consumer = producer;
+            *self.consumer = consumer.wrapping_add(available);
             addrs
         }
     }

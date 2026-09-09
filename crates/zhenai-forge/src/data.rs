@@ -9,7 +9,6 @@
 //! 2. Simple Q/A: question → answer (for distilled pairs without context)
 
 use serde::Deserialize;
-use std::path::Path;
 
 /// A distractor chunk from the RAFT dataset.
 #[derive(Debug, Deserialize, Clone)]
@@ -61,10 +60,11 @@ const MAX_DOC_CHARS: usize = 800;
 impl Dataset {
     /// Load from a JSONL file, splitting into 90% train / 10% eval.
     pub fn load(path: &str, eval_ratio: f32) -> Result<Self, String> {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read {}: {}", path, e))?;
+        let content =
+            std::fs::read_to_string(path).map_err(|e| format!("Failed to read {}: {}", path, e))?;
 
-        let mut examples: Vec<TrainingExample> = content.lines()
+        let mut examples: Vec<TrainingExample> = content
+            .lines()
             .filter(|l| !l.trim().is_empty())
             .filter_map(|l| serde_json::from_str(l).ok())
             .collect();
@@ -148,7 +148,10 @@ impl Dataset {
             prompt.push_str(&format!("Document {}:\n{}\n\n", i + 1, doc));
         }
 
-        prompt.push_str(&format!("Question: {} [/INST] {} </s>", example.question, example.answer));
+        prompt.push_str(&format!(
+            "Question: {} [/INST] {} </s>",
+            example.question, example.answer
+        ));
         prompt
     }
 
@@ -174,8 +177,8 @@ impl Dataset {
             total: n,
             train: self.train.len(),
             eval: self.eval.len(),
-            avg_q_len: if n > 0 { total_q_chars / n } else { 0 },
-            avg_a_len: if n > 0 { total_a_chars / n } else { 0 },
+            avg_q_len: total_q_chars.checked_div(n).unwrap_or(0),
+            avg_a_len: total_a_chars.checked_div(n).unwrap_or(0),
             raft_count,
         }
     }
@@ -219,14 +222,19 @@ pub struct DatasetStats {
 
 impl std::fmt::Display for DatasetStats {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} total ({} train, {} eval, {} RAFT) | avg Q: {} chars, avg A: {} chars",
-            self.total, self.train, self.eval, self.raft_count, self.avg_q_len, self.avg_a_len)
+        write!(
+            f,
+            "{} total ({} train, {} eval, {} RAFT) | avg Q: {} chars, avg A: {} chars",
+            self.total, self.train, self.eval, self.raft_count, self.avg_q_len, self.avg_a_len
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Only the tests touch the filesystem; the loader itself takes &str paths.
+    use std::path::Path;
 
     #[test]
     fn test_load_dataset() {
@@ -239,7 +247,11 @@ mod tests {
         let ds = Dataset::load(path, 0.1).expect("Failed to load dataset");
         let stats = ds.stats();
         println!("Dataset: {}", stats);
-        assert!(stats.total > 3000, "Expected 3000+ examples, got {}", stats.total);
+        assert!(
+            stats.total > 3000,
+            "Expected 3000+ examples, got {}",
+            stats.total
+        );
         assert!(stats.train > stats.eval, "Train should be larger than eval");
     }
 
@@ -260,10 +272,19 @@ mod tests {
         };
         let prompt = Dataset::format_prompt(&ex);
         assert!(prompt.starts_with("<s>[INST]"));
-        assert!(prompt.contains("Document 1:"), "Should have numbered documents");
-        assert!(prompt.contains("Document 2:"), "Should have distractor docs");
+        assert!(
+            prompt.contains("Document 1:"),
+            "Should have numbered documents"
+        );
+        assert!(
+            prompt.contains("Document 2:"),
+            "Should have distractor docs"
+        );
         assert!(prompt.contains("18000"), "Should contain answer content");
-        assert!(prompt.contains("provided documents"), "Should reference documents");
+        assert!(
+            prompt.contains("provided documents"),
+            "Should reference documents"
+        );
         assert!(prompt.ends_with("</s>"));
         println!("RAFT prompt length: {} chars", prompt.len());
     }
@@ -281,26 +302,44 @@ mod tests {
             distractors: vec![],
         };
         let prompt = Dataset::format_prompt(&ex);
-        assert!(prompt.contains("your knowledge"), "Simple format should reference knowledge");
-        assert!(!prompt.contains("Document 1:"), "Simple format should NOT have documents");
+        assert!(
+            prompt.contains("your knowledge"),
+            "Simple format should reference knowledge"
+        );
+        assert!(
+            !prompt.contains("Document 1:"),
+            "Simple format should NOT have documents"
+        );
         assert!(prompt.contains("BGP"));
     }
 
     #[test]
     fn test_has_raft_context() {
         let with = TrainingExample {
-            question: "Q".into(), answer: "A".into(), source: String::new(),
-            source_file: String::new(), source_content: "some content".into(),
+            question: "Q".into(),
+            answer: "A".into(),
+            source: String::new(),
+            source_file: String::new(),
+            source_content: "some content".into(),
             source_chunk_id: String::new(),
-            distractor_chunks: vec![DistractorChunk { content: "d".into(), source: String::new(), chunk_id: String::new() }],
+            distractor_chunks: vec![DistractorChunk {
+                content: "d".into(),
+                source: String::new(),
+                chunk_id: String::new(),
+            }],
             distractors: vec![],
         };
         assert!(with.has_raft_context());
 
         let without = TrainingExample {
-            question: "Q".into(), answer: "A".into(), source: String::new(),
-            source_file: String::new(), source_content: String::new(),
-            source_chunk_id: String::new(), distractor_chunks: vec![], distractors: vec![],
+            question: "Q".into(),
+            answer: "A".into(),
+            source: String::new(),
+            source_file: String::new(),
+            source_content: String::new(),
+            source_chunk_id: String::new(),
+            distractor_chunks: vec![],
+            distractors: vec![],
         };
         assert!(!without.has_raft_context());
     }
@@ -324,6 +363,9 @@ mod tests {
         let ds = Dataset::load(path, 0.1).expect("load");
         let stats = ds.stats();
         println!("RAFT examples: {}/{}", stats.raft_count, stats.total);
-        assert!(stats.raft_count > 0, "Should have RAFT-format examples with context");
+        assert!(
+            stats.raft_count > 0,
+            "Should have RAFT-format examples with context"
+        );
     }
 }

@@ -71,9 +71,8 @@ enum Cmd {
         /// Layout (must match crates/xv6-mbc/upstream/user/user.ld which
         /// links userland at RV byte 0x0):
         ///   - .mbc       → ROM_MAP slot 0x4000+ (USER_ROM_BASE).
-        ///   - .rv2mbc    → RV2MBC_MAP slot 0 onward, with each entry
-        ///                  shifted by USER_ROM_BASE so SRET(SEPC=0)
-        ///                  lands on the user MBC PC.
+        ///   - .rv2mbc    → RV2MBC_MAP slot 0 onward, with each entry shifted
+        ///     by USER_ROM_BASE so SRET(SEPC=0) lands on the user MBC PC.
         ///   - .data      → RAM_MAP at each record's byte address.
         ///
         /// The kernel side (crates/xv6-mbc/upstream/kernel/exec.c) sees

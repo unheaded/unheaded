@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! BPF Ring Buffer reading with zero-copy semantics.
 //!
 //! The ring buffer is a SPSC (single-producer, single-consumer) data structure
@@ -217,7 +220,7 @@ impl RingBufReader {
         // Map Shield event types to trace-collector EventType
         let event_type = match event_type_raw {
             1..=3 => EventType::Packet, // Birth/Hop/Death → Packet
-            4 | 5 => EventType::Custom,     // Anomaly/Chaos → Custom
+            4 | 5 => EventType::Custom, // Anomaly/Chaos → Custom
             _ => EventType::Custom,
         };
 
@@ -315,10 +318,17 @@ impl RingBufReader {
     }
 
     /// Run the reader loop
+    /// Run the reader loop, polling with `poll_timeout_ms` between shutdown
+    /// checks.
+    ///
+    /// The timeout used to be hardcoded to 100 ms here while
+    /// `MultiSourceConfig::poll_timeout_ms` — settable through two separate
+    /// builder methods — was accepted and discarded. Now it reaches the poll.
     pub async fn run(
         mut self,
         sender: Sender<Event>,
         shutdown: Arc<AtomicBool>,
+        poll_timeout_ms: u64,
     ) -> Result<(), BpfError> {
         debug!("Ring buffer reader starting");
 
@@ -340,7 +350,7 @@ impl RingBufReader {
 
         while !shutdown.load(Ordering::Relaxed) {
             // Poll for data with timeout
-            match self.poll_wait(100) {
+            match self.poll_wait(poll_timeout_ms as i32) {
                 Ok(true) => {
                     // Data available, read it
                     match self.read_events(&sender) {

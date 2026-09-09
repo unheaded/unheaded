@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Pattern Matcher for THE SHIELD
 //!
 //! High-performance pattern matching for WAF rules.
@@ -6,7 +9,7 @@
 use crate::config::RuleConfig;
 use crate::rules::parser::{MethodFilter, PathPattern, RateLimit};
 use crate::rules::{RuleDecision, RuleEngineError};
-use regex::{Regex, RegexSet};
+use regex::RegexSet;
 use std::net::IpAddr;
 
 /// Request data for rule evaluation
@@ -70,8 +73,13 @@ pub enum MatchTarget {
 }
 
 impl MatchTarget {
-    /// Parse target from string
-    pub fn from_str(s: &str) -> Self {
+    /// Parse a target name, falling back to [`MatchTarget::All`].
+    ///
+    /// Deliberately NOT `from_str`: that name shadows
+    /// `std::str::FromStr::from_str` while having the wrong shape for it —
+    /// this is infallible and returns `Self`, not `Result`. An unrecognised
+    /// name is not an error here, it widens the match to everything.
+    pub fn parse_name(s: &str) -> Self {
         match s.to_lowercase().as_str() {
             "query" => MatchTarget::Query,
             "path" => MatchTarget::Path,
@@ -88,25 +96,23 @@ impl MatchTarget {
 pub struct PatternMatcher {
     /// Compiled regex set for fast multi-pattern matching
     regex_set: RegexSet,
-    /// Individual patterns for capture groups (if needed)
-    patterns: Vec<Regex>,
 }
 
 impl PatternMatcher {
     /// Create a new pattern matcher from regex patterns
+    ///
+    /// This used to also compile each pattern individually into a
+    /// `Vec<Regex>` "for capture groups (if needed)". They were never needed:
+    /// every method here answers from `regex_set`, so the second compile was
+    /// pure cost — twice the regex construction at startup and two copies of
+    /// every automaton resident for the process lifetime. Removed 2026-08-03.
+    /// If capture groups are wanted later, compile the one pattern that
+    /// matched, on demand.
     pub fn new(patterns: &[&str]) -> Result<Self, String> {
-        let regex_set = RegexSet::new(patterns)
-            .map_err(|e| format!("Failed to compile pattern set: {}", e))?;
+        let regex_set =
+            RegexSet::new(patterns).map_err(|e| format!("Failed to compile pattern set: {}", e))?;
 
-        let compiled: Result<Vec<_>, _> = patterns.iter().map(|p| Regex::new(p)).collect();
-
-        let patterns =
-            compiled.map_err(|e| format!("Failed to compile individual pattern: {}", e))?;
-
-        Ok(Self {
-            regex_set,
-            patterns,
-        })
+        Ok(Self { regex_set })
     }
 
     /// Check if any pattern matches the input
@@ -340,7 +346,7 @@ impl TryFrom<&RuleConfig> for CompiledRule {
             id: config.id.clone(),
             priority: config.priority,
             pattern,
-            target: MatchTarget::from_str(&config.target),
+            target: MatchTarget::parse_name(&config.target),
             header_name: config.header_name.clone(),
             path_pattern,
             method_filter,
@@ -382,9 +388,9 @@ mod tests {
 
     #[test]
     fn test_match_target() {
-        assert_eq!(MatchTarget::from_str("query"), MatchTarget::Query);
-        assert_eq!(MatchTarget::from_str("PATH"), MatchTarget::Path);
-        assert_eq!(MatchTarget::from_str("unknown"), MatchTarget::All);
+        assert_eq!(MatchTarget::parse_name("query"), MatchTarget::Query);
+        assert_eq!(MatchTarget::parse_name("PATH"), MatchTarget::Path);
+        assert_eq!(MatchTarget::parse_name("unknown"), MatchTarget::All);
     }
 
     #[test]

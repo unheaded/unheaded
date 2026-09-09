@@ -12,7 +12,6 @@ Usage:
 """
 
 import json
-import os
 import random
 import sys
 from pathlib import Path
@@ -134,13 +133,11 @@ def main():
 
     # Write train set
     with open(TRAIN_OUTPUT, "w", encoding="utf-8") as f:
-        for ex in train_examples:
-            f.write(json.dumps(ex, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(ex, ensure_ascii=False) + "\n" for ex in train_examples)
 
     # Write eval set
     with open(EVAL_OUTPUT, "w", encoding="utf-8") as f:
-        for ex in eval_examples:
-            f.write(json.dumps(ex, ensure_ascii=False) + "\n")
+        f.writelines(json.dumps(ex, ensure_ascii=False) + "\n" for ex in eval_examples)
 
     # Compute statistics
     all_texts = [ex["text"] for ex in examples]
@@ -180,10 +177,10 @@ def main():
     if over_2048:
         print(f"  WARNING: {over_2048} examples exceed 2048 tokens (will be truncated)")
     else:
-        print(f"  All examples fit within 2048 token limit")
+        print("  All examples fit within 2048 token limit")
 
     print()
-    print(f"Output files:")
+    print("Output files:")
     print(f"  Train: {TRAIN_OUTPUT}")
     print(f"  Eval:  {EVAL_OUTPUT}")
     print()

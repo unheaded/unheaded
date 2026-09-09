@@ -15,7 +15,6 @@ import json
 import os
 import signal
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -378,6 +377,6 @@ if __name__ == '__main__':
     print("Zhen Scientist Experiment: Optimal Mistral-7B Context Window")
     print(f"Testing context sizes: {CONTEXT_VALUES}")
     print(f"Model: {MODEL_PATH.name}")
-    print(f"GPU: AMD RX 7700 XT")
+    print("GPU: AMD RX 7700 XT")
     print()
     run_benchmark()

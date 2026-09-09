@@ -31,15 +31,16 @@ Features (post-rewire):
 - Skills + runbook listing
 """
 import io
+import json
+import logging
 import os
 import sys
-import json
 import time
 import uuid
-import logging
-import yaml
 from pathlib import Path
-from flask import Flask, request, jsonify, Response, send_file
+
+import yaml
+from flask import Flask, jsonify, request, send_file
 from flask_cors import CORS
 
 # Add scripts dir to path for RAG import
@@ -544,7 +545,8 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
 
     # Kingdom Status — comprehensive dashboard
     if q in ('kingdom status', 'kingdom', 'full status', 'dashboard'):
-        import subprocess as sp, urllib.request as ur
+        import subprocess as sp
+        import urllib.request as ur
         lines = ['**Kingdom Status Report**\n']
 
         # Services
@@ -595,7 +597,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
         # Training
         try:
             with open('/tmp/forge-production.log') as f:
-                last = [l for l in f.readlines() if 'Loss' in l]
+                last = [l for l in f if 'Loss' in l]
                 if last:
                     lines.append(f'**Training:** {last[-1].strip()}')
         except: pass
@@ -634,7 +636,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             lines.append(f"\n**{cat}/** ({len(by_cat[cat])})")
             for name in sorted(by_cat[cat]):
                 lines.append(f"  - {name}")
-        lines.append(f"\nTo run: type `run <name>` or `run --dry <name>`")
+        lines.append("\nTo run: type `run <name>` or `run --dry <name>`")
         return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
 
     # Run runbook
@@ -713,7 +715,7 @@ Type anything else to ask Zhenai via RAG + Mistral-7B inference.""", 'model': 'c
             pass
 
         if drifts == 0:
-            lines.append(f'\n**No drift detected.** All services aligned with desired state.')
+            lines.append('\n**No drift detected.** All services aligned with desired state.')
         else:
             lines.append(f'\n**{drifts} drift(s) detected.** Run `run service-health-sweep` for details.')
 
@@ -816,7 +818,7 @@ backend {svc_name}_back
             for s in schedules:
                 status = 'ENABLED' if s.get('enabled') else 'disabled'
                 lines.append(f'  {"●" if s.get("enabled") else "○"} `{s["name"]}` — {s.get("interval", "?")} [{status}]')
-            lines.append(f'\nScheduler daemon: `python3 zhen_scheduler.py`')
+            lines.append('\nScheduler daemon: `python3 zhen_scheduler.py`')
             return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
         except Exception as e:
             return {'answer': f'Schedule list error: {e}', 'model': 'command', 'tokens_used': 0, 'sources': []}, True
@@ -924,7 +926,7 @@ backend {svc_name}_back
                 lines = [f'**Decisions about "{topic}":**\n']
             for role, content, model, created_at in rows:
                 ts = created_at.strftime('%Y-%m-%d %H:%M') if created_at else '?'
-                prefix = '**You:**' if role == 'user' else f'**Zhenai:**'
+                prefix = '**You:**' if role == 'user' else '**Zhenai:**'
                 lines.append(f'`{ts}` {prefix} {content[:300]}{"..." if len(content) > 300 else ""}\n')
 
             return {'answer': '\n'.join(lines), 'model': 'command', 'tokens_used': 0, 'sources': []}, True
@@ -994,8 +996,7 @@ def query():
                 _data = json.loads(_r.read().decode())
                 _loaded = (_data.get('data') or [{}])[0].get('id', '')
                 if _loaded:
-                    if _loaded.endswith('.gguf'):
-                        _loaded = _loaded[:-5]
+                    _loaded = _loaded.removesuffix('.gguf')
                     identity_block = (
                         f"## Identity (authoritative)\n"
                         f"inference_model: {_loaded}\n"
@@ -1223,8 +1224,8 @@ def switch_model():
             'allowed': keys,
         }), 400
 
-    import urllib.request as _ur
     import urllib.error as _ue
+    import urllib.request as _ur
     agentd_url = os.environ.get('ZHEN_AGENTD_URL', 'http://localhost:20105')
     payload = {
         'tool': 'model_switch',
@@ -1306,8 +1307,7 @@ def stats():
                 # "Qwen2.5-Coder-14B-Instruct-Q4_K_M.gguf"). Strip the
                 # .gguf suffix to get a friendlier label without losing
                 # the file-identity match the UI poll needs.
-                if loaded.endswith('.gguf'):
-                    loaded = loaded[:-5]
+                loaded = loaded.removesuffix('.gguf')
                 inference_model = loaded
     except Exception:
         pass
@@ -1374,7 +1374,7 @@ def system_state():
     try:
         with _ur.urlopen(f'{rag.vor_url}/api/health' if rag else '', timeout=2) as r:
             state['vor'] = json.loads(r.read())
-    except Exception as e:
+    except Exception:
         state['vor'] = None
 
     # llama-server inference
@@ -1843,7 +1843,6 @@ def remember():
         return jsonify({'error': 'question and answer required'}), 400
 
     try:
-        import numpy as np
         # Embed the question for future similarity matching
         embedding = rag.embedding_model.encode(question, convert_to_numpy=True).astype('float32')
         emb_bytes = embedding.tobytes()
@@ -1956,7 +1955,7 @@ def champion_validate_path(path):
     for allowed in CHAMPION_ALLOWED:
         if abs_path.startswith(os.path.abspath(allowed)):
             return abs_path, None
-    return None, f'Path outside sandbox'
+    return None, 'Path outside sandbox'
 
 
 @app.route('/api/v1/champion/read', methods=['POST'])
@@ -2105,8 +2104,8 @@ def execute_runbook(name):
         pending_token: redeem at /api/v1/agent/confirm (when pending)
     """
     import glob as g
-    import urllib.request as _ur
     import urllib.error as _ue
+    import urllib.request as _ur
 
     data = request.get_json(force=True) if request.is_json else {}
     dry_run = bool(data.get('dry_run', False))
@@ -2142,8 +2141,7 @@ def execute_runbook(name):
     if not rb_real.startswith(runbooks_root + os.sep):
         return jsonify({'error': 'Runbook path escapes runbooks/ tree'}), 400
     rel = os.path.relpath(rb_real, runbooks_root)
-    if rel.endswith('.yaml'):
-        rel = rel[:-len('.yaml')]
+    rel = rel.removesuffix('.yaml')
 
     # Hit the daemon's /api/v1/tool/exec endpoint. Default justification
     # is direct-user (the operator clicked this in the browser); Champion's
@@ -2211,7 +2209,7 @@ def execute_runbook(name):
         out['result'] = daemon_body['result']
     if 'reason' in daemon_body:
         out['reason'] = daemon_body['reason']
-    if 'pending_token' in daemon_body and daemon_body['pending_token']:
+    if daemon_body.get('pending_token'):
         out['pending_token'] = daemon_body['pending_token']
         out['confirm_endpoint'] = f'{agentd_url}/api/v1/agent/confirm'
     return jsonify(out), status_code
@@ -2402,7 +2400,7 @@ def index():
 
 
 if __name__ == '__main__':
-    print(f"Zhen Web UI starting on port 20103...")
+    print("Zhen Web UI starting on port 20103...")
     print(f"RAG status: {'ready' if rag else 'NOT READY — ' + str(startup_error)}")
     print(f"Local context window: {rag.local_max_tokens if rag else 'N/A'} tokens")
     app.run(host='0.0.0.0', port=20103, debug=False)

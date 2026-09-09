@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Rate Limiting for THE SHIELD
 //!
 //! Implements token bucket rate limiting for protecting backends from abuse.
@@ -76,7 +79,8 @@ impl TokenBucket {
                 let mut current = self.tokens.load(Ordering::Relaxed);
 
                 loop {
-                    let updated = std::cmp::min(current.saturating_add(new_tokens), self.max_tokens);
+                    let updated =
+                        std::cmp::min(current.saturating_add(new_tokens), self.max_tokens);
                     match self.tokens.compare_exchange_weak(
                         current,
                         updated,
@@ -229,10 +233,12 @@ impl<K: Eq + Hash + Clone + Send + Sync> RateLimiter<K> {
     pub async fn check_with_limit(&self, key: &K, rate: u32, burst: u32) -> RateLimitResult {
         let mut buckets = self.buckets.write().await;
 
-        let entry = buckets.entry(key.clone()).or_insert_with(|| RateLimitEntry {
-            bucket: TokenBucket::new(rate, burst),
-            last_access: Instant::now(),
-        });
+        let entry = buckets
+            .entry(key.clone())
+            .or_insert_with(|| RateLimitEntry {
+                bucket: TokenBucket::new(rate, burst),
+                last_access: Instant::now(),
+            });
 
         entry.last_access = Instant::now();
 
@@ -405,8 +411,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rate_limiter() {
-        let limiter: RateLimiter<String> =
-            RateLimiter::new(10, 5, Duration::from_secs(60));
+        let limiter: RateLimiter<String> = RateLimiter::new(10, 5, Duration::from_secs(60));
 
         // First 5 requests should be allowed (burst)
         for i in 0..5 {
@@ -421,8 +426,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rate_limiter_different_keys() {
-        let limiter: RateLimiter<String> =
-            RateLimiter::new(1, 1, Duration::from_secs(60));
+        let limiter: RateLimiter<String> = RateLimiter::new(1, 1, Duration::from_secs(60));
 
         // Different keys should have separate buckets
         let result1 = limiter.check(&"key1".to_string()).await;
@@ -434,8 +438,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_rate_limiter_cleanup() {
-        let limiter: RateLimiter<String> =
-            RateLimiter::new(10, 10, Duration::from_millis(100));
+        let limiter: RateLimiter<String> = RateLimiter::new(10, 10, Duration::from_millis(100));
 
         // Create some entries
         limiter.check(&"key1".to_string()).await;

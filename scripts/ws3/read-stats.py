@@ -184,7 +184,7 @@ def main():
     packets = results.get("PACKETS_TOTAL")
     insns = results.get("INSNS_EXECUTED")
     if packets and insns and packets > 0:
-        print(f"\nDerived metrics:")
+        print("\nDerived metrics:")
         print(f"  Insns per packet: {insns / packets:.0f}")
         max_bounce = results.get("MAX_BOUNCE_NS")
         if max_bounce and max_bounce > 0:

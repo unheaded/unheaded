@@ -1,6 +1,9 @@
 #\!/usr/bin/env python3
 """Ultra-fast packet injector with no delay."""
-import socket, struct, sys, time
+import socket
+import struct
+import sys
+import time
 
 count = int(sys.argv[1]) if len(sys.argv) > 1 else 10000
 flow_label = 0xDE

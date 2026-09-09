@@ -16,12 +16,12 @@ Safety:
     - Will NOT swap if the embedding is still in progress
     - Uses atomic symlink swap (rename is atomic on Linux)
 """
-import sys
-import os
+import argparse
 import json
+import os
 import signal
 import subprocess
-import argparse
+import sys
 from pathlib import Path
 
 INDEX_DIR = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'index'
@@ -47,7 +47,7 @@ def get_vector_count(index_path):
         dim = index.d
         del index
         return count, dim
-    except Exception as e:
+    except Exception:
         return None, None
 
 
@@ -56,9 +56,7 @@ def get_ids_count(ids_path):
     try:
         with open(ids_path, 'r') as f:
             data = json.load(f)
-        if isinstance(data, list):
-            return len(data)
-        elif isinstance(data, dict):
+        if isinstance(data, list) or isinstance(data, dict):
             return len(data)
         return 0
     except Exception:
@@ -89,10 +87,10 @@ def atomic_symlink(target, link_path):
 def setup_initial_symlinks():
     """If no active symlinks exist, create them pointing to ring1."""
     if not ACTIVE_INDEX.exists() and not ACTIVE_INDEX.is_symlink():
-        print(f"  Creating initial symlink: active.index -> ring1.index")
+        print("  Creating initial symlink: active.index -> ring1.index")
         atomic_symlink(RING1_INDEX.name, ACTIVE_INDEX)
     if not ACTIVE_IDS.exists() and not ACTIVE_IDS.is_symlink():
-        print(f"  Creating initial symlink: active_ids.json -> ring1_ids.json")
+        print("  Creating initial symlink: active_ids.json -> ring1_ids.json")
         atomic_symlink(RING1_IDS.name, ACTIVE_IDS)
 
 
@@ -184,7 +182,7 @@ def show_status():
         complete = "COMPLETE" if COMBINED_IDS.exists() and ids_count > 0 else "INCOMPLETE"
         print(f"  combined.index: {count:,} vectors, dim={dim}, {size_mb:.1f} MB, {ids_count:,} IDs [{complete}]")
     else:
-        print(f"  combined.index: NOT FOUND (embedding still in progress)")
+        print("  combined.index: NOT FOUND (embedding still in progress)")
 
     # Zhen process
     pids = find_zhen_pid()
@@ -243,7 +241,7 @@ def swap_to_combined():
     # Sanity: IDs should match vectors
     if new_count != combined_ids_count:
         print(f"  WARNING: Vector count ({new_count:,}) != ID count ({combined_ids_count:,})")
-        print(f"  This may indicate a partial build. Proceed? [y/N] ", end="")
+        print("  This may indicate a partial build. Proceed? [y/N] ", end="")
         if input().strip().lower() != 'y':
             print("  Aborted.")
             sys.exit(1)
@@ -268,7 +266,7 @@ def swap_to_combined():
     else:
         print(f"  Vectors: (none) -> {new_count:,}")
     print(f"  IDs: {combined_ids_count:,}")
-    print(f"  Index: combined.index")
+    print("  Index: combined.index")
     print()
 
 

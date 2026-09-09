@@ -14,12 +14,11 @@ Expected runtime: 2-3 hours for ~1M chunks.
 
 import gc
 import json
-import os
 import sys
 import time
-import numpy as np
-import faiss
 from pathlib import Path
+
+import faiss
 from sentence_transformers import SentenceTransformer
 
 CORPUS = Path.home() / "tmp" / "unheaded" / "raft" / "corpus" / "ring_all.jsonl"
@@ -120,11 +119,11 @@ def main():
         print(f"  GPU detected: {torch.cuda.get_device_name(0)}")
     else:
         est_hours = total / 370_000
-        print(f"  GPU: not available, using CPU")
+        print("  GPU: not available, using CPU")
     print(f"  Estimated time: {est_hours:.1f} hours")
 
     # Load model
-    print(f"\nLoading embedding model (all-MiniLM-L6-v2)...")
+    print("\nLoading embedding model (all-MiniLM-L6-v2)...")
     model = SentenceTransformer("all-MiniLM-L6-v2")
     print(f"  Model loaded. Dimension: {DIM}")
 
@@ -189,13 +188,13 @@ def main():
 
     # Save final index
     print(f"\n{'='*70}")
-    print(f"Saving final index...")
+    print("Saving final index...")
     faiss.write_index(index, str(INDEX_FILE))
     index_mb = INDEX_FILE.stat().st_size / (1024 * 1024)
     print(f"  Index: {INDEX_FILE} ({index_mb:,.1f} MB)")
 
     # Save IDs
-    print(f"Saving ID map...")
+    print("Saving ID map...")
     with open(IDS_FILE, "w") as f:
         json.dump(all_ids, f)
     ids_mb = IDS_FILE.stat().st_size / (1024 * 1024)
@@ -208,7 +207,7 @@ def main():
 
     # Final report
     print(f"\n{'='*70}")
-    print(f"EMBEDDING COMPLETE")
+    print("EMBEDDING COMPLETE")
     print(f"{'='*70}")
     print(f"  Total vectors: {index.ntotal:,}")
     print(f"  Dimension:     {DIM}")

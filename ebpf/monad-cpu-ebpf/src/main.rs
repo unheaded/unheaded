@@ -138,9 +138,10 @@ static STATS: HashMap<u32, u64> = HashMap::with_max_entries(32, 0);
 static L1_CACHE: LruHashMap<u32, [u8; 64]> = LruHashMap::with_max_entries(256, 0);
 
 /// RV2MBC translation-table capacity (entries, one per RV word of .text).
-/// Small-image default is 65 536 (covers 256 KiB of .text — Doom's 46 K insns
-/// + xv6). The `large-image` feature grows it to 512 Ki (2 MiB of .text) for a
-/// Linux-class kernel, closing capacity-audit wall #3 (RV2MBC 8× too small).
+/// Small-image default is 65 536 (covers 256 KiB of .text — Doom's 46 K
+/// insns plus xv6). The `large-image` feature grows it to 512 Ki (2 MiB of
+/// .text) for a Linux-class kernel, closing capacity-audit wall #3
+/// (RV2MBC 8× too small).
 #[cfg(not(feature = "large-image"))]
 const RV2MBC_MAP_ENTRIES: u32 = monad_common::mbc_maps::RV2MBC_ENTRIES_DEFAULT;
 #[cfg(feature = "large-image")]
@@ -463,7 +464,7 @@ pub fn monad_cpu(ctx: XdpContext) -> u32 {
     // ── Tail call chain (MUST be in entry point, not subprog) ──────────────
     // Kernel 6.17: "tail_call not allowed in subprogs without BTF"
     if action == xdp_action::XDP_TX {
-        if let Some(round_ptr) = unsafe { TAIL_ROUND.get_ptr_mut(0) } {
+        if let Some(round_ptr) = TAIL_ROUND.get_ptr_mut(0) {
             let round = unsafe { *round_ptr };
             if round < MAX_TAIL_CALLS {
                 unsafe { *round_ptr = round + 1 };
@@ -585,6 +586,10 @@ fn fd_clear_inode(pid: u8, fd: u32) {
 }
 
 #[inline(always)]
+// MBC DIV/MOD define division by zero as a result (0xFFFFFFFF / 0), not an
+// error, so clippy::manual_checked_ops does not apply — see the note at the
+// op::DIV branch below.
+#[allow(clippy::manual_checked_ops)]
 fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
     increment_stat(STAT_PACKETS_TOTAL);
 
@@ -882,6 +887,11 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
             cpu.regs[d] = r;
             set_flags(cpu, r, false);
         } else if opc == op::DIV {
+            // clippy::manual_checked_ops suggests checked_div here. It is wrong
+            // for this instruction: division by zero is not an error case, it
+            // is a DEFINED result of the MBC ISA (saturate to 0xFFFFFFFF).
+            // The zero and non-zero branches also differ in whether they set
+            // flags, so this is not a checked-division shape at all.
             if cpu.regs[s] == 0 {
                 cpu.regs[d] = 0xFFFF_FFFF; // division by zero → saturate
             } else {
@@ -3287,14 +3297,13 @@ fn try_monad_cpu(ctx: &XdpContext) -> Result<u32, ()> {
 
 // ── L1 Cache helpers ──────────────────────────────────────────────────────────
 
-/// Load a u32 from L1 cache. Returns Ok(val) on hit, Err(addr) on miss.
-/// Cache DISABLED: concurrent XDP hops cause non-atomic read-modify-write
-/// on cache lines, leading to silent data corruption. All loads now go
-/// directly through RAM_MAP.
-#[inline(always)]
 // L1 cache functions removed — RAM_MAP (BPF Array) provides O(1) direct
-// indexing which is faster than LruHashMap.  Memory operations now go
+// indexing which is faster than LruHashMap. Memory operations now go
 // directly to RAM_MAP in the execute loop above.
+//
+// The removed loader left behind its doc comment and an `#[inline(always)]`,
+// which re-attached themselves to `emit_cache_miss` below and described it as
+// an L1 load. Both deleted 2026-08-03.
 
 // ── Event emission helpers ─────────────────────────────────────────────────────
 
@@ -3883,7 +3892,7 @@ fn mem_write_byte(byte_addr: u32, value: u8) {
     // MMIO TTY intercept (UPC L4f convention, byte addr 0xC000-0xC003).
     // Some compilers emit STB for char writes — handle the byte-store
     // path too. Phase 1.1 SHIP enabler 2026-05-10.
-    if byte_addr >= 0xC000 && byte_addr <= 0xC003 {
+    if (0xC000..=0xC003).contains(&byte_addr) {
         tty_push_byte(value);
     }
     // Screen region: direct SCREEN_MAP write.
@@ -3949,6 +3958,16 @@ fn copy_fb_to_screen(_fb_ptr: u32) {
 // ── Monad XDP read ────────────────────────────────────────────────────────────
 
 /// Read 20 Monad bytes from XDP packet memory.
+///
+/// The index loop below trips `clippy::needless_range_loop`, and the
+/// suggested `bytes.iter_mut().enumerate()` rewrite is semantically
+/// identical — but it is **not** codegen-identical here. Measured
+/// 2026-08-03: the rewrite grows the `--features ascend-linux` artifact from
+/// 901,888 to 902,240 bytes. This is the program that boots xv6 and Doom and
+/// it runs against a BPF verifier instruction budget, where byte-identity is
+/// the cheap regression signal. Not worth spending on a style lint; revisit
+/// alongside a change that already has to re-validate the verifier.
+#[allow(clippy::needless_range_loop)] // measured non-inert — see above
 #[inline(always)]
 fn read_monad_xdp(start: usize, data_end: usize) -> Result<Monad, ()> {
     if start + MONAD_SIZE > data_end {

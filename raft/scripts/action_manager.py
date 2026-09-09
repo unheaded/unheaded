@@ -18,14 +18,12 @@ import json
 import logging
 import os
 import time
-from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
 
 class WellUnavailableError(Exception):
     """Raised when The Well (PostgreSQL) is unreachable and a write is attempted."""
-    pass
 
 
 class ActionManager:

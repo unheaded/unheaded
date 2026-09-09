@@ -96,8 +96,10 @@ impl LoraLayer {
 
         // Step 1: hidden = A × input (rank,)
         let mut hidden = vec![0.0f32; self.rank as usize];
+        #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
         for r in 0..self.rank as usize {
             let mut sum = 0.0f32;
+            #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
             for d in 0..self.input_dim as usize {
                 sum += self.a[d * self.rank as usize + r] * input[d];
             }
@@ -106,8 +108,10 @@ impl LoraLayer {
 
         // Step 2: output = B × hidden (output_dim,)
         let mut output = vec![0.0f32; self.output_dim as usize];
+        #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
         for o in 0..self.output_dim as usize {
             let mut sum = 0.0f32;
+            #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
             for r in 0..self.rank as usize {
                 sum += self.b[r * self.output_dim as usize + o] * hidden[r];
             }
@@ -134,11 +138,18 @@ impl LoraLayer {
     /// Without this, one corrupt backward pass poisons weights forever
     /// (NaN weight → NaN logit → NaN grad on every subsequent step).
     pub fn adam_step(&mut self, lr: f32, beta1: f32, beta2: f32, eps: f32, step: u32) {
-        let bad_grad = self.grad_a.iter().chain(self.grad_b.iter())
+        let bad_grad = self
+            .grad_a
+            .iter()
+            .chain(self.grad_b.iter())
             .any(|g| !g.is_finite());
         if bad_grad {
-            for g in self.grad_a.iter_mut() { *g = 0.0; }
-            for g in self.grad_b.iter_mut() { *g = 0.0; }
+            for g in self.grad_a.iter_mut() {
+                *g = 0.0;
+            }
+            for g in self.grad_b.iter_mut() {
+                *g = 0.0;
+            }
             return;
         }
 
@@ -205,7 +216,8 @@ impl LoraAdapters {
 
     /// Total number of trainable parameters across all layers.
     pub fn num_params(&self) -> u64 {
-        self.layers.iter()
+        self.layers
+            .iter()
             .flat_map(|l| l.iter())
             .map(|l| l.num_params())
             .sum()
@@ -213,7 +225,8 @@ impl LoraAdapters {
 
     /// Total size in bytes.
     pub fn size_bytes(&self) -> u64 {
-        self.layers.iter()
+        self.layers
+            .iter()
             .flat_map(|l| l.iter())
             .map(|l| l.size_bytes())
             .sum()
@@ -252,7 +265,7 @@ impl LoraAdapters {
         // Return simulated loss (decreasing over time to show convergence)
         let base_loss = 3.5;
         let decay = (-0.001 * self.step as f64).exp();
-        (base_loss as f64 * decay + total_grad_norm.sqrt() as f64 * 0.1) as f32
+        (base_loss * decay + total_grad_norm.sqrt() as f64 * 0.1) as f32
     }
 
     /// Save LoRA adapters in Kingdom-native .zlora format.
@@ -313,7 +326,11 @@ mod tests {
         // B is initialized with small random values (±0.01)
         // Output should be small but non-zero (B × A × input)
         let max_abs = output.iter().map(|v| v.abs()).fold(0.0f32, f32::max);
-        assert!(max_abs < 1.0, "LoRA output should be small, got max={}", max_abs);
+        assert!(
+            max_abs < 1.0,
+            "LoRA output should be small, got max={}",
+            max_abs
+        );
     }
 
     #[test]
@@ -343,7 +360,12 @@ mod tests {
         }
         let loss100 = adapters.training_step("test", 1e-3);
         // Loss should decrease
-        assert!(loss100 < loss1, "Loss should decrease: {} -> {}", loss1, loss100);
+        assert!(
+            loss100 < loss1,
+            "Loss should decrease: {} -> {}",
+            loss1,
+            loss100
+        );
     }
 
     #[test]
@@ -359,9 +381,15 @@ mod tests {
         layer.adam_step(0.001, 0.9, 0.999, 1e-8, 1);
 
         // A should have moved in opposite direction of gradient
-        assert!(layer.a[0] < a_before, "A should decrease for positive gradient");
+        assert!(
+            layer.a[0] < a_before,
+            "A should decrease for positive gradient"
+        );
         // B should have moved in opposite direction of gradient
-        assert!(layer.b[0] > b_before, "B should increase for negative gradient");
+        assert!(
+            layer.b[0] > b_before,
+            "B should increase for negative gradient"
+        );
         // Gradients should be reset
         assert_eq!(layer.grad_a[0], 0.0);
         assert_eq!(layer.grad_b[0], 0.0);

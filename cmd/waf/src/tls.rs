@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! TLS Termination for THE SHIELD
 //!
 //! Provides TLS termination using rustls for pure-Rust implementation.
@@ -72,7 +75,10 @@ impl TlsManager {
     }
 
     /// Accept a TLS connection
-    pub async fn accept<S>(&self, stream: S) -> Result<tokio_rustls::server::TlsStream<S>, std::io::Error>
+    pub async fn accept<S>(
+        &self,
+        stream: S,
+    ) -> Result<tokio_rustls::server::TlsStream<S>, std::io::Error>
     where
         S: AsyncRead + AsyncWrite + Unpin,
     {
@@ -139,21 +145,13 @@ fn build_server_config(
     Ok(config)
 }
 
-/// Generate a self-signed certificate for testing
-#[cfg(feature = "test-cert")]
-pub fn generate_self_signed() -> Result<(Vec<u8>, Vec<u8>), TlsError> {
-    use rcgen::{generate_simple_self_signed, CertifiedKey};
-
-    let subject_alt_names = vec![
-        "localhost".to_string(),
-        "127.0.0.1".to_string(),
-    ];
-
-    let CertifiedKey { cert, key_pair } = generate_simple_self_signed(subject_alt_names)
-        .map_err(|e| TlsError::ConfigError(format!("Failed to generate certificate: {}", e)))?;
-
-    Ok((cert.pem().into_bytes(), key_pair.serialize_pem().into_bytes()))
-}
+// A `generate_self_signed()` helper lived here, gated on `#[cfg(feature =
+// "test-cert")]`. It was removed 2026-08-03: the crate had no `[features]`
+// section, so the gate could never be enabled, and the body called `rcgen`,
+// which was never a dependency. It had therefore never compiled once.
+// `crates/zhend/src/api/quic.rs` already carries a working
+// `generate_self_signed_cert()` built on rustls types — use that if a test
+// certificate is ever needed here.
 
 /// TLS connection info for logging and metrics
 #[derive(Debug, Clone)]
@@ -211,7 +209,6 @@ pub fn is_key_file(path: &Path) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     #[test]
     fn test_is_cert_file() {

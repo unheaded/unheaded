@@ -432,6 +432,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(non_snake_case)] // hex opcode: 0x1F reads, 0x1_f does not
     fn test_invalid_opcode_0x1F() {
         // 0x1F is in the reserved range 0x1E-0x1F
         let insn = MbcInsn::encode(0x1F, 0, 0, 0);
@@ -475,6 +476,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(non_snake_case)] // hex opcode: 0x1F reads, 0x1_f does not
     fn test_invalid_opcode_0x2B() {
         // 0x2B is in the reserved range 0x2B-0x2F
         let insn = MbcInsn::encode(0x2B, 0, 0, 0);
@@ -484,6 +486,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(non_snake_case)] // hex opcode: 0x1F reads, 0x1_f does not
     fn test_invalid_opcode_0x2F() {
         // 0x2F is the last invalid opcode in range 0x2B-0x2F
         let insn = MbcInsn::encode(0x2F, 0, 0, 0);
@@ -493,6 +496,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(non_snake_case)] // hex opcode: 0x1F reads, 0x1_f does not
     fn test_invalid_opcode_0x3A() {
         // 0x3A-0x3F are reserved
         let insn = MbcInsn::encode(0x3A, 0, 0, 0);

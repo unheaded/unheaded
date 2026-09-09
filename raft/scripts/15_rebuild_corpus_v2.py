@@ -15,7 +15,6 @@ Target: ~1M total chunks.
 """
 
 import json
-import os
 import random
 import sys
 import time
@@ -69,7 +68,7 @@ def copy_all(src_path, out_fh, label):
 
 def sample_stackoverflow(so_path, out_fh):
     """Two-pass SO sampling: collect high-score, reservoir-sample medium-score."""
-    print(f"\n=== Stack Overflow Sampling ===")
+    print("\n=== Stack Overflow Sampling ===")
     print(f"  Strategy: ALL score>={SO_HIGH_SCORE}, sample score>={SO_MED_SCORE} to {SO_TARGET_TOTAL:,} total")
 
     # Pass 1: Scan for high-score chunks, count medium-score chunks
@@ -78,7 +77,7 @@ def sample_stackoverflow(so_path, out_fh):
     med_score_count = 0
     total_scanned = 0
 
-    print(f"  Pass 1: Scanning for score distribution...")
+    print("  Pass 1: Scanning for score distribution...")
     with open(so_path, "r", encoding="utf-8", errors="ignore") as f:
         for line in f:
             total_scanned += 1

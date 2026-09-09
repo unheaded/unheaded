@@ -30,7 +30,6 @@ H6 (cmd_train_gemma4 line-parser audit per ADR-050 negative section):
 """
 import json
 import re
-import sys
 from collections import Counter
 
 CORPUS = "/tmp/24h-kingdom-train.jsonl"
@@ -57,17 +56,17 @@ with open(CORPUS) as f:
         if a_s < len(toks):
             opening[toks[a_s]] += 1
 
-print(f"=== H2: corpus opening-token frequency ===")
+print("=== H2: corpus opening-token frequency ===")
 print(f"records:               {n_records}")
 print(f"with answer_start:     {n_with_as}")
 print(f"unique opening tokens: {len(opening)}")
-print(f"top 20 opening tokens (token_id : count : pct):")
+print("top 20 opening tokens (token_id : count : pct):")
 for tid, n in opening.most_common(20):
     pct = 100.0 * n / n_with_as
     print(f"  {tid:>8} : {n:>5} : {pct:>5.2f}%")
 
 print()
-print(f"answer_start value distribution (top 10):")
+print("answer_start value distribution (top 10):")
 for a, n in answer_start_dist.most_common(10):
     pct = 100.0 * n / n_with_as
     print(f"  answer_start={a:>4} : {n:>5} : {pct:>5.2f}%")
@@ -94,8 +93,8 @@ def rust_parse(line):
             pass
     return out
 
-print(f"=== H6: cmd_train_gemma4 line-parser corruption audit ===")
-print(f"Rule:  split(|c| !c.is_ascii_digit() && c != '-').filter_map(parse::<u32>())")
+print("=== H6: cmd_train_gemma4 line-parser corruption audit ===")
+print("Rule:  split(|c| !c.is_ascii_digit() && c != '-').filter_map(parse::<u32>())")
 print()
 
 # Audit first 50 records
@@ -131,12 +130,12 @@ print(f"clean H6 corruption (parsed = tokens + [answer_start]): {n_corrupted} / 
       f"({100*n_corrupted/n_audit:.0f}%)")
 print(f"other parser drift: {n_other_corruption}")
 if example_drift[:3]:
-    print(f"  sample drift cases:")
+    print("  sample drift cases:")
     for idx, d, lt, lp, tail in example_drift[:3]:
         print(f"    record[{idx}]: delta={d} len(true)={lt} len(parsed)={lp} parsed_tail={tail}")
 
 print()
-print(f"=== H6 demonstration on record[0] ===")
+print("=== H6 demonstration on record[0] ===")
 with open(CORPUS) as f:
     line = next(f).strip()
 d = json.loads(line)
@@ -148,8 +147,9 @@ print(f"  parsed.len() - tokens.len():  {len(parsed) - len(d['tokens'])}")
 
 # ----- H2-supplementary: what does "Question:" tokenize to? -----
 print()
-print(f"=== Token-ID lookup (need gemma4-venv tokenizer) ===")
+print("=== Token-ID lookup (need gemma4-venv tokenizer) ===")
 import subprocess
+
 script = """
 from transformers import AutoTokenizer
 tok = AutoTokenizer.from_pretrained("google/gemma-3-1b-it") if False else None
@@ -199,22 +199,22 @@ except Exception as e:
 
 # ----- VERDICT -----
 print()
-print(f"=" * 60)
-print(f"VERDICT")
-print(f"=" * 60)
+print("=" * 60)
+print("VERDICT")
+print("=" * 60)
 top_pct = 100 * opening.most_common(1)[0][1] / n_with_as
 print(f"H2 top-opener pct: {top_pct:.2f}%")
 if top_pct >= 10:
-    print(f"  -> H2 FIRES (>10% structural opener; corpus shape leaked)")
+    print("  -> H2 FIRES (>10% structural opener; corpus shape leaked)")
 elif top_pct < 2:
-    print(f"  -> H2 falsified (<2% top-opener; H6 carries weight)")
+    print("  -> H2 falsified (<2% top-opener; H6 carries weight)")
 else:
-    print(f"  -> H2 inconclusive (between 2 and 10%)")
+    print("  -> H2 inconclusive (between 2 and 10%)")
 
 if n_corrupted >= 0.9 * n_audit:
     print(f"H6: CONFIRMED ({n_corrupted}/{n_audit} = "
           f"{100*n_corrupted/n_audit:.0f}% corrupted by line-parser bug)")
-    print(f"     Every training example trains on 1 stray integer token at end.")
-    print(f"     Fix: replace cmd_train_gemma4 line parser with json::from_str.")
+    print("     Every training example trains on 1 stray integer token at end.")
+    print("     Fix: replace cmd_train_gemma4 line parser with json::from_str.")
 else:
     print(f"H6: NOT CONFIRMED ({n_corrupted}/{n_audit} matches expected pattern)")

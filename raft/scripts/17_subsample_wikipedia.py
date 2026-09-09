@@ -21,7 +21,6 @@ SPDX-License-Identifier: GPL-3.0-or-later
 """
 import json
 import sys
-import re
 from pathlib import Path
 
 WIKI_CORPUS = Path.home() / 'tmp' / 'unheaded' / 'raft' / 'corpus' / 'wikipedia.jsonl'
@@ -101,7 +100,7 @@ EXACT_TITLES = {
     # Major countries
     'United States', 'United Kingdom', 'France', 'Germany', 'Italy',
     'Spain', 'Russia', 'China', 'Japan', 'India', 'Brazil', 'Canada',
-    'Mexico', 'Australia', 'South Korea', 'Indonesia', 'Turkey',
+    'Mexico', 'South Korea', 'Indonesia', 'Turkey',
     'Saudi Arabia', 'Iran', 'Egypt', 'Nigeria', 'South Africa',
     'Argentina', 'Pakistan', 'Bangladesh', 'Thailand', 'Vietnam',
     'Poland', 'Ukraine', 'Romania', 'Netherlands', 'Belgium',
@@ -169,7 +168,7 @@ def main():
                 skipped += 1
                 continue
 
-    print(f"\nDone!")
+    print("\nDone!")
     print(f"  Total chunks scanned: {total:,}")
     print(f"  Matched chunks: {matched:,}")
     print(f"  Skipped: {skipped:,}")

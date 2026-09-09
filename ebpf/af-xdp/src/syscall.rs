@@ -76,6 +76,16 @@ pub const MAP_POPULATE: i32 = 0x08000;
 pub const MAP_FAILED: *mut u8 = usize::MAX as *mut u8;
 
 /// mmap(addr, length, prot, flags, fd, offset)
+///
+/// # Safety
+/// - `fd` must be a valid file descriptor and `offset` a legal offset within
+///   it (for AF_XDP rings, one of the `XDP_PGOFF_*` magic offsets).
+/// - `addr` must be null or a page-aligned hint the caller owns.
+/// - The returned pointer aliases kernel-shared memory: it is valid only
+///   until `munmap`, and the caller must pass the SAME `length` to `munmap`.
+/// - The mapping is `MAP_SHARED` with the kernel, so the bytes behind it can
+///   change under an `&`-reference. Read ring indices through volatile /
+///   barrier-guarded accessors, never through a plain `&T` held across a call.
 pub unsafe fn mmap(
     addr: *mut u8,
     length: u64,
@@ -101,6 +111,11 @@ pub unsafe fn mmap(
 }
 
 /// munmap(addr, length)
+///
+/// # Safety
+/// `addr` and `length` must describe a mapping previously returned by
+/// [`mmap`], with the identical `length`. No reference derived from that
+/// mapping may be live at the call: every pointer into it dangles afterwards.
 pub unsafe fn munmap(addr: *mut u8, length: u64) -> Result<(), i32> {
     let ret = syscall2(SYS_MUNMAP, addr as u64, length);
     if ret < 0 {
@@ -118,6 +133,11 @@ pub unsafe fn munmap(addr: *mut u8, length: u64) -> Result<(), i32> {
 pub const SOCK_RAW: i32 = 3;
 
 /// socket(domain, type, protocol)
+///
+/// # Safety
+/// Does not dereference anything, but returns a raw owned file descriptor
+/// with no `Drop` guard. The caller is responsible for closing it exactly
+/// once, and for not using it after that.
 pub unsafe fn socket(domain: i32, stype: i32, protocol: i32) -> Result<i32, i32> {
     let ret = syscall3(SYS_SOCKET, domain as u64, stype as u64, protocol as u64);
     if ret < 0 {
@@ -128,6 +148,12 @@ pub unsafe fn socket(domain: i32, stype: i32, protocol: i32) -> Result<i32, i32>
 }
 
 /// bind(sockfd, addr, addrlen)
+///
+/// # Safety
+/// - `sockfd` must be a valid, open socket descriptor.
+/// - `addr` must point to at least `addrlen` initialized bytes holding a
+///   `sockaddr` of the kind `sockfd`'s family expects (`Sockaddr_xdp` here).
+///   The kernel reads exactly `addrlen` bytes; a short buffer reads OOB.
 pub unsafe fn bind(sockfd: i32, addr: *const u8, addrlen: u32) -> Result<(), i32> {
     let ret = syscall3(SYS_BIND, sockfd as u64, addr as u64, addrlen as u64);
     if ret < 0 {
@@ -138,6 +164,12 @@ pub unsafe fn bind(sockfd: i32, addr: *const u8, addrlen: u32) -> Result<(), i32
 }
 
 /// close(fd)
+///
+/// # Safety
+/// `fd` must be a valid open descriptor owned by the caller, and must not be
+/// used afterwards. Closing twice is a use-after-free in descriptor space:
+/// the number can be recycled by an unrelated `open` on another thread
+/// between the two calls.
 pub unsafe fn close(fd: i32) -> Result<(), i32> {
     let ret = syscall1(SYS_CLOSE, fd as u64);
     if ret < 0 {
@@ -152,6 +184,11 @@ pub unsafe fn close(fd: i32) -> Result<(), i32> {
 // =============================================================================
 
 /// setsockopt(sockfd, level, optname, optval, optlen)
+///
+/// # Safety
+/// - `sockfd` must be a valid, open socket descriptor.
+/// - `optval` must point to at least `optlen` initialized bytes matching the
+///   layout `optname` expects. The kernel reads all `optlen` of them.
 pub unsafe fn setsockopt(
     sockfd: i32,
     level: i32,
@@ -176,6 +213,12 @@ pub unsafe fn setsockopt(
 }
 
 /// getsockopt(sockfd, level, optname, optval, optlen)
+///
+/// # Safety
+/// - `sockfd` must be a valid, open socket descriptor.
+/// - `optlen` must point to a writable `u32` holding the capacity of
+///   `optval`; the kernel updates it to the length actually written.
+/// - `optval` must be writable for at least that initial `*optlen` bytes.
 pub unsafe fn getsockopt(
     sockfd: i32,
     level: i32,
@@ -207,6 +250,13 @@ pub unsafe fn getsockopt(
 pub const MSG_DONTWAIT: i32 = 0x40;
 
 /// sendto(sockfd, buf, len, flags, dest_addr, addrlen) — zero-length kick
+///
+/// # Safety
+/// - `sockfd` must be a valid, open socket descriptor.
+/// - `buf` must be readable for `len` bytes; it may be null only when
+///   `len == 0` (the AF_XDP TX-kick case this exists for).
+/// - `dest_addr` must be readable for `addrlen` bytes, or null with
+///   `addrlen == 0`.
 pub unsafe fn sendto(
     sockfd: i32,
     buf: *const u8,
@@ -249,6 +299,11 @@ pub struct PollFd {
 }
 
 /// poll(fds, nfds, timeout_ms)
+///
+/// # Safety
+/// `fds` must point to `nfds` consecutive, initialized, writable [`PollFd`]
+/// values. The kernel writes `revents` on every one of them, so a `nfds`
+/// larger than the real array is an out-of-bounds write.
 pub unsafe fn poll(fds: *mut PollFd, nfds: u64, timeout_ms: i32) -> Result<i32, i32> {
     let ret = syscall3(SYS_POLL, fds as u64, nfds, timeout_ms as u64);
     if ret < 0 {
@@ -275,6 +330,12 @@ pub struct Ifreq {
 
 /// Get interface index by name (equivalent to if_nametoindex).
 /// Uses ioctl(SIOCGIFINDEX) on a temporary socket.
+///
+/// # Safety
+/// Dereferences no caller-supplied pointer — `name` is a normal `&str` and is
+/// truncated to the 15-byte `ifr_name` limit. It is `unsafe` because it issues
+/// a raw `ioctl` and opens/closes a socket internally; the caller must be in a
+/// context where creating a transient `AF_INET` socket is acceptable.
 pub unsafe fn if_nametoindex(name: &str) -> Result<u32, i32> {
     // Create a temporary UDP socket for the ioctl
     let sock = socket(2 /* AF_INET */, 2 /* SOCK_DGRAM */, 0)?;

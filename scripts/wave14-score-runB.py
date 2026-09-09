@@ -76,7 +76,7 @@ def completion_token_ids(path):
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
             content = f.read()
-    except (OSError, IOError):
+    except OSError:
         return None
     m = re.search(
         r"--- raw completion token IDs \(\d+\): \[([0-9, ]*)\]",
@@ -338,9 +338,9 @@ def main():
           "verify mean_CE(LoRA) < mean_CE(base) by ≥ 8.0")
     print()
     if behavioral_passes >= 2:
-        print(f"  Verdict (behavioral): PASS  → if G-CE also PASS, Run B passes.")
+        print("  Verdict (behavioral): PASS  → if G-CE also PASS, Run B passes.")
     else:
-        print(f"  Verdict (behavioral): FAIL  → STOP per long-term plan §3.")
+        print("  Verdict (behavioral): FAIL  → STOP per long-term plan §3.")
     print("=" * 78)
     sys.exit(0 if behavioral_passes >= 2 else 2)
 

@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Userspace eBPF event collector.
 //!
 //! Loads compiled eBPF programs (XDP packet counter, kprobe TCP latency),
@@ -149,11 +152,6 @@ impl EventBuffer {
     fn drain(&self) -> Vec<Vec<u8>> {
         let mut buf = self.buf.lock().unwrap();
         buf.drain(..).collect()
-    }
-
-    #[cfg(test)]
-    fn len(&self) -> usize {
-        self.buf.lock().unwrap().len()
     }
 }
 

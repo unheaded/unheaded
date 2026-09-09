@@ -34,9 +34,16 @@ pub fn compute_mean_loss_over(
 ) -> Result<f32, String> {
     match gpu {
         Some(g) => compute_mean_loss_over_with_backend(
-            &HybridMatmulBackend::default(), harness, cpu, g, lora, sequences),
-        None => compute_mean_loss_over_with_backend(
-            &CpuBackend, harness, cpu, &(), lora, sequences),
+            &HybridMatmulBackend::default(),
+            harness,
+            cpu,
+            g,
+            lora,
+            sequences,
+        ),
+        None => {
+            compute_mean_loss_over_with_backend(&CpuBackend, harness, cpu, &(), lora, sequences)
+        }
     }
 }
 
@@ -84,16 +91,20 @@ struct JsonlExample {
 /// H6), but this migration brings eval and train onto the same code path
 /// for clean consistency.
 pub fn load_tokenized_jsonl(path: &str) -> Result<Vec<(Vec<u32>, usize)>, String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("read {}: {}", path, e))?;
+    let content = std::fs::read_to_string(path).map_err(|e| format!("read {}: {}", path, e))?;
     let mut out = Vec::new();
     let mut n_bad = 0usize;
     for line in content.lines() {
         let line = line.trim();
-        if line.is_empty() { continue; }
+        if line.is_empty() {
+            continue;
+        }
         let ex: JsonlExample = match serde_json::from_str(line) {
             Ok(v) => v,
-            Err(_) => { n_bad += 1; continue; }
+            Err(_) => {
+                n_bad += 1;
+                continue;
+            }
         };
         if ex.tokens.len() < 2 {
             n_bad += 1;
@@ -118,9 +129,17 @@ pub fn load_tokenized_jsonl(path: &str) -> Result<Vec<(Vec<u32>, usize)>, String
 /// harness-level default (forge's per-step loop uses per-sequence
 /// answer_start, but the harness has a single scalar).
 pub fn harness_from_jsonl(
-    train_path: &str, eval_path: &str, vocab: usize,
-) -> Result<(EvalHarness, Vec<usize> /* per-seq train answer_starts */,
-              Vec<usize> /* per-seq eval answer_starts */), String> {
+    train_path: &str,
+    eval_path: &str,
+    vocab: usize,
+) -> Result<
+    (
+        EvalHarness,
+        Vec<usize>, /* per-seq train answer_starts */
+        Vec<usize>, /* per-seq eval answer_starts */
+    ),
+    String,
+> {
     let train_pairs = load_tokenized_jsonl(train_path)?;
     let eval_pairs = load_tokenized_jsonl(eval_path)?;
     let default_answer = eval_pairs[0].1;
@@ -128,13 +147,17 @@ pub fn harness_from_jsonl(
     let train_ans: Vec<usize> = train_pairs.iter().map(|(_, a)| *a).collect();
     let eval: Vec<Vec<u32>> = eval_pairs.iter().map(|(t, _)| t.clone()).collect();
     let eval_ans: Vec<usize> = eval_pairs.iter().map(|(_, a)| *a).collect();
-    Ok((EvalHarness {
-        train,
-        eval,
-        answer_start: default_answer,
-        vocab_size: vocab,
-        train_answer_starts: train_ans.clone(),
-    }, train_ans, eval_ans))
+    Ok((
+        EvalHarness {
+            train,
+            eval,
+            answer_start: default_answer,
+            vocab_size: vocab,
+            train_answer_starts: train_ans.clone(),
+        },
+        train_ans,
+        eval_ans,
+    ))
 }
 
 /// Mutate a `Gemma4LoraAdapters` so every LoRA-A matrix is zero. Leaves the
@@ -144,7 +167,9 @@ pub fn zero_lora_a_in_place(lora: &mut Gemma4LoraAdapters) {
     for layer in lora.layers.iter_mut() {
         for slot in layer.iter_mut() {
             if let Some(ll) = slot.as_mut() {
-                for v in ll.a.iter_mut() { *v = 0.0; }
+                for v in ll.a.iter_mut() {
+                    *v = 0.0;
+                }
             }
         }
     }
@@ -223,8 +248,12 @@ impl EvalHarness {
     /// A model that *memorizes* train prefix→suffix pairs cannot score on
     /// eval (never saw those prefixes). A model that *learns* Y generalizes.
     pub fn synthetic(seed: u64, n_train: usize, n_eval: usize, vocab: usize) -> Self {
-        assert!(vocab >= SUFFIX_POOL.end as usize,
-            "synthetic corpus requires vocab ≥ {}, got {}", SUFFIX_POOL.end, vocab);
+        assert!(
+            vocab >= SUFFIX_POOL.end as usize,
+            "synthetic corpus requires vocab ≥ {}, got {}",
+            SUFFIX_POOL.end,
+            vocab
+        );
         let y_map = build_y_map(seed);
         let train = gen_sequences(seed.wrapping_add(1), n_train, TRAIN_PREFIX_POOL, &y_map);
         let eval = gen_sequences(seed.wrapping_add(2), n_eval, EVAL_PREFIX_POOL, &y_map);
@@ -248,15 +277,19 @@ impl EvalHarness {
     pub fn with_scrambled_train(base: &EvalHarness, scramble_seed: u64) -> Self {
         let mut rng = Lcg::new(scramble_seed);
         let vocab = base.vocab_size;
-        let scrambled_train: Vec<Vec<u32>> = base.train.iter().map(|src| {
-            let mut seq = src.clone();
-            // Replace the suffix tokens (positions DEFAULT_PREFIX_LEN+1..end)
-            // with uniform draws over the full vocab.
-            for pos in DEFAULT_PREFIX_LEN + 1..seq.len() {
-                seq[pos] = rng.next_range(vocab as u64) as u32;
-            }
-            seq
-        }).collect();
+        let scrambled_train: Vec<Vec<u32>> = base
+            .train
+            .iter()
+            .map(|src| {
+                let mut seq = src.clone();
+                // Replace the suffix tokens (positions DEFAULT_PREFIX_LEN+1..end)
+                // with uniform draws over the full vocab.
+                for tok in seq.iter_mut().skip(DEFAULT_PREFIX_LEN + 1) {
+                    *tok = rng.next_range(vocab as u64) as u32;
+                }
+                seq
+            })
+            .collect();
         Self {
             train: scrambled_train,
             eval: base.eval.clone(),
@@ -278,10 +311,17 @@ impl EvalHarness {
     /// descend to roughly the single-Y baseline. If capacity is saturated,
     /// per-group descent will be partial.
     pub fn synthetic_multi_y(
-        seed: u64, n_train_per_map: usize, n_eval_per_map: usize,
-        vocab: usize, n_maps: usize,
-    ) -> (Self, Vec<u8> /* train_group_ids */, Vec<u8> /* eval_group_ids */) {
-        assert!(n_maps >= 1 && n_maps <= 8, "n_maps must be in 1..=8");
+        seed: u64,
+        n_train_per_map: usize,
+        n_eval_per_map: usize,
+        vocab: usize,
+        n_maps: usize,
+    ) -> (
+        Self,
+        Vec<u8>, /* train_group_ids */
+        Vec<u8>, /* eval_group_ids */
+    ) {
+        assert!((1..=8).contains(&n_maps), "n_maps must be in 1..=8");
         assert!(vocab >= SUFFIX_POOL.end as usize);
         let mut all_train: Vec<Vec<u32>> = Vec::new();
         let mut all_eval: Vec<Vec<u32>> = Vec::new();
@@ -292,10 +332,16 @@ impl EvalHarness {
             let y_map = build_y_map(seed.wrapping_add(0x100 * g as u64));
             let group_marker: u32 = 0xA0 + g as u32;
             let train = gen_sequences(
-                seed.wrapping_add(1 + g as u64), n_train_per_map, TRAIN_PREFIX_POOL, &y_map,
+                seed.wrapping_add(1 + g as u64),
+                n_train_per_map,
+                TRAIN_PREFIX_POOL,
+                &y_map,
             );
             let eval = gen_sequences(
-                seed.wrapping_add(2 + g as u64), n_eval_per_map, EVAL_PREFIX_POOL, &y_map,
+                seed.wrapping_add(2 + g as u64),
+                n_eval_per_map,
+                EVAL_PREFIX_POOL,
+                &y_map,
             );
             for mut s in train {
                 // Prepend group marker as position 0.
@@ -334,7 +380,8 @@ impl EvalHarness {
         let mut by_group: std::collections::BTreeMap<u8, Vec<f32>> =
             std::collections::BTreeMap::new();
         for (i, tokens) in self.eval.iter().enumerate() {
-            let loss = self.forward_loss(cpu, gpu, lora, tokens)
+            let loss = self
+                .forward_loss(cpu, gpu, lora, tokens)
                 .map_err(|e| format!("eval seq {}: {}", i, e))?;
             by_group.entry(eval_group_ids[i]).or_default().push(loss);
         }
@@ -342,7 +389,14 @@ impl EvalHarness {
         for (g, per_seq) in by_group {
             let mean = per_seq.iter().sum::<f32>() / per_seq.len() as f32;
             let ci95 = bootstrap_ci_95(&per_seq, 1000, 0xEDA2_u64);
-            out.push((g, EvalStats { mean, per_seq, ci95 }));
+            out.push((
+                g,
+                EvalStats {
+                    mean,
+                    per_seq,
+                    ci95,
+                },
+            ));
         }
         Ok(out)
     }
@@ -355,10 +409,16 @@ impl EvalHarness {
     pub fn synthetic_scrambled(seed: u64, n_train: usize, n_eval: usize, vocab: usize) -> Self {
         assert!(vocab >= SUFFIX_POOL.end as usize);
         let train = gen_sequences_scrambled(
-            seed.wrapping_add(1), n_train, TRAIN_PREFIX_POOL, seed.wrapping_add(11),
+            seed.wrapping_add(1),
+            n_train,
+            TRAIN_PREFIX_POOL,
+            seed.wrapping_add(11),
         );
         let eval = gen_sequences_scrambled(
-            seed.wrapping_add(2), n_eval, EVAL_PREFIX_POOL, seed.wrapping_add(22),
+            seed.wrapping_add(2),
+            n_eval,
+            EVAL_PREFIX_POOL,
+            seed.wrapping_add(22),
         );
         let n_train = train.len();
         Self {
@@ -382,10 +442,10 @@ impl EvalHarness {
         lora: Option<&Gemma4LoraAdapters>,
     ) -> Result<EvalStats, String> {
         match gpu {
-            Some(g) => self.compute_eval_loss_with_backend(
-                &HybridMatmulBackend::default(), cpu, g, lora),
-            None => self.compute_eval_loss_with_backend(
-                &CpuBackend, cpu, &(), lora),
+            Some(g) => {
+                self.compute_eval_loss_with_backend(&HybridMatmulBackend::default(), cpu, g, lora)
+            }
+            None => self.compute_eval_loss_with_backend(&CpuBackend, cpu, &(), lora),
         }
     }
 
@@ -399,13 +459,18 @@ impl EvalHarness {
     ) -> Result<EvalStats, String> {
         let mut per_seq = Vec::with_capacity(self.eval.len());
         for (i, tokens) in self.eval.iter().enumerate() {
-            let loss = self.forward_loss_with_backend(backend, cpu, handle, lora, tokens)
+            let loss = self
+                .forward_loss_with_backend(backend, cpu, handle, lora, tokens)
                 .map_err(|e| format!("eval seq {}: {}", i, e))?;
             per_seq.push(loss);
         }
         let mean = per_seq.iter().sum::<f32>() / per_seq.len() as f32;
         let ci95 = bootstrap_ci_95(&per_seq, 1000, 0xEDA1_u64);
-        Ok(EvalStats { mean, per_seq, ci95 })
+        Ok(EvalStats {
+            mean,
+            per_seq,
+            ci95,
+        })
     }
 
     /// Full training + periodic-evaluation protocol.
@@ -422,15 +487,22 @@ impl EvalHarness {
     ) -> Result<LearningTrajectory, String> {
         match gpu {
             Some(g) => self.run_with_backend(
-                &HybridMatmulBackend::default(), cpu, g, lora, n_steps, eval_every, lr),
-            None => self.run_with_backend(
-                &CpuBackend, cpu, &(), lora, n_steps, eval_every, lr),
+                &HybridMatmulBackend::default(),
+                cpu,
+                g,
+                lora,
+                n_steps,
+                eval_every,
+                lr,
+            ),
+            None => self.run_with_backend(&CpuBackend, cpu, &(), lora, n_steps, eval_every, lr),
         }
     }
 
     /// Backend-parameterized form of `run`. New code should prefer this
     /// form — it's what enables CPU-vs-GPU correctness diffs, kernel
     /// backend swapping, and future `LlamaCppBackend`-style adapters.
+    #[allow(clippy::too_many_arguments)] // numerical/GPU kernel signature — see crate note
     pub fn run_with_backend<B: ForgeBackend>(
         &self,
         backend: &B,
@@ -450,7 +522,8 @@ impl EvalHarness {
         };
 
         // t=0 eval — baseline before any gradient step.
-        let eval0 = self.compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
+        let eval0 = self
+            .compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
             .map_err(|e| format!("initial eval: {}", e))?;
         traj.checkpoints.push((0, eval0));
 
@@ -463,12 +536,14 @@ impl EvalHarness {
             // builders that didn't populate it). The .min(len/2) clamp
             // was removed in WAVE14 Path C — see main.rs comment for the
             // reasoning. Cap at len-2 so at least one loss position exists.
-            let per_example = self.train_answer_starts.get(idx)
-                .copied().unwrap_or(self.answer_start);
+            let per_example = self
+                .train_answer_starts
+                .get(idx)
+                .copied()
+                .unwrap_or(self.answer_start);
             let answer_start = per_example.min(example.len().saturating_sub(2));
-            let loss = backend.train_step(
-                cpu, handle, lora, example, answer_start, lr, step as u32,
-            )?;
+            let loss =
+                backend.train_step(cpu, handle, lora, example, answer_start, lr, step as u32)?;
             if !loss.is_finite() {
                 return Err(format!("non-finite train loss at step {}: {}", step, loss));
             }
@@ -476,7 +551,8 @@ impl EvalHarness {
 
             let should_eval = step % eval_every == 0 || step == n_steps;
             if should_eval {
-                let stats = self.compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
+                let stats = self
+                    .compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
                     .map_err(|e| format!("eval @ step {}: {}", step, e))?;
                 traj.checkpoints.push((step, stats));
             }
@@ -491,6 +567,7 @@ impl EvalHarness {
     /// step. Returns `(trajectory, steps_used)`.
     ///
     /// Thin shim; delegates to `run_until_plateau_with_backend`.
+    #[allow(clippy::too_many_arguments)] // numerical/GPU kernel signature — see crate note
     pub fn run_until_plateau(
         &self,
         cpu: &CpuWeightsGemma4,
@@ -503,15 +580,30 @@ impl EvalHarness {
     ) -> Result<(LearningTrajectory, usize), String> {
         match gpu {
             Some(g) => self.run_until_plateau_with_backend(
-                &HybridMatmulBackend::default(), cpu, g, lora,
-                lr, max_steps, plateau_window, plateau_eps),
+                &HybridMatmulBackend::default(),
+                cpu,
+                g,
+                lora,
+                lr,
+                max_steps,
+                plateau_window,
+                plateau_eps,
+            ),
             None => self.run_until_plateau_with_backend(
-                &CpuBackend, cpu, &(), lora,
-                lr, max_steps, plateau_window, plateau_eps),
+                &CpuBackend,
+                cpu,
+                &(),
+                lora,
+                lr,
+                max_steps,
+                plateau_window,
+                plateau_eps,
+            ),
         }
     }
 
     /// Backend-parameterized form of `run_until_plateau`.
+    #[allow(clippy::too_many_arguments)] // numerical/GPU kernel signature — see crate note
     pub fn run_until_plateau_with_backend<B: ForgeBackend>(
         &self,
         backend: &B,
@@ -530,7 +622,8 @@ impl EvalHarness {
             train: Vec::with_capacity(max_steps),
             checkpoints: Vec::new(),
         };
-        let eval0 = self.compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
+        let eval0 = self
+            .compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
             .map_err(|e| format!("initial eval: {}", e))?;
         traj.checkpoints.push((0, eval0));
 
@@ -540,12 +633,13 @@ impl EvalHarness {
             let example = &self.train[idx];
             // Per-example answer_start with scalar fallback (WAVE14 Phase 2).
             // Clamp at len-2 (not len/2) — Path C, see main.rs comment.
-            let per_example = self.train_answer_starts.get(idx)
-                .copied().unwrap_or(self.answer_start);
+            let per_example = self
+                .train_answer_starts
+                .get(idx)
+                .copied()
+                .unwrap_or(self.answer_start);
             let a_start = per_example.min(example.len().saturating_sub(2));
-            let loss = backend.train_step(
-                cpu, handle, lora, example, a_start, lr, step as u32,
-            )?;
+            let loss = backend.train_step(cpu, handle, lora, example, a_start, lr, step as u32)?;
             if !loss.is_finite() {
                 return Err(format!("non-finite train loss at step {}: {}", step, loss));
             }
@@ -553,7 +647,8 @@ impl EvalHarness {
 
             // Periodic eval checkpoint.
             if step % eval_every == 0 {
-                let stats = self.compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
+                let stats = self
+                    .compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
                     .map_err(|e| format!("eval @ step {}: {}", step, e))?;
                 traj.checkpoints.push((step, stats));
             }
@@ -571,7 +666,8 @@ impl EvalHarness {
         }
         let last_step_logged = traj.checkpoints.last().map(|(s, _)| *s).unwrap_or(0);
         if last_step_logged != stopped_at {
-            let stats = self.compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
+            let stats = self
+                .compute_eval_loss_with_backend(backend, cpu, handle, Some(lora))
                 .map_err(|e| format!("final eval: {}", e))?;
             traj.checkpoints.push((stopped_at, stats));
         }
@@ -588,7 +684,8 @@ impl EvalHarness {
         lora: Option<&Gemma4LoraAdapters>,
         tokens: &[u32],
     ) -> Result<f32, String> {
-        self.forward_loss_and_top1(cpu, gpu, lora, tokens).map(|(l, _)| l)
+        self.forward_loss_and_top1(cpu, gpu, lora, tokens)
+            .map(|(l, _)| l)
     }
 
     /// Same as `forward_loss` but also returns the per-sequence mean top-1
@@ -607,9 +704,13 @@ impl EvalHarness {
     ) -> Result<(f32, f32), String> {
         match gpu {
             Some(g) => self.forward_loss_and_top1_with_backend(
-                &HybridMatmulBackend::default(), cpu, g, lora, tokens),
-            None => self.forward_loss_and_top1_with_backend(
-                &CpuBackend, cpu, &(), lora, tokens),
+                &HybridMatmulBackend::default(),
+                cpu,
+                g,
+                lora,
+                tokens,
+            ),
+            None => self.forward_loss_and_top1_with_backend(&CpuBackend, cpu, &(), lora, tokens),
         }
     }
 
@@ -628,7 +729,10 @@ impl EvalHarness {
         let seq = tokens.len();
         let loss_start = self.answer_start.max(1);
         if seq <= loss_start {
-            return Err(format!("sequence too short: {} ≤ answer_start {}", seq, loss_start));
+            return Err(format!(
+                "sequence too short: {} ≤ answer_start {}",
+                seq, loss_start
+            ));
         }
         let mut total_loss = 0.0f32;
         let mut n_correct = 0usize;
@@ -640,12 +744,19 @@ impl EvalHarness {
             let mut arg = 0usize;
             let mut max_v = f32::NEG_INFINITY;
             for (i, &v) in row.iter().enumerate() {
-                if v > max_v { max_v = v; arg = i; }
+                if v > max_v {
+                    max_v = v;
+                    arg = i;
+                }
             }
-            if arg == target as usize { n_correct += 1; }
+            if arg == target as usize {
+                n_correct += 1;
+            }
             n += 1;
         }
-        if n == 0 { return Err("no loss positions".into()); }
+        if n == 0 {
+            return Err("no loss positions".into());
+        }
         Ok((total_loss / n as f32, n_correct as f32 / n as f32))
     }
 
@@ -670,8 +781,9 @@ impl EvalHarness {
         lora: Option<&Gemma4LoraAdapters>,
     ) -> Result<f32, String> {
         match gpu {
-            Some(g) => self.compute_eval_top1_with_backend(
-                &HybridMatmulBackend::default(), cpu, g, lora),
+            Some(g) => {
+                self.compute_eval_top1_with_backend(&HybridMatmulBackend::default(), cpu, g, lora)
+            }
             None => self.compute_eval_top1_with_backend(&CpuBackend, cpu, &(), lora),
         }
     }
@@ -686,8 +798,8 @@ impl EvalHarness {
     ) -> Result<f32, String> {
         let mut acc_sum = 0.0f32;
         for tokens in self.eval.iter() {
-            let (_, top1) = self.forward_loss_and_top1_with_backend(
-                backend, cpu, handle, lora, tokens)?;
+            let (_, top1) =
+                self.forward_loss_and_top1_with_backend(backend, cpu, handle, lora, tokens)?;
             acc_sum += top1;
         }
         Ok(acc_sum / self.eval.len() as f32)
@@ -798,27 +910,33 @@ mod tests {
     fn test_learning_exp1_held_out_eval() {
         // Exp 1 cornerstone: train on 32 seqs, eval on 32 held-out, verify
         // eval descent below 0.90 × baseline with bootstrap CI excluding 1.0.
-        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let Some((cpu, gpu)) = setup_gpu() else {
+            return;
+        };
         let harness = EvalHarness::synthetic(0xE7A1, 32, 32, cpu.hparams.vocab_size);
         let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
 
         println!("Exp 1: 20-step training, 32 train seqs, 32 eval seqs");
         let start = std::time::Instant::now();
-        let traj = harness.run(&cpu, Some(&gpu), &mut lora, 20, 5, 3e-3)
+        let traj = harness
+            .run(&cpu, Some(&gpu), &mut lora, 20, 5, 3e-3)
             .expect("learning run");
         println!("  wall-clock: {:.1}s", start.elapsed().as_secs_f64());
 
         for (step, stats) in &traj.checkpoints {
-            println!("  t={:3}: eval={:.4}  CI95=({:.4},{:.4})",
-                step, stats.mean, stats.ci95.0, stats.ci95.1);
+            println!(
+                "  t={:3}: eval={:.4}  CI95=({:.4},{:.4})",
+                step, stats.mean, stats.ci95.0, stats.ci95.1
+            );
         }
         let init = traj.initial_eval();
         let fin = traj.final_eval();
         let ratio = fin.mean / init.mean;
-        let (ci_lo, ci_hi) = bootstrap_ratio_ci_95(
-            &init.per_seq, &fin.per_seq, 2000, 0xBAA5);
-        println!("  final/initial ratio = {:.4}  CI95=({:.4},{:.4})",
-            ratio, ci_lo, ci_hi);
+        let (ci_lo, ci_hi) = bootstrap_ratio_ci_95(&init.per_seq, &fin.per_seq, 2000, 0xBAA5);
+        println!(
+            "  final/initial ratio = {:.4}  CI95=({:.4},{:.4})",
+            ratio, ci_lo, ci_hi
+        );
 
         assert!(
             ci_hi < 1.0,
@@ -826,12 +944,17 @@ mod tests {
              point ratio {:.4}. This is the memorization-vs-learning gate. \
              If eval didn't drop, forge trained ok on the batch but did not \
              learn the underlying Y map.",
-            ci_lo, ci_hi, ratio
+            ci_lo,
+            ci_hi,
+            ratio
         );
-        assert!(ratio <= 0.90,
+        assert!(
+            ratio <= 0.90,
             "Exp 1 THRESHOLD: ratio {:.4} > 0.90 — eval dropped but less \
              than the Scientist's 10% threshold. Consider more steps or \
-             larger train set.", ratio);
+             larger train set.",
+            ratio
+        );
     }
 
     #[test]
@@ -847,7 +970,9 @@ mod tests {
             eprintln!("Kingdom tokenized corpus missing — run Phase 4 first");
             return;
         }
-        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let Some((cpu, gpu)) = setup_gpu() else {
+            return;
+        };
         let (full_harness, _tr_ans, _ev_ans) =
             super::harness_from_jsonl(train_path, eval_path, cpu.hparams.vocab_size)
                 .expect("load kingdom");
@@ -857,21 +982,32 @@ mod tests {
             eval: full_harness.eval.iter().take(16).cloned().collect(),
             answer_start: full_harness.answer_start,
             vocab_size: full_harness.vocab_size,
-            train_answer_starts: full_harness.train_answer_starts
-                .iter().take(64).copied().collect(),
+            train_answer_starts: full_harness
+                .train_answer_starts
+                .iter()
+                .take(64)
+                .copied()
+                .collect(),
         };
         let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
 
-        println!("RAFT smoke: train={} eval={} (full: {} / {})",
-            smoke.train.len(), smoke.eval.len(),
-            full_harness.train.len(), full_harness.eval.len());
+        println!(
+            "RAFT smoke: train={} eval={} (full: {} / {})",
+            smoke.train.len(),
+            smoke.eval.len(),
+            full_harness.train.len(),
+            full_harness.eval.len()
+        );
         let t0 = std::time::Instant::now();
-        let traj = smoke.run(&cpu, Some(&gpu), &mut lora, 20, 10, 3e-3)
+        let traj = smoke
+            .run(&cpu, Some(&gpu), &mut lora, 20, 10, 3e-3)
             .expect("smoke run");
         println!("RAFT smoke wall-clock: {:.1}s", t0.elapsed().as_secs_f64());
         for (step, stats) in &traj.checkpoints {
-            println!("  t={:3}  eval={:.4}  CI95=({:.4},{:.4})",
-                step, stats.mean, stats.ci95.0, stats.ci95.1);
+            println!(
+                "  t={:3}  eval={:.4}  CI95=({:.4},{:.4})",
+                step, stats.mean, stats.ci95.0, stats.ci95.1
+            );
         }
         let init = traj.initial_eval();
         let fin = traj.final_eval();
@@ -879,9 +1015,12 @@ mod tests {
         println!("RAFT smoke: eval descent = {:.4}", desc);
         // Soft gate — real text is much harder than synthetic Y; 5% descent
         // in 20 steps is already non-trivial.
-        assert!(desc > 0.02,
+        assert!(
+            desc > 0.02,
             "RAFT smoke FAIL: eval descent {:.4} < 2% — base model either \
-             already fits the corpus, OR training isn't propagating.", desc);
+             already fits the corpus, OR training isn't propagating.",
+            desc
+        );
         for t in &traj.train {
             assert!(t.is_finite(), "NaN/Inf in train trajectory");
         }
@@ -894,18 +1033,21 @@ mod tests {
         // Training drawn from 64 sequences (32 per Y), eval per-Y-group
         // reported. Pass: each group's eval ratio ≤ 0.85 (slightly
         // looser than single-Y's 0.90 because capacity is split).
-        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let Some((cpu, gpu)) = setup_gpu() else {
+            return;
+        };
         let lr = 3e-3f32; // adjust to optimal from Phase 2 if different
         let n_per_map = 32usize;
 
         // --- 2-Y run ---
-        let (harness2, _tg2, eg2) = EvalHarness::synthetic_multi_y(
-            0xE7A6, n_per_map, 16, cpu.hparams.vocab_size, 2);
+        let (harness2, _tg2, eg2) =
+            EvalHarness::synthetic_multi_y(0xE7A6, n_per_map, 16, cpu.hparams.vocab_size, 2);
         let mut lora2 = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
         let t0 = std::time::Instant::now();
         // Baseline per-group eval (before training).
-        let base2 = harness2.compute_eval_loss_per_group(
-            &cpu, Some(&gpu), Some(&lora2), &eg2).expect("base2");
+        let base2 = harness2
+            .compute_eval_loss_per_group(&cpu, Some(&gpu), Some(&lora2), &eg2)
+            .expect("base2");
         println!("Exp 6 (2-Y): baseline per-group eval:");
         for (g, s) in &base2 {
             println!("  group {}: eval={:.4} n={}", g, s.mean, s.per_seq.len());
@@ -916,48 +1058,78 @@ mod tests {
             let ex = &harness2.train[(step - 1) % harness2.train.len()];
             let a_start = harness2.answer_start.min(ex.len() / 2);
             let _ = crate::gemma4_gpu::train_step_gemma4_gpu(
-                &cpu, &gpu, &mut lora2, ex, a_start, lr, step as u32,
-            ).expect("train 2-Y");
+                &cpu,
+                &gpu,
+                &mut lora2,
+                ex,
+                a_start,
+                lr,
+                step as u32,
+            )
+            .expect("train 2-Y");
         }
-        let fin2 = harness2.compute_eval_loss_per_group(
-            &cpu, Some(&gpu), Some(&lora2), &eg2).expect("fin2");
-        println!("Exp 6 (2-Y): final per-group eval (after 100 steps, {:.1}s):",
-            t0.elapsed().as_secs_f64());
+        let fin2 = harness2
+            .compute_eval_loss_per_group(&cpu, Some(&gpu), Some(&lora2), &eg2)
+            .expect("fin2");
+        println!(
+            "Exp 6 (2-Y): final per-group eval (after 100 steps, {:.1}s):",
+            t0.elapsed().as_secs_f64()
+        );
         let mut ratios = Vec::new();
         for ((g, b), (_g2, f)) in base2.iter().zip(fin2.iter()) {
             let r = f.mean / b.mean;
-            println!("  group {}: base={:.4} -> final={:.4}  ratio={:.4}",
-                g, b.mean, f.mean, r);
+            println!(
+                "  group {}: base={:.4} -> final={:.4}  ratio={:.4}",
+                g, b.mean, f.mean, r
+            );
             ratios.push(r);
         }
 
         // Gate: every group must descend to ratio ≤ 0.85.
         for (i, r) in ratios.iter().enumerate() {
-            assert!(*r <= 0.85,
+            assert!(
+                *r <= 0.85,
                 "Exp 6 (2-Y) FAIL: group {} ratio {:.4} > 0.85 — \
-                 capacity split hurts generalization beyond tolerance", i, r);
+                 capacity split hurts generalization beyond tolerance",
+                i,
+                r
+            );
         }
         println!("Exp 6 (2-Y) GATE: PASS");
 
         // --- 3-Y stress (informational, no hard gate) ---
-        let (harness3, _tg3, eg3) = EvalHarness::synthetic_multi_y(
-            0xE7A7, n_per_map, 12, cpu.hparams.vocab_size, 3);
+        let (harness3, _tg3, eg3) =
+            EvalHarness::synthetic_multi_y(0xE7A7, n_per_map, 12, cpu.hparams.vocab_size, 3);
         let mut lora3 = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
-        let base3 = harness3.compute_eval_loss_per_group(
-            &cpu, Some(&gpu), Some(&lora3), &eg3).expect("base3");
+        let base3 = harness3
+            .compute_eval_loss_per_group(&cpu, Some(&gpu), Some(&lora3), &eg3)
+            .expect("base3");
         for step in 1..=100usize {
             let ex = &harness3.train[(step - 1) % harness3.train.len()];
             let a_start = harness3.answer_start.min(ex.len() / 2);
             let _ = crate::gemma4_gpu::train_step_gemma4_gpu(
-                &cpu, &gpu, &mut lora3, ex, a_start, lr, step as u32,
-            ).expect("train 3-Y");
+                &cpu,
+                &gpu,
+                &mut lora3,
+                ex,
+                a_start,
+                lr,
+                step as u32,
+            )
+            .expect("train 3-Y");
         }
-        let fin3 = harness3.compute_eval_loss_per_group(
-            &cpu, Some(&gpu), Some(&lora3), &eg3).expect("fin3");
+        let fin3 = harness3
+            .compute_eval_loss_per_group(&cpu, Some(&gpu), Some(&lora3), &eg3)
+            .expect("fin3");
         println!("Exp 6 (3-Y, informational):");
         for ((g, b), (_, f)) in base3.iter().zip(fin3.iter()) {
-            println!("  group {}: base={:.4} -> final={:.4}  ratio={:.4}",
-                g, b.mean, f.mean, f.mean / b.mean);
+            println!(
+                "  group {}: base={:.4} -> final={:.4}  ratio={:.4}",
+                g,
+                b.mean,
+                f.mean,
+                f.mean / b.mean
+            );
         }
     }
 
@@ -969,31 +1141,42 @@ mod tests {
         // we let the model converge. Also records steps_used for velocity
         // reporting.
         use crate::eval_stats::bootstrap_ratio_ci_95;
-        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let Some((cpu, gpu)) = setup_gpu() else {
+            return;
+        };
         let harness = EvalHarness::synthetic(0xE7A1, 32, 32, cpu.hparams.vocab_size);
         let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
 
-        let (traj, steps_used) = harness.run_until_plateau(
-            &cpu, Some(&gpu), &mut lora, 3e-3, 100, 10, 0.1,
-        ).expect("plateau run");
+        let (traj, steps_used) = harness
+            .run_until_plateau(&cpu, Some(&gpu), &mut lora, 3e-3, 100, 10, 0.1)
+            .expect("plateau run");
         let init = traj.initial_eval();
         let fin = traj.final_eval();
         let ratio = fin.mean / init.mean;
-        let (ci_lo, ci_hi) = bootstrap_ratio_ci_95(
-            &init.per_seq, &fin.per_seq, 2000, 0xBAA5);
+        let (ci_lo, ci_hi) = bootstrap_ratio_ci_95(&init.per_seq, &fin.per_seq, 2000, 0xBAA5);
 
         println!("Exp 1 extended (plateau): steps_used={}/100", steps_used);
         for (step, stats) in &traj.checkpoints {
-            println!("  t={:3}  eval={:.4}  CI95=({:.4},{:.4})",
-                step, stats.mean, stats.ci95.0, stats.ci95.1);
+            println!(
+                "  t={:3}  eval={:.4}  CI95=({:.4},{:.4})",
+                step, stats.mean, stats.ci95.0, stats.ci95.1
+            );
         }
-        println!("  final/initial ratio = {:.4}  CI95=({:.4},{:.4})",
-            ratio, ci_lo, ci_hi);
+        println!(
+            "  final/initial ratio = {:.4}  CI95=({:.4},{:.4})",
+            ratio, ci_lo, ci_hi
+        );
 
-        assert!(ci_hi < 1.0,
-            "Exp 1 extended FAIL: CI upper {:.4} ≥ 1.0", ci_hi);
-        assert!(ratio <= 0.90,
-            "Exp 1 extended FAIL: ratio {:.4} > 0.90", ratio);
+        assert!(
+            ci_hi < 1.0,
+            "Exp 1 extended FAIL: CI upper {:.4} ≥ 1.0",
+            ci_hi
+        );
+        assert!(
+            ratio <= 0.90,
+            "Exp 1 extended FAIL: ratio {:.4} > 0.90",
+            ratio
+        );
     }
 
     #[test]
@@ -1002,7 +1185,9 @@ mod tests {
         // Sweep lr ∈ {1e-3, 3e-3, 1e-2, 3e-2} at plateau detection.
         // Records (lr, steps_used, eval_final_ratio, ci_lo, ci_hi) per lr.
         use crate::eval_stats::bootstrap_ratio_ci_95;
-        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let Some((cpu, gpu)) = setup_gpu() else {
+            return;
+        };
 
         let lrs: &[f32] = &[1e-3, 3e-3, 1e-2, 3e-2];
         let mut results = Vec::new();
@@ -1011,20 +1196,23 @@ mod tests {
             let harness = EvalHarness::synthetic(0xE7A1, 32, 32, cpu.hparams.vocab_size);
             let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
             let t0 = std::time::Instant::now();
-            let run = harness.run_until_plateau(
-                &cpu, Some(&gpu), &mut lora, lr, 100, 10, 0.1,
-            );
+            let run = harness.run_until_plateau(&cpu, Some(&gpu), &mut lora, lr, 100, 10, 0.1);
             match run {
                 Ok((traj, steps_used)) => {
                     let init = traj.initial_eval();
                     let fin = traj.final_eval();
                     let ratio = fin.mean / init.mean;
-                    let (ci_lo, ci_hi) = bootstrap_ratio_ci_95(
-                        &init.per_seq, &fin.per_seq, 2000, 0xBAA5);
+                    let (ci_lo, ci_hi) =
+                        bootstrap_ratio_ci_95(&init.per_seq, &fin.per_seq, 2000, 0xBAA5);
                     println!(
                         "  lr={:.0e}  steps_used={}/100  eval_final={:.4}  \
                          ratio={:.4}  CI95=({:.4},{:.4})  ({:.1}s)",
-                        lr, steps_used, fin.mean, ratio, ci_lo, ci_hi,
+                        lr,
+                        steps_used,
+                        fin.mean,
+                        ratio,
+                        ci_lo,
+                        ci_hi,
                         t0.elapsed().as_secs_f64(),
                     );
                     results.push((lr, steps_used, ratio, ci_lo, ci_hi));
@@ -1044,12 +1232,15 @@ mod tests {
         }
         // Soft gate — at least 2 of 4 lrs should pass the original Exp 1
         // threshold (ratio ≤ 0.90, CI upper < 1.0).
-        let passes = results.iter()
+        let passes = results
+            .iter()
             .filter(|(_, _, r, _, hi)| *r <= 0.90 && *hi < 1.0)
             .count();
-        assert!(passes >= 2,
+        assert!(
+            passes >= 2,
             "Exp 1 lr sweep FAIL: only {}/4 lrs passed the ratio ≤ 0.90 gate",
-            passes);
+            passes
+        );
     }
 
     #[test]
@@ -1063,13 +1254,14 @@ mod tests {
         // Gate: eval_final(|T|=64) < eval_final(|T|=8) with a
         //       non-trivial margin (≥2% relative).
         // The full sweep is logged for diagnostic value.
-        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let Some((cpu, gpu)) = setup_gpu() else {
+            return;
+        };
         let n_steps = 20usize;
         let lr = 3e-3f32;
         let n_eval = 32usize;
 
-        let big_harness = EvalHarness::synthetic(
-            0xE7A4, 256, n_eval, cpu.hparams.vocab_size);
+        let big_harness = EvalHarness::synthetic(0xE7A4, 256, n_eval, cpu.hparams.vocab_size);
 
         let run_at_size = |n_train: usize, gpu: &Gemma4GpuWeights| -> f32 {
             // Use the same Y-map by slicing the largest harness's train.
@@ -1079,21 +1271,37 @@ mod tests {
                 let ex = &big_harness.train[(step - 1) % n_train];
                 let a_start = big_harness.answer_start.min(ex.len() / 2);
                 let _ = crate::gemma4_gpu::train_step_gemma4_gpu(
-                    &cpu, gpu, &mut lora, ex, a_start, lr, step as u32,
-                ).expect("train");
+                    &cpu,
+                    gpu,
+                    &mut lora,
+                    ex,
+                    a_start,
+                    lr,
+                    step as u32,
+                )
+                .expect("train");
             }
-            big_harness.compute_eval_loss(&cpu, Some(gpu), Some(&lora))
-                .expect("eval").mean
+            big_harness
+                .compute_eval_loss(&cpu, Some(gpu), Some(&lora))
+                .expect("eval")
+                .mean
         };
 
-        println!("Exp 4: dataset-size scaling ({} steps, same eval set)", n_steps);
+        println!(
+            "Exp 4: dataset-size scaling ({} steps, same eval set)",
+            n_steps
+        );
         let sizes = &[1usize, 8, 64, 256];
         let mut eval_finals = Vec::new();
         for &n_train in sizes {
             let t0 = std::time::Instant::now();
             let ef = run_at_size(n_train, &gpu);
-            println!("  |T|={:3}  eval_final={:.4}  ({:.1}s)",
-                n_train, ef, t0.elapsed().as_secs_f64());
+            println!(
+                "  |T|={:3}  eval_final={:.4}  ({:.1}s)",
+                n_train,
+                ef,
+                t0.elapsed().as_secs_f64()
+            );
             eval_finals.push(ef);
         }
 
@@ -1101,14 +1309,19 @@ mod tests {
         let ef8 = eval_finals[1];
         let ef64 = eval_finals[2];
         let rel_improv = (ef8 - ef64) / ef8.max(1e-6);
-        println!("Exp 4 gate: eval_final(8)={:.4}, eval_final(64)={:.4}, \
-                  relative improvement = {:.3}", ef8, ef64, rel_improv);
+        println!(
+            "Exp 4 gate: eval_final(8)={:.4}, eval_final(64)={:.4}, \
+                  relative improvement = {:.3}",
+            ef8, ef64, rel_improv
+        );
         assert!(
             rel_improv > 0.02,
             "Exp 4 FAIL: eval at |T|=64 ({:.4}) must beat |T|=8 ({:.4}) \
              by ≥2%. If eval is flat or worse with more data, the model \
              isn't extracting shared Y structure — it's memorizing \
-             per-sequence artifacts.", ef64, ef8
+             per-sequence artifacts.",
+            ef64,
+            ef8
         );
     }
 
@@ -1150,7 +1363,9 @@ mod tests {
         //   3. top-1 accuracy: FAIL (both 0 at 20 steps, vocab=262k)
         //   4. train/eval gap at 20 steps: FAIL (pre-memorization)
         //   5. plateau-based lr=1e-2: FAIL (scrambled hits log(vocab) floor)
-        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let Some((cpu, gpu)) = setup_gpu() else {
+            return;
+        };
 
         // Parameters reflect the iter-5 exploration.
         let lr = 1e-2f32;
@@ -1164,25 +1379,40 @@ mod tests {
 
         let run_plateau = |harness: &EvalHarness,
                            gpu: &Gemma4GpuWeights,
-                           label: &str| -> (f32, f32, f32, usize) {
+                           label: &str|
+         -> (f32, f32, f32, usize) {
             let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
             let t0 = std::time::Instant::now();
-            let (traj, steps_used) = harness.run_until_plateau(
-                &cpu, Some(gpu), &mut lora, lr, max_steps, plateau_window, plateau_eps,
-            ).expect("plateau run");
+            let (traj, steps_used) = harness
+                .run_until_plateau(
+                    &cpu,
+                    Some(gpu),
+                    &mut lora,
+                    lr,
+                    max_steps,
+                    plateau_window,
+                    plateau_eps,
+                )
+                .expect("plateau run");
             let train_final = traj.train.last().copied().unwrap_or(f32::NAN);
             // Full train-set loss after training (one sample per step is noisy).
-            let train_set_mean = compute_mean_loss_over(
-                harness, &cpu, Some(gpu), Some(&lora), &harness.train,
-            ).expect("train-set loss");
+            let train_set_mean =
+                compute_mean_loss_over(harness, &cpu, Some(gpu), Some(&lora), &harness.train)
+                    .expect("train-set loss");
             let eval_final = traj.final_eval().mean;
             let eval0 = traj.initial_eval().mean;
             let elapsed = t0.elapsed().as_secs_f64();
             println!(
                 "  {}: steps_used={}/{}  train_last_step={:.4}  train_set_mean={:.4}  \
                  eval(0)={:.4}  eval_final={:.4}  ({:.1}s)",
-                label, steps_used, max_steps, train_final, train_set_mean,
-                eval0, eval_final, elapsed,
+                label,
+                steps_used,
+                max_steps,
+                train_final,
+                train_set_mean,
+                eval0,
+                eval_final,
+                elapsed,
             );
             // Log the train-loss trajectory for forensic analysis.
             print!("    train traj samples: ");
@@ -1198,8 +1428,10 @@ mod tests {
         let real_h = EvalHarness::synthetic(0xE7A2, n_train, n_eval, cpu.hparams.vocab_size);
         let scr_h = EvalHarness::with_scrambled_train(&real_h, 0xBAD_5EED);
 
-        println!("Exp 2 (iter 5): plateau-based, lr={}, max_steps={}, K={}, eps={}",
-            lr, max_steps, plateau_window, plateau_eps);
+        println!(
+            "Exp 2 (iter 5): plateau-based, lr={}, max_steps={}, K={}, eps={}",
+            lr, max_steps, plateau_window, plateau_eps
+        );
         let (real_train, real_e0, real_ef, _) = run_plateau(&real_h, &gpu, "real Y");
         let (scr_train, _scr_e0, scr_ef, _) = run_plateau(&scr_h, &gpu, "scrambled");
 
@@ -1213,7 +1445,8 @@ mod tests {
              real_eval_final   : {:.4}\n  \
              |real_t - real_e| : {:.4}",
             log_vocab,
-            scr_train, (scr_train - log_vocab).abs(),
+            scr_train,
+            (scr_train - log_vocab).abs(),
             scr_ef,
             real_train,
             real_ef,
@@ -1221,25 +1454,36 @@ mod tests {
         );
 
         // Minimal sanity: both runs produced finite numbers, real-Y descended.
-        assert!(scr_train.is_finite() && scr_ef.is_finite()
-                && real_train.is_finite() && real_ef.is_finite(),
-            "Exp 2 FAIL (sanity): non-finite metric");
-        assert!(real_ef < real_e0,
+        assert!(
+            scr_train.is_finite()
+                && scr_ef.is_finite()
+                && real_train.is_finite()
+                && real_ef.is_finite(),
+            "Exp 2 FAIL (sanity): non-finite metric"
+        );
+        assert!(
+            real_ef < real_e0,
             "Exp 2 FAIL (sanity): real-Y eval must descend at all ({:.4} -> {:.4})",
-            real_e0, real_ef);
+            real_e0,
+            real_ef
+        );
         // Confirm the log(vocab) floor hypothesis. If scrambled train is
         // within 1.0 of log(vocab), that's the uniform-label CE floor.
         let near_floor = (scr_train - log_vocab).abs() < 1.0;
-        println!("Exp 2 diag: scrambled train {} log(vocab) floor {:.4} {}",
+        println!(
+            "Exp 2 diag: scrambled train {} log(vocab) floor {:.4} {}",
             if near_floor { "ATTAINS" } else { "ESCAPES" },
             log_vocab,
             if near_floor {
                 "→ hard-gate impossible on uniform labels; see docs"
             } else {
                 "→ unexpected; investigate"
-            });
-        println!("Exp 2 VERDICT: DIAGNOSTIC (not hard gate). See \
-            notes/wave10f-learning-gate-plan.md for the full 5-iteration history.");
+            }
+        );
+        println!(
+            "Exp 2 VERDICT: DIAGNOSTIC (not hard gate). See \
+            notes/wave10f-learning-gate-plan.md for the full 5-iteration history."
+        );
     }
 
     #[test]
@@ -1249,7 +1493,9 @@ mod tests {
         // budget: we use {1, 3, 10, 20}), fit gap(t) = α·t^β. Under
         // memorization β → 1; under learning β < 0.8.
         use crate::eval_stats::fit_power_law_beta;
-        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let Some((cpu, gpu)) = setup_gpu() else {
+            return;
+        };
         let harness = EvalHarness::synthetic(0xE7A5, 32, 32, cpu.hparams.vocab_size);
         let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
 
@@ -1264,17 +1510,27 @@ mod tests {
                 let ex = &harness.train[(last_step - 1) % harness.train.len()];
                 let a_start = harness.answer_start.min(ex.len() / 2);
                 let _ = crate::gemma4_gpu::train_step_gemma4_gpu(
-                    &cpu, &gpu, &mut lora, ex, a_start, lr, last_step as u32,
-                ).expect("train");
+                    &cpu,
+                    &gpu,
+                    &mut lora,
+                    ex,
+                    a_start,
+                    lr,
+                    last_step as u32,
+                )
+                .expect("train");
             }
-            let train_mean = compute_mean_loss_over(
-                &harness, &cpu, Some(&gpu), Some(&lora), &harness.train,
-            ).expect("train-set eval");
-            let eval_stats = harness.compute_eval_loss(&cpu, Some(&gpu), Some(&lora))
+            let train_mean =
+                compute_mean_loss_over(&harness, &cpu, Some(&gpu), Some(&lora), &harness.train)
+                    .expect("train-set eval");
+            let eval_stats = harness
+                .compute_eval_loss(&cpu, Some(&gpu), Some(&lora))
                 .expect("eval");
             let gap = (eval_stats.mean - train_mean).max(1e-4); // log-safe
-            println!("  t={:2}  train={:.4}  eval={:.4}  gap={:.4}",
-                target_step, train_mean, eval_stats.mean, gap);
+            println!(
+                "  t={:2}  train={:.4}  eval={:.4}  gap={:.4}",
+                target_step, train_mean, eval_stats.mean, gap
+            );
             gaps.push(gap);
         }
         let (beta, lo, hi) = fit_power_law_beta(checkpoints, &gaps);
@@ -1283,7 +1539,8 @@ mod tests {
             hi < 0.8,
             "Exp 5 FAIL: β CI upper {:.3} ≥ 0.8 — gap is growing too fast. \
              Either gradient plumbing is leaking noise OR the optimizer is \
-             overfitting the train set faster than it generalizes.", hi
+             overfitting the train set faster than it generalizes.",
+            hi
         );
     }
 
@@ -1293,54 +1550,76 @@ mod tests {
         // Exp 3: A=0 ⇒ B·A·x = 0 residual ⇒ model output must match
         // base model (no LoRA) within fp noise. Then verify training
         // reduces eval below the A=0 starting point.
-        let Some((cpu, gpu)) = setup_gpu() else { return };
+        let Some((cpu, gpu)) = setup_gpu() else {
+            return;
+        };
         let harness = EvalHarness::synthetic(0xE7A3, 8, 16, cpu.hparams.vocab_size);
 
         // Step 1: lora with A zeroed out.
         let mut lora = Gemma4LoraAdapters::new(&cpu.hparams, 16, 32.0);
         zero_lora_a_in_place(&mut lora);
 
-        let eval_zero_a = harness.compute_eval_loss(&cpu, Some(&gpu), Some(&lora))
+        let eval_zero_a = harness
+            .compute_eval_loss(&cpu, Some(&gpu), Some(&lora))
             .expect("eval lora-zero-A");
-        let eval_base = harness.compute_eval_loss(&cpu, Some(&gpu), None)
+        let eval_base = harness
+            .compute_eval_loss(&cpu, Some(&gpu), None)
             .expect("eval base");
 
         println!("Exp 3: lora-zero-A eval  = {:.6}", eval_zero_a.mean);
         println!("Exp 3: base-model  eval  = {:.6}", eval_base.mean);
         // Per-sequence equivalence within bf16 round-trip noise.
-        for (i, (a, b)) in eval_zero_a.per_seq.iter()
-            .zip(eval_base.per_seq.iter()).enumerate()
+        for (i, (a, b)) in eval_zero_a
+            .per_seq
+            .iter()
+            .zip(eval_base.per_seq.iter())
+            .enumerate()
         {
             let rel = (a - b).abs() / b.abs().max(1e-6);
-            assert!(rel < 1e-3,
+            assert!(
+                rel < 1e-3,
                 "Exp 3 identity FAIL seq {}: lora-zero-A={:.6} base={:.6} rel_err={:.2e}",
-                i, a, b, rel);
+                i,
+                a,
+                b,
+                rel
+            );
         }
 
         // Step 2: training must reduce eval below the A=0 baseline.
-        let traj = harness.run(&cpu, Some(&gpu), &mut lora, 15, 5, 3e-3)
+        let traj = harness
+            .run(&cpu, Some(&gpu), &mut lora, 15, 5, 3e-3)
             .expect("learning run");
         let fin = traj.final_eval();
         println!("Exp 3: post-train  eval  = {:.6}", fin.mean);
-        assert!(fin.mean < eval_zero_a.mean,
+        assert!(
+            fin.mean < eval_zero_a.mean,
             "Exp 3 FAIL: training must lower eval from the A=0 baseline. \
-             baseline={:.4}, final={:.4}", eval_zero_a.mean, fin.mean);
+             baseline={:.4}, final={:.4}",
+            eval_zero_a.mean,
+            fin.mean
+        );
     }
 
     #[test]
     fn test_synthetic_train_eval_disjoint_prefixes() {
         let h = EvalHarness::synthetic(7, 16, 16, 262_144);
         let train_pfx: std::collections::HashSet<u32> = h
-            .train.iter()
+            .train
+            .iter()
             .flat_map(|s| s[..DEFAULT_PREFIX_LEN].iter().copied())
             .collect();
         let eval_pfx: std::collections::HashSet<u32> = h
-            .eval.iter()
+            .eval
+            .iter()
             .flat_map(|s| s[..DEFAULT_PREFIX_LEN].iter().copied())
             .collect();
         let intersection: Vec<_> = train_pfx.intersection(&eval_pfx).collect();
-        assert!(intersection.is_empty(),
-            "train/eval prefixes must be disjoint, got {:?}", intersection);
+        assert!(
+            intersection.is_empty(),
+            "train/eval prefixes must be disjoint, got {:?}",
+            intersection
+        );
         assert!(!train_pfx.is_empty() && !eval_pfx.is_empty());
     }
 
@@ -1368,8 +1647,11 @@ mod tests {
                 assert!(TRAIN_PREFIX_POOL.contains(&t) || EVAL_PREFIX_POOL.contains(&t));
             }
             for &t in &seq[DEFAULT_PREFIX_LEN + 1..] {
-                assert!(SUFFIX_POOL.contains(&t),
-                    "suffix token {} outside SUFFIX_POOL", t);
+                assert!(
+                    SUFFIX_POOL.contains(&t),
+                    "suffix token {} outside SUFFIX_POOL",
+                    t
+                );
             }
         }
     }
@@ -1392,15 +1674,22 @@ mod tests {
         }
         // Prefix pools are disjoint (train from TRAIN_PREFIX_POOL, eval
         // from EVAL_PREFIX_POOL) — inherited from synthetic single-Y.
-        let train_prefixes: std::collections::HashSet<u32> = h.train.iter()
+        let train_prefixes: std::collections::HashSet<u32> = h
+            .train
+            .iter()
             .flat_map(|s| s[1..=DEFAULT_PREFIX_LEN].iter().copied())
             .collect();
-        let eval_prefixes: std::collections::HashSet<u32> = h.eval.iter()
+        let eval_prefixes: std::collections::HashSet<u32> = h
+            .eval
+            .iter()
             .flat_map(|s| s[1..=DEFAULT_PREFIX_LEN].iter().copied())
             .collect();
         let overlap: Vec<_> = train_prefixes.intersection(&eval_prefixes).collect();
-        assert!(overlap.is_empty(),
-            "train/eval prefixes must be disjoint: {:?}", overlap);
+        assert!(
+            overlap.is_empty(),
+            "train/eval prefixes must be disjoint: {:?}",
+            overlap
+        );
     }
 
     #[test]
@@ -1409,21 +1698,29 @@ mod tests {
         let scr = EvalHarness::with_scrambled_train(&base, 0xDEADB33F);
         // Eval set is identical (byte-for-byte) so both experiments score
         // against the same Y-mapped target distribution.
-        assert_eq!(base.eval, scr.eval,
-            "with_scrambled_train must preserve the eval corpus");
+        assert_eq!(
+            base.eval, scr.eval,
+            "with_scrambled_train must preserve the eval corpus"
+        );
         // Train prefixes preserved; suffixes altered for most sequences.
         assert_eq!(base.train.len(), scr.train.len());
         let mut altered = 0;
         for (a, b) in base.train.iter().zip(scr.train.iter()) {
-            assert_eq!(a[..DEFAULT_PREFIX_LEN + 1], b[..DEFAULT_PREFIX_LEN + 1],
-                "train prefix+separator must be unchanged");
+            assert_eq!(
+                a[..DEFAULT_PREFIX_LEN + 1],
+                b[..DEFAULT_PREFIX_LEN + 1],
+                "train prefix+separator must be unchanged"
+            );
             if a[DEFAULT_PREFIX_LEN + 1..] != b[DEFAULT_PREFIX_LEN + 1..] {
                 altered += 1;
             }
         }
-        assert!(altered >= base.train.len() - 1,
+        assert!(
+            altered >= base.train.len() - 1,
             "scrambling should alter nearly every suffix, got {}/{}",
-            altered, base.train.len());
+            altered,
+            base.train.len()
+        );
     }
 
     /// WAVE14 Phase 3 regression test for the H6 line-parser bug.
@@ -1452,29 +1749,40 @@ mod tests {
             eprintln!("regression: {} missing — skipping", path);
             return;
         }
-        let pairs = super::load_tokenized_jsonl(path)
-            .expect("load_tokenized_jsonl");
-        assert!(pairs.len() >= 10,
-            "corpus should have ≥10 records, got {}", pairs.len());
+        let pairs = super::load_tokenized_jsonl(path).expect("load_tokenized_jsonl");
+        assert!(
+            pairs.len() >= 10,
+            "corpus should have ≥10 records, got {}",
+            pairs.len()
+        );
         for (i, (tokens, answer_start)) in pairs.iter().take(10).enumerate() {
             // (a) shape
-            assert_eq!(tokens.len(), 384,
+            assert_eq!(
+                tokens.len(),
+                384,
                 "record[{}] tokens.len() = {}; expected 384 (MAX_TOKENS) — \
                  if 385, the line parser absorbed answer_start (H6 pre-fix)",
-                i, tokens.len());
+                i,
+                tokens.len()
+            );
             // (b) answer_start in valid range
-            assert!(*answer_start > 0,
-                "record[{}] answer_start = 0", i);
-            assert!(*answer_start < tokens.len(),
+            assert!(*answer_start > 0, "record[{}] answer_start = 0", i);
+            assert!(
+                *answer_start < tokens.len(),
                 "record[{}] answer_start {} >= tokens.len() {}",
-                i, answer_start, tokens.len());
+                i,
+                answer_start,
+                tokens.len()
+            );
             // (c) the H6 smoking gun — last token must NOT equal answer_start.
             let last = *tokens.last().expect("non-empty tokens") as usize;
-            assert_ne!(last, *answer_start,
+            assert_ne!(
+                last, *answer_start,
                 "record[{}] tokens.last() ({}) == answer_start ({}) — \
                  the line parser absorbed answer_start as a stray token \
                  (H6 pre-fix regression)",
-                i, last, answer_start);
+                i, last, answer_start
+            );
         }
     }
 }

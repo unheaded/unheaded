@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! HTTP/HTTPS Server for THE SHIELD
 //!
 //! High-performance HTTP server built on hyper.
@@ -27,6 +30,10 @@ pub struct Server {
     https_addr: Option<SocketAddr>,
     /// Metrics endpoint address
     metrics_addr: SocketAddr,
+    /// Whether to expose the metrics endpoint at all (`[metrics] enabled`).
+    /// Previously parsed and never read, so the endpoint could not be turned
+    /// off — it listened regardless of config.
+    metrics_enabled: bool,
     /// TLS manager (optional)
     tls_manager: Option<Arc<TlsManager>>,
     /// Request router
@@ -55,6 +62,7 @@ impl Server {
                 None
             },
             metrics_addr: config.metrics_addr(),
+            metrics_enabled: config.metrics.enabled,
             tls_manager,
             router,
             metrics,
@@ -68,15 +76,24 @@ impl Server {
         // Create connection semaphore
         let connection_semaphore = Arc::new(Semaphore::new(self.max_connections));
 
-        // Start metrics server
-        let _metrics_handle = self.start_metrics_server().await?;
+        // Start metrics server only when enabled — this endpoint exposes
+        // operational detail, so an operator turning it off must actually
+        // close the listener rather than just hide it from docs.
+        let _metrics_handle = if self.metrics_enabled {
+            Some(self.start_metrics_server().await?)
+        } else {
+            None
+        };
 
         // Start HTTP server
         let http_handle = self.start_http_server(connection_semaphore.clone()).await?;
 
         // Start HTTPS server if configured
         let https_handle = if self.https_addr.is_some() {
-            Some(self.start_https_server(connection_semaphore.clone()).await?)
+            Some(
+                self.start_https_server(connection_semaphore.clone())
+                    .await?,
+            )
         } else {
             None
         };
@@ -86,7 +103,11 @@ impl Server {
         if let Some(addr) = self.https_addr {
             eprintln!("  HTTPS:   {}", addr);
         }
-        eprintln!("  Metrics: {}", self.metrics_addr);
+        if self.metrics_enabled {
+            eprintln!("  Metrics: {}", self.metrics_addr);
+        } else {
+            eprintln!("  Metrics: disabled");
+        }
 
         // Wait for shutdown signal
         tokio::select! {
@@ -119,12 +140,13 @@ impl Server {
         &self,
         semaphore: Arc<Semaphore>,
     ) -> Result<tokio::task::JoinHandle<()>, ServerError> {
-        let listener = TcpListener::bind(self.http_addr)
-            .await
-            .map_err(|e| ServerError::BindError {
-                addr: self.http_addr,
-                source: e,
-            })?;
+        let listener =
+            TcpListener::bind(self.http_addr)
+                .await
+                .map_err(|e| ServerError::BindError {
+                    addr: self.http_addr,
+                    source: e,
+                })?;
 
         let router = self.router.clone();
         let metrics = self.metrics.clone();
@@ -148,7 +170,9 @@ impl Server {
                         metrics.active_connections.inc();
 
                         tokio::spawn(async move {
-                            if let Err(e) = handle_http_connection(stream, addr, router, timeout).await {
+                            if let Err(e) =
+                                handle_http_connection(stream, addr, router, timeout).await
+                            {
                                 eprintln!("Connection error from {}: {}", addr, e);
                             }
                             metrics.active_connections.dec();
@@ -206,7 +230,10 @@ impl Server {
                             // Perform TLS handshake
                             match tls.accept(stream).await {
                                 Ok(tls_stream) => {
-                                    if let Err(e) = handle_https_connection(tls_stream, addr, router, timeout).await {
+                                    if let Err(e) =
+                                        handle_https_connection(tls_stream, addr, router, timeout)
+                                            .await
+                                    {
                                         eprintln!("TLS connection error from {}: {}", addr, e);
                                     }
                                 }
@@ -230,12 +257,13 @@ impl Server {
 
     /// Start the metrics server
     async fn start_metrics_server(&self) -> Result<tokio::task::JoinHandle<()>, ServerError> {
-        let listener = TcpListener::bind(self.metrics_addr)
-            .await
-            .map_err(|e| ServerError::BindError {
-                addr: self.metrics_addr,
-                source: e,
-            })?;
+        let listener =
+            TcpListener::bind(self.metrics_addr)
+                .await
+                .map_err(|e| ServerError::BindError {
+                    addr: self.metrics_addr,
+                    source: e,
+                })?;
 
         let metrics = self.metrics.clone();
 
@@ -364,9 +392,7 @@ async fn handle_metrics_connection(
         }
     });
 
-    http1::Builder::new()
-        .serve_connection(io, service)
-        .await?;
+    http1::Builder::new().serve_connection(io, service).await?;
 
     Ok(())
 }
@@ -407,6 +433,9 @@ pub struct ServerBuilder {
     http_addr: Option<SocketAddr>,
     https_addr: Option<SocketAddr>,
     metrics_addr: Option<SocketAddr>,
+    /// Expose the metrics endpoint. Defaults to true, matching
+    /// `[metrics] enabled`'s serde default.
+    metrics_enabled: bool,
     max_connections: usize,
     request_timeout: Duration,
 }
@@ -421,6 +450,7 @@ impl ServerBuilder {
             http_addr: None,
             https_addr: None,
             metrics_addr: None,
+            metrics_enabled: true,
             max_connections: 10000,
             request_timeout: Duration::from_secs(30),
         }
@@ -485,6 +515,7 @@ impl ServerBuilder {
             http_addr,
             https_addr: self.https_addr,
             metrics_addr,
+            metrics_enabled: self.metrics_enabled,
             tls_manager: self.tls_manager,
             router,
             metrics,

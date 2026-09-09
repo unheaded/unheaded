@@ -15,7 +15,6 @@ import json
 import os
 import sys
 import unittest
-from unittest.mock import MagicMock, patch, PropertyMock
 from datetime import datetime, timezone
 
 # Add scripts dir to path

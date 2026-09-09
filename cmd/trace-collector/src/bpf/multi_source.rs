@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Multi-source eBPF reader for unified event collection.
 //!
 //! THE WHISPERING VOID listens to all corners of the kernel.
@@ -396,14 +399,16 @@ impl MultiSourceReader {
 
             let handle = tokio::spawn(async move {
                 run_source_reader(
-                    source,
-                    path,
-                    size,
-                    stats,
-                    global_stats,
-                    shutdown,
+                    SourceReaderTask {
+                        source,
+                        path,
+                        ringbuf_size: size,
+                        stats,
+                        global_stats,
+                        shutdown,
+                        poll_timeout_ms: poll_timeout,
+                    },
                     tx,
-                    poll_timeout,
                 )
                 .await
             });
@@ -432,16 +437,32 @@ impl MultiSourceReader {
 }
 
 /// Run a single source reader
-async fn run_source_reader(
+/// Everything one source reader task needs.
+///
+/// Bundled rather than passed as eight positional arguments: the previous
+/// signature had two `Arc<...>` and two integers adjacent, which is exactly
+/// the shape where a transposed call site compiles and misbehaves.
+struct SourceReaderTask {
     source: EventSource,
     path: PathBuf,
     ringbuf_size: usize,
     stats: Arc<SourceStats>,
-    _global_stats: Arc<GlobalStats>,
+    global_stats: Arc<GlobalStats>,
     shutdown: Arc<AtomicBool>,
-    event_tx: Sender<Event>,
-    _poll_timeout_ms: u64,
-) -> Result<()> {
+    poll_timeout_ms: u64,
+}
+
+async fn run_source_reader(task: SourceReaderTask, event_tx: Sender<Event>) -> Result<()> {
+    let SourceReaderTask {
+        source,
+        path,
+        ringbuf_size,
+        stats,
+        global_stats,
+        shutdown,
+        poll_timeout_ms,
+    } = task;
+
     use super::ringbuf::RingBufReader;
 
     debug!(
@@ -461,23 +482,42 @@ async fn run_source_reader(
                 "Failed to open ring buffer"
             );
             stats.record_error();
+            global_stats.total_errors.fetch_add(1, Ordering::Relaxed);
             return Err(e.into());
         }
     };
 
     // Run the reader loop
-    reader
-        .run(event_tx, shutdown)
+    let outcome = reader
+        .run(event_tx, shutdown, poll_timeout_ms)
         .await
-        .map_err(|e| anyhow::anyhow!("Reader error: {}", e))?;
+        .map_err(|e| anyhow::anyhow!("Reader error: {}", e));
 
-    debug!(
-        source = source.name(),
-        events = stats.events_read.load(Ordering::Relaxed),
-        "Source reader stopped"
+    // Fold this source's totals into the global counters. Nothing did this
+    // before, so `MultiSourceReader::global_stats()` reported zeros forever —
+    // and "zero dropped, zero errors" reads as healthy rather than as absent.
+    let events = stats.events_read.load(Ordering::Relaxed);
+    global_stats
+        .total_events
+        .fetch_add(events, Ordering::Relaxed);
+    global_stats.total_dropped.fetch_add(
+        stats.events_dropped.load(Ordering::Relaxed),
+        Ordering::Relaxed,
     );
+    global_stats.total_bytes.fetch_add(
+        stats.bytes_processed.load(Ordering::Relaxed),
+        Ordering::Relaxed,
+    );
+    if outcome.is_err() {
+        global_stats.total_errors.fetch_add(1, Ordering::Relaxed);
+    }
+    global_stats
+        .total_errors
+        .fetch_add(stats.read_errors.load(Ordering::Relaxed), Ordering::Relaxed);
 
-    Ok(())
+    debug!(source = source.name(), events, "Source reader stopped");
+
+    outcome.map(|_| ())
 }
 
 /// Builder for MultiSourceReader

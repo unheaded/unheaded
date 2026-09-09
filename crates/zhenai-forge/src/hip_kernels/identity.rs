@@ -21,18 +21,16 @@ extern "C" {
 
 /// Copy `in_buf` → `out_buf` via a GPU kernel. Same-length f32 buffers.
 /// Returns Ok(()) on success. Primarily for testing the build pipeline.
-pub fn launch_identity(
-    out_buf: &GpuBuffer,
-    in_buf: &GpuBuffer,
-    n: usize,
-) -> Result<(), String> {
+pub fn launch_identity(out_buf: &GpuBuffer, in_buf: &GpuBuffer, n: usize) -> Result<(), String> {
     // GpuBuffer::len() returns size in bytes. At 4 bytes per f32 we need
     // n_bytes ≥ n*4.
     let required_bytes = n * 4;
     if out_buf.len() < required_bytes || in_buf.len() < required_bytes {
         return Err(format!(
             "identity: buffers too small (need {} bytes, have out={}, in={})",
-            required_bytes, out_buf.len(), in_buf.len(),
+            required_bytes,
+            out_buf.len(),
+            in_buf.len(),
         ));
     }
     let err = unsafe {
@@ -62,9 +60,7 @@ mod tests {
         let out_buf = GpuBuffer::alloc(n * 4).expect("alloc out");
 
         // Upload input bytes.
-        let in_bytes = unsafe {
-            std::slice::from_raw_parts(input.as_ptr() as *const u8, n * 4)
-        };
+        let in_bytes = unsafe { std::slice::from_raw_parts(input.as_ptr() as *const u8, n * 4) };
         in_buf.copy_from_host(in_bytes).expect("upload");
 
         // Launch kernel.
@@ -75,7 +71,10 @@ mod tests {
         out_buf.download_f32(&mut output).expect("download");
 
         assert_eq!(output, input, "WAVE11 identity kernel: output != input");
-        println!("WAVE11 identity kernel heartbeat: {:?} -> {:?}", input, output);
+        println!(
+            "WAVE11 identity kernel heartbeat: {:?} -> {:?}",
+            input, output
+        );
     }
 
     #[test]
@@ -91,9 +90,7 @@ mod tests {
         let in_buf = GpuBuffer::alloc(n * 4).expect("alloc in");
         let out_buf = GpuBuffer::alloc(n * 4).expect("alloc out");
 
-        let in_bytes = unsafe {
-            std::slice::from_raw_parts(input.as_ptr() as *const u8, n * 4)
-        };
+        let in_bytes = unsafe { std::slice::from_raw_parts(input.as_ptr() as *const u8, n * 4) };
         in_buf.copy_from_host(in_bytes).expect("upload");
 
         launch_identity(&out_buf, &in_buf, n).expect("launch");

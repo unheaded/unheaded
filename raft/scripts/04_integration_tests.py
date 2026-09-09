@@ -5,7 +5,7 @@ Tests inference server, RAG API, web UI, domain knowledge, and load.
 """
 import sys
 import time
-import json
+
 import requests
 
 INFERENCE_URL = "http://localhost:20100"
@@ -153,7 +153,7 @@ def test_load():
             data = r.json()
             if r.status_code != 200 or not data.get("answer"):
                 all_ok = False
-        except Exception as e:
+        except Exception:
             all_ok = False
             latencies.append(0)
 

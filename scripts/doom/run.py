@@ -230,7 +230,7 @@ def main():
     last_insn_count = 0
     stall_count = 0
 
-    print(f"=== Doom Execution Driver ===")
+    print("=== Doom Execution Driver ===")
     print(f"  Batch: {args.batch} pkts, Instance: 0x{args.instance:X}")
     print(f"  Target frames: {'unlimited' if args.frames == 0 else args.frames}")
     print(f"  ROM size: {ROM_MAX_PC} instructions")
@@ -267,7 +267,7 @@ def main():
                     DEAD_UNMAPPED: "unmapped JMPR",
                     DEAD_CALLR: "unmapped CALLR",
                 }
-                fault_name = sentinel_names.get(sentinel, f"ROM out-of-bounds")
+                fault_name = sentinel_names.get(sentinel, "ROM out-of-bounds")
                 print(
                     f"\n  *** ROM FAULT #{faults}: {fault_name} ***\n"
                     f"      PC=0x{pc:X}, SP=0x{sp:X}, insns={insn_count:,}\n"
@@ -335,7 +335,7 @@ def main():
 
     elapsed = time.time() - start
     fps = frames / elapsed if elapsed > 0 else 0
-    print(f"\n=== SUMMARY ===")
+    print("\n=== SUMMARY ===")
     print(f"  Frames: {frames}")
     print(f"  Halts: {halts}")
     print(f"  ROM faults: {faults}")

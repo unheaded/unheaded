@@ -116,7 +116,7 @@ fn try_redirect(ctx: &XdpContext) -> Result<u32, u64> {
 
     if !enabled {
         // Update passed counter
-        if let Some(st) = unsafe { STATS.get_ptr_mut(&queue_id) } {
+        if let Some(st) = STATS.get_ptr_mut(&queue_id) {
             unsafe { (*st).passed += 1 };
         }
         return Ok(xdp_action::XDP_PASS);
@@ -126,14 +126,14 @@ fn try_redirect(ctx: &XdpContext) -> Result<u32, u64> {
     match XSKS.redirect(queue_id, 0) {
         Ok(action) => {
             // Increment redirected counter
-            if let Some(st) = unsafe { STATS.get_ptr_mut(&queue_id) } {
+            if let Some(st) = STATS.get_ptr_mut(&queue_id) {
                 unsafe { (*st).redirected += 1 };
             }
             Ok(action)
         }
         Err(_) => {
             // No XSK socket bound to this queue — pass to kernel stack
-            if let Some(st) = unsafe { STATS.get_ptr_mut(&queue_id) } {
+            if let Some(st) = STATS.get_ptr_mut(&queue_id) {
                 unsafe { (*st).passed += 1 };
             }
             Ok(xdp_action::XDP_PASS)

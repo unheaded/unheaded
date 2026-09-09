@@ -34,8 +34,8 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    circuit_state as cs, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN,
-    IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
+    circuit_state as cs, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN,
+    IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
 // ── Circuit breaker state values ─────────────────────────────────────────────
@@ -269,7 +269,7 @@ fn try_failover_xdp(ctx: &XdpContext) -> Result<u32, ()> {
 fn calculate_health_score(endpoint_key: u32) -> u8 {
     if let Some(health) = unsafe { ENDPOINT_HEALTH.get(&endpoint_key) } {
         // score is at byte 0 — directly stored by userspace health monitor
-        
+
         unsafe { core::ptr::read_volatile(&health[0]) }
     } else {
         // No health data — assume healthy (default 100)
@@ -479,19 +479,11 @@ fn read_monad_from_pkt(start: usize, data_end: usize) -> Result<Monad, ()> {
     Ok(Monad::from_bytes(bytes))
 }
 
-/// Write a mutated [`Monad`] back into packet memory at the same offset.
-#[inline(always)]
-fn write_monad_to_pkt(start: usize, data_end: usize, m: &Monad) -> Result<(), ()> {
-    if start + MONAD_SIZE > data_end {
-        return Err(());
-    }
-    let bytes = m.to_bytes();
-    #[allow(clippy::needless_range_loop)]
-    for i in 0..20usize {
-        unsafe { core::ptr::write_volatile((start + i) as *mut u8, bytes[i]) };
-    }
-    Ok(())
-}
+// A `write_monad_to_pkt` helper lived here, carried over from the program
+// template. Removed 2026-08-03: this program binds the Monad immutably and
+// never mutates it — it is a read-only classifier, so there was nothing to
+// write back. Restore it from git if this program ever needs to rewrite the
+// register in place.
 
 // ── Config / stats helpers ────────────────────────────────────────────────────
 

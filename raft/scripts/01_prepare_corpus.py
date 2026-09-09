@@ -7,10 +7,8 @@ and writes them to a JSONL corpus file.
 
 import json
 import os
-import sys
 import time
 import uuid
-from pathlib import Path
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
@@ -143,7 +141,7 @@ def main():
 
     elapsed = time.time() - t0
 
-    print(f"=== Ring 1 Corpus Preparation Complete ===")
+    print("=== Ring 1 Corpus Preparation Complete ===")
     print(f"Time elapsed:     {elapsed:.1f}s")
     print(f"Files processed:  {files_processed}")
     print(f"Files skipped:    {files_skipped}")

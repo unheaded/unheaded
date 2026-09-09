@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! # shield-ebpf
 //!
 //! **Shield** — the Kingdom boundary enforcement layer.
@@ -881,6 +884,15 @@ static PQC_SIG_STATUS: HashMap<u32, pqc_common::PqcSigStatusEntry> =
 /// Check if a packet has PQC authentication flags set.
 /// This is the fast-path check at XDP layer — if PQC flags are set,
 /// we look up the cached verification result instead of doing full crypto.
+///
+/// **NOT WIRED UP.** Nothing calls this, and nothing populates
+/// `PQC_SIG_STATUS` — so no packet is classified here, and in particular no
+/// packet is dropped for a signature already known to be invalid. Do not
+/// treat XDP-layer PQC enforcement as existing until both ends are built.
+/// Full write-up, including why it was not wired up unattended (verifier
+/// budget + the PESSIMISTIC/OPTIMISTIC drop decision), in
+/// `docs/security/shield-ebpf-pqc-fast-path-unwired-2026-08-03.md`.
+#[allow(dead_code)] // see the note above — deliberately visible, not silenced
 #[inline(always)]
 fn pqc_fast_path_check(flags: u8, sig_ref: u32) -> PqcFastPathResult {
     // Check if PQC is active (S+CUSTOM flags)
@@ -901,6 +913,9 @@ fn pqc_fast_path_check(flags: u8, sig_ref: u32) -> PqcFastPathResult {
 }
 
 /// Result of the PQC fast-path check at XDP layer.
+///
+/// Unused for the same reason as `pqc_fast_path_check` — see that note.
+#[allow(dead_code)]
 #[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 enum PqcFastPathResult {

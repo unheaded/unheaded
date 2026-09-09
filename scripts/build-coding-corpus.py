@@ -57,9 +57,7 @@ flags so the auto-pivot doesn't accidentally consume hours of disk I/O.
 import argparse
 import hashlib
 import json
-import os
 import re
-import sys
 from pathlib import Path
 
 REPO_ROOT = Path("/home/govan/tmp/unheaded")

@@ -52,8 +52,8 @@
 //!   and simply become the trait impl bodies.
 
 use crate::gemma4::{
-    backward_gemma4_with_lora, forward_gemma4_with_lora, CpuWeightsGemma4,
-    Gemma4LayerCache, Gemma4LoraAdapters, LayerGradHealth,
+    backward_gemma4_with_lora, forward_gemma4_with_lora, CpuWeightsGemma4, Gemma4LayerCache,
+    Gemma4LoraAdapters, LayerGradHealth,
 };
 use crate::gemma4_gpu::{forward_gemma4_gpu, Gemma4GpuWeights, PleMode};
 
@@ -99,6 +99,7 @@ pub trait ForgeBackend {
     /// Backward pass producing `(mean_loss, per-layer grad health)` and
     /// mutating `lora`'s `grad_a`/`grad_b` fields. `answer_start` is the
     /// first token index counted toward CE loss (skip prompt positions).
+    #[allow(clippy::too_many_arguments)] // numerical/GPU kernel signature — see crate note
     fn backward(
         &self,
         cpu: &CpuWeightsGemma4,
@@ -113,6 +114,7 @@ pub trait ForgeBackend {
     /// Full training step: forward → backward → gradient clip + Adam.
     /// Default implementation composes the other methods + `lora_adam_step`
     /// so optimizer changes land in one place.
+    #[allow(clippy::too_many_arguments)] // numerical/GPU kernel signature — see crate note
     fn train_step(
         &self,
         cpu: &CpuWeightsGemma4,
@@ -125,7 +127,13 @@ pub trait ForgeBackend {
     ) -> Result<f32, String> {
         let (logits, caches) = self.forward(cpu, handle, Some(lora), tokens)?;
         let (loss, _health) = self.backward(
-            cpu, handle, Some(lora), &caches, &logits, tokens, answer_start,
+            cpu,
+            handle,
+            Some(lora),
+            &caches,
+            &logits,
+            tokens,
+            answer_start,
         )?;
         lora_adam_step(lora, lr, step);
         Ok(loss)
@@ -145,13 +153,21 @@ pub fn lora_adam_step(lora: &mut Gemma4LoraAdapters, lr: f32, step: u32) {
     for il in 0..lora.layers.len() {
         for t in 0..4 {
             if let Some(ll) = &mut lora.layers[il][t] {
-                let gn_sq: f32 = ll.grad_a.iter().chain(ll.grad_b.iter())
-                    .map(|g| g * g).sum();
+                let gn_sq: f32 = ll
+                    .grad_a
+                    .iter()
+                    .chain(ll.grad_b.iter())
+                    .map(|g| g * g)
+                    .sum();
                 let gn = gn_sq.sqrt();
                 if gn > clip_threshold {
                     let s = clip_threshold / gn;
-                    for g in ll.grad_a.iter_mut() { *g *= s; }
-                    for g in ll.grad_b.iter_mut() { *g *= s; }
+                    for g in ll.grad_a.iter_mut() {
+                        *g *= s;
+                    }
+                    for g in ll.grad_b.iter_mut() {
+                        *g *= s;
+                    }
                 }
                 ll.adam_step(lr, 0.9, 0.999, 1e-8, step);
             }
@@ -171,7 +187,9 @@ pub struct CpuBackend;
 impl ForgeBackend for CpuBackend {
     type Handle = ();
 
-    fn name(&self) -> &'static str { "cpu" }
+    fn name(&self) -> &'static str {
+        "cpu"
+    }
 
     fn upload_weights(&self, _cpu: &CpuWeightsGemma4) -> Result<(), String> {
         Ok(())
@@ -197,9 +215,8 @@ impl ForgeBackend for CpuBackend {
         tokens: &[u32],
         answer_start: usize,
     ) -> Result<(f32, Vec<LayerGradHealth>), String> {
-        let (loss, health) = backward_gemma4_with_lora(
-            cpu, None, lora, caches, logits, tokens, answer_start,
-        );
+        let (loss, health) =
+            backward_gemma4_with_lora(cpu, None, lora, caches, logits, tokens, answer_start);
         Ok((loss, health))
     }
 }
@@ -224,14 +241,18 @@ impl HybridMatmulBackend {
 
 impl Default for HybridMatmulBackend {
     fn default() -> Self {
-        Self { ple_mode: PleMode::Cpu }
+        Self {
+            ple_mode: PleMode::Cpu,
+        }
     }
 }
 
 impl ForgeBackend for HybridMatmulBackend {
     type Handle = Gemma4GpuWeights;
 
-    fn name(&self) -> &'static str { "hybrid-matmul" }
+    fn name(&self) -> &'static str {
+        "hybrid-matmul"
+    }
 
     fn upload_weights(&self, cpu: &CpuWeightsGemma4) -> Result<Gemma4GpuWeights, String> {
         Gemma4GpuWeights::upload(cpu, self.ple_mode)
@@ -258,7 +279,13 @@ impl ForgeBackend for HybridMatmulBackend {
         answer_start: usize,
     ) -> Result<(f32, Vec<LayerGradHealth>), String> {
         let (loss, health) = backward_gemma4_with_lora(
-            cpu, Some(handle), lora, caches, logits, tokens, answer_start,
+            cpu,
+            Some(handle),
+            lora,
+            caches,
+            logits,
+            tokens,
+            answer_start,
         );
         Ok((loss, health))
     }

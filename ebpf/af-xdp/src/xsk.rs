@@ -7,9 +7,9 @@
 use crate::syscall;
 use crate::umem::Umem;
 use af_xdp_common::{
-    Sockaddr_xdp, XskDesc, XskMmapOffsets, XskRingOffsets, XskStatistics, AF_XDP,
-    DEFAULT_RING_SIZE, SOL_XDP, XDP_MMAP_OFFSETS, XDP_OPTIONS, XDP_PGOFF_RX_RING,
-    XDP_PGOFF_TX_RING, XDP_RING_NEED_WAKEUP, XDP_RX_RING, XDP_STATISTICS, XDP_TX_RING,
+    Sockaddr_xdp, XskDesc, XskRingOffsets, XskStatistics, AF_XDP, SOL_XDP, XDP_OPTIONS,
+    XDP_PGOFF_RX_RING, XDP_PGOFF_TX_RING, XDP_RING_NEED_WAKEUP, XDP_RX_RING, XDP_STATISTICS,
+    XDP_TX_RING,
 };
 
 // =============================================================================
@@ -76,7 +76,11 @@ impl RxRing {
             syscall::smp_rmb(); // Load barrier before reading producer
             let producer = *self.producer;
             let consumer = *self.consumer;
-            let available = producer.wrapping_sub(consumer);
+            // Clamped to the ring size as well as the caller's batch: the
+            // consumer can never legitimately be more than one ring behind,
+            // and the `& self.mask` below keeps a larger delta memory-safe
+            // but would re-serve stale descriptors as live packets.
+            let available = producer.wrapping_sub(consumer).min(self.size);
             let count = available.min(batch_size);
 
             let mut packets = Vec::with_capacity(count as usize);
@@ -631,6 +635,9 @@ pub fn query_xdp_options(sock_fd: i32) -> Result<u32, &'static str> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Only the tests construct sockets at the default ring size; importing it
+    // at module scope would be dead code in the non-test build.
+    use af_xdp_common::DEFAULT_RING_SIZE;
 
     #[test]
     fn test_create_xdp_socket_no_cap() {
@@ -638,12 +645,11 @@ mod tests {
         // This is expected — the full flow requires sudo
         let result = create_xdp_socket();
         // Either succeeds (if running as root) or fails with permission error
-        if result.is_err() {
-            // Expected without privileges
-        } else {
-            // Clean up if it succeeded
+        // Either succeeds (as root) or fails with a permission error; both
+        // are acceptable outcomes for this test. Only clean up on success.
+        if let Ok(fd) = result {
             unsafe {
-                let _ = syscall::close(result.unwrap());
+                let _ = syscall::close(fd);
             }
         }
     }
@@ -658,10 +664,10 @@ mod tests {
     #[test]
     fn test_ring_size_validation() {
         // ring_size must be power of 2
-        assert!(0u32.is_power_of_two() == false);
-        assert!(1u32.is_power_of_two() == true);
-        assert!(2048u32.is_power_of_two() == true);
-        assert!(3000u32.is_power_of_two() == false);
+        assert!(!0u32.is_power_of_two());
+        assert!(1u32.is_power_of_two());
+        assert!(2048u32.is_power_of_two());
+        assert!(!3000u32.is_power_of_two());
     }
 
     #[test]

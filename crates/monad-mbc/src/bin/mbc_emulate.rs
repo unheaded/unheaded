@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! mbc-emulate: Run MBC programs in the userspace emulator.
 //!
 //! Usage:
@@ -206,9 +209,9 @@ fn main() {
     }
 
     // Exit with status based on halt reason.
-    if halt_reason == "HALT instruction" {
-        process::exit(0);
-    } else if halt_reason == "max instructions reached" {
+    // Both a real HALT and hitting the instruction cap are successful ends of
+    // a run; anything else (trap, decode failure) is a nonzero exit.
+    if halt_reason == "HALT instruction" || halt_reason == "max instructions reached" {
         process::exit(0);
     } else {
         process::exit(1);

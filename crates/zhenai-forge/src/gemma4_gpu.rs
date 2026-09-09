@@ -11,7 +11,7 @@
 
 use crate::gemma4::CpuWeightsGemma4;
 use crate::gemma4::Gemma4Hparams;
-use crate::hip::{BlasHandle, GpuBuffer, GpuDevice, HipError};
+use crate::hip::{BlasHandle, GpuBuffer, GpuDevice};
 use half::bf16;
 
 // WAVE12 Phase 3 profiling counters. Enabled when env WAVE12_PROFILE=1.
@@ -28,18 +28,18 @@ pub(crate) static MATMUL_SGEMM_NS: std::sync::atomic::AtomicU64 =
 pub(crate) static MATMUL_CALL_COUNT: std::sync::atomic::AtomicU64 =
     std::sync::atomic::AtomicU64::new(0);
 
-pub(crate) fn profile_enabled() -> bool {
+pub fn profile_enabled() -> bool {
     std::env::var("WAVE12_PROFILE").ok().as_deref() == Some("1")
 }
 
-pub(crate) fn profile_reset() {
+pub fn profile_reset() {
     use std::sync::atomic::Ordering;
     MATMUL_METHOD_NS.store(0, Ordering::Relaxed);
     MATMUL_SGEMM_NS.store(0, Ordering::Relaxed);
     MATMUL_CALL_COUNT.store(0, Ordering::Relaxed);
 }
 
-pub(crate) fn profile_snapshot() -> (u64, u64, u64) {
+pub fn profile_snapshot() -> (u64, u64, u64) {
     use std::sync::atomic::Ordering;
     (
         MATMUL_METHOD_NS.load(Ordering::Relaxed),
@@ -90,8 +90,8 @@ pub struct Gemma4GpuWeights {
 /// Upload mode for PLE — large table can stay on CPU if VRAM is tight.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PleMode {
-    Gpu,  // upload per_layer_token_embd to GPU (4.7 GB)
-    Cpu,  // keep on CPU, lookup-stream per-token rows (slower but saves 4.7 GB)
+    Gpu, // upload per_layer_token_embd to GPU (4.7 GB)
+    Cpu, // keep on CPU, lookup-stream per-token rows (slower but saves 4.7 GB)
 }
 
 impl Gemma4GpuWeights {
@@ -99,10 +99,8 @@ impl Gemma4GpuWeights {
     /// printed to stdout.
     pub fn upload(cpu: &CpuWeightsGemma4, ple_mode: PleMode) -> Result<Self, String> {
         // Initialize GPU device 0 (west's RX 7700 XT)
-        let _device = GpuDevice::init(0)
-            .map_err(|e| format!("GPU init failed: {:?}", e))?;
-        let blas = BlasHandle::new()
-            .map_err(|e| format!("hipBLAS init failed: {:?}", e))?;
+        let _device = GpuDevice::init(0).map_err(|e| format!("GPU init failed: {:?}", e))?;
+        let blas = BlasHandle::new().map_err(|e| format!("hipBLAS init failed: {:?}", e))?;
 
         let mut total_vram: u64 = 0;
         let h = cpu.hparams.clone();
@@ -113,9 +111,7 @@ impl Gemma4GpuWeights {
             let buf = GpuBuffer::alloc(n_bytes)
                 .map_err(|e| format!("alloc {} bytes failed: {:?}", n_bytes, e))?;
             // SAFETY: bf16 is 2 bytes, data layout matches what GPU expects.
-            let bytes = unsafe {
-                std::slice::from_raw_parts(data.as_ptr() as *const u8, n_bytes)
-            };
+            let bytes = unsafe { std::slice::from_raw_parts(data.as_ptr() as *const u8, n_bytes) };
             buf.copy_from_host(bytes)
                 .map_err(|e| format!("copy bf16 to GPU failed: {:?}", e))?;
             Ok(buf)
@@ -134,12 +130,18 @@ impl Gemma4GpuWeights {
         // Globals
         let token_embd = upload_bf16(&cpu.token_embd)?;
         total_vram += (cpu.token_embd.len() * 2) as u64;
-        println!("  token_embd:           {:>7.1} MB", cpu.token_embd.len() as f64 * 2.0 / 1e6);
+        println!(
+            "  token_embd:           {:>7.1} MB",
+            cpu.token_embd.len() as f64 * 2.0 / 1e6
+        );
 
         let per_layer_token_embd = if ple_mode == PleMode::Gpu {
             let buf = upload_bf16(&cpu.per_layer_token_embd)?;
             total_vram += (cpu.per_layer_token_embd.len() * 2) as u64;
-            println!("  per_layer_token_embd: {:>7.1} MB", cpu.per_layer_token_embd.len() as f64 * 2.0 / 1e6);
+            println!(
+                "  per_layer_token_embd: {:>7.1} MB",
+                cpu.per_layer_token_embd.len() as f64 * 2.0 / 1e6
+            );
             Some(buf)
         } else {
             println!("  per_layer_token_embd: CPU-resident (PleMode::Cpu)");
@@ -229,15 +231,24 @@ impl Gemma4GpuWeights {
             }
         }
 
-        println!("  per-layer weights:    {:>7.1} MB ({} layers)",
-            (total_vram as f64 / 1e6) - (cpu.token_embd.len() as f64 * 2.0 / 1e6)
-                - (per_layer_token_embd.as_ref().map(|_| cpu.per_layer_token_embd.len() as f64 * 2.0 / 1e6).unwrap_or(0.0))
+        println!(
+            "  per-layer weights:    {:>7.1} MB ({} layers)",
+            (total_vram as f64 / 1e6)
+                - (cpu.token_embd.len() as f64 * 2.0 / 1e6)
+                - (per_layer_token_embd
+                    .as_ref()
+                    .map(|_| cpu.per_layer_token_embd.len() as f64 * 2.0 / 1e6)
+                    .unwrap_or(0.0))
                 - (cpu.per_layer_model_proj.len() as f64 * 2.0 / 1e6)
                 - (cpu.output_norm.len() as f64 * 4.0 / 1e6)
                 - (cpu.per_layer_proj_norm.len() as f64 * 4.0 / 1e6)
                 - (cpu.rope_freqs.len() as f64 * 4.0 / 1e6),
-            n_layer);
-        println!("  TOTAL VRAM USED:      {:>7.2} GB", total_vram as f64 / 1e9);
+            n_layer
+        );
+        println!(
+            "  TOTAL VRAM USED:      {:>7.2} GB",
+            total_vram as f64 / 1e9
+        );
 
         Ok(Self {
             hparams: h,
@@ -247,11 +258,22 @@ impl Gemma4GpuWeights {
             output_norm,
             per_layer_proj_norm,
             rope_freqs,
-            wq, wk, wv, wo,
-            ffn_gate, ffn_up, ffn_down,
-            inp_gate, proj,
-            attn_norm, attn_q_norm, attn_k_norm,
-            post_attention_norm, ffn_norm, post_ffw_norm, post_norm,
+            wq,
+            wk,
+            wv,
+            wo,
+            ffn_gate,
+            ffn_up,
+            ffn_down,
+            inp_gate,
+            proj,
+            attn_norm,
+            attn_q_norm,
+            attn_k_norm,
+            post_attention_norm,
+            ffn_norm,
+            post_ffw_norm,
+            post_norm,
             layer_output_scale,
             blas,
             vram_used_bytes: total_vram,
@@ -269,24 +291,29 @@ impl Gemma4GpuWeights {
         &self,
         w_gpu_bf16: &GpuBuffer,
         grad_out_f32: &[f32],
-        m: usize, n: usize, k: usize,
+        m: usize,
+        n: usize,
+        k: usize,
     ) -> Result<Vec<f32>, String> {
         debug_assert_eq!(grad_out_f32.len(), m * n);
-        let _prof_t0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
+        let _prof_t0 = if profile_enabled() {
+            Some(std::time::Instant::now())
+        } else {
+            None
+        };
         // Convert grad_out to bf16, upload
         let mut go_bf16: Vec<bf16> = Vec::with_capacity(grad_out_f32.len());
-        for &f in grad_out_f32 { go_bf16.push(bf16::from_f32(f)); }
+        for &f in grad_out_f32 {
+            go_bf16.push(bf16::from_f32(f));
+        }
         let n_bytes = go_bf16.len() * 2;
-        let go_buf = GpuBuffer::alloc(n_bytes)
-            .map_err(|e| format!("alloc grad_out: {:?}", e))?;
-        let bytes = unsafe {
-            std::slice::from_raw_parts(go_bf16.as_ptr() as *const u8, n_bytes)
-        };
-        go_buf.copy_from_host(bytes)
+        let go_buf = GpuBuffer::alloc(n_bytes).map_err(|e| format!("alloc grad_out: {:?}", e))?;
+        let bytes = unsafe { std::slice::from_raw_parts(go_bf16.as_ptr() as *const u8, n_bytes) };
+        go_buf
+            .copy_from_host(bytes)
             .map_err(|e| format!("upload grad_out: {:?}", e))?;
 
-        let out_buf = GpuBuffer::alloc(m * k * 4)
-            .map_err(|e| format!("alloc output: {:?}", e))?;
+        let out_buf = GpuBuffer::alloc(m * k * 4).map_err(|e| format!("alloc output: {:?}", e))?;
 
         // Row-major: out[m,k] = grad_out[m,n] @ w[n,k] (no transpose either side).
         // hipBLAS is col-major. Treating row-major data as transposed col-major:
@@ -296,25 +323,33 @@ impl Gemma4GpuWeights {
         // In col-major: out_cm[k,m] = w_cm[k,n] @ grad_out_cm[n,m]
         // Both ops untransposed. M_hipblas=k, N_hipblas=m, K_hipblas=n.
         // Leading dims (col-major rows): lda=k, ldb=n, ldc=k.
-        let _prof_s0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
-        self.blas.sgemm_bf16_ex(
-            false, false,
-            k as i32, m as i32, n as i32,
-            1.0,
-            w_gpu_bf16, k as i32,
-            &go_buf, n as i32,
-            0.0,
-            &out_buf, k as i32,
-        ).map_err(|e| format!("sgemm_bf16: {:?}", e))?;
+        let _prof_s0 = if profile_enabled() {
+            Some(std::time::Instant::now())
+        } else {
+            None
+        };
+        self.blas
+            .sgemm_bf16_ex(
+                false, false, k as i32, m as i32, n as i32, 1.0, w_gpu_bf16, k as i32, &go_buf,
+                n as i32, 0.0, &out_buf, k as i32,
+            )
+            .map_err(|e| format!("sgemm_bf16: {:?}", e))?;
         if let Some(t0) = _prof_s0 {
-            MATMUL_SGEMM_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+            MATMUL_SGEMM_NS.fetch_add(
+                t0.elapsed().as_nanos() as u64,
+                std::sync::atomic::Ordering::Relaxed,
+            );
         }
 
         let mut out = vec![0.0f32; m * k];
-        out_buf.download_f32(&mut out)
+        out_buf
+            .download_f32(&mut out)
             .map_err(|e| format!("download: {:?}", e))?;
         if let Some(t0) = _prof_t0 {
-            MATMUL_METHOD_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+            MATMUL_METHOD_NS.fetch_add(
+                t0.elapsed().as_nanos() as u64,
+                std::sync::atomic::Ordering::Relaxed,
+            );
             MATMUL_CALL_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
         Ok(out)
@@ -329,47 +364,60 @@ impl Gemma4GpuWeights {
         &self,
         w_gpu_bf16: &GpuBuffer,
         input_f32: &[f32],
-        m: usize, n: usize, k: usize,
+        m: usize,
+        n: usize,
+        k: usize,
     ) -> Result<Vec<f32>, String> {
         debug_assert_eq!(input_f32.len(), m * k);
-        let _prof_t0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
+        let _prof_t0 = if profile_enabled() {
+            Some(std::time::Instant::now())
+        } else {
+            None
+        };
         // f32 → bf16 host-side. Cheap (~ns/element).
         let mut input_bf16: Vec<bf16> = Vec::with_capacity(input_f32.len());
         for &f in input_f32 {
             input_bf16.push(bf16::from_f32(f));
         }
         let n_bytes_in = input_bf16.len() * 2;
-        let input_buf = GpuBuffer::alloc(n_bytes_in)
-            .map_err(|e| format!("alloc input: {:?}", e))?;
-        let bytes = unsafe {
-            std::slice::from_raw_parts(input_bf16.as_ptr() as *const u8, n_bytes_in)
-        };
-        input_buf.copy_from_host(bytes)
+        let input_buf =
+            GpuBuffer::alloc(n_bytes_in).map_err(|e| format!("alloc input: {:?}", e))?;
+        let bytes =
+            unsafe { std::slice::from_raw_parts(input_bf16.as_ptr() as *const u8, n_bytes_in) };
+        input_buf
+            .copy_from_host(bytes)
             .map_err(|e| format!("upload input: {:?}", e))?;
 
-        let out_buf = GpuBuffer::alloc(m * n * 4)
-            .map_err(|e| format!("alloc output: {:?}", e))?;
+        let out_buf = GpuBuffer::alloc(m * n * 4).map_err(|e| format!("alloc output: {:?}", e))?;
 
-        let _prof_s0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
-        self.blas.sgemm_bf16_ex(
-            true, false,
-            n as i32, m as i32, k as i32,
-            1.0,
-            w_gpu_bf16, k as i32,
-            &input_buf, k as i32,
-            0.0,
-            &out_buf, n as i32,
-        ).map_err(|e| format!("sgemm_bf16: {:?}", e))?;
+        let _prof_s0 = if profile_enabled() {
+            Some(std::time::Instant::now())
+        } else {
+            None
+        };
+        self.blas
+            .sgemm_bf16_ex(
+                true, false, n as i32, m as i32, k as i32, 1.0, w_gpu_bf16, k as i32, &input_buf,
+                k as i32, 0.0, &out_buf, n as i32,
+            )
+            .map_err(|e| format!("sgemm_bf16: {:?}", e))?;
         if let Some(t0) = _prof_s0 {
-            MATMUL_SGEMM_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+            MATMUL_SGEMM_NS.fetch_add(
+                t0.elapsed().as_nanos() as u64,
+                std::sync::atomic::Ordering::Relaxed,
+            );
         }
         // hipMemcpy(D2H) is synchronous; no explicit sync needed.
 
         let mut out = vec![0.0f32; m * n];
-        out_buf.download_f32(&mut out)
+        out_buf
+            .download_f32(&mut out)
             .map_err(|e| format!("download: {:?}", e))?;
         if let Some(t0) = _prof_t0 {
-            MATMUL_METHOD_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+            MATMUL_METHOD_NS.fetch_add(
+                t0.elapsed().as_nanos() as u64,
+                std::sync::atomic::Ordering::Relaxed,
+            );
             MATMUL_CALL_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
         Ok(out)
@@ -392,24 +440,48 @@ impl Gemma4GpuWeights {
         w_gpu_bf16: &GpuBuffer,
         input_bf16_buf: &GpuBuffer,
         out_f32_buf: &GpuBuffer,
-        m: usize, n: usize, k: usize,
+        m: usize,
+        n: usize,
+        k: usize,
     ) -> Result<(), String> {
-        let _prof_t0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
-        let _prof_s0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
-        self.blas.sgemm_bf16_ex(
-            true, false,
-            n as i32, m as i32, k as i32,
-            1.0,
-            w_gpu_bf16, k as i32,
-            input_bf16_buf, k as i32,
-            0.0,
-            out_f32_buf, n as i32,
-        ).map_err(|e| format!("sgemm_bf16 (gpu-in/out): {:?}", e))?;
+        let _prof_t0 = if profile_enabled() {
+            Some(std::time::Instant::now())
+        } else {
+            None
+        };
+        let _prof_s0 = if profile_enabled() {
+            Some(std::time::Instant::now())
+        } else {
+            None
+        };
+        self.blas
+            .sgemm_bf16_ex(
+                true,
+                false,
+                n as i32,
+                m as i32,
+                k as i32,
+                1.0,
+                w_gpu_bf16,
+                k as i32,
+                input_bf16_buf,
+                k as i32,
+                0.0,
+                out_f32_buf,
+                n as i32,
+            )
+            .map_err(|e| format!("sgemm_bf16 (gpu-in/out): {:?}", e))?;
         if let Some(t0) = _prof_s0 {
-            MATMUL_SGEMM_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+            MATMUL_SGEMM_NS.fetch_add(
+                t0.elapsed().as_nanos() as u64,
+                std::sync::atomic::Ordering::Relaxed,
+            );
         }
         if let Some(t0) = _prof_t0 {
-            MATMUL_METHOD_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+            MATMUL_METHOD_NS.fetch_add(
+                t0.elapsed().as_nanos() as u64,
+                std::sync::atomic::Ordering::Relaxed,
+            );
             MATMUL_CALL_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
         Ok(())
@@ -424,24 +496,48 @@ impl Gemma4GpuWeights {
         w_gpu_bf16: &GpuBuffer,
         grad_out_bf16_buf: &GpuBuffer,
         out_f32_buf: &GpuBuffer,
-        m: usize, n: usize, k: usize,
+        m: usize,
+        n: usize,
+        k: usize,
     ) -> Result<(), String> {
-        let _prof_t0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
-        let _prof_s0 = if profile_enabled() { Some(std::time::Instant::now()) } else { None };
-        self.blas.sgemm_bf16_ex(
-            false, false,
-            k as i32, m as i32, n as i32,
-            1.0,
-            w_gpu_bf16, k as i32,
-            grad_out_bf16_buf, n as i32,
-            0.0,
-            out_f32_buf, k as i32,
-        ).map_err(|e| format!("sgemm_bf16 (gpu-in/out grad_x): {:?}", e))?;
+        let _prof_t0 = if profile_enabled() {
+            Some(std::time::Instant::now())
+        } else {
+            None
+        };
+        let _prof_s0 = if profile_enabled() {
+            Some(std::time::Instant::now())
+        } else {
+            None
+        };
+        self.blas
+            .sgemm_bf16_ex(
+                false,
+                false,
+                k as i32,
+                m as i32,
+                n as i32,
+                1.0,
+                w_gpu_bf16,
+                k as i32,
+                grad_out_bf16_buf,
+                n as i32,
+                0.0,
+                out_f32_buf,
+                k as i32,
+            )
+            .map_err(|e| format!("sgemm_bf16 (gpu-in/out grad_x): {:?}", e))?;
         if let Some(t0) = _prof_s0 {
-            MATMUL_SGEMM_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+            MATMUL_SGEMM_NS.fetch_add(
+                t0.elapsed().as_nanos() as u64,
+                std::sync::atomic::Ordering::Relaxed,
+            );
         }
         if let Some(t0) = _prof_t0 {
-            MATMUL_METHOD_NS.fetch_add(t0.elapsed().as_nanos() as u64, std::sync::atomic::Ordering::Relaxed);
+            MATMUL_METHOD_NS.fetch_add(
+                t0.elapsed().as_nanos() as u64,
+                std::sync::atomic::Ordering::Relaxed,
+            );
             MATMUL_CALL_COUNT.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
         Ok(())
@@ -456,12 +552,7 @@ impl Gemma4GpuWeights {
     /// hipBLAS is column-major; to compute row-major out[m,n] = a[m,k] @ w[n,k]^T,
     /// we transpose-A and call gemm with op_a=true, op_b=false on swapped
     /// dimensions. See: gemma4_gpu test_gemma4_gpu_wq_matches_cpu.
-    pub fn wq_matmul(
-        &self,
-        input: &[f32],
-        seq: usize,
-        il: usize,
-    ) -> Result<Vec<f32>, String> {
+    pub fn wq_matmul(&self, input: &[f32], seq: usize, il: usize) -> Result<Vec<f32>, String> {
         let h = &self.hparams;
         let head_dim = h.head_dim(il);
         let n = h.n_head * head_dim; // q_out_dim
@@ -471,18 +562,18 @@ impl Gemma4GpuWeights {
         // Convert input f32 → bf16 on host, upload
         let input_bf16: Vec<bf16> = input.iter().map(|f| bf16::from_f32(*f)).collect();
         let n_in_bytes = input_bf16.len() * 2;
-        let input_buf = GpuBuffer::alloc(n_in_bytes)
-            .map_err(|e| format!("alloc input failed: {:?}", e))?;
-        let in_bytes = unsafe {
-            std::slice::from_raw_parts(input_bf16.as_ptr() as *const u8, n_in_bytes)
-        };
-        input_buf.copy_from_host(in_bytes)
+        let input_buf =
+            GpuBuffer::alloc(n_in_bytes).map_err(|e| format!("alloc input failed: {:?}", e))?;
+        let in_bytes =
+            unsafe { std::slice::from_raw_parts(input_bf16.as_ptr() as *const u8, n_in_bytes) };
+        input_buf
+            .copy_from_host(in_bytes)
             .map_err(|e| format!("copy input to GPU: {:?}", e))?;
 
         // Output buffer f32
         let out_size = m * n;
-        let out_buf = GpuBuffer::alloc(out_size * 4)
-            .map_err(|e| format!("alloc output failed: {:?}", e))?;
+        let out_buf =
+            GpuBuffer::alloc(out_size * 4).map_err(|e| format!("alloc output failed: {:?}", e))?;
 
         // sgemm_bf16_ex with op_a=transpose(W), op_b=none(input)
         // Compute (in col-major view): C_cm[n,m] = W_cm^T[n,k] @ A_cm[k,m]
@@ -490,19 +581,28 @@ impl Gemma4GpuWeights {
         // Args: M_hipblas=n, N_hipblas=m, K_hipblas=k.
         // Leading dims (col-major): lda=k for W (transposed), ldb=k for A,
         // ldc=n for C.
-        self.blas.sgemm_bf16_ex(
-            true, false,
-            n as i32, m as i32, k as i32,
-            1.0,
-            &self.wq[il], k as i32,
-            &input_buf, k as i32,
-            0.0,
-            &out_buf, n as i32,
-        ).map_err(|e| format!("sgemm_bf16 failed: {:?}", e))?;
+        self.blas
+            .sgemm_bf16_ex(
+                true,
+                false,
+                n as i32,
+                m as i32,
+                k as i32,
+                1.0,
+                &self.wq[il],
+                k as i32,
+                &input_buf,
+                k as i32,
+                0.0,
+                &out_buf,
+                n as i32,
+            )
+            .map_err(|e| format!("sgemm_bf16 failed: {:?}", e))?;
         crate::hip::sync().map_err(|e| format!("sync: {:?}", e))?;
 
         let mut out = vec![0.0f32; out_size];
-        out_buf.download_f32(&mut out)
+        out_buf
+            .download_f32(&mut out)
             .map_err(|e| format!("download output: {:?}", e))?;
         Ok(out)
     }
@@ -571,19 +671,32 @@ impl ForwardScratch {
         let b_ff_bf16 = seq * n_ff * 2;
 
         Ok(Self {
-            hidden_f32: GpuBuffer::alloc(b_ne_f32).map_err(|e| format!("scratch hidden_f32: {:?}", e))?,
-            normed_bf16: GpuBuffer::alloc(b_ne_bf16).map_err(|e| format!("scratch normed_bf16: {:?}", e))?,
-            normed_f32: GpuBuffer::alloc(b_ne_f32).map_err(|e| format!("scratch normed_f32: {:?}", e))?,
-            q_out_f32: GpuBuffer::alloc(b_q_f32).map_err(|e| format!("scratch q_out_f32: {:?}", e))?,
-            attn_bf16: GpuBuffer::alloc(b_q_bf16).map_err(|e| format!("scratch attn_bf16: {:?}", e))?,
-            k_out_f32: GpuBuffer::alloc(b_kv_f32).map_err(|e| format!("scratch k_out_f32: {:?}", e))?,
-            v_out_f32: GpuBuffer::alloc(b_kv_f32).map_err(|e| format!("scratch v_out_f32: {:?}", e))?,
-            ffn_gate_f32: GpuBuffer::alloc(b_ff_f32).map_err(|e| format!("scratch ffn_gate_f32: {:?}", e))?,
-            ffn_up_f32: GpuBuffer::alloc(b_ff_f32).map_err(|e| format!("scratch ffn_up_f32: {:?}", e))?,
-            ffn_hidden_f32: GpuBuffer::alloc(b_ff_f32).map_err(|e| format!("scratch ffn_hidden_f32: {:?}", e))?,
-            ffn_hidden_bf16: GpuBuffer::alloc(b_ff_bf16).map_err(|e| format!("scratch ffn_hidden_bf16: {:?}", e))?,
-            scratch_f32_a: GpuBuffer::alloc(b_ne_f32).map_err(|e| format!("scratch scratch_f32_a: {:?}", e))?,
-            scratch_f32_b: GpuBuffer::alloc(b_ne_f32).map_err(|e| format!("scratch scratch_f32_b: {:?}", e))?,
+            hidden_f32: GpuBuffer::alloc(b_ne_f32)
+                .map_err(|e| format!("scratch hidden_f32: {:?}", e))?,
+            normed_bf16: GpuBuffer::alloc(b_ne_bf16)
+                .map_err(|e| format!("scratch normed_bf16: {:?}", e))?,
+            normed_f32: GpuBuffer::alloc(b_ne_f32)
+                .map_err(|e| format!("scratch normed_f32: {:?}", e))?,
+            q_out_f32: GpuBuffer::alloc(b_q_f32)
+                .map_err(|e| format!("scratch q_out_f32: {:?}", e))?,
+            attn_bf16: GpuBuffer::alloc(b_q_bf16)
+                .map_err(|e| format!("scratch attn_bf16: {:?}", e))?,
+            k_out_f32: GpuBuffer::alloc(b_kv_f32)
+                .map_err(|e| format!("scratch k_out_f32: {:?}", e))?,
+            v_out_f32: GpuBuffer::alloc(b_kv_f32)
+                .map_err(|e| format!("scratch v_out_f32: {:?}", e))?,
+            ffn_gate_f32: GpuBuffer::alloc(b_ff_f32)
+                .map_err(|e| format!("scratch ffn_gate_f32: {:?}", e))?,
+            ffn_up_f32: GpuBuffer::alloc(b_ff_f32)
+                .map_err(|e| format!("scratch ffn_up_f32: {:?}", e))?,
+            ffn_hidden_f32: GpuBuffer::alloc(b_ff_f32)
+                .map_err(|e| format!("scratch ffn_hidden_f32: {:?}", e))?,
+            ffn_hidden_bf16: GpuBuffer::alloc(b_ff_bf16)
+                .map_err(|e| format!("scratch ffn_hidden_bf16: {:?}", e))?,
+            scratch_f32_a: GpuBuffer::alloc(b_ne_f32)
+                .map_err(|e| format!("scratch scratch_f32_a: {:?}", e))?,
+            scratch_f32_b: GpuBuffer::alloc(b_ne_f32)
+                .map_err(|e| format!("scratch scratch_f32_b: {:?}", e))?,
         })
     }
 }
@@ -602,7 +715,7 @@ impl ForwardScratch {
 // backward when Step C lands).
 // =============================================================================
 
-use crate::gemma4::{Gemma4LoraAdapters, Gemma4LayerCache, Gemma4PleCache};
+use crate::gemma4::{Gemma4LayerCache, Gemma4LoraAdapters, Gemma4PleCache};
 
 pub fn forward_gemma4_gpu(
     cpu: &CpuWeightsGemma4,
@@ -621,7 +734,9 @@ pub fn forward_gemma4_gpu(
     let tok_embd_f32: Vec<f32> = cpu.token_embd.iter().map(|b| b.to_f32()).collect();
     let mut hidden = forward::embedding_lookup(&tok_embd_f32, n_embd, tokens);
     let embed_scale = (n_embd as f32).sqrt();
-    for v in hidden.iter_mut() { *v *= embed_scale; }
+    for v in hidden.iter_mut() {
+        *v *= embed_scale;
+    }
 
     // 1b. PLE setup (per_layer_model_proj matmul on GPU; lookup on CPU).
     let inp_per_layer: Option<Vec<f32>> = if h.n_embd_per_layer > 0 {
@@ -648,27 +763,43 @@ pub fn forward_gemma4_gpu(
         // WAVE12 Phase 5B — GPU-resident pre-attention chain (attn_norm → Q/K/V).
         // Upload hidden once, then rmsnorm + f32_to_bf16 + Q/K/V matmuls all
         // run on scratch buffers with no host round-trip.
-        scratch.hidden_f32.upload_f32(&hidden)
+        scratch
+            .hidden_f32
+            .upload_f32(&hidden)
             .map_err(|e| format!("scratch hidden upload: {:?}", e))?;
         crate::hip_kernels::rmsnorm::rmsnorm_fwd(
-            &scratch.normed_f32, &scratch.hidden_f32, &gpu.attn_norm[il],
-            h.rms_norm_eps, seq, n_embd,
+            &scratch.normed_f32,
+            &scratch.hidden_f32,
+            &gpu.attn_norm[il],
+            h.rms_norm_eps,
+            seq,
+            n_embd,
         )?;
         crate::hip_kernels::convert::f32_to_bf16(
-            &scratch.normed_bf16, &scratch.normed_f32, seq * n_embd,
+            &scratch.normed_bf16,
+            &scratch.normed_f32,
+            seq * n_embd,
         )?;
 
         // Q projection (GPU-in/out) + LoRA Q (CPU after download of normed)
         gpu.matmul_xwt_gpu_in_out(
-            &gpu.wq[il], &scratch.normed_bf16, &scratch.q_out_f32,
-            seq, q_out_dim, n_embd,
+            &gpu.wq[il],
+            &scratch.normed_bf16,
+            &scratch.q_out_f32,
+            seq,
+            q_out_dim,
+            n_embd,
         )?;
         let mut q = vec![0.0f32; seq * q_out_dim];
-        scratch.q_out_f32.download_f32(&mut q)
+        scratch
+            .q_out_f32
+            .download_f32(&mut q)
             .map_err(|e| format!("scratch q_out download: {:?}", e))?;
         // normed must come back to CPU for LoRA forward + per-head-norm downstream.
         let mut normed = vec![0.0f32; seq * n_embd];
-        scratch.normed_f32.download_f32(&mut normed)
+        scratch
+            .normed_f32
+            .download_f32(&mut normed)
             .map_err(|e| format!("scratch normed download: {:?}", e))?;
         if let Some(lora_set) = lora {
             if let Some(lq) = &lora_set.layers[il][0] {
@@ -687,17 +818,31 @@ pub fn forward_gemma4_gpu(
         let (k_flat, v_flat) = if let Some(wk_buf) = &gpu.wk[il] {
             let wv_buf = gpu.wv[il].as_ref().unwrap_or(wk_buf);
             gpu.matmul_xwt_gpu_in_out(
-                wk_buf, &scratch.normed_bf16, &scratch.k_out_f32,
-                seq, kv_out_dim, n_embd,
+                wk_buf,
+                &scratch.normed_bf16,
+                &scratch.k_out_f32,
+                seq,
+                kv_out_dim,
+                n_embd,
             )?;
             gpu.matmul_xwt_gpu_in_out(
-                wv_buf, &scratch.normed_bf16, &scratch.v_out_f32,
-                seq, kv_out_dim, n_embd,
+                wv_buf,
+                &scratch.normed_bf16,
+                &scratch.v_out_f32,
+                seq,
+                kv_out_dim,
+                n_embd,
             )?;
             let mut k = vec![0.0f32; seq * kv_out_dim];
             let mut v = vec![0.0f32; seq * kv_out_dim];
-            scratch.k_out_f32.download_f32(&mut k).map_err(|e| format!("scratch k download: {:?}", e))?;
-            scratch.v_out_f32.download_f32(&mut v).map_err(|e| format!("scratch v download: {:?}", e))?;
+            scratch
+                .k_out_f32
+                .download_f32(&mut k)
+                .map_err(|e| format!("scratch k download: {:?}", e))?;
+            scratch
+                .v_out_f32
+                .download_f32(&mut v)
+                .map_err(|e| format!("scratch v download: {:?}", e))?;
             if let Some(lora_set) = lora {
                 let scale = lora_set.scale();
                 if let Some(lk) = &lora_set.layers[il][1] {
@@ -728,11 +873,19 @@ pub fn forward_gemma4_gpu(
 
         // 2d. Per-head Q-norm, K-norm (GPU batched), weightless V-norm (CPU — tiny, no weight)
         let q_normed = rmsnorm_batch_on_gpu(
-            &q, &gpu.attn_q_norm[il], h.rms_norm_eps, seq * n_head, head_dim,
+            &q,
+            &gpu.attn_q_norm[il],
+            h.rms_norm_eps,
+            seq * n_head,
+            head_dim,
         )?;
         let k_normed = if let Some(k_norm_buf) = &gpu.attn_k_norm[il] {
             rmsnorm_batch_on_gpu(
-                &k_flat, k_norm_buf, h.rms_norm_eps, seq * n_head_kv, head_dim,
+                &k_flat,
+                k_norm_buf,
+                h.rms_norm_eps,
+                seq * n_head_kv,
+                head_dim,
             )?
         } else {
             k_flat.clone()
@@ -757,8 +910,12 @@ pub fn forward_gemma4_gpu(
         let rope_dim = h.rope_dim(il);
         let freq_base = h.rope_freq_base(il);
         let (cos_table, sin_table) = forward::rope_freqs(seq, rope_dim, freq_base);
-        let q_rot = rope_apply_partial_cpu(&q_normed, &cos_table, &sin_table, seq, n_head, head_dim, rope_dim);
-        let k_rot = rope_apply_partial_cpu(&k_normed, &cos_table, &sin_table, seq, n_head_kv, head_dim, rope_dim);
+        let q_rot = rope_apply_partial_cpu(
+            &q_normed, &cos_table, &sin_table, seq, n_head, head_dim, rope_dim,
+        );
+        let k_rot = rope_apply_partial_cpu(
+            &k_normed, &cos_table, &sin_table, seq, n_head_kv, head_dim, rope_dim,
+        );
 
         // 2f. Attention (GPU — WAVE11 kernels: scores_fwd → softmax_masked → output_fwd)
         let mask = if h.is_sliding(il) {
@@ -767,8 +924,14 @@ pub fn forward_gemma4_gpu(
             forward::AttnMask::Causal
         };
         let (attn_out_head, attn_cache) = attention_forward_gpu_kernels(
-            &q_rot, &k_rot, &v_normed,
-            n_head, n_head_kv, head_dim, seq, mask,
+            &q_rot,
+            &k_rot,
+            &v_normed,
+            n_head,
+            n_head_kv,
+            head_dim,
+            seq,
+            mask,
             &mut mask_cache,
         )?;
 
@@ -776,17 +939,27 @@ pub fn forward_gemma4_gpu(
         // attn_out_head is CPU Vec (attn kernel currently returns host slice);
         // upload once, f32_to_bf16 on-device, then matmul_xwt_gpu_in_out →
         // scratch_f32_a (= o_out). LoRA O still needs CPU normed path.
-        scratch.q_out_f32.upload_f32(&attn_out_head)
+        scratch
+            .q_out_f32
+            .upload_f32(&attn_out_head)
             .map_err(|e| format!("scratch attn_out upload: {:?}", e))?;
         crate::hip_kernels::convert::f32_to_bf16(
-            &scratch.attn_bf16, &scratch.q_out_f32, seq * q_out_dim,
+            &scratch.attn_bf16,
+            &scratch.q_out_f32,
+            seq * q_out_dim,
         )?;
         gpu.matmul_xwt_gpu_in_out(
-            &gpu.wo[il], &scratch.attn_bf16, &scratch.scratch_f32_a,
-            seq, n_embd, q_out_dim,
+            &gpu.wo[il],
+            &scratch.attn_bf16,
+            &scratch.scratch_f32_a,
+            seq,
+            n_embd,
+            q_out_dim,
         )?;
         let mut o_out = vec![0.0f32; seq * n_embd];
-        scratch.scratch_f32_a.download_f32(&mut o_out)
+        scratch
+            .scratch_f32_a
+            .download_f32(&mut o_out)
             .map_err(|e| format!("scratch o_out download: {:?}", e))?;
         if let Some(lora_set) = lora {
             if let Some(lo) = &lora_set.layers[il][3] {
@@ -800,74 +973,125 @@ pub fn forward_gemma4_gpu(
                 }
             }
             // LoRA modified o_out on CPU; upload back for on-GPU rmsnorm+residual.
-            scratch.scratch_f32_a.upload_f32(&o_out)
+            scratch
+                .scratch_f32_a
+                .upload_f32(&o_out)
                 .map_err(|e| format!("scratch o_out LoRA re-upload: {:?}", e))?;
         }
 
         // rmsnorm(o_out) + residual(hidden) → post_attn_residual (on GPU).
         crate::hip_kernels::rmsnorm::rmsnorm_fwd(
-            &scratch.normed_f32, &scratch.scratch_f32_a,
-            &gpu.post_attention_norm[il], h.rms_norm_eps, seq, n_embd,
+            &scratch.normed_f32,
+            &scratch.scratch_f32_a,
+            &gpu.post_attention_norm[il],
+            h.rms_norm_eps,
+            seq,
+            n_embd,
         )?;
         crate::hip_kernels::convert::add_f32(
-            &scratch.scratch_f32_b, &scratch.normed_f32, &scratch.hidden_f32,
+            &scratch.scratch_f32_b,
+            &scratch.normed_f32,
+            &scratch.hidden_f32,
             seq * n_embd,
         )?;
         let mut post_attn = vec![0.0f32; seq * n_embd];
-        scratch.scratch_f32_b.download_f32(&mut post_attn)
+        scratch
+            .scratch_f32_b
+            .download_f32(&mut post_attn)
             .map_err(|e| format!("scratch post_attn download: {:?}", e))?;
 
         // 2i. FFN — GPU-resident: rmsnorm → f32_to_bf16 → gate/up → gelu_mul → down.
         crate::hip_kernels::rmsnorm::rmsnorm_fwd(
-            &scratch.normed_f32, &scratch.scratch_f32_b,
-            &gpu.ffn_norm[il], h.rms_norm_eps, seq, n_embd,
+            &scratch.normed_f32,
+            &scratch.scratch_f32_b,
+            &gpu.ffn_norm[il],
+            h.rms_norm_eps,
+            seq,
+            n_embd,
         )?;
         // ffn_normed is cached for backward — download now before overwriting scratch.normed_f32.
         let mut ffn_normed = vec![0.0f32; seq * n_embd];
-        scratch.normed_f32.download_f32(&mut ffn_normed)
+        scratch
+            .normed_f32
+            .download_f32(&mut ffn_normed)
             .map_err(|e| format!("scratch ffn_normed download: {:?}", e))?;
         crate::hip_kernels::convert::f32_to_bf16(
-            &scratch.normed_bf16, &scratch.normed_f32, seq * n_embd,
+            &scratch.normed_bf16,
+            &scratch.normed_f32,
+            seq * n_embd,
         )?;
         gpu.matmul_xwt_gpu_in_out(
-            &gpu.ffn_gate[il], &scratch.normed_bf16, &scratch.ffn_gate_f32,
-            seq, h.n_ff, n_embd,
+            &gpu.ffn_gate[il],
+            &scratch.normed_bf16,
+            &scratch.ffn_gate_f32,
+            seq,
+            h.n_ff,
+            n_embd,
         )?;
         gpu.matmul_xwt_gpu_in_out(
-            &gpu.ffn_up[il], &scratch.normed_bf16, &scratch.ffn_up_f32,
-            seq, h.n_ff, n_embd,
+            &gpu.ffn_up[il],
+            &scratch.normed_bf16,
+            &scratch.ffn_up_f32,
+            seq,
+            h.n_ff,
+            n_embd,
         )?;
         // Download gate_pre + up_pre for backward cache.
         let mut gate_pre = vec![0.0f32; seq * h.n_ff];
         let mut up_pre = vec![0.0f32; seq * h.n_ff];
-        scratch.ffn_gate_f32.download_f32(&mut gate_pre).map_err(|e| format!("ffn gate download: {:?}", e))?;
-        scratch.ffn_up_f32.download_f32(&mut up_pre).map_err(|e| format!("ffn up download: {:?}", e))?;
+        scratch
+            .ffn_gate_f32
+            .download_f32(&mut gate_pre)
+            .map_err(|e| format!("ffn gate download: {:?}", e))?;
+        scratch
+            .ffn_up_f32
+            .download_f32(&mut up_pre)
+            .map_err(|e| format!("ffn up download: {:?}", e))?;
         // Fused GELU*up on GPU, scratch-resident.
         crate::hip_kernels::gelu::gelu_mul_fwd(
-            &scratch.ffn_hidden_f32, &scratch.ffn_gate_f32, &scratch.ffn_up_f32,
+            &scratch.ffn_hidden_f32,
+            &scratch.ffn_gate_f32,
+            &scratch.ffn_up_f32,
             seq * h.n_ff,
         )?;
         let mut ffn_hidden = vec![0.0f32; seq * h.n_ff];
-        scratch.ffn_hidden_f32.download_f32(&mut ffn_hidden).map_err(|e| format!("ffn hidden download: {:?}", e))?;
+        scratch
+            .ffn_hidden_f32
+            .download_f32(&mut ffn_hidden)
+            .map_err(|e| format!("ffn hidden download: {:?}", e))?;
         crate::hip_kernels::convert::f32_to_bf16(
-            &scratch.ffn_hidden_bf16, &scratch.ffn_hidden_f32, seq * h.n_ff,
+            &scratch.ffn_hidden_bf16,
+            &scratch.ffn_hidden_f32,
+            seq * h.n_ff,
         )?;
         gpu.matmul_xwt_gpu_in_out(
-            &gpu.ffn_down[il], &scratch.ffn_hidden_bf16, &scratch.scratch_f32_a,
-            seq, n_embd, h.n_ff,
+            &gpu.ffn_down[il],
+            &scratch.ffn_hidden_bf16,
+            &scratch.scratch_f32_a,
+            seq,
+            n_embd,
+            h.n_ff,
         )?;
 
         // 2j. post_ffw_norm + residual (GPU; result stays in hidden_f32 for next layer).
         crate::hip_kernels::rmsnorm::rmsnorm_fwd(
-            &scratch.normed_f32, &scratch.scratch_f32_a,
-            &gpu.post_ffw_norm[il], h.rms_norm_eps, seq, n_embd,
+            &scratch.normed_f32,
+            &scratch.scratch_f32_a,
+            &gpu.post_ffw_norm[il],
+            h.rms_norm_eps,
+            seq,
+            n_embd,
         )?;
         crate::hip_kernels::convert::add_f32(
-            &scratch.hidden_f32, &scratch.normed_f32, &scratch.scratch_f32_b,
+            &scratch.hidden_f32,
+            &scratch.normed_f32,
+            &scratch.scratch_f32_b,
             seq * n_embd,
         )?;
         let mut layer_out = vec![0.0f32; seq * n_embd];
-        scratch.hidden_f32.download_f32(&mut layer_out)
+        scratch
+            .hidden_f32
+            .download_f32(&mut layer_out)
             .map_err(|e| format!("scratch layer_out download: {:?}", e))?;
 
         // PLE chain (matmuls on GPU; gelu + rmsnorm now on GPU — Phase 8c)
@@ -884,7 +1108,11 @@ pub fn forward_gemma4_gpu(
             }
             let proj_out_pre_norm = gpu.matmul_xwt(&gpu.proj[il], &gated, seq, n_embd, n_epl)?;
             let proj_normed = rmsnorm_batch_on_gpu(
-                &proj_out_pre_norm, &gpu.post_norm[il], h.rms_norm_eps, seq, n_embd,
+                &proj_out_pre_norm,
+                &gpu.post_norm[il],
+                h.rms_norm_eps,
+                seq,
+                n_embd,
             )?;
             for i in 0..layer_out.len() {
                 layer_out[i] = pe_in[i] + proj_normed[i];
@@ -901,7 +1129,9 @@ pub fn forward_gemma4_gpu(
         };
 
         if let Some(scale_v) = cpu.layer_output_scale[il] {
-            for v in layer_out.iter_mut() { *v *= scale_v; }
+            for v in layer_out.iter_mut() {
+                *v *= scale_v;
+            }
         }
 
         layer_caches.push(Gemma4LayerCache {
@@ -924,9 +1154,8 @@ pub fn forward_gemma4_gpu(
     }
 
     // Final output_norm (GPU batched — Phase 8c)
-    let final_hidden = rmsnorm_batch_on_gpu(
-        &hidden, &gpu.output_norm, h.rms_norm_eps, seq, n_embd,
-    )?;
+    let final_hidden =
+        rmsnorm_batch_on_gpu(&hidden, &gpu.output_norm, h.rms_norm_eps, seq, n_embd)?;
 
     // LM head (GPU — token_embd is already on GPU, treated as W^T)
     let logits = gpu.matmul_xwt(&gpu.token_embd, &final_hidden, seq, h.vocab_size, n_embd)?;
@@ -934,7 +1163,10 @@ pub fn forward_gemma4_gpu(
     // Softcap (CPU)
     let logits = if h.final_logit_softcapping > 0.0 {
         let cap = h.final_logit_softcapping;
-        logits.into_iter().map(|x| forward::logit_softcap(x, cap)).collect()
+        logits
+            .into_iter()
+            .map(|x| forward::logit_softcap(x, cap))
+            .collect()
     } else {
         logits
     };
@@ -950,7 +1182,6 @@ fn compute_inp_per_layer_gpu(
     tokens: &[u32],
     scaled_embeddings: &[f32],
 ) -> Result<Vec<f32>, String> {
-    use crate::forward;
     let h = &cpu.hparams;
     let n_tokens = tokens.len();
     let n_embd = h.n_embd;
@@ -973,13 +1204,24 @@ fn compute_inp_per_layer_gpu(
 
     // Project on GPU
     let mut proj_out = gpu.matmul_xwt(
-        &gpu.per_layer_model_proj, scaled_embeddings, n_tokens, row_size, n_embd)?;
+        &gpu.per_layer_model_proj,
+        scaled_embeddings,
+        n_tokens,
+        row_size,
+        n_embd,
+    )?;
     let scale_proj = 1.0 / (n_embd as f32).sqrt();
-    for v in proj_out.iter_mut() { *v *= scale_proj; }
+    for v in proj_out.iter_mut() {
+        *v *= scale_proj;
+    }
 
     // per_layer_proj_norm rmsnorm (GPU batched — Phase 8c, rows = n_tokens*n_layer, d = n_epl)
     let proj_normed = rmsnorm_batch_on_gpu(
-        &proj_out, &gpu.per_layer_proj_norm, h.rms_norm_eps, n_tokens * n_layer, n_epl,
+        &proj_out,
+        &gpu.per_layer_proj_norm,
+        h.rms_norm_eps,
+        n_tokens * n_layer,
+        n_epl,
     )?;
     proj_out = proj_normed;
     let inv_sqrt2 = 1.0f32 / 2.0f32.sqrt();
@@ -989,7 +1231,13 @@ fn compute_inp_per_layer_gpu(
     Ok(proj_out)
 }
 
-fn slice_layer_cpu(inp_per_layer: &[f32], seq: usize, n_layer: usize, n_epl: usize, l: usize) -> Vec<f32> {
+fn slice_layer_cpu(
+    inp_per_layer: &[f32],
+    seq: usize,
+    n_layer: usize,
+    n_epl: usize,
+    l: usize,
+) -> Vec<f32> {
     let mut out = Vec::with_capacity(seq * n_epl);
     for t in 0..seq {
         let off = t * n_layer * n_epl + l * n_epl;
@@ -998,7 +1246,16 @@ fn slice_layer_cpu(inp_per_layer: &[f32], seq: usize, n_layer: usize, n_epl: usi
     out
 }
 
-fn per_head_rmsnorm_cpu(x: &[f32], weight: &[f32], seq: usize, n_head: usize, head_dim: usize, eps: f32) -> Vec<f32> {
+/// CPU reference for per-head RMSNorm (Q/K-norm), kept as the comparison
+/// baseline when validating the GPU kernel.
+pub fn per_head_rmsnorm_cpu(
+    x: &[f32],
+    weight: &[f32],
+    seq: usize,
+    n_head: usize,
+    head_dim: usize,
+    eps: f32,
+) -> Vec<f32> {
     let mut out = vec![0.0f32; x.len()];
     for s in 0..seq {
         for h in 0..n_head {
@@ -1031,20 +1288,35 @@ pub fn train_step_gemma4_gpu(
     // Phase 4: full-GPU backward — all 14 matmul sites in
     // backward_gemma4_with_lora dispatch to hipBLAS when gpu is Some.
     let (loss, _health) = backward_gemma4_with_lora(
-        cpu, Some(gpu), Some(lora), &caches, &logits, tokens, answer_start);
+        cpu,
+        Some(gpu),
+        Some(lora),
+        &caches,
+        &logits,
+        tokens,
+        answer_start,
+    );
 
     // Gradient clip + Adam (same as CPU train_step_gemma4)
     let clip_threshold = 1.0f32;
     for il in 0..lora.layers.len() {
         for t in 0..4 {
             if let Some(ll) = &mut lora.layers[il][t] {
-                let gn_sq: f32 = ll.grad_a.iter().chain(ll.grad_b.iter())
-                    .map(|g| g * g).sum();
+                let gn_sq: f32 = ll
+                    .grad_a
+                    .iter()
+                    .chain(ll.grad_b.iter())
+                    .map(|g| g * g)
+                    .sum();
                 let gn = gn_sq.sqrt();
                 if gn > clip_threshold {
                     let s = clip_threshold / gn;
-                    for g in ll.grad_a.iter_mut() { *g *= s; }
-                    for g in ll.grad_b.iter_mut() { *g *= s; }
+                    for g in ll.grad_a.iter_mut() {
+                        *g *= s;
+                    }
+                    for g in ll.grad_b.iter_mut() {
+                        *g *= s;
+                    }
                 }
                 ll.adam_step(lr, 0.9, 0.999, 1e-8, step);
             }
@@ -1070,7 +1342,10 @@ struct MaskCache {
 
 impl MaskCache {
     fn new() -> Self {
-        Self { causal: None, sliding: Vec::new() }
+        Self {
+            causal: None,
+            sliding: Vec::new(),
+        }
     }
 
     fn get_or_build(
@@ -1116,8 +1391,7 @@ impl MaskCache {
                 }
             }
         }
-        let buf = GpuBuffer::alloc(scores_elems * 4)
-            .map_err(|e| format!("mask alloc: {:?}", e))?;
+        let buf = GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("mask alloc: {:?}", e))?;
         buf.upload_f32(&mask_cpu)
             .map_err(|e| format!("mask upload: {:?}", e))?;
         Ok(buf)
@@ -1141,6 +1415,7 @@ impl MaskCache {
 /// Returns:
 ///   output     [seq, n_heads, head_dim]
 ///   attn_cache [n_heads, seq, seq]  — post-softmax probs, needed by backward
+#[allow(clippy::too_many_arguments)] // numerical/GPU kernel signature — see crate note
 fn attention_forward_gpu_kernels(
     q_rot: &[f32],
     k_rot: &[f32],
@@ -1156,46 +1431,70 @@ fn attention_forward_gpu_kernels(
 
     debug_assert_eq!(q_rot.len(), seq_len * n_heads * head_dim);
     debug_assert_eq!(k_rot.len(), seq_len * n_kv_heads * head_dim);
-    debug_assert_eq!(v.len(),     seq_len * n_kv_heads * head_dim);
+    debug_assert_eq!(v.len(), seq_len * n_kv_heads * head_dim);
     debug_assert_eq!(n_heads % n_kv_heads, 0);
 
     let scale = 1.0f32 / (head_dim as f32).sqrt();
     let scores_elems = n_heads * seq_len * seq_len;
-    let out_elems    = seq_len * n_heads * head_dim;
+    let out_elems = seq_len * n_heads * head_dim;
 
     let mask_buf = mask_cache.get_or_build(mask, n_heads, seq_len)?;
 
-    let q_buf      = GpuBuffer::alloc(q_rot.len() * 4).map_err(|e| format!("q alloc: {:?}", e))?;
-    let k_buf      = GpuBuffer::alloc(k_rot.len() * 4).map_err(|e| format!("k alloc: {:?}", e))?;
-    let v_buf      = GpuBuffer::alloc(v.len() * 4).map_err(|e| format!("v alloc: {:?}", e))?;
-    let scores_buf = GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("scores alloc: {:?}", e))?;
-    let probs_buf  = GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("probs alloc: {:?}", e))?;
-    let out_buf    = GpuBuffer::alloc(out_elems * 4).map_err(|e| format!("out alloc: {:?}", e))?;
+    let q_buf = GpuBuffer::alloc(q_rot.len() * 4).map_err(|e| format!("q alloc: {:?}", e))?;
+    let k_buf = GpuBuffer::alloc(k_rot.len() * 4).map_err(|e| format!("k alloc: {:?}", e))?;
+    let v_buf = GpuBuffer::alloc(v.len() * 4).map_err(|e| format!("v alloc: {:?}", e))?;
+    let scores_buf =
+        GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("scores alloc: {:?}", e))?;
+    let probs_buf =
+        GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("probs alloc: {:?}", e))?;
+    let out_buf = GpuBuffer::alloc(out_elems * 4).map_err(|e| format!("out alloc: {:?}", e))?;
 
-    q_buf.upload_f32(q_rot).map_err(|e| format!("q upload: {:?}", e))?;
-    k_buf.upload_f32(k_rot).map_err(|e| format!("k upload: {:?}", e))?;
-    v_buf.upload_f32(v).map_err(|e| format!("v upload: {:?}", e))?;
+    q_buf
+        .upload_f32(q_rot)
+        .map_err(|e| format!("q upload: {:?}", e))?;
+    k_buf
+        .upload_f32(k_rot)
+        .map_err(|e| format!("k upload: {:?}", e))?;
+    v_buf
+        .upload_f32(v)
+        .map_err(|e| format!("v upload: {:?}", e))?;
 
     k_attn::attn_scores_fwd(
-        &scores_buf, &q_buf, &k_buf,
-        n_heads, n_kv_heads, seq_len, head_dim, scale,
+        &scores_buf,
+        &q_buf,
+        &k_buf,
+        n_heads,
+        n_kv_heads,
+        seq_len,
+        head_dim,
+        scale,
     )?;
     k_softmax::softmax_fwd_masked(
-        &probs_buf, &scores_buf, mask_buf,
-        n_heads * seq_len, seq_len,
+        &probs_buf,
+        &scores_buf,
+        mask_buf,
+        n_heads * seq_len,
+        seq_len,
     )?;
     k_attn::attn_output_fwd(
-        &out_buf, &probs_buf, &v_buf,
-        n_heads, n_kv_heads, seq_len, head_dim,
+        &out_buf, &probs_buf, &v_buf, n_heads, n_kv_heads, seq_len, head_dim,
     )?;
 
     let mut output = vec![0.0f32; out_elems];
-    out_buf.download_f32(&mut output).map_err(|e| format!("out download: {:?}", e))?;
+    out_buf
+        .download_f32(&mut output)
+        .map_err(|e| format!("out download: {:?}", e))?;
     let mut probs = vec![0.0f32; scores_elems];
-    probs_buf.download_f32(&mut probs).map_err(|e| format!("probs download: {:?}", e))?;
+    probs_buf
+        .download_f32(&mut probs)
+        .map_err(|e| format!("probs download: {:?}", e))?;
 
     Ok((output, probs))
 }
+
+/// Gradients w.r.t. the attention inputs, in `(grad_q, grad_k, grad_v)`
+/// order. `grad_k` and `grad_v` are already GQA-collapsed to `n_kv_heads`.
+pub type AttnInputGrads = (Vec<f32>, Vec<f32>, Vec<f32>);
 
 /// WAVE11 Phase 8b: GPU-kernel attention backward.
 ///
@@ -1205,23 +1504,24 @@ fn attention_forward_gpu_kernels(
 /// inputs or gqa_collapse outputs — huge simplification vs CPU path.
 ///
 /// Chain: attn_grad_v ∥ attn_grad_probs → softmax_bwd → attn_grad_q ∥ attn_grad_k.
+#[allow(clippy::too_many_arguments)] // numerical/GPU kernel signature — see crate note
 pub fn attention_backward_gpu_kernels(
-    grad_out: &[f32],  // [seq, n_heads, head_dim]
-    q_rot: &[f32],     // [seq, n_heads, head_dim]
-    k_rot: &[f32],     // [seq, n_kv_heads, head_dim]  — unexpanded
-    v: &[f32],         // [seq, n_kv_heads, head_dim]  — unexpanded
-    attn_probs: &[f32],// [n_heads, seq, seq]
+    grad_out: &[f32],   // [seq, n_heads, head_dim]
+    q_rot: &[f32],      // [seq, n_heads, head_dim]
+    k_rot: &[f32],      // [seq, n_kv_heads, head_dim]  — unexpanded
+    v: &[f32],          // [seq, n_kv_heads, head_dim]  — unexpanded
+    attn_probs: &[f32], // [n_heads, seq, seq]
     n_heads: usize,
     n_kv_heads: usize,
     head_dim: usize,
     seq_len: usize,
-) -> Result<(Vec<f32>, Vec<f32>, Vec<f32>), String> {
+) -> Result<AttnInputGrads, String> {
     use crate::hip_kernels::{attn as k_attn, softmax as k_softmax};
 
     debug_assert_eq!(grad_out.len(), seq_len * n_heads * head_dim);
-    debug_assert_eq!(q_rot.len(),    seq_len * n_heads * head_dim);
-    debug_assert_eq!(k_rot.len(),    seq_len * n_kv_heads * head_dim);
-    debug_assert_eq!(v.len(),        seq_len * n_kv_heads * head_dim);
+    debug_assert_eq!(q_rot.len(), seq_len * n_heads * head_dim);
+    debug_assert_eq!(k_rot.len(), seq_len * n_kv_heads * head_dim);
+    debug_assert_eq!(v.len(), seq_len * n_kv_heads * head_dim);
     debug_assert_eq!(attn_probs.len(), n_heads * seq_len * seq_len);
     debug_assert_eq!(n_heads % n_kv_heads, 0);
 
@@ -1232,10 +1532,10 @@ pub fn attention_backward_gpu_kernels(
     // global layer) don't overrun buffers. Grad buffers match the expected
     // output shape for the CURRENT layer's attention pass.
     let go_buf = GpuBuffer::alloc(grad_out.len() * 4).map_err(|e| format!("go alloc: {:?}", e))?;
-    let q_buf  = GpuBuffer::alloc(q_rot.len() * 4).map_err(|e| format!("q alloc: {:?}", e))?;
-    let k_buf  = GpuBuffer::alloc(k_rot.len() * 4).map_err(|e| format!("k alloc: {:?}", e))?;
-    let v_buf  = GpuBuffer::alloc(v.len() * 4).map_err(|e| format!("v alloc: {:?}", e))?;
-    let p_buf  = GpuBuffer::alloc(attn_probs.len() * 4).map_err(|e| format!("p alloc: {:?}", e))?;
+    let q_buf = GpuBuffer::alloc(q_rot.len() * 4).map_err(|e| format!("q alloc: {:?}", e))?;
+    let k_buf = GpuBuffer::alloc(k_rot.len() * 4).map_err(|e| format!("k alloc: {:?}", e))?;
+    let v_buf = GpuBuffer::alloc(v.len() * 4).map_err(|e| format!("v alloc: {:?}", e))?;
+    let p_buf = GpuBuffer::alloc(attn_probs.len() * 4).map_err(|e| format!("p alloc: {:?}", e))?;
     let gp_buf = GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("gp alloc: {:?}", e))?;
     let gs_buf = GpuBuffer::alloc(scores_elems * 4).map_err(|e| format!("gs alloc: {:?}", e))?;
     let gq_buf = GpuBuffer::alloc(seq_len * n_heads * head_dim * 4)
@@ -1243,36 +1543,60 @@ pub fn attention_backward_gpu_kernels(
     let gk_buf = GpuBuffer::alloc(k_rot.len() * 4).map_err(|e| format!("gk alloc: {:?}", e))?;
     let gv_buf = GpuBuffer::alloc(v.len() * 4).map_err(|e| format!("gv alloc: {:?}", e))?;
 
-    go_buf.upload_f32(grad_out).map_err(|e| format!("go upload: {:?}", e))?;
-    q_buf.upload_f32(q_rot).map_err(|e| format!("q upload: {:?}", e))?;
-    k_buf.upload_f32(k_rot).map_err(|e| format!("k upload: {:?}", e))?;
-    v_buf.upload_f32(v).map_err(|e| format!("v upload: {:?}", e))?;
-    p_buf.upload_f32(attn_probs).map_err(|e| format!("p upload: {:?}", e))?;
+    go_buf
+        .upload_f32(grad_out)
+        .map_err(|e| format!("go upload: {:?}", e))?;
+    q_buf
+        .upload_f32(q_rot)
+        .map_err(|e| format!("q upload: {:?}", e))?;
+    k_buf
+        .upload_f32(k_rot)
+        .map_err(|e| format!("k upload: {:?}", e))?;
+    v_buf
+        .upload_f32(v)
+        .map_err(|e| format!("v upload: {:?}", e))?;
+    p_buf
+        .upload_f32(attn_probs)
+        .map_err(|e| format!("p upload: {:?}", e))?;
 
-    k_attn::attn_grad_v(&gv_buf, &p_buf, &go_buf,
-        n_heads, n_kv_heads, seq_len, head_dim)?;
-    k_attn::attn_grad_probs(&gp_buf, &go_buf, &v_buf,
-        n_heads, n_kv_heads, seq_len, head_dim)?;
-    k_softmax::softmax_bwd(&gs_buf, &gp_buf, &p_buf,
-        n_heads * seq_len, seq_len)?;
-    k_attn::attn_grad_q(&gq_buf, &gs_buf, &k_buf,
-        n_heads, n_kv_heads, seq_len, head_dim, scale)?;
-    k_attn::attn_grad_k(&gk_buf, &gs_buf, &q_buf,
-        n_heads, n_kv_heads, seq_len, head_dim, scale)?;
+    k_attn::attn_grad_v(
+        &gv_buf, &p_buf, &go_buf, n_heads, n_kv_heads, seq_len, head_dim,
+    )?;
+    k_attn::attn_grad_probs(
+        &gp_buf, &go_buf, &v_buf, n_heads, n_kv_heads, seq_len, head_dim,
+    )?;
+    k_softmax::softmax_bwd(&gs_buf, &gp_buf, &p_buf, n_heads * seq_len, seq_len)?;
+    k_attn::attn_grad_q(
+        &gq_buf, &gs_buf, &k_buf, n_heads, n_kv_heads, seq_len, head_dim, scale,
+    )?;
+    k_attn::attn_grad_k(
+        &gk_buf, &gs_buf, &q_buf, n_heads, n_kv_heads, seq_len, head_dim, scale,
+    )?;
 
     let mut grad_q = vec![0.0f32; seq_len * n_heads * head_dim];
     let mut grad_k = vec![0.0f32; k_rot.len()];
     let mut grad_v = vec![0.0f32; v.len()];
-    gq_buf.download_f32(&mut grad_q).map_err(|e| format!("gq download: {:?}", e))?;
-    gk_buf.download_f32(&mut grad_k).map_err(|e| format!("gk download: {:?}", e))?;
-    gv_buf.download_f32(&mut grad_v).map_err(|e| format!("gv download: {:?}", e))?;
+    gq_buf
+        .download_f32(&mut grad_q)
+        .map_err(|e| format!("gq download: {:?}", e))?;
+    gk_buf
+        .download_f32(&mut grad_k)
+        .map_err(|e| format!("gk download: {:?}", e))?;
+    gv_buf
+        .download_f32(&mut grad_v)
+        .map_err(|e| format!("gv download: {:?}", e))?;
 
     Ok((grad_q, grad_k, grad_v))
 }
 
 fn rope_apply_partial_cpu(
-    x: &[f32], cos: &[f32], sin: &[f32],
-    seq: usize, n_head: usize, head_dim: usize, rope_dim: usize,
+    x: &[f32],
+    cos: &[f32],
+    sin: &[f32],
+    seq: usize,
+    n_head: usize,
+    head_dim: usize,
+    rope_dim: usize,
 ) -> Vec<f32> {
     let mut out = x.to_vec();
     let half = rope_dim / 2;
@@ -1284,7 +1608,7 @@ fn rope_apply_partial_cpu(
                 let si = sin[s * half + d];
                 let xe = x[off + 2 * d];
                 let xo = x[off + 2 * d + 1];
-                out[off + 2 * d]     = xe * c - xo * si;
+                out[off + 2 * d] = xe * c - xo * si;
                 out[off + 2 * d + 1] = xe * si + xo * c;
             }
         }
@@ -1310,31 +1634,39 @@ fn rmsnorm_batch_on_gpu(
     let size = rows * d * 4;
     let in_buf = GpuBuffer::alloc(size).map_err(|e| format!("rms in alloc: {:?}", e))?;
     let out_buf = GpuBuffer::alloc(size).map_err(|e| format!("rms out alloc: {:?}", e))?;
-    in_buf.upload_f32(input_f32).map_err(|e| format!("rms upload: {:?}", e))?;
+    in_buf
+        .upload_f32(input_f32)
+        .map_err(|e| format!("rms upload: {:?}", e))?;
     k_rms::rmsnorm_fwd(&out_buf, &in_buf, weight_buf, eps, rows, d)?;
     let mut out = vec![0.0f32; rows * d];
-    out_buf.download_f32(&mut out).map_err(|e| format!("rms download: {:?}", e))?;
+    out_buf
+        .download_f32(&mut out)
+        .map_err(|e| format!("rms download: {:?}", e))?;
     Ok(out)
 }
 
 /// Fused `out = gelu_tanh(gate_pre) * up_pre` on GPU. Drop-in for the
-/// per-element FFN CPU loop.
-fn gelu_mul_batch_on_gpu(
-    gate_pre: &[f32],
-    up_pre: &[f32],
-) -> Result<Vec<f32>, String> {
+/// per-element FFN CPU loop — working and unwired, kept as the FFN
+/// optimization it was written to be.
+pub fn gelu_mul_batch_on_gpu(gate_pre: &[f32], up_pre: &[f32]) -> Result<Vec<f32>, String> {
     use crate::hip_kernels::gelu as k_gelu;
     debug_assert_eq!(gate_pre.len(), up_pre.len());
     let n = gate_pre.len();
     let size = n * 4;
     let gate_buf = GpuBuffer::alloc(size).map_err(|e| format!("gelu gate alloc: {:?}", e))?;
-    let up_buf   = GpuBuffer::alloc(size).map_err(|e| format!("gelu up alloc: {:?}", e))?;
-    let out_buf  = GpuBuffer::alloc(size).map_err(|e| format!("gelu out alloc: {:?}", e))?;
-    gate_buf.upload_f32(gate_pre).map_err(|e| format!("gelu gate upload: {:?}", e))?;
-    up_buf.upload_f32(up_pre).map_err(|e| format!("gelu up upload: {:?}", e))?;
+    let up_buf = GpuBuffer::alloc(size).map_err(|e| format!("gelu up alloc: {:?}", e))?;
+    let out_buf = GpuBuffer::alloc(size).map_err(|e| format!("gelu out alloc: {:?}", e))?;
+    gate_buf
+        .upload_f32(gate_pre)
+        .map_err(|e| format!("gelu gate upload: {:?}", e))?;
+    up_buf
+        .upload_f32(up_pre)
+        .map_err(|e| format!("gelu up upload: {:?}", e))?;
     k_gelu::gelu_mul_fwd(&out_buf, &gate_buf, &up_buf, n)?;
     let mut out = vec![0.0f32; n];
-    out_buf.download_f32(&mut out).map_err(|e| format!("gelu download: {:?}", e))?;
+    out_buf
+        .download_f32(&mut out)
+        .map_err(|e| format!("gelu download: {:?}", e))?;
     Ok(out)
 }
 
@@ -1343,12 +1675,16 @@ fn gelu_batch_on_gpu(input: &[f32]) -> Result<Vec<f32>, String> {
     use crate::hip_kernels::gelu as k_gelu;
     let n = input.len();
     let size = n * 4;
-    let in_buf  = GpuBuffer::alloc(size).map_err(|e| format!("gelu in alloc: {:?}", e))?;
+    let in_buf = GpuBuffer::alloc(size).map_err(|e| format!("gelu in alloc: {:?}", e))?;
     let out_buf = GpuBuffer::alloc(size).map_err(|e| format!("gelu out alloc: {:?}", e))?;
-    in_buf.upload_f32(input).map_err(|e| format!("gelu in upload: {:?}", e))?;
+    in_buf
+        .upload_f32(input)
+        .map_err(|e| format!("gelu in upload: {:?}", e))?;
     k_gelu::gelu_fwd(&out_buf, &in_buf, n)?;
     let mut out = vec![0.0f32; n];
-    out_buf.download_f32(&mut out).map_err(|e| format!("gelu out download: {:?}", e))?;
+    out_buf
+        .download_f32(&mut out)
+        .map_err(|e| format!("gelu out download: {:?}", e))?;
     Ok(out)
 }
 
@@ -1377,14 +1713,30 @@ pub(crate) fn rmsnorm_batch_bwd_on_gpu(
     debug_assert_eq!(grad_out_f32.len(), rows * d);
     debug_assert_eq!(input_f32.len(), rows * d);
     let size = rows * d * 4;
-    let grad_in_buf  = GpuBuffer::alloc(size).map_err(|e| format!("rms_bwd grad_in alloc: {:?}", e))?;
-    let grad_out_buf = GpuBuffer::alloc(size).map_err(|e| format!("rms_bwd grad_out alloc: {:?}", e))?;
-    let input_buf    = GpuBuffer::alloc(size).map_err(|e| format!("rms_bwd input alloc: {:?}", e))?;
-    grad_out_buf.upload_f32(grad_out_f32).map_err(|e| format!("rms_bwd grad_out upload: {:?}", e))?;
-    input_buf.upload_f32(input_f32).map_err(|e| format!("rms_bwd input upload: {:?}", e))?;
-    k_rms::rmsnorm_bwd(&grad_in_buf, &grad_out_buf, &input_buf, weight_buf, eps, rows, d)?;
+    let grad_in_buf =
+        GpuBuffer::alloc(size).map_err(|e| format!("rms_bwd grad_in alloc: {:?}", e))?;
+    let grad_out_buf =
+        GpuBuffer::alloc(size).map_err(|e| format!("rms_bwd grad_out alloc: {:?}", e))?;
+    let input_buf = GpuBuffer::alloc(size).map_err(|e| format!("rms_bwd input alloc: {:?}", e))?;
+    grad_out_buf
+        .upload_f32(grad_out_f32)
+        .map_err(|e| format!("rms_bwd grad_out upload: {:?}", e))?;
+    input_buf
+        .upload_f32(input_f32)
+        .map_err(|e| format!("rms_bwd input upload: {:?}", e))?;
+    k_rms::rmsnorm_bwd(
+        &grad_in_buf,
+        &grad_out_buf,
+        &input_buf,
+        weight_buf,
+        eps,
+        rows,
+        d,
+    )?;
     let mut grad_in = vec![0.0f32; rows * d];
-    grad_in_buf.download_f32(&mut grad_in).map_err(|e| format!("rms_bwd grad_in download: {:?}", e))?;
+    grad_in_buf
+        .download_f32(&mut grad_in)
+        .map_err(|e| format!("rms_bwd grad_in download: {:?}", e))?;
     Ok(grad_in)
 }
 
@@ -1400,8 +1752,12 @@ pub(crate) fn per_head_rmsnorm_batch_bwd_on_gpu(
     head_dim: usize,
 ) -> Result<Vec<f32>, String> {
     rmsnorm_batch_bwd_on_gpu(
-        grad_out_f32, input_f32, weight_buf, eps,
-        seq * n_head, head_dim,
+        grad_out_f32,
+        input_f32,
+        weight_buf,
+        eps,
+        seq * n_head,
+        head_dim,
     )
 }
 
@@ -1414,14 +1770,22 @@ pub(crate) fn gelu_batch_bwd_on_gpu(
     debug_assert_eq!(grad_out_f32.len(), input_f32.len());
     let n = input_f32.len();
     let size = n * 4;
-    let grad_in_buf  = GpuBuffer::alloc(size).map_err(|e| format!("gelu_bwd grad_in alloc: {:?}", e))?;
-    let grad_out_buf = GpuBuffer::alloc(size).map_err(|e| format!("gelu_bwd grad_out alloc: {:?}", e))?;
-    let input_buf    = GpuBuffer::alloc(size).map_err(|e| format!("gelu_bwd input alloc: {:?}", e))?;
-    grad_out_buf.upload_f32(grad_out_f32).map_err(|e| format!("gelu_bwd grad_out upload: {:?}", e))?;
-    input_buf.upload_f32(input_f32).map_err(|e| format!("gelu_bwd input upload: {:?}", e))?;
+    let grad_in_buf =
+        GpuBuffer::alloc(size).map_err(|e| format!("gelu_bwd grad_in alloc: {:?}", e))?;
+    let grad_out_buf =
+        GpuBuffer::alloc(size).map_err(|e| format!("gelu_bwd grad_out alloc: {:?}", e))?;
+    let input_buf = GpuBuffer::alloc(size).map_err(|e| format!("gelu_bwd input alloc: {:?}", e))?;
+    grad_out_buf
+        .upload_f32(grad_out_f32)
+        .map_err(|e| format!("gelu_bwd grad_out upload: {:?}", e))?;
+    input_buf
+        .upload_f32(input_f32)
+        .map_err(|e| format!("gelu_bwd input upload: {:?}", e))?;
     k_gelu::gelu_bwd(&grad_in_buf, &grad_out_buf, &input_buf, n)?;
     let mut grad_in = vec![0.0f32; n];
-    grad_in_buf.download_f32(&mut grad_in).map_err(|e| format!("gelu_bwd grad_in download: {:?}", e))?;
+    grad_in_buf
+        .download_f32(&mut grad_in)
+        .map_err(|e| format!("gelu_bwd grad_in download: {:?}", e))?;
     Ok(grad_in)
 }
 
@@ -1436,19 +1800,40 @@ pub(crate) fn gelu_mul_batch_bwd_on_gpu(
     debug_assert_eq!(grad_out_f32.len(), up_pre_f32.len());
     let n = grad_out_f32.len();
     let size = n * 4;
-    let grad_gate_buf = GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd grad_gate alloc: {:?}", e))?;
-    let grad_up_buf   = GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd grad_up alloc: {:?}", e))?;
-    let grad_out_buf  = GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd grad_out alloc: {:?}", e))?;
-    let gate_buf      = GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd gate alloc: {:?}", e))?;
-    let up_buf        = GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd up alloc: {:?}", e))?;
-    grad_out_buf.upload_f32(grad_out_f32).map_err(|e| format!("gelu_mul_bwd grad_out upload: {:?}", e))?;
-    gate_buf.upload_f32(gate_pre_f32).map_err(|e| format!("gelu_mul_bwd gate upload: {:?}", e))?;
-    up_buf.upload_f32(up_pre_f32).map_err(|e| format!("gelu_mul_bwd up upload: {:?}", e))?;
-    k_gelu::gelu_mul_bwd(&grad_gate_buf, &grad_up_buf, &grad_out_buf, &gate_buf, &up_buf, n)?;
+    let grad_gate_buf =
+        GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd grad_gate alloc: {:?}", e))?;
+    let grad_up_buf =
+        GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd grad_up alloc: {:?}", e))?;
+    let grad_out_buf =
+        GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd grad_out alloc: {:?}", e))?;
+    let gate_buf =
+        GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd gate alloc: {:?}", e))?;
+    let up_buf = GpuBuffer::alloc(size).map_err(|e| format!("gelu_mul_bwd up alloc: {:?}", e))?;
+    grad_out_buf
+        .upload_f32(grad_out_f32)
+        .map_err(|e| format!("gelu_mul_bwd grad_out upload: {:?}", e))?;
+    gate_buf
+        .upload_f32(gate_pre_f32)
+        .map_err(|e| format!("gelu_mul_bwd gate upload: {:?}", e))?;
+    up_buf
+        .upload_f32(up_pre_f32)
+        .map_err(|e| format!("gelu_mul_bwd up upload: {:?}", e))?;
+    k_gelu::gelu_mul_bwd(
+        &grad_gate_buf,
+        &grad_up_buf,
+        &grad_out_buf,
+        &gate_buf,
+        &up_buf,
+        n,
+    )?;
     let mut grad_gate = vec![0.0f32; n];
-    let mut grad_up   = vec![0.0f32; n];
-    grad_gate_buf.download_f32(&mut grad_gate).map_err(|e| format!("gelu_mul_bwd grad_gate download: {:?}", e))?;
-    grad_up_buf.download_f32(&mut grad_up).map_err(|e| format!("gelu_mul_bwd grad_up download: {:?}", e))?;
+    let mut grad_up = vec![0.0f32; n];
+    grad_gate_buf
+        .download_f32(&mut grad_gate)
+        .map_err(|e| format!("gelu_mul_bwd grad_gate download: {:?}", e))?;
+    grad_up_buf
+        .download_f32(&mut grad_up)
+        .map_err(|e| format!("gelu_mul_bwd grad_up download: {:?}", e))?;
     Ok((grad_gate, grad_up))
 }
 
@@ -1476,25 +1861,48 @@ pub(crate) fn rope_batch_bwd_on_gpu(
     let trig_len = cos_f32.len();
     if sin_f32.len() != trig_len {
         return Err(format!(
-            "rope_bwd: cos len {} != sin len {}", trig_len, sin_f32.len()));
+            "rope_bwd: cos len {} != sin len {}",
+            trig_len,
+            sin_f32.len()
+        ));
     }
-    let grad_in_buf  = GpuBuffer::alloc(buf_elems * 4).map_err(|e| format!("rope_bwd grad_in alloc: {:?}", e))?;
-    let grad_out_buf = GpuBuffer::alloc(buf_elems * 4).map_err(|e| format!("rope_bwd grad_out alloc: {:?}", e))?;
-    let cos_buf      = GpuBuffer::alloc(trig_len * 4).map_err(|e| format!("rope_bwd cos alloc: {:?}", e))?;
-    let sin_buf      = GpuBuffer::alloc(trig_len * 4).map_err(|e| format!("rope_bwd sin alloc: {:?}", e))?;
-    grad_out_buf.upload_f32(grad_out_f32).map_err(|e| format!("rope_bwd grad_out upload: {:?}", e))?;
+    let grad_in_buf =
+        GpuBuffer::alloc(buf_elems * 4).map_err(|e| format!("rope_bwd grad_in alloc: {:?}", e))?;
+    let grad_out_buf =
+        GpuBuffer::alloc(buf_elems * 4).map_err(|e| format!("rope_bwd grad_out alloc: {:?}", e))?;
+    let cos_buf =
+        GpuBuffer::alloc(trig_len * 4).map_err(|e| format!("rope_bwd cos alloc: {:?}", e))?;
+    let sin_buf =
+        GpuBuffer::alloc(trig_len * 4).map_err(|e| format!("rope_bwd sin alloc: {:?}", e))?;
+    grad_out_buf
+        .upload_f32(grad_out_f32)
+        .map_err(|e| format!("rope_bwd grad_out upload: {:?}", e))?;
     // Seed grad_in with grad_out so the "tail" dims (beyond rope_dim within
     // each head) and any consumer-layer stride tail are copied through, then
     // the kernel overwrites the rotary half — matching CPU's to_vec() pattern.
-    grad_in_buf.upload_f32(grad_out_f32).map_err(|e| format!("rope_bwd grad_in seed upload: {:?}", e))?;
-    cos_buf.upload_f32(cos_f32).map_err(|e| format!("rope_bwd cos upload: {:?}", e))?;
-    sin_buf.upload_f32(sin_f32).map_err(|e| format!("rope_bwd sin upload: {:?}", e))?;
+    grad_in_buf
+        .upload_f32(grad_out_f32)
+        .map_err(|e| format!("rope_bwd grad_in seed upload: {:?}", e))?;
+    cos_buf
+        .upload_f32(cos_f32)
+        .map_err(|e| format!("rope_bwd cos upload: {:?}", e))?;
+    sin_buf
+        .upload_f32(sin_f32)
+        .map_err(|e| format!("rope_bwd sin upload: {:?}", e))?;
     k_rope::rope_partial_bwd(
-        &grad_in_buf, &grad_out_buf, &cos_buf, &sin_buf,
-        seq, n_head, head_dim, rope_dim,
+        &grad_in_buf,
+        &grad_out_buf,
+        &cos_buf,
+        &sin_buf,
+        seq,
+        n_head,
+        head_dim,
+        rope_dim,
     )?;
     let mut grad_in = vec![0.0f32; buf_elems];
-    grad_in_buf.download_f32(&mut grad_in).map_err(|e| format!("rope_bwd grad_in download: {:?}", e))?;
+    grad_in_buf
+        .download_f32(&mut grad_in)
+        .map_err(|e| format!("rope_bwd grad_in download: {:?}", e))?;
     Ok(grad_in)
 }
 
@@ -1523,8 +1931,11 @@ mod tests {
         println!("Upload time: {:.1}s", upload_secs);
         println!("VRAM used: {:.2} GB", gpu_weights.vram_used_gb());
         // Sanity: ~9 GB expected for E2B
-        assert!(gpu_weights.vram_used_gb() > 8.0 && gpu_weights.vram_used_gb() < 11.0,
-            "VRAM should be 8-11 GB, got {:.2} GB", gpu_weights.vram_used_gb());
+        assert!(
+            gpu_weights.vram_used_gb() > 8.0 && gpu_weights.vram_used_gb() < 11.0,
+            "VRAM should be 8-11 GB, got {:.2} GB",
+            gpu_weights.vram_used_gb()
+        );
     }
 
     #[test]
@@ -1542,8 +1953,11 @@ mod tests {
             Err(e) => panic!("Upload failed (PleMode::Cpu): {}", e),
         };
         println!("VRAM used (CPU PLE): {:.2} GB", gpu_weights.vram_used_gb());
-        assert!(gpu_weights.vram_used_gb() < 6.0,
-            "VRAM with CPU PLE should be < 6 GB, got {:.2}", gpu_weights.vram_used_gb());
+        assert!(
+            gpu_weights.vram_used_gb() < 6.0,
+            "VRAM with CPU PLE should be < 6 GB, got {:.2}",
+            gpu_weights.vram_used_gb()
+        );
     }
 
     #[test]
@@ -1568,7 +1982,9 @@ mod tests {
         let mut input = Vec::with_capacity(seq * n_embd);
         let mut s = 0xbadcab1eu64;
         for _ in 0..(seq * n_embd) {
-            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            s = s
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let u = ((s >> 33) as f32) / (u32::MAX as f32) * 2.0 - 1.0;
             input.push(u * 0.1);
         }
@@ -1619,21 +2035,32 @@ mod tests {
             }
         }
         let cos_sim = (dot_cpu_gpu / (sq_cpu.sqrt() * sq_gpu.sqrt())) as f32;
-        println!("CPU vs GPU wq matmul (layer 0, seq=4, q_out_dim={})", q_out_dim);
+        println!(
+            "CPU vs GPU wq matmul (layer 0, seq=4, q_out_dim={})",
+            q_out_dim
+        );
         println!("  cosine sim:        {:.6}", cos_sim);
         println!("  max abs err:       {:.4e}", max_abs_err);
         println!("  CPU max magnitude: {:.4e}", max_mag);
-        println!("  worst rel err on entries > 1% max_mag ({} entries): {:.4e}",
-            n_above_threshold, worst_rel_err);
+        println!(
+            "  worst rel err on entries > 1% max_mag ({} entries): {:.4e}",
+            n_above_threshold, worst_rel_err
+        );
 
-        assert!(cos_sim > 0.9999,
-            "cosine similarity should be > 0.9999, got {}", cos_sim);
+        assert!(
+            cos_sim > 0.9999,
+            "cosine similarity should be > 0.9999, got {}",
+            cos_sim
+        );
         // bf16 precision: input round-trip ~3e-3 per element, accumulated over
         // k=1536 dot product → expected per-output error ~ sqrt(k)*eps ~ 12% in
         // worst case. 10% threshold catches structural bugs without flagging
         // bf16 noise.
-        assert!(worst_rel_err < 0.10,
-            "rel err on significant entries should be < 10%, got {:.4e}", worst_rel_err);
+        assert!(
+            worst_rel_err < 0.10,
+            "rel err on significant entries should be < 10%, got {:.4e}",
+            worst_rel_err
+        );
     }
 
     #[test]
@@ -1643,7 +2070,9 @@ mod tests {
         // rather than numerical noise. Loss at step 10 should be at least 10×
         // below step 1 loss on a fixed 6-token sequence with lr=3e-3.
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
-        if !std::path::Path::new(model_path).exists() { return; }
+        if !std::path::Path::new(model_path).exists() {
+            return;
+        }
         let model = GgufFile::open(model_path).expect("open");
         let cpu = CpuWeightsGemma4::load(&model).expect("load");
         let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
@@ -1658,16 +2087,32 @@ mod tests {
         for step in 1..=10 {
             let t0 = std::time::Instant::now();
             let loss = super::train_step_gemma4_gpu(
-                &cpu, &gpu, &mut lora, &tokens, answer_start, lr, step
-            ).expect("train_step_gpu");
-            println!("  [step {:2}] loss={:.4} ({:.1}s)", step, loss, t0.elapsed().as_secs_f64());
+                &cpu,
+                &gpu,
+                &mut lora,
+                &tokens,
+                answer_start,
+                lr,
+                step,
+            )
+            .expect("train_step_gpu");
+            println!(
+                "  [step {:2}] loss={:.4} ({:.1}s)",
+                step,
+                loss,
+                t0.elapsed().as_secs_f64()
+            );
             assert!(loss.is_finite(), "loss became non-finite at step {}", step);
             losses.push(loss);
         }
         println!("Loss trajectory: {:?}", losses);
         // Loss at step 10 should be at least 10× below step 1.
-        assert!(losses[9] * 10.0 < losses[0],
-            "10-step descent too weak: {} -> {}", losses[0], losses[9]);
+        assert!(
+            losses[9] * 10.0 < losses[0],
+            "10-step descent too weak: {} -> {}",
+            losses[0],
+            losses[9]
+        );
     }
 
     #[test]
@@ -1677,7 +2122,9 @@ mod tests {
         // path via train_step_gemma4_gpu on the real GGUF. Logs per-step and
         // session time for Phase 5 performance checks.
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
-        if !std::path::Path::new(model_path).exists() { return; }
+        if !std::path::Path::new(model_path).exists() {
+            return;
+        }
         let model = GgufFile::open(model_path).expect("open");
         let cpu = CpuWeightsGemma4::load(&model).expect("load");
         let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
@@ -1693,17 +2140,37 @@ mod tests {
         for step in 1..=3 {
             let t0 = std::time::Instant::now();
             let loss = super::train_step_gemma4_gpu(
-                &cpu, &gpu, &mut lora, &tokens, answer_start, lr, step
-            ).expect("train_step_gpu");
+                &cpu,
+                &gpu,
+                &mut lora,
+                &tokens,
+                answer_start,
+                lr,
+                step,
+            )
+            .expect("train_step_gpu");
             losses.push(loss);
-            println!("  [step {}] loss={:.4} ({:.1}s)", step, loss, t0.elapsed().as_secs_f64());
+            println!(
+                "  [step {}] loss={:.4} ({:.1}s)",
+                step,
+                loss,
+                t0.elapsed().as_secs_f64()
+            );
             assert!(loss.is_finite());
         }
         let total_s = session_start.elapsed().as_secs_f64();
-        println!("Total: {:.1}s for 3 steps (avg {:.2}s/step)", total_s, total_s / 3.0);
+        println!(
+            "Total: {:.1}s for 3 steps (avg {:.2}s/step)",
+            total_s,
+            total_s / 3.0
+        );
         println!("Loss trajectory: {:?}", losses);
-        assert!(losses[2] <= losses[0],
-            "loss should descend: {} -> {}", losses[0], losses[2]);
+        assert!(
+            losses[2] <= losses[0],
+            "loss should descend: {} -> {}",
+            losses[0],
+            losses[2]
+        );
     }
 
     #[test]
@@ -1713,7 +2180,9 @@ mod tests {
         // precision. Same shape pattern as wq backward in backward_gemma4:
         //   grad_normed_q = matmul_grad_x(grad_q, wq, seq, q_out_dim, n_embd)
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
-        if !std::path::Path::new(model_path).exists() { return; }
+        if !std::path::Path::new(model_path).exists() {
+            return;
+        }
         let model = GgufFile::open(model_path).expect("open");
         let cpu = CpuWeightsGemma4::load(&model).expect("load");
         let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
@@ -1728,7 +2197,9 @@ mod tests {
         let mut grad_q = Vec::with_capacity(seq * q_out_dim);
         let mut s = 0xdeadbeefu64;
         for _ in 0..(seq * q_out_dim) {
-            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            s = s
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let u = ((s >> 33) as f32) / (u32::MAX as f32) * 2.0 - 1.0;
             grad_q.push(u * 0.1);
         }
@@ -1759,13 +2230,17 @@ mod tests {
         }
         let _ = cpu_out;
 
-        let gpu_out = gpu.matmul_grad_x(&gpu.wq[il], &grad_q, seq, q_out_dim, n_embd)
+        let gpu_out = gpu
+            .matmul_grad_x(&gpu.wq[il], &grad_q, seq, q_out_dim, n_embd)
             .expect("gpu matmul_grad_x");
 
-        let mut dot = 0.0f64; let mut sq_a = 0.0f64; let mut sq_b = 0.0f64;
+        let mut dot = 0.0f64;
+        let mut sq_a = 0.0f64;
+        let mut sq_b = 0.0f64;
         let mut max_abs_err = 0.0f32;
         for i in 0..cpu_ref.len() {
-            let a = cpu_ref[i]; let b = gpu_out[i];
+            let a = cpu_ref[i];
+            let b = gpu_out[i];
             dot += a as f64 * b as f64;
             sq_a += (a as f64).powi(2);
             sq_b += (b as f64).powi(2);
@@ -1775,8 +2250,11 @@ mod tests {
         println!("matmul_grad_x CPU vs GPU:");
         println!("  cosine sim: {:.6}", cos_sim);
         println!("  max abs err: {:.4e}", max_abs_err);
-        assert!(cos_sim > 0.9999,
-            "matmul_grad_x cos sim should be >0.9999, got {}", cos_sim);
+        assert!(
+            cos_sim > 0.9999,
+            "matmul_grad_x cos sim should be >0.9999, got {}",
+            cos_sim
+        );
     }
 
     /// WAVE12 Phase 4: gpu-in/out matmul matches the round-trip version.
@@ -1786,7 +2264,9 @@ mod tests {
     #[ignore] // heavy: loads ~9 GB Gemma-4 GGUF + uploads to GPU — OOM risk on 14 GB dev box; run on east/west or via `cargo test -- --ignored`
     fn test_matmul_xwt_gpu_in_out_matches_cpu() {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
-        if !std::path::Path::new(model_path).exists() { return; }
+        if !std::path::Path::new(model_path).exists() {
+            return;
+        }
         let model = GgufFile::open(model_path).expect("open");
         let cpu = CpuWeightsGemma4::load(&model).expect("load");
         let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
@@ -1801,13 +2281,16 @@ mod tests {
         let mut input = Vec::with_capacity(seq * n_embd);
         let mut s = 0xbadcab1eu64;
         for _ in 0..(seq * n_embd) {
-            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            s = s
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let u = ((s >> 33) as f32) / (u32::MAX as f32) * 2.0 - 1.0;
             input.push(u * 0.1);
         }
 
         // Reference: existing matmul_xwt (CPU → GPU → CPU round-trip).
-        let ref_out = gpu.matmul_xwt(&gpu.wq[il], &input, seq, q_out_dim, n_embd)
+        let ref_out = gpu
+            .matmul_xwt(&gpu.wq[il], &input, seq, q_out_dim, n_embd)
             .expect("matmul_xwt ref");
 
         // Candidate: upload f32 to GPU, convert f32→bf16 on-device, run gpu-in/out.
@@ -1897,11 +2380,19 @@ mod tests {
             dot += cpu_last[i] as f64 * gpu_last[i] as f64;
             sq_cpu += (cpu_last[i] as f64).powi(2);
             sq_gpu += (gpu_last[i] as f64).powi(2);
-            if cpu_last[i] > argmax_cpu_val { argmax_cpu_val = cpu_last[i]; argmax_cpu_idx = i; }
-            if gpu_last[i] > argmax_gpu_val { argmax_gpu_val = gpu_last[i]; argmax_gpu_idx = i; }
+            if cpu_last[i] > argmax_cpu_val {
+                argmax_cpu_val = cpu_last[i];
+                argmax_cpu_idx = i;
+            }
+            if gpu_last[i] > argmax_gpu_val {
+                argmax_gpu_val = gpu_last[i];
+                argmax_gpu_idx = i;
+            }
         }
         let cos_sim = (dot / (sq_cpu.sqrt() * sq_gpu.sqrt())) as f32;
-        if argmax_cpu_idx == argmax_gpu_idx { top1_match_at = 1; }
+        if argmax_cpu_idx == argmax_gpu_idx {
+            top1_match_at = 1;
+        }
 
         // Top-5 overlap
         let mut cpu_top: Vec<(usize, f32)> = cpu_last.iter().copied().enumerate().collect();
@@ -1914,19 +2405,31 @@ mod tests {
 
         println!("Logits comparison @ last position (vocab={}):", vocab);
         println!("  cosine sim:        {:.6}", cos_sim);
-        println!("  argmax CPU:        token {} (logit {:.3})", argmax_cpu_idx, argmax_cpu_val);
-        println!("  argmax GPU:        token {} (logit {:.3})", argmax_gpu_idx, argmax_gpu_val);
+        println!(
+            "  argmax CPU:        token {} (logit {:.3})",
+            argmax_cpu_idx, argmax_cpu_val
+        );
+        println!(
+            "  argmax GPU:        token {} (logit {:.3})",
+            argmax_gpu_idx, argmax_gpu_val
+        );
         println!("  top-1 match:       {}", top1_match_at == 1);
         println!("  top-5 overlap:     {}/5", top5_overlap);
         println!("  CPU top-5: {:?}", &cpu_top[..5]);
         println!("  GPU top-5: {:?}", &gpu_top[..5]);
 
-        assert!(cos_sim > 0.99,
-            "logits cosine similarity should be > 0.99, got {}", cos_sim);
+        assert!(
+            cos_sim > 0.99,
+            "logits cosine similarity should be > 0.99, got {}",
+            cos_sim
+        );
         // Top-1 may differ if logits are very close — top-3 overlap is the
         // robust check.
-        assert!(top5_overlap >= 3,
-            "top-5 should overlap by ≥3, got {} (CPU vs GPU divergent)", top5_overlap);
+        assert!(
+            top5_overlap >= 3,
+            "top-5 should overlap by ≥3, got {} (CPU vs GPU divergent)",
+            top5_overlap
+        );
     }
 
     #[test]
@@ -1947,6 +2450,7 @@ mod tests {
         let q_out_dim = h.n_head * h.head_dim(il);
 
         let mut input = vec![0.0f32; seq * n_embd];
+        #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
         for i in 0..input.len() {
             input[i] = ((i * 7 + 3) as f32 * 0.001).sin() * 0.1;
         }
@@ -1954,7 +2458,9 @@ mod tests {
         let n_iter = 10;
 
         // Warm up + time GPU
-        for _ in 0..3 { let _ = gpu.wq_matmul(&input, seq, il).unwrap(); }
+        for _ in 0..3 {
+            let _ = gpu.wq_matmul(&input, seq, il).unwrap();
+        }
         let t0 = std::time::Instant::now();
         for _ in 0..n_iter {
             let _ = gpu.wq_matmul(&input, seq, il).unwrap();
@@ -1976,21 +2482,26 @@ mod tests {
             }
             out
         };
-        for _ in 0..1 { let _ = cpu_matmul(&input); }
+        for _ in 0..1 {
+            let _ = cpu_matmul(&input);
+        }
         let t0 = std::time::Instant::now();
         for _ in 0..n_iter {
             let _ = cpu_matmul(&input);
         }
         let cpu_secs = t0.elapsed().as_secs_f64() / n_iter as f64;
 
-        println!("wq matmul timing (4×1536 → 4×{}, n={} iterations):", q_out_dim, n_iter);
+        println!(
+            "wq matmul timing (4×1536 → 4×{}, n={} iterations):",
+            q_out_dim, n_iter
+        );
         println!("  CPU (incl bf16→f32 conversion): {:.4}s", cpu_secs);
         println!("  GPU (incl input upload + sync): {:.4}s", gpu_secs);
-        println!("  Speedup:                         {:.1}x", cpu_secs / gpu_secs);
+        println!(
+            "  Speedup:                         {:.1}x",
+            cpu_secs / gpu_secs
+        );
     }
-
-    #[allow(dead_code)]
-    fn _suppress(_: HipError) {}
 
     // ---------- Step C verification harness (Phase 1) ----------
 
@@ -1998,7 +2509,9 @@ mod tests {
         let mut s = seed;
         let mut out = Vec::with_capacity(n);
         for _ in 0..n {
-            s = s.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            s = s
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             let u = ((s >> 33) as f32) / (u32::MAX as f32) * 2.0 - 1.0;
             out.push(u * 0.1);
         }
@@ -2006,8 +2519,14 @@ mod tests {
     }
 
     fn check_gpu_matmul(name: &str, cpu_out: &[f32], gpu_out: &[f32], min_cosine: f32) {
-        assert_eq!(cpu_out.len(), gpu_out.len(),
-            "{} length mismatch: cpu={} gpu={}", name, cpu_out.len(), gpu_out.len());
+        assert_eq!(
+            cpu_out.len(),
+            gpu_out.len(),
+            "{} length mismatch: cpu={} gpu={}",
+            name,
+            cpu_out.len(),
+            gpu_out.len()
+        );
         let mut dot = 0.0f64;
         let mut sq_a = 0.0f64;
         let mut sq_b = 0.0f64;
@@ -2015,24 +2534,44 @@ mod tests {
         for i in 0..cpu_out.len() {
             let a = cpu_out[i];
             let b = gpu_out[i];
-            assert!(a.is_finite() && b.is_finite(),
-                "{} non-finite at {}: cpu={} gpu={}", name, i, a, b);
+            assert!(
+                a.is_finite() && b.is_finite(),
+                "{} non-finite at {}: cpu={} gpu={}",
+                name,
+                i,
+                a,
+                b
+            );
             dot += a as f64 * b as f64;
             sq_a += (a as f64).powi(2);
             sq_b += (b as f64).powi(2);
             max_abs_err = max_abs_err.max((a - b).abs());
         }
         let cos_sim = (dot / (sq_a.sqrt() * sq_b.sqrt())) as f32;
-        println!("[{}] cos={:.6} max_abs_err={:.4e} len={}",
-            name, cos_sim, max_abs_err, cpu_out.len());
-        assert!(cos_sim >= min_cosine,
-            "{} cosine {:.6} below minimum {}", name, cos_sim, min_cosine);
+        println!(
+            "[{}] cos={:.6} max_abs_err={:.4e} len={}",
+            name,
+            cos_sim,
+            max_abs_err,
+            cpu_out.len()
+        );
+        assert!(
+            cos_sim >= min_cosine,
+            "{} cosine {:.6} below minimum {}",
+            name,
+            cos_sim,
+            min_cosine
+        );
     }
 
     // Shared CPU reference helpers (match gemma4_gpu dispatch conventions).
-    fn cpu_ref_matmul_grad_x(grad_out: &[f32], w_bf16: &[bf16], m: usize, n: usize, k: usize)
-        -> Vec<f32>
-    {
+    fn cpu_ref_matmul_grad_x(
+        grad_out: &[f32],
+        w_bf16: &[bf16],
+        m: usize,
+        n: usize,
+        k: usize,
+    ) -> Vec<f32> {
         // out[m,k] = grad_out[m,n] @ w[n,k] (no transpose)
         let mut out = vec![0.0f32; m * k];
         for i in 0..m {
@@ -2046,9 +2585,13 @@ mod tests {
         }
         out
     }
-    fn cpu_ref_matmul_xwt(input: &[f32], w_bf16: &[bf16], m: usize, n: usize, k: usize)
-        -> Vec<f32>
-    {
+    fn cpu_ref_matmul_xwt(
+        input: &[f32],
+        w_bf16: &[bf16],
+        m: usize,
+        n: usize,
+        k: usize,
+    ) -> Vec<f32> {
         // out[m,n] = input[m,k] @ w[n,k]^T
         let mut out = vec![0.0f32; m * n];
         for i in 0..m {
@@ -2065,7 +2608,9 @@ mod tests {
 
     fn load_cpu_gpu_for_harness() -> Option<(CpuWeightsGemma4, Gemma4GpuWeights)> {
         let model_path = "/var/zhen/models/gemma-4-E2B-it.gguf";
-        if !std::path::Path::new(model_path).exists() { return None; }
+        if !std::path::Path::new(model_path).exists() {
+            return None;
+        }
         let model = GgufFile::open(model_path).expect("open gguf");
         let cpu = CpuWeightsGemma4::load(&model).expect("load cpu");
         let gpu = Gemma4GpuWeights::upload(&cpu, PleMode::Cpu).expect("upload");
@@ -2075,14 +2620,18 @@ mod tests {
     #[test]
     fn test_gpu_site_1_lm_head() {
         // grad_final_hidden[seq, n_embd] = grad_logits[seq, vocab] @ token_embd[vocab, n_embd]
-        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() {
+            Some(x) => x,
+            None => return,
+        };
         let h = &cpu.hparams;
-        let seq = 2;                 // vocab=262144 → keep seq small for CPU ref time
+        let seq = 2; // vocab=262144 → keep seq small for CPU ref time
         let vocab = h.vocab_size;
         let n_embd = h.n_embd;
         let grad_logits = rand_f32(seq * vocab, 0xA1);
         let cpu_out = cpu_ref_matmul_grad_x(&grad_logits, &cpu.token_embd, seq, vocab, n_embd);
-        let gpu_out = gpu.matmul_grad_x(&gpu.token_embd, &grad_logits, seq, vocab, n_embd)
+        let gpu_out = gpu
+            .matmul_grad_x(&gpu.token_embd, &grad_logits, seq, vocab, n_embd)
             .expect("gpu site 1");
         check_gpu_matmul("site1_lm_head_grad", &cpu_out, &gpu_out, 0.9999);
     }
@@ -2090,7 +2639,10 @@ mod tests {
     #[test]
     fn test_gpu_site_3_ffn_down_grad() {
         // grad_ffn_hidden[seq, n_ff] = grad_ffn_out[seq, n_embd] @ ffn_down[n_embd, n_ff]
-        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() {
+            Some(x) => x,
+            None => return,
+        };
         let h = &cpu.hparams;
         let il = 0;
         let seq = 4;
@@ -2098,7 +2650,8 @@ mod tests {
         let n_ff = h.n_ff;
         let grad_ffn_out = rand_f32(seq * n_embd, 0xA3);
         let cpu_out = cpu_ref_matmul_grad_x(&grad_ffn_out, &cpu.ffn_down[il], seq, n_embd, n_ff);
-        let gpu_out = gpu.matmul_grad_x(&gpu.ffn_down[il], &grad_ffn_out, seq, n_embd, n_ff)
+        let gpu_out = gpu
+            .matmul_grad_x(&gpu.ffn_down[il], &grad_ffn_out, seq, n_embd, n_ff)
             .expect("gpu site 3");
         check_gpu_matmul("site3_ffn_down_grad", &cpu_out, &gpu_out, 0.9999);
     }
@@ -2106,7 +2659,10 @@ mod tests {
     #[test]
     fn test_gpu_site_4_5_ffn_gate_up_grad() {
         // Both shapes identical: grad[seq, n_embd] = grad_pre[seq, n_ff] @ w[n_ff, n_embd]
-        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() {
+            Some(x) => x,
+            None => return,
+        };
         let h = &cpu.hparams;
         let il = 0;
         let seq = 4;
@@ -2115,12 +2671,14 @@ mod tests {
         let grad_pre = rand_f32(seq * n_ff, 0xA4);
         // Site 4 (ffn_gate)
         let cpu_gate = cpu_ref_matmul_grad_x(&grad_pre, &cpu.ffn_gate[il], seq, n_ff, n_embd);
-        let gpu_gate = gpu.matmul_grad_x(&gpu.ffn_gate[il], &grad_pre, seq, n_ff, n_embd)
+        let gpu_gate = gpu
+            .matmul_grad_x(&gpu.ffn_gate[il], &grad_pre, seq, n_ff, n_embd)
             .expect("gpu site 4");
         check_gpu_matmul("site4_ffn_gate_grad", &cpu_gate, &gpu_gate, 0.9999);
         // Site 5 (ffn_up)
         let cpu_up = cpu_ref_matmul_grad_x(&grad_pre, &cpu.ffn_up[il], seq, n_ff, n_embd);
-        let gpu_up = gpu.matmul_grad_x(&gpu.ffn_up[il], &grad_pre, seq, n_ff, n_embd)
+        let gpu_up = gpu
+            .matmul_grad_x(&gpu.ffn_up[il], &grad_pre, seq, n_ff, n_embd)
             .expect("gpu site 5");
         check_gpu_matmul("site5_ffn_up_grad", &cpu_up, &gpu_up, 0.9999);
     }
@@ -2128,7 +2686,10 @@ mod tests {
     #[test]
     fn test_gpu_site_7_wo_grad() {
         // grad_attn_out[seq, q_out_dim] = grad_o_out[seq, n_embd] @ wo[n_embd, q_out_dim]
-        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() {
+            Some(x) => x,
+            None => return,
+        };
         let h = &cpu.hparams;
         let il = 0;
         let seq = 4;
@@ -2136,7 +2697,8 @@ mod tests {
         let q_out_dim = h.n_head * h.head_dim(il);
         let grad_o_out = rand_f32(seq * n_embd, 0xA7);
         let cpu_out = cpu_ref_matmul_grad_x(&grad_o_out, &cpu.wo[il], seq, n_embd, q_out_dim);
-        let gpu_out = gpu.matmul_grad_x(&gpu.wo[il], &grad_o_out, seq, n_embd, q_out_dim)
+        let gpu_out = gpu
+            .matmul_grad_x(&gpu.wo[il], &grad_o_out, seq, n_embd, q_out_dim)
             .expect("gpu site 7");
         check_gpu_matmul("site7_wo_grad", &cpu_out, &gpu_out, 0.9999);
     }
@@ -2144,7 +2706,10 @@ mod tests {
     #[test]
     fn test_gpu_site_9_10_wk_wv_grad() {
         // grad[seq, n_embd] = grad_kv[seq, kv_out] @ w[kv_out, n_embd]
-        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() {
+            Some(x) => x,
+            None => return,
+        };
         let h = &cpu.hparams;
         let il = 0; // layer 0 has its own wk/wv
         assert!(cpu.wk[il].is_some(), "layer 0 must have wk for this test");
@@ -2156,25 +2721,38 @@ mod tests {
         // Site 9 — wk backward
         let wk_bf16 = cpu.wk[il].as_ref().unwrap();
         let cpu_wk = cpu_ref_matmul_grad_x(&grad_kv, wk_bf16, seq, kv_out_dim, n_embd);
-        let gpu_wk = gpu.matmul_grad_x(
-            gpu.wk[il].as_ref().expect("gpu wk"),
-            &grad_kv, seq, kv_out_dim, n_embd,
-        ).expect("gpu site 9");
+        let gpu_wk = gpu
+            .matmul_grad_x(
+                gpu.wk[il].as_ref().expect("gpu wk"),
+                &grad_kv,
+                seq,
+                kv_out_dim,
+                n_embd,
+            )
+            .expect("gpu site 9");
         check_gpu_matmul("site9_wk_grad", &cpu_wk, &gpu_wk, 0.9999);
         // Site 10 — wv backward
         let wv_bf16 = cpu.wv[il].as_ref().unwrap();
         let cpu_wv = cpu_ref_matmul_grad_x(&grad_kv, wv_bf16, seq, kv_out_dim, n_embd);
-        let gpu_wv = gpu.matmul_grad_x(
-            gpu.wv[il].as_ref().expect("gpu wv"),
-            &grad_kv, seq, kv_out_dim, n_embd,
-        ).expect("gpu site 10");
+        let gpu_wv = gpu
+            .matmul_grad_x(
+                gpu.wv[il].as_ref().expect("gpu wv"),
+                &grad_kv,
+                seq,
+                kv_out_dim,
+                n_embd,
+            )
+            .expect("gpu site 10");
         check_gpu_matmul("site10_wv_grad", &cpu_wv, &gpu_wv, 0.9999);
     }
 
     #[test]
     fn test_gpu_site_12_kv_reconstruct() {
         // Spot-check reconstruct_kv_pre_norm shape: out[seq, kv_out] = normed[seq, n_embd] @ wk^T
-        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() {
+            Some(x) => x,
+            None => return,
+        };
         let h = &cpu.hparams;
         let il = 0;
         assert!(cpu.wk[il].is_some());
@@ -2184,17 +2762,25 @@ mod tests {
         let normed = rand_f32(seq * n_embd, 0xAC);
         let wk_bf16 = cpu.wk[il].as_ref().unwrap();
         let cpu_out = cpu_ref_matmul_xwt(&normed, wk_bf16, seq, kv_out_dim, n_embd);
-        let gpu_out = gpu.matmul_xwt(
-            gpu.wk[il].as_ref().expect("gpu wk"),
-            &normed, seq, kv_out_dim, n_embd,
-        ).expect("gpu site 12");
+        let gpu_out = gpu
+            .matmul_xwt(
+                gpu.wk[il].as_ref().expect("gpu wk"),
+                &normed,
+                seq,
+                kv_out_dim,
+                n_embd,
+            )
+            .expect("gpu site 12");
         check_gpu_matmul("site12_kv_recon", &cpu_out, &gpu_out, 0.9999);
     }
 
     #[test]
     fn test_gpu_site_13_ple_proj_grad() {
         // grad_gated[seq, n_epl] = grad_proj_out_pre_norm[seq, n_embd] @ proj[n_embd, n_epl]
-        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() {
+            Some(x) => x,
+            None => return,
+        };
         let h = &cpu.hparams;
         let il = 0;
         let seq = 4;
@@ -2202,7 +2788,8 @@ mod tests {
         let n_epl = h.n_embd_per_layer;
         let grad_proj_out = rand_f32(seq * n_embd, 0xAD);
         let cpu_out = cpu_ref_matmul_grad_x(&grad_proj_out, &cpu.proj[il], seq, n_embd, n_epl);
-        let gpu_out = gpu.matmul_grad_x(&gpu.proj[il], &grad_proj_out, seq, n_embd, n_epl)
+        let gpu_out = gpu
+            .matmul_grad_x(&gpu.proj[il], &grad_proj_out, seq, n_embd, n_epl)
             .expect("gpu site 13");
         check_gpu_matmul("site13_ple_proj_grad", &cpu_out, &gpu_out, 0.9999);
     }
@@ -2210,7 +2797,10 @@ mod tests {
     #[test]
     fn test_gpu_site_14_ple_inp_gate_grad() {
         // grad_pe_in[seq, n_embd] = grad_gate_pre_ple[seq, n_epl] @ inp_gate[n_epl, n_embd]
-        let (cpu, gpu) = match load_cpu_gpu_for_harness() { Some(x) => x, None => return };
+        let (cpu, gpu) = match load_cpu_gpu_for_harness() {
+            Some(x) => x,
+            None => return,
+        };
         let h = &cpu.hparams;
         let il = 0;
         let seq = 4;
@@ -2218,7 +2808,8 @@ mod tests {
         let n_epl = h.n_embd_per_layer;
         let grad_gate = rand_f32(seq * n_epl, 0xAE);
         let cpu_out = cpu_ref_matmul_grad_x(&grad_gate, &cpu.inp_gate[il], seq, n_epl, n_embd);
-        let gpu_out = gpu.matmul_grad_x(&gpu.inp_gate[il], &grad_gate, seq, n_epl, n_embd)
+        let gpu_out = gpu
+            .matmul_grad_x(&gpu.inp_gate[il], &grad_gate, seq, n_epl, n_embd)
             .expect("gpu site 14");
         check_gpu_matmul("site14_ple_inp_gate_grad", &cpu_out, &gpu_out, 0.9999);
     }

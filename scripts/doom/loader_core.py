@@ -12,13 +12,12 @@ Usage:
   python3 doom-loader-core.py cpu <cpu_pin_path> [instance_id_hex]
 """
 
-import sys
-import os
-import struct
 import ctypes
 import ctypes.util
+import os
+import struct
+import sys
 import time
-import mmap as mmap_mod
 
 # BPF syscall constants
 BPF_MAP_UPDATE_ELEM = 2
@@ -28,6 +27,7 @@ BPF_ANY = 0
 
 # Syscall number for bpf() varies by architecture
 import platform
+
 _arch = platform.machine()
 if _arch == 'aarch64':
     SYS_BPF = 280

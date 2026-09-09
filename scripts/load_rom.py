@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Load an MBC binary into the BPF ROM_MAP via bpftool."""
-import struct, subprocess, sys
+import struct
+import subprocess
+import sys
+
 
 def load_rom(path):
     with open(path, 'rb') as f:

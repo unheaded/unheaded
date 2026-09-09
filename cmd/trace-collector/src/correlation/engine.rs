@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+
 //! Trace Correlation Engine
 //!
 //! Correlates events from multiple eBPF sources into coherent distributed traces.
@@ -766,8 +769,11 @@ mod tests {
 
     #[test]
     fn test_sampling() {
-        let mut config = CorrelationConfig::default();
-        config.sample_rate = 0.0; // Sample nothing
+        // Sample nothing.
+        let config = CorrelationConfig {
+            sample_rate: 0.0,
+            ..Default::default()
+        };
 
         let engine = CorrelationEngine::new(config);
         let event = create_test_packet_event();

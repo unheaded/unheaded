@@ -21,13 +21,12 @@ import re
 import struct
 import sys
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
 
 # ---------------------------------------------------------------------------
 # Opcode table -- values from ebpf/monad-common/src/lib.rs  mbc_opcodes
 # ---------------------------------------------------------------------------
 
-OPCODES: Dict[str, int] = {
+OPCODES: dict[str, int] = {
     # No-op
     "NOP":      0x00,
     # Arithmetic
@@ -116,7 +115,7 @@ MEM_STORE_OPS = {"ST", "STB", "STH"}
 # Register parsing
 # ---------------------------------------------------------------------------
 
-REGISTER_ALIASES: Dict[str, int] = {
+REGISTER_ALIASES: dict[str, int] = {
     "SP": 15, "sp": 15,
     "FP": 14, "fp": 14,
     "LR": 13, "lr": 13,
@@ -156,10 +155,10 @@ def encode_insn(opcode: int, dst: int = 0, src: int = 0, imm16: int = 0) -> int:
 class AsmLine:
     """One parsed line of assembly."""
     lineno: int
-    label: Optional[str] = None
-    mnemonic: Optional[str] = None
-    operands: List[str] = field(default_factory=list)
-    directive: Optional[str] = None
+    label: str | None = None
+    mnemonic: str | None = None
+    operands: list[str] = field(default_factory=list)
+    directive: str | None = None
     dir_args: str = ""
     raw: str = ""
 
@@ -176,14 +175,14 @@ class AsmError(Exception):
 
 class MbcAssembler:
     def __init__(self):
-        self.symbols: Dict[str, int] = {}   # label -> word address
-        self.equ_defs: Dict[str, int] = {}  # .equ constants
-        self.text_words: List[int] = []      # assembled words (.text)
+        self.symbols: dict[str, int] = {}   # label -> word address
+        self.equ_defs: dict[str, int] = {}  # .equ constants
+        self.text_words: list[int] = []      # assembled words (.text)
         self.data_bytes: bytearray = bytearray()  # raw bytes (.data)
-        self.lines: List[AsmLine] = []
+        self.lines: list[AsmLine] = []
         self.origin: int = 0                 # .org base (word address)
         self.section: str = ".text"
-        self.listing: List[Tuple[int, int, str]] = []  # (addr, word, source)
+        self.listing: list[tuple[int, int, str]] = []  # (addr, word, source)
         # Track data start address (word-aligned offset after .text)
         self._data_start: int = 0
 
@@ -220,7 +219,7 @@ class MbcAssembler:
         return line
 
     @staticmethod
-    def _split_operands(s: str) -> List[str]:
+    def _split_operands(s: str) -> list[str]:
         """Split operand string by commas, respecting brackets."""
         result = []
         depth = 0
@@ -261,7 +260,7 @@ class MbcAssembler:
             return self.symbols[tok]
         raise AsmError(lineno, f"undefined symbol: {tok!r}")
 
-    def _parse_mem_operand(self, tok: str, lineno: int) -> Tuple[int, int]:
+    def _parse_mem_operand(self, tok: str, lineno: int) -> tuple[int, int]:
         """Parse [rN+offset] or [rN] -> (reg, offset)."""
         tok = tok.strip()
         m = re.match(r"^\[(\w+)\s*\+\s*(.+)\]$", tok)

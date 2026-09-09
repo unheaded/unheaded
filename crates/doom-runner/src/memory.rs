@@ -245,6 +245,9 @@ mod tests {
         assert_eq!(WAD_MAX_SIZE, 16 * 1024 * 1024); // 16MB for retail DOOM.WAD
     }
 
+    // Constant-vs-constant by design — see the note in loader.rs's
+    // iwad_name_region_does_not_collide. This guards a layout invariant.
+    #[allow(clippy::assertions_on_constants)]
     #[test]
     fn ram_map_covers_full_address_space() {
         // RAM_MAP must cover every word address up to STACK_TOP

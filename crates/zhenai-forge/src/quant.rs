@@ -73,12 +73,12 @@ pub fn dequantize_q5_k_block(block: &[u8], output: &mut [f32]) {
             let idx = j * 32 + l;
             // Low 4 bits from qs
             let ql = if l < 16 {
-                (qs[j * 16 + l] & 0x0F) as u8
+                qs[j * 16 + l] & 0x0F
             } else {
-                (qs[j * 16 + l - 16] >> 4) as u8
+                qs[j * 16 + l - 16] >> 4
             };
             // High bit from qh
-            let qh_bit = ((qh[l] >> j) & 1) as u8;
+            let qh_bit = (qh[l] >> j) & 1;
             // 5-bit value
             let q = ql | (qh_bit << 4);
             output[idx] = d_sc * q as f32 - d_m;
@@ -125,8 +125,8 @@ pub fn dequantize_q6_k_block(block: &[u8], output: &mut [f32]) {
     assert!(block.len() >= Q6_K_BYTES_PER_BLOCK);
     assert!(output.len() >= Q6_K_BLOCK_SIZE);
 
-    let ql = &block[0..128];    // low 4 bits
-    let qh = &block[128..192];  // high 2 bits
+    let ql = &block[0..128]; // low 4 bits
+    let qh = &block[128..192]; // high 2 bits
     let scales = &block[192..208]; // int8 scales
     let d = f16_to_f32(u16::from_le_bytes([block[208], block[209]]));
 
@@ -276,7 +276,11 @@ mod tests {
         dequantize_q5_k_block(&block, &mut output);
 
         // First element: d * scale * q - dmin * min = 1.0 * 1 * 5 - 0 = 5.0
-        assert!((output[0] - 5.0).abs() < 0.01, "Expected ~5.0, got {}", output[0]);
+        assert!(
+            (output[0] - 5.0).abs() < 0.01,
+            "Expected ~5.0, got {}",
+            output[0]
+        );
     }
 
     #[test]

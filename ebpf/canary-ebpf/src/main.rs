@@ -37,8 +37,11 @@ use monad_common::{
 
 // ── Canary state machine values ─────────────────────────────────────────────
 
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const CANARY_PROBING: u8 = 0x01;
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const CANARY_RAMP: u8 = 0x02;
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const CANARY_STABLE: u8 = 0x03;
 const CANARY_ROLLBACK: u8 = 0x04;
 

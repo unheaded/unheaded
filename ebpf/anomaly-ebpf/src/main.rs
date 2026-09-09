@@ -116,6 +116,7 @@ const STAT_PACKETS_TOTAL: u32 = 0;
 const STAT_ANOMALIES_DETECTED: u32 = 1;
 const STAT_SCORES_ABOVE_THRESHOLD: u32 = 2;
 const STAT_MODEL_EVALUATIONS: u32 = 3;
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const STAT_THRESHOLD_UPDATES: u32 = 4;
 const STAT_EVENTS_SENT: u32 = 5;
 const STAT_EVENTS_DROPPED: u32 = 6;
@@ -123,6 +124,7 @@ const STAT_FLOWS_TRACKED: u32 = 7;
 const STAT_FLOWS_NEW: u32 = 8;
 
 // ── Config keys ───────────────────────────────────────────────────────────────
+#[allow(dead_code)] // wire-protocol enum value — defines the ABI, not all variants are emitted yet
 const CFG_NODE_ID: u32 = 0;
 const CFG_DEFAULT_THRESHOLD: u32 = 1;
 const CFG_SAMPLE_RATE: u32 = 2;
@@ -375,8 +377,16 @@ fn extract_entropy_feature(_data: usize, data_end: usize, payload_start: usize) 
             core::ptr::read_volatile(core::hint::black_box((payload_start + i) as *const u8))
         };
 
-        // Check if we have seen this value before (bounded scan)
+        // Check if we have seen this value before (bounded scan).
+        //
+        // `clippy::needless_range_loop` wants `seen.iter().take(unique_count)`
+        // here. It is semantically identical and measurably worse: 2026-08-03
+        // that rewrite grew this program from 150,792 to 156,592 bytes (+3.8%),
+        // because the `take` bound is a runtime value and LLVM stops unrolling
+        // against the constant 16. This is a verifier-budgeted XDP program, so
+        // the explicit bound stays.
         let mut found = false;
+        #[allow(clippy::needless_range_loop)] // measured +5,800 bytes — see above
         for j in 0..16usize {
             if j >= unique_count as usize {
                 break;
@@ -490,13 +500,7 @@ fn run_decision_tree(features: &[i16; NUM_FEATURES]) -> i16 {
         let is_leaf = (node_flags & 0x01) != 0;
         if is_leaf {
             // Clamp score to 0-100
-            return if leaf_score < 0 {
-                0
-            } else if leaf_score > 100 {
-                100
-            } else {
-                leaf_score
-            };
+            return leaf_score.clamp(0, 100);
         }
 
         // Get the feature value for comparison
