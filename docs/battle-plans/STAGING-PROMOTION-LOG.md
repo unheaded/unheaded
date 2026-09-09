@@ -679,6 +679,111 @@ duplicate `/health` registration. Fix is rung #110 in B8. With container
 restart policies now `no` (2026-09-08), it reports `absent` rather than
 `restarting`; same root cause, same score.
 
+### `/code-review high` over B5 — 5 findings, 4 fixed, 1 deliberately not
+
+The sweep was lint hygiene, so most findings are about the sweep's own comments
+and suppressions rather than the code it touched. One was not.
+
+#### #1 MEDIUM — `bpf-verifier-check.sh` passed on a broken build
+
+`BUILD_EXIT` and `ERRORS` were computed and never read. Only `LINK_ERRORS` fed
+`FAILURES`, so a BPF program failing with an ordinary `error[E0433]` left it
+printing **`GATE: PASSED`**.
+
+A `GAP (found 2026-08-03, not fixed here)` comment documented this and left it
+open because "wiring it in can turn CI red on the spot". Checked before
+touching it: **the tree builds clean and the gate already exits 0**, so nothing
+went red. The reason for deferring had expired.
+
+It matters more than a lint nit because **two real consumers trust the verdict
+and neither is GitHub Actions**:
+
+- `scripts/ascend-linux-smoke.sh` greps for `GATE: PASSED`
+- `runbooks/infra/kernel-upgrade.yaml` runs it as post-upgrade verification
+
+So a broken BPF build passed the ASCEND-LINUX smoke test, and passed the check
+you run *precisely when you need to know BPF still compiles*.
+
+Also fixed an unguarded `cd "$BPF_DIR"`, same class: a bad path left cargo
+building whatever was in the current directory and the gate passing on the
+wrong tree. Verified red-first.
+
+#### THE META-GATE HAD THE SAME BLIND SPOT
+
+This is the part worth remembering. `check-gates-can-fail.sh` discovered gates
+by globbing `scripts/check-*.sh` — so `bpf-verifier-check.sh` was **invisible
+to it**. A gate that could not fail, sitting just outside the tool built to
+find gates that cannot fail, because it was named differently.
+
+Naming is a convention. What CI and the runbooks actually invoke is the fact.
+
+Discovery is now the union of every `scripts/*.sh` referenced by a workflow,
+Jenkinsfile, runbook or smoke script, plus `check-*.sh` by convention — **22
+candidates instead of 7**. Each must land in exactly one of:
+
+| list | meaning |
+|---|---|
+| `REGISTRY` | a provocation proving it bites |
+| `NOT_A_GATE` | why it has no pass/fail contract (artifact or action) |
+| `NEEDS_HARDWARE` | what a sandbox lacks (sudo, live XDP, real hardware) |
+
+Anything unclassified fails the run. `NEEDS_HARDWARE` entries are **printed on
+every run**, never silently skipped — a coverage gap you cannot see is
+indistinguishable from one that does not exist.
+
+**8 gates now proven to bite**, up from 6.
+
+#### A restore bug I introduced, and what it cost
+
+The new `verify-gpl-boundary` provocation did `mkdir -p vendor/meta-gate-probe`.
+Restore deleted the file and **left the directories** — and an empty `vendor/`
+at the module root puts Go into vendoring mode, so `go build ./...` failed with
+`inconsistent vendoring` against all 41 dependencies.
+
+Git does not track empty directories, so the tree read as clean and the
+clean-tree guard saw nothing. Found by running the full sweep afterwards, **not
+by the meta-gate** — the one failure mode this tool cannot self-detect.
+
+Fixed twice over, because either alone leaves the trap armed: directories are
+now registered and removed deepest-first with `rmdir` (never `rm -rf`), and the
+probe moved off `vendor/` to `third_party/`. **A provocation must not be able
+to change build mode.**
+
+#### #2–#4 — fixed
+
+- `doom-test.sh` (and its `doom/test.sh` twin): the sweep's NOTE claimed
+  `${pixel_8000}` "is never assigned"; it is assigned six lines below. The dead
+  variable was `pixel_32000`, which the same sweep correctly deleted. The note
+  would have sent the next reader to add a redundant `bpftool` read or file a
+  non-existent bug. The real artifact it obscured — `pixel_8000` assigned
+  without `local` — is now declared with its siblings.
+- `pre-flight-check.sh`: the SC2034 fix deleted `STRICT_MODE=true` from the
+  `--strict` case, leaving the comment above asserting that the case sets it.
+  `--strict` was accepted, exited 0, and could never become true even after
+  someone implemented strict mode. Restored with a local suppression, matching
+  the sibling decision in `tomb/provision.sh`.
+- `check-python-syntax.sh`: the new notebook gate compiled cells verbatim, so
+  `%matplotlib inline` or `!pip install foo` would fail a GATING check on a
+  runnable notebook. Latent, not absent — no tracked notebook uses magics, so
+  the first person to add one turns CI red on working code. Magic lines are now
+  blanked (not deleted, keeping line numbers aligned). Verified both ways.
+
+#### #5 LOW — NOT fixed, deliberately
+
+`scripts/three-crowns/lib.sh` carries a **file-scope** `# shellcheck disable=SC2034`,
+so the next genuinely dead constant there will never be flagged — and the
+comment's own promise that "anything genuinely dead gets deleted rather than
+covered by this" has no mechanism behind it.
+
+Both available fixes are worse than the finding right now. Per-line directives
+mean ~40 of them on a sourced constants library, which is churn. The better fix
+— a check that every `lib.sh` constant has a consumer among the eight
+`phase*.sh` scripts — is a **ninth gate**, which under the rule above needs its
+own provocation and review. That is scope creep mid-batch.
+
+**Recorded as follow-up rather than taken.** The finding is real; the timing is
+wrong.
+
 ## The meta-gate — breaking the four-batch cycle (2026-09-09)
 
 Four consecutive batches shipped a gate that was green because it could not
