@@ -310,11 +310,20 @@ impl FillRing {
     /// Get number of free slots in the ring.
     ///
     /// Uses wrapping arithmetic for the same reason as [`FillRing::produce`].
+    ///
+    /// The delta is clamped to `size` before subtracting, matching
+    /// [`CompletionRing::consume`]. Without it a desynchronized pair where
+    /// `producer - consumer > size` made `size.wrapping_sub(delta)` underflow
+    /// to ~4.29e9, and `produce` would then write the caller's entire batch
+    /// over slots the kernel has not consumed — precisely the outcome the doc
+    /// comment above claims this function prevents. `saturating_sub` keeps the
+    /// floor at 0 rather than wrapping a second time.
     pub fn free_slots(&self) -> u32 {
         unsafe {
             let producer = *self.producer;
             let consumer = *self.consumer;
-            self.size.wrapping_sub(producer.wrapping_sub(consumer))
+            let in_flight = producer.wrapping_sub(consumer).min(self.size);
+            self.size.saturating_sub(in_flight)
         }
     }
 }
@@ -579,6 +588,13 @@ mod tests {
             (RING_SIZE, 0),
             (u32::MAX, u32::MAX),
             (0, u32::MAX),
+            // The over-delta cases. Until 2026-09-09 every pair above had
+            // delta <= size, so this test asserted an invariant it could not
+            // violate — it passed while free_slots() returned 4294967295 for
+            // producer=9, consumer=0 on an 8-slot ring.
+            (RING_SIZE + 1, 0),
+            (RING_SIZE * 2, 0),
+            (0, 1),
         ] {
             let mut producer = p;
             let consumer = c;
