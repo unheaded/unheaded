@@ -626,6 +626,59 @@ those two to `go test -fuzz` is the real follow-up.
   from the index that no longer exist on disk and fails transiently. Harmless,
   but do not chase it: re-stage and re-run.
 
+## B5 — rungs 48–69, head `75cfe1d8` — IN STAGING (2026-09-09)
+
+Merged as **`592aad48`**, signed, zero conflicts. 106 files, +2115/−318.
+
+**THE BASELINE IS CLOSED.** `go test ./...` is green for the first time since
+`main`.
+
+| | `go vet` | `go test` |
+|---|---|---|
+| `main` (`0f443ded`) | **exit 1** — aborts on `cmd/wotan-ctl/doom.go:12` | **7 failures** |
+| staging after B1–B4 | clean | 6 failures (the pre-existing set) |
+| **staging after B5** | clean | **0 failures** |
+
+The two rungs that did it, exactly as the ladder predicted three batches ago:
+
+- `2cc3bd8c` `test(wiki-server): update stale assertions to the behaviour 879c91cf shipped`
+- `9fb5166f` `test(dashboard-backend): send the Origin header the upgrade guard requires`
+
+Neither was a product bug. Both were tests asserting behaviour the code had
+deliberately moved past — a stale assertion and a missing `Origin` header on a
+WebSocket upgrade. Worth noting because for four batches those six failures
+were carried as "pre-existing, do not attribute", and it would have been easy
+to start treating them as permanent scenery.
+
+| gate | result |
+|---|---|
+| `go build` / `go vet` | clean |
+| `go test ./...` | **0 failures** |
+| `check-*.sh` | **7/7 PASS** (six gates + the meta-gate) |
+| `check-gates-can-fail.sh` | **6/6 gates still bite** |
+| Rust workspaces | 18 / 18 |
+| docker images | rebuilt, stack up |
+| `qa-smoke.sh` | **33 / 35 — equal to B2, B3 and B4** |
+
+### The meta-gate earned its keep on its first live batch
+
+B5 **modified two gate scripts** — `check-python-syntax.sh` (taught to parse
+notebooks, rung `307e9a64`) and `check-timeline-freshness.sh`. Under the old
+process that change would have shipped on the strength of "the gate still
+prints PASS", which is precisely the evidence that proved worthless four times
+running.
+
+Instead the meta-gate re-proved both still FAIL when violated, automatically,
+in the same run. No new `check-*.sh` landed in this batch, so the
+unregistered-gate trap did not fire.
+
+### Still the only smoke failure: cuirass
+
+Unchanged and unchangeable at this rung — `main` crash-loops identically on the
+duplicate `/health` registration. Fix is rung #110 in B8. With container
+restart policies now `no` (2026-09-08), it reports `absent` rather than
+`restarting`; same root cause, same score.
+
 ## The meta-gate — breaking the four-batch cycle (2026-09-09)
 
 Four consecutive batches shipped a gate that was green because it could not
