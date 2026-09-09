@@ -23,6 +23,20 @@ import requests
 
 # Module logger. These handlers skip an item that could not be read; at debug
 # level the reason is available when you need it and silent when you do not.
+# Configure the root logger, or every log.debug() below is discarded.
+#
+# The S110 sweep replaced silent `except: pass` handlers with
+# `log.debug('skipped: %s', e)` and said the reason was "available at debug
+# level when you need it". That was only half true: this is a standalone
+# script, nothing calls basicConfig, so the root logger stayed at WARNING and
+# the debug records went nowhere — behaviourally identical to the `pass` they
+# replaced. Debug has to be REACHABLE for that claim to hold.
+#
+# LOG_LEVEL=DEBUG turns the skips back on without touching code.
+logging.basicConfig(
+    level=os.environ.get('LOG_LEVEL', 'INFO').upper(),
+    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+)
 log = logging.getLogger(__name__)
 
 # ─── Config ──────────────────────────────────────────────────────────────────

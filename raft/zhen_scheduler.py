@@ -23,7 +23,13 @@ from pathlib import Path
 
 import schedule
 
-logging.basicConfig(level=logging.INFO, format='%(asctime)s [%(levelname)s] %(message)s')
+# LOG_LEVEL knob so the S110 debug records are reachable. This file DID call
+# basicConfig, but pinned at INFO, so its two log.debug() skips were discarded
+# just as surely as in the scripts that called it not at all.
+logging.basicConfig(
+    level=os.environ.get('LOG_LEVEL', 'INFO').upper(),
+    format='%(asctime)s [%(levelname)s] %(message)s',
+)
 log = logging.getLogger('zhenai-scheduler')
 
 PROJECT_ROOT = Path.home() / 'tmp' / 'unheaded'
