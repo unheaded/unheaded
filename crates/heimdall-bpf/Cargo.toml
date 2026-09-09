@@ -3,21 +3,50 @@ name = "heimdall-bpf"
 version = "0.1.0"
 edition = "2021"
 
+# Only programs whose source exists may be declared. A [[bin]] pointing at a
+# missing file is not a placeholder — cargo refuses to resolve targets at all,
+# so the whole crate fails to build and nothing here can be linted or tested.
 [[bin]]
 name = "heimdall-vfs-write"
 path = "src/vfs_write.rs"
 
-[[bin]]
-name = "heimdall-execve"
-path = "src/execve.rs"
-
-[[bin]]
-name = "heimdall-gjallarhorn-xdp"
-path = "src/gjallarhorn_xdp.rs"
+# PLANNED, NOT YET WRITTEN — do not re-add a [[bin]] until the .rs exists.
+#
+#   heimdall-execve          -> src/execve.rs
+#   heimdall-gjallarhorn-xdp -> src/gjallarhorn_xdp.rs
+#
+# Both were declared in 7faa5b17 (2026-04-11), the "Mímir's Law Phases 1-7
+# scaffold" spike, alongside vfs_write.rs. Neither source was ever committed,
+# so this crate has never built since that day.
+#
+# The intent is real and still open: see ADR-043 and
+# docs/battle-plans/BATTLE-PLAN-MIMIRS-LAW-GLEIPNIR-PHASE-0.md Steps 101-108,
+# which are still unchecked and name gjallarhorn_xdp.o directly (load via
+# bpftool, attach XDP to the W01 interface, observe Gjallarhorn on the W01
+# ringbuf). When those steps are executed, write the source FIRST, then restore
+# the [[bin]] stanza.
 
 [dependencies]
 aya-ebpf = "0.1"
 aya-log-ebpf = "0.1"
+
+# [profile.dev] must exist and must set lto = true.
+#
+# .cargo/config.toml passes `-C lto=true` in rustflags for the BPF target. When
+# a profile leaves lto unset (the default for dev), cargo also passes
+# `-C embed-bitcode=no`, and the two are mutually exclusive:
+#     error: options `-C embed-bitcode=no` and `-C lto` are incompatible
+#     error: could not compile `core`
+# That is why a plain `cargo build` / `cargo clippy` failed here while the same
+# settings worked under ebpf/ — ebpf/Cargo.toml defines this profile and this
+# crate did not. scripts/check-clippy.sh lints in dev, so it needs this.
+[profile.dev]
+opt-level = 3
+debug = false
+debug-assertions = false
+overflow-checks = false
+lto = true
+panic = "abort"
 
 [profile.release]
 opt-level = "s"

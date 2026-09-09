@@ -1,0 +1,27 @@
+# Cargo configuration for heimdall-bpf.
+#
+# This crate compiles to BPF bytecode, but it lives under crates/ rather than
+# under ebpf/, so it does NOT inherit ebpf/.cargo/config.toml. Without these
+# settings cargo builds it for the host and fails at:
+#     error: unwinding panics are not supported without std
+# because a #![no_std] BPF program cannot use the host's unwinding runtime.
+#
+# A bare-metal crate should carry its own build configuration rather than rely
+# on where it happens to sit in the tree. Kept deliberately in sync with
+# ebpf/.cargo/config.toml.
+[build]
+target = "bpfel-unknown-none"
+
+[unstable]
+build-std = ["core"]
+
+[target.bpfel-unknown-none]
+linker = "bpf-linker"
+rustflags = [
+    "-C", "opt-level=3",
+    "-C", "debuginfo=2",
+    "-C", "link-arg=--btf",
+    "-C", "lto=true",
+    "-C", "codegen-units=1",
+    "-C", "force-frame-pointers=no",
+]
