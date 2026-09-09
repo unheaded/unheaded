@@ -1,5 +1,46 @@
 # LICH Fuzzing Campaign Harnesses
 
+> ## READ THIS BEFORE CITING ANY RESULT
+>
+> **These harnesses fuzz MODELS, not the production code.** This crate links no
+> Unheaded crate — the simulated cache, WAL and flow-label table live in the
+> harness files themselves. A clean run validates the MODEL and its design
+> assumptions. It is **not** evidence that Wotan, the WAL, or flow-label keying
+> are correct.
+>
+> **The S21 headline "28M executions, zero crashes" meant only "nothing
+> panicked".** Until 2026-09-09 all four harnesses asserted nothing:
+> `verify_cache_invariants`, `verify_seqno_monotonicity`, `birthday_bound` and
+> `hit_rate` each had zero call sites, and `is_checksum_valid()` was
+> `self.checksum.is_some() || true`. They were also undeclared in Cargo.toml,
+> so they had never been built or run even once. Running them for the first
+> time surfaced four real defects in the harnesses themselves — see below.
+>
+> Real oracles now exist and each is verified to fail when its invariant is
+> broken. That makes the campaigns meaningful **as design validation**.
+>
+> ### Where the real coverage lives
+>
+> | Campaign | Status |
+> |---|---|
+> | **LICH-007 (MBC)** | **Superseded.** `crates/monad-mbc/fuzz` links the real crate and fuzzes `monad_mbc::instruction::decode_checked`. Run that for MBC coverage. |
+> | **LICH-008 (Wotan cache)** | Target is `pkg/storage/cache/cache.go` — **Go**. A Rust libFuzzer harness can never link it. Real coverage needs `go test -fuzz`. |
+> | **LICH-010 (WAL)** | Target is `pkg/storage/wal/wal.go` — **Go**. Same. |
+> | **LICH-009 (flow labels)** | Design/math validation of the 20-bit flow-label space. Meaningful as-is. |
+>
+> ### Defects found by wiring the oracles in
+>
+> 1. `compact()` popped from **both** ends `len-2` times, emptying the WAL
+>    entirely for any `len >= 4`, while claiming to keep first and last.
+> 2. Compaction dropped entries without folding their values, so replayed state
+>    changed — silent data loss.
+> 3. `verify_seqno_monotonicity` required a dense `0,1,2,...` sequence, not
+>    monotonicity, and the harness's own Phase 5 violates it deliberately.
+> 4. The flow-isolation check read back with the **same** `(cache_key, flow_id)`
+>    the write loop had just used, so it counted a flow reading its own data as
+>    a violation — firing on essentially every input.
+
+
 This directory contains Rust fuzzing harnesses for the LICH (Long-Interval Computational Hazards) campaigns, part of the S21 security assessment for the Unheaded protocol.
 
 ## Harnesses
@@ -28,7 +69,7 @@ This directory contains Rust fuzzing harnesses for the LICH (Long-Interval Compu
 
 **Running the fuzzer:**
 ```bash
-cargo +nightly fuzz -C ebpf/fuzz run lich_007_mbc
+cargo +nightly fuzz -C crates/lich-fuzz run lich_007_mbc
 ```
 
 ---
@@ -55,7 +96,7 @@ cargo +nightly fuzz -C ebpf/fuzz run lich_007_mbc
 
 **Running the fuzzer:**
 ```bash
-cargo +nightly fuzz -C ebpf/fuzz run lich_008_wotan_cache
+cargo +nightly fuzz -C crates/lich-fuzz run lich_008_wotan_cache
 ```
 
 ---
@@ -84,7 +125,7 @@ cargo +nightly fuzz -C ebpf/fuzz run lich_008_wotan_cache
 
 **Running the fuzzer:**
 ```bash
-cargo +nightly fuzz -C ebpf/fuzz run lich_009_flow_collision
+cargo +nightly fuzz -C crates/lich-fuzz run lich_009_flow_collision
 ```
 
 ---
@@ -122,7 +163,7 @@ cargo +nightly fuzz -C ebpf/fuzz run lich_009_flow_collision
 
 **Running the fuzzer:**
 ```bash
-cargo +nightly fuzz -C ebpf/fuzz run lich_010_wal_integrity
+cargo +nightly fuzz -C crates/lich-fuzz run lich_010_wal_integrity
 ```
 
 ---

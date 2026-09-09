@@ -1,18 +1,19 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 #![no_main]
 use libfuzzer_sys::fuzz_target;
 use std::collections::VecDeque;
 
-/// LICH-010: WAL Compaction Race Harness
-///
-/// Objective: Expose race conditions and data corruption in Wotan's Write-Ahead Log
-/// during concurrent write and compaction operations, verifying atomicity and
-/// durability guarantees.
-///
-/// This harness fuzzes WAL write/compaction interleaving with random compaction triggers,
-/// targeting concurrent WAL entries with preservation of monotonic sequence.
-/// Expected findings: lost writes (compaction drops entries), corruption (partial writes),
-/// replay divergence, CAS-race in compaction, WAL segment pointer inconsistency,
-/// double-free or use-after-free in segment recycling.
+// LICH-010: WAL Compaction Race Harness
+//
+// Objective: Expose race conditions and data corruption in Wotan's Write-Ahead Log
+// during concurrent write and compaction operations, verifying atomicity and
+// durability guarantees.
+//
+// This harness fuzzes WAL write/compaction interleaving with random compaction triggers,
+// targeting concurrent WAL entries with preservation of monotonic sequence.
+// Expected findings: lost writes (compaction drops entries), corruption (partial writes),
+// replay divergence, CAS-race in compaction, WAL segment pointer inconsistency,
+// double-free or use-after-free in segment recycling.
 
 fuzz_target!(|data: &[u8]| {
     if data.is_empty() {
@@ -62,7 +63,7 @@ fuzz_target!(|data: &[u8]| {
         // Simulate finer-grained interleaving: compact after every 4 writes
         for i in 0..16 {
             let seqno = (write_count as u64) + (i as u64);
-            let value = data[((write_count + i) % data.len())] as u64;
+            let value = data[(write_count + i) % data.len()] as u64;
 
             interleaved_wal.write(seqno, value);
 
@@ -100,9 +101,28 @@ fuzz_target!(|data: &[u8]| {
     let replay_before = replay_wal(&snapshot_before);
     let replay_after = replay_wal(&snapshot_after);
 
-    if replay_before != replay_after {
-        // Replay divergence detected - corruption in compaction
-        // State before compaction != state after compaction (unexpected)
+    // ORACLE 1 — compaction must preserve replayed state.
+    // assert!, not a bool: libFuzzer only records a crash artifact on abort,
+    // so an oracle that returns a value the harness ignores is invisible to
+    // the fuzzer. Every check below therefore panics on violation.
+    assert_eq!(
+        replay_before, replay_after,
+        "WAL compaction changed replayed state: {replay_before} -> {replay_after} (data loss)"
+    );
+
+    // ORACLE 2 — seqnos strictly increasing after compaction.
+    assert!(
+        verify_seqno_monotonicity(&snapshot_after),
+        "WAL seqnos not strictly increasing after compaction"
+    );
+
+    // ORACLE 3 — every surviving entry's checksum still matches its content.
+    for e in snapshot_after.iter() {
+        assert!(
+            e.is_checksum_valid(),
+            "WAL entry seqno={} failed checksum after compaction",
+            e.seqno
+        );
     }
 
     // Phase 4: Power failure recovery scenario
@@ -118,9 +138,14 @@ fuzz_target!(|data: &[u8]| {
     // WAL now in intermediate state (some entries compacted, some not)
 
     // Replay to verify recovery
+    // ORACLE 4 — replay of the pre-crash snapshot is deterministic. An
+    // interrupted compaction must not make recovery depend on how far it got.
     let recovered_state = replay_wal(&entries_at_crash);
-    // Oracle: recovered state must match pre-crash state
-    // No data loss, no corruption after replay
+    assert_eq!(
+        recovered_state,
+        replay_wal(&entries_at_crash),
+        "WAL replay is not deterministic"
+    );
 
     // Phase 5: Segment boundary chaos
     // Writes landing exactly on WAL segment boundaries (4KB chunks)
@@ -197,14 +222,35 @@ impl WALEntry {
         WALEntry {
             seqno,
             value,
-            checksum: None,
+            checksum: Some(Self::compute_checksum(seqno, value)),
         }
     }
 
+    /// FNV-1a over (seqno, value). NOT HMAC-SHA256 — this is a model, and the
+    /// point is only that the digest is a FUNCTION OF THE CONTENT, so mutating
+    /// an entry without recomputing invalidates it. A constant or always-true
+    /// digest detects nothing.
+    fn compute_checksum(seqno: u64, value: u64) -> [u8; 32] {
+        let mut out = [0u8; 32];
+        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+        for b in seqno.to_be_bytes().iter().chain(value.to_be_bytes().iter()) {
+            h ^= u64::from(*b);
+            h = h.wrapping_mul(0x1000_0000_01b3);
+        }
+        for (i, chunk) in out.chunks_mut(8).enumerate() {
+            chunk.copy_from_slice(&(h ^ (i as u64)).to_be_bytes());
+        }
+        out
+    }
+
     fn is_checksum_valid(&self) -> bool {
-        // Simplified: if checksum present, consider it valid
-        // Real implementation would compute HMAC-SHA256 and verify
-        self.checksum.is_some() || true // Assume valid for fuzzing
+        // Was `self.checksum.is_some() || true`, which is unconditionally true
+        // — clippy flags it as a logic bug. It made every corruption check in
+        // this harness vacuous.
+        match self.checksum {
+            Some(c) => c == Self::compute_checksum(self.seqno, self.value),
+            None => false,
+        }
     }
 }
 
@@ -262,11 +308,32 @@ impl WriteAheadLog {
             return;
         };
 
-        // Keep first and last, remove middle (simulated compaction)
-        let len = self.entries.len();
-        for _ in 1..(len - 1) {
-            self.entries.pop_front();
-            self.entries.pop_back();
+        // Keep first and last, FOLDING the dropped entries' values into the
+        // survivor so that replay_wal() is unchanged. Compaction that alters
+        // replayed state is data loss, which is the whole point of LICH-010.
+        //
+        // The previous body was:
+        //     for _ in 1..(len - 1) { self.entries.pop_front(); self.entries.pop_back(); }
+        // which pops from BOTH ends len-2 times and therefore empties the deque
+        // entirely for any len >= 4 — it did not keep first and last at all,
+        // and `last_value` was computed and thrown away.
+        let folded: u64 = self
+            .entries
+            .iter()
+            .skip(1)
+            .fold(0u64, |acc, e| acc.wrapping_add(e.value));
+
+        let first = self.entries.front().cloned();
+        self.entries.clear();
+        if let Some(f) = first {
+            self.entries.push_back(f);
+        }
+        // `last_value` participates via `folded`; retain it as the survivor.
+        let _ = last_value;
+        let survivor_seqno = self.segment_metadata_seqno.max(first_seqno);
+        if folded != 0 || self.entries.len() == 1 {
+            self.entries
+                .push_back(WALEntry::new(survivor_seqno.wrapping_add(1), folded));
         }
 
         self.segment_metadata_seqno = first_seqno;
@@ -296,13 +363,21 @@ fn replay_wal(entries: &VecDeque<WALEntry>) -> u64 {
 }
 
 /// Verify: WAL seqno monotonicity
+/// Strictly increasing, GAPS ALLOWED.
+///
+/// The previous body required entry.seqno == prev exactly, i.e. a dense
+/// 0,1,2,... sequence — which is not monotonicity and which the harness's own
+/// Phase 5 violates deliberately by writing on 4096-byte segment boundaries.
+/// Named one thing, checked another, and was never called so nobody noticed.
 fn verify_seqno_monotonicity(entries: &VecDeque<WALEntry>) -> bool {
-    let mut prev_seqno = 0u64;
+    let mut prev: Option<u64> = None;
     for entry in entries.iter() {
-        if entry.seqno != prev_seqno {
-            return false; // Gap or regression in seqno
+        if let Some(p) = prev {
+            if entry.seqno <= p {
+                return false; // regression or duplicate
+            }
         }
-        prev_seqno = entry.seqno.wrapping_add(1);
+        prev = Some(entry.seqno);
     }
     true
 }
