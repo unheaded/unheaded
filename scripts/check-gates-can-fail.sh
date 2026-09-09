@@ -207,6 +207,25 @@ run_timeline_freshness() {
     MAX_AGE_DAYS=-1 "${REPO_ROOT}/scripts/check-timeline-freshness.sh" --check
 }
 
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_bpf_verifier_check() {
+    # Contract: every BPF program compiles. Plant an undefined symbol.
+    local f="ebpf/flow-tracker/src/main.rs"
+    backup "${f}"
+    printf '\nfn meta_gate_probe() -> u32 { this_symbol_does_not_exist() }\n' >> "${REPO_ROOT}/${f}"
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_verify_gpl_boundary() {
+    # Contract: no GPL/AGPL license on a non-first-party Cargo.toml.
+    local f="vendor/meta-gate-probe/Cargo.toml"
+    mkdir -p "${REPO_ROOT}/vendor/meta-gate-probe"
+    backup "${f}"
+    printf '[package]\nname = "meta-gate-probe"\nversion = "0.0.0"\nlicense = "AGPL-3.0"\n' \
+        > "${REPO_ROOT}/${f}"
+}
+
 # ---------------------------------------------------------------------------
 # Registry: gate basename -> provoke fn : speed : what the provocation plants
 # ---------------------------------------------------------------------------
@@ -217,8 +236,63 @@ check-secrets-baseline|provoke_secrets_baseline|fast|a new fingerprint appended 
 check-python-syntax|provoke_python_syntax|fast|a syntax error in a tracked .py file
 check-timeline-freshness|provoke_timeline_freshness|fast|MAX_AGE_DAYS=-1, which nothing can satisfy
 check-clippy|provoke_clippy|slow|a clippy violation in crates/upc-api
+bpf-verifier-check|provoke_bpf_verifier_check|slow|an undefined symbol in ebpf/flow-tracker
+verify-gpl-boundary|provoke_verify_gpl_boundary|fast|an AGPL license on a non-first-party Cargo.toml
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
+
+# ---------------------------------------------------------------------------
+# NOT a gate. These are referenced by CI/runbooks but produce an ARTIFACT or
+# perform an ACTION; they have no pass/fail contract to provoke. Listed
+# explicitly rather than filtered by a pattern, so adding one is a decision
+# someone made on purpose.
+# ---------------------------------------------------------------------------
+NOT_A_GATE="
+generate-sbom|emits an SBOM; failure surfaces in the jobs that consume it
+build-all-debs|produces .deb artifacts
+build-sealed-cask|produces a sealed image
+kanban-git-link|writes kanban links, no verdict
+drift-detect|reports drift; alerts-only by design (pkg/enkrateia contract)
+qa-smoke|prints a score for a human to compare against the previous batch
+"
+
+# ---------------------------------------------------------------------------
+# Gates we CANNOT provoke here. Each needs sudo, a live BPF/XDP attach, or real
+# hardware, so a sandbox result would be meaningless.
+#
+# Listed, never silently skipped — that distinction is the whole point. If one
+# of these becomes runnable in CI, move it into REGISTRY with a provocation.
+# ---------------------------------------------------------------------------
+NEEDS_HARDWARE="
+ascend-linux-smoke|attaches XDP and boots the UPC; needs sudo + a live kernel
+doom-smoke|drives BPF maps via bpftool under sudo
+doom-ring|reads a live ring buffer from a running instance
+verify-binding-rune|verifies a sealed-cask image that must be built first
+yggdrasil-verify-anchor|verifies a Debian anchor image not present in the sandbox
+yggdrasil-verify-overlay|verifies a built overlay image not present in the sandbox
+"
+
+list_lookup() {
+    printf '%s\n' "$2" | awk -F'|' -v k="$1" '$1==k {print $2; exit}'
+}
+
+# Every scripts/*.sh a workflow, Jenkinsfile, runbook or smoke script invokes,
+# plus every check-*.sh by convention.
+#
+# Discovery is deliberately NOT a filename glob. The first version globbed
+# scripts/check-*.sh, which meant bpf-verifier-check.sh — a real gate, trusted
+# by ascend-linux-smoke.sh and by the post-kernel-upgrade runbook — was
+# invisible to it. It had exactly the defect this script exists to catch: cargo
+# could exit 101 and it still printed "GATE: PASSED". Naming is a convention;
+# what CI and the runbooks actually run is the fact.
+discover_candidates() {
+    {
+        grep -rhoE '(\./)?scripts/[A-Za-z0-9._/-]+\.sh' \
+            .github/workflows/ Jenkinsfile jenkins/ runbooks/ scripts/*smoke*.sh 2>/dev/null \
+            | sed 's|^\./||' | sed 's|^scripts/||' | sed 's|\.sh$||'
+        find scripts -maxdepth 1 -name 'check-*.sh' -printf '%f\n' 2>/dev/null | sed 's|\.sh$||'
+    } | sort -u
+}
 
 registry_lookup() {
     printf '%s\n' "${REGISTRY}" | awk -F'|' -v k="$1" '$1==k {print; exit}'
@@ -244,19 +318,25 @@ echo
 # refusals that exist to protect mutation.
 # ---------------------------------------------------------------------------
 UNREGISTERED=""
-for gate in scripts/check-*.sh; do
-    name="$(basename "${gate}" .sh)"
-    [ -n "$(registry_lookup "${name}")" ] || UNREGISTERED="${UNREGISTERED} ${name}"
+for name in $(discover_candidates); do
+    [ -f "scripts/${name}.sh" ] || continue          # referenced but absent elsewhere
+    [ -n "$(registry_lookup "${name}")" ] && continue
+    [ -n "$(list_lookup "${name}" "${NOT_A_GATE}")" ] && continue
+    [ -n "$(list_lookup "${name}" "${NEEDS_HARDWARE}")" ] && continue
+    UNREGISTERED="${UNREGISTERED} ${name}"
 done
 
 if [ -n "${UNREGISTERED}" ]; then
-    echo "  FAIL: check script(s) with no registered provocation:"
+    echo "  FAIL: gate script(s) with no classification:"
     for u in ${UNREGISTERED}; do echo "    ${u}"; done
     echo
     echo "  A gate nobody has proven can fail is exactly the defect this"
-    echo "  script exists to catch, so an unregistered gate is a build"
-    echo "  failure rather than reduced coverage. Add a provoke_* function"
-    echo "  and a REGISTRY line that plants a violation it must catch."
+    echo "  script exists to catch, so an unclassified gate is a build"
+    echo "  failure rather than reduced coverage. Put it in exactly one of:"
+    echo
+    echo "    REGISTRY        + a provoke_* fn that plants a violation"
+    echo "    NOT_A_GATE      + why it has no pass/fail contract"
+    echo "    NEEDS_HARDWARE  + what it needs that a sandbox lacks"
     echo "============================================================"
     exit 1
 fi
@@ -276,8 +356,9 @@ fi
 # ---------------------------------------------------------------------------
 # Run each gate: must PASS clean, then must FAIL when provoked.
 # ---------------------------------------------------------------------------
-for gate in scripts/check-*.sh; do
-    name="$(basename "${gate}" .sh)"
+for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort); do
+    gate="scripts/${name}.sh"
+    [ -f "${gate}" ] || continue
     entry="$(registry_lookup "${name}")"
     fn="$(echo "${entry}" | cut -d'|' -f2)"
     speed="$(echo "${entry}" | cut -d'|' -f3)"

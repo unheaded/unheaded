@@ -19,28 +19,51 @@ echo ""
 
 # ---- Phase 1: Compilation ----
 echo "=== Phase 1: Compile all BPF programs ==="
-cd "$BPF_DIR"
+# `cd` must not be allowed to fail silently: without the guard, a bad BPF_DIR
+# leaves cargo building whatever happens to be in the current directory and
+# this gate passing on the wrong tree.
+cd "$BPF_DIR" || { echo "FATAL: cannot cd to $BPF_DIR"; exit 1; }
 
 BUILD_OUTPUT=$(cargo build --release 2>&1)
-# shellcheck disable=SC2034  # captured but never checked — see the note below.
 BUILD_EXIT=$?
 
 # Count successful and failed builds
 BUILT=$(echo "$BUILD_OUTPUT" | grep -c "Compiling.*-ebpf\|Compiling.*tracker\|Compiling.*marker\|Compiling.*probe\|Compiling.*tracer" || true)
-# shellcheck disable=SC2034  # captured but never checked — see the note below.
 ERRORS=$(echo "$BUILD_OUTPUT" | grep -c "^error\[" || true)
 LINK_ERRORS=$(echo "$BUILD_OUTPUT" | grep -c "linking with.*failed" || true)
 
-# GAP (found 2026-08-03, not fixed here): BUILD_EXIT and ERRORS are computed and
-# then never read. Only LINK_ERRORS feeds FAILURES below, so a BPF program that
-# fails to compile with an ordinary `error[E0433]` leaves this gate reporting
-# success. Both variables are kept rather than deleted because they are the only
-# remaining evidence that the check was intended.
+# GAP CLOSED 2026-09-09. It was flagged 2026-08-03 and deliberately left open on
+# the grounds that wiring it in "can turn CI red on the spot". Verified before
+# changing anything: the tree builds clean and this gate already exits 0, so
+# nothing goes red today — the reasoning for deferring had expired.
 #
-# Wiring them in is a behaviour change to a CI gate — it can turn CI red on the
-# spot — so it belongs at a higher rung than a lint sweep. See the decisions doc.
+# What was wrong: BUILD_EXIT and ERRORS were computed and never read. Only
+# LINK_ERRORS fed FAILURES, so a BPF program failing with an ordinary
+# `error[E0433]` left this gate printing "GATE: PASSED".
+#
+# That mattered more than a lint nit, because two real consumers trust the
+# verdict and neither is GitHub Actions:
+#   scripts/ascend-linux-smoke.sh   greps for "GATE: PASSED"
+#   runbooks/infra/kernel-upgrade.yaml  runs it as post-upgrade verification
+# A broken BPF build therefore passed the ASCEND-LINUX smoke test, and passed
+# the check you run precisely when you need to know BPF still compiles.
 
 echo "  Compiled: $BUILT programs"
+
+# cargo's exit code is authoritative. Everything below is a refinement of the
+# message, never a substitute for the verdict.
+if [ "${BUILD_EXIT}" -ne 0 ]; then
+    echo "  BUILD FAILED: cargo exited ${BUILD_EXIT}"
+    echo "$BUILD_OUTPUT" | grep -E "^(error|warning: unused)" | head -20
+    FAILURES=$((FAILURES + 1))
+fi
+
+if [ "$ERRORS" -gt 0 ]; then
+    echo "  COMPILE ERRORS: $ERRORS"
+    echo "$BUILD_OUTPUT" | grep -A3 "^error\[" | head -20
+    FAILURES=$((FAILURES + ERRORS))
+fi
+
 if [ "$LINK_ERRORS" -gt 0 ]; then
     echo "  LINK ERRORS: $LINK_ERRORS"
     echo "$BUILD_OUTPUT" | grep -B1 "linking.*failed" | head -20
