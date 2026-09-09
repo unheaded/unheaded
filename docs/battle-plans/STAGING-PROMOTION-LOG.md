@@ -626,6 +626,57 @@ those two to `go test -fuzz` is the real follow-up.
   from the index that no longer exist on disk and fails transiently. Harmless,
   but do not chase it: re-stage and re-run.
 
+## The meta-gate — breaking the four-batch cycle (2026-09-09)
+
+Four consecutive batches shipped a gate that was green because it could not
+fail. Each was found by hand, by someone happening to poke it, and the fourth
+was inside the very script whose own header warns about the pattern. Finding
+them one at a time was not converging.
+
+`scripts/check-gates-can-fail.sh` asserts the property instead: for each
+`check-*.sh`, plant a violation it claims to catch, require a non-zero exit,
+restore the tree. **It would have caught all four on the day they landed.**
+
+| gate | provocation |
+|---|---|
+| `check-gosec-ratchet` | an un-baselined rule added to the workflow exclusion list |
+| `check-manifest-yaml` | a tracked manifest that does not parse |
+| `check-secrets-baseline` | a new fingerprint appended to `.gitleaksignore` |
+| `check-python-syntax` | a syntax error in a tracked `.py` |
+| `check-timeline-freshness` | `MAX_AGE_DAYS=-1`, which nothing can satisfy |
+| `check-clippy` | a clippy violation in `crates/upc-api` |
+
+All six bite. Whole run: **15 seconds**.
+
+### The part that keeps it from becoming the same bug one level up
+
+A `check-*.sh` with **no registered provocation is a build failure**, not
+reduced coverage. Without that, adding a new unguarded gate would quietly
+shrink what is proven while this kept printing PASS — precisely the defect,
+one level up. Verified: dropping an unregistered `check-*.sh` into `scripts/`
+fails the run.
+
+That check deliberately runs **before** the dirty-tree refusal. It mutates
+nothing, and a newly added gate arrives untracked — refusing on a dirty tree
+first would hide the one message its author most needs to see.
+
+### Design notes worth keeping
+
+- **Each gate is run clean FIRST.** If it is already red, the provocation
+  result is meaningless, so it reports INCONCLUSIVE rather than a false OK.
+- **It refuses to run on a dirty tree**, because restore would clobber
+  uncommitted work. Restoration is via an `EXIT`/`INT`/`TERM` trap.
+- **Git-index cleanup is confined to files the provocation created.** An
+  earlier draft ran `git rm --cached` over everything it touched, which would
+  have untracked real files such as `.gitleaksignore` — a restore step doing
+  more damage than the thing it restored from.
+- The gosec provocation has to *introduce* an `-exclude=`, because the list is
+  currently empty. That emptiness is the ratchet working, and it is also why
+  the B2 guards were unreachable in the first place.
+
+CI: full run on main/develop/staging, `--quick` on PRs (skips only the clippy
+provocation, the one step needing the Rust toolchain).
+
 ## PARKED — The Well reachability + client split-brain (Stevie, 2026-08-09)
 
 Raised during B2 QA, **deliberately not acted on.** Stevie is doing lab network
