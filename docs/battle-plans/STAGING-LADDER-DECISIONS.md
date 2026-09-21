@@ -13,6 +13,28 @@ Ordered by how much is blocked behind them.
 
 ---
 
+## Decision procedure (Stevie, 2026-08-04)
+
+Where a decision below is blocked only on Stevie's input, it may instead be settled by a
+**2/3 vote of `unheaded-developer`, `unheaded-architect`, `unheaded-micromanager`**. Items
+blocked on something else — account access (D9), live hardware (D8), a live-traffic
+availability trade (D2) — are not unblocked by a vote and stay queued.
+
+**First use — where unattended commits land. Unanimous 3/3: stay on `staging`.**
+
+- *Developer* ("git is truth"): these fixes edit files whose current content exists only on
+  `staging`. Basing them on `develop` at `b39fb207` means patching text that isn't there.
+- *Architect* ("architectural decisions are irreversible"): re-parenting 46 commits is a
+  history rewrite Stevie owns. Zero benefit while he is asleep, real blast radius.
+- *Micromanager* (one-reviewable-unit-per-commit): what gets reviewed is a linear stack of
+  self-contained commits. The branch *name* is not the deliverable.
+
+**Consequence — first agenda item for the in-person session:** `develop` and `staging` have
+diverged in the wrong direction for the flow Stevie described (`develop → staging → main`,
+promoted commit by commit). Reconciling them is a branch-pointer move, and it is his.
+
+---
+
 ## D1 — `BLE001`: 134 blind exception handlers
 
 **Blocks:** removing the last rule-ID exclusion from the ruff ratchet.
@@ -64,19 +86,19 @@ topology. Not mine.
 
 ## D3 — `scripts/bpf-verifier-check.sh` computes a build result and never checks it
 
-**Found this run.** The script runs `cargo build --release`, captures `BUILD_EXIT=$?` and
-a count of `^error[` lines, then reads **neither**. Only `LINK_ERRORS` feeds `FAILURES`.
+**CLOSED 2026-08-04 (`f80576ea`).** The blocking question was whether wiring it in turns
+CI red on landing. It does not: `cd ebpf && cargo build --release` exits 0 with zero
+`error[` lines, so the fix is verified inert on the current baseline. That made this a
+decision with only one live branch, so it was taken rather than queued.
 
-**A BPF program that fails to compile with an ordinary `error[E0433]` leaves this gate
-reporting success.**
+`BUILD_EXIT` is now the authoritative signal — it is non-zero for every failure mode,
+including the ones neither grep matches (`error:` with no code, a panicking build script,
+a malformed `Cargo.toml`). `ERRORS`/`LINK_ERRORS` were demoted to selecting a diagnostic,
+with the build tail printed when neither matches so a failure can never be silent.
 
-Both variables were kept and annotated rather than deleted — they are the only remaining
-evidence the check was intended.
-
-**Why it is not already fixed:** wiring it in can turn CI red the moment it lands, and
-whether that is acceptable depends on whether anything currently fails to build. Cheap to
-find out (`cd ebpf && cargo build --release 2>&1 | grep -c '^error\['`), but the
-consequence of a red gate is yours to accept.
+Both paths exercised: real tree → `GATE: PASSED`, exit 0; a `cargo` stub exiting 101 →
+`GATE: FAILED`, exit 1. Before the fix that same stub produced `GATE: PASSED` — that is
+the regression this closes. `ascend-linux` rebuilt afterwards: 901,888 bytes, unchanged.
 
 ---
 
@@ -162,11 +184,110 @@ Needs your account. Everything else in ADR-089 is in force already.
 
 ---
 
-## Two smaller ones, for completeness
+## D12 — two parallel Kubernetes trees, neither declared canonical
 
-- **`tomb/provision.sh --verbose` and `scripts/pre-flight-check.sh --strict`** are both
-  documented in usage, parsed into a variable, and never read. Either wire them up or drop
-  them from `--help`; right now the help text is lying.
-- **`scripts/doom-test.sh` prints `${pixel_8000}`**, which nothing assigns — that
-  SCREEN_MAP diagnostic has always shown `??`. The declaration named `pixel_32000`, so a
-  third sample read was intended and never written.
+**Found 2026-08-04.** `deploy/k8s/` (2026-03-05, "SK8 Convergence") and
+`kubernetes/` (2026-06-26, "Kubernetes the hard way") are both live — the most
+recent commit touching Kubernetes at all, `7153f47a`, touched both.
+
+**Nothing is broken.** Verified: **zero overlapping `(kind, namespace, name)`
+tuples**, and they use disjoint namespaces, so applying both to one cluster does
+not collide. This is a duplication-of-effort question, not a defect, which is why
+it is here and not fixed.
+
+| | `deploy/k8s/` | `kubernetes/` |
+|---|---|---|
+| Shape | raw manifests by Kingdom tier | kustomize `base/` + `overlays/` |
+| Namespaces | `unheaded-armory/-gnostic/-presentation/-system/-ebpf` | `unheaded`, `haproxy-controller` |
+| Has | Gatekeeper `ConstraintTemplate`s, `CiliumNetworkPolicy`, PDBs, `ServiceMonitor`s | service-for-service mirror of the Docker stack, HAProxy ingress edge |
+| Own docs | 1 | 7 |
+| Cited by other docs | 12+ — ADR-064, runbooks, compliance control matrices, K8s threat model | 1 |
+
+Consolidating loses something either way: `kubernetes/` has the structure and the
+documentation, `deploy/k8s/` has the policy layer and every external reference.
+The 3-skill vote came out 2/3 for **documenting, not consolidating** —
+
+- *Architect*: kustomize with base/overlays is the industry-standard shape, and
+  ADR-088's whole premise is practising industry-standard substrates. Would make
+  `kubernetes/` canonical.
+- *Developer*: `deploy/k8s/`'s governance layer has no equivalent in `kubernetes/`.
+  Picking a winner now deletes real work. Merge later, don't choose now.
+- *Micromanager*: two parallel implementations is a maintenance cost, but neither
+  is broken and both are referenced — not an unattended call.
+
+**Done instead:** a cross-reference README in each tree, so nobody has to rediscover
+that the other exists. Neither is declared canonical.
+
+**If you do consolidate**, the migration is "port `deploy/k8s/`'s policy layer onto
+`kubernetes/`'s kustomize base, then re-point the 12 external references" — the
+references are the expensive half, and ADR-088 should record the outcome.
+
+---
+
+## D11 — `docker/hosts/host-{a,b}` have never been able to start
+
+**Found 2026-08-04.** Both stacks are unusable, and have been since the files were
+created (`695d0ba4`, 2026-02-26). The LXD path for this tier is complete and
+works — `lxd/containers/{bird,ipfire}.yaml`, `lxd/profiles/unheaded-firewall.yaml`.
+
+**host-a — invalid compose.** `shield` and `unheaded-daemon` each declare *both*
+`network_mode: host` and a `networks:` block with a static IPv6. Mutually
+exclusive, so `docker compose config` refuses the whole project — it does not
+parse, let alone run.
+
+**This needs you, and it is the D5 class: an exposure decision.** Both readings
+are defensible and neither is safe-by-default:
+
+| keep | argument | cost |
+|---|---|---|
+| `network_mode: host` | `shield`'s `cap_add: [BPF, NET_ADMIN, SYS_ADMIN, SYS_RESOURCE]` exists to attach XDP, and XDP inside a container netns sees only the veth, not the host NIC. Packet-zero visibility is the point of Shield. | Breaks `NATS_URL: nats://wotan:4222` — no Docker DNS in the host namespace — and makes every `ports:` mapping meaningless. Puts both services directly on the host's interfaces. |
+| `networks:` + static IPv6 | Docker DNS resolves, `ports:` means something, services stay on the fabric at `fd00:dead:beef:1::201/202`. | Shield cannot do the one job the capability set was granted for. |
+
+The 3-skill vote split — Architect for host mode on architectural grounds,
+Micromanager against deciding exposure unattended, Developer noting neither is
+verifiable without standing the stack up. **Documented, not changed.** Nothing
+regresses by leaving it: it has never run.
+
+**Both hosts — missing build contexts.** `opnsense`/`frr` (host-a) and
+`ipfire`/`bird` (host-b) build from `../firewall/*`. **`docker/hosts/firewall/`
+has never existed in this repo** — `949ed857` added the compose files claiming
+the capability without ever adding the build contexts. compose builds every
+`build:` service before starting anything, so these take the whole stack down
+with them, including host-b's `suricata`, which is otherwise fine.
+
+`routing/frr/Dockerfile` and `routing/bird/Dockerfile` do exist and look like the
+answer. **They are not.** Both do `COPY . /src/<name>` and build the daemon from
+upstream source — their own comments say `~/tmp/frr-master/` and
+`~/tmp/bird-master/` — so they need a context holding that source tree, not the
+config directory. Repointing the contexts would swap one failure for another.
+No equivalent exists anywhere for `opnsense` or `ipfire`, which are KVM appliance
+images.
+
+**Fixed in passing** (same off-by-one as the `suricata` rules mount, and both
+target files exist): `${FRR_CONF:-./../../routing/frr/frr.conf}` and
+`${BIRD_CONF:-./../../routing/bird/bird.conf}` were resolving under `docker/`
+rather than the repo root. Now `../../../`.
+
+---
+
+## Two smaller ones — both CLOSED 2026-08-04
+
+- **`tomb/provision.sh --verbose` and `scripts/pre-flight-check.sh --strict`** — wired up
+  (`8724db32`) rather than dropped from `--help`, since in both cases the advertised
+  behaviour is the useful one. `_log` mirrors to stderr under `VERBOSE=1` (one site covers
+  every SSH/SCP trace); `--strict` folds `optional_failed` into the blocking count, and its
+  case arm — which never even set `STRICT_MODE` — now does. Default behaviour unchanged:
+  of the eight `(strict, required, optional)` combinations exactly one verdict differs, and
+  only with `--strict` passed.
+
+- **`scripts/doom-test.sh` `${pixel_8000}`** — **the previous entry here was wrong**
+  (`cb9496db`). `git blame` shows `c7831cad` (2026-03-03) assigns it at line 624; the read
+  has worked for five months. What was actually broken is that `c7831cad` left the `local`
+  line naming the *old* `pixel_32000`, so `pixel_8000` leaked into the caller's scope on
+  every invocation. `ff8d090a` deleted the stale name correctly and then drew the wrong
+  conclusion about the one that replaced it. Fixed by declaring it; no output change.
+
+  Worth generalising: that note asserted a runtime symptom (`always renders as '??'`) from
+  reading a declaration line alone. Cheap to check, and `git blame` on the *assignment*
+  would have caught it. Treat "flagged, not fixed" annotations from the ladder as claims
+  needing verification, not as findings.

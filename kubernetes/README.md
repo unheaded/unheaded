@@ -12,6 +12,29 @@ brings up the control plane by hand and then deploys everything here.
 
 > Configuration management automation platform. Free to use. Free to share. GPL-3.0.
 
+## This is not the only Kubernetes tree
+
+`deploy/k8s/` is a second, older one (2026-03-05, the "SK8 Convergence"), and it is
+still maintained — the most recent commit touching Kubernetes at all touched both.
+They do not conflict and are not duplicates of each other:
+
+| | `kubernetes/` (here) | `deploy/k8s/` |
+|---|---|---|
+| Shape | kustomize `base/` + `overlays/` | raw manifests, grouped by Kingdom tier |
+| Namespace | `unheaded` (+ `haproxy-controller`) | `unheaded-armory`, `-gnostic`, `-presentation`, `-system`, `-ebpf` |
+| Emphasis | mirror the Docker stack service-for-service | policy and governance — Gatekeeper `ConstraintTemplate`s, `CiliumNetworkPolicy`, PDBs, `ServiceMonitor`s |
+| Docs | self-contained (this file + 6 more) | cited by ADR-064, the runbooks, the compliance control matrices and the K8s threat model |
+
+Checked 2026-08-04: **zero overlapping `(kind, namespace, name)` tuples** across the
+two trees, so applying both to one cluster does not collide. That is a property of
+the current contents, not a guarantee anyone enforces — if you add resources here in
+a `unheaded-*` namespace, check `deploy/k8s/` first.
+
+Neither has been declared canonical. Consolidating them is a real decision with real
+losses either way — this tree has the kustomize structure and the documentation,
+that one has the policy layer and every external reference — so it is recorded as
+**D12** in `docs/battle-plans/STAGING-LADDER-DECISIONS.md` rather than settled here.
+
 ## What runs here
 
 Everything in `docker-compose.yml` plus the four `docker/**/docker-compose.*.yml`

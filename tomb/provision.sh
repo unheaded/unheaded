@@ -80,6 +80,13 @@ _log() {
     local ts
     ts="$(date '+%Y-%m-%d %H:%M:%S')"
     printf '%s [%s] %s\n' "${ts}" "${level}" "${msg}" >> "${LOG_FILE}"
+    # info/ok/warn/fail already echo to the terminal, so the only records this
+    # file-only path holds back are the raw SSH/SCP command traces. Those are
+    # exactly what --verbose advertises. stderr, so piping stdout still yields
+    # just the normal run output.
+    if [ "${VERBOSE}" -eq 1 ]; then
+        printf '%s [%s] %s\n' "${ts}" "${level}" "${msg}" >&2
+    fi
 }
 
 info()    { _log "INFO" "$*"; echo -e "${BLUE}[INFO]${NC}  $*"; }

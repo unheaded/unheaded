@@ -222,8 +222,14 @@ services:
       - "127.0.0.1:5432:5432"   # loopback only — host clients use localhost, containers use docker DNS; keeps The Well off the LAN
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./db/migrations:/docker-entrypoint-initdb.d
-      - ./db/init.sh:/docker-entrypoint-initdb.d/init.sh
+      # db/init.sh is the ONLY thing in initdb.d. Mounting db/migrations there
+      # too made postgres's entrypoint run every *.sql itself, alphabetically,
+      # against POSTGRES_DB — the per-database schemas landed in the wrong
+      # database and init failed on the first collision. Nesting the second
+      # mount inside the first also made docker create the mountpoint through to
+      # the host, littering db/migrations/ with a root-owned empty init.sh.
+      - ./db/migrations:/migrations:ro
+      - ./db/init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
     networks:
       - data
     labels:

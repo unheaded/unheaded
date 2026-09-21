@@ -1,3 +1,36 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# host-a ("The Forge") — Docker deployment
+#
+# STATUS: THIS STACK HAS NEVER BEEN ABLE TO START. Use the LXD path instead —
+# lxd/containers/ and lxd/profiles/unheaded-firewall.yaml are complete and are
+# the deployment route that actually works for this tier.
+#
+# Two blockers, both present since this file was created (695d0ba4, 2026-02-26):
+#
+#   1. INVALID COMPOSE. `shield` and `unheaded-daemon` each declare BOTH
+#      `network_mode: host` AND a `networks:` block with a static IPv6.
+#      Those are mutually exclusive, so `docker compose config` refuses the
+#      project outright — nothing parses, let alone runs.
+#
+#      Which one is correct is a real decision, not a typo: shield's
+#      cap_add [BPF, NET_ADMIN, SYS_ADMIN, SYS_RESOURCE] exists to attach XDP,
+#      and XDP in a container netns can only see the veth, not the host NIC.
+#      But host mode also breaks `NATS_URL: nats://wotan:4222` (no Docker DNS in
+#      the host namespace) and makes the `ports:` mappings meaningless.
+#      It is an exposure change either way — it is not being guessed here.
+#
+#   2. MISSING BUILD CONTEXTS. `opnsense` -> ../firewall/opnsense and
+#      `frr` -> ../firewall/frr. docker/hosts/firewall/ has never existed in
+#      this repo. routing/frr/Dockerfile does exist, but it is not a drop-in
+#      replacement: it does `COPY . /src/frr` and builds FRR from upstream
+#      source, so it needs a context containing the FRR source tree
+#      (its own comment says ~/tmp/frr-master/), not the config directory.
+#
+# See "D11" in docs/battle-plans/STAGING-LADDER-DECISIONS.md. Left in place
+# rather than deleted: it is the record of the intended Docker topology, and
+# every service definition below except the ones named above is sound.
 version: '3.8'
 services:
   opnsense:
@@ -65,7 +98,7 @@ services:
     volumes:
     - frr-data:/etc/frr
     - frr-run:/var/run/frr
-    - ${FRR_CONF:-./../../routing/frr/frr.conf}:/etc/frr/frr.conf:ro
+    - ${FRR_CONF:-./../../../routing/frr/frr.conf}:/etc/frr/frr.conf:ro
     depends_on:
       opnsense:
         condition: service_healthy

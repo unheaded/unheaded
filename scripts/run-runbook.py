@@ -18,6 +18,7 @@ Usage:
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 
@@ -73,6 +74,40 @@ def run_command(cmd, timeout=120, env=None, dry_run=False):
         return 1, "", f"TIMEOUT after {timeout}s"
     except Exception as e:
         return 1, "", str(e)
+
+
+def find_unset_params(runbook, env):
+    """Return {VAR: [step names]} for ${VAR} references nothing will supply.
+
+    Several runbooks are parameterised — service-deploy wants ${SERVICE},
+    network-diagnostics wants ${TARGET} — but the schema has no way to declare a
+    required parameter, so an unset one expands to the empty string and the step
+    runs malformed: `lxc delete ${CONTAINER} --force` becomes `lxc delete --force`,
+    `go test ./cmd/${SERVICE}/...` becomes `./cmd//...`.
+
+    Only the braced ${VAR} form is considered. Bare $VAR is skipped because awk
+    programs embedded in these commands use $NF and $3, and those are not shell
+    variables. ${VAR:-default} and ${VAR:?msg} are skipped: both already handle
+    being unset.
+    """
+    unset = {}
+    for section in ("preconditions", "steps", "rollback", "verification", "decommission"):
+        for step in runbook.get(section) or []:
+            if not isinstance(step, dict):
+                continue
+            for field in ("command", "verify", "check"):
+                body = step.get(field)
+                if not isinstance(body, str):
+                    continue
+                # Assigned earlier in this same snippet: PORT=$(...), for X in, read X
+                local = set(re.findall(r"^\s*([A-Za-z_]\w*)=", body, re.MULTILINE))
+                local |= set(re.findall(r"\bfor\s+([A-Za-z_]\w*)\s+in\b", body))
+                local |= set(re.findall(r"\bread\s+(?:-r\s+)?([A-Za-z_]\w*)", body))
+                for var in re.findall(r"\$\{([A-Za-z_]\w*)\}", body):
+                    if var in env or var in os.environ or var in local:
+                        continue
+                    unset.setdefault(var, []).append(step.get("name", "?"))
+    return unset
 
 
 def check_preconditions(runbook, env, dry_run):
@@ -131,6 +166,21 @@ def execute_steps(runbook, env, dry_run=False, start_step=0):
         print(f"  [{i+1}/{len(steps)}] {name}")
         if desc:
             print(f"           {desc}")
+
+        if action == "manual":
+            # A step the operator performs by hand — it needs a value the runbook
+            # cannot know (a local path, a container IP), or the automation for it
+            # has not been written yet. Print it and move on. Its `verify` is not
+            # run either: verification of a step that did not execute is also the
+            # operator's job, and running it would fail the whole runbook here.
+            print("    [MANUAL] perform this step yourself:")
+            for line in (command or "(see description)").split("\n"):
+                print(f"             {line}")
+            if verify:
+                print("    [MANUAL] then confirm:")
+                for line in verify.split("\n"):
+                    print(f"             {line}")
+            continue
 
         if action == "shell" and command:
             code, out, err = run_command(command, timeout=timeout, env=env, dry_run=dry_run)
@@ -205,7 +255,30 @@ def main():
     print(f"  Risk: {meta.get('risk', 'unknown')} | ETA: {meta.get('estimated_duration', '?')}")
     if args.dry_run:
         print("  MODE: DRY RUN (no commands will be executed)")
+    if meta.get("status") in ("stub", "draft"):
+        # `status: stub` was already a convention in the runbooks; nothing read it.
+        # A stub's steps are action: manual placeholders, so without this banner the
+        # run ends in [SUCCESS] having done almost nothing — which on a risk: high
+        # runbook reads as "the cutover ran".
+        print(f"  STATUS: {meta['status'].upper()} — steps are not implemented.")
+        print("          Executing this performs no changes; it is a checklist,")
+        print("          not a script.")
     print("=" * 60)
+
+    # Required parameters. Checked before preconditions, because a precondition
+    # that interpolates an unset parameter is itself unreliable.
+    unset = find_unset_params(runbook, env)
+    if unset:
+        print("\nUNSET PARAMETERS — this runbook expects values it was not given:\n")
+        for var, steps in sorted(unset.items()):
+            where = ", ".join(sorted(set(steps))[:4])
+            print(f"  ${{{var}}}  used by: {where}")
+        print("\nUnset, each expands to the empty string and its step runs")
+        print("malformed rather than failing. Supply them in the environment:\n")
+        print("  " + " ".join(f"{v}=..." for v in sorted(unset)) + f" {sys.argv[0]} {args.runbook}")
+        if not args.dry_run:
+            sys.exit(1)
+        print("\n(continuing: --dry-run)")
 
     # Check preconditions
     if not check_preconditions(runbook, env, args.dry_run):

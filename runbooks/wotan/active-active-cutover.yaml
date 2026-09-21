@@ -30,7 +30,7 @@ notes: |
 
 steps:
   - name: pre-flight-cluster-health
-    action: shell
+    action: manual
     description: "Confirm K8s cluster has quorum + leader before cutting over"
     command: |
       echo "TODO: kubectl exec -n unheaded wotan-0 -- wotan-cli cluster status"
@@ -45,14 +45,14 @@ steps:
       ssh govan@east 'curl -sf http://localhost:18000/health'
 
   - name: announce-maintenance-window
-    action: shell
+    action: manual
     description: "Operator announcement to ops channel — cutover starts now"
     command: |
       echo "TODO: post to operator channel"
       echo "Cutover starts at $(date -u +%FT%TZ)"
 
   - name: dns-update-cluster-vip
-    action: shell
+    action: manual
     description: "Add K8s cluster VIP to DNS, lower TTL to 30s, leave WEST+EAST entries in place"
     command: |
       echo "TODO: edit DNS record wotan.unheaded.lan: add K8s ingress VIP"
@@ -60,7 +60,7 @@ steps:
     verify: "TODO: dig wotan.unheaded.lan returns both VIPs"
 
   - name: drain-bare-metal-publishers
-    action: shell
+    action: manual
     description: "New publishers route to K8s; existing connections drain on bare-metal"
     command: |
       echo "TODO: edit haproxy-edge weights — drop WEST+EAST to 0, K8s VIP to 100"
@@ -68,14 +68,14 @@ steps:
     verify: "TODO: haproxy stats page shows WEST+EAST connection count trending to 0"
 
   - name: wait-bare-metal-drained
-    action: shell
+    action: manual
     description: "Hold here until WEST+EAST publish queue depth = 0"
     command: |
       echo "TODO: poll WEST+EAST /api/v1/cluster/queue-depth until 0"
       echo "TODO: max wait 15m; if non-zero after 15m, ABORT to rollback step"
 
   - name: bare-metal-readonly
-    action: shell
+    action: manual
     description: "Flip WEST+EAST to read-only — they continue serving historical reads but reject writes"
     command: |
       echo "TODO: curl -X POST http://localhost:18000/api/v1/cluster/readonly"
@@ -83,21 +83,21 @@ steps:
     verify: "TODO: POST to /api/v1/topics/test → 503 Service Unavailable (read-only)"
 
   - name: smoke-cluster
-    action: shell
+    action: manual
     description: "End-to-end publish-subscribe round-trip on the K8s cluster"
     command: |
       echo "TODO: kubectl exec -n unheaded wotan-0 -- wotan-cli pub-sub-smoke"
     verify: "TODO: round-trip < 100ms across all 3 replicas"
 
   - name: dns-finalize
-    action: shell
+    action: manual
     description: "Remove WEST+EAST entries from DNS; raise TTL back to default"
     command: |
       echo "TODO: edit DNS — remove WEST+EAST A records"
       echo "TODO: TTL back to 300s"
 
   - name: post-cutover-monitor
-    action: shell
+    action: manual
     description: "Observe cluster for 30 minutes; rollback at first sign of trouble"
     command: |
       echo "TODO: tail K8s cluster's logs; watch grafana wotan-cluster dashboard"

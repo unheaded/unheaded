@@ -97,10 +97,10 @@ RUN mkdir -p /data && chown unheaded:unheaded /data
 
 USER unheaded
 
-EXPOSE 8080 9090
+EXPOSE 18000 18001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:18000/health || exit 1
 
 ENTRYPOINT ["/app/wotan"]
 
@@ -122,10 +122,10 @@ RUN mkdir -p /data && chown unheaded:unheaded /data
 
 USER unheaded
 
-EXPOSE 8082
+EXPOSE 19000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8082/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:19000/health || exit 1
 
 ENTRYPOINT ["/app/timeguru"]
 
@@ -147,10 +147,10 @@ RUN mkdir -p /data && chown unheaded:unheaded /data
 
 USER unheaded
 
-EXPOSE 8083
+EXPOSE 19002
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8083/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:19002/health || exit 1
 
 ENTRYPOINT ["/app/captain"]
 
@@ -172,10 +172,10 @@ RUN mkdir -p /data && chown unheaded:unheaded /data
 
 USER unheaded
 
-EXPOSE 8084
+EXPOSE 19001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8084/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:19001/health || exit 1
 
 ENTRYPOINT ["/app/architect"]
 
@@ -197,10 +197,10 @@ RUN mkdir -p /data && chown unheaded:unheaded /data
 
 USER unheaded
 
-EXPOSE 8085
+EXPOSE 19003
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8085/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:19003/health || exit 1
 
 ENTRYPOINT ["/app/micromanager"]
 
@@ -222,10 +222,10 @@ RUN mkdir -p /data && chown unheaded:unheaded /data
 
 USER unheaded
 
-EXPOSE 8086
+EXPOSE 19004
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8086/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:19004/health || exit 1
 
 ENTRYPOINT ["/app/monad"]
 
@@ -247,10 +247,10 @@ RUN mkdir -p /data && chown unheaded:unheaded /data
 
 USER unheaded
 
-EXPOSE 8087
+EXPOSE 19005
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8087/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:19005/health || exit 1
 
 ENTRYPOINT ["/app/sophia"]
 
@@ -273,10 +273,10 @@ RUN mkdir -p /data /var/lib/unheaded && \
 
 USER unheaded
 
-EXPOSE 8080 9090
+EXPOSE 17000 17001
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://localhost:8080/health || exit 1
+    CMD wget --no-verbose --tries=1 --spider http://localhost:17000/health || exit 1
 
 ENTRYPOINT ["/app/unheaded-daemon"]
 

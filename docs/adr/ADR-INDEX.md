@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-08-03
-**Total:** 75 ADRs (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-027-065 across sessions; ADR-066/067/072/073 added; ADR-69420 pipe-dream; ADR-084 huginn; ADR-088 kubernetes; ADR-089 promotion workflow; ADR-090 total source sweep)
+**Total:** 76 ADRs (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-027-065 across sessions; ADR-066/067/072/073 added; ADR-69420 pipe-dream; ADR-084 huginn; ADR-088 kubernetes; ADR-089 promotion workflow; ADR-090 total source sweep; ADR-091 The Well initdb ordering)
 
 > **Index gap:** ADR-082 and ADR-083 exist on disk but have never been registered here
 > or in the table below. Noted 2026-08-03; needs a Librarian pass.
@@ -13,6 +13,8 @@
 **ADR-088 added 2026-07-24:** Kingdom deployment substrate ladder — Compose+systemd+NixOS+Ansible+Terraform+K8s+.deb/apt as additive, optional substrates on top of the custom protocol stack. K8s DaemonSet/StatefulSet/Deployment targets, Ansible roles, apt repo, NixOS modules; certification alignment table (CKA, JNCIA, Terraform associate, RHCSA).
 **ADR-089 added 2026-08-03:** `develop` → `staging` → `main` promotion workflow — three long-lived branches, each answering a different question (does it work / does it break anything else / do we stand behind it). One-reviewable-unit-per-commit rule, EAST as the staging deploy target, never-promote-red, shrink-only baselines, revert-not-force-push rollback. **Accepted.**
 **ADR-090 added 2026-08-03:** The Total Source Sweep — read all 1,836 tracked source files exactly once, in fixed order, recording a per-file verdict in a resumable TSV ledger. Rubric for what counts as slop, and an explicit "NOT slop" list (defensive checks, tests, clarity, why-comments) so a LOC-reduction campaign cannot damage the tree. **Proposed** — activates after the Staging Ladder sprint.
+
+**ADR-091 added 2026-08-04:** The Well — `/docker-entrypoint-initdb.d` holds exactly one file, the `db/init.sh` orchestrator; migrations mount read-only at `/migrations`. Mounting both made postgres's entrypoint run every `*.sql` itself against `POSTGRES_DB`, so the per-database schemas landed in the wrong database and init died on the first collision (container exit 3, `init.sh` never ran). Nesting the mounts also wrote a root-owned `init.sh` into the host's `db/migrations/`. Now matches the Kubernetes ConfigMap, which already mounted only the script. **Accepted.**
 
 ## Status Summary
 
