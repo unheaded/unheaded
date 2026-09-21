@@ -1334,6 +1334,44 @@ the dashboard OOMs, the Meta Moment), and the script's **default is now
 `--check`**; `--report` must be asked for. Stevie noticed, from the board:
 "kanban only shows 6 items" — the board was rendering a 54-day-old document.
 
+## Post-ladder: "kanban only shows 6 items" (2026-09-21)
+
+Stevie, from the board, once the Meta Moment came alive: six cards — the
+phases — and nothing else. Two causes, both real.
+
+**1. The document was 54 days stale** — see the correction above. Synced.
+
+**2. The parser did not read the document's actual shape.** It was written
+for `#### Epoch N.N:` milestone headings; `timeline.md` stopped using those
+long ago and keeps its work items as top-level bullets under each Age,
+grouped by bold section lines (`**Completed sub-items:**`, `**Remaining for
+Age 3:**`, or none under a planned Age). Timeguru logged `milestones=0
+phases=6` on the real file and was correct about what it read.
+
+The parser now derives a milestone from every top-level bullet under a
+phase with no `####` milestone open: status from the section line
+(completed / pending), else the phase's own status; a checkbox on the
+bullet overrides both; name = the bullet's lead clause (up to ` (`, `: `,
+` — `), full text as description; id = `<phase-id>-item-<8 hex of sha256
+(text)>`, so an insertion above a card does not renumber it and kanban's
+diff sees only what changed. Milestone vocabulary is `pending`, not the
+phases' `planned` — `Validate()` rejected the first cut on the real file.
+
+Tests: the real file's three conventions; the two-level fixture whose five
+directly-under-phase checkboxes were being silently dropped; id stability
+under insertion. Provoked: section status ignored → red; positional ids →
+red (after strengthening the provocation — an *appended* bullet does not
+expose a positional scheme, an *inserted* one does).
+
+**Found while deploying:** the `timeline_loaded` announce I added earlier
+fired right after the Wotan connect, before timeguru's HTTP listener was
+bound, so kanban's refetch hit connection refused. Announce now follows a
+synchronous `net.Listen`; the refetch retries three times.
+
+Real file: **58 milestones (44 completed, 14 pending)**. Board:
+`/api/v1/timeline/cards` → **64** (47 done, 16 todo, 1 in-progress), from
+six. Mirrors regenerated. qa-smoke 35/35.
+
 ## The meta-gate — breaking the four-batch cycle (2026-09-09)
 
 Four consecutive batches shipped a gate that was green because it could not

@@ -22,21 +22,39 @@ func TestHandleTimelineUpdate_NotificationTriggersRefetch(t *testing.T) {
 		t.Fatalf("notification must trigger exactly one refetch, got %d", calls)
 	}
 
-	// A refetch failure is logged, not returned — the notification itself was
-	// handled, and the next one retries.
+	// A refetch failure is retried three times (timeguru is often mid-restart
+	// when a notification lands), then logged, not returned — the
+	// notification itself was handled, and the next one tries again.
+	calls = 0
 	tm.SetRefetch(func() error { calls++; return errors.New("timeguru down") })
 	if err := tm.HandleTimelineUpdate(payload); err != nil {
 		t.Fatalf("refetch failure must not fail the handler: %v", err)
 	}
+	if calls != 3 {
+		t.Fatalf("failing refetch must be attempted exactly 3 times, got %d", calls)
+	}
+	// And a failure followed by success stops retrying at the success.
+	calls = 0
+	tm.SetRefetch(func() error {
+		calls++
+		if calls < 2 {
+			return errors.New("not yet")
+		}
+		return nil
+	})
+	if err := tm.HandleTimelineUpdate(payload); err != nil {
+		t.Fatalf("HandleTimelineUpdate: %v", err)
+	}
 	if calls != 2 {
-		t.Fatalf("second notification must refetch again, got %d calls", calls)
+		t.Fatalf("retry must stop at first success, got %d calls", calls)
 	}
 
 	// A full-timeline payload is applied directly and does not refetch.
+	calls = 0
 	if err := tm.HandleTimelineUpdate([]byte(`{"phases":[]}`)); err != nil {
 		t.Fatalf("full timeline payload: %v", err)
 	}
-	if calls != 2 {
+	if calls != 0 {
 		t.Fatalf("full timeline payload must not trigger refetch, got %d calls", calls)
 	}
 }

@@ -129,7 +129,16 @@ func (tm *TimelineManager) HandleTimelineUpdate(payload []byte) error {
 		refetch := tm.refetch
 		tm.mu.RUnlock()
 		if refetch != nil {
-			if err := refetch(); err != nil {
+			// A notification often means timeguru just (re)started; give its
+			// HTTP listener a moment rather than dropping the update.
+			var err error
+			for attempt := 1; attempt <= 3; attempt++ {
+				if err = refetch(); err == nil {
+					break
+				}
+				time.Sleep(time.Duration(attempt) * time.Second)
+			}
+			if err != nil {
 				log.Warn().Err(err).Str("event", event.Event).
 					Msg("timeline notification received but refetch from timeguru failed")
 			}

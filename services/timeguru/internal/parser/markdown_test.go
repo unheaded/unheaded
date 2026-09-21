@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unheaded/services/timeguru/internal/timeline"
 )
 
 // ============================================================================
@@ -396,20 +397,52 @@ func TestMarkdownParser_ParseContent_FullTimeline(t *testing.T) {
 		}
 	}
 
-	// Verify milestones
-	if len(tl.Milestones) != 2 {
-		t.Errorf("expected 2 milestones, got %d", len(tl.Milestones))
+	// Verify milestones: 2 "#### Epoch" headings plus 5 checkbox bullets that
+	// sit directly under a phase (3 under Age 0, 2 under Age 2). Before
+	// 2026-09-21 those five were silently dropped.
+	if len(tl.Milestones) != 7 {
+		t.Errorf("expected 7 milestones, got %d", len(tl.Milestones))
 	}
 
-	// Check first milestone details
-	if len(tl.Milestones) > 0 {
-		m1 := tl.Milestones[0]
-		if m1.Risk != "medium" {
-			t.Errorf("milestone 1: expected risk 'medium', got %q", m1.Risk)
+	byID := map[string]*timeline.Milestone{}
+	for _, m := range tl.Milestones {
+		byID[m.ID] = m
+	}
+	m1 := byID["milestone-1.1"]
+	if m1 == nil {
+		t.Fatal("milestone-1.1 missing")
+	}
+	if m1.Risk != "medium" {
+		t.Errorf("milestone 1.1: expected risk 'medium', got %q", m1.Risk)
+	}
+	if !strings.Contains(m1.Owner, "Architect") {
+		t.Errorf("milestone 1.1: expected owner containing 'Architect', got %q", m1.Owner)
+	}
+
+	// The Age 0 checkboxes are ticked and the Age 2 ones are not; the
+	// checkbox decides, not the phase.
+	var age0, age2 []*timeline.Milestone
+	for _, id := range tl.Phases[0].Milestones {
+		age0 = append(age0, byID[id])
+	}
+	for _, id := range tl.Phases[2].Milestones {
+		age2 = append(age2, byID[id])
+	}
+	if len(age0) != 3 || len(age2) != 2 {
+		t.Fatalf("bullet milestones per phase: age0=%d age2=%d, want 3 and 2", len(age0), len(age2))
+	}
+	for _, m := range age0 {
+		if m.Status != "completed" || m.Progress != 100 {
+			t.Errorf("%s: ticked checkbox must be completed/100, got %s/%d", m.Name, m.Status, m.Progress)
 		}
-		if !strings.Contains(m1.Owner, "Architect") {
-			t.Errorf("milestone 1: expected owner containing 'Architect', got %q", m1.Owner)
+	}
+	for _, m := range age2 {
+		if m.Status != "pending" {
+			t.Errorf("%s: unticked checkbox must be pending, got %s", m.Name, m.Status)
 		}
+	}
+	if age0[0].Name != "Ring buffer implementation" {
+		t.Errorf("bullet name: want %q, got %q", "Ring buffer implementation", age0[0].Name)
 	}
 }
 
