@@ -38,7 +38,7 @@ Do not attribute them to any batch before B5.
 | B6 | 70–93 | `015218c7` | bandit + eslint/shellcheck gating flips | JS front ends |
 | B7 | 94–109 | `910e9dfe` | The Well, dark-mirror, hosts, healthchecks, nix, runbooks | **in staging** — WELL_DB fixed in-batch; GUI QA pending |
 | B8 | 110–115 | `8b14029b` | daemon panic, systemd, k8s, CI gate | **in staging** — 35/35 smoke; dashboard OOM found + fixed |
-| B9 | 116–124 | `5b172807` | python SBOM, SRI, docs, timeguru | dashboard/timeline |
+| B9 | 116–124 | `5b172807` | python SBOM, SRI, docs, timeguru | **in staging** — 35/35; mirrors regenerated |
 
 B1's boundary was originally set at rung 8 (`f3cb7bb3`) and **moved to rung 12**
 during verification — see below.
@@ -1154,6 +1154,86 @@ questions for the dashboard, not a staging fix. The memory plateau (~515M of
 768M) is GC headroom from the allocation rate, not growth — but it is close
 enough to the limit that it is worth a `GOMEMLIMIT` in compose when someone
 is next in that file.
+
+## B9 — rungs 116–124, head `5b172807` — IN STAGING (2026-09-21)
+
+Merged as **`4202ddfb`**. 9 rungs, no conflicts. **The last batch: B9's
+head IS `develop`**, so after this the merge-back is the only divergence.
+
+| gate | result |
+|---|---|
+| `go build` / `go vet` | clean |
+| `go test ./...` | **0 failures** |
+| `check-*.sh` | 8/8 |
+| `check-gates-can-fail.sh` (full) | **9 proven**, 0 skipped |
+| shellcheck `-S warning` | 0 / 162 |
+| `cmd/waf`, `cmd/upc-bootctl` | both build (the two workspaces `7f597d62` added to CI) |
+| xterm.js SRI (`7e36c48e`) | **all 3 hashes match the CDN bytes** (css, xterm.js, addon-fit), `crossorigin` on each |
+| `qa-smoke.sh` | **35 / 35** |
+
+### The parser fix was real; the mirrors it describes were never regenerated
+
+`c97ec780` fixes three bugs in `internal/parser/markdown.go` and quotes the
+wrong output in the committed mirrors as its motivation. Verified on the
+real `references/timeline.md` with the B9 binary: Public Release
+`in_progress` 70 (the .md says `~70%`), MVP Era and Scaling Era `planned`,
+no `(🔄 IN PROGRESS)` leaking into names, and — for `33cab103` — zero
+`0001-01-01` dates anywhere in the response.
+
+But `references/timeline.{json,yaml,toml}` in the tree still said
+`"The Scaling Era (📋 PLANNED)" status=completed`. The parser was fixed;
+the artifacts the parser exists to produce were not. Regenerated in
+**`b723dd42`**. Same shape as B6's meta-gate lesson: the fix is not done
+until its output is.
+
+### Found by running the stack: timeguru-in-compose serves nothing
+
+The compose `timeguru` has **no `references/` mount**, so the container
+logs `timeline file not found` and `/api/v1/timeline` returns
+`INTERNAL_ERROR: timeline not found`. `read_only: true` also blocks its
+sync directory. Pre-existing (B9 does not touch compose), and the smoke
+probe only hits `/health`, so it has never been caught. Not fixed here —
+it is a compose design question (bind the repo's `references/` read-only
+and point sync elsewhere, or bake the file into the image) with the same
+"first-init on a clean checkout" flavour as the Well work. Recorded, not
+taken.
+
+### `/code-review high` over B9 — 4 findings, all 4 fixed
+
+**1. `ci-protocol.yml` — MEDIUM — `cmd/ebpf-collector` (20 tests) was still
+in no CI job.** `7f597d62` states the rule "every Cargo.lock-marked root
+with at least one `#[test]`" and claims zero gaps; applying the rule finds
+one. Verified green locally (16 + 4 pass) before adding it to the loop and
+the cache list, so this cannot turn CI red. The comment now says to derive
+the list from `git ls-files '*/Cargo.lock'`, not memory.
+
+**2. `parser/markdown.go` — LOW — declared milestone progress was still
+clobbered by an incidental `N%`.** The phase-level guard from `c97ec780`
+had no milestone twin. Added `milestoneProgressDeclared`, reset per
+milestone header. Test asserts the declared one wins *and* an undeclared
+sibling still picks up its incidental figure (the reset). Provoked by
+inverting the guard: red.
+
+**3. `api/handlers.go` ×4, `sync/sync.go` — LOW — `!= nil` lets a persisted
+year‑1 date through.** Rows written before `33cab103` decode to a non-nil
+pointer at `0001-01-01`, which becomes a Kanban due date rendered as
+overdue. `timeline.HasDate()` (`!= nil && !IsZero()`) at all five sites, with
+a three-case test. Provoked by dropping the `IsZero`: red.
+
+**4. `parser/markdown.go` — LOW — status keywords matched as substrings, so
+`(incomplete)` → completed and `(unblocked)` → blocked.** Word-bounded in
+both the header regex and `parseStatus`, with `IN[ _-]?PROGRESS` and
+`BLOCK(?:ED)?` spelled out (the first cut wrote `BLOCKED?`, which makes the
+`E` mandatory — caught by the test, not by me). Header test covers the two
+real emoji markers plus the four prose traps; a direct `parseStatus` test
+covers the body-text path the header regex would otherwise mask. Provoked
+separately on each regex: red both times. Re-ran the B9 binary on the real
+`timeline.md`: phases identical to the regenerated mirror.
+
+Reviewer confirmed sound: all three SRI hashes byte-for-byte; every
+third-party import under `raft/` is in `requirements.txt`; the `*time.Time`
+change has no non-test callers outside timeguru; regenerated mirrors match
+the parser; ADR index matches disk.
 
 ## The meta-gate — breaking the four-batch cycle (2026-09-09)
 

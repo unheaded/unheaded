@@ -210,3 +210,11 @@ func (t *Timeline) GetPhaseByID(id string) (*Phase, bool) {
 
 	return nil, false
 }
+
+// HasDate reports whether a pointer date carries a real value. Rows persisted
+// before ETA/EndDate became pointers hold "0001-01-01T00:00:00Z" — the very
+// defect 33cab103 fixed — and decode to a non-nil pointer at year 1. A bare
+// `!= nil` lets that through as a Kanban due date; this does not.
+func HasDate(t *time.Time) bool {
+	return t != nil && !t.IsZero()
+}
