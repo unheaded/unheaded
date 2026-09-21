@@ -1315,6 +1315,25 @@ member while the **HTTP** path applies `topics.auto_approve` — the allowlist
 is only a control for clients that happen to fall back. Belongs with the
 security follow-ups.
 
+## Correction: the timeline gate was red for all of B7–B9 (2026-09-21)
+
+The B7, B8 and B9 tables above say `check-*.sh` **8/8 PASS**. For
+`check-timeline-freshness.sh` that was false. `references/timeline.md` was
+last committed 2026-07-29; ADR-052 allows 7 days; the delta was **54 days
+and 135 commits**, and CI's `timeline-drift-guard.yml` had been issuing the
+citation the whole time.
+
+How it passed my loops: the script defaulted to `--report` (always exit 0)
+when called with no argument, and my ad-hoc loop called it bare. CI, Jenkins
+and the meta-gate all pass `--check` explicitly and were correct. This is the
+recurring defect one more time, and this time the check was fine — the
+operator ran it in the mode that cannot fail.
+
+Fixed both ends: `timeline.md` synced (the ladder, the meta-gate, The Well,
+the dashboard OOMs, the Meta Moment), and the script's **default is now
+`--check`**; `--report` must be asked for. Stevie noticed, from the board:
+"kanban only shows 6 items" — the board was rendering a 54-day-old document.
+
 ## The meta-gate — breaking the four-batch cycle (2026-09-09)
 
 Four consecutive batches shipped a gate that was green because it could not

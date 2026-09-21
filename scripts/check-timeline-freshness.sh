@@ -9,7 +9,13 @@
 # Modes:
 #   --check    CI mode. Exits 1 on drift, 0 if fresh. Prints citation message.
 #   --report   Info mode. Always exits 0. Prints current age + status.
-#   (default = --report when no arg given)
+#   (default = --check when no arg given)
+#
+# The default used to be --report. A bare invocation in an ad-hoc gate loop
+# then printed "PASS" for three promotion batches while the timeline was 54
+# days behind HEAD and CI's --check was red (2026-09-21). A check script whose
+# default mode cannot fail is the recurring defect this repo keeps finding in
+# itself; --report is still here for humans, but you have to ask for it.
 #
 # Configuration:
 #   MAX_AGE_DAYS  : staleness threshold in days (default 7, per ADR-052)
@@ -34,7 +40,7 @@ set -euo pipefail
 # ----- Defaults -----
 MAX_AGE_DAYS="${MAX_AGE_DAYS:-7}"
 TIMELINE_PATH="${TIMELINE_PATH:-references/timeline.md}"
-MODE="${1:---report}"
+MODE="${1:---check}"
 
 # ----- Helpers -----
 err() { printf 'error: %s\n' "$*" >&2; }
