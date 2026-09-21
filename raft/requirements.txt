@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# Direct third-party imports of the Zhen stack (raft/*.py, raft/scripts/*.py).
+#
+# Before this file existed there was no Python dependency manifest anywhere in
+# the repo, which meant `syft dir:.` — the SBOM step in ci.yml — found ZERO
+# packages here, so grype had nothing to scan. A CVE in flask, requests or
+# psycopg2 was caught by no gate. That is what this file is for first;
+# reproducible installs are the secondary benefit.
+#
+# DIRECT imports only, not a freeze. Transitive dependencies are resolved by pip
+# and reported by syft from the installed environment. Versions are the ones
+# running in ~/.venv/zhen today, each confirmed importable — not aspirational.
+#
+# torch is deliberately unpinned to a build: the ROCm wheels come from a
+# different index (see ~/.venv/zhen-rocm and CLAUDE.md's ROCm notes), and
+# pinning the CPU build here would fight the GPU setup. Install the variant that
+# matches the accelerator, then the version below.
+
+# --- web + API surface -------------------------------------------------------
+Flask==3.1.3
+flask-cors==6.0.2
+requests==2.32.5
+
+# --- The Well (PostgreSQL) ---------------------------------------------------
+psycopg2-binary==2.9.11
+
+# --- retrieval / RAG ---------------------------------------------------------
+faiss-cpu==1.13.2
+sentence-transformers==5.3.0
+langchain-text-splitters==1.1.1
+numpy==2.4.3
+
+# --- model training + inference ----------------------------------------------
+# torch: install the accelerator-appropriate build first (ROCm/CUDA/CPU).
+torch==2.10.0
+transformers==5.3.0
+datasets==4.7.0
+peft==0.18.1
+trl==0.29.0
+
+# --- agent / scheduling ------------------------------------------------------
+mcp==1.27.0
+anthropic==0.84.0
+schedule==1.2.2
+PyYAML==6.0.3
+
+# --- tests -------------------------------------------------------------------
+pytest==9.0.3

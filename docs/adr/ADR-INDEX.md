@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-08-03
-**Total:** 76 ADRs (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-027-065 across sessions; ADR-066/067/072/073 added; ADR-69420 pipe-dream; ADR-084 huginn; ADR-088 kubernetes; ADR-089 promotion workflow; ADR-090 total source sweep; ADR-091 The Well initdb ordering)
+**Total:** 88 ADRs, all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 > **Index gap:** ADR-082 and ADR-083 exist on disk but have never been registered here
 > or in the table below. Noted 2026-08-03; needs a Librarian pass.
@@ -137,3 +137,13 @@
 | [079](ADR-079-ret-address-tagging.md) | RET return-address tagging — CALL/CALLR tag MBC PCs with bit 31 so RET distinguishes them from raw RV addresses without the fragile magnitude floor; retires RET_RV_FLOOR, unblocks Linux-scale images, makes the Doom [0x10000,0x151BF] misparse impossible (verifier +0.03%) | **Accepted** (Phase 2.0 substrate prereq #1; xv6 corpus green 2026-07-02) | 2026-07-02 |
 | [080](ADR-080-upc-programmatic-api.md) | The UPC Programmatic API — UPC as a general multi-workload MBC substrate (Doom + xv6/Linux on one interpreter); the 5-part guest contract (MBC image / rv2mbc / memory / syscall surface / boot protocol); per-workload syscall surfaces DCE-partitioned by cfg to respect the 1M verifier ceiling; load-test-each-variant rule; path to registered dispatch | **Accepted** (formalizes realized architecture) | 2026-07-03 |
 | [081](ADR-081-unheaded-linux-from-scratch.md) | Unheaded Linux — build our own minimal OS from scratch on the UPC instead of vendoring uClinux+busybox; 100% in-house, as light/small as possible (fits verifier budget + code-store); scales UPC PoC → Unheaded Linux → Yggdrasil golden image via soft-fork discipline on an owned base. Supersedes ascend Phase 2 vendor step; moots the LTS/arch pair calls | **Accepted** (Stevie's call) | 2026-07-03 |
+| [082](ADR-082-unheadnix-niche-brainstorm.md) | unheadnix — feasible-usage brainstorm for ultralight UPC pool nodes | **Brainstorm / Exploratory** (explicitly not a decision; feeds a future ADR) | 2026-07-19 |
+| [083](ADR-083-terminology-conventions.md) | Terminology conventions (rolling) — internal "zero user data access" vs user-facing "NIST 800-207 Zero Trust Architecture" | **Accepted** (rolling) | 2026-07-19 |
+| [084](ADR-084-huginn-host-metrics-agent.md) | Huginn — host metrics agent | **Accepted** | 2026-07-24 |
+| [085](ADR-085-cicd-artifact-layout.md) | CI/CD pipeline polish — canonical artifact layout | **Planned** | 2026-07-24 |
+| [086](ADR-086-muninn-observability-pipeline.md) | Muninn — observability fan-out pipeline | **Planned** | 2026-07-24 |
+| [087](ADR-087-noc-network-device-monitoring.md) | NOC — network device monitoring and configuration management | **Planned** | 2026-07-24 |
+| [088](ADR-088-kubernetes-service-orchestration.md) | Kingdom Deployment Substrate Ladder — K8s / Terraform / Ansible / NixOS / packaging as a learning ladder over 56 real service components | **Planned** | 2026-07-24 |
+| [089](ADR-089-dev-staging-main-promotion-workflow.md) | `develop` → `staging` → `main` promotion workflow — one reviewable unit per commit, never promote red, ratchet by rule ID, revert not force-push | **Accepted** (Stevie's call) | 2026-08-03 |
+| [090](ADR-090-total-source-sweep-slop-removal.md) | The Total Source Sweep — read all tracked source files once, fixed order, resumable TSV ledger, explicit "NOT slop" list | **Proposed** (activates after the Staging Ladder sprint) | 2026-08-03 |
+| [091](ADR-091-the-well-initdb-ordering.md) | The Well — one orchestrator in `/docker-entrypoint-initdb.d`, migrations mounted read-only elsewhere; never nest a bind mount inside another's mountpoint | **Accepted** | 2026-08-04 |

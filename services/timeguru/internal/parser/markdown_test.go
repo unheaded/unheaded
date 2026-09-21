@@ -439,3 +439,116 @@ func BenchmarkParseContent(b *testing.B) {
 		_, _ = parser.ParseContent(content)
 	}
 }
+
+// ============================================================================
+// REAL-FILE HEADING MARKERS
+//
+// references/timeline.md uses (✅ COMPLETED), (🔄 IN PROGRESS) and (📋 PLANNED).
+// The status capture class only listed ✓✅🚀, so 🔄 and 📋 headings failed to
+// match the optional status group: the marker leaked into the phase Name and the
+// status fell through to the "planned" default. Then any later body line
+// containing the word "COMPLETE" flipped it, because the override guard fires
+// whenever the status is still "planned".
+//
+// Net effect in references/timeline.json, generated from that file:
+//   "name": "The Public Release (🔄 IN PROGRESS)", "status": "completed", 85%
+//   "name": "The Scaling Era (📋 PLANNED)",        "status": "completed", 0%
+// ============================================================================
+
+func TestParse_RealHeadingMarkers(t *testing.T) {
+	md := "# T\n\n" +
+		"### Age 3: The Public Release (🔄 IN PROGRESS)\n" +
+		"Some work here is COMPLETE already.\n\n" +
+		"### Age 5: The Scaling Era (📋 PLANNED)\n" +
+		"Depends on Age 4 being COMPLETED first.\n"
+
+	p := &MarkdownParser{filePath: "test.md"}
+	tl, err := p.ParseContent(md)
+	if err != nil {
+		t.Fatalf("ParseContent: %v", err)
+	}
+	if len(tl.Phases) != 2 {
+		t.Fatalf("got %d phases, want 2", len(tl.Phases))
+	}
+
+	for _, tc := range []struct {
+		idx          int
+		name, status string
+	}{
+		{0, "The Public Release", "in_progress"},
+		{1, "The Scaling Era", "planned"},
+	} {
+		got := tl.Phases[tc.idx]
+		if got.Name != tc.name {
+			t.Errorf("phase %d Name = %q, want %q (status marker leaked into the name)",
+				tc.idx, got.Name, tc.name)
+		}
+		if got.Status != tc.status {
+			t.Errorf("phase %d Status = %q, want %q (body text overrode the header)",
+				tc.idx, got.Status, tc.status)
+		}
+	}
+}
+
+// An explicit header status must win over anything in the section body. A phase
+// declared PLANNED stays planned even if its body discusses completed work.
+func TestParse_HeaderStatusNotOverriddenByBody(t *testing.T) {
+	md := "# T\n\n" +
+		"### Age 4: The MVP Era (PLANNED)\n" +
+		"Prerequisite Age 3 is COMPLETE, so this is next.\n"
+
+	p := &MarkdownParser{filePath: "test.md"}
+	tl, err := p.ParseContent(md)
+	if err != nil {
+		t.Fatalf("ParseContent: %v", err)
+	}
+	if len(tl.Phases) != 1 {
+		t.Fatalf("got %d phases, want 1", len(tl.Phases))
+	}
+	if tl.Phases[0].Status != "planned" {
+		t.Errorf("Status = %q, want \"planned\" — an explicit header status must not be "+
+			"overridden by the word COMPLETE appearing in the body", tl.Phases[0].Status)
+	}
+}
+
+// A phase's own "**Progress:** N%" declaration must win over any percentage that
+// happens to appear later in its section, and a decimal percentage must not be
+// truncated to its fractional digits.
+//
+// references/timeline.md Age 3 declares "**Progress:** ~70%" and later mentions
+// "verifier 737,087 insns (73.7%)". `(\d+)%` matched "7%" inside "73.7%", and
+// because every match overwrote the field, the phase reported progress = 7.
+func TestParse_ProgressDeclarationWinsOverIncidentalPercentages(t *testing.T) {
+	md := "# T\n\n" +
+		"### Age 3: The Public Release (🔄 IN PROGRESS)\n" +
+		"**Progress:** ~70%\n" +
+		"Doom loads at verifier 737,087 insns (73.7%).\n" +
+		"Coverage sits near 91% on the core packages.\n"
+
+	p := &MarkdownParser{filePath: "test.md"}
+	tl, err := p.ParseContent(md)
+	if err != nil {
+		t.Fatalf("ParseContent: %v", err)
+	}
+	if len(tl.Phases) != 1 {
+		t.Fatalf("got %d phases, want 1", len(tl.Phases))
+	}
+	if got := tl.Phases[0].Progress; got != 70 {
+		t.Errorf("Progress = %d, want 70 (the declared value must win; 7 means "+
+			"\"73.7%%\" was misparsed, 91 means a later percentage overwrote it)", got)
+	}
+}
+
+// With no explicit declaration the parser may still infer from a bare
+// percentage, but a decimal must round down rather than yield its fraction.
+func TestParse_DecimalPercentageNotTruncatedToFraction(t *testing.T) {
+	md := "# T\n\n### Age 9: Some Era (PLANNED)\nBudget used: 73.7% of the ceiling.\n"
+	p := &MarkdownParser{filePath: "test.md"}
+	tl, err := p.ParseContent(md)
+	if err != nil {
+		t.Fatalf("ParseContent: %v", err)
+	}
+	if got := tl.Phases[0].Progress; got != 73 {
+		t.Errorf("Progress = %d, want 73 (got 7 => the decimal was misparsed)", got)
+	}
+}

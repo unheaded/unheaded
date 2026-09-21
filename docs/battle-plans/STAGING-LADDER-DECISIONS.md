@@ -138,17 +138,52 @@ thing here reproduces that.
 
 ---
 
-## D7 — `defusedxml` as a dependency? (ADR-004)
+## D7 — `defusedxml` as a dependency? (ADR-004) — **ready to apply, 2 minutes**
 
 `12_process_stackoverflow.py` and `14_extract_wikipedia.py` stream-parse the StackOverflow
 and Wikipedia dumps with `xml.etree`. XXE does not apply (`xml.etree` does not resolve
 external entities), but entity-expansion DoS does — impact being that a batch job you
 started crashes.
 
-`defusedxml` closes it and is the textbook answer. It is a new third-party dependency,
-which ADR-004 requires approval for. **Deliberately left unskipped in the bandit config**
-so it stays visible: this is the one group in the remainder where a real fix exists and is
-blocked only on a dependency decision.
+**Everything that was uncertain here has now been measured (2026-08-04).**
+
+The **3-skill vote is unanimous for approval**: *Developer* — all inputs hostile, and the
+amplification is real; *Architect* — ADR-004's "established orgs OK with approval" fits
+exactly (PSF licence, **zero transitive dependencies**, author Christian Heimes,
+`christian@python.org`, a CPython core developer); *Micromanager* — two import lines,
+verified, so cheap that deferring costs more than doing.
+
+Evidence, run rather than assumed:
+
+- **`defusedxml` supports `iterparse`**, which was the open question — both call sites use
+  it. `defusedxml==0.7.1` provides it with `forbid_entities=True` by default.
+- **Identical on well-formed input.** Same file, both parsers: 3 elements, 10 body bytes.
+- **The amplification is real.** A billion-laughs DTD at only `lol5`: stdlib expanded a
+  ~500-byte file to **300,000 bytes**; `defusedxml` raised `EntitiesForbidden`. `lol9` is
+  gigabytes.
+- Both files use *only* `iterparse`, so `import defusedxml.ElementTree as ET` and
+  `from defusedxml.ElementTree import iterparse` are clean drop-ins. (`defusedxml` does
+  not re-export `Element`/`SubElement`/`ElementTree` — neither file uses them.)
+
+**Why it is not already committed:** `defusedxml` is not installed in `~/.venv/zhen`, the
+environment those scripts run in. Making the swap without it turns a theoretical DoS on
+trusted archives into an immediate `ModuleNotFoundError` on every run — introducing the
+failure the change claims to prevent. `raft/requirements.txt` now exists (`85466119`), so
+there is finally somewhere to declare it, which is what blocked this before.
+
+**To apply:**
+
+```bash
+~/.venv/zhen/bin/pip install defusedxml==0.7.1
+# then add to raft/requirements.txt, and in the two scripts:
+#   12_process_stackoverflow.py: from xml.etree.ElementTree import iterparse
+#                             -> from defusedxml.ElementTree import iterparse
+#   14_extract_wikipedia.py:     from xml.etree import ElementTree as ET
+#                             -> import defusedxml.ElementTree as ET
+```
+
+Keep the new import on its own line after a blank line, or ruff's `I001` will fire on the
+import block.
 
 ---
 
@@ -187,6 +222,38 @@ Needs your account. Everything else in ADR-089 is in force already.
    That is a deliberate resource guard, not abandonment — and the other **104 tests in
    the crate pass**, which nobody could have known, because *no CI job ran this crate at
    all* until `22f180da`. Nothing to decide: keep them, run them on east/west.
+
+---
+
+## D15 — `omitempty` on struct fields: fix all 66, or leave them?
+
+**Found 2026-08-04**, while fixing `services/timeguru` (`081e5152`).
+**Full analysis:** `docs/security/omitempty-on-structs-2026-08-04.md`
+
+`encoding/json` never omits a struct value, so `time.Time` tagged `omitempty`
+always serialises — an unset date emits `"0001-01-01T00:00:00Z"`. **66 fields
+across 24 files** state an intent the encoder silently ignores. 55 are
+`time.Time`; 11 are whole nested config structs that emit a populated tree of
+zero values.
+
+**Not a logic fault.** Go code guards these with `.IsZero()`, which is correct.
+It only shows at the serialisation boundary, which is why every test passes.
+`Secret.IsExpired()` and `Lease.IsExpired()` were both checked specifically and
+are fine.
+
+| Option | Cost | Result |
+|---|---|---|
+| **A — convert all 66 to pointers** | Large. ~100 `.IsZero()` call sites become nil checks, package by package, `-race` after each. | The APIs stop emitting year-1 dates |
+| **B — drop the misleading `omitempty` tags** | Small, mechanical | Output unchanged, but the code stops claiming something untrue |
+| **C — leave, record** | None | Honest backlog; consumers keep seeing `0001-01-01` |
+
+**Recommendation: A, one package at a time, attended.** Not unattended — the
+conversion has a real hazard that bit within a minute in timeguru:
+`time.Time.IsZero` has a *value* receiver, so `!x.IsZero()` on a nil pointer
+panics. The existing tests caught it there; they may not everywhere.
+
+Highest-value packages first, on the basis of who reads the JSON:
+`cmd/dashboard-backend`, `cmd/kanban-app`, `pkg/alerting`, `pkg/secrets`.
 
 ---
 
