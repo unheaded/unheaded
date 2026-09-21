@@ -209,7 +209,7 @@ func (h *Handler) transformToKanbanTasks(tl *timeline.Timeline) []*KanbanTask {
 		}
 
 		// Format due date if present
-		if !m.ETA.IsZero() {
+		if m.ETA != nil {
 			task.DueDate = m.ETA.Format("2006-01-02")
 		}
 
@@ -226,7 +226,7 @@ func (h *Handler) transformToKanbanTasks(tl *timeline.Timeline) []*KanbanTask {
 				Owner:       m.Owner,
 				Phase:       m.ID,
 			}
-			if !m.ETA.IsZero() {
+			if m.ETA != nil {
 				subTask.DueDate = m.ETA.Format("2006-01-02")
 			}
 			tasks = append(tasks, subTask)
@@ -248,7 +248,7 @@ func (h *Handler) transformToKanbanTasks(tl *timeline.Timeline) []*KanbanTask {
 			Progress:    phase.Progress,
 		}
 
-		if !phase.EndDate.IsZero() {
+		if phase.EndDate != nil {
 			task.DueDate = phase.EndDate.Format("2006-01-02")
 		}
 
@@ -809,7 +809,7 @@ func (h *Handler) generateMarkdown(tl *timeline.Timeline) string {
 			}
 
 			// Metadata
-			if !m.ETA.IsZero() {
+			if m.ETA != nil {
 				fmt.Fprintf(&sb, "**ETA:** %s\n", m.ETA.Format("Jan 2, 2006"))
 			}
 			if m.Owner != "" {

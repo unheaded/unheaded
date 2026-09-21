@@ -1,6 +1,6 @@
 # ADR-074 — ASCEND-LINUX Phase 1.2: Page-Table Mapping Model
 
-**Status**: DRAFT (Scientist + Architect pre-work; awaiting Stevie pair-call)
+**Status**: **Accepted** — Option A + Allocator A1; pair-call landed (`8528d45b`), Phase 1.2 IMPL closed 2026-05-13 (`b9572c26`), closure report at `references/phase12-impl-complete-2026-05-13.md`
 **Date**: 2026-05-11 (drafted post-Marshal extended-churn shift)
 **Deciders pending**: Stevie + unheaded-architect + unheaded-computermancer + unheaded-blackmage + unheaded-developer
 **Aligns with**: ADR-067 (MBC ISA v2 + UPC ABI v1), ADR-023 (TLB design), ADR-052 (in-tree source-of-truth policy)
