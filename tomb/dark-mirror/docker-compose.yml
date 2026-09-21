@@ -6,8 +6,23 @@
 #
 # Services: Prometheus, Grafana, Loki, Promtail
 #
-# Usage:
-#   docker compose up -d
+# DO NOT run this file from the repository directory. Every config path below is
+# relative to the DEPLOYMENT root (${TOMB_ROOT}/dark-mirror), not to this one.
+# In the repo the configs are flat — prometheus.yml, loki-config.yml,
+# promtail-config.yml, grafana/datasources.yml — and setup-dark-mirror.sh is what
+# copies them into the ./prometheus/, ./loki/, ./promtail/ and
+# ./grafana/provisioning/ layout referenced here, generates the Grafana dashboard
+# provider, copies this file across, and only then runs compose from there.
+#
+# Run it in place and docker will create every missing path as an empty
+# root-owned directory: Prometheus gets a directory where its config should be,
+# Grafana starts with no datasources and no dashboards, and the repo is littered
+# with root-owned dirs you need sudo to remove.
+#
+# Deploy (this is the entry point):
+#   sudo ./setup-dark-mirror.sh
+#
+# Then, from ${TOMB_ROOT}/dark-mirror:
 #   docker compose logs -f
 #   docker compose down
 #
@@ -15,7 +30,7 @@
 #   1. Pre-pull images on internet-connected host (see load-images.sh)
 #   2. Transfer .tar files to Tomb VM
 #   3. Load images: ./load-images.sh --load /tmp/dark-mirror-images/
-#   4. Start stack: docker compose up -d
+#   4. Deploy + start: sudo ./setup-dark-mirror.sh
 
 services:
 
