@@ -1080,6 +1080,81 @@ sophia-eye prometheus targets; the four `docker/hosts` path corrections;
 `bpf-verifier-check.sh` `BUILD_EXIT` capture; `tomb/provision.sh` VERBOSE
 init; `hardening.nix` `mkDefault`.
 
+## B8 — rungs 110–115, head `8b14029b` — IN STAGING (2026-09-21)
+
+Merged by Stevie as **`a50f9be0`**. 6 rungs, no conflicts. **First 35/35
+smoke on the ladder** — the cuirass `/health` double-registration panic
+(`7c86b443`) was the only thing behind the two probes that failed on every
+batch since B1.
+
+| gate | result |
+|---|---|
+| `go build` / `go vet` | clean |
+| `go test ./...` | **0 failures** |
+| `check-*.sh` | 8/8 |
+| `check-gates-can-fail.sh` (full) | **9 proven**, 0 skipped |
+| shellcheck `-S warning` | 0 / 162 |
+| cuirass image | rebuilt; `running healthy`, 0 restarts, 0 panics, `/health` + `/ready` 200 on :19006 |
+| `qa-smoke.sh` | **35 / 35** |
+
+### Found by running the stack: dashboard-backend OOM-kills itself in ~50 min
+
+Not a B8 regression — B8 does not touch dashboard-backend — but the smoke
+run that followed the cuirass rebuild found `unheaded-dashboard` `Exited
+(137)`, `OOMKilled=true` at its 768M limit, with **1.6M** "broadcast channel
+full" warnings in the log. It first looked like Stevie's browser (a client at
+192.168.69.131 hit "client buffer full" 18 minutes earlier). It was not: a
+fresh container with **no client at all** logged 1.8M of the same line in five
+minutes.
+
+The chain, from a SIGQUIT goroutine dump 3 minutes after start:
+
+1. `events.(*Streamer).processEvent` ran `go listener(event)` per event per
+   listener, unbounded. Highest goroutine id **8,028,031**; 461 runnable at
+   the instant of the dump.
+2. `main.go` subscribes that general streamer to `ebpf.*` — the demo
+   injector's firehose. Wotan sends only 69 msgs/s, but each is a **batched
+   array**; the ingestor unwraps to ~24K events/s, and each event is three
+   `Broadcast` calls.
+3. Every dropped broadcast wrote a pretty-printed console warn line. At
+   thousands a second, on a container capped at `cpus: "0.5"`, the log line
+   cost more than the drop — the hub starved, the channel stayed full, every
+   drop logged, and the goroutine backlog grew until the cgroup killed it.
+
+Two ruled-out suspects worth recording: `pkg/logagg` `Publisher` spawns a
+goroutine per log line, but dashboard-backend creates it and discards it
+(`_ = logagg.NewPublisher(...)`, `main.go:155`) — never installed, so not the
+leak (and its own "does nothing" finding). And Wotan's wildcard `MatchTopic`
+was checked and is correct; the `ebpf.*` events arrive because `main.go`
+asks for them.
+
+**Fix (`cmd/dashboard-backend`):** listeners and topic callbacks are called
+inline — every one in the tree is non-blocking (marshal + select-default
+send), so the gRPC stream now gets backpressure instead of a goroutine.
+Drops are counted in atomics and warned **at most once per 5s with the
+running total**. `warnDropped` has a test that asserts the first drop warns,
+1000 inside the interval are silent but counted, and the first after the
+interval warns with the cumulative count; a 64-goroutine race asserts exactly
+one winner. Provoked by disabling the CAS: **5 FAIL lines**.
+
+Same load, same 4 minutes of uptime:
+
+| | before | after |
+|---|---|---|
+| goroutines alive | 597 (461 runnable) | 132 (0 runnable) |
+| highest goroutine id | 8,028,031 | 30,217 |
+| warn lines / 3 min | ~1.8M | 33 |
+| flows/advancing | pass | pass |
+
+**Deliberately not changed:** the drops themselves. ~24K broadcasts/s into a
+256-deep channel on half a CPU will drop, and with zero clients nothing is
+lost. Whether the general event streamer should be on `ebpf.*` at all, and
+whether three JSON marshals per packet is the right shape, are design
+questions for the dashboard, not a staging fix. The memory plateau (~515M of
+768M) is GC headroom from the allocation rate, not growth — but it is close
+enough to the limit that it is worth a `GOMEMLIMIT` in compose when someone
+is next in that file.
+
 ## The meta-gate — breaking the four-batch cycle (2026-09-09)
 
 Four consecutive batches shipped a gate that was green because it could not
