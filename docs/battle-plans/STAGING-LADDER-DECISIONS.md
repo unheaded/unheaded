@@ -178,9 +178,78 @@ Needs your account. Everything else in ADR-089 is in force already.
    replacing it with Unheaded-authored code.)
 2. **`docs/`** — 345K lines, larger than any code surface. In scope for a separate sweep,
    or out entirely? ADR-090 covers source only.
-3. **The 28 `#[ignore]`d `zhenai-forge` tests** — restore (needs the right Gemma-4 GGUF
-   re-acquired) or delete? They are currently neither running nor removed, which is the
-   worst of both.
+3. ~~**The 28 `#[ignore]`d `zhenai-forge` tests**~~ — **the premise was wrong, closed
+   2026-08-04.** They are not "neither running nor removed": every one carries a reason
+   and a way to run it, e.g.
+
+   > `#[ignore] // heavy: loads ~9 GB Gemma-4 GGUF + uploads to GPU — OOM risk on 14 GB dev box; run on east/west or via cargo test -- --ignored`
+
+   That is a deliberate resource guard, not abandonment — and the other **104 tests in
+   the crate pass**, which nobody could have known, because *no CI job ran this crate at
+   all* until `22f180da`. Nothing to decide: keep them, run them on east/west.
+
+---
+
+## D14 — should `rust-audit` and `security-scan` block a merge?
+
+**Found 2026-08-04.** `ci-protocol.yml`'s `ci-gate` depends on six of its eleven
+jobs and printed `✅ All CI checks passed — ready to merge`. The five it omits:
+
+| job | what it does | advisory? |
+|---|---|---|
+| `security-scan` | Go Security Scan | **no** — real steps, no `continue-on-error` |
+| `rust-audit` | Rust Security Audit | **no** |
+| `proto-lint` | Proto Lint | no |
+| `integration-test` | its own gate; nothing needs it | no |
+| `benchmark` | PR-only | no |
+
+None is marked advisory, so each can fail while the gate still reports success.
+**The message is fixed** — it now enumerates what it aggregated and names what it
+did not, matching `security.yml`'s `security-gate` and `ci.yml`'s `ci-gate`, both
+of which already did this.
+
+**The decision is whether the two security jobs should move into `needs`.** Not
+taken here for the D3 reason: adding a job to `needs` makes it blocking, and
+whether `security-scan` and `rust-audit` currently pass **cannot be verified from
+this machine** — they need a GitHub runner. Wiring them in blind is exactly how
+you land a red gate.
+
+Cheap to settle: push the branch once, read those two jobs, then add them to
+`needs` if green. Related to **D9** — until branch protection exists, no gate is
+enforced server-side anyway, so this is about the message being truthful more
+than about enforcement.
+
+---
+
+## D13 — `lxd/` predates the Port Authority migration, wholesale
+
+**Found 2026-08-04.** The LXD container definitions use an entirely different port
+scheme from every other deployment surface — 50051–50067 for the services,
+plus 8080 (dashboard-backend), 8443 (gateway), 3001/3002 (frontends). Only
+`doom.yaml` (16680) is in the Doom Range.
+
+It is **internally consistent**, which is why this is a decision and not a bug:
+`lxd/` is a coherent pre-migration world, not a tree with stragglers. Fixing one
+file would make it inconsistent with the other nineteen.
+
+Found while chasing `GATEWAY_PORT`, which is read by nothing anywhere —
+`services/gateway/config/config.go:216` reads **`GATEWAY_HTTP_PORT`**. Three
+places set the wrong name:
+
+| where | value | effect |
+|---|---|---|
+| `kubernetes/.../gateway/deployment.yaml` | 21000 | **fixed** — renamed; the value already matched containerPort, both probes and the Service, so it was dead but harmless |
+| `lxd/containers/gateway.yaml` | 8443 | still wrong name. Renaming would make 8443 *take effect*, diverging from the Doom Range 21000/21443 — so it needs the migration decision below, not a rename |
+| `docker/hosts/host-b/docker-compose.yml` | 8080 | same, and that stack cannot start anyway (D11) |
+
+**The decision:** migrate `lxd/` to the Doom Range, or declare it a deliberately
+separate scheme and document why. Either is defensible — LXD containers get their
+own IPs, so the ports need not match the Doom Range to avoid collisions — but
+right now nothing says which it is, and `pkg/ports/ports.go` claims to be the
+single source of truth for the whole Kingdom.
+
+Not taken unattended: it is 20 files of port changes across a deployment surface
+that cannot be tested from here.
 
 ---
 

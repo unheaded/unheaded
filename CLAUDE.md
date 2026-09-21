@@ -1198,11 +1198,11 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 
 | Component | Port | Protocol | Layer |
 |-----------|------|----------|-------|
-| protocol-api | 16666 | gRPC+HTTP | Protocol Handlers |
-| dashboard-backend | 16667 | HTTP/WS | Observability |
-| kanban-app | 16668 | HTTP/WS | User Interface |
+| doom-bridge | 16666 | HTTP | DOOM Pipeline |
+| doom-go-injector | 16667 | HTTP | DOOM Pipeline |
 | trace-collector | 16670/16671 | gRPC/HTTP | eBPF Bridge |
 | unheaded-daemon | 17000/17001 | HTTP/gRPC | Control Plane |
+| protocol-api | 17100/17101 | HTTP/gRPC | Protocol Handlers |
 | wotan | 18000/18001 | HTTP/gRPC | Message Bus |
 | timeguru | 19000 | HTTP | Timeline Service |
 | architect | 19001 | HTTP | Design Service |
@@ -1210,6 +1210,9 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | micromanager | 19003 | HTTP | Execution Service |
 | monad | 19004 | gRPC | State Management |
 | sophia | 19005 | gRPC | Knowledge Graph |
+| cuirass | 19006 | HTTP | Control Plane Service |
+| dashboard-backend | 20000 | HTTP/WS | Observability |
+| kanban-app | 20001 | HTTP/WS | User Interface |
 | haproxy-edge | 21080/21443/21404 | HTTP/HTTPS/Stats | Edge LB: TLS term, rate limiting |
 | haproxy-internal | 21081/21405 | HTTP/Stats | Internal LB: service routing |
 | nginx-wotan | 18080 | HTTP | Sidecar LB for wotan |

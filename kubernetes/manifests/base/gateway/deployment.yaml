@@ -49,7 +49,9 @@ spec:
           envFrom:
             - configMapRef: { name: unheaded-shared }
           env:
-            - { name: GATEWAY_PORT, value: "21000" }
+            # GATEWAY_HTTP_PORT is the name services/gateway/config reads;
+            # GATEWAY_PORT was never looked up by anything.
+            - { name: GATEWAY_HTTP_PORT, value: "21000" }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true

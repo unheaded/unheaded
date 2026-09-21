@@ -15,8 +15,9 @@ Requires=unheaded-wotan.service
 Type=simple
 User=unheaded
 Group=unheaded
+Environment=PORT=20001
 EnvironmentFile=-/etc/unheaded/kanban.env
-ExecStart=/usr/local/bin/kanban-app --port 16668
+ExecStart=/usr/local/bin/kanban-app
 WorkingDirectory=/var/lib/unheaded/kanban
 Restart=on-failure
 RestartSec=5s
