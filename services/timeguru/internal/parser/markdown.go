@@ -7,6 +7,7 @@ package parser
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"os"
@@ -56,6 +57,19 @@ var (
 
 	// Checkbox items: - [x] Task description or - [ ] Task description
 	checkboxRe = regexp.MustCompile(`^-\s+\[([ xX])\]\s+(.+)$`)
+
+	// Bullet milestones. references/timeline.md stopped using "#### Epoch"
+	// headings long before 2026-09-21; work items live as top-level bullets
+	// under a phase, grouped by a bold section line:
+	//
+	//   **Completed sub-items:**      -> completed
+	//   **Remaining for Age 3:**      -> planned
+	//   (no section line)             -> the phase's own status
+	//
+	// The parser read none of that, reported milestones=0 on the real file,
+	// and the kanban board rendered six phase cards and nothing else.
+	bulletSectionRe = regexp.MustCompile(`^\s*\*\*\s*([A-Za-z][^*]*?)\s*:?\s*\*\*\s*:?\s*$`)
+	bulletItemRe    = regexp.MustCompile(`^-\s+(?:\[[ xX]\]\s+)?(\S.*)$`)
 
 	// Status markers in text: (COMPLETE ✓), (IN PROGRESS 🚀), (PLANNED)
 	statusCompleteRe   = regexp.MustCompile(`(?i)\(?COMPLETE[D]?\s*[✓✅]?\)?`)
@@ -150,6 +164,9 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 	// True once the current phase declared its own "Progress: N%" line.
 	var phaseProgressDeclared bool
 	var milestoneProgressDeclared bool // same guard, one heading level down
+	// Status that bullet milestones under the current phase inherit. Reset by
+	// every phase header; set by a bold section line.
+	var bulletStatus string
 	var currentMilestone *timeline.Milestone
 	var lineNum int
 
@@ -206,6 +223,7 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 			// Check for status in header
 			phaseStatusFromHeader = false
 			phaseProgressDeclared = false
+			bulletStatus = ""
 			if len(phaseMatch) > 4 && phaseMatch[4] != "" {
 				currentPhase.Status = parseStatus(phaseMatch[4])
 				phaseStatusFromHeader = true
@@ -303,6 +321,26 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 		if ownerMatch := ownerRe.FindStringSubmatch(line); ownerMatch != nil {
 			if currentMilestone != nil {
 				currentMilestone.Owner = strings.TrimSpace(ownerMatch[1])
+			}
+		}
+
+		// Bold section lines under a phase decide the status of the bullets
+		// that follow them.
+		if currentPhase != nil && currentMilestone == nil {
+			if secMatch := bulletSectionRe.FindStringSubmatch(line); secMatch != nil {
+				bulletStatus = bulletSectionStatus(secMatch[1])
+				continue
+			}
+		}
+
+		// Top-level bullets under a phase with no "####" milestone open are
+		// milestones in their own right.
+		if currentPhase != nil && currentMilestone == nil {
+			if bm := bulletItemRe.FindStringSubmatch(line); bm != nil {
+				m := bulletMilestone(currentPhase, bm[1], bulletStatus, line)
+				tl.Milestones = append(tl.Milestones, m)
+				currentPhase.Milestones = append(currentPhase.Milestones, m.ID)
+				continue
 			}
 		}
 
@@ -490,4 +528,81 @@ func (w *FileWatcher) HasChanged() (bool, error) {
 // Parse parses the watched file
 func (w *FileWatcher) Parse() (*timeline.Timeline, error) {
 	return w.parser.Parse()
+}
+
+// bulletSectionStatus maps a bold section line ("Completed sub-items",
+// "Remaining for Age 3") to the status its bullets inherit. Unknown headings
+// return "" so the phase's own status applies.
+func bulletSectionStatus(heading string) string {
+	h := strings.ToUpper(heading)
+	switch {
+	case strings.Contains(h, "COMPLETE") || strings.Contains(h, "DONE") || strings.Contains(h, "SHIPPED"):
+		return "completed"
+	case strings.Contains(h, "REMAINING") || strings.Contains(h, "PLANNED") || strings.Contains(h, "TODO") || strings.Contains(h, "NEXT"):
+		return "pending" // milestone vocabulary; phases say "planned"
+	case strings.Contains(h, "IN PROGRESS") || strings.Contains(h, "IN-PROGRESS") || strings.Contains(h, "ACTIVE"):
+		return "in_progress"
+	case strings.Contains(h, "BLOCKED"):
+		return "blocked"
+	}
+	return ""
+}
+
+// bulletMilestone builds a milestone from one bullet line.
+//
+// ID: phase id + 8 hex of the bullet text's SHA-256. Stable for as long as
+// the text is unchanged, which is what kanban's add/update/remove diff needs;
+// an edit reads as remove+add, which is honest. Positional ids would shift
+// every card below an insertion.
+//
+// Name: the bullet's lead clause — up to the first " (" or ": " or " — " —
+// with markdown emphasis stripped, capped at 120 runes. The full text is the
+// description. A checkbox on the bullet overrides the section status.
+func bulletMilestone(phase *timeline.Phase, text, sectionStatus, rawLine string) *timeline.Milestone {
+	text = strings.TrimSpace(text)
+	sum := sha256.Sum256([]byte(text))
+	id := fmt.Sprintf("%s-item-%x", phase.ID, sum[:4])
+
+	status := sectionStatus
+	if cb := checkboxRe.FindStringSubmatch(rawLine); cb != nil {
+		if strings.EqualFold(cb[1], "x") {
+			status = "completed"
+		} else {
+			status = "pending"
+		}
+	}
+	if status == "" {
+		status = phase.Status
+	}
+	// Milestone.Validate accepts pending/in_progress/completed/blocked; a
+	// phase says "planned" for the same thing.
+	if status == "planned" || status == "" {
+		status = "pending"
+	}
+
+	name := text
+	for _, sep := range []string{" (", ": ", " — ", " – "} {
+		if i := strings.Index(name, sep); i > 0 {
+			name = name[:i]
+		}
+	}
+	name = strings.Trim(strings.ReplaceAll(name, "**", ""), " *_")
+	if r := []rune(name); len(r) > 120 {
+		name = string(r[:117]) + "..."
+	}
+	if name == "" {
+		name = text
+	}
+
+	progress := 0
+	if status == "completed" {
+		progress = 100
+	}
+	return &timeline.Milestone{
+		ID:          id,
+		Name:        name,
+		Status:      status,
+		Progress:    progress,
+		Description: text,
+	}
 }

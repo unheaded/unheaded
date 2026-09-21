@@ -1,7 +1,6 @@
 version = "1.0.0"
-last_updated = 2026-09-21T16:16:28.921587173Z
+last_updated = 2026-09-21T21:23:58.348275379Z
 status = "alpha"
-milestones = []
 
 [[phases]]
   id = "phase-0"
@@ -26,15 +25,426 @@ milestones = []
   name = "The Public Release"
   status = "in_progress"
   progress = 70
+  milestones = ["phase-3-item-72c34b5c", "phase-3-item-bdfe9e00", "phase-3-item-4931fcc9", "phase-3-item-d7d4c5c5", "phase-3-item-48939660", "phase-3-item-94825f35", "phase-3-item-1fa528dd", "phase-3-item-cbb64e68", "phase-3-item-43e2e0fb", "phase-3-item-f5b861a3", "phase-3-item-8b3e9c19", "phase-3-item-fb93c3bc", "phase-3-item-8f5b95f8", "phase-3-item-a2bde631", "phase-3-item-d8ab4ecf", "phase-3-item-62948258", "phase-3-item-45075803", "phase-3-item-60a8be8b", "phase-3-item-4d568586", "phase-3-item-314d537a", "phase-3-item-6851c3db", "phase-3-item-4aff52af", "phase-3-item-0bfe874a", "phase-3-item-80bb19aa", "phase-3-item-139a9c74", "phase-3-item-61c57526", "phase-3-item-cc743cb8", "phase-3-item-5f617d86", "phase-3-item-2f9ac41f", "phase-3-item-96b15063", "phase-3-item-2c0c324b", "phase-3-item-ef190fca", "phase-3-item-efac221c", "phase-3-item-5503bd0f", "phase-3-item-4582ccf7", "phase-3-item-45d026e1", "phase-3-item-1dd61426", "phase-3-item-190fbe93", "phase-3-item-8e22cdf9", "phase-3-item-25e38793", "phase-3-item-d965599d", "phase-3-item-19de358f", "phase-3-item-4de9e8e6", "phase-3-item-b1d0e5c6", "phase-3-item-8ce75892", "phase-3-item-aaede5ce", "phase-3-item-4bf2beca", "phase-3-item-835793de", "phase-3-item-d1f95353", "phase-3-item-04e682ca", "phase-3-item-d0b986af", "phase-3-item-bb2c9dfc", "phase-3-item-db8f98f1"]
 
 [[phases]]
   id = "phase-4"
   name = "The MVP Era"
   status = "planned"
   progress = 0
+  milestones = ["phase-4-item-0867a507", "phase-4-item-0343db9b", "phase-4-item-6a5f62b1", "phase-4-item-65dbeae9", "phase-4-item-e8d37323"]
 
 [[phases]]
   id = "phase-5"
   name = "The Scaling Era"
   status = "planned"
   progress = 0
+
+[[milestones]]
+  id = "phase-3-item-72c34b5c"
+  name = "S67 Wire Format FROZEN at v0x01"
+  status = "completed"
+  progress = 100
+  description = "S67 Wire Format FROZEN at v0x01 (12 IANA registries, IPR clear)"
+
+[[milestones]]
+  id = "phase-3-item-bdfe9e00"
+  name = "S78 LOC audit"
+  status = "completed"
+  progress = 100
+  description = "S78 LOC audit (415K production, 1,137K total)"
+
+[[milestones]]
+  id = "phase-3-item-4931fcc9"
+  name = "S-WEST + S-EAST bootstrap"
+  status = "completed"
+  progress = 100
+  description = "S-WEST + S-EAST bootstrap (both bare-metal hosts online)"
+
+[[milestones]]
+  id = "phase-3-item-d7d4c5c5"
+  name = "ADR Sweep 2026-04-03"
+  status = "completed"
+  progress = 100
+  description = "ADR Sweep 2026-04-03 (all 27 ADRs resolved)"
+
+[[milestones]]
+  id = "phase-3-item-48939660"
+  name = "Zhen Champion"
+  status = "completed"
+  progress = 100
+  description = "Zhen Champion (pkg/champion/, 18 tests)"
+
+[[milestones]]
+  id = "phase-3-item-94825f35"
+  name = "Zhen MCP Server"
+  status = "completed"
+  progress = 100
+  description = "Zhen MCP Server (7 tools for Claude Code)"
+
+[[milestones]]
+  id = "phase-3-item-1fa528dd"
+  name = "31 Operational Runbooks"
+  status = "completed"
+  progress = 100
+  description = "31 Operational Runbooks"
+
+[[milestones]]
+  id = "phase-3-item-cbb64e68"
+  name = "Service Template"
+  status = "completed"
+  progress = 100
+  description = "Service Template (pkg/service/, 7 tests)"
+
+[[milestones]]
+  id = "phase-3-item-43e2e0fb"
+  name = "BPF CI Gate, Sealed Cask, Binding Rune verification"
+  status = "completed"
+  progress = 100
+  description = "BPF CI Gate, Sealed Cask, Binding Rune verification"
+
+[[milestones]]
+  id = "phase-3-item-f5b861a3"
+  name = "ROCm GPU acceleration"
+  status = "completed"
+  progress = 100
+  description = "ROCm GPU acceleration (PyTorch 2.5.1+rocm6.2)"
+
+[[milestones]]
+  id = "phase-3-item-8b3e9c19"
+  name = "RAFT QA generation"
+  status = "completed"
+  progress = 100
+  description = "RAFT QA generation (~2000 pairs)"
+
+[[milestones]]
+  id = "phase-3-item-fb93c3bc"
+  name = "WAVE10C Backprop fixes"
+  status = "completed"
+  progress = 100
+  description = "WAVE10C Backprop fixes (3 bugs, 46/46 tests pass)"
+
+[[milestones]]
+  id = "phase-3-item-8f5b95f8"
+  name = "Wotan Topic Signing"
+  status = "completed"
+  progress = 100
+  description = "Wotan Topic Signing (ML-DSA-65 enforcement)"
+
+[[milestones]]
+  id = "phase-3-item-a2bde631"
+  name = "Mímir's Law / Gleipnir Phase 0"
+  status = "completed"
+  progress = 100
+  description = "Mímir's Law / Gleipnir Phase 0 (2026-04-11, real-metal validated on EAST: zero false positives, 100% drift detection)"
+
+[[milestones]]
+  id = "phase-3-item-d8ab4ecf"
+  name = "WAVE10F Forge Real-Attention Gemma 4"
+  status = "completed"
+  progress = 100
+  description = "WAVE10F Forge Real-Attention Gemma 4 (2026-04-17, 3000+ LOC, end-to-end Gemma-4 LoRA training)"
+
+[[milestones]]
+  id = "phase-3-item-62948258"
+  name = "Learning Gate"
+  status = "completed"
+  progress = 100
+  description = "Learning Gate (2026-04-20, 4/5 strict experiments PASS, β = 0.27 generalization exponent)"
+
+[[milestones]]
+  id = "phase-3-item-45075803"
+  name = "24h Consolidation Block"
+  status = "completed"
+  progress = 100
+  description = "24h Consolidation Block (2026-04-20, lr=1e-3 stable operating point identified)"
+
+[[milestones]]
+  id = "phase-3-item-60a8be8b"
+  name = "ADR-048 ForgeBackend Trait"
+  status = "completed"
+  progress = 100
+  description = "ADR-048 ForgeBackend Trait (2026-04-21, refactor centralizes Adam optimizer)"
+
+[[milestones]]
+  id = "phase-3-item-4d568586"
+  name = "WAVE11 GPU Kernels"
+  status = "completed"
+  progress = 100
+  description = "WAVE11 GPU Kernels (4 attention grad kernels, cosine=1.000)"
+
+[[milestones]]
+  id = "phase-3-item-314d537a"
+  name = "WAVE12 Kingdom RAFT LoRA"
+  status = "completed"
+  progress = 100
+  description = "WAVE12 Kingdom RAFT LoRA (2026-04-23, eval Δ −14.32, ADR-050 GPU-resident activations)"
+
+[[milestones]]
+  id = "phase-3-item-6851c3db"
+  name = "WAVE13 Phase 1"
+  status = "completed"
+  progress = 100
+  description = "WAVE13 Phase 1 (2026-04-25, generate-gemma4 subcommand, early quality finding: LoRA under-trained ~10× off target)"
+
+[[milestones]]
+  id = "phase-3-item-4aff52af"
+  name = "Round Table verification audit"
+  status = "completed"
+  progress = 100
+  description = "Round Table verification audit (2026-04-27, 19 seats reported, 2 citations issued + cleared)"
+
+[[milestones]]
+  id = "phase-3-item-0bfe874a"
+  name = "WAVE13 Phase 2 quality verdict"
+  status = "completed"
+  progress = 100
+  description = "WAVE13 Phase 2 quality verdict: **RETRAIN** (2026-04-28, autonomous overnight per Marshal charter; 0/8 LoRA-better, 6/8 immediate-stop, 2/8 mode-collapse `\\tif`; ADR-051 Accepted; Phases 4-5 PAUSED until WAVE14 retrain)"
+
+[[milestones]]
+  id = "phase-3-item-80bb19aa"
+  name = "WAVE16 Multi-model selector + overnight model bench"
+  status = "completed"
+  progress = 100
+  description = "WAVE16 Multi-model selector + overnight model bench (2026-05-04, ADR-060 LIVE in sidebar; 5 model keys; qwen-coder-14b kept as option after passing 14-prompt textbook tier 0/14 truncated)"
+
+[[milestones]]
+  id = "phase-3-item-139a9c74"
+  name = "WAVE17 K8s substrate proven"
+  status = "completed"
+  progress = 100
+  description = "WAVE17 K8s substrate proven (2026-05-05, autonomous overnight per Marshal charter; 9/9 services Running on 3-node kind; 2 real bugs found+fixed mid-run: monad service-link env collision + chart volume support; ADR-064 active/active spec landed but impl deferred per Stevie; 9-file doctrine sweep post-c6108fb8; cmd/tools/ scaffold for round-table P0 wedges; wotan main.go review +13 unit tests)"
+
+[[milestones]]
+  id = "phase-3-item-61c57526"
+  name = "NORTH-STAR Appendix A Phases A-F"
+  status = "completed"
+  progress = 100
+  description = "NORTH-STAR Appendix A Phases A-F (2026-05-06, autonomous overnight per Marshal charter; 9 commits; SBOM delta, K8s threat model, CIS scope, RBAC review, 15 framework control-coverage matrices, 12-track scrutiny remediation; Sophia + Wotan draft-04 ship-or-defer reports)"
+
+[[milestones]]
+  id = "phase-3-item-cc743cb8"
+  name = "Marshal continuation shift 2026-05-07"
+  status = "completed"
+  progress = 100
+  description = "Marshal continuation shift 2026-05-07 (autonomous daytime; 9 commits; ADR-065 aya 0.1.x→0.13.x migration plan, kingdom-wide gofmt cleanup 435 files, pre-commit hook installed Go+Rust+SPDX, cargo audit sweep landed 3 CVE-class fixes via rustls-webpki bump in zhend, SPDX coverage 99.50% → 100.00%)"
+
+[[milestones]]
+  id = "phase-3-item-5f617d86"
+  name = "Marshal drain shift 2026-05-08"
+  status = "completed"
+  progress = 100
+  description = "Marshal drain shift 2026-05-08 (autonomous daytime; 22 commits; ADR-065 Phase A finding REVERSES the migration — aya splits userspace/kernel independently, no migration needed; ADR-066 tonic 0.10→0.12 in trace-collector closes 4 CVEs; pqcrypto Wave B FIPS 205/203 migration — pqcrypto-{kyber,dilithium}→pqcrypto-{mlkem,mldsa} aligns Rust side with Kingdom's existing Go-side ML-DSA-65; sync.Once + DoomState mutex copy vet fixes; 5 missing S77 deliverable docs authored)"
+
+[[milestones]]
+  id = "phase-3-item-2f9ac41f"
+  name = "ASCEND-LINUX battle plan ratified"
+  status = "completed"
+  progress = 100
+  description = "ASCEND-LINUX battle plan ratified (2026-05-08, references/battle-plan-ascend-linux-2026-05-08.md; 10-month phased campaign Phase 0 → Phase 4 IPv6+SSH; quarterly gates with explicit cut-points; xv6-riscv as L5 halfway proof, uClinux as L6a, full Linux+MMU as L6b; three demo surfaces — A browser xterm, B host pty, C SSH over IPv6)"
+
+[[milestones]]
+  id = "phase-3-item-96b15063"
+  name = "ASCEND-LINUX Phase 0 complete"
+  status = "completed"
+  progress = 100
+  description = "ASCEND-LINUX Phase 0 complete (2026-05-08; ADR-067 7-decision ABI + ISA spec; 5 new MBC opcodes FENCE/MRET/SRET/LR.W/SC.W shipped; priv_level field added to MbcCpuState; Boot Protocol v2 spec; eBPF interpreter implementation; verifier-budget revalidation; 15 commits across kickoff)"
+
+[[milestones]]
+  id = "phase-3-item-2c0c324b"
+  name = "ASCEND-LINUX Phase 1.1 super-sprint"
+  status = "completed"
+  progress = 100
+  description = "ASCEND-LINUX Phase 1.1 super-sprint (2026-05-09, autonomous; 12 commits across 12 build iterations; xv6-mbc adapters: start_mbc.c, console-mmio.c, blk-ramdisk.c, syscall_shims.S, Makefile.mbc + linker script; kernel.elf links via RV32 conversion; **xv6-mbc.mbc EMITS** — 11,721 MBC instructions, 46 KB, first kernel image translated end-to-end; cmd/upc-bootctl boot dispatcher with validate + dry-run; cmd/upc-tty-bridge WebSocket on UPC user-app port 26100 + dashboard/upc-console.html xterm.js client; translator gains CSR + MRET/SRET/WFI/SFENCE.VMA + register-aliasing x18-x31→r3-r13 best-effort)"
+
+[[milestones]]
+  id = "phase-3-item-ef190fca"
+  name = "ASCEND-LINUX Phase 1 COMPLETE"
+  status = "completed"
+  progress = 100
+  description = "ASCEND-LINUX **Phase 1 COMPLETE** (2026-05-13 → 2026-07-02; Phases 1.2–1.6 + Phase 1.7 Gates A/B/C/D/D.1): per-pid pgd isolation (ADR-074), process model (ADR-075), `init: starting sh` from user mode (2026-05-14), console stdio Gate A (2026-06-18), exec→`$` Gate B with per-process rv2mbc_base (ADR-077, 2026-06-19), interactive sh fork→exec→wait→prompt Gate C (2026-06-26), FS-reader Gate D (2026-07-02, ADR-078: in-BPF inode walks over fs.img, ilp32e struct-stat fix, exec argv frame @ VA 0x600000, multi-byte write, 64-byte KBD ring), Gate D.1 same-day (RET MBC-vs-RV floor 0x10000→0x20000 + loader guard — full SHELL+5CMDS corpus live: init/sh/ls/cat/echo/wc). Session logs in references/phase1*-*.md; Doom PC-corruption hypothesis parked for a Marshal-supervised doom-runner shift"
+
+[[milestones]]
+  id = "phase-3-item-efac221c"
+  name = "Marshal continuation shift 2026-05-09"
+  status = "completed"
+  progress = 100
+  description = "Marshal continuation shift 2026-05-09 (autonomous; 4 commits; cleanup stray upc-tty-bridge binary + .gitignore guard; **monad-mbc 65-day screen-test regression closed** — SCREEN_BASE moved 0xC000→0x70000 on 2026-03-03 c7831cad but 3 test fixtures never updated; upc-tty-bridge unreachable code closed; 7 of 12 carry-forward parking-lot entries from 2026-05-07 RESOLVED across drain + this shift; cargo audit zhend 0 vulns, trace-collector 0 vulns, only 4 unmaintained warnings remain across the whole Rust tree)"
+
+[[milestones]]
+  id = "phase-3-item-5503bd0f"
+  name = "Marshal extended-churn shift 2026-05-10/11"
+  status = "completed"
+  progress = 100
+  description = "Marshal extended-churn shift 2026-05-10/11 (autonomous, ~95 commits, Stevie-authorized 12hr churn): **ZERO LINT achieved across the kingdom — 2362 → 0** (errcheck/gosec/govet/staticcheck/unused/bodyclose all green via per-finding triage). **12 real CVE-class security bug fixes shipped** (RSA assertion crash ×2 sites in cert rotation, ECDSA assertion crash ×4 sites in CA loaders + mTLS, OCI tar Zip Slip in container runtime whiteout, HTTP static-file path-existence info-disclosure oracle, object storage path traversal via unvalidated key, audit `tableName` SQL-injection vector closure, Akira Slowloris HTTP timeouts, container image decompression-bomb cap at 5 GiB/file, Splunk exporter TLS NPE, mTLS Signer assertion crash). **ADR-073** records the lint-policy \"zero findings as the new floor\" discipline. **Yggdrasil OS-FORK-DISCIPLINE Pillar 5** added (`docs/OS-FORK-DISCIPLINE.md` + `nix/yggdrasil/overlay/upc/` quilt patches + `nix/yggdrasil/overlay/systemd/upc-tty-bridge.service` + `nix/yggdrasil/bin/yggdrasil-doctor-upc` 8-check preflight) for **task #71 UPC-on-Yggdrasil scaffolding**. 242/242 packages still passing tests. Shift reports at `references/marshal-shift-2026-05-11-{zero-prompt-12hr,extended-churn,final-checkpoint}.md`."
+
+[[milestones]]
+  id = "phase-3-item-4582ccf7"
+  name = "Doom browser-verified LIVE"
+  status = "completed"
+  progress = 100
+  description = "**Doom browser-verified LIVE (2026-07-19) — reference point.** doom-runner full pipeline back online: non-ascend object loads at **verifier 737,087 insns (73.7%)**, WebSocket bridge on `:16666` (HTTP 200), XDP attached to the 2-hop ring, injector driving ~90K pkt/s. Maps confirm health: CPU actively looping (~23M insns/2s, registers in valid heap/stack range, not halted), full 320×200 frame rendered (64,000/64,000 words non-zero). Known-good Doom checkpoint to return to."
+
+[[milestones]]
+  id = "phase-3-item-45d026e1"
+  name = "EVOLUTION-1 Stage 1 measurement COMPLETE"
+  status = "completed"
+  progress = 100
+  description = "**EVOLUTION-1 Stage 1 measurement COMPLETE (2026-07-19).** getpid trap-flip through the owned kernel: S1.0 (uservec sscratch entry) + S1.1 (BPF injection, dormant behind `GETPID_INJECT=false`) shipped GREEN; S1.2 return blocked. **Verifier-delta = +5409** (positive → D1 \"keep hybrid (c) minimal\" → getpid migration NOT self-funding → flip DEFERRED). Return blocker **re-diagnosed** (dual-books FALSIFIED via clean value-dump probe: `myproc()`/`tp`/trapframe all consistent): it's a **localized `csrw sscratch` MBC codegen defect** in `prepare_return` (stores 0x7be000, reads back 0x7ff) — not a proc[] reconciliation sprint. Tree GREEN (16 gates, Doom 737,087 exact). Detail: `references/evolution1-stage1-2026-07-19.md`."
+
+[[milestones]]
+  id = "phase-3-item-1dd61426"
+  name = "Round-table + Yggdrasil iteration shift 2026-05-11"
+  status = "completed"
+  progress = 100
+  description = "Round-table + Yggdrasil iteration shift 2026-05-11 (~25 commits, post-Stevie wake): **4 NORTH-STAR blockers cleared** (Captain Track A/B/C → Track C hybrid + kingdom-state correction that repo's been public for over a month; Sophia draft-04 + Wotan draft-04 DEFER ratified; branch hygiene 3 stale locals deleted; Phase 1.2 pair-call HOLD per Stevie). **ADR-074** drafted (Phase 1.2 page-table mapping model, 3 options enumerated, Architect addendum surfaces 3 structural issues + 6 pre-work items). **Phase 1.2 pre-work battle plan** forged (47 steps, HOLD pending pair-call). **Yggdrasil tasks #65/#66/#67 scaffolds** advanced: full packer flow (preseed + 6 provisioners + CIS L1 + lynis gate + reproducibility clean), Jenkinsfile + GHA workflow, apt repo + smoke harness, cloud-image template (AWS/GCP/Azure), SELinux research scaffold. **`make health`** unified gate runner landed (8 sections, 11/11 gates at landing). **MARSHAL-COOKBOOK.md** distills 11 patterns from the arc. **Canonical next-session pickup doc** at `references/next-session-pickup-2026-05-11.md`. Shift report at `references/marshal-shift-2026-05-11-yggdrasil-iteration.md`."
+
+[[milestones]]
+  id = "phase-3-item-190fbe93"
+  name = "CI green sweep + run-as identity audit"
+  status = "completed"
+  progress = 100
+  description = "**CI green sweep + run-as identity audit (2026-07-29).** Four red workflows on `main` @ `0f443de` diagnosed and fixed on WEST. **govulncheck:** 7 vulns cleared — grpc 1.79.3→1.82.1, x/text 0.36→0.39, x/crypto 0.50→0.52, goldmark 1.7.16→1.7.17, plus `toolchain go1.25.10→go1.25.12` to pin the 3 stdlib advisories (GO-2026-5856 / GO-2026-5039 / GO-2026-5037) to a deterministic floor; now reports 0 affecting our code. **GPL Boundary:** the section-3 deep scan was flagging our OWN crates as contamination (project is GPL-3.0 by choice) and misreading dual licenses with a permissive branch (`r-efi` = `Apache-2.0 OR LGPL-2.1-or-later OR MIT`); rewritten with a first-party skip list + an SPDX expression classifier (AGPL fails, LGPL-only warns, GPL informs), backed by 14 negative tests in `scripts/test-gpl-boundary-classifier.sh` so the gate can't be \"fixed\" by making it always pass. **gosec:** root cause was NOT the 1186-finding unfiltered invocation alone — every existing annotation used `//nolint:gosec // G703: …`, which gosec ignores, because it only honors a comment *leading* with `#nosec`. All ~20 sites converted to `// #nosec Gxxx -- rationale`; workflow now runs `-severity high -confidence high` per `docs/security/gosec-sweep-2026-05-08.md`. Gate goes from 1186 → **0**. **SBOM:** `cmd/akira/akira`, an 18 MB ELF committed since May, was injecting its frozen build-info (grpc v1.65.0, stdlib go1.24.0) into every syft scan — untracked + gitignored; quinn-proto 0.11.14→0.11.15 in both Cargo workspaces. SARIF uploads made `continue-on-error` (GHAS 403 on a private repo was reddening otherwise-clean jobs)."
+
+[[milestones]]
+  id = "phase-3-item-8e22cdf9"
+  name = "Per-service run-as identity baseline"
+  status = "completed"
+  progress = 100
+  description = "**Per-service run-as identity baseline (2026-07-29, ADR pending).** The whole telemetry tier — grafana, prometheus, loki, victoriametrics, node-exporter — shared UID **65534 (nobody)**, and promtail set no `runAsUser` at all while hostPath-mounting `/var/log/pods` and `/var/lib/docker/containers` (i.e. root with every container's logs). A shared account means compromise of any one workload can rewrite all the others' on-disk state and makes file ownership useless for audit. New `pkg/uids` is the single source of truth (mirroring `pkg/ports`), reserving 16600-16799 with 16700-16719 for telemetry; `Validate()` rejects root, out-of-range, and — the regression that matters — any UID shared between services. `TestManifestsMatchRegistry` parses the applied YAML so the registry can't drift from reality. Also removed a blanket `lxc.cgroup2.devices.allow = a` from `lxd/profiles/unheaded-ebpf.yaml`; that profile's remaining cap_sys_admin + `raw.idmap \"both 0 0\"` + unconfined AppArmor + empty seccomp are documented as host-root-equivalent and gated on a WEST boot test before tightening."
+
+[[milestones]]
+  id = "phase-3-item-25e38793"
+  name = "Security remediation program + staging promotion ladder"
+  status = "completed"
+  progress = 100
+  description = "**Security remediation program + staging promotion ladder (2026-08-03 → 2026-09-21).** 124 rungs on `develop`, promoted to `staging` in nine contiguous batches (B1 security program + s79 CI sweep; B2 gosec rule closures G118→G103; B3 per-service UIDs, trivy, image pinning; B4 ruff autofix, waf/forge lib split, clippy gate; B5 python/shell hygiene — **closed the test baseline: `go vet` clean, `go test ./...` 0 failures**; B6 bandit + eslint/shellcheck gating flips; B7 The Well, dark-mirror, hosts, healthchecks, nix, runbooks; B8 cuirass `/health` double-registration panic, systemd, k8s, CI gate aggregation; B9 python SBOM, xterm.js SRI, timeguru parser). Every batch reviewed with `/code-review high`, every finding dispositioned in `docs/battle-plans/STAGING-PROMOTION-LOG.md`. All commits GPG-signed."
+
+[[milestones]]
+  id = "phase-3-item-d965599d"
+  name = "The recurring defect, named and gated"
+  status = "completed"
+  progress = 100
+  description = "**The recurring defect, named and gated (2026-09-09).** Six consecutive batches each shipped a check that passed while structurally unable to fail (unreachable ratchet guards, a count compared to itself, a test matching filenames that do not exist, a gate blind to workspaces that did not build, a build exit code computed and never read, a guard test whose assertion no case could reach). `scripts/check-gates-can-fail.sh` now plants a violation in every gate a workflow, Jenkinsfile, runbook or smoke script invokes and requires it to go red; an unclassified gate fails the build. Nine gates proven."
+
+[[milestones]]
+  id = "phase-3-item-19de358f"
+  name = "The Well"
+  status = "completed"
+  progress = 100
+  description = "**The Well: kanban schema and pointer (2026-09-21).** `kanban-app` pointed at the maintenance database, where the ADR-091 initdb bug had also misfiled `kanban_tasks` — the board worked because two errors cancelled. `003_app_schema.sql` defined a `kanban_tasks` nothing had ever executed against (BIGSERIAL id, priority/tags) while the code writes TEXT ids with type/owner/progress. Migration rewritten to mirror `EnsureSchema`, proven on a clean volume both ways; 73 live tasks reconciled into `unheaded_app`; `well-reconcile-kanban.sh` refuses to merge two boards."
+
+[[milestones]]
+  id = "phase-3-item-4de9e8e6"
+  name = "dashboard-backend OOM, two causes"
+  status = "completed"
+  progress = 100
+  description = "**dashboard-backend OOM, two causes (2026-09-21).** (1) `go listener(event)` per event on the `ebpf.*` firehose plus a console warn per dropped broadcast on a 0.5-CPU container: goroutine id past 8 million at three minutes. (2) The metrics scraper preallocated `MaxSamples` (72 KB) per series before the first sample; ~3,000 series from Grafana + VictoriaMetrics pinned ~380 MB at t+5s. Fixed; live heap 400 MB → 26 MB; `GOMEMLIMIT` set; env-gated loopback pprof added so the next diagnosis does not need a SIGQUIT."
+
+[[milestones]]
+  id = "phase-3-item-b1d0e5c6"
+  name = "The Meta Moment had never worked in compose"
+  status = "completed"
+  progress = 100
+  description = "**The Meta Moment had never worked in compose (2026-09-21).** Five independent defects: no `references/` mount for timeguru; timeguru's Wotan display name not on the auto-approve list so every publish failed; `WOTAN_GRPC_ADDR` unset on seven services (defaults to `localhost:18001`, no HTTP fallback); kanban's message streams started on a 10 s init context that `main` cancelled on return — **kanban had never received a Wotan message**; and the `timeline.updates` notification carries no content while nothing fetched. All fixed with tests provoked to red. Proven live: edit `timeline.md` → board updates, no restarts."
+
+[[milestones]]
+  id = "phase-3-item-8ce75892"
+  name = "Captain Track A/B/C decision"
+  status = "pending"
+  progress = 0
+  description = "Captain Track A/B/C decision (Wed 2026-04-29)"
+
+[[milestones]]
+  id = "phase-3-item-aaede5ce"
+  name = "WAVE14 retrain"
+  status = "pending"
+  progress = 0
+  description = "WAVE14 retrain (extended-epoch, rank=16/alpha=32 unchanged, ≥3 epochs ≈ 10704 example-steps; gated on Captain sign-off)"
+
+[[milestones]]
+  id = "phase-3-item-4bf2beca"
+  name = "Branch hygiene execution"
+  status = "pending"
+  progress = 0
+  description = "Branch hygiene execution (3 stale branches, REMOTE for build/test)"
+
+[[milestones]]
+  id = "phase-3-item-835793de"
+  name = "SBOM regen + license scan + threat refresh"
+  status = "pending"
+  progress = 0
+  description = "SBOM regen + license scan + threat refresh (REMOTE)"
+
+[[milestones]]
+  id = "phase-3-item-d1f95353"
+  name = "Sophia draft-03 ship-or-defer"
+  status = "pending"
+  progress = 0
+  description = "Sophia draft-03 ship-or-defer"
+
+[[milestones]]
+  id = "phase-3-item-04e682ca"
+  name = "Wotan draft-03 ship-or-defer"
+  status = "pending"
+  progress = 0
+  description = "Wotan draft-03 ship-or-defer"
+
+[[milestones]]
+  id = "phase-3-item-d0b986af"
+  name = "Demo video + README polish for VC/public readiness"
+  status = "pending"
+  progress = 0
+  description = "Demo video + README polish for VC/public readiness"
+
+[[milestones]]
+  id = "phase-3-item-bb2c9dfc"
+  name = "Sub-50ms latency benchmark"
+  status = "pending"
+  progress = 0
+  description = "Sub-50ms latency benchmark (Scientist falsifiability gate)"
+
+[[milestones]]
+  id = "phase-3-item-db8f98f1"
+  name = "Public accessibility"
+  status = "pending"
+  progress = 0
+  description = "Public accessibility (optional auth)"
+
+[[milestones]]
+  id = "phase-4-item-0867a507"
+  name = "WAVE14 BackwardScratch + KV-cache"
+  status = "pending"
+  progress = 0
+  description = "WAVE14 BackwardScratch + KV-cache (gated on Track A or C)"
+
+[[milestones]]
+  id = "phase-4-item-0343db9b"
+  name = "Performance benchmarking suite"
+  status = "pending"
+  progress = 0
+  description = "Performance benchmarking suite"
+
+[[milestones]]
+  id = "phase-4-item-6a5f62b1"
+  name = "Customer onboarding flows"
+  status = "pending"
+  progress = 0
+  description = "Customer onboarding flows"
+
+[[milestones]]
+  id = "phase-4-item-65dbeae9"
+  name = "Billing/metering"
+  status = "pending"
+  progress = 0
+  description = "Billing/metering"
+
+[[milestones]]
+  id = "phase-4-item-e8d37323"
+  name = "Multi-tenant isolation hardening"
+  status = "pending"
+  progress = 0
+  description = "Multi-tenant isolation hardening"
+
+[metadata]
+  overall_progress = "75%"

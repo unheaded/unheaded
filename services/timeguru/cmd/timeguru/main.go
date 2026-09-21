@@ -8,6 +8,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -115,13 +116,6 @@ func main() {
 	} else {
 		defer wotan.Close()
 		log.Info().Msg("Fae Chamber connected (Wotan online)")
-		// Announce the timeline loaded above. The file watcher publishes on
-		// change, but a restarted timeguru with new content would otherwise
-		// stay silent until the next edit — and kanban only fetches on
-		// notification.
-		if timelineLoaded {
-			go publishTimelineUpdate(wotan, "timeline_loaded") // #nosec G118 -- fire-and-forget startup announcement
-		}
 	}
 
 	// Log aggregation publisher — forwards structured logs to Wotan
@@ -209,14 +203,29 @@ func main() {
 	// Service discovery registration (best-effort, nil conn until transport.Connect)
 	discovery.SetupServiceDiscovery(ctx, nil, "timeguru", 19000)
 
-	// Start HTTP server in goroutine
+	// Start HTTP server in goroutine. Bind synchronously so that anything
+	// announced below can be fetched the moment the announcement lands.
+	ln, err := net.Listen("tcp", srv.Addr)
+	if err != nil {
+		log.Fatal().Err(err).Str("addr", srv.Addr).Msg("HTTP listen failed")
+	}
 	go func() {
 		log.Info().Str("addr", ":"+config.Port).Msg("HTTP server listening")
 		log.Info().Msg("endpoints: /health, /timeline, /milestones, /api/v1/timeline/{sync,import,tasks,stream}")
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := srv.Serve(ln); err != nil && err != http.ErrServerClosed {
 			log.Fatal().Err(err).Msg("HTTP server failed")
 		}
 	}()
+
+	// Announce the timeline loaded at startup. The file watcher publishes on
+	// change, but a restarted timeguru with new content would otherwise stay
+	// silent until the next edit — and kanban only fetches on notification.
+	// This sits AFTER the listener is bound: the first cut announced right
+	// after the Wotan connect, kanban refetched immediately, and hit
+	// connection refused because /timeline was not serving yet.
+	if wotan != nil && timelineLoaded {
+		go publishTimelineUpdate(wotan, "timeline_loaded") // #nosec G118 -- fire-and-forget startup announcement
+	}
 
 	// Start file watcher for timeline.md auto-reload + sync
 	if config.TimelinePath != "" {
