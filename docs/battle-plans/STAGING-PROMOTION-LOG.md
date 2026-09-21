@@ -1035,6 +1035,51 @@ Until the parked split-brain lands, zhenai's kanban view will show the
 loudly instead of silently staling; that is the better failure and the reason
 the drop is left to a human.
 
+### `/code-review high` over B7 — 4 findings, all 4 fixed
+
+**1. `scripts/run-runbook.py` — MEDIUM — the new unset-parameter gate ignored
+`parameters[].default`.** `load-test.yaml` (REQUESTS=1000, CONCURRENCY=10) and
+`lxd-container-lifecycle.yaml` (IMAGE) would refuse to run unless the operator
+supplied values the runbook declares optional — and the same defaults had
+*never* been applied by the runner at all. Fixed by seeding `env` from
+`parameters[].default` when neither the runbook `env:` nor the operator's
+environment names the variable. Proven: load-test dry-run now flags only
+`${TARGET}`, and the expanded step reads `Load test: 1000 requests, 10
+concurrent`. An operator `REQUESTS=7` still wins (it reaches the shell via
+`os.environ`; dry-run prints it unexpanded, which is pre-existing).
+
+**2. `scripts/pre-flight-check.sh` — MEDIUM — `--strict` was still
+unreachable.** B7's `b18cb80b` implemented it, but the file runs `set -e` and
+counts failures with `((required_failed++))`. Post-increment from 0 returns
+status 1, so the script died at the **first failed check** — before the JSON
+report, before the verdict, before any of the new code. Verified with `bash -c
+'set -e; n=0; ((n++)); echo reached'` → nothing, exit 1. All 14 increments,
+plus 3 more of the same in the summary tally, rewritten as
+`var=$((var + 1))`. Proven: both modes now run to `Status:` and write the
+report. **Not proven here:** the strict-only branch (required=0, optional>0) —
+this host fails 4 required checks, so it cannot reach that state without
+mocking. Two batches in a row have "implemented" `--strict`; the third claim is
+narrower on purpose.
+
+**3. `nix/packages/cuirass.nix` — LOW — repointing `src` at
+`cmd/unheaded-daemon` builds `bin/unheaded-daemon`; the container unit execs
+`bin/cuirass`.** `postInstall` renames the binary. No sibling package can build
+yet (no `go.mod` in any `src` subdir), so this is the next failure, not the
+current one.
+
+**4. `pkg/database/config.go` — LOW — `OpsWriterConfig` had the same
+`the_well` fallback the batch fix removed from `AppKanbanConfig`.** Now
+`unheaded_ops`, where `004_ops_schema.sql` puts its tables. The reviewer was
+right that leaving it was inconsistent; the *reachability* half of the ops
+writer (dashboard-backend gets no `WELL_*` env in compose) stays parked.
+
+Reviewer confirmed sound: `init.sh` routing for all 12 migrations including
+the 010/003 `zhen_conversations` overlap; 003 ↔ `EnsureSchema` match by
+column and index name; Dockerfile HEALTHCHECK ports vs `pkg/ports`;
+sophia-eye prometheus targets; the four `docker/hosts` path corrections;
+`bpf-verifier-check.sh` `BUILD_EXIT` capture; `tomb/provision.sh` VERBOSE
+init; `hardening.nix` `mkDefault`.
+
 ## The meta-gate — breaking the four-batch cycle (2026-09-09)
 
 Four consecutive batches shipped a gate that was green because it could not

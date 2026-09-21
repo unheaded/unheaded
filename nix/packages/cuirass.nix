@@ -15,6 +15,12 @@ buildGoModule rec {
 
   ldflags = [ "-s" "-w" "-X main.version=${version}" ];
 
+  # buildGoModule names the binary after the package directory, so this
+  # builds bin/unheaded-daemon; the container unit execs bin/cuirass.
+  postInstall = ''
+    mv $out/bin/unheaded-daemon $out/bin/cuirass
+  '';
+
   meta = {
     description = "Control plane for Unheaded container orchestration";
   };

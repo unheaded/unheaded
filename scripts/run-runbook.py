@@ -249,6 +249,18 @@ def main():
     for k, v in env_vars.items():
         env[k] = os.path.expanduser(str(v))
 
+    # Declared parameter defaults. The schema allowed `default:` on a
+    # parameter but nothing applied it, so load-test.yaml's REQUESTS=1000 was
+    # never in effect; the operator's environment wins when it names the
+    # variable. Seeding env here also keeps find_unset_params from demanding
+    # a value the runbook says is optional.
+    for param in runbook.get("parameters") or []:
+        if not isinstance(param, dict) or "default" not in param:
+            continue
+        name = param.get("name")
+        if name and name not in env and name not in os.environ:
+            env[name] = str(param["default"])
+
     print("=" * 60)
     print(f"RUNBOOK: {meta.get('name', args.runbook)}")
     print(f"  {meta.get('description', '')}")

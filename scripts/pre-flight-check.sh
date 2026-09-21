@@ -95,7 +95,7 @@ if [[ $kernel_major -gt $MIN_KERNEL_MAJOR ]] || [[ $kernel_major -eq $MIN_KERNEL
     log_pass "Kernel Version >= ${MIN_KERNEL_MAJOR}.${MIN_KERNEL_MINOR}" "$kernel_version"
 else
     log_fail "Kernel Version >= ${MIN_KERNEL_MAJOR}.${MIN_KERNEL_MINOR}" "Current: $kernel_version (required for eBPF features)"
-    ((required_failed++))
+    required_failed=$((required_failed + 1))
 fi
 
 # NixOS check
@@ -104,7 +104,7 @@ if command -v nixos-version &> /dev/null; then
     log_pass "NixOS OS" "$nixos_ver"
 else
     log_fail "NixOS OS" "Not running NixOS"
-    ((required_failed++))
+    required_failed=$((required_failed + 1))
 fi
 
 # ===== REQUIRED CHECKS (eBPF Capabilities) =====
@@ -115,7 +115,7 @@ if [[ -f /sys/kernel/btf/vmlinux ]]; then
     log_pass "BTF vmlinux (CO-RE)" "Available"
 else
     log_fail "BTF vmlinux (CO-RE)" "Required for eBPF programs"
-    ((required_failed++))
+    required_failed=$((required_failed + 1))
 fi
 
 # Cgroup v2 check
@@ -123,7 +123,7 @@ if grep -q cgroup2 /proc/filesystems 2>/dev/null; then
     log_pass "Cgroup v2 Unified Hierarchy" "Supported"
 else
     log_fail "Cgroup v2 Unified Hierarchy" "Required for unified cgroup control"
-    ((required_failed++))
+    required_failed=$((required_failed + 1))
 fi
 
 # Cgroup subtree_control check
@@ -131,7 +131,7 @@ if [[ -f /sys/fs/cgroup/cgroup.subtree_control ]]; then
     log_pass "Cgroup v2 Delegation" "Available"
 else
     log_fail "Cgroup v2 Delegation" "systemd cgroup delegation required"
-    ((required_failed++))
+    required_failed=$((required_failed + 1))
 fi
 
 # IPv6 check
@@ -139,7 +139,7 @@ if ip -6 addr show 2>/dev/null | grep -q "inet6"; then
     log_pass "IPv6 Support" "Enabled"
 else
     log_fail "IPv6 Support" "IPv6 must be enabled"
-    ((required_failed++))
+    required_failed=$((required_failed + 1))
 fi
 
 # IPv6 loopback connectivity
@@ -160,7 +160,7 @@ if [[ $root_available_gb -ge $MIN_DISK_GB ]]; then
     log_pass "Disk Space (/ partition)" "${root_available_gb}GB available (minimum: ${MIN_DISK_GB}GB)"
 else
     log_fail "Disk Space (/ partition)" "${root_available_gb}GB available (minimum: ${MIN_DISK_GB}GB required)"
-    ((required_failed++))
+    required_failed=$((required_failed + 1))
 fi
 
 # Total RAM
@@ -171,7 +171,7 @@ if [[ $mem_total_gb -ge $MIN_RAM_GB ]]; then
     log_pass "Total RAM" "${mem_total_gb}GB (minimum: ${MIN_RAM_GB}GB)"
 else
     log_fail "Total RAM" "${mem_total_gb}GB (minimum: ${MIN_RAM_GB}GB required)"
-    ((required_failed++))
+    required_failed=$((required_failed + 1))
 fi
 
 # ===== REQUIRED CHECKS (Software & Git) =====
@@ -183,7 +183,7 @@ if command -v git &> /dev/null; then
     log_pass "Git" "$git_ver"
 else
     log_fail "Git" "Git is not installed"
-    ((required_failed++))
+    required_failed=$((required_failed + 1))
 fi
 
 # Unheaded repo check
@@ -193,7 +193,7 @@ if [[ -d "$UNHEADED_SRC" && -d "$UNHEADED_SRC/.git" ]]; then
     log_pass "Unheaded Repository" "$UNHEADED_SRC (branch: $repo_branch, commit: $repo_hash)"
 else
     log_fail "Unheaded Repository" "Not found at $UNHEADED_SRC"
-    ((required_failed++))
+    required_failed=$((required_failed + 1))
 fi
 
 # SSH key for unheaded user
@@ -203,11 +203,11 @@ if [[ -n "$unheaded_user" ]]; then
         log_pass "Unheaded User SSH Key" "Found"
     else
         log_fail "Unheaded User SSH Key" "SSH key not found for unheaded user"
-        ((required_failed++))
+        required_failed=$((required_failed + 1))
     fi
 else
     log_fail "Unheaded User Account" "unheaded user does not exist"
-    ((required_failed++))
+    required_failed=$((required_failed + 1))
 fi
 
 # ===== OPTIONAL CHECKS (GPU & Host-specific) =====
@@ -234,7 +234,7 @@ if [[ "$host_role" == "forge" ]]; then
             log_pass "AMD GPU Detected" "$gpu_info"
         else
             log_warn "AMD GPU Detected" "No AMD GPU found (optional for forge)"
-            ((optional_failed++))
+            optional_failed=$((optional_failed + 1))
         fi
     else
         log_warn "lspci Tool" "Not available for GPU detection"
@@ -253,7 +253,7 @@ if [[ "$host_role" == "forge" ]]; then
         log_pass "ROCm Installation" "$rocm_ver"
     else
         log_warn "ROCm Installation" "ROCm not found (optional for GPGPU compute)"
-        ((optional_failed++))
+        optional_failed=$((optional_failed + 1))
     fi
 else
     echo "Skipping Host-A specific checks (host is not forge)"
@@ -322,9 +322,9 @@ warn_checks=0
 
 for result in "${check_results[@]}"; do
     case "$result" in
-        PASS) ((passed_checks++)) ;;
-        FAIL) ((failed_checks++)) ;;
-        WARN) ((warn_checks++)) ;;
+        PASS) passed_checks=$((passed_checks + 1)) ;;
+        FAIL) failed_checks=$((failed_checks + 1)) ;;
+        WARN) warn_checks=$((warn_checks + 1)) ;;
     esac
 done
 
