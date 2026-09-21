@@ -1385,7 +1385,7 @@ milestone, bug and epic — the three P0 types — have rendered as P2 since
 that table was written.
 
 Board now loads both and merges by id (`task-*` ∪ `tl-*`); priority lookup
-uses `??`. eslint clean. `f6…` below.
+uses `??`. eslint clean. Commit `e8ad96b9`.
 
 ## The meta-gate — breaking the four-batch cycle (2026-09-09)
 
