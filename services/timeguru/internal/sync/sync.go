@@ -273,7 +273,7 @@ func encodeMarkdown(tl *timeline.Timeline) string {
 			if m.Description != "" {
 				fmt.Fprintf(&sb, "%s\n\n", m.Description)
 			}
-			if m.ETA != nil {
+			if timeline.HasDate(m.ETA) {
 				fmt.Fprintf(&sb, "**ETA:** %s\n", m.ETA.Format("Jan 2, 2006"))
 			}
 			if m.Owner != "" {

@@ -187,6 +187,7 @@ jobs:
             crates/zhenai-forge -> target
             cmd/waf -> target
             cmd/upc-bootctl -> target
+            cmd/ebpf-collector -> target
           key: ${{ runner.os }}-cargo-${{ env.RUST_STABLE }}
 
       # NOT `working-directory: ebpf`. Cargo reads .cargo/config.toml from the
@@ -215,14 +216,17 @@ jobs:
       # ROOT; members carry only a Cargo.toml — same rule check-clippy.sh uses)
       # that has at least one #[test], minus monad-mbc and trace-collector which
       # have their own steps here and in ebpf.yml. Do not narrow it to
-      # crates/* — cmd/waf and cmd/upc-bootctl are workspace roots too, and
-      # globbing crates/* is how they were missed the first time.
+      # crates/* — cmd/waf, cmd/upc-bootctl and cmd/ebpf-collector are workspace
+      # roots too, and globbing crates/* is how they were missed the first time.
+      # The rule is "every Cargo.lock-marked root with at least one #[test]";
+      # ebpf-collector (20 tests) was still missing when 7f597d62 claimed zero
+      # gaps. Re-derive the list from `git ls-files '*/Cargo.lock'`, not memory.
       - name: Test standalone workspaces (zhend, zhenai-forge, waf, upc-*, doom-runner, xv6-mbc)
         run: |
           set -euo pipefail
           for c in crates/zhend crates/zhenai-forge crates/doom-runner \
                    crates/upc-api crates/upc-bootstub crates/xv6-mbc \
-                   cmd/waf cmd/upc-bootctl; do
+                   cmd/waf cmd/upc-bootctl cmd/ebpf-collector; do
             echo "::group::cargo test $c"
             cargo test --manifest-path "$c/Cargo.toml"
             echo "::endgroup::"

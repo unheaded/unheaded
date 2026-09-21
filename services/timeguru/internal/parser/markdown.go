@@ -43,7 +43,13 @@ var (
 	// markers references/timeline.md actually uses — so those headers failed to
 	// match the group at all. `(.+?)` then swallowed the marker into the phase
 	// name and the status silently fell through to its default.
-	phaseHeaderRe = regexp.MustCompile(`^###\s+(Age|Phase|Epoch)\s+(\d+(?:\.\d+)?):?\s+(.+?)\s*(?:\(([^()]*(?i:COMPLETE|PROGRESS|PLANNED|BLOCK)[^()]*)\))?$`)
+	//
+	// The keywords are word-bounded so that ordinary parenthetical prose does
+	// not get eaten as a marker: without \b, "(incomplete)" contains COMPLETE
+	// and "(unblocked)" contains BLOCK, and parseStatus would report the
+	// opposite of what the heading says while stripping the remark from the
+	// phase name.
+	phaseHeaderRe = regexp.MustCompile(`^###\s+(Age|Phase|Epoch)\s+(\d+(?:\.\d+)?):?\s+(.+?)\s*(?:\(([^()]*\b(?i:COMPLETED?|IN[ _-]PROGRESS|PROGRESS|PLANNED|BLOCK(?:ED)?)\b[^()]*)\))?$`)
 
 	// Milestone headers: #### Epoch 1.1: The Whispering Void Awakens
 	milestoneHeaderRe = regexp.MustCompile(`^####\s+(Epoch|Milestone)\s+(\d+(?:\.\d+)?):?\s+(.+)$`)
@@ -143,6 +149,7 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 	var phaseStatusFromHeader bool
 	// True once the current phase declared its own "Progress: N%" line.
 	var phaseProgressDeclared bool
+	var milestoneProgressDeclared bool // same guard, one heading level down
 	var currentMilestone *timeline.Milestone
 	var lineNum int
 
@@ -219,6 +226,7 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 
 			milestoneID := fmt.Sprintf("milestone-%s", milestoneMatch[2])
 			milestoneName := strings.TrimSpace(milestoneMatch[3])
+			milestoneProgressDeclared = false
 
 			currentMilestone = &timeline.Milestone{
 				ID:       milestoneID,
@@ -274,6 +282,7 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 			_, _ = fmt.Sscanf(declMatch[1], "%d", &progress)
 			if currentMilestone != nil {
 				currentMilestone.Progress = progress
+				milestoneProgressDeclared = true
 			} else if currentPhase != nil {
 				currentPhase.Progress = progress
 				phaseProgressDeclared = true
@@ -282,7 +291,9 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 			progress := 0
 			_, _ = fmt.Sscanf(progressMatch[1], "%d", &progress)
 			if currentMilestone != nil {
-				currentMilestone.Progress = progress
+				if !milestoneProgressDeclared {
+					currentMilestone.Progress = progress
+				}
 			} else if currentPhase != nil && !phaseProgressDeclared {
 				currentPhase.Progress = progress
 			}
@@ -358,19 +369,25 @@ func (p *MarkdownParser) ParseReader(scanner *bufio.Scanner) (*timeline.Timeline
 
 // parseStatus converts status text to normalized status string
 func parseStatus(text string) string {
-	text = strings.ToUpper(strings.TrimSpace(text))
-
+	// Word-bounded for the same reason as phaseHeaderRe: "INCOMPLETE" contains
+	// "COMPLETE" and "UNBLOCKED" contains "BLOCK".
 	switch {
-	case strings.Contains(text, "COMPLETE"):
+	case statusWordCompleteRe.MatchString(text):
 		return "completed"
-	case strings.Contains(text, "PROGRESS"):
+	case statusWordProgressRe.MatchString(text):
 		return "in_progress"
-	case strings.Contains(text, "BLOCK"):
+	case statusWordBlockedRe.MatchString(text):
 		return "blocked"
 	default:
 		return "planned"
 	}
 }
+
+var (
+	statusWordCompleteRe = regexp.MustCompile(`(?i)\bCOMPLETED?\b`)
+	statusWordProgressRe = regexp.MustCompile(`(?i)\b(?:IN[ _-])?PROGRESS\b`)
+	statusWordBlockedRe  = regexp.MustCompile(`(?i)\bBLOCK(?:ED)?\b`)
+)
 
 // extractStatus extracts status from line content
 func extractStatus(line string) string {
