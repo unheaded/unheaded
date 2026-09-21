@@ -77,6 +77,20 @@ type TimelineManager struct {
 
 	// Callback for broadcasting updates
 	broadcast func(eventType string, data interface{})
+
+	// refetch pulls the full timeline from timeguru over HTTP. Timeguru's
+	// timeline.updates messages are notifications with no content
+	// ({"event":"timeline_reloaded",...}), and HTTP polling is off whenever
+	// Wotan is on — so until 2026-09-21 a notification only relayed a frontend
+	// event and the board never received a timeline in the default mode.
+	refetch func() error
+}
+
+// SetRefetch installs the function a notification triggers to pull content.
+func (tm *TimelineManager) SetRefetch(fn func() error) {
+	tm.mu.Lock()
+	defer tm.mu.Unlock()
+	tm.refetch = fn
 }
 
 // NewTimelineManager creates a new TimelineManager
@@ -108,6 +122,17 @@ func (tm *TimelineManager) HandleTimelineUpdate(payload []byte) error {
 				"timestamp": event.Timestamp,
 				"source":    event.Source,
 			})
+		}
+
+		// The notification carries no timeline; go and get it.
+		tm.mu.RLock()
+		refetch := tm.refetch
+		tm.mu.RUnlock()
+		if refetch != nil {
+			if err := refetch(); err != nil {
+				log.Warn().Err(err).Str("event", event.Event).
+					Msg("timeline notification received but refetch from timeguru failed")
+			}
 		}
 
 		return nil

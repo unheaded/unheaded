@@ -1281,6 +1281,40 @@ Lesson for the log: **B8's "plateau, not growth" was a claim made from
 `docker stats` alone.** RSS cannot distinguish live heap from GC headroom.
 The pprof listener exists now so the next person does not have to guess.
 
+## Post-ladder: the Meta Moment had never worked in compose (2026-09-21)
+
+Picked up from the B9 "timeguru-in-compose serves nothing" note. Five
+independent defects, each sufficient on its own to keep kanban's timeline
+empty — which is why nobody could bisect it by fixing one.
+
+| # | where | defect |
+|---|---|---|
+| 1 | `docker-compose.yml` timeguru | no `references/` mount → `timeline file not found`, `/timeline` = `INTERNAL_ERROR` |
+| 2 | `timeguru/main.go` | `wotanDisplayName = "timeguru-service"`; allowlist says `timeguru` → every subscription `pending`, **every publish failed** — file-change notifications never left the process |
+| 3 | `docker-compose.yml` ×7 | `WOTAN_GRPC_ADDR` unset → defaults to `localhost:18001`, nobody inside a container; the stream client "connects in the background" forever and never falls back to HTTP. captain's `WOTAN_ADDR` also pointed HTTP at the gRPC port |
+| 4 | `kanban-app/main.go` | `Initialize(ctx)` ran under a **10s timeout ctx that main cancelled on return**, and both stream goroutines were started on it → `"stream stopped (context cancelled)"` right after `"started"`. **Kanban has never received a `tasks.*` or `timeline.updates` message.** Strong candidate for the old "vanishing card" |
+| 5 | `kanban-app/timeline.go` | the notification carries no content (`{"event":"timeline_reloaded"}`), HTTP polling is off in Wotan mode, and the handler only relayed a frontend event — **nothing ever fetched the timeline** |
+
+Fixes: mount `references/` read-only with mirrors on the tmpfs; display
+name `timeguru`; `WOTAN_GRPC_ADDR: wotan:18001` on all 8 clients; the
+TaskManager owns a stream context cancelled in `Close()`; a `refetch` hook
+on `TimelineManager` that a notification triggers, plus one initial fetch
+at startup; timeguru announces `timeline_loaded` after connecting.
+
+Tests: notification → exactly one refetch, failure logged not returned, a
+full-timeline payload does not refetch; streams outlive a cancelled
+`Initialize` ctx and stop on `Close()`. Both provoked to red.
+
+**Proof, live, no restarts:** edit `timeline.md` ~70% → ~71% → timeguru
+`timeline file changed, reloading` → `published event` → kanban `received
+timeline update from Timeguru` → `/api/v1/timeline` reads 71 → revert → 70.
+qa-smoke 35/35.
+
+Recorded, not fixed: Wotan's **gRPC** subscribe path auto-approves every
+member while the **HTTP** path applies `topics.auto_approve` — the allowlist
+is only a control for clients that happen to fall back. Belongs with the
+security follow-ups.
+
 ## The meta-gate — breaking the four-batch cycle (2026-09-09)
 
 Four consecutive batches shipped a gate that was green because it could not
