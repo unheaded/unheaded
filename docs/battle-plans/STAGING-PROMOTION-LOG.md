@@ -37,7 +37,7 @@ Do not attribute them to any batch before B5.
 | B5 | 48–69 | `75cfe1d8` | python/shell hygiene phases | scripts, notebooks |
 | B6 | 70–93 | `015218c7` | bandit + eslint/shellcheck gating flips | JS front ends |
 | B7 | 94–109 | `910e9dfe` | The Well, dark-mirror, hosts, healthchecks, nix, runbooks | **in staging** — WELL_DB fixed in-batch; GUI QA pending |
-| B8 | 110–115 | `8b14029b` | daemon panic, systemd, k8s, CI gate | services start |
+| B8 | 110–115 | `8b14029b` | daemon panic, systemd, k8s, CI gate | **in staging** — 35/35 smoke; dashboard OOM found + fixed |
 | B9 | 116–124 | `5b172807` | python SBOM, SRI, docs, timeguru | dashboard/timeline |
 
 B1's boundary was originally set at rung 8 (`f3cb7bb3`) and **moved to rung 12**
