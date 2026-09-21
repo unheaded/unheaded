@@ -1372,6 +1372,21 @@ Real file: **58 milestones (44 completed, 14 pending)**. Board:
 `/api/v1/timeline/cards` → **64** (47 done, 16 todo, 1 in-progress), from
 six. Mirrors regenerated. qa-smoke 35/35.
 
+### Then: "why is everything P2?" / "maybe all I see is timeguru cards?"
+
+Both right. `Board.loadTasks()` was **either/or**: timeline cards if any,
+else `/api/v1/tasks`. For as long as the Meta Moment was broken the first
+branch never fired, so the board always showed the 73 hand-made tasks with
+their feature/infra/wishlist/tech-debt/bug types. The moment it worked, the
+73 vanished behind 64 `milestone` cards — a regression I caused by fixing
+the thing above it. And every one of them read P2 because
+`TYPE_PRIORITIES[type] || default` treats P0 (the number 0) as unset:
+milestone, bug and epic — the three P0 types — have rendered as P2 since
+that table was written.
+
+Board now loads both and merges by id (`task-*` ∪ `tl-*`); priority lookup
+uses `??`. eslint clean. `f6…` below.
+
 ## The meta-gate — breaking the four-batch cycle (2026-09-09)
 
 Four consecutive batches shipped a gate that was green because it could not

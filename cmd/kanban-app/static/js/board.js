@@ -139,8 +139,15 @@ const Board = (function() {
         showLoading(true);
 
         try {
-            // First try to load timeline cards (THE META MOMENT)
-            let tasks = [];
+            // The board is the union of the hand-made tasks (/api/v1/tasks,
+            // ids task-*) and the cards derived from timeline.md
+            // (/api/v1/timeline/cards, ids tl-*). This used to be either/or:
+            // timeline cards if any, else tasks. For as long as the Meta Moment
+            // was broken that branch never fired and the board always showed
+            // the tasks; the day it started working (2026-09-21) the 73 tasks
+            // vanished behind 64 milestone cards.
+            let tasks = await API.tasks.getAll();
+            console.log('[Board] Loaded tasks:', tasks.length);
             let source = 'tasks';
 
             try {
@@ -148,19 +155,15 @@ const Board = (function() {
                 if (timelineResponse.ok) {
                     const timelineData = await timelineResponse.json();
                     if (timelineData.tasks && timelineData.tasks.length > 0) {
-                        tasks = timelineData.tasks;
-                        source = 'timeline';
-                        console.log('[Board] Loaded timeline cards:', tasks.length);
+                        const seen = new Set(tasks.map(t => t.id));
+                        const fresh = timelineData.tasks.filter(t => !seen.has(t.id));
+                        tasks = tasks.concat(fresh);
+                        source = 'tasks+timeline';
+                        console.log('[Board] Loaded timeline cards:', fresh.length);
                     }
                 }
             } catch {
-                console.log('[Board] Timeline cards not available, falling back to tasks');
-            }
-
-            // Fall back to regular tasks if no timeline data
-            if (tasks.length === 0) {
-                tasks = await API.tasks.getAll();
-                console.log('[Board] Loaded tasks:', tasks.length);
+                console.log('[Board] Timeline cards not available, showing tasks only');
             }
 
             // Clear existing state
@@ -179,7 +182,7 @@ const Board = (function() {
 
             state.lastUpdate = new Date();
 
-            if (source === 'timeline') {
+            if (source === 'tasks+timeline') {
                 showToast('info', 'Timeline Loaded', 'Kanban is tracking its own timeline');
             }
 

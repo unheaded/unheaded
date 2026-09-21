@@ -147,9 +147,11 @@ const Cards = (function() {
         // Normalize status
         normalized.status = STATUS_MAP[task.status] || task.status;
 
-        // Calculate priority from type if not set
+        // Calculate priority from type if not set. `??`, not `||`: P0 is the
+        // number 0, which `||` treats as "unset", so milestone, bug and epic
+        // — the three P0 types — all rendered as P2.
         if (normalized.priority === undefined || normalized.priority === null) {
-            normalized.priority = TYPE_PRIORITIES[task.type] || TYPE_PRIORITIES['default'];
+            normalized.priority = TYPE_PRIORITIES[task.type] ?? TYPE_PRIORITIES['default'];
         }
 
         // Map owner to assignee
