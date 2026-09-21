@@ -1155,6 +1155,14 @@ questions for the dashboard, not a staging fix. The memory plateau (~515M of
 enough to the limit that it is worth a `GOMEMLIMIT` in compose when someone
 is next in that file.
 
+**Correction, same day (`c15c0e9d` was necessary but not sufficient).** The
+container OOM-killed again 40 minutes after that fix. "GC headroom, not
+growth" was wrong, and I had no heap evidence to say it — only `docker
+stats`. `GODEBUG=gctrace=1` showed **live heap ~400 MB five seconds after
+start**, with GC peaks at ~840 MB against a 768 MB cgroup: the process lived
+on the edge and any bad cycle killed it. See the B9 section for the actual
+cause (the metrics scraper, not the injector) and the fix.
+
 ## B9 — rungs 116–124, head `5b172807` — IN STAGING (2026-09-21)
 
 Merged as **`4202ddfb`**. 9 rungs, no conflicts. **The last batch: B9's
@@ -1234,6 +1242,44 @@ Reviewer confirmed sound: all three SRI hashes byte-for-byte; every
 third-party import under `raft/` is in `requirements.txt`; the `*time.Time`
 change has no non-test callers outside timeguru; regenerated mirrors match
 the parser; ADR index matches disk.
+
+### Found by running the stack, part 2: the dashboard OOM's real cause was the scraper
+
+The B8 fix (`c15c0e9d`) removed a goroutine pile-up and a log storm that were
+real — but the container died again 40 minutes later. This time with
+evidence: an env-gated loopback pprof listener (`PPROF_ADDR`, added in this
+commit, off by default, never on the main mux) and `GODEBUG=gctrace=1`.
+
+```
+Showing nodes accounting for 396.44MB, 97.19% of 407.91MB total
+  379.44MB 93.02%  scraper.(*Scraper).storeSample
+```
+
+`storeSample` created every new series with
+`make([]MetricSample, 0, MaxSamples)` — **72 KB committed per series before
+its first sample**. Grafana exposes 1,709 series, VictoriaMetrics 1,328; the
+first scrape pinned ~380 MB of live heap at t+5s. The GC goal (2× live) then
+sat at ~840 MB, above the cgroup, and the kernel killed the container
+whenever a cycle peaked. `AddSample` had a second defect: trimming by tail
+re-slice keeps the whole backing array alive and lets the next `append`
+double it, so a "bounded" series drifted to ~2× `MaxSamples` of capacity.
+
+**Fix (`cmd/dashboard-backend/internal/scraper`):** no preallocation; trim by
+in-place `copy` + `clear`, so capacity stays ≤ 2× max. `GOMEMLIMIT: 600MiB`
+in compose so the GC goal can never exceed the cgroup again. Test pins both
+properties (new series cap < max; 5,000 appends leave cap ≤ 2× max, order
+intact); provoked each way: red.
+
+| | before | after |
+|---|---|---|
+| live heap, t+20s | ~400 MB | **26 MB** |
+| RSS | 550–590 MB | **69 MB** |
+| GC goal vs 768 MB cgroup | above | under (600 MiB cap) |
+| qa-smoke | 35/35 | 35/35 |
+
+Lesson for the log: **B8's "plateau, not growth" was a claim made from
+`docker stats` alone.** RSS cannot distinguish live heap from GC headroom.
+The pprof listener exists now so the next person does not have to guess.
 
 ## The meta-gate — breaking the four-batch cycle (2026-09-09)
 

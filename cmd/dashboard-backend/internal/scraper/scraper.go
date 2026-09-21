@@ -113,7 +113,12 @@ func (ms *MetricSeries) AddSample(sample MetricSample, maxSamples int) {
 	defer ms.mu.Unlock()
 	ms.Samples = append(ms.Samples, sample)
 	if len(ms.Samples) > maxSamples {
-		ms.Samples = ms.Samples[len(ms.Samples)-maxSamples:]
+		// Shift in place rather than re-slicing the tail. A tail re-slice keeps
+		// the whole backing array alive and lets the next append grow it 2x, so
+		// a "bounded" series drifted to ~2*maxSamples of capacity forever.
+		n := copy(ms.Samples, ms.Samples[len(ms.Samples)-maxSamples:])
+		clear(ms.Samples[n:])
+		ms.Samples = ms.Samples[:n]
 	}
 }
 
@@ -592,11 +597,16 @@ func (s *Scraper) storeSample(sample MetricSample) {
 	s.seriesMu.Lock()
 	series, exists := s.series[key]
 	if !exists {
+		// No capacity preallocation. `make([]MetricSample, 0, MaxSamples)` here
+		// committed 72 KB per series before its first sample; Grafana and
+		// VictoriaMetrics alone expose ~3,000 series, so the first scrape pinned
+		// ~380 MB of live heap and the backend OOM-killed itself at its 768 MB
+		// cgroup limit (2026-09-21, pprof: storeSample 93% of inuse_space).
+		// append grows a series as it actually fills.
 		series = &MetricSeries{
 			Name:    sample.Name,
 			Labels:  sample.Labels,
 			Service: sample.Service,
-			Samples: make([]MetricSample, 0, s.config.MaxSamples),
 		}
 		s.series[key] = series
 	}

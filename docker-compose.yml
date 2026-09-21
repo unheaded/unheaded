@@ -695,6 +695,11 @@ services:
       WOTAN_GRPC_ADDR: "wotan:18001"
       SERVICES_FILE: "/etc/unheaded/services.txt"
       HOST_PROC: "/host/proc"   # kept for the (now-fallback) local reader; host metrics come from the host-agent
+      # Soft ceiling for the Go GC, under the 768M cgroup limit below. Without
+      # it the GC goal is 2x live heap, which sat above the cgroup limit and
+      # the kernel OOM-killed the container mid-cycle (2026-09-21). With it the
+      # runtime collects harder instead of dying.
+      GOMEMLIMIT: "600MiB"
     volumes:
       - ./config/dashboard/services.txt:/etc/unheaded/services.txt:ro
       - /proc:/host/proc:ro

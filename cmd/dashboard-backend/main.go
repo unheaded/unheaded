@@ -40,6 +40,8 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"strings"
@@ -255,6 +257,28 @@ func main() {
 
 	// Service discovery registration
 	discovery.SetupServiceDiscovery(ctx, nil, "dashboard-backend", 20000)
+
+	// Profiling. Off unless PPROF_ADDR is set, and meant for a loopback address
+	// inside the container (`docker exec ... wget -O- http://127.0.0.1:6060/
+	// debug/pprof/heap`). Added 2026-09-21 when the backend was found
+	// OOM-killing itself under the demo injector with no way to see why: the
+	// only heap evidence available was a SIGQUIT dump, which kills the process.
+	// net/http/pprof is NOT registered on the main mux, so nothing is exposed on
+	// :20000.
+	if addr := os.Getenv("PPROF_ADDR"); addr != "" {
+		pmux := http.NewServeMux()
+		pmux.HandleFunc("/debug/pprof/", pprof.Index)
+		pmux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+		pmux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+		pmux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+		go func() {
+			psrv := &http.Server{Addr: addr, Handler: pmux, ReadHeaderTimeout: 5 * time.Second}
+			log.Warn().Str("addr", addr).Msg("pprof listener enabled — not for production")
+			if err := psrv.ListenAndServe(); err != nil {
+				log.Error().Err(err).Msg("pprof listener exited")
+			}
+		}()
+	}
 
 	if err := srv.Start(ctx); err != nil {
 		log.Fatal().Err(err).Msg("failed to start server")
