@@ -36,7 +36,7 @@ Do not attribute them to any batch before B5.
 | B4 | 39–47 | `b39fb207` | ruff autofix, waf/forge lib split, clippy gate | cargo |
 | B5 | 48–69 | `75cfe1d8` | python/shell hygiene phases | scripts, notebooks |
 | B6 | 70–93 | `015218c7` | bandit + eslint/shellcheck gating flips | JS front ends |
-| B7 | 94–109 | `910e9dfe` | The Well, dark-mirror, hosts, healthchecks, nix, runbooks | **heavy GUI QA** |
+| B7 | 94–109 | `910e9dfe` | The Well, dark-mirror, hosts, healthchecks, nix, runbooks | **in staging** — WELL_DB fixed in-batch; GUI QA pending |
 | B8 | 110–115 | `8b14029b` | daemon panic, systemd, k8s, CI gate | services start |
 | B9 | 116–124 | `5b172807` | python SBOM, SRI, docs, timeguru | dashboard/timeline |
 
@@ -939,6 +939,101 @@ own provocation and review. That is scope creep mid-batch.
 
 **Recorded as follow-up rather than taken.** The finding is real; the timing is
 wrong.
+
+## B7 — rungs 94–109, head `910e9dfe` — IN STAGING (2026-09-21)
+
+Merged as **`5fe907f8`**. 16 rungs. **Three conflicts, all resolved to B7's
+side.** Plus the `WELL_DB` blocker fixed in-batch, which turned out to be two
+bugs, not one.
+
+| gate | result |
+|---|---|
+| `go build` / `go vet` | clean |
+| `go test ./...` | **0 failures** — the B5 bar holds |
+| `check-*.sh` | **8/8 PASS** |
+| `check-gates-can-fail.sh` | **9 gates bite**, 0 skipped (full run) |
+| shellcheck `-S warning` | **0 / 162 scripts failing** |
+| docker images | rebuilt, stack up |
+| `qa-smoke.sh` | **33 / 35 — equal to B2–B6**, same two cuirass probes |
+
+### Three conflicts, all superseded-by-develop
+
+Each was a staging fix commit from 2026-09-09 colliding with a B7 rung that
+did the same job more completely:
+
+- **`scripts/pre-flight-check.sh`** — staging restored `STRICT_MODE=true` with
+  a "nothing reads it yet" suppression. B7's `b18cb80b` *implements* `--strict`
+  (optional checks fold into the blocking count; the JSON verdict and exit
+  status can no longer disagree). Staging's comment was now false. B7 taken.
+- **`scripts/doom-test.sh`** — staging added a paragraph correcting an old
+  note about `pixel_8000`. B7's `300ce531` deletes the wrong note outright.
+  B7 taken.
+- **`scripts/bpf-verifier-check.sh`** — both sides fixed the never-read
+  `BUILD_EXIT`. B7's `b4532d45` counts the failure **once** and falls back to
+  `tail -20` when neither grep matches. Staging's counted `1 + ERRORS +
+  LINK_ERRORS`. B7 taken; the meta-gate re-proved it bites after the merge.
+
+Whole-file diffs were checked before `checkout --theirs`: nothing staging-only
+existed in those files outside the conflict regions.
+
+### `WELL_DB` — the blocker was two bugs, and the second was the real one
+
+The briefing said: B7 routes `003_app_schema.sql` into `unheaded_app` but
+leaves kanban-app on `WELL_DB=unheaded`, so a clean volume gives kanban an
+empty database. True, but incomplete. Fixing the pointer alone would **still
+have broken clean installs**, because the table 003 creates and the table
+`pkg/database/kanban_store.go` writes to were **different tables with the same
+name**:
+
+| | `003_app_schema.sql` (before) | `kanban_store.go` |
+|---|---|---|
+| `id` | `BIGSERIAL` | `TEXT` (`ms-phase0`, `task-042`) |
+| has | `priority`, `tags`, `assignee`, `sort_order` | `type`, `owner`, `progress`, `guid`, `archived_at`, `commits` |
+
+Nothing had ever read 003's shape. The ADR-091 misfile meant kanban-app always
+created its own table in the maintenance database via `EnsureSchema` and never
+met 003's. B7 fixed the routing, so the first clean volume post-B7 would hand
+kanban a table its `SeedIfEmpty` INSERT cannot use.
+
+**Proven on a throwaway `postgres:16-alpine` with the real `init.sh`:**
+
+```
+OLD-003: kanban INSERT → RED: column "type" of relation "kanban_tasks" does not exist
+NEW-003: kanban INSERT → GREEN
+```
+
+The fix makes 003 mirror `EnsureSchema` column for column, with a comment
+saying which one is authoritative and why. Same recurring-defect shape as
+B2–B6, one layer down: a migration that "passed" because nothing ever executed
+against its output.
+
+### The reconciliation, because moving the pointer alone empties the board
+
+On this box `unheaded_app` had **no** `kanban_tasks` at all; the 73 live rows
+were in `unheaded`. `scripts/well-reconcile-kanban.sh` copies the table
+(`pg_dump -t`, so indexes come with it), re-applies the 003 grants the dump
+drops, and verifies the count. It **refuses** (exit 2) if the destination
+already has rows — merging two boards is not a script's call. Source rows are
+left in place for the human to drop after a browser check.
+
+Run for real: 73 → 73. Second run refused as designed. kanban-app restarted
+with `WELL_DB=unheaded_app`: `/api/v1/tasks` returns 73. A POST landed in
+`unheaded_app` and **not** in `unheaded`, then was removed. `qa-smoke`'s
+`well/kanban_tasks>0` now scores the right database and was provoked
+(`WELL_DB=unheaded_ops`) to confirm it goes red.
+
+Also fixed: `AppKanbanConfig`'s fallback was `the_well`, a database that has
+never existed. `OpsWriterConfig`'s identical fallback is left alone — that is
+the parked split-brain item, not this batch.
+
+### Left open, deliberately
+
+`raft/zhen_app.py:345` and `:1572` still read `kanban_tasks` from `unheaded`.
+Until the parked split-brain lands, zhenai's kanban view will show the
+**pre-reconciliation** board — the source rows are frozen, new tasks go to
+`unheaded_app`. Dropping `unheaded.kanban_tasks` would make that path fail
+loudly instead of silently staling; that is the better failure and the reason
+the drop is left to a human.
 
 ## The meta-gate — breaking the four-batch cycle (2026-09-09)
 

@@ -86,7 +86,7 @@ done
 
 # The Well: kanban must serve a non-empty task set. WELL_DB decides which
 # database is read, so this catches the routing defect as well as an outage.
-rows=$(docker exec unheaded-postgres psql -U unheaded -d "${WELL_DB:-unheaded}" \
+rows=$(docker exec unheaded-postgres psql -U unheaded -d "${WELL_DB:-unheaded_app}" \
        -tAc "SELECT count(*) FROM kanban_tasks;" 2>/dev/null | tr -d ' ')
 [ -z "$rows" ] && rows="query-failed"
 check "well/kanban_tasks>0" "true" "$([ "${rows:-0}" -gt 0 ] 2>/dev/null && echo true || echo "false($rows)")"

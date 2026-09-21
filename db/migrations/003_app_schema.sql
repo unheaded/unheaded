@@ -15,27 +15,36 @@ $$ LANGUAGE plpgsql;
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- KANBAN TASKS
 -- ═══════════════════════════════════════════════════════════════════════════════
+-- This DDL mirrors pkg/database/kanban_store.go EnsureSchema() column for
+-- column. The code path is authoritative: it runs CREATE TABLE IF NOT EXISTS
+-- plus ADD COLUMN IF NOT EXISTS on every kanban-app and zhen-agentd start, and
+-- the live board's rows were created under it.
+--
+-- Until 2026-09-21 this file defined a different table (BIGSERIAL id,
+-- priority/tags/assignee/sort_order, no type/owner/progress). Nothing ever
+-- read that shape: the ADR-091 initdb bug misfiled the schema, so kanban-app
+-- created its own table in the maintenance database and never met this one.
+-- Once init.sh routed this file into unheaded_app correctly, a clean volume
+-- would have handed kanban a table it could not INSERT into
+-- (`column "type" does not exist`). Keep the two definitions in lockstep.
 CREATE TABLE kanban_tasks (
-    id           BIGSERIAL PRIMARY KEY,
-    title        TEXT NOT NULL,
-    description  TEXT DEFAULT '',
-    status       VARCHAR(20) NOT NULL DEFAULT 'todo'
-        CHECK (status IN ('backlog', 'todo', 'in-progress', 'review', 'done')),
-    priority     VARCHAR(5) DEFAULT 'P2'
-        CHECK (priority IN ('P0', 'P1', 'P2', 'P3')),
-    tags         TEXT[] DEFAULT '{}',
-    assignee     TEXT DEFAULT '',
-    sort_order   INTEGER DEFAULT 0,
-    created_at   TIMESTAMPTZ DEFAULT NOW(),
-    updated_at   TIMESTAMPTZ DEFAULT NOW(),
-    completed_at TIMESTAMPTZ,
-    deleted_at   TIMESTAMPTZ
+    id          TEXT PRIMARY KEY,
+    guid        UUID NOT NULL DEFAULT gen_random_uuid(),
+    title       TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    status      TEXT NOT NULL DEFAULT 'todo',
+    type        TEXT NOT NULL DEFAULT 'task',
+    owner       TEXT NOT NULL DEFAULT '',
+    progress    INTEGER NOT NULL DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    deleted_at  TIMESTAMPTZ,
+    archived_at TIMESTAMPTZ,
+    commits     JSONB DEFAULT '[]'
 );
 
-CREATE INDEX idx_kanban_status ON kanban_tasks(status);
-CREATE INDEX idx_kanban_priority ON kanban_tasks(priority);
-CREATE INDEX idx_kanban_assignee ON kanban_tasks(assignee);
-CREATE INDEX idx_kanban_sort_order ON kanban_tasks(sort_order);
+CREATE INDEX idx_kanban_tasks_status ON kanban_tasks(status);
+CREATE UNIQUE INDEX idx_kanban_tasks_guid ON kanban_tasks(guid);
 CREATE INDEX idx_kanban_created_at ON kanban_tasks(created_at DESC);
 CREATE INDEX idx_kanban_deleted_at ON kanban_tasks(deleted_at) WHERE deleted_at IS NOT NULL;
 

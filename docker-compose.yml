@@ -756,7 +756,7 @@ services:
       WELL_PORT: "5432"
       WELL_USER: "unheaded"
       WELL_PASSWORD: "${POSTGRES_PASSWORD:-unheaded_dev}"
-      WELL_DB: "unheaded"
+      WELL_DB: "unheaded_app"
       WELL_SSLMODE: "disable"
     ports:
       - "20001:20001"
