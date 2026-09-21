@@ -15,10 +15,10 @@ Requires=unheaded-wotan.service
 Type=simple
 User=unheaded
 Group=unheaded
+Environment=HTTP_ADDR=:17000
+Environment=GRPC_ADDR=:17001
 EnvironmentFile=-/etc/unheaded/daemon.env
-ExecStart=/usr/local/bin/unheaded-daemon \
-    --http-port 17000 \
-    --grpc-port 17001
+ExecStart=/usr/local/bin/unheaded-daemon
 WorkingDirectory=/var/lib/unheaded/daemon
 Restart=on-failure
 RestartSec=10s

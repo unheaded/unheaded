@@ -44,7 +44,10 @@ spec:
       containers:
         - name: dashboard-backend
           image: ghcr.io/stevenrbellis/unheaded/dashboard-backend:dev
-          command: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--ws-allowed-origins", "*"]
+          # args, not command: `command` replaces the image ENTRYPOINT, so these
+          # flags became the program name (exec "--listen": not found), and the
+          # ENTRYPOINT's own `--viz-dir /app/viz` was dropped. args appends.
+          args: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--ws-allowed-origins", "*"]
           ports:
             - { name: http, containerPort: 20000 }
           envFrom:

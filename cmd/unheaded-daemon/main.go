@@ -766,41 +766,15 @@ func (d *Daemon) registerHandlers(mux *http.ServeMux) {
 	// Metrics
 	mux.HandleFunc("/metrics", d.handleMetrics)
 
-	// Health + Readiness (per CLAUDE.md "every service must expose
-	// /health and /ready endpoints").
-	mux.HandleFunc("/health", d.handleHealth)
-	mux.HandleFunc("/ready", d.handleReady)
+	// (No /health or /ready here: healthSrv.RegisterHTTP above already owns
+	// both, and registering either twice makes http.ServeMux panic — the daemon
+	// died on every start. Same resolution as micromanager. The removed local
+	// handlers reported a hardcoded "status":"healthy" that could never go
+	// unhealthy; the transport version reports real dual-protocol state. If
+	// richer probe logic is wanted, add it to healthSrv rather than here.)
 
 	// Info
 	mux.HandleFunc("/api/v1/info", d.handleInfo)
-}
-
-func (d *Daemon) handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		"service":   "cuirass",
-		"status":    "healthy",
-		"version":   "0.1.0",
-		"timestamp": time.Now().UTC(),
-		"component": "cuirass",
-		"hollow":    "crystal_grotto",
-	})
-}
-
-func (d *Daemon) handleReady(w http.ResponseWriter, r *http.Request) {
-	d.mu.RLock()
-	lxdReady := d.lxdClient != nil
-	d.mu.RUnlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		"ready": true,
-		"services": map[string]bool{
-			"state_manager": true,
-			"lxd_client":    lxdReady,
-			"ebpf_loader":   false, // disabled until RealLoader is implemented
-		},
-	})
 }
 
 func (d *Daemon) handleGetState(w http.ResponseWriter, r *http.Request) {

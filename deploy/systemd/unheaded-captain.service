@@ -15,8 +15,9 @@ Requires=unheaded-wotan.service
 Type=simple
 User=unheaded
 Group=unheaded
+Environment=HTTP_ADDR=0.0.0.0:19002
 EnvironmentFile=-/etc/unheaded/captain.env
-ExecStart=/usr/local/bin/captain --port 19002
+ExecStart=/usr/local/bin/captain
 WorkingDirectory=/var/lib/unheaded/captain
 Restart=on-failure
 RestartSec=5s

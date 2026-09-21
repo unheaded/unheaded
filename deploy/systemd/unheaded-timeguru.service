@@ -15,8 +15,9 @@ Requires=unheaded-wotan.service
 Type=simple
 User=unheaded
 Group=unheaded
+Environment=PORT=19000
 EnvironmentFile=-/etc/unheaded/timeguru.env
-ExecStart=/usr/local/bin/timeguru --port 19000
+ExecStart=/usr/local/bin/timeguru
 WorkingDirectory=/var/lib/unheaded/timeguru
 Restart=on-failure
 RestartSec=5s
