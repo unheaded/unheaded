@@ -35,7 +35,7 @@ func OpsWriterConfig() Config {
 		Port:     getEnv("WELL_PORT", "5432"),
 		User:     getEnv("WELL_USER", "unheaded"),
 		Password: getEnv("WELL_PASSWORD", "unheaded"),
-		DBName:   getEnv("WELL_DB", "the_well"),
+		DBName:   getEnv("WELL_DB", "unheaded_ops"),
 		SSLMode:  getEnv("WELL_SSLMODE", "disable"),
 	}
 }
