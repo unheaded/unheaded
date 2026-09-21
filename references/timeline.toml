@@ -1,5 +1,5 @@
 version = "1.0.0"
-last_updated = 2026-03-25T21:13:26.094633811Z
+last_updated = 2026-09-21T16:16:28.921587173Z
 status = "alpha"
 milestones = []
 
@@ -23,18 +23,18 @@ milestones = []
 
 [[phases]]
   id = "phase-3"
-  name = "The Public Release (🔄 IN PROGRESS)"
-  status = "completed"
-  progress = 85
+  name = "The Public Release"
+  status = "in_progress"
+  progress = 70
 
 [[phases]]
   id = "phase-4"
-  name = "The MVP Era (📋 PLANNED)"
+  name = "The MVP Era"
   status = "planned"
   progress = 0
 
 [[phases]]
   id = "phase-5"
-  name = "The Scaling Era (📋 PLANNED)"
-  status = "completed"
+  name = "The Scaling Era"
+  status = "planned"
   progress = 0
