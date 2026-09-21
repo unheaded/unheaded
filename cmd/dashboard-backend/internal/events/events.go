@@ -619,8 +619,16 @@ func (s *Streamer) processEvent(event Event) {
 	copy(listeners, s.listeners)
 	s.listenersMu.RUnlock()
 
+	// Listeners run inline, not as `go listener(event)`. Every listener in the
+	// tree is non-blocking (JSON marshal + a select-with-default send), and the
+	// streamer subscribes to the ebpf.* firehose — thousands of events a second
+	// under the demo injector. A goroutine per event per listener had no bound:
+	// a SIGQUIT dump on 2026-09-21 showed goroutine IDs past 8 million three
+	// minutes after start and 461 runnable at once, and the container was
+	// OOM-killed at its 768M limit. Inline calls give the gRPC stream
+	// backpressure instead.
 	for _, listener := range listeners {
-		go listener(event)
+		listener(event)
 	}
 
 	// Notify topic-specific callbacks
@@ -880,7 +888,7 @@ func (s *Streamer) notifyTopicCallbacks(event Event) {
 	for pattern, callbacks := range topicCallbacks.callbacks {
 		if s.matchTopicPattern(pattern, event.Topic) {
 			for _, cb := range callbacks {
-				go cb(event.Topic, event)
+				cb(event.Topic, event) // inline for the same reason as listeners
 			}
 		}
 	}

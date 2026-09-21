@@ -171,6 +171,34 @@ type Server struct {
 	onConnect    func(*Client)
 	onDisconnect func(*Client)
 	onMessage    func(*Client, []byte)
+
+	// Drop accounting. Under the demo injector the broadcast path drops
+	// thousands of messages a second whenever the hub falls behind, and a
+	// pretty-printed warn line per drop cost more than the drop itself — it
+	// was the bulk of the CPU that kept the hub behind. Drops are counted, and
+	// the warning is written at most once per dropLogInterval with the count.
+	broadcastDrops    atomic.Int64
+	clientDrops       atomic.Int64
+	lastBroadcastWarn atomic.Int64 // unix nanos
+	lastClientWarn    atomic.Int64 // unix nanos
+}
+
+// dropLogInterval bounds how often a "dropping message" warning is written.
+const dropLogInterval = 5 * time.Second
+
+// warnDropped increments a drop counter and returns the total when the
+// warning is due, or -1 when it should be suppressed.
+func warnDropped(count, last *atomic.Int64) int64 {
+	n := count.Add(1)
+	now := time.Now().UnixNano()
+	prev := last.Load()
+	if now-prev < int64(dropLogInterval) {
+		return -1
+	}
+	if !last.CompareAndSwap(prev, now) {
+		return -1
+	}
+	return n
 }
 
 // NewServer creates a new WebSocket server
@@ -268,9 +296,12 @@ func (s *Server) run(ctx context.Context) {
 				case client.send <- message:
 				default:
 					// Client buffer full, skip
-					s.log.Warn().
-						Str("client_id", client.id).
-						Msg("client buffer full, dropping message")
+					if n := warnDropped(&s.clientDrops, &s.lastClientWarn); n >= 0 {
+						s.log.Warn().
+							Str("client_id", client.id).
+							Int64("dropped_total", n).
+							Msg("client buffer full, dropping messages")
+					}
 				}
 			}
 			s.clientsMu.RUnlock()
@@ -646,7 +677,9 @@ func (s *Server) Broadcast(message []byte) {
 		// Server shutting down, drop message
 	default:
 		// Broadcast channel full, drop message
-		s.log.Warn().Msg("broadcast channel full, dropping message")
+		if n := warnDropped(&s.broadcastDrops, &s.lastBroadcastWarn); n >= 0 {
+			s.log.Warn().Int64("dropped_total", n).Msg("broadcast channel full, dropping messages")
+		}
 	}
 }
 
