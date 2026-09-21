@@ -39,7 +39,7 @@ const (
 	shutdownTimeout     = 30 * time.Second
 	fileWatchInterval   = 5 * time.Second
 	wotanTopic          = "timeline.updates"
-	wotanDisplayName    = "timeguru-service"
+	wotanDisplayName    = "timeguru" // must match configs/wotan.yaml topics.auto_approve; "timeguru-service" sat pending forever
 )
 
 // traceIDCounter avoids collision risk of UnixNano()-only IDs under high throughput
@@ -84,11 +84,13 @@ func main() {
 	log.Info().Msg("storage initialized (Crystal Grotto connected)")
 
 	// Try to load timeline from markdown file on startup
+	timelineLoaded := false
 	if config.TimelinePath != "" {
 		if err := loadTimelineFromFile(config.TimelinePath, store); err != nil {
 			log.Warn().Err(err).Str("path", config.TimelinePath).Msg("could not load timeline.md, starting with empty timeline")
 		} else {
 			log.Info().Msg("timeline loaded from markdown file")
+			timelineLoaded = true
 		}
 	}
 
@@ -113,6 +115,13 @@ func main() {
 	} else {
 		defer wotan.Close()
 		log.Info().Msg("Fae Chamber connected (Wotan online)")
+		// Announce the timeline loaded above. The file watcher publishes on
+		// change, but a restarted timeguru with new content would otherwise
+		// stay silent until the next edit — and kanban only fetches on
+		// notification.
+		if timelineLoaded {
+			go publishTimelineUpdate(wotan, "timeline_loaded") // #nosec G118 -- fire-and-forget startup announcement
+		}
 	}
 
 	// Log aggregation publisher — forwards structured logs to Wotan

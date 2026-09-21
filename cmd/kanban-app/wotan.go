@@ -72,6 +72,15 @@ type TaskManager struct {
 
 	// SSE broadcast function
 	broadcast func(eventType string, data interface{})
+
+	// Lifetime of the two Wotan message streams. They used to run on the
+	// context passed to Initialize — which main() built with a 10s timeout and
+	// cancelled the moment Initialize returned, so both streams logged
+	// "stopped (context cancelled)" right after "started" and the board never
+	// received a single tasks.* or timeline.updates message (found 2026-09-21).
+	// The streams now live as long as the TaskManager; Close() ends them.
+	streamCtx    context.Context
+	streamCancel context.CancelFunc
 }
 
 // NewTaskManager creates a task manager with Wotan client and optional task store.
@@ -84,12 +93,15 @@ func NewTaskManager(client WotanClient, broadcast func(string, interface{}), sto
 		return nil, errors.New("broadcast function cannot be nil")
 	}
 
+	streamCtx, streamCancel := context.WithCancel(context.Background())
 	tm := &TaskManager{
 		client:          client,
 		store:           store,
 		tasks:           make(map[string]*Task),
 		broadcast:       broadcast,
 		timelineManager: NewTimelineManager(broadcast),
+		streamCtx:       streamCtx,
+		streamCancel:    streamCancel,
 	}
 
 	return tm, nil
@@ -182,8 +194,9 @@ func (tm *TaskManager) subscribeToTasks(ctx context.Context) error {
 	tm.subscribed = true
 	tm.subMu.Unlock()
 
-	// Start message stream
-	go tm.streamMessages(ctx)
+	// Start message stream on the manager's own lifetime, not the caller's
+	// (possibly short-lived) ctx.
+	go tm.streamMessages(tm.streamCtx)
 
 	return nil
 }
@@ -211,8 +224,8 @@ func (tm *TaskManager) subscribeToTimeline(ctx context.Context) error {
 	tm.timelineSubscribed = true
 	tm.subMu.Unlock()
 
-	// Start timeline message stream
-	go tm.streamTimelineMessages(ctx)
+	// Start timeline message stream — same lifetime rule as streamMessages.
+	go tm.streamTimelineMessages(tm.streamCtx)
 
 	return nil
 }
@@ -589,6 +602,9 @@ func (tm *TaskManager) IsSubscribed() bool {
 // Close gracefully shuts down TaskManager.
 // Drains inflight Wotan publishes (5s timeout), then closes the client.
 func (tm *TaskManager) Close() error {
+	if tm.streamCancel != nil {
+		tm.streamCancel()
+	}
 	if tm.client == nil {
 		return ErrNilClient
 	}

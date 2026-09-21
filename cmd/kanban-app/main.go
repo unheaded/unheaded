@@ -1595,7 +1595,22 @@ func main() {
 		go server.pollTimeguru(pollCtx, 30*time.Second)
 		log.Info().Msg("Timeguru HTTP polling enabled (standalone mode)")
 	} else {
-		log.Info().Msg("Timeguru HTTP polling disabled (Wotan handles timeline events)")
+		// Wotan carries the notification; the content still comes over HTTP.
+		// Wire the refetch, and fetch once now so a freshly started board does
+		// not wait for timeguru's next file change to show anything.
+		server.taskManager.timelineManager.SetRefetch(server.fetchTimelineFromTimeguru)
+		go func() {
+			for attempt := 1; attempt <= 5; attempt++ {
+				if err := server.fetchTimelineFromTimeguru(); err == nil {
+					log.Info().Msg("initial timeline fetched from Timeguru")
+					return
+				} else if attempt == 5 {
+					log.Warn().Err(err).Msg("initial timeline fetch failed; waiting for a timeline.updates notification")
+				}
+				time.Sleep(time.Duration(attempt) * 2 * time.Second)
+			}
+		}()
+		log.Info().Msg("Timeguru HTTP polling disabled (Wotan notifies; content fetched on notification)")
 	}
 
 	// Start server in goroutine

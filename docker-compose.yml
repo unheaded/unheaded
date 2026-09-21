@@ -441,7 +441,19 @@ services:
     environment:
       PORT: "19000"
       WOTAN_ADDR: "wotan:18000"
+      WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
       DB_PATH: "/data/timeguru.db"
+      # The timeline IS the Meta Moment: kanban renders what timeguru publishes
+      # on timeline.updates. Until 2026-09-21 nothing was mounted here, so the
+      # container logged "timeline file not found", served INTERNAL_ERROR on
+      # /timeline, and kanban showed "No timeline data available yet" — the
+      # self-hosting proof was dark in the very stack meant to demonstrate it.
+      # references/ is the Git source of truth and stays read-only; the
+      # JSON/YAML/TOML mirrors regenerate on the tmpfs, not in the tree.
+      TIMELINE_PATH: "/references/timeline.md"
+      SYNC_DIR: "/data/sync"
+    volumes:
+      - ./references:/references:ro
     ports:
       - "19000:19000"
     networks:
@@ -483,7 +495,8 @@ services:
       - /data:size=64M
     environment:
       HTTP_ADDR: "0.0.0.0:19002"
-      WOTAN_ADDR: "wotan:18001"
+      WOTAN_ADDR: "wotan:18000"
+      WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
       DATA_PATH: "/data"
     ports:
       - "19002:19002"
@@ -526,6 +539,7 @@ services:
       - /data:size=64M
     environment:
       WOTAN_ADDR: "wotan:18000"
+      WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
     command: ["/app/architect", "-addr", ":19001"]
     ports:
       - "19001:19001"
@@ -609,6 +623,7 @@ services:
     environment:
       MONAD_PORT: "19004"
       WOTAN_ADDR: "wotan:18000"
+      WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
     ports:
       - "19004:19004"
     networks:
@@ -651,6 +666,7 @@ services:
     environment:
       SOPHIA_LISTEN_ADDR: ":19005"
       WOTAN_ADDR: "wotan:18000"
+      WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
     ports:
       - "19005:19005"
     networks:
@@ -755,6 +771,7 @@ services:
     environment:
       PORT: "20001"
       WOTAN_ADDR: "wotan:18000"
+      WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
       TIMEGURU_ADDR: "timeguru:19000"
       DATA_DIR: "/data"
       WELL_HOST: "postgres"
@@ -811,6 +828,7 @@ services:
     environment:
       HTTP_ADDR: ":19006"
       WOTAN_ADDR: "wotan:18000"
+      WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
     ports:
       - "19006:19006"
     volumes:
