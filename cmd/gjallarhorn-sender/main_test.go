@@ -13,12 +13,12 @@ import (
 func TestParseHexErr_AcceptsLowerAndUpperPrefix(t *testing.T) {
 	t.Parallel()
 	cases := map[string]uint64{
-		"0xCAFE":     0xCAFE,
-		"0XCAFE":     0xCAFE,
-		"CAFE":       0xCAFE,
-		"cafe":       0xCAFE,
-		"0xCAFEBABE": 0xCAFEBABE,
-		"0":          0,
+		"0xCAFE":           0xCAFE,
+		"0XCAFE":           0xCAFE,
+		"CAFE":             0xCAFE,
+		"cafe":             0xCAFE,
+		"0xCAFEBABE":       0xCAFEBABE,
+		"0":                0,
 		"FFFFFFFFFFFFFFFF": 0xFFFFFFFFFFFFFFFF, // u64 max
 	}
 	for input, want := range cases {
@@ -37,11 +37,11 @@ func TestParseHexErr_RejectsInvalidHex(t *testing.T) {
 	t.Parallel()
 	for _, input := range []string{
 		"",
-		"0x",        // prefix only — empty after strip
-		"GHIJ",      // non-hex chars
-		"0xZZZZ",    // non-hex chars w/ prefix
+		"0x",                  // prefix only — empty after strip
+		"GHIJ",                // non-hex chars
+		"0xZZZZ",              // non-hex chars w/ prefix
 		"0x10000000000000000", // overflows u64 (>16 hex digits)
-		"-1",        // negative not supported
+		"-1",                  // negative not supported
 	} {
 		_, err := parseHexErr(input)
 		if err == nil {

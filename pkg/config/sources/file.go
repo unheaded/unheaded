@@ -779,7 +779,7 @@ func (p *TOMLParser) parseOctalNumber(prefix string) (int, error) {
 // parseBinaryNumber parses a binary number.
 func (p *TOMLParser) parseBinaryNumber(prefix string) (int, error) {
 	var sb strings.Builder
-	binLoop:
+binLoop:
 	for p.pos < len(p.input) {
 		ch := p.peek()
 		switch ch {
