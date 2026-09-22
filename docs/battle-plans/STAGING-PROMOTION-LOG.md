@@ -1387,6 +1387,47 @@ that table was written.
 Board now loads both and merges by id (`task-*` ∪ `tl-*`); priority lookup
 uses `??`. eslint clean. Commit `e8ad96b9`.
 
+## Post-ladder: the kanban "vanishing card", probably found (2026-09-22)
+
+Carried unreproduced across several briefings as the `handleGetTasks`
+empty-list latent bug. It is a Go typed-nil trap, and it explains the
+symptom.
+
+`handleGetTasks` collects tasks into an `interface{}` and then decides
+whether to try the next source with `if tasks == nil`. `TaskManager.GetAllTasks`
+returns `make([]*Task, 0, len(...))` — **always non-nil**. Assigning an empty
+slice into an interface produces a non-nil interface holding an empty slice,
+so the nil test never fires and an empty TaskManager permanently shadows the
+store and the in-memory list. The endpoint answers `count: 0` while Postgres
+holds 73 rows.
+
+The manager is non-nil and empty for the entire window between startup and
+Wotan's first delivery — and again every time a wotan restart drops
+subscriptions, which this session already established happens on any
+`docker compose up -d`. A card that was on the board and then was not,
+without anyone deleting it, is exactly what that produces.
+
+Fixed by keying every fallback on `count > 0` rather than interface
+nil-ness. Four tests: empty manager falls through to the store, falls through
+to memory when there is no store, a populated manager still wins (the
+fallback must not override live data with a stale copy), and all-empty is a
+legitimate empty board.
+
+Then the fix fell into the same trap one line further down. The final guard
+read `if tasks == nil { tasks = []Task{} }`, but the in-memory branch assigns
+`s.tasks`, which is itself a nil `[]Task` — a typed nil, non-nil in the
+interface. The endpoint served `"tasks": null`, which the board cannot
+iterate. A fifth test asserts the array; the guard is keyed on `count` now
+too. Worth recording that the trap was easy to fall into twice inside one
+function.
+
+Verified live: board still returns 73 tasks, `tasks` is a JSON array.
+Full `./cmd/kanban-app/` suite green under `-race`, lint clean.
+
+Not claimed as proven: the vanishing card was never reproduced on demand, so
+this is a mechanism that matches the symptom, not a confirmed root cause.
+Watch whether it recurs.
+
 ## Post-ladder: logagg drop counter is now actually scrapeable (2026-09-22)
 
 Closing the loop left open by `918808fd`: `Dropped()` existed but nothing

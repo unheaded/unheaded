@@ -504,34 +504,55 @@ func (s *Server) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 	var tasks interface{}
 	var count int
 
+	// Each source is accepted only when it actually has rows, and `count > 0`
+	// is what decides that — NOT `tasks == nil`. GetAllTasks returns
+	// make([]*Task, 0, n), so assigning it into an interface{} yields a
+	// non-nil interface holding an empty slice: the old nil test never fired
+	// and an empty source permanently shadowed every fallback below it. That
+	// is the whole window between startup and Wotan's first delivery, and
+	// again after a wotan restart drops subscriptions — the board reads zero
+	// while the store still holds the tasks.
 	if s.taskManager != nil {
 		// Prefer Wotan-backed TaskManager
-		taskList := s.taskManager.GetAllTasks()
-		tasks = taskList
-		count = len(taskList)
-	} else if tm := s.getTimelineManager(); tm != nil {
-		// Fallback: timeline tasks from direct Timeguru HTTP polling
-		timelineTasks := tm.GetTimelineTasks()
-		if len(timelineTasks) > 0 {
-			tasks = timelineTasks
-			count = len(timelineTasks)
+		if taskList := s.taskManager.GetAllTasks(); len(taskList) > 0 {
+			tasks = taskList
+			count = len(taskList)
 		}
 	}
 
-	// Next: SQLite store (L1 persistence)
-	if tasks == nil && s.store != nil {
+	// Next: timeline tasks from direct Timeguru HTTP polling
+	if count == 0 {
+		if tm := s.getTimelineManager(); tm != nil {
+			if timelineTasks := tm.GetTimelineTasks(); len(timelineTasks) > 0 {
+				tasks = timelineTasks
+				count = len(timelineTasks)
+			}
+		}
+	}
+
+	// Next: SQLite/Postgres store (L1 persistence)
+	if count == 0 && s.store != nil {
 		if storeTasks, err := s.store.GetAllTasks(); err == nil && len(storeTasks) > 0 {
 			tasks = storeTasks
 			count = len(storeTasks)
 		}
 	}
 
-	// Last resort: in-memory hardcoded tasks
-	if tasks == nil {
+	// Last resort: in-memory tasks
+	if count == 0 {
 		s.tasksMu.RLock()
 		tasks = s.tasks
 		count = len(s.tasks)
 		s.tasksMu.RUnlock()
+	}
+
+	// Never encode a nil into "tasks": the board expects a JSON array, and
+	// `null` is not one. Keyed on count, not `tasks == nil` — s.tasks above
+	// may itself be a nil []Task, which lands in the interface as a non-nil
+	// typed nil and slips straight past a nil check. Same trap as the
+	// fallback chain; it is easy to fall into twice.
+	if count == 0 {
+		tasks = []Task{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
