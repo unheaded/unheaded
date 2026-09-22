@@ -1387,6 +1387,58 @@ that table was written.
 Board now loads both and merges by id (`task-*` ∪ `tl-*`); priority lookup
 uses `??`. eslint clean. Commit `e8ad96b9`.
 
+## Post-ladder: logagg drop counter is now actually scrapeable (2026-09-22)
+
+Closing the loop left open by `918808fd`: `Dropped()` existed but nothing
+exported it, so a service shedding logs looked identical to one with nothing
+to say.
+
+The first attempt was wrong and worth recording. Declaring the counters with
+`promauto` (the pattern in `pkg/httputil` and `pkg/nix`) built clean, tested
+green, and produced **nothing** on the dashboard's `/metrics`. Checking each
+service's endpoint explains why:
+
+| registry served | services |
+|---|---|
+| Prometheus client (`go_goroutines` present) | wotan only |
+| Unheaded's own `pkg/metrics` | the other nine |
+
+A counter registered in the Prometheus default registry is invisible in nine
+services out of ten. Same shape as a migration nothing runs against: the code
+is correct and unreachable.
+
+So the publisher owns the numbers and the service owns the registry.
+`Publisher` gained `Published()` and `Failed()` beside `Dropped()`, and
+`Collectors()` returns them as `metrics.Collector`s for whichever registry a
+service actually serves. `Server.RegisterCollectors` on dashboard-backend is
+the reference wiring.
+
+A transport error is counted separately from a queue drop — the entry left
+the queue but never landed, so "we dropped nothing" cannot hide a dead link.
+
+Second defect caught by looking at the live output rather than trusting the
+test: `Registry.Gather` writes `# HELP` and `# TYPE` from `Describe()`, and
+the collector was writing them too. The endpoint served duplicate HELP lines,
+which the Prometheus text format forbids and parsers reject. `Write` now
+emits only the sample line, and the test asserts no HELP line appears twice.
+
+Live on `/metrics` after the fix:
+
+```
+unheaded_logagg_entries_dropped_total{service="dashboard-backend"} 0
+unheaded_logagg_entries_published_total{service="dashboard-backend"} 105
+unheaded_logagg_publish_errors_total{service="dashboard-backend"} 0
+```
+
+Nine services still need the two-line registration. Left as follow-up rather
+than done blind — each serves its registry differently and each wants
+checking on the live endpoint, which is the only step that caught either
+defect here.
+
+`go mod tidy` pulled in `davecgh/go-spew` and pruned 43 unrelated `go.sum`
+lines while the promauto version was in place; both reverted with the
+approach.
+
 ## Post-ladder: container log caps moved into the repository (2026-09-22)
 
 First implementation step of ADR-092, and it started with a wrong claim of
