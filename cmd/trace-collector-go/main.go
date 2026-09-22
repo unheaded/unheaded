@@ -1161,7 +1161,7 @@ func main() {
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
 	if *wotanAddr != "" {
-		logConn, _ = transport.Connect(context.Background(), transportCfg) // best-effort; nil on failure
+		logConn, _ = logagg.Connect(context.Background(), transportCfg, "trace-collector") // best-effort; nil on failure
 	}
 	logPublisher := logagg.NewPublisher("trace-collector", logConn)
 	log.Logger = log.Logger.Hook(logPublisher)

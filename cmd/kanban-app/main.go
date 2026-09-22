@@ -1411,7 +1411,7 @@ func main() {
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
 	if cfg.WotanAddr != "" {
-		logConn, _ = transport.Connect(context.Background(), transportCfg) // best-effort; nil on failure
+		logConn, _ = logagg.Connect(context.Background(), transportCfg, "kanban-app") // best-effort; nil on failure
 	}
 	logPublisher := logagg.NewPublisher("kanban-app", logConn)
 	if logPublisher.Enabled() {

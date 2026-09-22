@@ -392,9 +392,16 @@ func main() {
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
 	if cfg.WotanAddr != "" {
-		logConn, _ = transport.Connect(context.Background(), transportCfg) // best-effort; nil on failure
+		var err error
+		if logConn, err = logagg.Connect(context.Background(), transportCfg, "unheaded-daemon"); err != nil {
+			// best-effort: logs stay local, but say why so a nil here is not silent
+			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
+			logConn = nil
+		}
 	}
-	_ = logagg.NewPublisher("unheaded-daemon", logConn)
+	logPublisher := logagg.NewPublisher("unheaded-daemon", logConn)
+	log.AddHook(logPublisher.LoggerHook())
+	defer logPublisher.Close()
 
 	// Service discovery — best-effort registration (nil conn until transport is wired)
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())

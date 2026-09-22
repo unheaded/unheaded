@@ -8,6 +8,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -17,63 +19,134 @@ import (
 
 // Publisher is a zerolog.Hook that forwards log entries to Wotan.
 // Each log entry is published to topic: logs.<service>.<level>
+//
+// Entries go through a bounded queue drained by a single worker goroutine.
+// When the queue is full the entry is dropped and counted — the logger is
+// never blocked and the process never grows a goroutine per log line.
 type Publisher struct {
 	serviceName string
 	conn        transport.Connection
-	enabled     bool
+	enabled     atomic.Bool
+	queue       chan LogEntry
+	dropped     atomic.Uint64
+	done        chan struct{}
+	closeOnce   sync.Once
 }
+
+// DefaultQueueSize is the number of log entries the publisher buffers
+// before it starts dropping.
+const DefaultQueueSize = 1024
+
+// publishTimeout bounds a single publish so a stalled Wotan cannot wedge
+// the worker (and therefore fill the queue) indefinitely.
+const publishTimeout = 500 * time.Millisecond
 
 // NewPublisher creates a new log publisher hook.
 // If conn is nil, the publisher is disabled (logs are not forwarded).
 func NewPublisher(serviceName string, conn transport.Connection) *Publisher {
-	return &Publisher{
-		serviceName: serviceName,
-		conn:        conn,
-		enabled:     conn != nil,
-	}
+	return NewPublisherWithQueue(serviceName, conn, DefaultQueueSize)
 }
 
-// Run implements zerolog.Hook. It publishes the log entry to Wotan
-// on a best-effort basis — errors are silently dropped to avoid
-// cascading failures in the logging pipeline.
+// NewPublisherWithQueue is NewPublisher with an explicit queue depth.
+// A depth < 1 is treated as 1.
+func NewPublisherWithQueue(serviceName string, conn transport.Connection, depth int) *Publisher {
+	if depth < 1 {
+		depth = 1
+	}
+	p := &Publisher{
+		serviceName: serviceName,
+		conn:        conn,
+		queue:       make(chan LogEntry, depth),
+		done:        make(chan struct{}),
+	}
+	p.enabled.Store(conn != nil)
+	if conn != nil {
+		go p.worker()
+	}
+	return p
+}
+
+// Run implements zerolog.Hook. It enqueues the entry for the worker on a
+// best-effort basis — a full queue drops the entry and bumps Dropped().
 func (p *Publisher) Run(e *zerolog.Event, level zerolog.Level, msg string) {
-	if !p.enabled {
+	p.enqueue(levelString(level), msg)
+}
+
+// enqueue is the logger-agnostic entry point shared by the zerolog and
+// pkg/logger adapters.
+func (p *Publisher) enqueue(level, msg string) {
+	if !p.enabled.Load() {
 		return
 	}
 
 	entry := LogEntry{
 		Timestamp: time.Now(),
 		Service:   p.serviceName,
-		Level:     levelString(level),
+		Level:     level,
 		Message:   msg,
 	}
+
+	select {
+	case p.queue <- entry:
+	default:
+		p.dropped.Add(1)
+	}
+}
+
+// worker drains the queue until Close. Publish errors are swallowed —
+// logging must never cascade into the logging pipeline.
+func (p *Publisher) worker() {
+	for {
+		select {
+		case <-p.done:
+			return
+		case entry := <-p.queue:
+			p.publish(entry)
+		}
+	}
+}
+
+func (p *Publisher) publish(entry LogEntry) {
+	defer func() { _ = recover() }() // guard against panics in the transport
 
 	data, err := json.Marshal(entry)
 	if err != nil {
 		return
 	}
-
 	topic := fmt.Sprintf("logs.%s.%s", p.serviceName, strings.ToLower(entry.Level))
 
-	// Best-effort publish with short timeout — never block the logger
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), publishTimeout)
 	defer cancel()
+	_ = p.conn.Publish(ctx, topic, data)
+}
 
-	// Fire and forget — logging should never block application logic
-	go func() {
-		defer func() { _ = recover() }() // guard against panics
-		_ = p.conn.Publish(ctx, topic, data)
-	}()
+// Close stops the worker. Entries still queued are discarded. Safe to call
+// more than once; Run after Close drops everything.
+func (p *Publisher) Close() {
+	p.closeOnce.Do(func() {
+		p.enabled.Store(false)
+		close(p.done)
+	})
+}
+
+// Dropped returns how many entries were discarded because the queue was full.
+func (p *Publisher) Dropped() uint64 {
+	return p.dropped.Load()
 }
 
 // Enabled returns whether the publisher is actively forwarding logs.
 func (p *Publisher) Enabled() bool {
-	return p.enabled
+	return p.enabled.Load()
 }
 
 // SetEnabled enables or disables log forwarding.
 func (p *Publisher) SetEnabled(enabled bool) {
-	p.enabled = enabled && p.conn != nil
+	select {
+	case <-p.done:
+		enabled = false // no worker left to drain the queue
+	default:
+	}
+	p.enabled.Store(enabled && p.conn != nil)
 }
 
 // BufferHook is a zerolog.Hook that pushes log entries directly into a RingBuffer.

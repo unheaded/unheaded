@@ -94,3 +94,13 @@ func (h *httpConnection) Close() error {
 func (h *httpConnection) Healthy() bool {
 	return h.healthy.Load()
 }
+
+// WrapHTTPClient adapts an already-constructed Wotan HTTP client into a
+// Connection. Use it when the caller had to talk to the client directly
+// first (e.g. to join topics before publishing) and then wants the
+// Connection interface for the rest of its life.
+func WrapHTTPClient(client *wotanClient.Client, addr string) Connection {
+	h := &httpConnection{client: client, addr: addr}
+	h.healthy.Store(true)
+	return h
+}

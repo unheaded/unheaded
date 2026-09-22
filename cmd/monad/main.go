@@ -147,9 +147,16 @@ func main() {
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
 	if wotan != nil {
-		logConn, _ = transport.Connect(ctx, transportCfg) // best-effort; nil on failure
+		var err error
+		if logConn, err = logagg.Connect(ctx, transportCfg, "monad"); err != nil {
+			// best-effort: logs stay local, but say why so a nil here is not silent
+			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
+			logConn = nil
+		}
 	}
-	_ = logagg.NewPublisher("monad", logConn)
+	logPublisher := logagg.NewPublisher("monad", logConn)
+	log.AddHook(logPublisher.LoggerHook())
+	defer logPublisher.Close()
 
 	// Create Monad service
 	monadService := monad.NewService(log, wotan)
