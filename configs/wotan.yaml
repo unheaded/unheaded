@@ -25,7 +25,9 @@ topics:
     - "dashboard"
     - "dashboard-backend"
     - "kanban"
+    - "kanban-app"        # logagg display name
     - "daemon"
+    - "unheaded-daemon"   # logagg display name
     - "trace-collector"
     - "wiki"
     - "akira"

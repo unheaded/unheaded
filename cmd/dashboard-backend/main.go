@@ -152,9 +152,16 @@ func main() {
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
 	if *wotanAddr != "" {
-		logConn, _ = transport.Connect(context.Background(), transportCfg) // best-effort; nil on failure
+		var err error
+		if logConn, err = logagg.Connect(context.Background(), transportCfg, "dashboard-backend"); err != nil {
+			// best-effort: logs stay local, but say why so a nil here is not silent
+			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
+			logConn = nil
+		}
 	}
-	_ = logagg.NewPublisher("dashboard-backend", logConn)
+	logPublisher := logagg.NewPublisher("dashboard-backend", logConn)
+	log.AddHook(logPublisher.LoggerHook())
+	defer logPublisher.Close()
 
 	// Load service endpoint overrides
 	serviceEndpoints, err := loadServiceEndpoints(*servicesFile)

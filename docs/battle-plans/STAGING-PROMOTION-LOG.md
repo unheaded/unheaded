@@ -1387,6 +1387,79 @@ that table was written.
 Board now loads both and merges by id (`task-*` ∪ `tl-*`); priority lookup
 uses `??`. eslint clean. Commit `e8ad96b9`.
 
+## Post-ladder: `logagg.Publisher` — same shape that killed the dashboard (2026-09-22)
+
+Carried from the B8 OOM write-up. Three defects in one type, and half the
+fleet never installed it anyway.
+
+**1. Goroutine per log line.** `Run` did `go conn.Publish(...)` per entry —
+unbounded under a log storm, exactly the shape of `c15c0e9d`.
+
+**2. It never published at all.** `defer cancel()` in `Run` fired before the
+goroutine ran, so every publish saw a cancelled context. The five services
+that *had* installed the hook forwarded nothing. No test covered delivery.
+
+**3. Racy `enabled` bool.** Plain field, read by every log call, written by
+`SetEnabled`.
+
+Now: bounded queue (1024) + one worker; full queue → drop + `Dropped()`
+counter; `Close()` stops the worker; `enabled` is atomic. Tests provoke each:
+delivery (topic + JSON payload), drop-on-full with a hanging transport and
+`runtime.NumGoroutine` growth ≤ 1, close idempotency. Provocation: restoring
+the per-entry goroutine turns `DropsWhenQueueFull` red.
+
+**Why five services discarded it** (`_ = logagg.NewPublisher(...)`): four of
+them log through `pkg/logger`, whose `Hook` interface is not zerolog's, so
+the hook could not be attached. Added `Publisher.LoggerHook()` adapter and
+installed it in dashboard-backend, unheaded-daemon, sophia, monad. The fifth,
+captain, has no structured logger at all (main only calls `log.Fatalf`) —
+its dead publisher + throwaway transport connection were removed with a
+comment saying so.
+
+Checked: `pkg/transport` `Publish` does not log, so hook → publish → log
+cannot recurse. Lint on the touched packages: two findings, both
+pre-existing on the baseline (`G703` server.go:3293, unused `mu`
+unheaded-daemon/main.go:88) — not touched here.
+
+### Live check found defect #4: nobody had ever *joined* the log topics
+
+Stack up, injector on, hook installed, transport connected — and Wotan's
+topic list still had no `logs.*`. The gRPC `TopicStreamClient.Publish`
+refuses unless the client is an approved subscriber of the topic
+(`7b16ba9d`, Wave 1 membership model); the HTTP API enforces the same thing
+server-side (`invalid subscriber_id`). A log publisher had never joined
+`logs.<svc>.<level>`, so **every publish from every service was rejected,
+silently, since the day the hook was written.** Fixing the cancelled
+context (#2) just changed *which* error was swallowed.
+
+Now: `logagg.Connect(ctx, cfg, serviceName)` builds an HTTP client, joins the
+seven `logs.<svc>.<level>` topics under `serviceName` (a cheap POST each,
+no stream), fails loudly if the name is not auto-approved, and wraps the
+client as a `transport.Connection` (`transport.WrapHTTPClient`, new). All
+nine sites use it. `unheaded-daemon` and `kanban-app` added to
+`topics.auto_approve` (only `daemon`/`kanban` were listed). Test:
+fake Wotan enforcing the membership model — join all levels then publish
+lands; unapproved name → error, nil connection.
+
+**Observed**: `logs.dashboard-backend.info` = 100 (ring cap), `warn` = 37
+under the injector. First log lines to reach Wotan, ever.
+
+Memory under the injector, hook live (`GODEBUG=gctrace=1` + pprof, t+90 s):
+live heap 39–48 MB, inuse 40 MB, `logagg` absent from the top of the profile
+(only the pre-existing live-tail `NewRingBuffer`, 1 MB). 125 goroutines,
+exactly one in `logagg`. RSS 103 MB. Same envelope as the 09-21 baseline
+(46 MB live @ 90 s). 0 restarts, no OOM.
+
+Gotcha: `docker compose restart wotan` (memory store) wipes every
+subscriber's membership. The injector kept running and every publish went
+`Forbidden: subscriber not approved` — the dashboard sat idle for 3 min and
+the "memory looks great" sample was a lie until the injector was restarted.
+Restart clients after Wotan, or check the injector log first.
+
+Still open: `Dropped()` is not exported as a metric; the gRPC client-side
+gate vs server-side no-gate asymmetry (queue item) is documented in
+`logagg.Connect`'s comment, not fixed.
+
 ## The meta-gate — breaking the four-batch cycle (2026-09-09)
 
 Four consecutive batches shipped a gate that was green because it could not

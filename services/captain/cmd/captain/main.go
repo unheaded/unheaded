@@ -13,7 +13,6 @@ import (
 	"syscall"
 
 	"unheaded/pkg/discovery"
-	"unheaded/pkg/logagg"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/captain"
@@ -63,12 +62,8 @@ func run() error {
 	}
 	defer wotan.Close()
 
-	// Log aggregation publisher — forwards structured logs to Wotan
-	var logConn transport.Connection
-	if wotan != nil {
-		logConn, _ = transport.Connect(ctx, transportCfg) // best-effort; nil on failure
-	}
-	_ = logagg.NewPublisher("captain", logConn)
+	// No log aggregation publisher here: captain has no structured logger to
+	// hook (main only calls log.Fatalf). Add one with the logger, not before.
 
 	// Subscribe to critical alerts
 	if _, err := wotan.Subscribe(ctx, "alerts.critical", "captain"); err != nil {
