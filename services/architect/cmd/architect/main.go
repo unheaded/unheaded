@@ -75,8 +75,13 @@ func main() {
 	// Transport config
 	transportCfg := transport.DefaultConfig()
 	transport.ConfigFromEnv(&transportCfg)
-	// Override with flag-provided Wotan HTTP address
-	transportCfg.WotanHTTPAddr = "http://" + *wotanAddr
+	// Only an explicitly-passed flag outranks the environment. Assigning
+	// unconditionally let the "localhost:18000" default overwrite
+	// WOTAN_ADDR from compose, so this service could never reach Wotan from
+	// inside a container.
+	if transport.FlagWasSet("wotan") {
+		transportCfg.WotanHTTPAddr = "http://" + *wotanAddr
+	}
 
 	// Health server
 	healthSrv := transport.NewHealthServer("architect")
@@ -110,9 +115,16 @@ func main() {
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
 	if wotanConn != nil {
-		logConn, _ = logagg.Connect(context.Background(), transportCfg, "architect") // best-effort; nil on failure
+		var err error
+		if logConn, err = logagg.Connect(context.Background(), transportCfg, "architect"); err != nil {
+			// best-effort: logs stay local, but say why so a nil here is not silent
+			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
+			logConn = nil
+		}
 	}
 	logPublisher := logagg.NewPublisher("architect", logConn)
+	// Surface log-forwarding health on /metrics (promhttp default registry).
+	prometheus.MustRegister(logPublisher.PrometheusCollector())
 	log.Logger = log.Logger.Hook(logPublisher)
 
 	// Create service with Wotan integration

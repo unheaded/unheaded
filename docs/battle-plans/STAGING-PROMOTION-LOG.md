@@ -1428,6 +1428,78 @@ Not claimed as proven: the vanishing card was never reproduced on demand, so
 this is a mechanism that matches the symptom, not a confirmed root cause.
 Watch whether it recurs.
 
+## Post-ladder: log forwarding wired fleet-wide, and the metric earned its keep (2026-09-22)
+
+Finishing the follow-up left open above: the other services needed the
+collector registration. Wiring them surfaced three real defects that had been
+silent, which is the argument for the metric existing.
+
+**Three conventions, three adapters.** Services expose metrics three
+different ways here, so the publisher offers three views over the same
+atomics rather than picking a winner:
+
+| convention | services | adapter |
+|---|---|---|
+| `pkg/metrics.Registry` | dashboard-backend | `Collectors()` |
+| promhttp default registry | architect, micromanager, trace-collector-go, wotan | `PrometheusCollector()` |
+| hand-rolled exposition string | monad, sophia, kanban-app, unheaded-daemon | `WriteMetrics()` |
+
+A test asserts all three views report the same numbers. Converging on one
+convention would delete two adapters — a real cleanup, and a bigger change
+than wiring a counter, so it is flagged rather than made silently.
+
+**timeguru had no `/metrics` endpoint at all** — it answered 404, while
+CLAUDE.md requires every component to publish metrics. Added. Also worth
+knowing: `services/timeguru/main.go` (which *does* have a metrics handler,
+an empty one) is not the shipped binary — the Dockerfile builds
+`services/timeguru/cmd/timeguru`. That file is dead code.
+
+**Then the metric immediately found what it was for.** With all seven wired,
+four read `published=0`:
+
+**1. `ConfigFromEnv` never read `WOTAN_ADDR`.** It read `WOTAN_HTTP_ADDR`,
+which nothing sets; compose sets `WOTAN_ADDR`. So the HTTP address stayed at
+the `localhost:18000` default inside every container, where localhost is
+nobody. Services that worked did so only because their `main` also passed a
+`--wotan` flag. This is the same shape as the `WOTAN_GRPC_ADDR` defect from
+the Meta Moment work, one layer over. Fixed with `WOTAN_HTTP_ADDR` still
+authoritative when both are set, and bare `host:port` normalised to a URL.
+
+**2. A flag's default outranked the environment.** architect did
+`transportCfg.WotanHTTPAddr = "http://" + *wotanAddr` unconditionally, and
+micromanager tested `if *wotanAddr != ""` against a non-empty default — so
+the default silently overwrote `WOTAN_ADDR`. Added
+`transport.FlagWasSet(name)` (a `flag.Visit` wrapper) so precedence is
+default < environment < explicitly-passed flag, and used it at both sites.
+
+**3. micromanager had no `WOTAN_*` env at all** — the only service missing
+it — and gated its Wotan client on the raw flag rather than the resolved
+address, so it ran in permanent degraded mode with no Wotan client and no
+log forwarding. Both fixed.
+
+The four services that swallowed the connect error with `logConn, _ =` now
+log it. Defect 1 was diagnosed straight off that warning line.
+
+Before and after, `unheaded_logagg_entries_published_total`:
+
+| service | before | after |
+|---|---|---|
+| timeguru | (no /metrics) | 14 |
+| architect | 0 | 2 |
+| micromanager | 0 | 3 |
+| monad | 0 | 7 |
+| sophia | 0 | 627 |
+| kanban-app | 35 | 262 |
+| dashboard-backend | 1098 | 1336 |
+
+Zero drops everywhere. qa-smoke 35/35, `-race` green on every touched
+package, gofmt clean, lint at baseline.
+
+Not swept: `cmd/trace-collector-go` assigns `WotanGRPCAddr = *wotanAddr`
+unconditionally, the same shape as defect 2, but it is a bare-metal daemon
+that is not running so the fix could not be verified live. Left rather than
+changed blind.
+
 ## Post-ladder: logagg drop counter is now actually scrapeable (2026-09-22)
 
 Closing the loop left open by `918808fd`: `Dropped()` existed but nothing

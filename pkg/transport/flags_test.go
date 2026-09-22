@@ -120,3 +120,39 @@ func TestConfigFromEnv_InvalidDuration(t *testing.T) {
 		t.Errorf("ConnectTimeout = %v, want %v (default, invalid duration ignored)", cfg.ConnectTimeout, 5*time.Second)
 	}
 }
+
+// WOTAN_ADDR is what docker-compose sets. ConfigFromEnv only read
+// WOTAN_HTTP_ADDR, which nothing sets, so the HTTP address silently stayed
+// at the localhost default inside every container.
+func TestConfigFromEnv_WotanAddr(t *testing.T) {
+	tests := []struct {
+		name     string
+		addr     string
+		httpAddr string
+		want     string
+	}{
+		{"bare host:port gets a scheme", "wotan:18000", "", "http://wotan:18000"},
+		{"url passes through", "http://wotan:18000", "", "http://wotan:18000"},
+		{"https preserved", "https://wotan:18000", "", "https://wotan:18000"},
+		{"explicit WOTAN_HTTP_ADDR wins", "wotan:18000", "http://other:9999", "http://other:9999"},
+		{"unset leaves the default", "", "", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("WOTAN_ADDR", tt.addr)
+			t.Setenv("WOTAN_HTTP_ADDR", tt.httpAddr)
+
+			cfg := DefaultConfig()
+			def := cfg.WotanHTTPAddr
+			ConfigFromEnv(&cfg)
+
+			want := tt.want
+			if want == "" {
+				want = def
+			}
+			if cfg.WotanHTTPAddr != want {
+				t.Errorf("WotanHTTPAddr = %q, want %q", cfg.WotanHTTPAddr, want)
+			}
+		})
+	}
+}
