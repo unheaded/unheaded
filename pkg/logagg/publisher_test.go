@@ -4,10 +4,14 @@
 package logagg
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"io"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -15,6 +19,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"unheaded/pkg/logger"
+	"unheaded/pkg/metrics"
 	"unheaded/pkg/transport"
 )
 
@@ -222,4 +227,80 @@ func TestPublisher_LoggerHook(t *testing.T) {
 	if entry.Message != "boom" || entry.Level != "error" {
 		t.Errorf("entry = %+v", entry)
 	}
+}
+
+// A transport error is not a drop: the entry left the queue but never landed.
+// Counted separately so "we dropped nothing" cannot hide a dead link.
+func TestPublisher_PublishErrorsCountedSeparately(t *testing.T) {
+	conn := &failingConnection{}
+	p := NewPublisher("failing-svc", conn)
+	defer p.Close()
+
+	p.Run(nil, zerolog.ErrorLevel, "boom")
+	waitFor(t, func() bool { return p.Failed() == 1 })
+	if p.Published() != 0 {
+		t.Errorf("Published() = %d, want 0 — a failed publish is not a publish", p.Published())
+	}
+	if p.Dropped() != 0 {
+		t.Errorf("Dropped() = %d, want 0 — a transport error is not a queue drop", p.Dropped())
+	}
+}
+
+// failingConnection always fails to publish.
+type failingConnection struct{ mockConnection }
+
+func (f *failingConnection) Publish(context.Context, string, []byte) error {
+	return errors.New("transport down")
+}
+
+// The counters are only useful if a service can actually serve them. Register
+// them in a pkg/metrics registry — the kind nine of the ten services build —
+// and assert the rendered exposition carries the live values.
+func TestPublisher_CollectorsRenderIntoARegistry(t *testing.T) {
+	conn := &blockingConnection{release: make(chan struct{})}
+	p := NewPublisherWithQueue("metrics-svc", conn, 2)
+	defer p.Close()
+
+	reg := metrics.NewRegistry()
+	for _, c := range p.Collectors() {
+		if err := reg.Register(c); err != nil {
+			t.Fatalf("register: %v", err)
+		}
+	}
+
+	for i := 0; i < 10; i++ {
+		p.Run(nil, zerolog.InfoLevel, "x")
+	}
+	waitFor(t, func() bool { return p.Dropped() > 0 })
+
+	var buf bytes.Buffer
+	if err := reg.Gather(&buf); err != nil {
+		t.Fatalf("gather registry: %v", err)
+	}
+	out := buf.String()
+
+	want := fmt.Sprintf("unheaded_logagg_entries_dropped_total{service=%q} %d", "metrics-svc", p.Dropped())
+	if !strings.Contains(out, want) {
+		t.Errorf("exposition missing %q\ngot:\n%s", want, out)
+	}
+	for _, name := range []string{
+		"unheaded_logagg_entries_published_total",
+		"unheaded_logagg_publish_errors_total",
+	} {
+		if !strings.Contains(out, name) {
+			t.Errorf("exposition missing %s", name)
+		}
+	}
+
+	// Registry.Gather writes # HELP and # TYPE itself. A collector that also
+	// writes them produces duplicates, which the text format forbids.
+	for _, line := range strings.Split(out, "\n") {
+		if !strings.HasPrefix(line, "# HELP ") {
+			continue
+		}
+		if n := strings.Count(out, line); n != 1 {
+			t.Errorf("%q appears %d times, want 1 (duplicate HELP is invalid exposition)", line, n)
+		}
+	}
+	close(conn.release)
 }

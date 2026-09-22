@@ -258,6 +258,13 @@ func main() {
 		log.Fatal().Err(err).Msg("failed to create server")
 	}
 
+	// Surface log-forwarding health at /metrics. Without this the publisher's
+	// drop counter exists but nothing scrapes it, so a service shedding logs
+	// looks exactly like one with nothing to say.
+	if err := srv.RegisterCollectors(logPublisher.Collectors()...); err != nil {
+		log.Warn().Err(err).Msg("failed to register logagg collectors")
+	}
+
 	// Start server
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()

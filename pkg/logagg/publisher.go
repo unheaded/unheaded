@@ -29,6 +29,8 @@ type Publisher struct {
 	enabled     atomic.Bool
 	queue       chan LogEntry
 	dropped     atomic.Uint64
+	published   atomic.Uint64
+	failed      atomic.Uint64
 	done        chan struct{}
 	closeOnce   sync.Once
 }
@@ -117,7 +119,11 @@ func (p *Publisher) publish(entry LogEntry) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), publishTimeout)
 	defer cancel()
-	_ = p.conn.Publish(ctx, topic, data)
+	if err := p.conn.Publish(ctx, topic, data); err != nil {
+		p.failed.Add(1)
+		return
+	}
+	p.published.Add(1)
 }
 
 // Close stops the worker. Entries still queued are discarded. Safe to call
@@ -132,6 +138,18 @@ func (p *Publisher) Close() {
 // Dropped returns how many entries were discarded because the queue was full.
 func (p *Publisher) Dropped() uint64 {
 	return p.dropped.Load()
+}
+
+// Published returns how many entries reached the transport successfully.
+func (p *Publisher) Published() uint64 {
+	return p.published.Load()
+}
+
+// Failed returns how many publishes the transport rejected. These are not
+// drops — the entry left the queue — but the log never arrived, so a link
+// that is down cannot hide behind a zero drop count.
+func (p *Publisher) Failed() uint64 {
+	return p.failed.Load()
 }
 
 // Enabled returns whether the publisher is actively forwarding logs.

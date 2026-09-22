@@ -586,6 +586,19 @@ func (s *Server) seedLogBuffer() {
 	}()
 }
 
+// RegisterCollectors adds collectors owned by other packages to the registry
+// this server serves at /metrics. Shared packages (e.g. pkg/logagg) must not
+// register globally: only wotan serves the Prometheus client registry, so a
+// package-level metric would be invisible here.
+func (s *Server) RegisterCollectors(collectors ...metrics.Collector) error {
+	for _, c := range collectors {
+		if err := s.metricsRegistry.Register(c); err != nil {
+			return fmt.Errorf("register collector: %w", err)
+		}
+	}
+	return nil
+}
+
 // initMetrics initializes Prometheus metrics
 func (s *Server) initMetrics() {
 	s.metricsRegistry = metrics.NewRegistry()
