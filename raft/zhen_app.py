@@ -389,17 +389,7 @@ def _build_live_context(question, max_chars=4096):
 
     if 'kanban' in intents and pg_conn is not None:
         try:
-            import psycopg2
-            kconn = psycopg2.connect(
-                dbname='unheaded',
-                user=os.environ.get('ZHEN_DB_USER', 'unheaded'),
-                password=os.environ.get('ZHEN_DB_PASSWORD', ''),
-                host=os.environ.get('ZHEN_DB_HOST', 'localhost'),
-                port=int(os.environ.get('ZHEN_DB_PORT', '5432')),
-                connect_timeout=2,
-            )
-            kconn.autocommit = True
-            cur = kconn.cursor()
+            cur = pg_conn.cursor()
             cur.execute("""
                 SELECT status, COUNT(*) FROM kanban_tasks
                  WHERE deleted_at IS NULL AND archived_at IS NULL
@@ -420,7 +410,6 @@ def _build_live_context(question, max_chars=4096):
                 """, (status_key,))
                 status_lists[status_key] = cur.fetchall()
             cur.close()
-            kconn.close()
             total_active = sum(counts.values())
             status_keys_csv = ', '.join(f"'{s}'" for s in sorted(counts.keys()))
             lines = [
@@ -1561,27 +1550,14 @@ def audit_recent():
 def kanban_summary():
     """Per-column kanban task counts + a sample of recent task titles.
 
-    Reads directly from the `unheaded.kanban_tasks` table (the kanban-app
-    canonical store; same one cmd/kanban-app writes to). Avoids an HTTP
-    round-trip to kanban-app's own /api endpoint and keeps this responsive
-    even when kanban-app is restarting.
+    Reads directly from `unheaded_app.kanban_tasks` — the store cmd/kanban-app
+    writes to (WELL_DB). Avoids an HTTP round-trip to kanban-app's own /api
+    endpoint and keeps this responsive even when kanban-app is restarting.
     """
     if pg_conn is None:
         return jsonify({'error': 'The Well not connected'}), 503
     try:
-        # The kanban_tasks table lives in the 'unheaded' database, not
-        # 'unheaded_app' that pg_conn is bound to. Use a separate connection.
-        import psycopg2
-        kconn = psycopg2.connect(
-            dbname='unheaded',
-            user=os.environ.get('ZHEN_DB_USER', 'unheaded'),
-            password=os.environ.get('ZHEN_DB_PASSWORD', ''),
-            host=os.environ.get('ZHEN_DB_HOST', 'localhost'),
-            port=int(os.environ.get('ZHEN_DB_PORT', '5432')),
-            connect_timeout=2,
-        )
-        kconn.autocommit = True
-        cur = kconn.cursor()
+        cur = pg_conn.cursor()
         cur.execute("""
             SELECT status, COUNT(*)
               FROM kanban_tasks
@@ -1609,7 +1585,6 @@ def kanban_summary():
             for r in cur.fetchall()
         ]
         cur.close()
-        kconn.close()
         return jsonify({
             'counts':          counts,
             'total':           sum(counts.values()),
