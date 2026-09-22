@@ -79,6 +79,27 @@ type TopicService struct {
 
 	// ML-DSA-65 verifier for config.* topic signing (ADR-043 hard condition #2)
 	topicVerifier *signing.TopicVerifier
+
+	// AutoApprove gates anonymous publishers the same way the HTTP path gates
+	// subscribers (configs/wotan.yaml -> topics.auto_approve). Nil means "no
+	// allowlist configured", which is treated as approve-all so that embedding
+	// callers and tests keep working; cmd/wotan always wires it.
+	AutoApprove AutoApprover
+}
+
+// defaultPublisherDisplayName matches the HTTP path's default for a caller
+// that supplies no name (services/wotan/internal/api/topics.go).
+const defaultPublisherDisplayName = "service"
+
+// AutoApprover reports whether a self-reported display name is on Wotan's
+// auto-approve allowlist. *api.TopicConfig satisfies it; declaring the
+// interface here keeps internal/grpc from importing internal/api.
+//
+// Security note: display_name is self-reported, exactly as on the HTTP path.
+// This is an allowlist, not authentication — real identity needs the mTLS
+// client certificate CN (pkg/auth/mtls.go).
+type AutoApprover interface {
+	IsAutoApproved(displayName string) bool
 }
 
 // NewTopicService creates a new TopicService.
@@ -104,11 +125,17 @@ func NewTopicServiceWithCounter(
 	msgWotan *wotan.Wotan,
 	seqCounter *TopicSequenceCounter,
 ) *TopicService {
+	// The verifier MUST be built here too. This is the constructor cmd/wotan
+	// uses; leaving topicVerifier nil made PublishTopic's `if verifier != nil`
+	// branch dead on the shipping path, so a config.* publish carrying any
+	// non-empty signature bytes was accepted unverified (ADR-043 #2).
+	verifier, _ := signing.NewTopicVerifier() // nil-safe: PublishTopic checks before use
 	return &TopicService{
 		roomManager:   roomManager,
 		memberManager: memberManager,
 		wotan:         msgWotan,
 		seqCounter:    seqCounter,
+		topicVerifier: verifier,
 	}
 }
 
@@ -427,14 +454,20 @@ func (s *TopicService) PublishTopic(
 				Msg("config_topic_unsigned")
 			return nil, status.Error(codes.InvalidArgument, "config.* topics require ML-DSA-65 signature")
 		}
-		if s.topicVerifier != nil {
-			if err := s.topicVerifier.Verify(req.Topic, req.SenderId, req.Payload, req.Signature, req.PublicKey, req.Algorithm); err != nil {
-				logger.FromContext(ctx).Warn().
-					Err(err).
-					Str("topic", req.Topic).
-					Msg("config_topic_signature_invalid")
-				return nil, status.Error(codes.PermissionDenied, "signature verification failed: "+err.Error())
-			}
+		// Fail closed. A verifier that could not be constructed must reject
+		// config.* publishes, never wave them through unchecked.
+		if s.topicVerifier == nil {
+			logger.FromContext(ctx).Error().
+				Str("topic", req.Topic).
+				Msg("config_topic_verifier_unavailable")
+			return nil, status.Error(codes.PermissionDenied, "signature verification unavailable")
+		}
+		if err := s.topicVerifier.Verify(req.Topic, req.SenderId, req.Payload, req.Signature, req.PublicKey, req.Algorithm); err != nil {
+			logger.FromContext(ctx).Warn().
+				Err(err).
+				Str("topic", req.Topic).
+				Msg("config_topic_signature_invalid")
+			return nil, status.Error(codes.PermissionDenied, "signature verification failed: "+err.Error())
 		}
 	}
 
@@ -464,8 +497,23 @@ func (s *TopicService) PublishTopic(
 			return nil, status.Error(codes.PermissionDenied, "sender not approved")
 		}
 	} else {
-		// Create a default publisher member
-		defaultMember := s.memberManager.RequestJoin(req.Topic, "grpc-publisher", "", 24*time.Hour)
+		// No sender_id. Previously this branch created a member and approved it
+		// unconditionally, so the IsApproved check above was bypassed simply by
+		// omitting the field. Gate it on the same allowlist the HTTP path uses,
+		// with the same "service" default for an unnamed internal caller.
+		displayName := req.Metadata["display_name"]
+		if displayName == "" {
+			displayName = defaultPublisherDisplayName
+		}
+		if s.AutoApprove != nil && !s.AutoApprove.IsAutoApproved(displayName) {
+			logger.FromContext(ctx).Warn().
+				Str("topic", req.Topic).
+				Str("display_name", displayName).
+				Msg("publisher_not_auto_approved")
+			return nil, status.Error(codes.PermissionDenied, "publisher not approved")
+		}
+
+		defaultMember := s.memberManager.RequestJoin(req.Topic, displayName, "", 24*time.Hour)
 		if err := s.memberManager.Approve(defaultMember.ID, "topic-auto-approve"); err != nil {
 			logger.FromContext(ctx).Error().
 				Err(err).

@@ -1387,6 +1387,76 @@ that table was written.
 Board now loads both and merges by id (`task-*` ∪ `tl-*`); priority lookup
 uses `??`. eslint clean. Commit `e8ad96b9`.
 
+## Post-ladder: Wotan's gRPC path had no authorization at all (2026-09-22)
+
+Carried since the Meta Moment work as "gRPC subscribe auto-approves everyone;
+only the HTTP path applies `topics.auto_approve`". That undersold it. Three
+defects, each proven with a test that was red before the fix.
+
+**F1 — `config.*` signatures were never verified on the shipping path.**
+ADR-043 hard condition #2 requires ML-DSA-65 on `config.*`. `PublishTopic`
+verifies inside `if s.topicVerifier != nil` — and
+`NewTopicServiceWithCounter`, **the constructor `cmd/wotan` actually uses**,
+never set `topicVerifier`. Only `NewTopicService` did, and nothing calls it.
+So the branch was dead in production and any non-empty signature and public
+key were accepted unread. The test logged the proof:
+`topic_message_published` for a `config.kingdom` payload signed
+`not-a-signature`. Fixed by building the verifier in both constructors **and**
+making a nil verifier fail closed (`PermissionDenied`) instead of skipping
+the check — the original shape is exactly how this stayed invisible.
+
+**F2 — the approval check was bypassed by omitting a field.** `PublishTopic`
+calls `IsApproved(senderID)` only when `sender_id` is set. The `else` branch
+created a member named `grpc-publisher` and approved it unconditionally. Since
+**no client in the tree ever sets `sender_id`** (grep: only Wotan's own
+outbound events do), every publish in the fleet took the self-approving
+branch, and so would any stranger's. Fixed by gating that branch on the same
+allowlist the HTTP path uses, reading `metadata["display_name"]` and
+defaulting to `"service"` — byte-for-byte the HTTP default, so legitimate
+anonymous publishers are unaffected. `internal/grpc` declares a one-method
+`AutoApprover` interface rather than importing `internal/api`, and
+`cmd/wotan` wires the same `*api.TopicConfig` into both paths.
+
+**Live proof on the running stack**, not just unit tests:
+
+```
+(unnamed -> service)     ACCEPTED
+intruder                 REFUSED: PermissionDenied: publisher not approved
+config.* garbage sig     REFUSED: PermissionDenied: only ml-dsa-65 accepted
+```
+
+17 containers up, injector running, 0 `publisher_not_auto_approved` against
+real traffic, 10 topics still taking messages.
+
+**F3 — subscribe (`StreamTopics`) still approves everyone. NOT fixed, and
+deliberately so.** It calls `RequestJoin` + `Approve` with no allowlist
+consultation at all. Closing it needs the allowlist to actually cover the
+names in use, and taking the inventory off the live server is what stopped
+this being a one-line change:
+
+| display name observed | on `topics.auto_approve`? |
+|---|---|
+| `dashboard-backend`, `timeguru`, `captain`, `trace-collector`, `kanban-app`, `unheaded-daemon` | yes |
+| `sophia-service`, `monad-service`, `kanban-app-timeline` | **no — added in this commit** |
+| `cuirass-citadel-e0170d0ede22` | **no, and cannot be** |
+
+The HTTP path has been refusing `sophia-service`, `monad-service` and
+`cuirass` this whole time — they retry `topic_subscriber_pending_approval`
+every 30 s and never get approved. Those subscriptions only work at all
+because the gRPC path skips the check. **The hole is load-bearing**, which is
+why it survived. Three of the four are now on the allowlist and their HTTP
+subscriptions stopped pending; `cuirass` is generated per host
+(`cuirass-citadel-<hostname hash>`) and **cannot be expressed in a static
+allowlist**.
+
+So F3 needs a decision, not a patch: prefix/pattern matching in
+`topics.auto_approve`, or real identity from the mTLS client certificate CN
+(`pkg/auth/mtls.go`), which is what the code comments have been pointing at
+since the allowlist was written. Display name is self-reported on both
+transports — this is an allowlist, not authentication, and it should stop
+being described as a security boundary until identity is verified. Left for
+Stevie.
+
 ## Post-ladder: the kanban split-brain retired (2026-09-22)
 
 `kanban_tasks` existed twice — `unheaded.kanban_tasks` and

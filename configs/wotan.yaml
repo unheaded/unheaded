@@ -29,6 +29,9 @@ topics:
     - "daemon"
     - "unheaded-daemon"   # logagg display name
     - "trace-collector"
+    - "sophia-service"        # sophia's own gRPC display name (not "sophia")
+    - "monad-service"         # monad's own gRPC display name (not "monad")
+    - "kanban-app-timeline"   # kanban's timeline subscription
     - "wiki"
     - "akira"
     - "zhenai"
