@@ -39,6 +39,20 @@ jobs:
       - name: Build
         run: go build ./...
 
+      # No gofmt gate existed, only the local pre-commit hook — which is why
+      # six files had drifted. The tree is gofmt-clean as of 2026-09-22, so
+      # this holds the line rather than asking for a cleanup.
+      - name: Gofmt
+        run: |
+          unformatted="$(gofmt -l cmd pkg services)"
+          if [ -n "$unformatted" ]; then
+            echo "::error::gofmt drift in:"
+            echo "$unformatted"
+            echo "run: gofmt -w $unformatted"
+            exit 1
+          fi
+          echo "gofmt clean"
+
       - name: Vet
         run: go vet ./...
 

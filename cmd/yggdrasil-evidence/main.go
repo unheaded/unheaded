@@ -5,12 +5,13 @@
 // signed-manifest evidence packs (task #68).
 //
 // Subcommands:
-//   validate  — yamllint + JSON-Schema validate manifest.yaml against
-//               nix/yggdrasil/evidence-pack/schema/manifest-v1.yaml
-//   sign      — produce manifest.yaml.sig via cloudflare/circl ML-DSA-65
-//   verify    — full evidence-pack verification (signature + ISO hash +
-//               CI gates per the manifest)
-//   diff      — diff two evidence packs (e.g. quarterly compliance review)
+//
+//	validate  — yamllint + JSON-Schema validate manifest.yaml against
+//	            nix/yggdrasil/evidence-pack/schema/manifest-v1.yaml
+//	sign      — produce manifest.yaml.sig via cloudflare/circl ML-DSA-65
+//	verify    — full evidence-pack verification (signature + ISO hash +
+//	            CI gates per the manifest)
+//	diff      — diff two evidence packs (e.g. quarterly compliance review)
 //
 // Scaffold only — implementation lights up at task #65 (packer pipeline).
 // The CLI surface is the contract; runbooks at

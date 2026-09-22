@@ -10,14 +10,14 @@ import (
 func TestSearchQuery_StripsTrailingPunctuation(t *testing.T) {
 	t.Parallel()
 	cases := map[string]string{
-		"hello":   "hello",
-		"hello?":  "hello",
-		"hello.":  "hello",
-		"hello!":  "hello",
-		"hi?!.":   "hi",
-		"":        "",
-		"...":     "",
-		"a.b.c.":  "a.b.c",
+		"hello":  "hello",
+		"hello?": "hello",
+		"hello.": "hello",
+		"hello!": "hello",
+		"hi?!.":  "hi",
+		"":       "",
+		"...":    "",
+		"a.b.c.": "a.b.c",
 	}
 	for in, want := range cases {
 		if got := searchQuery(in); got != want {

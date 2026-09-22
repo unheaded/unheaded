@@ -4,7 +4,6 @@
 // Package cmd provides shell completion for THE GAUNTLETS CLI.
 package cmd
 
-
 // NewCompletionCommand creates the completion command.
 func NewCompletionCommand() *Command {
 	cmd := &Command{

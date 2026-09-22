@@ -612,4 +612,3 @@ func BenchmarkBodyInspector_InspectLargeBody(b *testing.B) {
 		inspector.Inspect(req)
 	}
 }
-

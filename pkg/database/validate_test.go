@@ -115,14 +115,14 @@ func TestIsPrivateHost(t *testing.T) {
 		{"localhost", true},
 		{"127.0.0.1", true},
 		{"10.0.0.1", true},
-		{"10.10.10.20", true},  // Wotan IP per CLAUDE.md
-		{"172.16.0.1", true},   // RFC 1918
-		{"192.168.1.1", true},  // home LAN
-		{"8.8.8.8", false},     // public DNS
+		{"10.10.10.20", true}, // Wotan IP per CLAUDE.md
+		{"172.16.0.1", true},  // RFC 1918
+		{"192.168.1.1", true}, // home LAN
+		{"8.8.8.8", false},    // public DNS
 		{"the-well.bellis.tech", false},
 		{"github.com", false},
 		{"", false},
-		{"100.64.0.1", false},   // CGNAT — current impl doesn't recognize this
+		{"100.64.0.1", false}, // CGNAT — current impl doesn't recognize this
 	}
 	for _, c := range cases {
 		if got := isPrivateHost(c.host); got != c.want {
