@@ -112,6 +112,12 @@ jobs:
       - name: Secret baseline may only shrink
         run: ./scripts/check-secrets-baseline.sh
 
+      # ADR-092. Reads the compose file, not the running containers: inspecting
+      # live containers passes on any host whose daemon.json sets a default,
+      # which is exactly how the missing caps went unnoticed.
+      - name: Compose services declare their own log caps
+        run: ./scripts/check-compose-log-caps.sh
+
       - name: gitleaks (full history — reporting only, see PRE-PUBLIC-BLOCKERS.md)
         continue-on-error: true
         run: /tmp/gitleaks git --no-banner --redact --exit-code 1 .

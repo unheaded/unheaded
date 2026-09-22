@@ -1387,6 +1387,41 @@ that table was written.
 Board now loads both and merges by id (`task-*` ∪ `tl-*`); priority lookup
 uses `??`. eslint clean. Commit `e8ad96b9`.
 
+## Post-ladder: container log caps moved into the repository (2026-09-22)
+
+First implementation step of ADR-092, and it started with a wrong claim of
+mine being caught by checking.
+
+The ADR as first written said containers log "with no cap — the file grows
+until the filesystem is full". `docker inspect` says otherwise: every running
+container has `max-size=100m, max-file=5`. That comes from
+`/etc/docker/daemon.json` on this host, which is **not in the repository**.
+
+So the exposure is real but differently shaped than claimed: the protection
+exists only on one long-lived dev box. A fresh host, a CI runner, a new
+contributor or a disaster-recovery rebuild gets Docker's own default, which
+genuinely is uncapped. ADR-091's shape again — the broken path is reachable
+only by the people who can least afford it. The ADR has been corrected rather
+than quietly patched, because the wrong version of that claim would have
+justified the same change for a reason that does not hold.
+
+All 17 compose services now declare `max-size: 10m, max-file: 3` — a 30 MB
+local buffer, deliberately far tighter than the 500 MB this host allowed,
+since Vector already ships stdout to ClickHouse and the number in the tree is
+the one everyone actually runs. Verified in the resolved
+`docker compose config` (17 of 17) and on the live containers after
+`docker compose up -d`, 17 healthy.
+
+`scripts/check-compose-log-caps.sh` gates it, and **reads the compose file,
+not the running containers** — inspecting live containers would have passed on
+this host for the wrong reason, by reading the untracked daemon default. It
+also refuses to pass vacuously when no services parse. Provoked red by
+stripping one service's block (`[FAIL] 1 of 17 ... - wotan`), green when
+restored. Shellcheck clean. Wired into `.github/workflows/security.yml`.
+
+Left for the host work: `daemon.json` itself should live in the provisioning
+tree as the backstop for anything started outside compose.
+
 ## Post-ladder: Wotan's gRPC path had no authorization at all (2026-09-22)
 
 Carried since the Meta Moment work as "gRPC subscribe auto-approves everyone;
