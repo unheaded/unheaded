@@ -18,15 +18,23 @@ ADR-091 (The Well initdb ordering — same failure shape: a path nothing audits)
 There is no single answer today to "where does service X log, and what stops it
 filling the disk?" There are four answers, and none of them is `/var/log`.
 
-**1. Containers log to Docker's `json-file` driver with no cap.** `docker-compose.yml`
-declares no `logging:` block for any of the 17 services. The daemon default is
-`json-file` with **no `max-size` and no `max-file`** — the file grows until the
-filesystem is full. Nothing in the repo sets a daemon-wide default either. A
-service stuck in a crash-restart loop, or one emitting a per-event warning under
-load, writes unbounded. This is not hypothetical: `c15c0e9d` (B8) fixed a
-dashboard-backend log storm that produced **1.6M "broadcast channel full" lines**
-in under an hour. The container was OOM-killed before the disk noticed, which is
-the only reason it did not become a disk-full incident.
+**1. Container log caps exist only on this one host, untracked.**
+`docker-compose.yml` declares no `logging:` block for any of the 17 services, so
+each inherits the daemon default. On this machine that default is set in
+`/etc/docker/daemon.json` to `max-size: 100m, max-file: 5` — a 500 MB ceiling
+per container, 8.5 GB across the fleet. **That file is not in the repository.**
+A fresh host, a CI runner, a new contributor's laptop or a disaster-recovery
+rebuild gets Docker's own default instead, which is `json-file` with no
+`max-size` and no `max-file`: the log grows until the filesystem is full.
+
+This is the ADR-091 shape exactly — a protection that holds only because of
+state on one long-lived box, where the broken path is reachable only by the
+people and situations that can least afford it. It is also not hypothetical
+that a service can produce that volume: `c15c0e9d` (B8) fixed a
+dashboard-backend log storm of **1.6M "broadcast channel full" lines** in under
+an hour. The container was OOM-killed before the disk noticed, which is the only
+reason it did not become a disk-full incident on a host that happened to be
+capped anyway.
 
 **2. Bare-metal and helper processes log to `/tmp`.** 31 distinct `/tmp/*.log`
 paths appear across `scripts/`, `runbooks/`, `raft/` and `deploy/` — `zhen.log`,
@@ -74,7 +82,8 @@ per-run artefacts, crash context). This ADR does not ask every service to stop
 using stdout — it asks that wherever a service *does* open a file, the file is in
 one predictable, owned, rotated place.
 
-**3. Containers get an explicit, capped logging driver.** Every service in
+**3. Containers get an explicit, capped logging driver — in the repository.**
+The cap must not depend on an untracked host file. Every service in
 `docker-compose.yml` declares:
 
 ```yaml
@@ -87,7 +96,15 @@ logging:
 
 30 MB ceiling per container, enforced by the daemon, with no cron and no
 logrotate involvement. A per-service override is allowed where justified, in the
-compose file, with a comment saying why.
+compose file, with a comment saying why. This is deliberately far tighter than
+the 500 MB this host currently allows: compose is read by everyone who runs the
+stack, so the number in the tree is the one that should be defensible. Vector
+already ships container stdout to ClickHouse, so the on-disk json file is a
+local buffer, not the archive.
+
+The host-level `daemon.json` should still set a sane default — it is the
+backstop for anything started outside compose — but it belongs in the
+provisioning tree rather than only in `/etc` on one machine.
 
 **4. Per-service logrotate configs, not one shared stanza.** Each service ships
 `/etc/logrotate.d/unheaded-<service>`. One file per service so a service can be
@@ -181,7 +198,9 @@ A gate that cannot fail is not a gate (`check-timeline-freshness.sh`, three
 batches). This one is checkable:
 
 - every service in `docker-compose.yml` has a `logging:` block with `max-size` —
-  a shell check over the compose file, failing loudly
+  a shell check over the compose file, failing loudly. Checking the *running*
+  containers instead would pass on this host for the wrong reason, by reading
+  the untracked daemon default rather than what the repository guarantees
 - every service has exactly one `/etc/logrotate.d/unheaded-*` stanza, and
   `logrotate -d` parses all of them clean
 - `grep -rn '/tmp/[a-z-]*\.log'` over tracked source returns **zero** outside

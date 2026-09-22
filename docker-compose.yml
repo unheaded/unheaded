@@ -110,6 +110,11 @@ services:
   # TIER 0: GATEWAY (Shield / Edge Defense)
   # =========================================================================
   traefik:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     image: traefik:v3.3
     container_name: unheaded-traefik
     restart: unless-stopped
@@ -176,6 +181,11 @@ services:
 
   # --- Metrics: VictoriaMetrics (Prometheus-compatible, efficient) ---
   victoria:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     image: victoriametrics/victoria-metrics:v1.108.1
     container_name: unheaded-victoria
     restart: unless-stopped
@@ -211,6 +221,11 @@ services:
 
   # --- The Well: PostgreSQL (Kingdom Persistent Memory) ---
   postgres:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     image: postgres:16-alpine
     container_name: unheaded-postgres
     restart: unless-stopped
@@ -249,6 +264,11 @@ services:
 
   # --- Logging: ClickHouse (fast ingest, SQL queries) ---
   clickhouse:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     image: clickhouse/clickhouse-server:24.12
     container_name: unheaded-clickhouse
     restart: unless-stopped
@@ -285,6 +305,11 @@ services:
 
   # --- Log Pipeline: Vector (eBPF events → ClickHouse) ---
   vector:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     image: timberio/vector:0.43.1-debian
     container_name: unheaded-vector
     restart: unless-stopped
@@ -313,6 +338,11 @@ services:
 
   # --- Grafana for dev visualization (supplements custom dashboards) ---
   grafana:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     image: grafana/grafana:11.5.1
     container_name: unheaded-grafana
     restart: unless-stopped
@@ -349,6 +379,11 @@ services:
   # TIER 3: DNS (Helm) — Dev CoreDNS for service discovery
   # =========================================================================
   coredns:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     image: coredns/coredns:1.12.0
     container_name: unheaded-coredns
     restart: unless-stopped
@@ -380,6 +415,11 @@ services:
 
   # --- Wotan: Message Bus (Fae Chamber) ---
   wotan:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     build:
       context: .
       target: wotan
@@ -423,6 +463,11 @@ services:
 
   # --- Timeguru: Timeline Service (Oracle's Antre) ---
   timeguru:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     build:
       context: .
       target: timeguru
@@ -478,6 +523,11 @@ services:
 
   # --- Captain: Strategy Service (Commander's Quarters) ---
   captain:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     build:
       context: .
       target: captain
@@ -522,6 +572,11 @@ services:
 
   # --- Architect: ADR Service (Sage's Lair) ---
   architect:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     build:
       context: .
       target: architect
@@ -565,6 +620,11 @@ services:
 
   # --- Micromanager: Task Execution (War Room) ---
   micromanager:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     build:
       context: .
       target: micromanager
@@ -605,6 +665,11 @@ services:
 
   # --- Monad: Unified State Management ---
   monad:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     build:
       context: .
       target: monad
@@ -648,6 +713,11 @@ services:
 
   # --- Sophia: Knowledge Graph ---
   sophia:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     build:
       context: .
       target: sophia
@@ -691,6 +761,11 @@ services:
 
   # --- Dashboard Backend: The Visor (Observability Dashboard) ---
   dashboard-backend:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     build:
       context: .
       target: dashboard-backend
@@ -753,6 +828,11 @@ services:
 
   # --- Kanban App: The Meta Moment (Self-Hosting Proof) ---
   kanban-app:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     build:
       context: .
       target: kanban-app
@@ -811,6 +891,11 @@ services:
 
   # --- Cuirass: Control Plane Daemon ---
   cuirass:
+    logging:
+      # ADR-092: the cap lives here, not in an untracked host daemon.json.
+      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
     build:
       context: .
       target: cuirass
