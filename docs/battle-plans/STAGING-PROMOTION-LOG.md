@@ -1387,6 +1387,72 @@ that table was written.
 Board now loads both and merges by id (`task-*` ∪ `tl-*`); priority lookup
 uses `??`. eslint clean. Commit `e8ad96b9`.
 
+## Post-ladder: the kanban split-brain retired (2026-09-22)
+
+`kanban_tasks` existed twice — `unheaded.kanban_tasks` and
+`unheaded_app.kanban_tasks`, same name, different databases, 73 rows each.
+B7 pointed kanban-app at `unheaded_app` (`WELL_DB`); the 09-21 reconcile
+copied the rows across and deliberately left the old copy in place because
+zhenai still read it.
+
+**What the stale copy was actually doing.** Both copies still agreed on
+counts, so this was not "Zhen reported wrong numbers" — the divergence was
+content-only: `gnostic-yaldabaoth` carried `[Changes requested - 9/22/2026]`
+in `unheaded_app` and not in `unheaded`. Newest write in `unheaded_app`:
+2026-09-22. In `unheaded`: **2026-08-10**. Zhen was serving six-week-old
+task text, and every future edit would have diverged just as silently.
+
+**On the "maintenance database" framing.** Earlier notes justified the move
+partly by calling `unheaded` "the maintenance database". That term is
+pgAdmin's — the database a client connects to first — not a Postgres concept,
+and it confers no rule against holding application tables. The argument that
+holds without it: ADR-091's per-service roles are the real isolation
+mechanism, and two copies with one writer is a defect regardless of which
+database either copy lives in.
+
+**Considered and rejected: per-service databases** (`unheaded_kanban`,
+`unheaded_zhenai`). The ownership model that idea asks for is already
+enforced, at table granularity, by the grants in `unheaded_app`:
+`app_kanban` has full CRUD on `kanban_tasks`, `app_zhen` and `app_timeguru`
+have SELECT only, and Postgres defaults to deny for anything not granted.
+A database boundary would add restore granularity but break the live
+cross-service read (Postgres cannot join or transact across databases), and
+multiply the `WELL_DB`-shaped pointer bugs — 11 DB-pointer env knobs and 9
+migration routing lines today. If namespace separation is wanted later,
+schemas inside `unheaded_app` give it without any of that. Restore
+granularity is solved with per-database dumps instead.
+
+**Fix.** `raft/zhen_app.py` opened a *second* psycopg2 connection at two
+sites (`:394` live-intent context, `:1576` `/api/v1/kanban/summary`),
+hardcoded to `dbname='unheaded'` and defaulting to the `unheaded` superuser,
+with a comment asserting that copy was canonical. Both now use the existing
+`pg_conn` — already bound to `unheaded_app` as `app_zhen` — exactly as the
+`audit` block beside them does. The false comment is gone. This also removes
+two superuser connection paths.
+
+**Verified before the drop:** both queries run as `app_zhen` against
+`unheaded_app` and return the live board; `UPDATE` as `app_zhen` is refused
+(`permission denied for table kanban_tasks`) so the read-only grant holds;
+no dependent views and no inbound foreign keys on the doomed table.
+
+**Backups:** full cluster dump `cluster-112930.sql.gz` **restore-proven** by
+replaying into a throwaway `postgres:16-alpine` (every table and row count
+matched), plus a targeted `unheaded-kanban_tasks-predrop-122351.sql.gz` (73
+rows). Both under `~/backups/unheaded/2026-09-22/`, 0600, outside the repo —
+`pg_dumpall` carries role password hashes, so they must never move into the
+tree.
+
+**Dropped**, then re-verified: `to_regclass` NULL in `unheaded`, 73 rows
+still in `unheaded_app`, the old query path now errors loudly
+(`relation "kanban_tasks" does not exist`), the new one returns the board.
+No code or compose reference to the dropped table remains; the grant went
+with it.
+
+A clean install does not recreate it — `db/init.sh` starts at `002` and
+never applies `001_initial_schema.sql`, which is the file that created the
+duplicate. That leaves `001` unreferenced by the init path; worth a look
+when someone next touches the migration set.
+
 ## Post-ladder: `logagg.Publisher` — same shape that killed the dashboard (2026-09-22)
 
 Carried from the B8 OOM write-up. Three defects in one type, and half the
