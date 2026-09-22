@@ -279,6 +279,9 @@ func main() {
 
 	// Create TopicStream gRPC service - THE COSMIC WHEEL
 	topicService := grpcservice.NewTopicServiceWithCounter(roomManager, memberManager, messageWotan, topicSeqCounter)
+	// Same allowlist the HTTP path applies, so a publisher cannot dodge the
+	// approval gate simply by using gRPC (configs/wotan.yaml topics.auto_approve).
+	topicService.AutoApprove = topicCfg
 
 	// gRPC server hardening (CLAUDE.md baseline). Without these, a
 	// client can DoS the server via giant messages, abusive keepalive
