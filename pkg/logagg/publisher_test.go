@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	prom "github.com/prometheus/client_golang/prometheus"
 	"github.com/rs/zerolog"
 
 	"unheaded/pkg/logger"
@@ -301,6 +302,69 @@ func TestPublisher_CollectorsRenderIntoARegistry(t *testing.T) {
 		if n := strings.Count(out, line); n != 1 {
 			t.Errorf("%q appears %d times, want 1 (duplicate HELP is invalid exposition)", line, n)
 		}
+	}
+	close(conn.release)
+}
+
+// Services expose metrics three ways here. All three views must report the
+// same numbers — a counter that disagrees with itself is worse than none.
+func TestPublisher_AllThreeAdaptersAgree(t *testing.T) {
+	conn := &blockingConnection{release: make(chan struct{})}
+	p := NewPublisherWithQueue("three-ways", conn, 2)
+	defer p.Close()
+
+	for i := 0; i < 9; i++ {
+		p.Run(nil, zerolog.InfoLevel, "x")
+	}
+	waitFor(t, func() bool { return p.Dropped() > 0 })
+	dropped := p.Dropped()
+
+	// 1. pkg/metrics registry
+	reg := metrics.NewRegistry()
+	for _, c := range p.Collectors() {
+		if err := reg.Register(c); err != nil {
+			t.Fatalf("register: %v", err)
+		}
+	}
+	var regBuf bytes.Buffer
+	if err := reg.Gather(&regBuf); err != nil {
+		t.Fatalf("gather: %v", err)
+	}
+
+	// 2. hand-rolled text
+	var textBuf bytes.Buffer
+	if err := p.WriteMetrics(&textBuf); err != nil {
+		t.Fatalf("WriteMetrics: %v", err)
+	}
+
+	want := fmt.Sprintf(`unheaded_logagg_entries_dropped_total{service="three-ways"} %d`, dropped)
+	for name, out := range map[string]string{"registry": regBuf.String(), "text": textBuf.String()} {
+		if !strings.Contains(out, want) {
+			t.Errorf("%s view missing %q\ngot:\n%s", name, want, out)
+		}
+	}
+
+	// 3. prometheus collector
+	promReg := prom.NewRegistry()
+	if err := promReg.Register(p.PrometheusCollector()); err != nil {
+		t.Fatalf("prometheus register: %v", err)
+	}
+	got, err := promReg.Gather()
+	if err != nil {
+		t.Fatalf("prometheus gather: %v", err)
+	}
+	found := false
+	for _, mf := range got {
+		if mf.GetName() != "unheaded_logagg_entries_dropped_total" {
+			continue
+		}
+		found = true
+		if v := mf.GetMetric()[0].GetCounter().GetValue(); v != float64(dropped) {
+			t.Errorf("prometheus dropped = %v, want %d — the three views disagree", v, dropped)
+		}
+	}
+	if !found {
+		t.Error("prometheus collector did not expose the drop counter")
 	}
 	close(conn.release)
 }

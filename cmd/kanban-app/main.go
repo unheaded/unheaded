@@ -90,6 +90,18 @@ type Server struct {
 	healthSrv       *transport.HealthServer // Unified transport health
 	ctx             context.Context         // server lifecycle context
 	cancel          context.CancelFunc      // cancels ctx on shutdown
+
+	// logPublisher, when set, appends log-forwarding counters to /metrics.
+	// This service builds its exposition by hand — there is no registry.
+	logPublisher *logagg.Publisher
+}
+
+// SetLogPublisher attaches a logagg publisher whose counters are appended to
+// /metrics. Optional: nil leaves the exposition unchanged.
+func (s *Server) SetLogPublisher(p *logagg.Publisher) {
+	s.tasksMu.Lock()
+	defer s.tasksMu.Unlock()
+	s.logPublisher = p
 }
 
 // NewServer creates a new kanban server with standalone timeline polling.
@@ -1285,6 +1297,15 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	} else {
 		fmt.Fprintf(w, "kanban_wotan_enabled 0\n")
 	}
+
+	s.tasksMu.RLock()
+	lp := s.logPublisher
+	s.tasksMu.RUnlock()
+	// #nosec G104 -- response already committed; a write failure here means
+	// the client went away and nothing further can be sent.
+	if lp != nil {
+		_ = lp.WriteMetrics(w)
+	}
 }
 
 // handleTimeline returns the current timeline data
@@ -1432,7 +1453,12 @@ func main() {
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
 	if cfg.WotanAddr != "" {
-		logConn, _ = logagg.Connect(context.Background(), transportCfg, "kanban-app") // best-effort; nil on failure
+		var err error
+		if logConn, err = logagg.Connect(context.Background(), transportCfg, "kanban-app"); err != nil {
+			// best-effort: logs stay local, but say why so a nil here is not silent
+			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
+			logConn = nil
+		}
 	}
 	logPublisher := logagg.NewPublisher("kanban-app", logConn)
 	if logPublisher.Enabled() {
@@ -1633,6 +1659,9 @@ func main() {
 		}()
 		log.Info().Msg("Timeguru HTTP polling disabled (Wotan notifies; content fetched on notification)")
 	}
+
+	// Every construction branch above converges here, so attach once.
+	server.SetLogPublisher(logPublisher)
 
 	// Start server in goroutine
 	go func() {

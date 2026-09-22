@@ -85,7 +85,10 @@ func main() {
 	// Transport config
 	transportCfg := transport.DefaultConfig()
 	transport.ConfigFromEnv(&transportCfg)
-	if *wotanAddr != "" {
+	// Only an explicitly-passed flag outranks the environment: the flag's
+	// default is non-empty, so this test was always true and the default
+	// overwrote WOTAN_ADDR from compose.
+	if transport.FlagWasSet("wotan") {
 		transportCfg.WotanHTTPAddr = *wotanAddr
 	}
 
@@ -102,13 +105,17 @@ func main() {
 	// Create store
 	store := micromanager.NewStore()
 
-	// Create Wotan client (if configured)
+	// Create Wotan client (if configured).
+	//
+	// Gate on the RESOLVED address, not the raw flag. The flag defaults to ""
+	// and compose passes no -wotan, so keying on the flag meant this service
+	// ignored WOTAN_ADDR entirely and always ran in degraded mode.
 	var wotan *wotanClient.Client
-	if *wotanAddr != "" {
+	if addr := transportCfg.WotanHTTPAddr; addr != "" {
 		var err error
-		wotan, err = wotanClient.NewClient(*wotanAddr)
+		wotan, err = wotanClient.NewClient(addr)
 		if err != nil {
-			log.Error().Err(err).Str("addr", *wotanAddr).Msg("failed to create wotan client")
+			log.Error().Err(err).Str("addr", addr).Msg("failed to create wotan client")
 			healthSrv.SetGRPCStatus(false)
 			// Continue anyway, just without wotan integration
 		}
@@ -117,9 +124,16 @@ func main() {
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
 	if wotan != nil {
-		logConn, _ = logagg.Connect(context.Background(), transportCfg, "micromanager") // best-effort; nil on failure
+		var err error
+		if logConn, err = logagg.Connect(context.Background(), transportCfg, "micromanager"); err != nil {
+			// best-effort: logs stay local, but say why so a nil here is not silent
+			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
+			logConn = nil
+		}
 	}
 	logPublisher := logagg.NewPublisher("micromanager", logConn)
+	// Surface log-forwarding health on /metrics (promhttp default registry).
+	prometheus.MustRegister(logPublisher.PrometheusCollector())
 	log.Logger = log.Logger.Hook(logPublisher)
 
 	// Create service

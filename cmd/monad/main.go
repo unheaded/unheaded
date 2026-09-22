@@ -169,6 +169,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create HTTP server")
 	}
+	server.SetLogPublisher(logPublisher)
 
 	// Start server
 	if err := server.Start(); err != nil {
@@ -277,6 +278,11 @@ type HTTPServer struct {
 	metrics   *HTTPMetrics
 	requestID int64
 	ready     bool
+
+	// logPublisher, when set, appends log-forwarding counters to /metrics.
+	// This service builds its exposition by hand, so there is no registry to
+	// register with.
+	logPublisher *logagg.Publisher
 }
 
 // HTTPMetrics tracks HTTP metrics for Prometheus
@@ -309,6 +315,14 @@ type MetaInfo struct {
 	RequestID string        `json:"request_id"`
 	Duration  time.Duration `json:"duration_ms"`
 	Timestamp time.Time     `json:"timestamp"`
+}
+
+// SetLogPublisher attaches a logagg publisher whose counters are appended to
+// /metrics. Optional: nil leaves the exposition unchanged.
+func (hs *HTTPServer) SetLogPublisher(p *logagg.Publisher) {
+	hs.mu.Lock()
+	defer hs.mu.Unlock()
+	hs.logPublisher = p
 }
 
 // NewHTTPServer creates a new HTTP server for the Monad service
@@ -537,6 +551,15 @@ func (hs *HTTPServer) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(metrics))
+
+	// #nosec G104 -- response already committed; a write failure here means
+	// the client went away and nothing further can be sent.
+	hs.mu.RLock()
+	lp := hs.logPublisher
+	hs.mu.RUnlock()
+	if lp != nil {
+		_ = lp.WriteMetrics(w)
+	}
 }
 
 // operationsHandler handles POST /api/v1/operations - Execute an operation

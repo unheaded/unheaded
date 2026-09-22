@@ -75,6 +75,18 @@ type HTTPServer struct {
 	requestID int64
 	mu        sync.RWMutex
 	ready     atomic.Bool
+
+	// logPublisher, when set, appends log-forwarding counters to /metrics.
+	// This service builds its exposition by hand — there is no registry.
+	logPublisher *logagg.Publisher
+}
+
+// SetLogPublisher attaches a logagg publisher whose counters are appended to
+// /metrics. Optional: nil leaves the exposition unchanged.
+func (hs *HTTPServer) SetLogPublisher(p *logagg.Publisher) {
+	hs.mu.Lock()
+	defer hs.mu.Unlock()
+	hs.logPublisher = p
 }
 
 // HTTPMetrics tracks HTTP metrics for Prometheus.
@@ -391,6 +403,15 @@ func (hs *HTTPServer) metricsHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(metrics))
+
+	hs.mu.RLock()
+	lp := hs.logPublisher
+	hs.mu.RUnlock()
+	// #nosec G104 -- response already committed; a write failure here means
+	// the client went away and nothing further can be sent.
+	if lp != nil {
+		_ = lp.WriteMetrics(w)
+	}
 }
 
 // knowledgeHandler routes knowledge operations.
@@ -869,6 +890,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to create HTTP server")
 	}
+	httpServer.SetLogPublisher(logPublisher)
 
 	// Start HTTP server
 	if err := httpServer.Start(ctx); err != nil {

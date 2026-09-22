@@ -30,6 +30,7 @@ import (
 	"os/signal"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -116,6 +117,12 @@ type Daemon struct {
 	// Shutdown coordination
 	shutdown chan struct{}
 	wg       sync.WaitGroup
+
+	// logPublisher, when set, appends log-forwarding counters to /metrics.
+	// This daemon builds its exposition by hand — there is no registry.
+	// Atomic because handleMetrics reads it while stateManager's lock is
+	// already held for the rest of the body.
+	logPublisher atomic.Pointer[logagg.Publisher]
 }
 
 // ============================================================================
@@ -410,6 +417,7 @@ func main() {
 
 	// Create daemon
 	daemon := NewDaemon(cfg, log, transportCfg, healthSrv)
+	daemon.logPublisher.Store(logPublisher)
 
 	// Setup signal handling
 	sigCh := make(chan os.Signal, 1)
@@ -950,6 +958,12 @@ func (d *Daemon) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "# HELP cuirass_drift_count Number of detected drifts\n")
 	fmt.Fprintf(w, "# TYPE cuirass_drift_count gauge\n")
 	fmt.Fprintf(w, "cuirass_drift_count %d\n", len(d.stateManager.drifts))
+
+	// #nosec G104 -- response already committed; a write failure here means
+	// the client went away and nothing further can be sent.
+	if lp := d.logPublisher.Load(); lp != nil {
+		_ = lp.WriteMetrics(w)
+	}
 }
 
 func (d *Daemon) handleInfo(w http.ResponseWriter, r *http.Request) {

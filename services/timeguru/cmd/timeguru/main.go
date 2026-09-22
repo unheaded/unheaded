@@ -121,7 +121,12 @@ func main() {
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
 	if wotan != nil {
-		logConn, _ = logagg.Connect(context.Background(), transportCfg, "timeguru") // best-effort; nil on failure
+		var err error
+		if logConn, err = logagg.Connect(context.Background(), transportCfg, "timeguru"); err != nil {
+			// best-effort: logs stay local, but say why so a nil here is not silent
+			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
+			logConn = nil
+		}
 	}
 	logPublisher := logagg.NewPublisher("timeguru", logConn)
 	log.Logger = log.Logger.Hook(logPublisher)
@@ -160,6 +165,22 @@ func main() {
 		_, _ = w.Write([]byte(`{"ready":true}`))
 	})
 	mux.HandleFunc("/health", handler.HandleHealth)
+
+	// /metrics did not exist on this service at all — it answered 404, while
+	// CLAUDE.md requires every component to publish metrics. Minimal
+	// exposition for now: log-forwarding health, so a service shedding logs
+	// is visible. Service-specific counters can join it here.
+	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		w.WriteHeader(http.StatusOK)
+		// #nosec G104 -- response already committed; a write failure here
+		// means the client went away and nothing further can be sent.
+		_ = logPublisher.WriteMetrics(w)
+	})
 
 	// Timeline endpoints (multiple formats: JSON, YAML, TOML, Markdown)
 	mux.HandleFunc("/timeline", handler.HandleGetTimelineWithFormat)

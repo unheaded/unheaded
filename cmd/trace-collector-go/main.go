@@ -1161,9 +1161,16 @@ func main() {
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
 	if *wotanAddr != "" {
-		logConn, _ = logagg.Connect(context.Background(), transportCfg, "trace-collector") // best-effort; nil on failure
+		var err error
+		if logConn, err = logagg.Connect(context.Background(), transportCfg, "trace-collector"); err != nil {
+			// best-effort: logs stay local, but say why so a nil here is not silent
+			log.Warn().Err(err).Msg("log aggregation: no transport connection; logs not forwarded")
+			logConn = nil
+		}
 	}
 	logPublisher := logagg.NewPublisher("trace-collector", logConn)
+	// Surface log-forwarding health on /metrics (promhttp default registry).
+	prometheus.MustRegister(logPublisher.PrometheusCollector())
 	log.Logger = log.Logger.Hook(logPublisher)
 
 	// Create context with signal handling
