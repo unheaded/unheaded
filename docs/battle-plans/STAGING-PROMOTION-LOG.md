@@ -1428,6 +1428,42 @@ Not claimed as proven: the vanishing card was never reproduced on demand, so
 this is a mechanism that matches the symptom, not a confirmed root cause.
 Watch whether it recurs.
 
+## Post-ladder: trace-collector-go ignored its environment entirely (2026-09-23)
+
+The item left unswept above, now done properly — and running the daemon
+instead of reading it changed the answer twice.
+
+The reported shape was `transportCfg.WotanGRPCAddr = *wotanAddr`, a flag
+default outranking the environment, same as architect and micromanager.
+Fixed with `FlagWasSet`. Started the daemon with
+`WOTAN_GRPC_ADDR=127.0.0.1:19999` to confirm, and it still logged
+`localhost:18001`.
+
+**The fix was in a path that does not run.** trace-collector-go starts in
+*anamnesis* mode by default; `runUnifiedMode` — where the transport config
+was being resolved — is behind `--unified`. `runAnamnesisMode` read
+`*wotanAddr` and `*wotanHTTPAddr` straight from the flags and never consulted
+`transportCfg` at all, so `WOTAN_GRPC_ADDR` and `WOTAN_ADDR` were ignored
+outright on the path that actually executes. The resolved config is now
+threaded into both modes, and the publisher is fed resolved addresses rather
+than raw flags.
+
+Also caught in passing: the local named `httpAddr` shadowed the package-level
+flag of the same name, which is the daemon's own *listen* address. Renamed;
+a silent shadow there would have pointed the listener at Wotan.
+
+Precedence verified live, all three cases:
+
+| env | flag | resolved |
+|---|---|---|
+| `127.0.0.1:19999` | — | `127.0.0.1:19999` |
+| `127.0.0.1:19999` | `--wotan-addr 127.0.0.1:18001` | `127.0.0.1:18001` |
+| — | — | `localhost:18001` |
+
+Lesson worth keeping: a config-precedence fix cannot be verified by reading
+the diff. This one compiled, tested green, and did nothing, because the
+service had two entry points and the default one was the unfixed one.
+
 ## Post-ladder: log forwarding wired fleet-wide, and the metric earned its keep (2026-09-22)
 
 Finishing the follow-up left open above: the other services needed the

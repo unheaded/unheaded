@@ -580,7 +580,7 @@ func resolveEBPFObjDir() string {
 
 // runUnifiedMode starts the unified trace collector that loads all three
 // BPF programs (packet_marker, flow_tracker, latency_probe) based on flags.
-func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
+func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config) {
 	log.Info().
 		Str("interface", *iface).
 		Str("wotan_addr", *wotanAddr).
@@ -597,8 +597,10 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 
 	// Create the unified publisher with gRPC-first transport
 	pubConfig := DefaultTracePublisherConfig()
-	pubConfig.WotanAddr = *wotanAddr
-	pubConfig.WotanHTTPAddr = *wotanHTTPAddr
+	// Feed the publisher the RESOLVED addresses, not the raw flags, so it
+	// honours the environment the same way the transport config does.
+	pubConfig.WotanAddr = transportCfg.WotanGRPCAddr
+	pubConfig.WotanHTTPAddr = transportCfg.WotanHTTPAddr
 	pubConfig.BatchSize = *batchSize
 	pubConfig.FlushInterval = *batchTimeout
 	publisher := NewTracePublisher(pubConfig)
@@ -950,23 +952,29 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer) {
 // ── Legacy Anamnesis mode runner ────────────────────────────────────────
 
 // runAnamnesisMode starts the original Anamnesis-based trace collector.
-func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer) {
+func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, transportCfg transport.Config) {
+	// Resolved addresses, not raw flags: this is the DEFAULT mode, and it
+	// read the flags directly, so WOTAN_GRPC_ADDR / WOTAN_ADDR were ignored
+	// entirely on the path that actually runs.
+	wotanGRPC := transportCfg.WotanGRPCAddr
+	wotanHTTP := transportCfg.WotanHTTPAddr
+
 	log.Info().
 		Str("ring_path", *ringPath).
-		Str("wotan_addr", *wotanAddr).
+		Str("wotan_addr", wotanGRPC).
 		Str("http_addr", *httpAddr).
 		Int("max_rate", *maxRate).
 		Int("batch_size", *batchSize).
 		Msg("trace-collector-go starting in anamnesis mode")
 
 	// Create components
-	publisher := NewWotanPublisher(*wotanHTTPAddr, *batchSize, *batchTimeout)
+	publisher := NewWotanPublisher(wotanHTTP, *batchSize, *batchTimeout)
 
 	// Connect via gRPC for reliable publishing
-	if err := publisher.ConnectGRPC(ctx, *wotanAddr, *wotanHTTPAddr); err != nil {
+	if err := publisher.ConnectGRPC(ctx, wotanGRPC, wotanHTTP); err != nil {
 		log.Warn().Err(err).Msg("gRPC connection failed, falling back to HTTP")
 	} else {
-		log.Info().Str("grpc", *wotanAddr).Msg("anamnesis publisher connected via gRPC")
+		log.Info().Str("grpc", wotanGRPC).Msg("anamnesis publisher connected via gRPC")
 	}
 
 	correlator := NewFlowCorrelator(60 * time.Second)
@@ -1150,10 +1158,20 @@ func main() {
 		log.Logger = log.Output(zerolog.ConsoleWriter{Out: os.Stderr, TimeFormat: time.RFC3339})
 	}
 
-	// Transport config: defaults → env → flag overrides
+	// Transport config: defaults → env → flag overrides.
+	//
+	// "flag overrides" means a flag that was actually passed. Assigning
+	// unconditionally let the "localhost:18001" default overwrite
+	// WOTAN_GRPC_ADDR from the environment, which is how the comment and the
+	// code disagreed.
 	transportCfg := transport.DefaultConfig()
 	transport.ConfigFromEnv(&transportCfg)
-	transportCfg.WotanGRPCAddr = *wotanAddr
+	if transport.FlagWasSet("wotan-addr") {
+		transportCfg.WotanGRPCAddr = *wotanAddr
+	}
+	if transport.FlagWasSet("wotan-http-addr") {
+		transportCfg.WotanHTTPAddr = *wotanHTTPAddr
+	}
 
 	// Unified health server for transport-aware readiness
 	healthSrv := transport.NewHealthServer("trace-collector")
@@ -1189,8 +1207,8 @@ func main() {
 	}()
 
 	if *unifiedMode {
-		runUnifiedMode(ctx, healthSrv)
+		runUnifiedMode(ctx, healthSrv, transportCfg)
 	} else {
-		runAnamnesisMode(ctx, healthSrv)
+		runAnamnesisMode(ctx, healthSrv, transportCfg)
 	}
 }
