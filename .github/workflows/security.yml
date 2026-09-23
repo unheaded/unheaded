@@ -124,6 +124,13 @@ jobs:
       - name: No nested bind mounts in compose
         run: ./scripts/check-compose-bind-nesting.sh
 
+      # ADR-092: /tmp is world-writable, cleared on reboot and unrotated.
+      # 31 call sites remain; the migration is per-service, so this holds the
+      # line rather than demanding it all at once. Compares the path SET, not
+      # a count — check-secrets-baseline.sh learned that one the hard way.
+      - name: /tmp log paths may only shrink
+        run: ./scripts/check-tmp-log-baseline.sh
+
       - name: gitleaks (full history — reporting only, see PRE-PUBLIC-BLOCKERS.md)
         continue-on-error: true
         run: /tmp/gitleaks git --no-banner --redact --exit-code 1 .

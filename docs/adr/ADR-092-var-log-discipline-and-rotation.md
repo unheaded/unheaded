@@ -210,9 +210,15 @@ batches). This one is checkable:
   the untracked daemon default rather than what the repository guarantees
 - every service has exactly one `/etc/logrotate.d/unheaded-*` stanza, and
   `logrotate -d` parses all of them clean
-- `grep -rn '/tmp/[a-z-]*\.log'` over tracked source returns **zero** outside
-  tests and ephemeral scratch — this count is 31 today and is the migration's
-  progress metric
+- `scripts/check-tmp-log-baseline.sh` holds the `/tmp` log path set at 31 and
+  refuses any addition — the migration's progress metric, and a ratchet rather
+  than a report. It compares the SET, not a count, because swapping one path
+  for another leaves the count unchanged (the lesson already recorded in
+  `scripts/check-secrets-baseline.sh`). Provoked three ways: a new path fails,
+  a swap that keeps the total at 31 fails, and a migration reports the
+  remaining count going down. Docs are out of scope — battle plans record what
+  was actually run, and rewriting them would falsify a record rather than
+  migrate a call site
 - a provoked rotation loses no lines: write a known sequence, force
   `logrotate -f`, keep writing, verify the concatenation of the rotated set is
   gap-free. This is the check that would catch a `copytruncate` regression, and
