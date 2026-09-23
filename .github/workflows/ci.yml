@@ -53,6 +53,12 @@ jobs:
           fi
           echo "gofmt clean"
 
+      # ADR-093 rule 5. Reads the repository, never the running host: asking
+      # docker what is up would pass on whichever machine has the stack
+      # running, which is the mistake rule 4 names.
+      - name: Live-path inventory is current
+        run: ./scripts/live-path-inventory.sh --check
+
       - name: Vet
         run: go vet ./...
 
