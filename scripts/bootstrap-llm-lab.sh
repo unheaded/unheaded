@@ -516,31 +516,20 @@ phase_docker() {
     # Configure Docker daemon
     step "Configuring Docker daemon..."
     mkdir -p /etc/docker
-    cat > /etc/docker/daemon.json << 'DOCKERCFG'
-{
-    "log-driver": "json-file",
-    "log-opts": {
-        "max-size": "100m",
-        "max-file": "5"
-    },
-    "storage-driver": "overlay2",
-    "default-address-pools": [
-        {"base": "172.20.0.0/16", "size": 24}
-    ],
-    "ipv6": true,
-    "fixed-cidr-v6": "fd00:dead:beef::/48",
-    "ip6tables": true,
-    "experimental": true,
-    "metrics-addr": "0.0.0.0:9323",
-    "default-runtime": "runc",
-    "runtimes": {},
-    "dns": ["1.1.1.1", "8.8.8.8"],
-    "features": {
-        "buildkit": true
-    },
-    "live-restore": true
-}
-DOCKERCFG
+    # Installed from deploy/docker/daemon.json — the canonical copy. This
+    # used to be a heredoc, and it drifted: it still wrote
+    # fixed-cidr-v6 = fd00:dead:beef::/48, which is the WireGuard overlay's
+    # OWN /48, so a freshly provisioned host handed Docker the overlay's
+    # address range. That is the exact condition the Phase 5 exit gate in
+    # references/archive/battle-plan-post-reboot-doom.md checks for.
+    repo_daemon_json="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/deploy/docker/daemon.json"
+    if [ -f "$repo_daemon_json" ]; then
+        install -m 0644 "$repo_daemon_json" /etc/docker/daemon.json
+    else
+        echo "ERROR: $repo_daemon_json not found — refusing to write an unversioned daemon config" >&2
+        exit 1
+    fi
+
 
     step "Starting Docker..."
     run systemctl enable docker
@@ -551,13 +540,16 @@ DOCKERCFG
 
     # Create unheaded network
     step "Creating unheaded Docker network..."
+    # IPv6 subnet comes out of Docker's /48 (fd00:d0c0:e700::), not the
+    # WireGuard overlay's (fd00:dead:beef::). Same reason as fixed-cidr-v6:
+    # the two allocators must not share a prefix. See deploy/docker/README.md.
     if ! docker network ls | grep -q unheaded_unheaded; then
         run docker network create \
             --driver bridge \
             --subnet=172.20.0.0/24 \
             --gateway=172.20.0.1 \
             --ipv6 \
-            --subnet=fd00:dead:beef:1::/64 \
+            --subnet=fd00:d0c0:e700:1::/64 \
             --opt com.docker.network.bridge.name=br-unheaded \
             unheaded_unheaded 2>/dev/null || warn "Network creation failed — may already exist"
     fi
