@@ -29,15 +29,15 @@ import (
 func FuzzMonadCodecVarintStress(f *testing.F) {
 	// Boundary values where encoding length changes
 	f.Add(uint64(0))
-	f.Add(uint64(63))                  // max 1-byte
-	f.Add(uint64(64))                  // min 2-byte
-	f.Add(uint64(16383))               // max 2-byte
-	f.Add(uint64(16384))               // min 4-byte
-	f.Add(uint64(1073741823))          // max 4-byte
-	f.Add(uint64(1073741824))          // min 8-byte
-	f.Add(encoding.MaxVarint)          // max encodable
-	f.Add(encoding.MaxVarint + 1)      // should error
-	f.Add(^uint64(0))                  // max uint64
+	f.Add(uint64(63))             // max 1-byte
+	f.Add(uint64(64))             // min 2-byte
+	f.Add(uint64(16383))          // max 2-byte
+	f.Add(uint64(16384))          // min 4-byte
+	f.Add(uint64(1073741823))     // max 4-byte
+	f.Add(uint64(1073741824))     // min 8-byte
+	f.Add(encoding.MaxVarint)     // max encodable
+	f.Add(encoding.MaxVarint + 1) // should error
+	f.Add(^uint64(0))             // max uint64
 
 	f.Fuzz(func(t *testing.T, val uint64) {
 		encoded, encErr := encoding.EncodeVarint(val)

@@ -29,13 +29,13 @@ import (
 type BPFMapType uint32
 
 const (
-	BPF_MAP_TYPE_HASH           BPFMapType = 1
-	BPF_MAP_TYPE_ARRAY          BPFMapType = 2
-	BPF_MAP_TYPE_PERF_EVENT     BPFMapType = 4
-	BPF_MAP_TYPE_RINGBUF        BPFMapType = 27
-	BPF_MAP_TYPE_LRU_HASH       BPFMapType = 9
-	BPF_MAP_TYPE_PERCPU_HASH    BPFMapType = 5
-	BPF_MAP_TYPE_PERCPU_ARRAY   BPFMapType = 6
+	BPF_MAP_TYPE_HASH         BPFMapType = 1
+	BPF_MAP_TYPE_ARRAY        BPFMapType = 2
+	BPF_MAP_TYPE_PERF_EVENT   BPFMapType = 4
+	BPF_MAP_TYPE_RINGBUF      BPFMapType = 27
+	BPF_MAP_TYPE_LRU_HASH     BPFMapType = 9
+	BPF_MAP_TYPE_PERCPU_HASH  BPFMapType = 5
+	BPF_MAP_TYPE_PERCPU_ARRAY BPFMapType = 6
 )
 
 // BPFMapCreateAttr represents the attribute struct for BPF_MAP_CREATE.
@@ -277,7 +277,7 @@ func FuzzELFSectionClassifier(f *testing.F) {
 	f.Add("license")
 	f.Add("")
 	f.Add("unknown_section")
-	f.Add("xdp") // duplicate to verify determinism
+	f.Add("xdp")                      // duplicate to verify determinism
 	f.Add(string(make([]byte, 1000))) // very long name with nulls
 
 	f.Fuzz(func(t *testing.T, name string) {

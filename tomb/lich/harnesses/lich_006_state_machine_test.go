@@ -30,25 +30,25 @@ import (
 type StateMachineState uint8
 
 const (
-	StateIdle       StateMachineState = 0x00
-	StateActive     StateMachineState = 0x01
-	StateDraining   StateMachineState = 0x02
-	StateClosing    StateMachineState = 0x03
-	StateClosed     StateMachineState = 0x04
-	StateError      StateMachineState = 0x05
+	StateIdle     StateMachineState = 0x00
+	StateActive   StateMachineState = 0x01
+	StateDraining StateMachineState = 0x02
+	StateClosing  StateMachineState = 0x03
+	StateClosed   StateMachineState = 0x04
+	StateError    StateMachineState = 0x05
 )
 
 // StateMachineEvent represents a transition event.
 type StateMachineEvent uint8
 
 const (
-	EventActivate  StateMachineEvent = 0x01
-	EventDrain     StateMachineEvent = 0x02
-	EventClose     StateMachineEvent = 0x03
-	EventError     StateMachineEvent = 0x04
-	EventReset     StateMachineEvent = 0x05
-	EventGoaway    StateMachineEvent = 0x06
-	EventCancel    StateMachineEvent = 0x07
+	EventActivate StateMachineEvent = 0x01
+	EventDrain    StateMachineEvent = 0x02
+	EventClose    StateMachineEvent = 0x03
+	EventError    StateMachineEvent = 0x04
+	EventReset    StateMachineEvent = 0x05
+	EventGoaway   StateMachineEvent = 0x06
+	EventCancel   StateMachineEvent = 0x07
 )
 
 // validTransitions defines the legal state machine transitions.
@@ -291,9 +291,9 @@ func FuzzGoawayMonotonicity(f *testing.F) {
 
 // FuzzStateMachineGoawayIntegration tests the state machine with GOAWAY processing.
 func FuzzStateMachineGoawayIntegration(f *testing.F) {
-	f.Add(uint32(1), uint32(2), uint32(3))       // increasing
-	f.Add(uint32(3), uint32(2), uint32(1))        // decreasing
-	f.Add(uint32(0), uint32(0), uint32(0))        // all zero
+	f.Add(uint32(1), uint32(2), uint32(3))          // increasing
+	f.Add(uint32(3), uint32(2), uint32(1))          // decreasing
+	f.Add(uint32(0), uint32(0), uint32(0))          // all zero
 	f.Add(uint32(0xFFFFFFFF), uint32(0), uint32(1)) // max then decrease
 
 	f.Fuzz(func(t *testing.T, id1, id2, id3 uint32) {

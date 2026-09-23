@@ -138,11 +138,11 @@ func (rb *CacheRingBuffer) Count() int {
 
 // FuzzCacheRingBufferPush tests push operations across capacity boundaries.
 func FuzzCacheRingBufferPush(f *testing.F) {
-	f.Add(10, 20)   // push more than capacity
-	f.Add(1, 100)   // tiny buffer, many pushes
-	f.Add(100, 1)   // large buffer, one push
-	f.Add(1, 1)     // minimum
-	f.Add(0, 10)    // zero capacity (should default to 1)
+	f.Add(10, 20)     // push more than capacity
+	f.Add(1, 100)     // tiny buffer, many pushes
+	f.Add(100, 1)     // large buffer, one push
+	f.Add(1, 1)       // minimum
+	f.Add(0, 10)      // zero capacity (should default to 1)
 	f.Add(1000, 5000) // large test
 
 	f.Fuzz(func(t *testing.T, capacity, numPushes int) {
@@ -262,10 +262,10 @@ func FuzzCacheRingBufferQuery(f *testing.F) {
 func FuzzCacheRingBufferInterleaved(f *testing.F) {
 	// Operations: 0=push, 1=get, 2=query, 3=count
 	f.Add([]byte{0, 0, 0, 1, 0, 0, 2, 3, 0, 1})
-	f.Add([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 1})  // many pushes then read
-	f.Add([]byte{1, 1, 1, 1, 1})                    // reads on empty buffer
-	f.Add([]byte{})                                  // no operations
-	f.Add([]byte{0, 1, 0, 1, 0, 1, 0, 1})          // alternating
+	f.Add([]byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 1}) // many pushes then read
+	f.Add([]byte{1, 1, 1, 1, 1})                // reads on empty buffer
+	f.Add([]byte{})                             // no operations
+	f.Add([]byte{0, 1, 0, 1, 0, 1, 0, 1})       // alternating
 
 	f.Fuzz(func(t *testing.T, operations []byte) {
 		rb := NewCacheRingBuffer(10)

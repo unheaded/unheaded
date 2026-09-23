@@ -69,9 +69,9 @@ func FuzzCRC16CollisionPair(f *testing.F) {
 func FuzzCRC16StealthBitFlip(f *testing.F) {
 	// Valid Monad header (18 bytes)
 	header := make([]byte, 18)
-	header[0] = 0x01 // version
-	header[1] = 0x00 // flags
-	binary.BigEndian.PutUint32(header[2:6], 0x00010001)  // flow label
+	header[0] = 0x01                                      // version
+	header[1] = 0x00                                      // flags
+	binary.BigEndian.PutUint32(header[2:6], 0x00010001)   // flow label
 	binary.BigEndian.PutUint16(header[6:8], 0x0420)       // value
 	binary.BigEndian.PutUint32(header[8:12], 0x00000001)  // namespace
 	binary.BigEndian.PutUint32(header[12:16], 0x00000001) // sequence

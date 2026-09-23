@@ -29,28 +29,28 @@ import (
 
 // MBC opcodes -- mirrors the Rust crate definitions
 const (
-	MBC_NOP      uint8 = 0x00
-	MBC_LOAD     uint8 = 0x01
-	MBC_STORE    uint8 = 0x02
-	MBC_ADD      uint8 = 0x03
-	MBC_SUB      uint8 = 0x04
-	MBC_MUL      uint8 = 0x05
-	MBC_DIV      uint8 = 0x06
-	MBC_MOD      uint8 = 0x07
-	MBC_AND      uint8 = 0x08
-	MBC_OR       uint8 = 0x09
-	MBC_XOR      uint8 = 0x0A
-	MBC_SHL      uint8 = 0x0B
-	MBC_SHR      uint8 = 0x0C
-	MBC_JMP      uint8 = 0x10
-	MBC_JEQ      uint8 = 0x11
-	MBC_JNE      uint8 = 0x12
-	MBC_JGT      uint8 = 0x13
-	MBC_JLT      uint8 = 0x14
-	MBC_CALL     uint8 = 0x20
-	MBC_RET      uint8 = 0x21
-	MBC_EMIT     uint8 = 0x30
-	MBC_HALT     uint8 = 0xFF
+	MBC_NOP   uint8 = 0x00
+	MBC_LOAD  uint8 = 0x01
+	MBC_STORE uint8 = 0x02
+	MBC_ADD   uint8 = 0x03
+	MBC_SUB   uint8 = 0x04
+	MBC_MUL   uint8 = 0x05
+	MBC_DIV   uint8 = 0x06
+	MBC_MOD   uint8 = 0x07
+	MBC_AND   uint8 = 0x08
+	MBC_OR    uint8 = 0x09
+	MBC_XOR   uint8 = 0x0A
+	MBC_SHL   uint8 = 0x0B
+	MBC_SHR   uint8 = 0x0C
+	MBC_JMP   uint8 = 0x10
+	MBC_JEQ   uint8 = 0x11
+	MBC_JNE   uint8 = 0x12
+	MBC_JGT   uint8 = 0x13
+	MBC_JLT   uint8 = 0x14
+	MBC_CALL  uint8 = 0x20
+	MBC_RET   uint8 = 0x21
+	MBC_EMIT  uint8 = 0x30
+	MBC_HALT  uint8 = 0xFF
 )
 
 // MBCInstSize is the fixed size of an MBC instruction.
@@ -231,10 +231,10 @@ func FuzzMBCParsing(f *testing.F) {
 
 	// Division by zero setup
 	divZero := make([]byte, MBCInstSize*3)
-	divZero[0] = MBC_LOAD                              // LOAD r0, 42
-	binary.BigEndian.PutUint32(divZero[1:5], 0)         // register 0
-	binary.BigEndian.PutUint32(divZero[5:9], 42)        // value 42
-	divZero[MBCInstSize] = MBC_DIV                      // DIV r0, r1 (r1 = 0)
+	divZero[0] = MBC_LOAD                        // LOAD r0, 42
+	binary.BigEndian.PutUint32(divZero[1:5], 0)  // register 0
+	binary.BigEndian.PutUint32(divZero[5:9], 42) // value 42
+	divZero[MBCInstSize] = MBC_DIV               // DIV r0, r1 (r1 = 0)
 	binary.BigEndian.PutUint32(divZero[MBCInstSize+1:MBCInstSize+5], 0)
 	binary.BigEndian.PutUint32(divZero[MBCInstSize+5:MBCInstSize+9], 1)
 	divZero[MBCInstSize*2] = MBC_HALT
