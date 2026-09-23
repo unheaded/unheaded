@@ -213,8 +213,19 @@ jobs:
       # getFriendlyErrorMessage, which is defined only inside a different
       # file's IIFE, so saving a failed task threw ReferenceError from the
       # error handler itself. Fixed.
+      # The version comes from package.json so the pin lives in one place;
+      # repeating it here is how the two drift apart.
+      #
+      # --config is required from eslint 10 on: without it, config discovery
+      # reaches into llama.cpp/tools/server/webui/eslint.config.js — vendored,
+      # gitignored, and already in this config's `ignores` — and dies importing
+      # a plugin that is not installed. Ignores do not prevent config
+      # discovery.
       - name: eslint (GATING)
-        run: npx --yes eslint@9.39.5 .
+        run: |
+          version="$(python3 -c 'import json;d=json.load(open("package.json"));print((d.get("devDependencies") or d["dependencies"])["eslint"])')"
+          echo "eslint pinned at ${version} (from package.json)"
+          npx --yes "eslint@${version}" --config eslint.config.js .
 
   dockerfiles:
     name: Dockerfiles (hadolint)
