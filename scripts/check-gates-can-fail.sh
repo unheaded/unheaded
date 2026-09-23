@@ -302,6 +302,64 @@ PROBE
 # ---------------------------------------------------------------------------
 # Registry: gate basename -> provoke fn : speed : what the provocation plants
 # ---------------------------------------------------------------------------
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_compose_log_caps() {
+    # Contract (ADR-092): every compose service declares its own log cap.
+    # Strip one service's logging block.
+    backup "docker-compose.yml"
+    python3 - "${REPO_ROOT}/docker-compose.yml" <<'PROBE'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+# Drop the first service-level logging: block.
+s = re.sub(r'\n    logging:\n(?:      .*\n)+', '\n', s, count=1)
+open(p, 'w').write(s)
+PROBE
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_compose_bind_nesting() {
+    # Contract (ADR-091): no bind mount inside another's mountpoint. Recreate
+    # the original initdb nesting this ADR was written about.
+    backup "docker-compose.yml"
+    python3 - "${REPO_ROOT}/docker-compose.yml" <<'PROBE'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+anchor = "      - ./db/init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro"
+assert anchor in s, "postgres initdb mount not found"
+s = s.replace(anchor, anchor + "\n      - ./db/migrations:/docker-entrypoint-initdb.d:ro", 1)
+open(p, 'w').write(s)
+PROBE
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_tmp_log_baseline() {
+    # Contract (ADR-092): the /tmp log path SET may only shrink. Add one that
+    # is not in the baseline. A swap would also fail -- that is the point of
+    # comparing the set rather than a count -- but an addition is the simplest
+    # violation to plant and restore.
+    local f="scripts/demo-reset.sh"
+    backup "${f}"
+    # Assembled at runtime: check-tmp-log-baseline.sh scans every tracked
+    # *.sh, including this one, so writing the literal here would make this
+    # script a violation of the gate it is provoking.
+    local probe="/tmp/meta-gate-probe"
+    printf '\n: > %s.log\n' "${probe}" >> "${REPO_ROOT}/${f}"
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_live_path_inventory() {
+    # Contract (ADR-093 rule 5): docs/LIVE-PATHS.md matches the tree, so a new
+    # binary cannot land unclassified. Plant one.
+    local d="cmd/meta-gate-probe"
+    mkdir -p "${REPO_ROOT}/${d}"
+    CREATED_DIRS+=("${d}")
+    local f="${d}/main.go"
+    backup "${f}"
+    printf 'package main\n\nfunc main() {}\n' > "${REPO_ROOT}/${f}"
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -312,6 +370,10 @@ check-ruff|provoke_ruff|fast|an F841 unused local in a tracked, non-vendored .py
 check-clippy|provoke_clippy|slow|a clippy violation in crates/upc-api
 bpf-verifier-check|provoke_bpf_verifier_check|slow|an undefined symbol in ebpf/flow-tracker
 verify-gpl-boundary|provoke_verify_gpl_boundary|fast|an AGPL license on a non-first-party Cargo.toml
+check-compose-log-caps|provoke_compose_log_caps|fast|a compose service with its logging block stripped
+check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
+check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present in the baseline set
+live-path-inventory|provoke_live_path_inventory|fast|a new cmd/ binary absent from docs/LIVE-PATHS.md
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 
