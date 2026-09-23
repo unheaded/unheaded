@@ -1428,6 +1428,59 @@ Not claimed as proven: the vanishing card was never reproduced on demand, so
 this is a mechanism that matches the symptom, not a confirmed root cause.
 Watch whether it recurs.
 
+## Post-ladder: LICH-010, and why the harnesses reimplement their targets (2026-09-23)
+
+Same job as LICH-008 on the WAL, and it turned up the structural reason the
+copy-the-code pattern exists.
+
+**Go's `internal` rule is the cause.** `tomb/lich/harnesses` **cannot**
+import `services/wotan/internal/store` — the compiler refuses. Anything
+inside an `internal/` tree is unreachable from that directory, so a harness
+placed there has no way to fuzz it. The six harnesses that do import real
+code all import `unheaded/pkg/...`, which is reachable. So the harnesses
+targeting internal packages were not sloppy; the layout left them nowhere to
+go, and reimplementing the target was the only thing that compiled. A
+harness aimed at an internal package has to live beside it.
+
+LICH-010's real harness now lives at
+`services/wotan/internal/store/lich_010_wal_fuzz_test.go`. Target:
+`DecodeMessage`, which `WALStore.recover()` runs over every record on disk
+and which deliberately skips anything that fails to decode — so a panic there
+does not skip a record, it takes down recovery, and therefore startup, for
+the component whose entire job is surviving a crash.
+
+**Found on the first seed: the WAL cannot represent non-UTF-8 content.**
+
+`EncodeMessage` marshals `Message` to JSON, and `encoding/json` replaces
+every invalid UTF-8 byte in a string with U+FFFD. Wotan's gRPC publish path
+does `SendMessage(senderID, string(req.Payload))` — an arbitrary binary
+payload becomes `Content`. Persisting it silently rewrites the bytes, and the
+loss is undetectable afterwards:
+
+```
+Content changed: "\xff\xfe invalid" -> "\ufffd\ufffd invalid"
+```
+
+**Reachability, stated honestly:** `configs/wotan.yaml` ships
+`store.type: memory`, so the WAL is not in the default path. It is used by
+the `wal` and `hybrid` stores that the same file recommends "for production
+persistence". So this is a latent production data-corruption bug, not a live
+one, and only for payloads that are not valid UTF-8.
+
+**Not fixed here, deliberately.** The fix changes the on-disk format —
+base64 the content, bump `encodingVersion` to 2, accept 1 on read — which
+means a binary rolled back after writing v2 records cannot read its own WAL.
+That is an operational call, not a code cleanup, and it is not one to make
+unattended. Pinned instead by
+`TestEncodeMessage_NonUTF8ContentIsLossy_KnownLimitation`, which documents
+the behaviour and tells whoever fixes it to delete the test and drop the
+UTF-8 guard in the round-trip fuzzer.
+
+Three targets otherwise clean at 40 s each: arbitrary bytes into
+`DecodeMessage` never panic and never return `(nil, nil)`; valid-UTF-8
+messages round-trip with byte-identical re-encoding; `EncodeMessage(nil)`
+honours its contract.
+
 ## Post-ladder: LICH-008 was fuzzing a copy of the code, not the code (2026-09-23)
 
 Carried as "LICH-008/010 → `go test -fuzz`". The harnesses already had
