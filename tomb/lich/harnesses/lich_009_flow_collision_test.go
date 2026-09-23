@@ -3,6 +3,12 @@
 
 // LICH-009: Flow ID Collision Fuzzer
 //
+// ⚠ SIMULATION, NOT COVERAGE. This file fuzzes flow-ID logic written inside
+// this test file. The reachable Go target, pkg/protocol/flowtype, is 118
+// lines of enum predicates (String/IsControl/IsData/Priority) with no
+// parsing and no state — fuzzing it would be theatre, so it was deliberately
+// not repointed. ADR-062 audit, 2026-09-23.
+//
 // Target: Flow ID generation, tracking, and collision detection.
 // Goal: Find collisions in flow label assignment, namespace sequence tracking,
 //       and the combined flow identification scheme.
