@@ -1428,6 +1428,77 @@ Not claimed as proven: the vanishing card was never reproduced on demand, so
 this is a mechanism that matches the symptom, not a confirmed root cause.
 Watch whether it recurs.
 
+## Post-ladder: the meta-gate caught my gates, so I audited my tests too (2026-09-23)
+
+`scripts/check-gates-can-fail.sh` already existed and already said the thing
+this session kept rediscovering: *"a gate nobody has proven can fail is
+exactly the defect this script exists to catch"*. It plants a violation for
+every `check-*.sh` and asserts a non-zero exit, and it treats an unregistered
+gate as a build failure.
+
+**I added four gates and registered none.** It had been red since `0e956af8`
+and I did not notice, because I never ran it. Registering them found that two
+of my four did not bite:
+
+1. **`live-path-inventory.sh` passed while violated.** The meta-gate invokes
+   gates bare, and its default mode was `--report`, which always exits 0 —
+   the identical defect to `check-timeline-freshness.sh`, whose bare
+   invocation reported PASS for three promotion batches. Reproduced by me in
+   a script written to enforce the opposite lesson. Checking is the default
+   now; printing needs `--report`.
+2. **`check-tmp-log-baseline.sh` was already failing on a clean tree.** It
+   scans every tracked `*.sh` for `/tmp` log paths — including the meta-gate
+   — so the literal probe path inside its own provocation was itself a
+   violation. Assembled at runtime now.
+
+I had manually provoked all four when writing them and reported them verified.
+That was true of the invocation I tested and false of the one CI uses. **13
+gates now proven to fail when violated, 0 skipped.**
+
+Then the stale-remediation follow-on: changing the default left the failure
+path printing `live-path-inventory.sh > $SNAPSHOT`, which now writes CHECK
+output into the snapshot. The failure path is the one people follow. Fixed
+and verified by *following the message* — provoke, run exactly what it
+prints, confirm the gate passes.
+
+### Audit of this session's own regression tests
+
+Same discipline applied to the tests, not just the gates: revert each fix,
+confirm its test goes red.
+
+| test | fix reverted | result |
+|---|---|---|
+| `TestRingBuffer_LevelFilterRejectsInvalidUTF8Collision` | `asciiEqualFold` → `strings.EqualFold` | RED |
+| `TestHandleGetTasks_EmptyManagerFallsBackToStore` | `count > 0` → `tasks == nil` | RED |
+| `TestConfigFromEnv_WotanAddr` | drop the `WOTAN_ADDR` branch | RED |
+| `TestConnect_UnapprovedNameFails` | neuter the approval check | RED |
+
+All four bite. The Wotan authz tests were written red-first so they needed no
+re-proof.
+
+### Costing the metrics convergence (a decision, not done)
+
+Carried as "three conventions coexist; converging deletes two `pkg/logagg`
+adapters". Measured, so the call is cheap:
+
+| tier | services | size |
+|---|---|---|
+| hand-rolled `Sprintf` exposition | monad (10 metrics), sophia (4), kanban-app (3), unheaded-daemon (3) | ~175 lines |
+| promhttp default registry | wotan, micromanager, architect, trace-collector-go, zhen-agentd | a real registry |
+| `pkg/metrics.Registry` | dashboard-backend, gateway | a real registry |
+
+**The recommendation is not "converge on one".** It is: retire the
+hand-rolled tier only. None of those four emit labels, `pkg/metrics` already
+has `Registry.Handler()`, and hand-rolled exposition is where the duplicate
+`# HELP` bug appeared earlier this session — the class of defect disappears
+with the tier. That removes one convention and deletes `WriteMetrics` from
+`pkg/logagg`.
+
+Leave promhttp and `pkg/metrics` alone. Both are real registries with real
+handlers; merging them is a much larger change with no correctness payoff.
+3 conventions → 2, 3 adapters → 2, at low risk. Left for Stevie since it
+changes four services' observable output.
+
 ## Post-ladder: LICH-010, and why the harnesses reimplement their targets (2026-09-23)
 
 Same job as LICH-008 on the WAL, and it turned up the structural reason the
