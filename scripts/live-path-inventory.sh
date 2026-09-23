@@ -150,7 +150,7 @@ case "$MODE" in
         cat /tmp/live-paths.diff >&2
         echo >&2
         echo "A binary was added, removed, or changed reachability." >&2
-        echo "Regenerate: scripts/live-path-inventory.sh > $SNAPSHOT" >&2
+        echo "Regenerate: scripts/live-path-inventory.sh --report > $SNAPSHOT" >&2
         exit 1
     fi
     ;;
