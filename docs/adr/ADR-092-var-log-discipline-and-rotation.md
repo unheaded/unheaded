@@ -18,14 +18,21 @@ ADR-091 (The Well initdb ordering — same failure shape: a path nothing audits)
 There is no single answer today to "where does service X log, and what stops it
 filling the disk?" There are four answers, and none of them is `/var/log`.
 
-**1. Container log caps exist only on this one host, untracked.**
+**1. Container log caps came from the host default, not the repository.**
 `docker-compose.yml` declares no `logging:` block for any of the 17 services, so
 each inherits the daemon default. On this machine that default is set in
 `/etc/docker/daemon.json` to `max-size: 100m, max-file: 5` — a 500 MB ceiling
-per container, 8.5 GB across the fleet. **That file is not in the repository.**
-A fresh host, a CI runner, a new contributor's laptop or a disaster-recovery
-rebuild gets Docker's own default instead, which is `json-file` with no
-`max-size` and no `max-file`: the log grows until the filesystem is full.
+per container, 8.5 GB across the fleet.
+
+> **Corrected 2026-09-23.** This ADR originally said that file "is not in the
+> repository". It was: `scripts/bootstrap-llm-lab.sh` wrote it as a heredoc.
+> Tracked, but misfiled — nobody provisioning a host would look for the Docker
+> daemon config inside a script named for the LLM lab — and drifted from the
+> running hosts. It is now `deploy/docker/daemon.json`, installed by that
+> script rather than embedded in it. The substance of the point survives: a
+> CI runner or a contributor who does not run that script still gets Docker's
+> own default, which is `json-file` with no `max-size` and no `max-file`, and
+> the log grows until the filesystem is full.
 
 This is the ADR-091 shape exactly — a protection that holds only because of
 state on one long-lived box, where the broken path is reachable only by the
