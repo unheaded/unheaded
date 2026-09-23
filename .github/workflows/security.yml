@@ -118,6 +118,12 @@ jobs:
       - name: Compose services declare their own log caps
         run: ./scripts/check-compose-log-caps.sh
 
+      # ADR-091: the initdb bug was a bind mount nested inside another's
+      # mountpoint. Fixed in B7; this keeps it fixed. Provoked red by
+      # recreating the original nesting.
+      - name: No nested bind mounts in compose
+        run: ./scripts/check-compose-bind-nesting.sh
+
       - name: gitleaks (full history — reporting only, see PRE-PUBLIC-BLOCKERS.md)
         continue-on-error: true
         run: /tmp/gitleaks git --no-banner --redact --exit-code 1 .

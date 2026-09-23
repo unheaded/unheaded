@@ -9,6 +9,13 @@ Copyright (c) 2024-2026 Stevie Bellis.
 **Date:** 2026-08-04
 **Supersedes:** nothing. **Related:** ADR-089 (branch promotion)
 
+> **Gate added 2026-09-23:** `scripts/check-compose-bind-nesting.sh` refuses
+> any bind mount nested inside another's mountpoint, and runs in the security
+> workflow. Provoked red by recreating this ADR's exact nesting
+> (`./db/migrations` over `/docker-entrypoint-initdb.d` with `00-init.sh`
+> inside it), green with it removed. Until now this ADR was a rule nothing
+> enforced — see ADR-093 rule 1.
+
 ## Context
 
 The Well is three PostgreSQL databases — `unheaded_app`, `unheaded_ops`,
