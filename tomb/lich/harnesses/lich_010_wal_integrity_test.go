@@ -36,8 +36,8 @@ const WALEntryHeaderSize = 16
 type WALEntry struct {
 	Sequence uint64
 	Length   uint32
-	CRC     uint32
-	Data    []byte
+	CRC      uint32
+	Data     []byte
 }
 
 // EncodeWALEntry encodes a WAL entry for storage.
@@ -62,7 +62,7 @@ func DecodeWALEntry(buf []byte) (*WALEntry, error) {
 	entry := &WALEntry{
 		Sequence: binary.BigEndian.Uint64(buf[0:8]),
 		Length:   binary.BigEndian.Uint32(buf[8:12]),
-		CRC:     binary.BigEndian.Uint32(buf[12:16]),
+		CRC:      binary.BigEndian.Uint32(buf[12:16]),
 	}
 
 	totalNeeded := WALEntryHeaderSize + int(entry.Length)

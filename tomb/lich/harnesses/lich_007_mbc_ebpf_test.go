@@ -47,15 +47,15 @@ func DefaultMBCVMConfig() MBCVMConfig {
 
 // MBCVM is the MBC virtual machine.
 type MBCVM struct {
-	cfg        MBCVMConfig
-	registers  [MaxMBCRegisters]uint32
-	memory     []byte
-	callStack  []int
-	pc         int
-	execCount  int
-	halted     bool
-	err        error
-	emitted    []uint32
+	cfg       MBCVMConfig
+	registers [MaxMBCRegisters]uint32
+	memory    []byte
+	callStack []int
+	pc        int
+	execCount int
+	halted    bool
+	err       error
+	emitted   []uint32
 }
 
 // NewMBCVM creates a new VM instance.
@@ -336,8 +336,8 @@ func FuzzMBCExecution(f *testing.F) {
 	// Simple program: LOAD r0, 42; EMIT r0; HALT
 	simple := make([]byte, MBCInstSize*3)
 	simple[0] = MBC_LOAD
-	binary.BigEndian.PutUint32(simple[1:5], 0)   // r0
-	binary.BigEndian.PutUint32(simple[5:9], 42)   // value
+	binary.BigEndian.PutUint32(simple[1:5], 0)  // r0
+	binary.BigEndian.PutUint32(simple[5:9], 42) // value
 	simple[MBCInstSize] = MBC_EMIT
 	binary.BigEndian.PutUint32(simple[MBCInstSize+1:MBCInstSize+5], 0)
 	simple[MBCInstSize*2] = MBC_HALT
@@ -427,14 +427,14 @@ func FuzzMBCExecution(f *testing.F) {
 
 // FuzzMBCArithmeticEdgeCases targets arithmetic operations with edge-case values.
 func FuzzMBCArithmeticEdgeCases(f *testing.F) {
-	f.Add(uint8(MBC_ADD), uint32(0xFFFFFFFF), uint32(0xFFFFFFFF))  // overflow
-	f.Add(uint8(MBC_SUB), uint32(0), uint32(1))                     // underflow
-	f.Add(uint8(MBC_MUL), uint32(0xFFFF), uint32(0xFFFF))          // large multiply
-	f.Add(uint8(MBC_DIV), uint32(42), uint32(0))                    // div by zero
-	f.Add(uint8(MBC_MOD), uint32(42), uint32(0))                    // mod by zero
-	f.Add(uint8(MBC_SHL), uint32(1), uint32(31))                    // max shift
-	f.Add(uint8(MBC_SHL), uint32(1), uint32(32))                    // over-shift
-	f.Add(uint8(MBC_SHR), uint32(0x80000000), uint32(31))          // sign bit shift
+	f.Add(uint8(MBC_ADD), uint32(0xFFFFFFFF), uint32(0xFFFFFFFF)) // overflow
+	f.Add(uint8(MBC_SUB), uint32(0), uint32(1))                   // underflow
+	f.Add(uint8(MBC_MUL), uint32(0xFFFF), uint32(0xFFFF))         // large multiply
+	f.Add(uint8(MBC_DIV), uint32(42), uint32(0))                  // div by zero
+	f.Add(uint8(MBC_MOD), uint32(42), uint32(0))                  // mod by zero
+	f.Add(uint8(MBC_SHL), uint32(1), uint32(31))                  // max shift
+	f.Add(uint8(MBC_SHL), uint32(1), uint32(32))                  // over-shift
+	f.Add(uint8(MBC_SHR), uint32(0x80000000), uint32(31))         // sign bit shift
 
 	f.Fuzz(func(t *testing.T, op uint8, val1, val2 uint32) {
 		// Only test arithmetic opcodes

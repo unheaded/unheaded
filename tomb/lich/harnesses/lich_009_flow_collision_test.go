@@ -122,9 +122,9 @@ func FlowLabelHash(label uint32, tableSize uint32) uint32 {
 // FuzzFlowIDCollision inserts random flows and checks for collisions.
 func FuzzFlowIDCollision(f *testing.F) {
 	f.Add(uint32(1), uint32(1), uint32(1), uint32(1), uint32(1), uint32(2))
-	f.Add(uint32(0), uint32(0), uint32(0), uint32(0), uint32(0), uint32(0)) // exact duplicate
+	f.Add(uint32(0), uint32(0), uint32(0), uint32(0), uint32(0), uint32(0))                   // exact duplicate
 	f.Add(uint32(0xFFFFFFFF), uint32(0), uint32(0), uint32(0xFFFFFFFF), uint32(0), uint32(0)) // same label, same ns/seq
-	f.Add(uint32(1), uint32(2), uint32(3), uint32(1), uint32(2), uint32(4)) // same label+ns, different seq
+	f.Add(uint32(1), uint32(2), uint32(3), uint32(1), uint32(2), uint32(4))                   // same label+ns, different seq
 
 	f.Fuzz(func(t *testing.T, fl1, ns1, seq1, fl2, ns2, seq2 uint32) {
 		ft := NewFlowTable()
