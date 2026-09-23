@@ -1,0 +1,34 @@
+# /tmp log paths remaining, per ADR-092. This set may only SHRINK.
+# Regenerate after migrating call sites: scripts/check-tmp-log-baseline.sh --update
+# Adding a path here is not a fix — it is how the ratchet stops working.
+/tmp/*.log
+/tmp/ab_base.log
+/tmp/ab_lora.log
+/tmp/akira.log
+/tmp/auto-distill.log
+/tmp/dashboard.log
+/tmp/demo-injector.log
+/tmp/doom-injector.log
+/tmp/doom-ring-loader.log
+/tmp/doom-runner.log
+/tmp/doom-smoke-bridge.log
+/tmp/doom-smoke-injector.log
+/tmp/embed.log
+/tmp/forge-production.log
+/tmp/forge-v3.log
+/tmp/host-agent.log
+/tmp/kanban.log
+/tmp/llama-server.log
+/tmp/raft-*.log
+/tmp/raft-qa-gen.log
+/tmp/raft-train.log
+/tmp/socat-east-dash.log
+/tmp/trace-collector*.log
+/tmp/v6-run.log
+/tmp/vor.log
+/tmp/wiki-server.log
+/tmp/wotan.log
+/tmp/wotan_events.log
+/tmp/zhen-agentd.log
+/tmp/zhen-webapp.log
+/tmp/zhen.log
