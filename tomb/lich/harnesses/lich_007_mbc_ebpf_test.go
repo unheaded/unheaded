@@ -3,6 +3,17 @@
 
 // LICH-007: eBPF MBC Program Fuzzer
 //
+// ⚠ SIMULATION, NOT COVERAGE. This file fuzzes a VM written inside this test
+// file, not the shipping MBC execution engine — which is Rust and
+// unreachable from Go. The real coverage lives in:
+//
+//     crates/monad-mbc/fuzz/fuzz_targets/fuzz_mbc_execute.rs
+//     crates/lich-fuzz/lich_007_mbc.rs
+//
+// Kept because the simulation documents execution semantics cheaply. Do NOT
+// read a green run here as evidence that the execution engine is fuzzed.
+// ADR-062 audit, 2026-09-23.
+//
 // Target: MBC bytecode execution engine (simulated in userspace).
 // Goal: Find crashes, infinite loops, stack overflows, and unsafe memory access
 //       in the MBC virtual machine.

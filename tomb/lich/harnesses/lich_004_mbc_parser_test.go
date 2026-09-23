@@ -3,6 +3,20 @@
 
 // LICH-004: MBC (Monad ByteCode) Parser Fuzzer
 //
+// ⚠ SIMULATION, NOT COVERAGE. This file fuzzes a decoder written inside this
+// test file, not the shipping MBC decoder — which is Rust, in
+// crates/monad-mbc, and is unreachable from Go. The real coverage lives in:
+//
+//     crates/monad-mbc/fuzz/fuzz_targets/fuzz_mbc_decode.rs
+//     crates/monad-mbc/fuzz/fuzz_targets/fuzz_mbc_roundtrip.rs
+//
+// Kept because the simulation still documents the instruction format and is
+// a cheap regression on the format's assumptions. Do NOT read a green run
+// here as evidence that the MBC decoder is fuzzed — run the Rust targets.
+// ADR-062 audit, 2026-09-23. See ADR-093 for why this class of mislabel
+// matters here: the default failure in this repository is a correct
+// mechanism nothing reaches.
+//
 // Target: MBC bytecode parsing and validation.
 // Goal: Find crashes in the MBC instruction decoder, invalid opcode handling,
 //       and operand parsing edge cases.
