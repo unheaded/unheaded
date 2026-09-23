@@ -46,6 +46,7 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
+	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -279,10 +280,61 @@ type HTTPServer struct {
 	requestID int64
 	ready     bool
 
-	// logPublisher, when set, appends log-forwarding counters to /metrics.
-	// This service builds its exposition by hand, so there is no registry to
-	// register with.
+	// registry produces the /metrics body. This service used to build that
+	// text with fmt.Sprintf, which is how a missing # TYPE or a duplicated
+	// # HELP ships unnoticed.
+	registry *metrics.Registry
+
+	// logPublisher, when set, contributes log-forwarding counters.
 	logPublisher *logagg.Publisher
+}
+
+// initMetrics registers every series this service publishes. The counters
+// live in hs.metrics and the gauges come from service.Stats(), so both are
+// read at scrape time rather than duplicated into the registry.
+func (hs *HTTPServer) initMetrics() {
+	hs.registry = metrics.NewRegistry()
+
+	counter := func(name, help string, read func() int64) {
+		hs.registry.MustRegister(metrics.NewFuncCounter(name, help, nil, func() float64 {
+			hs.metrics.mu.RLock()
+			defer hs.metrics.mu.RUnlock()
+			return float64(read())
+		}))
+	}
+	counter("monad_http_requests_total", "Total HTTP requests", func() int64 { return hs.metrics.RequestsTotal })
+	counter("monad_http_requests_success", "Successful HTTP requests", func() int64 { return hs.metrics.RequestsSuccess })
+	counter("monad_http_requests_error", "Failed HTTP requests", func() int64 { return hs.metrics.RequestsError })
+	counter("monad_operations_executed_total", "Total operations executed", func() int64 { return hs.metrics.OperationsExecuted })
+	counter("monad_transactions_executed_total", "Total transactions executed", func() int64 { return hs.metrics.TransactionsExecuted })
+
+	stat := func(name, help, key string) {
+		hs.registry.MustRegister(metrics.NewFuncGauge(name, help, nil, func() float64 {
+			return statFloat(hs.service.Stats()[key])
+		}))
+	}
+	stat("monad_operations_total", "Total tracked operations", "total_operations")
+	stat("monad_operations_completed", "Completed operations", "completed_operations")
+	stat("monad_operations_failed", "Failed operations", "failed_operations")
+	stat("monad_operations_running", "Running operations", "running_operations")
+	stat("monad_transactions_total", "Total tracked transactions", "total_transactions")
+}
+
+// statFloat coerces a Stats() value to float64. Stats returns interface{},
+// so an unexpected type reports 0 rather than panicking a scrape.
+func statFloat(v interface{}) float64 {
+	switch n := v.(type) {
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	case uint64:
+		return float64(n)
+	case float64:
+		return n
+	default:
+		return 0
+	}
 }
 
 // HTTPMetrics tracks HTTP metrics for Prometheus
@@ -343,6 +395,7 @@ func NewHTTPServer(service *monad.Service, log *logger.Logger, addr string) (*HT
 		metrics: &HTTPMetrics{},
 		ready:   true,
 	}
+	hs.initMetrics()
 
 	mux := http.NewServeMux()
 
@@ -502,55 +555,12 @@ func (hs *HTTPServer) metricsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hs.metrics.mu.RLock()
-	stats := hs.service.Stats()
-	metrics := fmt.Sprintf(
-		"# HELP monad_http_requests_total Total HTTP requests\n"+
-			"# TYPE monad_http_requests_total counter\n"+
-			"monad_http_requests_total %d\n"+
-			"# HELP monad_http_requests_success Successful HTTP requests\n"+
-			"# TYPE monad_http_requests_success counter\n"+
-			"monad_http_requests_success %d\n"+
-			"# HELP monad_http_requests_error Failed HTTP requests\n"+
-			"# TYPE monad_http_requests_error counter\n"+
-			"monad_http_requests_error %d\n"+
-			"# HELP monad_operations_executed_total Total operations executed\n"+
-			"# TYPE monad_operations_executed_total counter\n"+
-			"monad_operations_executed_total %d\n"+
-			"# HELP monad_transactions_executed_total Total transactions executed\n"+
-			"# TYPE monad_transactions_executed_total counter\n"+
-			"monad_transactions_executed_total %d\n"+
-			"# HELP monad_operations_total Total tracked operations\n"+
-			"# TYPE monad_operations_total gauge\n"+
-			"monad_operations_total %v\n"+
-			"# HELP monad_operations_completed Completed operations\n"+
-			"# TYPE monad_operations_completed gauge\n"+
-			"monad_operations_completed %v\n"+
-			"# HELP monad_operations_failed Failed operations\n"+
-			"# TYPE monad_operations_failed gauge\n"+
-			"monad_operations_failed %v\n"+
-			"# HELP monad_operations_running Running operations\n"+
-			"# TYPE monad_operations_running gauge\n"+
-			"monad_operations_running %v\n"+
-			"# HELP monad_transactions_total Total tracked transactions\n"+
-			"# TYPE monad_transactions_total gauge\n"+
-			"monad_transactions_total %v\n",
-		hs.metrics.RequestsTotal,
-		hs.metrics.RequestsSuccess,
-		hs.metrics.RequestsError,
-		hs.metrics.OperationsExecuted,
-		hs.metrics.TransactionsExecuted,
-		stats["total_operations"],
-		stats["completed_operations"],
-		stats["failed_operations"],
-		stats["running_operations"],
-		stats["total_transactions"],
-	)
-	hs.metrics.mu.RUnlock()
-
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(metrics))
+
+	// #nosec G104 -- response already committed; a write failure here means
+	// the client went away and nothing further can be sent.
+	_ = hs.registry.Gather(w)
 
 	// #nosec G104 -- response already committed; a write failure here means
 	// the client went away and nothing further can be sent.
