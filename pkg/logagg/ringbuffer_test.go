@@ -218,3 +218,35 @@ func TestRingBuffer_ConcurrentSafety(t *testing.T) {
 		t.Errorf("Len() = %d > Cap() = %d", rb.Len(), rb.Cap())
 	}
 }
+
+// strings.EqualFold decodes invalid UTF-8 to utf8.RuneError, and RuneError
+// equals RuneError, so it reports any two invalid bytes as equal. A level
+// filter must not match an entry at a different level because both happen to
+// be invalid UTF-8.
+func TestRingBuffer_LevelFilterRejectsInvalidUTF8Collision(t *testing.T) {
+	rb := NewRingBuffer(8)
+	rb.Push(LogEntry{Service: "svc", Level: "\xe1", Message: "should not be returned"})
+
+	if got := rb.Query(LogQuery{Level: "\xce"}); len(got) != 0 {
+		t.Errorf("level filter %q matched entry at level %q (%d results)", "\xce", "\xe1", len(got))
+	}
+	// The same byte still matches itself.
+	if got := rb.Query(LogQuery{Level: "\xe1"}); len(got) != 1 {
+		t.Errorf("level filter did not match its own level: %d results", len(got))
+	}
+}
+
+// Case-insensitive matching for the real level vocabulary must keep working.
+func TestRingBuffer_LevelFilterStillCaseInsensitive(t *testing.T) {
+	rb := NewRingBuffer(8)
+	rb.Push(LogEntry{Service: "svc", Level: "info", Message: "m"})
+
+	for _, q := range []string{"info", "INFO", "Info", "iNfO"} {
+		if got := rb.Query(LogQuery{Level: q}); len(got) != 1 {
+			t.Errorf("level filter %q returned %d results, want 1", q, len(got))
+		}
+	}
+	if got := rb.Query(LogQuery{Level: "warn"}); len(got) != 0 {
+		t.Errorf("level filter %q matched an info entry", "warn")
+	}
+}

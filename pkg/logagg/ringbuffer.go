@@ -112,7 +112,7 @@ func (rb *RingBuffer) matchesQuery(entry LogEntry, q LogQuery) bool {
 	if q.Service != "" && entry.Service != q.Service {
 		return false
 	}
-	if q.Level != "" && !strings.EqualFold(entry.Level, q.Level) {
+	if q.Level != "" && !asciiEqualFold(entry.Level, q.Level) {
 		return false
 	}
 	if !q.From.IsZero() && entry.Timestamp.Before(q.From) {
@@ -144,4 +144,35 @@ func (rb *RingBuffer) matchesSearch(entry LogEntry, search string) bool {
 	}
 
 	return false
+}
+
+// asciiEqualFold compares two strings case-insensitively over ASCII only.
+//
+// strings.EqualFold decodes invalid UTF-8 to utf8.RuneError, and RuneError
+// equals RuneError — so it reports *any* two invalid bytes as equal:
+// EqualFold("\xe1", "\xce") is true. A level filter carrying one invalid byte
+// therefore matched entries carrying a different one. Found by
+// tomb/lich/harnesses LICH-008 within seconds of pointing it at the real
+// buffer.
+//
+// Log levels are a fixed ASCII vocabulary (see levelString), so folding ASCII
+// and comparing the remaining bytes exactly is both correct for real input
+// and immune to the RuneError collision.
+func asciiEqualFold(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		if asciiLower(a[i]) != asciiLower(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func asciiLower(c byte) byte {
+	if c >= 'A' && c <= 'Z' {
+		return c + ('a' - 'A')
+	}
+	return c
 }

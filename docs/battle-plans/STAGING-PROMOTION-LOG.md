@@ -1428,6 +1428,66 @@ Not claimed as proven: the vanishing card was never reproduced on demand, so
 this is a mechanism that matches the symptom, not a confirmed root cause.
 Watch whether it recurs.
 
+## Post-ladder: LICH-008 was fuzzing a copy of the code, not the code (2026-09-23)
+
+Carried as "LICH-008/010 → `go test -fuzz`". The harnesses already had
+`Fuzz*` functions, so the item looked like "just run them". They cannot find
+anything.
+
+`lich_008_wotan_cache_test.go` declares its target as "ring buffer
+implementations in `pkg/logagg` and `services/wotan`" and **imports neither**.
+It defines its own `CacheEntry` and its own ring buffer inside the test file
+and fuzzes that. `lich_010_wal_integrity_test.go` is the same: no Unheaded
+import, a WAL reimplemented in the harness. Six of the fourteen harnesses do
+import real packages; these two do not.
+
+That is the session's recurring shape once more — a migration nothing
+executes against, a gate whose assertion is never reached, a metric no
+registry serves. Here: a fuzzer that can run forever against a faithful copy
+and never touch the shipping buffer.
+
+`lich_008_real_ringbuffer_test.go` drives `pkg/logagg.RingBuffer` directly.
+Four targets: push invariants (`Len <= Cap`, `Len == min(pushes, cap)`, no
+panic at any capacity including zero and negative), query invariants
+(chronological order, filters do not leak), limit clamping (huge and negative
+limits cannot produce an unbounded slice), and invalid UTF-8 through search.
+
+**It found a real defect in under two seconds.**
+
+`matchesQuery` compared levels with `strings.EqualFold`, which decodes
+invalid UTF-8 to `utf8.RuneError` — and `RuneError == RuneError`, so
+**EqualFold reports any two invalid bytes as equal**:
+`strings.EqualFold("\xe1", "\xce")` is `true`. A level filter carrying one
+invalid byte matched entries carrying a different one.
+
+Severity is low in practice and worth saying so plainly: entry levels come
+from `levelString()`, a fixed ASCII vocabulary, so no real entry has an
+invalid level for a crafted filter to collide with. It is a correctness bug
+with a narrow trigger, not an exposure. Replaced with `asciiEqualFold` —
+ASCII folding, exact on every other byte — which is correct for the level
+vocabulary and immune to the collision. Two regression tests in
+`pkg/logagg`: the collision is rejected, and `info`/`INFO`/`Info`/`iNfO`
+still match.
+
+The second crasher the fuzzer produced was **the harness being wrong**, not
+the code: it asserted exact level equality while the documented behaviour is
+case-insensitive, so it reported `"a"` matching `"A"` as a leak. The
+assertion now folds ASCII with its own implementation rather than calling the
+function under test — an assertion that calls the code it checks proves
+nothing.
+
+After the fix all four targets run clean: 45 s each, ~38K exec/s on the push
+target, no new findings. Crashers are recorded under
+`tomb/lich/harnesses/testdata/fuzz/` and run as ordinary unit tests from now
+on.
+
+**LICH-010 is left open and is the same job**: point it at the real WAL in
+`services/wotan/internal/store` instead of the one reimplemented in the
+harness. Not done here rather than done badly — the WAL has a wider surface
+(compaction, recovery, crash points) and deserves its own pass. The other
+non-importing harnesses (004, 005, 006, 007, 009, 011) want the same audit;
+"has a Fuzz function" is not the same as "fuzzes the product".
+
 ## Post-ladder: trace-collector-go ignored its environment entirely (2026-09-23)
 
 The item left unswept above, now done properly — and running the daemon
