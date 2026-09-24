@@ -1088,6 +1088,7 @@ func TestHandleMetrics_StandaloneMode(t *testing.T) {
 		ctx:        ctx,
 		cancel:     cancel,
 	}
+	server.initMetrics()
 
 	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
 	w := httptest.NewRecorder()
@@ -1120,6 +1121,7 @@ func TestHandleMetrics_WithTaskManager(t *testing.T) {
 		ctx:         ctx,
 		cancel:      cancel,
 	}
+	server.initMetrics()
 
 	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
 	w := httptest.NewRecorder()

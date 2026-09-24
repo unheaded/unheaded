@@ -45,6 +45,7 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
+	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -76,9 +77,67 @@ type HTTPServer struct {
 	mu        sync.RWMutex
 	ready     atomic.Bool
 
-	// logPublisher, when set, appends log-forwarding counters to /metrics.
-	// This service builds its exposition by hand — there is no registry.
+	// registry produces the /metrics body. This service used to assemble that
+	// text with fmt.Sprintf, and four of its eight series were emitted with no
+	// # TYPE line as a result — verified on the live endpoint.
+	registry *metrics.Registry
+
+	// logPublisher, when set, contributes log-forwarding counters.
 	logPublisher *logagg.Publisher
+}
+
+// initMetrics registers every series this service publishes. Values are read
+// at scrape time from the fields and Stats() the service already maintains.
+func (hs *HTTPServer) initMetrics() {
+	hs.registry = metrics.NewRegistry()
+
+	reg := func(name, help string, t metrics.MetricType, read func() float64) {
+		switch t {
+		case metrics.TypeCounter:
+			hs.registry.MustRegister(metrics.NewFuncCounter(name, help, nil, read))
+		default:
+			hs.registry.MustRegister(metrics.NewFuncGauge(name, help, nil, read))
+		}
+	}
+	field := func(read func() int64) func() float64 {
+		return func() float64 {
+			hs.metrics.mu.RLock()
+			defer hs.metrics.mu.RUnlock()
+			return float64(read())
+		}
+	}
+
+	reg("sophia_http_requests_total", "Total HTTP requests", metrics.TypeCounter, field(func() int64 { return hs.metrics.RequestsTotal }))
+	reg("sophia_http_requests_success", "Successful HTTP requests", metrics.TypeCounter, field(func() int64 { return hs.metrics.RequestsSuccess }))
+	reg("sophia_http_requests_error", "Failed HTTP requests", metrics.TypeCounter, field(func() int64 { return hs.metrics.RequestsError }))
+	reg("sophia_knowledge_learned", "Knowledge items learned", metrics.TypeCounter, field(func() int64 { return hs.metrics.KnowledgeLearned }))
+	reg("sophia_knowledge_queried", "Knowledge queries served", metrics.TypeCounter, field(func() int64 { return hs.metrics.KnowledgeQueried }))
+	reg("sophia_insights_total", "Total insights generated", metrics.TypeCounter, field(func() int64 { return hs.metrics.InsightsGenerated }))
+	reg("sophia_decisions_total", "Total decisions made", metrics.TypeCounter, field(func() int64 { return hs.metrics.DecisionsMade }))
+
+	reg("sophia_knowledge_total", "Total knowledge items", metrics.TypeGauge, func() float64 {
+		if hs.service == nil {
+			return 0
+		}
+		return sophiaStatFloat(hs.service.Stats()["total_knowledge"])
+	})
+}
+
+// sophiaStatFloat coerces a Stats() value to float64; an unexpected type
+// reports 0 rather than panicking a scrape.
+func sophiaStatFloat(v interface{}) float64 {
+	switch n := v.(type) {
+	case int:
+		return float64(n)
+	case int64:
+		return float64(n)
+	case uint64:
+		return float64(n)
+	case float64:
+		return n
+	default:
+		return 0
+	}
 }
 
 // SetLogPublisher attaches a logagg publisher whose counters are appended to
@@ -172,6 +231,7 @@ func NewHTTPServer(service *sophia.Service, wotan *wotanClient.Client, log *logg
 		log:     log,
 		metrics: &HTTPMetrics{},
 	}
+	hs.initMetrics()
 
 	mux := http.NewServeMux()
 
@@ -370,39 +430,12 @@ func (hs *HTTPServer) metricsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hs.metrics.mu.RLock()
-	stats := hs.service.Stats()
-	metrics := fmt.Sprintf(
-		"# HELP sophia_http_requests_total Total HTTP requests\n"+
-			"# TYPE sophia_http_requests_total counter\n"+
-			"sophia_http_requests_total %d\n"+
-			"sophia_http_requests_success %d\n"+
-			"sophia_http_requests_error %d\n"+
-			"# HELP sophia_knowledge_total Total knowledge items\n"+
-			"# TYPE sophia_knowledge_total gauge\n"+
-			"sophia_knowledge_total %d\n"+
-			"sophia_knowledge_learned %d\n"+
-			"sophia_knowledge_queried %d\n"+
-			"# HELP sophia_insights_total Total insights generated\n"+
-			"# TYPE sophia_insights_total counter\n"+
-			"sophia_insights_total %d\n"+
-			"# HELP sophia_decisions_total Total decisions made\n"+
-			"# TYPE sophia_decisions_total counter\n"+
-			"sophia_decisions_total %d\n",
-		hs.metrics.RequestsTotal,
-		hs.metrics.RequestsSuccess,
-		hs.metrics.RequestsError,
-		stats["total_knowledge"],
-		hs.metrics.KnowledgeLearned,
-		hs.metrics.KnowledgeQueried,
-		hs.metrics.InsightsGenerated,
-		hs.metrics.DecisionsMade,
-	)
-	hs.metrics.mu.RUnlock()
-
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(metrics))
+
+	// #nosec G104 -- response already committed; a write failure here means
+	// the client went away and nothing further can be sent.
+	_ = hs.registry.Gather(w)
 
 	hs.mu.RLock()
 	lp := hs.logPublisher
