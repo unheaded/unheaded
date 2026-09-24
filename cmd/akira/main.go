@@ -35,6 +35,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"unheaded/pkg/health"
+	"unheaded/pkg/metrics"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
@@ -246,6 +247,11 @@ func main() {
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprintf(w, `{"status":"ok","service":"akira","node":"%s"}`, *nodeID)
 		})
+		// /metrics did not exist here, though CLAUDE.md requires it of every
+		// component (ADR-094 step 5). Akira keeps no registry of its own, so
+		// this serves the default one: go_*, process_*, and what linked
+		// libraries register at load.
+		mux.Handle("/metrics", metrics.HandlerFor(metrics.DefaultRegistry))
 		mux.HandleFunc("/api/v1/status", func(w http.ResponseWriter, _ *http.Request) {
 			states := akira.GetStates()
 			w.Header().Set("Content-Type", "application/json")
