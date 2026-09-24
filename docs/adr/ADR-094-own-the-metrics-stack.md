@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-094 — Own the metrics stack: retire `prometheus/client_golang`
 
-**Status:** Proposed (Tier 1 done; Tier 2 steps 1-3 done; step 4 next)
+**Status:** Proposed (Tier 1 done; Tier 2 steps 1-3 done; steps 4-6 re-planned after the registry finding)
 **Date:** 2026-09-24
 **Supersedes:** nothing. **Related:** ADR-092 (log discipline), ADR-093 (shape
 and the reachability rules), `pkg/metrics`, `pkg/logagg`.
@@ -285,3 +285,57 @@ missing, nothing extra. Thirteen planted bugs, all caught.
   (`main.go:241`, `:270`). Every distinct error message creates a new series
   that never goes away, so memory grows without bound. Fix when that file
   migrates in step 5.
+
+### Step 4 as planned is wrong: the migration unit is the registry, not the package
+
+"Migrate leaf packages first" assumed the import graph is the coupling. It
+is not. `promauto.New*`, `prometheus.MustRegister` and
+`prometheus.DefaultRegisterer` all write into **client_golang's single
+global registry**, and `promhttp.Handler()` reads it. Moving a leaf package
+such as `pkg/wotan-client` onto `auto` moves its metrics into
+`metrics.DefaultRegistry`, and they silently disappear from every service
+still serving `promhttp.Handler()`. That is ADR-093's defect class, created
+by the migration itself.
+
+**Measured 2026-09-24** (`go list -deps` per main package):
+
+- Default-registry **writers**: `pkg/wotan-client` (4 files), `pkg/httputil`,
+  `pkg/health`, `pkg/ebpf`, `pkg/tracing`, `pkg/network`, `pkg/nix`,
+  `services/wotan/internal/metrics`, 6 files in `cmd/trace-collector-go`,
+  `cmd/zhen-agentd`, and architect/micromanager `main.go`. All register at
+  package load (`var x = promauto.New…`).
+- Default-registry **servers** (`promhttp.Handler()`): trace-collector-go,
+  zhen-agentd, architect, micromanager, wotan (and
+  `deploy/sophia-eye/sophia-gateway`).
+- **`pkg/wotan-client` is linked into 16 binaries and served by 3**
+  (trace-collector-go, architect, micromanager). In the other 13 (akira,
+  chaos-controller, dashboard-backend, demo-trace-injector, kanban-app, monad,
+  pqc-verifier, shield, sophia, unheaded-daemon, captain, gateway, timeguru),
+  its idempotency, ordering, reliability and timeout metrics are counted and
+  never exposed. The same holds for `pkg/httputil` in captain and timeguru,
+  `pkg/health` in akira, and `pkg/ebpf` in dashboard-backend. The Wotan
+  client's dead-letter and retry counters are invisible in every Tier 1
+  service.
+
+**Revised steps 4–5:**
+
+4. **Flip the default registry atomically.** In one change, move every
+   default-registry writer to `prom`/`auto` and every
+   `promhttp.Handler()` server to `prom.Handler()`. Verify by running each
+   of the server binaries before and after and diffing the scraped family
+   set. It must be equal, except that `promhttp_metric_handler_*` (added by
+   promhttp itself) goes away. This is a batch by necessity, because the
+   coupling is a global. It is the one exception to ADR-095's one-at-a-time
+   rule, and it is recorded as such.
+5. **Then make the default registry reachable** in the 13 binaries that
+   link a writer but serve their own `metrics.Registry`: serve both, or
+   register their own metrics into the default. That turns the metrics above
+   on for the first time, so it is a per-service change, one at a time,
+   verified by scrape.
+6. Then services with their own client registries (`cmd/ebpf-exporter`),
+   and finally drop the modules and add the import gate, as before.
+
+`pkg/logagg.PrometheusCollector()` goes in step 4: its only users are
+architect, micromanager and trace-collector-go, which all serve the default
+registry. `WriteMetrics()` goes when its five hand-written-exposition users
+are converted.
