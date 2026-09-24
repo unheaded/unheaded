@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-094 — Own the metrics stack: retire `prometheus/client_golang`
 
-**Status:** Proposed (Tier 1 done; Tier 2 steps 1-4 done; step 5 done for live binaries with /metrics)
+**Status:** Proposed (Tier 1 done; Tier 2 steps 1-5 done; step 6 next)
 **Date:** 2026-09-24
 **Supersedes:** nothing. **Related:** ADR-092 (log discipline), ADR-093 (shape
 and the reachability rules), `pkg/metrics`, `pkg/logagg`.
@@ -429,9 +429,37 @@ Found on the way:
   them. Fix the enumeration to use `go list`, then classify the three Go
   services.
 
-**Not done, needs a decision:** captain (CONTAINER), akira (SUPERVISED)
-and gateway have **no `/metrics` route at all**, though CLAUDE.md requires
-one. Wiring the default registry there means adding an endpoint, not
-changing one. chaos-controller, demo-trace-injector, pqc-verifier and shield
-are ORPHAN/TOOL with no endpoint; per ADR-093 they get no effort beyond this
-record.
+**Then captain, gateway and akira** (approved to add endpoints one at a
+time):
+
+- **Correction:** the survey said captain and gateway had no `/metrics`.
+  Both did. Their routes live in `services/captain/api.go` and
+  `services/gateway/gateway.go`, and the survey searched only the `cmd/`
+  directories. Only akira had none.
+- **captain**'s `/metrics` was hand-written, and two of its three series
+  (`captain_http_requests_success`, `_error`) had no `# TYPE`, the Tier 1
+  defect, missed by Tier 1 for the same reason. Converted to func-backed
+  counters with the same names, plus the default registry, and given the
+  exposition test it never had. That test fails on exactly those two series
+  against the old handler.
+- **gateway**: the default registry was added to its existing registry.
+- **akira**: `/metrics` was added (default registry). Its first scrape showed
+  **`system_health_status 0`, which by its own help text means
+  "unhealthy"**. Only `health.Aggregator` sets it, and no production binary
+  builds one, so a health monitor would have raised a permanent false alarm.
+  It now registers with the first `NewAggregator`.
+- **Audit:** every package-level scalar metric in the tree (28) against
+  its setters. 27 are set by the binaries that serve them; this was the
+  last false reading. `pkg/health`'s check-duration and status Vecs are also
+  populated only by `Aggregator`, but as Vecs they stay absent rather than
+  lie.
+
+| binary | before | after | removed |
+|---|---|---|---|
+| captain | 1 declared + 2 untyped | 38 | 0 |
+| gateway | 1 | 36 | 0 |
+| akira | **404** | 35 | — |
+
+chaos-controller, demo-trace-injector, pqc-verifier and shield are
+ORPHAN/TOOL with no endpoint. Per ADR-093 they get no effort beyond this
+record. **Step 5 is complete for every live binary.**
