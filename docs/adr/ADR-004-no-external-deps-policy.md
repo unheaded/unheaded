@@ -115,7 +115,7 @@ vulnerabilities on code paths we call.
 
 | exception | org / created | licence | reachable vulns | verdict |
 |---|---|---|---|---|
-| `google.golang.org/grpc` v1.82.1 | grpc org / 2014-12 | Apache-2.0 | **2** | passes the rules; **must be upgraded** |
+| `google.golang.org/grpc` v1.82.1 | grpc org / 2014-12 | Apache-2.0 | **2** (see finding 1) | passes the rules; **upgraded to v1.83.2** |
 | `google.golang.org/protobuf` v1.36.11 | protocolbuffers org / 2019-03-26 | **BSD-3-Clause** (register said Apache-2.0) | 0 | passes; register corrected below |
 | `cloudflare/circl` v1.6.3 | cloudflare org / 2018-09 | BSD-3-Clause (two notices: Cloudflare, Go Authors) | 0 | passes; **scope wider than approved** |
 | `lib/pq` v1.10.9 | `lib` community org / 2012-03 | MIT | 0 | **fails "established organisation"; upstream in maintenance mode** |
@@ -123,18 +123,32 @@ vulnerabilities on code paths we call.
 
 **Findings, most severe first:**
 
-1. **gRPC v1.82.1 has two vulnerabilities on the live path.**
-   - GO-2026-6443: a request missing the authority/Host header panics the
-     server. Reached from `services/wotan/cmd/wotan/main.go:337`
-     (`grpc.Server.Serve`). Any client that can reach Wotan's gRPC port can
-     crash the message bus. The panic is in the HTTP/2 transport
-     (`http2Server.HandleStreams`), before any interceptor runs, so the auth
-     interceptors cannot stop it. Fixed in v1.82.2.
-   - GO-2026-6348: OOM through HTTP/2 DATA-frame fragmentation. Reached from
-     the Wotan server, Wotan replication, `pkg/wotan-client` and
-     dashboard-backend. Fixed in v1.83.1.
-   Upgrading to ≥ v1.83.1 closes both. Approval was a one-time event, and
-   nothing re-checked the exception after it was granted. See finding 5.
+1. **gRPC v1.82.1 had two vulnerabilities that govulncheck reports as
+   reachable. Upgraded to v1.83.2 the same day.**
+   - GO-2026-6443: a request with neither `:authority` nor `Host`. The panic
+     it describes needs **xDS routing**: it is in
+     `internal/xds/server.RouteAndProcess`, which indexes the empty
+     authority. Wotan does not use xDS. govulncheck flags it because the
+     transport functions it names (`http2Server.operateHeaders`) are on
+     Wotan's call path, but the crashing code is not. Measured against
+     Wotan's own binaries: on 1.82.1 the malformed request got **no
+     response**, and the stream hung until the client timed out, with the
+     process alive and `/health` 200. On 1.83.2 it gets `:status 400`,
+     `grpc-status 13`. Fixed in **1.82.2 and 1.83.2 — not 1.83.1**, which is
+     still inside the affected range; 1.84.0 is affected too.
+   - GO-2026-6348: OOM through HTTP/2 DATA-frame fragmentation, in the plain
+     transport Wotan does use (server, replication, `pkg/wotan-client`,
+     dashboard-backend). Fixed in v1.83.1.
+
+   **Correction (2026-09-24):** the first version of this finding said any
+   client could crash the message bus before authentication ran, and that
+   ≥ v1.83.1 closed both. Both were wrong. The crash claim came from
+   reading govulncheck's symbol-level "reachable" as "exploitable here"
+   without reading the advisory; a probe against the real binary disproved
+   it. Lesson, in the ADR-093 spirit: **read the advisory's trigger
+   conditions before rating severity, and test the live binary before
+   stating impact.** Approval was still a one-time event that nothing
+   re-checked; see finding 5.
 2. **`lib/pq` does not meet the rule it was approved under.** `lib` is a
    volunteer GitHub organisation, not an organisation with a security team.
    The register already hedged ("Go community (widely used)"). Its own README

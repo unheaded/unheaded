@@ -47,7 +47,8 @@ can buy.
   across sock-puppet accounts makes a single-owner project look better
   distributed.
 - **Approval happens once; risk keeps changing.** gRPC passed both checks,
-  and by 2026-09-24 had two vulnerabilities on Wotan's live path (ADR-004,
+  and by 2026-09-24 had two vulnerabilities govulncheck reports as reachable
+  from Wotan, and nothing had re-checked it (ADR-004,
   "Register audit — 2026-09-24").
 - **AI now suggests dependencies directly.** Assistants invent plausible
   package names that do not exist, and attackers register those names with
