@@ -24,10 +24,9 @@ import (
 	"time"
 
 	"unheaded/pkg/lxd"
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 	wotanClient "unheaded/pkg/wotan-client"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
 // ============================================================================
@@ -54,16 +53,16 @@ var (
 // ============================================================================
 
 var (
-	buildsTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	buildsTotal = auto.NewCounterVec(
+		prom.CounterOpts{
 			Name: "unheaded_nix_builds_total",
 			Help: "Total number of nix builds attempted",
 		},
 		[]string{"container", "status"},
 	)
 
-	buildDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
+	buildDuration = auto.NewHistogramVec(
+		prom.HistogramOpts{
 			Name:    "unheaded_nix_build_duration_seconds",
 			Help:    "Duration of nix builds",
 			Buckets: []float64{10, 30, 60, 120, 300, 600, 1200},
@@ -71,36 +70,36 @@ var (
 		[]string{"container"},
 	)
 
-	queueDepth = promauto.NewGauge(
-		prometheus.GaugeOpts{
+	queueDepth = auto.NewGauge(
+		prom.GaugeOpts{
 			Name: "unheaded_nix_build_queue_depth",
 			Help: "Current number of builds in queue",
 		},
 	)
 
-	cacheHits = promauto.NewCounter(
-		prometheus.CounterOpts{
+	cacheHits = auto.NewCounter(
+		prom.CounterOpts{
 			Name: "unheaded_nix_cache_hits_total",
 			Help: "Total number of build cache hits",
 		},
 	)
 
-	cacheMisses = promauto.NewCounter(
-		prometheus.CounterOpts{
+	cacheMisses = auto.NewCounter(
+		prom.CounterOpts{
 			Name: "unheaded_nix_cache_misses_total",
 			Help: "Total number of build cache misses",
 		},
 	)
 
-	activeBuilds = promauto.NewGauge(
-		prometheus.GaugeOpts{
+	activeBuilds = auto.NewGauge(
+		prom.GaugeOpts{
 			Name: "unheaded_nix_active_builds",
 			Help: "Number of currently running builds",
 		},
 	)
 
-	importsTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	importsTotal = auto.NewCounterVec(
+		prom.CounterOpts{
 			Name: "unheaded_nix_lxd_imports_total",
 			Help: "Total number of LXD image imports",
 		},

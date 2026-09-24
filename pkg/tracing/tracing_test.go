@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
+	"unheaded/pkg/metrics/prom"
 )
 
 // ============================================================================
@@ -61,8 +61,8 @@ func makeErrorSpan(traceID TraceID, name, service string) *Span {
 }
 
 // newTestRegistry returns an isolated Prometheus registry for test isolation.
-func newTestRegistry() *prometheus.Registry {
-	return prometheus.NewRegistry()
+func newTestRegistry() *prom.Registry {
+	return prom.NewRegistry()
 }
 
 // newTestCollector creates a Collector suitable for tests. It uses a random

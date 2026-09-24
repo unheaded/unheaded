@@ -40,12 +40,12 @@ import (
 	"time"
 
 	_ "github.com/lib/pq"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"unheaded/pkg/agent"
 	"unheaded/pkg/auth"
 	"unheaded/pkg/champion"
 	"unheaded/pkg/champion/pgstore"
+	"unheaded/pkg/metrics/prom"
 )
 
 const (
@@ -143,7 +143,7 @@ func main() {
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", prom.Handler())
 	mux.Handle("/health", instrument("/health", http.HandlerFunc(srv.handleHealth)))
 	mux.Handle("/ready", instrument("/ready", http.HandlerFunc(srv.handleReady)))
 	mux.Handle("/api/v1/agent/ask", instrument("/api/v1/agent/ask", http.HandlerFunc(srv.handleAsk)))

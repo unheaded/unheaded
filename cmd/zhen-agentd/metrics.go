@@ -9,17 +9,16 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-
 	"unheaded/pkg/champion"
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // Prometheus metrics for zhen-agentd. promauto handles registration so
 // the /metrics endpoint sees these without additional plumbing.
 var (
-	httpRequests = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	httpRequests = auto.NewCounterVec(
+		prom.CounterOpts{
 			Namespace: "zhen_agentd",
 			Name:      "http_requests_total",
 			Help:      "Total HTTP requests by endpoint and status code.",
@@ -27,18 +26,18 @@ var (
 		[]string{"endpoint", "status"},
 	)
 
-	httpRequestDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
+	httpRequestDuration = auto.NewHistogramVec(
+		prom.HistogramOpts{
 			Namespace: "zhen_agentd",
 			Name:      "http_request_duration_seconds",
 			Help:      "HTTP request duration by endpoint.",
-			Buckets:   prometheus.DefBuckets,
+			Buckets:   prom.DefBuckets,
 		},
 		[]string{"endpoint"},
 	)
 
-	agentRunsTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	agentRunsTotal = auto.NewCounterVec(
+		prom.CounterOpts{
 			Namespace: "zhen_agentd",
 			Name:      "agent_runs_total",
 			Help:      "Agent loop completions by outcome (answer, budget_hit).",
@@ -46,8 +45,8 @@ var (
 		[]string{"outcome"},
 	)
 
-	agentTurns = promauto.NewHistogram(
-		prometheus.HistogramOpts{
+	agentTurns = auto.NewHistogram(
+		prom.HistogramOpts{
 			Namespace: "zhen_agentd",
 			Name:      "agent_turns_used",
 			Help:      "Number of turns consumed per agent run.",
@@ -55,8 +54,8 @@ var (
 		},
 	)
 
-	championActionsTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	championActionsTotal = auto.NewCounterVec(
+		prom.CounterOpts{
 			Namespace: "zhen_agentd",
 			Name:      "champion_actions_total",
 			Help:      "Champion ActionStore writes by action_type and final status (gate outcome).",
@@ -64,16 +63,16 @@ var (
 		[]string{"action_type", "status"},
 	)
 
-	confirmTokensIssued = promauto.NewCounter(
-		prometheus.CounterOpts{
+	confirmTokensIssued = auto.NewCounter(
+		prom.CounterOpts{
 			Namespace: "zhen_agentd",
 			Name:      "confirm_tokens_issued_total",
 			Help:      "Pending-confirmation tokens issued.",
 		},
 	)
 
-	confirmTokensRedeemed = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	confirmTokensRedeemed = auto.NewCounterVec(
+		prom.CounterOpts{
 			Namespace: "zhen_agentd",
 			Name:      "confirm_tokens_redeemed_total",
 			Help:      "Pending-confirmation tokens redeemed by outcome (ok, expired, unknown, used, denied).",
@@ -81,8 +80,8 @@ var (
 		[]string{"outcome"},
 	)
 
-	rateLimitedRequests = promauto.NewCounter(
-		prometheus.CounterOpts{
+	rateLimitedRequests = auto.NewCounter(
+		prom.CounterOpts{
 			Namespace: "zhen_agentd",
 			Name:      "rate_limited_requests_total",
 			Help:      "Requests rejected by the per-IP rate limiter (HTTP 429).",

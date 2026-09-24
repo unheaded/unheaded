@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-094 — Own the metrics stack: retire `prometheus/client_golang`
 
-**Status:** Proposed (Tier 1 done; Tier 2 steps 1-3 done; steps 4-6 re-planned after the registry finding)
+**Status:** Proposed (Tier 1 done; Tier 2 steps 1-4 done; step 5 (the 13 blind binaries) next)
 **Date:** 2026-09-24
 **Supersedes:** nothing. **Related:** ADR-092 (log discipline), ADR-093 (shape
 and the reachability rules), `pkg/metrics`, `pkg/logagg`.
@@ -312,10 +312,12 @@ by the migration itself.
   chaos-controller, dashboard-backend, demo-trace-injector, kanban-app, monad,
   pqc-verifier, shield, sophia, unheaded-daemon, captain, gateway, timeguru),
   its idempotency, ordering, reliability and timeout metrics are counted and
-  never exposed. The same holds for `pkg/httputil` in captain and timeguru,
-  `pkg/health` in akira, and `pkg/ebpf` in dashboard-backend. The Wotan
-  client's dead-letter and retry counters are invisible in every Tier 1
-  service.
+  never exposed. The same holds for `pkg/health` in akira and `pkg/ebpf` in
+  dashboard-backend. The Wotan client's dead-letter and retry counters are
+  invisible in every Tier 1 service. (**Correction:** this first said the same
+  of `pkg/httputil` in captain and timeguru. Its metrics are created only by
+  `NewServiceMetrics`, which no production code calls, so they exist in no
+  binary at all.)
 
 **Revised steps 4–5:**
 
@@ -339,3 +341,48 @@ by the migration itself.
 architect, micromanager and trace-collector-go, which all serve the default
 registry. `WriteMetrics()` goes when its five hand-written-exposition users
 are converted.
+
+### Step 4 — DONE (2026-09-24)
+
+Every default-registry writer and every `promhttp.Handler()` server moved to
+`prom`/`auto` in one change: 27 files, rewritten by one script, so each file
+got the identical edit. The rewrite changes import paths and qualifiers only.
+Checked across the whole diff with whitespace ignored: no `Name`,
+`Namespace`, `Subsystem`, `Help`, `Buckets`, `ConstLabels` or label-name
+list changed; the 22 identity lines that differ are `prometheus.X` →
+`prom.X`. `pkg/logagg.PrometheusCollector()` is deleted; its three users
+register `Collectors()` instead.
+
+**Verified by scrape.** zhen-agentd, architect, micromanager, wotan and
+sophia-gateway were each built before and after, run, and scraped. Result:
+**identical families, help text and series (249 series across the five),
+except the two `promhttp_metric_handler_*` families**, as predicted.
+trace-collector-go cannot start without its pinned BPF ring buffer, so it is
+covered by the identity-field check above, not a scrape. After the flip, only
+`cmd/ebpf-exporter` links client_golang (step 6).
+
+**What the scrape diff caught on the way:**
+- **Eight `unheaded_pqc_*` metrics** in `pkg/metrics/pqc_metrics.go` were
+  registered into `DefaultRegistry` at package load, and **nothing in the tree
+  has ever set or observed any of them**. Once the default registry was
+  served, the four scalar ones began publishing zeros from every service
+  (`unheaded_pqc_active_keys 0` from micromanager is a false reading). The
+  auto-registration was removed; the vars remain for whatever PQC code
+  eventually updates them. Wire them up or delete them: that is a separate
+  decision.
+- **Bucket generators were not bit-identical.** `ExponentialBuckets` used
+  `start*Pow(factor,i)` and `LinearBuckets` used `start+i*width`;
+  client_golang accumulates. Under the old code, `0.1×3` gave 0.9 where
+  client_golang gives 0.9000000000000001 (a different `le` series), and
+  `LinearBuckets` differed on 72 of the bounds tested. Now both accumulate
+  and check their arguments as client_golang does. A count of 0 used to fall
+  silently through to `DefaultBuckets`. No series in the tree changes: all
+  five direct callers' arguments give identical bounds either way (checked).
+- **Same name, different const labels.** client_golang accepts two
+  collectors under one name when their constant label values differ (one
+  family, two series); our registry was keyed by name and refused.
+  `pkg/httputil`'s tests hit it, and `pkg/loadbalancer`'s per-balancer label
+  depends on it. The registry now follows client_golang's rule. One deliberate
+  difference: a type clash is refused at `Register`, where client_golang
+  accepts it and then fails the whole scrape at `Gather`. Both behaviours
+  are pinned against client_golang; nine planted bugs, all caught.

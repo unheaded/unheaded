@@ -11,9 +11,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -21,6 +18,8 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/lifecycle"
 	"unheaded/pkg/logagg"
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/micromanager"
@@ -38,16 +37,16 @@ var (
 
 // Metrics
 var (
-	httpRequests = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	httpRequests = auto.NewCounterVec(
+		prom.CounterOpts{
 			Name: "micromanager_http_requests_total",
 			Help: "Total HTTP requests",
 		},
 		[]string{"method", "path", "status"},
 	)
 
-	httpDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
+	httpDuration = auto.NewHistogramVec(
+		prom.HistogramOpts{
 			Name: "micromanager_http_duration_seconds",
 			Help: "HTTP request duration in seconds",
 		},
@@ -133,7 +132,7 @@ func main() {
 	}
 	logPublisher := logagg.NewPublisher("micromanager", logConn)
 	// Surface log-forwarding health on /metrics (promhttp default registry).
-	prometheus.MustRegister(logPublisher.PrometheusCollector())
+	prom.MustRegister(logPublisher.Collectors()...)
 	log.Logger = log.Logger.Hook(logPublisher)
 
 	// Create service
@@ -174,7 +173,7 @@ func main() {
 	})
 
 	// Metrics endpoint
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", prom.Handler())
 
 	// Auth middleware (activated via AUTH_ENABLED=true)
 	authCfg := auth.LoadServiceAuthConfig("micromanager")

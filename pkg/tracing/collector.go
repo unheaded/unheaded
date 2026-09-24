@@ -29,9 +29,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 	"unheaded/pkg/ports"
 )
 
@@ -1198,59 +1197,59 @@ type Collector struct {
 }
 
 type collectorMetrics struct {
-	spansReceived    prometheus.Counter
-	kernelEvents     prometheus.Counter
-	tracesStored     prometheus.Counter
-	tracesEvicted    prometheus.Counter
-	storageBytes     prometheus.Gauge
-	correlationTime  prometheus.Histogram
-	queryLatency     prometheus.Histogram
-	samplingRejected prometheus.Counter
-	wotanPublished   prometheus.Counter
-	wotanErrors      prometheus.Counter
+	spansReceived    prom.Counter
+	kernelEvents     prom.Counter
+	tracesStored     prom.Counter
+	tracesEvicted    prom.Counter
+	storageBytes     prom.Gauge
+	correlationTime  prom.Histogram
+	queryLatency     prom.Histogram
+	samplingRejected prom.Counter
+	wotanPublished   prom.Counter
+	wotanErrors      prom.Counter
 }
 
-func newCollectorMetrics(reg prometheus.Registerer) *collectorMetrics {
+func newCollectorMetrics(reg prom.Registerer) *collectorMetrics {
 	m := &collectorMetrics{
-		spansReceived: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+		spansReceived: auto.With(reg).NewCounter(prom.CounterOpts{
 			Name: "unheaded_traces_spans_received_total",
 			Help: "Total number of spans received",
 		}),
-		kernelEvents: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+		kernelEvents: auto.With(reg).NewCounter(prom.CounterOpts{
 			Name: "unheaded_traces_kernel_events_total",
 			Help: "Total number of kernel events received",
 		}),
-		tracesStored: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+		tracesStored: auto.With(reg).NewCounter(prom.CounterOpts{
 			Name: "unheaded_traces_stored_total",
 			Help: "Total number of traces stored",
 		}),
-		tracesEvicted: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+		tracesEvicted: auto.With(reg).NewCounter(prom.CounterOpts{
 			Name: "unheaded_traces_evicted_total",
 			Help: "Total number of traces evicted",
 		}),
-		storageBytes: promauto.With(reg).NewGauge(prometheus.GaugeOpts{
+		storageBytes: auto.With(reg).NewGauge(prom.GaugeOpts{
 			Name: "unheaded_traces_storage_bytes",
 			Help: "Current trace storage size in bytes",
 		}),
-		correlationTime: promauto.With(reg).NewHistogram(prometheus.HistogramOpts{
+		correlationTime: auto.With(reg).NewHistogram(prom.HistogramOpts{
 			Name:    "unheaded_traces_correlation_duration_seconds",
 			Help:    "Time taken to correlate traces",
-			Buckets: prometheus.DefBuckets,
+			Buckets: prom.DefBuckets,
 		}),
-		queryLatency: promauto.With(reg).NewHistogram(prometheus.HistogramOpts{
+		queryLatency: auto.With(reg).NewHistogram(prom.HistogramOpts{
 			Name:    "unheaded_traces_query_duration_seconds",
 			Help:    "Time taken to execute trace queries",
-			Buckets: prometheus.DefBuckets,
+			Buckets: prom.DefBuckets,
 		}),
-		samplingRejected: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+		samplingRejected: auto.With(reg).NewCounter(prom.CounterOpts{
 			Name: "unheaded_traces_sampling_rejected_total",
 			Help: "Total number of spans rejected by sampling",
 		}),
-		wotanPublished: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+		wotanPublished: auto.With(reg).NewCounter(prom.CounterOpts{
 			Name: "unheaded_traces_wotan_published_total",
 			Help: "Total number of traces published to Wotan",
 		}),
-		wotanErrors: promauto.With(reg).NewCounter(prometheus.CounterOpts{
+		wotanErrors: auto.With(reg).NewCounter(prom.CounterOpts{
 			Name: "unheaded_traces_wotan_errors_total",
 			Help: "Total number of Wotan publish errors",
 		}),
@@ -1259,7 +1258,7 @@ func newCollectorMetrics(reg prometheus.Registerer) *collectorMetrics {
 }
 
 // NewCollector creates a new trace collector
-func NewCollector(config CollectorConfig, wotan WotanPublisher, reg prometheus.Registerer) (*Collector, error) {
+func NewCollector(config CollectorConfig, wotan WotanPublisher, reg prom.Registerer) (*Collector, error) {
 	// Set defaults
 	if config.CorrelationWindow <= 0 {
 		config.CorrelationWindow = 5 * time.Second
@@ -1275,7 +1274,7 @@ func NewCollector(config CollectorConfig, wotan WotanPublisher, reg prometheus.R
 	}
 
 	if reg == nil {
-		reg = prometheus.DefaultRegisterer
+		reg = prom.DefaultRegisterer
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())

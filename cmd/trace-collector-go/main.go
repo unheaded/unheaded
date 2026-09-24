@@ -45,9 +45,6 @@ import (
 	"time"
 
 	ciliumebpf "github.com/cilium/ebpf"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -55,6 +52,8 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/ebpf"
 	"unheaded/pkg/logagg"
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -89,33 +88,33 @@ var (
 // ── Prometheus metrics ──────────────────────────────────────────────────
 
 var (
-	eventsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	eventsTotal = auto.NewCounterVec(prom.CounterOpts{
 		Name: "trace_collector_events_total",
 		Help: "Total Anamnesis events processed",
 	}, []string{"type"})
 
-	eventsPublished = promauto.NewCounterVec(prometheus.CounterOpts{
+	eventsPublished = auto.NewCounterVec(prom.CounterOpts{
 		Name: "trace_collector_events_published_total",
 		Help: "Total events published to Wotan",
 	}, []string{"topic"})
 
-	eventsDropped = promauto.NewCounter(prometheus.CounterOpts{
+	eventsDropped = auto.NewCounter(prom.CounterOpts{
 		Name: "trace_collector_events_dropped_total",
 		Help: "Events dropped due to rate limiting",
 	})
 
-	flowsCorrelated = promauto.NewCounter(prometheus.CounterOpts{
+	flowsCorrelated = auto.NewCounter(prom.CounterOpts{
 		Name: "trace_collector_flows_correlated_total",
 		Help: "Flows correlated (BIRTH to DEATH)",
 	})
 
-	batchLatency = promauto.NewHistogram(prometheus.HistogramOpts{
+	batchLatency = auto.NewHistogram(prom.HistogramOpts{
 		Name:    "trace_collector_batch_latency_seconds",
 		Help:    "Time to publish a batch to Wotan",
-		Buckets: prometheus.DefBuckets,
+		Buckets: prom.DefBuckets,
 	})
 
-	programsLoaded = promauto.NewGaugeVec(prometheus.GaugeOpts{
+	programsLoaded = auto.NewGaugeVec(prom.GaugeOpts{
 		Name: "trace_collector_programs_loaded",
 		Help: "BPF programs loaded (1=loaded, 0=not)",
 	}, []string{"program"})
@@ -906,7 +905,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	mux := http.NewServeMux()
 	mux.Handle("/health", &HealthHandler{State: state})
 	mux.Handle("/ready", &ReadyHandler{State: state})
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", prom.Handler())
 	mux.Handle("/api/v1/traces", &TracesHandler{State: state})
 	mux.Handle("/api/v1/stats", &StatsHandler{State: state})
 
@@ -991,7 +990,7 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, tr
 
 	// Start HTTP server for health/metrics
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", prom.Handler())
 	mux.Handle("/healthz", &healthHandler{
 		publisher:  publisher,
 		correlator: correlator,
@@ -1188,7 +1187,7 @@ func main() {
 	}
 	logPublisher := logagg.NewPublisher("trace-collector", logConn)
 	// Surface log-forwarding health on /metrics (promhttp default registry).
-	prometheus.MustRegister(logPublisher.PrometheusCollector())
+	prom.MustRegister(logPublisher.Collectors()...)
 	log.Logger = log.Logger.Hook(logPublisher)
 
 	// Create context with signal handling

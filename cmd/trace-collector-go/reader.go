@@ -19,35 +19,36 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog/log"
+
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // ── Prometheus metrics for reader ───────────────────────────────────────────
 
 var (
-	readerPollsTotal = promauto.NewCounter(prometheus.CounterOpts{
+	readerPollsTotal = auto.NewCounter(prom.CounterOpts{
 		Name: "trace_reader_polls_total",
 		Help: "Total map poll cycles",
 	})
 
-	readerEntriesRead = promauto.NewCounter(prometheus.CounterOpts{
+	readerEntriesRead = auto.NewCounter(prom.CounterOpts{
 		Name: "trace_reader_entries_read_total",
 		Help: "Total trace entries read from BPF maps",
 	})
 
-	readerEntriesPublished = promauto.NewCounter(prometheus.CounterOpts{
+	readerEntriesPublished = auto.NewCounter(prom.CounterOpts{
 		Name: "trace_reader_entries_published_total",
 		Help: "Total trace entries published to Wotan",
 	})
 
-	readerErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+	readerErrors = auto.NewCounterVec(prom.CounterOpts{
 		Name: "trace_reader_errors_total",
 		Help: "Total errors during map reading or publishing",
 	}, []string{"operation"})
 
-	readerPollLatency = promauto.NewHistogram(prometheus.HistogramOpts{
+	readerPollLatency = auto.NewHistogram(prom.HistogramOpts{
 		Name:    "trace_reader_poll_duration_seconds",
 		Help:    "Duration of each map poll cycle",
 		Buckets: []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1},

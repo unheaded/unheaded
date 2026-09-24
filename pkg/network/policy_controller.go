@@ -32,10 +32,11 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog"
 	"gopkg.in/yaml.v3"
+
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // ============================================================================
@@ -62,8 +63,8 @@ var (
 // ============================================================================
 
 var (
-	policiesApplied = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
+	policiesApplied = auto.NewGaugeVec(
+		prom.GaugeOpts{
 			Namespace: "unheaded",
 			Subsystem: "network",
 			Name:      "policies_applied_total",
@@ -72,8 +73,8 @@ var (
 		[]string{"namespace"},
 	)
 
-	rulesApplied = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
+	rulesApplied = auto.NewGaugeVec(
+		prom.GaugeOpts{
 			Namespace: "unheaded",
 			Subsystem: "network",
 			Name:      "rules_applied_total",
@@ -82,8 +83,8 @@ var (
 		[]string{"namespace", "policy", "direction"},
 	)
 
-	violationsCount = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	violationsCount = auto.NewCounterVec(
+		prom.CounterOpts{
 			Namespace: "unheaded",
 			Subsystem: "network",
 			Name:      "violations_total",
@@ -92,19 +93,19 @@ var (
 		[]string{"namespace", "policy", "rule_type"},
 	)
 
-	policyApplyDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
+	policyApplyDuration = auto.NewHistogramVec(
+		prom.HistogramOpts{
 			Namespace: "unheaded",
 			Subsystem: "network",
 			Name:      "policy_apply_duration_seconds",
 			Help:      "Time taken to apply a network policy",
-			Buckets:   prometheus.DefBuckets,
+			Buckets:   prom.DefBuckets,
 		},
 		[]string{"namespace", "operation"},
 	)
 
-	policySyncErrors = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	policySyncErrors = auto.NewCounterVec(
+		prom.CounterOpts{
 			Namespace: "unheaded",
 			Subsystem: "network",
 			Name:      "sync_errors_total",

@@ -13,21 +13,21 @@ import (
 	"context"
 	"sync"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // Prometheus metrics for ordered publishing.
 var (
-	wotanOrderedQueueDepth = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
+	wotanOrderedQueueDepth = auto.NewGaugeVec(
+		prom.GaugeOpts{
 			Name: "wotan_ordered_queue_depth",
 			Help: "Current number of pending messages per destination queue",
 		},
 		[]string{"destination"},
 	)
-	wotanOrderedDeliveredTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	wotanOrderedDeliveredTotal = auto.NewCounterVec(
+		prom.CounterOpts{
 			Name: "wotan_ordered_delivered_total",
 			Help: "Total messages delivered via ordered publishing",
 		},

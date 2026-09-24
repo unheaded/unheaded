@@ -491,20 +491,42 @@ type HistogramOpts struct {
 var DefaultBuckets = []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
 
 // LinearBuckets creates count buckets starting at start with the given width.
+//
+// Bounds are accumulated (start += width), exactly as client_golang does, so
+// that they are bit-identical to its output. start+i*width rounds differently
+// for widths such as 0.1, and a bound that differs in the last bit is a
+// different le series to every dashboard that queries it.
 func LinearBuckets(start, width float64, count int) []float64 {
+	if count < 1 {
+		panic("metrics: LinearBuckets needs a positive count")
+	}
 	buckets := make([]float64, count)
-	for i := 0; i < count; i++ {
-		buckets[i] = start + float64(i)*width
+	for i := range buckets {
+		buckets[i] = start
+		start += width
 	}
 	return buckets
 }
 
-// ExponentialBuckets creates count buckets starting at start,
-// where each bucket is factor times the previous one.
+// ExponentialBuckets creates count buckets starting at start, where each
+// bucket is factor times the previous one. Accumulated (start *= factor) for
+// the same reason as LinearBuckets; the argument checks are client_golang's.
+// A count of 0 used to return an empty slice, which the histogram then
+// silently replaced with DefaultBuckets.
 func ExponentialBuckets(start, factor float64, count int) []float64 {
+	if count < 1 {
+		panic("metrics: ExponentialBuckets needs a positive count")
+	}
+	if start <= 0 {
+		panic("metrics: ExponentialBuckets needs a positive start value")
+	}
+	if factor <= 1 {
+		panic("metrics: ExponentialBuckets needs a factor greater than 1")
+	}
 	buckets := make([]float64, count)
-	for i := 0; i < count; i++ {
-		buckets[i] = start * math.Pow(factor, float64(i))
+	for i := range buckets {
+		buckets[i] = start
+		start *= factor
 	}
 	return buckets
 }
@@ -899,15 +921,21 @@ type Collector interface {
 }
 
 // Registry holds all registered metrics.
+//
+// A name can carry several collectors, provided they agree on everything a
+// scraper sees at the family level and differ in their constant label values
+// — service="a" and service="b" are two series of one family. That is
+// client_golang's rule, and code migrating from it relies on it: one
+// middleware instance per service, one gauge per load balancer.
 type Registry struct {
 	mu         sync.RWMutex
-	collectors map[string]Collector
+	collectors map[string][]Collector
 }
 
 // NewRegistry creates a new metric registry.
 func NewRegistry() *Registry {
 	return &Registry{
-		collectors: make(map[string]Collector),
+		collectors: make(map[string][]Collector),
 	}
 }
 
@@ -930,6 +958,12 @@ func newDefaultRegistry() *Registry {
 }
 
 // Register adds a collector to the registry.
+//
+// A second collector under an existing name is accepted only if its type,
+// help text, variable label names and constant label names all match the
+// first, and its constant label values differ from every collector already
+// there. Anything else would put two inconsistent families, or two copies of
+// one series, on the same page.
 func (r *Registry) Register(c Collector) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -939,12 +973,47 @@ func (r *Registry) Register(c Collector) error {
 		return fmt.Errorf("collector returned nil descriptor")
 	}
 
-	if _, exists := r.collectors[desc.Name]; exists {
-		return fmt.Errorf("metric %q already registered", desc.Name)
+	for _, existing := range r.collectors[desc.Name] {
+		if err := consistent(existing.Describe(), desc); err != nil {
+			return err
+		}
 	}
-
-	r.collectors[desc.Name] = c
+	r.collectors[desc.Name] = append(r.collectors[desc.Name], c)
 	return nil
+}
+
+// consistent reports whether b may share a family with a.
+func consistent(a, b *Desc) error {
+	switch {
+	case a.Type != b.Type:
+		return fmt.Errorf("metric %q already registered as %s, not %s", b.Name, a.Type, b.Type)
+	case a.Help != b.Help:
+		return fmt.Errorf("metric %q already registered with different help", b.Name)
+	case !sameNames(a.VariableLabels, b.VariableLabels):
+		return fmt.Errorf("metric %q already registered with labels %v, not %v", b.Name, a.VariableLabels, b.VariableLabels)
+	case !sameNames(a.ConstLabels.names(), b.ConstLabels.names()):
+		return fmt.Errorf("metric %q already registered with const labels %v, not %v",
+			b.Name, a.ConstLabels.names(), b.ConstLabels.names())
+	case a.ConstLabels.String() == b.ConstLabels.String():
+		return fmt.Errorf("metric %q already registered", b.Name)
+	}
+	return nil
+}
+
+func sameNames(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	x := append([]string(nil), a...)
+	y := append([]string(nil), b...)
+	sort.Strings(x)
+	sort.Strings(y)
+	for i := range x {
+		if x[i] != y[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // MustRegister registers a collector and panics on error.
@@ -954,7 +1023,8 @@ func (r *Registry) MustRegister(c Collector) {
 	}
 }
 
-// Unregister removes a collector from the registry.
+// Unregister removes the collector registered under c's name with c's
+// constant labels, which is how a family member is identified.
 func (r *Registry) Unregister(c Collector) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -964,12 +1034,19 @@ func (r *Registry) Unregister(c Collector) bool {
 		return false
 	}
 
-	if _, exists := r.collectors[desc.Name]; !exists {
-		return false
+	list := r.collectors[desc.Name]
+	for i, existing := range list {
+		if existing.Describe().ConstLabels.String() == desc.ConstLabels.String() {
+			list = append(list[:i:i], list[i+1:]...)
+			if len(list) == 0 {
+				delete(r.collectors, desc.Name)
+			} else {
+				r.collectors[desc.Name] = list
+			}
+			return true
+		}
 	}
-
-	delete(r.collectors, desc.Name)
-	return true
+	return false
 }
 
 // Gather collects all metrics and writes them to the writer.
@@ -991,12 +1068,14 @@ func (r *Registry) Gather(w io.Writer) error {
 	// promhttp's for every service moving across.
 	var samples bytes.Buffer
 	for _, name := range names {
-		c := r.collectors[name]
-		desc := c.Describe()
+		list := r.collectors[name]
+		desc := list[0].Describe()
 
 		samples.Reset()
-		if err := c.Write(&samples); err != nil {
-			return err
+		for _, c := range list {
+			if err := c.Write(&samples); err != nil {
+				return err
+			}
 		}
 		if samples.Len() == 0 {
 			continue

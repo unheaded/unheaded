@@ -15,8 +15,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // Retry constants for PublishWithAck.
@@ -28,31 +28,31 @@ const (
 
 // Prometheus metrics for Wotan client reliability.
 var (
-	wotanBufferedMessages = promauto.NewGauge(
-		prometheus.GaugeOpts{
+	wotanBufferedMessages = auto.NewGauge(
+		prom.GaugeOpts{
 			Name: "wotan_buffered_messages",
 			Help: "Current number of messages in the fallback queue",
 		},
 	)
 
-	wotanDeadLettersTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	wotanDeadLettersTotal = auto.NewCounterVec(
+		prom.CounterOpts{
 			Name: "wotan_dead_letters_total",
 			Help: "Total number of messages sent to dead letter topics",
 		},
 		[]string{"topic"},
 	)
 
-	wotanPublishRetriesTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	wotanPublishRetriesTotal = auto.NewCounterVec(
+		prom.CounterOpts{
 			Name: "wotan_publish_retries_total",
 			Help: "Total number of publish retry attempts",
 		},
 		[]string{"topic"},
 	)
 
-	wotanPublishAckTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	wotanPublishAckTotal = auto.NewCounterVec(
+		prom.CounterOpts{
 			Name: "wotan_publish_ack_total",
 			Help: "Total PublishWithAck calls by outcome",
 		},
