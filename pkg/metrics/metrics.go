@@ -1061,54 +1061,6 @@ func NewBuildInfoGauge(namespace string, info BuildInfo) *Gauge {
 	return gauge
 }
 
-// ProcessCollector collects metrics about the current process.
-type ProcessCollector struct {
-	namespace   string
-	cpuSeconds  *Counter
-	openFDs     *Gauge
-	maxFDs      *Gauge
-	virtualMem  *Gauge
-	residentMem *Gauge
-	startTime   *Gauge
-}
-
-// NewProcessCollector creates a new process collector.
-func NewProcessCollector(namespace string) *ProcessCollector {
-	pc := &ProcessCollector{
-		namespace: namespace,
-	}
-
-	prefix := ""
-	if namespace != "" {
-		prefix = namespace + "_"
-	}
-
-	pc.cpuSeconds = NewCounter(prefix+"process_cpu_seconds_total", "Total user and system CPU time spent in seconds", nil)
-	pc.openFDs = NewGauge(prefix+"process_open_fds", "Number of open file descriptors", nil)
-	pc.maxFDs = NewGauge(prefix+"process_max_fds", "Maximum number of open file descriptors", nil)
-	pc.virtualMem = NewGauge(prefix+"process_virtual_memory_bytes", "Virtual memory size in bytes", nil)
-	pc.residentMem = NewGauge(prefix+"process_resident_memory_bytes", "Resident memory size in bytes", nil)
-	pc.startTime = NewGauge(prefix+"process_start_time_seconds", "Start time of the process since unix epoch in seconds", nil)
-
-	return pc
-}
-
-// Describe returns the process collector's descriptor.
-func (pc *ProcessCollector) Describe() *Desc {
-	return &Desc{
-		Name: pc.namespace + "_process",
-		Help: "Process metrics",
-		Type: TypeGauge,
-	}
-}
-
-// Write writes all process metrics.
-func (pc *ProcessCollector) Write(w io.Writer) error {
-	// Note: Actual process metrics would require platform-specific code.
-	// This is a placeholder implementation.
-	return nil
-}
-
 // InstrumentHandler wraps an HTTP handler to record request metrics.
 func InstrumentHandler(name string, handler http.Handler, duration *HistogramVec, requests *CounterVec) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
