@@ -5,9 +5,13 @@
 package health
 
 import (
+	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"unheaded/pkg/metrics/prom"
 )
 
 func TestHealthStatusConstants(t *testing.T) {
@@ -491,4 +495,17 @@ func TestErrors(t *testing.T) {
 			t.Error("error message should not be empty")
 		}
 	}
+}
+
+// system_health_status registers with the first Aggregator, never at package
+// load: without an Aggregator nothing sets it, and its zero reads "unhealthy".
+func TestSystemHealthStatus_RegisteredByAggregator(t *testing.T) {
+	agg := NewAggregator(DefaultConfig(), nil)
+	_ = agg
+	rec := httptest.NewRecorder()
+	prom.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
+	if !strings.Contains(rec.Body.String(), "# TYPE system_health_status gauge") {
+		t.Error("system_health_status not registered after NewAggregator")
+	}
+	NewAggregator(DefaultConfig(), nil) // a second one must not panic on re-register
 }

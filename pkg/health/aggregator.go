@@ -508,12 +508,18 @@ var (
 		[]string{"name", "type", "status"},
 	)
 
-	systemHealthStatus = auto.NewGauge(
+	// systemHealthStatus is created unregistered and registered by the first
+	// NewAggregator. Registered at package load, it appeared in every binary
+	// linking this package, including Akira, which builds no Aggregator, as
+	// "system_health_status 0". By its own help text that means unhealthy: a
+	// permanent false alarm (ADR-094 step 5).
+	systemHealthStatus = prom.NewGauge(
 		prom.GaugeOpts{
 			Name: "system_health_status",
 			Help: "Overall system health status (1=healthy, 0.5=degraded, 0=unhealthy)",
 		},
 	)
+	registerSystemHealthStatus sync.Once
 
 	circuitBreakerState = auto.NewGaugeVec(
 		prom.GaugeOpts{
@@ -563,6 +569,8 @@ type Aggregator struct {
 
 // NewAggregator creates a new health check aggregator
 func NewAggregator(config *AggregatorConfig, wotan WotanPublisher) *Aggregator {
+	registerSystemHealthStatus.Do(func() { prom.MustRegister(systemHealthStatus) })
+
 	if config == nil {
 		config = DefaultConfig()
 	}
