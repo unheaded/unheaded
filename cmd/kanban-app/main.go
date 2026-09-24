@@ -1313,9 +1313,11 @@ func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	// not lose one series, it takes the whole /metrics endpoint down.
 	// #nosec G104 -- response already committed; a write failure here means
 	// the client went away and nothing further can be sent.
-	if s.registry != nil {
-		_ = s.registry.Gather(w)
-	}
+	//
+	// The default registry rides along: go_*, process_* and what linked
+	// libraries register at load (pkg/wotan-client) never reached this
+	// scrape before ADR-094 step 5. GatherAll skips a nil registry.
+	_ = metrics.GatherAll(w, s.registry, metrics.DefaultRegistry)
 
 	s.tasksMu.RLock()
 	lp := s.logPublisher
