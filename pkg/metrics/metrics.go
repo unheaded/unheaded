@@ -1053,10 +1053,59 @@ func (r *Registry) Unregister(c Collector) bool {
 func (r *Registry) Gather(w io.Writer) error {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+	return writeFamilies(w, r.collectors)
+}
 
-	// Collect metric names for deterministic ordering
-	names := make([]string, 0, len(r.collectors))
-	for name := range r.collectors {
+// GatherAll writes several registries as one exposition page, in one name
+// order. A name registered in two of them is an error: two unrelated
+// families under one TYPE line is malformed output, and which one a scraper
+// kept would be an accident. Passing the same registry twice is harmless.
+func GatherAll(w io.Writer, regs ...*Registry) error {
+	merged := make(map[string][]Collector)
+	owner := make(map[string]*Registry)
+	seen := make(map[*Registry]bool)
+	for _, r := range regs {
+		if r == nil || seen[r] {
+			continue
+		}
+		seen[r] = true
+		r.mu.RLock()
+		defer r.mu.RUnlock()
+		for name, list := range r.collectors {
+			if _, dup := owner[name]; dup {
+				return fmt.Errorf("metric %q is registered in two registries served together", name)
+			}
+			owner[name] = r
+			merged[name] = list
+		}
+	}
+	return writeFamilies(w, merged)
+}
+
+// HandlerFor serves several registries as one page. A service that keeps its
+// own registry passes it together with DefaultRegistry, so the go_*,
+// process_* and library metrics (pkg/wotan-client, pkg/ebpf) registered there
+// reach its scrape.
+//
+// The page is built in memory first, so a conflict is a clean 500 naming the
+// metric rather than half a page.
+func HandlerFor(regs ...*Registry) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		var buf bytes.Buffer
+		if err := GatherAll(&buf, regs...); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
+		_, _ = w.Write(buf.Bytes())
+	})
+}
+
+// writeFamilies writes each family once, sorted by name. Caller holds the
+// read locks of the registries the collectors came from.
+func writeFamilies(w io.Writer, collectors map[string][]Collector) error {
+	names := make([]string, 0, len(collectors))
+	for name := range collectors {
 		names = append(names, name)
 	}
 	sort.Strings(names)
@@ -1068,7 +1117,7 @@ func (r *Registry) Gather(w io.Writer) error {
 	// promhttp's for every service moving across.
 	var samples bytes.Buffer
 	for _, name := range names {
-		list := r.collectors[name]
+		list := collectors[name]
 		desc := list[0].Describe()
 
 		samples.Reset()
