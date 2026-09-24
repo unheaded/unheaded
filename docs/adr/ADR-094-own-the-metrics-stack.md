@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-094 — Own the metrics stack: retire `prometheus/client_golang`
 
-**Status:** Proposed (Tier 1 done; Tier 2 step 1 done, step 1b next)
+**Status:** Proposed (Tier 1 done; Tier 2 steps 1, 1b and 2 done; step 3 next)
 **Date:** 2026-09-24
 **Supersedes:** nothing. **Related:** ADR-092 (log discipline), ADR-093 (shape
 and the reachability rules), `pkg/metrics`, `pkg/logagg`.
@@ -182,12 +182,22 @@ visible no matter what this host holds.
 `TestGoCollector_PublishesTheClientGolangNames` pins the 27 names without
 importing client_golang, so it outlives the parity test at step 6.
 
-### Step 1b — `process_*` (next)
+### Step 1b — DONE (2026-09-24)
 
-Implement `ProcessCollector.Write` for Linux (`/proc/self/stat`, `/proc/self/fd`,
-`/proc/self/limits`) to publish the 7 series `promhttp` does, verified the
-same way. Step 2 onward waits on it: any service on promhttp's default
-registry exposes `process_resident_memory_bytes` today, and migrating it
-without 1b would drop that series.
+`pkg/metrics/processcollector*.go`: `NewProcessCollector("")` publishes the 7
+`process_*` families promhttp does, same names/types/help, Linux only
+(elsewhere it publishes nothing rather than something invented). The
+placeholder is gone; nothing had called it. A failed read omits the sample
+rather than publishing 0 — a CPU counter reading 0 is a reset to `rate()`.
 
-Steps 2-6 not started.
+Verified with the same bracket (300/300, zero slack except float rounding on
+start time) and ten planted bugs, all caught. The bracket alone missed four:
+a test process has used ~0 CPU ticks, so `utime` vs `utime+stime` and ticks
+vs seconds read identically, and soft == hard rlimits on this host hide a
+`Cur`/`Max` swap. Hence `deriveProcess` is pure and tested with values that
+tell the fields apart. `comm` is parsed from the last `)`, tested with a
+process named `evil) (x y`. The pre-6.2 fd-count fallback never runs on this
+kernel, so it is tested directly against the fast path.
+
+Step 2 ("verify against the real thing") is satisfied for both collectors
+by the parity tests. Steps 3-6 not started; step 3 is next.
