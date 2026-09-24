@@ -974,9 +974,11 @@ func (d *Daemon) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	// dereference: a nil-pointer panic here takes the whole endpoint down.
 	// #nosec G104 -- response already committed; a write failure here means
 	// the client went away and nothing further can be sent.
-	if d.registry != nil {
-		_ = d.registry.Gather(w)
-	}
+	//
+	// The default registry rides along: go_*, process_* and what linked
+	// libraries register at load (pkg/wotan-client) never reached this
+	// scrape before ADR-094 step 5. GatherAll skips a nil registry.
+	_ = metrics.GatherAll(w, d.registry, metrics.DefaultRegistry)
 
 	if lp := d.logPublisher.Load(); lp != nil {
 		_ = lp.WriteMetrics(w)
