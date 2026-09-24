@@ -8,6 +8,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"unheaded/pkg/metrics/metricstest"
 )
 
 // sophiaSeries is every series this service publishes.
@@ -68,27 +70,11 @@ func TestSophiaMetrics_NoDuplicateHelpOrType(t *testing.T) {
 	}
 }
 
-// No sample may appear without a TYPE declared for it. This is the assertion
-// the old implementation failed for four series.
+// No sample may appear without a TYPE declared for its family. This is the
+// assertion the old implementation failed for four series. The rules,
+// including a summary's _sum/_count, live in one shared checker.
 func TestSophiaMetrics_NoUntypedSamples(t *testing.T) {
-	declared := map[string]bool{}
-	var samples []string
-
-	for _, line := range strings.Split(scrapeSophia(t), "\n") {
-		switch {
-		case strings.HasPrefix(line, "# TYPE "):
-			if f := strings.Fields(line); len(f) == 4 {
-				declared[f[2]] = true
-			}
-		case line == "" || strings.HasPrefix(line, "#"):
-		default:
-			samples = append(samples, strings.SplitN(strings.Fields(line)[0], "{", 2)[0])
-		}
-	}
-
-	for _, s := range samples {
-		if !declared[s] {
-			t.Errorf("sample %s has no declared # TYPE", s)
-		}
+	for _, p := range metricstest.Lint(scrapeSophia(t)) {
+		t.Error(p)
 	}
 }

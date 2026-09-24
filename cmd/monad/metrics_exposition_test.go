@@ -12,6 +12,8 @@ import (
 
 	"unheaded/pkg/logger"
 	"unheaded/services/monad"
+
+	"unheaded/pkg/metrics/metricstest"
 )
 
 // newMetricsTestServer builds just enough HTTPServer to serve /metrics.
@@ -83,40 +85,12 @@ func TestMetricsHandler_NoDuplicateHelpOrType(t *testing.T) {
 	}
 }
 
-// Every sample line must be preceded by a declared TYPE for that metric, and
-// every declared TYPE must be a real Prometheus type.
+// Every sample line must be preceded by a declared TYPE for its family, and
+// every declared TYPE must be a real Prometheus type. The rules, including a
+// summary's _sum/_count, live in one shared checker (metricstest.Lint).
 func TestMetricsHandler_WellFormed(t *testing.T) {
 	body := scrape(t, newMetricsTestServer(t))
-
-	valid := map[string]bool{"counter": true, "gauge": true, "histogram": true, "summary": true, "untyped": true}
-	declared := map[string]bool{}
-
-	for _, line := range strings.Split(body, "\n") {
-		switch {
-		case line == "" || strings.HasPrefix(line, "# HELP "):
-			continue
-		case strings.HasPrefix(line, "# TYPE "):
-			f := strings.Fields(line)
-			if len(f) != 4 {
-				t.Errorf("malformed TYPE line: %q", line)
-				continue
-			}
-			if !valid[f[3]] {
-				t.Errorf("unknown metric type %q in %q", f[3], line)
-			}
-			declared[f[2]] = true
-		case strings.HasPrefix(line, "#"):
-			continue
-		default:
-			name := strings.Fields(line)
-			if len(name) < 2 {
-				t.Errorf("malformed sample line: %q", line)
-				continue
-			}
-			base := strings.SplitN(name[0], "{", 2)[0]
-			if !declared[base] {
-				t.Errorf("sample %q has no preceding # TYPE", base)
-			}
-		}
+	for _, p := range metricstest.Lint(body) {
+		t.Error(p)
 	}
 }
