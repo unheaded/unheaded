@@ -62,7 +62,7 @@
 | [001](ADR-001-gnostic-state-management.md) | Gnostic State Management | Accepted | 2026-02-01 |
 | [002](ADR-002-kingdom-naming-convention.md) | Kingdom Naming Convention | Accepted | 2026-01-28 |
 | [003](ADR-003-ebpf-rust-aya-framework.md) | eBPF in Rust with Aya | Accepted | 2026-01-26 |
-| [004](ADR-004-no-external-deps-policy.md) | Dependency Policy (Approved Exceptions) | Accepted | 2026-01-26 |
+| [004](ADR-004-no-external-deps-policy.md) | Dependency Policy (Approved Exceptions) — gate amended by ADR-096; register audited 2026-09-24 | Accepted | 2026-01-26 |
 | [005](ADR-005-wotan-message-backbone.md) | Wotan Message Backbone | Accepted | 2026-01-26 |
 | [006](ADR-006-vanilla-js-frontend.md) | Vanilla JS Frontend | Accepted | 2026-01-26 |
 | [007](ADR-007-container-hardening-strategy.md) | Container Hardening | Accepted | 2026-01-26 |
