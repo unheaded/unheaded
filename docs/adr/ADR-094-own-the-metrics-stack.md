@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-094 — Own the metrics stack: retire `prometheus/client_golang`
 
-**Status:** Proposed (Tier 1 done; Tier 2 steps 1, 1b and 2 done; step 3 half done)
+**Status:** Proposed (Tier 1 done; Tier 2 steps 1-3 done; step 4 next)
 **Date:** 2026-09-24
 **Supersedes:** nothing. **Related:** ADR-092 (log discipline), ADR-093 (shape
 and the reachability rules), `pkg/metrics`, `pkg/logagg`.
@@ -200,7 +200,7 @@ process named `evil) (x y`. The pre-6.2 fd-count fallback never runs on this
 kernel, so it is tested directly against the fast path.
 
 Step 2 ("verify against the real thing") is satisfied for both collectors
-by the parity tests. Steps 3-6 not started; step 3 is next.
+by the parity tests.
 
 ### Found while surveying step 3 — two core defects (FIXED 2026-09-24)
 
@@ -246,3 +246,42 @@ same conditions, or in 200 further full-package runs. The bracket bounds a
 paused-GC read of a live runtime, and something occasionally escapes it. It
 was not chased; if it recurs, capture which series escaped before widening
 anything.
+
+### Step 3 — DONE (2026-09-24)
+
+`pkg/metrics/prom` presents pkg/metrics under client_golang's names
+(`CounterOpts`, `NewCounterVec`, `DefBuckets`, `BuildFQName`, `Registerer`,
+`MustRegister`, `Handler`, …), and `pkg/metrics/auto` is promauto
+(`auto.NewCounter`, `auto.With(reg)`). A file migrates by import path. The
+only visible difference: client_golang's `Counter`/`Gauge`/`Histogram` are
+interfaces, and here they are pointer aliases. Nothing in the tree
+type-asserts on them.
+
+It covers exactly what the survey found in use. The survey's four
+`.Delete(` hits turned out to be BPF maps and caches, not metrics, so no
+`Delete` was added.
+
+Two core changes came with it, both for parity with what promhttp serves:
+- `DefaultRegistry` now carries the `go_*` and `process_*` collectors, as
+  client_golang's default does. That changes no output today, because
+  nothing serves it (see below), and it means a service moving off
+  `promhttp.Handler()` keeps `go_goroutines`.
+- `Registry.Gather` omits families with no samples, as client_golang does.
+  Before, an untouched Vec published a bare HELP/TYPE.
+
+Verified by driving the same declarations and operations through
+client_golang and the shim and comparing served output exactly, with label
+order canonicalised (client_golang writes `le` last). 30+ series, nothing
+missing, nothing extra. Thirteen planted bugs, all caught.
+
+**Findings from the survey, recorded not fixed:**
+- **`pkg/secrets` registers 12 metrics into `metrics.DefaultRegistry`, which
+  nothing serves.** No `metrics.Handler()` call exists outside the package,
+  so rotation and secret-operation counters have never reached a scrape. The
+  registration errors are also discarded (`_ = metrics.Register(...)`).
+  Serving the default registry from the services that use `pkg/secrets`
+  fixes it.
+- **`cmd/ebpf-exporter` uses `err.Error()` as a label value**
+  (`main.go:241`, `:270`). Every distinct error message creates a new series
+  that never goes away, so memory grows without bound. Fix when that file
+  migrates in step 5.

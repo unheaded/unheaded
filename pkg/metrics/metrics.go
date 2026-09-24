@@ -315,6 +315,12 @@ func (cv *CounterVec) WithLabelValues(values ...string) *Counter {
 	return cv.WithLabels(cv.desc.labelsFromValues(values))
 }
 
+// With is WithLabels under client_golang's name, so call sites migrate by
+// import path alone.
+func (cv *CounterVec) With(labels Labels) *Counter {
+	return cv.WithLabels(labels)
+}
+
 // Write writes all counters to the given writer in Prometheus format.
 func (cv *CounterVec) Write(w io.Writer) error {
 	cv.mu.RLock()
@@ -452,6 +458,12 @@ func (gv *GaugeVec) WithLabels(labels Labels) *Gauge {
 // order the label names were declared.
 func (gv *GaugeVec) WithLabelValues(values ...string) *Gauge {
 	return gv.WithLabels(gv.desc.labelsFromValues(values))
+}
+
+// With is WithLabels under client_golang's name, so call sites migrate by
+// import path alone.
+func (gv *GaugeVec) With(labels Labels) *Gauge {
+	return gv.WithLabels(labels)
 }
 
 // Write writes all gauges to the given writer in Prometheus format.
@@ -705,6 +717,12 @@ func (hv *HistogramVec) WithLabelValues(values ...string) *Histogram {
 	return hv.WithLabels(hv.desc.labelsFromValues(values))
 }
 
+// With is WithLabels under client_golang's name, so call sites migrate by
+// import path alone.
+func (hv *HistogramVec) With(labels Labels) *Histogram {
+	return hv.WithLabels(labels)
+}
+
 // Write writes all histograms to the given writer in Prometheus format.
 func (hv *HistogramVec) Write(w io.Writer) error {
 	hv.mu.RLock()
@@ -893,8 +911,23 @@ func NewRegistry() *Registry {
 	}
 }
 
-// DefaultRegistry is the default global registry.
-var DefaultRegistry = NewRegistry()
+// DefaultRegistry is the default global registry. Like client_golang's, it
+// carries the go_* and process_* series, so a service that serves it after
+// moving off promhttp.Handler() keeps go_goroutines and
+// process_resident_memory_bytes — the two series its incidents were
+// diagnosed with.
+var DefaultRegistry = newDefaultRegistry()
+
+func newDefaultRegistry() *Registry {
+	r := NewRegistry()
+	if err := NewGoCollector().Register(r); err != nil {
+		panic(err) // an empty registry cannot conflict; this is a bug
+	}
+	if err := NewProcessCollector("").Register(r); err != nil {
+		panic(err)
+	}
+	return r
+}
 
 // Register adds a collector to the registry.
 func (r *Registry) Register(c Collector) error {
@@ -951,24 +984,33 @@ func (r *Registry) Gather(w io.Writer) error {
 	}
 	sort.Strings(names)
 
+	// Each family's samples are written to a buffer first, and a family with
+	// none is omitted, as client_golang does. A Vec nobody has touched yet,
+	// or a func-backed metric whose read failed, otherwise publishes a HELP
+	// and TYPE with nothing under them, and output would differ from
+	// promhttp's for every service moving across.
+	var samples bytes.Buffer
 	for _, name := range names {
 		c := r.collectors[name]
 		desc := c.Describe()
 
-		// Write HELP line
+		samples.Reset()
+		if err := c.Write(&samples); err != nil {
+			return err
+		}
+		if samples.Len() == 0 {
+			continue
+		}
+
 		if desc.Help != "" {
 			if _, err := fmt.Fprintf(w, "# HELP %s %s\n", desc.Name, desc.Help); err != nil {
 				return err
 			}
 		}
-
-		// Write TYPE line
 		if _, err := fmt.Fprintf(w, "# TYPE %s %s\n", desc.Name, desc.Type); err != nil {
 			return err
 		}
-
-		// Write metric values
-		if err := c.Write(w); err != nil {
+		if _, err := w.Write(samples.Bytes()); err != nil {
 			return err
 		}
 	}
