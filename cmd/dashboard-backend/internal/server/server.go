@@ -675,7 +675,11 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/ready", s.handleReady)
 
 	// Metrics endpoint (Prometheus format)
-	s.mux.Handle("/metrics", s.metricsRegistry.Handler())
+	// The default registry carries go_*, process_* and what linked libraries
+	// register at load: pkg/wotan-client's dead-letter, retry, ordering and
+	// timeout counters, pkg/ebpf's program gauges. Before ADR-094 step 5 this
+	// service served only its own registry, so none of those reached a scrape.
+	s.mux.Handle("/metrics", metrics.HandlerFor(s.metricsRegistry, metrics.DefaultRegistry))
 
 	// API v1 endpoints
 	s.mux.HandleFunc("/api/v1/metrics", s.handleAPIMetrics)

@@ -5,8 +5,12 @@ package wotanClient
 
 import (
 	"fmt"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"unheaded/pkg/metrics/prom"
 )
 
 func TestIdempotencyCache_MissOnEmpty(t *testing.T) {
@@ -161,4 +165,23 @@ func TestIdempotencyCache_AutoProcessedTime(t *testing.T) {
 	if result.Processed.IsZero() {
 		t.Error("expected Processed to be auto-set, got zero")
 	}
+}
+
+// The idempotency metrics register with the first cache, not at package
+// load, so a binary without a cache publishes no idempotency zeros.
+func TestIdempotencyMetrics_RegisteredOnlyByACache(t *testing.T) {
+	scrape := func() string {
+		rec := httptest.NewRecorder()
+		prom.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
+		return rec.Body.String()
+	}
+	// Other tests in this package may already have built a cache, so this
+	// can only assert the "after" half unconditionally.
+	ic := NewIdempotencyCache(time.Minute)
+	defer ic.Stop()
+	if !strings.Contains(scrape(), "wotan_idempotency_entries") {
+		t.Error("idempotency metrics not registered after NewIdempotencyCache")
+	}
+	ic2 := NewIdempotencyCache(time.Minute) // second cache must not panic on re-register
+	ic2.Stop()
 }

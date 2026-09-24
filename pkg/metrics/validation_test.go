@@ -6,6 +6,7 @@ package metrics
 import (
 	"bytes"
 	"math"
+	"net/http/httptest"
 	"strings"
 	"testing"
 )
@@ -173,5 +174,52 @@ func TestGather_OmitsFamiliesWithNoSamples(t *testing.T) {
 	}
 	if !strings.Contains(out, "# TYPE used_total counter") || !strings.Contains(out, `used_total{x="a"} 1`) {
 		t.Errorf("used family missing:\n%s", out)
+	}
+}
+
+// Two registries served as one page: one name order across both, each
+// family once.
+func TestGatherAll_MergesInNameOrder(t *testing.T) {
+	a, b := NewRegistry(), NewRegistry()
+	ca := NewCounter("b_total", "b", nil)
+	cb := NewCounter("a_total", "a", nil)
+	cc := NewCounter("c_total", "c", nil)
+	a.MustRegister(ca)
+	a.MustRegister(cc)
+	b.MustRegister(cb)
+	ca.Inc()
+	cb.Inc()
+	cc.Inc()
+	var buf bytes.Buffer
+	if err := GatherAll(&buf, a, b, a, nil); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	ia, ib, ic := strings.Index(out, "# TYPE a_total"), strings.Index(out, "# TYPE b_total"), strings.Index(out, "# TYPE c_total")
+	if ia < 0 || ib < 0 || ic < 0 || !(ia < ib && ib < ic) {
+		t.Errorf("want a, b, c in order across registries:\n%s", out)
+	}
+	if strings.Count(out, "# TYPE b_total") != 1 {
+		t.Errorf("same registry passed twice produced a duplicate family:\n%s", out)
+	}
+}
+
+// A name in two registries is refused, not silently merged or shadowed.
+func TestGatherAll_RefusesNameInTwoRegistries(t *testing.T) {
+	a, b := NewRegistry(), NewRegistry()
+	x, y := NewCounter("x_total", "one", nil), NewCounter("x_total", "other", nil)
+	a.MustRegister(x)
+	b.MustRegister(y)
+	x.Inc()
+	y.Inc()
+	var buf bytes.Buffer
+	if err := GatherAll(&buf, a, b); err == nil || !strings.Contains(err.Error(), `"x_total"`) {
+		t.Fatalf("want an error naming x_total, got %v", err)
+	}
+
+	rec := httptest.NewRecorder()
+	HandlerFor(a, b).ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
+	if rec.Code != 500 || strings.Contains(rec.Body.String(), "# TYPE") {
+		t.Errorf("want a clean 500 with no partial page, got %d:\n%s", rec.Code, rec.Body.String())
 	}
 }

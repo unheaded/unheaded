@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
 )
 
@@ -22,20 +21,24 @@ const (
 	idempotencyCleanupInterval = 10 * time.Minute
 )
 
-// Prometheus metrics for idempotency.
+// Metrics for idempotency. Created unregistered, and registered by the first
+// NewIdempotencyCache: a binary that never builds a cache must not publish
+// "wotan_idempotency_entries 0", a constant that looks like a measurement.
+// No production binary builds one as of 2026-09-24 (ADR-094 step 5).
 var (
-	wotanIdempotencyHits = auto.NewCounter(
+	wotanIdempotencyHits = prom.NewCounter(
 		prom.CounterOpts{
 			Name: "wotan_idempotency_hits_total",
 			Help: "Total number of duplicate messages detected and rejected",
 		},
 	)
-	wotanIdempotencyEntries = auto.NewGauge(
+	wotanIdempotencyEntries = prom.NewGauge(
 		prom.GaugeOpts{
 			Name: "wotan_idempotency_entries",
 			Help: "Current number of entries in the idempotency cache",
 		},
 	)
+	registerIdempotencyMetrics sync.Once
 )
 
 // ProcessResult is the cached outcome of processing a message.
@@ -67,6 +70,9 @@ func NewIdempotencyCache(ttl time.Duration) *IdempotencyCache {
 	if ttl <= 0 {
 		ttl = DefaultIdempotencyTTL
 	}
+	registerIdempotencyMetrics.Do(func() {
+		prom.MustRegister(wotanIdempotencyHits, wotanIdempotencyEntries)
+	})
 	ic := &IdempotencyCache{
 		entries: make(map[string]idempotencyEntry),
 		ttl:     ttl,
