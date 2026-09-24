@@ -98,11 +98,77 @@ Dependencies from established organizations, approved by owner on a case-by-case
 | Dependency | Organization | Justification | Approved |
 |-----------|-------------|---------------|----------|
 | `google.golang.org/grpc` | Google | Industry-standard gRPC, professionally maintained | 2026-04-03 |
-| `google.golang.org/protobuf` | Google | Protobuf codec, required by gRPC | 2026-04-03 |
-| `cloudflare/circl` | Cloudflare | PQ cryptography (SLH-DSA, ML-KEM), FIPS 205 | 2026-03-15 |
+| `google.golang.org/protobuf` | Google | Protobuf codec, required by gRPC. BSD-3-Clause | 2026-04-03 |
+| `cloudflare/circl` | Cloudflare | PQ cryptography: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205). Scope widened to record actual use, audit 2026-09-24 | 2026-03-15 |
 | `lib/pq` | Go community (widely used) | Pure Go PostgreSQL driver | 2026-03-15 |
 
 **Approval process:** New exceptions require owner sign-off. Target: Kanban board approval workflow (see ADR-025).
+
+### Register audit — 2026-09-24
+
+Each exception was checked against this ADR's own rules, then against how it
+is actually used and whether it has known vulnerabilities. Method:
+GitHub API for owner and creation date, the `LICENSE` in the module cache,
+`git grep` of production imports, `go mod graph` / `go mod why` for
+transitive modules, and `govulncheck ./...`, which reports only
+vulnerabilities on code paths we call.
+
+| exception | org / created | licence | reachable vulns | verdict |
+|---|---|---|---|---|
+| `google.golang.org/grpc` v1.82.1 | grpc org / 2014-12 | Apache-2.0 | **2** | passes the rules; **must be upgraded** |
+| `google.golang.org/protobuf` v1.36.11 | protocolbuffers org / 2019-03-26 | **BSD-3-Clause** (register said Apache-2.0) | 0 | passes; register corrected below |
+| `cloudflare/circl` v1.6.3 | cloudflare org / 2018-09 | BSD-3-Clause (two notices: Cloudflare, Go Authors) | 0 | passes; **scope wider than approved** |
+| `lib/pq` v1.10.9 | `lib` community org / 2012-03 | MIT | 0 | **fails "established organisation"; upstream in maintenance mode** |
+| `golang.org/x/sys` v0.46.0 | golang org / 2014-12 | BSD-3-Clause | 0 | passes |
+
+**Findings, most severe first:**
+
+1. **gRPC v1.82.1 has two vulnerabilities on the live path.**
+   - GO-2026-6443: a request missing the authority/Host header panics the
+     server. Reached from `services/wotan/cmd/wotan/main.go:337`
+     (`grpc.Server.Serve`). Any client that can reach Wotan's gRPC port can
+     crash the message bus. The panic is in the HTTP/2 transport
+     (`http2Server.HandleStreams`), before any interceptor runs, so the auth
+     interceptors cannot stop it. Fixed in v1.82.2.
+   - GO-2026-6348: OOM through HTTP/2 DATA-frame fragmentation. Reached from
+     the Wotan server, Wotan replication, `pkg/wotan-client` and
+     dashboard-backend. Fixed in v1.83.1.
+   Upgrading to ≥ v1.83.1 closes both. Approval was a one-time event, and
+   nothing re-checked the exception after it was granted. See finding 5.
+2. **`lib/pq` does not meet the rule it was approved under.** `lib` is a
+   volunteer GitHub organisation, not an organisation with a security team.
+   The register already hedged ("Go community (widely used)"). Its own README
+   now says it is in maintenance mode and recommends pgx "for reliable
+   resolution of reported bugs". pgx (`jackc/pgx`) is a single-maintainer
+   repository and fails the organisation rule too. So the options are keep
+   and record the risk, or own a minimal PostgreSQL wire client. That is a
+   decision for the owner; it is not made here.
+3. **`circl` is used beyond its approval.** Approved for "SLH-DSA, ML-KEM,
+   FIPS 205". Production also imports ML-DSA 44/65/87 (FIPS 204), in
+   `pkg/crypto/pqc` and `pkg/gungnir`, and ML-KEM (FIPS 203). The use is
+   legitimate; the register now records it. The SIDH/SIKE code in the module,
+   which is broken cryptography, is imported nowhere.
+4. **Transitive modules are trusted but not recorded.** gRPC pulls in
+   `google.golang.org/genproto/googleapis/rpc` (via `grpc/status`) and
+   `golang.org/x/net` (via `x/net/trace`). Both are Google or Go-team code,
+   which is low risk, but they should be recorded, not implied.
+5. **Nothing was watching.** The CI job that would have caught finding 1
+   does run and does fail: `Security Scan (Daily + PR)` → "Go Vulnerability
+   Check". But that workflow has **not passed once in its last 100 runs**, on
+   `main` included, so a new failure is indistinguishable from the old ones.
+   The main `CI` workflow (`ci.yml`), whose `govulncheck` job
+   `.github/BRANCH_PROTECTION.md` lists as required, has been
+   **`disabled_manually` since 2026-02-20**. `CI (Protocol Foundation)`,
+   `Docker`, `eBPF & Rust` and `Release` are disabled as well. A gate that is
+   always red is not a gate (ADR-093 rule 1).
+
+**Outside the register, same scan:** the unregistered `cilium/ebpf` v0.20.0
+has a reachable BTF integer overflow (GO-2026-6238, fixed in v0.22.0; reached
+from `cmd/trace-collector-go`, a TOOL). Toolchain `go1.25.12` has six
+reachable standard-library vulnerabilities fixed in go1.25.13 (net/http ×2,
+net/url, html/template, crypto/tls, encoding/asn1). The `Rust Cargo Audit` and
+gitleaks jobs are also failing; not investigated here. ADR-095's
+supply-chain track covers the unregistered modules.
 
 ## Long-Term Replacement Strategy
 
@@ -135,7 +201,8 @@ The Computermancer, BlackMage, and Developer skills have the assembly/Rust exper
 ### GPL-3.0 License Compatibility
 
 All approved exceptions use permissive licenses that are one-way compatible with GPL-3.0:
-- Apache-2.0 (grpc-go, protobuf) — GPL-compatible per FSF
+- Apache-2.0 (grpc-go) — GPL-3.0-compatible per FSF (not GPL-2.0-only)
+- BSD-3-Clause (protobuf-go) — GPL-compatible
 - BSD-3-Clause (circl) — GPL-compatible
 - MIT (lib/pq) — GPL-compatible
 
