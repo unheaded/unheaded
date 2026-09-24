@@ -152,3 +152,26 @@ func TestReservedLabels(t *testing.T) {
 		NewSummary(SummaryOpts{Name: "s", ConstLabels: Labels{"quantile": "x"}})
 	})
 }
+
+// A family with no samples is omitted, HELP and TYPE included, as
+// client_golang does. Pinned here, not only in the prom parity test, so it
+// outlives client_golang (ADR-094 step 6).
+func TestGather_OmitsFamiliesWithNoSamples(t *testing.T) {
+	reg := NewRegistry()
+	reg.MustRegister(NewCounterVec("untouched_total", "never incremented", nil, []string{"x"}))
+	used := NewCounterVec("used_total", "incremented", nil, []string{"x"})
+	reg.MustRegister(used)
+	used.WithLabelValues("a").Inc()
+
+	var buf bytes.Buffer
+	if err := reg.Gather(&buf); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if strings.Contains(out, "untouched_total") {
+		t.Errorf("empty family published:\n%s", out)
+	}
+	if !strings.Contains(out, "# TYPE used_total counter") || !strings.Contains(out, `used_total{x="a"} 1`) {
+		t.Errorf("used family missing:\n%s", out)
+	}
+}
