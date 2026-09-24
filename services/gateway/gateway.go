@@ -449,8 +449,10 @@ func (g *Gateway) readinessHandler(w http.ResponseWriter, r *http.Request) {
 
 // metricsHandler handles Prometheus metrics endpoint.
 func (g *Gateway) metricsHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain; version=0.0.4; charset=utf-8")
-	_ = g.metrics.Gather(w)
+	// The default registry rides along: go_*, process_* and what linked
+	// libraries register at load (pkg/wotan-client) never reached this
+	// scrape before ADR-094 step 5. GatherAll also skips a nil registry.
+	metrics.HandlerFor(g.metrics, metrics.DefaultRegistry).ServeHTTP(w, r)
 }
 
 // GetRouter returns the gateway router.
