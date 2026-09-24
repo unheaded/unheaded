@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-094 — Own the metrics stack: retire `prometheus/client_golang`
 
-**Status:** Proposed (Tier 1 done; Tier 2 steps 1-4 done; step 5 (the 13 blind binaries) next)
+**Status:** Proposed (Tier 1 done; Tier 2 steps 1-4 done; step 5 done for live binaries with /metrics)
 **Date:** 2026-09-24
 **Supersedes:** nothing. **Related:** ADR-092 (log discipline), ADR-093 (shape
 and the reachability rules), `pkg/metrics`, `pkg/logagg`.
@@ -386,3 +386,52 @@ covered by the identity-field check above, not a scrape. After the flip, only
   difference: a type clash is refused at `Register`, where client_golang
   accepts it and then fails the whole scrape at `Gather`. Both behaviours
   are pinned against client_golang; nine planted bugs, all caught.
+
+### Step 5 — live binaries DONE (2026-09-24); three need a decision
+
+`metrics.HandlerFor(regs...)` / `GatherAll` serve several registries as one
+page, in one name order. A name registered in two of them is a clean 500
+naming it, never a merged or shadowed family. Each service passes its own
+registry together with `DefaultRegistry`. One binary per commit, each
+scraped before and after:
+
+| binary | before | after | removed |
+|---|---|---|---|
+| dashboard-backend | 10 | 45 | 0 |
+| kanban-app | 6 | 41 | 0 |
+| monad | 13 | 48 | 0 |
+| sophia | 11 | 46 | 0 |
+| unheaded-daemon | 6 | 41 | 0 |
+| timeguru (Docker, `cmd/timeguru`) | 3 | 38 | 0 |
+| timeguru (Nix, root package) | **0 — empty 200** | 35 | 0 |
+
+Every addition is the 34 `go_*`/`process_*` families plus
+`wotan_buffered_messages`. That gauge is maintained by the Wotan client's
+publish and flush path, and each of these binaries constructs a client (checked).
+The dead-letter, retry, ordering and timeout counters are Vecs, so they
+appear on first use. Every page passes `metricstest.Lint`.
+
+Found on the way:
+- **`wotan_idempotency_*` published constant zeros** after the first wiring:
+  nothing in production calls `NewIdempotencyCache`. They now register with
+  the first cache, not at package load (the `pqc_metrics` pattern again).
+- **monad's exposition checker rejected a summary's `_sum`/`_count`**, which
+  the text format requires. It had never seen a summary. One shared checker,
+  `pkg/metrics/metricstest.Lint`, replaces the per-service copies.
+- **The two timeguru builds ship on different substrates** (Docker builds
+  `cmd/timeguru`, `nix/packages/timeguru.nix` builds the root package), and
+  the Nix one's `/metrics` returned an empty body.
+- **`scripts/live-path-inventory.sh` misses main packages** outside
+  `cmd/*/` and `services/*/cmd/*/`: `services/gateway/cmd` (built by the
+  Makefile, run by nothing found), the root `services/timeguru` (Nix-deployed),
+  `deploy/sophia-eye/sophia-gateway` (its own compose stack), and 11 MBC
+  programs under `arch/` and `demos/`. The gate passes while it cannot see
+  them. Fix the enumeration to use `go list`, then classify the three Go
+  services.
+
+**Not done, needs a decision:** captain (CONTAINER), akira (SUPERVISED)
+and gateway have **no `/metrics` route at all**, though CLAUDE.md requires
+one. Wiring the default registry there means adding an endpoint, not
+changing one. chaos-controller, demo-trace-injector, pqc-verifier and shield
+are ORPHAN/TOOL with no endpoint; per ADR-093 they get no effort beyond this
+record.
