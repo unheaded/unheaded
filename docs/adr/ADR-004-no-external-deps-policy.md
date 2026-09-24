@@ -1,6 +1,6 @@
 # ADR-004: No-External-Dependencies Policy (Self-Hosted Everything)
 
-## Status: Accepted
+## Status: Accepted — admission gate amended by [ADR-096](ADR-096-dependency-gate-cost-to-fake.md) (proposed 2026-09-24)
 
 ## Date: 2026-01-26
 
