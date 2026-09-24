@@ -15,14 +15,16 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/httputil"
+	"unheaded/pkg/metrics"
 )
 
 // HTTPServer provides REST API endpoints for the captain service
 type HTTPServer struct {
-	service *Service
-	server  *http.Server
-	mu      sync.RWMutex
-	metrics *HTTPMetrics
+	service  *Service
+	server   *http.Server
+	mu       sync.RWMutex
+	metrics  *HTTPMetrics
+	registry *metrics.Registry
 }
 
 // HTTPMetrics tracks HTTP metrics
@@ -58,6 +60,7 @@ func NewHTTPServer(service *Service, addr string) (*HTTPServer, error) {
 		service: service,
 		metrics: &HTTPMetrics{},
 	}
+	hs.registry = newCaptainRegistry(hs.metrics)
 
 	mux := http.NewServeMux()
 
@@ -169,23 +172,34 @@ func (hs *HTTPServer) metricsHandler(w http.ResponseWriter, r *http.Request) {
 		hs.writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "GET only")
 		return
 	}
+	// The default registry rides along: go_*, process_* and what linked
+	// libraries register at load (pkg/wotan-client). A HTTPServer built as
+	// a struct literal has no registry; GatherAll skips a nil one.
+	metrics.HandlerFor(hs.registry, metrics.DefaultRegistry).ServeHTTP(w, r)
+}
 
-	hs.metrics.mu.RLock()
-	metrics := fmt.Sprintf(
-		"# HELP captain_http_requests_total Total HTTP requests\n"+
-			"# TYPE captain_http_requests_total counter\n"+
-			"captain_http_requests_total %d\n"+
-			"captain_http_requests_success %d\n"+
-			"captain_http_requests_error %d\n",
-		hs.metrics.RequestsTotal,
-		hs.metrics.RequestsSuccess,
-		hs.metrics.RequestsError,
-	)
-	hs.metrics.mu.RUnlock()
-
-	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte(metrics))
+// newCaptainRegistry exposes the request counters through a registry.
+//
+// Until ADR-094 step 5 this page was built with fmt.Sprintf, and only the
+// first of its three series had a # TYPE: captain_http_requests_success
+// and _error were published untyped, the malformed class Tier 1 removed from
+// the other services. Tier 1 missed captain because its /metrics route lives
+// in this package, not under cmd/. Names are unchanged so existing queries
+// keep working, although success and error lack the _total suffix a
+// counter would normally carry.
+func newCaptainRegistry(m *HTTPMetrics) *metrics.Registry {
+	read := func(f *int64) func() float64 {
+		return func() float64 {
+			m.mu.RLock()
+			defer m.mu.RUnlock()
+			return float64(*f)
+		}
+	}
+	reg := metrics.NewRegistry()
+	reg.MustRegister(metrics.NewFuncCounter("captain_http_requests_total", "Total HTTP requests", nil, read(&m.RequestsTotal)))
+	reg.MustRegister(metrics.NewFuncCounter("captain_http_requests_success", "HTTP requests that succeeded", nil, read(&m.RequestsSuccess)))
+	reg.MustRegister(metrics.NewFuncCounter("captain_http_requests_error", "HTTP requests that failed", nil, read(&m.RequestsError)))
+	return reg
 }
 
 // visionHandler returns the project vision
