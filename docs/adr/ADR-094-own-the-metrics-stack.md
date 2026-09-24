@@ -201,3 +201,25 @@ kernel, so it is tested directly against the fast path.
 
 Step 2 ("verify against the real thing") is satisfied for both collectors
 by the parity tests. Steps 3-6 not started; step 3 is next.
+
+### Found while surveying step 3 — two core defects that block it
+
+Step 3 would move ~30 files onto `pkg/metrics`' Vec and Histogram types. Both
+have defects that client_golang rules out, reproduced 2026-09-24:
+
+1. **No label validation.** `CounterVec.WithLabels(Labels{"cdoe": "200"})`
+   on a vec declared with `code` publishes `c_total{cdoe="200"}`, and
+   `WithLabels(Labels{})` publishes a bare `c_total`. client_golang panics on
+   a mismatched label set. Same for `GaugeVec` and `HistogramVec`. The one
+   external caller today is `cmd/dashboard-backend` (host gauges).
+2. **Duplicate histogram buckets.** `Buckets: {1, 1, +Inf}` emits
+   `le="1"` twice and `le="+Inf"` twice. Duplicate series are invalid
+   exposition and Prometheus rejects the whole scrape. client_golang panics
+   on non-increasing buckets and strips a trailing `+Inf`. No caller in the
+   tree passes `+Inf` today.
+
+Fix both, each with a planted-bug check, before step 3 adds a
+`WithLabelValues(...)` shim. The survey found 109 `.WithLabelValues(`
+calls, which are positional, so the shim has to map values onto the
+declared label names, and that mapping is only as safe as the validation
+underneath it.
