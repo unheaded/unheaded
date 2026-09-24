@@ -25,9 +25,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog/log"
+
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // ── LatencyKey ─────────────────────────────────────────────────────────────
@@ -160,34 +161,34 @@ func (le *LatencyEntry) MaxRTTDuration() time.Duration {
 // ── Prometheus metrics for latency reader ──────────────────────────────────
 
 var (
-	latencyPollsTotal = promauto.NewCounter(prometheus.CounterOpts{
+	latencyPollsTotal = auto.NewCounter(prom.CounterOpts{
 		Name: "latency_reader_polls_total",
 		Help: "Total LATENCY_MAP poll cycles",
 	})
 
-	latencyEntriesRead = promauto.NewCounter(prometheus.CounterOpts{
+	latencyEntriesRead = auto.NewCounter(prom.CounterOpts{
 		Name: "latency_reader_entries_read_total",
 		Help: "Total latency entries read from BPF maps",
 	})
 
-	latencyEntriesPublished = promauto.NewCounter(prometheus.CounterOpts{
+	latencyEntriesPublished = auto.NewCounter(prom.CounterOpts{
 		Name: "latency_reader_entries_published_total",
 		Help: "Total latency entries published to Wotan",
 	})
 
-	latencyReaderErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+	latencyReaderErrors = auto.NewCounterVec(prom.CounterOpts{
 		Name: "latency_reader_errors_total",
 		Help: "Total errors during latency map reading or publishing",
 	}, []string{"operation"})
 
-	latencyPollDuration = promauto.NewHistogram(prometheus.HistogramOpts{
+	latencyPollDuration = auto.NewHistogram(prom.HistogramOpts{
 		Name:    "latency_reader_poll_duration_seconds",
 		Help:    "Duration of each LATENCY_MAP poll cycle",
 		Buckets: []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1},
 	})
 
 	// The primary output metric: observed packet RTTs as a histogram.
-	packetRTTHistogram = promauto.NewHistogram(prometheus.HistogramOpts{
+	packetRTTHistogram = auto.NewHistogram(prom.HistogramOpts{
 		Name: "unheaded_packet_rtt_seconds",
 		Help: "Observed packet round-trip times from latency_probe BPF program",
 		Buckets: []float64{

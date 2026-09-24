@@ -24,9 +24,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog/log"
+
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // ── BPF struct sizes ─────────────────────────────────────────────────────────
@@ -302,28 +303,28 @@ func (fe *FlowEventEntry) EventTypeName() string {
 // ── Prometheus metrics for flow reader ───────────────────────────────────────
 
 var (
-	flowReaderActiveFlows = promauto.NewGauge(prometheus.GaugeOpts{
+	flowReaderActiveFlows = auto.NewGauge(prom.GaugeOpts{
 		Name: "flow_reader_active_flows",
 		Help: "Number of currently tracked active flows",
 	})
 
-	flowReaderEventsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	flowReaderEventsTotal = auto.NewCounterVec(prom.CounterOpts{
 		Name: "flow_reader_events_total",
 		Help: "Total flow events published to Wotan",
 	}, []string{"event_type"})
 
-	flowReaderStaleExpired = promauto.NewCounter(prometheus.CounterOpts{
+	flowReaderStaleExpired = auto.NewCounter(prom.CounterOpts{
 		Name: "flow_reader_stale_flows_expired_total",
 		Help: "Total stale flows expired by GC",
 	})
 
-	flowReaderPollLatency = promauto.NewHistogram(prometheus.HistogramOpts{
+	flowReaderPollLatency = auto.NewHistogram(prom.HistogramOpts{
 		Name:    "flow_reader_poll_duration_seconds",
 		Help:    "Duration of each flow map poll cycle",
 		Buckets: []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1},
 	})
 
-	flowReaderErrors = promauto.NewCounterVec(prometheus.CounterOpts{
+	flowReaderErrors = auto.NewCounterVec(prom.CounterOpts{
 		Name: "flow_reader_errors_total",
 		Help: "Total errors during flow reading or publishing",
 	}, []string{"operation"})

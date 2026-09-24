@@ -178,6 +178,11 @@ func (r *Registry) MustRegister(cs ...Collector) {
 	}
 }
 
+// Unregister removes c, identified by its name and constant labels.
+func (r *Registry) Unregister(c Collector) bool {
+	return r.r.Unregister(c)
+}
+
 // Handler serves the registry in Prometheus text format — promhttp.HandlerFor.
 func (r *Registry) Handler() http.Handler {
 	return r.r.Handler()

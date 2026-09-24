@@ -24,11 +24,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // Common errors
@@ -482,8 +483,8 @@ func DefaultConfig() *AggregatorConfig {
 
 // Prometheus metrics
 var (
-	healthCheckDuration = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
+	healthCheckDuration = auto.NewHistogramVec(
+		prom.HistogramOpts{
 			Name:    "health_check_duration_seconds",
 			Help:    "Duration of health checks in seconds",
 			Buckets: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10},
@@ -491,31 +492,31 @@ var (
 		[]string{"name", "type", "status"},
 	)
 
-	healthCheckStatus = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
+	healthCheckStatus = auto.NewGaugeVec(
+		prom.GaugeOpts{
 			Name: "health_check_status",
 			Help: "Current health check status (1=healthy, 0.5=degraded, 0=unhealthy)",
 		},
 		[]string{"name", "type"},
 	)
 
-	healthCheckTotal = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	healthCheckTotal = auto.NewCounterVec(
+		prom.CounterOpts{
 			Name: "health_check_total",
 			Help: "Total number of health checks performed",
 		},
 		[]string{"name", "type", "status"},
 	)
 
-	systemHealthStatus = promauto.NewGauge(
-		prometheus.GaugeOpts{
+	systemHealthStatus = auto.NewGauge(
+		prom.GaugeOpts{
 			Name: "system_health_status",
 			Help: "Overall system health status (1=healthy, 0.5=degraded, 0=unhealthy)",
 		},
 	)
 
-	circuitBreakerState = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
+	circuitBreakerState = auto.NewGaugeVec(
+		prom.GaugeOpts{
 			Name: "health_circuit_breaker_state",
 			Help: "Circuit breaker state (0=closed, 1=open, 0.5=half-open)",
 		},

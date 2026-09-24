@@ -6,45 +6,45 @@ package metrics
 import (
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // Metrics holds all Prometheus metrics
 type Metrics struct {
 	// HTTP metrics
-	HTTPRequestsTotal   *prometheus.CounterVec
-	HTTPRequestDuration *prometheus.HistogramVec
-	HTTPRequestSize     *prometheus.HistogramVec
-	HTTPResponseSize    *prometheus.HistogramVec
+	HTTPRequestsTotal   *prom.CounterVec
+	HTTPRequestDuration *prom.HistogramVec
+	HTTPRequestSize     *prom.HistogramVec
+	HTTPResponseSize    *prom.HistogramVec
 
 	// Room metrics
-	RoomsTotal        prometheus.Gauge
-	RoomMessagesTotal *prometheus.CounterVec
-	RoomBufferSize    *prometheus.GaugeVec
-	RoomBufferUsage   *prometheus.GaugeVec
-	RoomBufferWrapped *prometheus.CounterVec
+	RoomsTotal        prom.Gauge
+	RoomMessagesTotal *prom.CounterVec
+	RoomBufferSize    *prom.GaugeVec
+	RoomBufferUsage   *prom.GaugeVec
+	RoomBufferWrapped *prom.CounterVec
 
 	// Member metrics
-	MembersTotal       *prometheus.GaugeVec
-	MembersPending     prometheus.Gauge
-	MembersApproved    prometheus.Gauge
-	MemberJoinRequests *prometheus.CounterVec
+	MembersTotal       *prom.GaugeVec
+	MembersPending     prom.Gauge
+	MembersApproved    prom.Gauge
+	MemberJoinRequests *prom.CounterVec
 
 	// Message metrics
-	MessagesCreated     *prometheus.CounterVec
-	MessagesDeleted     *prometheus.CounterVec
-	MessageDeleteFailed *prometheus.CounterVec
+	MessagesCreated     *prom.CounterVec
+	MessagesDeleted     *prom.CounterVec
+	MessageDeleteFailed *prom.CounterVec
 
 	// gRPC streaming metrics
-	StreamsActive      *prometheus.GaugeVec
-	StreamsTotal       *prometheus.CounterVec
-	StreamMessagesSent *prometheus.CounterVec
-	StreamErrors       *prometheus.CounterVec
+	StreamsActive      *prom.GaugeVec
+	StreamsTotal       *prom.CounterVec
+	StreamMessagesSent *prom.CounterVec
+	StreamErrors       *prom.CounterVec
 
 	// System metrics
-	GoroutinesActive prometheus.Gauge
-	MemoryAllocated  prometheus.Gauge
+	GoroutinesActive prom.Gauge
+	MemoryAllocated  prom.Gauge
 }
 
 var defaultMetrics *Metrics
@@ -53,76 +53,76 @@ var defaultMetrics *Metrics
 func Initialize(namespace string) *Metrics {
 	m := &Metrics{
 		// HTTP metrics
-		HTTPRequestsTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
+		HTTPRequestsTotal: auto.NewCounterVec(
+			prom.CounterOpts{
 				Namespace: namespace,
 				Name:      "http_requests_total",
 				Help:      "Total number of HTTP requests",
 			},
 			[]string{"method", "path", "status"},
 		),
-		HTTPRequestDuration: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
+		HTTPRequestDuration: auto.NewHistogramVec(
+			prom.HistogramOpts{
 				Namespace: namespace,
 				Name:      "http_request_duration_seconds",
 				Help:      "HTTP request duration in seconds",
-				Buckets:   prometheus.DefBuckets,
+				Buckets:   prom.DefBuckets,
 			},
 			[]string{"method", "path", "status"},
 		),
-		HTTPRequestSize: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
+		HTTPRequestSize: auto.NewHistogramVec(
+			prom.HistogramOpts{
 				Namespace: namespace,
 				Name:      "http_request_size_bytes",
 				Help:      "HTTP request size in bytes",
-				Buckets:   prometheus.ExponentialBuckets(100, 10, 8),
+				Buckets:   prom.ExponentialBuckets(100, 10, 8),
 			},
 			[]string{"method", "path"},
 		),
-		HTTPResponseSize: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
+		HTTPResponseSize: auto.NewHistogramVec(
+			prom.HistogramOpts{
 				Namespace: namespace,
 				Name:      "http_response_size_bytes",
 				Help:      "HTTP response size in bytes",
-				Buckets:   prometheus.ExponentialBuckets(100, 10, 8),
+				Buckets:   prom.ExponentialBuckets(100, 10, 8),
 			},
 			[]string{"method", "path"},
 		),
 
 		// Room metrics
-		RoomsTotal: promauto.NewGauge(
-			prometheus.GaugeOpts{
+		RoomsTotal: auto.NewGauge(
+			prom.GaugeOpts{
 				Namespace: namespace,
 				Name:      "rooms_total",
 				Help:      "Total number of active rooms",
 			},
 		),
-		RoomMessagesTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
+		RoomMessagesTotal: auto.NewCounterVec(
+			prom.CounterOpts{
 				Namespace: namespace,
 				Name:      "room_messages_total",
 				Help:      "Total messages in each room",
 			},
 			[]string{"room_id"},
 		),
-		RoomBufferSize: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
+		RoomBufferSize: auto.NewGaugeVec(
+			prom.GaugeOpts{
 				Namespace: namespace,
 				Name:      "room_buffer_size",
 				Help:      "Ring buffer size for each room",
 			},
 			[]string{"room_id"},
 		),
-		RoomBufferUsage: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
+		RoomBufferUsage: auto.NewGaugeVec(
+			prom.GaugeOpts{
 				Namespace: namespace,
 				Name:      "room_buffer_usage",
 				Help:      "Current ring buffer usage for each room",
 			},
 			[]string{"room_id"},
 		),
-		RoomBufferWrapped: promauto.NewCounterVec(
-			prometheus.CounterOpts{
+		RoomBufferWrapped: auto.NewCounterVec(
+			prom.CounterOpts{
 				Namespace: namespace,
 				Name:      "room_buffer_wrapped_total",
 				Help:      "Number of times ring buffer wrapped for each room",
@@ -131,30 +131,30 @@ func Initialize(namespace string) *Metrics {
 		),
 
 		// Member metrics
-		MembersTotal: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
+		MembersTotal: auto.NewGaugeVec(
+			prom.GaugeOpts{
 				Namespace: namespace,
 				Name:      "members_total",
 				Help:      "Total members by status",
 			},
 			[]string{"status"},
 		),
-		MembersPending: promauto.NewGauge(
-			prometheus.GaugeOpts{
+		MembersPending: auto.NewGauge(
+			prom.GaugeOpts{
 				Namespace: namespace,
 				Name:      "members_pending",
 				Help:      "Number of pending member requests",
 			},
 		),
-		MembersApproved: promauto.NewGauge(
-			prometheus.GaugeOpts{
+		MembersApproved: auto.NewGauge(
+			prom.GaugeOpts{
 				Namespace: namespace,
 				Name:      "members_approved",
 				Help:      "Number of approved members",
 			},
 		),
-		MemberJoinRequests: promauto.NewCounterVec(
-			prometheus.CounterOpts{
+		MemberJoinRequests: auto.NewCounterVec(
+			prom.CounterOpts{
 				Namespace: namespace,
 				Name:      "member_join_requests_total",
 				Help:      "Total member join requests",
@@ -163,24 +163,24 @@ func Initialize(namespace string) *Metrics {
 		),
 
 		// Message metrics
-		MessagesCreated: promauto.NewCounterVec(
-			prometheus.CounterOpts{
+		MessagesCreated: auto.NewCounterVec(
+			prom.CounterOpts{
 				Namespace: namespace,
 				Name:      "messages_created_total",
 				Help:      "Total messages created",
 			},
 			[]string{"room_id"},
 		),
-		MessagesDeleted: promauto.NewCounterVec(
-			prometheus.CounterOpts{
+		MessagesDeleted: auto.NewCounterVec(
+			prom.CounterOpts{
 				Namespace: namespace,
 				Name:      "messages_deleted_total",
 				Help:      "Total messages deleted",
 			},
 			[]string{"room_id"},
 		),
-		MessageDeleteFailed: promauto.NewCounterVec(
-			prometheus.CounterOpts{
+		MessageDeleteFailed: auto.NewCounterVec(
+			prom.CounterOpts{
 				Namespace: namespace,
 				Name:      "messages_delete_failed_total",
 				Help:      "Total failed message deletion attempts",
@@ -189,32 +189,32 @@ func Initialize(namespace string) *Metrics {
 		),
 
 		// gRPC streaming metrics
-		StreamsActive: promauto.NewGaugeVec(
-			prometheus.GaugeOpts{
+		StreamsActive: auto.NewGaugeVec(
+			prom.GaugeOpts{
 				Namespace: namespace,
 				Name:      "streams_active",
 				Help:      "Number of active gRPC streams",
 			},
 			[]string{"room_id"},
 		),
-		StreamsTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
+		StreamsTotal: auto.NewCounterVec(
+			prom.CounterOpts{
 				Namespace: namespace,
 				Name:      "streams_total",
 				Help:      "Total gRPC streams created",
 			},
 			[]string{"room_id"},
 		),
-		StreamMessagesSent: promauto.NewCounterVec(
-			prometheus.CounterOpts{
+		StreamMessagesSent: auto.NewCounterVec(
+			prom.CounterOpts{
 				Namespace: namespace,
 				Name:      "stream_messages_sent_total",
 				Help:      "Total messages sent via streams",
 			},
 			[]string{"room_id", "event_type"},
 		),
-		StreamErrors: promauto.NewCounterVec(
-			prometheus.CounterOpts{
+		StreamErrors: auto.NewCounterVec(
+			prom.CounterOpts{
 				Namespace: namespace,
 				Name:      "stream_errors_total",
 				Help:      "Total stream errors",
@@ -223,15 +223,15 @@ func Initialize(namespace string) *Metrics {
 		),
 
 		// System metrics
-		GoroutinesActive: promauto.NewGauge(
-			prometheus.GaugeOpts{
+		GoroutinesActive: auto.NewGauge(
+			prom.GaugeOpts{
 				Namespace: namespace,
 				Name:      "goroutines_active",
 				Help:      "Number of active goroutines",
 			},
 		),
-		MemoryAllocated: promauto.NewGauge(
-			prometheus.GaugeOpts{
+		MemoryAllocated: auto.NewGauge(
+			prom.GaugeOpts{
 				Namespace: namespace,
 				Name:      "memory_allocated_bytes",
 				Help:      "Memory allocated in bytes",
@@ -251,7 +251,7 @@ func Get() *Metrics {
 
 // RecordHTTPRequest records HTTP request metrics
 func (m *Metrics) RecordHTTPRequest(method, path string, statusCode int, duration time.Duration) {
-	status := prometheus.Labels{
+	status := prom.Labels{
 		"method": method,
 		"path":   path,
 		"status": string(rune(statusCode/100)) + "xx", // #nosec G115 -- bounded by construction; see the surrounding guard
@@ -307,38 +307,38 @@ func (m *Metrics) RecordStreamError(roomID, errorType string) {
 // Package-level metric accessors for convenience
 var (
 	// HTTP metrics
-	HTTPRequestsTotal   *prometheus.CounterVec
-	HTTPRequestDuration *prometheus.HistogramVec
-	HTTPRequestSize     *prometheus.HistogramVec
-	HTTPResponseSize    *prometheus.HistogramVec
+	HTTPRequestsTotal   *prom.CounterVec
+	HTTPRequestDuration *prom.HistogramVec
+	HTTPRequestSize     *prom.HistogramVec
+	HTTPResponseSize    *prom.HistogramVec
 
 	// Room metrics
-	RoomsTotal        prometheus.Gauge
-	RoomMessagesTotal *prometheus.CounterVec
-	RoomBufferSize    *prometheus.GaugeVec
-	RoomBufferUsage   *prometheus.GaugeVec
-	RoomBufferWrapped *prometheus.CounterVec
+	RoomsTotal        prom.Gauge
+	RoomMessagesTotal *prom.CounterVec
+	RoomBufferSize    *prom.GaugeVec
+	RoomBufferUsage   *prom.GaugeVec
+	RoomBufferWrapped *prom.CounterVec
 
 	// Member metrics
-	MembersTotal       *prometheus.GaugeVec
-	MembersPending     prometheus.Gauge
-	MembersApproved    prometheus.Gauge
-	MemberJoinRequests *prometheus.CounterVec
+	MembersTotal       *prom.GaugeVec
+	MembersPending     prom.Gauge
+	MembersApproved    prom.Gauge
+	MemberJoinRequests *prom.CounterVec
 
 	// Message metrics
-	MessagesCreated     *prometheus.CounterVec
-	MessagesDeleted     *prometheus.CounterVec
-	MessageDeleteFailed *prometheus.CounterVec
+	MessagesCreated     *prom.CounterVec
+	MessagesDeleted     *prom.CounterVec
+	MessageDeleteFailed *prom.CounterVec
 
 	// gRPC streaming metrics
-	StreamsActive      *prometheus.GaugeVec
-	StreamsTotal       *prometheus.CounterVec
-	StreamMessagesSent *prometheus.CounterVec
-	StreamErrors       *prometheus.CounterVec
+	StreamsActive      *prom.GaugeVec
+	StreamsTotal       *prom.CounterVec
+	StreamMessagesSent *prom.CounterVec
+	StreamErrors       *prom.CounterVec
 
 	// System metrics
-	GoroutinesActive prometheus.Gauge
-	MemoryAllocated  prometheus.Gauge
+	GoroutinesActive prom.Gauge
+	MemoryAllocated  prom.Gauge
 )
 
 // initPackageVars initializes package-level variables

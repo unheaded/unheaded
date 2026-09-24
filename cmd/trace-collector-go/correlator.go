@@ -20,29 +20,29 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // ── Prometheus metrics for correlator ───────────────────────────────────────
 
 var (
-	correlatorFlowsActive = promauto.NewGauge(prometheus.GaugeOpts{
+	correlatorFlowsActive = auto.NewGauge(prom.GaugeOpts{
 		Name: "trace_correlator_flows_active",
 		Help: "Number of in-flight flows being tracked",
 	})
 
-	correlatorFlowsMatched = promauto.NewCounter(prometheus.CounterOpts{
+	correlatorFlowsMatched = auto.NewCounter(prom.CounterOpts{
 		Name: "trace_correlator_flows_matched_total",
 		Help: "Number of bidirectional flows successfully correlated",
 	})
 
-	correlatorFlowsExpired = promauto.NewCounter(prometheus.CounterOpts{
+	correlatorFlowsExpired = auto.NewCounter(prom.CounterOpts{
 		Name: "trace_correlator_flows_expired_total",
 		Help: "Number of flows expired by GC",
 	})
 
-	correlatorRTTHistogram = promauto.NewHistogram(prometheus.HistogramOpts{
+	correlatorRTTHistogram = auto.NewHistogram(prom.HistogramOpts{
 		Name:    "trace_correlator_rtt_seconds",
 		Help:    "Observed round-trip times for correlated flows",
 		Buckets: []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1.0},

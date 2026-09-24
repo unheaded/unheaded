@@ -18,10 +18,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"unheaded/pkg/agent"
 	"unheaded/pkg/champion"
+	"unheaded/pkg/metrics/prom"
 )
 
 // --- helpers shared by all daemon-side integration tests ---
@@ -121,7 +120,7 @@ func newTestDaemonWithRoot(t *testing.T, root string, retr agent.Retriever, llm 
 	}
 
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", prom.Handler())
 	mux.Handle("/health", instrument("/health", http.HandlerFunc(srv.handleHealth)))
 	mux.Handle("/ready", instrument("/ready", http.HandlerFunc(srv.handleReady)))
 	mux.Handle("/api/v1/agent/ask", instrument("/api/v1/agent/ask", http.HandlerFunc(srv.handleAsk)))

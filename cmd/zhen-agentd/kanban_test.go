@@ -22,10 +22,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"unheaded/pkg/agent"
 	"unheaded/pkg/champion"
+	"unheaded/pkg/metrics/prom"
 )
 
 // --- in-memory KanbanStore for tests that don't need real PG ---
@@ -106,7 +105,7 @@ func newKanbanDaemon(t *testing.T, kStore champion.KanbanStore, retr agent.Retri
 		ready:       newReadyTracker(&http.Client{}, "http://127.0.0.1:1", "http://127.0.0.1:1"),
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", prom.Handler())
 	mux.Handle("/api/v1/agent/ask", instrument("/api/v1/agent/ask", http.HandlerFunc(srv.handleAsk)))
 	mux.Handle("/api/v1/agent/confirm", instrument("/api/v1/agent/confirm", http.HandlerFunc(srv.handleConfirm)))
 	ts := httptest.NewServer(mux)

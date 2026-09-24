@@ -25,11 +25,11 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/ebpf"
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
@@ -58,22 +58,22 @@ const (
 // ── Prometheus metrics for publisher ──────────────────────────────────────
 
 var (
-	publisherBatchesTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	publisherBatchesTotal = auto.NewCounterVec(prom.CounterOpts{
 		Name: "trace_publisher_batches_total",
 		Help: "Total batches published to Wotan",
 	}, []string{"topic"})
 
-	publisherEventsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	publisherEventsTotal = auto.NewCounterVec(prom.CounterOpts{
 		Name: "trace_publisher_events_total",
 		Help: "Total events published to Wotan",
 	}, []string{"topic"})
 
-	publisherErrorsTotal = promauto.NewCounterVec(prometheus.CounterOpts{
+	publisherErrorsTotal = auto.NewCounterVec(prom.CounterOpts{
 		Name: "trace_publisher_errors_total",
 		Help: "Total publish errors",
 	}, []string{"topic"})
 
-	publisherFlushLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
+	publisherFlushLatency = auto.NewHistogramVec(prom.HistogramOpts{
 		Name:    "trace_publisher_flush_duration_seconds",
 		Help:    "Duration of each batch flush to Wotan",
 		Buckets: []float64{0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1},

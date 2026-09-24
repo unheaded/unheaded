@@ -16,10 +16,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-
 	"unheaded/pkg/agent"
 	"unheaded/pkg/auth"
+	"unheaded/pkg/metrics/prom"
 )
 
 // newAuthDaemon constructs a daemon with the auth middleware enabled
@@ -41,7 +40,7 @@ func newAuthDaemon(t *testing.T, apiKeys []string, retr agent.Retriever, llm age
 		ready:       newReadyTracker(&http.Client{}, "http://127.0.0.1:1", "http://127.0.0.1:1"),
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", prom.Handler())
 	mux.Handle("/health", instrument("/health", http.HandlerFunc(srv.handleHealth)))
 	mux.Handle("/ready", instrument("/ready", http.HandlerFunc(srv.handleReady)))
 	mux.Handle("/api/v1/agent/ask", instrument("/api/v1/agent/ask", http.HandlerFunc(srv.handleAsk)))
@@ -81,7 +80,7 @@ func newRateLimitDaemon(t *testing.T, retr agent.Retriever, llm agent.LLM) (*tes
 		ready:       newReadyTracker(&http.Client{}, "http://127.0.0.1:1", "http://127.0.0.1:1"),
 	}
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", prom.Handler())
 	mux.Handle("/health", instrument("/health", http.HandlerFunc(srv.handleHealth)))
 	mux.Handle("/api/v1/agent/ask", instrument("/api/v1/agent/ask", http.HandlerFunc(srv.handleAsk)))
 

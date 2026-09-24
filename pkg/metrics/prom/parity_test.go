@@ -295,3 +295,132 @@ func TestAuto_WithNilRegistersNowhere(t *testing.T) {
 		t.Error("auto.With(nil) registered with the default registry")
 	}
 }
+
+// Bounds must be bit-identical to client_golang's, or an le series changes
+// name under every dashboard. Covers every argument set used in the tree
+// (git grep, 2026-09-24) plus widths that do not round-trip in binary.
+func TestShim_BucketGeneratorsBitIdentical(t *testing.T) {
+	for _, a := range [][3]float64{
+		{0.0001, 2, 12}, {0.001, 2, 12}, {0.001, 2, 14}, {100, 10, 6}, {100, 10, 8},
+		{1024, 4, 10}, {64, 4, 5}, {0.1, 3, 20}, {0.005, 1.5, 30},
+	} {
+		want := prometheus.ExponentialBuckets(a[0], a[1], int(a[2]))
+		got := prom.ExponentialBuckets(a[0], a[1], int(a[2]))
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("ExponentialBuckets%v[%d] = %v, client_golang %v", a, i, got[i], want[i])
+			}
+		}
+	}
+	for _, a := range [][3]float64{{0, 0.1, 30}, {0.05, 0.05, 40}, {1, 2.5, 10}, {-1, 0.3, 25}} {
+		want := prometheus.LinearBuckets(a[0], a[1], int(a[2]))
+		got := prom.LinearBuckets(a[0], a[1], int(a[2]))
+		for i := range want {
+			if got[i] != want[i] {
+				t.Errorf("LinearBuckets%v[%d] = %v, client_golang %v", a, i, got[i], want[i])
+			}
+		}
+	}
+	for _, bad := range []func(){
+		func() { prom.ExponentialBuckets(1, 2, 0) },
+		func() { prom.ExponentialBuckets(0, 2, 3) },
+		func() { prom.ExponentialBuckets(1, 1, 3) },
+		func() { prom.LinearBuckets(0, 1, 0) },
+	} {
+		func() {
+			defer func() {
+				if recover() == nil {
+					t.Error("invalid bucket arguments did not panic")
+				}
+			}()
+			bad()
+		}()
+	}
+}
+
+// Same name, different const label values: one family, both series. Every
+// other combination must be refused exactly where client_golang refuses it.
+func TestShim_SameNameRegistrationMatchesClientGolang(t *testing.T) {
+	treg, oreg := prometheus.NewRegistry(), prom.NewRegistry()
+	for _, svc := range []string{"a", "b"} {
+		tc := prometheus.NewCounterVec(prometheus.CounterOpts{Name: "http_total", Help: "h", ConstLabels: prometheus.Labels{"service": svc}}, []string{"code"})
+		oc := prom.NewCounterVec(prom.CounterOpts{Name: "http_total", Help: "h", ConstLabels: prom.Labels{"service": svc}}, []string{"code"})
+		treg.MustRegister(tc)
+		oreg.MustRegister(oc)
+		tc.WithLabelValues("200").Inc()
+		oc.WithLabelValues("200").Inc()
+	}
+	te := parse(t, serve(promhttp.HandlerFor(treg, promhttp.HandlerOpts{})))
+	oe := parse(t, serve(oreg.Handler()))
+	if len(oe.samples) != 2 || len(te.samples) != 2 {
+		t.Fatalf("want 2 series each; ours %v, client_golang %v", oe.samples, te.samples)
+	}
+	for k, v := range te.samples {
+		if oe.samples[k] != v {
+			t.Errorf("%s: ours %g, client_golang %g", k, oe.samples[k], v)
+		}
+	}
+
+	type decl struct {
+		why   string
+		help  string
+		gauge bool
+		vars  []string
+		cl    map[string]string
+	}
+	for _, d := range []decl{
+		{why: "identical const labels", help: "h", vars: []string{"code"}, cl: map[string]string{"service": "a"}},
+		{why: "different help", help: "other", vars: []string{"code"}, cl: map[string]string{"service": "c"}},
+		{why: "different type", help: "h", gauge: true, vars: []string{"code"}, cl: map[string]string{"service": "t"}},
+		{why: "different variable labels", help: "h", vars: []string{"method"}, cl: map[string]string{"service": "c"}},
+		{why: "different const label names", help: "h", vars: []string{"code"}, cl: map[string]string{"svc": "c"}},
+		{why: "accepted: new const value", help: "h", vars: []string{"code"}, cl: map[string]string{"service": "d"}},
+	} {
+		var terr, oerr error
+		var tg *prometheus.GaugeVec
+		if d.gauge {
+			tg = prometheus.NewGaugeVec(prometheus.GaugeOpts{Name: "http_total", Help: d.help, ConstLabels: d.cl}, d.vars)
+			terr = treg.Register(tg)
+			tg.WithLabelValues("200").Set(1) // a series, so Gather has something to clash
+			oerr = oreg.Register(prom.NewGaugeVec(prom.GaugeOpts{Name: "http_total", Help: d.help, ConstLabels: d.cl}, d.vars))
+		} else {
+			terr = treg.Register(prometheus.NewCounterVec(prometheus.CounterOpts{Name: "http_total", Help: d.help, ConstLabels: d.cl}, d.vars))
+			oerr = oreg.Register(prom.NewCounterVec(prom.CounterOpts{Name: "http_total", Help: d.help, ConstLabels: d.cl}, d.vars))
+		}
+		if d.gauge {
+			// client_golang accepts a type clash at Register and refuses it
+			// at Gather, failing the whole scrape. Ours refuses at Register,
+			// where the caller can see which line did it. Both refuse.
+			if oerr == nil {
+				t.Errorf("%s: ours accepted it", d.why)
+			}
+			if _, gerr := treg.Gather(); gerr == nil {
+				t.Errorf("%s: expected client_golang to refuse at Gather", d.why)
+			}
+			if terr == nil {
+				treg.Unregister(tg)
+			}
+			continue
+		}
+		if (terr == nil) != (oerr == nil) {
+			t.Errorf("%s: client_golang err=%v, ours err=%v", d.why, terr, oerr)
+		}
+	}
+}
+
+// Unregister removes one family member, identified by its const labels.
+func TestShim_UnregisterRemovesOneMember(t *testing.T) {
+	reg := prom.NewRegistry()
+	a := prom.NewCounter(prom.CounterOpts{Name: "x_total", Help: "h", ConstLabels: prom.Labels{"s": "a"}})
+	b := prom.NewCounter(prom.CounterOpts{Name: "x_total", Help: "h", ConstLabels: prom.Labels{"s": "b"}})
+	reg.MustRegister(a, b)
+	a.Inc()
+	b.Inc()
+	if !reg.Unregister(a) {
+		t.Fatal("unregister a failed")
+	}
+	out := serve(reg.Handler())
+	if strings.Contains(out, `s="a"`) || !strings.Contains(out, `s="b"`) {
+		t.Errorf("want only s=b left:\n%s", out)
+	}
+}

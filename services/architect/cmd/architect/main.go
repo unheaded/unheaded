@@ -11,8 +11,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
@@ -20,6 +18,7 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/lifecycle"
 	"unheaded/pkg/logagg"
+	"unheaded/pkg/metrics/prom"
 	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -28,16 +27,16 @@ import (
 
 // Metrics
 var (
-	httpRequestsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	httpRequestsTotal = prom.NewCounterVec(
+		prom.CounterOpts{
 			Name: "unheaded_http_requests_total",
 			Help: "Total HTTP requests",
 		},
 		[]string{"service", "method", "path", "status"},
 	)
 
-	httpRequestDuration = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
+	httpRequestDuration = prom.NewHistogramVec(
+		prom.HistogramOpts{
 			Name:    "unheaded_http_request_duration_seconds",
 			Help:    "HTTP request latency",
 			Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1},
@@ -45,8 +44,8 @@ var (
 		[]string{"service", "method", "path"},
 	)
 
-	wotanMessagesPublished = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	wotanMessagesPublished = prom.NewCounterVec(
+		prom.CounterOpts{
 			Name: "unheaded_wotan_messages_published_total",
 			Help: "Messages published to Wotan",
 		},
@@ -55,9 +54,9 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(httpRequestsTotal)
-	prometheus.MustRegister(httpRequestDuration)
-	prometheus.MustRegister(wotanMessagesPublished)
+	prom.MustRegister(httpRequestsTotal)
+	prom.MustRegister(httpRequestDuration)
+	prom.MustRegister(wotanMessagesPublished)
 }
 
 func main() {
@@ -124,7 +123,7 @@ func main() {
 	}
 	logPublisher := logagg.NewPublisher("architect", logConn)
 	// Surface log-forwarding health on /metrics (promhttp default registry).
-	prometheus.MustRegister(logPublisher.PrometheusCollector())
+	prom.MustRegister(logPublisher.Collectors()...)
 	log.Logger = log.Logger.Hook(logPublisher)
 
 	// Create service with Wotan integration
@@ -178,7 +177,7 @@ func main() {
 
 	// Design endpoints
 	mux.HandleFunc("/design", handleDesign(handler, "GET_DESIGN_DECISIONS"))
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", prom.Handler())
 
 	// Auth middleware (activated via AUTH_ENABLED=true)
 	authCfg := auth.LoadServiceAuthConfig("architect")

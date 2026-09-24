@@ -7,32 +7,32 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // ServiceMetrics holds Prometheus metrics for an HTTP service.
 type ServiceMetrics struct {
-	RequestsTotal   *prometheus.CounterVec
-	RequestDuration *prometheus.HistogramVec
+	RequestsTotal   *prom.CounterVec
+	RequestDuration *prom.HistogramVec
 }
 
 // NewServiceMetrics creates a standard set of Prometheus metrics for a service.
 func NewServiceMetrics(serviceName string) *ServiceMetrics {
 	return &ServiceMetrics{
-		RequestsTotal: promauto.NewCounterVec(
-			prometheus.CounterOpts{
+		RequestsTotal: auto.NewCounterVec(
+			prom.CounterOpts{
 				Name:        "unheaded_http_requests_total",
 				Help:        "Total HTTP requests",
-				ConstLabels: prometheus.Labels{"service": serviceName},
+				ConstLabels: prom.Labels{"service": serviceName},
 			},
 			[]string{"method", "path", "status"},
 		),
-		RequestDuration: promauto.NewHistogramVec(
-			prometheus.HistogramOpts{
+		RequestDuration: auto.NewHistogramVec(
+			prom.HistogramOpts{
 				Name:        "unheaded_http_request_duration_seconds",
 				Help:        "HTTP request latency",
-				ConstLabels: prometheus.Labels{"service": serviceName},
+				ConstLabels: prom.Labels{"service": serviceName},
 				Buckets:     []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1},
 			},
 			[]string{"method", "path"},

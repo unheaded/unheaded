@@ -65,13 +65,16 @@ var PQCSovereignValidations = NewCounterVec(
 	[]string{"result"},
 )
 
-func init() {
-	MustRegister(PQCVerificationsTotal)
-	MustRegister(PQCVerifyDuration)
-	MustRegister(PQCActiveKeys)
-	MustRegister(PQCActiveSignatures)
-	MustRegister(PQCKeyRotations)
-	MustRegister(PQCMapUtilization)
-	MustRegister(PQCKEMTunnels)
-	MustRegister(PQCSovereignValidations)
-}
+// These are deliberately NOT registered anywhere.
+//
+// Until 2026-09-24 an init() registered all eight into DefaultRegistry.
+// Nothing served that registry, so they were invisible; and nothing in the
+// tree has ever set or observed any of them (checked with git grep across
+// every package). When ADR-094 step 4 made DefaultRegistry the one served by
+// architect, micromanager, wotan, zhen-agentd, trace-collector-go and
+// sophia-gateway, the four scalar ones began publishing zeros from services
+// that do no PQC work: "unheaded_pqc_active_keys 0" from micromanager is a
+// false reading, not an absent one.
+//
+// Whatever code actually performs PQC verification should register the ones
+// it updates, with the registry its service serves. See ADR-094.

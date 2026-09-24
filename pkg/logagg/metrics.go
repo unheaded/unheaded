@@ -7,8 +7,6 @@ import (
 	"fmt"
 	"io"
 
-	prom "github.com/prometheus/client_golang/prometheus"
-
 	"unheaded/pkg/metrics"
 )
 
@@ -73,61 +71,22 @@ func (c *publisherCounter) Write(w io.Writer) error {
 }
 
 // ============================================================================
-// ADAPTERS FOR THE OTHER TWO CONVENTIONS IN THIS TREE
+// THE OTHER CONVENTION IN THIS TREE
 // ============================================================================
 //
-// Services here expose metrics three different ways, so the publisher offers
-// three thin views over the same atomics rather than picking a winner:
+// Two views over the same atomics:
 //
-//	pkg/metrics.Registry   -> Collectors()          (dashboard-backend)
-//	promhttp default reg.  -> PrometheusCollector() (architect, micromanager,
-//	                                                 trace-collector-go, wotan)
-//	hand-rolled exposition -> WriteMetrics()        (monad, sophia, kanban-app,
-//	                                                 unheaded-daemon)
+//	pkg/metrics collectors -> Collectors()   (dashboard-backend, and every
+//	                                          service serving prom.Handler():
+//	                                          architect, micromanager,
+//	                                          trace-collector-go)
+//	hand-rolled exposition -> WriteMetrics()  (monad, sophia, kanban-app,
+//	                                          unheaded-daemon, timeguru)
 //
-// Converging on one convention would delete two of these. That is a real
-// cleanup and a bigger change than wiring a counter, so it is left as a
-// decision rather than made silently here.
-
-// PrometheusCollector returns the counters as a prometheus.Collector, for
-// services that serve promhttp.Handler() off the default registry:
-//
-//	prometheus.MustRegister(logPublisher.PrometheusCollector())
-func (p *Publisher) PrometheusCollector() prom.Collector {
-	return &promPublisherCollector{p: p}
-}
-
-type promPublisherCollector struct{ p *Publisher }
-
-func (c *promPublisherCollector) descs() []struct {
-	desc *prom.Desc
-	read func() uint64
-} {
-	labels := prom.Labels{"service": c.p.serviceName}
-	return []struct {
-		desc *prom.Desc
-		read func() uint64
-	}{
-		{prom.NewDesc("unheaded_logagg_entries_dropped_total",
-			"Log entries discarded because the logagg publish queue was full", nil, labels), c.p.Dropped},
-		{prom.NewDesc("unheaded_logagg_entries_published_total",
-			"Log entries successfully published to Wotan by logagg", nil, labels), c.p.Published},
-		{prom.NewDesc("unheaded_logagg_publish_errors_total",
-			"logagg publish attempts the transport rejected", nil, labels), c.p.Failed},
-	}
-}
-
-func (c *promPublisherCollector) Describe(ch chan<- *prom.Desc) {
-	for _, d := range c.descs() {
-		ch <- d.desc
-	}
-}
-
-func (c *promPublisherCollector) Collect(ch chan<- prom.Metric) {
-	for _, d := range c.descs() {
-		ch <- prom.MustNewConstMetric(d.desc, prom.CounterValue, float64(d.read()))
-	}
-}
+// A third view, PrometheusCollector(), existed for services serving
+// client_golang's default registry. It went with ADR-094 step 4, when those
+// services moved to prom.Handler(). WriteMetrics goes when its users stop
+// hand-writing exposition.
 
 // WriteMetrics appends the counters in Prometheus text format, for services
 // that build their /metrics body by hand. Writes HELP and TYPE as well —

@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/rs/zerolog/log"
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
@@ -26,6 +25,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/metrics/prom"
 	"unheaded/services/wotan/internal/api"
 	"unheaded/services/wotan/internal/cluster"
 	grpcservice "unheaded/services/wotan/internal/grpc"
@@ -448,7 +448,7 @@ func setupHTTPRoutes(s *api.Server, adminEnabled bool, m *metrics.Metrics) *http
 	mux := http.NewServeMux()
 
 	// Observability endpoints (no rate limiting)
-	mux.Handle("/metrics", promhttp.Handler())
+	mux.Handle("/metrics", prom.Handler())
 	mux.HandleFunc("/health", s.Health)
 	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)

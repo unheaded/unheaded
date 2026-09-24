@@ -13,8 +13,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // Default message timeout.
@@ -22,8 +22,8 @@ const DefaultMessageTimeout = 30 * time.Second
 
 // Prometheus metrics for message timeouts.
 var (
-	wotanMessageTimeouts = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	wotanMessageTimeouts = auto.NewCounterVec(
+		prom.CounterOpts{
 			Name: "wotan_message_timeouts_total",
 			Help: "Total number of messages that exceeded their delivery timeout",
 		},

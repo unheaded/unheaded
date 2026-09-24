@@ -40,9 +40,10 @@ import (
 	"time"
 	"unsafe"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sys/unix"
+
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // ============================================================================
@@ -646,8 +647,8 @@ type Loader interface {
 // ============================================================================
 
 var (
-	ebpfProgramsLoaded = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
+	ebpfProgramsLoaded = auto.NewGaugeVec(
+		prom.GaugeOpts{
 			Namespace: "unheaded",
 			Subsystem: "ebpf",
 			Name:      "programs_loaded",
@@ -656,8 +657,8 @@ var (
 		[]string{"type"},
 	)
 
-	ebpfProgramsAttached = promauto.NewGaugeVec(
-		prometheus.GaugeOpts{
+	ebpfProgramsAttached = auto.NewGaugeVec(
+		prom.GaugeOpts{
 			Namespace: "unheaded",
 			Subsystem: "ebpf",
 			Name:      "programs_attached",
@@ -666,19 +667,19 @@ var (
 		[]string{"type", "attach_type"},
 	)
 
-	ebpfProgramLoadTime = promauto.NewHistogramVec(
-		prometheus.HistogramOpts{
+	ebpfProgramLoadTime = auto.NewHistogramVec(
+		prom.HistogramOpts{
 			Namespace: "unheaded",
 			Subsystem: "ebpf",
 			Name:      "program_load_duration_seconds",
 			Help:      "Time to load eBPF programs",
-			Buckets:   prometheus.ExponentialBuckets(0.001, 2, 12),
+			Buckets:   prom.ExponentialBuckets(0.001, 2, 12),
 		},
 		[]string{"name", "type"},
 	)
 
-	ebpfMapOperations = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	ebpfMapOperations = auto.NewCounterVec(
+		prom.CounterOpts{
 			Namespace: "unheaded",
 			Subsystem: "ebpf",
 			Name:      "map_operations_total",
@@ -687,8 +688,8 @@ var (
 		[]string{"program", "map", "operation"},
 	)
 
-	ebpfRingbufEvents = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	ebpfRingbufEvents = auto.NewCounterVec(
+		prom.CounterOpts{
 			Namespace: "unheaded",
 			Subsystem: "ebpf",
 			Name:      "ringbuf_events_total",
@@ -697,8 +698,8 @@ var (
 		[]string{"program", "map"},
 	)
 
-	ebpfErrors = promauto.NewCounterVec(
-		prometheus.CounterOpts{
+	ebpfErrors = auto.NewCounterVec(
+		prom.CounterOpts{
 			Namespace: "unheaded",
 			Subsystem: "ebpf",
 			Name:      "errors_total",

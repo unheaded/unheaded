@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promauto"
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 )
 
 // Default idempotency settings.
@@ -24,14 +24,14 @@ const (
 
 // Prometheus metrics for idempotency.
 var (
-	wotanIdempotencyHits = promauto.NewCounter(
-		prometheus.CounterOpts{
+	wotanIdempotencyHits = auto.NewCounter(
+		prom.CounterOpts{
 			Name: "wotan_idempotency_hits_total",
 			Help: "Total number of duplicate messages detected and rejected",
 		},
 	)
-	wotanIdempotencyEntries = promauto.NewGauge(
-		prometheus.GaugeOpts{
+	wotanIdempotencyEntries = auto.NewGauge(
+		prom.GaugeOpts{
 			Name: "wotan_idempotency_entries",
 			Help: "Current number of entries in the idempotency cache",
 		},
