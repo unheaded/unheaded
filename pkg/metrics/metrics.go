@@ -155,6 +155,52 @@ func NewDesc(name, help string, metricType MetricType, constLabels Labels, varia
 	}
 }
 
+// checkLabels reports whether labels names exactly the declared variable
+// labels: no missing name, no extra one.
+//
+// Without it a misspelled key ("cdoe" for "code") silently starts a second
+// series, and an empty map publishes the bare name — both valid text, both
+// wrong, and the dashboard reading "code" just shows nothing. client_golang
+// panics on a mismatched label set; so does every Vec here.
+func (d *Desc) checkLabels(labels Labels) error {
+	if len(labels) != len(d.VariableLabels) {
+		return fmt.Errorf("%s: got %d labels %v, declared %d %v",
+			d.Name, len(labels), labels.names(), len(d.VariableLabels), d.VariableLabels)
+	}
+	for _, name := range d.VariableLabels {
+		if _, ok := labels[name]; !ok {
+			return fmt.Errorf("%s: label %q missing; got %v, declared %v",
+				d.Name, name, labels.names(), d.VariableLabels)
+		}
+	}
+	return nil
+}
+
+// labelsFromValues maps positional values onto the declared label names, the
+// shape of client_golang's WithLabelValues. A count mismatch panics, as there
+// is no way to guess which value was meant for which name.
+func (d *Desc) labelsFromValues(values []string) Labels {
+	if len(values) != len(d.VariableLabels) {
+		panic(fmt.Sprintf("metrics: %s: got %d label values, declared %d %v",
+			d.Name, len(values), len(d.VariableLabels), d.VariableLabels))
+	}
+	labels := make(Labels, len(values))
+	for i, name := range d.VariableLabels {
+		labels[name] = values[i]
+	}
+	return labels
+}
+
+// names returns the label names, sorted, for error messages.
+func (l Labels) names() []string {
+	names := make([]string, 0, len(l))
+	for k := range l {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return names
+}
+
 // Counter is a monotonically increasing metric.
 // It can only increase or be reset to zero.
 type Counter struct {
@@ -248,6 +294,12 @@ func (cv *CounterVec) WithLabels(labels Labels) *Counter {
 		return counter
 	}
 
+	// Checked only when a series is first created: every existing key
+	// already passed, so the hot path stays a map lookup.
+	if err := cv.desc.checkLabels(labels); err != nil {
+		panic("metrics: " + err.Error())
+	}
+
 	allLabels := cv.desc.ConstLabels.Merge(labels)
 	counter = &Counter{
 		desc:   cv.desc,
@@ -255,6 +307,12 @@ func (cv *CounterVec) WithLabels(labels Labels) *Counter {
 	}
 	cv.counters[key] = counter
 	return counter
+}
+
+// WithLabelValues returns the counter for positional label values, in the
+// order the label names were declared.
+func (cv *CounterVec) WithLabelValues(values ...string) *Counter {
+	return cv.WithLabels(cv.desc.labelsFromValues(values))
 }
 
 // Write writes all counters to the given writer in Prometheus format.
@@ -377,6 +435,10 @@ func (gv *GaugeVec) WithLabels(labels Labels) *Gauge {
 		return gauge
 	}
 
+	if err := gv.desc.checkLabels(labels); err != nil {
+		panic("metrics: " + err.Error())
+	}
+
 	allLabels := gv.desc.ConstLabels.Merge(labels)
 	gauge = &Gauge{
 		desc:   gv.desc,
@@ -384,6 +446,12 @@ func (gv *GaugeVec) WithLabels(labels Labels) *Gauge {
 	}
 	gv.gauges[key] = gauge
 	return gauge
+}
+
+// WithLabelValues returns the gauge for positional label values, in the
+// order the label names were declared.
+func (gv *GaugeVec) WithLabelValues(values ...string) *Gauge {
+	return gv.WithLabels(gv.desc.labelsFromValues(values))
 }
 
 // Write writes all gauges to the given writer in Prometheus format.
@@ -429,6 +497,51 @@ func ExponentialBuckets(start, factor float64, count int) []float64 {
 	return buckets
 }
 
+// normalizeBuckets returns sorted upper bounds with any +Inf removed, or
+// DefaultBuckets when none are given. It never modifies its argument.
+//
+// +Inf is removed because Write always emits le="+Inf" itself; a caller
+// passing append(bounds, math.Inf(1)) would otherwise publish that series
+// twice. A duplicate or NaN bound panics: two identical le series are
+// invalid exposition, Prometheus rejects the whole scrape — every other
+// series on the page with it — and there is no way to guess which bound
+// the caller meant. client_golang panics on the same inputs.
+func normalizeBuckets(name string, buckets []float64) []float64 {
+	if len(buckets) == 0 {
+		buckets = DefaultBuckets
+	}
+	out := make([]float64, 0, len(buckets))
+	for _, b := range buckets {
+		if math.IsNaN(b) {
+			panic(fmt.Sprintf("metrics: %s: NaN histogram bucket", name))
+		}
+		if !math.IsInf(b, 1) {
+			out = append(out, b)
+		}
+	}
+	sort.Float64s(out)
+	for i := 1; i < len(out); i++ {
+		if out[i] == out[i-1] {
+			panic(fmt.Sprintf("metrics: %s: duplicate histogram bucket %g", name, out[i]))
+		}
+	}
+	return out
+}
+
+// checkReservedLabel panics if a user label would collide with one the
+// metric type writes itself (le for histograms, quantile for summaries),
+// which would publish two values under one label name.
+func checkReservedLabel(name, reserved string, constLabels Labels, labelNames []string) {
+	if _, ok := constLabels[reserved]; ok {
+		panic(fmt.Sprintf("metrics: %s: label %q is reserved", name, reserved))
+	}
+	for _, l := range labelNames {
+		if l == reserved {
+			panic(fmt.Sprintf("metrics: %s: label %q is reserved", name, reserved))
+		}
+	}
+}
+
 // histogramCounts holds the atomic counters for a histogram.
 type histogramCounts struct {
 	buckets []uint64 // count for each bucket (atomic)
@@ -446,15 +559,8 @@ type Histogram struct {
 
 // NewHistogram creates a new histogram with the given options.
 func NewHistogram(opts HistogramOpts) *Histogram {
-	buckets := opts.Buckets
-	if len(buckets) == 0 {
-		buckets = DefaultBuckets
-	}
-
-	// Ensure buckets are sorted
-	sortedBuckets := make([]float64, len(buckets))
-	copy(sortedBuckets, buckets)
-	sort.Float64s(sortedBuckets)
+	checkReservedLabel(opts.Name, "le", opts.ConstLabels, nil)
+	sortedBuckets := normalizeBuckets(opts.Name, opts.Buckets)
 
 	return &Histogram{
 		desc:         NewDesc(opts.Name, opts.Help, TypeHistogram, opts.ConstLabels, nil),
@@ -542,6 +648,8 @@ type HistogramVec struct {
 
 // NewHistogramVec creates a new histogram vector.
 func NewHistogramVec(opts HistogramOpts, labelNames []string) *HistogramVec {
+	checkReservedLabel(opts.Name, "le", opts.ConstLabels, labelNames)
+	opts.Buckets = normalizeBuckets(opts.Name, opts.Buckets)
 	return &HistogramVec{
 		desc:       NewDesc(opts.Name, opts.Help, TypeHistogram, opts.ConstLabels, labelNames),
 		opts:       opts,
@@ -573,25 +681,28 @@ func (hv *HistogramVec) WithLabels(labels Labels) *Histogram {
 		return histogram
 	}
 
-	allLabels := hv.desc.ConstLabels.Merge(labels)
-	buckets := hv.opts.Buckets
-	if len(buckets) == 0 {
-		buckets = DefaultBuckets
+	if err := hv.desc.checkLabels(labels); err != nil {
+		panic("metrics: " + err.Error())
 	}
-	sortedBuckets := make([]float64, len(buckets))
-	copy(sortedBuckets, buckets)
-	sort.Float64s(sortedBuckets)
 
+	// Buckets were normalised once in NewHistogramVec. Each child gets its
+	// own count slice but may share the read-only bounds.
 	histogram = &Histogram{
 		desc:         hv.desc,
-		labels:       allLabels,
-		bucketBounds: sortedBuckets,
+		labels:       hv.desc.ConstLabels.Merge(labels),
+		bucketBounds: hv.opts.Buckets,
 		counts: histogramCounts{
-			buckets: make([]uint64, len(sortedBuckets)),
+			buckets: make([]uint64, len(hv.opts.Buckets)),
 		},
 	}
 	hv.histograms[key] = histogram
 	return histogram
+}
+
+// WithLabelValues returns the histogram for positional label values, in the
+// order the label names were declared.
+func (hv *HistogramVec) WithLabelValues(values ...string) *Histogram {
+	return hv.WithLabels(hv.desc.labelsFromValues(values))
 }
 
 // Write writes all histograms to the given writer in Prometheus format.
@@ -638,6 +749,7 @@ type timedSample struct {
 
 // NewSummary creates a new summary with the given options.
 func NewSummary(opts SummaryOpts) *Summary {
+	checkReservedLabel(opts.Name, "quantile", opts.ConstLabels, nil)
 	objectives := opts.Objectives
 	if objectives == nil {
 		objectives = map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}

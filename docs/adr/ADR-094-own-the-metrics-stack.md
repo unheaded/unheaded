@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-094 — Own the metrics stack: retire `prometheus/client_golang`
 
-**Status:** Proposed (Tier 1 done; Tier 2 steps 1, 1b and 2 done; step 3 next)
+**Status:** Proposed (Tier 1 done; Tier 2 steps 1, 1b and 2 done; step 3 half done)
 **Date:** 2026-09-24
 **Supersedes:** nothing. **Related:** ADR-092 (log discipline), ADR-093 (shape
 and the reachability rules), `pkg/metrics`, `pkg/logagg`.
@@ -202,7 +202,7 @@ kernel, so it is tested directly against the fast path.
 Step 2 ("verify against the real thing") is satisfied for both collectors
 by the parity tests. Steps 3-6 not started; step 3 is next.
 
-### Found while surveying step 3 — two core defects that block it
+### Found while surveying step 3 — two core defects (FIXED 2026-09-24)
 
 Step 3 would move ~30 files onto `pkg/metrics`' Vec and Histogram types. Both
 have defects that client_golang rules out, reproduced 2026-09-24:
@@ -223,3 +223,26 @@ Fix both, each with a planted-bug check, before step 3 adds a
 calls, which are positional, so the shim has to map values onto the
 declared label names, and that mapping is only as safe as the validation
 underneath it.
+
+**Fixed.** Every Vec now panics on a label set that does not exactly match
+the declared names, as client_golang does. The check runs only when a series
+is first created, so the hot path is unchanged. Histogram buckets are
+sorted, a trailing `+Inf` is dropped (Write always emits it), and duplicate
+or NaN bounds panic. `le` and `quantile` are refused as user labels. Each Vec
+gained `WithLabelValues(...)`, positional in declaration order, which is the
+first half of step 3. Fifteen planted bugs, all caught; the one mutant that
+did not compile was rewritten until it did, and then it was caught too.
+
+Before tightening, the only external caller was checked:
+`cmd/dashboard-backend` passes exactly `{"host"}` and `{"host","mount"}`,
+matching its declarations. **Side finding there:** `dashboard_http_requests_total`
+and `dashboard_http_request_duration_seconds` are declared and registered,
+but nothing increments or observes them, so `/metrics` carries two empty
+families. That is ADR-093's defect class. Recorded, not fixed here.
+
+**The parity test has a rare flake.** It failed once in about 720
+full-package runs on 2026-09-24. It did not reproduce in 20 reruns of the
+same conditions, or in 200 further full-package runs. The bracket bounds a
+paused-GC read of a live runtime, and something occasionally escapes it. It
+was not chased; if it recurs, capture which series escaped before widening
+anything.
