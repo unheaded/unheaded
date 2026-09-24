@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
 
@@ -175,10 +176,12 @@ func readyHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]string{"status": "ready"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
-func metricsHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/plain")
-	w.WriteHeader(http.StatusOK)
-}
+// metricsHandler serves the default registry: go_*, process_* and what
+// linked libraries register at load. Until ADR-094 step 5 it answered 200
+// with an empty body, so every scrape of the Nix-deployed timeguru (built
+// from this package by nix/packages/timeguru.nix) succeeded and reported
+// nothing.
+var metricsHandler = metrics.HandlerFor(metrics.DefaultRegistry).ServeHTTP
 
 func timelineHandler(w http.ResponseWriter, r *http.Request) {
 	data, err := json.Marshal(map[string]interface{}{
