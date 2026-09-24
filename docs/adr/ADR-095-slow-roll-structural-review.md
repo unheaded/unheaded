@@ -3,12 +3,19 @@ SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2024-2026 Stevie Bellis.
 -->
 
-# ADR-095 — Slow-roll structural review: flag everything, then one at a time
+# ADR-095 — Slow-roll review: flag everything, then one at a time
 
-**Status:** Proposed — deferred. Not started; a precondition for promoting
-Unheaded publicly, not for anything current.
+Two tracks, one method: **structure** (nested control flow that should be a
+type, a table or a function) and **supply chain** (every external package the
+build pulls in). Both are flagged into a register in one pass, then reviewed
+one entry at a time.
+
+**Status:** Proposed — deferred. Starts after the current develop↔staging
+sprint is promoted to `main`, which gives it a clean baseline. It is a
+precondition for promoting Unheaded publicly, not for anything current.
 **Date:** 2026-09-24
-**Related:** ADR-093 (what shape is this thing; reachability first),
+**Related:** ADR-004 (no-external-deps policy and its exceptions register),
+ADR-093 (what shape is this thing; reachability first),
 `docs/LIVE-PATHS.md`, ADR-094 (the `deriveMemstats` / `deriveProcess`
 extractions are the worked example below).
 
@@ -160,16 +167,89 @@ new function over the thresholds fails CI, and one closed as "leave" is
 listed with its reason. The gate must be registered in
 `check-gates-can-fail.sh` and watched failing before it counts.
 
+### 6. Track two — supply chain: own it, or vet it and record why
+
+ADR-004 already sets the rule: production code depends only on the standard
+libraries, internal packages, and **approved exceptions**. Those come from
+established organisations, with repositories created before July 2019, and
+each one needs an owner sign-off recorded in its register. The rule stands
+and is not restated here. What this track adds is the finding that **the
+tree does not match that register**, and a method for closing the gap.
+
+**Measured 2026-09-24:**
+
+| ecosystem | what is pulled in |
+|---|---|
+| Go (root module) | **21 direct** modules, 113 in the full graph |
+| Rust | **411 unique crates** from crates.io across 18 `Cargo.lock` files (`crates/zhend` alone: 340) |
+| Python | 4 requirements files: 2 fully pinned (`raft/`, `sbom/`), 2 unpinned (`notebooks/`, `tomb/grimoire/rag/`); **none hash-pinned** |
+| npm | 1 devDependency (root `package.json`, lint only) |
+| Container bases | 9 distinct `FROM` images; **none pinned by digest** |
+| GitHub Actions | 36 distinct `uses:`; **7 pinned to a commit SHA**, 29 to a mutable tag |
+
+**ADR-004's register against the 21 direct Go modules:**
+
+- **Recorded:** `grpc`, `protobuf`, `circl`, `lib/pq`, and `x/sys` by name in
+  the policy.
+- **In use with no approval record (12):** `BurntSushi/toml`, `cilium/ebpf`,
+  `fsnotify`, `google/uuid`, `gorilla/mux`, `gorilla/websocket`,
+  `prometheus/client_golang`, `rs/zerolog`, `sony/gobreaker`,
+  `yuin/goldmark`, `gopkg.in/yaml.v3`, `modernc.org/sqlite`. Also
+  `x/crypto`, `x/text` and `x/time`, which are quasi-standard but not named
+  the way `x/sys` is.
+- **ADR-004 says these were already replaced, but production code still
+  imports them:** `rs/zerolog` (32 files; `pkg/logger/` exists alongside it),
+  `cilium/ebpf` (5; alongside `pkg/ebpf/`), and `gorilla/websocket` (2;
+  alongside `cmd/dashboard-backend/internal/websocket/`). This is ADR-093's
+  defect class again: a correct replacement that nothing reaches. ADR-004's
+  "zero supply chain risk" consequence is not true of the tree today.
+- `prometheus/client_golang` is already being retired under ADR-094.
+
+**Method — the same as track one:**
+
+1. **Flag everything into the register in one pass.** One row per direct
+   dependency, per ecosystem, with: what imports it (production vs test
+   vs tool), its transitive count, owner organisation, repository creation
+   date (ADR-004's age check), licence, and pin strength (version, lockfile
+   hash, digest, SHA).
+2. **One entry at a time.** For each, decide:
+   - **own**: an internal replacement exists or is worth writing, so migrate
+     and delete the import. ADR-094 is the model: parity-tested against the
+     real thing before any call site moves.
+   - **vet and keep**: record who maintains it, why replacement is not
+     worth it, how it is pinned, and which code paths reach it. Then add it
+     to ADR-004's register with the owner's sign-off.
+   - **remove**: the import is dead or trivially replaced by the standard
+     library.
+3. **Rust counts.** 411 crates is the largest surface in the repository and
+   the least examined. Flag it per workspace, starting with the binaries on
+   live paths (`LIVE-PATHS.md`), not with the fuzz and tool workspaces.
+4. **Pinning is cheap and can go first.** Pinning actions to SHAs and base
+   images to digests changes no code and closes the tag-hijack class
+   outright. These are the only entries allowed to go in a batch, because
+   each is a one-line mechanical change with nothing to review underneath.
+5. **Ratchet, once started.** Add a gate in the style of
+   `check-secrets-baseline.sh`: the set of direct dependencies per ecosystem
+   may only shrink unless a register entry exists for the new one. It must be
+   registered in `check-gates-can-fail.sh` and watched failing.
+
+**Also flagged for amendment under the community-first doctrine:** ADR-004's
+Context says "Selling self-hosted infrastructure while depending on dozens
+of third-party packages undermines the brand." That is commercial framing.
+
 ## Consequences
 
 **Good.** The code people read after promotion is the code that was read
 closely first. Dead code gets deleted rather than polished. Every refactor is
 small enough to review, because each one is a single entry.
 
-**Costs.** This is slow on purpose. At one entry at a time, 173 findings is
-months of background work. That is acceptable because it is not on the
+**Costs.** This is slow on purpose. At one entry at a time, 173 structural
+findings plus about 20 Go and 411 Rust dependencies is months of background
+work. That is acceptable because it is not on the
 critical path: the proof of concept is.
 
 **Not decided here.** The thresholds (30 / 5) are golangci-lint's
 conventional values and may need tuning once real entries have been reviewed.
-The Rust measurement is outstanding.
+The Rust complexity measurement is outstanding. Whether `crates/zhend`'s 340
+crates can be vetted per crate, or need a per-workspace decision instead,
+is left to its register entry.
