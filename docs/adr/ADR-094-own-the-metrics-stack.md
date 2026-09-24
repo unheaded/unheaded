@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-094 — Own the metrics stack: retire `prometheus/client_golang`
 
-**Status:** Proposed (Tier 1 done; Tier 2 migration planned, not started)
+**Status:** Proposed (Tier 1 done; Tier 2 step 1 done, step 1b next)
 **Date:** 2026-09-24
 **Supersedes:** nothing. **Related:** ADR-092 (log discipline), ADR-093 (shape
 and the reachability rules), `pkg/metrics`, `pkg/logagg`.
@@ -74,11 +74,18 @@ Nine modules, of which `protobuf` is pulled in only to serve an exposition
 format we do not use. **31 files import the client; 5 of those are tests.**
 
 **What `pkg/metrics` already has:** Counter, Gauge, Histogram, Summary, their
-`Vec` forms, `Registry` with `Gather`/`Handler`/`Push`, `ProcessCollector`
-(cpu_seconds, open_fds, max_fds, virtual/resident memory, start_time),
-`FuncMetric`, hooks and samplers.
+`Vec` forms, `Registry` with `Gather`/`Handler`/`Push`, `FuncMetric`.
 
-**The one real gap: `go_*` runtime series.** `promhttp` on the default
+**Correction (2026-09-24):** this paragraph originally listed
+`ProcessCollector` as present. It is not. The type exists and its `Write` is a
+placeholder that returns nil — it builds six `process_*` series and emits
+none, and nothing in the tree calls `NewProcessCollector`. `promhttp` publishes
+7 `process_*` series by default (`cpu_seconds_total`, `open_fds`, `max_fds`,
+`virtual_memory_bytes`, `virtual_memory_max_bytes`, `resident_memory_bytes`,
+`start_time_seconds`). The list also named "hooks and samplers"; there are
+none in the package. So there are two gaps, not one; see step 1b.
+
+**The first gap: `go_*` runtime series.** `promhttp` on the default
 registry publishes 33 of them on wotan today — `go_goroutines`,
 `go_memstats_*`, `go_gc_duration_seconds`, `go_info`, `go_threads`. `pkg/metrics`
 has no runtime collector. These are not decoration: `go_goroutines` is how the
@@ -132,6 +139,55 @@ and is about as low-risk as a third-party dependency gets. This migration is
 justified by the ownership goal, not by a security finding — worth stating so
 nobody later reads it as a response to a CVE that never existed.
 
-**Not started.** Part 1 is done and verified. Part 2 is this plan. Step 1 (the
-Go collector) is the whole prerequisite; nothing else should begin until it is
-diffed against promhttp and matches.
+### Step 1 — DONE (2026-09-24)
+
+`pkg/metrics/gocollector.go`: `NewGoCollector()` publishes the 27 `go_*`
+families client_golang v1.18 registers by default, with identical names,
+types and help text. Memory figures use client_golang's own derivation from
+`runtime/metrics` (no stop-the-world `ReadMemStats`), extracted as the pure
+function `deriveMemstats`. One runtime reading is shared by every family in a
+scrape, so `heap_sys == heap_inuse + heap_idle` holds within a scrape.
+
+**How it was verified against the real thing.** Two independent reads of a
+live runtime never agree, and a tolerance wide enough to absorb that absorbs
+real errors — a 10% band on `last_gc_time_seconds` accepts a timestamp five
+years off. So the parity test pauses the GC and reads ours, then
+client_golang, then ours again; client_golang's value must fall inside that
+bracket. Measured over 300 runs, every series stayed inside with zero slack
+except four with a stated, measured reason (goroutines, threads, the
+`gc_sys`/`other_sys` class trade, and `next_gc`, which counts stack space).
+500/500 green.
+
+**Watched it fail.** Eleven planted bugs, each caught:
+
+| planted bug | caught by |
+|---|---|
+| `stack_sys` drops os-stacks | `DeriveMemstats_SumsTheRightClasses` only |
+| `mspan_sys` / `mcache_sys` drop the free class | both |
+| `last_gc` in nanoseconds | parity |
+| GC pause sum in nanoseconds | parity |
+| `frees` drops tiny allocs | both |
+| `heap_idle` drops released | both |
+| `gc_sys` reads the wrong class | both |
+| pause quantiles shifted by one | parity |
+| a runtime/metrics key renamed by a Go upgrade | `EveryRuntimeKeyExists` |
+| snapshot cache disabled (mixed readings in one scrape) | `OneReadingPerScrape` |
+
+The first row is why `deriveMemstats` is a pure function. os-stacks reads 0
+on a cgo-free Linux binary, so dropping it is invisible at runtime and the
+parity test passed it. `pkg/afxdp` uses cgo, where it need not be 0. The
+class-bit test gives each class its own bit, so a dropped or wrong class is
+visible no matter what this host holds.
+
+`TestGoCollector_PublishesTheClientGolangNames` pins the 27 names without
+importing client_golang, so it outlives the parity test at step 6.
+
+### Step 1b — `process_*` (next)
+
+Implement `ProcessCollector.Write` for Linux (`/proc/self/stat`, `/proc/self/fd`,
+`/proc/self/limits`) to publish the 7 series `promhttp` does, verified the
+same way. Step 2 onward waits on it: any service on promhttp's default
+registry exposes `process_resident_memory_bytes` today, and migrating it
+without 1b would drop that series.
+
+Steps 2-6 not started.
