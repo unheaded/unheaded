@@ -38,6 +38,7 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
+	"unheaded/pkg/metrics"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 )
@@ -91,9 +92,43 @@ type Server struct {
 	ctx             context.Context         // server lifecycle context
 	cancel          context.CancelFunc      // cancels ctx on shutdown
 
-	// logPublisher, when set, appends log-forwarding counters to /metrics.
-	// This service builds its exposition by hand — there is no registry.
+	// registry produces the /metrics body; this service used to assemble that
+	// text with fmt.Fprintf calls.
+	registry *metrics.Registry
+
+	// logPublisher, when set, contributes log-forwarding counters.
 	logPublisher *logagg.Publisher
+}
+
+// initMetrics registers every series this service publishes. Values are read
+// at scrape time from the state the server already maintains.
+func (s *Server) initMetrics() {
+	s.registry = metrics.NewRegistry()
+
+	s.registry.MustRegister(metrics.NewFuncGauge(
+		"kanban_tasks_total", "Total tasks", nil, func() float64 {
+			if s.taskManager != nil {
+				return float64(len(s.taskManager.GetAllTasks()))
+			}
+			s.tasksMu.RLock()
+			defer s.tasksMu.RUnlock()
+			return float64(len(s.tasks))
+		}))
+
+	s.registry.MustRegister(metrics.NewFuncGauge(
+		"kanban_sse_clients_active", "Active SSE client connections", nil, func() float64 {
+			s.sseMu.RLock()
+			defer s.sseMu.RUnlock()
+			return float64(len(s.sseClients))
+		}))
+
+	s.registry.MustRegister(metrics.NewFuncGauge(
+		"kanban_wotan_enabled", "Whether Wotan integration is enabled", nil, func() float64 {
+			if s.taskManager != nil {
+				return 1
+			}
+			return 0
+		}))
 }
 
 // SetLogPublisher attaches a logagg publisher whose counters are appended to
@@ -114,6 +149,7 @@ func NewServer(cfg Config) *Server {
 		ctx:        ctx,
 		cancel:     cancel,
 	}
+	s.initMetrics()
 
 	// Try Postgres first
 	pgDB, pgErr := database.Connect(context.Background(), database.AppKanbanConfig())
@@ -176,6 +212,7 @@ func NewServerWithTaskManager(cfg Config, tm *TaskManager, store TaskStore) *Ser
 		ctx:         ctx,
 		cancel:      cancel,
 	}
+	s.initMetrics()
 	return s
 }
 
@@ -1271,38 +1308,18 @@ func (s *Server) handleReady(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 
-	s.sseMu.RLock()
-	sseClients := len(s.sseClients)
-	s.sseMu.RUnlock()
-
-	taskCount := 0
-	if s.taskManager != nil {
-		taskCount = len(s.taskManager.GetAllTasks())
-	} else {
-		s.tasksMu.RLock()
-		taskCount = len(s.tasks)
-		s.tasksMu.RUnlock()
-	}
-
-	fmt.Fprintf(w, "# HELP kanban_tasks_total Total tasks\n")
-	fmt.Fprintf(w, "# TYPE kanban_tasks_total gauge\n")
-	fmt.Fprintf(w, "kanban_tasks_total %d\n", taskCount)
-	fmt.Fprintf(w, "# HELP kanban_sse_clients_active Active SSE client connections\n")
-	fmt.Fprintf(w, "# TYPE kanban_sse_clients_active gauge\n")
-	fmt.Fprintf(w, "kanban_sse_clients_active %d\n", sseClients)
-	fmt.Fprintf(w, "# HELP kanban_wotan_enabled Whether Wotan integration is enabled\n")
-	fmt.Fprintf(w, "# TYPE kanban_wotan_enabled gauge\n")
-	if s.taskManager != nil {
-		fmt.Fprintf(w, "kanban_wotan_enabled 1\n")
-	} else {
-		fmt.Fprintf(w, "kanban_wotan_enabled 0\n")
+	// A Server built as a struct literal (tests, embedding callers) has no
+	// registry. Guard rather than dereference: a nil-pointer panic here does
+	// not lose one series, it takes the whole /metrics endpoint down.
+	// #nosec G104 -- response already committed; a write failure here means
+	// the client went away and nothing further can be sent.
+	if s.registry != nil {
+		_ = s.registry.Gather(w)
 	}
 
 	s.tasksMu.RLock()
 	lp := s.logPublisher
 	s.tasksMu.RUnlock()
-	// #nosec G104 -- response already committed; a write failure here means
-	// the client went away and nothing further can be sent.
 	if lp != nil {
 		_ = lp.WriteMetrics(w)
 	}

@@ -38,6 +38,7 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
+	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -118,11 +119,29 @@ type Daemon struct {
 	shutdown chan struct{}
 	wg       sync.WaitGroup
 
-	// logPublisher, when set, appends log-forwarding counters to /metrics.
-	// This daemon builds its exposition by hand — there is no registry.
-	// Atomic because handleMetrics reads it while stateManager's lock is
-	// already held for the rest of the body.
+	// registry produces the /metrics body; this daemon used to assemble that
+	// text with fmt.Fprintf calls.
+	registry *metrics.Registry
+
+	// logPublisher, when set, contributes log-forwarding counters. Atomic
+	// because handleMetrics reads it while stateManager's lock is held.
 	logPublisher atomic.Pointer[logagg.Publisher]
+}
+
+// initMetrics registers every series this daemon publishes. Each reads the
+// state manager at scrape time; the caller holds stateManager.mu, so the
+// closures must not take it again.
+func (d *Daemon) initMetrics() {
+	d.registry = metrics.NewRegistry()
+
+	gauge := func(name, help string, read func() int) {
+		d.registry.MustRegister(metrics.NewFuncGauge(name, help, nil, func() float64 {
+			return float64(read())
+		}))
+	}
+	gauge("cuirass_containers_desired", "Number of desired containers", func() int { return len(d.stateManager.desired) })
+	gauge("cuirass_containers_actual", "Number of actual containers", func() int { return len(d.stateManager.actual) })
+	gauge("cuirass_drift_count", "Number of detected drifts", func() int { return len(d.stateManager.drifts) })
 }
 
 // ============================================================================
@@ -452,7 +471,7 @@ func main() {
 
 // NewDaemon creates a new daemon instance
 func NewDaemon(cfg *Config, log *logger.Logger, transportCfg transport.Config, healthSrv *transport.HealthServer) *Daemon {
-	return &Daemon{
+	d := &Daemon{
 		config: cfg,
 		log:    log,
 		stateManager: &StateManager{
@@ -465,6 +484,8 @@ func NewDaemon(cfg *Config, log *logger.Logger, transportCfg transport.Config, h
 		healthSrv:    healthSrv,
 		shutdown:     make(chan struct{}),
 	}
+	d.initMetrics()
+	return d
 }
 
 // Start starts the daemon
@@ -947,20 +968,16 @@ func (d *Daemon) handleMetrics(w http.ResponseWriter, r *http.Request) {
 	d.stateManager.mu.RLock()
 	defer d.stateManager.mu.RUnlock()
 
-	// Prometheus format
-	w.Header().Set("Content-Type", "text/plain")
-	fmt.Fprintf(w, "# HELP cuirass_containers_desired Number of desired containers\n")
-	fmt.Fprintf(w, "# TYPE cuirass_containers_desired gauge\n")
-	fmt.Fprintf(w, "cuirass_containers_desired %d\n", len(d.stateManager.desired))
-	fmt.Fprintf(w, "# HELP cuirass_containers_actual Number of actual containers\n")
-	fmt.Fprintf(w, "# TYPE cuirass_containers_actual gauge\n")
-	fmt.Fprintf(w, "cuirass_containers_actual %d\n", len(d.stateManager.actual))
-	fmt.Fprintf(w, "# HELP cuirass_drift_count Number of detected drifts\n")
-	fmt.Fprintf(w, "# TYPE cuirass_drift_count gauge\n")
-	fmt.Fprintf(w, "cuirass_drift_count %d\n", len(d.stateManager.drifts))
+	w.Header().Set("Content-Type", "text/plain; version=0.0.4")
 
+	// A Daemon built as a struct literal has no registry. Guard rather than
+	// dereference: a nil-pointer panic here takes the whole endpoint down.
 	// #nosec G104 -- response already committed; a write failure here means
 	// the client went away and nothing further can be sent.
+	if d.registry != nil {
+		_ = d.registry.Gather(w)
+	}
+
 	if lp := d.logPublisher.Load(); lp != nil {
 		_ = lp.WriteMetrics(w)
 	}
