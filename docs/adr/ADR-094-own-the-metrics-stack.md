@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-094 — Own the metrics stack: retire `prometheus/client_golang`
 
-**Status:** Proposed (Tier 1 done; Tier 2 steps 1-5 done; step 6 next)
+**Status:** Proposed — fully implemented 2026-09-25 (Tier 1 and Tier 2 done; client_golang removed from go.mod). Acceptance is the owner's call.
 **Date:** 2026-09-24
 **Supersedes:** nothing. **Related:** ADR-092 (log discipline), ADR-093 (shape
 and the reachability rules), `pkg/metrics`, `pkg/logagg`.
@@ -463,3 +463,45 @@ time):
 chaos-controller, demo-trace-injector, pqc-verifier and shield are
 ORPHAN/TOOL with no endpoint. Per ADR-093 they get no effort beyond this
 record. **Step 5 is complete for every live binary.**
+
+### Step 6 — DONE (2026-09-24/25): client_golang is out of go.mod
+
+- **cmd/ebpf-exporter**, the last user, is migrated. Scraped before and
+  after: identical families and series (37). One visible difference is
+  recorded: promhttp negotiated OpenMetrics on request, and pkg/metrics
+  serves the classic text format. Its `error` label carried `err.Error()`
+  (unbounded series) and now takes one of five fixed values. The binary is
+  ORPHAN: **no BPF program in the tree creates the three maps it reads**, so
+  it always reports `up 0`. Behind that sit two latent defects, recorded and
+  not fixed (ADR-095's rule against polishing unreachable code): it `Add()`s
+  a map's value on every poll, which double-counts running totals, and a
+  persistent ring-read error retries in a tight loop. Whether the binary
+  should exist is an owner decision.
+- **Parity is kept after the dependency is gone.** Before removal,
+  client_golang's own output was recorded as goldens: the shim scenario
+  (every series value as IEEE-754 bits), `DefBuckets`, `BuildFQName`, and
+  both bucket generators for every argument set in the tree
+  (`pkg/metrics/prom/testdata/`), plus the TYPE and HELP of all 34 `go_*`
+  and `process_*` families (`pkg/metrics/testdata/`). The tests now compare
+  against those. The same-name registration rule became a table of
+  client_golang's observed outcomes. Only the live runtime value
+  comparisons could not be frozen; derive, identity and name tests cover
+  them. Re-running the planted bugs against the golden tests: all caught.
+- **go.mod:** client_golang, client_model, common, procfs, perks, xxhash and
+  golang_protobuf_extensions are removed. **19 modules leave the build
+  list.** `go mod tidy` added two indirect lines, `davecgh/go-spew` and
+  `gopkg.in/check.v1`. Both were already in the build list at the same
+  versions, are test-only dependencies of gobreaker and yaml.v3, and are
+  linked into no binary. Module-graph pruning now lists them where
+  client_golang's requirements used to imply them.
+- **Gate:** `scripts/check-no-client-golang.sh` fails on any import of the
+  client_golang family or any go.mod requirement of it. It runs in the
+  security workflow and is registered in `check-gates-can-fail.sh`. The first
+  version used plain `git grep`, which searches tracked files only, and
+  **passed a planted import**. It now uses `--untracked`. Watched failing
+  on both checks.
+
+**ADR-094 is complete.** What it leaves behind: the eight unused PQC
+metrics (wire them up or delete them), pkg/secrets' unserved metrics,
+`health.Aggregator` and `httputil.NewServiceMetrics` never being called, and
+the live-path inventory's blind spot.
