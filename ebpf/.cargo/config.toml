@@ -20,8 +20,14 @@ rustflags = [
     "-C", "opt-level=3",
     # BTF debug info — required for tail calls with subprograms (kernel 6.17+)
     "-C", "debuginfo=2",
-    # Pass --btf to bpf-linker for BTF section generation
-    "-C", "link-arg=--btf",
+    # NOT --btf here. It used to be workspace-wide (e55d2f51, for the UPC
+    # tail-call chain), and it broke every program whose code makes rustc emit
+    # memset/memcpy (e.g. a `_pad: [0; 3]` initialiser): with BTF,
+    # compiler_builtins' memset becomes a GLOBAL BTF function, and the kernel
+    # rejects any global function that does not return a scalar ("Global
+    # function memset() doesn't return scalar"). packet-marker, flow-tracker
+    # and latency-probe had not loaded since. The two packages that tail-call,
+    # monad-cpu-ebpf and nfv-ebpf, add --btf in their own build.rs.
     # Link-time optimization (required for BPF — bpf-linker does final codegen)
     "-C", "lto=true",
     # Single codegen unit for better optimization
