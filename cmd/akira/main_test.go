@@ -4,6 +4,8 @@
 package main
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -164,6 +166,31 @@ func TestDefaultTargets_AllUseHealthPath(t *testing.T) {
 	for _, tgt := range defaultTargets {
 		if tgt.HealthPath != "/health" {
 			t.Errorf("%s HealthPath = %q, want /health (convention)", tgt.Name, tgt.HealthPath)
+		}
+	}
+}
+
+// ─── /ready ──────────────────────────────────────────────────────────────────
+
+type fakeSweeper uint64
+
+func (f fakeSweeper) Sweeps() uint64 { return uint64(f) }
+
+// Ready means one full sweep has completed. Before that /api/v1/status is
+// empty, and a constant 200 would publish a readiness nothing measured.
+func TestReadyHandler(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		sweeps uint64
+		want   int
+	}{{0, http.StatusServiceUnavailable}, {1, http.StatusOK}, {7, http.StatusOK}} {
+		rec := httptest.NewRecorder()
+		readyHandler(fakeSweeper(tc.sweeps)).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/ready", nil))
+		if rec.Code != tc.want {
+			t.Errorf("sweeps=%d: status %d, want %d", tc.sweeps, rec.Code, tc.want)
+		}
+		if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+			t.Errorf("sweeps=%d: Content-Type %q", tc.sweeps, ct)
 		}
 	}
 }

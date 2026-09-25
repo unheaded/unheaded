@@ -247,6 +247,7 @@ func main() {
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprintf(w, `{"status":"ok","service":"akira","node":"%s"}`, *nodeID)
 		})
+		mux.Handle("/ready", readyHandler(akira))
 		// /metrics did not exist here, though CLAUDE.md requires it of every
 		// component (ADR-094 step 5). Akira keeps no registry of its own, so
 		// this serves the default one: go_*, process_*, and what linked
@@ -278,6 +279,23 @@ func main() {
 
 	akira.Run(ctx)
 	log.Info().Msg("Akira stopped")
+}
+
+// readyHandler serves /ready. Akira is ready once one full sweep has
+// completed: before that /api/v1/status is empty, and the first sweep waits
+// a whole HealthCheckInterval. A constant 200 would publish a readiness
+// nothing measured.
+func readyHandler(a interface{ Sweeps() uint64 }) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		n := a.Sweeps()
+		if n == 0 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			fmt.Fprint(w, `{"status":"not_ready","reason":"no completed sweep"}`)
+			return
+		}
+		fmt.Fprintf(w, `{"status":"ready","sweeps":%d}`, n)
+	})
 }
 
 func findPort(name string, targets []health.ServiceTarget) int {

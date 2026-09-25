@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/rs/zerolog"
@@ -69,6 +70,8 @@ type Akira struct {
 
 	mu     sync.RWMutex
 	states map[string]*ConsensusState // service name → state
+
+	sweeps atomic.Uint64 // completed CheckAll passes; see Sweeps
 
 	// Callbacks
 	onReport func(HealthReport)   // called for each health check
@@ -154,7 +157,15 @@ func (w *Akira) CheckAll() []HealthReport {
 		}
 		w.mu.Unlock()
 	}
+	w.sweeps.Add(1)
 	return reports
+}
+
+// Sweeps returns how many CheckAll passes have completed. It moves only after
+// the last target is checked, so a non-zero value means every target has at
+// least one report.
+func (w *Akira) Sweeps() uint64 {
+	return w.sweeps.Load()
 }
 
 // EvaluateConsensus checks if any service has crossed the failure threshold.
