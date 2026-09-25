@@ -21,6 +21,7 @@ package main
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"flag"
 	"fmt"
 	"log/slog"
@@ -33,9 +34,9 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/ringbuf"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"unheaded/pkg/metrics"
+	"unheaded/pkg/metrics/prom"
 )
 
 // ── CLI flags ──────────────────────────────────────────────────────────────
@@ -85,8 +86,8 @@ var xdpActions = map[uint32]string{
 
 var (
 	// Packet counts by XDP action
-	xdpPacketsTotal = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	xdpPacketsTotal = prom.NewCounterVec(
+		prom.CounterOpts{
 			Namespace: "unheaded",
 			Subsystem: "xdp",
 			Name:      "packets_total",
@@ -96,8 +97,8 @@ var (
 	)
 
 	// Per-flow latency histogram (ns)
-	flowLatencyNs = prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
+	flowLatencyNs = prom.NewHistogramVec(
+		prom.HistogramOpts{
 			Namespace: "unheaded",
 			Subsystem: "flow",
 			Name:      "latency_ns",
@@ -108,8 +109,8 @@ var (
 	)
 
 	// Total drop count (from BPF array map)
-	dropTotal = prometheus.NewCounter(
-		prometheus.CounterOpts{
+	dropTotal = prom.NewCounter(
+		prom.CounterOpts{
 			Namespace: "unheaded",
 			Subsystem: "xdp",
 			Name:      "drops_total",
@@ -118,8 +119,8 @@ var (
 	)
 
 	// Ring buffer event rate
-	ringEventsTotal = prometheus.NewCounter(
-		prometheus.CounterOpts{
+	ringEventsTotal = prom.NewCounter(
+		prom.CounterOpts{
 			Namespace: "unheaded",
 			Subsystem: "ring",
 			Name:      "events_total",
@@ -128,8 +129,8 @@ var (
 	)
 
 	// BPF map error counter
-	bpfMapErrors = prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+	bpfMapErrors = prom.NewCounterVec(
+		prom.CounterOpts{
 			Namespace: "unheaded",
 			Subsystem: "ebpf_exporter",
 			Name:      "map_errors_total",
@@ -139,8 +140,8 @@ var (
 	)
 
 	// Exporter health gauge
-	exporterUp = prometheus.NewGauge(
-		prometheus.GaugeOpts{
+	exporterUp = prom.NewGauge(
+		prom.GaugeOpts{
 			Namespace: "unheaded",
 			Subsystem: "ebpf_exporter",
 			Name:      "up",
@@ -234,11 +235,11 @@ func (c *BPFCollector) collectPktCounts() {
 			action = fmt.Sprintf("unknown_%d", key)
 		}
 		// CounterVec.With() is idempotent for the same label set
-		xdpPacketsTotal.With(prometheus.Labels{"action": action}).Add(float64(value))
+		xdpPacketsTotal.With(prom.Labels{"action": action}).Add(float64(value))
 	}
 	if err := iter.Err(); err != nil {
 		c.log.Warn("iterating pkt_count map", "error", err)
-		bpfMapErrors.With(prometheus.Labels{"map": mapPktCount, "error": err.Error()}).Inc()
+		bpfMapErrors.With(prom.Labels{"map": mapPktCount, "error": errorClass(err)}).Inc()
 	}
 }
 
@@ -267,7 +268,7 @@ func (c *BPFCollector) ConsumeRingBuffer(ctx context.Context) {
 				return
 			}
 			c.log.Warn("ring buffer read error", "error", err)
-			bpfMapErrors.With(prometheus.Labels{"map": mapRingEvents, "error": err.Error()}).Inc()
+			bpfMapErrors.With(prom.Labels{"map": mapRingEvents, "error": errorClass(err)}).Inc()
 			continue
 		}
 
@@ -285,8 +286,29 @@ func (c *BPFCollector) ConsumeRingBuffer(ctx context.Context) {
 		ev.LatencyNs = binary.LittleEndian.Uint32(record.RawSample[16:20])
 
 		hop := fmt.Sprintf("%d", ev.Hop)
-		flowLatencyNs.With(prometheus.Labels{"hop": hop}).Observe(float64(ev.LatencyNs))
+		flowLatencyNs.With(prom.Labels{"hop": hop}).Observe(float64(ev.LatencyNs))
 		ringEventsTotal.Inc()
+	}
+}
+
+// errorClass maps an error onto a fixed set of label values.
+//
+// The label used to carry err.Error(), so every distinct message, with its
+// addresses, offsets and errnos, became a new series that was never
+// deleted: memory growth bounded only by how varied the errors were. A
+// label value has to come from a small, known set.
+func errorClass(err error) string {
+	switch {
+	case errors.Is(err, ebpf.ErrKeyNotExist):
+		return "key_not_exist"
+	case errors.Is(err, os.ErrPermission):
+		return "permission"
+	case errors.Is(err, os.ErrNotExist):
+		return "not_exist"
+	case errors.Is(err, context.Canceled), errors.Is(err, context.DeadlineExceeded):
+		return "canceled"
+	default:
+		return "other"
 	}
 }
 
@@ -307,18 +329,15 @@ func main() {
 	}
 	log := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 
-	// Prometheus registry
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(
-		collectors.NewGoCollector(),
-		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
-		xdpPacketsTotal,
-		flowLatencyNs,
-		dropTotal,
-		ringEventsTotal,
-		bpfMapErrors,
-		exporterUp,
-	)
+	// Metrics registry. The go_* and process_* series come from the default
+	// registry, served alongside it below, as client_golang's collectors
+	// were registered here before ADR-094 step 6.
+	reg := metrics.NewRegistry()
+	for _, c := range []metrics.Collector{
+		xdpPacketsTotal, flowLatencyNs, dropTotal, ringEventsTotal, bpfMapErrors, exporterUp,
+	} {
+		reg.MustRegister(c)
+	}
 
 	ctx, cancel := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer cancel()
@@ -339,9 +358,10 @@ func main() {
 
 	// HTTP server
 	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{
-		EnableOpenMetrics: true,
-	}))
+	// promhttp here negotiated OpenMetrics when a scraper asked for it
+	// (EnableOpenMetrics). pkg/metrics serves the classic text format, which
+	// every Prometheus-compatible scraper accepts by default.
+	mux.Handle("/metrics", metrics.HandlerFor(reg, metrics.DefaultRegistry))
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"status":"ok","component":"ebpf-exporter"}`))
