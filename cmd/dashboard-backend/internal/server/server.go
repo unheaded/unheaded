@@ -516,16 +516,18 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 
 	// Auth middleware (activated via AUTH_ENABLED=true, skips /health /ready /metrics /ws)
 	authCfg := auth.LoadServiceAuthConfig("dashboard-backend")
-	var httpHandler http.Handler = s.mux
+	var httpHandler http.Handler = capturePattern(s.mux)
 	if authMw := auth.SetupMiddleware(authCfg); authMw != nil {
 		// Also skip WebSocket endpoints from auth (upgrade needs special handling)
 		httpHandler = auth.SkipAuthPaths(auth.Middleware(
 			&auth.MultiAuthenticator{Authenticators: buildDashboardAuthenticators(authCfg)},
-		), "/health", "/ready", "/metrics", "/ws")(s.mux)
+		), "/health", "/ready", "/metrics", "/ws")(httpHandler)
 	}
 	// Security headers on every response. No CSP: the dashboard SPA relies on
 	// inline styles/handlers that a strict default-src would break.
 	httpHandler = withSecurityHeaders(httpHandler)
+	// Outermost, so auth rejections are counted too.
+	httpHandler = s.instrumentHTTP(httpHandler)
 
 	s.httpServer = &http.Server{
 		Addr:           config.ListenAddr,
