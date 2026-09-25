@@ -1,8 +1,33 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
 
-# Hardening exception: WireGuard needs NET_ADMIN + SYS_MODULE + host networking
-# to manage the kernel tunnel interface (51820/udp).
+# WireGuard manages a kernel tunnel interface (51820/udp), so it needs host
+# networking and runs as root with NET_ADMIN alone. Measured 2026-09-25:
+#
+#   - Non-root is impossible, not merely untested. As uid 16783 with NET_ADMIN
+#     added, CapEff is 0 (no_new_privs keeps added caps from a non-root
+#     process) and `ip link add ... type wireguard` fails with EPERM. The
+#     image's s6 init also refuses to start as non-root.
+#   - As root with drop: ALL + NET_ADMIN only, no SYS_MODULE, and
+#     no-new-privileges, the image's init brings the tunnel up (bounding set =
+#     NET_ADMIN).
+#   - SYS_MODULE and the /lib/modules hostPath are gone. A container that can
+#     load kernel modules is root on the host. Tested with the module already
+#     loaded; on a node without it, the kernel autoloads it through the
+#     rtnl-link alias (not tested: that means unloading a live module).
+#
+# The manifest could not have worked before. The config Secret was mounted
+# read-only over /config, where the image writes its state and looks for
+# tunnels in /config/wg_confs/*.conf, so every run logged "No valid tunnel
+# config found" while reporting Running 1/1. /config is now scratch, and the
+# Secret, no longer optional, lands in wg_confs. A missing Secret now blocks
+# the pod instead of letting it run a no-op.
+#
+# Testing on kind on an Ubuntu host: the host's AppArmor `wg-quick` profile
+# attaches to /usr/bin/wg-quick inside the unconfined kind pod and denies
+# Alpine's /bin/coreutils. That is a kind artefact (a real node's containerd
+# profile prevents the attach), so the init path was verified under Docker's
+# default profile instead.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -37,16 +62,18 @@ spec:
           ports:
             - { name: wg, containerPort: 51820, protocol: UDP, hostPort: 51820 }
           securityContext:
+            runAsNonRoot: false
+            runAsUser: 0
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-              add: ["NET_ADMIN", "SYS_MODULE"]
+              add: ["NET_ADMIN"]
           volumeMounts:
             - { name: config, mountPath: /config }
-            - { name: modules, mountPath: /lib/modules, readOnly: true }
+            - { name: tunnels, mountPath: /config/wg_confs, readOnly: true }
           resources:
             requests: { cpu: "50m", memory: 64Mi }
             limits: { cpu: "500m", memory: 128Mi }
       volumes:
-        - { name: config, secret: { secretName: wireguard-config, optional: true } }
-        - { name: modules, hostPath: { path: /lib/modules } }
+        - { name: config, emptyDir: { sizeLimit: 16Mi } }
+        - { name: tunnels, secret: { secretName: wireguard-config, defaultMode: 0400 } }
