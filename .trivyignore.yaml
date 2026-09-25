@@ -63,8 +63,9 @@ misconfigurations:
   #   suricata       an IDS that reads raw packets off the wire. hostNetwork +
   #                  NET_RAW is the entire point; without it there is nothing
   #                  to inspect.
-  #   wireguard      a VPN. SYS_MODULE loads the kernel module, NET_ADMIN
-  #                  configures the interface, hostNetwork carries the tunnel.
+  #   wireguard      a VPN. NET_ADMIN configures the interface, hostNetwork
+  #                  carries the tunnel. (SYS_MODULE and the /lib/modules
+  #                  hostPath were removed 2026-09-25, tunnel verified without.)
   #   void-collector the eBPF collector. Already the best-scoped of the three:
   #                  privileged:false with only BPF, PERFMON and NET_ADMIN.
   #   node-exporter  host metrics. hostPID and the /proc,/sys mounts ARE the
@@ -89,12 +90,6 @@ misconfigurations:
     statement: >-
       NET_RAW is what lets Suricata read raw packets. Without it the IDS has
       no input.
-
-  - id: KSV-0120
-    paths:
-      - "kubernetes/manifests/overlays/wireguard/wireguard.yaml"
-    statement: >-
-      SYS_MODULE loads the WireGuard kernel module. Removing it removes the VPN.
 
   - id: KSV-0010
     paths:
@@ -211,7 +206,7 @@ misconfigurations:
       - "kubernetes/manifests/overlays/gpu-vllm/vllm.yaml"
     statement: >-
       Capabilities are scoped and additive over drop:ALL — BPF/PERFMON for the
-      collector, NET_RAW for the IDS, SYS_MODULE for the VPN, SYS_PTRACE for
+      collector, NET_RAW for the IDS, NET_ADMIN for the VPN, SYS_PTRACE for
       the ROCm runtime.
 
   - id: KSV-0023
@@ -219,7 +214,6 @@ misconfigurations:
       - "deploy/k8s/ebpf/void-collector-daemonset.yaml"
       - "kubernetes/manifests/base/telemetry/node-exporter-daemonset.yaml"
       - "kubernetes/manifests/base/telemetry/promtail-daemonset.yaml"
-      - "kubernetes/manifests/overlays/wireguard/wireguard.yaml"
       - "kubernetes/manifests/overlays/gpu-vllm/vllm.yaml"
     statement: >-
       hostPath IS the data source: bpffs, /proc and /sys, container logs, and

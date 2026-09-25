@@ -115,8 +115,13 @@ var helmOnly = map[string]bool{
 //
 // The registry entry is kept because the UID is reserved for them. This map is
 // the honest form of that: the test still asserts the manifest EXISTS and still
-// fails if one is deleted, it just does not yet demand the UID. Emptying this
-// map is the definition of done for the follow-up.
+// fails if one is deleted, it just does not yet demand the UID. A pending
+// manifest may declare runAsUser: 0 explicitly; any other mismatch fails.
+//
+// Both entries were measured on a live (kind) cluster on 2026-09-25. suricata can
+// close once there is an image whose suricata user has the registry UID. wireguard
+// cannot close while it runs in a container: its entry records a proven limit,
+// not unfinished work.
 var pendingHardening = map[string]string{
 	// Measured on kind 2026-09-25: runAsUser 16782 is impossible with this
 	// image, since no_new_privs keeps the added caps from a non-root process
@@ -125,9 +130,12 @@ var pendingHardening = map[string]string{
 	// empty bounding set). Done means an image whose suricata user is 16782.
 	"suricata": "starts as root and self-drops to uid 998 (measured on kind); " +
 		"16782 needs an image whose suricata user has that UID",
-	"wireguard": "SYS_MODULE to insert the kernel module, and the lscr.io image's " +
-		"s6 init drops to PUID/PGID itself; a kubelet-set runAsUser pre-empts that " +
-		"and needs live validation",
+	// Measured 2026-09-25: as uid 16783 with NET_ADMIN added, CapEff is 0 and
+	// creating the link fails with EPERM. A kernel tunnel needs root here, so
+	// this entry is permanent while WireGuard runs in a container. The manifest
+	// is root with NET_ADMIN only (SYS_MODULE removed).
+	"wireguard": "root required: non-root gets CapEff 0 and EPERM on link " +
+		"creation (measured on kind); root is limited to NET_ADMIN",
 }
 
 // findManifests returns every manifest declaring the given service.
