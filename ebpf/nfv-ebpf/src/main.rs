@@ -541,11 +541,15 @@ fn try_nfv_lb_route(ctx: &XdpContext) -> Result<u32, ()> {
             let vtf =
                 u32::from_be(unsafe { core::ptr::read_unaligned(core::ptr::addr_of!(ip.vtf)) });
             let flow_label = vtf & 0x000F_FFFF;
-            let backend_idx = (flow_label % count) as usize;
+            // The verifier cannot bound the result of `% count`, so make it
+            // opaque and bound it directly (count <= 10, so this never trips).
+            let backend_idx = core::hint::black_box((flow_label % count) as usize);
 
             // Rewrite destination MAC address to selected backend
             let mac_offset = 4 + backend_idx * 6; // offset into BackendList
-            if mac_offset + 6 <= 64 && data + 6 <= data_end {
+
+            // `<= 58`, not `+ 6 <= 64`, so LLVM compares mac_offset itself.
+            if backend_idx < 10 && mac_offset <= 58 && data + 6 <= data_end {
                 for i in 0..6usize {
                     let mac_byte = unsafe {
                         core::ptr::read_volatile(core::hint::black_box(
@@ -620,8 +624,13 @@ fn advance_chain(ctx: &XdpContext) -> Result<u32, ()> {
     }
 
     // Read next function's prog_array index from chain
-    let func_offset = 4 + (next_func as usize) * 4;
-    if func_offset + 4 > 44 {
+    // Opaque, so the bound checked below is the value used for the read. LLVM
+    // otherwise recomputes the offset from next_func after checking a
+    // truncated copy, and the verifier rejects the read as unbounded.
+    let func_offset = core::hint::black_box(4 + (next_func as usize) * 4);
+    // `> 40`, not `+ 4 > 44`: the addition makes LLVM test a shifted copy,
+    // and the verifier bounds that copy instead of func_offset.
+    if func_offset > 40 {
         return apply_final_verdict();
     }
     let next_prog_idx =

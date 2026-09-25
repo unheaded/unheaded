@@ -235,7 +235,15 @@ fn apply_bit_flip(ctx: &mut TcContext, monad: &mut Monad) -> Result<(), ()> {
 
     // Target byte: pick from the 17-byte mutable region [1..=17].
     let range = (MONAD_FLIP_LAST_BYTE - MONAD_FLIP_FIRST_BYTE + 1) as u32; // 17
-    let rel = ((rand >> 8) % range) as usize;
+
+    // `% range` bounds rel to [0, 16], but LLVM lowers the modulo to
+    // multiply-and-shift arithmetic the verifier cannot bound, and it then
+    // rejects `bytes[target]` as a variable-offset stack read. Make rel opaque
+    // and check it explicitly; LLVM cannot delete a check on an opaque value.
+    let rel = core::hint::black_box(((rand >> 8) % range) as usize);
+    if rel >= range as usize {
+        return Err(());
+    }
     let target = MONAD_FLIP_FIRST_BYTE + rel;
 
     let pkt_off = MONAD_PKT_OFFSET + target;
