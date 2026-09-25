@@ -234,3 +234,32 @@ func TestMultipleServicesConsensus(t *testing.T) {
 		t.Errorf("Expected bad-svc alert, got %s", alerts[0].Service)
 	}
 }
+
+// Sweeps counts COMPLETED sweeps only: /ready depends on it, and a count that
+// moved before the last target was checked would report ready with a
+// partially filled state map.
+func TestSweeps_CountsCompletedSweeps(t *testing.T) {
+	var seenDuring uint64
+	var a *Akira
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		seenDuring = a.Sweeps()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	a = NewAkira("node-1", []ServiceTarget{{Name: "svc", Host: "127.0.0.1", Port: srv.Listener.Addr().(*net.TCPAddr).Port, HealthPath: "/"}})
+	if got := a.Sweeps(); got != 0 {
+		t.Fatalf("Sweeps before any sweep = %d, want 0", got)
+	}
+	a.CheckAll()
+	if seenDuring != 0 {
+		t.Fatalf("Sweeps during the first sweep = %d, want 0", seenDuring)
+	}
+	if got := a.Sweeps(); got != 1 {
+		t.Fatalf("Sweeps after one sweep = %d, want 1", got)
+	}
+	a.CheckAll()
+	if got := a.Sweeps(); got != 2 {
+		t.Fatalf("Sweeps after two sweeps = %d, want 2", got)
+	}
+}
