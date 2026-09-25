@@ -1,3 +1,7 @@
+%YAML 1.1
+---
+# Suricata requires the two lines above as the first lines of the file;
+# without them it refuses the config outright (fixed 2026-09-25).
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # Suricata Configuration for Unheaded Kingdom
@@ -8,6 +12,9 @@ vars:
   address-groups:
     HOME_NET: "[10.20.0.0/16, fd00:dead:beef::/48]"
     EXTERNAL_NET: "!$HOME_NET"
+  # Ports are port-groups, not address-groups; under address-groups Suricata
+  # rejects the whole config ("failed to parse address var HTTP_PORTS").
+  port-groups:
     HTTP_PORTS: "80"
     SHELLCODE_PORTS: "!80"
     ORACLE_PORTS: 1521
@@ -157,6 +164,11 @@ unix-command:
 default-rule-path: /etc/suricata/rules
 rule-files:
   - unheaded-monad.rules
+# host-b mounts routing/suricata/rules at /etc/suricata/rules; these two ship
+# with the rules there, and Suricata will not start its detection engine
+# without them once rules are loaded.
+classification-file: /etc/suricata/rules/classification.config
+reference-config-file: /etc/suricata/rules/reference.config
 
 # Stats settings
 stats:

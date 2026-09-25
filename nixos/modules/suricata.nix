@@ -66,22 +66,26 @@ in {
     ];
     
     # Deploy Monad rules if enabled
-    environment.etc = lib.mkIf cfg.monadRulesEnable {
-      "suricata/rules/unheaded-monad.rules".text = ''
-        # Monad Protocol Signatures — sid 9000001-9000099
-        # SPDX-License-Identifier: MIT
-        # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
-        #
-        # CRITICAL: Suricata must NOT strip or modify IPv6 HbH extension headers.
-        # decode-events: no for hopopt is set in suricata.yaml.
-        # These rules DETECT Monad HbH activity — they do not block or alter headers.
-        
-        alert ip6 any any -> any any (msg:"MONAD HbH extension header detected"; ipv6-exthdr: hbh; sid:9000001; rev:1; classtype:protocol-command-decode;)
-        alert ip6 any any -> any any (msg:"MONAD HbH possible CRC mismatch - packet length anomaly"; ipv6-exthdr: hbh; dsize:>100; sid:9000002; rev:1; classtype:protocol-command-decode;)
-        alert ip6 any any -> any any (msg:"MONAD HbH epoch anomaly - unexpected epoch value"; ipv6-exthdr: hbh; sid:9000010; rev:1; classtype:protocol-command-decode;)
-        alert ip6 any any -> any any (msg:"MONAD HbH high frequency - possible replay attack"; ipv6-exthdr: hbh; threshold: type both, track by_src, count 1000, seconds 1; sid:9000030; rev:1; classtype:denial-of-service;)
-        alert ip6 any any -> any any (msg:"MONAD HbH unknown opcode - potential protocol abuse"; ipv6-exthdr: hbh; sid:9000099; rev:1; classtype:protocol-command-decode;)
-      '';
+    # Scoped to this one file's attribute path. It used to be
+    # `environment.etc = lib.mkIf ... { ... };`, which collides with the
+    # environment.etc."suricata/suricata.yaml" below: Nix rejected the module
+    # ("attribute 'environment.etc' already defined"), so nothing importing it
+    # (nixos/hosts/host-b) could evaluate.
+    #
+    # The canonical rules file, not an inline copy: the inline copy had
+    # drifted from it, and both used `ipv6-exthdr`, which is not a Suricata
+    # keyword, so no rule ever loaded. scripts/check-suricata-rules.sh checks
+    # that this still points at the canonical file.
+    environment.etc."suricata/rules/unheaded-monad.rules" = lib.mkIf cfg.monadRulesEnable {
+      source = ../../routing/suricata/rules/unheaded-monad.rules;
+    };
+    # Suricata 7 will not start its detection engine without these two once
+    # rules are loaded (measured), and nothing else in this module installs them.
+    environment.etc."suricata/classification.config" = lib.mkIf cfg.monadRulesEnable {
+      source = ../../routing/suricata/rules/classification.config;
+    };
+    environment.etc."suricata/reference.config" = lib.mkIf cfg.monadRulesEnable {
+      source = ../../routing/suricata/rules/reference.config;
     };
     
     # Main Suricata config
@@ -132,7 +136,7 @@ in {
             enabled: yes
             type: regular
             filename: ${cfg.eveJsonPath}
-            rotate-interval: 1day
+            rotate-interval: day
             types:
               - alert:
                   payload: yes
@@ -172,6 +176,8 @@ in {
       default-rule-path: /etc/suricata/rules
       rule-files:
         - unheaded-monad.rules
+      classification-file: /etc/suricata/classification.config
+      reference-config-file: /etc/suricata/reference.config
       
       # Stats
       stats:

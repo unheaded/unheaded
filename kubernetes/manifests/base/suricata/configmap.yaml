@@ -26,6 +26,14 @@ data:
         cluster-id: 99
         cluster-type: cluster_flow
         defrag: yes
+    # Rules and the files they need all come from this ConfigMap, mounted at
+    # /etc/suricata. Before 2026-09-25 no rule-files were configured, so the
+    # IDS logged flows and could never alert.
+    default-rule-path: /etc/suricata
+    rule-files:
+      - unheaded-monad.rules
+    classification-file: /etc/suricata/classification.config
+    reference-config-file: /etc/suricata/reference.config
     outputs:
       - eve-log:
           enabled: yes
@@ -36,3 +44,66 @@ data:
             - dns
             - http
             - flow
+  # Byte-identical copy of routing/suricata/rules/unheaded-monad.rules (the
+  # canonical file); scripts/check-suricata-rules.sh fails if they differ.
+  unheaded-monad.rules: |
+    # Monad Protocol Signatures — Unheaded Kingdom
+    # SPDX-License-Identifier: MIT
+    # Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+    # SID range: 9000001-9000099
+    #
+    # CANONICAL COPY. kubernetes/manifests/base/suricata/configmap.yaml carries a
+    # byte-identical copy and nixos/modules/suricata.nix reads this file; both are
+    # enforced by scripts/check-suricata-rules.sh, which also replays test packets
+    # through the image the DaemonSet runs and checks which rules fire.
+    #
+    # These rules DETECT Monad traffic. They do not block or strip HbH headers.
+    #
+    # How a Monad packet is matched (Suricata 7 has no Hop-by-Hop keyword):
+    #   ipv6.hdr covers the IPv6 fixed header AND its extension headers (measured:
+    #   it stops before the L4 payload). Byte 6 is Next Header; 0 means a
+    #   Hop-by-Hop header follows at byte 40. Byte 41 is its Hdr Ext Len, so the
+    #   options run from byte 42 for (len + 1) * 8 - 2 bytes. The Monad option is
+    #   type 0x3E, data length 20 (0x14), as the eBPF parsers match it.
+    #   byte_extract confines the search to that options region, so the bytes
+    #   3E 14 in a payload, or behind another header, do not match. Known limit:
+    #   another option whose DATA contains 3E 14 would match; walking options one
+    #   by one is not expressible in rule language.
+    #
+    # Removed 2026-09-25: sids 9000010 (epoch anomaly), 9000011 (sequence anomaly)
+    # and 9000099 (unknown opcode). They had no match logic beyond "has a HbH
+    # header", so each would have fired on every Monad packet, and none of them
+    # ever loaded: every rule here used `ipv6-exthdr`, which is not a Suricata
+    # keyword, so Suricata loaded zero rules. Field-level checks (epoch, CRC,
+    # opcode) are done in-kernel by the eBPF hop program.
+
+    # --- Core Detection ---
+    alert ipv6 any any -> any any (msg:"MONAD HbH option detected"; ipv6.hdr; content:"|00|"; offset:6; depth:1; byte_extract:1,41,monad_hbh_len,multiplier 8; content:"|3e 14|"; offset:42; depth:monad_hbh_len; sid:9000001; rev:2; classtype:protocol-command-decode; metadata: created_at 2026-02-26, updated_at 2026-09-25;)
+
+    # --- Anomaly Detection ---
+    # Monad packet with an oversized payload (possible length mismatch or fragmentation).
+    alert ipv6 any any -> any any (msg:"MONAD HbH packet with oversized payload (>1500)"; ipv6.hdr; content:"|00|"; offset:6; depth:1; byte_extract:1,41,monad_hbh_len,multiplier 8; content:"|3e 14|"; offset:42; depth:monad_hbh_len; dsize:>1500; sid:9000002; rev:2; classtype:protocol-command-decode; metadata: created_at 2026-02-26, updated_at 2026-09-25;)
+
+    # --- Security Detection ---
+    # Possible replay flood: 1000+ Monad packets in 1 second from one source.
+    alert ipv6 any any -> any any (msg:"MONAD HbH high frequency from single source - possible replay flood"; ipv6.hdr; content:"|00|"; offset:6; depth:1; byte_extract:1,41,monad_hbh_len,multiplier 8; content:"|3e 14|"; offset:42; depth:monad_hbh_len; threshold: type both, track by_src, count 1000, seconds 1; sid:9000030; rev:2; classtype:denial-of-service; metadata: created_at 2026-02-26, updated_at 2026-09-25;)
+
+    # Elevated rate: 20+ Monad packets in 5 seconds from one source. (Formerly
+    # titled a scan detector, but a threshold counts packets, not distinct
+    # destinations; Suricata 7 cannot count distinct destinations in a rule.)
+    alert ipv6 any any -> any any (msg:"MONAD HbH elevated rate from single source"; ipv6.hdr; content:"|00|"; offset:6; depth:1; byte_extract:1,41,monad_hbh_len,multiplier 8; content:"|3e 14|"; offset:42; depth:monad_hbh_len; threshold: type both, track by_src, count 20, seconds 5; sid:9000031; rev:2; classtype:misc-activity; metadata: created_at 2026-02-26, updated_at 2026-09-25;)
+  # Byte-identical copies of routing/suricata/rules/{classification,reference}.config.
+  # The image's own classification.config is mode 0600, owned by uid 998, so
+  # Suricata cannot read it while still root without DAC_OVERRIDE.
+  classification.config: |
+    # Classtypes used by unheaded-monad.rules. Suricata 7 refuses to start its
+    # detection engine when this file is missing (measured). Canonical copy;
+    # the K8s ConfigMap carries a byte-identical one (scripts/check-suricata-rules.sh).
+    # SPDX-License-Identifier: MIT
+    config classification: protocol-command-decode,Generic Protocol Command Decode,3
+    config classification: denial-of-service,Detection of a Denial of Service Attack,2
+    config classification: misc-activity,Misc activity,3
+  reference.config: |
+    # No rule uses `reference:`, but Suricata 7 refuses to start its detection
+    # engine when this file is missing (measured). Canonical copy, as above.
+    # SPDX-License-Identifier: MIT
