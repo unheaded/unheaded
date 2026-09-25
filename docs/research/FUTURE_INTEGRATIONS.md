@@ -10,6 +10,25 @@ Research and planning for future integration sprints.
 **License**: GPL-2.0
 **Status**: FLAGGED FOR LATER — do not integrate in current sprint
 
+> **PARKED — 2026-09-25.** Suricata is not deployed by default anywhere (K8s
+> base, host-b compose `--profile ids` only, host-b Nix `enable = false`).
+>
+> **Why.** It was flagged "do not integrate in current sprint" on 2026-02-26,
+> then built the same day by the S67–S69 multi-agent swarm, and none of it
+> ever ran: no rule ever loaded (the `ip6_exthdr`/`ipv6-exthdr` keywords in
+> the sketch below and in the shipped rules do not exist), the K8s DaemonSet
+> crash-looped, the Nix module did not parse, and the host-b image never
+> contained a Suricata binary. Nothing consumes its output
+> (`anamnesis.NewSuricataReader` has no caller), and the Monad-aware rules
+> duplicate what the eBPF data plane already does in-kernel, better. An IDS is
+> not part of getting Unheaded off the ground.
+>
+> **If revived**, the original placement below was right: at the edge
+> (OPNsense/IPFire), with a real general ruleset (ET Open), and its alerts
+> wired into something that runs. The K8s manifests, Nix module and rules were
+> fixed on 2026-09-25 and stay tested (`scripts/check-suricata-rules.sh`); the
+> host-b Docker image is not fixed (see the note in `docker/suricata/Dockerfile`).
+
 ### Why Suricata Matters for Unheaded
 
 Suricata is the IDS/IPS layer that sits inline with OPNsense (host-a) and IPFire (host-b):

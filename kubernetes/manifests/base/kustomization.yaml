@@ -35,4 +35,9 @@ resources:
   - telemetry
   - logging
   # --- security ---
-  - suricata
+  # suricata/ is PARKED (2026-09-25), not deployed by default: nothing
+  # consumes its alerts, and the Monad rules duplicate what the eBPF data plane
+  # already does in-kernel. An IDS belongs at the edge, bolted on when there is
+  # a use for one. The manifests still work and scripts/check-suricata-rules.sh
+  # still tests them; to deploy anyway: kubectl apply -k base/suricata.
+  # See docs/research/FUTURE_INTEGRATIONS.md.
