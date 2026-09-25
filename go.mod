@@ -25,7 +25,7 @@ toolchain go1.25.13
 
 require (
 	github.com/BurntSushi/toml v1.6.0
-	github.com/cilium/ebpf v0.20.0
+	github.com/cilium/ebpf v0.22.0
 	github.com/cloudflare/circl v1.6.3
 	github.com/fsnotify/fsnotify v1.7.0
 	github.com/google/uuid v1.6.0
@@ -53,7 +53,7 @@ replace (
 )
 
 require (
-	github.com/davecgh/go-spew v1.1.1 // indirect
+	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
