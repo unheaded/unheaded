@@ -363,6 +363,19 @@ provoke_live_path_inventory() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_ebpf_loads() {
+    # Contract: every eBPF program not on the known-failing list passes the
+    # kernel verifier. Plant a REAL verifier rejection, not a list edit: drop
+    # the black_box that keeps canary's bounds check alive (aa9260e7), so the
+    # gate has to build, load and see the kernel refuse it.
+    local f="ebpf/canary-ebpf/src/main.rs"
+    backup "${f}"
+    local needle="    let data_end = core::hint::black_box(data_end);"
+    grep -qxF "${needle}" "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+    grep -vxF "${needle}" "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" > "${REPO_ROOT}/${f}"
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_no_client_golang() {
     # Contract (ADR-094 step 6): nothing imports the client_golang family.
     # Plant one import in a fresh package. Untracked on purpose: the gate
@@ -390,6 +403,7 @@ check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original 
 check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present in the baseline set
 live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md
 check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang
+check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 

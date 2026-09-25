@@ -21,6 +21,11 @@ echo ""
 echo "=== Phase 1: Compile all BPF programs ==="
 cd "$BPF_DIR" || { echo "FATAL: cannot cd to $BPF_DIR" >&2; exit 1; }
 
+# Own target dir. A plain `cargo build --release` here replaced the ascend-linux
+# monad-cpu-ebpf ELF in ebpf/target (the one xv6 boots) with the default build,
+# every time this gate or the meta-gate ran. Same default-features build as
+# before, just somewhere it cannot clobber anything.
+export CARGO_TARGET_DIR="${BPF_VERIFIER_TARGET_DIR:-$BPF_DIR/target/verifier-check}"
 BUILD_OUTPUT=$(cargo build --release 2>&1)
 BUILD_EXIT=$?
 
@@ -110,7 +115,7 @@ echo ""
 echo "=== Phase 4: Instruction count check ==="
 
 # Check monad-cpu-ebpf specifically (the complex one)
-MONAD_BPF="$BPF_DIR/target/bpfel-unknown-none/release/monad-cpu-ebpf"
+MONAD_BPF="$CARGO_TARGET_DIR/bpfel-unknown-none/release/monad-cpu-ebpf"
 if [ -f "$MONAD_BPF" ]; then
     SIZE=$(stat --format=%s "$MONAD_BPF" 2>/dev/null || echo "0")
     # Rough estimate: BPF instructions are 8 bytes each
@@ -134,8 +139,11 @@ fi
 # compiled fine. For the real load-test-each-variant gate (ADR-080), run
 # scripts/upc-regression.sh — it loads BOTH build variants through their
 # loaders and functionally checks Doom + xv6. Wire THAT into CI as the UPC gate.
+# scripts/check-ebpf-loads.sh loads EVERY program (both monad-cpu variants
+# included) through the verifier, without the functional checks.
 echo ""
-echo "  NOTE: load-test both variants with scripts/upc-regression.sh (needs sudo)."
+echo "  NOTE: load-test with scripts/check-ebpf-loads.sh (all programs) and"
+echo "        scripts/upc-regression.sh (UPC functional); both need sudo."
 
 # ---- Summary ----
 echo ""

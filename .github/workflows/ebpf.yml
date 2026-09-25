@@ -77,3 +77,29 @@ jobs:
       - name: Format check
         working-directory: ebpf
         run: cargo fmt -- --check
+
+  # Loads every program through the kernel verifier (scripts/check-ebpf-loads.sh).
+  # Building proves nothing about the verifier; until this gate, 16 of 31
+  # programs had never loaded, and nothing noticed. GitHub's runners have
+  # passwordless sudo, so this really loads. The known-failing list was
+  # measured on kernel 6.17; if the runner's kernel judges differently, the
+  # gate says so, and that difference is worth knowing.
+  ebpf-load-gate:
+    name: eBPF programs pass the verifier
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rust-src
+
+      - name: Install bpf-linker
+        run: cargo install bpf-linker --no-default-features  # as ci-protocol.yml
+
+      - name: Kernel
+        run: uname -r
+
+      - name: Load every eBPF program
+        run: ./scripts/check-ebpf-loads.sh
