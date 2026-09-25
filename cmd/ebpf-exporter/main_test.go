@@ -4,8 +4,13 @@
 package main
 
 import (
+	"context"
+	"fmt"
+	"os"
 	"testing"
 	"unsafe"
+
+	"github.com/cilium/ebpf"
 )
 
 // ─── MonadEvent layout pin ──────────────────────────────────────────────────
@@ -114,5 +119,26 @@ func TestBPFMapNames_AllUseUnheadedPrefix(t *testing.T) {
 		if len(name) < 9 || name[:9] != "unheaded_" {
 			t.Errorf("BPF map name %q does not use kingdom convention 'unheaded_' prefix", name)
 		}
+	}
+}
+
+// Label values must come from a fixed set, however varied the errors.
+func TestErrorClass_IsBounded(t *testing.T) {
+	allowed := map[string]bool{"key_not_exist": true, "permission": true, "not_exist": true, "canceled": true, "other": true}
+	for _, err := range []error{
+		ebpf.ErrKeyNotExist,
+		fmt.Errorf("lookup at 0x%x: %w", 0xdeadbeef, ebpf.ErrKeyNotExist),
+		os.ErrPermission,
+		&os.PathError{Op: "open", Path: "/sys/fs/bpf/x", Err: os.ErrNotExist},
+		context.Canceled,
+		fmt.Errorf("read ring at offset %d: some errno 71", 123456),
+		fmt.Errorf("read ring at offset %d: some errno 71", 654321),
+	} {
+		if c := errorClass(err); !allowed[c] {
+			t.Errorf("errorClass(%v) = %q, outside the fixed set", err, c)
+		}
+	}
+	if errorClass(fmt.Errorf("x: %w", ebpf.ErrKeyNotExist)) != "key_not_exist" {
+		t.Error("wrapped ErrKeyNotExist not classified")
 	}
 }
