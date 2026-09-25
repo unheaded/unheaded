@@ -180,7 +180,8 @@ vulnerabilities on code paths we call.
 has a reachable BTF integer overflow (GO-2026-6238, fixed in v0.22.0; reached
 from `cmd/trace-collector-go`, a TOOL). Toolchain `go1.25.12` has six
 reachable standard-library vulnerabilities fixed in go1.25.13 (net/http ×2,
-net/url, html/template, crypto/tls, encoding/asn1). The `Rust Cargo Audit` and
+net/url, html/template, crypto/tls, encoding/asn1); *resolved 2026-09-25:
+toolchain pinned to go1.25.13, govulncheck clean for stdlib.* The `Rust Cargo Audit` and
 gitleaks jobs are also failing; not investigated here. ADR-095's
 supply-chain track covers the unregistered modules.
 

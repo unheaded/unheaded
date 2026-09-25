@@ -4,9 +4,11 @@ go 1.25.0
 
 // Toolchain pin. Originally 1.25.10 for the 2026-05-08 govulncheck closure
 // (~33 of 35 stdlib advisories), then 1.25.12 during the 2026-07-29 security
-// sweep to pin GO-2026-5856 / GO-2026-5039 / GO-2026-5037.
+// sweep to pin GO-2026-5856 / GO-2026-5039 / GO-2026-5037, then 1.25.13 on
+// 2026-09-25 for six reachable stdlib advisories (GO-2026-6218, -6091, -6090,
+// -6089, -5972, -5026).
 //
-// Still 1.25.12. Go 1.26.5 was EVALUATED during the 2026-07-29 sweep and
+// Still on the 1.25 line. Go 1.26.5 was EVALUATED during the 2026-07-29 sweep and
 // DEFERRED: govulncheck cannot type-check a 1.26 module, so adopting it would
 // have blinded the very gate the pin exists to serve. See
 // docs/security/findings-remediation-2026-07-29.md for that decision.
@@ -19,7 +21,7 @@ go 1.25.0
 // stdlib vulnerability surface is deterministic instead of dependent on
 // runner-image drift. See docs/security/govulncheck-2026-05-08.md for the
 // original analysis.
-toolchain go1.25.12
+toolchain go1.25.13
 
 require (
 	github.com/BurntSushi/toml v1.6.0
