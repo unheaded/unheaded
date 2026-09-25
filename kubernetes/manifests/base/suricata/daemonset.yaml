@@ -1,9 +1,27 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
 
-# Hardening exception (documented): Suricata is a host IDS that captures raw
-# packets, so it requires hostNetwork + NET_ADMIN/NET_RAW and runs as root.
-# This mirrors the eBPF/IDS exception in the NixOS baseline (CLAUDE.md).
+# Suricata is a host IDS that captures raw packets: hostNetwork, and it STARTS
+# as root. It does not RUN as root. Measured on kind 2026-09-25:
+#
+#   - runAsUser 16782 does not work. With allowPrivilegeEscalation: false
+#     (no_new_privs), a non-root process never receives the added
+#     capabilities, and capture fails with EPERM.
+#   - So the container starts as root and Suricata drops itself (--user,
+#     via libcap-ng) to the image's suricata user, uid 998. Every thread ends
+#     up uid 998 with CapEff = NET_ADMIN|NET_RAW|SYS_NICE and an EMPTY
+#     bounding set. SETUID/SETGID/SETPCAP exist only for that drop; NET_ADMIN
+#     cannot go, because Suricata's drop code insists on retaining it.
+#
+# The manifest never ran before this. Three defects, each fatal on its own:
+#   - the image entrypoint copies and chowns files as root, which fails under
+#     drop: ALL (no CHOWN/DAC_OVERRIDE), so `command` bypasses it;
+#   - the config lacked the %YAML 1.1 header (see the ConfigMap);
+#   - AF_PACKET has no "any" pseudo-interface ("No such device"), and node
+#     interface names vary, so capture is pcap on "any".
+#
+# Not yet 16782 (the uids registry): the image's user is 998, and Suricata
+# resolves --user by name. See pendingHardening in pkg/uids/uids_test.go.
 apiVersion: apps/v1
 kind: DaemonSet
 metadata:
@@ -30,14 +48,17 @@ spec:
       containers:
         - name: suricata
           image: jasonish/suricata:7.0
-          args: ["-c", "/etc/suricata/suricata.yaml", "-i", "any"]
+          command: ["/usr/bin/suricata"]
+          args: ["-c", "/etc/suricata/suricata.yaml", "--pcap=any",
+                 "--user", "suricata", "--group", "suricata"]
           securityContext:
             runAsNonRoot: false
+            runAsUser: 0
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
-              add: ["NET_ADMIN", "NET_RAW", "SYS_NICE"]
+              add: ["NET_ADMIN", "NET_RAW", "SYS_NICE", "SETUID", "SETGID", "SETPCAP"]
           volumeMounts:
             - { name: config, mountPath: /etc/suricata }
             - { name: logs, mountPath: /var/log/suricata }
