@@ -178,7 +178,8 @@ vulnerabilities on code paths we call.
 
 **Outside the register, same scan:** the unregistered `cilium/ebpf` v0.20.0
 has a reachable BTF integer overflow (GO-2026-6238, fixed in v0.22.0; reached
-from `cmd/trace-collector-go`, a TOOL). Toolchain `go1.25.12` has six
+from `cmd/trace-collector-go`, a TOOL; *resolved 2026-09-25: bumped to
+v0.22.0*). Toolchain `go1.25.12` has six
 reachable standard-library vulnerabilities fixed in go1.25.13 (net/http ×2,
 net/url, html/template, crypto/tls, encoding/asn1); *resolved 2026-09-25:
 toolchain pinned to go1.25.13, govulncheck clean for stdlib.* The `Rust Cargo Audit` and
