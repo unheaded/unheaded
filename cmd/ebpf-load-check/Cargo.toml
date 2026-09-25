@@ -1,0 +1,9 @@
+[package]
+name = "ebpf-load-check"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-2.0-only"
+description = "Load (never attach) every program in an eBPF ELF through the kernel verifier"
+
+[dependencies]
+aya = "0.13"
