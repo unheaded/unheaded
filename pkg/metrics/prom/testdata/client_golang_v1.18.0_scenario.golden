@@ -1,0 +1,56 @@
+# Recorded from prometheus/client_golang v1.18.0 on 2026-09-24, before the
+# dependency was removed (ADR-094 step 6). Floats are IEEE-754 bit patterns.
+HELP	bare_total	No namespace.
+HELP	disk_used_bytes	Disk used.
+HELP	latency_seconds	Default buckets.
+HELP	queue_depth	Queue depth.
+HELP	svc_requests_total	Requests by status.
+HELP	unheaded_trace_span_bytes	Exponential buckets.
+HELP	unheaded_wotan_messages_total	Messages published.
+HELP	uptime_seconds	Uptime.
+SAMPLE	bare_total	4613937818241073152
+SAMPLE	disk_used_bytes{host=east}	4744078263993761792
+SAMPLE	disk_used_bytes{host=west}	0
+SAMPLE	latency_seconds_bucket{le=+Inf}	4618441417868443648
+SAMPLE	latency_seconds_bucket{le=0.005}	4611686018427387904
+SAMPLE	latency_seconds_bucket{le=0.01}	4611686018427387904
+SAMPLE	latency_seconds_bucket{le=0.025}	4611686018427387904
+SAMPLE	latency_seconds_bucket{le=0.05}	4611686018427387904
+SAMPLE	latency_seconds_bucket{le=0.1}	4613937818241073152
+SAMPLE	latency_seconds_bucket{le=0.25}	4613937818241073152
+SAMPLE	latency_seconds_bucket{le=0.5}	4616189618054758400
+SAMPLE	latency_seconds_bucket{le=10}	4617315517961601024
+SAMPLE	latency_seconds_bucket{le=1}	4616189618054758400
+SAMPLE	latency_seconds_bucket{le=2.5}	4617315517961601024
+SAMPLE	latency_seconds_bucket{le=5}	4617315517961601024
+SAMPLE	latency_seconds_count	4618441417868443648
+SAMPLE	latency_seconds_sum	4636834118746624754
+SAMPLE	queue_depth	13843502304583483392
+SAMPLE	svc_requests_total{method=GET,status=200}	4611686018427387904
+SAMPLE	svc_requests_total{method=POST,status=500}	4611686018427387904
+SAMPLE	unheaded_trace_span_bytes_bucket{kind=kernel,le=+Inf}	4617315517961601024
+SAMPLE	unheaded_trace_span_bytes_bucket{kind=kernel,le=1024}	4616189618054758400
+SAMPLE	unheaded_trace_span_bytes_bucket{kind=kernel,le=16384}	4616189618054758400
+SAMPLE	unheaded_trace_span_bytes_bucket{kind=kernel,le=256}	4613937818241073152
+SAMPLE	unheaded_trace_span_bytes_bucket{kind=kernel,le=4096}	4616189618054758400
+SAMPLE	unheaded_trace_span_bytes_bucket{kind=kernel,le=64}	4611686018427387904
+SAMPLE	unheaded_trace_span_bytes_bucket{kind=user,le=+Inf}	4607182418800017408
+SAMPLE	unheaded_trace_span_bytes_bucket{kind=user,le=1024}	4607182418800017408
+SAMPLE	unheaded_trace_span_bytes_bucket{kind=user,le=16384}	4607182418800017408
+SAMPLE	unheaded_trace_span_bytes_bucket{kind=user,le=256}	0
+SAMPLE	unheaded_trace_span_bytes_bucket{kind=user,le=4096}	4607182418800017408
+SAMPLE	unheaded_trace_span_bytes_bucket{kind=user,le=64}	0
+SAMPLE	unheaded_trace_span_bytes_count{kind=kernel}	4617315517961601024
+SAMPLE	unheaded_trace_span_bytes_count{kind=user}	4607182418800017408
+SAMPLE	unheaded_trace_span_bytes_sum{kind=kernel}	4681638528734461952
+SAMPLE	unheaded_trace_span_bytes_sum{kind=user}	4652218415073722368
+SAMPLE	unheaded_wotan_messages_total{node=west}	4631107791820423168
+SAMPLE	uptime_seconds	4668012349850910720
+TYPE	bare_total	counter
+TYPE	disk_used_bytes	gauge
+TYPE	latency_seconds	histogram
+TYPE	queue_depth	gauge
+TYPE	svc_requests_total	counter
+TYPE	unheaded_trace_span_bytes	histogram
+TYPE	unheaded_wotan_messages_total	counter
+TYPE	uptime_seconds	gauge
