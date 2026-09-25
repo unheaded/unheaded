@@ -1,6 +1,16 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
 # Multi-stage Suricata Docker build for Unheaded Kingdom
+#
+# PARKED AND NOT WORKING (checked 2026-09-25). This image contains NO Suricata
+# binary: the builder stage compiles nothing, the runtime stage copies nothing
+# from it, and the build script and source tree it names
+# (scripts/suricata/build-suricata.sh, ~/tmp/suricata/) do not exist. The
+# container exits 1 at startup. The builder stage also cannot build on its own
+# (python3-distutils is not in Ubuntu 24.04); BuildKit skips it, which hid
+# that. If Suricata is revived, base this on the image the K8s DaemonSet pins,
+# and start as root so Suricata can drop to its user (a non-root process gets
+# no capabilities, so capture would fail).
 # Suricata compiled from ~/tmp/suricata/ with eBPF + AF_PACKET support
 
 # === Stage 1: Builder ===

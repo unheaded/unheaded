@@ -279,6 +279,10 @@ services:
     volumes:
     - anamnesis-data:/var/lib/anamnesis
   suricata:
+    # PARKED 2026-09-25 (docs/research/FUTURE_INTEGRATIONS.md). Not started by
+    # default: only with `--profile ids`. The image has no Suricata binary
+    # (see docker/suricata/Dockerfile), so it would exit at once and loop.
+    profiles: ["ids"]
     build:
       context: ../../suricata
       dockerfile: Dockerfile

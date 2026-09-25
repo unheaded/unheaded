@@ -34,8 +34,10 @@
   };
 
   # ── Suricata IDS/IPS — Monad HbH Detection ──────────────────────────────────
+  # PARKED 2026-09-25: see docs/research/FUTURE_INTEGRATIONS.md. The module
+  # still evaluates and is tested (scripts/check-suricata-rules.sh).
   services.unheaded.suricata = {
-    enable = true;
+    enable = false;
     interface = "eth1";
     homeNet = ["10.20.0.0/16" "fd00:dead:beef::/48"];
     idsMode = "alert";
