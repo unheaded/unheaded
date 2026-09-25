@@ -376,6 +376,17 @@ provoke_ebpf_loads() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_suricata_rules() {
+    # Contract: the Monad Suricata rules load and fire on exactly the packets
+    # they should. Plant the original defect: `ipv6-exthdr`, which is not a
+    # Suricata keyword, so no rule loads.
+    local f="routing/suricata/rules/unheaded-monad.rules"
+    backup "${f}"
+    sed -i '0,/ipv6.hdr; content:"|00|"; offset:6; depth:1;/s//ipv6-exthdr: hbh;/' "${REPO_ROOT}/${f}"
+    grep -q "ipv6-exthdr" "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_no_client_golang() {
     # Contract (ADR-094 step 6): nothing imports the client_golang family.
     # Plant one import in a fresh package. Untracked on purpose: the gate
@@ -404,6 +415,7 @@ check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present
 live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md
 check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
+check-suricata-rules|provoke_suricata_rules|slow|the original ipv6-exthdr keyword restored in the canonical Monad rules (needs docker)
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 

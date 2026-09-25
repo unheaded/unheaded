@@ -343,3 +343,22 @@ jobs:
             exit 1
           fi
           echo "All required security scans passed"
+
+  # ============================================================================
+  # IDS rules: the Monad Suricata rules load and fire on the right packets
+  # ============================================================================
+  # Until 2026-09-25 no rule had ever loaded (`ipv6-exthdr` is not a Suricata
+  # keyword). Replays generated packets through the DaemonSet's Suricata image
+  # and Suricata 8 (what nixpkgs ships), and checks the K8s and Nix copies.
+  suricata-rules:
+    name: Suricata Monad rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: PyYAML
+        run: python3 -c 'import yaml' || pip install pyyaml
+
+      - name: Rules load and fire as expected
+        run: ./scripts/check-suricata-rules.sh
