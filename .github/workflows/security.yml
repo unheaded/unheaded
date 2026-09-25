@@ -124,6 +124,12 @@ jobs:
       - name: No nested bind mounts in compose
         run: ./scripts/check-compose-bind-nesting.sh
 
+      # ADR-094: prometheus/client_golang was replaced by pkg/metrics and
+      # removed from go.mod. This keeps it out. Provoked red by planting an
+      # import in a new file.
+      - name: No prometheus/client_golang
+        run: ./scripts/check-no-client-golang.sh
+
       # ADR-092: /tmp is world-writable, cleared on reboot and unrotated.
       # 31 call sites remain; the migration is per-service, so this holds the
       # line rather than demanding it all at once. Compares the path SET, not

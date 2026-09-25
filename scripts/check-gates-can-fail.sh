@@ -360,6 +360,19 @@ provoke_live_path_inventory() {
     printf 'package main\n\nfunc main() {}\n' > "${REPO_ROOT}/${f}"
 }
 
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_no_client_golang() {
+    # Contract (ADR-094 step 6): nothing imports the client_golang family.
+    # Plant one import in a fresh package. Untracked on purpose: the gate
+    # must catch a file before it is committed.
+    local d="pkg/meta-gate-probe-metrics"
+    mkdir -p "${REPO_ROOT}/${d}"
+    CREATED_DIRS+=("${d}")
+    local f="${d}/probe.go"
+    backup "${f}"
+    printf 'package probe\n\nimport _ "github.com/prometheus/client_golang/prometheus"\n' > "${REPO_ROOT}/${f}"
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -374,6 +387,7 @@ check-compose-log-caps|provoke_compose_log_caps|fast|a compose service with its 
 check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
 check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present in the baseline set
 live-path-inventory|provoke_live_path_inventory|fast|a new cmd/ binary absent from docs/LIVE-PATHS.md
+check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 
