@@ -521,6 +521,11 @@ fn find_monad_option(opts_start: usize, opts_end: usize, data_end: usize) -> Res
 /// Read 20 Monad bytes from packet memory into a [`Monad`] value.
 #[inline(always)]
 fn read_monad_from_pkt(start: usize, data_end: usize) -> Result<Monad, ()> {
+    // Opaque, so LLVM keeps this check. The caller's variable-length bound
+    // implies it, and LLVM would merge it away; the verifier tracks that bound
+    // on a different pointer and rejects the read ("offset is outside of the
+    // packet").
+    let data_end = core::hint::black_box(data_end);
     if start + MONAD_SIZE > data_end {
         return Err(());
     }
@@ -535,6 +540,11 @@ fn read_monad_from_pkt(start: usize, data_end: usize) -> Result<Monad, ()> {
 /// Write a mutated [`Monad`] back into packet memory at the same offset.
 #[inline(always)]
 fn write_monad_to_pkt(start: usize, data_end: usize, m: &Monad) -> Result<(), ()> {
+    // Opaque, so LLVM keeps this check. The caller's variable-length bound
+    // implies it, and LLVM would merge it away; the verifier tracks that bound
+    // on a different pointer and rejects the read ("offset is outside of the
+    // packet").
+    let data_end = core::hint::black_box(data_end);
     if start + MONAD_SIZE > data_end {
         return Err(());
     }

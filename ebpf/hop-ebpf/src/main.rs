@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: GPL-2.0-only
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
+
 //! Unheaded Protocol — Hop eBPF Program
 //!
 //! This XDP program runs at every interior Kingdom node.  It is the per-hop ALU
@@ -554,6 +557,11 @@ fn find_monad_option(opts_start: usize, opts_end: usize, data_end: usize) -> Res
 /// keep each per-byte bounds check visible to the BPF verifier.
 #[inline(always)]
 fn read_monad_from_pkt(start: usize, data_end: usize) -> Result<Monad, ()> {
+    // Opaque, so LLVM keeps this check. The caller's variable-length bound
+    // implies it, and LLVM would merge it away; the verifier tracks that bound
+    // on a different pointer and rejects the read ("offset is outside of the
+    // packet").
+    let data_end = core::hint::black_box(data_end);
     if start + MONAD_SIZE > data_end {
         return Err(());
     }
@@ -571,6 +579,11 @@ fn read_monad_from_pkt(start: usize, data_end: usize) -> Result<Monad, ()> {
 /// No resize — this is a pure in-place 20-byte overwrite.
 #[inline(always)]
 fn write_monad_to_pkt(start: usize, data_end: usize, m: &Monad) -> Result<(), ()> {
+    // Opaque, so LLVM keeps this check. The caller's variable-length bound
+    // implies it, and LLVM would merge it away; the verifier tracks that bound
+    // on a different pointer and rejects the read ("offset is outside of the
+    // packet").
+    let data_end = core::hint::black_box(data_end);
     if start + MONAD_SIZE > data_end {
         return Err(());
     }
