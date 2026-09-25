@@ -118,9 +118,13 @@ var helmOnly = map[string]bool{
 // fails if one is deleted, it just does not yet demand the UID. Emptying this
 // map is the definition of done for the follow-up.
 var pendingHardening = map[string]string{
-	"suricata": "runAsNonRoot:false + NET_ADMIN/NET_RAW/SYS_NICE for AF_PACKET " +
-		"capture on -i any; needs a live cluster to confirm capture still works " +
-		"as UID 16782",
+	// Measured on kind 2026-09-25: runAsUser 16782 is impossible with this
+	// image, since no_new_privs keeps the added caps from a non-root process
+	// and capture fails with EPERM. The pod now starts as root and Suricata
+	// drops itself to the image's uid 998 (CapEff NET_ADMIN|NET_RAW|SYS_NICE,
+	// empty bounding set). Done means an image whose suricata user is 16782.
+	"suricata": "starts as root and self-drops to uid 998 (measured on kind); " +
+		"16782 needs an image whose suricata user has that UID",
 	"wireguard": "SYS_MODULE to insert the kernel module, and the lscr.io image's " +
 		"s6 init drops to PUID/PGID itself; a kubelet-set runAsUser pre-empts that " +
 		"and needs live validation",
@@ -192,6 +196,15 @@ func TestManifestsMatchRegistry(t *testing.T) {
 			if err != nil {
 				t.Errorf("%s: unparseable runAsUser %q", service, m[1])
 				continue
+			}
+			// A pending service may declare root EXPLICITLY: that states the
+			// exception in the manifest instead of inheriting it from the image.
+			// Any other mismatch, and root for a service not pending, still fails.
+			if got == 0 && got != want {
+				if why, ok := pendingHardening[service]; ok {
+					t.Logf("%s (%s): runAsUser=0 declared, pending — %s", service, rel, why)
+					continue
+				}
 			}
 			if got != want {
 				t.Errorf("%s (%s): runAsUser=%d, registry says %d", service, rel, got, want)

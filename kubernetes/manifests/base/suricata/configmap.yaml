@@ -7,7 +7,11 @@ metadata:
   name: suricata-config
   namespace: unheaded
 data:
+  # Suricata 7 refuses a config without the %YAML 1.1 header ("must begin
+  # with the following two lines"); without it the pod never started.
   suricata.yaml: |
+    %YAML 1.1
+    ---
     vars:
       address-groups:
         HOME_NET: "[10.0.0.0/8, fd00:dead:beef::/48]"
