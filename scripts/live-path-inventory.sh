@@ -4,8 +4,8 @@
 #
 # ADR-093 rule 5: record reachability in the inventory.
 #
-# 49 binaries exist across cmd/ and services/*/cmd/; 10 ship in the container
-# image. Nothing in the tree said which ones run, where, or under what
+# Binaries live under cmd/, services/*/cmd/, and elsewhere (the enumeration
+# is `go list`, not a glob; see binary_roots). 10 ship in the container image. Nothing in the tree said which ones run, where, or under what
 # supervisor — so "most of this does not run" was folklore rather than a fact
 # anyone could check, and the recurring defect of this repository is a correct
 # mechanism nothing reaches.
@@ -49,22 +49,39 @@ MODE="${1:---check}"
 refs_outside() {
     local path="$1"
     shift
-    grep -rl --exclude-dir=.git -- "${path}" "$@" 2>/dev/null | grep -v "^${path}/" || true
+    # This script names example paths in its comments; it is not evidence.
+    grep -rl --exclude-dir=.git --exclude=live-path-inventory.sh -- "${path}" "$@" 2>/dev/null |
+        grep -v "^${path}/" || true
+}
+
+# binary_name <path> — the name a unit or image would install it under. A
+# package rooted at services/<svc>/cmd has basename "cmd", which names nothing.
+binary_name() {
+    local base
+    base="$(basename "$1")"
+    if [ "$base" = "cmd" ]; then
+        base="$(basename "$(dirname "$1")")"
+    fi
+    echo "$base"
 }
 
 classify() {
-    local name="$1"
-    local path="${2:-cmd/$1}"
+    local path="$1"
+    local name
+    name="$(binary_name "$path")"
 
-    # Exact target match. "-o /build/bin/${name}\b" is WRONG: \b treats "-"
-    # as a word boundary, so "unheaded" matched the unheaded-daemon build line
-    # and an orphan was reported as containerised.
-    if grep -qE -- "-o /build/bin/${name}( |$)" Dockerfile 2>/dev/null; then
+    # Match the SOURCE PATH, not the output name. Matching "-o /build/bin/timeguru"
+    # reported the root services/timeguru package (the one Nix ships) as
+    # containerised, when the image builds services/timeguru/cmd/timeguru.
+    if grep -qE -- "-o /build/bin/[^ ]+ \./${path}( |$)" Dockerfile 2>/dev/null; then
         echo "CONTAINER"
         return
     fi
+    # Unit match ends at whitespace, a line continuation or EOL. "\b" treated
+    # "-" as a boundary, and a short MBC program name ("cat", "ls") would match
+    # any /bin/cat in any unit.
     if [ -n "$(refs_outside "$path" nix kubernetes deploy 2>/dev/null)" ] ||
-        git ls-files '*.service' | xargs grep -l "/${name}\b" 2>/dev/null | head -1 | grep -q .; then
+        git ls-files '*.service' | xargs grep -lE "^ExecStart=[^ ]*/${name}([[:space:]]|\\\\|$)" 2>/dev/null | head -1 | grep -q .; then
         echo "SUPERVISED"
         return
     fi
@@ -75,23 +92,51 @@ classify() {
     echo "ORPHAN"
 }
 
+# binary_roots — every buildable binary in the tree, one path per line.
+#
+# Go: every package named main, from `go list`. Globbing cmd/*/ and
+# services/*/cmd/*/ missed 14 of them — services/gateway/cmd, the root
+# services/timeguru that Nix ships, deploy/sophia-eye/sophia-gateway and 11 MBC
+# programs — and the gate passed while blind to all of them. A glob encodes
+# where binaries were expected to live; `go list` reports where they are.
+#
+# Non-Go: Rust and C roots have no `go list`, so they keep the glob, but only
+# directories that hold a Cargo.toml or a .c file. The bare glob also counted
+# cmd/tools, which is documentation.
+binary_roots() {
+    local mains
+    if ! mains="$(go list -e -f '{{if eq .Name "main"}}{{.Dir}}{{end}}' ./...)"; then
+        echo "[FAIL] go list failed; cannot enumerate binaries" >&2
+        return 1
+    fi
+    if [ -z "$mains" ]; then
+        echo "[FAIL] go list found no main packages; refusing to report an empty tree" >&2
+        return 1
+    fi
+    {
+        echo "${mains//"$PWD"\//}"
+        local d
+        for d in cmd/*/ services/*/cmd/*/; do
+            d="${d%/}"
+            [ -d "$d" ] || continue
+            if [ -f "$d/Cargo.toml" ] || compgen -G "$d/*.c" >/dev/null; then
+                echo "$d"
+            fi
+        done
+    } | sort -u
+}
+
 generate() {
     local container=0 supervised=0 tool=0 orphan=0 total=0
     local rows=""
 
-    # Both binary roots. cmd/ alone misses wotan, timeguru, captain,
-    # architect and micromanager — five of the ten binaries that actually
-    # ship — because they live under services/<svc>/cmd/<svc>.
     local paths
-    paths="$( (ls -d cmd/*/ 2>/dev/null; ls -d services/*/cmd/*/ 2>/dev/null) | sed 's:/$::' | sort -u)"
+    paths="$(binary_roots)" || exit 1
 
     for path in $paths; do
-        [ -d "$path" ] || continue
-        local dir
-        dir="$(basename "$path")"
         total=$((total + 1))
         local kind
-        kind="$(classify "$dir" "$path")"
+        kind="$(classify "$path")"
         case "$kind" in
         CONTAINER) container=$((container + 1)) ;;
         SUPERVISED) supervised=$((supervised + 1)) ;;
@@ -122,7 +167,7 @@ containers running, which is the mistake ADR-093 rule 4 names.
 | SUPERVISED | referenced by a systemd unit, Nix module or K8s manifest | ${supervised} |
 | TOOL | invoked by a script, runbook or Makefile, not supervised | ${tool} |
 | ORPHAN | referenced by nothing outside its own directory | ${orphan} |
-| **total** | all binary roots (\`cmd/\`, \`services/*/cmd/\`) | **${total}** |
+| **total** | every Go \`main\` package (\`go list\`) plus Rust/C roots under \`cmd/\`, \`services/*/cmd/\` | **${total}** |
 
 ORPHAN is not an accusation — kept experiments are the point of a solo
 learning project, and ADR-090 owns the deletion question. The count exists so

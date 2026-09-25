@@ -351,8 +351,10 @@ provoke_tmp_log_baseline() {
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_live_path_inventory() {
     # Contract (ADR-093 rule 5): docs/LIVE-PATHS.md matches the tree, so a new
-    # binary cannot land unclassified. Plant one.
-    local d="cmd/meta-gate-probe"
+    # binary cannot land unclassified. Plant one OUTSIDE cmd/: a glob over
+    # cmd/*/ caught a probe there while missing 14 real main packages
+    # elsewhere, so a cmd/ probe proved nothing about enumeration.
+    local d="pkg/meta-gate-probe-main"
     mkdir -p "${REPO_ROOT}/${d}"
     CREATED_DIRS+=("${d}")
     local f="${d}/main.go"
@@ -386,7 +388,7 @@ verify-gpl-boundary|provoke_verify_gpl_boundary|fast|an AGPL license on a non-fi
 check-compose-log-caps|provoke_compose_log_caps|fast|a compose service with its logging block stripped
 check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
 check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present in the baseline set
-live-path-inventory|provoke_live_path_inventory|fast|a new cmd/ binary absent from docs/LIVE-PATHS.md
+live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md
 check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
