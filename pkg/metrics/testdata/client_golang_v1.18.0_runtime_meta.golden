@@ -1,0 +1,70 @@
+# Recorded from prometheus/client_golang v1.18.0 default Go and process
+# collectors on 2026-09-24, before the dependency was removed (ADR-094 step 6).
+# HELP go_gc_duration_seconds A summary of the pause duration of garbage collection cycles.
+# HELP go_goroutines Number of goroutines that currently exist.
+# HELP go_info Information about the Go environment.
+# HELP go_memstats_alloc_bytes Number of bytes allocated and still in use.
+# HELP go_memstats_alloc_bytes_total Total number of bytes allocated, even if freed.
+# HELP go_memstats_buck_hash_sys_bytes Number of bytes used by the profiling bucket hash table.
+# HELP go_memstats_frees_total Total number of frees.
+# HELP go_memstats_gc_sys_bytes Number of bytes used for garbage collection system metadata.
+# HELP go_memstats_heap_alloc_bytes Number of heap bytes allocated and still in use.
+# HELP go_memstats_heap_idle_bytes Number of heap bytes waiting to be used.
+# HELP go_memstats_heap_inuse_bytes Number of heap bytes that are in use.
+# HELP go_memstats_heap_objects Number of allocated objects.
+# HELP go_memstats_heap_released_bytes Number of heap bytes released to OS.
+# HELP go_memstats_heap_sys_bytes Number of heap bytes obtained from system.
+# HELP go_memstats_last_gc_time_seconds Number of seconds since 1970 of last garbage collection.
+# HELP go_memstats_lookups_total Total number of pointer lookups.
+# HELP go_memstats_mallocs_total Total number of mallocs.
+# HELP go_memstats_mcache_inuse_bytes Number of bytes in use by mcache structures.
+# HELP go_memstats_mcache_sys_bytes Number of bytes used for mcache structures obtained from system.
+# HELP go_memstats_mspan_inuse_bytes Number of bytes in use by mspan structures.
+# HELP go_memstats_mspan_sys_bytes Number of bytes used for mspan structures obtained from system.
+# HELP go_memstats_next_gc_bytes Number of heap bytes when next garbage collection will take place.
+# HELP go_memstats_other_sys_bytes Number of bytes used for other system allocations.
+# HELP go_memstats_stack_inuse_bytes Number of bytes in use by the stack allocator.
+# HELP go_memstats_stack_sys_bytes Number of bytes obtained from system for stack allocator.
+# HELP go_memstats_sys_bytes Number of bytes obtained from system.
+# HELP go_threads Number of OS threads created.
+# HELP process_cpu_seconds_total Total user and system CPU time spent in seconds.
+# HELP process_max_fds Maximum number of open file descriptors.
+# HELP process_open_fds Number of open file descriptors.
+# HELP process_resident_memory_bytes Resident memory size in bytes.
+# HELP process_start_time_seconds Start time of the process since unix epoch in seconds.
+# HELP process_virtual_memory_bytes Virtual memory size in bytes.
+# HELP process_virtual_memory_max_bytes Maximum amount of virtual memory available in bytes.
+# TYPE go_gc_duration_seconds summary
+# TYPE go_goroutines gauge
+# TYPE go_info gauge
+# TYPE go_memstats_alloc_bytes gauge
+# TYPE go_memstats_alloc_bytes_total counter
+# TYPE go_memstats_buck_hash_sys_bytes gauge
+# TYPE go_memstats_frees_total counter
+# TYPE go_memstats_gc_sys_bytes gauge
+# TYPE go_memstats_heap_alloc_bytes gauge
+# TYPE go_memstats_heap_idle_bytes gauge
+# TYPE go_memstats_heap_inuse_bytes gauge
+# TYPE go_memstats_heap_objects gauge
+# TYPE go_memstats_heap_released_bytes gauge
+# TYPE go_memstats_heap_sys_bytes gauge
+# TYPE go_memstats_last_gc_time_seconds gauge
+# TYPE go_memstats_lookups_total counter
+# TYPE go_memstats_mallocs_total counter
+# TYPE go_memstats_mcache_inuse_bytes gauge
+# TYPE go_memstats_mcache_sys_bytes gauge
+# TYPE go_memstats_mspan_inuse_bytes gauge
+# TYPE go_memstats_mspan_sys_bytes gauge
+# TYPE go_memstats_next_gc_bytes gauge
+# TYPE go_memstats_other_sys_bytes gauge
+# TYPE go_memstats_stack_inuse_bytes gauge
+# TYPE go_memstats_stack_sys_bytes gauge
+# TYPE go_memstats_sys_bytes gauge
+# TYPE go_threads gauge
+# TYPE process_cpu_seconds_total counter
+# TYPE process_max_fds gauge
+# TYPE process_open_fds gauge
+# TYPE process_resident_memory_bytes gauge
+# TYPE process_start_time_seconds gauge
+# TYPE process_virtual_memory_bytes gauge
+# TYPE process_virtual_memory_max_bytes gauge

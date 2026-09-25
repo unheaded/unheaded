@@ -9,16 +9,10 @@ import (
 	"bytes"
 	"math"
 	"os"
-	"runtime"
-	"runtime/debug"
 	"sort"
 	"strings"
 	"syscall"
 	"testing"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/common/expfmt"
 )
 
 func gatherOurProcess(t *testing.T, namespace string) map[string]*family {
@@ -30,23 +24,6 @@ func gatherOurProcess(t *testing.T, namespace string) map[string]*family {
 	var buf bytes.Buffer
 	if err := reg.Gather(&buf); err != nil {
 		t.Fatalf("gather: %v", err)
-	}
-	return parseExposition(t, buf.String())
-}
-
-func gatherTheirProcess(t *testing.T) map[string]*family {
-	t.Helper()
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
-	mfs, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("client_golang gather: %v", err)
-	}
-	var buf bytes.Buffer
-	for _, mf := range mfs {
-		if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
-			t.Fatalf("encode: %v", err)
-		}
 	}
 	return parseExposition(t, buf.String())
 }
@@ -79,57 +56,6 @@ func TestProcessCollector_PublishesTheClientGolangNames(t *testing.T) {
 	if len(got) != len(want) {
 		t.Errorf("%d families, want %d", len(got), len(want))
 	}
-}
-
-// Same bracket as the go_* parity test: ours, client_golang, ours again.
-func TestProcessCollector_MatchesClientGolang(t *testing.T) {
-	runtime.GC()
-	defer debug.SetGCPercent(debug.SetGCPercent(-1))
-
-	before := gatherOurProcess(t, "")
-	theirs := gatherTheirProcess(t)
-	after := gatherOurProcess(t, "")
-
-	names := make([]string, 0, len(theirs))
-	for n := range theirs {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	if len(before) != len(theirs) {
-		t.Errorf("family count: ours %d, client_golang %d", len(before), len(theirs))
-	}
-	for _, name := range names {
-		tf, bf, af := theirs[name], before[name], after[name]
-		if bf == nil {
-			t.Errorf("%s: client_golang publishes it, we do not", name)
-			continue
-		}
-		if bf.typ != tf.typ || bf.help != tf.help {
-			t.Errorf("%s: ours %s %q, client_golang %s %q", name, bf.typ, bf.help, tf.typ, tf.help)
-		}
-		for series, tv := range tf.samples {
-			bv, ok := bf.samples[series]
-			if !ok {
-				t.Errorf("series %s missing", series)
-				continue
-			}
-			av := af.samples[series]
-			lo, hi := math.Min(bv, av)-procSlack(name), math.Max(bv, av)+procSlack(name)
-			if tv < lo || tv > hi {
-				t.Errorf("%s: client_golang %g outside ours [%g, %g]", series, tv, bv, av)
-			}
-		}
-	}
-}
-
-// procSlack: what may escape the bracket. See the ADR-094 step 1b note.
-func procSlack(name string) float64 {
-	switch name {
-	case "process_start_time_seconds":
-		// Both compute btime + starttime/100; float rounding only.
-		return 1e-6
-	}
-	return 0
 }
 
 // comm is attacker-influenced (prctl PR_SET_NAME, or just the binary name)

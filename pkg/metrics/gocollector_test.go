@@ -6,17 +6,10 @@ package metrics
 import (
 	"bufio"
 	"bytes"
-	"math"
 	"runtime"
-	"runtime/debug"
-	"sort"
 	"strconv"
 	"strings"
 	"testing"
-
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/collectors"
-	"github.com/prometheus/common/expfmt"
 )
 
 // family is one metric family parsed out of text exposition.
@@ -94,23 +87,6 @@ func gatherOurs(t *testing.T) map[string]*family {
 	return parseExposition(t, buf.String())
 }
 
-func gatherTheirs(t *testing.T) map[string]*family {
-	t.Helper()
-	reg := prometheus.NewRegistry()
-	reg.MustRegister(collectors.NewGoCollector())
-	mfs, err := reg.Gather()
-	if err != nil {
-		t.Fatalf("client_golang gather: %v", err)
-	}
-	var buf bytes.Buffer
-	for _, mf := range mfs {
-		if _, err := expfmt.MetricFamilyToText(&buf, mf); err != nil {
-			t.Fatalf("encode: %v", err)
-		}
-	}
-	return parseExposition(t, buf.String())
-}
-
 // The names are the contract. This list is what client_golang v1.18
 // publishes by default; it is pinned here without importing client_golang so
 // it survives ADR-094 step 6, when the parity test below goes with the
@@ -164,85 +140,6 @@ func TestGoCollector_PublishesTheClientGolangNames(t *testing.T) {
 			t.Errorf("unexpected family %s", name)
 		}
 	}
-}
-
-// Side by side in one process: every name, type and help string identical,
-// and every client_golang value bracketed by two readings of ours.
-//
-// Two independent reads of a live runtime never agree exactly, and a
-// tolerance wide enough to absorb that also absorbs real errors. So: pause
-// the GC, read ours, read client_golang, read ours again. With no collection
-// between them the heap only grows, and client_golang's reading must fall
-// between our two. For almost every series that needs no tolerance at all.
-func TestGoCollector_MatchesClientGolang(t *testing.T) {
-	runtime.GC()
-	defer debug.SetGCPercent(debug.SetGCPercent(-1))
-
-	before := gatherOurs(t)
-	theirs := gatherTheirs(t)
-	after := gatherOurs(t)
-
-	names := make([]string, 0, len(theirs))
-	for n := range theirs {
-		names = append(names, n)
-	}
-	sort.Strings(names)
-	if len(before) != len(theirs) {
-		t.Errorf("family count: ours %d, client_golang %d", len(before), len(theirs))
-	}
-
-	for _, name := range names {
-		tf, bf, af := theirs[name], before[name], after[name]
-		if bf == nil {
-			t.Errorf("%s: client_golang publishes it, we do not", name)
-			continue
-		}
-		if bf.typ != tf.typ {
-			t.Errorf("%s: type %s, client_golang %s", name, bf.typ, tf.typ)
-		}
-		if bf.help != tf.help {
-			t.Errorf("%s: help %q, client_golang %q", name, bf.help, tf.help)
-		}
-		for series, tv := range tf.samples {
-			bv, ok := bf.samples[series]
-			if !ok {
-				t.Errorf("%s: series %s missing", name, series)
-				continue
-			}
-			av := af.samples[series]
-			lo, hi := math.Min(bv, av)-slack(name), math.Max(bv, av)+slack(name)
-			if tv < lo || tv > hi {
-				t.Errorf("%s: client_golang %g outside ours [%g, %g]", series, tv, bv, av)
-			}
-		}
-		for series := range bf.samples {
-			if _, ok := tf.samples[series]; !ok {
-				t.Errorf("%s: extra series %s", name, series)
-			}
-		}
-	}
-}
-
-// slack is what may escape the bracket, measured over 300 bracketed runs on
-// go1.25. Everything not listed escaped zero times and gets zero.
-func slack(name string) float64 {
-	switch name {
-	case "go_goroutines":
-		// client_golang's Gather collects on its own goroutines, so its
-		// reading sees them and ours do not: +2 on every run.
-		return 4
-	case "go_threads":
-		return 2
-	case "go_memstats_gc_sys_bytes", "go_memstats_other_sys_bytes":
-		// The runtime moves metadata between these two classes; their sum
-		// is stable. Largest move seen: 13312.
-		return 32 << 10
-	case "go_memstats_next_gc_bytes":
-		// The heap goal counts stack space (Go 1.21+), which changes with
-		// the GC paused. Largest move seen: 6144.
-		return 32 << 10
-	}
-	return 0
 }
 
 // The derived fields are sums of runtime classes. If the sums are wrong the
