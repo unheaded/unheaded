@@ -368,39 +368,34 @@ fn extract_entropy_feature(_data: usize, data_end: usize, payload_start: usize) 
         return 0;
     }
 
-    // Count unique byte values in the 16-byte window (simplified entropy)
-    let mut seen = [0u8; 16]; // track up to 16 unique values
-    let mut unique_count: u8 = 0;
-
-    for i in 0..16usize {
-        let byte_val = unsafe {
+    // Count distinct byte values in the 16-byte window (simplified entropy).
+    //
+    // Byte i is the first occurrence of its value iff no earlier byte equals
+    // it, so the number of first occurrences is the number of distinct values.
+    // Written with constant bounds and no data-dependent branches: the
+    // previous seen[] scan broke out of its inner loop on data, and the
+    // verifier had to walk every combination of those exits, which exceeded
+    // its 1M-instruction limit, so the program never loaded. Same result on
+    // every input: checked against the old scan on 2.27M windows (all
+    // distinct-counts 1..=16 and every byte pair at the equality test's edges).
+    let mut bytes = [0u8; 16];
+    for (i, b) in bytes.iter_mut().enumerate() {
+        *b = unsafe {
             core::ptr::read_volatile(core::hint::black_box((payload_start + i) as *const u8))
         };
-
-        // Check if we have seen this value before (bounded scan).
-        //
-        // `clippy::needless_range_loop` wants `seen.iter().take(unique_count)`
-        // here. It is semantically identical and measurably worse: 2026-08-03
-        // that rewrite grew this program from 150,792 to 156,592 bytes (+3.8%),
-        // because the `take` bound is a runtime value and LLVM stops unrolling
-        // against the constant 16. This is a verifier-budgeted XDP program, so
-        // the explicit bound stays.
-        let mut found = false;
-        #[allow(clippy::needless_range_loop)] // measured +5,800 bytes — see above
+    }
+    let mut unique_count: u32 = 0;
+    for i in 0..16usize {
+        let mut dup: u32 = 0;
         for j in 0..16usize {
-            if j >= unique_count as usize {
-                break;
-            }
-            if core::hint::black_box(seen[j]) == byte_val {
-                found = true;
-                break;
-            }
+            // 1 iff j < i (both < 16, so the difference's sign bit decides).
+            let earlier = ((j as u32).wrapping_sub(i as u32) >> 31) & 1;
+            // 1 iff bytes[i] == bytes[j]: x - 1 borrows past bit 8 only for 0.
+            let x = (bytes[i] ^ bytes[j]) as u32;
+            let eq = (x.wrapping_sub(1) >> 8) & 1;
+            dup |= eq & earlier;
         }
-
-        if !found && (unique_count as usize) < 16 {
-            seen[unique_count as usize] = byte_val;
-            unique_count = unique_count.saturating_add(1);
-        }
+        unique_count += 1 - dup;
     }
 
     // Normalize: 0 unique = 0 entropy, 16 unique = max entropy
@@ -564,19 +559,17 @@ fn update_flow_state(flow_key: u32, inferred_score: i16, now: u64, payload_len: 
         new_score
     } else {
         // New flow — initialize state
+        // Byte-wise, same layout (bpfel is little-endian, so to_ne_bytes is
+        // what the typed stores wrote). Those stored a u32 at offset 2 and u64s
+        // at 6 and 14 of a stack array: misaligned stack stores, which the
+        // verifier rejects ("misaligned stack access") and which are undefined
+        // behaviour for write_volatile anyway.
         let mut state = [0u8; 28];
-        unsafe {
-            // anomaly_score_i16
-            core::ptr::write_volatile(state.as_mut_ptr() as *mut i16, inferred_score);
-            // packet_count = 1
-            core::ptr::write_volatile(state.as_mut_ptr().add(2) as *mut u32, 1u32);
-            // last_seen_ns
-            core::ptr::write_volatile(state.as_mut_ptr().add(6) as *mut u64, now);
-            // byte_total
-            core::ptr::write_volatile(state.as_mut_ptr().add(14) as *mut u64, payload_len as u64);
-            // pkt_size_sum
-            core::ptr::write_volatile(state.as_mut_ptr().add(22) as *mut u32, payload_len as u32);
-        }
+        state[0..2].copy_from_slice(&inferred_score.to_ne_bytes()); // anomaly_score_i16
+        state[2..6].copy_from_slice(&1u32.to_ne_bytes()); // packet_count = 1
+        state[6..14].copy_from_slice(&now.to_ne_bytes()); // last_seen_ns
+        state[14..22].copy_from_slice(&(payload_len as u64).to_ne_bytes()); // byte_total
+        state[22..26].copy_from_slice(&(payload_len as u32).to_ne_bytes()); // pkt_size_sum
         let _ = FLOW_STATE.insert(&flow_key, &state, 0);
         increment_stat(STAT_FLOWS_NEW);
         inferred_score
