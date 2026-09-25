@@ -157,5 +157,10 @@ fi
 
 n_ok="$(printf '%s\n' "$loading" | grep -c .)"
 n_known="$(printf '%s\n' "$known" | grep -c .)"
-echo "[PASS] ${n_ok} eBPF programs pass the verifier; ${n_known} known failure(s):"
-printf '%s\n' "$known" | grep . | sed 's/^/         /'
+if [[ "$n_known" -eq 0 ]]; then
+    echo "[PASS] ${n_ok} eBPF programs pass the verifier; no known failures"
+else
+    echo "[PASS] ${n_ok} eBPF programs pass the verifier; ${n_known} known failure(s):"
+    printf '%s\n' "$known" | grep . | sed 's/^/         /'
+fi
+exit 0

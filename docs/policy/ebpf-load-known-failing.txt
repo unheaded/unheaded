@@ -4,5 +4,5 @@
 # Format: <elf>/<program>  # reason (measured on kernel 6.17, 2026-09-25)
 #
 # Fix one, and the gate fails until its line is removed here.
-
-anomaly-ebpf/anomaly_xdp  # misaligned stack stores in update_flow_state; after a byte-wise fix, hits the 1M-insn complexity limit
+#
+# Empty since 2026-09-25: every program in ebpf/ passes the verifier.
