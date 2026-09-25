@@ -35,7 +35,9 @@ CM="${REPO_ROOT}/kubernetes/manifests/base/suricata/configmap.yaml"
 DS="${REPO_ROOT}/kubernetes/manifests/base/suricata/daemonset.yaml"
 NIX="${REPO_ROOT}/nixos/modules/suricata.nix"
 FILES=(unheaded-monad.rules classification.config reference.config)
-NIX_SURICATA_IMAGE="${NIX_SURICATA_IMAGE:-jasonish/suricata:8.0}"
+# Pinned, like the DaemonSet's image, so this gate tests the same bytes on
+# every run. 8.0.6 resolved to this digest on 2026-09-25.
+NIX_SURICATA_IMAGE="${NIX_SURICATA_IMAGE:-jasonish/suricata:8.0.6@sha256:9872eea68c200cab826b7d62ea2be6eb3df4605ab6e2491a729c7d5fe635e830}"
 
 if ! docker info >/dev/null 2>&1; then
     echo "[FAIL] docker is required to run Suricata; this gate does not pass by skipping." >&2
@@ -76,6 +78,12 @@ DS_IMAGE="$(awk '/^ *image:/ {print $2; exit}' "$DS")"
 if [[ -z "$DS_IMAGE" ]]; then
     echo "[FAIL] no image found in ${DS#"$REPO_ROOT"/}" >&2
     exit 1
+fi
+# A tag can be rebuilt under the same name (7.0 was, on 2026-09-24), so the
+# DaemonSet must name a digest: then what this gate tests is what K8s runs.
+if [[ "$DS_IMAGE" != *@sha256:* ]]; then
+    echo "[FAIL] ${DS#"$REPO_ROOT"/} image is not pinned by digest: ${DS_IMAGE}" >&2
+    rc=1
 fi
 
 mkdir -p "$WORK/pcaps" "$WORK/rules"

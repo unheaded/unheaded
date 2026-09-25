@@ -47,7 +47,15 @@ spec:
           type: RuntimeDefault
       containers:
         - name: suricata
-          image: jasonish/suricata:7.0
+          # Pinned by digest (the multi-arch index: amd64 + arm64). The tag is for
+          # readers; the runtime pulls the digest. `7.0` was a floating tag that
+          # was rebuilt on 2026-09-24, so the image under test could change
+          # without the manifest changing. This digest is the one every test of
+          # this manifest ran against (kind, scripts/check-suricata-rules.sh),
+          # and `7.0.17` resolved to it on 2026-09-25. To update: check the new
+          # digest with `docker buildx imagetools inspect jasonish/suricata:<v>`,
+          # then run scripts/check-suricata-rules.sh before committing.
+          image: jasonish/suricata:7.0.17@sha256:6cdc29e813473d3747e41f12c854f5fff8464b98386e4a67b7cea41ebf2c0e08
           command: ["/usr/bin/suricata"]
           args: ["-c", "/etc/suricata/suricata.yaml", "--pcap=any",
                  "--user", "suricata", "--group", "suricata"]
