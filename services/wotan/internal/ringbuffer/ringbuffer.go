@@ -233,6 +233,15 @@ func (rb *RingBuffer) GetByID(id uuid.UUID) *Message {
 	return nil
 }
 
+// LastSeq returns the Seq of the most recent Push, 0 if none. Seqs live in
+// memory, so a restarted Wotan counts from 1 again; a reader whose cursor is
+// above LastSeq is looking at a restarted server and must rewind.
+func (rb *RingBuffer) LastSeq() int64 {
+	rb.mu.RLock()
+	defer rb.mu.RUnlock()
+	return rb.lastSeq
+}
+
 // Count returns the current number of messages in the buffer
 func (rb *RingBuffer) Count() int {
 	rb.mu.RLock()
