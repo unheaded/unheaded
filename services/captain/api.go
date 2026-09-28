@@ -85,6 +85,7 @@ func NewHTTPServer(service *Service, addr string) (*HTTPServer, error) {
 	authCfg := auth.LoadServiceAuthConfig("captain")
 	var httpHandler http.Handler = mux
 	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
+	httpHandler = httputil.NewServiceMetrics("captain").Instrument(mux, httpHandler)
 
 	hs.server = &http.Server{
 		Addr:           addr,
