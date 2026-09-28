@@ -16,6 +16,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/lifecycle"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/metrics/auto"
@@ -179,6 +180,7 @@ func main() {
 	authCfg := auth.LoadServiceAuthConfig("micromanager")
 	var httpHandler http.Handler = mux
 	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
+	httpHandler = httputil.NewServiceMetrics("micromanager").Instrument(mux, httpHandler)
 
 	// Server configuration
 	srv := &http.Server{
