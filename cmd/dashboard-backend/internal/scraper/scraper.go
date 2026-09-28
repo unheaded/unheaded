@@ -193,6 +193,52 @@ type MetricValue struct {
 	Labels    map[string]string `json:"labels,omitempty"`
 	Timestamp time.Time         `json:"timestamp"`
 	Type      string            `json:"type,omitempty"` // counter, gauge, histogram, summary
+	// Series is how many label sets share the name. Above 1, a counter-shaped
+	// name's Value is their sum and Labels is empty (no one series' labels
+	// describe a sum); any other name's Value and Labels are the last series'.
+	Series int `json:"series"`
+}
+
+// collapseByName reduces a scrape to one value per metric name, which is the
+// shape the dashboard reads ("unheaded_http_requests_total": {value}).
+//
+// It used to keep whichever series came last, so a labelled family showed
+// one arbitrary series (say, GET /health 200) as if it were the family.
+// Counter-shaped names (_total, and a histogram's _count and _sum) are summed
+// across their series, which is what a per-service total means. Anything
+// else keeps the last series, as before: a sum of gauges or of cumulative
+// buckets is not a meaningful number.
+func collapseByName(samples []MetricSample) map[string]*MetricValue {
+	out := make(map[string]*MetricValue, len(samples))
+	for _, sample := range samples {
+		mv, seen := out[sample.Name]
+		if !seen {
+			out[sample.Name] = &MetricValue{
+				Name:      sample.Name,
+				Value:     sample.Value,
+				Labels:    sample.Labels,
+				Timestamp: sample.Timestamp,
+				Series:    1,
+			}
+			continue
+		}
+		mv.Series++
+		mv.Timestamp = sample.Timestamp
+		if summable(sample.Name) {
+			mv.Value += sample.Value
+			mv.Labels = nil
+		} else {
+			mv.Value = sample.Value
+			mv.Labels = sample.Labels
+		}
+	}
+	return out
+}
+
+func summable(name string) bool {
+	return strings.HasSuffix(name, "_total") ||
+		strings.HasSuffix(name, "_count") ||
+		strings.HasSuffix(name, "_sum")
 }
 
 // Scraper scrapes metrics from Kingdom services
@@ -678,15 +724,8 @@ func (s *Scraper) GetAggregatedMetrics() *AggregatedMetrics {
 			sm.ScrapeCount++
 		}
 
-		for _, sample := range result.Metrics {
-			sm.Metrics[sample.Name] = &MetricValue{
-				Name:      sample.Name,
-				Value:     sample.Value,
-				Labels:    sample.Labels,
-				Timestamp: sample.Timestamp,
-			}
-			agg.TotalMetrics++
-		}
+		sm.Metrics = collapseByName(result.Metrics)
+		agg.TotalMetrics += len(result.Metrics)
 
 		agg.Services[name] = sm
 	}
@@ -720,14 +759,7 @@ func (s *Scraper) GetServiceMetrics(serviceName string) (*ServiceMetrics, error)
 		sm.Status = "up"
 	}
 
-	for _, sample := range result.Metrics {
-		sm.Metrics[sample.Name] = &MetricValue{
-			Name:      sample.Name,
-			Value:     sample.Value,
-			Labels:    sample.Labels,
-			Timestamp: sample.Timestamp,
-		}
-	}
+	sm.Metrics = collapseByName(result.Metrics)
 
 	return sm, nil
 }

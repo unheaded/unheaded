@@ -1816,3 +1816,59 @@ func generateBenchBody(numMetrics int) []byte {
 	}
 	return []byte(buf.String())
 }
+
+// A labelled counter family must read as its total, not as whichever series
+// the scrape happened to list last.
+func TestCollapseByName_SumsCounterFamilies(t *testing.T) {
+	body := []byte(`# TYPE unheaded_http_requests_total counter
+unheaded_http_requests_total{method="GET",path="/api/v1/x",service="s",status="200"} 40
+unheaded_http_requests_total{method="GET",path="/health",service="s",status="200"} 2
+unheaded_http_requests_total{method="POST",path="/api/v1/x",service="s",status="500"} 3
+unheaded_http_request_duration_seconds_bucket{le="+Inf",method="GET",path="/health",service="s"} 2
+unheaded_http_request_duration_seconds_bucket{le="+Inf",method="GET",path="/api/v1/x",service="s"} 40
+unheaded_http_request_duration_seconds_sum{method="GET",path="/health",service="s"} 0.5
+unheaded_http_request_duration_seconds_sum{method="GET",path="/api/v1/x",service="s"} 1.5
+unheaded_http_request_duration_seconds_count{method="GET",path="/health",service="s"} 2
+unheaded_http_request_duration_seconds_count{method="GET",path="/api/v1/x",service="s"} 40
+build_info{version="a"} 1
+build_info{version="b"} 7
+`)
+	s := &Scraper{}
+	got := collapseByName(s.parsePrometheusMetrics(body, &ServiceTarget{Name: "s"}, time.Now()))
+
+	for name, want := range map[string]struct {
+		value  float64
+		series int
+	}{
+		"unheaded_http_requests_total":                 {45, 3},
+		"unheaded_http_request_duration_seconds_sum":   {2, 2},
+		"unheaded_http_request_duration_seconds_count": {42, 2},
+		// Not summable: cumulative buckets and gauges keep the last series.
+		"unheaded_http_request_duration_seconds_bucket": {40, 2},
+		"build_info": {7, 2},
+	} {
+		mv, ok := got[name]
+		if !ok {
+			t.Errorf("%s missing", name)
+			continue
+		}
+		if mv.Value != want.value || mv.Series != want.series {
+			t.Errorf("%s = %v over %d series, want %v over %d", name, mv.Value, mv.Series, want.value, want.series)
+		}
+	}
+	if l := got["unheaded_http_requests_total"].Labels; l != nil {
+		t.Errorf("summed value carries one series' labels: %v", l)
+	}
+	if l := got["build_info"].Labels; l["version"] != "b" {
+		t.Errorf("last-series value lost its labels: %v", l)
+	}
+}
+
+func TestCollapseByName_SingleSeriesUnchanged(t *testing.T) {
+	ts := time.Now()
+	got := collapseByName([]MetricSample{{Name: "up", Value: 1, Labels: map[string]string{"a": "b"}, Timestamp: ts}})
+	mv := got["up"]
+	if mv == nil || mv.Value != 1 || mv.Series != 1 || mv.Labels["a"] != "b" || !mv.Timestamp.Equal(ts) {
+		t.Fatalf("single series changed: %+v", mv)
+	}
+}
