@@ -4,20 +4,26 @@
 package httputil
 
 import (
+	"bufio"
+	"errors"
+	"net"
 	"net/http"
+	"strconv"
 	"time"
 
 	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
 )
 
-// ServiceMetrics holds Prometheus metrics for an HTTP service.
+// ServiceMetrics holds the HTTP metrics CLAUDE.md requires of every service:
+// unheaded_http_requests_total and unheaded_http_request_duration_seconds.
 type ServiceMetrics struct {
 	RequestsTotal   *prom.CounterVec
 	RequestDuration *prom.HistogramVec
 }
 
-// NewServiceMetrics creates a standard set of Prometheus metrics for a service.
+// NewServiceMetrics registers the standard HTTP metrics for a service on the
+// default registry. Call it once per process.
 func NewServiceMetrics(serviceName string) *ServiceMetrics {
 	return &ServiceMetrics{
 		RequestsTotal: auto.NewCounterVec(
@@ -33,40 +39,90 @@ func NewServiceMetrics(serviceName string) *ServiceMetrics {
 				Name:        "unheaded_http_request_duration_seconds",
 				Help:        "HTTP request latency",
 				ConstLabels: prom.Labels{"service": serviceName},
-				Buckets:     []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1},
+				Buckets:     prom.DefBuckets,
 			},
 			[]string{"method", "path"},
 		),
 	}
 }
 
-// statusRecorder wraps http.ResponseWriter to capture the status code.
+// Instrument records every request that reaches next. mux is only consulted
+// for the label: path is the ServeMux pattern the request matches
+// ("unmatched" if none), never r.URL.Path, which would let any client mint a
+// series per request. next is normally mux wrapped in the service's
+// middleware (auth, body limits), so rejections by that middleware are
+// counted too.
+//
+// Every label is bounded: path by the mux's pattern set, method by folding
+// non-standard verbs to "OTHER", status by being a numeric code.
+func (m *ServiceMetrics) Instrument(mux *http.ServeMux, next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		_, path := mux.Handler(r)
+		if path == "" {
+			path = "unmatched"
+		}
+		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+
+		next.ServeHTTP(rec, r)
+
+		method := boundedMethod(r.Method)
+		m.RequestsTotal.WithLabelValues(method, path, strconv.Itoa(rec.status)).Inc()
+		m.RequestDuration.WithLabelValues(method, path).Observe(time.Since(start).Seconds())
+	})
+}
+
+func boundedMethod(m string) string {
+	switch m {
+	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
+		http.MethodPatch, http.MethodDelete, http.MethodOptions:
+		return m
+	}
+	return "OTHER"
+}
+
+// statusRecorder captures the status code while keeping the interfaces
+// handlers assert directly: websockets hijack and streams flush.
 type statusRecorder struct {
 	http.ResponseWriter
-	status int
+	status      int
+	wroteHeader bool
 }
 
 func (r *statusRecorder) WriteHeader(code int) {
-	r.status = code
+	if !r.wroteHeader {
+		r.status = code
+		r.wroteHeader = true
+	}
 	r.ResponseWriter.WriteHeader(code)
 }
 
-// InstrumentHandler wraps an http.HandlerFunc with Prometheus metrics recording.
-// It captures the actual response status code for accurate metrics.
-func InstrumentHandler(metrics *ServiceMetrics, handler http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
+func (r *statusRecorder) Write(b []byte) (int, error) {
+	r.wroteHeader = true
+	return r.ResponseWriter.Write(b)
+}
 
-		rec := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
-		handler(rec, r)
-
-		duration := time.Since(start).Seconds()
-		status := http.StatusText(rec.status)
-		if status == "" {
-			status = "unknown"
-		}
-
-		metrics.RequestDuration.WithLabelValues(r.Method, r.URL.Path).Observe(duration)
-		metrics.RequestsTotal.WithLabelValues(r.Method, r.URL.Path, status).Inc()
+func (r *statusRecorder) Flush() {
+	if f, ok := r.ResponseWriter.(http.Flusher); ok {
+		r.wroteHeader = true
+		f.Flush()
 	}
 }
+
+// Hijack records 101: a hijacked connection is a protocol switch, and the
+// handler writes its status line to the raw conn, where this cannot see it.
+func (r *statusRecorder) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+	hj, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, errors.New("underlying ResponseWriter does not support hijacking")
+	}
+	conn, rw, err := hj.Hijack()
+	if err == nil {
+		r.status = http.StatusSwitchingProtocols
+		r.wroteHeader = true
+	}
+	return conn, rw, err
+}
+
+// Unwrap lets http.ResponseController reach the underlying writer.
+func (r *statusRecorder) Unwrap() http.ResponseWriter { return r.ResponseWriter }
