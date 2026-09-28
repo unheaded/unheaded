@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -16,6 +15,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/lifecycle"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/metrics/prom"
@@ -27,23 +27,6 @@ import (
 
 // Metrics
 var (
-	httpRequestsTotal = prom.NewCounterVec(
-		prom.CounterOpts{
-			Name: "unheaded_http_requests_total",
-			Help: "Total HTTP requests",
-		},
-		[]string{"service", "method", "path", "status"},
-	)
-
-	httpRequestDuration = prom.NewHistogramVec(
-		prom.HistogramOpts{
-			Name:    "unheaded_http_request_duration_seconds",
-			Help:    "HTTP request latency",
-			Buckets: []float64{0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1},
-		},
-		[]string{"service", "method", "path"},
-	)
-
 	wotanMessagesPublished = prom.NewCounterVec(
 		prom.CounterOpts{
 			Name: "unheaded_wotan_messages_published_total",
@@ -54,8 +37,6 @@ var (
 )
 
 func init() {
-	prom.MustRegister(httpRequestsTotal)
-	prom.MustRegister(httpRequestDuration)
 	prom.MustRegister(wotanMessagesPublished)
 }
 
@@ -183,6 +164,7 @@ func main() {
 	authCfg := auth.LoadServiceAuthConfig("architect")
 	var httpHandler http.Handler = mux
 	httpHandler = auth.WrapHandler(httpHandler, auth.SetupMiddleware(authCfg))
+	httpHandler = httputil.NewServiceMetrics("architect").Instrument(mux, httpHandler)
 
 	// HTTP server
 	server := &http.Server{
@@ -217,7 +199,8 @@ func (r *statusRecorder) WriteHeader(code int) {
 	r.ResponseWriter.WriteHeader(code)
 }
 
-// instrument wraps a handler with metrics and logging
+// instrument logs each request; metrics are recorded around the whole
+// chain by httputil.Instrument.
 func instrument(h http.HandlerFunc, operation string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -225,11 +208,6 @@ func instrument(h http.HandlerFunc, operation string) http.HandlerFunc {
 
 		// Call handler
 		h(rec, r)
-
-		// Record metrics after handler completes
-		duration := time.Since(start).Seconds()
-		httpRequestDuration.WithLabelValues("architect", r.Method, r.URL.Path).Observe(duration)
-		httpRequestsTotal.WithLabelValues("architect", r.Method, r.URL.Path, fmt.Sprintf("%d", rec.status)).Inc()
 
 		log.Debug().
 			Str("operation", operation).
