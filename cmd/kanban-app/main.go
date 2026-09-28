@@ -36,6 +36,7 @@ import (
 	"unheaded/pkg/auth"
 	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
@@ -383,6 +384,9 @@ func (s *Server) Start() error {
 		handler = rateLimitMiddleware(rateLimiter)(handler)
 		log.Info().Msg("Rate limiting enabled: 120 req/min, burst 30")
 	}
+
+	// Outermost, so rate-limited and CORS-rejected requests are counted too.
+	handler = httputil.NewServiceMetrics("kanban").Instrument(mux, handler)
 
 	s.httpServer = &http.Server{
 		Addr:           ":" + s.config.Port,
