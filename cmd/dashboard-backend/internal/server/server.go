@@ -41,6 +41,7 @@ import (
 	"unheaded/pkg/auth"
 	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
@@ -528,6 +529,8 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 	httpHandler = withSecurityHeaders(httpHandler)
 	// Outermost, so auth rejections are counted too.
 	httpHandler = s.instrumentHTTP(httpHandler)
+	// The cross-service family CLAUDE.md requires, on the default registry.
+	httpHandler = httputil.NewServiceMetrics("dashboard").Instrument(s.mux, httpHandler)
 
 	s.httpServer = &http.Server{
 		Addr:           config.ListenAddr,
