@@ -17,6 +17,11 @@ type Message struct {
 	RoomID    string    `json:"room_id"`
 	Content   string    `json:"content"`
 	Timestamp time.Time `json:"timestamp"`
+	// Seq is assigned by Push: 1, 2, 3, ... per buffer, never reused, and
+	// unaffected by wrap-around or deletes. It is the cursor readers page
+	// with ("everything after seq N"); a position in the buffer cannot be,
+	// because once the buffer is full every position is always occupied.
+	Seq int64 `json:"seq"`
 }
 
 // RingBuffer is a fixed-size circular buffer for messages
@@ -28,6 +33,7 @@ type RingBuffer struct {
 	head     int // next write position
 	count    int // current number of messages
 	wrapping bool
+	lastSeq  int64 // Seq of the most recent Push
 }
 
 // New creates a new ring buffer with the specified size
@@ -55,6 +61,8 @@ func (rb *RingBuffer) Push(msg *Message) (uuid.UUID, bool) {
 		rb.wrapping = true
 	}
 
+	rb.lastSeq++
+	msg.Seq = rb.lastSeq
 	rb.buffer[rb.head] = msg
 	rb.head = (rb.head + 1) % rb.size
 
@@ -88,6 +96,32 @@ func (rb *RingBuffer) Get() []*Message {
 		}
 	}
 
+	return result
+}
+
+// GetAfter returns, oldest first, up to limit messages whose Seq is greater
+// than after. limit <= 0 means no limit. A reader that fell behind by more
+// than the buffer holds gets the oldest retained message next: the gap is
+// visible to it as a jump in Seq.
+func (rb *RingBuffer) GetAfter(after int64, limit int) []*Message {
+	rb.mu.RLock()
+	defer rb.mu.RUnlock()
+
+	result := []*Message{}
+	start := 0
+	if rb.wrapping {
+		start = rb.head
+	}
+	for i := 0; i < rb.count; i++ {
+		msg := rb.buffer[(start+i)%rb.size]
+		if msg.Seq <= after {
+			continue
+		}
+		result = append(result, msg)
+		if limit > 0 && len(result) == limit {
+			break
+		}
+	}
 	return result
 }
 

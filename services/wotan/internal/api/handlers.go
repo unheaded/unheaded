@@ -31,7 +31,6 @@ type Server struct {
 	Store store.MessageStore
 
 	// Topic pub/sub state (initialized by InitTopics)
-	topicSeqs   *topicSeqCounter
 	topicSubs   *topicSubscribers
 	TopicConfig *TopicConfig // Auto-approval allowlist for topic subscribers
 }

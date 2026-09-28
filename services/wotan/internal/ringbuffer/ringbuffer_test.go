@@ -1018,3 +1018,68 @@ func BenchmarkCount(b *testing.B) {
 		_ = rb.Count()
 	}
 }
+
+// Seq is the paging cursor, so it must keep counting past wrap-around: a
+// position in a full buffer would repeat 1..size forever.
+func TestPush_SeqIsMonotonicAcrossWrap(t *testing.T) {
+	rb := New(3)
+	for i := 1; i <= 7; i++ {
+		msg := &Message{ID: uuid.New()}
+		rb.Push(msg)
+		if msg.Seq != int64(i) {
+			t.Fatalf("push %d got seq %d", i, msg.Seq)
+		}
+	}
+	got := rb.Get()
+	for i, want := range []int64{5, 6, 7} {
+		if got[i].Seq != want {
+			t.Errorf("Get()[%d].Seq = %d, want %d", i, got[i].Seq, want)
+		}
+	}
+}
+
+func TestGetAfter(t *testing.T) {
+	rb := New(4)
+	for i := 0; i < 6; i++ { // retained: seq 3,4,5,6
+		rb.Push(&Message{ID: uuid.New()})
+	}
+	seqs := func(ms []*Message) []int64 {
+		out := []int64{}
+		for _, m := range ms {
+			out = append(out, m.Seq)
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		after int64
+		limit int
+		want  []int64
+	}{
+		{0, 0, []int64{3, 4, 5, 6}}, // fell behind: resumes at the oldest retained
+		{4, 0, []int64{5, 6}},
+		{3, 2, []int64{4, 5}},
+		{6, 0, []int64{}}, // caught up
+		{99, 0, []int64{}},
+		{-1, 1, []int64{3}},
+	} {
+		got := seqs(rb.GetAfter(tc.after, tc.limit))
+		if len(got) != len(tc.want) {
+			t.Errorf("GetAfter(%d,%d) = %v, want %v", tc.after, tc.limit, got, tc.want)
+			continue
+		}
+		for i := range got {
+			if got[i] != tc.want[i] {
+				t.Errorf("GetAfter(%d,%d) = %v, want %v", tc.after, tc.limit, got, tc.want)
+				break
+			}
+		}
+	}
+
+	// Unwrapped buffer too.
+	small := New(10)
+	small.Push(&Message{ID: uuid.New()})
+	small.Push(&Message{ID: uuid.New()})
+	if got := seqs(small.GetAfter(1, 0)); len(got) != 1 || got[0] != 2 {
+		t.Errorf("unwrapped GetAfter(1,0) = %v, want [2]", got)
+	}
+}
