@@ -33,6 +33,19 @@ func TestNewServiceMetrics(t *testing.T) {
 	}
 }
 
+// Servers are built more than once per process (tests do it constantly); the
+// second build must share the first one's series, not panic re-registering.
+func TestNewServiceMetrics_SameServiceTwice(t *testing.T) {
+	a := NewServiceMetrics("t_twice")
+	b := NewServiceMetrics("t_twice")
+	if a != b {
+		t.Fatal("second call built a second set of metrics")
+	}
+	if NewServiceMetrics("t_twice_other") == a {
+		t.Fatal("different services share metrics")
+	}
+}
+
 func TestStatusRecorder_WriteHeader(t *testing.T) {
 	w := httptest.NewRecorder()
 	rec := &statusRecorder{ResponseWriter: w, status: 200}

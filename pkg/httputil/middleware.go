@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"time"
 
 	"unheaded/pkg/metrics/auto"
@@ -22,10 +23,23 @@ type ServiceMetrics struct {
 	RequestDuration *prom.HistogramVec
 }
 
-// NewServiceMetrics registers the standard HTTP metrics for a service on the
-// default registry. Call it once per process.
+var (
+	serviceMetricsMu sync.Mutex
+	serviceMetrics   = map[string]*ServiceMetrics{}
+)
+
+// NewServiceMetrics returns the standard HTTP metrics for a service,
+// registered on the default registry. The registration is process-global, so
+// a second call for the same service returns the first one's metrics rather
+// than panicking on a duplicate: servers built more than once in a process
+// (tests, restarts) share one set of series.
 func NewServiceMetrics(serviceName string) *ServiceMetrics {
-	return &ServiceMetrics{
+	serviceMetricsMu.Lock()
+	defer serviceMetricsMu.Unlock()
+	if m, ok := serviceMetrics[serviceName]; ok {
+		return m
+	}
+	m := &ServiceMetrics{
 		RequestsTotal: auto.NewCounterVec(
 			prom.CounterOpts{
 				Name:        "unheaded_http_requests_total",
@@ -44,6 +58,8 @@ func NewServiceMetrics(serviceName string) *ServiceMetrics {
 			[]string{"method", "path"},
 		),
 	}
+	serviceMetrics[serviceName] = m
+	return m
 }
 
 // Instrument records every request that reaches next. mux is only consulted
