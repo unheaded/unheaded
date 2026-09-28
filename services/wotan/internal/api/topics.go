@@ -304,10 +304,12 @@ func (s *Server) GetTopicMessages(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"messages": []TopicMessage{},
+			"last_seq": 0,
 		})
 		return
 	}
 
+	lastSeq := rm.Buffer.LastSeq()
 	msgs := rm.Buffer.GetAfter(afterSeq, limit)
 
 	topicMsgs := make([]TopicMessage, 0, len(msgs))
@@ -319,6 +321,9 @@ func (s *Server) GetTopicMessages(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 		"messages": topicMsgs,
+		// last_seq lets a poller whose cursor is ahead of it see that Wotan
+		// restarted (seqs are in memory and start again at 1) and rewind.
+		"last_seq": lastSeq,
 	})
 }
 

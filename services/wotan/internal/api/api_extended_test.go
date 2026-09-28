@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -1037,11 +1038,16 @@ func TestGetTopicMessages_Paging(t *testing.T) {
 	for i := 0; i < maxTopicMessagesPage+5; i++ {
 		rm.SendMessage(uuid.New(), "m")
 	}
+	var lastSeq *int64
 	get := func(q string) (int, []TopicMessage) {
 		rec := httptest.NewRecorder()
 		srv.GetTopicMessages(rec, httptest.NewRequest(http.MethodGet, "/api/v1/topics/pg/messages"+q, nil))
-		var body struct{ Messages []TopicMessage }
+		var body struct {
+			Messages []TopicMessage
+			LastSeq  *int64 `json:"last_seq"`
+		}
 		json.NewDecoder(rec.Body).Decode(&body)
+		lastSeq = body.LastSeq
 		return rec.Code, body.Messages
 	}
 
@@ -1056,6 +1062,17 @@ func TestGetTopicMessages_Paging(t *testing.T) {
 	}
 	if _, m := get(fmt.Sprintf("?after_seq=%d", maxTopicMessagesPage+5)); len(m) != 0 {
 		t.Errorf("caught-up reader got %d messages", len(m))
+	}
+	// last_seq is the newest seq, whatever page was asked for: it is how a
+	// poller detects a restarted Wotan.
+	get("?after_seq=3&limit=2")
+	if lastSeq == nil || *lastSeq != int64(maxTopicMessagesPage+5) {
+		t.Errorf("last_seq = %v, want %d", lastSeq, maxTopicMessagesPage+5)
+	}
+	rec := httptest.NewRecorder()
+	srv.GetTopicMessages(rec, httptest.NewRequest(http.MethodGet, "/api/v1/topics/never-published/messages?after_seq=9", nil))
+	if !strings.Contains(rec.Body.String(), `"last_seq":0`) {
+		t.Errorf("unknown topic must report last_seq 0: %s", rec.Body.String())
 	}
 	for _, q := range []string{"?after_seq=x", "?after_seq=-1", "?limit=0", "?limit=-3", "?limit=abc"} {
 		if code, _ := get(q); code != http.StatusBadRequest {

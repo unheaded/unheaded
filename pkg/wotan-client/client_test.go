@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -2229,5 +2230,83 @@ func TestGetOrCreateGRPCClient_ConcurrentInit(t *testing.T) {
 	// Exactly one initialization should have occurred (sync.Once guarantees this).
 	if firstClient == nil && firstErr == nil {
 		t.Error("expected either a client or an error")
+	}
+}
+
+func TestNextCursor(t *testing.T) {
+	p := func(v int64) *int64 { return &v }
+	for _, tc := range []struct {
+		cursor int64
+		last   *int64
+		want   int64
+	}{
+		{5, p(9), 5}, // server ahead: keep paging
+		{5, p(5), 5}, // caught up
+		{5, p(2), 0}, // server restarted: rewind
+		{5, p(0), 0}, // restarted, nothing published yet
+		{5, nil, 5},  // older Wotan without last_seq: never rewind
+		{0, p(0), 0},
+	} {
+		if got := nextCursor(tc.cursor, tc.last); got != tc.want {
+			t.Errorf("nextCursor(%d, %v) = %d, want %d", tc.cursor, tc.last, got, tc.want)
+		}
+	}
+}
+
+// Wotan's seqs live in memory. After a restart the poller's cursor (3) is
+// above everything the server has; without a rewind it would wait until the
+// new seqs overtook 3, silently dropping what came before.
+func TestStreamMessages_RewindsAfterWotanRestart(t *testing.T) {
+	var restarted atomic.Bool
+	msg := func(seq int64, payload string) map[string]interface{} {
+		return map[string]interface{}{"message_id": payload, "topic": "chat", "seq": seq, "payload": payload,
+			"created_at": time.Now().Format(time.RFC3339Nano)}
+	}
+	_, c := newTestServer(t, map[string]http.HandlerFunc{
+		"/api/v1/topics/chat/messages": func(w http.ResponseWriter, r *http.Request) {
+			after, _ := strconv.ParseInt(r.URL.Query().Get("after_seq"), 10, 64)
+			if !restarted.Load() {
+				var out []map[string]interface{}
+				for s := after + 1; s <= 3; s++ {
+					out = append(out, msg(s, fmt.Sprintf("before-%d", s)))
+				}
+				jsonResponse(w, http.StatusOK, map[string]interface{}{"messages": out, "last_seq": 3})
+				return
+			}
+			out := []map[string]interface{}{}
+			if after < 1 {
+				out = append(out, msg(1, "after-restart"))
+			}
+			jsonResponse(w, http.StatusOK, map[string]interface{}{"messages": out, "last_seq": 1})
+		},
+	})
+	c.mu.Lock()
+	c.subscribers["chat"] = &Subscriber{SubscriberID: "s", Topic: "chat", Status: "approved"}
+	c.mu.Unlock()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	ch, err := c.StreamMessages(ctx, "chat")
+	if err != nil {
+		t.Fatalf("StreamMessages: %v", err)
+	}
+	for i := 1; i <= 3; i++ {
+		select {
+		case m := <-ch:
+			if m.Seq != int64(i) {
+				t.Fatalf("pre-restart message %d has seq %d", i, m.Seq)
+			}
+		case <-ctx.Done():
+			t.Fatal("timed out before restart")
+		}
+	}
+	restarted.Store(true)
+	select {
+	case m := <-ch:
+		if m.Payload != "after-restart" {
+			t.Fatalf("after restart got %q (seq %d), want after-restart", m.Payload, m.Seq)
+		}
+	case <-ctx.Done():
+		t.Fatal("poller never rewound after the restart")
 	}
 }

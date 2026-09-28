@@ -508,9 +508,13 @@ func (c *TopicStreamClient) pollHTTPFallback(ctx context.Context, topicPattern s
 			return
 		case <-ticker.C:
 			lastSeq := as.lastSeq.Load()
-			msgs, err := c.httpClient.GetMessages(ctx, topicPattern, lastSeq, 100)
+			msgs, serverLast, err := c.httpClient.getMessagesPage(ctx, topicPattern, lastSeq, 100)
 			if err != nil {
 				continue
+			}
+			if next := nextCursor(lastSeq, serverLast); next != lastSeq {
+				as.lastSeq.Store(next)
+				lastSeq = next
 			}
 			for _, msg := range msgs {
 				if msg == nil {

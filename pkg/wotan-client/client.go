@@ -558,8 +558,15 @@ func (c *Client) FallbackDrops() int64 {
 
 // GetMessages retrieves messages from a topic
 func (c *Client) GetMessages(ctx context.Context, topic string, afterSeq int64, limit int) ([]*Message, error) {
+	msgs, _, err := c.getMessagesPage(ctx, topic, afterSeq, limit)
+	return msgs, err
+}
+
+// getMessagesPage is GetMessages plus the server's last_seq, nil when the
+// server does not report one (a Wotan older than the field).
+func (c *Client) getMessagesPage(ctx context.Context, topic string, afterSeq int64, limit int) ([]*Message, *int64, error) {
 	if topic == "" {
-		return nil, errors.New("topic cannot be empty")
+		return nil, nil, errors.New("topic cannot be empty")
 	}
 
 	url := fmt.Sprintf("%s/topics/%s/messages?after_seq=%d", c.baseURL, topic, afterSeq)
@@ -569,27 +576,39 @@ func (c *Client) GetMessages(ctx context.Context, topic string, afterSeq int64, 
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return nil, fmt.Errorf("create request: %w", err)
+		return nil, nil, fmt.Errorf("create request: %w", err)
 	}
 
 	resp, err := c.streamClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("get messages request: %w", err)
+		return nil, nil, fmt.Errorf("get messages request: %w", err)
 	}
 	defer drainBody(resp)
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, c.parseError(resp)
+		return nil, nil, c.parseError(resp)
 	}
 
 	var result struct {
 		Messages []*Message `json:"messages"`
+		LastSeq  *int64     `json:"last_seq"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return nil, fmt.Errorf("decode response: %w", err)
+		return nil, nil, fmt.Errorf("decode response: %w", err)
 	}
 
-	return result.Messages, nil
+	return result.Messages, result.LastSeq, nil
+}
+
+// nextCursor is where a poller resumes after a page. A server whose last_seq
+// is below the cursor has restarted (seqs are in memory and begin again at
+// 1), so the cursor rewinds to 0 rather than waiting for the new seqs to
+// overtake the old ones.
+func nextCursor(cursor int64, serverLast *int64) int64 {
+	if serverLast != nil && *serverLast < cursor {
+		return 0
+	}
+	return cursor
 }
 
 // StreamMessages opens a channel for receiving messages.
@@ -708,7 +727,7 @@ func (c *Client) pollMessages(ctx context.Context, topic string, sc *safeChannel
 		case <-ctx.Done():
 			return
 		case <-timer.C:
-			msgs, err := c.GetMessages(ctx, topic, lastSeq, 100)
+			msgs, serverLast, err := c.getMessagesPage(ctx, topic, lastSeq, 100)
 			if err != nil {
 				consecutiveFailures++
 				timer.Reset(backoff(consecutiveFailures))
@@ -716,6 +735,7 @@ func (c *Client) pollMessages(ctx context.Context, topic string, sc *safeChannel
 			}
 			// Success — reset backoff to base interval
 			consecutiveFailures = 0
+			lastSeq = nextCursor(lastSeq, serverLast)
 			for _, msg := range msgs {
 				if !sc.send(ctx, msg) {
 					return

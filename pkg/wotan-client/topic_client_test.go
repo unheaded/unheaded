@@ -813,6 +813,23 @@ func TestTopicStreamClient_CircuitBreaker_DegradesToHTTP(t *testing.T) {
 	if httpRecorder.requestCount("/api/v1/topics/tasks.created/messages?after_seq=0&limit=100") == 0 {
 		t.Error("HTTP server was not polled")
 	}
+
+	// Wotan restarts: its seqs begin again at 1, below this poller's cursor
+	// (100). last_seq tells the poller to rewind instead of waiting for the
+	// new seqs to pass 100. (after_seq=0 is replaced first, so the rewind
+	// reads the post-restart buffer.)
+	httpRecorder.setResponse("/api/v1/topics/tasks.created/messages?after_seq=0&limit=100", 200,
+		`{"last_seq":1,"messages":[{"message_id":"msg-after-restart","seq":1,"topic":"tasks.created","sender_id":"server","payload":"{}","deleted":false,"created_at":"2026-02-16T14:01:00Z"}]}`)
+	httpRecorder.setResponse("/api/v1/topics/tasks.created/messages?after_seq=100&limit=100", 200,
+		`{"last_seq":1,"messages":[]}`)
+	select {
+	case msg := <-ch:
+		if msg.MessageID != "msg-after-restart" {
+			t.Errorf("after restart got %q (seq %d), want msg-after-restart", msg.MessageID, msg.Seq)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("HTTP fallback never rewound after the Wotan restart")
+	}
 }
 
 // ============================================================================
