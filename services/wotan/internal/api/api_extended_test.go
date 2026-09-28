@@ -6,10 +6,13 @@ package api
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
+
+	"github.com/google/uuid"
 
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/room"
@@ -38,77 +41,14 @@ func setupTestServerWithTopics() *Server {
 
 func TestInitTopics(t *testing.T) {
 	srv := setupTestServer()
-	if srv.topicSeqs != nil {
-		t.Error("topicSeqs should be nil before InitTopics")
-	}
 	if srv.topicSubs != nil {
 		t.Error("topicSubs should be nil before InitTopics")
 	}
 
 	srv.InitTopics()
 
-	if srv.topicSeqs == nil {
-		t.Error("topicSeqs should be set after InitTopics")
-	}
 	if srv.topicSubs == nil {
 		t.Error("topicSubs should be set after InitTopics")
-	}
-}
-
-// ============================================================
-// topicSeqCounter Tests
-// ============================================================
-
-func TestTopicSeqCounter_Next(t *testing.T) {
-	counter := newTopicSeqCounter()
-
-	// First call for a topic should return 1
-	seq := counter.next("alerts")
-	if seq != 1 {
-		t.Errorf("first seq = %d, want 1", seq)
-	}
-
-	// Second call should return 2
-	seq = counter.next("alerts")
-	if seq != 2 {
-		t.Errorf("second seq = %d, want 2", seq)
-	}
-
-	// Different topic starts at 1
-	seq = counter.next("events")
-	if seq != 1 {
-		t.Errorf("first seq for different topic = %d, want 1", seq)
-	}
-
-	// Original topic continues from 2
-	seq = counter.next("alerts")
-	if seq != 3 {
-		t.Errorf("third seq for alerts = %d, want 3", seq)
-	}
-}
-
-func TestTopicSeqCounter_ConcurrentAccess(t *testing.T) {
-	counter := newTopicSeqCounter()
-	done := make(chan struct{})
-
-	// Run 10 goroutines, each incrementing 100 times
-	for i := 0; i < 10; i++ {
-		go func() {
-			for j := 0; j < 100; j++ {
-				counter.next("concurrent-topic")
-			}
-			done <- struct{}{}
-		}()
-	}
-
-	for i := 0; i < 10; i++ {
-		<-done
-	}
-
-	// Final value should be 1001 (1000 increments + 1)
-	final := counter.next("concurrent-topic")
-	if final != 1001 {
-		t.Errorf("final seq = %d, want 1001", final)
 	}
 }
 
@@ -315,7 +255,7 @@ func TestRingbufferToTopicMessage(t *testing.T) {
 
 	msg, _ := rm.SendMessage(mbr.ID, "test payload")
 
-	topicMsg := ringbufferToTopicMessage(msg, "test-topic", 42)
+	topicMsg := ringbufferToTopicMessage(msg, "test-topic")
 
 	if topicMsg.MessageID != msg.ID.String() {
 		t.Errorf("MessageID = %s, want %s", topicMsg.MessageID, msg.ID.String())
@@ -326,8 +266,8 @@ func TestRingbufferToTopicMessage(t *testing.T) {
 	if topicMsg.SenderID != mbr.ID.String() {
 		t.Errorf("SenderID = %s, want %s", topicMsg.SenderID, mbr.ID.String())
 	}
-	if topicMsg.Seq != 42 {
-		t.Errorf("Seq = %d, want 42", topicMsg.Seq)
+	if topicMsg.Seq != msg.Seq || msg.Seq != 1 {
+		t.Errorf("Seq = %d, want the buffer's seq 1 (msg.Seq = %d)", topicMsg.Seq, msg.Seq)
 	}
 	if topicMsg.Payload != "test payload" {
 		t.Errorf("Payload = %s, want 'test payload'", topicMsg.Payload)
@@ -629,12 +569,12 @@ func TestPublishTopic_NilWotan(t *testing.T) {
 	}
 }
 
-func TestPublishTopic_NilTopicSeqs(t *testing.T) {
-	// Server without InitTopics: topicSeqs is nil
+// The seq a publisher is told is the seq readers page by: publish twice,
+// and after_seq=<first> returns exactly the second.
+func TestPublishTopic_SeqIsTheReadCursor(t *testing.T) {
 	srv := setupTestServer()
 	srv.TopicConfig = &TopicConfig{allowSet: map[string]struct{}{"*": {}}}
 
-	// Subscribe (creates the member and auto-approves)
 	subBody, _ := json.Marshal(map[string]string{"display_name": "svc"})
 	subReq := httptest.NewRequest(http.MethodPost, "/api/v1/topics/alerts/subscribe", bytes.NewReader(subBody))
 	subRec := httptest.NewRecorder()
@@ -645,24 +585,28 @@ func TestPublishTopic_NilTopicSeqs(t *testing.T) {
 	sub := subResp["subscriber"].(map[string]interface{})
 	subscriberID := sub["subscriber_id"].(string)
 
-	// Publish with nil topicSeqs should return seq=0
-	pubBody, _ := json.Marshal(map[string]string{
-		"subscriber_id": subscriberID,
-		"payload":       "test",
-	})
-	pubReq := httptest.NewRequest(http.MethodPost, "/api/v1/topics/alerts/publish", bytes.NewReader(pubBody))
-	pubRec := httptest.NewRecorder()
-
-	srv.PublishTopic(pubRec, pubReq)
-
-	if pubRec.Code != http.StatusCreated {
-		t.Errorf("Status = %d, want %d", pubRec.Code, http.StatusCreated)
+	publish := func(payload string) float64 {
+		body, _ := json.Marshal(map[string]string{"subscriber_id": subscriberID, "payload": payload})
+		rec := httptest.NewRecorder()
+		srv.PublishTopic(rec, httptest.NewRequest(http.MethodPost, "/api/v1/topics/alerts/publish", bytes.NewReader(body)))
+		if rec.Code != http.StatusCreated {
+			t.Fatalf("publish status = %d", rec.Code)
+		}
+		var resp map[string]interface{}
+		json.NewDecoder(rec.Body).Decode(&resp)
+		return resp["seq"].(float64)
+	}
+	first, second := publish("one"), publish("two")
+	if first != 1 || second != 2 {
+		t.Fatalf("publish seqs = %v, %v; want 1, 2", first, second)
 	}
 
-	var resp map[string]interface{}
-	json.NewDecoder(pubRec.Body).Decode(&resp)
-	if seq, ok := resp["seq"].(float64); !ok || seq != 0 {
-		t.Errorf("seq = %v, want 0 when topicSeqs is nil", resp["seq"])
+	rec := httptest.NewRecorder()
+	srv.GetTopicMessages(rec, httptest.NewRequest(http.MethodGet, "/api/v1/topics/alerts/messages?after_seq=1", nil))
+	var got struct{ Messages []TopicMessage }
+	json.NewDecoder(rec.Body).Decode(&got)
+	if len(got.Messages) != 1 || got.Messages[0].Seq != 2 || got.Messages[0].Payload != "two" {
+		t.Fatalf("after_seq=1 returned %+v, want only seq 2", got.Messages)
 	}
 }
 
@@ -1083,5 +1027,39 @@ func TestPublishTopic_SequenceNumbers(t *testing.T) {
 
 	if lastSeq != 5 {
 		t.Errorf("final seq = %v, want 5", lastSeq)
+	}
+}
+
+func TestGetTopicMessages_Paging(t *testing.T) {
+	srv := NewServer(room.NewManager(2*maxTopicMessagesPage), member.NewManager(), wotan.NewWotan(), 5*time.Minute)
+	srv.InitTopics()
+	rm := srv.RoomManager.Create("pg", "pg")
+	for i := 0; i < maxTopicMessagesPage+5; i++ {
+		rm.SendMessage(uuid.New(), "m")
+	}
+	get := func(q string) (int, []TopicMessage) {
+		rec := httptest.NewRecorder()
+		srv.GetTopicMessages(rec, httptest.NewRequest(http.MethodGet, "/api/v1/topics/pg/messages"+q, nil))
+		var body struct{ Messages []TopicMessage }
+		json.NewDecoder(rec.Body).Decode(&body)
+		return rec.Code, body.Messages
+	}
+
+	if code, m := get("?after_seq=3&limit=2"); code != http.StatusOK || len(m) != 2 || m[0].Seq != 4 || m[1].Seq != 5 {
+		t.Errorf("after_seq=3&limit=2: %d %+v", code, m)
+	}
+	if _, m := get(""); len(m) != maxTopicMessagesPage || m[0].Seq != 1 {
+		t.Errorf("no params: %d messages from seq %v, want the first %d", len(m), m[0].Seq, maxTopicMessagesPage)
+	}
+	if _, m := get("?limit=999999"); len(m) != maxTopicMessagesPage {
+		t.Errorf("limit not capped: %d", len(m))
+	}
+	if _, m := get(fmt.Sprintf("?after_seq=%d", maxTopicMessagesPage+5)); len(m) != 0 {
+		t.Errorf("caught-up reader got %d messages", len(m))
+	}
+	for _, q := range []string{"?after_seq=x", "?after_seq=-1", "?limit=0", "?limit=-3", "?limit=abc"} {
+		if code, _ := get(q); code != http.StatusBadRequest {
+			t.Errorf("%s: status %d, want 400", q, code)
+		}
 	}
 }

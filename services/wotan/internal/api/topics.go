@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -41,40 +41,6 @@ type TopicMessage struct {
 	Seq       int64     `json:"seq"`
 	Payload   string    `json:"payload"`
 	Deleted   bool      `json:"deleted"`
-}
-
-// topicSeqCounter provides monotonic sequence numbers per topic
-type topicSeqCounter struct {
-	mu       sync.RWMutex
-	counters map[string]*atomic.Int64
-}
-
-func newTopicSeqCounter() *topicSeqCounter {
-	return &topicSeqCounter{
-		counters: make(map[string]*atomic.Int64),
-	}
-}
-
-func (t *topicSeqCounter) next(topic string) int64 {
-	t.mu.RLock()
-	counter, ok := t.counters[topic]
-	t.mu.RUnlock()
-
-	if ok {
-		return counter.Add(1)
-	}
-
-	t.mu.Lock()
-	// Double-check after acquiring write lock
-	if counter, ok = t.counters[topic]; ok {
-		t.mu.Unlock()
-		return counter.Add(1)
-	}
-	counter = &atomic.Int64{}
-	t.counters[topic] = counter
-	t.mu.Unlock()
-
-	return counter.Add(1)
 }
 
 // topicSubscribers tracks subscribers per topic
@@ -119,7 +85,6 @@ func (ts *topicSubscribers) isSubscribed(topic, subscriberID string) bool {
 // InitTopics initializes topic support on the Server.
 // Must be called after NewServer and before serving requests.
 func (s *Server) InitTopics() {
-	s.topicSeqs = newTopicSeqCounter()
 	s.topicSubs = newTopicSubscribers()
 }
 
@@ -273,11 +238,8 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 		s.Wotan.PublishMessageCreated(msg)
 	}
 
-	// Assign sequence number
-	seq := int64(0)
-	if s.topicSeqs != nil {
-		seq = s.topicSeqs.next(topic)
-	}
+	// The seq the ring buffer assigned: the same number readers page by.
+	seq := msg.Seq
 
 	log.Debug().
 		Str("topic", topic).
@@ -295,6 +257,9 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// maxTopicMessagesPage caps one GetTopicMessages response.
+const maxTopicMessagesPage = 1000
+
 // GetTopicMessages handles GET /api/v1/topics/{topic}/messages
 func (s *Server) GetTopicMessages(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -306,6 +271,29 @@ func (s *Server) GetTopicMessages(w http.ResponseWriter, r *http.Request) {
 	if topic == "" {
 		writeError(w, http.StatusBadRequest, "topic is required")
 		return
+	}
+
+	// after_seq and limit page the topic. Both used to be ignored: every
+	// poll returned the whole retained buffer (10,000 messages) numbered by
+	// buffer position, so a poller re-received all of it every time.
+	q := r.URL.Query()
+	afterSeq := int64(0)
+	if v := q.Get("after_seq"); v != "" {
+		n, err := strconv.ParseInt(v, 10, 64)
+		if err != nil || n < 0 {
+			writeError(w, http.StatusBadRequest, "after_seq must be a non-negative integer")
+			return
+		}
+		afterSeq = n
+	}
+	limit := maxTopicMessagesPage
+	if v := q.Get("limit"); v != "" {
+		n, err := strconv.Atoi(v)
+		if err != nil || n <= 0 {
+			writeError(w, http.StatusBadRequest, "limit must be a positive integer")
+			return
+		}
+		limit = min(n, maxTopicMessagesPage)
 	}
 
 	// Get the room for this topic
@@ -320,13 +308,11 @@ func (s *Server) GetTopicMessages(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get messages from ring buffer
-	msgs := rm.GetMessages()
+	msgs := rm.Buffer.GetAfter(afterSeq, limit)
 
-	// Convert to topic message format
 	topicMsgs := make([]TopicMessage, 0, len(msgs))
-	for i, msg := range msgs {
-		topicMsgs = append(topicMsgs, ringbufferToTopicMessage(msg, topic, int64(i+1)))
+	for _, msg := range msgs {
+		topicMsgs = append(topicMsgs, ringbufferToTopicMessage(msg, topic))
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -394,13 +380,13 @@ func isTopicChar(c rune) bool {
 		c == '*' || c == '#' // wildcard pattern chars for subscriptions
 }
 
-func ringbufferToTopicMessage(msg *ringbuffer.Message, topic string, seq int64) TopicMessage {
+func ringbufferToTopicMessage(msg *ringbuffer.Message, topic string) TopicMessage {
 	return TopicMessage{
 		MessageID: msg.ID.String(),
 		Topic:     topic,
 		SenderID:  msg.CreatorID.String(),
 		CreatedAt: msg.Timestamp,
-		Seq:       seq,
+		Seq:       msg.Seq,
 		Payload:   msg.Content,
 		Deleted:   false,
 	}
