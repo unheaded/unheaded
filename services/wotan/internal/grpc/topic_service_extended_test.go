@@ -73,108 +73,7 @@ func setupTopicService() *TopicService {
 	return NewTopicService(roomMgr, memberMgr, msgWotan)
 }
 
-// --- TopicSequenceCounter tests ---
-
-func TestNewTopicSequenceCounter(t *testing.T) {
-	c := NewTopicSequenceCounter()
-	if c == nil {
-		t.Fatal("NewTopicSequenceCounter() returned nil")
-	}
-	if c.counters == nil {
-		t.Fatal("counters map is nil")
-	}
-}
-
-func TestTopicSequenceCounter_Next_NewTopic(t *testing.T) {
-	c := NewTopicSequenceCounter()
-
-	seq := c.Next("topicA")
-	if seq != 1 {
-		t.Errorf("Next(topicA) = %d, want 1", seq)
-	}
-}
-
-func TestTopicSequenceCounter_Next_Increments(t *testing.T) {
-	c := NewTopicSequenceCounter()
-
-	for i := int64(1); i <= 5; i++ {
-		seq := c.Next("topicA")
-		if seq != i {
-			t.Errorf("Next(topicA) call %d = %d, want %d", i, seq, i)
-		}
-	}
-}
-
-func TestTopicSequenceCounter_Next_IndependentTopics(t *testing.T) {
-	c := NewTopicSequenceCounter()
-
-	seqA := c.Next("topicA")
-	seqB := c.Next("topicB")
-	seqA2 := c.Next("topicA")
-
-	if seqA != 1 {
-		t.Errorf("topicA first = %d, want 1", seqA)
-	}
-	if seqB != 1 {
-		t.Errorf("topicB first = %d, want 1", seqB)
-	}
-	if seqA2 != 2 {
-		t.Errorf("topicA second = %d, want 2", seqA2)
-	}
-}
-
-func TestTopicSequenceCounter_Next_Concurrent(t *testing.T) {
-	c := NewTopicSequenceCounter()
-
-	const goroutines = 10
-	const perGoroutine = 100
-
-	var wg sync.WaitGroup
-	wg.Add(goroutines)
-
-	for g := 0; g < goroutines; g++ {
-		go func() {
-			defer wg.Done()
-			for i := 0; i < perGoroutine; i++ {
-				c.Next("shared-topic")
-			}
-		}()
-	}
-	wg.Wait()
-
-	final := c.Next("shared-topic")
-	expected := int64(goroutines*perGoroutine + 1)
-	if final != expected {
-		t.Errorf("after %d concurrent increments, Next = %d, want %d",
-			goroutines*perGoroutine, final, expected)
-	}
-}
-
-func TestTopicSequenceCounter_Next_ConcurrentNewTopics(t *testing.T) {
-	c := NewTopicSequenceCounter()
-
-	const goroutines = 20
-	var wg sync.WaitGroup
-	wg.Add(goroutines)
-
-	// All goroutines try to create the same topic concurrently (exercises double-check path)
-	for g := 0; g < goroutines; g++ {
-		go func() {
-			defer wg.Done()
-			c.Next("race-topic")
-		}()
-	}
-	wg.Wait()
-
-	final := c.Next("race-topic")
-	expected := int64(goroutines + 1)
-	if final != expected {
-		t.Errorf("after %d concurrent creates, Next = %d, want %d",
-			goroutines, final, expected)
-	}
-}
-
-// --- NewTopicService / NewTopicServiceWithCounter tests ---
+// --- NewTopicService tests ---
 
 func TestNewTopicService(t *testing.T) {
 	roomMgr := room.NewManager(100)
@@ -194,25 +93,6 @@ func TestNewTopicService(t *testing.T) {
 	}
 	if svc.wotan != msgWotan {
 		t.Error("wotan not set")
-	}
-	if svc.seqCounter == nil {
-		t.Error("seqCounter is nil")
-	}
-}
-
-func TestNewTopicServiceWithCounter(t *testing.T) {
-	roomMgr := room.NewManager(100)
-	memberMgr := member.NewManager()
-	msgWotan := wotan.NewWotan()
-	counter := NewTopicSequenceCounter()
-
-	svc := NewTopicServiceWithCounter(roomMgr, memberMgr, msgWotan, counter)
-
-	if svc == nil {
-		t.Fatal("NewTopicServiceWithCounter() returned nil")
-	}
-	if svc.seqCounter != counter {
-		t.Error("seqCounter not set to provided counter")
 	}
 }
 
@@ -719,11 +599,20 @@ func TestStreamTopics_HistoricalReplay(t *testing.T) {
 
 	evts := stream.getEvents()
 	if len(evts) < 2 {
-		t.Errorf("got %d historical events, want at least 2", len(evts))
+		t.Fatalf("got %d historical events, want at least 2", len(evts))
 	}
 	for _, evt := range evts {
 		if evt.Type != chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED {
 			t.Errorf("historical event type = %v, want TOPIC_MESSAGE_PUBLISHED", evt.Type)
+		}
+	}
+	// SinceSeq 1 replays exactly what came after seq 1, numbered as stored.
+	for i, want := range []struct {
+		seq     int64
+		payload string
+	}{{2, "order-2"}, {3, "order-3"}} {
+		if evts[i].Seq != want.seq || string(evts[i].Payload) != want.payload {
+			t.Errorf("replay[%d] = seq %d %q, want seq %d %q", i, evts[i].Seq, evts[i].Payload, want.seq, want.payload)
 		}
 	}
 }
@@ -960,6 +849,7 @@ func TestForwardTopicEvents_ForwardsMessages(t *testing.T) {
 		RoomID:    "fwd-topic",
 		Content:   "forwarded",
 		Timestamp: time.Now(),
+		Seq:       7, // as the room's ring buffer assigned it
 	})
 
 	select {
@@ -970,8 +860,8 @@ func TestForwardTopicEvents_ForwardsMessages(t *testing.T) {
 		if evt.pbEvent == nil {
 			t.Fatal("pbEvent is nil")
 		}
-		if evt.pbEvent.Seq <= 0 {
-			t.Errorf("Seq = %d, want > 0", evt.pbEvent.Seq)
+		if evt.pbEvent.Seq != 7 {
+			t.Errorf("Seq = %d, want the buffer's 7", evt.pbEvent.Seq)
 		}
 		if string(evt.pbEvent.Payload) != "forwarded" {
 			t.Errorf("Payload = %q, want %q", string(evt.pbEvent.Payload), "forwarded")
@@ -1075,5 +965,35 @@ func TestPublishAndReceiveLive(t *testing.T) {
 	evts := stream.getEvents()
 	if len(evts) < 1 {
 		t.Fatal("expected at least 1 live event")
+	}
+}
+
+// One message, two subscribers: both must see the seq the buffer assigned.
+// A counter bumped per forwarder numbered it 1 for one and 2 for the other.
+func TestForwardTopicEvents_SubscribersAgreeOnSeq(t *testing.T) {
+	svc := setupTopicService()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	rm := svc.roomManager.GetOrCreate("agree", "agree")
+	var chans []chan *topicEvent
+	for i := 0; i < 2; i++ {
+		ch := make(chan *topicEvent, 10)
+		go svc.forwardTopicEvents(ctx, "agree", svc.wotan.Subscribe("agree", uuid.New(), 100), ch)
+		chans = append(chans, ch)
+	}
+	rm.SendMessage(uuid.New(), "warm-up") // seq 1, published to no one
+	msg, _ := rm.SendMessage(uuid.New(), "x")
+	svc.wotan.PublishMessageCreated(msg)
+
+	for i, ch := range chans {
+		select {
+		case evt := <-ch:
+			if evt.pbEvent.Seq != msg.Seq || msg.Seq != 2 {
+				t.Errorf("subscriber %d saw seq %d, buffer assigned %d", i, evt.pbEvent.Seq, msg.Seq)
+			}
+		case <-time.After(2 * time.Second):
+			t.Fatalf("subscriber %d got nothing", i)
+		}
 	}
 }

@@ -16,14 +16,13 @@ import (
 )
 
 // productionTopicService builds the service exactly as services/wotan/cmd/wotan
-// builds it (NewTopicServiceWithCounter). Authorization tests must exercise the
+// builds it (NewTopicService). Authorization tests must exercise the
 // constructor that actually ships, not a more complete one used only in tests.
 func productionTopicService() *TopicService {
-	return NewTopicServiceWithCounter(
+	return NewTopicService(
 		room.NewManager(100),
 		member.NewManager(),
 		wotan.NewWotan(),
-		NewTopicSequenceCounter(),
 	)
 }
 

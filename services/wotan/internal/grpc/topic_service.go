@@ -6,7 +6,6 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"time"
 
@@ -23,44 +22,6 @@ import (
 	chatpb "unheaded/services/wotan/proto"
 )
 
-// TopicSequenceCounter provides monotonic sequence numbers per topic.
-// Used to assign sequence numbers to published messages in topic streams.
-type TopicSequenceCounter struct {
-	mu       sync.RWMutex
-	counters map[string]*atomic.Int64
-}
-
-// NewTopicSequenceCounter creates a new topic sequence counter.
-func NewTopicSequenceCounter() *TopicSequenceCounter {
-	return &TopicSequenceCounter{
-		counters: make(map[string]*atomic.Int64),
-	}
-}
-
-// Next returns the next sequence number for a topic.
-// Creates a new counter for the topic if it doesn't exist.
-func (c *TopicSequenceCounter) Next(topic string) int64 {
-	c.mu.RLock()
-	counter, ok := c.counters[topic]
-	c.mu.RUnlock()
-
-	if ok {
-		return counter.Add(1)
-	}
-
-	c.mu.Lock()
-	// Double-check after acquiring write lock
-	if counter, ok = c.counters[topic]; ok {
-		c.mu.Unlock()
-		return counter.Add(1)
-	}
-	counter = &atomic.Int64{}
-	c.counters[topic] = counter
-	c.mu.Unlock()
-
-	return counter.Add(1)
-}
-
 // TopicService implements the TopicStream gRPC service for topic-based pub/sub.
 // This is the gRPC equivalent of the HTTP topic handlers in api/topics.go.
 // It uses the same underlying wotan.Wotan engine, room.Manager, and member.Manager.
@@ -69,7 +30,6 @@ type TopicService struct {
 	roomManager   *room.Manager
 	memberManager *member.Manager
 	wotan         *wotan.Wotan
-	seqCounter    *TopicSequenceCounter
 
 	// NodeID identifies this Wotan instance in cluster mode
 	NodeID string
@@ -113,28 +73,6 @@ func NewTopicService(
 		roomManager:   roomManager,
 		memberManager: memberManager,
 		wotan:         msgWotan,
-		seqCounter:    NewTopicSequenceCounter(),
-		topicVerifier: verifier,
-	}
-}
-
-// NewTopicServiceWithCounter creates a new TopicService with a shared sequence counter.
-func NewTopicServiceWithCounter(
-	roomManager *room.Manager,
-	memberManager *member.Manager,
-	msgWotan *wotan.Wotan,
-	seqCounter *TopicSequenceCounter,
-) *TopicService {
-	// The verifier MUST be built here too. This is the constructor cmd/wotan
-	// uses; leaving topicVerifier nil made PublishTopic's `if verifier != nil`
-	// branch dead on the shipping path, so a config.* publish carrying any
-	// non-empty signature bytes was accepted unverified (ADR-043 #2).
-	verifier, _ := signing.NewTopicVerifier() // nil-safe: PublishTopic checks before use
-	return &TopicService{
-		roomManager:   roomManager,
-		memberManager: memberManager,
-		wotan:         msgWotan,
-		seqCounter:    seqCounter,
 		topicVerifier: verifier,
 	}
 }
@@ -236,34 +174,30 @@ func (s *TopicService) StreamTopics(
 				continue
 			}
 
-			// Get all messages from the room
-			msgs := rm.GetMessages()
-
-			for i, msg := range msgs {
-				// Only send messages after the requested seq
-				if int64(i+1) > req.SinceSeq {
-					event := &chatpb.TopicEvent{
-						Topic:     topicName,
-						MessageId: msg.ID.String(),
-						SenderId:  msg.CreatorID.String(),
-						Payload:   []byte(msg.Content),
-						CreatedAt: timestamppb.New(msg.Timestamp),
-						Seq:       int64(i + 1),
-						Type:      chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED,
-						NodeId:    s.NodeID,
-					}
-
-					if err := stream.Send(event); err != nil {
-						logger.FromContext(ctx).Error().
-							Err(err).
-							Str("topic", topicName).
-							Msg("stream_send_error_historical")
-						metrics.StreamErrors.WithLabelValues(topicName, "send_error").Inc()
-						return status.Error(codes.Aborted, "failed to send message")
-					}
-
-					metrics.StreamMessagesSent.WithLabelValues(topicName, "MESSAGE_PUBLISHED").Inc()
+			// Messages after the requested seq, by the seq the ring buffer
+			// assigned at publish (a buffer position repeats once it wraps).
+			for _, msg := range rm.Buffer.GetAfter(req.SinceSeq, 0) {
+				event := &chatpb.TopicEvent{
+					Topic:     topicName,
+					MessageId: msg.ID.String(),
+					SenderId:  msg.CreatorID.String(),
+					Payload:   []byte(msg.Content),
+					CreatedAt: timestamppb.New(msg.Timestamp),
+					Seq:       msg.Seq,
+					Type:      chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED,
+					NodeId:    s.NodeID,
 				}
+
+				if err := stream.Send(event); err != nil {
+					logger.FromContext(ctx).Error().
+						Err(err).
+						Str("topic", topicName).
+						Msg("stream_send_error_historical")
+					metrics.StreamErrors.WithLabelValues(topicName, "send_error").Inc()
+					return status.Error(codes.Aborted, "failed to send message")
+				}
+
+				metrics.StreamMessagesSent.WithLabelValues(topicName, "MESSAGE_PUBLISHED").Inc()
 			}
 		}
 	}
@@ -332,8 +266,9 @@ func (s *TopicService) forwardTopicEvents(
 				return
 			}
 
-			// Get sequence number for this message
-			seq := s.seqCounter.Next(topic)
+			// The seq the ring buffer assigned. A counter bumped here, once
+			// per forwarding subscriber, gave each subscriber different seqs.
+			seq := event.Message.Seq
 
 			pbEvent := &chatpb.TopicEvent{
 				Topic:     topic,
@@ -530,8 +465,8 @@ func (s *TopicService) PublishTopic(
 	// Publish event through wotan pub/sub
 	s.wotan.PublishMessageCreated(msg)
 
-	// Assign sequence number
-	seq := s.seqCounter.Next(req.Topic)
+	// The seq the ring buffer assigned: the same number replay pages by.
+	seq := msg.Seq
 
 	logger.FromContext(ctx).Debug().
 		Str("topic", req.Topic).
