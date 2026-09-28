@@ -43,6 +43,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
@@ -256,7 +257,7 @@ func NewHTTPServer(service *sophia.Service, wotan *wotanClient.Client, log *logg
 
 	hs.server = &http.Server{
 		Addr:           addr,
-		Handler:        hs.middlewareChain(mux),
+		Handler:        httputil.NewServiceMetrics("sophia").Instrument(mux, hs.middlewareChain(mux)),
 		ReadTimeout:    15 * time.Second,
 		WriteTimeout:   15 * time.Second,
 		IdleTimeout:    60 * time.Second,
