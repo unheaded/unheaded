@@ -5,8 +5,10 @@ package scraper
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -1870,5 +1872,51 @@ func TestCollapseByName_SingleSeriesUnchanged(t *testing.T) {
 	mv := got["up"]
 	if mv == nil || mv.Value != 1 || mv.Series != 1 || mv.Labels["a"] != "b" || !mv.Timestamp.Equal(ts) {
 		t.Fatalf("single series changed: %+v", mv)
+	}
+}
+
+// Grafana publishes NaN quantiles until a summary has observations. One NaN
+// used to make the whole /api/v1/metrics body fail to encode.
+func TestAggregatedMetrics_EncodeWithNonFiniteValues(t *testing.T) {
+	body := []byte(`grafana_alerting_execution_time_milliseconds{quantile="0.5"} NaN
+up_ratio +Inf
+down_ratio -Inf
+unheaded_http_requests_total{path="/a"} 3
+`)
+	s := &Scraper{}
+	svc := &ServiceMetrics{Name: "grafana", Metrics: collapseByName(s.parsePrometheusMetrics(body, &ServiceTarget{Name: "grafana"}, time.Now()))}
+	agg := &AggregatedMetrics{Services: map[string]*ServiceMetrics{"grafana": svc}}
+
+	var buf strings.Builder
+	if err := json.NewEncoder(&buf).Encode(agg); err != nil {
+		t.Fatalf("encode: %v", err)
+	}
+	var back struct {
+		Services map[string]struct {
+			Metrics map[string]struct {
+				Value *float64 `json:"value"`
+				Name  string   `json:"name"`
+			} `json:"metrics"`
+		} `json:"services"`
+	}
+	if err := json.Unmarshal([]byte(buf.String()), &back); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	m := back.Services["grafana"].Metrics
+	for _, n := range []string{"grafana_alerting_execution_time_milliseconds", "up_ratio", "down_ratio"} {
+		if m[n].Value != nil {
+			t.Errorf("%s = %v, want null", n, *m[n].Value)
+		}
+		if m[n].Name != n {
+			t.Errorf("%s lost its other fields: %+v", n, m[n])
+		}
+	}
+	if v := m["unheaded_http_requests_total"].Value; v == nil || *v != 3 {
+		t.Errorf("finite value not preserved: %v", v)
+	}
+
+	// Series samples cross the same boundary.
+	if _, err := json.Marshal([]MetricSample{{Name: "x", Value: math.NaN()}}); err != nil {
+		t.Errorf("MetricSample with NaN: %v", err)
 	}
 }

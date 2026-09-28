@@ -9,9 +9,11 @@ package scraper
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -197,6 +199,35 @@ type MetricValue struct {
 	// name's Value is their sum and Labels is empty (no one series' labels
 	// describe a sum); any other name's Value and Labels are the last series'.
 	Series int `json:"series"`
+}
+
+// finiteOrNil is how a sample value crosses into JSON, which has no NaN or
+// Inf. Prometheus emits NaN routinely (Grafana's summary quantiles before
+// their first observation), and one NaN anywhere made encoding/json fail the
+// whole /api/v1/metrics response after its 200 was sent: an empty body.
+func finiteOrNil(v float64) *float64 {
+	if math.IsNaN(v) || math.IsInf(v, 0) {
+		return nil
+	}
+	return &v
+}
+
+// MarshalJSON encodes a non-finite Value as null.
+func (mv MetricValue) MarshalJSON() ([]byte, error) {
+	type plain MetricValue
+	return json.Marshal(struct {
+		plain
+		Value *float64 `json:"value"`
+	}{plain(mv), finiteOrNil(mv.Value)})
+}
+
+// MarshalJSON encodes a non-finite Value as null.
+func (ms MetricSample) MarshalJSON() ([]byte, error) {
+	type plain MetricSample
+	return json.Marshal(struct {
+		plain
+		Value *float64 `json:"value"`
+	}{plain(ms), finiteOrNil(ms.Value)})
 }
 
 // collapseByName reduces a scrape to one value per metric name, which is the
