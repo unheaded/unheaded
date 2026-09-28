@@ -36,6 +36,7 @@ import (
 
 	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
@@ -506,6 +507,7 @@ func (d *Daemon) Start() error {
 	// Auth middleware (activated via AUTH_ENABLED=true)
 	authCfg := auth.LoadServiceAuthConfig("unheaded-daemon")
 	httpHandler := auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
+	httpHandler = httputil.NewServiceMetrics("cuirass").Instrument(mux, httpHandler)
 
 	d.httpServer = &http.Server{
 		Addr:           d.config.HTTPAddr,
