@@ -23,3 +23,17 @@ result
 # Rust build output for ALL crates (~1.5G) — never needed by Go image builds
 crates/*/target/
 **/target/
+
+# Gitignored, never COPYed by any Dockerfile: ~1GB that every build context
+# used to carry. llama.cpp/ is a local checkout (725M); bin/ and the
+# root-level binaries are `go build` outputs.
+llama.cpp/
+bin/
+/kanban-app
+/trace-collector-go
+/dashboard-backend
+/unheaded-daemon
+/sophia
+/monad
+/wiki-server
+/host-agent
