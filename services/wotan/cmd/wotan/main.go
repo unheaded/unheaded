@@ -276,11 +276,8 @@ func main() {
 	// Create and start gRPC streaming services
 	chatService := grpcservice.NewChatService(roomManager, memberManager, messageWotan)
 
-	// Create shared topic sequence counter (used by both HTTP and gRPC)
-	topicSeqCounter := grpcservice.NewTopicSequenceCounter()
-
 	// Create TopicStream gRPC service - THE COSMIC WHEEL
-	topicService := grpcservice.NewTopicServiceWithCounter(roomManager, memberManager, messageWotan, topicSeqCounter)
+	topicService := grpcservice.NewTopicService(roomManager, memberManager, messageWotan)
 	// Same allowlist the HTTP path applies, so a publisher cannot dodge the
 	// approval gate simply by using gRPC (configs/wotan.yaml topics.auto_approve).
 	topicService.AutoApprove = topicCfg
