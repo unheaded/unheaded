@@ -25,6 +25,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics/prom"
 	"unheaded/services/wotan/internal/api"
 	"unheaded/services/wotan/internal/cluster"
@@ -224,6 +225,7 @@ func main() {
 	// auth.WrapHandler's http.Handler return value.
 	var srvHandler http.Handler = httpHandler //nolint:staticcheck // QF1011 false-positive: interface type required for reassignment
 	srvHandler = auth.WrapHandler(srvHandler, auth.SetupMiddleware(authCfg))
+	srvHandler = httputil.NewServiceMetrics("wotan").Instrument(httpMux, srvHandler)
 
 	httpServer := &http.Server{
 		Addr:              fmt.Sprintf(":%d", config.HTTPPort),
