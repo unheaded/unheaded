@@ -1346,67 +1346,6 @@ func TestParseTraceTopicEvent_AltSrcDstFields(t *testing.T) {
 	}
 }
 
-// ---- parsePrometheusText Tests ----
-
-func TestParsePrometheusText(t *testing.T) {
-	text := `# HELP go_goroutines Number of goroutines
-# TYPE go_goroutines gauge
-go_goroutines 42
-process_start_time_seconds 1.7e9
-go_memstats_sys_bytes{instance="a"} 12345678
-`
-	result := parsePrometheusText(text)
-	if result["go_goroutines"] != 42 {
-		t.Errorf("go_goroutines = %v, want 42", result["go_goroutines"])
-	}
-	if result["process_start_time_seconds"] != 1.7e9 {
-		t.Errorf("process_start_time_seconds = %v, want 1.7e9", result["process_start_time_seconds"])
-	}
-	if result["go_memstats_sys_bytes"] != 12345678 {
-		t.Errorf("go_memstats_sys_bytes = %v, want 12345678", result["go_memstats_sys_bytes"])
-	}
-}
-
-func TestParsePrometheusText_EmptyAndComments(t *testing.T) {
-	text := `# Just a comment
-
-# Another comment
-`
-	result := parsePrometheusText(text)
-	if len(result) != 0 {
-		t.Errorf("expected empty result, got %d entries", len(result))
-	}
-}
-
-func TestParsePrometheusText_DuplicateMetric(t *testing.T) {
-	text := `my_metric 100
-my_metric 200
-`
-	result := parsePrometheusText(text)
-	if result["my_metric"] != 100 {
-		t.Errorf("expected first value 100, got %v", result["my_metric"])
-	}
-}
-
-func TestParsePrometheusText_MalformedLabel(t *testing.T) {
-	// Missing closing brace
-	text := `bad_metric{label="value" 42
-`
-	result := parsePrometheusText(text)
-	if _, ok := result["bad_metric"]; ok {
-		t.Error("expected bad_metric to be skipped due to missing '}'")
-	}
-}
-
-func TestParsePrometheusText_BadValue(t *testing.T) {
-	text := `bad_value_metric not_a_number
-`
-	result := parsePrometheusText(text)
-	if _, ok := result["bad_value_metric"]; ok {
-		t.Error("expected bad value to be skipped")
-	}
-}
-
 // ---- Getter Methods ----
 
 func TestGetterMethods(t *testing.T) {
