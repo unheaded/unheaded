@@ -109,7 +109,7 @@
       },
       "targets": [
         {
-          "expr": "host_processes_total",
+          "expr": "host_procs_total",
           "legendFormat": "{{host}}",
           "refId": "A"
         }
@@ -153,7 +153,7 @@
       },
       "targets": [
         {
-          "expr": "host_net_established",
+          "expr": "host_net_tcp_established",
           "legendFormat": "{{host}}",
           "refId": "A"
         }
@@ -173,8 +173,8 @@
             "mode": "absolute",
             "steps": [
               { "color": "green", "value": null },
-              { "color": "yellow", "value": 500 },
-              { "color": "red", "value": 1000 }
+              { "color": "yellow", "value": 1 },
+              { "color": "red", "value": 10 }
             ]
           },
           "unit": "short"
@@ -197,12 +197,12 @@
       },
       "targets": [
         {
-          "expr": "host_goroutines",
+          "expr": "host_procs_zombie",
           "legendFormat": "{{host}}",
           "refId": "A"
         }
       ],
-      "title": "Goroutines",
+      "title": "Zombie Processes",
       "type": "stat"
     },
     {
@@ -315,17 +315,17 @@
       },
       "targets": [
         {
-          "expr": "host_load_1m",
+          "expr": "host_load1",
           "legendFormat": "{{host}} 1m",
           "refId": "A"
         },
         {
-          "expr": "host_load_5m",
+          "expr": "host_load5",
           "legendFormat": "{{host}} 5m",
           "refId": "B"
         },
         {
-          "expr": "host_load_15m",
+          "expr": "host_load15",
           "legendFormat": "{{host}} 15m",
           "refId": "C"
         }
