@@ -6,6 +6,7 @@ package ebpf
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -330,6 +331,60 @@ func TestEventRing_RecentMoreThanSize(t *testing.T) {
 	recent := r.Recent(10) // Ask for more than exist
 	if len(recent) != 2 {
 		t.Errorf("recent(10) = %d items, want 2", len(recent))
+	}
+}
+
+func TestEventRing_SinceIsACursor(t *testing.T) {
+	r := NewEventRing(4)
+	for i := 1; i <= 6; i++ {
+		if got := r.Add(EventEnvelope{Type: "t"}).Seq; got != uint64(i) {
+			t.Fatalf("Add #%d stamped seq %d", i, got)
+		}
+	}
+	// Ring holds seqs 3..6. Positions 0..3 would repeat forever; seqs don't.
+	seqs := func(evs []EventEnvelope) []uint64 {
+		var out []uint64
+		for _, e := range evs {
+			out = append(out, e.Seq)
+		}
+		return out
+	}
+	for _, tc := range []struct {
+		after uint64
+		n     int
+		want  []uint64
+	}{
+		{0, 100, []uint64{6, 5, 4, 3}}, // cursor older than the ring: all held
+		{4, 100, []uint64{6, 5}},       // only what is new
+		{6, 100, nil},                  // caught up: nothing, every time
+		{9, 100, nil},                  // cursor from a previous process
+		{0, 2, []uint64{6, 5}},         // limit keeps the newest
+	} {
+		got, last := r.Since(tc.after, tc.n)
+		if fmt.Sprint(seqs(got)) != fmt.Sprint(tc.want) {
+			t.Errorf("Since(%d,%d) = %v, want %v", tc.after, tc.n, seqs(got), tc.want)
+		}
+		if last != 6 {
+			t.Errorf("Since(%d,%d) last = %d, want 6", tc.after, tc.n, last)
+		}
+	}
+	if _, last := NewEventRing(4).Since(0, 10); last != 0 {
+		t.Errorf("empty ring last = %d, want 0", last)
+	}
+}
+
+func TestIngestor_ListenersSeeRingSeq(t *testing.T) {
+	ing := NewIngestor(DefaultIngestorConfig(), nil, nil)
+	var seen []uint64
+	ing.OnEvent(func(e EventEnvelope) { seen = append(seen, e.Seq) })
+	ing.emit(EventEnvelope{Type: "a"})
+	ing.emit(EventEnvelope{Type: "b"})
+	if fmt.Sprint(seen) != "[1 2]" {
+		t.Errorf("listener seqs = %v, want [1 2]", seen)
+	}
+	got, _ := ing.EventsSince(1, 10)
+	if len(got) != 1 || got[0].Seq != 2 || got[0].Type != "b" {
+		t.Errorf("EventsSince(1) = %+v, want only seq 2", got)
 	}
 }
 
@@ -932,5 +987,25 @@ func TestIngestor_UnknownTopicBadJSON(t *testing.T) {
 	}
 	if stats.UnknownTopics != 0 {
 		t.Errorf("unknown_topics = %d, want 0", stats.UnknownTopics)
+	}
+}
+
+// The *_ingested counters run from ingestor creation; uptime_seconds is that
+// window, so a rate is counters / uptime and not counters / page age.
+func TestIngestorStats_UptimeCoversCounterWindow(t *testing.T) {
+	ing := NewIngestor(DefaultIngestorConfig(), nil, nil)
+	ing.created = time.Now().Add(-90 * time.Second)
+
+	b, err := json.Marshal(ing.Stats())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	up, ok := got["uptime_seconds"].(float64)
+	if !ok || up < 90 || up > 95 {
+		t.Errorf("uptime_seconds = %v, want ~90", got["uptime_seconds"])
 	}
 }
