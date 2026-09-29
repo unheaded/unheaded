@@ -5,6 +5,7 @@ package ringbuffer
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -34,6 +35,9 @@ type RingBuffer struct {
 	count    int // current number of messages
 	wrapping bool
 	lastSeq  int64 // Seq of the most recent Push
+	// counter, when set, is shared with other buffers (NewShared): seqs are
+	// then unique and ordered across all of them, not just within this one.
+	counter *atomic.Int64
 }
 
 // New creates a new ring buffer with the specified size
@@ -49,6 +53,14 @@ func New(size int) *RingBuffer {
 	}
 }
 
+// NewShared creates a ring buffer whose seqs come from counter, shared with
+// other buffers: each buffer's seqs still increase, with gaps.
+func NewShared(size int, counter *atomic.Int64) *RingBuffer {
+	rb := New(size)
+	rb.counter = counter
+	return rb
+}
+
 // Push adds a message to the ring buffer
 // Returns the message ID and whether an old message was overwritten
 func (rb *RingBuffer) Push(msg *Message) (uuid.UUID, bool) {
@@ -61,7 +73,13 @@ func (rb *RingBuffer) Push(msg *Message) (uuid.UUID, bool) {
 		rb.wrapping = true
 	}
 
-	rb.lastSeq++
+	// Assigned and stored under rb.mu: a reader that sees a shared counter
+	// value N and then locks this buffer finds every seq <= N already here.
+	if rb.counter != nil {
+		rb.lastSeq = rb.counter.Add(1)
+	} else {
+		rb.lastSeq++
+	}
 	msg.Seq = rb.lastSeq
 	rb.buffer[rb.head] = msg
 	rb.head = (rb.head + 1) % rb.size
