@@ -540,13 +540,31 @@ func TestBroadcast_ChannelFull(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// Don't start the run loop so nobody drains the broadcast channel.
-	// Fill the channel (capacity 256).
-	for i := 0; i < 256; i++ {
+	// Don't start the run loop so nobody drains the broadcast channel, and
+	// register a client so Broadcast does not return early.
+	srv.clients[&Client{id: "c"}] = true
+	for i := 0; i < cap(srv.broadcast); i++ {
 		srv.broadcast <- []byte("fill")
 	}
 	// This call should hit the default (drop) branch — no panic.
 	srv.Broadcast([]byte("overflow"))
+	if n := srv.broadcastDrops.Load(); n != 1 {
+		t.Errorf("drops = %d, want 1", n)
+	}
+}
+
+// With no clients connected, Broadcast queues nothing and drops nothing.
+func TestBroadcast_NoClientsIsNoop(t *testing.T) {
+	srv, err := NewServer(DefaultConfig(), discardLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 10000; i++ { // run loop not started: nothing would drain
+		srv.Broadcast([]byte("x"))
+	}
+	if n, q := srv.broadcastDrops.Load(), len(srv.broadcast); n != 0 || q != 0 {
+		t.Errorf("drops=%d queued=%d, want 0/0", n, q)
+	}
 }
 
 // ---------- Client.Send: closed and buffer-full ----------
