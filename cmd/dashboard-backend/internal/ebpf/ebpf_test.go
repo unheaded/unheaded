@@ -288,41 +288,62 @@ func TestLatencyHistogram_Expire(t *testing.T) {
 	}
 }
 
-// Windows are over arrival time. They used to be over the producer's
-// timestamp_ns: latency-probe stamps bpf_ktime_get_ns() (time since boot,
-// i.e. 1970 as a wall clock), and the demo injector stamps once per
-// minutes-long loop, so the Latency page showed 0 samples in every window
-// while latency_ingested climbed (2026-09-29).
-func TestLatencyHistogram_WindowsByArrival(t *testing.T) {
-	lh := NewLatencyHistogram(LatencyHistogramConfig{Windows: []time.Duration{time.Second}})
-	for _, ts := range []uint64{
-		80_000_000_000_000, // ktime: ~22 h since boot
-		uint64(time.Now().Add(-2 * time.Minute).UnixNano()), // stamped late
-		uint64(time.Now().Add(10 * time.Minute).UnixNano()), // clock ahead
-	} {
-		lh.Ingest(&LatencyEvent{TimestampNs: ts, LatencyNs: 5000, Operation: OpTcpSend})
+// Windows run on when a measurement happened: the producer's stamp when it
+// is recent wall-clock time, else arrival. trace-collector sends ktime on
+// flow events (time since boot: 1970 as a wall clock), and a stream's first
+// connect replays Wotan's history; windowing everything by arrival counted
+// that replay as "the last 60 s" (10,480 samples in a window that holds
+// ~1,900, 2026-09-29).
+func TestLatencyHistogram_WindowsByObservedTime(t *testing.T) {
+	lh := NewLatencyHistogram(LatencyHistogramConfig{Windows: []time.Duration{time.Second, time.Minute}})
+	now := time.Now()
+	ingest := func(ts uint64) { lh.Ingest(&LatencyEvent{TimestampNs: ts, LatencyNs: 5000, Operation: OpTcpSend}) }
+	ingest(80_000_000_000_000)                           // ktime: counts as arriving now
+	ingest(uint64(now.Add(10 * time.Minute).UnixNano())) // clock ahead: counts as now
+	ingest(uint64(now.UnixNano()))                       // wall clock, now
+	for i := 0; i < 50; i++ {
+		ingest(uint64(now.Add(-10 * time.Minute).UnixNano())) // replayed history
 	}
+	ingest(uint64(now.Add(-30 * time.Second).UnixNano())) // 30 s old
+
 	lh.Expire()
 	if got := lh.GetPercentiles(OpTcpSend, time.Second).SampleCount; got != 3 {
-		t.Errorf("sample_count = %d, want 3 (all arrived just now)", got)
+		t.Errorf("1 s window = %d samples, want 3 (ktime, skewed, now)", got)
+	}
+	if got := lh.GetPercentiles(OpTcpSend, time.Minute).SampleCount; got != 4 {
+		t.Errorf("60 s window = %d samples, want 4 (replayed history excluded)", got)
+	}
+	// Expire must drop the replayed samples even though they arrived after
+	// newer ones (a prefix cut keeps everything behind the first live one).
+	if n := len(lh.windows[OpTcpSend][time.Minute].samples); n != 4 {
+		t.Errorf("60 s window holds %d samples after Expire, want 4", n)
+	}
+	// A skewed-ahead stamp is stored as "now", or it would outstay its window.
+	for _, smp := range lh.windows[OpTcpSend][time.Minute].samples {
+		if smp.timestamp.After(time.Now()) {
+			t.Errorf("sample stored in the future: %v", smp.timestamp)
+		}
 	}
 }
 
-// Flow liveness runs on arrival time for the same reason: a flow whose
-// producer stamps boot-relative ktime was "last seen" in 1970 and expired on
-// the next sweep, so Active Flows could never count a real probe's flows.
-func TestFlowGraph_LivenessByArrival(t *testing.T) {
+// Flow liveness uses the same rule: a flow whose producer stamps ktime
+// counts as seen on arrival (with the raw stamp it was "last seen" in 1970
+// and expired on the next sweep), while a replayed flow event from long ago
+// does not make a flow active.
+func TestFlowGraph_LivenessByObservedTime(t *testing.T) {
 	fg := NewFlowGraph(FlowGraphConfig{TTL: time.Minute})
-	key := FlowKey{SrcAddr: "10.0.0.1", DstAddr: "10.0.0.2", SrcPort: 1, DstPort: 2, Protocol: 6}
-	fg.IngestPacket(&PacketEvent{TimestampNs: 80_000_000_000_000, FlowKey: key, PacketLen: 60, Direction: DirectionIngress})
-	fg.IngestFlow(&FlowEvent{TimestampNs: 80_000_000_000_000, FlowKey: FlowKey{SrcAddr: "10.0.0.3", DstAddr: "10.0.0.4", SrcPort: 3, DstPort: 4, Protocol: 6}})
-	if n := fg.Expire(); n != 0 {
-		t.Errorf("Expire removed %d flows that arrived just now", n)
+	live := FlowKey{SrcAddr: "10.0.0.1", DstAddr: "10.0.0.2", SrcPort: 1, DstPort: 2, Protocol: 6}
+	old := FlowKey{SrcAddr: "10.0.0.3", DstAddr: "10.0.0.4", SrcPort: 3, DstPort: 4, Protocol: 6}
+	fg.IngestPacket(&PacketEvent{TimestampNs: 80_000_000_000_000, FlowKey: live, PacketLen: 60, Direction: DirectionIngress})
+	fg.IngestFlow(&FlowEvent{TimestampNs: uint64(time.Now().Add(-10 * time.Minute).UnixNano()), FlowKey: old})
+	oldPkt := FlowKey{SrcAddr: "10.0.0.5", DstAddr: "10.0.0.6", SrcPort: 5, DstPort: 6, Protocol: 6}
+	fg.IngestPacket(&PacketEvent{TimestampNs: uint64(time.Now().Add(-10 * time.Minute).UnixNano()), FlowKey: oldPkt, PacketLen: 60, Direction: DirectionIngress})
+	if n := fg.Expire(); n != 2 {
+		t.Errorf("Expire removed %d flows, want 2 (the replayed flow and packet)", n)
 	}
-	for _, f := range fg.GetActiveFlows() {
-		if time.Since(f.LastSeen) > time.Second {
-			t.Errorf("last_seen %v, want arrival time", f.LastSeen)
-		}
+	flows := fg.GetActiveFlows()
+	if len(flows) != 1 || flows[0].Key != live || time.Since(flows[0].LastSeen) > time.Second {
+		t.Errorf("active = %+v, want only the ktime flow, seen now", flows)
 	}
 }
 

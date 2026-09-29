@@ -79,13 +79,8 @@ func (lh *LatencyHistogram) Ingest(e *LatencyEvent) {
 		return
 	}
 
-	// Windows run on arrival time, not e.TimestampNs. Producers disagree on
-	// what that is: latency-probe stamps bpf_ktime_get_ns() (time since
-	// boot), trace-collector overwrites it with wall time, and a lagging
-	// or skewed producer lands outside every window. Arrival order is also
-	// what Expire's sort.Search needs.
 	sample := latencySample{
-		timestamp: time.Now(),
+		timestamp: observedAt(e.TimestampNs, time.Now()),
 		latencyNs: e.LatencyNs,
 	}
 
@@ -108,13 +103,17 @@ func (lh *LatencyHistogram) Expire() {
 
 	for _, opWindows := range lh.windows {
 		for windowDur, sw := range opWindows {
+			// Filter, not a prefix cut: producer stamps need not arrive in
+			// order (a replayed history, several producers).
 			cutoff := now.Add(-windowDur)
-			i := sort.Search(len(sw.samples), func(i int) bool {
-				return sw.samples[i].timestamp.After(cutoff)
-			})
-			if i > 0 {
-				sw.samples = sw.samples[i:]
+			kept := sw.samples[:0]
+			for _, s := range sw.samples {
+				if s.timestamp.After(cutoff) {
+					kept = append(kept, s)
+				}
 			}
+			clear(sw.samples[len(kept):])
+			sw.samples = kept
 		}
 	}
 }
