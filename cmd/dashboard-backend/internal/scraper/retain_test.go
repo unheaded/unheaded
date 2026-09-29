@@ -52,3 +52,28 @@ func TestStoreSample_DoesNotRetainScrapeBodies(t *testing.T) {
 		}
 	}
 }
+
+// A series whose samples all aged out is removed, or the store keeps every
+// label set it has ever seen (label churn from Grafana, VictoriaMetrics and
+// host disks grows it for as long as the backend runs).
+func TestCleanup_DropsEmptySeries(t *testing.T) {
+	s := newTestScraper(t)
+	old := time.Now().Add(-2 * s.config.RetentionPeriod)
+	s.storeSample(MetricSample{Name: "gone_total", Labels: map[string]string{"id": "1"}, Timestamp: old})
+	s.storeSample(MetricSample{Name: "live_total", Labels: map[string]string{"id": "2"}, Timestamp: time.Now()})
+
+	s.cleanup()
+
+	s.seriesMu.RLock()
+	n := len(s.series)
+	_, live := s.series[seriesKey("live_total", map[string]string{"id": "2"})]
+	s.seriesMu.RUnlock()
+	if n != 1 || !live {
+		t.Fatalf("after cleanup: %d series (live kept: %v), want only live_total", n, live)
+	}
+	// A dropped series comes back on its next sample.
+	s.storeSample(MetricSample{Name: "gone_total", Labels: map[string]string{"id": "1"}, Timestamp: time.Now()})
+	if got := s.QueryMetrics("gone_total", nil, time.Time{}); len(got) != 1 {
+		t.Errorf("re-created series has %d samples, want 1", len(got))
+	}
+}
