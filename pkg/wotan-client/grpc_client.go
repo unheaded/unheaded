@@ -38,6 +38,9 @@ type GRPCClient struct {
 	// Reconnection settings
 	maxRetries int
 	retryDelay time.Duration
+	// healthyAge is how long a stream must stay up, delivering or not, to
+	// count as healthy and reset the retry budget; 0 means 30s.
+	healthyAge time.Duration
 }
 
 // NewGRPCClient creates a new gRPC-based Wotan client.
@@ -274,6 +277,10 @@ func (gc *GRPCClient) streamMessagesWithRetry(ctx context.Context, topic string,
 
 	retryCount := 0
 	retryDelay := gc.retryDelay
+	healthyAge := gc.healthyAge
+	if healthyAge == 0 {
+		healthyAge = 30 * time.Second
+	}
 	// Resume point across reconnects. 0 on the first stream keeps the
 	// original behaviour (replay what Wotan holds); a reconnect asks only
 	// for what came after the last message delivered, instead of the
@@ -288,8 +295,17 @@ func (gc *GRPCClient) streamMessagesWithRetry(ctx context.Context, topic string,
 		}
 
 		// Attempt to stream
-		err := gc.streamMessagesSingle(ctx, topic, sub, sc, &cursor)
+		start := time.Now()
+		delivered, err := gc.streamMessagesSingle(ctx, topic, sub, sc, &cursor)
 		if err != nil {
+			// The retry budget is per outage. A stream that delivered or
+			// stayed up was healthy, so this failure starts a fresh run of
+			// retries; counted over the life of the process, the tenth
+			// Wotan blip closed the channel for good.
+			if delivered > 0 || time.Since(start) >= healthyAge {
+				retryCount = 0
+				retryDelay = gc.retryDelay
+			}
 			// Check if it's a transient error
 			if isTransientError(err) && retryCount < gc.maxRetries {
 				retryCount++
@@ -314,7 +330,8 @@ func (gc *GRPCClient) streamMessagesWithRetry(ctx context.Context, topic string,
 }
 
 // streamMessagesSingle opens a single stream and reads from it
-func (gc *GRPCClient) streamMessagesSingle(ctx context.Context, topic string, sub *Subscriber, sc *safeChannel, cursor *int64) error {
+// It returns how many messages it delivered before the stream ended.
+func (gc *GRPCClient) streamMessagesSingle(ctx context.Context, topic string, sub *Subscriber, sc *safeChannel, cursor *int64) (int, error) {
 	requested := *cursor
 	req := &chatpb.TopicStreamRequest{
 		TopicPattern: topic,
@@ -325,13 +342,14 @@ func (gc *GRPCClient) streamMessagesSingle(ctx context.Context, topic string, su
 
 	stream, err := gc.client.StreamTopics(ctx, req)
 	if err != nil {
-		return fmt.Errorf("stream topics: %w", err)
+		return 0, fmt.Errorf("stream topics: %w", err)
 	}
 
+	delivered := 0
 	for {
 		event, err := stream.Recv()
 		if err != nil {
-			return fmt.Errorf("receive from stream: %w", err)
+			return delivered, fmt.Errorf("receive from stream: %w", err)
 		}
 
 		msg := topicEventToMessage(event)
@@ -341,8 +359,9 @@ func (gc *GRPCClient) streamMessagesSingle(ctx context.Context, topic string, su
 		*cursor = streamCursor(requested, *cursor, msg.Seq, msg.Topic == topic)
 
 		if !sc.send(ctx, msg) {
-			return ctx.Err()
+			return delivered, ctx.Err()
 		}
+		delivered++
 	}
 }
 

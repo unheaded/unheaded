@@ -164,3 +164,64 @@ func TestGRPCClient_ResumeAcrossWotanRestart(t *testing.T) {
 	// server for (since_seq) is the observable cursor.
 	restartScenario(t, srv, ch, nil)
 }
+
+// The retry budget is per outage, not per process: a stream that delivered
+// or stayed up was healthy, and its failure starts a fresh run of retries.
+// It used to be ten transient errors for the life of the process, after
+// which the channel closed for good (timeguru logs "message channel
+// closed" and stops consuming).
+func TestGRPCClient_RetryBudgetResetsAfterHealthyStream(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		deliver bool
+		age     time.Duration // healthyAge; 1h keeps the age path out
+	}{
+		{"stream delivered", true, time.Hour},
+		{"idle stream stayed up", false, 100 * time.Millisecond},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv, gc := setupGRPCBufconn(t) // maxRetries 3
+			gc.healthyAge = tc.age
+			srv.mu.Lock()
+			srv.killErr = status.Error(codes.Unavailable, "blip")
+			srv.mu.Unlock()
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+			gc.Subscribe(ctx, "tasks.created", "survivor")
+			ch, err := gc.StreamMessages(ctx, "tasks.created")
+			if err != nil {
+				t.Fatal(err)
+			}
+			for i := 1; i <= 6; i++ {
+				if tc.deliver {
+					srv.addMessage("tasks.created", int64(i), fmt.Sprintf("m%d", i))
+				}
+				// Let the current stream be healthy, then break it.
+				time.Sleep(150 * time.Millisecond)
+				srv.setStreamError(status.Error(codes.Unavailable, "blip"))
+				srv.setStreamError(nil)
+				if tc.deliver {
+					select {
+					case m, ok := <-ch:
+						if !ok {
+							t.Fatalf("channel closed after blip %d", i)
+						}
+						if m.Seq != int64(i) {
+							t.Fatalf("blip %d: got seq %d", i, m.Seq)
+						}
+					case <-time.After(5 * time.Second):
+						t.Fatalf("blip %d: no message", i)
+					}
+				}
+			}
+			time.Sleep(200 * time.Millisecond)
+			select {
+			case _, ok := <-ch:
+				if !ok {
+					t.Fatal("channel closed after 6 blips with maxRetries 3")
+				}
+			default:
+			}
+		})
+	}
+}
