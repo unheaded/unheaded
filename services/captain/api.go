@@ -65,8 +65,8 @@ func NewHTTPServer(service *Service, addr string) (*HTTPServer, error) {
 	mux := http.NewServeMux()
 
 	// Health check endpoints
-	mux.HandleFunc("/health", hs.healthHandler)
-	mux.HandleFunc("/ready", hs.readyHandler)
+	mux.HandleFunc("/health", httputil.ProbeMethods(hs.healthHandler))
+	mux.HandleFunc("/ready", httputil.ProbeMethods(hs.readyHandler))
 
 	// Metrics endpoint
 	mux.HandleFunc("/metrics", hs.metricsHandler)
@@ -138,11 +138,6 @@ func (hs *HTTPServer) Stop() error {
 
 // healthHandler responds to health checks
 func (hs *HTTPServer) healthHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		hs.writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "GET only")
-		return
-	}
-
 	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
 		"service":   "captain",
 		"status":    "healthy",
@@ -153,11 +148,6 @@ func (hs *HTTPServer) healthHandler(w http.ResponseWriter, r *http.Request) {
 
 // readyHandler responds to readiness checks
 func (hs *HTTPServer) readyHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		hs.writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "GET only")
-		return
-	}
-
 	// Check if service is closed
 	if hs.service.IsClosed() {
 		hs.writeError(w, http.StatusServiceUnavailable, "SERVICE_CLOSED", "Service is shutting down")

@@ -35,6 +35,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/httputil"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
@@ -102,8 +103,8 @@ func New(cfg Config) (*Service, error) {
 	}
 
 	// Standard endpoints
-	svc.mux.HandleFunc("/health", svc.handleHealth)
-	svc.mux.HandleFunc("/ready", svc.handleReady)
+	svc.mux.HandleFunc("/health", httputil.ProbeMethods(svc.handleHealth))
+	svc.mux.HandleFunc("/ready", httputil.ProbeMethods(svc.handleReady))
 
 	return svc, nil
 }

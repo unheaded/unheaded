@@ -346,8 +346,8 @@ func (s *Server) Start() error {
 	mux.HandleFunc("/api/v1/stream", s.handleSSE)
 	mux.HandleFunc("/ws", s.handleWebSocket) // WebSocket endpoint
 	mux.HandleFunc("/api/v1/health", s.handleHealth)
-	mux.HandleFunc("/health", s.handleHealth)
-	mux.HandleFunc("/ready", s.handleReady)
+	mux.HandleFunc("/health", httputil.ProbeMethods(s.handleHealth))
+	mux.HandleFunc("/ready", httputil.ProbeMethods(s.handleReady))
 	mux.HandleFunc("/metrics", s.handleMetrics)
 
 	// Timeline API endpoints - THE META MOMENT

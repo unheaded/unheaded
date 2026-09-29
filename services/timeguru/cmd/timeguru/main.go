@@ -157,7 +157,7 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Health & metrics — transport readiness endpoint
-	mux.HandleFunc("/ready", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/ready", httputil.ProbeMethods(func(w http.ResponseWriter, _ *http.Request) {
 		if healthSrv.Status() == transport.StatusDown {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write([]byte(`{"ready":false}`))
@@ -165,8 +165,8 @@ func main() {
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ready":true}`))
-	})
-	mux.HandleFunc("/health", handler.HandleHealth)
+	}))
+	mux.HandleFunc("/health", httputil.ProbeMethods(handler.HandleHealth))
 
 	// /metrics did not exist on this service at all — it answered 404, while
 	// CLAUDE.md requires every component to publish metrics. Minimal

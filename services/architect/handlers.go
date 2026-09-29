@@ -51,12 +51,6 @@ func (h *HTTPHandler) writeSuccess(w http.ResponseWriter, code int, data interfa
 
 // Health handles GET /health
 func (h *HTTPHandler) Health(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		h.writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED",
-			fmt.Sprintf("method %s not allowed", r.Method))
-		return
-	}
-
 	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 	defer cancel()
 

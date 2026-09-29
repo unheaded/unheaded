@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
 )
@@ -1463,7 +1464,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 	mux := http.NewServeMux()
 
 	// GET /health - overall system health
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", httputil.ProbeMethods(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -1482,7 +1483,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 		}
 
 		json.NewEncoder(w).Encode(health) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-	})
+	}))
 
 	// GET /health/{name} - specific check health
 	mux.HandleFunc("/health/", func(w http.ResponseWriter, r *http.Request) {
@@ -1647,7 +1648,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 	})
 
 	// GET /ready - readiness probe
-	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/ready", httputil.ProbeMethods(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
@@ -1667,7 +1668,7 @@ func (a *Aggregator) HTTPHandler() http.Handler {
 		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			"status": "ready",
 		})
-	})
+	}))
 
 	// GET /live - liveness probe
 	mux.HandleFunc("/live", func(w http.ResponseWriter, r *http.Request) {

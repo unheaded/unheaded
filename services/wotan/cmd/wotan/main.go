@@ -448,13 +448,13 @@ func setupHTTPRoutes(s *api.Server, adminEnabled bool, m *metrics.Metrics) *http
 
 	// Observability endpoints (no rate limiting)
 	mux.Handle("/metrics", prom.Handler())
-	mux.HandleFunc("/health", s.Health)
-	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", httputil.ProbeMethods(s.Health))
+	mux.HandleFunc("/ready", httputil.ProbeMethods(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		if _, err := w.Write([]byte(`{"status":"ready"}`)); err != nil {
 			log.Error().Err(err).Msg("failed to write ready response")
 		}
-	})
+	}))
 
 	// Topic pub/sub endpoints (Fae Chamber message bus)
 	mux.HandleFunc("/api/v1/topics/", s.TopicRouter)

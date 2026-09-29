@@ -137,8 +137,8 @@ func main() {
 	mux := http.NewServeMux()
 
 	// Health endpoints
-	mux.HandleFunc("/health", handler.Health)
-	mux.HandleFunc("/ready", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", httputil.ProbeMethods(handler.Health))
+	mux.HandleFunc("/ready", httputil.ProbeMethods(func(w http.ResponseWriter, r *http.Request) {
 		if healthSrv.Status() == transport.StatusDown {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			_, _ = w.Write([]byte(`{"ready":false}`))
@@ -146,7 +146,7 @@ func main() {
 		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"ready":true}`))
-	})
+	}))
 
 	// Infrastructure endpoints
 	mux.HandleFunc("/infrastructure", instrument(handler.GetInfrastructure, "GET_INFRASTRUCTURE"))
