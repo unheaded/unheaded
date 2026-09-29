@@ -92,6 +92,30 @@
                             <div class="metric-label">Active Flows</div>
                         </div>
                     </div>
+                    <!-- From /api/v1/metrics/summary: rates and quantiles over the last
+                         scrape window of every service's unheaded_http_* metrics.
+                         "--" means no data yet, never zero. -->
+                    <div class="metric-card" id="metric-request-rate" title="No scrape pairs yet">
+                        <div class="metric-icon">&#x1F4C8;</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="request-rate">--</div>
+                            <div class="metric-label">Requests/s</div>
+                        </div>
+                    </div>
+                    <div class="metric-card" id="metric-5xx-rate">
+                        <div class="metric-icon">&#x1F6A8;</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="error-rate-5xx">--</div>
+                            <div class="metric-label">5xx Rate</div>
+                        </div>
+                    </div>
+                    <div class="metric-card" id="metric-p95-latency" title="p50 / p99: --">
+                        <div class="metric-icon">&#x23F1;</div>
+                        <div class="metric-content">
+                            <div class="metric-value" id="latency-p95">--</div>
+                            <div class="metric-label">p95 Latency</div>
+                        </div>
+                    </div>
                 </div>
             </section>
 

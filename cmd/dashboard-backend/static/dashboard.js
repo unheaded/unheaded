@@ -23,6 +23,7 @@
             health: '/api/v1/health',
             services: '/api/v1/services',
             metrics: '/api/v1/metrics',
+            summary: '/api/v1/metrics/summary',
             events: '/api/v1/events',
             stats: '/api/v1/stats',
             flows: '/api/v1/flows',
@@ -40,7 +41,8 @@
             latency: 3000,
             ebpfStats: 5000,
             ebpfEvents: 2000,
-            hosts: 5000
+            hosts: 5000,
+            summary: 5000
         },
 
         charts: { maxDataPoints: 60 },
@@ -105,6 +107,11 @@
         el.unhealthyServices = document.getElementById('unhealthy-services');
         el.ebpfEventsCount = document.getElementById('ebpf-events-count');
         el.activeFlowsCount = document.getElementById('active-flows-count');
+        el.requestRate = document.getElementById('request-rate');
+        el.requestRateCard = document.getElementById('metric-request-rate');
+        el.errorRate5xx = document.getElementById('error-rate-5xx');
+        el.latencyP95 = document.getElementById('latency-p95');
+        el.latencyP95Card = document.getElementById('metric-p95-latency');
         el.servicesGrid = document.getElementById('services-grid');
 
         el.statPackets = document.getElementById('stat-packets');
@@ -270,10 +277,36 @@
     function refreshEBPFStats()  { fetchJSON(CONFIG.api.ebpfStats,  updateEBPFStats); }
     function refreshEBPFEvents() { fetchJSON(CONFIG.api.ebpfEvents, updateEBPFEvents); }
     function refreshHosts()      { fetchJSON(CONFIG.api.hosts,      updateHostsData); }
+    function refreshSummary()    { fetchJSON(CONFIG.api.summary,    updateSummaryData); }
 
     // ======================================================================
     // Data Handlers
     // ======================================================================
+    // null from the backend means "no data yet" (fewer than two scrapes, or
+    // no requests in the window); it renders as "--", never as 0.
+    function fixedOrDash(v, digits, unit) {
+        return (typeof v === 'number' && isFinite(v)) ? v.toFixed(digits) + (unit || '') : '--';
+    }
+
+    function updateSummaryData(data) {
+        var lat = data.latency_ms || {};
+        setText(el.requestRate, fixedOrDash(data.request_rate, 1));
+        setText(el.errorRate5xx, fixedOrDash(data.error_rate, 2, '%'));
+        setText(el.latencyP95, fixedOrDash(lat.p95, 1, ' ms'));
+        if (el.latencyP95Card) {
+            el.latencyP95Card.title = 'p50 ' + fixedOrDash(lat.p50, 1, ' ms') +
+                ' / p99 ' + fixedOrDash(lat.p99, 1, ' ms');
+        }
+        // Say what the numbers cover: a rate from 3 of 10 services is not
+        // the kingdom's rate.
+        if (el.requestRateCard) {
+            el.requestRateCard.title = data.services_reporting > 0
+                ? 'From ' + data.services_reporting + ' of ' + data.services_scraped +
+                  ' scraped targets over ~' + Math.round(data.window_seconds) + 's'
+                : 'No scrape pairs yet';
+        }
+    }
+
     function updateHealthData(data) {
         state.systemHealth = data;
         // Backend returns healthy_count/degraded_count/unhealthy_count/total_services
@@ -1432,6 +1465,7 @@
         refreshEBPFStats();
         refreshEBPFEvents();
         refreshHosts();
+        refreshSummary();
 
         setInterval(refreshHealth, CONFIG.refreshIntervals.health);
         setInterval(refreshServices, CONFIG.refreshIntervals.services);
@@ -1441,6 +1475,7 @@
         setInterval(refreshEBPFStats, CONFIG.refreshIntervals.ebpfStats);
         setInterval(refreshEBPFEvents, CONFIG.refreshIntervals.ebpfEvents);
         setInterval(refreshHosts, CONFIG.refreshIntervals.hosts);
+        setInterval(refreshSummary, CONFIG.refreshIntervals.summary);
         setInterval(updateTimestamp, 1000);
 
         updateGauges();
