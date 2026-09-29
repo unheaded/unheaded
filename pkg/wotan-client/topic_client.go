@@ -452,6 +452,7 @@ func (c *TopicStreamClient) streamLoop(ctx context.Context, topicPattern string,
 // streamSingle opens one gRPC stream and reads from it until error or context cancel.
 func (c *TopicStreamClient) streamSingle(ctx context.Context, topicPattern string, sub *Subscriber, as *activeStream) error {
 	sinceSeq := as.lastSeq.Load()
+	requested := sinceSeq
 
 	req := &chatpb.TopicStreamRequest{
 		TopicPattern: topicPattern,
@@ -486,9 +487,9 @@ func (c *TopicStreamClient) streamSingle(ctx context.Context, topicPattern strin
 		}
 
 		// Track sequence for resume
-		if msg.Seq > sinceSeq {
-			as.lastSeq.Store(msg.Seq)
-			sinceSeq = msg.Seq
+		if next := streamCursor(requested, sinceSeq, msg.Seq, msg.Topic == topicPattern); next != sinceSeq {
+			as.lastSeq.Store(next)
+			sinceSeq = next
 		}
 
 		if !as.sc.send(ctx, msg) {

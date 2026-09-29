@@ -274,6 +274,11 @@ func (gc *GRPCClient) streamMessagesWithRetry(ctx context.Context, topic string,
 
 	retryCount := 0
 	retryDelay := gc.retryDelay
+	// Resume point across reconnects. 0 on the first stream keeps the
+	// original behaviour (replay what Wotan holds); a reconnect asks only
+	// for what came after the last message delivered, instead of the
+	// whole buffer again.
+	var cursor int64
 
 	for {
 		select {
@@ -283,7 +288,7 @@ func (gc *GRPCClient) streamMessagesWithRetry(ctx context.Context, topic string,
 		}
 
 		// Attempt to stream
-		err := gc.streamMessagesSingle(ctx, topic, sub, sc)
+		err := gc.streamMessagesSingle(ctx, topic, sub, sc, &cursor)
 		if err != nil {
 			// Check if it's a transient error
 			if isTransientError(err) && retryCount < gc.maxRetries {
@@ -309,11 +314,13 @@ func (gc *GRPCClient) streamMessagesWithRetry(ctx context.Context, topic string,
 }
 
 // streamMessagesSingle opens a single stream and reads from it
-func (gc *GRPCClient) streamMessagesSingle(ctx context.Context, topic string, sub *Subscriber, sc *safeChannel) error {
+func (gc *GRPCClient) streamMessagesSingle(ctx context.Context, topic string, sub *Subscriber, sc *safeChannel, cursor *int64) error {
+	requested := *cursor
 	req := &chatpb.TopicStreamRequest{
 		TopicPattern: topic,
 		SubscriberId: sub.SubscriberID,
 		DisplayName:  sub.DisplayName,
+		SinceSeq:     requested,
 	}
 
 	stream, err := gc.client.StreamTopics(ctx, req)
@@ -328,6 +335,10 @@ func (gc *GRPCClient) streamMessagesSingle(ctx context.Context, topic string, su
 		}
 
 		msg := topicEventToMessage(event)
+		if msg == nil {
+			continue
+		}
+		*cursor = streamCursor(requested, *cursor, msg.Seq, msg.Topic == topic)
 
 		if !sc.send(ctx, msg) {
 			return ctx.Err()
