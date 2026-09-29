@@ -15,6 +15,7 @@ import (
 	"log"
 	"math"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -368,7 +369,7 @@ func (c *Client) Subscribe(ctx context.Context, topic, displayName string) (*Sub
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST",
-		fmt.Sprintf("%s/topics/%s/subscribe", c.baseURL, topic),
+		fmt.Sprintf("%s/topics/%s/subscribe", c.baseURL, url.PathEscape(topic)),
 		bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
@@ -464,7 +465,7 @@ func (c *Client) doPublish(ctx context.Context, topic, subscriberID string, payl
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST",
-		fmt.Sprintf("%s/topics/%s/publish", c.baseURL, topic),
+		fmt.Sprintf("%s/topics/%s/publish", c.baseURL, url.PathEscape(topic)),
 		bytes.NewReader(jsonBody))
 	if err != nil {
 		return fmt.Errorf("create request: %w", err), nil
@@ -585,12 +586,13 @@ func (c *Client) getMessagesPage(ctx context.Context, topic string, afterSeq int
 		return nil, nil, errors.New("topic cannot be empty")
 	}
 
-	url := fmt.Sprintf("%s/topics/%s/messages?after_seq=%d", c.baseURL, topic, afterSeq)
+	// PathEscape: a pattern's "#" would otherwise start a URL fragment.
+	reqURL := fmt.Sprintf("%s/topics/%s/messages?after_seq=%d", c.baseURL, url.PathEscape(topic), afterSeq)
 	if limit > 0 {
-		url = fmt.Sprintf("%s&limit=%d", url, limit)
+		reqURL = fmt.Sprintf("%s&limit=%d", reqURL, limit)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("create request: %w", err)
 	}

@@ -136,3 +136,35 @@ func TestPublish_RejoinNotApproved(t *testing.T) {
 		t.Errorf("subscribes=%d published=%v, want one rejoin and nothing published", fw.next, fw.published)
 	}
 }
+
+// "#" starts a URL fragment: a topic pattern like "logs.#" put into the path
+// unescaped reached Wotan as "/api/v1/topics/logs." with the rest (and the
+// query) cut off. Topics are path-escaped.
+func TestTopicPathIsEscaped(t *testing.T) {
+	var paths []string
+	var queries []string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		queries = append(queries, r.URL.RawQuery)
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/subscribe"):
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"subscriber":{"subscriber_id":"00000000-0000-0000-0000-000000000009","status":"approved"}}`))
+		default:
+			_, _ = w.Write([]byte(`{"messages":[],"last_seq":0}`))
+		}
+	}))
+	defer ts.Close()
+	c, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"))
+	ctx := context.Background()
+	if _, err := c.Subscribe(ctx, "logs.#", "svc"); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := c.getMessagesPage(ctx, "logs.#", 7, 5); err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"/api/v1/topics/logs.#/subscribe", "/api/v1/topics/logs.#/messages"}
+	if fmt.Sprint(paths) != fmt.Sprint(want) || queries[1] != "after_seq=7&limit=5" {
+		t.Errorf("paths %v queries %v, want %v and after_seq=7&limit=5", paths, queries, want)
+	}
+}
