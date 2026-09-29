@@ -2802,168 +2802,195 @@ func (s *Server) collectHostMetrics(ctx context.Context) {
 	}
 }
 
+// hostSummary is host-agent's /host-summary JSON, the one shape both the
+// collector and /api/v1/hosts read for a remote host.
+type hostSummary struct {
+	CPUPercent    float64        `json:"cpu_percent"`
+	CPUCount      int            `json:"cpu_count"`
+	MemoryTotal   uint64         `json:"memory_total"`
+	MemoryUsed    uint64         `json:"memory_used"`
+	MemoryPercent float64        `json:"memory_percent"`
+	SwapTotal     uint64         `json:"swap_total"`
+	SwapUsed      uint64         `json:"swap_used"`
+	SwapPercent   float64        `json:"swap_percent"`
+	Load1m        float64        `json:"load_1m"`
+	Load5m        float64        `json:"load_5m"`
+	Load15m       float64        `json:"load_15m"`
+	UptimeSeconds float64        `json:"uptime_seconds"`
+	Disks         []DiskInfo     `json:"disks"`
+	NetConns      NetConnections `json:"net_connections"`
+	ProcessTotal  int            `json:"process_total"`
+	ProcessZombie int            `json:"process_zombie"`
+	Hostname      string         `json:"hostname"`
+	Kernel        string         `json:"kernel"`
+}
+
+// fetchHostSummary GETs and decodes a host-agent /host-summary.
+func fetchHostSummary(ctx context.Context, url string) (hostSummary, error) {
+	var sum hostSummary
+	body, err := fetchURL(ctx, url)
+	if err != nil {
+		return sum, err
+	}
+	if err := json.Unmarshal([]byte(body), &sum); err != nil {
+		return sum, fmt.Errorf("decode host summary: %w", err)
+	}
+	return sum, nil
+}
+
+// hostSample is one host metric value with any labels beyond "host".
+type hostSample struct {
+	name  string
+	value float64
+	extra map[string]string
+}
+
+// hostSamples lists the metrics a host summary yields, local or remote.
+func hostSamples(sum hostSummary) []hostSample {
+	out := []hostSample{
+		{"host_cpu_percent", sum.CPUPercent, nil},
+		{"host_memory_used_bytes", float64(sum.MemoryUsed), nil},
+		{"host_memory_total_bytes", float64(sum.MemoryTotal), nil},
+		{"host_swap_used_bytes", float64(sum.SwapUsed), nil},
+		{"host_load_1m", sum.Load1m, nil},
+		{"host_load_5m", sum.Load5m, nil},
+		{"host_load_15m", sum.Load15m, nil},
+		{"host_uptime_seconds", sum.UptimeSeconds, nil},
+		{"host_net_established", float64(sum.NetConns.Established), nil},
+		{"host_processes_total", float64(sum.ProcessTotal), nil},
+	}
+	for _, d := range sum.Disks {
+		mount := map[string]string{"mount": d.Mount}
+		out = append(out,
+			hostSample{"host_disk_used_bytes", float64(d.UsedBytes), mount},
+			hostSample{"host_disk_total_bytes", float64(d.SizeBytes), mount},
+		)
+	}
+	return out
+}
+
+// hostGauge maps a host sample name to the exported gauge, nil for names
+// that only go to the series store.
+func (s *Server) hostGauge(name string) *metrics.GaugeVec {
+	switch name {
+	case "host_cpu_percent":
+		return s.hostCPU
+	case "host_memory_used_bytes":
+		return s.hostMemUsed
+	case "host_memory_total_bytes":
+		return s.hostMemTotal
+	case "host_swap_used_bytes":
+		return s.hostSwapUsed
+	case "host_load_1m":
+		return s.hostLoad1
+	case "host_load_5m":
+		return s.hostLoad5
+	case "host_load_15m":
+		return s.hostLoad15
+	case "host_goroutines":
+		return s.hostGoroutines
+	case "host_uptime_seconds":
+		return s.hostUptime
+	case "host_net_established":
+		return s.hostNetEstablished
+	case "host_processes_total":
+		return s.hostProcesses
+	case "host_disk_used_bytes":
+		return s.hostDiskUsed
+	case "host_disk_total_bytes":
+		return s.hostDiskTotal
+	}
+	return nil
+}
+
+// dropHostSeries stops exporting every gauge series for a host, so an
+// unreachable host disappears instead of holding its last reading.
+func (s *Server) dropHostSeries(hostID string) {
+	match := metrics.Labels{"host": hostID}
+	for _, gv := range []*metrics.GaugeVec{
+		s.hostCPU, s.hostMemUsed, s.hostMemTotal, s.hostSwapUsed,
+		s.hostLoad1, s.hostLoad5, s.hostLoad15, s.hostGoroutines,
+		s.hostUptime, s.hostNetEstablished, s.hostProcesses,
+		s.hostDiskUsed, s.hostDiskTotal,
+	} {
+		gv.DeletePartialMatch(match)
+	}
+}
+
 // doCollectHostMetrics performs a single collection cycle for all hosts.
 func (s *Server) doCollectHostMetrics(ctx context.Context) {
 	now := time.Now()
 	var vmLines []string // Prometheus text lines for VM push
 
 	for _, h := range s.hosts {
-		labels := metrics.Labels{"host": h.ID}
+		var samples []hostSample
 
 		if h.MetricsURL == "" {
 			// Local host — read from /proc
-			cpuPct := readLocalCPUPercent()
 			memInfo := readLocalMemInfo()
 			load1, load5, load15 := readLocalLoadAvg()
-			uptime := readSystemUptime()
-			goroutines := float64(runtime.NumGoroutine())
-			disks := readLocalDisks()
-			netConns := readLocalNetConnections()
-			procTotal, _ := readLocalProcessCounts()
-
-			// Approach A: update Prometheus gauges
-			s.hostCPU.WithLabels(labels).Set(cpuPct)
-			s.hostMemUsed.WithLabels(labels).Set(float64(memInfo.memUsed))
-			s.hostMemTotal.WithLabels(labels).Set(float64(memInfo.memTotal))
-			s.hostSwapUsed.WithLabels(labels).Set(float64(memInfo.swapUsed))
-			s.hostLoad1.WithLabels(labels).Set(load1)
-			s.hostLoad5.WithLabels(labels).Set(load5)
-			s.hostLoad15.WithLabels(labels).Set(load15)
-			s.hostGoroutines.WithLabels(labels).Set(goroutines)
-			s.hostUptime.WithLabels(labels).Set(uptime)
-			s.hostNetEstablished.WithLabels(labels).Set(float64(netConns.Established))
-			s.hostProcesses.WithLabels(labels).Set(float64(procTotal))
-
-			for _, d := range disks {
-				diskLabels := metrics.Labels{"host": h.ID, "mount": d.Mount}
-				s.hostDiskUsed.WithLabels(diskLabels).Set(float64(d.UsedBytes))
-				s.hostDiskTotal.WithLabels(diskLabels).Set(float64(d.SizeBytes))
-			}
-
-			// Approach B: inject into scraper series store
-			hostSamples := []struct {
-				name  string
-				value float64
-				extra map[string]string
-			}{
-				{"host_cpu_percent", cpuPct, nil},
-				{"host_memory_used_bytes", float64(memInfo.memUsed), nil},
-				{"host_memory_total_bytes", float64(memInfo.memTotal), nil},
-				{"host_memory_free_bytes", float64(memInfo.memFree), nil},
-				{"host_memory_buffers_bytes", float64(memInfo.memBuffers), nil},
-				{"host_memory_cached_bytes", float64(memInfo.memCached), nil},
-				{"host_swap_used_bytes", float64(memInfo.swapUsed), nil},
-				{"host_load_1m", load1, nil},
-				{"host_load_5m", load5, nil},
-				{"host_load_15m", load15, nil},
-				{"host_goroutines", goroutines, nil},
-				{"host_uptime_seconds", uptime, nil},
-				{"host_net_established", float64(netConns.Established), nil},
-				{"host_processes_total", float64(procTotal), nil},
-			}
-			for _, hs := range hostSamples {
-				sampleLabels := map[string]string{"host": h.ID}
-				for k, v := range hs.extra {
-					sampleLabels[k] = v
-				}
-				s.scraper.IngestSample(scraper.MetricSample{
-					Name:      hs.name,
-					Value:     hs.value,
-					Labels:    sampleLabels,
-					Timestamp: now,
-					Service:   "system",
-				})
-			}
-			for _, d := range disks {
-				s.scraper.IngestSample(scraper.MetricSample{
-					Name:      "host_disk_used_bytes",
-					Value:     float64(d.UsedBytes),
-					Labels:    map[string]string{"host": h.ID, "mount": d.Mount},
-					Timestamp: now,
-					Service:   "system",
-				})
-				s.scraper.IngestSample(scraper.MetricSample{
-					Name:      "host_disk_total_bytes",
-					Value:     float64(d.SizeBytes),
-					Labels:    map[string]string{"host": h.ID, "mount": d.Mount},
-					Timestamp: now,
-					Service:   "system",
-				})
-			}
-
-			// Approach C: build VM push lines
-			if s.config.VMUrl != "" {
-				vmLines = append(vmLines,
-					fmt.Sprintf(`host_cpu_percent{host="%s"} %g`, h.ID, cpuPct),
-					fmt.Sprintf(`host_memory_used_bytes{host="%s"} %g`, h.ID, float64(memInfo.memUsed)),
-					fmt.Sprintf(`host_memory_total_bytes{host="%s"} %g`, h.ID, float64(memInfo.memTotal)),
-					fmt.Sprintf(`host_swap_used_bytes{host="%s"} %g`, h.ID, float64(memInfo.swapUsed)),
-					fmt.Sprintf(`host_load_1m{host="%s"} %g`, h.ID, load1),
-					fmt.Sprintf(`host_load_5m{host="%s"} %g`, h.ID, load5),
-					fmt.Sprintf(`host_load_15m{host="%s"} %g`, h.ID, load15),
-					fmt.Sprintf(`host_goroutines{host="%s"} %g`, h.ID, goroutines),
-					fmt.Sprintf(`host_uptime_seconds{host="%s"} %g`, h.ID, uptime),
-					fmt.Sprintf(`host_net_established{host="%s"} %g`, h.ID, float64(netConns.Established)),
-					fmt.Sprintf(`host_processes_total{host="%s"} %g`, h.ID, float64(procTotal)),
-				)
-				for _, d := range disks {
-					vmLines = append(vmLines,
-						fmt.Sprintf(`host_disk_used_bytes{host="%s",mount="%s"} %g`, h.ID, d.Mount, float64(d.UsedBytes)),
-						fmt.Sprintf(`host_disk_total_bytes{host="%s",mount="%s"} %g`, h.ID, d.Mount, float64(d.SizeBytes)),
-					)
-				}
-			}
+			procTotal, procZombie := readLocalProcessCounts()
+			samples = hostSamples(hostSummary{
+				CPUPercent:    readLocalCPUPercent(),
+				MemoryTotal:   memInfo.memTotal,
+				MemoryUsed:    memInfo.memUsed,
+				SwapUsed:      memInfo.swapUsed,
+				Load1m:        load1,
+				Load5m:        load5,
+				Load15m:       load15,
+				UptimeSeconds: readSystemUptime(),
+				Disks:         readLocalDisks(),
+				NetConns:      readLocalNetConnections(),
+				ProcessTotal:  procTotal,
+				ProcessZombie: procZombie,
+			})
+			// This process runs on the local host, so its goroutines are
+			// reported with it; a remote host has no such number.
+			samples = append(samples,
+				hostSample{"host_goroutines", float64(runtime.NumGoroutine()), nil},
+				hostSample{"host_memory_free_bytes", float64(memInfo.memFree), nil},
+				hostSample{"host_memory_buffers_bytes", float64(memInfo.memBuffers), nil},
+				hostSample{"host_memory_cached_bytes", float64(memInfo.memCached), nil},
+			)
 		} else {
-			// Remote host — fetch /metrics and parse
+			// Remote host — host-agent's /host-summary JSON, the same numbers
+			// /api/v1/hosts serves. (This used to parse that JSON as
+			// Prometheus text for go_* keys that were never there, and
+			// exported 0 for every host metric.)
 			fetchCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
-			body, err := fetchURL(fetchCtx, h.MetricsURL)
+			sum, err := fetchHostSummary(fetchCtx, h.MetricsURL)
 			cancel()
 			if err != nil {
+				s.dropHostSeries(h.ID)
 				s.log.Debug().Err(err).Str("host", h.ID).Msg("failed to fetch remote host metrics")
 				continue
 			}
+			samples = hostSamples(sum)
+		}
 
-			pm := parsePrometheusText(body)
-			goroutines := pm["go_goroutines"]
-			var uptimeVal float64
-			if v, ok := pm["process_start_time_seconds"]; ok {
-				uptimeVal = float64(now.Unix()) - v
-			}
-			memTotal := pm["go_memstats_sys_bytes"]
-			memUsed := pm["go_memstats_alloc_bytes"]
-
-			s.hostCPU.WithLabels(labels).Set(0) // no /proc on remote
-			s.hostMemUsed.WithLabels(labels).Set(memUsed)
-			s.hostMemTotal.WithLabels(labels).Set(memTotal)
-			s.hostGoroutines.WithLabels(labels).Set(goroutines)
-			s.hostUptime.WithLabels(labels).Set(uptimeVal)
-
-			remoteSamples := []struct {
-				name  string
-				value float64
-			}{
-				{"host_memory_used_bytes", memUsed},
-				{"host_memory_total_bytes", memTotal},
-				{"host_goroutines", goroutines},
-				{"host_uptime_seconds", uptimeVal},
-			}
-			for _, rs := range remoteSamples {
-				s.scraper.IngestSample(scraper.MetricSample{
-					Name:      rs.name,
-					Value:     rs.value,
-					Labels:    map[string]string{"host": h.ID},
-					Timestamp: now,
-					Service:   "system",
-				})
+		for _, hs := range samples {
+			labels := map[string]string{"host": h.ID}
+			for k, v := range hs.extra {
+				labels[k] = v
 			}
 
-			if s.config.VMUrl != "" {
-				vmLines = append(vmLines,
-					fmt.Sprintf(`host_memory_used_bytes{host="%s"} %g`, h.ID, memUsed),
-					fmt.Sprintf(`host_memory_total_bytes{host="%s"} %g`, h.ID, memTotal),
-					fmt.Sprintf(`host_goroutines{host="%s"} %g`, h.ID, goroutines),
-					fmt.Sprintf(`host_uptime_seconds{host="%s"} %g`, h.ID, uptimeVal),
-				)
+			// Approach A: update Prometheus gauges
+			if gv := s.hostGauge(hs.name); gv != nil {
+				gv.WithLabels(metrics.Labels(labels)).Set(hs.value)
+			}
+
+			// Approach B: inject into scraper series store
+			s.scraper.IngestSample(scraper.MetricSample{
+				Name:      hs.name,
+				Value:     hs.value,
+				Labels:    labels,
+				Timestamp: now,
+				Service:   "system",
+			})
+
+			// Approach C: build VM push lines
+			if s.config.VMUrl != "" && s.hostGauge(hs.name) != nil {
+				vmLines = append(vmLines, fmt.Sprintf("%s%s %g", hs.name, formatHostLabels(labels), hs.value))
 			}
 		}
 	}
@@ -2972,6 +2999,29 @@ func (s *Server) doCollectHostMetrics(ctx context.Context) {
 	if s.config.VMUrl != "" && len(vmLines) > 0 {
 		s.pushToVictoriaMetrics(ctx, vmLines)
 	}
+}
+
+// promLabelEscaper applies the exposition format's label-value escapes.
+var promLabelEscaper = strings.NewReplacer(`\`, `\\`, `"`, `\"`, "\n", `\n`)
+
+// formatHostLabels renders labels as {k="v",...} with keys sorted and values
+// escaped, for the VictoriaMetrics push.
+func formatHostLabels(labels map[string]string) string {
+	keys := make([]string, 0, len(labels))
+	for k := range labels {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	var b strings.Builder
+	b.WriteByte('{')
+	for i, k := range keys {
+		if i > 0 {
+			b.WriteByte(',')
+		}
+		fmt.Fprintf(&b, `%s="%s"`, k, promLabelEscaper.Replace(labels[k]))
+	}
+	b.WriteByte('}')
+	return b.String()
 }
 
 // pushToVictoriaMetrics sends metrics directly to VictoriaMetrics via the
@@ -3472,50 +3522,16 @@ func fetchURL(ctx context.Context, url string) (string, error) {
 		return "", err
 	}
 	defer resp.Body.Close()
-	body, err := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("GET %s: status %d", url, resp.StatusCode)
+	}
+	// A host summary is a few KB; the cap keeps a misbehaving peer from
+	// streaming unbounded data into the dashboard.
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 1<<20))
 	if err != nil {
 		return "", err
 	}
 	return string(body), nil
-}
-
-// parsePrometheusText parses simple Prometheus exposition text into metric name → value.
-// Only handles simple metrics (no labels). For metrics with labels, the first occurrence wins.
-func parsePrometheusText(text string) map[string]float64 {
-	result := make(map[string]float64)
-	scanner := bufio.NewScanner(strings.NewReader(text))
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if len(line) == 0 || line[0] == '#' {
-			continue
-		}
-		// Strip labels if present: metric_name{...} value
-		var name, valueStr string
-		if idx := strings.IndexByte(line, '{'); idx != -1 {
-			name = line[:idx]
-			end := strings.IndexByte(line, '}')
-			if end == -1 {
-				continue
-			}
-			valueStr = strings.TrimSpace(line[end+1:])
-		} else {
-			parts := strings.Fields(line)
-			if len(parts) < 2 {
-				continue
-			}
-			name = parts[0]
-			valueStr = parts[1]
-		}
-		if _, exists := result[name]; exists {
-			continue
-		}
-		v, err := strconv.ParseFloat(valueStr, 64)
-		if err != nil {
-			continue
-		}
-		result[name] = v
-	}
-	return result
 }
 
 // buildDashboardAuthenticators constructs authenticators from the auth config.
