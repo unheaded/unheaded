@@ -69,17 +69,62 @@ type HostSummary struct {
 	Kernel        string         `json:"kernel"`
 }
 
-// ── CPU delta state ──────────────────────────────────────────────────────
+// ── CPU sampling ─────────────────────────────────────────────────────────
 
-var (
-	cpuMu               sync.Mutex
+// cpuWindow is how often CPU use is sampled; each reading covers one window.
+const cpuWindow = 5 * time.Second
+
+// cpuSampler turns /proc/stat counters into a CPU percentage over fixed
+// windows. Computing it per request made each reading cover "since whoever
+// read last": the VM push, a scrape and a /host-summary fetch cut each
+// other's window short, and two calls in the same jiffy read exactly 0.
+type cpuSampler struct {
+	mu                  sync.Mutex
 	prevTotal, prevIdle float64
-)
+	primed              bool
+	pct                 float64
+}
 
-func cpuPercent() float64 {
+// observe records a /proc/stat reading. A reading with no elapsed ticks
+// keeps the previous percentage rather than publishing 0.
+func (c *cpuSampler) observe(total, idle float64) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.primed {
+		if dt := total - c.prevTotal; dt > 0 {
+			c.pct = (dt - (idle - c.prevIdle)) / dt * 100
+		}
+	}
+	c.prevTotal, c.prevIdle, c.primed = total, idle, true
+}
+
+func (c *cpuSampler) percent() float64 {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.pct
+}
+
+func (c *cpuSampler) sample() {
+	if total, idle, ok := readCPUStat(); ok {
+		c.observe(total, idle)
+	}
+}
+
+// run samples every cpuWindow until the process exits.
+func (c *cpuSampler) run() {
+	for range time.Tick(cpuWindow) {
+		c.sample()
+	}
+}
+
+var cpu cpuSampler
+
+// readCPUStat returns the aggregate jiffies and idle (+iowait) jiffies from
+// /proc/stat's "cpu " line.
+func readCPUStat() (total, idle float64, ok bool) {
 	f, err := os.Open("/proc/stat")
 	if err != nil {
-		return 0
+		return 0, 0, false
 	}
 	defer f.Close()
 	sc := bufio.NewScanner(f)
@@ -89,7 +134,6 @@ func cpuPercent() float64 {
 			continue
 		}
 		fields := strings.Fields(line)
-		var total, idle float64
 		for i := 1; i < len(fields); i++ {
 			v, _ := strconv.ParseFloat(fields[i], 64)
 			total += v
@@ -97,16 +141,9 @@ func cpuPercent() float64 {
 				idle += v
 			}
 		}
-		cpuMu.Lock()
-		dt, di := total-prevTotal, idle-prevIdle
-		prevTotal, prevIdle = total, idle
-		cpuMu.Unlock()
-		if dt <= 0 {
-			return 0
-		}
-		return (dt - di) / dt * 100
+		return total, idle, true
 	}
-	return 0
+	return 0, 0, false
 }
 
 func memInfo() (memTotal, memUsed uint64, memPct float64, swapTotal, swapUsed uint64, swapPct float64) {
@@ -299,7 +336,7 @@ func collect(host string) HostSummary {
 		hn = host
 	}
 	return HostSummary{
-		CPUPercent:  cpuPercent(),
+		CPUPercent:  cpu.percent(),
 		CPUCount:    runtime.NumCPU(),
 		MemoryTotal: mt, MemoryUsed: mu, MemoryPercent: mp,
 		SwapTotal: st, SwapUsed: su, SwapPercent: sp,
@@ -382,7 +419,11 @@ func main() {
 	if label == "" {
 		label, _ = os.Hostname()
 	}
-	cpuPercent() // prime the CPU delta
+	// First reading covers one second, so nothing serves a placeholder 0.
+	cpu.sample()
+	time.Sleep(time.Second)
+	cpu.sample()
+	go cpu.run()
 
 	var dbc *dbCollector
 	if len(cfg.Databases) > 0 {
