@@ -414,10 +414,18 @@ func (c *TopicStreamClient) streamLoop(ctx context.Context, topicPattern string,
 
 		// Attempt gRPC stream from last known sequence
 		log.Printf("streamLoop: connecting to stream for topic %s", topicPattern)
-		err := c.streamSingle(ctx, topicPattern, sub, as)
+		start := time.Now()
+		delivered, err := c.streamSingle(ctx, topicPattern, sub, as)
 
 		if err == nil || ctx.Err() != nil {
 			return
+		}
+		// A stream that delivered or stayed up was healthy: this failure is
+		// the first of a new outage. Otherwise the backoff kept doubling for
+		// the life of the stream and every reconnect after a few Wotan blips
+		// waited maxBackoff (30 s by default).
+		if delivered > 0 || time.Since(start) >= healthyStreamAge {
+			backoff = c.initialBackoff
 		}
 
 		c.recordFailure()
@@ -449,8 +457,13 @@ func (c *TopicStreamClient) streamLoop(ctx context.Context, topicPattern string,
 	}
 }
 
-// streamSingle opens one gRPC stream and reads from it until error or context cancel.
-func (c *TopicStreamClient) streamSingle(ctx context.Context, topicPattern string, sub *Subscriber, as *activeStream) error {
+// healthyStreamAge is how long a stream must stay up, delivering or not, to
+// count as healthy and reset the reconnect backoff.
+const healthyStreamAge = 30 * time.Second
+
+// streamSingle opens one gRPC stream and reads from it until error or
+// context cancel. It returns how many messages it delivered.
+func (c *TopicStreamClient) streamSingle(ctx context.Context, topicPattern string, sub *Subscriber, as *activeStream) (int, error) {
 	sinceSeq := as.lastSeq.Load()
 	requested := sinceSeq
 
@@ -464,13 +477,14 @@ func (c *TopicStreamClient) streamSingle(ctx context.Context, topicPattern strin
 
 	stream, err := c.client.StreamTopics(ctx, req)
 	if err != nil {
-		return fmt.Errorf("open stream: %w", err)
+		return 0, fmt.Errorf("open stream: %w", err)
 	}
 
+	delivered := 0
 	for {
 		event, err := stream.Recv()
 		if err != nil {
-			return fmt.Errorf("recv: %w", err)
+			return delivered, fmt.Errorf("recv: %w", err)
 		}
 
 		// Successfully received a message — reset circuit breaker
@@ -493,8 +507,9 @@ func (c *TopicStreamClient) streamSingle(ctx context.Context, topicPattern strin
 		}
 
 		if !as.sc.send(ctx, msg) {
-			return ctx.Err()
+			return delivered, ctx.Err()
 		}
+		delivered++
 	}
 }
 

@@ -9,8 +9,12 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/grpc/test/bufconn"
+
+	chatpb "unheaded/services/wotan/proto"
 )
 
 func TestStreamCursor(t *testing.T) {
@@ -224,4 +228,59 @@ func TestGRPCClient_RetryBudgetResetsAfterHealthyStream(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Backoff resets after a healthy stream. It used to double on every failure
+// for the life of the stream (to maxBackoff, 30 s by default), so after a
+// handful of Wotan blips each reconnect waited the maximum: a 30 s hole in
+// the dashboard's ingest per blip.
+func TestTopicStreamClient_BackoffResetsAfterHealthyStream(t *testing.T) {
+	srv := newMockServer()
+	srv.killErr = status.Error(codes.Unavailable, "blip")
+	lis := startMockServer(t, srv)
+	client, err := newTopicStreamClientWithDialer(lis, WithRetryPolicy(50*time.Millisecond, 10*time.Second, 100))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { client.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	client.Subscribe(ctx, "tasks.created", "backoff")
+	ch, err := client.StreamMessages(ctx, "tasks.created")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var last time.Duration
+	for i := 1; i <= 7; i++ {
+		srv.addMessage("tasks.created", int64(i), fmt.Sprintf("m%d", i))
+		if i > 1 {
+			srv.setStreamError(status.Error(codes.Unavailable, "blip"))
+			srv.setStreamError(nil)
+		}
+		start := time.Now()
+		select {
+		case m := <-ch:
+			if m.Seq != int64(i) {
+				t.Fatalf("round %d: got seq %d", i, m.Seq)
+			}
+		case <-time.After(10 * time.Second):
+			t.Fatalf("round %d: no message", i)
+		}
+		last = time.Since(start)
+	}
+	// Six doublings from 50 ms would be 3.2 s.
+	if last > time.Second {
+		t.Errorf("7th reconnect took %v, want the initial backoff", last)
+	}
+}
+
+// startMockServer serves srv on a fresh bufconn listener.
+func startMockServer(t *testing.T, srv *mockTopicStreamServer) *bufconn.Listener {
+	t.Helper()
+	lis := bufconn.Listen(1024 * 1024)
+	gs := grpc.NewServer()
+	chatpb.RegisterTopicStreamServer(gs, srv)
+	go func() { _ = gs.Serve(lis) }()
+	t.Cleanup(gs.Stop)
+	return lis
 }
