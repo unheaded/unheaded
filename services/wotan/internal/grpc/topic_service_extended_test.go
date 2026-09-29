@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1043,15 +1044,55 @@ func TestStreamTopics_CursorFromBeforeRestartReplaysHeld(t *testing.T) {
 	}
 }
 
-// One cursor across several topics is not a cursor for any of them; the
-// restart rule would replay whole topics on every reconnect, so it does not
-// apply to multi-topic streams.
-func TestStreamTopics_RestartRuleOnlyForSingleTopicStreams(t *testing.T) {
+// Seqs are global, so a pattern stream's one cursor is a real cursor: the
+// restart rule applies to it too, and a replay across topics comes out in
+// seq order (a replay cut short must not leave a lower seq behind the
+// client's cursor).
+func TestStreamTopics_PatternStreamReplayAndRestart(t *testing.T) {
 	svc := setupTopicService()
-	seedTopic(svc, "multi.a", 2)
-	seedTopic(svc, "multi.b", 2)
+	a := svc.roomManager.Create("multi.a", "multi.a")
+	b := svc.roomManager.Create("multi.b", "multi.b")
+	m := svc.memberManager.RequestJoin("multi.a", "sys", "", 5*time.Minute)
+	svc.memberManager.Approve(m.ID, "admin")
+	for _, r := range []*room.Room{a, b, a, b, b} { // seqs 1..5 interleaved
+		r.SendMessage(m.ID, "x")
+	}
 
-	if got := replaySeqs(t, svc, "multi.*", 500); len(got) != 0 {
-		t.Errorf("multi-topic since_seq=500 replayed %v, want nothing", got)
+	order := func(since int64) []int64 {
+		ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+		defer cancel()
+		stream := newMockTopicStream(ctx)
+		_ = svc.StreamTopics(&chatpb.TopicStreamRequest{TopicPattern: "multi.*", SinceSeq: since}, stream)
+		var seqs []int64
+		for _, e := range stream.getEvents() {
+			seqs = append(seqs, e.Seq)
+		}
+		return seqs
+	}
+	if got := order(0); fmt.Sprint(got) != "[1 2 3 4 5]" {
+		t.Errorf("replay order = %v, want [1 2 3 4 5]", got)
+	}
+	if got := order(2); fmt.Sprint(got) != "[3 4 5]" {
+		t.Errorf("since 2 = %v, want [3 4 5]", got)
+	}
+	if got := order(500); fmt.Sprint(got) != "[1 2 3 4 5]" {
+		t.Errorf("since 500 (cursor from before a restart) = %v, want everything held", got)
+	}
+}
+
+// Replay stops at the seq counter value read before it scans: a later seq
+// may still be landing in a ring already read, and the live subscription
+// delivers it.
+func TestStreamTopics_ReplayUpperBound(t *testing.T) {
+	svc := setupTopicService()
+	seedTopic(svc, "ub.a", 1) // seq 1; LastSeq = 1
+	rm := svc.roomManager.Create("ub.b", "ub.b")
+	var ahead atomic.Int64
+	ahead.Store(1)
+	rm.Buffer = ringbuffer.NewShared(10, &ahead)
+	rm.SendMessage(uuid.New(), "in-flight") // seq 2 > LastSeq
+	got := replaySeqs(t, svc, "ub.*", 0)
+	if fmt.Sprint(got["ub.a"]) != "[1]" || len(got["ub.b"]) != 0 {
+		t.Errorf("replay = %v, want only ub.a seq 1", got)
 	}
 }

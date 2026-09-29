@@ -6,6 +6,7 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync/atomic"
 	"time"
 
@@ -16,6 +17,7 @@ import (
 	"unheaded/services/wotan/internal/logger"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
+	"unheaded/services/wotan/internal/ringbuffer"
 	"unheaded/services/wotan/internal/room"
 	"unheaded/services/wotan/internal/signing"
 	"unheaded/services/wotan/internal/wotan"
@@ -168,47 +170,63 @@ func (s *TopicService) StreamTopics(
 
 	// Replay historical messages if requested (SinceSeq >= 0 replays from that sequence)
 	if req.SinceSeq >= 0 {
+		// Seqs are global across topics and in memory. A cursor above the
+		// newest seq this process has assigned is from before a restart:
+		// replay what is held, or messages published between the restart and
+		// the reconnect are lost. (Before seqs were global this could only be
+		// judged for single-topic streams.)
+		upper := s.roomManager.LastSeq()
+		since := req.SinceSeq
+		if since > upper {
+			since = 0
+		}
+
+		// Every matching topic's messages after the cursor, merged in seq
+		// order, so a replay cut short never leaves a lower seq unsent behind
+		// the client's cursor. Seqs above upper may still be landing in a
+		// ring already read; the live subscription delivers them.
+		type held struct {
+			topic string
+			msg   *ringbuffer.Message
+		}
+		var replay []held
 		for _, topicName := range matchingTopics {
 			rm, err := s.roomManager.Get(topicName)
 			if err != nil {
 				continue
 			}
-
-			// Messages after the requested seq, by the seq the ring buffer
-			// assigned at publish (a buffer position repeats once it wraps).
-			since := req.SinceSeq
-			// Seqs are in-memory and start again at 1 when Wotan restarts. A
-			// cursor above anything this process has numbered for the topic
-			// is from before the restart: replay what is held, or messages
-			// published between the restart and the reconnect are lost. Only
-			// for single-topic streams; one cursor across several topics'
-			// seq spaces is not a cursor for any of them.
-			if len(matchingTopics) == 1 && since > rm.Buffer.LastSeq() {
-				since = 0
-			}
 			for _, msg := range rm.Buffer.GetAfter(since, 0) {
-				event := &chatpb.TopicEvent{
-					Topic:     topicName,
-					MessageId: msg.ID.String(),
-					SenderId:  msg.CreatorID.String(),
-					Payload:   []byte(msg.Content),
-					CreatedAt: timestamppb.New(msg.Timestamp),
-					Seq:       msg.Seq,
-					Type:      chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED,
-					NodeId:    s.NodeID,
+				if msg.Seq > upper {
+					break
 				}
-
-				if err := stream.Send(event); err != nil {
-					logger.FromContext(ctx).Error().
-						Err(err).
-						Str("topic", topicName).
-						Msg("stream_send_error_historical")
-					metrics.StreamErrors.WithLabelValues(topicName, "send_error").Inc()
-					return status.Error(codes.Aborted, "failed to send message")
-				}
-
-				metrics.StreamMessagesSent.WithLabelValues(topicName, "MESSAGE_PUBLISHED").Inc()
+				replay = append(replay, held{topicName, msg})
 			}
+		}
+		sort.Slice(replay, func(i, j int) bool { return replay[i].msg.Seq < replay[j].msg.Seq })
+
+		for _, h := range replay {
+			topicName, msg := h.topic, h.msg
+			event := &chatpb.TopicEvent{
+				Topic:     topicName,
+				MessageId: msg.ID.String(),
+				SenderId:  msg.CreatorID.String(),
+				Payload:   []byte(msg.Content),
+				CreatedAt: timestamppb.New(msg.Timestamp),
+				Seq:       msg.Seq,
+				Type:      chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED,
+				NodeId:    s.NodeID,
+			}
+
+			if err := stream.Send(event); err != nil {
+				logger.FromContext(ctx).Error().
+					Err(err).
+					Str("topic", topicName).
+					Msg("stream_send_error_historical")
+				metrics.StreamErrors.WithLabelValues(topicName, "send_error").Inc()
+				return status.Error(codes.Aborted, "failed to send message")
+			}
+
+			metrics.StreamMessagesSent.WithLabelValues(topicName, "MESSAGE_PUBLISHED").Inc()
 		}
 	}
 
