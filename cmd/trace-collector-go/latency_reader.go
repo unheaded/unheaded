@@ -457,3 +457,38 @@ func FormatRTTHuman(rttNS uint64) string {
 		return fmt.Sprintf("%.3fs", float64(rttNS)/1e9)
 	}
 }
+
+// rttTracker remembers each flow's sample count across sweeps of the latency
+// map, so a sweep emits only flows that took a new measurement. Flows absent
+// from a sweep (evicted from the map) are forgotten.
+type rttTracker struct {
+	seen map[string]uint64 // key bytes -> Samples at the last sweep
+	live map[string]struct{}
+}
+
+func newRTTTracker() *rttTracker {
+	return &rttTracker{seen: map[string]uint64{}, live: map[string]struct{}{}}
+}
+
+// fresh records a flow's sample count and reports whether it changed since
+// the flow was last swept (a first sighting counts if it has any samples).
+func (t *rttTracker) fresh(key []byte, samples uint64) bool {
+	k := string(key)
+	last, ok := t.seen[k]
+	t.seen[k] = samples
+	t.live[k] = struct{}{}
+	if !ok {
+		return samples > 0
+	}
+	return samples != last
+}
+
+// endSweep forgets flows the sweep did not visit.
+func (t *rttTracker) endSweep() {
+	for k := range t.seen {
+		if _, ok := t.live[k]; !ok {
+			delete(t.seen, k)
+		}
+	}
+	clear(t.live)
+}
