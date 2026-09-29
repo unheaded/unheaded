@@ -668,6 +668,52 @@ services:
           memory: 128M
           cpus: "0.25"
 
+  # --- Akira: consensus health (ADR-029) ---
+  # Checks every service each 30 s, publishes its reports to Wotan's
+  # system.health.reports, tallies all reporters' votes into CLAUDE.md's
+  # severity bands and publishes changes to system.health.consensus.
+  # Detection only: no --remediate here (remediation would need the Docker
+  # socket, and a failing service should stay visibly down while building).
+  akira:
+    logging:
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
+    build:
+      context: .
+      target: akira
+    container_name: unheaded-akira
+    restart: unless-stopped
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp:size=16M
+    command: ["/app/akira", "--config", "/etc/unheaded/akira.yaml", "--wotan", "wotan:18000", "--node", "${KINGDOM_NODE:-west}"]
+    volumes:
+      - ./config/akira/akira.yaml:/etc/unheaded/akira.yaml:ro
+    ports:
+      - "19100:19100"
+    networks:
+      - data
+    depends_on:
+      wotan:
+        condition: service_healthy
+    labels:
+      kingdom.role: "health"
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:19100/health", "-O", "/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          memory: 64M
+          cpus: "0.1"
+
   # --- Monad: Unified State Management ---
   monad:
     logging:

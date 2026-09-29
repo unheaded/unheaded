@@ -73,6 +73,7 @@ func allPorts(t *testing.T) map[string]int {
 		"CertGen": CertGen,
 		// ASCEND-LINUX
 		"UPCTtyBridge": UPCTtyBridge,
+		"Akira":        Akira,
 	}
 }
 

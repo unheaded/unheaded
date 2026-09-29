@@ -77,6 +77,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
     -o /build/bin/kanban-app ./cmd/kanban-app
 
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -o /build/bin/akira ./cmd/akira
+
 # ============================================================================
 # STAGE 2: WOTAN - THE FAE CHAMBER
 # ============================================================================
@@ -181,6 +185,29 @@ ENTRYPOINT ["/app/architect"]
 
 # ============================================================================
 # STAGE 6: MICROMANAGER - THE WAR ROOM
+# ============================================================================
+# Akira: consensus health (ADR-029). Checks the services and tallies every
+# reporter's votes; remediation is off unless started with --remediate.
+FROM alpine:3.19 AS akira
+
+RUN apk add --no-cache ca-certificates tzdata
+
+RUN addgroup -g 1000 unheaded && \
+    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+
+WORKDIR /app
+
+COPY --from=builder /build/bin/akira /app/akira
+
+USER unheaded
+
+EXPOSE 19100
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:19100/health || exit 1
+
+ENTRYPOINT ["/app/akira"]
+
 # ============================================================================
 FROM alpine:3.19 AS micromanager
 
