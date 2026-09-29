@@ -2293,10 +2293,18 @@ func (s *Server) handleLatency(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// All operations
+	// All operations, plus "combined": each window's percentiles over every
+	// operation's samples together (the page's global numbers).
+	lh := s.ebpfIngestor.LatencyHistogram()
+	stats := lh.Stats()
+	combined := make([]ebpfPkg.PercentileResult, 0, len(stats.Windows))
+	for _, win := range stats.Windows {
+		combined = append(combined, lh.GetCombinedPercentiles(win))
+	}
 	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		"percentiles": s.ebpfIngestor.LatencyHistogram().GetAllPercentiles(),
-		"stats":       s.ebpfIngestor.LatencyHistogram().Stats(),
+		"percentiles": lh.GetAllPercentiles(),
+		"combined":    combined,
+		"stats":       stats,
 	})
 }
 

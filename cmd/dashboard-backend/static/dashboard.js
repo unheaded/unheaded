@@ -502,6 +502,9 @@
                 if (!Array.isArray(windows) || windows.length === 0) return;
                 // Use the widest window (last = 60s)
                 var w = windows[windows.length - 1];
+                // An operation with no samples has no latency. Listed at 0 ms it
+                // counted as "active", could be the hero, and put zeros in the trend.
+                if (!(w.sample_count > 0)) return;
                 ops[name] = {
                     p50: (w.p50_ns || 0) / 1e6,
                     p90: (w.p90_ns || 0) / 1e6,
@@ -514,6 +517,12 @@
                 };
             });
             data.operations = ops;
+            // Global numbers are percentiles of all operations' samples together
+            // (backend "combined"), widest window. Without it, show '--'.
+            var cw = Array.isArray(data.combined) ? data.combined[data.combined.length - 1] : null;
+            data.global = cw && cw.sample_count > 0
+                ? { p50: cw.p50_ns / 1e6, p99: cw.p99_ns / 1e6, sample_count: cw.sample_count }
+                : null;
         }
         state.latencyData = data;
         state.lastFetch = state.lastFetch || {};
@@ -1102,16 +1111,17 @@
         var keys = Object.keys(ops).filter(function(k) { return ops[k] && typeof ops[k].p99 === 'number'; });
         if (keys.length === 0) { setHeroMsg('No latency data yet. Waiting for eBPF events…'); return; }
 
-        var worst = { name: '', p99: -1 }, p99max = 0, sw50 = 0, sn = 0, samples = 0, over = 0;
+        var worst = { name: '', p99: -1 }, samples = 0, over = 0;
         keys.forEach(function(name) {
             var op = ops[name];
             if (op.p99 > worst.p99) worst = { name: name, p99: op.p99 };
-            if (op.p99 > p99max) p99max = op.p99;
-            sw50 += (op.p50 || 0) * (op.sample_count || 0); sn += (op.sample_count || 0);
             samples += (op.sample_count || 0);
             if (op.p99 >= latSLO(name)[1]) over++;
         });
-        var gp50 = sn > 0 ? sw50 / sn : 0;
+        // Global p50/p99 come from the backend's combined percentiles. They
+        // used to be a sample-weighted mean of op p50s and the largest op p99
+        // (the worst op again), neither of which is a percentile.
+        var g = data.global;
 
         if (heroEl) {
             var hc = latColor(worst.name, worst.p99);
@@ -1124,8 +1134,8 @@
         }
         el.latencySummaryGrid.innerHTML =
             kpiTile('Ops over SLO', over + ' / ' + keys.length, over > 0 ? '#ff4757' : '#00d26a') +
-            kpiTile('Global p50', gp50.toFixed(2) + ' ms', '') +
-            kpiTile('Global p99', p99max.toFixed(2) + ' ms', latencyHealthColor(p99max)) +
+            kpiTile('Global p50', g ? g.p50.toFixed(2) + ' ms' : '--', '') +
+            kpiTile('Global p99', g ? g.p99.toFixed(2) + ' ms' : '--', g ? latencyHealthColor(g.p99) : '') +
             kpiTile('Samples (60s)', formatNumber(samples), '') +
             kpiTile('Active ops', '' + keys.length, '');
     }

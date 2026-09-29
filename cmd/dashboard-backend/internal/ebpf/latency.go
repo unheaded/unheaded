@@ -145,6 +145,35 @@ func (lh *LatencyHistogram) GetPercentiles(op LatencyOperation, window time.Dura
 		}
 	}
 
+	return summarize(window, values)
+}
+
+// GetCombinedPercentiles returns percentiles over every operation's samples
+// in the window, taken together: the page's "global" numbers. A mean of
+// per-operation p50s, or the largest per-operation p99, is not one.
+func (lh *LatencyHistogram) GetCombinedPercentiles(window time.Duration) PercentileResult {
+	cutoff := time.Now().Add(-window)
+
+	lh.mu.RLock()
+	defer lh.mu.RUnlock()
+
+	var values []uint64
+	for _, opWindows := range lh.windows {
+		sw, ok := opWindows[window]
+		if !ok {
+			continue
+		}
+		for _, s := range sw.samples {
+			if s.timestamp.After(cutoff) {
+				values = append(values, s.latencyNs)
+			}
+		}
+	}
+	return summarize(window, values)
+}
+
+// summarize sorts values in place and returns their percentiles.
+func summarize(window time.Duration, values []uint64) PercentileResult {
 	if len(values) == 0 {
 		return PercentileResult{Window: window, SampleCount: 0}
 	}

@@ -326,6 +326,30 @@ func TestFlowGraph_LivenessByArrival(t *testing.T) {
 	}
 }
 
+// A global percentile comes from all operations' samples together. The
+// Latency page showed "Global p50" as the sample-weighted mean of each op's
+// p50 and "Global p99" as the largest op p99; neither is a percentile of
+// the combined samples.
+func TestLatencyHistogram_CombinedPercentiles(t *testing.T) {
+	lh := NewLatencyHistogram(LatencyHistogramConfig{Windows: []time.Duration{time.Minute}})
+	for i := 0; i < 99; i++ {
+		lh.Ingest(&LatencyEvent{LatencyNs: 1000, Operation: OpTcpSend})
+	}
+	lh.Ingest(&LatencyEvent{LatencyNs: 1_000_000, Operation: OpTcpConnect})
+
+	c := lh.GetCombinedPercentiles(time.Minute)
+	if c.SampleCount != 100 || c.P50Ns != 1000 || c.MaxNs != 1_000_000 {
+		t.Errorf("combined = %+v, want 100 samples, p50 1000, max 1e6", c)
+	}
+	// The old "Global p99" (max op p99) would say 1e6.
+	if c.P99Ns != 1000 {
+		t.Errorf("combined p99 = %d, want 1000 (99 of 100 samples are 1000)", c.P99Ns)
+	}
+	if e := lh.GetCombinedPercentiles(time.Second); e.SampleCount != 0 {
+		t.Errorf("unconfigured window: %+v, want empty", e)
+	}
+}
+
 func TestLatencyHistogram_MultipleOps(t *testing.T) {
 	lh := NewLatencyHistogram(LatencyHistogramConfig{})
 
