@@ -63,6 +63,7 @@ type Ingestor struct {
 	events    *EventRing
 	listeners []func(EventEnvelope)
 	listMu    sync.RWMutex
+	created   time.Time // start of the counters' window
 
 	// Counters
 	packetsIngested   atomic.Int64
@@ -77,6 +78,9 @@ type Ingestor struct {
 
 // EventEnvelope wraps a typed eBPF event for listener dispatch.
 type EventEnvelope struct {
+	// Seq is assigned by the EventRing on insert: 1, 2, 3... for the life of
+	// the process. Pollers page with it; a ring position is not a cursor.
+	Seq       uint64      `json:"seq"`
 	Topic     string      `json:"topic"`
 	Type      string      `json:"type"` // "packet", "flow", "latency", "syscall"
 	Timestamp time.Time   `json:"timestamp"`
@@ -85,9 +89,10 @@ type EventEnvelope struct {
 
 // EventRing is a bounded ring buffer of recent eBPF events.
 type EventRing struct {
-	events []EventEnvelope
-	size   int
-	mu     sync.RWMutex
+	events  []EventEnvelope
+	size    int
+	lastSeq uint64
+	mu      sync.RWMutex
 }
 
 // NewEventRing creates a new event ring buffer.
@@ -98,14 +103,35 @@ func NewEventRing(size int) *EventRing {
 	}
 }
 
-// Add appends an event, evicting the oldest if full.
-func (r *EventRing) Add(e EventEnvelope) {
+// Add stamps the event with the next sequence number, appends it (evicting
+// the oldest if full) and returns the stamped event.
+func (r *EventRing) Add(e EventEnvelope) EventEnvelope {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	r.lastSeq++
+	e.Seq = r.lastSeq
 	r.events = append(r.events, e)
 	if len(r.events) > r.size {
 		r.events = r.events[len(r.events)-r.size:]
 	}
+	return e
+}
+
+// Since returns up to n of the newest events with Seq > afterSeq, newest
+// first, and the last sequence number assigned. A poller passes back the
+// highest Seq it has seen; lastSeq below that means the process restarted
+// and the poller should start again from 0.
+func (r *EventRing) Since(afterSeq uint64, n int) ([]EventEnvelope, uint64) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	var out []EventEnvelope
+	for i := len(r.events) - 1; i >= 0 && len(out) < n; i-- {
+		if r.events[i].Seq <= afterSeq {
+			break
+		}
+		out = append(out, r.events[i])
+	}
+	return out, r.lastSeq
 }
 
 // Recent returns up to n most recent events, newest first.
@@ -149,7 +175,8 @@ func NewIngestor(config IngestorConfig, client WotanSubscriber, log *logger.Logg
 			Windows:    config.LatencyWindows,
 			MaxSamples: config.MaxLatencySamples,
 		}),
-		events: NewEventRing(config.EventBufferSize),
+		events:  NewEventRing(config.EventBufferSize),
+		created: time.Now(),
 	}
 }
 
@@ -371,7 +398,7 @@ func (ing *Ingestor) dispatchSingle(topic string, data []byte) {
 
 // emit adds the event to the ring buffer and notifies all listeners.
 func (ing *Ingestor) emit(env EventEnvelope) {
-	ing.events.Add(env)
+	env = ing.events.Add(env)
 
 	ing.listMu.RLock()
 	listeners := make([]func(EventEnvelope), len(ing.listeners))
@@ -417,6 +444,12 @@ func (ing *Ingestor) RecentEvents(n int) []EventEnvelope {
 	return ing.events.Recent(n)
 }
 
+// EventsSince returns up to n of the newest events after afterSeq and the
+// last sequence number assigned; see EventRing.Since.
+func (ing *Ingestor) EventsSince(afterSeq uint64, n int) ([]EventEnvelope, uint64) {
+	return ing.events.Since(afterSeq, n)
+}
+
 // Stats returns ingestor statistics.
 func (ing *Ingestor) Stats() IngestorStats {
 	return IngestorStats{
@@ -431,6 +464,7 @@ func (ing *Ingestor) Stats() IngestorStats {
 		FlowStats:         ing.flows.Stats(),
 		LatencyStats:      ing.latency.Stats(),
 		EventsBuffered:    ing.events.Count(),
+		UptimeSeconds:     time.Since(ing.created).Seconds(),
 	}
 }
 
@@ -447,6 +481,8 @@ type IngestorStats struct {
 	FlowStats         FlowGraphStats `json:"flow_stats"`
 	LatencyStats      LatencyStats   `json:"latency_stats"`
 	EventsBuffered    int            `json:"events_buffered"`
+	// UptimeSeconds is how long the counters above have been counting.
+	UptimeSeconds float64 `json:"uptime_seconds"`
 }
 
 // MarshalJSON implements json.Marshaler for IngestorStats.

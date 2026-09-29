@@ -1896,6 +1896,7 @@ func (s *Server) broadcastEBPFEvents(ctx context.Context) {
 	s.ebpfIngestor.OnEvent(func(env ebpfPkg.EventEnvelope) {
 		data, err := json.Marshal(map[string]interface{}{
 			"type": "ebpf_" + env.Type,
+			"seq":  env.Seq,
 			"data": env.Data,
 		})
 		if err != nil {
@@ -2412,10 +2413,26 @@ func (s *Server) handleEBPFEvents(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	events := s.ebpfIngestor.RecentEvents(limit)
+	// after_seq pages: without it every poll re-sent the newest 100 and the
+	// UI counted and listed them again each time.
+	var afterSeq uint64
+	if v := r.URL.Query().Get("after_seq"); v != "" {
+		n, err := strconv.ParseUint(v, 10, 64)
+		if err != nil {
+			http.Error(w, "after_seq must be a non-negative integer", http.StatusBadRequest)
+			return
+		}
+		afterSeq = n
+	}
+
+	events, lastSeq := s.ebpfIngestor.EventsSince(afterSeq, limit)
+	if events == nil {
+		events = []ebpfPkg.EventEnvelope{}
+	}
 	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		"events": events,
-		"count":  len(events),
+		"events":   events,
+		"count":    len(events),
+		"last_seq": lastSeq,
 	})
 }
 
