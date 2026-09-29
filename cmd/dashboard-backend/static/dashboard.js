@@ -80,7 +80,6 @@
         eventTypeFilter: 'all',
         eventServiceFilter: '',
         eventHostFilter: '',
-        eventStreamTotal: 0,
 
         latencyHistory: [],
         latencyP99Hist: {},
@@ -560,6 +559,11 @@
             state.ebpfTotalPrev = { ts: nowMs, total: totalIngested };
         }
         setText(el.statEps, state.ebpfEps == null ? '--' : state.ebpfEps.toFixed(1));
+        // The Events page shows the server's numbers, so every browser viewing
+        // the dashboard reads the same. (It counted what this tab had
+        // received since it opened: two tabs never agreed.)
+        setText(el.eventStreamTotal, formatNumber(totalIngested));
+        setText(el.eventStreamRate, state.ebpfEps == null ? '--' : state.ebpfEps.toFixed(1));
         // Uptime is the window the counters cover, not this tab's age.
         if (typeof stats.uptime_seconds === 'number') {
             state.backendStartMs = nowMs - stats.uptime_seconds * 1000;
@@ -609,7 +613,6 @@
                 summary: ev.message || ev.summary || JSON.stringify(ev).slice(0, 120)
             };
         });
-        state.eventStreamTotal += events.length;
         var shown = normalized.filter(function(ev) {
             return isPacketEvent(ev) ? (++_pktSampleN % 1000 === 0) : true;
         });
@@ -644,7 +647,6 @@
         };
         state.events.unshift(ev);
         if (state.events.length > CONFIG.events.maxItems) state.events.pop();
-        state.eventStreamTotal++;
         if (!state.eventStreamPaused && state.activePage === 'events') {
             appendEventStreamItems([ev]);
         }
@@ -657,7 +659,6 @@
             state.ebpfSeq = seq;
         }
         var evType = type.replace('ebpf_', '');
-        state.eventStreamTotal++; // count every event (keeps total/rate accurate)
         // 1-in-1000 sampling of the packet firehose; other types pass through.
         if (evType === 'packet' && (++_pktSampleN % 1000 !== 0)) return;
         var ev = {
@@ -1346,6 +1347,9 @@
         // allowance). Every event is still counted in the total/rate upstream.
         var _now = Date.now();
         var _rps = CONFIG.events.rowsPerSec || 12;
+        // Start with a full budget: starting at 0 and refilling from the first
+        // call dropped the first batch shown after opening the page.
+        if (state._feedTs == null) { state._feedTs = _now; state._feedBudget = _rps; }
         state._feedBudget = Math.min((state._feedBudget || 0) + (_now - (state._feedTs || _now)) / 1000 * _rps, _rps);
         state._feedTs = _now;
         var shown = [];
@@ -1369,7 +1373,6 @@
         });
         while (el.eventStreamList.children.length > CONFIG.events.maxItems)
             el.eventStreamList.removeChild(el.eventStreamList.lastChild);
-        setText(el.eventStreamTotal, state.eventStreamTotal);
         setText(el.eventStreamVisible, el.eventStreamList.children.length);
     }
 
@@ -1493,13 +1496,6 @@
             if (state.activePage === 'flows') resizeFlowCanvas();
         });
 
-        // Event rate counter
-        var lastTotal = 0;
-        setInterval(function() {
-            var rate = state.eventStreamTotal - lastTotal;
-            lastTotal = state.eventStreamTotal;
-            setText(el.eventStreamRate, rate);
-        }, 1000);
     }
 
     if (document.readyState === 'loading') {

@@ -9,9 +9,14 @@ global.Date = class extends RealDate { constructor(...a) { a.length ? super(...a
 const els = {};
 function mkEl(id) {
   const target = { id, textContent: '', innerHTML: '', style: {}, dataset: {}, classList: { add(){}, remove(){}, toggle(){}, contains(){ return false; } },
-    children: [], value: '', width: 800, height: 600 };
+    children: [], value: '', width: 800, height: 600,
+    insertBefore(item, ref) { const i = this.children.indexOf(ref); i < 0 ? this.children.push(item) : this.children.splice(i, 0, item); return item; },
+    appendChild(item) { this.children.push(item); return item; },
+    removeChild(item) { const i = this.children.indexOf(item); if (i >= 0) this.children.splice(i, 1); return item; } };
   return new Proxy(target, { get(t, k) {
-    if (k in t) return t[k];
+    if (k === 'firstChild') return t.children[0] || null;
+    if (k === 'lastChild') return t.children[t.children.length - 1] || null;
+    if (k in t) return typeof t[k] === 'function' ? t[k].bind(t) : t[k];
     if (k === 'getContext') return () => new Proxy({}, { get: () => () => ({ addColorStop(){} }) , set: () => true });
     if (k === 'getBoundingClientRect') return () => ({ width: 800, height: 600, left: 0, top: 0 });
     return typeof k === 'string' ? (() => mkEl(id + '.' + k)) : undefined;
@@ -51,4 +56,5 @@ const text = id => (els[id] ? String(els[id].textContent) : '(none)');
 let fails = 0;
 const check = (name, got, want) => { const ok = got === want; if (!ok) fails++; console.log((ok ? 'ok   ' : 'FAIL ') + name + ': ' + JSON.stringify(got) + (ok ? '' : ' want ' + JSON.stringify(want))); };
 module.exports = { run: async (setup) => { routes = setup.routes; eval(src); await settle(); await setup.steps({ intervals, fetched, text, check, settle, ws: () => ws, advance: ms => { now += ms; }, setRoute: (k, f) => { routes[k] = f; },
-    clickTab: page => tabHandlers.forEach(fn => fn.call({ dataset: { page } })), html: id => (els[id] ? String(els[id].innerHTML) : '(none)') }); console.log(fails ? `${fails} FAILED` : 'ALL OK'); process.exit(fails ? 1 : 0); } };
+    clickTab: page => tabHandlers.forEach(fn => fn.call({ dataset: { page } })), html: id => (els[id] ? String(els[id].innerHTML) : '(none)'),
+    rows: id => (els[id] ? els[id].children.length : 0) }); console.log(fails ? `${fails} FAILED` : 'ALL OK'); process.exit(fails ? 1 : 0); } };
