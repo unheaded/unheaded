@@ -145,12 +145,33 @@ Publish a message to a topic. Requires an approved subscriber ID.
 ```
 
 **Errors:**
-- `400` — Missing or invalid `subscriber_id` / `payload`
+- `400` — Missing or invalid `subscriber_id` / `payload`, or `{topic}` is a pattern
 - `403` — Subscriber not approved (still pending)
 
 ### GET /api/v1/topics/{topic}/messages
 
-Retrieve messages from a topic's ring buffer.
+Retrieve messages from a topic's ring buffer, oldest first. `{topic}` may be
+a pattern (see [Patterns](#patterns)); the response then merges every
+matching topic, and each message's `topic` is the topic it was published to.
+
+**Query:** `after_seq` (default 0) returns messages with `seq` greater than
+it; `limit` (default and maximum 1000) caps the page. Bad values are `400`.
+
+**Response:**
+```json
+{
+  "messages": [
+    {"message_id": "...", "topic": "alerts.critical", "seq": 43, "payload": "...", "created_at": "..."}
+  ],
+  "last_seq": 57
+}
+```
+
+To follow a topic or pattern, pass the highest `seq` received as the next
+`after_seq`. `last_seq` is the newest seq Wotan holds (for a single topic,
+that topic's newest; for a pattern, Wotan's newest). Seqs live in memory
+and start again at 1 when Wotan restarts, so `last_seq` below your cursor
+means Wotan restarted: start again from 0.
 
 ### GET /api/v1/topics
 
@@ -164,7 +185,28 @@ Topics use dot-separated hierarchical names:
 - `logs.timeguru.info` — Timeguru info-level logs
 - `system.discovery` — Service discovery events
 
-**Allowed characters:** `a-z`, `A-Z`, `0-9`, `.`, `-`, `_`, `*`, `#`
+**Allowed characters:** `a-z`, `A-Z`, `0-9`, `.`, `-`, `_`, and `*`, `#` in patterns
+
+### Sequence numbers
+
+Every message gets a `seq` from one counter shared by all topics. Within a
+topic seqs strictly increase (with gaps); across topics they give one order,
+which is what lets a single cursor follow a pattern.
+
+### Patterns
+
+Subscribing and reading accept a pattern; publishing does not (`400`).
+
+| pattern | matches |
+|---|---|
+| `alerts.*` | `alerts.critical`, `alerts.warn` (exactly one segment) |
+| `ebpf.*.events` | `ebpf.flow.events`, `ebpf.packet.events` |
+| `logs.#` | `logs.sophia.info`, `logs.a.b.c` (one or more trailing segments) |
+| `*` or `#` alone | every topic |
+
+`#` starts a URL fragment, so send it as `%23` (`/api/v1/topics/logs.%23/messages`).
+Subscribing to a pattern creates no topic. gRPC `StreamTopics` takes the same
+patterns and its `since_seq` works the same way.
 
 ## Adding a New Service
 
