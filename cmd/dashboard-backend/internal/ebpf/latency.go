@@ -79,8 +79,13 @@ func (lh *LatencyHistogram) Ingest(e *LatencyEvent) {
 		return
 	}
 
+	// Windows run on arrival time, not e.TimestampNs. Producers disagree on
+	// what that is: latency-probe stamps bpf_ktime_get_ns() (time since
+	// boot), trace-collector overwrites it with wall time, and a lagging
+	// or skewed producer lands outside every window. Arrival order is also
+	// what Expire's sort.Search needs.
 	sample := latencySample{
-		timestamp: e.Time(),
+		timestamp: time.Now(),
 		latencyNs: e.LatencyNs,
 	}
 
