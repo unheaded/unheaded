@@ -798,6 +798,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 			go func() {
 				ticker := time.NewTicker(200 * time.Millisecond)
 				defer ticker.Stop()
+				rtts := newRTTTracker()
 				log.Info().Msg("direct latency map reader started (cilium/ebpf)")
 				for {
 					select {
@@ -813,6 +814,12 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 							}
 							le, err := DecodeLatencyEntry(value)
 							if err != nil {
+								continue
+							}
+							// Only flows with a new measurement since the last
+							// sweep; re-emitting every flow's latest RTT each
+							// 200 ms weighted percentiles by flows x sweeps.
+							if !rtts.fresh(key, le.Samples) {
 								continue
 							}
 
@@ -845,6 +852,9 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 							}
 							_ = wotanPub.PublishRaw(ctx, "traces.latency", payload)
 							publisher.PublishLatencyEvent(payload)
+						}
+						if iter.Err() == nil { // a partial sweep must not forget unvisited flows
+							rtts.endSweep()
 						}
 					}
 				}
