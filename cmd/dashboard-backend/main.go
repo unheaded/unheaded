@@ -366,14 +366,9 @@ func getEventTopics() []string {
 		"decisions.*",
 		"state.*",
 		"architecture.*",
-		"ebpf.packet.events",
-		"ebpf.flow.events",
-		"ebpf.latency.events",
-		"ebpf.syscall.events",
-		"compute.hop",
-		"compute.miss",
-		"compute.halt",
-		"compute.syscall",
+		// Not ebpf.* / compute.*: the eBPF ingestor consumes those
+		// (ebpfPkg.Topics). Subscribed here too, each event reached the
+		// page a second time as a generic "event".
 		"traces.packet",
 		"traces.flow",
 		"traces.latency",
