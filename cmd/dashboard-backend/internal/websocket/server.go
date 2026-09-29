@@ -218,7 +218,7 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		config:     config,
 		log:        log,
 		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte, 256),
+		broadcast:  make(chan []byte, broadcastBuffer),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
 		shutdown:   make(chan struct{}),
@@ -669,8 +669,17 @@ func (s *Server) writeFrame(c *Client, opcode byte, payload []byte) error {
 	return nil
 }
 
-// Broadcast sends a message to all connected clients
+// broadcastBuffer absorbs bursts: the eBPF ingest arrives in batches (the
+// demo injector publishes ~75 events at once each second) and every event
+// is a broadcast. At 256 the channel overflowed in steady state.
+const broadcastBuffer = 4096
+
+// Broadcast sends a message to all connected clients. With none connected it
+// does nothing: queuing messages for nobody only produced drop warnings.
 func (s *Server) Broadcast(message []byte) {
+	if s.ConnectionCount() == 0 {
+		return
+	}
 	select {
 	case s.broadcast <- message:
 	case <-s.shutdown:
