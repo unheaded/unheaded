@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -18,6 +19,7 @@ import (
 	"unheaded/pkg/httputil"
 	"unheaded/services/wotan/internal/ringbuffer"
 	"unheaded/services/wotan/internal/store"
+	"unheaded/services/wotan/internal/topicpattern"
 )
 
 // Ensure store import is used
@@ -122,8 +124,12 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 		req.DisplayName = "service"
 	}
 
-	// Create or get the room backing this topic
-	s.RoomManager.GetOrCreate(topic, topic)
+	// Create or get the room backing this topic. A pattern ("alerts.*")
+	// names a set of topics, not one: creating a room for it made a topic
+	// literally called "alerts.*".
+	if !topicpattern.IsPattern(topic) {
+		s.RoomManager.GetOrCreate(topic, topic)
+	}
 
 	// Create a pending member
 	newMember := s.MemberManager.RequestJoin(topic, req.DisplayName, "", s.PendingApprovalTimeout)
@@ -181,6 +187,10 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 	topic := extractTopic(r.URL.Path, "/api/v1/topics/", "/publish")
 	if topic == "" {
 		writeError(w, http.StatusBadRequest, "topic is required")
+		return
+	}
+	if topicpattern.IsPattern(topic) {
+		writeError(w, http.StatusBadRequest, "cannot publish to a topic pattern")
 		return
 	}
 
@@ -296,6 +306,11 @@ func (s *Server) GetTopicMessages(w http.ResponseWriter, r *http.Request) {
 		limit = min(n, maxTopicMessagesPage)
 	}
 
+	if topicpattern.IsPattern(topic) {
+		s.getPatternMessages(w, topic, afterSeq, limit)
+		return
+	}
+
 	// Get the room for this topic
 	rm, err := s.RoomManager.Get(topic)
 	if err != nil {
@@ -324,6 +339,50 @@ func (s *Server) GetTopicMessages(w http.ResponseWriter, r *http.Request) {
 		// last_seq lets a poller whose cursor is ahead of it see that Wotan
 		// restarted (seqs are in memory and start again at 1) and rewind.
 		"last_seq": lastSeq,
+	})
+}
+
+// getPatternMessages serves GET /api/v1/topics/{pattern}/messages: messages
+// from every topic matching the pattern with seq > afterSeq, oldest first,
+// each labelled with its own topic. Seqs are global across topics, so one
+// cursor pages them all.
+//
+// Only seqs up to the counter value read before scanning are returned. A
+// seq is assigned and stored under its ring's lock, so everything at or
+// below that value is already in place, while a later one may still be
+// landing in a ring scanned earlier; returning it would move the caller's
+// cursor past that message for good.
+func (s *Server) getPatternMessages(w http.ResponseWriter, pattern string, afterSeq int64, limit int) {
+	upper := s.RoomManager.LastSeq()
+
+	var msgs []TopicMessage
+	for _, rm := range s.RoomManager.List() {
+		if !topicpattern.Match(pattern, rm.ID) {
+			continue
+		}
+		// Each ring returns its oldest `limit` after the cursor, in seq order,
+		// so the merged first `limit` are the globally oldest.
+		for _, msg := range rm.Buffer.GetAfter(afterSeq, limit) {
+			if msg.Seq > upper {
+				break
+			}
+			msgs = append(msgs, ringbufferToTopicMessage(msg, rm.ID))
+		}
+	}
+	sort.Slice(msgs, func(i, j int) bool { return msgs[i].Seq < msgs[j].Seq })
+	if len(msgs) > limit {
+		msgs = msgs[:limit]
+	}
+	if msgs == nil {
+		msgs = []TopicMessage{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+		"messages": msgs,
+		// Wotan's newest seq: a cursor above it is from before a restart.
+		"last_seq": upper,
 	})
 }
 
