@@ -595,7 +595,7 @@ services:
     environment:
       WOTAN_ADDR: "wotan:18000"
       WOTAN_GRPC_ADDR: "wotan:18001"   # default is localhost:18001 — inside a container that is nobody, and the stream client never falls back to HTTP
-    command: ["/app/architect", "-addr", ":19001"]
+    command: ["-addr", ":19001"]
     ports:
       - "19001:19001"
     networks:
@@ -645,7 +645,7 @@ services:
     tmpfs:
       - /tmp:size=32M
       - /data:size=64M
-    command: ["/app/micromanager", "-port", "19003"]
+    command: ["-port", "19003"]
     ports:
       - "19003:19003"
     networks:
@@ -690,7 +690,7 @@ services:
       - ALL
     tmpfs:
       - /tmp:size=16M
-    command: ["/app/akira", "--config", "/etc/unheaded/akira.yaml", "--wotan", "wotan:18000", "--node", "${KINGDOM_NODE:-west}"]
+    command: ["--config", "/etc/unheaded/akira.yaml", "--wotan", "wotan:18000", "--node", "${KINGDOM_NODE:-west}"]
     volumes:
       - ./config/akira/akira.yaml:/etc/unheaded/akira.yaml:ro
     ports:
