@@ -38,6 +38,11 @@ type mockTopicStreamServer struct {
 	publishErr    error
 	streamStarted chan struct{} // signals when a StreamTopics call arrives
 	streamKill    chan struct{} // signals active streams to close (set by setStreamError)
+	// restartRule mirrors Wotan: a since_seq above every held seq is from
+	// before a restart, so everything held is replayed.
+	restartRule bool
+	sinces      []int64 // since_seq of every StreamTopics call
+	killErr     error   // returned by a killed stream; nil = a plain error
 }
 
 func newMockServer() *mockTopicStreamServer {
@@ -59,6 +64,17 @@ func (s *mockTopicStreamServer) StreamTopics(req *chatpb.TopicStreamRequest, str
 	msgs := make([]*chatpb.TopicEvent, len(s.messages))
 	copy(msgs, s.messages)
 	killCh := s.streamKill
+	s.sinces = append(s.sinces, req.SinceSeq)
+	since := req.SinceSeq
+	if s.restartRule {
+		var maxSeq int64
+		for _, m := range msgs {
+			maxSeq = max(maxSeq, m.Seq)
+		}
+		if since > maxSeq {
+			since = 0
+		}
+	}
 	s.mu.Unlock()
 
 	// Signal that stream has been requested
@@ -74,7 +90,7 @@ func (s *mockTopicStreamServer) StreamTopics(req *chatpb.TopicStreamRequest, str
 	// Send all queued messages
 	for _, msg := range msgs {
 		// Filter by since_seq
-		if msg.Seq <= req.SinceSeq {
+		if msg.Seq <= since {
 			continue
 		}
 		if err := stream.Send(msg); err != nil {
@@ -87,6 +103,12 @@ func (s *mockTopicStreamServer) StreamTopics(req *chatpb.TopicStreamRequest, str
 	case <-stream.Context().Done():
 		return stream.Context().Err()
 	case <-killCh:
+		s.mu.Lock()
+		kerr := s.killErr
+		s.mu.Unlock()
+		if kerr != nil {
+			return kerr
+		}
 		return fmt.Errorf("stream killed by setStreamError")
 	}
 }
