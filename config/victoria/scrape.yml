@@ -29,14 +29,39 @@ scrape_configs:
       - targets: ["host.docker.internal:19003"]
     metrics_path: /metrics
 
+  - job_name: "monad"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:19004"]
+    metrics_path: /metrics
+
+  - job_name: "sophia"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:19005"]
+    metrics_path: /metrics
+
+  - job_name: "cuirass"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:19006"]
+    metrics_path: /metrics
+
   - job_name: "dashboard-backend"
     scrape_interval: 10s
     static_configs:
-      - targets: ["host.docker.internal:16667"]
+      - targets: ["host.docker.internal:20000"]
     metrics_path: /metrics
+    # host-agent pushes host_* straight into VictoriaMetrics; the dashboard
+    # re-exports the same numbers for its own UI. Keep one source here so a
+    # host panel draws one line per host, not two.
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: "host_.*"
+        action: drop
 
   - job_name: "kanban-app"
     scrape_interval: 10s
     static_configs:
-      - targets: ["host.docker.internal:16668"]
+      - targets: ["host.docker.internal:20001"]
     metrics_path: /metrics
