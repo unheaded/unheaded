@@ -280,6 +280,10 @@ type Scraper struct {
 	targets map[string]*ServiceTarget
 	series  map[string]*MetricSeries
 	results map[string]*ScrapeResult
+	// good and prevGood are each service's last two successful scrapes:
+	// the pair Summary derives rates from. A failed scrape changes neither.
+	good     map[string]*ScrapeResult
+	prevGood map[string]*ScrapeResult
 
 	targetsMu sync.RWMutex
 	seriesMu  sync.RWMutex
@@ -314,11 +318,13 @@ func NewScraper(config *Config, log *logger.Logger) (*Scraper, error) {
 		client: &http.Client{
 			Timeout: config.ScrapeTimeout,
 		},
-		targets: make(map[string]*ServiceTarget),
-		series:  make(map[string]*MetricSeries),
-		results: make(map[string]*ScrapeResult),
-		stopCh:  make(chan struct{}),
-		doneCh:  make(chan struct{}),
+		targets:  make(map[string]*ServiceTarget),
+		series:   make(map[string]*MetricSeries),
+		results:  make(map[string]*ScrapeResult),
+		good:     make(map[string]*ScrapeResult),
+		prevGood: make(map[string]*ScrapeResult),
+		stopCh:   make(chan struct{}),
+		doneCh:   make(chan struct{}),
 	}, nil
 }
 
@@ -703,6 +709,12 @@ func (s *Scraper) IngestSample(sample MetricSample) {
 func (s *Scraper) storeResult(result *ScrapeResult) {
 	s.resultsMu.Lock()
 	s.results[result.Service] = result
+	if result.Error == "" {
+		if last, ok := s.good[result.Service]; ok {
+			s.prevGood[result.Service] = last
+		}
+		s.good[result.Service] = result
+	}
 	s.resultsMu.Unlock()
 
 	if s.onScrapeComplete != nil {

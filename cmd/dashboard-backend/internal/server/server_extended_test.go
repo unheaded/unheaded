@@ -1587,3 +1587,38 @@ func TestHandleStaticIndex_NotFound(t *testing.T) {
 		t.Errorf("status = %d, want 404", w.Code)
 	}
 }
+
+// ---- Metrics Summary Endpoint ----
+
+func TestHandleMetricsSummary(t *testing.T) {
+	srv := newStartedTestServer(t)
+
+	w := httptest.NewRecorder()
+	srv.handleMetricsSummary(w, httptest.NewRequest(http.MethodPost, "/api/v1/metrics/summary", nil))
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("POST status = %d, want 405", w.Code)
+	}
+
+	w = httptest.NewRecorder()
+	srv.handleMetricsSummary(w, httptest.NewRequest(http.MethodGet, "/api/v1/metrics/summary", nil))
+	if w.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", w.Code)
+	}
+	var body map[string]json.RawMessage
+	if err := json.Unmarshal(w.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode: %v (%s)", err, w.Body.String())
+	}
+	// Before two scrapes there is no rate: null, which the panel shows as
+	// "--", never a fabricated 0.
+	for _, k := range []string{"request_rate", "error_rate", "latency_ms", "dashboard_clients", "services_reporting"} {
+		if _, ok := body[k]; !ok {
+			t.Errorf("missing %q in %s", k, w.Body.String())
+		}
+	}
+	if string(body["request_rate"]) != "null" {
+		t.Errorf("request_rate before any scrape pair = %s, want null", body["request_rate"])
+	}
+	if string(body["dashboard_clients"]) != "0" {
+		t.Errorf("dashboard_clients = %s, want 0", body["dashboard_clients"])
+	}
+}

@@ -689,6 +689,7 @@ func (s *Server) setupRoutes() {
 	// API v1 endpoints
 	s.mux.HandleFunc("/api/v1/metrics", s.handleAPIMetrics)
 	s.mux.HandleFunc("/api/v1/metrics/query", s.handleMetricsQuery)
+	s.mux.HandleFunc("/api/v1/metrics/summary", s.handleMetricsSummary)
 	s.mux.HandleFunc("/api/v1/services", s.handleServices)
 	s.mux.HandleFunc("/api/v1/services/", s.handleServiceByName)
 	s.mux.HandleFunc("/api/v1/events", s.handleEvents)
@@ -1005,6 +1006,39 @@ func (s *Server) handleAPIMetrics(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(metrics) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+}
+
+// metricsSummaryResponse is the summary panel's feed: rates and quantiles
+// derived from scrape pairs (scraper.PanelSummary), plus this dashboard's own
+// live clients, the only "connections" count any service here publishes.
+type metricsSummaryResponse struct {
+	*scraper.PanelSummary
+	DashboardClients int `json:"dashboard_clients"`
+}
+
+// handleMetricsSummary handles GET /api/v1/metrics/summary.
+func (s *Server) handleMetricsSummary(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	s.streamSubsMu.RLock()
+	streams := len(s.streamSubs)
+	s.streamSubsMu.RUnlock()
+
+	// Encode before writing the status: a failed encode must be a 500, not
+	// the 200-with-empty-body /api/v1/metrics used to send.
+	body, err := json.Marshal(metricsSummaryResponse{
+		PanelSummary:     s.scraper.Summary(),
+		DashboardClients: s.wsServer.ConnectionCount() + streams,
+	})
+	if err != nil {
+		http.Error(w, "encode summary", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_, _ = w.Write(body) // #nosec G104 -- status committed; a failed write means the client left
 }
 
 // handleMetricsQuery handles POST /api/v1/metrics/query - query specific metrics
