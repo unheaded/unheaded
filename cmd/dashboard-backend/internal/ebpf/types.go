@@ -199,6 +199,21 @@ func (e *SyscallEvent) Time() time.Time {
 	return time.Unix(0, int64(e.TimestampNs)) // #nosec G115 -- bounded by construction; see the surrounding guard
 }
 
+// observedAt is when an event happened, for windows and liveness: the
+// producer's timestamp_ns when it reads as recent wall-clock time, else
+// the arrival time. Producers differ. trace-collector sends flow events
+// with bpf_ktime_get_ns() (time since boot: 1970 as a wall clock) but
+// latency events with wall time, and a stream's first connect replays the
+// history Wotan holds, whose wall stamps are old and must stay out of "the
+// last 60 s". A stamp ahead of now (clock skew) counts as now.
+func observedAt(tsNs uint64, now time.Time) time.Time {
+	t := time.Unix(0, int64(tsNs)) // #nosec G115 -- nanosecond timestamp; the range check below decides whether it is used
+	if d := now.Sub(t); d >= 0 && d < 24*time.Hour {
+		return t
+	}
+	return now
+}
+
 // ParsePacketEvent parses a JSON payload into a PacketEvent.
 func ParsePacketEvent(data []byte) (*PacketEvent, error) {
 	var e PacketEvent
