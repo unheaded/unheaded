@@ -6,6 +6,7 @@ package grpc
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -995,5 +996,62 @@ func TestForwardTopicEvents_SubscribersAgreeOnSeq(t *testing.T) {
 		case <-time.After(2 * time.Second):
 			t.Fatalf("subscriber %d got nothing", i)
 		}
+	}
+}
+
+// replaySeqs runs StreamTopics until the replay has had time to finish and
+// returns the seqs sent, per topic.
+func replaySeqs(t *testing.T, svc *TopicService, pattern string, since int64) map[string][]int64 {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 150*time.Millisecond)
+	defer cancel()
+	stream := newMockTopicStream(ctx)
+	_ = svc.StreamTopics(&chatpb.TopicStreamRequest{TopicPattern: pattern, SinceSeq: since}, stream)
+	got := map[string][]int64{}
+	for _, e := range stream.getEvents() {
+		got[e.Topic] = append(got[e.Topic], e.Seq)
+	}
+	return got
+}
+
+func seedTopic(svc *TopicService, topic string, n int) {
+	rm := svc.roomManager.Create(topic, topic)
+	m := svc.memberManager.RequestJoin(topic, "sys", "", 5*time.Minute)
+	svc.memberManager.Approve(m.ID, "admin")
+	for i := 0; i < n; i++ {
+		rm.SendMessage(m.ID, fmt.Sprintf("m%d", i+1))
+	}
+}
+
+// A client resuming after a Wotan restart asks for seqs above anything the
+// new process has numbered. Replaying nothing loses every message published
+// between the restart and the reconnect.
+func TestStreamTopics_CursorFromBeforeRestartReplaysHeld(t *testing.T) {
+	svc := setupTopicService()
+	seedTopic(svc, "orders.created", 3)
+
+	if got := replaySeqs(t, svc, "orders.created", 500)["orders.created"]; fmt.Sprint(got) != "[1 2 3]" {
+		t.Errorf("since_seq=500 on a 3-message topic replayed %v, want [1 2 3]", got)
+	}
+	// An in-range cursor still means "after this".
+	if got := replaySeqs(t, svc, "orders.created", 2)["orders.created"]; fmt.Sprint(got) != "[3]" {
+		t.Errorf("since_seq=2 replayed %v, want [3]", got)
+	}
+	// Caught up: nothing.
+	if got := replaySeqs(t, svc, "orders.created", 3)["orders.created"]; len(got) != 0 {
+		t.Errorf("since_seq=3 replayed %v, want nothing", got)
+	}
+}
+
+// One cursor across several topics is not a cursor for any of them; the
+// restart rule would replay whole topics on every reconnect, so it does not
+// apply to multi-topic streams.
+func TestStreamTopics_RestartRuleOnlyForSingleTopicStreams(t *testing.T) {
+	svc := setupTopicService()
+	seedTopic(svc, "multi.a", 2)
+	seedTopic(svc, "multi.b", 2)
+
+	if got := replaySeqs(t, svc, "multi.*", 500); len(got) != 0 {
+		t.Errorf("multi-topic since_seq=500 replayed %v, want nothing", got)
 	}
 }
