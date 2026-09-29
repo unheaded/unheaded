@@ -3,11 +3,13 @@
 
 // LICH-005: eBPF Kernel Interface Boundary Fuzzer
 //
-// ⚠ SIMULATION, NOT COVERAGE — and the one harness in this set with a
-// genuine gap behind it. The declared target is reachable in principle
-// through cilium/ebpf, but needs a kernel and privileges, so it is not a
-// pure-userspace fuzz target. This remains OPEN in the ADR-062 inventory.
-// ADR-062 audit, 2026-09-23.
+// ⚠ SIMULATION, NOT COVERAGE. It fuzzes structs defined in this file, not
+// product code. The real userspace targets are pkg/ebpf/lich005_fuzz_test.go
+// (loader ELF/BTF/maps parsing, anamnesis decoders) and
+// cmd/trace-collector-go/decode_fuzz_test.go (map and ring-buffer decoders);
+// the first found a loader panic on a crafted .bpf.o (2026-09-29). The
+// kernel half (bpf(2) itself) stays OPEN in ADR-062: it needs privileges
+// and a sacrificial VM.
 //
 // Target: eBPF map operations, BPF syscall attribute structs, and ELF parsing.
 // Goal: Find crashes at the boundary between userspace and kernel eBPF interfaces.
