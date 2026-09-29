@@ -2051,12 +2051,10 @@ func (s *Server) parseTraceTopicEvent(event events.Event) TraceEvent {
 	return te
 }
 
-// serviceFlowGenerator polls running Kingdom services and generates real
-// packet_flow events for the dashboard visualization. This provides live
-// flow data even when BPF programs aren't available (e.g., macOS dev).
-//
-// Each health check response produces a flow event showing the request
-// path through the service mesh: gateway → wotan → <service>.
+// serviceFlowGenerator polls the Kingdom services' /health every 2 s and
+// records each successful check (recordHealthCheck): a latency sample
+// per service, which /api/v1/latency serves when BPF is unavailable
+// (e.g., macOS dev), and an event for the Events page.
 func (s *Server) serviceFlowGenerator(ctx context.Context) {
 	defer s.wg.Done()
 
@@ -2088,7 +2086,6 @@ func (s *Server) serviceFlowGenerator(ctx context.Context) {
 	client := &http.Client{Timeout: 2 * time.Second}
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()
-	seqNo := int64(0)
 
 	s.log.Info().Int("service_count", len(targets)).Msg("service flow generator started")
 
@@ -2112,106 +2109,53 @@ func (s *Server) serviceFlowGenerator(ctx context.Context) {
 					continue
 				}
 
-				seqNo++
-				statusCode := 200
-				totalTimeNs := latency.Nanoseconds()
-
-				// Record latency sample for the latency page
-				s.serviceLatenciesMu.Lock()
-				opName := "http_health_" + tgt.name
-				if s.serviceLatencies[opName] == nil {
-					s.serviceLatencies[opName] = newLatencySamples(500)
-				}
-				s.serviceLatencies[opName].Add(float64(totalTimeNs))
-				// Also record aggregate operations matching dashboard chart names
-				for _, aggOp := range []string{"tcp_connect", "tcp_send", "tcp_recv", "tcp_accept"} {
-					if s.serviceLatencies[aggOp] == nil {
-						s.serviceLatencies[aggOp] = newLatencySamples(500)
-					}
-				}
-				// tcp_connect ≈ initial connection latency (25% of total)
-				s.serviceLatencies["tcp_connect"].Add(float64(totalTimeNs) / 4)
-				// tcp_send ≈ request write (10% of total)
-				s.serviceLatencies["tcp_send"].Add(float64(totalTimeNs) / 10)
-				// tcp_recv ≈ response read (50% of total)
-				s.serviceLatencies["tcp_recv"].Add(float64(totalTimeNs) / 2)
-				// tcp_accept ≈ server accept (15% of total)
-				s.serviceLatencies["tcp_accept"].Add(float64(totalTimeNs) * 15 / 100)
-				s.serviceLatenciesMu.Unlock()
-
-				// Build hops: gateway → wotan → service
-				hops := []map[string]interface{}{
-					{
-						"component":    "gateway",
-						"latency":      totalTimeNs / 4,
-						"timestamp_ns": start.UnixNano(),
-					},
-					{
-						"component":    "wotan",
-						"latency":      totalTimeNs / 2,
-						"timestamp_ns": start.Add(latency / 4).UnixNano(),
-					},
-					{
-						"component":    tgt.name,
-						"latency":      totalTimeNs / 4,
-						"timestamp_ns": start.Add(latency * 3 / 4).UnixNano(),
-					},
-				}
-
-				flowEvent := map[string]interface{}{
-					"type": "packet_flow",
-					"data": map[string]interface{}{
-						"trace_id":    fmt.Sprintf("svc-%s-%d", tgt.name, seqNo),
-						"status_code": statusCode,
-						"total_time":  totalTimeNs,
-						"method":      "GET",
-						"path":        "/health",
-						"hops":        hops,
-					},
-				}
-
-				data, err := json.Marshal(flowEvent)
-				if err != nil {
-					continue
-				}
-				s.wsServer.Broadcast(data)
-
-				// Also broadcast to stream subscribers
-				streamMsg := &StreamMessage{
-					Type:      "flow",
-					Service:   tgt.name,
-					Timestamp: start,
-					Data:      flowEvent["data"],
-				}
-				s.broadcastToStream(streamMsg)
-
-				// Also broadcast as an event so the Events page shows activity
-				hostName, _ := os.Hostname()
-				eventMsg := map[string]interface{}{
-					"type": "event",
-					"data": map[string]interface{}{
-						"type":      "flow",
-						"topic":     "health." + tgt.name,
-						"source":    "service-flow-generator",
-						"timestamp": start.Format(time.RFC3339Nano),
-						"message":   fmt.Sprintf("GET /health %s → %dms", tgt.name, latency.Milliseconds()),
-						"service":   tgt.name,
-						"host":      hostName,
-						"data": map[string]interface{}{
-							"service":    tgt.name,
-							"host":       hostName,
-							"method":     "GET",
-							"path":       "/health",
-							"status":     statusCode,
-							"latency_ms": float64(latency.Microseconds()) / 1000.0,
-						},
-					},
-				}
-				eventData, _ := json.Marshal(eventMsg)
-				s.wsServer.Broadcast(eventData)
+				s.recordHealthCheck(tgt.name, start, latency)
 			}
 		}
 	}
+}
+
+// recordHealthCheck records one successful health check: its latency as the
+// "http_health_<service>" operation (served by /api/v1/latency when no eBPF
+// ingestor is active) and an event for the Events page.
+//
+// It used to also invent tcp_connect/tcp_send/tcp_recv/tcp_accept samples
+// as fixed fractions (25/10/50/15 %) of the check's time, which the Latency
+// page then showed as TCP operation latencies, and a gateway → wotan →
+// service packet_flow with the time split 1/4, 1/2, 1/4, a path a health
+// check does not take. Only what was measured is kept.
+func (s *Server) recordHealthCheck(service string, start time.Time, latency time.Duration) {
+	s.serviceLatenciesMu.Lock()
+	opName := "http_health_" + service
+	if s.serviceLatencies[opName] == nil {
+		s.serviceLatencies[opName] = newLatencySamples(500)
+	}
+	s.serviceLatencies[opName].Add(float64(latency.Nanoseconds()))
+	s.serviceLatenciesMu.Unlock()
+
+	hostName, _ := os.Hostname()
+	eventMsg := map[string]interface{}{
+		"type": "event",
+		"data": map[string]interface{}{
+			"type":      "flow",
+			"topic":     "health." + service,
+			"source":    "service-flow-generator",
+			"timestamp": start.Format(time.RFC3339Nano),
+			"message":   fmt.Sprintf("GET /health %s → %dms", service, latency.Milliseconds()),
+			"service":   service,
+			"host":      hostName,
+			"data": map[string]interface{}{
+				"service":    service,
+				"host":       hostName,
+				"method":     "GET",
+				"path":       "/health",
+				"status":     http.StatusOK,
+				"latency_ms": float64(latency.Microseconds()) / 1000.0,
+			},
+		},
+	}
+	eventData, _ := json.Marshal(eventMsg)
+	s.wsServer.Broadcast(eventData)
 }
 
 // IngestTraceEvent allows external code (e.g. tests) to inject a trace event
