@@ -80,6 +80,17 @@ for svc in wotan monad sophia dashboard-backend kanban-app timeguru \
   check "container/$svc" "running" "$state"
 done
 
+# A compose `command` is appended to the image ENTRYPOINT. One that starts
+# with the binary again hands the binary its own path as the first argument,
+# Go's flag parsing stops there, and every flag is silently ignored (akira,
+# micromanager and architect ran like that until 2026-09-29).
+for c in $(docker compose ps -q 2>/dev/null); do
+  name=$(docker inspect -f '{{.Name}}' "$c" | tr -d /)
+  dup=$(docker inspect -f '{{if and .Config.Entrypoint .Config.Cmd}}{{if eq (index .Config.Entrypoint 0) (index .Config.Cmd 0)}}repeated{{end}}{{end}}' "$c" 2>/dev/null)
+  [ -n "$dup" ] && check "command/$name" "flags-reach-binary" "entrypoint-repeated"
+done
+check "command/no-repeated-entrypoint" "ok" "ok"
+
 [ "$JSON" -eq 0 ] && echo "== HTTP endpoints =="
 
 check "http/dashboard"   "200" "$(http http://localhost:20000/)"
