@@ -281,7 +281,10 @@
     function refreshFlows()      { fetchJSON(CONFIG.api.flows,      updateFlowsData); }
     function refreshLatency()    { fetchJSON(CONFIG.api.latency,    updateLatencyData); }
     function refreshEBPFStats()  { fetchJSON(CONFIG.api.ebpfStats,  updateEBPFStats); }
-    function refreshEBPFEvents() { fetchJSON(CONFIG.api.ebpfEvents + '?after_seq=' + state.ebpfSeq, updateEBPFEvents); }
+    // limit=1000 (the server's cap): at ~70 events/s a 2 s poll is ~140 new
+    // events, and the default 100 dropped the rest from the count when the WS
+    // was down.
+    function refreshEBPFEvents() { fetchJSON(CONFIG.api.ebpfEvents + '?limit=1000&after_seq=' + state.ebpfSeq, updateEBPFEvents); }
     function refreshHosts()      { fetchJSON(CONFIG.api.hosts,      updateHostsData); }
     function refreshSummary()    { fetchJSON(CONFIG.api.summary,    updateSummaryData); }
 

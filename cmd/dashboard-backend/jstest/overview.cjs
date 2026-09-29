@@ -22,7 +22,7 @@ h.run({
     const poll = async () => { intervals.refreshEBPFEvents[0](); await settle(); };
     for (let i = 0; i < 5; i++) await poll();
     check('5 repeat polls add no events', rate(), '0');
-    check('poll cursor sent', fetched.filter(u => u.startsWith('/api/v1/ebpf/events')).pop(), '/api/v1/ebpf/events?after_seq=3');
+    check('poll cursor sent', fetched.filter(u => u.startsWith('/api/v1/ebpf/events')).pop(), '/api/v1/ebpf/events?limit=1000&after_seq=3');
     const msg = (s) => ws().onmessage({ data: JSON.stringify({ type: 'ebpf_flow', seq: s, data: {} }) });
     msg(3); check('WS event already polled is not recounted', rate(), '0');
     msg(4); check('new WS event counted once', rate(), '1');
@@ -31,7 +31,7 @@ h.run({
     lastSeq = 1; await poll();
     check('restart rewinds cursor', fetched.filter(u => u.startsWith('/api/v1/ebpf/events')).length > 0, true);
     await poll();
-    check('after rewind polls from 0', fetched.filter(u => u.startsWith('/api/v1/ebpf/events')).pop(), '/api/v1/ebpf/events?after_seq=0');
+    check('after rewind polls from 0', fetched.filter(u => u.startsWith('/api/v1/ebpf/events')).pop(), '/api/v1/ebpf/events?limit=1000&after_seq=0');
     check('post-restart event counted', rate(), '1');
 
     // Events/sec + uptime
