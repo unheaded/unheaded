@@ -41,14 +41,16 @@ type mockTopicStreamServer struct {
 	// restartRule mirrors Wotan: a since_seq above every held seq is from
 	// before a restart, so everything held is replayed.
 	restartRule bool
-	sinces      []int64 // since_seq of every StreamTopics call
-	killErr     error   // returned by a killed stream; nil = a plain error
+	sinces      []int64                 // since_seq of every StreamTopics call
+	killErr     error                   // returned by a killed stream; nil = a plain error
+	live        chan *chatpb.TopicEvent // pushed to the open stream after replay
 }
 
 func newMockServer() *mockTopicStreamServer {
 	return &mockTopicStreamServer{
 		streamStarted: make(chan struct{}, 10),
 		streamKill:    make(chan struct{}),
+		live:          make(chan *chatpb.TopicEvent, 10),
 	}
 }
 
@@ -87,7 +89,10 @@ func (s *mockTopicStreamServer) StreamTopics(req *chatpb.TopicStreamRequest, str
 		return err
 	}
 
-	// Send all queued messages
+	// Send all queued messages. Like Wotan, a negative since_seq replays nothing.
+	if req.SinceSeq < 0 {
+		msgs = nil
+	}
 	for _, msg := range msgs {
 		// Filter by since_seq
 		if msg.Seq <= since {
@@ -98,18 +103,26 @@ func (s *mockTopicStreamServer) StreamTopics(req *chatpb.TopicStreamRequest, str
 		}
 	}
 
-	// Keep stream open until context is cancelled OR kill signal received
-	select {
-	case <-stream.Context().Done():
-		return stream.Context().Err()
-	case <-killCh:
-		s.mu.Lock()
-		kerr := s.killErr
-		s.mu.Unlock()
-		if kerr != nil {
-			return kerr
+	// Keep stream open until context is cancelled OR kill signal received,
+	// forwarding live pushes.
+	for {
+		select {
+		case ev := <-s.live:
+			if err := stream.Send(ev); err != nil {
+				return err
+			}
+			continue
+		case <-stream.Context().Done():
+			return stream.Context().Err()
+		case <-killCh:
+			s.mu.Lock()
+			kerr := s.killErr
+			s.mu.Unlock()
+			if kerr != nil {
+				return kerr
+			}
+			return fmt.Errorf("stream killed by setStreamError")
 		}
-		return fmt.Errorf("stream killed by setStreamError")
 	}
 }
 

@@ -241,6 +241,10 @@ func main() {
 		httpFallback, _ := wotanClient.NewClient(*wotanAddr)
 		tsc, err := wotanClient.NewTopicStreamClient(grpcAddr,
 			wotanClient.WithHTTPFallback(httpFallback),
+			// The dashboard is a live view: replaying Wotan's held history on
+			// every start re-counted ~30k old events as just ingested and
+			// flooded the WebSocket broadcast.
+			wotanClient.WithLiveStart(),
 		)
 		if err != nil {
 			log.Warn().Err(err).Msg("failed to create TopicStreamClient, eBPF events disabled")
