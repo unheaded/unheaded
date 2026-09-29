@@ -187,23 +187,27 @@ func (ing *Ingestor) OnEvent(fn func(EventEnvelope)) {
 	ing.listeners = append(ing.listeners, fn)
 }
 
+// Topics are the Wotan topics the ingestor consumes. Nothing else in the
+// dashboard should subscribe to them, or the page gets each event twice.
+var Topics = []string{
+	"ebpf.packet.events",
+	"ebpf.flow.events",
+	"ebpf.latency.events",
+	"ebpf.syscall.events",
+	"compute.hop",
+	"compute.miss",
+	"compute.halt",
+	"compute.syscall",
+	"anamnesis.birth",
+	"anamnesis.hop",
+	"anamnesis.death",
+	"anamnesis.anomaly",
+	"anamnesis.chaos",
+}
+
 // Start subscribes to eBPF topics and begins ingesting events.
 func (ing *Ingestor) Start(ctx context.Context) error {
-	topics := []string{
-		"ebpf.packet.events",
-		"ebpf.flow.events",
-		"ebpf.latency.events",
-		"ebpf.syscall.events",
-		"compute.hop",
-		"compute.miss",
-		"compute.halt",
-		"compute.syscall",
-		"anamnesis.birth",
-		"anamnesis.hop",
-		"anamnesis.death",
-		"anamnesis.anomaly",
-		"anamnesis.chaos",
-	}
+	topics := Topics
 
 	for _, topic := range topics {
 		if _, err := ing.client.Subscribe(ctx, topic, "dashboard-backend"); err != nil {
