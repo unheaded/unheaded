@@ -50,42 +50,38 @@ type HealthReport struct {
 	Timestamp time.Time     `json:"timestamp"`
 }
 
-// ConsensusState tracks the aggregated health state of a service.
-type ConsensusState struct {
-	Service          string
-	TotalReporters   int
-	FailingReporters int
-	FailureRate      float64
-	AutoRestarts     int
-	LastRestart      time.Time
-	Reports          []HealthReport
-}
-
-// Akira monitors services and publishes health reports.
+// Akira health-checks services, casts each result as its own vote, and
+// tallies the votes of every reporter it hears from (see Ballot).
 type Akira struct {
 	nodeID  string
 	targets []ServiceTarget
 	client  *http.Client
 	logger  zerolog.Logger
 
-	mu     sync.RWMutex
-	states map[string]*ConsensusState // service name → state
+	ballot *Ballot
+
+	mu       sync.RWMutex
+	severity map[string]Severity // last severity per service, to report changes
+	verdicts map[string]Verdict  // last tally, for GetStates
 
 	sweeps atomic.Uint64 // completed CheckAll passes; see Sweeps
 
 	// Callbacks
-	onReport func(HealthReport)   // called for each health check
-	onAlert  func(ConsensusState) // called when consensus threshold hit
+	onReport func(HealthReport) // called for each of this node's checks
+	onChange func(Verdict)      // called when a service's severity changes
+	onAlert  func(Verdict)      // called while a service is at the remediation threshold
 }
 
 // NewAkira creates a new akira for the given node.
 func NewAkira(nodeID string, targets []ServiceTarget) *Akira {
 	return &Akira{
-		nodeID:  nodeID,
-		targets: targets,
-		client:  &http.Client{Timeout: 5 * time.Second},
-		logger:  log.With().Str("component", "akira").Str("node", nodeID).Logger(),
-		states:  make(map[string]*ConsensusState),
+		nodeID:   nodeID,
+		targets:  targets,
+		client:   &http.Client{Timeout: 5 * time.Second},
+		logger:   log.With().Str("component", "akira").Str("node", nodeID).Logger(),
+		ballot:   NewBallot(),
+		severity: map[string]Severity{},
+		verdicts: map[string]Verdict{},
 	}
 }
 
@@ -94,9 +90,20 @@ func (w *Akira) OnReport(fn func(HealthReport)) {
 	w.onReport = fn
 }
 
-// OnAlert sets a callback for consensus threshold triggers.
-func (w *Akira) OnAlert(fn func(ConsensusState)) {
+// OnSeverityChange sets a callback for a service moving between bands.
+func (w *Akira) OnSeverityChange(fn func(Verdict)) {
+	w.onChange = fn
+}
+
+// OnAlert sets a callback for services at the remediation threshold.
+func (w *Akira) OnAlert(fn func(Verdict)) {
 	w.onAlert = fn
+}
+
+// Record casts another reporter's report (e.g. read from Wotan's
+// system.health.reports) on the ballot.
+func (w *Akira) Record(r HealthReport) {
+	w.ballot.Record(r)
 }
 
 // CheckService performs a single health check on a service.
@@ -143,19 +150,7 @@ func (w *Akira) CheckAll() []HealthReport {
 			w.onReport(report)
 		}
 
-		// Update consensus state
-		w.mu.Lock()
-		state, ok := w.states[target.Name]
-		if !ok {
-			state = &ConsensusState{Service: target.Name}
-			w.states[target.Name] = state
-		}
-		state.Reports = append(state.Reports, report)
-		// Keep only last 10 reports
-		if len(state.Reports) > 10 {
-			state.Reports = state.Reports[len(state.Reports)-10:]
-		}
-		w.mu.Unlock()
+		w.ballot.Record(report)
 	}
 	w.sweeps.Add(1)
 	return reports
@@ -168,39 +163,41 @@ func (w *Akira) Sweeps() uint64 {
 	return w.sweeps.Load()
 }
 
-// EvaluateConsensus checks if any service has crossed the failure threshold.
-func (w *Akira) EvaluateConsensus() []ConsensusState {
-	w.mu.RLock()
-	defer w.mu.RUnlock()
+// EvaluateConsensus tallies the ballot. It reports each service whose
+// severity band changed since the last call, and returns (and reports) the
+// services at the remediation threshold.
+func (w *Akira) EvaluateConsensus() []Verdict {
+	verdicts := w.ballot.Tally(time.Now())
 
-	var alerts []ConsensusState
-	for _, state := range w.states {
-		if len(state.Reports) == 0 {
-			continue
+	w.mu.Lock()
+	var changed, alerts []Verdict
+	current := make(map[string]Verdict, len(verdicts))
+	for _, v := range verdicts {
+		current[v.Service] = v
+		if prev, ok := w.severity[v.Service]; !ok || prev != v.Severity {
+			changed = append(changed, v)
 		}
-
-		// Count recent failures (last 5 reports)
-		recent := state.Reports
-		if len(recent) > 5 {
-			recent = recent[len(recent)-5:]
+		w.severity[v.Service] = v.Severity
+		if v.Remediate {
+			alerts = append(alerts, v)
 		}
-
-		failing := 0
-		for _, r := range recent {
-			if !r.Healthy {
-				failing++
-			}
+	}
+	for svc := range w.severity {
+		if _, ok := current[svc]; !ok {
+			delete(w.severity, svc) // no fresh votes: no verdict
 		}
+	}
+	w.verdicts = current
+	w.mu.Unlock()
 
-		state.TotalReporters = len(recent)
-		state.FailingReporters = failing
-		state.FailureRate = float64(failing) / float64(len(recent))
-
-		if state.FailureRate >= ConsensusThreshold {
-			alerts = append(alerts, *state)
-			if w.onAlert != nil {
-				w.onAlert(*state)
-			}
+	for _, v := range changed {
+		if w.onChange != nil {
+			w.onChange(v)
+		}
+	}
+	for _, v := range alerts {
+		if w.onAlert != nil {
+			w.onAlert(v)
 		}
 	}
 	return alerts
@@ -243,21 +240,21 @@ func (w *Akira) Run(ctx context.Context) {
 				w.logger.Warn().
 					Str("service", alert.Service).
 					Float64("failure_rate", alert.FailureRate).
-					Int("restarts", alert.AutoRestarts).
+					Int("reporters", alert.Reporters).
 					Msg("CONSENSUS THRESHOLD — service needs remediation")
 			}
 		}
 	}
 }
 
-// GetStates returns current consensus states for all services.
-func (w *Akira) GetStates() map[string]ConsensusState {
+// GetStates returns the last tally's verdict per service.
+func (w *Akira) GetStates() map[string]Verdict {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
 
-	result := make(map[string]ConsensusState, len(w.states))
-	for k, v := range w.states {
-		result[k] = *v
+	result := make(map[string]Verdict, len(w.verdicts))
+	for k, v := range w.verdicts {
+		result[k] = v
 	}
 	return result
 }

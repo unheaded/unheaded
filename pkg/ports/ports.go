@@ -50,6 +50,9 @@ const (
 	Anomaly      = 19018
 	TelemetryAgg = 19019
 
+	// Kingdom health (19100-19109)
+	Akira = 19100 // consensus health daemon (ADR-029)
+
 	// Applications (20000-20999)
 	DashboardBackend = 20000
 	KanbanApp        = 20001

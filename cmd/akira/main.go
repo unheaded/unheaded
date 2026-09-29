@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -35,7 +36,9 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"unheaded/pkg/health"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/metrics"
+	"unheaded/pkg/ports"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
@@ -85,7 +88,7 @@ var defaultTargets = []health.ServiceTarget{
 	{Name: "monad", Host: "localhost", Port: 19004, HealthPath: "/health"},
 	{Name: "sophia", Host: "localhost", Port: 19005, HealthPath: "/health"},
 	{Name: "dashboard", Host: "localhost", Port: 20000, HealthPath: "/health"},
-	{Name: "kanban", Host: "localhost", Port: 16668, HealthPath: "/health"},
+	{Name: "kanban", Host: "localhost", Port: 20001, HealthPath: "/health"},
 	{Name: "zhenai", Host: "localhost", Port: 20103, HealthPath: "/health"},
 	{Name: "inference", Host: "localhost", Port: 20100, HealthPath: "/health"},
 	{Name: "daemon", Host: "localhost", Port: 17000, HealthPath: "/health"},
@@ -97,7 +100,8 @@ func main() {
 	once := flag.Bool("once", false, "Run single health sweep and exit")
 	configPath := flag.String("config", "", "Path to config YAML (optional)")
 	nodeID := flag.String("node", "", "Node identifier (default: hostname)")
-	listenPort := flag.Int("port", 16699, "HTTP API port for Akira status")
+	listenPort := flag.Int("port", ports.Akira, "HTTP API port for Akira status")
+	remediate := flag.Bool("remediate", false, "restart a service (systemctl restart unheaded-<name>) when two-thirds of reporters see it failing; off by default")
 	wotanAddr := flag.String("wotan", "http://localhost:18000", "Wotan HTTP address for publishing health reports")
 	flag.Parse()
 
@@ -128,22 +132,51 @@ func main() {
 		log.Info().Str("config", *configPath).Int("targets", len(targets)).Msg("loaded targets from config")
 	}
 
-	// Connect to Wotan (best-effort — Akira works without it)
+	// Connect to Wotan (best-effort — Akira works without it). A client must
+	// subscribe to a topic before it can publish there; Akira used to call
+	// Publish without subscribing and discard the error, so it never
+	// published anything.
 	var wotan *wotanClient.Client
 	if *wotanAddr != "" {
-		var err error
-		wotan, err = wotanClient.NewClient(*wotanAddr)
+		c, err := wotanClient.NewClient(strings.TrimPrefix(*wotanAddr, "http://"))
 		if err != nil {
 			log.Warn().Err(err).Str("addr", *wotanAddr).Msg("Wotan connection failed — running without publish")
 		} else {
-			log.Info().Str("addr", *wotanAddr).Msg("connected to Wotan")
+			ok := true
+			for _, topic := range []string{topicReports, topicConsensus} {
+				if _, err := c.Subscribe(context.Background(), topic, "akira"); err != nil {
+					log.Warn().Err(err).Str("topic", topic).Msg("Wotan subscribe failed — running without publish")
+					ok = false
+				}
+			}
+			if ok {
+				wotan = c
+				log.Info().Str("addr", *wotanAddr).Msg("connected to Wotan")
+			}
+		}
+	}
+	publish := func(topic string, v interface{}) {
+		if wotan == nil {
+			return
+		}
+		payload, err := json.Marshal(v)
+		if err != nil {
+			return
+		}
+		if err := wotan.Publish(context.Background(), topic, payload); err != nil {
+			log.Warn().Err(err).Str("topic", topic).Msg("publish failed")
 		}
 	}
 
 	// Create Akira instance
 	akira := health.NewAkira(*nodeID, targets)
 
-	// Set callbacks
+	// Every other reporter's reports are votes too (ADR-029: every node a
+	// watchdog). This node's own are recorded locally by CheckAll.
+	if wotan != nil && !*once {
+		go consumeReports(wotan, *nodeID, akira)
+	}
+
 	akira.OnReport(func(r health.HealthReport) {
 		if !r.Healthy {
 			log.Warn().
@@ -152,65 +185,57 @@ func main() {
 				Dur("latency", r.Latency).
 				Msg("service unhealthy")
 		}
-		// Publish all health reports to Wotan
-		if wotan != nil {
-			payload, _ := json.Marshal(map[string]interface{}{
-				"node":    *nodeID,
-				"service": r.Service,
-				"healthy": r.Healthy,
-				"latency": r.Latency.Milliseconds(),
-				"error":   r.Error,
-				"time":    time.Now().UnixMilli(),
-			})
-			_ = wotan.Publish(context.Background(), "system.health.reports", payload)
+		publish(topicReports, r)
+	})
+
+	// restarts counts remediation attempts per outage; it resets when the
+	// service drops below the threshold. (AutoRestarts used to be read but
+	// never incremented, so escalation to a human could never happen.)
+	restarts := map[string]int{}
+	akira.OnSeverityChange(func(v health.Verdict) {
+		log.Info().
+			Str("service", v.Service).
+			Str("severity", string(v.Severity)).
+			Int("failing", v.Failing).
+			Int("reporters", v.Reporters).
+			Msg("consensus severity changed")
+		publish(topicConsensus, struct {
+			health.Verdict
+			Node string `json:"node"`
+			Time int64  `json:"time"`
+		}{v, *nodeID, time.Now().UnixMilli()})
+		if !v.Remediate {
+			delete(restarts, v.Service)
 		}
 	})
 
-	akira.OnAlert(func(s health.ConsensusState) {
-		log.Error().
-			Str("service", s.Service).
-			Float64("failure_rate", s.FailureRate).
-			Int("auto_restarts", s.AutoRestarts).
-			Msg("CONSENSUS THRESHOLD — remediation needed")
-
-		// Publish consensus alerts to Wotan
-		if wotan != nil {
-			payload, _ := json.Marshal(map[string]interface{}{
-				"node":          *nodeID,
-				"service":       s.Service,
-				"failure_rate":  s.FailureRate,
-				"auto_restarts": s.AutoRestarts,
-				"time":          time.Now().UnixMilli(),
-			})
-			_ = wotan.Publish(context.Background(), "system.outage.reports", payload)
-		}
-
-		// Auto-restart if under limit
-		if s.AutoRestarts < health.MaxAutoRestarts {
-			svcUnit := fmt.Sprintf("unheaded-%s", s.Service)
-			log.Warn().
-				Str("service", s.Service).
-				Str("unit", svcUnit).
-				Int("attempt", s.AutoRestarts+1).
-				Msg("attempting auto-restart via systemctl")
-
-			cmd := exec.Command("systemctl", "restart", svcUnit) // #nosec G204 -- unit name from the kingdom service registry, not user input
-			if out, err := cmd.CombinedOutput(); err != nil {
-				log.Error().
-					Err(err).
-					Str("output", string(out)).
-					Str("service", s.Service).
-					Msg("auto-restart FAILED")
-			} else {
-				log.Info().
-					Str("service", s.Service).
-					Msg("auto-restart SUCCESS")
+	akira.OnAlert(func(v health.Verdict) {
+		if !*remediate {
+			if restarts[v.Service] == 0 {
+				log.Error().Str("service", v.Service).Float64("failure_rate", v.FailureRate).
+					Msg("CONSENSUS THRESHOLD — remediation off (--remediate=false): needs a human")
+				restarts[v.Service] = -1 // logged for this outage
 			}
+			return
+		}
+		n := restarts[v.Service]
+		if n >= health.MaxAutoRestarts {
+			if n == health.MaxAutoRestarts {
+				log.Error().Str("service", v.Service).Int("restarts", n).
+					Msg("MAX AUTO-RESTARTS EXCEEDED — escalating to human")
+				restarts[v.Service] = n + 1 // escalate once
+			}
+			return
+		}
+		restarts[v.Service] = n + 1
+		svcUnit := fmt.Sprintf("unheaded-%s", v.Service)
+		log.Warn().Str("service", v.Service).Str("unit", svcUnit).Int("attempt", n+1).
+			Msg("attempting auto-restart via systemctl")
+		cmd := exec.Command("systemctl", "restart", svcUnit) // #nosec G204 -- unit name from the kingdom service registry, not user input
+		if out, err := cmd.CombinedOutput(); err != nil {
+			log.Error().Err(err).Str("output", string(out)).Str("service", v.Service).Msg("auto-restart FAILED")
 		} else {
-			log.Error().
-				Str("service", s.Service).
-				Int("restarts", s.AutoRestarts).
-				Msg("MAX AUTO-RESTARTS EXCEEDED — escalating to human")
+			log.Info().Str("service", v.Service).Msg("auto-restart SUCCESS")
 		}
 	})
 
@@ -234,7 +259,7 @@ func main() {
 		if len(alerts) > 0 {
 			fmt.Printf("\nALERTS (%d):\n", len(alerts))
 			for _, a := range alerts {
-				fmt.Printf("  %s: %.0f%% failure rate\n", a.Service, a.FailureRate*100)
+				fmt.Printf("  %s: %d/%d reporters failing (%s)\n", a.Service, a.Failing, a.Reporters, a.Severity)
 			}
 		}
 		return
@@ -243,11 +268,11 @@ func main() {
 	// Start HTTP API for status queries
 	go func() {
 		mux := http.NewServeMux()
-		mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		mux.HandleFunc("/health", httputil.ProbeMethods(func(w http.ResponseWriter, _ *http.Request) {
 			w.Header().Set("Content-Type", "application/json")
 			fmt.Fprintf(w, `{"status":"ok","service":"akira","node":"%s"}`, *nodeID)
-		})
-		mux.Handle("/ready", readyHandler(akira))
+		}))
+		mux.Handle("/ready", httputil.ProbeMethods(readyHandler(akira).ServeHTTP))
 		// /metrics did not exist here, though CLAUDE.md requires it of every
 		// component (ADR-094 step 5). Akira keeps no registry of its own, so
 		// this serves the default one: go_*, process_*, and what linked
@@ -296,6 +321,28 @@ func readyHandler(a interface{ Sweeps() uint64 }) http.Handler {
 		}
 		fmt.Fprintf(w, `{"status":"ready","sweeps":%d}`, n)
 	})
+}
+
+// Wotan topics (ADR-029).
+const (
+	topicReports   = "system.health.reports"   // every reporter's checks
+	topicConsensus = "system.health.consensus" // severity changes
+)
+
+// consumeReports feeds other reporters' reports from Wotan into the ballot.
+func consumeReports(c *wotanClient.Client, self string, a *health.Akira) {
+	ch, err := c.StreamMessages(context.Background(), topicReports)
+	if err != nil {
+		log.Warn().Err(err).Msg("cannot read system.health.reports; tallying this node's checks only")
+		return
+	}
+	for m := range ch {
+		var r health.HealthReport
+		if err := json.Unmarshal([]byte(m.Payload), &r); err != nil || r.Reporter == self {
+			continue
+		}
+		a.Record(r)
+	}
 }
 
 func findPort(name string, targets []health.ServiceTarget) int {

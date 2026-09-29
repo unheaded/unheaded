@@ -366,6 +366,8 @@ func getEventTopics() []string {
 		"decisions.*",
 		"state.*",
 		"architecture.*",
+		// Akira's consensus severity changes (ADR-029).
+		"system.health.consensus",
 		// Not ebpf.* / compute.*: the eBPF ingestor consumes those
 		// (ebpfPkg.Topics). Subscribed here too, each event reached the
 		// page a second time as a generic "event".

@@ -1,6 +1,18 @@
 # ADR-029: Wotan Consensus Health + Automatic Remediation — Every Node a Watchdog
 
-**Status:** Planned
+**Status:** Partially implemented (2026-09-29)
+
+> **Implementation status.** Akira implements the consensus side:
+> `pkg/health/consensus.go` (the CLAUDE.md bands, the two-thirds threshold,
+> a ballot of each reporter's latest report from the last three sweeps) and
+> `cmd/akira`, which checks every service, publishes to
+> `system.health.reports`, reads other reporters' reports from it and
+> publishes band changes to `system.health.consensus`. It runs in the compose
+> stack for detection only; `--remediate` enables `systemctl restart` (at most
+> `MaxAutoRestarts` per outage, then escalation). Not built: the per-service
+> watchdog in every binary (today Akira is the only reporter per host, so a
+> single host reads 0 % or 100 %), a Wotan-side ballot box, and the
+> `system.health.remediate` command path.
 **Date:** 2026-04-03
 **Deciders:** Captain, Architect, BlackMage, Micromanager
 **Priority:** HIGH — core Kingdom resilience

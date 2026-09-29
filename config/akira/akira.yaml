@@ -1,0 +1,14 @@
+# Akira targets for the compose stack: the ten services on the `data`
+# network, by compose DNS name and in-container port. (Akira's built-in
+# defaults are for a bare-metal host: localhost and the Doom Range ports.)
+targets:
+  - {name: wotan,        host: wotan,             port: 18000}
+  - {name: timeguru,     host: timeguru,          port: 19000}
+  - {name: architect,    host: architect,         port: 19001}
+  - {name: captain,      host: captain,           port: 19002}
+  - {name: micromanager, host: micromanager,      port: 19003}
+  - {name: monad,        host: monad,             port: 19004}
+  - {name: sophia,       host: sophia,            port: 19005}
+  - {name: cuirass,      host: cuirass,           port: 19006}
+  - {name: dashboard,    host: dashboard-backend, port: 20000}
+  - {name: kanban,       host: kanban-app,        port: 20001}

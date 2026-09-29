@@ -74,7 +74,7 @@ http_method() {
 # service declares a healthcheck — services without one never report healthy.
 for svc in wotan monad sophia dashboard-backend kanban-app timeguru \
            architect captain micromanager postgres clickhouse victoria \
-           grafana traefik coredns vector cuirass; do
+           grafana traefik coredns vector cuirass akira; do
   state=$(docker compose ps --format '{{.Service}} {{.State}}' 2>/dev/null \
           | awk -v s="$svc" '$1==s{print $2; found=1} END{if(!found) print "absent"}')
   check "container/$svc" "running" "$state"
@@ -98,10 +98,21 @@ done
 # method, others refused HEAD.
 for sp in timeguru:19000 architect:19001 captain:19002 micromanager:19003 \
           monad:19004 sophia:19005 cuirass:19006 wotan:18000 \
-          dashboard:20000 kanban:20001; do
+          dashboard:20000 kanban:20001 akira:19100; do
   check "probe-methods/${sp%%:*}" "200/405" \
     "$(http_method HEAD "http://localhost:${sp##*:}/health")/$(http_method BREW "http://localhost:${sp##*:}/health")"
 done
+
+# Akira's consensus (ADR-029): every service has a fresh vote and sits in the
+# OK band. Before its first sweep (30 s after start) this reads 0/10.
+cons=$(curl -s -m 5 http://localhost:19100/api/v1/status 2>/dev/null | python3 -c '
+import sys, json
+try:
+    v = json.load(sys.stdin)
+    print(f"{sum(1 for x in v.values() if x.get(\"severity\") == \"OK\")}/{len(v)}")
+except Exception:
+    print("unreadable")' 2>/dev/null)
+check "akira/consensus-ok" "10/10" "${cons:-unreadable}"
 
 [ "$JSON" -eq 0 ] && echo "== data plane =="
 

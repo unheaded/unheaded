@@ -5,6 +5,7 @@ package health
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -64,66 +65,6 @@ func TestCheckService_Unhealthy(t *testing.T) {
 	}
 }
 
-func TestConsensusEvaluation(t *testing.T) {
-	akira := NewAkira("test-node", nil)
-
-	// Simulate 5 health checks — 4 failing (80% > 66.67%)
-	for i := 0; i < 5; i++ {
-		report := HealthReport{
-			Service:   "failing-svc",
-			Reporter:  "test-node",
-			Healthy:   i == 0, // Only first is healthy
-			Timestamp: time.Now(),
-		}
-		akira.mu.Lock()
-		state, ok := akira.states["failing-svc"]
-		if !ok {
-			state = &ConsensusState{Service: "failing-svc"}
-			akira.states["failing-svc"] = state
-		}
-		state.Reports = append(state.Reports, report)
-		akira.mu.Unlock()
-	}
-
-	alerts := akira.EvaluateConsensus()
-	if len(alerts) != 1 {
-		t.Fatalf("Expected 1 alert, got %d", len(alerts))
-	}
-	if alerts[0].Service != "failing-svc" {
-		t.Errorf("Expected failing-svc, got %s", alerts[0].Service)
-	}
-	if alerts[0].FailureRate < ConsensusThreshold {
-		t.Errorf("Expected failure rate >= %f, got %f", ConsensusThreshold, alerts[0].FailureRate)
-	}
-}
-
-func TestNoConsensusWhenHealthy(t *testing.T) {
-	akira := NewAkira("test-node", nil)
-
-	// All healthy — should NOT trigger
-	for i := 0; i < 5; i++ {
-		report := HealthReport{
-			Service:   "healthy-svc",
-			Reporter:  "test-node",
-			Healthy:   true,
-			Timestamp: time.Now(),
-		}
-		akira.mu.Lock()
-		state, ok := akira.states["healthy-svc"]
-		if !ok {
-			state = &ConsensusState{Service: "healthy-svc"}
-			akira.states["healthy-svc"] = state
-		}
-		state.Reports = append(state.Reports, report)
-		akira.mu.Unlock()
-	}
-
-	alerts := akira.EvaluateConsensus()
-	if len(alerts) != 0 {
-		t.Errorf("Expected 0 alerts for healthy service, got %d", len(alerts))
-	}
-}
-
 func TestAkiraRunCancellation(t *testing.T) {
 	akira := NewAkira("test-node", nil)
 
@@ -142,96 +83,6 @@ func TestAkiraRunCancellation(t *testing.T) {
 		// Good — Run returned
 	case <-time.After(5 * time.Second):
 		t.Fatal("Akira.Run did not stop after context cancellation")
-	}
-}
-
-func TestConsensusAtExactThreshold(t *testing.T) {
-	akira := NewAkira("test-node", nil)
-
-	// 3 reports: 2 failing = 66.67% = exactly at threshold
-	for i := 0; i < 3; i++ {
-		report := HealthReport{
-			Service:   "edge-svc",
-			Reporter:  "test-node",
-			Healthy:   i == 0, // 1 healthy, 2 unhealthy = 66.67%
-			Timestamp: time.Now(),
-		}
-		akira.mu.Lock()
-		state, ok := akira.states["edge-svc"]
-		if !ok {
-			state = &ConsensusState{Service: "edge-svc"}
-			akira.states["edge-svc"] = state
-		}
-		state.Reports = append(state.Reports, report)
-		akira.mu.Unlock()
-	}
-
-	alerts := akira.EvaluateConsensus()
-	if len(alerts) != 1 {
-		t.Fatalf("Expected 1 alert at exact threshold (66.67%%), got %d", len(alerts))
-	}
-	if alerts[0].FailureRate < ConsensusThreshold {
-		t.Errorf("Failure rate %.4f should be >= threshold %.4f", alerts[0].FailureRate, ConsensusThreshold)
-	}
-}
-
-func TestConsensusBelowThreshold(t *testing.T) {
-	akira := NewAkira("test-node", nil)
-
-	// 5 reports: 3 healthy, 2 failing = 40% < 66.67%
-	for i := 0; i < 5; i++ {
-		report := HealthReport{
-			Service:   "ok-svc",
-			Reporter:  "test-node",
-			Healthy:   i < 3, // 3 healthy, 2 failing = 40%
-			Timestamp: time.Now(),
-		}
-		akira.mu.Lock()
-		state, ok := akira.states["ok-svc"]
-		if !ok {
-			state = &ConsensusState{Service: "ok-svc"}
-			akira.states["ok-svc"] = state
-		}
-		state.Reports = append(state.Reports, report)
-		akira.mu.Unlock()
-	}
-
-	alerts := akira.EvaluateConsensus()
-	if len(alerts) != 0 {
-		t.Errorf("Expected 0 alerts at 40%% failure, got %d", len(alerts))
-	}
-}
-
-func TestMultipleServicesConsensus(t *testing.T) {
-	akira := NewAkira("test-node", nil)
-
-	// 2 services: one failing, one healthy
-	for i := 0; i < 5; i++ {
-		akira.mu.Lock()
-		// Failing service
-		fs, ok := akira.states["bad-svc"]
-		if !ok {
-			fs = &ConsensusState{Service: "bad-svc"}
-			akira.states["bad-svc"] = fs
-		}
-		fs.Reports = append(fs.Reports, HealthReport{Service: "bad-svc", Healthy: false, Timestamp: time.Now()})
-
-		// Healthy service
-		gs, ok := akira.states["good-svc"]
-		if !ok {
-			gs = &ConsensusState{Service: "good-svc"}
-			akira.states["good-svc"] = gs
-		}
-		gs.Reports = append(gs.Reports, HealthReport{Service: "good-svc", Healthy: true, Timestamp: time.Now()})
-		akira.mu.Unlock()
-	}
-
-	alerts := akira.EvaluateConsensus()
-	if len(alerts) != 1 {
-		t.Fatalf("Expected 1 alert (bad-svc only), got %d", len(alerts))
-	}
-	if alerts[0].Service != "bad-svc" {
-		t.Errorf("Expected bad-svc alert, got %s", alerts[0].Service)
 	}
 }
 
@@ -261,5 +112,53 @@ func TestSweeps_CountsCompletedSweeps(t *testing.T) {
 	a.CheckAll()
 	if got := a.Sweeps(); got != 2 {
 		t.Fatalf("Sweeps after two sweeps = %d, want 2", got)
+	}
+}
+
+// Akira tallies its own checks and other reporters' reports together, calls
+// OnSeverityChange once per change of band, and OnAlert while a service is
+// at the two-thirds threshold.
+func TestAkira_ConsensusAcrossReporters(t *testing.T) {
+	a := NewAkira("west", nil)
+	var changes []string
+	var alerts []string
+	a.OnSeverityChange(func(v Verdict) { changes = append(changes, v.Service+":"+string(v.Severity)) })
+	a.OnAlert(func(v Verdict) { alerts = append(alerts, v.Service) })
+
+	now := time.Now()
+	a.Record(HealthReport{Service: "wotan", Reporter: "west", Healthy: false, Timestamp: now})
+	a.Record(HealthReport{Service: "wotan", Reporter: "east", Healthy: true, Timestamp: now})
+	a.EvaluateConsensus() // 1 of 2: ERROR, below threshold
+	a.EvaluateConsensus() // unchanged: no second change callback
+	if fmt.Sprint(changes) != "[wotan:ERROR]" || len(alerts) != 0 {
+		t.Fatalf("changes %v alerts %v, want [wotan:ERROR] and none", changes, alerts)
+	}
+
+	a.Record(HealthReport{Service: "wotan", Reporter: "east", Healthy: false, Timestamp: now.Add(time.Second)})
+	got := a.EvaluateConsensus() // 2 of 2: PANIC, remediate
+	if len(got) != 1 || got[0].Reporters != 2 || !got[0].Remediate {
+		t.Fatalf("alerts %+v, want wotan with 2 reporters", got)
+	}
+	if fmt.Sprint(changes) != "[wotan:ERROR wotan:PANIC]" || fmt.Sprint(alerts) != "[wotan]" {
+		t.Errorf("changes %v alerts %v", changes, alerts)
+	}
+	if st := a.GetStates()["wotan"]; st.Severity != SeverityPanic || st.Failing != 2 {
+		t.Errorf("GetStates wotan = %+v", st)
+	}
+}
+
+// One reporter failing a check five times is one vote, not 5/5 = 100 %.
+func TestAkira_OwnChecksAreOneVote(t *testing.T) {
+	a := NewAkira("west", []ServiceTarget{{Name: "dead", Host: "127.0.0.1", Port: 1}})
+	for i := 0; i < 5; i++ {
+		a.CheckAll()
+	}
+	a.Record(HealthReport{Service: "dead", Reporter: "east", Healthy: true, Timestamp: time.Now()})
+	a.Record(HealthReport{Service: "dead", Reporter: "north", Healthy: true, Timestamp: time.Now()})
+	if got := a.EvaluateConsensus(); len(got) != 0 {
+		t.Errorf("alerts %+v, want none: 1 of 3 reporters failing", got)
+	}
+	if st := a.GetStates()["dead"]; st.Reporters != 3 || st.Failing != 1 || st.Severity != SeverityWarn {
+		t.Errorf("dead = %+v, want 1 of 3, WARN", st)
 	}
 }

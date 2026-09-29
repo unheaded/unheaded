@@ -1095,17 +1095,19 @@ for {
 
 **Location:** `docs/SERVICE_BREAKOUT_STRATEGY.md`
 
-Every microservice MUST health check all services it depends on. Failures reported to Wotan topic `system.outage.reports`. Severity by **percentage-based consensus**:
+Every microservice MUST health check all services it depends on. Reports go to Wotan topic `system.health.reports`; consensus severity changes to `system.health.consensus` (ADR-029). Severity by **percentage-based consensus**:
 
 | % Reporting | Severity | UI Color | Hex | Actions |
 |-------------|----------|----------|-----|---------|
 | 0% - 12.49% | **OK** | Green | `#008000` | Healthy |
 | 12.50% - 37.49% | **WARN** | Yellow-Brown | `#fdda61` | Log, email |
 | 37.50% - 62.49% | **ERROR** | Bright Yellow | `#ffff00` | Log, 2nd email |
-| 62.50% - 87.49% | **CRITICAL** | Neon Orange | `#ff5c00` | Auto-remediate |
+| 62.50% - 87.49% | **CRITICAL** | Neon Orange | `#ff5c00` | Auto-remediate from 66.67% (two-thirds, ADR-029) |
 | 87.50% - 100% | **PANIC** | Bright Red | `#ff0000` | All hands, PagerDuty |
 
-**Formula:** `(unique_reporters / total_dependent_services) × 100`
+**Formula:** `failing_reporters / reporters × 100`, where each reporter's latest report from the last three sweeps is one vote (one reporter's repeated checks are one vote).
+
+**Implementation:** Akira (`cmd/akira`, `pkg/health/consensus.go`, compose service `akira`, port 19100) checks every service, publishes its reports, tallies all reporters' votes and publishes band changes. Remediation (`systemctl restart`, at most 3 per outage, then escalate) is off unless Akira runs with `--remediate`; the compose stack runs it for detection only.
 
 Scales automatically from 8 to 800+ services.
 
