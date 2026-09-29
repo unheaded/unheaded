@@ -686,14 +686,24 @@ func (s *Scraper) storeSample(sample MetricSample) {
 		// ~380 MB of live heap and the backend OOM-killed itself at its 768 MB
 		// cgroup limit (2026-09-21, pprof: storeSample 93% of inuse_space).
 		// append grows a series as it actually fills.
+		labels := make(map[string]string, len(sample.Labels))
+		for k, v := range sample.Labels {
+			labels[strings.Clone(k)] = strings.Clone(v)
+		}
 		series = &MetricSeries{
-			Name:    sample.Name,
-			Labels:  sample.Labels,
-			Service: sample.Service,
+			Name:    strings.Clone(sample.Name),
+			Labels:  labels,
+			Service: strings.Clone(sample.Service),
 		}
 		s.series[key] = series
 	}
 	s.seriesMu.Unlock()
+
+	// Store the series' own copies, not the parsed ones: those strings are
+	// substrings of the scrape body and the map is new per scrape, so keeping
+	// them per sample pinned every scrape body in the retention window
+	// (OOM-killed at 768 MB after ~1 h with ~7,000 series, 2026-09-29).
+	sample.Name, sample.Labels, sample.Service = series.Name, series.Labels, series.Service
 
 	series.AddSample(sample, s.config.MaxSamples)
 }
