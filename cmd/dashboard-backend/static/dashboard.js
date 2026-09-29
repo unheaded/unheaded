@@ -88,7 +88,13 @@
         selectedHostData: null,
 
         animationFrame: null,
-        startTime: Date.now()
+        // Highest eBPF event seq this tab has counted (poll and WS share it).
+        ebpfSeq: 0,
+        // Previous /ebpf/stats total, for Events/sec as a delta over real time.
+        ebpfTotalPrev: null,
+        ebpfEps: null,
+        // Backend start, from the ingestor's uptime_seconds; null until known.
+        backendStartMs: null
     };
 
     // ======================================================================
@@ -248,7 +254,7 @@
                 else updateFlowsData(data);
             }
             else if (type === 'event' || type === 'events') addEvent(data);
-            else if (type.indexOf('ebpf_') === 0) addEBPFEvent(type, data);
+            else if (type.indexOf('ebpf_') === 0) addEBPFEvent(type, data, msg.seq);
         } catch { /* ignore parse errors */ }
     }
 
@@ -275,7 +281,7 @@
     function refreshFlows()      { fetchJSON(CONFIG.api.flows,      updateFlowsData); }
     function refreshLatency()    { fetchJSON(CONFIG.api.latency,    updateLatencyData); }
     function refreshEBPFStats()  { fetchJSON(CONFIG.api.ebpfStats,  updateEBPFStats); }
-    function refreshEBPFEvents() { fetchJSON(CONFIG.api.ebpfEvents, updateEBPFEvents); }
+    function refreshEBPFEvents() { fetchJSON(CONFIG.api.ebpfEvents + '?after_seq=' + state.ebpfSeq, updateEBPFEvents); }
     function refreshHosts()      { fetchJSON(CONFIG.api.hosts,      updateHostsData); }
     function refreshSummary()    { fetchJSON(CONFIG.api.summary,    updateSummaryData); }
 
@@ -532,11 +538,24 @@
         var totalIngested = (stats.packets_ingested || 0) + (stats.flows_ingested || 0) +
             (stats.latency_ingested || 0) + (stats.syscall_ingested || 0) +
             (stats.compute_ingested || 0) + (stats.anamnesis_ingested || 0);
-        // Events/sec: compute from total ingested over uptime
-        var uptimeS = (Date.now() - state.startTime) / 1000;
-        var eps = uptimeS > 0 ? (totalIngested / uptimeS).toFixed(1) : 0;
-        setText(el.statEps, eps);
-        setText(el.statUptime, formatUptime(Date.now() - state.startTime));
+        // Events/sec over real time between polls. (It used to divide the
+        // backend's lifetime total by how long this tab had been open.)
+        var nowMs = Date.now();
+        var prev = state.ebpfTotalPrev;
+        if (!prev || totalIngested < prev.total) {
+            state.ebpfTotalPrev = { ts: nowMs, total: totalIngested }; // first poll or backend restart
+        } else if (nowMs - prev.ts >= 750) {
+            state.ebpfEps = (totalIngested - prev.total) / ((nowMs - prev.ts) / 1000);
+            state.ebpfTotalPrev = { ts: nowMs, total: totalIngested };
+        }
+        setText(el.statEps, state.ebpfEps == null ? '--' : state.ebpfEps.toFixed(1));
+        // Uptime is the window the counters cover, not this tab's age.
+        if (typeof stats.uptime_seconds === 'number') {
+            state.backendStartMs = nowMs - stats.uptime_seconds * 1000;
+            setText(el.statUptime, formatUptime(stats.uptime_seconds * 1000));
+        } else {
+            setText(el.statUptime, '--');
+        }
         setText(el.ebpfEventsCount, formatNumber(totalIngested));
         // Update active flows from flow_stats if available
         var fs = stats.flow_stats || {};
@@ -548,7 +567,7 @@
     }
 
     // Packet events are a firehose (they dominate the "All Services" view). We
-    // show only 1 in 100 of them in the feed while still counting every event in
+    // show only 1 in 1000 of them in the feed while still counting every event in
     // the total/rate. Other, lower-rate event types pass through unsampled.
     var _pktSampleN = 0;
     function isPacketEvent(ev) {
@@ -556,8 +575,18 @@
     }
 
     function updateEBPFEvents(data) {
+        // last_seq below our cursor: the backend restarted and its seqs began
+        // again at 1. Start over; the next poll fetches from 0.
+        if (typeof data.last_seq === 'number' && data.last_seq < state.ebpfSeq) {
+            state.ebpfSeq = 0;
+            return;
+        }
         var events = data.events || data;
-        if (!Array.isArray(events) || events.length === 0) return;
+        if (!Array.isArray(events)) return;
+        // Drop anything already counted (the WS may have delivered it first).
+        events = events.filter(function (ev) { return !(typeof ev.seq === 'number' && ev.seq <= state.ebpfSeq); });
+        if (events.length === 0) return;
+        events.forEach(function (ev) { if (typeof ev.seq === 'number' && ev.seq > state.ebpfSeq) state.ebpfSeq = ev.seq; });
         // Normalize events for the event stream
         var normalized = events.map(function(ev) {
             return {
@@ -640,18 +669,23 @@
         while (state.flows.length > CONFIG.flow.maxFlows) state.flows.shift();
         buildFlowNodes(state.flows);
         setText(el.flowGraphCount, state.flows.length);
-        setText(el.activeFlowsCount, state.flows.length);
+        // Not activeFlowsCount: that card is the backend's active-flow count
+        // (/flows, /ebpf/stats). This list is this tab's last N hops, capped.
         if (state.activePage === 'flows') {
             renderFlowGraph();
             renderFlowTable(state.flows);
         }
     }
 
-    function addEBPFEvent(type, data) {
+    function addEBPFEvent(type, data, seq) {
         // eBPF events from WS — add to event stream and update counters
+        if (typeof seq === 'number') {
+            if (seq <= state.ebpfSeq) return; // already counted by a poll
+            state.ebpfSeq = seq;
+        }
         var evType = type.replace('ebpf_', '');
         state.eventStreamTotal++; // count every event (keeps total/rate accurate)
-        // 1-in-100 sampling of the packet firehose; other types pass through.
+        // 1-in-1000 sampling of the packet firehose; other types pass through.
         if (evType === 'packet' && (++_pktSampleN % 1000 !== 0)) return;
         var ev = {
             type: evType,
@@ -1436,7 +1470,7 @@
     function updateTimestamp() {
         if (el.lastUpdate) el.lastUpdate.textContent = new Date().toLocaleTimeString();
         if (el.serverTime) el.serverTime.textContent = 'Server: ' + new Date().toLocaleTimeString();
-        if (el.uptime) el.uptime.textContent = 'Uptime: ' + formatUptime(Date.now() - state.startTime);
+        if (el.uptime) el.uptime.textContent = 'Uptime: ' + (state.backendStartMs == null ? '--' : formatUptime(Date.now() - state.backendStartMs));
     }
 
     // ======================================================================
