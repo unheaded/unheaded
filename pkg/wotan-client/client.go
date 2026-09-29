@@ -65,6 +65,9 @@ var (
 	ErrTopicNotFound       = errors.New("topic not found")
 	ErrNotAuthorized       = errors.New("not authorized")
 	ErrRateLimited         = errors.New("rate limited")
+	// ErrSubscriberNotApproved: Wotan does not know this subscriber ID as an
+	// approved member, e.g. because it restarted and forgot its members.
+	ErrSubscriberNotApproved = errors.New("subscriber not approved")
 )
 
 // Message represents a Wotan message
@@ -420,6 +423,19 @@ func (c *Client) Publish(ctx context.Context, topic string, payload []byte) erro
 	}
 
 	networkErr, appErr := c.doPublish(ctx, topic, sub.SubscriberID, payload)
+	if errors.Is(appErr, ErrSubscriberNotApproved) {
+		// Wotan keeps memberships in memory, so after it restarts the ID it
+		// issued is unknown and every publish is refused until this process
+		// restarts too. Join again under the same name and retry once.
+		fresh, err := c.Subscribe(ctx, topic, sub.DisplayName)
+		if err != nil {
+			return fmt.Errorf("rejoin %s: %w", topic, err)
+		}
+		if fresh.Status != "approved" {
+			return ErrSubscriptionPending
+		}
+		networkErr, appErr = c.doPublish(ctx, topic, fresh.SubscriberID, payload)
+	}
 	if appErr != nil {
 		// Application-level error (403, 404, etc.) — return directly, don't buffer.
 		return appErr
@@ -787,6 +803,8 @@ func (c *Client) parseError(resp *http.Response) error {
 		return ErrNotAuthorized
 	case "RATE_LIMITED":
 		return ErrRateLimited
+	case "Forbidden":
+		return fmt.Errorf("%w (%s)", ErrSubscriberNotApproved, errResp.Error.Message)
 	default:
 		return fmt.Errorf("%s: %s", errResp.Error.Code, errResp.Error.Message)
 	}
