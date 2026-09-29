@@ -248,11 +248,10 @@
             else if (type === 'services') updateServicesData(data);
             else if (type === 'metrics') updateMetricsData(data);
             else if (type === 'stats') updateStatsData(data);
-            else if (type === 'flows' || type === 'packet_flow') {
-                // packet_flow is a single flow event — wrap for updateFlowsData
-                if (type === 'packet_flow') addFlowEvent(data);
-                else updateFlowsData(data);
-            }
+            // (The backend no longer sends packet_flow: each packet was pushed
+            // into state.flows as if it were a flow, with invented byte counts,
+            // until the next /flows poll replaced it.)
+            else if (type === 'flows') updateFlowsData(data);
             else if (type === 'event' || type === 'events') addEvent(data);
             else if (type.indexOf('ebpf_') === 0) addEBPFEvent(type, data, msg.seq);
         } catch { /* ignore parse errors */ }
@@ -639,44 +638,6 @@
         state.eventStreamTotal++;
         if (!state.eventStreamPaused && state.activePage === 'events') {
             appendEventStreamItems([ev]);
-        }
-    }
-
-    function addFlowEvent(flowData) {
-        // Single flow event from WS — merge into state.flows
-        if (!flowData) return;
-
-        // Convert packet_flow format (hops-based) to flow format (src/dst-based)
-        if (flowData.hops && flowData.hops.length >= 2) {
-            for (var i = 0; i < flowData.hops.length - 1; i++) {
-                var src = flowData.hops[i].component || 'unknown';
-                var dst = flowData.hops[i + 1].component || 'unknown';
-                var hopLatency = flowData.hops[i].latency || (flowData.total_time || 0) / flowData.hops.length;
-                state.flows.push({
-                    source: src, destination: dst,
-                    src_ip: src, dst_ip: dst,
-                    state: flowData.status_code === 200 ? 'established' : 'closed',
-                    bytes_in: Math.max(64, Math.floor(hopLatency / 1000)),
-                    bytes_out: Math.max(64, Math.floor(hopLatency / 1000)),
-                    packets_in: 1, packets_out: 1,
-                    protocol: 6,
-                    trace_id: flowData.trace_id,
-                    method: flowData.method || 'GET',
-                    path: flowData.path || '/'
-                });
-            }
-        } else {
-            state.flows.push(flowData);
-        }
-
-        while (state.flows.length > CONFIG.flow.maxFlows) state.flows.shift();
-        buildFlowNodes(state.flows);
-        setText(el.flowGraphCount, state.flows.length);
-        // Not activeFlowsCount: that card is the backend's active-flow count
-        // (/flows, /ebpf/stats). This list is this tab's last N hops, capped.
-        if (state.activePage === 'flows') {
-            renderFlowGraph();
-            renderFlowTable(state.flows);
         }
     }
 
