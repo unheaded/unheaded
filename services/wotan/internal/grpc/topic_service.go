@@ -176,7 +176,17 @@ func (s *TopicService) StreamTopics(
 
 			// Messages after the requested seq, by the seq the ring buffer
 			// assigned at publish (a buffer position repeats once it wraps).
-			for _, msg := range rm.Buffer.GetAfter(req.SinceSeq, 0) {
+			since := req.SinceSeq
+			// Seqs are in-memory and start again at 1 when Wotan restarts. A
+			// cursor above anything this process has numbered for the topic
+			// is from before the restart: replay what is held, or messages
+			// published between the restart and the reconnect are lost. Only
+			// for single-topic streams; one cursor across several topics'
+			// seq spaces is not a cursor for any of them.
+			if len(matchingTopics) == 1 && since > rm.Buffer.LastSeq() {
+				since = 0
+			}
+			for _, msg := range rm.Buffer.GetAfter(since, 0) {
 				event := &chatpb.TopicEvent{
 					Topic:     topicName,
 					MessageId: msg.ID.String(),
