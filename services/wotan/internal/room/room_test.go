@@ -4,6 +4,7 @@
 package room
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -1036,4 +1037,27 @@ func BenchmarkConcurrentRoomOps(b *testing.B) {
 			_ = room.GetMessages()
 		}
 	})
+}
+
+// Seqs are global across rooms: each room's stay increasing, and a cursor
+// taken across several rooms (a wildcard read) is meaningful.
+func TestManager_GlobalSeq(t *testing.T) {
+	m := NewManager(10)
+	a := m.Create("a", "a")
+	b := m.Create("b", "b")
+	member := uuid.New()
+	var got []int64
+	for _, r := range []*Room{a, b, a, b, b} {
+		msg, _ := r.SendMessage(member, "x")
+		got = append(got, msg.Seq)
+	}
+	if fmt.Sprint(got) != "[1 2 3 4 5]" {
+		t.Fatalf("seqs across rooms = %v, want [1 2 3 4 5]", got)
+	}
+	if a.Buffer.LastSeq() != 3 || b.Buffer.LastSeq() != 5 || m.LastSeq() != 5 {
+		t.Errorf("LastSeq a=%d b=%d manager=%d, want 3 5 5", a.Buffer.LastSeq(), b.Buffer.LastSeq(), m.LastSeq())
+	}
+	if after := a.Buffer.GetAfter(1, 0); len(after) != 1 || after[0].Seq != 3 {
+		t.Errorf("a after 1 = %v, want only seq 3", after)
+	}
 }

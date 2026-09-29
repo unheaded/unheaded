@@ -5,6 +5,7 @@ package room
 
 import (
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -26,6 +27,15 @@ type Manager struct {
 	mu         sync.RWMutex
 	rooms      map[string]*Room // room ID -> room
 	bufferSize int
+	// seq numbers messages across every room, so a cursor taken over several
+	// rooms (a wildcard read) orders them. In memory: a restart begins at 1.
+	seq atomic.Int64
+}
+
+// LastSeq is the most recently assigned seq in any room, 0 if none. A
+// cursor above it is from before a restart.
+func (m *Manager) LastSeq() int64 {
+	return m.seq.Load()
 }
 
 // NewManager creates a new room manager
@@ -50,7 +60,7 @@ func (m *Manager) Create(id, name string) *Room {
 		ID:            id,
 		Name:          name,
 		CreatedAt:     time.Now(),
-		Buffer:        ringbuffer.New(m.bufferSize),
+		Buffer:        ringbuffer.NewShared(m.bufferSize, &m.seq),
 		KeyValueStore: make(map[string]string),
 	}
 
