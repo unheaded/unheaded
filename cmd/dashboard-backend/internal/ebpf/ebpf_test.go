@@ -170,12 +170,13 @@ func TestFlowGraph_Expire(t *testing.T) {
 	fg := NewFlowGraph(FlowGraphConfig{TTL: 10 * time.Millisecond})
 
 	e := &PacketEvent{
-		TimestampNs: uint64(time.Now().Add(-50 * time.Millisecond).UnixNano()),
+		TimestampNs: uint64(time.Now().UnixNano()),
 		FlowKey:     FlowKey{SrcAddr: "10.0.0.1", DstAddr: "10.0.0.2", SrcPort: 1, DstPort: 2, Protocol: 6},
 		PacketLen:   100,
 		Direction:   DirectionIngress,
 	}
 	fg.IngestPacket(e)
+	time.Sleep(50 * time.Millisecond) // liveness runs on arrival time
 
 	expired := fg.Expire()
 	if expired != 1 {
@@ -270,17 +271,58 @@ func TestLatencyHistogram_Expire(t *testing.T) {
 		Windows: []time.Duration{50 * time.Millisecond},
 	})
 
-	old := time.Now().Add(-100 * time.Millisecond)
 	lh.Ingest(&LatencyEvent{
-		TimestampNs: uint64(old.UnixNano()),
+		TimestampNs: uint64(time.Now().UnixNano()),
 		LatencyNs:   1000,
 		Operation:   OpTcpRecv,
 	})
+	if got := lh.GetPercentiles(OpTcpRecv, 50*time.Millisecond).SampleCount; got != 1 {
+		t.Fatalf("sample_count = %d before the window passed, want 1", got)
+	}
+	time.Sleep(100 * time.Millisecond) // windows run on arrival time
 
 	lh.Expire()
 	result := lh.GetPercentiles(OpTcpRecv, 50*time.Millisecond)
 	if result.SampleCount != 0 {
 		t.Errorf("sample_count = %d after expire, want 0", result.SampleCount)
+	}
+}
+
+// Windows are over arrival time. They used to be over the producer's
+// timestamp_ns: latency-probe stamps bpf_ktime_get_ns() (time since boot,
+// i.e. 1970 as a wall clock), and the demo injector stamps once per
+// minutes-long loop, so the Latency page showed 0 samples in every window
+// while latency_ingested climbed (2026-09-29).
+func TestLatencyHistogram_WindowsByArrival(t *testing.T) {
+	lh := NewLatencyHistogram(LatencyHistogramConfig{Windows: []time.Duration{time.Second}})
+	for _, ts := range []uint64{
+		80_000_000_000_000, // ktime: ~22 h since boot
+		uint64(time.Now().Add(-2 * time.Minute).UnixNano()), // stamped late
+		uint64(time.Now().Add(10 * time.Minute).UnixNano()), // clock ahead
+	} {
+		lh.Ingest(&LatencyEvent{TimestampNs: ts, LatencyNs: 5000, Operation: OpTcpSend})
+	}
+	lh.Expire()
+	if got := lh.GetPercentiles(OpTcpSend, time.Second).SampleCount; got != 3 {
+		t.Errorf("sample_count = %d, want 3 (all arrived just now)", got)
+	}
+}
+
+// Flow liveness runs on arrival time for the same reason: a flow whose
+// producer stamps boot-relative ktime was "last seen" in 1970 and expired on
+// the next sweep, so Active Flows could never count a real probe's flows.
+func TestFlowGraph_LivenessByArrival(t *testing.T) {
+	fg := NewFlowGraph(FlowGraphConfig{TTL: time.Minute})
+	key := FlowKey{SrcAddr: "10.0.0.1", DstAddr: "10.0.0.2", SrcPort: 1, DstPort: 2, Protocol: 6}
+	fg.IngestPacket(&PacketEvent{TimestampNs: 80_000_000_000_000, FlowKey: key, PacketLen: 60, Direction: DirectionIngress})
+	fg.IngestFlow(&FlowEvent{TimestampNs: 80_000_000_000_000, FlowKey: FlowKey{SrcAddr: "10.0.0.3", DstAddr: "10.0.0.4", SrcPort: 3, DstPort: 4, Protocol: 6}})
+	if n := fg.Expire(); n != 0 {
+		t.Errorf("Expire removed %d flows that arrived just now", n)
+	}
+	for _, f := range fg.GetActiveFlows() {
+		if time.Since(f.LastSeen) > time.Second {
+			t.Errorf("last_seen %v, want arrival time", f.LastSeen)
+		}
 	}
 }
 

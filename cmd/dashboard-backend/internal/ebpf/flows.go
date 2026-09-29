@@ -59,7 +59,9 @@ func NewFlowGraph(config FlowGraphConfig) *FlowGraph {
 // IngestPacket processes a PacketEvent and updates the flow graph.
 func (fg *FlowGraph) IngestPacket(e *PacketEvent) {
 	key := e.FlowKey.String()
-	now := e.Time()
+	// Arrival time, not e.Time(): producers stamp boot-relative ktime
+	// (a 1970 wall clock) or lag, and Expire compares against time.Now().
+	now := time.Now()
 
 	fg.mu.Lock()
 	defer fg.mu.Unlock()
@@ -97,7 +99,7 @@ func (fg *FlowGraph) IngestPacket(e *PacketEvent) {
 // IngestFlow processes a FlowEvent and updates the flow graph.
 func (fg *FlowGraph) IngestFlow(e *FlowEvent) {
 	key := e.FlowKey.String()
-	now := e.Time()
+	now := time.Now() // arrival time; see IngestPacket
 
 	fg.mu.Lock()
 	defer fg.mu.Unlock()
