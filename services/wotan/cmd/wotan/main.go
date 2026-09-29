@@ -480,13 +480,13 @@ func setupHTTPRoutes(s *api.Server, adminEnabled bool, m *metrics.Metrics) *http
 // setupMiddleware creates the middleware chain
 func setupMiddleware(handler http.Handler, rateLimiter *middleware.RateLimiter, corsOrigins []string) http.Handler {
 	return middleware.Chain(handler,
-		middleware.Recovery,                // Recover from panics
-		middleware.Logging,                 // Structured logging
-		middleware.Metrics,                 // Prometheus metrics
-		middleware.SecurityHeaders,         // Security headers
-		middleware.CORS(corsOrigins),       // CORS support
-		rateLimiter.Middleware,             // Rate limiting
-		middleware.Timeout(30*time.Second), // Request timeout
+		middleware.Recovery, // Recover from panics
+		middleware.Logging,  // Structured logging
+		middleware.MetricsFor(middleware.MuxRoute(handler)), // Prometheus metrics, path = mux pattern
+		middleware.SecurityHeaders,                          // Security headers
+		middleware.CORS(corsOrigins),                        // CORS support
+		rateLimiter.Middleware,                              // Rate limiting
+		middleware.Timeout(30*time.Second),                  // Request timeout
 	)
 }
 

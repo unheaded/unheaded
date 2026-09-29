@@ -6,9 +6,11 @@ package middleware
 import (
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
+	pkgmetrics "unheaded/pkg/metrics"
 	"unheaded/services/wotan/internal/logger"
 	"unheaded/services/wotan/internal/metrics"
 )
@@ -107,10 +109,11 @@ func TestLogging_PreservesStatusCode(t *testing.T) {
 // ============================================================================
 
 func TestMetrics(t *testing.T) {
-	handler := Metrics(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("metrics test"))
-	}))
+	})
+	handler := MetricsFor(MuxRoute(inner))(inner)
 
 	req := httptest.NewRequest("GET", "/api/test", nil)
 	rec := httptest.NewRecorder()
@@ -131,9 +134,10 @@ func TestMetrics_NilMetrics(t *testing.T) {
 		}
 	}()
 
-	handler := Metrics(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-	}))
+	})
+	handler := MetricsFor(MuxRoute(inner))(inner)
 
 	req := httptest.NewRequest("GET", "/test", nil)
 	rec := httptest.NewRecorder()
@@ -535,4 +539,47 @@ func TestWriteAuthError(t *testing.T) {
 	if body == "" {
 		t.Error("Response body is empty")
 	}
+}
+
+// The legacy unheaded_chat_http_* family labelled by r.URL.Path, topic name
+// included: ~27 series per topic across its histograms, growing with every
+// topic ever used (2,871 Wotan series live on 2026-09-29, enough to push the
+// dashboard's scrape store past its memory limit). It now labels by the
+// ServeMux pattern, like the shared unheaded_http_* middleware.
+func TestMetricsFor_LabelsByPatternNotRawPath(t *testing.T) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/topics/", func(w http.ResponseWriter, r *http.Request) {})
+	h := MetricsFor(MuxRoute(mux))(mux)
+
+	for _, p := range []string{"/api/v1/topics/zz-card-a/publish", "/api/v1/topics/zz-card-b/publish", "/zz-card-nowhere"} {
+		h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, p, nil))
+	}
+	rec := httptest.NewRecorder()
+	pkgmetrics.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	out := rec.Body.String()
+	if strings.Contains(out, "zz-card") {
+		t.Errorf("raw path leaked into a label:\n%s", grep(out, "zz-card"))
+	}
+	for _, want := range []string{`path="/api/v1/topics/"`, `path="unmatched"`} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %s", want)
+		}
+	}
+}
+
+func TestMuxRoute_NotAMux(t *testing.T) {
+	route := MuxRoute(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	if got := route(httptest.NewRequest(http.MethodGet, "/x/y", nil)); got != "unmatched" {
+		t.Errorf("route = %q, want unmatched", got)
+	}
+}
+
+func grep(s, sub string) string {
+	var keep []string
+	for _, l := range strings.Split(s, "\n") {
+		if strings.Contains(l, sub) {
+			keep = append(keep, l)
+		}
+	}
+	return strings.Join(keep, "\n")
 }

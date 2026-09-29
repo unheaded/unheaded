@@ -74,8 +74,31 @@ func Logging(next http.Handler) http.Handler {
 	})
 }
 
-// Metrics middleware records Prometheus metrics
-func Metrics(next http.Handler) http.Handler {
+// MuxRoute returns a route function reporting the ServeMux pattern that
+// serves a request, or "unmatched". For a handler that is not a ServeMux,
+// every request is "unmatched".
+func MuxRoute(h http.Handler) func(*http.Request) string {
+	mux, ok := h.(*http.ServeMux)
+	return func(r *http.Request) string {
+		if ok {
+			if _, pattern := mux.Handler(r); pattern != "" {
+				return pattern
+			}
+		}
+		return "unmatched"
+	}
+}
+
+// MetricsFor records the unheaded_chat_http_* metrics with path = route(r).
+// It used to label by r.URL.Path, topic name included, so the family grew
+// by ~27 series with every topic ever used.
+func MetricsFor(route func(*http.Request) string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return metricsHandler(route, next)
+	}
+}
+
+func metricsHandler(route func(*http.Request) string, next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 
@@ -92,9 +115,10 @@ func Metrics(next http.Handler) http.Handler {
 		duration := time.Since(start)
 		m := metrics.Get()
 		if m != nil {
-			m.RecordHTTPRequest(r.Method, r.URL.Path, wrapped.statusCode, duration)
-			m.HTTPRequestSize.WithLabelValues(r.Method, r.URL.Path).Observe(float64(r.ContentLength))
-			m.HTTPResponseSize.WithLabelValues(r.Method, r.URL.Path).Observe(float64(wrapped.size))
+			path := route(r)
+			m.RecordHTTPRequest(r.Method, path, wrapped.statusCode, duration)
+			m.HTTPRequestSize.WithLabelValues(r.Method, path).Observe(float64(r.ContentLength))
+			m.HTTPResponseSize.WithLabelValues(r.Method, path).Observe(float64(wrapped.size))
 		}
 	})
 }
