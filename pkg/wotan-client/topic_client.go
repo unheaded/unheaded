@@ -566,16 +566,17 @@ func (c *TopicStreamClient) pollHTTPFallback(ctx context.Context, topicPattern s
 				lastSeq = next
 			}
 			for _, msg := range msgs {
-				if msg == nil {
+				// Never deliver at or below the cursor, whatever the server sent.
+				if msg == nil || msg.Seq <= lastSeq {
 					continue
 				}
+				// Advance past it even if the pattern filter drops it, or the
+				// next poll fetches it again.
+				as.lastSeq.Store(msg.Seq)
+				lastSeq = msg.Seq
 				// Client-side pattern filter
 				if !MatchTopic(topicPattern, msg.Topic) {
 					continue
-				}
-				if msg.Seq > lastSeq {
-					as.lastSeq.Store(msg.Seq)
-					lastSeq = msg.Seq
 				}
 				if !as.sc.send(ctx, msg) {
 					return
