@@ -1472,7 +1472,8 @@
 
     function updateTimestamp() {
         if (el.lastUpdate) el.lastUpdate.textContent = new Date().toLocaleTimeString();
-        if (el.serverTime) el.serverTime.textContent = 'Server: ' + new Date().toLocaleTimeString();
+        // The browser's clock; nothing here reads the server's.
+        if (el.serverTime) el.serverTime.textContent = 'Local: ' + new Date().toLocaleTimeString();
         if (el.uptime) el.uptime.textContent = 'Uptime: ' + (state.backendStartMs == null ? '--' : formatUptime(Date.now() - state.backendStartMs));
     }
 

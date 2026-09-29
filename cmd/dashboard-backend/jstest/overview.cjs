@@ -42,6 +42,7 @@ h.run({
     check('eps is delta over time', text('stat-eps'), '5.0');
     intervals.updateTimestamp[0]();
     check('header uptime is backend uptime', text('uptime'), 'Uptime: 1m 42s');
+    check('header clock is labelled as the browser clock', text('server-time').startsWith('Local: '), true);
 
     // Active flows card ignores WS hop list
     intervals.refreshFlows[0](); await settle();
