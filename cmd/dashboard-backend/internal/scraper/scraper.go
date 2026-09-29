@@ -697,7 +697,6 @@ func (s *Scraper) storeSample(sample MetricSample) {
 		}
 		s.series[key] = series
 	}
-	s.seriesMu.Unlock()
 
 	// Store the series' own copies, not the parsed ones: those strings are
 	// substrings of the scrape body and the map is new per scrape, so keeping
@@ -706,6 +705,7 @@ func (s *Scraper) storeSample(sample MetricSample) {
 	sample.Name, sample.Labels, sample.Service = series.Name, series.Labels, series.Service
 
 	series.AddSample(sample, s.config.MaxSamples)
+	s.seriesMu.Unlock()
 }
 
 // IngestSample stores a metric sample directly into the series store,
@@ -746,6 +746,20 @@ func (s *Scraper) cleanup() {
 	for _, series := range seriesList {
 		series.Cleanup(cutoff)
 	}
+
+	// Drop series left with no samples, or the store keeps every label set
+	// it has ever seen. storeSample appends under seriesMu, so a series is
+	// never removed between its lookup and its append.
+	s.seriesMu.Lock()
+	for key, series := range s.series {
+		series.mu.RLock()
+		empty := len(series.Samples) == 0
+		series.mu.RUnlock()
+		if empty {
+			delete(s.series, key)
+		}
+	}
+	s.seriesMu.Unlock()
 
 	s.log.Debug().
 		Time("cutoff", cutoff).
