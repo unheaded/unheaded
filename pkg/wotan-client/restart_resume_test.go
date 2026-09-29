@@ -5,7 +5,12 @@ package wotanClient
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -283,4 +288,109 @@ func startMockServer(t *testing.T, srv *mockTopicStreamServer) *bufconn.Listener
 	go func() { _ = gs.Serve(lis) }()
 	t.Cleanup(gs.Stop)
 	return lis
+}
+
+// A live view starts at the live position: the dashboard used to replay the
+// whole history Wotan held (~30k events) on every start, counting it as
+// just-ingested and flooding its WebSocket broadcast (46k drops in the
+// first minute, 2026-09-29).
+func TestTopicStreamClient_LiveStartSkipsReplay(t *testing.T) {
+	srv := newMockServer()
+	srv.killErr = status.Error(codes.Unavailable, "blip")
+	for i := 1; i <= 3; i++ {
+		srv.addMessage("tasks.created", int64(i), fmt.Sprintf("old-%d", i))
+	}
+	lis := startMockServer(t, srv)
+	client, err := newTopicStreamClientWithDialer(lis, WithRetryPolicy(10*time.Millisecond, 100*time.Millisecond, 100), WithLiveStart())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { client.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+	defer cancel()
+	client.Subscribe(ctx, "tasks.created", "live")
+	ch, err := client.StreamMessages(ctx, "tasks.created")
+	if err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case <-srv.streamStarted:
+	case <-time.After(5 * time.Second):
+		t.Fatal("no stream opened")
+	}
+	select {
+	case m := <-ch:
+		t.Fatalf("replayed history: %q", m.Payload)
+	case <-time.After(300 * time.Millisecond):
+	}
+	srv.mu.Lock()
+	first := srv.sinces[0]
+	srv.mu.Unlock()
+	if first != -1 {
+		t.Errorf("first since_seq = %d, want -1", first)
+	}
+
+	// Live messages arrive, and a reconnect resumes from them as usual.
+	srv.addMessage("tasks.created", 4, "new-4")
+	srv.live <- &chatpb.TopicEvent{Topic: "tasks.created", Seq: 4, Payload: []byte("new-4")}
+	select {
+	case m := <-ch:
+		if string(m.Payload) != "new-4" {
+			t.Fatalf("got %q, want new-4", m.Payload)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("live message not delivered")
+	}
+	srv.addMessage("tasks.created", 5, "new-5")
+	srv.setStreamError(status.Error(codes.Unavailable, "blip"))
+	srv.setStreamError(nil)
+	select {
+	case m := <-ch:
+		if string(m.Payload) != "new-5" {
+			t.Fatalf("after reconnect got %q, want new-5", m.Payload)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("reconnect did not resume")
+	}
+}
+
+// Over the HTTP fallback a live start takes the server's last_seq as the
+// cursor and delivers only what comes after it.
+func TestTopicStreamClient_LiveStartHTTPFallback(t *testing.T) {
+	var mu sync.Mutex
+	var afters []string
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		after := r.URL.Query().Get("after_seq")
+		mu.Lock()
+		afters = append(afters, after)
+		mu.Unlock()
+		msgs := []map[string]any{}
+		switch after {
+		case "0": // the history, which a live start must not deliver
+			msgs = append(msgs, map[string]any{"seq": 7, "topic": "t.x", "payload": "old"})
+		case "7":
+			msgs = append(msgs, map[string]any{"seq": 8, "topic": "t.x", "payload": "new"})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"messages": msgs, "last_seq": 8})
+	}))
+	defer ts.Close()
+	hc, _ := NewClient(strings.TrimPrefix(ts.URL, "http://"))
+	c := &TopicStreamClient{httpClient: hc, liveStart: true}
+	as := &activeStream{sc: newSafeChannel(10)}
+	as.lastSeq.Store(-1)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	go c.pollHTTPFallback(ctx, "t.x", as)
+
+	// last_seq on the probe is 8, so nothing (not 7, not 8) is delivered...
+	select {
+	case m := <-as.sc.ch:
+		t.Fatalf("delivered %q from before the live start", m.Payload)
+	case <-time.After(1500 * time.Millisecond):
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(afters) < 2 || afters[0] != "0" || afters[1] != "8" {
+		t.Errorf("after_seq sequence %v, want [0 8 ...]", afters)
+	}
 }

@@ -35,6 +35,9 @@ type TopicStreamClient struct {
 	// HTTP fallback for circuit-breaker degradation
 	httpClient *Client
 
+	// liveStart: new streams skip the replay (WithLiveStart)
+	liveStart bool
+
 	// Options
 	grpcAddr   string
 	bufferSize int
@@ -114,6 +117,18 @@ func WithMetadata(md map[string]string) TopicStreamOption {
 		for k, v := range md {
 			c.metadata[k] = v
 		}
+	}
+}
+
+// WithLiveStart makes a new stream begin at the live position instead of
+// replaying the history Wotan holds for the topic: the first gRPC connect
+// sends since_seq -1 (Wotan replays nothing for a negative cursor), and the
+// HTTP fallback starts from the server's last_seq. After the first message
+// the stream resumes from its cursor as usual. For live views (the
+// dashboard), where a replay only re-counts history as if it just happened.
+func WithLiveStart() TopicStreamOption {
+	return func(c *TopicStreamClient) {
+		c.liveStart = true
 	}
 }
 
@@ -378,6 +393,9 @@ func (c *TopicStreamClient) StreamMessages(ctx context.Context, topicPattern str
 		sc:     sc,
 		cancel: cancel,
 	}
+	if c.liveStart {
+		as.lastSeq.Store(-1) // see WithLiveStart
+	}
 
 	c.streamMu.Lock()
 	c.streams[topicPattern] = as
@@ -524,6 +542,21 @@ func (c *TopicStreamClient) pollHTTPFallback(ctx context.Context, topicPattern s
 			return
 		case <-ticker.C:
 			lastSeq := as.lastSeq.Load()
+			if lastSeq < 0 {
+				// Live start (WithLiveStart): take the server's last_seq as
+				// the cursor and deliver nothing older. Wotan rejects a
+				// negative after_seq.
+				_, serverLast, err := c.httpClient.getMessagesPage(ctx, topicPattern, 0, 1)
+				if err != nil {
+					continue
+				}
+				var start int64
+				if serverLast != nil {
+					start = *serverLast
+				}
+				as.lastSeq.Store(start)
+				continue
+			}
 			msgs, serverLast, err := c.httpClient.getMessagesPage(ctx, topicPattern, lastSeq, 100)
 			if err != nil {
 				continue
