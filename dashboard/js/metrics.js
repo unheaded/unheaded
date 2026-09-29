@@ -2,7 +2,10 @@
 // Fetches and displays dashboard-backend metrics with periodic polling.
 //
 // Data sources:
-//   - GET /api/v1/metrics   (dashboard-backend, port 8080) - aggregated metrics
+//   - GET /api/v1/metrics/summary (dashboard-backend) - request rate, 5xx %,
+//     latency quantiles and uptime, derived server-side from consecutive
+//     scrapes of every service's unheaded_http_* metrics. null means "no
+//     data yet" and renders as "--", never as 0.
 //   - GET /api/v1/health    (dashboard-backend, port 8080) - service health
 //   - GET /api/v1/services  (dashboard-backend, port 8080) - service list with status
 //
@@ -106,10 +109,10 @@
                         '<span class="metric-value" data-metric="errorRate" aria-live="polite">--</span>' +
                         '<span class="metric-unit">%</span>' +
                     '</div>' +
-                    '<span class="metric-label">Error Rate</span>' +
+                    '<span class="metric-label">5xx Rate</span>' +
                 '</div>' +
 
-                '<div class="metric-card" id="metric-connections" role="group" aria-label="Active Connections metric">' +
+                '<div class="metric-card" id="metric-connections" role="group" aria-label="Dashboard Clients metric">' +
                     '<div class="metric-icon" aria-hidden="true">' +
                         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">' +
                             '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>' +
@@ -121,7 +124,7 @@
                     '<div class="metric-content">' +
                         '<span class="metric-value" data-metric="activeConnections" aria-live="polite">--</span>' +
                     '</div>' +
-                    '<span class="metric-label">Active Connections</span>' +
+                    '<span class="metric-label">Dashboard Clients</span>' +
                 '</div>' +
 
                 '<div class="metric-card" id="metric-uptime" role="group" aria-label="Uptime metric">' +
@@ -271,7 +274,7 @@
     // Fetch metrics from the real dashboard-backend API
     function fetchMetrics() {
         // Fetch metrics, health, and services in parallel
-        var metricsUrl = CONFIG.apiBaseUrl + '/metrics';
+        var metricsUrl = CONFIG.apiBaseUrl + '/metrics/summary';
         var healthUrl  = CONFIG.apiBaseUrl + '/health';
         var servicesUrl = CONFIG.apiBaseUrl + '/services';
 
@@ -332,10 +335,10 @@
                         data._servicesList = servicesData.services;
                     }
 
-                    // Extract aggregate metrics from the AggregatedMetrics structure
-                    // The /api/v1/metrics endpoint returns:
-                    // { timestamp, services: { name: { metrics: { ... } } }, total_metrics, total_series }
-                    data = extractAggregateValues(data);
+                    // Prefer the richer services list from /api/v1/services
+                    if (data._servicesList && data._servicesList.length > 0) {
+                        data.services_list = data._servicesList;
+                    }
 
                     retryCount = 0;
                     consecutiveFailures = 0;
@@ -346,126 +349,6 @@
         }).catch(function(error) {
             handleFetchError(error);
         });
-    }
-
-    /**
-     * Extract meaningful aggregate values from the AggregatedMetrics structure.
-     *
-     * The dashboard-backend /api/v1/metrics returns:
-     * {
-     *   "timestamp": "...",
-     *   "services": {
-     *     "timeguru": { "name":"timeguru", "status":"up", "metrics": { "unheaded_http_requests_total": { "value": 42 }, ... } },
-     *     ...
-     *   },
-     *   "total_metrics": 120,
-     *   "total_series": 45
-     * }
-     *
-     * We aggregate request rates, error rates, latencies, and connection counts
-     * from the per-service Prometheus metrics.
-     */
-    function extractAggregateValues(data) {
-        if (!data || !data.services) return data;
-
-        var totalRequests = 0;
-        var totalErrors = 0;
-        var latencies = [];
-        var activeConns = 0;
-        var uptime = 0;
-        var serviceList = [];
-
-        var svcNames = Object.keys(data.services);
-        for (var i = 0; i < svcNames.length; i++) {
-            var svcName = svcNames[i];
-            var svc = data.services[svcName];
-            var svcMetrics = svc.metrics || {};
-
-            // Build service list for health display
-            serviceList.push({
-                name: svcName,
-                status: svc.status || 'unknown',
-                latency: null
-            });
-
-            // Sum up HTTP request totals across services
-            var reqMetric = svcMetrics['unheaded_http_requests_total'] ||
-                            svcMetrics['http_requests_total'];
-            if (reqMetric) {
-                totalRequests += reqMetric.value || 0;
-            }
-
-            // Sum up errors (requests with status >= 400)
-            // The counter is usually broken out by labels; if we have a single value,
-            // use error_count metrics if available
-            var errMetric = svcMetrics['unheaded_http_errors_total'] ||
-                            svcMetrics['http_errors_total'];
-            if (errMetric) {
-                totalErrors += errMetric.value || 0;
-            }
-
-            // Collect latency values
-            var latMetric = svcMetrics['unheaded_http_request_duration_seconds'] ||
-                            svcMetrics['http_request_duration_seconds'];
-            if (latMetric && latMetric.value) {
-                // Convert seconds to milliseconds
-                latencies.push(latMetric.value * 1000);
-            }
-
-            // Active connections gauge
-            var connMetric = svcMetrics['unheaded_active_connections'] ||
-                             svcMetrics['active_connections'] ||
-                             svcMetrics['dashboard_websocket_connections'];
-            if (connMetric) {
-                activeConns += connMetric.value || 0;
-            }
-
-            // Uptime - take the maximum across services
-            var uptimeMetric = svcMetrics['unheaded_uptime_seconds'] ||
-                               svcMetrics['process_uptime_seconds'] ||
-                               svcMetrics['uptime_seconds'];
-            if (uptimeMetric && uptimeMetric.value > uptime) {
-                uptime = uptimeMetric.value;
-            }
-        }
-
-        // Calculate derived values
-        // request_rate is approximated from total requests / scrape interval
-        var requestRate = totalRequests > 0 ? totalRequests / (CONFIG.refreshInterval / 1000) : 0;
-        var errorRate = totalRequests > 0 ? (totalErrors / totalRequests) * 100 : 0;
-
-        // Sort latencies for percentile calculation
-        latencies.sort(function(a, b) { return a - b; });
-        var p50 = percentile(latencies, 0.50);
-        var p95 = percentile(latencies, 0.95);
-        var p99 = percentile(latencies, 0.99);
-
-        // Prefer the richer services list from /api/v1/services if available
-        if (data._servicesList && data._servicesList.length > 0) {
-            serviceList = data._servicesList;
-        }
-
-        // Overlay extracted values onto data for processMetrics
-        data.request_rate = data.request_rate || requestRate;
-        data.error_rate = data.error_rate || errorRate;
-        data.active_connections = data.active_connections || activeConns;
-        data.uptime = data.uptime || data.uptime_seconds || uptime;
-        if (!data.latency) {
-            data.latency = { p50: p50, p95: p95, p99: p99 };
-        }
-        if (!data.services_list) {
-            data.services_list = serviceList;
-        }
-
-        return data;
-    }
-
-    /** Calculate a percentile from a sorted array. */
-    function percentile(sortedArr, p) {
-        if (!sortedArr || sortedArr.length === 0) return 0;
-        var idx = Math.ceil(p * sortedArr.length) - 1;
-        if (idx < 0) idx = 0;
-        return sortedArr[idx];
     }
 
     // Handle fetch errors - display user-friendly messages, show last-known values
@@ -557,12 +440,13 @@
         updateMetricValue('errorRate', formatNumber(metrics.errorRate, 2), previousMetrics ? previousMetrics.errorRate : null);
         updateMetricValue('activeConnections', formatNumber(metrics.activeConnections, 0), previousMetrics ? previousMetrics.activeConnections : null);
         updateMetricValue('uptime', formatUptime(metrics.uptime), null);
+        updateCoverage(metrics);
 
         // Latency metrics
         var prevLat = previousMetrics ? previousMetrics.latency : null;
-        updateMetricValue('latencyP50', formatNumber(metrics.latency ? metrics.latency.p50 : 0, 1), prevLat ? prevLat.p50 : null);
-        updateMetricValue('latencyP95', formatNumber(metrics.latency ? metrics.latency.p95 : 0, 1), prevLat ? prevLat.p95 : null);
-        updateMetricValue('latencyP99', formatNumber(metrics.latency ? metrics.latency.p99 : 0, 1), prevLat ? prevLat.p99 : null);
+        updateMetricValue('latencyP50', formatNumber(metrics.latency.p50, 1), prevLat ? prevLat.p50 : null);
+        updateMetricValue('latencyP95', formatNumber(metrics.latency.p95, 1), prevLat ? prevLat.p95 : null);
+        updateMetricValue('latencyP99', formatNumber(metrics.latency.p99, 1), prevLat ? prevLat.p99 : null);
 
         // Update latency bars
         updateLatencyBars(metrics.latency);
@@ -609,18 +493,30 @@
         }
     }
 
-    // Normalize metrics data from various possible response formats
+    // A missing or non-numeric value stays null ("--"). The old version
+    // turned every gap into 0, so "no data" and "zero" looked the same.
+    function orNull(v) {
+        if (v === null || v === undefined) return null;
+        var n = Number(v);
+        return isNaN(n) ? null : n;
+    }
+
+    // Map /api/v1/metrics/summary onto the panel's fields.
     function normalizeMetrics(data) {
+        var lat = data.latency_ms || {};
         return {
-            requestRate: data.request_rate || data.requestRate || 0,
-            errorRate: data.error_rate || data.errorRate || 0,
-            activeConnections: data.active_connections || data.activeConnections || 0,
-            uptime: data.uptime || data.uptime_seconds || 0,
+            requestRate: orNull(data.request_rate),
+            errorRate: orNull(data.error_rate),
+            activeConnections: orNull(data.dashboard_clients),
+            uptime: orNull(data.uptime_seconds),
             latency: {
-                p50: (data.latency ? data.latency.p50 : null) || data.latency_p50 || 0,
-                p95: (data.latency ? data.latency.p95 : null) || data.latency_p95 || 0,
-                p99: (data.latency ? data.latency.p99 : null) || data.latency_p99 || 0
-            }
+                p50: orNull(lat.p50),
+                p95: orNull(lat.p95),
+                p99: orNull(lat.p99)
+            },
+            servicesReporting: orNull(data.services_reporting),
+            servicesScraped: orNull(data.services_scraped),
+            windowSeconds: orNull(data.window_seconds)
         };
     }
 
@@ -655,6 +551,19 @@
         }, CONFIG.animationDuration);
     }
 
+    // Say what the numbers cover: how many services fed them, over what
+    // window. A rate from 3 of 10 services is not the kingdom's rate.
+    function updateCoverage(m) {
+        var card = document.getElementById('metric-request-rate');
+        if (!card) return;
+        var text = 'No scrape pairs yet';
+        if (m.servicesReporting !== null && m.servicesReporting > 0) {
+            text = 'From ' + m.servicesReporting + ' of ' + (m.servicesScraped || '?') +
+                ' scraped targets over ~' + Math.round(m.windowSeconds || 0) + 's';
+        }
+        card.setAttribute('title', text);
+    }
+
     // Update latency bars
     function updateLatencyBars(latency) {
         if (!latency) return;
@@ -673,7 +582,11 @@
             var key = barKeys[i];
             var value = bars[key];
             var bar = metricsGrid.querySelector('[data-bar="' + key + '"]');
-            if (bar) {
+            if (bar && latency[key] === null) {
+                // No observations: an empty bar, not a green "0 ms" one.
+                bar.style.width = '0%';
+                bar.classList.remove('good', 'warning', 'critical');
+            } else if (bar) {
                 var pct = Math.min((value / maxLatency) * 100, 100);
                 bar.style.width = pct + '%';
 
