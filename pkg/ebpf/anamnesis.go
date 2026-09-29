@@ -336,11 +336,6 @@ func DecodeComputeHopEvent(b []byte) (*ComputeHopEvent, error) {
 	return evt, nil
 }
 
-// FuzzDecodeComputeHopEvent is the fuzz target (call from fuzz_test.go)
-func FuzzDecodeComputeHopEvent(data []byte) {
-	_, _ = DecodeComputeHopEvent(data)
-}
-
 // MemWriteEvent is emitted by monad-cpu-ebpf for MEM_WRITE events.
 // Binary layout: 8+1+3+4+4+1+3+4 = 28 bytes
 type MemWriteEvent struct {
