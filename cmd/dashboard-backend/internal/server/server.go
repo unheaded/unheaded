@@ -1587,15 +1587,12 @@ func (s *Server) handleStreamWebSocket(w http.ResponseWriter, r *http.Request) {
 }
 
 // broadcastToStream broadcasts a message to all stream subscribers
+//
+// It does not also send to the WebSocket: every caller broadcasts there
+// itself, and doing both delivered each message to every browser twice.
 func (s *Server) broadcastToStream(msg *StreamMessage) {
 	s.streamSubsMu.RLock()
 	defer s.streamSubsMu.RUnlock()
-
-	data, err := json.Marshal(msg)
-	if err != nil {
-		s.log.Error().Err(err).Msg("failed to marshal stream message")
-		return
-	}
 
 	for ch, filter := range s.streamSubs {
 		if s.matchesStreamFilter(msg, filter) {
@@ -1606,9 +1603,6 @@ func (s *Server) broadcastToStream(msg *StreamMessage) {
 			}
 		}
 	}
-
-	// Also broadcast to main WebSocket for backward compatibility
-	s.wsServer.Broadcast(data)
 }
 
 // matchesStreamFilter checks if a message matches the stream filter

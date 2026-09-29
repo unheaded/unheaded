@@ -561,3 +561,60 @@ func TestTracePipelineCorrelatedFlow(t *testing.T) {
 		t.Errorf("flow_state: got %s, want ESTABLISHED", te.FlowState)
 	}
 }
+
+// Each live message reaches a browser once. broadcastToStream, the fan-out
+// for /api/v1/stream subscribers, also re-broadcast to the WebSocket "for
+// backward compatibility", and every caller already had: each trace,
+// health, event and eBPF message arrived twice, the second copy without
+// the seq the page dedupes by, so feed rows and counts doubled.
+func TestTracePipeline_OneWebSocketMessagePerEvent(t *testing.T) {
+	config := DefaultConfig()
+	config.WotanAddr = "localhost:19999"
+	srv, err := NewServer(config, testPipelineLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+		sctx, scancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer scancel()
+		srv.Shutdown(sctx)
+	}()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	wsServer := srv.GetWebSocketServer()
+	hs := httptest.NewServer(http.HandlerFunc(wsServer.HandleWebSocket))
+	defer hs.Close()
+	conn, resp, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(hs.URL, "http"), sameOriginHeader(hs.URL))
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	for deadline := time.Now().Add(2 * time.Second); wsServer.ConnectionCount() == 0 && time.Now().Before(deadline); {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	srv.IngestTraceEvent(TraceEvent{TraceID: "one-of-a-kind", Timestamp: time.Now().UnixMilli(), EventType: "packet"})
+
+	traces := 0
+	for {
+		conn.SetReadDeadline(time.Now().Add(500 * time.Millisecond))
+		_, raw, err := conn.ReadMessage()
+		if err != nil {
+			break
+		}
+		var m map[string]interface{}
+		_ = json.Unmarshal(raw, &m)
+		if m["type"] == "trace" {
+			traces++
+		}
+	}
+	if traces != 1 {
+		t.Errorf("one trace event reached the browser %d times, want 1", traces)
+	}
+}
