@@ -75,6 +75,11 @@ The Lich is a custom adversary framework that transforms isolated tools into orc
 
 **LICH Modules (LICH-001 through LICH-010):**
 
+> **Numbering note (2026-09-29):** the LICH numbers below predate the campaign
+> registry in `docs/adr/ADR-062-fuzz-redteam-pentest-framework.md` and do not match it
+> (there, LICH-001 is the Monad wire-format parser and LICH-005 the eBPF kernel
+> interface). Read these as planned campaigns without registry numbers; ADR-062 assigns them.
+
 | Module | Purpose | Key Harness |
 |--------|---------|------------|
 | **LICH-001** | Network reconnaissance | nmap orchestration + asset database |

@@ -198,6 +198,11 @@
 - [ ] **Step 100** [W]: Create campaign-template.yaml as contributor scaffold (with all fields)
 - [ ] **Step 101** [W]: Create CAMPAIGN_APPROVAL.md: Barrister review gate for novel TTPs
 - [ ] **Step 102** [V]: Campaign infrastructure docs complete
+> **Numbering note (2026-09-29):** the LICH numbers below predate the campaign
+> registry in `docs/adr/ADR-062-fuzz-redteam-pentest-framework.md` and do not match it
+> (there, LICH-001 is the Monad wire-format parser and LICH-005 the eBPF kernel
+> interface). Read these as planned campaigns without registry numbers; ADR-062 assigns them.
+
 - [ ] **Step 103** [W]: Create LICH-001.yaml (enumerate-network-interfaces, discovery)
 - [ ] **Step 104** [W]: Create LICH-002.yaml (port-scan, service discovery)
 - [ ] **Step 105** [W]: Create LICH-003.yaml (certificate-enumeration, TLS discovery)
