@@ -47,7 +47,9 @@ h.run({
     // Active flows card ignores WS hop list
     intervals.refreshFlows[0](); await settle();
     check('active flows from backend', text('active-flows-count'), '2');
-    for (let i = 0; i < 5; i++) ws().onmessage({ data: JSON.stringify({ type: 'packet_flow', data: { hops: [{ component: 'a' }, { component: 'b' }, { component: 'c' }] } }) });
-    check('WS packet_flow leaves the card alone', text('active-flows-count'), '2');
+    // A stray packet_flow (old backend) must not turn packets into flows.
+    for (let i = 0; i < 5; i++) ws().onmessage({ data: JSON.stringify({ type: 'packet_flow', data: { source: 'a', destination: 'b', size: 60 } }) });
+    check('packet_flow leaves the card alone', text('active-flows-count'), '2');
+    check('packet_flow leaves the flow graph count alone', text('flow-graph-count'), '2');
   }
 });

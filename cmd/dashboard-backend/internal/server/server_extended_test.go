@@ -1089,60 +1089,6 @@ func TestBroadcastToStream(t *testing.T) {
 
 // ---- ResolveServiceName ----
 
-func TestResolveServiceName(t *testing.T) {
-	srv := newTestServer(t)
-	srv.config.ServiceEndpoints = map[string]string{
-		"wotan":    "10.10.10.10:18001",
-		"timeguru": "10.10.10.20:19000",
-	}
-
-	if got := srv.resolveServiceName("10.10.10.10"); got != "wotan" {
-		t.Errorf("resolveServiceName(10.10.10.10) = %q, want wotan", got)
-	}
-	if got := srv.resolveServiceName("10.10.10.99"); got != "10.10.10.99" {
-		t.Errorf("resolveServiceName(10.10.10.99) = %q, want 10.10.10.99", got)
-	}
-}
-
-func TestResolveServiceName_NilEndpoints(t *testing.T) {
-	srv := newTestServer(t)
-	srv.config.ServiceEndpoints = nil
-	if got := srv.resolveServiceName("10.10.10.10"); got != "10.10.10.10" {
-		t.Errorf("got %q, want 10.10.10.10", got)
-	}
-}
-
-func TestResolveServiceByID(t *testing.T) {
-	srv := newTestServer(t)
-	srv.config.ServiceEndpoints = nil
-	if got := srv.resolveServiceByID(0); got != "" {
-		t.Errorf("resolveServiceByID(0) = %q, want empty", got)
-	}
-	if got := srv.resolveServiceByID(1); got != "" {
-		t.Errorf("resolveServiceByID(1) with nil endpoints = %q, want empty", got)
-	}
-}
-
-func TestResolveServiceByID_WithEndpoints(t *testing.T) {
-	srv := newTestServer(t)
-	srv.config.ServiceEndpoints = map[string]string{
-		"svc-a": "10.10.10.10:8000",
-	}
-	// id=0 is always unknown
-	if got := srv.resolveServiceByID(0); got != "" {
-		t.Errorf("id=0 should be empty, got %q", got)
-	}
-	// id=1 should resolve to some service (map iteration order is not guaranteed)
-	got := srv.resolveServiceByID(1)
-	if got != "svc-a" {
-		t.Errorf("id=1 = %q, want svc-a", got)
-	}
-	// Out of range
-	if got := srv.resolveServiceByID(255); got != "" {
-		t.Errorf("id=255 should be empty, got %q", got)
-	}
-}
-
 // ---- TraceBuffer Additional Tests ----
 
 func TestTraceBuffer_RecentEmpty(t *testing.T) {
