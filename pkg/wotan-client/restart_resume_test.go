@@ -26,21 +26,22 @@ func TestStreamCursor(t *testing.T) {
 	for _, tc := range []struct {
 		name                   string
 		requested, cursor, got int64
-		single                 bool
 		want                   int64
 	}{
-		{"forward", 3, 3, 4, true, 4},
-		{"reordered duplicate stays", 3, 7, 5, true, 7},
-		{"restart: at or below requested", 9, 9, 1, true, 1},
-		{"restart: equal to requested", 9, 9, 9, true, 9},
-		{"after rewind, forward again", 9, 1, 2, true, 2},
-		{"fresh stream never rewinds", 0, 0, 1, true, 1},
-		{"multi-topic low seq ignored", 9, 9, 1, false, 9},
-		{"multi-topic forward", 9, 9, 12, false, 12},
+		{"forward", 3, 3, 4, 4},
+		{"reordered duplicate stays", 3, 7, 5, 7},
+		{"restart: below requested", 9, 9, 1, 1},
+		{"restart: equal to requested", 9, 9, 9, 9},
+		{"after rewind, forward again", 9, 1, 2, 2},
+		{"fresh stream never rewinds", 0, 0, 1, 1},
+		{"live start (-1) never rewinds", -1, -1, 1, 1},
+		// Seqs are global, so a pattern stream's low seq is a restart too
+		// (it used to be ignored while seqs were per topic).
+		{"pattern stream restart", 9, 12, 2, 2},
 	} {
-		if got := streamCursor(tc.requested, tc.cursor, tc.got, tc.single); got != tc.want {
-			t.Errorf("%s: streamCursor(%d,%d,%d,%v) = %d, want %d",
-				tc.name, tc.requested, tc.cursor, tc.got, tc.single, got, tc.want)
+		if got := streamCursor(tc.requested, tc.cursor, tc.got); got != tc.want {
+			t.Errorf("%s: streamCursor(%d,%d,%d) = %d, want %d",
+				tc.name, tc.requested, tc.cursor, tc.got, got, tc.want)
 		}
 	}
 }

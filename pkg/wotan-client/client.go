@@ -629,13 +629,13 @@ func nextCursor(cursor int64, serverLast *int64) int64 {
 
 // streamCursor advances a gRPC resume cursor for an event carrying seq got,
 // on a stream opened with since_seq requested. Normally it only moves
-// forward. But a correct Wotan never sends a seq at or below since_seq, so a
-// single-topic event that does is from a restarted Wotan numbering from 1
-// again, and the cursor follows it down; left above the new seqs, every
-// later reconnect would ask for the wrong range. A multi-topic stream mixes
-// topics' seq spaces, so there a low seq means nothing.
-func streamCursor(requested, cursor, got int64, singleTopic bool) int64 {
-	if got > cursor || (singleTopic && requested > 0 && got <= requested) {
+// forward. But a correct Wotan never sends a seq at or below since_seq, so an
+// event that does is from a restarted Wotan numbering from 1 again, and the
+// cursor follows it down; left above the new seqs, every later reconnect
+// would ask for the wrong range. Wotan's seqs are global across topics, so
+// this holds for pattern streams too.
+func streamCursor(requested, cursor, got int64) int64 {
+	if got > cursor || (requested > 0 && got <= requested) {
 		return got
 	}
 	return cursor

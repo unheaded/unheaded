@@ -519,7 +519,7 @@ func (c *TopicStreamClient) streamSingle(ctx context.Context, topicPattern strin
 		}
 
 		// Track sequence for resume
-		if next := streamCursor(requested, sinceSeq, msg.Seq, msg.Topic == topicPattern); next != sinceSeq {
+		if next := streamCursor(requested, sinceSeq, msg.Seq); next != sinceSeq {
 			as.lastSeq.Store(next)
 			sinceSeq = next
 		}

@@ -356,7 +356,7 @@ func (gc *GRPCClient) streamMessagesSingle(ctx context.Context, topic string, su
 		if msg == nil {
 			continue
 		}
-		*cursor = streamCursor(requested, *cursor, msg.Seq, msg.Topic == topic)
+		*cursor = streamCursor(requested, *cursor, msg.Seq)
 
 		if !sc.send(ctx, msg) {
 			return delivered, ctx.Err()
