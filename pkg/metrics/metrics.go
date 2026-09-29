@@ -466,6 +466,34 @@ func (gv *GaugeVec) With(labels Labels) *Gauge {
 	return gv.WithLabels(labels)
 }
 
+// DeletePartialMatch removes every gauge whose labels include all of the given
+// pairs and returns how many it removed. An empty filter removes nothing.
+// Use it to stop exporting series for a source that has gone away, instead of
+// leaving its last value (or a zero) published as if it were current.
+func (gv *GaugeVec) DeletePartialMatch(labels Labels) int {
+	if len(labels) == 0 {
+		return 0
+	}
+	gv.mu.Lock()
+	defer gv.mu.Unlock()
+
+	n := 0
+	for key, gauge := range gv.gauges {
+		match := true
+		for k, v := range labels {
+			if got, ok := gauge.labels[k]; !ok || got != v {
+				match = false
+				break
+			}
+		}
+		if match {
+			delete(gv.gauges, key)
+			n++
+		}
+	}
+	return n
+}
+
 // Write writes all gauges to the given writer in Prometheus format.
 func (gv *GaugeVec) Write(w io.Writer) error {
 	gv.mu.RLock()

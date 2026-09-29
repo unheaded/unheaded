@@ -135,6 +135,45 @@ func TestGaugeVec(t *testing.T) {
 	}
 }
 
+func TestGaugeVecDeletePartialMatch(t *testing.T) {
+	gv := NewGaugeVec("disk_used", "Disk used", Labels{"service": "x"}, []string{"host", "mount"})
+	gv.WithLabels(Labels{"host": "west", "mount": "/"}).Set(1)
+	gv.WithLabels(Labels{"host": "west", "mount": "/var"}).Set(2)
+	gv.WithLabels(Labels{"host": "east", "mount": "/"}).Set(3)
+
+	if n := gv.DeletePartialMatch(Labels{"host": "west"}); n != 2 {
+		t.Fatalf("deleted %d series, want 2", n)
+	}
+	var buf bytes.Buffer
+	if err := gv.Write(&buf); err != nil {
+		t.Fatal(err)
+	}
+	out := buf.String()
+	if strings.Contains(out, `host="west"`) {
+		t.Errorf("west series survived:\n%s", out)
+	}
+	if !strings.Contains(out, `disk_used{host="east",mount="/",service="x"} 3`) {
+		t.Errorf("east series lost:\n%s", out)
+	}
+
+	// Const labels take part in the match; an unknown value matches nothing.
+	if n := gv.DeletePartialMatch(Labels{"service": "y"}); n != 0 {
+		t.Errorf("service=y deleted %d, want 0", n)
+	}
+	if n := gv.DeletePartialMatch(Labels{"host": "nowhere"}); n != 0 {
+		t.Errorf("host=nowhere deleted %d, want 0", n)
+	}
+	// An empty filter would match everything; refuse it, as client_golang does.
+	if n := gv.DeletePartialMatch(Labels{}); n != 0 {
+		t.Errorf("empty filter deleted %d, want 0", n)
+	}
+
+	// A deleted series comes back from zero, not its old value.
+	if v := gv.WithLabels(Labels{"host": "west", "mount": "/"}).Value(); v != 0 {
+		t.Errorf("recreated series = %v, want 0", v)
+	}
+}
+
 func TestHistogram(t *testing.T) {
 	h := NewHistogram(HistogramOpts{
 		Name:    "request_duration",
