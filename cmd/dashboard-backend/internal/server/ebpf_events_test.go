@@ -155,3 +155,34 @@ func TestHandleLatency_Combined(t *testing.T) {
 		}
 	}
 }
+
+// Without eBPF the Latency page lists what the health checks measured, one
+// operation per service, and nothing else: tcp_* samples used to be invented
+// as fixed fractions of each check's time.
+func TestRecordHealthCheck_OnlyMeasured(t *testing.T) {
+	srv := newTestServer(t)
+	srv.ebpfIngestor = nil
+	srv.recordHealthCheck("wotan", time.Now(), 8*time.Millisecond)
+	srv.recordHealthCheck("wotan", time.Now(), 8*time.Millisecond)
+
+	w := httptest.NewRecorder()
+	srv.handleLatency(w, httptest.NewRequest(http.MethodGet, "/api/v1/latency", nil))
+	var resp struct {
+		Percentiles map[string]json.RawMessage `json:"percentiles"`
+		Source      string                     `json:"source"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Percentiles) != 1 || resp.Percentiles["http_health_wotan"] == nil {
+		t.Errorf("operations = %v, want only http_health_wotan", keys(resp.Percentiles))
+	}
+}
+
+func keys(m map[string]json.RawMessage) []string {
+	var out []string
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
