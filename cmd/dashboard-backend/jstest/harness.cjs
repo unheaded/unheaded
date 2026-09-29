@@ -15,11 +15,22 @@ function mkEl(id) {
     if (k === 'getContext') return () => new Proxy({}, { get: () => () => ({ addColorStop(){} }) , set: () => true });
     if (k === 'getBoundingClientRect') return () => ({ width: 800, height: 600, left: 0, top: 0 });
     return typeof k === 'string' ? (() => mkEl(id + '.' + k)) : undefined;
-  }, set(t, k, v) { t[k] = v; return true; } });
+  }, set(t, k, v) {
+    t[k] = v;
+    // As in a browser: textContent in, escaped innerHTML out (esc() relies on it).
+    if (k === 'textContent') t.innerHTML = String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    return true;
+  } });
 }
+// One fake nav tab; clickTab(page) runs its click handler as that page's tab.
+const tabHandlers = [];
+const navTab = { dataset: { page: '' }, classList: { toggle(){}, add(){}, remove(){} },
+  addEventListener: (ev, fn) => { if (ev === 'click') tabHandlers.push(fn); } };
 global.document = { readyState: 'complete',
   getElementById: id => (els[id] ||= mkEl(id)),
-  querySelector: s => mkEl(s), querySelectorAll: () => [], createElement: t => mkEl(t),
+  querySelector: s => mkEl(s),
+  querySelectorAll: s => s === '.nav-tab' ? [navTab] : [],
+  createElement: t => mkEl(t),
   addEventListener(){}, body: mkEl('body'), documentElement: mkEl('html') };
 global.window = { addEventListener(){}, location: { protocol: 'http:', host: 'x', hash: '' }, devicePixelRatio: 1,
   requestAnimationFrame(){}, matchMedia: () => ({ matches: false, addEventListener(){} }) };
@@ -39,4 +50,5 @@ async function settle() { for (let i = 0; i < 5; i++) await tick(); }
 const text = id => (els[id] ? String(els[id].textContent) : '(none)');
 let fails = 0;
 const check = (name, got, want) => { const ok = got === want; if (!ok) fails++; console.log((ok ? 'ok   ' : 'FAIL ') + name + ': ' + JSON.stringify(got) + (ok ? '' : ' want ' + JSON.stringify(want))); };
-module.exports = { run: async (setup) => { routes = setup.routes; eval(src); await settle(); await setup.steps({ intervals, fetched, text, check, settle, ws: () => ws, advance: ms => { now += ms; }, setRoute: (k, f) => { routes[k] = f; } }); console.log(fails ? `${fails} FAILED` : 'ALL OK'); process.exit(fails ? 1 : 0); } };
+module.exports = { run: async (setup) => { routes = setup.routes; eval(src); await settle(); await setup.steps({ intervals, fetched, text, check, settle, ws: () => ws, advance: ms => { now += ms; }, setRoute: (k, f) => { routes[k] = f; },
+    clickTab: page => tabHandlers.forEach(fn => fn.call({ dataset: { page } })), html: id => (els[id] ? String(els[id].innerHTML) : '(none)') }); console.log(fails ? `${fails} FAILED` : 'ALL OK'); process.exit(fails ? 1 : 0); } };

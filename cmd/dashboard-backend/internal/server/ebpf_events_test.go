@@ -123,3 +123,35 @@ func TestHandleEBPFEvents_AfterSeqPages(t *testing.T) {
 		}
 	}
 }
+
+func TestHandleLatency_Combined(t *testing.T) {
+	ing := ebpfPkg.NewIngestor(ebpfPkg.DefaultIngestorConfig(), nil, nil)
+	for i := 0; i < 9; i++ {
+		ing.LatencyHistogram().Ingest(&ebpfPkg.LatencyEvent{LatencyNs: 1000, Operation: ebpfPkg.OpTcpSend})
+	}
+	ing.LatencyHistogram().Ingest(&ebpfPkg.LatencyEvent{LatencyNs: 9000, Operation: ebpfPkg.OpTcpRecv})
+	srv := newTestServer(t)
+	srv.ebpfIngestor = ing
+
+	w := httptest.NewRecorder()
+	srv.handleLatency(w, httptest.NewRequest(http.MethodGet, "/api/v1/latency", nil))
+	var resp struct {
+		Combined []struct {
+			Window      int64  `json:"window"`
+			SampleCount int    `json:"sample_count"`
+			P50Ns       uint64 `json:"p50_ns"`
+			MaxNs       uint64 `json:"max_ns"`
+		} `json:"combined"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if len(resp.Combined) == 0 {
+		t.Fatalf("no combined windows in %s", w.Body.String())
+	}
+	for _, c := range resp.Combined {
+		if c.SampleCount != 10 || c.P50Ns != 1000 || c.MaxNs != 9000 {
+			t.Errorf("window %d: %+v, want 10 samples, p50 1000, max 9000", c.Window, c)
+		}
+	}
+}

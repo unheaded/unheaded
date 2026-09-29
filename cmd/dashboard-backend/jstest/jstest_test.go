@@ -7,16 +7,30 @@ package jstest
 
 import (
 	"os/exec"
+	"path/filepath"
 	"testing"
 )
 
-func TestOverviewNumbers(t *testing.T) {
+func TestDashboardScenarios(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {
 		t.Skip("node not installed")
 	}
-	out, err := exec.Command(node, "overview.cjs", "../static/dashboard.js").CombinedOutput()
-	if err != nil {
-		t.Fatalf("%v\n%s", err, out)
+	scenarios, _ := filepath.Glob("*.cjs")
+	ran := 0
+	for _, sc := range scenarios {
+		if sc == "harness.cjs" {
+			continue
+		}
+		ran++
+		t.Run(sc, func(t *testing.T) {
+			out, err := exec.Command(node, sc, "../static/dashboard.js").CombinedOutput()
+			if err != nil {
+				t.Fatalf("%v\n%s", err, out)
+			}
+		})
+	}
+	if ran == 0 {
+		t.Fatal("no scenario files found")
 	}
 }
