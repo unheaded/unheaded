@@ -676,8 +676,8 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/ws/metrics", s.wsServer.HandleWebSocket)
 
 	// Health checks
-	s.mux.HandleFunc("/health", s.handleHealth)
-	s.mux.HandleFunc("/ready", s.handleReady)
+	s.mux.HandleFunc("/health", httputil.ProbeMethods(s.handleHealth))
+	s.mux.HandleFunc("/ready", httputil.ProbeMethods(s.handleReady))
 
 	// Metrics endpoint (Prometheus format)
 	// The default registry carries go_*, process_* and what linked libraries

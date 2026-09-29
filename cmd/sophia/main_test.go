@@ -92,15 +92,26 @@ func TestHealthHandler_ReturnsHealthyJSON(t *testing.T) {
 	}
 }
 
-func TestHealthHandler_RejectsNonGet(t *testing.T) {
+func TestProbeRoutes_Methods(t *testing.T) {
 	t.Parallel()
 	hs := newTestServer(t)
-	for _, method := range []string{http.MethodPost, http.MethodPut, http.MethodDelete} {
-		w := httptest.NewRecorder()
-		r := httptest.NewRequest(method, "/health", nil)
-		hs.healthHandler(w, r)
-		if w.Code != http.StatusMethodNotAllowed {
-			t.Errorf("%s /health: status = %d, want 405", method, w.Code)
+	// Through the server's handler chain, where the method rule lives
+	// (httputil.ProbeMethods at registration): GET and HEAD are served,
+	// anything else is 405. HEAD used to be refused.
+	for _, path := range []string{"/health", "/ready"} {
+		for _, m := range []string{http.MethodPost, http.MethodPut, http.MethodDelete, "BREW"} {
+			w := httptest.NewRecorder()
+			hs.server.Handler.ServeHTTP(w, httptest.NewRequest(m, path, nil))
+			if w.Code != http.StatusMethodNotAllowed {
+				t.Errorf("%s %s: status %d, want 405", m, path, w.Code)
+			}
+		}
+		for _, m := range []string{http.MethodGet, http.MethodHead} {
+			w := httptest.NewRecorder()
+			hs.server.Handler.ServeHTTP(w, httptest.NewRequest(m, path, nil))
+			if w.Code == http.StatusMethodNotAllowed {
+				t.Errorf("%s %s: 405, want it served", m, path)
+			}
 		}
 	}
 }
@@ -128,16 +139,5 @@ func TestReadyHandler_ReturnsOKWhenReady(t *testing.T) {
 	hs.readyHandler(w, r)
 	if w.Code != http.StatusOK {
 		t.Errorf("ready: status = %d, want 200", w.Code)
-	}
-}
-
-func TestReadyHandler_RejectsNonGet(t *testing.T) {
-	t.Parallel()
-	hs := newTestServer(t)
-	w := httptest.NewRecorder()
-	r := httptest.NewRequest(http.MethodPost, "/ready", nil)
-	hs.readyHandler(w, r)
-	if w.Code != http.StatusMethodNotAllowed {
-		t.Errorf("status = %d, want 405", w.Code)
 	}
 }

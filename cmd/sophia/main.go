@@ -237,8 +237,8 @@ func NewHTTPServer(service *sophia.Service, wotan *wotanClient.Client, log *logg
 	mux := http.NewServeMux()
 
 	// Health check endpoints
-	mux.HandleFunc("/health", hs.healthHandler)
-	mux.HandleFunc("/ready", hs.readyHandler)
+	mux.HandleFunc("/health", httputil.ProbeMethods(hs.healthHandler))
+	mux.HandleFunc("/ready", httputil.ProbeMethods(hs.readyHandler))
 
 	// Metrics endpoint
 	mux.HandleFunc("/metrics", hs.metricsHandler)
@@ -388,11 +388,6 @@ func (hs *HTTPServer) Shutdown(ctx context.Context) error {
 
 // healthHandler responds to health checks.
 func (hs *HTTPServer) healthHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		hs.writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "GET only")
-		return
-	}
-
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
@@ -405,11 +400,6 @@ func (hs *HTTPServer) healthHandler(w http.ResponseWriter, r *http.Request) {
 
 // readyHandler responds to readiness checks.
 func (hs *HTTPServer) readyHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		hs.writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "GET only")
-		return
-	}
-
 	if !hs.ready.Load() {
 		hs.writeError(w, http.StatusServiceUnavailable, "NOT_READY", "service is not ready")
 		return

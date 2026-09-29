@@ -43,15 +43,17 @@ func TestHTTPHandler_Health_Success(t *testing.T) {
 	}
 }
 
-func TestHTTPHandler_Health_WrongMethod(t *testing.T) {
+func TestHTTPHandler_Health_ServesHEAD(t *testing.T) {
+	// Method limits live at registration (httputil.ProbeMethods); Health
+	// itself refused HEAD, which probes use.
 	handler := NewHTTPHandler(nil)
-	req, _ := http.NewRequest("POST", "/health", nil)
+	req, _ := http.NewRequest(http.MethodHead, "/health", nil)
 	rr := httptest.NewRecorder()
 
 	handler.Health(rr, req)
 
-	if status := rr.Code; status != http.StatusMethodNotAllowed {
-		t.Errorf("status = %d, want %d", status, http.StatusMethodNotAllowed)
+	if rr.Code == http.StatusMethodNotAllowed {
+		t.Errorf("HEAD /health: 405, want it served")
 	}
 }
 
@@ -335,10 +337,10 @@ func TestHTTPHandler_GetDesignDecisions_WrongMethod(t *testing.T) {
 
 func TestHTTPHandler_ErrorResponse_Format(t *testing.T) {
 	handler := NewHTTPHandler(nil)
-	req, _ := http.NewRequest("INVALID", "/health", nil)
+	req, _ := http.NewRequest("INVALID", "/infrastructure", nil)
 	rr := httptest.NewRecorder()
 
-	handler.Health(rr, req)
+	handler.GetInfrastructure(rr, req)
 
 	var resp httputil.Response
 	json.NewDecoder(rr.Body).Decode(&resp)

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"sync"
+	"unheaded/pkg/httputil"
 )
 
 // HealthStatus represents the health state of a service.
@@ -90,8 +91,8 @@ type healthResponse struct {
 
 // RegisterHTTP registers the HTTP health check endpoint on the given mux.
 func (h *HealthServer) RegisterHTTP(mux *http.ServeMux) {
-	mux.HandleFunc("/health", h.handleHealth)
-	mux.HandleFunc("/ready", h.handleReady)
+	mux.HandleFunc("/health", httputil.ProbeMethods(h.handleHealth))
+	mux.HandleFunc("/ready", httputil.ProbeMethods(h.handleReady))
 }
 
 // handleHealth implements the HTTP /health endpoint.

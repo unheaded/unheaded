@@ -57,6 +57,17 @@ http() {
   echo "${code:-000}"
 }
 
+# http_method <METHOD> <url>: status code for an arbitrary method (HEAD via -I).
+http_method() {
+  local code
+  if [ "$1" = HEAD ]; then
+    code=$(curl -s -o /dev/null -I -w '%{http_code}' -m 5 "$2" 2>/dev/null)
+  else
+    code=$(curl -s -o /dev/null -X "$1" -w '%{http_code}' -m 5 "$2" 2>/dev/null)
+  fi
+  echo "${code:-000}"
+}
+
 [ "$JSON" -eq 0 ] && echo "== container health =="
 
 # Every compose service must be running. Health is only asserted where the
@@ -80,6 +91,16 @@ check "http/grafana"     "302" "$(http http://localhost:3001/)"
 for sp in timeguru:19000 architect:19001 captain:19002 micromanager:19003 \
           monad:19004 sophia:19005 cuirass:19006 wotan:18000; do
   check "health/${sp%%:*}" "200" "$(http "http://localhost:${sp##*:}/health")"
+done
+
+# Probe endpoints answer GET and HEAD, and 405 to anything else
+# (httputil.ProbeMethods). Services disagreed: some returned 200 to any
+# method, others refused HEAD.
+for sp in timeguru:19000 architect:19001 captain:19002 micromanager:19003 \
+          monad:19004 sophia:19005 cuirass:19006 wotan:18000 \
+          dashboard:20000 kanban:20001; do
+  check "probe-methods/${sp%%:*}" "200/405" \
+    "$(http_method HEAD "http://localhost:${sp##*:}/health")/$(http_method BREW "http://localhost:${sp##*:}/health")"
 done
 
 [ "$JSON" -eq 0 ] && echo "== data plane =="
