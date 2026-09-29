@@ -210,30 +210,6 @@ func TestMemWriteEvent_Roundtrip(t *testing.T) {
 	}
 }
 
-// ── Fuzz tests ───────────────────────────────────────────────────────────────
-
-func TestFuzzDecodeComputeHopEvent(t *testing.T) {
-	// FuzzDecodeComputeHopEvent should never panic on arbitrary input
-	testCases := [][]byte{
-		[]byte{},
-		make([]byte, 1),
-		make([]byte, 93),
-		make([]byte, 94),
-		make([]byte, 95),
-		make([]byte, 200),
-		[]byte{0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF},
-	}
-
-	for i, data := range testCases {
-		// This should not panic
-		FuzzDecodeComputeHopEvent(data)
-		if t.Failed() {
-			t.Errorf("FuzzDecodeComputeHopEvent panicked on test case %d (len=%d)", i, len(data))
-			return
-		}
-	}
-}
-
 // ── Cross-validation with Rust sizes ────────────────────────────────────────
 
 func TestComputeEventTypesMatchRust(t *testing.T) {

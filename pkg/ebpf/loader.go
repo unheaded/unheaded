@@ -1398,13 +1398,41 @@ func bpfGetMapInfo(fd int) (*bpfMapInfo, error) {
 // - .BTF.ext section: contains additional BTF info (line info, etc.)
 
 // parseELF parses a BPF ELF object file
-func parseELF(path string) (*parsedELF, error) {
+func parseELF(path string) (p *parsedELF, err error) {
+	defer recoverELF(&p, &err)
 	f, err := elf.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("%w: open %s: %v", ErrELFParseFailed, path, err)
 	}
 	defer func() { _ = f.Close() }()
+	return parseELFFile(f)
+}
 
+// parseELFBytes is parseELF over an in-memory object.
+func parseELFBytes(b []byte) (p *parsedELF, err error) {
+	defer recoverELF(&p, &err)
+	f, err := elf.NewFile(bytes.NewReader(b))
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", ErrELFParseFailed, err)
+	}
+	return parseELFFile(f)
+}
+
+// recoverELF turns a panic during ELF parsing into ErrELFParseFailed.
+// debug/elf "is not designed to be hardened against adversarial inputs"
+// (its package doc) and panics on some malformed symbol tables: fuzzing
+// found getSymbols64 slicing [24:0] via f.Symbols(). A crafted .bpf.o must
+// fail its load, not take the loader down.
+func recoverELF(p **parsedELF, err *error) {
+	if r := recover(); r != nil {
+		*p = nil
+		*err = fmt.Errorf("%w: malformed object: %v", ErrELFParseFailed, r)
+	}
+}
+
+// parseELFFile parses an opened BPF ELF object. Callers go through parseELF
+// or parseELFBytes, which recover from debug/elf panics.
+func parseELFFile(f *elf.File) (*parsedELF, error) {
 	// Verify it's a BPF object file (EM_BPF = 247)
 	if f.Machine != elf.EM_BPF && f.Machine != elf.Machine(247) {
 		return nil, fmt.Errorf("%w: not a BPF object file (machine=%d)",
