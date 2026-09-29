@@ -769,12 +769,14 @@ func (c *Client) pollMessages(ctx context.Context, topic string, sc *safeChannel
 			consecutiveFailures = 0
 			lastSeq = nextCursor(lastSeq, serverLast)
 			for _, msg := range msgs {
+				// Never deliver at or below the cursor, whatever the server sent.
+				if msg == nil || msg.Seq <= lastSeq {
+					continue
+				}
 				if !sc.send(ctx, msg) {
 					return
 				}
-				if msg.Seq > lastSeq {
-					lastSeq = msg.Seq
-				}
+				lastSeq = msg.Seq
 			}
 			timer.Reset(pollBackoffMin)
 		}
