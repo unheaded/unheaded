@@ -1,6 +1,3 @@
-CLAUDE.md:generic-api-key:777
-cmd/dashboard-backend/internal/websocket/server_extended_test.go:generic-api-key:479
-cmd/dashboard-backend/internal/websocket/server_extended_test.go:generic-api-key:803
 cmd/lich-security/campaigns/d1_auth_bypass.go:generic-api-key:143
 docs/bare-metal/BOOT_SEQUENCE_HOST_A.md:curl-auth-user:283
 docs/bare-metal/BOOT_SEQUENCE_HOST_A.md:curl-auth-user:298
@@ -22,4 +19,3 @@ pkg/auth/apikey_test.go:generic-api-key:199
 pkg/auth/apikey_test.go:generic-api-key:26
 pkg/auth/jwt_test.go:jwt:572
 tests/e2e/security_e2e_test.go:generic-api-key:330
-tests/ws1-integration.sh:generic-api-key:150

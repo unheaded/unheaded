@@ -143,10 +143,11 @@ fi
 
 # --- Test 8: WebSocket upgrade ---
 echo "[TEST] Testing WebSocket upgrade..."
+WS_KEY="dGhlIHNhbXBsZSBub25jZQ==" # gitleaks:allow RFC 6455 sample nonce
 WS_RESP=$(curl -s -i -N \
     -H "Connection: Upgrade" \
     -H "Upgrade: websocket" \
-    -H "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==" \
+    -H "Sec-WebSocket-Key: ${WS_KEY}" \
     -H "Sec-WebSocket-Version: 13" \
     --max-time 3 \
     "http://localhost:${PORT}/ws" 2>&1 | head -5 || true)
