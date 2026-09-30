@@ -742,3 +742,58 @@ func TestServiceClientCronProbes(t *testing.T) {
 		}
 	}
 }
+
+func TestAccountSudoBootProbes(t *testing.T) {
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"acct-passwd-shadowed", "@ok\n", true},
+		{"acct-passwd-shadowed", "legacy\n@ok\n", false},
+		{"acct-passwd-shadowed", "", false}, // no completion marker: never "no offenders"
+		{"acct-shadow-no-empty", "@ok\n", true},
+		{"acct-shadow-no-empty", "guest\n@ok\n", false},
+		{"acct-shadow-no-empty", "sudo: a password is required\n", false},
+		{"acct-unique-uid", "@ok\n", true},
+		{"acct-unique-uid", "1000\n@ok\n", false},
+		{"acct-shadow-group-empty", "@ok\n", true},
+		{"acct-shadow-group-empty", "govan\n@ok\n", false},
+		{"apparmor-installed", "installed=apparmor apparmor-utils\n", true},
+		{"apparmor-installed", "installed=apparmor\n", false},
+		{"apparmor-profiles-enforced", `{"version": "2", "profiles": {"a": "enforce", "b": "complain"}, "processes": {}}` + "\n", true},
+		{"apparmor-profiles-enforced", `{"version": "2", "profiles": {"a": "enforce", "b": "unconfined"}, "processes": {}}` + "\n", false},
+		{"apparmor-profiles-enforced", `{"version": "2", "profiles": {}, "processes": {}}` + "\n", false},
+		{"apparmor-profiles-enforced", "garbage\n", false},
+		{"grub-password", "set superusers=\"root\"\npassword_pbkdf2 root grub.pbkdf2.sha512.10000.X\n@ok\n", true},
+		{"grub-password", "@ok\n", false},
+		{"perm-boot-grub-cfg", "/boot/grub/grub.cfg 400 0 root\n", true},
+		{"perm-boot-grub-cfg", "/boot/grub/grub.cfg 444 0 root\n", false},
+		{"pkg-prelink-absent", "installed=\n", true},
+		{"svc-apport-not-in-use", "installed=apport\napport.service=enabled/active\n", false},
+		{"sudo-installed", "installed=sudo\n", true},
+		{"sudo-use-pty", "Defaults use_pty\n@ok\n", true},
+		{"sudo-use-pty", "Defaults env_reset,use_pty,mail_badpass\n@ok\n", true},
+		{"sudo-use-pty", "Defaults !use_pty\n@ok\n", false},
+		{"sudo-use-pty", "Defaults env_reset\n@ok\n", false},
+		{"sudo-use-pty", "", false},
+		{"sudo-logfile", "Defaults logfile=\"/var/log/sudo.log\"\n@ok\n", true},
+		{"sudo-logfile", "Defaults env_reset\n@ok\n", false},
+		{"sudo-no-noauth", "Defaults env_reset\n@ok\n", true},
+		{"sudo-no-noauth", "govan ALL=(ALL) !authenticate: ALL\n@ok\n", false},
+		{"sudo-no-noauth", "Defaults:admin !authenticate\n@ok\n", false},
+		{"sudo-timeout", "Defaults timestamp_timeout=15\n@ok\n", true},
+		{"sudo-timeout", "Defaults env_reset, timestamp_timeout=5\n@ok\n", true},
+		{"sudo-timeout", "Defaults timestamp_timeout=-1\n@ok\n", false},
+		{"sudo-timeout", "Defaults timestamp_timeout=30\n@ok\n", false},
+		{"sudo-timeout", "Defaults env_reset\n@ok\n", false}, // ComplianceAsCode wants it set explicitly
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok || !p.Baseline {
+			t.Errorf("%s missing or not a baseline probe", tc.probe)
+			continue
+		}
+		if pass, detail := p.Judge(tc.out); pass != tc.pass {
+			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}

@@ -268,6 +268,16 @@ func init() {
 			probeActions[name] = "create the .allow file (root, mode 0640, CIS group) listing root; remove cron.deny"
 		case name == "mta-local-only":
 			probeActions[name] = "none (alert only): set the MTA to loopback-only (postfix inet_interfaces = loopback-only) and restart it"
+		case strings.HasPrefix(name, "acct-"):
+			probeActions[name] = "none (alert only): account database changes need a human; the detail names each offender"
+		case name == "apparmor-installed", name == "sudo-installed":
+			probeActions[name] = "none (alert only): the operator installs the package"
+		case name == "apparmor-profiles-enforced":
+			probeActions[name] = "none (alert only): moving a profile to enforce can break the confined program"
+		case name == "grub-password":
+			probeActions[name] = "none (alert only): a boot loader password is set by the operator, who must keep it"
+		case strings.HasPrefix(name, "sudo-"):
+			probeActions[name] = "write /etc/sudoers.d/00-unheaded (Defaults use_pty, logfile, timestamp_timeout=15), visudo -c first; remove !authenticate lines"
 		case strings.HasPrefix(name, "mount-"):
 			probeActions[name] = "none (alert only): mount options and partitions change through fstab and a remount or reboot, which the operator does"
 		case strings.HasPrefix(name, "perm-"):

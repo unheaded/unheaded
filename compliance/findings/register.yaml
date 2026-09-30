@@ -6,7 +6,7 @@
 #   source:   "<kind>:<ref>" of a catalog evidence source, or
 #   id:       FND-NNN for a finding no collector sees yet (needs title + verify)
 #   severity: critical | high | medium | low (exposure x impact; no inflation)
-#   class:    sysctl | sshd | firewall | service | kmod | fileperm | mount | package | app | container | ci | backup | process
+#   class:    sysctl | sshd | firewall | service | kmod | fileperm | mount | package | sudo | boot | mac | app | container | ci | backup | process
 #   lockout:  none | low | high (can fixing it lock Stevie out of the host?)
 #   step:     remediation order, ADR-098 section 4 (safe first, lockout risk last)
 #   accepted: {reason, compensating, accepted_on, until} <= 90 days; still counted
@@ -1021,3 +1021,107 @@ findings:
     step: 2
     plan: "CIS Level 2. xserver-common is installed and the default target is graphical, but no display manager runs; if west needs no local desktop, set multi-user.target and purge the X server packages"
     decision: "does west need its local graphical desktop"
+
+  # --- CIS 1.3 / 1.4 / 1.5 / 5.2 (2026-09-30) -----------------------------
+
+  - source: "host-probe:west:apparmor-installed"
+    severity: low
+    class: package
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "apt install apparmor-utils (aa-enforce, aa-complain, aa-logprof)"
+
+  - source: "host-probe:west:apparmor-profiles-enforced"
+    severity: low
+    class: mac
+    opened: 2026-09-30
+    lockout: none
+    step: 7
+    plan: "The unconfined profiles are Ubuntu's flags=(unconfined) profiles that grant user namespaces to specific programs (browsers, container tools); moving them to enforce or complain changes those programs' behaviour. Review the list (aa-status), then accept with that reason or move individual profiles to complain"
+    decision: "accept Ubuntu's unconfined userns profiles against CIS 1.3.1.3, or move them to complain one by one"
+
+  - source: "host-probe:west:grub-password"
+    severity: low
+    class: boot
+    opened: 2026-09-30
+    exposure: "physical console access only"
+    lockout: high
+    step: 5
+    plan: "grub-mkpasswd-pbkdf2, a superuser in /etc/grub.d/40_custom, --unrestricted on the default menu entries so unattended boots still work, update-grub; the password goes in the operator's password manager. Without --unrestricted every boot waits for the password"
+    decision: "set a grub password (console-only protection; the physical-access answer makes it a judgement call)"
+
+  - source: "host-probe:west:sudo-logfile"
+    severity: low
+    class: sudo
+    opened: 2026-09-30
+    lockout: none
+    step: 3
+    plan: "/etc/sudoers.d/00-unheaded (0440): Defaults logfile=\"/var/log/sudo.log\"; visudo -cf before installing"
+
+  - source: "host-probe:west:sudo-timeout"
+    severity: low
+    class: sudo
+    opened: 2026-09-30
+    lockout: none
+    step: 3
+    plan: "same drop-in: Defaults timestamp_timeout=15 (the current default made explicit)"
+
+  - source: "host-probe:west:svc-apport-not-in-use"
+    severity: low
+    class: service
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "same change as fs.suid_dumpable: enabled=0 in /etc/default/apport, systemctl disable --now apport (and mask)"
+
+  - source: "host-probe:east:apparmor-installed"
+    severity: low
+    class: package
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "apt install apparmor-utils (aa-enforce, aa-complain, aa-logprof)"
+
+  - source: "host-probe:east:apparmor-profiles-enforced"
+    severity: low
+    class: mac
+    opened: 2026-09-30
+    lockout: none
+    step: 7
+    plan: "The unconfined profiles are Ubuntu's flags=(unconfined) profiles that grant user namespaces to specific programs (browsers, container tools); moving them to enforce or complain changes those programs' behaviour. Review the list (aa-status), then accept with that reason or move individual profiles to complain"
+    decision: "accept Ubuntu's unconfined userns profiles against CIS 1.3.1.3, or move them to complain one by one"
+
+  - source: "host-probe:east:grub-password"
+    severity: low
+    class: boot
+    opened: 2026-09-30
+    exposure: "physical console access only"
+    lockout: high
+    step: 5
+    plan: "grub-mkpasswd-pbkdf2, a superuser in /etc/grub.d/40_custom, --unrestricted on the default menu entries so unattended boots still work, update-grub; the password goes in the operator's password manager. Without --unrestricted every boot waits for the password"
+    decision: "set a grub password (console-only protection; the physical-access answer makes it a judgement call)"
+
+  - source: "host-probe:east:sudo-logfile"
+    severity: low
+    class: sudo
+    opened: 2026-09-30
+    lockout: none
+    step: 3
+    plan: "/etc/sudoers.d/00-unheaded (0440): Defaults logfile=\"/var/log/sudo.log\"; visudo -cf before installing"
+
+  - source: "host-probe:east:sudo-timeout"
+    severity: low
+    class: sudo
+    opened: 2026-09-30
+    lockout: none
+    step: 3
+    plan: "same drop-in: Defaults timestamp_timeout=15 (the current default made explicit)"
+
+  - source: "host-probe:east:svc-apport-not-in-use"
+    severity: low
+    class: service
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "same change as fs.suid_dumpable: enabled=0 in /etc/default/apport, systemctl disable --now apport (and mask)"
