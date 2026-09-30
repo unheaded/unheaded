@@ -694,6 +694,19 @@ var Probes = map[string]Probe{
 			return strings.Contains(v, `"1"`), strings.TrimSpace(strings.TrimSuffix(v, ";"))
 		},
 	},
+	"db-backup-recent": {
+		// The Well's dumps (runbook: pg_dump into ~/backups/unheaded/<date>/).
+		Command: `find "$HOME/backups/unheaded" -type f -name '*.sql.gz' -mtime -7 -printf '%TF %f\n' | sort | tail -1; ` +
+			`echo ---; find "$HOME/backups/unheaded" -type f -name '*.sql.gz' -printf '%TF\n' | sort | tail -1`,
+		Judge: func(out string) (bool, string) {
+			recent, newest, _ := strings.Cut(out, "---")
+			recent, newest = strings.TrimSpace(recent), strings.TrimSpace(newest)
+			if newest == "" {
+				newest = "none"
+			}
+			return recent != "", "newest database backup " + newest + " (required within 7 days)"
+		},
+	},
 	"apparmor-enabled": {
 		Command: "cat /sys/module/apparmor/parameters/enabled",
 		Judge: func(out string) (bool, string) {

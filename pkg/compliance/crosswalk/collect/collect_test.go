@@ -566,3 +566,24 @@ func TestHostProbes_RejectsUnknownProbeAndBadHost(t *testing.T) {
 		}
 	}
 }
+
+func TestProbeJudges(t *testing.T) {
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"db-backup-recent", "2026-09-29 cluster.sql.gz\n---\n2026-09-29\n", true},
+		{"db-backup-recent", "\n---\n2026-09-22\n", false},
+		{"db-backup-recent", "\n---\n\n", false},
+		{"firewall-inbound-deny", "-P INPUT DROP\n---\n-P INPUT DROP\n", true},
+		{"firewall-inbound-deny", "-P INPUT DROP\n---\n", false},
+		{"unattended-upgrades-enabled", "APT::Periodic::Unattended-Upgrade \"0\";\n", false},
+		{"apparmor-enabled", "N\n", false},
+		{"ntp-synchronized", "no\n", false},
+	} {
+		pass, detail := Probes[tc.probe].Judge(tc.out)
+		if pass != tc.pass {
+			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}
