@@ -8,8 +8,8 @@
 // (loader ELF/BTF/maps parsing, anamnesis decoders) and
 // cmd/trace-collector-go/decode_fuzz_test.go (map and ring-buffer decoders);
 // the first found a loader panic on a crafted .bpf.o (2026-09-29). The
-// kernel half (bpf(2) itself) stays OPEN in ADR-062: it needs privileges
-// and a sacrificial VM.
+// kernel half (fuzzed objects through the real loader into bpf(2)) is
+// pkg/ebpf/lich005_kernel_fuzz_test.go, run as root on east only (ADR-062).
 //
 // Target: eBPF map operations, BPF syscall attribute structs, and ELF parsing.
 // Goal: Find crashes at the boundary between userspace and kernel eBPF interfaces.
