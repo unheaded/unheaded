@@ -284,6 +284,8 @@ func init() {
 			probeActions[name] = "write /etc/profile.d/00-unheaded-tmout.sh: readonly TMOUT=900; export TMOUT"
 		case name == "journald-active":
 			probeActions[name] = "systemctl start systemd-journald"
+		case strings.HasPrefix(name, "sshd-"):
+			probeActions[name] = "set the directive in sshd_config.d/00-unheaded.conf (0600); sshd -t; reload (never on failure)"
 		case strings.HasPrefix(name, "mount-"):
 			probeActions[name] = "none (alert only): mount options and partitions change through fstab and a remount or reboot, which the operator does"
 		case strings.HasPrefix(name, "perm-"):

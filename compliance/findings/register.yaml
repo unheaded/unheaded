@@ -1200,3 +1200,69 @@ findings:
       Find which services need the docker socket or LXD (the dashboard's container metrics, the deploy scripts), give them a narrower path
       (a read-only socket proxy, or a dedicated user per service), then gpasswd -d unheaded docker and lxd. scripts/setup-host.sh adds lxd.
     decision: which services running as unheaded genuinely need docker or LXD access
+
+  # --- CIS 5.1 sshd algorithms, access, banner (2026-09-30) ----------------
+
+  - source: "host-probe:west:sshd-macs"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    lockout: low
+    step: 4
+    plan: "MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256 in 00-unheaded.conf; every current OpenSSH client supports these; test a second session before closing the first"
+
+  - source: "host-probe:west:sshd-maxstartups"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    lockout: none
+    step: 4
+    plan: "MaxStartups 10:30:60 in 00-unheaded.conf"
+
+  - source: "host-probe:west:sshd-banner"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    lockout: none
+    step: 4
+    plan: "Banner /etc/issue.net with an authorised-use notice and no OS or version details (CIS 1.6.x covers the file's content)"
+
+  - source: "host-probe:west:sshd-access"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    lockout: high
+    step: 5
+    plan: "AllowGroups sshusers in 00-unheaded.conf after creating the group and adding govan; prove a second login before reloading. An empty or wrong group is a lockout"
+
+  - source: "host-probe:east:sshd-macs"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    lockout: low
+    step: 4
+    plan: "MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256 in 00-unheaded.conf; every current OpenSSH client supports these; test a second session before closing the first"
+
+  - source: "host-probe:east:sshd-maxstartups"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    lockout: none
+    step: 4
+    plan: "MaxStartups 10:30:60 in 00-unheaded.conf"
+
+  - source: "host-probe:east:sshd-banner"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    lockout: none
+    step: 4
+    plan: "Banner /etc/issue.net with an authorised-use notice and no OS or version details (CIS 1.6.x covers the file's content)"
+
+  - source: "host-probe:east:sshd-access"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    lockout: high
+    step: 5
+    plan: "AllowGroups sshusers in 00-unheaded.conf after creating the group and adding govan; prove a second login before reloading. An empty or wrong group is a lockout"

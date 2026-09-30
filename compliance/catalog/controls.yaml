@@ -821,6 +821,10 @@ controls:
       Values follow the CIS benchmark's SSH server section.
       CIS Ubuntu 24.04 sshd: ClientAliveInterval (5.1.7), MaxAuthTries (5.1.16), PermitEmptyPasswords (5.1.19), PermitRootLogin (5.1.20); password and keyboard-interactive login are stricter than the benchmark asks.
       CIS Ubuntu 24.04 5.1.8-5.1.11, 5.1.13, 5.1.14, 5.1.17, 5.1.21, 5.1.22 added 2026-09-30 (5.1.8 and 5.1.9 are Level 2). 5.1.14 accepts VERBOSE or INFO; the check requires INFO, so VERBOSE would read as a false failure. 5.1.18 MaxStartups is not checked (a three-part value the check cannot compare).
+      CIS 5.1.4-5.1.6, 5.1.12, 5.1.15, 5.1.18 on the effective sshd -T values
+      (allowlists: the CIS profile's ComplianceAsCode variables). Deliberate
+      KEX addition: mlkem768x25519-sha256 (post-quantum hybrid, newer than the
+      list); removing it to match would weaken the key exchange.
     freshness_days: 1
     evidence:
       - {kind: host-sshd, ref: "west:passwordauthentication=no"}
@@ -857,6 +861,18 @@ controls:
       - {kind: host-sshd, ref: "east:usepam=yes", maps: {cis-ubuntu2404: ["5.1.22"]}}
       - {kind: host-sshd, ref: "east:disableforwarding=yes", maps: {cis-ubuntu2404: ["5.1.8"]}}
       - {kind: host-sshd, ref: "east:gssapiauthentication=no", maps: {cis-ubuntu2404: ["5.1.9"]}}
+      - {kind: host-probe, ref: "west:sshd-access", maps: {cis-ubuntu2404: ["5.1.4"]}}
+      - {kind: host-probe, ref: "west:sshd-banner", maps: {cis-ubuntu2404: ["5.1.5"]}}
+      - {kind: host-probe, ref: "west:sshd-ciphers", maps: {cis-ubuntu2404: ["5.1.6"]}}
+      - {kind: host-probe, ref: "west:sshd-kex", maps: {cis-ubuntu2404: ["5.1.12"]}}
+      - {kind: host-probe, ref: "west:sshd-macs", maps: {cis-ubuntu2404: ["5.1.15"]}}
+      - {kind: host-probe, ref: "west:sshd-maxstartups", maps: {cis-ubuntu2404: ["5.1.18"]}}
+      - {kind: host-probe, ref: "east:sshd-access", maps: {cis-ubuntu2404: ["5.1.4"]}}
+      - {kind: host-probe, ref: "east:sshd-banner", maps: {cis-ubuntu2404: ["5.1.5"]}}
+      - {kind: host-probe, ref: "east:sshd-ciphers", maps: {cis-ubuntu2404: ["5.1.6"]}}
+      - {kind: host-probe, ref: "east:sshd-kex", maps: {cis-ubuntu2404: ["5.1.12"]}}
+      - {kind: host-probe, ref: "east:sshd-macs", maps: {cis-ubuntu2404: ["5.1.15"]}}
+      - {kind: host-probe, ref: "east:sshd-maxstartups", maps: {cis-ubuntu2404: ["5.1.18"]}}
     mappings:
       nist-800-53r5: [AC-17, IA-2, AC-7, CM-6]
       nist-800-171r3: ["03.01.12", "03.01.08"]
