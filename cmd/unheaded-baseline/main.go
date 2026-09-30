@@ -278,6 +278,12 @@ func init() {
 			probeActions[name] = "none (alert only): a boot loader password is set by the operator, who must keep it"
 		case strings.HasPrefix(name, "sudo-"):
 			probeActions[name] = "write /etc/sudoers.d/00-unheaded (Defaults use_pty, logfile, timestamp_timeout=15), visudo -c first; remove !authenticate lines"
+		case strings.HasPrefix(name, "pw-"), strings.HasPrefix(name, "group-"):
+			probeActions[name] = "none (alert only): password ageing and account changes affect people's logins; the operator applies them (login.defs, chage, useradd -D)"
+		case name == "shell-tmout":
+			probeActions[name] = "write /etc/profile.d/00-unheaded-tmout.sh: readonly TMOUT=900; export TMOUT"
+		case name == "journald-active":
+			probeActions[name] = "systemctl start systemd-journald"
 		case strings.HasPrefix(name, "mount-"):
 			probeActions[name] = "none (alert only): mount options and partitions change through fstab and a remount or reboot, which the operator does"
 		case strings.HasPrefix(name, "perm-"):

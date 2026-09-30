@@ -587,12 +587,14 @@ controls:
     statement: >-
       On both hosts every account uses shadowed passwords, no shadow entry
       has an empty password, every primary group exists, the shadow group
-      has no members, and no UID, GID, user name or group name repeats.
+      has no members, and no UID, GID, user name or group name repeats;
+      only root has UID 0 or GID 0, no system account has a login shell,
+      and every account without a valid shell is locked.
     rationale: >-
       Account management and unique identification (AC-2, IA-2; 800-171
       03.01.01, 03.05.01; CSF PR.AA-01; ISO A.5.16) and authenticator
       management: no empty passwords (IA-5; 03.05.07; ISO A.5.17). CIS
-      Ubuntu 24.04 7.2.1-7.2.8.
+      Ubuntu 24.04 7.2.1-7.2.8, 5.4.2.1-5.4.2.3, 5.4.2.7, 5.4.2.8.
     freshness_days: 1
     evidence:
       - {kind: host-probe, ref: "west:acct-passwd-shadowed", maps: {cis-ubuntu2404: ["7.2.1"]}}
@@ -611,6 +613,16 @@ controls:
       - {kind: host-probe, ref: "east:acct-unique-gid", maps: {cis-ubuntu2404: ["7.2.6"]}}
       - {kind: host-probe, ref: "east:acct-unique-user-name", maps: {cis-ubuntu2404: ["7.2.7"]}}
       - {kind: host-probe, ref: "east:acct-unique-group-name", maps: {cis-ubuntu2404: ["7.2.8"]}}
+      - {kind: host-probe, ref: "west:acct-root-only-uid0", maps: {cis-ubuntu2404: ["5.4.2.1"]}}
+      - {kind: host-probe, ref: "west:acct-root-only-gid0", maps: {cis-ubuntu2404: ["5.4.2.2"]}}
+      - {kind: host-probe, ref: "west:group-root-only-gid0", maps: {cis-ubuntu2404: ["5.4.2.3"]}}
+      - {kind: host-probe, ref: "west:acct-system-no-shell", maps: {cis-ubuntu2404: ["5.4.2.7"]}}
+      - {kind: host-probe, ref: "west:acct-noshell-locked", maps: {cis-ubuntu2404: ["5.4.2.8"]}}
+      - {kind: host-probe, ref: "east:acct-root-only-uid0", maps: {cis-ubuntu2404: ["5.4.2.1"]}}
+      - {kind: host-probe, ref: "east:acct-root-only-gid0", maps: {cis-ubuntu2404: ["5.4.2.2"]}}
+      - {kind: host-probe, ref: "east:group-root-only-gid0", maps: {cis-ubuntu2404: ["5.4.2.3"]}}
+      - {kind: host-probe, ref: "east:acct-system-no-shell", maps: {cis-ubuntu2404: ["5.4.2.7"]}}
+      - {kind: host-probe, ref: "east:acct-noshell-locked", maps: {cis-ubuntu2404: ["5.4.2.8"]}}
     mappings:
       nist-800-53r5: [AC-2, IA-2, IA-5]
       nist-800-171r3: ["03.01.01", "03.05.01", "03.05.07"]
@@ -691,6 +703,53 @@ controls:
       nist-800-171r3: ["03.01.07"]
       nist-csf-2: [PR.AA-05]
       iso27001-2022: [A.8.2]
+
+  - id: UH-PASS-01
+    title: Local passwords age, warn, lock when unused and use a strong hash
+    statement: >-
+      On both hosts PASS_MAX_DAYS is 365 or less and every account with a
+      password follows it; PASS_WARN_AGE is at least 7; ENCRYPT_METHOD is
+      SHA512 or YESCRYPT; accounts lock 45 days or less after their
+      password expires, by default and on every account with a password;
+      no password change date lies in the future.
+    rationale: >-
+      Authenticator management (IA-5; 800-171 03.05.07; CSF PR.AA-03; ISO
+      A.5.17). CIS Ubuntu 24.04 5.4.1.1, 5.4.1.3-5.4.1.6 with the CIS
+      profile's ComplianceAsCode values (365, 7, SHA512|YESCRYPT, 45).
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:pw-max-days", maps: {cis-ubuntu2404: ["5.4.1.1"]}}
+      - {kind: host-probe, ref: "west:pw-warn-age", maps: {cis-ubuntu2404: ["5.4.1.3"]}}
+      - {kind: host-probe, ref: "west:pw-hash-algo", maps: {cis-ubuntu2404: ["5.4.1.4"]}}
+      - {kind: host-probe, ref: "west:pw-inactive", maps: {cis-ubuntu2404: ["5.4.1.5"]}}
+      - {kind: host-probe, ref: "west:pw-change-past", maps: {cis-ubuntu2404: ["5.4.1.6"]}}
+      - {kind: host-probe, ref: "east:pw-max-days", maps: {cis-ubuntu2404: ["5.4.1.1"]}}
+      - {kind: host-probe, ref: "east:pw-warn-age", maps: {cis-ubuntu2404: ["5.4.1.3"]}}
+      - {kind: host-probe, ref: "east:pw-hash-algo", maps: {cis-ubuntu2404: ["5.4.1.4"]}}
+      - {kind: host-probe, ref: "east:pw-inactive", maps: {cis-ubuntu2404: ["5.4.1.5"]}}
+      - {kind: host-probe, ref: "east:pw-change-past", maps: {cis-ubuntu2404: ["5.4.1.6"]}}
+    mappings:
+      nist-800-53r5: [IA-5]
+      nist-800-171r3: ["03.05.07"]
+      nist-csf-2: [PR.AA-03]
+      iso27001-2022: [A.5.17]
+
+  - id: UH-SESS-01
+    title: Idle shells end after 15 minutes
+    statement: >-
+      On both hosts a readonly, exported TMOUT of 900 seconds or less is set
+      for every login shell.
+    rationale: >-
+      Session termination (AC-12; 800-171 03.01.11; CSF PR.AA-03). CIS Ubuntu 24.04
+      5.4.3.2 (TMOUT from the CIS profile's ComplianceAsCode variable).
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:shell-tmout", maps: {cis-ubuntu2404: ["5.4.3.2"]}}
+      - {kind: host-probe, ref: "east:shell-tmout", maps: {cis-ubuntu2404: ["5.4.3.2"]}}
+    mappings:
+      nist-800-53r5: [AC-12]
+      nist-800-171r3: ["03.01.11"]
+      nist-csf-2: [PR.AA-03]
 
   - id: UH-NET-01
     title: The host network stack rejects spoofed and redirected traffic
@@ -866,6 +925,8 @@ controls:
     evidence:
       - {kind: host-probe, ref: "west:auditd-running", maps: {cis-ubuntu2404: ["6.2.1.2"]}}
       - {kind: host-probe, ref: "east:auditd-running", maps: {cis-ubuntu2404: ["6.2.1.2"]}}
+      - {kind: host-probe, ref: "west:journald-active", maps: {cis-ubuntu2404: ["6.1.1.1"]}}
+      - {kind: host-probe, ref: "east:journald-active", maps: {cis-ubuntu2404: ["6.1.1.1"]}}
     mappings:
       nist-800-53r5: [AU-2, AU-12]
       nist-800-171r3: ["03.03.01"]

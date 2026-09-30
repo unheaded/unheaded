@@ -797,3 +797,57 @@ func TestAccountSudoBootProbes(t *testing.T) {
 		}
 	}
 }
+
+func TestPasswordPolicyProbes(t *testing.T) {
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"pw-max-days", "defs=365\n@ok\n", true},
+		{"pw-max-days", "defs=99999\n@ok\n", false},
+		{"pw-max-days", "defs=365\nuser govan\n@ok\n", false}, // an existing hashed account without a max age
+		{"pw-max-days", "defs=365\n", false},                  // did not complete
+		{"pw-warn-age", "defs=7\n@ok\n", true},
+		{"pw-warn-age", "defs=3\n@ok\n", false},
+		{"pw-warn-age", "defs=\n@ok\n", false},
+		{"pw-hash-algo", "defs=YESCRYPT\n@ok\n", true},
+		{"pw-hash-algo", "defs=SHA512\n@ok\n", true},
+		{"pw-hash-algo", "defs=MD5\n@ok\n", false},
+		{"pw-inactive", "defs=30\n@ok\n", true},
+		{"pw-inactive", "defs=-1\n@ok\n", false},
+		{"pw-inactive", "defs=45\nuser govan\n@ok\n", false},
+		{"pw-change-past", "@ok\n", true},
+		{"pw-change-past", "govan\n@ok\n", false},
+		{"acct-root-only-uid0", "@ok\n", true},
+		{"acct-root-only-uid0", "toor\n@ok\n", false},
+		{"acct-system-no-shell", "@ok\n", true},
+		{"acct-system-no-shell", "www-data /bin/bash\n@ok\n", false},
+		{"acct-noshell-locked", "@ok\n", true},
+		{"acct-noshell-locked", "daemon P\n@ok\n", false},
+		{"shell-tmout", "readonly TMOUT=900 ; export TMOUT\n@ok\n", true},
+		{"shell-tmout", "TMOUT=900\nreadonly TMOUT\nexport TMOUT\n@ok\n", true},
+		{"shell-tmout", "TMOUT=900\nexport TMOUT\n@ok\n", false}, // not readonly: a user can unset it
+		{"shell-tmout", "readonly TMOUT=1800 ; export TMOUT\n@ok\n", false},
+		{"shell-tmout", "@ok\n", false},
+		{"journald-active", "active\n", true},
+		{"journald-active", "inactive\n", false},
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok || !p.Baseline {
+			t.Errorf("%s missing or not a baseline probe", tc.probe)
+			continue
+		}
+		if pass, detail := p.Judge(tc.out); pass != tc.pass {
+			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}
+
+func TestDefsProbeOnlyClaimsWhatItChecks(t *testing.T) {
+	if _, d := Probes["pw-hash-algo"].Judge("defs=YESCRYPT\n@ok\n"); strings.Contains(d, "existing accounts") {
+		t.Errorf("pw-hash-algo does not check accounts but says %q", d)
+	}
+	if _, d := Probes["pw-max-days"].Judge("defs=365\n@ok\n"); !strings.Contains(d, "existing accounts") {
+		t.Errorf("pw-max-days checks accounts but says %q", d)
+	}
+}

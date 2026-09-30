@@ -674,3 +674,95 @@ func apparmorProfilesProbe() Probe {
 		},
 	}
 }
+
+// Password and account policy (CIS 5.4.1.1-5.4.1.6, 5.4.2.1-5.4.2.3,
+// 5.4.2.7, 5.4.2.8, 5.4.3.2) and journald (6.1.1.1). Values are the CIS
+// profile's ComplianceAsCode variables: max age 365, warning 7, hashing
+// SHA512|YESCRYPT, inactive 45, TMOUT 900. System accounts are as
+// ComplianceAsCode defines them: not root, UID below UID_MIN, shell not
+// nologin, /bin/sync, /sbin/shutdown, /sbin/halt or false.
+func init() {
+	hashed := `$2~/^\$/`
+	Probes["pw-max-days"] = defsProbe(`echo "defs=$(awk '/^[[:space:]]*PASS_MAX_DAYS/{print $2}' /etc/login.defs)"; `+
+		`sudo -n sh -c "awk -F: '(`+hashed+` && (\$5==\"\" || \$5>365)){print \"user \" \$1}' /etc/shadow; echo @ok"`,
+		func(v string) bool { n, err := strconv.Atoi(v); return err == nil && n >= 1 && n <= 365 }, "PASS_MAX_DAYS 1-365")
+	Probes["pw-warn-age"] = defsProbe(`echo "defs=$(awk '/^[[:space:]]*PASS_WARN_AGE/{print $2}' /etc/login.defs)"; echo @ok`,
+		func(v string) bool { n, err := strconv.Atoi(v); return err == nil && n >= 7 }, "PASS_WARN_AGE >= 7")
+	Probes["pw-hash-algo"] = defsProbe(`echo "defs=$(awk '/^[[:space:]]*ENCRYPT_METHOD/{print toupper($2)}' /etc/login.defs)"; echo @ok`,
+		func(v string) bool { return v == "SHA512" || v == "YESCRYPT" }, "ENCRYPT_METHOD SHA512 or YESCRYPT")
+	Probes["pw-inactive"] = defsProbe(`echo "defs=$(useradd -D | awk -F= '/^INACTIVE/{print $2}')"; `+
+		`sudo -n sh -c "awk -F: '(`+hashed+` && (\$7==\"\" || \$7>45 || \$7<0)){print \"user \" \$1}' /etc/shadow; echo @ok"`,
+		func(v string) bool { n, err := strconv.Atoi(v); return err == nil && n >= 0 && n <= 45 }, "INACTIVE 0-45")
+	Probes["pw-change-past"] = offenderProbe(`t=$(( $(date +%s) / 86400 )); sudo -n sh -c "awk -F: -v t=$t '(\$3!=\"\" && \$3>t){print \$1}' /etc/shadow; echo @ok"`)
+	Probes["acct-root-only-uid0"] = offenderProbe(`awk -F: '($3==0 && $1!="root"){print $1}' /etc/passwd && echo @ok`)
+	Probes["acct-root-only-gid0"] = offenderProbe(`awk -F: '($4==0 && $1!="root"){print $1}' /etc/passwd && echo @ok`)
+	Probes["group-root-only-gid0"] = offenderProbe(`awk -F: '($3==0 && $1!="root"){print $1}' /etc/group && echo @ok`)
+	Probes["acct-system-no-shell"] = offenderProbe(`m=$(awk '/^[[:space:]]*UID_MIN/{print $2}' /etc/login.defs); ` +
+		`awk -F: -v m="${m:-1000}" '($1!="root" && $3<m && $7!~/^(\/usr)?\/sbin\/nologin$/ && $7!~/^(\/usr)?\/bin\/false$/ && $7!="/bin/sync" && $7!="/sbin/shutdown" && $7!="/sbin/halt"){print $1 " " $7}' /etc/passwd && echo @ok`)
+	// Accounts whose shell is not in /etc/shells must be locked (passwd -S: L).
+	Probes["acct-noshell-locked"] = offenderProbe(`for u in $(awk -F: 'NR==FNR{s[$0]=1;next} !($7 in s){print $1}' /etc/shells /etc/passwd); do ` +
+		`st=$(sudo -n passwd -S "$u" 2>/dev/null | awk '{print $2}'); [ "$st" = L ] || echo "$u ${st:-unreadable}"; done; echo @ok`)
+	Probes["shell-tmout"] = markerLinesProbe(`grep -hsE '(^|[[:space:];])(readonly|export|declare|typeset)?[[:space:]]*[-rx[:space:]]*TMOUT' /etc/profile /etc/profile.d/*.sh /etc/bash.bashrc; echo @ok`,
+		func(lines []string) (bool, string) {
+			val, ro, ex := -1, false, false
+			for _, l := range lines {
+				if strings.HasPrefix(strings.TrimSpace(l), "#") {
+					continue
+				}
+				if i := strings.Index(l, "TMOUT="); i >= 0 {
+					f := strings.FieldsFunc(l[i+len("TMOUT="):], func(r rune) bool { return r == ' ' || r == ';' || r == '\t' })
+					if len(f) > 0 {
+						if n, err := strconv.Atoi(f[0]); err == nil {
+							val = n
+						}
+					}
+				}
+				ro = ro || strings.Contains(l, "readonly TMOUT") || strings.Contains(l, "declare -r") || strings.Contains(l, "typeset -r")
+				ex = ex || strings.Contains(l, "export TMOUT") || strings.Contains(l, "declare -rx") || strings.Contains(l, "declare -xr")
+			}
+			switch {
+			case val < 1 || val > 900:
+				return false, fmt.Sprintf("TMOUT %d (want 1-900)", val)
+			case !ro:
+				return false, "TMOUT not readonly: a user can unset it"
+			case !ex:
+				return false, "TMOUT not exported"
+			}
+			return true, fmt.Sprintf("TMOUT=%d readonly, exported", val)
+		})
+	Probes["journald-active"] = Probe{
+		Baseline: true,
+		Command:  `systemctl is-active systemd-journald.service`,
+		Judge: func(out string) (bool, string) {
+			v := strings.TrimSpace(out)
+			return v == "active", "systemd-journald " + v
+		},
+	}
+}
+
+// defsProbe: a "defs=<value>" line judged by ok, plus any "user <name>"
+// offender lines, then the "@ok" completion line.
+func defsProbe(cmd string, ok func(string) bool, want string) Probe {
+	checksUsers := strings.Contains(cmd, `print \"user \"`)
+	return markerLinesProbe(cmd, func(lines []string) (bool, string) {
+		var val string
+		var users []string
+		for _, l := range lines {
+			if v, found := strings.CutPrefix(l, "defs="); found {
+				val = strings.TrimSpace(v)
+			} else if u, found := strings.CutPrefix(l, "user "); found {
+				users = append(users, strings.TrimSpace(u))
+			}
+		}
+		if !ok(val) {
+			return false, fmt.Sprintf("%q (want %s)", val, want)
+		}
+		if len(users) > 0 {
+			return false, fmt.Sprintf("default %s, but existing accounts do not follow it: %s", val, strings.Join(users, ", "))
+		}
+		if checksUsers {
+			return true, "default " + val + ", existing accounts follow it"
+		}
+		return true, "default " + val
+	})
+}

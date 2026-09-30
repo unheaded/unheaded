@@ -40,7 +40,7 @@ var sortRank = map[Severity]int{SeverityUntriaged: 0, SeverityCritical: 1, Sever
 var findingClasses = map[string]bool{
 	"sysctl": true, "sshd": true, "firewall": true, "service": true,
 	"kmod": true, "fileperm": true, "mount": true, "package": true,
-	"sudo": true, "boot": true, "mac": true,
+	"sudo": true, "boot": true, "mac": true, "account": true, "shell": true,
 	"app": true, "container": true, "ci": true, "backup": true, "process": true,
 }
 
