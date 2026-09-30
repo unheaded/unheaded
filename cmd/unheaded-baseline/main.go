@@ -258,6 +258,8 @@ func init() {
 		case strings.HasPrefix(name, "kmod-") && strings.HasSuffix(name, "-disabled"):
 			mod := strings.TrimSuffix(strings.TrimPrefix(name, "kmod-"), "-disabled")
 			probeActions[name] = fmt.Sprintf("write /etc/modprobe.d/%s.conf (install %s /bin/false; blacklist %s); unload it if loaded and unused", mod, mod, mod)
+		case strings.HasPrefix(name, "mount-"):
+			probeActions[name] = "none (alert only): mount options and partitions change through fstab and a remount or reboot, which the operator does"
 		case strings.HasPrefix(name, "perm-"):
 			probeActions[name] = "chown to root (and the CIS group) and chmod to the CIS mode; the detail names each file"
 		}

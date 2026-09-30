@@ -12,6 +12,32 @@ sources:
   - {kind: host-probe, ref: "east:kmod-jffs2-disabled"}
   - {kind: host-probe, ref: "east:kmod-udf-disabled"}
   - {kind: host-probe, ref: "east:kmod-usb-storage-disabled"}
+  - {kind: host-probe, ref: "east:mount-dev-shm-nodev"}
+  - {kind: host-probe, ref: "east:mount-dev-shm-noexec"}
+  - {kind: host-probe, ref: "east:mount-dev-shm-nosuid"}
+  - {kind: host-probe, ref: "east:mount-dev-shm-separate"}
+  - {kind: host-probe, ref: "east:mount-home-nodev"}
+  - {kind: host-probe, ref: "east:mount-home-nosuid"}
+  - {kind: host-probe, ref: "east:mount-home-separate"}
+  - {kind: host-probe, ref: "east:mount-tmp-nodev"}
+  - {kind: host-probe, ref: "east:mount-tmp-noexec"}
+  - {kind: host-probe, ref: "east:mount-tmp-nosuid"}
+  - {kind: host-probe, ref: "east:mount-tmp-separate"}
+  - {kind: host-probe, ref: "east:mount-var-log-audit-nodev"}
+  - {kind: host-probe, ref: "east:mount-var-log-audit-noexec"}
+  - {kind: host-probe, ref: "east:mount-var-log-audit-nosuid"}
+  - {kind: host-probe, ref: "east:mount-var-log-audit-separate"}
+  - {kind: host-probe, ref: "east:mount-var-log-nodev"}
+  - {kind: host-probe, ref: "east:mount-var-log-noexec"}
+  - {kind: host-probe, ref: "east:mount-var-log-nosuid"}
+  - {kind: host-probe, ref: "east:mount-var-log-separate"}
+  - {kind: host-probe, ref: "east:mount-var-nodev"}
+  - {kind: host-probe, ref: "east:mount-var-nosuid"}
+  - {kind: host-probe, ref: "east:mount-var-separate"}
+  - {kind: host-probe, ref: "east:mount-var-tmp-nodev"}
+  - {kind: host-probe, ref: "east:mount-var-tmp-noexec"}
+  - {kind: host-probe, ref: "east:mount-var-tmp-nosuid"}
+  - {kind: host-probe, ref: "east:mount-var-tmp-separate"}
   - {kind: host-probe, ref: "east:ntp-synchronized"}
   - {kind: host-probe, ref: "east:perm-etc-group"}
   - {kind: host-probe, ref: "east:perm-etc-group-backup"}
@@ -37,6 +63,32 @@ sources:
   - {kind: host-probe, ref: "west:kmod-jffs2-disabled"}
   - {kind: host-probe, ref: "west:kmod-udf-disabled"}
   - {kind: host-probe, ref: "west:kmod-usb-storage-disabled"}
+  - {kind: host-probe, ref: "west:mount-dev-shm-nodev"}
+  - {kind: host-probe, ref: "west:mount-dev-shm-noexec"}
+  - {kind: host-probe, ref: "west:mount-dev-shm-nosuid"}
+  - {kind: host-probe, ref: "west:mount-dev-shm-separate"}
+  - {kind: host-probe, ref: "west:mount-home-nodev"}
+  - {kind: host-probe, ref: "west:mount-home-nosuid"}
+  - {kind: host-probe, ref: "west:mount-home-separate"}
+  - {kind: host-probe, ref: "west:mount-tmp-nodev"}
+  - {kind: host-probe, ref: "west:mount-tmp-noexec"}
+  - {kind: host-probe, ref: "west:mount-tmp-nosuid"}
+  - {kind: host-probe, ref: "west:mount-tmp-separate"}
+  - {kind: host-probe, ref: "west:mount-var-log-audit-nodev"}
+  - {kind: host-probe, ref: "west:mount-var-log-audit-noexec"}
+  - {kind: host-probe, ref: "west:mount-var-log-audit-nosuid"}
+  - {kind: host-probe, ref: "west:mount-var-log-audit-separate"}
+  - {kind: host-probe, ref: "west:mount-var-log-nodev"}
+  - {kind: host-probe, ref: "west:mount-var-log-noexec"}
+  - {kind: host-probe, ref: "west:mount-var-log-nosuid"}
+  - {kind: host-probe, ref: "west:mount-var-log-separate"}
+  - {kind: host-probe, ref: "west:mount-var-nodev"}
+  - {kind: host-probe, ref: "west:mount-var-nosuid"}
+  - {kind: host-probe, ref: "west:mount-var-separate"}
+  - {kind: host-probe, ref: "west:mount-var-tmp-nodev"}
+  - {kind: host-probe, ref: "west:mount-var-tmp-noexec"}
+  - {kind: host-probe, ref: "west:mount-var-tmp-nosuid"}
+  - {kind: host-probe, ref: "west:mount-var-tmp-separate"}
   - {kind: host-probe, ref: "west:ntp-synchronized"}
   - {kind: host-probe, ref: "west:perm-etc-group"}
   - {kind: host-probe, ref: "west:perm-etc-group-backup"}
