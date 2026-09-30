@@ -206,6 +206,8 @@ type LoaderConfig struct {
 	AllowRlimit     bool
 	MetricsEnabled  bool
 	MaxMapBytes     uint64
+
+	AllowUntrustedObjectPaths bool
 }
 
 // DefaultLoaderConfig returns a default configuration

@@ -60,6 +60,9 @@ func FuzzKernelLoad(f *testing.F) {
 	cfg.PinPath = "" // never pin
 	cfg.MetricsEnabled = false
 	cfg.VerifierLogSize = 16 * 1024
+	// Inputs are written to the (world-writable) temp dir; this harness
+	// fuzzes object bytes, not path trust (objtrust_test.go covers that).
+	cfg.AllowUntrustedObjectPaths = true
 	l, err := NewNativeLoader(cfg)
 	if err != nil {
 		f.Fatalf("NewNativeLoader: %v", err)

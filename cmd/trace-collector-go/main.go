@@ -83,6 +83,8 @@ var (
 	enableLatencyProbe = flag.Bool("enable-latency-probe", true, "Enable latency_probe tracepoint program")
 	ebpfObjDir         = flag.String("ebpf-obj-dir", "", "Directory containing compiled BPF ELF objects (default: ebpf/target/bpfel-unknown-none/release)")
 	unifiedMode        = flag.Bool("unified", false, "Run in unified mode (load all BPF programs)")
+	allowUntrustedObjs = flag.Bool("allow-untrusted-ebpf-obj-dir", false,
+		"Development only: as root, load BPF objects from paths a non-root user can write (e.g. a user-owned ebpf/target). Off, such objects are refused")
 )
 
 // ── Prometheus metrics ──────────────────────────────────────────────────
@@ -619,6 +621,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	var loader BPFLoader
 	loaderCfg := DefaultNativeBPFLoaderConfig()
 	loaderCfg.PinPath = *mapPinPath
+	loaderCfg.AllowUntrustedObjectPaths = *allowUntrustedObjs
 	nativeLoader, err := NewNativeBPFLoader(ctx, loaderCfg)
 	if err != nil {
 		log.Warn().Err(err).Msg("native BPF loader unavailable, falling back to mock")
