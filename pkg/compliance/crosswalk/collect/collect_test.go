@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -588,6 +589,84 @@ func TestProbeJudges(t *testing.T) {
 		pass, detail := Probes[tc.probe].Judge(tc.out)
 		if pass != tc.pass {
 			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}
+
+func TestKernelModuleProbes(t *testing.T) {
+	for _, tc := range []struct {
+		name, out string
+		pass      bool
+	}{
+		{"disabled and blacklisted", "loaded=0\nloadable=install /bin/false \nblacklist=blacklist cramfs\n", true},
+		{"not built for this kernel", "loaded=0\nloadable=modprobe: FATAL: Module cramfs not found in directory /lib/modules/6.17 \nblacklist=\n", true},
+		{"loadable", "loaded=0\nloadable=insmod /lib/modules/6.17/kernel/fs/cramfs/cramfs.ko.zst \nblacklist=\n", false},
+		{"install false but not blacklisted", "loaded=0\nloadable=install /bin/false \nblacklist=\n", false},
+		{"loaded right now", "loaded=1\nloadable=install /bin/false \nblacklist=blacklist cramfs\n", false},
+		{"built into the kernel", "loaded=0\nloadable=builtin cramfs \nblacklist=blacklist cramfs\n", false},
+		{"no output", "", false},
+	} {
+		pass, detail := Probes["kmod-cramfs-disabled"].Judge(tc.out)
+		if pass != tc.pass {
+			t.Errorf("%s: pass=%v (%s), want %v", tc.name, pass, detail, tc.pass)
+		}
+	}
+	for _, m := range []string{"cramfs", "freevxfs", "hfs", "hfsplus", "jffs2", "usb-storage", "udf"} {
+		p, ok := Probes["kmod-"+m+"-disabled"]
+		if !ok || !p.Baseline {
+			t.Errorf("kmod-%s-disabled missing or not a baseline probe", m)
+			continue
+		}
+		if m == "usb-storage" && !strings.Contains(p.Command, "^usb_storage ") {
+			t.Errorf("usb-storage is usb_storage in /proc/modules: %s", p.Command)
+		}
+	}
+}
+
+func TestFilePermissionProbes(t *testing.T) {
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"perm-etc-passwd", "/etc/passwd 644 0 root\n", true},
+		{"perm-etc-passwd", "/etc/passwd 600 0 root\n", true}, // stricter is fine
+		{"perm-etc-passwd", "/etc/passwd 664 0 root\n", false},
+		{"perm-etc-passwd", "/etc/passwd 644 1000 root\n", false},
+		{"perm-etc-passwd", "/etc/passwd 644 0 adm\n", false},
+		{"perm-etc-passwd", "/etc/passwd ABSENT\n", false},
+		{"perm-etc-passwd", "", false},
+		{"perm-etc-shadow", "/etc/shadow 640 0 shadow\n", true},
+		{"perm-etc-shadow", "/etc/shadow 640 0 root\n", false},
+		{"perm-etc-shadow", "/etc/shadow 644 0 shadow\n", false},
+		{"perm-etc-security-opasswd", "/etc/security/opasswd ABSENT\n", true}, // nothing to protect
+		{"perm-sshd-config", "/etc/ssh/sshd_config 600 0 root\n/etc/ssh/sshd_config.d/50-cloud-init.conf 600 0 root\n", true},
+		{"perm-sshd-config", "/etc/ssh/sshd_config 644 0 root\n/etc/ssh/sshd_config.d/* ABSENT\n", false},
+		{"perm-sshd-config", "/etc/ssh/sshd_config 600 0 root\n/etc/ssh/sshd_config.d/* ABSENT\n", true},
+		{"perm-ssh-host-private-keys", "/etc/ssh/ssh_host_ed25519_key 600 0 root\n/etc/ssh/ssh_host_rsa_key 640 0 root\n", false},
+		{"perm-ssh-host-public-keys", "/etc/ssh/ssh_host_ed25519_key.pub 644 0 root\n", true},
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok || !p.Baseline {
+			t.Errorf("%s missing or not a baseline probe", tc.probe)
+			continue
+		}
+		if pass, detail := p.Judge(tc.out); pass != tc.pass {
+			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}
+
+// Every probe command is valid sh inside the wrapper HostProbes builds
+// ("{ cmd; } 2>/dev/null"): a syntax error loses the whole host's script,
+// every probe on it, silently (no records, not failures).
+func TestProbeCommandsParse(t *testing.T) {
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("no sh")
+	}
+	for name, p := range Probes {
+		script := fmt.Sprintf("echo @@%s; { %s; } 2>/dev/null\nexit 0\n", name, p.Command)
+		if out, err := exec.Command("sh", "-n", "-c", script).CombinedOutput(); err != nil {
+			t.Errorf("%s: sh -n: %v %s\n%s", name, err, out, p.Command)
 		}
 	}
 }
