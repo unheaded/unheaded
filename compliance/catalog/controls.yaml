@@ -465,6 +465,30 @@ controls:
       soc2-security: [CC6.7]
       iso27001-2022: [A.8.24]
 
+  - id: UH-AUTHN-01
+    title: Service APIs require authentication
+    statement: >-
+      Every first-party service in the compose stack runs with
+      AUTH_ENABLED=true, so pkg/auth installs a real authenticator (API key
+      or JWT) instead of the Noop one that admits every request. Checked from
+      the declared compose configuration by
+      scripts/compliance/check-service-auth.sh (a compliance check, not a CI
+      gate: it fails today).
+    rationale: >-
+      Access enforcement (AC-3) with identification and authentication of
+      users and services (IA-2, IA-9); 800-171 03.01.02 access enforcement,
+      03.05.02 device identification and authentication; CSF PR.AA-03; ISO
+      A.8.5 secure authentication; SOC 2 CC6.1.
+    freshness_days: 7
+    evidence:
+      - {kind: gate-script, ref: scripts/compliance/check-service-auth.sh}
+    mappings:
+      nist-800-53r5: [AC-3, IA-2, IA-9]
+      nist-800-171r3: ["03.01.02", "03.05.02"]
+      nist-csf-2: [PR.AA-03]
+      soc2-security: [CC6.1]
+      iso27001-2022: [A.8.5]
+
   # --- Awaiting attestation: these read NOT_ASSESSED until the accountable
   # person commits a signed file under compliance/attestations/ (README there).
 
