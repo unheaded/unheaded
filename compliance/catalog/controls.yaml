@@ -264,29 +264,28 @@ controls:
       - {kind: host-sysctl, ref: "west:kernel.unprivileged_bpf_disabled>=1"}
       - {kind: host-sysctl, ref: "west:kernel.kptr_restrict>=1"}
       - {kind: host-sysctl, ref: "west:kernel.dmesg_restrict=1"}
-      - {kind: host-sysctl, ref: "west:kernel.yama.ptrace_scope>=1"}
+      - {kind: host-sysctl, ref: "west:kernel.yama.ptrace_scope>=1", maps: {cis-ubuntu2404: ["1.5.2"]}}
       - {kind: host-sysctl, ref: "west:kernel.perf_event_paranoid>=2"}
-      - {kind: host-sysctl, ref: "west:kernel.randomize_va_space=2"}
+      - {kind: host-sysctl, ref: "west:kernel.randomize_va_space=2", maps: {cis-ubuntu2404: ["1.5.1"]}}
       - {kind: host-sysctl, ref: "west:fs.protected_symlinks=1"}
       - {kind: host-sysctl, ref: "west:fs.protected_hardlinks=1"}
-      - {kind: host-sysctl, ref: "west:fs.suid_dumpable=0"}
+      - {kind: host-sysctl, ref: "west:fs.suid_dumpable=0", maps: {cis-ubuntu2404: ["1.5.3"]}}
       - {kind: host-sysctl, ref: "east:kernel.unprivileged_bpf_disabled>=1"}
       - {kind: host-sysctl, ref: "east:kernel.kptr_restrict>=1"}
       - {kind: host-sysctl, ref: "east:kernel.dmesg_restrict=1"}
-      - {kind: host-sysctl, ref: "east:kernel.yama.ptrace_scope>=1"}
+      - {kind: host-sysctl, ref: "east:kernel.yama.ptrace_scope>=1", maps: {cis-ubuntu2404: ["1.5.2"]}}
       - {kind: host-sysctl, ref: "east:kernel.perf_event_paranoid>=2"}
-      - {kind: host-sysctl, ref: "east:kernel.randomize_va_space=2"}
+      - {kind: host-sysctl, ref: "east:kernel.randomize_va_space=2", maps: {cis-ubuntu2404: ["1.5.1"]}}
       - {kind: host-sysctl, ref: "east:fs.protected_symlinks=1"}
       - {kind: host-sysctl, ref: "east:fs.protected_hardlinks=1"}
-      - {kind: host-sysctl, ref: "east:fs.suid_dumpable=0"}
-      - {kind: host-probe, ref: "west:apparmor-enabled"}
-      - {kind: host-probe, ref: "east:apparmor-enabled"}
+      - {kind: host-sysctl, ref: "east:fs.suid_dumpable=0", maps: {cis-ubuntu2404: ["1.5.3"]}}
+      - {kind: host-probe, ref: "west:apparmor-enabled", maps: {cis-ubuntu2404: ["1.3.1.2"]}}
+      - {kind: host-probe, ref: "east:apparmor-enabled", maps: {cis-ubuntu2404: ["1.3.1.2"]}}
     mappings:
       nist-800-53r5: [CM-6, CM-7, SI-16]
       nist-800-171r3: ["03.04.02", "03.04.06"]
       nist-csf-2: [PR.PS-01]
       iso27001-2022: [A.8.9]
-      cis-ubuntu2404: ["1.3.1.2", "1.5.1", "1.5.2", "1.5.3"]
 
   - id: UH-HOST-02
     title: Unneeded filesystem and USB storage kernel modules cannot load
@@ -304,26 +303,25 @@ controls:
       from ComplianceAsCode's kernel_module_disabled template.
     freshness_days: 1
     evidence:
-      - {kind: host-probe, ref: "west:kmod-cramfs-disabled"}
-      - {kind: host-probe, ref: "west:kmod-freevxfs-disabled"}
-      - {kind: host-probe, ref: "west:kmod-hfs-disabled"}
-      - {kind: host-probe, ref: "west:kmod-hfsplus-disabled"}
-      - {kind: host-probe, ref: "west:kmod-jffs2-disabled"}
-      - {kind: host-probe, ref: "west:kmod-usb-storage-disabled"}
-      - {kind: host-probe, ref: "west:kmod-udf-disabled"}
-      - {kind: host-probe, ref: "east:kmod-cramfs-disabled"}
-      - {kind: host-probe, ref: "east:kmod-freevxfs-disabled"}
-      - {kind: host-probe, ref: "east:kmod-hfs-disabled"}
-      - {kind: host-probe, ref: "east:kmod-hfsplus-disabled"}
-      - {kind: host-probe, ref: "east:kmod-jffs2-disabled"}
-      - {kind: host-probe, ref: "east:kmod-usb-storage-disabled"}
-      - {kind: host-probe, ref: "east:kmod-udf-disabled"}
+      - {kind: host-probe, ref: "west:kmod-cramfs-disabled", maps: {cis-ubuntu2404: ["1.1.1.1"]}}
+      - {kind: host-probe, ref: "west:kmod-freevxfs-disabled", maps: {cis-ubuntu2404: ["1.1.1.2"]}}
+      - {kind: host-probe, ref: "west:kmod-hfs-disabled", maps: {cis-ubuntu2404: ["1.1.1.3"]}}
+      - {kind: host-probe, ref: "west:kmod-hfsplus-disabled", maps: {cis-ubuntu2404: ["1.1.1.4"]}}
+      - {kind: host-probe, ref: "west:kmod-jffs2-disabled", maps: {cis-ubuntu2404: ["1.1.1.5"]}}
+      - {kind: host-probe, ref: "west:kmod-usb-storage-disabled", maps: {cis-ubuntu2404: ["1.1.1.9"]}}
+      - {kind: host-probe, ref: "west:kmod-udf-disabled", maps: {cis-ubuntu2404: ["1.1.1.8"]}}
+      - {kind: host-probe, ref: "east:kmod-cramfs-disabled", maps: {cis-ubuntu2404: ["1.1.1.1"]}}
+      - {kind: host-probe, ref: "east:kmod-freevxfs-disabled", maps: {cis-ubuntu2404: ["1.1.1.2"]}}
+      - {kind: host-probe, ref: "east:kmod-hfs-disabled", maps: {cis-ubuntu2404: ["1.1.1.3"]}}
+      - {kind: host-probe, ref: "east:kmod-hfsplus-disabled", maps: {cis-ubuntu2404: ["1.1.1.4"]}}
+      - {kind: host-probe, ref: "east:kmod-jffs2-disabled", maps: {cis-ubuntu2404: ["1.1.1.5"]}}
+      - {kind: host-probe, ref: "east:kmod-usb-storage-disabled", maps: {cis-ubuntu2404: ["1.1.1.9"]}}
+      - {kind: host-probe, ref: "east:kmod-udf-disabled", maps: {cis-ubuntu2404: ["1.1.1.8"]}}
     mappings:
       nist-800-53r5: [CM-7, MP-7]
       nist-800-171r3: ["03.04.06"]
       nist-csf-2: [PR.PS-01]
       iso27001-2022: [A.8.9]
-      cis-ubuntu2404: ["1.1.1.1", "1.1.1.2", "1.1.1.3", "1.1.1.4", "1.1.1.5", "1.1.1.8", "1.1.1.9"]
 
   - id: UH-HOST-03
     title: Account databases and ssh configuration have restrictive ownership and modes
@@ -341,38 +339,37 @@ controls:
       and groups from ComplianceAsCode's ubuntu2404 file rules.
     freshness_days: 1
     evidence:
-      - {kind: host-probe, ref: "west:perm-etc-passwd"}
-      - {kind: host-probe, ref: "west:perm-etc-passwd-backup"}
-      - {kind: host-probe, ref: "west:perm-etc-group"}
-      - {kind: host-probe, ref: "west:perm-etc-group-backup"}
-      - {kind: host-probe, ref: "west:perm-etc-shadow"}
-      - {kind: host-probe, ref: "west:perm-etc-shadow-backup"}
-      - {kind: host-probe, ref: "west:perm-etc-gshadow"}
-      - {kind: host-probe, ref: "west:perm-etc-gshadow-backup"}
-      - {kind: host-probe, ref: "west:perm-etc-shells"}
-      - {kind: host-probe, ref: "west:perm-etc-security-opasswd"}
-      - {kind: host-probe, ref: "west:perm-sshd-config"}
-      - {kind: host-probe, ref: "west:perm-ssh-host-private-keys"}
-      - {kind: host-probe, ref: "west:perm-ssh-host-public-keys"}
-      - {kind: host-probe, ref: "east:perm-etc-passwd"}
-      - {kind: host-probe, ref: "east:perm-etc-passwd-backup"}
-      - {kind: host-probe, ref: "east:perm-etc-group"}
-      - {kind: host-probe, ref: "east:perm-etc-group-backup"}
-      - {kind: host-probe, ref: "east:perm-etc-shadow"}
-      - {kind: host-probe, ref: "east:perm-etc-shadow-backup"}
-      - {kind: host-probe, ref: "east:perm-etc-gshadow"}
-      - {kind: host-probe, ref: "east:perm-etc-gshadow-backup"}
-      - {kind: host-probe, ref: "east:perm-etc-shells"}
-      - {kind: host-probe, ref: "east:perm-etc-security-opasswd"}
-      - {kind: host-probe, ref: "east:perm-sshd-config"}
-      - {kind: host-probe, ref: "east:perm-ssh-host-private-keys"}
-      - {kind: host-probe, ref: "east:perm-ssh-host-public-keys"}
+      - {kind: host-probe, ref: "west:perm-etc-passwd", maps: {cis-ubuntu2404: ["7.1.1"]}}
+      - {kind: host-probe, ref: "west:perm-etc-passwd-backup", maps: {cis-ubuntu2404: ["7.1.2"]}}
+      - {kind: host-probe, ref: "west:perm-etc-group", maps: {cis-ubuntu2404: ["7.1.3"]}}
+      - {kind: host-probe, ref: "west:perm-etc-group-backup", maps: {cis-ubuntu2404: ["7.1.4"]}}
+      - {kind: host-probe, ref: "west:perm-etc-shadow", maps: {cis-ubuntu2404: ["7.1.5"]}}
+      - {kind: host-probe, ref: "west:perm-etc-shadow-backup", maps: {cis-ubuntu2404: ["7.1.6"]}}
+      - {kind: host-probe, ref: "west:perm-etc-gshadow", maps: {cis-ubuntu2404: ["7.1.7"]}}
+      - {kind: host-probe, ref: "west:perm-etc-gshadow-backup", maps: {cis-ubuntu2404: ["7.1.8"]}}
+      - {kind: host-probe, ref: "west:perm-etc-shells", maps: {cis-ubuntu2404: ["7.1.9"]}}
+      - {kind: host-probe, ref: "west:perm-etc-security-opasswd", maps: {cis-ubuntu2404: ["7.1.10"]}}
+      - {kind: host-probe, ref: "west:perm-sshd-config", maps: {cis-ubuntu2404: ["5.1.1"]}}
+      - {kind: host-probe, ref: "west:perm-ssh-host-private-keys", maps: {cis-ubuntu2404: ["5.1.2"]}}
+      - {kind: host-probe, ref: "west:perm-ssh-host-public-keys", maps: {cis-ubuntu2404: ["5.1.3"]}}
+      - {kind: host-probe, ref: "east:perm-etc-passwd", maps: {cis-ubuntu2404: ["7.1.1"]}}
+      - {kind: host-probe, ref: "east:perm-etc-passwd-backup", maps: {cis-ubuntu2404: ["7.1.2"]}}
+      - {kind: host-probe, ref: "east:perm-etc-group", maps: {cis-ubuntu2404: ["7.1.3"]}}
+      - {kind: host-probe, ref: "east:perm-etc-group-backup", maps: {cis-ubuntu2404: ["7.1.4"]}}
+      - {kind: host-probe, ref: "east:perm-etc-shadow", maps: {cis-ubuntu2404: ["7.1.5"]}}
+      - {kind: host-probe, ref: "east:perm-etc-shadow-backup", maps: {cis-ubuntu2404: ["7.1.6"]}}
+      - {kind: host-probe, ref: "east:perm-etc-gshadow", maps: {cis-ubuntu2404: ["7.1.7"]}}
+      - {kind: host-probe, ref: "east:perm-etc-gshadow-backup", maps: {cis-ubuntu2404: ["7.1.8"]}}
+      - {kind: host-probe, ref: "east:perm-etc-shells", maps: {cis-ubuntu2404: ["7.1.9"]}}
+      - {kind: host-probe, ref: "east:perm-etc-security-opasswd", maps: {cis-ubuntu2404: ["7.1.10"]}}
+      - {kind: host-probe, ref: "east:perm-sshd-config", maps: {cis-ubuntu2404: ["5.1.1"]}}
+      - {kind: host-probe, ref: "east:perm-ssh-host-private-keys", maps: {cis-ubuntu2404: ["5.1.2"]}}
+      - {kind: host-probe, ref: "east:perm-ssh-host-public-keys", maps: {cis-ubuntu2404: ["5.1.3"]}}
     mappings:
       nist-800-53r5: [AC-3, AC-6, CM-6]
       nist-800-171r3: ["03.04.02"]
       nist-csf-2: [PR.PS-01]
       iso27001-2022: [A.8.9]
-      cis-ubuntu2404: ["5.1.1", "5.1.2", "5.1.3", "7.1.1", "7.1.2", "7.1.3", "7.1.4", "7.1.5", "7.1.6", "7.1.7", "7.1.8", "7.1.9", "7.1.10"]
 
   - id: UH-HOST-04
     title: Temporary, home and variable data sit on separate filesystems mounted nodev, nosuid, noexec
@@ -392,64 +389,63 @@ controls:
       when the path is not its own mount (see collect/cisprobes.go).
     freshness_days: 1
     evidence:
-      - {kind: host-probe, ref: "west:mount-tmp-separate"}
-      - {kind: host-probe, ref: "west:mount-tmp-nodev"}
-      - {kind: host-probe, ref: "west:mount-tmp-nosuid"}
-      - {kind: host-probe, ref: "west:mount-tmp-noexec"}
-      - {kind: host-probe, ref: "west:mount-dev-shm-separate"}
-      - {kind: host-probe, ref: "west:mount-dev-shm-nodev"}
-      - {kind: host-probe, ref: "west:mount-dev-shm-nosuid"}
-      - {kind: host-probe, ref: "west:mount-dev-shm-noexec"}
-      - {kind: host-probe, ref: "west:mount-home-separate"}
-      - {kind: host-probe, ref: "west:mount-home-nodev"}
-      - {kind: host-probe, ref: "west:mount-home-nosuid"}
-      - {kind: host-probe, ref: "west:mount-var-separate"}
-      - {kind: host-probe, ref: "west:mount-var-nodev"}
-      - {kind: host-probe, ref: "west:mount-var-nosuid"}
-      - {kind: host-probe, ref: "west:mount-var-tmp-separate"}
-      - {kind: host-probe, ref: "west:mount-var-tmp-nodev"}
-      - {kind: host-probe, ref: "west:mount-var-tmp-nosuid"}
-      - {kind: host-probe, ref: "west:mount-var-tmp-noexec"}
-      - {kind: host-probe, ref: "west:mount-var-log-separate"}
-      - {kind: host-probe, ref: "west:mount-var-log-nodev"}
-      - {kind: host-probe, ref: "west:mount-var-log-nosuid"}
-      - {kind: host-probe, ref: "west:mount-var-log-noexec"}
-      - {kind: host-probe, ref: "west:mount-var-log-audit-separate"}
-      - {kind: host-probe, ref: "west:mount-var-log-audit-nodev"}
-      - {kind: host-probe, ref: "west:mount-var-log-audit-nosuid"}
-      - {kind: host-probe, ref: "west:mount-var-log-audit-noexec"}
-      - {kind: host-probe, ref: "east:mount-tmp-separate"}
-      - {kind: host-probe, ref: "east:mount-tmp-nodev"}
-      - {kind: host-probe, ref: "east:mount-tmp-nosuid"}
-      - {kind: host-probe, ref: "east:mount-tmp-noexec"}
-      - {kind: host-probe, ref: "east:mount-dev-shm-separate"}
-      - {kind: host-probe, ref: "east:mount-dev-shm-nodev"}
-      - {kind: host-probe, ref: "east:mount-dev-shm-nosuid"}
-      - {kind: host-probe, ref: "east:mount-dev-shm-noexec"}
-      - {kind: host-probe, ref: "east:mount-home-separate"}
-      - {kind: host-probe, ref: "east:mount-home-nodev"}
-      - {kind: host-probe, ref: "east:mount-home-nosuid"}
-      - {kind: host-probe, ref: "east:mount-var-separate"}
-      - {kind: host-probe, ref: "east:mount-var-nodev"}
-      - {kind: host-probe, ref: "east:mount-var-nosuid"}
-      - {kind: host-probe, ref: "east:mount-var-tmp-separate"}
-      - {kind: host-probe, ref: "east:mount-var-tmp-nodev"}
-      - {kind: host-probe, ref: "east:mount-var-tmp-nosuid"}
-      - {kind: host-probe, ref: "east:mount-var-tmp-noexec"}
-      - {kind: host-probe, ref: "east:mount-var-log-separate"}
-      - {kind: host-probe, ref: "east:mount-var-log-nodev"}
-      - {kind: host-probe, ref: "east:mount-var-log-nosuid"}
-      - {kind: host-probe, ref: "east:mount-var-log-noexec"}
-      - {kind: host-probe, ref: "east:mount-var-log-audit-separate"}
-      - {kind: host-probe, ref: "east:mount-var-log-audit-nodev"}
-      - {kind: host-probe, ref: "east:mount-var-log-audit-nosuid"}
-      - {kind: host-probe, ref: "east:mount-var-log-audit-noexec"}
+      - {kind: host-probe, ref: "west:mount-tmp-separate", maps: {cis-ubuntu2404: ["1.1.2.1.1"]}}
+      - {kind: host-probe, ref: "west:mount-tmp-nodev", maps: {cis-ubuntu2404: ["1.1.2.1.2"]}}
+      - {kind: host-probe, ref: "west:mount-tmp-nosuid", maps: {cis-ubuntu2404: ["1.1.2.1.3"]}}
+      - {kind: host-probe, ref: "west:mount-tmp-noexec", maps: {cis-ubuntu2404: ["1.1.2.1.4"]}}
+      - {kind: host-probe, ref: "west:mount-dev-shm-separate", maps: {cis-ubuntu2404: ["1.1.2.2.1"]}}
+      - {kind: host-probe, ref: "west:mount-dev-shm-nodev", maps: {cis-ubuntu2404: ["1.1.2.2.2"]}}
+      - {kind: host-probe, ref: "west:mount-dev-shm-nosuid", maps: {cis-ubuntu2404: ["1.1.2.2.3"]}}
+      - {kind: host-probe, ref: "west:mount-dev-shm-noexec", maps: {cis-ubuntu2404: ["1.1.2.2.4"]}}
+      - {kind: host-probe, ref: "west:mount-home-separate", maps: {cis-ubuntu2404: ["1.1.2.3.1"]}}
+      - {kind: host-probe, ref: "west:mount-home-nodev", maps: {cis-ubuntu2404: ["1.1.2.3.2"]}}
+      - {kind: host-probe, ref: "west:mount-home-nosuid", maps: {cis-ubuntu2404: ["1.1.2.3.3"]}}
+      - {kind: host-probe, ref: "west:mount-var-separate", maps: {cis-ubuntu2404: ["1.1.2.4.1"]}}
+      - {kind: host-probe, ref: "west:mount-var-nodev", maps: {cis-ubuntu2404: ["1.1.2.4.2"]}}
+      - {kind: host-probe, ref: "west:mount-var-nosuid", maps: {cis-ubuntu2404: ["1.1.2.4.3"]}}
+      - {kind: host-probe, ref: "west:mount-var-tmp-separate", maps: {cis-ubuntu2404: ["1.1.2.5.1"]}}
+      - {kind: host-probe, ref: "west:mount-var-tmp-nodev", maps: {cis-ubuntu2404: ["1.1.2.5.2"]}}
+      - {kind: host-probe, ref: "west:mount-var-tmp-nosuid", maps: {cis-ubuntu2404: ["1.1.2.5.3"]}}
+      - {kind: host-probe, ref: "west:mount-var-tmp-noexec", maps: {cis-ubuntu2404: ["1.1.2.5.4"]}}
+      - {kind: host-probe, ref: "west:mount-var-log-separate", maps: {cis-ubuntu2404: ["1.1.2.6.1"]}}
+      - {kind: host-probe, ref: "west:mount-var-log-nodev", maps: {cis-ubuntu2404: ["1.1.2.6.2"]}}
+      - {kind: host-probe, ref: "west:mount-var-log-nosuid", maps: {cis-ubuntu2404: ["1.1.2.6.3"]}}
+      - {kind: host-probe, ref: "west:mount-var-log-noexec", maps: {cis-ubuntu2404: ["1.1.2.6.4"]}}
+      - {kind: host-probe, ref: "west:mount-var-log-audit-separate", maps: {cis-ubuntu2404: ["1.1.2.7.1"]}}
+      - {kind: host-probe, ref: "west:mount-var-log-audit-nodev", maps: {cis-ubuntu2404: ["1.1.2.7.2"]}}
+      - {kind: host-probe, ref: "west:mount-var-log-audit-nosuid", maps: {cis-ubuntu2404: ["1.1.2.7.3"]}}
+      - {kind: host-probe, ref: "west:mount-var-log-audit-noexec", maps: {cis-ubuntu2404: ["1.1.2.7.4"]}}
+      - {kind: host-probe, ref: "east:mount-tmp-separate", maps: {cis-ubuntu2404: ["1.1.2.1.1"]}}
+      - {kind: host-probe, ref: "east:mount-tmp-nodev", maps: {cis-ubuntu2404: ["1.1.2.1.2"]}}
+      - {kind: host-probe, ref: "east:mount-tmp-nosuid", maps: {cis-ubuntu2404: ["1.1.2.1.3"]}}
+      - {kind: host-probe, ref: "east:mount-tmp-noexec", maps: {cis-ubuntu2404: ["1.1.2.1.4"]}}
+      - {kind: host-probe, ref: "east:mount-dev-shm-separate", maps: {cis-ubuntu2404: ["1.1.2.2.1"]}}
+      - {kind: host-probe, ref: "east:mount-dev-shm-nodev", maps: {cis-ubuntu2404: ["1.1.2.2.2"]}}
+      - {kind: host-probe, ref: "east:mount-dev-shm-nosuid", maps: {cis-ubuntu2404: ["1.1.2.2.3"]}}
+      - {kind: host-probe, ref: "east:mount-dev-shm-noexec", maps: {cis-ubuntu2404: ["1.1.2.2.4"]}}
+      - {kind: host-probe, ref: "east:mount-home-separate", maps: {cis-ubuntu2404: ["1.1.2.3.1"]}}
+      - {kind: host-probe, ref: "east:mount-home-nodev", maps: {cis-ubuntu2404: ["1.1.2.3.2"]}}
+      - {kind: host-probe, ref: "east:mount-home-nosuid", maps: {cis-ubuntu2404: ["1.1.2.3.3"]}}
+      - {kind: host-probe, ref: "east:mount-var-separate", maps: {cis-ubuntu2404: ["1.1.2.4.1"]}}
+      - {kind: host-probe, ref: "east:mount-var-nodev", maps: {cis-ubuntu2404: ["1.1.2.4.2"]}}
+      - {kind: host-probe, ref: "east:mount-var-nosuid", maps: {cis-ubuntu2404: ["1.1.2.4.3"]}}
+      - {kind: host-probe, ref: "east:mount-var-tmp-separate", maps: {cis-ubuntu2404: ["1.1.2.5.1"]}}
+      - {kind: host-probe, ref: "east:mount-var-tmp-nodev", maps: {cis-ubuntu2404: ["1.1.2.5.2"]}}
+      - {kind: host-probe, ref: "east:mount-var-tmp-nosuid", maps: {cis-ubuntu2404: ["1.1.2.5.3"]}}
+      - {kind: host-probe, ref: "east:mount-var-tmp-noexec", maps: {cis-ubuntu2404: ["1.1.2.5.4"]}}
+      - {kind: host-probe, ref: "east:mount-var-log-separate", maps: {cis-ubuntu2404: ["1.1.2.6.1"]}}
+      - {kind: host-probe, ref: "east:mount-var-log-nodev", maps: {cis-ubuntu2404: ["1.1.2.6.2"]}}
+      - {kind: host-probe, ref: "east:mount-var-log-nosuid", maps: {cis-ubuntu2404: ["1.1.2.6.3"]}}
+      - {kind: host-probe, ref: "east:mount-var-log-noexec", maps: {cis-ubuntu2404: ["1.1.2.6.4"]}}
+      - {kind: host-probe, ref: "east:mount-var-log-audit-separate", maps: {cis-ubuntu2404: ["1.1.2.7.1"]}}
+      - {kind: host-probe, ref: "east:mount-var-log-audit-nodev", maps: {cis-ubuntu2404: ["1.1.2.7.2"]}}
+      - {kind: host-probe, ref: "east:mount-var-log-audit-nosuid", maps: {cis-ubuntu2404: ["1.1.2.7.3"]}}
+      - {kind: host-probe, ref: "east:mount-var-log-audit-noexec", maps: {cis-ubuntu2404: ["1.1.2.7.4"]}}
     mappings:
       nist-800-53r5: [CM-6, CM-7, SC-5]
       nist-800-171r3: ["03.04.02", "03.04.06"]
       nist-csf-2: [PR.PS-01]
       iso27001-2022: [A.8.9]
-      cis-ubuntu2404: ["1.1.2.1.1", "1.1.2.1.2", "1.1.2.1.3", "1.1.2.1.4", "1.1.2.2.1", "1.1.2.2.2", "1.1.2.2.3", "1.1.2.2.4", "1.1.2.3.1", "1.1.2.3.2", "1.1.2.3.3", "1.1.2.4.1", "1.1.2.4.2", "1.1.2.4.3", "1.1.2.5.1", "1.1.2.5.2", "1.1.2.5.3", "1.1.2.5.4", "1.1.2.6.1", "1.1.2.6.2", "1.1.2.6.3", "1.1.2.6.4", "1.1.2.7.1", "1.1.2.7.2", "1.1.2.7.3", "1.1.2.7.4"]
 
   - id: UH-SVC-01
     title: Only needed network services are installed or running on the hosts
@@ -467,54 +463,53 @@ controls:
       for ubuntu2404.
     freshness_days: 1
     evidence:
-      - {kind: host-probe, ref: "west:svc-autofs-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-avahi-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-dhcp-server-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-dns-server-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-dnsmasq-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-ftp-server-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-ldap-server-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-mail-access-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-nfs-server-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-nis-server-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-print-server-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-rpcbind-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-rsync-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-samba-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-snmp-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-tftp-server-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-web-proxy-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-web-server-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-xinetd-not-in-use"}
-      - {kind: host-probe, ref: "west:svc-x-server-not-in-use"}
-      - {kind: host-probe, ref: "west:mta-local-only"}
-      - {kind: host-probe, ref: "east:svc-autofs-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-avahi-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-dhcp-server-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-dns-server-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-dnsmasq-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-ftp-server-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-ldap-server-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-mail-access-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-nfs-server-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-nis-server-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-print-server-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-rpcbind-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-rsync-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-samba-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-snmp-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-tftp-server-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-web-proxy-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-web-server-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-xinetd-not-in-use"}
-      - {kind: host-probe, ref: "east:svc-x-server-not-in-use"}
-      - {kind: host-probe, ref: "east:mta-local-only"}
+      - {kind: host-probe, ref: "west:svc-autofs-not-in-use", maps: {cis-ubuntu2404: ["2.1.1"]}}
+      - {kind: host-probe, ref: "west:svc-avahi-not-in-use", maps: {cis-ubuntu2404: ["2.1.2"]}}
+      - {kind: host-probe, ref: "west:svc-dhcp-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.3"]}}
+      - {kind: host-probe, ref: "west:svc-dns-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.4"]}}
+      - {kind: host-probe, ref: "west:svc-dnsmasq-not-in-use", maps: {cis-ubuntu2404: ["2.1.5"]}}
+      - {kind: host-probe, ref: "west:svc-ftp-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.6"]}}
+      - {kind: host-probe, ref: "west:svc-ldap-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.7"]}}
+      - {kind: host-probe, ref: "west:svc-mail-access-not-in-use", maps: {cis-ubuntu2404: ["2.1.8"]}}
+      - {kind: host-probe, ref: "west:svc-nfs-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.9"]}}
+      - {kind: host-probe, ref: "west:svc-nis-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.10"]}}
+      - {kind: host-probe, ref: "west:svc-print-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.11"]}}
+      - {kind: host-probe, ref: "west:svc-rpcbind-not-in-use", maps: {cis-ubuntu2404: ["2.1.12"]}}
+      - {kind: host-probe, ref: "west:svc-rsync-not-in-use", maps: {cis-ubuntu2404: ["2.1.13"]}}
+      - {kind: host-probe, ref: "west:svc-samba-not-in-use", maps: {cis-ubuntu2404: ["2.1.14"]}}
+      - {kind: host-probe, ref: "west:svc-snmp-not-in-use", maps: {cis-ubuntu2404: ["2.1.15"]}}
+      - {kind: host-probe, ref: "west:svc-tftp-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.16"]}}
+      - {kind: host-probe, ref: "west:svc-web-proxy-not-in-use", maps: {cis-ubuntu2404: ["2.1.17"]}}
+      - {kind: host-probe, ref: "west:svc-web-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.18"]}}
+      - {kind: host-probe, ref: "west:svc-xinetd-not-in-use", maps: {cis-ubuntu2404: ["2.1.19"]}}
+      - {kind: host-probe, ref: "west:svc-x-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.20"]}}
+      - {kind: host-probe, ref: "west:mta-local-only", maps: {cis-ubuntu2404: ["2.1.21"]}}
+      - {kind: host-probe, ref: "east:svc-autofs-not-in-use", maps: {cis-ubuntu2404: ["2.1.1"]}}
+      - {kind: host-probe, ref: "east:svc-avahi-not-in-use", maps: {cis-ubuntu2404: ["2.1.2"]}}
+      - {kind: host-probe, ref: "east:svc-dhcp-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.3"]}}
+      - {kind: host-probe, ref: "east:svc-dns-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.4"]}}
+      - {kind: host-probe, ref: "east:svc-dnsmasq-not-in-use", maps: {cis-ubuntu2404: ["2.1.5"]}}
+      - {kind: host-probe, ref: "east:svc-ftp-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.6"]}}
+      - {kind: host-probe, ref: "east:svc-ldap-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.7"]}}
+      - {kind: host-probe, ref: "east:svc-mail-access-not-in-use", maps: {cis-ubuntu2404: ["2.1.8"]}}
+      - {kind: host-probe, ref: "east:svc-nfs-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.9"]}}
+      - {kind: host-probe, ref: "east:svc-nis-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.10"]}}
+      - {kind: host-probe, ref: "east:svc-print-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.11"]}}
+      - {kind: host-probe, ref: "east:svc-rpcbind-not-in-use", maps: {cis-ubuntu2404: ["2.1.12"]}}
+      - {kind: host-probe, ref: "east:svc-rsync-not-in-use", maps: {cis-ubuntu2404: ["2.1.13"]}}
+      - {kind: host-probe, ref: "east:svc-samba-not-in-use", maps: {cis-ubuntu2404: ["2.1.14"]}}
+      - {kind: host-probe, ref: "east:svc-snmp-not-in-use", maps: {cis-ubuntu2404: ["2.1.15"]}}
+      - {kind: host-probe, ref: "east:svc-tftp-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.16"]}}
+      - {kind: host-probe, ref: "east:svc-web-proxy-not-in-use", maps: {cis-ubuntu2404: ["2.1.17"]}}
+      - {kind: host-probe, ref: "east:svc-web-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.18"]}}
+      - {kind: host-probe, ref: "east:svc-xinetd-not-in-use", maps: {cis-ubuntu2404: ["2.1.19"]}}
+      - {kind: host-probe, ref: "east:svc-x-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.20"]}}
+      - {kind: host-probe, ref: "east:mta-local-only", maps: {cis-ubuntu2404: ["2.1.21"]}}
     mappings:
       nist-800-53r5: [CM-7]
       nist-800-171r3: ["03.04.06"]
       nist-csf-2: [PR.PS-01]
       iso27001-2022: [A.8.9]
-      cis-ubuntu2404: ["2.1.1", "2.1.2", "2.1.3", "2.1.4", "2.1.5", "2.1.6", "2.1.7", "2.1.8", "2.1.9", "2.1.10", "2.1.11", "2.1.12", "2.1.13", "2.1.14", "2.1.15", "2.1.16", "2.1.17", "2.1.18", "2.1.19", "2.1.20", "2.1.21"]
 
   - id: UH-SVC-02
     title: Clients for insecure legacy protocols are not installed
@@ -527,24 +522,23 @@ controls:
       24.04 2.2.1-2.2.6.
     freshness_days: 1
     evidence:
-      - {kind: host-probe, ref: "west:pkg-nis-client-absent"}
-      - {kind: host-probe, ref: "west:pkg-rsh-client-absent"}
-      - {kind: host-probe, ref: "west:pkg-talk-client-absent"}
-      - {kind: host-probe, ref: "west:pkg-telnet-client-absent"}
-      - {kind: host-probe, ref: "west:pkg-ldap-client-absent"}
-      - {kind: host-probe, ref: "west:pkg-ftp-client-absent"}
-      - {kind: host-probe, ref: "east:pkg-nis-client-absent"}
-      - {kind: host-probe, ref: "east:pkg-rsh-client-absent"}
-      - {kind: host-probe, ref: "east:pkg-talk-client-absent"}
-      - {kind: host-probe, ref: "east:pkg-telnet-client-absent"}
-      - {kind: host-probe, ref: "east:pkg-ldap-client-absent"}
-      - {kind: host-probe, ref: "east:pkg-ftp-client-absent"}
+      - {kind: host-probe, ref: "west:pkg-nis-client-absent", maps: {cis-ubuntu2404: ["2.2.1"]}}
+      - {kind: host-probe, ref: "west:pkg-rsh-client-absent", maps: {cis-ubuntu2404: ["2.2.2"]}}
+      - {kind: host-probe, ref: "west:pkg-talk-client-absent", maps: {cis-ubuntu2404: ["2.2.3"]}}
+      - {kind: host-probe, ref: "west:pkg-telnet-client-absent", maps: {cis-ubuntu2404: ["2.2.4"]}}
+      - {kind: host-probe, ref: "west:pkg-ldap-client-absent", maps: {cis-ubuntu2404: ["2.2.5"]}}
+      - {kind: host-probe, ref: "west:pkg-ftp-client-absent", maps: {cis-ubuntu2404: ["2.2.6"]}}
+      - {kind: host-probe, ref: "east:pkg-nis-client-absent", maps: {cis-ubuntu2404: ["2.2.1"]}}
+      - {kind: host-probe, ref: "east:pkg-rsh-client-absent", maps: {cis-ubuntu2404: ["2.2.2"]}}
+      - {kind: host-probe, ref: "east:pkg-talk-client-absent", maps: {cis-ubuntu2404: ["2.2.3"]}}
+      - {kind: host-probe, ref: "east:pkg-telnet-client-absent", maps: {cis-ubuntu2404: ["2.2.4"]}}
+      - {kind: host-probe, ref: "east:pkg-ldap-client-absent", maps: {cis-ubuntu2404: ["2.2.5"]}}
+      - {kind: host-probe, ref: "east:pkg-ftp-client-absent", maps: {cis-ubuntu2404: ["2.2.6"]}}
     mappings:
       nist-800-53r5: [CM-7]
       nist-800-171r3: ["03.04.06"]
       nist-csf-2: [PR.PS-01]
       iso27001-2022: [A.8.9]
-      cis-ubuntu2404: ["2.2.1", "2.2.2", "2.2.3", "2.2.4", "2.2.5", "2.2.6"]
 
   - id: UH-CRON-01
     title: Scheduled-job configuration is root-only and scheduling is restricted
@@ -560,30 +554,29 @@ controls:
       ubuntu2404 rules.
     freshness_days: 1
     evidence:
-      - {kind: host-probe, ref: "west:cron-active"}
-      - {kind: host-probe, ref: "west:perm-etc-crontab"}
-      - {kind: host-probe, ref: "west:perm-etc-cron-hourly"}
-      - {kind: host-probe, ref: "west:perm-etc-cron-daily"}
-      - {kind: host-probe, ref: "west:perm-etc-cron-weekly"}
-      - {kind: host-probe, ref: "west:perm-etc-cron-monthly"}
-      - {kind: host-probe, ref: "west:perm-etc-cron-d"}
-      - {kind: host-probe, ref: "west:cron-allow-restricted"}
-      - {kind: host-probe, ref: "west:at-restricted"}
-      - {kind: host-probe, ref: "east:cron-active"}
-      - {kind: host-probe, ref: "east:perm-etc-crontab"}
-      - {kind: host-probe, ref: "east:perm-etc-cron-hourly"}
-      - {kind: host-probe, ref: "east:perm-etc-cron-daily"}
-      - {kind: host-probe, ref: "east:perm-etc-cron-weekly"}
-      - {kind: host-probe, ref: "east:perm-etc-cron-monthly"}
-      - {kind: host-probe, ref: "east:perm-etc-cron-d"}
-      - {kind: host-probe, ref: "east:cron-allow-restricted"}
-      - {kind: host-probe, ref: "east:at-restricted"}
+      - {kind: host-probe, ref: "west:cron-active", maps: {cis-ubuntu2404: ["2.4.1.1"]}}
+      - {kind: host-probe, ref: "west:perm-etc-crontab", maps: {cis-ubuntu2404: ["2.4.1.2"]}}
+      - {kind: host-probe, ref: "west:perm-etc-cron-hourly", maps: {cis-ubuntu2404: ["2.4.1.3"]}}
+      - {kind: host-probe, ref: "west:perm-etc-cron-daily", maps: {cis-ubuntu2404: ["2.4.1.4"]}}
+      - {kind: host-probe, ref: "west:perm-etc-cron-weekly", maps: {cis-ubuntu2404: ["2.4.1.5"]}}
+      - {kind: host-probe, ref: "west:perm-etc-cron-monthly", maps: {cis-ubuntu2404: ["2.4.1.6"]}}
+      - {kind: host-probe, ref: "west:perm-etc-cron-d", maps: {cis-ubuntu2404: ["2.4.1.7"]}}
+      - {kind: host-probe, ref: "west:cron-allow-restricted", maps: {cis-ubuntu2404: ["2.4.1.8"]}}
+      - {kind: host-probe, ref: "west:at-restricted", maps: {cis-ubuntu2404: ["2.4.2.1"]}}
+      - {kind: host-probe, ref: "east:cron-active", maps: {cis-ubuntu2404: ["2.4.1.1"]}}
+      - {kind: host-probe, ref: "east:perm-etc-crontab", maps: {cis-ubuntu2404: ["2.4.1.2"]}}
+      - {kind: host-probe, ref: "east:perm-etc-cron-hourly", maps: {cis-ubuntu2404: ["2.4.1.3"]}}
+      - {kind: host-probe, ref: "east:perm-etc-cron-daily", maps: {cis-ubuntu2404: ["2.4.1.4"]}}
+      - {kind: host-probe, ref: "east:perm-etc-cron-weekly", maps: {cis-ubuntu2404: ["2.4.1.5"]}}
+      - {kind: host-probe, ref: "east:perm-etc-cron-monthly", maps: {cis-ubuntu2404: ["2.4.1.6"]}}
+      - {kind: host-probe, ref: "east:perm-etc-cron-d", maps: {cis-ubuntu2404: ["2.4.1.7"]}}
+      - {kind: host-probe, ref: "east:cron-allow-restricted", maps: {cis-ubuntu2404: ["2.4.1.8"]}}
+      - {kind: host-probe, ref: "east:at-restricted", maps: {cis-ubuntu2404: ["2.4.2.1"]}}
     mappings:
       nist-800-53r5: [AC-3, CM-6]
       nist-800-171r3: ["03.04.02"]
       nist-csf-2: [PR.PS-01]
       iso27001-2022: [A.8.9]
-      cis-ubuntu2404: ["2.4.1.1", "2.4.1.2", "2.4.1.3", "2.4.1.4", "2.4.1.5", "2.4.1.6", "2.4.1.7", "2.4.1.8", "2.4.2.1"]
 
   - id: UH-NET-01
     title: The host network stack rejects spoofed and redirected traffic
@@ -602,40 +595,39 @@ controls:
       CIS Ubuntu 24.04 3.3.1 (forwarding), 3.3.3, 3.3.4, 3.3.6, 3.3.8, 3.3.9, 3.3.11 (router advertisements) added 2026-09-30.
     freshness_days: 1
     evidence:
-      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.rp_filter>=1"}
-      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.accept_redirects=0"}
-      - {kind: host-sysctl, ref: "west:net.ipv6.conf.all.accept_redirects=0"}
-      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.send_redirects=0"}
-      - {kind: host-sysctl, ref: "west:net.ipv4.tcp_syncookies=1"}
-      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.rp_filter>=1"}
-      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.accept_redirects=0"}
-      - {kind: host-sysctl, ref: "east:net.ipv6.conf.all.accept_redirects=0"}
-      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.send_redirects=0"}
-      - {kind: host-sysctl, ref: "east:net.ipv4.tcp_syncookies=1"}
-      - {kind: host-sysctl, ref: "west:net.ipv4.ip_forward=0"}
-      - {kind: host-sysctl, ref: "west:net.ipv6.conf.all.forwarding=0"}
-      - {kind: host-sysctl, ref: "west:net.ipv4.icmp_ignore_bogus_error_responses=1"}
-      - {kind: host-sysctl, ref: "west:net.ipv4.icmp_echo_ignore_broadcasts=1"}
-      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.secure_redirects=0"}
-      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.accept_source_route=0"}
-      - {kind: host-sysctl, ref: "west:net.ipv6.conf.all.accept_source_route=0"}
-      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.log_martians=1"}
-      - {kind: host-sysctl, ref: "west:net.ipv6.conf.all.accept_ra=0"}
-      - {kind: host-sysctl, ref: "east:net.ipv4.ip_forward=0"}
-      - {kind: host-sysctl, ref: "east:net.ipv6.conf.all.forwarding=0"}
-      - {kind: host-sysctl, ref: "east:net.ipv4.icmp_ignore_bogus_error_responses=1"}
-      - {kind: host-sysctl, ref: "east:net.ipv4.icmp_echo_ignore_broadcasts=1"}
-      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.secure_redirects=0"}
-      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.accept_source_route=0"}
-      - {kind: host-sysctl, ref: "east:net.ipv6.conf.all.accept_source_route=0"}
-      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.log_martians=1"}
-      - {kind: host-sysctl, ref: "east:net.ipv6.conf.all.accept_ra=0"}
+      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.rp_filter>=1", maps: {cis-ubuntu2404: ["3.3.7"]}}
+      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.accept_redirects=0", maps: {cis-ubuntu2404: ["3.3.5"]}}
+      - {kind: host-sysctl, ref: "west:net.ipv6.conf.all.accept_redirects=0", maps: {cis-ubuntu2404: ["3.3.5"]}}
+      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.send_redirects=0", maps: {cis-ubuntu2404: ["3.3.2"]}}
+      - {kind: host-sysctl, ref: "west:net.ipv4.tcp_syncookies=1", maps: {cis-ubuntu2404: ["3.3.10"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.rp_filter>=1", maps: {cis-ubuntu2404: ["3.3.7"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.accept_redirects=0", maps: {cis-ubuntu2404: ["3.3.5"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv6.conf.all.accept_redirects=0", maps: {cis-ubuntu2404: ["3.3.5"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.send_redirects=0", maps: {cis-ubuntu2404: ["3.3.2"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv4.tcp_syncookies=1", maps: {cis-ubuntu2404: ["3.3.10"]}}
+      - {kind: host-sysctl, ref: "west:net.ipv4.ip_forward=0", maps: {cis-ubuntu2404: ["3.3.1"]}}
+      - {kind: host-sysctl, ref: "west:net.ipv6.conf.all.forwarding=0", maps: {cis-ubuntu2404: ["3.3.1"]}}
+      - {kind: host-sysctl, ref: "west:net.ipv4.icmp_ignore_bogus_error_responses=1", maps: {cis-ubuntu2404: ["3.3.3"]}}
+      - {kind: host-sysctl, ref: "west:net.ipv4.icmp_echo_ignore_broadcasts=1", maps: {cis-ubuntu2404: ["3.3.4"]}}
+      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.secure_redirects=0", maps: {cis-ubuntu2404: ["3.3.6"]}}
+      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.accept_source_route=0", maps: {cis-ubuntu2404: ["3.3.8"]}}
+      - {kind: host-sysctl, ref: "west:net.ipv6.conf.all.accept_source_route=0", maps: {cis-ubuntu2404: ["3.3.8"]}}
+      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.log_martians=1", maps: {cis-ubuntu2404: ["3.3.9"]}}
+      - {kind: host-sysctl, ref: "west:net.ipv6.conf.all.accept_ra=0", maps: {cis-ubuntu2404: ["3.3.11"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv4.ip_forward=0", maps: {cis-ubuntu2404: ["3.3.1"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv6.conf.all.forwarding=0", maps: {cis-ubuntu2404: ["3.3.1"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv4.icmp_ignore_bogus_error_responses=1", maps: {cis-ubuntu2404: ["3.3.3"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv4.icmp_echo_ignore_broadcasts=1", maps: {cis-ubuntu2404: ["3.3.4"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.secure_redirects=0", maps: {cis-ubuntu2404: ["3.3.6"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.accept_source_route=0", maps: {cis-ubuntu2404: ["3.3.8"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv6.conf.all.accept_source_route=0", maps: {cis-ubuntu2404: ["3.3.8"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.log_martians=1", maps: {cis-ubuntu2404: ["3.3.9"]}}
+      - {kind: host-sysctl, ref: "east:net.ipv6.conf.all.accept_ra=0", maps: {cis-ubuntu2404: ["3.3.11"]}}
     mappings:
       nist-800-53r5: [SC-5, SC-7, CM-6]
       nist-800-171r3: ["03.13.01"]
       nist-csf-2: [PR.IR-01]
       iso27001-2022: [A.8.20]
-      cis-ubuntu2404: ["3.3.2", "3.3.5", "3.3.7", "3.3.10", "3.3.1", "3.3.3", "3.3.4", "3.3.6", "3.3.8", "3.3.9", "3.3.11"]
 
   - id: UH-SSH-01
     title: Remote login to the hosts is key-only and hardened
@@ -660,45 +652,44 @@ controls:
     evidence:
       - {kind: host-sshd, ref: "west:passwordauthentication=no"}
       - {kind: host-sshd, ref: "west:kbdinteractiveauthentication=no"}
-      - {kind: host-sshd, ref: "west:permitemptypasswords=no"}
-      - {kind: host-sshd, ref: "west:permitrootlogin=no"}
+      - {kind: host-sshd, ref: "west:permitemptypasswords=no", maps: {cis-ubuntu2404: ["5.1.19"]}}
+      - {kind: host-sshd, ref: "west:permitrootlogin=no", maps: {cis-ubuntu2404: ["5.1.20"]}}
       - {kind: host-sshd, ref: "west:x11forwarding=no"}
-      - {kind: host-sshd, ref: "west:maxauthtries<=4"}
-      - {kind: host-sshd, ref: "west:clientaliveinterval>=1"}
-      - {kind: host-sshd, ref: "west:clientaliveinterval<=300"}
+      - {kind: host-sshd, ref: "west:maxauthtries<=4", maps: {cis-ubuntu2404: ["5.1.16"]}}
+      - {kind: host-sshd, ref: "west:clientaliveinterval>=1", maps: {cis-ubuntu2404: ["5.1.7"]}}
+      - {kind: host-sshd, ref: "west:clientaliveinterval<=300", maps: {cis-ubuntu2404: ["5.1.7"]}}
       - {kind: host-sshd, ref: "east:passwordauthentication=no"}
       - {kind: host-sshd, ref: "east:kbdinteractiveauthentication=no"}
-      - {kind: host-sshd, ref: "east:permitemptypasswords=no"}
-      - {kind: host-sshd, ref: "east:permitrootlogin=no"}
+      - {kind: host-sshd, ref: "east:permitemptypasswords=no", maps: {cis-ubuntu2404: ["5.1.19"]}}
+      - {kind: host-sshd, ref: "east:permitrootlogin=no", maps: {cis-ubuntu2404: ["5.1.20"]}}
       - {kind: host-sshd, ref: "east:x11forwarding=no"}
-      - {kind: host-sshd, ref: "east:maxauthtries<=4"}
-      - {kind: host-sshd, ref: "east:clientaliveinterval>=1"}
-      - {kind: host-sshd, ref: "east:clientaliveinterval<=300"}
-      - {kind: host-sshd, ref: "west:hostbasedauthentication=no"}
-      - {kind: host-sshd, ref: "west:ignorerhosts=yes"}
-      - {kind: host-sshd, ref: "west:logingracetime<=60"}
-      - {kind: host-sshd, ref: "west:loglevel=INFO"}
-      - {kind: host-sshd, ref: "west:maxsessions<=10"}
-      - {kind: host-sshd, ref: "west:permituserenvironment=no"}
-      - {kind: host-sshd, ref: "west:usepam=yes"}
-      - {kind: host-sshd, ref: "west:disableforwarding=yes"}
-      - {kind: host-sshd, ref: "west:gssapiauthentication=no"}
-      - {kind: host-sshd, ref: "east:hostbasedauthentication=no"}
-      - {kind: host-sshd, ref: "east:ignorerhosts=yes"}
-      - {kind: host-sshd, ref: "east:logingracetime<=60"}
-      - {kind: host-sshd, ref: "east:loglevel=INFO"}
-      - {kind: host-sshd, ref: "east:maxsessions<=10"}
-      - {kind: host-sshd, ref: "east:permituserenvironment=no"}
-      - {kind: host-sshd, ref: "east:usepam=yes"}
-      - {kind: host-sshd, ref: "east:disableforwarding=yes"}
-      - {kind: host-sshd, ref: "east:gssapiauthentication=no"}
+      - {kind: host-sshd, ref: "east:maxauthtries<=4", maps: {cis-ubuntu2404: ["5.1.16"]}}
+      - {kind: host-sshd, ref: "east:clientaliveinterval>=1", maps: {cis-ubuntu2404: ["5.1.7"]}}
+      - {kind: host-sshd, ref: "east:clientaliveinterval<=300", maps: {cis-ubuntu2404: ["5.1.7"]}}
+      - {kind: host-sshd, ref: "west:hostbasedauthentication=no", maps: {cis-ubuntu2404: ["5.1.10"]}}
+      - {kind: host-sshd, ref: "west:ignorerhosts=yes", maps: {cis-ubuntu2404: ["5.1.11"]}}
+      - {kind: host-sshd, ref: "west:logingracetime<=60", maps: {cis-ubuntu2404: ["5.1.13"]}}
+      - {kind: host-sshd, ref: "west:loglevel=INFO", maps: {cis-ubuntu2404: ["5.1.14"]}}
+      - {kind: host-sshd, ref: "west:maxsessions<=10", maps: {cis-ubuntu2404: ["5.1.17"]}}
+      - {kind: host-sshd, ref: "west:permituserenvironment=no", maps: {cis-ubuntu2404: ["5.1.21"]}}
+      - {kind: host-sshd, ref: "west:usepam=yes", maps: {cis-ubuntu2404: ["5.1.22"]}}
+      - {kind: host-sshd, ref: "west:disableforwarding=yes", maps: {cis-ubuntu2404: ["5.1.8"]}}
+      - {kind: host-sshd, ref: "west:gssapiauthentication=no", maps: {cis-ubuntu2404: ["5.1.9"]}}
+      - {kind: host-sshd, ref: "east:hostbasedauthentication=no", maps: {cis-ubuntu2404: ["5.1.10"]}}
+      - {kind: host-sshd, ref: "east:ignorerhosts=yes", maps: {cis-ubuntu2404: ["5.1.11"]}}
+      - {kind: host-sshd, ref: "east:logingracetime<=60", maps: {cis-ubuntu2404: ["5.1.13"]}}
+      - {kind: host-sshd, ref: "east:loglevel=INFO", maps: {cis-ubuntu2404: ["5.1.14"]}}
+      - {kind: host-sshd, ref: "east:maxsessions<=10", maps: {cis-ubuntu2404: ["5.1.17"]}}
+      - {kind: host-sshd, ref: "east:permituserenvironment=no", maps: {cis-ubuntu2404: ["5.1.21"]}}
+      - {kind: host-sshd, ref: "east:usepam=yes", maps: {cis-ubuntu2404: ["5.1.22"]}}
+      - {kind: host-sshd, ref: "east:disableforwarding=yes", maps: {cis-ubuntu2404: ["5.1.8"]}}
+      - {kind: host-sshd, ref: "east:gssapiauthentication=no", maps: {cis-ubuntu2404: ["5.1.9"]}}
     mappings:
       nist-800-53r5: [AC-17, IA-2, AC-7, CM-6]
       nist-800-171r3: ["03.01.12", "03.01.08"]
       nist-csf-2: [PR.AA-03]
       soc2-security: [CC6.1]
       iso27001-2022: [A.8.5]
-      cis-ubuntu2404: ["5.1.7", "5.1.16", "5.1.19", "5.1.20", "5.1.8", "5.1.9", "5.1.10", "5.1.11", "5.1.13", "5.1.14", "5.1.17", "5.1.21", "5.1.22"]
 
   - id: UH-CTR-01
     title: Containers run least-privilege, with exceptions only shrinking
@@ -738,15 +729,14 @@ controls:
       CIS Ubuntu 24.04: default-deny policy by iptables and ip6tables (4.4.2.1, 4.4.3.1) or by nftables (4.3.8, the package-owned inet unheaded table of ADR-098); the probe accepts either, so a pass supports whichever mechanism is in place, not both.
     freshness_days: 1
     evidence:
-      - {kind: host-probe, ref: "west:firewall-inbound-deny"}
-      - {kind: host-probe, ref: "east:firewall-inbound-deny"}
+      - {kind: host-probe, ref: "west:firewall-inbound-deny", maps: {cis-ubuntu2404: ["4.3.8", "4.4.2.1", "4.4.3.1"]}}
+      - {kind: host-probe, ref: "east:firewall-inbound-deny", maps: {cis-ubuntu2404: ["4.3.8", "4.4.2.1", "4.4.3.1"]}}
     mappings:
       nist-800-53r5: [SC-7, SC-7(5)]
       nist-800-171r3: ["03.13.01", "03.13.06"]
       nist-csf-2: [PR.IR-01]
       soc2-security: [CC6.6]
       iso27001-2022: [A.8.20]
-      cis-ubuntu2404: ["4.3.8", "4.4.2.1", "4.4.3.1"]
 
   - id: UH-AUDIT-01
     title: Hosts record security-relevant events with auditd
@@ -760,15 +750,14 @@ controls:
       CIS Ubuntu 24.04 (Level 2): auditd enabled and active (6.2.1.2). 6.2.2.3 (disable the system when audit logs are full) is deliberately not adopted: ADR-098 forbids a halt on audit-log exhaustion (lockout).
     freshness_days: 1
     evidence:
-      - {kind: host-probe, ref: "west:auditd-running"}
-      - {kind: host-probe, ref: "east:auditd-running"}
+      - {kind: host-probe, ref: "west:auditd-running", maps: {cis-ubuntu2404: ["6.2.1.2"]}}
+      - {kind: host-probe, ref: "east:auditd-running", maps: {cis-ubuntu2404: ["6.2.1.2"]}}
     mappings:
       nist-800-53r5: [AU-2, AU-12]
       nist-800-171r3: ["03.03.01"]
       nist-csf-2: [PR.PS-04]
       soc2-security: [CC7.2]
       iso27001-2022: [A.8.15]
-      cis-ubuntu2404: ["6.2.1.2"]
 
   - id: UH-PATCH-01
     title: Hosts install security updates automatically
@@ -783,14 +772,13 @@ controls:
       CIS Ubuntu 24.04: updates and patches installed (1.2.2.1, manual); automatic security updates are the mechanism evidenced.
     freshness_days: 1
     evidence:
-      - {kind: host-probe, ref: "west:unattended-upgrades-enabled"}
-      - {kind: host-probe, ref: "east:unattended-upgrades-enabled"}
+      - {kind: host-probe, ref: "west:unattended-upgrades-enabled", maps: {cis-ubuntu2404: ["1.2.2.1"]}}
+      - {kind: host-probe, ref: "east:unattended-upgrades-enabled", maps: {cis-ubuntu2404: ["1.2.2.1"]}}
     mappings:
       nist-800-53r5: [SI-2, SI-2(2)]
       nist-800-171r3: ["03.14.01"]
       nist-csf-2: [PR.PS-02]
       iso27001-2022: [A.8.8]
-      cis-ubuntu2404: ["1.2.2.1"]
 
   - id: UH-TIME-01
     title: Host clocks are synchronized

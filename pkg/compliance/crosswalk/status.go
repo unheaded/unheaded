@@ -104,6 +104,7 @@ type RequirementResult struct {
 	Title    string    `json:"title,omitempty"`
 	Status   ReqStatus `json:"status"`
 	Controls []string  `json:"controls,omitempty"`
+	Sources  []string  `json:"sources,omitempty"` // mapped per source (EvidenceSource.Maps)
 }
 
 // FrameworkSummary is a framework's requirements with the full denominator.
@@ -126,18 +127,40 @@ type Summary struct {
 }
 
 // Summarize evaluates every control, then every requirement of every
-// framework in catalog order.
+// framework in catalog order. A requirement's contributors are the controls
+// mapping it and the individual sources mapping it; it is EVIDENCED only
+// when every contributor passes.
 func Summarize(c *Catalog, recs []Record, now time.Time) *Summary {
 	s := &Summary{At: now, Controls: make(map[string]Status, len(c.Controls))}
-	mappedBy := make(map[string]map[string][]string) // framework -> requirement -> controls
+	mappedBy := make(map[string]map[string][]string)  // framework -> requirement -> controls
+	mappedSrc := make(map[string]map[string][]string) // framework -> requirement -> source keys
+	srcStatus := make(map[string]Status)              // source key -> status (per owning control's window)
+	add := func(m map[string]map[string][]string, fw, req, v string) {
+		if m[fw] == nil {
+			m[fw] = make(map[string][]string)
+		}
+		m[fw][req] = append(m[fw][req], v)
+	}
 	for _, ctl := range c.Controls {
 		s.Controls[ctl.ID] = ControlStatus(ctl, recs, now)
 		for fw, reqs := range ctl.Mappings {
-			if mappedBy[fw] == nil {
-				mappedBy[fw] = make(map[string][]string)
-			}
 			for _, r := range reqs {
-				mappedBy[fw][r] = append(mappedBy[fw][r], ctl.ID)
+				add(mappedBy, fw, r, ctl.ID)
+			}
+		}
+		for _, src := range ctl.Evidence {
+			if len(src.Maps) == 0 {
+				continue
+			}
+			one := &Control{ID: ctl.ID, FreshnessDays: ctl.FreshnessDays, Evidence: []EvidenceSource{{Source: src.Source}}}
+			st := ControlStatus(one, recs, now)
+			if prev, ok := srcStatus[src.Key()]; !ok || worse(st, prev) {
+				srcStatus[src.Key()] = st
+			}
+			for fw, reqs := range src.Maps {
+				for _, r := range reqs {
+					add(mappedSrc, fw, r, src.Key())
+				}
 			}
 		}
 	}
@@ -150,22 +173,37 @@ func Summarize(c *Catalog, recs []Record, now time.Time) *Summary {
 		}
 		for _, req := range fw.Requirements {
 			ctls := mappedBy[fw.ID][req.ID]
-			st := requirementStatus(ctls, s.Controls)
+			srcs := mappedSrc[fw.ID][req.ID]
+			var sts []Status
+			for _, id := range ctls {
+				sts = append(sts, s.Controls[id])
+			}
+			for _, k := range srcs {
+				sts = append(sts, srcStatus[k])
+			}
+			st := requirementStatus(sts)
 			fs.Counts[st]++
-			fs.Requirements = append(fs.Requirements, RequirementResult{ID: req.ID, Title: req.Title, Status: st, Controls: ctls})
+			fs.Requirements = append(fs.Requirements, RequirementResult{ID: req.ID, Title: req.Title, Status: st, Controls: ctls, Sources: srcs})
 		}
 		s.Frameworks = append(s.Frameworks, fs)
 	}
 	return s
 }
 
-func requirementStatus(ctls []string, status map[string]Status) ReqStatus {
-	if len(ctls) == 0 {
+// worse orders statuses for a source listed by several controls with
+// different windows: FAIL, then NOT_ASSESSED, STALE, PASS.
+func worse(a, b Status) bool {
+	rank := map[Status]int{StatusFail: 0, StatusNotAssessed: 1, StatusStale: 2, StatusPass: 3}
+	return rank[a] < rank[b]
+}
+
+func requirementStatus(sts []Status) ReqStatus {
+	if len(sts) == 0 {
 		return ReqUnmapped
 	}
 	all := true
-	for _, id := range ctls {
-		switch status[id] {
+	for _, st := range sts {
+		switch st {
 		case StatusFail:
 			return ReqFailing
 		case StatusPass:

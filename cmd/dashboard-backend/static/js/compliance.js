@@ -239,7 +239,7 @@
                 el('td', { text: r.id, cls: 'mono' }),
                 el('td', { text: r.title || '', cls: 'muted' }),
                 el('td', null, [badge(r.status)]),
-                el('td', { text: (r.controls || []).join(', '), cls: 'mono' }),
+                el('td', { text: (r.controls || []).concat(r.sources || []).join(', '), cls: 'mono' }),
             ])));
     }
 

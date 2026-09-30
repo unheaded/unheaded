@@ -95,6 +95,17 @@ type Source struct {
 // Key identifies a source across controls and evidence records.
 func (s Source) Key() string { return s.Kind + ":" + s.Ref }
 
+// EvidenceSource is a Source as a control lists it, optionally mapped on
+// its own to framework requirements. A requirement mapped this way follows
+// that source's evidence alone, not the whole control's: a benchmark such
+// as CIS has one recommendation per check, and one failing service must not
+// fail its siblings. A control maps a given framework either at control
+// level or per source, never both.
+type EvidenceSource struct {
+	Source `yaml:",inline"`
+	Maps   map[string][]string `yaml:"maps,omitempty" json:"maps,omitempty"`
+}
+
 // Control is a common control: one engineering practice, evidenced by
 // machine-collected sources, mapped to requirements in many frameworks.
 type Control struct {
@@ -105,7 +116,7 @@ type Control struct {
 	// can challenge the mapping instead of taking it on trust.
 	Rationale     string              `yaml:"rationale,omitempty" json:"rationale,omitempty"`
 	FreshnessDays int                 `yaml:"freshness_days" json:"freshness_days"`
-	Evidence      []Source            `yaml:"evidence" json:"evidence"`
+	Evidence      []EvidenceSource    `yaml:"evidence" json:"evidence"`
 	Mappings      map[string][]string `yaml:"mappings" json:"mappings"`
 }
 
@@ -273,6 +284,25 @@ func LoadDocs(frameworksYAML [][]byte, controlsYAML []byte) (*Catalog, error) {
 			}
 		}
 		n := 0
+		for _, s := range ctl.Evidence {
+			for fwID, reqs := range s.Maps {
+				fw := c.byID[fwID]
+				switch {
+				case fw == nil:
+					return nil, invalid("control %q: %s maps to unknown framework %q", ctl.ID, s.Key(), fwID)
+				case fw.DerivedFrom != "":
+					return nil, invalid("control %q: %s maps to %q, which is derived from %s: map to the base", ctl.ID, s.Key(), fwID, fw.DerivedFrom)
+				case ctl.Mappings[fwID] != nil:
+					return nil, invalid("control %q maps %s both at control level and per source", ctl.ID, fwID)
+				}
+				for _, r := range reqs {
+					if !fw.Has(r) {
+						return nil, invalid("control %q: %s: %q is not a requirement of %s", ctl.ID, s.Key(), r, fwID)
+					}
+					n++
+				}
+			}
+		}
 		for fwID, reqs := range ctl.Mappings {
 			fw := c.byID[fwID]
 			if fw == nil {
@@ -300,9 +330,23 @@ func LoadDocs(frameworksYAML [][]byte, controlsYAML []byte) (*Catalog, error) {
 // project copies ctl's mappings onto every framework derived from a base it
 // maps to, keeping only the requirements the derived framework contains.
 func (c *Catalog) project(ctl *Control) {
+	if ctl.Mappings == nil {
+		ctl.Mappings = make(map[string][]string)
+	}
 	for _, fw := range c.Frameworks {
 		if fw.DerivedFrom == "" {
 			continue
+		}
+		for i := range ctl.Evidence {
+			var reqs []string
+			for _, r := range ctl.Evidence[i].Maps[fw.DerivedFrom] {
+				if fw.Has(r) {
+					reqs = append(reqs, r)
+				}
+			}
+			if len(reqs) > 0 {
+				ctl.Evidence[i].Maps[fw.ID] = reqs
+			}
 		}
 		var reqs []string
 		for _, r := range ctl.Mappings[fw.DerivedFrom] {

@@ -67,9 +67,9 @@ func BaselineFromCatalog(cat *crosswalk.Catalog) *Baseline {
 	b := &Baseline{Version: baselineVersion}
 	for _, c := range cat.Controls {
 		for _, s := range c.Evidence {
-			if isBaselineSource(s) && !seen[s.Key()] {
+			if isBaselineSource(s.Source) && !seen[s.Key()] {
 				seen[s.Key()] = true
-				b.Sources = append(b.Sources, s)
+				b.Sources = append(b.Sources, s.Source)
 			}
 		}
 	}
