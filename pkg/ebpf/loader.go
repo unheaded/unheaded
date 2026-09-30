@@ -1913,7 +1913,10 @@ func findFuncSize(parsed *parsedELF, funcOff uint64) int {
 		return 0
 	}
 	data := textProg.Instructions
-	for i := int(funcOff); i+8 <= len(data); i += 8 { // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
+	if funcOff >= uint64(len(data)) {
+		return 0
+	}
+	for i := int(funcOff); i+8 <= len(data); i += 8 { // #nosec G115 -- funcOff < len(data), checked above
 		if data[i] == 0x95 { // BPF_EXIT
 			return i + 8 - int(funcOff) // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
 		}
@@ -1997,8 +2000,9 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 		cancelFns: make([]context.CancelFunc, 0),
 	}
 
-	// First, create all maps
-	for name, mapDef := range parsed.Maps {
+	// First, create all maps (in name order, so a failure is reproducible)
+	for _, name := range sortedKeys(parsed.Maps) {
+		mapDef := parsed.Maps[name]
 		mapFD, err := l.createMap(mapDef, spec)
 		if err != nil {
 			// Clean up already created maps
@@ -2032,25 +2036,7 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 	}
 
 	// Find the main program to load
-	var mainProg *elfProgram
-	progType := programTypeToKernelType(spec.Type)
-
-	for _, prog := range parsed.Programs {
-		// Match by program type or use first if unspecified
-		if prog.Type == progType || progType == BPF_PROG_TYPE_UNSPEC {
-			mainProg = prog
-			break
-		}
-	}
-
-	if mainProg == nil {
-		// Just use the first program
-		for _, prog := range parsed.Programs {
-			mainProg = prog
-			break
-		}
-	}
-
+	mainProg := selectMainProgram(parsed, programTypeToKernelType(spec.Type))
 	if mainProg == nil {
 		for _, m := range loaded.maps {
 			_ = unix.Close(m.fd)
@@ -2089,17 +2075,14 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 		// Append each referenced function
 		for _, funcOff := range funcOffsets {
 			funcMap[funcOff] = len(instructions) / 8
-			// Find function size from symbols
-			funcSize := findFuncSize(parsed, funcOff)
-			if funcSize == 0 || int(funcOff)+funcSize > len(textProg.Instructions) { // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
-				continue
-			}
-			instructions = append(instructions, textProg.Instructions[funcOff:int(funcOff)+funcSize]...) // #nosec G115 -- ELF symbol offset/size, bounds-checked against the section before use
+			// A range outside .text is skipped, as before; only the check changed.
+			instructions, _ = appendSubprogram(instructions, textProg.Instructions, funcOff, findFuncSize(parsed, funcOff))
 		}
 	}
 
 	// Create BPF array maps for read-only data sections (.rodata*)
-	for name, prog := range parsed.Programs {
+	for _, name := range sortedKeys(parsed.Programs) {
+		prog := parsed.Programs[name]
 		if !strings.HasPrefix(name, ".rodata") {
 			continue
 		}
@@ -2254,6 +2237,58 @@ func lstatOwner(p string) (uint32, fs.FileMode, error) {
 		return 0, 0, fmt.Errorf("no owner information for %s", p)
 	}
 	return st.Uid, fi.Mode(), nil
+}
+
+// sortedKeys returns m's keys in order, for loops whose side effects
+// (bpf(2) calls, first error) must not depend on map iteration order.
+func sortedKeys[V any](m map[string]V) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+// selectMainProgram picks the entry program Load submits: among the entry
+// sections (never .text, which holds subprograms, nor .rodata*, which are
+// data), sorted by name, the first whose type matches progType, else the
+// first. Selection used to range over the Programs map, so the choice
+// changed from run to run, and progType UNSPEC (0) matched .text and
+// .rodata* too. nil when the object has no entry section.
+func selectMainProgram(parsed *parsedELF, progType uint32) *elfProgram {
+	names := make([]string, 0, len(parsed.Programs))
+	for name := range parsed.Programs {
+		if name == ".text" || strings.HasPrefix(name, ".rodata") {
+			continue
+		}
+		names = append(names, name)
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	sort.Strings(names)
+	if progType != BPF_PROG_TYPE_UNSPEC {
+		for _, name := range names {
+			if parsed.Programs[name].Type == progType {
+				return parsed.Programs[name]
+			}
+		}
+	}
+	return parsed.Programs[names[0]]
+}
+
+// appendSubprogram appends text[off:off+size] to dst when that range lies
+// inside text, and reports whether it did. off and size come from ELF
+// symbols, so the check is done in uint64: converting a large off to int
+// wrapped negative, passed a signed comparison, and panicked the slice
+// (LICH-005 kernel half, fuzz-found).
+func appendSubprogram(dst, text []byte, off uint64, size int) ([]byte, bool) {
+	n := uint64(len(text))
+	if size <= 0 || off > n || uint64(size) > n-off {
+		return dst, false
+	}
+	return append(dst, text[off:off+uint64(size)]...), true
 }
 
 // mapBytes is the memory a map definition asks the kernel for, saturating
