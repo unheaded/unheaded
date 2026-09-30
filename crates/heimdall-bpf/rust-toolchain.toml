@@ -1,0 +1,7 @@
+# Rust toolchain for heimdall-bpf. Like .cargo/config.toml next to it, this
+# crate carries its own: it sits under crates/, not ebpf/, so it does not
+# inherit ebpf/rust-toolchain.toml. Without it the crate only built where the
+# rustup default happened to be nightly ([unstable] build-std needs nightly).
+[toolchain]
+channel = "nightly"
+components = ["rust-src", "clippy"]
