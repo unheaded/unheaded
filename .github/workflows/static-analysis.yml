@@ -112,6 +112,13 @@ jobs:
         with:
           components: clippy
 
+      # tonic-build in cmd/ebpf-collector and crates/zhend runs protoc, which
+      # the runner image does not ship. Without it both workspaces failed to
+      # build and clippy was red on every run since at least 2026-09-21
+      # (west has protoc 3.21 from protobuf-compiler, so it passed there).
+      - name: Install protoc
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq protobuf-compiler
+
       # GATING. The invocation lives in a script because the previous inline
       # loop was wrong in two ways that `continue-on-error: true` concealed —
       # it iterated workspace members as well as roots (triple-counting every
@@ -312,6 +319,12 @@ jobs:
       - name: Install bpf-linker
         if: github.event_name == 'push'
         run: cargo install bpf-linker@0.10.2 --locked
+
+      # check-clippy builds cmd/ebpf-collector and crates/zhend, whose
+      # tonic-build needs protoc (see the clippy job).
+      - name: Install protoc
+        if: github.event_name == 'push'
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq protobuf-compiler
 
       - name: Prove every gate bites
         run: |

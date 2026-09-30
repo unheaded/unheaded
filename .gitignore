@@ -291,3 +291,8 @@ docker-compose.override.yml
 # it wants its own commit and a fresh-volume test.
 db/migrations/init.sh
 /var/compliance/
+
+# Agent worktrees (Claude Code): never part of the repo. Committed once as
+# gitlinks with no .gitmodules entry, which failed `git submodule foreach`
+# in every CI job (exit 128).
+.claude/worktrees/

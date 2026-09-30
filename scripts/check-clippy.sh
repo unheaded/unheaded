@@ -89,7 +89,10 @@ for d in ${WORKSPACES}; do
     if [ "${rc}" -ne 0 ] && ! grep -qE '^[^ ]+:[0-9]+:[0-9]+: error' "${TMP}/raw.txt"; then
         echo "${d}: cargo clippy exited ${rc} with no file:line:col diagnostic" \
             >> "${TMP}/opaque.txt"
-        sed 's|^|    |' "${TMP}/raw.txt" | head -20 >> "${TMP}/opaque.txt"
+        # The cause is at the END (cargo prints its download and compile
+        # lines first): head -20 once showed only crate downloads, and the
+        # protoc failure behind two red workspaces stayed invisible.
+        sed 's|^|    |' "${TMP}/raw.txt" | tail -25 >> "${TMP}/opaque.txt"
     fi
     echo "::endgroup::"
 done
