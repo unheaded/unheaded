@@ -132,7 +132,9 @@ func (gc *GoCollector) read() goSnapshot {
 	var st debug.GCStats
 	st.PauseQuantiles = make([]time.Duration, 5)
 	debug.ReadGCStats(&st)
-	s.gcCount = uint64(st.NumGC)
+	if st.NumGC > 0 {
+		s.gcCount = uint64(st.NumGC)
+	}
 	s.gcPauseSum = st.PauseTotal.Seconds()
 	for i, q := range st.PauseQuantiles {
 		s.gcQuantiles[i] = q.Seconds()

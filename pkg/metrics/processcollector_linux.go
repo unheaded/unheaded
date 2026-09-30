@@ -21,7 +21,7 @@ const processSupported = true
 const userHZ = 100
 
 func readProcess() (procSnapshot, error) {
-	st, err := parseProcStat("/proc/self/stat")
+	st, err := readSelfStat()
 	if err != nil {
 		return procSnapshot{}, err
 	}
@@ -83,11 +83,12 @@ type procStat struct {
 	rss                            int64
 }
 
-// parseProcStat reads the fields this collector needs. comm (field 2) is in
-// parentheses and may itself contain spaces and ')', so fields are counted
-// from the LAST ')' — splitting the whole line on spaces misreads every
-// field after a process named "a b".
-func parseProcStat(path string) (procStat, error) {
+// readSelfStat reads the fields this collector needs from /proc/self/stat.
+// comm (field 2) is in parentheses and may itself contain spaces and ')', so
+// fields are counted from the LAST ')' — splitting the whole line on spaces
+// misreads every field after a process named "a b".
+func readSelfStat() (procStat, error) {
+	const path = "/proc/self/stat"
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return procStat{}, fmt.Errorf("read %s: %w", path, err)
@@ -138,7 +139,7 @@ func parseProcStatBytes(data []byte) (procStat, error) {
 // readProcessStartTime is boot time (btime in /proc/stat) plus the process's
 // start offset in ticks.
 func readProcessStartTime() (float64, error) {
-	st, err := parseProcStat("/proc/self/stat")
+	st, err := readSelfStat()
 	if err != nil {
 		return 0, err
 	}
