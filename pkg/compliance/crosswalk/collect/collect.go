@@ -21,6 +21,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -284,6 +285,63 @@ func (g *GateScripts) Collect(ctx context.Context, sources []crosswalk.Source) (
 			return nil, fmt.Errorf("run %s: %w", s.Ref, err)
 		}
 		recs = append(recs, rec)
+	}
+	return recs, nil
+}
+
+var sysctlRefRe = regexp.MustCompile(`^([a-z0-9_]+(?:\.[a-z0-9_]+)+)(>=|<=|=)(-?[0-9]{1,9})$`)
+
+// HostSysctl reads kernel parameters on the host running the collector and
+// compares each with the value its ref requires. The record names the host:
+// this is evidence about that machine only.
+type HostSysctl struct {
+	ProcSys  string // default /proc/sys
+	Hostname string // default os.Hostname()
+	Now      func() time.Time
+}
+
+// Collect returns one record per host-sysctl source whose value was read.
+func (h *HostSysctl) Collect(_ context.Context, sources []crosswalk.Source) ([]crosswalk.Record, error) {
+	now := time.Now
+	if h.Now != nil {
+		now = h.Now
+	}
+	proc := h.ProcSys
+	if proc == "" {
+		proc = "/proc/sys"
+	}
+	host := h.Hostname
+	if host == "" {
+		host, _ = os.Hostname()
+	}
+	var recs []crosswalk.Record
+	for _, s := range sources {
+		if s.Kind != crosswalk.KindHostSysctl {
+			continue
+		}
+		m := sysctlRefRe.FindStringSubmatch(s.Ref)
+		if m == nil {
+			return nil, fmt.Errorf("host-sysctl ref %q must be <name><op><int>, op = >= <=", s.Ref)
+		}
+		name, op := m[1], m[2]
+		want, _ := strconv.Atoi(m[3])
+		raw, err := os.ReadFile(filepath.Join(proc, strings.ReplaceAll(name, ".", "/")))
+		if err != nil {
+			continue // unreadable here: no verdict
+		}
+		got, err := strconv.Atoi(strings.TrimSpace(string(raw)))
+		if err != nil {
+			continue
+		}
+		ok := (op == "=" && got == want) || (op == ">=" && got >= want) || (op == "<=" && got <= want)
+		v := crosswalk.VerdictFail
+		if ok {
+			v = crosswalk.VerdictPass
+		}
+		recs = append(recs, crosswalk.Record{
+			Source: s, Verdict: v, ObservedAt: now(),
+			Detail: fmt.Sprintf("%s: %s = %d (required %s%d)", host, name, got, op, want),
+		})
 	}
 	return recs, nil
 }

@@ -223,3 +223,59 @@ controls:
       nist-800-171r3: ["03.04.02"]
       nist-csf-2: [PR.PS-01]
       iso27001-2022: [A.8.9]
+
+  - id: UH-HOST-01
+    title: Kernel exposure is restricted on the host
+    statement: >-
+      On the host running cmd/compliance-evidence, kernel parameters that
+      limit what unprivileged processes can see and do are at their
+      hardened values: unprivileged BPF off, kernel pointers and the kernel
+      log hidden, ptrace restricted, perf restricted, full ASLR, protected
+      links, no core dumps from setuid programs. Evidence covers that host
+      only; each record names it.
+    rationale: >-
+      Configuration settings at hardened values (CM-6; 800-171 03.04.02;
+      CSF PR.PS-01; ISO A.8.9), least functionality for unprivileged users
+      (CM-7; 03.04.06) and memory protection through ASLR (SI-16). Values
+      follow the CIS Linux benchmarks' kernel parameters.
+    freshness_days: 1
+    evidence:
+      - {kind: host-sysctl, ref: "kernel.unprivileged_bpf_disabled>=1"}
+      - {kind: host-sysctl, ref: "kernel.kptr_restrict>=1"}
+      - {kind: host-sysctl, ref: "kernel.dmesg_restrict=1"}
+      - {kind: host-sysctl, ref: "kernel.yama.ptrace_scope>=1"}
+      - {kind: host-sysctl, ref: "kernel.perf_event_paranoid>=2"}
+      - {kind: host-sysctl, ref: "kernel.randomize_va_space=2"}
+      - {kind: host-sysctl, ref: "fs.protected_symlinks=1"}
+      - {kind: host-sysctl, ref: "fs.protected_hardlinks=1"}
+      - {kind: host-sysctl, ref: "fs.suid_dumpable=0"}
+    mappings:
+      nist-800-53r5: [CM-6, CM-7, SI-16]
+      nist-800-171r3: ["03.04.02", "03.04.06"]
+      nist-csf-2: [PR.PS-01]
+      iso27001-2022: [A.8.9]
+
+  - id: UH-NET-01
+    title: The host network stack rejects spoofed and redirected traffic
+    statement: >-
+      On the host running cmd/compliance-evidence: reverse-path filtering
+      on, ICMP redirects neither accepted (IPv4, IPv6) nor sent, and SYN
+      cookies on. Evidence covers that host only; each record names it.
+    rationale: >-
+      Boundary protection at the host (SC-7: drop spoofed source addresses,
+      refuse route changes by ICMP redirect), denial-of-service protection
+      (SC-5: SYN cookies), as configuration settings (CM-6); CSF PR.IR-01
+      networks protected from unauthorized logical access; ISO A.8.20
+      network security; 800-171 03.13.01 boundary protection.
+    freshness_days: 1
+    evidence:
+      - {kind: host-sysctl, ref: "net.ipv4.conf.all.rp_filter>=1"}
+      - {kind: host-sysctl, ref: "net.ipv4.conf.all.accept_redirects=0"}
+      - {kind: host-sysctl, ref: "net.ipv6.conf.all.accept_redirects=0"}
+      - {kind: host-sysctl, ref: "net.ipv4.conf.all.send_redirects=0"}
+      - {kind: host-sysctl, ref: "net.ipv4.tcp_syncookies=1"}
+    mappings:
+      nist-800-53r5: [SC-5, SC-7, CM-6]
+      nist-800-171r3: ["03.13.01"]
+      nist-csf-2: [PR.IR-01]
+      iso27001-2022: [A.8.20]

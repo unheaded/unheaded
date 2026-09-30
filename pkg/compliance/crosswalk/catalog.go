@@ -40,6 +40,7 @@ const (
 	KindGitHubJob     = "github-job"     // ref: "<workflow name>/<job name>"
 	KindGateScript    = "gate-script"    // ref: repo-relative script path
 	KindGitSignatures = "git-signatures" // ref: branch whose recent commits must be signed
+	KindHostSysctl    = "host-sysctl"    // ref: "<sysctl.name><op><int>", op one of = >= <=
 )
 
 var (
@@ -253,7 +254,7 @@ func LoadDocs(frameworksYAML [][]byte, controlsYAML []byte) (*Catalog, error) {
 		}
 		for _, s := range ctl.Evidence {
 			switch s.Kind {
-			case KindGitHubJob, KindGateScript, KindGitSignatures:
+			case KindGitHubJob, KindGateScript, KindGitSignatures, KindHostSysctl:
 			default:
 				return nil, invalid("control %q: evidence kind %q", ctl.ID, s.Kind)
 			}
