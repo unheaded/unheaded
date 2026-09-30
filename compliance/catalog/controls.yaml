@@ -238,6 +238,7 @@ controls:
       CSF PR.PS-01; ISO A.8.9), least functionality for unprivileged users
       (CM-7; 03.04.06) and memory protection through ASLR (SI-16). Values
       follow the CIS Linux benchmarks' kernel parameters.
+      CIS Ubuntu 24.04: AppArmor enabled (1.3.1.2), ASLR (1.5.1), ptrace restricted (1.5.2), core dumps restricted (1.5.3: suid_dumpable only; the limits.conf half is not checked).
     freshness_days: 1
     evidence:
       - {kind: host-sysctl, ref: "west:kernel.unprivileged_bpf_disabled>=1"}
@@ -265,6 +266,7 @@ controls:
       nist-800-171r3: ["03.04.02", "03.04.06"]
       nist-csf-2: [PR.PS-01]
       iso27001-2022: [A.8.9]
+      cis-ubuntu2404: ["1.3.1.2", "1.5.1", "1.5.2", "1.5.3"]
 
   - id: UH-NET-01
     title: The host network stack rejects spoofed and redirected traffic
@@ -278,6 +280,7 @@ controls:
       (SC-5: SYN cookies), as configuration settings (CM-6); CSF PR.IR-01
       networks protected from unauthorized logical access; ISO A.8.20
       network security; 800-171 03.13.01 boundary protection.
+      CIS Ubuntu 24.04: redirects not sent (3.3.2) or accepted (3.3.5), reverse-path filtering (3.3.7), SYN cookies (3.3.10).
     freshness_days: 1
     evidence:
       - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.rp_filter>=1"}
@@ -295,6 +298,7 @@ controls:
       nist-800-171r3: ["03.13.01"]
       nist-csf-2: [PR.IR-01]
       iso27001-2022: [A.8.20]
+      cis-ubuntu2404: ["3.3.2", "3.3.5", "3.3.7", "3.3.10"]
 
   - id: UH-SSH-01
     title: Remote login to the hosts is key-only and hardened
@@ -312,6 +316,7 @@ controls:
       termination, as enforced configuration (CM-6); CSF PR.AA-03 users and
       services authenticated; ISO A.8.5 secure authentication; SOC 2 CC6.1.
       Values follow the CIS benchmark's SSH server section.
+      CIS Ubuntu 24.04 sshd: ClientAliveInterval (5.1.7), MaxAuthTries (5.1.16), PermitEmptyPasswords (5.1.19), PermitRootLogin (5.1.20); password and keyboard-interactive login are stricter than the benchmark asks.
     freshness_days: 1
     evidence:
       - {kind: host-sshd, ref: "west:passwordauthentication=no"}
@@ -336,6 +341,7 @@ controls:
       nist-csf-2: [PR.AA-03]
       soc2-security: [CC6.1]
       iso27001-2022: [A.8.5]
+      cis-ubuntu2404: ["5.1.7", "5.1.16", "5.1.19", "5.1.20"]
 
   - id: UH-CTR-01
     title: Containers run least-privilege, with exceptions only shrinking
@@ -372,6 +378,7 @@ controls:
       SC-7(5); 800-171 03.13.01, 03.13.06); CSF PR.IR-01; ISO A.8.20
       network security; SOC 2 CC6.6 protection against threats from outside
       the system boundary.
+      CIS Ubuntu 24.04: iptables and ip6tables default-deny policy (4.4.2.1, 4.4.3.1), which is what the probe reads.
     freshness_days: 1
     evidence:
       - {kind: host-probe, ref: "west:firewall-inbound-deny"}
@@ -382,6 +389,7 @@ controls:
       nist-csf-2: [PR.IR-01]
       soc2-security: [CC6.6]
       iso27001-2022: [A.8.20]
+      cis-ubuntu2404: ["4.4.2.1", "4.4.3.1"]
 
   - id: UH-AUDIT-01
     title: Hosts record security-relevant events with auditd
@@ -392,6 +400,7 @@ controls:
       Event logging and audit record generation (AU-2, AU-12; 800-171
       03.03.01); CSF PR.PS-04 log records generated; ISO A.8.15 logging;
       SOC 2 CC7.2 monitoring for anomalies.
+      CIS Ubuntu 24.04 (Level 2): auditd enabled and active (6.2.1.2). 6.2.2.3 (disable the system when audit logs are full) is deliberately not adopted: ADR-098 forbids a halt on audit-log exhaustion (lockout).
     freshness_days: 1
     evidence:
       - {kind: host-probe, ref: "west:auditd-running"}
@@ -402,6 +411,7 @@ controls:
       nist-csf-2: [PR.PS-04]
       soc2-security: [CC7.2]
       iso27001-2022: [A.8.15]
+      cis-ubuntu2404: ["6.2.1.2"]
 
   - id: UH-PATCH-01
     title: Hosts install security updates automatically
@@ -413,6 +423,7 @@ controls:
       Flaw remediation with automated installation (SI-2, SI-2(2) automated
       flaw remediation status; 800-171 03.14.01); CSF PR.PS-02 software
       maintained; ISO A.8.8 technical vulnerability management.
+      CIS Ubuntu 24.04: updates and patches installed (1.2.2.1, manual); automatic security updates are the mechanism evidenced.
     freshness_days: 1
     evidence:
       - {kind: host-probe, ref: "west:unattended-upgrades-enabled"}
@@ -422,6 +433,7 @@ controls:
       nist-800-171r3: ["03.14.01"]
       nist-csf-2: [PR.PS-02]
       iso27001-2022: [A.8.8]
+      cis-ubuntu2404: ["1.2.2.1"]
 
   - id: UH-TIME-01
     title: Host clocks are synchronized

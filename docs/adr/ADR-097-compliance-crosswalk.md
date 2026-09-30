@@ -54,8 +54,12 @@ Consulted: Inquisitor (crosswalk shape, honesty rules), Architect
    Low/Moderate/High (156/323/410) from FedRAMP's own baseline workbook
    (FedRAMP labels it legacy since 20x). SOC 2 (33 common criteria) and
    ISO/IEC 27001:2022 Annex A (93) are authored from their published
-   numbering with titles omitted, both texts being copyright. A test pins
-   every count.
+   numbering with titles omitted, both texts being copyright. CIS Ubuntu
+   Linux 24.04 LTS Benchmark v1.0.0 (Level 2 Server 312, Level 1 Server 251,
+   added 2026-09-30) comes from ComplianceAsCode's BSD-licensed transcription
+   pinned to a commit, IDs and levels only (CIS text is CC BY-NC-SA 4.0);
+   the hosts run Ubuntu 25.10 and CIS publishes LTS benchmarks only, so it is
+   the nearest benchmark, not an exact one. A test pins every count.
 
 3. **Derived frameworks.** A framework may be `derived_from` another
    (FedRAMP baselines from 800-53). Controls map to the base only; the
