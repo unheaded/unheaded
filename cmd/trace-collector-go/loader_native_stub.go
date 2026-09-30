@@ -21,6 +21,8 @@ import (
 type NativeBPFLoaderConfig struct {
 	PinPath string
 	Debug   bool
+
+	AllowUntrustedObjectPaths bool
 }
 
 // DefaultNativeBPFLoaderConfig returns sensible defaults.

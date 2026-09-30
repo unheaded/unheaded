@@ -30,6 +30,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"io/fs"
 	"math"
 	"math/bits"
 	"os"
@@ -608,6 +609,10 @@ type LoaderConfig struct {
 	// max_entries bytes). 0 means DefaultMaxMapBytes, never unlimited; set
 	// math.MaxUint64 to disable.
 	MaxMapBytes uint64
+	// AllowUntrustedObjectPaths lets a loader running as root load objects
+	// from paths a non-root user could write (see objectTrustError). Off by
+	// default; meant for development against a user-owned build tree.
+	AllowUntrustedObjectPaths bool
 }
 
 // DefaultMaxMapBytes is the default MaxMapBytes: 4x the largest object in
@@ -1943,6 +1948,13 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 
 	startTime := time.Now()
 
+	if os.Geteuid() == 0 && !l.config.AllowUntrustedObjectPaths {
+		if err := checkObjectTrust(spec.Path); err != nil {
+			ebpfErrors.WithLabelValues("load", "untrusted_path").Inc()
+			return err
+		}
+	}
+
 	// Parse the ELF file
 	parsed, err := parseELF(spec.Path)
 	if err != nil {
@@ -2217,6 +2229,31 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 	}
 
 	return nil
+}
+
+// checkObjectTrust resolves path and applies objectTrustError with the
+// real file owners and modes.
+func checkObjectTrust(path string) error {
+	abs, err := filepath.Abs(path)
+	if err == nil {
+		abs, err = filepath.EvalSymlinks(abs)
+	}
+	if err != nil {
+		return fmt.Errorf("%w: resolve %s: %v", ErrUntrustedObject, path, err)
+	}
+	return objectTrustError(abs, lstatOwner)
+}
+
+func lstatOwner(p string) (uint32, fs.FileMode, error) {
+	fi, err := os.Lstat(p)
+	if err != nil {
+		return 0, 0, err
+	}
+	st, ok := fi.Sys().(*syscall.Stat_t)
+	if !ok {
+		return 0, 0, fmt.Errorf("no owner information for %s", p)
+	}
+	return st.Uid, fi.Mode(), nil
 }
 
 // mapBytes is the memory a map definition asks the kernel for, saturating

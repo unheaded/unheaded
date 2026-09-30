@@ -57,6 +57,8 @@ type nativeProgram struct {
 type NativeBPFLoaderConfig struct {
 	PinPath string // BPF filesystem pin path (default: /sys/fs/bpf/unheaded)
 	Debug   bool   // Enable BPF verifier debug output
+	// AllowUntrustedObjectPaths: see ebpf.LoaderConfig. Development only.
+	AllowUntrustedObjectPaths bool
 }
 
 // DefaultNativeBPFLoaderConfig returns sensible defaults.
@@ -73,6 +75,7 @@ func NewNativeBPFLoader(ctx context.Context, cfg NativeBPFLoaderConfig) (*Native
 	loaderCfg.Debug = cfg.Debug
 	loaderCfg.AllowRlimit = true
 	loaderCfg.MetricsEnabled = true
+	loaderCfg.AllowUntrustedObjectPaths = cfg.AllowUntrustedObjectPaths
 
 	native, err := ebpf.NewNativeLoader(loaderCfg)
 	if err != nil {
