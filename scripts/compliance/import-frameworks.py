@@ -9,6 +9,10 @@ from memory.
 
   NIST SP 800-53 Rev 5, CSF 2.0, SP 800-171 r3, SP 800-218 (SSDF):
       OSCAL catalogs, github.com/usnistgov/oscal-content
+  CIS Ubuntu Linux 24.04 LTS Benchmark v1.0.0 (Level 2 Server, and the
+  Level 1 Server subset): ComplianceAsCode's transcription of the benchmark
+  structure (controls/cis_ubuntu2404.yml, BSD-3-Clause), pinned to a commit.
+  IDs and levels only: the recommendation text is CIS's (CC BY-NC-SA 4.0).
   FedRAMP Rev 5 Low / Moderate / High:
       FedRAMP's own baseline workbook, github.com/FedRAMP/docs-legacy
       (FedRAMP labels it LEGACY: the program moved to FedRAMP 20x; Rev 5
@@ -35,6 +39,8 @@ OSCAL = "https://raw.githubusercontent.com/usnistgov/oscal-content/main/nist.gov
 CSF_REFS_XLSX = "https://csrc.nist.gov/extensions/nudp/services/json/csf/download?olirids=all"
 FEDRAMP_XLSX = ("https://raw.githubusercontent.com/FedRAMP/docs-legacy/main/overrides/assets/"
                 "LEGACY%20FedRAMP_Security_Controls_Baseline.xlsx")
+CIS_UBUNTU2404 = ("https://raw.githubusercontent.com/ComplianceAsCode/content/"
+                  "9fba127e4443de563bbcfbff61543ad0f8c054c6/controls/cis_ubuntu2404.yml")
 MAX_BYTES = 64 << 20
 
 
@@ -99,7 +105,10 @@ def write(path, fw, requirements, provenance):
         lines.append(f"    derived_from: {fw['derived_from']}")
     lines.append("    requirements:")
     for rid, title in requirements:
-        lines.append(f"      - {{id: {q(rid)}, title: {q(title)}}}")
+        if title:
+            lines.append(f"      - {{id: {q(rid)}, title: {q(title)}}}")
+        else:
+            lines.append(f"      - {{id: {q(rid)}}}")
     with open(path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
     print(f"{path}: {len(requirements)} requirements")
@@ -211,7 +220,64 @@ def main():
                "granularity": gran, "source": url},
               reqs, prov(url, data, cat["metadata"]))
 
+    cis_ubuntu2404(out, now)
     csf_references(out, now)
+
+
+def cis_ubuntu2404(out, now):
+    """CIS Ubuntu 24.04 recommendations with their profile levels, parsed
+    from the fixed layout of the ComplianceAsCode control file (stdlib
+    only). Fails on anything unexpected rather than guessing."""
+    data = fetch(CIS_UBUNTU2404)
+    text = data.decode("utf-8")
+    m = re.search(r'^version:\s*"?([0-9.]+)"?\s*$', text, re.M)
+    if not m:
+        sys.exit("cis_ubuntu2404: no version")
+    version = m.group(1)
+    body = text.split("\ncontrols:\n", 1)
+    if len(body) != 2:
+        sys.exit("cis_ubuntu2404: no controls section")
+    recs, cur, in_levels = [], None, False
+    for line in body[1].splitlines():
+        if re.match(r"^\s+controls:", line):
+            sys.exit("cis_ubuntu2404: nested controls; the layout changed")
+        mid = re.match(r"^    - id: ([0-9]+(?:\.[0-9]+)*)\s*$", line)
+        if mid:
+            cur = {"id": mid.group(1), "levels": []}
+            recs.append(cur)
+            in_levels = False
+            continue
+        if re.match(r"^      levels:\s*$", line):
+            in_levels = True
+            continue
+        mlv = re.match(r"^          - (l[12]_(?:server|workstation))\s*$", line)
+        if in_levels and mlv and cur:
+            cur["levels"].append(mlv.group(1))
+            continue
+        if re.match(r"^      \S", line):
+            in_levels = False
+    ids = [r["id"] for r in recs]
+    if len(ids) != len(set(ids)) or len(ids) < 200:
+        sys.exit(f"cis_ubuntu2404: {len(ids)} ids ({len(set(ids))} unique); the layout changed")
+    if any(not r["levels"] for r in recs):
+        sys.exit("cis_ubuntu2404: a recommendation without levels")
+    prov = {"source": CIS_UBUNTU2404, "retrieved_utc": now, "sha256": hashlib.sha256(data).hexdigest(),
+            "upstream_version": version,
+            "note": "benchmark structure as transcribed by ComplianceAsCode; titles omitted (CIS text is CC BY-NC-SA 4.0)",
+            "applicability": "west and east run Ubuntu 25.10; CIS publishes LTS benchmarks only, 24.04 is the nearest"}
+    # Level 2 Server includes Level 1 Server: every recommendation with a
+    # server level. Workstation-only recommendations are excluded.
+    l2 = [(r["id"], "") for r in recs if any(lv.endswith("_server") for lv in r["levels"])]
+    l1 = [(r["id"], "") for r in recs if "l1_server" in r["levels"]]
+    write(f"{out}/80-cis-ubuntu2404-l2-server.yaml",
+          {"id": "cis-ubuntu2404", "name": "CIS Ubuntu Linux 24.04 LTS Benchmark (Level 2 Server)",
+           "version": version, "granularity": "recommendations (Level 1 + Level 2 Server)", "source": CIS_UBUNTU2404},
+          l2, prov)
+    write(f"{out}/81-cis-ubuntu2404-l1-server.yaml",
+          {"id": "cis-ubuntu2404-l1", "name": "CIS Ubuntu Linux 24.04 LTS Benchmark (Level 1 Server)",
+           "version": version, "granularity": "recommendations (Level 1 Server)", "source": CIS_UBUNTU2404,
+           "derived_from": "cis-ubuntu2404"},
+          l1, prov)
 
 
 def csf_references(out, now):

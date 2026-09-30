@@ -20,15 +20,17 @@ func TestRepoCatalog(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := map[string]int{
-		"nist-800-53r5":    1014, // Rev 5.2.0, withdrawn excluded
-		"fedramp-low":      156,
-		"fedramp-moderate": 323,
-		"fedramp-high":     410,
-		"nist-csf-2":       106,
-		"nist-800-171r3":   97,
-		"nist-ssdf":        19,
-		"soc2-security":    33,
-		"iso27001-2022":    93,
+		"nist-800-53r5":     1014, // Rev 5.2.0, withdrawn excluded
+		"fedramp-low":       156,
+		"fedramp-moderate":  323,
+		"fedramp-high":      410,
+		"nist-csf-2":        106,
+		"nist-800-171r3":    97,
+		"nist-ssdf":         19,
+		"soc2-security":     33,
+		"iso27001-2022":     93,
+		"cis-ubuntu2404":    312, // v1.0.0 Level 2 Server (includes Level 1), ComplianceAsCode transcription
+		"cis-ubuntu2404-l1": 251, // Level 1 Server
 	}
 	for id, n := range want {
 		fw := c.Framework(id)
