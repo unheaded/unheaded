@@ -4,11 +4,13 @@
 package server
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -161,5 +163,46 @@ func TestCompliance_Errors(t *testing.T) {
 	}
 	if rec, _ := get(t, good.handleSummary, "/api/v1/compliance/summary"); rec.Code != http.StatusInternalServerError {
 		t.Errorf("corrupt evidence: status %d, want 500 (never silently empty)", rec.Code)
+	}
+}
+
+func TestComplianceFrameworkCSV(t *testing.T) {
+	src := complianceFixture(t, true)
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/compliance/frameworks/{id}", src.handleFramework)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/compliance/frameworks/low?format=csv", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d", rec.Code)
+	}
+	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "text/csv") {
+		t.Errorf("content-type %q", ct)
+	}
+	if cd := rec.Header().Get("Content-Disposition"); !strings.Contains(cd, "low") {
+		t.Errorf("content-disposition %q", cd)
+	}
+	rows, err := csv.NewReader(rec.Body).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 3 || rows[0][0] != "requirement" { // header + RA-5 + AC-2
+		t.Fatalf("rows = %v", rows)
+	}
+	ra5 := rows[1]
+	if ra5[0] != "RA-5" || ra5[2] != "EVIDENCED" || ra5[3] != "UH-VULN-01=PASS" || !strings.Contains(ra5[4], "github-job W/scan pass") ||
+		!strings.Contains(ra5[4], "abc") {
+		t.Errorf("RA-5 row = %v", ra5)
+	}
+	if rows[2][0] != "AC-2" || rows[2][2] != "UNMAPPED" || rows[2][3] != "" {
+		t.Errorf("AC-2 row = %v", rows[2])
+	}
+}
+
+func TestComplianceFrameworkCSV_NeutralisesFormulas(t *testing.T) {
+	if got := csvCell("=HYPERLINK(\"x\")"); !strings.HasPrefix(got, "'") {
+		t.Errorf("csvCell = %q: a leading = must not reach a spreadsheet as a formula", got)
+	}
+	if got := csvCell("RA-5"); got != "RA-5" {
+		t.Errorf("csvCell(RA-5) = %q", got)
 	}
 }

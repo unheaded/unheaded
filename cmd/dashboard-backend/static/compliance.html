@@ -80,6 +80,14 @@
             </section>
 
             <section class="cx-card">
+                <h2 id="findings-title">Open findings</h2>
+                <table class="cx" id="find-table">
+                    <thead><tr><th>Control</th><th>Check</th><th>Observed</th><th>Detail</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+
+            <section class="cx-card">
                 <h2>Frameworks</h2>
                 <table class="cx" id="fw-table">
                     <thead><tr>
@@ -92,6 +100,7 @@
 
             <section class="cx-card" id="fw-detail">
                 <h2 id="fw-detail-title"></h2>
+                <p class="cx-note"><a id="fw-csv" href="#">Download CSV</a> (one row per requirement: status, controls, every piece of evidence with verdict, time, commit and detail)</p>
                 <div class="filters" id="fw-filters"></div>
                 <table class="cx" id="req-table">
                     <thead><tr><th>Requirement</th><th>Title</th><th>Status</th><th>Controls</th></tr></thead>
