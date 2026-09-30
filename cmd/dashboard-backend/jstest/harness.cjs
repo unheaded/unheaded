@@ -34,7 +34,7 @@ const navTab = { dataset: { page: '' }, classList: { toggle(){}, add(){}, remove
 global.document = { readyState: 'complete',
   getElementById: id => (els[id] ||= mkEl(id)),
   querySelector: s => mkEl(s),
-  querySelectorAll: s => s === '.nav-tab' ? [navTab] : [],
+  querySelectorAll: s => (s === '.nav-tab' || s === '.nav-tab[data-page]') ? [navTab] : [], // the fake tab is an in-page tab
   createElement: t => mkEl(t),
   addEventListener(){}, body: mkEl('body'), documentElement: mkEl('html') };
 global.window = { addEventListener(){}, location: { protocol: 'http:', host: 'x', hash: '' }, devicePixelRatio: 1,

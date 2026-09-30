@@ -52,9 +52,9 @@ func runFindings(args []string, stdout io.Writer) error {
 		path = filepath.Join(*repoDir, path)
 	}
 	var recs []crosswalk.Record
-	if f, err := os.Open(path); err == nil {
+	if f, err := os.Open(path); err == nil { // #nosec G304 -- operator-chosen evidence file from a flag of this local CLI
 		recs, err = crosswalk.ReadEvidence(f)
-		f.Close()
+		err = errors.Join(err, f.Close())
 		if err != nil {
 			return fmt.Errorf("%s: %w", path, err)
 		}
@@ -69,8 +69,14 @@ func runFindings(args []string, stdout io.Writer) error {
 	if *adr == "" {
 		return nil
 	}
-	adrPath := filepath.Join(*repoDir, filepath.Clean(*adr))
-	doc, err := os.ReadFile(adrPath)
+	// The ADR must be inside the repository: os.Root refuses any path that
+	// leaves it (.., absolute, or a symlink out).
+	root, err := os.OpenRoot(*repoDir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	doc, err := root.ReadFile(*adr)
 	if err != nil {
 		return err
 	}
@@ -78,7 +84,7 @@ func runFindings(args []string, stdout io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("%s: %w", *adr, err)
 	}
-	return os.WriteFile(adrPath, []byte(updated), 0o644) // #nosec G306 -- a doc in the repo
+	return root.WriteFile(*adr, []byte(updated), 0o644) // #nosec G306 -- a doc in the repo, world-readable like every other
 }
 
 // replaceGenerated swaps what lies between the markers, which must each

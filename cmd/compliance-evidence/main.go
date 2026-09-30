@@ -126,9 +126,9 @@ func run(repoDir, out, ghRepo, branch string, keep int, skipGates bool) error {
 		path = filepath.Join(repoDir, path)
 	}
 	var old []crosswalk.Record
-	if f, err := os.Open(path); err == nil {
+	if f, err := os.Open(path); err == nil { // #nosec G304 -- operator-chosen evidence file from a flag of this local CLI
 		old, err = crosswalk.ReadEvidence(f)
-		f.Close()
+		err = errors.Join(err, f.Close())
 		if err != nil {
 			return fmt.Errorf("%s: %w", path, err)
 		}
@@ -164,12 +164,10 @@ func writeAtomic(path string, recs []crosswalk.Record) error {
 	}
 	defer os.Remove(tmp.Name())
 	if err := crosswalk.WriteEvidence(tmp, recs); err != nil {
-		tmp.Close()
-		return err
+		return errors.Join(err, tmp.Close())
 	}
 	if err := tmp.Chmod(0o644); err != nil {
-		tmp.Close()
-		return err
+		return errors.Join(err, tmp.Close())
 	}
 	if err := tmp.Close(); err != nil {
 		return err

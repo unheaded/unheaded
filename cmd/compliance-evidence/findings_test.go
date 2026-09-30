@@ -163,3 +163,34 @@ func TestRunFindings_WritesADR(t *testing.T) {
 		t.Errorf("no evidence:\n%s", out.String())
 	}
 }
+
+func TestRunFindings_ADROutsideRepoRefused(t *testing.T) {
+	root := t.TempDir()
+	repo := filepath.Join(root, "repo")
+	for rel, body := range map[string]string{
+		"compliance/catalog/frameworks/fw.yaml": "frameworks:\n  - id: fw\n    name: FW\n    requirements: [{id: R1}]\n",
+		"compliance/catalog/controls.yaml":      "controls:\n  - id: UH-X-01\n    title: t\n    statement: s\n    freshness_days: 7\n    evidence: [{kind: github-job, ref: W/x}]\n    mappings: {fw: [R1]}\n",
+		"compliance/findings/register.yaml":     "findings: []\n",
+	} {
+		p := filepath.Join(repo, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	outside := filepath.Join(root, "outside.md")
+	if err := os.WriteFile(outside, []byte(beginMarker+"\n"+endMarker+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	var out strings.Builder
+	for _, adr := range []string{"../outside.md", outside} {
+		if err := runFindings([]string{"-repo-dir", repo, "-adr", adr}, &out); err == nil {
+			t.Errorf("-adr %s outside the repository was accepted", adr)
+		}
+	}
+	if b, _ := os.ReadFile(outside); strings.Contains(string(b), "open") {
+		t.Error("a file outside the repository was rewritten")
+	}
+}

@@ -39,7 +39,20 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 1
-    plan: fixed locally (57be0ee8, forge build skips HIP kernels in clippy); resolves when develop is pushed
+    plan: >-
+      57be0ee8 (forge skips HIP kernels) reached CI at 289aabcb and clippy still fails there; reproducing in a clean clone with CI's
+      toolchain layout (stable default, ebpf nightly by its own toolchain file)
+
+  - source: "github-job:Security Scan (Daily + PR)/Go Security Scan (gosec)"
+    severity: medium
+    class: ci
+    opened: 2026-09-30
+    lockout: none
+    step: 1
+    plan: >-
+      Today's compliance code reached CI at 289aabcb with 19 gosec findings (every rule is enforced). Fixed locally, 0 issues with the
+      pinned v2.29.0: close errors joined into the returned error, the ADR path and /proc/sys reads confined with os.Root, and #nosec with a
+      reason where the input is validated or constant (ssh/sh argv, operator CLI paths, passwd/shadow commands). Resolves when pushed
 
   - source: "github-job:Static Analysis/Gates can actually fail"
     severity: medium
@@ -47,7 +60,9 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 1
-    plan: 17/17 gates bite locally at HEAD; resolves when develop is pushed
+    plan: >-
+      18/18 gates bite locally; still red on GitHub at 289aabcb. The meta-gate runs check-clippy first, so it likely follows the clippy
+      failure; check again once clippy is fixed
 
   - source: "host-probe:west:db-backup-recent"
     severity: medium
@@ -1264,3 +1279,47 @@ findings:
     lockout: high
     step: 5
     plan: "AllowGroups sshusers in 00-unheaded.conf after creating the group and adding govan; prove a second login before reloading. An empty or wrong group is a lockout"
+
+  # --- CIS 1.6 banners, 3.1 wireless (2026-09-30) ---------------------------
+
+  - source: "host-probe:west:banner-issue"
+    severity: low
+    class: account
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "replace the Ubuntu default (names the OS and version) with the CIS text: Authorized users only. All activity may be monitored and reported. (CIS 1.6.2)"
+
+  - source: "host-probe:west:banner-issue-net"
+    severity: low
+    class: account
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "replace the Ubuntu default (names the OS and version) with the CIS text: Authorized users only. All activity may be monitored and reported. (CIS 1.6.3)"
+
+  - source: "host-probe:east:banner-issue"
+    severity: low
+    class: account
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "replace the Ubuntu default (names the OS and version) with the CIS text: Authorized users only. All activity may be monitored and reported. (CIS 1.6.2)"
+
+  - source: "host-probe:east:banner-issue-net"
+    severity: low
+    class: account
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "replace the Ubuntu default (names the OS and version) with the CIS text: Authorized users only. All activity may be monitored and reported. (CIS 1.6.3)"
+
+  - source: "host-probe:west:radio-wireless-down"
+    severity: low
+    class: account
+    opened: 2026-09-30
+    exposure: "west's only LAN link is wireless (wlp17s0); taking it down disconnects west from the home network"
+    lockout: high
+    step: 7
+    plan: "needed while west has no wired LAN: accept with that reason, or move west to a wired link and then disable the radio"
+    decision: "is a wired LAN link for west possible, or accept wireless on west"

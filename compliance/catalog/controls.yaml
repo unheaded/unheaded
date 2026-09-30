@@ -509,6 +509,8 @@ controls:
       - {kind: host-probe, ref: "east:svc-xinetd-not-in-use", maps: {cis-ubuntu2404: ["2.1.19"]}}
       - {kind: host-probe, ref: "east:svc-x-server-not-in-use", maps: {cis-ubuntu2404: ["2.1.20"]}}
       - {kind: host-probe, ref: "east:mta-local-only", maps: {cis-ubuntu2404: ["2.1.21"]}}
+      - {kind: host-probe, ref: "west:svc-bluetooth-not-in-use", maps: {cis-ubuntu2404: ["3.1.3"]}}
+      - {kind: host-probe, ref: "east:svc-bluetooth-not-in-use", maps: {cis-ubuntu2404: ["3.1.3"]}}
     mappings:
       nist-800-53r5: [CM-7]
       nist-800-171r3: ["03.04.06"]
@@ -750,6 +752,51 @@ controls:
       nist-800-53r5: [AC-12]
       nist-800-171r3: ["03.01.11"]
       nist-csf-2: [PR.AA-03]
+
+  - id: UH-BANNER-01
+    title: Login banners warn and give away nothing about the system
+    statement: >-
+      On both hosts /etc/issue and /etc/issue.net carry a banner, and none of
+      /etc/motd, /etc/issue, /etc/issue.net contains the OS name or the
+      \v \r \m \s escapes that expand to OS details; each is root-owned at
+      0644 or stricter.
+    rationale: >-
+      System use notification (AC-8; 800-171 03.01.09). CIS Ubuntu 24.04
+      1.6.1-1.6.6, ComplianceAsCode's cis_banner template, with the OS name
+      taken from /etc/os-release rather than its internal product id.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:banner-motd", maps: {cis-ubuntu2404: ["1.6.1"]}}
+      - {kind: host-probe, ref: "west:banner-issue", maps: {cis-ubuntu2404: ["1.6.2"]}}
+      - {kind: host-probe, ref: "west:banner-issue-net", maps: {cis-ubuntu2404: ["1.6.3"]}}
+      - {kind: host-probe, ref: "west:perm-etc-motd", maps: {cis-ubuntu2404: ["1.6.4"]}}
+      - {kind: host-probe, ref: "west:perm-etc-issue", maps: {cis-ubuntu2404: ["1.6.5"]}}
+      - {kind: host-probe, ref: "west:perm-etc-issue-net", maps: {cis-ubuntu2404: ["1.6.6"]}}
+      - {kind: host-probe, ref: "east:banner-motd", maps: {cis-ubuntu2404: ["1.6.1"]}}
+      - {kind: host-probe, ref: "east:banner-issue", maps: {cis-ubuntu2404: ["1.6.2"]}}
+      - {kind: host-probe, ref: "east:banner-issue-net", maps: {cis-ubuntu2404: ["1.6.3"]}}
+      - {kind: host-probe, ref: "east:perm-etc-motd", maps: {cis-ubuntu2404: ["1.6.4"]}}
+      - {kind: host-probe, ref: "east:perm-etc-issue", maps: {cis-ubuntu2404: ["1.6.5"]}}
+      - {kind: host-probe, ref: "east:perm-etc-issue-net", maps: {cis-ubuntu2404: ["1.6.6"]}}
+    mappings:
+      nist-800-53r5: [AC-8]
+      nist-800-171r3: ["03.01.09"]
+
+  - id: UH-RADIO-01
+    title: Wireless radios are off unless the host needs them
+    statement: >-
+      On both hosts no wireless interface is up, unless an accepted finding
+      says why.
+    rationale: >-
+      Wireless access restriction (AC-18; 800-171 03.01.16) and least
+      functionality (CM-7). CIS Ubuntu 24.04 3.1.2 (Level 1 Server).
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:radio-wireless-down", maps: {cis-ubuntu2404: ["3.1.2"]}}
+      - {kind: host-probe, ref: "east:radio-wireless-down", maps: {cis-ubuntu2404: ["3.1.2"]}}
+    mappings:
+      nist-800-53r5: [AC-18, CM-7]
+      nist-800-171r3: ["03.01.16"]
 
   - id: UH-NET-01
     title: The host network stack rejects spoofed and redirected traffic

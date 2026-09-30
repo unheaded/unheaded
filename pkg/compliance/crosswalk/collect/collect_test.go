@@ -884,3 +884,33 @@ func TestSSHDCryptoProbes(t *testing.T) {
 		}
 	}
 }
+
+func TestBannerRadioProbes(t *testing.T) {
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"banner-issue", "os=Ubuntu\nAuthorized users only. All activity may be monitored and reported.\n@ok\n", true},
+		{"banner-issue", "os=Ubuntu\nUbuntu 25.10 \\n \\l\n@ok\n", false},
+		{"banner-issue", "os=Ubuntu\nWelcome to \\s \\r\n@ok\n", false},
+		{"banner-issue", "os=Ubuntu\n@ok\n", false}, // must be set
+		{"banner-issue", "os=Ubuntu\nABSENT\n@ok\n", false},
+		{"banner-motd", "os=Ubuntu\nABSENT\n@ok\n", true}, // motd is optional
+		{"banner-motd", "os=Ubuntu\nubuntu news here\n@ok\n", false},
+		{"banner-issue-net", "os=Ubuntu\nAuthorized users only.\n", false}, // no completion marker
+		{"svc-bluetooth-not-in-use", "installed=\n", true},
+		{"radio-wireless-down", "@ok\n", true},
+		{"radio-wireless-down", "wlp17s0 up\n@ok\n", false},
+		{"perm-etc-issue", "/etc/issue 644 0 root\n", true},
+		{"perm-etc-motd", "/etc/motd ABSENT\n", true},
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok || !p.Baseline {
+			t.Errorf("%s missing or not a baseline probe", tc.probe)
+			continue
+		}
+		if pass, detail := p.Judge(tc.out); pass != tc.pass {
+			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}

@@ -286,6 +286,10 @@ func init() {
 			probeActions[name] = "systemctl start systemd-journald"
 		case strings.HasPrefix(name, "sshd-"):
 			probeActions[name] = "set the directive in sshd_config.d/00-unheaded.conf (0600); sshd -t; reload (never on failure)"
+		case strings.HasPrefix(name, "banner-"):
+			probeActions[name] = `write the CIS banner ("Authorized users only. All activity may be monitored and reported.") with no OS details`
+		case strings.HasPrefix(name, "radio-"):
+			probeActions[name] = "none (alert only): taking an interface down can cut the host off (west's LAN is wireless)"
 		case strings.HasPrefix(name, "mount-"):
 			probeActions[name] = "none (alert only): mount options and partitions change through fstab and a remount or reboot, which the operator does"
 		case strings.HasPrefix(name, "perm-"):
@@ -424,12 +428,10 @@ func writeAtomic(dir, name string, body []byte) error {
 	}
 	defer os.Remove(tmp.Name())
 	if _, err := tmp.Write(body); err != nil {
-		tmp.Close()
-		return err
+		return errors.Join(err, tmp.Close())
 	}
 	if err := tmp.Chmod(0o644); err != nil {
-		tmp.Close()
-		return err
+		return errors.Join(err, tmp.Close())
 	}
 	if err := tmp.Close(); err != nil {
 		return err

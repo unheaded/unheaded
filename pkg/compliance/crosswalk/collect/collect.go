@@ -194,7 +194,7 @@ func (g *GitSignatures) Collect(ctx context.Context, sources []crosswalk.Source)
 			depth = 50
 		}
 		// --end-of-options: the ref can never be read as an option.
-		cmd := exec.CommandContext(ctx, "git", "-C", g.RepoDir, "log", "--format=%H %G?",
+		cmd := exec.CommandContext(ctx, "git", "-C", g.RepoDir, "log", "--format=%H %G?", // #nosec G204 -- fixed git argv; the ref comes after --end-of-options
 			fmt.Sprintf("--max-count=%d", depth), "--end-of-options", s.Ref)
 		var out, stderr bytes.Buffer
 		cmd.Stdout, cmd.Stderr = &out, &stderr
@@ -264,7 +264,7 @@ func (g *GateScripts) Collect(ctx context.Context, sources []crosswalk.Source) (
 			timeout = 10 * time.Minute
 		}
 		rctx, cancel := context.WithTimeout(ctx, timeout)
-		cmd := exec.CommandContext(rctx, "bash", filepath.Join(g.RepoDir, filepath.FromSlash(clean)))
+		cmd := exec.CommandContext(rctx, "bash", filepath.Join(g.RepoDir, filepath.FromSlash(clean))) // #nosec G204 -- a catalog gate script, validated to a clean path under scripts/
 		cmd.Dir = g.RepoDir
 		cmd.Env = os.Environ()
 		ownGroup(cmd)
@@ -307,7 +307,7 @@ func SSHSysctl(ctx context.Context, host string, paths []string) (map[string]str
 	// exit 0: an unreadable path is skipped, not a failed collection.
 	script := `for p in "$@"; do v=$(cat "/proc/sys/$p" 2>/dev/null) && printf '%s %s\n' "$p" "$v"; done; exit 0`
 	args := append([]string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", host, "sh", "-c", shQuote(script), "sysctl"}, quoteAll(paths)...)
-	cmd := exec.CommandContext(ctx, "ssh", args...)
+	cmd := exec.CommandContext(ctx, "ssh", args...) // #nosec G204 -- host matched the ref regex; the script is constant and the paths are shell-quoted
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	if err := cmd.Run(); err != nil {
@@ -399,11 +399,19 @@ func (h *HostSysctl) Collect(ctx context.Context, sources []crosswalk.Source) ([
 		checks := byHost[host]
 		vals := map[string]string{}
 		if host == local {
+			// Confined to proc: a sysctl name cannot reach outside it.
+			root, err := os.OpenRoot(proc)
+			if err != nil {
+				continue // no /proc/sys: no verdict for this host's checks
+			}
 			for _, c := range checks {
 				p := strings.ReplaceAll(c.name, ".", "/")
-				if raw, err := os.ReadFile(filepath.Join(proc, p)); err == nil {
+				if raw, err := root.ReadFile(p); err == nil {
 					vals[p] = strings.TrimSpace(string(raw))
 				}
+			}
+			if err := root.Close(); err != nil {
+				return nil, err
 			}
 		} else {
 			paths := make([]string, len(checks))
@@ -464,7 +472,7 @@ type Attestations struct {
 }
 
 func (a *Attestations) signature(ctx context.Context, path string) (string, bool, error) {
-	cmd := exec.CommandContext(ctx, "git", "-C", a.RepoDir, "log", "-1", "--format=%H %G?", "--", path)
+	cmd := exec.CommandContext(ctx, "git", "-C", a.RepoDir, "log", "-1", "--format=%H %G?", "--", path) // #nosec G204 -- fixed git argv; the path (validated attestation file) follows --
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	if err := cmd.Run(); err != nil {
@@ -549,7 +557,7 @@ func SSHDDump(ctx context.Context, host string, local bool) (string, error) {
 	if local {
 		cmd = exec.CommandContext(ctx, "sudo", "-n", "sshd", "-T")
 	} else {
-		cmd = exec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", host, "sudo -n sshd -T")
+		cmd = exec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", host, "sudo -n sshd -T") // #nosec G204 -- host matched the ref regex; the remote command is constant
 	}
 	var out bytes.Buffer
 	cmd.Stdout = &out
@@ -757,9 +765,9 @@ type HostProbes struct {
 func RunScript(ctx context.Context, host, script string, local bool) (string, error) {
 	var cmd *exec.Cmd
 	if local {
-		cmd = exec.CommandContext(ctx, "sh", "-c", script)
+		cmd = exec.CommandContext(ctx, "sh", "-c", script) // #nosec G204 -- script is assembled only from the constant Probes table
 	} else {
-		cmd = exec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", host, "sh -c "+shQuote(script))
+		cmd = exec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", host, "sh -c "+shQuote(script)) // #nosec G204 -- host matched the ref regex; script from the constant Probes table, shell-quoted
 	}
 	var out bytes.Buffer
 	cmd.Stdout = &out

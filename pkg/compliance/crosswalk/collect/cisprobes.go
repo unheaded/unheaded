@@ -481,7 +481,7 @@ func mtaLocalOnlyProbe() Probe {
 // which is never read as "no offenders". Offender lists hold names or IDs
 // only, never password hashes.
 func init() {
-	offenders := map[string]string{
+	offenders := map[string]string{ // #nosec G101 -- shell commands that read /etc/passwd and /etc/shadow; they hold and print no credentials
 		"acct-passwd-shadowed":    `awk -F: '($2 != "x") {print $1}' /etc/passwd && echo @ok`,
 		"acct-shadow-no-empty":    `sudo -n awk -F: '($2 == "") {print $1}' /etc/shadow && echo @ok`,
 		"acct-groups-exist":       `for g in $(cut -d: -f4 /etc/passwd | sort -u); do grep -q "^[^:]*:[^:]*:$g:" /etc/group || echo "gid $g"; done; echo @ok`,
@@ -863,4 +863,68 @@ func subsetOf(list string, allowed []string, what string) (bool, string) {
 		return false, what + " not on the strong list: " + strings.Join(weak, ", ")
 	}
 	return true, "every " + what + " entry is on the strong list"
+}
+
+// Login banners (CIS 1.6.1-1.6.6), bluetooth (3.1.3) and wireless (3.1.2).
+// ComplianceAsCode's cis_banner template: the file has a non-empty line when
+// the banner must be set (issue, issue.net; motd is optional) and contains
+// none of \v \r \m \s or the product name. The product check here uses the
+// OS NAME from /etc/os-release, case-insensitive: stricter than matching
+// ComplianceAsCode's internal product id, and what CIS means.
+func init() {
+	for probe, spec := range map[string]struct {
+		file     string
+		required bool
+	}{
+		"banner-motd":      {"/etc/motd", false},
+		"banner-issue":     {"/etc/issue", true},
+		"banner-issue-net": {"/etc/issue.net", true},
+	} {
+		Probes[probe] = bannerProbe(spec.file, spec.required)
+	}
+	for name, r := range map[string]fileRule{
+		"perm-etc-motd":      {[]fileTarget{{"/etc/motd", true}}, 0o644, "root"},
+		"perm-etc-issue":     {[]fileTarget{{"/etc/issue", false}}, 0o644, "root"},
+		"perm-etc-issue-net": {[]fileTarget{{"/etc/issue.net", false}}, 0o644, "root"},
+	} {
+		Probes[name] = filePermProbe(r)
+	}
+	Probes["svc-bluetooth-not-in-use"] = serviceProbe([]string{"bluez"}, []string{"bluetooth.service"})
+	// Wireless interfaces that are up (operstate not down).
+	Probes["radio-wireless-down"] = offenderProbe(`for d in /sys/class/net/*/wireless; do [ -e "$d" ] || continue; i=$(basename "$(dirname "$d")"); ` +
+		`s=$(cat "/sys/class/net/$i/operstate" 2>/dev/null); [ "$s" = down ] || echo "$i $s"; done; echo @ok`)
+}
+
+func bannerProbe(file string, required bool) Probe {
+	return markerLinesProbe(fmt.Sprintf(`echo "os=$(. /etc/os-release 2>/dev/null; echo "$NAME")"; if [ -e %s ]; then cat %s; else echo ABSENT; fi; echo @ok`, file, file),
+		func(lines []string) (bool, string) {
+			var osName string
+			var body []string
+			for _, l := range lines {
+				if v, ok := strings.CutPrefix(l, "os="); ok {
+					osName = strings.TrimSpace(v)
+					continue
+				}
+				body = append(body, l)
+			}
+			if len(body) == 1 && strings.TrimSpace(body[0]) == "ABSENT" {
+				if required {
+					return false, file + " missing"
+				}
+				return true, file + " not present (optional)"
+			}
+			text := strings.Join(body, "\n")
+			if required && strings.TrimSpace(text) == "" {
+				return false, file + " is empty"
+			}
+			for _, esc := range []string{`\v`, `\r`, `\m`, `\s`} {
+				if strings.Contains(text, esc) {
+					return false, file + " contains " + esc + " (expands to OS details)"
+				}
+			}
+			if first := strings.Fields(osName); len(first) > 0 && strings.Contains(strings.ToLower(text), strings.ToLower(first[0])) {
+				return false, file + " names the OS (" + first[0] + ")"
+			}
+			return true, file + " states no OS details"
+		})
 }

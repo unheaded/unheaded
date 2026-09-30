@@ -19,6 +19,9 @@ sources:
   - {kind: host-probe, ref: "east:apparmor-profiles-enforced"}
   - {kind: host-probe, ref: "east:at-restricted"}
   - {kind: host-probe, ref: "east:auditd-running"}
+  - {kind: host-probe, ref: "east:banner-issue"}
+  - {kind: host-probe, ref: "east:banner-issue-net"}
+  - {kind: host-probe, ref: "east:banner-motd"}
   - {kind: host-probe, ref: "east:cron-active"}
   - {kind: host-probe, ref: "east:cron-allow-restricted"}
   - {kind: host-probe, ref: "east:firewall-inbound-deny"}
@@ -71,6 +74,9 @@ sources:
   - {kind: host-probe, ref: "east:perm-etc-group-backup"}
   - {kind: host-probe, ref: "east:perm-etc-gshadow"}
   - {kind: host-probe, ref: "east:perm-etc-gshadow-backup"}
+  - {kind: host-probe, ref: "east:perm-etc-issue"}
+  - {kind: host-probe, ref: "east:perm-etc-issue-net"}
+  - {kind: host-probe, ref: "east:perm-etc-motd"}
   - {kind: host-probe, ref: "east:perm-etc-passwd"}
   - {kind: host-probe, ref: "east:perm-etc-passwd-backup"}
   - {kind: host-probe, ref: "east:perm-etc-security-opasswd"}
@@ -92,6 +98,7 @@ sources:
   - {kind: host-probe, ref: "east:pw-inactive"}
   - {kind: host-probe, ref: "east:pw-max-days"}
   - {kind: host-probe, ref: "east:pw-warn-age"}
+  - {kind: host-probe, ref: "east:radio-wireless-down"}
   - {kind: host-probe, ref: "east:shell-tmout"}
   - {kind: host-probe, ref: "east:sshd-access"}
   - {kind: host-probe, ref: "east:sshd-banner"}
@@ -107,6 +114,7 @@ sources:
   - {kind: host-probe, ref: "east:svc-apport-not-in-use"}
   - {kind: host-probe, ref: "east:svc-autofs-not-in-use"}
   - {kind: host-probe, ref: "east:svc-avahi-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-bluetooth-not-in-use"}
   - {kind: host-probe, ref: "east:svc-dhcp-server-not-in-use"}
   - {kind: host-probe, ref: "east:svc-dns-server-not-in-use"}
   - {kind: host-probe, ref: "east:svc-dnsmasq-not-in-use"}
@@ -143,6 +151,9 @@ sources:
   - {kind: host-probe, ref: "west:apparmor-profiles-enforced"}
   - {kind: host-probe, ref: "west:at-restricted"}
   - {kind: host-probe, ref: "west:auditd-running"}
+  - {kind: host-probe, ref: "west:banner-issue"}
+  - {kind: host-probe, ref: "west:banner-issue-net"}
+  - {kind: host-probe, ref: "west:banner-motd"}
   - {kind: host-probe, ref: "west:cron-active"}
   - {kind: host-probe, ref: "west:cron-allow-restricted"}
   - {kind: host-probe, ref: "west:firewall-inbound-deny"}
@@ -195,6 +206,9 @@ sources:
   - {kind: host-probe, ref: "west:perm-etc-group-backup"}
   - {kind: host-probe, ref: "west:perm-etc-gshadow"}
   - {kind: host-probe, ref: "west:perm-etc-gshadow-backup"}
+  - {kind: host-probe, ref: "west:perm-etc-issue"}
+  - {kind: host-probe, ref: "west:perm-etc-issue-net"}
+  - {kind: host-probe, ref: "west:perm-etc-motd"}
   - {kind: host-probe, ref: "west:perm-etc-passwd"}
   - {kind: host-probe, ref: "west:perm-etc-passwd-backup"}
   - {kind: host-probe, ref: "west:perm-etc-security-opasswd"}
@@ -216,6 +230,7 @@ sources:
   - {kind: host-probe, ref: "west:pw-inactive"}
   - {kind: host-probe, ref: "west:pw-max-days"}
   - {kind: host-probe, ref: "west:pw-warn-age"}
+  - {kind: host-probe, ref: "west:radio-wireless-down"}
   - {kind: host-probe, ref: "west:shell-tmout"}
   - {kind: host-probe, ref: "west:sshd-access"}
   - {kind: host-probe, ref: "west:sshd-banner"}
@@ -231,6 +246,7 @@ sources:
   - {kind: host-probe, ref: "west:svc-apport-not-in-use"}
   - {kind: host-probe, ref: "west:svc-autofs-not-in-use"}
   - {kind: host-probe, ref: "west:svc-avahi-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-bluetooth-not-in-use"}
   - {kind: host-probe, ref: "west:svc-dhcp-server-not-in-use"}
   - {kind: host-probe, ref: "west:svc-dns-server-not-in-use"}
   - {kind: host-probe, ref: "west:svc-dnsmasq-not-in-use"}
