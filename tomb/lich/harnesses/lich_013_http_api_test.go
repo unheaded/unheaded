@@ -197,6 +197,17 @@ func mockWotanPublishHandler(w http.ResponseWriter, r *http.Request) {
 
 // FuzzHTTPAPIKanbanTasks fuzzes the kanban task handler with malformed POST bodies.
 // Security-critical: kanban accepts user input that flows to storage.
+// sharedServer starts one server per fuzz target. A server (and a fresh
+// connection) per input exhausted the ephemeral ports within minutes of
+// fuzzing: "httptest: failed to listen on a port: ... address already in
+// use", failing all four targets on a harness problem, not a finding.
+// srv.Client() keeps connections alive, so inputs reuse a few sockets.
+func sharedServer(f *testing.F, h http.HandlerFunc) *httptest.Server {
+	srv := httptest.NewServer(h)
+	f.Cleanup(srv.Close)
+	return srv
+}
+
 func FuzzHTTPAPIKanbanTasks(f *testing.F) {
 	// Seed: valid task JSON
 	validTask, _ := json.Marshal(map[string]interface{}{
@@ -262,11 +273,9 @@ func FuzzHTTPAPIKanbanTasks(f *testing.F) {
 	}
 	f.Add(allFF)
 
+	srv := sharedServer(f, mockKanbanTaskHandler)
 	f.Fuzz(func(t *testing.T, data []byte) {
-		srv := httptest.NewServer(http.HandlerFunc(mockKanbanTaskHandler))
-		defer srv.Close()
-
-		resp, err := http.Post(srv.URL+"/api/v1/tasks", "application/json",
+		resp, err := srv.Client().Post(srv.URL+"/api/v1/tasks", "application/json",
 			bytes.NewReader(data))
 		if err != nil {
 			// Network error is acceptable (e.g., server closed)
@@ -322,6 +331,7 @@ func FuzzHTTPAPIMonadEncode(f *testing.F) {
 	// Seed: empty
 	f.Add([]byte{})
 
+	monadSrv := sharedServer(f, mockMonadOperationsHandler)
 	f.Fuzz(func(t *testing.T, data []byte) {
 		// Test 1: Feed raw bytes to Monad wire parser
 		header, parseErr := ParseMonadWire(data)
@@ -347,14 +357,11 @@ func FuzzHTTPAPIMonadEncode(f *testing.F) {
 		_ = reDecoded
 
 		// Test 4: Feed data as POST body to Monad operations handler
-		srv := httptest.NewServer(http.HandlerFunc(mockMonadOperationsHandler))
-		defer srv.Close()
-
-		req, _ := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/operations",
+		req, _ := http.NewRequest(http.MethodPost, monadSrv.URL+"/api/v1/operations",
 			bytes.NewReader(data))
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := monadSrv.Client().Do(req)
 		if err != nil {
 			return
 		}
@@ -413,12 +420,10 @@ func FuzzHTTPAPIWotanWrite(f *testing.F) {
 	})
 	f.Add("valid.topic", sqli)
 
+	srv := sharedServer(f, mockWotanPublishHandler)
 	f.Fuzz(func(t *testing.T, topic string, body []byte) {
-		srv := httptest.NewServer(http.HandlerFunc(mockWotanPublishHandler))
-		defer srv.Close()
-
 		url := fmt.Sprintf("%s/api/v1/topics/%s/publish", srv.URL, topic)
-		resp, err := http.Post(url, "application/json", bytes.NewReader(body))
+		resp, err := srv.Client().Post(url, "application/json", bytes.NewReader(body))
 		if err != nil {
 			// Network errors acceptable (e.g., invalid URL from fuzzed topic)
 			return
@@ -464,9 +469,8 @@ func FuzzHTTPAPIHeaderInjection(f *testing.F) {
 	f.Add("application/json", "localhost:99999", "normal")
 	f.Add("application/json", "localhost:abc", "normal")
 
+	srv := sharedServer(f, mockKanbanTaskHandler)
 	f.Fuzz(func(t *testing.T, contentType, host, customValue string) {
-		srv := httptest.NewServer(http.HandlerFunc(mockKanbanTaskHandler))
-		defer srv.Close()
 
 		body := []byte(`{"id":"fuzz","title":"fuzz"}`)
 		req, err := http.NewRequest(http.MethodPost, srv.URL+"/api/v1/tasks",
@@ -481,7 +485,7 @@ func FuzzHTTPAPIHeaderInjection(f *testing.F) {
 		req.Host = host
 		req.Header.Set("X-Custom-Fuzz", customValue)
 
-		resp, err := http.DefaultClient.Do(req)
+		resp, err := srv.Client().Do(req)
 		if err != nil {
 			// Connection errors are acceptable for malformed requests
 			return
