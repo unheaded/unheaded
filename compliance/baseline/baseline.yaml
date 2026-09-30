@@ -2,12 +2,23 @@
 # compliance/catalog/controls.yaml (ADR-098). Do not edit.
 version: 1
 sources:
+  - {kind: host-probe, ref: "east:acct-groups-exist"}
+  - {kind: host-probe, ref: "east:acct-passwd-shadowed"}
+  - {kind: host-probe, ref: "east:acct-shadow-group-empty"}
+  - {kind: host-probe, ref: "east:acct-shadow-no-empty"}
+  - {kind: host-probe, ref: "east:acct-unique-gid"}
+  - {kind: host-probe, ref: "east:acct-unique-group-name"}
+  - {kind: host-probe, ref: "east:acct-unique-uid"}
+  - {kind: host-probe, ref: "east:acct-unique-user-name"}
   - {kind: host-probe, ref: "east:apparmor-enabled"}
+  - {kind: host-probe, ref: "east:apparmor-installed"}
+  - {kind: host-probe, ref: "east:apparmor-profiles-enforced"}
   - {kind: host-probe, ref: "east:at-restricted"}
   - {kind: host-probe, ref: "east:auditd-running"}
   - {kind: host-probe, ref: "east:cron-active"}
   - {kind: host-probe, ref: "east:cron-allow-restricted"}
   - {kind: host-probe, ref: "east:firewall-inbound-deny"}
+  - {kind: host-probe, ref: "east:grub-password"}
   - {kind: host-probe, ref: "east:kmod-cramfs-disabled"}
   - {kind: host-probe, ref: "east:kmod-freevxfs-disabled"}
   - {kind: host-probe, ref: "east:kmod-hfs-disabled"}
@@ -43,6 +54,7 @@ sources:
   - {kind: host-probe, ref: "east:mount-var-tmp-separate"}
   - {kind: host-probe, ref: "east:mta-local-only"}
   - {kind: host-probe, ref: "east:ntp-synchronized"}
+  - {kind: host-probe, ref: "east:perm-boot-grub-cfg"}
   - {kind: host-probe, ref: "east:perm-etc-cron-d"}
   - {kind: host-probe, ref: "east:perm-etc-cron-daily"}
   - {kind: host-probe, ref: "east:perm-etc-cron-hourly"}
@@ -65,9 +77,16 @@ sources:
   - {kind: host-probe, ref: "east:pkg-ftp-client-absent"}
   - {kind: host-probe, ref: "east:pkg-ldap-client-absent"}
   - {kind: host-probe, ref: "east:pkg-nis-client-absent"}
+  - {kind: host-probe, ref: "east:pkg-prelink-absent"}
   - {kind: host-probe, ref: "east:pkg-rsh-client-absent"}
   - {kind: host-probe, ref: "east:pkg-talk-client-absent"}
   - {kind: host-probe, ref: "east:pkg-telnet-client-absent"}
+  - {kind: host-probe, ref: "east:sudo-installed"}
+  - {kind: host-probe, ref: "east:sudo-logfile"}
+  - {kind: host-probe, ref: "east:sudo-no-noauth"}
+  - {kind: host-probe, ref: "east:sudo-timeout"}
+  - {kind: host-probe, ref: "east:sudo-use-pty"}
+  - {kind: host-probe, ref: "east:svc-apport-not-in-use"}
   - {kind: host-probe, ref: "east:svc-autofs-not-in-use"}
   - {kind: host-probe, ref: "east:svc-avahi-not-in-use"}
   - {kind: host-probe, ref: "east:svc-dhcp-server-not-in-use"}
@@ -89,12 +108,23 @@ sources:
   - {kind: host-probe, ref: "east:svc-x-server-not-in-use"}
   - {kind: host-probe, ref: "east:svc-xinetd-not-in-use"}
   - {kind: host-probe, ref: "east:unattended-upgrades-enabled"}
+  - {kind: host-probe, ref: "west:acct-groups-exist"}
+  - {kind: host-probe, ref: "west:acct-passwd-shadowed"}
+  - {kind: host-probe, ref: "west:acct-shadow-group-empty"}
+  - {kind: host-probe, ref: "west:acct-shadow-no-empty"}
+  - {kind: host-probe, ref: "west:acct-unique-gid"}
+  - {kind: host-probe, ref: "west:acct-unique-group-name"}
+  - {kind: host-probe, ref: "west:acct-unique-uid"}
+  - {kind: host-probe, ref: "west:acct-unique-user-name"}
   - {kind: host-probe, ref: "west:apparmor-enabled"}
+  - {kind: host-probe, ref: "west:apparmor-installed"}
+  - {kind: host-probe, ref: "west:apparmor-profiles-enforced"}
   - {kind: host-probe, ref: "west:at-restricted"}
   - {kind: host-probe, ref: "west:auditd-running"}
   - {kind: host-probe, ref: "west:cron-active"}
   - {kind: host-probe, ref: "west:cron-allow-restricted"}
   - {kind: host-probe, ref: "west:firewall-inbound-deny"}
+  - {kind: host-probe, ref: "west:grub-password"}
   - {kind: host-probe, ref: "west:kmod-cramfs-disabled"}
   - {kind: host-probe, ref: "west:kmod-freevxfs-disabled"}
   - {kind: host-probe, ref: "west:kmod-hfs-disabled"}
@@ -130,6 +160,7 @@ sources:
   - {kind: host-probe, ref: "west:mount-var-tmp-separate"}
   - {kind: host-probe, ref: "west:mta-local-only"}
   - {kind: host-probe, ref: "west:ntp-synchronized"}
+  - {kind: host-probe, ref: "west:perm-boot-grub-cfg"}
   - {kind: host-probe, ref: "west:perm-etc-cron-d"}
   - {kind: host-probe, ref: "west:perm-etc-cron-daily"}
   - {kind: host-probe, ref: "west:perm-etc-cron-hourly"}
@@ -152,9 +183,16 @@ sources:
   - {kind: host-probe, ref: "west:pkg-ftp-client-absent"}
   - {kind: host-probe, ref: "west:pkg-ldap-client-absent"}
   - {kind: host-probe, ref: "west:pkg-nis-client-absent"}
+  - {kind: host-probe, ref: "west:pkg-prelink-absent"}
   - {kind: host-probe, ref: "west:pkg-rsh-client-absent"}
   - {kind: host-probe, ref: "west:pkg-talk-client-absent"}
   - {kind: host-probe, ref: "west:pkg-telnet-client-absent"}
+  - {kind: host-probe, ref: "west:sudo-installed"}
+  - {kind: host-probe, ref: "west:sudo-logfile"}
+  - {kind: host-probe, ref: "west:sudo-no-noauth"}
+  - {kind: host-probe, ref: "west:sudo-timeout"}
+  - {kind: host-probe, ref: "west:sudo-use-pty"}
+  - {kind: host-probe, ref: "west:svc-apport-not-in-use"}
   - {kind: host-probe, ref: "west:svc-autofs-not-in-use"}
   - {kind: host-probe, ref: "west:svc-avahi-not-in-use"}
   - {kind: host-probe, ref: "west:svc-dhcp-server-not-in-use"}

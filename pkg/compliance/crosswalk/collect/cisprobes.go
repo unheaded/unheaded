@@ -4,7 +4,9 @@
 package collect
 
 import (
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -468,6 +470,207 @@ func mtaLocalOnlyProbe() Probe {
 				return false, "MTA listening on " + strings.Join(exposed, ", ")
 			}
 			return true, "no MTA listening beyond loopback"
+		},
+	}
+}
+
+// Account integrity (CIS 7.2.1-7.2.8), boot loader (1.4.1, 1.4.2), AppArmor
+// (1.3.1.1, 1.3.1.3), prelink and apport (1.5.4, 1.5.5), sudo (5.2.1-5.2.3,
+// 5.2.5, 5.2.6). Commands that list offenders end with an "@ok" line: no
+// marker means the command did not complete (sudo refused, file missing),
+// which is never read as "no offenders". Offender lists hold names or IDs
+// only, never password hashes.
+func init() {
+	offenders := map[string]string{
+		"acct-passwd-shadowed":    `awk -F: '($2 != "x") {print $1}' /etc/passwd && echo @ok`,
+		"acct-shadow-no-empty":    `sudo -n awk -F: '($2 == "") {print $1}' /etc/shadow && echo @ok`,
+		"acct-groups-exist":       `for g in $(cut -d: -f4 /etc/passwd | sort -u); do grep -q "^[^:]*:[^:]*:$g:" /etc/group || echo "gid $g"; done; echo @ok`,
+		"acct-shadow-group-empty": `sg=$(awk -F: '($1=="shadow"){print $3}' /etc/group); awk -F: '($1=="shadow" && $4!=""){print "members " $4}' /etc/group && awk -F: -v g="$sg" '(g!="" && $4==g){print "primary " $1}' /etc/passwd && echo @ok`,
+		"acct-unique-uid":         `cut -d: -f3 /etc/passwd | sort | uniq -d && echo @ok`,
+		"acct-unique-gid":         `cut -d: -f3 /etc/group | sort | uniq -d && echo @ok`,
+		"acct-unique-user-name":   `cut -d: -f1 /etc/passwd | sort | uniq -d && echo @ok`,
+		"acct-unique-group-name":  `cut -d: -f1 /etc/group | sort | uniq -d && echo @ok`,
+	}
+	for name, cmd := range offenders {
+		Probes[name] = offenderProbe(cmd)
+	}
+	Probes["apparmor-installed"] = packageInstalledProbe([]string{"apparmor", "apparmor-utils"})
+	Probes["apparmor-profiles-enforced"] = apparmorProfilesProbe()
+	Probes["grub-password"] = markerLinesProbe(`sudo -n sh -c "grep -E '^[[:space:]]*(set superusers|password_pbkdf2)' /boot/grub/grub.cfg; echo @ok"`,
+		func(lines []string) (bool, string) {
+			var su, pw bool
+			for _, l := range lines {
+				su = su || strings.Contains(l, "set superusers")
+				pw = pw || strings.HasPrefix(strings.TrimSpace(l), "password_pbkdf2")
+			}
+			if su && pw {
+				return true, "grub superuser with a PBKDF2 password"
+			}
+			return false, fmt.Sprintf("grub superusers set: %v, password_pbkdf2: %v", su, pw)
+		})
+	Probes["perm-boot-grub-cfg"] = filePermProbe(fileRule{[]fileTarget{{"/boot/grub/grub.cfg", false}}, 0o600, ""})
+	Probes["pkg-prelink-absent"] = packageAbsentProbe([]string{"prelink"})
+	Probes["svc-apport-not-in-use"] = serviceProbe([]string{"apport"}, []string{"apport.service"})
+	Probes["sudo-installed"] = packageInstalledProbe([]string{"sudo"})
+
+	// Only Defaults lines and !authenticate uses are printed, comments dropped.
+	// "@ok" comes from inside the sudo'd shell: a refused sudo prints nothing.
+	sudoers := `sudo -n sh -c 'cat /etc/sudoers /etc/sudoers.d/* 2>/dev/null; echo @ok' | grep -Ev '^[[:space:]]*#' | grep -E 'Defaults|authenticate|^@ok$'`
+	Probes["sudo-use-pty"] = markerLinesProbe(sudoers, func(lines []string) (bool, string) {
+		for _, l := range lines {
+			if defaultsSet(l, "use_pty") {
+				return true, "Defaults use_pty"
+			}
+		}
+		return false, "use_pty not set in sudoers"
+	})
+	Probes["sudo-logfile"] = markerLinesProbe(sudoers, func(lines []string) (bool, string) {
+		for _, l := range lines {
+			if strings.Contains(l, "Defaults") && strings.Contains(l, "logfile=") {
+				return true, "sudo logfile configured"
+			}
+		}
+		return false, "no Defaults logfile= in sudoers"
+	})
+	Probes["sudo-no-noauth"] = markerLinesProbe(sudoers, func(lines []string) (bool, string) {
+		for _, l := range lines {
+			if strings.Contains(l, "!authenticate") {
+				return false, "!authenticate present: " + strings.TrimSpace(l)
+			}
+		}
+		return true, "no !authenticate in sudoers"
+	})
+	Probes["sudo-timeout"] = markerLinesProbe(sudoers, func(lines []string) (bool, string) {
+		for _, l := range lines {
+			i := strings.Index(l, "timestamp_timeout=")
+			if i < 0 || !strings.Contains(l, "Defaults") {
+				continue
+			}
+			v := strings.TrimRight(strings.Fields(l[i+len("timestamp_timeout="):] + " ")[0], ",")
+			n, err := strconv.Atoi(v)
+			if err != nil || n < 0 || n > 15 {
+				return false, "timestamp_timeout=" + v + " (want 0-15)"
+			}
+			return true, "timestamp_timeout=" + v
+		}
+		return false, "timestamp_timeout not set explicitly (ComplianceAsCode requires it, max 15)"
+	})
+}
+
+// markerLinesProbe runs cmd, requires its "@ok" completion line, and judges
+// the lines before it.
+func markerLinesProbe(cmd string, judge func(lines []string) (bool, string)) Probe {
+	return Probe{
+		Baseline: true,
+		Command:  cmd,
+		Judge: func(out string) (bool, string) {
+			var lines []string
+			done := false
+			for _, l := range strings.Split(out, "\n") {
+				if strings.TrimSpace(l) == "@ok" {
+					done = true
+					continue
+				}
+				if strings.TrimSpace(l) != "" {
+					lines = append(lines, l)
+				}
+			}
+			if !done {
+				return false, "check did not complete"
+			}
+			return judge(lines)
+		},
+	}
+}
+
+func offenderProbe(cmd string) Probe {
+	return markerLinesProbe(cmd, func(lines []string) (bool, string) {
+		if len(lines) > 0 {
+			return false, "offenders: " + strings.Join(lines, ", ")
+		}
+		return true, "none"
+	})
+}
+
+// defaultsSet reports whether a sudoers Defaults line turns flag on.
+func defaultsSet(line, flag string) bool {
+	l := strings.TrimSpace(line)
+	if !strings.HasPrefix(l, "Defaults") {
+		return false
+	}
+	rest := strings.TrimSpace(strings.TrimPrefix(l, "Defaults"))
+	if strings.HasPrefix(rest, ":") || strings.HasPrefix(rest, "@") || strings.HasPrefix(rest, ">") || strings.HasPrefix(rest, "!") {
+		if f := strings.Fields(rest); len(f) > 1 {
+			rest = strings.Join(f[1:], " ")
+		}
+	}
+	for _, opt := range strings.FieldsFunc(rest, func(r rune) bool { return r == ',' || r == ' ' || r == '\t' }) {
+		if opt == flag {
+			return true
+		}
+	}
+	return false
+}
+
+func packageInstalledProbe(pkgs []string) Probe {
+	return Probe{
+		Baseline: true,
+		Command:  dpkgInstalled(pkgs),
+		Judge: func(out string) (bool, string) {
+			f := parseKV(out)
+			inst, ok := f["installed"]
+			if !ok {
+				return false, "no output"
+			}
+			have := map[string]bool{}
+			for _, p := range strings.Fields(inst) {
+				have[p] = true
+			}
+			var missing []string
+			for _, p := range pkgs {
+				if !have[p] {
+					missing = append(missing, p)
+				}
+			}
+			if len(missing) > 0 {
+				return false, "not installed: " + strings.Join(missing, ", ")
+			}
+			return true, strings.Join(pkgs, ", ") + " installed"
+		},
+	}
+}
+
+// apparmorProfilesProbe: CIS 1.3.1.3, every loaded profile in enforce or
+// complain mode, from `aa-status --json`.
+func apparmorProfilesProbe() Probe {
+	return Probe{
+		Baseline: true,
+		Command:  `sudo -n aa-status --json 2>/dev/null | head -c 1048576`,
+		Judge: func(out string) (bool, string) {
+			var st struct {
+				Profiles map[string]string `json:"profiles"`
+			}
+			if err := json.Unmarshal([]byte(strings.TrimSpace(out)), &st); err != nil {
+				return false, "aa-status --json unreadable"
+			}
+			if len(st.Profiles) == 0 {
+				return false, "no AppArmor profiles loaded"
+			}
+			other := map[string]int{}
+			for _, mode := range st.Profiles {
+				if mode != "enforce" && mode != "complain" {
+					other[mode]++
+				}
+			}
+			if len(other) > 0 {
+				var parts []string
+				for m, n := range other {
+					parts = append(parts, fmt.Sprintf("%d %s", n, m))
+				}
+				sort.Strings(parts)
+				return false, fmt.Sprintf("%d profiles loaded, not enforce/complain: %s", len(st.Profiles), strings.Join(parts, ", "))
+			}
+			return true, fmt.Sprintf("all %d profiles enforce or complain", len(st.Profiles))
 		},
 	}
 }

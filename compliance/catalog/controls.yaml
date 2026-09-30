@@ -281,6 +281,10 @@ controls:
       - {kind: host-sysctl, ref: "east:fs.suid_dumpable=0", maps: {cis-ubuntu2404: ["1.5.3"]}}
       - {kind: host-probe, ref: "west:apparmor-enabled", maps: {cis-ubuntu2404: ["1.3.1.2"]}}
       - {kind: host-probe, ref: "east:apparmor-enabled", maps: {cis-ubuntu2404: ["1.3.1.2"]}}
+      - {kind: host-probe, ref: "west:pkg-prelink-absent", maps: {cis-ubuntu2404: ["1.5.4"]}}
+      - {kind: host-probe, ref: "west:svc-apport-not-in-use", maps: {cis-ubuntu2404: ["1.5.5"]}}
+      - {kind: host-probe, ref: "east:pkg-prelink-absent", maps: {cis-ubuntu2404: ["1.5.4"]}}
+      - {kind: host-probe, ref: "east:svc-apport-not-in-use", maps: {cis-ubuntu2404: ["1.5.5"]}}
     mappings:
       nist-800-53r5: [CM-6, CM-7, SI-16]
       nist-800-171r3: ["03.04.02", "03.04.06"]
@@ -577,6 +581,116 @@ controls:
       nist-800-171r3: ["03.04.02"]
       nist-csf-2: [PR.PS-01]
       iso27001-2022: [A.8.9]
+
+  - id: UH-ACCT-01
+    title: Local account databases are consistent and hold no empty passwords
+    statement: >-
+      On both hosts every account uses shadowed passwords, no shadow entry
+      has an empty password, every primary group exists, the shadow group
+      has no members, and no UID, GID, user name or group name repeats.
+    rationale: >-
+      Account management and unique identification (AC-2, IA-2; 800-171
+      03.01.01, 03.05.01; CSF PR.AA-01; ISO A.5.16) and authenticator
+      management: no empty passwords (IA-5; 03.05.07; ISO A.5.17). CIS
+      Ubuntu 24.04 7.2.1-7.2.8.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:acct-passwd-shadowed", maps: {cis-ubuntu2404: ["7.2.1"]}}
+      - {kind: host-probe, ref: "west:acct-shadow-no-empty", maps: {cis-ubuntu2404: ["7.2.2"]}}
+      - {kind: host-probe, ref: "west:acct-groups-exist", maps: {cis-ubuntu2404: ["7.2.3"]}}
+      - {kind: host-probe, ref: "west:acct-shadow-group-empty", maps: {cis-ubuntu2404: ["7.2.4"]}}
+      - {kind: host-probe, ref: "west:acct-unique-uid", maps: {cis-ubuntu2404: ["7.2.5"]}}
+      - {kind: host-probe, ref: "west:acct-unique-gid", maps: {cis-ubuntu2404: ["7.2.6"]}}
+      - {kind: host-probe, ref: "west:acct-unique-user-name", maps: {cis-ubuntu2404: ["7.2.7"]}}
+      - {kind: host-probe, ref: "west:acct-unique-group-name", maps: {cis-ubuntu2404: ["7.2.8"]}}
+      - {kind: host-probe, ref: "east:acct-passwd-shadowed", maps: {cis-ubuntu2404: ["7.2.1"]}}
+      - {kind: host-probe, ref: "east:acct-shadow-no-empty", maps: {cis-ubuntu2404: ["7.2.2"]}}
+      - {kind: host-probe, ref: "east:acct-groups-exist", maps: {cis-ubuntu2404: ["7.2.3"]}}
+      - {kind: host-probe, ref: "east:acct-shadow-group-empty", maps: {cis-ubuntu2404: ["7.2.4"]}}
+      - {kind: host-probe, ref: "east:acct-unique-uid", maps: {cis-ubuntu2404: ["7.2.5"]}}
+      - {kind: host-probe, ref: "east:acct-unique-gid", maps: {cis-ubuntu2404: ["7.2.6"]}}
+      - {kind: host-probe, ref: "east:acct-unique-user-name", maps: {cis-ubuntu2404: ["7.2.7"]}}
+      - {kind: host-probe, ref: "east:acct-unique-group-name", maps: {cis-ubuntu2404: ["7.2.8"]}}
+    mappings:
+      nist-800-53r5: [AC-2, IA-2, IA-5]
+      nist-800-171r3: ["03.01.01", "03.05.01", "03.05.07"]
+      nist-csf-2: [PR.AA-01]
+      iso27001-2022: [A.5.16, A.5.17]
+
+  - id: UH-MAC-01
+    title: Mandatory access control is installed and its profiles confine
+    statement: >-
+      On both hosts AppArmor and its utilities are installed and every
+      loaded profile is in enforce or complain mode.
+    rationale: >-
+      Access enforcement by the kernel regardless of file permissions
+      (AC-3, AC-6; 800-171 03.01.02; CSF PR.AA-05; ISO A.8.3). CIS Ubuntu
+      24.04 1.3.1.1 and 1.3.1.3. Ubuntu ships profiles flagged
+      "unconfined" for user-namespace permissions; they count against
+      1.3.1.3 as the benchmark words it.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:apparmor-installed", maps: {cis-ubuntu2404: ["1.3.1.1"]}}
+      - {kind: host-probe, ref: "west:apparmor-profiles-enforced", maps: {cis-ubuntu2404: ["1.3.1.3"]}}
+      - {kind: host-probe, ref: "east:apparmor-installed", maps: {cis-ubuntu2404: ["1.3.1.1"]}}
+      - {kind: host-probe, ref: "east:apparmor-profiles-enforced", maps: {cis-ubuntu2404: ["1.3.1.3"]}}
+    mappings:
+      nist-800-53r5: [AC-3, AC-6]
+      nist-800-171r3: ["03.01.02"]
+      nist-csf-2: [PR.AA-05]
+      iso27001-2022: [A.8.3]
+
+  - id: UH-BOOT-01
+    title: The boot loader is password-protected and its configuration root-only
+    statement: >-
+      On both hosts grub has a superuser with a PBKDF2 password and
+      /boot/grub/grub.cfg is root-owned at 0600 or stricter.
+    rationale: >-
+      Access enforcement at boot (AC-3) against changing kernel parameters
+      or booting single-user with console access, as configuration
+      settings (CM-6; 800-171 03.04.02; CSF PR.PS-01; ISO A.8.9). CIS
+      Ubuntu 24.04 1.4.1 and 1.4.2 (path and mode from ComplianceAsCode's
+      Debian/Ubuntu grub properties).
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:grub-password", maps: {cis-ubuntu2404: ["1.4.1"]}}
+      - {kind: host-probe, ref: "west:perm-boot-grub-cfg", maps: {cis-ubuntu2404: ["1.4.2"]}}
+      - {kind: host-probe, ref: "east:grub-password", maps: {cis-ubuntu2404: ["1.4.1"]}}
+      - {kind: host-probe, ref: "east:perm-boot-grub-cfg", maps: {cis-ubuntu2404: ["1.4.2"]}}
+    mappings:
+      nist-800-53r5: [AC-3, CM-6]
+      nist-800-171r3: ["03.04.02"]
+      nist-csf-2: [PR.PS-01]
+      iso27001-2022: [A.8.9]
+
+  - id: UH-SUDO-01
+    title: Privilege escalation through sudo is logged, re-authenticated and pty-bound
+    statement: >-
+      On both hosts sudo is installed, runs commands in a pty, logs to its
+      own file, never skips authentication (!authenticate), and sets
+      timestamp_timeout explicitly to 15 minutes or less.
+    rationale: >-
+      Least privilege with logging of privileged functions (AC-6(9), AU-12)
+      and re-authentication (IA-11); 800-171 03.01.07; CSF PR.AA-05; ISO
+      A.8.2. CIS Ubuntu 24.04 5.2.1-5.2.3, 5.2.5, 5.2.6 (timeout must be
+      explicit per ComplianceAsCode).
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:sudo-installed", maps: {cis-ubuntu2404: ["5.2.1"]}}
+      - {kind: host-probe, ref: "west:sudo-use-pty", maps: {cis-ubuntu2404: ["5.2.2"]}}
+      - {kind: host-probe, ref: "west:sudo-logfile", maps: {cis-ubuntu2404: ["5.2.3"]}}
+      - {kind: host-probe, ref: "west:sudo-no-noauth", maps: {cis-ubuntu2404: ["5.2.5"]}}
+      - {kind: host-probe, ref: "west:sudo-timeout", maps: {cis-ubuntu2404: ["5.2.6"]}}
+      - {kind: host-probe, ref: "east:sudo-installed", maps: {cis-ubuntu2404: ["5.2.1"]}}
+      - {kind: host-probe, ref: "east:sudo-use-pty", maps: {cis-ubuntu2404: ["5.2.2"]}}
+      - {kind: host-probe, ref: "east:sudo-logfile", maps: {cis-ubuntu2404: ["5.2.3"]}}
+      - {kind: host-probe, ref: "east:sudo-no-noauth", maps: {cis-ubuntu2404: ["5.2.5"]}}
+      - {kind: host-probe, ref: "east:sudo-timeout", maps: {cis-ubuntu2404: ["5.2.6"]}}
+    mappings:
+      nist-800-53r5: [AC-6, AU-12, IA-11]
+      nist-800-171r3: ["03.01.07"]
+      nist-csf-2: [PR.AA-05]
+      iso27001-2022: [A.8.2]
 
   - id: UH-NET-01
     title: The host network stack rejects spoofed and redirected traffic
