@@ -14,9 +14,9 @@
 # Exposure assumed below: west and east are reachable from the home LAN and
 # the west-east P2P link only, not from the internet. Unverified (ADR-098
 # open question 4); if it is wrong, several severities rise. West holds a
-# public ISP-assigned IPv6 address (SLAAC) with ip6tables INPUT ACCEPT, so the
-# assumption rests on the home router dropping unsolicited inbound IPv6: see
-# FND-004. (Addresses are deliberately not written here.)
+# public ISP-assigned IPv6 address (SLAAC) with ip6tables INPUT ACCEPT; Stevie
+# confirmed 2026-09-30 that the ISP edge firewall drops unsolicited inbound
+# (FND-004, closed on his statement). (Addresses are deliberately not written here.)
 
 findings:
   # --- step 1: no host risk ---------------------------------------------
@@ -284,12 +284,10 @@ findings:
     lockout: none
     step: 1
     plan: >-
-      The west-east P2P link is not the question: west's public IPv6 address comes from the ISP router's advertisements on the home LAN.
-      Check the router's IPv6 inbound firewall, or from a phone on cellular (not wifi) try west's global address on port 7375; until then treat
-      west's firewall, sshd and service-auth findings as internet-facing
-    decision: ADR-098 question 4 (exposure)
+      Answered by Stevie 2026-09-30: the ISP's edge firewall drops unsolicited inbound traffic at the network edge, so west's public
+      IPv6 address is not reachable from the internet. Host firewalls (step 6) still matter for the LAN.
+    resolved: {on: 2026-09-30, evidence: "operator statement (Stevie, 2026-09-30): the ISP edge firewall drops unsolicited inbound; not independently tested from outside"}
 
-  # --- CIS Ubuntu 24.04 additions (2026-09-30) -------------------------------
   - source: "host-sysctl:west:net.ipv4.conf.all.secure_redirects=0"
     severity: low
     class: sysctl
