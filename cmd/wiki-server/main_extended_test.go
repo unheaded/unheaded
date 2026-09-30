@@ -1044,3 +1044,38 @@ func TestListPages_OnlyDirsNoMD(t *testing.T) {
 		t.Errorf("expected 0 items (no .md files), got %d: %+v", len(items), items)
 	}
 }
+
+// CLAUDE.md: every component publishes the standard HTTP metrics on
+// /metrics, labelled by route pattern rather than raw path.
+func TestBuildHandler_MetricsEndpoint(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "README.md"), []byte("# Home\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := buildHandler(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, p := range []string{"/health", "/wiki/zz-no-such-page-" + t.Name()} {
+		handler.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodGet, p, nil))
+	}
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("/metrics status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	for _, want := range []string{
+		`unheaded_http_requests_total{method="GET",path="/health",service="wiki-server",status="200"}`,
+		`path="/wiki/"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("/metrics missing %s", want)
+		}
+	}
+	if strings.Contains(body, "zz-no-such-page") {
+		t.Error("/metrics labels a raw request path")
+	}
+}
