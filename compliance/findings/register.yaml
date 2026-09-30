@@ -40,8 +40,9 @@ findings:
     lockout: none
     step: 1
     plan: >-
-      57be0ee8 (forge skips HIP kernels) reached CI at 289aabcb and clippy still fails there; reproducing in a clean clone with CI's
-      toolchain layout (stable default, ebpf nightly by its own toolchain file)
+      Cause from the job log: cmd/ebpf-collector and crates/zhend run tonic-build, which needs protoc, and the runner image has none
+      (red on every run since at least 2026-09-21; passes on west, which has protobuf-compiler). Fixed in 7682968c (CI installs
+      protobuf-compiler); resolves when pushed
 
   - source: "github-job:Security Scan (Daily + PR)/Go Security Scan (gosec)"
     severity: medium
@@ -61,8 +62,8 @@ findings:
     lockout: none
     step: 1
     plan: >-
-      18/18 gates bite locally; still red on GitHub at 289aabcb. The meta-gate runs check-clippy first, so it likely follows the clippy
-      failure; check again once clippy is fixed
+      On GitHub at 289aabcb every gate bit except check-clippy, INCONCLUSIVE because clippy was already red (protoc missing). 7682968c
+      installs protoc in this job too; resolves when pushed
 
   - source: "host-probe:west:db-backup-recent"
     severity: medium
