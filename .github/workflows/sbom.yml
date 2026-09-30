@@ -10,12 +10,12 @@ jobs:
     steps:
     - uses: actions/checkout@v5
     - name: Generate SBOM
-      uses: anchore/sbom-action@v0
+      uses: anchore/sbom-action@3ad7283483fc7af8ff2b4ea19663c2d5ca935e26 # v0.24.2
       with:
         format: spdx-json
         output-file: sbom.spdx.json
     - name: Scan SBOM for vulnerabilities
-      uses: anchore/scan-action@v4
+      uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2 (grype v0.118.0)
       with:
         sbom: sbom.spdx.json
         fail-build: true
