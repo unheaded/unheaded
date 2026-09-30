@@ -6,7 +6,7 @@
 #   source:   "<kind>:<ref>" of a catalog evidence source, or
 #   id:       FND-NNN for a finding no collector sees yet (needs title + verify)
 #   severity: critical | high | medium | low (exposure x impact; no inflation)
-#   class:    sysctl | sshd | firewall | service | app | container | ci | backup | process
+#   class:    sysctl | sshd | firewall | service | kmod | fileperm | mount | app | container | ci | backup | process
 #   lockout:  none | low | high (can fixing it lock Stevie out of the host?)
 #   step:     remediation order, ADR-098 section 4 (safe first, lockout risk last)
 #   accepted: {reason, compensating, accepted_on, until} <= 90 days; still counted
@@ -414,7 +414,7 @@ findings:
 
   - source: "host-probe:west:kmod-cramfs-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -422,7 +422,7 @@ findings:
 
   - source: "host-probe:west:kmod-freevxfs-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -430,7 +430,7 @@ findings:
 
   - source: "host-probe:west:kmod-hfs-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -438,7 +438,7 @@ findings:
 
   - source: "host-probe:west:kmod-hfsplus-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -446,7 +446,7 @@ findings:
 
   - source: "host-probe:west:kmod-jffs2-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -454,7 +454,7 @@ findings:
 
   - source: "host-probe:west:kmod-udf-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -462,7 +462,7 @@ findings:
 
   - source: "host-probe:west:kmod-usb-storage-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -471,7 +471,7 @@ findings:
 
   - source: "host-probe:east:kmod-cramfs-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -479,7 +479,7 @@ findings:
 
   - source: "host-probe:east:kmod-freevxfs-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -487,7 +487,7 @@ findings:
 
   - source: "host-probe:east:kmod-hfs-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -495,7 +495,7 @@ findings:
 
   - source: "host-probe:east:kmod-hfsplus-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -503,7 +503,7 @@ findings:
 
   - source: "host-probe:east:kmod-jffs2-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -511,7 +511,7 @@ findings:
 
   - source: "host-probe:east:kmod-udf-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -519,7 +519,7 @@ findings:
 
   - source: "host-probe:east:kmod-usb-storage-disabled"
     severity: low
-    class: sysctl
+    class: kmod
     opened: 2026-09-30
     lockout: none
     step: 2
@@ -528,7 +528,7 @@ findings:
 
   - source: "host-probe:west:perm-sshd-config"
     severity: low
-    class: sshd
+    class: fileperm
     opened: 2026-09-30
     exposure: world-readable sshd configuration (no secrets in it, but CIS 5.1.1 wants 0600)
     lockout: none
@@ -537,9 +537,324 @@ findings:
 
   - source: "host-probe:east:perm-sshd-config"
     severity: low
-    class: sshd
+    class: fileperm
     opened: 2026-09-30
     exposure: world-readable sshd configuration
     lockout: none
     step: 4
     plan: chmod 600 /etc/ssh/sshd_config; the 00-unheaded.conf drop-in (step 4/5) is installed 0600
+
+  # --- CIS 1.1.2.x mounts (2026-09-30) ------------------------------------
+
+  - source: "host-probe:east:mount-dev-shm-noexec"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "add noexec to /dev/shm (fstab `tmpfs /dev/shm tmpfs defaults,nodev,nosuid,noexec 0 0`); `mount -o remount /dev/shm`"
+
+  - source: "host-probe:east:mount-home-nodev"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "/home is on /, which cannot take nosuid (sudo) or nodev safely; resolves with the separate /home filesystem, mounted nodev,nosuid"
+
+  - source: "host-probe:east:mount-home-nosuid"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "/home is on /, which cannot take nosuid (sudo) or nodev safely; resolves with the separate /home filesystem, mounted nodev,nosuid"
+
+  - source: "host-probe:east:mount-home-separate"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: low
+    step: 7
+    plan: "Level 2: its own filesystem. east has no free disk space or LVM: accept, or shrink /var"
+    decision: "accept Level 2 filesystem separations on east (no free space, no LVM)"
+
+  - source: "host-probe:east:mount-tmp-noexec"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "add noexec to the /tmp tmpfs mount (systemd tmp.mount drop-in Options=...,noexec); remount"
+
+  - source: "host-probe:east:mount-var-log-audit-nodev"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
+
+  - source: "host-probe:east:mount-var-log-audit-noexec"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
+
+  - source: "host-probe:east:mount-var-log-audit-nosuid"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
+
+  - source: "host-probe:east:mount-var-log-audit-separate"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: low
+    step: 7
+    plan: "Level 2: its own filesystem. east has no free disk space or LVM: accept, or shrink /var. /var/log/audit exists only once auditd is installed (step 3)"
+    decision: "accept Level 2 filesystem separations on east (no free space, no LVM)"
+
+  - source: "host-probe:east:mount-var-log-nodev"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
+
+  - source: "host-probe:east:mount-var-log-noexec"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
+
+  - source: "host-probe:east:mount-var-log-nosuid"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
+
+  - source: "host-probe:east:mount-var-log-separate"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: low
+    step: 7
+    plan: "Level 2: its own filesystem. east has no free disk space or LVM: accept, or shrink /var"
+    decision: "accept Level 2 filesystem separations on east (no free space, no LVM)"
+
+  - source: "host-probe:east:mount-var-nodev"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: low
+    step: 2
+    plan: "/var holds Docker and LXD storage; nodev/nosuid on it may break containers that need device nodes or setuid binaries. Test on east first (remount -o nodev,nosuid live, run the stack), then fstab"
+    decision: "test nodev/nosuid on /var with the container stack before adopting"
+
+  - source: "host-probe:east:mount-var-nosuid"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: low
+    step: 2
+    plan: "/var holds Docker and LXD storage; nodev/nosuid on it may break containers that need device nodes or setuid binaries. Test on east first (remount -o nodev,nosuid live, run the stack), then fstab"
+    decision: "test nodev/nosuid on /var with the container stack before adopting"
+
+  - source: "host-probe:east:mount-var-tmp-nodev"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
+
+  - source: "host-probe:east:mount-var-tmp-noexec"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
+
+  - source: "host-probe:east:mount-var-tmp-nosuid"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
+
+  - source: "host-probe:east:mount-var-tmp-separate"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 7
+    plan: "Level 2: a real filesystem for /var/tmp. east has no free disk space or LVM: accept, or shrink /var"
+    decision: "accept Level 2 filesystem separations on east (no free space, no LVM)"
+
+  - source: "host-probe:west:mount-dev-shm-noexec"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "add noexec to /dev/shm (fstab `tmpfs /dev/shm tmpfs defaults,nodev,nosuid,noexec 0 0`); `mount -o remount /dev/shm`"
+
+  - source: "host-probe:west:mount-home-nodev"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "/home is on /, which cannot take nosuid (sudo) or nodev safely; resolves with the separate /home filesystem, mounted nodev,nosuid"
+
+  - source: "host-probe:west:mount-home-nosuid"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "/home is on /, which cannot take nosuid (sudo) or nodev safely; resolves with the separate /home filesystem, mounted nodev,nosuid"
+
+  - source: "host-probe:west:mount-home-separate"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: low
+    step: 7
+    plan: "Level 2: its own filesystem. west: an LV from ubuntu-vg (588G free), copy data with services stopped, fstab, mount"
+
+  - source: "host-probe:west:mount-tmp-noexec"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: low
+    step: 2
+    plan: "Go builds and tests execute from /tmp on west (the dev box); set GOTMPDIR (and TMPDIR for cargo/pip builds) to a directory under /var/tmp or ~, then add noexec to the /tmp tmpfs"
+    decision: "is west's /tmp used to run build output (Go, cargo, test binaries) outside what GOTMPDIR covers"
+
+  - source: "host-probe:west:mount-var-log-audit-nodev"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
+
+  - source: "host-probe:west:mount-var-log-audit-noexec"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
+
+  - source: "host-probe:west:mount-var-log-audit-nosuid"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec (after auditd, step 3)"
+
+  - source: "host-probe:west:mount-var-log-audit-separate"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: low
+    step: 7
+    plan: "Level 2: its own filesystem. west: an LV from ubuntu-vg (588G free), copy data with services stopped, fstab, mount. /var/log/audit exists only once auditd is installed (step 3)"
+
+  - source: "host-probe:west:mount-var-log-nodev"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
+
+  - source: "host-probe:west:mount-var-log-noexec"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
+
+  - source: "host-probe:west:mount-var-log-nosuid"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "resolves with the separate filesystem, mounted nodev,nosuid,noexec"
+
+  - source: "host-probe:west:mount-var-log-separate"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: low
+    step: 7
+    plan: "Level 2: its own filesystem. west: an LV from ubuntu-vg (588G free), copy data with services stopped, fstab, mount"
+
+  - source: "host-probe:west:mount-var-nodev"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: low
+    step: 2
+    plan: "/var holds Docker and LXD storage; nodev/nosuid on it may break containers that need device nodes or setuid binaries. Test on east first (remount -o nodev,nosuid live, run the stack), then fstab"
+    decision: "test nodev/nosuid on /var with the container stack before adopting"
+
+  - source: "host-probe:west:mount-var-nosuid"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: low
+    step: 2
+    plan: "/var holds Docker and LXD storage; nodev/nosuid on it may break containers that need device nodes or setuid binaries. Test on east first (remount -o nodev,nosuid live, run the stack), then fstab"
+    decision: "test nodev/nosuid on /var with the container stack before adopting"
+
+  - source: "host-probe:west:mount-var-tmp-nodev"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
+
+  - source: "host-probe:west:mount-var-tmp-noexec"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
+
+  - source: "host-probe:west:mount-var-tmp-nosuid"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "options via the /var/tmp filesystem once separate; until then /var's options govern (see /var entries)"
+
+  - source: "host-probe:west:mount-var-tmp-separate"
+    severity: low
+    class: mount
+    opened: 2026-09-30
+    lockout: none
+    step: 7
+    plan: "Level 2: a real filesystem for /var/tmp. west: an LV from ubuntu-vg (588G free); copy contents, fstab, mount"

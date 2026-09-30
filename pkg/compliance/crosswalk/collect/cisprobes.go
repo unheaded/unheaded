@@ -49,7 +49,35 @@ var fileRules = map[string]fileRule{
 	"perm-ssh-host-public-keys":  {[]fileTarget{{"/etc/ssh/*.pub", false}}, 0o644, ""},
 }
 
+// mountChecks: CIS 1.1.2.x. Each path gets a "separate" probe (its own
+// mount point) and one probe per required option. Options are read from
+// the filesystem that holds the path (findmnt --target): when /var/tmp is
+// not its own mount, what protects files there is /var's options, so that
+// is what is judged. That is stricter than ComplianceAsCode, whose option
+// rules do not apply without a separate mount; we have no "not applicable"
+// verdict, and passing an unprotected path would overstate coverage. A bind
+// mount of a path onto itself is not a separate filesystem (CIS separates
+// these so a full /var/log cannot fill /var) and fails "separate".
+var mountChecks = []struct {
+	path, slug string
+	opts       []string
+}{
+	{"/tmp", "tmp", []string{"nodev", "nosuid", "noexec"}},
+	{"/dev/shm", "dev-shm", []string{"nodev", "nosuid", "noexec"}},
+	{"/home", "home", []string{"nodev", "nosuid"}},
+	{"/var", "var", []string{"nodev", "nosuid"}},
+	{"/var/tmp", "var-tmp", []string{"nodev", "nosuid", "noexec"}},
+	{"/var/log", "var-log", []string{"nodev", "nosuid", "noexec"}},
+	{"/var/log/audit", "var-log-audit", []string{"nodev", "nosuid", "noexec"}},
+}
+
 func init() {
+	for _, m := range mountChecks {
+		Probes["mount-"+m.slug+"-separate"] = mountProbe(m.path, "")
+		for _, o := range m.opts {
+			Probes["mount-"+m.slug+"-"+o] = mountProbe(m.path, o)
+		}
+	}
 	for _, m := range kernelModules {
 		Probes["kmod-"+m+"-disabled"] = kernelModuleProbe(m)
 	}
@@ -155,6 +183,43 @@ func filePermProbe(r fileRule) Probe {
 				return false, strings.Join(bad, "; ")
 			}
 			return true, fmt.Sprintf("%d file(s) at mode %o or stricter, owned by root", n, r.mode)
+		},
+	}
+}
+
+// mountProbe judges `findmnt --target` output "TARGET OPTIONS". opt == ""
+// asks whether path is its own mount point; otherwise whether the
+// filesystem holding path is mounted with opt. A path that does not exist
+// fails: there is nothing mounted to judge.
+func mountProbe(path, opt string) Probe {
+	return Probe{
+		Baseline: true,
+		Command:  fmt.Sprintf(`findmnt -kn -o TARGET,SOURCE,OPTIONS --target %s 2>/dev/null | head -1 || true; [ -e %s ] || echo ABSENT`, path, path),
+		Judge: func(out string) (bool, string) {
+			out = strings.TrimSpace(out)
+			if out == "" || strings.Contains(out, "ABSENT") {
+				return false, path + " does not exist"
+			}
+			fs := strings.Fields(strings.SplitN(out, "\n", 2)[0])
+			if len(fs) != 3 {
+				return false, "unreadable: " + out
+			}
+			target, source, opts := fs[0], fs[1], strings.Split(fs[2], ",")
+			if opt == "" {
+				if target == path && strings.Contains(source, "[") {
+					return false, path + " is a bind mount of " + source + ", not a separate filesystem"
+				}
+				if target == path {
+					return true, path + " is its own mount (" + source + ")"
+				}
+				return false, path + " is on " + target + ", not its own mount"
+			}
+			for _, o := range opts {
+				if o == opt {
+					return true, fmt.Sprintf("%s (on %s) mounted %s", path, target, opt)
+				}
+			}
+			return false, fmt.Sprintf("%s (on %s) mounted without %s: %s", path, target, opt, fs[2])
 		},
 	}
 }

@@ -670,3 +670,34 @@ func TestProbeCommandsParse(t *testing.T) {
 		}
 	}
 }
+
+func TestMountProbes(t *testing.T) {
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"mount-tmp-separate", "/tmp tmpfs rw,nosuid,nodev,inode64\n", true},
+		{"mount-tmp-noexec", "/tmp tmpfs rw,nosuid,nodev,inode64\n", false},
+		{"mount-tmp-nosuid", "/tmp tmpfs rw,nosuid,nodev,inode64\n", true},
+		{"mount-var-tmp-separate", "/var /dev/sda rw,relatime\n", false},
+		{"mount-var-tmp-nodev", "/var /dev/sda rw,relatime\n", false}, // judged by /var's options
+		{"mount-var-tmp-nodev", "/var /dev/sda rw,nodev,relatime\n", true},
+		{"mount-home-nosuid", "/ /dev/sdb2 rw,relatime\n", false},
+		{"mount-var-log-audit-separate", "ABSENT\n", false},
+		{"mount-var-log-audit-noexec", "", false},
+		{"mount-dev-shm-noexec", "/dev/shm tmpfs rw,nosuid,nodev,noexec\n", true},
+		{"mount-tmp-nodev", "/tmp tmpfs rw,nodevice\n", false},                                // whole option names only
+		{"mount-var-log-separate", "/var/log /dev/sda[/log] rw,nodev,nosuid,noexec\n", false}, // bind mount
+		{"mount-var-log-separate", "/var/log /dev/sdc1 rw,nodev,nosuid,noexec\n", true},
+		{"mount-var-log-nodev", "/var/log /dev/sda[/log] rw,nodev,nosuid,noexec\n", true}, // options still count
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok || !p.Baseline {
+			t.Errorf("%s missing or not a baseline probe", tc.probe)
+			continue
+		}
+		if pass, detail := p.Judge(tc.out); pass != tc.pass {
+			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}
