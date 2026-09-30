@@ -230,7 +230,7 @@ def cis_ubuntu2404(out, now):
     only). Fails on anything unexpected rather than guessing."""
     data = fetch(CIS_UBUNTU2404)
     text = data.decode("utf-8")
-    m = re.search(r'^version:\s*"?([0-9.]+)"?\s*$', text, re.M)
+    m = re.search(r'^version:\s*"?([0-9.]+)"?\s*$', text, re.MULTILINE)
     if not m:
         sys.exit("cis_ubuntu2404: no version")
     version = m.group(1)
