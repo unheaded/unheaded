@@ -1,0 +1,225 @@
+# Unheaded common controls: one engineering practice each, evidenced by
+# machine-collected sources, mapped onto many frameworks (ADR-097).
+#
+# Rules for editing (the loader enforces the mechanical ones):
+#   - Evidence must be able to FAIL. A job whose steps are continue-on-error
+#     (hadolint, Doom Range port check) is not evidence and is not listed.
+#   - Map to what the evidence actually shows. A mapping says "this evidence
+#     supports part of that requirement", never "requirement satisfied": the
+#     dashboard reports EVIDENCED, and no framework is claimed met.
+#   - Map 800-53 only; FedRAMP baselines are derived from it (derived_from)
+#     and pick the mapping up for the controls they contain.
+#   - Every mapping is reviewable: say why in `rationale`.
+#
+# github-job refs are "<workflow name>/<job name>" exactly as GitHub Actions
+# reports them.
+
+controls:
+  - id: UH-VULN-01
+    title: Known-vulnerable dependencies fail the build
+    statement: >-
+      Every push to main, develop and staging runs govulncheck over the Go
+      module, cargo-audit over every Rust workspace, and a grype scan of the
+      repository SBOM at a medium severity cutoff; each fails the build on a
+      finding.
+    rationale: >-
+      Automated vulnerability scanning of dependencies with enforced
+      remediation (RA-5 scanning, SI-2 flaw remediation, RA-5(2) updated
+      vulnerability data on every run); SSDF RV.1 ongoing identification and
+      PW.4 reuse of well-secured components; CSF ID.RA-01 vulnerabilities
+      identified; ISO A.8.8 technical vulnerability management.
+    freshness_days: 7
+    evidence:
+      - {kind: github-job, ref: "Security Scan (Daily + PR)/Go Vulnerability Check"}
+      - {kind: github-job, ref: "Security Scan (Daily + PR)/Rust Cargo Audit"}
+      - {kind: github-job, ref: "SBOM + Vulnerability Scan/sbom"}
+    mappings:
+      nist-800-53r5: [RA-5, RA-5(2), SI-2]
+      nist-800-171r3: ["03.11.02", "03.14.01"]
+      nist-csf-2: [ID.RA-01]
+      nist-ssdf: [RV.1, PW.4]
+      soc2-security: [CC7.1]
+      iso27001-2022: [A.8.8]
+
+  - id: UH-SAST-01
+    title: Static analysis gates every change
+    statement: >-
+      Every push runs gosec (Go, at v2.29.0 with the module's toolchain),
+      clippy over all Rust workspaces (ratcheted at zero warnings), ruff
+      (Python), shellcheck (warnings and errors) and eslint; each job fails
+      the build on a new finding.
+    rationale: >-
+      Developer security testing with static code analysis (SA-11, SA-11(1));
+      SSDF PW.7 review and analyze human-readable code; CSF PR.PS-06 secure
+      development practices; SOC 2 CC8.1 changes tested before release; ISO
+      A.8.28 secure coding and A.8.29 security testing in development.
+    freshness_days: 7
+    evidence:
+      - {kind: github-job, ref: "Security Scan (Daily + PR)/Go Security Scan (gosec)"}
+      - {kind: github-job, ref: "Static Analysis/Rust (clippy)"}
+      - {kind: github-job, ref: "Static Analysis/Python (ruff + bandit)"}
+      - {kind: github-job, ref: "Static Analysis/Shell (shellcheck)"}
+      - {kind: github-job, ref: "Static Analysis/JavaScript (eslint)"}
+    mappings:
+      nist-800-53r5: [SA-11, SA-11(1)]
+      nist-csf-2: [PR.PS-06]
+      nist-ssdf: [PW.7]
+      soc2-security: [CC8.1]
+      iso27001-2022: [A.8.28, A.8.29]
+
+  - id: UH-SECRET-01
+    title: Committed credentials fail the build
+    statement: >-
+      Every push runs gitleaks over the working tree and trivy's secret
+      scanner over the filesystem, both gating; the gitleaks baseline of
+      pre-existing findings may only shrink (scripts/check-secrets-baseline.sh).
+    rationale: >-
+      Prevents embedded static authenticators (IA-5(7)) and protects
+      authentication information in code (ISO A.5.17); SSDF PS.1 protect all
+      forms of code; SOC 2 CC6.1 logical access protections over credentials.
+    freshness_days: 7
+    evidence:
+      - {kind: github-job, ref: "Security Scan (Daily + PR)/Secret Scan (gitleaks)"}
+      - {kind: github-job, ref: "Security Scan (Daily + PR)/Trivy Filesystem Scan"}
+    mappings:
+      nist-800-53r5: [IA-5(7)]
+      nist-ssdf: [PS.1]
+      soc2-security: [CC6.1]
+      iso27001-2022: [A.5.17]
+
+  - id: UH-SBOM-01
+    title: A software bill of materials is generated and scanned on every push
+    statement: >-
+      Every push generates an SPDX SBOM of the repository (anchore
+      sbom-action) and scans it with grype; the build fails at medium
+      severity or above.
+    rationale: >-
+      A machine-readable inventory of software components (CM-8; CSF ID.AM-02
+      software inventories; ISO A.5.9 inventory of assets; 800-171 03.04.10
+      component inventory); SSDF PS.3 archive and protect releases including
+      provenance data.
+    freshness_days: 7
+    evidence:
+      - {kind: github-job, ref: "SBOM + Vulnerability Scan/sbom"}
+    mappings:
+      nist-800-53r5: [CM-8]
+      nist-800-171r3: ["03.04.10"]
+      nist-csf-2: [ID.AM-02]
+      nist-ssdf: [PS.3]
+      iso27001-2022: [A.5.9]
+
+  - id: UH-FUZZ-01
+    title: Parsers are fuzzed on every push
+    statement: >-
+      Every push runs the Go fuzz targets (LICH harnesses and in-package
+      fuzzers) for 30 seconds each; any crash fails the build.
+    rationale: >-
+      Dynamic code analysis of executable code (SA-11(8)); SSDF PW.8 test
+      executable code to identify vulnerabilities; ISO A.8.29 security
+      testing in development; SOC 2 CC8.1 testing of changes.
+    freshness_days: 7
+    evidence:
+      - {kind: github-job, ref: "Security Scan (Daily + PR)/Lich Fuzz Harnesses"}
+    mappings:
+      nist-800-53r5: [SA-11(8)]
+      nist-ssdf: [PW.8]
+      soc2-security: [CC8.1]
+      iso27001-2022: [A.8.29]
+
+  - id: UH-GATE-01
+    title: Every security gate is proven able to fail
+    statement: >-
+      scripts/check-gates-can-fail.sh plants a violation for each gate, runs
+      it, and fails unless the gate fails; a gate with no registered
+      provocation fails the run. Runs on every push to protected branches.
+    rationale: >-
+      Evaluates whether the controls above are present and functioning, not
+      merely configured (SOC 2 CC4.1 monitoring activities; CA-7 continuous
+      monitoring; CSF ID.IM-02 improvements from tests; ISO A.5.36
+      compliance with policies and rules); SSDF PO.3 supporting toolchains
+      that produce evidence of the practices.
+    freshness_days: 7
+    evidence:
+      - {kind: github-job, ref: "Static Analysis/Gates can actually fail"}
+    mappings:
+      nist-800-53r5: [CA-7]
+      nist-csf-2: [ID.IM-02]
+      nist-ssdf: [PO.3]
+      soc2-security: [CC4.1]
+      iso27001-2022: [A.5.36]
+
+  - id: UH-SIGN-01
+    title: Commits on the development branch are cryptographically signed
+    statement: >-
+      Every commit reachable from develop within the checked window carries
+      a good GPG signature from a trusted key (git %G? == G).
+    rationale: >-
+      Attributable, tamper-evident change records (AU-10 non-repudiation;
+      CM-3 configuration change control; 800-171 03.04.03); SSDF PS.1
+      protect code from unauthorized changes; SOC 2 CC8.1 authorized
+      changes; ISO A.8.32 change management.
+    freshness_days: 7
+    evidence:
+      - {kind: git-signatures, ref: develop}
+    mappings:
+      nist-800-53r5: [AU-10, CM-3]
+      nist-800-171r3: ["03.04.03"]
+      nist-ssdf: [PS.1]
+      soc2-security: [CC8.1]
+      iso27001-2022: [A.8.32]
+
+  - id: UH-LIC-01
+    title: Dependency licences are checked against the GPL boundary
+    statement: >-
+      Every push runs scripts/verify-gpl-boundary.sh over the Go and Rust
+      dependency trees and fails on a licence outside the allowed set.
+    rationale: >-
+      Software usage restrictions per licence terms (CM-10); ISO A.5.32
+      intellectual property rights.
+    freshness_days: 7
+    evidence:
+      - {kind: github-job, ref: "GPL Boundary Check/GPL/AGPL Boundary Verification"}
+    mappings:
+      nist-800-53r5: [CM-10]
+      iso27001-2022: [A.5.32]
+
+  - id: UH-IDS-01
+    title: Intrusion detection rules load and fire as intended
+    statement: >-
+      Every push replays generated Monad packets through the Suricata
+      images the DaemonSet and Nix hosts run, and fails unless every rule
+      loads and fires on its intended packet and stays silent otherwise.
+    rationale: >-
+      System monitoring for attacks (SI-4) is only real if the detection
+      content loads; this proves it on every change (CSF DE.CM-01 networks
+      monitored; ISO A.8.16 monitoring activities; SOC 2 CC7.2 anomaly
+      detection; 800-171 03.14.06).
+    freshness_days: 7
+    evidence:
+      - {kind: github-job, ref: "Security Scan (Daily + PR)/Suricata Monad rules"}
+    mappings:
+      nist-800-53r5: [SI-4]
+      nist-800-171r3: ["03.14.06"]
+      nist-csf-2: [DE.CM-01]
+      soc2-security: [CC7.2]
+      iso27001-2022: [A.8.16]
+
+  - id: UH-CFG-01
+    title: Container logging and mount configuration is enforced from the compose file
+    statement: >-
+      scripts/check-compose-log-caps.sh fails if any compose service lacks
+      its own log size and rotation caps; scripts/check-compose-bind-nesting.sh
+      fails on a bind mount nested inside another's mountpoint.
+    rationale: >-
+      Enforced configuration settings (CM-6; 800-171 03.04.02; CSF PR.PS-01;
+      ISO A.8.9) and audit log storage capacity (AU-4) checked from the
+      declared configuration, not a running host's defaults.
+    freshness_days: 7
+    evidence:
+      - {kind: gate-script, ref: scripts/check-compose-log-caps.sh}
+      - {kind: gate-script, ref: scripts/check-compose-bind-nesting.sh}
+    mappings:
+      nist-800-53r5: [CM-6, AU-4]
+      nist-800-171r3: ["03.04.02"]
+      nist-csf-2: [PR.PS-01]
+      iso27001-2022: [A.8.9]

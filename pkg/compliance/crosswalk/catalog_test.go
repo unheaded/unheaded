@@ -151,3 +151,59 @@ func FuzzLoad(f *testing.F) {
 		}
 	})
 }
+
+const derivedFrameworks = `
+frameworks:
+  - id: base
+    name: Base
+    requirements: [{id: RA-5}, {id: SI-2}, {id: AC-2}]
+  - id: baseline-low
+    name: Baseline Low
+    derived_from: base
+    requirements: [{id: RA-5}, {id: AC-2}]
+`
+
+// Attest once: a mapping to the base framework projects onto every derived
+// baseline that contains the same requirement, with no second mapping.
+func TestLoad_DerivedFrameworkProjection(t *testing.T) {
+	c, err := Load([]byte(derivedFrameworks), []byte(`
+controls:
+  - id: UH-VULN-01
+    title: t
+    statement: s
+    freshness_days: 7
+    evidence: [{kind: gate-script, ref: a.sh}]
+    mappings: {base: [RA-5, SI-2]}
+`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := c.Controls[0].Mappings["baseline-low"]
+	if len(got) != 1 || got[0] != "RA-5" {
+		t.Fatalf("derived mapping = %v, want [RA-5] (SI-2 is not in the low baseline)", got)
+	}
+}
+
+func TestLoad_DerivedFrameworkRejects(t *testing.T) {
+	ctl := func(m string) string {
+		return "controls:\n  - id: UH-VULN-01\n    title: t\n    statement: s\n    freshness_days: 7\n" +
+			"    evidence: [{kind: gate-script, ref: a.sh}]\n    mappings: {" + m + "}\n"
+	}
+	for _, tc := range []struct{ name, fw, ctl, want string }{
+		{"direct mapping to a derived framework", derivedFrameworks, ctl("baseline-low: [RA-5]"), "derived"},
+		{"derived requirement missing from base",
+			strings.Replace(derivedFrameworks, "[{id: RA-5}, {id: AC-2}]", "[{id: RA-5}, {id: ZZ-9}]", 1),
+			ctl("base: [RA-5]"), "not in its base"},
+		{"unknown base", strings.Replace(derivedFrameworks, "derived_from: base", "derived_from: nope", 1),
+			ctl("base: [RA-5]"), "unknown base"},
+		{"base is itself derived", derivedFrameworks + "  - id: deeper\n    name: D\n    derived_from: baseline-low\n    requirements: [{id: RA-5}]\n",
+			ctl("base: [RA-5]"), "itself derived"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := Load([]byte(tc.fw), []byte(tc.ctl))
+			if !errors.Is(err, ErrInvalidCatalog) || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("err = %v, want ErrInvalidCatalog containing %q", err, tc.want)
+			}
+		})
+	}
+}

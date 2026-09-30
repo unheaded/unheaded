@@ -20,7 +20,11 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
+	"io/fs"
+	"path"
 	"regexp"
+	"sort"
 
 	"gopkg.in/yaml.v3"
 )
@@ -54,11 +58,15 @@ type Requirement struct {
 // Framework is a complete requirement list: the denominator every coverage
 // figure for that framework is reported against.
 type Framework struct {
-	ID           string        `yaml:"id" json:"id"`
-	Name         string        `yaml:"name" json:"name"`
-	Version      string        `yaml:"version" json:"version"`
-	Granularity  string        `yaml:"granularity" json:"granularity"`
-	Source       string        `yaml:"source" json:"source"`
+	ID          string `yaml:"id" json:"id"`
+	Name        string `yaml:"name" json:"name"`
+	Version     string `yaml:"version" json:"version"`
+	Granularity string `yaml:"granularity" json:"granularity"`
+	Source      string `yaml:"source" json:"source"`
+	// DerivedFrom names a framework whose requirement IDs this one reuses
+	// (FedRAMP baselines are 800-53 controls). Controls map to the base
+	// only; Load projects each mapping onto the derived framework.
+	DerivedFrom  string        `yaml:"derived_from,omitempty" json:"derived_from,omitempty"`
 	Requirements []Requirement `yaml:"requirements" json:"requirements"`
 
 	index map[string]bool
@@ -79,9 +87,12 @@ func (s Source) Key() string { return s.Kind + ":" + s.Ref }
 // Control is a common control: one engineering practice, evidenced by
 // machine-collected sources, mapped to requirements in many frameworks.
 type Control struct {
-	ID            string              `yaml:"id" json:"id"`
-	Title         string              `yaml:"title" json:"title"`
-	Statement     string              `yaml:"statement" json:"statement"`
+	ID        string `yaml:"id" json:"id"`
+	Title     string `yaml:"title" json:"title"`
+	Statement string `yaml:"statement" json:"statement"`
+	// Rationale says why the evidence supports each mapping, so a reviewer
+	// can challenge the mapping instead of taking it on trust.
+	Rationale     string              `yaml:"rationale,omitempty" json:"rationale,omitempty"`
 	FreshnessDays int                 `yaml:"freshness_days" json:"freshness_days"`
 	Evidence      []Source            `yaml:"evidence" json:"evidence"`
 	Mappings      map[string][]string `yaml:"mappings" json:"mappings"`
@@ -110,14 +121,67 @@ func decodeStrict(b []byte, v any) error {
 
 // Load parses and validates a frameworks file and a controls file.
 func Load(frameworksYAML, controlsYAML []byte) (*Catalog, error) {
-	if len(frameworksYAML) > MaxCatalogBytes || len(controlsYAML) > MaxCatalogBytes {
+	return LoadDocs([][]byte{frameworksYAML}, controlsYAML)
+}
+
+// LoadFS loads every *.yaml under frameworksDir (one or more frameworks per
+// file) and the controls file, from fsys.
+func LoadFS(fsys fs.FS, frameworksDir, controlsPath string) (*Catalog, error) {
+	names, err := fs.Glob(fsys, path.Join(frameworksDir, "*.yaml"))
+	if err != nil || len(names) == 0 {
+		return nil, invalid("no framework files in %s (%v)", frameworksDir, err)
+	}
+	sort.Strings(names)
+	docs := make([][]byte, 0, len(names))
+	for _, n := range names {
+		b, err := readBounded(fsys, n)
+		if err != nil {
+			return nil, err
+		}
+		docs = append(docs, b)
+	}
+	ctl, err := readBounded(fsys, controlsPath)
+	if err != nil {
+		return nil, err
+	}
+	return LoadDocs(docs, ctl)
+}
+
+func readBounded(fsys fs.FS, name string) ([]byte, error) {
+	f, err := fsys.Open(name)
+	if err != nil {
+		return nil, invalid("open %s: %v", name, err)
+	}
+	defer f.Close()
+	b, err := io.ReadAll(io.LimitReader(f, MaxCatalogBytes+1))
+	if err != nil {
+		return nil, invalid("read %s: %v", name, err)
+	}
+	if len(b) > MaxCatalogBytes {
+		return nil, invalid("%s larger than %d bytes", name, MaxCatalogBytes)
+	}
+	return b, nil
+}
+
+// LoadDocs parses and validates several frameworks files and a controls file.
+func LoadDocs(frameworksYAML [][]byte, controlsYAML []byte) (*Catalog, error) {
+	if len(controlsYAML) > MaxCatalogBytes {
 		return nil, invalid("catalog file larger than %d bytes", MaxCatalogBytes)
 	}
 	var fwDoc struct {
 		Frameworks []*Framework `yaml:"frameworks"`
 	}
-	if err := decodeStrict(frameworksYAML, &fwDoc); err != nil {
-		return nil, invalid("frameworks: %v", err)
+	for _, b := range frameworksYAML {
+		if len(b) > MaxCatalogBytes {
+			return nil, invalid("catalog file larger than %d bytes", MaxCatalogBytes)
+		}
+		var d struct {
+			Frameworks []*Framework `yaml:"frameworks"`
+		}
+		if err := decodeStrict(b, &d); err != nil {
+			return nil, invalid("frameworks: %v", err)
+		}
+		fwDoc.Frameworks = append(fwDoc.Frameworks, d.Frameworks...)
 	}
 	var ctlDoc struct {
 		Controls []*Control `yaml:"controls"`
@@ -149,6 +213,24 @@ func Load(frameworksYAML, controlsYAML []byte) (*Catalog, error) {
 		}
 		c.byID[fw.ID] = fw
 		c.Frameworks = append(c.Frameworks, fw)
+	}
+
+	for _, fw := range c.Frameworks {
+		if fw.DerivedFrom == "" {
+			continue
+		}
+		base := c.byID[fw.DerivedFrom]
+		switch {
+		case base == nil:
+			return nil, invalid("framework %q: unknown base %q", fw.ID, fw.DerivedFrom)
+		case base.DerivedFrom != "":
+			return nil, invalid("framework %q: base %q is itself derived", fw.ID, base.ID)
+		}
+		for _, r := range fw.Requirements {
+			if !base.Has(r.ID) {
+				return nil, invalid("framework %q: requirement %q is not in its base %s", fw.ID, r.ID, base.ID)
+			}
+		}
 	}
 
 	seen := make(map[string]bool)
@@ -185,6 +267,9 @@ func Load(frameworksYAML, controlsYAML []byte) (*Catalog, error) {
 			if fw == nil {
 				return nil, invalid("control %q maps to unknown framework %q", ctl.ID, fwID)
 			}
+			if fw.DerivedFrom != "" {
+				return nil, invalid("control %q maps to %q, which is derived from %s: map to the base", ctl.ID, fwID, fw.DerivedFrom)
+			}
 			for _, r := range reqs {
 				if !fw.Has(r) {
 					return nil, invalid("control %q: %q is not a requirement of %s", ctl.ID, r, fwID)
@@ -195,9 +280,29 @@ func Load(frameworksYAML, controlsYAML []byte) (*Catalog, error) {
 		if n == 0 {
 			return nil, invalid("control %q maps to no requirement", ctl.ID)
 		}
+		c.project(ctl)
 		c.Controls = append(c.Controls, ctl)
 	}
 	return c, nil
+}
+
+// project copies ctl's mappings onto every framework derived from a base it
+// maps to, keeping only the requirements the derived framework contains.
+func (c *Catalog) project(ctl *Control) {
+	for _, fw := range c.Frameworks {
+		if fw.DerivedFrom == "" {
+			continue
+		}
+		var reqs []string
+		for _, r := range ctl.Mappings[fw.DerivedFrom] {
+			if fw.Has(r) {
+				reqs = append(reqs, r)
+			}
+		}
+		if len(reqs) > 0 {
+			ctl.Mappings[fw.ID] = reqs
+		}
+	}
 }
 
 func frameworkID(f *Framework) string {
