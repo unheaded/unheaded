@@ -451,6 +451,140 @@ controls:
       iso27001-2022: [A.8.9]
       cis-ubuntu2404: ["1.1.2.1.1", "1.1.2.1.2", "1.1.2.1.3", "1.1.2.1.4", "1.1.2.2.1", "1.1.2.2.2", "1.1.2.2.3", "1.1.2.2.4", "1.1.2.3.1", "1.1.2.3.2", "1.1.2.3.3", "1.1.2.4.1", "1.1.2.4.2", "1.1.2.4.3", "1.1.2.5.1", "1.1.2.5.2", "1.1.2.5.3", "1.1.2.5.4", "1.1.2.6.1", "1.1.2.6.2", "1.1.2.6.3", "1.1.2.6.4", "1.1.2.7.1", "1.1.2.7.2", "1.1.2.7.3", "1.1.2.7.4"]
 
+  - id: UH-SVC-01
+    title: Only needed network services are installed or running on the hosts
+    statement: >-
+      On both hosts, none of the CIS list of server packages (autofs,
+      avahi, DHCP, DNS, dnsmasq, FTP, LDAP, IMAP/POP, NFS, NIS, CUPS,
+      rpcbind, rsync, Samba, SNMP, TFTP, Squid, Apache/nginx, xinetd, X
+      server) is installed, or where one is installed as a dependency its
+      units are disabled or masked and stopped; no mail transfer agent
+      listens beyond loopback.
+    rationale: >-
+      Least functionality: only essential services (CM-7; 800-171 03.04.06;
+      CSF PR.PS-01; ISO A.8.9). CIS Ubuntu 24.04 2.1.1-2.1.21 (2.1.20 X
+      server is Level 2). Package and unit names are ComplianceAsCode's
+      for ubuntu2404.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:svc-autofs-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-avahi-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-dhcp-server-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-dns-server-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-dnsmasq-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-ftp-server-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-ldap-server-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-mail-access-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-nfs-server-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-nis-server-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-print-server-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-rpcbind-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-rsync-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-samba-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-snmp-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-tftp-server-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-web-proxy-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-web-server-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-xinetd-not-in-use"}
+      - {kind: host-probe, ref: "west:svc-x-server-not-in-use"}
+      - {kind: host-probe, ref: "west:mta-local-only"}
+      - {kind: host-probe, ref: "east:svc-autofs-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-avahi-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-dhcp-server-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-dns-server-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-dnsmasq-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-ftp-server-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-ldap-server-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-mail-access-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-nfs-server-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-nis-server-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-print-server-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-rpcbind-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-rsync-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-samba-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-snmp-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-tftp-server-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-web-proxy-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-web-server-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-xinetd-not-in-use"}
+      - {kind: host-probe, ref: "east:svc-x-server-not-in-use"}
+      - {kind: host-probe, ref: "east:mta-local-only"}
+    mappings:
+      nist-800-53r5: [CM-7]
+      nist-800-171r3: ["03.04.06"]
+      nist-csf-2: [PR.PS-01]
+      iso27001-2022: [A.8.9]
+      cis-ubuntu2404: ["2.1.1", "2.1.2", "2.1.3", "2.1.4", "2.1.5", "2.1.6", "2.1.7", "2.1.8", "2.1.9", "2.1.10", "2.1.11", "2.1.12", "2.1.13", "2.1.14", "2.1.15", "2.1.16", "2.1.17", "2.1.18", "2.1.19", "2.1.20", "2.1.21"]
+
+  - id: UH-SVC-02
+    title: Clients for insecure legacy protocols are not installed
+    statement: >-
+      On both hosts, the NIS, rsh, talk, telnet, LDAP and FTP clients are
+      not installed.
+    rationale: >-
+      Least functionality (CM-7; 800-171 03.04.06; CSF PR.PS-01; ISO
+      A.8.9): cleartext-credential clients invite their use. CIS Ubuntu
+      24.04 2.2.1-2.2.6.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:pkg-nis-client-absent"}
+      - {kind: host-probe, ref: "west:pkg-rsh-client-absent"}
+      - {kind: host-probe, ref: "west:pkg-talk-client-absent"}
+      - {kind: host-probe, ref: "west:pkg-telnet-client-absent"}
+      - {kind: host-probe, ref: "west:pkg-ldap-client-absent"}
+      - {kind: host-probe, ref: "west:pkg-ftp-client-absent"}
+      - {kind: host-probe, ref: "east:pkg-nis-client-absent"}
+      - {kind: host-probe, ref: "east:pkg-rsh-client-absent"}
+      - {kind: host-probe, ref: "east:pkg-talk-client-absent"}
+      - {kind: host-probe, ref: "east:pkg-telnet-client-absent"}
+      - {kind: host-probe, ref: "east:pkg-ldap-client-absent"}
+      - {kind: host-probe, ref: "east:pkg-ftp-client-absent"}
+    mappings:
+      nist-800-53r5: [CM-7]
+      nist-800-171r3: ["03.04.06"]
+      nist-csf-2: [PR.PS-01]
+      iso27001-2022: [A.8.9]
+      cis-ubuntu2404: ["2.2.1", "2.2.2", "2.2.3", "2.2.4", "2.2.5", "2.2.6"]
+
+  - id: UH-CRON-01
+    title: Scheduled-job configuration is root-only and scheduling is restricted
+    statement: >-
+      On both hosts, cron is running; /etc/crontab is root 0600 and the
+      cron.hourly, daily, weekly, monthly and cron.d directories root
+      0700; /etc/cron.allow exists (root:crontab, 0640) and cron.deny does
+      not; where at is installed, at.allow exists and at.deny is root 0640.
+    rationale: >-
+      Access enforcement on what runs as root on a schedule (AC-3, CM-6;
+      800-171 03.04.02; CSF PR.PS-01; ISO A.8.9). CIS Ubuntu 24.04
+      2.4.1.1-2.4.1.8 and 2.4.2.1; values from ComplianceAsCode's
+      ubuntu2404 rules.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:cron-active"}
+      - {kind: host-probe, ref: "west:perm-etc-crontab"}
+      - {kind: host-probe, ref: "west:perm-etc-cron-hourly"}
+      - {kind: host-probe, ref: "west:perm-etc-cron-daily"}
+      - {kind: host-probe, ref: "west:perm-etc-cron-weekly"}
+      - {kind: host-probe, ref: "west:perm-etc-cron-monthly"}
+      - {kind: host-probe, ref: "west:perm-etc-cron-d"}
+      - {kind: host-probe, ref: "west:cron-allow-restricted"}
+      - {kind: host-probe, ref: "west:at-restricted"}
+      - {kind: host-probe, ref: "east:cron-active"}
+      - {kind: host-probe, ref: "east:perm-etc-crontab"}
+      - {kind: host-probe, ref: "east:perm-etc-cron-hourly"}
+      - {kind: host-probe, ref: "east:perm-etc-cron-daily"}
+      - {kind: host-probe, ref: "east:perm-etc-cron-weekly"}
+      - {kind: host-probe, ref: "east:perm-etc-cron-monthly"}
+      - {kind: host-probe, ref: "east:perm-etc-cron-d"}
+      - {kind: host-probe, ref: "east:cron-allow-restricted"}
+      - {kind: host-probe, ref: "east:at-restricted"}
+    mappings:
+      nist-800-53r5: [AC-3, CM-6]
+      nist-800-171r3: ["03.04.02"]
+      nist-csf-2: [PR.PS-01]
+      iso27001-2022: [A.8.9]
+      cis-ubuntu2404: ["2.4.1.1", "2.4.1.2", "2.4.1.3", "2.4.1.4", "2.4.1.5", "2.4.1.6", "2.4.1.7", "2.4.1.8", "2.4.2.1"]
+
   - id: UH-NET-01
     title: The host network stack rejects spoofed and redirected traffic
     statement: >-

@@ -39,7 +39,7 @@ var sortRank = map[Severity]int{SeverityUntriaged: 0, SeverityCritical: 1, Sever
 // Classes follow ADR-098 §2, where each has a fixed enforcing action.
 var findingClasses = map[string]bool{
 	"sysctl": true, "sshd": true, "firewall": true, "service": true,
-	"kmod": true, "fileperm": true, "mount": true,
+	"kmod": true, "fileperm": true, "mount": true, "package": true,
 	"app": true, "container": true, "ci": true, "backup": true, "process": true,
 }
 

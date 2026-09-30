@@ -3,7 +3,10 @@
 version: 1
 sources:
   - {kind: host-probe, ref: "east:apparmor-enabled"}
+  - {kind: host-probe, ref: "east:at-restricted"}
   - {kind: host-probe, ref: "east:auditd-running"}
+  - {kind: host-probe, ref: "east:cron-active"}
+  - {kind: host-probe, ref: "east:cron-allow-restricted"}
   - {kind: host-probe, ref: "east:firewall-inbound-deny"}
   - {kind: host-probe, ref: "east:kmod-cramfs-disabled"}
   - {kind: host-probe, ref: "east:kmod-freevxfs-disabled"}
@@ -38,7 +41,14 @@ sources:
   - {kind: host-probe, ref: "east:mount-var-tmp-noexec"}
   - {kind: host-probe, ref: "east:mount-var-tmp-nosuid"}
   - {kind: host-probe, ref: "east:mount-var-tmp-separate"}
+  - {kind: host-probe, ref: "east:mta-local-only"}
   - {kind: host-probe, ref: "east:ntp-synchronized"}
+  - {kind: host-probe, ref: "east:perm-etc-cron-d"}
+  - {kind: host-probe, ref: "east:perm-etc-cron-daily"}
+  - {kind: host-probe, ref: "east:perm-etc-cron-hourly"}
+  - {kind: host-probe, ref: "east:perm-etc-cron-monthly"}
+  - {kind: host-probe, ref: "east:perm-etc-cron-weekly"}
+  - {kind: host-probe, ref: "east:perm-etc-crontab"}
   - {kind: host-probe, ref: "east:perm-etc-group"}
   - {kind: host-probe, ref: "east:perm-etc-group-backup"}
   - {kind: host-probe, ref: "east:perm-etc-gshadow"}
@@ -52,9 +62,38 @@ sources:
   - {kind: host-probe, ref: "east:perm-ssh-host-private-keys"}
   - {kind: host-probe, ref: "east:perm-ssh-host-public-keys"}
   - {kind: host-probe, ref: "east:perm-sshd-config"}
+  - {kind: host-probe, ref: "east:pkg-ftp-client-absent"}
+  - {kind: host-probe, ref: "east:pkg-ldap-client-absent"}
+  - {kind: host-probe, ref: "east:pkg-nis-client-absent"}
+  - {kind: host-probe, ref: "east:pkg-rsh-client-absent"}
+  - {kind: host-probe, ref: "east:pkg-talk-client-absent"}
+  - {kind: host-probe, ref: "east:pkg-telnet-client-absent"}
+  - {kind: host-probe, ref: "east:svc-autofs-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-avahi-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-dhcp-server-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-dns-server-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-dnsmasq-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-ftp-server-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-ldap-server-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-mail-access-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-nfs-server-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-nis-server-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-print-server-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-rpcbind-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-rsync-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-samba-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-snmp-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-tftp-server-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-web-proxy-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-web-server-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-x-server-not-in-use"}
+  - {kind: host-probe, ref: "east:svc-xinetd-not-in-use"}
   - {kind: host-probe, ref: "east:unattended-upgrades-enabled"}
   - {kind: host-probe, ref: "west:apparmor-enabled"}
+  - {kind: host-probe, ref: "west:at-restricted"}
   - {kind: host-probe, ref: "west:auditd-running"}
+  - {kind: host-probe, ref: "west:cron-active"}
+  - {kind: host-probe, ref: "west:cron-allow-restricted"}
   - {kind: host-probe, ref: "west:firewall-inbound-deny"}
   - {kind: host-probe, ref: "west:kmod-cramfs-disabled"}
   - {kind: host-probe, ref: "west:kmod-freevxfs-disabled"}
@@ -89,7 +128,14 @@ sources:
   - {kind: host-probe, ref: "west:mount-var-tmp-noexec"}
   - {kind: host-probe, ref: "west:mount-var-tmp-nosuid"}
   - {kind: host-probe, ref: "west:mount-var-tmp-separate"}
+  - {kind: host-probe, ref: "west:mta-local-only"}
   - {kind: host-probe, ref: "west:ntp-synchronized"}
+  - {kind: host-probe, ref: "west:perm-etc-cron-d"}
+  - {kind: host-probe, ref: "west:perm-etc-cron-daily"}
+  - {kind: host-probe, ref: "west:perm-etc-cron-hourly"}
+  - {kind: host-probe, ref: "west:perm-etc-cron-monthly"}
+  - {kind: host-probe, ref: "west:perm-etc-cron-weekly"}
+  - {kind: host-probe, ref: "west:perm-etc-crontab"}
   - {kind: host-probe, ref: "west:perm-etc-group"}
   - {kind: host-probe, ref: "west:perm-etc-group-backup"}
   - {kind: host-probe, ref: "west:perm-etc-gshadow"}
@@ -103,6 +149,32 @@ sources:
   - {kind: host-probe, ref: "west:perm-ssh-host-private-keys"}
   - {kind: host-probe, ref: "west:perm-ssh-host-public-keys"}
   - {kind: host-probe, ref: "west:perm-sshd-config"}
+  - {kind: host-probe, ref: "west:pkg-ftp-client-absent"}
+  - {kind: host-probe, ref: "west:pkg-ldap-client-absent"}
+  - {kind: host-probe, ref: "west:pkg-nis-client-absent"}
+  - {kind: host-probe, ref: "west:pkg-rsh-client-absent"}
+  - {kind: host-probe, ref: "west:pkg-talk-client-absent"}
+  - {kind: host-probe, ref: "west:pkg-telnet-client-absent"}
+  - {kind: host-probe, ref: "west:svc-autofs-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-avahi-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-dhcp-server-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-dns-server-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-dnsmasq-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-ftp-server-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-ldap-server-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-mail-access-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-nfs-server-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-nis-server-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-print-server-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-rpcbind-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-rsync-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-samba-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-snmp-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-tftp-server-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-web-proxy-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-web-server-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-x-server-not-in-use"}
+  - {kind: host-probe, ref: "west:svc-xinetd-not-in-use"}
   - {kind: host-probe, ref: "west:unattended-upgrades-enabled"}
   - {kind: host-sshd, ref: "east:clientaliveinterval<=300"}
   - {kind: host-sshd, ref: "east:clientaliveinterval>=1"}

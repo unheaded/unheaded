@@ -6,7 +6,7 @@
 #   source:   "<kind>:<ref>" of a catalog evidence source, or
 #   id:       FND-NNN for a finding no collector sees yet (needs title + verify)
 #   severity: critical | high | medium | low (exposure x impact; no inflation)
-#   class:    sysctl | sshd | firewall | service | kmod | fileperm | mount | app | container | ci | backup | process
+#   class:    sysctl | sshd | firewall | service | kmod | fileperm | mount | package | app | container | ci | backup | process
 #   lockout:  none | low | high (can fixing it lock Stevie out of the host?)
 #   step:     remediation order, ADR-098 section 4 (safe first, lockout risk last)
 #   accepted: {reason, compensating, accepted_on, until} <= 90 days; still counted
@@ -857,3 +857,167 @@ findings:
     lockout: none
     step: 7
     plan: "Level 2: a real filesystem for /var/tmp. west: an LV from ubuntu-vg (588G free); copy contents, fstab, mount"
+
+  # --- CIS 2.1 / 2.2 / 2.4 services, clients, cron (2026-09-30) ------------
+
+  - source: "host-probe:west:cron-allow-restricted"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "create /etc/cron.allow (root:crontab, 0640) listing root; no user has a crontab today (checked 2026-09-30); remove cron.deny if it appears"
+
+  - source: "host-probe:west:perm-etc-crontab"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "chmod 600 /etc/crontab"
+
+  - source: "host-probe:west:perm-etc-cron-hourly"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "chmod 700 /etc/cron.hourly"
+
+  - source: "host-probe:west:perm-etc-cron-daily"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "chmod 700 /etc/cron.daily"
+
+  - source: "host-probe:west:perm-etc-cron-weekly"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "chmod 700 /etc/cron.weekly"
+
+  - source: "host-probe:west:perm-etc-cron-monthly"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "chmod 700 /etc/cron.monthly"
+
+  - source: "host-probe:west:perm-etc-cron-d"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "chmod 700 /etc/cron.d"
+
+  - source: "host-probe:west:pkg-ftp-client-absent"
+    severity: low
+    class: package
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "apt purge ftp tnftp (check nothing scripted uses them: grep the repo and crontabs first)"
+
+  - source: "host-probe:west:pkg-telnet-client-absent"
+    severity: low
+    class: package
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "apt purge inetutils-telnet telnet (nc or openssl s_client cover port checks)"
+
+  - source: "host-probe:east:cron-allow-restricted"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "create /etc/cron.allow (root:crontab, 0640) listing root; no user has a crontab today (checked 2026-09-30); remove cron.deny if it appears"
+
+  - source: "host-probe:east:perm-etc-crontab"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "chmod 600 /etc/crontab"
+
+  - source: "host-probe:east:perm-etc-cron-hourly"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "chmod 700 /etc/cron.hourly"
+
+  - source: "host-probe:east:perm-etc-cron-daily"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "chmod 700 /etc/cron.daily"
+
+  - source: "host-probe:east:perm-etc-cron-weekly"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "chmod 700 /etc/cron.weekly"
+
+  - source: "host-probe:east:perm-etc-cron-monthly"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "chmod 700 /etc/cron.monthly"
+
+  - source: "host-probe:east:perm-etc-cron-d"
+    severity: low
+    class: fileperm
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "chmod 700 /etc/cron.d"
+
+  - source: "host-probe:east:pkg-ftp-client-absent"
+    severity: low
+    class: package
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "apt purge ftp tnftp (check nothing scripted uses them: grep the repo and crontabs first)"
+
+  - source: "host-probe:east:pkg-telnet-client-absent"
+    severity: low
+    class: package
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "apt purge inetutils-telnet telnet (nc or openssl s_client cover port checks)"
+
+  - source: "host-probe:west:svc-web-server-not-in-use"
+    severity: low
+    class: service
+    opened: 2026-09-30
+    exposure: "nginx on 0.0.0.0:18888, reachable from the LAN until the firewall lands"
+    lockout: none
+    step: 6
+    plan: "nginx serves the local apt repository (/var/lib/apt-repo on 18888) that east installs from. Needed: accept once the firewall (step 6) limits 18888 to east, with that as the compensating control"
+
+  - source: "host-probe:west:svc-x-server-not-in-use"
+    severity: low
+    class: package
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: "CIS Level 2. xserver-common is installed and the default target is graphical, but no display manager runs; if west needs no local desktop, set multi-user.target and purge the X server packages"
+    decision: "does west need its local graphical desktop"
