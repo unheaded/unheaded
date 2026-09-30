@@ -24,6 +24,15 @@ fn main() {
 }
 
 fn build_wave11_kernels() {
+    // Lint-only runs (scripts/check-clippy.sh) type-check and never link, so
+    // they need no HIP kernels, and CI runners have no ROCm/hipcc. Opt-in by
+    // name so a real build without hipcc still fails loudly below.
+    println!("cargo:rerun-if-env-changed=ZHENAI_FORGE_SKIP_KERNELS");
+    if env::var("ZHENAI_FORGE_SKIP_KERNELS").as_deref() == Ok("1") {
+        println!("cargo:warning=wave11 build.rs: ZHENAI_FORGE_SKIP_KERNELS=1, not compiling HIP kernels (lint-only)");
+        return;
+    }
+
     let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let kernels_dir = manifest_dir.join("kernels");
     let out_dir = PathBuf::from(env::var("OUT_DIR").unwrap());

@@ -42,6 +42,12 @@ cd "${REPO_ROOT}" || exit 1
 # Cargo.toml. Do not "simplify" this back to Cargo.toml.
 WORKSPACES="$(git ls-files '*/Cargo.lock' | xargs -n1 dirname | sort -u)"
 
+# crates/zhenai-forge's build.rs compiles HIP kernels with hipcc (ROCm), which
+# CI runners do not have; without this its build script panics and the
+# workspace reads as "did not build". Clippy never links, so it needs no
+# kernels. See the build.rs for the switch.
+export ZHENAI_FORGE_SKIP_KERNELS=1
+
 TMP="$(mktemp -d)"
 trap 'rm -rf "${TMP}"' EXIT
 
