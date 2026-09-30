@@ -13,7 +13,10 @@
 #
 # Exposure assumed below: west and east are reachable from the home LAN and
 # the west-east P2P link only, not from the internet. Unverified (ADR-098
-# open question 4); if it is wrong, several severities rise.
+# open question 4); if it is wrong, several severities rise. West holds a
+# public ISP-assigned IPv6 address (SLAAC) with ip6tables INPUT ACCEPT, so the
+# assumption rests on the home router dropping unsolicited inbound IPv6: see
+# FND-004. (Addresses are deliberately not written here.)
 
 findings:
   # --- step 1: no host risk ---------------------------------------------
@@ -259,3 +262,124 @@ findings:
       systemd-run with the corrected filter (and SystemCallErrorNumber=EPERM if needed) before changing the files; the installed huginn unit changes
       only with Stevie's yes. Then add a gate running systemd-analyze verify on deploy/systemd. Tested 2026-09-30: dashboard-backend runs and
       serves /health under the corrected filter with the default kill action and with EPERM; the other 12 binaries are untested.
+
+  - id: FND-004
+    title: >-
+      West has a public, ISP-assigned IPv6 address (SLAAC) and ip6tables INPUT policy ACCEPT, with sshd, BGP and other services listening on [::].
+      Whether it can be reached from the internet depends on the home router dropping unsolicited inbound IPv6. Nobody has checked.
+    verify: from a vantage point outside the home network, west's global IPv6 address answers on no port (or the router's IPv6 inbound firewall is shown to be on); then this entry closes with that evidence
+    host: west
+    severity: high
+    class: firewall
+    opened: 2026-09-30
+    exposure: if reachable, every west listener is on the internet, including the services running with no auth (check-service-auth) and sshd with keyboard-interactive login
+    lockout: none
+    step: 1
+    plan: check the router's IPv6 firewall setting, or test from an outside vantage (phone hotspot); until then treat west's firewall, sshd and service-auth findings as internet-facing
+    decision: ADR-098 question 4 (exposure)
+
+  # --- CIS Ubuntu 24.04 additions (2026-09-30) -------------------------------
+  - source: "host-sysctl:west:net.ipv4.conf.all.secure_redirects=0"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: net.ipv4.conf.all.secure_redirects=0 and default.secure_redirects=0 in /etc/sysctl.d (CIS 3.3.6)
+
+  - source: "host-sysctl:east:net.ipv4.conf.all.secure_redirects=0"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: net.ipv4.conf.all.secure_redirects=0 and default.secure_redirects=0 in /etc/sysctl.d (CIS 3.3.6)
+
+  - source: "host-sysctl:west:net.ipv4.conf.all.log_martians=1"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: all and default log_martians=1 (CIS 3.3.9); watch kernel log volume on west, which routes Docker and BGP traffic
+
+  - source: "host-sysctl:east:net.ipv4.conf.all.log_martians=1"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: all and default log_martians=1 (CIS 3.3.9)
+
+  - source: "host-sysctl:east:net.ipv6.conf.all.accept_ra=0"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    exposure: east holds no global IPv6 address, so router advertisements serve nothing there
+    lockout: none
+    step: 2
+    plan: all and default accept_ra=0 (CIS 3.3.11)
+
+  - source: "host-sysctl:west:net.ipv6.conf.all.accept_ra=0"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    exposure: west takes its public IPv6 address from router advertisements; with forwarding on, the kernel already ignores RAs at accept_ra=1, so SLAAC is being done elsewhere (NetworkManager, most likely)
+    lockout: low
+    step: 2
+    plan: find out what does SLAAC on west before touching this; accept_ra=0 on the wrong layer drops west's IPv6. If IPv6 from the ISP is wanted, this becomes an acceptance with the firewall as the compensating control
+    decision: does west need ISP IPv6 at all (see FND-004)
+
+  - source: "host-sysctl:west:net.ipv4.ip_forward=0"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    exposure: west routes by design (Docker bridges, the BGP lab, the WireGuard overlay), so CIS 3.3.1 cannot hold on west
+    lockout: high
+    step: 6
+    plan: never flip it (it would cut every container and the overlay); once the firewall has a default-deny FORWARD policy (step 6), accept it with that as the compensating control
+
+  - source: "host-sysctl:west:net.ipv6.conf.all.forwarding=0"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    exposure: as net.ipv4.ip_forward on west
+    lockout: high
+    step: 6
+    plan: as net.ipv4.ip_forward on west; accept with a default-deny FORWARD policy for IPv6 as the compensating control
+
+  - source: "host-sshd:west:logingracetime<=60"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    lockout: none
+    step: 4
+    plan: LoginGraceTime 60 in the 00-unheaded.conf drop-in (CIS 5.1.13)
+
+  - source: "host-sshd:east:logingracetime<=60"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    lockout: none
+    step: 4
+    plan: LoginGraceTime 60 in the 00-unheaded.conf drop-in (CIS 5.1.13)
+
+  - source: "host-sshd:west:disableforwarding=yes"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    exposure: CIS Level 2 only; turns off agent, TCP and X11 forwarding
+    lockout: low
+    step: 4
+    plan: first find out whether Stevie or any script uses ssh -L/-R/-A to west; if so, accept (Level 1 does not require it)
+    decision: are ssh tunnels or agent forwarding used
+
+  - source: "host-sshd:east:disableforwarding=yes"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    exposure: CIS Level 2 only
+    lockout: low
+    step: 4
+    plan: first find out whether anything uses ssh -L/-R/-A to east; if so, accept (Level 1 does not require it)
+    decision: are ssh tunnels or agent forwarding used
