@@ -30,8 +30,8 @@ findings:
     exposure: every other control's alarm path depends on this
     lockout: none
     step: 1
-    plan: pick a receiver (open question 1) and a dead-man heartbeat (question 2); run the monitoring stack; add a Watchdog rule
-    decision: receiver and heartbeat, ADR-098 questions 1 and 2
+    plan: email receiver (Stevie 2026-09-30; PagerDuty or similar later); run the monitoring stack; Watchdog heartbeat cross-watched by west and east
+    decision: SMTP relay for the email receiver (credentials from a file outside the repo)
 
   - source: "github-job:Static Analysis/Rust (clippy)"
     severity: medium
@@ -56,8 +56,8 @@ findings:
     exposure: newest dump 2026-09-22; no schedule, manual only
     lockout: none
     step: 1
-    plan: take a backup now (scripts/db-backup.sh), then a systemd timer running it daily with retention
-    decision: schedule and retention
+    accepted: {reason: "Stevie 2026-09-30: little disk to spare and GitHub is sufficient for now", compensating: "pushed code is on GitHub; unpushed commits to be mirrored to east (FND-005); database contents have no copy", accepted_on: 2026-09-30, until: 2026-12-29}
+    plan: re-decide at expiry; a scheduled db-backup.sh with retention when space allows
 
   # --- step 2: sysctl (reversible, no lockout) -----------------------------
   - source: "host-sysctl:west:fs.suid_dumpable=0"
@@ -66,7 +66,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: fs.suid_dumpable=0 in /etc/sysctl.d/99-unheaded.conf, sysctl --system
+    plan: apport is active and sets fs.suid_dumpable=2 at start, so a sysctl.d value alone is overwritten; disable apport (enabled=0 in /etc/default/apport, systemctl disable --now apport), then fs.suid_dumpable=0 in /etc/sysctl.d/99-unheaded.conf
 
   - source: "host-sysctl:east:fs.suid_dumpable=0"
     severity: low
@@ -74,7 +74,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 2
-    plan: fs.suid_dumpable=0 in /etc/sysctl.d/99-unheaded.conf, sysctl --system
+    plan: apport is active and sets fs.suid_dumpable=2 at start, so a sysctl.d value alone is overwritten; disable apport (enabled=0 in /etc/default/apport, systemctl disable --now apport), then fs.suid_dumpable=0 in /etc/sysctl.d/99-unheaded.conf
 
   - source: "host-sysctl:east:net.ipv4.conf.all.accept_redirects=0"
     severity: low
@@ -168,7 +168,9 @@ findings:
     opened: 2026-09-30
     lockout: high
     step: 5
-    plan: KbdInteractiveAuthentication no in the drop-in after proving key login; west is Stevie's desk machine, so console access exists
+    plan: >-
+      West has no authorized keys for govan, so keyboard-interactive (PAM password) is the only remote login today. Add Stevie's public key to
+      ~govan/.ssh/authorized_keys, prove a key login, then KbdInteractiveAuthentication no. Stevie has physical access (2026-09-30)
 
   - source: "host-sshd:east:permitrootlogin=no"
     severity: medium
@@ -177,7 +179,7 @@ findings:
     exposure: root by key (without-password)
     lockout: low
     step: 5
-    plan: first prove nothing logs in as root (root authorized_keys, repo grep for root@east); then PermitRootLogin no
+    plan: root has no authorized keys on east (checked 2026-09-30), so nothing logs in as root by key; PermitRootLogin no
 
   - source: "host-sshd:west:permitrootlogin=no"
     severity: medium
@@ -185,7 +187,7 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 5
-    plan: first prove nothing logs in as root on west; then PermitRootLogin no
+    plan: root has no authorized keys on west (checked 2026-09-30); scripts/bare-metal/validate-cross-host.sh ssh's as root and cannot work today anyway; PermitRootLogin no
 
   # --- step 6: firewall default deny (highest lockout risk) -----------------
   - source: "host-probe:east:firewall-inbound-deny"
@@ -216,7 +218,7 @@ findings:
     lockout: none
     step: 7
     plan: token distribution design first (clients, dashboard, kanban), then AUTH_ENABLED per service, one at a time
-    decision: auth mode (API key vs JWT) and where the keys live
+    decision: mode settled - Stevie 2026-09-30 wants several (SSO/OIDC, JWT, API key), selectable per deployment; open is where keys and the IdP live
 
   - source: "gate-script:scripts/compliance/check-edge-tls.sh"
     severity: medium
@@ -225,12 +227,13 @@ findings:
     exposure: traefik config in the repo; the edge is not running on west today. api.insecure is published on 127.0.0.1:21000 only (operator-local)
     lockout: none
     step: 7
+    accepted: {reason: "Stevie 2026-09-30: develop mode, no internet-facing edge node; Let's Encrypt once one exists", compensating: "traefik runs on no host today and its dashboard binds 127.0.0.1 only", accepted_on: 2026-09-30, until: 2026-12-29}
     plan: >-
       Not a flag flip. The dashboard and kanban routers carry no TLS and websecure has no entrypoint TLS, so the
       edge effectively serves plain HTTP only; a redirect alone would 404 both. Order: pick a certificate source, enable TLS
       on websecure (entrypoint http.tls), a file-provider tls.options.default minVersion VersionTLS13, move ping off
       the web entrypoint (the healthcheck probes :80/ping), then redirect web to websecure, then drop api.insecure
-    decision: certificate source for the edge (ACME, internal CA, or self-signed for LAN)
+    decision: none until an edge goes internet-facing (then Let's Encrypt)
 
   - id: FND-002
     title: Seven third-party containers run without the least-privilege baseline (listed in docs/security/compose-hardening-baseline.txt)
@@ -275,7 +278,10 @@ findings:
     exposure: if reachable, every west listener is on the internet, including the services running with no auth (check-service-auth) and sshd with keyboard-interactive login
     lockout: none
     step: 1
-    plan: check the router's IPv6 firewall setting, or test from an outside vantage (phone hotspot); until then treat west's firewall, sshd and service-auth findings as internet-facing
+    plan: >-
+      The west-east P2P link is not the question: west's public IPv6 address comes from the ISP router's advertisements on the home LAN.
+      Check the router's IPv6 inbound firewall, or from a phone on cellular (not wifi) try west's global address on port 7375; until then treat
+      west's firewall, sshd and service-auth findings as internet-facing
     decision: ADR-098 question 4 (exposure)
 
   # --- CIS Ubuntu 24.04 additions (2026-09-30) -------------------------------
@@ -371,8 +377,8 @@ findings:
     exposure: CIS Level 2 only; turns off agent, TCP and X11 forwarding
     lockout: low
     step: 4
+    accepted: {reason: "Stevie 2026-09-30: develop environment, ssh forwarding may be used", compensating: "CIS Level 1 Server does not require it; key-only login (step 5) limits who can forward", accepted_on: 2026-09-30, until: 2026-12-29}
     plan: first find out whether Stevie or any script uses ssh -L/-R/-A to west; if so, accept (Level 1 does not require it)
-    decision: are ssh tunnels or agent forwarding used
 
   - source: "host-sshd:east:disableforwarding=yes"
     severity: low
@@ -381,5 +387,19 @@ findings:
     exposure: CIS Level 2 only
     lockout: low
     step: 4
+    accepted: {reason: "Stevie 2026-09-30: develop environment, ssh forwarding may be used", compensating: "CIS Level 1 Server does not require it; key-only login (step 5) limits who can forward", accepted_on: 2026-09-30, until: 2026-12-29}
     plan: first find out whether anything uses ssh -L/-R/-A to east; if so, accept (Level 1 does not require it)
-    decision: are ssh tunnels or agent forwarding used
+
+  - id: FND-005
+    title: Unpushed commits on west exist in one place only; a disk failure on west loses everything not yet pushed to GitHub
+    verify: a timer on west mirrors every ref of ~/tmp/unheaded to a bare repository on east at least every 30 minutes, and the newest mirrored commit is at most 30 minutes behind west
+    host: west
+    severity: low
+    class: backup
+    opened: 2026-09-30
+    lockout: none
+    step: 1
+    plan: >-
+      Stevie 2026-09-30 (low priority): every 30 minutes. `git push --mirror` to a bare repo on east over the P2P link rather than rsync of the
+      tree: it copies commits atomically (a copy of .git taken mid-commit can be inconsistent) and skips build output. Working-tree
+      changes that are not committed are not covered; an rsync of the tree without target/ could be added if wanted.
