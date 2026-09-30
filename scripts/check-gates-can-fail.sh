@@ -192,8 +192,8 @@ provoke_gosec_ratchet() {
     #
     # G000 is not a real gosec rule, so it can never legitimately appear in the
     # baseline. If a future edit reintroduces a real -exclude= list, this still
-    # works — sed appends to the args line either way.
-    sed -i "s|args: '-fmt sarif -out gosec-results.sarif ./\.\.\.'|args: '-fmt sarif -out gosec-results.sarif -exclude=G000 ./...'|" "${REPO_ROOT}/${wf}"
+    # works — sed inserts into the gosec command line either way.
+    sed -i "s|gosec -fmt sarif -out gosec-results.sarif |gosec -fmt sarif -out gosec-results.sarif -exclude=G000 |" "${REPO_ROOT}/${wf}"
     grep -q -- '-exclude=G000' "${REPO_ROOT}/${wf}"
 }
 
