@@ -335,6 +335,29 @@ controls:
       soc2-security: [CC6.1]
       iso27001-2022: [A.8.5]
 
+  - id: UH-CTR-01
+    title: Containers run least-privilege, with exceptions only shrinking
+    statement: >-
+      Every compose service declares a read-only root filesystem, drops all
+      Linux capabilities, sets no-new-privileges and is never privileged,
+      except the services listed in docs/security/compose-hardening-baseline.txt
+      (seven third-party images as of 2026-09-30: clickhouse, coredns,
+      grafana, postgres, traefik, vector, victoria). That list may only
+      shrink; the gate fails on a new unhardened service and on a stale
+      exception. It does NOT say the listed services are hardened.
+    rationale: >-
+      Least privilege and least functionality for workloads (AC-6, CM-7),
+      process isolation (SC-39), as declared configuration (CM-6); 800-171
+      03.01.05 and 03.04.06; CSF PR.PS-01; ISO A.8.9.
+    freshness_days: 7
+    evidence:
+      - {kind: gate-script, ref: scripts/check-compose-hardening.sh}
+    mappings:
+      nist-800-53r5: [AC-6, CM-7, SC-39, CM-6]
+      nist-800-171r3: ["03.01.05", "03.04.06"]
+      nist-csf-2: [PR.PS-01]
+      iso27001-2022: [A.8.9]
+
   # --- Awaiting attestation: these read NOT_ASSESSED until the accountable
   # person commits a signed file under compliance/attestations/ (README there).
 
