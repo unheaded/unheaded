@@ -798,7 +798,7 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 - Gateway routing for all services
 - All tests passing (0 failures, 0 timeouts)
 - S36 Four Pillars: Port Authority, gRPC-First Transport, Log Aggregation, Service Discovery
-- S51 Auth Framework: Noop/APIKey/JWT authenticators, RBAC, audit logger (64 tests)
+- S51 Auth Framework: Noop, API-key and JWT authenticators, RBAC, audit logger (64 tests)
 - S52 Legal/Compliance: SPDX headers on 838 Go files, GPL boundary documented
 - S59 Dashboard Polish: Design system, demo data, Kanban review column
 - S67 Wire Format Freeze: v0x01 locked, 12 IANA registries, IPR clear

@@ -476,7 +476,7 @@ func TestUpgrade_HijackNotSupported(t *testing.T) {
 	req.Header.Set("Origin", "http://example.com")
 	req.Header.Set("Upgrade", "websocket")
 	req.Header.Set("Connection", "Upgrade")
-	req.Header.Set("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==")
+	req.Header.Set("Sec-WebSocket-Key", "dGhlIHNhbXBsZSBub25jZQ==") // gitleaks:allow RFC 6455 sample nonce
 
 	// httptest.ResponseRecorder does NOT implement http.Hijacker
 	w := httptest.NewRecorder()
@@ -818,7 +818,7 @@ func TestClientCloseFrame(t *testing.T) {
 
 func TestComputeAcceptKey(t *testing.T) {
 	// RFC 6455 section 4.2.2 example
-	key := "dGhlIHNhbXBsZSBub25jZQ=="
+	key := "dGhlIHNhbXBsZSBub25jZQ==" // gitleaks:allow RFC 6455 sample nonce
 	want := "s3pPLMBiTxaQ9kYGzzhZRbK+xOo="
 	got := computeAcceptKey(key)
 	if got != want {
