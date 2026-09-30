@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
 # Copyright (c) 2024-2026 Stevie Bellis.
-"""Regenerate compliance/catalog/frameworks/*.yaml from the publishers' own
+"""Regenerate compliance/catalog/frameworks/*.yaml (the numeric prefix is the
+display order) from the publishers' own
 machine-readable releases, so every framework's requirement list (the
 denominator of every coverage figure, ADR-097) is the publisher's, not typed
 from memory.
@@ -161,7 +162,7 @@ def main():
     reqs.sort(key=lambda r: key53(r[0]))
     known = {r[0] for r in reqs}
     titles53 = dict(reqs)
-    write(f"{out}/nist-800-53r5.yaml",
+    write(f"{out}/10-nist-800-53r5.yaml",
           {"id": "nist-800-53r5", "name": "NIST SP 800-53", "version": f"Rev 5 ({cat['metadata'].get('version')})",
            "granularity": "controls and control enhancements (withdrawn excluded)", "source": url},
           reqs, prov(url, data, cat["metadata"]))
@@ -169,7 +170,7 @@ def main():
     # FedRAMP Rev 5 baselines, cross-checked against 800-53.
     data = fetch(FEDRAMP_XLSX)
     sheets = xlsx_sheets(data)
-    for level, sheet in (("low", "Low Baseline"), ("moderate", "Moderate Baseline"), ("high", "High Baseline")):
+    for rank, level, sheet in ((20, "low", "Low Baseline"), (21, "moderate", "Moderate Baseline"), (22, "high", "High Baseline")):
         ids = []
         for r in sheets[sheet][2:]:
             rid = re.sub(r"\s+", "", r.get("C", "")).upper()
@@ -178,7 +179,7 @@ def main():
         missing = [i for i in ids if i not in known]
         if missing:
             sys.exit(f"FedRAMP {level}: not in 800-53 Rev 5: {missing[:10]}")
-        write(f"{out}/fedramp-rev5-{level}.yaml",
+        write(f"{out}/{rank}-fedramp-rev5-{level}.yaml",
               {"id": f"fedramp-{level}", "name": f"FedRAMP {level.capitalize()} Baseline", "version": "Rev 5 (legacy workbook)",
                "granularity": "800-53 Rev 5 controls and enhancements in the baseline", "source": FEDRAMP_XLSX,
                "derived_from": "nist-800-53r5"},
@@ -190,10 +191,10 @@ def main():
     # depth counts controls below the top-level groups (functions/families):
     # 0 = CSF categories, 171 requirements, SSDF practices; 1 = CSF
     # subcategories, SSDF tasks.
-    for fid, name, ver, path, depth, gran in (
-        ("nist-csf-2", "NIST Cybersecurity Framework", "2.0", "CSF/v2.0/json/NIST_CSF_v2.0_catalog.json", 1, "subcategories"),
-        ("nist-800-171r3", "NIST SP 800-171", "Rev 3", "SP800-171/rev3/json/NIST_SP800-171_rev3_catalog.json", 0, "security requirements"),
-        ("nist-ssdf", "NIST SP 800-218 (SSDF)", "1.1", "SP800-218/ver1/json/NIST_SP800-218_ver1_catalog.json", 0, "practices"),
+    for rank, fid, name, ver, path, depth, gran in (
+        (50, "nist-csf-2", "NIST Cybersecurity Framework", "2.0", "CSF/v2.0/json/NIST_CSF_v2.0_catalog.json", 1, "subcategories"),
+        (60, "nist-800-171r3", "NIST SP 800-171", "Rev 3", "SP800-171/rev3/json/NIST_SP800-171_rev3_catalog.json", 0, "security requirements"),
+        (70, "nist-ssdf", "NIST SP 800-218 (SSDF)", "1.1", "SP800-218/ver1/json/NIST_SP800-218_ver1_catalog.json", 0, "practices"),
     ):
         url = f"{OSCAL}/{path}"
         data = fetch(url)
@@ -205,7 +206,7 @@ def main():
             if title == rid:  # CSF subcategories carry no title of their own
                 title = parent
             reqs.append((rid, title))
-        write(f"{out}/{fid}.yaml",
+        write(f"{out}/{rank}-{fid}.yaml",
               {"id": fid, "name": name, "version": f"{ver} (OSCAL {cat['metadata'].get('version', '')})",
                "granularity": gran, "source": url},
               reqs, prov(url, data, cat["metadata"]))
