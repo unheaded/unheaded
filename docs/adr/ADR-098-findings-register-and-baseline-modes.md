@@ -190,6 +190,18 @@ Every host change is proposed with its exact commands and applied only after Ste
 6. **Firewall default-deny.** East first, with commit-confirm, then west.
 7. **Application level:** `AUTH_ENABLED` on the 11 services (clients need tokens, so this needs a distribution design first), edge TLS and Traefik `api.insecure`, then the seven third-party containers one at a time.
 
+**Applying a fix.** Low-risk fixes (steps 2 to 4) are named fixes in `scripts/host/remediate.sh`:
+`sysctl-cis`, `apport-off`, `kmod-cis`, `cron-perms`, `shell-tmout`, `sshd-safe`.
+
+- **Plan is the default** and changes nothing. `apply` needs root and backs up every file it touches. It also writes an `undo.sh` that replays those changes newest first.
+- **Content is host-aware.** East gets `accept_ra=0`; west does not, because it takes its ISP IPv6 address from router advertisements.
+- **West is never loosened.** Its existing `99-unheaded.conf` already sets stricter values than CIS asks for. `sshd-safe` does not repeat them, because sshd uses the first value it reads, so repeating them would override the stricter ones.
+- **`sshd-safe` runs `sshd -t` before reloading.** If the check fails, it restores every file and does not reload.
+- **Anything awaiting a decision stays out.** For example, usb-storage is left loadable.
+- **Tests:** `scripts/host/remediate_test.go` runs every fix against a fake root with fake binaries.
+
+sshd authentication and the firewall stay outside the script; the firewall goes through `nft-apply-confirm.sh`.
+
 ### Phases
 
 | Phase | Scope | Host changes |
