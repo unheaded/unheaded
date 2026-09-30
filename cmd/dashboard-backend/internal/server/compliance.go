@@ -102,7 +102,7 @@ func (c *complianceSource) handleSummary(w http.ResponseWriter, r *http.Request)
 	for _, ctl := range cat.Controls {
 		cc := complianceControl{Control: ctl, Status: sum.Controls[ctl.ID]}
 		for _, s := range ctl.Evidence {
-			e := complianceEvidence{Source: s}
+			e := complianceEvidence{Source: s.Source}
 			if rec, ok := latest[s.Key()]; ok {
 				rec := rec
 				e.Latest = &rec
@@ -249,6 +249,15 @@ func writeFrameworkCSV(w http.ResponseWriter, cat *crosswalk.Catalog, sum *cross
 				}
 				ev = append(ev, line)
 			}
+		}
+		for _, key := range req.Sources { // mapped per source: that source's evidence alone
+			line := "source " + key
+			if rec, ok := latest[key]; ok {
+				line += fmt.Sprintf(" %s %s %s %s", rec.Verdict, rec.ObservedAt.UTC().Format(time.RFC3339), rec.Commit, rec.Detail)
+			} else {
+				line += " no evidence"
+			}
+			ev = append(ev, line)
 		}
 		controls := strings.Join(ctls, " ") // "UH-VULN-01=PASS UH-SAST-01=FAIL"
 		_ = cw.Write([]string{csvCell(req.ID), csvCell(req.Title), string(req.Status), csvCell(controls),

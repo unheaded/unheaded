@@ -70,7 +70,7 @@ func run(repoDir, out, ghRepo, branch string, keep int, skipGates bool) error {
 		for _, s := range c.Evidence {
 			if !seen[s.Key()] {
 				seen[s.Key()] = true
-				sources = append(sources, s)
+				sources = append(sources, s.Source)
 			}
 		}
 	}

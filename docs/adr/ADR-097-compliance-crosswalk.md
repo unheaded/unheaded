@@ -93,6 +93,31 @@ Consulted: Inquisitor (crosswalk shape, honesty rules), Architect
    mounted read-only. The overlap matrix (controls x frameworks) is the
    "attest once" view.
 
+### Amendment (2026-09-30): per-source mappings
+
+An evidence source may carry its own mapping (`maps: {framework: [ids]}`
+on the evidence entry). A requirement mapped that way follows that
+source's evidence alone. Before this, a requirement was EVIDENCED only
+if every whole control mapped to it passed, and that fit poorly with a
+benchmark that has one recommendation per check. One failing service
+(nginx on west) turned all 21 CIS 2.1.x services FAILING. CIS L1 Server
+read 1 evidenced and 104 failing; the same evidence now reads 59
+evidenced and 46 failing.
+
+The rules:
+
+- A control maps a given framework either at control level or per
+  source, never both.
+- Derived frameworks inherit per-source mappings, as they already
+  inherit control-level ones.
+- A source's status is judged against its control's freshness window.
+- The CSV export lists each source-level contributor with its latest
+  record.
+
+The CIS mappings were converted by script. The script asserted that each
+control's set of CIS IDs is identical before and after (12 of 12
+controls).
+
 ## Consequences
 
 - The first real run shows how little is evidenced: 800-53 12 of 1014,

@@ -257,3 +257,41 @@ func TestComplianceFindings(t *testing.T) {
 		t.Errorf("not configured: status %d", rec.Code)
 	}
 }
+
+func TestComplianceFrameworkCSV_SourceMapped(t *testing.T) {
+	src := complianceFixture(t, false)
+	if err := os.WriteFile(filepath.Join(src.root, "compliance/catalog/controls.yaml"), []byte(`
+controls:
+  - id: UH-VULN-01
+    title: t
+    statement: s
+    freshness_days: 7
+    evidence:
+      - {kind: github-job, ref: "W/scan", maps: {base: [RA-5]}}
+      - {kind: github-job, ref: "W/other", maps: {base: [SI-2]}}
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	writeEvidence(t, src.evidencePath, []crosswalk.Record{
+		{Source: crosswalk.Source{Kind: crosswalk.KindGitHubJob, Ref: "W/scan"}, Verdict: crosswalk.VerdictPass, ObservedAt: time.Now().Add(-time.Hour), Detail: "ok"},
+		{Source: crosswalk.Source{Kind: crosswalk.KindGitHubJob, Ref: "W/other"}, Verdict: crosswalk.VerdictFail, ObservedAt: time.Now().Add(-time.Hour), Detail: "red"},
+	})
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/compliance/frameworks/{id}", src.handleFramework)
+	rec := httptest.NewRecorder()
+	mux.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/compliance/frameworks/base?format=csv", nil))
+	rows, err := csv.NewReader(rec.Body).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string][]string{}
+	for _, r := range rows[1:] {
+		byID[r[0]] = r
+	}
+	if r := byID["RA-5"]; r[2] != "EVIDENCED" || !strings.Contains(r[4], "source github-job:W/scan pass") {
+		t.Errorf("RA-5 = %v (its own source passes; the sibling's failure must not leak in)", r)
+	}
+	if r := byID["SI-2"]; r[2] != "FAILING" || !strings.Contains(r[4], "source github-job:W/other fail") {
+		t.Errorf("SI-2 = %v", r)
+	}
+}

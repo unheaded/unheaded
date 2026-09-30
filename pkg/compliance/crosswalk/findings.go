@@ -276,7 +276,7 @@ func Findings(cat *Catalog, recs []Record, reg *Register, now time.Time) *Findin
 		for _, s := range c.Evidence {
 			k := s.Key()
 			if _, ok := controls[k]; !ok {
-				order = append(order, s)
+				order = append(order, s.Source)
 				window[k] = w
 			}
 			controls[k] = append(controls[k], c.ID)

@@ -17,7 +17,7 @@ func rec(src Source, v Verdict, age time.Duration) Record {
 func TestControlStatus(t *testing.T) {
 	a := Source{Kind: KindGitHubJob, Ref: "W/a"}
 	b := Source{Kind: KindGateScript, Ref: "scripts/b.sh"}
-	ctl := &Control{ID: "UH-TEST-01", FreshnessDays: 7, Evidence: []Source{a, b}}
+	ctl := &Control{ID: "UH-TEST-01", FreshnessDays: 7, Evidence: []EvidenceSource{{Source: a}, {Source: b}}}
 	day := 24 * time.Hour
 
 	for _, tc := range []struct {
