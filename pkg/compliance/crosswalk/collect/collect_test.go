@@ -501,3 +501,68 @@ func TestHostSSHD_RejectsBadRefs(t *testing.T) {
 		}
 	}
 }
+
+func TestHostProbes(t *testing.T) {
+	outputs := map[string]string{
+		// west: firewall open, NTP synced, no auditd, updates on, AppArmor on
+		"west": "@@firewall-inbound-deny\n-P INPUT ACCEPT\n---\n-P INPUT ACCEPT\n" +
+			"@@ntp-synchronized\nyes\n@@auditd-running\ninactive\n" +
+			"@@unattended-upgrades-enabled\nAPT::Periodic::Unattended-Upgrade \"1\";\n@@apparmor-enabled\nY\n",
+		// east: firewall v4 drop but v6 accept -> still fails
+		"east": "@@firewall-inbound-deny\n-P INPUT DROP\n---\n-P INPUT ACCEPT\n@@auditd-running\nactive\n",
+	}
+	var scripts []string
+	p := &HostProbes{Hostname: "west", Run: func(_ context.Context, host, script string) (string, error) {
+		scripts = append(scripts, script)
+		o, ok := outputs[host]
+		if !ok {
+			return "", errors.New("unreachable")
+		}
+		return o, nil
+	}}
+	src := func(r string) crosswalk.Source { return crosswalk.Source{Kind: crosswalk.KindHostProbe, Ref: r} }
+	recs, err := p.Collect(context.Background(), []crosswalk.Source{
+		src("west:firewall-inbound-deny"), src("west:ntp-synchronized"), src("west:auditd-running"),
+		src("west:unattended-upgrades-enabled"), src("west:apparmor-enabled"),
+		src("east:firewall-inbound-deny"), src("east:auditd-running"),
+		src("east:ntp-synchronized"), // no section in the output: no record
+		src("gone:auditd-running"),   // unreachable: no record
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]crosswalk.Verdict{}
+	for _, r := range recs {
+		got[r.Source.Ref] = r.Verdict
+	}
+	want := map[string]crosswalk.Verdict{
+		"west:firewall-inbound-deny":       crosswalk.VerdictFail,
+		"west:ntp-synchronized":            crosswalk.VerdictPass,
+		"west:auditd-running":              crosswalk.VerdictFail,
+		"west:unattended-upgrades-enabled": crosswalk.VerdictPass,
+		"west:apparmor-enabled":            crosswalk.VerdictPass,
+		"east:firewall-inbound-deny":       crosswalk.VerdictFail,
+		"east:auditd-running":              crosswalk.VerdictPass,
+	}
+	if len(got) != len(want) {
+		t.Errorf("got %v, want %v", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %q, want %q", k, got[k], v)
+		}
+	}
+	// One script per host, built only from the fixed probe table.
+	if len(scripts) != 3 {
+		t.Errorf("%d scripts, want one per host", len(scripts))
+	}
+}
+
+func TestHostProbes_RejectsUnknownProbeAndBadHost(t *testing.T) {
+	p := &HostProbes{Run: func(context.Context, string, string) (string, error) { return "", nil }}
+	for _, ref := range []string{"west:rm -rf /", "west:nosuchprobe", "-oX:auditd-running", "a b:auditd-running"} {
+		if _, err := p.Collect(context.Background(), []crosswalk.Source{{Kind: crosswalk.KindHostProbe, Ref: ref}}); err == nil {
+			t.Errorf("ref %q accepted", ref)
+		}
+	}
+}

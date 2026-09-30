@@ -55,6 +55,8 @@ var uncorroborated = map[string]string{
 	"UH-GATE-01/iso27001-2022": "NIST pairs ID.IM-02 with A.5.35 (independent review) and A.5.19; " +
 		"the meta-gate is an internal check that the security gates work, which is A.5.36 " +
 		"(compliance with the organisation's own security rules), not an independent review.",
+	"UH-PATCH-01/iso27001-2022": "NIST pairs PR.PS-02 with A.8.7 (malware) and A.5.9 (inventory); " +
+		"automatic security updates are patch deployment, A.8.8 (management of technical vulnerabilities).",
 }
 
 // Every control mapped to a CSF 2.0 subcategory must be corroborated, on

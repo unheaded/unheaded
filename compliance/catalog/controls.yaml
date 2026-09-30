@@ -258,6 +258,8 @@ controls:
       - {kind: host-sysctl, ref: "east:fs.protected_symlinks=1"}
       - {kind: host-sysctl, ref: "east:fs.protected_hardlinks=1"}
       - {kind: host-sysctl, ref: "east:fs.suid_dumpable=0"}
+      - {kind: host-probe, ref: "west:apparmor-enabled"}
+      - {kind: host-probe, ref: "east:apparmor-enabled"}
     mappings:
       nist-800-53r5: [CM-6, CM-7, SI-16]
       nist-800-171r3: ["03.04.02", "03.04.06"]
@@ -357,6 +359,87 @@ controls:
       nist-800-171r3: ["03.01.05", "03.04.06"]
       nist-csf-2: [PR.PS-01]
       iso27001-2022: [A.8.9]
+
+  - id: UH-FW-01
+    title: Hosts deny inbound traffic by default
+    statement: >-
+      On west and east the kernel's INPUT policy is DROP for IPv4 and IPv6
+      (iptables/ip6tables, which also reflect nftables' iptables tables), so
+      only traffic an explicit rule admits reaches a listener. Read from the
+      live ruleset, not from a firewall service's status.
+    rationale: >-
+      Boundary protection with deny by default, allow by exception (SC-7,
+      SC-7(5); 800-171 03.13.01, 03.13.06); CSF PR.IR-01; ISO A.8.20
+      network security; SOC 2 CC6.6 protection against threats from outside
+      the system boundary.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:firewall-inbound-deny"}
+      - {kind: host-probe, ref: "east:firewall-inbound-deny"}
+    mappings:
+      nist-800-53r5: [SC-7, SC-7(5)]
+      nist-800-171r3: ["03.13.01", "03.13.06"]
+      nist-csf-2: [PR.IR-01]
+      soc2-security: [CC6.6]
+      iso27001-2022: [A.8.20]
+
+  - id: UH-AUDIT-01
+    title: Hosts record security-relevant events with auditd
+    statement: >-
+      auditd is running on west and east, so the kernel audit subsystem
+      records security-relevant system calls and authentication events.
+    rationale: >-
+      Event logging and audit record generation (AU-2, AU-12; 800-171
+      03.03.01); CSF PR.PS-04 log records generated; ISO A.8.15 logging;
+      SOC 2 CC7.2 monitoring for anomalies.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:auditd-running"}
+      - {kind: host-probe, ref: "east:auditd-running"}
+    mappings:
+      nist-800-53r5: [AU-2, AU-12]
+      nist-800-171r3: ["03.03.01"]
+      nist-csf-2: [PR.PS-04]
+      soc2-security: [CC7.2]
+      iso27001-2022: [A.8.15]
+
+  - id: UH-PATCH-01
+    title: Hosts install security updates automatically
+    statement: >-
+      On west and east, apt's periodic unattended upgrade is enabled
+      (APT::Periodic::Unattended-Upgrade "1"), so security updates install
+      without waiting for a person.
+    rationale: >-
+      Flaw remediation with automated installation (SI-2, SI-2(2) automated
+      flaw remediation status; 800-171 03.14.01); CSF PR.PS-02 software
+      maintained; ISO A.8.8 technical vulnerability management.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:unattended-upgrades-enabled"}
+      - {kind: host-probe, ref: "east:unattended-upgrades-enabled"}
+    mappings:
+      nist-800-53r5: [SI-2, SI-2(2)]
+      nist-800-171r3: ["03.14.01"]
+      nist-csf-2: [PR.PS-02]
+      iso27001-2022: [A.8.8]
+
+  - id: UH-TIME-01
+    title: Host clocks are synchronized
+    statement: >-
+      On west and east the system clock is NTP-synchronized (timedatectl
+      NTPSynchronized=yes), so log and audit timestamps line up across hosts.
+    rationale: >-
+      Time stamps from a synchronized source (AU-8; 800-171 03.03.07); ISO
+      A.8.17 clock synchronization. No CSF mapping: NIST's references for
+      PR.PS-04 do not list AU-8.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:ntp-synchronized"}
+      - {kind: host-probe, ref: "east:ntp-synchronized"}
+    mappings:
+      nist-800-53r5: [AU-8]
+      nist-800-171r3: ["03.03.07"]
+      iso27001-2022: [A.8.17]
 
   # --- Awaiting attestation: these read NOT_ASSESSED until the accountable
   # person commits a signed file under compliance/attestations/ (README there).
