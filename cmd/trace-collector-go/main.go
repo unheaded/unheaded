@@ -678,15 +678,10 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 		progPath := fmt.Sprintf("%s/latency-probe", elfBase)
 		kl, lmap, err := LoadLatencyKprobes(progPath)
 		if err != nil {
-			log.Error().Err(err).Str("path", progPath).Msg("failed to load latency kprobes via cilium/ebpf")
-			// Fall back to standard loader
-			if err := loader.Load(progPath); err != nil {
-				log.Error().Err(err).Str("path", progPath).Msg("failed to load latency_probe (fallback)")
-			} else {
-				programs[2].Loaded = true
-				programsLoaded.WithLabelValues("latency_probe").Set(1)
-				log.Info().Msg("latency_probe loaded (fallback, single kprobe)")
-			}
+			// No fallback: the native loader cannot load this object (one
+			// program per object vs six kprobe functions). The old fallback
+			// loaded one function, attached none and reported loaded.
+			log.Error().Err(err).Str("path", progPath).Msg("failed to load latency kprobes via cilium/ebpf; latency_probe NOT loaded")
 		} else {
 			latencyKprobeLoader = kl
 			directLatencyMap = lmap
