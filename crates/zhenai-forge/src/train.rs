@@ -1540,9 +1540,8 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                         let mut first_healthy: Option<(usize, usize, f32)> = None;
                         let mut last_healthy: Option<(usize, usize, f32)> = None;
                         let mut healthy_sq_total: f64 = 0.0;
-                        for l in 0..n_walked {
-                            for t in 0..4 {
-                                let lyr = &lora.layers[l][t];
+                        for (l, layer) in lora.layers.iter().enumerate().take(n_walked) {
+                            for (t, lyr) in layer.iter().enumerate() {
                                 let mut has_nan = false;
                                 let mut sq: f64 = 0.0;
                                 for g in lyr.grad_a.iter().chain(lyr.grad_b.iter()) {
@@ -1585,42 +1584,42 @@ pub fn train(config: &TrainConfig) -> Result<(), String> {
                             healthy_sq_total.sqrt(), nan_str, fh_str, lh_str);
                     }
 
-                    for l in 0..n_layers_total.min(lora.layers.len()) {
-                        for t in 0..4 {
+                    for layer in lora.layers.iter_mut().take(n_layers_total) {
+                        for lyr in layer.iter_mut() {
                             // Scale
-                            for g in lora.layers[l][t].grad_a.iter_mut() {
+                            for g in lyr.grad_a.iter_mut() {
                                 *g *= scale;
                             }
-                            for g in lora.layers[l][t].grad_b.iter_mut() {
+                            for g in lyr.grad_b.iter_mut() {
                                 *g *= scale;
                             }
 
                             // Clip
-                            let grad_norm: f32 = lora.layers[l][t]
+                            let grad_norm: f32 = lyr
                                 .grad_a
                                 .iter()
-                                .chain(lora.layers[l][t].grad_b.iter())
+                                .chain(lyr.grad_b.iter())
                                 .map(|g| g * g)
                                 .sum::<f32>()
                                 .sqrt();
                             if grad_norm > 1.0 {
                                 let clip = 1.0 / grad_norm;
-                                for g in lora.layers[l][t].grad_a.iter_mut() {
+                                for g in lyr.grad_a.iter_mut() {
                                     *g *= clip;
                                 }
-                                for g in lora.layers[l][t].grad_b.iter_mut() {
+                                for g in lyr.grad_b.iter_mut() {
                                     *g *= clip;
                                 }
                             }
 
                             // Adam
-                            lora.layers[l][t].adam_step(lr, 0.9, 0.999, 1e-8, state.step + 1);
+                            lyr.adam_step(lr, 0.9, 0.999, 1e-8, state.step + 1);
 
                             // Zero
-                            for g in lora.layers[l][t].grad_a.iter_mut() {
+                            for g in lyr.grad_a.iter_mut() {
                                 *g = 0.0;
                             }
-                            for g in lora.layers[l][t].grad_b.iter_mut() {
+                            for g in lyr.grad_b.iter_mut() {
                                 *g = 0.0;
                             }
                         }

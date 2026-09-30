@@ -281,16 +281,15 @@ impl BootRunner {
                 );
             }
             let word_addr_base = byte_addr / 4;
-            let mut chunks = data.chunks_exact(4);
+            let (chunks, rem) = data.as_chunks::<4>();
             let mut written = 0u32;
-            for (i, chunk) in chunks.by_ref().enumerate() {
-                let w = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+            for (i, chunk) in chunks.iter().enumerate() {
+                let w = u32::from_le_bytes(*chunk);
                 ram.set(word_addr_base + i as u32, w, 0).with_context(|| {
                     format!("RAM_MAP[0x{:08X}] write", byte_addr + (i * 4) as u32)
                 })?;
                 written = i as u32 + 1;
             }
-            let rem = chunks.remainder();
             if !rem.is_empty() {
                 let mut padded = [0u8; 4];
                 padded[..rem.len()].copy_from_slice(rem);

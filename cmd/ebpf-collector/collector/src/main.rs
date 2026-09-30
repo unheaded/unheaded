@@ -27,6 +27,9 @@ use ebpf_common::{
     OP_TCP_CONNECT, OP_TCP_RECV, OP_TCP_SEND,
 };
 
+// Generated client code returns tonic::Status (176 bytes) in Err; that
+// shape is tonic's, not ours to box.
+#[allow(clippy::result_large_err)]
 pub mod wotan_proto {
     tonic::include_proto!("chat");
 }

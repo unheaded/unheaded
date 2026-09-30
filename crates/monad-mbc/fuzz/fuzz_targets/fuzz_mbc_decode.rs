@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
@@ -9,8 +10,8 @@ fuzz_target!(|data: &[u8]| {
     if data.len() < 4 {
         return;
     }
-    for chunk in data.chunks_exact(4) {
-        let word = u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+    for chunk in data.as_chunks::<4>().0.iter() {
+        let word = u32::from_le_bytes(*chunk);
         let _ = decode_checked(word);
     }
 });

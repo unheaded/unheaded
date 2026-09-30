@@ -125,11 +125,7 @@ impl Subscription {
         }
 
         // Apply sampling
-        if self.sample_rate < 1.0 && fastrand::f64() > self.sample_rate {
-            return false;
-        }
-
-        true
+        !(self.sample_rate < 1.0 && fastrand::f64() > self.sample_rate)
     }
 }
 

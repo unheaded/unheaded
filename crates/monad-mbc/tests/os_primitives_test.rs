@@ -1015,8 +1015,10 @@ fn boot_hello_kernel_binary_if_available() {
     assert!(data.len() >= 4, "binary should be at least 4 bytes");
 
     let rom: Vec<u32> = data
-        .chunks_exact(4)
-        .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|c| u32::from_le_bytes(*c))
         .collect();
 
     let mut cpu = cpu_with_safe_sp();
@@ -1768,8 +1770,8 @@ fn phase12_fork_assigns_distinct_pgd_per_child() {
 
     // Children 1..=3 must have unique, 4-KiB-aligned pgds in the fixed region.
     let mut seen = std::collections::HashSet::new();
-    for pid in 1..4 {
-        let pgd = cpu.proc_table[pid][20];
+    for (pid, entry) in cpu.proc_table.iter().enumerate().take(4).skip(1) {
+        let pgd = entry[20];
         assert_eq!(
             pgd & 0xFFF,
             0,
@@ -1870,8 +1872,8 @@ fn phase13_proc_table_supports_8_slots() {
 
     // Each pid 1..=7 owns a unique 4-KiB-aligned pgd inside the per-pid region.
     let mut seen = std::collections::HashSet::new();
-    for pid in 1..8 {
-        let pgd = cpu.proc_table[pid][20];
+    for (pid, entry) in cpu.proc_table.iter().enumerate().skip(1) {
+        let pgd = entry[20];
         assert_eq!(
             pgd & 0xFFF,
             0,
@@ -1888,9 +1890,9 @@ fn phase13_proc_table_supports_8_slots() {
     }
 
     // Deterministic mapping per phase12::pgd_base_for_pid: pid * 0x1000.
-    for pid in 1..8usize {
+    for (pid, entry) in cpu.proc_table.iter().enumerate().skip(1) {
         assert_eq!(
-            cpu.proc_table[pid][20],
+            entry[20],
             0x00F0_0000 + (pid as u32) * 0x1000,
             "pid {pid} pgd doesn't match Allocator A1 formula"
         );
@@ -2108,8 +2110,8 @@ fn phase13_lr_sc_reservation_cleared_by_mret_priv_transition() {
 fn phase13_sys_execve_resets_regs_preserves_pgd() {
     let mut cpu = cpu_with_safe_sp();
     // Pre-populate state we expect EXEC to clear.
-    for i in 0..16 {
-        cpu.state.regs[i] = 0xDEAD0000 + i as u32;
+    for (i, r) in cpu.state.regs.iter_mut().enumerate() {
+        *r = 0xDEAD0000 + i as u32;
     }
     cpu.state.flags = 0xFF;
     cpu.state.program_break = 0x9999_9999;
@@ -2138,8 +2140,8 @@ fn phase13_sys_execve_resets_regs_preserves_pgd() {
 
     // PC should have jumped to entry target (then halted).
     // All GPRs zeroed except SP reset to 0xFFFF_0000.
-    for i in 0..15 {
-        assert_eq!(cpu.state.regs[i], 0, "reg {i} should be zeroed by EXEC");
+    for (i, &r) in cpu.state.regs.iter().enumerate().take(15) {
+        assert_eq!(r, 0, "reg {i} should be zeroed by EXEC");
     }
     assert_eq!(cpu.state.regs[15], 0xFFFF_0000, "SP reset by EXEC");
     assert_eq!(cpu.state.flags, 0, "flags cleared by EXEC");

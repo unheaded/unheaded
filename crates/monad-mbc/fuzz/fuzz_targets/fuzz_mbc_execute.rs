@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
@@ -20,21 +21,16 @@ fuzz_target!(|data: &[u8]| {
     let mut cpu = Cpu::new();
 
     // Set initial registers from fuzz data
-    for i in 0..16 {
-        let offset = i * 4;
-        let word = u32::from_le_bytes([
-            reg_bytes[offset],
-            reg_bytes[offset + 1],
-            reg_bytes[offset + 2],
-            reg_bytes[offset + 3],
-        ]);
-        cpu.state.regs[i] = word;
+    for (r, c) in cpu.state.regs.iter_mut().zip(reg_bytes.as_chunks::<4>().0) {
+        *r = u32::from_le_bytes(*c);
     }
 
     // Build ROM from remaining bytes
     let rom: Vec<u32> = rom_bytes
-        .chunks_exact(4)
-        .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|c| u32::from_le_bytes(*c))
         .collect();
 
     if rom.is_empty() {

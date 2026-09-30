@@ -74,9 +74,7 @@ fn try_packet_counter(ctx: &XdpContext) -> Result<u32, ()> {
         _pad2: [0u8; 3],
     };
 
-    let transport_offset;
-
-    match eth_proto {
+    let transport_offset = match eth_proto {
         ETH_P_IP => {
             // IPv4: minimum header is 20 bytes
             let ip_offset = data + ETH_HDR_LEN;
@@ -116,7 +114,7 @@ fn try_packet_counter(ctx: &XdpContext) -> Result<u32, ()> {
             event.dst_addr[14] = dst_ip[2];
             event.dst_addr[15] = dst_ip[3];
 
-            transport_offset = ip_offset + ihl;
+            ip_offset + ihl
         }
         ETH_P_IPV6 => {
             // IPv6: fixed header is 40 bytes
@@ -143,13 +141,13 @@ fn try_packet_counter(ctx: &XdpContext) -> Result<u32, ()> {
             let dst_addr = unsafe { *((ip6_offset + 24) as *const [u8; 16]) };
             event.dst_addr = dst_addr;
 
-            transport_offset = ip6_offset + 40;
+            ip6_offset + 40
         }
         _ => {
             // Not IP — skip
             return Ok(xdp_action::XDP_PASS);
         }
-    }
+    };
 
     // Parse TCP/UDP ports
     match event.protocol {

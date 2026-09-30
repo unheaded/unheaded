@@ -1299,27 +1299,25 @@ pub fn train_step_gemma4_gpu(
 
     // Gradient clip + Adam (same as CPU train_step_gemma4)
     let clip_threshold = 1.0f32;
-    for il in 0..lora.layers.len() {
-        for t in 0..4 {
-            if let Some(ll) = &mut lora.layers[il][t] {
-                let gn_sq: f32 = ll
-                    .grad_a
-                    .iter()
-                    .chain(ll.grad_b.iter())
-                    .map(|g| g * g)
-                    .sum();
-                let gn = gn_sq.sqrt();
-                if gn > clip_threshold {
-                    let s = clip_threshold / gn;
-                    for g in ll.grad_a.iter_mut() {
-                        *g *= s;
-                    }
-                    for g in ll.grad_b.iter_mut() {
-                        *g *= s;
-                    }
+    for layer in lora.layers.iter_mut() {
+        for ll in layer.iter_mut().flatten() {
+            let gn_sq: f32 = ll
+                .grad_a
+                .iter()
+                .chain(ll.grad_b.iter())
+                .map(|g| g * g)
+                .sum();
+            let gn = gn_sq.sqrt();
+            if gn > clip_threshold {
+                let s = clip_threshold / gn;
+                for g in ll.grad_a.iter_mut() {
+                    *g *= s;
                 }
-                ll.adam_step(lr, 0.9, 0.999, 1e-8, step);
+                for g in ll.grad_b.iter_mut() {
+                    *g *= s;
+                }
             }
+            ll.adam_step(lr, 0.9, 0.999, 1e-8, step);
         }
     }
     Ok(loss)

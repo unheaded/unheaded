@@ -342,8 +342,10 @@ fn load_resident_program(
     }
     // Patch CALL immediates by rom_base, exactly like the init path.
     let words: Vec<u32> = bytes
-        .chunks_exact(4)
-        .map(|c| relocate_call_word(u32::from_le_bytes([c[0], c[1], c[2], c[3]]), rom_base))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|c| relocate_call_word(u32::from_le_bytes(*c), rom_base))
         .collect();
 
     // rv2mbc: values shifted by rom_base (RV word → that program's ROM slot);
@@ -355,8 +357,10 @@ fn load_resident_program(
         bail!("{} not 4-byte aligned", rv2mbc_path.display());
     }
     let rv_entries: Vec<u32> = rv
-        .chunks_exact(4)
-        .map(|c| relocate_rv2mbc_entry(u32::from_le_bytes([c[0], c[1], c[2], c[3]]), rom_base))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|c| relocate_rv2mbc_entry(u32::from_le_bytes(*c), rom_base))
         .collect();
 
     // Route ROM + RV2MBC population through the shared loader (Epic 1.2.3):
@@ -521,8 +525,10 @@ fn cmd_boot(
         std::fs::read(&kernel).with_context(|| format!("read kernel: {}", kernel.display()))?;
     let _ = check_image_alignment(&kernel_bytes)?;
     let mbc_words: Vec<u32> = kernel_bytes
-        .chunks_exact(4)
-        .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|c| u32::from_le_bytes(*c))
         .collect();
 
     let bp = bootparams::BootParamsV2::for_xv6(kernel_bytes.len() as u32, 0);
@@ -559,8 +565,10 @@ fn cmd_boot(
             .with_context(|| format!("read bootstub: {}", bs_path.display()))?;
         check_image_alignment(&bs_bytes)?;
         let bs_words: Vec<u32> = bs_bytes
-            .chunks_exact(4)
-            .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .map(|c| u32::from_le_bytes(*c))
             .collect();
         runner.populate_rom_at(0x4000, &bs_words)?;
         runner.populate_rom_at(0x8000, &mbc_words)?;
@@ -705,9 +713,11 @@ fn cmd_boot(
         // the shift).
         let mut patched_calls = 0u32;
         let words: Vec<u32> = bytes
-            .chunks_exact(4)
+            .as_chunks::<4>()
+            .0
+            .iter()
             .map(|c| {
-                let w = u32::from_le_bytes([c[0], c[1], c[2], c[3]]);
+                let w = u32::from_le_bytes(*c);
                 if (w >> 24) == OP_CALL {
                     patched_calls += 1;
                 }
@@ -733,13 +743,10 @@ fn cmd_boot(
                     user_rv2mbc_path.display()
                 );
             }
-            rv.chunks_exact(4)
-                .map(|c| {
-                    relocate_rv2mbc_entry(
-                        u32::from_le_bytes([c[0], c[1], c[2], c[3]]),
-                        USER_ROM_BASE,
-                    )
-                })
+            rv.as_chunks::<4>()
+                .0
+                .iter()
+                .map(|c| relocate_rv2mbc_entry(u32::from_le_bytes(*c), USER_ROM_BASE))
                 .collect()
         } else {
             println!(

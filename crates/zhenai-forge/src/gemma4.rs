@@ -2387,30 +2387,28 @@ pub fn train_step_gemma4(
 
     // Gradient clip + Adam step per LoRA layer
     let clip_threshold = 1.0f32;
-    for il in 0..lora.layers.len() {
-        for t in 0..4 {
-            if let Some(lora_layer) = &mut lora.layers[il][t] {
-                // Compute grad norm
-                let grad_norm_sq: f32 = lora_layer
-                    .grad_a
-                    .iter()
-                    .chain(lora_layer.grad_b.iter())
-                    .map(|g| g * g)
-                    .sum();
-                let grad_norm = grad_norm_sq.sqrt();
-                // Clip
-                if grad_norm > clip_threshold {
-                    let scale = clip_threshold / grad_norm;
-                    for g in lora_layer.grad_a.iter_mut() {
-                        *g *= scale;
-                    }
-                    for g in lora_layer.grad_b.iter_mut() {
-                        *g *= scale;
-                    }
+    for layer in lora.layers.iter_mut() {
+        for lora_layer in layer.iter_mut().flatten() {
+            // Compute grad norm
+            let grad_norm_sq: f32 = lora_layer
+                .grad_a
+                .iter()
+                .chain(lora_layer.grad_b.iter())
+                .map(|g| g * g)
+                .sum();
+            let grad_norm = grad_norm_sq.sqrt();
+            // Clip
+            if grad_norm > clip_threshold {
+                let scale = clip_threshold / grad_norm;
+                for g in lora_layer.grad_a.iter_mut() {
+                    *g *= scale;
                 }
-                // Adam step (with NaN guard from lora.rs)
-                lora_layer.adam_step(lr, 0.9, 0.999, 1e-8, step);
+                for g in lora_layer.grad_b.iter_mut() {
+                    *g *= scale;
+                }
             }
+            // Adam step (with NaN guard from lora.rs)
+            lora_layer.adam_step(lr, 0.9, 0.999, 1e-8, step);
         }
     }
     loss
@@ -2522,11 +2520,13 @@ mod tests {
         assert_eq!(weights.hparams.n_embd_per_layer, 256);
 
         // KV-share pattern: first 20 layers have wk; last 15 don't
-        for il in 0..20 {
-            assert!(weights.wk[il].is_some(), "layer {} should have wk", il);
-        }
-        for il in 20..35 {
-            assert!(weights.wk[il].is_none(), "layer {} should NOT have wk", il);
+        assert_eq!(weights.wk.len(), 35);
+        for (il, wk) in weights.wk.iter().enumerate() {
+            if il < 20 {
+                assert!(wk.is_some(), "layer {} should have wk", il);
+            } else {
+                assert!(wk.is_none(), "layer {} should NOT have wk", il);
+            }
         }
     }
 
@@ -2667,10 +2667,10 @@ mod tests {
         let mut total = 0;
         let target_names = ["Q", "K", "V", "O"];
         println!("\nLoRA grad health:");
-        for il in 0..weights.hparams.n_layer {
-            #[allow(clippy::needless_range_loop)] // strided tensor index — see crate note
-            for t in 0..4 {
-                if let Some(layer_l) = &lora.layers[il][t] {
+        assert_eq!(lora.layers.len(), weights.hparams.n_layer);
+        for (il, layer) in lora.layers.iter().enumerate() {
+            for (t, slot) in layer.iter().enumerate() {
+                if let Some(layer_l) = slot {
                     total += 1;
                     let has_nan = layer_l
                         .grad_a
