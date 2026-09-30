@@ -432,6 +432,7 @@ build-sealed-cask|produces a sealed image
 kanban-git-link|writes kanban links, no verdict
 drift-detect|reports drift; alerts-only by design (pkg/enkrateia contract)
 qa-smoke|prints a score for a human to compare against the previous batch
+ci-fetch-doomgeneric|fetches a pinned checkout the Go jobs need; no verdict of its own
 "
 
 # ---------------------------------------------------------------------------
