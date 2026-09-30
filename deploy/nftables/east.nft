@@ -1,0 +1,37 @@
+#!/usr/sbin/nft -f
+# SPDX-License-Identifier: GPL-3.0-or-later
+# east: inbound default deny (ADR-098 step 6, UH-FW-01, CIS Ubuntu 24.04 4.3.8).
+# One table this package owns. Apply only through
+# scripts/host/nft-apply-confirm.sh (rolls back unless confirmed).
+#
+# east's only link is the P2P cable to west (enp2s0, 192.168.13.0/30), so
+# everything arrives from or through west. ssh is accepted from any source on
+# that link in case something reaches east routed via west; everything else
+# only from west itself.
+
+table inet unheaded
+delete table inet unheaded
+
+table inet unheaded {
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iif "lo" accept
+		ct state established,related accept
+		ct state invalid drop
+
+		icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
+		ip6 saddr fe80::/10 icmpv6 type { mld-listener-query, mld-listener-report, mld2-listener-report } accept
+		icmpv6 type echo-request limit rate 10/second accept
+		icmp type { destination-unreachable, time-exceeded, parameter-problem } accept
+		icmp type echo-request limit rate 10/second accept
+
+		iifname "enp2s0" tcp dport 22 accept comment "ssh from anywhere on the P2P link (lockout guard)"
+		iifname "enp2s0" ip saddr 192.168.13.2 accept comment "west: BGP, BFD, WireGuard, services, scrapes"
+		iifname "enp2s0" ip6 saddr fe80::/10 accept
+		iifname "wg0" accept
+
+		limit rate 5/minute log prefix "unheaded-drop: " level info
+		counter
+	}
+}

@@ -577,6 +577,10 @@ func TestProbeJudges(t *testing.T) {
 		{"db-backup-recent", "\n---\n\n", false},
 		{"firewall-inbound-deny", "-P INPUT DROP\n---\n-P INPUT DROP\n", true},
 		{"firewall-inbound-deny", "-P INPUT DROP\n---\n", false},
+		// the package-owned nft table (ADR-098 step 6) decides even with iptables at ACCEPT
+		{"firewall-inbound-deny", "-P INPUT ACCEPT\n---\n-P INPUT ACCEPT\n---\n\t\ttype filter hook input priority filter; policy drop;\n", true},
+		{"firewall-inbound-deny", "-P INPUT ACCEPT\n---\n-P INPUT ACCEPT\n---\n\t\ttype filter hook input priority filter; policy accept;\n", false},
+		{"firewall-inbound-deny", "-P INPUT ACCEPT\n---\n-P INPUT ACCEPT\n---\n", false},
 		{"unattended-upgrades-enabled", "APT::Periodic::Unattended-Upgrade \"0\";\n", false},
 		{"apparmor-enabled", "N\n", false},
 		{"ntp-synchronized", "no\n", false},

@@ -418,7 +418,7 @@ controls:
       SC-7(5); 800-171 03.13.01, 03.13.06); CSF PR.IR-01; ISO A.8.20
       network security; SOC 2 CC6.6 protection against threats from outside
       the system boundary.
-      CIS Ubuntu 24.04: iptables and ip6tables default-deny policy (4.4.2.1, 4.4.3.1), which is what the probe reads.
+      CIS Ubuntu 24.04: default-deny policy by iptables and ip6tables (4.4.2.1, 4.4.3.1) or by nftables (4.3.8, the package-owned inet unheaded table of ADR-098); the probe accepts either, so a pass supports whichever mechanism is in place, not both.
     freshness_days: 1
     evidence:
       - {kind: host-probe, ref: "west:firewall-inbound-deny"}
@@ -429,7 +429,7 @@ controls:
       nist-csf-2: [PR.IR-01]
       soc2-security: [CC6.6]
       iso27001-2022: [A.8.20]
-      cis-ubuntu2404: ["4.4.2.1", "4.4.3.1"]
+      cis-ubuntu2404: ["4.3.8", "4.4.2.1", "4.4.3.1"]
 
   - id: UH-AUDIT-01
     title: Hosts record security-relevant events with auditd

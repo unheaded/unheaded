@@ -197,8 +197,10 @@ findings:
     exposure: every listener reachable from the LAN and P2P link; compounds the service-auth finding
     lockout: high
     step: 6
-    plan: package-owned nft table inet unheaded, ssh allow before policy drop, commit-confirm (auto-rollback after 120s unless confirmed); east first
-    decision: out-of-band access to east (ADR-098 question 3) before this lands
+    plan: >-
+      deploy/nftables/east.nft (nft -c checked on east 2026-09-30): default-deny input; ssh from anything on the P2P link, everything from
+      west. Apply with scripts/host/nft-apply-confirm.sh apply deploy/nftables/east.nft (rollback armed before apply, 120s), confirm, then
+      enable deploy/systemd/unheaded-nft.service for boot. Physical access to east exists (Stevie 2026-09-30)
 
   - source: "host-probe:west:firewall-inbound-deny"
     severity: high
@@ -207,7 +209,11 @@ findings:
     exposure: 11 of 13 listeners on all addresses
     lockout: high
     step: 6
-    plan: the east nft table, after east has run clean; allow list from the port registry (pkg/ports)
+    plan: >-
+      deploy/nftables/west.nft (nft -c checked on west 2026-09-30), after east has run clean: everything from east (P2P, wg0); LXD
+      DHCP/DNS; Docker bridges to 9100/9110/9323 and 16666-26666; from the home LAN only ssh 7375 and haproxy 80/443; from the ISP IPv6
+      prefix nothing but ssh over link-local. Same commit-confirm procedure
+    decision: anything else the LAN must reach on west (lxd 8443 remote, dashboards 20000/20001, the apt repo on 18888)
 
   # --- step 7: application level ---------------------------------------------
   - source: "gate-script:scripts/compliance/check-service-auth.sh"

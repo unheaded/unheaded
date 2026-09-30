@@ -1,0 +1,56 @@
+#!/usr/sbin/nft -f
+# SPDX-License-Identifier: GPL-3.0-or-later
+# west: inbound default deny (ADR-098 step 6, UH-FW-01, CIS Ubuntu 24.04 4.3.8).
+# One table this package owns; Docker's and LXD's tables are never touched.
+# Apply only through scripts/host/nft-apply-confirm.sh (rolls back unless
+# confirmed). A drop in any input base chain is final, so every path the host
+# relies on must be accepted here, including LXD's DHCP/DNS.
+#
+# Interfaces (2026-09-30): wlp17s0 home LAN 192.168.69.128/25 + ISP IPv6;
+# enp16s0 P2P to east 192.168.13.0/30; wg0 overlay (only peer: east);
+# lxdbr0 LXD containers; docker0 and br-* Docker bridges.
+
+table inet unheaded
+delete table inet unheaded
+
+table inet unheaded {
+	chain input {
+		type filter hook input priority filter; policy drop;
+
+		iif "lo" accept
+		ct state established,related accept
+		ct state invalid drop
+
+		# ICMP needed for IPv6 to work at all (neighbour discovery, router
+		# advertisements for west's SLAAC address, path MTU); no redirects.
+		icmpv6 type { destination-unreachable, packet-too-big, time-exceeded, parameter-problem, nd-router-advert, nd-neighbor-solicit, nd-neighbor-advert } accept
+		ip6 saddr fe80::/10 icmpv6 type { mld-listener-query, mld-listener-report, mld2-listener-report } accept
+		icmpv6 type echo-request limit rate 10/second accept
+		icmp type { destination-unreachable, time-exceeded, parameter-problem } accept
+		icmp type echo-request limit rate 10/second accept
+		ip6 saddr fe80::/10 udp sport 547 udp dport 546 accept comment "DHCPv6 client"
+
+		# east: the P2P link and the overlay are both ours (BGP, BFD, WireGuard,
+		# apt repo on 18888, node_exporter scrapes).
+		iifname "enp16s0" ip saddr 192.168.13.1 accept
+		iifname "enp16s0" ip6 saddr fe80::/10 accept
+		iifname "wg0" accept
+
+		# LXD containers: DHCP and DNS from lxdbr0's dnsmasq.
+		iifname "lxdbr0" udp dport { 53, 67 } accept
+		iifname "lxdbr0" tcp dport 53 accept
+
+		# Docker bridges: the monitoring stack scrapes host ports.
+		iifname "docker0" tcp dport { 9100, 9110, 9323, 16666-26666 } accept
+		iifname "br-*" tcp dport { 9100, 9110, 9323, 16666-26666 } accept
+
+		# Home LAN: ssh and the haproxy edge. Nothing else (lxd 8443,
+		# node_exporter, huginn, dockerd metrics, BGP) is offered to the LAN,
+		# and nothing at all to the ISP IPv6 prefix except ssh over link-local.
+		iifname "wlp17s0" ip saddr 192.168.69.128/25 tcp dport { 7375, 80, 443 } accept
+		iifname "wlp17s0" ip6 saddr fe80::/10 tcp dport 7375 accept
+
+		limit rate 5/minute log prefix "unheaded-drop: " level info
+		counter
+	}
+}
