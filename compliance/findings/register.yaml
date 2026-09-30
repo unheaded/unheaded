@@ -219,10 +219,15 @@ findings:
     severity: medium
     class: app
     opened: 2026-09-30
-    exposure: traefik config in the repo; the edge is not running on west today
+    exposure: traefik config in the repo; the edge is not running on west today. api.insecure is published on 127.0.0.1:21000 only (operator-local)
     lockout: none
     step: 7
-    plan: web->websecure redirect, TLS options minVersion VersionTLS13, drop --api.insecure (dashboard behind auth or not at all)
+    plan: >-
+      Not a flag flip. The dashboard and kanban routers carry no TLS and websecure has no entrypoint TLS, so the
+      edge effectively serves plain HTTP only; a redirect alone would 404 both. Order: pick a certificate source, enable TLS
+      on websecure (entrypoint http.tls), a file-provider tls.options.default minVersion VersionTLS13, move ping off
+      the web entrypoint (the healthcheck probes :80/ping), then redirect web to websecure, then drop api.insecure
+    decision: certificate source for the edge (ACME, internal CA, or self-signed for LAN)
 
   - id: FND-002
     title: Seven third-party containers run without the least-privilege baseline (listed in docs/security/compose-hardening-baseline.txt)
