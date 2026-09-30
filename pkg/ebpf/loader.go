@@ -2619,23 +2619,32 @@ func (l *NativeLoader) attachXDP(loaded *loadedProgram) error {
 	return err
 }
 
+// linkCreateAttr is the BPF_LINK_CREATE member of union bpf_attr, in the
+// kernel's field order: prog_fd, target_ifindex, attach_type, flags, then
+// the tcx/netkit extension (relative_fd, relative_id, expected_revision).
+type linkCreateAttr struct {
+	ProgFD      uint32
+	TargetIfIdx uint32
+	AttachType  uint32
+	Flags       uint32
+	RelativeFD  uint32
+	RelativeID  uint32
+	ExpectedRev uint64
+}
+
 // attachXDPLink attaches XDP using BPF link (modern method)
 func (l *NativeLoader) attachXDPLink(loaded *loadedProgram, ifIndex int) (int, error) {
 	// Open a netlink socket to get interface FD
 	// For XDP links, we need the interface index, not an FD
 
-	// Create a link with BPF_LINK_CREATE
-	attr := struct {
-		ProgFD     uint32
-		_          uint32
-		AttachType uint32
-		Flags      uint32
-		TargetIf   uint32
-		_          [20]byte
-	}{
-		ProgFD:     uint32(loaded.fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
-		AttachType: BPF_XDP,
-		TargetIf:   uint32(ifIndex), // #nosec G115 -- kernel ABI: ifindex is int32
+	// Create a link with BPF_LINK_CREATE. The attribute used to put the
+	// ifindex at offset 16 with padding at 4, where the kernel reads
+	// target_ifindex, so every XDP link attempt failed and attachXDP fell
+	// back to netlink, whose attachment outlives the process.
+	attr := linkCreateAttr{
+		ProgFD:      uint32(loaded.fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
+		TargetIfIdx: uint32(ifIndex),   // #nosec G115 -- kernel ABI: ifindex is int32
+		AttachType:  BPF_XDP,
 	}
 
 	// Determine flags
@@ -2837,15 +2846,7 @@ func (l *NativeLoader) attachTCX(loaded *loadedProgram, ifIndex int) (int, error
 		attachType = BPF_TCX_INGRESS
 	}
 
-	attr := struct {
-		ProgFD      uint32
-		TargetIfIdx uint32
-		AttachType  uint32
-		Flags       uint32
-		RelativeFD  uint32
-		RelativeID  uint32
-		ExpectedRev uint64
-	}{
+	attr := linkCreateAttr{
 		ProgFD:      uint32(loaded.fd), // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		TargetIfIdx: uint32(ifIndex),   // #nosec G115 -- BPF syscall ABI: Go file descriptors are int, the kernel takes __u32; FDs are small non-negative
 		AttachType:  attachType,
