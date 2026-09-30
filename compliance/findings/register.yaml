@@ -235,11 +235,10 @@ findings:
     step: 7
     accepted: {reason: "Stevie 2026-09-30: develop mode, no internet-facing edge node; Let's Encrypt once one exists", compensating: "traefik runs on no host today and its dashboard binds 127.0.0.1 only", accepted_on: 2026-09-30, until: 2026-12-29}
     plan: >-
-      Not a flag flip. The dashboard and kanban routers carry no TLS and websecure has no entrypoint TLS, so the
+      Decided (Stevie 2026-09-30): nothing until an edge goes internet-facing, then Let's Encrypt. Not a flag flip. The dashboard and kanban routers carry no TLS and websecure has no entrypoint TLS, so the
       edge effectively serves plain HTTP only; a redirect alone would 404 both. Order: pick a certificate source, enable TLS
       on websecure (entrypoint http.tls), a file-provider tls.options.default minVersion VersionTLS13, move ping off
       the web entrypoint (the healthcheck probes :80/ping), then redirect web to websecure, then drop api.insecure
-    decision: none until an edge goes internet-facing (then Let's Encrypt)
 
   - id: FND-002
     title: Seven third-party containers run without the least-privilege baseline (listed in docs/security/compose-hardening-baseline.txt)
