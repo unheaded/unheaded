@@ -27,9 +27,20 @@ import (
 
 // realBPFObjects returns the compiled BPF programs, smallest first, or none.
 func realBPFObjects(t testing.TB, max int) [][]byte {
+	return namedBPFObjects(max, "xdp-redirect", "compliance-ebpf", "syscall-tracer", "packet-marker", "failover-ebpf")
+}
+
+// btfBPFObjects returns the compiled programs that carry a .BTF section: only
+// monad-cpu-ebpf and nfv-ebpf link with --btf (ebpf/.cargo/config.toml), so
+// the smallest-first list above never seeded FuzzParseBTF with real BTF.
+func btfBPFObjects() [][]byte {
+	return namedBPFObjects(2, "nfv-ebpf", "monad-cpu-ebpf")
+}
+
+func namedBPFObjects(max int, names ...string) [][]byte {
 	dir := filepath.Join("..", "..", "ebpf", "target", "load-gate", "default", "bpfel-unknown-none", "release")
 	var out [][]byte
-	for _, name := range []string{"xdp-redirect", "compliance-ebpf", "syscall-tracer", "packet-marker", "failover-ebpf"} {
+	for _, name := range names {
 		if len(out) == max {
 			break
 		}
@@ -38,6 +49,47 @@ func realBPFObjects(t testing.TB, max int) [][]byte {
 		}
 	}
 	return out
+}
+
+// btfSection returns obj's .BTF bytes, or nil.
+func btfSection(obj []byte) []byte {
+	ef, err := elf.NewFile(bytes.NewReader(obj))
+	if err != nil {
+		return nil
+	}
+	s := ef.Section(".BTF")
+	if s == nil {
+		return nil
+	}
+	d, err := s.Data()
+	if err != nil {
+		return nil
+	}
+	return d
+}
+
+// Real compiler-emitted BTF parses. Skips when ebpf/ has not been built.
+func TestParseBTF_RealObjects(t *testing.T) {
+	objs := btfBPFObjects()
+	if len(objs) == 0 {
+		t.Skip("no BTF-carrying BPF objects built (scripts/check-ebpf-loads.sh builds them)")
+	}
+	for i, obj := range objs {
+		d := btfSection(obj)
+		if d == nil {
+			t.Fatalf("object %d has no readable .BTF", i)
+		}
+		btf, err := parseBTF(d)
+		if err != nil {
+			t.Errorf("object %d: parseBTF(%d bytes): %v", i, len(d), err)
+			continue
+		}
+		// parseBTF bounds-checks the sections and keeps the strings; it does
+		// not decode types (btfData.Types is never set, and nothing reads it).
+		if len(btf.Strings) == 0 {
+			t.Errorf("object %d: no string section from %d bytes of BTF", i, len(d))
+		}
+	}
 }
 
 func FuzzParseELF(f *testing.F) {
@@ -55,15 +107,9 @@ func FuzzParseELF(f *testing.F) {
 }
 
 func FuzzParseBTF(f *testing.F) {
-	for _, obj := range realBPFObjects(f, 5) {
-		ef, err := elf.NewFile(bytes.NewReader(obj))
-		if err != nil {
-			continue
-		}
-		if s := ef.Section(".BTF"); s != nil {
-			if d, err := s.Data(); err == nil {
-				f.Add(d)
-			}
+	for _, obj := range append(realBPFObjects(f, 5), btfBPFObjects()...) {
+		if d := btfSection(obj); d != nil {
+			f.Add(d)
 		}
 	}
 	hdr := make([]byte, 24)
