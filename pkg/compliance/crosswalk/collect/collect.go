@@ -645,3 +645,175 @@ func (h *HostSSHD) Collect(ctx context.Context, sources []crosswalk.Source) ([]c
 	}
 	return recs, nil
 }
+
+// Probe reads one fact about a host with a fixed shell command and judges it.
+type Probe struct {
+	Command string                                      // run by sh on the host; may use sudo -n
+	Judge   func(out string) (pass bool, detail string) // out is the command's stdout
+}
+
+// Probes is the complete set of host probes the catalog may name. Commands
+// are constants here, so catalog data can select a probe but never supply a
+// command. Each reads the real state, not a unit's status: on east
+// ufw.service is "active" while `ufw status` says inactive.
+var Probes = map[string]Probe{
+	"firewall-inbound-deny": {
+		Command: "sudo -n iptables -S INPUT; echo ---; sudo -n ip6tables -S INPUT",
+		Judge: func(out string) (bool, string) {
+			v4, v6, _ := strings.Cut(out, "---")
+			pol := func(s string) string {
+				for _, l := range strings.Split(s, "\n") {
+					if strings.HasPrefix(strings.TrimSpace(l), "-P INPUT ") {
+						return strings.TrimPrefix(strings.TrimSpace(l), "-P INPUT ")
+					}
+				}
+				return "unknown"
+			}
+			p4, p6 := pol(v4), pol(v6)
+			return p4 == "DROP" && p6 == "DROP", fmt.Sprintf("INPUT policy IPv4 %s, IPv6 %s (required DROP, DROP)", p4, p6)
+		},
+	},
+	"ntp-synchronized": {
+		Command: "timedatectl show -p NTPSynchronized --value",
+		Judge: func(out string) (bool, string) {
+			v := strings.TrimSpace(out)
+			return v == "yes", "NTPSynchronized=" + v
+		},
+	},
+	"auditd-running": {
+		Command: "systemctl is-active auditd",
+		Judge: func(out string) (bool, string) {
+			v := strings.TrimSpace(out)
+			return v == "active", "auditd " + v
+		},
+	},
+	"unattended-upgrades-enabled": {
+		Command: "apt-config dump APT::Periodic::Unattended-Upgrade",
+		Judge: func(out string) (bool, string) {
+			v := strings.TrimSpace(out)
+			return strings.Contains(v, `"1"`), strings.TrimSpace(strings.TrimSuffix(v, ";"))
+		},
+	},
+	"apparmor-enabled": {
+		Command: "cat /sys/module/apparmor/parameters/enabled",
+		Judge: func(out string) (bool, string) {
+			v := strings.TrimSpace(out)
+			return v == "Y", "apparmor enabled=" + v
+		},
+	},
+}
+
+var probeRefRe = regexp.MustCompile(`^(?:([a-z0-9][a-z0-9-]{0,62}):)?([a-z0-9-]+)$`)
+
+// HostProbes runs the named probes on each host its refs name: one script
+// per host, sections delimited by "@@<probe>" lines.
+type HostProbes struct {
+	Hostname string // default os.Hostname()
+	// Run executes script with sh on host (locally for the collector's own
+	// host, else over ssh). Default: RunScript.
+	Run func(ctx context.Context, host, script string) (string, error)
+	Now func() time.Time
+}
+
+// RunScript runs a probe script locally or on host over ssh.
+func RunScript(ctx context.Context, host, script string, local bool) (string, error) {
+	var cmd *exec.Cmd
+	if local {
+		cmd = exec.CommandContext(ctx, "sh", "-c", script)
+	} else {
+		cmd = exec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", host, "sh -c "+shQuote(script))
+	}
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	// A probe's own command may fail (auditd inactive exits 3); the script
+	// always ends in exit 0, so an error here means the host was not reached.
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("probes on %s: %w", host, err)
+	}
+	return out.String(), nil
+}
+
+// Collect returns one record per host-probe source whose section came back.
+func (p *HostProbes) Collect(ctx context.Context, sources []crosswalk.Source) ([]crosswalk.Record, error) {
+	now := time.Now
+	if p.Now != nil {
+		now = p.Now
+	}
+	local := p.Hostname
+	if local == "" {
+		local, _ = os.Hostname()
+	}
+	run := p.Run
+	if run == nil {
+		run = func(ctx context.Context, host, script string) (string, error) {
+			return RunScript(ctx, host, script, host == local)
+		}
+	}
+	type check struct {
+		src   crosswalk.Source
+		probe string
+	}
+	byHost := map[string][]check{}
+	var hosts []string
+	for _, s := range sources {
+		if s.Kind != crosswalk.KindHostProbe {
+			continue
+		}
+		m := probeRefRe.FindStringSubmatch(s.Ref)
+		if m == nil {
+			return nil, fmt.Errorf("host-probe ref %q must be [host:]<probe>", s.Ref)
+		}
+		if _, ok := Probes[m[2]]; !ok {
+			return nil, fmt.Errorf("host-probe ref %q: unknown probe %q", s.Ref, m[2])
+		}
+		host := m[1]
+		if host == "" {
+			host = local
+		}
+		if _, ok := byHost[host]; !ok {
+			hosts = append(hosts, host)
+		}
+		byHost[host] = append(byHost[host], check{s, m[2]})
+	}
+	var recs []crosswalk.Record
+	for _, host := range hosts {
+		var b strings.Builder
+		seen := map[string]bool{}
+		for _, c := range byHost[host] {
+			if !seen[c.probe] {
+				seen[c.probe] = true
+				fmt.Fprintf(&b, "echo @@%s; { %s; } 2>/dev/null\n", c.probe, Probes[c.probe].Command)
+			}
+		}
+		b.WriteString("exit 0\n")
+		out, err := run(ctx, host, b.String())
+		if err != nil {
+			continue // unreachable: no verdicts
+		}
+		sections := map[string]string{}
+		var cur string
+		for _, line := range strings.Split(out, "\n") {
+			if name, ok := strings.CutPrefix(line, "@@"); ok {
+				cur = name
+				sections[cur] = ""
+				continue
+			}
+			if cur != "" {
+				sections[cur] += line + "\n"
+			}
+		}
+		for _, c := range byHost[host] {
+			sec, ok := sections[c.probe]
+			if !ok {
+				continue
+			}
+			pass, detail := Probes[c.probe].Judge(sec)
+			v := crosswalk.VerdictFail
+			if pass {
+				v = crosswalk.VerdictPass
+			}
+			recs = append(recs, crosswalk.Record{Source: c.src, Verdict: v, ObservedAt: now(), Detail: host + ": " + detail})
+		}
+	}
+	return recs, nil
+}

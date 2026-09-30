@@ -48,6 +48,9 @@ const (
 	// KindHostSSHD: ref "[host:]<key><op><value>" against `sshd -T` (the
 	// effective config, Include and Match resolved); op = for strings, = >= <= for integers.
 	KindHostSSHD = "host-sshd"
+	// KindHostProbe: ref "[host:]<probe>", probe from the fixed table in
+	// collect.Probes; the catalog can name a probe, never a command.
+	KindHostProbe = "host-probe"
 )
 
 var (
@@ -261,7 +264,7 @@ func LoadDocs(frameworksYAML [][]byte, controlsYAML []byte) (*Catalog, error) {
 		}
 		for _, s := range ctl.Evidence {
 			switch s.Kind {
-			case KindGitHubJob, KindGateScript, KindGitSignatures, KindHostSysctl, KindAttestation, KindHostSSHD:
+			case KindGitHubJob, KindGateScript, KindGitSignatures, KindHostSysctl, KindAttestation, KindHostSSHD, KindHostProbe:
 			default:
 				return nil, invalid("control %q: evidence kind %q", ctl.ID, s.Kind)
 			}

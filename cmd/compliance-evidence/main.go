@@ -84,6 +84,12 @@ func run(repoDir, out, ghRepo, branch string, keep int, skipGates bool) error {
 	}
 	fresh = append(fresh, recs...)
 
+	probes := &collect.HostProbes{}
+	if recs, err = probes.Collect(ctx, sources); err != nil {
+		return err
+	}
+	fresh = append(fresh, recs...)
+
 	host := &collect.HostSysctl{}
 	if recs, err = host.Collect(ctx, sources); err != nil {
 		return err
