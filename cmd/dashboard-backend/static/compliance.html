@@ -57,9 +57,18 @@
             </div>
             <div class="header-center">
                 <nav class="nav-tabs">
-                    <a class="nav-tab" href="/" style="text-decoration:none;">Dashboard</a>
-                    <a class="nav-tab" href="/logs" style="text-decoration:none;">Logs</a>
-                    <a class="nav-tab active" href="/compliance" style="text-decoration:none;">Compliance</a>
+                    <!-- Same tabs as the main dashboard (index.html); the first four open its in-page tabs by hash. -->
+                    <a class="nav-tab nav-link" href="/#overview">Overview</a>
+                    <a class="nav-tab nav-link" href="/#flows">Flow Graph</a>
+                    <a class="nav-tab nav-link" href="/#latency">Latency</a>
+                    <a class="nav-tab nav-link" href="/#events">Events</a>
+                    <a class="nav-tab nav-link active" href="/compliance" aria-current="page">Compliance</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:3001">Grafana</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:20001">Kanban</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:20002">Wiki</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:16666">Doom</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:20103">Zhenai</a>
+                    <a class="nav-tab nav-link" href="/logs">Logs</a>
                 </nav>
             </div>
             <div class="header-right">
@@ -68,6 +77,25 @@
         </header>
 
         <main class="cx-page">
+            <section class="cx-card">
+                <h2>Frameworks</h2>
+                <table class="cx" id="fw-table">
+                    <thead><tr>
+                        <th>Framework</th><th>Granularity</th><th></th>
+                        <th class="num">Evidenced</th><th class="num">Failing</th><th class="num">Incomplete</th><th class="num">Unmapped</th><th class="num">Total</th>
+                    </tr></thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+            <section class="cx-card" id="fw-detail">
+                <h2 id="fw-detail-title"></h2>
+                <p class="cx-note"><a id="fw-csv" href="#">Download CSV</a> (one row per requirement: status, controls, every piece of evidence with verdict, time, commit and detail)</p>
+                <div class="filters" id="fw-filters"></div>
+                <table class="cx" id="req-table">
+                    <thead><tr><th>Requirement</th><th>Title</th><th>Status</th><th>Controls</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </section>
             <section class="cx-card cx-banner">
                 <p class="cx-note">
                     <strong>How to read this.</strong> Each Unheaded common control is one engineering practice,
@@ -93,26 +121,7 @@
                 <div id="find-extra"></div>
             </section>
 
-            <section class="cx-card">
-                <h2>Frameworks</h2>
-                <table class="cx" id="fw-table">
-                    <thead><tr>
-                        <th>Framework</th><th>Granularity</th><th></th>
-                        <th class="num">Evidenced</th><th class="num">Failing</th><th class="num">Incomplete</th><th class="num">Unmapped</th><th class="num">Total</th>
-                    </tr></thead>
-                    <tbody></tbody>
-                </table>
-            </section>
 
-            <section class="cx-card" id="fw-detail">
-                <h2 id="fw-detail-title"></h2>
-                <p class="cx-note"><a id="fw-csv" href="#">Download CSV</a> (one row per requirement: status, controls, every piece of evidence with verdict, time, commit and detail)</p>
-                <div class="filters" id="fw-filters"></div>
-                <table class="cx" id="req-table">
-                    <thead><tr><th>Requirement</th><th>Title</th><th>Status</th><th>Controls</th></tr></thead>
-                    <tbody></tbody>
-                </table>
-            </section>
 
             <section class="cx-card">
                 <h2>Overlap: requirements each control backs, per framework</h2>

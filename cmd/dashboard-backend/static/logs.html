@@ -225,9 +225,18 @@
             </div>
             <div class="header-center">
                 <nav class="nav-tabs">
-                    <a class="nav-tab" href="/" style="text-decoration:none;">Dashboard</a>
-                    <a class="nav-tab active" href="/logs" style="text-decoration:none;">Logs</a>
-                    <a class="nav-tab" href="/compliance" style="text-decoration:none;">Compliance</a>
+                    <!-- Same tabs as the main dashboard (index.html); the first four open its in-page tabs by hash. -->
+                    <a class="nav-tab nav-link" href="/#overview">Overview</a>
+                    <a class="nav-tab nav-link" href="/#flows">Flow Graph</a>
+                    <a class="nav-tab nav-link" href="/#latency">Latency</a>
+                    <a class="nav-tab nav-link" href="/#events">Events</a>
+                    <a class="nav-tab nav-link" href="/compliance">Compliance</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:3001">Grafana</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:20001">Kanban</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:20002">Wiki</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:16666">Doom</a>
+                    <a class="nav-tab nav-link" href="http://192.168.69.184:20103">Zhenai</a>
+                    <a class="nav-tab nav-link active" href="/logs" aria-current="page">Logs</a>
                 </nav>
             </div>
             <div class="header-right">

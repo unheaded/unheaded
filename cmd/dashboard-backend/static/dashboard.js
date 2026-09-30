@@ -166,17 +166,28 @@
     // ======================================================================
     // Navigation
     // ======================================================================
+    // In-page tabs carry data-page; the rest are links to other pages. The
+    // hash names the tab (/#latency), so the other pages' navs can link here.
+    var PAGES = ['overview', 'flows', 'latency', 'events'];
+
     function setupNavigation() {
-        document.querySelectorAll('.nav-tab').forEach(function(tab) {
+        document.querySelectorAll('.nav-tab[data-page]').forEach(function(tab) {
             tab.addEventListener('click', function() {
                 switchPage(this.dataset.page);
+                try { history.replaceState(null, '', '#' + this.dataset.page); } catch (_e) { /* file:// or sandboxed */ }
             });
+        });
+        var fromHash = window.location.hash.replace('#', '');
+        if (PAGES.indexOf(fromHash) >= 0) switchPage(fromHash);
+        window.addEventListener('hashchange', function() {
+            var h = window.location.hash.replace('#', '');
+            if (PAGES.indexOf(h) >= 0) switchPage(h);
         });
     }
 
     function switchPage(page) {
         state.activePage = page;
-        document.querySelectorAll('.nav-tab').forEach(function(tab) {
+        document.querySelectorAll('.nav-tab[data-page]').forEach(function(tab) {
             tab.classList.toggle('active', tab.dataset.page === page);
         });
         document.querySelectorAll('.page-content').forEach(function(p) {
