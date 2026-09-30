@@ -120,7 +120,8 @@ cons=$(curl -s -m 5 http://localhost:19100/api/v1/status 2>/dev/null | python3 -
 import sys, json
 try:
     v = json.load(sys.stdin)
-    print(f"{sum(1 for x in v.values() if x.get(\"severity\") == \"OK\")}/{len(v)}")
+    ok = sum(1 for x in v.values() if x.get("severity") == "OK")
+    print("%d/%d" % (ok, len(v)))
 except Exception:
     print("unreadable")' 2>/dev/null)
 check "akira/consensus-ok" "10/10" "${cons:-unreadable}"
