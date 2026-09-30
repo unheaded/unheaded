@@ -63,6 +63,11 @@ func FuzzKernelLoad(f *testing.F) {
 	// Inputs are written to the (world-writable) temp dir; this harness
 	// fuzzes object bytes, not path trust (objtrust_test.go covers that).
 	cfg.AllowUntrustedObjectPaths = true
+	// Well under the 2 GiB cgroup: at ~3K loads/s across workers, maps near
+	// the 512 MiB default are freed (asynchronously, by the kernel) slower
+	// than they are created, and the memcg OOM ends the run. The budget
+	// itself is covered by loader_budget_test.go.
+	cfg.MaxMapBytes = 64 << 20
 	l, err := NewNativeLoader(cfg)
 	if err != nil {
 		f.Fatalf("NewNativeLoader: %v", err)
