@@ -4,11 +4,15 @@
 package server
 
 import (
+	"bytes"
+	"encoding/csv"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"unheaded/pkg/compliance/crosswalk"
@@ -93,13 +97,7 @@ func (c *complianceSource) handleSummary(w http.ResponseWriter, r *http.Request)
 	now := time.Now()
 	sum := crosswalk.Summarize(cat, recs, now)
 
-	latest := make(map[string]crosswalk.Record)
-	for _, rec := range recs {
-		k := rec.Source.Key()
-		if cur, ok := latest[k]; (!ok || rec.ObservedAt.After(cur.ObservedAt)) && !rec.ObservedAt.After(now) {
-			latest[k] = rec
-		}
-	}
+	latest := latestBySource(recs, now)
 	out := complianceSummary{At: now, EvidenceAvailable: have, EvidenceRecords: len(recs)}
 	for _, ctl := range cat.Controls {
 		cc := complianceControl{Control: ctl, Status: sum.Controls[ctl.ID]}
@@ -137,11 +135,18 @@ func (c *complianceSource) handleFramework(w http.ResponseWriter, r *http.Reques
 		return
 	}
 	id := r.PathValue("id")
-	for _, fw := range crosswalk.Summarize(cat, recs, time.Now()).Frameworks {
-		if fw.ID == id {
-			writeComplianceJSON(w, fw)
+	now := time.Now()
+	sum := crosswalk.Summarize(cat, recs, now)
+	for _, fw := range sum.Frameworks {
+		if fw.ID != id {
+			continue
+		}
+		if r.URL.Query().Get("format") == "csv" {
+			writeFrameworkCSV(w, cat, sum, fw, latestBySource(recs, now))
 			return
 		}
+		writeComplianceJSON(w, fw)
+		return
 	}
 	http.Error(w, "unknown framework", http.StatusNotFound)
 }
@@ -156,4 +161,64 @@ func writeComplianceJSON(w http.ResponseWriter, v any) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	_, _ = w.Write(body) // #nosec G104 -- status committed; a failed write means the client left
+}
+
+// latestBySource keeps each source's newest record at or before now.
+func latestBySource(recs []crosswalk.Record, now time.Time) map[string]crosswalk.Record {
+	latest := make(map[string]crosswalk.Record)
+	for _, rec := range recs {
+		k := rec.Source.Key()
+		if cur, ok := latest[k]; (!ok || rec.ObservedAt.After(cur.ObservedAt)) && !rec.ObservedAt.After(now) {
+			latest[k] = rec
+		}
+	}
+	return latest
+}
+
+// csvCell stops a cell from being read as a spreadsheet formula (CSV
+// injection): evidence details come from tool output and job URLs.
+func csvCell(s string) string {
+	if s != "" && strings.ContainsRune("=+-@\t\r", rune(s[0])) {
+		return "'" + s
+	}
+	return s
+}
+
+// writeFrameworkCSV is the auditor export: one row per requirement with its
+// status, the controls mapped to it and every piece of their evidence.
+func writeFrameworkCSV(w http.ResponseWriter, cat *crosswalk.Catalog, sum *crosswalk.Summary,
+	fw *crosswalk.FrameworkSummary, latest map[string]crosswalk.Record) {
+	byID := make(map[string]*crosswalk.Control, len(cat.Controls))
+	for _, c := range cat.Controls {
+		byID[c.ID] = c
+	}
+	var buf bytes.Buffer
+	cw := csv.NewWriter(&buf)
+	_ = cw.Write([]string{"requirement", "title", "status", "controls", "evidence", "framework", "version", "exported_at"})
+	for _, req := range fw.Requirements {
+		var ctls, ev []string
+		for _, id := range req.Controls {
+			ctls = append(ctls, id+"="+string(sum.Controls[id]))
+			for _, src := range byID[id].Evidence {
+				line := id + ": " + src.Kind + " " + src.Ref
+				if rec, ok := latest[src.Key()]; ok {
+					line += fmt.Sprintf(" %s %s %s %s", rec.Verdict, rec.ObservedAt.UTC().Format(time.RFC3339), rec.Commit, rec.Detail)
+				} else {
+					line += " no evidence"
+				}
+				ev = append(ev, line)
+			}
+		}
+		controls := strings.Join(ctls, " ") // "UH-VULN-01=PASS UH-SAST-01=FAIL"
+		_ = cw.Write([]string{csvCell(req.ID), csvCell(req.Title), string(req.Status), csvCell(controls),
+			csvCell(strings.Join(ev, " | ")), csvCell(fw.Name), csvCell(fw.Version), sum.At.UTC().Format(time.RFC3339)})
+	}
+	cw.Flush()
+	if err := cw.Error(); err != nil {
+		http.Error(w, "encode csv", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
+	w.Header().Set("Content-Disposition", `attachment; filename="compliance-`+fw.ID+`.csv"`)
+	_, _ = w.Write(buf.Bytes()) // #nosec G104 -- status committed; a failed write means the client left
 }

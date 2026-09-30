@@ -124,6 +124,26 @@
         });
     }
 
+    function renderFindings(controls) {
+        const body = document.querySelector('#find-table tbody');
+        body.textContent = '';
+        let n = 0;
+        controls.forEach(c => (c.evidence || []).forEach(e => {
+            if (!e.latest || e.latest.verdict !== 'fail') return;
+            n++;
+            const detail = el('td');
+            detail.appendChild(el('span', { text: e.latest.detail || '' }));
+            body.appendChild(el('tr', null, [
+                el('td', { text: c.id, cls: 'mono', title: c.title }),
+                el('td', { text: e.kind + ' ' + e.ref, cls: 'mono' }),
+                el('td', { text: age(e.latest.observed_at), cls: 'muted', title: e.latest.observed_at }),
+                detail,
+            ]));
+        }));
+        document.getElementById('findings-title').textContent =
+            n === 0 ? 'Open findings: none among assessed checks' : 'Open findings (' + n + ' failing checks)';
+    }
+
     let currentFramework = null;
     let currentFilter = null;
 
@@ -157,6 +177,7 @@
         currentFramework = await res.json();
         currentFilter = null;
         document.getElementById('fw-detail').style.display = 'block';
+        document.getElementById('fw-csv').href = '/api/v1/compliance/frameworks/' + encodeURIComponent(id) + '?format=csv';
         document.getElementById('fw-detail-title').textContent =
             currentFramework.name + ' ' + currentFramework.version + ' (' + currentFramework.granularity + ')';
         renderFilters();
@@ -181,6 +202,7 @@
         status.textContent = s.evidence_available
             ? s.evidence_records + ' evidence records'
             : 'no evidence collected yet: every control NOT_ASSESSED';
+        renderFindings(s.controls || []);
         renderFrameworks(s.frameworks || []);
         renderMatrix(s.controls || [], s.frameworks || []);
         renderControls(s.controls || []);
