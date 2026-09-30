@@ -161,12 +161,14 @@ check "flows/advancing" "true" "$([ "${f2:-0}" -gt "${f1:-0}" ] 2>/dev/null && e
 check "wiki/http"           "200"  "$(http http://localhost:20002/health)"
 check "wiki/pages"          "200"  "$(http http://localhost:20002/wiki/)"
 
-# demo-trace-injector publishes the topics behind the Flow Graph. `pgrep -x`
-# cannot match it — Linux truncates comm at 15 chars and the name is 19 — so
-# match the full command line. Safe from inside a script file, whose own
-# command line does not contain the pattern.
-if pgrep -f 'demo-trace-injector' >/dev/null 2>&1; then inj="running"; else inj="absent"; fi
-check "injector/running"    "running" "$inj"
+# trace-collector publishes the real eBPF events behind the Flow Graph,
+# Latency and Events pages (packet_marker/flow_tracker on br-unhe-data, TCP
+# kprobes). It replaced demo-trace-injector's synthetic events on
+# 2026-09-30; the injector must not run alongside it.
+if pgrep -f '^/tmp/trace-collector-go --unified' >/dev/null 2>&1; then tc="running"; else tc="absent"; fi
+check "trace-collector/running" "running" "$tc"
+if pgrep -f '^/tmp/demo-trace-injector' >/dev/null 2>&1; then inj="running"; else inj="absent"; fi
+check "demo-injector/absent" "absent" "$inj"
 
 if [ "$JSON" -eq 0 ]; then
     for d in unheaded-daemon akira trace-collector-go protocol-api \
