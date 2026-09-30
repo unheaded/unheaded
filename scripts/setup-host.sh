@@ -340,7 +340,7 @@ setup_user() {
         return
     fi
 
-    useradd -r -s /bin/bash -d /opt/unheaded -m unheaded
+    useradd -r -s /usr/sbin/nologin -d /opt/unheaded -m unheaded
     usermod -aG lxd unheaded
 
     log_success "User 'unheaded' created"

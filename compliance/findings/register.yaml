@@ -6,7 +6,7 @@
 #   source:   "<kind>:<ref>" of a catalog evidence source, or
 #   id:       FND-NNN for a finding no collector sees yet (needs title + verify)
 #   severity: critical | high | medium | low (exposure x impact; no inflation)
-#   class:    sysctl | sshd | firewall | service | kmod | fileperm | mount | package | sudo | boot | mac | app | container | ci | backup | process
+#   class:    sysctl | sshd | firewall | service | kmod | fileperm | mount | package | sudo | boot | mac | account | shell | app | container | ci | backup | process
 #   lockout:  none | low | high (can fixing it lock Stevie out of the host?)
 #   step:     remediation order, ADR-098 section 4 (safe first, lockout risk last)
 #   accepted: {reason, compensating, accepted_on, until} <= 90 days; still counted
@@ -1125,3 +1125,78 @@ findings:
     lockout: none
     step: 2
     plan: "same change as fs.suid_dumpable: enabled=0 in /etc/default/apport, systemctl disable --now apport (and mask)"
+
+  # --- CIS 5.4 password and account policy (2026-09-30) ----------------------
+
+  - source: "host-probe:west:pw-max-days"
+    severity: low
+    class: account
+    opened: 2026-09-30
+    lockout: low
+    step: 5
+    plan: "PASS_MAX_DAYS 365 in /etc/login.defs and chage -M 365 on accounts with a password; with key-only ssh the password is used for sudo, so expiry means a yearly password change, not a lockout"
+    decision: "password expiry for govan (key-only ssh; the password is the sudo password)"
+
+  - source: "host-probe:west:pw-inactive"
+    severity: low
+    class: account
+    opened: 2026-09-30
+    lockout: none
+    step: 5
+    plan: "useradd -D -f 45 and chage --inactive 45 on accounts with a password"
+
+  - source: "host-probe:west:shell-tmout"
+    severity: low
+    class: shell
+    opened: 2026-09-30
+    lockout: none
+    step: 4
+    plan: "/etc/profile.d/00-unheaded-tmout.sh: readonly TMOUT=900; export TMOUT. Long interactive jobs belong in tmux or systemd-run, which TMOUT does not end"
+
+  - source: "host-probe:east:pw-max-days"
+    severity: low
+    class: account
+    opened: 2026-09-30
+    lockout: low
+    step: 5
+    plan: "PASS_MAX_DAYS 365 in /etc/login.defs and chage -M 365 on accounts with a password; with key-only ssh the password is used for sudo, so expiry means a yearly password change, not a lockout"
+    decision: "password expiry for govan (key-only ssh; the password is the sudo password)"
+
+  - source: "host-probe:east:pw-inactive"
+    severity: low
+    class: account
+    opened: 2026-09-30
+    lockout: none
+    step: 5
+    plan: "useradd -D -f 45 and chage --inactive 45 on accounts with a password"
+
+  - source: "host-probe:east:shell-tmout"
+    severity: low
+    class: shell
+    opened: 2026-09-30
+    lockout: none
+    step: 4
+    plan: "/etc/profile.d/00-unheaded-tmout.sh: readonly TMOUT=900; export TMOUT. Long interactive jobs belong in tmux or systemd-run, which TMOUT does not end"
+
+  - source: "host-probe:west:acct-system-no-shell"
+    severity: low
+    class: account
+    opened: 2026-09-30
+    lockout: none
+    step: 4
+    plan: "unheaded (uid 993) has /bin/bash because scripts/setup-host.sh created it that way (fixed in the repo 2026-09-30; the .deb, Jenkinsfile and postinst already use nologin, and nothing logs in as unheaded): usermod -s /usr/sbin/nologin unheaded. frr (/bin/sh) comes from the FRR package: check its maintainer scripts before changing it"
+
+  - id: FND-006
+    title: The unheaded service account on west is in the docker and lxd groups, each of which is root-equivalent
+    verify: id unheaded on west lists neither docker nor lxd, and the services that run as unheaded still work
+    host: west
+    severity: medium
+    class: account
+    opened: 2026-09-30
+    exposure: any service running as unheaded (and anyone who gets code execution in one) can start a privileged container and own the host
+    lockout: none
+    step: 5
+    plan: >-
+      Find which services need the docker socket or LXD (the dashboard's container metrics, the deploy scripts), give them a narrower path
+      (a read-only socket proxy, or a dedicated user per service), then gpasswd -d unheaded docker and lxd. scripts/setup-host.sh adds lxd.
+    decision: which services running as unheaded genuinely need docker or LXD access
