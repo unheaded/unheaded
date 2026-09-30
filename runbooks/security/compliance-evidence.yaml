@@ -1,0 +1,39 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: compliance-evidence
+  description: Collect compliance evidence and show framework coverage (ADR-097)
+  owner: moatghost
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: false
+
+# Evidence: GitHub Actions job conclusions on develop (public API; set
+# GITHUB_TOKEN to raise the rate limit), the last 50 develop commits'
+# signatures, this host's kernel/network sysctls, and the gate scripts the
+# catalog names. Results merge into var/compliance/evidence.json, which the
+# dashboard's /compliance page reads (read-only mount).
+
+steps:
+  - name: collect
+    action: shell
+    command: |
+      cd ~/tmp/unheaded
+      go run ./cmd/compliance-evidence
+
+  - name: collect-without-gates
+    description: Faster; CI, signatures and host posture only
+    action: shell
+    optional: true
+    command: |
+      cd ~/tmp/unheaded
+      go run ./cmd/compliance-evidence -skip-gates
+
+  - name: refresh-framework-catalogs
+    description: Regenerate requirement lists from NIST OSCAL and FedRAMP (review the diff; counts are pinned by TestRepoCatalog)
+    action: shell
+    optional: true
+    command: |
+      cd ~/tmp/unheaded
+      python3 scripts/compliance/import-frameworks.py
+      git diff --stat compliance/catalog
