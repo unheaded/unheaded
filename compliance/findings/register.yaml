@@ -238,3 +238,24 @@ findings:
     lockout: none
     step: 7
     plan: one service at a time - read_only, cap_drop ALL plus the minimum, no-new-privileges, dedicated non-root user
+
+  - id: FND-003
+    title: >-
+      13 unit files in deploy/systemd deny syscalls that systemd silently ignores. `SystemCallFilter=~@privileged ~@resources ~@reboot ~@module ~@swap`
+      accepts `~` only as the first character of the list, so the later groups are unknown names (systemd-analyze verify prints "System call ~@resources
+      is not known, ignoring"). Only @privileged is denied. @reboot, @module and @swap are already outside the @system-service allow-list, so the
+      real loss is @resources. huginn.service is installed and enabled on west with this line.
+    verify: systemd-analyze verify deploy/systemd/*.service prints no "System call ... is not known" lines, and each fixed unit starts and serves under the corrected filter
+    host: west
+    severity: low
+    class: service
+    opened: 2026-09-30
+    exposure: the documented seccomp hardening is weaker than written; matters only after code execution inside a service
+    lockout: none
+    step: 7
+    plan: >-
+      Correct form is `SystemCallFilter=~@privileged @resources @reboot @module @swap`. Denied calls default to SIGSYS (kill); these units set no
+      SystemCallErrorNumber, and the Go runtime calls setrlimit (in @resources) at start, so the literal fix may kill services. Test each binary under
+      systemd-run with the corrected filter (and SystemCallErrorNumber=EPERM if needed) before changing the files; the installed huginn unit changes
+      only with Stevie's yes. Then add a gate running systemd-analyze verify on deploy/systemd. Tested 2026-09-30: dashboard-backend runs and
+      serves /health under the corrected filter with the default kill action and with EPERM; the other 12 binaries are untested.
