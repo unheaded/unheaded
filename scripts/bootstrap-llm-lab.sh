@@ -880,7 +880,8 @@ fs.inotify.max_user_watches = 1048576
 fs.inotify.max_user_instances = 8192
 
 # ── eBPF ──
-kernel.unprivileged_bpf_disabled = 0
+# 2 (not 0): only CAP_BPF holders load BPF; 2 stays reversible at runtime.
+kernel.unprivileged_bpf_disabled = 2
 net.core.bpf_jit_enable = 1
 net.core.bpf_jit_harden = 0
 

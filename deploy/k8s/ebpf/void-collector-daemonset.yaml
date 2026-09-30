@@ -22,15 +22,14 @@ spec:
       priorityClassName: unheaded-critical
       # Runs as a dedicated UID, not root (trivy KSV-0012 / KSV-0118).
       #
-      # Loading BPF no longer requires UID 0 on this host — verified rather
-      # than assumed:
-      #   kernel 6.17.0-41           (CAP_BPF/CAP_PERFMON exist since 5.8)
-      #   unprivileged_bpf_disabled = 0
-      # so the capabilities already granted below are sufficient without root.
+      # Loading BPF does not require UID 0: CAP_BPF + CAP_PERFMON (granted
+      # below; kernel >= 5.8) are sufficient on their own. They do not depend
+      # on kernel.unprivileged_bpf_disabled, which only restricts callers
+      # WITHOUT CAP_BPF; hosts set it to 2 since 2026-09-30.
       #
       # If BPF load regresses it appears as a verifier or permission error at
-      # program load, NOT as anything obviously security-shaped — check
-      # /proc/sys/kernel/unprivileged_bpf_disabled and the kernel version
+      # program load, NOT as anything obviously security-shaped — check the
+      # capabilities actually reached the container and the kernel version
       # before assuming the manifest is wrong.
       securityContext:
         runAsNonRoot: true

@@ -109,7 +109,7 @@
       "net.ipv6.conf.default.forwarding" = 1;
       "kernel.perf_event_paranoid"       = 1;
       "kernel.kptr_restrict"             = 1;
-      "kernel.unprivileged_bpf_disabled" = 0;
+      "kernel.unprivileged_bpf_disabled" = 2;
       "net.core.rmem_max"                = 13107200;
       "net.core.wmem_max"                = 13107200;
     };

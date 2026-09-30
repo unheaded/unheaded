@@ -52,7 +52,8 @@
   };
 
   # ── BTF / eBPF kernel requirements ───────────────────────────────────────
-  boot.kernel.sysctl."kernel.unprivileged_bpf_disabled" = 0;
+  # 2: only CAP_BPF holders (the collectors) load BPF; reversible at runtime.
+  boot.kernel.sysctl."kernel.unprivileged_bpf_disabled" = 2;
 
   # ── NTP ──────────────────────────────────────────────────────────────────
   services.timesyncd.enable = true;
