@@ -30,21 +30,26 @@ jobs:
         run: |
           curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
 
+      # grype-scan below reads sbom-results/sbom-cyclonedx.json. This step
+      # used to run scripts/generate-sbom.sh, which writes sbom/*.json (the
+      # committed human-facing SBOM) and never produced sbom-results/ at all:
+      # grype scanned a missing file, `|| true` hid that, and the SARIF upload
+      # failed on an empty file.
       - name: Generate SBOM
         run: |
-          ./scripts/generate-sbom.sh ${{ github.sha }}
+          mkdir -p sbom-results
+          syft dir:. \
+            -o cyclonedx-json=sbom-results/sbom-cyclonedx.json \
+            -o spdx-json=sbom-results/sbom-spdx.json
 
       - name: Upload SBOM artifacts
         uses: actions/upload-artifact@v5
         with:
           name: sbom-artifacts
+          if-no-files-found: error
           path: |
             sbom-results/sbom-cyclonedx.json
             sbom-results/sbom-spdx.json
-            sbom-results/go-modules-list.txt
-            sbom-results/go-licenses-report.txt
-            sbom-results/cargo-audit-report.txt
-            sbom-results/SBOM-SUMMARY.md
           retention-days: 30
 
   grype-scan:
@@ -69,8 +74,7 @@ jobs:
         run: |
           grype sbom:sbom-results/sbom-cyclonedx.json \
             -o sarif \
-            --file grype-results.sarif \
-            || true
+            --file grype-results.sarif
 
       - name: Parse Grype results for HIGH/CRITICAL
         id: grype-check
@@ -111,9 +115,18 @@ jobs:
       - name: Check Go licenses
         run: |
           go install github.com/google/go-licenses@latest
+          # Ignored, each checked by hand (2026-09-30):
+          #   unheaded: this module (GPL-3.0); the allow-list is for dependencies.
+          #   github.com/unheaded/doomgeneric: first-party, SPDX MIT in every
+          #     pkg/doom file, but its module dir (unheaded/) has no LICENSE
+          #     file of its own for go-licenses to find.
+          #   modernc.org/mathutil: LICENSE is BSD-3-Clause ("names of the
+          #     authors" wording) that the classifier does not match.
           go-licenses check ./... \
             --allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC \
-            || exit 1
+            --ignore unheaded \
+            --ignore github.com/unheaded/doomgeneric \
+            --ignore modernc.org/mathutil
 
   report:
     name: Generate Weekly Report
