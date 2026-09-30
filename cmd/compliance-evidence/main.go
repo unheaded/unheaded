@@ -10,6 +10,7 @@
 //	go run ./cmd/compliance-evidence -skip-gates    # GitHub + git only
 //	go run ./cmd/compliance-evidence findings       # the findings register (ADR-098)
 //	go run ./cmd/compliance-evidence findings -adr docs/adr/ADR-098-findings-register-and-baseline-modes.md
+//	go run ./cmd/compliance-evidence baseline       # regenerate compliance/baseline/baseline.yaml
 package main
 
 import (
@@ -30,6 +31,13 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "findings" {
 		if err := runFindings(os.Args[2:], os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "compliance-evidence findings:", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "baseline" {
+		if err := runBaseline(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, "compliance-evidence baseline:", err)
 			os.Exit(1)
 		}
 		return
@@ -167,4 +175,28 @@ func writeAtomic(path string, recs []crosswalk.Record) error {
 		return err
 	}
 	return os.Rename(tmp.Name(), path)
+}
+
+// runBaseline writes compliance/baseline/baseline.yaml from the catalog: the
+// host-configuration checks the host agent runs (ADR-098).
+func runBaseline(args []string) error {
+	fl := flag.NewFlagSet("baseline", flag.ContinueOnError)
+	repoDir := fl.String("repo-dir", ".", "repository root")
+	if err := fl.Parse(args); err != nil {
+		return err
+	}
+	cat, err := crosswalk.LoadFS(os.DirFS(*repoDir), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(*repoDir, "compliance", "baseline", "baseline.yaml")
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil { // #nosec G301 -- repo directory
+		return err
+	}
+	b := collect.BaselineFromCatalog(cat)
+	if err := os.WriteFile(path, b.Marshal(), 0o644); err != nil { // #nosec G306 -- repo file, shipped world-readable
+		return err
+	}
+	fmt.Printf("%d host checks written to %s\n", len(b.Sources), path)
+	return nil
 }

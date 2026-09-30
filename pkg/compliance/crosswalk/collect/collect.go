@@ -650,6 +650,10 @@ func (h *HostSSHD) Collect(ctx context.Context, sources []crosswalk.Source) ([]c
 type Probe struct {
 	Command string                                      // run by sh on the host; may use sudo -n
 	Judge   func(out string) (pass bool, detail string) // out is the command's stdout
+	// Baseline marks a probe of host configuration, which the host agent
+	// also evaluates (ADR-098). Operational probes (backup recency, which
+	// depends on the operator's $HOME) stay central-only.
+	Baseline bool
 }
 
 // Probes is the complete set of host probes the catalog may name. Commands
@@ -658,7 +662,8 @@ type Probe struct {
 // ufw.service is "active" while `ufw status` says inactive.
 var Probes = map[string]Probe{
 	"firewall-inbound-deny": {
-		Command: "sudo -n iptables -S INPUT; echo ---; sudo -n ip6tables -S INPUT",
+		Baseline: true,
+		Command:  "sudo -n iptables -S INPUT; echo ---; sudo -n ip6tables -S INPUT",
 		Judge: func(out string) (bool, string) {
 			v4, v6, _ := strings.Cut(out, "---")
 			pol := func(s string) string {
@@ -674,21 +679,24 @@ var Probes = map[string]Probe{
 		},
 	},
 	"ntp-synchronized": {
-		Command: "timedatectl show -p NTPSynchronized --value",
+		Baseline: true,
+		Command:  "timedatectl show -p NTPSynchronized --value",
 		Judge: func(out string) (bool, string) {
 			v := strings.TrimSpace(out)
 			return v == "yes", "NTPSynchronized=" + v
 		},
 	},
 	"auditd-running": {
-		Command: "systemctl is-active auditd",
+		Baseline: true,
+		Command:  "systemctl is-active auditd",
 		Judge: func(out string) (bool, string) {
 			v := strings.TrimSpace(out)
 			return v == "active", "auditd " + v
 		},
 	},
 	"unattended-upgrades-enabled": {
-		Command: "apt-config dump APT::Periodic::Unattended-Upgrade",
+		Baseline: true,
+		Command:  "apt-config dump APT::Periodic::Unattended-Upgrade",
 		Judge: func(out string) (bool, string) {
 			v := strings.TrimSpace(out)
 			return strings.Contains(v, `"1"`), strings.TrimSpace(strings.TrimSuffix(v, ";"))
@@ -708,7 +716,8 @@ var Probes = map[string]Probe{
 		},
 	},
 	"apparmor-enabled": {
-		Command: "cat /sys/module/apparmor/parameters/enabled",
+		Baseline: true,
+		Command:  "cat /sys/module/apparmor/parameters/enabled",
 		Judge: func(out string) (bool, string) {
 			v := strings.TrimSpace(out)
 			return v == "Y", "apparmor enabled=" + v
