@@ -11,6 +11,8 @@
 //
 //	go test ./pkg/ebpf -run '^$' -fuzz FuzzParseELF -fuzztime 60s
 
+//go:build linux
+
 package ebpf
 
 import (
