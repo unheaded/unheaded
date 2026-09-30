@@ -127,10 +127,54 @@
 
     // The findings register (ADR-098): open findings come from evidence,
     // triage from compliance/findings/register.yaml.
+    // Filters over the open findings: one value per dimension, or none.
+    // "decision" narrows to findings waiting on a decision from Stevie.
+    const FIND_DIMS = [
+        ['severity', f => f.severity],
+        ['host', f => f.host || '-'],
+        ['class', f => (f.entry && f.entry.class) || '-'],
+        ['step', f => String((f.entry && f.entry.step) || '-')],
+        ['decision', f => (f.entry && f.entry.decision) ? 'pending' : 'none'],
+    ];
+    const findFilter = {};
+    let lastReport = null;
+
+    function findMatches(f, skip) {
+        return FIND_DIMS.every(([dim, get]) => dim === skip || findFilter[dim] === undefined || get(f) === findFilter[dim]);
+    }
+
+    function renderFindFilters(open) {
+        const box = document.getElementById('find-filters');
+        box.textContent = '';
+        FIND_DIMS.forEach(([dim, get]) => {
+            // Counts reflect the other active filters, so every chip says
+            // how many rows clicking it would leave.
+            const counts = {};
+            open.filter(f => findMatches(f, dim)).forEach(f => { const v = get(f); counts[v] = (counts[v] || 0) + 1; });
+            const row = el('span', { cls: 'muted' }, [el('span', { text: dim + ':' })]);
+            Object.keys(counts).sort().forEach(v => {
+                const b = el('button', { text: v + ' ' + counts[v], cls: findFilter[dim] === v ? 'on' : '' });
+                b.addEventListener('click', () => {
+                    if (findFilter[dim] === v) delete findFilter[dim]; else findFilter[dim] = v;
+                    renderFindings(lastReport);
+                });
+                row.appendChild(b);
+            });
+            box.appendChild(row);
+        });
+        if (Object.keys(findFilter).length) {
+            const clear = el('button', { text: 'clear filters' });
+            clear.addEventListener('click', () => { Object.keys(findFilter).forEach(k => delete findFilter[k]); renderFindings(lastReport); });
+            box.appendChild(clear);
+        }
+    }
+
     function renderFindings(rep) {
+        lastReport = rep;
         const body = document.querySelector('#find-table tbody');
         body.textContent = '';
-        (rep.open || []).forEach(f => {
+        renderFindFilters(rep.open || []);
+        (rep.open || []).filter(f => findMatches(f, null)).forEach(f => {
             const e = f.entry || {};
             let plan = e.plan || (f.severity === 'untriaged' ? 'add an entry to compliance/findings/register.yaml' : '');
             if (f.accepted) plan = (f.acceptance_expired ? 'ACCEPTANCE EXPIRED; ' : 'accepted until ' + e.accepted.until + '; ') + plan;
@@ -152,10 +196,11 @@
             ]));
         });
         const n = (rep.open || []).length;
+        const shown = (rep.open || []).filter(f => findMatches(f, null)).length;
         const counts = ['untriaged', 'critical', 'high', 'medium', 'low']
             .filter(s => rep.counts && rep.counts[s]).map(s => rep.counts[s] + ' ' + s).join(', ');
         document.getElementById('findings-title').textContent =
-            'Open findings: ' + n + (counts ? ' (' + counts + ')' : '') +
+            'Open findings: ' + n + (counts ? ' (' + counts + ')' : '') + (shown !== n ? ', ' + shown + ' shown' : '') +
             '. Zero claimable: ' + (rep.zero_claimable ? 'yes' : 'no' + (rep.zero_reason ? ' (' + rep.zero_reason + ')' : ''));
         const extra = document.getElementById('find-extra');
         extra.textContent = '';
