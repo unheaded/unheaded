@@ -45,6 +45,9 @@ const (
 	// (compliance/attestations/<name>.yaml). Self-attested: the page labels
 	// it so, and it never stands in for machine evidence.
 	KindAttestation = "attestation"
+	// KindHostSSHD: ref "[host:]<key><op><value>" against `sshd -T` (the
+	// effective config, Include and Match resolved); op = for strings, = >= <= for integers.
+	KindHostSSHD = "host-sshd"
 )
 
 var (
@@ -258,7 +261,7 @@ func LoadDocs(frameworksYAML [][]byte, controlsYAML []byte) (*Catalog, error) {
 		}
 		for _, s := range ctl.Evidence {
 			switch s.Kind {
-			case KindGitHubJob, KindGateScript, KindGitSignatures, KindHostSysctl, KindAttestation:
+			case KindGitHubJob, KindGateScript, KindGitSignatures, KindHostSysctl, KindAttestation, KindHostSSHD:
 			default:
 				return nil, invalid("control %q: evidence kind %q", ctl.ID, s.Kind)
 			}

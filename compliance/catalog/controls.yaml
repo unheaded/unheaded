@@ -294,6 +294,47 @@ controls:
       nist-csf-2: [PR.IR-01]
       iso27001-2022: [A.8.20]
 
+  - id: UH-SSH-01
+    title: Remote login to the hosts is key-only and hardened
+    statement: >-
+      On west and east, the effective sshd configuration (sshd -T, with
+      Include and Match resolved) refuses passwords and keyboard-interactive
+      login, root login and empty passwords, disables X11 forwarding, allows
+      at most 4 authentication attempts per connection, and times out idle
+      sessions within 5 minutes. Read with passwordless sudo, locally or over
+      ssh; each record names its host.
+    rationale: >-
+      Remote access restricted to strong authentication (AC-17; IA-2
+      identification and authentication by key, not password; 800-171
+      03.01.12), limited unsuccessful attempts (AC-7; 03.01.08) and idle
+      termination, as enforced configuration (CM-6); CSF PR.AA-03 users and
+      services authenticated; ISO A.8.5 secure authentication; SOC 2 CC6.1.
+      Values follow the CIS benchmark's SSH server section.
+    freshness_days: 1
+    evidence:
+      - {kind: host-sshd, ref: "west:passwordauthentication=no"}
+      - {kind: host-sshd, ref: "west:kbdinteractiveauthentication=no"}
+      - {kind: host-sshd, ref: "west:permitemptypasswords=no"}
+      - {kind: host-sshd, ref: "west:permitrootlogin=no"}
+      - {kind: host-sshd, ref: "west:x11forwarding=no"}
+      - {kind: host-sshd, ref: "west:maxauthtries<=4"}
+      - {kind: host-sshd, ref: "west:clientaliveinterval>=1"}
+      - {kind: host-sshd, ref: "west:clientaliveinterval<=300"}
+      - {kind: host-sshd, ref: "east:passwordauthentication=no"}
+      - {kind: host-sshd, ref: "east:kbdinteractiveauthentication=no"}
+      - {kind: host-sshd, ref: "east:permitemptypasswords=no"}
+      - {kind: host-sshd, ref: "east:permitrootlogin=no"}
+      - {kind: host-sshd, ref: "east:x11forwarding=no"}
+      - {kind: host-sshd, ref: "east:maxauthtries<=4"}
+      - {kind: host-sshd, ref: "east:clientaliveinterval>=1"}
+      - {kind: host-sshd, ref: "east:clientaliveinterval<=300"}
+    mappings:
+      nist-800-53r5: [AC-17, IA-2, AC-7, CM-6]
+      nist-800-171r3: ["03.01.12", "03.01.08"]
+      nist-csf-2: [PR.AA-03]
+      soc2-security: [CC6.1]
+      iso27001-2022: [A.8.5]
+
   # --- Awaiting attestation: these read NOT_ASSESSED until the accountable
   # person commits a signed file under compliance/attestations/ (README there).
 

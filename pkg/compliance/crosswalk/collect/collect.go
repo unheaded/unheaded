@@ -538,3 +538,110 @@ func (a *Attestations) Collect(ctx context.Context, sources []crosswalk.Source) 
 	}
 	return recs, nil
 }
+
+var sshdRefRe = regexp.MustCompile(`^(?:([a-z0-9][a-z0-9-]{0,62}):)?([a-z0-9]+)(>=|<=|=)([A-Za-z0-9@._,+-]{1,200})$`)
+
+// SSHDDump returns `sshd -T` output for host: local sudo for the collector's
+// own host, ssh + sudo for any other. Both need passwordless sudo (-n); without
+// it there is no dump and so no record.
+func SSHDDump(ctx context.Context, host string, local bool) (string, error) {
+	var cmd *exec.Cmd
+	if local {
+		cmd = exec.CommandContext(ctx, "sudo", "-n", "sshd", "-T")
+	} else {
+		cmd = exec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", host, "sudo -n sshd -T")
+	}
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("sshd -T on %s: %w", host, err)
+	}
+	return out.String(), nil
+}
+
+// HostSSHD checks effective sshd settings on each host its refs name.
+type HostSSHD struct {
+	Hostname string // default os.Hostname()
+	// Dump returns `sshd -T` output for host. Default: SSHDDump.
+	Dump func(ctx context.Context, host string) (string, error)
+	Now  func() time.Time
+}
+
+// Collect returns one record per host-sshd source whose key the host reported.
+func (h *HostSSHD) Collect(ctx context.Context, sources []crosswalk.Source) ([]crosswalk.Record, error) {
+	now := time.Now
+	if h.Now != nil {
+		now = h.Now
+	}
+	local := h.Hostname
+	if local == "" {
+		local, _ = os.Hostname()
+	}
+	dump := h.Dump
+	if dump == nil {
+		dump = func(ctx context.Context, host string) (string, error) { return SSHDDump(ctx, host, host == local) }
+	}
+	type check struct {
+		src                crosswalk.Source
+		host, key, op, val string
+	}
+	byHost := map[string][]check{}
+	var hosts []string
+	for _, s := range sources {
+		if s.Kind != crosswalk.KindHostSSHD {
+			continue
+		}
+		m := sshdRefRe.FindStringSubmatch(s.Ref)
+		if m == nil {
+			return nil, fmt.Errorf("host-sshd ref %q must be [host:]<key><op><value>", s.Ref)
+		}
+		if m[3] != "=" {
+			if _, err := strconv.Atoi(m[4]); err != nil {
+				return nil, fmt.Errorf("host-sshd ref %q: %s needs an integer", s.Ref, m[3])
+			}
+		}
+		host := m[1]
+		if host == "" {
+			host = local
+		}
+		if _, ok := byHost[host]; !ok {
+			hosts = append(hosts, host)
+		}
+		byHost[host] = append(byHost[host], check{s, host, m[2], m[3], m[4]})
+	}
+	var recs []crosswalk.Record
+	for _, host := range hosts {
+		out, err := dump(ctx, host)
+		if err != nil {
+			continue // no dump (unreachable, no sudo): no verdict
+		}
+		cfg := map[string]string{}
+		for _, line := range strings.Split(out, "\n") {
+			if k, v, ok := strings.Cut(strings.TrimSpace(line), " "); ok {
+				if _, dup := cfg[k]; !dup { // sshd -T prints the effective (first) value
+					cfg[k] = v
+				}
+			}
+		}
+		for _, c := range byHost[host] {
+			got, ok := cfg[c.key]
+			if !ok {
+				continue
+			}
+			pass := false
+			if c.op == "=" {
+				pass = strings.EqualFold(got, c.val)
+			} else if g, err := strconv.Atoi(got); err == nil {
+				w, _ := strconv.Atoi(c.val)
+				pass = (c.op == ">=" && g >= w) || (c.op == "<=" && g <= w)
+			}
+			v := crosswalk.VerdictFail
+			if pass {
+				v = crosswalk.VerdictPass
+			}
+			recs = append(recs, crosswalk.Record{Source: c.src, Verdict: v, ObservedAt: now(),
+				Detail: fmt.Sprintf("%s: sshd %s %s (required %s%s)", host, c.key, got, c.op, c.val)})
+		}
+	}
+	return recs, nil
+}

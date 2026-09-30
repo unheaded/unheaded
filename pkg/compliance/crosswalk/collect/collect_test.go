@@ -443,3 +443,61 @@ func TestAttestations_DefaultSignatureReadsGit(t *testing.T) {
 		t.Fatalf("uncommitted path: sha=%q good=%v err=%v", sha, good, err)
 	}
 }
+
+func TestHostSSHD(t *testing.T) {
+	dumps := map[string]string{
+		"west": "passwordauthentication no\nkbdinteractiveauthentication yes\nmaxauthtries 3\npermitrootlogin without-password\n",
+		"east": "passwordauthentication yes\nmaxauthtries 6\n",
+	}
+	h := &HostSSHD{Hostname: "west", Dump: func(_ context.Context, host string) (string, error) {
+		d, ok := dumps[host]
+		if !ok {
+			return "", errors.New("no sudo")
+		}
+		return d, nil
+	}}
+	src := func(r string) crosswalk.Source { return crosswalk.Source{Kind: crosswalk.KindHostSSHD, Ref: r} }
+	recs, err := h.Collect(context.Background(), []crosswalk.Source{
+		src("west:passwordauthentication=no"),
+		src("west:kbdinteractiveauthentication=no"),
+		src("west:maxauthtries<=4"),
+		src("east:passwordauthentication=no"),
+		src("east:maxauthtries<=4"),
+		src("east:x11forwarding=no"),            // key absent from the dump: no record
+		src("nosudo:passwordauthentication=no"), // dump unavailable: no record
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]crosswalk.Verdict{}
+	for _, r := range recs {
+		got[r.Source.Ref] = r.Verdict
+		if !strings.HasPrefix(r.Detail, strings.SplitN(r.Source.Ref, ":", 2)[0]+": ") {
+			t.Errorf("detail %q does not name its host", r.Detail)
+		}
+	}
+	want := map[string]crosswalk.Verdict{
+		"west:passwordauthentication=no":       crosswalk.VerdictPass,
+		"west:kbdinteractiveauthentication=no": crosswalk.VerdictFail,
+		"west:maxauthtries<=4":                 crosswalk.VerdictPass,
+		"east:passwordauthentication=no":       crosswalk.VerdictFail,
+		"east:maxauthtries<=4":                 crosswalk.VerdictFail,
+	}
+	if len(got) != len(want) {
+		t.Errorf("records %v, want %v", got, want)
+	}
+	for k, v := range want {
+		if got[k] != v {
+			t.Errorf("%s = %q, want %q", k, got[k], v)
+		}
+	}
+}
+
+func TestHostSSHD_RejectsBadRefs(t *testing.T) {
+	h := &HostSSHD{Dump: func(context.Context, string) (string, error) { return "", nil }}
+	for _, ref := range []string{"-oX:a=b", "a b=c", "passwordauthentication", "maxauthtries<=many", "k=v;id"} {
+		if _, err := h.Collect(context.Background(), []crosswalk.Source{{Kind: crosswalk.KindHostSSHD, Ref: ref}}); err == nil {
+			t.Errorf("ref %q accepted", ref)
+		}
+	}
+}
