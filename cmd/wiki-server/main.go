@@ -51,6 +51,8 @@ import (
 	"github.com/yuin/goldmark/parser"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/httputil"
+	"unheaded/pkg/metrics"
 )
 
 // wikiLinkRe matches GitHub-wiki-style links: [[Display|Page-Name]] or [[Page-Name]].
@@ -329,6 +331,7 @@ func setupMux(ws *WikiServer) *http.ServeMux {
 	// Health and readiness.
 	mux.HandleFunc("/health", ws.handleHealth)
 	mux.HandleFunc("/ready", ws.handleReady)
+	mux.Handle("/metrics", metrics.Handler())
 
 	return mux
 }
@@ -346,7 +349,8 @@ func buildHandler(wikiDir string) (http.Handler, error) {
 		return nil, err
 	}
 	mux := setupMux(ws)
-	return wrapAuth(mux), nil
+	// Outermost, so requests auth rejects are counted too.
+	return httputil.NewServiceMetrics(serviceName).Instrument(mux, wrapAuth(mux)), nil
 }
 
 // newServer creates an http.Server with standard timeouts.
