@@ -44,22 +44,28 @@ func OpenPinnedAnamnesisReader(ctx context.Context, pinPath string, bufSize int)
 		return nil, fmt.Errorf("get ring buffer size: %w", err)
 	}
 
-	// mmap the ring buffer
+	// mmap the ring buffer: the consumer page read-write, the producer page
+	// and double-mapped data area read-only (the kernel refuses a writable
+	// mapping of those; one read-write mmap of the whole ring failed with
+	// EPERM every time). See consumeRingbuf for the record format.
 	pageSize := os.Getpagesize()
-	mmapSize := pageSize + 2*ringSize
-
-	mmapData, err := unix.Mmap(mapFD, 0, mmapSize,
-		unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	consPage, err := unix.Mmap(mapFD, 0, pageSize, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 	if err != nil {
 		_ = unix.Close(mapFD)
-		return nil, fmt.Errorf("mmap ring buffer: %w", err)
+		return nil, fmt.Errorf("mmap ring buffer consumer page: %w", err)
+	}
+	prodArea, err := unix.Mmap(mapFD, int64(pageSize), pageSize+2*ringSize, unix.PROT_READ, unix.MAP_SHARED)
+	if err != nil {
+		_ = unix.Munmap(consPage)
+		_ = unix.Close(mapFD)
+		return nil, fmt.Errorf("mmap ring buffer data: %w", err)
 	}
 
 	// Create raw byte channel
 	rawCh := make(chan []byte, 1024)
 
 	// Start the ring buffer polling goroutine
-	go pinnedRingbufPoller(ctx, mapFD, mmapData, rawCh, ringSize, pageSize)
+	go pinnedRingbufPoller(ctx, mapFD, consPage, prodArea, rawCh, ringSize, pageSize)
 
 	return NewAnamnesisReader(rawCh, bufSize), nil
 }
@@ -85,18 +91,20 @@ func getRingbufSize(mapFD int) (int, error) {
 	return size, nil
 }
 
-// pinnedRingbufPoller reads raw records from a mmap'd ring buffer and sends
-// them to the output channel.  It runs until ctx is cancelled.
-func pinnedRingbufPoller(ctx context.Context, mapFD int, mmapData []byte,
+// pinnedRingbufPoller reads raw records from the mapped ring buffer and
+// sends them to the output channel (blocking: none are dropped). It runs
+// until ctx is cancelled.
+func pinnedRingbufPoller(ctx context.Context, mapFD int, consPage, prodArea []byte,
 	out chan<- []byte, ringSize, pageSize int) {
 
 	defer close(out)
-	defer func() { _ = unix.Munmap(mmapData) }()
+	defer func() { _ = unix.Munmap(prodArea) }()
+	defer func() { _ = unix.Munmap(consPage) }()
 	defer func() { _ = unix.Close(mapFD) }()
 
-	consumerPos := (*uint64)(unsafe.Pointer(&mmapData[0]))          // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
-	producerPos := (*uint64)(unsafe.Pointer(&mmapData[pageSize-8])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
-	dataStart := pageSize
+	consumerPos := (*uint64)(unsafe.Pointer(&consPage[0])) // #nosec G103 -- typed overlay on the kernel's consumer-position word
+	producerPos := (*uint64)(unsafe.Pointer(&prodArea[0])) // #nosec G103 -- typed overlay on the kernel's producer-position word
+	data := prodArea[pageSize:]
 
 	pollFDs := []unix.PollFd{{
 		Fd:     int32(mapFD), // #nosec G115 -- poll(2) FD field is int32 by ABI
@@ -122,40 +130,16 @@ func pinnedRingbufPoller(ctx context.Context, mapFD int, mmapData []byte,
 			continue
 		}
 
-		// Drain available records
-		for {
-			cons := *consumerPos
-			prod := *producerPos
-			if cons >= prod {
-				break
-			}
-
-			offset := int(cons % uint64(ringSize))                               // #nosec G115 -- bounded by the modulo against ringSize
-			hdr := (*ringbufHeader)(unsafe.Pointer(&mmapData[dataStart+offset])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
-			recordLen := hdr.Len
-
-			if recordLen&BPF_RINGBUF_BUSY_BIT != 0 {
-				break
-			}
-
-			dataLen := recordLen & ^uint32(BPF_RINGBUF_BUSY_BIT|BPF_RINGBUF_DISCARD_BIT)
-
-			if recordLen&BPF_RINGBUF_DISCARD_BIT != 0 {
-				*consumerPos = cons + uint64(roundUp(int(BPF_RINGBUF_HDR_SZ+dataLen), 8)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
-				continue
-			}
-
-			dataOffset := dataStart + offset + BPF_RINGBUF_HDR_SZ
-			data := make([]byte, dataLen)
-			copy(data, mmapData[dataOffset:dataOffset+int(dataLen)])
-
-			*consumerPos = cons + uint64(roundUp(int(BPF_RINGBUF_HDR_SZ+dataLen), 8)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
-
+		consumeRingbuf(consumerPos, producerPos, data, ringSize, func(rec []byte) bool {
 			select {
-			case out <- data:
+			case out <- rec:
+				return true
 			case <-ctx.Done():
-				return
+				return false
 			}
+		})
+		if ctx.Err() != nil {
+			return
 		}
 	}
 }

@@ -1008,10 +1008,11 @@ func (b *btfData) getString(offset uint32) string {
 
 // loadedMap holds state for a loaded BPF map
 type loadedMap struct {
-	fd       int
-	info     *MapInfo
-	mmapAddr uintptr // For ringbuf
-	mmapSize int
+	fd   int
+	info *MapInfo
+	// mmapAddr is non-zero while a ringbuf reader holds this map's mappings
+	// (they belong to, and are unmapped by, that reader goroutine).
+	mmapAddr uintptr
 }
 
 // loadedProgram holds state for a loaded BPF program
@@ -2320,11 +2321,10 @@ func (l *NativeLoader) Unload(ctx context.Context, name string) error {
 		_ = unix.Close(fd)
 	}
 
-	// Unmap ring buffers + close map FDs. The unsafe-pointer conversion
-	// lives in munmapKernelRegion (munmap_linux.go) so vet sees one
-	// documented site rather than two.
+	// Close map FDs. A ring buffer's mappings belong to its reader goroutine,
+	// which unmaps them when it exits (cancelled above): unmapping here raced
+	// the reader and faulted it on shutdown.
 	for _, m := range loaded.maps {
-		_ = munmapKernelRegion(m.mmapAddr, m.mmapSize)
 		_ = unix.Close(m.fd)
 	}
 
@@ -3762,12 +3762,6 @@ func (l *NativeLoader) IterateMap(ctx context.Context, programName, mapName stri
 // userspace. They use mmap for zero-copy data transfer and are more efficient
 // than perf buffers.
 
-// ringbufHeader is the header at the start of each ringbuf record
-type ringbufHeader struct {
-	Len uint32 // Record length (including header)
-	_   uint32 // Padding (contains pg_off on kernel side)
-}
-
 // ReadRingbuf returns a channel for ringbuf events
 func (l *NativeLoader) ReadRingbuf(ctx context.Context, programName, mapName string) (<-chan []byte, error) {
 	if err := l.checkClosed(); err != nil {
@@ -3807,21 +3801,25 @@ func (l *NativeLoader) ReadRingbuf(ctx context.Context, programName, mapName str
 		ringSize = 256 * 1024 // Default 256KB
 	}
 
-	// mmap the ring buffer
-	// The ringbuf consists of:
-	// - 1 page for producer/consumer positions
-	// - ringSize bytes for data (mapped twice for wrap-around)
+	// mmap the ring buffer. The kernel lays it out as: page 0 the consumer
+	// position (the only page a reader may map writable), page 1 the
+	// producer position, then the data area mapped twice back to back so a
+	// record that wraps reads contiguously. This used to map the whole ring
+	// read-write in one call, which the kernel refuses (EPERM), so every
+	// reader fell back to polling; it also read the producer position from
+	// the consumer page and the data one page early.
 	pageSize := os.Getpagesize()
-	mmapSize := pageSize + 2*ringSize
-
-	addr, err := unix.Mmap(m.fd, 0, mmapSize,
-		unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
+	consPage, err := unix.Mmap(m.fd, 0, pageSize, unix.PROT_READ|unix.PROT_WRITE, unix.MAP_SHARED)
 	if err != nil {
-		return nil, fmt.Errorf("mmap ringbuf: %w", err)
+		return nil, fmt.Errorf("mmap ringbuf consumer page: %w", err)
+	}
+	prodArea, err := unix.Mmap(m.fd, int64(pageSize), pageSize+2*ringSize, unix.PROT_READ, unix.MAP_SHARED)
+	if err != nil {
+		_ = unix.Munmap(consPage)
+		return nil, fmt.Errorf("mmap ringbuf data: %w", err)
 	}
 
-	m.mmapAddr = uintptr(unsafe.Pointer(&addr[0])) // #nosec G103 -- Pointer->uintptr inside a syscall argument list, the pattern unsafe.Pointer rule (4) permits
-	m.mmapSize = mmapSize
+	m.mmapAddr = uintptr(unsafe.Pointer(&consPage[0])) // #nosec G103 -- Pointer->uintptr kept only as an in-use marker, never converted back
 
 	// Create event channel
 	events := make(chan []byte, 1024)
@@ -3832,27 +3830,29 @@ func (l *NativeLoader) ReadRingbuf(ctx context.Context, programName, mapName str
 
 	// Start reader goroutine
 	l.wg.Add(1)
-	go l.ringbufReader(ctx, loaded, m, events, programName, mapName, addr, ringSize, pageSize)
+	go l.ringbufReader(ctx, m, events, programName, mapName, consPage, prodArea, ringSize, pageSize)
 
 	return events, nil
 }
 
-// ringbufReader reads events from a ring buffer
-func (l *NativeLoader) ringbufReader(ctx context.Context, loaded *loadedProgram,
-	m *loadedMap, events chan<- []byte, programName, mapName string,
-	mmapData []byte, ringSize, pageSize int) {
+// ringbufReader reads events from a ring buffer: consPage is the consumer
+// page, prodArea the producer page followed by the double-mapped data area.
+func (l *NativeLoader) ringbufReader(ctx context.Context, m *loadedMap,
+	events chan<- []byte, programName, mapName string,
+	consPage, prodArea []byte, ringSize, pageSize int) {
 
 	defer l.wg.Done()
 	defer close(events)
+	// This goroutine owns the mappings: unmap only once it can no longer
+	// touch them.
+	defer func() {
+		_ = unix.Munmap(prodArea)
+		_ = unix.Munmap(consPage)
+	}()
 
-	// Ring buffer memory layout:
-	// Page 0: struct bpf_ringbuf (contains consumer_pos, producer_pos)
-	// Pages 1+: Data area (mapped twice for wrap-around)
-
-	// Consumer and producer positions are at fixed offsets
-	consumerPos := (*uint64)(unsafe.Pointer(&mmapData[0]))          // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
-	producerPos := (*uint64)(unsafe.Pointer(&mmapData[pageSize-8])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
-	dataStart := pageSize
+	consumerPos := (*uint64)(unsafe.Pointer(&consPage[0])) // #nosec G103 -- typed overlay on the kernel's consumer-position word
+	producerPos := (*uint64)(unsafe.Pointer(&prodArea[0])) // #nosec G103 -- typed overlay on the kernel's producer-position word
+	data := prodArea[pageSize:]
 
 	pollFDs := []unix.PollFd{{
 		Fd:     int32(m.fd), // #nosec G115 -- poll(2) FD field is int32 by ABI
@@ -3874,63 +3874,23 @@ func (l *NativeLoader) ringbufReader(ctx context.Context, loaded *loadedProgram,
 			}
 			return
 		}
-
 		if n == 0 {
 			continue // Timeout, check context
 		}
 
-		// Read available records
-		for {
-			cons := *consumerPos
-			prod := *producerPos
-
-			if cons >= prod {
-				break // No more data
-			}
-
-			// Calculate offset in ring
-			offset := int(cons % uint64(ringSize)) // #nosec G115 -- bounded by the modulo against ringSize
-
-			// Read header
-			hdr := (*ringbufHeader)(unsafe.Pointer(&mmapData[dataStart+offset])) // #nosec G103 -- typed overlay on a byte buffer sized by the kernel ABI struct it mirrors
-			recordLen := hdr.Len
-
-			// Check if record is ready (busy bit clear)
-			if recordLen&BPF_RINGBUF_BUSY_BIT != 0 {
-				break // Record not ready yet
-			}
-
-			// Check for discarded record
-			if recordLen&BPF_RINGBUF_DISCARD_BIT != 0 {
-				// Skip discarded record
-				dataLen := recordLen & ^uint32(BPF_RINGBUF_BUSY_BIT|BPF_RINGBUF_DISCARD_BIT)
-				*consumerPos = cons + uint64(roundUp(int(BPF_RINGBUF_HDR_SZ+dataLen), 8)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
-				continue
-			}
-
-			// Extract data length
-			dataLen := recordLen & ^uint32(BPF_RINGBUF_BUSY_BIT|BPF_RINGBUF_DISCARD_BIT)
-
-			// Copy data
-			dataOffset := dataStart + offset + BPF_RINGBUF_HDR_SZ
-			data := make([]byte, dataLen)
-			copy(data, mmapData[dataOffset:dataOffset+int(dataLen)])
-
-			// Update consumer position
-			*consumerPos = cons + uint64(roundUp(int(BPF_RINGBUF_HDR_SZ+dataLen), 8)) // #nosec G115 -- bounded by the kernel ABI field width; value is a small non-negative index or length
-
-			// Send to channel
+		consumeRingbuf(consumerPos, producerPos, data, ringSize, func(rec []byte) bool {
 			select {
-			case events <- data:
+			case events <- rec:
 				if l.metricsEnabled {
 					ebpfRingbufEvents.WithLabelValues(programName, mapName).Inc()
 				}
 			case <-ctx.Done():
-				return
+				return false
 			default:
 				// Channel full, drop event
 			}
-		}
+			return true
+		})
 	}
 }
 
@@ -4068,9 +4028,9 @@ func (l *NativeLoader) Close() error {
 			}
 		}
 
-		// Unmap + close — see munmap_linux.go for the kernel-mmap helper.
+		// Close map FDs; ring buffer readers unmap their own mappings on exit
+		// (l.wg.Wait below waits for them).
 		for _, m := range loaded.maps {
-			_ = munmapKernelRegion(m.mmapAddr, m.mmapSize)
 			_ = unix.Close(m.fd)
 		}
 
