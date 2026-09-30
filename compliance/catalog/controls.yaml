@@ -227,7 +227,7 @@ controls:
   - id: UH-HOST-01
     title: Kernel exposure is restricted on the host
     statement: >-
-      On the host running cmd/compliance-evidence, kernel parameters that
+      On both hosts (west, east), kernel parameters that
       limit what unprivileged processes can see and do are at their
       hardened values: unprivileged BPF off, kernel pointers and the kernel
       log hidden, ptrace restricted, perf restricted, full ASLR, protected
@@ -240,15 +240,24 @@ controls:
       follow the CIS Linux benchmarks' kernel parameters.
     freshness_days: 1
     evidence:
-      - {kind: host-sysctl, ref: "kernel.unprivileged_bpf_disabled>=1"}
-      - {kind: host-sysctl, ref: "kernel.kptr_restrict>=1"}
-      - {kind: host-sysctl, ref: "kernel.dmesg_restrict=1"}
-      - {kind: host-sysctl, ref: "kernel.yama.ptrace_scope>=1"}
-      - {kind: host-sysctl, ref: "kernel.perf_event_paranoid>=2"}
-      - {kind: host-sysctl, ref: "kernel.randomize_va_space=2"}
-      - {kind: host-sysctl, ref: "fs.protected_symlinks=1"}
-      - {kind: host-sysctl, ref: "fs.protected_hardlinks=1"}
-      - {kind: host-sysctl, ref: "fs.suid_dumpable=0"}
+      - {kind: host-sysctl, ref: "west:kernel.unprivileged_bpf_disabled>=1"}
+      - {kind: host-sysctl, ref: "west:kernel.kptr_restrict>=1"}
+      - {kind: host-sysctl, ref: "west:kernel.dmesg_restrict=1"}
+      - {kind: host-sysctl, ref: "west:kernel.yama.ptrace_scope>=1"}
+      - {kind: host-sysctl, ref: "west:kernel.perf_event_paranoid>=2"}
+      - {kind: host-sysctl, ref: "west:kernel.randomize_va_space=2"}
+      - {kind: host-sysctl, ref: "west:fs.protected_symlinks=1"}
+      - {kind: host-sysctl, ref: "west:fs.protected_hardlinks=1"}
+      - {kind: host-sysctl, ref: "west:fs.suid_dumpable=0"}
+      - {kind: host-sysctl, ref: "east:kernel.unprivileged_bpf_disabled>=1"}
+      - {kind: host-sysctl, ref: "east:kernel.kptr_restrict>=1"}
+      - {kind: host-sysctl, ref: "east:kernel.dmesg_restrict=1"}
+      - {kind: host-sysctl, ref: "east:kernel.yama.ptrace_scope>=1"}
+      - {kind: host-sysctl, ref: "east:kernel.perf_event_paranoid>=2"}
+      - {kind: host-sysctl, ref: "east:kernel.randomize_va_space=2"}
+      - {kind: host-sysctl, ref: "east:fs.protected_symlinks=1"}
+      - {kind: host-sysctl, ref: "east:fs.protected_hardlinks=1"}
+      - {kind: host-sysctl, ref: "east:fs.suid_dumpable=0"}
     mappings:
       nist-800-53r5: [CM-6, CM-7, SI-16]
       nist-800-171r3: ["03.04.02", "03.04.06"]
@@ -258,9 +267,9 @@ controls:
   - id: UH-NET-01
     title: The host network stack rejects spoofed and redirected traffic
     statement: >-
-      On the host running cmd/compliance-evidence: reverse-path filtering
+      On both hosts (west, east): reverse-path filtering
       on, ICMP redirects neither accepted (IPv4, IPv6) nor sent, and SYN
-      cookies on. Evidence covers that host only; each record names it.
+      cookies on. Remote hosts are read over ssh; each record names its host.
     rationale: >-
       Boundary protection at the host (SC-7: drop spoofed source addresses,
       refuse route changes by ICMP redirect), denial-of-service protection
@@ -269,11 +278,16 @@ controls:
       network security; 800-171 03.13.01 boundary protection.
     freshness_days: 1
     evidence:
-      - {kind: host-sysctl, ref: "net.ipv4.conf.all.rp_filter>=1"}
-      - {kind: host-sysctl, ref: "net.ipv4.conf.all.accept_redirects=0"}
-      - {kind: host-sysctl, ref: "net.ipv6.conf.all.accept_redirects=0"}
-      - {kind: host-sysctl, ref: "net.ipv4.conf.all.send_redirects=0"}
-      - {kind: host-sysctl, ref: "net.ipv4.tcp_syncookies=1"}
+      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.rp_filter>=1"}
+      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.accept_redirects=0"}
+      - {kind: host-sysctl, ref: "west:net.ipv6.conf.all.accept_redirects=0"}
+      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.send_redirects=0"}
+      - {kind: host-sysctl, ref: "west:net.ipv4.tcp_syncookies=1"}
+      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.rp_filter>=1"}
+      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.accept_redirects=0"}
+      - {kind: host-sysctl, ref: "east:net.ipv6.conf.all.accept_redirects=0"}
+      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.send_redirects=0"}
+      - {kind: host-sysctl, ref: "east:net.ipv4.tcp_syncookies=1"}
     mappings:
       nist-800-53r5: [SC-5, SC-7, CM-6]
       nist-800-171r3: ["03.13.01"]

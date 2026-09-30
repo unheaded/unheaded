@@ -6,6 +6,7 @@ package collect
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -271,6 +272,70 @@ func TestHostSysctl(t *testing.T) {
 func TestHostSysctl_RejectsBadRefs(t *testing.T) {
 	h := &HostSysctl{ProcSys: t.TempDir()}
 	for _, ref := range []string{"../../etc/shadow=1", "kernel.x", "kernel.x==1", "kernel/x=1", "kernel.x=abc"} {
+		if _, err := h.Collect(context.Background(), []crosswalk.Source{{Kind: crosswalk.KindHostSysctl, Ref: ref}}); err == nil {
+			t.Errorf("ref %q accepted", ref)
+		}
+	}
+}
+
+func TestHostSysctl_RemoteHosts(t *testing.T) {
+	var calls []string
+	h := &HostSysctl{
+		ProcSys:  t.TempDir(),
+		Hostname: "west",
+		Remote: func(_ context.Context, host string, paths []string) (map[string]string, error) {
+			calls = append(calls, host)
+			if host == "down" {
+				return nil, errors.New("no route to host")
+			}
+			out := map[string]string{}
+			for _, p := range paths {
+				if p == "kernel/kptr_restrict" {
+					out[p] = "1"
+				}
+			}
+			return out, nil
+		},
+	}
+	src := func(r string) crosswalk.Source { return crosswalk.Source{Kind: crosswalk.KindHostSysctl, Ref: r} }
+	recs, err := h.Collect(context.Background(), []crosswalk.Source{
+		src("east:kernel.kptr_restrict>=1"),
+		src("east:kernel.dmesg_restrict=1"), // not returned by the host: no record
+		src("down:kernel.kptr_restrict>=1"), // unreachable host: no record, not an error
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(recs) != 1 || recs[0].Source.Ref != "east:kernel.kptr_restrict>=1" || recs[0].Verdict != crosswalk.VerdictPass ||
+		!strings.HasPrefix(recs[0].Detail, "east: ") {
+		t.Fatalf("records = %+v", recs)
+	}
+	if len(calls) != 2 {
+		t.Errorf("remote calls %v: want one batched call per host", calls)
+	}
+}
+
+func TestHostSysctl_LocalNameIsLocal(t *testing.T) {
+	proc := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(proc, "kernel"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(proc, "kernel", "kptr_restrict"), []byte("1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	h := &HostSysctl{ProcSys: proc, Hostname: "west", Remote: func(context.Context, string, []string) (map[string]string, error) {
+		t.Fatal("the collector's own host must be read locally")
+		return nil, nil
+	}}
+	recs, err := h.Collect(context.Background(), []crosswalk.Source{{Kind: crosswalk.KindHostSysctl, Ref: "west:kernel.kptr_restrict>=1"}})
+	if err != nil || len(recs) != 1 || recs[0].Verdict != crosswalk.VerdictPass {
+		t.Fatalf("recs=%+v err=%v", recs, err)
+	}
+}
+
+func TestHostSysctl_RejectsBadHost(t *testing.T) {
+	h := &HostSysctl{ProcSys: t.TempDir()}
+	for _, ref := range []string{"-oProxyCommand=x:kernel.a=1", "a b:kernel.a=1", "east;id:kernel.a=1"} {
 		if _, err := h.Collect(context.Background(), []crosswalk.Source{{Kind: crosswalk.KindHostSysctl, Ref: ref}}); err == nil {
 			t.Errorf("ref %q accepted", ref)
 		}
