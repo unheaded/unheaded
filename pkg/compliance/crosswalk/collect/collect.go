@@ -25,6 +25,8 @@ import (
 	"strings"
 	"time"
 
+	"gopkg.in/yaml.v3"
+
 	"unheaded/pkg/compliance/crosswalk"
 )
 
@@ -433,6 +435,106 @@ func (h *HostSysctl) Collect(ctx context.Context, sources []crosswalk.Source) ([
 				Detail: fmt.Sprintf("%s: %s = %d (required %s%d)", host, c.name, got, c.op, c.want),
 			})
 		}
+	}
+	return recs, nil
+}
+
+var attestationRe = regexp.MustCompile(`^compliance/attestations/[a-z0-9][a-z0-9-]{0,63}\.yaml$`)
+
+// Attestation is a human statement kept in the repository. Its validity
+// rests on the signature of the latest commit that touched the file: an
+// unsigned attestation is a claim nobody vouched for.
+type Attestation struct {
+	Statement  string `yaml:"statement"`
+	AttestedBy string `yaml:"attested_by"`
+	AttestedAt string `yaml:"attested_at"` // YYYY-MM-DD
+	ExpiresAt  string `yaml:"expires_at"`  // YYYY-MM-DD
+}
+
+// Attestations turns attestation files into records: pass when signed and
+// unexpired, fail when unsigned or expired, nothing when missing or dated
+// in the future. ObservedAt is the attestation date, so a control's
+// freshness window bounds how old an attestation may be.
+type Attestations struct {
+	RepoDir string
+	Now     func() time.Time
+	// Signature returns the SHA of the latest commit touching path and
+	// whether it carries a good signature. Default: git log -1 %H %G?.
+	Signature func(ctx context.Context, path string) (commit string, good bool, err error)
+}
+
+func (a *Attestations) signature(ctx context.Context, path string) (string, bool, error) {
+	cmd := exec.CommandContext(ctx, "git", "-C", a.RepoDir, "log", "-1", "--format=%H %G?", "--", path)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return "", false, err
+	}
+	sha, status, ok := strings.Cut(strings.TrimSpace(out.String()), " ")
+	if !ok {
+		return "", false, nil // never committed
+	}
+	return sha, status == "G", nil
+}
+
+// Collect returns one record per attestation source that exists.
+func (a *Attestations) Collect(ctx context.Context, sources []crosswalk.Source) ([]crosswalk.Record, error) {
+	now := time.Now
+	if a.Now != nil {
+		now = a.Now
+	}
+	sig := a.Signature
+	if sig == nil {
+		sig = a.signature
+	}
+	var recs []crosswalk.Record
+	for _, s := range sources {
+		if s.Kind != crosswalk.KindAttestation {
+			continue
+		}
+		if !attestationRe.MatchString(s.Ref) {
+			return nil, fmt.Errorf("attestation ref %q must be compliance/attestations/<name>.yaml", s.Ref)
+		}
+		raw, err := os.ReadFile(filepath.Join(a.RepoDir, filepath.FromSlash(s.Ref)))
+		if errors.Is(err, os.ErrNotExist) {
+			continue
+		}
+		if err != nil {
+			return nil, err
+		}
+		if len(raw) > 64<<10 {
+			return nil, fmt.Errorf("%s: larger than 64 KiB", s.Ref)
+		}
+		var at Attestation
+		dec := yaml.NewDecoder(bytes.NewReader(raw))
+		dec.KnownFields(true)
+		if err := dec.Decode(&at); err != nil {
+			return nil, fmt.Errorf("%s: %w", s.Ref, err)
+		}
+		attested, err1 := time.Parse(time.DateOnly, at.AttestedAt)
+		expires, err2 := time.Parse(time.DateOnly, at.ExpiresAt)
+		if at.Statement == "" || at.AttestedBy == "" || err1 != nil || err2 != nil || !expires.After(attested) {
+			return nil, fmt.Errorf("%s: needs statement, attested_by, and attested_at < expires_at as YYYY-MM-DD", s.Ref)
+		}
+		t := now()
+		if attested.After(t) {
+			continue // dated in the future: not evidence
+		}
+		commit, good, err := sig(ctx, s.Ref)
+		if err != nil {
+			return nil, fmt.Errorf("%s: signature: %w", s.Ref, err)
+		}
+		rec := crosswalk.Record{Source: s, Verdict: crosswalk.VerdictPass, ObservedAt: attested, Commit: commit,
+			Detail: fmt.Sprintf("self-attested by %s on %s, expires %s", at.AttestedBy, at.AttestedAt, at.ExpiresAt)}
+		switch {
+		case !good:
+			rec.Verdict = crosswalk.VerdictFail
+			rec.Detail += "; latest commit not signed"
+		case !t.Before(expires):
+			rec.Verdict = crosswalk.VerdictFail
+			rec.Detail += "; expired"
+		}
+		recs = append(recs, rec)
 	}
 	return recs, nil
 }

@@ -100,6 +100,10 @@
             (c.evidence || []).forEach(e => {
                 const line = el('span', { cls: 'ev' });
                 line.appendChild(el('span', { text: e.kind + ' ', cls: 'muted' }));
+                if (e.kind === 'attestation') {
+                    // A signed human statement, not machine evidence: say so.
+                    line.appendChild(el('span', { text: 'self-attested ', cls: 'badge s-STALE', title: 'A signed, expiring statement in compliance/attestations/, not an automated check' }));
+                }
                 line.appendChild(el('span', { text: e.ref + ' ' }));
                 if (e.latest) {
                     line.appendChild(el('span', { text: e.latest.verdict.toUpperCase() + ' ', cls: e.latest.verdict === 'pass' ? 's-PASS' : 's-FAIL' }));
