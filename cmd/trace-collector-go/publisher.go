@@ -192,8 +192,14 @@ func (tp *TracePublisher) PublishPacketEvent(entry *TraceEntry) error {
 	if err != nil {
 		return fmt.Errorf("marshal packet event: %w", err)
 	}
+	// The dashboard parses ebpf.packet.events as its own PacketEvent schema;
+	// it used to receive this traces.packet shape, which it cannot parse.
+	dash, err := marshalDashboardPacket(entry)
+	if err != nil {
+		return fmt.Errorf("marshal dashboard packet event: %w", err)
+	}
 	tp.enqueue(TopicTracesPacket, payload)
-	tp.enqueue(TopicEBPFPacket, payload)
+	tp.enqueue(TopicEBPFPacket, dash)
 	atomic.AddUint64(&tp.stats.PacketEvents, 1)
 	return nil
 }

@@ -31,6 +31,11 @@ type TraceEntry struct {
 	PacketLen   uint16   // Total packet length in bytes
 	HopCount    uint8    // Number of hops observed
 	Pad         [3]byte  // Alignment padding
+
+	// From packet_marker's PacketEvent (DecodeKernelPacketEvent); not part
+	// of the 68-byte encoding. "pass", "marked", ...; "ingress"/"egress".
+	Action    string
+	Direction string
 }
 
 // TraceEntrySize is the expected wire size of a TraceEntry.

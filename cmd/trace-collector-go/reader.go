@@ -164,7 +164,9 @@ func (r *TraceReader) runRingbuf(ctx context.Context, ch <-chan []byte) {
 				log.Warn().Msg("ringbuf channel closed, trace reader stopping")
 				return
 			}
-			entry, err := DecodeTraceEntry(raw)
+			// PACKET_EVENTS carries packet_marker's 48-byte PacketEvent, not
+			// the 68-byte TraceEntry this used to decode (every record failed).
+			entry, err := DecodeKernelPacketEvent(raw)
 			if err != nil {
 				atomic.AddUint64(&r.stats.DecodeErrors, 1)
 				readerErrors.WithLabelValues("decode").Inc()

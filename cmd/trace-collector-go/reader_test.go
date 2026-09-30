@@ -360,13 +360,9 @@ func TestTraceReader_RingbufMode(t *testing.T) {
 	config := DefaultTraceReaderConfig()
 	reader := NewTraceReader(loader, publisher, config)
 
-	// Send some trace entries through the ringbuf channel
-	te1 := makeTraceEntry(net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 8080, 443, 6, 1000)
-	te2 := makeTraceEntry(net.ParseIP("10.0.0.3"), net.ParseIP("10.0.0.4"), 9090, 80, 6, 2000)
-	encoded1 := te1.Encode()
-	encoded2 := te2.Encode()
-	ringbufCh <- encoded1[:]
-	ringbufCh <- encoded2[:]
+	// Send kernel PacketEvents (what PACKET_EVENTS carries) through the ringbuf channel
+	ringbufCh <- encodeKernelPacketEvent(net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 8080, 443, 6, 1000)
+	ringbufCh <- encodeKernelPacketEvent(net.ParseIP("10.0.0.3"), net.ParseIP("10.0.0.4"), 9090, 80, 6, 2000)
 
 	ctx, cancel := context.WithCancel(context.Background())
 
@@ -417,9 +413,7 @@ func TestTraceReader_RingbufBadData(t *testing.T) {
 
 	// Send bad data followed by good data
 	ringbufCh <- []byte("tooshort")
-	te := makeTraceEntry(net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 4444, 80, 6, 999)
-	encoded := te.Encode()
-	ringbufCh <- encoded[:]
+	ringbufCh <- encodeKernelPacketEvent(net.ParseIP("10.0.0.1"), net.ParseIP("10.0.0.2"), 4444, 80, 6, 999)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -530,4 +524,16 @@ func TestTraceReader_NoDeleteWhenDisabled(t *testing.T) {
 	if loader.traceMap.Len() != 1 {
 		t.Errorf("trace map should still have entry, has %d", loader.traceMap.Len())
 	}
+}
+
+// encodeKernelPacketEvent lays out packet_marker's 48-byte PacketEvent.
+func encodeKernelPacketEvent(src, dst net.IP, sport, dport uint16, proto uint8, length uint32) []byte {
+	b := make([]byte, KernelPacketEventSize)
+	copy(b[24:28], src.To4())
+	copy(b[28:32], dst.To4())
+	binary.BigEndian.PutUint16(b[32:], sport)
+	binary.BigEndian.PutUint16(b[34:], dport)
+	b[36] = proto
+	binary.LittleEndian.PutUint32(b[40:], length)
+	return b
 }
