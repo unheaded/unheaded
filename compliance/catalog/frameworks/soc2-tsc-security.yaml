@@ -1,0 +1,47 @@
+# AUTHORED (not generated): the numbering of the 2017 Trust Services Criteria
+# (revised points of focus, 2022), Security category: common criteria CC1-CC9.
+# Titles and criteria text are AICPA copyright and deliberately omitted; the
+# IDs are the published structure (CC1 5, CC2 3, CC3 4, CC4 2, CC5 3, CC6 8,
+# CC7 5, CC8 1, CC9 2 = 33). Availability (A1), Confidentiality (C1),
+# Processing Integrity (PI1) and Privacy (P) are separate categories, not in
+# this file.
+frameworks:
+  - id: soc2-security
+    name: "SOC 2 Trust Services Criteria (Security)"
+    version: "2017 TSC, 2022 points of focus"
+    granularity: "common criteria"
+    source: "https://www.aicpa-cima.com/resources/download/2017-trust-services-criteria-with-revised-points-of-focus-2022"
+    requirements:
+      - {id: "CC1.1"}
+      - {id: "CC1.2"}
+      - {id: "CC1.3"}
+      - {id: "CC1.4"}
+      - {id: "CC1.5"}
+      - {id: "CC2.1"}
+      - {id: "CC2.2"}
+      - {id: "CC2.3"}
+      - {id: "CC3.1"}
+      - {id: "CC3.2"}
+      - {id: "CC3.3"}
+      - {id: "CC3.4"}
+      - {id: "CC4.1"}
+      - {id: "CC4.2"}
+      - {id: "CC5.1"}
+      - {id: "CC5.2"}
+      - {id: "CC5.3"}
+      - {id: "CC6.1"}
+      - {id: "CC6.2"}
+      - {id: "CC6.3"}
+      - {id: "CC6.4"}
+      - {id: "CC6.5"}
+      - {id: "CC6.6"}
+      - {id: "CC6.7"}
+      - {id: "CC6.8"}
+      - {id: "CC7.1"}
+      - {id: "CC7.2"}
+      - {id: "CC7.3"}
+      - {id: "CC7.4"}
+      - {id: "CC7.5"}
+      - {id: "CC8.1"}
+      - {id: "CC9.1"}
+      - {id: "CC9.2"}
