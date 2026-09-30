@@ -441,6 +441,30 @@ controls:
       nist-800-171r3: ["03.03.07"]
       iso27001-2022: [A.8.17]
 
+  - id: UH-TLS-01
+    title: The edge enforces TLS 1.3 and never serves plain HTTP
+    statement: >-
+      The edge proxy (traefik) redirects its plain-HTTP entrypoint to HTTPS,
+      applies a TLS policy with a TLS 1.3 minimum, and does not serve its
+      API/dashboard insecurely. Checked from the declared compose
+      configuration by scripts/compliance/check-edge-tls.sh (a compliance
+      check, not a CI gate: it fails today).
+    rationale: >-
+      Transmission confidentiality and integrity with cryptographic
+      protection (SC-8, SC-8(1), SC-13; 800-171 03.13.08); CSF PR.DS-02
+      data in transit protected; ISO A.8.24 use of cryptography; SOC 2 CC6.7
+      restricted transmission. CLAUDE.md: TLS 1.3 minimum for external
+      traffic.
+    freshness_days: 7
+    evidence:
+      - {kind: gate-script, ref: scripts/compliance/check-edge-tls.sh}
+    mappings:
+      nist-800-53r5: [SC-8, SC-8(1), SC-13]
+      nist-800-171r3: ["03.13.08"]
+      nist-csf-2: [PR.DS-02]
+      soc2-security: [CC6.7]
+      iso27001-2022: [A.8.24]
+
   # --- Awaiting attestation: these read NOT_ASSESSED until the accountable
   # person commits a signed file under compliance/attestations/ (README there).
 
