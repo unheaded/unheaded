@@ -1970,13 +1970,18 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 			return fmt.Errorf("create map %s: %w", name, err)
 		}
 
-		mapInfo, _ := bpfGetMapInfo(mapFD)
+		// bpfGetMapInfo returns nil on error; the ID is informational, so a
+		// failed lookup leaves it 0 rather than dereferencing nil.
+		var mapID uint32
+		if mapInfo, err := bpfGetMapInfo(mapFD); err == nil {
+			mapID = mapInfo.ID
+		}
 
 		loaded.maps[name] = &loadedMap{
 			fd: mapFD,
 			info: &MapInfo{
 				Name:       name,
-				ID:         mapInfo.ID,
+				ID:         mapID,
 				Type:       mapTypeToMapType(mapDef.Type),
 				KeySize:    mapDef.KeySize,
 				ValueSize:  mapDef.ValueSize,
