@@ -224,6 +224,26 @@ controls:
       nist-csf-2: [PR.PS-01]
       iso27001-2022: [A.8.9]
 
+  - id: UH-CFG-02
+    title: Service unit hardening takes effect as written
+    statement: >-
+      scripts/check-systemd-units.sh runs systemd-analyze verify on every
+      unit in deploy/systemd and fails on any directive systemd would
+      ignore (systemd logs and carries on, so a hardening line can be dead
+      without anyone noticing: FND-003, ADR-098).
+    rationale: >-
+      Configuration settings enforced as declared (CM-6; 800-171 03.04.02;
+      CSF PR.PS-01; ISO A.8.9) and process isolation through the units'
+      seccomp and sandboxing directives (SC-39).
+    freshness_days: 7
+    evidence:
+      - {kind: gate-script, ref: scripts/check-systemd-units.sh}
+    mappings:
+      nist-800-53r5: [CM-6, SC-39]
+      nist-800-171r3: ["03.04.02"]
+      nist-csf-2: [PR.PS-01]
+      iso27001-2022: [A.8.9]
+
   - id: UH-HOST-01
     title: Kernel exposure is restricted on the host
     statement: >-

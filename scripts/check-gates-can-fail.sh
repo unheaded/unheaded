@@ -416,6 +416,17 @@ provoke_no_client_golang() {
     printf 'package probe\n\nimport _ "github.com/prometheus/client_golang/prometheus"\n' > "${REPO_ROOT}/${f}"
 }
 
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_systemd_units() {
+    # Contract (ADR-098 FND-003): systemd ignores nothing in deploy/systemd.
+    # Restore the original mistake: a `~` on every group, of which systemd
+    # honours only the first.
+    local f="deploy/systemd/unheaded-sophia.service"
+    backup "${f}"
+    sed -i 's/^SystemCallFilter=~@privileged @resources @reboot @module @swap$/SystemCallFilter=~@privileged ~@resources ~@reboot ~@module ~@swap/' "${REPO_ROOT}/${f}"
+    grep -q '^SystemCallFilter=~@privileged ~@resources' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -428,6 +439,7 @@ bpf-verifier-check|provoke_bpf_verifier_check|slow|an undefined symbol in ebpf/f
 verify-gpl-boundary|provoke_verify_gpl_boundary|fast|an AGPL license on a non-first-party Cargo.toml
 check-compose-log-caps|provoke_compose_log_caps|fast|a compose service with its logging block stripped
 check-compose-hardening|provoke_compose_hardening|fast|dashboard-backend with read_only removed
+check-systemd-units|provoke_systemd_units|fast|the ignored per-group ~ restored in unheaded-sophia.service
 check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
 check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present in the baseline set
 live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md

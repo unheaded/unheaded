@@ -266,11 +266,11 @@ findings:
     lockout: none
     step: 7
     plan: >-
-      Correct form is `SystemCallFilter=~@privileged @resources @reboot @module @swap`. Denied calls default to SIGSYS (kill); these units set no
-      SystemCallErrorNumber, and the Go runtime calls setrlimit (in @resources) at start, so the literal fix may kill services. Test each binary under
-      systemd-run with the corrected filter (and SystemCallErrorNumber=EPERM if needed) before changing the files; the installed huginn unit changes
-      only with Stevie's yes. Then add a gate running systemd-analyze verify on deploy/systemd. Tested 2026-09-30: dashboard-backend runs and
-      serves /health under the corrected filter with the default kill action and with EPERM; the other 12 binaries are untested.
+      Repo side fixed 2026-09-30: all 13 units now read `SystemCallFilter=~@privileged @resources @reboot @module @swap`, after every binary
+      (akira, architect, captain, dashboard-backend, huginn, kanban-app, micromanager, monad, sophia, timeguru, unheaded-daemon, wotan,
+      zhen-agentd) ran identically under the old and corrected filter in transient units on west (timeguru also served /health under both).
+      scripts/check-systemd-units.sh (meta-gate registered) keeps it fixed. Remaining: the installed /etc/systemd/system/huginn.service
+      on west still has the old line; replace it with the repo copy and restart huginn, with Stevie's yes.
 
   - id: FND-004
     title: >-

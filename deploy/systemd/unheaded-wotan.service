@@ -40,7 +40,7 @@ CapabilityBoundingSet=
 AmbientCapabilities=
 ReadWritePaths=/var/lib/unheaded/wotan
 SystemCallFilter=@system-service
-SystemCallFilter=~@privileged ~@resources ~@reboot ~@module ~@swap
+SystemCallFilter=~@privileged @resources @reboot @module @swap
 LimitNOFILE=65536
 
 [Install]
