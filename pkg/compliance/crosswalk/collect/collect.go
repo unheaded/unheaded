@@ -289,19 +289,71 @@ func (g *GateScripts) Collect(ctx context.Context, sources []crosswalk.Source) (
 	return recs, nil
 }
 
-var sysctlRefRe = regexp.MustCompile(`^([a-z0-9_]+(?:\.[a-z0-9_]+)+)(>=|<=|=)(-?[0-9]{1,9})$`)
+var (
+	sysctlRefRe = regexp.MustCompile(`^(?:([a-z0-9][a-z0-9-]{0,62}):)?([a-z0-9_]+(?:\.[a-z0-9_]+)+)(>=|<=|=)(-?[0-9]{1,9})$`)
+	sysctlValRe = regexp.MustCompile(`^-?[0-9]{1,12}$`)
+)
 
-// HostSysctl reads kernel parameters on the host running the collector and
-// compares each with the value its ref requires. The record names the host:
-// this is evidence about that machine only.
+// RemoteSysctl reads /proc/sys/<path> for each path on host and returns
+// the values it could read, keyed by path.
+type RemoteSysctl func(ctx context.Context, host string, paths []string) (map[string]string, error)
+
+// SSHSysctl reads remote sysctls with one `ssh -o BatchMode=yes host cat
+// ...` per host. Unreadable files are skipped by the remote shell, so a
+// missing path simply has no value.
+func SSHSysctl(ctx context.Context, host string, paths []string) (map[string]string, error) {
+	// exit 0: an unreadable path is skipped, not a failed collection.
+	script := `for p in "$@"; do v=$(cat "/proc/sys/$p" 2>/dev/null) && printf '%s %s\n' "$p" "$v"; done; exit 0`
+	args := append([]string{"-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", host, "sh", "-c", shQuote(script), "sysctl"}, quoteAll(paths)...)
+	cmd := exec.CommandContext(ctx, "ssh", args...)
+	var out bytes.Buffer
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return nil, fmt.Errorf("ssh %s: %w", host, err)
+	}
+	vals := map[string]string{}
+	for _, line := range strings.Split(out.String(), "\n") {
+		p, v, ok := strings.Cut(line, " ")
+		if ok {
+			vals[p] = strings.TrimSpace(v)
+		}
+	}
+	return vals, nil
+}
+
+// shQuote single-quotes s for the remote shell (paths are validated to
+// [a-z0-9_/] already; this is belt and braces).
+func shQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }
+
+func quoteAll(ss []string) []string {
+	out := make([]string, len(ss))
+	for i, s := range ss {
+		out[i] = shQuote(s)
+	}
+	return out
+}
+
+// HostSysctl compares kernel parameters with required values. A ref is
+// "[host:]name<op>int"; no host (or the collector's own hostname) is read
+// from ProcSys, any other host through Remote. Each record names its host:
+// the evidence is about that machine only. An unreachable host or an
+// unreadable value produces no record.
 type HostSysctl struct {
-	ProcSys  string // default /proc/sys
-	Hostname string // default os.Hostname()
+	ProcSys  string       // default /proc/sys
+	Hostname string       // default os.Hostname()
+	Remote   RemoteSysctl // default SSHSysctl
 	Now      func() time.Time
 }
 
+type sysctlCheck struct {
+	src        crosswalk.Source
+	host, name string
+	op         string
+	want       int
+}
+
 // Collect returns one record per host-sysctl source whose value was read.
-func (h *HostSysctl) Collect(_ context.Context, sources []crosswalk.Source) ([]crosswalk.Record, error) {
+func (h *HostSysctl) Collect(ctx context.Context, sources []crosswalk.Source) ([]crosswalk.Record, error) {
 	now := time.Now
 	if h.Now != nil {
 		now = h.Now
@@ -310,38 +362,77 @@ func (h *HostSysctl) Collect(_ context.Context, sources []crosswalk.Source) ([]c
 	if proc == "" {
 		proc = "/proc/sys"
 	}
-	host := h.Hostname
-	if host == "" {
-		host, _ = os.Hostname()
+	local := h.Hostname
+	if local == "" {
+		local, _ = os.Hostname()
 	}
-	var recs []crosswalk.Record
+	remote := h.Remote
+	if remote == nil {
+		remote = SSHSysctl
+	}
+
+	byHost := map[string][]sysctlCheck{}
+	var hosts []string
 	for _, s := range sources {
 		if s.Kind != crosswalk.KindHostSysctl {
 			continue
 		}
 		m := sysctlRefRe.FindStringSubmatch(s.Ref)
 		if m == nil {
-			return nil, fmt.Errorf("host-sysctl ref %q must be <name><op><int>, op = >= <=", s.Ref)
+			return nil, fmt.Errorf("host-sysctl ref %q must be [host:]<name><op><int>, op = >= <=", s.Ref)
 		}
-		name, op := m[1], m[2]
-		want, _ := strconv.Atoi(m[3])
-		raw, err := os.ReadFile(filepath.Join(proc, strings.ReplaceAll(name, ".", "/")))
-		if err != nil {
-			continue // unreadable here: no verdict
+		host := m[1]
+		if host == "" {
+			host = local
 		}
-		got, err := strconv.Atoi(strings.TrimSpace(string(raw)))
-		if err != nil {
-			continue
+		want, _ := strconv.Atoi(m[4])
+		if _, ok := byHost[host]; !ok {
+			hosts = append(hosts, host)
 		}
-		ok := (op == "=" && got == want) || (op == ">=" && got >= want) || (op == "<=" && got <= want)
-		v := crosswalk.VerdictFail
-		if ok {
-			v = crosswalk.VerdictPass
+		byHost[host] = append(byHost[host], sysctlCheck{src: s, host: host, name: m[2], op: m[3], want: want})
+	}
+
+	var recs []crosswalk.Record
+	for _, host := range hosts {
+		checks := byHost[host]
+		vals := map[string]string{}
+		if host == local {
+			for _, c := range checks {
+				p := strings.ReplaceAll(c.name, ".", "/")
+				if raw, err := os.ReadFile(filepath.Join(proc, p)); err == nil {
+					vals[p] = strings.TrimSpace(string(raw))
+				}
+			}
+		} else {
+			paths := make([]string, len(checks))
+			for i, c := range checks {
+				paths[i] = strings.ReplaceAll(c.name, ".", "/")
+			}
+			got, err := remote(ctx, host, paths)
+			if err != nil {
+				continue // unreachable: no verdict for any of its checks
+			}
+			vals = got
 		}
-		recs = append(recs, crosswalk.Record{
-			Source: s, Verdict: v, ObservedAt: now(),
-			Detail: fmt.Sprintf("%s: %s = %d (required %s%d)", host, name, got, op, want),
-		})
+		for _, c := range checks {
+			raw, ok := vals[strings.ReplaceAll(c.name, ".", "/")]
+			if !ok || !sysctlValRe.MatchString(raw) {
+				continue
+			}
+			got, err := strconv.Atoi(raw)
+			if err != nil {
+				continue
+			}
+			pass := (c.op == "=" && got == c.want) || (c.op == ">=" && got >= c.want) || (c.op == "<=" && got <= c.want)
+			v := crosswalk.VerdictFail
+			if pass {
+				v = crosswalk.VerdictPass
+			}
+			recs = append(recs, crosswalk.Record{
+				Source: c.src, Verdict: v, ObservedAt: now(),
+				Detail: fmt.Sprintf("%s: %s = %d (required %s%d)", host, c.name, got, c.op, c.want),
+			})
+		}
 	}
 	return recs, nil
 }
