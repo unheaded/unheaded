@@ -30,6 +30,8 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
+	"math/bits"
 	"os"
 	"path/filepath"
 	"sort"
@@ -418,6 +420,7 @@ var (
 	ErrELFParseFailed     = errors.New("failed to parse ELF file")
 	ErrNoInstructions     = errors.New("no BPF instructions found")
 	ErrSyscallFailed      = errors.New("BPF syscall failed")
+	ErrMapBudgetExceeded  = errors.New("eBPF object's maps exceed the loader's memory budget")
 )
 
 // ============================================================================
@@ -600,7 +603,18 @@ type LoaderConfig struct {
 	VerifierLogSize int    // Size of verifier log buffer (default: 64KB)
 	AllowRlimit     bool   // Allow memlock rlimit increase (default: true)
 	MetricsEnabled  bool   // Enable Prometheus metrics (default: true)
+	// MaxMapBytes caps the map memory one object may request, summed over
+	// its maps as (key_size+value_size) x max_entries (ring buffers:
+	// max_entries bytes). 0 means DefaultMaxMapBytes, never unlimited; set
+	// math.MaxUint64 to disable.
+	MaxMapBytes uint64
 }
+
+// DefaultMaxMapBytes is the default MaxMapBytes: 4x the largest object in
+// ebpf/ (monad-cpu-ebpf, ~130 MiB, RAM_MAP alone 128 MiB). LICH-005 found a
+// crafted object could take ~2.4 GB of kernel memory through
+// BPF_MAP_CREATE before the verifier ever saw its program.
+const DefaultMaxMapBytes uint64 = 512 << 20
 
 // DefaultLoaderConfig returns a default configuration
 func DefaultLoaderConfig() LoaderConfig {
@@ -609,6 +623,7 @@ func DefaultLoaderConfig() LoaderConfig {
 		VerifierLogSize: 64 * 1024,
 		AllowRlimit:     true,
 		MetricsEnabled:  true,
+		MaxMapBytes:     DefaultMaxMapBytes,
 	}
 }
 
@@ -1939,6 +1954,18 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 		return fmt.Errorf("%w: no programs found in %s", ErrNoInstructions, spec.Path)
 	}
 
+	// Before any bpf(2): map sizes come from the object, and the kernel
+	// allocates them at BPF_MAP_CREATE, before the verifier runs.
+	budget := l.config.MaxMapBytes
+	if budget == 0 {
+		budget = DefaultMaxMapBytes
+	}
+	if want := objectMapBytes(parsed); want > budget {
+		ebpfErrors.WithLabelValues("load", "map_budget").Inc()
+		return fmt.Errorf("%w: %s requests %d bytes of maps, budget %d",
+			ErrMapBudgetExceeded, spec.Path, want, budget)
+	}
+
 	// Create loaded program state
 	loaded := &loadedProgram{
 		spec: spec,
@@ -2190,6 +2217,41 @@ func (l *NativeLoader) Load(ctx context.Context, spec *ProgramSpec) error {
 	}
 
 	return nil
+}
+
+// mapBytes is the memory a map definition asks the kernel for, saturating
+// at MaxUint64 rather than wrapping.
+func mapBytes(m *elfMap) uint64 {
+	if m.Type == BPF_MAP_TYPE_RINGBUF {
+		return uint64(m.MaxEntries)
+	}
+	hi, lo := bits.Mul64(uint64(m.KeySize)+uint64(m.ValueSize), uint64(m.MaxEntries))
+	if hi != 0 {
+		return math.MaxUint64
+	}
+	return lo
+}
+
+// objectMapBytes sums mapBytes over an object's maps plus its .rodata
+// sections (each becomes a one-entry array map), saturating.
+func objectMapBytes(p *parsedELF) uint64 {
+	var total uint64
+	add := func(n uint64) {
+		if total > math.MaxUint64-n {
+			total = math.MaxUint64
+			return
+		}
+		total += n
+	}
+	for _, m := range p.Maps {
+		add(mapBytes(m))
+	}
+	for name, prog := range p.Programs {
+		if strings.HasPrefix(name, ".rodata") {
+			add(uint64(len(prog.Instructions)))
+		}
+	}
+	return total
 }
 
 // createMap creates a BPF map

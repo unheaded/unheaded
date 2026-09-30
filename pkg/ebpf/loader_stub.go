@@ -205,6 +205,7 @@ type LoaderConfig struct {
 	VerifierLogSize int
 	AllowRlimit     bool
 	MetricsEnabled  bool
+	MaxMapBytes     uint64
 }
 
 // DefaultLoaderConfig returns a default configuration
