@@ -223,6 +223,29 @@ func TestRenderPage_PathTraversal(t *testing.T) {
 	}
 }
 
+// The lexical prefix check passes a symlink inside wikiDir whose target is
+// outside it; the read must still refuse to follow it out.
+func TestRenderPage_SymlinkEscape(t *testing.T) {
+	dir := t.TempDir()
+	outside := filepath.Join(t.TempDir(), "secret.md")
+	if err := os.WriteFile(outside, []byte("# SECRET\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(outside, filepath.Join(dir, "leak.md")); err != nil {
+		t.Skipf("symlink: %v", err)
+	}
+
+	ws, err := NewWikiServer(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, content, err := ws.renderPage("leak")
+	if err == nil {
+		t.Fatalf("symlink out of wikiDir was followed: %q", content)
+	}
+}
+
 // --- handleWiki edge cases ---
 
 func TestHandleWiki_TrailingSlashStripped(t *testing.T) {
