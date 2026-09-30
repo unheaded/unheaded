@@ -72,6 +72,12 @@ func run(repoDir, out, ghRepo, branch string, keep int, skipGates bool) error {
 	}
 	fresh = append(fresh, recs...)
 
+	att := &collect.Attestations{RepoDir: repoDir}
+	if recs, err = att.Collect(ctx, sources); err != nil {
+		return err
+	}
+	fresh = append(fresh, recs...)
+
 	host := &collect.HostSysctl{}
 	if recs, err = host.Collect(ctx, sources); err != nil {
 		return err

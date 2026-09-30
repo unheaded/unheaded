@@ -341,3 +341,105 @@ func TestHostSysctl_RejectsBadHost(t *testing.T) {
 		}
 	}
 }
+
+func TestAttestations(t *testing.T) {
+	dir := gitRepo(t)
+	adir := filepath.Join(dir, "compliance", "attestations")
+	if err := os.MkdirAll(adir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, body string) {
+		t.Helper()
+		if err := os.WriteFile(filepath.Join(adir, name), []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("current.yaml", "statement: Security policy reviewed and approved.\nattested_by: Stevie Bellis\nattested_at: 2026-09-01\nexpires_at: 2027-09-01\n")
+	write("expired.yaml", "statement: Old review.\nattested_by: Stevie Bellis\nattested_at: 2024-01-01\nexpires_at: 2025-01-01\n")
+	write("future.yaml", "statement: Dated ahead.\nattested_by: x\nattested_at: 2027-01-01\nexpires_at: 2028-01-01\n")
+	write("bad.yaml", "statement: x\nsatisfied: true\n")
+	cmd := exec.Command("git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--no-gpg-sign", "-m", "attest")
+	cmd.Dir = dir
+	if out, err := exec.Command("git", "-C", dir, "add", "-A").CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%v %s", err, out)
+	}
+
+	now := time.Date(2026, 9, 30, 12, 0, 0, 0, time.UTC)
+	signed := map[string]bool{}
+	a := &Attestations{RepoDir: dir, Now: func() time.Time { return now },
+		Signature: func(_ context.Context, path string) (string, bool, error) { return "abc", signed[path], nil }}
+	src := func(n string) crosswalk.Source {
+		return crosswalk.Source{Kind: crosswalk.KindAttestation, Ref: "compliance/attestations/" + n}
+	}
+	all := []crosswalk.Source{src("current.yaml"), src("expired.yaml"), src("future.yaml"), src("missing.yaml")}
+
+	// Unsigned: a claim nobody vouched for fails.
+	recs, err := a.Collect(context.Background(), all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]crosswalk.Record{}
+	for _, r := range recs {
+		got[r.Source.Ref] = r
+	}
+	if r := got["compliance/attestations/current.yaml"]; r.Verdict != crosswalk.VerdictFail || !strings.Contains(r.Detail, "not signed") {
+		t.Errorf("unsigned current = %+v", r)
+	}
+
+	signed["compliance/attestations/current.yaml"] = true
+	signed["compliance/attestations/expired.yaml"] = true
+	signed["compliance/attestations/future.yaml"] = true
+	recs, err = a.Collect(context.Background(), all)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = map[string]crosswalk.Record{}
+	for _, r := range recs {
+		got[r.Source.Ref] = r
+	}
+	cur := got["compliance/attestations/current.yaml"]
+	if cur.Verdict != crosswalk.VerdictPass || !cur.ObservedAt.Equal(time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)) ||
+		!strings.Contains(cur.Detail, "Stevie Bellis") || cur.Commit != "abc" {
+		t.Errorf("current = %+v (observed_at must be the attestation date, so freshness applies)", cur)
+	}
+	if r := got["compliance/attestations/expired.yaml"]; r.Verdict != crosswalk.VerdictFail || !strings.Contains(r.Detail, "expired") {
+		t.Errorf("expired = %+v", r)
+	}
+	for _, ref := range []string{"compliance/attestations/future.yaml", "compliance/attestations/missing.yaml"} {
+		if r, ok := got[ref]; ok {
+			t.Errorf("%s produced %+v; a future-dated or missing attestation is not evidence", ref, r)
+		}
+	}
+
+	if _, err := a.Collect(context.Background(), []crosswalk.Source{src("bad.yaml")}); err == nil {
+		t.Error("attestation with unknown fields accepted")
+	}
+	for _, ref := range []string{"compliance/attestations/../x.yaml", "/etc/passwd", "compliance/x.yaml"} {
+		if _, err := a.Collect(context.Background(), []crosswalk.Source{{Kind: crosswalk.KindAttestation, Ref: ref}}); err == nil {
+			t.Errorf("ref %q accepted", ref)
+		}
+	}
+}
+
+func TestAttestations_DefaultSignatureReadsGit(t *testing.T) {
+	dir := gitRepo(t)
+	if err := os.WriteFile(filepath.Join(dir, "f"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, args := range [][]string{{"add", "f"}, {"-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--no-gpg-sign", "-m", "f"}} {
+		if out, err := exec.Command("git", append([]string{"-C", dir}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("%v %s", err, out)
+		}
+	}
+	a := &Attestations{RepoDir: dir}
+	sha, good, err := a.signature(context.Background(), "f")
+	if err != nil || len(sha) != 40 || good {
+		t.Fatalf("sha=%q good=%v err=%v: an unsigned commit must not count as signed", sha, good, err)
+	}
+	if sha, good, err := a.signature(context.Background(), "never-committed"); err != nil || sha != "" || good {
+		t.Fatalf("uncommitted path: sha=%q good=%v err=%v", sha, good, err)
+	}
+}

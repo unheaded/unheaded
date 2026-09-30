@@ -293,3 +293,67 @@ controls:
       nist-800-171r3: ["03.13.01"]
       nist-csf-2: [PR.IR-01]
       iso27001-2022: [A.8.20]
+
+  # --- Awaiting attestation: these read NOT_ASSESSED until the accountable
+  # person commits a signed file under compliance/attestations/ (README there).
+
+  - id: UH-POL-01
+    title: The information security policy is approved and reviewed yearly
+    statement: >-
+      A written information security policy exists, is approved by the
+      accountable owner, and is reviewed at least yearly. Evidence is a
+      signed, expiring attestation.
+    rationale: >-
+      Policy and procedures (PL-1, PM-1; 800-171 03.15.01; CSF GV.PO-01;
+      ISO A.5.1 policies for information security; SOC 2 CC5.3 policies
+      and procedures).
+    freshness_days: 365
+    evidence:
+      - {kind: attestation, ref: compliance/attestations/security-policy-review.yaml}
+    mappings:
+      nist-800-53r5: [PL-1, PM-1]
+      nist-800-171r3: ["03.15.01"]
+      nist-csf-2: [GV.PO-01]
+      soc2-security: [CC5.3]
+      iso27001-2022: [A.5.1]
+
+  - id: UH-IR-01
+    title: The incident response plan is maintained and reviewed yearly
+    statement: >-
+      The incident response plan (runbooks/security/ir-plan-v1-2026-05-06.md
+      and successors) is reviewed and approved at least yearly. Evidence is a
+      signed, expiring attestation.
+    rationale: >-
+      Incident response plan (IR-8) and incident handling (IR-4; 800-171
+      03.06.01); CSF RS.MA-01 incident response plan executed; ISO A.5.24
+      planning and A.5.26 response to incidents; SOC 2 CC7.4.
+    freshness_days: 365
+    evidence:
+      - {kind: attestation, ref: compliance/attestations/ir-plan-review.yaml}
+    mappings:
+      nist-800-53r5: [IR-8, IR-4]
+      nist-800-171r3: ["03.06.01"]
+      nist-csf-2: [RS.MA-01]
+      soc2-security: [CC7.4]
+      iso27001-2022: [A.5.24, A.5.26]
+
+  - id: UH-AC-01
+    title: Access to hosts and services is reviewed every quarter
+    statement: >-
+      Accounts, keys and privileges on west, east and the services are
+      reviewed at least every 90 days and anything unneeded is removed.
+      Evidence is a signed, expiring attestation.
+    rationale: >-
+      Account management with periodic review (AC-2) and least privilege
+      (AC-6); 800-171 03.01.01; CSF PR.AA-05 access permissions managed;
+      ISO A.5.18 access rights; SOC 2 CC6.2 and CC6.3 access provisioning
+      and removal.
+    freshness_days: 90
+    evidence:
+      - {kind: attestation, ref: compliance/attestations/access-review.yaml}
+    mappings:
+      nist-800-53r5: [AC-2, AC-6]
+      nist-800-171r3: ["03.01.01"]
+      nist-csf-2: [PR.AA-05]
+      soc2-security: [CC6.2, CC6.3]
+      iso27001-2022: [A.5.18]

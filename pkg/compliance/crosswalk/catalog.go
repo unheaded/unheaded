@@ -40,7 +40,11 @@ const (
 	KindGitHubJob     = "github-job"     // ref: "<workflow name>/<job name>"
 	KindGateScript    = "gate-script"    // ref: repo-relative script path
 	KindGitSignatures = "git-signatures" // ref: branch whose recent commits must be signed
-	KindHostSysctl    = "host-sysctl"    // ref: "<sysctl.name><op><int>", op one of = >= <=
+	KindHostSysctl    = "host-sysctl"    // ref: "[host:]<sysctl.name><op><int>", op one of = >= <=
+	// KindAttestation is a signed, expiring human statement
+	// (compliance/attestations/<name>.yaml). Self-attested: the page labels
+	// it so, and it never stands in for machine evidence.
+	KindAttestation = "attestation"
 )
 
 var (
@@ -254,7 +258,7 @@ func LoadDocs(frameworksYAML [][]byte, controlsYAML []byte) (*Catalog, error) {
 		}
 		for _, s := range ctl.Evidence {
 			switch s.Kind {
-			case KindGitHubJob, KindGateScript, KindGitSignatures, KindHostSysctl:
+			case KindGitHubJob, KindGateScript, KindGitSignatures, KindHostSysctl, KindAttestation:
 			default:
 				return nil, invalid("control %q: evidence kind %q", ctl.ID, s.Kind)
 			}
