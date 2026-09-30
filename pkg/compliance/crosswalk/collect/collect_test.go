@@ -851,3 +851,36 @@ func TestDefsProbeOnlyClaimsWhatItChecks(t *testing.T) {
 		t.Errorf("pw-max-days checks accounts but says %q", d)
 	}
 }
+
+func TestSSHDCryptoProbes(t *testing.T) {
+	const port = "port 22\n"
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"sshd-ciphers", port + "ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes192-ctr\n", true},
+		{"sshd-ciphers", port + "ciphers aes256-cbc,aes256-ctr\n", false},
+		{"sshd-ciphers", "", false}, // sshd -T gave nothing (sudo refused): never a pass
+		{"sshd-macs", port + "macs hmac-sha2-512-etm@openssh.com,hmac-sha2-256\n", true},
+		{"sshd-macs", port + "macs umac-64-etm@openssh.com,hmac-sha2-256\n", false},
+		{"sshd-kex", port + "kexalgorithms mlkem768x25519-sha256,sntrup761x25519-sha512,curve25519-sha256\n", true}, // documented PQ additions
+		{"sshd-kex", port + "kexalgorithms diffie-hellman-group1-sha1,curve25519-sha256\n", false},
+		{"sshd-banner", port + "banner /etc/issue.net\n", true},
+		{"sshd-banner", port + "banner none\n", false},
+		{"sshd-access", port + "allowgroups sshusers\n", true},
+		{"sshd-access", port, false},
+		{"sshd-maxstartups", port + "maxstartups 10:30:60\n", true},
+		{"sshd-maxstartups", port + "maxstartups 5:50:40\n", true}, // stricter on every field
+		{"sshd-maxstartups", port + "maxstartups 10:30:100\n", false},
+		{"sshd-maxstartups", port + "maxstartups 10\n", false},
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok || !p.Baseline {
+			t.Errorf("%s missing or not a baseline probe", tc.probe)
+			continue
+		}
+		if pass, detail := p.Judge(tc.out); pass != tc.pass {
+			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}

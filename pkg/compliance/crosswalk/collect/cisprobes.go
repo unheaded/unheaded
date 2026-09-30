@@ -766,3 +766,101 @@ func defsProbe(cmd string, ok func(string) bool, want string) Probe {
 		return true, "default " + val
 	})
 }
+
+// sshd algorithms, access, banner and MaxStartups (CIS 5.1.4-5.1.6,
+// 5.1.12, 5.1.15, 5.1.18), judged on the effective `sshd -T` values.
+// Allowlists are the CIS profile's ComplianceAsCode values for
+// ubuntu2404 (sshd_use_strong_ciphers, sshd_strong_kex, sshd_strong_macs).
+// Deliberate addition to the KEX list: mlkem768x25519-sha256 (and the
+// unsuffixed sntrup761x25519-sha512 alias), post-quantum hybrids newer than
+// that list. Removing them to match it would weaken the key exchange.
+var (
+	sshdStrongCiphers = []string{"chacha20-poly1305@openssh.com", "aes256-gcm@openssh.com", "aes128-gcm@openssh.com", "aes256-ctr", "aes192-ctr", "aes128-ctr"}
+	sshdStrongKex     = []string{"sntrup761x25519-sha512@openssh.com", "curve25519-sha256", "curve25519-sha256@libssh.org", "ecdh-sha2-nistp256", "ecdh-sha2-nistp384",
+		"ecdh-sha2-nistp521", "diffie-hellman-group-exchange-sha256", "diffie-hellman-group16-sha512", "diffie-hellman-group18-sha512", "diffie-hellman-group14-sha256",
+		"mlkem768x25519-sha256", "sntrup761x25519-sha512"}
+	sshdStrongMACs = []string{"hmac-sha2-512-etm@openssh.com", "hmac-sha2-256-etm@openssh.com", "hmac-sha2-512", "hmac-sha2-256"}
+)
+
+func init() {
+	Probes["sshd-ciphers"] = sshdProbe("ciphers", func(v map[string]string) (bool, string) { return subsetOf(v["ciphers"], sshdStrongCiphers, "ciphers") })
+	Probes["sshd-kex"] = sshdProbe("kexalgorithms", func(v map[string]string) (bool, string) {
+		return subsetOf(v["kexalgorithms"], sshdStrongKex, "KexAlgorithms")
+	})
+	Probes["sshd-macs"] = sshdProbe("macs", func(v map[string]string) (bool, string) { return subsetOf(v["macs"], sshdStrongMACs, "MACs") })
+	Probes["sshd-banner"] = sshdProbe("banner", func(v map[string]string) (bool, string) {
+		b := v["banner"]
+		if b == "" || b == "none" {
+			return false, "no Banner"
+		}
+		return true, "Banner " + b
+	})
+	Probes["sshd-access"] = sshdProbe("allowusers|allowgroups|denyusers|denygroups", func(v map[string]string) (bool, string) {
+		for _, k := range []string{"allowusers", "allowgroups", "denyusers", "denygroups"} {
+			if v[k] != "" {
+				return true, k + " " + v[k]
+			}
+		}
+		return false, "none of AllowUsers, AllowGroups, DenyUsers, DenyGroups is set"
+	})
+	Probes["sshd-maxstartups"] = sshdProbe("maxstartups", func(v map[string]string) (bool, string) {
+		f := strings.Split(v["maxstartups"], ":")
+		if len(f) != 3 {
+			return false, "MaxStartups " + v["maxstartups"] + " (want start:rate:full, 10:30:60 or stricter)"
+		}
+		n := make([]int, 3)
+		for i := range f {
+			x, err := strconv.Atoi(f[i])
+			if err != nil {
+				return false, "MaxStartups " + v["maxstartups"] + " unreadable"
+			}
+			n[i] = x
+		}
+		if n[0] > 10 || n[1] < 30 || n[2] > 60 {
+			return false, "MaxStartups " + v["maxstartups"] + " (want 10:30:60 or stricter)"
+		}
+		return true, "MaxStartups " + v["maxstartups"]
+	})
+}
+
+// sshdProbe reads the given keys from `sshd -T`. The port line proves the
+// dump happened: without it (sudo refused, sshd missing) the check fails
+// instead of judging absent keys.
+func sshdProbe(keys string, judge func(map[string]string) (bool, string)) Probe {
+	return Probe{
+		Baseline: true,
+		Command:  fmt.Sprintf(`sudo -n sshd -T 2>/dev/null | grep -E '^(port|%s) '`, keys),
+		Judge: func(out string) (bool, string) {
+			v := map[string]string{}
+			for _, l := range strings.Split(out, "\n") {
+				if k, val, ok := strings.Cut(strings.TrimSpace(l), " "); ok {
+					v[k] = strings.TrimSpace(val)
+				}
+			}
+			if v["port"] == "" {
+				return false, "no sshd -T output"
+			}
+			return judge(v)
+		},
+	}
+}
+
+func subsetOf(list string, allowed []string, what string) (bool, string) {
+	ok := map[string]bool{}
+	for _, a := range allowed {
+		ok[a] = true
+	}
+	var weak []string
+	for _, x := range strings.Split(list, ",") {
+		if x = strings.TrimSpace(x); x != "" && !ok[x] {
+			weak = append(weak, x)
+		}
+	}
+	if list == "" {
+		return false, what + " not reported"
+	}
+	if len(weak) > 0 {
+		return false, what + " not on the strong list: " + strings.Join(weak, ", ")
+	}
+	return true, "every " + what + " entry is on the strong list"
+}

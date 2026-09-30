@@ -93,6 +93,12 @@ sources:
   - {kind: host-probe, ref: "east:pw-max-days"}
   - {kind: host-probe, ref: "east:pw-warn-age"}
   - {kind: host-probe, ref: "east:shell-tmout"}
+  - {kind: host-probe, ref: "east:sshd-access"}
+  - {kind: host-probe, ref: "east:sshd-banner"}
+  - {kind: host-probe, ref: "east:sshd-ciphers"}
+  - {kind: host-probe, ref: "east:sshd-kex"}
+  - {kind: host-probe, ref: "east:sshd-macs"}
+  - {kind: host-probe, ref: "east:sshd-maxstartups"}
   - {kind: host-probe, ref: "east:sudo-installed"}
   - {kind: host-probe, ref: "east:sudo-logfile"}
   - {kind: host-probe, ref: "east:sudo-no-noauth"}
@@ -211,6 +217,12 @@ sources:
   - {kind: host-probe, ref: "west:pw-max-days"}
   - {kind: host-probe, ref: "west:pw-warn-age"}
   - {kind: host-probe, ref: "west:shell-tmout"}
+  - {kind: host-probe, ref: "west:sshd-access"}
+  - {kind: host-probe, ref: "west:sshd-banner"}
+  - {kind: host-probe, ref: "west:sshd-ciphers"}
+  - {kind: host-probe, ref: "west:sshd-kex"}
+  - {kind: host-probe, ref: "west:sshd-macs"}
+  - {kind: host-probe, ref: "west:sshd-maxstartups"}
   - {kind: host-probe, ref: "west:sudo-installed"}
   - {kind: host-probe, ref: "west:sudo-logfile"}
   - {kind: host-probe, ref: "west:sudo-no-noauth"}
