@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Unheaded compliance crosswalk - common controls, machine-collected evidence, framework coverage with full denominators">
+    <title>Compliance | (U)NHEADED</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' fill='%230a0a0a'/%3E%3Ctext x='50' y='55' text-anchor='middle' dominant-baseline='middle' fill='%234a9eff' font-family='monospace' font-size='40'%3E(u)%3C/text%3E%3C/svg%3E">
+    <style>
+        .cx-page { padding: var(--spacing-lg); display: flex; flex-direction: column; gap: var(--spacing-lg); overflow: auto; }
+        .cx-card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: var(--spacing-md) var(--spacing-lg); }
+        .cx-card h2 { font-size: 0.8rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-secondary); margin: 0 0 var(--spacing-md); font-weight: 600; }
+        .cx-note { color: var(--text-secondary); font-size: 0.8rem; line-height: 1.5; margin: 0; }
+        .cx-note strong { color: var(--text-primary); }
+        .cx-banner { border-left: 3px solid var(--status-degraded); padding-left: var(--spacing-md); }
+        table.cx { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        table.cx th { text-align: left; color: var(--text-muted); font-weight: 500; padding: 6px 8px; border-bottom: 1px solid var(--border-color); white-space: nowrap; }
+        table.cx td { padding: 6px 8px; border-bottom: 1px solid rgba(255,255,255,0.04); vertical-align: top; }
+        table.cx tr.fw-row { cursor: pointer; }
+        table.cx tr.fw-row:hover td { background: var(--bg-hover); }
+        .num { font-variant-numeric: tabular-nums; text-align: right; }
+        .muted { color: var(--text-muted); }
+        .mono { font-family: var(--font-mono, monospace); }
+        .bar { display: flex; height: 8px; width: 220px; border-radius: 2px; overflow: hidden; background: var(--status-unknown-bg); }
+        .bar span { display: block; height: 100%; }
+        .s-EVIDENCED, .s-PASS { color: var(--status-healthy); }
+        .s-FAILING, .s-FAIL { color: var(--status-unhealthy); }
+        .s-INCOMPLETE, .s-STALE { color: var(--status-degraded); }
+        .s-UNMAPPED, .s-NOT_ASSESSED { color: var(--text-muted); }
+        .b-EVIDENCED { background: var(--status-healthy); }
+        .b-FAILING { background: var(--status-unhealthy); }
+        .b-INCOMPLETE { background: var(--status-degraded); }
+        .badge { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 0.7rem; letter-spacing: 0.05em; border: 1px solid currentColor; }
+        .matrix td.cell { text-align: center; font-variant-numeric: tabular-nums; }
+        .matrix td.cell.zero { color: var(--text-muted); }
+        .matrix th.rot { writing-mode: vertical-rl; transform: rotate(180deg); height: 120px; vertical-align: bottom; }
+        .ev { display: block; margin-bottom: 2px; }
+        .filters { display: flex; gap: var(--spacing-sm); margin-bottom: var(--spacing-md); flex-wrap: wrap; }
+        .filters button { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 3px; padding: 2px 8px; cursor: pointer; font-size: 0.75rem; }
+        .filters button.on { color: var(--gold); border-color: var(--gold); }
+        #fw-detail { display: none; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <header class="header">
+            <div class="header-left">
+                <h1 class="logo">
+                    <span class="logo-text">(u)nheaded</span>
+                    <span style="color:#333;margin:0 0.5rem;">|</span>
+                    <span style="color:#888;font-size:0.75rem;letter-spacing:0.1em;">compliance</span>
+                </h1>
+            </div>
+            <div class="header-center">
+                <nav class="nav-tabs">
+                    <a class="nav-tab" href="/" style="text-decoration:none;">Dashboard</a>
+                    <a class="nav-tab" href="/logs" style="text-decoration:none;">Logs</a>
+                    <a class="nav-tab active" href="/compliance" style="text-decoration:none;">Compliance</a>
+                </nav>
+            </div>
+            <div class="header-right">
+                <span id="cx-status" class="muted" style="font-size:0.8rem;">loading...</span>
+            </div>
+        </header>
+
+        <main class="cx-page">
+            <section class="cx-card cx-banner">
+                <p class="cx-note">
+                    <strong>How to read this.</strong> Each Unheaded common control is one engineering practice,
+                    evidenced by checks that can fail (CI jobs, gate scripts, commit signatures), and mapped onto
+                    requirements in many frameworks at once. A requirement is <span class="s-EVIDENCED">EVIDENCED</span>
+                    only when every control mapped to it has current passing evidence; that means the evidence
+                    supports it, <strong>not</strong> that an assessor would find it satisfied.
+                    <span class="s-FAILING">FAILING</span>: a mapped control fails.
+                    <span class="s-INCOMPLETE">INCOMPLETE</span>: mapped, but evidence is missing or stale.
+                    <span class="s-UNMAPPED">UNMAPPED</span>: no control yet; still counted.
+                    FedRAMP baselines take their mappings from 800-53. Details: ADR-097.
+                </p>
+            </section>
+
+            <section class="cx-card">
+                <h2>Frameworks</h2>
+                <table class="cx" id="fw-table">
+                    <thead><tr>
+                        <th>Framework</th><th>Granularity</th><th></th>
+                        <th class="num">Evidenced</th><th class="num">Failing</th><th class="num">Incomplete</th><th class="num">Unmapped</th><th class="num">Total</th>
+                    </tr></thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+
+            <section class="cx-card" id="fw-detail">
+                <h2 id="fw-detail-title"></h2>
+                <div class="filters" id="fw-filters"></div>
+                <table class="cx" id="req-table">
+                    <thead><tr><th>Requirement</th><th>Title</th><th>Status</th><th>Controls</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+
+            <section class="cx-card">
+                <h2>Overlap: requirements each control backs, per framework</h2>
+                <table class="cx matrix" id="matrix"><thead></thead><tbody></tbody></table>
+            </section>
+
+            <section class="cx-card">
+                <h2>Controls and their evidence</h2>
+                <table class="cx" id="ctl-table">
+                    <thead><tr><th>Control</th><th>Status</th><th>Evidence (latest)</th><th>Why it maps</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+            </section>
+        </main>
+    </div>
+    <script src="/static/js/compliance.js"></script>
+</body>
+</html>

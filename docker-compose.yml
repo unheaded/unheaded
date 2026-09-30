@@ -846,11 +846,15 @@ services:
       - ./config/dashboard/services.txt:/etc/unheaded/services.txt:ro
       - /proc:/host/proc:ro
       - /etc/hostname:/host/etc/hostname:ro
+      # ADR-097 compliance crosswalk: catalog + evidence (cmd/compliance-evidence
+      # writes var/compliance on the host). Read-only: the page never writes.
+      - ./compliance:/opt/unheaded/compliance:ro
+      - ./var/compliance:/opt/unheaded/var/compliance:ro
     # No --ws-allowed-origins: the WS server defaults to a same-origin check
     # (Origin host == request Host), which works from localhost, the LAN IP, and
     # any future reverse proxy. A literal "*" here is NOT allow-all — isOriginAllowed
     # does exact matching, so "*" silently denies every real browser origin.
-    command: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001"]
+    command: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--compliance-root", "/opt/unheaded"]
     ports:
       - "20000:20000"
     networks:

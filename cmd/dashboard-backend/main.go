@@ -44,6 +44,7 @@ import (
 	"net/http/pprof"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -103,6 +104,10 @@ var (
 
 	// VictoriaMetrics direct push (Approach C)
 	vmURL = flag.String("vm-url", "", "VictoriaMetrics base URL for direct metric push (e.g. http://localhost:8428)")
+
+	// Compliance crosswalk (ADR-097)
+	complianceRoot     = flag.String("compliance-root", "", "Directory holding compliance/catalog/ (empty: /api/v1/compliance/* answer 503)")
+	complianceEvidence = flag.String("compliance-evidence", "", "Evidence file from cmd/compliance-evidence (default <compliance-root>/var/compliance/evidence.json)")
 )
 
 func main() {
@@ -228,6 +233,13 @@ func main() {
 		StaticFS:         dashboardFS,
 		VizDir:           *vizDir,
 		VMUrl:            *vmURL,
+		ComplianceRoot:   *complianceRoot,
+		ComplianceEvidence: func() string {
+			if *complianceEvidence != "" || *complianceRoot == "" {
+				return *complianceEvidence
+			}
+			return filepath.Join(*complianceRoot, "var", "compliance", "evidence.json")
+		}(),
 	}
 
 	// Create eBPF ingestor if gRPC address is provided (or from WOTAN_GRPC_ADDR env)
