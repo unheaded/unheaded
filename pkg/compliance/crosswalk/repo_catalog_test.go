@@ -5,7 +5,10 @@ package crosswalk
 
 import (
 	"os"
+	"strings"
 	"testing"
+
+	"gopkg.in/yaml.v3"
 )
 
 // The catalog in the repo loads, and each framework keeps the publisher's
@@ -42,5 +45,87 @@ func TestRepoCatalog(t *testing.T) {
 	}
 	if len(c.Controls) == 0 {
 		t.Error("no controls")
+	}
+}
+
+// uncorroborated lists mappings that knowingly disagree with NIST's own CSF
+// informative references, each with the reason. An entry that NIST's
+// references come to support must be removed (the test says so).
+var uncorroborated = map[string]string{
+	"UH-GATE-01/iso27001-2022": "NIST pairs ID.IM-02 with A.5.35 (independent review) and A.5.19; " +
+		"the meta-gate is an internal check that the security gates work, which is A.5.36 " +
+		"(compliance with the organisation's own security rules), not an independent review.",
+}
+
+// Every control mapped to a CSF 2.0 subcategory must be corroborated, on
+// its 800-53 and ISO 27001 mappings, by NIST's informative references for
+// that subcategory (compliance/catalog/references, generated from NIST's
+// CSF 2.0 Reference Tool). A mapping only Unheaded believes is marked, not
+// hidden.
+func TestMappingsCorroborated(t *testing.T) {
+	c, err := LoadFS(os.DirFS("../../.."), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile("../../../compliance/catalog/references/nist-csf2-informative.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var refs struct {
+		Subcategories map[string]struct {
+			SP80053 []string `yaml:"sp800_53"`
+			ISO     []string `yaml:"iso27001_2022"`
+		} `yaml:"subcategories"`
+	}
+	if err := yaml.Unmarshal(raw, &refs); err != nil {
+		t.Fatal(err)
+	}
+	base := func(id string) string { b, _, _ := strings.Cut(id, "("); return b }
+	agrees := func(mine, nist []string, loose bool) bool {
+		for _, m := range mine {
+			for _, n := range nist {
+				if m == n || (loose && base(m) == base(n)) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	used := map[string]bool{}
+	for _, ctl := range c.Controls {
+		for _, sub := range ctl.Mappings["nist-csf-2"] {
+			r, ok := refs.Subcategories[sub]
+			if !ok {
+				t.Errorf("%s: %s has no NIST references entry", ctl.ID, sub)
+				continue
+			}
+			for fw, check := range map[string]struct {
+				nist  []string
+				loose bool
+			}{
+				"nist-800-53r5": {r.SP80053, true}, // RA-5(2) is corroborated by RA-5
+				"iso27001-2022": {r.ISO, false},
+			} {
+				mine := ctl.Mappings[fw]
+				if len(mine) == 0 {
+					continue
+				}
+				key := ctl.ID + "/" + fw
+				ok := agrees(mine, check.nist, check.loose)
+				switch reason, excused := uncorroborated[key]; {
+				case !ok && !excused:
+					t.Errorf("%s maps %s %v, but NIST's references for %s list %v: fix the mapping or record why in uncorroborated", ctl.ID, fw, mine, sub, check.nist)
+				case ok && excused:
+					t.Errorf("%s: now corroborated by NIST; remove its uncorroborated entry (%q)", key, reason)
+				case excused:
+					used[key] = true
+				}
+			}
+		}
+	}
+	for key := range uncorroborated {
+		if !used[key] {
+			t.Errorf("uncorroborated entry %s matches no mapping; remove it", key)
+		}
 	}
 }
