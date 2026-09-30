@@ -243,6 +243,9 @@ type Server struct {
 	wsConnections   *metrics.Gauge
 	streamClients   *metrics.Gauge
 
+	// complianceMetrics is nil unless ComplianceRoot is set (ADR-098).
+	complianceMetrics *complianceMetrics
+
 	// Host system metrics (Approach A: exposed on /metrics for Prometheus scrape)
 	hostCPU            *metrics.GaugeVec
 	hostMemUsed        *metrics.GaugeVec
@@ -736,6 +739,12 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/compliance/summary", cs.handleSummary)
 	s.mux.HandleFunc("/api/v1/compliance/frameworks/{id}", cs.handleFramework)
 	s.mux.HandleFunc("/api/v1/compliance/findings", cs.handleFindings)
+	if cs != nil {
+		s.complianceMetrics = newComplianceMetrics(cs)
+		for _, c := range s.complianceMetrics.collectors() {
+			s.metricsRegistry.MustRegister(c)
+		}
+	}
 
 	// Service config management endpoints (S47)
 	s.mux.HandleFunc("/api/v1/services/config/", s.handleServiceConfig)
@@ -887,6 +896,12 @@ func (s *Server) Start(ctx context.Context) error {
 	// Start host metrics collector (Approaches A+B+C)
 	s.wg.Add(1)
 	go s.collectHostMetrics(ctx)
+
+	// Findings register metrics (ADR-098), when the catalog is configured
+	if s.complianceMetrics != nil {
+		s.wg.Add(1)
+		go s.refreshComplianceMetrics(ctx)
+	}
 
 	// Start HTTP server
 	s.wg.Add(1)

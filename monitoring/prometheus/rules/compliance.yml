@@ -1,0 +1,99 @@
+# Prometheus alert rules - findings register (ADR-098)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# Series come from dashboard-backend /metrics (compliance_metrics.go), which
+# rebuilds the register from evidence every minute. Routing: severity=critical
+# pages, severity=warning goes to the daily digest (ADR-098 section 3). Until
+# FND-001 is closed Alertmanager's receiver is `null` and none of this reaches
+# anyone; that is the first finding for a reason.
+#
+# Host-agent rules (mode downgraded, agent silent, agent vs central disagree)
+# arrive with the agent in ADR-098 phase 2.
+
+groups:
+  - name: compliance-findings
+    interval: 1m
+    rules:
+      # The register could not be built: an invalid register.yaml, an
+      # unreadable catalog or corrupt evidence. Never read as "no findings".
+      - alert: ComplianceReportBroken
+        expr: unheaded_compliance_report_ok == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Findings register cannot be built"
+          description: "dashboard-backend could not read the catalog, register or evidence; the finding count is not trustworthy until fixed"
+
+      - alert: ComplianceMetricsMissing
+        expr: absent(unheaded_compliance_report_ok)
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No findings register metrics"
+          description: "dashboard-backend is down, not scraped, or started without --compliance-root"
+
+      # Central collection (compliance-evidence) has stopped producing
+      # evidence. Warning while collection is still run by hand; critical once
+      # the collection timer exists.
+      - alert: ComplianceEvidenceSilent
+        expr: time() - unheaded_compliance_evidence_newest_timestamp_seconds > 6 * 3600
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No new compliance evidence for over 6 hours"
+          description: "Newest evidence record is {{ $value | humanizeDuration }} old; run cmd/compliance-evidence"
+
+      # A finding that was not there an hour ago: something regressed.
+      - alert: ComplianceNewFinding
+        expr: unheaded_compliance_finding unless unheaded_compliance_finding offset 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "New finding: {{ $labels.key }}"
+          description: "{{ $labels.key }} on {{ $labels.host }} ({{ $labels.severity }}) started failing within the last hour"
+
+      - alert: ComplianceNewSevereFinding
+        expr: (unheaded_compliance_finding{severity=~"critical|high"} unless unheaded_compliance_finding offset 1h)
+        labels:
+          severity: critical
+        annotations:
+          summary: "New {{ $labels.severity }} finding: {{ $labels.key }}"
+          description: "{{ $labels.key }} on {{ $labels.host }} started failing within the last hour"
+
+      - alert: ComplianceCriticalFindingOpen
+        expr: unheaded_compliance_finding{severity="critical"} == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical finding open: {{ $labels.key }}"
+          description: "{{ $labels.key }} on {{ $labels.host }}; due 7 days after it opened"
+
+      - alert: ComplianceFindingsUntriaged
+        expr: unheaded_compliance_findings_open{severity="untriaged"} > 0
+        for: 1h
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} finding(s) have no register entry"
+          description: "Add them to compliance/findings/register.yaml with a severity and plan"
+
+      - alert: ComplianceFindingsOverdue
+        expr: unheaded_compliance_findings_overdue > 0
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $value }} finding(s) past their due date"
+          description: "See /compliance; due = opened + severity window (7/30/90/180 days)"
+
+      - alert: ComplianceAcceptanceExpired
+        expr: unheaded_compliance_acceptances_expired > 0
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $value }} risk acceptance(s) expired"
+          description: "Fix the finding or re-decide the acceptance in compliance/findings/register.yaml"
