@@ -38,7 +38,7 @@ CapabilityBoundingSet=
 AmbientCapabilities=
 ReadWritePaths=/var/lib/unheaded/dashboard
 SystemCallFilter=@system-service
-SystemCallFilter=~@privileged ~@resources ~@reboot ~@module ~@swap
+SystemCallFilter=~@privileged @resources @reboot @module @swap
 LimitNOFILE=8192
 
 [Install]

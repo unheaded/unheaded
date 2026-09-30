@@ -48,7 +48,7 @@ CapabilityBoundingSet=
 AmbientCapabilities=
 # /proc reads are via standard open(2) — @system-service covers them.
 SystemCallFilter=@system-service
-SystemCallFilter=~@privileged ~@resources ~@reboot ~@module ~@swap
+SystemCallFilter=~@privileged @resources @reboot @module @swap
 LimitNOFILE=1024
 
 [Install]

@@ -40,7 +40,7 @@ CapabilityBoundingSet=
 AmbientCapabilities=
 ReadWritePaths=/var/lib/unheaded/daemon /var/lib/unheaded/state
 SystemCallFilter=@system-service
-SystemCallFilter=~@privileged ~@resources ~@reboot ~@module ~@swap
+SystemCallFilter=~@privileged @resources @reboot @module @swap
 LimitNOFILE=4096
 
 [Install]
