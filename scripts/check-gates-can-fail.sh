@@ -198,6 +198,23 @@ provoke_gosec_ratchet() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_compose_hardening() {
+    # Contract (ADR-097, UH-CTR-01): every compose service is least-privilege
+    # unless baselined. Drop read_only from a first-party service.
+    backup "docker-compose.yml"
+    python3 - "${REPO_ROOT}/docker-compose.yml" <<'PROBE'
+import re, sys
+p = sys.argv[1]
+s = open(p).read()
+i = s.index("\n  dashboard-backend:\n")
+head, tail = s[:i], s[i:]
+tail = re.sub(r"\n    read_only: true\n", "\n", tail, count=1)
+open(p, "w").write(head + tail)
+PROBE
+    ! grep -A12 '^  dashboard-backend:' "${REPO_ROOT}/docker-compose.yml" | grep -q 'read_only: true'
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_manifest_yaml() {
     # Contract: every tracked YAML manifest parses. Plant a file that cannot.
     local f="deploy/k8s/policies/.meta-gate-probe.yaml"
@@ -410,6 +427,7 @@ check-clippy|provoke_clippy|slow|a clippy violation in crates/upc-api
 bpf-verifier-check|provoke_bpf_verifier_check|slow|an undefined symbol in ebpf/flow-tracker
 verify-gpl-boundary|provoke_verify_gpl_boundary|fast|an AGPL license on a non-first-party Cargo.toml
 check-compose-log-caps|provoke_compose_log_caps|fast|a compose service with its logging block stripped
+check-compose-hardening|provoke_compose_hardening|fast|dashboard-backend with read_only removed
 check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original initdb bind nesting, recreated
 check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present in the baseline set
 live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md

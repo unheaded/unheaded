@@ -1,0 +1,13 @@
+# compose-hardening-baseline: third-party services not yet running with a
+# read-only root filesystem, cap_drop: ALL, no-new-privileges and without
+# privileged. May only SHRINK (scripts/check-compose-hardening.sh fails on a
+# listed service that is now hardened or no longer exists, and on any
+# unlisted service that is not hardened). Each needs its own writable paths
+# (tmpfs/volumes) and minimal cap_add worked out before it can leave the list.
+clickhouse
+coredns
+grafana
+postgres
+traefik
+vector
+victoria
