@@ -218,3 +218,61 @@ func TestParseSignatures(t *testing.T) {
 		t.Fatalf("empty output counted %d commits", total)
 	}
 }
+
+func TestHostSysctl(t *testing.T) {
+	proc := t.TempDir()
+	for name, v := range map[string]string{
+		"kernel/kptr_restrict":             "1\n",
+		"kernel/unprivileged_bpf_disabled": "2\n",
+		"fs/suid_dumpable":                 "2\n",
+		"kernel/garbage":                   "abc\n",
+	} {
+		p := filepath.Join(proc, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(v), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	h := &HostSysctl{ProcSys: proc, Hostname: "west"}
+	src := func(r string) crosswalk.Source { return crosswalk.Source{Kind: crosswalk.KindHostSysctl, Ref: r} }
+	recs, err := h.Collect(context.Background(), []crosswalk.Source{
+		src("kernel.kptr_restrict>=1"),
+		src("kernel.unprivileged_bpf_disabled>=1"),
+		src("fs.suid_dumpable=0"),
+		src("kernel.missing=1"),
+		src("kernel.garbage=1"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]crosswalk.Record{}
+	for _, r := range recs {
+		got[r.Source.Ref] = r
+	}
+	if r := got["kernel.kptr_restrict>=1"]; r.Verdict != crosswalk.VerdictPass || !strings.Contains(r.Detail, "west: kernel.kptr_restrict = 1") {
+		t.Errorf("kptr = %+v", r)
+	}
+	if got["kernel.unprivileged_bpf_disabled>=1"].Verdict != crosswalk.VerdictPass {
+		t.Errorf("bpf = %+v", got["kernel.unprivileged_bpf_disabled>=1"])
+	}
+	if r := got["fs.suid_dumpable=0"]; r.Verdict != crosswalk.VerdictFail || !strings.Contains(r.Detail, "= 2") {
+		t.Errorf("suid_dumpable = %+v", r)
+	}
+	// Unreadable or non-numeric values are not a verdict.
+	for _, ref := range []string{"kernel.missing=1", "kernel.garbage=1"} {
+		if r, ok := got[ref]; ok {
+			t.Errorf("%s produced %+v", ref, r)
+		}
+	}
+}
+
+func TestHostSysctl_RejectsBadRefs(t *testing.T) {
+	h := &HostSysctl{ProcSys: t.TempDir()}
+	for _, ref := range []string{"../../etc/shadow=1", "kernel.x", "kernel.x==1", "kernel/x=1", "kernel.x=abc"} {
+		if _, err := h.Collect(context.Background(), []crosswalk.Source{{Kind: crosswalk.KindHostSysctl, Ref: ref}}); err == nil {
+			t.Errorf("ref %q accepted", ref)
+		}
+	}
+}

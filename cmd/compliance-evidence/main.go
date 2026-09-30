@@ -72,6 +72,12 @@ func run(repoDir, out, ghRepo, branch string, keep int, skipGates bool) error {
 	}
 	fresh = append(fresh, recs...)
 
+	host := &collect.HostSysctl{}
+	if recs, err = host.Collect(ctx, sources); err != nil {
+		return err
+	}
+	fresh = append(fresh, recs...)
+
 	if !skipGates {
 		gates := &collect.GateScripts{RepoDir: repoDir, Timeout: 10 * time.Minute}
 		if recs, err = gates.Collect(ctx, sources); err != nil {
