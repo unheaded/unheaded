@@ -274,6 +274,7 @@ controls:
       On both hosts (west, east): reverse-path filtering
       on, ICMP redirects neither accepted (IPv4, IPv6) nor sent, and SYN
       cookies on. Remote hosts are read over ssh; each record names its host.
+      Also (CIS 3.3): not a router unless it has to be, bogus ICMP errors and broadcast pings ignored, no secure redirects, no source routing, martians logged, no IPv6 router advertisements.
     rationale: >-
       Boundary protection at the host (SC-7: drop spoofed source addresses,
       refuse route changes by ICMP redirect), denial-of-service protection
@@ -281,6 +282,7 @@ controls:
       networks protected from unauthorized logical access; ISO A.8.20
       network security; 800-171 03.13.01 boundary protection.
       CIS Ubuntu 24.04: redirects not sent (3.3.2) or accepted (3.3.5), reverse-path filtering (3.3.7), SYN cookies (3.3.10).
+      CIS Ubuntu 24.04 3.3.1 (forwarding), 3.3.3, 3.3.4, 3.3.6, 3.3.8, 3.3.9, 3.3.11 (router advertisements) added 2026-09-30.
     freshness_days: 1
     evidence:
       - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.rp_filter>=1"}
@@ -293,12 +295,30 @@ controls:
       - {kind: host-sysctl, ref: "east:net.ipv6.conf.all.accept_redirects=0"}
       - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.send_redirects=0"}
       - {kind: host-sysctl, ref: "east:net.ipv4.tcp_syncookies=1"}
+      - {kind: host-sysctl, ref: "west:net.ipv4.ip_forward=0"}
+      - {kind: host-sysctl, ref: "west:net.ipv6.conf.all.forwarding=0"}
+      - {kind: host-sysctl, ref: "west:net.ipv4.icmp_ignore_bogus_error_responses=1"}
+      - {kind: host-sysctl, ref: "west:net.ipv4.icmp_echo_ignore_broadcasts=1"}
+      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.secure_redirects=0"}
+      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.accept_source_route=0"}
+      - {kind: host-sysctl, ref: "west:net.ipv6.conf.all.accept_source_route=0"}
+      - {kind: host-sysctl, ref: "west:net.ipv4.conf.all.log_martians=1"}
+      - {kind: host-sysctl, ref: "west:net.ipv6.conf.all.accept_ra=0"}
+      - {kind: host-sysctl, ref: "east:net.ipv4.ip_forward=0"}
+      - {kind: host-sysctl, ref: "east:net.ipv6.conf.all.forwarding=0"}
+      - {kind: host-sysctl, ref: "east:net.ipv4.icmp_ignore_bogus_error_responses=1"}
+      - {kind: host-sysctl, ref: "east:net.ipv4.icmp_echo_ignore_broadcasts=1"}
+      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.secure_redirects=0"}
+      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.accept_source_route=0"}
+      - {kind: host-sysctl, ref: "east:net.ipv6.conf.all.accept_source_route=0"}
+      - {kind: host-sysctl, ref: "east:net.ipv4.conf.all.log_martians=1"}
+      - {kind: host-sysctl, ref: "east:net.ipv6.conf.all.accept_ra=0"}
     mappings:
       nist-800-53r5: [SC-5, SC-7, CM-6]
       nist-800-171r3: ["03.13.01"]
       nist-csf-2: [PR.IR-01]
       iso27001-2022: [A.8.20]
-      cis-ubuntu2404: ["3.3.2", "3.3.5", "3.3.7", "3.3.10"]
+      cis-ubuntu2404: ["3.3.2", "3.3.5", "3.3.7", "3.3.10", "3.3.1", "3.3.3", "3.3.4", "3.3.6", "3.3.8", "3.3.9", "3.3.11"]
 
   - id: UH-SSH-01
     title: Remote login to the hosts is key-only and hardened
@@ -309,6 +329,7 @@ controls:
       at most 4 authentication attempts per connection, and times out idle
       sessions within 5 minutes. Read with passwordless sudo, locally or over
       ssh; each record names its host.
+      Also (CIS 5.1): no host-based or rhosts authentication, login grace 60s or less, INFO logging, at most 10 sessions, no user environment, PAM on, forwarding off, no GSSAPI.
     rationale: >-
       Remote access restricted to strong authentication (AC-17; IA-2
       identification and authentication by key, not password; 800-171
@@ -317,6 +338,7 @@ controls:
       services authenticated; ISO A.8.5 secure authentication; SOC 2 CC6.1.
       Values follow the CIS benchmark's SSH server section.
       CIS Ubuntu 24.04 sshd: ClientAliveInterval (5.1.7), MaxAuthTries (5.1.16), PermitEmptyPasswords (5.1.19), PermitRootLogin (5.1.20); password and keyboard-interactive login are stricter than the benchmark asks.
+      CIS Ubuntu 24.04 5.1.8-5.1.11, 5.1.13, 5.1.14, 5.1.17, 5.1.21, 5.1.22 added 2026-09-30 (5.1.8 and 5.1.9 are Level 2). 5.1.14 accepts VERBOSE or INFO; the check requires INFO, so VERBOSE would read as a false failure. 5.1.18 MaxStartups is not checked (a three-part value the check cannot compare).
     freshness_days: 1
     evidence:
       - {kind: host-sshd, ref: "west:passwordauthentication=no"}
@@ -335,13 +357,31 @@ controls:
       - {kind: host-sshd, ref: "east:maxauthtries<=4"}
       - {kind: host-sshd, ref: "east:clientaliveinterval>=1"}
       - {kind: host-sshd, ref: "east:clientaliveinterval<=300"}
+      - {kind: host-sshd, ref: "west:hostbasedauthentication=no"}
+      - {kind: host-sshd, ref: "west:ignorerhosts=yes"}
+      - {kind: host-sshd, ref: "west:logingracetime<=60"}
+      - {kind: host-sshd, ref: "west:loglevel=INFO"}
+      - {kind: host-sshd, ref: "west:maxsessions<=10"}
+      - {kind: host-sshd, ref: "west:permituserenvironment=no"}
+      - {kind: host-sshd, ref: "west:usepam=yes"}
+      - {kind: host-sshd, ref: "west:disableforwarding=yes"}
+      - {kind: host-sshd, ref: "west:gssapiauthentication=no"}
+      - {kind: host-sshd, ref: "east:hostbasedauthentication=no"}
+      - {kind: host-sshd, ref: "east:ignorerhosts=yes"}
+      - {kind: host-sshd, ref: "east:logingracetime<=60"}
+      - {kind: host-sshd, ref: "east:loglevel=INFO"}
+      - {kind: host-sshd, ref: "east:maxsessions<=10"}
+      - {kind: host-sshd, ref: "east:permituserenvironment=no"}
+      - {kind: host-sshd, ref: "east:usepam=yes"}
+      - {kind: host-sshd, ref: "east:disableforwarding=yes"}
+      - {kind: host-sshd, ref: "east:gssapiauthentication=no"}
     mappings:
       nist-800-53r5: [AC-17, IA-2, AC-7, CM-6]
       nist-800-171r3: ["03.01.12", "03.01.08"]
       nist-csf-2: [PR.AA-03]
       soc2-security: [CC6.1]
       iso27001-2022: [A.8.5]
-      cis-ubuntu2404: ["5.1.7", "5.1.16", "5.1.19", "5.1.20"]
+      cis-ubuntu2404: ["5.1.7", "5.1.16", "5.1.19", "5.1.20", "5.1.8", "5.1.9", "5.1.10", "5.1.11", "5.1.13", "5.1.14", "5.1.17", "5.1.21", "5.1.22"]
 
   - id: UH-CTR-01
     title: Containers run least-privilege, with exceptions only shrinking
