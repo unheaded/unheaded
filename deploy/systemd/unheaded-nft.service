@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Loads the last operator-confirmed `inet unheaded` firewall table at boot
+# (ADR-098 step 6). The file exists only after
+# `scripts/host/nft-apply-confirm.sh confirm`; until then this does nothing.
+# Install (with Stevie's yes, per host):
+#   sudo cp deploy/systemd/unheaded-nft.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable unheaded-nft.service
+
+[Unit]
+Description=Unheaded host firewall (inet unheaded, last confirmed ruleset)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-098-findings-register-and-baseline-modes.md
+DefaultDependencies=no
+Before=network-pre.target
+Wants=network-pre.target
+After=local-fs.target
+ConditionPathExists=/var/lib/unheaded/nft/confirmed.nft
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /var/lib/unheaded/nft/confirmed.nft
+ExecStop=-/usr/sbin/nft delete table inet unheaded
+
+[Install]
+WantedBy=sysinit.target

@@ -662,10 +662,18 @@ type Probe struct {
 // ufw.service is "active" while `ufw status` says inactive.
 var Probes = map[string]Probe{
 	"firewall-inbound-deny": {
+		// Default deny inbound, either as the iptables INPUT policy for both
+		// families or as the package-owned nftables table (ADR-098 step 6,
+		// deploy/nftables), whose input chain drops by policy for IPv4 and
+		// IPv6 at once. A drop policy in any input base chain is final.
 		Baseline: true,
-		Command:  "sudo -n iptables -S INPUT; echo ---; sudo -n ip6tables -S INPUT",
+		Command: "sudo -n iptables -S INPUT; echo ---; sudo -n ip6tables -S INPUT; echo ---; " +
+			"sudo -n nft list chain inet unheaded input | grep -m1 'hook input'",
 		Judge: func(out string) (bool, string) {
-			v4, v6, _ := strings.Cut(out, "---")
+			parts := strings.SplitN(out, "---", 3)
+			for len(parts) < 3 {
+				parts = append(parts, "")
+			}
 			pol := func(s string) string {
 				for _, l := range strings.Split(s, "\n") {
 					if strings.HasPrefix(strings.TrimSpace(l), "-P INPUT ") {
@@ -674,8 +682,16 @@ var Probes = map[string]Probe{
 				}
 				return "unknown"
 			}
-			p4, p6 := pol(v4), pol(v6)
-			return p4 == "DROP" && p6 == "DROP", fmt.Sprintf("INPUT policy IPv4 %s, IPv6 %s (required DROP, DROP)", p4, p6)
+			p4, p6 := pol(parts[0]), pol(parts[1])
+			nft := "absent"
+			if hook := strings.TrimSpace(parts[2]); hook != "" {
+				nft = "policy accept"
+				if strings.Contains(hook, "policy drop") {
+					nft = "policy drop"
+				}
+			}
+			pass := (p4 == "DROP" && p6 == "DROP") || nft == "policy drop"
+			return pass, fmt.Sprintf("INPUT policy IPv4 %s, IPv6 %s; nft inet unheaded input %s (required DROP, DROP or nft policy drop)", p4, p6, nft)
 		},
 	},
 	"ntp-synchronized": {
