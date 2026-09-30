@@ -223,3 +223,251 @@ func mountProbe(path, opt string) Probe {
 		},
 	}
 }
+
+// serviceChecks: CIS 2.1.1-2.1.20, "services not in use". Package and unit
+// names are ComplianceAsCode's for ubuntu2404. Not in use means no package
+// installed, or (installed as a dependency) every unit neither enabled nor
+// active: disabled or masked and stopped.
+var serviceChecks = []struct {
+	slug     string
+	packages []string
+	units    []string
+}{
+	{"autofs", []string{"autofs"}, []string{"autofs.service"}},
+	{"avahi", []string{"avahi-daemon"}, []string{"avahi-daemon.service", "avahi-daemon.socket"}},
+	{"dhcp-server", []string{"isc-dhcp-server"}, []string{"isc-dhcp-server.service", "isc-dhcp-server6.service"}},
+	{"dns-server", []string{"bind9"}, []string{"named.service"}},
+	{"dnsmasq", []string{"dnsmasq"}, []string{"dnsmasq.service"}},
+	{"ftp-server", []string{"vsftpd"}, []string{"vsftpd.service"}},
+	{"ldap-server", []string{"slapd"}, []string{"slapd.service"}},
+	{"mail-access", []string{"dovecot-core"}, []string{"dovecot.service"}},
+	{"nfs-server", []string{"nfs-kernel-server"}, []string{"nfs-server.service"}},
+	{"nis-server", []string{"ypserv"}, []string{"ypserv.service"}},
+	{"print-server", []string{"cups"}, []string{"cups.service", "cups.socket"}},
+	{"rpcbind", []string{"rpcbind"}, []string{"rpcbind.service", "rpcbind.socket"}},
+	{"rsync", []string{"rsync"}, []string{"rsync.service"}},
+	{"samba", []string{"samba"}, []string{"smbd.service"}},
+	{"snmp", []string{"snmpd"}, []string{"snmpd.service"}},
+	{"tftp-server", []string{"tftpd-hpa"}, []string{"tftpd-hpa.service"}},
+	{"web-proxy", []string{"squid"}, []string{"squid.service"}},
+	{"web-server", []string{"apache2", "nginx"}, []string{"apache2.service", "nginx.service"}},
+	{"xinetd", []string{"xinetd"}, []string{"xinetd.service"}},
+	{"x-server", []string{"xserver-common"}, nil}, // 2.1.20, Level 2: package only
+}
+
+// clientChecks: CIS 2.2.1-2.2.6, clients that must not be installed.
+var clientChecks = []struct {
+	slug     string
+	packages []string
+}{
+	{"nis-client", []string{"nis"}},
+	{"rsh-client", []string{"rsh-client"}},
+	{"talk-client", []string{"talk"}},
+	{"telnet-client", []string{"inetutils-telnet", "telnet"}},
+	{"ldap-client", []string{"ldap-utils"}},
+	{"ftp-client", []string{"ftp", "tnftp"}},
+}
+
+func init() {
+	for _, c := range serviceChecks {
+		Probes["svc-"+c.slug+"-not-in-use"] = serviceProbe(c.packages, c.units)
+	}
+	for _, c := range clientChecks {
+		Probes["pkg-"+c.slug+"-absent"] = packageAbsentProbe(c.packages)
+	}
+	// CIS 2.4.1.2-2.4.1.7: ComplianceAsCode file rules for ubuntu2404.
+	fileRulesCron := map[string]fileRule{
+		"perm-etc-crontab":      {[]fileTarget{{"/etc/crontab", false}}, 0o600, "root"},
+		"perm-etc-cron-hourly":  {[]fileTarget{{"/etc/cron.hourly", false}}, 0o700, "root"},
+		"perm-etc-cron-daily":   {[]fileTarget{{"/etc/cron.daily", false}}, 0o700, "root"},
+		"perm-etc-cron-weekly":  {[]fileTarget{{"/etc/cron.weekly", false}}, 0o700, "root"},
+		"perm-etc-cron-monthly": {[]fileTarget{{"/etc/cron.monthly", false}}, 0o700, "root"},
+		"perm-etc-cron-d":       {[]fileTarget{{"/etc/cron.d", false}}, 0o700, "root"},
+	}
+	for name, r := range fileRulesCron {
+		Probes[name] = filePermProbe(r)
+	}
+	Probes["cron-active"] = cronActiveProbe()
+	Probes["cron-allow-restricted"] = allowDenyProbe("cron.allow", "", "crontab", false)
+	Probes["at-restricted"] = allowDenyProbe("at.allow", "at", "root", true)
+	Probes["mta-local-only"] = mtaLocalOnlyProbe()
+}
+
+func dpkgInstalled(pkgs []string) string {
+	return fmt.Sprintf(`echo "installed=$(dpkg-query -W -f='${Package} ${Status}\n' %s 2>/dev/null | awk '/ install ok installed$/{print $1}' | tr '\n' ' ')"`,
+		strings.Join(pkgs, " "))
+}
+
+func parseKV(out string) map[string]string {
+	f := map[string]string{}
+	for _, l := range strings.Split(out, "\n") {
+		if k, v, ok := strings.Cut(l, "="); ok {
+			f[strings.TrimSpace(k)] = strings.TrimSpace(v)
+		}
+	}
+	return f
+}
+
+func serviceProbe(pkgs, units []string) Probe {
+	var b strings.Builder
+	b.WriteString(dpkgInstalled(pkgs))
+	for _, u := range units {
+		fmt.Fprintf(&b, `; echo "%s=$(systemctl is-enabled %s 2>/dev/null || true)/$(systemctl is-active %s 2>/dev/null || true)"`, u, u, u)
+	}
+	name := strings.Join(pkgs, "/")
+	return Probe{
+		Baseline: true,
+		Command:  b.String(),
+		Judge: func(out string) (bool, string) {
+			f := parseKV(out)
+			inst, ok := f["installed"]
+			if !ok {
+				return false, name + ": no output"
+			}
+			if inst == "" {
+				return true, name + " not installed"
+			}
+			var bad []string
+			for _, u := range units {
+				en, act, _ := strings.Cut(f[u], "/")
+				if act == "active" || act == "activating" || en == "enabled" || en == "enabled-runtime" || en == "static" || en == "indirect" || en == "alias" {
+					bad = append(bad, fmt.Sprintf("%s %s/%s", u, en, act))
+				}
+			}
+			if len(units) == 0 {
+				return false, "installed: " + inst
+			}
+			if len(bad) > 0 {
+				return false, "installed: " + inst + "; in use: " + strings.Join(bad, ", ")
+			}
+			return true, "installed (" + inst + ") but every unit disabled or masked and stopped"
+		},
+	}
+}
+
+func packageAbsentProbe(pkgs []string) Probe {
+	name := strings.Join(pkgs, "/")
+	return Probe{
+		Baseline: true,
+		Command:  dpkgInstalled(pkgs),
+		Judge: func(out string) (bool, string) {
+			f := parseKV(out)
+			inst, ok := f["installed"]
+			if !ok {
+				return false, name + ": no output"
+			}
+			if inst != "" {
+				return false, "installed: " + inst
+			}
+			return true, name + " not installed"
+		},
+	}
+}
+
+// cronActiveProbe: CIS 2.4.1.1, cron installed, enabled and running.
+func cronActiveProbe() Probe {
+	return Probe{
+		Baseline: true,
+		Command: dpkgInstalled([]string{"cron"}) +
+			`; echo "enabled=$(systemctl is-enabled cron.service 2>/dev/null || true)"; echo "active=$(systemctl is-active cron.service 2>/dev/null || true)"`,
+		Judge: func(out string) (bool, string) {
+			f := parseKV(out)
+			if !strings.Contains(" "+f["installed"]+" ", " cron ") {
+				return false, "cron not installed"
+			}
+			if f["enabled"] != "enabled" || f["active"] != "active" {
+				return false, fmt.Sprintf("cron %s/%s (want enabled/active)", f["enabled"], f["active"])
+			}
+			return true, "cron enabled and active"
+		},
+	}
+}
+
+// allowDenyProbe: CIS 2.4.1.8 (cron: /etc/cron.allow root:crontab 0640 or
+// stricter, no /etc/cron.deny) and 2.4.2.1 (at: when installed, at.allow
+// root:root 0640 or stricter; at.deny, if present, the same). Values from
+// ComplianceAsCode's ubuntu2404 rules. pkg != "" means "only if installed".
+func allowDenyProbe(allow, pkg, group string, denyAllowed bool) Probe {
+	deny := strings.TrimSuffix(allow, ".allow") + ".deny"
+	stat := func(key, file string) string {
+		return fmt.Sprintf(`echo "%s=$(if [ -e /etc/%s ]; then stat -c '%%n %%a %%u %%G' /etc/%s; else echo ABSENT; fi)"`, key, file, file)
+	}
+	cmd := stat("allow", allow) + "; " + stat("deny", deny)
+	if pkg != "" {
+		cmd = dpkgInstalled([]string{pkg}) + "; " + cmd
+	}
+	check := func(v string) (bool, string) {
+		fs := strings.Fields(v)
+		if len(fs) != 4 {
+			return false, "unreadable: " + v
+		}
+		mode, err := strconv.ParseUint(fs[1], 8, 32)
+		switch {
+		case err != nil:
+			return false, "unreadable mode: " + v
+		case uint32(mode)&^0o640 != 0:
+			return false, fmt.Sprintf("%s mode %s (max 640)", fs[0], fs[1])
+		case fs[2] != "0":
+			return false, fmt.Sprintf("%s owner uid %s (want 0)", fs[0], fs[2])
+		case fs[3] != group:
+			return false, fmt.Sprintf("%s group %s (want %s)", fs[0], fs[3], group)
+		}
+		return true, ""
+	}
+	return Probe{
+		Baseline: true,
+		Command:  cmd,
+		Judge: func(out string) (bool, string) {
+			f := parseKV(out)
+			if pkg != "" {
+				inst, ok := f["installed"]
+				if !ok {
+					return false, pkg + ": no output"
+				}
+				if inst == "" {
+					return true, pkg + " not installed"
+				}
+			}
+			a, ok := f["allow"]
+			if !ok {
+				return false, "no output"
+			}
+			if a == "ABSENT" {
+				return false, "/etc/" + allow + " missing: every user may schedule jobs"
+			}
+			if ok, why := check(a); !ok {
+				return false, why
+			}
+			if d := f["deny"]; d != "" && d != "ABSENT" {
+				if !denyAllowed {
+					return false, "/etc/" + deny + " exists (remove it; " + allow + " decides)"
+				}
+				if ok, why := check(d); !ok {
+					return false, why
+				}
+			}
+			return true, "/etc/" + allow + " restricts scheduling"
+		},
+	}
+}
+
+// mtaLocalOnlyProbe: CIS 2.1.21, no mail transfer agent listening on a
+// non-loopback address (ports 25, 465, 587).
+func mtaLocalOnlyProbe() Probe {
+	return Probe{
+		Baseline: true,
+		Command:  `ss -ltnH 2>/dev/null | awk '{print $4}' | grep -E ':(25|465|587)$' || true`,
+		Judge: func(out string) (bool, string) {
+			var exposed []string
+			for _, a := range strings.Fields(out) {
+				if !strings.HasPrefix(a, "127.") && !strings.HasPrefix(a, "[::1]") {
+					exposed = append(exposed, a)
+				}
+			}
+			if len(exposed) > 0 {
+				return false, "MTA listening on " + strings.Join(exposed, ", ")
+			}
+			return true, "no MTA listening beyond loopback"
+		},
+	}
+}

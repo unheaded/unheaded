@@ -701,3 +701,44 @@ func TestMountProbes(t *testing.T) {
 		}
 	}
 }
+
+func TestServiceClientCronProbes(t *testing.T) {
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"svc-web-server-not-in-use", "installed=\nnginx.service=not-found/inactive\napache2.service=not-found/inactive\n", true},
+		{"svc-web-server-not-in-use", "installed=nginx\nnginx.service=enabled/active\napache2.service=not-found/inactive\n", false},
+		{"svc-web-server-not-in-use", "installed=nginx\nnginx.service=masked/inactive\napache2.service=not-found/inactive\n", true},  // installed as a dependency, masked
+		{"svc-web-server-not-in-use", "installed=nginx\nnginx.service=disabled/active\napache2.service=not-found/inactive\n", false}, // running now
+		{"svc-rsync-not-in-use", "installed=rsync\nrsync.service=disabled/inactive\n", true},
+		{"svc-rsync-not-in-use", "", false},
+		{"pkg-telnet-client-absent", "installed=inetutils-telnet telnet\n", false},
+		{"pkg-telnet-client-absent", "installed=\n", true},
+		{"pkg-telnet-client-absent", "", false},
+		{"cron-active", "installed=cron\nenabled=enabled\nactive=active\n", true},
+		{"cron-active", "installed=cron\nenabled=enabled\nactive=inactive\n", false},
+		{"cron-active", "installed=\nenabled=\nactive=\n", false},
+		{"cron-allow-restricted", "allow=/etc/cron.allow 640 0 crontab\ndeny=ABSENT\n", true},
+		{"cron-allow-restricted", "allow=ABSENT\ndeny=ABSENT\n", false},
+		{"cron-allow-restricted", "allow=/etc/cron.allow 640 0 crontab\ndeny=/etc/cron.deny 640 0 root\n", false},
+		{"cron-allow-restricted", "allow=/etc/cron.allow 644 0 crontab\ndeny=ABSENT\n", false},
+		{"at-restricted", "installed=\n", true}, // at not installed: nothing to restrict
+		{"at-restricted", "installed=at\nallow=ABSENT\ndeny=ABSENT\n", false},
+		{"at-restricted", "installed=at\nallow=/etc/at.allow 640 0 root\ndeny=/etc/at.deny 640 0 root\n", true},
+		{"mta-local-only", "", true}, // nothing listening on 25/465/587
+		{"mta-local-only", "127.0.0.1:25\n[::1]:25\n", true},
+		{"mta-local-only", "0.0.0.0:25\n", false},
+		{"perm-etc-crontab", "/etc/crontab 644 0 root\n", false},
+		{"perm-etc-cron-d", "/etc/cron.d 700 0 root\n", true},
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok || !p.Baseline {
+			t.Errorf("%s missing or not a baseline probe", tc.probe)
+			continue
+		}
+		if pass, detail := p.Judge(tc.out); pass != tc.pass {
+			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}

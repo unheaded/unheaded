@@ -258,6 +258,16 @@ func init() {
 		case strings.HasPrefix(name, "kmod-") && strings.HasSuffix(name, "-disabled"):
 			mod := strings.TrimSuffix(strings.TrimPrefix(name, "kmod-"), "-disabled")
 			probeActions[name] = fmt.Sprintf("write /etc/modprobe.d/%s.conf (install %s /bin/false; blacklist %s); unload it if loaded and unused", mod, mod, mod)
+		case strings.HasPrefix(name, "svc-"):
+			probeActions[name] = "systemctl disable --now and mask the units; the package stays (removal is the operator's decision)"
+		case strings.HasPrefix(name, "pkg-"):
+			probeActions[name] = "none (alert only): removing a package can take dependents with it; the operator runs apt purge"
+		case name == "cron-active":
+			probeActions[name] = "systemctl enable --now cron"
+		case name == "cron-allow-restricted", name == "at-restricted":
+			probeActions[name] = "create the .allow file (root, mode 0640, CIS group) listing root; remove cron.deny"
+		case name == "mta-local-only":
+			probeActions[name] = "none (alert only): set the MTA to loopback-only (postfix inet_interfaces = loopback-only) and restart it"
 		case strings.HasPrefix(name, "mount-"):
 			probeActions[name] = "none (alert only): mount options and partitions change through fstab and a remount or reboot, which the operator does"
 		case strings.HasPrefix(name, "perm-"):
