@@ -141,7 +141,7 @@
       "kernel.perf_event_paranoid"  = 1;
       "kernel.kptr_restrict"        = 1;
       # cgroup v2
-      "kernel.unprivileged_bpf_disabled" = 0;
+      "kernel.unprivileged_bpf_disabled" = 2;
       # IPv6
       "net.ipv6.conf.all.forwarding" = 1;
       "net.ipv6.conf.default.forwarding" = 1;
