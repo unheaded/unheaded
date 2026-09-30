@@ -89,6 +89,13 @@ type Config struct {
 	// When non-empty, host metrics are POSTed directly to VictoriaMetrics.
 	// Example: "http://localhost:8428"
 	VMUrl string
+
+	// ComplianceRoot holds compliance/catalog/ (ADR-097); empty disables the
+	// /api/v1/compliance/* endpoints (they answer 503).
+	ComplianceRoot string
+	// ComplianceEvidence is the evidence file written by
+	// cmd/compliance-evidence. Missing = every control NOT_ASSESSED.
+	ComplianceEvidence string
 }
 
 // DefaultConfig returns default server configuration
@@ -721,6 +728,14 @@ func (s *Server) setupRoutes() {
 	// Host metrics endpoint
 	s.mux.HandleFunc("/api/v1/hosts", s.handleHosts)
 
+	// Compliance crosswalk (ADR-097).
+	var cs *complianceSource
+	if s.config.ComplianceRoot != "" {
+		cs = &complianceSource{root: s.config.ComplianceRoot, evidencePath: s.config.ComplianceEvidence}
+	}
+	s.mux.HandleFunc("/api/v1/compliance/summary", cs.handleSummary)
+	s.mux.HandleFunc("/api/v1/compliance/frameworks/{id}", cs.handleFramework)
+
 	// Service config management endpoints (S47)
 	s.mux.HandleFunc("/api/v1/services/config/", s.handleServiceConfig)
 	s.mux.HandleFunc("/api/v1/services/restart/", s.handleServiceRestart)
@@ -755,6 +770,7 @@ func (s *Server) setupRoutes() {
 
 	// Serve dashboard pages
 	s.mux.HandleFunc("/logs", s.handleStaticFile("logs.html"))
+	s.mux.HandleFunc("/compliance", s.handleStaticFile("compliance.html"))
 	s.mux.HandleFunc("/", s.handleStaticIndex)
 }
 
