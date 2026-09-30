@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 //! Userspace MBC CPU state — wraps monad_common::MbcCpuState with emulation helpers.
 //!
 //! This module provides a CpuState wrapper for the Doom-over-IPv6 PoC MBC emulator.
@@ -321,8 +322,8 @@ mod tests {
         assert_eq!(cpu.state.stalled, 0);
 
         // Check other registers are zero
-        for i in 0..15 {
-            assert_eq!(cpu.state.regs[i], 0);
+        for (i, &r) in cpu.state.regs.iter().enumerate().take(15) {
+            assert_eq!(r, 0, "r{i}");
         }
 
         // Check counters are zero

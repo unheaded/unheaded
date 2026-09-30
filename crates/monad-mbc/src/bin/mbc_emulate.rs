@@ -178,8 +178,7 @@ fn main() {
     eprintln!("Syscalls:       {syscall_count}");
     eprintln!("Final PC:       {}", cpu.state.pc);
     eprintln!("Registers:");
-    for r in 0..16 {
-        let val = cpu.state.regs[r];
+    for (r, &val) in cpu.state.regs.iter().enumerate() {
         if val != 0 || r == 0 || r == 15 {
             eprintln!("  r{r:2} = {val:#10X} ({val})");
         }

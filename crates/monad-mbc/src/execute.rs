@@ -980,9 +980,7 @@ impl Cpu {
                         let entry_point = self.state.regs[1];
 
                         // Reset all general-purpose registers
-                        for i in 0..16 {
-                            self.state.regs[i] = 0;
-                        }
+                        self.state.regs = [0; 16];
                         // Reset stack pointer to top of memory
                         self.state.regs[REG_SP] = 0xFFFF_0000;
 

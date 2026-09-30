@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 #![deny(unsafe_code)]
 //! # Zhen (真) — Layer 0 Anti-Fragile Knowledge Substrate
 //!
@@ -51,6 +52,9 @@ pub mod qi;
 /// Generated protobuf / tonic types from `proto/zhen.proto`.
 pub mod proto {
     pub mod zhen {
+        // Generated client code returns tonic::Status (176 bytes) in Err;
+        // that shape is tonic's, not ours to box.
+        #[allow(clippy::result_large_err)]
         pub mod v1 {
             tonic::include_proto!("zhen.v1");
         }

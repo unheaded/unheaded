@@ -241,15 +241,12 @@ const PALETTE_SIZE: u32 = 768; // 256 * 3 (RGB)
 /// 16,000 u32 reads is 4x fewer BPF syscalls than 64,000 u8 reads from SCREEN_MAP,
 /// keeping the ebpf lock held briefly so keyboard writes aren't blocked.
 fn read_screen(ebpf: &mut Ebpf) -> Option<Vec<u8>> {
-    let ram: Array<_, u32> = match ebpf.map_mut("RAM_MAP") {
-        Some(map) => match Array::try_from(map) {
-            Ok(a) => a,
-            Err(e) => {
-                error!("bridge: RAM_MAP: {e}");
-                return None;
-            }
-        },
-        None => return None,
+    let ram: Array<_, u32> = match Array::try_from(ebpf.map_mut("RAM_MAP")?) {
+        Ok(a) => a,
+        Err(e) => {
+            error!("bridge: RAM_MAP: {e}");
+            return None;
+        }
     };
 
     let mut data = Vec::with_capacity((PALETTE_SIZE + memory::SCREEN_SIZE) as usize);

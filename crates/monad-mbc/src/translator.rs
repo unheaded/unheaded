@@ -956,8 +956,14 @@ impl Translator {
                     self.emit(op::CALLR, mbc_rs1, 0, 0);
                     let items_after = self.items.len();
                     // Check what was actually emitted
-                    for idx in items_before..items_after {
-                        match &self.items[idx] {
+                    for (idx, item) in self
+                        .items
+                        .iter()
+                        .enumerate()
+                        .take(items_after)
+                        .skip(items_before)
+                    {
+                        match item {
                             crate::translator::MbcEmit::Concrete(word) => {
                                 let opc = word & 0xFF;
                                 let d = (word >> 8) & 0xF;

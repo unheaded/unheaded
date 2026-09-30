@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 //! Phase 6 (Steps 96-110): End-to-end integration tests for monad-mbc.
 //!
 //! Tests the full pipeline: assemble -> load -> execute -> verify,
@@ -388,12 +389,8 @@ fn step101_screen_gradient_pattern() {
     assert!(result.is_ok(), "should halt: {:?}", result.err());
 
     // Verify the gradient pattern in the screen buffer
-    for i in 0..256usize {
-        assert_eq!(
-            cpu.screen[i], i as u8,
-            "screen[{}] should be {}, got {}",
-            i, i, cpu.screen[i]
-        );
+    for (i, &px) in cpu.screen.iter().enumerate().take(256) {
+        assert_eq!(px, i as u8, "screen[{}] should be {}, got {}", i, i, px);
     }
 }
 
@@ -652,8 +649,10 @@ fn step106_doom_mbc_smoke_test() {
 
     // Convert bytes to u32 words (little-endian)
     let rom: Vec<u32> = data
-        .chunks_exact(4)
-        .map(|chunk| u32::from_le_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]))
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|chunk| u32::from_le_bytes(*chunk))
         .collect();
 
     eprintln!("doom.mbc: {} instructions loaded", rom.len());
