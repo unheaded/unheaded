@@ -290,3 +290,4 @@ docker-compose.override.yml
 # mount it elsewhere). That changes first-init behaviour on a clean volume, so
 # it wants its own commit and a fresh-volume test.
 db/migrations/init.sh
+/var/compliance/
