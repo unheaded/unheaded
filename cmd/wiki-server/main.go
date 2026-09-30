@@ -220,7 +220,19 @@ func (ws *WikiServer) renderPage(slug string) (string, string, error) {
 		return "", "", fmt.Errorf("path traversal attempt blocked")
 	}
 
-	data, err := os.ReadFile(absPath) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
+	// The slug comes from the request URL, and the prefix check above is
+	// lexical: a symlink inside wikiDir still points anywhere. os.Root
+	// refuses to resolve out of wikiDir, symlinks included.
+	root, err := os.OpenRoot(ws.wikiDir)
+	if err != nil {
+		return "", "", fmt.Errorf("open wiki dir: %w", err)
+	}
+	defer root.Close()
+	rel, err := filepath.Rel(ws.wikiDir, absPath)
+	if err != nil {
+		return "", "", fmt.Errorf("resolve path: %w", err)
+	}
+	data, err := root.ReadFile(rel)
 	if err != nil {
 		return "", "", fmt.Errorf("read file %s: %w", absPath, err)
 	}
