@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Re-runs the baseline agent as soon as a watched configuration file changes
+# (ADR-098: file drift detected in < 1 min). Runtime-only changes (sysctl -w,
+# iptables without a saved ruleset) touch no file; the 5-minute timer catches
+# those.
+
+[Unit]
+Description=Unheaded host baseline agent on configuration change
+
+[Path]
+PathChanged=/etc/ssh/sshd_config
+PathChanged=/etc/ssh/sshd_config.d
+PathChanged=/etc/sysctl.conf
+PathChanged=/etc/sysctl.d
+PathChanged=/etc/nftables.conf
+PathChanged=/etc/unheaded/baseline.conf
+PathChanged=/usr/share/unheaded/baseline/baseline.yaml
+Unit=unheaded-baseline.service
+
+[Install]
+WantedBy=paths.target

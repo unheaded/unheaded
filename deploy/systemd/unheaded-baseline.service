@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Host baseline agent, audit mode only (ADR-098 phase 2). Reads; changes
+# nothing. Run by unheaded-baseline.timer (every 5 min) and
+# unheaded-baseline.path (config file changes).
+# Install (needs Stevie's yes per host; east first):
+#   sudo install -m 0755 unheaded-baseline /usr/local/bin/
+#   sudo install -d -m 0755 /usr/share/unheaded/baseline
+#   sudo install -m 0644 compliance/baseline/baseline.yaml /usr/share/unheaded/baseline/
+#   sudo cp deploy/systemd/unheaded-baseline.{service,timer,path} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-baseline.timer unheaded-baseline.path
+#
+# Hardening tested with systemd-run on west 2026-09-30: every check still
+# evaluates. The capability set is the minimum found: CAP_NET_ADMIN for
+# `iptables -S`, CAP_SETUID/SETGID/AUDIT_WRITE for `sudo -n sshd -T`. With
+# less, the sshd checks report UNEVALUATED (visible, not silent).
+
+[Unit]
+Description=Unheaded host baseline agent (audit mode, ADR-098)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-098-findings-register-and-baseline-modes.md
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/unheaded-baseline
+StateDirectory=unheaded/baseline
+StateDirectoryMode=0755
+TimeoutStartSec=3min
+Nice=10
+IOSchedulingClass=idle
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_SETUID CAP_SETGID CAP_AUDIT_WRITE
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
