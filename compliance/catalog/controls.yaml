@@ -489,6 +489,24 @@ controls:
       soc2-security: [CC6.1]
       iso27001-2022: [A.8.5]
 
+  - id: UH-BACKUP-01
+    title: The database is backed up at least weekly
+    statement: >-
+      A compressed dump of The Well (PostgreSQL) under ~/backups/unheaded on
+      west is at most 7 days old. Checks that a recent backup exists, not
+      that it restores.
+    rationale: >-
+      System backup of user- and system-level information (CP-9); CSF
+      PR.DS-11 backups created and maintained; ISO A.8.13 information
+      backup. Restore testing is a separate, still-unevidenced part of each.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:db-backup-recent"}
+    mappings:
+      nist-800-53r5: [CP-9]
+      nist-csf-2: [PR.DS-11]
+      iso27001-2022: [A.8.13]
+
   # --- Awaiting attestation: these read NOT_ASSESSED until the accountable
   # person commits a signed file under compliance/attestations/ (README there).
 
