@@ -128,8 +128,11 @@ func FuzzDecodeComputeHopEvent(f *testing.F) {
 	f.Fuzz(func(t *testing.T, b []byte) { _, _ = DecodeComputeHopEvent(b) })
 }
 
-// The production entry point, from a file: the object that panicked
-// debug/elf must come back as ErrELFParseFailed.
+// The production entry point, from a file, on the object that panicked
+// debug/elf up to Go 1.26 (getSymbols64 sliced [24:0] on its empty
+// SHT_SYMTAB). Go 1.27 reads that table as "no symbols" instead, so what
+// holds on every toolchain is the fuzz invariant: no panic, exactly one of
+// result or error, and nothing loadable in it.
 func TestParseELF_MalformedObjectIsAnError(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("testdata", "fuzz", "FuzzParseELF", "c8f58c9be41661ef"))
 	if err != nil {
@@ -142,8 +145,60 @@ func TestParseELF_MalformedObjectIsAnError(t *testing.T) {
 		t.Fatal(err)
 	}
 	p, err := parseELF(path)
+	if (p == nil) == (err == nil) {
+		t.Fatalf("parseELF = %v, %v: want exactly one of result or error", p, err)
+	}
+	if err != nil && !errors.Is(err, ErrELFParseFailed) {
+		t.Fatalf("parseELF error = %v; want ErrELFParseFailed", err)
+	}
+	if p != nil && len(p.Programs) != 0 {
+		t.Fatalf("malformed object yielded programs: %v", p.Programs)
+	}
+}
+
+// A panic inside the parse comes back as ErrELFParseFailed, independent of
+// whether the current debug/elf still has an input that panics.
+func TestRecoverELF_PanicIsAnError(t *testing.T) {
+	parse := func() (p *parsedELF, err error) {
+		defer recoverELF(&p, &err)
+		p = &parsedELF{}
+		panic("slice bounds out of range [24:0]")
+	}
+	p, err := parse()
 	if p != nil || !errors.Is(err, ErrELFParseFailed) {
-		t.Fatalf("parseELF = %v, %v; want ErrELFParseFailed", p, err)
+		t.Fatalf("parse = %v, %v; want nil, ErrELFParseFailed", p, err)
+	}
+}
+
+// A symbol table that is present but unreadable fails the parse instead of
+// yielding an object with no programs. Built from the corpus object by
+// giving its SHT_SYMTAB a size that is not a multiple of the entry size.
+func TestParseELF_UnreadableSymbolTableIsAnError(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("testdata", "fuzz", "FuzzParseELF", "c8f58c9be41661ef"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	b := bytes.Clone(corpusBytes(t, raw))
+	f, err := elf.NewFile(bytes.NewReader(b))
+	if err != nil {
+		t.Fatal(err)
+	}
+	symtab := -1
+	for i, s := range f.Sections {
+		if s.Type == elf.SHT_SYMTAB {
+			symtab = i
+		}
+	}
+	if symtab < 0 || f.Class != elf.ELFCLASS64 {
+		t.Fatalf("corpus object changed shape: symtab=%d class=%v", symtab, f.Class)
+	}
+	shoff := f.ByteOrder.Uint64(b[0x28:])
+	sizeAt := shoff + uint64(symtab)*64 + 32 // Elf64_Shdr.sh_size
+	f.ByteOrder.PutUint64(b[sizeAt:], 25)
+
+	p, err := parseELFBytes(b)
+	if p != nil || !errors.Is(err, ErrELFParseFailed) {
+		t.Fatalf("parseELFBytes = %v, %v; want nil, ErrELFParseFailed", p, err)
 	}
 }
 
