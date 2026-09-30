@@ -9,7 +9,7 @@
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now huginn
 #
-# On EAST: set HUGINN_VM=http://192.168.13.1:8428 (push to WEST's VictoriaMetrics)
+# On EAST: set HUGINN_VM=http://192.168.13.2:8428 (push to WEST's VictoriaMetrics; 192.168.13.1 is east itself)
 # On WEST: set HUGINN_VM=http://localhost:8428
 
 [Unit]
