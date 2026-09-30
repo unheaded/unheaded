@@ -1,0 +1,39 @@
+# promtool test rules compliance_test.yml (from this directory)
+rule_files:
+  - ../compliance.yml
+evaluation_interval: 1m
+tests:
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_compliance_report_ok'
+        values: '1x10 0x10'
+      - series: 'unheaded_compliance_finding{key="host-sshd:east:x",host="east",severity="high"}'
+        values: '_x70 1x100'
+      - series: 'unheaded_compliance_acceptances_expired'
+        values: '0x5 1x5'
+    alert_rule_test:
+      - eval_time: 18m
+        alertname: ComplianceReportBroken
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations:
+              summary: "Findings register cannot be built"
+              description: "dashboard-backend could not read the catalog, register or evidence; the finding count is not trustworthy until fixed"
+      - eval_time: 75m
+        alertname: ComplianceNewSevereFinding
+        exp_alerts:
+          - exp_labels: {severity: critical, key: "host-sshd:east:x", host: east}
+            exp_annotations:
+              summary: "New high finding: host-sshd:east:x"
+              description: "host-sshd:east:x on east started failing within the last hour"
+      # Still failing an hour later: no longer new (it pages once, not forever).
+      - eval_time: 135m
+        alertname: ComplianceNewSevereFinding
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: ComplianceAcceptanceExpired
+        exp_alerts:
+          - exp_labels: {severity: critical}
+            exp_annotations:
+              summary: "1 risk acceptance(s) expired"
+              description: "Fix the finding or re-decide the acceptance in compliance/findings/register.yaml"

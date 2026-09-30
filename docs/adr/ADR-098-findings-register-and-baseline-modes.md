@@ -191,6 +191,15 @@ Every host change is proposed with its exact commands and applied only after Ste
 | 3 | Burn-down, following the section 4 order | yes, each approved |
 | 4 | Enforcing mode, per host, behind the four conditions in section 2 | yes, each approved |
 
+Progress:
+
+- **Phase 0 is done.** It covers the register, `compliance-evidence findings`, `/api/v1/compliance/findings` and the dashboard view.
+- **Phase 1 has started.** dashboard-backend exports `unheaded_compliance_*` metrics, and `monitoring/prometheus/rules/compliance.yml` holds 9 rules, unit-tested with promtool in `rules/tests/`.
+- **Phase 1 still needs:**
+  - a real receiver and the heartbeat (questions 1 and 2);
+  - the monitoring stack running on west;
+  - a timer for `compliance-evidence`.
+
 ## Open questions for Stevie
 
 1. **Alarm receiver for pages:** self-hosted ntfy, email, or something else?

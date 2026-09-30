@@ -132,25 +132,33 @@ func (c *complianceSource) handleFindings(w http.ResponseWriter, r *http.Request
 		http.Error(w, "compliance catalog not configured", http.StatusServiceUnavailable)
 		return
 	}
-	cat, recs, _, code, err := c.load()
+	rep, _, code, err := c.findings(time.Now())
 	if err != nil {
 		http.Error(w, "compliance: "+err.Error(), code)
 		return
+	}
+	writeComplianceJSON(w, rep)
+}
+
+// findings loads catalog, evidence and register and builds the report. A
+// missing register leaves every finding untriaged; an invalid one is an error.
+func (c *complianceSource) findings(now time.Time) (*crosswalk.FindingsReport, []crosswalk.Record, int, error) {
+	cat, recs, _, code, err := c.load()
+	if err != nil {
+		return nil, nil, code, err
 	}
 	var reg *crosswalk.Register
 	raw, err := fs.ReadFile(os.DirFS(c.root), "compliance/findings/register.yaml")
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 	case err != nil:
-		http.Error(w, "compliance: register: "+err.Error(), http.StatusInternalServerError)
-		return
+		return nil, nil, http.StatusInternalServerError, fmt.Errorf("register: %w", err)
 	default:
 		if reg, err = crosswalk.LoadRegister(raw, cat); err != nil {
-			http.Error(w, "compliance: "+err.Error(), http.StatusInternalServerError)
-			return
+			return nil, nil, http.StatusInternalServerError, err
 		}
 	}
-	writeComplianceJSON(w, crosswalk.Findings(cat, recs, reg, time.Now()))
+	return crosswalk.Findings(cat, recs, reg, now), recs, 0, nil
 }
 
 func (c *complianceSource) handleFramework(w http.ResponseWriter, r *http.Request) {
