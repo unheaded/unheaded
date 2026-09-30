@@ -1,0 +1,235 @@
+# Findings register (ADR-098). Triage only: which findings are open is decided
+# by evidence (var/compliance/evidence.json), never by this file. A finding
+# whose source passes is reported "resolved: remove entry"; a failing source
+# with no entry here still counts, as untriaged.
+#
+#   source:   "<kind>:<ref>" of a catalog evidence source, or
+#   id:       FND-NNN for a finding no collector sees yet (needs title + verify)
+#   severity: critical | high | medium | low (exposure x impact; no inflation)
+#   class:    sysctl | sshd | firewall | service | app | container | ci | backup | process
+#   lockout:  none | low | high (can fixing it lock Stevie out of the host?)
+#   step:     remediation order, ADR-098 section 4 (safe first, lockout risk last)
+#   accepted: {reason, compensating, accepted_on, until} <= 90 days; still counted
+#
+# Exposure assumed below: west and east are reachable from the home LAN and
+# the west-east P2P link only, not from the internet. Unverified (ADR-098
+# open question 4); if it is wrong, several severities rise.
+
+findings:
+  # --- step 1: no host risk ---------------------------------------------
+  - id: FND-001
+    title: Alerts reach nobody. Alertmanager routes everything to a receiver named null, and the monitoring stack is not running on west.
+    verify: a test alert with severity=critical is delivered to Stevie; later a host-probe (alert-route) replaces this entry
+    host: west
+    severity: high
+    class: app
+    opened: 2026-09-30
+    exposure: every other control's alarm path depends on this
+    lockout: none
+    step: 1
+    plan: pick a receiver (open question 1) and a dead-man heartbeat (question 2); run the monitoring stack; add a Watchdog rule
+    decision: receiver and heartbeat, ADR-098 questions 1 and 2
+
+  - source: "github-job:Static Analysis/Rust (clippy)"
+    severity: medium
+    class: ci
+    opened: 2026-09-30
+    lockout: none
+    step: 1
+    plan: fixed locally (57be0ee8, forge build skips HIP kernels in clippy); resolves when develop is pushed
+
+  - source: "github-job:Static Analysis/Gates can actually fail"
+    severity: medium
+    class: ci
+    opened: 2026-09-30
+    lockout: none
+    step: 1
+    plan: 17/17 gates bite locally at HEAD; resolves when develop is pushed
+
+  - source: "host-probe:west:db-backup-recent"
+    severity: medium
+    class: backup
+    opened: 2026-09-30
+    exposure: newest dump 2026-09-22; no schedule, manual only
+    lockout: none
+    step: 1
+    plan: take a backup now (scripts/db-backup.sh), then a systemd timer running it daily with retention
+    decision: schedule and retention
+
+  # --- step 2: sysctl (reversible, no lockout) -----------------------------
+  - source: "host-sysctl:west:fs.suid_dumpable=0"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: fs.suid_dumpable=0 in /etc/sysctl.d/99-unheaded.conf, sysctl --system
+
+  - source: "host-sysctl:east:fs.suid_dumpable=0"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: fs.suid_dumpable=0 in /etc/sysctl.d/99-unheaded.conf, sysctl --system
+
+  - source: "host-sysctl:east:net.ipv4.conf.all.accept_redirects=0"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: one sysctl.d file with the other east redirect settings; east routes only the P2P link, so redirects are not needed
+
+  - source: "host-sysctl:east:net.ipv6.conf.all.accept_redirects=0"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: one sysctl.d file with the other east redirect settings
+
+  - source: "host-sysctl:east:net.ipv4.conf.all.send_redirects=0"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: one sysctl.d file with the other east redirect settings
+
+  # --- step 3: auditd -------------------------------------------------------
+  - source: "host-probe:west:auditd-running"
+    severity: medium
+    class: service
+    opened: 2026-09-30
+    exposure: no kernel audit trail for forensics (AU family)
+    lockout: none
+    step: 3
+    plan: install auditd; disk_full_action/admin_space_left_action never halt; no -e 2; check /var free space first
+
+  - source: "host-probe:east:auditd-running"
+    severity: medium
+    class: service
+    opened: 2026-09-30
+    lockout: none
+    step: 3
+    plan: install auditd; disk_full_action/admin_space_left_action never halt; no -e 2; east before west
+
+  # --- step 4: low-risk sshd keys -------------------------------------------
+  - source: "host-sshd:east:x11forwarding=no"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    lockout: none
+    step: 4
+    plan: drop-in /etc/ssh/sshd_config.d/00-unheaded.conf, sshd -t, reload
+
+  - source: "host-sshd:east:maxauthtries<=4"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    lockout: low
+    step: 4
+    plan: MaxAuthTries 4 in the same drop-in; an agent offering many keys can hit the limit, so use IdentitiesOnly client side
+
+  - source: "host-sshd:east:clientaliveinterval>=1"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    lockout: none
+    step: 4
+    plan: ClientAliveInterval 300, ClientAliveCountMax 3 in the same drop-in
+
+  # --- step 5: sshd authentication (lockout risk) ---------------------------
+  - source: "host-sshd:east:passwordauthentication=no"
+    severity: medium
+    class: sshd
+    opened: 2026-09-30
+    exposure: LAN and P2P link only (assumed)
+    lockout: high
+    step: 5
+    plan: prove key login for govan from west in a second session, keep a session open, then disable; sshd -t before reload
+
+  - source: "host-sshd:east:kbdinteractiveauthentication=no"
+    severity: medium
+    class: sshd
+    opened: 2026-09-30
+    exposure: with PAM this is password login by another name
+    lockout: high
+    step: 5
+    plan: KbdInteractiveAuthentication no, in the same change as PasswordAuthentication no
+
+  - source: "host-sshd:west:kbdinteractiveauthentication=no"
+    severity: medium
+    class: sshd
+    opened: 2026-09-30
+    lockout: high
+    step: 5
+    plan: KbdInteractiveAuthentication no in the drop-in after proving key login; west is Stevie's desk machine, so console access exists
+
+  - source: "host-sshd:east:permitrootlogin=no"
+    severity: medium
+    class: sshd
+    opened: 2026-09-30
+    exposure: root by key (without-password)
+    lockout: low
+    step: 5
+    plan: first prove nothing logs in as root (root authorized_keys, repo grep for root@east); then PermitRootLogin no
+
+  - source: "host-sshd:west:permitrootlogin=no"
+    severity: medium
+    class: sshd
+    opened: 2026-09-30
+    lockout: low
+    step: 5
+    plan: first prove nothing logs in as root on west; then PermitRootLogin no
+
+  # --- step 6: firewall default deny (highest lockout risk) -----------------
+  - source: "host-probe:east:firewall-inbound-deny"
+    severity: high
+    class: firewall
+    opened: 2026-09-30
+    exposure: every listener reachable from the LAN and P2P link; compounds the service-auth finding
+    lockout: high
+    step: 6
+    plan: package-owned nft table inet unheaded, ssh allow before policy drop, commit-confirm (auto-rollback after 120s unless confirmed); east first
+    decision: out-of-band access to east (ADR-098 question 3) before this lands
+
+  - source: "host-probe:west:firewall-inbound-deny"
+    severity: high
+    class: firewall
+    opened: 2026-09-30
+    exposure: 11 of 13 listeners on all addresses
+    lockout: high
+    step: 6
+    plan: the east nft table, after east has run clean; allow list from the port registry (pkg/ports)
+
+  # --- step 7: application level ---------------------------------------------
+  - source: "gate-script:scripts/compliance/check-service-auth.sh"
+    severity: high
+    class: app
+    opened: 2026-09-30
+    exposure: all 11 first-party services run the Noop authenticator; with no firewall anyone on the LAN can call their write APIs
+    lockout: none
+    step: 7
+    plan: token distribution design first (clients, dashboard, kanban), then AUTH_ENABLED per service, one at a time
+    decision: auth mode (API key vs JWT) and where the keys live
+
+  - source: "gate-script:scripts/compliance/check-edge-tls.sh"
+    severity: medium
+    class: app
+    opened: 2026-09-30
+    exposure: traefik config in the repo; the edge is not running on west today
+    lockout: none
+    step: 7
+    plan: web->websecure redirect, TLS options minVersion VersionTLS13, drop --api.insecure (dashboard behind auth or not at all)
+
+  - id: FND-002
+    title: Seven third-party containers run without the least-privilege baseline (listed in docs/security/compose-hardening-baseline.txt)
+    verify: compose-hardening-baseline.txt is empty and scripts/check-compose-hardening.sh passes
+    severity: medium
+    class: container
+    opened: 2026-09-30
+    lockout: none
+    step: 7
+    plan: one service at a time - read_only, cap_drop ALL plus the minimum, no-new-privileges, dedicated non-root user

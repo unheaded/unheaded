@@ -8,6 +8,8 @@
 //
 //	go run ./cmd/compliance-evidence                # from the repo root
 //	go run ./cmd/compliance-evidence -skip-gates    # GitHub + git only
+//	go run ./cmd/compliance-evidence findings       # the findings register (ADR-098)
+//	go run ./cmd/compliance-evidence findings -adr docs/adr/ADR-098-findings-register-and-baseline-modes.md
 package main
 
 import (
@@ -25,6 +27,13 @@ import (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "findings" {
+		if err := runFindings(os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "compliance-evidence findings:", err)
+			os.Exit(1)
+		}
+		return
+	}
 	repoDir := flag.String("repo-dir", ".", "repository root (catalog, git, scripts/)")
 	out := flag.String("out", "var/compliance/evidence.json", "evidence file to merge into")
 	ghRepo := flag.String("github-repo", "unheaded/unheaded", "owner/name for GitHub Actions evidence")

@@ -131,3 +131,19 @@ func TestMappingsCorroborated(t *testing.T) {
 		}
 	}
 }
+
+// The findings register in the repo loads against the catalog in the repo:
+// every entry names a source some control still declares (ADR-098).
+func TestRepoRegister(t *testing.T) {
+	c, err := LoadFS(os.DirFS("../../.."), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	b, err := os.ReadFile("../../../compliance/findings/register.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := LoadRegister(b, c); err != nil {
+		t.Fatal(err)
+	}
+}
