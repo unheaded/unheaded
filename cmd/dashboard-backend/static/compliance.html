@@ -40,6 +40,9 @@
         .filters button { background: var(--bg-tertiary); color: var(--text-secondary); border: 1px solid var(--border-color); border-radius: 3px; padding: 2px 8px; cursor: pointer; font-size: 0.75rem; }
         .filters button.on { color: var(--gold); border-color: var(--gold); }
         #fw-detail { display: none; }
+        .sev-critical, .sev-high { color: var(--status-unhealthy); }
+        .sev-medium, .sev-untriaged { color: var(--status-degraded); }
+        .sev-low { color: var(--text-secondary); }
     </style>
 </head>
 <body>
@@ -81,10 +84,12 @@
 
             <section class="cx-card">
                 <h2 id="findings-title">Open findings</h2>
+                <p class="cx-note">The count comes from evidence; triage from <span class="mono">compliance/findings/register.yaml</span>. A finding closes only when its check passes. Step is the remediation order (ADR-098): safe first, lockout risk last.</p>
                 <table class="cx" id="find-table">
-                    <thead><tr><th>Control</th><th>Check</th><th>Observed</th><th>Detail</th></tr></thead>
+                    <thead><tr><th>Severity</th><th>Finding</th><th>Host</th><th class="num">Step</th><th>Lockout</th><th>Due</th><th>Observed</th><th>Plan</th></tr></thead>
                     <tbody></tbody>
                 </table>
+                <div id="find-extra"></div>
             </section>
 
             <section class="cx-card">

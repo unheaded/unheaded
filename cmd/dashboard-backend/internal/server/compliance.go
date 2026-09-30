@@ -120,6 +120,39 @@ func (c *complianceSource) handleSummary(w http.ResponseWriter, r *http.Request)
 	writeComplianceJSON(w, out)
 }
 
+// handleFindings serves the findings register (ADR-098): open findings from
+// evidence, triage from compliance/findings/register.yaml. A missing register
+// leaves every finding untriaged; an invalid one is an error, never ignored.
+func (c *complianceSource) handleFindings(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet && r.Method != http.MethodHead {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if c == nil {
+		http.Error(w, "compliance catalog not configured", http.StatusServiceUnavailable)
+		return
+	}
+	cat, recs, _, code, err := c.load()
+	if err != nil {
+		http.Error(w, "compliance: "+err.Error(), code)
+		return
+	}
+	var reg *crosswalk.Register
+	raw, err := fs.ReadFile(os.DirFS(c.root), "compliance/findings/register.yaml")
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+	case err != nil:
+		http.Error(w, "compliance: register: "+err.Error(), http.StatusInternalServerError)
+		return
+	default:
+		if reg, err = crosswalk.LoadRegister(raw, cat); err != nil {
+			http.Error(w, "compliance: "+err.Error(), http.StatusInternalServerError)
+			return
+		}
+	}
+	writeComplianceJSON(w, crosswalk.Findings(cat, recs, reg, time.Now()))
+}
+
 func (c *complianceSource) handleFramework(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet && r.Method != http.MethodHead {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)

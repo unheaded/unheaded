@@ -735,6 +735,7 @@ func (s *Server) setupRoutes() {
 	}
 	s.mux.HandleFunc("/api/v1/compliance/summary", cs.handleSummary)
 	s.mux.HandleFunc("/api/v1/compliance/frameworks/{id}", cs.handleFramework)
+	s.mux.HandleFunc("/api/v1/compliance/findings", cs.handleFindings)
 
 	// Service config management endpoints (S47)
 	s.mux.HandleFunc("/api/v1/services/config/", s.handleServiceConfig)

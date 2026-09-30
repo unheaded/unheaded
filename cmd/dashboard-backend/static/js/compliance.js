@@ -2,7 +2,8 @@
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 //
 // Compliance crosswalk page (ADR-097). Renders /api/v1/compliance/summary
-// and, on demand, /api/v1/compliance/frameworks/{id}. All data is written
+// /api/v1/compliance/findings (ADR-098) and, on demand,
+// /api/v1/compliance/frameworks/{id}. All data is written
 // with textContent; only http(s) evidence details become links.
 'use strict';
 
@@ -124,24 +125,61 @@
         });
     }
 
-    function renderFindings(controls) {
+    // The findings register (ADR-098): open findings come from evidence,
+    // triage from compliance/findings/register.yaml.
+    function renderFindings(rep) {
         const body = document.querySelector('#find-table tbody');
         body.textContent = '';
-        let n = 0;
-        controls.forEach(c => (c.evidence || []).forEach(e => {
-            if (!e.latest || e.latest.verdict !== 'fail') return;
-            n++;
+        (rep.open || []).forEach(f => {
+            const e = f.entry || {};
+            let plan = e.plan || (f.severity === 'untriaged' ? 'add an entry to compliance/findings/register.yaml' : '');
+            if (f.accepted) plan = (f.acceptance_expired ? 'ACCEPTANCE EXPIRED; ' : 'accepted until ' + e.accepted.until + '; ') + plan;
+            const planCell = el('td', { text: plan, cls: 'muted' });
+            if (e.decision) planCell.appendChild(el('div', { text: 'decision: ' + e.decision }));
+            const due = f.due ? f.due.slice(0, 10) + (f.overdue ? ' overdue' : '') : '';
             const detail = el('td');
-            detail.appendChild(el('span', { text: e.latest.detail || '' }));
+            const d = safeLink(f.detail);
+            if (d) detail.appendChild(d);
             body.appendChild(el('tr', null, [
-                el('td', { text: c.id, cls: 'mono', title: c.title }),
-                el('td', { text: e.kind + ' ' + e.ref, cls: 'mono' }),
-                el('td', { text: age(e.latest.observed_at), cls: 'muted', title: e.latest.observed_at }),
+                el('td', null, [el('span', { text: f.severity, cls: 'badge sev-' + f.severity })]),
+                el('td', { text: f.key, cls: 'mono', title: (f.controls || []).join(', ') }),
+                el('td', { text: f.host || '' }),
+                el('td', { text: e.step || '', cls: 'num' }),
+                el('td', { text: e.lockout || '' }),
+                el('td', { text: due, cls: f.overdue ? 's-FAIL' : 'muted' }),
                 detail,
+                planCell,
             ]));
-        }));
+        });
+        const n = (rep.open || []).length;
+        const counts = ['untriaged', 'critical', 'high', 'medium', 'low']
+            .filter(s => rep.counts && rep.counts[s]).map(s => rep.counts[s] + ' ' + s).join(', ');
         document.getElementById('findings-title').textContent =
-            n === 0 ? 'Open findings: none among assessed checks' : 'Open findings (' + n + ' failing checks)';
+            'Open findings: ' + n + (counts ? ' (' + counts + ')' : '') +
+            '. Zero claimable: ' + (rep.zero_claimable ? 'yes' : 'no' + (rep.zero_reason ? ' (' + rep.zero_reason + ')' : ''));
+        const extra = document.getElementById('find-extra');
+        extra.textContent = '';
+        const list = (title, keys) => {
+            if (!keys || !keys.length) return;
+            extra.appendChild(el('p', { text: title, cls: 'cx-note' }));
+            extra.appendChild(el('ul', { cls: 'cx-note' }, keys.map(k => el('li', { text: k, cls: 'mono' }))));
+        };
+        list('Resolved: remove from the register', rep.resolved);
+        list('Never observed (NOT_ASSESSED, not a pass)', rep.unobserved);
+        list('Stale (latest pass older than its freshness window)', rep.stale);
+    }
+
+    async function loadFindings() {
+        try {
+            const res = await fetch('/api/v1/compliance/findings');
+            if (!res.ok) {
+                document.getElementById('findings-title').textContent = 'Open findings: unavailable (' + res.status + ')';
+                return;
+            }
+            renderFindings(await res.json());
+        } catch (_e) {
+            document.getElementById('findings-title').textContent = 'Open findings: unreachable';
+        }
     }
 
     let currentFramework = null;
@@ -202,7 +240,7 @@
         status.textContent = s.evidence_available
             ? s.evidence_records + ' evidence records'
             : 'no evidence collected yet: every control NOT_ASSESSED';
-        renderFindings(s.controls || []);
+        loadFindings();
         renderFrameworks(s.frameworks || []);
         renderMatrix(s.controls || [], s.frameworks || []);
         renderControls(s.controls || []);
