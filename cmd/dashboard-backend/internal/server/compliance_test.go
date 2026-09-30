@@ -206,3 +206,54 @@ func TestComplianceFrameworkCSV_NeutralisesFormulas(t *testing.T) {
 		t.Errorf("csvCell(RA-5) = %q", got)
 	}
 }
+
+func TestComplianceFindings(t *testing.T) {
+	src := complianceFixture(t, false)
+	f, err := os.Create(src.evidencePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := crosswalk.WriteEvidence(f, []crosswalk.Record{{
+		Source:  crosswalk.Source{Kind: crosswalk.KindGitHubJob, Ref: "W/scan"},
+		Verdict: crosswalk.VerdictFail, ObservedAt: time.Now().Add(-time.Hour), Detail: "https://x",
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+
+	// No register: the finding is still open, untriaged.
+	rec, body := get(t, src.handleFindings, "/api/v1/compliance/findings")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	open := body["open"].([]any)
+	if len(open) != 1 || open[0].(map[string]any)["severity"] != "untriaged" || body["zero_claimable"] != false {
+		t.Fatalf("no register: %v", body)
+	}
+
+	reg := filepath.Join(src.root, "compliance/findings/register.yaml")
+	if err := os.MkdirAll(filepath.Dir(reg), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(reg, []byte(`findings:
+  - {source: "github-job:W/scan", severity: high, class: ci, opened: 2026-09-30, lockout: none, step: 1, plan: fix it}
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, body = get(t, src.handleFindings, "/api/v1/compliance/findings")
+	f0 := body["open"].([]any)[0].(map[string]any)
+	if f0["severity"] != "high" || f0["entry"].(map[string]any)["plan"] != "fix it" {
+		t.Errorf("triaged finding = %v", f0)
+	}
+
+	if err := os.WriteFile(reg, []byte("findings:\n  - {source: \"github-job:gone\"}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if rec, _ := get(t, src.handleFindings, "/api/v1/compliance/findings"); rec.Code != http.StatusInternalServerError {
+		t.Errorf("invalid register: status %d, want 500 (never silently untriaged)", rec.Code)
+	}
+	var nilSrc *complianceSource
+	if rec, _ := get(t, nilSrc.handleFindings, "/api/v1/compliance/findings"); rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("not configured: status %d", rec.Code)
+	}
+}
