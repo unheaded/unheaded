@@ -21,7 +21,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version-file: go.mod
+
+      - name: Fetch doomgeneric (go.mod replace target)
+        run: ./scripts/ci-fetch-doomgeneric.sh
 
       - name: Install Syft
         run: |
@@ -100,7 +103,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: '1.25'
+          go-version-file: go.mod
+
+      - name: Fetch doomgeneric (go.mod replace target)
+        run: ./scripts/ci-fetch-doomgeneric.sh
 
       - name: Check Go licenses
         run: |

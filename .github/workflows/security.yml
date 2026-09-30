@@ -13,8 +13,6 @@ permissions:
   contents: read
   security-events: write
 
-env:
-  GO_VERSION: '1.25'
 
 jobs:
   # ============================================================================
@@ -30,8 +28,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
+
+      - name: Fetch doomgeneric (go.mod replace target)
+        run: ./scripts/ci-fetch-doomgeneric.sh
 
       - name: Run govulncheck
         run: |
@@ -56,10 +57,25 @@ jobs:
       # Deliberately NOT a -severity/-confidence filter: that hides WHICH
       # findings were accepted, never shrinks as work lands, and silently
       # absorbs newly-added gosec rules.
-      - name: Run gosec
-        uses: securego/gosec@f184e33def921b62b2e6d7b36c3c2d4eb39619a8 # v2.21.0
+      #
+      # Installed with the repo's own toolchain, not the securego/gosec action:
+      # that action's image carried Go 1.22 with GOTOOLCHAIN=local, so against
+      # this module every package failed to load and gosec scanned 0 files.
+      # Pinned: a new gosec release adds rules, and that should be a deliberate
+      # bump, not a red build out of nowhere.
+      - name: Set up Go
+        uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          args: '-fmt sarif -out gosec-results.sarif ./...'
+          go-version-file: go.mod
+          cache: true
+
+      - name: Fetch doomgeneric (go.mod replace target)
+        run: ./scripts/ci-fetch-doomgeneric.sh
+
+      - name: Run gosec
+        run: |
+          go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
+          gosec -fmt sarif -out gosec-results.sarif -stdout -verbose=text ./...
 
       # The exclusion list above is a suppression mechanism, and suppression
       # mechanisms grow unless something stops them. This asserts the ratchet
@@ -251,8 +267,11 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
+
+      - name: Fetch doomgeneric (go.mod replace target)
+        run: ./scripts/ci-fetch-doomgeneric.sh
 
       - name: Run Go fuzz tests (short)
         run: |
@@ -285,7 +304,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
         with:
-          go-version: ${{ env.GO_VERSION }}
+          go-version-file: go.mod
           cache: true
 
       - name: Verify Doom Range port compliance
