@@ -251,6 +251,19 @@ var probeActions = map[string]string{
 	"apparmor-enabled":            "none: needs a reboot with apparmor=1 (alert only)",
 }
 
+func init() {
+	// Generated probe families (collect/cisprobes.go).
+	for name := range collect.Probes {
+		switch {
+		case strings.HasPrefix(name, "kmod-") && strings.HasSuffix(name, "-disabled"):
+			mod := strings.TrimSuffix(strings.TrimPrefix(name, "kmod-"), "-disabled")
+			probeActions[name] = fmt.Sprintf("write /etc/modprobe.d/%s.conf (install %s /bin/false; blacklist %s); unload it if loaded and unused", mod, mod, mod)
+		case strings.HasPrefix(name, "perm-"):
+			probeActions[name] = "chown to root (and the CIS group) and chmod to the CIS mode; the detail names each file"
+		}
+	}
+}
+
 var (
 	sysctlRef = regexp.MustCompile(`^[a-z0-9-]+:([a-z0-9_.-]+)(>=|<=|=)(-?[0-9]+)$`)
 	sshdRef   = regexp.MustCompile(`^[a-z0-9-]+:([a-z0-9]+)(>=|<=|=)(.+)$`)

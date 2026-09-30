@@ -409,3 +409,137 @@ findings:
       Stevie 2026-09-30 (low priority): every 30 minutes. `git push --mirror` to a bare repo on east over the P2P link rather than rsync of the
       tree: it copies commits atomically (a copy of .git taken mid-commit can be inconsistent) and skips build output. Working-tree
       changes that are not committed are not covered; an rsync of the tree without target/ could be added if wanted.
+
+  # --- CIS 1.1.1.x kernel modules and 5.1.1 sshd_config modes (2026-09-30) ----
+
+  - source: "host-probe:west:kmod-cramfs-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install cramfs /bin/false` and `blacklist cramfs` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+
+  - source: "host-probe:west:kmod-freevxfs-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install freevxfs /bin/false` and `blacklist freevxfs` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+
+  - source: "host-probe:west:kmod-hfs-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install hfs /bin/false` and `blacklist hfs` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+
+  - source: "host-probe:west:kmod-hfsplus-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install hfsplus /bin/false` and `blacklist hfsplus` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+
+  - source: "host-probe:west:kmod-jffs2-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install jffs2 /bin/false` and `blacklist jffs2` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+
+  - source: "host-probe:west:kmod-udf-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install udf /bin/false` and `blacklist udf` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+
+  - source: "host-probe:west:kmod-usb-storage-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install usb-storage /bin/false` and `blacklist usb-storage` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+    decision: does anyone plug USB storage into west (Stevie has physical access); if so, accept on that host
+
+  - source: "host-probe:east:kmod-cramfs-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install cramfs /bin/false` and `blacklist cramfs` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+
+  - source: "host-probe:east:kmod-freevxfs-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install freevxfs /bin/false` and `blacklist freevxfs` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+
+  - source: "host-probe:east:kmod-hfs-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install hfs /bin/false` and `blacklist hfs` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+
+  - source: "host-probe:east:kmod-hfsplus-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install hfsplus /bin/false` and `blacklist hfsplus` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+
+  - source: "host-probe:east:kmod-jffs2-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install jffs2 /bin/false` and `blacklist jffs2` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+
+  - source: "host-probe:east:kmod-udf-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install udf /bin/false` and `blacklist udf` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+
+  - source: "host-probe:east:kmod-usb-storage-disabled"
+    severity: low
+    class: sysctl
+    opened: 2026-09-30
+    lockout: none
+    step: 2
+    plan: /etc/modprobe.d/unheaded-cis.conf with `install usb-storage /bin/false` and `blacklist usb-storage` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
+    decision: does anyone plug USB storage into east (Stevie has physical access); if so, accept on that host
+
+  - source: "host-probe:west:perm-sshd-config"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    exposure: world-readable sshd configuration (no secrets in it, but CIS 5.1.1 wants 0600)
+    lockout: none
+    step: 4
+    plan: chmod 600 /etc/ssh/sshd_config /etc/ssh/sshd_config.d/99-unheaded.conf (and any drop-in created later, including 00-unheaded.conf)
+
+  - source: "host-probe:east:perm-sshd-config"
+    severity: low
+    class: sshd
+    opened: 2026-09-30
+    exposure: world-readable sshd configuration
+    lockout: none
+    step: 4
+    plan: chmod 600 /etc/ssh/sshd_config; the 00-unheaded.conf drop-in (step 4/5) is installed 0600

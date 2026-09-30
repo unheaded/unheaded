@@ -5,12 +5,52 @@ sources:
   - {kind: host-probe, ref: "east:apparmor-enabled"}
   - {kind: host-probe, ref: "east:auditd-running"}
   - {kind: host-probe, ref: "east:firewall-inbound-deny"}
+  - {kind: host-probe, ref: "east:kmod-cramfs-disabled"}
+  - {kind: host-probe, ref: "east:kmod-freevxfs-disabled"}
+  - {kind: host-probe, ref: "east:kmod-hfs-disabled"}
+  - {kind: host-probe, ref: "east:kmod-hfsplus-disabled"}
+  - {kind: host-probe, ref: "east:kmod-jffs2-disabled"}
+  - {kind: host-probe, ref: "east:kmod-udf-disabled"}
+  - {kind: host-probe, ref: "east:kmod-usb-storage-disabled"}
   - {kind: host-probe, ref: "east:ntp-synchronized"}
+  - {kind: host-probe, ref: "east:perm-etc-group"}
+  - {kind: host-probe, ref: "east:perm-etc-group-backup"}
+  - {kind: host-probe, ref: "east:perm-etc-gshadow"}
+  - {kind: host-probe, ref: "east:perm-etc-gshadow-backup"}
+  - {kind: host-probe, ref: "east:perm-etc-passwd"}
+  - {kind: host-probe, ref: "east:perm-etc-passwd-backup"}
+  - {kind: host-probe, ref: "east:perm-etc-security-opasswd"}
+  - {kind: host-probe, ref: "east:perm-etc-shadow"}
+  - {kind: host-probe, ref: "east:perm-etc-shadow-backup"}
+  - {kind: host-probe, ref: "east:perm-etc-shells"}
+  - {kind: host-probe, ref: "east:perm-ssh-host-private-keys"}
+  - {kind: host-probe, ref: "east:perm-ssh-host-public-keys"}
+  - {kind: host-probe, ref: "east:perm-sshd-config"}
   - {kind: host-probe, ref: "east:unattended-upgrades-enabled"}
   - {kind: host-probe, ref: "west:apparmor-enabled"}
   - {kind: host-probe, ref: "west:auditd-running"}
   - {kind: host-probe, ref: "west:firewall-inbound-deny"}
+  - {kind: host-probe, ref: "west:kmod-cramfs-disabled"}
+  - {kind: host-probe, ref: "west:kmod-freevxfs-disabled"}
+  - {kind: host-probe, ref: "west:kmod-hfs-disabled"}
+  - {kind: host-probe, ref: "west:kmod-hfsplus-disabled"}
+  - {kind: host-probe, ref: "west:kmod-jffs2-disabled"}
+  - {kind: host-probe, ref: "west:kmod-udf-disabled"}
+  - {kind: host-probe, ref: "west:kmod-usb-storage-disabled"}
   - {kind: host-probe, ref: "west:ntp-synchronized"}
+  - {kind: host-probe, ref: "west:perm-etc-group"}
+  - {kind: host-probe, ref: "west:perm-etc-group-backup"}
+  - {kind: host-probe, ref: "west:perm-etc-gshadow"}
+  - {kind: host-probe, ref: "west:perm-etc-gshadow-backup"}
+  - {kind: host-probe, ref: "west:perm-etc-passwd"}
+  - {kind: host-probe, ref: "west:perm-etc-passwd-backup"}
+  - {kind: host-probe, ref: "west:perm-etc-security-opasswd"}
+  - {kind: host-probe, ref: "west:perm-etc-shadow"}
+  - {kind: host-probe, ref: "west:perm-etc-shadow-backup"}
+  - {kind: host-probe, ref: "west:perm-etc-shells"}
+  - {kind: host-probe, ref: "west:perm-ssh-host-private-keys"}
+  - {kind: host-probe, ref: "west:perm-ssh-host-public-keys"}
+  - {kind: host-probe, ref: "west:perm-sshd-config"}
   - {kind: host-probe, ref: "west:unattended-upgrades-enabled"}
   - {kind: host-sshd, ref: "east:clientaliveinterval<=300"}
   - {kind: host-sshd, ref: "east:clientaliveinterval>=1"}
