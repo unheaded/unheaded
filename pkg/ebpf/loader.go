@@ -1544,7 +1544,16 @@ func parseELFFile(f *elf.File) (*parsedELF, error) {
 
 	// Fourth pass: collect .text function sizes and split multi-function
 	// program sections into individual programs using symbol boundaries.
-	if symbols, err := f.Symbols(); err == nil {
+	//
+	// A symbol table that is present but unreadable fails the parse. Older
+	// debug/elf panicked on the fuzz-found [24:0] table (recoverELF caught
+	// it); Go 1.27 returns an error instead, and ignoring that error here
+	// loaded the object as a valid one with no programs.
+	symbols, err := f.Symbols()
+	if err != nil && !errors.Is(err, elf.ErrNoSymbols) {
+		return nil, fmt.Errorf("%w: symbol table: %v", ErrELFParseFailed, err)
+	}
+	if err == nil {
 		// Collect function sizes for .text
 		for _, sym := range symbols {
 			if elf.ST_TYPE(sym.Info) != elf.STT_FUNC {
