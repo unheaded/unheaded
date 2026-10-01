@@ -141,6 +141,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: drop-in /etc/ssh/sshd_config.d/00-unheaded.conf, sshd -t, reload
 
   - source: "host-sshd:east:maxauthtries<=4"
@@ -149,6 +150,7 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: MaxAuthTries 4 in the same drop-in; an agent offering many keys can hit the limit, so use IdentitiesOnly client side
 
   - source: "host-sshd:east:clientaliveinterval>=1"
@@ -157,6 +159,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: ClientAliveInterval 300, ClientAliveCountMax 3 in the same drop-in
 
   # --- step 5: sshd authentication (lockout risk) ---------------------------
@@ -167,6 +170,7 @@ findings:
     exposure: LAN and P2P link only (assumed)
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: prove key login for govan from west in a second session, keep a session open, then disable; sshd -t before reload
 
   - source: "host-sshd:east:kbdinteractiveauthentication=no"
@@ -176,6 +180,7 @@ findings:
     exposure: with PAM this is password login by another name
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: KbdInteractiveAuthentication no, in the same change as PasswordAuthentication no
 
   - source: "host-sshd:west:kbdinteractiveauthentication=no"
@@ -184,6 +189,7 @@ findings:
     opened: 2026-09-30
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: >-
       West has no authorized keys for govan, so keyboard-interactive (PAM password) is the only remote login today. Add Stevie's public key to
       ~govan/.ssh/authorized_keys, prove a key login, then KbdInteractiveAuthentication no. Stevie has physical access (2026-09-30)
@@ -195,6 +201,7 @@ findings:
     exposure: root by key (without-password)
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: root has no authorized keys on east (checked 2026-09-30), so nothing logs in as root by key; PermitRootLogin no
 
   - source: "host-sshd:west:permitrootlogin=no"
@@ -203,6 +210,7 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: root has no authorized keys on west (checked 2026-09-30); scripts/bare-metal/validate-cross-host.sh ssh's as root and cannot work today anyway; PermitRootLogin no
 
   # --- step 6: firewall default deny (highest lockout risk) -----------------
@@ -379,6 +387,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: LoginGraceTime 60 in the 00-unheaded.conf drop-in (CIS 5.1.13)
 
   - source: "host-sshd:east:logingracetime<=60"
@@ -387,6 +396,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: LoginGraceTime 60 in the 00-unheaded.conf drop-in (CIS 5.1.13)
 
   - source: "host-sshd:west:disableforwarding=yes"
@@ -546,6 +556,7 @@ findings:
     exposure: world-readable sshd configuration (no secrets in it, but CIS 5.1.1 wants 0600)
     lockout: none
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: chmod 600 /etc/ssh/sshd_config /etc/ssh/sshd_config.d/99-unheaded.conf (and any drop-in created later, including 00-unheaded.conf)
 
   - source: "host-probe:east:perm-sshd-config"
@@ -555,6 +566,7 @@ findings:
     exposure: world-readable sshd configuration
     lockout: none
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: chmod 600 /etc/ssh/sshd_config; the 00-unheaded.conf drop-in (step 4/5) is installed 0600
 
   # --- CIS 1.1.2.x mounts (2026-09-30) ------------------------------------
@@ -1062,8 +1074,8 @@ findings:
     exposure: "physical console access only"
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "grub-mkpasswd-pbkdf2, a superuser in /etc/grub.d/40_custom, --unrestricted on the default menu entries so unattended boots still work, update-grub; the password goes in the operator's password manager. Without --unrestricted every boot waits for the password"
-    decision: "set a grub password (console-only protection; the physical-access answer makes it a judgement call)"
 
   - source: "host-probe:west:sudo-logfile"
     severity: low
@@ -1113,8 +1125,8 @@ findings:
     exposure: "physical console access only"
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "grub-mkpasswd-pbkdf2, a superuser in /etc/grub.d/40_custom, --unrestricted on the default menu entries so unattended boots still work, update-grub; the password goes in the operator's password manager. Without --unrestricted every boot waits for the password"
-    decision: "set a grub password (console-only protection; the physical-access answer makes it a judgement call)"
 
   - source: "host-probe:east:sudo-logfile"
     severity: low
@@ -1148,8 +1160,8 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "PASS_MAX_DAYS 365 in /etc/login.defs and chage -M 365 on accounts with a password; with key-only ssh the password is used for sudo, so expiry means a yearly password change, not a lockout"
-    decision: "password expiry for govan (key-only ssh; the password is the sudo password)"
 
   - source: "host-probe:west:pw-inactive"
     severity: low
@@ -1157,6 +1169,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "useradd -D -f 45 and chage --inactive 45 on accounts with a password"
 
   - source: "host-probe:west:shell-tmout"
@@ -1165,6 +1178,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "/etc/profile.d/00-unheaded-tmout.sh: readonly TMOUT=900; export TMOUT. Long interactive jobs belong in tmux or systemd-run, which TMOUT does not end"
 
   - source: "host-probe:east:pw-max-days"
@@ -1173,8 +1187,8 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "PASS_MAX_DAYS 365 in /etc/login.defs and chage -M 365 on accounts with a password; with key-only ssh the password is used for sudo, so expiry means a yearly password change, not a lockout"
-    decision: "password expiry for govan (key-only ssh; the password is the sudo password)"
 
   - source: "host-probe:east:pw-inactive"
     severity: low
@@ -1182,6 +1196,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "useradd -D -f 45 and chage --inactive 45 on accounts with a password"
 
   - source: "host-probe:east:shell-tmout"
@@ -1190,6 +1205,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "/etc/profile.d/00-unheaded-tmout.sh: readonly TMOUT=900; export TMOUT. Long interactive jobs belong in tmux or systemd-run, which TMOUT does not end"
 
   - source: "host-probe:west:acct-system-no-shell"
@@ -1223,6 +1239,7 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256 in 00-unheaded.conf; every current OpenSSH client supports these; test a second session before closing the first"
 
   - source: "host-probe:west:sshd-maxstartups"
@@ -1231,6 +1248,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "MaxStartups 10:30:60 in 00-unheaded.conf"
 
   - source: "host-probe:west:sshd-banner"
@@ -1239,6 +1257,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "Banner /etc/issue.net with an authorised-use notice and no OS or version details (CIS 1.6.x covers the file's content)"
 
   - source: "host-probe:west:sshd-access"
@@ -1247,6 +1266,7 @@ findings:
     opened: 2026-09-30
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "AllowGroups sshusers in 00-unheaded.conf after creating the group and adding govan; prove a second login before reloading. An empty or wrong group is a lockout"
 
   - source: "host-probe:east:sshd-macs"
@@ -1255,6 +1275,7 @@ findings:
     opened: 2026-09-30
     lockout: low
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256 in 00-unheaded.conf; every current OpenSSH client supports these; test a second session before closing the first"
 
   - source: "host-probe:east:sshd-maxstartups"
@@ -1263,6 +1284,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "MaxStartups 10:30:60 in 00-unheaded.conf"
 
   - source: "host-probe:east:sshd-banner"
@@ -1271,6 +1293,7 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 4
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "Banner /etc/issue.net with an authorised-use notice and no OS or version details (CIS 1.6.x covers the file's content)"
 
   - source: "host-probe:east:sshd-access"
@@ -1279,6 +1302,7 @@ findings:
     opened: 2026-09-30
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "AllowGroups sshusers in 00-unheaded.conf after creating the group and adding govan; prove a second login before reloading. An empty or wrong group is a lockout"
 
   # --- CIS 1.6 banners, 3.1 wireless (2026-09-30) ---------------------------
@@ -1369,6 +1393,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "apt install libpam-pwquality (pam-auth-update adds pam_pwquality to common-password)"
 
   - source: "host-probe:west:pam-faillock-enabled"
@@ -1377,8 +1402,8 @@ findings:
     opened: 2026-10-01
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "pam-auth-update profile for pam_faillock (preauth/authfail in common-auth, account line); test sudo in a second root shell first"
-    decision: "adopt pam_faillock: 4 wrong passwords lock that account (sudo included) for 15 minutes; with key-only ssh the password only guards sudo"
 
   - source: "host-probe:west:pam-faillock-unlock"
     severity: low
@@ -1386,6 +1411,7 @@ findings:
     opened: 2026-10-01
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "unlock_time = 900 in /etc/security/faillock.conf (with pam_faillock enabled)"
 
   - source: "host-probe:west:pam-faillock-deny"
@@ -1394,6 +1420,7 @@ findings:
     opened: 2026-10-01
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "deny = 4 (or fewer) in /etc/security/faillock.conf once pam_faillock is enabled"
 
   - source: "host-probe:west:pam-pwquality-enabled"
@@ -1402,6 +1429,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "comes with libpam-pwquality via pam-auth-update"
 
   - source: "host-probe:west:pam-pwq-difok"
@@ -1410,6 +1438,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "difok = 2 in /etc/security/pwquality.conf"
 
   - source: "host-probe:west:pam-pwq-minlen"
@@ -1418,6 +1447,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "minlen = 14 in /etc/security/pwquality.conf"
 
   - source: "host-probe:west:pam-pwq-maxrepeat"
@@ -1426,6 +1456,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "maxrepeat = 3 in /etc/security/pwquality.conf"
 
   - source: "host-probe:west:pam-pwq-maxsequence"
@@ -1434,6 +1465,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "maxsequence = 3 in /etc/security/pwquality.conf"
 
   - source: "host-probe:west:pam-pwq-dictcheck"
@@ -1442,6 +1474,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "dictcheck defaults to 1; passes once pam_pwquality is enabled"
 
   - source: "host-probe:west:pam-pwq-enforcing"
@@ -1450,6 +1483,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "enforcing defaults to 1; passes once pam_pwquality is enabled"
 
   - source: "host-probe:west:pam-pwq-enforce-root"
@@ -1458,6 +1492,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "enforce_for_root in /etc/security/pwquality.conf"
 
   - source: "host-probe:west:pam-pwhistory-enabled"
@@ -1466,6 +1501,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "pam_pwhistory line in common-password (remember=24 enforce_for_root use_authtok), via a pam-auth-update profile"
 
   - source: "host-probe:west:pam-pwhistory-remember"
@@ -1474,6 +1510,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "remember=24 on the pam_pwhistory line or in /etc/security/pwhistory.conf"
 
   - source: "host-probe:west:pam-pwhistory-enforce-root"
@@ -1482,6 +1519,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "enforce_for_root on the pam_pwhistory line"
 
   - source: "host-probe:west:pam-pwhistory-authtok"
@@ -1490,6 +1528,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "use_authtok on the pam_pwhistory line"
 
   - source: "host-probe:west:pam-unix-no-nullok"
@@ -1498,6 +1537,7 @@ findings:
     opened: 2026-10-01
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "remove nullok from pam_unix through a local pam-auth-update profile (hand edits to common-auth are overwritten by pam-auth-update); no account has an empty password today (7.2.2 passes)"
 
   - source: "host-probe:west:pam-unix-authtok"
@@ -1506,6 +1546,7 @@ findings:
     opened: 2026-10-01
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "use_authtok on the password pam_unix line (set automatically once pam_pwquality precedes it)"
 
   - source: "host-probe:east:pkg-pam-pwquality"
@@ -1514,6 +1555,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "apt install libpam-pwquality (pam-auth-update adds pam_pwquality to common-password)"
 
   - source: "host-probe:east:pam-faillock-enabled"
@@ -1522,8 +1564,8 @@ findings:
     opened: 2026-10-01
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "pam-auth-update profile for pam_faillock (preauth/authfail in common-auth, account line); test sudo in a second root shell first"
-    decision: "adopt pam_faillock: 4 wrong passwords lock that account (sudo included) for 15 minutes; with key-only ssh the password only guards sudo"
 
   - source: "host-probe:east:pam-faillock-unlock"
     severity: low
@@ -1531,6 +1573,7 @@ findings:
     opened: 2026-10-01
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "unlock_time = 900 in /etc/security/faillock.conf (with pam_faillock enabled)"
 
   - source: "host-probe:east:pam-faillock-deny"
@@ -1539,6 +1582,7 @@ findings:
     opened: 2026-10-01
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "deny = 4 (or fewer) in /etc/security/faillock.conf once pam_faillock is enabled"
 
   - source: "host-probe:east:pam-pwquality-enabled"
@@ -1547,6 +1591,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "comes with libpam-pwquality via pam-auth-update"
 
   - source: "host-probe:east:pam-pwq-difok"
@@ -1555,6 +1600,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "difok = 2 in /etc/security/pwquality.conf"
 
   - source: "host-probe:east:pam-pwq-minlen"
@@ -1563,6 +1609,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "minlen = 14 in /etc/security/pwquality.conf"
 
   - source: "host-probe:east:pam-pwq-maxrepeat"
@@ -1571,6 +1618,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "maxrepeat = 3 in /etc/security/pwquality.conf"
 
   - source: "host-probe:east:pam-pwq-maxsequence"
@@ -1579,6 +1627,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "maxsequence = 3 in /etc/security/pwquality.conf"
 
   - source: "host-probe:east:pam-pwq-dictcheck"
@@ -1587,6 +1636,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "dictcheck defaults to 1; passes once pam_pwquality is enabled"
 
   - source: "host-probe:east:pam-pwq-enforcing"
@@ -1595,6 +1645,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "enforcing defaults to 1; passes once pam_pwquality is enabled"
 
   - source: "host-probe:east:pam-pwq-enforce-root"
@@ -1603,6 +1654,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "enforce_for_root in /etc/security/pwquality.conf"
 
   - source: "host-probe:east:pam-pwhistory-enabled"
@@ -1611,6 +1663,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "pam_pwhistory line in common-password (remember=24 enforce_for_root use_authtok), via a pam-auth-update profile"
 
   - source: "host-probe:east:pam-pwhistory-remember"
@@ -1619,6 +1672,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "remember=24 on the pam_pwhistory line or in /etc/security/pwhistory.conf"
 
   - source: "host-probe:east:pam-pwhistory-enforce-root"
@@ -1627,6 +1681,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "enforce_for_root on the pam_pwhistory line"
 
   - source: "host-probe:east:pam-pwhistory-authtok"
@@ -1635,6 +1690,7 @@ findings:
     opened: 2026-10-01
     lockout: low
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "use_authtok on the pam_pwhistory line"
 
   - source: "host-probe:east:pam-unix-no-nullok"
@@ -1643,6 +1699,7 @@ findings:
     opened: 2026-10-01
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "remove nullok from pam_unix through a local pam-auth-update profile (hand edits to common-auth are overwritten by pam-auth-update); no account has an empty password today (7.2.2 passes)"
 
   - source: "host-probe:east:pam-unix-authtok"
@@ -1651,4 +1708,5 @@ findings:
     opened: 2026-10-01
     lockout: high
     step: 5
+    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "use_authtok on the password pam_unix line (set automatically once pam_pwquality precedes it)"
