@@ -268,7 +268,7 @@ type FindingsReport struct {
 // own host, "" means the source is not host-scoped.
 func hostOf(s Source) string {
 	switch s.Kind {
-	case KindHostSysctl, KindHostSSHD, KindHostProbe:
+	case KindHostSysctl, KindHostSSHD, KindHostProbe, KindHostJournal:
 		if h, _, ok := strings.Cut(s.Ref, ":"); ok {
 			return h
 		}

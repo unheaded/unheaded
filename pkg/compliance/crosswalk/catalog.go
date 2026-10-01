@@ -51,7 +51,14 @@ const (
 	// KindHostProbe: ref "[host:]<probe>", probe from the fixed table in
 	// collect.Probes; the catalog can name a probe, never a command.
 	KindHostProbe = "host-probe"
+	// KindHostJournal: ref "<host>:apply-journal", the host's remediation
+	// journal (ADR-099): it passes when the chain verifies and every fix
+	// the host's profile turns on has a successful apply of its current
+	// content.
+	KindHostJournal = "host-journal"
 )
+
+var hostJournalRefRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}:apply-journal$`)
 
 var (
 	controlIDRe     = regexp.MustCompile(`^UH-[A-Z]+-[0-9]{2}$`)
@@ -276,6 +283,10 @@ func LoadDocs(frameworksYAML [][]byte, controlsYAML []byte) (*Catalog, error) {
 		for _, s := range ctl.Evidence {
 			switch s.Kind {
 			case KindGitHubJob, KindGateScript, KindGitSignatures, KindHostSysctl, KindAttestation, KindHostSSHD, KindHostProbe:
+			case KindHostJournal:
+				if !hostJournalRefRe.MatchString(s.Ref) {
+					return nil, invalid("control %q: %s ref %q is not <host>:apply-journal", ctl.ID, s.Kind, s.Ref)
+				}
 			default:
 				return nil, invalid("control %q: evidence kind %q", ctl.ID, s.Kind)
 			}
