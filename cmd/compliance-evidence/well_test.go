@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"io"
 	"strings"
 	"testing"
@@ -37,5 +38,38 @@ func TestRenderSync(t *testing.T) {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in\n%s", want, out)
 		}
+	}
+}
+
+func TestProfileCommandsNeedTheWell(t *testing.T) {
+	t.Setenv("WELL_HOST", "127.0.0.1")
+	t.Setenv("WELL_PORT", "1")
+	t.Setenv("WELL_CONFIG_USER", "config_admin")
+	t.Setenv("WELL_CONFIG_PASSWORD", "x")
+	for _, args := range [][]string{
+		{"set", "-repo-dir", "../..", "-host", "east", "-profile", "none", "-reason", "r", "-yes"},
+		{"export", "-repo-dir", "../.."},
+	} {
+		if err := runProfile(args, io.Discard); err == nil || !strings.Contains(err.Error(), "The Well") {
+			t.Errorf("%v: got %v, want a loud failure without The Well", args, err)
+		}
+	}
+	if err := runProfile([]string{"delete"}, io.Discard); err == nil {
+		t.Error("unknown profile command accepted")
+	}
+}
+
+func TestDescribeSwitch(t *testing.T) {
+	y, err := well.NewYAMLStore("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ps, _ := y.Profiles(context.Background())
+	out := describeSwitch(ps, "east", "lab", "cis-l1-server")
+	if !strings.Contains(out, "turns on:  shell-tmout, sshd-safe") || !strings.Contains(out, "turns off: auditd") {
+		t.Errorf("describe:\n%s", out)
+	}
+	if out := describeSwitch(ps, "east", "lab", "lab"); !strings.Contains(out, "turns on:  nothing") {
+		t.Errorf("no-op switch:\n%s", out)
 	}
 }

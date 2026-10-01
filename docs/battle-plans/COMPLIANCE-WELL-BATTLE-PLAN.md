@@ -335,11 +335,11 @@ Facts on 2026-10-01:
 **Prerequisite**: Phase 3 exit gate.
 **Time**: 2 h.
 
-- [ ] **Step 97** [W] ~20m: `compliance-evidence profile set --host east --profile none|lab|cis-l1-server|all --reason "..."`.
+- [x] **Step 97** (done 2026-10-01: `profile set`, shows on/off fixes, -yes required, audit only) [W] ~20m: `compliance-evidence profile set --host east --profile none|lab|cis-l1-server|all --reason "..."`.
   - Writes to The Well only. The actor is `$SUDO_USER`/`$USER`.
   - It prints which fixes turn on and off, and requires `--yes`.
   - Switching changes desired state only. Nothing is applied until a human runs `unheaded-remediate apply` or the host is enforcing (ADR-098 gate).
-- [ ] **Step 98** [W] ~10m: `compliance-evidence profile export` writes the YAML fallback from The Well (the reverse sync), so the fallback stays current. A test checks that export, then sync, is a no-op.
+- [x] **Step 98** (done 2026-10-01: `profile export`, round-trip tested) [W] ~10m: `compliance-evidence profile export` writes the YAML fallback from The Well (the reverse sync), so the fallback stays current. A test checks that export, then sync, is a no-op.
 - [ ] **Step 99** [W] ~30m: `pkg/iac` Ansible renderer (`BackendAnsible`): one role per fix, one playbook per profile, inventory from bindings. Output goes to `deploy/ansible/compliance/`, with a drift test like `baseline.yaml`'s.
 - [ ] **Step 100** [B] ~3m: Run the tests, then check the rendered playbooks.
   ```bash

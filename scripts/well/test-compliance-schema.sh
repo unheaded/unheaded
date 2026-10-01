@@ -105,4 +105,9 @@ if ((GO)); then
 		WELL_CONFIG_USER=config_admin WELL_CONFIG_PASSWORD=config_admin_dev \
 		WELL_OPS_USER=ops_writer WELL_OPS_PASSWORD=ops_writer_dev \
 		go run ./cmd/compliance-evidence well sync -dry-run)
+	# profile set without -yes only shows the switch. (No export here: it
+	# would rewrite the repo's own YAML from these test rows.)
+	(cd "$R" && WELL_HOST=127.0.0.1 WELL_PORT="$PORT" \
+		WELL_CONFIG_USER=config_admin WELL_CONFIG_PASSWORD=config_admin_dev \
+		go run ./cmd/compliance-evidence profile set -host east -profile cis-l1-server -reason "e2e dry")
 fi
