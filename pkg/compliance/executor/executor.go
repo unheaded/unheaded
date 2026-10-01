@@ -39,6 +39,10 @@ import (
 // changed has been restored.
 var ErrRefused = errors.New("fix refused")
 
+// errRestoreFailed marks an apply whose own restore failed: the host is in
+// a state nobody chose, and the journal says so.
+var errRestoreFailed = errors.New("restore failed")
+
 // Commands are the executables actions may run, by role. They default to
 // the names on PATH and take the same environment overrides as
 // remediate.sh, so the test harness can substitute fakes.
@@ -370,12 +374,32 @@ func (e *Executor) Apply(ctx context.Context, fix remediation.Fix) (dir string, 
 	if err := os.MkdirAll(e.o.State, 0o700); err != nil {
 		return "", err
 	}
+	if err := e.checkJournal(); err != nil {
+		return "", err
+	}
+	sum, err := fix.SHA256()
+	if err != nil {
+		return "", err
+	}
+	// Every apply that got as far as a backup directory is journaled,
+	// whatever its outcome.
+	defer func() {
+		if dir == "" {
+			return
+		}
+		if jerr := e.appendJournal(fix.ID, sum, "apply", outcomeOf(err), dir); jerr != nil {
+			err = errors.Join(err, fmt.Errorf("journal: %w", jerr))
+		}
+	}()
 	if err := os.Chmod(e.o.State, 0o700); err != nil { // #nosec G302 -- a directory: 0700 is owner-only, and it needs the x bit
 		return "", err
 	}
 	dir = filepath.Join(e.o.State, e.o.Now().UTC().Format("20060102T150405.000000000Z")+"-"+fix.ID)
 	if err := os.Mkdir(dir, 0o700); err != nil {
 		return "", err
+	}
+	if err := writeMeta(dir, undoMeta{Fix: fix.ID, FixSHA256: sum, Host: e.o.Host}); err != nil {
+		return dir, err
 	}
 	r := &applyRun{e: e, dir: dir}
 	// An empty record from the start: undo of an apply that changed nothing
@@ -388,7 +412,7 @@ func (e *Executor) Apply(ctx context.Context, fix remediation.Fix) (dir string, 
 		if err := r.apply(ctx, a); err != nil {
 			e.printf("  action %d failed: %v\n  restoring\n", i+1, err)
 			if uerr := runUndo(ctx, r.steps, e.o.Out, e.o.AllowNonRoot); uerr != nil {
-				return dir, fmt.Errorf("%w; AND the restore failed: %v (by hand: unheaded-remediate undo %s)", err, uerr, dir)
+				return dir, fmt.Errorf("%w: %w; AND the restore failed: %v (by hand: unheaded-remediate undo %s)", errRestoreFailed, err, uerr, dir)
 			}
 			return dir, fmt.Errorf("%w (everything this apply changed was restored)", err)
 		}

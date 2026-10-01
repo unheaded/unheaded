@@ -287,7 +287,7 @@ Facts on 2026-10-01:
   - Writes are atomic (temp + rename) and preserve the owner.
   - The backup directory has mode 0700.
   - Each apply returns a `JournalEntry` (host, fix, fix sha256, git commit, operator from `SUDO_USER`).
-- [~] **Step 73** (journal sink not wired into the executor yet; JournalEntry + ingest exist) [W] ~15m: Journal sink.
+- [x] **Step 73** (done 2026-10-01: executor journals every apply and undo, refuses to work on a broken journal) [W] ~15m: Journal sink.
   - Appends to the local `journal.jsonl` first (0600, root).
   - Then appends to the Well store when it is reachable. A failed Well write never fails an apply that succeeded: the row stays local for Phase 5's pull.
 - [x] **Step 74** [B] ~3m: Run the tests.
