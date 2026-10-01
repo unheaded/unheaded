@@ -1,0 +1,19 @@
+# Control profiles (ADR-099): which fixes a host gets. Profiles switch
+# remediation only; every check still runs and every failure is reported.
+# Source of truth is The Well (unheaded_config.compliance_profiles); this
+# file is the Genesis seed and the read-only fallback when The Well is down.
+profiles:
+  - name: none
+    description: Detection and reporting only; no fix is applied.
+    fixes: []
+  - name: lab
+    description: >-
+      West and east today (Stevie 2026-10-01): low-hanging fixes that break
+      nothing. SSH and passwords stay as they are; idle shells stay open.
+    fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, auditd, sudo-cis]
+  - name: cis-l1-server
+    description: Every fix that serves a CIS Ubuntu 24.04 Level 1 Server recommendation.
+    fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, sudo-cis, shell-tmout, sshd-safe]
+  - name: all
+    description: Every fix in the model.
+    all: true

@@ -1,0 +1,17 @@
+# Host binding (ADR-098 mode, ADR-099 profile). Source of truth is The Well
+# (unheaded_config.compliance_host_bindings, with history); this file is the
+# Genesis seed and the read-only fallback when The Well is down.
+host: east
+profile: lab
+mode: audit
+# What is applied, as recorded at apply time (phase 2 moves this to the
+# executor's journal and an evidence kind).
+applied:
+  - {fix: apport-off, on: 2026-10-01, approved_by: "Stevie, 2026-10-01: remediate low-hanging fruit, nothing should break"}
+  - {fix: sysctl-cis, on: 2026-10-01, approved_by: "Stevie, 2026-10-01"}
+  - {fix: kmod-cis, on: 2026-10-01, approved_by: "Stevie, 2026-10-01"}
+  - {fix: cron-perms, on: 2026-10-01, approved_by: "Stevie, 2026-10-01"}
+  - {fix: banner-cis, on: 2026-10-01, approved_by: "Stevie, 2026-10-01"}
+  - {fix: apparmor-utils, on: 2026-10-01, approved_by: "Stevie, 2026-10-01"}
+  - {fix: auditd, on: 2026-10-01, approved_by: "Stevie, 2026-10-01"}
+  - {fix: sudo-cis, on: 2026-10-01, approved_by: "Stevie, 2026-10-01"}

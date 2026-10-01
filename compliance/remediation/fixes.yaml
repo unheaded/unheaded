@@ -1,0 +1,228 @@
+# Remediation as code (ADR-099): every fix once, as data. Authored here
+# because fixes run as root and must change only by signed commit; mirrored
+# into The Well (unheaded_config.compliance_fixes) by sha256 for display and
+# query. Actions come from a closed set; `run`/`validate` values come from a
+# fixed allowlist.
+#
+# DRAFT, not yet verified: transcribed from scripts/host/remediate.sh, which
+# still executes the fixes. COMPLIANCE-WELL battle plan step 42 adds the
+# parity test that proves this file renders what the script writes; until it
+# passes, the script is authoritative.
+
+fixes:
+  - id: sysctl-cis
+    title: Kernel network and core-dump settings (CIS 1.5.3, 3.3.x)
+    controls: [UH-HOST-01, UH-NET-01]
+    closes:
+      - "host-sysctl:*:fs.suid_dumpable=0"
+      - "host-sysctl:*:net.ipv4.conf.all.send_redirects=0"
+      - "host-sysctl:*:net.ipv4.conf.all.accept_redirects=0"
+      - "host-sysctl:*:net.ipv6.conf.all.accept_redirects=0"
+      - "host-sysctl:*:net.ipv4.conf.all.secure_redirects=0"
+      - "host-sysctl:*:net.ipv4.conf.all.log_martians=1"
+      - "host-sysctl:east:net.ipv6.conf.all.accept_ra=0"
+    risk: none
+    class: sysctl
+    note: west keeps router advertisements (its ISP IPv6 address comes from them) and forwarding (it routes by design)
+    actions:
+      - file:
+          path: /etc/sysctl.d/60-unheaded-cis.conf
+          mode: "0644"
+          content: |
+            # ADR-098 / CIS Ubuntu 24.04 1.5.3, 3.3.2, 3.3.5, 3.3.6, 3.3.9. Managed by
+            # scripts/host/remediate.sh (sysctl-cis); edit there, not here.
+            fs.suid_dumpable = 0
+            net.ipv4.conf.all.send_redirects = 0
+            net.ipv4.conf.default.send_redirects = 0
+            net.ipv4.conf.all.accept_redirects = 0
+            net.ipv4.conf.default.accept_redirects = 0
+            net.ipv6.conf.all.accept_redirects = 0
+            net.ipv6.conf.default.accept_redirects = 0
+            net.ipv4.conf.all.secure_redirects = 0
+            net.ipv4.conf.default.secure_redirects = 0
+            net.ipv4.conf.all.log_martians = 1
+            net.ipv4.conf.default.log_martians = 1
+          append_by_host:
+            east: |
+              net.ipv6.conf.all.accept_ra = 0
+              net.ipv6.conf.default.accept_ra = 0
+      - run: "sysctl --system"
+
+  - id: apport-off
+    title: Automatic error reporting off (apport resets fs.suid_dumpable at start)
+    controls: [UH-HOST-01]
+    closes: ["host-probe:*:svc-apport-not-in-use"]
+    risk: none
+    class: service
+    actions:
+      - setting:
+          path: /etc/default/apport
+          key: enabled
+          value: "0"
+      - service: {name: apport.service, enabled: false, active: false, masked: true}
+
+  - id: kmod-cis
+    title: Unused filesystem kernel modules cannot load (CIS 1.1.1.x)
+    controls: [UH-HOST-02]
+    closes:
+      - "host-probe:*:kmod-cramfs-disabled"
+      - "host-probe:*:kmod-freevxfs-disabled"
+      - "host-probe:*:kmod-hfs-disabled"
+      - "host-probe:*:kmod-hfsplus-disabled"
+      - "host-probe:*:kmod-jffs2-disabled"
+      - "host-probe:*:kmod-udf-disabled"
+    risk: none
+    class: kmod
+    note: usb-storage stays loadable until Stevie decides (register decision)
+    actions:
+      - file:
+          path: /etc/modprobe.d/unheaded-cis.conf
+          mode: "0644"
+          content: |
+            # ADR-098 / CIS Ubuntu 24.04 1.1.1.x. Managed by scripts/host/remediate.sh (kmod-cis).
+            install cramfs /bin/false
+            blacklist cramfs
+            install freevxfs /bin/false
+            blacklist freevxfs
+            install hfs /bin/false
+            blacklist hfs
+            install hfsplus /bin/false
+            blacklist hfsplus
+            install jffs2 /bin/false
+            blacklist jffs2
+            install udf /bin/false
+            blacklist udf
+
+  - id: cron-perms
+    title: Scheduled-job files root-only; cron.allow lists root and the sudo group
+    controls: [UH-CRON-01]
+    closes:
+      - "host-probe:*:perm-etc-crontab"
+      - "host-probe:*:perm-etc-cron-hourly"
+      - "host-probe:*:perm-etc-cron-daily"
+      - "host-probe:*:perm-etc-cron-weekly"
+      - "host-probe:*:perm-etc-cron-monthly"
+      - "host-probe:*:perm-etc-cron-d"
+      - "host-probe:*:cron-allow-restricted"
+    risk: low
+    class: fileperm
+    actions:
+      - mode: {paths: [/etc/crontab], mode: "0600", owner: root, group: root}
+      - mode: {paths: [/etc/cron.hourly, /etc/cron.daily, /etc/cron.weekly, /etc/cron.monthly, /etc/cron.d], mode: "0700", owner: root, group: root}
+      - file:
+          path: /etc/cron.allow
+          mode: "0640"
+          owner: root
+          group: crontab
+          # Generated at apply time, as remediate.sh's cron_allow() does: root,
+          # then the members of group sudo, deduplicated. Never a fixed list.
+          content_generator: root-and-group-members
+          generator_group: sudo
+      - absent: /etc/cron.deny
+
+  - id: banner-cis
+    title: Login banners carry the CIS notice and no OS details (CIS 1.6.2, 1.6.3)
+    controls: [UH-BANNER-01]
+    closes: ["host-probe:*:banner-issue", "host-probe:*:banner-issue-net"]
+    risk: none
+    class: account
+    actions:
+      - file:
+          path: /etc/issue
+          mode: "0644"
+          content: |
+            Authorized users only. All activity may be monitored and reported.
+      - file:
+          path: /etc/issue.net
+          mode: "0644"
+          content: |
+            Authorized users only. All activity may be monitored and reported.
+
+  - id: apparmor-utils
+    title: AppArmor utilities installed (CIS 1.3.1.1)
+    controls: [UH-MAC-01]
+    closes: ["host-probe:*:apparmor-installed"]
+    risk: none
+    class: package
+    actions:
+      - package: {name: apparmor-utils}
+
+  - id: auditd
+    title: auditd installed with Ubuntu's never-halt defaults
+    controls: [UH-AUDIT-01]
+    closes: ["host-probe:*:auditd-running"]
+    risk: low
+    class: package
+    note: Ubuntu 1:4.0.5 defaults suspend auditing on a full or failing disk and never halt; the executor refuses a halting auditd.conf
+    actions:
+      - package: {name: auditd}
+      - validate: "auditd-never-halts"
+
+  - id: sudo-cis
+    title: sudo re-authentication timeout explicit (CIS 5.2.6)
+    controls: [UH-SUDO-01]
+    closes: ["host-probe:*:sudo-timeout"]
+    risk: high
+    class: sudo
+    note: sudo-rs (Ubuntu 25.10) rejects `Defaults logfile`; it logs every command to auth.log, so 5.2.3 is accepted, not fixed
+    actions:
+      - file:
+          path: /etc/sudoers.d/00-unheaded
+          mode: "0440"
+          precheck: "visudo -cf"
+          content: |
+            # ADR-098 / CIS Ubuntu 24.04 5.2.3, 5.2.6. Managed by scripts/host/remediate.sh (sudo-cis).
+            Defaults timestamp_timeout=15
+      - validate: "visudo -c"
+
+  - id: shell-tmout
+    title: Idle interactive shells end after 15 minutes (CIS 5.4.3.2)
+    controls: [UH-SESS-01]
+    closes: ["host-probe:*:shell-tmout"]
+    risk: low
+    class: shell
+    note: not in the lab profile, it would end Stevie's idle shells
+    actions:
+      - file:
+          path: /etc/profile.d/00-unheaded-tmout.sh
+          mode: "0644"
+          content: |
+            # ADR-098 / CIS Ubuntu 24.04 5.4.3.2. Managed by scripts/host/remediate.sh (shell-tmout).
+            readonly TMOUT=900
+            export TMOUT
+
+  - id: sshd-safe
+    title: sshd settings that do not change how anyone authenticates (CIS 5.1.x)
+    controls: [UH-SSH-01]
+    closes:
+      - "host-sshd:east:x11forwarding=no"
+      - "host-sshd:east:maxauthtries<=4"
+      - "host-sshd:east:clientaliveinterval>=1"
+      - "host-sshd:*:logingracetime<=60"
+      - "host-probe:*:sshd-macs"
+      - "host-probe:*:sshd-maxstartups"
+      - "host-probe:*:perm-sshd-config"
+    risk: high
+    class: sshd
+    note: not in the lab profile (Stevie 2026-10-01, SSH stays as it is). On west it omits what 99-unheaded.conf already sets more strictly, since sshd uses the first value it reads
+    actions:
+      - file:
+          path: /etc/ssh/sshd_config.d/00-unheaded.conf
+          mode: "0600"
+          content: |
+            # ADR-098 step 4 / CIS Ubuntu 24.04 5.1.x. Managed by scripts/host/remediate.sh
+            # (sshd-safe). Nothing here changes how anyone authenticates.
+          append_by_host:
+            east: |
+              X11Forwarding no
+              MaxAuthTries 4
+              ClientAliveInterval 300
+              ClientAliveCountMax 3
+          append: |
+            LoginGraceTime 60
+            MaxStartups 10:30:60
+            MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256
+      - mode: {paths: [/etc/ssh/sshd_config], mode: "0600", owner: root, group: root}
+      - mode: {glob: "/etc/ssh/sshd_config.d/*", mode: "0600", owner: root, group: root}
+      - validate: "sshd -t"
+      - run: "systemctl reload ssh.service"
