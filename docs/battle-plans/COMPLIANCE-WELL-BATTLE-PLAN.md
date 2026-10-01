@@ -275,32 +275,32 @@ Facts on 2026-10-01:
 **Prerequisite**: Phase 2 exit gate.
 **Time**: 3 h. **No host apply in this phase**; fake-root only.
 
-- [ ] **Step 71** [W] ~30m: Port every `remediate_test.go` case to `cmd/unheaded-remediate`, tests first, against a fake root (`--root`). Cases:
+- [x] **Step 71** [W] ~30m: Port every `remediate_test.go` case to `cmd/unheaded-remediate`, tests first, against a fake root (`--root`). Cases:
   - each fix, plan versus apply
   - undo round-trip
   - sshd rejected → restored
   - sudo-rs → no logfile
   - halting auditd refused
   - west's `99-unheaded.conf` never loosened
-- [ ] **Step 72** [W] ~60m: Executor.
+- [x] **Step 72** [W] ~60m: Executor.
   - Only the closed action set. `run` uses `exec.Command` with fixed argv from the allowlist and no shell.
   - Writes are atomic (temp + rename) and preserve the owner.
   - The backup directory has mode 0700.
   - Each apply returns a `JournalEntry` (host, fix, fix sha256, git commit, operator from `SUDO_USER`).
-- [ ] **Step 73** [W] ~15m: Journal sink.
+- [~] **Step 73** (journal sink not wired into the executor yet; JournalEntry + ingest exist) [W] ~15m: Journal sink.
   - Appends to the local `journal.jsonl` first (0600, root).
   - Then appends to the Well store when it is reachable. A failed Well write never fails an apply that succeeded: the row stays local for Phase 5's pull.
-- [ ] **Step 74** [B] ~3m: Run the tests.
+- [x] **Step 74** [B] ~3m: Run the tests.
   ```bash
   cd $R && go test ./cmd/unheaded-remediate/... -race -count=1 2>&1 | tail -3
   ```
-- [ ] **Step 75** [C]: `git commit -S -m "feat(remediate): native executor of the fix model, parity tests ported"`
-- [ ] **Step 76** [B] ~5m: Differential test. For each host and each fix, compare the fake-root file trees from `remediate.sh apply` and `unheaded-remediate apply`: same files, modes and content.
-- [ ] **Step 77** [V]: Zero differences.
+- [x] **Step 75** [C]: `git commit -S -m "feat(remediate): native executor of the fix model, parity tests ported"`
+- [x] **Step 76** [B] ~5m: Differential test. For each host and each fix, compare the fake-root file trees from `remediate.sh apply` and `unheaded-remediate apply`: same files, modes and content.
+- [x] **Step 77** [V] (done 2026-10-01: 40 subtests, zero differences in files, modes, content or commands; red when the executor skips `systemctl mask`): Zero differences.
   - [D] **77a**: a difference means a model or executor bug. Fix it and re-run. Never change `remediate.sh` to match.
-- [ ] **Step 78** [B] ~3m: gosec, plus `scripts/check-gates-can-fail.sh`.
-- [ ] **Step 79** [V]: 0 issues; the meta-gate is green.
-- [ ] **Step 80** [C]: `git commit -S -m "test(remediate): differential vs remediate.sh, zero diff"`
+- [x] **Step 78** [B] ~3m: gosec, plus `scripts/check-gates-can-fail.sh`.
+- [x] **Step 79** [V]: 0 issues; the meta-gate is green.
+- [x] **Step 80** [C]: `git commit -S -m "test(remediate): differential vs remediate.sh, zero diff"`
 - [ ] **Step 81** [Y][B] ~5m: `plan` only, on the real hosts. It writes nothing, and every `lab` fix must report `already applied`.
   ```bash
   sudo $R/bin/unheaded-remediate plan --profile-from-well
