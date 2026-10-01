@@ -5,6 +5,7 @@ package server
 
 import (
 	"bytes"
+	"context"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -13,18 +14,70 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"unheaded/pkg/compliance/crosswalk"
+	"unheaded/pkg/compliance/well"
 )
 
 // complianceSource serves the compliance crosswalk (ADR-097): the catalog
 // from root/compliance/catalog, evidence from evidencePath (written by
 // cmd/compliance-evidence). Both are read per request; the page is a human
 // view and the files are small.
+//
+// With ops set, evidence and findings triage come from The Well
+// (unheaded_ops, read-only role) when it holds them, and from the files
+// otherwise; every response says which (ADR-099 amended: The Well first,
+// labelled fallback).
 type complianceSource struct {
 	root         string
 	evidencePath string
+	ops          *well.Lazy
+
+	mu   sync.Mutex
+	last complianceDataSource
+}
+
+// Where a response's data came from.
+const (
+	srcWell     = "well"
+	srcFile     = "file-fallback"
+	srcYAML     = "yaml-fallback"
+	wellTimeout = 5 * time.Second
+)
+
+// complianceDataSource labels each response, so fallback data is never
+// shown as live.
+type complianceDataSource struct {
+	Evidence string `json:"evidence"`
+	Register string `json:"register"`
+	Reason   string `json:"reason,omitempty"`
+}
+
+// opsStore returns The Well's ops store, or why there is none.
+func (c *complianceSource) opsStore(ctx context.Context) (*well.OpsStore, string) {
+	if c.ops == nil {
+		return nil, "The Well is not configured"
+	}
+	db, err := c.ops.DB(ctx)
+	if err != nil {
+		return nil, err.Error()
+	}
+	return well.NewOpsStore(db), ""
+}
+
+func (c *complianceSource) remember(src complianceDataSource) {
+	c.mu.Lock()
+	c.last = src
+	c.mu.Unlock()
+}
+
+// lastSource is the source of the latest load, for the metrics.
+func (c *complianceSource) lastSource() complianceDataSource {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.last
 }
 
 type complianceEvidence struct {
@@ -55,29 +108,54 @@ type complianceSummary struct {
 	EvidenceRecords   int                         `json:"evidence_records"`
 	Controls          []complianceControl         `json:"controls"`
 	Frameworks        []complianceFrameworkCounts `json:"frameworks"`
+	Source            complianceDataSource        `json:"source"`
 }
 
-// load returns the catalog, the evidence records, and whether an evidence
-// file existed. A missing evidence file is not an error (every control
-// reads NOT_ASSESSED); an unreadable or corrupt one is.
-func (c *complianceSource) load() (*crosswalk.Catalog, []crosswalk.Record, bool, int, error) {
+// complianceFindings is the findings report with its source.
+type complianceFindings struct {
+	*crosswalk.FindingsReport
+	Source complianceDataSource `json:"source"`
+}
+
+// load returns the catalog, the evidence records, whether any evidence
+// exists, and where it came from. The Well is used when it holds evidence;
+// otherwise the file. A missing file is not an error (every control reads
+// NOT_ASSESSED); an unreadable or corrupt one is.
+func (c *complianceSource) load(ctx context.Context) (*crosswalk.Catalog, []crosswalk.Record, bool, complianceDataSource, int, error) {
+	src := complianceDataSource{Evidence: srcFile}
 	cat, err := crosswalk.LoadFS(os.DirFS(c.root), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
 	if err != nil {
-		return nil, nil, false, http.StatusServiceUnavailable, err
+		return nil, nil, false, src, http.StatusServiceUnavailable, err
+	}
+	ctx, cancel := context.WithTimeout(ctx, wellTimeout)
+	defer cancel()
+	if store, why := c.opsStore(ctx); store != nil {
+		recs, err := store.LatestEvidence(ctx)
+		switch {
+		case err != nil:
+			src.Reason = "evidence: " + err.Error()
+		case len(recs) == 0:
+			src.Reason = "The Well holds no evidence yet; the collector writes " + c.evidencePath
+		default:
+			src.Evidence = srcWell
+			return cat, recs, true, src, 0, nil
+		}
+	} else {
+		src.Reason = why
 	}
 	f, err := os.Open(c.evidencePath)
 	if errors.Is(err, fs.ErrNotExist) {
-		return cat, nil, false, 0, nil
+		return cat, nil, false, src, 0, nil
 	}
 	if err != nil {
-		return nil, nil, false, http.StatusInternalServerError, err
+		return nil, nil, false, src, http.StatusInternalServerError, err
 	}
 	defer f.Close()
 	recs, err := crosswalk.ReadEvidence(f)
 	if err != nil {
-		return nil, nil, false, http.StatusInternalServerError, err
+		return nil, nil, false, src, http.StatusInternalServerError, err
 	}
-	return cat, recs, true, 0, nil
+	return cat, recs, true, src, 0, nil
 }
 
 func (c *complianceSource) handleSummary(w http.ResponseWriter, r *http.Request) {
@@ -89,16 +167,18 @@ func (c *complianceSource) handleSummary(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "compliance catalog not configured", http.StatusServiceUnavailable)
 		return
 	}
-	cat, recs, have, code, err := c.load()
+	cat, recs, have, src, code, err := c.load(r.Context())
 	if err != nil {
 		http.Error(w, "compliance: "+err.Error(), code)
 		return
 	}
+	src.Register = "" // the summary does not use the register
+	c.remember(src)
 	now := time.Now()
 	sum := crosswalk.Summarize(cat, recs, now)
 
 	latest := latestBySource(recs, now)
-	out := complianceSummary{At: now, EvidenceAvailable: have, EvidenceRecords: len(recs)}
+	out := complianceSummary{At: now, EvidenceAvailable: have, EvidenceRecords: len(recs), Source: src}
 	for _, ctl := range cat.Controls {
 		cc := complianceControl{Control: ctl, Status: sum.Controls[ctl.ID]}
 		for _, s := range ctl.Evidence {
@@ -132,33 +212,61 @@ func (c *complianceSource) handleFindings(w http.ResponseWriter, r *http.Request
 		http.Error(w, "compliance catalog not configured", http.StatusServiceUnavailable)
 		return
 	}
-	rep, _, code, err := c.findings(time.Now())
+	rep, _, src, code, err := c.findings(r.Context(), time.Now())
 	if err != nil {
 		http.Error(w, "compliance: "+err.Error(), code)
 		return
 	}
-	writeComplianceJSON(w, rep)
+	writeComplianceJSON(w, complianceFindings{FindingsReport: rep, Source: src})
 }
 
-// findings loads catalog, evidence and register and builds the report. A
-// missing register leaves every finding untriaged; an invalid one is an error.
-func (c *complianceSource) findings(now time.Time) (*crosswalk.FindingsReport, []crosswalk.Record, int, error) {
-	cat, recs, _, code, err := c.load()
+// findings loads catalog, evidence and register and builds the report.
+// Triage comes from The Well when it holds any, else from register.yaml. A
+// missing register leaves every finding untriaged; an invalid one, from
+// either source, is an error.
+func (c *complianceSource) findings(ctx context.Context, now time.Time) (*crosswalk.FindingsReport, []crosswalk.Record, complianceDataSource, int, error) {
+	cat, recs, _, src, code, err := c.load(ctx)
 	if err != nil {
-		return nil, nil, code, err
+		return nil, nil, src, code, err
+	}
+	src.Register = srcYAML
+	ctx, cancel := context.WithTimeout(ctx, wellTimeout)
+	defer cancel()
+	if store, why := c.opsStore(ctx); store != nil {
+		reg, err := store.Register(ctx, cat)
+		switch {
+		case err != nil:
+			return nil, nil, src, http.StatusInternalServerError, fmt.Errorf("register in The Well: %w", err)
+		case len(reg.Entries) > 0:
+			src.Register = srcWell
+			c.remember(src)
+			return crosswalk.Findings(cat, recs, reg, now), recs, src, 0, nil
+		default:
+			src.Reason = joinReason(src.Reason, "The Well holds no findings triage yet (run compliance-evidence well sync)")
+		}
+	} else if src.Reason == "" {
+		src.Reason = why
 	}
 	var reg *crosswalk.Register
 	raw, err := fs.ReadFile(os.DirFS(c.root), "compliance/findings/register.yaml")
 	switch {
 	case errors.Is(err, fs.ErrNotExist):
 	case err != nil:
-		return nil, nil, http.StatusInternalServerError, fmt.Errorf("register: %w", err)
+		return nil, nil, src, http.StatusInternalServerError, fmt.Errorf("register: %w", err)
 	default:
 		if reg, err = crosswalk.LoadRegister(raw, cat); err != nil {
-			return nil, nil, http.StatusInternalServerError, err
+			return nil, nil, src, http.StatusInternalServerError, err
 		}
 	}
-	return crosswalk.Findings(cat, recs, reg, now), recs, 0, nil
+	c.remember(src)
+	return crosswalk.Findings(cat, recs, reg, now), recs, src, 0, nil
+}
+
+func joinReason(a, b string) string {
+	if a == "" || a == b {
+		return b
+	}
+	return a + "; " + b
 }
 
 func (c *complianceSource) handleFramework(w http.ResponseWriter, r *http.Request) {
@@ -170,7 +278,7 @@ func (c *complianceSource) handleFramework(w http.ResponseWriter, r *http.Reques
 		http.Error(w, "compliance catalog not configured", http.StatusServiceUnavailable)
 		return
 	}
-	cat, recs, _, code, err := c.load()
+	cat, recs, _, _, code, err := c.load(r.Context())
 	if err != nil {
 		http.Error(w, "compliance: "+err.Error(), code)
 		return

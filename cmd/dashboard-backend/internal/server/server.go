@@ -39,6 +39,7 @@ import (
 	"unheaded/cmd/dashboard-backend/internal/scraper"
 	"unheaded/cmd/dashboard-backend/internal/websocket"
 	"unheaded/pkg/auth"
+	"unheaded/pkg/compliance/well"
 	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/httputil"
@@ -734,7 +735,10 @@ func (s *Server) setupRoutes() {
 	// Compliance crosswalk (ADR-097).
 	var cs *complianceSource
 	if s.config.ComplianceRoot != "" {
-		cs = &complianceSource{root: s.config.ComplianceRoot, evidencePath: s.config.ComplianceEvidence}
+		// The Well as ops_reader: the dashboard only reads compliance data.
+		// No password set means no connection attempt (FND-007): files only.
+		cs = &complianceSource{root: s.config.ComplianceRoot, evidencePath: s.config.ComplianceEvidence,
+			ops: well.NewLazy(well.OpsConfigFromEnv(), 30*time.Second)}
 	}
 	s.mux.HandleFunc("/api/v1/compliance/summary", cs.handleSummary)
 	s.mux.HandleFunc("/api/v1/compliance/frameworks/{id}", cs.handleFramework)

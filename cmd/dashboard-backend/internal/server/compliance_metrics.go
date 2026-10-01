@@ -61,7 +61,7 @@ func (m *complianceMetrics) collectors() []metrics.Collector {
 // refresh recomputes every series. On error only report_ok changes: the
 // last good values stay, and the alarm is report_ok == 0.
 func (m *complianceMetrics) refresh(now time.Time) {
-	rep, recs, _, err := m.src.findings(now)
+	rep, recs, _, _, err := m.src.findings(context.Background(), now)
 	if err != nil {
 		m.reportOK.Set(0)
 		return

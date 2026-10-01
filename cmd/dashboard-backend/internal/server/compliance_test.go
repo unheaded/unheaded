@@ -14,7 +14,10 @@ import (
 	"testing"
 	"time"
 
+	"fmt"
 	"unheaded/pkg/compliance/crosswalk"
+	"unheaded/pkg/compliance/well"
+	"unheaded/pkg/database"
 )
 
 func complianceFixture(t *testing.T, withEvidence bool) *complianceSource {
@@ -293,5 +296,34 @@ controls:
 	}
 	if r := byID["SI-2"]; r[2] != "FAILING" || !strings.Contains(r[4], "source github-job:W/other fail") {
 		t.Errorf("SI-2 = %v", r)
+	}
+}
+
+// ADR-099 amended: every response says where its data came from, so file
+// or YAML fallback data is never shown as live.
+func TestCompliance_SourceLabelledWithoutTheWell(t *testing.T) {
+	src := complianceFixture(t, true)
+	src.ops = well.NewLazy(database.Config{Host: "127.0.0.1", Port: "1", User: "ops_reader", DBName: "unheaded_ops", SSLMode: "disable"}, time.Minute)
+	_, sum := get(t, src.handleSummary, "/api/v1/compliance/summary")
+	s, _ := sum["source"].(map[string]any)
+	if s["evidence"] != srcFile || !strings.Contains(fmt.Sprint(s["reason"]), "credentials") {
+		t.Errorf("summary source %v, want file-fallback with the reason", s)
+	}
+	_, f := get(t, src.handleFindings, "/api/v1/compliance/findings")
+	fs, _ := f["source"].(map[string]any)
+	if fs["register"] != srcYAML || fs["evidence"] != srcFile {
+		t.Errorf("findings source %v, want yaml-fallback register and file-fallback evidence", fs)
+	}
+	if _, ok := f["open"]; !ok {
+		t.Errorf("findings report fields no longer at the top level: %v", f)
+	}
+	if got := src.lastSource(); got.Register != srcYAML {
+		t.Errorf("metrics source %+v", got)
+	}
+	// Not configured at all reads the same, with that reason.
+	plain := complianceFixture(t, true)
+	_, sum = get(t, plain.handleSummary, "/api/v1/compliance/summary")
+	if s, _ := sum["source"].(map[string]any); s["reason"] != "The Well is not configured" {
+		t.Errorf("unconfigured source %v", s)
 	}
 }
