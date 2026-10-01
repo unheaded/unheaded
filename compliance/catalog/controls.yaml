@@ -224,6 +224,31 @@ controls:
       nist-csf-2: [PR.PS-01]
       iso27001-2022: [A.8.9]
 
+  - id: UH-REMED-01
+    title: Every fix a host's profile turns on is applied, recorded and current
+    statement: >-
+      Each host's remediation journal (unheaded-remediate, ADR-099) is a
+      hash-chained record of every apply and undo. It verifies from its first
+      entry, and every fix the host's bound profile turns on has, as its
+      latest entry, a successful apply of the fix's current content. A fix
+      changed in the model since it was applied fails until it is re-applied.
+    rationale: >-
+      Configuration change control with a record of each change (CM-3) and
+      configuration settings applied as specified (CM-6); 800-171 03.04.03
+      configuration change control; CSF PR.PS-01 configuration management
+      practices; ISO A.8.9 configuration management; SOC 2 CC8.1 changes
+      authorised, recorded and implemented.
+    freshness_days: 7
+    evidence:
+      - {kind: host-journal, ref: "west:apply-journal"}
+      - {kind: host-journal, ref: "east:apply-journal"}
+    mappings:
+      nist-800-53r5: [CM-3, CM-6]
+      nist-800-171r3: ["03.04.03"]
+      nist-csf-2: [PR.PS-01]
+      soc2-security: [CC8.1]
+      iso27001-2022: [A.8.9]
+
   - id: UH-CFG-02
     title: Service unit hardening takes effect as written
     statement: >-

@@ -1347,3 +1347,29 @@ findings:
     step: 5
     accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "use_authtok on the password pam_unix line (set automatically once pam_pwquality precedes it)"
+
+  # --- ADR-099 phase 5: applied fixes recorded in the host journal (2026-10-01)
+
+  - source: "host-journal:west:apply-journal"
+    severity: low
+    class: app
+    opened: 2026-10-01
+    lockout: none
+    step: 2
+    plan: >-
+      The eight lab fixes were applied 2026-10-01 by remediate.sh, which kept backups but no journal.
+      Run `sudo unheaded-remediate plan <fix>` for each (read-only; expect "already as wanted"),
+      then apply each through unheaded-remediate so the journal records it (no file changes when
+      already applied). COMPLIANCE-WELL steps 81 and 93
+    decision: running unheaded-remediate on the host (plan, then apply of fixes already in place)
+
+  - source: "host-journal:east:apply-journal"
+    severity: low
+    class: app
+    opened: 2026-10-01
+    lockout: none
+    step: 2
+    plan: >-
+      As west: the lab fixes were applied by remediate.sh without a journal. plan each fix with
+      unheaded-remediate, then apply through it so each is journaled. COMPLIANCE-WELL steps 81 and 93
+    decision: running unheaded-remediate on the host (plan, then apply of fixes already in place)

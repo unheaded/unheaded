@@ -320,11 +320,11 @@ Facts on 2026-10-01:
 **Prerequisite**: Phase 4 exit gate.
 **Time**: 1.5 h.
 
-- [ ] **Step 89** [W] ~25m: New probe `remediation-journal` (reads via sudo, ends with `@ok`, no `@@` lines) and kind `remediation-journal`. It passes when every fix in the host's profile has an `apply` row whose `fix_sha256` matches the current model. A fix whose model changed since it was applied fails with "re-apply needed".
-- [ ] **Step 90** [W] ~10m: Ingest is idempotent, keyed on (host, local sequence number), and verifies the hash chain on ingest. A broken chain becomes a `critical` finding.
-- [ ] **Step 91** [B] ~3m: `go test ./pkg/compliance/... -race -count=1`, plus `TestProbeCommandsParse`.
-- [ ] **Step 92** [C]: `git commit -S -m "feat(compliance): remediation-journal evidence, pulled into The Well"`
-- [ ] **Step 93** [V]: **PHASE 5 EXIT GATE**: After one collector run, `compliance_apply_journal` has rows for both hosts, and the 2026-10-01 applies are backfilled from the `remediate.sh` state directories, marked `backfilled`.
+- [x] **Step 89** (done 2026-10-01 as kind `host-journal` + collect.HostJournal rather than a probe: the judge needs the host's profile and the model's sha256s) [W] ~25m: New probe `remediation-journal` (reads via sudo, ends with `@ok`, no `@@` lines) and kind `remediation-journal`. It passes when every fix in the host's profile has an `apply` row whose `fix_sha256` matches the current model. A fix whose model changed since it was applied fails with "re-apply needed".
+- [x] **Step 90** [W] ~10m: Ingest is idempotent, keyed on (host, local sequence number), and verifies the hash chain on ingest. A broken chain becomes a `critical` finding.
+- [x] **Step 91** [B] ~3m: `go test ./pkg/compliance/... -race -count=1`, plus `TestProbeCommandsParse`.
+- [x] **Step 92** [C]: `git commit -S -m "feat(compliance): remediation-journal evidence, pulled into The Well"`
+- [ ] **Step 93** (both hosts now report "no journal": the lab fixes were applied by remediate.sh. Instead of backfilling, re-apply through unheaded-remediate after a plan shows them in place; needs Stevie's yes) [V]: **PHASE 5 EXIT GATE**: After one collector run, `compliance_apply_journal` has rows for both hosts, and the 2026-10-01 applies are backfilled from the `remediate.sh` state directories, marked `backfilled`.
 - Steps 94–96 are reserved.
 
 ---

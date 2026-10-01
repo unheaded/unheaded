@@ -138,6 +138,11 @@ func run(repoDir, out, ghRepo, branch string, keep int, skipGates bool) error {
 	}
 	fresh = append(fresh, recs...)
 
+	if recs, err = collectJournals(ctx, repoDir, sources); err != nil {
+		return err
+	}
+	fresh = append(fresh, recs...)
+
 	if !skipGates {
 		gates := &collect.GateScripts{RepoDir: repoDir, Timeout: 10 * time.Minute}
 		if recs, err = gates.Collect(ctx, sources); err != nil {
