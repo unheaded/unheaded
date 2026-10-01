@@ -165,34 +165,34 @@ Facts on 2026-10-01:
 - [x] **Step 23** [B] ~2m: `go test ./pkg/database/... -race -count=1`
 - [x] **Step 24** [V] (done 2026-10-01; FND-007 resolved; DSN values now quoted too. FND-008, kanban as superuser in compose, is NOT done here: a `${VAR:?}` guard in compose would make `docker compose up -d postgres` itself fail while the variable is unset, so it lands with Phase 0 and Stevie): Green. The new test failed before the change (RED, then GREEN recorded in the commit body).
 - [ ] **Step 25** [C]: `git commit -S -m "fix(database): no credential default; fail loudly when WELL_USER/WELL_PASSWORD unset"`
-- [ ] **Step 26** [W] ~20m: Write tests first in `pkg/compliance/well/store_test.go`:
+- [~] **Step 26** (partial 2026-10-01: Profiles, Bindings, SetBinding, Source, Change validation incl. ErrEnforcingGate done; AppendJournal / Findings / UpsertFinding / LatestEvidence still to do) [W] ~20m: Write tests first in `pkg/compliance/well/store_test.go`:
   - `Store` interface: `Profiles`, `Bindings`, `SetBinding(host, profile, mode, actor, reason)`, `AppendJournal`, `Findings`, `UpsertFinding`, `LatestEvidence`, `Source()`.
   - Table tests for: unknown profile, a profile naming an unknown fix, mode outside audit/enforcing, empty reason, empty actor, a host name that is not `^[a-z0-9-]{1,63}$`, enforcing requested while ADR-098's gate is unmet (`ErrEnforcingGate`).
-- [ ] **Step 27** [W] ~20m: YAML fallback store, `yamlstore.go`.
+- [~] **Step 27** (profiles + hosts done; findings to do) [W] ~20m: YAML fallback store, `yamlstore.go`.
   - Reads `compliance/{profiles,hosts,findings}` through `os.Root`, with strict decoding (`KnownFields`) and a 256 KiB cap.
   - Every write returns `ErrReadOnlyFallback`.
-- [ ] **Step 28** [W] ~30m: Postgres store, `pgstore.go`.
+- [~] **Step 28** (profiles, bindings, SetBinding done; journal hash chain to do) [W] ~30m: Postgres store, `pgstore.go`.
   - Parameterised queries only, with context deadlines (5 s).
   - `SetBinding` runs in one transaction: validate profile → update → history row written by the trigger.
   - `AppendJournal` computes `hash = sha256(previous_hash || canonical row)` under `SELECT … FOR UPDATE` on the last row.
-- [ ] **Step 29** [W] ~10m: `Open(ctx)` tries Postgres, falls back to YAML, and records `Source()`. Test: an unreachable DSN returns the YAML store, labelled `yaml-fallback`, within the timeout.
+- [x] **Step 29** [W] ~10m: `Open(ctx)` tries Postgres, falls back to YAML, and records `Source()`. Test: an unreachable DSN returns the YAML store, labelled `yaml-fallback`, within the timeout.
 - [ ] **Step 30** [C]: `git commit -S -m "feat(compliance/well): store interface, YAML fallback, Postgres store (tests first)"`
-- [ ] **Step 31** [B] ~3m: Unit tests.
+- [x] **Step 31** [B] ~3m: Unit tests.
   ```bash
   cd $R && go test ./pkg/compliance/well/... -race -count=1 2>&1 | tail -5
   ```
-- [ ] **Step 32** [B] ~5m: Integration tests against the live Well, skipped without `WELL_TEST_DSN`.
+- [x] **Step 32** [B] ~5m (done against a throwaway database instead: `scripts/well/test-compliance-schema.sh --go`; caught pq.Array(nil) → NULL): Integration tests against the live Well, skipped without `WELL_TEST_DSN`.
   ```bash
   cd $R && WELL_TEST_DSN="host=127.0.0.1 user=config_admin dbname=unheaded_config sslmode=disable password=$WELL_CONFIG_ADMIN_PASSWORD" \
     go test ./pkg/compliance/well/... -run Integration -race -count=1 2>&1 | tail -5
   ```
   The password comes from the environment, never the repo. If `WELL_CONFIG_ADMIN_PASSWORD` is unset, skip and note it.
-- [ ] **Step 33** [V]: Unit tests green. Integration tests green or explicitly skipped. Each case is a failure the store refuses: tampered journal row, history UPDATE, profile with an unknown fix.
-- [ ] **Step 34** [B] ~3m: `gosec`, pinned, with every rule enforced, on the new package.
+- [x] **Step 33** [V]: Unit tests green. Integration tests green or explicitly skipped. Each case is a failure the store refuses: tampered journal row, history UPDATE, profile with an unknown fix.
+- [x] **Step 34** [B] ~3m: `gosec`, pinned, with every rule enforced, on the new package.
   ```bash
   cd $R && go run github.com/securego/gosec/v2/cmd/gosec@v2.29.0 ./pkg/compliance/well/... 2>&1 | tail -3
   ```
-- [ ] **Step 35** [V]: 0 issues.
+- [x] **Step 35** [V]: 0 issues.
 - [ ] **Step 36** [C]: `git commit -S -m "test(compliance/well): integration + tamper-evidence tests"`
 - [ ] **Step 37** [V]: **PHASE 1 EXIT GATE**: `go build ./... && go vet ./pkg/compliance/... ./pkg/database/...` passes, Steps 31 and 33 are green, and the migrations are applied.
 - Steps 38–40 are reserved.

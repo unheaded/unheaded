@@ -9,9 +9,15 @@
 # any history or journal row (even by the owner), acceptances over 90 days.
 # It never touches the real Well. Needs docker (sudo if not in the group).
 #
-#   scripts/well/test-compliance-schema.sh [image]   # default postgres:16-alpine
+#   scripts/well/test-compliance-schema.sh [--go] [image]   # default postgres:16-alpine
+#
+# --go also runs pkg/compliance/well's integration tests against the same
+# throwaway database. The container then publishes 5432 on a random
+# loopback port (127.0.0.1 only) instead of having no network.
 set -euo pipefail
 
+GO=0
+if [[ "${1:-}" == --go ]]; then GO=1; shift; fi
 IMAGE="${1:-postgres:16-alpine}"
 R="$(cd "$(dirname "$0")/../.." && pwd)"
 DOCKER=(docker); docker info >/dev/null 2>&1 || DOCKER=(sudo -n docker)
@@ -19,9 +25,18 @@ N="wellsql-test-$$"
 cleanup() { "${DOCKER[@]}" stop "$N" >/dev/null 2>&1 || true; }
 trap cleanup EXIT
 
-"${DOCKER[@]}" run -d --rm --name "$N" --network none \
+NET=(--network none)
+if ((GO)); then NET=(-p 127.0.0.1::5432); fi
+"${DOCKER[@]}" run -d --rm --name "$N" "${NET[@]}" \
 	-e POSTGRES_USER=unheaded -e POSTGRES_PASSWORD="throwaway-$RANDOM" -e POSTGRES_DB=unheaded "$IMAGE" >/dev/null
-for _ in $(seq 1 30); do "${DOCKER[@]}" exec "$N" pg_isready -U unheaded -q 2>/dev/null && break; sleep 1; done
+# Wait on TCP, not the socket: during init the entrypoint runs a temporary
+# server on the socket only, before POSTGRES_DB exists.
+ready=0
+for _ in $(seq 1 60); do
+	if "${DOCKER[@]}" exec "$N" pg_isready -h 127.0.0.1 -U unheaded -q 2>/dev/null; then ready=1; break; fi
+	sleep 1
+done
+((ready)) || { echo "postgres did not become ready"; exit 1; }
 
 psql_as() { "${DOCKER[@]}" exec -i "$N" psql -X -q -v ON_ERROR_STOP=1 -U "$1" -d "$2"; }
 psql_as unheaded unheaded <"$R/db/migrations/002_create_databases.sql" >/dev/null
@@ -67,3 +82,16 @@ check refused ops_writer $O "evidence edited" "INSERT INTO compliance_evidence(s
 
 if (( fails > 0 )); then echo "$fails check(s) failed"; exit 1; fi
 echo "all checks passed"
+
+if ((GO)); then
+	PORT="$("${DOCKER[@]}" port "$N" 5432/tcp | head -1 | sed 's/.*://')"
+	# A fresh schema for the Go tests: the checks above left rows behind.
+	psql_as unheaded unheaded <<<"DROP DATABASE unheaded_config WITH (FORCE); CREATE DATABASE unheaded_config;" >/dev/null
+	psql_as unheaded unheaded_config <"$R/db/migrations/005_config_schema.sql" >/dev/null
+	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_config <"$R/db/migrations/013_compliance_config.sql"
+	psql_as unheaded unheaded <<<"GRANT CONNECT ON DATABASE unheaded_config TO config_admin;" >/dev/null
+	# config_admin's password here is the dev one from 002, valid only
+	# inside this throwaway container.
+	(cd "$R" && WELL_TEST_CONFIG_DSN="host=127.0.0.1 port=$PORT user=config_admin password=config_admin_dev dbname=unheaded_config sslmode=disable" \
+		go test ./pkg/compliance/well/... -run Integration -count=1 -v | grep -vE '^(=== RUN)')
+fi

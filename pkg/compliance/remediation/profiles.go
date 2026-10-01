@@ -3,7 +3,14 @@
 
 package remediation
 
-import "regexp"
+import (
+	"fmt"
+	"regexp"
+)
+
+// ErrEnforcingGate refuses any mode but audit until ADR-098's enforcing
+// gate is met. It wraps ErrInvalidModel.
+var ErrEnforcingGate = fmt.Errorf("%w: only audit mode is allowed until ADR-098's enforcing gate is met", ErrInvalidModel)
 
 // Profiles and host bindings (ADR-099). The Well holds them; the YAML in
 // compliance/profiles and compliance/hosts is their seed and the read-only
@@ -31,6 +38,16 @@ func ParseProfiles(raw []byte, m *Model) (*ProfileSet, error) {
 	if err := decodeStrict(raw, &ps); err != nil {
 		return nil, err
 	}
+	return NewProfileSet(ps.Profiles, m)
+}
+
+// NewProfileSet validates profiles from any source (YAML or The Well)
+// against the fix model, so both paths accept exactly the same things.
+func NewProfileSet(profiles []Profile, m *Model) (*ProfileSet, error) {
+	if m == nil {
+		return nil, invalid("no fix model")
+	}
+	ps := ProfileSet{Profiles: profiles}
 	known := map[string]bool{}
 	for _, f := range m.Fixes {
 		known[f.ID] = true
@@ -110,30 +127,44 @@ type Binding struct {
 }
 
 // ParseBinding decodes and validates a host binding against the profiles.
-// Enforcing is refused here: ADR-098 gates it on conditions a file cannot
-// show (LICH-012 run, 7-day soak, Stevie's sign-off).
 func ParseBinding(raw []byte, ps *ProfileSet) (*Binding, error) {
 	var b Binding
 	if err := decodeStrict(raw, &b); err != nil {
 		return nil, err
 	}
-	if !isKnownHost(b.Host) {
-		return nil, invalid("host %q is unknown", b.Host)
-	}
-	if !ps.Has(b.Profile) {
-		return nil, invalid("host %s: profile %q is unknown", b.Host, b.Profile)
-	}
-	if b.Mode != "audit" {
-		return nil, invalid("host %s: mode %q; only audit is allowed until ADR-098's enforcing gate is met", b.Host, b.Mode)
-	}
-	all := ps.Resolve("all")
-	for _, a := range b.Applied {
-		if !contains(all, a.Fix) {
-			return nil, invalid("host %s: applied fix %s is unknown", b.Host, a.Fix)
-		}
-		if !dateRe.MatchString(a.On) || a.ApprovedBy == "" {
-			return nil, invalid("host %s: applied %s needs a YYYY-MM-DD date and an approver", b.Host, a.Fix)
-		}
+	if err := b.Validate(ps); err != nil {
+		return nil, err
 	}
 	return &b, nil
+}
+
+// Validate checks a binding from any source. Enforcing is refused here:
+// ADR-098 gates it on conditions no binding can show (LICH-012 run, 7-day
+// soak, zero host findings, Stevie's sign-off).
+func (b *Binding) Validate(ps *ProfileSet) error {
+	if b == nil || ps == nil || ps.model == nil {
+		return invalid("binding or profile set missing")
+	}
+	if !isKnownHost(b.Host) {
+		return invalid("host %q is unknown", b.Host)
+	}
+	if !ps.Has(b.Profile) {
+		return invalid("host %s: profile %q is unknown", b.Host, b.Profile)
+	}
+	if b.Mode != "audit" {
+		return fmt.Errorf("%w: host %s: mode %q", ErrEnforcingGate, b.Host, b.Mode)
+	}
+	known := map[string]bool{}
+	for _, f := range ps.model.Fixes {
+		known[f.ID] = true
+	}
+	for _, a := range b.Applied {
+		if !known[a.Fix] {
+			return invalid("host %s: applied fix %s is unknown", b.Host, a.Fix)
+		}
+		if !dateRe.MatchString(a.On) || a.ApprovedBy == "" {
+			return invalid("host %s: applied %s needs a YYYY-MM-DD date and an approver", b.Host, a.Fix)
+		}
+	}
+	return nil
 }
