@@ -77,23 +77,6 @@ findings:
 
   # --- step 2: sysctl (reversible, no lockout) -----------------------------
   # --- step 3: auditd -------------------------------------------------------
-  - source: "host-probe:west:auditd-running"
-    severity: medium
-    class: service
-    opened: 2026-09-30
-    exposure: no kernel audit trail for forensics (AU family)
-    lockout: none
-    step: 3
-    plan: install auditd; disk_full_action/admin_space_left_action never halt; no -e 2; check /var free space first
-
-  - source: "host-probe:east:auditd-running"
-    severity: medium
-    class: service
-    opened: 2026-09-30
-    lockout: none
-    step: 3
-    plan: install auditd; disk_full_action/admin_space_left_action never halt; no -e 2; east before west
-
   # --- step 4: low-risk sshd keys -------------------------------------------
   - source: "host-sshd:east:x11forwarding=no"
     severity: low
@@ -744,14 +727,6 @@ findings:
 
   # --- CIS 1.3 / 1.4 / 1.5 / 5.2 (2026-09-30) -----------------------------
 
-  - source: "host-probe:west:apparmor-installed"
-    severity: low
-    class: package
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "apt install apparmor-utils (aa-enforce, aa-complain, aa-logprof)"
-
   - source: "host-probe:west:apparmor-profiles-enforced"
     severity: low
     class: mac
@@ -777,23 +752,8 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 3
+    accepted: {reason: "sudo-rs (Ubuntu 25.10) has no logfile setting (visudo rejects it); CIS 5.2.3 cannot be met as written", compensating: "sudo-rs logs every command with user, cwd and command line to auth.log (syslog tag sudo)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "/etc/sudoers.d/00-unheaded (0440): Defaults logfile=\"/var/log/sudo.log\"; visudo -cf before installing"
-
-  - source: "host-probe:west:sudo-timeout"
-    severity: low
-    class: sudo
-    opened: 2026-09-30
-    lockout: none
-    step: 3
-    plan: "same drop-in: Defaults timestamp_timeout=15 (the current default made explicit)"
-
-  - source: "host-probe:east:apparmor-installed"
-    severity: low
-    class: package
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "apt install apparmor-utils (aa-enforce, aa-complain, aa-logprof)"
 
   - source: "host-probe:east:apparmor-profiles-enforced"
     severity: low
@@ -820,15 +780,8 @@ findings:
     opened: 2026-09-30
     lockout: none
     step: 3
+    accepted: {reason: "sudo-rs (Ubuntu 25.10) has no logfile setting (visudo rejects it); CIS 5.2.3 cannot be met as written", compensating: "sudo-rs logs every command with user, cwd and command line to auth.log (syslog tag sudo)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "/etc/sudoers.d/00-unheaded (0440): Defaults logfile=\"/var/log/sudo.log\"; visudo -cf before installing"
-
-  - source: "host-probe:east:sudo-timeout"
-    severity: low
-    class: sudo
-    opened: 2026-09-30
-    lockout: none
-    step: 3
-    plan: "same drop-in: Defaults timestamp_timeout=15 (the current default made explicit)"
 
   # --- CIS 5.4 password and account policy (2026-09-30) ----------------------
 
@@ -984,38 +937,6 @@ findings:
     plan: "AllowGroups sshusers in 00-unheaded.conf after creating the group and adding govan; prove a second login before reloading. An empty or wrong group is a lockout"
 
   # --- CIS 1.6 banners, 3.1 wireless (2026-09-30) ---------------------------
-
-  - source: "host-probe:west:banner-issue"
-    severity: low
-    class: account
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "replace the Ubuntu default (names the OS and version) with the CIS text: Authorized users only. All activity may be monitored and reported. (CIS 1.6.2)"
-
-  - source: "host-probe:west:banner-issue-net"
-    severity: low
-    class: account
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "replace the Ubuntu default (names the OS and version) with the CIS text: Authorized users only. All activity may be monitored and reported. (CIS 1.6.3)"
-
-  - source: "host-probe:east:banner-issue"
-    severity: low
-    class: account
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "replace the Ubuntu default (names the OS and version) with the CIS text: Authorized users only. All activity may be monitored and reported. (CIS 1.6.2)"
-
-  - source: "host-probe:east:banner-issue-net"
-    severity: low
-    class: account
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "replace the Ubuntu default (names the OS and version) with the CIS text: Authorized users only. All activity may be monitored and reported. (CIS 1.6.3)"
 
   - source: "host-probe:west:radio-wireless-down"
     severity: low
