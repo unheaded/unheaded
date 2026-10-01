@@ -44,6 +44,10 @@ var findingClasses = map[string]bool{
 	"app": true, "container": true, "ci": true, "backup": true, "process": true,
 }
 
+// IsFindingClass reports whether c is an ADR-098 finding class; the
+// remediation model (ADR-099) uses the same set.
+func IsFindingClass(c string) bool { return findingClasses[c] }
+
 var lockoutRisks = map[string]bool{"none": true, "low": true, "high": true}
 
 // maxAcceptance caps a risk acceptance: it must be re-decided, not left.

@@ -205,7 +205,7 @@ Facts on 2026-10-01:
 **Prerequisite**: Phase 1 exit gate.
 **Time**: 1.5 h.
 
-- [ ] **Step 41** [W] ~15m: Fix model loader `pkg/compliance/remediation`, tests first.
+- [x] **Step 41** [W] ~15m: Fix model loader `pkg/compliance/remediation`, tests first.
   - Strict YAML.
   - Closed action set `file|setting|mode|service|package|absent|run|validate`.
   - `run` and `validate` values only from the `Allowed` table.
@@ -213,9 +213,9 @@ Facts on 2026-10-01:
   - Mode is octal and never world-writable.
   - `content_by_host` keys are known hosts.
   - `closes` keys are valid source keys in the catalog.
-- [ ] **Step 42** [W] ~15m: Parity test. For each fix, the content the model renders for west and for east equals what `scripts/host/remediate.sh plan` writes in the fake root (reuse the `remediate_test.go` harness). This holds until Phase 4 retires the script.
-- [ ] **Step 43** [B] ~2m: `go test ./pkg/compliance/remediation/... ./scripts/host/... -race -count=1`
-- [ ] **Step 44** [V]: Green. Any mismatch is a model bug: fix the YAML, not the test.
+- [x] **Step 42** [W] ~15m: Parity test. For each fix, the content the model renders for west and for east equals what `scripts/host/remediate.sh plan` writes in the fake root (reuse the `remediate_test.go` harness). This holds until Phase 4 retires the script.
+- [x] **Step 43** [B] ~2m: `go test ./pkg/compliance/remediation/... ./scripts/host/... -race -count=1`
+- [x] **Step 44** [V] (done 2026-10-01: 40 parity subtests green; red on a changed sshd line, a dropped sudo-rs condition and a wrong cron.allow mode): Green. Any mismatch is a model bug: fix the YAML, not the test.
 - [ ] **Step 45** [C]: `git commit -S -m "feat(compliance): fix model loader + parity with remediate.sh (ADR-099 phase 1)"`
 - [ ] **Step 46** [W] ~20m: `cmd/compliance-evidence well sync [--dry-run]`.
   - Definitions: upsert when the sha256 differs.
