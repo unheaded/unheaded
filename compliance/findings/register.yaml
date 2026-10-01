@@ -1360,3 +1360,295 @@ findings:
     lockout: none
     step: 3
     plan: "systemctl enable --now dailyaidecheck.timer (shipped by aide-common) once the database exists; its report needs a destination (FND-001 email)"
+
+  # --- CIS 5.3 PAM (2026-10-01): stock Ubuntu PAM on both hosts -------------
+
+  - source: "host-probe:west:pkg-pam-pwquality"
+    severity: low
+    class: package
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "apt install libpam-pwquality (pam-auth-update adds pam_pwquality to common-password)"
+
+  - source: "host-probe:west:pam-faillock-enabled"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: high
+    step: 5
+    plan: "pam-auth-update profile for pam_faillock (preauth/authfail in common-auth, account line); test sudo in a second root shell first"
+    decision: "adopt pam_faillock: 4 wrong passwords lock that account (sudo included) for 15 minutes; with key-only ssh the password only guards sudo"
+
+  - source: "host-probe:west:pam-faillock-unlock"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: high
+    step: 5
+    plan: "unlock_time = 900 in /etc/security/faillock.conf (with pam_faillock enabled)"
+
+  - source: "host-probe:west:pam-faillock-deny"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: high
+    step: 5
+    plan: "deny = 4 (or fewer) in /etc/security/faillock.conf once pam_faillock is enabled"
+
+  - source: "host-probe:west:pam-pwquality-enabled"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "comes with libpam-pwquality via pam-auth-update"
+
+  - source: "host-probe:west:pam-pwq-difok"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "difok = 2 in /etc/security/pwquality.conf"
+
+  - source: "host-probe:west:pam-pwq-minlen"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "minlen = 14 in /etc/security/pwquality.conf"
+
+  - source: "host-probe:west:pam-pwq-maxrepeat"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "maxrepeat = 3 in /etc/security/pwquality.conf"
+
+  - source: "host-probe:west:pam-pwq-maxsequence"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "maxsequence = 3 in /etc/security/pwquality.conf"
+
+  - source: "host-probe:west:pam-pwq-dictcheck"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "dictcheck defaults to 1; passes once pam_pwquality is enabled"
+
+  - source: "host-probe:west:pam-pwq-enforcing"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "enforcing defaults to 1; passes once pam_pwquality is enabled"
+
+  - source: "host-probe:west:pam-pwq-enforce-root"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "enforce_for_root in /etc/security/pwquality.conf"
+
+  - source: "host-probe:west:pam-pwhistory-enabled"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "pam_pwhistory line in common-password (remember=24 enforce_for_root use_authtok), via a pam-auth-update profile"
+
+  - source: "host-probe:west:pam-pwhistory-remember"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "remember=24 on the pam_pwhistory line or in /etc/security/pwhistory.conf"
+
+  - source: "host-probe:west:pam-pwhistory-enforce-root"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "enforce_for_root on the pam_pwhistory line"
+
+  - source: "host-probe:west:pam-pwhistory-authtok"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "use_authtok on the pam_pwhistory line"
+
+  - source: "host-probe:west:pam-unix-no-nullok"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: high
+    step: 5
+    plan: "remove nullok from pam_unix through a local pam-auth-update profile (hand edits to common-auth are overwritten by pam-auth-update); no account has an empty password today (7.2.2 passes)"
+
+  - source: "host-probe:west:pam-unix-authtok"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: high
+    step: 5
+    plan: "use_authtok on the password pam_unix line (set automatically once pam_pwquality precedes it)"
+
+  - source: "host-probe:east:pkg-pam-pwquality"
+    severity: low
+    class: package
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "apt install libpam-pwquality (pam-auth-update adds pam_pwquality to common-password)"
+
+  - source: "host-probe:east:pam-faillock-enabled"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: high
+    step: 5
+    plan: "pam-auth-update profile for pam_faillock (preauth/authfail in common-auth, account line); test sudo in a second root shell first"
+    decision: "adopt pam_faillock: 4 wrong passwords lock that account (sudo included) for 15 minutes; with key-only ssh the password only guards sudo"
+
+  - source: "host-probe:east:pam-faillock-unlock"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: high
+    step: 5
+    plan: "unlock_time = 900 in /etc/security/faillock.conf (with pam_faillock enabled)"
+
+  - source: "host-probe:east:pam-faillock-deny"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: high
+    step: 5
+    plan: "deny = 4 (or fewer) in /etc/security/faillock.conf once pam_faillock is enabled"
+
+  - source: "host-probe:east:pam-pwquality-enabled"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "comes with libpam-pwquality via pam-auth-update"
+
+  - source: "host-probe:east:pam-pwq-difok"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "difok = 2 in /etc/security/pwquality.conf"
+
+  - source: "host-probe:east:pam-pwq-minlen"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "minlen = 14 in /etc/security/pwquality.conf"
+
+  - source: "host-probe:east:pam-pwq-maxrepeat"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "maxrepeat = 3 in /etc/security/pwquality.conf"
+
+  - source: "host-probe:east:pam-pwq-maxsequence"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "maxsequence = 3 in /etc/security/pwquality.conf"
+
+  - source: "host-probe:east:pam-pwq-dictcheck"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "dictcheck defaults to 1; passes once pam_pwquality is enabled"
+
+  - source: "host-probe:east:pam-pwq-enforcing"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "enforcing defaults to 1; passes once pam_pwquality is enabled"
+
+  - source: "host-probe:east:pam-pwq-enforce-root"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "enforce_for_root in /etc/security/pwquality.conf"
+
+  - source: "host-probe:east:pam-pwhistory-enabled"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "pam_pwhistory line in common-password (remember=24 enforce_for_root use_authtok), via a pam-auth-update profile"
+
+  - source: "host-probe:east:pam-pwhistory-remember"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "remember=24 on the pam_pwhistory line or in /etc/security/pwhistory.conf"
+
+  - source: "host-probe:east:pam-pwhistory-enforce-root"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "enforce_for_root on the pam_pwhistory line"
+
+  - source: "host-probe:east:pam-pwhistory-authtok"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: low
+    step: 5
+    plan: "use_authtok on the pam_pwhistory line"
+
+  - source: "host-probe:east:pam-unix-no-nullok"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: high
+    step: 5
+    plan: "remove nullok from pam_unix through a local pam-auth-update profile (hand edits to common-auth are overwritten by pam-auth-update); no account has an empty password today (7.2.2 passes)"
+
+  - source: "host-probe:east:pam-unix-authtok"
+    severity: low
+    class: account
+    opened: 2026-10-01
+    lockout: high
+    step: 5
+    plan: "use_authtok on the password pam_unix line (set automatically once pam_pwquality precedes it)"

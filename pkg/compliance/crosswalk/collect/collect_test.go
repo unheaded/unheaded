@@ -971,3 +971,80 @@ func TestLoggingProbes(t *testing.T) {
 		}
 	}
 }
+
+func TestPAMProbes(t *testing.T) {
+	const stock = "%%pam\n" +
+		"auth [success=1 default=ignore] pam_unix.so nullok\n" +
+		"account [success=1 new_authtok_reqd=done default=ignore] pam_unix.so\n" +
+		"password [success=1 default=ignore] pam_unix.so obscure yescrypt\n" +
+		"session required pam_unix.so\n" +
+		"%%pwq\n# minlen = 9\n%%fl\n%%ph\n@ok\n"
+	const hardened = "%%pam\n" +
+		"auth requisite pam_faillock.so preauth\n" +
+		"auth [success=1 default=ignore] pam_unix.so\n" +
+		"auth [default=die] pam_faillock.so authfail\n" +
+		"account required pam_faillock.so\n" +
+		"account [success=1 default=ignore] pam_unix.so\n" +
+		"password requisite pam_pwquality.so retry=3\n" +
+		"password requisite pam_pwhistory.so remember=24 enforce_for_root use_authtok\n" +
+		"password [success=1 default=ignore] pam_unix.so obscure use_authtok yescrypt\n" +
+		"session required pam_unix.so\n" +
+		"%%pwq\nminlen = 14\ndifok = 2\nmaxrepeat = 3\nmaxsequence = 3\nenforce_for_root\n" +
+		"%%fl\ndeny = 4\nunlock_time = 900\n%%ph\n@ok\n"
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"pam-unix-enabled", stock, true},
+		{"pam-faillock-enabled", stock, false},
+		{"pam-faillock-enabled", hardened, true},
+		{"pam-pwquality-enabled", hardened, true},
+		{"pam-pwhistory-enabled", stock, false},
+		{"pam-faillock-deny", stock, false}, // default deny=3, but faillock is not enabled
+		{"pam-faillock-deny", hardened, true},
+		{"pam-faillock-unlock", stock, false},
+		{"pam-faillock-unlock", hardened, true},
+		{"pam-pwq-difok", hardened, true},
+		{"pam-pwq-minlen", stock, false}, // a commented minlen is not a setting
+		{"pam-pwq-minlen", hardened, true},
+		{"pam-pwq-maxrepeat", hardened, true},
+		{"pam-pwq-maxsequence", stock, false},
+		{"pam-pwq-dictcheck", stock, false}, // default 1, but pwquality is not enabled
+		{"pam-pwq-dictcheck", hardened, true},
+		{"pam-pwq-enforcing", stock, false},
+		{"pam-pwq-enforcing", hardened, true},
+		{"pam-pwq-enforce-root", hardened, true},
+		{"pam-pwhistory-remember", hardened, true},
+		{"pam-pwhistory-remember", stock, false},
+		{"pam-pwhistory-enforce-root", hardened, true},
+		{"pam-pwhistory-authtok", hardened, true},
+		{"pam-unix-no-nullok", stock, false},
+		{"pam-unix-no-nullok", hardened, true},
+		{"pam-unix-no-remember", stock, true},
+		{"pam-unix-strong-hash", stock, true},
+		{"pam-unix-authtok", stock, false},
+		{"pam-unix-authtok", hardened, true},
+		{"pam-pwq-minlen", "%%pam\n", false}, // incomplete
+		// an argument on the PAM line overrides the conf file
+		{"pam-pwq-minlen", strings.Replace(hardened, "pam_pwquality.so retry=3", "pam_pwquality.so retry=3 minlen=8", 1), false},
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok || !p.Baseline {
+			t.Errorf("%s missing or not a baseline probe", tc.probe)
+			continue
+		}
+		if pass, detail := p.Judge(tc.out); pass != tc.pass {
+			t.Errorf("%s = %v (%s), want %v", tc.probe, pass, detail, tc.pass)
+		}
+	}
+}
+
+// No probe's own output may start a line with "@@": HostProbes uses that to
+// split one host's script output into probe sections.
+func TestProbeCommandsDoNotEmitSectionMarkers(t *testing.T) {
+	for name, p := range Probes {
+		if strings.Contains(p.Command, "echo @@") || strings.Contains(p.Command, "echo \"@@") {
+			t.Errorf("%s prints an @@ line, which HostProbes reads as a new probe section", name)
+		}
+	}
+}

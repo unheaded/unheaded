@@ -67,6 +67,26 @@ sources:
   - {kind: host-probe, ref: "east:mount-var-tmp-separate"}
   - {kind: host-probe, ref: "east:mta-local-only"}
   - {kind: host-probe, ref: "east:ntp-synchronized"}
+  - {kind: host-probe, ref: "east:pam-faillock-deny"}
+  - {kind: host-probe, ref: "east:pam-faillock-enabled"}
+  - {kind: host-probe, ref: "east:pam-faillock-unlock"}
+  - {kind: host-probe, ref: "east:pam-pwhistory-authtok"}
+  - {kind: host-probe, ref: "east:pam-pwhistory-enabled"}
+  - {kind: host-probe, ref: "east:pam-pwhistory-enforce-root"}
+  - {kind: host-probe, ref: "east:pam-pwhistory-remember"}
+  - {kind: host-probe, ref: "east:pam-pwq-dictcheck"}
+  - {kind: host-probe, ref: "east:pam-pwq-difok"}
+  - {kind: host-probe, ref: "east:pam-pwq-enforce-root"}
+  - {kind: host-probe, ref: "east:pam-pwq-enforcing"}
+  - {kind: host-probe, ref: "east:pam-pwq-maxrepeat"}
+  - {kind: host-probe, ref: "east:pam-pwq-maxsequence"}
+  - {kind: host-probe, ref: "east:pam-pwq-minlen"}
+  - {kind: host-probe, ref: "east:pam-pwquality-enabled"}
+  - {kind: host-probe, ref: "east:pam-unix-authtok"}
+  - {kind: host-probe, ref: "east:pam-unix-enabled"}
+  - {kind: host-probe, ref: "east:pam-unix-no-nullok"}
+  - {kind: host-probe, ref: "east:pam-unix-no-remember"}
+  - {kind: host-probe, ref: "east:pam-unix-strong-hash"}
   - {kind: host-probe, ref: "east:perm-boot-grub-cfg"}
   - {kind: host-probe, ref: "east:perm-etc-cron-d"}
   - {kind: host-probe, ref: "east:perm-etc-cron-daily"}
@@ -93,6 +113,8 @@ sources:
   - {kind: host-probe, ref: "east:pkg-ftp-client-absent"}
   - {kind: host-probe, ref: "east:pkg-ldap-client-absent"}
   - {kind: host-probe, ref: "east:pkg-nis-client-absent"}
+  - {kind: host-probe, ref: "east:pkg-pam-modules"}
+  - {kind: host-probe, ref: "east:pkg-pam-pwquality"}
   - {kind: host-probe, ref: "east:pkg-prelink-absent"}
   - {kind: host-probe, ref: "east:pkg-rsh-client-absent"}
   - {kind: host-probe, ref: "east:pkg-talk-client-absent"}
@@ -206,6 +228,26 @@ sources:
   - {kind: host-probe, ref: "west:mount-var-tmp-separate"}
   - {kind: host-probe, ref: "west:mta-local-only"}
   - {kind: host-probe, ref: "west:ntp-synchronized"}
+  - {kind: host-probe, ref: "west:pam-faillock-deny"}
+  - {kind: host-probe, ref: "west:pam-faillock-enabled"}
+  - {kind: host-probe, ref: "west:pam-faillock-unlock"}
+  - {kind: host-probe, ref: "west:pam-pwhistory-authtok"}
+  - {kind: host-probe, ref: "west:pam-pwhistory-enabled"}
+  - {kind: host-probe, ref: "west:pam-pwhistory-enforce-root"}
+  - {kind: host-probe, ref: "west:pam-pwhistory-remember"}
+  - {kind: host-probe, ref: "west:pam-pwq-dictcheck"}
+  - {kind: host-probe, ref: "west:pam-pwq-difok"}
+  - {kind: host-probe, ref: "west:pam-pwq-enforce-root"}
+  - {kind: host-probe, ref: "west:pam-pwq-enforcing"}
+  - {kind: host-probe, ref: "west:pam-pwq-maxrepeat"}
+  - {kind: host-probe, ref: "west:pam-pwq-maxsequence"}
+  - {kind: host-probe, ref: "west:pam-pwq-minlen"}
+  - {kind: host-probe, ref: "west:pam-pwquality-enabled"}
+  - {kind: host-probe, ref: "west:pam-unix-authtok"}
+  - {kind: host-probe, ref: "west:pam-unix-enabled"}
+  - {kind: host-probe, ref: "west:pam-unix-no-nullok"}
+  - {kind: host-probe, ref: "west:pam-unix-no-remember"}
+  - {kind: host-probe, ref: "west:pam-unix-strong-hash"}
   - {kind: host-probe, ref: "west:perm-boot-grub-cfg"}
   - {kind: host-probe, ref: "west:perm-etc-cron-d"}
   - {kind: host-probe, ref: "west:perm-etc-cron-daily"}
@@ -232,6 +274,8 @@ sources:
   - {kind: host-probe, ref: "west:pkg-ftp-client-absent"}
   - {kind: host-probe, ref: "west:pkg-ldap-client-absent"}
   - {kind: host-probe, ref: "west:pkg-nis-client-absent"}
+  - {kind: host-probe, ref: "west:pkg-pam-modules"}
+  - {kind: host-probe, ref: "west:pkg-pam-pwquality"}
   - {kind: host-probe, ref: "west:pkg-prelink-absent"}
   - {kind: host-probe, ref: "west:pkg-rsh-client-absent"}
   - {kind: host-probe, ref: "west:pkg-talk-client-absent"}

@@ -1031,3 +1031,256 @@ func init() {
 			return true, "no network input modules"
 		})
 }
+
+// PAM (CIS 5.3.1.2, 5.3.1.3, 5.3.2.1-5.3.2.4, 5.3.3.1.1-5.3.3.4.4 except
+// the manual 5.3.3.2.3). Values are the CIS profile's ComplianceAsCode
+// variables: faillock deny <= 4, unlock_time 0 or >= 900; pwquality difok
+// >= 2, minlen >= 14, maxrepeat 1-3, maxsequence 1-3, dictcheck and
+// enforcing not 0, enforce_for_root; pwhistory remember >= 24,
+// enforce_for_root, use_authtok; pam_unix without nullok or remember,
+// with yescrypt or sha512 and use_authtok. A module's built-in default
+// counts when nothing sets the value (faillock deny 3, unlock_time 600;
+// pwquality minlen 8, difok 1, maxrepeat 0, maxsequence 0; pwhistory
+// remember 10). Arguments on the PAM line override the .conf file.
+// 5.3.1.1 (latest PAM version) is not claimed: it needs the archive's
+// current version, which a host check cannot know.
+// Section markers are "%%", never "@@": HostProbes splits a host's script
+// output on lines starting "@@", so "@@pam" ended this probe's section.
+const pamDump = `echo %%pam; cat /etc/pam.d/common-auth /etc/pam.d/common-account /etc/pam.d/common-password /etc/pam.d/common-session 2>/dev/null; ` +
+	`echo %%pwq; cat /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf 2>/dev/null; ` +
+	`echo %%fl; cat /etc/security/faillock.conf 2>/dev/null; ` +
+	`echo %%ph; cat /etc/security/pwhistory.conf 2>/dev/null; echo @ok`
+
+type pamLine struct {
+	typ, module string
+	args        []string
+}
+
+type pamConfig struct {
+	lines []pamLine
+	conf  map[string]map[string]string // section -> key -> value ("" for a bare flag)
+}
+
+func parsePAM(out string) (*pamConfig, bool) {
+	c := &pamConfig{conf: map[string]map[string]string{}}
+	section, done := "", false
+	for _, raw := range strings.Split(out, "\n") {
+		l := strings.TrimSpace(raw)
+		if i := strings.Index(l, "#"); i >= 0 {
+			l = strings.TrimSpace(l[:i])
+		}
+		switch {
+		case l == "":
+			continue
+		case l == "@ok":
+			done = true
+			continue
+		case strings.HasPrefix(l, "%%"):
+			section = l[2:]
+			continue
+		}
+		if section == "pam" {
+			f := strings.Fields(l)
+			if len(f) < 3 || strings.HasPrefix(f[0], "@") {
+				continue
+			}
+			i := 1
+			if strings.HasPrefix(f[1], "[") { // control like [success=1 default=ignore]
+				for i < len(f) && !strings.HasSuffix(f[i], "]") {
+					i++
+				}
+			}
+			if i+1 >= len(f) {
+				continue
+			}
+			c.lines = append(c.lines, pamLine{typ: f[0], module: f[i+1], args: f[i+2:]})
+			continue
+		}
+		if c.conf[section] == nil {
+			c.conf[section] = map[string]string{}
+		}
+		k, v, _ := strings.Cut(l, "=")
+		c.conf[section][strings.TrimSpace(k)] = strings.TrimSpace(v)
+	}
+	return c, done
+}
+
+// effective merges a module's .conf settings with its PAM-line arguments.
+func (c *pamConfig) effective(section, module string) map[string]string {
+	m := map[string]string{}
+	for k, v := range c.conf[section] {
+		m[k] = v
+	}
+	for _, l := range c.lines {
+		if l.module == module {
+			for _, a := range l.args {
+				k, v, _ := strings.Cut(a, "=")
+				m[k] = v
+			}
+		}
+	}
+	return m
+}
+
+func (c *pamConfig) uses(module string) []pamLine {
+	var out []pamLine
+	for _, l := range c.lines {
+		if l.module == module {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+
+func pamProbe(judge func(c *pamConfig) (bool, string)) Probe {
+	return Probe{Baseline: true, Command: pamDump, Judge: func(out string) (bool, string) {
+		c, done := parsePAM(out)
+		if !done {
+			return false, "check did not complete"
+		}
+		return judge(c)
+	}}
+}
+
+func intIn(m map[string]string, key string, def int, ok func(int) bool, want string) (bool, string) {
+	v, set := m[key]
+	n := def
+	if set {
+		var err error
+		if n, err = strconv.Atoi(v); err != nil {
+			return false, key + "=" + v + " unreadable"
+		}
+	}
+	src := key + "=" + strconv.Itoa(n)
+	if !set {
+		src += " (default)"
+	}
+	if !ok(n) {
+		return false, src + " (want " + want + ")"
+	}
+	return true, src
+}
+
+func init() {
+	Probes["pkg-pam-modules"] = packageInstalledProbe([]string{"libpam-modules"})
+	Probes["pkg-pam-pwquality"] = packageInstalledProbe([]string{"libpam-pwquality"})
+	enabled := func(module string, types ...string) Probe {
+		return pamProbe(func(c *pamConfig) (bool, string) {
+			have := map[string]bool{}
+			for _, l := range c.uses(module) {
+				have[l.typ] = true
+			}
+			var missing []string
+			for _, t := range types {
+				if !have[t] {
+					missing = append(missing, t)
+				}
+			}
+			if len(missing) > 0 {
+				return false, module + " missing from: " + strings.Join(missing, ", ")
+			}
+			return true, module + " in " + strings.Join(types, ", ")
+		})
+	}
+	Probes["pam-unix-enabled"] = enabled("pam_unix.so", "auth", "account", "password", "session")
+	Probes["pam-faillock-enabled"] = enabled("pam_faillock.so", "auth", "account")
+	Probes["pam-pwquality-enabled"] = enabled("pam_pwquality.so", "password")
+	Probes["pam-pwhistory-enabled"] = enabled("pam_pwhistory.so", "password")
+
+	// A setting protects nothing while its module is not in the PAM stack:
+	// without that guard faillock's default deny=3 would pass on a host that
+	// never runs faillock.
+	setting := func(section, module, key string, def int, ok func(int) bool, want string) Probe {
+		return pamProbe(func(c *pamConfig) (bool, string) {
+			if len(c.uses(module)) == 0 {
+				return false, module + " is not enabled, so " + key + " has no effect"
+			}
+			return intIn(c.effective(section, module), key, def, ok, want)
+		})
+	}
+	flag := func(section, module, key string) Probe {
+		return pamProbe(func(c *pamConfig) (bool, string) {
+			if len(c.uses(module)) == 0 {
+				return false, module + " is not enabled, so " + key + " has no effect"
+			}
+			if _, ok := c.effective(section, module)[key]; ok {
+				return true, key + " set"
+			}
+			return false, key + " not set for " + module
+		})
+	}
+	Probes["pam-faillock-deny"] = setting("fl", "pam_faillock.so", "deny", 3, func(n int) bool { return n >= 1 && n <= 4 }, "1-4")
+	Probes["pam-faillock-unlock"] = setting("fl", "pam_faillock.so", "unlock_time", 600, func(n int) bool { return n == 0 || n >= 900 }, "0 or >= 900")
+	Probes["pam-pwq-difok"] = setting("pwq", "pam_pwquality.so", "difok", 1, func(n int) bool { return n >= 2 }, ">= 2")
+	Probes["pam-pwq-minlen"] = setting("pwq", "pam_pwquality.so", "minlen", 8, func(n int) bool { return n >= 14 }, ">= 14")
+	Probes["pam-pwq-maxrepeat"] = setting("pwq", "pam_pwquality.so", "maxrepeat", 0, func(n int) bool { return n >= 1 && n <= 3 }, "1-3")
+	Probes["pam-pwq-maxsequence"] = setting("pwq", "pam_pwquality.so", "maxsequence", 0, func(n int) bool { return n >= 1 && n <= 3 }, "1-3")
+	Probes["pam-pwq-dictcheck"] = setting("pwq", "pam_pwquality.so", "dictcheck", 1, func(n int) bool { return n != 0 }, "not 0")
+	Probes["pam-pwq-enforcing"] = setting("pwq", "pam_pwquality.so", "enforcing", 1, func(n int) bool { return n != 0 }, "not 0")
+	Probes["pam-pwq-enforce-root"] = flag("pwq", "pam_pwquality.so", "enforce_for_root")
+	Probes["pam-pwhistory-remember"] = setting("ph", "pam_pwhistory.so", "remember", 10, func(n int) bool { return n >= 24 }, ">= 24")
+	Probes["pam-pwhistory-enforce-root"] = flag("ph", "pam_pwhistory.so", "enforce_for_root")
+	Probes["pam-pwhistory-authtok"] = pamProbe(func(c *pamConfig) (bool, string) {
+		for _, l := range c.uses("pam_pwhistory.so") {
+			for _, a := range l.args {
+				if a == "use_authtok" {
+					return true, "pam_pwhistory use_authtok"
+				}
+			}
+		}
+		return false, "pam_pwhistory without use_authtok (or not enabled)"
+	})
+	unixArgs := func(typ string, judge func(args []string) (bool, string)) Probe {
+		return pamProbe(func(c *pamConfig) (bool, string) {
+			found := false
+			for _, l := range c.uses("pam_unix.so") {
+				if typ != "" && l.typ != typ {
+					continue
+				}
+				found = true
+				if ok, why := judge(l.args); !ok {
+					return false, l.typ + " pam_unix: " + why
+				}
+			}
+			if !found {
+				return false, "pam_unix not configured"
+			}
+			if typ == "" {
+				return true, "every pam_unix line complies"
+			}
+			return true, "pam_unix " + typ + " lines comply"
+		})
+	}
+	has := func(args []string, pred func(string) bool) bool {
+		for _, a := range args {
+			if pred(a) {
+				return true
+			}
+		}
+		return false
+	}
+	Probes["pam-unix-no-nullok"] = unixArgs("", func(a []string) (bool, string) {
+		if has(a, func(s string) bool { return s == "nullok" }) {
+			return false, "nullok (empty passwords accepted)"
+		}
+		return true, ""
+	})
+	Probes["pam-unix-no-remember"] = unixArgs("", func(a []string) (bool, string) {
+		if has(a, func(s string) bool { return strings.HasPrefix(s, "remember=") }) {
+			return false, "remember= (history belongs in pam_pwhistory)"
+		}
+		return true, ""
+	})
+	Probes["pam-unix-strong-hash"] = unixArgs("password", func(a []string) (bool, string) {
+		if !has(a, func(s string) bool { return s == "yescrypt" || s == "sha512" }) {
+			return false, "neither yescrypt nor sha512"
+		}
+		return true, ""
+	})
+	Probes["pam-unix-authtok"] = unixArgs("password", func(a []string) (bool, string) {
+		if !has(a, func(s string) bool { return s == "use_authtok" }) {
+			return false, "no use_authtok"
+		}
+		return true, ""
+	})
+}

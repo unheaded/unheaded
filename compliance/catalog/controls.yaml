@@ -845,6 +845,73 @@ controls:
       nist-800-53r5: [AU-9, AU-12, CM-7]
       nist-800-171r3: ["03.03.01", "03.03.08"]
 
+  - id: UH-PAM-01
+    title: Local authentication locks out guessing and refuses weak or reused passwords
+    statement: >-
+      On both hosts the PAM stack runs pam_unix (no nullok, strong hash,
+      use_authtok), pam_faillock (deny 4 or fewer, unlock 15 minutes or
+      never), pam_pwquality (minimum 14 characters, limits on repeats and
+      sequences, dictionary check, enforced for root) and pam_pwhistory
+      (24 remembered, enforced for root).
+    rationale: >-
+      Authenticator management (IA-5) and limits on unsuccessful logon
+      attempts (AC-7); 800-171 03.05.07, 03.01.08; CSF PR.AA-03; ISO
+      A.5.17. CIS Ubuntu 24.04 5.3.1.2-5.3.3.4.4 with the CIS profile's
+      ComplianceAsCode values, except 5.3.1.1 (needs the archive's current
+      PAM version) and the manual 5.3.3.2.3. A setting passes only while
+      its module is in the stack.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:pkg-pam-modules", maps: {cis-ubuntu2404: ["5.3.1.2"]}}
+      - {kind: host-probe, ref: "west:pkg-pam-pwquality", maps: {cis-ubuntu2404: ["5.3.1.3"]}}
+      - {kind: host-probe, ref: "west:pam-unix-enabled", maps: {cis-ubuntu2404: ["5.3.2.1"]}}
+      - {kind: host-probe, ref: "west:pam-faillock-enabled", maps: {cis-ubuntu2404: ["5.3.2.2"]}}
+      - {kind: host-probe, ref: "west:pam-pwquality-enabled", maps: {cis-ubuntu2404: ["5.3.2.3"]}}
+      - {kind: host-probe, ref: "west:pam-pwhistory-enabled", maps: {cis-ubuntu2404: ["5.3.2.4"]}}
+      - {kind: host-probe, ref: "west:pam-faillock-deny", maps: {cis-ubuntu2404: ["5.3.3.1.1"]}}
+      - {kind: host-probe, ref: "west:pam-faillock-unlock", maps: {cis-ubuntu2404: ["5.3.3.1.2"]}}
+      - {kind: host-probe, ref: "west:pam-pwq-difok", maps: {cis-ubuntu2404: ["5.3.3.2.1"]}}
+      - {kind: host-probe, ref: "west:pam-pwq-minlen", maps: {cis-ubuntu2404: ["5.3.3.2.2"]}}
+      - {kind: host-probe, ref: "west:pam-pwq-maxrepeat", maps: {cis-ubuntu2404: ["5.3.3.2.4"]}}
+      - {kind: host-probe, ref: "west:pam-pwq-maxsequence", maps: {cis-ubuntu2404: ["5.3.3.2.5"]}}
+      - {kind: host-probe, ref: "west:pam-pwq-dictcheck", maps: {cis-ubuntu2404: ["5.3.3.2.6"]}}
+      - {kind: host-probe, ref: "west:pam-pwq-enforcing", maps: {cis-ubuntu2404: ["5.3.3.2.7"]}}
+      - {kind: host-probe, ref: "west:pam-pwq-enforce-root", maps: {cis-ubuntu2404: ["5.3.3.2.8"]}}
+      - {kind: host-probe, ref: "west:pam-pwhistory-remember", maps: {cis-ubuntu2404: ["5.3.3.3.1"]}}
+      - {kind: host-probe, ref: "west:pam-pwhistory-enforce-root", maps: {cis-ubuntu2404: ["5.3.3.3.2"]}}
+      - {kind: host-probe, ref: "west:pam-pwhistory-authtok", maps: {cis-ubuntu2404: ["5.3.3.3.3"]}}
+      - {kind: host-probe, ref: "west:pam-unix-no-nullok", maps: {cis-ubuntu2404: ["5.3.3.4.1"]}}
+      - {kind: host-probe, ref: "west:pam-unix-no-remember", maps: {cis-ubuntu2404: ["5.3.3.4.2"]}}
+      - {kind: host-probe, ref: "west:pam-unix-strong-hash", maps: {cis-ubuntu2404: ["5.3.3.4.3"]}}
+      - {kind: host-probe, ref: "west:pam-unix-authtok", maps: {cis-ubuntu2404: ["5.3.3.4.4"]}}
+      - {kind: host-probe, ref: "east:pkg-pam-modules", maps: {cis-ubuntu2404: ["5.3.1.2"]}}
+      - {kind: host-probe, ref: "east:pkg-pam-pwquality", maps: {cis-ubuntu2404: ["5.3.1.3"]}}
+      - {kind: host-probe, ref: "east:pam-unix-enabled", maps: {cis-ubuntu2404: ["5.3.2.1"]}}
+      - {kind: host-probe, ref: "east:pam-faillock-enabled", maps: {cis-ubuntu2404: ["5.3.2.2"]}}
+      - {kind: host-probe, ref: "east:pam-pwquality-enabled", maps: {cis-ubuntu2404: ["5.3.2.3"]}}
+      - {kind: host-probe, ref: "east:pam-pwhistory-enabled", maps: {cis-ubuntu2404: ["5.3.2.4"]}}
+      - {kind: host-probe, ref: "east:pam-faillock-deny", maps: {cis-ubuntu2404: ["5.3.3.1.1"]}}
+      - {kind: host-probe, ref: "east:pam-faillock-unlock", maps: {cis-ubuntu2404: ["5.3.3.1.2"]}}
+      - {kind: host-probe, ref: "east:pam-pwq-difok", maps: {cis-ubuntu2404: ["5.3.3.2.1"]}}
+      - {kind: host-probe, ref: "east:pam-pwq-minlen", maps: {cis-ubuntu2404: ["5.3.3.2.2"]}}
+      - {kind: host-probe, ref: "east:pam-pwq-maxrepeat", maps: {cis-ubuntu2404: ["5.3.3.2.4"]}}
+      - {kind: host-probe, ref: "east:pam-pwq-maxsequence", maps: {cis-ubuntu2404: ["5.3.3.2.5"]}}
+      - {kind: host-probe, ref: "east:pam-pwq-dictcheck", maps: {cis-ubuntu2404: ["5.3.3.2.6"]}}
+      - {kind: host-probe, ref: "east:pam-pwq-enforcing", maps: {cis-ubuntu2404: ["5.3.3.2.7"]}}
+      - {kind: host-probe, ref: "east:pam-pwq-enforce-root", maps: {cis-ubuntu2404: ["5.3.3.2.8"]}}
+      - {kind: host-probe, ref: "east:pam-pwhistory-remember", maps: {cis-ubuntu2404: ["5.3.3.3.1"]}}
+      - {kind: host-probe, ref: "east:pam-pwhistory-enforce-root", maps: {cis-ubuntu2404: ["5.3.3.3.2"]}}
+      - {kind: host-probe, ref: "east:pam-pwhistory-authtok", maps: {cis-ubuntu2404: ["5.3.3.3.3"]}}
+      - {kind: host-probe, ref: "east:pam-unix-no-nullok", maps: {cis-ubuntu2404: ["5.3.3.4.1"]}}
+      - {kind: host-probe, ref: "east:pam-unix-no-remember", maps: {cis-ubuntu2404: ["5.3.3.4.2"]}}
+      - {kind: host-probe, ref: "east:pam-unix-strong-hash", maps: {cis-ubuntu2404: ["5.3.3.4.3"]}}
+      - {kind: host-probe, ref: "east:pam-unix-authtok", maps: {cis-ubuntu2404: ["5.3.3.4.4"]}}
+    mappings:
+      nist-800-53r5: [IA-5, AC-7]
+      nist-800-171r3: ["03.05.07", "03.01.08"]
+      nist-csf-2: [PR.AA-03]
+      iso27001-2022: [A.5.17]
+
   - id: UH-NET-01
     title: The host network stack rejects spoofed and redirected traffic
     statement: >-

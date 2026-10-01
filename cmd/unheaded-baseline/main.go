@@ -300,6 +300,8 @@ func init() {
 			probeActions[name] = "write rsyslog.d/00-unheaded.conf: $FileCreateMode 0640; restart rsyslog"
 		case name == "rsyslog-no-listen":
 			probeActions[name] = "none (alert only): a remote-log listener may be deliberate; the operator removes it"
+		case strings.HasPrefix(name, "pam-"), strings.HasPrefix(name, "pkg-pam-"):
+			probeActions[name] = "none (alert only): a PAM edit that goes wrong locks every login, sudo included; the operator applies it with a root shell held open"
 		case strings.HasPrefix(name, "mount-"):
 			probeActions[name] = "none (alert only): mount options and partitions change through fstab and a remount or reboot, which the operator does"
 		case strings.HasPrefix(name, "perm-"):
