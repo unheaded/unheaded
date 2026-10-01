@@ -14,6 +14,8 @@ sources:
   - {kind: host-probe, ref: "east:acct-unique-group-name"}
   - {kind: host-probe, ref: "east:acct-unique-uid"}
   - {kind: host-probe, ref: "east:acct-unique-user-name"}
+  - {kind: host-probe, ref: "east:aide-installed"}
+  - {kind: host-probe, ref: "east:aide-timer"}
   - {kind: host-probe, ref: "east:apparmor-enabled"}
   - {kind: host-probe, ref: "east:apparmor-installed"}
   - {kind: host-probe, ref: "east:apparmor-profiles-enforced"}
@@ -146,6 +148,8 @@ sources:
   - {kind: host-probe, ref: "west:acct-unique-group-name"}
   - {kind: host-probe, ref: "west:acct-unique-uid"}
   - {kind: host-probe, ref: "west:acct-unique-user-name"}
+  - {kind: host-probe, ref: "west:aide-installed"}
+  - {kind: host-probe, ref: "west:aide-timer"}
   - {kind: host-probe, ref: "west:apparmor-enabled"}
   - {kind: host-probe, ref: "west:apparmor-installed"}
   - {kind: host-probe, ref: "west:apparmor-profiles-enforced"}

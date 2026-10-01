@@ -928,3 +928,34 @@ func bannerProbe(file string, required bool) Probe {
 			return true, file + " states no OS details"
 		})
 }
+
+// AIDE (CIS 6.3.1, 6.3.2): ComplianceAsCode's package_aide_installed,
+// aide_build_database (Debian/Ubuntu: /var/lib/aide/aide.db[.gz]) and
+// aide_periodic_checking_systemd_timer ("aidecheck.timer or similar";
+// Ubuntu's aide-common ships dailyaidecheck.timer).
+func init() {
+	Probes["aide-installed"] = markerLinesProbe(dpkgInstalled([]string{"aide"})+
+		`; sudo -n sh -c 'if [ -e /var/lib/aide/aide.db ] || [ -e /var/lib/aide/aide.db.gz ]; then echo db=present; else echo db=absent; fi; echo @ok'`,
+		func(lines []string) (bool, string) {
+			f := parseKV(strings.Join(lines, "\n"))
+			switch {
+			case !strings.Contains(" "+f["installed"]+" ", " aide "):
+				return false, "aide not installed"
+			case f["db"] != "present":
+				return false, "aide installed but its database was never initialised (aideinit)"
+			}
+			return true, "aide installed with a database"
+		})
+	Probes["aide-timer"] = markerLinesProbe(`systemctl list-unit-files --type=timer --no-legend 2>/dev/null | awk 'tolower($1) ~ /aide/ {print $1, $2}'; echo @ok`,
+		func(lines []string) (bool, string) {
+			for _, l := range lines {
+				if f := strings.Fields(l); len(f) == 2 && f[1] == "enabled" {
+					return true, f[0] + " enabled"
+				}
+			}
+			if len(lines) > 0 {
+				return false, "AIDE timer present but not enabled: " + strings.Join(lines, ", ")
+			}
+			return false, "no AIDE timer"
+		})
+}

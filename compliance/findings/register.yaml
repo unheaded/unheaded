@@ -1324,3 +1324,39 @@ findings:
     step: 7
     plan: "needed while west has no wired LAN: accept with that reason, or move west to a wired link and then disable the radio"
     decision: "is a wired LAN link for west possible, or accept wireless on west"
+
+  # --- CIS 6.3 file integrity (2026-10-01) ------------------------------------
+
+  - source: "host-probe:west:aide-installed"
+    severity: medium
+    class: package
+    opened: 2026-10-01
+    exposure: "no file integrity monitoring: a changed system binary or config goes unnoticed (SI-7)"
+    lockout: none
+    step: 3
+    plan: "apt install aide aide-common; aideinit (minutes of disk I/O; run off-hours); exclude /var/lib/docker, LXD storage and build trees (target/, ~/go) from the database or every build alerts"
+
+  - source: "host-probe:west:aide-timer"
+    severity: low
+    class: package
+    opened: 2026-10-01
+    lockout: none
+    step: 3
+    plan: "systemctl enable --now dailyaidecheck.timer (shipped by aide-common) once the database exists; its report needs a destination (FND-001 email)"
+
+  - source: "host-probe:east:aide-installed"
+    severity: medium
+    class: package
+    opened: 2026-10-01
+    exposure: "no file integrity monitoring: a changed system binary or config goes unnoticed (SI-7)"
+    lockout: none
+    step: 3
+    plan: "apt install aide aide-common; aideinit (minutes of disk I/O; run off-hours); exclude /var/lib/docker, LXD storage and build trees (target/, ~/go) from the database or every build alerts"
+
+  - source: "host-probe:east:aide-timer"
+    severity: low
+    class: package
+    opened: 2026-10-01
+    lockout: none
+    step: 3
+    plan: "systemctl enable --now dailyaidecheck.timer (shipped by aide-common) once the database exists; its report needs a destination (FND-001 email)"

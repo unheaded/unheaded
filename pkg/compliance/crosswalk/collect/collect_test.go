@@ -914,3 +914,27 @@ func TestBannerRadioProbes(t *testing.T) {
 		}
 	}
 }
+
+func TestAIDEProbes(t *testing.T) {
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"aide-installed", "installed=aide\ndb=present\n@ok\n", true},
+		{"aide-installed", "installed=aide\ndb=absent\n@ok\n", false}, // never initialised
+		{"aide-installed", "installed=\ndb=absent\n@ok\n", false},
+		{"aide-installed", "installed=aide\n", false}, // the sudo'd database check did not run
+		{"aide-timer", "dailyaidecheck.timer enabled\n@ok\n", true},
+		{"aide-timer", "dailyaidecheck.timer disabled\n@ok\n", false},
+		{"aide-timer", "@ok\n", false},
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok || !p.Baseline {
+			t.Errorf("%s missing or not a baseline probe", tc.probe)
+			continue
+		}
+		if pass, detail := p.Judge(tc.out); pass != tc.pass {
+			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}

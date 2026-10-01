@@ -798,6 +798,25 @@ controls:
       nist-800-53r5: [AC-18, CM-7]
       nist-800-171r3: ["03.01.16"]
 
+  - id: UH-FIM-01
+    title: File integrity is checked on a schedule
+    statement: >-
+      On both hosts AIDE is installed with an initialised database, and a
+      systemd timer runs its check.
+    rationale: >-
+      Software, firmware and information integrity (SI-7). CIS Ubuntu 24.04
+      6.3.1 and 6.3.2 (ComplianceAsCode's aide rules for Debian/Ubuntu).
+      Other framework mappings left out until checked against NIST's
+      references rather than guessed.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:aide-installed", maps: {cis-ubuntu2404: ["6.3.1"]}}
+      - {kind: host-probe, ref: "west:aide-timer", maps: {cis-ubuntu2404: ["6.3.2"]}}
+      - {kind: host-probe, ref: "east:aide-installed", maps: {cis-ubuntu2404: ["6.3.1"]}}
+      - {kind: host-probe, ref: "east:aide-timer", maps: {cis-ubuntu2404: ["6.3.2"]}}
+    mappings:
+      nist-800-53r5: [SI-7]
+
   - id: UH-NET-01
     title: The host network stack rejects spoofed and redirected traffic
     statement: >-

@@ -290,6 +290,8 @@ func init() {
 			probeActions[name] = `write the CIS banner ("Authorized users only. All activity may be monitored and reported.") with no OS details`
 		case strings.HasPrefix(name, "radio-"):
 			probeActions[name] = "none (alert only): taking an interface down can cut the host off (west's LAN is wireless)"
+		case strings.HasPrefix(name, "aide-"):
+			probeActions[name] = "none (alert only): installing AIDE and building its first database (aideinit) takes minutes of disk I/O; the operator runs it"
 		case strings.HasPrefix(name, "mount-"):
 			probeActions[name] = "none (alert only): mount options and partitions change through fstab and a remount or reboot, which the operator does"
 		case strings.HasPrefix(name, "perm-"):
