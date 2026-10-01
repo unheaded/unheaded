@@ -14,6 +14,7 @@
 //	go run ./cmd/compliance-evidence well sync -dry-run  # mirror/seed The Well (ADR-099 amended)
 //	go run ./cmd/compliance-evidence profile set -host east -profile lab -reason "..." [-yes]
 //	go run ./cmd/compliance-evidence profile export     # The Well -> YAML fallback
+//	go run ./cmd/compliance-evidence ansible            # render deploy/ansible/compliance/
 package main
 
 import (
@@ -34,6 +35,13 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "findings" {
 		if err := runFindings(os.Args[2:], os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "compliance-evidence findings:", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "ansible" {
+		if err := runAnsible(os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "compliance-evidence ansible:", err)
 			os.Exit(1)
 		}
 		return

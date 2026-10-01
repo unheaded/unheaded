@@ -1,0 +1,51 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# banner-cis: Login banners carry the notice and no OS details (CIS 1.6.2, 1.6.3)
+- block:
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          Authorized users only. All activity may be monitored and reported.
+        dest: /etc/issue
+        group: root
+        mode: "0644"
+        owner: root
+      name: Write /etc/issue
+      register: uh_banner_cis_1_v1
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          Authorized users only. All activity may be monitored and reported.
+        dest: /etc/issue.net
+        group: root
+        mode: "0644"
+        owner: root
+      name: Write /etc/issue.net
+      register: uh_banner_cis_2_v1
+  name: banner-cis
+  rescue:
+    - ansible.builtin.copy:
+        dest: /etc/issue
+        remote_src: true
+        src: '{{ uh_banner_cis_1_v1.backup_file }}'
+      name: Restore /etc/issue
+      when: uh_banner_cis_1_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/issue
+        state: absent
+      name: Remove /etc/issue if this role created it
+      when: uh_banner_cis_1_v1 is changed and uh_banner_cis_1_v1.backup_file is not defined
+    - ansible.builtin.copy:
+        dest: /etc/issue.net
+        remote_src: true
+        src: '{{ uh_banner_cis_2_v1.backup_file }}'
+      name: Restore /etc/issue.net
+      when: uh_banner_cis_2_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/issue.net
+        state: absent
+      name: Remove /etc/issue.net if this role created it
+      when: uh_banner_cis_2_v1 is changed and uh_banner_cis_2_v1.backup_file is not defined
+    - ansible.builtin.fail:
+        msg: banner-cis failed a check; every file it changed was restored
+      name: Fail after restoring

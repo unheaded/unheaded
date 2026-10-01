@@ -6,6 +6,8 @@ package main
 import (
 	"context"
 	"io"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -71,5 +73,26 @@ func TestDescribeSwitch(t *testing.T) {
 	}
 	if out := describeSwitch(ps, "east", "lab", "lab"); !strings.Contains(out, "turns on:  nothing") {
 		t.Errorf("no-op switch:\n%s", out)
+	}
+}
+
+// The committed deploy/ansible/compliance tree is exactly a fresh render.
+func TestAnsibleTreeIsCurrent(t *testing.T) {
+	want, err := renderAnsible("../..")
+	if err != nil {
+		t.Fatal(err)
+	}
+	have, err := ansibleFiles(os.DirFS("../.."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(have) != len(want) {
+		t.Errorf("%d files committed, %d rendered: run go run ./cmd/compliance-evidence ansible", len(have), len(want))
+	}
+	for p, body := range want {
+		b, err := os.ReadFile(filepath.Join("../..", ansibleDir, p))
+		if err != nil || string(b) != body {
+			t.Errorf("%s is stale or missing: run go run ./cmd/compliance-evidence ansible", p)
+		}
 	}
 }

@@ -340,7 +340,7 @@ Facts on 2026-10-01:
   - It prints which fixes turn on and off, and requires `--yes`.
   - Switching changes desired state only. Nothing is applied until a human runs `unheaded-remediate apply` or the host is enforcing (ADR-098 gate).
 - [x] **Step 98** (done 2026-10-01: `profile export`, round-trip tested) [W] ~10m: `compliance-evidence profile export` writes the YAML fallback from The Well (the reverse sync), so the fallback stays current. A test checks that export, then sync, is a no-op.
-- [ ] **Step 99** [W] ~30m: `pkg/iac` Ansible renderer (`BackendAnsible`): one role per fix, one playbook per profile, inventory from bindings. Output goes to `deploy/ansible/compliance/`, with a drift test like `baseline.yaml`'s.
+- [x] **Step 99** (done 2026-10-01: pkg/iac RenderRemediationAnsible + `compliance-evidence ansible` → deploy/ansible/compliance/, drift test, structure test (allowlisted modules, argv commands, one register per variant). ansible-playbook --syntax-check NOT run: ansible is not installed, and adding it needs Stevie's ADR-096 yes) [W] ~30m: `pkg/iac` Ansible renderer (`BackendAnsible`): one role per fix, one playbook per profile, inventory from bindings. Output goes to `deploy/ansible/compliance/`, with a drift test like `baseline.yaml`'s.
 - [ ] **Step 100** [B] ~3m: Run the tests, then check the rendered playbooks.
   ```bash
   cd $R && go test ./pkg/iac/... ./cmd/compliance-evidence/... -race -count=1

@@ -1,0 +1,32 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# shell-tmout: Idle interactive shells end after 15 minutes (CIS 5.4.3.2)
+- block:
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # ADR-098 / CIS Ubuntu 24.04 5.4.3.2. Managed by scripts/host/remediate.sh (shell-tmout).
+          readonly TMOUT=900
+          export TMOUT
+        dest: /etc/profile.d/00-unheaded-tmout.sh
+        group: root
+        mode: "0644"
+        owner: root
+      name: Write /etc/profile.d/00-unheaded-tmout.sh
+      register: uh_shell_tmout_1_v1
+  name: shell-tmout
+  rescue:
+    - ansible.builtin.copy:
+        dest: /etc/profile.d/00-unheaded-tmout.sh
+        remote_src: true
+        src: '{{ uh_shell_tmout_1_v1.backup_file }}'
+      name: Restore /etc/profile.d/00-unheaded-tmout.sh
+      when: uh_shell_tmout_1_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/profile.d/00-unheaded-tmout.sh
+        state: absent
+      name: Remove /etc/profile.d/00-unheaded-tmout.sh if this role created it
+      when: uh_shell_tmout_1_v1 is changed and uh_shell_tmout_1_v1.backup_file is not defined
+    - ansible.builtin.fail:
+        msg: shell-tmout failed a check; every file it changed was restored
+      name: Fail after restoring

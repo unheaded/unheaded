@@ -1,0 +1,9 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# inventory: hosts grouped by their bound profile (The Well's host bindings)
+all:
+  children:
+    profile_lab:
+      hosts:
+        east: {}
+        west: {}

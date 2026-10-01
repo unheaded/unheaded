@@ -1,0 +1,16 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# profile lab: West and east today (Stevie 2026-10-01): low-hanging fixes that break nothing. SSH and passwords stay as they are; idle shells stay open.
+- become: true
+  gather_facts: false
+  hosts: profile_lab
+  name: Profile lab (ADR-099)
+  roles:
+    - sysctl-cis
+    - apport-off
+    - kmod-cis
+    - cron-perms
+    - banner-cis
+    - apparmor-utils
+    - auditd
+    - sudo-cis

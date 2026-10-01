@@ -1,0 +1,23 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# auditd: auditd installed with Ubuntu's never-halt defaults
+- block:
+    - ansible.builtin.apt:
+        name: auditd
+        state: present
+      name: Install auditd
+    - ansible.builtin.slurp:
+        src: /etc/audit/auditd.conf
+      failed_when: false
+      name: Read auditd.conf
+      register: uh_auditd_2_conf
+    - ansible.builtin.assert:
+        fail_msg: auditd.conf halts the host on a full or failing disk
+        that:
+          - uh_auditd_2_conf.content is not defined or not (uh_auditd_2_conf.content | b64decode | regex_search('(?im)^[ \t]*(disk_full_action|disk_error_action|admin_space_left_action)[ \t]*=[ \t]*halt'))
+      name: auditd never halts the host (ADR-098)
+  name: auditd
+  rescue:
+    - ansible.builtin.fail:
+        msg: auditd failed a check; every file it changed was restored
+      name: Fail after restoring

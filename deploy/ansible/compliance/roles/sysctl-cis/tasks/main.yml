@@ -1,0 +1,85 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# sysctl-cis: Kernel network and core-dump settings (CIS 1.5.3, 3.3.x)
+- block:
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # ADR-098 / CIS Ubuntu 24.04 1.5.3, 3.3.2, 3.3.5, 3.3.6, 3.3.9. Managed by
+          # scripts/host/remediate.sh (sysctl-cis); edit there, not here.
+          fs.suid_dumpable = 0
+          net.ipv4.conf.all.send_redirects = 0
+          net.ipv4.conf.default.send_redirects = 0
+          net.ipv4.conf.all.accept_redirects = 0
+          net.ipv4.conf.default.accept_redirects = 0
+          net.ipv6.conf.all.accept_redirects = 0
+          net.ipv6.conf.default.accept_redirects = 0
+          net.ipv4.conf.all.secure_redirects = 0
+          net.ipv4.conf.default.secure_redirects = 0
+          net.ipv4.conf.all.log_martians = 1
+          net.ipv4.conf.default.log_martians = 1
+        dest: /etc/sysctl.d/60-unheaded-cis.conf
+        group: root
+        mode: "0644"
+        owner: root
+      name: Write /etc/sysctl.d/60-unheaded-cis.conf (inventory_hostname == 'west')
+      register: uh_sysctl_cis_1_v1
+      when: inventory_hostname == 'west'
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # ADR-098 / CIS Ubuntu 24.04 1.5.3, 3.3.2, 3.3.5, 3.3.6, 3.3.9. Managed by
+          # scripts/host/remediate.sh (sysctl-cis); edit there, not here.
+          fs.suid_dumpable = 0
+          net.ipv4.conf.all.send_redirects = 0
+          net.ipv4.conf.default.send_redirects = 0
+          net.ipv4.conf.all.accept_redirects = 0
+          net.ipv4.conf.default.accept_redirects = 0
+          net.ipv6.conf.all.accept_redirects = 0
+          net.ipv6.conf.default.accept_redirects = 0
+          net.ipv4.conf.all.secure_redirects = 0
+          net.ipv4.conf.default.secure_redirects = 0
+          net.ipv4.conf.all.log_martians = 1
+          net.ipv4.conf.default.log_martians = 1
+          net.ipv6.conf.all.accept_ra = 0
+          net.ipv6.conf.default.accept_ra = 0
+        dest: /etc/sysctl.d/60-unheaded-cis.conf
+        group: root
+        mode: "0644"
+        owner: root
+      name: Write /etc/sysctl.d/60-unheaded-cis.conf (inventory_hostname == 'east')
+      register: uh_sysctl_cis_1_v2
+      when: inventory_hostname == 'east'
+    - ansible.builtin.command:
+        argv:
+          - sysctl
+          - --system
+      changed_when: true
+      name: Run sysctl --system
+  name: sysctl-cis
+  rescue:
+    - ansible.builtin.copy:
+        dest: /etc/sysctl.d/60-unheaded-cis.conf
+        remote_src: true
+        src: '{{ uh_sysctl_cis_1_v1.backup_file }}'
+      name: Restore /etc/sysctl.d/60-unheaded-cis.conf
+      when: uh_sysctl_cis_1_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/sysctl.d/60-unheaded-cis.conf
+        state: absent
+      name: Remove /etc/sysctl.d/60-unheaded-cis.conf if this role created it
+      when: uh_sysctl_cis_1_v1 is changed and uh_sysctl_cis_1_v1.backup_file is not defined
+    - ansible.builtin.copy:
+        dest: /etc/sysctl.d/60-unheaded-cis.conf
+        remote_src: true
+        src: '{{ uh_sysctl_cis_1_v2.backup_file }}'
+      name: Restore /etc/sysctl.d/60-unheaded-cis.conf
+      when: uh_sysctl_cis_1_v2.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/sysctl.d/60-unheaded-cis.conf
+        state: absent
+      name: Remove /etc/sysctl.d/60-unheaded-cis.conf if this role created it
+      when: uh_sysctl_cis_1_v2 is changed and uh_sysctl_cis_1_v2.backup_file is not defined
+    - ansible.builtin.fail:
+        msg: sysctl-cis failed a check; every file it changed was restored
+      name: Fail after restoring

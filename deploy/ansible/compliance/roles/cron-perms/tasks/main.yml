@@ -1,0 +1,104 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# cron-perms: Scheduled-job files root-only; cron.allow lists root and the sudo group
+- ansible.builtin.getent:
+    database: group
+    key: sudo
+  name: Members of group sudo
+- block:
+    - ansible.builtin.stat:
+        path: /etc/crontab
+      name: Is /etc/crontab there
+      register: uh_cron_perms_1_1_stat
+    - ansible.builtin.file:
+        group: root
+        mode: "0600"
+        owner: root
+        path: /etc/crontab
+      name: Mode 0600 root:root on /etc/crontab
+      when: uh_cron_perms_1_1_stat.stat.exists
+    - ansible.builtin.stat:
+        path: /etc/cron.hourly
+      name: Is /etc/cron.hourly there
+      register: uh_cron_perms_2_1_stat
+    - ansible.builtin.file:
+        group: root
+        mode: "0700"
+        owner: root
+        path: /etc/cron.hourly
+      name: Mode 0700 root:root on /etc/cron.hourly
+      when: uh_cron_perms_2_1_stat.stat.exists
+    - ansible.builtin.stat:
+        path: /etc/cron.daily
+      name: Is /etc/cron.daily there
+      register: uh_cron_perms_2_2_stat
+    - ansible.builtin.file:
+        group: root
+        mode: "0700"
+        owner: root
+        path: /etc/cron.daily
+      name: Mode 0700 root:root on /etc/cron.daily
+      when: uh_cron_perms_2_2_stat.stat.exists
+    - ansible.builtin.stat:
+        path: /etc/cron.weekly
+      name: Is /etc/cron.weekly there
+      register: uh_cron_perms_2_3_stat
+    - ansible.builtin.file:
+        group: root
+        mode: "0700"
+        owner: root
+        path: /etc/cron.weekly
+      name: Mode 0700 root:root on /etc/cron.weekly
+      when: uh_cron_perms_2_3_stat.stat.exists
+    - ansible.builtin.stat:
+        path: /etc/cron.monthly
+      name: Is /etc/cron.monthly there
+      register: uh_cron_perms_2_4_stat
+    - ansible.builtin.file:
+        group: root
+        mode: "0700"
+        owner: root
+        path: /etc/cron.monthly
+      name: Mode 0700 root:root on /etc/cron.monthly
+      when: uh_cron_perms_2_4_stat.stat.exists
+    - ansible.builtin.stat:
+        path: /etc/cron.d
+      name: Is /etc/cron.d there
+      register: uh_cron_perms_2_5_stat
+    - ansible.builtin.file:
+        group: root
+        mode: "0700"
+        owner: root
+        path: /etc/cron.d
+      name: Mode 0700 root:root on /etc/cron.d
+      when: uh_cron_perms_2_5_stat.stat.exists
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          {{ (['root'] + (ansible_facts.getent_group['sudo'][2].split(',') | select | list)) | unique | join('\n') }}
+        dest: /etc/cron.allow
+        group: crontab
+        mode: "0640"
+        owner: root
+      name: Write /etc/cron.allow (root and group sudo)
+      register: uh_cron_perms_3_v1
+    - ansible.builtin.file:
+        path: /etc/cron.deny
+        state: absent
+      name: Remove /etc/cron.deny
+  name: cron-perms
+  rescue:
+    - ansible.builtin.copy:
+        dest: /etc/cron.allow
+        remote_src: true
+        src: '{{ uh_cron_perms_3_v1.backup_file }}'
+      name: Restore /etc/cron.allow
+      when: uh_cron_perms_3_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/cron.allow
+        state: absent
+      name: Remove /etc/cron.allow if this role created it
+      when: uh_cron_perms_3_v1 is changed and uh_cron_perms_3_v1.backup_file is not defined
+    - ansible.builtin.fail:
+        msg: cron-perms failed a check; every file it changed was restored
+      name: Fail after restoring

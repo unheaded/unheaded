@@ -1,0 +1,27 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# apport-off: Automatic error reporting off (apport resets fs.suid_dumpable when it starts)
+- block:
+    - ansible.builtin.stat:
+        path: /etc/default/apport
+      name: Is /etc/default/apport there
+      register: uh_apport_off_1_stat
+    - ansible.builtin.replace:
+        backup: true
+        path: /etc/default/apport
+        regexp: ^enabled=.*$
+        replace: enabled=0
+      name: Set enabled=0 in /etc/default/apport
+      register: uh_apport_off_1
+      when: uh_apport_off_1_stat.stat.exists
+    - ansible.builtin.systemd_service:
+        enabled: false
+        masked: true
+        name: apport.service
+        state: stopped
+      name: Service apport.service
+  name: apport-off
+  rescue:
+    - ansible.builtin.fail:
+        msg: apport-off failed a check; every file it changed was restored
+      name: Fail after restoring

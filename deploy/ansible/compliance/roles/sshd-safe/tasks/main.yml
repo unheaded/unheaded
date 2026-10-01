@@ -1,0 +1,103 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# sshd-safe: sshd settings that do not change how anyone authenticates (CIS 5.1.x)
+- block:
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # ADR-098 step 4 / CIS Ubuntu 24.04 5.1.x. Managed by scripts/host/remediate.sh
+          # (sshd-safe). Nothing here changes how anyone authenticates.
+          LoginGraceTime 60
+          MaxStartups 10:30:60
+          MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256
+        dest: /etc/ssh/sshd_config.d/00-unheaded.conf
+        group: root
+        mode: "0600"
+        owner: root
+      name: Write /etc/ssh/sshd_config.d/00-unheaded.conf (inventory_hostname == 'west')
+      register: uh_sshd_safe_1_v1
+      when: inventory_hostname == 'west'
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # ADR-098 step 4 / CIS Ubuntu 24.04 5.1.x. Managed by scripts/host/remediate.sh
+          # (sshd-safe). Nothing here changes how anyone authenticates.
+          X11Forwarding no
+          MaxAuthTries 4
+          ClientAliveInterval 300
+          ClientAliveCountMax 3
+          LoginGraceTime 60
+          MaxStartups 10:30:60
+          MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256
+        dest: /etc/ssh/sshd_config.d/00-unheaded.conf
+        group: root
+        mode: "0600"
+        owner: root
+      name: Write /etc/ssh/sshd_config.d/00-unheaded.conf (inventory_hostname == 'east')
+      register: uh_sshd_safe_1_v2
+      when: inventory_hostname == 'east'
+    - ansible.builtin.stat:
+        path: /etc/ssh/sshd_config
+      name: Is /etc/ssh/sshd_config there
+      register: uh_sshd_safe_2_1_stat
+    - ansible.builtin.file:
+        group: root
+        mode: "0600"
+        owner: root
+        path: /etc/ssh/sshd_config
+      name: Mode 0600 root:root on /etc/ssh/sshd_config
+      when: uh_sshd_safe_2_1_stat.stat.exists
+    - ansible.builtin.find:
+        file_type: any
+        paths: /etc/ssh/sshd_config.d
+      name: Files in /etc/ssh/sshd_config.d
+      register: uh_sshd_safe_3_find
+    - ansible.builtin.file:
+        group: root
+        mode: "0600"
+        owner: root
+        path: '{{ item.path }}'
+      loop: '{{ uh_sshd_safe_3_find.files }}'
+      loop_control:
+        label: '{{ item.path }}'
+      name: Mode 0600 root:root on /etc/ssh/sshd_config.d/*
+    - ansible.builtin.command:
+        argv:
+          - sshd
+          - -t
+      changed_when: false
+      name: Check sshd -t
+    - ansible.builtin.command:
+        argv:
+          - systemctl
+          - reload
+          - ssh.service
+      changed_when: true
+      name: Run systemctl reload ssh.service
+  name: sshd-safe
+  rescue:
+    - ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/00-unheaded.conf
+        remote_src: true
+        src: '{{ uh_sshd_safe_1_v1.backup_file }}'
+      name: Restore /etc/ssh/sshd_config.d/00-unheaded.conf
+      when: uh_sshd_safe_1_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/ssh/sshd_config.d/00-unheaded.conf
+        state: absent
+      name: Remove /etc/ssh/sshd_config.d/00-unheaded.conf if this role created it
+      when: uh_sshd_safe_1_v1 is changed and uh_sshd_safe_1_v1.backup_file is not defined
+    - ansible.builtin.copy:
+        dest: /etc/ssh/sshd_config.d/00-unheaded.conf
+        remote_src: true
+        src: '{{ uh_sshd_safe_1_v2.backup_file }}'
+      name: Restore /etc/ssh/sshd_config.d/00-unheaded.conf
+      when: uh_sshd_safe_1_v2.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/ssh/sshd_config.d/00-unheaded.conf
+        state: absent
+      name: Remove /etc/ssh/sshd_config.d/00-unheaded.conf if this role created it
+      when: uh_sshd_safe_1_v2 is changed and uh_sshd_safe_1_v2.backup_file is not defined
+    - ansible.builtin.fail:
+        msg: sshd-safe failed a check; every file it changed was restored
+      name: Fail after restoring

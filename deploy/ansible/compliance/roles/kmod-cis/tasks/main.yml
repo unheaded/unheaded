@@ -1,0 +1,42 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# kmod-cis: Unused filesystem kernel modules cannot load (CIS 1.1.1.x)
+- block:
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # ADR-098 / CIS Ubuntu 24.04 1.1.1.x. Managed by scripts/host/remediate.sh (kmod-cis).
+          install cramfs /bin/false
+          blacklist cramfs
+          install freevxfs /bin/false
+          blacklist freevxfs
+          install hfs /bin/false
+          blacklist hfs
+          install hfsplus /bin/false
+          blacklist hfsplus
+          install jffs2 /bin/false
+          blacklist jffs2
+          install udf /bin/false
+          blacklist udf
+        dest: /etc/modprobe.d/unheaded-cis.conf
+        group: root
+        mode: "0644"
+        owner: root
+      name: Write /etc/modprobe.d/unheaded-cis.conf
+      register: uh_kmod_cis_1_v1
+  name: kmod-cis
+  rescue:
+    - ansible.builtin.copy:
+        dest: /etc/modprobe.d/unheaded-cis.conf
+        remote_src: true
+        src: '{{ uh_kmod_cis_1_v1.backup_file }}'
+      name: Restore /etc/modprobe.d/unheaded-cis.conf
+      when: uh_kmod_cis_1_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/modprobe.d/unheaded-cis.conf
+        state: absent
+      name: Remove /etc/modprobe.d/unheaded-cis.conf if this role created it
+      when: uh_kmod_cis_1_v1 is changed and uh_kmod_cis_1_v1.backup_file is not defined
+    - ansible.builtin.fail:
+        msg: kmod-cis failed a check; every file it changed was restored
+      name: Fail after restoring

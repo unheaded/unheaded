@@ -1,0 +1,17 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# profile cis-l1-server: Every fix that serves a CIS Ubuntu 24.04 Level 1 Server recommendation.
+- become: true
+  gather_facts: false
+  hosts: profile_cis_l1_server
+  name: Profile cis-l1-server (ADR-099)
+  roles:
+    - sysctl-cis
+    - apport-off
+    - kmod-cis
+    - cron-perms
+    - banner-cis
+    - apparmor-utils
+    - sudo-cis
+    - shell-tmout
+    - sshd-safe

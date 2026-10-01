@@ -1,0 +1,75 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# sudo-cis: sudo re-authentication timeout explicit (CIS 5.2.6); sudo log file where sudo supports it (5.2.3)
+- ansible.builtin.command:
+    argv:
+      - sudo
+      - --version
+  changed_when: false
+  failed_when: false
+  name: Which sudo (sudo-rs prints its version on stderr)
+  register: uh_sudo_version
+- ansible.builtin.set_fact:
+    uh_sudo_rs: '{{ (uh_sudo_version.stdout + uh_sudo_version.stderr) is search(''(?m)^sudo-rs'') }}'
+  name: Note sudo-rs
+- block:
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # ADR-098 / CIS Ubuntu 24.04 5.2.3, 5.2.6. Managed by scripts/host/remediate.sh (sudo-cis).
+          Defaults logfile="/var/log/sudo.log"
+          Defaults timestamp_timeout=15
+        dest: /etc/sudoers.d/00-unheaded
+        group: root
+        mode: "0440"
+        owner: root
+        validate: visudo -cf %s
+      name: Write /etc/sudoers.d/00-unheaded (not (uh_sudo_rs | bool))
+      register: uh_sudo_cis_1_v1
+      when: not (uh_sudo_rs | bool)
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # ADR-098 / CIS Ubuntu 24.04 5.2.3, 5.2.6. Managed by scripts/host/remediate.sh (sudo-cis).
+          Defaults timestamp_timeout=15
+        dest: /etc/sudoers.d/00-unheaded
+        group: root
+        mode: "0440"
+        owner: root
+        validate: visudo -cf %s
+      name: Write /etc/sudoers.d/00-unheaded (uh_sudo_rs | bool)
+      register: uh_sudo_cis_1_v2
+      when: uh_sudo_rs | bool
+    - ansible.builtin.command:
+        argv:
+          - visudo
+          - -c
+      changed_when: false
+      name: Check visudo -c
+  name: sudo-cis
+  rescue:
+    - ansible.builtin.copy:
+        dest: /etc/sudoers.d/00-unheaded
+        remote_src: true
+        src: '{{ uh_sudo_cis_1_v1.backup_file }}'
+      name: Restore /etc/sudoers.d/00-unheaded
+      when: uh_sudo_cis_1_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/sudoers.d/00-unheaded
+        state: absent
+      name: Remove /etc/sudoers.d/00-unheaded if this role created it
+      when: uh_sudo_cis_1_v1 is changed and uh_sudo_cis_1_v1.backup_file is not defined
+    - ansible.builtin.copy:
+        dest: /etc/sudoers.d/00-unheaded
+        remote_src: true
+        src: '{{ uh_sudo_cis_1_v2.backup_file }}'
+      name: Restore /etc/sudoers.d/00-unheaded
+      when: uh_sudo_cis_1_v2.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/sudoers.d/00-unheaded
+        state: absent
+      name: Remove /etc/sudoers.d/00-unheaded if this role created it
+      when: uh_sudo_cis_1_v2 is changed and uh_sudo_cis_1_v2.backup_file is not defined
+    - ansible.builtin.fail:
+        msg: sudo-cis failed a check; every file it changed was restored
+      name: Fail after restoring

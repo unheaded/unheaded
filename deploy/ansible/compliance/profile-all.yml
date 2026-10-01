@@ -1,0 +1,18 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# profile all: Every fix in the model.
+- become: true
+  gather_facts: false
+  hosts: profile_all
+  name: Profile all (ADR-099)
+  roles:
+    - sysctl-cis
+    - apport-off
+    - kmod-cis
+    - cron-perms
+    - banner-cis
+    - apparmor-utils
+    - auditd
+    - sudo-cis
+    - shell-tmout
+    - sshd-safe

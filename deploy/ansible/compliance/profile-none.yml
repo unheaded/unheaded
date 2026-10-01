@@ -1,0 +1,8 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# profile none: Detection and reporting only; no fix is applied.
+- become: true
+  gather_facts: false
+  hosts: profile_none
+  name: Profile none (ADR-099)
+  roles: []
