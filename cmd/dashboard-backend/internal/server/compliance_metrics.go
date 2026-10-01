@@ -28,6 +28,7 @@ type complianceMetrics struct {
 	zero        *metrics.Gauge
 	newest      *metrics.Gauge
 	reportOK    *metrics.Gauge
+	source      *metrics.GaugeVec
 	exported    []metrics.Labels // finding series set by the last refresh
 	refreshTick time.Duration
 }
@@ -43,28 +44,46 @@ func newComplianceMetrics(src *complianceSource) *complianceMetrics {
 			"Open findings in the ADR-098 register, by severity (accepted ones included)", nil, []string{"severity"}),
 		finding: metrics.NewGaugeVec("unheaded_compliance_finding",
 			"1 per open finding; the series goes away when its check passes", nil, []string{"key", "host", "severity"}),
-		overdue:     g("unheaded_compliance_findings_overdue", "Open findings past their due date"),
-		expired:     g("unheaded_compliance_acceptances_expired", "Open findings whose risk acceptance has expired"),
-		unobserved:  g("unheaded_compliance_sources_unobserved", "Catalog evidence sources never observed (NOT_ASSESSED)"),
-		stale:       g("unheaded_compliance_sources_stale", "Catalog evidence sources whose latest pass is past its freshness window"),
-		zero:        g("unheaded_compliance_zero_claimable", "1 when nothing is open, unobserved or stale"),
-		newest:      g("unheaded_compliance_evidence_newest_timestamp_seconds", "Newest evidence record (unix seconds, 0 if none)"),
-		reportOK:    g("unheaded_compliance_report_ok", "1 if catalog, register and evidence were read at the last refresh"),
+		overdue:    g("unheaded_compliance_findings_overdue", "Open findings past their due date"),
+		expired:    g("unheaded_compliance_acceptances_expired", "Open findings whose risk acceptance has expired"),
+		unobserved: g("unheaded_compliance_sources_unobserved", "Catalog evidence sources never observed (NOT_ASSESSED)"),
+		stale:      g("unheaded_compliance_sources_stale", "Catalog evidence sources whose latest pass is past its freshness window"),
+		zero:       g("unheaded_compliance_zero_claimable", "1 when nothing is open, unobserved or stale"),
+		newest:     g("unheaded_compliance_evidence_newest_timestamp_seconds", "Newest evidence record (unix seconds, 0 if none)"),
+		reportOK:   g("unheaded_compliance_report_ok", "1 if catalog, register and evidence were read at the last refresh"),
+		source: metrics.NewGaugeVec("unheaded_compliance_source",
+			"1 for where evidence and findings triage came from at the last refresh (well, file-fallback, yaml-fallback), 0 for the alternatives",
+			nil, []string{"kind", "source"}),
 		refreshTick: time.Minute,
 	}
 }
 
 func (m *complianceMetrics) collectors() []metrics.Collector {
-	return []metrics.Collector{m.open, m.finding, m.overdue, m.expired, m.unobserved, m.stale, m.zero, m.newest, m.reportOK}
+	return []metrics.Collector{m.open, m.finding, m.overdue, m.expired, m.unobserved, m.stale, m.zero, m.newest, m.reportOK, m.source}
 }
 
 // refresh recomputes every series. On error only report_ok changes: the
 // last good values stay, and the alarm is report_ok == 0.
 func (m *complianceMetrics) refresh(now time.Time) {
-	rep, recs, _, _, err := m.src.findings(context.Background(), now)
+	rep, recs, src, _, err := m.src.findings(context.Background(), now)
 	if err != nil {
 		m.reportOK.Set(0)
 		return
+	}
+	// Both series per kind, 1 and 0, so the alert can look back at when
+	// The Well was serving without depending on series going stale.
+	for kind, opts := range map[string][2]string{"evidence": {srcWell, srcFile}, "register": {srcWell, srcYAML}} {
+		active := src.Evidence
+		if kind == "register" {
+			active = src.Register
+		}
+		for _, o := range opts {
+			v := 0.0
+			if o == active {
+				v = 1
+			}
+			m.source.WithLabelValues(kind, o).Set(v)
+		}
 	}
 	for _, s := range findingSeverities {
 		m.open.WithLabelValues(string(s)).Set(float64(rep.Counts[s]))

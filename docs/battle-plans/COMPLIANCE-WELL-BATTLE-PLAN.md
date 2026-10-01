@@ -246,11 +246,11 @@ Facts on 2026-10-01:
 **Prerequisite**: Phase 1 exit gate. Phase 2 is needed for real data, but not for tests.
 **Time**: 2 h.
 
-- [ ] **Step 56** [W] ~20m: `cmd/dashboard-backend/internal/server/compliance.go`:
+- [x] **Step 56** (done 2026-10-01: API side, source labels on summary and findings, /api/v1/compliance/profiles read-only) [W] ~20m: `cmd/dashboard-backend/internal/server/compliance.go`:
   - Findings, profiles and bindings come from `well.Store`.
   - The response carries `"source": "well"|"yaml-fallback"`.
   - The test runs a Postgres-down server and checks that it serves YAML with that label.
-- [ ] **Step 57** [W] ~10m: Metric `unheaded_compliance_source{source}`. Prometheus rule `ComplianceWellFallback`: source yaml for 15 minutes or more raises a warning, with `runbook_url` → new `runbooks/observe/compliance-well-fallback.yaml`. Add a promtool test that makes it fire (ADR-100 §4).
+- [x] **Step 57** (done 2026-10-01; the rule fires only after The Well served within 24h, so the expected pre-seed fallback stays quiet; promtool tests include that case, provoked red with the naive rule) [W] ~10m: Metric `unheaded_compliance_source{source}`. Prometheus rule `ComplianceWellFallback`: source yaml for 15 minutes or more raises a warning, with `runbook_url` → new `runbooks/observe/compliance-well-fallback.yaml`. Add a promtool test that makes it fire (ADR-100 §4).
 - [ ] **Step 58** [W] ~15m: `compliance.js` adds a read-only **Profiles** panel (host → profile, mode, fixes on/off, last change with who and why) and a `yaml-fallback` banner. Update the jstest harness.
 - [ ] **Step 59** [B] ~5m: Run the tests.
   ```bash

@@ -61,6 +61,11 @@ func TestComplianceMetrics(t *testing.T) {
 		`unheaded_compliance_zero_claimable 0`,
 		`unheaded_compliance_report_ok 1`,
 		"unheaded_compliance_evidence_newest_timestamp_seconds " + formatInt(observed.Unix()),
+		// Where the data came from: both series per kind, the active one 1.
+		`unheaded_compliance_source{kind="evidence",source="file-fallback"} 1`,
+		`unheaded_compliance_source{kind="evidence",source="well"} 0`,
+		`unheaded_compliance_source{kind="register",source="yaml-fallback"} 1`,
+		`unheaded_compliance_source{kind="register",source="well"} 0`,
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("missing %q in\n%s", want, out)

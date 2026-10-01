@@ -1,0 +1,59 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: compliance-well-fallback
+  description: The dashboard serves compliance data from repo files because The Well stopped answering
+  owner: moatghost
+  estimated_duration: 10m
+  risk: low
+  requires_sudo: true
+
+env:
+  PROJECT_ROOT: "~/tmp/unheaded"
+
+notes: |
+  Alert ComplianceWellFallback (ADR-099 amended, ADR-100). The page keeps
+  working on evidence.json and register.yaml, labelled file-fallback /
+  yaml-fallback, but changes made in The Well (profile switches, triage)
+  are not shown, and writes are refused until The Well is back. The API
+  response's source.reason says why. Silence it only while The Well is
+  deliberately down, with the reason in the silence comment.
+
+steps:
+  - name: read-the-reason
+    action: shell
+    command: |
+      curl -s http://127.0.0.1:20000/api/v1/compliance/findings | python3 -c 'import json,sys; print(json.load(sys.stdin)["source"])'
+
+  - name: is-the-well-up
+    action: shell
+    command: |
+      sudo docker inspect unheaded-postgres --format '{{.State.Status}} {{.State.Health.Status}} exit={{.State.ExitCode}}'
+      ss -ltn | grep ':5432 ' || echo "nothing listening on 5432"
+
+  - name: recent-well-log
+    action: shell
+    command: "sudo docker logs --tail 40 unheaded-postgres 2>&1"
+
+  - name: credentials-set
+    action: shell
+    command: |
+      # The dashboard reads as ops_reader and config_reader; no default
+      # password exists (FND-007). Print only whether each is set.
+      for v in WELL_OPS_PASSWORD WELL_CONFIG_PASSWORD; do
+        if [ -n "${!v}" ]; then echo "$v set"; else echo "$v NOT set"; fi
+      done
+
+  - name: start-the-well
+    action: manual
+    description: >-
+      Only if the steps above show The Well stopped and nothing else is wrong
+      with its volume; starting it is an operator decision, never automatic.
+      Never `docker compose down -v` (it deletes the data).
+    command: "cd ${PROJECT_ROOT} && sudo docker compose up -d postgres"
+
+  - name: verify
+    action: shell
+    command: |
+      sleep 60
+      curl -s http://127.0.0.1:20000/api/v1/compliance/findings | python3 -c 'import json,sys; s=json.load(sys.stdin)["source"]; print(s); sys.exit(0 if s["register"]=="well" else 1)'

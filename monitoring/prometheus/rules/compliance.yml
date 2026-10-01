@@ -97,3 +97,20 @@ groups:
         annotations:
           summary: "{{ $value }} risk acceptance(s) expired"
           description: "Fix the finding or re-decide the acceptance in compliance/findings/register.yaml"
+
+      # The Well was serving compliance data within the last day and the
+      # dashboard has been on its file/YAML fallback for 15 minutes since: a
+      # regression, not the expected state before The Well is seeded (that
+      # stays quiet, ADR-100: alerts must be actionable).
+      - alert: ComplianceWellFallback
+        expr: |
+          unheaded_compliance_source{source!="well"} == 1
+          and on (kind)
+          max_over_time(unheaded_compliance_source{source="well"}[24h]) == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Compliance {{ $labels.kind }} served from fallback ({{ $labels.source }})"
+          description: "The Well served compliance {{ $labels.kind }} in the last 24h; the dashboard has read it from the repo files for 15m, so changes made in The Well are not shown"
+          runbook_url: "runbooks/observe/compliance-well-fallback.yaml"
