@@ -134,3 +134,27 @@ Not applied:
 - `shell-tmout`: it would end idle shells.
 
 These become the `lab` profile.
+
+## As built (2026-10-01)
+
+Plan and step-by-step status: `docs/battle-plans/COMPLIANCE-WELL-BATTLE-PLAN.md`.
+
+| Piece | Where | Proven by |
+|---|---|---|
+| Fix model: the closed action set, allowlisted commands, checked against the catalog | `pkg/compliance/remediation`, `compliance/remediation/fixes.yaml` | `TestModelMatchesRemediateScript`: the model renders what `remediate.sh` writes, 40 subtests |
+| Profiles and host bindings in The Well, with history; YAML as the labelled read-only fallback | `db/migrations/013`, `pkg/compliance/well` | `scripts/well/test-compliance-schema.sh [--go]`: constraints and integration tests against a throwaway Postgres |
+| Apply journal: hash-chained on each host, ingested into The Well, which refuses a rewritten or truncated journal | `remediation/journal.go`, `db/migrations/014`, `well.OpsStore.IngestJournal` | Chain and ingest tests. Without the hash-for-hash check, a rewritten journal got through |
+| Native executor and CLI | `pkg/compliance/executor`, `cmd/unheaded-remediate` | Apply then undo restores the root for every fix. `TestExecutorMatchesRemediateScript` shows identical files and commands to the script |
+| Switching | `compliance-evidence profile set` (shows on/off, `-yes`, who and why) and `profile export` | CLI and round-trip tests |
+| Renderers | `pkg/iac` `RenderRemediationAnsible`, `deploy/ansible/compliance/`. Runbook: `runbooks/security/compliance-profile-switch.yaml` | Structure and drift tests. **Not yet syntax-checked with `ansible-playbook`** |
+| Evidence that fixes are applied and current | Kind `host-journal`, control UH-REMED-01 | `JudgeJournal` cases. Both hosts fail today with "no journal": the lab fixes were applied by `remediate.sh` |
+| Hosts act only on sealed snapshots | `pkg/compliance/snapshot`, `compliance-evidence snapshot`, `unheaded-remediate -snapshot` | Refused on: another host or key, an edited, expired or downgraded seal, or a validly sealed command not on the allowlist |
+| Dashboard | `/api/v1/compliance/profiles` (read-only); every response labelled with its source; fallback banner; `ComplianceWellFallback` alert with a runbook | API tests, jstest `compliance.cjs`, promtool |
+
+Open, waiting on decisions:
+
+- Starting The Well, and applying 013 and 014 to it.
+- `unheaded-remediate plan` on the hosts, then re-applying the lab fixes through the executor so they are journaled. After that, `remediate.sh` is retired.
+- Which key seals real snapshots, and where it lives (ADR-043 #4).
+- Installing Ansible for the syntax check.
+- Dashboard admin (switching from the UI) waits for logins and RBAC (§5).
