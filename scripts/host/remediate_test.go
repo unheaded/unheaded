@@ -42,12 +42,12 @@ func newEnv(t *testing.T, host string) *env {
 	bin := filepath.Join(dir, "bin")
 	for _, d := range []string{bin, e.root + "/etc/sysctl.d", e.root + "/etc/modprobe.d", e.root + "/etc/profile.d",
 		e.root + "/etc/ssh/sshd_config.d", e.root + "/etc/default", e.root + "/etc/cron.d", e.root + "/etc/cron.daily",
-		e.root + "/etc/cron.hourly", e.root + "/etc/cron.weekly", e.root + "/etc/cron.monthly", dir + "/fail"} {
+		e.root + "/etc/cron.hourly", e.root + "/etc/cron.weekly", e.root + "/etc/cron.monthly", e.root + "/etc/sudoers.d", dir + "/fail"} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, n := range []string{"sysctl", "systemctl", "sshd", "logger"} {
+	for _, n := range []string{"sysctl", "systemctl", "sshd", "logger", "visudo", "apt-get"} {
 		if err := os.WriteFile(filepath.Join(bin, n), []byte(recorder), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -286,5 +286,77 @@ func TestKmodLeavesUSBStorageUntilDecided(t *testing.T) {
 	b, _ := os.ReadFile(e.root + "/etc/modprobe.d/unheaded-cis.conf")
 	if strings.Contains(string(b), "usb") || !strings.Contains(string(b), "install cramfs /bin/false") {
 		t.Errorf("unheaded-cis.conf:\n%s", b)
+	}
+}
+
+func TestSudoDropInRejectedNothingInstalled(t *testing.T) {
+	e := newEnv(t, "east")
+	before := e.snapshot()
+	e.fail("visudo")
+	if out, err := e.apply("sudo-cis"); err == nil || !strings.Contains(out, "does not parse") {
+		t.Fatalf("want refusal, got %v\n%s", err, out)
+	}
+	if after := e.snapshot(); after != before {
+		t.Errorf("a rejected sudoers drop-in changed files:\n%s", after)
+	}
+}
+
+func TestSudoDropInInstalledAndUndone(t *testing.T) {
+	e := newEnv(t, "west")
+	before := e.snapshot()
+	out, err := e.apply("sudo-cis")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	fi, err := os.Stat(e.root + "/etc/sudoers.d/00-unheaded")
+	if err != nil || fi.Mode().Perm() != 0o440 {
+		t.Fatalf("drop-in: %v %v", err, fi)
+	}
+	if !strings.Contains(e.callLog(), "visudo -c") {
+		t.Errorf("whole-config visudo -c not run: %s", e.callLog())
+	}
+	if o, err := e.run(nil, "undo", backupDir(t, out)); err != nil {
+		t.Fatalf("undo: %v %s", err, o)
+	}
+	if after := e.snapshot(); after != before {
+		t.Errorf("undo did not restore:\n%s", after)
+	}
+}
+
+func TestBannerNamesNoOS(t *testing.T) {
+	e := newEnv(t, "east")
+	e.write("/etc/issue", "Ubuntu 25.10 \\n \\l\n", 0o644)
+	if out, err := e.apply("banner-cis"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	for _, f := range []string{"/etc/issue", "/etc/issue.net"} {
+		b, _ := os.ReadFile(e.root + f)
+		if strings.Contains(strings.ToLower(string(b)), "ubuntu") || !strings.Contains(string(b), "Authorized users only") {
+			t.Errorf("%s = %q", f, b)
+		}
+	}
+}
+
+func TestPackageFixesUseApt(t *testing.T) {
+	e := newEnv(t, "east")
+	for _, f := range []string{"apparmor-utils", "auditd"} {
+		if out, err := e.apply(f); err != nil {
+			t.Fatalf("%s: %v\n%s", f, err, out)
+		}
+	}
+	calls := e.callLog()
+	if !strings.Contains(calls, "apt-get install -y -q apparmor-utils") || !strings.Contains(calls, "apt-get install -y -q auditd") {
+		t.Errorf("calls: %s", calls)
+	}
+}
+
+func TestAuditdHaltConfigRefused(t *testing.T) {
+	e := newEnv(t, "east")
+	if err := os.MkdirAll(e.root+"/etc/audit", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	e.write("/etc/audit/auditd.conf", "disk_full_action = HALT\n", 0o644)
+	if out, err := e.apply("auditd"); err == nil || !strings.Contains(out, "halts on a full disk") {
+		t.Errorf("want refusal, got %v\n%s", err, out)
 	}
 }

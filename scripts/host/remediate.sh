@@ -24,12 +24,14 @@ ROOT="${ROOT:-}"
 SYSCTL="${SYSCTL:-sysctl}"
 SYSTEMCTL="${SYSTEMCTL:-systemctl}"
 SSHD="${SSHD:-sshd}"
+VISUDO="${VISUDO:-visudo}"
+APT="${APT:-apt-get}"
 STATE="${UNHEADED_REMEDIATE_STATE:-/var/lib/unheaded/remediate}"
 HOST="${UNHEADED_HOST:-$(hostname -s)}"
 
 die() { echo "remediate: $*" >&2; exit 1; }
 
-FIXES="sysctl-cis apport-off kmod-cis cron-perms shell-tmout sshd-safe"
+FIXES="sysctl-cis apport-off kmod-cis cron-perms shell-tmout sshd-safe banner-cis apparmor-utils sudo-cis auditd"
 
 # desired content per fix, per host -----------------------------------------
 content_sysctl() {
@@ -86,6 +88,18 @@ CONF
 	fi
 	printf '%s\n' "LoginGraceTime 60" "MaxStartups 10:30:60" \
 		"MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256"
+}
+
+content_banner() {
+	echo "Authorized users only. All activity may be monitored and reported."
+}
+
+content_sudo() {
+	cat <<'CONF'
+# ADR-098 / CIS Ubuntu 24.04 5.2.3, 5.2.6. Managed by scripts/host/remediate.sh (sudo-cis).
+Defaults logfile="/var/log/sudo.log"
+Defaults timestamp_timeout=15
+CONF
 }
 
 # helpers ---------------------------------------------------------------------
@@ -261,6 +275,58 @@ fix_sshd-safe() {
 	undo_line "$SYSTEMCTL reload ssh.service"
 	"$SYSTEMCTL" reload ssh.service
 	echo "  sshd config valid; reloaded (existing sessions unaffected)"
+}
+
+fix_banner-cis() {
+	local mode="$1" want f; want="$(content_banner)"
+	# CIS 1.6.2, 1.6.3: no OS name or version on the login banners. /etc/motd
+	# is optional and absent on these hosts, so it is left alone.
+	for f in /etc/issue /etc/issue.net; do
+		if [[ "$mode" == plan ]]; then plan_file "$f" 644 "$want" || true; else apply_file "$f" 644 "$want"; fi
+	done
+}
+
+fix_apparmor-utils() {
+	local mode="$1"
+	if [[ "$mode" == plan ]]; then echo "  would run: $APT install -y apparmor-utils (aa-status, aa-enforce, aa-complain; installs tools only)"; return; fi
+	undo_line "$APT remove -y apparmor-utils"
+	DEBIAN_FRONTEND=noninteractive "$APT" install -y -q apparmor-utils >/dev/null
+	echo "  installed apparmor-utils"
+}
+
+fix_sudo-cis() {
+	local mode="$1" want tmp; want="$(content_sudo)"
+	if [[ "$mode" == plan ]]; then
+		plan_file /etc/sudoers.d/00-unheaded 440 "$want" || true
+		echo "  (timestamp_timeout=15 is sudo's default made explicit; the log is /var/log/sudo.log)"
+		echo "  then: $VISUDO -c; restored at once if it fails"
+		return
+	fi
+	tmp="$(mktemp)"
+	printf '%s\n' "$want" >"$tmp"
+	if ! "$VISUDO" -cf "$tmp" >/dev/null; then rm -f "$tmp"; die "the sudoers drop-in does not parse; nothing installed"; fi
+	rm -f "$tmp"
+	apply_file /etc/sudoers.d/00-unheaded 440 "$want"
+	if ! "$VISUDO" -c >/dev/null; then
+		echo "  visudo -c FAILED: undoing" >&2
+		bash "$BACKUP/undo.sh"
+		die "sudo configuration rejected after install; restored"
+	fi
+	echo "  sudoers valid"
+}
+
+fix_auditd() {
+	local mode="$1"
+	# Ubuntu's defaults (checked 2026-10-01 in auditd 1:4.0.5): disk full or
+	# error SUSPEND auditing, never halt; -f 1 (printk), not panic; 5 x 8 MB
+	# logs rotated; no rules beyond the backlog settings.
+	if [[ "$mode" == plan ]]; then echo "  would run: $APT install -y auditd (defaults suspend auditing on a full disk; they never halt the host)"; return; fi
+	undo_line "$APT remove -y auditd"
+	DEBIAN_FRONTEND=noninteractive "$APT" install -y -q auditd >/dev/null
+	if grep -qiE '^[[:space:]]*(disk_full_action|disk_error_action|admin_space_left_action)[[:space:]]*=[[:space:]]*halt' "$ROOT/etc/audit/auditd.conf" 2>/dev/null; then
+		die "auditd.conf halts on a full disk; refusing to leave it running (undo: $BACKUP/undo.sh)"
+	fi
+	echo "  installed auditd"
 }
 
 # main --------------------------------------------------------------------------
