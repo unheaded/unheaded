@@ -33,7 +33,8 @@ import (
 type complianceSource struct {
 	root         string
 	evidencePath string
-	ops          *well.Lazy
+	ops          *well.Lazy // unheaded_ops as ops_reader
+	config       *well.Lazy // unheaded_config as config_reader
 
 	mu   sync.Mutex
 	last complianceDataSource

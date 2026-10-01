@@ -6,6 +6,7 @@ package server
 import (
 	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,7 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"fmt"
 	"unheaded/pkg/compliance/crosswalk"
 	"unheaded/pkg/compliance/well"
 	"unheaded/pkg/database"
@@ -325,5 +325,36 @@ func TestCompliance_SourceLabelledWithoutTheWell(t *testing.T) {
 	_, sum = get(t, plain.handleSummary, "/api/v1/compliance/summary")
 	if s, _ := sum["source"].(map[string]any); s["reason"] != "The Well is not configured" {
 		t.Errorf("unconfigured source %v", s)
+	}
+}
+
+func TestComplianceProfiles_ReadOnlyFromTheRepoFallback(t *testing.T) {
+	src := &complianceSource{root: filepath.Join("..", "..", "..", ".."), evidencePath: "/nonexistent"}
+	rec, body := get(t, src.handleProfiles, "/api/v1/compliance/profiles")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status %d: %s", rec.Code, rec.Body.String())
+	}
+	if body["source"] != "yaml-fallback" || body["reason"] != "The Well is not configured" {
+		t.Errorf("source %v (%v)", body["source"], body["reason"])
+	}
+	fixes, _ := body["fixes"].([]any)
+	profiles, _ := body["profiles"].([]any)
+	bindings, _ := body["bindings"].([]any)
+	if len(fixes) != 10 || len(profiles) != 4 || len(bindings) != 2 {
+		t.Fatalf("%d fixes, %d profiles, %d bindings", len(fixes), len(profiles), len(bindings))
+	}
+	for _, p := range profiles {
+		p := p.(map[string]any)
+		if p["name"] == "lab" {
+			if n := len(p["fixes"].([]any)); n != 8 {
+				t.Errorf("lab turns on %d fixes, want 8", n)
+			}
+		}
+	}
+	// Read-only until logins and RBAC exist (ADR-099 §5).
+	w := httptest.NewRecorder()
+	src.handleProfiles(w, httptest.NewRequest(http.MethodPost, "/api/v1/compliance/profiles", strings.NewReader(`{"host":"east","profile":"none"}`)))
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("POST answered %d", w.Code)
 	}
 }

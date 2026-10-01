@@ -738,11 +738,13 @@ func (s *Server) setupRoutes() {
 		// The Well as ops_reader: the dashboard only reads compliance data.
 		// No password set means no connection attempt (FND-007): files only.
 		cs = &complianceSource{root: s.config.ComplianceRoot, evidencePath: s.config.ComplianceEvidence,
-			ops: well.NewLazy(well.OpsConfigFromEnv(), 30*time.Second)}
+			ops:    well.NewLazy(well.OpsConfigFromEnv(), 30*time.Second),
+			config: well.NewLazy(well.ConfigFromEnv(), 30*time.Second)}
 	}
 	s.mux.HandleFunc("/api/v1/compliance/summary", cs.handleSummary)
 	s.mux.HandleFunc("/api/v1/compliance/frameworks/{id}", cs.handleFramework)
 	s.mux.HandleFunc("/api/v1/compliance/findings", cs.handleFindings)
+	s.mux.HandleFunc("/api/v1/compliance/profiles", cs.handleProfiles)
 	if cs != nil {
 		s.complianceMetrics = newComplianceMetrics(cs)
 		for _, c := range s.complianceMetrics.collectors() {
