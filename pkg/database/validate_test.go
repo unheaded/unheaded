@@ -145,7 +145,7 @@ func TestConfig_DSN_FormatsAllSixFields(t *testing.T) {
 	}
 	dsn := cfg.DSN()
 	for _, want := range []string{
-		"host=h", "port=5432", "user=u", "password=p", "dbname=d", "sslmode=require",
+		"host='h'", "port='5432'", "user='u'", "password='p'", "dbname='d'", "sslmode='require'",
 	} {
 		if !strings.Contains(dsn, want) {
 			t.Errorf("DSN missing %q: %q", want, dsn)

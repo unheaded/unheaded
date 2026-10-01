@@ -878,6 +878,13 @@ findings:
     plan: >-
       COMPLIANCE-WELL battle plan step 22: no default for WELL_USER/WELL_PASSWORD, Connect returns errMissingConnStr, test first.
       Callers that relied on the default fail loudly and are listed for a scoped user
+    resolved:
+      on: 2026-10-01
+      evidence: >-
+        pkg/database TestConfig_NoCredentialDefaults (default user is the scoped role ops_writer/app_kanban, no default
+        password) and TestConnect_MissingCredentialsFailsLoudly (ErrMissingCredentials before any connection attempt);
+        DSN values are now quoted (TestDSN_QuotesEveryValue). Both callers already degrade (dashboard in-memory,
+        kanban to SQLite). Running processes keep the old binary until restarted
 
   - id: FND-008
     title: kanban-app connects to The Well as the superuser (docker-compose WELL_USER "unheaded") instead of its scoped user app_kanban

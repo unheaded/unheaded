@@ -16,6 +16,9 @@ import (
 // The context is used for the initial ping; the returned *sql.DB is
 // long-lived and safe for concurrent use.
 func Connect(ctx context.Context, cfg Config) (*sql.DB, error) {
+	if cfg.User == "" || cfg.Password == "" {
+		return nil, ErrMissingCredentials
+	}
 	db, err := sql.Open("postgres", cfg.DSN())
 	if err != nil {
 		return nil, fmt.Errorf("database open: %w", err)

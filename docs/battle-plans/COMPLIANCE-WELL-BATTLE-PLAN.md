@@ -157,13 +157,13 @@ Facts on 2026-10-01:
   sudo docker exec -i unheaded-postgres psql -v ON_ERROR_STOP=1 -1 -U unheaded -d unheaded_ops    < db/migrations/014_compliance_ops.sql
   ```
   - [D] **21a**: on an error, the transaction rolled back. Fix the SQL, re-run Step 18, then Step 21.
-- [ ] **Step 22** [W] ~15m: Remove the credential defaults in `pkg/database/config.go`.
+- [x] **Step 22** [W] ~15m: Remove the credential defaults in `pkg/database/config.go`.
   - `WELL_USER` and `WELL_PASSWORD` get no default.
   - `Connect` returns `errMissingConnStr` when they are unset.
   - Test first: `TestConfig_NoPasswordDefault`.
   - Callers that relied on the default fail loudly, and get listed in `next.md`.
-- [ ] **Step 23** [B] ~2m: `go test ./pkg/database/... -race -count=1`
-- [ ] **Step 24** [V]: Green. The new test failed before the change (RED, then GREEN recorded in the commit body).
+- [x] **Step 23** [B] ~2m: `go test ./pkg/database/... -race -count=1`
+- [x] **Step 24** [V] (done 2026-10-01; FND-007 resolved; DSN values now quoted too. FND-008, kanban as superuser in compose, is NOT done here: a `${VAR:?}` guard in compose would make `docker compose up -d postgres` itself fail while the variable is unset, so it lands with Phase 0 and Stevie): Green. The new test failed before the change (RED, then GREEN recorded in the commit body).
 - [ ] **Step 25** [C]: `git commit -S -m "fix(database): no credential default; fail loudly when WELL_USER/WELL_PASSWORD unset"`
 - [ ] **Step 26** [W] ~20m: Write tests first in `pkg/compliance/well/store_test.go`:
   - `Store` interface: `Profiles`, `Bindings`, `SetBinding(host, profile, mode, actor, reason)`, `AppendJournal`, `Findings`, `UpsertFinding`, `LatestEvidence`, `Source()`.
