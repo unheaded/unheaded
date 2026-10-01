@@ -10,6 +10,11 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"unheaded/pkg/compliance/snapshot"
+	"unheaded/pkg/compliance/well"
+	"unheaded/pkg/gungnir"
 )
 
 const recorder = "#!/bin/sh\necho \"$(basename \"$0\") $*\" >>\"$FAKE_CALLS\"\nexit 0\n"
@@ -125,5 +130,61 @@ func TestRejectsBadInput(t *testing.T) {
 		if code, _, _ := cli(append(append([]string{}, flags...), args...)...); code == 0 {
 			t.Errorf("%s: accepted", name)
 		}
+	}
+}
+
+// writeSnapshot seals the repo's binding for host and pins its key.
+func writeSnapshot(t *testing.T, dir, host string) (snap, pub string) {
+	t.Helper()
+	store, err := well.NewYAMLStore(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	s, err := snapshot.Build(context.Background(), store, host, "test", time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, err := gungnir.NewSignerWithID(gungnir.GenerateDevKey())
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := snapshot.Seal(s, signer, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	snap, pub = filepath.Join(dir, host+".snapshot.json"), filepath.Join(dir, "snapshot.pub")
+	if err := os.WriteFile(snap, raw, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(pub, signer.PublicKey(), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return snap, pub
+}
+
+func TestSnapshotMode(t *testing.T) {
+	model, root, state := setup(t)
+	snap, pub := writeSnapshot(t, filepath.Dir(model), "east")
+	flags := []string{"-snapshot", snap, "-pubkey", pub, "-root", root, "-state", state, "-host", "east"}
+	code, out, errs := cli(append(flags, "list")...)
+	if code != 0 || strings.Count(out, "\n") != 8 || strings.Contains(out, "sshd-safe") {
+		t.Fatalf("list from the lab snapshot: %d %s %s", code, out, errs)
+	}
+	if code, _, errs := cli(append(flags, "apply", "sshd-safe")...); code == 0 || !strings.Contains(errs, "unknown fix") {
+		t.Errorf("applied a fix the snapshot does not carry: %s", errs)
+	}
+	if code, out, errs := cli(append(flags, "apply", "kmod-cis")...); code != 0 {
+		t.Fatalf("apply from snapshot: %d %s %s", code, out, errs)
+	}
+	// The same snapshot is refused on another host.
+	if code, _, errs := cli("-snapshot", snap, "-pubkey", pub, "-root", root, "-state", state, "-host", "west", "list"); code == 0 || !strings.Contains(errs, "snapshot refused") {
+		t.Errorf("east's snapshot accepted on west: %s", errs)
+	}
+	// A snapshot others can write is refused before any apply.
+	if err := os.Chmod(snap, 0o666); err != nil {
+		t.Fatal(err)
+	}
+	if code, _, errs := cli(append(flags, "apply", "kmod-cis")...); code == 0 || !strings.Contains(errs, "refusing") {
+		t.Errorf("world-writable snapshot accepted: %s", errs)
 	}
 }

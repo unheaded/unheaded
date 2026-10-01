@@ -30,13 +30,16 @@ var ErrRefused = errors.New("snapshot refused")
 
 // Snapshot is one host's desired state.
 type Snapshot struct {
-	Version     int               `json:"version"`
-	Host        string            `json:"host"`
-	Profile     string            `json:"profile"`
-	Mode        string            `json:"mode"`
-	ModelCommit string            `json:"model_commit"`
-	IssuedAt    time.Time         `json:"issued_at"`
-	Fixes       []remediation.Fix `json:"fixes"`
+	Version     int    `json:"version"`
+	Host        string `json:"host"`
+	Profile     string `json:"profile"`
+	Mode        string `json:"mode"`
+	ModelCommit string `json:"model_commit"`
+	// Source is where the binding came from: "well", or "yaml-fallback"
+	// when the operator explicitly built from the repo files.
+	Source   string            `json:"source"`
+	IssuedAt time.Time         `json:"issued_at"`
+	Fixes    []remediation.Fix `json:"fixes"`
 }
 
 // Envelope is the file a host receives: the exact payload bytes and their
@@ -65,7 +68,8 @@ func Build(ctx context.Context, s well.Store, host, commit string, now time.Time
 		for _, id := range ps.Resolve(b.Profile) {
 			on[id] = true
 		}
-		snap := &Snapshot{Version: version, Host: host, Profile: b.Profile, Mode: b.Mode, ModelCommit: commit, IssuedAt: now.UTC()}
+		snap := &Snapshot{Version: version, Host: host, Profile: b.Profile, Mode: b.Mode, ModelCommit: commit,
+			Source: string(s.Source()), IssuedAt: now.UTC()}
 		for _, f := range s.Model().Fixes {
 			if on[f.ID] {
 				snap.Fixes = append(snap.Fixes, f)

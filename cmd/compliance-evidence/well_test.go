@@ -4,6 +4,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"io"
 	"os"
@@ -11,7 +12,9 @@ import (
 	"strings"
 	"testing"
 
+	"unheaded/pkg/compliance/snapshot"
 	"unheaded/pkg/compliance/well"
+	"unheaded/pkg/gungnir"
 )
 
 func TestWellSyncNeedsTheWell(t *testing.T) {
@@ -95,4 +98,56 @@ func TestAnsibleTreeIsCurrent(t *testing.T) {
 			t.Errorf("%s is stale or missing: run go run ./cmd/compliance-evidence ansible", p)
 		}
 	}
+}
+
+func TestSnapshotCommand(t *testing.T) {
+	dir := t.TempDir()
+	seed := filepath.Join(dir, "seed")
+	if err := os.WriteFile(seed, bytes.Repeat([]byte{7}, 32), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out := filepath.Join(dir, "east.snapshot.json")
+	t.Setenv("WELL_HOST", "127.0.0.1")
+	t.Setenv("WELL_PORT", "1")
+	t.Setenv("WELL_CONFIG_PASSWORD", "x")
+	args := []string{"-repo-dir", "../..", "-host", "east", "-key", seed, "-out", out}
+	if err := runSnapshot(args, io.Discard); err == nil || !strings.Contains(err.Error(), "-from-yaml") {
+		t.Fatalf("sealed the YAML without being told to: %v", err)
+	}
+	var msg bytes.Buffer
+	if err := runSnapshot(append(args, "-from-yaml"), &msg); err != nil {
+		t.Fatal(err)
+	}
+	priv, err := gungnir.LoadSeedFile(seed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	signer, _ := gungnir.NewSignerWithID(priv)
+	pub, err := gungnir.LoadPublicKeyFile(writeTemp(t, dir, signer.PublicKey()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(out)
+	snap, err := snapshot.Open(raw, pub, "east")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snap.Source != "yaml-fallback" || len(snap.Fixes) != 8 {
+		t.Errorf("snapshot from %s with %d fixes", snap.Source, len(snap.Fixes))
+	}
+	if err := os.Chmod(seed, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := runSnapshot(append(args, "-from-yaml"), io.Discard); err == nil {
+		t.Error("used a world-readable key")
+	}
+}
+
+func writeTemp(t *testing.T, dir string, b []byte) string {
+	t.Helper()
+	p := filepath.Join(dir, "pub")
+	if err := os.WriteFile(p, b, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return p
 }

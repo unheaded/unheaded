@@ -361,9 +361,9 @@ Facts on 2026-10-01:
 **Prerequisite**: Phases 4 and 6 exit gates.
 **Time**: 1.5 h `[Y]` (key custody is Stevie's decision; it ties to the open key/IdP storage question).
 
-- [ ] **Step 105** [W] ~25m: `compliance-evidence snapshot --host <h>` produces a canonical JSON payload and a `pkg/gungnir` seal. Agent and executor call `gungnir.Verify` against a pinned public key in `/etc/unheaded/compliance/`, and refuse on a mismatch or when `not_after` has passed. Tests: tampered byte, wrong key, expired.
-- [ ] **Step 106** [B] ~3m: `go test ./pkg/gungnir/... ./cmd/unheaded-baseline/... ./cmd/unheaded-remediate/... -race -count=1`
-- [ ] **Step 107** [C]: `git commit -S -m "feat(compliance): Gungnir-sealed host snapshots; agent and executor refuse unsealed"`
+- [x] **Step 105** (done 2026-10-01 in code with test keys only; which key signs real snapshots, and where it lives, is Stevie's decision) [W] ~25m: `compliance-evidence snapshot --host <h>` produces a canonical JSON payload and a `pkg/gungnir` seal. Agent and executor call `gungnir.Verify` against a pinned public key in `/etc/unheaded/compliance/`, and refuse on a mismatch or when `not_after` has passed. Tests: tampered byte, wrong key, expired.
+- [x] **Step 106** [B] ~3m: `go test ./pkg/gungnir/... ./cmd/unheaded-baseline/... ./cmd/unheaded-remediate/... -race -count=1`
+- [x] **Step 107** [C]: `git commit -S -m "feat(compliance): Gungnir-sealed host snapshots; agent and executor refuse unsealed"`
 - [ ] **Step 108** [W] ~15m: Amend ADR-099: The Well is the source of truth, YAML is seed and fallback, the decision table above, pull model, sealed snapshots. Then update `ADR-INDEX.md`.
 - [x] **Step 109** (done 2026-10-01) [W] ~15m: Runbook `runbooks/security/compliance-profile-switch.yaml` (`runbook/v1`): plan → switch → plan on the host → apply → verify evidence → journal row.
 - [ ] **Step 110** [B] ~3m: Pre-commit, meta-gate, full compliance tests.

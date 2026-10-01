@@ -15,6 +15,7 @@
 //	go run ./cmd/compliance-evidence profile set -host east -profile lab -reason "..." [-yes]
 //	go run ./cmd/compliance-evidence profile export     # The Well -> YAML fallback
 //	go run ./cmd/compliance-evidence ansible            # render deploy/ansible/compliance/
+//	go run ./cmd/compliance-evidence snapshot -host east -key SEED -out east.snapshot.json
 package main
 
 import (
@@ -35,6 +36,13 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "findings" {
 		if err := runFindings(os.Args[2:], os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "compliance-evidence findings:", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "snapshot" {
+		if err := runSnapshot(os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "compliance-evidence snapshot:", err)
 			os.Exit(1)
 		}
 		return

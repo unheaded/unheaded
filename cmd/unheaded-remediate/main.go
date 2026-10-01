@@ -9,6 +9,7 @@
 //	unheaded-remediate plan  <fix>         # what would change (no root needed)
 //	unheaded-remediate apply <fix>         # as root, after Stevie's yes for this fix on this host
 //	unheaded-remediate undo  <backup-dir>  # restore what one apply changed
+//	unheaded-remediate -snapshot east.snapshot.json apply <fix>  # only fixes the sealed snapshot carries
 //
 // The model file is read only if root owns it and it and its directory are
 // not group- or world-writable (ssh StrictModes): a fix runs as root, so
@@ -29,6 +30,8 @@ import (
 
 	"unheaded/pkg/compliance/executor"
 	"unheaded/pkg/compliance/remediation"
+	"unheaded/pkg/compliance/snapshot"
+	"unheaded/pkg/gungnir"
 )
 
 const maxModelBytes = 256 << 10
@@ -45,6 +48,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	root := fl.String("root", "", "filesystem root (tests)")
 	state := fl.String("state", "/var/lib/unheaded/remediate", "backups and journal")
 	commit := fl.String("model-commit", "", "git commit of the model, recorded in the journal")
+	snapPath := fl.String("snapshot", "", "sealed snapshot to act on instead of -model (only its fixes can be applied)")
+	pubPath := fl.String("pubkey", "/etc/unheaded/compliance/snapshot.pub", "ML-DSA-65 public key that must have sealed the snapshot")
 	if err := fl.Parse(args); err != nil {
 		return 2
 	}
@@ -67,14 +72,38 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		trustedUID = os.Geteuid()
 	}
 	writes := rest[0] == "apply" || rest[0] == "undo"
-	if writes || os.Geteuid() == 0 {
-		if err := checkTrust(*modelPath, trustedUID); err != nil {
-			return fail(fmt.Errorf("refusing the model: %w", err))
+	h := *host
+	if h == "" {
+		hn, err := os.Hostname()
+		if err != nil {
+			return fail(err)
 		}
+		h, _, _ = strings.Cut(hn, ".")
 	}
-	m, err := loadModel(*modelPath)
-	if err != nil {
-		return fail(err)
+	var m *remediation.Model
+	var err error
+	if *snapPath != "" {
+		// A sealed snapshot: only the fixes it carries exist for this run.
+		for _, p := range []string{*snapPath, *pubPath} {
+			if writes || os.Geteuid() == 0 {
+				if err := checkTrust(p, trustedUID); err != nil {
+					return fail(fmt.Errorf("refusing %s: %w", p, err))
+				}
+			}
+		}
+		m, err = loadSnapshot(*snapPath, *pubPath, h)
+		if err != nil {
+			return fail(err)
+		}
+	} else {
+		if writes || os.Geteuid() == 0 {
+			if err := checkTrust(*modelPath, trustedUID); err != nil {
+				return fail(fmt.Errorf("refusing the model: %w", err))
+			}
+		}
+		if m, err = loadModel(*modelPath); err != nil {
+			return fail(err)
+		}
 	}
 	if rest[0] == "list" {
 		for _, f := range m.Fixes {
@@ -84,13 +113,6 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	if len(rest) != 2 {
 		return usage()
-	}
-	h := *host
-	if h == "" {
-		if h, err = os.Hostname(); err != nil {
-			return fail(err)
-		}
-		h, _, _ = strings.Cut(h, ".")
 	}
 	x, err := executor.New(ctx, executor.Options{Root: *root, State: *state, Host: h, Operator: operator(),
 		ModelCommit: *commit, AllowNonRoot: allowNonRoot, Cmd: executor.CommandsFromEnv(), Out: stdout})
@@ -126,6 +148,23 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return 0
 	}
 	return usage()
+}
+
+// loadSnapshot opens a sealed snapshot for host; its fixes are the model.
+func loadSnapshot(path, pubPath, host string) (*remediation.Model, error) {
+	pub, err := gungnir.LoadPublicKeyFile(pubPath)
+	if err != nil {
+		return nil, err
+	}
+	raw, err := os.ReadFile(path) // #nosec G304 -- operator-named snapshot, trust-checked before any write
+	if err != nil {
+		return nil, err
+	}
+	snap, err := snapshot.Open(raw, pub, host)
+	if err != nil {
+		return nil, err
+	}
+	return snap.Model(), nil
 }
 
 func operator() string {
