@@ -2,8 +2,10 @@
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 //
 // Compliance crosswalk page (ADR-097). Renders /api/v1/compliance/summary
-// /api/v1/compliance/findings (ADR-098) and, on demand,
-// /api/v1/compliance/frameworks/{id}. All data is written
+// /api/v1/compliance/findings (ADR-098), /api/v1/compliance/profiles
+// (ADR-099, read-only) and, on demand, /api/v1/compliance/frameworks/{id}.
+// Every response says where its data came from; anything but The Well is
+// shown in a banner so fallback data never passes for live. All data is written
 // with textContent; only http(s) evidence details become links.
 'use strict';
 
@@ -214,6 +216,70 @@
         list('Stale (latest pass older than its freshness window)', rep.stale);
     }
 
+    // Where each part of the page came from. A part served from the repo
+    // files instead of The Well is named in the banner with the reason.
+    const sources = {};
+
+    function noteSource(part, src) {
+        if (!src) return;
+        const parts = [];
+        if (src.evidence && src.evidence !== 'well') parts.push('evidence: ' + src.evidence);
+        if (src.register && src.register !== 'well') parts.push('findings triage: ' + src.register);
+        if (src.source && src.source !== 'well') parts.push('profiles: ' + src.source);
+        sources[part] = parts.length ? { parts: parts, reason: src.reason || '' } : null;
+        const all = Object.values(sources).filter(Boolean);
+        const box = document.getElementById('cx-source');
+        if (!all.length) { box.hidden = true; return; }
+        const kinds = Array.from(new Set(all.flatMap(a => a.parts)));
+        const reasons = Array.from(new Set(all.map(a => a.reason).filter(Boolean)));
+        document.getElementById('cx-source-text').textContent =
+            'Not from The Well: ' + kinds.join(', ') + '. Showing the repository files instead' +
+            (reasons.length ? ' (' + reasons.join('; ') + ')' : '') +
+            '. Changes made in The Well are not shown, and nothing can be changed until it is back.';
+        box.hidden = false;
+    }
+
+    function renderProfiles(p) {
+        noteSource('profiles', p);
+        document.getElementById('profiles-source').textContent =
+            p.source === 'well' ? 'Source: The Well.' : 'Source: repository files (' + p.source + ').';
+        const byName = {};
+        (p.profiles || []).forEach(x => { byName[x.name] = x; });
+        const hosts = document.querySelector('#host-table tbody');
+        hosts.textContent = '';
+        (p.bindings || []).forEach(b => hosts.appendChild(el('tr', null, [
+            el('td', { text: b.host, cls: 'mono' }),
+            el('td', { text: b.profile, cls: 'mono' }),
+            el('td', { text: b.mode }),
+            el('td', { text: byName[b.profile] ? byName[b.profile].fixes.length : '?', cls: 'num' }),
+        ])));
+        const names = (p.profiles || []).map(x => x.name);
+        const head = document.querySelector('#prof-table thead');
+        head.textContent = '';
+        head.appendChild(el('tr', null, [el('th', { text: 'Fix' }), el('th', { text: 'Risk' }), el('th', { text: 'Class' })]
+            .concat(names.map(n => el('th', { text: n, cls: 'mono' })))));
+        const body = document.querySelector('#prof-table tbody');
+        body.textContent = '';
+        (p.fixes || []).forEach(f => body.appendChild(el('tr', null, [
+            el('td', { text: f.id, cls: 'mono', title: f.title + (f.note ? '\n' + f.note : '') }),
+            el('td', { text: f.risk }),
+            el('td', { text: f.class, cls: 'muted' }),
+        ].concat(names.map(n => el('td', { text: byName[n].fixes.indexOf(f.id) >= 0 ? 'on' : '', cls: 's-PASS' }))))));
+    }
+
+    async function loadProfiles() {
+        try {
+            const res = await fetch('/api/v1/compliance/profiles');
+            if (!res.ok) {
+                document.getElementById('profiles-title').textContent = 'Control profiles: unavailable (' + res.status + ')';
+                return;
+            }
+            renderProfiles(await res.json());
+        } catch (_e) {
+            document.getElementById('profiles-title').textContent = 'Control profiles: unreachable';
+        }
+    }
+
     async function loadFindings() {
         try {
             const res = await fetch('/api/v1/compliance/findings');
@@ -221,7 +287,9 @@
                 document.getElementById('findings-title').textContent = 'Open findings: unavailable (' + res.status + ')';
                 return;
             }
-            renderFindings(await res.json());
+            const rep = await res.json();
+            noteSource('findings', rep.source);
+            renderFindings(rep);
         } catch (_e) {
             document.getElementById('findings-title').textContent = 'Open findings: unreachable';
         }
@@ -282,10 +350,12 @@
             return;
         }
         const s = await res.json();
+        noteSource('summary', s.source);
         status.textContent = s.evidence_available
             ? s.evidence_records + ' evidence records'
             : 'no evidence collected yet: every control NOT_ASSESSED';
         loadFindings();
+        loadProfiles();
         renderFrameworks(s.frameworks || []);
         renderMatrix(s.controls || [], s.frameworks || []);
         renderControls(s.controls || []);

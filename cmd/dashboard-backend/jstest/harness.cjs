@@ -33,7 +33,7 @@ const navTab = { dataset: { page: '' }, classList: { toggle(){}, add(){}, remove
   addEventListener: (ev, fn) => { if (ev === 'click') tabHandlers.push(fn); } };
 global.document = { readyState: 'complete',
   getElementById: id => (els[id] ||= mkEl(id)),
-  querySelector: s => mkEl(s),
+  querySelector: s => (els[s] ||= mkEl(s)), // same element per selector, as a page's single table body is
   querySelectorAll: s => (s === '.nav-tab' || s === '.nav-tab[data-page]') ? [navTab] : [], // the fake tab is an in-page tab
   createElement: t => mkEl(t),
   addEventListener(){}, body: mkEl('body'), documentElement: mkEl('html') };
@@ -57,4 +57,4 @@ let fails = 0;
 const check = (name, got, want) => { const ok = got === want; if (!ok) fails++; console.log((ok ? 'ok   ' : 'FAIL ') + name + ': ' + JSON.stringify(got) + (ok ? '' : ' want ' + JSON.stringify(want))); };
 module.exports = { run: async (setup) => { routes = setup.routes; eval(src); await settle(); await setup.steps({ intervals, fetched, text, check, settle, ws: () => ws, advance: ms => { now += ms; }, setRoute: (k, f) => { routes[k] = f; },
     clickTab: page => tabHandlers.forEach(fn => fn.call({ dataset: { page } })), html: id => (els[id] ? String(els[id].innerHTML) : '(none)'),
-    rows: id => (els[id] ? els[id].children.length : 0) }); console.log(fails ? `${fails} FAILED` : 'ALL OK'); process.exit(fails ? 1 : 0); } };
+    rows: id => (els[id] ? els[id].children.length : 0), prop: (id, k) => (els[id] ? els[id][k] : undefined) }); console.log(fails ? `${fails} FAILED` : 'ALL OK'); process.exit(fails ? 1 : 0); } };

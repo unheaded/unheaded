@@ -6,10 +6,36 @@
 package jstest
 
 import (
+	"bufio"
+	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+// scriptFor is the page script a scenario runs: ../static/dashboard.js
+// unless the scenario's header names another with a "// script: <path>"
+// line (a path under ../static).
+func scriptFor(t *testing.T, scenario string) string {
+	t.Helper()
+	f, err := os.Open(scenario)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	sc := bufio.NewScanner(f)
+	for i := 0; i < 10 && sc.Scan(); i++ {
+		if rest, ok := strings.CutPrefix(sc.Text(), "// script: "); ok {
+			p := filepath.Clean(strings.TrimSpace(rest))
+			if !strings.HasPrefix(p, filepath.Join("..", "static")+string(filepath.Separator)) {
+				t.Fatalf("%s: script %q is not under ../static", scenario, p)
+			}
+			return p
+		}
+	}
+	return "../static/dashboard.js"
+}
 
 func TestDashboardScenarios(t *testing.T) {
 	node, err := exec.LookPath("node")
@@ -24,7 +50,7 @@ func TestDashboardScenarios(t *testing.T) {
 		}
 		ran++
 		t.Run(sc, func(t *testing.T) {
-			out, err := exec.Command(node, sc, "../static/dashboard.js").CombinedOutput()
+			out, err := exec.Command(node, sc, scriptFor(t, sc)).CombinedOutput()
 			if err != nil {
 				t.Fatalf("%v\n%s", err, out)
 			}

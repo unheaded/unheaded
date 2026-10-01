@@ -77,6 +77,9 @@
         </header>
 
         <main class="cx-page">
+            <section class="cx-card cx-banner" id="cx-source" hidden>
+                <p class="cx-note" id="cx-source-text"></p>
+            </section>
             <section class="cx-card">
                 <h2>Frameworks</h2>
                 <table class="cx" id="fw-table">
@@ -119,6 +122,19 @@
                     <tbody></tbody>
                 </table>
                 <div id="find-extra"></div>
+            </section>
+
+            <section class="cx-card">
+                <h2 id="profiles-title">Control profiles</h2>
+                <p class="cx-note">Which fixes each profile turns on, and which profile each host is bound to (ADR-099). Profiles switch remediation, never detection: every check still runs and every failure is still counted. Read-only here until the dashboard has logins and RBAC; a switch is recorded with who and why. <span id="profiles-source" class="muted"></span></p>
+                <table class="cx" id="host-table">
+                    <thead><tr><th>Host</th><th>Profile</th><th>Mode</th><th class="num">Fixes on</th></tr></thead>
+                    <tbody></tbody>
+                </table>
+                <table class="cx" id="prof-table">
+                    <thead></thead>
+                    <tbody></tbody>
+                </table>
             </section>
 
 
