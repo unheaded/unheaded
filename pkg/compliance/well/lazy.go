@@ -6,6 +6,8 @@ package well
 import (
 	"context"
 	"database/sql"
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -18,6 +20,10 @@ import (
 // Well catches up without a restart and never hammers it meanwhile (the
 // 2026-09 failed-login spam was a retry loop like that, unthrottled).
 type Lazy struct {
+	// Env names the variables that configure this connection, for the
+	// error a reader shows when they are missing.
+	Env string
+
 	cfg   database.Config
 	retry time.Duration
 	now   func() time.Time
@@ -50,6 +56,9 @@ func (l *Lazy) DB(ctx context.Context) (*sql.DB, error) {
 	l.lastTry = l.now()
 	db, err := database.Connect(ctx, l.cfg)
 	if err != nil {
+		if errors.Is(err, database.ErrMissingCredentials) && l.Env != "" {
+			err = fmt.Errorf("%w: set %s", err, l.Env)
+		}
 		l.lastErr = err
 		return nil, err
 	}

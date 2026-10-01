@@ -14,7 +14,7 @@ import (
 // configured. There is deliberately no built-in credential (FND-007): a
 // shipped fallback password is public, and it turns a missing setting into
 // a silent superuser login attempt instead of a startup error.
-var ErrMissingCredentials = errors.New("database credentials not set: export WELL_USER and WELL_PASSWORD (credentials are not stored in this repo)")
+var ErrMissingCredentials = errors.New("database credentials not set (credentials are not stored in this repo)")
 
 // Config holds PostgreSQL connection parameters.
 type Config struct {

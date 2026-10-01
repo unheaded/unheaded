@@ -740,6 +740,8 @@ func (s *Server) setupRoutes() {
 		cs = &complianceSource{root: s.config.ComplianceRoot, evidencePath: s.config.ComplianceEvidence,
 			ops:    well.NewLazy(well.OpsConfigFromEnv(), 30*time.Second),
 			config: well.NewLazy(well.ConfigFromEnv(), 30*time.Second)}
+		cs.ops.Env = "WELL_OPS_PASSWORD (WELL_OPS_USER defaults to ops_reader)"
+		cs.config.Env = "WELL_CONFIG_PASSWORD (WELL_CONFIG_USER defaults to config_reader)"
 	}
 	s.mux.HandleFunc("/api/v1/compliance/summary", cs.handleSummary)
 	s.mux.HandleFunc("/api/v1/compliance/frameworks/{id}", cs.handleFramework)
