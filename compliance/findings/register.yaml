@@ -76,46 +76,6 @@ findings:
     plan: re-decide at expiry; a scheduled db-backup.sh with retention when space allows
 
   # --- step 2: sysctl (reversible, no lockout) -----------------------------
-  - source: "host-sysctl:west:fs.suid_dumpable=0"
-    severity: low
-    class: sysctl
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: apport is active and sets fs.suid_dumpable=2 at start, so a sysctl.d value alone is overwritten; disable apport (enabled=0 in /etc/default/apport, systemctl disable --now apport), then fs.suid_dumpable=0 in /etc/sysctl.d/99-unheaded.conf
-
-  - source: "host-sysctl:east:fs.suid_dumpable=0"
-    severity: low
-    class: sysctl
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: apport is active and sets fs.suid_dumpable=2 at start, so a sysctl.d value alone is overwritten; disable apport (enabled=0 in /etc/default/apport, systemctl disable --now apport), then fs.suid_dumpable=0 in /etc/sysctl.d/99-unheaded.conf
-
-  - source: "host-sysctl:east:net.ipv4.conf.all.accept_redirects=0"
-    severity: low
-    class: sysctl
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: one sysctl.d file with the other east redirect settings; east routes only the P2P link, so redirects are not needed
-
-  - source: "host-sysctl:east:net.ipv6.conf.all.accept_redirects=0"
-    severity: low
-    class: sysctl
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: one sysctl.d file with the other east redirect settings
-
-  - source: "host-sysctl:east:net.ipv4.conf.all.send_redirects=0"
-    severity: low
-    class: sysctl
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: one sysctl.d file with the other east redirect settings
-
   # --- step 3: auditd -------------------------------------------------------
   - source: "host-probe:west:auditd-running"
     severity: medium
@@ -295,64 +255,6 @@ findings:
       scripts/check-systemd-units.sh (meta-gate registered) keeps it fixed. Remaining: the installed /etc/systemd/system/huginn.service
       on west still has the old line; replace it with the repo copy and restart huginn, with Stevie's yes.
 
-  - id: FND-004
-    title: >-
-      West has a public, ISP-assigned IPv6 address (SLAAC) and ip6tables INPUT policy ACCEPT, with sshd, BGP and other services listening on [::].
-      Whether it can be reached from the internet depends on the home router dropping unsolicited inbound IPv6. Nobody has checked.
-    verify: from a vantage point outside the home network, west's global IPv6 address answers on no port (or the router's IPv6 inbound firewall is shown to be on); then this entry closes with that evidence
-    host: west
-    severity: high
-    class: firewall
-    opened: 2026-09-30
-    exposure: if reachable, every west listener is on the internet, including the services running with no auth (check-service-auth) and sshd with keyboard-interactive login
-    lockout: none
-    step: 1
-    plan: >-
-      Answered by Stevie 2026-09-30: the ISP's edge firewall drops unsolicited inbound traffic at the network edge, so west's public
-      IPv6 address is not reachable from the internet. Host firewalls (step 6) still matter for the LAN.
-    resolved: {on: 2026-09-30, evidence: "operator statement (Stevie, 2026-09-30): the ISP edge firewall drops unsolicited inbound; not independently tested from outside"}
-
-  - source: "host-sysctl:west:net.ipv4.conf.all.secure_redirects=0"
-    severity: low
-    class: sysctl
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: net.ipv4.conf.all.secure_redirects=0 and default.secure_redirects=0 in /etc/sysctl.d (CIS 3.3.6)
-
-  - source: "host-sysctl:east:net.ipv4.conf.all.secure_redirects=0"
-    severity: low
-    class: sysctl
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: net.ipv4.conf.all.secure_redirects=0 and default.secure_redirects=0 in /etc/sysctl.d (CIS 3.3.6)
-
-  - source: "host-sysctl:west:net.ipv4.conf.all.log_martians=1"
-    severity: low
-    class: sysctl
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: all and default log_martians=1 (CIS 3.3.9); watch kernel log volume on west, which routes Docker and BGP traffic
-
-  - source: "host-sysctl:east:net.ipv4.conf.all.log_martians=1"
-    severity: low
-    class: sysctl
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: all and default log_martians=1 (CIS 3.3.9)
-
-  - source: "host-sysctl:east:net.ipv6.conf.all.accept_ra=0"
-    severity: low
-    class: sysctl
-    opened: 2026-09-30
-    exposure: east holds no global IPv6 address, so router advertisements serve nothing there
-    lockout: none
-    step: 2
-    plan: all and default accept_ra=0 (CIS 3.3.11)
-
   - source: "host-sysctl:west:net.ipv6.conf.all.accept_ra=0"
     severity: low
     class: sysctl
@@ -435,54 +337,6 @@ findings:
 
   # --- CIS 1.1.1.x kernel modules and 5.1.1 sshd_config modes (2026-09-30) ----
 
-  - source: "host-probe:west:kmod-cramfs-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install cramfs /bin/false` and `blacklist cramfs` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
-
-  - source: "host-probe:west:kmod-freevxfs-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install freevxfs /bin/false` and `blacklist freevxfs` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
-
-  - source: "host-probe:west:kmod-hfs-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install hfs /bin/false` and `blacklist hfs` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
-
-  - source: "host-probe:west:kmod-hfsplus-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install hfsplus /bin/false` and `blacklist hfsplus` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
-
-  - source: "host-probe:west:kmod-jffs2-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install jffs2 /bin/false` and `blacklist jffs2` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
-
-  - source: "host-probe:west:kmod-udf-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install udf /bin/false` and `blacklist udf` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
-
   - source: "host-probe:west:kmod-usb-storage-disabled"
     severity: low
     class: kmod
@@ -491,54 +345,6 @@ findings:
     step: 2
     plan: /etc/modprobe.d/unheaded-cis.conf with `install usb-storage /bin/false` and `blacklist usb-storage` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
     decision: does anyone plug USB storage into west (Stevie has physical access); if so, accept on that host
-
-  - source: "host-probe:east:kmod-cramfs-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install cramfs /bin/false` and `blacklist cramfs` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
-
-  - source: "host-probe:east:kmod-freevxfs-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install freevxfs /bin/false` and `blacklist freevxfs` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
-
-  - source: "host-probe:east:kmod-hfs-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install hfs /bin/false` and `blacklist hfs` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
-
-  - source: "host-probe:east:kmod-hfsplus-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install hfsplus /bin/false` and `blacklist hfsplus` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
-
-  - source: "host-probe:east:kmod-jffs2-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install jffs2 /bin/false` and `blacklist jffs2` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
-
-  - source: "host-probe:east:kmod-udf-disabled"
-    severity: low
-    class: kmod
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: /etc/modprobe.d/unheaded-cis.conf with `install udf /bin/false` and `blacklist udf` (one file for all seven modules); takes effect for new loads at once, nothing to unload today
 
   - source: "host-probe:east:kmod-usb-storage-disabled"
     severity: low
@@ -886,62 +692,6 @@ findings:
 
   # --- CIS 2.1 / 2.2 / 2.4 services, clients, cron (2026-09-30) ------------
 
-  - source: "host-probe:west:cron-allow-restricted"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "create /etc/cron.allow (root:crontab, 0640) listing root; no user has a crontab today (checked 2026-09-30); remove cron.deny if it appears"
-
-  - source: "host-probe:west:perm-etc-crontab"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "chmod 600 /etc/crontab"
-
-  - source: "host-probe:west:perm-etc-cron-hourly"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "chmod 700 /etc/cron.hourly"
-
-  - source: "host-probe:west:perm-etc-cron-daily"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "chmod 700 /etc/cron.daily"
-
-  - source: "host-probe:west:perm-etc-cron-weekly"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "chmod 700 /etc/cron.weekly"
-
-  - source: "host-probe:west:perm-etc-cron-monthly"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "chmod 700 /etc/cron.monthly"
-
-  - source: "host-probe:west:perm-etc-cron-d"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "chmod 700 /etc/cron.d"
-
   - source: "host-probe:west:pkg-ftp-client-absent"
     severity: low
     class: package
@@ -957,62 +707,6 @@ findings:
     lockout: none
     step: 2
     plan: "apt purge inetutils-telnet telnet (nc or openssl s_client cover port checks)"
-
-  - source: "host-probe:east:cron-allow-restricted"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "create /etc/cron.allow (root:crontab, 0640) listing root; no user has a crontab today (checked 2026-09-30); remove cron.deny if it appears"
-
-  - source: "host-probe:east:perm-etc-crontab"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "chmod 600 /etc/crontab"
-
-  - source: "host-probe:east:perm-etc-cron-hourly"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "chmod 700 /etc/cron.hourly"
-
-  - source: "host-probe:east:perm-etc-cron-daily"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "chmod 700 /etc/cron.daily"
-
-  - source: "host-probe:east:perm-etc-cron-weekly"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "chmod 700 /etc/cron.weekly"
-
-  - source: "host-probe:east:perm-etc-cron-monthly"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "chmod 700 /etc/cron.monthly"
-
-  - source: "host-probe:east:perm-etc-cron-d"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "chmod 700 /etc/cron.d"
 
   - source: "host-probe:east:pkg-ftp-client-absent"
     severity: low
@@ -1093,14 +787,6 @@ findings:
     step: 3
     plan: "same drop-in: Defaults timestamp_timeout=15 (the current default made explicit)"
 
-  - source: "host-probe:west:svc-apport-not-in-use"
-    severity: low
-    class: service
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "same change as fs.suid_dumpable: enabled=0 in /etc/default/apport, systemctl disable --now apport (and mask)"
-
   - source: "host-probe:east:apparmor-installed"
     severity: low
     class: package
@@ -1143,14 +829,6 @@ findings:
     lockout: none
     step: 3
     plan: "same drop-in: Defaults timestamp_timeout=15 (the current default made explicit)"
-
-  - source: "host-probe:east:svc-apport-not-in-use"
-    severity: low
-    class: service
-    opened: 2026-09-30
-    lockout: none
-    step: 2
-    plan: "same change as fs.suid_dumpable: enabled=0 in /etc/default/apport, systemctl disable --now apport (and mask)"
 
   # --- CIS 5.4 password and account policy (2026-09-30) ----------------------
 
