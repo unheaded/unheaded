@@ -24,6 +24,9 @@ sources:
   - {kind: host-probe, ref: "east:banner-issue"}
   - {kind: host-probe, ref: "east:banner-issue-net"}
   - {kind: host-probe, ref: "east:banner-motd"}
+  - {kind: host-probe, ref: "east:chrony-active"}
+  - {kind: host-probe, ref: "east:chrony-sources"}
+  - {kind: host-probe, ref: "east:chrony-user"}
   - {kind: host-probe, ref: "east:cron-active"}
   - {kind: host-probe, ref: "east:cron-allow-restricted"}
   - {kind: host-probe, ref: "east:firewall-inbound-deny"}
@@ -111,6 +114,7 @@ sources:
   - {kind: host-probe, ref: "east:perm-ssh-host-public-keys"}
   - {kind: host-probe, ref: "east:perm-sshd-config"}
   - {kind: host-probe, ref: "east:pkg-ftp-client-absent"}
+  - {kind: host-probe, ref: "east:pkg-gdm-absent"}
   - {kind: host-probe, ref: "east:pkg-ldap-client-absent"}
   - {kind: host-probe, ref: "east:pkg-nis-client-absent"}
   - {kind: host-probe, ref: "east:pkg-pam-modules"}
@@ -162,6 +166,7 @@ sources:
   - {kind: host-probe, ref: "east:svc-web-server-not-in-use"}
   - {kind: host-probe, ref: "east:svc-x-server-not-in-use"}
   - {kind: host-probe, ref: "east:svc-xinetd-not-in-use"}
+  - {kind: host-probe, ref: "east:time-single-daemon"}
   - {kind: host-probe, ref: "east:unattended-upgrades-enabled"}
   - {kind: host-probe, ref: "west:acct-groups-exist"}
   - {kind: host-probe, ref: "west:acct-noshell-locked"}
@@ -185,6 +190,9 @@ sources:
   - {kind: host-probe, ref: "west:banner-issue"}
   - {kind: host-probe, ref: "west:banner-issue-net"}
   - {kind: host-probe, ref: "west:banner-motd"}
+  - {kind: host-probe, ref: "west:chrony-active"}
+  - {kind: host-probe, ref: "west:chrony-sources"}
+  - {kind: host-probe, ref: "west:chrony-user"}
   - {kind: host-probe, ref: "west:cron-active"}
   - {kind: host-probe, ref: "west:cron-allow-restricted"}
   - {kind: host-probe, ref: "west:firewall-inbound-deny"}
@@ -272,6 +280,7 @@ sources:
   - {kind: host-probe, ref: "west:perm-ssh-host-public-keys"}
   - {kind: host-probe, ref: "west:perm-sshd-config"}
   - {kind: host-probe, ref: "west:pkg-ftp-client-absent"}
+  - {kind: host-probe, ref: "west:pkg-gdm-absent"}
   - {kind: host-probe, ref: "west:pkg-ldap-client-absent"}
   - {kind: host-probe, ref: "west:pkg-nis-client-absent"}
   - {kind: host-probe, ref: "west:pkg-pam-modules"}
@@ -323,6 +332,7 @@ sources:
   - {kind: host-probe, ref: "west:svc-web-server-not-in-use"}
   - {kind: host-probe, ref: "west:svc-x-server-not-in-use"}
   - {kind: host-probe, ref: "west:svc-xinetd-not-in-use"}
+  - {kind: host-probe, ref: "west:time-single-daemon"}
   - {kind: host-probe, ref: "west:unattended-upgrades-enabled"}
   - {kind: host-sshd, ref: "east:clientaliveinterval<=300"}
   - {kind: host-sshd, ref: "east:clientaliveinterval>=1"}

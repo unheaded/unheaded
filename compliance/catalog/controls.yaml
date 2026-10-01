@@ -511,6 +511,8 @@ controls:
       - {kind: host-probe, ref: "east:mta-local-only", maps: {cis-ubuntu2404: ["2.1.21"]}}
       - {kind: host-probe, ref: "west:svc-bluetooth-not-in-use", maps: {cis-ubuntu2404: ["3.1.3"]}}
       - {kind: host-probe, ref: "east:svc-bluetooth-not-in-use", maps: {cis-ubuntu2404: ["3.1.3"]}}
+      - {kind: host-probe, ref: "west:pkg-gdm-absent", maps: {cis-ubuntu2404: ["1.7.1"]}}
+      - {kind: host-probe, ref: "east:pkg-gdm-absent", maps: {cis-ubuntu2404: ["1.7.1"]}}
     mappings:
       nist-800-53r5: [CM-7]
       nist-800-171r3: ["03.04.06"]
@@ -1141,10 +1143,21 @@ controls:
       Time stamps from a synchronized source (AU-8; 800-171 03.03.07); ISO
       A.8.17 clock synchronization. No CSF mapping: NIST's references for
       PR.PS-04 do not list AU-8.
+      CIS Ubuntu 24.04 2.3.1.1 and 2.3.3.1-2.3.3.3 (chrony; the timesyncd
+      branch 2.3.2.x is not claimed). Authorized servers, as site policy:
+      Ubuntu's shipped chrony pools.
     freshness_days: 1
     evidence:
       - {kind: host-probe, ref: "west:ntp-synchronized"}
       - {kind: host-probe, ref: "east:ntp-synchronized"}
+      - {kind: host-probe, ref: "west:time-single-daemon", maps: {cis-ubuntu2404: ["2.3.1.1"]}}
+      - {kind: host-probe, ref: "west:chrony-sources", maps: {cis-ubuntu2404: ["2.3.3.1"]}}
+      - {kind: host-probe, ref: "west:chrony-user", maps: {cis-ubuntu2404: ["2.3.3.2"]}}
+      - {kind: host-probe, ref: "west:chrony-active", maps: {cis-ubuntu2404: ["2.3.3.3"]}}
+      - {kind: host-probe, ref: "east:time-single-daemon", maps: {cis-ubuntu2404: ["2.3.1.1"]}}
+      - {kind: host-probe, ref: "east:chrony-sources", maps: {cis-ubuntu2404: ["2.3.3.1"]}}
+      - {kind: host-probe, ref: "east:chrony-user", maps: {cis-ubuntu2404: ["2.3.3.2"]}}
+      - {kind: host-probe, ref: "east:chrony-active", maps: {cis-ubuntu2404: ["2.3.3.3"]}}
     mappings:
       nist-800-53r5: [AU-8]
       nist-800-171r3: ["03.03.07"]

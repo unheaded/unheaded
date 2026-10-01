@@ -1284,3 +1284,60 @@ func init() {
 		return true, ""
 	})
 }
+
+// Time synchronisation (CIS 2.3.1.1, 2.3.3.1-2.3.3.3) on hosts that use
+// chrony; the systemd-timesyncd alternative (2.3.2.x) is not claimed. Which
+// servers are "authorized" is site policy: the check is that chrony has at
+// least one server or pool, and the policy recorded in UH-TIME-01 is
+// Ubuntu's shipped pools. GDM (1.7.1, Level 2) must not be installed; the
+// other 1.7.x items configure GDM and do not apply without it.
+func init() {
+	Probes["time-single-daemon"] = Probe{
+		Baseline: true,
+		Command:  `echo "chrony=$(systemctl is-active chrony.service 2>/dev/null || true)"; echo "timesyncd=$(systemctl is-active systemd-timesyncd.service 2>/dev/null || true)"`,
+		Judge: func(out string) (bool, string) {
+			f := parseKV(out)
+			c, ts := f["chrony"] == "active", f["timesyncd"] == "active"
+			switch {
+			case c && ts:
+				return false, "chrony and systemd-timesyncd both active"
+			case !c && !ts:
+				return false, "no time synchronisation daemon active"
+			case c:
+				return true, "chrony only"
+			}
+			return true, "systemd-timesyncd only"
+		},
+	}
+	Probes["chrony-sources"] = markerLinesProbe(`cat /etc/chrony/chrony.conf /etc/chrony/conf.d/*.conf /etc/chrony/sources.d/*.sources 2>/dev/null | grep -E '^[[:space:]]*(server|pool)[[:space:]]'; echo @ok`,
+		func(lines []string) (bool, string) {
+			if len(lines) == 0 {
+				return false, "chrony has no server or pool"
+			}
+			return true, fmt.Sprintf("%d server/pool line(s), e.g. %s", len(lines), strings.TrimSpace(lines[0]))
+		})
+	Probes["chrony-user"] = markerLinesProbe(`ps -o user= -C chronyd 2>/dev/null; echo @ok`,
+		func(lines []string) (bool, string) {
+			if len(lines) == 0 {
+				return false, "chronyd is not running"
+			}
+			for _, l := range lines {
+				if u := strings.TrimSpace(l); u != "_chrony" {
+					return false, "chronyd running as " + u
+				}
+			}
+			return true, "chronyd runs as _chrony"
+		})
+	Probes["chrony-active"] = Probe{
+		Baseline: true,
+		Command:  `echo "enabled=$(systemctl is-enabled chrony.service 2>/dev/null || true)"; echo "active=$(systemctl is-active chrony.service 2>/dev/null || true)"`,
+		Judge: func(out string) (bool, string) {
+			f := parseKV(out)
+			if f["enabled"] != "enabled" || f["active"] != "active" {
+				return false, fmt.Sprintf("chrony %s/%s (want enabled/active)", f["enabled"], f["active"])
+			}
+			return true, "chrony enabled and active"
+		},
+	}
+	Probes["pkg-gdm-absent"] = packageAbsentProbe([]string{"gdm3"})
+}

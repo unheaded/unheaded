@@ -1048,3 +1048,32 @@ func TestProbeCommandsDoNotEmitSectionMarkers(t *testing.T) {
 		}
 	}
 }
+
+func TestTimeSyncProbes(t *testing.T) {
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"time-single-daemon", "chrony=active\ntimesyncd=inactive\n", true},
+		{"time-single-daemon", "chrony=active\ntimesyncd=active\n", false},
+		{"time-single-daemon", "chrony=inactive\ntimesyncd=inactive\n", false},
+		{"chrony-sources", "pool ntp.ubuntu.com iburst maxsources 4\n@ok\n", true},
+		{"chrony-sources", "@ok\n", false},
+		{"chrony-user", "_chrony\n_chrony\n@ok\n", true},
+		{"chrony-user", "root\n_chrony\n@ok\n", false},
+		{"chrony-user", "@ok\n", false},
+		{"chrony-active", "enabled=enabled\nactive=active\n", true},
+		{"chrony-active", "enabled=disabled\nactive=active\n", false},
+		{"pkg-gdm-absent", "installed=\n", true},
+		{"pkg-gdm-absent", "installed=gdm3\n", false},
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok || !p.Baseline {
+			t.Errorf("%s missing or not a baseline probe", tc.probe)
+			continue
+		}
+		if pass, detail := p.Judge(tc.out); pass != tc.pass {
+			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}
