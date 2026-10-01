@@ -46,6 +46,11 @@ psql_su -d unheaded_app -f "$MIGRATIONS/011_zhen_actions_relax_constraints.sql"
 # so it runs against the maintenance database.
 psql_su -f "$MIGRATIONS/012_huginn_reader.sql"
 
+# 013/014 are the compliance tables (ADR-099 amended): desired state in
+# unheaded_config, records in unheaded_ops. Both use the existing scoped roles.
+psql_su -d unheaded_config -f "$MIGRATIONS/013_compliance_config.sql"
+psql_su -d unheaded_ops    -f "$MIGRATIONS/014_compliance_ops.sql"
+
 # 001_initial_schema.sql is deliberately NOT applied — it is the pre-split
 # single-database schema, superseded by 003/004/005. Applying it would put a
 # fourth copy of kanban_tasks, timeline_milestones and zhen_conversations in the

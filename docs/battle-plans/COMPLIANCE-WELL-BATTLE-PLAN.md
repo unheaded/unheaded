@@ -131,25 +131,25 @@ Facts on 2026-10-01:
 **Time**: 3 h.
 **Agent**: Coordinator.
 
-- [ ] **Step 15** [W] ~20m: `db/migrations/013_compliance_config.sql` targets `unheaded_config`:
+- [x] **Step 15** [W] ~20m: `db/migrations/013_compliance_config.sql` targets `unheaded_config`:
   - `compliance_fixes(id PK, title, class, risk, controls text[], closes text[], body jsonb, sha256 char(64), synced_at)`
   - `compliance_profiles(name PK CHECK name ~ '^[a-z0-9-]{1,40}$', description, all_fixes bool, fixes text[], updated_at, updated_by)`
   - `compliance_host_bindings(host PK, profile FK→profiles, mode CHECK IN ('audit','enforcing'), overrides jsonb, updated_at, updated_by, change_reason NOT NULL)`
   - `compliance_host_bindings_history`, append-only, written by trigger (pattern: `kingdom_config_history`)
   - mirrors `compliance_controls` and `compliance_frameworks`, each with `sha256`
   - grants: `config_admin` CRUD; `config_reader` SELECT; history `INSERT` only via trigger, with no UPDATE or DELETE granted to anyone but the owner
-- [ ] **Step 16** [W] ~20m: `db/migrations/014_compliance_ops.sql` targets `unheaded_ops`:
+- [x] **Step 16** [W] ~20m: `db/migrations/014_compliance_ops.sql` targets `unheaded_ops`:
   - `compliance_apply_journal(id bigserial, host, fix_id, fix_sha256, model_commit, action CHECK IN ('apply','undo','plan'), outcome, backup_dir, operator, at, previous_hash, hash)`
   - `compliance_findings(key PK, severity, class, step, lockout, plan, decision, accepted_until date, accepted_reason, opened_at, updated_at, updated_by)` plus `_history`
   - `compliance_evidence(id bigserial, source_key, host, status, detail, observed_at)` with an index on `(source_key, observed_at DESC)`
   - grants: `ops_writer` INSERT/SELECT, with no UPDATE or DELETE on the journal or history; `ops_reader` SELECT
-- [ ] **Step 17** [W] ~5m: Route both migrations in `db/init.sh` (013 → `unheaded_config`, 014 → `unheaded_ops`), after 012.
-- [ ] **Step 18** [B] ~3m: Static checks.
+- [x] **Step 17** [W] ~5m: Route both migrations in `db/init.sh` (013 → `unheaded_config`, 014 → `unheaded_ops`), after 012.
+- [x] **Step 18** [B] ~3m: Static checks.
   ```bash
   cd $R && bash -n db/init.sh && bash scripts/check-compose-bind-nesting.sh && grep -c 'SPDX' db/migrations/01[34]_*.sql
   ```
-- [ ] **Step 19** [V]: Both files carry SPDX, and `init.sh` names both. Go on to Step 20.
-- [ ] **Step 20** [C]: `git commit -S -m "feat(well): compliance schema in unheaded_config and unheaded_ops (013, 014)"`
+- [x] **Step 19** [V] (done 2026-10-01; also `scripts/well/test-compliance-schema.sh`: 25 constraint checks in a throwaway container, red when the journal's append-only trigger is removed): Both files carry SPDX, and `init.sh` names both. Go on to Step 20.
+- [x] **Step 20** [C]: `git commit -S -m "feat(well): compliance schema in unheaded_config and unheaded_ops (013, 014)"`
 - [ ] **Step 21** [B][S] ~5m: Apply to the live Well, in a transaction. Read each file first; neither may contain DROP.
   ```bash
   cd $R && ! grep -qi 'drop ' db/migrations/01[34]_*.sql
