@@ -100,4 +100,9 @@ if ((GO)); then
 	(cd "$R" && WELL_TEST_OPS_DSN="host=127.0.0.1 port=$PORT user=ops_writer password=ops_writer_dev dbname=unheaded_ops sslmode=disable" \
 		WELL_TEST_CONFIG_DSN="host=127.0.0.1 port=$PORT user=config_admin password=config_admin_dev dbname=unheaded_config sslmode=disable" \
 		go test ./pkg/compliance/well/... -run Integration -count=1 -v | grep -vE '^(=== RUN)')
+	# End to end: the command itself, against the same throwaway databases.
+	(cd "$R" && WELL_HOST=127.0.0.1 WELL_PORT="$PORT" \
+		WELL_CONFIG_USER=config_admin WELL_CONFIG_PASSWORD=config_admin_dev \
+		WELL_OPS_USER=ops_writer WELL_OPS_PASSWORD=ops_writer_dev \
+		go run ./cmd/compliance-evidence well sync -dry-run)
 fi

@@ -217,7 +217,7 @@ Facts on 2026-10-01:
 - [x] **Step 43** [B] ~2m: `go test ./pkg/compliance/remediation/... ./scripts/host/... -race -count=1`
 - [x] **Step 44** [V] (done 2026-10-01: 40 parity subtests green; red on a changed sshd line, a dropped sudo-rs condition and a wrong cron.allow mode): Green. Any mismatch is a model bug: fix the YAML, not the test.
 - [ ] **Step 45** [C]: `git commit -S -m "feat(compliance): fix model loader + parity with remediate.sh (ADR-099 phase 1)"`
-- [ ] **Step 46** [W] ~20m: `cmd/compliance-evidence well sync [--dry-run]`.
+- [x] **Step 46** (done 2026-10-01: well.Sync + `compliance-evidence well sync [-dry-run]`; run end to end by `scripts/well/test-compliance-schema.sh --go`) [W] ~20m: `cmd/compliance-evidence well sync [--dry-run]`.
   - Definitions: upsert when the sha256 differs.
   - State: `INSERT … ON CONFLICT DO NOTHING`.
   - Prints a diff summary.

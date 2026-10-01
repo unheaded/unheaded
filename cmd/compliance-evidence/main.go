@@ -11,6 +11,7 @@
 //	go run ./cmd/compliance-evidence findings       # the findings register (ADR-098)
 //	go run ./cmd/compliance-evidence findings -adr docs/adr/ADR-098-findings-register-and-baseline-modes.md
 //	go run ./cmd/compliance-evidence baseline       # regenerate compliance/baseline/baseline.yaml
+//	go run ./cmd/compliance-evidence well sync -dry-run  # mirror/seed The Well (ADR-099 amended)
 package main
 
 import (
@@ -31,6 +32,13 @@ func main() {
 	if len(os.Args) > 1 && os.Args[1] == "findings" {
 		if err := runFindings(os.Args[2:], os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "compliance-evidence findings:", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == "well" {
+		if err := runWell(os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "compliance-evidence well:", err)
 			os.Exit(1)
 		}
 		return
