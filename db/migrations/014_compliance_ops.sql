@@ -146,6 +146,15 @@ CREATE TRIGGER trg_compliance_evidence_no_update
     BEFORE UPDATE ON compliance_evidence
     FOR EACH ROW EXECUTE FUNCTION compliance_append_only();
 
+-- TRUNCATE fires no row trigger: guard it per statement on every
+-- append-only table, or the owner could empty one in a single command.
+CREATE TRIGGER trg_compliance_journal_no_truncate
+    BEFORE TRUNCATE ON compliance_apply_journal
+    FOR EACH STATEMENT EXECUTE FUNCTION compliance_append_only();
+CREATE TRIGGER trg_compliance_findings_history_no_truncate
+    BEFORE TRUNCATE ON compliance_findings_history
+    FOR EACH STATEMENT EXECUTE FUNCTION compliance_append_only();
+
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- GRANTS
 -- ═══════════════════════════════════════════════════════════════════════════════

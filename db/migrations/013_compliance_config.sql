@@ -159,6 +159,15 @@ CREATE TRIGGER trg_compliance_bindings_no_delete
     BEFORE DELETE ON compliance_host_bindings
     FOR EACH ROW EXECUTE FUNCTION compliance_append_only();
 
+-- TRUNCATE fires no row trigger: guard it per statement, or the owner could
+-- empty the history in one command.
+CREATE TRIGGER trg_compliance_bindings_history_no_truncate
+    BEFORE TRUNCATE ON compliance_host_bindings_history
+    FOR EACH STATEMENT EXECUTE FUNCTION compliance_append_only();
+CREATE TRIGGER trg_compliance_bindings_no_truncate
+    BEFORE TRUNCATE ON compliance_host_bindings
+    FOR EACH STATEMENT EXECUTE FUNCTION compliance_append_only();
+
 -- ═══════════════════════════════════════════════════════════════════════════════
 -- GRANTS
 -- ═══════════════════════════════════════════════════════════════════════════════
