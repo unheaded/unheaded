@@ -53,6 +53,7 @@ func newEnv(t *testing.T, host string) *env {
 		}
 	}
 	e.write("/etc/crontab", "# crontab\n", 0o644)
+	e.write("/etc/group", "root:x:0:\nsudo:x:27:govan,ops\ncrontab:x:107:\n", 0o644)
 	e.write("/etc/default/apport", "enabled=1\n", 0o644)
 	e.write("/etc/ssh/sshd_config", "Include /etc/ssh/sshd_config.d/*.conf\n", 0o644)
 	e.write("/etc/ssh/sshd_config.d/99-unheaded.conf", "MaxAuthTries 3\n", 0o644)
@@ -245,6 +246,9 @@ func TestCronPermsAndUndo(t *testing.T) {
 	out, err := e.apply("cron-perms")
 	if err != nil {
 		t.Fatalf("%v\n%s", err, out)
+	}
+	if b, _ := os.ReadFile(e.root + "/etc/cron.allow"); string(b) != "root\ngovan\nops\n" {
+		t.Errorf("cron.allow = %q, want root and the sudo group", b)
 	}
 	for p, want := range map[string]os.FileMode{"/etc/crontab": 0o600, "/etc/cron.d": 0o700, "/etc/cron.allow": 0o640} {
 		if fi, err := os.Stat(e.root + p); err != nil || fi.Mode().Perm() != want {

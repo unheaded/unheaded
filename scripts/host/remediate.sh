@@ -166,6 +166,12 @@ apply_mode() {
 	echo "  set $1 to $2 ${3:-root:root}"
 }
 
+# cron_allow: root plus the sudo group's members, one per line. Restricting
+# crontab must not take it away from the people who run this lab.
+cron_allow() {
+	{ echo root; awk -F: '$1=="sudo"{print $4}' "$ROOT/etc/group" 2>/dev/null | tr ',' '\n'; } | grep -v '^$' | awk '!seen[$0]++'
+}
+
 known_host() { [[ "$HOST" == west || "$HOST" == east ]] || die "host '$HOST' is not west or east; host-specific content is not defined for it"; }
 
 # fixes -------------------------------------------------------------------------
@@ -213,14 +219,14 @@ fix_cron-perms() {
 	if [[ "$mode" == plan ]]; then
 		plan_mode /etc/crontab 600 || true
 		for d in cron.hourly cron.daily cron.weekly cron.monthly cron.d; do plan_mode "/etc/$d" 700 || true; done
-		plan_file /etc/cron.allow 640 "root" || true
+		plan_file /etc/cron.allow 640 "$(cron_allow)" || true
 		if [[ -e "$ROOT/etc/cron.deny" ]]; then echo "  /etc/cron.deny: would be removed"; fi
-		echo "  (no user has a crontab today; cron.allow lists root only)"
+		echo "  (cron.allow lists root and the sudo group, so the operator keeps crontab -e)"
 		return
 	fi
 	apply_mode /etc/crontab 600
 	for d in cron.hourly cron.daily cron.weekly cron.monthly cron.d; do apply_mode "/etc/$d" 700; done
-	apply_file /etc/cron.allow 640 "root"
+	apply_file /etc/cron.allow 640 "$(cron_allow)"
 	chown root:crontab "$ROOT/etc/cron.allow" 2>/dev/null || true
 	if [[ -e "$ROOT/etc/cron.deny" ]]; then backup /etc/cron.deny; rm -f "$ROOT/etc/cron.deny"; echo "  removed /etc/cron.deny"; fi
 }
