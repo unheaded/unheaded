@@ -200,3 +200,82 @@ func TestIntegrationPGStore(t *testing.T) {
 		t.Errorf("enforcing reached the database: %v", err)
 	}
 }
+
+func journal(t *testing.T, n int) []remediation.JournalEntry {
+	t.Helper()
+	var out []remediation.JournalEntry
+	prev := remediation.GenesisHash
+	for i := 1; i <= n; i++ {
+		e := remediation.JournalEntry{Host: "east", Seq: int64(i), FixID: "kmod-cis", FixSHA256: strings.Repeat("b", 64),
+			Action: "apply", Outcome: "success", Operator: "test", At: time.Date(2026, 10, 1, 2, i, 0, 0, time.UTC)}
+		if err := e.Seal(prev); err != nil {
+			t.Fatal(err)
+		}
+		prev = e.Hash
+		out = append(out, e)
+	}
+	return out
+}
+
+func TestIngestJournalRefusesBrokenInputWithoutTheWell(t *testing.T) {
+	s := NewOpsStore(nil) // never reached: the chain is checked first
+	j := journal(t, 3)
+	j[1].Outcome = "failure"
+	if _, err := s.IngestJournal(context.Background(), "east", j); !errors.Is(err, remediation.ErrChainBroken) {
+		t.Fatalf("tampered: %v", err)
+	}
+	if _, err := s.IngestJournal(context.Background(), "west", journal(t, 2)); !errors.Is(err, remediation.ErrChainBroken) {
+		t.Fatalf("wrong host: %v", err)
+	}
+	if _, err := s.IngestJournal(context.Background(), "east", journal(t, 3)[1:]); !errors.Is(err, remediation.ErrChainBroken) {
+		t.Fatalf("not from seq 1: %v", err)
+	}
+}
+
+// Integration against a throwaway unheaded_ops as ops_writer
+// (scripts/well/test-compliance-schema.sh --go). Never The Well itself.
+func TestIntegrationIngestJournal(t *testing.T) {
+	dsn := os.Getenv("WELL_TEST_OPS_DSN")
+	if dsn == "" {
+		t.Skip("WELL_TEST_OPS_DSN not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	s := NewOpsStore(db)
+	j := journal(t, 5)
+	if n, err := s.IngestJournal(ctx, "east", j[:3]); err != nil || n != 3 {
+		t.Fatalf("first ingest: %d %v", n, err)
+	}
+	if n, err := s.IngestJournal(ctx, "east", j); err != nil || n != 2 {
+		t.Fatalf("second ingest: %d %v (want only the 2 new)", n, err)
+	}
+	if n, err := s.IngestJournal(ctx, "east", j); err != nil || n != 0 {
+		t.Fatalf("re-ingest: %d %v (want idempotent)", n, err)
+	}
+	// Truncated: the host now shows fewer entries than The Well holds.
+	if _, err := s.IngestJournal(ctx, "east", j[:4]); !errors.Is(err, remediation.ErrChainBroken) {
+		t.Fatalf("truncated: %v", err)
+	}
+	// Rewritten: a new self-consistent chain whose early entries differ.
+	re := journal(t, 6)
+	re[0].Operator = "mallory"
+	prev := remediation.GenesisHash
+	for i := range re {
+		if err := re[i].Seal(prev); err != nil {
+			t.Fatal(err)
+		}
+		prev = re[i].Hash
+	}
+	if _, err := s.IngestJournal(ctx, "east", re); !errors.Is(err, remediation.ErrChainBroken) {
+		t.Fatalf("rewritten: %v", err)
+	}
+	var count int
+	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM compliance_apply_journal WHERE host = 'east'`).Scan(&count); err != nil || count != 5 {
+		t.Fatalf("held %d rows (%v), want 5", count, err)
+	}
+}

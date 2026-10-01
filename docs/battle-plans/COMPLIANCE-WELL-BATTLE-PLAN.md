@@ -171,7 +171,7 @@ Facts on 2026-10-01:
 - [~] **Step 27** (profiles + hosts done; findings to do) [W] ~20m: YAML fallback store, `yamlstore.go`.
   - Reads `compliance/{profiles,hosts,findings}` through `os.Root`, with strict decoding (`KnownFields`) and a 256 KiB cap.
   - Every write returns `ErrReadOnlyFallback`.
-- [~] **Step 28** (profiles, bindings, SetBinding done; journal hash chain to do) [W] ~30m: Postgres store, `pgstore.go`.
+- [~] **Step 28** (profiles, bindings, SetBinding done; journal hash chain + ingest done 2026-10-01: whole-file verify from genesis, held entries must match hash for hash, truncation refused, advisory lock; findings/evidence to do) [W] ~30m: Postgres store, `pgstore.go`.
   - Parameterised queries only, with context deadlines (5 s).
   - `SetBinding` runs in one transaction: validate profile → update → history row written by the trigger.
   - `AppendJournal` computes `hash = sha256(previous_hash || canonical row)` under `SELECT … FOR UPDATE` on the last row.

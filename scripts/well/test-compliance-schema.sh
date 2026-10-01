@@ -89,9 +89,12 @@ if ((GO)); then
 	psql_as unheaded unheaded <<<"DROP DATABASE unheaded_config WITH (FORCE); CREATE DATABASE unheaded_config;" >/dev/null
 	psql_as unheaded unheaded_config <"$R/db/migrations/005_config_schema.sql" >/dev/null
 	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_config <"$R/db/migrations/013_compliance_config.sql"
-	psql_as unheaded unheaded <<<"GRANT CONNECT ON DATABASE unheaded_config TO config_admin;" >/dev/null
-	# config_admin's password here is the dev one from 002, valid only
-	# inside this throwaway container.
-	(cd "$R" && WELL_TEST_CONFIG_DSN="host=127.0.0.1 port=$PORT user=config_admin password=config_admin_dev dbname=unheaded_config sslmode=disable" \
+	psql_as unheaded unheaded <<<"DROP DATABASE unheaded_ops WITH (FORCE); CREATE DATABASE unheaded_ops;" >/dev/null
+	psql_as unheaded unheaded_ops <"$R/db/migrations/004_ops_schema.sql" >/dev/null
+	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/014_compliance_ops.sql"
+	# Passwords below are the dev ones from 002, valid only inside this
+	# throwaway container.
+	(cd "$R" && WELL_TEST_OPS_DSN="host=127.0.0.1 port=$PORT user=ops_writer password=ops_writer_dev dbname=unheaded_ops sslmode=disable" \
+		WELL_TEST_CONFIG_DSN="host=127.0.0.1 port=$PORT user=config_admin password=config_admin_dev dbname=unheaded_config sslmode=disable" \
 		go test ./pkg/compliance/well/... -run Integration -count=1 -v | grep -vE '^(=== RUN)')
 fi
