@@ -30,6 +30,7 @@ sources:
   - {kind: host-probe, ref: "east:group-root-only-gid0"}
   - {kind: host-probe, ref: "east:grub-password"}
   - {kind: host-probe, ref: "east:journald-active"}
+  - {kind: host-probe, ref: "east:journald-forward-syslog"}
   - {kind: host-probe, ref: "east:kmod-cramfs-disabled"}
   - {kind: host-probe, ref: "east:kmod-freevxfs-disabled"}
   - {kind: host-probe, ref: "east:kmod-hfs-disabled"}
@@ -37,6 +38,7 @@ sources:
   - {kind: host-probe, ref: "east:kmod-jffs2-disabled"}
   - {kind: host-probe, ref: "east:kmod-udf-disabled"}
   - {kind: host-probe, ref: "east:kmod-usb-storage-disabled"}
+  - {kind: host-probe, ref: "east:logging-single-system"}
   - {kind: host-probe, ref: "east:mount-dev-shm-nodev"}
   - {kind: host-probe, ref: "east:mount-dev-shm-noexec"}
   - {kind: host-probe, ref: "east:mount-dev-shm-nosuid"}
@@ -101,6 +103,9 @@ sources:
   - {kind: host-probe, ref: "east:pw-max-days"}
   - {kind: host-probe, ref: "east:pw-warn-age"}
   - {kind: host-probe, ref: "east:radio-wireless-down"}
+  - {kind: host-probe, ref: "east:rsyslog-active"}
+  - {kind: host-probe, ref: "east:rsyslog-filecreatemode"}
+  - {kind: host-probe, ref: "east:rsyslog-no-listen"}
   - {kind: host-probe, ref: "east:shell-tmout"}
   - {kind: host-probe, ref: "east:sshd-access"}
   - {kind: host-probe, ref: "east:sshd-banner"}
@@ -164,6 +169,7 @@ sources:
   - {kind: host-probe, ref: "west:group-root-only-gid0"}
   - {kind: host-probe, ref: "west:grub-password"}
   - {kind: host-probe, ref: "west:journald-active"}
+  - {kind: host-probe, ref: "west:journald-forward-syslog"}
   - {kind: host-probe, ref: "west:kmod-cramfs-disabled"}
   - {kind: host-probe, ref: "west:kmod-freevxfs-disabled"}
   - {kind: host-probe, ref: "west:kmod-hfs-disabled"}
@@ -171,6 +177,7 @@ sources:
   - {kind: host-probe, ref: "west:kmod-jffs2-disabled"}
   - {kind: host-probe, ref: "west:kmod-udf-disabled"}
   - {kind: host-probe, ref: "west:kmod-usb-storage-disabled"}
+  - {kind: host-probe, ref: "west:logging-single-system"}
   - {kind: host-probe, ref: "west:mount-dev-shm-nodev"}
   - {kind: host-probe, ref: "west:mount-dev-shm-noexec"}
   - {kind: host-probe, ref: "west:mount-dev-shm-nosuid"}
@@ -235,6 +242,9 @@ sources:
   - {kind: host-probe, ref: "west:pw-max-days"}
   - {kind: host-probe, ref: "west:pw-warn-age"}
   - {kind: host-probe, ref: "west:radio-wireless-down"}
+  - {kind: host-probe, ref: "west:rsyslog-active"}
+  - {kind: host-probe, ref: "west:rsyslog-filecreatemode"}
+  - {kind: host-probe, ref: "west:rsyslog-no-listen"}
   - {kind: host-probe, ref: "west:shell-tmout"}
   - {kind: host-probe, ref: "west:sshd-access"}
   - {kind: host-probe, ref: "west:sshd-banner"}

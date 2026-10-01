@@ -817,6 +817,34 @@ controls:
     mappings:
       nist-800-53r5: [SI-7]
 
+  - id: UH-LOG-01
+    title: Host logs are kept by one logging system, readable only by those who should
+    statement: >-
+      On both hosts journald forwards to rsyslog, rsyslog is the only
+      logging system running, it writes log files at 0640 or stricter and it
+      accepts no logs from the network.
+    rationale: >-
+      Audit record generation (AU-12) and protection of audit information
+      (AU-9; 800-171 03.03.01, 03.03.08), with no remote log listener
+      (CM-7). CIS Ubuntu 24.04 6.1.1.4, 6.1.3.1-6.1.3.4 and 6.1.3.7 on the
+      rsyslog path the hosts use; the journald-remote alternative (6.1.2.x)
+      is not claimed.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:logging-single-system", maps: {cis-ubuntu2404: ["6.1.1.4"]}}
+      - {kind: host-probe, ref: "west:rsyslog-active", maps: {cis-ubuntu2404: ["6.1.3.1", "6.1.3.2"]}}
+      - {kind: host-probe, ref: "west:journald-forward-syslog", maps: {cis-ubuntu2404: ["6.1.3.3"]}}
+      - {kind: host-probe, ref: "west:rsyslog-filecreatemode", maps: {cis-ubuntu2404: ["6.1.3.4"]}}
+      - {kind: host-probe, ref: "west:rsyslog-no-listen", maps: {cis-ubuntu2404: ["6.1.3.7"]}}
+      - {kind: host-probe, ref: "east:logging-single-system", maps: {cis-ubuntu2404: ["6.1.1.4"]}}
+      - {kind: host-probe, ref: "east:rsyslog-active", maps: {cis-ubuntu2404: ["6.1.3.1", "6.1.3.2"]}}
+      - {kind: host-probe, ref: "east:journald-forward-syslog", maps: {cis-ubuntu2404: ["6.1.3.3"]}}
+      - {kind: host-probe, ref: "east:rsyslog-filecreatemode", maps: {cis-ubuntu2404: ["6.1.3.4"]}}
+      - {kind: host-probe, ref: "east:rsyslog-no-listen", maps: {cis-ubuntu2404: ["6.1.3.7"]}}
+    mappings:
+      nist-800-53r5: [AU-9, AU-12, CM-7]
+      nist-800-171r3: ["03.03.01", "03.03.08"]
+
   - id: UH-NET-01
     title: The host network stack rejects spoofed and redirected traffic
     statement: >-

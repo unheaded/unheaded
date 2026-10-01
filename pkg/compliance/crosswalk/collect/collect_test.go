@@ -938,3 +938,36 @@ func TestAIDEProbes(t *testing.T) {
 		}
 	}
 }
+
+func TestLoggingProbes(t *testing.T) {
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"rsyslog-active", "installed=rsyslog\nenabled=enabled\nactive=active\n", true},
+		{"rsyslog-active", "installed=rsyslog\nenabled=enabled\nactive=inactive\n", false},
+		{"logging-single-system", "rsyslog=active\nupload=inactive\n", true},
+		{"logging-single-system", "rsyslog=active\nupload=active\n", false},
+		{"logging-single-system", "rsyslog=inactive\nupload=inactive\n", false},
+		{"journald-forward-syslog", "ForwardToSyslog=no\nForwardToSyslog=yes\n@ok\n", true}, // last one wins
+		{"journald-forward-syslog", "ForwardToSyslog=yes\nForwardToSyslog=no\n@ok\n", false},
+		{"journald-forward-syslog", "@ok\n", false}, // journald's default is no
+		{"rsyslog-filecreatemode", "$FileCreateMode 0640\n@ok\n", true},
+		{"rsyslog-filecreatemode", "$FileCreateMode 0600\n@ok\n", true},
+		{"rsyslog-filecreatemode", "$FileCreateMode 0644\n@ok\n", false},
+		{"rsyslog-filecreatemode", "@ok\n", false}, // rsyslog's default is 0644
+		{"rsyslog-no-listen", "@ok\n", true},
+		{"rsyslog-no-listen", "module(load=\"imtcp\")\n@ok\n", false},
+		{"rsyslog-no-listen", "$ModLoad imudp\n@ok\n", false},
+		{"rsyslog-no-listen", "", false},
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok || !p.Baseline {
+			t.Errorf("%s missing or not a baseline probe", tc.probe)
+			continue
+		}
+		if pass, detail := p.Judge(tc.out); pass != tc.pass {
+			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}

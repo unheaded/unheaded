@@ -959,3 +959,75 @@ func init() {
 			return false, "no AIDE timer"
 		})
 }
+
+// Logging (CIS 6.1.1.4, 6.1.3.1-6.1.3.4, 6.1.3.7) for hosts on the rsyslog
+// path (journald forwarding to rsyslog). The journald-remote path
+// (6.1.2.x) is the alternative and is not claimed.
+func init() {
+	Probes["rsyslog-active"] = Probe{
+		Baseline: true,
+		Command: dpkgInstalled([]string{"rsyslog"}) +
+			`; echo "enabled=$(systemctl is-enabled rsyslog.service 2>/dev/null || true)"; echo "active=$(systemctl is-active rsyslog.service 2>/dev/null || true)"`,
+		Judge: func(out string) (bool, string) {
+			f := parseKV(out)
+			if !strings.Contains(" "+f["installed"]+" ", " rsyslog ") {
+				return false, "rsyslog not installed"
+			}
+			if f["enabled"] != "enabled" || f["active"] != "active" {
+				return false, fmt.Sprintf("rsyslog %s/%s (want enabled/active)", f["enabled"], f["active"])
+			}
+			return true, "rsyslog installed, enabled and active"
+		},
+	}
+	Probes["logging-single-system"] = Probe{
+		Baseline: true,
+		Command:  `echo "rsyslog=$(systemctl is-active rsyslog.service 2>/dev/null || true)"; echo "upload=$(systemctl is-active systemd-journal-upload.service 2>/dev/null || true)"`,
+		Judge: func(out string) (bool, string) {
+			f := parseKV(out)
+			r, u := f["rsyslog"] == "active", f["upload"] == "active"
+			switch {
+			case r && u:
+				return false, "both rsyslog and systemd-journal-upload are active"
+			case !r && !u:
+				return false, "neither rsyslog nor systemd-journal-upload is active"
+			case r:
+				return true, "rsyslog only"
+			}
+			return true, "systemd-journal-upload only"
+		},
+	}
+	Probes["journald-forward-syslog"] = markerLinesProbe(`systemd-analyze cat-config systemd/journald.conf 2>/dev/null | grep -E '^[[:space:]]*ForwardToSyslog=' | tr -d ' '; echo @ok`,
+		func(lines []string) (bool, string) {
+			v := "no (default)"
+			for _, l := range lines {
+				if x, ok := strings.CutPrefix(strings.TrimSpace(l), "ForwardToSyslog="); ok {
+					v = x // the last assignment wins, as in journald
+				}
+			}
+			return v == "yes", "ForwardToSyslog=" + v
+		})
+	Probes["rsyslog-filecreatemode"] = markerLinesProbe(`cat /etc/rsyslog.conf /etc/rsyslog.d/*.conf 2>/dev/null | grep -E '^[[:space:]]*\$FileCreateMode'; echo @ok`,
+		func(lines []string) (bool, string) {
+			v := ""
+			for _, l := range lines {
+				if f := strings.Fields(l); len(f) >= 2 {
+					v = f[1]
+				}
+			}
+			if v == "" {
+				return false, "$FileCreateMode not set (rsyslog's default is 0644)"
+			}
+			m, err := strconv.ParseUint(v, 8, 32)
+			if err != nil || uint32(m)&^0o640 != 0 {
+				return false, "$FileCreateMode " + v + " (want 0640 or stricter)"
+			}
+			return true, "$FileCreateMode " + v
+		})
+	Probes["rsyslog-no-listen"] = markerLinesProbe(`cat /etc/rsyslog.conf /etc/rsyslog.d/*.conf 2>/dev/null | grep -Ev '^[[:space:]]*#' | grep -E 'imtcp|imudp|InputTCPServerRun|UDPServerRun'; echo @ok`,
+		func(lines []string) (bool, string) {
+			if len(lines) > 0 {
+				return false, "rsyslog accepts remote logs: " + strings.TrimSpace(lines[0])
+			}
+			return true, "no network input modules"
+		})
+}

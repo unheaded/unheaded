@@ -292,6 +292,14 @@ func init() {
 			probeActions[name] = "none (alert only): taking an interface down can cut the host off (west's LAN is wireless)"
 		case strings.HasPrefix(name, "aide-"):
 			probeActions[name] = "none (alert only): installing AIDE and building its first database (aideinit) takes minutes of disk I/O; the operator runs it"
+		case name == "rsyslog-active", name == "logging-single-system":
+			probeActions[name] = "systemctl enable --now rsyslog; stop and disable systemd-journal-upload if both run"
+		case name == "journald-forward-syslog":
+			probeActions[name] = "write journald.conf.d/60-unheaded.conf: ForwardToSyslog=yes; restart systemd-journald"
+		case name == "rsyslog-filecreatemode":
+			probeActions[name] = "write rsyslog.d/00-unheaded.conf: $FileCreateMode 0640; restart rsyslog"
+		case name == "rsyslog-no-listen":
+			probeActions[name] = "none (alert only): a remote-log listener may be deliberate; the operator removes it"
 		case strings.HasPrefix(name, "mount-"):
 			probeActions[name] = "none (alert only): mount options and partitions change through fstab and a remount or reboot, which the operator does"
 		case strings.HasPrefix(name, "perm-"):
