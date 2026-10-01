@@ -365,7 +365,7 @@ Facts on 2026-10-01:
 - [ ] **Step 106** [B] ~3m: `go test ./pkg/gungnir/... ./cmd/unheaded-baseline/... ./cmd/unheaded-remediate/... -race -count=1`
 - [ ] **Step 107** [C]: `git commit -S -m "feat(compliance): Gungnir-sealed host snapshots; agent and executor refuse unsealed"`
 - [ ] **Step 108** [W] ~15m: Amend ADR-099: The Well is the source of truth, YAML is seed and fallback, the decision table above, pull model, sealed snapshots. Then update `ADR-INDEX.md`.
-- [ ] **Step 109** [W] ~15m: Runbook `runbooks/security/compliance-profile-switch.yaml` (`runbook/v1`): plan → switch → plan on the host → apply → verify evidence → journal row.
+- [x] **Step 109** (done 2026-10-01) [W] ~15m: Runbook `runbooks/security/compliance-profile-switch.yaml` (`runbook/v1`): plan → switch → plan on the host → apply → verify evidence → journal row.
 - [ ] **Step 110** [B] ~3m: Pre-commit, meta-gate, full compliance tests.
   ```bash
   cd $R && bash scripts/check-gates-can-fail.sh && go test ./pkg/compliance/... ./cmd/compliance-evidence/... -count=1 | tail -5

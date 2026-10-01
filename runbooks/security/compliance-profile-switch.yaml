@@ -1,0 +1,83 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: compliance-profile-switch
+  description: Switch a host's control profile and apply it, leaving a trail an auditor can follow (ADR-099)
+  owner: moatghost
+  estimated_duration: 20m
+  risk: medium
+  requires_sudo: true
+
+env:
+  PROJECT_ROOT: "~/tmp/unheaded"
+  HOST: "east"
+  PROFILE: "lab"
+
+notes: |
+  Profiles switch remediation, never detection: every check keeps running
+  and every failure keeps counting. Switching changes desired state only;
+  nothing reaches the host until the apply step, which is the operator's
+  decision per fix (Stevie's yes, ADR-098). Each step leaves evidence:
+  the switch is a history row in The Well (who, when, why), each apply is
+  a hash-chained journal entry on the host, and the collector's next run
+  shows the checks the fixes close passing.
+
+  Needs The Well up, with WELL_CONFIG_USER=config_admin and
+  WELL_CONFIG_PASSWORD set for the switch (no default password exists).
+
+steps:
+  - name: show-the-switch
+    action: shell
+    description: What the switch turns on and off; changes nothing.
+    command: |
+      cd ${PROJECT_ROOT}
+      go run ./cmd/compliance-evidence profile set -host ${HOST} -profile ${PROFILE} -reason "preview"
+
+  - name: switch
+    action: manual
+    description: >-
+      Record the switch with a real reason (it is the change record). Switching
+      a fix off does not undo it; undo is the unheaded-remediate undo step.
+    command: |
+      cd ${PROJECT_ROOT}
+      go run ./cmd/compliance-evidence profile set -host ${HOST} -profile ${PROFILE} -reason "<why>" -yes
+      go run ./cmd/compliance-evidence profile export   # keep the YAML fallback current; commit it signed
+
+  - name: plan-on-the-host
+    action: shell
+    description: For each fix in the profile, what applying it would change on the host. Read-only.
+    host: ${HOST}
+    command: |
+      for f in $(unheaded-remediate list | awk '{print $1}'); do
+        sudo unheaded-remediate -model /usr/share/unheaded/remediation/fixes.yaml plan "$f"
+      done
+
+  - name: apply-each-fix
+    action: manual
+    description: >-
+      One fix at a time, only those the profile turns on and only after the
+      yes for that fix on that host. Each apply backs up what it touches,
+      restores everything if a check fails, and journals the outcome.
+    host: ${HOST}
+    command: "sudo unheaded-remediate -model /usr/share/unheaded/remediation/fixes.yaml apply <fix>"
+
+  - name: verify-evidence
+    action: shell
+    description: The checks the fixes close should now pass; the register count should fall.
+    command: |
+      cd ${PROJECT_ROOT}
+      go run ./cmd/compliance-evidence -skip-gates
+      go run ./cmd/compliance-evidence findings | head -3
+
+  - name: verify-trail
+    action: shell
+    description: The switch in The Well's history and the applies in the host's journal.
+    command: |
+      curl -s http://127.0.0.1:20000/api/v1/compliance/profiles | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["source"], [(b["host"], b["profile"]) for b in d["bindings"]])'
+      ssh ${HOST} 'sudo tail -n 5 /var/lib/unheaded/remediate/journal.jsonl'
+
+  - name: undo-a-fix
+    action: manual
+    description: If a fix must come back out, restore exactly what one apply changed (also journaled).
+    host: ${HOST}
+    command: "sudo unheaded-remediate -model /usr/share/unheaded/remediation/fixes.yaml undo /var/lib/unheaded/remediate/<backup-dir>"
