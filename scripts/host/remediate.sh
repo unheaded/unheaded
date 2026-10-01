@@ -26,6 +26,7 @@ SYSTEMCTL="${SYSTEMCTL:-systemctl}"
 SSHD="${SSHD:-sshd}"
 VISUDO="${VISUDO:-visudo}"
 APT="${APT:-apt-get}"
+SUDO_BIN="${SUDO_BIN:-sudo}"
 STATE="${UNHEADED_REMEDIATE_STATE:-/var/lib/unheaded/remediate}"
 HOST="${UNHEADED_HOST:-$(hostname -s)}"
 
@@ -95,11 +96,13 @@ content_banner() {
 }
 
 content_sudo() {
-	cat <<'CONF'
-# ADR-098 / CIS Ubuntu 24.04 5.2.3, 5.2.6. Managed by scripts/host/remediate.sh (sudo-cis).
-Defaults logfile="/var/log/sudo.log"
-Defaults timestamp_timeout=15
-CONF
+	echo "# ADR-098 / CIS Ubuntu 24.04 5.2.3, 5.2.6. Managed by scripts/host/remediate.sh (sudo-cis)."
+	# sudo-rs (Ubuntu 25.10's sudo) rejects the logfile setting; it logs every
+	# command to syslog (auth.log) instead, so the line is only for sudo.ws.
+	if ! "$SUDO_BIN" --version 2>&1 | grep -q '^sudo-rs'; then # sudo-rs prints its version on stderr
+		echo 'Defaults logfile="/var/log/sudo.log"'
+	fi
+	echo "Defaults timestamp_timeout=15"
 }
 
 # helpers ---------------------------------------------------------------------

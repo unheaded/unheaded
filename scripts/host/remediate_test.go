@@ -360,3 +360,18 @@ func TestAuditdHaltConfigRefused(t *testing.T) {
 		t.Errorf("want refusal, got %v\n%s", err, out)
 	}
 }
+
+func TestSudoRsGetsNoLogfile(t *testing.T) {
+	e := newEnv(t, "east")
+	bin := filepath.Join(filepath.Dir(e.state), "bin")
+	if err := os.WriteFile(filepath.Join(bin, "sudo-rs-version"), []byte("#!/bin/sh\necho sudo-rs 0.2.8 >&2\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if out, err := e.run([]string{"UNHEADED_REMEDIATE_ALLOW_NONROOT=1", "SUDO_BIN=" + filepath.Join(bin, "sudo-rs-version")}, "apply", "sudo-cis"); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	b, _ := os.ReadFile(e.root + "/etc/sudoers.d/00-unheaded")
+	if strings.Contains(string(b), "logfile") || !strings.Contains(string(b), "timestamp_timeout=15") {
+		t.Errorf("sudo-rs drop-in:\n%s", b)
+	}
+}
