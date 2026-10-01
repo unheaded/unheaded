@@ -37,6 +37,8 @@ var (
 	ErrReadOnlyFallback = errors.New("The Well is unavailable: compliance state is read-only (YAML fallback); changes need The Well")
 	// ErrInvalidChange wraps every rejected change.
 	ErrInvalidChange = errors.New("invalid compliance change")
+
+	errNotConfigured = errors.New("The Well is not configured")
 )
 
 // Store is compliance desired state, from The Well or its YAML fallback.

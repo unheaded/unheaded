@@ -373,3 +373,25 @@ func TestIntegrationFindingsParity(t *testing.T) {
 		t.Errorf("resolve history: %s by %s (%s)", op, by, why)
 	}
 }
+
+func TestLazyRetriesAtMostOncePerInterval(t *testing.T) {
+	l := NewLazy(database.Config{Host: "127.0.0.1", Port: "1", User: "u", Password: "p", DBName: "d", SSLMode: "disable"}, time.Minute)
+	now := time.Date(2026, 10, 1, 3, 0, 0, 0, time.UTC)
+	l.now = func() time.Time { return now }
+	if _, err := l.DB(context.Background()); err == nil {
+		t.Fatal("connected to port 1")
+	}
+	first := l.lastTry
+	now = now.Add(30 * time.Second)
+	if _, err := l.DB(context.Background()); err == nil || l.lastTry != first {
+		t.Fatalf("dialled again inside the retry interval (last try %s)", l.lastTry)
+	}
+	now = now.Add(31 * time.Second)
+	if _, err := l.DB(context.Background()); err == nil || l.lastTry == first {
+		t.Fatal("did not retry after the interval")
+	}
+	var nilLazy *Lazy
+	if _, err := nilLazy.DB(context.Background()); err == nil {
+		t.Error("nil Lazy returned a connection")
+	}
+}
