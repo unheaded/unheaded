@@ -135,6 +135,15 @@ func LoadRegister(b []byte, cat *Catalog) (*Register, error) {
 	if err := decodeStrict(b, &doc); err != nil {
 		return nil, invalidRegister("%v", err)
 	}
+	return NewRegister(doc.Findings, cat)
+}
+
+// NewRegister validates entries from any source (the YAML file or The
+// Well, ADR-099 amended) against cat, so both accept exactly the same.
+func NewRegister(entries []*RegisterEntry, cat *Catalog) (*Register, error) {
+	if cat == nil {
+		return nil, invalidRegister("no catalog")
+	}
 	declared := make(map[string]bool)
 	for _, c := range cat.Controls {
 		for _, s := range c.Evidence {
@@ -143,7 +152,7 @@ func LoadRegister(b []byte, cat *Catalog) (*Register, error) {
 	}
 	r := &Register{bySource: make(map[string]*RegisterEntry)}
 	seen := make(map[string]bool)
-	for i, e := range doc.Findings {
+	for i, e := range entries {
 		if e == nil {
 			return nil, invalidRegister("entry %d is empty", i)
 		}

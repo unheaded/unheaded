@@ -165,13 +165,13 @@ Facts on 2026-10-01:
 - [x] **Step 23** [B] ~2m: `go test ./pkg/database/... -race -count=1`
 - [x] **Step 24** [V] (done 2026-10-01; FND-007 resolved; DSN values now quoted too. FND-008, kanban as superuser in compose, is NOT done here: a `${VAR:?}` guard in compose would make `docker compose up -d postgres` itself fail while the variable is unset, so it lands with Phase 0 and Stevie): Green. The new test failed before the change (RED, then GREEN recorded in the commit body).
 - [ ] **Step 25** [C]: `git commit -S -m "fix(database): no credential default; fail loudly when WELL_USER/WELL_PASSWORD unset"`
-- [~] **Step 26** (partial 2026-10-01: Profiles, Bindings, SetBinding, Source, Change validation incl. ErrEnforcingGate done; AppendJournal / Findings / UpsertFinding / LatestEvidence still to do) [W] ~20m: Write tests first in `pkg/compliance/well/store_test.go`:
+- [x] **Step 26** (done 2026-10-01: Store (profiles, bindings, SetBinding) + OpsStore (IngestJournal, Register, UpsertFinding, ResolveFinding, AppendEvidence, LatestEvidence)) [W] ~20m: Write tests first in `pkg/compliance/well/store_test.go`:
   - `Store` interface: `Profiles`, `Bindings`, `SetBinding(host, profile, mode, actor, reason)`, `AppendJournal`, `Findings`, `UpsertFinding`, `LatestEvidence`, `Source()`.
   - Table tests for: unknown profile, a profile naming an unknown fix, mode outside audit/enforcing, empty reason, empty actor, a host name that is not `^[a-z0-9-]{1,63}$`, enforcing requested while ADR-098's gate is unmet (`ErrEnforcingGate`).
-- [~] **Step 27** (profiles + hosts done; findings to do) [W] ~20m: YAML fallback store, `yamlstore.go`.
+- [x] **Step 27** (profiles + hosts; findings read via crosswalk.NewRegister, same validation as the YAML) [W] ~20m: YAML fallback store, `yamlstore.go`.
   - Reads `compliance/{profiles,hosts,findings}` through `os.Root`, with strict decoding (`KnownFields`) and a 256 KiB cap.
   - Every write returns `ErrReadOnlyFallback`.
-- [~] **Step 28** (profiles, bindings, SetBinding done; journal hash chain + ingest done 2026-10-01: whole-file verify from genesis, held entries must match hash for hash, truncation refused, advisory lock; findings/evidence to do) [W] ~30m: Postgres store, `pgstore.go`.
+- [x] **Step 28** (journal: whole-file verify from genesis, held entries match hash for hash, truncation refused, advisory lock; findings + evidence: parity test gives the same report as the YAML on the repo's 4858 evidence records) [W] ~30m: Postgres store, `pgstore.go`.
   - Parameterised queries only, with context deadlines (5 s).
   - `SetBinding` runs in one transaction: validate profile → update → history row written by the trigger.
   - `AppendJournal` computes `hash = sha256(previous_hash || canonical row)` under `SELECT … FOR UPDATE` on the last row.

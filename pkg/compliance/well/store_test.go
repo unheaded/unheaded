@@ -15,6 +15,7 @@ import (
 
 	_ "github.com/lib/pq"
 
+	"unheaded/pkg/compliance/crosswalk"
 	"unheaded/pkg/compliance/remediation"
 	"unheaded/pkg/database"
 )
@@ -277,5 +278,98 @@ func TestIntegrationIngestJournal(t *testing.T) {
 	var count int
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM compliance_apply_journal WHERE host = 'east'`).Scan(&count); err != nil || count != 5 {
 		t.Fatalf("held %d rows (%v), want 5", count, err)
+	}
+}
+
+func TestDecodeEntryIsStrict(t *testing.T) {
+	if _, err := decodeEntry([]byte(`{"id":"FND-001","severity":"low","shell":"rm -rf /"}`)); !errors.Is(err, ErrInvalidChange) {
+		t.Fatalf("unknown field accepted: %v", err)
+	}
+	if err := checkWho("", "r"); !errors.Is(err, ErrInvalidChange) {
+		t.Error("empty actor accepted")
+	}
+	if err := checkWho("a", "line\nbreak"); !errors.Is(err, ErrInvalidChange) {
+		t.Error("control character accepted")
+	}
+}
+
+// Integration: the register round-trips through The Well and gives the
+// same findings report as the YAML, on the repo's own evidence.
+func TestIntegrationFindingsParity(t *testing.T) {
+	dsn := os.Getenv("WELL_TEST_OPS_DSN")
+	if dsn == "" {
+		t.Skip("WELL_TEST_OPS_DSN not set")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	cat, err := crosswalk.LoadFS(os.DirFS(repo), "compliance/catalog/frameworks", "compliance/catalog/controls.yaml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(filepath.Join(repo, "compliance/findings/register.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	yreg, err := crosswalk.LoadRegister(raw, cat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewOpsStore(db)
+	for _, e := range yreg.Entries {
+		if err := s.UpsertFinding(ctx, cat, e, "test", "seed from register.yaml"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wreg, err := s.Register(ctx, cat)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var recs []crosswalk.Record
+	if f, err := os.Open(filepath.Join(repo, "var/compliance/evidence.json")); err == nil {
+		recs, err = crosswalk.ReadEvidence(f)
+		f.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := s.AppendEvidence(ctx, recs); err != nil {
+		t.Fatal(err)
+	}
+	latest, err := s.LatestEvidence(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	a := crosswalk.Findings(cat, recs, yreg, now)
+	b := crosswalk.Findings(cat, latest, wreg, now)
+	if len(a.Open) != len(b.Open) || a.Accepted != b.Accepted || a.Overdue != b.Overdue ||
+		len(a.Resolved) != len(b.Resolved) || len(a.Unobserved) != len(b.Unobserved) || len(a.Stale) != len(b.Stale) {
+		t.Fatalf("YAML: %d open %d accepted %d resolved %d unobserved %d stale; Well: %d open %d accepted %d resolved %d unobserved %d stale",
+			len(a.Open), a.Accepted, len(a.Resolved), len(a.Unobserved), len(a.Stale),
+			len(b.Open), b.Accepted, len(b.Resolved), len(b.Unobserved), len(b.Stale))
+	}
+	for sev, n := range a.Counts {
+		if b.Counts[sev] != n {
+			t.Errorf("%s: YAML %d, Well %d", sev, n, b.Counts[sev])
+		}
+	}
+	t.Logf("parity on %d records: %d open, %d accepted", len(recs), len(a.Open), a.Accepted)
+
+	key := yreg.Entries[0].Key()
+	if err := s.ResolveFinding(ctx, key, "test", "evidence passes"); err != nil {
+		t.Fatal(err)
+	}
+	var op, by, why string
+	if err := db.QueryRowContext(ctx, `SELECT op, changed_by, change_reason FROM compliance_findings_history
+		WHERE key = $1 ORDER BY id DESC LIMIT 1`, key).Scan(&op, &by, &why); err != nil {
+		t.Fatal(err)
+	}
+	if op != "DELETE" || by != "test" || why != "evidence passes" {
+		t.Errorf("resolve history: %s by %s (%s)", op, by, why)
 	}
 }

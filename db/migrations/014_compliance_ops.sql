@@ -57,7 +57,7 @@ CREATE TABLE compliance_findings (
     severity        VARCHAR(10) NOT NULL CHECK (severity IN ('critical', 'high', 'medium', 'low')),
     class           VARCHAR(20) NOT NULL,
     host            VARCHAR(63) NOT NULL DEFAULT '',
-    step            SMALLINT NOT NULL CHECK (step BETWEEN 1 AND 9),
+    step            INTEGER NOT NULL CHECK (step >= 1),  -- as crosswalk.validateEntry
     lockout         VARCHAR(10) NOT NULL CHECK (lockout IN ('none', 'low', 'high')),
     opened          DATE NOT NULL,
     accepted_on     DATE,
