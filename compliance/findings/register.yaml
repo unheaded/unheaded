@@ -862,6 +862,37 @@ findings:
       (a read-only socket proxy, or a dedicated user per service), then gpasswd -d unheaded docker and lxd. scripts/setup-host.sh adds lxd.
     decision: which services running as unheaded genuinely need docker or LXD access
 
+  - id: FND-007
+    title: pkg/database falls back to the Well superuser with a built-in password when WELL_USER/WELL_PASSWORD are unset
+    verify: go test ./pkg/database/... includes a test that Connect fails loudly with no WELL_USER/WELL_PASSWORD, and no Go file sets a password default
+    host: west
+    severity: medium
+    class: app
+    opened: 2026-10-01
+    exposure: >-
+      Any service started without the variables authenticates as the PostgreSQL superuser with a password written in the repo.
+      The Well logged 4674 failed superuser logins from 2026-09-24 to 2026-09-30 (3213 on 2026-09-29), consistent with a process
+      using that default against a volume initialised with another password; nothing alerted (ADR-100)
+    lockout: none
+    step: 5
+    plan: >-
+      COMPLIANCE-WELL battle plan step 22: no default for WELL_USER/WELL_PASSWORD, Connect returns errMissingConnStr, test first.
+      Callers that relied on the default fail loudly and are listed for a scoped user
+
+  - id: FND-008
+    title: kanban-app connects to The Well as the superuser (docker-compose WELL_USER "unheaded") instead of its scoped user app_kanban
+    verify: docker-compose.yml gives kanban-app WELL_USER app_kanban with its password from the environment, and the Kanban board still loads its cards from The Well
+    host: west
+    severity: medium
+    class: app
+    opened: 2026-10-01
+    exposure: a compromise of kanban-app reaches all four databases with superuser rights; the per-service users of ADR-016/ADR-091 exist precisely to prevent this
+    lockout: none
+    step: 5
+    plan: >-
+      Switch kanban-app to app_kanban (grants already exist in 003/007), with the password from an env var that has no default.
+      Check the other compose services for the same pattern at the same time
+
   # --- CIS 5.1 sshd algorithms, access, banner (2026-09-30) ----------------
 
   - source: "host-probe:west:sshd-macs"
