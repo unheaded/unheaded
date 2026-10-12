@@ -1,0 +1,18 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# profile lab-hardened: East since 2026-10-12 (Stevie, after the east security audit): the lab fixes plus CIS audit rules and the sshd settings that leave authentication alone (no X11 or agent forwarding, MaxAuthTries 4).
+- become: true
+  gather_facts: false
+  hosts: profile_lab_hardened
+  name: Profile lab-hardened (ADR-099)
+  roles:
+    - sysctl-cis
+    - apport-off
+    - kmod-cis
+    - cron-perms
+    - banner-cis
+    - apparmor-utils
+    - auditd
+    - sudo-cis
+    - sshd-safe
+    - auditd-rules

@@ -2,7 +2,7 @@
 # (unheaded_config.compliance_host_bindings, with history); this file is the
 # Genesis seed and the read-only fallback when The Well is down.
 host: east
-profile: lab
+profile: lab-hardened
 mode: audit
 # What is applied, as recorded at apply time (phase 2 moves this to the
 # executor's journal and an evidence kind).
@@ -15,3 +15,5 @@ applied:
   - {fix: apparmor-utils, on: 2026-10-01, approved_by: "Stevie, 2026-10-01"}
   - {fix: auditd, on: 2026-10-01, approved_by: "Stevie, 2026-10-01"}
   - {fix: sudo-cis, on: 2026-10-01, approved_by: "Stevie, 2026-10-01"}
+  - {fix: auditd-rules, on: 2026-10-12, approved_by: "Stevie, 2026-10-12: do 4, 5, 6, and 7 (east security audit)"}
+  - {fix: sshd-safe, on: 2026-10-12, approved_by: "Stevie, 2026-10-12: do 4, 5, 6, and 7 (east security audit)"}

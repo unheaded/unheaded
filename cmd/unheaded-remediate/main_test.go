@@ -162,10 +162,12 @@ func writeSnapshot(t *testing.T, dir, host string) (snap, pub string) {
 	return snap, pub
 }
 
+// West is the example host: still bound to lab (east moved to lab-hardened,
+// which carries sshd-safe, on 2026-10-12).
 func TestSnapshotMode(t *testing.T) {
 	model, root, state := setup(t)
-	snap, pub := writeSnapshot(t, filepath.Dir(model), "east")
-	flags := []string{"-snapshot", snap, "-pubkey", pub, "-root", root, "-state", state, "-host", "east"}
+	snap, pub := writeSnapshot(t, filepath.Dir(model), "west")
+	flags := []string{"-snapshot", snap, "-pubkey", pub, "-root", root, "-state", state, "-host", "west"}
 	code, out, errs := cli(append(flags, "list")...)
 	if code != 0 || strings.Count(out, "\n") != 8 || strings.Contains(out, "sshd-safe") {
 		t.Fatalf("list from the lab snapshot: %d %s %s", code, out, errs)
@@ -177,8 +179,8 @@ func TestSnapshotMode(t *testing.T) {
 		t.Fatalf("apply from snapshot: %d %s %s", code, out, errs)
 	}
 	// The same snapshot is refused on another host.
-	if code, _, errs := cli("-snapshot", snap, "-pubkey", pub, "-root", root, "-state", state, "-host", "west", "list"); code == 0 || !strings.Contains(errs, "snapshot refused") {
-		t.Errorf("east's snapshot accepted on west: %s", errs)
+	if code, _, errs := cli("-snapshot", snap, "-pubkey", pub, "-root", root, "-state", state, "-host", "east", "list"); code == 0 || !strings.Contains(errs, "snapshot refused") {
+		t.Errorf("west's snapshot accepted on east: %s", errs)
 	}
 	// A snapshot others can write is refused before any apply.
 	if err := os.Chmod(snap, 0o666); err != nil {

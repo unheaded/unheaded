@@ -49,9 +49,11 @@ func sealed(t *testing.T, host string) ([]byte, *mldsa65.PublicKey) {
 	return raw, pub
 }
 
+// West is the example host: still bound to lab (east moved to lab-hardened
+// on 2026-10-12).
 func TestBuildSealOpen(t *testing.T) {
-	raw, pub := sealed(t, "east")
-	snap, err := Open(raw, pub, "east")
+	raw, pub := sealed(t, "west")
+	snap, err := Open(raw, pub, "west")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -66,7 +68,7 @@ func TestBuildSealOpen(t *testing.T) {
 }
 
 func TestOpenRefuses(t *testing.T) {
-	raw, pub := sealed(t, "east")
+	raw, pub := sealed(t, "west")
 	_, otherPub := signer(t)
 	tamper := func(f func(*Envelope)) []byte {
 		var env Envelope
@@ -82,13 +84,13 @@ func TestOpenRefuses(t *testing.T) {
 		pub  *mldsa65.PublicKey
 		host string
 	}{
-		"other host":      {raw, pub, "west"},
-		"other key":       {raw, otherPub, "east"},
-		"payload edited":  {tamper(func(e *Envelope) { e.Payload = bytes.Replace(e.Payload, []byte(`"lab"`), []byte(`"all"`), 1) }), pub, "east"},
-		"expired":         {tamper(func(e *Envelope) { e.Seal.ExpiresAtUnix = time.Now().Add(-time.Minute).Unix() }), pub, "east"},
-		"downgraded algo": {tamper(func(e *Envelope) { e.Seal.Algorithm = "ed25519" }), pub, "east"},
-		"unknown field":   {bytes.Replace(raw, []byte(`"payload"`), []byte(`"extra": 1, "payload"`), 1), pub, "east"},
-		"not json":        {[]byte("nope"), pub, "east"},
+		"other host":      {raw, pub, "east"},
+		"other key":       {raw, otherPub, "west"},
+		"payload edited":  {tamper(func(e *Envelope) { e.Payload = bytes.Replace(e.Payload, []byte(`"lab"`), []byte(`"all"`), 1) }), pub, "west"},
+		"expired":         {tamper(func(e *Envelope) { e.Seal.ExpiresAtUnix = time.Now().Add(-time.Minute).Unix() }), pub, "west"},
+		"downgraded algo": {tamper(func(e *Envelope) { e.Seal.Algorithm = "ed25519" }), pub, "west"},
+		"unknown field":   {bytes.Replace(raw, []byte(`"payload"`), []byte(`"extra": 1, "payload"`), 1), pub, "west"},
+		"not json":        {[]byte("nope"), pub, "west"},
 	}
 	for name, c := range cases {
 		t.Run(name, func(t *testing.T) {

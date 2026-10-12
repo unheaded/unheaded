@@ -46,8 +46,9 @@ func TestYAMLStoreReadsRepoAndRefusesWrites(t *testing.T) {
 	if len(bs) != 2 {
 		t.Fatalf("%d bindings, want west and east", len(bs))
 	}
+	want := map[string]string{"west": "lab", "east": "lab-hardened"} // east since 2026-10-12
 	for _, b := range bs {
-		if b.Profile != "lab" || b.Mode != "audit" {
+		if b.Profile != want[b.Host] || b.Mode != "audit" {
 			t.Errorf("%s: %s/%s", b.Host, b.Profile, b.Mode)
 		}
 	}
