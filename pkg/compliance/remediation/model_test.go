@@ -45,8 +45,8 @@ func TestRepoModelValidAgainstCatalog(t *testing.T) {
 	if err := m.CheckCatalog(repoCatalog(t)); err != nil {
 		t.Fatal(err)
 	}
-	if len(m.Fixes) != 10 {
-		t.Errorf("%d fixes, want the 10 remediate.sh carries", len(m.Fixes))
+	if len(m.Fixes) != 11 {
+		t.Errorf("%d fixes, want the 11 remediate.sh carries", len(m.Fixes))
 	}
 }
 

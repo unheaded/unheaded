@@ -42,12 +42,13 @@ func newEnv(t *testing.T, host string) *env {
 	bin := filepath.Join(dir, "bin")
 	for _, d := range []string{bin, e.root + "/etc/sysctl.d", e.root + "/etc/modprobe.d", e.root + "/etc/profile.d",
 		e.root + "/etc/ssh/sshd_config.d", e.root + "/etc/default", e.root + "/etc/cron.d", e.root + "/etc/cron.daily",
-		e.root + "/etc/cron.hourly", e.root + "/etc/cron.weekly", e.root + "/etc/cron.monthly", e.root + "/etc/sudoers.d", dir + "/fail"} {
+		e.root + "/etc/cron.hourly", e.root + "/etc/cron.weekly", e.root + "/etc/cron.monthly", e.root + "/etc/sudoers.d",
+		e.root + "/etc/audit/rules.d", dir + "/fail"} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, n := range []string{"sysctl", "systemctl", "sshd", "logger", "visudo", "apt-get"} {
+	for _, n := range []string{"sysctl", "systemctl", "sshd", "logger", "visudo", "apt-get", "augenrules"} {
 		if err := os.WriteFile(filepath.Join(bin, n), []byte(recorder), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -373,5 +374,91 @@ func TestSudoRsGetsNoLogfile(t *testing.T) {
 	b, _ := os.ReadFile(e.root + "/etc/sudoers.d/00-unheaded")
 	if strings.Contains(string(b), "logfile") || !strings.Contains(string(b), "timestamp_timeout=15") {
 		t.Errorf("sudo-rs drop-in:\n%s", b)
+	}
+}
+
+func TestSSHDEastDisablesAgentForwarding(t *testing.T) {
+	for host, want := range map[string]bool{"east": true, "west": false} {
+		e := newEnv(t, host)
+		if out, err := e.apply("sshd-safe"); err != nil {
+			t.Fatalf("%s: %v\n%s", host, err, out)
+		}
+		b, err := os.ReadFile(e.root + "/etc/ssh/sshd_config.d/00-unheaded.conf")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := strings.Contains(string(b), "\nAllowAgentForwarding no\n"); got != want {
+			t.Errorf("%s: AllowAgentForwarding no present=%v, want %v:\n%s", host, got, want, b)
+		}
+	}
+}
+
+const auditRules = "/etc/audit/rules.d/50-unheaded-cis.rules"
+
+func TestAuditdRulesNeedAuditd(t *testing.T) {
+	e := newEnv(t, "east")
+	if err := os.RemoveAll(e.root + "/etc/audit"); err != nil {
+		t.Fatal(err)
+	}
+	out, err := e.apply("auditd-rules")
+	if err == nil || !strings.Contains(out, "auditd fix first") {
+		t.Fatalf("want refusal, got %v\n%s", err, out)
+	}
+	if _, err := os.Stat(e.root + auditRules); !os.IsNotExist(err) {
+		t.Error("rules written without auditd")
+	}
+}
+
+func TestAuditdRulesLoadFailureRestores(t *testing.T) {
+	e := newEnv(t, "east")
+	before := e.snapshot()
+	e.fail("augenrules")
+	out, err := e.apply("auditd-rules")
+	if err == nil || !strings.Contains(out, "did not load") {
+		t.Fatalf("want failure, got %v\n%s", err, out)
+	}
+	if after := e.snapshot(); after != before {
+		t.Errorf("files not restored:\n--- before\n%s\n--- after\n%s", before, after)
+	}
+}
+
+func TestAuditdRulesAppliedAndUndone(t *testing.T) {
+	e := newEnv(t, "east")
+	out, err := e.apply("auditd-rules")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	b, err := os.ReadFile(e.root + auditRules)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rules := string(b)
+	for _, want := range []string{"-w /etc/shadow -p wa -k identity", "-w /etc/sudoers -p wa -k scope", "-k kernel_modules", "-k user_emulation"} {
+		if !strings.Contains(rules, want) {
+			t.Errorf("rules lack %q", want)
+		}
+	}
+	// Lab hosts: not immutable, so the fix can be undone without a reboot;
+	// no per-file delete or chmod rules, which builds would flood.
+	for _, bad := range []string{"-e 2", "-k delete", "-k perm_mod"} {
+		if strings.Contains(rules, bad) {
+			t.Errorf("rules contain %q", bad)
+		}
+	}
+	checkPerm(t, e.root+auditRules, "0640")
+	if n := strings.Count(e.callLog(), "augenrules --load"); n != 1 {
+		t.Fatalf("augenrules --load ran %d times", n)
+	}
+	dir := strings.TrimSpace(out[strings.LastIndex(out, "undo: ")+len("undo: "):])
+	dir = strings.Fields(dir)[len(strings.Fields(dir))-1]
+	if out, err := e.run(nil, "undo", dir); err != nil {
+		t.Fatalf("undo: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(e.root + auditRules); !os.IsNotExist(err) {
+		t.Error("undo left the rules file")
+	}
+	calls := e.callLog()
+	if n := strings.Count(calls, "augenrules --load"); n != 2 {
+		t.Errorf("undo did not reload the rules (augenrules --load ran %d times)", n)
 	}
 }

@@ -340,7 +340,7 @@ func TestComplianceProfiles_ReadOnlyFromTheRepoFallback(t *testing.T) {
 	fixes, _ := body["fixes"].([]any)
 	profiles, _ := body["profiles"].([]any)
 	bindings, _ := body["bindings"].([]any)
-	if len(fixes) != 10 || len(profiles) != 4 || len(bindings) != 2 {
+	if len(fixes) != 11 || len(profiles) != 4 || len(bindings) != 2 {
 		t.Fatalf("%d fixes, %d profiles, %d bindings", len(fixes), len(profiles), len(bindings))
 	}
 	for _, p := range profiles {

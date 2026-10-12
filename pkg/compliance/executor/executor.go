@@ -47,10 +47,10 @@ var errRestoreFailed = errors.New("restore failed")
 // the names on PATH and take the same environment overrides as
 // remediate.sh, so the test harness can substitute fakes.
 type Commands struct {
-	Sysctl, Systemctl, SSHD, Visudo, Apt, Sudo string
+	Sysctl, Systemctl, SSHD, Visudo, Apt, Sudo, Augenrules string
 }
 
-// CommandsFromEnv reads SYSCTL, SYSTEMCTL, SSHD, VISUDO, APT and SUDO_BIN.
+// CommandsFromEnv reads SYSCTL, SYSTEMCTL, SSHD, VISUDO, APT, SUDO_BIN and AUGENRULES.
 func CommandsFromEnv() Commands {
 	get := func(k, def string) string {
 		if v := os.Getenv(k); v != "" {
@@ -61,6 +61,7 @@ func CommandsFromEnv() Commands {
 	return Commands{
 		Sysctl: get("SYSCTL", "sysctl"), Systemctl: get("SYSTEMCTL", "systemctl"), SSHD: get("SSHD", "sshd"),
 		Visudo: get("VISUDO", "visudo"), Apt: get("APT", "apt-get"), Sudo: get("SUDO_BIN", "sudo"),
+		Augenrules: get("AUGENRULES", "augenrules"),
 	}
 }
 
@@ -75,6 +76,8 @@ func (c Commands) argv(s string) ([]string, error) {
 		return []string{c.SSHD, "-t"}, nil
 	case "visudo -c":
 		return []string{c.Visudo, "-c"}, nil
+	case "augenrules --load":
+		return []string{c.Augenrules, "--load"}, nil
 	}
 	return nil, fmt.Errorf("%w: %q is not an allowlisted command", ErrRefused, s)
 }

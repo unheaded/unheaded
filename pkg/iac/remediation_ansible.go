@@ -109,6 +109,7 @@ var argvFor = map[string][]string{
 	"systemctl reload ssh.service": {"systemctl", "reload", "ssh.service"},
 	"sshd -t":                      {"sshd", "-t"},
 	"visudo -c":                    {"visudo", "-c"},
+	"augenrules --load":            {"augenrules", "--load"},
 }
 
 const auditdHalt = `(?im)^[ \t]*(disk_full_action|disk_error_action|admin_space_left_action)[ \t]*=[ \t]*halt`

@@ -41,12 +41,13 @@ func newEnv(t *testing.T) *env {
 		calls: filepath.Join(dir, "calls"), fail: filepath.Join(dir, "fail"), bin: filepath.Join(dir, "bin")}
 	for _, d := range []string{e.bin, e.fail, e.root + "/etc/sysctl.d", e.root + "/etc/modprobe.d", e.root + "/etc/profile.d",
 		e.root + "/etc/ssh/sshd_config.d", e.root + "/etc/default", e.root + "/etc/cron.d", e.root + "/etc/cron.daily",
-		e.root + "/etc/cron.hourly", e.root + "/etc/cron.weekly", e.root + "/etc/cron.monthly", e.root + "/etc/sudoers.d"} {
+		e.root + "/etc/cron.hourly", e.root + "/etc/cron.weekly", e.root + "/etc/cron.monthly", e.root + "/etc/sudoers.d",
+		e.root + "/etc/audit/rules.d"} {
 		if err := os.MkdirAll(d, 0o755); err != nil {
 			t.Fatal(err)
 		}
 	}
-	for _, n := range []string{"sysctl", "systemctl", "sshd", "visudo", "apt-get"} {
+	for _, n := range []string{"sysctl", "systemctl", "sshd", "visudo", "apt-get", "augenrules"} {
 		if err := os.WriteFile(filepath.Join(e.bin, n), []byte(recorder), 0o755); err != nil {
 			t.Fatal(err)
 		}
@@ -86,7 +87,7 @@ func (e *env) callLog() string { b, _ := os.ReadFile(e.calls); return string(b) 
 
 func (e *env) cmds() Commands {
 	j := func(n string) string { return filepath.Join(e.bin, n) }
-	return Commands{Sysctl: j("sysctl"), Systemctl: j("systemctl"), SSHD: j("sshd"), Visudo: j("visudo"), Apt: j("apt-get"), Sudo: j("sudo")}
+	return Commands{Sysctl: j("sysctl"), Systemctl: j("systemctl"), SSHD: j("sshd"), Visudo: j("visudo"), Apt: j("apt-get"), Sudo: j("sudo"), Augenrules: j("augenrules")}
 }
 
 func (e *env) executor(host string) *Executor {

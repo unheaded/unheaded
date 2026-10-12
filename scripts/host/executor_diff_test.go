@@ -89,7 +89,7 @@ func diffOne(t *testing.T, fix remediation.Fix, host string, sudoRS bool) {
 	x, err := executor.New(context.Background(), executor.Options{
 		Root: native.root, State: native.state, Host: host, Operator: "test", AllowNonRoot: true, Out: &bytes.Buffer{},
 		Cmd: executor.Commands{Sysctl: j("sysctl"), Systemctl: j("systemctl"), SSHD: j("sshd"), Visudo: j("visudo"),
-			Apt: j("apt-get"), Sudo: sudoStub(t, native, sudoRS)},
+			Apt: j("apt-get"), Sudo: sudoStub(t, native, sudoRS), Augenrules: j("augenrules")},
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -16,3 +16,4 @@
     - sudo-cis
     - shell-tmout
     - sshd-safe
+    - auditd-rules

@@ -23,6 +23,7 @@
           # ADR-098 step 4 / CIS Ubuntu 24.04 5.1.x. Managed by scripts/host/remediate.sh
           # (sshd-safe). Nothing here changes how anyone authenticates.
           X11Forwarding no
+          AllowAgentForwarding no
           MaxAuthTries 4
           ClientAliveInterval 300
           ClientAliveCountMax 3

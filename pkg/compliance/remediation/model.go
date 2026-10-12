@@ -36,7 +36,7 @@ var KnownHosts = []string{"west", "east"}
 // Allowlists. A value outside them is rejected at load time, so no fix can
 // carry a command nobody reviewed into this table.
 var (
-	AllowedRun      = map[string]bool{"sysctl --system": true, "systemctl reload ssh.service": true}
+	AllowedRun      = map[string]bool{"sysctl --system": true, "systemctl reload ssh.service": true, "augenrules --load": true}
 	AllowedValidate = map[string]bool{"visudo -c": true, "sshd -t": true, "auditd-never-halts": true}
 	AllowedPrecheck = map[string]bool{"visudo -cf": true}
 )

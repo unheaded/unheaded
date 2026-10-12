@@ -26,13 +26,14 @@ SYSTEMCTL="${SYSTEMCTL:-systemctl}"
 SSHD="${SSHD:-sshd}"
 VISUDO="${VISUDO:-visudo}"
 APT="${APT:-apt-get}"
+AUGENRULES="${AUGENRULES:-augenrules}"
 SUDO_BIN="${SUDO_BIN:-sudo}"
 STATE="${UNHEADED_REMEDIATE_STATE:-/var/lib/unheaded/remediate}"
 HOST="${UNHEADED_HOST:-$(hostname -s)}"
 
 die() { echo "remediate: $*" >&2; exit 1; }
 
-FIXES="sysctl-cis apport-off kmod-cis cron-perms shell-tmout sshd-safe banner-cis apparmor-utils sudo-cis auditd"
+FIXES="sysctl-cis apport-off kmod-cis cron-perms shell-tmout sshd-safe banner-cis apparmor-utils sudo-cis auditd auditd-rules"
 
 # desired content per fix, per host -----------------------------------------
 content_sysctl() {
@@ -85,7 +86,7 @@ CONF
 	# ClientAlive* 300/2, stricter than the values below: repeating them here
 	# would loosen west. So they are written for east only.
 	if [[ "$HOST" == east ]]; then
-		printf '%s\n' "X11Forwarding no" "MaxAuthTries 4" "ClientAliveInterval 300" "ClientAliveCountMax 3"
+		printf '%s\n' "X11Forwarding no" "AllowAgentForwarding no" "MaxAuthTries 4" "ClientAliveInterval 300" "ClientAliveCountMax 3"
 	fi
 	printf '%s\n' "LoginGraceTime 60" "MaxStartups 10:30:60" \
 		"MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256"
@@ -103,6 +104,69 @@ content_sudo() {
 		echo 'Defaults logfile="/var/log/sudo.log"'
 	fi
 	echo "Defaults timestamp_timeout=15"
+}
+
+# CIS Ubuntu 24.04 6.2.3 audit rules, the subset that fits lab hosts: not
+# immutable (-e 2 would make undo need a reboot), and without the per-call
+# delete (6.2.3.13) and chmod/chown (6.2.3.9) rules, which every build on
+# these hosts would flood. Watches only name paths that exist on 25.10:
+# utmp, faillock, setfacl and chacl are absent there.
+content_audit() {
+	cat <<'RULES'
+## ADR-098 / CIS Ubuntu 24.04 6.2.3 (lab subset). Managed by scripts/host/remediate.sh (auditd-rules).
+## sudoers and privilege use (6.2.3.1, 6.2.3.2)
+-w /etc/sudoers -p wa -k scope
+-w /etc/sudoers.d -p wa -k scope
+-a always,exit -F arch=b64 -C euid!=uid -F auid!=unset -S execve -k user_emulation
+-a always,exit -F arch=b32 -C euid!=uid -F auid!=unset -S execve -k user_emulation
+## time (6.2.3.4)
+-a always,exit -F arch=b64 -S adjtimex,settimeofday -k time-change
+-a always,exit -F arch=b32 -S adjtimex,settimeofday -k time-change
+-a always,exit -F arch=b64 -S clock_settime -F a0=0x0 -k time-change
+-a always,exit -F arch=b32 -S clock_settime -F a0=0x0 -k time-change
+-w /etc/localtime -p wa -k time-change
+## network environment (6.2.3.5)
+-a always,exit -F arch=b64 -S sethostname,setdomainname -k system-locale
+-a always,exit -F arch=b32 -S sethostname,setdomainname -k system-locale
+-w /etc/issue -p wa -k system-locale
+-w /etc/issue.net -p wa -k system-locale
+-w /etc/hosts -p wa -k system-locale
+-w /etc/hostname -p wa -k system-locale
+-w /etc/networks -p wa -k system-locale
+-w /etc/network -p wa -k system-locale
+-w /etc/netplan -p wa -k system-locale
+## access denied (6.2.3.7)
+-a always,exit -F arch=b64 -S creat,open,openat,truncate,ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=unset -k access
+-a always,exit -F arch=b64 -S creat,open,openat,truncate,ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=unset -k access
+-a always,exit -F arch=b32 -S creat,open,openat,truncate,ftruncate -F exit=-EACCES -F auid>=1000 -F auid!=unset -k access
+-a always,exit -F arch=b32 -S creat,open,openat,truncate,ftruncate -F exit=-EPERM -F auid>=1000 -F auid!=unset -k access
+## identity (6.2.3.8)
+-w /etc/group -p wa -k identity
+-w /etc/passwd -p wa -k identity
+-w /etc/gshadow -p wa -k identity
+-w /etc/shadow -p wa -k identity
+-w /etc/security/opasswd -p wa -k identity
+-w /etc/nsswitch.conf -p wa -k identity
+-w /etc/pam.conf -p wa -k identity
+-w /etc/pam.d -p wa -k identity
+## mounts (6.2.3.10)
+-a always,exit -F arch=b64 -S mount -F auid>=1000 -F auid!=unset -k mounts
+-a always,exit -F arch=b32 -S mount -F auid>=1000 -F auid!=unset -k mounts
+## sessions and logins (6.2.3.11, 6.2.3.12)
+-w /var/log/wtmp -p wa -k session
+-w /var/log/btmp -p wa -k session
+-w /var/log/lastlog -p wa -k logins
+## MAC policy (6.2.3.14)
+-w /etc/apparmor -p wa -k MAC-policy
+-w /etc/apparmor.d -p wa -k MAC-policy
+## account changes and kernel modules (6.2.3.18, 6.2.3.19)
+-a always,exit -F path=/usr/sbin/usermod -F perm=x -F auid>=1000 -F auid!=unset -k usermod
+-a always,exit -F arch=b64 -S init_module,finit_module,delete_module -F auid>=1000 -F auid!=unset -k kernel_modules
+-a always,exit -F path=/usr/bin/kmod -F perm=x -F auid>=1000 -F auid!=unset -k kernel_modules
+## sshd configuration (not in CIS 6.2.3; ADR-098 tracks it)
+-w /etc/ssh/sshd_config -p wa -k sshd
+-w /etc/ssh/sshd_config.d -p wa -k sshd
+RULES
 }
 
 # helpers ---------------------------------------------------------------------
@@ -330,6 +394,28 @@ fix_auditd() {
 		die "auditd.conf halts on a full disk; refusing to leave it running (undo: $BACKUP/undo.sh)"
 	fi
 	echo "  installed auditd"
+}
+
+fix_auditd-rules() {
+	local mode="$1" want; want="$(content_audit)"
+	# /etc/audit itself: rules.d sits in a root-only directory, and plan
+	# runs without root.
+	[[ -d "$ROOT/etc/audit" ]] || die "auditd is not installed here; apply the auditd fix first"
+	if [[ "$mode" == plan ]]; then
+		plan_file /etc/audit/rules.d/50-unheaded-cis.rules 640 "$want" || true
+		echo "  then: $AUGENRULES --load; restored and reloaded at once if the rules do not load"
+		return
+	fi
+	# Recorded first so undo replays it last: the old rules are back on
+	# disk before they are loaded.
+	undo_line "$AUGENRULES --load"
+	apply_file /etc/audit/rules.d/50-unheaded-cis.rules 640 "$want"
+	if ! "$AUGENRULES" --load >/dev/null 2>&1; then
+		echo "  augenrules --load FAILED: undoing" >&2
+		bash "$BACKUP/undo.sh" >/dev/null 2>&1 || true
+		die "audit rules did not load; previous rules restored"
+	fi
+	echo "  audit rules loaded"
 }
 
 # main --------------------------------------------------------------------------
