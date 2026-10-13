@@ -1108,3 +1108,55 @@ func TestVarLogPermsDetail(t *testing.T) {
 		t.Fatalf("detail = %q", detail)
 	}
 }
+
+func TestRootAndUserEnvironmentProbes(t *testing.T) {
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"su-restricted", "pam auth required pam_wheel.so use_uid group=sugroup\ngrp sugroup:x:1050:\n@ok\n", true},
+		{"su-restricted", "pam auth required pam_wheel.so use_uid group=sugroup\ngrp sugroup:x:1050:govan\n@ok\n", false}, // group has a member
+		{"su-restricted", "pam auth required pam_wheel.so use_uid group=sugroup\n@ok\n", false},                           // group missing
+		{"su-restricted", "pam auth required pam_wheel.so group=sugroup\ngrp sugroup:x:1050:\n@ok\n", false},              // no use_uid
+		{"su-restricted", "pam auth sufficient pam_wheel.so trust\n@ok\n", false},
+		{"su-restricted", "@ok\n", false},
+		{"root-access-controlled", "status L\n@ok\n", true},
+		{"root-access-controlled", "status P\n@ok\n", true},
+		{"root-access-controlled", "status NP\n@ok\n", false},
+		{"root-access-controlled", "@ok\n", false},
+		{"root-path", "path /usr/sbin:/usr/bin\ndir root 755 /usr/sbin\ndir root 755 /usr/bin\n@ok\n", true},
+		{"root-path", "path /usr/sbin::/usr/bin\ndir root 755 /usr/sbin\ndir root 755 /usr/bin\n@ok\n", false}, // empty entry
+		{"root-path", "path .:/usr/bin\ndir root 755 /usr/bin\n@ok\n", false},
+		{"root-path", "path /usr/bin:/opt/x\ndir root 755 /usr/bin\ndir govan 755 /opt/x\n@ok\n", false},
+		{"root-path", "path /usr/bin:/opt/x\ndir root 755 /usr/bin\ndir root 775 /opt/x\n@ok\n", false},
+		{"root-path", "path /usr/bin:/opt/x\ndir root 755 /usr/bin\nmissing /opt/x\n@ok\n", false},
+		{"root-path", "path \n@ok\n", false},
+		{"root-umask", "@ok\n", true},
+		{"root-umask", "/root/.bashrc:umask 077\n@ok\n", true},
+		{"root-umask", "/root/.bashrc:umask 022\n@ok\n", false},
+		{"default-umask", "/etc/login.defs:UMASK 027\n/etc/profile:umask 077\n@ok\n", true},
+		{"default-umask", "/etc/pam.d/common-session:session optional pam_umask.so umask=0027\n@ok\n", true},
+		{"default-umask", "/etc/login.defs:UMASK 022\n@ok\n", false},
+		{"default-umask", "/etc/login.defs:UMASK 027\n/etc/bash.bashrc:umask u=rwx,g=rx,o=\n@ok\n", false}, // symbolic: not parsed, not claimed
+		{"default-umask", "@ok\n", false},
+		{"home-dirs", "home root root 700 /root\nhome govan govan 750 /home/govan\n@ok\n", true},
+		{"home-dirs", "home govan govan 755 /home/govan\n@ok\n", false},
+		{"home-dirs", "home govan root 700 /home/govan\n@ok\n", false},
+		{"home-dirs", "missing frr /nonexistent\n@ok\n", false},
+		{"dot-files", "dot govan govan 644 /home/govan/.profile\ndot govan govan 600 /home/govan/.bash_history\n@ok\n", true},
+		{"dot-files", "dot govan govan 664 /home/govan/.gitconfig\n@ok\n", false},
+		{"dot-files", "dot govan govan 640 /home/govan/.bash_history\n@ok\n", false},
+		{"dot-files", "dot govan govan 600 /home/govan/.netrc\n@ok\n", false},
+		{"dot-files", "dot govan root 644 /home/govan/.profile\n@ok\n", false},
+		{"dot-files", "dot govan govan 644 /home/govan/.profile\n", false}, // did not complete
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok || !p.Baseline {
+			t.Errorf("%s missing or not a baseline probe", tc.probe)
+			continue
+		}
+		if pass, detail := p.Judge(tc.out); pass != tc.pass {
+			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}

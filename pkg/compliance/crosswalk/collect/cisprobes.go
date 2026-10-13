@@ -1140,6 +1140,215 @@ func firstN(items []string, n int) string {
 	return fmt.Sprintf("%s, and %d more", strings.Join(items[:n], ", "), len(items)-n)
 }
 
+// interactiveUsers prints "<user> <home>" for every account whose shell is
+// a real login shell listed in /etc/shells (CIS 7.2.9's definition).
+const interactiveUsers = `awk -F: 'NR==FNR { if ($0 ~ /^\// && $0 !~ /(nologin|false)$/) s[$0] = 1; next } ($7 in s) { print $1, $6 }' /etc/shells /etc/passwd`
+
+// Root, su and user environments (CIS 5.2.7, 5.4.2.4-5.4.2.6, 5.4.3.3,
+// 7.2.9, 7.2.10). Values from ComplianceAsCode's rules for these IDs at the
+// pinned commit: su needs an empty pam_wheel group, root is locked or has
+// a password, umask 027 or stricter, home directories 0750 or stricter and
+// owned by their user, no .forward/.rhosts/.netrc, dot files not group- or
+// world-writable, .bash_history 0600.
+func init() {
+	Probes["su-restricted"] = markerLinesProbe(`grep -Ev '^[[:space:]]*#' /etc/pam.d/su 2>/dev/null | grep -E 'pam_wheel\.so' | sed 's/^/pam /'; `+
+		`for g in $(grep -Ev '^[[:space:]]*#' /etc/pam.d/su 2>/dev/null | grep -oE 'group=[^[:space:]]+' | cut -d= -f2); do echo "grp $(getent group "$g")"; done; echo @ok`,
+		judgeSuRestricted)
+	Probes["root-access-controlled"] = markerLinesProbe(`sudo -n passwd -S root | awk '{print "status " $2}'; echo @ok`,
+		func(lines []string) (bool, string) {
+			for _, l := range lines {
+				if v, ok := strings.CutPrefix(l, "status "); ok {
+					switch v {
+					case "L", "P":
+						return true, "root status " + v
+					}
+					return false, "root status " + v + " (want L, locked, or P, password set)"
+				}
+			}
+			return false, "no passwd -S output for root"
+		})
+	// The directory checks run as root: root's PATH can name directories
+	// under /root, which nobody else can stat.
+	Probes["root-path"] = markerLinesProbe(`p=$(sudo -n -Hiu root env 2>/dev/null | sed -n 's/^PATH=//p'); echo "path $p"; `+
+		`printf '%s\n' "$p" | sudo -n sh -c 'read -r p; IFS=:; for d in $p; do [ -n "$d" ] || continue; `+
+		`if [ -d "$d" ]; then stat -Lc "dir %U %a %n" "$d"; else echo "missing $d"; fi; done'; echo @ok`,
+		judgeRootPath)
+	Probes["root-umask"] = markerLinesProbe(`sudo -n grep -Hs -E '^[[:space:]]*umask' /root/.bash_profile /root/.bashrc /root/.profile; echo @ok`,
+		func(lines []string) (bool, string) {
+			for _, l := range lines {
+				if ok, v := umaskStrict(l); !ok {
+					return false, "root umask " + v + " (want 0027 or stricter): " + l
+				}
+			}
+			return true, "no umask looser than 0027 in root's shell files"
+		})
+	Probes["default-umask"] = markerLinesProbe(`grep -Hs -E '^[[:space:]]*UMASK' /etc/login.defs; `+
+		`grep -Hs -E '^[[:space:]]*umask' /etc/profile /etc/profile.d/*.sh /etc/bash.bashrc; `+
+		`grep -Hs -E '^[^#]*pam_umask\.so.*umask=' /etc/pam.d/common-session /etc/pam.d/common-session-noninteractive; echo @ok`,
+		func(lines []string) (bool, string) {
+			if len(lines) == 0 {
+				return false, "no default umask set (the system default is 022)"
+			}
+			for _, l := range lines {
+				if ok, v := umaskStrict(l); !ok {
+					return false, "umask " + v + " (want 0027 or stricter): " + l
+				}
+			}
+			return true, fmt.Sprintf("%d umask settings, all 0027 or stricter", len(lines))
+		})
+	Probes["home-dirs"] = markerLinesProbe(interactiveUsers+` | while read -r u h; do if [ -d "$h" ]; then stat -Lc "home $u %U %a %n" "$h"; else echo "missing $u $h"; fi; done; echo @ok`,
+		judgeHomeDirs)
+	Probes["dot-files"] = markerLinesProbe(interactiveUsers+` | while read -r u h; do [ -d "$h" ] || continue; `+
+		`sudo -n find "$h" -maxdepth 1 -name '.*' -type f -printf "dot $u %u %m %p\n" 2>/dev/null; done; echo @ok`,
+		judgeDotFiles)
+}
+
+func judgeSuRestricted(lines []string) (bool, string) {
+	group := ""
+	for _, l := range lines {
+		f := strings.Fields(strings.TrimPrefix(l, "pam "))
+		if !strings.HasPrefix(l, "pam ") || len(f) < 3 || f[0] != "auth" || (f[1] != "required" && f[1] != "requisite") || f[2] != "pam_wheel.so" {
+			continue
+		}
+		uid := false
+		for _, a := range f[3:] {
+			uid = uid || a == "use_uid"
+			if g, ok := strings.CutPrefix(a, "group="); ok {
+				group = g
+			}
+		}
+		if !uid || group == "" {
+			return false, "pam_wheel.so for su without use_uid and group=: " + strings.Join(f, " ")
+		}
+	}
+	if group == "" {
+		return false, "su is not restricted (no auth required pam_wheel.so in /etc/pam.d/su)"
+	}
+	for _, l := range lines {
+		rec, ok := strings.CutPrefix(l, "grp ")
+		if !ok {
+			continue
+		}
+		f := strings.Split(rec, ":")
+		if len(f) == 4 && f[0] == group {
+			if strings.TrimSpace(f[3]) != "" {
+				return false, "su group " + group + " has members: " + f[3]
+			}
+			return true, "su restricted to the empty group " + group
+		}
+	}
+	return false, "su group " + group + " does not exist"
+}
+
+func judgeRootPath(lines []string) (bool, string) {
+	var bad []string
+	for _, l := range lines {
+		switch {
+		case strings.HasPrefix(l, "path "):
+			p := strings.TrimPrefix(l, "path ")
+			if p == "" {
+				return false, "root PATH not read"
+			}
+			for _, d := range strings.Split(p, ":") {
+				if d == "" || d == "." {
+					bad = append(bad, fmt.Sprintf("entry %q", d))
+				}
+			}
+		case strings.HasPrefix(l, "missing "):
+			bad = append(bad, strings.TrimPrefix(l, "missing ")+" is not a directory")
+		case strings.HasPrefix(l, "dir "):
+			f := strings.Fields(l)
+			if len(f) < 4 {
+				continue
+			}
+			m, err := strconv.ParseUint(f[2], 8, 32)
+			if f[1] != "root" {
+				bad = append(bad, f[3]+" owned by "+f[1])
+			} else if err != nil || m&0o022 != 0 {
+				bad = append(bad, f[3]+" mode "+f[2]+" (group or other writable)")
+			}
+		}
+	}
+	if len(bad) > 0 {
+		return false, "root PATH: " + firstN(bad, 3)
+	}
+	return true, "root PATH: root-owned directories, none writable by group or other"
+}
+
+// umaskStrict reads the value from a umask setting line ("umask 027",
+// "UMASK 022", "pam_umask.so umask=0027") and reports whether it masks at
+// least 027. Symbolic forms are not parsed and count as not strict.
+func umaskStrict(line string) (bool, string) {
+	v := ""
+	if i := strings.Index(line, "umask="); i >= 0 {
+		v = strings.Fields(line[i+len("umask="):] + " ")[0]
+	} else {
+		f := strings.Fields(line[strings.Index(line, ":")+1:])
+		for i, w := range f {
+			if (w == "umask" || w == "UMASK") && i+1 < len(f) {
+				v = f[i+1]
+				break
+			}
+		}
+	}
+	m, err := strconv.ParseUint(v, 8, 32)
+	return err == nil && m&0o027 == 0o027, v
+}
+
+func judgeHomeDirs(lines []string) (bool, string) {
+	var bad []string
+	n := 0
+	for _, l := range lines {
+		f := strings.Fields(l)
+		switch {
+		case len(f) >= 3 && f[0] == "missing":
+			bad = append(bad, f[1]+": home "+f[2]+" missing")
+		case len(f) >= 5 && f[0] == "home":
+			n++
+			m, err := strconv.ParseUint(f[3], 8, 32)
+			if f[2] != f[1] {
+				bad = append(bad, f[4]+" owned by "+f[2]+", not "+f[1])
+			} else if err != nil || m&0o027 != 0 {
+				bad = append(bad, f[4]+" mode "+f[3]+" (want 0750 or stricter)")
+			}
+		}
+	}
+	if len(bad) > 0 {
+		return false, firstN(bad, 3)
+	}
+	return true, fmt.Sprintf("%d interactive home directories owned and 0750 or stricter", n)
+}
+
+func judgeDotFiles(lines []string) (bool, string) {
+	var bad []string
+	for _, l := range lines {
+		f := strings.Fields(l)
+		if len(f) < 5 || f[0] != "dot" {
+			continue
+		}
+		user, owner, path := f[1], f[2], strings.Join(f[4:], " ")
+		name := path[strings.LastIndex(path, "/")+1:]
+		m, err := strconv.ParseUint(f[3], 8, 32)
+		switch {
+		case name == ".forward" || name == ".rhosts" || name == ".netrc":
+			bad = append(bad, path+" exists")
+		case owner != user:
+			bad = append(bad, path+" owned by "+owner)
+		case err != nil:
+			bad = append(bad, path+" mode unreadable")
+		case name == ".bash_history" && m&0o177 != 0:
+			bad = append(bad, fmt.Sprintf("%s %04o (want 0600)", path, m))
+		case m&0o022 != 0:
+			bad = append(bad, fmt.Sprintf("%s %04o (group or other writable)", path, m))
+		}
+	}
+	if len(bad) > 0 {
+		sort.Strings(bad)
+		return false, firstN(bad, 4)
+	}
+	return true, "dot files owned by their user, none group- or world-writable"
+}
+
 // PAM (CIS 5.3.1.2, 5.3.1.3, 5.3.2.1-5.3.2.4, 5.3.3.1.1-5.3.3.4.4 except
 // the manual 5.3.3.2.3). Values are the CIS profile's ComplianceAsCode
 // variables: faillock deny <= 4, unlock_time 0 or >= 900; pwquality difok

@@ -300,6 +300,12 @@ func init() {
 			probeActions[name] = "write rsyslog.d/00-unheaded.conf: $FileCreateMode 0640; restart rsyslog"
 		case name == "rsyslog-no-listen":
 			probeActions[name] = "none (alert only): a remote-log listener may be deliberate; the operator removes it"
+		case name == "su-restricted":
+			probeActions[name] = "none (alert only): a wrong pam_wheel line locks su for everyone; the operator adds it with a root shell held open"
+		case name == "root-access-controlled", name == "root-path", name == "root-umask", name == "home-dirs", name == "dot-files":
+			probeActions[name] = "none (alert only): root's and users' own files are the operator's to change; the detail names each one"
+		case name == "default-umask":
+			probeActions[name] = "none (alert only): a stricter umask changes the mode of every file users create; the operator decides"
 		case name == "journald-rotation":
 			probeActions[name] = "write journald.conf.d/60-unheaded.conf: SystemMaxUse and RuntimeMaxUse (the journald-caps fix); restart systemd-journald"
 		case name == "journald-file-access":

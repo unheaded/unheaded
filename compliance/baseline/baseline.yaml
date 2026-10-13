@@ -29,9 +29,12 @@ sources:
   - {kind: host-probe, ref: "east:chrony-user"}
   - {kind: host-probe, ref: "east:cron-active"}
   - {kind: host-probe, ref: "east:cron-allow-restricted"}
+  - {kind: host-probe, ref: "east:default-umask"}
+  - {kind: host-probe, ref: "east:dot-files"}
   - {kind: host-probe, ref: "east:firewall-inbound-deny"}
   - {kind: host-probe, ref: "east:group-root-only-gid0"}
   - {kind: host-probe, ref: "east:grub-password"}
+  - {kind: host-probe, ref: "east:home-dirs"}
   - {kind: host-probe, ref: "east:journald-active"}
   - {kind: host-probe, ref: "east:journald-file-access"}
   - {kind: host-probe, ref: "east:journald-forward-syslog"}
@@ -132,6 +135,9 @@ sources:
   - {kind: host-probe, ref: "east:pw-max-days"}
   - {kind: host-probe, ref: "east:pw-warn-age"}
   - {kind: host-probe, ref: "east:radio-wireless-down"}
+  - {kind: host-probe, ref: "east:root-access-controlled"}
+  - {kind: host-probe, ref: "east:root-path"}
+  - {kind: host-probe, ref: "east:root-umask"}
   - {kind: host-probe, ref: "east:rsyslog-active"}
   - {kind: host-probe, ref: "east:rsyslog-filecreatemode"}
   - {kind: host-probe, ref: "east:rsyslog-no-listen"}
@@ -142,6 +148,7 @@ sources:
   - {kind: host-probe, ref: "east:sshd-kex"}
   - {kind: host-probe, ref: "east:sshd-macs"}
   - {kind: host-probe, ref: "east:sshd-maxstartups"}
+  - {kind: host-probe, ref: "east:su-restricted"}
   - {kind: host-probe, ref: "east:sudo-installed"}
   - {kind: host-probe, ref: "east:sudo-logfile"}
   - {kind: host-probe, ref: "east:sudo-no-noauth"}
@@ -199,9 +206,12 @@ sources:
   - {kind: host-probe, ref: "west:chrony-user"}
   - {kind: host-probe, ref: "west:cron-active"}
   - {kind: host-probe, ref: "west:cron-allow-restricted"}
+  - {kind: host-probe, ref: "west:default-umask"}
+  - {kind: host-probe, ref: "west:dot-files"}
   - {kind: host-probe, ref: "west:firewall-inbound-deny"}
   - {kind: host-probe, ref: "west:group-root-only-gid0"}
   - {kind: host-probe, ref: "west:grub-password"}
+  - {kind: host-probe, ref: "west:home-dirs"}
   - {kind: host-probe, ref: "west:journald-active"}
   - {kind: host-probe, ref: "west:journald-file-access"}
   - {kind: host-probe, ref: "west:journald-forward-syslog"}
@@ -302,6 +312,9 @@ sources:
   - {kind: host-probe, ref: "west:pw-max-days"}
   - {kind: host-probe, ref: "west:pw-warn-age"}
   - {kind: host-probe, ref: "west:radio-wireless-down"}
+  - {kind: host-probe, ref: "west:root-access-controlled"}
+  - {kind: host-probe, ref: "west:root-path"}
+  - {kind: host-probe, ref: "west:root-umask"}
   - {kind: host-probe, ref: "west:rsyslog-active"}
   - {kind: host-probe, ref: "west:rsyslog-filecreatemode"}
   - {kind: host-probe, ref: "west:rsyslog-no-listen"}
@@ -312,6 +325,7 @@ sources:
   - {kind: host-probe, ref: "west:sshd-kex"}
   - {kind: host-probe, ref: "west:sshd-macs"}
   - {kind: host-probe, ref: "west:sshd-maxstartups"}
+  - {kind: host-probe, ref: "west:su-restricted"}
   - {kind: host-probe, ref: "west:sudo-installed"}
   - {kind: host-probe, ref: "west:sudo-logfile"}
   - {kind: host-probe, ref: "west:sudo-no-noauth"}

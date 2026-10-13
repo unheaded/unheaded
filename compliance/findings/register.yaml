@@ -1380,3 +1380,76 @@ findings:
     plan: >-
       The 2026-10-13 unattended commits are unsigned (gpg key not cached). Stevie caches the key,
       then scripts/resign-unpushed.py re-signs them before push
+
+  # --- CIS 5.2.7, 5.4.2.4-6, 5.4.3.3, 7.2.9-10: UH-ACCT-02 (2026-10-13) ---------
+
+  - source: "host-probe:west:su-restricted"
+    severity: low
+    class: account
+    opened: 2026-10-13
+    lockout: high
+    step: 5
+    plan: >-
+      groupadd sugroup (no members); in /etc/pam.d/su: auth required pam_wheel.so use_uid group=sugroup.
+      Root via sudo is unaffected; su to another user then needs root. Keep a root shell open, test su from a second session
+    decision: whether su is used at all on the lab hosts (Stevie 2026-10-01 kept SSH and password settings as they are; su was not part of that)
+
+  - source: "host-probe:east:su-restricted"
+    severity: low
+    class: account
+    opened: 2026-10-13
+    lockout: high
+    step: 5
+    plan: same as west
+    decision: as west
+
+  - source: "host-probe:west:default-umask"
+    severity: low
+    class: shell
+    opened: 2026-10-13
+    lockout: none
+    step: 4
+    plan: >-
+      UMASK 027 in /etc/login.defs (pam_umask reads it). Every new file a user creates is then not world-readable;
+      check the dev workflows that share files between govan and the service users (docker bind mounts, ~/tmp/unheaded
+      read by services) before applying
+    decision: umask 027 for interactive users on a dev host
+
+  - source: "host-probe:east:default-umask"
+    severity: low
+    class: shell
+    opened: 2026-10-13
+    lockout: none
+    step: 4
+    plan: same as west; east has fewer shared-file workflows
+    decision: as west
+
+  - source: "host-probe:west:home-dirs"
+    severity: low
+    class: account
+    opened: 2026-10-13
+    lockout: none
+    step: 4
+    plan: >-
+      Both are system accounts with a login shell, already open as acct-system-no-shell: unheaded (/opt/unheaded 0755) and
+      frr (home /nonexistent, /bin/sh from the FRR package). usermod -s /usr/sbin/nologin unheaded drops it from this check;
+      chmod 0750 /opt/unheaded only after checking what reads it (services run as unheaded)
+
+  - source: "host-probe:west:dot-files"
+    severity: low
+    class: fileperm
+    opened: 2026-10-13
+    lockout: none
+    step: 4
+    plan: "chmod g-w /home/govan/.gitconfig /home/govan/.wget-hsts /home/govan/.zshrc (0664 from an earlier umask 002)"
+
+  - source: "host-probe:west:root-path"
+    severity: low
+    class: fileperm
+    opened: 2026-10-13
+    lockout: none
+    step: 4
+    plan: >-
+      /root/.vector/bin is owned by uid 1001, which has no account: the Vector tarball was extracted as root with its
+      archive owner kept. Empty, and /root is 0700, so no one else can reach it. chown -R root:root /root/.vector, or
+      remove it and /root/.vector/bin from root's PATH (Vector runs in compose)

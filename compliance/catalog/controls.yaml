@@ -658,6 +658,41 @@ controls:
       nist-csf-2: [PR.AA-01]
       iso27001-2022: [A.5.16, A.5.17]
 
+  - id: UH-ACCT-02
+    title: Root and user environments give no one a way into another account
+    statement: >-
+      On both hosts su is limited to an empty group, root is locked or has a
+      password, root's PATH holds only root-owned directories no one else can
+      write, root's and the default umask are 0027 or stricter, and every
+      interactive account's home directory and dot files are its own and not
+      writable by others (no .forward, .rhosts or .netrc).
+    rationale: >-
+      Least privilege (AC-6: su gated, root reachable only as intended) and
+      access enforcement on files a user or root executes or sources (AC-3:
+      PATH directories, umask, home and dot-file modes). CIS Ubuntu 24.04
+      5.2.7, 5.4.2.4-5.4.2.6, 5.4.3.3, 7.2.9 and 7.2.10 with ComplianceAsCode's
+      values; dot-file group ownership and symbolic umask forms are not
+      judged. Other framework mappings left out until checked against NIST's
+      references rather than guessed.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:su-restricted", maps: {cis-ubuntu2404: ["5.2.7"]}}
+      - {kind: host-probe, ref: "west:root-access-controlled", maps: {cis-ubuntu2404: ["5.4.2.4"]}}
+      - {kind: host-probe, ref: "west:root-path", maps: {cis-ubuntu2404: ["5.4.2.5"]}}
+      - {kind: host-probe, ref: "west:root-umask", maps: {cis-ubuntu2404: ["5.4.2.6"]}}
+      - {kind: host-probe, ref: "west:default-umask", maps: {cis-ubuntu2404: ["5.4.3.3"]}}
+      - {kind: host-probe, ref: "west:home-dirs", maps: {cis-ubuntu2404: ["7.2.9"]}}
+      - {kind: host-probe, ref: "west:dot-files", maps: {cis-ubuntu2404: ["7.2.10"]}}
+      - {kind: host-probe, ref: "east:su-restricted", maps: {cis-ubuntu2404: ["5.2.7"]}}
+      - {kind: host-probe, ref: "east:root-access-controlled", maps: {cis-ubuntu2404: ["5.4.2.4"]}}
+      - {kind: host-probe, ref: "east:root-path", maps: {cis-ubuntu2404: ["5.4.2.5"]}}
+      - {kind: host-probe, ref: "east:root-umask", maps: {cis-ubuntu2404: ["5.4.2.6"]}}
+      - {kind: host-probe, ref: "east:default-umask", maps: {cis-ubuntu2404: ["5.4.3.3"]}}
+      - {kind: host-probe, ref: "east:home-dirs", maps: {cis-ubuntu2404: ["7.2.9"]}}
+      - {kind: host-probe, ref: "east:dot-files", maps: {cis-ubuntu2404: ["7.2.10"]}}
+    mappings:
+      nist-800-53r5: [AC-3, AC-6]
+
   - id: UH-MAC-01
     title: Mandatory access control is installed and its profiles confine
     statement: >-
