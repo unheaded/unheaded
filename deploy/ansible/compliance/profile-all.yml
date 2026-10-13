@@ -18,3 +18,4 @@
     - sshd-safe
     - auditd-rules
     - journald-caps
+    - time-p2p

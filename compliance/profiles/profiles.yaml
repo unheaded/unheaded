@@ -10,13 +10,14 @@ profiles:
     description: >-
       West and east today (Stevie 2026-10-01): low-hanging fixes that break
       nothing. SSH and passwords stay as they are; idle shells stay open.
-    fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, auditd, sudo-cis]
+      time-p2p added 2026-10-13 (west serves time to east).
+    fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, auditd, sudo-cis, time-p2p]
   - name: lab-hardened
     description: >-
       East since 2026-10-12 (Stevie, after the east security audit): the lab
       fixes plus CIS audit rules and the sshd settings that leave
       authentication alone (no X11 or agent forwarding, MaxAuthTries 4).
-    fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, auditd, sudo-cis, auditd-rules, sshd-safe]
+    fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, auditd, sudo-cis, auditd-rules, sshd-safe, time-p2p]
   - name: cis-l1-server
     description: Every fix that serves a CIS Ubuntu 24.04 Level 1 Server recommendation.
     fixes: [sysctl-cis, apport-off, kmod-cis, cron-perms, banner-cis, apparmor-utils, sudo-cis, shell-tmout, sshd-safe]

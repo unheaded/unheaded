@@ -340,14 +340,14 @@ func TestComplianceProfiles_ReadOnlyFromTheRepoFallback(t *testing.T) {
 	fixes, _ := body["fixes"].([]any)
 	profiles, _ := body["profiles"].([]any)
 	bindings, _ := body["bindings"].([]any)
-	if len(fixes) != 12 || len(profiles) != 5 || len(bindings) != 2 {
+	if len(fixes) != 13 || len(profiles) != 5 || len(bindings) != 2 {
 		t.Fatalf("%d fixes, %d profiles, %d bindings", len(fixes), len(profiles), len(bindings))
 	}
 	for _, p := range profiles {
 		p := p.(map[string]any)
 		if p["name"] == "lab" {
-			if n := len(p["fixes"].([]any)); n != 8 {
-				t.Errorf("lab turns on %d fixes, want 8", n)
+			if n := len(p["fixes"].([]any)); n != 9 {
+				t.Errorf("lab turns on %d fixes, want 9", n)
 			}
 		}
 	}

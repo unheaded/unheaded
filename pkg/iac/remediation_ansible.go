@@ -112,6 +112,7 @@ var argvFor = map[string][]string{
 	"visudo -c":                    {"visudo", "-c"},
 	"augenrules --load":            {"augenrules", "--load"},
 	"systemctl restart systemd-journald.service": {"systemctl", "restart", "systemd-journald.service"},
+	"systemctl restart chrony.service":           {"systemctl", "restart", "chrony.service"},
 }
 
 const auditdHalt = `(?im)^[ \t]*(disk_full_action|disk_error_action|admin_space_left_action)[ \t]*=[ \t]*halt`

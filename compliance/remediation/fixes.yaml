@@ -338,3 +338,34 @@ fixes:
                 SystemMaxUse=1G
                 RuntimeMaxUse=200M
       - run: "systemctl restart systemd-journald.service"
+
+  - id: time-p2p
+    title: West serves time to east over the point-to-point link
+    controls: [UH-TIME-01]
+    closes: []
+    risk: low
+    class: service
+    note: >-
+      East reaches the internet only through west, so when west is down east loses every NTP source (2026-10-13). West
+      answers only east (allow), binds its NTP server socket to the P2P address so no new listener appears on the LAN or
+      the public IPv6 address, and serves its own clock at stratum 10 when its uplink is out. East keeps its NTS pools
+      and adds west. Stevie 2026-10-13: "local time mirror never hurts". Apply on west first. Applied with
+      remediate.sh 2026-10-13: west 13:41Z, east 13:42Z; east lists west as a source (stratum 3, reachable).
+    actions:
+      - file:
+          path: /etc/chrony/conf.d/60-unheaded-p2p.conf
+          mode: "0644"
+          parts:
+            - text: |
+                # West serves time to east over the point-to-point link, also while west's
+                # own uplink is out (east reaches the internet only through west). Managed
+                # by scripts/host/remediate.sh (time-p2p).
+            - hosts: [west]
+              text: |
+                allow 192.168.13.1
+                bindaddress 192.168.13.2
+                local stratum 10
+            - hosts: [east]
+              text: |
+                server 192.168.13.2 iburst
+      - run: "systemctl restart chrony.service"

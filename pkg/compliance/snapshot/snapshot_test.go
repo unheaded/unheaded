@@ -57,7 +57,7 @@ func TestBuildSealOpen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if snap.Profile != "lab" || len(snap.Fixes) != 8 || snap.ModelCommit != "abc123" {
+	if snap.Profile != "lab" || len(snap.Fixes) != 9 || snap.ModelCommit != "abc123" {
 		t.Errorf("snapshot %s with %d fixes", snap.Profile, len(snap.Fixes))
 	}
 	for _, f := range snap.Fixes {

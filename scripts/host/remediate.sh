@@ -33,7 +33,7 @@ HOST="${UNHEADED_HOST:-$(hostname -s)}"
 
 die() { echo "remediate: $*" >&2; exit 1; }
 
-FIXES="sysctl-cis apport-off kmod-cis cron-perms shell-tmout sshd-safe banner-cis apparmor-utils sudo-cis auditd auditd-rules journald-caps"
+FIXES="sysctl-cis apport-off kmod-cis cron-perms shell-tmout sshd-safe banner-cis apparmor-utils sudo-cis auditd auditd-rules journald-caps time-p2p"
 
 # desired content per fix, per host -----------------------------------------
 content_sysctl() {
@@ -118,6 +118,19 @@ content_journald() {
 SystemMaxUse=1G
 RuntimeMaxUse=200M
 CONF
+}
+
+content_timep2p() {
+	cat <<'CONF'
+# West serves time to east over the point-to-point link, also while west's
+# own uplink is out (east reaches the internet only through west). Managed
+# by scripts/host/remediate.sh (time-p2p).
+CONF
+	if [[ "$HOST" == west ]]; then
+		printf '%s\n' "allow 192.168.13.1" "bindaddress 192.168.13.2" "local stratum 10"
+	else
+		printf '%s\n' "server 192.168.13.2 iburst"
+	fi
 }
 
 content_audit() {
@@ -452,6 +465,19 @@ fix_journald-caps() {
 	apply_file /etc/systemd/journald.conf.d/60-unheaded.conf 644 "$want"
 	"$SYSTEMCTL" restart systemd-journald.service
 	echo "  journald restarted with the caps"
+}
+
+fix_time-p2p() {
+	local mode="$1" want; known_host; want="$(content_timep2p)"
+	if [[ "$mode" == plan ]]; then
+		plan_file /etc/chrony/conf.d/60-unheaded-p2p.conf 644 "$want" || true
+		echo "  then: $SYSTEMCTL restart chrony.service (west first: east's new source is west)"
+		return
+	fi
+	undo_line "$SYSTEMCTL restart chrony.service"
+	apply_file /etc/chrony/conf.d/60-unheaded-p2p.conf 644 "$want"
+	"$SYSTEMCTL" restart chrony.service
+	echo "  chrony restarted"
 }
 
 # main --------------------------------------------------------------------------

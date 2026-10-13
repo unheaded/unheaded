@@ -1,0 +1,85 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# time-p2p: West serves time to east over the point-to-point link
+- block:
+    - ansible.builtin.stat:
+        path: /etc/chrony/conf.d
+      name: Is /etc/chrony/conf.d there
+      register: uh_time_p2p_1_dir
+    - ansible.builtin.file:
+        group: root
+        mode: "0755"
+        owner: root
+        path: /etc/chrony/conf.d
+        state: directory
+      name: Create /etc/chrony/conf.d
+      when: not uh_time_p2p_1_dir.stat.exists
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # West serves time to east over the point-to-point link, also while west's
+          # own uplink is out (east reaches the internet only through west). Managed
+          # by scripts/host/remediate.sh (time-p2p).
+          allow 192.168.13.1
+          bindaddress 192.168.13.2
+          local stratum 10
+        dest: /etc/chrony/conf.d/60-unheaded-p2p.conf
+        group: root
+        mode: "0644"
+        owner: root
+      name: Write /etc/chrony/conf.d/60-unheaded-p2p.conf (inventory_hostname == 'west')
+      register: uh_time_p2p_1_v1
+      when: inventory_hostname == 'west'
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # West serves time to east over the point-to-point link, also while west's
+          # own uplink is out (east reaches the internet only through west). Managed
+          # by scripts/host/remediate.sh (time-p2p).
+          server 192.168.13.2 iburst
+        dest: /etc/chrony/conf.d/60-unheaded-p2p.conf
+        group: root
+        mode: "0644"
+        owner: root
+      name: Write /etc/chrony/conf.d/60-unheaded-p2p.conf (inventory_hostname == 'east')
+      register: uh_time_p2p_1_v2
+      when: inventory_hostname == 'east'
+    - ansible.builtin.command:
+        argv:
+          - systemctl
+          - restart
+          - chrony.service
+      changed_when: true
+      name: Run systemctl restart chrony.service
+  name: time-p2p
+  rescue:
+    - ansible.builtin.copy:
+        dest: /etc/chrony/conf.d/60-unheaded-p2p.conf
+        remote_src: true
+        src: '{{ uh_time_p2p_1_v1.backup_file }}'
+      name: Restore /etc/chrony/conf.d/60-unheaded-p2p.conf
+      when: uh_time_p2p_1_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/chrony/conf.d/60-unheaded-p2p.conf
+        state: absent
+      name: Remove /etc/chrony/conf.d/60-unheaded-p2p.conf if this role created it
+      when: uh_time_p2p_1_v1 is changed and uh_time_p2p_1_v1.backup_file is not defined
+    - ansible.builtin.copy:
+        dest: /etc/chrony/conf.d/60-unheaded-p2p.conf
+        remote_src: true
+        src: '{{ uh_time_p2p_1_v2.backup_file }}'
+      name: Restore /etc/chrony/conf.d/60-unheaded-p2p.conf
+      when: uh_time_p2p_1_v2.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/chrony/conf.d/60-unheaded-p2p.conf
+        state: absent
+      name: Remove /etc/chrony/conf.d/60-unheaded-p2p.conf if this role created it
+      when: uh_time_p2p_1_v2 is changed and uh_time_p2p_1_v2.backup_file is not defined
+    - ansible.builtin.file:
+        path: /etc/chrony/conf.d
+        state: absent
+      name: Remove /etc/chrony/conf.d if this role created it
+      when: not uh_time_p2p_1_dir.stat.exists
+    - ansible.builtin.fail:
+        msg: time-p2p failed a check; every file it changed was restored
+      name: Fail after restoring

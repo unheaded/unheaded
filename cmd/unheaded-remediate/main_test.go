@@ -65,7 +65,7 @@ func TestListPlanApplyUndo(t *testing.T) {
 	model, root, state := setup(t)
 	flags := []string{"-model", model, "-root", root, "-state", state, "-host", "east"}
 	code, out, _ := cli(append(flags, "list")...)
-	if code != 0 || strings.Count(out, "\n") != 12 || !strings.Contains(out, "sshd-safe") {
+	if code != 0 || strings.Count(out, "\n") != 13 || !strings.Contains(out, "sshd-safe") {
 		t.Fatalf("list: %d\n%s", code, out)
 	}
 	if code, out, errs := cli(append(flags, "plan", "kmod-cis")...); code != 0 || !strings.Contains(out, "would write") {
@@ -169,7 +169,7 @@ func TestSnapshotMode(t *testing.T) {
 	snap, pub := writeSnapshot(t, filepath.Dir(model), "west")
 	flags := []string{"-snapshot", snap, "-pubkey", pub, "-root", root, "-state", state, "-host", "west"}
 	code, out, errs := cli(append(flags, "list")...)
-	if code != 0 || strings.Count(out, "\n") != 8 || strings.Contains(out, "sshd-safe") {
+	if code != 0 || strings.Count(out, "\n") != 9 || strings.Contains(out, "sshd-safe") {
 		t.Fatalf("list from the lab snapshot: %d %s %s", code, out, errs)
 	}
 	if code, _, errs := cli(append(flags, "apply", "sshd-safe")...); code == 0 || !strings.Contains(errs, "unknown fix") {

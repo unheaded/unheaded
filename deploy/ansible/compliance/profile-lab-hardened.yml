@@ -16,3 +16,4 @@
     - sudo-cis
     - sshd-safe
     - auditd-rules
+    - time-p2p

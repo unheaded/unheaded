@@ -80,6 +80,8 @@ func (c Commands) argv(s string) ([]string, error) {
 		return []string{c.Augenrules, "--load"}, nil
 	case "systemctl restart systemd-journald.service":
 		return []string{c.Systemctl, "restart", "systemd-journald.service"}, nil
+	case "systemctl restart chrony.service":
+		return []string{c.Systemctl, "restart", "chrony.service"}, nil
 	}
 	return nil, fmt.Errorf("%w: %q is not an allowlisted command", ErrRefused, s)
 }
