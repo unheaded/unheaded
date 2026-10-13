@@ -1334,18 +1334,18 @@ findings:
     decision: the caps (proposed as west)
 
   - source: "host-probe:west:var-log-perms"
-    severity: medium
+    severity: low
     class: fileperm
     opened: 2026-10-13
     lockout: none
     step: 2
     plan: >-
-      Two files are world-WRITABLE (0666): /var/log/rocm_smi_lib/ROCm-SMI-lib.log and
-      /var/log/amd_smi_lib/AMD-SMI-lib.log, created by the ROCm/AMD SMI libraries; chmod 0640 and
-      check whether the library recreates them 0666. The other ~208 are Ubuntu's 0644 defaults
+      Done 2026-10-13 (Stevie: yes): the two world-writable SMI logs (0666, in 0777 directories without
+      the sticky bit, made by the ROCm installer, empty since February) are now 0640 in 0755 directories;
+      undo in /var/lib/unheaded/remediate/20261013T133915Z-smi-log-perms. A ROCm reinstall may recreate
+      them 0777/0666. The other ~208 are Ubuntu's 0644 defaults
       (dpkg, apt, alternatives, installer, sysstat): chmod o-r, and logrotate's create mode or the
       package's own rotation, else they come back on the next rotation
-    exposure: any local user can truncate or append to the two 0666 logs
 
   - source: "host-probe:east:var-log-perms"
     severity: low
