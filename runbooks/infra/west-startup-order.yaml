@@ -98,7 +98,7 @@ steps:
           --host 127.0.0.1 --port 8081 \
           --n-gpu-layers 999 --ctx-size 16384 \
           --threads 6 \
-          &> /tmp/llama-server.log &
+          &> "$(~/tmp/unheaded/scripts/lib/logpath.sh llama-server)" &
         echo "llama-server PID: $!"
         # Wait for model load (~20s first time, includes GPU offload fit)
         for i in $(seq 1 30); do
@@ -108,7 +108,7 @@ steps:
       fi
     verify: "curl -sf http://127.0.0.1:8081/health > /dev/null"
     description: "Start llama-server with Qwen-Coder-7B on GPU (ROCm). First load takes ~20s for GPU fit."
-    on_fail: "tail -20 /tmp/llama-server.log"
+    on_fail: "tail -20 $(~/tmp/unheaded/scripts/lib/logpath.sh llama-server)"
 
   # ── Tier 5b: Retrieval (required before zhenai) ────────────────────────────
 
@@ -118,7 +118,7 @@ steps:
       if ss -lnt | grep -q ':9876'; then
         echo "vor already on :9876"
       else
-        nohup cs serve &> /tmp/vor.log &
+        nohup cs serve &> "$(~/tmp/unheaded/scripts/lib/logpath.sh vor)" &
         echo "vor PID: $!"
         for i in $(seq 1 15); do
           curl -sf http://127.0.0.1:9876/api/health > /dev/null 2>&1 && break
@@ -127,7 +127,7 @@ steps:
       fi
     verify: "curl -sf http://127.0.0.1:9876/api/health > /dev/null"
     description: "Start vor (cs serve) corpus server on :9876"
-    on_fail: "tail -10 /tmp/vor.log"
+    on_fail: "tail -10 $(~/tmp/unheaded/scripts/lib/logpath.sh vor)"
 
   # ── Tier 5c: Wiki ──────────────────────────────────────────────────────────
 
@@ -139,7 +139,7 @@ steps:
       else
         # wiki-server binary lives in the repo bin/ or is a system install
         cd ~/tmp/unheaded
-        nohup wiki-server &> /tmp/wiki-server.log &
+        nohup wiki-server &> "$(~/tmp/unheaded/scripts/lib/logpath.sh wiki-server)" &
         echo "wiki-server PID: $!"
       fi
     description: "Start wiki-server on :20002 (optional — skip if not installed)"
@@ -157,7 +157,7 @@ steps:
       fi
     verify: "curl -sf http://localhost:20103/health > /dev/null"
     description: "Start Zhen web UI on :20103 (UI only; add -gated for mutation mode)"
-    on_fail: "tail -20 /tmp/zhen-webapp.log"
+    on_fail: "tail -20 $(~/tmp/unheaded/scripts/lib/logpath.sh zhen zhen-webapp.log)"
 
   # ── Tier 6: Observability agents ───────────────────────────────────────────
 
@@ -169,7 +169,7 @@ steps:
       else
         cd ~/tmp/unheaded
         go build -o bin/host-agent ./cmd/host-agent/
-        nohup ./bin/host-agent &> /tmp/host-agent.log &
+        nohup ./bin/host-agent &> "$(~/tmp/unheaded/scripts/lib/logpath.sh host-agent)" &
         echo "host-agent PID: $!"
       fi
     description: "Build and start host-agent metrics publisher on :9110"
@@ -179,10 +179,10 @@ steps:
     command: |
       cd ~/tmp/unheaded
       go build -o bin/demo-trace-injector ./cmd/demo-trace-injector/
-      nohup ./bin/demo-trace-injector &> /tmp/demo-injector.log &
+      nohup ./bin/demo-trace-injector &> "$(~/tmp/unheaded/scripts/lib/logpath.sh demo-trace-injector)" &
       echo "demo-trace-injector PID: $!"
     description: "Build and start demo-trace-injector (publishes eBPF flow/latency/packet events to wotan)"
-    on_fail: "tail -10 /tmp/demo-injector.log"
+    on_fail: "tail -10 $(~/tmp/unheaded/scripts/lib/logpath.sh demo-trace-injector)"
 
   # ── Tier 7: DOOM pipeline (optional, requires prior netns teardown) ─────────
   # Run doom-ring-setup.yaml for full teardown + setup.
@@ -206,7 +206,7 @@ steps:
       # Start doom-runner in background
       sudo nohup ./crates/doom-runner/target/release/doom-runner \
         --wad ~/tmp/DOOM_wads/doom1.wad \
-        &> /tmp/doom-runner.log &
+        &> "$(~/tmp/unheaded/scripts/lib/logpath.sh doom doom-runner.log)" &
       sleep 3
     description: "Setup doom ring and start doom-runner (loads BPF programs + maps)"
 
@@ -239,10 +239,10 @@ steps:
         ./cmd/doom-go-injector/doom-go-injector \
           -iface veth01 -src-mac $SRC -dst-mac $DST \
           -mode sendmmsg -batch 64 -flow-label 222 -count 0 \
-          &> /tmp/doom-injector.log &
+          &> "$(~/tmp/unheaded/scripts/lib/logpath.sh doom doom-injector.log)" &
       echo "injector PID: $!"
     verify: |
-      sleep 3 && grep -q 'pkt/s' /tmp/doom-injector.log || \
+      sleep 3 && grep -q 'pkt/s' "$(~/tmp/unheaded/scripts/lib/logpath.sh doom doom-injector.log)" || \
         echo "WARNING: injector log not showing pkt/s yet, may still be initializing"
     description: "Start doom-go-injector packet circulator"
 

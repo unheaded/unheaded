@@ -80,4 +80,8 @@ if [[ -n "$removed" ]]; then
     exit 0
 fi
 
-echo "[PASS] ${n_current} /tmp log paths, unchanged from the baseline (ADR-092 migration pending)"
+if [[ "$n_current" -eq 0 ]]; then
+    echo "[PASS] no /tmp log paths (ADR-092 call-site migration complete; the gate now refuses any new one)"
+else
+    echo "[PASS] ${n_current} /tmp log paths, unchanged from the baseline (ADR-092 migration pending)"
+fi

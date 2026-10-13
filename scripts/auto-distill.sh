@@ -1,16 +1,17 @@
 #!/bin/bash
 # auto-distill.sh — Wait for training to finish, then run local distillation
-# Run with: nohup bash scripts/auto-distill.sh > /tmp/auto-distill.log 2>&1 &
+# Run with: nohup bash scripts/auto-distill.sh > "$(scripts/lib/logpath.sh forge auto-distill.log)" 2>&1 &
 
 set -e
 cd ~/tmp/unheaded
+FORGE_LOG="${FORGE_LOG:-$(scripts/lib/logpath.sh forge forge-train.log)}"
 
 echo "=== Auto-Distill: Waiting for training v3 to finish ==="
 echo "  $(date)"
 
 # Wait for zhenai-forge to exit
 while pgrep -f "zhenai-forge" > /dev/null 2>&1; do
-    STEP=$(tail -1 /tmp/forge-v3.log 2>/dev/null | grep -oP 'Step \K[0-9]+' || echo "?")
+    STEP=$(tail -1 "$FORGE_LOG" 2>/dev/null | grep -oP 'Step \K[0-9]+' || echo "?")
     echo "  Training still running (step $STEP)... waiting 60s"
     sleep 60
 done

@@ -32,23 +32,17 @@ else
     echo "   No BPF pin directory (skip)"
 fi
 
-# 3. Clear trace-collector state
-echo "3. Clearing trace-collector state..."
-rm -f /tmp/trace-collector*.log 2>/dev/null
-rm -f /tmp/wotan_events.log 2>/dev/null
-echo "   Trace logs cleared"
-
-# 4. Full reset: stop all services via kingdom-shutdown
+# 3. Full reset: stop all services via kingdom-shutdown
 if [[ "$FULL_RESET" == "true" ]]; then
-    echo "4. Full reset: stopping all services..."
+    echo "3. Full reset: stopping all services..."
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     bash "$SCRIPT_DIR/scripts/kingdom-shutdown.sh" --force --keep-bpf
     echo "   Run ./demo-start.sh to restart"
 fi
 
-# 5. Reset EAST if requested
+# 4. Reset EAST if requested
 if [[ "$RESET_EAST" == "true" ]]; then
-    echo "5. Resetting EAST services..."
+    echo "4. Resetting EAST services..."
     ssh govan@east "sudo systemctl restart wotan unheaded-daemon timeguru dashboard-backend kanban-app" 2>/dev/null && echo "   EAST services restarted" || echo "   EAST not reachable"
 fi
 

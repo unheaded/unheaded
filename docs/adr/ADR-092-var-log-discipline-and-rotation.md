@@ -223,3 +223,39 @@ batches). This one is checkable:
   `logrotate -f`, keep writing, verify the concatenation of the rotated set is
   gap-free. This is the check that would catch a `copytruncate` regression, and
   it must be provoked to red before it is trusted
+
+## Progress
+
+| step | state | where |
+|---|---|---|
+| 1. compose `logging:` caps | done | `0e956af8` |
+| 3. call sites off `/tmp` | **done 2026-10-13**: 31 → 0 | `scripts/lib/logpath.sh`; ratchet at 0 in `docs/policy/tmp-log-baseline.txt` |
+| 6. `log-rotation.yaml` | **rewritten to verify** (2026-10-13): reads sizes, parses `unheaded-*` stanzas, fails on `copytruncate`, reports journald caps; installs nothing | `runbooks/observe/log-rotation.yaml` |
+| 2, 4, 5, 7 | open | provisioning dirs, per-service stanzas, CI check, `/var/log` filesystem + journald caps + Huginn alert |
+
+**Amendment (2026-10-13): processes an operator starts by hand.** Every
+remaining call site was a dev script or runbook run as the operator, not a
+systemd service with its own user. Those cannot write `/var/log/unheaded/`
+(owned by `unheaded`, 0755) and must not fall back to `/tmp`. One helper decides
+the path for all of them, shell, YAML and Python alike:
+
+    "$(scripts/lib/logpath.sh <service> [file.log])"
+
+first match wins: `$UNHEADED_LOG_DIR/<service>/`, then
+`/var/log/unheaded/<service>/` when the caller can write it (root, or a
+provisioned host), then `${XDG_STATE_HOME:-~/.local/state}/unheaded/log/<service>/`.
+All three survive reboot and are writable only by their owner. The directory is
+created 0750; a symlinked directory or log file is refused. Tested in
+`scripts/lib/logpath_test.go` (provoked red twice: symlink check removed,
+umask dropped).
+
+Found while migrating: three paths were read but never written
+(`/tmp/forge-production.log` in `zhen_app.py`'s training status,
+`/tmp/forge-v3.log` in `auto-distill.sh`, `/tmp/trace-collector*.log` and
+`/tmp/wotan_events.log` deleted by `demo-reset.sh`), and two runbook hints named
+logs their step never wrote (`raft-qa-gen.log`, `embed.log`). The forge readers
+now share `forge/forge-train.log` with `scripts/forge-train.sh`; the dead
+deletions are gone; the two steps now `tee` into the log their hint names.
+
+West, 2026-10-13: journald holds 3.4 GB with no `SystemMaxUse` set (step 7,
+host change, not made).

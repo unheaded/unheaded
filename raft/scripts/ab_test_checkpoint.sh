@@ -17,6 +17,9 @@ MODEL="/var/zhen/models/mistral-7b-instruct-q5_k_m.gguf"
 ZLORA_TO_GGUF="/home/govan/tmp/unheaded/scripts/zlora-to-gguf.py"
 RESULTS="/tmp/ab_test_results.md"
 BASE_PORT=20200
+LOGPATH="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/scripts/lib/logpath.sh"
+BASE_LOG="$("$LOGPATH" raft ab-base.log)"
+LORA_LOG="$("$LOGPATH" raft ab-lora.log)"
 LORA_PORT=20201
 
 # Find checkpoint
@@ -56,7 +59,7 @@ echo "[3/6] Starting base model server on :$BASE_PORT ..."
     --threads 4 \
     --n-gpu-layers 28 \
     --log-disable \
-    > /tmp/ab_base.log 2>&1 &
+    > "$BASE_LOG" 2>&1 &
 BASE_PID=$!
 
 # Start LoRA model server
@@ -69,7 +72,7 @@ echo "[4/6] Starting LoRA model server on :$LORA_PORT ..."
     --threads 4 \
     --n-gpu-layers 28 \
     --log-disable \
-    > /tmp/ab_lora.log 2>&1 &
+    > "$LORA_LOG" 2>&1 &
 LORA_PID=$!
 
 echo "      Base PID: $BASE_PID | LoRA PID: $LORA_PID"

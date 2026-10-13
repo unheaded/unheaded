@@ -22,7 +22,7 @@ steps:
 
   - name: start-daemon
     action: shell
-    command: "nohup ~/tmp/unheaded/cmd/akira/akira --port 16699 > /tmp/akira.log 2>&1 &"
+    command: "nohup ~/tmp/unheaded/cmd/akira/akira --port 16699 > $(~/tmp/unheaded/scripts/lib/logpath.sh akira) 2>&1 &"
     verify: "sleep 3 && curl -sf http://localhost:16699/health"
 
   - name: check-status

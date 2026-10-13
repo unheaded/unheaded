@@ -14,7 +14,7 @@
 #   scripts/forge-train.sh eval-gemma4 --model … --lora …
 #
 # Environment overrides:
-#   FORGE_LOG        path to log file (default /tmp/v6-run.log)
+#   FORGE_LOG        path to log file (default: scripts/lib/logpath.sh forge forge-train.log)
 #   FORGE_BIN        path to zhenai-forge binary (default crates/zhenai-forge/target/release/zhenai-forge)
 #   FORGE_MEM_MAX    MemoryMax for the scope (default 10G)
 #   FORGE_MEM_HIGH   MemoryHigh for the scope (default 8G)
@@ -32,7 +32,7 @@
 #   >0 — training exited non-zero (forwarded)
 set -euo pipefail
 
-FORGE_LOG="${FORGE_LOG:-/tmp/v6-run.log}"
+FORGE_LOG="${FORGE_LOG:-$("$(dirname "${BASH_SOURCE[0]}")/lib/logpath.sh" forge forge-train.log)}"
 FORGE_BIN="${FORGE_BIN:-/home/govan/tmp/unheaded/crates/zhenai-forge/target/release/zhenai-forge}"
 FORGE_MEM_MAX="${FORGE_MEM_MAX:-10G}"
 FORGE_MEM_HIGH="${FORGE_MEM_HIGH:-8G}"

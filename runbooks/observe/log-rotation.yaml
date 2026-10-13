@@ -2,63 +2,69 @@ apiVersion: runbook/v1
 kind: Runbook
 metadata:
   name: log-rotation
-  description: Configure and verify log rotation for all Kingdom services
+  description: >-
+    Verify ADR-092 log discipline: where Kingdom logs live, what caps them,
+    and that no rotation config uses copytruncate. Reads only; installs nothing.
   owner: micromanager
-  estimated_duration: 10m
+  estimated_duration: 5m
   risk: low
   requires_sudo: true
   cs_sources: [logs/logrotate, logs/rsyslog]
 
+# This runbook used to INSTALL a logrotate stanza for logs in /tmp, with
+# copytruncate. ADR-092 bans both: /tmp is world-writable and cleared on
+# reboot, and copytruncate loses the lines written between copy and truncate.
+# Durable logs now come from scripts/lib/logpath.sh (/var/log/unheaded/<svc>/,
+# or ~/.local/state/unheaded/log/<svc>/ for an operator without root).
+# Per-service /etc/logrotate.d/unheaded-<svc> stanzas land with each service
+# (ADR-092 migration step 4); until then this reports, it does not fix.
+
 steps:
-  - name: check-current-log-sizes
+  - name: log-sizes
     action: shell
     command: |
-      echo "=== /tmp service logs ==="
-      ls -lh /tmp/*.log 2>/dev/null
-      echo "=== /var/log ==="
-      du -sh /var/log/ 2>/dev/null
-      echo "=== Journal size ==="
+      for d in /var/log/unheaded "${XDG_STATE_HOME:-$HOME/.local/state}/unheaded/log"; do
+        echo "=== $d ==="
+        [ -d "$d" ] && sudo du -sh "$d"/* 2>/dev/null || echo "(none)"
+      done
+      echo "=== journal ==="
       journalctl --disk-usage
+    description: "Per-service log directory sizes, both locations, plus the journal"
 
-  - name: configure-service-logrotate
+  - name: no-tmp-logs
     action: shell
     command: |
-      sudo tee /etc/logrotate.d/unheaded <<EOF
-      /tmp/zhen.log /tmp/llama-server.log /tmp/embed.log /tmp/raft-*.log {
-          daily
-          rotate 7
-          compress
-          delaycompress
-          missingok
-          notifempty
-          copytruncate
-      }
-      EOF
-    verify: "sudo logrotate -d /etc/logrotate.d/unheaded 2>&1 | grep -q 'considering log'"
+      found=$(find /tmp -maxdepth 1 -name '*.log' -newer /proc/1 2>/dev/null)
+      if [ -n "$found" ]; then
+        echo "Logs written to /tmp since boot (ADR-092: move them to scripts/lib/logpath.sh):"
+        echo "$found"
+      else
+        echo "No log in /tmp written since boot"
+      fi
+    description: "Report anything still logging to /tmp since boot (reports, never deletes)"
 
-  - name: configure-journal-limits
+  - name: stanzas-parse
     action: shell
     command: |
-      sudo mkdir -p /etc/systemd/journald.conf.d
-      sudo tee /etc/systemd/journald.conf.d/unheaded.conf <<EOF
-      [Journal]
-      SystemMaxUse=500M
-      SystemKeepFree=1G
-      MaxFileSec=1week
-      EOF
-      sudo systemctl restart systemd-journald
-    verify: "journalctl --disk-usage"
+      ls /etc/logrotate.d/unheaded-* 2>/dev/null || { echo "No unheaded-* stanzas installed yet"; exit 0; }
+      for f in /etc/logrotate.d/unheaded-*; do
+        sudo logrotate -d "$f" >/dev/null 2>&1 && echo "OK   $f" || echo "FAIL $f"
+      done
+    verify: "! ls /etc/logrotate.d/unheaded-* >/dev/null 2>&1 || for f in /etc/logrotate.d/unheaded-*; do sudo logrotate -d \"$f\" >/dev/null 2>&1 || exit 1; done"
+    description: "Every installed unheaded-* logrotate stanza parses"
 
-  - name: force-rotation
+  - name: no-copytruncate
     action: shell
-    command: "sudo logrotate -f /etc/logrotate.d/unheaded"
-    description: "Force immediate rotation (for testing)"
+    command: "grep -ln copytruncate /etc/logrotate.d/unheaded* 2>/dev/null || echo 'none'"
+    verify: "! grep -qs copytruncate /etc/logrotate.d/unheaded*"
+    description: "copytruncate is banned (ADR-092 §4): services reopen on SIGHUP instead"
+    on_fail: "Replace copytruncate with create + a postrotate SIGHUP (ADR-092 §4 house style)"
 
-  - name: vacuum-journal
+  - name: journald-caps
     action: shell
-    command: "sudo journalctl --vacuum-size=500M"
-    description: "Trim journal to 500MB"
+    command: "systemd-analyze cat-config systemd/journald.conf | grep -E '^(SystemMaxUse|RuntimeMaxUse|SystemKeepFree)=' || echo 'journald caps not set (default: 10% of the filesystem)'"
+    description: "ADR-092 §5: journald SystemMaxUse/RuntimeMaxUse set explicitly"
 
-  - name: verify-free-space
+  - name: free-space
     action: shell
-    command: "df -h / /tmp /var"
+    command: "df -h / /var /var/log"

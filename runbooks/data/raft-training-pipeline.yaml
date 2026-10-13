@@ -39,10 +39,12 @@ steps:
     command: |
       cd ~/tmp/unheaded/raft
       source ${VENV_ZHEN}/bin/activate
-      PYTHONUNBUFFERED=1 python3 scripts/05_generate_qa.py --count 2500
+      set -o pipefail
+      PYTHONUNBUFFERED=1 python3 scripts/05_generate_qa.py --count 2500 2>&1 \
+        | tee "$(~/tmp/unheaded/scripts/lib/logpath.sh raft raft-qa-gen.log)"
     timeout: 7200
     verify: "wc -l ~/tmp/unheaded/raft/raft_dataset.jsonl | awk '{print ($1 >= 2000) ? \"OK\" : \"FAIL\"}' | grep -q OK"
-    on_fail: "Check /tmp/raft-qa-gen.log. Common issue: Mistral truncating JSON (increase MAX_TOKENS in script)"
+    on_fail: "Check $(~/tmp/unheaded/scripts/lib/logpath.sh raft raft-qa-gen.log). Common issue: Mistral truncating JSON (increase MAX_TOKENS in script)"
 
   - name: validate-qa-quality
     action: shell
@@ -71,10 +73,10 @@ steps:
       cd ~/tmp/unheaded/raft
       source ${VENV_ROCM}/bin/activate
       HSA_OVERRIDE_GFX_VERSION=11.0.0 PYTHONUNBUFFERED=1 \
-        python3 scripts/08_train_qlora.py 2>&1 | tee /tmp/raft-train.log
+        python3 scripts/08_train_qlora.py 2>&1 | tee "$(~/tmp/unheaded/scripts/lib/logpath.sh raft raft-train.log)"
     timeout: 14400
     verify: "test -d ~/tmp/unheaded/raft/output/checkpoint-*"
-    on_fail: "Check /tmp/raft-train.log for OOM or CUDA errors"
+    on_fail: "Check $(~/tmp/unheaded/scripts/lib/logpath.sh raft raft-train.log) for OOM or CUDA errors"
 
   # --- Phase 3: Merge + Quantize ---
   - name: merge-adapters
@@ -102,7 +104,7 @@ steps:
       export LD_LIBRARY_PATH="$(pwd)/bin:$LD_LIBRARY_PATH"
       nohup ./bin/llama-server \
         -m /var/zhen/models/mistral-7b-kingdom-q5.gguf \
-        -ngl 40 -c 16384 --port 20100 > /tmp/llama-server.log 2>&1 &
+        -ngl 40 -c 16384 --port 20100 > "$(~/tmp/unheaded/scripts/lib/logpath.sh llama-server)" 2>&1 &
       sleep 10
     verify: "curl -sf http://localhost:20100/health | grep -q ok"
 
@@ -125,6 +127,6 @@ steps:
     command: |
       cd ~/tmp/unheaded/raft
       source ${VENV_ZHEN}/bin/activate
-      nohup python3 zhen_app.py > /tmp/zhen.log 2>&1 &
+      nohup python3 zhen_app.py > "$(~/tmp/unheaded/scripts/lib/logpath.sh zhen zhen-webapp.log)" 2>&1 &
       sleep 30
     verify: "curl -sf http://localhost:20103/health | grep -q ok"

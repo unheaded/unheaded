@@ -309,6 +309,8 @@ load_doom_data() {
 
 start_injector() {
     log_step "Step 6: Starting tick injector..."
+    local injector_log
+    injector_log="$("${SCRIPT_DIR}/lib/logpath.sh" doom doom-smoke-injector.log)"
 
     # Get MAC addresses for veth01 and veth01p
     local src_mac dst_mac
@@ -341,13 +343,13 @@ start_injector() {
         --src-mac "$src_mac" \
         --dst-mac "$dst_mac" \
         --interface veth01 \
-        > /tmp/doom-smoke-injector.log 2>&1 &
+        > "$injector_log" 2>&1 &
     INJECTOR_PID=$!
 
     sleep 0.5
     if ! kill -0 "$INJECTOR_PID" 2>/dev/null; then
         log_error "Injector died immediately. Log:"
-        cat /tmp/doom-smoke-injector.log 2>/dev/null || true
+        cat "$injector_log" 2>/dev/null || true
         exit 1
     fi
 
@@ -358,17 +360,19 @@ start_injector() {
 
 start_bridge() {
     log_step "Step 7: Starting doom-bridge on port 16666..."
+    local bridge_log
+    bridge_log="$("${SCRIPT_DIR}/lib/logpath.sh" doom doom-smoke-bridge.log)"
 
     "$DOOM_BRIDGE" \
         --port 16666 \
         --map-dir "${MAP_PIN_DIR}" \
-        > /tmp/doom-smoke-bridge.log 2>&1 &
+        > "$bridge_log" 2>&1 &
     BRIDGE_PID=$!
 
     sleep 1
     if ! kill -0 "$BRIDGE_PID" 2>/dev/null; then
         log_error "Bridge died immediately. Log:"
-        cat /tmp/doom-smoke-bridge.log 2>/dev/null || true
+        cat "$bridge_log" 2>/dev/null || true
         exit 1
     fi
 

@@ -134,15 +134,18 @@ def restart_zhen():
     venv_python = Path.home() / '.venv' / 'zhen' / 'bin' / 'python3'
     zhen_app = RAFT_DIR / 'zhen_app.py'
 
+    # ADR-092: the log path comes from scripts/lib/logpath.sh, the one place
+    # that decides it (never /tmp; refuses a symlinked log).
+    webapp_log = subprocess.run(
+        [str(RAFT_DIR.parent / 'scripts' / 'lib' / 'logpath.sh'), 'zhen', 'zhen-webapp.log'],
+        capture_output=True, text=True, check=True,
+    ).stdout.strip()
     subprocess.Popen(
         [str(venv_python), str(zhen_app)],
         cwd=str(RAFT_DIR),
         # Deliberate: this handle is owned by the child process for its whole
         # lifetime. A context manager would close it the moment Popen returns.
-        # nosec B108 - fixed path is the interface operators tail. Note this is
-        # an open(..., 'w'), so on a shared host a pre-created symlink here would
-        # be truncated; acceptable on a single-user dev box, revisit if that changes.
-        stdout=open('/tmp/zhen-webapp.log', 'w'),  # noqa: SIM115  # nosec B108
+        stdout=open(webapp_log, 'w'),  # noqa: SIM115
         stderr=subprocess.STDOUT,
         start_new_session=True,
     )
@@ -155,7 +158,7 @@ def restart_zhen():
     if new_pids:
         print(f"  Zhen restarted (PIDs: {new_pids})")
     else:
-        print("  WARNING: Zhen may not have started. Check /tmp/zhen-webapp.log")
+        print(f"  WARNING: Zhen may not have started. Check {webapp_log}")
 
 
 def show_status():

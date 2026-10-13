@@ -244,6 +244,8 @@ load_bpf_programs() {
     local ns0="${NS_PREFIX}0"
     local veth0="veth$((NUM_HOPS - 1))0p"
     local pid_file="/run/doom-ring/hop0.pid"
+    local loader_log
+    loader_log="$("${SCRIPT_DIR}/lib/logpath.sh" doom doom-ring-loader.log)"
 
     log_info "Hop 0 (primary): loading monad_cpu on ${ns0}/${veth0}..."
 
@@ -256,7 +258,7 @@ load_bpf_programs() {
         --map-pin-path "${MAP_PIN_DIR}" \
         --xdp-skb-mode \
         --pid-file "$pid_file" \
-        < /dev/null > /tmp/doom-ring-loader.log 2>&1 &
+        < /dev/null > "$loader_log" 2>&1 &
 
     # Wait for loader to start, verify, JIT, and attach XDP (up to 15s).
     local wait_total=0
@@ -273,12 +275,12 @@ load_bpf_programs() {
             log_info "Hop 0: monad_cpu attached on ${ns0}/${veth0} (PID ${pid0})"
         else
             log_error "Hop 0: loader exited prematurely (verifier rejection?)"
-            cat /tmp/doom-ring-loader.log 2>/dev/null | tail -5
+            tail -5 "$loader_log" 2>/dev/null
             return 1
         fi
     else
         log_error "Hop 0: loader failed to start within 15s"
-        cat /tmp/doom-ring-loader.log 2>/dev/null | tail -10
+        tail -10 "$loader_log" 2>/dev/null
         return 1
     fi
 

@@ -15,7 +15,7 @@
 #   scripts/forge-watchdog.sh <scope-unit> [log-path]
 #
 # Example:
-#   scripts/forge-watchdog.sh forge-train-20260414-091234.scope /tmp/v6-run.log
+#   scripts/forge-watchdog.sh forge-train-20260414-091234.scope "$(scripts/lib/logpath.sh forge forge-train.log)"
 #
 # Kill triggers:
 #   K1  — "shape mismatch" or similar sgemm geometry failure
@@ -25,7 +25,7 @@
 set -euo pipefail
 
 UNIT="${1:?Usage: $0 <scope-unit> [log-path]}"
-LOG="${2:-/tmp/v6-run.log}"
+LOG="${2:-$("$(dirname "${BASH_SOURCE[0]}")/lib/logpath.sh" forge forge-train.log)}"
 STALL_S="${STALL_S:-300}"
 HEARTBEAT="${HEARTBEAT:-/tmp/forge.heartbeat}"
 

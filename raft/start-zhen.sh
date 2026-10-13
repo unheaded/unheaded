@@ -27,6 +27,9 @@ echo "=== Starting Zhenai (WAVE15 post-rewire) ==="
 # pipeline budget calculations even though we don't launch llama-server.
 CONTEXT_SIZE="${ZHEN_CONTEXT_SIZE:-16384}"
 
+# Durable logs (ADR-092): never /tmp.
+LOGPATH="$HOME/tmp/unheaded/scripts/lib/logpath.sh"
+
 # 1. Pre-flight: backends MUST already be up.
 echo "[1/3] Pre-flight backend checks..."
 
@@ -40,7 +43,7 @@ if ! curl -sf --max-time 3 http://127.0.0.1:8081/health > /dev/null; then
     echo "      --host 127.0.0.1 --port 8081 \\"
     echo "      --n-gpu-layers 999 --ctx-size $CONTEXT_SIZE \\"
     echo "      --threads 6 \\"
-    echo "      &> /tmp/llama-server.log &"
+    echo "      &> \"\$(\$HOME/tmp/unheaded/scripts/lib/logpath.sh llama-server)\" &"
     echo ""
     exit 1
 fi
@@ -64,10 +67,11 @@ if [[ "$GATED_FLAG" == "-gated" ]]; then
     if ! ss -lnt | grep -q ':20105'; then
         echo "[2/3] Starting cmd/zhen-agentd on :20105 (mutation gating)..."
         cd "$HOME/tmp/unheaded"
+        AGENTD_LOG="$("$LOGPATH" zhen-agentd)"
         nohup ./bin/zhen-agentd \
             -port 20105 \
             -project-root "$HOME/tmp/unheaded" \
-            > /tmp/zhen-agentd.log 2>&1 &
+            > "$AGENTD_LOG" 2>&1 &
         echo "  zhen-agentd PID: $!"
         for _ in $(seq 1 10); do
             curl -sf http://127.0.0.1:20105/health > /dev/null && break
@@ -76,7 +80,7 @@ if [[ "$GATED_FLAG" == "-gated" ]]; then
         if curl -sf http://127.0.0.1:20105/health > /dev/null; then
             echo "  ✓ zhen-agentd ready"
         else
-            echo "  ✗ zhen-agentd did not bind in 10s; see /tmp/zhen-agentd.log"
+            echo "  ✗ zhen-agentd did not bind in 10s; see $AGENTD_LOG"
             exit 1
         fi
     else
@@ -112,8 +116,9 @@ else
     export ZHEN_DB_HOST="${ZHEN_DB_HOST:-localhost}"
     export ZHEN_DB_PORT="${ZHEN_DB_PORT:-5432}"
 
+    WEBAPP_LOG="$("$LOGPATH" zhen zhen-webapp.log)"
     cd "$HOME/tmp/unheaded/raft"
-    nohup python3 zhen_app.py &> /tmp/zhen-webapp.log &
+    nohup python3 zhen_app.py &> "$WEBAPP_LOG" &
     WEBAPP_PID=$!
     echo "  webapp PID: $WEBAPP_PID"
 fi

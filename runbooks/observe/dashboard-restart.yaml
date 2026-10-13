@@ -42,7 +42,7 @@ steps:
     command: |
       cd ${PROJECT_ROOT}
       go build -o services/wotan/cmd/wotan/wotan ./services/wotan/cmd/wotan/
-      nohup services/wotan/cmd/wotan/wotan > /tmp/wotan.log 2>&1 &
+      nohup services/wotan/cmd/wotan/wotan > "$(~/tmp/unheaded/scripts/lib/logpath.sh wotan)" 2>&1 &
       sleep 3
     verify: "curl -sf http://localhost:18000/health"
 
@@ -51,7 +51,7 @@ steps:
     command: |
       cd ${PROJECT_ROOT}
       go build -o cmd/dashboard-backend/dashboard-backend ./cmd/dashboard-backend/
-      nohup cmd/dashboard-backend/dashboard-backend > /tmp/dashboard.log 2>&1 &
+      nohup cmd/dashboard-backend/dashboard-backend > "$(~/tmp/unheaded/scripts/lib/logpath.sh dashboard-backend)" 2>&1 &
       sleep 3
     verify: "curl -sf http://localhost:20000/health"
 

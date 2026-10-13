@@ -287,7 +287,9 @@ stop_east_native() {
 # ── Start socat forward for EAST dashboard on WEST :20080 ───────────────
 start_east_socat() {
     pkill socat 2>/dev/null || true
-    nohup socat TCP-LISTEN:20080,fork,reuseaddr TCP6:[${EAST_WG}]:20000 > /tmp/socat-east-dash.log 2>&1 &
+    local socat_log
+    socat_log="$("${PROJECT_ROOT}/scripts/lib/logpath.sh" three-crowns socat-east-dash.log)"
+    nohup socat TCP-LISTEN:20080,fork,reuseaddr TCP6:[${EAST_WG}]:20000 > "$socat_log" 2>&1 &
     echo $! > "$SOCAT_PID_FILE"
     sleep 1
     if curl -sf http://localhost:20080/health -o /dev/null --max-time 5 2>/dev/null; then

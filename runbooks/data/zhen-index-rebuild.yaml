@@ -41,18 +41,19 @@ steps:
     command: |
       cd ~/tmp/unheaded/raft
       source ${VENV_EMBED}/bin/activate
+      set -o pipefail
       HSA_OVERRIDE_GFX_VERSION=11.0.0 \
       TORCH_ROCM_AOTRITON_ENABLE_EXPERIMENTAL=1 \
       PYTHONUNBUFFERED=1 \
-      python3 scripts/16_embed_v2.py
+      python3 scripts/16_embed_v2.py 2>&1 | tee "$(~/tmp/unheaded/scripts/lib/logpath.sh raft embed.log)"
     timeout: 7200
     description: "Embed all chunks with GPU acceleration (~35 min for 1.76M chunks)"
     verify: "test -f ~/tmp/unheaded/raft/index/v2.index"
     progress:
-      log: /tmp/embed.log
+      log: "$(~/tmp/unheaded/scripts/lib/logpath.sh raft embed.log)"
       pattern: '\d+/1,762,687'
     on_fail: |
-      Check /tmp/embed.log for errors.
+      Check "$(~/tmp/unheaded/scripts/lib/logpath.sh raft embed.log)" for errors.
       Common issues:
       - OOM: reduce EMBED_BATCH in 16_embed_v2.py (currently 512)
       - HIP error: verify HSA_OVERRIDE_GFX_VERSION=11.0.0 is set
@@ -72,7 +73,7 @@ steps:
     command: |
       cd ~/tmp/unheaded/raft
       source ${VENV_APP}/bin/activate
-      nohup python3 zhen_app.py > /tmp/zhen.log 2>&1 &
+      nohup python3 zhen_app.py > "$(~/tmp/unheaded/scripts/lib/logpath.sh zhen zhen-webapp.log)" 2>&1 &
       sleep 15
     verify: "curl -sf http://localhost:20103/api/v1/stats | python3 -c \"import sys,json; d=json.load(sys.stdin); assert d['index_vectors'] > 1700000\""
     timeout: 60
