@@ -381,3 +381,19 @@ jobs:
 
       - name: Rules load and fire as expected
         run: ./scripts/check-suricata-rules.sh
+
+  # ============================================================================
+  # Alert rules: every Prometheus rule parses and its promtool tests pass
+  # ============================================================================
+  # Runs in the image monitoring/docker-compose.yml deploys and a current one.
+  # A rule file that fails to parse silences every alert in it; a threshold
+  # edited wrong fires on nothing. Here rather than ci.yml, which is disabled.
+  prometheus-rules:
+    name: Prometheus alert rules
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Rules parse and rule tests pass
+        run: ./scripts/check-prometheus-rules.sh

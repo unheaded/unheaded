@@ -269,23 +269,11 @@ jobs:
           go install github.com/google/go-licenses@latest
           go-licenses check ./... --allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC
 
-  # Alert rules parse and their tests pass, in the deployed Prometheus and a
-  # current one. A rule file that fails to parse silences every alert in it.
-  prometheus-rules:
-    name: Prometheus alert rules
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Rules parse and rule tests pass
-        run: ./scripts/check-prometheus-rules.sh
-
   ci-gate:
     name: CI Gate
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [go-build, go-lint, rust-check, spdx-check, gosec, govulncheck, license-check, prometheus-rules]
+    needs: [go-build, go-lint, rust-check, spdx-check, gosec, govulncheck, license-check]
     if: always()
     steps:
       - name: Check all required jobs passed
@@ -297,7 +285,6 @@ jobs:
           echo "gosec: ${{ needs.gosec.result }}"
           echo "govulncheck: ${{ needs.govulncheck.result }}"
           echo "license-check: ${{ needs.license-check.result }}"
-          echo "prometheus-rules: ${{ needs.prometheus-rules.result }}"
           failed=0
           for result in \
             "${{ needs.go-build.result }}" \
@@ -306,8 +293,7 @@ jobs:
             "${{ needs.spdx-check.result }}" \
             "${{ needs.gosec.result }}" \
             "${{ needs.govulncheck.result }}" \
-            "${{ needs.license-check.result }}" \
-            "${{ needs.prometheus-rules.result }}"; do
+            "${{ needs.license-check.result }}"; do
             if [ "$result" != "success" ]; then
               failed=1
             fi
