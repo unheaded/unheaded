@@ -13,7 +13,11 @@ go 1.26.0
 // built by an older toolchain. Built by this one (CI's `go install` after
 // setup-go does exactly that) it type-checks the tree. See
 // docs/security/findings-remediation-2026-07-29.md.
-toolchain go1.27.1
+//
+// 1.27.2 on 2026-10-13: 13 reachable stdlib vulnerabilities in 1.27.1
+// (net/http, http2, crypto/tls, mime/multipart, os, html/template;
+// GO-2026-6600..6617), with golang.org/x/net v0.60.0 for the http2 ones.
+toolchain go1.27.2
 
 require (
 	github.com/BurntSushi/toml v1.6.0
@@ -28,9 +32,9 @@ require (
 	github.com/sony/gobreaker v0.5.0
 	github.com/unheaded/doomgeneric v0.0.0
 	github.com/yuin/goldmark v1.7.17
-	golang.org/x/crypto v0.56.0
-	golang.org/x/sys v0.47.0
-	golang.org/x/text v0.41.0
+	golang.org/x/crypto v0.57.0
+	golang.org/x/sys v0.48.0
+	golang.org/x/text v0.42.0
 	golang.org/x/time v0.5.0
 	google.golang.org/grpc v1.83.2
 	google.golang.org/protobuf v1.36.11
@@ -51,9 +55,7 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
-	golang.org/x/mod v0.40.0 // indirect
-	golang.org/x/net v0.58.0 // indirect
-	golang.org/x/tools v0.49.0 // indirect
+	golang.org/x/net v0.60.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	modernc.org/libc v1.67.6 // indirect
