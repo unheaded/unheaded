@@ -78,33 +78,6 @@ findings:
   # --- step 2: sysctl (reversible, no lockout) -----------------------------
   # --- step 3: auditd -------------------------------------------------------
   # --- step 4: low-risk sshd keys -------------------------------------------
-  - source: "host-sshd:east:x11forwarding=no"
-    severity: low
-    class: sshd
-    opened: 2026-09-30
-    lockout: none
-    step: 4
-    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
-    plan: drop-in /etc/ssh/sshd_config.d/00-unheaded.conf, sshd -t, reload
-
-  - source: "host-sshd:east:maxauthtries<=4"
-    severity: low
-    class: sshd
-    opened: 2026-09-30
-    lockout: low
-    step: 4
-    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
-    plan: MaxAuthTries 4 in the same drop-in; an agent offering many keys can hit the limit, so use IdentitiesOnly client side
-
-  - source: "host-sshd:east:clientaliveinterval>=1"
-    severity: low
-    class: sshd
-    opened: 2026-09-30
-    lockout: none
-    step: 4
-    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
-    plan: ClientAliveInterval 300, ClientAliveCountMax 3 in the same drop-in
-
   # --- step 5: sshd authentication (lockout risk) ---------------------------
   - source: "host-sshd:east:passwordauthentication=no"
     severity: medium
@@ -275,15 +248,6 @@ findings:
     accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: LoginGraceTime 60 in the 00-unheaded.conf drop-in (CIS 5.1.13)
 
-  - source: "host-sshd:east:logingracetime<=60"
-    severity: low
-    class: sshd
-    opened: 2026-09-30
-    lockout: none
-    step: 4
-    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
-    plan: LoginGraceTime 60 in the 00-unheaded.conf drop-in (CIS 5.1.13)
-
   - source: "host-sshd:west:disableforwarding=yes"
     severity: low
     class: sshd
@@ -347,16 +311,6 @@ findings:
     step: 4
     accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: chmod 600 /etc/ssh/sshd_config /etc/ssh/sshd_config.d/99-unheaded.conf (and any drop-in created later, including 00-unheaded.conf)
-
-  - source: "host-probe:east:perm-sshd-config"
-    severity: low
-    class: fileperm
-    opened: 2026-09-30
-    exposure: world-readable sshd configuration
-    lockout: none
-    step: 4
-    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
-    plan: chmod 600 /etc/ssh/sshd_config; the 00-unheaded.conf drop-in (step 4/5) is installed 0600
 
   # --- CIS 1.1.2.x mounts (2026-09-30) ------------------------------------
 
@@ -938,24 +892,6 @@ findings:
     accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "AllowGroups sshusers in 00-unheaded.conf after creating the group and adding govan; prove a second login before reloading. An empty or wrong group is a lockout"
 
-  - source: "host-probe:east:sshd-macs"
-    severity: low
-    class: sshd
-    opened: 2026-09-30
-    lockout: low
-    step: 4
-    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
-    plan: "MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512,hmac-sha2-256 in 00-unheaded.conf; every current OpenSSH client supports these; test a second session before closing the first"
-
-  - source: "host-probe:east:sshd-maxstartups"
-    severity: low
-    class: sshd
-    opened: 2026-09-30
-    lockout: none
-    step: 4
-    accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
-    plan: "MaxStartups 10:30:60 in 00-unheaded.conf"
-
   - source: "host-probe:east:sshd-banner"
     severity: low
     class: sshd
@@ -1373,3 +1309,74 @@ findings:
       As west: the lab fixes were applied by remediate.sh without a journal. plan each fix with
       unheaded-remediate, then apply through it so each is journaled. COMPLIANCE-WELL steps 81 and 93
     decision: running unheaded-remediate on the host (plan, then apply of fixes already in place)
+
+  # --- CIS 6.1 log storage and file modes, UH-LOG-02 (2026-10-13) -------------
+
+  - source: "host-probe:west:journald-rotation"
+    severity: low
+    class: service
+    opened: 2026-10-13
+    lockout: none
+    step: 2
+    plan: >-
+      Drop-in /etc/systemd/journald.conf.d/60-unheaded.conf with SystemMaxUse and RuntimeMaxUse,
+      then systemctl restart systemd-journald (ADR-092 section 5). West's journal held 3.4 GB on
+      2026-10-13; a cap below that vacuums the oldest on restart
+    decision: the caps (proposed SystemMaxUse=1G, RuntimeMaxUse=200M; ADR-092 leaves the number to the host)
+
+  - source: "host-probe:east:journald-rotation"
+    severity: low
+    class: service
+    opened: 2026-10-13
+    lockout: none
+    step: 2
+    plan: same drop-in as west; east's disk is smaller, so the same 1G is a larger share of it
+    decision: the caps (proposed as west)
+
+  - source: "host-probe:west:var-log-perms"
+    severity: medium
+    class: fileperm
+    opened: 2026-10-13
+    lockout: none
+    step: 2
+    plan: >-
+      Two files are world-WRITABLE (0666): /var/log/rocm_smi_lib/ROCm-SMI-lib.log and
+      /var/log/amd_smi_lib/AMD-SMI-lib.log, created by the ROCm/AMD SMI libraries; chmod 0640 and
+      check whether the library recreates them 0666. The other ~208 are Ubuntu's 0644 defaults
+      (dpkg, apt, alternatives, installer, sysstat): chmod o-r, and logrotate's create mode or the
+      package's own rotation, else they come back on the next rotation
+    exposure: any local user can truncate or append to the two 0666 logs
+
+  - source: "host-probe:east:var-log-perms"
+    severity: low
+    class: fileperm
+    opened: 2026-10-13
+    lockout: none
+    step: 2
+    plan: >-
+      48 files at Ubuntu's 0644 defaults (dpkg, apt, alternatives, installer, unattended-upgrades,
+      landscape, sysstat): chmod o-r, and fix the create mode in the rotation that recreates each
+
+  - source: "host-probe:east:ntp-synchronized"
+    severity: low
+    class: service
+    opened: 2026-10-13
+    lockout: none
+    step: 2
+    plan: >-
+      East reaches the internet only through west (default via 192.168.13.2). West was down until
+      2026-10-13 12:09 UTC, so chrony on east saw "No route to host" for every NTS source and backed
+      off; NTS-KE to the same servers works again. It recovers on its next retry (or chronyc burst).
+      Lasting fix: west serves time to east over the P2P link, so east keeps time while west's
+      uplink is out
+    decision: west as east's time source (chrony allow 192.168.13.1 on west, server 192.168.13.2 on east)
+
+  - source: "git-signatures:develop"
+    severity: low
+    class: ci
+    opened: 2026-10-13
+    lockout: none
+    step: 1
+    plan: >-
+      The 2026-10-13 unattended commits are unsigned (gpg key not cached). Stevie caches the key,
+      then scripts/resign-unpushed.py re-signs them before push

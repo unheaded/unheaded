@@ -1032,6 +1032,114 @@ func init() {
 		})
 }
 
+// Log files, journald retention and rotation (CIS 6.1.1.2, 6.1.1.3, 6.1.3.8,
+// 6.1.4.1). ComplianceAsCode has 6.1.1.2, 6.1.1.3 and 6.1.3.8 as manual;
+// each probe checks the mechanical part and the mapping claims no more.
+// ADR-092 section 5 asks for the same journald caps.
+func init() {
+	// 6.1.1.2: journal files 0640 or stricter, directories not writable by
+	// group or other. Mode only.
+	Probes["journald-file-access"] = markerLinesProbe(`sudo -n sh -c "find /var/log/journal /run/log/journal \\( -type f -perm /0137 \\) -o \\( -type d -perm /0022 \\) 2>/dev/null | head -20; echo @ok"`,
+		func(lines []string) (bool, string) {
+			if len(lines) > 0 {
+				return false, "journal paths looser than 0640 (files) or group/other-writable (dirs): " + firstN(lines, 3)
+			}
+			return true, "journal files 0640 or stricter"
+		})
+	// 6.1.1.3: journald's disk use capped explicitly. Unset, journald takes
+	// up to 10% of the filesystem (at most 4 GiB) per store.
+	Probes["journald-rotation"] = markerLinesProbe(`systemd-analyze cat-config systemd/journald.conf 2>/dev/null | grep -E '^[[:space:]]*(SystemMaxUse|RuntimeMaxUse)=' | tr -d ' '; echo @ok`,
+		func(lines []string) (bool, string) {
+			set := map[string]string{}
+			for _, l := range lines {
+				if k, v, ok := strings.Cut(strings.TrimSpace(l), "="); ok {
+					set[k] = v // the last assignment wins, as in journald
+				}
+			}
+			var missing []string
+			for _, k := range []string{"SystemMaxUse", "RuntimeMaxUse"} {
+				if set[k] == "" {
+					missing = append(missing, k)
+				}
+			}
+			if len(missing) > 0 {
+				return false, strings.Join(missing, " and ") + " not set (journald default: 10% of the filesystem)"
+			}
+			return true, "SystemMaxUse=" + set["SystemMaxUse"] + " RuntimeMaxUse=" + set["RuntimeMaxUse"]
+		})
+	// 6.1.3.8: logrotate installed, its timer enabled and active.
+	Probes["logrotate-active"] = Probe{
+		Baseline: true,
+		Command: dpkgInstalled([]string{"logrotate"}) +
+			`; echo "enabled=$(systemctl is-enabled logrotate.timer 2>/dev/null || true)"; echo "active=$(systemctl is-active logrotate.timer 2>/dev/null || true)"`,
+		Judge: func(out string) (bool, string) {
+			f := parseKV(out)
+			if !strings.Contains(" "+f["installed"]+" ", " logrotate ") {
+				return false, "logrotate not installed"
+			}
+			if f["enabled"] != "enabled" || f["active"] != "active" {
+				return false, fmt.Sprintf("logrotate.timer %s/%s (want enabled/active)", f["enabled"], f["active"])
+			}
+			return true, "logrotate installed, timer enabled and active"
+		},
+	}
+	// 6.1.4.1: no file under /var/log looser than CIS allows for its name.
+	// Mode only; owner and group are not judged.
+	Probes["var-log-perms"] = markerLinesProbe(`sudo -n sh -c "find /var/log -type f -printf '%m %p\\n' 2>/dev/null; echo @ok"`, judgeVarLogPerms)
+}
+
+// varLogMaxMode is CIS 6.1.4.1's per-name ceiling: login records may be
+// group-writable and world-readable, a few agents' logs world-readable,
+// sssd and gdm logs group-writable, everything else 0640.
+func varLogMaxMode(path string) uint32 {
+	base := path[strings.LastIndex(path, "/")+1:]
+	dir := path[:strings.LastIndex(path, "/")+1]
+	for _, p := range []string{"lastlog", "wtmp", "btmp"} {
+		if base == p || strings.HasPrefix(base, p+".") || strings.HasPrefix(base, p+"-") {
+			return 0o664
+		}
+	}
+	switch {
+	case base == "README":
+		return 0o664
+	case strings.HasPrefix(base, "cloud-init.log"), strings.HasPrefix(base, "localmessages"), strings.HasPrefix(base, "waagent.log"):
+		return 0o644
+	case strings.Contains(dir, "/sssd/"), strings.Contains(dir, "/SSSD/"), strings.Contains(dir, "/gdm/"), strings.Contains(dir, "/gdm3/"):
+		return 0o660
+	}
+	return 0o640
+}
+
+func judgeVarLogPerms(lines []string) (bool, string) {
+	var loose []string
+	for _, l := range lines {
+		modeStr, path, ok := strings.Cut(strings.TrimSpace(l), " ")
+		if !ok {
+			continue
+		}
+		m, err := strconv.ParseUint(modeStr, 8, 32)
+		if err != nil {
+			return false, "unreadable mode in: " + l
+		}
+		if limit := varLogMaxMode(path); uint32(m)&^limit != 0 {
+			loose = append(loose, fmt.Sprintf("%s %04o (max %04o)", path, m, limit))
+		}
+	}
+	if len(loose) > 0 {
+		sort.Strings(loose)
+		return false, fmt.Sprintf("%d files looser than allowed: %s", len(loose), firstN(loose, 5))
+	}
+	return true, fmt.Sprintf("%d files within limits", len(lines))
+}
+
+// firstN joins up to n items, noting how many more there are.
+func firstN(items []string, n int) string {
+	if len(items) <= n {
+		return strings.Join(items, ", ")
+	}
+	return fmt.Sprintf("%s, and %d more", strings.Join(items[:n], ", "), len(items)-n)
+}
+
 // PAM (CIS 5.3.1.2, 5.3.1.3, 5.3.2.1-5.3.2.4, 5.3.3.1.1-5.3.3.4.4 except
 // the manual 5.3.3.2.3). Values are the CIS profile's ComplianceAsCode
 // variables: faillock deny <= 4, unlock_time 0 or >= 900; pwquality difok

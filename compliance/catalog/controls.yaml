@@ -870,6 +870,35 @@ controls:
       - {kind: host-probe, ref: "east:rsyslog-no-listen", maps: {cis-ubuntu2404: ["6.1.3.7"]}}
     mappings:
       nist-800-53r5: [AU-9, AU-12, CM-7]
+
+  - id: UH-LOG-02
+    title: Log storage is bounded and log files are not loosely readable
+    statement: >-
+      On both hosts journald's disk use is capped explicitly, logrotate runs
+      on its timer, journal files are 0640 or stricter, and no file under
+      /var/log is looser than CIS allows for its name.
+    rationale: >-
+      Audit log storage capacity (AU-4: journald caps and rotation, so one
+      runaway logger cannot fill the disk, ADR-092 section 5) and protection
+      of audit information (AU-9: file modes). CIS Ubuntu 24.04 6.1.1.2,
+      6.1.1.3 and 6.1.3.8 are manual in ComplianceAsCode; the probes check
+      their mechanical part (journal file modes; SystemMaxUse and
+      RuntimeMaxUse set; logrotate installed with its timer enabled and
+      active), not the site-policy part. 6.1.4.1 is checked by file mode
+      only; owner and group are not judged. Other framework mappings left
+      out until checked against NIST's references rather than guessed.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:journald-file-access", maps: {cis-ubuntu2404: ["6.1.1.2"]}}
+      - {kind: host-probe, ref: "west:journald-rotation", maps: {cis-ubuntu2404: ["6.1.1.3"]}}
+      - {kind: host-probe, ref: "west:logrotate-active", maps: {cis-ubuntu2404: ["6.1.3.8"]}}
+      - {kind: host-probe, ref: "west:var-log-perms", maps: {cis-ubuntu2404: ["6.1.4.1"]}}
+      - {kind: host-probe, ref: "east:journald-file-access", maps: {cis-ubuntu2404: ["6.1.1.2"]}}
+      - {kind: host-probe, ref: "east:journald-rotation", maps: {cis-ubuntu2404: ["6.1.1.3"]}}
+      - {kind: host-probe, ref: "east:logrotate-active", maps: {cis-ubuntu2404: ["6.1.3.8"]}}
+      - {kind: host-probe, ref: "east:var-log-perms", maps: {cis-ubuntu2404: ["6.1.4.1"]}}
+    mappings:
+      nist-800-53r5: [AU-4, AU-9]
       nist-800-171r3: ["03.03.01", "03.03.08"]
 
   - id: UH-PAM-01

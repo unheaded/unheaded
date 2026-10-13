@@ -960,6 +960,24 @@ func TestLoggingProbes(t *testing.T) {
 		{"rsyslog-no-listen", "module(load=\"imtcp\")\n@ok\n", false},
 		{"rsyslog-no-listen", "$ModLoad imudp\n@ok\n", false},
 		{"rsyslog-no-listen", "", false},
+		{"journald-file-access", "@ok\n", true},
+		{"journald-file-access", "/var/log/journal/x/system.journal\n@ok\n", false},
+		{"journald-file-access", "", false},
+		{"journald-rotation", "SystemMaxUse=1G\nRuntimeMaxUse=200M\n@ok\n", true},
+		{"journald-rotation", "SystemMaxUse=1G\n@ok\n", false},
+		{"journald-rotation", "SystemMaxUse=1G\nRuntimeMaxUse=200M\nSystemMaxUse=\n@ok\n", false}, // last one wins: reset to default
+		{"journald-rotation", "@ok\n", false},
+		{"logrotate-active", "installed=logrotate\nenabled=enabled\nactive=active\n", true},
+		{"logrotate-active", "installed=logrotate\nenabled=disabled\nactive=inactive\n", false},
+		{"logrotate-active", "installed=\nenabled=enabled\nactive=active\n", false},
+		{"var-log-perms", "640 /var/log/syslog\n600 /var/log/x.log\n@ok\n", true},
+		{"var-log-perms", "664 /var/log/wtmp\n660 /var/log/btmp.1\n664 /var/log/lastlog\n@ok\n", true},
+		{"var-log-perms", "644 /var/log/cloud-init.log\n660 /var/log/sssd/sssd.log\n640 /var/log/journal/x/a.journal\n@ok\n", true},
+		{"var-log-perms", "644 /var/log/dpkg.log\n@ok\n", false},
+		{"var-log-perms", "666 /var/log/rocm_smi_lib/ROCm-SMI-lib.log\n@ok\n", false},
+		{"var-log-perms", "664 /var/log/wtmpx\n@ok\n", false}, // not a login record, despite the prefix
+		{"var-log-perms", "666 /var/log/wtmp\n@ok\n", false},  // login records may not be world-writable
+		{"var-log-perms", "640 /var/log/syslog\n", false},     // did not complete
 	} {
 		p, ok := Probes[tc.probe]
 		if !ok || !p.Baseline {
@@ -1075,5 +1093,18 @@ func TestTimeSyncProbes(t *testing.T) {
 		if pass, detail := p.Judge(tc.out); pass != tc.pass {
 			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
 		}
+	}
+}
+
+func TestVarLogPermsDetail(t *testing.T) {
+	var out strings.Builder
+	for i := 0; i < 7; i++ {
+		fmt.Fprintf(&out, "644 /var/log/f%d.log\n", i)
+	}
+	out.WriteString("@ok\n")
+	pass, detail := Probes["var-log-perms"].Judge(out.String())
+	if pass || !strings.HasPrefix(detail, "7 files looser than allowed: /var/log/f0.log 0644 (max 0640)") ||
+		!strings.HasSuffix(detail, "and 2 more") {
+		t.Fatalf("detail = %q", detail)
 	}
 }

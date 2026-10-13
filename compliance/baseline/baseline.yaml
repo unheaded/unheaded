@@ -33,7 +33,9 @@ sources:
   - {kind: host-probe, ref: "east:group-root-only-gid0"}
   - {kind: host-probe, ref: "east:grub-password"}
   - {kind: host-probe, ref: "east:journald-active"}
+  - {kind: host-probe, ref: "east:journald-file-access"}
   - {kind: host-probe, ref: "east:journald-forward-syslog"}
+  - {kind: host-probe, ref: "east:journald-rotation"}
   - {kind: host-probe, ref: "east:kmod-cramfs-disabled"}
   - {kind: host-probe, ref: "east:kmod-freevxfs-disabled"}
   - {kind: host-probe, ref: "east:kmod-hfs-disabled"}
@@ -42,6 +44,7 @@ sources:
   - {kind: host-probe, ref: "east:kmod-udf-disabled"}
   - {kind: host-probe, ref: "east:kmod-usb-storage-disabled"}
   - {kind: host-probe, ref: "east:logging-single-system"}
+  - {kind: host-probe, ref: "east:logrotate-active"}
   - {kind: host-probe, ref: "east:mount-dev-shm-nodev"}
   - {kind: host-probe, ref: "east:mount-dev-shm-noexec"}
   - {kind: host-probe, ref: "east:mount-dev-shm-nosuid"}
@@ -168,6 +171,7 @@ sources:
   - {kind: host-probe, ref: "east:svc-xinetd-not-in-use"}
   - {kind: host-probe, ref: "east:time-single-daemon"}
   - {kind: host-probe, ref: "east:unattended-upgrades-enabled"}
+  - {kind: host-probe, ref: "east:var-log-perms"}
   - {kind: host-probe, ref: "west:acct-groups-exist"}
   - {kind: host-probe, ref: "west:acct-noshell-locked"}
   - {kind: host-probe, ref: "west:acct-passwd-shadowed"}
@@ -199,7 +203,9 @@ sources:
   - {kind: host-probe, ref: "west:group-root-only-gid0"}
   - {kind: host-probe, ref: "west:grub-password"}
   - {kind: host-probe, ref: "west:journald-active"}
+  - {kind: host-probe, ref: "west:journald-file-access"}
   - {kind: host-probe, ref: "west:journald-forward-syslog"}
+  - {kind: host-probe, ref: "west:journald-rotation"}
   - {kind: host-probe, ref: "west:kmod-cramfs-disabled"}
   - {kind: host-probe, ref: "west:kmod-freevxfs-disabled"}
   - {kind: host-probe, ref: "west:kmod-hfs-disabled"}
@@ -208,6 +214,7 @@ sources:
   - {kind: host-probe, ref: "west:kmod-udf-disabled"}
   - {kind: host-probe, ref: "west:kmod-usb-storage-disabled"}
   - {kind: host-probe, ref: "west:logging-single-system"}
+  - {kind: host-probe, ref: "west:logrotate-active"}
   - {kind: host-probe, ref: "west:mount-dev-shm-nodev"}
   - {kind: host-probe, ref: "west:mount-dev-shm-noexec"}
   - {kind: host-probe, ref: "west:mount-dev-shm-nosuid"}
@@ -334,6 +341,7 @@ sources:
   - {kind: host-probe, ref: "west:svc-xinetd-not-in-use"}
   - {kind: host-probe, ref: "west:time-single-daemon"}
   - {kind: host-probe, ref: "west:unattended-upgrades-enabled"}
+  - {kind: host-probe, ref: "west:var-log-perms"}
   - {kind: host-sshd, ref: "east:clientaliveinterval<=300"}
   - {kind: host-sshd, ref: "east:clientaliveinterval>=1"}
   - {kind: host-sshd, ref: "east:disableforwarding=yes"}
