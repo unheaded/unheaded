@@ -1,0 +1,112 @@
+# promtool test rules host_test.yml (from this directory)
+rule_files:
+  - ../host.yml
+evaluation_interval: 1m
+tests:
+  # Disk thresholds and the 24h projection; a half-full disk stays quiet.
+  - interval: 1m
+    input_series:
+      - series: 'host_disk_total_bytes{host="west",mount="/",device="/dev/sda1"}'
+        values: '100x200'
+      - series: 'host_disk_avail_bytes{host="west",mount="/",device="/dev/sda1"}'
+        values: '5x200'
+      - series: 'host_disk_total_bytes{host="west",mount="/var",device="/dev/sdb"}'
+        values: '100x200'
+      - series: 'host_disk_avail_bytes{host="west",mount="/var",device="/dev/sdb"}'
+        values: '20-0.05x200'
+      - series: 'host_disk_total_bytes{host="east",mount="/",device="/dev/sdc"}'
+        values: '100x200'
+      - series: 'host_disk_avail_bytes{host="east",mount="/",device="/dev/sdc"}'
+        values: '50x200'
+    alert_rule_test:
+      - eval_time: 15m
+        alertname: HostDiskAlmostFull
+        exp_alerts:
+          - exp_labels: {severity: warning, host: west, mount: "/", device: "/dev/sda1"}
+            exp_annotations:
+              summary: "/ on west under 10% free"
+              description: "/ (/dev/sda1) has 5% left"
+      # 5% is not under 3%.
+      - eval_time: 15m
+        alertname: HostDiskFull
+        exp_alerts: []
+      - eval_time: 120m
+        alertname: HostDiskFillsWithin24h
+        exp_alerts:
+          - exp_labels: {severity: warning, host: west, mount: "/var", device: "/dev/sdb"}
+            exp_annotations:
+              summary: "/var on west fills within 24h at this rate"
+              description: "/var (/dev/sdb) is under 25% free and its 6h trend reaches zero within a day"
+
+  # A logger in a loop: the projection fires while 8.5% is still free.
+  - interval: 1m
+    input_series:
+      - series: 'huginn_log_fs_size_bytes{host="west",path="/var/log"}'
+        values: '10000x60'
+      - series: 'huginn_log_fs_avail_bytes{host="west",path="/var/log"}'
+        values: '1000-5x60'
+    alert_rule_test:
+      - eval_time: 30m
+        alertname: LogFilesystemFillsWithin6h
+        exp_alerts:
+          - exp_labels: {severity: critical, host: west, path: "/var/log"}
+            exp_annotations:
+              summary: "Filesystem holding /var/log on west fills within 6h"
+              description: "At the last hour's rate the filesystem is full within 6h; a runaway logger is the usual cause (ADR-092 section 6)"
+              runbook_url: "runbooks/observe/log-rotation.yaml"
+      - eval_time: 30m
+        alertname: LogFilesystemLow
+        exp_alerts:
+          - exp_labels: {severity: warning, host: west, path: "/var/log"}
+            exp_annotations:
+              summary: "Filesystem holding /var/log on west under 15% free"
+              description: "8.5% left; check huginn_log_dir_bytes for the service filling it"
+              runbook_url: "runbooks/observe/log-rotation.yaml"
+
+  # Per-service volume: one over budget, one growing at 2 MiB/s, one quiet.
+  - interval: 1m
+    input_series:
+      - series: 'huginn_log_dir_bytes{host="west",dir="wotan"}'
+        values: '2147483648x60'
+      - series: 'huginn_log_dir_bytes{host="west",dir="doom"}'
+        values: '0+125829120x60'
+      - series: 'huginn_log_dir_bytes{host="west",dir="zhen"}'
+        values: '104857600x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: LogDirOverBudget
+        exp_alerts:
+          - exp_labels: {severity: warning, host: west, dir: wotan}
+            exp_annotations:
+              summary: "/var/log/unheaded/wotan on west over 1 GB"
+              description: "2GiB, above ADR-092's per-service rotation budget; treat as a defect in the service, not a capacity problem"
+              runbook_url: "runbooks/observe/log-rotation.yaml"
+          # doom has grown past 1 GB by now too.
+          - exp_labels: {severity: warning, host: west, dir: doom}
+            exp_annotations:
+              summary: "/var/log/unheaded/doom on west over 1 GB"
+              description: "4.688GiB, above ADR-092's per-service rotation budget; treat as a defect in the service, not a capacity problem"
+              runbook_url: "runbooks/observe/log-rotation.yaml"
+      - eval_time: 40m
+        alertname: LogDirRunaway
+        exp_alerts:
+          - exp_labels: {severity: warning, host: west, dir: doom}
+            exp_annotations:
+              summary: "/var/log/unheaded/doom on west growing over 1 MiB/s"
+              description: "Growing 2MiB/s for 15m; rate-limit the log line at its source (ADR-092 section 6)"
+
+  # Unreadable after being readable fires; never readable stays quiet.
+  - interval: 1m
+    input_series:
+      - series: 'huginn_log_root_ok{host="west"}'
+        values: '1x30 0x40'
+      - series: 'huginn_log_root_ok{host="east"}'
+        values: '0x70'
+    alert_rule_test:
+      - eval_time: 50m
+        alertname: LogRootUnreadable
+        exp_alerts:
+          - exp_labels: {severity: warning, host: west}
+            exp_annotations:
+              summary: "huginn can no longer read /var/log/unheaded on west"
+              description: "Log directory sizes are unknown; the directory was removed or its permissions changed"

@@ -433,6 +433,7 @@ func main() {
 
 	allMetrics := func() string {
 		body := promText(label, collect(label))
+		body += promTextLogs(label, collectLogs(logFSPath, logRoot, logWalkBudget))
 		if dbc != nil {
 			body += promTextDB(label, dbc.collect())
 		}

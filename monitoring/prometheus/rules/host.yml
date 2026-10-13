@@ -1,0 +1,105 @@
+# Prometheus alert rules - host disks and log volume (ADR-092 section 5)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# Series come from huginn (cmd/host-agent): host_disk_* per mounted device,
+# huginn_log_* for the filesystem holding /var/log and each directory under
+# /var/log/unheaded/ (logdirs.go). The point of ADR-092 is an alert BEFORE a
+# log fills a disk, so each "full" rule has a rate-based sibling that fires
+# while there is still time to act. Until FND-001 is closed Alertmanager's
+# receiver is `null` and none of this reaches anyone.
+
+groups:
+  - name: host-disk
+    interval: 1m
+    rules:
+      - alert: HostDiskAlmostFull
+        expr: host_disk_avail_bytes / host_disk_total_bytes < 0.10
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.mount }} on {{ $labels.host }} under 10% free"
+          description: "{{ $labels.mount }} ({{ $labels.device }}) has {{ $value | humanizePercentage }} left"
+
+      - alert: HostDiskFull
+        expr: host_disk_avail_bytes / host_disk_total_bytes < 0.03
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.mount }} on {{ $labels.host }} under 3% free"
+          description: "{{ $labels.mount }} ({{ $labels.device }}) has {{ $value | humanizePercentage }} left; writes will start failing"
+
+      # Linear fit over 6h, projected a day out. The ratio guard keeps a
+      # healthy disk with a busy afternoon from paging.
+      - alert: HostDiskFillsWithin24h
+        expr: |
+          predict_linear(host_disk_avail_bytes[6h], 24 * 3600) < 0
+          and host_disk_avail_bytes / host_disk_total_bytes < 0.25
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.mount }} on {{ $labels.host }} fills within 24h at this rate"
+          description: "{{ $labels.mount }} ({{ $labels.device }}) is under 25% free and its 6h trend reaches zero within a day"
+
+  - name: host-logs
+    interval: 1m
+    rules:
+      - alert: LogFilesystemLow
+        expr: huginn_log_fs_avail_bytes / huginn_log_fs_size_bytes < 0.15
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Filesystem holding {{ $labels.path }} on {{ $labels.host }} under 15% free"
+          description: "{{ $value | humanizePercentage }} left; check huginn_log_dir_bytes for the service filling it"
+          runbook_url: "runbooks/observe/log-rotation.yaml"
+
+      # The ADR-092 section 5 case: a service in a tight loop writes
+      # gigabytes between logrotate's hourly runs. A 1h fit projected 6h out
+      # fires while there are still hours left, not when the disk is full.
+      - alert: LogFilesystemFillsWithin6h
+        expr: predict_linear(huginn_log_fs_avail_bytes[1h], 6 * 3600) < 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Filesystem holding {{ $labels.path }} on {{ $labels.host }} fills within 6h"
+          description: "At the last hour's rate the filesystem is full within 6h; a runaway logger is the usual cause (ADR-092 section 6)"
+          runbook_url: "runbooks/observe/log-rotation.yaml"
+
+      # ADR-092 section 6: a service at this volume is malfunctioning. The
+      # per-service budget is rotate 7 x maxsize 100M, ~0.8 GB uncompressed.
+      - alert: LogDirOverBudget
+        expr: huginn_log_dir_bytes > 1e9
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "/var/log/unheaded/{{ $labels.dir }} on {{ $labels.host }} over 1 GB"
+          description: "{{ $value | humanize1024 }}B, above ADR-092's per-service rotation budget; treat as a defect in the service, not a capacity problem"
+          runbook_url: "runbooks/observe/log-rotation.yaml"
+
+      # Sustained 1 MiB/s is ~86 GB a day: the warn-once-per-5s pattern
+      # (c15c0e9d) is missing somewhere.
+      - alert: LogDirRunaway
+        expr: deriv(huginn_log_dir_bytes[15m]) > 1048576
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "/var/log/unheaded/{{ $labels.dir }} on {{ $labels.host }} growing over 1 MiB/s"
+          description: "Growing {{ $value | humanize1024 }}B/s for 15m; rate-limit the log line at its source (ADR-092 section 6)"
+
+      # Fires only when the log root was readable within the last day: a host
+      # that never had /var/log/unheaded is not a regression.
+      - alert: LogRootUnreadable
+        expr: huginn_log_root_ok == 0 and max_over_time(huginn_log_root_ok[1d]) == 1
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "huginn can no longer read /var/log/unheaded on {{ $labels.host }}"
+          description: "Log directory sizes are unknown; the directory was removed or its permissions changed"
