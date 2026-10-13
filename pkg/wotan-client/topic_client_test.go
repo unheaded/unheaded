@@ -225,6 +225,7 @@ func setupBufconn(t *testing.T) (*mockTopicStreamServer, *TopicStreamClient, *bu
 		t.Fatalf("failed to create topic stream client: %v", err)
 	}
 	t.Cleanup(func() { client.Close() })
+	client.queryTimeout = 200 * time.Millisecond // the mock never ends the stream either
 
 	return mockSrv, client, lis
 }

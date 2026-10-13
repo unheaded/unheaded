@@ -5,6 +5,7 @@ package wotanClient
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -136,7 +137,14 @@ func TestOrderedPublisher_ContextCancellation(t *testing.T) {
 	// Create a server that blocks forever.
 	_, c := newTestServer(t, map[string]http.HandlerFunc{
 		"/api/v1/topics/slow/publish": func(w http.ResponseWriter, r *http.Request) {
-			time.Sleep(10 * time.Second)
+			// Until the client gives up; a bare Sleep held the test server's
+			// Close for the full 10s. The server notices the client leaving
+			// only once the body has been read.
+			_, _ = io.Copy(io.Discard, r.Body)
+			select {
+			case <-r.Context().Done():
+			case <-time.After(10 * time.Second):
+			}
 			w.WriteHeader(http.StatusCreated)
 		},
 	})

@@ -6,6 +6,7 @@ package wotanClient
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -104,7 +105,14 @@ func TestPublishWithTimeout_DefaultTimeout(t *testing.T) {
 func TestPublishWithTimeout_ParentContextCancel(t *testing.T) {
 	_, c := newTestServer(t, map[string]http.HandlerFunc{
 		"/api/v1/topics/parent-ctx/publish": func(w http.ResponseWriter, r *http.Request) {
-			time.Sleep(10 * time.Second)
+			// Until the client gives up; a bare Sleep held the test server's
+			// Close for the full 10s. The server notices the client leaving
+			// only once the body has been read.
+			_, _ = io.Copy(io.Discard, r.Body)
+			select {
+			case <-r.Context().Done():
+			case <-time.After(10 * time.Second):
+			}
 			w.WriteHeader(http.StatusCreated)
 		},
 	})

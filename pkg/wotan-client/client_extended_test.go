@@ -451,6 +451,9 @@ func setupGRPCBufconn(t *testing.T) (*mockTopicStreamServer, *GRPCClient) {
 		channels:    make(map[string]*safeChannel),
 		maxRetries:  3,
 		retryDelay:  10 * time.Millisecond,
+		// The mock, like Wotan, never ends the stream: GetMessages returns
+		// at the timeout when fewer than limit messages exist.
+		queryTimeout: 200 * time.Millisecond,
 	}
 	t.Cleanup(func() { gc.Close() })
 

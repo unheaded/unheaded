@@ -38,6 +38,9 @@ type TopicStreamClient struct {
 	// liveStart: new streams skip the replay (WithLiveStart)
 	liveStart bool
 
+	// queryTimeout bounds GetMessages; 0 means defaultQueryTimeout.
+	queryTimeout time.Duration
+
 	// Options
 	grpcAddr   string
 	bufferSize int
@@ -311,7 +314,7 @@ func (c *TopicStreamClient) GetMessages(ctx context.Context, topic string, after
 		return c.httpClient.GetMessages(ctx, topic, afterSeq, limit)
 	}
 
-	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	queryCtx, cancel := context.WithTimeout(ctx, queryTimeoutOr(c.queryTimeout))
 	defer cancel()
 
 	req := &chatpb.TopicStreamRequest{

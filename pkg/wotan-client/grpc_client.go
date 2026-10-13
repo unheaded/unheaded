@@ -38,6 +38,9 @@ type GRPCClient struct {
 	// Reconnection settings
 	maxRetries int
 	retryDelay time.Duration
+
+	// queryTimeout bounds GetMessages; 0 means defaultQueryTimeout.
+	queryTimeout time.Duration
 	// healthyAge is how long a stream must stay up, delivering or not, to
 	// count as healthy and reset the retry budget; 0 means 30s.
 	healthyAge time.Duration
@@ -181,7 +184,7 @@ func (gc *GRPCClient) GetMessages(ctx context.Context, topic string, afterSeq in
 	}
 
 	// Create a request context with timeout for this operation
-	queryCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	queryCtx, cancel := context.WithTimeout(ctx, queryTimeoutOr(gc.queryTimeout))
 	defer cancel()
 
 	gc.mu.RLock()
@@ -449,4 +452,16 @@ func isTransientError(err error) bool {
 	}
 
 	return false
+}
+
+// defaultQueryTimeout bounds a GetMessages call. StreamTopics is a live
+// subscription that the server never ends, so a query that finds fewer than
+// limit messages returns only when this expires.
+const defaultQueryTimeout = 10 * time.Second
+
+func queryTimeoutOr(d time.Duration) time.Duration {
+	if d > 0 {
+		return d
+	}
+	return defaultQueryTimeout
 }
