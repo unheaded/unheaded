@@ -300,6 +300,14 @@ func init() {
 			probeActions[name] = "write rsyslog.d/00-unheaded.conf: $FileCreateMode 0640; restart rsyslog"
 		case name == "rsyslog-no-listen":
 			probeActions[name] = "none (alert only): a remote-log listener may be deliberate; the operator removes it"
+		case name == "journald-rotation":
+			probeActions[name] = "write journald.conf.d/60-unheaded.conf: SystemMaxUse and RuntimeMaxUse (the journald-caps fix); restart systemd-journald"
+		case name == "journald-file-access":
+			probeActions[name] = "chmod journal files to 0640 and their directories go-w; the detail names each path"
+		case name == "logrotate-active":
+			probeActions[name] = "systemctl enable --now logrotate.timer; none (alert only) if logrotate is not installed"
+		case name == "var-log-perms":
+			probeActions[name] = "none (alert only): the files are recreated by each package's rotation at its own mode, so a chmod alone does not stick; the operator fixes the rotation"
 		case strings.HasPrefix(name, "pam-"), strings.HasPrefix(name, "pkg-pam-"):
 			probeActions[name] = "none (alert only): a PAM edit that goes wrong locks every login, sudo included; the operator applies it with a root shell held open"
 		case name == "time-single-daemon", strings.HasPrefix(name, "chrony-"):
