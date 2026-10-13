@@ -1312,27 +1312,6 @@ findings:
 
   # --- CIS 6.1 log storage and file modes, UH-LOG-02 (2026-10-13) -------------
 
-  - source: "host-probe:west:journald-rotation"
-    severity: low
-    class: service
-    opened: 2026-10-13
-    lockout: none
-    step: 2
-    plan: >-
-      Drop-in /etc/systemd/journald.conf.d/60-unheaded.conf with SystemMaxUse and RuntimeMaxUse,
-      then systemctl restart systemd-journald (ADR-092 section 5). West's journal held 3.4 GB on
-      2026-10-13; a cap below that vacuums the oldest on restart
-    decision: the caps (proposed SystemMaxUse=1G, RuntimeMaxUse=200M; ADR-092 leaves the number to the host)
-
-  - source: "host-probe:east:journald-rotation"
-    severity: low
-    class: service
-    opened: 2026-10-13
-    lockout: none
-    step: 2
-    plan: same drop-in as west; east's disk is smaller, so the same 1G is a larger share of it
-    decision: the caps (proposed as west)
-
   - source: "host-probe:west:var-log-perms"
     severity: low
     class: fileperm
