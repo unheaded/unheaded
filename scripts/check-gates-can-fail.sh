@@ -404,6 +404,16 @@ provoke_suricata_rules() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_prometheus_rules() {
+    # Contract: every alert rule parses and its tests pass. Plant a threshold
+    # edit that parses fine but no longer fires on the case its test pins.
+    local f="monitoring/prometheus/rules/host.yml"
+    backup "${f}"
+    sed -i 's|expr: host_disk_avail_bytes / host_disk_total_bytes < 0.10$|expr: host_disk_avail_bytes / host_disk_total_bytes < 0.01|' "${REPO_ROOT}/${f}"
+    grep -q 'host_disk_total_bytes < 0.01$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_no_client_golang() {
     # Contract (ADR-094 step 6): nothing imports the client_golang family.
     # Plant one import in a fresh package. Untracked on purpose: the gate
@@ -446,6 +456,7 @@ live-path-inventory|provoke_live_path_inventory|fast|a new main package outside 
 check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-suricata-rules|provoke_suricata_rules|slow|the original ipv6-exthdr keyword restored in the canonical Monad rules (needs docker)
+check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 
