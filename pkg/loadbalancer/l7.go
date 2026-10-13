@@ -101,8 +101,23 @@ func (p *L7Proxy) createReverseProxy(backend *Backend) (*httputil.ReverseProxy, 
 		targetURL.Scheme = "https"
 	}
 
-	rp := httputil.NewSingleHostReverseProxy(targetURL)
-	rp.Transport = transport
+	// Rewrite, not the deprecated Director: the proxy adds no forwarding
+	// headers of its own, so applyRequestHeaders (SetXForwardedFor) appends
+	// the client IP once. Director mode appended it a second time.
+	rp := &httputil.ReverseProxy{
+		Transport: transport,
+		Rewrite: func(pr *httputil.ProxyRequest) {
+			pr.SetURL(targetURL)
+			pr.Out.Host = pr.In.Host // the backend sees the client's Host; HostRewrite may override it
+			// Rewrite strips inbound X-Forwarded-* first. Keep the client's
+			// X-Forwarded-For chain for SetXForwardedFor to append to;
+			// client-supplied X-Forwarded-Host/-Proto stay dropped.
+			if xff := pr.In.Header.Values("X-Forwarded-For"); len(xff) > 0 {
+				pr.Out.Header["X-Forwarded-For"] = append([]string(nil), xff...)
+			}
+			p.applyRequestHeaders(pr.Out)
+		},
+	}
 
 	// Custom error handler
 	rp.ErrorHandler = func(w http.ResponseWriter, r *http.Request, err error) {
@@ -115,15 +130,6 @@ func (p *L7Proxy) createReverseProxy(backend *Backend) (*httputil.ReverseProxy, 
 		}
 
 		http.Error(w, "Bad Gateway", http.StatusBadGateway)
-	}
-
-	// Modify request before sending to backend
-	originalDirector := rp.Director
-	rp.Director = func(req *http.Request) {
-		originalDirector(req)
-
-		// Apply header modifications
-		p.applyRequestHeaders(req)
 	}
 
 	// Modify response before sending to client
