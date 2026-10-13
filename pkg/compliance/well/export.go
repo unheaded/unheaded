@@ -40,7 +40,7 @@ func Export(ctx context.Context, s Store, repoDir string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer root.Close()
+	defer func() { _ = root.Close() }()
 
 	var changed []string
 	write := func(p string, body []byte) error {

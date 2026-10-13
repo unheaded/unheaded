@@ -83,7 +83,7 @@ func withAuthLikeCopy(next http.Handler) http.Handler {
 			w.WriteHeader(http.StatusUnauthorized)
 			return
 		}
-		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), struct{}{}, 1)))
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), testCtxKey{}, 1)))
 	})
 }
 
@@ -289,3 +289,6 @@ func TestStatusRecorder_FailedHijackIsNot101(t *testing.T) {
 		t.Errorf("status = %d after failed hijack, want 200", rec.status)
 	}
 }
+
+// testCtxKey is a context key private to this test file.
+type testCtxKey struct{}

@@ -196,7 +196,7 @@ func TestGatherAll_MergesInNameOrder(t *testing.T) {
 	}
 	out := buf.String()
 	ia, ib, ic := strings.Index(out, "# TYPE a_total"), strings.Index(out, "# TYPE b_total"), strings.Index(out, "# TYPE c_total")
-	if ia < 0 || ib < 0 || ic < 0 || !(ia < ib && ib < ic) {
+	if ia < 0 || ib < 0 || ic < 0 || ia >= ib || ib >= ic {
 		t.Errorf("want a, b, c in order across registries:\n%s", out)
 	}
 	if strings.Count(out, "# TYPE b_total") != 1 {

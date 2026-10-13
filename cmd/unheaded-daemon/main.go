@@ -88,7 +88,6 @@ const (
 
 // Daemon represents the unheaded-daemon control plane
 type Daemon struct {
-	mu     sync.RWMutex
 	config *Config
 	log    *logger.Logger
 

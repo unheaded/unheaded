@@ -188,7 +188,7 @@ func writeAtomic(path string, data []byte, mode os.FileMode, uid, gid int, allow
 		return err
 	}
 	name := tmp.Name()
-	defer os.Remove(name) // #nosec G104 -- best-effort cleanup; gone after a successful rename
+	defer func() { _ = os.Remove(name) }() // best-effort cleanup; gone after a successful rename
 	if _, err := tmp.Write(data); err != nil {
 		return errors.Join(err, tmp.Close())
 	}
@@ -199,7 +199,7 @@ func writeAtomic(path string, data []byte, mode os.FileMode, uid, gid int, allow
 		return err
 	}
 	if uid >= 0 {
-		if err := os.Lchown(name, uid, gid); err != nil && !(allowNonRoot && errors.Is(err, fs.ErrPermission)) {
+		if err := os.Lchown(name, uid, gid); err != nil && (!allowNonRoot || !errors.Is(err, fs.ErrPermission)) {
 			return err
 		}
 	}
@@ -216,7 +216,7 @@ func (e *Executor) lookupID(file, name string) (int, error) {
 	if err != nil {
 		return -1, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(io.LimitReader(f, 1<<20))
 	for sc.Scan() {
 		fields := strings.Split(sc.Text(), ":")
@@ -549,7 +549,7 @@ func (e *Executor) precheck(ctx context.Context, check string, content []byte) e
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name()) // #nosec G104 -- best-effort cleanup of a private temp file
+	defer func() { _ = os.Remove(tmp.Name()) }() // best-effort cleanup of a private temp file
 	if _, err := tmp.Write(content); err != nil {
 		return errors.Join(err, tmp.Close())
 	}
@@ -630,7 +630,7 @@ func (r *applyRun) applyMode(ma *remediation.ModeAction) error {
 		if err := os.Chmod(full, os.FileMode(perm)); err != nil {
 			return err
 		}
-		if err := os.Lchown(full, uid, gid); err != nil && !(e.o.AllowNonRoot && errors.Is(err, fs.ErrPermission)) {
+		if err := os.Lchown(full, uid, gid); err != nil && (!e.o.AllowNonRoot || !errors.Is(err, fs.ErrPermission)) {
 			return err
 		}
 		e.printf("  set %s to %s %s:%s\n", p, ma.Mode, ma.Owner, ma.Group)
@@ -742,7 +742,7 @@ func runUndo(ctx context.Context, steps []undoStep, out io.Writer, allowNonRoot 
 			}
 		case "chmod":
 			if err = os.Chmod(s.Path, os.FileMode(s.Mode)); err == nil && s.UID >= 0 {
-				if cerr := os.Lchown(s.Path, s.UID, s.GID); cerr != nil && !(allowNonRoot && errors.Is(cerr, fs.ErrPermission)) {
+				if cerr := os.Lchown(s.Path, s.UID, s.GID); cerr != nil && (!allowNonRoot || !errors.Is(cerr, fs.ErrPermission)) {
 					err = cerr
 				}
 			}

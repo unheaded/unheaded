@@ -449,7 +449,7 @@ func main() {
 		fmt.Fprint(w, allMetrics())
 	})
 	http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte(`{"status":"ok"}`)) // #nosec G104 -- response already committed; a write failure means the client disconnected
+		_, _ = w.Write([]byte(`{"status":"ok"}`)) // #nosec G104 -- response already committed; a write failure means the client disconnected
 	})
 
 	go func() {

@@ -388,7 +388,7 @@ func TestLazyRetriesAtMostOncePerInterval(t *testing.T) {
 		t.Fatalf("dialled again inside the retry interval (last try %s)", l.lastTry)
 	}
 	now = now.Add(31 * time.Second)
-	if _, err := l.DB(context.Background()); err == nil || l.lastTry == first {
+	if _, err := l.DB(context.Background()); err == nil || l.lastTry.Equal(first) {
 		t.Fatal("did not retry after the interval")
 	}
 	var nilLazy *Lazy

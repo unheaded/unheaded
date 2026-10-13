@@ -257,20 +257,18 @@ func (t *memoryTxn) Get(key []byte) ([]byte, error) {
 		return nil, storage.ErrTxnClosed
 	}
 
-	keyStr := string(key)
-
 	// Check deletes first
-	if _, deleted := t.deletes[keyStr]; deleted {
+	if _, deleted := t.deletes[string(key)]; deleted {
 		return nil, storage.ErrNotFound
 	}
 
 	// Check writes
-	if value, ok := t.writes[keyStr]; ok {
+	if value, ok := t.writes[string(key)]; ok {
 		return CopyBytes(value), nil
 	}
 
 	// Check snapshot
-	if value, ok := t.snapshot[keyStr]; ok {
+	if value, ok := t.snapshot[string(key)]; ok {
 		return CopyBytes(value), nil
 	}
 

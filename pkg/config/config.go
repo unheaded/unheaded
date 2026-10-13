@@ -504,7 +504,7 @@ func collectKeys(data map[string]any, prefix string) []string {
 // unmarshalValue unmarshals a map into a struct using reflection.
 func unmarshalValue(data map[string]any, v any) error {
 	rv := reflect.ValueOf(v)
-	if rv.Kind() != reflect.Ptr || rv.IsNil() {
+	if rv.Kind() != reflect.Pointer || rv.IsNil() {
 		return fmt.Errorf("unmarshal target must be a non-nil pointer")
 	}
 	rv = rv.Elem()
@@ -641,7 +641,7 @@ func setFieldValue(field reflect.Value, val any) error {
 			return unmarshalValue(m, field.Addr().Interface())
 		}
 		return fmt.Errorf("cannot unmarshal %T into struct", val)
-	case reflect.Ptr:
+	case reflect.Pointer:
 		if field.IsNil() {
 			field.Set(reflect.New(field.Type().Elem()))
 		}

@@ -30,7 +30,7 @@ import (
 
 func runProfile(args []string, stdout io.Writer) error {
 	if len(args) == 0 {
-		return errors.New("usage: compliance-evidence profile set|export ...")
+		return errors.New("usage: compliance-evidence profile set|export [flags]")
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
 	defer cancel()
@@ -50,7 +50,7 @@ func openWell(ctx context.Context, repoDir string) (well.Store, func(), error) {
 	}
 	db, err := database.Connect(ctx, well.ConfigFromEnv())
 	if err != nil {
-		return nil, nil, fmt.Errorf("The Well (unheaded_config; set WELL_CONFIG_USER and WELL_CONFIG_PASSWORD): %w", err)
+		return nil, nil, fmt.Errorf("connect to The Well (unheaded_config; set WELL_CONFIG_USER and WELL_CONFIG_PASSWORD): %w", err)
 	}
 	return well.NewPGStore(db, m), func() { _ = db.Close() }, nil
 }

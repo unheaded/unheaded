@@ -52,7 +52,7 @@ func runSnapshot(args []string, stdout io.Writer) error {
 		return err
 	}
 	if store.Source() != well.SourceWell && !*fromYAML {
-		return fmt.Errorf("The Well is unavailable (%s); refusing to seal the repo YAML without -from-yaml", why)
+		return fmt.Errorf("refusing to seal the repo YAML without -from-yaml: The Well is unavailable (%s)", why)
 	}
 	snap, err := snapshot.Build(ctx, store, *host, *commit, time.Now())
 	if err != nil {

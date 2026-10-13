@@ -61,17 +61,17 @@ func RenderRemediationAnsible(m *remediation.Model, ps *remediation.ProfileSet, 
 		}
 		out.Files["profile-"+p.Name+".yml"] = body
 	}
-	groups := map[string]any{}
-	sorted := append([]remediation.Binding(nil), bindings...)
-	sort.Slice(sorted, func(i, j int) bool { return sorted[i].Host < sorted[j].Host })
-	for _, b := range sorted {
+	hostsOf := map[string]map[string]any{}
+	for _, b := range bindings {
 		g := "profile_" + strings.ReplaceAll(b.Profile, "-", "_")
-		entry, _ := groups[g].(map[string]any)
-		if entry == nil {
-			entry = map[string]any{"hosts": map[string]any{}}
-			groups[g] = entry
+		if hostsOf[g] == nil {
+			hostsOf[g] = map[string]any{}
 		}
-		entry["hosts"].(map[string]any)[b.Host] = map[string]any{}
+		hostsOf[g][b.Host] = map[string]any{}
+	}
+	groups := map[string]any{}
+	for g, hosts := range hostsOf {
+		groups[g] = map[string]any{"hosts": hosts}
 	}
 	inv, err := yamlDoc(header("inventory: hosts grouped by their bound profile (The Well's host bindings)"),
 		map[string]any{"all": map[string]any{"children": groups}})

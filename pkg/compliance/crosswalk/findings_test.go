@@ -11,11 +11,10 @@ import (
 )
 
 var (
-	srcSSH   = Source{Kind: KindHostSSHD, Ref: "east:passwordauthentication=no"}
-	srcSys   = Source{Kind: KindHostSysctl, Ref: "west:fs.suid_dumpable=0"}
-	srcCI    = Source{Kind: KindGitHubJob, Ref: "W/scan"}
-	srcAtt   = Source{Kind: KindAttestation, Ref: "compliance/attestations/policy.yaml"}
-	fxSource = map[string]Source{"ssh": srcSSH, "sys": srcSys, "ci": srcCI, "att": srcAtt}
+	srcSSH = Source{Kind: KindHostSSHD, Ref: "east:passwordauthentication=no"}
+	srcSys = Source{Kind: KindHostSysctl, Ref: "west:fs.suid_dumpable=0"}
+	srcCI  = Source{Kind: KindGitHubJob, Ref: "W/scan"}
+	srcAtt = Source{Kind: KindAttestation, Ref: "compliance/attestations/policy.yaml"}
 )
 
 func findingsCatalog(t *testing.T) *Catalog {

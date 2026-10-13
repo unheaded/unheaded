@@ -236,7 +236,7 @@ func TestSSHDAppliedNeverLoosensWest(t *testing.T) {
 		}
 	}
 	calls := e.callLog()
-	if strings.Index(calls, "sshd -t") < 0 || strings.Index(calls, "sshd -t") > strings.Index(calls, "systemctl reload ssh.service") {
+	if !strings.Contains(calls, "sshd -t") || strings.Index(calls, "sshd -t") > strings.Index(calls, "systemctl reload ssh.service") {
 		t.Errorf("reload must follow a passing sshd -t: %s", calls)
 	}
 }

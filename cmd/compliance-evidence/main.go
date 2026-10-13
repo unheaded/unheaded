@@ -200,7 +200,7 @@ func writeAtomic(path string, recs []crosswalk.Record) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name())
+	defer func() { _ = os.Remove(tmp.Name()) }()
 	if err := crosswalk.WriteEvidence(tmp, recs); err != nil {
 		return errors.Join(err, tmp.Close())
 	}

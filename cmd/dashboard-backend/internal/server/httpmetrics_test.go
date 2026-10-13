@@ -25,7 +25,7 @@ func newInstrumented(t *testing.T, mux *http.ServeMux) (*Server, http.Handler) {
 	s.initMetrics()
 	copying := func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), struct{}{}, 1)))
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), testCtxKey{}, 1)))
 		})
 	}
 	return s, s.instrumentHTTP(copying(capturePattern(mux)))
@@ -164,3 +164,6 @@ func TestInstrumentHTTP_RecordsStatusTheClientSaw(t *testing.T) {
 		t.Fatalf("recorded a status the client never saw:\n%s", out)
 	}
 }
+
+// testCtxKey is a context key private to this test file.
+type testCtxKey struct{}

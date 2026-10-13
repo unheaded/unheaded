@@ -181,7 +181,7 @@ func readBounded(fsys fs.FS, name string) ([]byte, error) {
 	if err != nil {
 		return nil, invalid("open %s: %v", name, err)
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	b, err := io.ReadAll(io.LimitReader(f, MaxCatalogBytes+1))
 	if err != nil {
 		return nil, invalid("read %s: %v", name, err)

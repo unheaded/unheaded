@@ -34,11 +34,11 @@ const (
 
 var (
 	// ErrReadOnlyFallback refuses writes while state comes from YAML.
-	ErrReadOnlyFallback = errors.New("The Well is unavailable: compliance state is read-only (YAML fallback); changes need The Well")
+	ErrReadOnlyFallback = errors.New("compliance state is read-only (YAML fallback): The Well is unavailable, and changes need it")
 	// ErrInvalidChange wraps every rejected change.
 	ErrInvalidChange = errors.New("invalid compliance change")
 
-	errNotConfigured = errors.New("The Well is not configured")
+	errNotConfigured = errors.New("compliance store: The Well is not configured")
 )
 
 // Store is compliance desired state, from The Well or its YAML fallback.
@@ -94,7 +94,7 @@ func LoadModel(repoDir string) (*remediation.Model, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer root.Close()
+	defer func() { _ = root.Close() }()
 	raw, err := root.ReadFile("compliance/remediation/fixes.yaml")
 	if err != nil {
 		return nil, err
@@ -173,7 +173,7 @@ func newYAMLStore(repoDir string, m *remediation.Model) (*yamlStore, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer root.Close()
+	defer func() { _ = root.Close() }()
 	raw, err := root.ReadFile("compliance/profiles/profiles.yaml")
 	if err != nil {
 		return nil, err

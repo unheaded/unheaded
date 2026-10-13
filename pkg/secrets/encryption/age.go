@@ -7,16 +7,17 @@ package encryption
 import (
 	"bytes"
 	"crypto/rand"
+	"crypto/sha3"
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"hash"
 	"io"
 	"strings"
 
 	"golang.org/x/crypto/chacha20poly1305"
 	"golang.org/x/crypto/curve25519"
 	"golang.org/x/crypto/hkdf"
-	"golang.org/x/crypto/sha3"
 )
 
 // Encryptor is the interface for encryption/decryption operations.
@@ -211,7 +212,7 @@ func (e *AgeEncryptor) Encrypt(plaintext []byte) ([]byte, error) {
 		// Derive wrap key using HKDF
 		salt := append(ephemeralPublic[:], recipient.publicKey[:]...)
 		wrapKey := make([]byte, 32)
-		hkdf := hkdf.New(sha3.New256, sharedSecretBytes, salt, []byte("age-encryption.org/v1/X25519"))
+		hkdf := hkdf.New(newSHA3256, sharedSecretBytes, salt, []byte("age-encryption.org/v1/X25519"))
 		if _, err := io.ReadFull(hkdf, wrapKey); err != nil {
 			return nil, err
 		}
@@ -237,7 +238,7 @@ func (e *AgeEncryptor) Encrypt(plaintext []byte) ([]byte, error) {
 
 	// Derive payload key from file key
 	payloadKey := make([]byte, 32)
-	hkdf := hkdf.New(sha3.New256, fileKey, nil, []byte("payload"))
+	hkdf := hkdf.New(newSHA3256, fileKey, nil, []byte("payload"))
 	if _, err := io.ReadFull(hkdf, payloadKey); err != nil {
 		return nil, err
 	}
@@ -306,7 +307,7 @@ func (e *AgeEncryptor) Decrypt(ciphertext []byte) ([]byte, error) {
 
 			salt := append(ephemeralPub, e.identity.publicKey[:]...)
 			wrapKey := make([]byte, 32)
-			hkdf := hkdf.New(sha3.New256, sharedSecretBytes, salt, []byte("age-encryption.org/v1/X25519"))
+			hkdf := hkdf.New(newSHA3256, sharedSecretBytes, salt, []byte("age-encryption.org/v1/X25519"))
 			if _, err := io.ReadFull(hkdf, wrapKey); err != nil {
 				continue
 			}
@@ -330,7 +331,7 @@ func (e *AgeEncryptor) Decrypt(ciphertext []byte) ([]byte, error) {
 
 	// Derive payload key
 	payloadKey := make([]byte, 32)
-	hkdfReader := hkdf.New(sha3.New256, fileKey, nil, []byte("payload"))
+	hkdfReader := hkdf.New(newSHA3256, fileKey, nil, []byte("payload"))
 	if _, err := io.ReadFull(hkdfReader, payloadKey); err != nil {
 		return nil, err
 	}
@@ -384,7 +385,7 @@ func NewSimpleEncryptorFromPassword(password string, salt []byte) (*SimpleEncryp
 
 	// Derive key using HKDF
 	key := make([]byte, 32)
-	h := hkdf.New(sha3.New256, []byte(password), salt, []byte("encryption-key"))
+	h := hkdf.New(newSHA3256, []byte(password), salt, []byte("encryption-key"))
 	if _, err := io.ReadFull(h, key); err != nil {
 		return nil, err
 	}
@@ -429,3 +430,8 @@ func (e *SimpleEncryptor) Decrypt(ciphertext []byte) ([]byte, error) {
 
 	return plaintext, nil
 }
+
+// newSHA3256 adapts the standard library's SHA3-256 (which returns
+// *sha3.SHA3) to the func() hash.Hash HKDF takes. Same digest as the
+// golang.org/x/crypto/sha3 constructor it replaces.
+func newSHA3256() hash.Hash { return sha3.New256() }

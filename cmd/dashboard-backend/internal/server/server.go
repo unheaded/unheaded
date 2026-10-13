@@ -528,7 +528,7 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 
 	// Auth middleware (activated via AUTH_ENABLED=true, skips /health /ready /metrics /ws)
 	authCfg := auth.LoadServiceAuthConfig("dashboard-backend")
-	var httpHandler http.Handler = capturePattern(s.mux)
+	httpHandler := capturePattern(s.mux)
 	if authMw := auth.SetupMiddleware(authCfg); authMw != nil {
 		// Also skip WebSocket endpoints from auth (upgrade needs special handling)
 		httpHandler = auth.SkipAuthPaths(auth.Middleware(

@@ -458,7 +458,7 @@ func writeAtomic(dir, name string, body []byte) error {
 	if err != nil {
 		return err
 	}
-	defer os.Remove(tmp.Name())
+	defer func() { _ = os.Remove(tmp.Name()) }()
 	if _, err := tmp.Write(body); err != nil {
 		return errors.Join(err, tmp.Close())
 	}
