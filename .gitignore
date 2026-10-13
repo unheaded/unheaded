@@ -296,3 +296,9 @@ db/migrations/init.sh
 # gitlinks with no .gitmodules entry, which failed `git submodule foreach`
 # in every CI job (exit 128).
 .claude/worktrees/
+
+# OpenTofu/Terragrunt local state and caches: can hold secrets (ADR: no creds in repo)
+/deploy/tofu/.state/
+*.tfstate
+*.tfstate.backup
+.terragrunt-cache/
