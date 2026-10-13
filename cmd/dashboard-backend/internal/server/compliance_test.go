@@ -346,8 +346,8 @@ func TestComplianceProfiles_ReadOnlyFromTheRepoFallback(t *testing.T) {
 	for _, p := range profiles {
 		p := p.(map[string]any)
 		if p["name"] == "lab" {
-			if n := len(p["fixes"].([]any)); n != 9 {
-				t.Errorf("lab turns on %d fixes, want 9", n)
+			if n := len(p["fixes"].([]any)); n != 10 {
+				t.Errorf("lab turns on %d fixes, want 10", n)
 			}
 		}
 	}

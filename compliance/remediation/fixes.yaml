@@ -324,9 +324,10 @@ fixes:
     risk: low
     class: service
     note: >-
-      The caps are a proposal waiting on Stevie (register decision on host-probe:*:journald-rotation); in no profile until
-      then. Unset, journald takes up to 10% of the filesystem per store; west's journal held 3.4 GB on 2026-10-13, so
-      the restart vacuums the oldest files down to the cap.
+      Stevie approved the caps 2026-10-13 ("we can cap journal", noting all logs should also ship to long-term storage,
+      ADR-092). Applied with remediate.sh 2026-10-13 on east (4.0G -> 973M) then west (3.4G -> 971M), after archiving
+      each host's full journal to /var/backups/unheaded-journal-20261013/journal.tar.zst. Nothing ships the journal
+      off-host yet, so what the cap vacuums is gone unless archived first.
     actions:
       - file:
           path: /etc/systemd/journald.conf.d/60-unheaded.conf

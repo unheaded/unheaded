@@ -169,7 +169,7 @@ func TestSnapshotMode(t *testing.T) {
 	snap, pub := writeSnapshot(t, filepath.Dir(model), "west")
 	flags := []string{"-snapshot", snap, "-pubkey", pub, "-root", root, "-state", state, "-host", "west"}
 	code, out, errs := cli(append(flags, "list")...)
-	if code != 0 || strings.Count(out, "\n") != 9 || strings.Contains(out, "sshd-safe") {
+	if code != 0 || strings.Count(out, "\n") != 10 || strings.Contains(out, "sshd-safe") {
 		t.Fatalf("list from the lab snapshot: %d %s %s", code, out, errs)
 	}
 	if code, _, errs := cli(append(flags, "apply", "sshd-safe")...); code == 0 || !strings.Contains(errs, "unknown fix") {

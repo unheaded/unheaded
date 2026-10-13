@@ -233,7 +233,8 @@ batches). This one is checkable:
 | 6. `log-rotation.yaml` | **rewritten to verify** (2026-10-13): reads sizes, parses `unheaded-*` stanzas, fails on `copytruncate`, reports journald caps; installs nothing | `runbooks/observe/log-rotation.yaml` |
 | 2, 4 | **no subject yet** (checked 2026-10-13) | every deploy/systemd unit logs to journald (stdout); no deployed service opens its own log file. `unheaded-daemon`'s `AuditPath: /var/log/unheaded/audit.log` is a config field nothing reads, and `pkg/audit/storage`'s file backend (its own daily rotation) has no caller. Directories and stanzas land with the first service that owns a file handle, per the order above: a stanza for a path nothing writes is the ADR-091 shape |
 | 5 | open | CI check; today only the compose half exists (`check-compose-log-caps.sh`) |
-| 7 | partial | Huginn exports `/var/log` free space and per-directory sizes with alerts (`monitoring/prometheus/rules/host.yml`, 2026-10-13); journald caps are the `journald-caps` fix (proposed 1G/200M, not applied); separate `/var/log` filesystem open (west's `/var/log` shares `/dev/sdb` with `/var`) |
+| 7 | partial | Huginn exports `/var/log` free space and per-directory sizes with alerts (`monitoring/prometheus/rules/host.yml`, 2026-10-13); journald capped at 1G/200M on both hosts 2026-10-13 (`journald-caps` fix; east 4.0G -> 973M, west 3.4G -> 971M, old journals archived first); separate `/var/log` filesystem open (west's `/var/log` shares `/dev/sdb` with `/var`) |
+| 8 | **open** (added 2026-10-13) | ship every host log off-host to long-term storage; see the amendment below |
 
 **Amendment (2026-10-13): processes an operator starts by hand.** Every
 remaining call site was a dev script or runbook run as the operator, not a
@@ -261,3 +262,26 @@ deletions are gone; the two steps now `tee` into the log their hint names.
 
 West, 2026-10-13: journald holds 3.4 GB with no `SystemMaxUse` set (step 7,
 host change, not made).
+
+**Amendment (Stevie, 2026-10-13): local logs are a buffer; all logs ship to
+long-term storage.** Capping journald (and rotating `/var/log/unheaded/`)
+bounds the *local* copy. It is not retention. Every host log, journald
+(including auth, sudo and PAM), `/var/log/unheaded/<service>/`, and container
+stdout, ships to a long-term store, and retention is set there by
+`docs/policy/retention-policy-v1-2026-05-06.md` (audit logs: 90 days online
+plus 1 year archive, FedRAMP AU-11; at least 90 days, CIS 8.10).
+
+Where it stands: only container stdout ships (Vector `docker_logs` ->
+ClickHouse, and only while the compose stack runs). Journald ships nowhere;
+ADR-086 (Muninn) is still Planned and its Phase 1 targets PostgreSQL. Logs
+are a firehose, so the vessel should be the one already running for them:
+Vector gains a `journald` source (and a file source for
+`/var/log/unheaded/`) into ClickHouse, with a TTL per retention class;
+revisit ADR-086 Phase 1's PostgreSQL sink accordingly.
+
+Until shipping exists, nothing a cap vacuums survives unless it is archived
+first. On 2026-10-13 each host's full journal was archived to
+`/var/backups/unheaded-journal-20261013/journal.tar.zst` (root-only, 0600)
+before the caps were applied. Verification for step 8: a test log line
+written with `logger` on each host is queryable in the long-term store
+within a minute, and an alert fires when a host stops shipping.

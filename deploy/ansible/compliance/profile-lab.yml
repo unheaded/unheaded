@@ -1,6 +1,6 @@
 # Generated from compliance/remediation/fixes.yaml (ADR-099) by
 # `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
-# profile lab: West and east today (Stevie 2026-10-01): low-hanging fixes that break nothing. SSH and passwords stay as they are; idle shells stay open. time-p2p added 2026-10-13 (west serves time to east).
+# profile lab: West and east today (Stevie 2026-10-01): low-hanging fixes that break nothing. SSH and passwords stay as they are; idle shells stay open. time-p2p and journald-caps added 2026-10-13 (west serves time to east; journald capped at 1G/200M after the old journals were archived).
 - become: true
   gather_facts: false
   hosts: profile_lab
@@ -14,4 +14,5 @@
     - apparmor-utils
     - auditd
     - sudo-cis
+    - journald-caps
     - time-p2p
