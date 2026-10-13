@@ -110,9 +110,13 @@ else
     # the chat path falls back to vor-only retrieval and the model has to
     # guess at "how many tasks are in progress?" instead of reading PG.
     # Defaults match db/migrations/002_create_databases.sql + 008_zhen_memories.
+    # No password default: credentials are never stored in this repo. Unset,
+    # zhen_app.py logs "The Well not available" and runs without it.
     export ZHEN_DB_NAME="${ZHEN_DB_NAME:-unheaded_app}"
     export ZHEN_DB_USER="${ZHEN_DB_USER:-app_zhen}"
-    export ZHEN_DB_PASSWORD="${ZHEN_DB_PASSWORD:-zhen_dev}"
+    if [[ -z "${ZHEN_DB_PASSWORD:-}" ]]; then
+        echo "  ! ZHEN_DB_PASSWORD unset: The Well disabled (no memory cache, no conversation log, no live kanban context)"
+    fi
     export ZHEN_DB_HOST="${ZHEN_DB_HOST:-localhost}"
     export ZHEN_DB_PORT="${ZHEN_DB_PORT:-5432}"
 
