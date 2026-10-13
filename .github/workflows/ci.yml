@@ -33,6 +33,9 @@ jobs:
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: ${{ runner.os }}-go-
 
+      - name: Fetch doomgeneric (go.mod replace target)
+        run: ./scripts/ci-fetch-doomgeneric.sh
+
       - name: Download dependencies
         run: go mod download
 
@@ -98,104 +101,23 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Fetch doomgeneric (go.mod replace target)
+        run: ./scripts/ci-fetch-doomgeneric.sh
+
+      # v9: v6 runs golangci-lint v1 only, and .golangci.yml is the v2 schema.
       - name: golangci-lint
-        uses: golangci/golangci-lint-action@55c2c1448f86e01eaae002a5a3a9624417608d84 # v6
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: latest
-          args: --timeout=5m
+          args: --timeout=10m
 
-  sbom:
-    name: SBOM Generation & Scan
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: go.mod
-
-      - name: Install Syft
-        run: curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
-
-      - name: Generate CycloneDX SBOM
-        run: syft dir:. -o cyclonedx-json=sbom-cyclonedx.json --quiet
-
-      - name: Generate SPDX SBOM
-        run: syft dir:. -o spdx-json=sbom-spdx.json --quiet
-
-      - name: Install Grype
-        run: curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
-
-      - name: Scan with Grype
-        run: grype sbom:sbom-cyclonedx.json -o sarif --file grype-results.sarif || true
-
-      - name: Check for critical vulnerabilities
-        run: |
-          if [ -f grype-results.sarif ]; then
-            CRITICAL=$(jq '[.runs[].results[] | select(.level == "error")] | length' grype-results.sarif)
-            if [ "${CRITICAL}" -gt 0 ]; then
-              echo "::warning::Found CRITICAL vulnerabilities in dependencies"
-            fi
-          fi
-
-      - name: Upload SBOM artifacts
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: sbom
-          path: |
-            sbom-cyclonedx.json
-            sbom-spdx.json
-            grype-results.sarif
-
-      - name: Upload Grype SARIF to security tab
-        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
-        if: always()
-        with:
-          sarif_file: grype-results.sarif
-
-      - name: Generate SBOM attestation placeholder
-        run: |
-          echo "# SBOM Attestation (SLSA Provenance)" > sbom-attestation.txt
-          echo "Attestation would be signed and verified here" >> sbom-attestation.txt
-          echo "TODO: Integrate with sigstore/cosign for production" >> sbom-attestation.txt
-
-  govulncheck:
-    name: Go Vulnerability Check
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Set up Go
-        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Run govulncheck
-        run: |
-          go install golang.org/x/vuln/cmd/govulncheck@latest
-          govulncheck ./...
-
-  gosec:
-    name: Go Security Scan (gosec)
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-
-      - name: Run gosec
-        uses: securego/gosec@f184e33def921b62b2e6d7b36c3c2d4eb39619a8 # v2.21.0
-        with:
-          args: '-fmt sarif -out gosec-results.sarif ./...'
-
-      - name: Upload gosec SARIF
-        uses: github/codeql-action/upload-sarif@2892aa5e19bbd11bc0cff5427e3b750a04d9e3c2 # v4.38.2
-        if: always()
-        with:
-          sarif_file: gosec-results.sarif
+  # gosec, govulncheck and the SBOM scan run in security.yml and sbom.yml,
+  # correctly configured (gosec go-installed at the module's Go, doomgeneric
+  # fetched first, grype at a medium cutoff). The copies here could not work:
+  # the gosec action ran Go 1.22 and scanned 0 files, govulncheck had no
+  # doomgeneric checkout, and the SBOM job piped unpinned install scripts
+  # and ended in `|| true`. Removed 2026-10-13 when this workflow was
+  # re-enabled.
 
   rust-check:
     name: Rust Check (monad-mbc)
@@ -264,16 +186,28 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Fetch doomgeneric (go.mod replace target)
+        run: ./scripts/ci-fetch-doomgeneric.sh
+
+      # Same reviewed ignore list as the weekly SBOM audit (sbom-audit.yml):
+      #   unheaded: this module (GPL-3.0); the allow-list is for dependencies.
+      #   github.com/unheaded/doomgeneric: first-party, SPDX MIT in every
+      #     pkg/doom file, but its module dir has no LICENSE file to find.
+      #   modernc.org/mathutil: BSD-3-Clause the classifier does not match.
       - name: License check
         run: |
           go install github.com/google/go-licenses@latest
-          go-licenses check ./... --allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC
+          go-licenses check ./... \
+            --allowed_licenses=MIT,Apache-2.0,BSD-2-Clause,BSD-3-Clause,ISC \
+            --ignore unheaded \
+            --ignore github.com/unheaded/doomgeneric \
+            --ignore modernc.org/mathutil
 
   ci-gate:
     name: CI Gate
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    needs: [go-build, go-lint, rust-check, spdx-check, gosec, govulncheck, license-check]
+    needs: [go-build, go-lint, rust-check, spdx-check, license-check]
     if: always()
     steps:
       - name: Check all required jobs passed
@@ -282,8 +216,6 @@ jobs:
           echo "go-lint: ${{ needs.go-lint.result }}"
           echo "rust-check: ${{ needs.rust-check.result }}"
           echo "spdx-check: ${{ needs.spdx-check.result }}"
-          echo "gosec: ${{ needs.gosec.result }}"
-          echo "govulncheck: ${{ needs.govulncheck.result }}"
           echo "license-check: ${{ needs.license-check.result }}"
           failed=0
           for result in \
@@ -291,8 +223,6 @@ jobs:
             "${{ needs.go-lint.result }}" \
             "${{ needs.rust-check.result }}" \
             "${{ needs.spdx-check.result }}" \
-            "${{ needs.gosec.result }}" \
-            "${{ needs.govulncheck.result }}" \
             "${{ needs.license-check.result }}"; do
             if [ "$result" != "success" ]; then
               failed=1
