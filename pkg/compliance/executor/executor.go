@@ -529,7 +529,7 @@ func (r *applyRun) ensureDir(p string) error {
 		if err := os.Mkdir(full, 0o755); err != nil { // #nosec G301 -- /etc subdirectories are world-readable by convention
 			return err
 		}
-		if err := os.Chmod(full, 0o755); err != nil { // the umask must not decide
+		if err := os.Chmod(full, 0o755); err != nil { // #nosec G302 -- an /etc directory, world-readable by convention; set explicitly so the umask does not decide
 			return err
 		}
 		if err := r.record(undoStep{Op: "rmdir", Path: full}); err != nil {
