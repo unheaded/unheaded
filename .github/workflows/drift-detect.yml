@@ -4,21 +4,40 @@ on:
   - cron: "0 6 * * *"
   workflow_dispatch: {}
 
+permissions:
+  contents: read
+  issues: write
+
 jobs:
   drift:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-    - uses: actions/checkout@v5
-    - uses: opentofu/setup-opentofu@v1
-    - uses: gruntwork-io/terragrunt-action@v2
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
+    - uses: opentofu/setup-opentofu@9d84900f3238fab8cd84ce47d658d25dd008be2f # v1
+      with:
+        tofu_version: 1.11.5
+        tofu_wrapper: false
+
+    # terragrunt-action runs a terragrunt command; used bare as a setup step it
+    # failed every night before the script ran. Pinned binary, checksum verified.
+    - name: Install terragrunt
+      run: |
+        curl -sSfLo /tmp/terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v1.1.6/terragrunt_linux_amd64
+        echo "d75a80bb264758ba00dabcb17f4b507fcdab4ca90d9e41f96750df036bf69b04  /tmp/terragrunt" | sha256sum -c -
+        sudo install -m 0755 /tmp/terragrunt /usr/local/bin/terragrunt
+
+    # Exit 0 clean or nothing deployed, 2 drift, 1 a plan failed (the job
+    # fails: that is a broken check, not drift).
     - name: Detect Drift
       id: drift
-      run: bash scripts/drift-detect.sh
-      continue-on-error: true
+      run: |
+        rc=0; bash scripts/drift-detect.sh || rc=$?
+        if [ "$rc" -eq 1 ]; then exit 1; fi
 
     - name: Open Issue on Drift
-      if: steps.drift.outcome == 'failure'
+      if: steps.drift.outputs.result == 'drift'
       uses: actions/github-script@v8
       with:
         script: |
@@ -26,6 +45,6 @@ jobs:
             owner: context.repo.owner,
             repo: context.repo.repo,
             title: 'Infrastructure Drift Detected ' + new Date().toISOString().split('T')[0],
-            labels: ['drift', 'platform', 'automated'],
-            body: 'Nightly drift detection found configuration drift. See workflow run for details.'
+            body: 'Nightly drift detection found drift in: ${{ steps.drift.outputs.layers }}. See ' +
+              context.serverUrl + '/' + context.repo.owner + '/' + context.repo.repo + '/actions/runs/' + context.runId,
           })
