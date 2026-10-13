@@ -1,0 +1,57 @@
+# Generated from compliance/remediation/fixes.yaml (ADR-099) by
+# `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
+# journald-caps: journald disk use capped explicitly (ADR-092 section 5, CIS 6.1.1.3)
+- block:
+    - ansible.builtin.stat:
+        path: /etc/systemd/journald.conf.d
+      name: Is /etc/systemd/journald.conf.d there
+      register: uh_journald_caps_1_dir
+    - ansible.builtin.file:
+        group: root
+        mode: "0755"
+        owner: root
+        path: /etc/systemd/journald.conf.d
+        state: directory
+      name: Create /etc/systemd/journald.conf.d
+      when: not uh_journald_caps_1_dir.stat.exists
+    - ansible.builtin.copy:
+        backup: true
+        content: |
+          # ADR-092 section 5 / CIS Ubuntu 24.04 6.1.1.3. Managed by scripts/host/remediate.sh (journald-caps).
+          [Journal]
+          SystemMaxUse=1G
+          RuntimeMaxUse=200M
+        dest: /etc/systemd/journald.conf.d/60-unheaded.conf
+        group: root
+        mode: "0644"
+        owner: root
+      name: Write /etc/systemd/journald.conf.d/60-unheaded.conf
+      register: uh_journald_caps_1_v1
+    - ansible.builtin.command:
+        argv:
+          - systemctl
+          - restart
+          - systemd-journald.service
+      changed_when: true
+      name: Run systemctl restart systemd-journald.service
+  name: journald-caps
+  rescue:
+    - ansible.builtin.copy:
+        dest: /etc/systemd/journald.conf.d/60-unheaded.conf
+        remote_src: true
+        src: '{{ uh_journald_caps_1_v1.backup_file }}'
+      name: Restore /etc/systemd/journald.conf.d/60-unheaded.conf
+      when: uh_journald_caps_1_v1.backup_file is defined
+    - ansible.builtin.file:
+        path: /etc/systemd/journald.conf.d/60-unheaded.conf
+        state: absent
+      name: Remove /etc/systemd/journald.conf.d/60-unheaded.conf if this role created it
+      when: uh_journald_caps_1_v1 is changed and uh_journald_caps_1_v1.backup_file is not defined
+    - ansible.builtin.file:
+        path: /etc/systemd/journald.conf.d
+        state: absent
+      name: Remove /etc/systemd/journald.conf.d if this role created it
+      when: not uh_journald_caps_1_dir.stat.exists
+    - ansible.builtin.fail:
+        msg: journald-caps failed a check; every file it changed was restored
+      name: Fail after restoring

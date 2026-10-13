@@ -2,6 +2,18 @@
 # `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
 # banner-cis: Login banners carry the notice and no OS details (CIS 1.6.2, 1.6.3)
 - block:
+    - ansible.builtin.stat:
+        path: /etc
+      name: Is /etc there
+      register: uh_banner_cis_1_dir
+    - ansible.builtin.file:
+        group: root
+        mode: "0755"
+        owner: root
+        path: /etc
+        state: directory
+      name: Create /etc
+      when: not uh_banner_cis_1_dir.stat.exists
     - ansible.builtin.copy:
         backup: true
         content: |
@@ -12,6 +24,18 @@
         owner: root
       name: Write /etc/issue
       register: uh_banner_cis_1_v1
+    - ansible.builtin.stat:
+        path: /etc
+      name: Is /etc there
+      register: uh_banner_cis_2_dir
+    - ansible.builtin.file:
+        group: root
+        mode: "0755"
+        owner: root
+        path: /etc
+        state: directory
+      name: Create /etc
+      when: not uh_banner_cis_2_dir.stat.exists
     - ansible.builtin.copy:
         backup: true
         content: |
@@ -35,6 +59,11 @@
         state: absent
       name: Remove /etc/issue if this role created it
       when: uh_banner_cis_1_v1 is changed and uh_banner_cis_1_v1.backup_file is not defined
+    - ansible.builtin.file:
+        path: /etc
+        state: absent
+      name: Remove /etc if this role created it
+      when: not uh_banner_cis_1_dir.stat.exists
     - ansible.builtin.copy:
         dest: /etc/issue.net
         remote_src: true
@@ -46,6 +75,11 @@
         state: absent
       name: Remove /etc/issue.net if this role created it
       when: uh_banner_cis_2_v1 is changed and uh_banner_cis_2_v1.backup_file is not defined
+    - ansible.builtin.file:
+        path: /etc
+        state: absent
+      name: Remove /etc if this role created it
+      when: not uh_banner_cis_2_dir.stat.exists
     - ansible.builtin.fail:
         msg: banner-cis failed a check; every file it changed was restored
       name: Fail after restoring

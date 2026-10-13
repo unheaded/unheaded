@@ -33,7 +33,7 @@ HOST="${UNHEADED_HOST:-$(hostname -s)}"
 
 die() { echo "remediate: $*" >&2; exit 1; }
 
-FIXES="sysctl-cis apport-off kmod-cis cron-perms shell-tmout sshd-safe banner-cis apparmor-utils sudo-cis auditd auditd-rules"
+FIXES="sysctl-cis apport-off kmod-cis cron-perms shell-tmout sshd-safe banner-cis apparmor-utils sudo-cis auditd auditd-rules journald-caps"
 
 # desired content per fix, per host -----------------------------------------
 content_sysctl() {
@@ -111,6 +111,15 @@ content_sudo() {
 # delete (6.2.3.13) and chmod/chown (6.2.3.9) rules, which every build on
 # these hosts would flood. Watches only name paths that exist on 25.10:
 # utmp, faillock, setfacl and chacl are absent there.
+content_journald() {
+	cat <<'CONF'
+# ADR-092 section 5 / CIS Ubuntu 24.04 6.1.1.3. Managed by scripts/host/remediate.sh (journald-caps).
+[Journal]
+SystemMaxUse=1G
+RuntimeMaxUse=200M
+CONF
+}
+
 content_audit() {
 	cat <<'RULES'
 ## ADR-098 / CIS Ubuntu 24.04 6.2.3 (lab subset). Managed by scripts/host/remediate.sh (auditd-rules).
@@ -206,6 +215,18 @@ backup() {
 	fi
 }
 
+# ensure_dir D creates D and any missing parents 0755, recording each for
+# undo. Called before the file's own backup, so undo (newest first) removes
+# the file, then the directories, deepest first.
+ensure_dir() {
+	local p="$1" i missing=()
+	while [[ ! -e "$ROOT$p" ]]; do missing+=("$p"); p="$(dirname "$p")"; done
+	for ((i = ${#missing[@]} - 1; i >= 0; i--)); do
+		mkdir -m 0755 "$ROOT${missing[i]}"
+		undo_line "$(printf 'rmdir %q' "$ROOT${missing[i]}")"
+	done
+}
+
 # plan_file P MODE CONTENT: show the diff; apply_file writes it (backed up).
 plan_file() {
 	local p="$1" mode="$2" want="$3" f="$ROOT$1"
@@ -220,8 +241,8 @@ plan_file() {
 
 apply_file() {
 	local p="$1" mode="$2" want="$3" f="$ROOT$1" tmp
+	ensure_dir "$(dirname "$p")"
 	backup "$p"
-	mkdir -p "$(dirname "$f")"
 	tmp="$(mktemp "$(dirname "$f")/.remediate.XXXXXX")"
 	printf '%s\n' "$want" >"$tmp"
 	chmod "$mode" "$tmp"
@@ -416,6 +437,21 @@ fix_auditd-rules() {
 		die "audit rules did not load; previous rules restored"
 	fi
 	echo "  audit rules loaded"
+}
+
+fix_journald-caps() {
+	local mode="$1" want; want="$(content_journald)"
+	if [[ "$mode" == plan ]]; then
+		plan_file /etc/systemd/journald.conf.d/60-unheaded.conf 644 "$want" || true
+		echo "  then: $SYSTEMCTL restart systemd-journald.service (a cap below current use vacuums the oldest journal files)"
+		return
+	fi
+	# Recorded first so undo replays it last: the old config is back on disk
+	# before journald rereads it.
+	undo_line "$SYSTEMCTL restart systemd-journald.service"
+	apply_file /etc/systemd/journald.conf.d/60-unheaded.conf 644 "$want"
+	"$SYSTEMCTL" restart systemd-journald.service
+	echo "  journald restarted with the caps"
 }
 
 # main --------------------------------------------------------------------------

@@ -78,6 +78,8 @@ func (c Commands) argv(s string) ([]string, error) {
 		return []string{c.Visudo, "-c"}, nil
 	case "augenrules --load":
 		return []string{c.Augenrules, "--load"}, nil
+	case "systemctl restart systemd-journald.service":
+		return []string{c.Systemctl, "restart", "systemd-journald.service"}, nil
 	}
 	return nil, fmt.Errorf("%w: %q is not an allowlisted command", ErrRefused, s)
 }
@@ -141,7 +143,7 @@ func (e *Executor) printf(format string, a ...any) { fmt.Fprintf(e.o.Out, format
 // --- undo record --------------------------------------------------------------
 
 type undoStep struct {
-	Op     string   `json:"op"` // restore, remove, chmod, run
+	Op     string   `json:"op"` // restore, remove, rmdir, chmod, run
 	Path   string   `json:"path,omitempty"`
 	Backup string   `json:"backup,omitempty"`
 	Mode   uint32   `json:"mode,omitempty"`
@@ -490,17 +492,50 @@ func (r *applyRun) applyFile(ctx context.Context, fa *remediation.FileAction) er
 			return err
 		}
 	}
+	if err := r.ensureDir(filepath.Dir(fa.Path)); err != nil {
+		return err
+	}
 	if err := r.backup(fa.Path); err != nil {
 		return err
 	}
 	full := e.path(fa.Path)
-	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil { // #nosec G301 -- /etc subdirectories are world-readable by convention
-		return err
-	}
 	if err := writeAtomic(full, want, mode, uid, gid, e.o.AllowNonRoot); err != nil {
 		return err
 	}
 	e.printf("  wrote %s\n", fa.Path)
+	return nil
+}
+
+// ensureDir creates p and any missing parents 0755, recording each for
+// undo. It runs before the file's own backup, so undo (newest first)
+// removes the file, then the directories, deepest first.
+func (r *applyRun) ensureDir(p string) error {
+	var missing []string
+	for q := p; ; q = filepath.Dir(q) {
+		fi, err := os.Lstat(r.e.path(q))
+		if err == nil {
+			if !fi.IsDir() {
+				return fmt.Errorf("%w: %s is not a directory", ErrRefused, q)
+			}
+			break
+		}
+		if !errors.Is(err, fs.ErrNotExist) || q == "/" {
+			return err
+		}
+		missing = append(missing, q)
+	}
+	for i := len(missing) - 1; i >= 0; i-- {
+		full := r.e.path(missing[i])
+		if err := os.Mkdir(full, 0o755); err != nil { // #nosec G301 -- /etc subdirectories are world-readable by convention
+			return err
+		}
+		if err := os.Chmod(full, 0o755); err != nil { // the umask must not decide
+			return err
+		}
+		if err := r.record(undoStep{Op: "rmdir", Path: full}); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -699,6 +734,10 @@ func runUndo(ctx context.Context, steps []undoStep, out io.Writer, allowNonRoot 
 			}
 		case "remove":
 			if err = os.Remove(s.Path); errors.Is(err, fs.ErrNotExist) {
+				err = nil
+			}
+		case "rmdir":
+			if err = syscall.Rmdir(s.Path); errors.Is(err, fs.ErrNotExist) {
 				err = nil
 			}
 		case "chmod":

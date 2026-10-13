@@ -6,6 +6,7 @@ package iac
 import (
 	"bytes"
 	"fmt"
+	"path"
 	"sort"
 	"strings"
 
@@ -110,6 +111,7 @@ var argvFor = map[string][]string{
 	"sshd -t":                      {"sshd", "-t"},
 	"visudo -c":                    {"visudo", "-c"},
 	"augenrules --load":            {"augenrules", "--load"},
+	"systemctl restart systemd-journald.service": {"systemctl", "restart", "systemd-journald.service"},
 }
 
 const auditdHalt = `(?im)^[ \t]*(disk_full_action|disk_error_action|admin_space_left_action)[ \t]*=[ \t]*halt`
@@ -127,6 +129,14 @@ func fixTasks(f remediation.Fix) ([]any, error) {
 			if err != nil {
 				return nil, err
 			}
+			// copy does not create a missing parent. Created 0755 only when
+			// absent, so an existing directory (sudoers.d is 0750) keeps its
+			// mode; removed on rescue only if this role created it.
+			dir := path.Dir(a.File.Path)
+			body = append(body,
+				task{"name": "Is " + dir + " there", "ansible.builtin.stat": task{"path": dir}, "register": reg + "_dir"},
+				task{"name": "Create " + dir, "ansible.builtin.file": task{"path": dir, "state": "directory", "mode": "0755", "owner": "root", "group": "root"},
+					"when": "not " + reg + "_dir.stat.exists"})
 			body = append(body, ts...)
 			needSudoFact = needSudoFact || needsSudo
 			if group != "" {
@@ -141,6 +151,9 @@ func fixTasks(f remediation.Fix) ([]any, error) {
 					task{"name": "Remove " + a.File.Path + " if this role created it", "ansible.builtin.file": task{"path": a.File.Path, "state": "absent"},
 						"when": r + " is changed and " + r + ".backup_file is not defined"})
 			}
+			// After the file: a directory this role created is empty again.
+			rescue = append(rescue, task{"name": "Remove " + dir + " if this role created it", "ansible.builtin.file": task{"path": dir, "state": "absent"},
+				"when": "not " + reg + "_dir.stat.exists"})
 		case a.Setting != nil:
 			body = append(body,
 				task{"name": "Is " + a.Setting.Path + " there", "ansible.builtin.stat": task{"path": a.Setting.Path}, "register": reg + "_stat"},

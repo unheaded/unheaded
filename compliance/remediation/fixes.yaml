@@ -316,3 +316,25 @@ fixes:
                 -w /etc/ssh/sshd_config -p wa -k sshd
                 -w /etc/ssh/sshd_config.d -p wa -k sshd
       - run: "augenrules --load"
+
+  - id: journald-caps
+    title: journald disk use capped explicitly (ADR-092 section 5, CIS 6.1.1.3)
+    controls: [UH-LOG-02]
+    closes: ["host-probe:*:journald-rotation"]
+    risk: low
+    class: service
+    note: >-
+      The caps are a proposal waiting on Stevie (register decision on host-probe:*:journald-rotation); in no profile until
+      then. Unset, journald takes up to 10% of the filesystem per store; west's journal held 3.4 GB on 2026-10-13, so
+      the restart vacuums the oldest files down to the cap.
+    actions:
+      - file:
+          path: /etc/systemd/journald.conf.d/60-unheaded.conf
+          mode: "0644"
+          parts:
+            - text: |
+                # ADR-092 section 5 / CIS Ubuntu 24.04 6.1.1.3. Managed by scripts/host/remediate.sh (journald-caps).
+                [Journal]
+                SystemMaxUse=1G
+                RuntimeMaxUse=200M
+      - run: "systemctl restart systemd-journald.service"

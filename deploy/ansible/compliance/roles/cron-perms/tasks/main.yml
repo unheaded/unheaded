@@ -72,6 +72,18 @@
         path: /etc/cron.d
       name: Mode 0700 root:root on /etc/cron.d
       when: uh_cron_perms_2_5_stat.stat.exists
+    - ansible.builtin.stat:
+        path: /etc
+      name: Is /etc there
+      register: uh_cron_perms_3_dir
+    - ansible.builtin.file:
+        group: root
+        mode: "0755"
+        owner: root
+        path: /etc
+        state: directory
+      name: Create /etc
+      when: not uh_cron_perms_3_dir.stat.exists
     - ansible.builtin.copy:
         backup: true
         content: |
@@ -99,6 +111,11 @@
         state: absent
       name: Remove /etc/cron.allow if this role created it
       when: uh_cron_perms_3_v1 is changed and uh_cron_perms_3_v1.backup_file is not defined
+    - ansible.builtin.file:
+        path: /etc
+        state: absent
+      name: Remove /etc if this role created it
+      when: not uh_cron_perms_3_dir.stat.exists
     - ansible.builtin.fail:
         msg: cron-perms failed a check; every file it changed was restored
       name: Fail after restoring

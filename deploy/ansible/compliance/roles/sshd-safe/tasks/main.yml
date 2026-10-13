@@ -2,6 +2,18 @@
 # `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
 # sshd-safe: sshd settings that do not change how anyone authenticates (CIS 5.1.x)
 - block:
+    - ansible.builtin.stat:
+        path: /etc/ssh/sshd_config.d
+      name: Is /etc/ssh/sshd_config.d there
+      register: uh_sshd_safe_1_dir
+    - ansible.builtin.file:
+        group: root
+        mode: "0755"
+        owner: root
+        path: /etc/ssh/sshd_config.d
+        state: directory
+      name: Create /etc/ssh/sshd_config.d
+      when: not uh_sshd_safe_1_dir.stat.exists
     - ansible.builtin.copy:
         backup: true
         content: |
@@ -99,6 +111,11 @@
         state: absent
       name: Remove /etc/ssh/sshd_config.d/00-unheaded.conf if this role created it
       when: uh_sshd_safe_1_v2 is changed and uh_sshd_safe_1_v2.backup_file is not defined
+    - ansible.builtin.file:
+        path: /etc/ssh/sshd_config.d
+        state: absent
+      name: Remove /etc/ssh/sshd_config.d if this role created it
+      when: not uh_sshd_safe_1_dir.stat.exists
     - ansible.builtin.fail:
         msg: sshd-safe failed a check; every file it changed was restored
       name: Fail after restoring

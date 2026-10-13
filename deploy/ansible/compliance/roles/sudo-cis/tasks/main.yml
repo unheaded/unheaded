@@ -13,6 +13,18 @@
     uh_sudo_rs: '{{ (uh_sudo_version.stdout + uh_sudo_version.stderr) is search(''(?m)^sudo-rs'') }}'
   name: Note sudo-rs
 - block:
+    - ansible.builtin.stat:
+        path: /etc/sudoers.d
+      name: Is /etc/sudoers.d there
+      register: uh_sudo_cis_1_dir
+    - ansible.builtin.file:
+        group: root
+        mode: "0755"
+        owner: root
+        path: /etc/sudoers.d
+        state: directory
+      name: Create /etc/sudoers.d
+      when: not uh_sudo_cis_1_dir.stat.exists
     - ansible.builtin.copy:
         backup: true
         content: |
@@ -70,6 +82,11 @@
         state: absent
       name: Remove /etc/sudoers.d/00-unheaded if this role created it
       when: uh_sudo_cis_1_v2 is changed and uh_sudo_cis_1_v2.backup_file is not defined
+    - ansible.builtin.file:
+        path: /etc/sudoers.d
+        state: absent
+      name: Remove /etc/sudoers.d if this role created it
+      when: not uh_sudo_cis_1_dir.stat.exists
     - ansible.builtin.fail:
         msg: sudo-cis failed a check; every file it changed was restored
       name: Fail after restoring

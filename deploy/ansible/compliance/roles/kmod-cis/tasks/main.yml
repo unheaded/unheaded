@@ -2,6 +2,18 @@
 # `go run ./cmd/compliance-evidence ansible`. Do not edit; edit the model.
 # kmod-cis: Unused filesystem kernel modules cannot load (CIS 1.1.1.x)
 - block:
+    - ansible.builtin.stat:
+        path: /etc/modprobe.d
+      name: Is /etc/modprobe.d there
+      register: uh_kmod_cis_1_dir
+    - ansible.builtin.file:
+        group: root
+        mode: "0755"
+        owner: root
+        path: /etc/modprobe.d
+        state: directory
+      name: Create /etc/modprobe.d
+      when: not uh_kmod_cis_1_dir.stat.exists
     - ansible.builtin.copy:
         backup: true
         content: |
@@ -37,6 +49,11 @@
         state: absent
       name: Remove /etc/modprobe.d/unheaded-cis.conf if this role created it
       when: uh_kmod_cis_1_v1 is changed and uh_kmod_cis_1_v1.backup_file is not defined
+    - ansible.builtin.file:
+        path: /etc/modprobe.d
+        state: absent
+      name: Remove /etc/modprobe.d if this role created it
+      when: not uh_kmod_cis_1_dir.stat.exists
     - ansible.builtin.fail:
         msg: kmod-cis failed a check; every file it changed was restored
       name: Fail after restoring
