@@ -28,7 +28,7 @@ psycopg2-binary==2.9.11
 
 # --- retrieval / RAG ---------------------------------------------------------
 faiss-cpu==1.13.2
-sentence-transformers==5.17.0
+sentence-transformers==5.7.0
 langchain-text-splitters==1.1.2
 numpy==2.4.3
 
@@ -36,7 +36,7 @@ numpy==2.4.3
 # torch: install the accelerator-appropriate build first (ROCm/CUDA/CPU).
 torch==2.10.0
 transformers==5.17.0
-datasets==4.7.0
+datasets==5.0.1
 peft==0.18.1
 trl==0.29.0
 
