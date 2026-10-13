@@ -20,6 +20,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -147,6 +149,18 @@ func run(repoDir, out, ghRepo, branch string, keep int, skipGates bool) error {
 	fresh = append(fresh, recs...)
 
 	if recs, err = collectJournals(ctx, repoDir, sources); err != nil {
+		return err
+	}
+	fresh = append(fresh, recs...)
+
+	// Last among the host collectors: it checks the agent against them.
+	baseline, err := os.ReadFile(filepath.Join(repoDir, "compliance", "baseline", "baseline.yaml")) // #nosec G304 -- fixed path under the operator's repo dir
+	if err != nil {
+		return err
+	}
+	sum := sha256.Sum256(baseline)
+	agent := &collect.HostAgent{Central: fresh, BaselineSHA256: hex.EncodeToString(sum[:])}
+	if recs, err = agent.Collect(ctx, sources); err != nil {
 		return err
 	}
 	fresh = append(fresh, recs...)

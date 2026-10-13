@@ -693,6 +693,27 @@ controls:
     mappings:
       nist-800-53r5: [AC-3, AC-6]
 
+  - id: UH-BASE-01
+    title: Each host's baseline agent reports, and agrees with the central pull
+    statement: >-
+      On both hosts unheaded-baseline has reported within three hours, ran
+      the repo's baseline in audit mode, and every check it and the central
+      collector both evaluated has the same verdict.
+    rationale: >-
+      Continuous monitoring with two independent paths (CA-7) and detection
+      of tampering with the monitoring itself (SI-4): root on a host can
+      always defeat an agent on that host, so the guarantee is that it cannot
+      do so undetected (ADR-098 phase 2c). A missing or stale report, another
+      baseline, an enforcing request, or one disagreeing verdict fails. Other
+      framework mappings left out until checked against NIST's references
+      rather than guessed.
+    freshness_days: 1
+    evidence:
+      - {kind: host-agent, ref: "west:baseline-report"}
+      - {kind: host-agent, ref: "east:baseline-report"}
+    mappings:
+      nist-800-53r5: [CA-7, SI-4]
+
   - id: UH-MAC-01
     title: Mandatory access control is installed and its profiles confine
     statement: >-

@@ -56,9 +56,17 @@ const (
 	// the host's profile turns on has a successful apply of its current
 	// content.
 	KindHostJournal = "host-journal"
+	// KindHostAgent: ref "<host>:baseline-report", the host baseline agent's
+	// report.json (ADR-098 phase 2c): it passes when the report is fresh,
+	// ran the repo's baseline in audit mode, and every verdict agrees with
+	// the central pull of the same run. A disagreement is the tamper alarm.
+	KindHostAgent = "host-agent"
 )
 
-var hostJournalRefRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}:apply-journal$`)
+var (
+	hostJournalRefRe = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}:apply-journal$`)
+	hostAgentRefRe   = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,62}:baseline-report$`)
+)
 
 var (
 	controlIDRe     = regexp.MustCompile(`^UH-[A-Z]+-[0-9]{2}$`)
@@ -286,6 +294,10 @@ func LoadDocs(frameworksYAML [][]byte, controlsYAML []byte) (*Catalog, error) {
 			case KindHostJournal:
 				if !hostJournalRefRe.MatchString(s.Ref) {
 					return nil, invalid("control %q: %s ref %q is not <host>:apply-journal", ctl.ID, s.Kind, s.Ref)
+				}
+			case KindHostAgent:
+				if !hostAgentRefRe.MatchString(s.Ref) {
+					return nil, invalid("control %q: %s ref %q is not <host>:baseline-report", ctl.ID, s.Kind, s.Ref)
 				}
 			default:
 				return nil, invalid("control %q: evidence kind %q", ctl.ID, s.Kind)

@@ -264,11 +264,13 @@ type FindingsReport struct {
 	ZeroReason    string `json:"zero_reason"`
 }
 
-// hostOf names the host a host-* source checks; "local" is the collector's
+// HostOf names the host a host-* source checks; "local" is the collector's
 // own host, "" means the source is not host-scoped.
+func HostOf(s Source) string { return hostOf(s) }
+
 func hostOf(s Source) string {
 	switch s.Kind {
-	case KindHostSysctl, KindHostSSHD, KindHostProbe, KindHostJournal:
+	case KindHostSysctl, KindHostSSHD, KindHostProbe, KindHostJournal, KindHostAgent:
 		if h, _, ok := strings.Cut(s.Ref, ":"); ok {
 			return h
 		}
