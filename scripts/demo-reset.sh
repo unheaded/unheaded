@@ -3,7 +3,7 @@
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 #
 # Reset all state between demo runs
-# Usage: ./demo-reset.sh [--full] [--east]
+# Usage: scripts/demo-reset.sh [--full] [--east]
 
 set -euo pipefail
 
@@ -36,8 +36,8 @@ fi
 if [[ "$FULL_RESET" == "true" ]]; then
     echo "3. Full reset: stopping all services..."
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-    bash "$SCRIPT_DIR/scripts/kingdom-shutdown.sh" --force --keep-bpf
-    echo "   Run ./demo-start.sh to restart"
+    bash "$SCRIPT_DIR/kingdom-shutdown.sh" --force --keep-bpf
+    echo "   Run scripts/demo-start.sh to restart"
 fi
 
 # 4. Reset EAST if requested
@@ -48,4 +48,4 @@ fi
 
 echo ""
 echo "=== Reset complete ==="
-echo "Run ./demo-start.sh to start fresh demo environment"
+echo "Run scripts/demo-start.sh to start fresh demo environment"

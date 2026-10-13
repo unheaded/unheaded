@@ -3,11 +3,12 @@
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 #
 # Full stack startup for conference demo
-# Usage: ./demo-start.sh [--east] [--trace-demo]
+# Usage: scripts/demo-start.sh [--east] [--trace-demo]
 
 set -euo pipefail
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# This script lives in scripts/; everything it starts is relative to the repo root.
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 EAST_HOST="govan@east"
 START_EAST=false
 TRACE_DEMO=false
@@ -27,19 +28,15 @@ echo ""
 
 # 1. Build services if needed
 echo "1. Checking builds..."
-if [[ ! -f "$SCRIPT_DIR/cmd/wotan/wotan" ]]; then
-    echo "   Building Go services..."
-    cd "$SCRIPT_DIR" && go build ./...
-else
-    echo "   Builds up to date"
-fi
+echo "   Building Go services..."
+cd "$REPO_ROOT" && go build ./...
 
 # 2. Start Wotan (message bus)
 echo "2. Starting Wotan (port 18000/18001)..."
 if pgrep -f "wotan" > /dev/null 2>&1; then
     echo "   Wotan already running"
 else
-    cd "$SCRIPT_DIR" && go run ./cmd/wotan/ &
+    cd "$REPO_ROOT" && go run ./services/wotan/cmd/wotan/ &
     sleep 2
 fi
 curl -sf http://localhost:18000/health > /dev/null && echo "   Wotan: HEALTHY" || echo "   Wotan: WAITING..."
@@ -49,7 +46,7 @@ echo "3. Starting unheaded-daemon (port 17000/17001)..."
 if pgrep -f "unheaded-daemon" > /dev/null 2>&1; then
     echo "   unheaded-daemon already running"
 else
-    cd "$SCRIPT_DIR" && go run ./cmd/unheaded-daemon/ &
+    cd "$REPO_ROOT" && go run ./cmd/unheaded-daemon/ &
     sleep 2
 fi
 
@@ -58,7 +55,7 @@ echo "4. Starting dashboard-backend (port 20000)..."
 if pgrep -f "dashboard-backend" > /dev/null 2>&1; then
     echo "   dashboard-backend already running"
 else
-    cd "$SCRIPT_DIR" && go run ./cmd/dashboard-backend/ &
+    cd "$REPO_ROOT" && go run ./cmd/dashboard-backend/ &
     sleep 2
 fi
 
@@ -67,7 +64,7 @@ echo "5. Starting kanban-app (port 20001)..."
 if pgrep -f "kanban-app" > /dev/null 2>&1; then
     echo "   kanban-app already running"
 else
-    cd "$SCRIPT_DIR" && go run ./cmd/kanban-app/ &
+    cd "$REPO_ROOT" && go run ./cmd/kanban-app/ &
     sleep 2
 fi
 
@@ -77,7 +74,7 @@ if [[ "$TRACE_DEMO" == "true" ]]; then
     if pgrep -f "trace-collector-go" > /dev/null 2>&1; then
         echo "   trace-collector-go already running"
     else
-        cd "$SCRIPT_DIR" && go run ./cmd/trace-collector-go/ -demo &
+        cd "$REPO_ROOT" && go run ./cmd/trace-collector-go/ -demo &
         sleep 3
     fi
 fi
