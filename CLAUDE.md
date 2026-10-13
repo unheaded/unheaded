@@ -35,6 +35,25 @@ LOVE SERVE REMEMBER. PEACE AND LOVE. Free to use. Free to share. <3
 
 ---
 
+## 🌿 Branches: work happens on `develop` and `staging`, not `main`
+
+`main` is old (last commit 2026-07-29). The current work is on two branches
+(ADR-089, dev → staging → main promotion):
+
+- **`develop`**: where all new work lands. Check it out and branch from it.
+  Most recent; usually ahead of `origin/develop` by unpushed commits
+  (Claude commits, Stevie pushes).
+- **`staging`**: the reviewed promotion target, merged from `develop` in
+  batches (`docs/battle-plans/STAGING-PROMOTION-LOG.md`). Last promoted
+  2026-09-24.
+- **`main`**: promoted from `staging` by Stevie only.
+
+Before reading history, diffing, or saying something is "not done", check
+`develop` (and `staging`): a feature missing from `main` is usually there.
+CI runs on push to all three.
+
+---
+
 ## 🎯 Project Vision
 
 **"Configuration management automation platform — free for everyone."**
