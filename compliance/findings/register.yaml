@@ -1453,3 +1453,15 @@ findings:
       /root/.vector/bin is owned by uid 1001, which has no account: the Vector tarball was extracted as root with its
       archive owner kept. Empty, and /root is 0700, so no one else can reach it. chown -R root:root /root/.vector, or
       remove it and /root/.vector/bin from root's PATH (Vector runs in compose)
+
+  - source: "host-probe:east:firewall-single-utility"
+    severity: low
+    class: firewall
+    opened: 2026-10-13
+    lockout: high
+    step: 6
+    plan: >-
+      ufw.service is enabled and active on east but `ufw status` is inactive, so no firewall utility has rules live.
+      Closes with the firewall decision (UH-FW-01, ADR-098 step 6): load deploy/nftables/east.nft through
+      scripts/host/nft-apply-confirm.sh and enable unheaded-nft.service, then disable ufw.service so one utility owns it
+    decision: the firewall rollout (same as host-iptables:east default deny)

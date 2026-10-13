@@ -300,6 +300,10 @@ func init() {
 			probeActions[name] = "write rsyslog.d/00-unheaded.conf: $FileCreateMode 0640; restart rsyslog"
 		case name == "rsyslog-no-listen":
 			probeActions[name] = "none (alert only): a remote-log listener may be deliberate; the operator removes it"
+		case name == "pam-runtime-version":
+			probeActions[name] = "none (alert only): the operator upgrades libpam-runtime with apt"
+		case name == "firewall-single-utility":
+			probeActions[name] = "none (alert only): which firewall stays is the operator's decision (ADR-098 step 6)"
 		case name == "su-restricted":
 			probeActions[name] = "none (alert only): a wrong pam_wheel line locks su for everyone; the operator adds it with a root shell held open"
 		case name == "root-access-controlled", name == "root-path", name == "root-umask", name == "home-dirs", name == "dot-files":

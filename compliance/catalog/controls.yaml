@@ -948,13 +948,15 @@ controls:
       Authenticator management (IA-5) and limits on unsuccessful logon
       attempts (AC-7); 800-171 03.05.07, 03.01.08; CSF PR.AA-03; ISO
       A.5.17. CIS Ubuntu 24.04 5.3.1.2-5.3.3.4.4 with the CIS profile's
-      ComplianceAsCode values, except 5.3.1.1 (needs the archive's current
-      PAM version) and the manual 5.3.3.2.3. A setting passes only while
-      its module is in the stack.
+      ComplianceAsCode values, except the manual 5.3.3.2.3; 5.3.1.1 as its
+      audit checks it (libpam-runtime >= 1.5.3-5), not "latest", which a
+      host check cannot know. A setting passes only while its module is in
+      the stack.
     freshness_days: 1
     evidence:
       - {kind: host-probe, ref: "west:pkg-pam-modules", maps: {cis-ubuntu2404: ["5.3.1.2"]}}
       - {kind: host-probe, ref: "west:pkg-pam-pwquality", maps: {cis-ubuntu2404: ["5.3.1.3"]}}
+      - {kind: host-probe, ref: "west:pam-runtime-version", maps: {cis-ubuntu2404: ["5.3.1.1"]}}
       - {kind: host-probe, ref: "west:pam-unix-enabled", maps: {cis-ubuntu2404: ["5.3.2.1"]}}
       - {kind: host-probe, ref: "west:pam-faillock-enabled", maps: {cis-ubuntu2404: ["5.3.2.2"]}}
       - {kind: host-probe, ref: "west:pam-pwquality-enabled", maps: {cis-ubuntu2404: ["5.3.2.3"]}}
@@ -977,6 +979,7 @@ controls:
       - {kind: host-probe, ref: "west:pam-unix-authtok", maps: {cis-ubuntu2404: ["5.3.3.4.4"]}}
       - {kind: host-probe, ref: "east:pkg-pam-modules", maps: {cis-ubuntu2404: ["5.3.1.2"]}}
       - {kind: host-probe, ref: "east:pkg-pam-pwquality", maps: {cis-ubuntu2404: ["5.3.1.3"]}}
+      - {kind: host-probe, ref: "east:pam-runtime-version", maps: {cis-ubuntu2404: ["5.3.1.1"]}}
       - {kind: host-probe, ref: "east:pam-unix-enabled", maps: {cis-ubuntu2404: ["5.3.2.1"]}}
       - {kind: host-probe, ref: "east:pam-faillock-enabled", maps: {cis-ubuntu2404: ["5.3.2.2"]}}
       - {kind: host-probe, ref: "east:pam-pwquality-enabled", maps: {cis-ubuntu2404: ["5.3.2.3"]}}
@@ -1168,10 +1171,13 @@ controls:
       network security; SOC 2 CC6.6 protection against threats from outside
       the system boundary.
       CIS Ubuntu 24.04: default-deny policy by iptables and ip6tables (4.4.2.1, 4.4.3.1) or by nftables (4.3.8, the package-owned inet unheaded table of ADR-098); the probe accepts either, so a pass supports whichever mechanism is in place, not both.
+      4.1.1: exactly one of ufw, nftables (nftables.service or unheaded-nft.service) and iptables (netfilter-persistent) has its rules live; a running ufw.service with `ufw status` inactive does not count.
     freshness_days: 1
     evidence:
       - {kind: host-probe, ref: "west:firewall-inbound-deny", maps: {cis-ubuntu2404: ["4.3.8", "4.4.2.1", "4.4.3.1"]}}
+      - {kind: host-probe, ref: "west:firewall-single-utility", maps: {cis-ubuntu2404: ["4.1.1"]}}
       - {kind: host-probe, ref: "east:firewall-inbound-deny", maps: {cis-ubuntu2404: ["4.3.8", "4.4.2.1", "4.4.3.1"]}}
+      - {kind: host-probe, ref: "east:firewall-single-utility", maps: {cis-ubuntu2404: ["4.1.1"]}}
     mappings:
       nist-800-53r5: [SC-7, SC-7(5)]
       nist-800-171r3: ["03.13.01", "03.13.06"]

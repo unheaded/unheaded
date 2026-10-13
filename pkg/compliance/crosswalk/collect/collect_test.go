@@ -1160,3 +1160,28 @@ func TestRootAndUserEnvironmentProbes(t *testing.T) {
 		}
 	}
 }
+
+func TestPAMVersionAndFirewallUtilityProbes(t *testing.T) {
+	for _, tc := range []struct {
+		probe, out string
+		pass       bool
+	}{
+		{"pam-runtime-version", "version=1.7.0-5ubuntu2\nok=yes\n", true},
+		{"pam-runtime-version", "version=1.5.2-6\nok=no\n", false},
+		{"pam-runtime-version", "version=\nok=no\n", false},
+		{"firewall-single-utility", "ufw=\nnftables=inactive\nunheaded-nft=inactive\niptables=active\n", true},
+		{"firewall-single-utility", "ufw=inactive\nnftables=inactive\nunheaded-nft=active\niptables=inactive\n", true},
+		{"firewall-single-utility", "ufw=inactive\nnftables=inactive\nunheaded-nft=inactive\niptables=inactive\n", false}, // east: ufw.service up, rules not
+		{"firewall-single-utility", "ufw=active\nnftables=inactive\nunheaded-nft=inactive\niptables=active\n", false},
+		{"firewall-single-utility", "ufw=inactive\nnftables=active\nunheaded-nft=active\niptables=inactive\n", true}, // both nftables units: one utility
+	} {
+		p, ok := Probes[tc.probe]
+		if !ok || !p.Baseline {
+			t.Errorf("%s missing or not a baseline probe", tc.probe)
+			continue
+		}
+		if pass, detail := p.Judge(tc.out); pass != tc.pass {
+			t.Errorf("%s(%q) = %v (%s), want %v", tc.probe, tc.out, pass, detail, tc.pass)
+		}
+	}
+}

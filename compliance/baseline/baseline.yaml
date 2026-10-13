@@ -32,6 +32,7 @@ sources:
   - {kind: host-probe, ref: "east:default-umask"}
   - {kind: host-probe, ref: "east:dot-files"}
   - {kind: host-probe, ref: "east:firewall-inbound-deny"}
+  - {kind: host-probe, ref: "east:firewall-single-utility"}
   - {kind: host-probe, ref: "east:group-root-only-gid0"}
   - {kind: host-probe, ref: "east:grub-password"}
   - {kind: host-probe, ref: "east:home-dirs"}
@@ -91,6 +92,7 @@ sources:
   - {kind: host-probe, ref: "east:pam-pwq-maxsequence"}
   - {kind: host-probe, ref: "east:pam-pwq-minlen"}
   - {kind: host-probe, ref: "east:pam-pwquality-enabled"}
+  - {kind: host-probe, ref: "east:pam-runtime-version"}
   - {kind: host-probe, ref: "east:pam-unix-authtok"}
   - {kind: host-probe, ref: "east:pam-unix-enabled"}
   - {kind: host-probe, ref: "east:pam-unix-no-nullok"}
@@ -209,6 +211,7 @@ sources:
   - {kind: host-probe, ref: "west:default-umask"}
   - {kind: host-probe, ref: "west:dot-files"}
   - {kind: host-probe, ref: "west:firewall-inbound-deny"}
+  - {kind: host-probe, ref: "west:firewall-single-utility"}
   - {kind: host-probe, ref: "west:group-root-only-gid0"}
   - {kind: host-probe, ref: "west:grub-password"}
   - {kind: host-probe, ref: "west:home-dirs"}
@@ -268,6 +271,7 @@ sources:
   - {kind: host-probe, ref: "west:pam-pwq-maxsequence"}
   - {kind: host-probe, ref: "west:pam-pwq-minlen"}
   - {kind: host-probe, ref: "west:pam-pwquality-enabled"}
+  - {kind: host-probe, ref: "west:pam-runtime-version"}
   - {kind: host-probe, ref: "west:pam-unix-authtok"}
   - {kind: host-probe, ref: "west:pam-unix-enabled"}
   - {kind: host-probe, ref: "west:pam-unix-no-nullok"}

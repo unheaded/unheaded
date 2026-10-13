@@ -1349,6 +1349,56 @@ func judgeDotFiles(lines []string) (bool, string) {
 	return true, "dot files owned by their user, none group- or world-writable"
 }
 
+// CIS 5.3.1.1 (see the PAM note below) and 4.1.1: exactly one firewall
+// utility in use. "In use" is the rule set being live, not a unit's state:
+// ufw.service runs on east while `ufw status` says inactive. nftables counts
+// either the distribution's nftables.service or unheaded-nft.service
+// (ADR-098, deploy/nftables).
+func init() {
+	Probes["pam-runtime-version"] = Probe{
+		Baseline: true,
+		Command: `v=$(dpkg-query -W -f='${Version}' libpam-runtime 2>/dev/null); echo "version=$v"; ` +
+			`if [ -n "$v" ] && dpkg --compare-versions "$v" ge 1.5.3-5; then echo "ok=yes"; else echo "ok=no"; fi`,
+		Judge: func(out string) (bool, string) {
+			f := parseKV(out)
+			if f["version"] == "" {
+				return false, "libpam-runtime not installed"
+			}
+			if f["ok"] != "yes" {
+				return false, "libpam-runtime " + f["version"] + " (want >= 1.5.3-5)"
+			}
+			return true, "libpam-runtime " + f["version"]
+		},
+	}
+	Probes["firewall-single-utility"] = Probe{
+		Baseline: true,
+		Command: `echo "ufw=$(sudo -n ufw status 2>/dev/null | sed -n 's/^Status: //p')"; ` +
+			`echo "nftables=$(systemctl is-active nftables.service 2>/dev/null || true)"; ` +
+			`echo "unheaded-nft=$(systemctl is-active unheaded-nft.service 2>/dev/null || true)"; ` +
+			`echo "iptables=$(systemctl is-active netfilter-persistent.service 2>/dev/null || true)"`,
+		Judge: func(out string) (bool, string) {
+			f := parseKV(out)
+			var inUse []string
+			if f["ufw"] == "active" {
+				inUse = append(inUse, "ufw")
+			}
+			if f["nftables"] == "active" || f["unheaded-nft"] == "active" {
+				inUse = append(inUse, "nftables")
+			}
+			if f["iptables"] == "active" {
+				inUse = append(inUse, "iptables (netfilter-persistent)")
+			}
+			switch len(inUse) {
+			case 1:
+				return true, inUse[0] + " only"
+			case 0:
+				return false, "no firewall utility in use"
+			}
+			return false, "more than one firewall utility in use: " + strings.Join(inUse, ", ")
+		},
+	}
+}
+
 // PAM (CIS 5.3.1.2, 5.3.1.3, 5.3.2.1-5.3.2.4, 5.3.3.1.1-5.3.3.4.4 except
 // the manual 5.3.3.2.3). Values are the CIS profile's ComplianceAsCode
 // variables: faillock deny <= 4, unlock_time 0 or >= 900; pwquality difok
@@ -1359,8 +1409,10 @@ func judgeDotFiles(lines []string) (bool, string) {
 // counts when nothing sets the value (faillock deny 3, unlock_time 600;
 // pwquality minlen 8, difok 1, maxrepeat 0, maxsequence 0; pwhistory
 // remember 10). Arguments on the PAM line override the .conf file.
-// 5.3.1.1 (latest PAM version) is not claimed: it needs the archive's
-// current version, which a host check cannot know.
+// 5.3.1.1 is titled "latest PAM version", but its audit (and
+// ComplianceAsCode's package_pam_runtime_installed) checks libpam-runtime
+// >= 1.5.3-5; pam-runtime-version checks that, never "latest", which a
+// host check cannot know.
 // Section markers are "%%", never "@@": HostProbes splits a host's script
 // output on lines starting "@@", so "@@pam" ended this probe's section.
 const pamDump = `echo %%pam; cat /etc/pam.d/common-auth /etc/pam.d/common-account /etc/pam.d/common-password /etc/pam.d/common-session 2>/dev/null; ` +
