@@ -108,14 +108,25 @@ live system and need Stevie's yes.
 
 ### Phase 1: backups that cover everything, proven by restore (W-01)
 
-- [ ] 1.1 `scripts/db-backup.sh`: globals + every database (enumerate from
+- [x] 1.1 `scripts/db-backup.sh`: globals + every database (enumerate from
       `pg_database`, not a list), `-Fc`, sha256 per file, fail loudly on any
-      error (`set -euo pipefail`, no `|| true`).
+      error (`set -euo pipefail`, no `|| true`). *Done 2026-10-14:* sets at
+      `~/backups/unheaded/<date>/well-<time>Z/` (cluster.env, globals.sql,
+      `<db>.dump`, rowcounts.tsv taken in each dump's exported snapshot,
+      SHA256SUMS), written as `.partial-*` and renamed when complete, `--keep N`
+      retention, refuses a directory inside the repo. Probe
+      `db-backup-recent` counts complete sets. Not yet run on the live Well
+      (Phase 0).
 - [ ] 1.2 Off-host copy to east over the P2P link (rsync as a dedicated
       user, 0600 files), retention per the retention policy.
-- [ ] 1.3 Restore drill script: restore the newest set into a throwaway
+- [x] 1.3 Restore drill script: restore the newest set into a throwaway
       container (the bootstrap pattern used for this audit), compare row
-      counts per table with the source; time it (RTO).
+      counts per table with the source; time it (RTO). *Done 2026-10-14:*
+      `scripts/well/restore-drill.sh [SET]`; bootstraps with the set's
+      superuser (globals grant `GRANTED BY` it). `scripts/well/test-backup-restore.sh`
+      runs backup then drill end to end on throwaway servers (5 DBs, 24 tables,
+      restore 15 s) and makes the drill refuse a flipped byte, a wrong row
+      count and an unlisted dump, each for its own reason.
 - [ ] 1.4 systemd timer (daily dump, weekly drill); `unheaded_well_backup_*`
       metrics (age, size, drill result) and an alert; UH-BACKUP-01 reads them.
 - [ ] 1.5 Decide PITR (WAL archiving) vs daily dumps: write the RPO down

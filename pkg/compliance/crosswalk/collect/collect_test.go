@@ -574,6 +574,7 @@ func TestProbeJudges(t *testing.T) {
 		pass       bool
 	}{
 		{"db-backup-recent", "2026-09-29 cluster.sql.gz\n---\n2026-09-29\n", true},
+		{"db-backup-recent", "2026-10-14 2026-10-14/well-123313Z/SHA256SUMS\n---\n2026-10-14\n", true},
 		{"db-backup-recent", "\n---\n2026-09-22\n", false},
 		{"db-backup-recent", "\n---\n\n", false},
 		{"firewall-inbound-deny", "-P INPUT DROP\n---\n-P INPUT DROP\n", true},
