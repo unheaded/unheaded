@@ -103,7 +103,7 @@ live system and need Stevie's yes.
 - [ ] 0.4 Shape diff: live schema (`pg_dump --schema-only`) vs a fresh
       bootstrap of develop; record every difference (expect 001-era tables in
       `unheaded`, missing 013/014).
-- [ ] 0.5 **[Y]** Apply 013/014 in a transaction (COMPLIANCE-WELL step 21),
+- [ ] 0.5 **[Y]** Apply 013/014, then 015/016, each in a transaction (COMPLIANCE-WELL step 21),
       then `compliance-evidence well sync -dry-run`, then real.
 
 ### Phase 1: backups that cover everything, proven by restore (W-01)
@@ -147,11 +147,14 @@ live system and need Stevie's yes.
       `POSTGRES_PASSWORD:?` still waits for Phase 0.
 - [ ] 2.2 One owner role per database (`well_app_owner`, `well_ops_owner`,
       `well_config_owner`, NOLOGIN); `ALTER ... OWNER TO`; default privileges.
-- [ ] 2.3 History tables INSERT/SELECT only for writers, plus the 013/014
+- [x] 2.3 History tables INSERT/SELECT only for writers, plus the 013/014
       trigger pattern (refuse UPDATE/DELETE/TRUNCATE) on `audit_events`,
       `service_health_transitions`, `kingdom_config_history`. Extend
       `scripts/well/test-compliance-schema.sh` (or a sibling) with refusal
-      checks, provoked red.
+      checks, provoked red. *Done 2026-10-14 for fresh volumes:* 015 (ops)
+      and 016 (config), re-runnable (the test applies each twice), routed in
+      init.sh; 15 new checks, red with the triggers removed. **Live Well:
+      apply 015/016 after the Phase 0 dump** (with 013/014, step 0.5).
 - [ ] 2.4 kanban-app to `app_kanban` on `unheaded_app` (FND-008); move its
       data out of DB `unheaded` (see 3.6).
 - [ ] 2.5 Exact RFC 1918 check in `pkg/database/validate.go` (W-24).

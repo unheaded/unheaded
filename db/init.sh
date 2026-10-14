@@ -51,6 +51,10 @@ psql_su -f "$MIGRATIONS/012_huginn_reader.sql"
 psql_su -d unheaded_config -f "$MIGRATIONS/013_compliance_config.sql"
 psql_su -d unheaded_ops    -f "$MIGRATIONS/014_compliance_ops.sql"
 
+# 015/016 make the older history tables append-only (W-05), as 013/014 are.
+psql_su -d unheaded_ops    -f "$MIGRATIONS/015_ops_history_append_only.sql"
+psql_su -d unheaded_config -f "$MIGRATIONS/016_config_history_append_only.sql"
+
 # Role passwords come from the environment, never from the migrations (W-07).
 # \getenv reads the variable inside psql, so the value is neither on a command
 # line nor interpolated into SQL text; :'pw' quotes it as a literal. An unset

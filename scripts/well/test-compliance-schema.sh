@@ -48,6 +48,11 @@ psql_as unheaded unheaded_ops <"$R/db/migrations/004_ops_schema.sql" >/dev/null
 psql_as unheaded unheaded_config <"$R/db/migrations/005_config_schema.sql" >/dev/null
 "${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_config <"$R/db/migrations/013_compliance_config.sql"
 "${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/014_compliance_ops.sql"
+"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/015_ops_history_append_only.sql"
+"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_config <"$R/db/migrations/016_config_history_append_only.sql"
+# Twice: 015/016 must be re-runnable against a Well that already has them.
+"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/015_ops_history_append_only.sql"
+"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_config <"$R/db/migrations/016_config_history_append_only.sql"
 
 fails=0
 check() { # want(ok|refused) role db label sql
@@ -86,6 +91,23 @@ check refused ops_writer $O "writer deletes finding history" "DELETE FROM compli
 check ok      unheaded   $O "finding history has insert, update, delete" "DO \$\$ BEGIN IF (SELECT string_agg(op, ',' ORDER BY id) FROM compliance_findings_history) <> 'INSERT,UPDATE,DELETE' THEN RAISE EXCEPTION 'history'; END IF; END \$\$;"
 check refused ops_writer $O "evidence with an unknown verdict" "INSERT INTO compliance_evidence(source_key,verdict,observed_at) VALUES ('x','maybe',now());"
 check refused ops_writer $O "evidence edited" "INSERT INTO compliance_evidence(source_key,verdict,observed_at) VALUES ('x','pass',now()); UPDATE compliance_evidence SET verdict='fail';"
+
+# Older history tables (015/016, W-05).
+check ok      ops_writer $O "audit event append" "INSERT INTO audit_events(id,event_type) VALUES ('e1','auth.login');"
+check refused ops_writer $O "writer edits an audit event" "UPDATE audit_events SET outcome='failure';"
+check refused ops_writer $O "writer deletes an audit event" "DELETE FROM audit_events;"
+check refused unheaded   $O "owner deletes an audit event" "DELETE FROM audit_events;"
+check refused unheaded   $O "owner truncates audit events" "TRUNCATE audit_events;"
+check ok      ops_writer $O "health transition append" "INSERT INTO service_health_transitions(service_name,old_status,new_status) VALUES ('wotan','ok','down');"
+check refused ops_writer $O "writer edits a health transition" "UPDATE service_health_transitions SET new_status='ok';"
+check refused unheaded   $O "owner deletes a health transition" "DELETE FROM service_health_transitions;"
+check refused unheaded   $O "owner truncates health transitions" "TRUNCATE service_health_transitions;"
+check ok      ops_writer $O "current health still updatable" "INSERT INTO service_health_current(service_name,status) VALUES ('wotan','healthy'); UPDATE service_health_current SET status='unhealthy';"
+check ok      config_admin $C "config change is recorded" "INSERT INTO kingdom_config(key,value) VALUES ('k','1'); UPDATE kingdom_config SET value='2', updated_by='t' WHERE key='k';"
+check ok      unheaded     $C "history row from the trigger" "DO \$\$ BEGIN IF (SELECT count(*) FROM kingdom_config_history WHERE key='k') <> 1 THEN RAISE EXCEPTION 'history'; END IF; END \$\$;"
+check refused config_admin $C "admin edits config history" "UPDATE kingdom_config_history SET changed_by='mallory';"
+check refused config_admin $C "admin deletes config history" "DELETE FROM kingdom_config_history;"
+check refused unheaded     $C "owner truncates config history" "TRUNCATE kingdom_config_history;"
 
 if (( fails > 0 )); then echo "$fails check(s) failed"; exit 1; fi
 echo "all checks passed"
