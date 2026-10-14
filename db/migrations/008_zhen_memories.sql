@@ -2,7 +2,7 @@
 -- Table: zhen_memories in unheaded_app database
 -- User: app_zhen (existing)
 
-\connect unheaded_app;
+-- Applied to unheaded_app (db/migrations/MANIFEST).
 
 CREATE TABLE IF NOT EXISTS zhen_memories (
     id          BIGSERIAL PRIMARY KEY,

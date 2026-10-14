@@ -39,6 +39,12 @@ jobs:
           go install golang.org/x/vuln/cmd/govulncheck@latest
           govulncheck ./...
 
+      # ADR-101: every migration is routed by db/migrations/MANIFEST (or
+      # skipped on purpose) and free of psql meta-commands. Here because this
+      # job already has Go; it needs no database.
+      - name: The Well's migrations are all routed
+        run: ./scripts/check-well-migrations.sh
+
   gosec:
     name: Go Security Scan (gosec)
     runs-on: ubuntu-latest

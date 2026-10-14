@@ -16,9 +16,9 @@ containers running, which is the mistake ADR-093 rule 4 names.
 |---|---|---|
 | CONTAINER | built into the container image | 11 |
 | SUPERVISED | referenced by a systemd unit, Nix module or K8s manifest | 13 |
-| TOOL | invoked by a script, runbook or Makefile, not supervised | 18 |
+| TOOL | invoked by a script, runbook or Makefile, not supervised | 19 |
 | ORPHAN | referenced by nothing outside its own directory | 24 |
-| **total** | every Go `main` package (`go list`) plus Rust/C roots under `cmd/`, `services/*/cmd/` | **66** |
+| **total** | every Go `main` package (`go list`) plus Rust/C roots under `cmd/`, `services/*/cmd/` | **67** |
 
 ORPHAN is not an accusation — kept experiments are the point of a solo
 learning project, and ADR-090 owns the deletion question. The count exists so
@@ -73,6 +73,7 @@ that keeping them stays a decision.
 | `cmd/upc-bootctl` | SUPERVISED |
 | `cmd/upc-tty-bridge` | SUPERVISED |
 | `cmd/waf` | TOOL |
+| `cmd/well-migrate` | TOOL |
 | `cmd/wiki-server` | ORPHAN |
 | `cmd/wotan-ctl` | TOOL |
 | `cmd/yggdrasil-evidence` | SUPERVISED |

@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Well — migration order and routing (ADR-101).
+#
+#   <database> <file> [notx]     apply <file> to <database>, in this order
+#   skip <file>                  in this directory, deliberately never applied
+#
+# Read by db/init.sh (empty volume) and cmd/well-migrate (an existing Well);
+# each records what it ran in that database's well_schema_migrations ledger.
+# Cluster-level files (roles, databases, grants on databases) run against,
+# and are recorded in, `postgres`. notx: statement by statement outside a
+# transaction (CREATE DATABASE cannot run in one).
+#
+# Never edit a file once it is applied anywhere: the ledger holds its
+# sha256 and well-migrate refuses to run past the difference. Add a new one.
+
+postgres         002_create_databases.sql   notx
+unheaded_app     003_app_schema.sql
+unheaded_ops     004_ops_schema.sql
+unheaded_config  005_config_schema.sql
+unheaded_config  006_seed_data.sql
+unheaded_app     007_grants.sql
+unheaded_ops     007_grants.sql
+unheaded_config  007_grants.sql
+unheaded_app     008_zhen_memories.sql
+unheaded_app     009_zhen_actions.sql
+unheaded_app     010_zhen_conversations.sql
+unheaded_app     011_zhen_actions_relax_constraints.sql
+postgres         012_huginn_reader.sql
+unheaded_config  013_compliance_config.sql
+unheaded_ops     014_compliance_ops.sql
+unheaded_ops     015_ops_history_append_only.sql
+unheaded_config  016_config_history_append_only.sql
+
+# The pre-split single-database schema, superseded by 003/004/005: applying
+# it would put a fourth copy of kanban_tasks, timeline_milestones and
+# zhen_conversations in the maintenance database (ADR-091).
+skip 001_initial_schema.sql

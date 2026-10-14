@@ -13,10 +13,7 @@
 -- + computed search_vector (tsvector) for full-text recall used by
 --   /api/v1/conversations/search and the "recall <topic>" command.
 
-\set ON_ERROR_STOP on
-
--- Connect to the app database (per 002_create_databases.sql convention).
-\c unheaded_app
+-- Applied to unheaded_app (db/migrations/MANIFEST).
 
 CREATE TABLE IF NOT EXISTS zhen_conversations (
     id              BIGSERIAL PRIMARY KEY,
@@ -58,5 +55,3 @@ GRANT USAGE, SELECT ON SEQUENCE zhen_conversations_id_seq TO app_zhen;
 -- to zhen_memories here; just note the pattern.
 
 -- Idempotent: re-running this migration is a no-op (CREATE IF NOT EXISTS).
-
-\echo '010_zhen_conversations.sql applied'

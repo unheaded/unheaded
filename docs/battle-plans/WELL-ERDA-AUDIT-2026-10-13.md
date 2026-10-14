@@ -161,12 +161,19 @@ live system and need Stevie's yes.
 
 ### Phase 3: one trunk (W-03, W-09, W-10, W-16, W-20, W-22)
 
-- [ ] 3.1 ADR: migration runner, stdlib-only Go (`cmd/well-migrate`), one
+- [x] 3.1 ADR: migration runner, stdlib-only Go (`cmd/well-migrate`), one
       `well_schema_migrations` ledger per DB, files named per DB, checksums
       recorded; `lock_timeout` and `statement_timeout` set per migration;
-      no psql meta-commands (W-16).
+      no psql meta-commands (W-16). *Done 2026-10-14:* ADR-101 (Proposed).
+      Routing is `db/migrations/MANIFEST` rather than per-DB file names, so
+      no file was renamed; init.sh reads it too and records mode `initdb`.
+      008-011 lost their meta-commands. CI gate `check-well-migrations`
+      (meta-gate provoked). `scripts/well/test-migrate.sh` covers apply,
+      drift, lock timeout, rollback, ledger immutability and baseline.
 - [ ] 3.2 Baseline: the post-Phase-0 live schema becomes version 1 per DB
-      (golden `schema.sql` generated, checked in, diffed in CI).
+      (golden `schema.sql` generated, checked in, diffed in CI). Mechanism
+      ready: after 0.4's shape diff shows the live schema matches,
+      **[Y]** `well-migrate baseline -yes`, then `well-migrate status`.
 - [ ] 3.3 Delete startup DDL: `pkg/database/kanban_store.go`,
       `pkg/champion/pgstore/schema.sql`, `raft/zhen_app.py`,
       `raft/scripts/zhen_rag.py`, `cmd/zhen-rag`, `cmd/zhen-cli`,

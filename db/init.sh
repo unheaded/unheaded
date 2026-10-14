@@ -21,39 +21,32 @@ psql_su() { psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" "$@"; }
 
 echo "=== The Well — Initializing databases ==="
 
-# Cluster-level: the three databases and the seven service-scoped users.
-psql_su -f "$MIGRATIONS/002_create_databases.sql"
-
-# Per-database schemas. This routing is the whole reason this script exists.
-psql_su -d unheaded_app    -f "$MIGRATIONS/003_app_schema.sql"
-psql_su -d unheaded_ops    -f "$MIGRATIONS/004_ops_schema.sql"
-psql_su -d unheaded_config -f "$MIGRATIONS/005_config_schema.sql"
-psql_su -d unheaded_config -f "$MIGRATIONS/006_seed_data.sql"
-
-for db in unheaded_app unheaded_ops unheaded_config; do
-  psql_su -d "$db" -f "$MIGRATIONS/007_grants.sql"
+# db/migrations/MANIFEST says which file runs against which database, in
+# order; cmd/well-migrate reads the same file for an existing Well (ADR-101).
+# Each file is recorded in its database's well_schema_migrations ledger with
+# its sha256, mode initdb, so a fresh Well starts with a complete ledger.
+# Lines: `<database> <file> [notx]`, `skip <file>`, blank, or # comments.
+# (notx only matters to the runner: psql -f already sends each statement
+# alone.)
+ledgers=" "
+record() { # database file
+  case "$ledgers" in *" $1 "*) ;; *)
+    psql_su -d "$1" -q -f "$MIGRATIONS/LEDGER.sql"
+    ledgers="$ledgers$1 " ;;
+  esac
+  sum="$(sha256sum "$MIGRATIONS/$2" | cut -d' ' -f1)"
+  psql_su -d "$1" -q -v f="$2" -v h="$sum" <<'SQL'
+INSERT INTO well_schema_migrations (filename, sha256, mode) VALUES (:'f', :'h', 'initdb');
+SQL
+}
+exec 3<"$MIGRATIONS/MANIFEST"
+while read -r db file _ <&3; do
+  case "$db" in ''|'#'*|skip) continue ;; esac
+  echo "The Well: $file -> $db"
+  psql_su -d "$db" -f "$MIGRATIONS/$file"
+  record "$db" "$file"
 done
-
-# 008-011 are the zhen tables. 008 and 009 self-route with `\connect
-# unheaded_app`; 010 and 011 do not, so they are pointed there explicitly —
-# unheaded_app is where zhen_app.py connects (ZHEN_DB_NAME default).
-psql_su -d unheaded_app -f "$MIGRATIONS/008_zhen_memories.sql"
-psql_su -d unheaded_app -f "$MIGRATIONS/009_zhen_actions.sql"
-psql_su -d unheaded_app -f "$MIGRATIONS/010_zhen_conversations.sql"
-psql_su -d unheaded_app -f "$MIGRATIONS/011_zhen_actions_relax_constraints.sql"
-
-# 012 is entirely cluster-level (CREATE USER, GRANT pg_monitor, GRANT CONNECT),
-# so it runs against the maintenance database.
-psql_su -f "$MIGRATIONS/012_huginn_reader.sql"
-
-# 013/014 are the compliance tables (ADR-099 amended): desired state in
-# unheaded_config, records in unheaded_ops. Both use the existing scoped roles.
-psql_su -d unheaded_config -f "$MIGRATIONS/013_compliance_config.sql"
-psql_su -d unheaded_ops    -f "$MIGRATIONS/014_compliance_ops.sql"
-
-# 015/016 make the older history tables append-only (W-05), as 013/014 are.
-psql_su -d unheaded_ops    -f "$MIGRATIONS/015_ops_history_append_only.sql"
-psql_su -d unheaded_config -f "$MIGRATIONS/016_config_history_append_only.sql"
+exec 3<&-
 
 # Role passwords come from the environment, never from the migrations (W-07).
 # \getenv reads the variable inside psql, so the value is neither on a command
@@ -78,11 +71,5 @@ set_password ops_reader     OPS_READER_PASSWORD
 set_password config_admin   CONFIG_ADMIN_PASSWORD
 set_password config_reader  CONFIG_READER_PASSWORD
 set_password huginn_reader  HUGINN_READER_PASSWORD
-
-# 001_initial_schema.sql is deliberately NOT applied — it is the pre-split
-# single-database schema, superseded by 003/004/005. Applying it would put a
-# fourth copy of kanban_tasks, timeline_milestones and zhen_conversations in the
-# maintenance database, which is the isolation boundary the split exists to
-# create. See the note at the top of that file.
 
 echo "=== The Well — Ready ==="

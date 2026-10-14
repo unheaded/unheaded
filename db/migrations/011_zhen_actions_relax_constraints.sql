@@ -31,8 +31,7 @@
 --
 -- Idempotent: ALTER TABLE ... DROP CONSTRAINT IF EXISTS.
 
-\set ON_ERROR_STOP on
-\c unheaded_app
+-- Applied to unheaded_app (db/migrations/MANIFEST).
 
 ALTER TABLE zhen_actions
     DROP CONSTRAINT IF EXISTS zhen_actions_action_type_check;
@@ -41,5 +40,3 @@ ALTER TABLE zhen_actions
     DROP CONSTRAINT IF EXISTS zhen_actions_triggered_by_check;
 
 -- The status check stays — completed/failed/planned/etc are stable.
-
-\echo '011_zhen_actions_relax_constraints.sql applied'

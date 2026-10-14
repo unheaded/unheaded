@@ -427,6 +427,15 @@ provoke_no_client_golang() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_migrations() {
+    # Contract (ADR-101, W-09): no migration file escapes the manifest.
+    # Plant an unrouted one, untracked, as a new migration would arrive.
+    local f="db/migrations/099_meta_gate_probe.sql"
+    backup "${f}"
+    printf 'SELECT 1;\n' > "${REPO_ROOT}/${f}"
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_systemd_units() {
     # Contract (ADR-098 FND-003): systemd ignores nothing in deploy/systemd.
     # Restore the original mistake: a `~` on every group, of which systemd
@@ -454,6 +463,7 @@ check-compose-bind-nesting|provoke_compose_bind_nesting|fast|ADR-091's original 
 check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present in the baseline set
 live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md
 check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang
+check-well-migrations|provoke_well_migrations|fast|an untracked migration file the MANIFEST does not route
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-suricata-rules|provoke_suricata_rules|slow|the original ipv6-exthdr keyword restored in the canonical Monad rules (needs docker)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)

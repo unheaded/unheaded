@@ -3,7 +3,7 @@
 -- User: app_zhen (existing, expanded grants)
 -- ADR: ADR-019-zhen-champion-agent.md
 
-\connect unheaded_app;
+-- Applied to unheaded_app (db/migrations/MANIFEST).
 
 -- ==========================================================================
 -- zhen_actions — The Action Log
