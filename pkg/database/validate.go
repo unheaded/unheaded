@@ -3,7 +3,7 @@ package database
 
 import (
 	"fmt"
-	"strings"
+	"net/netip"
 )
 
 // ValidateConfig checks for common security misconfigurations.
@@ -23,9 +23,17 @@ func ValidateConfig(cfg Config) error {
 	return nil
 }
 
+// isPrivateHost reports whether host is localhost or a literal loopback or
+// private address (RFC 1918, RFC 4193). Names other than localhost are not
+// private: "10.example.com" is a DNS name, not 10/8, and 172.32/12 is public.
 func isPrivateHost(host string) bool {
-	return host == "localhost" || host == "127.0.0.1" ||
-		strings.HasPrefix(host, "10.") ||
-		strings.HasPrefix(host, "172.") ||
-		strings.HasPrefix(host, "192.168.")
+	if host == "localhost" {
+		return true
+	}
+	ip, err := netip.ParseAddr(host)
+	if err != nil {
+		return false
+	}
+	ip = ip.Unmap()
+	return ip.IsLoopback() || ip.IsPrivate()
 }

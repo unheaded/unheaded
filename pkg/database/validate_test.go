@@ -122,7 +122,16 @@ func TestIsPrivateHost(t *testing.T) {
 		{"the-well.bellis.tech", false},
 		{"github.com", false},
 		{"", false},
-		{"100.64.0.1", false}, // CGNAT — current impl doesn't recognize this
+		{"100.64.0.1", false}, // CGNAT is not RFC 1918
+		{"172.15.255.255", false},
+		{"172.31.255.255", true},
+		{"172.32.0.1", false}, // public: 172.16/12 ends at 172.31
+		{"10.example.com", false},
+		{"192.168.evil.example", false},
+		{"::1", true},
+		{"fd00:dead:beef::1", true}, // ULA (RFC 4193), the WireGuard overlay
+		{"2001:4860:4860::8888", false},
+		{"::ffff:10.0.0.1", true},
 	}
 	for _, c := range cases {
 		if got := isPrivateHost(c.host); got != c.want {

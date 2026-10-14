@@ -157,7 +157,7 @@ live system and need Stevie's yes.
       apply 015/016 after the Phase 0 dump** (with 013/014, step 0.5).
 - [ ] 2.4 kanban-app to `app_kanban` on `unheaded_app` (FND-008); move its
       data out of DB `unheaded` (see 3.6).
-- [ ] 2.5 Exact RFC 1918 check in `pkg/database/validate.go` (W-24).
+- [x] 2.5 Exact RFC 1918 check in `pkg/database/validate.go` (W-24). *Done 2026-10-14:* netip loopback/private; hostnames like `10.example.com` were also "private".
 
 ### Phase 3: one trunk (W-03, W-09, W-10, W-16, W-20, W-22)
 
