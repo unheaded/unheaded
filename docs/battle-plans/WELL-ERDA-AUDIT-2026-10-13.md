@@ -198,9 +198,28 @@ live system and need Stevie's yes.
 ### Phase 5: schema hygiene (W-04, W-11, W-12, W-14, W-15, W-18, W-19, W-21)
 
 - [ ] 5.1 `pkg/audit/storage`: delete if unreached (it is), or port to the
-      ledger with Postgres DDL and parameters.
-- [ ] 5.2 Review the 9 `fmt.Sprintf` SQL sites; parameterize, or annotate
-      constant-only verbs.
+      ledger with Postgres DDL and parameters. **Decision needed (2026-10-14):**
+      not a mechanical port. `pkg/audit` (used for its types by pqc-verifier
+      and shield; its storage/query/export/logger subpackages only by
+      `pkg/audit/audit_test.go`) has its own taxonomy (`authentication`,
+      `authorization`, `configuration`, `data_access`, `system`; severity
+      `warning`; outcome `pending`) and columns (`timestamp`, `request_id`,
+      `signature`), while 004's `audit_events` CHECK-constrains a different
+      one (`auth.login`, ..., severity `warn`, outcome `denied`/`error`). One
+      of them has to win before either is wired. Deleting would also drop
+      the SIEM/Splunk exporters (the interchangeable-backend doctrine), so
+      it was left alone.
+- [x] 5.2 Review the 9 `fmt.Sprintf` SQL sites; parameterize, or annotate
+      constant-only verbs. *Reviewed 2026-10-14:* 8 are not SQL (prose
+      matched by "from"/"update": dashboard event title, unheaded-cli demo
+      events, champion action summaries x2, kenoma drift text, metrics
+      panic text, a Kubernetes YAML template, a commented-out log line). The
+      9th, `pkg/audit/storage`, interpolates only a regex-validated table
+      name and an allowlisted ORDER BY (`#nosec G201` present); its `?`
+      placeholders are MySQL/SQLite style, so it is wrong for Postgres
+      anyway: folded into 5.1. No injection found. The lint rule
+      `string-formatted-sql` needs a SQL-keyword pair (e.g. `SELECT ... FROM`,
+      `INSERT INTO`) before it reports, or it stays noisy.
 - [ ] 5.3 Drop the duplicate and low-value indexes `CONCURRENTLY`, each
       backed by `pg_stat_user_indexes` from Phase 0.
 - [ ] 5.4 Retention and partitioning for append-only tables per the
