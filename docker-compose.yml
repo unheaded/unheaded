@@ -233,6 +233,16 @@ services:
       POSTGRES_DB: unheaded
       POSTGRES_USER: unheaded
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-unheaded_dev}
+      # Service-role passwords, read once by db/init.sh on an empty volume
+      # (W-07). Unset = that role cannot log in; there is no default.
+      APP_KANBAN_PASSWORD: ${APP_KANBAN_PASSWORD:-}
+      APP_TIMEGURU_PASSWORD: ${APP_TIMEGURU_PASSWORD:-}
+      APP_ZHEN_PASSWORD: ${APP_ZHEN_PASSWORD:-}
+      OPS_WRITER_PASSWORD: ${OPS_WRITER_PASSWORD:-}
+      OPS_READER_PASSWORD: ${OPS_READER_PASSWORD:-}
+      CONFIG_ADMIN_PASSWORD: ${CONFIG_ADMIN_PASSWORD:-}
+      CONFIG_READER_PASSWORD: ${CONFIG_READER_PASSWORD:-}
+      HUGINN_READER_PASSWORD: ${HUGINN_READER_PASSWORD:-}
     ports:
       - "127.0.0.1:5432:5432"   # loopback only — host clients use localhost, containers use docker DNS; keeps The Well off the LAN
     volumes:

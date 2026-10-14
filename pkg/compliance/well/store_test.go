@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -170,8 +171,10 @@ func TestIntegrationPGStore(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := ps.Resolve("lab"); len(got) != 8 {
-		t.Errorf("lab resolves to %v", got)
+	// The Well must resolve exactly as the YAML it was seeded from (a fixed
+	// count went stale when the lab profile grew).
+	if got, want := ps.Resolve("lab"), yps.Resolve("lab"); len(want) == 0 || !slices.Equal(got, want) {
+		t.Errorf("lab resolves to %v, YAML to %v", got, want)
 	}
 	var before int
 	if err := db.QueryRowContext(ctx, `SELECT count(*) FROM compliance_host_bindings_history WHERE host = 'east'`).Scan(&before); err != nil {

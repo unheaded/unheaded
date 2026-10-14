@@ -9,6 +9,8 @@
 # the drill must refuse three broken sets: a flipped byte in a dump, a row
 # count that disagrees (with SHA256SUMS recomputed to match), and an
 # unlisted dump. Retention is checked by taking more sets than --keep.
+# The bootstrap also checks that db/init.sh sets role passwords from the
+# environment (one with a quote in it) and leaves unset ones unable to log in.
 #
 #   scripts/well/test-backup-restore.sh [image]   # default postgres:16-alpine
 set -euo pipefail
@@ -21,8 +23,10 @@ TMP="$(mktemp -d)"
 cleanup() { "${DOCKER[@]}" stop "$N" >/dev/null 2>&1 || true; rm -rf -- "$TMP"; }
 trap cleanup EXIT
 
+KANBAN_PW="it's-$RANDOM\$x" HUGINN_PW="h-$RANDOM$RANDOM"
 "${DOCKER[@]}" run -d --rm --name "$N" --network none \
 	-e POSTGRES_USER=unheaded -e POSTGRES_PASSWORD="throwaway-$RANDOM" -e POSTGRES_DB=unheaded \
+	-e APP_KANBAN_PASSWORD="$KANBAN_PW" -e HUGINN_READER_PASSWORD="$HUGINN_PW" \
 	-v "$R/db/migrations:/migrations:ro" -v "$R/db/init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro" \
 	"$IMAGE" >/dev/null
 ready=0
@@ -41,6 +45,21 @@ SQL
 fails=0
 pass() { echo "[PASS] $*"; }
 fail() { echo "[FAIL] $*"; fails=$((fails + 1)); }
+
+# The image trusts 127.0.0.1 (initdb's default), which would make every
+# login below pass. Require scram on loopback in this throwaway server.
+"${DOCKER[@]}" exec "$N" sh -c 'sed -i -E "s/^(host[[:space:]].*)trust$/\1scram-sha-256/" "$PGDATA/pg_hba.conf"'
+"${DOCKER[@]}" exec "$N" psql -X -q -U unheaded -d postgres -c 'SELECT pg_reload_conf()' >/dev/null
+login() { # role password db -> exit status of a password login over TCP
+	"${DOCKER[@]}" exec -e PGPASSWORD="$2" "$N" psql -X -q -h 127.0.0.1 -U "$1" -d "$3" -c 'SELECT 1' >/dev/null 2>&1
+}
+if login app_kanban "$KANBAN_PW" unheaded_app; then pass "app_kanban logs in with its env password"; else fail "app_kanban login"; fi
+if login huginn_reader "$HUGINN_PW" unheaded_ops; then pass "huginn_reader logs in with its env password"; else fail "huginn_reader login"; fi
+if login app_kanban kanban_dev unheaded_app; then fail "app_kanban accepts the old repo password"; else pass "old repo password refused"; fi
+if login ops_reader ops_reader_dev unheaded_ops || login ops_reader "" unheaded_ops; then
+	fail "ops_reader (variable unset) can log in"
+else pass "ops_reader (variable unset) cannot log in"; fi
+if "${DOCKER[@]}" logs "$N" 2>&1 | grep -qF "$KANBAN_PW"; then fail "a password appears in the init log"; else pass "no password in the init log"; fi
 export WELL_CONTAINER="$N" WELL_BACKUP_DIR="$TMP/backups"
 
 "$R/scripts/db-backup.sh" --keep 2

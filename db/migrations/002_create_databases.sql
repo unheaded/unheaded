@@ -1,12 +1,16 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 -- The Well — Database and User Creation (run as postgres superuser)
+--
+-- Roles are created without passwords: no credential lives in this file.
+-- db/init.sh sets each one from its environment variable (APP_KANBAN_PASSWORD,
+-- ...); a role whose variable is unset cannot log in with a password.
 CREATE DATABASE unheaded_app;
 CREATE DATABASE unheaded_ops;
 CREATE DATABASE unheaded_config;
-CREATE USER app_kanban WITH PASSWORD 'kanban_dev';
-CREATE USER app_timeguru WITH PASSWORD 'timeguru_dev';
-CREATE USER app_zhen WITH PASSWORD 'zhen_dev';
-CREATE USER ops_writer WITH PASSWORD 'ops_writer_dev';
-CREATE USER ops_reader WITH PASSWORD 'ops_reader_dev';
-CREATE USER config_admin WITH PASSWORD 'config_admin_dev';
-CREATE USER config_reader WITH PASSWORD 'config_reader_dev';
+CREATE USER app_kanban;
+CREATE USER app_timeguru;
+CREATE USER app_zhen;
+CREATE USER ops_writer;
+CREATE USER ops_reader;
+CREATE USER config_admin;
+CREATE USER config_reader;

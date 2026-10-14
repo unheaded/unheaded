@@ -94,14 +94,20 @@ Orchestrated by `db/init.sh`, which runs each SQL file against the appropriate d
 **From Docker network (services in containers):**
 
 ```
-postgresql://app_kanban:kanban_dev@postgres:5432/unheaded_app
-postgresql://app_timeguru:timeguru_dev@postgres:5432/unheaded_app
-postgresql://app_zhen:zhen_dev@postgres:5432/unheaded_app
-postgresql://ops_writer:ops_writer_dev@postgres:5432/unheaded_ops
-postgresql://ops_reader:ops_reader_dev@postgres:5432/unheaded_ops
-postgresql://config_admin:config_admin_dev@postgres:5432/unheaded_config
-postgresql://config_reader:config_reader_dev@postgres:5432/unheaded_config
+postgresql://app_kanban:<password>@postgres:5432/unheaded_app
+postgresql://app_timeguru:<password>@postgres:5432/unheaded_app
+postgresql://app_zhen:<password>@postgres:5432/unheaded_app
+postgresql://ops_writer:<password>@postgres:5432/unheaded_ops
+postgresql://ops_reader:<password>@postgres:5432/unheaded_ops
+postgresql://config_admin:<password>@postgres:5432/unheaded_config
+postgresql://config_reader:<password>@postgres:5432/unheaded_config
 ```
+
+Each `<password>` is the one db/init.sh set from that role's environment
+variable (`APP_KANBAN_PASSWORD`, ..., `HUGINN_READER_PASSWORD`; see
+`db/.env.example`) when the volume was first initialised. No password is
+stored in the repo; a role whose variable was unset cannot log in until
+`ALTER ROLE ... PASSWORD` is run.
 
 **From host (local development):**
 

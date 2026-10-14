@@ -40,6 +40,10 @@ done
 
 psql_as() { "${DOCKER[@]}" exec -i "$N" psql -X -q -v ON_ERROR_STOP=1 -U "$1" -d "$2"; }
 psql_as unheaded unheaded <"$R/db/migrations/002_create_databases.sql" >/dev/null
+# 002 creates roles without passwords (db/init.sh sets them from the
+# environment); these are valid only inside this throwaway container.
+OPS_PW="ops-$RANDOM$RANDOM" CFG_PW="cfg-$RANDOM$RANDOM"
+psql_as unheaded unheaded <<<"ALTER ROLE ops_writer PASSWORD '$OPS_PW'; ALTER ROLE config_admin PASSWORD '$CFG_PW';" >/dev/null
 psql_as unheaded unheaded_ops <"$R/db/migrations/004_ops_schema.sql" >/dev/null
 psql_as unheaded unheaded_config <"$R/db/migrations/005_config_schema.sql" >/dev/null
 "${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_config <"$R/db/migrations/013_compliance_config.sql"
@@ -95,19 +99,17 @@ if ((GO)); then
 	psql_as unheaded unheaded <<<"DROP DATABASE unheaded_ops WITH (FORCE); CREATE DATABASE unheaded_ops;" >/dev/null
 	psql_as unheaded unheaded_ops <"$R/db/migrations/004_ops_schema.sql" >/dev/null
 	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/014_compliance_ops.sql"
-	# Passwords below are the dev ones from 002, valid only inside this
-	# throwaway container.
-	(cd "$R" && WELL_TEST_OPS_DSN="host=127.0.0.1 port=$PORT user=ops_writer password=ops_writer_dev dbname=unheaded_ops sslmode=disable" \
-		WELL_TEST_CONFIG_DSN="host=127.0.0.1 port=$PORT user=config_admin password=config_admin_dev dbname=unheaded_config sslmode=disable" \
+	(cd "$R" && WELL_TEST_OPS_DSN="host=127.0.0.1 port=$PORT user=ops_writer password=$OPS_PW dbname=unheaded_ops sslmode=disable" \
+		WELL_TEST_CONFIG_DSN="host=127.0.0.1 port=$PORT user=config_admin password=$CFG_PW dbname=unheaded_config sslmode=disable" \
 		go test ./pkg/compliance/well/... -run Integration -count=1 -v | grep -vE '^(=== RUN)')
 	# End to end: the command itself, against the same throwaway databases.
 	(cd "$R" && WELL_HOST=127.0.0.1 WELL_PORT="$PORT" \
-		WELL_CONFIG_USER=config_admin WELL_CONFIG_PASSWORD=config_admin_dev \
-		WELL_OPS_USER=ops_writer WELL_OPS_PASSWORD=ops_writer_dev \
+		WELL_CONFIG_USER=config_admin WELL_CONFIG_PASSWORD="$CFG_PW" \
+		WELL_OPS_USER=ops_writer WELL_OPS_PASSWORD="$OPS_PW" \
 		go run ./cmd/compliance-evidence well sync -dry-run)
 	# profile set without -yes only shows the switch. (No export here: it
 	# would rewrite the repo's own YAML from these test rows.)
 	(cd "$R" && WELL_HOST=127.0.0.1 WELL_PORT="$PORT" \
-		WELL_CONFIG_USER=config_admin WELL_CONFIG_PASSWORD=config_admin_dev \
+		WELL_CONFIG_USER=config_admin WELL_CONFIG_PASSWORD="$CFG_PW" \
 		go run ./cmd/compliance-evidence profile set -host east -profile cis-l1-server -reason "e2e dry")
 fi

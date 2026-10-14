@@ -51,6 +51,30 @@ psql_su -f "$MIGRATIONS/012_huginn_reader.sql"
 psql_su -d unheaded_config -f "$MIGRATIONS/013_compliance_config.sql"
 psql_su -d unheaded_ops    -f "$MIGRATIONS/014_compliance_ops.sql"
 
+# Role passwords come from the environment, never from the migrations (W-07).
+# \getenv reads the variable inside psql, so the value is neither on a command
+# line nor interpolated into SQL text; :'pw' quotes it as a literal. An unset
+# or empty variable leaves the role without a password: it cannot log in
+# until one is set (ALTER ROLE ... PASSWORD), and there is no default.
+set_password() { # role env-var
+  if [ -z "$(printenv "$2" || true)" ]; then
+    echo "The Well: $2 unset, role $1 has no password (cannot log in yet)"
+    return
+  fi
+  psql_su -d postgres -q <<SQL
+\\getenv pw $2
+ALTER ROLE $1 PASSWORD :'pw';
+SQL
+}
+set_password app_kanban     APP_KANBAN_PASSWORD
+set_password app_timeguru   APP_TIMEGURU_PASSWORD
+set_password app_zhen       APP_ZHEN_PASSWORD
+set_password ops_writer     OPS_WRITER_PASSWORD
+set_password ops_reader     OPS_READER_PASSWORD
+set_password config_admin   CONFIG_ADMIN_PASSWORD
+set_password config_reader  CONFIG_READER_PASSWORD
+set_password huginn_reader  HUGINN_READER_PASSWORD
+
 # 001_initial_schema.sql is deliberately NOT applied — it is the pre-split
 # single-database schema, superseded by 003/004/005. Applying it would put a
 # fourth copy of kanban_tasks, timeline_milestones and zhen_conversations in the

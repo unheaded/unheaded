@@ -132,3 +132,12 @@ passwords, while the Kubernetes ConfigMap takes them from a secret
 posture recorded in CLAUDE.md, not a new finding — but the two targets differ,
 and the compose side is the one with credentials in the tree. Raised here, not
 decided here; it must be closed before any public exposure.
+
+**Closed for compose 2026-10-14 (W-07):** 002/012 create the roles without
+passwords and `db/init.sh` sets each from the same variable names the
+Kubernetes secret uses (`APP_KANBAN_PASSWORD`, ..., plus
+`HUGINN_READER_PASSWORD`), read with psql `\getenv` so the value is never
+interpolated into SQL. Unset means that role cannot log in.
+`scripts/well/test-backup-restore.sh` checks it. The Kubernetes initdb still
+interpolates `'${APP_KANBAN_PASSWORD}'` into SQL (a quote in a password
+breaks it) and creates no schemas: separate item.

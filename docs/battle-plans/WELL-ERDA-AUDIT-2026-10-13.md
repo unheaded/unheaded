@@ -134,12 +134,17 @@ live system and need Stevie's yes.
 
 ### Phase 2: access (W-02, W-05, W-06, W-07, W-24)
 
-- [ ] 2.1 Roles without passwords in SQL: 002/012 create roles `LOGIN`
+- [~] 2.1 Roles without passwords in SQL: 002/012 create roles `LOGIN`
       without `PASSWORD`; `init.sh` sets each from `WELL_<ROLE>_PASSWORD`
       (unset = cannot log in, never a default). Compose `POSTGRES_PASSWORD`
       becomes `${POSTGRES_PASSWORD:?}` (do this when Phase 0 is done, so
       `compose up postgres` is not blocked meanwhile; that was FND-008's
-      reason to wait).
+      reason to wait). *Roles done 2026-10-14* with the Kubernetes secret's
+      names (`APP_KANBAN_PASSWORD`, ..., `HUGINN_READER_PASSWORD`), psql
+      `\getenv`, compose passes them through; checked (and provoked red) by
+      `scripts/well/test-backup-restore.sh`. Only fresh volumes are affected:
+      the live Well keeps its `*_dev` passwords until rotated in Phase 2.
+      `POSTGRES_PASSWORD:?` still waits for Phase 0.
 - [ ] 2.2 One owner role per database (`well_app_owner`, `well_ops_owner`,
       `well_config_owner`, NOLOGIN); `ALTER ... OWNER TO`; default privileges.
 - [ ] 2.3 History tables INSERT/SELECT only for writers, plus the 013/014

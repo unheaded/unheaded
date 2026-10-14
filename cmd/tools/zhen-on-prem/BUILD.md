@@ -30,7 +30,7 @@ pip install flask flask-cors psycopg2-binary pyyaml \
 
 # Web UI is a Flask app:
 cd raft
-ZHEN_DB_NAME=unheaded_app ZHEN_DB_USER=app_zhen ZHEN_DB_PASSWORD=zhen_dev \
+ZHEN_DB_NAME=unheaded_app ZHEN_DB_USER=app_zhen ZHEN_DB_PASSWORD="$APP_ZHEN_PASSWORD" \
 ZHEN_DB_HOST=localhost ZHEN_DB_PORT=5432 \
 ZHEN_MODEL=qwen2.5-coder-7b-instruct \
     ./start-zhen.sh
