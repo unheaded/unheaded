@@ -234,7 +234,8 @@ tree does not match that register**, and a method for closing the gap.
    comment; gate `check-actions-pinned` (security.yml, meta-gate provoked).
    Keeping SHAs current needs a bot (Dependabot's `github-actions`
    ecosystem understands `@sha # tag`): Stevie's call, as it opens PRs.
-   Base images by digest: **decision needed.** Inventory 2026-10-15: ~12
+   Base images: **decided 2026-10-15, ADR-102** (exact tags now, digests
+   with a bot later; Dependabot enabled for actions). Earlier note: Inventory 2026-10-15: ~12
    distinct `FROM` bases and ~40 third-party compose images over many
    compose files, with drift (Prometheus v2.50.1 / v2.51.0 / latest; Loki
    2.9.0 / 2.9.4 / 3.0.0; `latest` on qdrant, open-webui, wireguard,

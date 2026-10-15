@@ -22,7 +22,7 @@
 # It never touches The Well. Exit 0 = the set restores exactly.
 #
 # IMAGE defaults to the image of WELL_CONTAINER (unheaded-postgres) when that
-# container exists, else postgres:16-alpine: restore with the same server
+# container exists, else postgres:16.13-alpine: restore with the same server
 # major the dump came from.
 set -euo pipefail
 
@@ -40,7 +40,7 @@ fi
 [[ -d "$SET" ]] || { echo "[drill] not a directory: $SET" >&2; exit 2; }
 if [[ -z "$IMAGE" ]]; then
 	IMAGE="$("${DOCKER[@]}" inspect -f '{{.Config.Image}}' "${WELL_CONTAINER:-unheaded-postgres}" 2>/dev/null || true)"
-	IMAGE="${IMAGE:-postgres:16-alpine}"
+	IMAGE="${IMAGE:-postgres:16.13-alpine}"
 fi
 echo "[drill] set $SET, image $IMAGE"
 

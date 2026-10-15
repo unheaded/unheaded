@@ -41,7 +41,7 @@ PostgreSQL fits the **Anamnesis** pattern. "The Well" evokes deep memory — the
 
 ### Infrastructure
 
-- **Image:** `postgres:16-alpine` (minimal footprint)
+- **Image:** `postgres:16.13-alpine` (minimal footprint; exact tag per ADR-102)
 - **Container:** `unheaded-postgres` in Docker Compose
 - **Port:** 5432 (standard, not in the Doom Range — PostgreSQL is infrastructure, not a Kingdom service)
 - **Volume:** `postgres-data` for persistent storage

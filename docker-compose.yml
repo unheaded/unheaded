@@ -115,7 +115,7 @@ services:
       # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: traefik:v3.3
+    image: traefik:v3.3.7
     container_name: unheaded-traefik
     restart: unless-stopped
     command:
@@ -226,7 +226,7 @@ services:
       # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: postgres:16-alpine
+    image: postgres:16.13-alpine  # exact tag (ADR-102): minor upgrades only after a restore drill
     container_name: unheaded-postgres
     restart: unless-stopped
     environment:
@@ -279,7 +279,7 @@ services:
       # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: clickhouse/clickhouse-server:24.12
+    image: clickhouse/clickhouse-server:24.12.6.70
     container_name: unheaded-clickhouse
     restart: unless-stopped
     environment:
@@ -921,8 +921,10 @@ services:
       DATA_DIR: "/data"
       WELL_HOST: "postgres"
       WELL_PORT: "5432"
-      WELL_USER: "unheaded"
-      WELL_PASSWORD: "${POSTGRES_PASSWORD:-unheaded_dev}"
+      # The scoped role, never the superuser (FND-008, ERDA W-02): CRUD on
+      # kanban_tasks only; the table comes from db/migrations, not startup DDL.
+      WELL_USER: "app_kanban"
+      WELL_PASSWORD: "${APP_KANBAN_PASSWORD:?set APP_KANBAN_PASSWORD in .env (credentials are not stored in this repo)}"
       WELL_DB: "unheaded_app"
       WELL_SSLMODE: "disable"
     ports:

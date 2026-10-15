@@ -9,7 +9,7 @@
 # any history or journal row (even by the owner), acceptances over 90 days.
 # It never touches the real Well. Needs docker (sudo if not in the group).
 #
-#   scripts/well/test-compliance-schema.sh [--go] [image]   # default postgres:16-alpine
+#   scripts/well/test-compliance-schema.sh [--go] [image]   # default postgres:16.13-alpine
 #
 # --go also runs pkg/compliance/well's integration tests against the same
 # throwaway database. The container then publishes 5432 on a random
@@ -18,7 +18,7 @@ set -euo pipefail
 
 GO=0
 if [[ "${1:-}" == --go ]]; then GO=1; shift; fi
-IMAGE="${1:-postgres:16-alpine}"
+IMAGE="${1:-postgres:16.13-alpine}"
 R="$(cd "$(dirname "$0")/../.." && pwd)"
 DOCKER=(docker); docker info >/dev/null 2>&1 || DOCKER=(sudo -n docker)
 N="wellsql-test-$$"
