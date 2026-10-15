@@ -389,6 +389,43 @@ jobs:
         run: ./scripts/check-suricata-rules.sh
 
   # ============================================================================
+  # The Well: schema, migrations, backups, on throwaway servers (ADR-101)
+  # ============================================================================
+  # Each script starts its own postgres:16-alpine container, never a real
+  # Well: fresh bootstrap through db/init.sh, constraint and append-only
+  # refusals (013-019), the migration runner (apply, drift, lock timeout,
+  # baseline of a pre-ledger Well, which needs history: fetch-depth 0), and
+  # a backup set restored by the drill. ERDA plan step 3.5.
+  well-schema:
+    name: The Well (throwaway Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Fetch doomgeneric (go.mod replace target)
+        run: ./scripts/ci-fetch-doomgeneric.sh
+
+      - name: Schema constraints and Go integration tests
+        run: ./scripts/well/test-compliance-schema.sh --go
+
+      - name: Migration runner and ledger
+        env:
+          GOTOOLCHAIN: local
+        run: ./scripts/well/test-migrate.sh
+
+      - name: Backup set and restore drill
+        run: ./scripts/well/test-backup-restore.sh
+
+  # ============================================================================
   # Alert rules: every Prometheus rule parses and its promtool tests pass
   # ============================================================================
   # Runs in the image monitoring/docker-compose.yml deploys and a current one.
