@@ -135,4 +135,17 @@ for old in "${SETS[@]:KEEP}"; do
 	rmdir --ignore-fail-on-non-empty -- "$(dirname "$old")"
 	echo "[well] retention removed $old"
 done
+# ERDA 1.4: on success only, so a failed backup shows as a stale timestamp.
+if [[ -n "${WELL_METRICS_DIR:-}" ]]; then
+	m="$WELL_METRICS_DIR/.well_backup.prom.tmp"
+	{
+		echo "# HELP unheaded_well_backup_last_success_timestamp_seconds Last complete backup set of The Well."
+		echo "# TYPE unheaded_well_backup_last_success_timestamp_seconds gauge"
+		echo "unheaded_well_backup_last_success_timestamp_seconds $(date +%s)"
+		echo "unheaded_well_backup_duration_seconds $SECONDS"
+		echo "unheaded_well_backup_size_bytes $(du -sb "$FINAL" | cut -f1)"
+		echo "unheaded_well_backup_databases ${#DBS[@]}"
+		echo "unheaded_well_backup_rows $(awk -F'\t' 'NR > 1 {n += $3} END {print n + 0}' "$FINAL/rowcounts.tsv")"
+	} >"$m" && chmod 0644 "$m" && mv -f "$m" "$WELL_METRICS_DIR/well_backup.prom"
+fi
 echo "[well] backup complete: $FINAL ($(du -sh "$FINAL" | cut -f1)); sets retained: $((${#SETS[@]} < KEEP ? ${#SETS[@]} : KEEP))"

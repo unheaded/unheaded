@@ -22,7 +22,7 @@
 # It never touches The Well. Exit 0 = the set restores exactly.
 #
 # IMAGE defaults to the image of WELL_CONTAINER (unheaded-postgres) when that
-# container exists, else postgres:16.13-alpine: restore with the same server
+# container exists, else postgres:16.15-alpine: restore with the same server
 # major the dump came from.
 set -euo pipefail
 
@@ -40,7 +40,7 @@ fi
 [[ -d "$SET" ]] || { echo "[drill] not a directory: $SET" >&2; exit 2; }
 if [[ -z "$IMAGE" ]]; then
 	IMAGE="$("${DOCKER[@]}" inspect -f '{{.Config.Image}}' "${WELL_CONTAINER:-unheaded-postgres}" 2>/dev/null || true)"
-	IMAGE="${IMAGE:-postgres:16.13-alpine}"
+	IMAGE="${IMAGE:-postgres:16.15-alpine}"
 fi
 echo "[drill] set $SET, image $IMAGE"
 
@@ -105,3 +105,15 @@ if ! diff -u "$SET/rowcounts.tsv" "$got"; then
 fi
 tables=$(($(wc -l <"$got") - 1)) rows=$(awk -F'\t' 'NR>1{s+=$3}END{print s+0}' "$got")
 echo "[drill] PASS: ${#DUMPS[@]} databases, $tables tables, $rows rows match; restore took $((restored - start))s"
+# ERDA 1.4: on a pass only, so a failing drill shows as a stale timestamp.
+if [[ -n "${WELL_METRICS_DIR:-}" ]]; then
+	m="$WELL_METRICS_DIR/.well_drill.prom.tmp"
+	{
+		echo "# HELP unheaded_well_drill_last_success_timestamp_seconds Last passing restore drill of The Well."
+		echo "# TYPE unheaded_well_drill_last_success_timestamp_seconds gauge"
+		echo "unheaded_well_drill_last_success_timestamp_seconds $(date +%s)"
+		echo "unheaded_well_drill_restore_seconds $((restored - start))"
+		echo "unheaded_well_drill_tables $tables"
+		echo "unheaded_well_drill_rows $rows"
+	} >"$m" && chmod 0644 "$m" && mv -f "$m" "$WELL_METRICS_DIR/well_drill.prom"
+fi

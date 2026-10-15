@@ -1,0 +1,68 @@
+# Prometheus alert rules - The Well's backups (ERDA 1.4)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# Series come from huginn's textfile collector (cmd/host-agent/textfile.go):
+# unheaded-well-backup, -drill and -offsite write their .prom file only on
+# success, so a failing job shows here as an old timestamp, never as a
+# value. Schedules: backup nightly, offsite after each backup, drill
+# weekly. Until FND-001 is closed Alertmanager's receiver is `null` and none
+# of this reaches anyone.
+
+groups:
+  - name: well-backups
+    interval: 1m
+    rules:
+      - alert: WellBackupLate
+        expr: time() - unheaded_well_backup_last_success_timestamp_seconds > 26 * 3600
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No backup of The Well on {{ $labels.host }} for over a day"
+          description: "Last good set {{ $value | humanizeDuration }} ago; see journalctl -u unheaded-well-backup"
+
+      - alert: WellBackupMissing
+        expr: time() - unheaded_well_backup_last_success_timestamp_seconds > 50 * 3600
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No backup of The Well on {{ $labels.host }} for two nights"
+          description: "Last good set {{ $value | humanizeDuration }} ago; a restore now would lose more than two days"
+
+      - alert: WellOffsiteLate
+        expr: time() - unheaded_well_offsite_last_success_timestamp_seconds > 26 * 3600
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No backup set of The Well copied to east for over a day"
+          description: "Last copy {{ $value | humanizeDuration }} ago; see journalctl -u unheaded-well-offsite"
+
+      - alert: WellDrillLate
+        expr: time() - unheaded_well_drill_last_success_timestamp_seconds > 8 * 86400
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No passing restore drill of The Well for over a week"
+          description: "Last pass {{ $value | humanizeDuration }} ago; an untested backup is a hope, see journalctl -u unheaded-well-drill"
+
+      - alert: WellBackupMetricsMissing
+        expr: absent(unheaded_well_backup_last_success_timestamp_seconds)
+        for: 30m
+        labels:
+          severity: warning
+        annotations:
+          summary: "No backup metrics for The Well"
+          description: "huginn has no textfile_dir, cannot read /var/lib/unheaded/textfile, or no backup has ever succeeded"
+
+      - alert: HuginnTextfileRejected
+        expr: huginn_textfile_rejected_lines > 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.file }} on {{ $labels.host }} has malformed lines"
+          description: "huginn dropped {{ $value }} line(s); whatever wrote the file is broken"

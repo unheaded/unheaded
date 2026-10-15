@@ -437,6 +437,10 @@ func main() {
 		if dbc != nil {
 			body += promTextDB(label, dbc.collect())
 		}
+		if cfg.TextfileDir != "" {
+			files, ok := collectTextfiles(cfg.TextfileDir, label)
+			body += promTextTextfiles(label, files, ok)
+		}
 		return body
 	}
 

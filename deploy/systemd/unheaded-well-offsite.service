@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Well: copy the newest backup set to east (ERDA 1.2), after every
+# successful unheaded-well-backup.service (its OnSuccess=). Root, because
+# the sets are root-only; the credential is a key that can only add files
+# under east's chroot (deploy/east/sshd-well-offsite.conf).
+#
+# Install (west):
+#   sudo install -d -m 0700 /etc/unheaded/well-offsite
+#   sudo install -d -m 0755 /var/lib/unheaded/textfile   # huginn (user unheaded) reads it
+#   sudo ssh-keygen -t ed25519 -N '' -C well-offsite@west -f /etc/unheaded/well-offsite/id_ed25519
+#   ssh-keyscan -t ed25519 192.168.13.1 | sudo tee /etc/unheaded/well-offsite/known_hosts
+#     (compare with `ssh govan@east ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub`)
+#   sudo install -m 0755 scripts/well/offsite-copy.sh /usr/local/lib/unheaded/well/
+#   sudo cp deploy/systemd/unheaded-well-offsite.service /etc/systemd/system/
+# Install (east):
+#   sudo useradd --system --shell /usr/sbin/nologin --home-dir /var/lib/well-backup-copy well-backup-copy
+#   sudo install -d -o root -g root -m 0755 /var/lib/well-backup-copy /var/lib/well-backup-copy/.ssh /var/backups/unheaded-well-west
+#   sudo install -d -o well-backup-copy -g well-backup-copy -m 0700 /var/backups/unheaded-well-west/sets
+#   (west's id_ed25519.pub) | sudo install -m 0644 /dev/stdin /var/lib/well-backup-copy/.ssh/authorized_keys
+#   sudo install -m 0644 deploy/east/sshd-well-offsite.conf /etc/ssh/sshd_config.d/60-unheaded-well-offsite.conf
+#   sudo sshd -t && sudo systemctl reload ssh
+#   sudo install -m 0755 scripts/well/offsite-check.sh /usr/local/lib/unheaded/well/
+#   sudo cp deploy/systemd/unheaded-well-offsite-check.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-well-offsite-check.timer
+
+[Unit]
+Description=The Well: copy the newest backup set to east (ERDA 1.2)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/battle-plans/WELL-ERDA-AUDIT-2026-10-13.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=WELL_BACKUP_DIR=/var/backups/unheaded-well
+Environment=WELL_OFFSITE_DEST=well-backup-copy@192.168.13.1
+Environment=WELL_OFFSITE_KEYDIR=/etc/unheaded/well-offsite
+Environment=WELL_METRICS_DIR=/var/lib/unheaded/textfile
+ExecStart=/usr/local/lib/unheaded/well/offsite-copy.sh
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/backups/unheaded-well /var/lib/unheaded/textfile
+ReadOnlyPaths=/etc/unheaded/well-offsite
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

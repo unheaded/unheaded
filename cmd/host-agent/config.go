@@ -21,6 +21,9 @@ type Config struct {
 	Collection CollectionConfig `yaml:"collection"`
 	Sinks      SinksConfig      `yaml:"sinks"`
 	Databases  []DBConfig       `yaml:"databases"`
+	// TextfileDir holds <name>.prom files other jobs write (textfile.go);
+	// empty disables it.
+	TextfileDir string `yaml:"textfile_dir"`
 }
 
 type CollectionConfig struct {

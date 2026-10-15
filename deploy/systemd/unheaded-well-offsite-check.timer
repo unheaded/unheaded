@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[Unit]
+Description=The Well: daily check of offsite backup sets on east (ERDA 1.2)
+
+[Timer]
+OnCalendar=*-*-* 06:00
+RandomizedDelaySec=15min
+Persistent=true
+
+[Install]
+WantedBy=timers.target

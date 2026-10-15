@@ -12,10 +12,10 @@
 # Its own docker network stands in for `data` (pg_hba's subnet substituted),
 # so it never collides with the running stack. Never touches the real Well.
 #
-#   scripts/well/test-config.sh [image]   # default postgres:16.13-alpine
+#   scripts/well/test-config.sh [image]   # default postgres:16.15-alpine
 set -euo pipefail
 
-IMAGE="${1:-postgres:16.13-alpine}"
+IMAGE="${1:-postgres:16.15-alpine}"
 R="$(cd "$(dirname "$0")/../.." && pwd)"
 DOCKER=(docker); docker info >/dev/null 2>&1 || DOCKER=(sudo -n docker)
 SUDO=(); ((EUID == 0)) || SUDO=(sudo -n)

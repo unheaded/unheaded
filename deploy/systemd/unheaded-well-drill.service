@@ -13,6 +13,7 @@ Requires=docker.service
 Type=oneshot
 Environment=WELL_BACKUP_DIR=/var/backups/unheaded-well
 Environment=WELL_CONTAINER=unheaded-postgres
+Environment=WELL_METRICS_DIR=/var/lib/unheaded/textfile
 Environment=DOCKER_CONFIG=/run/unheaded-well-drill
 RuntimeDirectory=unheaded-well-drill
 ExecStart=/usr/local/lib/unheaded/well/restore-drill.sh
@@ -22,6 +23,7 @@ UMask=0077
 
 NoNewPrivileges=yes
 ProtectSystem=strict
+ReadWritePaths=/var/lib/unheaded/textfile
 ProtectHome=yes
 PrivateTmp=yes
 PrivateDevices=yes

@@ -401,7 +401,7 @@ jobs:
   # ============================================================================
   # The Well: schema, migrations, backups, on throwaway servers (ADR-101)
   # ============================================================================
-  # Each script starts its own postgres:16.13-alpine container, never a real
+  # Each script starts its own postgres:16.15-alpine container, never a real
   # Well: fresh bootstrap through db/init.sh, constraint and append-only
   # refusals (013-019), the migration runner (apply, drift, lock timeout,
   # baseline of a pre-ledger Well, which needs history: fetch-depth 0), and

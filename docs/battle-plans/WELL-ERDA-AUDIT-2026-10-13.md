@@ -117,7 +117,7 @@ live system and need Stevie's yes.
       retention, refuses a directory inside the repo. Probe
       `db-backup-recent` counts complete sets. Not yet run on the live Well
       (Phase 0).
-- [ ] 1.2 Off-host copy to east over the P2P link (rsync as a dedicated
+- [x] 1.2 *(2026-10-15: unheaded-well-offsite.service runs on each good backup (OnSuccess=): verifies the set, SFTPs it to east as well-backup-copy (nologin, key only, chrooted to /var/backups/unheaded-well-west, internal-sftp refuses remove/rename/links, so west can add sets but never delete them; deploy/east/sshd-well-offsite.conf). East: unheaded-well-offsite-check.timer daily verifies every set's SHA256SUMS, newest < 36 h, prunes > 30 days; red on a flipped byte, repaired by the next copy. Not rsync: a forced rrsync key needs a login shell)* Off-host copy to east over the P2P link (rsync as a dedicated
       user, 0600 files), retention per the retention policy.
 - [x] 1.3 Restore drill script: restore the newest set into a throwaway
       container (the bootstrap pattern used for this audit), compare row
@@ -127,7 +127,7 @@ live system and need Stevie's yes.
       runs backup then drill end to end on throwaway servers (5 DBs, 24 tables,
       restore 15 s) and makes the drill refuse a flipped byte, a wrong row
       count and an unlisted dump, each for its own reason.
-- [~] 1.4 *(2026-10-15, Stevie: yes to a dedicated role. 023 creates well_backup (pg_read_all_data); db-backup.sh dumps as it with --no-role-passwords, so sets hold no secrets (scripts/well/set-role-passwords.sh re-sets them from env after a restore); unheaded-well-backup.timer nightly 03:30 and unheaded-well-drill.timer Sundays, installed and enabled on west, first runs PASS (653 rows). Not the host-client variant: Ubuntu 25.10 ships only postgresql-client-17, whose archives the 16 drill cannot read, so the units `docker exec` as root with root-owned script copies; the DB credential is the read-only role. Still open: the metrics + alert half, and copying sets to east (1.2))* systemd timer (daily dump, weekly drill); `unheaded_well_backup_*`
+- [x] 1.4 *(metrics + alert 2026-10-15: backup, drill and offsite write unheaded_well_* to /var/lib/unheaded/textfile on success only; huginn's new textfile collector forwards them (strict line check, mtime); monitoring/prometheus/rules/well.yml alerts on a late backup (26 h warn, 50 h critical), late offsite copy, late drill (8 d), missing metrics and malformed files, promtool-tested)* *(2026-10-15, Stevie: yes to a dedicated role. 023 creates well_backup (pg_read_all_data); db-backup.sh dumps as it with --no-role-passwords, so sets hold no secrets (scripts/well/set-role-passwords.sh re-sets them from env after a restore); unheaded-well-backup.timer nightly 03:30 and unheaded-well-drill.timer Sundays, installed and enabled on west, first runs PASS (653 rows). Not the host-client variant: Ubuntu 25.10 ships only postgresql-client-17, whose archives the 16 drill cannot read, so the units `docker exec` as root with root-owned script copies; the DB credential is the read-only role. Still open: the metrics + alert half, and copying sets to east (1.2))* systemd timer (daily dump, weekly drill); `unheaded_well_backup_*`
       metrics (age, size, drill result) and an alert; UH-BACKUP-01 reads them.
       **Decision needed (2026-10-15): who runs the scheduled backup.**
       (a) a user in the docker group running `docker exec` as today: simple,
@@ -207,7 +207,7 @@ live system and need Stevie's yes.
       decision (UH-TLS-01).
 - [x] 4.3 *(2026-10-15: pg_checksums --enable offline on the live volume (6043 blocks, seconds); POSTGRES_INITDB_ARGS=--data-checksums for fresh volumes)* Data checksums: `pg_checksums --enable` offline during a
       maintenance window (or at the next initdb).
-- [ ] 4.4 Pin the image to a current 16.x by digest; minor upgrade with a
+- [x] 4.4 *(2026-10-15: exact tag per ADR-102 (digests wait for a bot); upgraded 16.13 -> 16.15 after every suite passed on 16.15 and a drill passed on the live set; no reindex needed, CVE-2026-14676 fixed in the now-preloaded pg_stat_statements)* Pin the image to a current 16.x by digest; minor upgrade with a
       restore drill first.
 - [x] 4.5 *(2026-10-15: THE_WELL_OPERATIONS.md, 42 of 47; zhen-agentd pools 10 -> 5 each. No PgBouncer)* Connection budget written down (services x pool <= max_connections
       - reserved); PgBouncer only if the arithmetic says so.

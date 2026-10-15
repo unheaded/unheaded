@@ -1,0 +1,40 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# East: verify every offsite copy of The Well's backup sets and prune old
+# ones (ERDA 1.2). Install: see unheaded-well-offsite.service.
+
+[Unit]
+Description=The Well: verify and prune offsite backup sets from west (ERDA 1.2)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/battle-plans/WELL-ERDA-AUDIT-2026-10-13.md
+
+[Service]
+Type=oneshot
+User=well-backup-copy
+Group=well-backup-copy
+Environment=WELL_OFFSITE_DIR=/var/backups/unheaded-well-west
+Environment=WELL_OFFSITE_KEEP_DAYS=30
+Environment=WELL_OFFSITE_MAX_AGE_H=36
+ExecStart=/usr/local/lib/unheaded/well/offsite-check.sh
+Nice=10
+IOSchedulingClass=idle
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/backups/unheaded-well-west/sets
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

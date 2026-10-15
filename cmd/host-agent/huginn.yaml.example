@@ -21,13 +21,18 @@ sinks:
 
 # databases: optional — omit entirely on hosts without The Well.
 # Each entry opens one connection and collects pg_stat_database metrics.
-# Use huginn_reader (pg_monitor role) — never a write-capable user. Its
-# password is the HUGINN_READER_PASSWORD The Well was initialised with.
+# Use huginn_reader (pg_monitor role) — never a write-capable user. No
+# password here: lib/pq reads PGPASSWORD from /etc/huginn.env (root 0600).
+# The Well accepts TLS only.
 #
 # databases:
 #   - name: well-app
-#     dsn: "postgres://huginn_reader:<password>@localhost:5432/unheaded_app?sslmode=disable"
+#     dsn: "postgres://huginn_reader@localhost:5432/unheaded_app?sslmode=require"
 #   - name: well-ops
-#     dsn: "postgres://huginn_reader:<password>@localhost:5432/unheaded_ops?sslmode=disable"
+#     dsn: "postgres://huginn_reader@localhost:5432/unheaded_ops?sslmode=require"
 #   - name: well-config
-#     dsn: "postgres://huginn_reader:<password>@localhost:5432/unheaded_config?sslmode=disable"
+#     dsn: "postgres://huginn_reader@localhost:5432/unheaded_config?sslmode=require"
+
+# textfile_dir: optional — <name>.prom files written by root jobs (The Well's
+# backup, drill and offsite units), forwarded with this host's label.
+# textfile_dir: /var/lib/unheaded/textfile

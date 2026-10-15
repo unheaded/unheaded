@@ -18,7 +18,7 @@ set -euo pipefail
 LIVE=""
 if [[ "${1:-}" == --live ]]; then LIVE="${WELL_CONTAINER:-unheaded-postgres}"; shift; set -- "--" "$@"; fi
 SET="${1:?usage: $0 SET_DIR|--live [image]}"
-IMAGE="${2:-postgres:16.13-alpine}"
+IMAGE="${2:-postgres:16.15-alpine}"
 R="$(cd "$(dirname "$0")/../.." && pwd)"
 CONVERGE="$R/db/converge/2026-10-15-live-unheaded-app.sql"
 DOCKER=(docker); docker info >/dev/null 2>&1 || DOCKER=(sudo -n docker)

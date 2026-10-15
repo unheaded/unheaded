@@ -12,10 +12,10 @@
 # The bootstrap also checks that db/init.sh sets role passwords from the
 # environment (one with a quote in it) and leaves unset ones unable to log in.
 #
-#   scripts/well/test-backup-restore.sh [image]   # default postgres:16.13-alpine
+#   scripts/well/test-backup-restore.sh [image]   # default postgres:16.15-alpine
 set -euo pipefail
 
-IMAGE="${1:-postgres:16.13-alpine}"
+IMAGE="${1:-postgres:16.15-alpine}"
 R="$(cd "$(dirname "$0")/../.." && pwd)"
 DOCKER=(docker); docker info >/dev/null 2>&1 || DOCKER=(sudo -n docker)
 N="well-backup-test-$$"

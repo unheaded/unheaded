@@ -226,7 +226,7 @@ services:
       # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
-    image: postgres:16.13-alpine  # exact tag (ADR-102): minor upgrades only after a restore drill
+    image: postgres:16.15-alpine  # exact tag (ADR-102): minor upgrades only after a restore drill
     container_name: unheaded-postgres
     restart: unless-stopped
     environment:

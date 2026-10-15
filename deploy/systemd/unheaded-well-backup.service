@@ -5,7 +5,7 @@
 # hashes in the set. Root because the docker socket is root-equivalent
 # anyway; the files it runs are root-owned copies, never the repo's.
 # Install (Stevie's yes, 2026-10-15):
-#   sudo install -d -m 0755 /usr/local/lib/unheaded/well /var/backups/unheaded-well
+#   sudo install -d -m 0755 /usr/local/lib/unheaded/well /var/backups/unheaded-well /var/lib/unheaded/textfile
 #   sudo install -m 0755 scripts/db-backup.sh scripts/well/restore-drill.sh /usr/local/lib/unheaded/well/
 #   sudo cp deploy/systemd/unheaded-well-{backup,drill}.{service,timer} /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-well-backup.timer unheaded-well-drill.timer
@@ -15,12 +15,15 @@ Description=The Well: backup set of every database (ERDA 1.4)
 Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/battle-plans/WELL-ERDA-AUDIT-2026-10-13.md
 After=docker.service
 Requires=docker.service
+# ERDA 1.2: each good set is copied to east.
+OnSuccess=unheaded-well-offsite.service
 
 [Service]
 Type=oneshot
 Environment=WELL_BACKUP_DIR=/var/backups/unheaded-well
 Environment=WELL_BACKUP_KEEP=14
 Environment=WELL_CONTAINER=unheaded-postgres
+Environment=WELL_METRICS_DIR=/var/lib/unheaded/textfile
 Environment=DOCKER_CONFIG=/run/unheaded-well-backup
 RuntimeDirectory=unheaded-well-backup
 ExecStart=/usr/local/lib/unheaded/well/db-backup.sh
@@ -31,7 +34,7 @@ UMask=0077
 
 NoNewPrivileges=yes
 ProtectSystem=strict
-ReadWritePaths=/var/backups/unheaded-well
+ReadWritePaths=/var/backups/unheaded-well /var/lib/unheaded/textfile
 ProtectHome=yes
 PrivateTmp=yes
 PrivateDevices=yes

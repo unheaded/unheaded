@@ -54,5 +54,10 @@ latest; Loki 2.9.0 / 2.9.4 / 3.0.0).
 - `FROM` lines: `golang:1.27-alpine`, `debian:bookworm-slim`,
   `ubuntu:24.04`, `gcr.io/distroless/static-debian12:nonroot`,
   `node:22-alpine`, `nginx:alpine`; BIRD's two Dockerfiles on `alpine:3.19`.
-- Postgres 16.13 is behind the current 16.x minor (W-13): upgrade after a
-  drill.
+- ~~Postgres 16.13 is behind the current 16.x minor (W-13)~~ *Done
+  2026-10-15:* `postgres:16.15-alpine` everywhere (compose, k8s, every
+  throwaway server, CI). Every Well suite passed on 16.15 first, a drill
+  passed on the live set, then the container was recreated on the same
+  volume. 16.14/16.15 need no dump, no reindex here (no btree_gist, ltree,
+  pgcrypto or logical decoding); 16.15 fixes a pg_stat_statements overrun
+  (CVE-2026-14676), which The Well now preloads.
