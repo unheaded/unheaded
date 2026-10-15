@@ -140,6 +140,11 @@ jobs:
       - name: Compose services declare their own log caps
         run: ./scripts/check-compose-log-caps.sh
 
+      # ADR-101: the Kubernetes Well's initdb ConfigMap is rendered from db/,
+      # so a migration added for compose reaches Kubernetes too.
+      - name: Kubernetes Well initdb matches db/
+        run: ./scripts/check-k8s-well-initdb.sh
+
       # ADR-091: the initdb bug was a bind mount nested inside another's
       # mountpoint. Fixed in B7; this keeps it fixed. Provoked red by
       # recreating the original nesting.

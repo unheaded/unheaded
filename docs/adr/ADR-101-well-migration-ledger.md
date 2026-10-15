@@ -70,8 +70,11 @@ schema changes it has had:
 - The four meta-command files (008-011) were edited to drop the
   meta-commands. The live Well ran the old versions; it has no ledger, so
   this costs nothing: Phase 0's baseline records the current files.
-- Adding a migration is two steps: the file and its manifest line. CI fails
-  on the first without the second.
+- Adding a migration is three steps: the file, its manifest line, and
+  `scripts/well/render-k8s-initdb.py` (the Kubernetes initdb ConfigMap is
+  rendered from `db/`, byte for byte, so the ledger checksums agree). CI
+  fails on each missing step (`check-well-migrations`,
+  `check-k8s-well-initdb`).
 - Startup DDL in services (kanban store, champion pgstore, zhen) still
   exists (ERDA 3.3). Once the live Well is baselined, services can check the
   ledger instead of creating tables.

@@ -138,6 +138,10 @@ passwords and `db/init.sh` sets each from the same variable names the
 Kubernetes secret uses (`APP_KANBAN_PASSWORD`, ..., plus
 `HUGINN_READER_PASSWORD`), read with psql `\getenv` so the value is never
 interpolated into SQL. Unset means that role cannot log in.
-`scripts/well/test-backup-restore.sh` checks it. The Kubernetes initdb still
-interpolates `'${APP_KANBAN_PASSWORD}'` into SQL (a quote in a password
-breaks it) and creates no schemas: separate item.
+`scripts/well/test-backup-restore.sh` checks it.
+
+**Closed for Kubernetes 2026-10-15:** the hand-written initdb ConfigMap
+(passwords interpolated into SQL, no schema at all) is replaced by one
+rendered from `db/` (`scripts/well/render-k8s-initdb.py`, gate
+`check-k8s-well-initdb`). The StatefulSet mounts `init.sh` alone into
+initdb.d and the rest at `/migrations`, the same split as compose.

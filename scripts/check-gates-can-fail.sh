@@ -436,6 +436,15 @@ provoke_well_migrations() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_k8s_well_initdb() {
+    # Contract (ADR-101): the ConfigMap is db/, rendered. Edit a migration
+    # without re-rendering.
+    local f="db/migrations/018_config_bindings_profile_index.sql"
+    backup "${f}"
+    printf -- '-- edited without re-rendering\n' >> "${REPO_ROOT}/${f}"
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_systemd_units() {
     # Contract (ADR-098 FND-003): systemd ignores nothing in deploy/systemd.
     # Restore the original mistake: a `~` on every group, of which systemd
@@ -464,6 +473,7 @@ check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present
 live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md
 check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang
 check-well-migrations|provoke_well_migrations|fast|an untracked migration file the MANIFEST does not route
+check-k8s-well-initdb|provoke_k8s_well_initdb|fast|a migration edited without re-rendering the Kubernetes initdb ConfigMap
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-suricata-rules|provoke_suricata_rules|slow|the original ipv6-exthdr keyword restored in the canonical Monad rules (needs docker)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)

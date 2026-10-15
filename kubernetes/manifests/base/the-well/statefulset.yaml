@@ -48,7 +48,10 @@ spec:
             capabilities: { drop: ["ALL"] }
           volumeMounts:
             - { name: data, mountPath: /var/lib/postgresql/data }
+            # As compose: init.sh alone in initdb.d, migrations at /migrations
+            # (ADR-091, ADR-101). One ConfigMap, rendered from db/.
             - { name: initdb, mountPath: /docker-entrypoint-initdb.d }
+            - { name: migrations, mountPath: /migrations }
             - { name: run, mountPath: /var/run/postgresql }
             - { name: tmp, mountPath: /tmp }
           readinessProbe:
@@ -64,7 +67,12 @@ spec:
             limits: { cpu: "500m", memory: 256Mi }
       volumes:
         - name: initdb
-          configMap: { name: the-well-initdb, defaultMode: 0755 }
+          configMap:
+            name: the-well-initdb
+            defaultMode: 0755
+            items: [{ key: init.sh, path: 00-init.sh }]
+        - name: migrations
+          configMap: { name: the-well-initdb, defaultMode: 0444 }
         - name: run
           emptyDir: {}
         - name: tmp
