@@ -12,17 +12,15 @@ import (
 	"github.com/google/uuid"
 )
 
-func pgConnStr() string {
-	cs := os.Getenv("WOTAN_PG_TEST")
-	if cs == "" {
-		cs = "postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable"
-	}
-	return cs
-}
-
+// WOTAN_PG_TEST is a full connection string to a throwaway database; there
+// is no default (credentials are not stored in this repo).
 func skipIfNoPG(t *testing.T) *PGStore {
 	t.Helper()
-	s, err := NewPGStore(pgConnStr(), 10000)
+	cs := os.Getenv("WOTAN_PG_TEST")
+	if cs == "" {
+		t.Skip("WOTAN_PG_TEST not set")
+	}
+	s, err := NewPGStore(cs, 10000)
 	if err != nil {
 		t.Skipf("PostgreSQL not available: %v", err)
 	}

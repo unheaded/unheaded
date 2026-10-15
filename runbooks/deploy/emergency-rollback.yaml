@@ -20,16 +20,12 @@ steps:
   - name: restore-database
     action: shell
     command: |
-      LATEST_BACKUP=$(ls -t /var/backups/postgresql/pre-upgrade-*.dump 2>/dev/null | head -1)
-      if [ -n "$LATEST_BACKUP" ]; then
-        echo "Restoring from: $LATEST_BACKUP"
-        sudo docker exec unheaded-postgres psql -U unheaded -c "DROP DATABASE IF EXISTS unheaded_app"
-        sudo docker exec unheaded-postgres psql -U unheaded -c "CREATE DATABASE unheaded_app"
-        sudo docker exec -i unheaded-postgres pg_restore -U unheaded -d unheaded_app < "$LATEST_BACKUP"
-        echo "Database restored"
-      else
-        echo "No backup found — database NOT restored"
-      fi
+      SET=$(cat /var/backups/unheaded-well/LATEST 2>/dev/null)
+      echo "Newest backup set: ${SET:-none}"
+      echo "Prove it restores first: sudo /usr/local/lib/unheaded/well/restore-drill.sh /var/backups/unheaded-well/$SET"
+      echo "Then restore only the affected database by hand (pg_restore --clean into it),"
+      echo "re-set role passwords with scripts/well/set-role-passwords.sh, and run well-migrate status."
+    description: "MANUAL: a runbook never drops a database of The Well"
 
   - name: downgrade-packages
     action: shell

@@ -55,10 +55,13 @@ steps:
         --cluster-peer=east:18002 \
         --store-type=hybrid \
         --store-data-dir=/var/lib/unheaded/wotan/wal \
-        --store-conn-str=postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable
+        --store-conn-str=${WOTAN_STORE_CONN_STR}
       Restart=always
       RestartSec=5
       WorkingDirectory=/var/lib/unheaded
+      # WOTAN_STORE_CONN_STR: postgres://<role>:<password>@localhost:5432/<db>?sslmode=require,
+      # in a root-owned 0600 file; credentials are not stored in this repo.
+      EnvironmentFile=/etc/unheaded/wotan-store.env
 
       [Install]
       WantedBy=multi-user.target
@@ -86,10 +89,13 @@ steps:
         --cluster-peer=west:18002 \
         --store-type=hybrid \
         --store-data-dir=/var/lib/unheaded/wotan/wal \
-        --store-conn-str=postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable
+        --store-conn-str=\${WOTAN_STORE_CONN_STR}
       Restart=always
       RestartSec=5
       WorkingDirectory=/var/lib/unheaded
+      # WOTAN_STORE_CONN_STR: postgres://<role>:<password>@localhost:5432/<db>?sslmode=require,
+      # in a root-owned 0600 file; credentials are not stored in this repo.
+      EnvironmentFile=/etc/unheaded/wotan-store.env
 
       [Install]
       WantedBy=multi-user.target

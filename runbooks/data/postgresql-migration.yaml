@@ -2,76 +2,62 @@ apiVersion: runbook/v1
 kind: Runbook
 metadata:
   name: postgresql-migration
-  description: Apply schema migrations to The Well safely
+  description: Apply schema migrations to The Well through the ledger (ADR-101)
   owner: developer
   estimated_duration: 10m
   risk: high
   requires_sudo: true
   cs_sources: [databases/postgresql]
 
+notes: |
+  Migrations are files in db/migrations, routed by db/migrations/MANIFEST and
+  recorded per database in well_schema_migrations. Never pipe a file into
+  psql by hand: the ledger would not know, and the next apply would run it
+  again. A transactional migration that fails changes nothing and records
+  nothing. A change to an applied file is drift; write a new file instead.
+  WELL_MIGRATE_PASSWORD is the superuser's (POSTGRES_PASSWORD in .env).
+
 env:
-  PG_CONTAINER: "unheaded-postgres"
-  PG_USER: "unheaded"
-  MIGRATIONS_DIR: "~/tmp/unheaded/db/migrations"
+  REPO: "~/tmp/unheaded"
 
 steps:
   - name: backup-before-migration
     action: shell
-    command: |
-      TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-      sudo docker exec ${PG_CONTAINER} pg_dump -U ${PG_USER} -Fc unheaded_app > /var/backups/postgresql/pre_migration_${TIMESTAMP}.dump
-    verify: "test -f /var/backups/postgresql/pre_migration_*.dump"
-    description: "ALWAYS backup before applying migrations"
+    command: "sudo systemctl start unheaded-well-backup.service && cat /var/backups/unheaded-well/LATEST"
+    verify: "systemctl show -p Result --value unheaded-well-backup.service | grep -qx success"
+    description: "ALWAYS take a backup set (every database + globals) first"
 
-  - name: list-migrations
+  - name: check-manifest
     action: shell
-    command: "ls -la ${MIGRATIONS_DIR}/*.sql"
+    command: "cd ${REPO} && go run ./cmd/well-migrate check"
+    description: "Offline: every file routed, no psql meta-commands"
 
-  - name: check-applied-migrations
+  - name: status
     action: shell
-    command: |
-      echo "=== Existing tables ==="
-      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d unheaded_app -c "\dt"
-    description: "Check what's already applied"
+    command: "cd ${REPO} && set -a && . ./.env && set +a && WELL_MIGRATE_PASSWORD=$POSTGRES_PASSWORD go run ./cmd/well-migrate status"
+    description: "Exit 3 = pending, 1 = drift (stop and read it)"
 
-  - name: dry-run-migration
+  - name: plan
     action: shell
-    command: |
-      MIGRATION_FILE="<path_to_migration.sql>"
-      echo "=== DRY RUN: $MIGRATION_FILE ==="
-      cat $MIGRATION_FILE
-      echo ""
-      echo "Review the SQL above. If it looks correct, proceed to apply."
-    description: "MANUAL — review migration SQL before applying"
+    command: "cd ${REPO} && set -a && . ./.env && set +a && WELL_MIGRATE_PASSWORD=$POSTGRES_PASSWORD go run ./cmd/well-migrate apply"
+    description: "Prints what would run; changes nothing"
 
-  - name: apply-migration
+  - name: apply
     action: shell
-    command: |
-      MIGRATION_FILE="<path_to_migration.sql>"
-      sudo docker exec -i ${PG_CONTAINER} psql -U ${PG_USER} < $MIGRATION_FILE
-    description: "MANUAL — replace with actual migration file path"
-    on_fail: "Check error output. If schema conflict, may need --if-exists or manual fix."
+    command: "cd ${REPO} && set -a && . ./.env && set +a && WELL_MIGRATE_PASSWORD=$POSTGRES_PASSWORD go run ./cmd/well-migrate apply -yes"
+    description: "MANUAL: review the plan step first"
+    on_fail: "Read the error. Nothing was recorded for the failed file; fix forward with a new file."
 
-  - name: verify-migration
+  - name: verify
     action: shell
-    command: |
-      echo "=== Tables after migration ==="
-      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d unheaded_app -c "\dt"
-      echo "=== Recent migration tables ==="
-      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -d unheaded_app -c "\dt zhen_*"
-
-  - name: test-application
-    action: shell
-    command: |
-      cd ~/tmp/unheaded && go test ./pkg/database/... -v -count=1 2>&1 | tail -10
-    description: "Run database tests to verify migration didn't break anything"
+    command: "cd ${REPO} && set -a && . ./.env && set +a && WELL_MIGRATE_PASSWORD=$POSTGRES_PASSWORD go run ./cmd/well-migrate status && scripts/well/test-converge-live-app.sh --live"
+    description: "Status clean; live unheaded_app schema equals a fresh bootstrap"
 
 rollback:
-  - name: restore-from-backup
+  - name: restore-plan
     action: shell
     command: |
-      BACKUP=$(ls -t /var/backups/postgresql/pre_migration_*.dump | head -1)
-      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -c "DROP DATABASE IF EXISTS unheaded_app"
-      sudo docker exec ${PG_CONTAINER} psql -U ${PG_USER} -c "CREATE DATABASE unheaded_app"
-      sudo docker exec -i ${PG_CONTAINER} pg_restore -U ${PG_USER} -d unheaded_app < $BACKUP
-    when: "step.apply-migration.failed OR step.test-application.failed"
+      echo "A failed transactional migration already rolled back: nothing to undo."
+      echo "To undo an applied one: write a new migration that reverses it, or restore"
+      echo "the pre-migration set (prove it first: scripts/well/restore-drill.sh <set>)."
+    description: "MANUAL: never DROP DATABASE from a runbook"

@@ -42,7 +42,7 @@ topics:
 store:
   type: memory       # Change to "hybrid" for production persistence
   # data_dir: /var/lib/unheaded/wotan/wal    # WAL directory (wal/hybrid)
-  # conn_str: postgres://unheaded:unheaded_dev@localhost:5432/unheaded?sslmode=disable
+  # conn_str: postgres://<role>:<password>@localhost:5432/<db>?sslmode=require  (never commit a real one)
 
 # Cluster configuration (Wave 9 — The Twin Ravens)
 # Options: standalone (default), cluster
