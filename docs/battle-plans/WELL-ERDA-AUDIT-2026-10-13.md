@@ -227,13 +227,16 @@ live system and need Stevie's yes.
       anyway: folded into 5.1. No injection found. The lint rule
       `string-formatted-sql` needs a SQL-keyword pair (e.g. `SELECT ... FROM`,
       `INSERT INTO`) before it reports, or it stays noisy.
-- [ ] 5.3 Drop the duplicate and low-value indexes `CONCURRENTLY`, each
-      backed by `pg_stat_user_indexes` from Phase 0.
+- [~] 5.3 Drop the duplicate and low-value indexes `CONCURRENTLY`, each
+      backed by `pg_stat_user_indexes` from Phase 0. *Exact duplicates done
+      2026-10-14* (017: 010's copies of the zhen indexes, only where 003's
+      exist). Low-value indexes still wait for Phase 0 stats.
 - [ ] 5.4 Retention and partitioning for append-only tables per the
       retention policy (time partitions dropped, never rows deleted).
 - [ ] 5.5 Health bridge: wire it to Akira's topic and shape with a contract
       test, or delete it and the `service_health_*` tables.
-- [ ] 5.6 Config history trigger: INSERT/UPDATE/DELETE, `change_reason`
-      required.
-- [ ] 5.7 Index `compliance_host_bindings(profile)`; types: identity
+- [~] 5.6 Config history trigger: INSERT/UPDATE/DELETE, `change_reason`
+      required. *019 (2026-10-14):* all three ops, `op` column, reason from
+      `well.change_reason`. Required waits until config_store.go sets it.
+- [~] 5.7 Index `compliance_host_bindings(profile)` (*done, 018*); types: identity
       columns, `timestamptz NOT NULL`, `jsonb`, no nullable `DEFAULT ''`.

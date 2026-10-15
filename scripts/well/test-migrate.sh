@@ -78,32 +78,39 @@ done
 [[ "$(sq unheaded "SELECT to_regclass('public.well_schema_migrations') IS NULL")" == t ]] &&
 	pass "no ledger in the legacy database" || fail "legacy database has a ledger"
 expect 0 "status clean after bootstrap" wm status
+# 017/018 on a fresh bootstrap: no duplicate index, the FK is indexed.
+dups=$(sq unheaded_app "SELECT count(*) FROM pg_index a JOIN pg_index b ON a.indrelid = b.indrelid AND a.indexrelid < b.indexrelid AND a.indkey::text = b.indkey::text AND a.indclass::text = b.indclass::text AND coalesce(pg_get_expr(a.indexprs, a.indrelid), '') = coalesce(pg_get_expr(b.indexprs, b.indrelid), '') AND coalesce(pg_get_expr(a.indpred, a.indrelid), '') = coalesce(pg_get_expr(b.indpred, b.indrelid), '')")
+[[ "$dups" == 0 ]] && pass "no duplicate indexes in unheaded_app" || fail "$dups duplicate index pair(s) in unheaded_app"
+[[ "$(sq unheaded_app "SELECT to_regclass('idx_zhen_created') IS NOT NULL AND to_regclass('idx_zhen_search') IS NOT NULL")" == t ]] &&
+	pass "003's zhen indexes kept" || fail "003's zhen indexes missing"
+[[ "$(sq unheaded_config "SELECT to_regclass('idx_compliance_host_bindings_profile') IS NOT NULL")" == t ]] &&
+	pass "bindings(profile) indexed" || fail "bindings(profile) not indexed"
 
 # 2. A new migration.
-cat >"$M/017_test_widgets.sql" <<'SQL'
+cat >"$M/901_test_widgets.sql" <<'SQL'
 CREATE TABLE test_widgets (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, name text NOT NULL);
 SQL
 expect 1 "check refuses an unrouted file" wm check
-echo "unheaded_app 017_test_widgets.sql" >>"$M/MANIFEST"
+echo "unheaded_app 901_test_widgets.sql" >>"$M/MANIFEST"
 expect 3 "status reports pending" wm status
 expect 0 "apply without -yes" wm apply
 [[ "$(sq unheaded_app "SELECT to_regclass('test_widgets') IS NULL")" == t ]] && pass "apply without -yes changed nothing" || fail "apply without -yes created the table"
 expect 0 "apply -yes" wm apply -yes
-[[ "$(sq unheaded_app "SELECT mode FROM well_schema_migrations WHERE filename = '017_test_widgets.sql'")" == apply ]] &&
-	pass "017 recorded as apply" || fail "017 not recorded"
+[[ "$(sq unheaded_app "SELECT mode FROM well_schema_migrations WHERE filename = '901_test_widgets.sql'")" == apply ]] &&
+	pass "901 recorded as apply" || fail "901 not recorded"
 expect 0 "status clean after apply" wm status
 expect 0 "second apply is a no-op" wm apply -yes
 
 # 3. Drift.
-cp "$M/017_test_widgets.sql" "$TMP/017.orig"
-echo "-- edited" >>"$M/017_test_widgets.sql"
+cp "$M/901_test_widgets.sql" "$TMP/901.orig"
+echo "-- edited" >>"$M/901_test_widgets.sql"
 expect 1 "status refuses an edited applied file" wm status
-echo "unheaded_app 018_after_edit.sql" >>"$M/MANIFEST"; echo "SELECT 1;" >"$M/018_after_edit.sql"
+echo "unheaded_app 902_after_edit.sql" >>"$M/MANIFEST"; echo "SELECT 1;" >"$M/902_after_edit.sql"
 expect 1 "apply refuses to run past drift" wm apply -yes
-[[ "$(sq unheaded_app "SELECT count(*) FROM well_schema_migrations WHERE filename = '018_after_edit.sql'")" == 0 ]] &&
-	pass "nothing ran past drift" || fail "018 ran despite drift"
-cp "$TMP/017.orig" "$M/017_test_widgets.sql"
-expect 0 "018 applies once the file is restored" wm apply -yes
+[[ "$(sq unheaded_app "SELECT count(*) FROM well_schema_migrations WHERE filename = '902_after_edit.sql'")" == 0 ]] &&
+	pass "nothing ran past drift" || fail "902 ran despite drift"
+cp "$TMP/901.orig" "$M/901_test_widgets.sql"
+expect 0 "902 applies once the file is restored" wm apply -yes
 
 # 4. lock_timeout: another session holds ACCESS EXCLUSIVE on test_widgets.
 "${DOCKER[@]}" exec -i "$N" psql -X -q -U unheaded -d unheaded_app \
@@ -113,8 +120,8 @@ for _ in $(seq 1 20); do
 	[[ "$(sq unheaded_app "SELECT count(*) FROM pg_locks l JOIN pg_class c ON c.oid = l.relation WHERE c.relname = 'test_widgets' AND l.mode = 'AccessExclusiveLock' AND l.granted")" == 1 ]] && break
 	sleep 0.5
 done
-echo "unheaded_app 019_widgets_color.sql" >>"$M/MANIFEST"
-echo "ALTER TABLE test_widgets ADD COLUMN color text;" >"$M/019_widgets_color.sql"
+echo "unheaded_app 903_widgets_color.sql" >>"$M/MANIFEST"
+echo "ALTER TABLE test_widgets ADD COLUMN color text;" >"$M/903_widgets_color.sql"
 t0=$(date +%s)
 expect 1 "migration blocked by a lock fails" wm -lock-timeout 2s apply -yes
 took=$(($(date +%s) - t0))
@@ -122,17 +129,17 @@ took=$(($(date +%s) - t0))
 grep -q "lock timeout" "$TMP/out" && pass "the error names the lock timeout" || fail "error: $(tail -1 "$TMP/out")"
 kill "$HOLDER" 2>/dev/null || true; wait "$HOLDER" 2>/dev/null || true; HOLDER=""
 "${DOCKER[@]}" exec "$N" psql -X -q -U unheaded -d postgres -c "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE query LIKE '%pg_sleep(60)%' AND pid <> pg_backend_pid()" >/dev/null
-[[ "$(sq unheaded_app "SELECT count(*) FROM well_schema_migrations WHERE filename = '019_widgets_color.sql'")" == 0 ]] &&
+[[ "$(sq unheaded_app "SELECT count(*) FROM well_schema_migrations WHERE filename = '903_widgets_color.sql'")" == 0 ]] &&
 	pass "blocked migration not recorded" || fail "blocked migration recorded"
 expect 0 "it applies once the lock is gone" wm apply -yes
 
 # 5. A failing transactional migration leaves nothing behind.
-echo "unheaded_app 020_half.sql" >>"$M/MANIFEST"
-printf 'CREATE TABLE half_done (id int);\nSELECT * FROM no_such_table;\n' >"$M/020_half.sql"
+echo "unheaded_app 904_half.sql" >>"$M/MANIFEST"
+printf 'CREATE TABLE half_done (id int);\nSELECT * FROM no_such_table;\n' >"$M/904_half.sql"
 expect 1 "failing migration" wm apply -yes
-[[ "$(sq unheaded_app "SELECT to_regclass('half_done') IS NULL AND NOT EXISTS (SELECT 1 FROM well_schema_migrations WHERE filename = '020_half.sql')")" == t ]] &&
+[[ "$(sq unheaded_app "SELECT to_regclass('half_done') IS NULL AND NOT EXISTS (SELECT 1 FROM well_schema_migrations WHERE filename = '904_half.sql')")" == t ]] &&
 	pass "failed migration rolled back and unrecorded" || fail "failed migration left state"
-sed -i '/020_half.sql/d' "$M/MANIFEST"; rm "$M/020_half.sql"
+sed -i '/904_half.sql/d' "$M/MANIFEST"; rm "$M/904_half.sql"
 
 # 6. The ledger is append-only.
 if sq unheaded_app "UPDATE well_schema_migrations SET sha256 = repeat('0', 64)" >/dev/null 2>&1; then fail "ledger row edited"; else pass "ledger refuses UPDATE"; fi
