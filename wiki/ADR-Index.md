@@ -9,11 +9,11 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | Accepted | 47 |
 | Proposed | 15 |
 | Planned | 14 |
-| In Progress | 6 |
+| In Progress | 5 |
 | Deferred | 5 |
 | Pipe Dream | 5 |
 | PoC / Research | 3 |
-| Superseded / Deprecated | 3 |
+| Superseded / Deprecated | 4 |
 | Acknowledged | 1 |
 
 | ADR | Title | Status | Date |
@@ -36,7 +36,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [015](../docs/adr/ADR-015-go-fiber-http-layer.md) | Go-Fiber HTTP Layer | Accepted + Template | 2026-02-20 |
 | [016](../docs/adr/ADR-016-postgres-the-well.md) | PostgreSQL — The Well (+ RPO 24 h amendment 2026-10-15) | Accepted | 2026-03-15 |
 | [017](../docs/adr/ADR-017-zhen-hybrid-inference.md) | Zhen Hybrid Inference | Accepted (Claude API → MCP) | 2026-03-16 |
-| [018](../docs/adr/ADR-018-zhen-raft-training-battle-plan.md) | RAFT Training Pipeline | **In Progress** | 2026-03-16 |
+| [018](../docs/adr/ADR-018-zhen-raft-training-battle-plan.md) | RAFT Training Pipeline | **Superseded** by ADR-030 (forge) + ADR-036 (distillation) | 2026-03-16 |
 | [019](../docs/adr/ADR-019-zhen-champion-agent.md) | Zhen Champion Agent | Accepted (Phase 1+2) | 2026-03-16 |
 | [020](../docs/adr/ADR-020-kanban-bug-fixes.md) | Kanban Bug Fixes | Accepted (All 8 fixed) | 2026-03-19 |
 | [021](../docs/adr/ADR-021-zhen-layer0-substrate.md) | Zhen Layer 0 Substrate | Accepted (133 tests) | 2026-03-28 |
@@ -47,8 +47,8 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [026](../docs/adr/ADR-026-deb-packaging-ci-pipeline.md) | .deb Packaging + CI/CD | Accepted | 2026-04-03 |
 | [027](../docs/adr/ADR-027-zhenai-conversation-memory.md) | Zhenai Conversation Memory | Accepted (semantic recall + browser) | 2026-04-04 |
 | [028](../docs/adr/ADR-028-zhenai-scheduler-heartbeat.md) | Zhenai Scheduler + Heartbeat | Accepted (Sprint C complete) | 2026-04-04 |
-| [029](../docs/adr/ADR-029-wotan-consensus-health-remediation.md) | Wotan Consensus Health (Akira) | Accepted (7/7 EAST, Wotan publishing) | 2026-04-04 |
-| [030](../docs/adr/ADR-030-zhenai-forge-rust-training.md) | Zhenai Forge (Rust LoRA training) | **In Progress — v3 training (cosine LR)** | 2026-04-04 |
+| [029](../docs/adr/ADR-029-wotan-consensus-health-remediation.md) | Wotan Consensus Health (Akira) | **Partially implemented** (2026-09-29: Akira consensus side; remediation off by default) | 2026-04-04 |
+| [030](../docs/adr/ADR-030-zhenai-forge-rust-training.md) | Zhenai Forge (Rust LoRA training) | **Accepted** (forge pipeline; kingdom-v5 run 2026-04-06) | 2026-04-04 |
 | [031](../docs/adr/ADR-031-hybrid-model-handoff.md) | Hybrid Model Handoff | Planned | 2026-04-03 |
 | [032](../docs/adr/ADR-032-python-to-go-rust-migration.md) | Python → Go/Rust Migration | Planned | 2026-04-03 |
 | [033](../docs/adr/ADR-033-netbox-ipam.md) | NetBox IPAM | Planned | 2026-04-03 |

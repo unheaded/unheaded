@@ -28,3 +28,7 @@ This is **alignment with established kingdom convention** — `zhend` and `cmd/e
 - `security/cargo-audit-2026-05-07.md` — Wave A advisory inventory
 - ADR-049 — transport-layer security baseline
 - ADR-052 — in-tree source-of-truth policy for Cargo edits
+
+## Canonical
+
+[docs/adr/ADR-066-tonic-minor-bump-trace-collector.md](../docs/adr/ADR-066-tonic-minor-bump-trace-collector.md)

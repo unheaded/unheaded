@@ -54,6 +54,7 @@ The UPC is a virtual CPU implemented in the eBPF runtime. Monad packets are the 
 - [[IANA Guide|IANA-Guide]]
 - [[RFC Cross-Reference|RFC-Cross-Reference]]
 - [[Wire Format Patterns|Wire-Format-Patterns]]
+- [[Protocol Specs|Protocol-Specs]]
 
 ## Architecture Decision Records
 
@@ -129,6 +130,7 @@ Full record: [[Timeline]] (`references/timeline.md`).
 - [[eBPF Programs|eBPF-Programs]] — Rust/Aya + cilium/ebpf, L2–L7
 - [[Fae Chamber Contracts|Fae-Chamber-Contracts]]
 - [[Service Breakout Strategy|Service-Breakout-Strategy]]
+- [[OS Fork Discipline|OS-Fork-Discipline]] — Yggdrasil fork rules
 
 ## Storage
 
@@ -157,10 +159,15 @@ Full record: [[Timeline]] (`references/timeline.md`).
 - [[Developer Guide|Developer-Guide]]
 - [[Agent Operating Procedure|Agent-Operating-Procedure]]
 - [[Rust Components|Rust-Components]]
+- [[Demo Script|Demo-Script]]
+- [[Bug Kill Chain|Bug-Kill-Chain]]
+- [[Performance]] — Doom engine performance (historical)
 
 ## Battle Plans & Timeline
 
 - [[Timeline]]
+- [[Roadmap]]
+- [[Upcoming Tasks|Upcoming-Tasks]]
 - [[Battle Plan|Battle-Plan]]
 - [[Sessions|Session-Index]]
 

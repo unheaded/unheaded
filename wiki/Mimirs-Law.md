@@ -2,7 +2,7 @@
 
 UPC-controlled OS baseline delivery, drift detection, and (alerts-only v1)
 self-healing — the dogfood spike for the Gleipnir convergence component
-named in [[ADR-69420]]. Implements ADR-043's Two-Plane Architecture: Wotan
+named in [ADR-69420](../docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md). Implements ADR-043's Two-Plane Architecture: Wotan
 steady-state plane + Gjallarhorn discrete UPC trigger plane.
 
 > **Status**: PoC COMPLETE 2026-04-11 — All 13 phases shipped. Merged to `main`. Bare-metal validated on WEST↔EAST WireGuard overlay.
@@ -17,7 +17,7 @@ steady-state plane + Gjallarhorn discrete UPC trigger plane.
 | **Gjallarhorn** | Norse — Heimdall's horn | `pkg/gjallarhorn/`, `cmd/gjallarhorn-sender/` | UPC trigger packet (20-byte Monad register) |
 | **Heimdall Daemon** | Norse — eternal watchman | `cmd/heimdall-daemon/`, `crates/heimdall-bpf/` | Drift watcher (BPF + userspace) |
 | **Enkrateia** | Gnostic ἐγκράτεια ("self-control") | `pkg/enkrateia/` | Alerts-only drift aggregator (v1) |
-| **Gleipnir** | Norse — already in [[ADR-69420]] | (Age 2b) | Parent vision; this PoC is its Phase 0 |
+| **Gleipnir** | Norse — already in [ADR-69420](../docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md) | (Age 2b) | Parent vision; this PoC is its Phase 0 |
 
 ## Two-Plane Architecture
 
@@ -101,4 +101,4 @@ Drift detection demonstrated on EAST (4-core, 8GB) on 2026-04-11:
 
 ---
 
-> **Source:** [ADR-043](../docs/adr/ADR-043-mimirs-law-upc-baseline-gleipnir-phase-0.md) · [Battle Plan](../docs/battle-plans/BATTLE-PLAN-MIMIRS-LAW-GLEIPNIR-PHASE-0.md) · [Norse Mythology](../docs/lore/NORSE_MYTHOLOGY.md) · [[ADR-69420]]
+> **Source:** [ADR-043](../docs/adr/ADR-043-mimirs-law-upc-baseline-gleipnir-phase-0.md) · [Battle Plan](../docs/battle-plans/BATTLE-PLAN-MIMIRS-LAW-GLEIPNIR-PHASE-0.md) · [Norse Mythology](../docs/lore/NORSE_MYTHOLOGY.md) · [ADR-69420](../docs/adr/ADR-69420-kingdom-bgp-and-unheaded-os.md)

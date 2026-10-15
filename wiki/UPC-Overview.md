@@ -104,7 +104,7 @@ Three levels, mapped to the BPF interpreter's `cpu.priv_level`:
 |---|---|---|
 | 0 | M-mode | Reset state. `start_mbc.c` runs here, sets up MEPC + MSTATUS.MPP, issues `mret`. |
 | 1 | S-mode | xv6 kernel. Most boot work happens here. `kvminithart` writes SATP but the BPF interpreter doesn't actually consult it (translate_address is its own substrate when `mmu_enabled == 0`). |
-| 3 | U-mode | xv6 init proc. Reached via the userret trampoline + `sret`. Phase 1.5 confirmed live (2026-05-14). |
+| 3 | U-mode | User processes (init, `ush`, coreutils). Reached via the userret trampoline + `sret`; first live 2026-05-14. |
 
 Transitions are *only* through the MRET / SRET opcodes, both gated behind `ascend-linux`. Each reads MEPC / SEPC from the memory-mapped CSR shadow, looks up the target in RV2MBC_MAP, and falls back to `cpu.halted = 1` on an unmapped slot — this catches the "PC silently rerouted to 0" class of bug.
 
@@ -128,8 +128,8 @@ The full UPC build-out is the **Dream Ladder** — a six-level ascent from packe
 | L2 | Monad header stamping, CRC-16 valid | ✅ shipped |
 | L3 | Framebuffer rendering at 35 fps | ✅ shipped (Doom-on-Monad) |
 | L4 | OS primitives: syscalls, interrupts, scheduler, MMU | ✅ shipped through L4f |
-| L5 | xv6 kernel boots on UPC | 🟡 Phase 1.4–1.6 (2026-05-14): kernel boots end-to-end; user mode reached; `init: starting sh` prints. Shell prompt blocked on fork/exec/wait. |
-| L6 | Linux boots on UPC | ⏳ Phase 2+ (uClinux first, then full Linux with MMU) |
+| L5 | xv6 kernel: interactive shell + filesystem | ✅ shipped 2026-07-03 (Phase 1 complete): `sh` fork/exec/wait, `ls`/`cat`/`echo`/`wc` over an in-BPF FS reader; kernel 100% Unheaded-authored 2026-07-07 |
+| L6 | Unheaded Linux: own minimal OS, evolved from the owned xv6 (ADR-081; no vendored uClinux) | ⏳ next; EVOLUTION-1 Stage 1 measured 2026-07-19 |
 
 Per-level detail: [UPC Dream Ladder](UPC-Dream-Ladder). The current frontier is [Linux on UPC](Linux-on-UPC). The L3 ascent is documented at [Doom on UPC](Doom-on-UPC).
 
@@ -141,7 +141,7 @@ The longer-term play is that everything Unheaded does — gateway routing, drift
 
 ## Cross-references
 
-- [Linux on UPC](Linux-on-UPC) — ASCEND-LINUX status, Phase 0 through Phase 1.5
+- [Linux on UPC](Linux-on-UPC) — ASCEND-LINUX status, Phase 0 through the ownership ladder and EVOLUTION-1
 - [Doom on UPC](Doom-on-UPC) — the L3 computational-completeness proof
 - [UPC Dream Ladder](UPC-Dream-Ladder) — level-by-level gates
 - [MBC ISA Reference](MBC-ISA-Reference) — opcode + encoding reference

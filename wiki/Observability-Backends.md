@@ -13,6 +13,17 @@ Unheaded emits OpenTelemetry-compatible signals (metrics, logs, traces). Users p
 | **Dashboards** | Grafana, Kibana, Datadog, custom | Unheaded Dashboard (vanilla JS) |
 | **SIEM** | Elastic SIEM, Splunk Enterprise Security, Wazuh | Custom Wotan SIEM integration |
 
+## What runs today (west, 2026-10-15)
+
+| Piece | State |
+|---|---|
+| `unheaded_http_*` metrics on every service | live (`httputil.ServiceMetrics`) |
+| [[Huginn|Service-Huginn]] host metrics, The Well, backup textfiles | live on `:9110/metrics`; its push to VictoriaMetrics fails (not running) |
+| VictoriaMetrics, Grafana, ClickHouse, Vector | in `docker-compose.yml`, **not running** on west |
+| Prometheus alert rules (`monitoring/prometheus/rules/`) | `promtool`-tested in CI; nothing evaluates them on west, Alertmanager receiver is `null` (FND-001) |
+| Logs | zerolog → Wotan `logs.<service>.<level>` → dashboard live tail ([[Log Aggregation|Log-Aggregation]]) |
+| Dashboard | live on `:20000`: overview (req/s, 5xx, p95), flow graph, logs, compliance |
+
 ## How It Works
 
 ```
@@ -35,7 +46,7 @@ Each adapter is a config generator — it consumes Unheaded's signal schema and 
 
 ```bash
 # Generate Prometheus scrape config + Grafana dashboards
-unheaded observe --backend=prometheus,grafana --output=./observability/
+unheaded observe --backend=prometheus,grafana   # cmd/unheaded-cli --output=./observability/
 
 # Generate ELK stack configs
 unheaded observe --backend=elk --output=./observability/
@@ -54,7 +65,7 @@ unheaded observe --backend=all --output=./observability/
 
 ## Licensing
 
-All supported backends are open source (Apache-2.0, MIT, GPL, or similar). Unheaded adapter configs are MIT-licensed. See [[Third Party Licenses|Third-Party-Licenses]] for attribution.
+All supported backends are open source (Apache-2.0, MIT, GPL, or similar). Unheaded adapter configs are MIT-licensed. See [LICENSES/THIRD_PARTY.md](../LICENSES/THIRD_PARTY.md) for attribution.
 
 ---
 

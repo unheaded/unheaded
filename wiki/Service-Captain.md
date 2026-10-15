@@ -10,7 +10,7 @@ Elite executive fusion: CEO + CMO + CFO + CHRO + CPO. Translates engineering mil
 | `GET /ready` | Readiness probe |
 | `GET /metrics` | Prometheus metrics |
 | `GET /api/v1/strategy` | Strategy data |
-| Port: 8001 | |
+| Port: 19002 | |
 
 ---
 

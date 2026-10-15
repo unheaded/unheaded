@@ -1,6 +1,6 @@
 # ADR-028: Zhenai Scheduler & Heartbeat — From Reactive to Proactive
 
-**Status:** Planned  
+**Status:** Accepted (Sprint C complete)  
 **Date:** 2026-04-03
 
 > Wiki stub generated 2026-05-06 by Marshal overnight sweep (NORTH-STAR Appendix A B5). See the canonical ADR for full text and rationale.

@@ -12,10 +12,9 @@ IETF Experimental track specifications for the Unheaded Protocol.
 
 ## Review & Analysis
 
-- [[Architect Review|Architect-Review]] — Architecture review of protocol specs
-- [[Micromanager QA|Micromanager-QA-Review]] — QA review
-- [[RFC Technical Review|RFC-Technical-Review]] — RFC Editor compliance review
-- [[BlackMage HTTP/3 Analysis|BlackMage-HTTP3-Analysis]] — Security analysis of RFC 9114
+- [Architect Review](../docs/protocol/ARCHITECT_REVIEW.md) — Architecture review of protocol specs
+- [Micromanager QA](../docs/protocol/MICROMANAGER_QA_REVIEW.md) — QA review
+- [RFC Technical Review](../docs/protocol/RFC_TECHNICAL_REVIEW.md) — RFC Editor compliance review
 
 ---
 

@@ -4,15 +4,32 @@ All Unheaded services use high ports (16666-26666) to avoid conflicts with commo
 
 ## Port Allocation Table
 
+From `pkg/ports/ports.go` (2026-10-15):
+
 | Tier | Range | Services |
 |------|-------|----------|
-| Infrastructure | 16666-16999 | doom-bridge (16666), doom-injector (16667), trace-collector (16670/16671) |
-| Control Plane | 17000-17999 | unheaded-daemon HTTP (17000), gRPC (17001) |
-| Wotan | 18000-18099 | wotan HTTP (18000), gRPC (18001) |
-| Core Services | 19000-19999 | timeguru (19000), architect (19001), captain (19002), micromanager (19003), monad (19004), sophia (19005) |
-| Applications | 20000-20999 | dashboard (20000), kanban (20001), wiki (20002) |
-| Gateway | 21000-21443 | HTTP (21000), HTTPS (21443) |
-| User Apps | 26000-26666 | Reserved for user applications |
+| Infrastructure | 16666-16999 | doom-bridge 16666, doom-go-injector 16667, trace-collector 16670 (HTTP) / 16671 (metrics) |
+| Control Plane | 17000-17999 | unheaded-daemon 17000 / 17001 (gRPC), CLI server 17010, protocol-api 17100 / 17101 (gRPC) |
+| Wotan | 18000-18099 | wotan 18000 (HTTP) / 18001 (gRPC) |
+| Core Services | 19000-19099 | timeguru 19000, architect 19001, captain 19002, micromanager 19003, monad 19004, sophia 19005, cuirass 19006, key-mgmt 19007, pqc-verifier 19008, shield 19009, firewall 19010, canary 19011, chaos 19012, QoS 19013, backup-mgr 19014, compliance 19015, NFV 19016, version 19017, anomaly 19018, telemetry-agg 19019 |
+| Health | 19100 | akira |
+| Applications | 20000-20099 | dashboard-backend 20000, kanban-app 20001, wiki-server 20002 |
+| AI | 20100-20106 | vLLM DeepSeek 20100, vLLM Qwen 20101, Qdrant 20102, BGE-M3 20104, Sophia-Eye 20105, AI web UI 20106 |
+| Gateway | 21000-21443 | gateway HTTP 21000, HTTPS 21443 (in compose, Traefik's dashboard is on `127.0.0.1:21000`) |
+| Tools | 22000 | cert-gen |
+| User Apps | 26000-26666 | reserved; UPC tty bridge 26100 |
+
+Outside the Doom Range (infrastructure on standard ports):
+
+| Service | Port | Bound to |
+|---------|------|----------|
+| The Well (PostgreSQL) | 5432 | `127.0.0.1` only, TLS ([[The Well|The-Well]]) |
+| Huginn | 9110 | host ([[Huginn|Service-Huginn]]) |
+| VictoriaMetrics | 8428 | all |
+| Grafana | 3001 | all |
+| ClickHouse | 8123 / 9000 | `127.0.0.1` |
+| CoreDNS | 5353 | all (override `COREDNS_PORT`) |
+| Traefik edge | 80 / 443 / 50051 | all (override `TRAEFIK_*_PORT`) |
 
 ## Implementation
 
@@ -23,3 +40,7 @@ Static fallback configuration: `configs/services.yaml`
 ## Rationale
 
 High ports avoid conflicts with databases (5432, 3306, 6379), web servers (80, 443, 8080), and common dev tools. The "Doom Range" name comes from the project's Doom-over-eBPF demo that occupies port 16666.
+
+---
+
+> **Source:** [pkg/ports/ports.go](../pkg/ports/ports.go) · [docker-compose.yml](../docker-compose.yml)

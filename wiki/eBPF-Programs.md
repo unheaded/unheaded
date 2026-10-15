@@ -31,7 +31,7 @@ eBPF-based packet-level observability from L2 to L7. XDP ingress, TC egress, kpr
 - **cilium/ebpf**: Apache-2.0
 - **doomgeneric**: GPL-2.0 (isolated in `doom/doomgeneric/`, does not link Unheaded code)
 
-See [[Third Party Licenses|Third-Party-Licenses]] for full attribution.
+See [LICENSES/THIRD_PARTY.md](../LICENSES/THIRD_PARTY.md) for full attribution.
 
 ---
 

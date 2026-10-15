@@ -2,7 +2,7 @@
 
 The ASCEND-LINUX campaign brings a real operating system up on the [Unheaded Protocol Computer](UPC-Overview). Phased six-level Dream Ladder summit (L5 → L6); the kernel of choice for L5 is xv6-riscv (vendored at `crates/xv6-mbc/upstream/`), L6 is uClinux then full Linux+MMU.
 
-**Current state (2026-07-03): ASCEND-LINUX Phase 1 COMPLETE.** xv6 runs an **interactive shell** on the UPC — a scripted command line is read from the console, `sh` forks + exec's it, the child runs and exits, `sh` reaps it, and a fresh `$` prompt returns. The full `init → sh → fork/exec/wait` lifecycle works, backed by a real in-BPF filesystem reader over `fs.img`: `ls` lists the root directory with types/inums/sizes, `cat` prints real file contents (including `>12 KiB` files via single-indirect blocks), `echo` and `wc` run with argv, per-pid MMU isolation holds. Gates A (console stdio) → B (`exec` → `$`) → C (interactive sh) → D (FS reader) → D.1 (`wc`) all shipped. **Next: Unheaded Linux** — an own-built minimal OS evolving from this xv6 substrate ([ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md)); the roadmap is [`docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md`](../docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md).
+**Current state (2026-10-15):** Phase 1 complete (2026-07-03), the kernel fully Unheaded-authored (2026-07-07), and EVOLUTION-1 Stage 1 measured with the getpid flip deferred (2026-07-19). **As of 2026-07-03: ASCEND-LINUX Phase 1 COMPLETE.** xv6 runs an **interactive shell** on the UPC — a scripted command line is read from the console, `sh` forks + exec's it, the child runs and exits, `sh` reaps it, and a fresh `$` prompt returns. The full `init → sh → fork/exec/wait` lifecycle works, backed by a real in-BPF filesystem reader over `fs.img`: `ls` lists the root directory with types/inums/sizes, `cat` prints real file contents (including `>12 KiB` files via single-indirect blocks), `echo` and `wc` run with argv, per-pid MMU isolation holds. Gates A (console stdio) → B (`exec` → `$`) → C (interactive sh) → D (FS reader) → D.1 (`wc`) all shipped. **Next: Unheaded Linux** — an own-built minimal OS evolving from this xv6 substrate ([ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md)); the roadmap is [`docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md`](../docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md).
 
 This page is the cumulative narrative of the campaign. Live session logs and per-phase root-cause docs live under [`references/`](../references/) and the original battle plan is at [`references/battle-plan-ascend-linux-2026-05-08.md`](../references/battle-plan-ascend-linux-2026-05-08.md).
 
@@ -146,6 +146,12 @@ sudo /home/govan/tmp/unheaded/cmd/upc-bootctl/target/release/upc-bootctl boot \
 ```
 
 Expected boot log includes `Userland MBC: patched 41 CALL targets`, then the kernel-init markers (`after consoleinit`, `after kvminit`, ..., `after started=1`), then `sched: entered` → `sched: pre-swtch` → `forkret: entered` → `forkret: lock released` → kexec stub → SRET (`S` marker) → user-mode PC trace.
+
+### EVOLUTION-1 Stage 1 — getpid through the owned kernel (2026-07-17 → 07-20)
+
+Decisions locked 2026-07-17: D1 = (c) hybrid syscalls (BPF handlers stay; kernel paths are woken one at a time), D2 = eBPF unfrozen for Stage 1's getpid, Q4 = a parallel Debian track, Q5 (naming) deferred. Stage 1 shipped S1.0 (uservec `sscratch` entry) and S1.1 (BPF injection, dormant behind `GETPID_INJECT=false`) green. S1.2 (the return path) is blocked. The verifier delta is **+5409 instructions**, so under D1 the getpid migration does not pay for itself and the flip is **deferred**. The return blocker was re-diagnosed: it is a localized `csrw sscratch` MBC codegen defect in `prepare_return` (it stores 0x7be000 and reads back 0x7ff), not a `proc[]` reconciliation problem. Log: [`references/evolution1-stage1-2026-07-19.md`](../references/evolution1-stage1-2026-07-19.md).
+
+Since 2026-07-20 the UPC crates have only taken dependency, clippy and loader-hardening changes (LICH-005); the frontier is where Stage 1 left it.
 
 ## What's next
 

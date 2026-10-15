@@ -13,7 +13,7 @@ This page is the live status. The deep architecture is at [UPC Overview](UPC-Ove
 | **L3** Framebuffer | Scanline render, 320×200 output | Visual verify, ≥35 fps benchmark | ✅ shipped — [Doom on UPC](Doom-on-UPC) |
 | **L4** OS primitives | Syscalls, interrupts, scheduler, MMU | Unit tests, scheduling fairness, MMU isolation | ✅ shipped through L4f |
 | **L5** xv6 kernel | interactive shell + filesystem | `sh` runs `ls`/`cat`/`echo`/`wc`, prompt returns | ✅ **shipped (2026-07-03)** — Phase 1 COMPLETE, Gates A→D.1. Interactive `sh` (fork/exec/wait), in-BPF FS reader over `fs.img`, per-pid MMU. [Linux on UPC](Linux-on-UPC) |
-| **L6** own OS | **Unheaded Linux** — own minimal OS from scratch (not vendored uClinux) | `sh` prompt on our kernel; scale to Yggdrasil golden image | ⏳ next ([ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md)) — evolve from xv6, budget-gated |
+| **L6** own OS | **Unheaded Linux** — own minimal OS from scratch (not vendored uClinux) | `sh` prompt on our kernel; scale to Yggdrasil golden image | ⏳ next ([ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md)) — evolve from xv6, budget-gated. Ownership ladder done 2026-07-07 (kernel 100% Unheaded); EVOLUTION-1 Stage 1 measured 2026-07-19, getpid flip deferred (+5409 verifier insns) |
 
 ## Per-level detail
 
@@ -98,7 +98,7 @@ The L4 → L5 acceleration is the substrate-investment payoff. With a working MB
 ## Cross-references
 
 - [UPC Overview](UPC-Overview)
-- [Linux on UPC](Linux-on-UPC) — L5 frontier
+- [Linux on UPC](Linux-on-UPC) — L5 record and the L6 frontier
 - [Doom on UPC](Doom-on-UPC) — L3 proof
 - [MBC ISA Reference](MBC-ISA-Reference)
 - [`references/battle-plan-ascend-linux-2026-05-08.md`](../references/battle-plan-ascend-linux-2026-05-08.md) — the 10-month phased campaign

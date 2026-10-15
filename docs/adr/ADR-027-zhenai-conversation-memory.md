@@ -1,6 +1,6 @@
 # ADR-027: Zhenai Conversation Memory — Persistent Cross-Session Recall
 
-**Status:** Planned
+**Status:** Accepted (implemented 2026-04-04: semantic recall + browser; `zhen_memories` in The Well)
 **Date:** 2026-04-03
 **Deciders:** Captain, Architect, Developer
 **Depends on:** ADR-016 (The Well), ADR-019 (Champion Agent), ADR-018 (RAFT Training)

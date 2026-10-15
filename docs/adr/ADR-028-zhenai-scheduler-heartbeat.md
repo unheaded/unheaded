@@ -1,6 +1,6 @@
 # ADR-028: Zhenai Scheduler & Heartbeat — From Reactive to Proactive
 
-**Status:** Planned
+**Status:** Accepted (implemented 2026-04-04: `raft/zhen_scheduler.py`, heartbeat + schedules)
 **Date:** 2026-04-03
 **Deciders:** Captain, Architect, Micromanager
 **Inspired by:** OpenClaw heartbeat/cron system (competitive analysis)

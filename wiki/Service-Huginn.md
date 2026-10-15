@@ -10,7 +10,7 @@ Huginn runs natively on each Kingdom host (west, east), not in a container. It r
 | Unit | `huginn.service`, runs as the dedicated user `unheaded` |
 | Config | `/etc/huginn.yaml` (template `cmd/host-agent/huginn.yaml.example`); secrets in `/etc/huginn.env` (root 0600) |
 | Listen | `:9110` by default |
-| Push | VictoriaMetrics every 10 s (west local `:8428`; east pushes to west over the P2P link) |
+| Push | VictoriaMetrics every 10 s (west local `:8428`; east pushes to west over the P2P link). **VictoriaMetrics is not running on west today**, so each push fails (`vm push failed ... connection refused` in the journal); `/metrics` still serves everything (FND-001) |
 
 ## What it reports
 

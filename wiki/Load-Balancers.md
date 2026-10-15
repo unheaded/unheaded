@@ -2,6 +2,8 @@
 
 Three-layer load balancing protecting every shoulder of the Kingdom.
 
+> **What runs (2026-10-15):** the main `docker-compose.yml` uses **Traefik** as its edge (80/443/50051, dashboard on `127.0.0.1:21000`). The HAProxy + Nginx stack below is a separate, optional compose file (`docker/docker-compose.loadbalancers.yml`) and the Kubernetes `haproxy-ingress`; neither is running on west.
+
 ## Architecture
 
 | Layer | Technology | Port | Role |
@@ -16,7 +18,7 @@ All services are documented for 4 deployment methods:
 
 | Target | Method | Config Source |
 |--------|--------|--------------|
-| Docker Compose | `docker compose -f docker-compose.loadbalancers.yml up` | `docker/` |
+| Docker Compose | `docker compose -f docker/docker-compose.loadbalancers.yml up` | `docker/` |
 | Bare Metal | systemd units + apt packages | Manual install |
 | LXD | System containers with proxy devices | `lxc launch` |
 | containerd | OCI containers with `ctr run` | `ctr` CLI |

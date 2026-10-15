@@ -1,6 +1,6 @@
 # ADR-014: IPv6 Fragment Header Processing (Deferred)
 
-**Status:** Accepted  
+**Status:** Accepted (Deferred)  
 **Date:** 2026-02-20
 
 > Wiki stub generated 2026-05-06 by Marshal overnight sweep (NORTH-STAR Appendix A B5). See the canonical ADR for full text and rationale.

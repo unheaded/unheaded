@@ -1,5 +1,7 @@
 # Performance Analysis
 
+> **Historical analysis (2026-03 → 05).** Doom is playable now; the last browser verification (2026-07-19) ran the injector at ~90K pkt/s with the verifier at 737,087 insns. See [[Doom on UPC|Doom-on-UPC]].
+
 ## Overview
 
 This page summarizes the performance characteristics of the Doom-over-IPv6 execution engine and the optimization roadmap for achieving playable frame rates. Detailed methodology, raw data, and profiling scripts are documented in `docs/doom/PERFORMANCE.md`.

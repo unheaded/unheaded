@@ -2,7 +2,7 @@
 
 Running id Software's original 1993 DOOM on the [Unheaded Protocol Computer](UPC-Overview). The computational-completeness proof for the Unheaded Protocol — every Doom frame is rendered by an XDP program executing MBC bytecode that arrived as IPv6 packets through a network namespace ring.
 
-**Status:** PLAYABLE. Menus, movement, shooting, doors all work. Stable beyond 5.9 B instructions executed. The framebuffer streams to a browser canvas over WebSocket; keyboard input flows back the same way.
+**Status:** PLAYABLE (browser-verified again 2026-07-19: verifier 737,087 insns, full 320×200 frames, ~90K pkt/s; retail `DOOM.WAD` IWAD detection fixed 2026-07-29). Menus, movement, shooting, doors all work. Stable beyond 5.9 B instructions executed. The framebuffer streams to a browser canvas over WebSocket; keyboard input flows back the same way.
 
 ## Why this exists
 

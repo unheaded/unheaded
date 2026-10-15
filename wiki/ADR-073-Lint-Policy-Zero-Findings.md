@@ -32,3 +32,7 @@ Run after every PR. Don't merge if non-zero unless triaged per protocol.
 - `docs/adr/ADR-073-lint-policy-zero-findings.md` — full ADR
 - `.golangci.yml` — current configured linters + exclusions (each with rationale comment)
 - `references/marshal-shift-2026-05-11-final-checkpoint.md` — session report covering all 12 CVE-class fixes
+
+## Canonical
+
+[docs/adr/ADR-073-lint-policy-zero-findings.md](../docs/adr/ADR-073-lint-policy-zero-findings.md)

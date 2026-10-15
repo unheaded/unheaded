@@ -25,6 +25,10 @@
 - [[The First Packet|The-First-Packet]]
 - [[Error Registry|Error-Registry]]
 - [[Internet-Drafts|Drafts-Index]]
+- [[Protocol Specs|Protocol-Specs]]
+- [[IANA Guide|IANA-Guide]]
+- [[RFC Cross-Reference|RFC-Cross-Reference]]
+- [[Wire Format Patterns|Wire-Format-Patterns]]
 
 **ADRs**
 - [[ADR Index|ADR-Index]]
@@ -39,6 +43,7 @@
 **Security**
 - [[Overview|Security]]
 - [[Audit|Security-Audit]]
+- [[Security TODOs|Security-TODOs]]
 - [[LICH Campaigns|LICH-Campaigns]]
 - [[Dark Grimoire|Dark-Grimoire]]
 
@@ -66,6 +71,8 @@
 - [[Observability|Observability-Backends]]
 - [[eBPF Programs|eBPF-Programs]]
 - [[Service Breakout|Service-Breakout-Strategy]]
+- [[Fae Chamber Contracts|Fae-Chamber-Contracts]]
+- [[OS Fork Discipline|OS-Fork-Discipline]]
 
 **The Protocol Computer (UPC)**
 - [[UPC Overview|UPC-Overview]]
@@ -100,11 +107,16 @@
 - [[Developer Guide|Developer-Guide]]
 - [[Agent Procedure|Agent-Operating-Procedure]]
 - [[Rust Components|Rust-Components]]
+- [[Demo Script|Demo-Script]]
+- [[Bug Kill Chain|Bug-Kill-Chain]]
+- [[Performance]]
 
 **Compliance**
 - [[SBOM]]
 
 **Planning**
 - [[Timeline]]
+- [[Roadmap]]
+- [[Upcoming Tasks|Upcoming-Tasks]]
 - [[Battle Plan|Battle-Plan]]
 - [[Sessions|Session-Index]]
