@@ -77,3 +77,27 @@ PostgreSQL fits the **Anamnesis** pattern. "The Well" evokes deep memory — the
 - ClickHouse remains the primary log analytics engine
 - VictoriaMetrics remains the metrics store
 - PostgreSQL is additive — no existing functionality is replaced
+
+## Amendment 2026-10-15: recovery point (ERDA 1.5) — **Proposed, Stevie decides**
+
+The RPO is written down before choosing a mechanism (Law 3).
+
+**What a restore would lose today**, by table: kanban cards (also in each
+kanban-app's SQLite L1 and the timeline in git), compliance tables
+(re-derived by `compliance-evidence well sync` from collected evidence),
+health state (re-derived by Akira within a sweep), zhen conversations
+(useful, not critical), audit_events (empty until pkg/audit is wired).
+Nothing in The Well today is unrecoverable within a day by other means.
+
+| | A. Nightly dumps (now) | B. WAL archiving (PITR) |
+|---|---|---|
+| RPO | <= 24 h (one night) | minutes (`archive_timeout`, e.g. 5 min) |
+| RTO | ~15 s restore at today's size, drill-proven weekly | base backup + WAL replay; needs its own drill |
+| Moving parts | db-backup.sh, 2 timers, offsite copy (all live, alerting) | + archive_command to a mounted dir, offsite WAL copy, weekly pg_basebackup, a PITR drill, WAL retention, an archiver-lag alert |
+| Config | as deployed | `archive_mode = on` needs a restart; `wal_level = replica` is already set |
+
+**Proposal: A, RPO 24 h.** Revisit B when The Well first holds records
+nothing else can rebuild within a day: audit_events written in production
+by pkg/audit, or kanban-app running without its SQLite L1. The switch is
+one restart away (wal_level is already `replica`), so deferring costs
+little. The `conf-no-archive` lint finding stays in the baseline until then.

@@ -138,7 +138,7 @@ live system and need Stevie's yes.
       role passwords come from env, a restore re-sets them instead of
       restoring hashes. Recommendation: (b). The drill would then set
       passwords from env after globals.
-- [ ] 1.5 Decide PITR (WAL archiving) vs daily dumps: write the RPO down
+- [~] 1.5 *(2026-10-15: written as ADR-016 amendment, Proposed: nightly dumps, RPO 24 h, revisit PITR when The Well first holds data nothing else can rebuild in a day. **Needs Stevie's yes or no.**)* Decide PITR (WAL archiving) vs daily dumps: write the RPO down
       first (Law 3). Record in ADR-016 amendment.
 
 ### Phase 2: access (W-02, W-05, W-06, W-07, W-24)
@@ -237,11 +237,11 @@ live system and need Stevie's yes.
       anyway: folded into 5.1. No injection found. The lint rule
       `string-formatted-sql` needs a SQL-keyword pair (e.g. `SELECT ... FROM`,
       `INSERT INTO`) before it reports, or it stays noisy.
-- [~] 5.3 Drop the duplicate and low-value indexes `CONCURRENTLY`, each
+- [~] 5.3 *(2026-10-15 baseline: 22 indexes at idx_scan 0, but stats were 2.5 h old. Re-run well_health.sql after 2026-11-15; stats survive clean restarts (PG 15+), a crash resets them. Drop only indexes still at 0 with no planned query)* Drop the duplicate and low-value indexes `CONCURRENTLY`, each
       backed by `pg_stat_user_indexes` from Phase 0. *Exact duplicates done
       2026-10-14* (017: 010's copies of the zhen indexes, only where 003's
       exist). Low-value indexes still wait for Phase 0 stats.
-- [ ] 5.4 Retention and partitioning for append-only tables per the
+- [~] 5.4 *(2026-10-15: deferred with a trigger. Largest append-only table is compliance_findings_history, 148 rows / 288 kB; audit_events, transitions, journal and config history are empty. Partition (monthly, by time) when any append-only table passes 1 M rows or 1 GB, or 90 days before the first rows reach the retention policy's archive age (audit: 90 days online, 1 year archive); rows are never deleted, partitions are detached and archived)* Retention and partitioning for append-only tables per the
       retention policy (time partitions dropped, never rows deleted).
 - [x] 5.5 *(2026-10-15, Stevie: "go with your pick": current state + transitions wired, hourly dropped. The bridge reads Akira's system.health.reports shape (contract test pins the two structs), host = reporter, stores only reports newer than the stored state (replays and out-of-order messages change nothing), records each status change at the report's time; dashboard-backend streams the topic into it as ops_writer (password rotated into .env); 024 drops service_health_hourly; /api/v1/health/trends removed (unused). Correction to the note below: dashboard-backend did construct the bridge, for reads only; nothing ever wrote. Live: 5 services reported by west within the first sweep)* Health bridge: wire it to Akira's topic and shape with a contract
       test, or delete it and the `service_health_*` tables. **Found 2026-10-15:**
@@ -252,5 +252,5 @@ live system and need Stevie's yes.
 - [x] 5.6 *(2026-10-15: ConfigStore.Set takes a reason and sets well.change_reason in its transaction (ErrNoReason without one); 028 makes the trigger refuse any kingdom_config change without a reason, psql included. test-migrate checks both ways; live: an unexplained UPDATE is refused)* Config history trigger: INSERT/UPDATE/DELETE, `change_reason`
       required. *019 (2026-10-14):* all three ops, `op` column, reason from
       `well.change_reason`. Required waits until config_store.go sets it.
-- [~] 5.7 Index `compliance_host_bindings(profile)` (*done, 018*); types: identity
+- [~] 5.7 *(2026-10-15: deferred to per-table work with each table's writers. A blanket SET NOT NULL would break inserts: writers pass explicit NULLs into defaulted columns (pgstore's nullableString for zhen_actions.parameters, for one). Per table: audit its writers, make them send values, then one migration (SET NOT NULL, SERIAL -> identity BY DEFAULT). Progress shows as the well-lint baseline shrinking: 13 nullable-empty-default, 12 nullable-timestamps, 21 nullable-with-default, 18 serial)* Index `compliance_host_bindings(profile)` (*done, 018*); types: identity
       columns, `timestamptz NOT NULL`, `jsonb`, no nullable `DEFAULT ''`.
