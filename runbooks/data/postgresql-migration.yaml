@@ -23,7 +23,7 @@ env:
 steps:
   - name: backup-before-migration
     action: shell
-    command: "sudo systemctl start unheaded-well-backup.service && cat /var/backups/unheaded-well/LATEST"
+    command: "sudo systemctl start unheaded-well-backup.service && cat /srv/backups/unheaded-well/LATEST"
     verify: "systemctl show -p Result --value unheaded-well-backup.service | grep -qx success"
     description: "ALWAYS take a backup set (every database + globals) first"
 

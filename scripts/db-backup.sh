@@ -31,6 +31,8 @@
 #   WELL_BACKUP_KEEP sets to keep (default 14; --keep overrides)
 #   WELL_BACKUP_ROLE role to dump as (default well_backup: pg_read_all_data,
 #                    db/migrations/023; read-only, never the superuser)
+#   WELL_BACKUP_OTHER_DISK=1  refuse when the root shares a physical disk
+#                    with the container's data directory
 #
 # After each set, <root>/LATEST (0644) names it: recency is visible to a
 # probe that cannot read the 0700 sets themselves.
@@ -58,6 +60,38 @@ DOCKER=(docker); docker info >/dev/null 2>&1 || DOCKER=(sudo -n docker)
 ROLE="${WELL_BACKUP_ROLE:-well_backup}"
 [[ "$ROLE" =~ ^[a-z_][a-z0-9_]*$ ]] || { echo "[well] bad role name '$ROLE'" >&2; exit 2; }
 "${DOCKER[@]}" exec "$C" pg_isready -q -U "$ROLE" -d postgres || { echo "[well] $C is not running or not accepting connections" >&2; exit 1; }
+
+# WELL_BACKUP_OTHER_DISK=1: refuse unless the sets live on a different
+# physical disk from the cluster's data, so one dead disk cannot take both.
+# Disks come from sysfs: through device-mapper/LVM slaves down to the whole
+# disk of a partition.
+disks_of_dev() {
+	local d s found=0
+	d="$(readlink -f "/sys/dev/block/$1")" && [[ -d "$d" ]] || return 1
+	for s in "$d"/slaves/*; do
+		[[ -e "$s/dev" ]] || continue
+		found=1
+		disks_of_dev "$(<"$s/dev")" || return 1
+	done
+	((found)) && return 0
+	if [[ -f "$d/partition" ]]; then basename "$(dirname "$d")"; else basename "$d"; fi
+}
+disks_of_path() {
+	local mm
+	mm="$(findmnt -no MAJ:MIN -T "$1" | tr -d "[:space:]")" && [[ -n "$mm" ]] || return 1
+	disks_of_dev "$mm" | sort -u
+}
+if [[ "${WELL_BACKUP_OTHER_DISK:-0}" == 1 ]]; then
+	DATA="$("${DOCKER[@]}" inspect "$C" --format '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Source}}{{end}}{{end}}')"
+	[[ -n "$DATA" ]] || { echo "[well] cannot find $C's data directory on the host" >&2; exit 1; }
+	data_disks="$(disks_of_path "$DATA" | paste -sd' ')" || true
+	set_disks="$(disks_of_path "$ROOT" | paste -sd' ')" || true
+	[[ -n "$data_disks" ]] || { echo "[well] cannot tell which disk holds $DATA" >&2; exit 1; }
+	[[ -n "$set_disks" ]] || { echo "[well] cannot tell which disk holds $ROOT" >&2; exit 1; }
+	shared="$(comm -12 <(tr ' ' '\n' <<<"$data_disks") <(tr ' ' '\n' <<<"$set_disks") | paste -sd' ')" || true
+	[[ -z "$shared" ]] || { echo "[well] refusing: $ROOT and the data ($DATA) share disk(s): $shared" >&2; exit 1; }
+	echo "[well] data on $data_disks, sets on $set_disks"
+fi
 # The bootstrap superuser (oid 10): globals grant GRANTED BY it, so a restore
 # must bootstrap with the same name (scripts/well/restore-drill.sh).
 SU="$("${DOCKER[@]}" exec "$C" psql -X -At -v ON_ERROR_STOP=1 -U "$ROLE" -d postgres -c 'SELECT rolname FROM pg_roles WHERE oid = 10')" ||

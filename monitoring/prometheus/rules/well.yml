@@ -6,7 +6,9 @@
 # unheaded-well-backup, -drill and -offsite write their .prom file only on
 # success, so a failing job shows here as an old timestamp, never as a
 # value. Schedules: backup nightly, offsite after each backup, drill
-# weekly. Until FND-001 is closed Alertmanager's receiver is `null` and none
+# weekly. West is not up every night: the timers are Persistent=, so a
+# missed run starts within ~20 min of boot, and `for: 45m` keeps that
+# catch-up from paging. Until FND-001 is closed Alertmanager's receiver is `null` and none
 # of this reaches anyone.
 
 groups:
@@ -15,7 +17,7 @@ groups:
     rules:
       - alert: WellBackupLate
         expr: time() - unheaded_well_backup_last_success_timestamp_seconds > 26 * 3600
-        for: 10m
+        for: 45m
         labels:
           severity: warning
         annotations:
@@ -24,7 +26,7 @@ groups:
 
       - alert: WellBackupMissing
         expr: time() - unheaded_well_backup_last_success_timestamp_seconds > 50 * 3600
-        for: 10m
+        for: 45m
         labels:
           severity: critical
         annotations:
@@ -33,7 +35,7 @@ groups:
 
       - alert: WellOffsiteLate
         expr: time() - unheaded_well_offsite_last_success_timestamp_seconds > 26 * 3600
-        for: 10m
+        for: 45m
         labels:
           severity: warning
         annotations:
@@ -42,7 +44,7 @@ groups:
 
       - alert: WellDrillLate
         expr: time() - unheaded_well_drill_last_success_timestamp_seconds > 8 * 86400
-        for: 10m
+        for: 45m
         labels:
           severity: warning
         annotations:

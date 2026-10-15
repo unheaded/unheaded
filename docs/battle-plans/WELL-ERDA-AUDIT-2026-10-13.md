@@ -138,7 +138,7 @@ live system and need Stevie's yes.
       role passwords come from env, a restore re-sets them instead of
       restoring hashes. Recommendation: (b). The drill would then set
       passwords from env after globals.
-- [~] 1.5 *(2026-10-15: written as ADR-016 amendment, Proposed: nightly dumps, RPO 24 h, revisit PITR when The Well first holds data nothing else can rebuild in a day. **Needs Stevie's yes or no.**)* Decide PITR (WAL archiving) vs daily dumps: write the RPO down
+- [x] 1.5 *(2026-10-15: ADR-016 amendment Accepted by Stevie: nightly dumps, RPO 24 h, two weeks kept (14 sets, west and east), sets on the other physical disk from the data (/srv on the NVMe vs the volume on sdb, enforced by WELL_BACKUP_OTHER_DISK=1); revisit PITR when The Well first holds data nothing else can rebuild in a day)* Decide PITR (WAL archiving) vs daily dumps: write the RPO down
       first (Law 3). Record in ADR-016 amendment.
 
 ### Phase 2: access (W-02, W-05, W-06, W-07, W-24)

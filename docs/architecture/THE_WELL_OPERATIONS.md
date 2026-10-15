@@ -178,19 +178,23 @@ statements (> 500 ms), lock waits and DDL are in the container log.
 `unheaded-well-backup.timer` (nightly 03:30) runs `scripts/db-backup.sh` as
 the read-only role `well_backup`: globals (no password hashes) and every
 database, row counts from each dump's snapshot, SHA256SUMS, 14 sets kept in
-`/var/backups/unheaded-well` (`LATEST` names the newest).
+`/srv/backups/unheaded-well` (`LATEST` names the newest). RPO 24 h (ADR-016).
+West is not up every night: missed runs start at boot (`Persistent=`).
+The sets sit on the NVMe root disk, the data volume on the /var disk (sdb);
+`WELL_BACKUP_OTHER_DISK=1` makes the backup refuse if both ever share a disk.
+Each good set is copied to east, which keeps the newest 14 as well.
 `unheaded-well-drill.timer` (Sundays) restores the newest set into a
 throwaway server and compares every row count.
 
 ```bash
 sudo systemctl start unheaded-well-backup.service     # a set now
-sudo /usr/local/lib/unheaded/well/restore-drill.sh "/var/backups/unheaded-well/$(cat /var/backups/unheaded-well/LATEST)"
+sudo /usr/local/lib/unheaded/well/restore-drill.sh "/srv/backups/unheaded-well/$(cat /srv/backups/unheaded-well/LATEST)"
 ```
 
 After restoring a set for real, set role passwords again
 (`scripts/well/set-role-passwords.sh`): sets carry none.
 
-**Volume:** Docker volume `unheaded-dev_postgres-data`. Data checksums are on.
+**Volume:** Docker volume `unheaded-dev_postgres-data` under `/var/lib/docker` (disk sdb). Data checksums are on.
 
 ---
 

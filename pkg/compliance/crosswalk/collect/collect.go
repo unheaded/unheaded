@@ -728,14 +728,14 @@ var Probes = map[string]Probe{
 	},
 	"db-backup-recent": {
 		// The Well's dumps: the scheduled sets (unheaded-well-backup.timer)
-		// under /var/backups/unheaded-well, whose world-readable LATEST
+		// under /srv/backups/unheaded-well, whose world-readable LATEST
 		// names the newest (the sets are 0700); a manual scripts/db-backup.sh
 		// set (well-<time>Z/SHA256SUMS) or an older pg_dump *.sql.gz under
 		// ~/backups/unheaded.
 		Command: `{ find "$HOME/backups/unheaded" -type f \( -name '*.sql.gz' -o -path '*/well-*Z/SHA256SUMS' \) -mtime -7 -printf '%TF %P\n'; ` +
-			`find /var/backups/unheaded-well -maxdepth 1 -type f -name LATEST -mtime -7 -printf '%TF scheduled\n'; } 2>/dev/null | sort | tail -1; ` +
+			`find /srv/backups/unheaded-well -maxdepth 1 -type f -name LATEST -mtime -7 -printf '%TF scheduled\n'; } 2>/dev/null | sort | tail -1; ` +
 			`echo ---; { find "$HOME/backups/unheaded" -type f \( -name '*.sql.gz' -o -path '*/well-*Z/SHA256SUMS' \) -printf '%TF\n'; ` +
-			`find /var/backups/unheaded-well -maxdepth 1 -type f -name LATEST -printf '%TF\n'; } 2>/dev/null | sort | tail -1`,
+			`find /srv/backups/unheaded-well -maxdepth 1 -type f -name LATEST -printf '%TF\n'; } 2>/dev/null | sort | tail -1`,
 		Judge: func(out string) (bool, string) {
 			recent, newest, _ := strings.Cut(out, "---")
 			recent, newest = strings.TrimSpace(recent), strings.TrimSpace(newest)

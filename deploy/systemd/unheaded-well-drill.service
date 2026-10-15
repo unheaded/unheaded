@@ -11,7 +11,7 @@ Requires=docker.service
 
 [Service]
 Type=oneshot
-Environment=WELL_BACKUP_DIR=/var/backups/unheaded-well
+Environment=WELL_BACKUP_DIR=/srv/backups/unheaded-well
 Environment=WELL_CONTAINER=unheaded-postgres
 Environment=WELL_METRICS_DIR=/var/lib/unheaded/textfile
 Environment=DOCKER_CONFIG=/run/unheaded-well-drill

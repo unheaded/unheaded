@@ -31,7 +31,7 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-Environment=WELL_BACKUP_DIR=/var/backups/unheaded-well
+Environment=WELL_BACKUP_DIR=/srv/backups/unheaded-well
 Environment=WELL_OFFSITE_DEST=well-backup-copy@192.168.13.1
 Environment=WELL_OFFSITE_KEYDIR=/etc/unheaded/well-offsite
 Environment=WELL_METRICS_DIR=/var/lib/unheaded/textfile
@@ -43,7 +43,7 @@ UMask=0077
 
 NoNewPrivileges=yes
 ProtectSystem=strict
-ReadWritePaths=/var/backups/unheaded-well /var/lib/unheaded/textfile
+ReadWritePaths=/srv/backups/unheaded-well /var/lib/unheaded/textfile
 ReadOnlyPaths=/etc/unheaded/well-offsite
 ProtectHome=yes
 PrivateTmp=yes

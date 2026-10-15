@@ -15,7 +15,7 @@
 #
 #   WELL_OFFSITE_DEST=well-backup-copy@192.168.13.1 scripts/well/offsite-copy.sh
 set -euo pipefail
-DIR="${WELL_BACKUP_DIR:-/var/backups/unheaded-well}"
+DIR="${WELL_BACKUP_DIR:-/srv/backups/unheaded-well}"
 DEST="${WELL_OFFSITE_DEST:?set WELL_OFFSITE_DEST (user@host)}"
 KEYDIR="${WELL_OFFSITE_KEYDIR:-/etc/unheaded/well-offsite}"
 METRICS="${WELL_METRICS_DIR:-}"

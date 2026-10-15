@@ -20,9 +20,9 @@ steps:
   - name: restore-database
     action: shell
     command: |
-      SET=$(cat /var/backups/unheaded-well/LATEST 2>/dev/null)
+      SET=$(cat /srv/backups/unheaded-well/LATEST 2>/dev/null)
       echo "Newest backup set: ${SET:-none}"
-      echo "Prove it restores first: sudo /usr/local/lib/unheaded/well/restore-drill.sh /var/backups/unheaded-well/$SET"
+      echo "Prove it restores first: sudo /usr/local/lib/unheaded/well/restore-drill.sh /srv/backups/unheaded-well/$SET"
       echo "Then restore only the affected database by hand (pg_restore --clean into it),"
       echo "re-set role passwords with scripts/well/set-role-passwords.sh, and run well-migrate status."
     description: "MANUAL: a runbook never drops a database of The Well"

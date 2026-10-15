@@ -11,7 +11,7 @@ Type=oneshot
 User=well-backup-copy
 Group=well-backup-copy
 Environment=WELL_OFFSITE_DIR=/var/backups/unheaded-well-west
-Environment=WELL_OFFSITE_KEEP_DAYS=30
+Environment=WELL_OFFSITE_KEEP=14
 Environment=WELL_OFFSITE_MAX_AGE_H=36
 ExecStart=/usr/local/lib/unheaded/well/offsite-check.sh
 Nice=10

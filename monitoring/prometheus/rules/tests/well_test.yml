@@ -3,7 +3,7 @@ rule_files:
   - ../well.yml
 evaluation_interval: 1m
 tests:
-  # A backup at t=0 and never again: late after 26h (+10m), missing after 50h.
+  # A backup at t=0 and never again: late after 26h (+45m), missing after 50h.
   - interval: 1m
     input_series:
       - series: 'unheaded_well_backup_last_success_timestamp_seconds{host="west"}'
@@ -61,6 +61,24 @@ tests:
               description: "huginn dropped 2 line(s); whatever wrote the file is broken"
       - eval_time: 30m
         alertname: WellBackupMetricsMissing
+        exp_alerts: []
+  # West off for two days, then boots: the stale timestamp is back for 20m
+  # until the Persistent= catch-up backup and copy land. No alert.
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_well_backup_last_success_timestamp_seconds{host="west"}'
+        values: '_x3000 0x20 181200x60'
+      - series: 'unheaded_well_offsite_last_success_timestamp_seconds{host="west"}'
+        values: '_x3000 0x20 181200x60'
+    alert_rule_test:
+      - eval_time: 50h15m
+        alertname: WellBackupLate
+        exp_alerts: []
+      - eval_time: 50h15m
+        alertname: WellBackupMissing
+        exp_alerts: []
+      - eval_time: 50h15m
+        alertname: WellOffsiteLate
         exp_alerts: []
   # Nothing at all: the metrics-missing alert.
   - interval: 1m

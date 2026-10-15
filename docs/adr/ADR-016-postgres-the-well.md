@@ -78,7 +78,7 @@ PostgreSQL fits the **Anamnesis** pattern. "The Well" evokes deep memory — the
 - VictoriaMetrics remains the metrics store
 - PostgreSQL is additive — no existing functionality is replaced
 
-## Amendment 2026-10-15: recovery point (ERDA 1.5) — **Proposed, Stevie decides**
+## Amendment 2026-10-15: recovery point (ERDA 1.5) — **Accepted**
 
 The RPO is written down before choosing a mechanism (Law 3).
 
@@ -96,7 +96,14 @@ Nothing in The Well today is unrecoverable within a day by other means.
 | Moving parts | db-backup.sh, 2 timers, offsite copy (all live, alerting) | + archive_command to a mounted dir, offsite WAL copy, weekly pg_basebackup, a PITR drill, WAL retention, an archiver-lag alert |
 | Config | as deployed | `archive_mode = on` needs a restart; `wal_level = replica` is already set |
 
-**Proposal: A, RPO 24 h.** Revisit B when The Well first holds records
+**Decision (Stevie, 2026-10-15): A, RPO 24 h.** West is not up 24/7:
+the backup runs nightly when it is, and a missed night runs at the next
+boot (`Persistent=`). Sets are kept on a different physical disk from the
+data (`/srv/backups/unheaded-well` on the NVMe; the data volume is on the
+/var disk, sdb), and `WELL_BACKUP_OTHER_DISK=1` makes the backup refuse
+if that ever stops being true. Retention is two weeks: the newest 14 sets
+on west and on east (by count, so a powered-off week does not age them
+out). Revisit B when The Well first holds records
 nothing else can rebuild within a day: audit_events written in production
 by pkg/audit, or kanban-app running without its SQLite L1. The switch is
 one restart away (wal_level is already `replica`), so deferring costs
