@@ -135,8 +135,10 @@ func (e *AuditEvent) ComputeHash() string {
 	return hex.EncodeToString(hash[:])
 }
 
+// serializeDetails returns "" for nil and empty details alike: storage
+// keeps both as {} and cannot tell them apart, so they must hash the same.
 func (e *AuditEvent) serializeDetails() string {
-	if e.Details == nil {
+	if len(e.Details) == 0 {
 		return ""
 	}
 	data, _ := json.Marshal(e.Details)
@@ -280,7 +282,9 @@ type EventBuilder struct {
 func NewEventBuilder() *EventBuilder {
 	return &EventBuilder{
 		event: &AuditEvent{
-			Timestamp: time.Now().UTC(),
+			// Microseconds: what PostgreSQL keeps, so a stored event's hash
+			// still verifies when read back (pkg/audit/storage).
+			Timestamp: time.Now().UTC().Truncate(time.Microsecond),
 			Details:   make(map[string]interface{}),
 		},
 	}

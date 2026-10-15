@@ -7,23 +7,33 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
 	"unheaded/pkg/audit"
 )
 
-// validTableName matches conservative SQL-identifier rules: starts with a
-// letter or underscore, then [A-Za-z0-9_] up to 64 chars. Rejects anything
-// that would let a caller smuggle SQL fragments through tableName.
-var validTableName = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]{0,63}$`)
+// Table is the one table this storage uses, defined by
+// db/migrations/022. It is a constant so every statement is a constant.
+const Table = "audit_events"
 
-// DatabaseStorage implements database-backed audit storage.
+// ErrSchema reports that the table lacks the shape this storage uses.
+var ErrSchema = errors.New("audit table schema missing or incomplete: run well-migrate (db/migrations/022)")
+
+// ErrTimestampPrecision rejects an event whose timestamp has a finer
+// precision than PostgreSQL keeps (microseconds): it would be stored
+// rounded, and its hash, computed over the nanosecond timestamp, would no
+// longer verify when read back.
+var ErrTimestampPrecision = errors.New("audit event timestamp has sub-microsecond precision")
+
+// DatabaseStorage stores audit events in The Well's unheaded_ops.audit_events
+// (db/migrations/022). The table is append-only there: this storage only
+// inserts and reads. It never creates or alters the table.
 type DatabaseStorage struct {
-	db        *sql.DB
-	tableName string
+	db *sql.DB
 }
 
 // DatabaseConfig holds configuration for database storage.
@@ -33,226 +43,136 @@ type DatabaseConfig struct {
 	TableName string `json:"table_name"`
 }
 
-// NewDatabaseStorage creates a new database storage backend.
+// columns is the table's shape, in the order every query uses.
+const columns = `id, occurred_at, event_type, severity, action, outcome,
+			actor_id, actor_type, actor_name,
+			resource_id, resource_type,
+			source_ip, source_service, request_id,
+			details, previous_hash, hash, signature`
+
+// NewDatabaseStorage returns storage over The Well's audit table, after
+// checking it has every column used (a SELECT that reads no rows).
+// tableName must be "" or Table: the migrations define one table, and a
+// constant name keeps every statement constant.
 func NewDatabaseStorage(db *sql.DB, tableName string) (*DatabaseStorage, error) {
 	if db == nil {
 		return nil, fmt.Errorf("database connection is required")
 	}
-	if tableName == "" {
-		tableName = "audit_events"
+	if tableName != "" && tableName != Table {
+		return nil, fmt.Errorf("audit storage: table %q is not %s (db/migrations/022)", tableName, Table)
 	}
-	if !validTableName.MatchString(tableName) {
-		return nil, fmt.Errorf("audit storage: tableName %q does not match safe identifier pattern", tableName)
+	ds := &DatabaseStorage{db: db}
+	if err := ds.checkSchema(context.Background()); err != nil {
+		return nil, err
 	}
-
-	ds := &DatabaseStorage{
-		db:        db,
-		tableName: tableName,
-	}
-
-	// Ensure table exists
-	if err := ds.ensureTable(); err != nil {
-		return nil, fmt.Errorf("failed to ensure table: %w", err)
-	}
-
 	return ds, nil
 }
 
-// ensureTable creates the audit table if it doesn't exist.
-func (ds *DatabaseStorage) ensureTable() error {
-	query := fmt.Sprintf(`
-		CREATE TABLE IF NOT EXISTS %s (
-			id VARCHAR(255) PRIMARY KEY,
-			timestamp TIMESTAMP NOT NULL,
-			event_type VARCHAR(50) NOT NULL,
-			severity VARCHAR(20) NOT NULL,
-			action VARCHAR(255) NOT NULL,
-			outcome VARCHAR(20) NOT NULL,
-			actor_id VARCHAR(255),
-			actor_type VARCHAR(50),
-			actor_name VARCHAR(255),
-			resource_id VARCHAR(255),
-			resource_type VARCHAR(50),
-			source_ip VARCHAR(45),
-			source_service VARCHAR(100),
-			request_id VARCHAR(255),
-			details JSON,
-			previous_hash VARCHAR(64),
-			hash VARCHAR(64) NOT NULL,
-			signature TEXT,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			INDEX idx_timestamp (timestamp),
-			INDEX idx_event_type (event_type),
-			INDEX idx_actor_id (actor_id),
-			INDEX idx_severity (severity)
-		)
-	`, ds.tableName)
+func (ds *DatabaseStorage) checkSchema(ctx context.Context) error {
+	rows, err := ds.db.QueryContext(ctx, "SELECT "+columns+" FROM "+Table+" LIMIT 0")
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrSchema, err)
+	}
+	return rows.Close()
+}
 
-	_, err := ds.db.Exec(query)
-	return err
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
 // Store persists an audit event.
 func (ds *DatabaseStorage) Store(ctx context.Context, event *audit.AuditEvent) error {
-	details, err := json.Marshal(event.Details)
-	if err != nil {
-		return fmt.Errorf("failed to marshal details: %w", err)
-	}
-
-	var actorID, actorType, actorName sql.NullString
-	if event.Actor != nil {
-		actorID = sql.NullString{String: event.Actor.ID, Valid: event.Actor.ID != ""}
-		actorType = sql.NullString{String: event.Actor.Type, Valid: event.Actor.Type != ""}
-		actorName = sql.NullString{String: event.Actor.Name, Valid: event.Actor.Name != ""}
-	}
-
-	var resourceID, resourceType sql.NullString
-	if event.Resource != nil {
-		resourceID = sql.NullString{String: event.Resource.ID, Valid: event.Resource.ID != ""}
-		resourceType = sql.NullString{String: event.Resource.Type, Valid: event.Resource.Type != ""}
-	}
-
-	var sourceIP, sourceService, requestID sql.NullString
-	if event.Source != nil {
-		sourceIP = sql.NullString{String: event.Source.IP, Valid: event.Source.IP != ""}
-		sourceService = sql.NullString{String: event.Source.Service, Valid: event.Source.Service != ""}
-		requestID = sql.NullString{String: event.Source.RequestID, Valid: event.Source.RequestID != ""}
-	}
-
-	// #nosec G201 -- table name validated by validTableName regex at construction; all user values use ? placeholders
-	query := fmt.Sprintf(`
-		INSERT INTO %s (
-			id, timestamp, event_type, severity, action, outcome,
-			actor_id, actor_type, actor_name,
-			resource_id, resource_type,
-			source_ip, source_service, request_id,
-			details, previous_hash, hash, signature
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, ds.tableName)
-
-	_, err = ds.db.ExecContext(ctx, query,
-		event.ID, event.Timestamp, event.Type, event.Severity, event.Action, event.Outcome,
-		actorID, actorType, actorName,
-		resourceID, resourceType,
-		sourceIP, sourceService, requestID,
-		string(details), event.PreviousHash, event.Hash, event.Signature,
-	)
-
-	return err
+	return ds.insert(ctx, ds.db, event)
 }
 
-// StoreBatch persists multiple events.
+// StoreBatch persists multiple events in one transaction.
 func (ds *DatabaseStorage) StoreBatch(ctx context.Context, events []*audit.AuditEvent) error {
 	tx, err := ds.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback() }()
-
 	for _, event := range events {
-		if err := ds.storeInTx(ctx, tx, event); err != nil {
+		if err := ds.insert(ctx, tx, event); err != nil {
 			return err
 		}
 	}
-
 	return tx.Commit()
 }
 
-func (ds *DatabaseStorage) storeInTx(ctx context.Context, tx *sql.Tx, event *audit.AuditEvent) error {
-	details, err := json.Marshal(event.Details)
-	if err != nil {
-		return fmt.Errorf("failed to marshal details: %w", err)
+func (ds *DatabaseStorage) insert(ctx context.Context, x execer, event *audit.AuditEvent) error {
+	if !event.Timestamp.Equal(event.Timestamp.Truncate(time.Microsecond)) {
+		return fmt.Errorf("%w: %s", ErrTimestampPrecision, event.ID)
 	}
-
+	details := []byte("{}")
+	if event.Details != nil {
+		var err error
+		if details, err = json.Marshal(event.Details); err != nil {
+			return fmt.Errorf("failed to marshal details: %w", err)
+		}
+	}
 	var actorID, actorType, actorName sql.NullString
 	if event.Actor != nil {
-		actorID = sql.NullString{String: event.Actor.ID, Valid: event.Actor.ID != ""}
-		actorType = sql.NullString{String: event.Actor.Type, Valid: event.Actor.Type != ""}
-		actorName = sql.NullString{String: event.Actor.Name, Valid: event.Actor.Name != ""}
+		actorID = nullString(event.Actor.ID)
+		actorType = nullString(event.Actor.Type)
+		actorName = nullString(event.Actor.Name)
 	}
-
 	var resourceID, resourceType sql.NullString
 	if event.Resource != nil {
-		resourceID = sql.NullString{String: event.Resource.ID, Valid: event.Resource.ID != ""}
-		resourceType = sql.NullString{String: event.Resource.Type, Valid: event.Resource.Type != ""}
+		resourceID = nullString(event.Resource.ID)
+		resourceType = nullString(event.Resource.Type)
 	}
-
 	var sourceIP, sourceService, requestID sql.NullString
 	if event.Source != nil {
-		sourceIP = sql.NullString{String: event.Source.IP, Valid: event.Source.IP != ""}
-		sourceService = sql.NullString{String: event.Source.Service, Valid: event.Source.Service != ""}
-		requestID = sql.NullString{String: event.Source.RequestID, Valid: event.Source.RequestID != ""}
+		sourceIP = nullString(event.Source.IP)
+		sourceService = nullString(event.Source.Service)
+		requestID = nullString(event.Source.RequestID)
 	}
-
-	// #nosec G201 -- table name validated by validTableName regex at construction; all user values use ? placeholders
-	query := fmt.Sprintf(`
-		INSERT INTO %s (
-			id, timestamp, event_type, severity, action, outcome,
-			actor_id, actor_type, actor_name,
-			resource_id, resource_type,
-			source_ip, source_service, request_id,
-			details, previous_hash, hash, signature
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`, ds.tableName)
-
-	_, err = tx.ExecContext(ctx, query,
-		event.ID, event.Timestamp, event.Type, event.Severity, event.Action, event.Outcome,
+	const query = "INSERT INTO " + Table + " (" + columns + `)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, $16, $17, $18)`
+	_, err := x.ExecContext(ctx, query,
+		event.ID, event.Timestamp, string(event.Type), string(event.Severity), event.Action, string(event.Outcome),
 		actorID, actorType, actorName,
 		resourceID, resourceType,
 		sourceIP, sourceService, requestID,
 		string(details), event.PreviousHash, event.Hash, event.Signature,
 	)
-
 	return err
 }
 
+func nullString(s string) sql.NullString { return sql.NullString{String: s, Valid: s != ""} }
+
 // Get retrieves a single event by ID.
 func (ds *DatabaseStorage) Get(ctx context.Context, id string) (*audit.AuditEvent, error) {
-	// #nosec G201 -- table name validated by validTableName regex at construction; all user values use ? placeholders
-	query := fmt.Sprintf(`
-		SELECT id, timestamp, event_type, severity, action, outcome,
-			actor_id, actor_type, actor_name,
-			resource_id, resource_type,
-			source_ip, source_service, request_id,
-			details, previous_hash, hash, signature
-		FROM %s WHERE id = ?
-	`, ds.tableName)
-
-	row := ds.db.QueryRowContext(ctx, query, id)
-	return ds.scanEvent(row)
+	const query = "SELECT " + selectColumns + " FROM " + Table + " WHERE id = $1"
+	return scanEvent(ds.db.QueryRowContext(ctx, query, id))
 }
 
 // Query retrieves events matching the query.
 func (ds *DatabaseStorage) Query(ctx context.Context, query *audit.AuditQuery) ([]*audit.AuditEvent, error) {
 	sqlQuery, args := ds.buildQuery(query)
-	rows, err := ds.db.QueryContext(ctx, sqlQuery, args...)
+	rows, err := ds.db.QueryContext(ctx, sqlQuery, args...) // #nosec G701 -- built only from constant fragments, the orderColumns allowlist and $n placeholders; every value is in args
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
-
+	defer func() { _ = rows.Close() }()
 	var events []*audit.AuditEvent
 	for rows.Next() {
-		event, err := ds.scanEventRows(rows)
+		event, err := scanEvent(rows)
 		if err != nil {
 			return nil, err
 		}
 		events = append(events, event)
 	}
-
 	return events, rows.Err()
 }
 
 // GetLastHash returns the hash of the most recent event.
 func (ds *DatabaseStorage) GetLastHash(ctx context.Context) (string, error) {
-	// #nosec G201 -- table name validated by validTableName regex at construction; all user values use ? placeholders
-	query := fmt.Sprintf(`
-		SELECT hash FROM %s ORDER BY timestamp DESC, id DESC LIMIT 1
-	`, ds.tableName)
-
+	const query = "SELECT hash FROM " + Table + " ORDER BY occurred_at DESC, id DESC LIMIT 1"
 	var hash string
 	err := ds.db.QueryRowContext(ctx, query).Scan(&hash)
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return "", nil
 	}
 	return hash, err
@@ -261,10 +181,9 @@ func (ds *DatabaseStorage) GetLastHash(ctx context.Context) (string, error) {
 // Count returns the number of events matching the query.
 func (ds *DatabaseStorage) Count(ctx context.Context, query *audit.AuditQuery) (int64, error) {
 	where, args := ds.buildWhereClause(query)
-	sqlQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s %s", ds.tableName, where) // #nosec G201 -- table name validated by validTableName regex at construction; all user values use ? placeholders
-
+	sqlQuery := "SELECT COUNT(*) FROM " + Table + " " + where
 	var count int64
-	err := ds.db.QueryRowContext(ctx, sqlQuery, args...).Scan(&count)
+	err := ds.db.QueryRowContext(ctx, sqlQuery, args...).Scan(&count) // #nosec G701 -- WHERE from buildWhereClause: constant fragments and $n placeholders; every value is in args
 	return count, err
 }
 
@@ -273,178 +192,102 @@ func (ds *DatabaseStorage) Close() error {
 	return ds.db.Close()
 }
 
-// buildQuery builds the SQL query string.
-func (ds *DatabaseStorage) buildQuery(query *audit.AuditQuery) (string, []interface{}) {
-	where, args := ds.buildWhereClause(query)
+// selectColumns is columns with details read back as text for the JSON
+// decode. A literal, like columns: nothing in a query is computed.
+const selectColumns = `id, occurred_at, event_type, severity, action, outcome,
+			actor_id, actor_type, actor_name,
+			resource_id, resource_type,
+			source_ip, source_service, request_id,
+			details::text, previous_hash, hash, signature`
 
-	// SECURITY: Whitelist OrderBy values to prevent SQL injection.
-	// The OrderBy field comes from query parameters and must not be interpolated
-	// directly into SQL. Only known column names are allowed.
-	orderBy := "timestamp"
-	if query.OrderBy != "" {
-		switch query.OrderBy {
-		case "timestamp", "id", "event_type", "severity", "action", "outcome",
-			"actor_id", "actor_type", "actor_name", "resource_id", "resource_type",
-			"source_ip", "source_service", "request_id":
-			orderBy = query.OrderBy
-		default:
-			// Reject unknown column names to prevent SQL injection
-			orderBy = "timestamp"
-		}
+// orderColumns maps the query API's field names to columns. Only these can
+// reach ORDER BY: the field comes from callers and is never interpolated.
+var orderColumns = map[string]string{
+	"timestamp": "occurred_at", "id": "id", "event_type": "event_type", "severity": "severity",
+	"action": "action", "outcome": "outcome", "actor_id": "actor_id", "actor_type": "actor_type",
+	"actor_name": "actor_name", "resource_id": "resource_id", "resource_type": "resource_type",
+	"source_ip": "source_ip", "source_service": "source_service", "request_id": "request_id",
+}
+
+// buildQuery builds the SQL query string.
+func (ds *DatabaseStorage) buildQuery(query *audit.AuditQuery) (string, []any) {
+	where, args := ds.buildWhereClause(query)
+	orderBy, ok := orderColumns[query.OrderBy]
+	if !ok {
+		orderBy = "occurred_at"
 	}
 	order := "ASC"
 	if query.Descending {
 		order = "DESC"
 	}
-
-	sqlQuery := fmt.Sprintf(`
-		SELECT id, timestamp, event_type, severity, action, outcome,
-			actor_id, actor_type, actor_name,
-			resource_id, resource_type,
-			source_ip, source_service, request_id,
-			details, previous_hash, hash, signature
-		FROM %s %s ORDER BY %s %s
-	`, ds.tableName, where, orderBy, order)
-
+	sqlQuery := "SELECT " + selectColumns + " FROM " + Table + " " + where + " ORDER BY " + orderBy + " " + order
 	if query.Limit > 0 {
-		sqlQuery += fmt.Sprintf(" LIMIT %d", query.Limit)
+		args = append(args, query.Limit)
+		sqlQuery += " LIMIT $" + strconv.Itoa(len(args))
 	}
 	if query.Offset > 0 {
-		sqlQuery += fmt.Sprintf(" OFFSET %d", query.Offset)
+		args = append(args, query.Offset)
+		sqlQuery += " OFFSET $" + strconv.Itoa(len(args))
 	}
-
 	return sqlQuery, args
 }
 
-// buildWhereClause builds the WHERE clause.
-func (ds *DatabaseStorage) buildWhereClause(query *audit.AuditQuery) (string, []interface{}) {
+// buildWhereClause builds the WHERE clause with numbered parameters.
+func (ds *DatabaseStorage) buildWhereClause(query *audit.AuditQuery) (string, []any) {
 	var conditions []string
-	var args []interface{}
-
+	var args []any
+	param := func(v any) string {
+		args = append(args, v)
+		return "$" + strconv.Itoa(len(args))
+	}
+	in := func(column string, values []string) {
+		if len(values) == 0 {
+			return
+		}
+		ps := make([]string, len(values))
+		for i, v := range values {
+			ps[i] = param(v)
+		}
+		conditions = append(conditions, fmt.Sprintf("%s IN (%s)", column, strings.Join(ps, ",")))
+	}
 	if !query.StartTime.IsZero() {
-		conditions = append(conditions, "timestamp >= ?")
-		args = append(args, query.StartTime)
+		conditions = append(conditions, "occurred_at >= "+param(query.StartTime))
 	}
 	if !query.EndTime.IsZero() {
-		conditions = append(conditions, "timestamp <= ?")
-		args = append(args, query.EndTime)
+		conditions = append(conditions, "occurred_at <= "+param(query.EndTime))
 	}
-
-	if len(query.Types) > 0 {
-		placeholders := make([]string, len(query.Types))
-		for i, t := range query.Types {
-			placeholders[i] = "?"
-			args = append(args, string(t))
-		}
-		conditions = append(conditions, fmt.Sprintf("event_type IN (%s)", strings.Join(placeholders, ",")))
-	}
-
-	if len(query.Severities) > 0 {
-		placeholders := make([]string, len(query.Severities))
-		for i, s := range query.Severities {
-			placeholders[i] = "?"
-			args = append(args, string(s))
-		}
-		conditions = append(conditions, fmt.Sprintf("severity IN (%s)", strings.Join(placeholders, ",")))
-	}
-
-	if len(query.ActorIDs) > 0 {
-		placeholders := make([]string, len(query.ActorIDs))
-		for i, id := range query.ActorIDs {
-			placeholders[i] = "?"
-			args = append(args, id)
-		}
-		conditions = append(conditions, fmt.Sprintf("actor_id IN (%s)", strings.Join(placeholders, ",")))
-	}
-
-	if len(query.Actions) > 0 {
-		placeholders := make([]string, len(query.Actions))
-		for i, a := range query.Actions {
-			placeholders[i] = "?"
-			args = append(args, a)
-		}
-		conditions = append(conditions, fmt.Sprintf("action IN (%s)", strings.Join(placeholders, ",")))
-	}
-
-	if len(query.Outcomes) > 0 {
-		placeholders := make([]string, len(query.Outcomes))
-		for i, o := range query.Outcomes {
-			placeholders[i] = "?"
-			args = append(args, string(o))
-		}
-		conditions = append(conditions, fmt.Sprintf("outcome IN (%s)", strings.Join(placeholders, ",")))
-	}
-
+	in("event_type", stringsOf(query.Types))
+	in("severity", stringsOf(query.Severities))
+	in("actor_id", query.ActorIDs)
+	in("action", query.Actions)
+	in("outcome", stringsOf(query.Outcomes))
 	if len(conditions) == 0 {
 		return "", nil
 	}
-
 	return "WHERE " + strings.Join(conditions, " AND "), args
 }
 
-// scanEvent scans a single row into an AuditEvent.
-func (ds *DatabaseStorage) scanEvent(row *sql.Row) (*audit.AuditEvent, error) {
-	var event audit.AuditEvent
-	var actorID, actorType, actorName sql.NullString
-	var resourceID, resourceType sql.NullString
-	var sourceIP, sourceService, requestID sql.NullString
-	var details string
-	var timestamp time.Time
-
-	err := row.Scan(
-		&event.ID, &timestamp, &event.Type, &event.Severity, &event.Action, &event.Outcome,
-		&actorID, &actorType, &actorName,
-		&resourceID, &resourceType,
-		&sourceIP, &sourceService, &requestID,
-		&details, &event.PreviousHash, &event.Hash, &event.Signature,
-	)
-	if err != nil {
-		return nil, err
+func stringsOf[T ~string](vs []T) []string {
+	out := make([]string, len(vs))
+	for i, v := range vs {
+		out[i] = string(v)
 	}
-
-	event.Timestamp = timestamp
-
-	if actorID.Valid {
-		event.Actor = &audit.Actor{
-			ID:   actorID.String,
-			Type: actorType.String,
-			Name: actorName.String,
-		}
-	}
-
-	if resourceID.Valid {
-		event.Resource = &audit.Resource{
-			ID:   resourceID.String,
-			Type: resourceType.String,
-		}
-	}
-
-	if sourceIP.Valid || sourceService.Valid || requestID.Valid {
-		event.Source = &audit.Source{
-			IP:        sourceIP.String,
-			Service:   sourceService.String,
-			RequestID: requestID.String,
-		}
-	}
-
-	if details != "" {
-		_ = json.Unmarshal([]byte(details), &event.Details)
-	}
-
-	return &event, nil
+	return out
 }
 
-// scanEventRows scans rows into an AuditEvent.
-func (ds *DatabaseStorage) scanEventRows(rows *sql.Rows) (*audit.AuditEvent, error) {
+type scanner interface {
+	Scan(dest ...any) error
+}
+
+func scanEvent(row scanner) (*audit.AuditEvent, error) {
 	var event audit.AuditEvent
+	var eventType, severity, outcome string
 	var actorID, actorType, actorName sql.NullString
 	var resourceID, resourceType sql.NullString
 	var sourceIP, sourceService, requestID sql.NullString
 	var details string
-	var timestamp time.Time
-
-	err := rows.Scan(
-		&event.ID, &timestamp, &event.Type, &event.Severity, &event.Action, &event.Outcome,
+	err := row.Scan(
+		&event.ID, &event.Timestamp, &eventType, &severity, &event.Action, &outcome,
 		&actorID, &actorType, &actorName,
 		&resourceID, &resourceType,
 		&sourceIP, &sourceService, &requestID,
@@ -453,35 +296,21 @@ func (ds *DatabaseStorage) scanEventRows(rows *sql.Rows) (*audit.AuditEvent, err
 	if err != nil {
 		return nil, err
 	}
-
-	event.Timestamp = timestamp
-
+	event.Timestamp = event.Timestamp.UTC()
+	event.Type, event.Severity, event.Outcome = audit.EventType(eventType), audit.Severity(severity), audit.Outcome(outcome)
 	if actorID.Valid {
-		event.Actor = &audit.Actor{
-			ID:   actorID.String,
-			Type: actorType.String,
-			Name: actorName.String,
-		}
+		event.Actor = &audit.Actor{ID: actorID.String, Type: actorType.String, Name: actorName.String}
 	}
-
 	if resourceID.Valid {
-		event.Resource = &audit.Resource{
-			ID:   resourceID.String,
-			Type: resourceType.String,
-		}
+		event.Resource = &audit.Resource{ID: resourceID.String, Type: resourceType.String}
 	}
-
 	if sourceIP.Valid || sourceService.Valid || requestID.Valid {
-		event.Source = &audit.Source{
-			IP:        sourceIP.String,
-			Service:   sourceService.String,
-			RequestID: requestID.String,
+		event.Source = &audit.Source{IP: sourceIP.String, Service: sourceService.String, RequestID: requestID.String}
+	}
+	if details != "" && details != "{}" {
+		if err := json.Unmarshal([]byte(details), &event.Details); err != nil {
+			return nil, fmt.Errorf("event %s: details: %w", event.ID, err)
 		}
 	}
-
-	if details != "" {
-		_ = json.Unmarshal([]byte(details), &event.Details)
-	}
-
 	return &event, nil
 }

@@ -86,7 +86,8 @@ func (l *Logger) Log(ctx context.Context, event *audit.AuditEvent) error {
 
 	// Set timestamp if not provided
 	if event.Timestamp.IsZero() {
-		event.Timestamp = time.Now().UTC()
+		// Microseconds: what PostgreSQL keeps (see audit.NewEventBuilder).
+		event.Timestamp = time.Now().UTC().Truncate(time.Microsecond)
 	}
 
 	// Validate the event

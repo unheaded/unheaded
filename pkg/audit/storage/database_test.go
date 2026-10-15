@@ -4,7 +4,9 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -32,27 +34,38 @@ func TestNewDatabaseStorage_DefaultTableName(t *testing.T) {
 		t.Fatalf("failed to open sqlite: %v", err)
 	}
 	defer db.Close()
-
-	// ensureTable will fail due to MySQL-specific INDEX syntax, but we can
-	// test the table name default by looking at the error
+	// No table: refused with ErrSchema, never created (the migrations own it).
+	if _, err := NewDatabaseStorage(db, ""); !errors.Is(err, ErrSchema) {
+		t.Fatalf("missing table: %v", err)
+	}
+	if _, err := db.Exec(`CREATE TABLE audit_events (id TEXT, occurred_at TEXT, event_type TEXT, severity TEXT,
+		action TEXT, outcome TEXT, actor_id TEXT, actor_type TEXT, actor_name TEXT, resource_id TEXT,
+		resource_type TEXT, source_ip TEXT, source_service TEXT, request_id TEXT, details TEXT,
+		previous_hash TEXT, hash TEXT, signature TEXT)`); err != nil {
+		t.Fatal(err)
+	}
 	ds, err := NewDatabaseStorage(db, "")
 	if err != nil {
-		// If it succeeds (SQLite might tolerate), check table name
-		// If it fails, that's expected due to MySQL syntax
-		t.Logf("NewDatabaseStorage with empty table name: %v", err)
-		return
+		t.Fatalf("complete table refused: %v", err)
 	}
-	defer ds.Close()
+	if _, err := NewDatabaseStorage(db, "other_table"); err == nil {
+		t.Error("a table other than audit_events accepted")
+	}
+	_ = ds
+}
 
-	if ds.tableName != "audit_events" {
-		t.Errorf("expected default table name audit_events, got %s", ds.tableName)
+func TestStoreRefusesSubMicrosecondTimestamps(t *testing.T) {
+	ds := &DatabaseStorage{}
+	ev := &audit.AuditEvent{ID: "x", Timestamp: time.Date(2026, 10, 15, 1, 2, 3, 123456789, time.UTC)}
+	if err := ds.Store(context.Background(), ev); !errors.Is(err, ErrTimestampPrecision) {
+		t.Fatalf("got %v", err)
 	}
 }
 
 // ===================== buildWhereClause Tests =====================
 
 func TestBuildWhereClause_Empty(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
+	ds := &DatabaseStorage{}
 	where, args := ds.buildWhereClause(&audit.AuditQuery{})
 	if where != "" {
 		t.Errorf("expected empty where clause, got %s", where)
@@ -63,7 +76,7 @@ func TestBuildWhereClause_Empty(t *testing.T) {
 }
 
 func TestBuildWhereClause_TimeRange(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
+	ds := &DatabaseStorage{}
 	start := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	end := time.Date(2025, 12, 31, 23, 59, 59, 0, time.UTC)
 
@@ -72,11 +85,8 @@ func TestBuildWhereClause_TimeRange(t *testing.T) {
 		EndTime:   end,
 	})
 
-	if !strings.Contains(where, "timestamp >= ?") {
-		t.Errorf("expected timestamp >= ? in where clause, got %s", where)
-	}
-	if !strings.Contains(where, "timestamp <= ?") {
-		t.Errorf("expected timestamp <= ? in where clause, got %s", where)
+	if where != "WHERE occurred_at >= $1 AND occurred_at <= $2" {
+		t.Errorf("where clause %q", where)
 	}
 	if len(args) != 2 {
 		t.Errorf("expected 2 args, got %d", len(args))
@@ -84,7 +94,7 @@ func TestBuildWhereClause_TimeRange(t *testing.T) {
 }
 
 func TestBuildWhereClause_Types(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
+	ds := &DatabaseStorage{}
 	where, args := ds.buildWhereClause(&audit.AuditQuery{
 		Types: []audit.EventType{audit.EventTypeAuthentication, audit.EventTypeSystem},
 	})
@@ -98,7 +108,7 @@ func TestBuildWhereClause_Types(t *testing.T) {
 }
 
 func TestBuildWhereClause_Severities(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
+	ds := &DatabaseStorage{}
 	where, args := ds.buildWhereClause(&audit.AuditQuery{
 		Severities: []audit.Severity{audit.SeverityInfo, audit.SeverityCritical},
 	})
@@ -112,7 +122,7 @@ func TestBuildWhereClause_Severities(t *testing.T) {
 }
 
 func TestBuildWhereClause_ActorIDs(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
+	ds := &DatabaseStorage{}
 	where, args := ds.buildWhereClause(&audit.AuditQuery{
 		ActorIDs: []string{"alice", "bob"},
 	})
@@ -126,7 +136,7 @@ func TestBuildWhereClause_ActorIDs(t *testing.T) {
 }
 
 func TestBuildWhereClause_Actions(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
+	ds := &DatabaseStorage{}
 	where, args := ds.buildWhereClause(&audit.AuditQuery{
 		Actions: []string{"login", "logout"},
 	})
@@ -140,7 +150,7 @@ func TestBuildWhereClause_Actions(t *testing.T) {
 }
 
 func TestBuildWhereClause_Outcomes(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
+	ds := &DatabaseStorage{}
 	where, args := ds.buildWhereClause(&audit.AuditQuery{
 		Outcomes: []audit.Outcome{audit.OutcomeSuccess, audit.OutcomeFailure},
 	})
@@ -154,7 +164,7 @@ func TestBuildWhereClause_Outcomes(t *testing.T) {
 }
 
 func TestBuildWhereClause_AllFilters(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
+	ds := &DatabaseStorage{}
 	where, args := ds.buildWhereClause(&audit.AuditQuery{
 		StartTime:  time.Now().Add(-time.Hour),
 		EndTime:    time.Now(),
@@ -184,25 +194,25 @@ func TestBuildWhereClause_AllFilters(t *testing.T) {
 // ===================== buildQuery Tests =====================
 
 func TestBuildQuery_DefaultOrder(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
+	ds := &DatabaseStorage{}
 	sqlQuery, _ := ds.buildQuery(&audit.AuditQuery{})
 
-	if !strings.Contains(sqlQuery, "ORDER BY timestamp ASC") {
-		t.Errorf("expected ORDER BY timestamp ASC, got %s", sqlQuery)
+	if !strings.Contains(sqlQuery, "ORDER BY occurred_at ASC") {
+		t.Errorf("expected ORDER BY occurred_at ASC, got %s", sqlQuery)
 	}
 }
 
 func TestBuildQuery_Descending(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
+	ds := &DatabaseStorage{}
 	sqlQuery, _ := ds.buildQuery(&audit.AuditQuery{Descending: true})
 
-	if !strings.Contains(sqlQuery, "ORDER BY timestamp DESC") {
-		t.Errorf("expected ORDER BY timestamp DESC, got %s", sqlQuery)
+	if !strings.Contains(sqlQuery, "ORDER BY occurred_at DESC") {
+		t.Errorf("expected ORDER BY occurred_at DESC, got %s", sqlQuery)
 	}
 }
 
 func TestBuildQuery_ValidOrderBy(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
+	ds := &DatabaseStorage{}
 
 	validColumns := []string{
 		"timestamp", "id", "event_type", "severity", "action", "outcome",
@@ -211,36 +221,38 @@ func TestBuildQuery_ValidOrderBy(t *testing.T) {
 	}
 
 	for _, col := range validColumns {
+		want := col
+		if col == "timestamp" { // the API name for occurred_at
+			want = "occurred_at"
+		}
 		sqlQuery, _ := ds.buildQuery(&audit.AuditQuery{OrderBy: col})
-		if !strings.Contains(sqlQuery, "ORDER BY "+col) {
-			t.Errorf("expected ORDER BY %s, got %s", col, sqlQuery)
+		if !strings.Contains(sqlQuery, "ORDER BY "+want+" ") {
+			t.Errorf("expected ORDER BY %s, got %s", want, sqlQuery)
 		}
 	}
 }
 
 func TestBuildQuery_InvalidOrderBy_FallsBackToTimestamp(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
+	ds := &DatabaseStorage{}
 	sqlQuery, _ := ds.buildQuery(&audit.AuditQuery{OrderBy: "DROP TABLE; --"})
 
-	if !strings.Contains(sqlQuery, "ORDER BY timestamp") {
-		t.Errorf("expected fallback to ORDER BY timestamp for invalid column, got %s", sqlQuery)
+	if !strings.Contains(sqlQuery, "ORDER BY occurred_at") || strings.Contains(sqlQuery, "DROP") {
+		t.Errorf("expected fallback to ORDER BY occurred_at for invalid column, got %s", sqlQuery)
 	}
 }
 
 func TestBuildQuery_LimitAndOffset(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
-	sqlQuery, _ := ds.buildQuery(&audit.AuditQuery{Limit: 10, Offset: 20})
+	ds := &DatabaseStorage{}
+	sqlQuery, args := ds.buildQuery(&audit.AuditQuery{Limit: 10, Offset: 20, ActorIDs: []string{"a"}})
 
-	if !strings.Contains(sqlQuery, "LIMIT 10") {
-		t.Errorf("expected LIMIT 10, got %s", sqlQuery)
-	}
-	if !strings.Contains(sqlQuery, "OFFSET 20") {
-		t.Errorf("expected OFFSET 20, got %s", sqlQuery)
+	// Parameters, numbered after the WHERE clause's.
+	if !strings.HasSuffix(sqlQuery, "LIMIT $2 OFFSET $3") || len(args) != 3 || args[1] != 10 || args[2] != 20 {
+		t.Errorf("limit/offset: %s %v", sqlQuery, args)
 	}
 }
 
 func TestBuildQuery_NoLimitOffset(t *testing.T) {
-	ds := &DatabaseStorage{tableName: "audit_events"}
+	ds := &DatabaseStorage{}
 	sqlQuery, _ := ds.buildQuery(&audit.AuditQuery{})
 
 	if strings.Contains(sqlQuery, "LIMIT") {
@@ -259,7 +271,7 @@ func TestDatabaseStorage_Close(t *testing.T) {
 		t.Fatalf("failed to open sqlite: %v", err)
 	}
 
-	ds := &DatabaseStorage{db: db, tableName: "audit_events"}
+	ds := &DatabaseStorage{db: db}
 	err = ds.Close()
 	if err != nil {
 		t.Errorf("Close failed: %v", err)

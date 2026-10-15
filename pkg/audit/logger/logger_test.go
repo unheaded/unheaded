@@ -444,7 +444,7 @@ func TestLogger_Log_SetsTimestamp(t *testing.T) {
 		Actor:  &audit.Actor{ID: "a1"},
 	}
 
-	before := time.Now().UTC()
+	before := time.Now().UTC().Truncate(time.Microsecond)
 	if err := l.Log(context.Background(), ev); err != nil {
 		t.Fatalf("Log failed: %v", err)
 	}
@@ -452,6 +452,10 @@ func TestLogger_Log_SetsTimestamp(t *testing.T) {
 
 	if ev.Timestamp.Before(before) || ev.Timestamp.After(after) {
 		t.Errorf("timestamp %v not in range [%v, %v]", ev.Timestamp, before, after)
+	}
+	// Microseconds, what PostgreSQL stores, so the hash survives storage.
+	if !ev.Timestamp.Equal(ev.Timestamp.Truncate(time.Microsecond)) {
+		t.Errorf("timestamp %v has sub-microsecond precision", ev.Timestamp)
 	}
 }
 

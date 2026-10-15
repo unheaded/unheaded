@@ -214,7 +214,7 @@ live system and need Stevie's yes.
 
 ### Phase 5: schema hygiene (W-04, W-11, W-12, W-14, W-15, W-18, W-19, W-21)
 
-- [ ] 5.1 `pkg/audit/storage`: delete if unreached (it is), or port to the
+- [x] 5.1 *(2026-10-15, Stevie: "flip a coin, just align to a single convention" -> pkg/audit's taxonomy wins: 022 replaces the empty audit_events with pkg/audit's columns and enums (refuses if rows exist; applied live); pkg/audit/storage ported to Postgres (constant statements, $n parameters, no startup DDL, CheckSchema); timestamps at microseconds and nil/empty details hash alike so the chain verifies after storage; integration test in test-compliance-schema.sh --go, provoked red)* `pkg/audit/storage`: delete if unreached (it is), or port to the
       ledger with Postgres DDL and parameters. **Decision needed (2026-10-14):**
       not a mechanical port. `pkg/audit` (used for its types by pqc-verifier
       and shield; its storage/query/export/logger subpackages only by

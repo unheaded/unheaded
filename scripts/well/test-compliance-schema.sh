@@ -125,9 +125,24 @@ if ((GO)); then
 	psql_as unheaded unheaded <<<"DROP DATABASE unheaded_ops WITH (FORCE); CREATE DATABASE unheaded_ops;" >/dev/null
 	psql_as unheaded unheaded_ops <"$R/db/migrations/004_ops_schema.sql" >/dev/null
 	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/014_compliance_ops.sql"
+	# 022 replaces 004's audit_events (the pkg/audit taxonomy, W-04); 015
+	# first, for the append-only function. 022 must refuse a non-empty table.
+	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/015_ops_history_append_only.sql"
+	psql_as unheaded unheaded_ops <<<"INSERT INTO audit_events(id,event_type) VALUES ('old','auth.login');" >/dev/null
+	if "${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/022_ops_audit_events_one_taxonomy.sql" >/dev/null 2>&1; then
+		echo "[FAIL] 022 replaced a non-empty audit_events"; exit 1
+	fi
+	echo "[PASS] 022 refuses a non-empty audit_events"
+	psql_as unheaded unheaded <<<"DROP DATABASE unheaded_ops WITH (FORCE); CREATE DATABASE unheaded_ops;" >/dev/null
+	psql_as unheaded unheaded_ops <"$R/db/migrations/004_ops_schema.sql" >/dev/null
+	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/014_compliance_ops.sql"
+	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/015_ops_history_append_only.sql"
+	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/022_ops_audit_events_one_taxonomy.sql"
 	(cd "$R" && WELL_TEST_OPS_DSN="host=127.0.0.1 port=$PORT user=ops_writer password=$OPS_PW dbname=unheaded_ops sslmode=disable" \
 		WELL_TEST_CONFIG_DSN="host=127.0.0.1 port=$PORT user=config_admin password=$CFG_PW dbname=unheaded_config sslmode=disable" \
 		go test ./pkg/compliance/well/... -run Integration -count=1 -v | grep -vE '^(=== RUN)')
+	(cd "$R" && WELL_TEST_AUDIT_DSN="host=127.0.0.1 port=$PORT user=ops_writer password=$OPS_PW dbname=unheaded_ops sslmode=disable" \
+		go test ./pkg/audit/storage/ -run Integration -count=1 -v | grep -vE '^(=== RUN)')
 	# End to end: the command itself, against the same throwaway databases.
 	(cd "$R" && WELL_HOST=127.0.0.1 WELL_PORT="$PORT" \
 		WELL_CONFIG_USER=config_admin WELL_CONFIG_PASSWORD="$CFG_PW" \
