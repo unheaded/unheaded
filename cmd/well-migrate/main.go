@@ -9,10 +9,13 @@
 //	well-migrate status                # ledger vs manifest, per database
 //	well-migrate apply                 # print what would run
 //	well-migrate apply -yes            # run it, in order, stop at the first failure
-//	well-migrate baseline -yes         # record pending files WITHOUT running them
+//	well-migrate baseline -through 012_huginn_reader.sql -yes
+//	                                   # record pending files up to that entry WITHOUT running them
 //
-// baseline is for a Well whose schema already matches (shown by a shape
-// diff against a fresh bootstrap), so the ledger can start there.
+// baseline is for a Well whose schema already matches the manifest up to a
+// point (shown by a shape diff against a bootstrap of those files), so the
+// ledger can start there; apply then runs the rest. -through is required:
+// what the Well already has is a decision, never a default.
 //
 // Connection: WELL_HOST (127.0.0.1), WELL_PORT (5432), WELL_SSLMODE
 // (disable), WELL_MIGRATE_USER (unheaded, the owner role) and
@@ -53,7 +56,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	lockTimeout := fl.Duration("lock-timeout", 5*time.Second, "lock wait limit inside each migration")
 	stmtTimeout := fl.Duration("statement-timeout", 5*time.Minute, "limit per statement")
 	usage := func() int {
-		fmt.Fprintln(stderr, "usage: well-migrate [-dir D] [-lock-timeout T] [-statement-timeout T] check | status | apply [-yes] | baseline -yes")
+		fmt.Fprintln(stderr, "usage: well-migrate [-dir D] [-lock-timeout T] [-statement-timeout T] check | status | apply [-yes] | baseline -through FILE -yes")
 		return 2
 	}
 	if err := fl.Parse(args); err != nil {
@@ -67,6 +70,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	sub := flag.NewFlagSet(cmd, flag.ContinueOnError)
 	sub.SetOutput(stderr)
 	yes := sub.Bool("yes", false, "make the change (default: print it)")
+	through := ""
+	if cmd == "baseline" {
+		sub.StringVar(&through, "through", "", "last manifest file the Well already has (required)")
+	}
 	if err := sub.Parse(rest[1:]); err != nil || sub.NArg() != 0 {
 		return usage()
 	}
@@ -87,8 +94,8 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	if cmd != "status" && cmd != "apply" && cmd != "baseline" {
 		return usage()
 	}
-	if cmd == "baseline" && !*yes {
-		fmt.Fprintln(stderr, "well-migrate: baseline records files as applied without running them; it needs -yes")
+	if cmd == "baseline" && (!*yes || through == "") {
+		fmt.Fprintln(stderr, "well-migrate: baseline records files as applied without running them; it needs -through FILE and -yes")
 		return 2
 	}
 
@@ -135,6 +142,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 			return 3
 		}
 		return 0
+	}
+	if cmd == "baseline" {
+		if err := p.Drift(); err != nil {
+			return fail(err)
+		}
+		if p, err = p.Through(through); err != nil {
+			return fail(err)
+		}
 	}
 	if len(p.Pending()) == 0 {
 		fmt.Fprintln(stdout, "nothing pending")

@@ -184,3 +184,18 @@ func TestCompute(t *testing.T) {
 		t.Errorf("gap: %v", err)
 	}
 }
+
+func TestThrough(t *testing.T) {
+	f := func(db, file string) File { return File{Entry: Entry{DB: db, File: file}} }
+	p := Compute(Set{Files: []File{f("postgres", "002_a.sql"), f("app", "007_g.sql"), f("ops", "007_g.sql"), f("app", "013_c.sql")}}, Ledger{})
+	q, err := p.Through("007_g.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := q.Pending(); len(got) != 3 || got[2].DB != "ops" {
+		t.Fatalf("through 007 (every database): %+v", got)
+	}
+	if _, err := p.Through("099_nope.sql"); err == nil {
+		t.Error("unknown file accepted")
+	}
+}

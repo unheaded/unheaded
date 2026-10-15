@@ -103,7 +103,7 @@ live system and need Stevie's yes.
 - [ ] 0.4 Shape diff: live schema (`pg_dump --schema-only`) vs a fresh
       bootstrap of develop; record every difference (expect 001-era tables in
       `unheaded`, missing 013/014).
-- [ ] 0.5 **[Y]** Apply 013/014, then 015/016, each in a transaction (COMPLIANCE-WELL step 21),
+- [ ] 0.5 **[Y]** Apply 013 onwards with `well-migrate apply -yes` after the 3.2 baseline (COMPLIANCE-WELL step 21),
       then `compliance-evidence well sync -dry-run`, then real.
 
 ### Phase 1: backups that cover everything, proven by restore (W-01)
@@ -173,7 +173,8 @@ live system and need Stevie's yes.
 - [ ] 3.2 Baseline: the post-Phase-0 live schema becomes version 1 per DB
       (golden `schema.sql` generated, checked in, diffed in CI). Mechanism
       ready: after 0.4's shape diff shows the live schema matches,
-      **[Y]** `well-migrate baseline -yes`, then `well-migrate status`.
+      **[Y]** `well-migrate baseline -through <last file it has> -yes`, then
+      `well-migrate apply -yes` for the rest (013+ expected).
 - [ ] 3.3 Delete startup DDL: `pkg/database/kanban_store.go`,
       `pkg/champion/pgstore/schema.sql`, `raft/zhen_app.py`,
       `raft/scripts/zhen_rag.py`, `cmd/zhen-rag`, `cmd/zhen-cli`,

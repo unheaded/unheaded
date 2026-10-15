@@ -51,9 +51,10 @@ schema changes it has had:
      drift.
    - `apply` prints the plan; `apply -yes` runs pending files in manifest
      order and stops at the first failure.
-   - `baseline -yes` records pending files **without running them**: for a
-     Well whose schema already matches (the live one, after Phase 0's shape
-     diff against a fresh bootstrap).
+   - `baseline -through FILE -yes` records pending files up to that
+     manifest entry **without running them**: for a Well whose schema
+     already matches up to there (the live one, after Phase 0's shape diff).
+     `-through` is required; `apply -yes` then runs the rest.
 5. **Drift refuses everything.** An applied file whose sha256 changed, a
    ledger row the manifest does not name, or a pending file before an
    applied one in the same database: status and apply refuse. Applied files
@@ -94,4 +95,5 @@ schema changes it has had:
   migration blocked by an ACCESS EXCLUSIVE lock fails in 2 s with
   `-lock-timeout 2s` and records nothing; a failing migration rolls back;
   the ledger refuses UPDATE and TRUNCATE; a Well bootstrapped by the
-  previous `init.sh` (no ledger, like the live one) baselines cleanly.
+  pre-ledger `db/` (like the live one) is baselined through 016 without
+  any schema change, then `apply` runs 017-019.

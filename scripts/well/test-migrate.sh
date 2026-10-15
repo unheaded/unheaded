@@ -13,8 +13,9 @@
 #      records nothing and leaves no change (W-10);
 #   5. a failing transactional migration records nothing;
 #   6. the ledger refuses edits;
-#   7. a Well bootstrapped without a ledger (the live one today) can be
-#      baselined, then sees only what is new.
+#   7. a Well bootstrapped by the pre-ledger db/ (the live one today) is
+#      baselined through 016 without running anything, then apply runs
+#      017 onwards.
 #
 #   scripts/well/test-migrate.sh [image]   # default postgres:16-alpine
 set -euo pipefail
@@ -145,28 +146,31 @@ sed -i '/904_half.sql/d' "$M/MANIFEST"; rm "$M/904_half.sql"
 if sq unheaded_app "UPDATE well_schema_migrations SET sha256 = repeat('0', 64)" >/dev/null 2>&1; then fail "ledger row edited"; else pass "ledger refuses UPDATE"; fi
 if sq unheaded_app "TRUNCATE well_schema_migrations" >/dev/null 2>&1; then fail "ledger truncated"; else pass "ledger refuses TRUNCATE"; fi
 
-# 7. Baseline: an old-style Well (bootstrapped without a ledger) is recorded
-# without running anything, then sees only new files.
-mkdir -p "$TMP/old/db"
-cp -a "$R/db/migrations" "$TMP/old/db/migrations"
-(cd "$R" && git show HEAD:db/init.sh) >"$TMP/old/db/init.sh"
-if grep -q MANIFEST "$TMP/old/db/init.sh"; then
-	echo "[SKIP] baseline: HEAD's init.sh already uses the manifest"
-else
-	# HEAD's init.sh applies the same files but keeps no ledger: the live
-	# Well's situation.
-	start "$N-old" "$TMP/old/db/migrations"
-	WP="$("${DOCKER[@]}" port "$N-old" 5432/tcp | head -1 | sed 's/.*://')"
-	M_SAVED=$M; M="$R/db/migrations"
-	expect 3 "old Well: everything pending" wm status
-	expect 2 "baseline without -yes is refused" wm baseline
-	expect 0 "old Well: baseline -yes" wm baseline -yes
-	expect 0 "old Well: status clean after baseline" wm status
-	n=$("${DOCKER[@]}" exec "$N-old" psql -X -At -U unheaded -d unheaded_app -c "SELECT count(*) FROM well_schema_migrations WHERE mode = 'baseline'")
-	[[ "$n" == "$(grep -cE '^unheaded_app +[0-9]{3}_' "$M/MANIFEST")" ]] && pass "baseline recorded every unheaded_app entry ($n)" || fail "baseline recorded $n"
-	unset WP
-	M=$M_SAVED
-fi
+# 7. Baseline: a Well built before the ledger (db/ as of the commit before
+# MANIFEST was added: the live Well's situation) is baselined through the
+# last file that init.sh applied (016), then apply runs only what is new.
+PRE="$(cd "$R" && git log --format=%H --diff-filter=A -1 -- db/migrations/MANIFEST)^"
+mkdir -p "$TMP/old"
+(cd "$R" && git archive "$PRE" db) | tar -x -C "$TMP/old"
+start "$N-old" "$TMP/old/db/migrations"
+WP="$("${DOCKER[@]}" port "$N-old" 5432/tcp | head -1 | sed 's/.*://')"
+M="$R/db/migrations"
+osq() { "${DOCKER[@]}" exec -i "$N-old" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d "$1" -c "$2"; }
+expect 3 "old Well: everything pending" wm status
+expect 2 "baseline without -through is refused" wm baseline -yes
+expect 2 "baseline without -yes is refused" wm baseline -through 016_config_history_append_only.sql
+expect 1 "baseline through an unknown file is refused" wm baseline -through 099_nope.sql -yes
+expect 0 "old Well: baseline through 016" wm baseline -through 016_config_history_append_only.sql -yes
+expect 3 "old Well: 017-019 still pending" wm status
+[[ "$(osq unheaded_config "SELECT count(*) FROM information_schema.columns WHERE table_name = 'kingdom_config_history' AND column_name = 'op'")" == 0 ]] &&
+	pass "baseline ran nothing (019's column absent)" || fail "baseline changed the schema"
+expect 0 "old Well: apply the rest" wm apply -yes
+expect 0 "old Well: status clean" wm status
+[[ "$(osq unheaded_config "SELECT count(*) FROM information_schema.columns WHERE table_name = 'kingdom_config_history' AND column_name = 'op'")" == 1 ]] &&
+	pass "apply ran 019 on the old Well" || fail "019 not applied"
+[[ "$(osq unheaded_app "SELECT string_agg(mode, ',' ORDER BY applied_at, filename) FROM (SELECT DISTINCT mode, min(applied_at) AS applied_at, min(filename) AS filename FROM well_schema_migrations GROUP BY mode) m")" == baseline,apply ]] &&
+	pass "unheaded_app ledger: baseline rows, then apply" || fail "unheaded_app ledger modes"
+unset WP
 
 if ((fails > 0)); then echo "$fails check(s) failed"; exit 1; fi
 echo "all checks passed"

@@ -124,3 +124,21 @@ func Compute(set Set, led Ledger) Plan {
 	})
 	return p
 }
+
+// Through returns the plan cut after the last manifest entry for file, so
+// baseline can record exactly what an older Well already has (say,
+// through 012) and leave the rest for apply.
+func (p Plan) Through(file string) (Plan, error) {
+	last := -1
+	for i, s := range p.Steps {
+		if s.File.File == file {
+			last = i
+		}
+	}
+	if last < 0 {
+		return p, fmt.Errorf("%s is not in the manifest", file)
+	}
+	q := p
+	q.Steps = p.Steps[:last+1]
+	return q, nil
+}
