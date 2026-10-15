@@ -23,7 +23,7 @@ type PGStore struct {
 }
 
 // NewPGStore creates a PostgreSQL-backed message store.
-// connStr format: "postgres://user:pass@host:port/dbname?sslmode=disable"
+// connStr format: "postgres://user:pass@host:port/dbname?sslmode=require" (The Well rejects non-TLS)
 func NewPGStore(connStr string, capacity int) (*PGStore, error) {
 	db, err := sql.Open("postgres", connStr)
 	if err != nil {

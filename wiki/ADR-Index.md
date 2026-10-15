@@ -22,7 +22,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [013](../docs/adr/ADR-013-routing-header-support.md) | IPv6 Routing Header | Accepted (Deferred) |
 | [014](../docs/adr/ADR-014-ipv6-fragmentation-support.md) | IPv6 Fragmentation | Accepted (Deferred) |
 | [015](../docs/adr/ADR-015-go-fiber-http-layer.md) | Go-Fiber HTTP Layer | Accepted + Template |
-| [016](../docs/adr/ADR-016-postgres-the-well.md) | PostgreSQL — The Well | Accepted |
+| [016](../docs/adr/ADR-016-postgres-the-well.md) | PostgreSQL — The Well (+ RPO 24 h amendment 2026-10-15) | Accepted |
 | [017](../docs/adr/ADR-017-zhen-hybrid-inference.md) | Zhen Hybrid Inference | Accepted (Claude API → MCP) |
 | [018](../docs/adr/ADR-018-zhen-raft-training-battle-plan.md) | RAFT Training Pipeline | **In Progress** |
 | [019](../docs/adr/ADR-019-zhen-champion-agent.md) | Zhen Champion Agent | Accepted (Phase 1+2) |

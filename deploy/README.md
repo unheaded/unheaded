@@ -54,7 +54,7 @@ Before turning on `AUTH_ENABLED=true` and exposing beyond loopback:
 - [ ] `AUTH_API_KEYS` is a long random string (≥32 hex chars), per-environment
 - [ ] `-rate-limit` set to a sane value (5-25 rps depending on traffic)
 - [ ] `-allowed-roots` enumerates ONLY the project roots tenants are allowed to target
-- [ ] PostgreSQL `unheaded_app` database has a `zhen` user with INSERT/UPDATE/SELECT on `zhen_actions`
+- [ ] PostgreSQL `unheaded_app` database has the `app_zhen` role with INSERT/UPDATE/SELECT on `zhen_actions` (db/migrations; the password is `APP_ZHEN_PASSWORD` in `.env`)
 - [ ] Reverse-proxy in front terminates TLS, sets `X-Forwarded-For`, and only forwards from trusted IPs
 - [ ] `journalctl -u zhen-agentd` is in the central log pipeline
 - [ ] `zhen_agentd_*` Prometheus metrics scraped (target: `127.0.0.1:20105/metrics`)

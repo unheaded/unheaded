@@ -293,7 +293,7 @@ Prints each action to the daemon's stderr. No persistence. Good for local develo
 Persists to PostgreSQL via `pkg/champion/pgstore`. Requires `WELL_DSN` env var:
 
 ```bash
-export WELL_DSN="host=well-pg.internal port=5432 user=zhen password=$ZHEN_PW dbname=unheaded_app sslmode=require"
+export WELL_DSN="host=well-pg.internal port=5432 user=app_zhen password=$APP_ZHEN_PASSWORD dbname=unheaded_app sslmode=require"
 bin/zhen-agentd -action-store=pg -port 20105
 # zhen-agentd: connected to PostgreSQL audit store; schema checked
 # zhen-agentd listening on http://127.0.0.1:20105 — ...

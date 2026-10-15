@@ -629,9 +629,10 @@ memory.
 - Wotan WAL replication: implementation status UNVERIFIED. Wotan has
   ring-buffer + topic publishing but durable replication to a sibling
   Wotan instance for catastrophic recovery is not documented.
-- PostgreSQL backups: implementation status UNVERIFIED. The Well runs as
-  a PG cluster (per CLAUDE.md) but pg_dump cadence, WAL archiving, off-site
-  copies are not documented in this repo.
+- PostgreSQL backups: **implemented 2026-10-15** (ADR-016 amendment,
+  Accepted): nightly dump sets, RPO 24 h, newest 14 kept on west (on a
+  different disk from the data) and 14 on east, weekly restore drill, no
+  WAL archiving. Locations and procedure: `wiki/Well-Backups.md`.
 
 **Policy v1.** **DEFERRED to IR plan v1 + DR runbook.** Retention windows
 for backups are RTO/RPO-driven and cannot be set independently of the
@@ -639,7 +640,10 @@ recovery objectives.
 
 Placeholder targets (subject to IR plan):
 - PG full backup: nightly, retain 30 days online + 1 year archive.
-- PG WAL: 7 days online + 90 days archive.
+  *Superseded for The Well by ADR-016 (2026-10-15): 14 sets on west + 14
+  on east, no long-term archive yet.*
+- PG WAL: 7 days online + 90 days archive. *Not adopted: no WAL archiving
+  until The Well holds data nothing else can rebuild in a day (ADR-016).*
 - Wotan replication: live (not a backup retention question — durability
   question).
 

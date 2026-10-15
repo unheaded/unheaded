@@ -43,10 +43,14 @@ PostgreSQL fits the **Anamnesis** pattern. "The Well" evokes deep memory — the
 
 - **Image:** `postgres:16.15-alpine` (minimal footprint; exact tag per ADR-102)
 - **Container:** `unheaded-postgres` in Docker Compose
-- **Port:** 5432 (standard, not in the Doom Range — PostgreSQL is infrastructure, not a Kingdom service)
-- **Volume:** `postgres-data` for persistent storage
-- **Init:** Migrations in `db/migrations/` mounted to `/docker-entrypoint-initdb.d`
+- **Port:** 5432 (standard, not in the Doom Range — PostgreSQL is infrastructure, not a Kingdom service); published on `127.0.0.1` only, TLS 1.3 required (`db/pg_hba.conf`)
+- **Volume:** `postgres-data` (on west: `unheaded-dev_postgres-data`, disk sdb); data checksums on
+- **Init:** `db/init.sh` applies `db/migrations/MANIFEST` on an empty volume (ADR-091); an existing Well is migrated with `cmd/well-migrate` (ADR-101)
 - **Networks:** data plane (service access)
+
+Current databases, roles, tables and locations: `docs/architecture/THE_WELL_OPERATIONS.md`
+and `wiki/The-Well.md`; backups: `wiki/Well-Backups.md`. The table list
+below is the original 2026-03-15 design.
 
 ### Go Package
 

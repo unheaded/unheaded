@@ -2,9 +2,10 @@
 
 *SPDX-License-Identifier: GPL-3.0-or-later*
 
-**Date:** 2026-03-15
-**Status:** Operational
-**ADR:** ADR-016-postgres-the-well.md
+**Date:** 2026-03-15 (updated 2026-10-15)
+**Status:** Operational, on west
+**ADR:** ADR-016 (design, RPO), ADR-091 (initdb), ADR-101 (migrations)
+**Wiki:** [The Well](../../wiki/The-Well.md), [Well Backups](../../wiki/Well-Backups.md)
 
 ---
 
@@ -31,22 +32,28 @@ sudo docker exec -it unheaded-postgres psql -U unheaded -d unheaded_app
 | Database | Purpose | Pattern (ADR-001) |
 |----------|---------|-------------------|
 | `unheaded_app` | Application data: kanban tasks, timeline milestones, Zhen conversations | Anamnesis (memory) |
-| `unheaded_ops` | Operations: service health, state transitions, hourly aggregates, audit events | Kenoma (actual state) |
-| `unheaded_config` | Configuration: kingdom key-value config, config history, service registry | Pleroma (desired state) |
+| `unheaded_ops` | Operations: service health, state transitions, audit events, compliance evidence and findings | Kenoma (actual state) |
+| `unheaded_config` | Configuration: kingdom key-value config, config history, service registry, compliance controls and profiles | Pleroma (desired state) |
 
-### 7 Users (Principle of Least Privilege)
+`postgres` holds only `pg_stat_statements` and its own migration ledger.
 
-| User | Database | Permissions | Used By |
+### Roles (Principle of Least Privilege)
+
+| Role | Database | Permissions | Used By |
 |------|----------|-------------|---------|
 | `app_kanban` | unheaded_app | CRUD on kanban_tasks; SELECT on others | kanban-app service |
 | `app_timeguru` | unheaded_app | CRUD on timeline_milestones; SELECT on others | timeguru service |
-| `app_zhen` | unheaded_app | CRUD on zhen_conversations; SELECT on others | Zhen AI champion |
+| `app_zhen` | unheaded_app | CRUD on zhen_* tables; SELECT on others | Zhen AI champion |
 | `ops_writer` | unheaded_ops | CRUD on all ops tables | dashboard-backend, health checkers |
 | `ops_reader` | unheaded_ops | SELECT only | dashboard read-only views |
 | `config_admin` | unheaded_config | CRUD on all config tables | unheaded-daemon, admin tools |
 | `config_reader` | unheaded_config | SELECT only | all services (read config) |
+| `huginn_reader` | all three | `pg_monitor`, 3 connections | Huginn's Postgres metrics |
+| `well_backup` | all | `pg_read_all_data`, 3 connections | db-backup.sh, restore drill |
+| `well_{app,ops,config}_owner` | its database | owns it; NOLOGIN | migrations `SET ROLE` to it |
+| `unheaded` | all | superuser; TLS from the host only | well-migrate, operators |
 
-**Cross-database access:**
+**Cross-database access** is by CONNECT grant only (025; PUBLIC has none):
 - All `app_*` users can CONNECT to `unheaded_config` and SELECT from `kingdom_config`, `service_registry`
 - `ops_reader` can CONNECT to `unheaded_app` and SELECT from `kanban_tasks`, `timeline_milestones`, `zhen_conversations`
 
@@ -56,17 +63,21 @@ sudo docker exec -it unheaded-postgres psql -U unheaded -d unheaded_app
 - `kanban_tasks` -- task board with status, priority, tags, assignee
 - `timeline_milestones` -- sprint tracking with progress percentage
 - `zhen_conversations` -- AI chat history with full-text search (tsvector)
+- `zhen_memories`, `zhen_actions`, `zhen_action_snapshots` -- Zhen champion memory and action log
 
 **unheaded_ops:**
 - `service_health_current` -- latest health state per service+host (upsert target)
 - `service_health_transitions` -- append-only state change log
-- `service_health_hourly` -- aggregated hourly health stats
-- `audit_events` -- tamper-evident audit trail with hash chain
+- `audit_events` -- tamper-evident audit trail with hash chain (pkg/audit, 022)
+- `compliance_evidence`, `compliance_findings`, `compliance_findings_history`, `compliance_apply_journal` -- compliance-evidence results (ADR-097/098)
 
 **unheaded_config:**
 - `kingdom_config` -- key-value store with typed JSONB values and change tracking
-- `kingdom_config_history` -- automatic change log (trigger-driven)
+- `kingdom_config_history` -- automatic change log (trigger-driven; every change needs `well.change_reason`, 028)
 - `service_registry` -- service metadata, ports, dependencies, health endpoints
+- `compliance_frameworks`, `compliance_controls`, `compliance_fixes`, `compliance_profiles`, `compliance_host_bindings` (+ `_history`) -- the compliance catalogue
+
+Every database also has `well_schema_migrations`, the migration ledger.
 
 ---
 
@@ -212,10 +223,11 @@ From `docker-compose.yml`:
 | Symptom | Cause | Fix |
 |---------|-------|-----|
 | Connection refused on 5432 | Container not running | `sudo docker compose up -d postgres` |
-| "password authentication failed" | Wrong user/password combo | Check `db/migrations/002_create_databases.sql` for passwords |
-| "permission denied for table X" | User lacks grants | Re-run `007_grants.sql` against the target database |
-| Init scripts not running | Database already initialized | Remove volume: `sudo docker volume rm unheaded_postgres-data` and restart |
-| Disk full | Volume grown too large | Check with `docker system df`, prune if needed |
+| "password authentication failed" | Role password differs from `.env` | `scripts/well/set-role-passwords.sh` (passwords are never in the repo) |
+| "no pg_hba.conf entry ... no encryption" | Client without TLS | `sslmode=require` (or `WELL_SSLMODE`); throwaway test Wells use `disable` |
+| "permission denied for table X" | Role lacks grants | A new migration through `cmd/well-migrate` (ADR-101); never hand-run SQL files |
+| Init scripts not running | Volume already initialized | Expected: initdb runs once. Migrate with `cmd/well-migrate`; to rebuild, restore a backup set |
+| Disk full | Data volume (sdb, `/var`) or backup sets (NVMe, `/srv`) | `df -h /var /srv`; never delete inside the volume |
 
 ---
 

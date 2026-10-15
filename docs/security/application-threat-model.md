@@ -236,8 +236,8 @@ Browser action
 
 **Closure:**
 - Embeddings are never written to log files.
-- The Well's PostgreSQL deployment uses encrypted-at-rest storage (per the production runbook in `runbooks/data/postgresql-backup-restore.yaml`).
-- Backup format includes the embedding `bytea` column but the same encryption applies.
+- The Well is **not** encrypted at rest (2026-10-15: plain ext4 on west, sdb; backup sets on the NVMe and on east, also unencrypted, root-only 0700/0600). Access control is the boundary: TLS 1.3 only, least-privilege roles, no PUBLIC CONNECT.
+- Backup sets include the embedding column. Disk encryption (LUKS) for the data and backup disks is an open item, not a closure.
 
 **Path forward:** The deferred ADR-056 / ADR-057 (auxiliary corpus sharding + Unheaded source code indexing) introduces additional embedding storage. Both ADRs reference T10 explicitly and inherit the same encryption posture.
 

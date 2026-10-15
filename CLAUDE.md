@@ -871,7 +871,7 @@ goes stale. The docs/ folder is the living record.
 - S-ZHEN: Zhen AI Champion (RAG pipeline, Flask web UI, Zhen-Claude bridge API, 1.52M vector corpus)
 - S-PQC: SLH-DSA (FIPS 205) implemented via cloudflare/circl v1.6.3, 60 PQC tests passing
 - UPC Dream Ladder: All Level 4 OS primitives + Level 5 boot + Level 6 arch/mbc (37 files)
-- The Well: Multi-DB PostgreSQL (3 databases: unheaded_app/ops/config, 7 service-scoped users)
+- The Well: PostgreSQL 16 on west (3 databases: unheaded_app/ops/config; least-privilege login roles + a NOLOGIN owner per DB; TLS 1.3 only; migrations via cmd/well-migrate; nightly backups on the other disk + east). Where everything lives: `wiki/The-Well.md`, `wiki/Well-Backups.md`
 - SBOM: 553 dependencies audited, GPL boundary clean, SPDX checks integrated
 - CI/CD: GHA + Jenkins hardened, SPDX checks; run `make install-hooks` to install the local pre-commit hook (gofmt + go vet on staged changes)
 - S-WEST: Bootstrap complete (kernel 6.17.0-19, 0 failed services)

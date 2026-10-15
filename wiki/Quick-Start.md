@@ -54,7 +54,7 @@ Kingdom service APIs (each exposes `/health`):
 | Captain | 19002 | Dashboard | 20000 |
 | Micromanager | 19003 | Kanban | 20001 |
 
-Infra: VictoriaMetrics `8428` · ClickHouse `8123`/`9000` · Postgres `5432` · CoreDNS `5353` · Traefik edge `80`/`443`/`50051`.
+Infra: VictoriaMetrics `8428` · ClickHouse `8123`/`9000` · Postgres `5432` (127.0.0.1 only, TLS; see [[The Well|The-Well]]) · CoreDNS `5353` · Traefik edge `80`/`443`/`50051`.
 
 ## Verify
 

@@ -127,6 +127,11 @@ UPC-controlled OS baseline, drift detection, alerts-only self-healing. Two-plane
 - [[Fae Chamber Contracts|Fae-Chamber-Contracts]]
 - [[Service Breakout Strategy|Service-Breakout-Strategy]]
 
+## Storage
+
+- [[The Well|The-Well]] — PostgreSQL: databases, roles, TLS, where everything lives on west
+- [[Well Backups|Well-Backups]] — backup locations (west + east), schedule, alerts, restore
+
 ## Lore & Naming
 
 - [[Lore Index|Lore-Index]]
