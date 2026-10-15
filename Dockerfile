@@ -84,7 +84,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
 # ============================================================================
 # STAGE 2: WOTAN - THE FAE CHAMBER
 # ============================================================================
-FROM alpine:3.19 AS wotan
+FROM alpine:3.24 AS wotan
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -111,7 +111,7 @@ ENTRYPOINT ["/app/wotan"]
 # ============================================================================
 # STAGE 3: TIMEGURU - THE ORACLE'S ANTRE
 # ============================================================================
-FROM alpine:3.19 AS timeguru
+FROM alpine:3.24 AS timeguru
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -136,7 +136,7 @@ ENTRYPOINT ["/app/timeguru"]
 # ============================================================================
 # STAGE 4: CAPTAIN - THE COMMANDER'S QUARTERS
 # ============================================================================
-FROM alpine:3.19 AS captain
+FROM alpine:3.24 AS captain
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -161,7 +161,7 @@ ENTRYPOINT ["/app/captain"]
 # ============================================================================
 # STAGE 5: ARCHITECT - THE SAGE'S LAIR
 # ============================================================================
-FROM alpine:3.19 AS architect
+FROM alpine:3.24 AS architect
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -188,7 +188,7 @@ ENTRYPOINT ["/app/architect"]
 # ============================================================================
 # Akira: consensus health (ADR-029). Checks the services and tallies every
 # reporter's votes; remediation is off unless started with --remediate.
-FROM alpine:3.19 AS akira
+FROM alpine:3.24 AS akira
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -209,7 +209,7 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
 ENTRYPOINT ["/app/akira"]
 
 # ============================================================================
-FROM alpine:3.19 AS micromanager
+FROM alpine:3.24 AS micromanager
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -234,7 +234,7 @@ ENTRYPOINT ["/app/micromanager"]
 # ============================================================================
 # STAGE 7: MONAD - THE ONE (Unified State Management)
 # ============================================================================
-FROM alpine:3.19 AS monad
+FROM alpine:3.24 AS monad
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -259,7 +259,7 @@ ENTRYPOINT ["/app/monad"]
 # ============================================================================
 # STAGE 8: SOPHIA - DIVINE WISDOM (Knowledge Graph)
 # ============================================================================
-FROM alpine:3.19 AS sophia
+FROM alpine:3.24 AS sophia
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -284,7 +284,7 @@ ENTRYPOINT ["/app/sophia"]
 # ============================================================================
 # STAGE 9: CUIRASS - THE CORE HEART (Control Plane)
 # ============================================================================
-FROM alpine:3.19 AS cuirass
+FROM alpine:3.24 AS cuirass
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -310,7 +310,7 @@ ENTRYPOINT ["/app/unheaded-daemon"]
 # ============================================================================
 # STAGE 10: DASHBOARD-BACKEND - THE VISOR (Observability Dashboard)
 # ============================================================================
-FROM alpine:3.19 AS dashboard-backend
+FROM alpine:3.24 AS dashboard-backend
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -337,7 +337,7 @@ ENTRYPOINT ["/app/dashboard-backend", "--viz-dir", "/app/viz"]
 # ============================================================================
 # STAGE 11: KANBAN-APP - THE META MOMENT (Self-Hosting Proof)
 # ============================================================================
-FROM alpine:3.19 AS kanban-app
+FROM alpine:3.24 AS kanban-app
 
 RUN apk add --no-cache ca-certificates tzdata
 
@@ -362,7 +362,7 @@ ENTRYPOINT ["/app/kanban-app"]
 # ============================================================================
 # DEFAULT: ALL-IN-ONE (for development)
 # ============================================================================
-FROM alpine:3.19
+FROM alpine:3.24
 
 RUN apk add --no-cache ca-certificates tzdata supervisor
 

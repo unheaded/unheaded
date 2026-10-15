@@ -234,7 +234,18 @@ tree does not match that register**, and a method for closing the gap.
    comment; gate `check-actions-pinned` (security.yml, meta-gate provoked).
    Keeping SHAs current needs a bot (Dependabot's `github-actions`
    ecosystem understands `@sha # tag`): Stevie's call, as it opens PRs.
-   Base images by digest: still open.
+   Base images by digest: **decision needed.** Inventory 2026-10-15: ~12
+   distinct `FROM` bases and ~40 third-party compose images over many
+   compose files, with drift (Prometheus v2.50.1 / v2.51.0 / latest; Loki
+   2.9.0 / 2.9.4 / 3.0.0; `latest` on qdrant, open-webui, wireguard,
+   vllm). Digest pins stop silent changes but also stop security updates
+   unless a bot bumps them, which pulls against "develop against latest"
+   (feedback, pre-alpha). Options: digests + Dependabot `docker`
+   ecosystem; or exact version tags (no `latest`, one version per image
+   across compose files) without digests. Done meanwhile: the root
+   Dockerfile's runtime stages moved off end-of-life `alpine:3.19` to
+   `alpine:3.24`; `routing/bird` and `docker/firewall/bird` still build
+   BIRD from source on 3.19 and need their own build check.
 5. **Ratchet, once started.** Add a gate in the style of
    `check-secrets-baseline.sh`: the set of direct dependencies per ecosystem
    may only shrink unless a register entry exists for the new one. It must be
