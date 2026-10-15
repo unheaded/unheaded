@@ -142,3 +142,20 @@ func (p Plan) Through(file string) (Plan, error) {
 	q.Steps = p.Steps[:last+1]
 	return q, nil
 }
+
+// ForDB returns the plan limited to one database, so a Well whose
+// databases are in different states (one built by hand, one empty) can be
+// baselined or migrated one database at a time. Drift is still judged on
+// the whole plan by the caller first.
+func (p Plan) ForDB(db string) (Plan, error) {
+	q := Plan{}
+	for _, s := range p.Steps {
+		if s.DB == db {
+			q.Steps = append(q.Steps, s)
+		}
+	}
+	if len(q.Steps) == 0 {
+		return p, fmt.Errorf("the manifest applies nothing to %s", db)
+	}
+	return q, nil
+}

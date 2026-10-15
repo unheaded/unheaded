@@ -199,3 +199,18 @@ func TestThrough(t *testing.T) {
 		t.Error("unknown file accepted")
 	}
 }
+
+func TestForDB(t *testing.T) {
+	f := func(db, file string) File { return File{Entry: Entry{DB: db, File: file}} }
+	p := Compute(Set{Files: []File{f("postgres", "002_a.sql"), f("app", "007_g.sql"), f("ops", "007_g.sql")}}, Ledger{})
+	q, err := p.ForDB("ops")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(q.Steps) != 1 || q.Steps[0].DB != "ops" {
+		t.Fatalf("ops: %+v", q.Steps)
+	}
+	if _, err := p.ForDB("nope"); err == nil {
+		t.Error("unknown database accepted")
+	}
+}

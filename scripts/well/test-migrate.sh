@@ -157,6 +157,10 @@ WP="$("${DOCKER[@]}" port "$N-old" 5432/tcp | head -1 | sed 's/.*://')"
 M="$R/db/migrations"
 osq() { "${DOCKER[@]}" exec -i "$N-old" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d "$1" -c "$2"; }
 expect 3 "old Well: everything pending" wm status
+expect 1 "-db naming a database the manifest does not use" wm status -db nope
+expect 0 "old Well: baseline postgres alone (-db)" wm baseline -db postgres -through 012_huginn_reader.sql -yes
+[[ "$(osq unheaded_app "SELECT to_regclass('well_schema_migrations') IS NULL")" == t ]] &&
+	pass "-db postgres left unheaded_app untouched" || fail "-db postgres wrote elsewhere"
 expect 2 "baseline without -through is refused" wm baseline -yes
 expect 2 "baseline without -yes is refused" wm baseline -through 016_config_history_append_only.sql
 expect 1 "baseline through an unknown file is refused" wm baseline -through 099_nope.sql -yes

@@ -9,6 +9,7 @@
 //	well-migrate status                # ledger vs manifest, per database
 //	well-migrate apply                 # print what would run
 //	well-migrate apply -yes            # run it, in order, stop at the first failure
+//	well-migrate apply -db unheaded_ops -yes   # one database only (also status, baseline)
 //	well-migrate baseline -through 012_huginn_reader.sql -yes
 //	                                   # record pending files up to that entry WITHOUT running them
 //
@@ -56,7 +57,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	lockTimeout := fl.Duration("lock-timeout", 5*time.Second, "lock wait limit inside each migration")
 	stmtTimeout := fl.Duration("statement-timeout", 5*time.Minute, "limit per statement")
 	usage := func() int {
-		fmt.Fprintln(stderr, "usage: well-migrate [-dir D] [-lock-timeout T] [-statement-timeout T] check | status | apply [-yes] | baseline -through FILE -yes")
+		fmt.Fprintln(stderr, "usage: well-migrate [-dir D] [-lock-timeout T] [-statement-timeout T] check | status | apply [-db D] [-yes] | baseline [-db D] -through FILE -yes")
 		return 2
 	}
 	if err := fl.Parse(args); err != nil {
@@ -70,6 +71,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	sub := flag.NewFlagSet(cmd, flag.ContinueOnError)
 	sub.SetOutput(stderr)
 	yes := sub.Bool("yes", false, "make the change (default: print it)")
+	only := sub.String("db", "", "limit to one database (status, apply, baseline)")
 	through := ""
 	if cmd == "baseline" {
 		sub.StringVar(&through, "through", "", "last manifest file the Well already has (required)")
@@ -128,6 +130,14 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		return fail(err)
 	}
 	p := migrate.Compute(set, led)
+	if *only != "" {
+		if err := p.Drift(); err != nil {
+			return fail(err)
+		}
+		if p, err = p.ForDB(*only); err != nil {
+			return fail(err)
+		}
+	}
 
 	if cmd == "status" || !*yes {
 		printPlan(stdout, p)

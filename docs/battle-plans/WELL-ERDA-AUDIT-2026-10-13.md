@@ -93,17 +93,17 @@ live system and need Stevie's yes.
 
 ### Phase 0: back up, then look (needs The Well running)
 
-- [ ] 0.1 **[Y]** `sudo docker compose up -d postgres` (COMPLIANCE-WELL Phase 0
+- [x] 0.1 **[Y]** *(2026-10-15, Stevie: yes; clean recovery, one tiny redo; raw volume tar first in ~/backups/well/2026-10-15/)* `sudo docker compose up -d postgres` (COMPLIANCE-WELL Phase 0
       step 4). Expect crash recovery in the log, then "ready".
-- [ ] 0.2 Before anything else: `pg_dumpall --globals-only` plus `pg_dump -Fc`
+- [x] 0.2 *(2026-10-15: `scripts/db-backup.sh` set well-123943Z, drill PASS 5 DBs/13 tables/225 rows/13 s; copy to east still open, see 1.2)* Before anything else: `pg_dumpall --globals-only` plus `pg_dump -Fc`
       of `unheaded`, `unheaded_app`, `unheaded_ops`, `unheaded_config` to
       `~/backups/well/2026-10-13/`; `pg_restore -l` each; copy to east.
 - [ ] 0.3 `well_health.sql` on each DB as `huginn_reader` (pg_monitor);
       save the output beside this plan as the live baseline.
-- [ ] 0.4 Shape diff: live schema (`pg_dump --schema-only`) vs a fresh
+- [x] 0.4 *(2026-10-15: postgres = 002+012 in effect; ops and config EMPTY (the broken old initdb); app built by startup DDL, not 003: kanban_tasks guid nullable + unique guid index, no 003 indexes/trigger; zhen_conversations in 010's shape; no timeline_milestones; zhen_actions/memories/snapshots match. Legacy `unheaded` holds 001-era tables + Wotan's wotan_* tables + 4 kingdom_config rows)* Shape diff: live schema (`pg_dump --schema-only`) vs a fresh
       bootstrap of develop; record every difference (expect 001-era tables in
       `unheaded`, missing 013/014).
-- [ ] 0.5 **[Y]** Apply 013 onwards with `well-migrate apply -yes` after the 3.2 baseline (COMPLIANCE-WELL step 21),
+- [~] 0.5 **[Y]** *(2026-10-15: `baseline -db postgres -through 012`, `apply -db unheaded_ops`, `apply -db unheaded_config`; compliance `well sync` seeded 225 rows, re-run is all no-change. unheaded_app waits for its converge script, 3.4)* Apply 013 onwards with `well-migrate apply -yes` after the 3.2 baseline (COMPLIANCE-WELL step 21),
       then `compliance-evidence well sync -dry-run`, then real.
 
 ### Phase 1: backups that cover everything, proven by restore (W-01)
