@@ -21,7 +21,7 @@ jobs:
         goos: [linux, darwin]
         goarch: [amd64, arm64]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Set up Go
         uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
@@ -48,7 +48,7 @@ jobs:
             ./wotan/cmd/wotan-cli
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5
         with:
           name: binaries-${{ matrix.goos }}-${{ matrix.goarch }}
           path: dist/
@@ -59,10 +59,10 @@ jobs:
     timeout-minutes: 15
     needs: build
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
         with:
           path: dist
           merge-multiple: true
@@ -78,7 +78,7 @@ jobs:
           syft dir:. -o cyclonedx-json=dist/sbom.json
 
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
         with:
           files: |
             dist/*

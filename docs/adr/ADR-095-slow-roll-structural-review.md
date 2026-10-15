@@ -228,6 +228,13 @@ tree does not match that register**, and a method for closing the gap.
    images to digests changes no code and closes the tag-hijack class
    outright. These are the only entries allowed to go in a batch, because
    each is a one-line mechanical change with nothing to review underneath.
+   *Actions done 2026-10-15:* all 104 mutable refs (29 distinct, including
+   `aquasecurity/trivy-action@master`) pinned to the commit their tag or
+   branch pointed at, resolved with `git ls-remote`, the ref kept in a
+   comment; gate `check-actions-pinned` (security.yml, meta-gate provoked).
+   Keeping SHAs current needs a bot (Dependabot's `github-actions`
+   ecosystem understands `@sha # tag`): Stevie's call, as it opens PRs.
+   Base images by digest: still open.
 5. **Ratchet, once started.** Add a gate in the style of
    `check-secrets-baseline.sh`: the set of direct dependencies per ecosystem
    may only shrink unless a register entry exists for the new one. It must be

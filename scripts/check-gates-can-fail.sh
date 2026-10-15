@@ -445,6 +445,16 @@ provoke_k8s_well_initdb() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_actions_pinned() {
+    # Contract (ADR-095): no action on a mutable tag. Unpin checkout in
+    # security.yml's first job.
+    local f=".github/workflows/security.yml"
+    backup "${f}"
+    sed -i '0,/uses: actions\/checkout@[0-9a-f]\{40\}.*/s//uses: actions\/checkout@v4/' "${REPO_ROOT}/${f}"
+    grep -q 'uses: actions/checkout@v4$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_well_compliance_schema() {
     # Contract (W-05): history tables refuse TRUNCATE even for the owner.
     # Drop audit_events' TRUNCATE guard from 015.
@@ -509,6 +519,7 @@ live-path-inventory|provoke_live_path_inventory|fast|a new main package outside 
 check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang
 check-well-migrations|provoke_well_migrations|fast|an untracked migration file the MANIFEST does not route
 check-k8s-well-initdb|provoke_k8s_well_initdb|fast|a migration edited without re-rendering the Kubernetes initdb ConfigMap
+check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
 well/test-compliance-schema|provoke_well_compliance_schema|slow|audit_events' TRUNCATE guard removed from 015 (needs docker)
 well/test-migrate|provoke_well_migrate|slow|the runner's drift refusal removed, so apply runs past an edited file (needs docker)
 well/test-backup-restore|provoke_well_backup_restore|slow|db-backup.sh leaving unheaded_ops out of the set (needs docker)

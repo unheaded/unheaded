@@ -39,7 +39,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       - run: pip install --quiet pyyaml
@@ -105,10 +105,10 @@ jobs:
       # so the LAST one is what every other workspace lints with. Stable goes
       # last. With nightly last, host crates were linted by whatever clippy
       # shipped that night, so the ratchet could go red with no code change.
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly branch, 2026-10-15
         with:
           components: clippy, rust-src
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable branch, 2026-10-15
         with:
           components: clippy
 
@@ -140,7 +140,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       # PINNED. Unpinned, every upstream release silently moves the baselines
@@ -197,7 +197,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: '22'
 
@@ -290,7 +290,7 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
       # ruff at the python job's pin: without it check-ruff exits 127 on the
@@ -303,11 +303,11 @@ jobs:
       # bpf-linker. Without bpf-linker nothing builds, so neither gate can
       # show it bites. Stable last: it is the default the clippy provocation
       # lints host crates with (see the clippy job).
-      - uses: dtolnay/rust-toolchain@nightly
+      - uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly branch, 2026-10-15
         if: github.event_name == 'push'
         with:
           components: clippy, rust-src
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable branch, 2026-10-15
         if: github.event_name == 'push'
         with:
           components: clippy

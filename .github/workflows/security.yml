@@ -145,6 +145,11 @@ jobs:
       - name: Kubernetes Well initdb matches db/
         run: ./scripts/check-k8s-well-initdb.sh
 
+      # ADR-095: a moved tag runs new code with this repo's token. Every
+      # action is pinned to a commit SHA, with the tag in a comment.
+      - name: GitHub Actions pinned to commit SHAs
+        run: ./scripts/check-actions-pinned.sh
+
       # ADR-091: the initdb bug was a bind mount nested inside another's
       # mountpoint. Fixed in B7; this keeps it fixed. Provoked red by
       # recreating the original nesting.
@@ -179,7 +184,7 @@ jobs:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable branch, 2026-10-15
 
       - name: Install cargo-audit
         run: cargo install cargo-audit
@@ -223,7 +228,7 @@ jobs:
       # as of 2026-07-29), so this is a real gate from day one — any committed
       # credential fails the build immediately.
       - name: Trivy secret scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0 # master branch, 2026-10-15
         with:
           scan-type: fs
           scan-ref: '.'
@@ -232,7 +237,7 @@ jobs:
 
       # Dependency vulnerabilities.
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0 # master branch, 2026-10-15
         with:
           scan-type: fs
           scan-ref: '.'
@@ -251,7 +256,7 @@ jobs:
       # .trivyignore.yaml in this mode. Verified — without the flag the file is
       # decorative and every documented exception is silently ignored.
       - name: Trivy IaC misconfiguration scan
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0 # master branch, 2026-10-15
         with:
           scan-type: fs
           scan-ref: '.'

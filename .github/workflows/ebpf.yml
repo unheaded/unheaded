@@ -17,15 +17,15 @@ jobs:
     name: Trace Collector (Rust)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
+        uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable branch, 2026-10-15
         with:
           components: clippy, rustfmt
 
       - name: Cache cargo
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |
             ~/.cargo/registry
@@ -53,16 +53,16 @@ jobs:
     name: eBPF Programs (Rust/Aya)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly branch, 2026-10-15
         with:
           components: clippy, rustfmt, rust-src
           targets: bpfel-unknown-none
 
       - name: Cache cargo
-        uses: actions/cache@v5
+        uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5
         with:
           path: |
             ~/.cargo/registry
@@ -88,10 +88,10 @@ jobs:
     name: eBPF programs pass the verifier
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Rust toolchain
-        uses: dtolnay/rust-toolchain@nightly
+        uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly branch, 2026-10-15
         with:
           components: rust-src
 
