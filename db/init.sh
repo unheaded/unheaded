@@ -71,5 +71,6 @@ set_password ops_reader     OPS_READER_PASSWORD
 set_password config_admin   CONFIG_ADMIN_PASSWORD
 set_password config_reader  CONFIG_READER_PASSWORD
 set_password huginn_reader  HUGINN_READER_PASSWORD
+set_password well_backup    WELL_BACKUP_PASSWORD
 
 echo "=== The Well — Ready ==="

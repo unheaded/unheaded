@@ -85,6 +85,7 @@ data:
     set_password config_admin   CONFIG_ADMIN_PASSWORD
     set_password config_reader  CONFIG_READER_PASSWORD
     set_password huginn_reader  HUGINN_READER_PASSWORD
+    set_password well_backup    WELL_BACKUP_PASSWORD
 
     echo "=== The Well — Ready ==="
   MANIFEST: |
@@ -126,6 +127,7 @@ data:
     unheaded_app     020_app_adopt_startup_ddl.sql
     unheaded_app     021_app_drop_zhen_actions_duplicate_indexes.sql
     unheaded_ops     022_ops_audit_events_one_taxonomy.sql
+    postgres         023_well_backup_role.sql
 
     # The pre-split single-database schema, superseded by 003/004/005: applying
     # it would put a fourth copy of kanban_tasks, timeline_milestones and
@@ -1470,3 +1472,22 @@ data:
 
     GRANT SELECT, INSERT ON audit_events TO ops_writer;
     GRANT SELECT ON audit_events TO ops_reader;
+  023_well_backup_role.sql: |
+    -- SPDX-License-Identifier: GPL-3.0-or-later
+    -- The Well — a read-only role for backups (ERDA 1.4), cluster-level.
+    --
+    -- scripts/db-backup.sh dumped as the superuser. well_backup can read every
+    -- table (pg_read_all_data, PG 14+) and nothing else: no writes, no DDL, no
+    -- role changes. Backups use pg_dumpall --globals-only --no-role-passwords,
+    -- which a non-superuser can run; role passwords live in the environment
+    -- (W-07), so a restore sets them again rather than restoring hashes.
+    -- No password here: inside the container the backup connects over the local
+    -- socket; db/init.sh sets one from WELL_BACKUP_PASSWORD if given (TCP use).
+
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'well_backup') THEN
+            CREATE ROLE well_backup LOGIN CONNECTION LIMIT 3;
+        END IF;
+    END $$;
+    GRANT pg_read_all_data TO well_backup;

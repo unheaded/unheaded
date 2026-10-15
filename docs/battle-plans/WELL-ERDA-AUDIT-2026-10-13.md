@@ -127,7 +127,7 @@ live system and need Stevie's yes.
       runs backup then drill end to end on throwaway servers (5 DBs, 24 tables,
       restore 15 s) and makes the drill refuse a flipped byte, a wrong row
       count and an unlisted dump, each for its own reason.
-- [ ] 1.4 systemd timer (daily dump, weekly drill); `unheaded_well_backup_*`
+- [~] 1.4 *(2026-10-15, Stevie: yes to a dedicated role. 023 creates well_backup (pg_read_all_data); db-backup.sh dumps as it with --no-role-passwords, so sets hold no secrets (scripts/well/set-role-passwords.sh re-sets them from env after a restore); unheaded-well-backup.timer nightly 03:30 and unheaded-well-drill.timer Sundays, installed and enabled on west, first runs PASS (653 rows). Not the host-client variant: Ubuntu 25.10 ships only postgresql-client-17, whose archives the 16 drill cannot read, so the units `docker exec` as root with root-owned script copies; the DB credential is the read-only role. Still open: the metrics + alert half, and copying sets to east (1.2))* systemd timer (daily dump, weekly drill); `unheaded_well_backup_*`
       metrics (age, size, drill result) and an alert; UH-BACKUP-01 reads them.
       **Decision needed (2026-10-15): who runs the scheduled backup.**
       (a) a user in the docker group running `docker exec` as today: simple,

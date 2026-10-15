@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Well: daily backup set (ERDA 1.4). scripts/db-backup.sh dumps every
+# database as the read-only role well_backup (db/migrations/023) through
+# `docker exec` into the Postgres container; no superuser, no password
+# hashes in the set. Root because the docker socket is root-equivalent
+# anyway; the files it runs are root-owned copies, never the repo's.
+# Install (Stevie's yes, 2026-10-15):
+#   sudo install -d -m 0755 /usr/local/lib/unheaded/well /var/backups/unheaded-well
+#   sudo install -m 0755 scripts/db-backup.sh scripts/well/restore-drill.sh /usr/local/lib/unheaded/well/
+#   sudo cp deploy/systemd/unheaded-well-{backup,drill}.{service,timer} /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-well-backup.timer unheaded-well-drill.timer
+
+[Unit]
+Description=The Well: backup set of every database (ERDA 1.4)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/battle-plans/WELL-ERDA-AUDIT-2026-10-13.md
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Environment=WELL_BACKUP_DIR=/var/backups/unheaded-well
+Environment=WELL_BACKUP_KEEP=14
+Environment=WELL_CONTAINER=unheaded-postgres
+Environment=DOCKER_CONFIG=/run/unheaded-well-backup
+RuntimeDirectory=unheaded-well-backup
+ExecStart=/usr/local/lib/unheaded/well/db-backup.sh
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=idle
+UMask=0077
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/var/backups/unheaded-well
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_CHOWN CAP_FOWNER
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

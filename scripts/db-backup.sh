@@ -7,7 +7,10 @@
 #   scripts/db-backup.sh [--keep N]
 #
 # A set is a directory <root>/<YYYY-MM-DD>/well-<HHMMSS>Z/ holding
-#   globals.sql      roles and tablespaces (pg_dumpall --globals-only;
+#   globals.sql      roles and tablespaces (pg_dumpall --globals-only
+#                    --no-role-passwords: no password hashes; role passwords
+#                    come from the environment, W-07, and are set again after
+#                    a restore with scripts/well/set-role-passwords.sh;
 #                    holds password hashes, hence 0600)
 #   <db>.dump        pg_dump -Fc of every database that accepts connections
 #                    (enumerated from pg_database, never a fixed list)
@@ -26,6 +29,11 @@
 #   WELL_BACKUP_DIR  root (default ~/backups/unheaded; refused inside the repo)
 #   WELL_CONTAINER   container running The Well (default unheaded-postgres)
 #   WELL_BACKUP_KEEP sets to keep (default 14; --keep overrides)
+#   WELL_BACKUP_ROLE role to dump as (default well_backup: pg_read_all_data,
+#                    db/migrations/023; read-only, never the superuser)
+#
+# After each set, <root>/LATEST (0644) names it: recency is visible to a
+# probe that cannot read the 0700 sets themselves.
 #
 # Restore and verify a set: scripts/well/restore-drill.sh <set-dir>.
 set -euo pipefail
@@ -47,8 +55,13 @@ case "$ROOT/" in "$(cd "$R" && pwd -P)"/*)
 esac
 
 DOCKER=(docker); docker info >/dev/null 2>&1 || DOCKER=(sudo -n docker)
-SU="$("${DOCKER[@]}" exec "$C" printenv POSTGRES_USER)" || { echo "[well] container $C is not running" >&2; exit 1; }
-"${DOCKER[@]}" exec "$C" pg_isready -q -U "$SU" || { echo "[well] $C is not accepting connections" >&2; exit 1; }
+ROLE="${WELL_BACKUP_ROLE:-well_backup}"
+[[ "$ROLE" =~ ^[a-z_][a-z0-9_]*$ ]] || { echo "[well] bad role name '$ROLE'" >&2; exit 2; }
+"${DOCKER[@]}" exec "$C" pg_isready -q -U "$ROLE" -d postgres || { echo "[well] $C is not running or not accepting connections" >&2; exit 1; }
+# The bootstrap superuser (oid 10): globals grant GRANTED BY it, so a restore
+# must bootstrap with the same name (scripts/well/restore-drill.sh).
+SU="$("${DOCKER[@]}" exec "$C" psql -X -At -v ON_ERROR_STOP=1 -U "$ROLE" -d postgres -c 'SELECT rolname FROM pg_roles WHERE oid = 10')" ||
+	{ echo "[well] cannot connect as $ROLE (db/migrations/023 not applied?)" >&2; exit 1; }
 
 DAY="$(date -u +%F)" T="$(date -u +%H%M%S)"
 FINAL="$ROOT/$DAY/well-${T}Z"
@@ -61,13 +74,14 @@ trap cleanup EXIT
 exec_su() { "${DOCKER[@]}" exec -i "$C" "$@"; }
 
 echo "[well] backing up $C into $FINAL"
-exec_su pg_dumpall -U "$SU" --globals-only >"$PART/globals.sql"
+exec_su pg_dumpall -U "$ROLE" --globals-only --no-role-passwords >"$PART/globals.sql"
+! grep -qiE "PASSWORD '(SCRAM|md5)" "$PART/globals.sql" || { echo "[well] globals dump holds password hashes" >&2; exit 1; }
 grep -q '^CREATE ROLE' "$PART/globals.sql" || { echo "[well] globals dump has no roles" >&2; exit 1; }
 [[ "$SU" =~ ^[a-z_][a-z0-9_]*$ ]] || { echo "[well] unexpected superuser name '$SU'" >&2; exit 1; }
 printf 'superuser=%s\nserver_version=%s\n' "$SU" \
-	"$(exec_su psql -X -At -U "$SU" -d postgres -c 'SHOW server_version_num')" >"$PART/cluster.env"
+	"$(exec_su psql -X -At -U "$ROLE" -d postgres -c 'SHOW server_version_num')" >"$PART/cluster.env"
 
-mapfile -t DBS < <(exec_su psql -X -At -v ON_ERROR_STOP=1 -U "$SU" -d postgres \
+mapfile -t DBS < <(exec_su psql -X -At -v ON_ERROR_STOP=1 -U "$ROLE" -d postgres \
 	-c "SELECT datname FROM pg_database WHERE datallowconn AND NOT datistemplate ORDER BY 1")
 ((${#DBS[@]} > 0)) || { echo "[well] no databases found" >&2; exit 1; }
 
@@ -85,11 +99,11 @@ for db in "${DBS[@]}"; do
 	[[ "$db" =~ ^[A-Za-z0-9_]+$ ]] || { echo "[well] unexpected database name '$db'" >&2; exit 1; }
 	# Hold a REPEATABLE READ transaction open, export its snapshot, dump in
 	# that snapshot, then count in the same transaction.
-	coproc PSQL { exec_su psql -X -q -At -v ON_ERROR_STOP=1 -U "$SU" -d "$db" 2>&1; }
+	coproc PSQL { exec_su psql -X -q -At -v ON_ERROR_STOP=1 -U "$ROLE" -d "$db" 2>&1; }
 	echo "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY; SELECT pg_export_snapshot();" >&"${PSQL[1]}"
 	IFS= read -r -t 30 snap <&"${PSQL[0]}" || { echo "[well] $db: no snapshot" >&2; exit 1; }
 	[[ "$snap" =~ ^[0-9A-F]+-[0-9A-F]+-[0-9]+$ ]] || { echo "[well] $db: bad snapshot '$snap'" >&2; exit 1; }
-	exec_su pg_dump -U "$SU" -Fc --snapshot="$snap" -d "$db" >"$PART/$db.dump"
+	exec_su pg_dump -U "$ROLE" -Fc --snapshot="$snap" -d "$db" >"$PART/$db.dump"
 	printf '%s\n' "$COUNTS" "SELECT '__end__';" >&"${PSQL[1]}"
 	while IFS= read -r -t 300 line <&"${PSQL[0]}"; do
 		[[ "$line" == __end__ ]] && break
@@ -110,6 +124,7 @@ chmod 0600 "$PART"/*
 mv -- "$PART" "$FINAL"
 chmod 0700 "$FINAL"
 trap - EXIT
+printf '%s\n' "${FINAL#"$ROOT"/}" >"$ROOT/.LATEST.tmp" && chmod 0644 "$ROOT/.LATEST.tmp" && mv -f "$ROOT/.LATEST.tmp" "$ROOT/LATEST"
 
 # Retention: newest $KEEP complete sets survive. Only well-<time>Z
 # directories directly under a date directory are candidates.

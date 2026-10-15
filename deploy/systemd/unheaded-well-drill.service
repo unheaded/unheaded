@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Well: weekly restore drill (ERDA 1.3/1.4). Restores the newest backup
+# set into a throwaway container (no network, no volume, removed after) and
+# fails on any row-count difference. Never touches The Well. Installed with
+# unheaded-well-backup.service (see there).
+
+[Unit]
+Description=The Well: restore drill of the newest backup set
+After=docker.service unheaded-well-backup.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+Environment=WELL_BACKUP_DIR=/var/backups/unheaded-well
+Environment=WELL_CONTAINER=unheaded-postgres
+Environment=DOCKER_CONFIG=/run/unheaded-well-drill
+RuntimeDirectory=unheaded-well-drill
+ExecStart=/usr/local/lib/unheaded/well/restore-drill.sh
+TimeoutStartSec=30min
+Nice=10
+UMask=0077
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX
+CapabilityBoundingSet=CAP_DAC_OVERRIDE CAP_DAC_READ_SEARCH
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

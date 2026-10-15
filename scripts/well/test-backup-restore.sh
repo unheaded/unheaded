@@ -66,6 +66,13 @@ export WELL_CONTAINER="$N" WELL_BACKUP_DIR="$TMP/backups"
 SET="$(find "$TMP/backups" -mindepth 2 -maxdepth 2 -type d -name 'well-*Z' | sort | tail -1)"
 [[ -n "$SET" ]] && pass "backup produced a set" || { fail "no set"; exit 1; }
 [[ "$(stat -c %a "$SET/globals.sql")" == 600 ]] && pass "globals.sql is 0600" || fail "globals.sql mode $(stat -c %a "$SET/globals.sql")"
+if grep -qiE "PASSWORD '(SCRAM|md5)" "$SET/globals.sql"; then fail "globals.sql holds password hashes"; else pass "globals.sql holds no password hashes"; fi
+grep -q '^superuser=unheaded$' "$SET/cluster.env" && pass "cluster.env names the bootstrap superuser" || fail "cluster.env: $(cat "$SET/cluster.env")"
+[[ "$(cat "$TMP/backups/LATEST")" == "${SET#"$TMP/backups/"}" && "$(stat -c %a "$TMP/backups/LATEST")" == 644 ]] &&
+	pass "LATEST names the newest set (0644)" || fail "LATEST: $(cat "$TMP/backups/LATEST" 2>&1)"
+if "${DOCKER[@]}" exec "$N" psql -X -q -U well_backup -d unheaded_app -c "INSERT INTO kanban_tasks(id,title) VALUES ('wb','x')" >/dev/null 2>&1; then
+	fail "well_backup can write"
+else pass "well_backup cannot write"; fi
 for db in unheaded unheaded_app unheaded_ops unheaded_config postgres; do
 	[[ -f "$SET/$db.dump" ]] && pass "dumped $db" || fail "no dump of $db"
 done

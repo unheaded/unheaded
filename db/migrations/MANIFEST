@@ -36,6 +36,7 @@ unheaded_config  019_config_history_all_changes.sql
 unheaded_app     020_app_adopt_startup_ddl.sql
 unheaded_app     021_app_drop_zhen_actions_duplicate_indexes.sql
 unheaded_ops     022_ops_audit_events_one_taxonomy.sql
+postgres         023_well_backup_role.sql
 
 # The pre-split single-database schema, superseded by 003/004/005: applying
 # it would put a fourth copy of kanban_tasks, timeline_milestones and

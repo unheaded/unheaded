@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# The Well: a backup set every night (ERDA 1.4). The db-backup-recent
+# compliance probe fails when the newest is older than 7 days.
+
+[Unit]
+Description=The Well: nightly backup set
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=20min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
