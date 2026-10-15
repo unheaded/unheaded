@@ -20,7 +20,8 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BASELINE="$REPO_ROOT/docs/policy/well-lint-baseline.tsv"
 cd "$REPO_ROOT"
 
-mapfile -d '' FILES < <(git ls-files -z -- '*.sql' '*.go' '*.py' '*.conf')
+# The linter itself is excluded: its self-test fixtures are deliberate findings.
+mapfile -d '' FILES < <(git ls-files -z -- '*.sql' '*.go' '*.py' '*.conf' ':!scripts/well/well_lint.py')
 current="$(python3 scripts/well/well_lint.py --format json --fail-on NONE "${FILES[@]}" |
 	python3 -c '
 import collections, json, sys
