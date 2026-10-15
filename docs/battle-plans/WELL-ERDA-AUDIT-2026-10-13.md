@@ -249,7 +249,7 @@ live system and need Stevie's yes.
       run the bridge even with the topic fixed. Wiring means choosing a
       host process (dashboard-backend already consumes Akira's reports, or
       a small `well-bridge`). Stevie's call.
-- [~] 5.6 Config history trigger: INSERT/UPDATE/DELETE, `change_reason`
+- [x] 5.6 *(2026-10-15: ConfigStore.Set takes a reason and sets well.change_reason in its transaction (ErrNoReason without one); 028 makes the trigger refuse any kingdom_config change without a reason, psql included. test-migrate checks both ways; live: an unexplained UPDATE is refused)* Config history trigger: INSERT/UPDATE/DELETE, `change_reason`
       required. *019 (2026-10-14):* all three ops, `op` column, reason from
       `well.change_reason`. Required waits until config_store.go sets it.
 - [~] 5.7 Index `compliance_host_bindings(profile)` (*done, 018*); types: identity

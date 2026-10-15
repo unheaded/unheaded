@@ -16,6 +16,7 @@
 #   7. a Well bootstrapped by the pre-ledger db/ (the live one today) is
 #      baselined through 016 without running anything, then apply runs
 #      017 onwards;
+#   9. kingdom_config refuses a change without a reason (028);
 #   8. owners (025/026): every object but the ledger belongs to its
 #      database's owner role, init.sh and apply create new objects as that
 #      owner unless the entry is flagged superuser, PUBLIC cannot connect
@@ -113,6 +114,14 @@ done
 reach=$(sq postgres "SELECT string_agg(r || '>' || d, ' ' ORDER BY r, d) FROM unnest(ARRAY['app_kanban','ops_writer','config_admin','huginn_reader','well_backup']) r, unnest(ARRAY['postgres','unheaded_app','unheaded_ops','unheaded_config']) d WHERE has_database_privilege(r, d, 'CONNECT')")
 want_reach="app_kanban>unheaded_app app_kanban>unheaded_config config_admin>unheaded_config huginn_reader>unheaded_app huginn_reader>unheaded_config huginn_reader>unheaded_ops ops_writer>unheaded_ops well_backup>postgres well_backup>unheaded_app well_backup>unheaded_config well_backup>unheaded_ops"
 [[ "$reach" == "$want_reach" ]] && pass "service roles connect only where granted" || fail "CONNECT map: $reach"
+
+# 028: a kingdom_config change without a reason is refused; with one, history keeps it.
+if sq unheaded_config "UPDATE kingdom_config SET value = '\"x\"' WHERE key = 'kingdom.mode'" >/dev/null 2>&1; then
+	fail "kingdom_config changed without a reason"
+else pass "kingdom_config change without a reason refused"; fi
+sq unheaded_config "BEGIN; SET LOCAL well.change_reason = 'test: why'; UPDATE kingdom_config SET value = '\"x\"' WHERE key = 'kingdom.mode'; COMMIT;" >/dev/null
+[[ "$(sq unheaded_config "SELECT change_reason FROM kingdom_config_history WHERE key = 'kingdom.mode' ORDER BY changed_at DESC LIMIT 1")" == "test: why" ]] &&
+	pass "kingdom_config change with a reason recorded in history" || fail "history reason"
 
 # 2. A new migration.
 cat >"$M/901_test_widgets.sql" <<'SQL'

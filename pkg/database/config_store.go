@@ -5,6 +5,8 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
+	"strings"
 	"time"
 )
 
@@ -50,16 +52,35 @@ func (s *ConfigStore) Get(ctx context.Context, key string) (*ConfigEntry, error)
 	return &e, nil
 }
 
-// Set creates or updates a configuration entry (UPSERT).
-func (s *ConfigStore) Set(ctx context.Context, key string, value json.RawMessage, updatedBy string) error {
-	_, err := s.db.ExecContext(ctx,
+// ErrNoReason is returned by Set without a reason: every change to
+// kingdom_config is recorded in its history with why (db/migrations/028).
+var ErrNoReason = errors.New("kingdom_config change needs a reason")
+
+// Set creates or updates a configuration entry (UPSERT). reason goes to
+// kingdom_config_history through well.change_reason, set for this
+// transaction only; The Well refuses a change without one.
+func (s *ConfigStore) Set(ctx context.Context, key string, value json.RawMessage, updatedBy, reason string) error {
+	if strings.TrimSpace(reason) == "" {
+		return ErrNoReason
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback() }()
+	if _, err := tx.ExecContext(ctx, `SELECT set_config('well.change_reason', $1, true)`, reason); err != nil {
+		return err
+	}
+	if _, err := tx.ExecContext(ctx,
 		`INSERT INTO kingdom_config (key, value, updated_by)
 		 VALUES ($1, $2::jsonb, $3)
 		 ON CONFLICT (key) DO UPDATE SET
 		    value = EXCLUDED.value,
 		    updated_by = EXCLUDED.updated_by`,
-		key, string(value), updatedBy)
-	return err
+		key, string(value), updatedBy); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // List returns all configuration entries in a given category.

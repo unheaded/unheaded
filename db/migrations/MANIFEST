@@ -46,6 +46,7 @@ unheaded_app     026_owner_takes_objects.sql  superuser
 unheaded_ops     026_owner_takes_objects.sql  superuser
 unheaded_config  026_owner_takes_objects.sql  superuser
 postgres         027_stats_and_backup_settings.sql
+unheaded_config  028_config_change_reason_required.sql
 
 # The pre-split single-database schema, superseded by 003/004/005: applying
 # it would put a fourth copy of kanban_tasks, timeline_milestones and
