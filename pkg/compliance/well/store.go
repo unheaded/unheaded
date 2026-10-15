@@ -129,7 +129,7 @@ func ConfigFromEnv() database.Config {
 		User:     get("WELL_CONFIG_USER", "config_reader"),
 		Password: os.Getenv("WELL_CONFIG_PASSWORD"),
 		DBName:   get("WELL_CONFIG_DB", "unheaded_config"),
-		SSLMode:  get("WELL_SSLMODE", "disable"),
+		SSLMode:  get("WELL_SSLMODE", "require"),
 	}
 }
 

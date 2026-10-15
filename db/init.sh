@@ -40,6 +40,11 @@ record() { # database file
 INSERT INTO well_schema_migrations (filename, sha256, mode) VALUES (:'f', :'h', 'initdb');
 SQL
 }
+# 012 (applied everywhere, so unchangeable) grants CONNECT on the pre-split
+# database `unheaded`, retired 2026-10-15 (ERDA 3.6). It exists only while
+# this script runs: made empty here, dropped after the manifest. This runs
+# on an empty volume only, so nothing else can be in it.
+psql_su -d postgres -q -c 'CREATE DATABASE unheaded'
 exec 3<"$MIGRATIONS/MANIFEST"
 while read -r db file flags <&3; do
   case "$db" in ''|'#'*|skip) continue ;; esac
@@ -53,6 +58,7 @@ while read -r db file flags <&3; do
   record "$db" "$file"
 done
 exec 3<&-
+psql_su -d postgres -q -c 'DROP DATABASE unheaded'
 
 # Role passwords come from the environment, never from the migrations (W-07).
 # \getenv reads the variable inside psql, so the value is neither on a command

@@ -65,7 +65,7 @@ spec:
             - { name: WELL_PORT, value: "5432" }
             - { name: WELL_USER, value: "app_kanban" }
             - { name: WELL_DB, value: "unheaded_app" }
-            - { name: WELL_SSLMODE, value: "disable" }
+            - { name: WELL_SSLMODE, value: "disable" }  # the k8s Well has no TLS yet (ERDA 4.2 is compose-only; future work)
             - name: WELL_PASSWORD
               valueFrom: { secretKeyRef: { name: the-well-users, key: APP_KANBAN_PASSWORD } }
           securityContext:

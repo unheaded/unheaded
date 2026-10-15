@@ -43,7 +43,7 @@ wait_ready() {
 [[ -n "$LIVE" ]] || "${DOCKER[@]}" run -d --rm --name "$A" --network none \
 	-e POSTGRES_USER="$SU" -e POSTGRES_PASSWORD="t-$RANDOM" -e POSTGRES_DB=postgres "$IMAGE" >/dev/null
 "${DOCKER[@]}" run -d --rm --name "$F" --network none \
-	-e POSTGRES_USER="$SU" -e POSTGRES_PASSWORD="t-$RANDOM" -e POSTGRES_DB=unheaded \
+	-e POSTGRES_USER="$SU" -e POSTGRES_PASSWORD="t-$RANDOM" -e POSTGRES_DB=postgres \
 	-v "$R/db/migrations:/migrations:ro" -v "$R/db/init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro" "$IMAGE" >/dev/null
 wait_ready "$F"
 if [[ -n "$LIVE" ]]; then

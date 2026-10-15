@@ -72,112 +72,134 @@ sudo docker exec -it unheaded-postgres psql -U unheaded -d unheaded_app
 
 ## Initialization Flow
 
-On first start, Docker runs the init scripts from `db/migrations/` (mounted to
-`/docker-entrypoint-initdb.d/`):
-
-```
-001_initial_schema.sql   -- bootstrap (if any legacy setup)
-002_create_databases.sql -- CREATE DATABASE x3, CREATE USER x7
-003_app_schema.sql       -- kanban_tasks, timeline_milestones, zhen_conversations + indexes + grants
-004_ops_schema.sql       -- service_health_*, audit_events + indexes + grants
-005_config_schema.sql    -- kingdom_config, kingdom_config_history, service_registry + triggers + grants
-006_seed_data.sql        -- initial config values and service registry entries
-007_grants.sql           -- cross-database CONNECT grants
-```
-
-Orchestrated by `db/init.sh`, which runs each SQL file against the appropriate database.
-
----
+`db/init.sh` is the only file in `/docker-entrypoint-initdb.d/`; the
+migrations are mounted at `/migrations`. On an empty volume it applies every
+file `db/migrations/MANIFEST` routes, in order, to its database, and records
+each in that database's `well_schema_migrations` ledger (mode `initdb`).
+An existing Well is migrated with `cmd/well-migrate` (ADR-101), never by
+piping files into psql. `POSTGRES_DB` is `postgres`: there is no database
+outside the manifest (the legacy `unheaded` database was retired
+2026-10-15). `001_initial_schema.sql` is `skip`ped (ADR-091).
 
 ## Connection Strings
 
-**From Docker network (services in containers):**
+**From the `data` network (services in containers):**
 
 ```
-postgresql://app_kanban:<password>@postgres:5432/unheaded_app
-postgresql://app_timeguru:<password>@postgres:5432/unheaded_app
-postgresql://app_zhen:<password>@postgres:5432/unheaded_app
-postgresql://ops_writer:<password>@postgres:5432/unheaded_ops
-postgresql://ops_reader:<password>@postgres:5432/unheaded_ops
-postgresql://config_admin:<password>@postgres:5432/unheaded_config
-postgresql://config_reader:<password>@postgres:5432/unheaded_config
+postgresql://app_kanban:<password>@postgres:5432/unheaded_app?sslmode=require
+postgresql://app_timeguru:<password>@postgres:5432/unheaded_app?sslmode=require
+postgresql://app_zhen:<password>@postgres:5432/unheaded_app?sslmode=require
+postgresql://ops_writer:<password>@postgres:5432/unheaded_ops?sslmode=require
+postgresql://ops_reader:<password>@postgres:5432/unheaded_ops?sslmode=require
+postgresql://config_admin:<password>@postgres:5432/unheaded_config?sslmode=require
+postgresql://config_reader:<password>@postgres:5432/unheaded_config?sslmode=require
 ```
 
-Each `<password>` is the one db/init.sh set from that role's environment
-variable (`APP_KANBAN_PASSWORD`, ..., `HUGINN_READER_PASSWORD`; see
-`db/.env.example`) when the volume was first initialised. No password is
-stored in the repo; a role whose variable was unset cannot log in until
-`ALTER ROLE ... PASSWORD` is run.
+**From the host:** `localhost` instead of `postgres` (compose publishes
+`127.0.0.1:5432` only). For `sslmode=verify-full`, add
+`sslrootcert=/etc/unheaded/well-tls/ca.crt`; the certificate names
+`postgres`, `unheaded-postgres`, `localhost` and `127.0.0.1`.
 
-**From host (local development):**
-
-Replace `postgres` with `localhost` in the above strings.
-
-**Go package:** `pkg/database/` provides `Connect()` with retry logic.
-Configure via environment variables: `DB_HOST`, `DB_PORT`, `DB_USER`,
-`DB_PASSWORD`, `DB_NAME`.
+Each `<password>` is that role's variable in `.env` (`APP_KANBAN_PASSWORD`,
+..., `HUGINN_READER_PASSWORD`; see `db/.env.example`): db/init.sh sets them
+on an empty volume, `scripts/well/set-role-passwords.sh` on an existing
+Well (also the superuser's, from `POSTGRES_PASSWORD`). No password is in the
+repo. Go clients (`pkg/database`, `pkg/compliance/well`, `cmd/well-migrate`)
+default to `WELL_SSLMODE=require`.
 
 ---
 
 ## Authentication
 
-The Well uses `scram-sha-256` for all network connections. See `db/pg_hba.conf`:
+`db/pg_hba.conf` (ERDA 4.2), TLS 1.3 and scram-sha-256 on every network
+connection:
 
-- Superuser `postgres`: local peer auth only (no remote access)
-- Legacy `unheaded` user: scram-sha-256 from Docker/LXD networks (172.0.0.0/8, 10.0.0.0/8)
-- Service-scoped users: scram-sha-256, restricted to their database
-- Everything else: **reject**
+- Socket (`docker exec` only, already root on the host): trust. Backups,
+  drills and set-role-passwords.sh use it.
+- Superuser `unheaded`: TLS from `172.28.1.1` (the host) only.
+- Every other role: TLS from the `data` network (`172.28.1.0/24`).
+- Anything without TLS, or from elsewhere: **reject**.
+
+Which database a role reaches is decided by CONNECT grants (025), not
+pg_hba: PUBLIC has none. Each database is owned by a NOLOGIN role
+(`well_app_owner`, `well_ops_owner`, `well_config_owner`); migrations run as
+it (ADR-101 §7). TLS material: `scripts/well/make-tls.sh
+/etc/unheaded/well-tls` (private CA; server certificate valid 825 days,
+renew with `--renew`).
+
+---
+
+## Connection Budget (ERDA 4.5)
+
+`max_connections = 50`, 3 reserved for the superuser: 47 for everyone else.
+
+| Client | Role | Pool |
+|---|---|---|
+| kanban-app (`pkg/database`) | app_kanban | 10 |
+| dashboard-backend (`pkg/database`) | ops_writer | 10 |
+| zhen-agentd (kanban + action stores) | `WELL_DSN` | 2 x 5 |
+| Huginn (one per database) | huginn_reader | 3 (role limit 3) |
+| db-backup.sh / restore drill | well_backup | 3 (role limit 3) |
+| well-migrate | superuser | 2 |
+| compliance-evidence, zhen python, psql | various | ~4 |
+| **Total** | | **42 of 47** |
+
+A new pooled client means a new row here first; PgBouncer only when the
+sum no longer fits.
 
 ---
 
 ## Monitoring
 
 ```bash
-# Check container health
+# Container health
 sudo docker inspect --format='{{.State.Health.Status}}' unheaded-postgres
 
-# Connection count
-sudo docker exec unheaded-postgres psql -U unheaded -d unheaded_ops \
-  -c "SELECT count(*) FROM pg_stat_activity;"
+# Everything at once, read-only (ERDA skill: well_health.sql), per database
+sudo docker exec -i -e PGOPTIONS='-c role=huginn_reader' unheaded-postgres \
+  psql -X -U unheaded -d unheaded_app < well_health.sql
 
-# Database sizes
-sudo docker exec unheaded-postgres psql -U unheaded \
-  -c "SELECT datname, pg_size_pretty(pg_database_size(datname)) FROM pg_database WHERE datname LIKE 'unheaded%';"
+# Who is connected, and over TLS?
+sudo docker exec unheaded-postgres psql -U unheaded -d postgres \
+  -c "SELECT a.usename, a.datname, a.client_addr, s.ssl, s.version FROM pg_stat_activity a JOIN pg_stat_ssl s USING (pid) WHERE a.usename IS NOT NULL;"
 
-# Table row counts (app)
-sudo docker exec unheaded-postgres psql -U unheaded -d unheaded_app \
-  -c "SELECT relname, n_live_tup FROM pg_stat_user_tables ORDER BY n_live_tup DESC;"
-
-# Slow queries
-sudo docker exec unheaded-postgres psql -U unheaded -d unheaded_ops \
-  -c "SELECT query, calls, mean_exec_time FROM pg_stat_statements ORDER BY mean_exec_time DESC LIMIT 10;"
+# Slowest statements (pg_stat_statements lives in `postgres`, covers every database)
+sudo docker exec unheaded-postgres psql -U unheaded -d postgres \
+  -c "SELECT calls, round(mean_exec_time::numeric, 1) AS ms, left(query, 80) FROM pg_stat_statements ORDER BY mean_exec_time DESC LIMIT 10;"
 ```
+
+Huginn exports `pg_stat_database` metrics for the three databases; slow
+statements (> 500 ms), lock waits and DDL are in the container log.
 
 ---
 
 ## Backup
 
+`unheaded-well-backup.timer` (nightly 03:30) runs `scripts/db-backup.sh` as
+the read-only role `well_backup`: globals (no password hashes) and every
+database, row counts from each dump's snapshot, SHA256SUMS, 14 sets kept in
+`/var/backups/unheaded-well` (`LATEST` names the newest).
+`unheaded-well-drill.timer` (Sundays) restores the newest set into a
+throwaway server and compares every row count.
+
 ```bash
-# Full backup (all databases)
-sudo docker exec unheaded-postgres pg_dumpall -U postgres > backup_$(date +%Y%m%d).sql
-
-# Single database backup
-sudo docker exec unheaded-postgres pg_dump -U postgres unheaded_app > backup_app_$(date +%Y%m%d).sql
-
-# Restore
-cat backup_20260315.sql | sudo docker exec -i unheaded-postgres psql -U postgres
+sudo systemctl start unheaded-well-backup.service     # a set now
+sudo /usr/local/lib/unheaded/well/restore-drill.sh "/var/backups/unheaded-well/$(cat /var/backups/unheaded-well/LATEST)"
 ```
 
-**Volume location:** Docker volume `postgres-data` (persistent across container restarts).
+After restoring a set for real, set role passwords again
+(`scripts/well/set-role-passwords.sh`): sets carry none.
+
+**Volume:** Docker volume `unheaded-dev_postgres-data`. Data checksums are on.
 
 ---
 
 ## Resource Limits
 
 From `docker-compose.yml`:
-- **Memory:** 256MB
+- **Memory:** 256MB (`shared_buffers` 64MB, `work_mem` 2MB, see `db/postgresql.conf`)
 - **CPU:** 0.5 cores
-- **Health check:** `pg_isready -U unheaded`, every 10s, 5 retries
+- **Health check:** `pg_isready -U unheaded -d postgres`, every 10s, 5 retries
 
 ---
 

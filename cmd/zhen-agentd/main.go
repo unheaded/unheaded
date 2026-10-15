@@ -237,8 +237,8 @@ func buildKanbanStore(kind string) (champion.KanbanStore, error) {
 		if err != nil {
 			return nil, fmt.Errorf("open postgres for kanban: %w", err)
 		}
-		db.SetMaxOpenConns(10)
-		db.SetMaxIdleConns(5)
+		db.SetMaxOpenConns(5) // The Well's connection budget (THE_WELL_OPERATIONS.md)
+		db.SetMaxIdleConns(2)
 		db.SetConnMaxLifetime(5 * time.Minute)
 
 		pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -296,9 +296,9 @@ func buildActionStore(kind string) (champion.ActionStore, error) {
 		if err != nil {
 			return nil, fmt.Errorf("open postgres: %w", err)
 		}
-		// Sensible pool defaults — same as pkg/database/connect.go.
-		db.SetMaxOpenConns(10)
-		db.SetMaxIdleConns(5)
+		// The Well's connection budget (THE_WELL_OPERATIONS.md): one agent loop.
+		db.SetMaxOpenConns(5)
+		db.SetMaxIdleConns(2)
 		db.SetConnMaxLifetime(5 * time.Minute)
 
 		pingCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

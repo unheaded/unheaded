@@ -19,7 +19,7 @@
 // what the Well already has is a decision, never a default.
 //
 // Connection: WELL_HOST (127.0.0.1), WELL_PORT (5432), WELL_SSLMODE
-// (disable), WELL_MIGRATE_USER (unheaded, the owner role) and
+// (require: The Well accepts TLS only), WELL_MIGRATE_USER (unheaded, the superuser) and
 // WELL_MIGRATE_PASSWORD (required; no default, FND-007).
 //
 // Exit: 0 clean, 1 error or drift (an applied file changed, an orphan
@@ -106,7 +106,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 		Port:     env("WELL_PORT", "5432"),
 		User:     env("WELL_MIGRATE_USER", "unheaded"),
 		Password: os.Getenv("WELL_MIGRATE_PASSWORD"),
-		SSLMode:  env("WELL_SSLMODE", "disable"),
+		SSLMode:  env("WELL_SSLMODE", "require"),
 	}
 	if cfg.Password == "" {
 		return fail(fmt.Errorf("WELL_MIGRATE_PASSWORD is not set: %w", database.ErrMissingCredentials))

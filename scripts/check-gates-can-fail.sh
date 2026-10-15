@@ -490,6 +490,15 @@ provoke_well_backup_restore() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_config() {
+    # Contract (ERDA 4.2): service roles reach The Well over TLS only.
+    local f="db/pg_hba.conf"
+    backup "${f}"
+    sed -i 's|^hostssl  all       all       172.28.1.0/24    scram-sha-256|host     all       all       172.28.1.0/24    scram-sha-256|' "${REPO_ROOT}/${f}"
+    grep -q '^host     all       all       172.28.1.0/24' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_systemd_units() {
     # Contract (ADR-098 FND-003): systemd ignores nothing in deploy/systemd.
     # Restore the original mistake: a `~` on every group, of which systemd
@@ -523,6 +532,7 @@ check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back 
 well/test-compliance-schema|provoke_well_compliance_schema|slow|audit_events' TRUNCATE guard removed from 015 (needs docker)
 well/test-migrate|provoke_well_migrate|slow|the runner's drift refusal removed, so apply runs past an edited file (needs docker)
 well/test-backup-restore|provoke_well_backup_restore|slow|db-backup.sh leaving unheaded_ops out of the set (needs docker)
+well/test-config|provoke_well_config|slow|pg_hba letting service roles in without TLS (needs docker)
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-suricata-rules|provoke_suricata_rules|slow|the original ipv6-exthdr keyword restored in the canonical Monad rules (needs docker)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
@@ -544,6 +554,10 @@ drift-detect|reports drift; alerts-only by design (pkg/enkrateia contract)
 qa-smoke|prints a score for a human to compare against the previous batch
 ci-fetch-doomgeneric|fetches a pinned checkout the Go jobs need; no verdict of its own
 lib/logpath|prints the durable log path for a service (ADR-092); no verdict of its own
+well/set-role-passwords|sets role passwords from the environment (runbooks); no verdict of its own
+well/make-tls|makes TLS material outside the repo; exercised by well/test-config, no verdict of its own
+well/restore-drill|needs a backup set to run; its refusals are provoked by well/test-backup-restore (flipped byte, wrong count, unlisted dump)
+well/test-converge-live-app|compares the live Well (or a restored set) with a fresh bootstrap; needs that Well, runbook verify step
 "
 
 # ---------------------------------------------------------------------------

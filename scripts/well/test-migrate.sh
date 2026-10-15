@@ -37,9 +37,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-start() { # name migrations-dir
+start() { # name migrations-dir [POSTGRES_DB]
 	"${DOCKER[@]}" run -d --rm --name "$1" -p 127.0.0.1::5432 \
-		-e POSTGRES_USER=unheaded -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB=unheaded \
+		-e POSTGRES_USER=unheaded -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB="${3:-postgres}" \
 		-v "$2:/migrations:ro" -v "$2/../init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro" \
 		"$IMAGE" >/dev/null
 	for _ in $(seq 1 90); do
@@ -64,7 +64,7 @@ start "$N" "$M"
 PORT="$("${DOCKER[@]}" port "$N" 5432/tcp | head -1 | sed 's/.*://')"
 
 (cd "$R" && GOTOOLCHAIN="${GOTOOLCHAIN:-go1.27.2}" go build -o "$TMP/well-migrate" ./cmd/well-migrate)
-wm() { WELL_HOST=127.0.0.1 WELL_PORT="${WP:-$PORT}" WELL_MIGRATE_PASSWORD="$PW" "$TMP/well-migrate" -dir "$M" "$@"; }
+wm() { WELL_SSLMODE=disable WELL_HOST=127.0.0.1 WELL_PORT="${WP:-$PORT}" WELL_MIGRATE_PASSWORD="$PW" "$TMP/well-migrate" -dir "$M" "$@"; }
 
 fails=0
 pass() { echo "[PASS] $*"; }
@@ -84,8 +84,8 @@ done
 ((recorded == entries)) && pass "init.sh recorded all $entries manifest entries" || fail "init.sh recorded $recorded of $entries"
 [[ "$(sq unheaded_ops "SELECT count(*) FROM well_schema_migrations WHERE filename = '007_grants.sql'")" == 1 ]] &&
 	pass "007 recorded once per database" || fail "007 in unheaded_ops ledger"
-[[ "$(sq unheaded "SELECT to_regclass('public.well_schema_migrations') IS NULL")" == t ]] &&
-	pass "no ledger in the legacy database" || fail "legacy database has a ledger"
+[[ "$(sq postgres "SELECT string_agg(datname, ' ' ORDER BY datname) FROM pg_database WHERE NOT datistemplate")" == "postgres unheaded_app unheaded_config unheaded_ops" ]] &&
+	pass "only the manifest's databases exist (no legacy unheaded)" || fail "databases: $(sq postgres "SELECT string_agg(datname, ' ') FROM pg_database WHERE NOT datistemplate")"
 expect 0 "status clean after bootstrap" wm status
 # 017/018 on a fresh bootstrap: no duplicate index, the FK is indexed.
 dups=$(sq unheaded_app "SELECT count(*) FROM pg_index a JOIN pg_index b ON a.indrelid = b.indrelid AND a.indexrelid < b.indexrelid AND a.indkey::text = b.indkey::text AND a.indclass::text = b.indclass::text AND coalesce(pg_get_expr(a.indexprs, a.indrelid), '') = coalesce(pg_get_expr(b.indexprs, b.indrelid), '') AND coalesce(pg_get_expr(a.indpred, a.indrelid), '') = coalesce(pg_get_expr(b.indpred, b.indrelid), '')")
@@ -180,7 +180,7 @@ if sq unheaded_app "TRUNCATE well_schema_migrations" >/dev/null 2>&1; then fail 
 PRE="$(cd "$R" && git log --format=%H --diff-filter=A -1 -- db/migrations/MANIFEST)^"
 mkdir -p "$TMP/old"
 (cd "$R" && git archive "$PRE" db) | tar -x -C "$TMP/old"
-start "$N-old" "$TMP/old/db/migrations"
+start "$N-old" "$TMP/old/db/migrations" unheaded   # the pre-ledger Well had POSTGRES_DB=unheaded
 WP="$("${DOCKER[@]}" port "$N-old" 5432/tcp | head -1 | sed 's/.*://')"
 M="$R/db/migrations"
 osq() { "${DOCKER[@]}" exec -i "$N-old" psql -X -q -At -v ON_ERROR_STOP=1 -U unheaded -d "$1" -c "$2"; }

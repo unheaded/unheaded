@@ -35,7 +35,7 @@ spec:
           ports:
             - { name: postgres, containerPort: 5432 }
           env:
-            - { name: POSTGRES_DB, value: unheaded }
+            - { name: POSTGRES_DB, value: postgres }  # no extra database (ERDA 3.6)
             - { name: POSTGRES_USER, value: unheaded }
             - name: POSTGRES_PASSWORD
               valueFrom: { secretKeyRef: { name: unheaded-secrets, key: POSTGRES_PASSWORD } }
@@ -55,11 +55,11 @@ spec:
             - { name: run, mountPath: /var/run/postgresql }
             - { name: tmp, mountPath: /tmp }
           readinessProbe:
-            exec: { command: ["pg_isready", "-U", "unheaded"] }
+            exec: { command: ["pg_isready", "-U", "unheaded", "-d", "postgres"] }
             initialDelaySeconds: 10
             periodSeconds: 10
           livenessProbe:
-            exec: { command: ["pg_isready", "-U", "unheaded"] }
+            exec: { command: ["pg_isready", "-U", "unheaded", "-d", "postgres"] }
             initialDelaySeconds: 20
             periodSeconds: 15
           resources:

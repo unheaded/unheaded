@@ -28,7 +28,7 @@ trap cleanup EXIT
 NET=(--network none)
 if ((GO)); then NET=(-p 127.0.0.1::5432); fi
 "${DOCKER[@]}" run -d --rm --name "$N" "${NET[@]}" \
-	-e POSTGRES_USER=unheaded -e POSTGRES_PASSWORD="throwaway-$RANDOM" -e POSTGRES_DB=unheaded "$IMAGE" >/dev/null
+	-e POSTGRES_USER=unheaded -e POSTGRES_PASSWORD="throwaway-$RANDOM" -e POSTGRES_DB=postgres "$IMAGE" >/dev/null
 # Wait on TCP, not the socket: during init the entrypoint runs a temporary
 # server on the socket only, before POSTGRES_DB exists.
 ready=0
@@ -39,11 +39,11 @@ done
 ((ready)) || { echo "postgres did not become ready"; exit 1; }
 
 psql_as() { "${DOCKER[@]}" exec -i "$N" psql -X -q -v ON_ERROR_STOP=1 -U "$1" -d "$2"; }
-psql_as unheaded unheaded <"$R/db/migrations/002_create_databases.sql" >/dev/null
+psql_as unheaded postgres <"$R/db/migrations/002_create_databases.sql" >/dev/null
 # 002 creates roles without passwords (db/init.sh sets them from the
 # environment); these are valid only inside this throwaway container.
 OPS_PW="ops-$RANDOM$RANDOM" CFG_PW="cfg-$RANDOM$RANDOM"
-psql_as unheaded unheaded <<<"ALTER ROLE ops_writer PASSWORD '$OPS_PW'; ALTER ROLE config_admin PASSWORD '$CFG_PW';" >/dev/null
+psql_as unheaded postgres <<<"ALTER ROLE ops_writer PASSWORD '$OPS_PW'; ALTER ROLE config_admin PASSWORD '$CFG_PW';" >/dev/null
 psql_as unheaded unheaded_ops <"$R/db/migrations/004_ops_schema.sql" >/dev/null
 psql_as unheaded unheaded_config <"$R/db/migrations/005_config_schema.sql" >/dev/null
 "${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_config <"$R/db/migrations/013_compliance_config.sql"

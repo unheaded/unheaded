@@ -143,7 +143,7 @@ live system and need Stevie's yes.
 
 ### Phase 2: access (W-02, W-05, W-06, W-07, W-24)
 
-- [~] 2.1 Roles without passwords in SQL: 002/012 create roles `LOGIN`
+- [x] 2.1 *(2026-10-15: compose POSTGRES_PASSWORD is `:?` (fail loud); every role and the superuser rotated live from .env with set-role-passwords.sh, which now also sets the superuser; Huginn reads PGPASSWORD from root-only /etc/huginn.env, its YAML holds no credential)* Roles without passwords in SQL: 002/012 create roles `LOGIN`
       without `PASSWORD`; `init.sh` sets each from `WELL_<ROLE>_PASSWORD`
       (unset = cannot log in, never a default). Compose `POSTGRES_PASSWORD`
       becomes `${POSTGRES_PASSWORD:?}` (do this when Phase 0 is done, so
@@ -194,22 +194,22 @@ live system and need Stevie's yes.
 - [ ] 3.5 CI gates: fresh bootstrap in a throwaway container (as this audit
       did) and `well_lint.py` as a ratchet (exit 2 fails; findings set may
       only shrink); register both in the meta-gate.
-- [ ] 3.6 Retire DB `unheaded` and 001 once 3.4 has moved its data.
+- [x] 3.6 *(2026-10-15: its 4 kingdom_config rows were already identical in unheaded_config, the wotan_* tables held one test message; dump verified and archived (~/backups/well/2026-10-15/unheaded-legacy-final.dump, plus set well-151230Z), then DROP DATABASE. POSTGRES_DB is `postgres` in compose, k8s and the throwaway tests. 012 (applied, unchangeable) grants on `unheaded`, so init.sh makes it empty for the manifest and drops it after. 001 stays `skip`ped as ADR-091 decided)* Retire DB `unheaded` and 001 once 3.4 has moved its data.
 
 ### Phase 4: the deployed config is the repo's (W-08, W-13, W-17)
 
-- [ ] 4.1 Mount a `postgresql.conf` sized from the container budget (256M
+- [x] 4.1 *(2026-10-15: db/postgresql.conf mounted as config_file: 64MB shared_buffers, max_connections 50, pg_stat_statements (027 creates it in `postgres`), log_min_duration_statement 500ms, log_lock_waits, track_io_timing, idle_in_transaction 60s (well_backup exempt, 027), no global statement_timeout, jit off. Proven by scripts/well/test-config.sh (CI + meta-gate))* Mount a `postgresql.conf` sized from the container budget (256M
       limit: `shared_buffers` ~64MB, or raise the limit with a reason), with
       `pg_stat_statements`, `log_min_duration_statement`, `log_lock_waits`,
       `track_io_timing`; no global `statement_timeout`.
-- [ ] 4.2 Mount `pg_hba.conf`: `hostssl` only, the `data` network's subnet
+- [x] 4.2 *(2026-10-15: socket trust (docker exec only), superuser over TLS from the host gateway only, everyone else TLS from 172.28.1.0/24, the rest rejected; TLS 1.3, private CA from scripts/well/make-tls.sh in /etc/unheaded/well-tls (outside the repo; server cert valid to 2029-01). UH-TLS-01 stays the edge decision: this CA is The Well's alone. Clients default to sslmode=require; verify-full when clients get ca.crt. Live: kanban, dashboard, Huginn all on TLSv1.3)* Mount `pg_hba.conf`: `hostssl` only, the `data` network's subnet
       only, superuser local-only; TLS with a certificate from the edge TLS
       decision (UH-TLS-01).
-- [ ] 4.3 Data checksums: `pg_checksums --enable` offline during a
+- [x] 4.3 *(2026-10-15: pg_checksums --enable offline on the live volume (6043 blocks, seconds); POSTGRES_INITDB_ARGS=--data-checksums for fresh volumes)* Data checksums: `pg_checksums --enable` offline during a
       maintenance window (or at the next initdb).
 - [ ] 4.4 Pin the image to a current 16.x by digest; minor upgrade with a
       restore drill first.
-- [ ] 4.5 Connection budget written down (services x pool <= max_connections
+- [x] 4.5 *(2026-10-15: THE_WELL_OPERATIONS.md, 42 of 47; zhen-agentd pools 10 -> 5 each. No PgBouncer)* Connection budget written down (services x pool <= max_connections
       - reserved); PgBouncer only if the arithmetic says so.
 
 ### Phase 5: schema hygiene (W-04, W-11, W-12, W-14, W-15, W-18, W-19, W-21)

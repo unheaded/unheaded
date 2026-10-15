@@ -53,7 +53,7 @@ func OpsWriterConfig() Config {
 		User:     getEnv("WELL_USER", "ops_writer"),
 		Password: os.Getenv("WELL_PASSWORD"),
 		DBName:   getEnv("WELL_DB", "unheaded_ops"),
-		SSLMode:  getEnv("WELL_SSLMODE", "disable"),
+		SSLMode:  getEnv("WELL_SSLMODE", "require"),
 	}
 }
 
@@ -67,7 +67,7 @@ func AppKanbanConfig() Config {
 		User:     getEnv("WELL_USER", "app_kanban"),
 		Password: os.Getenv("WELL_PASSWORD"),
 		DBName:   getEnv("WELL_DB", "unheaded_app"),
-		SSLMode:  getEnv("WELL_SSLMODE", "disable"),
+		SSLMode:  getEnv("WELL_SSLMODE", "require"),
 	}
 }
 

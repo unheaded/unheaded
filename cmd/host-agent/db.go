@@ -29,7 +29,10 @@ import (
 // DBConfig is one monitored database entry in huginn.yaml.
 type DBConfig struct {
 	Name string `yaml:"name"` // logical label used in metrics
-	DSN  string `yaml:"dsn"`  // postgres://user:pass@host:port/dbname?sslmode=disable
+	// DSN without the password, e.g. postgres://huginn_reader@localhost:5432/unheaded_app?sslmode=require.
+	// lib/pq takes the password from PGPASSWORD (huginn.service's EnvironmentFile,
+	// root-only), so the world-readable huginn.yaml holds no credential.
+	DSN string `yaml:"dsn"`
 }
 
 // DBSnapshot holds one scrape of pg_stat_database for a single DB.

@@ -435,6 +435,9 @@ jobs:
       - name: Backup set and restore drill
         run: ./scripts/well/test-backup-restore.sh
 
+      - name: Deployed config, pg_hba and TLS
+        run: ./scripts/well/test-config.sh
+
   # ============================================================================
   # Alert rules: every Prometheus rule parses and its promtool tests pass
   # ============================================================================

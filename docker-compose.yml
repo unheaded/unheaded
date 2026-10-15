@@ -230,9 +230,14 @@ services:
     container_name: unheaded-postgres
     restart: unless-stopped
     environment:
-      POSTGRES_DB: unheaded
+      # No database beyond the manifest's (ERDA 3.6): the legacy `unheaded`
+      # database was retired 2026-10-15.
+      POSTGRES_DB: postgres
       POSTGRES_USER: unheaded
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-unheaded_dev}
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env (credentials are not stored in this repo)}"
+      # Fresh volumes only; the live Well was switched offline with
+      # pg_checksums --enable (ERDA 4.3).
+      POSTGRES_INITDB_ARGS: "--data-checksums"
       # Service-role passwords, read once by db/init.sh on an empty volume
       # (W-07). Unset = that role cannot log in; there is no default.
       APP_KANBAN_PASSWORD: ${APP_KANBAN_PASSWORD:-}
@@ -255,13 +260,20 @@ services:
       # the host, littering db/migrations/ with a root-owned empty init.sh.
       - ./db/migrations:/migrations:ro
       - ./db/init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
+      # ERDA Phase 4: the repo's server config and pg_hba (TLS only, data
+      # network only), and TLS material from scripts/well/make-tls.sh,
+      # which lives outside the repo.
+      - ./db/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./db/pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+      - ${WELL_TLS_DIR:-/etc/unheaded/well-tls}:/etc/postgresql/tls:ro
+    command: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
     networks:
       - data
     labels:
       kingdom.armor: "the-well"
       kingdom.role: "persistent-memory"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U unheaded"]
+      test: ["CMD-SHELL", "pg_isready -U unheaded -d postgres"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -858,6 +870,7 @@ services:
       WELL_USER: "ops_writer"
       WELL_PASSWORD: "${OPS_WRITER_PASSWORD:?set OPS_WRITER_PASSWORD in .env (credentials are not stored in this repo)}"
       WELL_DB: "unheaded_ops"
+      WELL_SSLMODE: "require"   # pg_hba accepts TLS only (ERDA 4.2)
     volumes:
       - ./config/dashboard/services.txt:/etc/unheaded/services.txt:ro
       - /proc:/host/proc:ro
@@ -932,7 +945,7 @@ services:
       WELL_USER: "app_kanban"
       WELL_PASSWORD: "${APP_KANBAN_PASSWORD:?set APP_KANBAN_PASSWORD in .env (credentials are not stored in this repo)}"
       WELL_DB: "unheaded_app"
-      WELL_SSLMODE: "disable"
+      WELL_SSLMODE: "require"   # pg_hba accepts TLS only (ERDA 4.2)
     ports:
       - "20001:20001"
     networks:

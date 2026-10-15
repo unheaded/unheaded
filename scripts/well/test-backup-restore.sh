@@ -25,7 +25,7 @@ trap cleanup EXIT
 
 KANBAN_PW="it's-$RANDOM\$x" HUGINN_PW="h-$RANDOM$RANDOM"
 "${DOCKER[@]}" run -d --rm --name "$N" --network none \
-	-e POSTGRES_USER=unheaded -e POSTGRES_PASSWORD="throwaway-$RANDOM" -e POSTGRES_DB=unheaded \
+	-e POSTGRES_USER=unheaded -e POSTGRES_PASSWORD="throwaway-$RANDOM" -e POSTGRES_DB=postgres \
 	-e APP_KANBAN_PASSWORD="$KANBAN_PW" -e HUGINN_READER_PASSWORD="$HUGINN_PW" \
 	-v "$R/db/migrations:/migrations:ro" -v "$R/db/init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro" \
 	"$IMAGE" >/dev/null
@@ -38,7 +38,7 @@ done
 "${DOCKER[@]}" exec -i "$N" psql -X -q -v ON_ERROR_STOP=1 -U unheaded -d unheaded_app <<'SQL'
 INSERT INTO kanban_tasks (id, title) SELECT 't' || g, 'task ' || g FROM generate_series(1, 25) g;
 SQL
-"${DOCKER[@]}" exec -i "$N" psql -X -q -v ON_ERROR_STOP=1 -U unheaded -d unheaded <<'SQL'
+"${DOCKER[@]}" exec -i "$N" psql -X -q -v ON_ERROR_STOP=1 -U unheaded -d postgres <<'SQL'
 CREATE TABLE "odd name" (id int); INSERT INTO "odd name" SELECT generate_series(1, 7);
 SQL
 
@@ -73,11 +73,11 @@ grep -q '^superuser=unheaded$' "$SET/cluster.env" && pass "cluster.env names the
 if "${DOCKER[@]}" exec "$N" psql -X -q -U well_backup -d unheaded_app -c "INSERT INTO kanban_tasks(id,title) VALUES ('wb','x')" >/dev/null 2>&1; then
 	fail "well_backup can write"
 else pass "well_backup cannot write"; fi
-for db in unheaded unheaded_app unheaded_ops unheaded_config postgres; do
+for db in unheaded_app unheaded_ops unheaded_config postgres; do
 	[[ -f "$SET/$db.dump" ]] && pass "dumped $db" || fail "no dump of $db"
 done
 grep -q $'^unheaded_app\tpublic.kanban_tasks\t25$' "$SET/rowcounts.tsv" && pass "kanban_tasks counted 25" || fail "kanban_tasks count"
-grep -q $'^unheaded\tpublic."odd name"\t7$' "$SET/rowcounts.tsv" && pass "quoted table counted" || fail "quoted table count"
+grep -q $'^postgres\tpublic."odd name"\t7$' "$SET/rowcounts.tsv" && pass "quoted table counted" || fail "quoted table count"
 ! find "$TMP/backups" -name '.partial-*' | grep -q . && pass "no partial set left" || fail "partial set left behind"
 
 if "$R/scripts/well/restore-drill.sh" --image "$IMAGE" "$SET"; then pass "drill restores the set"; else fail "drill on a good set"; fi
@@ -93,7 +93,7 @@ broken() { # label, expected reason, then a command run inside a copy of the set
 }
 broken "a flipped byte in a dump" "checksum mismatch" sh -c 'printf "\377" | dd of=unheaded_app.dump bs=1 seek=200 conv=notrunc status=none'
 broken "a wrong row count" "row counts differ" sh -c "sed -i 's/\tpublic.kanban_tasks\t25\$/\tpublic.kanban_tasks\t24/' rowcounts.tsv && sha256sum cluster.env globals.sql ./*.dump rowcounts.tsv | sed 's# \./# #' >SHA256SUMS"
-broken "an unlisted dump" "not in SHA256SUMS" cp unheaded.dump extra.dump
+broken "an unlisted dump" "not in SHA256SUMS" cp postgres.dump extra.dump
 
 # Retention: two more sets with --keep 2 leave exactly two.
 sleep 1; "$R/scripts/db-backup.sh" --keep 2 >/dev/null
