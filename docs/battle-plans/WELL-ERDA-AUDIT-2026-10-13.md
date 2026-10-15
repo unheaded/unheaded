@@ -184,7 +184,7 @@ live system and need Stevie's yes.
       ready: after 0.4's shape diff shows the live schema matches,
       **[Y]** `well-migrate baseline -through <last file it has> -yes`, then
       `well-migrate apply -yes` for the rest (013+ expected).
-- [ ] 3.3 Delete startup DDL: `pkg/database/kanban_store.go`,
+- [x] 3.3 *(2026-10-15: the last two went: pkg/champion/pgstore (Migrate + embedded schema.sql -> read-only CheckSchema; zhen-agentd fails fast with "run well-migrate") and raft/zhen_app.py (CREATE TABLE zhen_memories -> a shape check that warns). kanban_store, audit storage, zhen-rag/zhen-cli/pkg/agent were already clean. Left alone on purpose: kanban-app store.go and timeguru storage.go create tables in their own local SQLite L1 files, not The Well. Python clients now ask for sslmode=require)* Delete startup DDL: `pkg/database/kanban_store.go`,
       `pkg/champion/pgstore/schema.sql`, `raft/zhen_app.py`,
       `raft/scripts/zhen_rag.py`, `cmd/zhen-rag`, `cmd/zhen-cli`,
       `pkg/agent`, `pkg/audit/storage`; services check the ledger version

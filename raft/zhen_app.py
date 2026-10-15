@@ -186,6 +186,7 @@ def _pg_connect():
             password=os.environ.get('ZHEN_DB_PASSWORD', ''),
             host=os.environ.get('ZHEN_DB_HOST', 'localhost'),
             port=int(os.environ.get('ZHEN_DB_PORT', '5432')),
+            sslmode=os.environ.get('ZHEN_DB_SSLMODE', 'require'),  # The Well accepts TLS only
             connect_timeout=3,
         )
         conn.autocommit = True
@@ -197,28 +198,21 @@ def _pg_connect():
 
 pg_conn = _pg_connect()
 
-# Ensure zhen_memories table exists
-def _ensure_memories_table():
+# zhen_memories comes from The Well's migrations (008, ADR-101), never from
+# this app: app_zhen may read and write rows, not create tables (ERDA 3.3).
+# Check the shape once so a missing table is a clear warning, not a failed
+# insert later.
+def _check_memories_table():
     if pg_conn is None:
         return
     try:
         cur = pg_conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS zhen_memories (
-                id BIGSERIAL PRIMARY KEY,
-                question TEXT NOT NULL,
-                answer TEXT NOT NULL,
-                embedding BYTEA,
-                source VARCHAR(100) DEFAULT 'user',
-                model VARCHAR(50),
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            )
-        """)
+        cur.execute("SELECT id, question, answer, embedding, source, model, created_at FROM zhen_memories LIMIT 0")
         cur.close()
     except Exception as e:
-        log.warning(f"[zhen] Failed to create zhen_memories table: {e}")
+        log.warning(f"[zhen] zhen_memories missing or incomplete (run well-migrate, ADR-101): {e}")
 
-_ensure_memories_table()
+_check_memories_table()
 
 
 def _pg_log(role, content, sources='[]', model='', tokens_input=0, tokens_output=0, elapsed_ms=0):

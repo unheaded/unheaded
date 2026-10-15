@@ -5,17 +5,17 @@
 // +build integration
 
 // Integration tests for Champion against real PostgreSQL (The Well).
-// Run with: go test ./pkg/champion/... -tags=integration -count=1
-// Requires: PostgreSQL reachable at $WELL_HOST (default localhost:5432)
-// with credentials user=unheaded, password=$WELL_PASSWORD (default
-// unheaded_dev), dbname=unheaded_app.
+// Run with: WELL_TEST_APP_DSN='host=... user=app_zhen password=... dbname=unheaded_app sslmode=require' \
+//   go test ./pkg/champion/... -tags=integration -count=1
+// against a Well bootstrapped from db/ (zhen_actions comes from the
+// migrations, never from the test). Skipped when WELL_TEST_APP_DSN is unset;
+// there is no default credential.
 
 package champion_test
 
 import (
 	"context"
 	"database/sql"
-	"fmt"
 	"os"
 	"testing"
 
@@ -25,29 +25,21 @@ import (
 	"unheaded/pkg/champion/pgstore"
 )
 
-// connectPG opens a connection to the test PG instance and applies
-// the schema via pgstore.Migrate. Test is skipped when PG is
-// unreachable so non-integration runs pass.
+// connectPG opens WELL_TEST_APP_DSN and checks the zhen_actions shape.
 func connectPG(t *testing.T) *sql.DB {
-	host := os.Getenv("WELL_HOST")
-	if host == "" {
-		host = "localhost"
+	dsn := os.Getenv("WELL_TEST_APP_DSN")
+	if dsn == "" {
+		t.Skip("WELL_TEST_APP_DSN not set")
 	}
-	password := os.Getenv("WELL_PASSWORD")
-	if password == "" {
-		password = "unheaded_dev"
-	}
-	dsn := fmt.Sprintf("host=%s port=5432 user=unheaded password=%s dbname=unheaded_app sslmode=disable", host, password)
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		t.Skipf("Cannot connect to PostgreSQL: %v", err)
+		t.Fatalf("open: %v", err)
 	}
 	if err := db.Ping(); err != nil {
 		t.Skipf("PostgreSQL not reachable: %v", err)
 	}
-	// Make sure schema is current.
-	if err := pgstore.New(db).Migrate(context.Background()); err != nil {
-		t.Skipf("pgstore migrate: %v", err)
+	if err := pgstore.New(db).CheckSchema(context.Background()); err != nil {
+		t.Fatal(err)
 	}
 	return db
 }

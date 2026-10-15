@@ -10,32 +10,29 @@
 // production deployments wire this in with a DSN to The Well's
 // unheaded_app database.
 //
-// Schema (in schema.sql, embedded; applied via Migrate):
+// The table is defined by db/migrations (009, 011, 020), applied by
+// db/init.sh or well-migrate (ADR-101), never at startup: the daemon runs
+// as a role that may write rows but not change tables (ERDA W-02, 3.3).
+// CheckSchema confirms the shape on startup.
 //
 //	zhen_actions (id, session_id, action_type, status, intent,
 //	              parameters, result, result_summary, error,
 //	              triggered_by, planned_at, completed_at, elapsed_ms)
-//
-// Indexes on session_id (audit queries), planned_at DESC (time-range),
-// and (action_type, status) (forensic).
 package pgstore
 
 import (
 	"context"
 	"database/sql"
-	_ "embed"
+	"errors"
 	"fmt"
 	"time"
 
 	"unheaded/pkg/champion"
 )
 
-//go:embed schema.sql
-var schemaSQL string
-
-// Schema returns the embedded schema.sql so callers can apply it
-// out-of-band (e.g., a separate migration tool).
-func Schema() string { return schemaSQL }
+// ErrSchema reports that The Well lacks the zhen_actions shape this store
+// writes.
+var ErrSchema = errors.New("zhen_actions schema missing or incomplete: run well-migrate (ADR-101)")
 
 // Store implements champion.ActionStore against PostgreSQL.
 type Store struct {
@@ -43,19 +40,22 @@ type Store struct {
 }
 
 // New wraps an open *sql.DB. The DB must already be connected and
-// pinged. Migrate(ctx) should be called once on daemon startup to
-// ensure the schema exists.
+// pinged; call CheckSchema once on daemon startup.
 func New(db *sql.DB) *Store {
 	return &Store{db: db}
 }
 
-// Migrate applies schema.sql (idempotent — uses CREATE TABLE / CREATE
-// INDEX with IF NOT EXISTS). Safe to call on every daemon startup.
-func (s *Store) Migrate(ctx context.Context) error {
-	if _, err := s.db.ExecContext(ctx, schemaSQL); err != nil {
-		return fmt.Errorf("apply schema: %w", err)
+// CheckSchema confirms zhen_actions has every column the store uses. It
+// reads nothing (LIMIT 0), so it needs only SELECT.
+func (s *Store) CheckSchema(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, session_id, action_type, status, intent, parameters, result,
+		       result_summary, error, triggered_by, planned_at, completed_at, elapsed_ms
+		FROM zhen_actions LIMIT 0`)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrSchema, err)
 	}
-	return nil
+	return rows.Close()
 }
 
 // LogAction records a new action with status=planned. The returned id

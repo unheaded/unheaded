@@ -308,11 +308,11 @@ func buildActionStore(kind string) (champion.ActionStore, error) {
 			return nil, fmt.Errorf("ping postgres: %w", err)
 		}
 		store := pgstore.New(db)
-		if err := store.Migrate(pingCtx); err != nil {
+		if err := store.CheckSchema(pingCtx); err != nil {
 			db.Close() // #nosec G104 -- cleanup on an error path; the function is already returning the failure that matters
-			return nil, fmt.Errorf("apply schema: %w", err)
+			return nil, err
 		}
-		fmt.Fprintf(os.Stderr, "zhen-agentd: connected to PostgreSQL audit store; schema migrated\n")
+		fmt.Fprintf(os.Stderr, "zhen-agentd: connected to PostgreSQL audit store; schema checked\n")
 		return store, nil
 	}
 	return nil, fmt.Errorf("unknown action-store %q (supported: stderr, pg)", kind)

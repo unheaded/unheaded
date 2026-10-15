@@ -56,6 +56,7 @@ class ActionManager:
                 password=os.environ.get('ZHEN_DB_PASSWORD', ''),
                 host=os.environ.get('ZHEN_DB_HOST', 'localhost'),
                 port=int(os.environ.get('ZHEN_DB_PORT', '5432')),
+                sslmode=os.environ.get('ZHEN_DB_SSLMODE', 'require'),  # The Well accepts TLS only
                 connect_timeout=3,
             )
             conn.autocommit = False

@@ -295,11 +295,11 @@ Persists to PostgreSQL via `pkg/champion/pgstore`. Requires `WELL_DSN` env var:
 ```bash
 export WELL_DSN="host=well-pg.internal port=5432 user=zhen password=$ZHEN_PW dbname=unheaded_app sslmode=require"
 bin/zhen-agentd -action-store=pg -port 20105
-# zhen-agentd: connected to PostgreSQL audit store; schema migrated
+# zhen-agentd: connected to PostgreSQL audit store; schema checked
 # zhen-agentd listening on http://127.0.0.1:20105 — ...
 ```
 
-Schema is applied automatically on startup (idempotent — `CREATE TABLE IF NOT EXISTS`). The table:
+The table comes from The Well's migrations (009, 011, 020; ADR-101), never from the daemon: on startup it only checks that every column it writes exists (`zhen_actions schema missing or incomplete: run well-migrate` otherwise). The table:
 
 ```sql
 CREATE TABLE zhen_actions (
@@ -338,13 +338,13 @@ SELECT * FROM zhen_actions
  ORDER BY planned_at DESC;
 ```
 
-The daemon-side connection pool: 10 max open, 5 idle, 5-minute lifetime. Tune via custom DSN options if needed.
+The daemon-side connection pool: 5 max open, 2 idle, 5-minute lifetime (The Well's connection budget, docs/architecture/THE_WELL_OPERATIONS.md).
 
 Startup-failure modes (each exits non-zero with a clear message):
 - `WELL_DSN` not set → `action-store=pg requires WELL_DSN env var`
 - `WELL_DSN` malformed → `open postgres: <err>`
 - PG unreachable → `ping postgres: <err>`
-- Insufficient privileges → `apply schema: <err>` (typically: `permission denied for relation`)
+- Table missing or out of date → `zhen_actions schema missing or incomplete: run well-migrate (ADR-101)`
 
 ## Difference from zhen-agent
 

@@ -4,40 +4,43 @@
 package pgstore
 
 import (
-	"strings"
+	"context"
+	"database/sql"
+	"errors"
 	"testing"
+
+	_ "modernc.org/sqlite"
 )
 
-// TestSchema_Embedded verifies the go:embed directive is wired and
-// the SQL contains the expected table definition. Doesn't run the
-// SQL — that requires a live PG (covered by the package-level
-// integration test in pkg/champion/integration_test.go).
-func TestSchema_Embedded(t *testing.T) {
-	s := Schema()
-	if s == "" {
-		t.Fatal("Schema() returned empty — go:embed not wired")
-	}
-	for _, must := range []string{
-		"CREATE TABLE IF NOT EXISTS zhen_actions",
-		"BIGSERIAL",
-		"PRIMARY KEY",
-		"session_id",
-		"action_type",
-		"planned_at",
-		"completed_at",
-		"elapsed_ms",
-		"CREATE INDEX IF NOT EXISTS zhen_actions_type_status_idx",
-	} {
-		if !strings.Contains(s, must) {
-			t.Errorf("schema missing %q", must)
+// CheckSchema only reads, and names every column the store writes: a
+// table missing one is refused at startup, and the store never creates or
+// alters it (the migrations own zhen_actions, ERDA 3.3).
+func TestCheckSchema(t *testing.T) {
+	ctx := context.Background()
+	open := func(t *testing.T, ddl string) *Store {
+		db, err := sql.Open("sqlite", ":memory:")
+		if err != nil {
+			t.Fatal(err)
 		}
-	}
-	// 009 indexes session_id and planned_at; a second copy here is a
-	// duplicate index (021).
-	for _, dup := range []string{"zhen_actions_session_id_idx", "zhen_actions_planned_at_idx"} {
-		if strings.Contains(s, "CREATE INDEX IF NOT EXISTS "+dup) {
-			t.Errorf("schema recreates %s, a duplicate of 009's index", dup)
+		t.Cleanup(func() { _ = db.Close() })
+		if ddl != "" {
+			if _, err := db.ExecContext(ctx, ddl); err != nil {
+				t.Fatal(err)
+			}
 		}
+		return New(db)
+	}
+	const cols = `id INTEGER PRIMARY KEY, session_id TEXT, action_type TEXT, status TEXT, intent TEXT,
+		parameters TEXT, result TEXT, result_summary TEXT, error TEXT, triggered_by TEXT,
+		planned_at TEXT, completed_at TEXT`
+	if err := open(t, "CREATE TABLE zhen_actions ("+cols+", elapsed_ms INTEGER)").CheckSchema(ctx); err != nil {
+		t.Fatalf("complete table refused: %v", err)
+	}
+	if err := open(t, "CREATE TABLE zhen_actions ("+cols+")").CheckSchema(ctx); !errors.Is(err, ErrSchema) {
+		t.Errorf("table without elapsed_ms: %v", err)
+	}
+	if err := open(t, "").CheckSchema(ctx); !errors.Is(err, ErrSchema) {
+		t.Errorf("no table: %v", err)
 	}
 }
 
