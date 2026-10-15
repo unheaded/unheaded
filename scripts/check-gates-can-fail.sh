@@ -445,6 +445,41 @@ provoke_k8s_well_initdb() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_compliance_schema() {
+    # Contract (W-05): history tables refuse TRUNCATE even for the owner.
+    # Drop audit_events' TRUNCATE guard from 015.
+    local f="db/migrations/015_ops_history_append_only.sql"
+    backup "${f}"
+    sed -i '/^CREATE OR REPLACE TRIGGER trg_audit_events_no_truncate$/,/EXECUTE FUNCTION well_append_only();$/d' "${REPO_ROOT}/${f}"
+    ! grep -q 'trg_audit_events_no_truncate' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_migrate() {
+    # Contract (ADR-101): apply refuses to run past drift. Remove the check.
+    local f="pkg/database/migrate/runner.go"
+    backup "${f}"
+    python3 - "${REPO_ROOT}/${f}" <<'PROBE'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+old = "\tif err := p.Drift(); err != nil {\n\t\treturn err\n\t}\n\tmode := \"apply\""
+if old not in s:
+    sys.exit("anchor missing")
+open(p, "w").write(s.replace(old, "\tmode := \"apply\""))
+PROBE
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_backup_restore() {
+    # Contract (W-01): a backup set holds every database. Leave one out.
+    local f="scripts/db-backup.sh"
+    backup "${f}"
+    sed -i "s/WHERE datallowconn AND NOT datistemplate ORDER BY 1/WHERE datallowconn AND NOT datistemplate AND datname <> 'unheaded_ops' ORDER BY 1/" "${REPO_ROOT}/${f}"
+    grep -q "datname <> 'unheaded_ops'" "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_systemd_units() {
     # Contract (ADR-098 FND-003): systemd ignores nothing in deploy/systemd.
     # Restore the original mistake: a `~` on every group, of which systemd
@@ -474,6 +509,9 @@ live-path-inventory|provoke_live_path_inventory|fast|a new main package outside 
 check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang
 check-well-migrations|provoke_well_migrations|fast|an untracked migration file the MANIFEST does not route
 check-k8s-well-initdb|provoke_k8s_well_initdb|fast|a migration edited without re-rendering the Kubernetes initdb ConfigMap
+well/test-compliance-schema|provoke_well_compliance_schema|slow|audit_events' TRUNCATE guard removed from 015 (needs docker)
+well/test-migrate|provoke_well_migrate|slow|the runner's drift refusal removed, so apply runs past an edited file (needs docker)
+well/test-backup-restore|provoke_well_backup_restore|slow|db-backup.sh leaving unheaded_ops out of the set (needs docker)
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-suricata-rules|provoke_suricata_rules|slow|the original ipv6-exthdr keyword restored in the canonical Monad rules (needs docker)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
