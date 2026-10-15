@@ -490,6 +490,16 @@ provoke_well_backup_restore() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_lint() {
+    # Contract (ERDA 3.5): no new schema finding. Plant service code that
+    # runs DDL at startup (ddl-outside-ledger), tracked as new code would be.
+    local f="pkg/database/zz_meta_gate_probe.go"
+    backup "${f}"
+    printf 'package database\n\nimport "database/sql"\n\nfunc metaGateProbe(db *sql.DB) { _, _ = db.Exec("CREATE TABLE probe (id int)") }\n' > "${REPO_ROOT}/${f}"
+    git -C "${REPO_ROOT}" add -N "${f}" >/dev/null 2>&1  # gate reads git ls-files
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_well_config() {
     # Contract (ERDA 4.2): service roles reach The Well over TLS only.
     local f="db/pg_hba.conf"
@@ -527,6 +537,7 @@ check-tmp-log-baseline|provoke_tmp_log_baseline|fast|a /tmp log path not present
 live-path-inventory|provoke_live_path_inventory|fast|a new main package outside cmd/ absent from docs/LIVE-PATHS.md
 check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file importing prometheus/client_golang
 check-well-migrations|provoke_well_migrations|fast|an untracked migration file the MANIFEST does not route
+check-well-lint|provoke_well_lint|fast|service code that runs CREATE TABLE at startup (a new ddl-outside-ledger finding)
 check-k8s-well-initdb|provoke_k8s_well_initdb|fast|a migration edited without re-rendering the Kubernetes initdb ConfigMap
 check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
 well/test-compliance-schema|provoke_well_compliance_schema|slow|audit_events' TRUNCATE guard removed from 015 (needs docker)

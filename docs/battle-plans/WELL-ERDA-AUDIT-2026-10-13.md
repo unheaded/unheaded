@@ -191,7 +191,7 @@ live system and need Stevie's yes.
       and fail fast.
 - [~] 3.4 *(unheaded_app converged to one shape 2026-10-15; 020 adopted the champion's startup indexes, 021 dropped the two that duplicated 009's and pgstore/schema.sql no longer creates them. Startup DDL itself still runs: 3.3)* Reconcile the multiply-defined tables into one definition each
       (expand/contract where live data exists; batched backfills).
-- [ ] 3.5 CI gates: fresh bootstrap in a throwaway container (as this audit
+- [x] 3.5 *(2026-10-15: fresh bootstrap gates already ran in CI (well-schema job: test-migrate, test-compliance-schema, test-backup-restore, now test-config). well_lint.py vendored to scripts/well/; scripts/check-well-lint.sh ratchets per (rule, file) counts over tracked files against docs/policy/well-lint-baseline.tsv (114 pairs, 181 findings, mostly in applied migrations that cannot change); CI security.yml, meta-gate provoked with startup DDL. The 5 ddl-outside-ledger hits left are prompt text and red-team payloads, not DDL)* CI gates: fresh bootstrap in a throwaway container (as this audit
       did) and `well_lint.py` as a ratchet (exit 2 fails; findings set may
       only shrink); register both in the meta-gate.
 - [x] 3.6 *(2026-10-15: its 4 kingdom_config rows were already identical in unheaded_config, the wotan_* tables held one test message; dump verified and archived (~/backups/well/2026-10-15/unheaded-legacy-final.dump, plus set well-151230Z), then DROP DATABASE. POSTGRES_DB is `postgres` in compose, k8s and the throwaway tests. 012 (applied, unchangeable) grants on `unheaded`, so init.sh makes it empty for the manifest and drops it after. 001 stays `skip`ped as ADR-091 decided)* Retire DB `unheaded` and 001 once 3.4 has moved its data.

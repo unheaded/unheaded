@@ -45,6 +45,9 @@ jobs:
       - name: The Well's migrations are all routed
         run: ./scripts/check-well-migrations.sh
 
+      - name: The Well lint ratchet (ERDA 3.5)
+        run: ./scripts/check-well-lint.sh
+
   gosec:
     name: Go Security Scan (gosec)
     runs-on: ubuntu-latest
