@@ -123,6 +123,8 @@ data:
     unheaded_app     017_app_drop_duplicate_indexes.sql
     unheaded_config  018_config_bindings_profile_index.sql
     unheaded_config  019_config_history_all_changes.sql
+    unheaded_app     020_app_adopt_startup_ddl.sql
+    unheaded_app     021_app_drop_zhen_actions_duplicate_indexes.sql
 
     # The pre-split single-database schema, superseded by 003/004/005: applying
     # it would put a fourth copy of kanban_tasks, timeline_milestones and
@@ -1363,3 +1365,43 @@ data:
         AFTER INSERT OR DELETE ON kingdom_config
         FOR EACH ROW
         EXECUTE FUNCTION track_config_change();
+  020_app_adopt_startup_ddl.sql: |
+    -- SPDX-License-Identifier: GPL-3.0-or-later
+    -- The Well — adopt objects only startup DDL created (W-03, ERDA 3.3/3.4),
+    -- unheaded_app.
+    --
+    -- pkg/champion/pgstore/schema.sql creates three zhen_actions indexes when
+    -- the champion starts, and the live zhen_conversations (built by 010's
+    -- shape) has created_at NOT NULL, which 003 lacks. Putting them here makes
+    -- the ledger the one place that defines them, so a fresh Well and the live
+    -- one end in the same shape and the startup DDL can be deleted later.
+    -- zhen_actions and zhen_conversations are small: plain CREATE INDEX under
+    -- the runner's lock_timeout. No row has a NULL created_at (it defaults to
+    -- now() everywhere).
+
+    CREATE INDEX IF NOT EXISTS zhen_actions_session_id_idx ON zhen_actions (session_id);
+    CREATE INDEX IF NOT EXISTS zhen_actions_planned_at_idx ON zhen_actions (planned_at DESC);
+    CREATE INDEX IF NOT EXISTS zhen_actions_type_status_idx ON zhen_actions (action_type, status);
+
+    ALTER TABLE zhen_conversations ALTER COLUMN created_at SET NOT NULL;
+  021_app_drop_zhen_actions_duplicate_indexes.sql: |
+    -- SPDX-License-Identifier: GPL-3.0-or-later
+    -- The Well — zhen_actions duplicate indexes (W-14), unheaded_app.
+    --
+    -- 020 adopted the champion's startup indexes, but two are exact copies of
+    -- 009's: zhen_actions_session_id_idx = idx_zhen_actions_session and
+    -- zhen_actions_planned_at_idx = idx_zhen_actions_planned. The live Well had
+    -- both pairs since the champion first started. Drop the copies only where
+    -- 009's twin exists. zhen_actions_type_status_idx (action_type, status) is
+    -- a different index and stays. 020 is applied on the live Well, so it is
+    -- corrected here rather than edited.
+
+    DO $$
+    BEGIN
+        IF to_regclass('public.idx_zhen_actions_session') IS NOT NULL THEN
+            DROP INDEX IF EXISTS zhen_actions_session_id_idx;
+        END IF;
+        IF to_regclass('public.idx_zhen_actions_planned') IS NOT NULL THEN
+            DROP INDEX IF EXISTS zhen_actions_planned_at_idx;
+        END IF;
+    END $$;

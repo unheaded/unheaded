@@ -103,7 +103,7 @@ live system and need Stevie's yes.
 - [x] 0.4 *(2026-10-15: postgres = 002+012 in effect; ops and config EMPTY (the broken old initdb); app built by startup DDL, not 003: kanban_tasks guid nullable + unique guid index, no 003 indexes/trigger; zhen_conversations in 010's shape; no timeline_milestones; zhen_actions/memories/snapshots match. Legacy `unheaded` holds 001-era tables + Wotan's wotan_* tables + 4 kingdom_config rows)* Shape diff: live schema (`pg_dump --schema-only`) vs a fresh
       bootstrap of develop; record every difference (expect 001-era tables in
       `unheaded`, missing 013/014).
-- [~] 0.5 **[Y]** *(2026-10-15: `baseline -db postgres -through 012`, `apply -db unheaded_ops`, `apply -db unheaded_config`; compliance `well sync` seeded 225 rows, re-run is all no-change. unheaded_app waits for its converge script, 3.4)* Apply 013 onwards with `well-migrate apply -yes` after the 3.2 baseline (COMPLIANCE-WELL step 21),
+- [x] 0.5 **[Y]** *(2026-10-15: `baseline -db postgres -through 012`, `apply -db unheaded_ops`, `apply -db unheaded_config`; compliance `well sync` seeded 225 rows, re-run is all no-change. unheaded_app: `db/converge/2026-10-15-live-unheaded-app.sql`, proven on a restore then live by `scripts/well/test-converge-live-app.sh [--live]` (schema == fresh incl. privileges, rows kept), baselined through 020, 021 applied. **Live Well: 22/22 on the ledger, status clean, no duplicate indexes.**)* Apply 013 onwards with `well-migrate apply -yes` after the 3.2 baseline (COMPLIANCE-WELL step 21),
       then `compliance-evidence well sync -dry-run`, then real.
 
 ### Phase 1: backups that cover everything, proven by restore (W-01)
@@ -179,7 +179,7 @@ live system and need Stevie's yes.
       008-011 lost their meta-commands. CI gate `check-well-migrations`
       (meta-gate provoked). `scripts/well/test-migrate.sh` covers apply,
       drift, lock timeout, rollback, ledger immutability and baseline.
-- [ ] 3.2 Baseline: the post-Phase-0 live schema becomes version 1 per DB
+- [x] 3.2 *(done 2026-10-15, see 0.5; the ledger replaces a golden schema.sql: CI bootstraps fresh and the converge test diffs live against it)* Baseline: the post-Phase-0 live schema becomes version 1 per DB
       (golden `schema.sql` generated, checked in, diffed in CI). Mechanism
       ready: after 0.4's shape diff shows the live schema matches,
       **[Y]** `well-migrate baseline -through <last file it has> -yes`, then
@@ -189,7 +189,7 @@ live system and need Stevie's yes.
       `raft/scripts/zhen_rag.py`, `cmd/zhen-rag`, `cmd/zhen-cli`,
       `pkg/agent`, `pkg/audit/storage`; services check the ledger version
       and fail fast.
-- [ ] 3.4 Reconcile the multiply-defined tables into one definition each
+- [~] 3.4 *(unheaded_app converged to one shape 2026-10-15; 020 adopted the champion's startup indexes, 021 dropped the two that duplicated 009's and pgstore/schema.sql no longer creates them. Startup DDL itself still runs: 3.3)* Reconcile the multiply-defined tables into one definition each
       (expand/contract where live data exists; batched backfills).
 - [ ] 3.5 CI gates: fresh bootstrap in a throwaway container (as this audit
       did) and `well_lint.py` as a ratchet (exit 2 fails; findings set may

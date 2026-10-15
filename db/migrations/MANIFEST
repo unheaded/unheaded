@@ -33,6 +33,8 @@ unheaded_config  016_config_history_append_only.sql
 unheaded_app     017_app_drop_duplicate_indexes.sql
 unheaded_config  018_config_bindings_profile_index.sql
 unheaded_config  019_config_history_all_changes.sql
+unheaded_app     020_app_adopt_startup_ddl.sql
+unheaded_app     021_app_drop_zhen_actions_duplicate_indexes.sql
 
 # The pre-split single-database schema, superseded by 003/004/005: applying
 # it would put a fourth copy of kanban_tasks, timeline_milestones and

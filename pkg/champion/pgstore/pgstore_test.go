@@ -26,10 +26,17 @@ func TestSchema_Embedded(t *testing.T) {
 		"planned_at",
 		"completed_at",
 		"elapsed_ms",
-		"CREATE INDEX IF NOT EXISTS zhen_actions_session_id_idx",
+		"CREATE INDEX IF NOT EXISTS zhen_actions_type_status_idx",
 	} {
 		if !strings.Contains(s, must) {
 			t.Errorf("schema missing %q", must)
+		}
+	}
+	// 009 indexes session_id and planned_at; a second copy here is a
+	// duplicate index (021).
+	for _, dup := range []string{"zhen_actions_session_id_idx", "zhen_actions_planned_at_idx"} {
+		if strings.Contains(s, "CREATE INDEX IF NOT EXISTS "+dup) {
+			t.Errorf("schema recreates %s, a duplicate of 009's index", dup)
 		}
 	}
 }

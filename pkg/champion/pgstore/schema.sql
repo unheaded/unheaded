@@ -19,16 +19,9 @@ CREATE TABLE IF NOT EXISTS zhen_actions (
     elapsed_ms      INTEGER
 );
 
--- Index on session_id for the common audit query: "what did this
--- session do?" — uses a B-tree because session_id is high-cardinality
--- and the query is exact match.
-CREATE INDEX IF NOT EXISTS zhen_actions_session_id_idx
-    ON zhen_actions (session_id);
-
--- Index on planned_at for time-range queries ("what happened in the
--- last hour?"). DESC because most ops want recent-first.
-CREATE INDEX IF NOT EXISTS zhen_actions_planned_at_idx
-    ON zhen_actions (planned_at DESC);
+-- session_id and planned_at are indexed by db/migrations/009 as
+-- idx_zhen_actions_session and idx_zhen_actions_planned; creating them here
+-- too made duplicates (021 drops them).
 
 -- Index on (action_type, status) for "find every denied tool call"
 -- forensic queries.
