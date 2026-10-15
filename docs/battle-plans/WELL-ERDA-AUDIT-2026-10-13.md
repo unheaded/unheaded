@@ -129,6 +129,15 @@ live system and need Stevie's yes.
       count and an unlisted dump, each for its own reason.
 - [ ] 1.4 systemd timer (daily dump, weekly drill); `unheaded_well_backup_*`
       metrics (age, size, drill result) and an alert; UH-BACKUP-01 reads them.
+      **Decision needed (2026-10-15): who runs the scheduled backup.**
+      (a) a user in the docker group running `docker exec` as today: simple,
+      but the docker group is root-equivalent; (b) a dedicated `well_backup`
+      role over TCP (`pg_read_all_data`, `pg_dumpall --globals-only
+      --no-role-passwords`) run by a nologin system user with a
+      `postgresql-client-16` on the host: least privilege, and since W-07
+      role passwords come from env, a restore re-sets them instead of
+      restoring hashes. Recommendation: (b). The drill would then set
+      passwords from env after globals.
 - [ ] 1.5 Decide PITR (WAL archiving) vs daily dumps: write the RPO down
       first (Law 3). Record in ADR-016 amendment.
 
@@ -235,7 +244,11 @@ live system and need Stevie's yes.
 - [ ] 5.4 Retention and partitioning for append-only tables per the
       retention policy (time partitions dropped, never rows deleted).
 - [ ] 5.5 Health bridge: wire it to Akira's topic and shape with a contract
-      test, or delete it and the `service_health_*` tables.
+      test, or delete it and the `service_health_*` tables. **Found 2026-10-15:**
+      `database.NewWotanBridge` has no callers at all, so nothing would
+      run the bridge even with the topic fixed. Wiring means choosing a
+      host process (dashboard-backend already consumes Akira's reports, or
+      a small `well-bridge`). Stevie's call.
 - [~] 5.6 Config history trigger: INSERT/UPDATE/DELETE, `change_reason`
       required. *019 (2026-10-14):* all three ops, `op` column, reason from
       `well.change_reason`. Required waits until config_store.go sets it.
