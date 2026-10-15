@@ -4,4 +4,4 @@ Full security audit findings for the Unheaded platform.
 
 ---
 
-> **Source:** [docs/SECURITY_AUDIT.md](../docs/SECURITY_AUDIT.md)
+> **Source:** [docs/SECURITY_AUDIT.md](../docs/security/SECURITY_AUDIT.md)

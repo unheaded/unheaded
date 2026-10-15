@@ -20,7 +20,7 @@ sudo reboot                                 # AMD GPU driver needs reboot
 
 | Tool | Version | Install | Check |
 |------|---------|---------|-------|
-| Go | 1.25+ | [go.dev/dl](https://go.dev/dl/) | `go version` |
+| Go | 1.26+ (go.mod toolchain go1.27.2) | [go.dev/dl](https://go.dev/dl/) | `go version` |
 | Rust | nightly | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` | `rustc --version` |
 | Docker + Compose | 24+ | [docs.docker.com](https://docs.docker.com/engine/install/) | `docker compose version` |
 | Node.js | 22 LTS | [nodesource](https://deb.nodesource.com/) | `node --version` |
@@ -90,8 +90,16 @@ go test -bench=. -benchmem ./pkg/waf/...
 
 ## 3. Start the Platform (Docker Compose)
 
+Compose reads every credential from `.env` and refuses to start without
+them (no defaults ship in the repo):
+
 ```bash
-# Start all 8 core services
+cp db/.env.example .env && chmod 600 .env
+$EDITOR .env    # set every *_PASSWORD (e.g. openssl rand -base64 24)
+```
+
+```bash
+# Start the stack
 docker compose up -d
 
 # Watch startup progress (services take ~60s to become healthy)
@@ -119,7 +127,7 @@ docker compose logs -f
 **Open in your browser (local testing):**
 - **Kanban board / Zhenai cockpit** → http://localhost:20001
 - **Dashboard** (metrics + live packet-flow) → http://localhost:20000
-- **Grafana** → http://localhost:3001 (admin / unheaded)
+- **Grafana** → http://localhost:3001 (admin / `GRAFANA_ADMIN_PASSWORD` from `.env`)
 - **Traefik dashboard** → http://localhost:21000
 
 ### Infra & data-plane host ports
@@ -129,7 +137,7 @@ These come up with `docker compose up -d` alongside the services above.
 | Component | Container | Host Port(s) | Role |
 |-----------|-----------|--------------|------|
 | Traefik (edge) | unheaded-traefik | 80 (HTTP), 443 (HTTPS), 50051 (gRPC) | Reverse proxy / ingress. Override via `.env` (`TRAEFIK_HTTP_PORT`/`TRAEFIK_HTTPS_PORT`) if 80/443 are taken. |
-| Grafana | unheaded-grafana | 3001 | Dashboards (admin / unheaded) |
+| Grafana | unheaded-grafana | 3001 | Dashboards (admin / `GRAFANA_ADMIN_PASSWORD` from `.env`) |
 | VictoriaMetrics | unheaded-victoria | 8428 | Prometheus-compatible metrics store |
 | ClickHouse | unheaded-clickhouse | 8123 (HTTP), 9000 (native) | Log store |
 | PostgreSQL | unheaded-postgres | 5432 | "The Well" |

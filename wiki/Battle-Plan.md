@@ -6,4 +6,4 @@ Covers: Wotan triple-role architecture, DNS-hierarchy cluster redundancy, harden
 
 ---
 
-> **Source:** [battle-plan.md](../battle-plan.md)
+> **Source:** [battle-plan.md](../docs/battle-plans/battle-plan.md)

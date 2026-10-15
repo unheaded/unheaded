@@ -2,7 +2,7 @@
 
 **Unheaded** — configuration management automation platform built around the Unheaded Protocol: a mapped data bus over IPv6 Hop-by-Hop Options with eBPF-powered observability. Provides control plane, service mesh, observability, and security baseline. You bring the application.
 
-**State:** Age 3 in progress. Wire format frozen at v0x01 (12 IANA registries, S67). 6 Internet-Drafts shipped. K8s substrate proven (WAVE17, 2026-05-05). **ASCEND-LINUX L5: xv6 enters user mode on the UPC** (2026-05-14, [Linux on UPC](Linux-on-UPC)). Track-call (A/B/C) pending Captain.
+**State (2026-10-15):** Age 3 in progress. Wire format frozen at v0x01 (12 IANA registries). ASCEND-LINUX Phase 1 complete: an interactive xv6 shell with `ls`/`cat`/`echo`/`wc` runs on the UPC, and the kernel is 100% Unheaded-authored ([[Linux on UPC|Linux-on-UPC]]). On west: Wotan, Akira, dashboard, kanban and The Well in compose, plus Huginn on the host. Work lands on `develop` → `staging` → `main` (ADR-089).
 
 ---
 
@@ -27,7 +27,7 @@ The UPC is a virtual CPU implemented in the eBPF runtime. Monad packets are the 
 - [[UPC Overview|UPC-Overview]] — what the UPC is, BPF maps, MBC ISA summary, Boot Protocol v2
 - [[Unheaded Protocol|Unheaded-Protocol]] — Monad + Sophia + Wotan + MBC + Shim + PQC tied together
 - [[Dream Ladder|UPC-Dream-Ladder]] — six-level ascent (L1→L6), per-level status
-- [[Linux on UPC|Linux-on-UPC]] — ASCEND-LINUX, current frontier (L5 spike, 2026-05-14)
+- [[Linux on UPC|Linux-on-UPC]] — ASCEND-LINUX: interactive shell + FS reader (Phase 1 complete 2026-07-02), owned kernel (2026-07-07), EVOLUTION-1
 - [[Doom on UPC|Doom-on-UPC]] — L3 computational-completeness proof
 
 ## The Protocol (specifications)
@@ -57,15 +57,16 @@ The UPC is a virtual CPU implemented in the eBPF runtime. Monad packets are the 
 
 ## Architecture Decision Records
 
-Canonical mirror: [[ADR Index|ADR-Index]] (65 ADRs, last synced 2026-05-05).
+Canonical mirror: [[ADR Index|ADR-Index]] (99 entries, synced 2026-10-15).
 
 Recent:
-- ADR-064 — Wotan Active/Active Cluster, K8s-native (Proposed, 2026-05-05; supersedes ADR-035)
-- ADR-062 — Fuzz / Red-Team / Pentest Framework (Lich codified, 2026-05-04)
-- ADR-060 — Zhenai Multi-Model Selector (In Progress, 2026-05-04)
-- ADR-052 — Timeline & Battle-Plan Source-of-Truth Policy (Accepted, CI gate live)
-- ADR-051 — WAVE13 generate-gemma4 path (Accepted, verdict: RETRAIN)
-- ADR-043 — Mímir's Law: UPC-Controlled Baseline (PoC complete 2026-04-11)
+- ADR-102 — Container images use exact version tags (Accepted, 2026-10-15)
+- ADR-101 — The Well's migration ledger, `cmd/well-migrate` (Proposed; in use live since 2026-10-15)
+- ADR-097 / 098 / 099 — Compliance crosswalk, findings register, remediation as code (Proposed)
+- ADR-092 — `/var/log` discipline and rotation (Proposed; steps 1, 3, 6 done)
+- ADR-089 — `develop` → `staging` → `main` promotion (Accepted)
+- ADR-084 — Huginn host metrics agent (Accepted)
+- ADR-016 amendment — The Well's RPO 24 h, nightly backups (Accepted 2026-10-15)
 
 ## Security & Compliance
 
@@ -84,6 +85,8 @@ Recent:
 - [[Micromanager|Service-Micromanager]]
 - [[Dashboard Backend|Service-Dashboard-Backend]]
 - [[Kanban App|Service-Kanban-App]]
+- [[Akira|Service-Akira]] — health checks + percentage consensus (ADR-029)
+- [[Huginn|Service-Huginn]] — host metrics agent on each host (ADR-084)
 
 ## S36 Four Pillars
 
@@ -101,28 +104,28 @@ UPC-controlled OS baseline, drift detection, alerts-only self-healing. Two-plane
 - [[Wave 10C Backprop|Wave-10C-Backprop]]
 - [[So The Game Goes On|So-The-Game-Goes-On]]
 
-## Recent Progress (Apr 11 → May 14, 2026)
+## Recent Progress (May → Oct 2026)
 
-- **2026-05-14** ASCEND-LINUX **Phase 1.4 → 1.6 in one day**: kernel boots end-to-end; userland loader (`upc-bootctl --userland`); user mode reached (`priv=3`); user printf reaches TTY — **`init: starting sh\n` prints from xv6 user mode on the UPC** (commit `724d5b06`). 14 commits. Next: SYS_fork / SYS_exec / SYS_wait → shell prompt. See [Linux on UPC](Linux-on-UPC).
-- **2026-05-05** WAVE17 — K8s substrate proven (9/9 services Running on 3-node kind). ADR-064 active/active spec landed (impl deferred). cmd/tools/ scaffold for Mímir / Anamnesis Lite / Zhen On-Prem. ADR-Index regenerated 21→65 entries.
-- **2026-05-04** WAVE16 — Multi-model selector live in sidebar. 5 model keys. qwen-coder-14b benched. ADR-060 LIVE.
-- **2026-05-03** ADR-059 Phase 1 shipped — Zhenai Interactive CLI (`cmd/zhen-cli`).
-- **2026-05-02** WAVE15 rewire planning + security-posture review. ADR-056/057/058/059 added.
-- **2026-04-28** WAVE13 Phase 2 verdict: **RETRAIN**. ADR-051 Accepted. LoRA underperformed on 6/8 prompts; 2/8 mode-collapse.
-- **2026-04-27** Round Table verification audit (19 seats, 2 citations issued + cleared). ADR-052/053/055 added.
-- **2026-04-25** WAVE13 Phase 1 — `generate-gemma4` subcommand.
-- **2026-04-23** WAVE12 — Kingdom RAFT LoRA. ADR-050 GPU-resident activations.
-- **2026-04-21** WAVE11 — 4 attention grad kernels (cosine 1.000). ADR-049.
-- **2026-04-20** Learning Gate strict experiments. 24h Consolidation Block.
-- **2026-04-17** WAVE10F — Forge Real-Attention Gemma-4 (3000+ LOC, end-to-end LoRA training).
-- **2026-04-11** Mímir's Law PoC complete — real-metal validated on EAST.
+Full record: [[Timeline]] (`references/timeline.md`).
+
+- **2026-10-13 → 10-15** The Well brought onto a migration ledger (ADR-101): TLS 1.3 only, an owner role per database, every password rotated out of the repo, nightly backups on a second disk + offsite to east, restore drill weekly ([[The Well|The-Well]], [[Well Backups|Well-Backups]]).
+- **2026-10-12** East back after an 11-day hang; ADR-092 log discipline; Huginn log-space alerts; `promtool` rule tests in CI.
+- **2026-09-30 → 10-01** Compliance crosswalk (ADR-097) across 800-53, FedRAMP, SOC 2, ISO 27001, CSF 2.0, 800-171, SSDF, CIS; findings register (ADR-098); remediation as code (ADR-099). CI red → green, reproduced locally.
+- **2026-09-28 → 09-29** Observability truth pass: `unheaded_http_*` on every service, wrong dashboard numbers fixed, Wotan seq paging and wildcard topics, single-copy live view.
+- **2026-09-21** The Meta Moment works in compose for the first time (five defects); dashboard-backend OOM fixed (400 MB → 26 MB).
+- **2026-09-09** Meta-gate: every CI gate must prove it can fail (`scripts/check-gates-can-fail.sh`).
+- **2026-08-03 → 09-21** Security remediation program: 124 rungs promoted to `staging` in nine reviewed batches; `go vet` clean, `go test ./...` 0 failures.
+- **2026-07-29** CI green sweep; per-service run-as UIDs (`pkg/uids`).
+- **2026-07-19** EVOLUTION-1 Stage 1 measured (getpid flip deferred, +5409 verifier insns); Doom browser-verified live again (verifier 737,087).
+- **2026-07-02 → 07-07** ASCEND-LINUX Phase 1 complete (shell + FS reader, ADR-078); Phases 2.2–2.4 replace every MIT kernel file: the UPC kernel is 100% Unheaded-authored.
+- **2026-05-14** `init: starting sh` from xv6 user mode on the UPC.
 
 ## Infrastructure
 
 - [[Load Balancers|Load-Balancers]] — HAProxy edge/internal + Nginx per-app sidecars
 - [[Containers]] — LXD, containerd, NixOS, Docker
 - [[IaC Backends|IaC-Backends]] — Ansible, Terraform, Puppet, Kubernetes, Chef, Salt
-- [[Observability Backends|Observability-Backends]] — Prometheus, Grafana, ELK, Jaeger, Nagios
+- [[Observability Backends|Observability-Backends]] — VictoriaMetrics + Grafana + ClickHouse/Vector live; ELK, Jaeger, Nagios adapters
 - [[eBPF Programs|eBPF-Programs]] — Rust/Aya + cilium/ebpf, L2–L7
 - [[Fae Chamber Contracts|Fae-Chamber-Contracts]]
 - [[Service Breakout Strategy|Service-Breakout-Strategy]]

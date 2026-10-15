@@ -39,11 +39,10 @@ Every service container runs with NixOS-enforced hardening (see Architecture for
 
 ### Secrets Management
 
-- Secrets are never hard-coded, logged, or stored in Git
-- SOPS + age for encrypted secrets at rest
-- Secrets mounted as files, not environment variables (not visible to `ps`)
-- Regular rotation enforced by policy
-- Access audited
+- **Credentials are never stored in the repo**: not in code, manifests, scripts, docs or test fixtures.
+- They come from environment variables with fail-loud guards (`${VAR:?...}` in compose, a startup error in Go), never a shipped default. On west they live in the repo-root `.env` (0600, gitignored) and per-service env files such as `/etc/huginn.env` (root 0600).
+- Enforced by CI: `gitleaks` on every push, `scripts/check-secrets-baseline.sh` (`.gitleaksignore` may only shrink), `trivy --scanners secret`.
+- The Well's passwords were all rotated on 2026-10-15; backup sets carry no password hashes.
 
 ---
 
@@ -59,7 +58,7 @@ Fuzz targets are located in `crates/monad-mbc/fuzz/`. Campaign PIDs and logs wer
 
 ---
 
-## Lich Campaign D1-D6 (Planned, Sprint S33)
+## Lich Campaign D1-D6 (S33 plan, 2026-03)
 
 Six targeted security campaigns are planned against the live Doom PoC to measure the attack surface and validate mitigations. These campaigns run as WS2 (Agent D, BlackMage role) during March 1-5, 2026.
 
@@ -113,12 +112,24 @@ Six targeted security campaigns are planned against the live Doom PoC to measure
 
 ---
 
-## Compliance Targets
+## Compliance
 
-The Unheaded architecture is designed to satisfy multiple compliance frameworks:
+Evidence, not intent (ADR-097): common controls are mapped many-to-many onto each framework's full requirement list. Every control is backed by evidence that can fail: CI job results, gate scripts, signed commits, and live host posture on west and east.
 
-| Framework | Status | Key Controls |
-|-----------|--------|-------------|
+| Framework | State |
+|-----------|-------|
+| NIST 800-53 Rev 5.2.0, FedRAMP Low/Moderate/High | Crosswalked, evidenced on the lab hosts |
+| SOC 2, ISO 27001 Annex A, NIST CSF 2.0, 800-171 r3, SSDF | Crosswalked, evidenced on the lab hosts |
+| CIS Ubuntu 24.04 L1 Server | Probed per host (`cmd/unheaded-baseline`, audit-only) |
+| PCI-DSS, HIPAA, ITAR, GDPR | Not crosswalked |
+
+- **Findings register** (ADR-098): `compliance/findings/register.yaml` triages; evidence decides what is open. It runs in audit mode only.
+- **Remediation as code** (ADR-099): one fix model rendered as `remediate.sh`, `cmd/unheaded-remediate` (backup, undo, hash-chained journal) and Ansible. Profiles: `none` / `lab` / `cis-l1-server` / `all`.
+- State lives in The Well (`unheaded_ops.compliance_*`, `unheaded_config.compliance_*`). The dashboard's compliance page (`:20000/compliance.html`) shows each framework against its full denominator.
+
+West and east are a dev/lab environment: lab-only gaps (for example, no disk encryption) are recorded and accepted, not remediated.
+
+-----------|--------|-------------|
 | SOC 2 Type II | Planned | Access controls, audit logging, encryption |
 | FedRAMP | Planned | FIPS 140-2 crypto, boundary protection |
 | NIST 800-53 | Planned | Continuous monitoring, incident response |
@@ -133,8 +144,18 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 
 ## Security Testing Infrastructure
 
-| Tool | Purpose | Location |
-|------|---------|----------|
+| Tool | Purpose | Where |
+|------|---------|-------|
+| gosec | Go static analysis, ratcheted per rule | `scripts/check-gosec-ratchet.sh`, CI |
+| govulncheck, cargo-audit, grype, trivy | Dependency and image vulnerabilities | `.github/workflows/` |
+| gitleaks + shrink-only baseline | Secrets in the tree | `scripts/check-secrets-baseline.sh` |
+| bandit, ruff, shellcheck, eslint, clippy | Python, shell, JS and Rust lint (gating) | CI |
+| syft | SBOM | CI |
+| Meta-gate | Plants a violation in every gate and requires it to fail | `scripts/check-gates-can-fail.sh` |
+| LICH campaigns | Fuzz / red team (ADR-062); LICH-005 fuzzes `.bpf.o` through the real loader into `bpf(2)` | `tomb/lich/`, `crates/*/fuzz/` |
+| Fuzz targets | MBC interpreter fuzzing | `crates/monad-mbc/fuzz/` |
+
+------|---------|----------|
 | gosec | Go static security analysis | `Makefile` lint target |
 | Fuzz targets | MBC interpreter fuzzing | `crates/monad-mbc/fuzz/` |
 | Lich campaigns | Targeted attack testing | `tests/security/doom/` (planned) |
@@ -148,12 +169,12 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 | File | Purpose |
 |------|---------|
 | `SECURITY.md` | Vulnerability reporting policy |
-| `docs/SECURITY.md` | Security architecture overview |
-| `docs/SECURITY_AUDIT.md` | Audit findings and remediations |
-| `docs/SECURITY_TODOs_2-9-26.md` | Outstanding security items |
-| `LICH_FUZZING_SETUP.md` | Fuzz campaign setup guide |
+| `compliance/findings/register.yaml` | Open findings, triage (ADR-098) |
+| `docs/security/SECURITY_AUDIT.md` | 2026-02 audit findings (historical) |
+| `docs/security/application-threat-model.md` | Application threat model |
+| `docs/security/LICH_FUZZING_SETUP.md` | Fuzz campaign setup guide |
 | `nix/modules/` | NixOS hardening modules |
 
 ---
 
-*See also: [Architecture](architecture.md) | [Protocol Specifications](protocol-specs.md) | [Roadmap](roadmap.md)*
+*See also: [[Architecture]] | [[Protocol Specifications|Protocol-Specs]] | [[Roadmap]] | [[Security TODOs|Security-TODOs]]*

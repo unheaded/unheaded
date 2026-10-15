@@ -4,4 +4,4 @@ Visual overview of the Unheaded architecture — all layers, services, data flow
 
 ---
 
-> **Source:** [docs/SYSTEM_DIAGRAM.md](../docs/SYSTEM_DIAGRAM.md)
+> **Source:** [docs/SYSTEM_DIAGRAM.md](../docs/architecture/SYSTEM_DIAGRAM.md)

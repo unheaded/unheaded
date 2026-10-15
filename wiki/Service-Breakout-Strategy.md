@@ -6,4 +6,4 @@ Post-alpha plan to split the monorepo into individual service repositories. Each
 
 ---
 
-> **Source:** [docs/SERVICE_BREAKOUT_STRATEGY.md](../docs/SERVICE_BREAKOUT_STRATEGY.md)
+> **Source:** [docs/SERVICE_BREAKOUT_STRATEGY.md](../docs/architecture/SERVICE_BREAKOUT_STRATEGY.md)

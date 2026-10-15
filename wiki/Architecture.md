@@ -22,13 +22,18 @@ Layer 4: Application Services
   monad       -- Unified state management
   sophia      -- Knowledge graph and dictionary service
   dashboard-backend -- Metrics aggregation, WebSocket streaming
-  kanban-app  -- Kanban board with Wotan integration
+  kanban-app  -- Kanban board with Wotan integration (cards from The Well)
+  akira       -- Cross-service health checks + percentage consensus (ADR-029)
+  cuirass     -- Control-plane service
 
 Layer 3: Infrastructure Services
   wotan       -- Message bus (gRPC + ring buffer + pub/sub)
   trace-collector -- eBPF ring buffer reader, trace correlation
-  gateway     -- nginx, TLS termination, HTTP/3, gRPC-Web proxy
+  gateway     -- Traefik in compose (edge 80/443, gRPC 50051); nginx sidecars in other substrates
   doom-bridge -- Framebuffer reader, WebSocket frame streaming
+  The Well    -- PostgreSQL 16, three databases, TLS only ([[The Well|The-Well]])
+  observe     -- VictoriaMetrics, ClickHouse, Vector, Grafana
+  huginn      -- per-host metrics agent (systemd, not a container; ADR-084)
 
 Layer 2: Control Plane
   unheaded-daemon -- Container orchestration, eBPF program management,
@@ -44,7 +49,7 @@ Layer 1: Data Plane (eBPF)
 Layer 0: Infrastructure
   LXD / containerd / NixOS / Docker (interchangeable runtimes)
   Host OS (Linux, kernel 6.x+)
-  Network: lxdbr0 bridge (10.10.10.0/24)
+  Network: compose bridges control/data/observe (172.28.0-2.0/24); LXD lxdbr0 (10.10.10.0/24) in lxd/
 ```
 
 ---
@@ -152,10 +157,25 @@ Service A                    Wotan                    Service B
 
 ### Health Monitoring Protocol
 
-Every service health-checks all services it depends on. Failures are reported to `system.outage.reports`. Severity is determined by percentage-based consensus:
+Every service health-checks the services it depends on. Reports go to Wotan
+topic `system.health.reports`; band changes go to `system.health.consensus`
+(ADR-029). Akira (`cmd/akira`, port 19100) checks every service, tallies all
+reporters' votes and publishes the band.
 
 | % Reporting | Severity | Action |
 |-------------|----------|--------|
+| 0% - 12.49% | OK | Healthy |
+| 12.50% - 37.49% | WARN | Log, email |
+| 37.50% - 62.49% | ERROR | Log, second email |
+| 62.50% - 87.49% | CRITICAL | Auto-remediate from 66.67% (two-thirds) |
+| 87.50% - 100% | PANIC | All hands, PagerDuty |
+
+Formula: `failing_reporters / reporters x 100`; each reporter's latest report
+from the last three sweeps is one vote. Remediation (`systemctl restart`, at
+most 3 per outage) is off unless Akira runs with `--remediate`; the compose
+stack runs it for detection only.
+
+-------------|----------|--------|
 | 0% - 12.49% | OK | Healthy |
 | 12.50% - 37.49% | WARN | Log, email |
 | 37.50% - 62.49% | ERROR | Log, second email |
@@ -168,19 +188,19 @@ Formula: `(unique_reporters / total_dependent_services) x 100`
 
 ## Network Design
 
-### Internal Network
+### Internal Network (Docker Compose)
 
-| Address | Service | Port |
-|---------|---------|------|
-| 10.10.10.10 | Wotan (message hub) | 9090 (gRPC) |
-| 10.10.10.20 | timeguru | 8000 |
-| 10.10.10.21 | captain | 8001 |
-| 10.10.10.22 | architect | 8002 |
-| 10.10.10.23 | micromanager | 8003 |
-| 10.10.10.24 | monad | 8004 |
-| 10.10.10.25 | sophia | 8005 |
-| 10.10.10.100 | Gateway (nginx) | 443 (HTTPS), 80 (HTTP) |
-| 10.10.10.200+ | User apps | variable |
+Three bridge networks; services publish their Doom Range port (see
+[[Port Registry|Port-Registry]]):
+
+| Network | Subnet | Members |
+|---------|--------|---------|
+| `control` | 172.28.0.0/24 | wotan, cuirass, coredns, traefik |
+| `data` | 172.28.1.0/24 | every Kingdom service, The Well, akira |
+| `observe` | 172.28.2.0/24 | VictoriaMetrics, ClickHouse, Vector, Grafana, dashboard-backend |
+
+The Well publishes `127.0.0.1:5432` only; ClickHouse `127.0.0.1` only.
+The older LXD design (`lxdbr0`, 10.10.10.0/24) remains in `lxd/`.
 
 ### Doom Ring Network (separate namespace topology)
 
@@ -265,4 +285,4 @@ All services emit OpenTelemetry-compatible signals:
 
 ---
 
-*See also: [Protocol Specifications](protocol-specs.md) | [Doom over IPv6](doom-over-ipv6.md) | [Security](security.md)*
+*See also: [[Protocol Specifications|Protocol-Specs]] | [[Doom on UPC|Doom-on-UPC]] | [[Security]] | [[The Well|The-Well]]*

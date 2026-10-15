@@ -35,4 +35,4 @@ See [[Third Party Licenses|Third-Party-Licenses]] for full attribution.
 
 ---
 
-> **Source:** [ebpf/](../ebpf/) · [docs/RUST_COMPONENTS.md](../docs/RUST_COMPONENTS.md) · [LICENSES/THIRD_PARTY.md](../LICENSES/THIRD_PARTY.md)
+> **Source:** [ebpf/](../ebpf/) · [docs/RUST_COMPONENTS.md](../docs/architecture/RUST_COMPONENTS.md) · [LICENSES/THIRD_PARTY.md](../LICENSES/THIRD_PARTY.md)

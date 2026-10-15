@@ -297,7 +297,7 @@ services:
     environment:
       CLICKHOUSE_DB: unheaded_logs
       CLICKHOUSE_USER: unheaded
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-changeme}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in .env - credentials are not stored in this repo}
       CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
     ports:
       - "127.0.0.1:8123:8123"  # HTTP interface — loopback only (off the LAN)
@@ -370,7 +370,7 @@ services:
     restart: unless-stopped
     environment:
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in .env - credentials are not stored in this repo}
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SERVER_ROOT_URL: "http://localhost:3001"
     volumes:

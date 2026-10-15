@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-101: The Well's migrations: one manifest, one ledger per database, one runner
 
-**Status:** Proposed. Built and tested on throwaway servers 2026-10-14; nothing has run against the live Well (it is stopped; ERDA Phase 0 needs Stevie's yes).
+**Status:** Proposed; in use. Built and tested on throwaway servers 2026-10-14; the live Well has been on the ledger since 2026-10-15 (Stevie's go-ahead on ERDA Phase 0; 028 and earlier applied through `cmd/well-migrate`). Formal acceptance is Stevie's call.
 **Date:** 2026-10-14
 **Related:**
 

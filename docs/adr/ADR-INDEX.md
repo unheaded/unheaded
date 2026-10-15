@@ -1,10 +1,8 @@
 # ADR Index — Unheaded Architecture Decision Records
 
-**Last updated:** 2026-08-03
-**Total:** 88 ADRs, all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
+**Last updated:** 2026-10-15
+**Total:** 99 entries (ADR-001 to ADR-102 plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
-> **Index gap:** ADR-082 and ADR-083 exist on disk but have never been registered here
-> or in the table below. Noted 2026-08-03; needs a Librarian pass.
 
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
 **ADR-085 added 2026-07-24:** CI/CD artifact layout — canonical `/var/` hierarchy for binaries, data, config, APT repo; 4-phase implementation plan (binary install → .deb → CI pipeline → registry).
@@ -18,19 +16,20 @@
 
 ## Status Summary
 
+Counted from the Full Index by the first word of each status (2026-10-15).
+
 | Status | Count |
 |--------|-------|
-| Accepted | 33 |
-| In Progress | 4 |
-| Planned | 9 |
-| Proposed | 3 |
+| Accepted | 47 |
+| Proposed | 15 |
+| Planned | 14 |
+| In Progress | 6 |
 | Deferred | 5 |
-| Pipe Dream | 4 |
-| PoC / Research | 2 |
+| Pipe Dream | 5 |
+| PoC / Research | 3 |
+| Superseded / Deprecated | 3 |
 | Acknowledged | 1 |
-| Phase 1 Shipped | 1 |
-| Deprecated | 1 |
-| Superseded | 1 |
+| **Total** | **99** |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict
@@ -75,7 +74,7 @@
 | [013](ADR-013-routing-header-support.md) | IPv6 Routing Header | Accepted (Deferred) | 2026-02-20 |
 | [014](ADR-014-ipv6-fragmentation-support.md) | IPv6 Fragmentation | Accepted (Deferred) | 2026-02-20 |
 | [015](ADR-015-go-fiber-http-layer.md) | Go-Fiber HTTP Layer | Accepted + Template | 2026-02-20 |
-| [016](ADR-016-postgres-the-well.md) | PostgreSQL — The Well | Accepted | 2026-03-15 |
+| [016](ADR-016-postgres-the-well.md) | PostgreSQL — The Well (+ RPO 24 h amendment 2026-10-15) | Accepted | 2026-03-15 |
 | [017](ADR-017-zhen-hybrid-inference.md) | Zhen Hybrid Inference | Accepted (Claude API → MCP) | 2026-03-16 |
 | [018](ADR-018-zhen-raft-training-battle-plan.md) | RAFT Training Pipeline | **In Progress** | 2026-03-16 |
 | [019](ADR-019-zhen-champion-agent.md) | Zhen Champion Agent | Accepted (Phase 1+2) | 2026-03-16 |
@@ -156,5 +155,5 @@
 | [098](ADR-098-findings-register-and-baseline-modes.md) | Rolling findings register (count generated from evidence, triage in `compliance/findings/register.yaml`, closes only when evidence passes) + host baselines in **audit** (default, SELinux permissive) or **enforcing** mode; enforcing gated on LICH-012 against the agent + 7-day clean soak + Stevie sign-off; does not amend ADR-043 | **Proposed** | 2026-09-30 |
 | [099](ADR-099-remediation-as-code-and-control-profiles.md) | Remediation as code: each fix once as data from a closed action set; control profiles (`none`/`lab`/`cis-l1-server`/`all`) switch remediation, never detection; native executor, Ansible and runbook renderers; apply journal as evidence. Amended same day: state lives in The Well, YAML is seed and fallback, hosts act only on sealed snapshots | **Proposed** | 2026-10-01 |
 | [100](ADR-100-sre-alongside-compliance.md) | SRE alongside compliance: SLOs as data and as crosswalk evidence, multi-window burn-rate alerts, every alert with a runbook and a firing test, Watchdog, blameless postmortems; first instance a per-service log-volume deviation SLO (spam and silence). Idea recorded, not started | **Proposed** | 2026-10-01 |
-| [101](ADR-101-well-migration-ledger.md) | The Well's migrations: `db/migrations/MANIFEST` orders and routes every file, a `well_schema_migrations` ledger per database records each with its sha256, `db/init.sh` and `cmd/well-migrate` (check/status/apply/baseline) share both; drift refuses, lock and statement timeouts per migration | **Proposed** | 2026-10-14 |
+| [101](ADR-101-well-migration-ledger.md) | The Well's migrations: `db/migrations/MANIFEST` orders and routes every file, a `well_schema_migrations` ledger per database records each with its sha256, `db/init.sh` and `cmd/well-migrate` (check/status/apply/baseline) share both; drift refuses, lock and statement timeouts per migration | **Proposed** (in use on the live Well since 2026-10-15) | 2026-10-14 |
 | [102](ADR-102-container-image-versions.md) | Container images use exact version tags (no `latest`, no floating minor), pinned to what runs today; upgrades are their own commits; digests deferred until a bot can bump them; reassess then | **Accepted** | 2026-10-15 |

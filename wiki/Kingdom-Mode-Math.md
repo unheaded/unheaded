@@ -14,4 +14,4 @@ reclaimed = 2 * (128 - host_bits)
 
 ---
 
-> **Source:** [docs/KINGDOM_MODE_MATH_VERIFICATION.md](../docs/KINGDOM_MODE_MATH_VERIFICATION.md)
+> **Source:** [docs/KINGDOM_MODE_MATH_VERIFICATION.md](../docs/security/KINGDOM_MODE_MATH_VERIFICATION.md)

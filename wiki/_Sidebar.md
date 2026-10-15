@@ -50,6 +50,8 @@
 - [[Micromanager|Service-Micromanager]]
 - [[Dashboard|Service-Dashboard-Backend]]
 - [[Kanban|Service-Kanban-App]]
+- [[Akira|Service-Akira]]
+- [[Huginn|Service-Huginn]]
 
 **S36 Four Pillars**
 - [[Port Registry|Port-Registry]]

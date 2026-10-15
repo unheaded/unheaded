@@ -6,7 +6,7 @@ Get Unheaded running locally in ~10 minutes.
 
 | Tool | Version | Check |
 |------|---------|-------|
-| Go | 1.25+ | `go version` |
+| Go | 1.26+ (toolchain go1.27.2 per go.mod) | `go version` |
 | Docker + Compose | 20.10+ | `docker compose version` |
 | curl | any | `curl --version` |
 | Git | any | `git --version` |
@@ -27,7 +27,8 @@ go test ./... -race -count=1     # With race detector
 ## Run
 
 ```bash
-docker compose up -d             # Start the full stack
+cp db/.env.example .env && chmod 600 .env   # then set every *_PASSWORD
+docker compose up -d             # Start the full stack (refuses to start without the passwords)
 ```
 
 > If a host port is already taken (e.g. macOS Bonjour on 5353, or a host LB on 80/443),
@@ -41,7 +42,7 @@ Open these in a browser:
 |-----|-----|-------|
 | **Kanban board** | http://localhost:20001 | self-hosting cockpit |
 | **Dashboard** | http://localhost:20000 | metrics + live packet-flow |
-| **Grafana** | http://localhost:3001 | admin / unheaded |
+| **Grafana** | http://localhost:3001 | admin / `GRAFANA_ADMIN_PASSWORD` from `.env` |
 | **Traefik dashboard** | http://localhost:21000 | edge proxy |
 
 Kingdom service APIs (each exposes `/health`):

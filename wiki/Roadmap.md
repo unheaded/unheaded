@@ -2,7 +2,7 @@
 
 ## Current State: Age 3 — Public Release Sprint
 
-Track A/B/C call pending Captain. Public-launch thread gated. Research thread (Forge / Kingdom-RAFT / WAVE10–17) shipping at quality.
+Track C (hybrid) chosen 2026-05-11. Since July the work has been hardening and truth: the security remediation program, CI that cannot pass by accident, compliance evidence, honest observability, and The Well on a migration ledger. ASCEND-LINUX reached an interactive shell on an owned kernel.
 
 ### Completed Ages
 
@@ -38,14 +38,18 @@ Track A/B/C call pending Captain. Public-launch thread gated. Research thread (F
 - WAVE16 Multi-model selector + ADR-060 LIVE
 - WAVE17 K8s substrate proven (9/9 services Running on 3-node kind)
 - ADR-064 Wotan Active/Active Cluster spec (impl deferred)
+- ASCEND-LINUX Phase 1 complete: interactive xv6 shell + FS reader on the UPC (2026-07-02); kernel 100% Unheaded-authored (2026-07-07)
+- EVOLUTION-1 Stage 1 measured; getpid flip deferred (2026-07-19)
+- Security remediation program: 124 rungs promoted to `staging` (2026-08-03 → 09-21, ADR-089)
+- Meta-gate: every CI gate proven able to fail (2026-09-09)
+- The Meta Moment working in compose (2026-09-21)
+- Observability truth pass, `unheaded_http_*` everywhere (2026-09-28)
+- Compliance crosswalk, findings register, remediation as code (ADR-097/098/099, 2026-09-30)
+- The Well on the migration ledger, TLS-only, backed up offsite (ADR-101, 2026-10-15)
 
 **Remaining:**
-- Captain Track A/B/C decision (overdue 2026-04-29)
-- WAVE14 retrain (gated on track-call)
-- Branch hygiene execution
-- SBOM regen + license scan + threat refresh
-- Sophia draft-04 ship-or-defer
-- Wotan draft-04 ship-or-defer
+- WAVE14 retrain
+- SBOM regen + license scan + threat refresh (full ScanCode regen last 2026-04-04)
 - Demo + README polish for public readiness
 - Sub-50ms latency benchmark (Scientist falsifiability gate)
 - Public accessibility (optional auth)
@@ -56,7 +60,7 @@ Track A/B/C call pending Captain. Public-launch thread gated. Research thread (F
 
 Track-call dependent. Activates after Age 3 public-launch gate.
 
-- WAVE14 BackwardScratch + KV-cache (gated on Track A or C)
+- WAVE14 BackwardScratch + KV-cache (Track C)
 - Performance benchmarking suite
 - Customer onboarding flows
 - Multi-tenant isolation hardening

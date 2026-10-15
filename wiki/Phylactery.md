@@ -4,4 +4,4 @@ The living document of the Unheaded Kingdom — the soul vessel that preserves t
 
 ---
 
-> **Source:** [docs/PHYLACTERY.md](../docs/PHYLACTERY.md)
+> **Source:** [docs/PHYLACTERY.md](../docs/lore/PHYLACTERY.md)
