@@ -32,13 +32,12 @@ type pgKanbanStore struct {
 	inner *database.KanbanStore
 }
 
-// newPGKanbanStore wraps an existing *sql.DB. Schema is migrated
-// idempotently on first call (EnsureSchema is safe to invoke on every
-// startup).
+// newPGKanbanStore wraps an existing *sql.DB after checking The Well has
+// the kanban_tasks shape (db/migrations defines it; no startup DDL).
 func newPGKanbanStore(ctx context.Context, db *sql.DB) (*pgKanbanStore, error) {
 	inner := database.NewKanbanStore(db)
-	if err := inner.EnsureSchema(ctx); err != nil {
-		return nil, fmt.Errorf("ensure kanban_tasks schema: %w", err)
+	if err := inner.CheckSchema(ctx); err != nil {
+		return nil, fmt.Errorf("check kanban_tasks schema: %w", err)
 	}
 	return &pgKanbanStore{inner: inner}, nil
 }

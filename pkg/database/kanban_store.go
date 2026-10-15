@@ -6,6 +6,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -41,39 +42,24 @@ func NewKanbanStore(db *sql.DB) *KanbanStore {
 	return &KanbanStore{db: db}
 }
 
-// EnsureSchema creates the kanban_tasks table if it does not exist.
-// Safe to call on every startup (idempotent).
-func (s *KanbanStore) EnsureSchema(ctx context.Context) error {
-	_, err := s.db.ExecContext(ctx, `
-		CREATE TABLE IF NOT EXISTS kanban_tasks (
-			id          TEXT PRIMARY KEY,
-			guid        UUID NOT NULL DEFAULT gen_random_uuid(),
-			title       TEXT NOT NULL,
-			description TEXT NOT NULL DEFAULT '',
-			status      TEXT NOT NULL DEFAULT 'todo',
-			type        TEXT NOT NULL DEFAULT 'task',
-			owner       TEXT NOT NULL DEFAULT '',
-			progress    INTEGER NOT NULL DEFAULT 0 CHECK (progress >= 0 AND progress <= 100),
-			created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-			deleted_at  TIMESTAMPTZ,
-			archived_at TIMESTAMPTZ
-		);
-		CREATE INDEX IF NOT EXISTS idx_kanban_tasks_status ON kanban_tasks(status);
-		CREATE UNIQUE INDEX IF NOT EXISTS idx_kanban_tasks_guid ON kanban_tasks(guid);
+// ErrSchema reports that The Well lacks the kanban_tasks shape this store
+// reads and writes.
+var ErrSchema = errors.New("kanban_tasks schema missing or incomplete: run well-migrate (ADR-101)")
 
-		-- Add columns if table already exists (idempotent migration)
-		ALTER TABLE kanban_tasks ADD COLUMN IF NOT EXISTS guid UUID DEFAULT gen_random_uuid();
-		ALTER TABLE kanban_tasks ADD COLUMN IF NOT EXISTS deleted_at TIMESTAMPTZ;
-		ALTER TABLE kanban_tasks ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;
-
-		-- Backfill GUIDs for existing rows
-		UPDATE kanban_tasks SET guid = gen_random_uuid() WHERE guid IS NULL;
-
-		-- Git commit audit trail (ADR-038)
-		ALTER TABLE kanban_tasks ADD COLUMN IF NOT EXISTS commits JSONB DEFAULT '[]';
-	`)
-	return err
+// CheckSchema confirms kanban_tasks has every column the store uses. The
+// table is defined by db/migrations (003, applied by db/init.sh or
+// well-migrate), never at startup: the store runs as app_kanban, which may
+// read and write rows but not change the table (ERDA W-02, 3.3). It reads
+// nothing (LIMIT 0), so it needs only SELECT.
+func (s *KanbanStore) CheckSchema(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT id, guid, title, description, status, type, owner, progress,
+		       created_at, updated_at, deleted_at, archived_at, commits
+		FROM kanban_tasks LIMIT 0`)
+	if err != nil {
+		return fmt.Errorf("%w: %v", ErrSchema, err)
+	}
+	return rows.Close()
 }
 
 // GetAllTasks returns active tasks (not deleted, not archived) ordered by creation time.

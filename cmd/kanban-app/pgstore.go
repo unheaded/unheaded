@@ -20,11 +20,12 @@ type PgStore struct {
 	db    *sql.DB // retained for Close()
 }
 
-// NewPgStore creates a Postgres-backed TaskStore. It ensures the schema
-// exists before returning.
+// NewPgStore creates a Postgres-backed TaskStore. It refuses to start when
+// The Well lacks the kanban_tasks shape (migrations define it, not this
+// process).
 func NewPgStore(db *sql.DB) (*PgStore, error) {
 	ks := database.NewKanbanStore(db)
-	if err := ks.EnsureSchema(context.Background()); err != nil {
+	if err := ks.CheckSchema(context.Background()); err != nil {
 		return nil, err
 	}
 	return &PgStore{inner: ks, db: db}, nil

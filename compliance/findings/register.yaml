@@ -65,16 +65,6 @@ findings:
       On GitHub at 289aabcb every gate bit except check-clippy, INCONCLUSIVE because clippy was already red (protoc missing). 7682968c
       installs protoc in this job too; resolves when pushed
 
-  - source: "host-probe:west:db-backup-recent"
-    severity: medium
-    class: backup
-    opened: 2026-09-30
-    exposure: newest dump 2026-09-22; no schedule, manual only
-    lockout: none
-    step: 1
-    accepted: {reason: "Stevie 2026-09-30: little disk to spare and GitHub is sufficient for now", compensating: "pushed code is on GitHub; unpushed commits to be mirrored to east (FND-005); database contents have no copy", accepted_on: 2026-09-30, until: 2026-12-29}
-    plan: re-decide at expiry; a scheduled db-backup.sh with retention when space allows
-
   # --- step 2: sysctl (reversible, no lockout) -----------------------------
   # --- step 3: auditd -------------------------------------------------------
   # --- step 4: low-risk sshd keys -------------------------------------------
@@ -853,6 +843,14 @@ findings:
     plan: >-
       Switch kanban-app to app_kanban (grants already exist in 003/007), with the password from an env var that has no default.
       Check the other compose services for the same pattern at the same time
+    resolved:
+      on: 2026-10-15
+      evidence: >-
+        docker-compose.yml gives kanban-app WELL_USER app_kanban and WELL_PASSWORD ${APP_KANBAN_PASSWORD:?...} (no default;
+        compose refuses to start without it). Live: app_kanban's password rotated off the repo's kanban_dev into the
+        gitignored .env (0600); the rebuilt kanban-app connects as app_kanban (pg_stat_activity shows no superuser session)
+        and serves all 73 cards from unheaded_app. Startup DDL replaced by KanbanStore.CheckSchema (SELECT-only; a non-owner
+        cannot ALTER, which the old EnsureSchema did). No other compose service passes Well credentials
 
   # --- CIS 5.1 sshd algorithms, access, banner (2026-09-30) ----------------
 
@@ -1335,16 +1333,6 @@ findings:
     plan: >-
       48 files at Ubuntu's 0644 defaults (dpkg, apt, alternatives, installer, unattended-upgrades,
       landscape, sysstat): chmod o-r, and fix the create mode in the rotation that recreates each
-
-  - source: "git-signatures:develop"
-    severity: low
-    class: ci
-    opened: 2026-10-13
-    lockout: none
-    step: 1
-    plan: >-
-      The 2026-10-13 unattended commits are unsigned (gpg key not cached). Stevie caches the key,
-      then scripts/resign-unpushed.py re-signs them before push
 
   # --- CIS 5.2.7, 5.4.2.4-6, 5.4.3.3, 7.2.9-10: UH-ACCT-02 (2026-10-13) ---------
 
