@@ -1,6 +1,6 @@
 -- SPDX-License-Identifier: GPL-3.0-or-later
 -- The Well — migration ledger (ADR-101). Not a migration: db/init.sh and
--- cmd/well-migrate apply it to each database before recording anything
+-- well-migrate (ADR-101) apply it to each database before recording anything
 -- there. Idempotent.
 --
 -- One row per migration file applied to this database, with the sha256 of

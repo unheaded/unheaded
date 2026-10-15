@@ -36,7 +36,7 @@ data:
     echo "=== The Well — Initializing databases ==="
 
     # db/migrations/MANIFEST says which file runs against which database, in
-    # order; cmd/well-migrate reads the same file for an existing Well (ADR-101).
+    # order; the well-migrate runner reads the same file for an existing Well (ADR-101).
     # Each file is recorded in its database's well_schema_migrations ledger with
     # its sha256, mode initdb, so a fresh Well starts with a complete ledger.
     # Lines: `<database> <file> [notx]`, `skip <file>`, blank, or # comments.
@@ -94,7 +94,7 @@ data:
     #   <database> <file> [notx]     apply <file> to <database>, in this order
     #   skip <file>                  in this directory, deliberately never applied
     #
-    # Read by db/init.sh (empty volume) and cmd/well-migrate (an existing Well);
+    # Read by db/init.sh (empty volume) and well-migrate (an existing Well);
     # each records what it ran in that database's well_schema_migrations ledger.
     # Cluster-level files (roles, databases, grants on databases) run against,
     # and are recorded in, `postgres`. notx: statement by statement outside a
@@ -131,7 +131,7 @@ data:
   LEDGER.sql: |
     -- SPDX-License-Identifier: GPL-3.0-or-later
     -- The Well — migration ledger (ADR-101). Not a migration: db/init.sh and
-    -- cmd/well-migrate apply it to each database before recording anything
+    -- well-migrate (ADR-101) apply it to each database before recording anything
     -- there. Idempotent.
     --
     -- One row per migration file applied to this database, with the sha256 of

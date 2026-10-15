@@ -22,7 +22,7 @@ psql_su() { psql -v ON_ERROR_STOP=1 -U "$POSTGRES_USER" "$@"; }
 echo "=== The Well — Initializing databases ==="
 
 # db/migrations/MANIFEST says which file runs against which database, in
-# order; cmd/well-migrate reads the same file for an existing Well (ADR-101).
+# order; the well-migrate runner reads the same file for an existing Well (ADR-101).
 # Each file is recorded in its database's well_schema_migrations ledger with
 # its sha256, mode initdb, so a fresh Well starts with a complete ledger.
 # Lines: `<database> <file> [notx]`, `skip <file>`, blank, or # comments.
