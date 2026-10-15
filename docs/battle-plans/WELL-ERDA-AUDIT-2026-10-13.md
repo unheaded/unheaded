@@ -98,7 +98,7 @@ live system and need Stevie's yes.
 - [x] 0.2 *(2026-10-15: `scripts/db-backup.sh` set well-123943Z, drill PASS 5 DBs/13 tables/225 rows/13 s; copy to east still open, see 1.2)* Before anything else: `pg_dumpall --globals-only` plus `pg_dump -Fc`
       of `unheaded`, `unheaded_app`, `unheaded_ops`, `unheaded_config` to
       `~/backups/well/2026-10-13/`; `pg_restore -l` each; copy to east.
-- [ ] 0.3 `well_health.sql` on each DB as `huginn_reader` (pg_monitor);
+- [x] 0.3 *(2026-10-15: `well-health-2026-10-15/<db>.txt`, run as the superuser with `role=huginn_reader` because Huginn holds all 3 of that role's connections. Clean: no long transactions, blocking, bloat, invalid or duplicate indexes, unindexed FKs or PK-less tables; XID age 4.9k. Found: PUBLIC has CONNECT+TEMP on every database (fixed by 2.2); pg_stat_statements absent, ssl off, checksums off, shared_buffers 128MB (Phase 4). Unused-index stats are 2.5 h old: too young for 5.3)* `well_health.sql` on each DB as `huginn_reader` (pg_monitor);
       save the output beside this plan as the live baseline.
 - [x] 0.4 *(2026-10-15: postgres = 002+012 in effect; ops and config EMPTY (the broken old initdb); app built by startup DDL, not 003: kanban_tasks guid nullable + unique guid index, no 003 indexes/trigger; zhen_conversations in 010's shape; no timeline_milestones; zhen_actions/memories/snapshots match. Legacy `unheaded` holds 001-era tables + Wotan's wotan_* tables + 4 kingdom_config rows)* Shape diff: live schema (`pg_dump --schema-only`) vs a fresh
       bootstrap of develop; record every difference (expect 001-era tables in
