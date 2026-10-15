@@ -1,14 +1,17 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 # The Well — migration order and routing (ADR-101).
 #
-#   <database> <file> [notx]     apply <file> to <database>, in this order
+#   <database> <file> [notx] [superuser]
+#                                apply <file> to <database>, in this order
 #   skip <file>                  in this directory, deliberately never applied
 #
 # Read by db/init.sh (empty volume) and well-migrate (an existing Well);
 # each records what it ran in that database's well_schema_migrations ledger.
 # Cluster-level files (roles, databases, grants on databases) run against,
 # and are recorded in, `postgres`. notx: statement by statement outside a
-# transaction (CREATE DATABASE cannot run in one).
+# transaction (CREATE DATABASE cannot run in one). Once 025 gives a
+# database a non-superuser owner, its files run as that owner (SET ROLE),
+# so what they create belongs to it; superuser: keep the superuser.
 #
 # Never edit a file once it is applied anywhere: the ledger holds its
 # sha256 and well-migrate refuses to run past the difference. Add a new one.
@@ -38,6 +41,10 @@ unheaded_app     021_app_drop_zhen_actions_duplicate_indexes.sql
 unheaded_ops     022_ops_audit_events_one_taxonomy.sql
 postgres         023_well_backup_role.sql
 unheaded_ops     024_ops_drop_health_hourly.sql
+postgres         025_well_owner_roles.sql
+unheaded_app     026_owner_takes_objects.sql  superuser
+unheaded_ops     026_owner_takes_objects.sql  superuser
+unheaded_config  026_owner_takes_objects.sql  superuser
 
 # The pre-split single-database schema, superseded by 003/004/005: applying
 # it would put a fourth copy of kanban_tasks, timeline_milestones and

@@ -25,9 +25,10 @@ echo "=== The Well — Initializing databases ==="
 # order; the well-migrate runner reads the same file for an existing Well (ADR-101).
 # Each file is recorded in its database's well_schema_migrations ledger with
 # its sha256, mode initdb, so a fresh Well starts with a complete ledger.
-# Lines: `<database> <file> [notx]`, `skip <file>`, blank, or # comments.
-# (notx only matters to the runner: psql -f already sends each statement
-# alone.)
+# Lines: `<database> <file> [notx] [superuser]`, `skip <file>`, blank, or #
+# comments. (notx only matters to the runner: psql -f already sends each
+# statement alone.) Like the runner, a file runs as its database's owner
+# role once that owner is not a superuser (025), unless flagged superuser.
 ledgers=" "
 record() { # database file
   case "$ledgers" in *" $1 "*) ;; *)
@@ -40,10 +41,15 @@ INSERT INTO well_schema_migrations (filename, sha256, mode) VALUES (:'f', :'h', 
 SQL
 }
 exec 3<"$MIGRATIONS/MANIFEST"
-while read -r db file _ <&3; do
+while read -r db file flags <&3; do
   case "$db" in ''|'#'*|skip) continue ;; esac
   echo "The Well: $file -> $db"
-  psql_su -d "$db" -f "$MIGRATIONS/$file"
+  set -- -f "$MIGRATIONS/$file"
+  case " $flags " in *" superuser "*) ;; *)
+    owner="$(psql_su -d "$db" -Atq -c "SELECT r.rolname FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = current_database() AND NOT r.rolsuper")"
+    if [ -n "$owner" ]; then set -- -c "SET ROLE \"$owner\"" "$@"; fi ;;
+  esac
+  psql_su -d "$db" "$@"
   record "$db" "$file"
 done
 exec 3<&-

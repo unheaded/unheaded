@@ -39,9 +39,10 @@ data:
     # order; the well-migrate runner reads the same file for an existing Well (ADR-101).
     # Each file is recorded in its database's well_schema_migrations ledger with
     # its sha256, mode initdb, so a fresh Well starts with a complete ledger.
-    # Lines: `<database> <file> [notx]`, `skip <file>`, blank, or # comments.
-    # (notx only matters to the runner: psql -f already sends each statement
-    # alone.)
+    # Lines: `<database> <file> [notx] [superuser]`, `skip <file>`, blank, or #
+    # comments. (notx only matters to the runner: psql -f already sends each
+    # statement alone.) Like the runner, a file runs as its database's owner
+    # role once that owner is not a superuser (025), unless flagged superuser.
     ledgers=" "
     record() { # database file
       case "$ledgers" in *" $1 "*) ;; *)
@@ -54,10 +55,15 @@ data:
     SQL
     }
     exec 3<"$MIGRATIONS/MANIFEST"
-    while read -r db file _ <&3; do
+    while read -r db file flags <&3; do
       case "$db" in ''|'#'*|skip) continue ;; esac
       echo "The Well: $file -> $db"
-      psql_su -d "$db" -f "$MIGRATIONS/$file"
+      set -- -f "$MIGRATIONS/$file"
+      case " $flags " in *" superuser "*) ;; *)
+        owner="$(psql_su -d "$db" -Atq -c "SELECT r.rolname FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba WHERE d.datname = current_database() AND NOT r.rolsuper")"
+        if [ -n "$owner" ]; then set -- -c "SET ROLE \"$owner\"" "$@"; fi ;;
+      esac
+      psql_su -d "$db" "$@"
       record "$db" "$file"
     done
     exec 3<&-
@@ -92,14 +98,17 @@ data:
     # SPDX-License-Identifier: GPL-3.0-or-later
     # The Well — migration order and routing (ADR-101).
     #
-    #   <database> <file> [notx]     apply <file> to <database>, in this order
+    #   <database> <file> [notx] [superuser]
+    #                                apply <file> to <database>, in this order
     #   skip <file>                  in this directory, deliberately never applied
     #
     # Read by db/init.sh (empty volume) and well-migrate (an existing Well);
     # each records what it ran in that database's well_schema_migrations ledger.
     # Cluster-level files (roles, databases, grants on databases) run against,
     # and are recorded in, `postgres`. notx: statement by statement outside a
-    # transaction (CREATE DATABASE cannot run in one).
+    # transaction (CREATE DATABASE cannot run in one). Once 025 gives a
+    # database a non-superuser owner, its files run as that owner (SET ROLE),
+    # so what they create belongs to it; superuser: keep the superuser.
     #
     # Never edit a file once it is applied anywhere: the ledger holds its
     # sha256 and well-migrate refuses to run past the difference. Add a new one.
@@ -129,6 +138,10 @@ data:
     unheaded_ops     022_ops_audit_events_one_taxonomy.sql
     postgres         023_well_backup_role.sql
     unheaded_ops     024_ops_drop_health_hourly.sql
+    postgres         025_well_owner_roles.sql
+    unheaded_app     026_owner_takes_objects.sql  superuser
+    unheaded_ops     026_owner_takes_objects.sql  superuser
+    unheaded_config  026_owner_takes_objects.sql  superuser
 
     # The pre-split single-database schema, superseded by 003/004/005: applying
     # it would put a fourth copy of kanban_tasks, timeline_milestones and
@@ -1511,3 +1524,88 @@ data:
     END $$;
 
     DROP TABLE IF EXISTS service_health_hourly;
+  025_well_owner_roles.sql: |
+    -- SPDX-License-Identifier: GPL-3.0-or-later
+    -- The Well — one owner role per database, and no connections by default
+    -- (ERDA 2.2, W-02), cluster-level.
+    --
+    -- The superuser owned every database and every object in them. Each
+    -- database now belongs to a NOLOGIN role that nobody can log in as:
+    -- well-migrate and db/init.sh SET ROLE to it for every later migration
+    -- (MANIFEST flag `superuser` opts out), so new objects belong to the owner,
+    -- and 026 hands over the objects that exist. The superuser stays the
+    -- cluster's administrator; it no longer owns application data.
+    --
+    -- PUBLIC had CONNECT and TEMPORARY on every database (well_health.sql,
+    -- 2026-10-15). Now each role connects only where it has grants:
+    --   unheaded_app     app_kanban app_timeguru app_zhen ops_reader
+    --   unheaded_ops     ops_writer ops_reader
+    --   unheaded_config  config_admin config_reader app_kanban app_timeguru app_zhen
+    -- plus huginn_reader (012) on those three and well_backup (023) on every
+    -- database, since db-backup.sh dumps every database that accepts
+    -- connections.
+
+    DO $$
+    DECLARE
+        r text;
+        d text;
+    BEGIN
+        FOREACH r IN ARRAY ARRAY['well_app_owner', 'well_ops_owner', 'well_config_owner'] LOOP
+            IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = r) THEN
+                EXECUTE format('CREATE ROLE %I NOLOGIN', r);
+            END IF;
+        END LOOP;
+        FOR d IN SELECT datname FROM pg_database WHERE datallowconn AND NOT datistemplate LOOP
+            EXECUTE format('REVOKE CONNECT, TEMPORARY ON DATABASE %I FROM PUBLIC', d);
+            EXECUTE format('GRANT CONNECT ON DATABASE %I TO well_backup', d);
+        END LOOP;
+    END $$;
+
+    ALTER DATABASE unheaded_app OWNER TO well_app_owner;
+    ALTER DATABASE unheaded_ops OWNER TO well_ops_owner;
+    ALTER DATABASE unheaded_config OWNER TO well_config_owner;
+
+    GRANT CONNECT ON DATABASE unheaded_app TO app_kanban, app_timeguru, app_zhen, ops_reader, huginn_reader;
+    GRANT CONNECT ON DATABASE unheaded_ops TO ops_writer, ops_reader, huginn_reader;
+    GRANT CONNECT ON DATABASE unheaded_config TO config_admin, config_reader, app_kanban, app_timeguru, app_zhen, huginn_reader;
+  026_owner_takes_objects.sql: |
+    -- SPDX-License-Identifier: GPL-3.0-or-later
+    -- The Well — hand this database's objects to its owner role (ERDA 2.2),
+    -- per database (app, ops, config). Runs as the superuser (MANIFEST flag
+    -- `superuser`): only an object's current owner can give it away.
+    --
+    -- Tables, views and free-standing sequences in public, and the functions
+    -- there, go to the database's owner (025). Sequences a table owns follow
+    -- their table. Left with the superuser: the ledger (well_schema_migrations)
+    -- and well_append_only(), which LEDGER.sql re-creates as the superuser on
+    -- every run. Grants are unchanged; their grantor becomes the new owner.
+
+    DO $$
+    DECLARE
+        owner text;
+        r record;
+    BEGIN
+        SELECT pg_get_userbyid(datdba) INTO owner FROM pg_database WHERE datname = current_database();
+        IF owner IS NULL OR owner !~ '^well_[a-z]+_owner$' THEN
+            RAISE EXCEPTION '026: % is owned by %, not a well_*_owner role (run 025 first)', current_database(), owner;
+        END IF;
+        FOR r IN
+            SELECT c.relname, c.relkind FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p', 'v', 'm', 'S')
+              AND c.relname <> 'well_schema_migrations'
+              AND NOT (c.relkind = 'S' AND EXISTS (
+                    SELECT 1 FROM pg_depend dep WHERE dep.classid = 'pg_class'::regclass
+                      AND dep.objid = c.oid AND dep.deptype IN ('a', 'i')))
+            ORDER BY c.relname
+        LOOP
+            EXECUTE format('ALTER %s %I OWNER TO %I',
+                CASE r.relkind WHEN 'S' THEN 'SEQUENCE' WHEN 'v' THEN 'VIEW' WHEN 'm' THEN 'MATERIALIZED VIEW' ELSE 'TABLE' END,
+                r.relname, owner);
+        END LOOP;
+        FOR r IN
+            SELECT p.oid::regprocedure AS sig FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+            WHERE n.nspname = 'public' AND p.proname <> 'well_append_only'
+        LOOP
+            EXECUTE format('ALTER FUNCTION %s OWNER TO %I', r.sig, owner);
+        END LOOP;
+    END $$;

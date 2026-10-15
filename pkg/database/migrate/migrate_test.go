@@ -14,11 +14,11 @@ import (
 )
 
 func TestParseManifest(t *testing.T) {
-	m, err := ParseManifest(strings.NewReader("# c\n\npostgres 002_a.sql notx\nunheaded_app 003_b.sql\nunheaded_ops 003_b.sql\nskip 001_old.sql\n"))
+	m, err := ParseManifest(strings.NewReader("# c\n\npostgres 002_a.sql notx\nunheaded_app 003_b.sql\nunheaded_ops 003_b.sql superuser\npostgres 004_c.sql superuser notx\nskip 001_old.sql\n"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := []Entry{{DB: "postgres", File: "002_a.sql", NoTx: true, Line: 3}, {DB: "unheaded_app", File: "003_b.sql", Line: 4}, {DB: "unheaded_ops", File: "003_b.sql", Line: 5}}
+	want := []Entry{{DB: "postgres", File: "002_a.sql", NoTx: true, Line: 3}, {DB: "unheaded_app", File: "003_b.sql", Line: 4}, {DB: "unheaded_ops", File: "003_b.sql", Superuser: true, Line: 5}, {DB: "postgres", File: "004_c.sql", NoTx: true, Superuser: true, Line: 6}}
 	if !reflect.DeepEqual(m.Entries, want) || !reflect.DeepEqual(m.Skip, []string{"001_old.sql"}) {
 		t.Fatalf("got %+v", m)
 	}
@@ -30,7 +30,9 @@ func TestParseManifest(t *testing.T) {
 		"unnumbered":        "postgres a.sql\n",
 		"duplicate":         "postgres 002_a.sql\npostgres 002_a.sql\n",
 		"applied and skip":  "postgres 002_a.sql\nskip 002_a.sql\n",
-		"too many fields":   "postgres 002_a.sql notx extra\n",
+		"unknown flag":      "postgres 002_a.sql notx extra\n",
+		"repeated flag":     "postgres 002_a.sql notx notx\n",
+		"too many fields":   "postgres 002_a.sql notx superuser extra\n",
 		"skip without file": "skip\n",
 	} {
 		if _, err := ParseManifest(strings.NewReader(in)); err == nil {

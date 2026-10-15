@@ -154,7 +154,7 @@ live system and need Stevie's yes.
       `scripts/well/test-backup-restore.sh`. Only fresh volumes are affected:
       the live Well keeps its `*_dev` passwords until rotated in Phase 2.
       `POSTGRES_PASSWORD:?` still waits for Phase 0.
-- [ ] 2.2 One owner role per database (`well_app_owner`, `well_ops_owner`,
+- [x] 2.2 *(2026-10-15: 025 creates the three NOLOGIN owners, gives each its database, revokes PUBLIC CONNECT+TEMPORARY on every database and grants CONNECT per role; 026 (flag `superuser`) hands every relation and function but the ledger and well_append_only() to the owner. Runner and init.sh `SET ROLE` to a non-superuser database owner for every later file (ADR-101 §7), which replaces default privileges: new objects are the owner's, and grants stay explicit per migration. test-migrate.sh checks owners, the flag and the CONNECT map (provoked red). Applied live after set well-151230Z; converge --live PASS; health writes and kanban unaffected)* One owner role per database (`well_app_owner`, `well_ops_owner`,
       `well_config_owner`, NOLOGIN); `ALTER ... OWNER TO`; default privileges.
 - [x] 2.3 History tables INSERT/SELECT only for writers, plus the 013/014
       trigger pattern (refuse UPDATE/DELETE/TRUNCATE) on `audit_events`,

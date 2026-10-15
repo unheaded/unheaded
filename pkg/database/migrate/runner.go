@@ -130,7 +130,13 @@ func (r *Runner) applyOne(ctx context.Context, set Set, st Step, mode string) er
 			return errors.Join(err, errAlready(done))
 		}
 		if mode == "apply" {
+			if err := becomeOwner(ctx, tx, st.File, true); err != nil {
+				return err
+			}
 			if _, err := tx.ExecContext(ctx, st.SQL); err != nil {
+				return err
+			}
+			if _, err := tx.ExecContext(ctx, `RESET ROLE`); err != nil {
 				return err
 			}
 		}
@@ -155,10 +161,17 @@ func (r *Runner) applyOne(ctx context.Context, set Set, st Step, mode string) er
 	if done, err := recorded(ctx, conn, st.File.File); err != nil || done {
 		return errors.Join(err, errAlready(done))
 	}
+	if err := becomeOwner(ctx, conn, st.File, false); err != nil {
+		return err
+	}
+	defer func() { _, _ = conn.ExecContext(context.Background(), `RESET ROLE`) }()
 	for i, s := range stmts {
 		if _, err := conn.ExecContext(ctx, s); err != nil {
 			return fmt.Errorf("statement %d of %d failed after %d ran outside a transaction (not recorded; check by hand): %w", i+1, len(stmts), i, err)
 		}
+	}
+	if _, err := conn.ExecContext(ctx, `RESET ROLE`); err != nil {
+		return err
 	}
 	if _, err := conn.ExecContext(ctx, record, st.File.File, st.SHA256, mode); err != nil {
 		return fmt.Errorf("ran, but recording failed: %w", err)
@@ -168,6 +181,34 @@ func (r *Runner) applyOne(ctx context.Context, set Set, st Step, mode string) er
 
 type queryer interface {
 	QueryRowContext(ctx context.Context, query string, args ...any) *sql.Row
+}
+
+type execQueryer interface {
+	queryer
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+// becomeOwner switches to the database's owner role when that owner is not
+// a superuser (ERDA 2.2, db/migrations/025), so what the migration creates
+// belongs to the owner, as on a fresh Well. Entries flagged superuser keep
+// the runner's role. local scopes the switch to the transaction.
+func becomeOwner(ctx context.Context, x execQueryer, f File, local bool) error {
+	if f.Superuser {
+		return nil
+	}
+	var role string
+	err := x.QueryRowContext(ctx, `SELECT r.rolname FROM pg_database d JOIN pg_roles r ON r.oid = d.datdba
+		WHERE d.datname = current_database() AND NOT r.rolsuper`).Scan(&role)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil
+	}
+	if err != nil {
+		return fmt.Errorf("database owner: %w", err)
+	}
+	if _, err := x.ExecContext(ctx, `SELECT set_config('role', $1, $2)`, role, local); err != nil {
+		return fmt.Errorf("set role %s: %w", role, err)
+	}
+	return nil
 }
 
 // recorded re-checks the ledger under the lock: another runner may have

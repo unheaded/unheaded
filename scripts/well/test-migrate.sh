@@ -15,7 +15,11 @@
 #   6. the ledger refuses edits;
 #   7. a Well bootstrapped by the pre-ledger db/ (the live one today) is
 #      baselined through 016 without running anything, then apply runs
-#      017 onwards.
+#      017 onwards;
+#   8. owners (025/026): every object but the ledger belongs to its
+#      database's owner role, init.sh and apply create new objects as that
+#      owner unless the entry is flagged superuser, PUBLIC cannot connect
+#      and each service role reaches only its databases.
 #
 #   scripts/well/test-migrate.sh [image]   # default postgres:16.13-alpine
 set -euo pipefail
@@ -52,6 +56,10 @@ mkdir -p "$TMP/db"
 cp -a "$R/db/migrations" "$TMP/db/migrations"
 cp "$R/db/init.sh" "$TMP/db/init.sh"
 M="$TMP/db/migrations"
+# Two extra entries after 026, run by init.sh: one as the owner, one flagged.
+echo "CREATE TABLE test_init_owner (id int PRIMARY KEY);" >"$M/898_test_init_owner.sql"
+echo "CREATE TABLE test_init_su (id int PRIMARY KEY);" >"$M/899_test_init_su.sql"
+printf '%s\n' "unheaded_ops 898_test_init_owner.sql" "unheaded_ops 899_test_init_su.sql superuser" >>"$M/MANIFEST"
 start "$N" "$M"
 PORT="$("${DOCKER[@]}" port "$N" 5432/tcp | head -1 | sed 's/.*://')"
 
@@ -87,6 +95,25 @@ dups=$(sq unheaded_app "SELECT count(*) FROM pg_index a JOIN pg_index b ON a.ind
 [[ "$(sq unheaded_config "SELECT to_regclass('idx_compliance_host_bindings_profile') IS NOT NULL")" == t ]] &&
 	pass "bindings(profile) indexed" || fail "bindings(profile) not indexed"
 
+# 8. Owners (ERDA 2.2).
+owner_of() { sq "$1" "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = '$2'::regclass"; }
+for pair in unheaded_app:well_app_owner unheaded_ops:well_ops_owner unheaded_config:well_config_owner; do
+	db=${pair%%:*} want=${pair#*:}
+	[[ "$(sq postgres "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = '$db'")" == "$want" ]] &&
+		pass "$db owned by $want" || fail "$db owner"
+	stray=$(sq "$db" "SELECT count(*) FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r','p','v','m','S') AND c.relname NOT IN ('well_schema_migrations', 'test_init_su') AND pg_get_userbyid(c.relowner) <> '$want'")
+	strayf=$(sq "$db" "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace WHERE n.nspname = 'public' AND p.proname <> 'well_append_only' AND pg_get_userbyid(p.proowner) <> '$want'")
+	[[ "$stray$strayf" == 00 ]] && pass "$db: every relation and function is $want's" || fail "$db: $stray relation(s), $strayf function(s) not $want's"
+	[[ "$(owner_of "$db" well_schema_migrations)" == unheaded ]] && pass "$db: ledger stays the superuser's" || fail "$db: ledger owner"
+	[[ "$(sq postgres "SELECT has_database_privilege('public', '$db', 'CONNECT') OR has_database_privilege('public', '$db', 'TEMPORARY')")" == f ]] &&
+		pass "$db: PUBLIC has no CONNECT/TEMPORARY" || fail "$db: PUBLIC can connect"
+done
+[[ "$(owner_of unheaded_ops test_init_owner)" == well_ops_owner ]] && pass "init.sh ran a later entry as the owner" || fail "init.sh owner: $(owner_of unheaded_ops test_init_owner)"
+[[ "$(owner_of unheaded_ops test_init_su)" == unheaded ]] && pass "init.sh kept the superuser for a superuser entry" || fail "superuser entry owner: $(owner_of unheaded_ops test_init_su)"
+reach=$(sq postgres "SELECT string_agg(r || '>' || d, ' ' ORDER BY r, d) FROM unnest(ARRAY['app_kanban','ops_writer','config_admin','huginn_reader','well_backup']) r, unnest(ARRAY['postgres','unheaded_app','unheaded_ops','unheaded_config']) d WHERE has_database_privilege(r, d, 'CONNECT')")
+want_reach="app_kanban>unheaded_app app_kanban>unheaded_config config_admin>unheaded_config huginn_reader>unheaded_app huginn_reader>unheaded_config huginn_reader>unheaded_ops ops_writer>unheaded_ops well_backup>postgres well_backup>unheaded_app well_backup>unheaded_config well_backup>unheaded_ops"
+[[ "$reach" == "$want_reach" ]] && pass "service roles connect only where granted" || fail "CONNECT map: $reach"
+
 # 2. A new migration.
 cat >"$M/901_test_widgets.sql" <<'SQL'
 CREATE TABLE test_widgets (id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY, name text NOT NULL);
@@ -99,6 +126,7 @@ expect 0 "apply without -yes" wm apply
 expect 0 "apply -yes" wm apply -yes
 [[ "$(sq unheaded_app "SELECT mode FROM well_schema_migrations WHERE filename = '901_test_widgets.sql'")" == apply ]] &&
 	pass "901 recorded as apply" || fail "901 not recorded"
+[[ "$(owner_of unheaded_app test_widgets)" == well_app_owner ]] && pass "apply created 901's table as the owner" || fail "901 owner: $(owner_of unheaded_app test_widgets)"
 expect 0 "status clean after apply" wm status
 expect 0 "second apply is a no-op" wm apply -yes
 
@@ -174,6 +202,8 @@ expect 0 "old Well: status clean" wm status
 	pass "apply ran 019 on the old Well" || fail "019 not applied"
 [[ "$(osq unheaded_app "SELECT string_agg(mode, ',' ORDER BY applied_at, filename) FROM (SELECT DISTINCT mode, min(applied_at) AS applied_at, min(filename) AS filename FROM well_schema_migrations GROUP BY mode) m")" == baseline,apply ]] &&
 	pass "unheaded_app ledger: baseline rows, then apply" || fail "unheaded_app ledger modes"
+[[ "$(osq unheaded_config "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = 'kingdom_config'::regclass")" == well_config_owner ]] &&
+	pass "old Well: 026 handed kingdom_config to well_config_owner" || fail "old Well: kingdom_config owner"
 unset WP
 
 if ((fails > 0)); then echo "$fails check(s) failed"; exit 1; fi

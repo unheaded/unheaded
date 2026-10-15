@@ -64,6 +64,18 @@ schema changes it has had:
    two runners never race. A transactional migration and its ledger row
    commit together: a failure changes nothing and records nothing. A `notx`
    file that fails part way says how many statements ran.
+7. **Migrations run as the database's owner** *(amended 2026-10-15, ERDA
+   2.2)*. 025 gives each database a NOLOGIN owner role
+   (`well_app_owner`, `well_ops_owner`, `well_config_owner`) and 026 hands
+   it every object but the ledger and `well_append_only()`. From then on,
+   init.sh and the runner `SET ROLE` to that owner for each file (in the
+   transaction, or for the session of a `notx` file), so new objects belong
+   to it on a fresh Well and a migrated one alike. A manifest line flagged
+   `superuser` (`<database> <file> [notx] [superuser]`) keeps the
+   superuser: for files that hand objects over or need cluster privileges.
+   The ledger row is written after `RESET ROLE`. `scripts/well/test-migrate.sh`
+   checks owners after init.sh and after apply, the flag, and that PUBLIC
+   cannot connect.
 
 ## Consequences
 

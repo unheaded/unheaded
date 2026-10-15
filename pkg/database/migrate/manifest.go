@@ -37,12 +37,16 @@ var (
 
 // Entry is one manifest line: apply File to database DB. NoTx entries run
 // statement by statement outside a transaction (CREATE DATABASE cannot run
-// in one).
+// in one). Every entry runs as the database's owner role when that owner is
+// not a superuser (ERDA 2.2: objects a migration creates belong to the
+// owner); Superuser entries keep the runner's superuser (the ones that
+// hand objects over, or need cluster privileges).
 type Entry struct {
-	DB   string
-	File string
-	NoTx bool
-	Line int
+	DB        string
+	File      string
+	NoTx      bool
+	Superuser bool
+	Line      int
 }
 
 // Manifest is the ordered entries plus the files deliberately not applied.
@@ -51,7 +55,7 @@ type Manifest struct {
 	Skip    []string
 }
 
-// ParseManifest reads lines of `<database> <file> [notx]` and
+// ParseManifest reads lines of `<database> <file> [notx] [superuser]` and
 // `skip <file>`; blank lines and # comments are ignored.
 func ParseManifest(r io.Reader) (Manifest, error) {
 	var m Manifest
@@ -70,8 +74,8 @@ func ParseManifest(r io.Reader) (Manifest, error) {
 			m.Skip = append(m.Skip, f[1])
 			continue
 		}
-		if len(f) < 2 || len(f) > 3 {
-			return m, fmt.Errorf("manifest line %d: want `<database> <file> [notx]`", n)
+		if len(f) < 2 || len(f) > 4 {
+			return m, fmt.Errorf("manifest line %d: want `<database> <file> [notx] [superuser]`", n)
 		}
 		e := Entry{DB: f[0], File: f[1], Line: n}
 		if !dbNameRe.MatchString(e.DB) {
@@ -80,11 +84,15 @@ func ParseManifest(r io.Reader) (Manifest, error) {
 		if !fileNameRe.MatchString(e.File) {
 			return m, fmt.Errorf("manifest line %d: bad file name %q (want NNN_name.sql)", n, e.File)
 		}
-		if len(f) == 3 {
-			if f[2] != "notx" {
-				return m, fmt.Errorf("manifest line %d: unknown flag %q", n, f[2])
+		for _, flag := range f[2:] {
+			switch {
+			case flag == "notx" && !e.NoTx:
+				e.NoTx = true
+			case flag == "superuser" && !e.Superuser:
+				e.Superuser = true
+			default:
+				return m, fmt.Errorf("manifest line %d: unknown or repeated flag %q", n, flag)
 			}
-			e.NoTx = true
 		}
 		key := [2]string{e.DB, e.File}
 		if seen[key] {
