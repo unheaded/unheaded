@@ -86,36 +86,3 @@ func (s *HealthStore) GetTransitions(ctx context.Context, service string, limit 
 	}
 	return results, rows.Err()
 }
-
-// GetHourly returns hourly health statistics for a service over the given number of hours.
-// Uses the HourlyStat type defined in bridge.go.
-func (s *HealthStore) GetHourly(ctx context.Context, service string, hours int) ([]HourlyStat, error) {
-	if hours <= 0 {
-		hours = 24
-	}
-	since := time.Now().UTC().Add(-time.Duration(hours) * time.Hour).Truncate(time.Hour)
-
-	rows, err := s.db.QueryContext(ctx,
-		`SELECT service_name, host, hour, checks_total, checks_healthy,
-		        checks_degraded, checks_unhealthy, avg_response_ms,
-		        max_response_ms, min_response_ms
-		 FROM service_health_hourly
-		 WHERE service_name = $1 AND hour >= $2
-		 ORDER BY hour DESC`, service, since)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var results []HourlyStat
-	for rows.Next() {
-		var h HourlyStat
-		if err := rows.Scan(&h.ServiceName, &h.Host, &h.Hour, &h.ChecksTotal,
-			&h.ChecksHealthy, &h.ChecksDegraded, &h.ChecksUnhealthy,
-			&h.AvgResponseMs, &h.MaxResponseMs, &h.MinResponseMs); err != nil {
-			return nil, err
-		}
-		results = append(results, h)
-	}
-	return results, rows.Err()
-}

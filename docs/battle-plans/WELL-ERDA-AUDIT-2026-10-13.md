@@ -243,7 +243,7 @@ live system and need Stevie's yes.
       exist). Low-value indexes still wait for Phase 0 stats.
 - [ ] 5.4 Retention and partitioning for append-only tables per the
       retention policy (time partitions dropped, never rows deleted).
-- [ ] 5.5 Health bridge: wire it to Akira's topic and shape with a contract
+- [x] 5.5 *(2026-10-15, Stevie: "go with your pick": current state + transitions wired, hourly dropped. The bridge reads Akira's system.health.reports shape (contract test pins the two structs), host = reporter, stores only reports newer than the stored state (replays and out-of-order messages change nothing), records each status change at the report's time; dashboard-backend streams the topic into it as ops_writer (password rotated into .env); 024 drops service_health_hourly; /api/v1/health/trends removed (unused). Correction to the note below: dashboard-backend did construct the bridge, for reads only; nothing ever wrote. Live: 5 services reported by west within the first sweep)* Health bridge: wire it to Akira's topic and shape with a contract
       test, or delete it and the `service_health_*` tables. **Found 2026-10-15:**
       `database.NewWotanBridge` has no callers at all, so nothing would
       run the bridge even with the topic fixed. Wiring means choosing a

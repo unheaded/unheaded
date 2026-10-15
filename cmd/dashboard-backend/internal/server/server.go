@@ -28,6 +28,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	wotanClient "unheaded/pkg/wotan-client"
 
 	"database/sql"
 
@@ -707,7 +708,6 @@ func (s *Server) setupRoutes() {
 	s.mux.HandleFunc("/api/v1/events/summary", s.handleEventsSummary)
 	s.mux.HandleFunc("/api/v1/health", s.handleSystemHealth)
 	s.mux.HandleFunc("/api/v1/health/history", s.handleHealthHistory)
-	s.mux.HandleFunc("/api/v1/health/trends", s.handleHealthTrends)
 	s.mux.HandleFunc("/api/v1/health/", s.handleServiceHealth)
 	s.mux.HandleFunc("/api/v1/flows", s.handleFlows)
 	s.mux.HandleFunc("/api/v1/stats", s.handleStats)
@@ -865,6 +865,13 @@ func (s *Server) Start(ctx context.Context) error {
 	// Start health monitor
 	if err := s.healthMonitor.Start(ctx); err != nil {
 		return fmt.Errorf("start health monitor: %w", err)
+	}
+
+	// Akira's health reports into The Well (service_health_current and
+	// _transitions), when The Well is connected. Its own stream, not the
+	// UI event stream: every check of every service would flood the page.
+	if s.wellBridge != nil && s.config.WotanAddr != "" {
+		go s.persistHealthReports(ctx)
 	}
 
 	// Start event streamer
@@ -1471,51 +1478,6 @@ func (s *Server) handleHealthHistory(w http.ResponseWriter, r *http.Request) {
 		"service":     service,
 		"transitions": history,
 		"count":       len(history),
-	})
-}
-
-// handleHealthTrends handles GET /api/v1/health/trends?service=X&hours=24
-// Returns hourly health statistics from Postgres. Falls back to 503 when
-// Postgres is not connected.
-func (s *Server) handleHealthTrends(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if s.wellBridge == nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-			"error": "health persistence unavailable (Postgres not connected)",
-		})
-		return
-	}
-
-	service := r.URL.Query().Get("service")
-	if service == "" {
-		http.Error(w, "service query parameter required", http.StatusBadRequest)
-		return
-	}
-	hours := 24
-	if v := r.URL.Query().Get("hours"); v != "" {
-		if n, err := strconv.Atoi(v); err == nil && n > 0 {
-			hours = n
-		}
-	}
-
-	trends, err := s.wellBridge.QueryHealthTrends(r.Context(), service, hours)
-	if err != nil {
-		s.log.Error().Err(err).Str("service", service).Msg("health trends query failed")
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		"service": service,
-		"hours":   hours,
-		"stats":   trends,
-		"count":   len(trends),
 	})
 }
 
@@ -3496,4 +3458,36 @@ func buildDashboardAuthenticators(cfg auth.ServiceAuthConfig) []auth.Authenticat
 		}
 	}
 	return authenticators
+}
+
+// persistHealthReports streams system.health.reports into The Well until
+// ctx ends, reconnecting after any failure. A report the bridge rejects is
+// logged and skipped; the bridge ignores anything older than what it holds,
+// so a reconnect that replays messages cannot move the state backwards.
+func (s *Server) persistHealthReports(ctx context.Context) {
+	const retry = 10 * time.Second
+	for ctx.Err() == nil {
+		c, err := wotanClient.NewClient(strings.TrimPrefix(s.config.WotanAddr, "http://"))
+		if err == nil {
+			_, err = c.Subscribe(ctx, database.HealthReportTopic, "dashboard-backend")
+		}
+		var ch <-chan *wotanClient.Message
+		if err == nil {
+			ch, err = c.StreamMessages(ctx, database.HealthReportTopic)
+		}
+		if err != nil {
+			s.log.Warn().Err(err).Msg("health persistence: cannot stream health reports; retrying")
+		} else {
+			s.log.Info().Str("topic", database.HealthReportTopic).Msg("health persistence: streaming into The Well")
+			for m := range ch {
+				if err := s.wellBridge.HandleHealthReport(ctx, json.RawMessage(m.Payload)); err != nil {
+					s.log.Warn().Err(err).Msg("health persistence: report not stored")
+				}
+			}
+		}
+		select {
+		case <-ctx.Done():
+		case <-time.After(retry):
+		}
+	}
 }

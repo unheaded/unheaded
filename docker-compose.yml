@@ -852,6 +852,12 @@ services:
       # the kernel OOM-killed the container mid-cycle (2026-09-21). With it the
       # runtime collects harder instead of dying.
       GOMEMLIMIT: "600MiB"
+      # Akira's health reports into The Well (ERDA 5.5) as the scoped writer;
+      # no default password (compose refuses to start without it).
+      WELL_HOST: "postgres"
+      WELL_USER: "ops_writer"
+      WELL_PASSWORD: "${OPS_WRITER_PASSWORD:?set OPS_WRITER_PASSWORD in .env (credentials are not stored in this repo)}"
+      WELL_DB: "unheaded_ops"
     volumes:
       - ./config/dashboard/services.txt:/etc/unheaded/services.txt:ro
       - /proc:/host/proc:ro

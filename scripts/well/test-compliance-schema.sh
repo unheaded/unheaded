@@ -138,11 +138,14 @@ if ((GO)); then
 	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/014_compliance_ops.sql"
 	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/015_ops_history_append_only.sql"
 	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/022_ops_audit_events_one_taxonomy.sql"
+	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/024_ops_drop_health_hourly.sql"
 	(cd "$R" && WELL_TEST_OPS_DSN="host=127.0.0.1 port=$PORT user=ops_writer password=$OPS_PW dbname=unheaded_ops sslmode=disable" \
 		WELL_TEST_CONFIG_DSN="host=127.0.0.1 port=$PORT user=config_admin password=$CFG_PW dbname=unheaded_config sslmode=disable" \
 		go test ./pkg/compliance/well/... -run Integration -count=1 -v | grep -vE '^(=== RUN)')
 	(cd "$R" && WELL_TEST_AUDIT_DSN="host=127.0.0.1 port=$PORT user=ops_writer password=$OPS_PW dbname=unheaded_ops sslmode=disable" \
 		go test ./pkg/audit/storage/ -run Integration -count=1 -v | grep -vE '^(=== RUN)')
+	(cd "$R" && WELL_TEST_OPS_DSN="host=127.0.0.1 port=$PORT user=ops_writer password=$OPS_PW dbname=unheaded_ops sslmode=disable" \
+		go test ./pkg/database/ -run Integration -count=1 -v | grep -vE '^(=== RUN)')
 	# End to end: the command itself, against the same throwaway databases.
 	(cd "$R" && WELL_HOST=127.0.0.1 WELL_PORT="$PORT" \
 		WELL_CONFIG_USER=config_admin WELL_CONFIG_PASSWORD="$CFG_PW" \
