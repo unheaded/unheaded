@@ -18,7 +18,7 @@
 - [[System Diagram|System-Diagram]]
 - [[Kingdom Architecture|Kingdom-Architecture]]
 - [[Project Structure|Project-Structure]]
-- [[Microservices]]
+- [[Microservices]] — every binary under `cmd/`, by role
 
 ## The Protocol Computer (UPC)
 
@@ -132,6 +132,11 @@ Full record: [[Timeline]] (`references/timeline.md`).
 - [[Service Breakout Strategy|Service-Breakout-Strategy]]
 - [[OS Fork Discipline|OS-Fork-Discipline]] — Yggdrasil fork rules
 
+## Operations
+
+- [[Systemd Units|Systemd-Units]] — what is installed and enabled on west and east, timers
+- [[Runbooks]] — `runbooks/` (Champion-executable YAML) + `docs/runbooks/`
+
 ## Storage
 
 - [[The Well|The-Well]] — PostgreSQL: databases, roles, TLS, where everything lives on west
@@ -148,7 +153,7 @@ Full record: [[Timeline]] (`references/timeline.md`).
 - [[Protocol Heritage|Protocol-Heritage]]
 - [[Phylactery]]
 - [[Kingdom Mode Math|Kingdom-Mode-Math]]
-- [[Doom over IPv6|Doom-over-IPv6]] *(legacy stub — see [[Doom on UPC]])*
+- [[Doom over IPv6|Doom-over-IPv6]] *(legacy stub — see [[Doom on UPC|Doom-on-UPC]])*
 
 ## Skills
 

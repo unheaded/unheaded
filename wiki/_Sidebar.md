@@ -83,6 +83,10 @@
 - [[Doom over IPv6|Doom-over-IPv6]] *(legacy)*
 - [[Kingdom Mode Math|Kingdom-Mode-Math]]
 
+**Operations**
+- [[Systemd Units|Systemd-Units]]
+- [[Runbooks]]
+
 **Storage**
 - [[The Well|The-Well]]
 - [[Well Backups|Well-Backups]]
