@@ -18,10 +18,10 @@ Unheaded emits OpenTelemetry-compatible signals (metrics, logs, traces). Users p
 | Piece | State |
 |---|---|
 | `unheaded_http_*` metrics on every service | live (`httputil.ServiceMetrics`) |
-| [[Huginn|Service-Huginn]] host metrics, The Well, backup textfiles | live on `:9110/metrics`; its push to VictoriaMetrics fails (not running) |
+| [[Service-Huginn]] host metrics, The Well, backup textfiles | live on `:9110/metrics`; its push to VictoriaMetrics fails (not running) |
 | VictoriaMetrics, Grafana, ClickHouse, Vector | in `docker-compose.yml`, **not running** on west |
 | Prometheus alert rules (`monitoring/prometheus/rules/`) | `promtool`-tested in CI; nothing evaluates them on west, Alertmanager receiver is `null` (FND-001) |
-| Logs | zerolog → Wotan `logs.<service>.<level>` → dashboard live tail ([[Log Aggregation|Log-Aggregation]]) |
+| Logs | zerolog → Wotan `logs.<service>.<level>` → dashboard live tail ([[Log-Aggregation]]) |
 | Dashboard | live on `:20000`: overview (req/s, 5xx, p95), flow graph, logs, compliance |
 
 ## How It Works

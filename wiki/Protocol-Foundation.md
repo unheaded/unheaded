@@ -18,18 +18,22 @@ Heritage:    ARINC 429 → I2C → CAN Bus → BGP → BPF → IPv6 → uIP → 
 
 The 20-byte Monad wire format is locked at specification version 0x01 with **12 IANA registries** in the foundation spec:
 
-1. **Version Registry** — Protocol version field (0x00–0xFF)
-2. **Flags Registry** — Bitfield interpretations (C, Y, T, E, S, M, K1, K0)
-3. **Flow Actions Registry** — Action directive values (forward, drop, dup, redirect, etc.)
-4. **Kingdom Mode Registry** — Privilege level encodings (NORMAL, PRIORITY, EXPERIMENTAL, RESERVED)
-5. Service Identity Registry
-6. QoS Class Registry
-7. Deployment Ring Registry
-8. Circuit State Registry
-9. Mesh Flags Registry
-10. Event Type Registry (Anamnesis)
-11. Error Code Registry
-12. BPF Helper Function Registry
+| Registry | Policy |
+|----------|--------|
+| Monad Protocol Version Numbers | Standards Action |
+| Monad Flags (CHAOS, CANARY, TRACED, ENCRYPT, SAMPLED, MIRROR, CUSTOM, RSVD) | Specification Required |
+| Monad Flow Actions | Expert Review |
+| Kingdom Mode Values | Standards Action |
+| IPv6 Hop-by-Hop Option Type (suggested 0x3E) | IETF Review |
+| IPv6 Next Header Type | Standards Action |
+| Sophia Dictionary Namespace | First Come First Served |
+| Anamnesis Event Types | Specification Required |
+| Error Codes ([[Error-Registry]]) | Specification Required |
+| TLV Type Allocations | Specification Required |
+| PQC Algorithm Identifiers | Specification Required |
+| Wotan Topic Namespace | Expert Review |
+
+(List from draft-06's IANA section.)
 
 **IPR Status:** Clear. No collisions. WEST bare metal online.
 

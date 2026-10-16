@@ -1134,7 +1134,7 @@ Scales automatically from 8 to 800+ services.
 
 After stable alpha, monorepo splits into individual service repos. Each service becomes a Go module imported by `github.com/unheaded/unheaded`.
 
-**Timeline:** Alpha (Feb 8) → Breakout complete (Mar 15)
+**Status:** not started (2026-10-16): still one Go module. The Feb plan targeted Mar 15; extraction order is now framed by ADR-047.
 
 See `docs/SERVICE_BREAKOUT_STRATEGY.md` for full plan.
 

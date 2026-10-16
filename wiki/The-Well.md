@@ -12,7 +12,7 @@ The Well is Unheaded's PostgreSQL: one Postgres 16 cluster with three databases,
 | TLS | private CA + server cert in `/etc/unheaded/well-tls` (outside the repo), made by `scripts/well/make-tls.sh`; cert valid to 2029-01-17 |
 | Passwords | repo-root `.env` (0600, gitignored); never in the repo. Names in `db/.env.example` |
 | Migrations | `db/migrations/` routed by `db/migrations/MANIFEST`; applied by `cmd/well-migrate` (ADR-101) |
-| Backups | `/srv/backups/unheaded-well` on the NVMe, plus east. See [[Well Backups|Well-Backups]] |
+| Backups | `/srv/backups/unheaded-well` on the NVMe, plus east. See [[Well-Backups]] |
 | Backup/drill scripts | `/usr/local/lib/unheaded/well/` (root-owned copies of `scripts/`) |
 | Metrics | Huginn (`pg_stat_database`); backup/drill/offsite in `/var/lib/unheaded/textfile` |
 | Alerts | `monitoring/prometheus/rules/well.yml` |

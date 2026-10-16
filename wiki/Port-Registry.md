@@ -23,8 +23,8 @@ Outside the Doom Range (infrastructure on standard ports):
 
 | Service | Port | Bound to |
 |---------|------|----------|
-| The Well (PostgreSQL) | 5432 | `127.0.0.1` only, TLS ([[The Well|The-Well]]) |
-| Huginn | 9110 | host ([[Huginn|Service-Huginn]]) |
+| The Well (PostgreSQL) | 5432 | `127.0.0.1` only, TLS ([[The-Well]]) |
+| Huginn | 9110 | host ([[Service-Huginn]]) |
 | VictoriaMetrics | 8428 | all |
 | Grafana | 3001 | all |
 | ClickHouse | 8123 / 9000 | `127.0.0.1` |
