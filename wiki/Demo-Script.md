@@ -34,7 +34,7 @@ Two scripts exist: a 4-minute narrated video walkthrough and a ~20-minute live c
 
 ## Before reusing the video script
 
-It predates the wording rules: drop the "repository to production in hours" line and the unheaded.com call to action, and describe Unheaded as a configuration management automation platform. Service and line counts in it are from February.
+The tagline and the unheaded.com call to action were removed on 2026-10-17; the closing now points at the GitHub repo. Feature descriptions in it are still from February, so check them against [[Microservices]] before recording.
 
 ---
 

@@ -1,7 +1,7 @@
 # Protocol Technical Summary
 
 **Status**: Age 2 specification advancement (IANA integration, UPC extensions)
-**Last Updated**: March 15, 2026 (S77 Phase 5 — Protocol Spec Advancement)
+**Last Updated**: October 17, 2026 (Section 2 layout and IANA list re-synced with draft-06 and `monad-common`)
 **Source Documents**:
 - draft-bellis-unheaded-protocol-foundation-06.md (Monad + IANA + UPC)
 - draft-bellis-unheaded-sophia-dictionary-03.md (Sophia + PQC + QPACK)
@@ -24,7 +24,7 @@ Every packet inside the Limited Domain carries 20 bytes of protocol metadata. Sh
 
 ## 2. The 20-Byte Protocol Layout (Monad)
 
-The canonical packet metadata format. All values are Sophia exponent keys unless marked `raw`.
+The canonical packet metadata format, as frozen in draft-bellis-unheaded-protocol-foundation-06 Section 5.3 and implemented in `ebpf/monad-common/src/lib.rs`. Exponent fields are Sophia dictionary keys; raw fields have a fixed meaning.
 
 ```
 Offset  Size  Field               Type        Description
@@ -32,26 +32,31 @@ Offset  Size  Field               Type        Description
 0x00    1     version             raw uint8   Protocol version (current: 0x01)
 0x01    1     src_service_id      exponent    Source service (Sophia lookup)
 0x02    1     dst_service_id      exponent    Destination service (Sophia lookup)
-0x03    1     hop_count           raw uint8   Incremented at each BPF hop
-0x04    4     trace_hash          raw uint32  Flow trace correlation hash
-0x08    1     qos_class           exponent    QoS classification
-0x09    1     flow_action         exponent    Action directive (trace/sample/mirror/drop)
-0x0A    1     circuit_state       exponent    Circuit breaker state (open/closed/half)
-0x0B    1     flags               raw uint8   Bitfield: [chaos|canary|traced|encrypted|0|0|0|0]
-0x0C    2     latency_hint_us     raw uint16  Upstream latency hint in microseconds
-0x0E    1     deployment_ring     exponent    Deployment ring (canary/staging/prod)
-0x0F    1     mesh_flags          exponent    Mesh-level flags (nat_type, direction)
-0x10    2     reserved            raw         Reserved for Age 2 expansion
-0x12    2     checksum            raw uint16  CRC-16 over bytes 0x00-0x11
+0x03    1     hop_count           raw uint8   0 at Shield ingress, +1 per hop (saturates at 255)
+0x04    1     qos_class           exponent    QoS classification
+0x05    1     flow_action         exponent    Action directive (forward/trace/sample/drop/...)
+0x06    1     circuit_state       exponent    Circuit breaker state (open/closed/half-open)
+0x07    1     flags               raw uint8   CHAOS|CANARY|TRACED|ENCRYPT|SAMPLED|MIRROR|CUSTOM|RSVD
+0x08    2     latency_hint        raw uint16  Upstream latency hint in microseconds
+0x0A    1     deploy_ring         exponent    Deployment ring (canary/staging/prod)
+0x0B    1     mesh_flags          exponent    Mesh-level flags (nat_type, direction)
+0x0C    1     src_prefix_lo       raw uint8   Low octet of the source ULA subnet id
+0x0D    1     dst_prefix_lo       raw uint8   Low octet of the destination ULA subnet id
+0x0E    4     scratch[0-3]        raw uint8   Scratch registers (exponent keys when CUSTOM is set)
+0x12    2     checksum            raw uint16  CRC-16/CCITT-FALSE over octets 0x00-0x11
 ──────  ────  ──────────────────  ──────────  ─────────────────────────────────
 Total: 20 bytes (0x14)
 ```
 
-**Exponent fields** (8 of 14 fields): Meaning defined by Sophia dictionary lookup. One byte = 256 possible meanings. Atomically replaceable at runtime via BPF map update.
+**Exponent fields** (7): `src_service_id`, `dst_service_id`, `qos_class`, `flow_action`, `circuit_state`, `deploy_ring`, `mesh_flags`. One byte = 256 possible meanings, atomically replaceable at runtime via a BPF map update.
 
-**Raw fields** (6 of 14 fields): Fixed interpretation. `version`, `hop_count`, `trace_hash`, `flags`, `latency_hint_us`, `checksum`.
+**Raw fields** (8): `version`, `hop_count`, `flags`, `latency_hint`, `src_prefix_lo`, `dst_prefix_lo`, `scratch`, `checksum`.
 
-**Checksum:** CRC-16/CCITT over first 18 bytes. Verified at each hop. Corruption detected = Anamnesis anomaly event + Kenoma drift flag.
+**Trace correlation** is not in the Monad: it comes from the 20-bit IPv6 Flow Label (RFC 6437), set by Shield at ingress.
+
+**Checksum:** CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF, no reflection, no final XOR; check value 0x29B1) over the first 18 bytes. Verified at each hop and recomputed after any change. A mismatch emits an Anamnesis anomaly event and sets the Kenoma drift flag.
+
+**Hop limit:** each hop compares `hop_count` with its configured limit; at or above it, the hop emits an anomaly event and stops processing the Monad.
 
 ---
 
@@ -140,17 +145,18 @@ static __always_inline struct meaning *sophia_lookup(u8 key0, u8 key1) {
       - src_service_id = Sophia.ingress_classify(src_ip)
       - dst_service_id = Sophia.ingress_classify(dst_ip)
       - hop_count = 0
-      - trace_hash = bpf_get_prandom_u32()
       - qos_class = Sophia.policy_lookup(src_ip, dst_port)
       - flow_action = default (0x00 = forward)
       - circuit_state = 0x01 (closed)
       - flags = 0x00
-      - latency_hint_us = 0
-      - deployment_ring = Sophia.ring_lookup(dst_service_id)
+      - latency_hint = 0
+      - deploy_ring = Sophia.ring_lookup(dst_service_id)
       - mesh_flags = 0x00
-      - reserved = 0x0000
+      - src_prefix_lo / dst_prefix_lo = low octet of the ULA subnet ids
+      - scratch[0-3] = 0
       - checksum = crc16(bytes[0..17])
-   c. Emit birth event to Anamnesis ring buffer
+   c. Set the IPv6 Flow Label (the trace id)
+   d. Emit birth event to Anamnesis ring buffer
 5. XDP_PASS → packet enters Kingdom with Protocol header
 ```
 
@@ -237,8 +243,8 @@ Total (16 CPUs): ~1.6 GB ring buffer memory
         src_service: sophia.decode(snapshot[1]),
         dst_service: sophia.decode(snapshot[2]),
         hop_count: snapshot[3],
-        trace_hash: u32_from_be(snapshot[4..8]),
-        qos_class: sophia.decode(snapshot[8]),
+        qos_class: sophia.decode(snapshot[4]),
+        flow_label,   // trace id, carried in the event header
         ...
       }
    d. Publish to Wotan topic: "anamnesis.{event_type}"
@@ -254,12 +260,12 @@ Kenoma is NOT a database. Kenoma is a **materialized view** over Anamnesis.
 ```
 Kenoma state = fold(Anamnesis events, current Sophia dictionary)
 
-For each unique (src_service, dst_service, trace_hash):
+For each unique (src_service, dst_service, flow_label):
   - Last seen hop_count
   - Last seen circuit_state
   - Last seen qos_class
   - Event count
-  - Mean latency_hint_us
+  - Mean latency_hint
   - Last anomaly timestamp (if any)
 
 Drift detection:
@@ -448,24 +454,29 @@ Error registry updated with S72 baseline; IANA allocation procedure documented f
 
 The 20-byte wire format is locked at protocol version **0x01**. No further version increments planned for Age 1.
 
-### IANA Registries Established (12 Total)
+### IANA Registries
 
-**Foundation Spec allocates:**
+draft-06 Section 11 creates 13 registries and requests 2 code points in existing IANA registries. The full list, with policies and initial values, is in [references/iana-guide.md](references/iana-guide.md) Section 7.
 
-| # | Registry | Scope | Values | Notes |
-|---|----------|-------|--------|-------|
-| 1 | **Version** | Field 0x00 | 0x00–0xFF | Currently allocated: 0x01 (active) |
-| 2 | **Flags Bitfield** | Byte 0x01 bits 0–7 | 8 bits | C, Y, T, E, S, M, K1, K0 (all defined) |
-| 3 | **Flow Actions** | Action ID values | 0x00–0x11 (18 total) | forward, drop, dup, redirect, queue, ratelimit, encrypt, sign, etc. |
-| 4 | **Kingdom Mode** | Bits K1:K0 in flags | 0x00–0x11 (4 values) | NORMAL, PRIORITY, EXPERIMENTAL, RESERVED |
-| 5 | Service Identity | Sophia dict 0x01 | 0x01–0xFF (255 max) | captain, deck, engine, lookout, etc. |
-| 6 | QoS Class | Sophia dict 0x03 | 0x00–0xFF | Standard, Interactive, Realtime, etc. |
-| 7 | Deployment Ring | Sophia dict 0x04 | 0x00–0xFF | Canary, Staging, Production, etc. |
-| 8 | Circuit State | Sophia dict 0x05 | 0x00–0xFF | Open, Closed, Half-Open, etc. |
-| 9 | Mesh Flags | Sophia dict 0x06 | 0x00–0xFF | NAT Type, Direction, etc. |
-| 10 | Anamnesis Event Type | Ring buffer | 0x00–0x08 (9 types) | BORN, PARSE, WOTAN_READ, WOTAN_WRITE, SOPHIA_LOOKUP, ACTION_EXEC, REWRITE, ERROR, DEATH |
-| 11 | Error Code | Protocol errors | 0x00–0x0C (13 codes) | Version mismatch, CRC failure, access denied, bounds check failure, etc. |
-| 12 | BPF Helper Function | Kernel API | 8 total | bpf_wotan_read, bpf_wotan_write, bpf_wotan_cas, (5 reserved) |
+| Registry | Policy |
+|----------|--------|
+| Monad Protocol Version Numbers | Standards Action |
+| Monad Flags (octet 0x07) | Specification Required |
+| Monad Flow Actions | Expert Review |
+| Kingdom Mode Values | Standards Action |
+| Sophia Dictionary Namespace | First Come First Served |
+| Anamnesis Event Types | Specification Required |
+| Error Codes | Specification Required |
+| TLV Type Allocations | Specification Required |
+| PQC Algorithm Identifiers | Specification Required |
+| UPC MBC Opcode Numbers | Specification Required |
+| UPC MBC Syscall Numbers | Expert Review |
+| UPC Memory Region Types | Specification Required |
+| UPC Event Types | Specification Required |
+| *Code point:* IPv6 HbH Option Type (suggested 0x3E) | IESG |
+| *Code point:* IPv6 Next Header 0xFE | Standards Action |
+
+Service identity, QoS, deployment ring, circuit state and mesh flags are Sophia dictionary values, not IANA registries. The Wotan Topic Namespace is created by the Wotan draft.
 
 ### Intellectual Property & Implementation Status
 

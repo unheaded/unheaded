@@ -1,7 +1,7 @@
 # IANA Error Code Registry
 
-**Last Updated**: February 27, 2026 (S72 Phase 4)
-**Status**: RFC v1.0-draft — aligned with draft-bellis-unheaded-protocol-foundation-05
+**Last Updated**: October 17, 2026
+**Status**: RFC v1.0-draft — aligned with draft-bellis-unheaded-protocol-foundation-06 (Section 11.10). Where this document and the draft disagree, the draft wins.
 
 This document specifies the authoritative error code registry for the Unheaded protocol. Error codes are used in packet headers, control messages, and diagnostic logs to communicate failure modes and conditions. All 13 normative codes (0x00-0x0C) are formalized and cross-referenced with protocol patches M1-M8.
 
@@ -18,15 +18,15 @@ The Unheaded protocol defines 13 normative error codes (0x00-0x0C) plus reserved
 | Code | Level | Name | Description | Recommended Action |
 |------|-------|------|-------------|-------------------|
 | 0x00 | N/A | NO_ERROR | Normal operation, no error | Continue processing |
-| 0x01 | Flow | CRC_VALIDATION_FAILED | CRC-32 or HMAC validation failed on packet header or WAL entry | Drop packet, log event, optionally alert operator |
+| 0x01 | Flow | CRC_VALIDATION_FAILED | Monad CRC-16/CCITT mismatch, or CRC-32 / HMAC-SHA256 failure on a Wotan WAL entry | Drop packet, log event, optionally alert operator |
 | 0x02 | Domain | VERSION_NOT_SUPPORTED | Packet version field does not match implementation version | Drop packet, no response (silence is correct) |
 | 0x03 | Flow | FLOW_LABEL_INVALID | Flow label value is out of range or not allocated | Drop packet, return error response (optional) |
 | 0x04 | Flow | ARITHMETIC_OVERFLOW | Arithmetic operation in bytecode or helper overflowed (e.g., branch offset, address calculation) | Reject operation, return error to program, do not crash |
-| 0x05 | Flow | WOTAN_HELPER_BOUNDS_CHECK_FAILED | Wotan helper (`bpf_wotan_read`, `bpf_wotan_write`) detected out-of-bounds access | Return error from helper, do not access memory |
+| 0x05 | Flow | WOTAN_BOUNDS_CHECK_FAILED | Wotan helper (`bpf_wotan_read`, `bpf_wotan_write`) detected out-of-bounds access | Return error from helper, do not access memory |
 | 0x06 | Domain | MULTIPLE_HBH_HEADERS | Packet contains more than one HbH (Hop-by-Hop) header | Drop packet immediately, no error response |
 | 0x07 | Domain | UNKNOWN_CRITICAL_TLV | Unknown TLV type with critical bit set (C=1) | Drop packet, return error code in response (optional) |
 | 0x08 | Domain | WAL_SEQNO_DISCONTINUITY | WAL (Write-Ahead Log) entry sequence numbers have gap (missing entries) | Log alert, replay from last known good seqno, may lose data |
-| 0x09 | System | INSUFFICIENT_BUFFER_SPACE | Dictionary full (128 entries or 1MB limit exceeded), or global dictionary at 100MB limit | Reject new entry, return error to client |
+| 0x09 | System | INSUFFICIENT_BUFFER_SPACE | No space for the Monad option in the packet; also used for dictionary and BPF memory limits | Reject new entry, return error to client |
 | 0x0A | Flow | FLOW_STATE_CORRUPTION | Flow state is inconsistent (e.g., WAL seqno mismatch, L1 cache coherency violation) | Drop flow, close connection, log critical alert |
 | 0x0B | Domain | TLS_HANDSHAKE_FAILURE | TLS 1.3 handshake failed (invalid certificate, cipher mismatch, etc.) | Close connection, log error, do not retry immediately |
 | 0x0C | Domain | QUIC_VERSION_MISMATCH | QUIC version in packet does not match negotiated version | Drop packet, close connection (HTTP/3 integration) |
@@ -50,7 +50,11 @@ Errors are categorized by scope:
 No error condition. Used in normal packet headers (error_code field is 0x00). No action required; packet is valid.
 
 #### 0x01: CRC_VALIDATION_FAILED
-Integrity check (CRC-32 or HMAC-SHA256) failed on packet header or WAL entry. Indicates either:
+Integrity check failed. Two sources:
+- The Monad checksum: CRC-16/CCITT-FALSE over octets 0x00-0x11 does not match octets 0x12-0x13 (foundation draft Section 5.5)
+- A Wotan WAL entry: CRC-32 or HMAC-SHA256 mismatch ([WOTAN])
+
+Indicates either:
 - Accidental bit flip in transit (network corruption)
 - Hardware memory error (bit rot in storage)
 - Intentional tampering (attacker modified packet)
@@ -98,7 +102,7 @@ Arithmetic operation (in bytecode or BPF helper) overflowed. Examples:
 - Log event: "Arithmetic overflow in [operation]"
 - Do NOT execute operation if overflow detected
 
-#### 0x05: WOTAN_HELPER_BOUNDS_CHECK_FAILED
+#### 0x05: WOTAN_BOUNDS_CHECK_FAILED
 Wotan helper (`bpf_wotan_read` or `bpf_wotan_write`) detected out-of-bounds access. Indicates:
 - Offset parameter is >= 64 (exceeds 64-byte cache line)
 - Key parameter does not correspond to allocated cache line
@@ -149,6 +153,7 @@ Write-Ahead Log entry sequence numbers have a gap (missing entries). Indicates:
 
 #### 0x09: INSUFFICIENT_BUFFER_SPACE
 Buffer space exhausted. Examples:
+- No room to insert the 24-byte Monad option into the packet (the foundation draft's definition)
 - Dictionary full: 128 entries per-flow limit reached, or 1MB per-flow limit reached
 - Global dictionary at 100MB limit
 - BPF memory quota exceeded (1MB per-program limit)
@@ -202,7 +207,7 @@ QUIC version (HTTP/3 integration) does not match negotiated version. Indicates:
 
 ### IANA Allocation Procedure
 
-New error codes (0x0E-0x1E) are allocated via IETF IANA registry using **Expert Review** process:
+New error codes (0x0E-0x1E) are allocated under the registry's **Specification Required** policy (draft-06 Section 11.10; RFC 8126 Section 4.6: a stable published specification, checked by a designated expert):
 
 1. **Request Submission:**
    - RFC author submits request to IANA
@@ -361,7 +366,7 @@ Codes in range 0x20-0xFE are reserved for private/experimental use. Implementati
 ### Example 1: CRC Failure
 
 ```
-Packet received with CRC-32 validation failure:
+Packet received with a Monad CRC-16 mismatch:
 
 Action (Receiver):
   1. Detect CRC mismatch during header parsing

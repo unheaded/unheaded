@@ -18,6 +18,10 @@ These RFCs **MUST** be cited in Unheaded specifications as they define required 
 | RFC 8174 | Ambiguity of Uppercase vs Lowercase in RFC 2119 Key Words | Clarifies capitalization rules for RFC 2119 keywords to ensure unambiguous requirement specification | All Components |
 | RFC 8126 | Guidelines for Writing IANA Considerations Sections in RFCs | Defines procedures for IANA registry creation and management for Unheaded registries | Registry Management |
 | RFC 8949 | Concise Binary Object Representation (CBOR) | Defines CBOR encoding used for Sophia dictionary serialization and protocol data representation | Sophia Dictionaries |
+| RFC 6437 | IPv6 Flow Label Specification | The 20-bit Flow Label set by Shield at ingress is the packet trace id | Monad / Shield |
+| RFC 9673 | IPv6 Hop-by-Hop Options Processing Procedures | Current HbH processing rules that the Monad option must follow | Monad HbH Extension |
+
+draft-06 also cites RFC 9000 (QUIC) and RFC 9114 (HTTP/3) normatively; they are listed in 2.4 and 2.5. RFC 8126 is informative in draft-06. Where this matrix and a draft's reference list disagree, the draft wins.
 
 ---
 
@@ -28,7 +32,7 @@ These RFCs **MUST** be cited in Unheaded specifications as they define required 
 | RFC | Title | Relevance |
 |-----|-------|-----------|
 | RFC 7348 | Virtual eXtensible Local Area Network (VXLAN): A Framework for Overlaying Virtualized Layer 2 Networks over Layer 3 Networks | Defines VXLAN tunnel encapsulation mechanism used in Unheaded fabric networking for multi-tenant isolation |
-| RFC 8365 | A YANG Data Model for Ethernet VPN (EVPN) | Extends VXLAN with EVPN control plane procedures for dynamic MAC/IP learning and failover |
+| RFC 8365 | A Network Virtualization Overlay Solution Using Ethernet VPN (EVPN) | Extends VXLAN with EVPN control plane procedures for dynamic MAC/IP learning and failover |
 
 ### 2.2 Routing Protocols
 
@@ -70,12 +74,15 @@ These RFCs **MUST** be cited in Unheaded specifications as they define required 
 | RFC 4033 | DNS Security Introduction and Requirements | Defines DNSSEC framework for securing Unheaded DNS-based service discovery |
 | RFC 4034 | Resource Records for the DNS Security Extensions | Specifies DNSSEC resource record types for Unheaded security |
 | RFC 4035 | Protocol Modifications for the DNS Security Extensions | Defines DNSSEC protocol mechanics for Unheaded DNS security |
+| RFC 4303 | IP Encapsulating Security Payload (ESP) | IPsec transport for Kingdom-to-Kingdom links that carry Monad traffic |
+| RFC 9180 | Hybrid Public Key Encryption | HPKE, referenced for payload encryption |
+| RFC 9370 | Multiple Key Exchanges in the Internet Key Exchange Protocol Version 2 (IKEv2) | Hybrid / post-quantum key exchange for IPsec links |
 
 ### 2.7 Checksums and Data Integrity
 
 | RFC | Title | Relevance |
 |-----|-------|-----------|
-| RFC 1071 | Computing the Internet Checksum | Defines checksum algorithms for Monad and Shim packet header validation |
+| RFC 1071 | Computing the Internet Checksum | Background only: the Monad uses CRC-16/CCITT-FALSE, not the Internet checksum |
 
 ### 2.8 RFC Process and Documentation
 
@@ -84,6 +91,30 @@ These RFCs **MUST** be cited in Unheaded specifications as they define required 
 | RFC 7322 | RFC Style Guide | Guidelines for formatting and style in Unheaded RFC submissions |
 | RFC 7841 | RFC Streams, Headers, and Boilerplate | Defines RFC document structure and mandatory boilerplate for Unheaded specifications |
 | RFC 8729 | The RFC Series and RFC Editor | Overview of RFC publication process and standards for Unheaded protocol documentation |
+
+### 2.9 IPv6 Extension Headers, Limited Domains and IOAM
+
+| RFC | Title | Relevance |
+|-----|-------|-----------|
+| RFC 8799 | Limited Domains and Internet Protocols | Unheaded runs only inside a limited domain; the Monad never crosses the public Internet |
+| RFC 9098 | Operational Implications of IPv6 Packets with Extension Headers | Why HbH options get dropped on the open Internet |
+| RFC 9288 | Recommendations on the Filtering of IPv6 Packets Containing IPv6 Extension Headers at Transit Routers | Transit filtering that Shield's boundary design assumes |
+| RFC 9197 | Data Fields for In Situ Operations, Administration, and Maintenance (IOAM) | Prior art for per-hop data carried in the packet |
+| RFC 9486 | IPv6 Options for In Situ Operations, Administration, and Maintenance (IOAM) | IOAM's HbH/destination option encoding, the closest analogue to the Monad option |
+| RFC 8754 | IPv6 Segment Routing Header (SRH) | Comparison: another extension header carrying per-path state |
+| RFC 9631 | The IPv6 Compact Routing Header (CRH) | Comparison: compact routing header |
+| RFC 8300 | Network Service Header (NSH) | Comparison: service-chaining metadata header |
+| RFC 4193 | Unique Local IPv6 Unicast Addresses | Kingdom ULA prefixes (src/dst_prefix_lo, Kingdom Mode) |
+| RFC 1918 | Address Allocation for Private Internets | IPv4 private ranges (Binding Circles trust zones) |
+
+### 2.10 Base Internet Protocols
+
+| RFC | Title | Relevance |
+|-----|-------|-----------|
+| RFC 768 | User Datagram Protocol | Base transport |
+| RFC 791 | Internet Protocol | IPv4 base |
+| RFC 792 | Internet Control Message Protocol | ICMP |
+| RFC 793 | Transmission Control Protocol | As cited by draft-06; obsoleted by RFC 9293 |
 
 ---
 
@@ -96,7 +127,9 @@ Comprehensive mapping of each Unheaded protocol component to applicable RFCs wit
 | RFC | Classification | Reason |
 |-----|-----------------|--------|
 | RFC 8200 | **Normative** | Defines IPv6 Hop-by-Hop extension header structure and processing rules |
-| RFC 1071 | Informative | Checksum computation for Monad metadata validation |
+| RFC 6437 | **Normative** | Flow Label carries the trace id |
+| RFC 9673 | **Normative** | Hop-by-Hop option processing procedures |
+| RFC 9197 / 9486 | Informative | IOAM: closest prior art for per-hop in-packet data |
 | RFC 2119/8174 | Normative | Requirement keywords for Monad specification |
 
 ### 3.2 Sophia Dictionary Serialization
@@ -254,8 +287,8 @@ Standard citation tags for commonly referenced RFCs in Unheaded documentation:
                DOI 10.17487/RFC8200, July 2017.
 
 [RFC8365]      Sajassi, A., Ed., Drake, J., Ed., Bitar, N., Knight,
-               S., and W. Henderickx, "A YANG Data Model for
-               Ethernet VPN (EVPN)", RFC 8365,
+               S., and W. Henderickx, "A Network Virtualization
+               Overlay Solution Using Ethernet VPN (EVPN)", RFC 8365,
                DOI 10.17487/RFC8365, March 2018.
 
 [RFC8446]      Rescorla, E., "The Transport Layer Security (TLS)
@@ -462,15 +495,23 @@ This cross-reference matrix should be reviewed and updated when:
 
 | RFC | Title | Category |
 |-----|-------|----------|
+| RFC 768 | UDP | Protocols |
+| RFC 791 | IPv4 | Protocols |
+| RFC 792 | ICMP | Protocols |
+| RFC 793 | TCP (obsoleted by 9293) | Protocols |
 | RFC 1071 | Internet Checksum | Checksums |
+| RFC 1918 | Private IPv4 Addresses | Addressing |
 | RFC 2119 | Key Words (BCP 14) | Process |
 | RFC 2328 | OSPF Version 2 | Routing |
 | RFC 3031 | MPLS Architecture | Routing |
 | RFC 4033 | DNSSEC Intro | Security |
 | RFC 4034 | DNSSEC RRs | Security |
 | RFC 4035 | DNSSEC Protocol | Security |
+| RFC 4193 | IPv6 ULA | Addressing |
 | RFC 4271 | BGP-4 | Routing |
+| RFC 4303 | IPsec ESP | Security |
 | RFC 4456 | BGP Route Reflection | Routing |
+| RFC 6437 | IPv6 Flow Label | Protocols |
 | RFC 7322 | RFC Style Guide | Process |
 | RFC 7348 | VXLAN | Overlay |
 | RFC 7432 | BGP EVPN | EVPN |
@@ -478,18 +519,29 @@ This cross-reference matrix should be reviewed and updated when:
 | RFC 8126 | IANA Considerations | Process |
 | RFC 8174 | RFC 2119 Clarification | Process |
 | RFC 8200 | IPv6 | Protocols |
-| RFC 8365 | EVPN-VXLAN | EVPN |
+| RFC 8300 | NSH | Extension Headers |
+| RFC 8365 | EVPN Network Virtualization Overlay | EVPN |
 | RFC 8446 | TLS 1.3 | Security |
 | RFC 8729 | RFC Series | Process |
+| RFC 8754 | IPv6 SRH | Extension Headers |
+| RFC 8799 | Limited Domains | Architecture |
 | RFC 8949 | CBOR | Serialization |
 | RFC 9000 | QUIC | Transport |
 | RFC 9001 | QUIC-TLS | Transport |
 | RFC 9002 | QUIC Loss Detection | Transport |
+| RFC 9098 | Extension Header Operations | Extension Headers |
 | RFC 9114 | HTTP/3 | Application |
 | RFC 9135 | EVPN IRB | EVPN |
 | RFC 9136 | EVPN IP Prefix | EVPN |
+| RFC 9180 | HPKE | Security |
+| RFC 9197 | IOAM Data Fields | Extension Headers |
 | RFC 9204 | QPACK | Application |
+| RFC 9288 | Extension Header Filtering | Extension Headers |
+| RFC 9370 | IKEv2 Multiple Key Exchanges | Security |
+| RFC 9486 | IOAM IPv6 Options | Extension Headers |
+| RFC 9631 | IPv6 CRH | Extension Headers |
 | RFC 9669 | BPF ISA | Processing |
+| RFC 9673 | HbH Options Processing | Extension Headers |
 
 ### A.2 Component Quick-Link Reference
 

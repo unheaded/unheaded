@@ -2,7 +2,7 @@
 
 One-page reference for how a packet moves through the protocol: the Monad it carries, the dictionaries that give it meaning, the boundary that adds and removes it, and the events every hop leaves behind. Specs: [[Protocol Foundation|Protocol-Foundation]], [[Sophia Dictionaries|Sophia-Dictionaries]], [[Wotan Memory|Wotan-Memory-Model]], [[Drafts-Index]].
 
-**Wire format v0x01, frozen 2026-02-28.** 12 IANA registries in Foundation draft-06; IPR clear.
+**Wire format v0x01, frozen 2026-02-28.** 13 IANA registries + 2 code points in Foundation draft-06; IPR clear.
 
 ## The Monad (20 bytes)
 
@@ -46,4 +46,4 @@ Verify CRC (mismatch → `anamnesis.anomaly`) → increment hop count → act on
 
 ---
 
-> **Source:** [docs/protocol/PROTOCOL_TECHNICAL_SUMMARY.md](../docs/protocol/PROTOCOL_TECHNICAL_SUMMARY.md) (2026-03; its §2 layout predates the frozen register file, code above wins) · `ebpf/monad-common/src/lib.rs`
+> **Source:** [docs/protocol/PROTOCOL_TECHNICAL_SUMMARY.md](../docs/protocol/PROTOCOL_TECHNICAL_SUMMARY.md) (§2 re-synced with draft-06 and the code on 2026-10-17) · `ebpf/monad-common/src/lib.rs`

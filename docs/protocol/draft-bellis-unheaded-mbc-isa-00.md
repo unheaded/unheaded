@@ -56,7 +56,7 @@ The primary use cases for MBC include:
 - Per-packet telemetry and flow tracking
 - Distributed policy enforcement in multi-hop environments
 
-MBC is part of the Foundation (Monad wire format specification), which defines the Monad packet header structure and flow semantics. The Monad wire format provides a 20-byte fixed header with 12 IANA-registered extensions, frozen at version 0x01. MBC executes on packets carrying Monad headers, allowing per-packet computation to be distributed across the network infrastructure.
+MBC is part of the Foundation (Monad wire format specification), which defines the Monad packet header structure and flow semantics. The Monad wire format provides a 20-byte fixed header, frozen at version 0x01, whose IANA registries are defined in the Foundation draft. MBC executes on packets carrying Monad headers, allowing per-packet computation to be distributed across the network infrastructure.
 
 Complementary to MBC are two other Unheaded specifications:
 

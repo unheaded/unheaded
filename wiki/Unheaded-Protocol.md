@@ -48,7 +48,7 @@ Plus three companion specs:
 - **CRC-16**: integrity check across R0–R3. Computed at each hop on egress, verified on ingress.
 - **custom_or_ext**: 16 bits for vendor extensions or IANA-registered sub-types.
 
-The Foundation spec freezes 12 IANA registries: Monad Protocol Version Numbers, Flags Bitfield, Flow Actions (13 entries), Kingdom Mode Values, plus 8 others for extensibility. IPR clearance: RFC 8928/9927 CLEAR.
+The Foundation spec (draft-06) creates 13 IANA registries, among them Monad Protocol Version Numbers, Flags Bitfield, Flow Actions (13 entries) and Kingdom Mode Values, and requests 2 code points in existing IANA registries ([[IANA Guide|IANA-Guide]]). IPR clearance: RFC 8928/9927 CLEAR.
 
 Wiki: [Protocol Foundation](Protocol-Foundation). Source: [`docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md`](../docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md).
 

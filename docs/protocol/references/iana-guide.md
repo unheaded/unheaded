@@ -541,13 +541,13 @@ The following new registry is created:
 Name: Unheaded Monad Flags
 Type: Bitfield
 Initial Values:
-  0 - C (Crypto) flag - [TBA1]
-  1 - Y (Yielding) flag - [TBA2]
-  2 - T (Token) flag - [TBA3]
+  [TBA1] - CHAOS flag
+  [TBA2] - CANARY flag
+  [TBA3] - TRACED flag
   ...
 
-IANA SHALL replace TBA1 with the bit assigned to the C flag,
-TBA2 with the Y flag, and so forth.
+IANA SHALL replace TBA1 with the bit assigned to the CHAOS flag,
+TBA2 with the CANARY flag, and so forth.
 ```
 
 ### Replacement Process
@@ -569,492 +569,43 @@ When the RFC is published:
 
 ## 7. Unheaded Protocol IANA Registries
 
-### Registry 1: IPv6 HbH Option Type
-
-**Name**: IPv6 Hop-by-Hop Option Types (Unheaded)
-
-**Type**: Integer (0-255)
-
-**Purpose**: Identifies option types in IPv6 Hop-by-Hop (HbH) headers used by Unheaded protocols.
-
-**Registration Procedure**: Standards Action
-
-**Initial Values**:
-| Value | Name | Reference |
-|-------|------|-----------|
-| 0x3E | Monad Option | [RFC-UNHEADED] |
-
-**Namespace Description**:
-- Valid range: 0-255 (8-bit field)
-- Even values (bit 0 = 0): Skip unrecognized option
-- Odd values (bit 0 = 1): Discard unrecognized option
-- High bit (bit 7): Change Flag (1=option changed in transit)
-- Remaining bits (bits 1-6): Option type identifier
-
-**Reserved Ranges**:
-- 0x00-0x3D: Reserved for other HbH options
-- 0x3E: Monad (assigned)
-- 0x3F-0xFF: Reserved for future HbH options
-
-**Change Control**: IETF (Standards Action)
-
-**Reference**: [RFC-UNHEADED]
-
----
-
-### Registry 2: Monad Version Registry
-
-**Name**: Monad Protocol Versions
-
-**Type**: Integer (0-15)
-
-**Purpose**: Identifies versions of the Monad protocol within the Unheaded stack.
-
-**Registration Procedure**: Standards Action
-
-**Initial Values**:
-| Version | Name | Description | Reference |
-|---------|------|-------------|-----------|
-| 1 | Monad v1.0 | Initial Monad version | [RFC-UNHEADED] |
-
-**Namespace Description**:
-- Valid range: 0-15 (4-bit field in Monad header)
-- Version 0: Reserved for future use
-- Versions 1-14: Standards Action (IETF protocol specifications)
-- Version 15: Reserved for experimental use
-
-**Reserved Ranges**:
-- 0: Reserved (future)
-- 1: Monad v1.0 (assigned)
-- 2-14: Available for future versions
-- 15: Experimental
-
-**Change Control**: IETF (Standards Action)
-
-**Reference**: [RFC-UNHEADED]
-
----
-
-### Registry 3: Monad Flags Bitfield Registry
-
-**Name**: Monad Flags Bitfield
-
-**Type**: Bitfield (8 bits)
-
-**Purpose**: Defines flag bits in the Monad header flags field.
-
-**Registration Procedure**: Specification Required + Expert Review
-
-**Initial Values**:
-| Bit | Position | Name | Meaning | Reference |
-|-----|----------|------|---------|-----------|
-| 7 | C | Crypto | Payload is encrypted | [RFC-UNHEADED] |
-| 6 | Y | Yielding | Monad yields to outer layer | [RFC-UNHEADED] |
-| 5 | T | Token | Token field is present | [RFC-UNHEADED] |
-| 4 | E | Emergency | Emergency/expedited handling | [RFC-UNHEADED] |
-| 3 | S | Sequential | Enforce sequential ordering | [RFC-UNHEADED] |
-| 2 | M | Manifest | Manifest information present | [RFC-UNHEADED] |
-| 1 | CUSTOM | Custom | Extended encoding mode | [RFC-UNHEADED] |
-| 0 | RSVD | Reserved | Reserved, MUST be zero | [RFC-UNHEADED] |
-
-**Namespace Description**:
-- Each bit represents a separate flag
-- Bit 7 is the most significant bit (MSB)
-- Bit 0 is the least significant bit (LSB)
-- Each flag is independent; multiple flags can be set simultaneously
-- Reserved bits must be set to 0 by senders and ignored by receivers
-
-**Reserved Ranges**:
-- Bits 0-7: As defined in the Initial Values table
-- All bits are currently assigned
-
-**Change Control**: IETF (Specification Required + Expert Review)
-
-**Expert Review Guidance**:
-- Proposed flags must define clear, non-overlapping semantics
-- Flags must be backward-compatible with existing Monad implementations
-- Proposers must justify why the flag cannot be handled as an option instead
-- Specification must include use cases and interoperability impact
-
-**Reference**: [RFC-UNHEADED]
-
----
-
-### Registry 4: Flow Action Registry
-
-**Name**: Unheaded Flow Actions
-
-**Type**: Integer (0-255)
-
-**Purpose**: Defines actions that can be applied to Monad flows within the Unheaded protocol.
-
-**Registration Procedure**: Expert Review
-
-**Initial Values**:
-| Value | Name | Description | Reference |
-|-------|------|-------------|-----------|
-| 0x00 | FORWARD | Forward packet normally | [RFC-UNHEADED] |
-| 0x01 | TRACE | Full trace to Anamnesis | [RFC-UNHEADED] |
-| 0x02 | SAMPLE | Statistical sampling | [RFC-UNHEADED] |
-| 0x03 | MIRROR | Mirror copy to secondary | [RFC-UNHEADED] |
-| 0x04 | RATE_LIMIT | Apply rate limiting | [RFC-UNHEADED] |
-| 0x05 | DROP | Drop packet | [RFC-UNHEADED] |
-| 0x06-0x0F | RESERVED | Reserved for future standard actions | [RFC-UNHEADED] |
-| 0x10 | KEY_ANNOUNCE | PQC key announcement | [RFC-UNHEADED] |
-| 0x11 | KEY_ROTATE | PQC key rotation | [RFC-UNHEADED] |
-| 0x12 | KEY_REVOKE | PQC key revocation | [RFC-UNHEADED] |
-| 0x13 | KEM_ENCAPS | ML-KEM encapsulation | [RFC-UNHEADED] |
-| 0x14 | KEM_DECAPS | ML-KEM decapsulation | [RFC-UNHEADED] |
-| 0x15 | KEY_ACK | PQC key acknowledgment | [RFC-UNHEADED] |
-| 0x16 | KEY_REJECT | PQC key rejection | [RFC-UNHEADED] |
-| 0x17-0xEF | UNASSIGNED | Future standard actions | [RFC-UNHEADED] |
-| 0xF0-0xFE | EXPERIMENTAL | Experimental use | [RFC-UNHEADED] |
-| 0xFF | RESERVED | Invalid / reserved | [RFC-UNHEADED] |
-
-**Namespace Description**:
-- Valid range: 0-255 (8-bit action identifier)
-- Values 0x00-0x05: Standard forwarding actions
-- Values 0x06-0x0F: Reserved for future standard actions
-- Values 0x10-0x16: PQC key lifecycle actions
-- Values 0x17-0xEF: Reserved for future standardized actions
-- Values 0xF0-0xFE: Experimental use
-- Value 0xFF: Reserved (invalid)
-
-**Reserved Ranges**:
-- 0x00-0x05: Standard actions (assigned)
-- 0x06-0x0F: Future standard actions (Standards Action required)
-- 0x10-0x14: PQC lifecycle actions (assigned)
-- 0x15-0xEF: Future standardized actions (Standards Action required)
-- 0xF0-0xFE: Experimental actions (no registration required)
-- 0xFF: Invalid/Reserved
-
-**Change Control**: IETF (Expert Review for 0x13-0xEF)
-
-**Expert Review Guidance**:
-- Actions must have clear, deterministic behavior
-- Actions must not conflict with existing implementations
-- Actions must work with all Monad versions
-- Specification must include performance impact assessment
-- Specification must define interaction with other actions
-
-**Required Information for Registration**:
-- Action name (must be descriptive and follow naming conventions)
-- Detailed semantic definition
-- Interaction with other actions
-- Performance and resource implications
-- Example use cases
-- Backward compatibility assessment
-
-**Reference**: [RFC-UNHEADED]
-
----
-
-### Registry 5: QoS Class Registry
-
-**Name**: Unheaded QoS Classes
-
-**Type**: Integer (0-7)
-
-**Purpose**: Defines Quality of Service classes for Monad flow handling.
-
-**Registration Procedure**: Specification Required
-
-**Initial Values**:
-| Value | Name | Priority | Meaning | Reference |
-|-------|------|----------|---------|-----------|
-| 0 | DEFAULT | Low | Best effort / default forwarding | [RFC-UNHEADED] |
-| 1 | REALTIME | High | Real-time traffic (voice, low-latency) | [RFC-UNHEADED] |
-| 2 | INTERACTIVE | Medium | Interactive traffic (web, API) | [RFC-UNHEADED] |
-| 3 | BULK | Low | Bulk transfer (backups, replication) | [RFC-UNHEADED] |
-| 4-7 | RESERVED | - | Reserved for future use | [RFC-UNHEADED] |
-
-**Namespace Description**:
-- Valid range: 0-3 (2-bit field with reserved high bits)
-- Classes 0-3: Currently defined
-- Classes 4-7: Reserved for future use
-- Each class defines default handling expectations
-- Implementations should honor class priorities
-
-**Reserved Ranges**:
-- 0-3: Defined QoS classes
-- 4-7: Reserved for future QoS classes
-
-**Change Control**: IETF (Specification Required)
-
-**Required Information for Registration**:
-- QoS class name and priority level
-- Handling expectations and SLA implications
-- Interaction with network QoS mechanisms
-- Resource reservation requirements
-- Example applications
-
-**Reference**: [RFC-UNHEADED]
-
----
-
-### Registry 6: Circuit State Registry
-
-**Name**: Unheaded Circuit States
-
-**Type**: Enumeration (0-31)
-
-**Purpose**: Defines states of virtual circuits in Monad connections.
-
-**Registration Procedure**: Standards Action
-
-**Initial Values**:
-| Value | State Name | Description | Reference |
-|-------|-----------|-------------|-----------|
-| 0 | CLOSED | Circuit breaker closed (normal flow) | [RFC-UNHEADED] |
-| 1 | OPEN | Circuit breaker open (failing, reject fast) | [RFC-UNHEADED] |
-| 2 | HALF_OPEN | Circuit breaker half-open (probe in progress) | [RFC-UNHEADED] |
-| 3-31 | RESERVED | Reserved for future states | [RFC-UNHEADED] |
-
-**Namespace Description**:
-- Valid range: 0-31 (5-bit field)
-- Values 0-2: Currently defined states (circuit breaker states)
-- Values 3-31: Reserved for future states
-- Each state follows the circuit breaker pattern
-- State transitions follow circuit breaker semantics
-
-**Reserved Ranges**:
-- 0-2: Defined circuit breaker states
-- 3-31: Reserved for future states
-
-**Change Control**: IETF (Standards Action)
-
-**Reference**: [RFC-UNHEADED]
-
----
-
-### Registry 7: Kingdom Mode Registry
-
-**Name**: Kingdom Modes
-
-**Type**: Integer (0-3)
-
-**Purpose**: Defines operational modes for Kingdom protocol elements.
-
-**Registration Procedure**: Standards Action
-
-**Initial Values**:
-| Value | Mode | Description | Reference |
-|-------|------|-------------|-----------|
-| 0 | NORMAL | Normal forwarding mode (default) | [RFC-UNHEADED] |
-| 1 | PRIORITY | Priority processing mode | [RFC-UNHEADED] |
-| 2 | EXPERIMENTAL | Experimental / custom pipeline | [RFC-UNHEADED] |
-| 3 | RESERVED | Reserved for future use | [RFC-UNHEADED] |
-
-**Namespace Description**:
-- Valid range: 0-3 (2-bit field)
-- All four values are fully allocated
-- Each mode defines different processing behavior
-- Mode determines which protocols/features are enabled
-
-**Reserved Ranges**:
-- 0-3: All values allocated
-
-**Change Control**: IETF (Standards Action)
-
-**Reference**: [RFC-UNHEADED]
-
----
-
-### Registry 8: Sophia Sub-Dictionary Type Registry
-
-**Name**: Sophia Sub-Dictionary Types
-
-**Type**: Integer (0-255)
-
-**Purpose**: Defines types of sub-dictionaries within Sophia knowledge structures.
-
-**Registration Procedure**: Expert Review
-
-**Initial Values**:
-| Value | Type | Purpose | Reference |
-|-------|------|---------|-----------|
-| 0 | ATTRIBUTES | Entity attributes and properties | [RFC-UNHEADED] |
-| 1 | RELATIONS | Relationships to other entities | [RFC-UNHEADED] |
-| 2 | HISTORY | Historical state information | [RFC-UNHEADED] |
-| 3 | METADATA | Metadata about knowledge item | [RFC-UNHEADED] |
-| 4 | RULES | Associated inference rules | [RFC-UNHEADED] |
-| 5 | REFERENCES | Cross-references | [RFC-UNHEADED] |
-| 6 | CONSTRAINTS | Validity constraints | [RFC-UNHEADED] |
-| 7 | DERIVATIONS | Derived facts and conclusions | [RFC-UNHEADED] |
-| 8 | CONTEXT | Contextual information | [RFC-UNHEADED] |
-
-**Namespace Description**:
-- Valid range: 0-255 (8-bit field)
-- Values 0-8: Standard sub-dictionary types
-- Values 9-239: Reserved for future types
-- Values 240-255: Experimental and implementation-specific types
-
-**Reserved Ranges**:
-- 0-8: Standard types
-- 9-239: Future standard types
-- 240-255: Experimental/private use
-
-**Change Control**: IETF (Expert Review for 9-239)
-
-**Expert Review Guidance**:
-- Types must represent coherent, distinct knowledge categories
-- Types must be compatible with Sophia knowledge representation
-- Specification must define structure and semantics clearly
-- Types must not overlap with existing type semantics
-
-**Required Information for Registration**:
-- Type name and numeric value
-- Purpose and use cases
-- Structure and schema of sub-dictionary
-- Example content
-- Compatibility with existing types
-
-**Reference**: [RFC-UNHEADED]
-
----
-
-### Registry 9: Anamnesis Event Type Registry
-
-**Name**: Anamnesis Event Types
-
-**Type**: Integer (0-255)
-
-**Purpose**: Defines types of events in Anamnesis temporal history tracking.
-
-**Registration Procedure**: Expert Review
-
-**Initial Values**:
-| Value | Event Type | Description | Reference |
-|-------|-----------|-------------|-----------|
-| 0x00 | BORN | Entity creation/initialization | [RFC-UNHEADED] |
-| 0x01 | AWAKENED | Entity activated/activated | [RFC-UNHEADED] |
-| 0x02 | DISCOVERED | Entity discovered in network | [RFC-UNHEADED] |
-| 0x03 | CONNECTED | Connection established | [RFC-UNHEADED] |
-| 0x04 | MODIFIED | State or configuration changed | [RFC-UNHEADED] |
-| 0x05 | QUERIED | Entity queried or accessed | [RFC-UNHEADED] |
-| 0x06 | TERMINATED | Entity operation stopped | [RFC-UNHEADED] |
-| 0x07 | FORGOTTEN | Entity deleted from history | [RFC-UNHEADED] |
-| 0x08 | DEATH | Entity permanent removal | [RFC-UNHEADED] |
-
-**Namespace Description**:
-- Valid range: 0-255 (8-bit event type identifier)
-- Values 0x00-0x08: Lifecycle and state change events
-- Values 0x09-0xEF: Reserved for future event types
-- Values 0xF0-0xFE: Experimental event types
-- Value 0xFF: Invalid
-
-**Reserved Ranges**:
-- 0x00-0x08: Core lifecycle events
-- 0x09-0xEF: Future event types (Standards Action required)
-- 0xF0-0xFE: Experimental events (no registration required)
-- 0xFF: Invalid (reserved)
-
-**Change Control**: IETF (Expert Review for 0x09-0xEF)
-
-**Expert Review Guidance**:
-- Events must represent distinct, well-defined temporal occurrences
-- Events must be relevant to Anamnesis history tracking
-- Events must not duplicate existing event types
-- Specification must define temporal semantics and causality
-- Events should be applicable to multiple entity types
-
-**Required Information for Registration**:
-- Event type name and code
-- Semantic definition and when event occurs
-- Applicable entity types or scope
-- Temporal properties and ordering
-- Example scenarios
-- Relationship to other event types
-
-**Reference**: [RFC-UNHEADED]
-
----
-
-### Registry 10: Wotan Error Code Registry
-
-**Name**: Wotan Protocol Error Codes
-
-**Type**: Integer (0-65535)
-
-**Purpose**: Defines error codes in Wotan network protocol messages.
-
-**Registration Procedure**: Expert Review
-
-**Initial Values**:
-| Code | Name | Description | Category | Reference |
-|------|------|-------------|----------|-----------|
-| 0 | SUCCESS | No error | Informational | [RFC-UNHEADED] |
-| 1 | INVALID_FORMAT | Message format invalid | Syntax | [RFC-UNHEADED] |
-| 2 | CHECKSUM_MISMATCH | Checksum validation failed | Integrity | [RFC-UNHEADED] |
-| 3 | VERSION_MISMATCH | Protocol version incompatible | Compatibility | [RFC-UNHEADED] |
-| 4 | UNKNOWN_OPTION | Unrecognized option field | Syntax | [RFC-UNHEADED] |
-| 5 | UNSUPPORTED_ACTION | Action not supported | Capability | [RFC-UNHEADED] |
-| 6 | RESOURCE_EXHAUSTED | Out of memory or buffers | Resource | [RFC-UNHEADED] |
-| 7 | TIMEOUT | Operation timeout | Temporal | [RFC-UNHEADED] |
-| 8 | DESTINATION_UNREACHABLE | No route to destination | Routing | [RFC-UNHEADED] |
-| 9 | AUTHENTICATION_FAILED | Authentication check failed | Security | [RFC-UNHEADED] |
-| 10 | AUTHORIZATION_DENIED | Access permission denied | Security | [RFC-UNHEADED] |
-| 11 | CIRCUIT_RESET | Virtual circuit reset | Connection | [RFC-UNHEADED] |
-| 12 | PROTOCOL_ERROR | Generic protocol violation | Semantic | [RFC-UNHEADED] |
-| 13 | NOT_IMPLEMENTED | Feature not implemented | Capability | [RFC-UNHEADED] |
-| 14 | CONGESTION | Network congestion detected | Network | [RFC-UNHEADED] |
-| 15 | PROCESSING_ERROR | Internal processing error | Internal | [RFC-UNHEADED] |
-
-**Namespace Description**:
-- Valid range: 0-65535 (16-bit error code field)
-- Codes 0-15: Standard error codes (assigned above)
-- Codes 16-32767: Reserved for future standard errors
-- Codes 32768-65534: Vendor/implementation-specific errors
-- Code 65535: Reserved (invalid)
-
-**Namespace Semantics**:
-- Code 0: Success (no error condition)
-- Codes 1-15: Standard errors defined by protocol
-- Codes 16-32767: Future errors requiring RFC specification
-- Codes 32768-65534: Implementation-defined errors (no IANA registration)
-- Code 65535: Reserved for invalid/unspecified error
-
-**Error Categories**:
-- **Syntax**: Message format or parsing errors
-- **Integrity**: Checksum, validation, or data integrity failures
-- **Compatibility**: Version or feature compatibility issues
-- **Capability**: Unsupported features or options
-- **Resource**: Resource limitations (memory, buffers, bandwidth)
-- **Temporal**: Timeout or timing-related issues
-- **Routing**: Network reachability and routing failures
-- **Security**: Authentication and authorization failures
-- **Connection**: Virtual circuit or connection state issues
-- **Semantic**: Protocol logic or semantic violations
-- **Network**: Network-level issues (congestion, etc.)
-- **Internal**: Implementation-level errors
-
-**Reserved Ranges**:
-- 0-15: Standard errors (assigned)
-- 16-32767: Future standard errors (Specification Required + Expert Review)
-- 32768-65534: Implementation-specific (no registration required)
-- 65535: Invalid (reserved)
-
-**Change Control**: IETF (Expert Review for 16-32767)
-
-**Expert Review Guidance**:
-- Error codes must represent distinct, unambiguous error conditions
-- Codes must not duplicate semantics of existing errors
-- Specification must define recovery/remediation actions
-- Specification must clarify whether error is fatal or recoverable
-- Specification must define error message format and content
-- Errors should be applicable across implementations
-
-**Required Information for Registration**:
-- Error code number and symbolic name
-- Detailed description of error condition
-- When error is generated and by which entities
-- Applicable Wotan versions
-- Recovery/remediation guidance
-- Whether error is fatal or recoverable
-- Related error codes
-- Example scenarios
-
-**Reference**: [RFC-UNHEADED]
+The normative list is Section 11 of draft-bellis-unheaded-protocol-foundation-06. It creates 13 registries in the "Unheaded Protocol Parameters" group and requests two code points in existing IANA registries. The table below summarizes it; if the two ever disagree, the draft wins.
+
+### New registries
+
+| # | Registry | Policy | Field / range | Initial values |
+|---|----------|--------|---------------|----------------|
+| 1 | Monad Protocol Version Numbers | Standards Action | Monad octet 0x00, 8 bits | 0x00 reserved; 0x01 = v1; 0x02-0xEF unassigned; 0xF0-0xFE experimental; 0xFF reserved |
+| 2 | Monad Flags | Specification Required | Monad octet 0x07, 8 bits | 7 CHAOS, 6 CANARY, 5 TRACED, 4 ENCRYPT, 3 SAMPLED, 2 MIRROR, 1 CUSTOM, 0 RSVD (all assigned) |
+| 3 | Monad Flow Actions | Expert Review | Monad octet 0x05 | 0x00 FORWARD, 0x01 TRACE, 0x02 SAMPLE, 0x03 DROP, 0x04 MIRROR, 0x05 RATE_LIMIT, 0x06 REDIRECT, 0x07 INJECT; 0x10-0x14 PQC key ops (KEY_ROTATE, KEY_REVOKE, KEY_DISTRIBUTE, KEY_VERIFY, KEY_CHALLENGE); 0xF0-0xFE experimental; 0xFF reserved |
+| 4 | Kingdom Mode Values | Standards Action | 2 bits | 0b00 NORMAL, 0b01 PRIORITY, 0b10 EXPERIMENTAL, 0b11 RESERVED |
+| 5 | Sophia Dictionary Namespace | First Come First Served | Dictionary names | Template: name, program, version, organization, contact |
+| 6 | Anamnesis Event Types | Specification Required | Event type byte | 0x00 BORN ... 0x08 ANOMALY (9 types) |
+| 7 | Error Codes | Specification Required | Error code byte | 0x00-0x0C normative, 0x0D reserved, 0x0E-0x1E unallocated, 0x1F-0xFF private use / greasing ([error-registry.md](../error-registry.md)) |
+| 8 | TLV Type Allocations | Specification Required | TLV type byte; bit 7 = critical | 0x00-0x1F Monad, 0x20-0x3F Sophia, 0x40-0x5F Wotan, 0x60-0x7F future; 0x01 Ring Path Counter, 0x2A UNHEADED_METRIC_V1 |
+| 9 | PQC Algorithm Identifiers | Specification Required | Algorithm id byte | 0x01 ML-KEM-768, 0x02 ML-KEM-1024, 0x03 ML-DSA-65, 0x04 ML-DSA-87, 0x05 SLH-DSA-SHA2-128s |
+| 10 | UPC MBC Opcode Numbers | Specification Required | Bits [31:24] of a 32-bit MBC word | The MBC ISA opcodes |
+| 11 | UPC MBC Syscall Numbers | Expert Review | SYSCALL imm16 | Native 0x01-0x0F; Linux-compatible via INT 0x80 |
+| 12 | UPC Memory Region Types | Specification Required | 32-bit UPC address space | RAM, KBD_IO, SCREEN, DEBUG, WAD, HEAP, STACK, RAMDISK |
+| 13 | UPC Event Types | Specification Required | Anamnesis event byte, compute range | 0x10 COMPUTE_HOP ... 0x19 CONTEXT_SWITCH; 0x1A-0x1F unassigned |
+
+### Code points in existing IANA registries
+
+| Registry | Request | Notes |
+|----------|---------|-------|
+| IPv6 Destination and Hop-by-Hop Options | Unheaded Monad Option, type TBD (suggested 0x3E) | Format 001xxxxx: skip if unrecognized, data may change en route. Change controller IESG. |
+| Assigned Internet Protocol Numbers | Next Header 0xFE (254) | Reserved for future use; the normative path is the HbH option. 254 is an RFC 3692 experimentation value, so a real request needs a different number. |
+
+The IPv6 Flow Label (Section 11.7) is used per RFC 6437 and needs no IANA action.
+
+### Defined elsewhere
+
+| Registry | Defined in |
+|----------|-----------|
+| Wotan Topic Namespace (Expert Review) | draft-bellis-unheaded-wotan-memory-03 |
+| Sophia dictionary registries | draft-bellis-unheaded-sophia-dictionary-03 |
+
+QoS class, circuit state, deployment ring and mesh flag values are not IANA registries: they are exponent-encoded fields whose meaning comes from the active Sophia dictionary.
 
 ---
 
@@ -1217,22 +768,13 @@ Upon publication, IANA SHALL replace these placeholders with assigned values.
 
 ### Monad v0x01 Wire Format FROZEN
 
-All 12 IANA registries established in the Unheaded Protocol Foundation Specification are now frozen at version 0x01:
+The 20-byte Monad layout (offsets, sizes, order) is frozen at version 0x01. Registries are not frozen: each one stays open under its own policy (Section 7). The registries that cover Monad octets are full or nearly so:
 
-| Registry | ID | Scope | Status |
-|----------|----|----|--------|
-| Version | 1 | Field 0x00 (8 bits) | CLOSED — v0x01 active, no future versions planned for Age 1 |
-| Flags Bitfield | 2 | Byte 0x01 (8 bits) | CLOSED — all 8 bits defined (C, Y, T, E, S, M, K1, K0) |
-| Flow Actions | 3 | Values 0x00–0x11 | CLOSED — 18 actions allocated, expert review for 0x12–0xFF |
-| Kingdom Mode | 4 | Bits K1:K0 | CLOSED — 4 modes exhaustive (NORMAL, PRIORITY, EXPERIMENTAL, RESERVED) |
-| Service Identity | 5 | Sophia dict 0x01 | OPEN — expert review for future service IDs |
-| QoS Class | 6 | Sophia dict 0x03 | OPEN — expert review for new QoS classes |
-| Deployment Ring | 7 | Sophia dict 0x04 | OPEN — expert review for new rings |
-| Circuit State | 8 | Sophia dict 0x05 | OPEN — expert review for new circuit states |
-| Mesh Flags | 9 | Sophia dict 0x06 | OPEN — expert review for new mesh flags |
-| Anamnesis Event Type | 10 | Ring buffer (0x00–0x08) | CLOSED — 9 types defined, future events via extension headers (Age 2) |
-| Error Code | 11 | Protocol errors (0x00–0x0C) | CLOSED — 13 normative codes, expert review for 0x0E–0x1E (0x0D reserved) |
-| BPF Helper Function | 12 | Kernel API | CLOSED — 3 functions defined, 5 reserved for Age 2 |
+- **Version** (octet 0x00): only 0x01 assigned; a new version means a new wire format.
+- **Flags** (octet 0x07): all 8 bits assigned (CHAOS, CANARY, TRACED, ENCRYPT, SAMPLED, MIRROR, CUSTOM, RSVD).
+- **Flow Actions** (octet 0x05): 0x00-0x07 and 0x10-0x14 assigned; 0x08-0x0F and 0x15-0xEF open under Expert Review.
+
+Service identity, QoS, deployment ring, circuit state and mesh flags are Sophia dictionary values, not IANA registries.
 
 ### IPR & Implementation Status
 
@@ -1251,4 +793,5 @@ New registries for Age 2 (IPv6 native transport) will use Hop-by-Hop TLV option 
 ## Document Version History
 
 - Version 1.0 (2026-02-20): Initial comprehensive guide including RFC 8126 policies and Unheaded protocol registries
-- Version 1.1 (2026-02-28): S67 Wire Format Freeze — 12 registries locked, Age 1 production-ready
+- Version 1.1 (2026-02-28): S67 Wire Format Freeze
+- Version 1.2 (2026-10-17): Section 7 and the freeze status rewritten to match draft-06 Section 11 (13 registries + 2 code points; flags at octet 0x07 with the draft-06 meanings)

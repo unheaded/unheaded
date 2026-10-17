@@ -99,7 +99,7 @@ Layer 0: Infrastructure (LXD, host OS)
 | Config Management | **Ansible / Terraform / Puppet / Kubernetes / Chef / Salt** | Interchangeable IaC backends, same desired-state model |
 | Observability | **Prometheus, Grafana, ELK, Fluentd, Jaeger, Nagios** + more | Interchangeable backends; custom Wotan-native defaults long-term |
 
-**S67 Protocol Foundation:** Monad wire format frozen at v0x01 (20 bytes). Foundation spec draft-06 includes 12 IANA registries: Monad Protocol Version Numbers, Monad Flags Bitfield (C|Y|T|E|S|M|CUST|R), Monad Flow Actions (13 entries), Kingdom Mode Values, plus 8 others for extensibility and interoperability. IPR clearance: RFC 8928/9927 CLEAR. Plus 5 companion specs: Sophia-03 (dictionaries), Wotan-03 (distributed memory), MBC-ISA-00 (instruction set), Shim-00 (execution pipeline), PQC-00 (post-quantum auth).
+**S67 Protocol Foundation:** Monad wire format frozen at v0x01 (20 bytes). Foundation spec draft-06 creates 13 IANA registries: Monad Protocol Version Numbers, Monad Flags Bitfield (CHAOS|CANARY|TRACED|ENCRYPT|SAMPLED|MIRROR|CUSTOM|RSVD at octet 0x07), Monad Flow Actions (13 entries), Kingdom Mode Values, plus 9 others (Sophia namespace, Anamnesis events, error codes, TLV types, PQC algorithms, 4 UPC registries); it also requests 2 code points (HbH option type, Next Header). IPR clearance: RFC 8928/9927 CLEAR. Plus 5 companion specs: Sophia-03 (dictionaries), Wotan-03 (distributed memory), MBC-ISA-00 (instruction set), Shim-00 (execution pipeline), PQC-00 (post-quantum auth).
 
 ### Network Design
 
@@ -779,7 +779,7 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 
 **Age 2 Goal:** Production hardening, bare metal validation, multi-host operations, Zhen AI
 
-**Wire Format Status:** FROZEN at version 0x01 (20 bytes) — monad protocol locked, 7 breaking change candidates analyzed and rejected, 12 IANA registries in foundation spec draft-06
+**Wire Format Status:** FROZEN at version 0x01 (20 bytes) — monad protocol locked, 7 breaking change candidates analyzed and rejected, 13 IANA registries in foundation spec draft-06
 
 **Services:** 10 core + Zhen AI (timeguru, captain, architect, micromanager, monad, sophia, dashboard-backend, kanban-app, wotan, unheaded-daemon, zhen-inference, zhen-web-ui)
 

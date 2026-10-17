@@ -2,7 +2,7 @@
 
 **Unheaded** — configuration management automation platform built around the Unheaded Protocol: a mapped data bus over IPv6 Hop-by-Hop Options with eBPF-powered observability. Provides control plane, service mesh, observability, and security baseline. You bring the application.
 
-**State (2026-10-15):** Age 3 in progress. Wire format frozen at v0x01 (12 IANA registries). ASCEND-LINUX Phase 1 complete: an interactive xv6 shell with `ls`/`cat`/`echo`/`wc` runs on the UPC, and the kernel is 100% Unheaded-authored ([[Linux on UPC|Linux-on-UPC]]). On west: Wotan, Akira, dashboard, kanban and The Well in compose, plus Huginn on the host. Work lands on `develop` → `staging` → `main` (ADR-089).
+**State (2026-10-15):** Age 3 in progress. Wire format frozen at v0x01 (13 IANA registries in Foundation draft-06). ASCEND-LINUX Phase 1 complete: an interactive xv6 shell with `ls`/`cat`/`echo`/`wc` runs on the UPC, and the kernel is 100% Unheaded-authored ([[Linux on UPC|Linux-on-UPC]]). On west: Wotan, Akira, dashboard, kanban and The Well in compose, plus Huginn on the host. Work lands on `develop` → `staging` → `main` (ADR-089).
 
 ---
 

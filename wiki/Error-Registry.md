@@ -31,7 +31,7 @@ The protocol's 8-bit error codes: what each means, its blast radius, and what a 
 | Range | Change control |
 |-------|----------------|
 | `0x00–0x0D` | Standards Action (RFC required); all implementations MUST support |
-| `0x0E–0x1E` | Expert Review: clear semantics, no overlap with existing codes, practical need |
+| `0x0E–0x1E` | Specification Required (designated expert checks: clear semantics, no overlap, practical need) |
 | `0x1F`, `0xFF` | Fixed grease values, never reassigned |
 | `0x20–0xFE` | Uncontrolled |
 
@@ -39,9 +39,10 @@ Implementations send grease values occasionally (fixed and pattern-based) so rec
 
 ## Notes
 
-- `0x01` text in the source says "CRC-32 or HMAC"; the Monad itself uses CRC-16/CCITT, and WAL entries carry their own integrity check.
+- `0x01` covers two checks: the Monad's CRC-16/CCITT-FALSE over octets 0x00–0x11, and the Wotan WAL entry's CRC-32 / HMAC-SHA256.
+- Names and meanings follow draft-06 Section 11.10 (e.g. `0x05` is `WOTAN_BOUNDS_CHECK_FAILED`; `0x09` is first of all "no space for the Monad in the packet").
 - The registry is a spec artifact; the codes are not yet one shared constant set in `pkg/` or `ebpf/`.
 
 ---
 
-> **Source:** [docs/protocol/error-registry.md](../docs/protocol/error-registry.md) (2026-02-27, aligned with Foundation draft-05; examples and RFC patch cross-refs there)
+> **Source:** [docs/protocol/error-registry.md](../docs/protocol/error-registry.md) (re-aligned with Foundation draft-06 on 2026-10-17; examples and RFC patch cross-refs there)

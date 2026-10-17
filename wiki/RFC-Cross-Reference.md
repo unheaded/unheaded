@@ -31,9 +31,9 @@ Informative: RFC 768 / 791 / 792 / 793 (UDP, IPv4, ICMP, TCP), 1918 and 4193 (pr
 
 ## Notes
 
-- The source matrix lists RFC 8365 as "A YANG Data Model for EVPN"; RFC 8365 is the EVPN network virtualization overlay (VXLAN) RFC.
-- The source matrix predates draft-06 and does not include 8799, 9673, 6437, the IOAM RFCs or the extension-header operations RFCs; the table above adds them from draft-06's reference list.
+- Every RFC in draft-06's reference list is now in the source matrix (2026-10-17), including 6437 and 9673 as normative and the extension-header, limited-domain and IOAM RFCs.
+- RFC 1071 is background only: the Monad checksum is CRC-16/CCITT-FALSE, not the Internet checksum.
 
 ---
 
-> **Source:** [docs/protocol/references/rfc-crossref.md](../docs/protocol/references/rfc-crossref.md) (2026-02) · [draft-06](../docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md) references
+> **Source:** [docs/protocol/references/rfc-crossref.md](../docs/protocol/references/rfc-crossref.md) (updated 2026-10-17) · [draft-06](../docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md) references

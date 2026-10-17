@@ -308,7 +308,7 @@ Offset  Size  Field               Type        Description
 0x00    1     version             raw uint8   Protocol version (current: 0x01)
 0x01    1     src_service_id      exponent    Source service (Sophia lookup)
 0x02    1     dst_service_id      exponent    Destination service (Sophia)
-0x03    1     hop_count           raw uint8   Decremented at each hop (TTL-like)
+0x03    1     hop_count           raw uint8   Incremented at each hop
 0x04    1     qos_class           exponent    QoS classification
 0x05    1     flow_action         exponent    Action directive
 0x06    1     circuit_state       exponent    Circuit breaker state
@@ -319,7 +319,7 @@ Offset  Size  Field               Type        Description
 0x0C    1     src_prefix_lo       raw uint8   Source routing prefix low octet
 0x0D    1     dst_prefix_lo       raw uint8   Destination routing prefix low octet
 0x0E    4     scratch[0-3]        raw uint8   Scratch registers (4 bytes)
-0x12    2     checksum            raw uint16  CRC-16/CCITT over bytes 0x00-0x13 (with checksum zeroed)
+0x12    2     checksum            raw uint16  CRC-16/CCITT over octets 0x00-0x11 (18 bytes)
 ------  ----  ------------------  ----------  ---------------------------------
 Total: 20 bytes (0x14)
 ]]></artwork></figure>
@@ -361,11 +361,14 @@ Semantics are defined by Sophia dictionary lookup <xref target="SOPHIA"></xref>.
   </dd>
   <dt>hop_count:</dt>
   <dd>
-    <t>An unsigned 8-bit counter, initially set to a deployment-defined
-hop limit (default 64) at Shield ingress. Each hop MUST check
-whether hop_count equals 0; if so, the packet MUST be dropped and
-an EVENT_ANOMALY MUST be emitted. Otherwise, the hop MUST
-decrement hop_count by 1 before forwarding.</t>
+    <t>An unsigned 8-bit counter, set to 0 at Shield ingress. Each hop
+MUST compare hop_count with a deployment-defined hop limit (for
+example 64); if hop_count is greater than or equal to the limit, the
+hop MUST NOT process the Monad further, MUST emit an EVENT_ANOMALY,
+and then either drops the packet (RECOMMENDED) or forwards it
+unchanged, depending on deployment policy. Otherwise, the hop MUST
+increment hop_count by 1, saturating at 255, and recompute the
+checksum.</t>
   </dd>
   <dt>trace_id:</dt>
   <dd>
@@ -391,7 +394,7 @@ closed, half-open). Semantics are defined by Sophia <xref target="SOPHIA"></xref
   </dd>
   <dt>flags:</dt>
   <dd>
-    <t>An 8-bit bitfield controlling protocol behavior. See Section 5.2.</t>
+    <t>An 8-bit bitfield controlling protocol behavior. See Section 5.4.</t>
   </dd>
   <dt>latency_hint:</dt>
   <dd>
@@ -430,8 +433,8 @@ Shield MUST zero scratch bytes at ingress unless CUSTOM is set.</t>
   </dd>
   <dt>checksum:</dt>
   <dd>
-    <t>A 16-bit CRC-16/CCITT checksum computed over all 20 bytes
-(0x00-0x13) of the Monad with the checksum field (0x12-0x13) zeroed during computation. See Section 5.4.</t>
+    <t>A 16-bit CRC-16/CCITT checksum computed over octets 0x00-0x11
+(the 18 bytes before the checksum). See Section 5.5.</t>
   </dd>
 </dl>
 
@@ -455,7 +458,7 @@ is unchanged; the extended option is purely additive.</t>
 </section>
 <section anchor="flags-bitfield"><name>Flags Bitfield</name>
 
-<t>The flags field (offset 0x0B) is an 8-bit field controlling per-packet
+<t>The flags field (offset 0x07) is an 8-bit field controlling per-packet
 behavior:</t>
 
 <figure><artwork><![CDATA[
@@ -490,9 +493,8 @@ ignore.</t>
 <section anchor="checksum-field"><name>Checksum Field</name>
 
 <t>The checksum field (offset 0x12) holds a 16-bit CRC-16/CCITT value
-computed over all 20 bytes of the Monad header (offsets 0x00-0x13,
-inclusive), with the checksum field itself (offsets 0x12-0x13) zeroed
-during computation.</t>
+computed over the 18 bytes that precede it (offsets 0x00-0x11,
+inclusive). The checksum field itself is not part of the input.</t>
 
 <t>CRC-16/CCITT-FALSE Parameters:</t>
 
@@ -524,20 +526,22 @@ during computation.</t>
 <t>The checksum is computed as follows:</t>
 
 <t><list style="numbers" type="1">
-  <t>Create a working copy of the 20-byte Monad header.</t>
-  <t>Set bytes 0x12-0x13 (the checksum field) to 0x0000.</t>
-  <t>Compute CRC-16/CCITT over all 20 bytes of this modified header.</t>
-  <t>Store the resulting 16-bit value at offset 0x12.</t>
+  <t>Take bytes 0x00-0x11 of the Monad (18 bytes).</t>
+  <t>Compute CRC-16/CCITT over those 18 bytes.</t>
+  <t>Store the resulting 16-bit value at offset 0x12 in network byte
+order.</t>
 </list></t>
 
-<t>This ensures integrity protection over all Monad fields, including
-version, flags, flow_label, latency_hint, and reserved fields.</t>
+<t>This protects every Monad field except the checksum itself.</t>
+
+<t>Check value: CRC-16/CCITT-FALSE over the ASCII string "123456789"
+is 0x29B1.</t>
 
 <t>Shield MUST compute the checksum when creating a packet at ingress.
 Each hop MUST verify the checksum before processing. Each hop MUST
-recompute the checksum after modifying any field in offsets 0x00-0x13.
-The checksum field itself (offset 0x12-0x13) MUST NOT be included in
-the checksum computation (set to zero during computation).</t>
+recompute the checksum after modifying any field in offsets 0x00-0x11.
+The checksum field itself (offsets 0x12-0x13) MUST NOT be included in
+the checksum computation.</t>
 
 <t>If a hop detects a checksum failure, the implementation MUST:</t>
 
@@ -784,8 +788,9 @@ Protocol Parameters registry group.</t>
 
 <section anchor="overview-1"><name>Overview</name>
 
-<t>The Unheaded Protocol defines 12 IANA registries (see <xref target="iana-considerations"></xref>).
-New allocations within these registries follow the registration
+<t>This document creates 13 IANA registries and requests two code
+points in existing IANA registries (see <xref target="iana-considerations"></xref>).  The Wotan Topic
+Namespace registry is created by <xref target="WOTAN"></xref>.  New allocations within these registries follow the registration
 procedures specified for each registry (Standards Action, Specification
 Required, Expert Review, or First Come First Served per RFC 8126).</t>
 
@@ -796,7 +801,7 @@ Required, Expert Review, or First Come First Served per RFC 8126).</t>
 
 <section anchor="step-1-identify-the-target-registry"><name>Step 1: Identify the Target Registry</name>
 
-<t>Determine which of the 12 registries your allocation falls under:</t>
+<t>Determine which registry your allocation falls under:</t>
 
 <figure><artwork><![CDATA[
 Registry                              Policy
@@ -812,8 +817,15 @@ Anamnesis Event Types                 Specification Required
 Error Codes                           Specification Required
 TLV Type Allocations                  Specification Required
 PQC Algorithm Identifiers             Specification Required
-Wotan Topic Namespace                 Expert Review
+UPC MBC Opcode Numbers                Specification Required
+UPC MBC Syscall Numbers               Expert Review
+UPC Memory Region Types               Specification Required
+UPC Event Types                       Specification Required
+Wotan Topic Namespace [WOTAN]         Expert Review
 ]]></artwork></figure>
+
+<t>The IPv6 Hop-by-Hop Option Type and IPv6 Next Header Type rows are
+code points in existing IANA registries, not new registries.</t>
 
 </section>
 <section anchor="step-2-prepare-the-registration-request"><name>Step 2: Prepare the Registration Request</name>
@@ -1009,7 +1021,7 @@ differences.</t>
 </list></t>
 
 <t>Mitigation: All implementations of version 0x01 MUST parse exactly
-20 bytes at the offsets specified in Section 5.1. Any deviation from
+20 bytes at the offsets specified in Section 5.3. Any deviation from
 the frozen wire format constitutes a protocol violation. The version
 field (offset 0x00) MUST be checked first; unknown versions MUST
 cause immediate silent drop.</t>
@@ -1037,7 +1049,7 @@ ensure wire format integrity:</t>
 mismatch.</t>
   <t><strong>Size Check</strong>: Monad option Len field MUST be &gt;= 20. Drop on
 mismatch.</t>
-  <t><strong>Checksum Check</strong>: CRC-16/CCITT over all 20 bytes (0x00-0x13 with checksum field zeroed) MUST match
+  <t><strong>Checksum Check</strong>: CRC-16/CCITT over octets 0x00-0x11 MUST match
 bytes 0x12-0x13. Drop or flag on mismatch.</t>
   <t><strong>Flags Check</strong>: Bit 0 (RSVD) MUST be zero. Flag anomaly if set.</t>
   <t><strong>HbH Count Check</strong>: Exactly zero or one Hop-by-Hop extension
@@ -1116,7 +1128,7 @@ domain.</t>
 </section>
 <section anchor="post-quantum-threat-model"><name>Post-Quantum Threat Model</name>
 
-<t>PQC identity binding (Section 9) protects against:</t>
+<t>PQC identity binding (Section 11.17) protects against:</t>
 
 <t><list style="symbols">
   <t>Harvest-now-decrypt-later attacks on metadata correlation.</t>
@@ -1132,7 +1144,7 @@ CRQCs are not yet available.</t>
 </section>
 <section anchor="kingdom-mode-threat-model"><name>Kingdom Mode Threat Model</name>
 
-<t>Kingdom Mode Extended Registers (Section 8) are only valid within the
+<t>Kingdom Mode Extended Registers (Section 5.3.1) are only valid within the
 Limited Domain. An external attacker who can inject packets with forged
 ULA prefixes and K flags set could:</t>
 
@@ -1176,10 +1188,10 @@ are modified or removed.</t>
 existing protocol behavior:</t>
 
 <t><list style="numbers" type="1">
-  <t>IANA Registration Procedures (Section 9): Informational guidance
+  <t>IANA Registration Procedures (Section 8): Informational guidance
 for new registrations.</t>
   <t>Security Considerations — Wire Format Immutability Threat Model
-(Section 10.1): Documents threats and mitigations for the frozen
+(Section 9.1): Documents threats and mitigations for the frozen
 wire format.</t>
   <t>Cross-References to Sophia draft-03 <xref target="SOPHIA"></xref> and Wotan draft-03
 <xref target="WOTAN"></xref>.</t>
@@ -1251,7 +1263,7 @@ in the "Unheaded Protocol Parameters" registry group.</t>
 <t>Registration Policy: Specification Required <xref target="RFC8126"></xref></t>
 
 <t>The flags field occupies offset 0x07 of the Monad register file
-(Section 5.5).</t>
+(Section 5.3); bit semantics are in Section 5.4.</t>
 
 <figure><artwork><![CDATA[
 Bit   Name      Description                                     Reference
@@ -2330,7 +2342,7 @@ Email: stevie@bellis.tech</t>
 <t>The following changes are made in draft-06:</t>
 
 <t><list style="numbers" type="1">
-  <t><strong>IANA Registration Procedures (NEW)</strong>: Added Section 9 with a
+  <t><strong>IANA Registration Procedures (NEW)</strong>: Added Section 8 with a
 step-by-step guide for registering new metric types and protocol
 extensions within the Unheaded Protocol Parameters registry group.
 Includes guidance on identifying the target registry, preparing the
@@ -2343,19 +2355,19 @@ reference implementation for future IANA registrations. The 20-byte
 Monad wire format is NOT modified.</t>
   <t><strong>Cross-References to Companion Specifications (NEW)</strong>: Added
 explicit cross-references to Sophia draft-03 <xref target="SOPHIA"></xref> and Wotan
-draft-03 <xref target="WOTAN"></xref> throughout the document. Section 1.2 introduces
+draft-03 <xref target="WOTAN"></xref> throughout the document. Section 1.3 introduces
 the specification family structure. Sophia and Wotan references
 are updated from draft-02 to draft-03.</t>
   <t><strong>Security Considerations — Wire Format Immutability (NEW)</strong>: Added
-Section 10.1 documenting the threat model for wire format
+Section 9.1 documenting the threat model for wire format
 immutability, including parser divergence attacks, wire format
 modification via extension, and verification procedures.</t>
-  <t><strong>Backwards Compatibility Statement (NEW)</strong>: Added Section 11
+  <t><strong>Backwards Compatibility Statement (NEW)</strong>: Added Section 10
 formally documenting that the transition from draft-05 to draft-06
 is non-breaking. Wire format, registry entries, and interoperability
 are all preserved.</t>
   <t><strong>Wire Format FROZEN Statement (ENHANCED)</strong>: Added explicit
-"WIRE FORMAT FROZEN" statement in Section 5.1 clarifying that no
+"WIRE FORMAT FROZEN" statement in Section 5.3 clarifying that no
 changes to byte offsets, field sizes, field ordering, or total size
 are permitted in version 0x01.</t>
   <t><strong>TLV Type Registry Updated</strong>: Added UNHEADED_METRIC_V1 (0x2A) to

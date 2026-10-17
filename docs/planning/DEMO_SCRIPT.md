@@ -35,7 +35,7 @@
 
 **[VISUAL: Each component highlights as it is named -- Shield (WAF), service mesh, load balancer, control plane, observability layer, deployment pipeline -- forming the full architecture diagram.]**
 
-> Six layers. Twenty-three services. One command to deploy. Your app goes from repository to production in hours.
+> Six layers. One command to deploy.
 
 ---
 
@@ -149,11 +149,11 @@
 >
 > Configuration management automation platform.
 
-**[VISUAL: The particle field expands outward. The Unheaded logo centers. Below it: unheaded.com and hello@unheaded.com.]**
+**[VISUAL: The particle field expands outward. The Unheaded logo centers. Below it: github.com/unheaded/unheaded.]**
 
 > You bring the application. We provide the infrastructure.
 >
-> Visit unheaded.com.
+> The code is at github.com/unheaded/unheaded.
 
 **[VISUAL: Fade to black. The particle field lingers for one beat, then dissolves.]**
 
