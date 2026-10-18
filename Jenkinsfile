@@ -266,39 +266,26 @@ Section: admin
 Priority: optional
 EOF
 
-              # Systemd unit
-              cat > ${PKG_DIR}/etc/systemd/system/${PKG_NAME}.service <<EOF
-[Unit]
-Description=Unheaded ${svc_bin}
-After=network.target
+              # Systemd unit: the repo's (own nologin account + sandbox), binary
+              # path moved to the package's; same as scripts/build-all-debs.sh.
+              case "${svc_bin}" in
+                dashboard-backend) UNIT=unheaded-dashboard.service ;;
+                kanban-app) UNIT=unheaded-kanban.service ;;
+                *) UNIT="${svc_bin}.service" ;;
+              esac
+              sed 's|/usr/local/bin/|/opt/unheaded/bin/|g' "deploy/systemd/${UNIT}" > ${PKG_DIR}/etc/systemd/system/${PKG_NAME}.service
+              SVC_USER=$(sed -n 's/^User=//p' "deploy/systemd/${UNIT}")
+              mkdir -p ${PKG_DIR}/usr/lib/sysusers.d
+              awk -v u="${SVC_USER}" '$1 == "u" && $2 == u' deploy/sysusers.d/unheaded.conf > ${PKG_DIR}/usr/lib/sysusers.d/${PKG_NAME}.conf
+              test -s ${PKG_DIR}/usr/lib/sysusers.d/${PKG_NAME}.conf
 
-[Service]
-Type=simple
-User=unheaded
-Group=unheaded
-ExecStart=/opt/unheaded/bin/${svc_bin}
-Restart=always
-RestartSec=5
-NoNewPrivileges=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/var/lib/unheaded /var/log/unheaded
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-              # Post-install script
-              cat > ${PKG_DIR}/DEBIAN/postinst <<'POSTINST'
+              # Post-install script: the service's own account; systemd makes its StateDirectory
+              cat > ${PKG_DIR}/DEBIAN/postinst <<POSTINST
 #!/bin/sh
 set -e
-# Create unheaded user if it doesn't exist
-if ! id -u unheaded > /dev/null 2>&1; then
-  useradd --system --home-dir /opt/unheaded --shell /usr/sbin/nologin unheaded
-fi
-mkdir -p /var/lib/unheaded /var/log/unheaded /etc/unheaded
-chown unheaded:unheaded /var/lib/unheaded /var/log/unheaded
+systemd-sysusers /usr/lib/sysusers.d/${PKG_NAME}.conf
 systemctl daemon-reload
+systemctl try-restart ${PKG_NAME}.service || true
 POSTINST
               chmod 755 ${PKG_DIR}/DEBIAN/postinst
 

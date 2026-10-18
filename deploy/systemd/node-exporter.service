@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Prometheus node_exporter (third-party, /usr/local/bin/node_exporter from the
+# upstream release tarball; scripts/bootstrap-llm-lab.sh installs it).
+# Install (account first: deploy/sysusers.d/unheaded.conf):
+#   sudo cp deploy/systemd/node-exporter.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now node-exporter
+#
+# Its own account, not `nobody`: a shared account lets any service running as
+# it read and rewrite the others' state.
+
+[Unit]
+Description=Prometheus Node Exporter
+Documentation=https://github.com/prometheus/node_exporter
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/node_exporter --collector.systemd --collector.processes
+Restart=on-failure
+RestartSec=5s
+
+User=node-exporter
+Group=node-exporter
+UMask=0077
+
+# Host observer: reads /proc, /sys and systemd over D-Bus, writes nothing, so
+# no ProtectProc (it reports every process) and /home read-only, not hidden
+# (the filesystem collector stats every mount).
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+# timex collector: adjtimex(2) read-only (NTP sync state). After the deny line,
+# since @privileged includes @clock. Setting the clock needs CAP_SYS_TIME,
+# which this unit does not have.
+SystemCallFilter=adjtimex
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

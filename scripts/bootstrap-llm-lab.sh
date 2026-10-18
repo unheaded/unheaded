@@ -28,7 +28,6 @@ readonly NVME_MOUNT="/mnt/nvme"                   # Fast storage mount
 readonly HDD_MOUNT="/mnt/hdd"                     # Slow storage mount
 readonly MODELS_DIR="/mnt/hdd/models"             # LLM model weights
 readonly UNHEADED_HOME="/opt/unheaded"            # Kingdom home
-readonly UNHEADED_USER="unheaded"                 # Service user
 readonly LOG_FILE="/var/log/unheaded-bootstrap.log"
 
 # Feature flags
@@ -443,12 +442,12 @@ phase_amd_gpu() {
         miopen-hip \
         2>/dev/null || warn "Some ROCm dev packages unavailable — non-fatal"
 
-    # Add current user + unheaded to video/render groups
+    # Add the invoking user to video/render groups. Service accounts get a
+    # device group only in their own unit (SupplementaryGroups=), never here.
     step "Configuring GPU access groups..."
     for grp in video render; do
         getent group "$grp" &>/dev/null && {
             usermod -aG "$grp" root 2>/dev/null || true
-            id "${UNHEADED_USER}" &>/dev/null && usermod -aG "$grp" "${UNHEADED_USER}" 2>/dev/null || true
             # Add the user who invoked sudo
             [[ -n "${SUDO_USER:-}" ]] && usermod -aG "$grp" "${SUDO_USER}" 2>/dev/null || true
         }
@@ -1533,22 +1532,19 @@ ALIASES
 phase_security() {
     phase "16/16 — SECURITY HARDENING + SYSTEM SERVICES"
 
-    # Create unheaded service user
-    step "Creating unheaded service user..."
-    if id "${UNHEADED_USER}" &>/dev/null; then
-        ok "User ${UNHEADED_USER} already exists"
-    else
-        run useradd -r -s /bin/bash -d "${UNHEADED_HOME}" -m "${UNHEADED_USER}"
-        for grp in docker lxd video render; do
-            getent group "$grp" &>/dev/null && run usermod -aG "$grp" "${UNHEADED_USER}" 2>/dev/null || true
-        done
-        ok "User ${UNHEADED_USER} created"
-    fi
+    # One nologin system account per service (deploy/sysusers.d), no shared
+    # account, no docker/lxd group (both are root-equivalent).
+    step "Creating service accounts..."
+    local repo_root
+    repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    run install -d -m 0755 /etc/sysusers.d
+    run install -m 0644 "${repo_root}/deploy/sysusers.d/unheaded.conf" /etc/sysusers.d/unheaded.conf
+    run systemd-sysusers /etc/sysusers.d/unheaded.conf
+    ok "Service accounts created"
 
-    # Ownership
-    run chown -R "${UNHEADED_USER}:${UNHEADED_USER}" "${UNHEADED_HOME}" 2>/dev/null || true
-    run chown -R "${UNHEADED_USER}:${UNHEADED_USER}" /var/lib/unheaded 2>/dev/null || true
-    run chown -R "${UNHEADED_USER}:${UNHEADED_USER}" /var/log/unheaded 2>/dev/null || true
+    # Root-owned: no service may replace what it, or root, runs. Each service's
+    # writable state is its own systemd StateDirectory under /var/lib/unheaded.
+    run install -d -o root -g root -m 0755 "${UNHEADED_HOME}" /var/lib/unheaded /var/log/unheaded
 
     # UFW firewall
     step "Configuring UFW firewall..."
@@ -1605,42 +1601,10 @@ AllowTcpForwarding yes
 SSHCFG
     run systemctl reload sshd 2>/dev/null || run systemctl reload ssh 2>/dev/null || true
 
-    # Systemd service for unheaded daemon
+    # Systemd service for unheaded daemon: the repo unit (own account, no
+    # capabilities, StateDirectory).
     step "Installing unheaded systemd service..."
-    cat > /etc/systemd/system/unheaded-daemon.service << 'SVCUNIT'
-[Unit]
-Description=Unheaded Control Plane Daemon (Cuirass)
-Documentation=https://github.com/unheaded/unheaded
-After=network-online.target docker.service lxd.service
-Wants=network-online.target
-Requires=docker.service
-
-[Service]
-Type=simple
-User=root
-Group=root
-ExecStart=/opt/unheaded/bin/unheaded-daemon
-Restart=on-failure
-RestartSec=5s
-WatchdogSec=30s
-
-# Resource limits
-LimitNOFILE=1048576
-LimitMEMLOCK=infinity
-LimitNPROC=infinity
-
-# Security hardening
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN CAP_BPF CAP_PERFMON CAP_NET_RAW CAP_NET_BIND_SERVICE
-AmbientCapabilities=CAP_NET_ADMIN CAP_SYS_ADMIN CAP_BPF CAP_PERFMON CAP_NET_RAW CAP_NET_BIND_SERVICE
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/unheaded /var/lib/unheaded /var/log/unheaded /sys/fs/bpf /mnt
-
-[Install]
-WantedBy=multi-user.target
-SVCUNIT
+    run install -m 0644 "${repo_root}/deploy/systemd/unheaded-daemon.service" /etc/systemd/system/unheaded-daemon.service
     run systemctl daemon-reload
 
     # Node exporter for Prometheus
@@ -1654,20 +1618,8 @@ SVCUNIT
             cp "/tmp/node_exporter-${ne_ver}.linux-amd64/node_exporter" /usr/local/bin/
             rm -rf "/tmp/node_exporter-${ne_ver}.linux-amd64" /tmp/node_exporter.tar.gz
 
-            cat > /etc/systemd/system/node-exporter.service << 'NEUNIT'
-[Unit]
-Description=Prometheus Node Exporter
-After=network.target
-
-[Service]
-Type=simple
-User=nobody
-ExecStart=/usr/local/bin/node_exporter --collector.systemd --collector.processes
-Restart=on-failure
-
-[Install]
-WantedBy=multi-user.target
-NEUNIT
+            # Its own account and sandbox (deploy/systemd/node-exporter.service).
+            run install -m 0644 "${repo_root}/deploy/systemd/node-exporter.service" /etc/systemd/system/node-exporter.service
             run systemctl daemon-reload
             run systemctl enable node-exporter
             run systemctl start node-exporter

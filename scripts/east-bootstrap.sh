@@ -207,8 +207,9 @@ phase_services() {
   header "PHASE 3: SERVICE DEPLOYMENT (6 app services)"
 
   # Create directories
-  mkdir -p "${EAST_SVC_DIR}"/{bin,data,logs,config}
-  chown -R unheaded:unheaded "${EAST_SVC_DIR}" 2>/dev/null || true
+  # Root-owned: no service may replace the binaries it runs. Each unit's
+  # writable state is its own StateDirectory (/var/lib/east-<svc>).
+  install -d -o root -g root -m 0755 "${EAST_SVC_DIR}" "${EAST_SVC_DIR}"/{bin,config}
 
   info "Service directory: ${EAST_SVC_DIR}"
   info "Expected binaries in ${EAST_SVC_DIR}/bin/:"
@@ -250,7 +251,34 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=unheaded
+# Its own transient nologin account per unit, never shared (DynamicUser).
+DynamicUser=yes
+StateDirectory=east-${svc}
+WorkingDirectory=/var/lib/east-${svc}
+UMask=0077
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
 ExecStart=${EAST_SVC_DIR}/bin/${svc} --listen [::1]:${port}
 Restart=on-failure
 RestartSec=5s

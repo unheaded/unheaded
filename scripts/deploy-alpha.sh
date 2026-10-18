@@ -246,9 +246,10 @@ for svc in "${DEPLOY_ORDER[@]}"; do
     # Wait for networking
     sleep 3
 
-    # Create app directory and unheaded user
-    lxc exec "$cname" -- mkdir -p /app /data /var/lib/unheaded
-    lxc exec "$cname" -- adduser --system --group --home /app unheaded 2>/dev/null || true
+    # The service's own nologin account (named after it, shared with nothing);
+    # /app stays root-owned so the service cannot replace its own binary.
+    lxc exec "$cname" -- mkdir -p /app /data   # /data: mount point for the StateDirectory
+    lxc exec "$cname" -- adduser --system --group --no-create-home --home /nonexistent --shell /usr/sbin/nologin "$svc" 2>/dev/null || true
 
     # Push binary
     log_info "Pushing $svc binary..."
@@ -307,26 +308,47 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=unheaded
-Group=unheaded
+User=${svc}
+Group=${svc}
 WorkingDirectory=/app
 ExecStart=${local_cmd}
 EnvironmentFile=/app/${svc}.env
 Restart=always
 RestartSec=5s
+# /data is this service's own (systemd creates it, owned by ${svc}, 0700).
+StateDirectory=${svc}
+BindPaths=/var/lib/${svc}:/data
+UMask=0077
 
-# Hardening
+# Hardening (same block as deploy/systemd)
 NoNewPrivileges=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths=/data /var/lib/unheaded
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
 
 [Install]
 WantedBy=multi-user.target
 UNIT
 
-    # Fix permissions
-    lxc exec "$cname" -- chown -R unheaded:unheaded /app /data /var/lib/unheaded
+    # Root-owned app dir; the env file is read by systemd (PID 1), not the service
+    lxc exec "$cname" -- chown -R root:root /app
+    lxc exec "$cname" -- chmod 0600 "/app/${svc}.env"
 
     # Enable and start service
     lxc exec "$cname" -- systemctl daemon-reload
