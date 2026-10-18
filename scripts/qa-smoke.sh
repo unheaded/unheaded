@@ -163,9 +163,9 @@ check "wiki/pages"          "200"  "$(http http://localhost:20002/wiki/)"
 
 # trace-collector publishes the real eBPF events behind the Flow Graph,
 # Latency and Events pages (packet_marker/flow_tracker on br-unhe-data, TCP
-# kprobes). It replaced demo-trace-injector's synthetic events on
+# kprobes; root, so from root-owned /usr/local/bin, not /tmp). It replaced demo-trace-injector's synthetic events on
 # 2026-09-30; the injector must not run alongside it.
-if pgrep -f '^/tmp/trace-collector-go --unified' >/dev/null 2>&1; then tc="running"; else tc="absent"; fi
+if pgrep -f '^(/usr/local/bin|/tmp)/trace-collector-go --unified' >/dev/null 2>&1; then tc="running"; else tc="absent"; fi
 check "trace-collector/running" "running" "$tc"
 if pgrep -f '^/tmp/demo-trace-injector' >/dev/null 2>&1; then inj="running"; else inj="absent"; fi
 check "demo-injector/absent" "absent" "$inj"

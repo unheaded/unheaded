@@ -287,7 +287,7 @@ services:
     cap_drop:
       - ALL
     tmpfs:
-      - /var/run/postgresql:size=1M
+      - /var/run/postgresql:size=1M,uid=70,gid=70,mode=0775   # owned by postgres: the entrypoint chmods it
       - /tmp:size=64M
     restart: unless-stopped
     environment:
