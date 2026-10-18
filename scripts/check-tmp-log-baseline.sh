@@ -32,7 +32,8 @@ MANIFEST="${REPO_ROOT}/docs/policy/tmp-log-baseline.txt"
 cd "$REPO_ROOT" || exit 2
 
 # Executable and config surfaces only — the things that actually run.
-current="$(git ls-files '*.sh' '*.py' '*.go' '*.yaml' '*.yml' '*.service' '*.nix' \
+# references/timeline.{yaml,json,toml} mirror the timeline's prose (a record).
+current="$(git ls-files '*.sh' '*.py' '*.go' '*.yaml' '*.yml' '*.service' '*.nix' ':!references/timeline.*' \
     | xargs grep -oh '/tmp/[A-Za-z0-9_*.-]*\.log' 2>/dev/null \
     | sort -u)"
 
