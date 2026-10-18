@@ -289,7 +289,7 @@ SPDX-License-Identifier: MIT
 
 Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
-This Docker infrastructure is provided as-is under the MIT License. All source files include proper SPDX license headers.
+This Docker infrastructure is provided as-is under GPL-3.0-or-later. All source files include proper SPDX license headers.
 
 ---
 

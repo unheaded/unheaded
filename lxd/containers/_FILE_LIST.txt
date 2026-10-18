@@ -293,7 +293,7 @@ COPYRIGHT & LICENSE
 SPDX-License-Identifier: MIT
 Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
-All files in this directory are distributed under the MIT License.
+All files in this directory are distributed under GPL-3.0-or-later (see LICENSE).
 See individual file headers for license information.
 
 ================================================================================

@@ -323,7 +323,7 @@ Documentation (optional):
 LICENSE AND COPYRIGHT
 ================================================================================
 
-All files created under MIT License:
+All files created under GPL-3.0-or-later (see LICENSE):
 Copyright (c) 2024-2026 Stevie Bellis
 
 Suricata itself is licensed under GPL-2.0 and is located at ~/tmp/suricata/

@@ -270,7 +270,7 @@ LICENSE
 
 SPDX-License-Identifier: MIT
 
-All Unheaded Kingdom LXD infrastructure files are released under the MIT License.
+All Unheaded Kingdom LXD infrastructure files are released under GPL-3.0-or-later (see LICENSE).
 
 ================================================================================
 CREATED: 2025-02-26

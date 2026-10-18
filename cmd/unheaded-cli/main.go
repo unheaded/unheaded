@@ -4,7 +4,7 @@
 /*
  * This file is part of the Unheaded distributed system platform.
  *
- * Unheaded is licensed under the MIT License.
+ * Unheaded is licensed under the GNU General Public License v3.0 or later.
  * See the LICENSE file in the root directory for the full license text.
  *
  * For protocol specifications, see LICENSE-PROTOCOLS.

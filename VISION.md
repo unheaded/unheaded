@@ -97,7 +97,7 @@ Success criteria: Anyone can implement the protocol independently. Protocol is p
 
 ## Open Source
 
-Unheaded is MIT licensed. Take it. Use it. Build on it. Break it. The ideas matter more than the moat.
+Unheaded is GPL-3.0 licensed. Take it. Use it. Build on it. Break it. The ideas matter more than the moat.
 
 ---
 

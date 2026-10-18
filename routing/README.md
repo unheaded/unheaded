@@ -716,7 +716,7 @@ ip link set wg0 up
 
 ## License
 
-All configuration files and scripts are licensed under the MIT License.
+All configuration files and scripts are licensed under GPL-3.0-or-later (see LICENSE).
 See individual file headers for details.
 
 ---
