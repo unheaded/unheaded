@@ -2,9 +2,13 @@
 # Loads the last operator-confirmed `inet unheaded` firewall table at boot
 # (ADR-098 step 6). The file exists only after
 # `scripts/host/nft-apply-confirm.sh confirm`; until then this does nothing.
-# Install (with Stevie's yes, per host):
+# Install (with Stevie's yes, per host; users first: deploy/sysusers.d/unheaded.conf):
 #   sudo cp deploy/systemd/unheaded-nft.service /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable unheaded-nft.service
+#
+# Runs as unheaded-nft with CAP_NET_ADMIN only. confirmed.nft stays root 0600:
+# systemd opens it and hands it to nft on stdin, so the account cannot read
+# any other file under /var/lib/unheaded/nft.
 
 [Unit]
 Description=Unheaded host firewall (inet unheaded, last confirmed ruleset)
@@ -12,14 +16,45 @@ Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-098
 DefaultDependencies=no
 Before=network-pre.target
 Wants=network-pre.target
-After=local-fs.target
+After=local-fs.target systemd-sysusers.service
 ConditionPathExists=/var/lib/unheaded/nft/confirmed.nft
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/usr/sbin/nft -f /var/lib/unheaded/nft/confirmed.nft
+StandardInput=file:/var/lib/unheaded/nft/confirmed.nft
+ExecStart=/usr/sbin/nft -f /dev/stdin
 ExecStop=-/usr/sbin/nft delete table inet unheaded
+
+User=unheaded-nft
+Group=unheaded-nft
+UMask=0077
+CapabilityBoundingSet=CAP_NET_ADMIN
+AmbientCapabilities=CAP_NET_ADMIN
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_NETLINK
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
 
 [Install]
 WantedBy=sysinit.target
