@@ -472,8 +472,8 @@ lint: ## Lint all code
 
 security: ## Run Go security audit (gosec)
 	@echo "Running security audit..."
-	@which gosec > /dev/null || (echo "Installing gosec..." && go install github.com/securego/gosec/v2/cmd/gosec@v2.21.0)
-	gosec ./...
+	@go -C $(CURDIR)/tools/gosec build -o $(CURDIR)/bin/gosec github.com/securego/gosec/v2/cmd/gosec
+	$(CURDIR)/bin/gosec ./...
 
 ##@ SBOM & Compliance
 
@@ -504,8 +504,8 @@ health: ## Kingdom-wide health check (ADR-073 ratchet + vulns + tests + branch h
 
 ci-security: ## Run security scans only (gosec + govulncheck + GPL boundary)
 	@echo "Running security scans..."
-	@which gosec > /dev/null || (echo "Installing gosec..." && go install github.com/securego/gosec/v2/cmd/gosec@v2.21.0)
-	gosec ./...
+	@go -C $(CURDIR)/tools/gosec build -o $(CURDIR)/bin/gosec github.com/securego/gosec/v2/cmd/gosec
+	$(CURDIR)/bin/gosec ./...
 	@which govulncheck > /dev/null || (echo "Installing govulncheck..." && go install golang.org/x/vuln/cmd/govulncheck@latest)
 	govulncheck ./...
 	@chmod +x scripts/verify-gpl-boundary.sh

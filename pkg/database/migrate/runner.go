@@ -38,7 +38,9 @@ func (r *Runner) ReadLedger(ctx context.Context, dbs []string) (Ledger, error) {
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}
 		rows, err := readLedger(ctx, db, name)
-		db.Close()
+		if cerr := db.Close(); err == nil {
+			err = cerr
+		}
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", name, err)
 		}

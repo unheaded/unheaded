@@ -74,9 +74,18 @@ if [ "${#EXISTING_GO[@]}" -gt 0 ]; then
 
     # Map staged files → unique parent dirs → ./dir form for `go vet`.
     declare -A PKG_SET=()
+    # A file under a nested module (its own go.mod, e.g. tools/gosec) is
+    # vetted inside that module, not as a package of the root one.
+    declare -A MOD_SET=()
     for f in "${EXISTING_GO[@]}"; do
         d="$(dirname "$f")"
-        PKG_SET["./$d"]=1
+        m="$d"
+        while [ "$m" != "." ] && [ ! -f "$m/go.mod" ]; do m="$(dirname "$m")"; done
+        if [ "$m" = "." ]; then
+            PKG_SET["./$d"]=1
+        else
+            MOD_SET["$m"]=1
+        fi
     done
 
     PKGS=()
@@ -84,7 +93,13 @@ if [ "${#EXISTING_GO[@]}" -gt 0 ]; then
         PKGS+=("$p")
     done
 
-    VET_OUT="$(go vet "${PKGS[@]}" 2>&1 || true)"
+    VET_OUT=""
+    if [ ${#PKGS[@]} -gt 0 ]; then
+        VET_OUT="$(go vet "${PKGS[@]}" 2>&1 || true)"
+    fi
+    for m in "${!MOD_SET[@]}"; do
+        VET_OUT="${VET_OUT}$(go -C "$m" vet ./... 2>&1 || true)"
+    done
     if [ -n "$VET_OUT" ]; then
         echo "pre-commit: go vet failed for staged packages:" >&2
         echo "$VET_OUT" | sed 's/^/  /' >&2

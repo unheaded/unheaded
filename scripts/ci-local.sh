@@ -95,11 +95,12 @@ else
     skip_step "Rust Check" "cargo not installed"
 fi
 
-# 6. gosec (optional)
-if command -v gosec &>/dev/null; then
-    run_step "gosec" gosec -quiet ./...
+# 6. gosec: the pinned build CI uses (tools/gosec; see tools/gosec/README.md)
+GOSEC_BIN="$(mktemp -d)/gosec"
+if go -C tools/gosec build -o "$GOSEC_BIN" github.com/securego/gosec/v2/cmd/gosec 2>/dev/null; then
+    run_step "gosec" "$GOSEC_BIN" -quiet ./...
 else
-    skip_step "gosec" "not installed; run: go install github.com/securego/gosec/v2/cmd/gosec@v2.21.0"
+    skip_step "gosec" "could not build tools/gosec"
 fi
 
 # 7. govulncheck (optional)

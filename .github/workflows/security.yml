@@ -81,10 +81,13 @@ jobs:
       - name: Fetch doomgeneric (go.mod replace target)
         run: ./scripts/ci-fetch-doomgeneric.sh
 
+      # Built from tools/gosec (gosec v2.29.0 + x/tools v0.52.0, go.sum-pinned):
+      # `go install gosec@v2.29.0` brings an x/tools that cannot read Go 1.27
+      # export data, so it type-checked nothing and failed on load errors.
       - name: Run gosec
         run: |
-          go install github.com/securego/gosec/v2/cmd/gosec@v2.29.0
-          gosec -fmt sarif -out gosec-results.sarif -stdout -verbose=text ./...
+          go -C tools/gosec build -o "$RUNNER_TEMP/gosec" github.com/securego/gosec/v2/cmd/gosec
+          "$RUNNER_TEMP/gosec" -fmt sarif -out gosec-results.sarif -stdout -verbose=text ./...
 
       # The exclusion list above is a suppression mechanism, and suppression
       # mechanisms grow unless something stops them. This asserts the ratchet

@@ -83,8 +83,8 @@ verify: fmt vet lint test-race
 ## security: Run security audit
 security:
 	@echo "Running security audit..."
-	@which gosec > /dev/null || (echo "Installing gosec..." && go install github.com/securego/gosec/v2/cmd/gosec@v2.21.0)
-	gosec -exclude=G104 ./...
+	@go -C ../../tools/gosec build -o $(CURDIR)/gosec-bin github.com/securego/gosec/v2/cmd/gosec
+	$(CURDIR)/gosec-bin -exclude=G104 ./... && rm -f $(CURDIR)/gosec-bin
 
 ## docker-build: Build Docker image (placeholder)
 docker-build:
