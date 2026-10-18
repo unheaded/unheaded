@@ -88,18 +88,18 @@ FROM alpine:3.24 AS wotan
 
 RUN apk add --no-cache ca-certificates tzdata
 
-# Create non-root user
-RUN addgroup -g 1000 unheaded && \
-    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16720 wotan && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16720 -G wotan wotan
 
 WORKDIR /app
 
 COPY --from=builder /build/bin/wotan /app/wotan
 
 # Create data directory
-RUN mkdir -p /data && chown unheaded:unheaded /data
+RUN mkdir -p /data && chown 16720:16720 /data
 
-USER unheaded
+USER 16720:16720
 
 EXPOSE 18000 18001
 
@@ -115,16 +115,17 @@ FROM alpine:3.24 AS timeguru
 
 RUN apk add --no-cache ca-certificates tzdata
 
-RUN addgroup -g 1000 unheaded && \
-    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16722 timeguru && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16722 -G timeguru timeguru
 
 WORKDIR /app
 
 COPY --from=builder /build/bin/timeguru /app/timeguru
 
-RUN mkdir -p /data && chown unheaded:unheaded /data
+RUN mkdir -p /data && chown 16722:16722 /data
 
-USER unheaded
+USER 16722:16722
 
 EXPOSE 19000
 
@@ -140,16 +141,17 @@ FROM alpine:3.24 AS captain
 
 RUN apk add --no-cache ca-certificates tzdata
 
-RUN addgroup -g 1000 unheaded && \
-    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16724 captain && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16724 -G captain captain
 
 WORKDIR /app
 
 COPY --from=builder /build/bin/captain /app/captain
 
-RUN mkdir -p /data && chown unheaded:unheaded /data
+RUN mkdir -p /data && chown 16724:16724 /data
 
-USER unheaded
+USER 16724:16724
 
 EXPOSE 19002
 
@@ -165,16 +167,17 @@ FROM alpine:3.24 AS architect
 
 RUN apk add --no-cache ca-certificates tzdata
 
-RUN addgroup -g 1000 unheaded && \
-    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16723 architect && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16723 -G architect architect
 
 WORKDIR /app
 
 COPY --from=builder /build/bin/architect /app/architect
 
-RUN mkdir -p /data && chown unheaded:unheaded /data
+RUN mkdir -p /data && chown 16723:16723 /data
 
-USER unheaded
+USER 16723:16723
 
 EXPOSE 19001
 
@@ -192,14 +195,15 @@ FROM alpine:3.24 AS akira
 
 RUN apk add --no-cache ca-certificates tzdata
 
-RUN addgroup -g 1000 unheaded && \
-    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16731 akira && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16731 -G akira akira
 
 WORKDIR /app
 
 COPY --from=builder /build/bin/akira /app/akira
 
-USER unheaded
+USER 16731:16731
 
 EXPOSE 19100
 
@@ -213,16 +217,17 @@ FROM alpine:3.24 AS micromanager
 
 RUN apk add --no-cache ca-certificates tzdata
 
-RUN addgroup -g 1000 unheaded && \
-    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16725 micromanager && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16725 -G micromanager micromanager
 
 WORKDIR /app
 
 COPY --from=builder /build/bin/micromanager /app/micromanager
 
-RUN mkdir -p /data && chown unheaded:unheaded /data
+RUN mkdir -p /data && chown 16725:16725 /data
 
-USER unheaded
+USER 16725:16725
 
 EXPOSE 19003
 
@@ -238,16 +243,17 @@ FROM alpine:3.24 AS monad
 
 RUN apk add --no-cache ca-certificates tzdata
 
-RUN addgroup -g 1000 unheaded && \
-    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16726 monad && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16726 -G monad monad
 
 WORKDIR /app
 
 COPY --from=builder /build/bin/monad /app/monad
 
-RUN mkdir -p /data && chown unheaded:unheaded /data
+RUN mkdir -p /data && chown 16726:16726 /data
 
-USER unheaded
+USER 16726:16726
 
 EXPOSE 19004
 
@@ -263,16 +269,17 @@ FROM alpine:3.24 AS sophia
 
 RUN apk add --no-cache ca-certificates tzdata
 
-RUN addgroup -g 1000 unheaded && \
-    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16727 sophia && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16727 -G sophia sophia
 
 WORKDIR /app
 
 COPY --from=builder /build/bin/sophia /app/sophia
 
-RUN mkdir -p /data && chown unheaded:unheaded /data
+RUN mkdir -p /data && chown 16727:16727 /data
 
-USER unheaded
+USER 16727:16727
 
 EXPOSE 19005
 
@@ -288,17 +295,18 @@ FROM alpine:3.24 AS cuirass
 
 RUN apk add --no-cache ca-certificates tzdata
 
-RUN addgroup -g 1000 unheaded && \
-    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16740 cuirass && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16740 -G cuirass cuirass
 
 WORKDIR /app
 
 COPY --from=builder /build/bin/unheaded-daemon /app/unheaded-daemon
 
 RUN mkdir -p /data /var/lib/unheaded && \
-    chown -R unheaded:unheaded /data /var/lib/unheaded
+    chown -R 16740:16740 /data /var/lib/unheaded
 
-USER unheaded
+USER 16740:16740
 
 EXPOSE 17000 17001
 
@@ -314,8 +322,9 @@ FROM alpine:3.24 AS dashboard-backend
 
 RUN apk add --no-cache ca-certificates tzdata
 
-RUN addgroup -g 1000 unheaded && \
-    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16728 dashboard-backend && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16728 -G dashboard-backend dashboard-backend
 
 WORKDIR /app
 
@@ -323,9 +332,9 @@ COPY --from=builder /build/bin/dashboard-backend /app/dashboard-backend
 # Copy advanced visualization files for --viz-dir
 COPY --from=builder /build/dashboard/ /app/viz/
 
-RUN mkdir -p /data && chown unheaded:unheaded /data
+RUN mkdir -p /data && chown 16728:16728 /data
 
-USER unheaded
+USER 16728:16728
 
 EXPOSE 20000
 
@@ -341,16 +350,17 @@ FROM alpine:3.24 AS kanban-app
 
 RUN apk add --no-cache ca-certificates tzdata
 
-RUN addgroup -g 1000 unheaded && \
-    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16729 kanban-app && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16729 -G kanban-app kanban-app
 
 WORKDIR /app
 
 COPY --from=builder /build/bin/kanban-app /app/kanban-app
 
-RUN mkdir -p /data && chown unheaded:unheaded /data
+RUN mkdir -p /data && chown 16729:16729 /data
 
-USER unheaded
+USER 16729:16729
 
 EXPOSE 20001
 
@@ -366,8 +376,10 @@ FROM alpine:3.24
 
 RUN apk add --no-cache ca-certificates tzdata supervisor
 
-RUN addgroup -g 1000 unheaded && \
-    adduser -u 1000 -G unheaded -s /bin/sh -D unheaded
+# One container running every service under supervisord (dev only), so one
+# account for all of them; still not root and not a login account (pkg/uids).
+RUN addgroup -S -g 16759 unheaded-dev && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16759 -G unheaded-dev unheaded-dev
 
 WORKDIR /app
 
@@ -376,12 +388,15 @@ COPY --from=builder /build/bin/* /app/
 
 # Create directories
 RUN mkdir -p /data /var/lib/unheaded /etc/supervisor.d && \
-    chown -R unheaded:unheaded /data /var/lib/unheaded
+    chown -R 16759:16759 /data /var/lib/unheaded
 
 # Supervisor config for all-in-one
 RUN cat > /etc/supervisor.d/unheaded.ini << 'EOF'
 [supervisord]
 nodaemon=true
+logfile=/dev/null
+logfile_maxbytes=0
+pidfile=/tmp/supervisord.pid
 
 [program:wotan]
 command=/app/wotan
@@ -476,4 +491,7 @@ EOF
 
 EXPOSE 5555 8080 8081 8082 8083 8084 8085 8086 8087 9090 20000 20001
 
-ENTRYPOINT ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]
+USER 16759:16759
+
+# Our file only: the stock /etc/supervisord.conf logs and pids under root-owned paths.
+ENTRYPOINT ["/usr/bin/supervisord", "-c", "/etc/supervisor.d/unheaded.ini"]

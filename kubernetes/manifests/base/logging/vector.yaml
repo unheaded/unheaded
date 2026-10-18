@@ -41,7 +41,9 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
-        runAsUser: 65534
+        runAsUser: 16706   # pkg/uids.Vector (was 65534, nobody: shared)
+        runAsGroup: 16706
+        fsGroup: 16706
         seccompProfile:
           type: RuntimeDefault
       containers:

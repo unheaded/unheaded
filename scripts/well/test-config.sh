@@ -36,7 +36,11 @@ cp "$R/db/postgresql.conf" "$TMP/conf/postgresql.conf"
 sed "s/172\.28\.1\./$SUBNET_PREFIX./g" "$R/db/pg_hba.conf" >"$TMP/conf/pg_hba.conf"
 "${SUDO[@]}" "$R/scripts/well/make-tls.sh" "$TMP/tls" >/dev/null
 
+# Same identity as docker-compose.yml's postgres: uid 70 from the start (no
+# root entrypoint), read-only root, no capabilities.
 "${DOCKER[@]}" run -d --rm --name "$N" --network "$NET" -p 127.0.0.1::5432 \
+	--user 70:70 --read-only --tmpfs /var/run/postgresql --tmpfs /tmp \
+	--cap-drop ALL --security-opt no-new-privileges:true \
 	-e POSTGRES_USER=unheaded -e POSTGRES_PASSWORD="$PW" -e POSTGRES_DB=postgres \
 	-e POSTGRES_INITDB_ARGS=--data-checksums -e APP_KANBAN_PASSWORD="$APW" \
 	-v "$R/db/migrations:/migrations:ro" -v "$R/db/init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro" \

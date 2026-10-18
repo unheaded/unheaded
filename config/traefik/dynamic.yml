@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Traefik routes, read from this file instead of the Docker socket. The socket
+# is the Docker API: read-only mount or not, whoever holds it is root on the
+# host. Two routes do not need that. Add a service here when it needs one.
+http:
+  routers:
+    dashboard:
+      rule: "PathPrefix(`/dashboard`)"
+      entryPoints: [web]
+      service: dashboard
+    kanban:
+      rule: "PathPrefix(`/kanban`)"
+      entryPoints: [web]
+      service: kanban
+  services:
+    dashboard:
+      loadBalancer:
+        servers:
+          - url: "http://dashboard-backend:20000"
+    kanban:
+      loadBalancer:
+        servers:
+          - url: "http://kanban-app:20001"

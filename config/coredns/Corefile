@@ -1,4 +1,6 @@
-unheaded.local:53 {
+# 1053, not 53: the server runs as an unprivileged uid with no capabilities;
+# the host port (COREDNS_PORT, default 5353) is mapped onto it by compose.
+unheaded.local:1053 {
     log
     errors
     health {
@@ -40,7 +42,7 @@ unheaded.local:53 {
     }
 }
 
-.:53 {
+.:1053 {
     forward . 8.8.8.8 8.8.4.4
     log
     errors

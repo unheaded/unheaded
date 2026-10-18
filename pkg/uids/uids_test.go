@@ -107,6 +107,16 @@ var helmOnly = map[string]bool{
 	"unheaded-daemon": true,
 }
 
+// composeOnly lists services that exist only in docker-compose.yml (or as the
+// Dockerfile's default stage). TestComposeMatchesRegistry checks them instead.
+var composeOnly = map[string]bool{
+	"akira":          true,
+	"all-in-one-dev": true,
+	"coredns":        true,
+	"postgres":       true,
+	"traefik":        true,
+}
+
 // pendingHardening are services whose registry UID is deliberately NOT yet
 // applied to their manifest, with the reason. They are privileged network
 // workloads where dropping to a non-root UID is a functional change that
@@ -169,7 +179,7 @@ func TestManifestsMatchRegistry(t *testing.T) {
 		paths := findManifests(service)
 
 		if len(paths) == 0 {
-			if !helmOnly[service] {
+			if !helmOnly[service] && !composeOnly[service] {
 				t.Errorf("%s: registry assigns UID %d but no manifest declares it, "+
 					"and it is not listed as Helm-only — the registry is asserting "+
 					"hardening that may never have been applied", service, want)

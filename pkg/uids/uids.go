@@ -49,6 +49,12 @@ const (
 	VictoriaMetrics = 16703
 	Promtail        = 16704
 	NodeExporter    = 16705
+	Vector          = 16706
+	// ClickHouse ran as the image's 101, which is _chrony on west and east:
+	// the database and the time daemon were one identity on the host. The
+	// image's writable dirs are 0777, so any uid works; existing volumes are
+	// chowned once by compose's volume-init (2026-10-18).
+	ClickHouse = 16707
 )
 
 // Kingdom services tier (16720-16759). These are Unheaded's own Go binaries
@@ -68,6 +74,10 @@ const (
 	DashboardBackend = 16728
 	KanbanApp        = 16729
 	Gateway          = 16730
+	Akira            = 16731
+	// AllInOneDev is the Dockerfile's default stage: every service under one
+	// supervisord in one container (development only), so one account.
+	AllInOneDev = 16759
 )
 
 // Armory tier (16740-16759). Infrastructure components under deploy/k8s/armory.
@@ -101,6 +111,8 @@ const (
 	VLLM          = 16781
 	Suricata      = 16782
 	WireGuard     = 16783
+	Traefik       = 16784
+	CoreDNS       = 16785
 )
 
 // Third-party image UIDs. These are NOT ours to choose: each image ships data
@@ -110,10 +122,11 @@ const (
 // than being the only unverified workloads.
 //
 // TestManifestsMatchRegistry caught exactly this: an earlier draft assigned
-// ClickHouse 16785 and the test failed against the real 101.
+// ClickHouse 16785 and the test failed against the real 101. (ClickHouse has
+// since moved to 16707 on purpose: 101 is a host account, _chrony.)
 const (
-	ClickHouse     = 101  // clickhouse-server image default
 	HAProxyIngress = 1000 // haproxytech/kubernetes-ingress image default
+	Postgres       = 70   // postgres:*-alpine image: owns PGDATA on existing volumes
 )
 
 // Host group IDs required for device access, read from WEST rather than
@@ -133,6 +146,7 @@ var Registry = map[string]int{
 	"victoriametrics": VictoriaMetrics,
 	"promtail":        Promtail,
 	"node-exporter":   NodeExporter,
+	"vector":          Vector,
 
 	"wotan":             Wotan,
 	"unheaded-daemon":   UnheadedDaemon,
@@ -145,6 +159,8 @@ var Registry = map[string]int{
 	"dashboard-backend": DashboardBackend,
 	"kanban-app":        KanbanApp,
 	"gateway":           Gateway,
+	"akira":             Akira,
+	"all-in-one-dev":    AllInOneDev,
 
 	"cuirass":      Cuirass,
 	"gauntlets":    Gauntlets,
@@ -162,8 +178,11 @@ var Registry = map[string]int{
 	"vllm":            VLLM,
 	"suricata":        Suricata,
 	"wireguard":       WireGuard,
+	"traefik":         Traefik,
+	"coredns":         CoreDNS,
 	"haproxy-ingress": HAProxyIngress,
 	"clickhouse":      ClickHouse,
+	"postgres":        Postgres,
 }
 
 // Lookup returns the assigned UID for a service.
@@ -179,8 +198,8 @@ func Lookup(service string) (int, error) {
 // therefore legitimately sits outside the Kingdom reserved range. Listing them
 // explicitly keeps the range check meaningful for everything else.
 var thirdPartyUIDs = map[string]struct{}{
-	"clickhouse":      {},
 	"haproxy-ingress": {},
+	"postgres":        {},
 }
 
 // Validate enforces the registry's invariants: every UID is unique, inside the

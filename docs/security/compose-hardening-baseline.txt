@@ -4,10 +4,5 @@
 # listed service that is now hardened or no longer exists, and on any
 # unlisted service that is not hardened). Each needs its own writable paths
 # (tmpfs/volumes) and minimal cap_add worked out before it can leave the list.
-clickhouse
-coredns
-grafana
-postgres
-traefik
-vector
-victoria
+#
+# Empty since 2026-10-18 (docs/battle-plans/SERVICE-ISOLATION-2026-10-18.md).

@@ -1,0 +1,10 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- Log to the console (docker's capped json-file, shipped by Vector) instead of
+     files: the root filesystem is read-only and the log dir is a small tmpfs. -->
+<clickhouse>
+    <logger>
+        <console>1</console>
+        <log remove="remove"/>
+        <errorlog remove="remove"/>
+    </logger>
+</clickhouse>

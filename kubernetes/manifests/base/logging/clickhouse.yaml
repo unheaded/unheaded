@@ -39,8 +39,9 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
-        runAsUser: 101
-        fsGroup: 101
+        runAsUser: 16707   # pkg/uids.ClickHouse (101 is _chrony on the hosts)
+        runAsGroup: 16707
+        fsGroup: 16707
         seccompProfile:
           type: RuntimeDefault
       containers:
