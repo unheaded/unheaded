@@ -36,7 +36,7 @@ capabilities it needs. Never root, never a shared account (`unheaded`, `nobody`,
 - [x] east: drop-in `10-isolation.conf` per .deb unit (same block as the repo; packages not rebuilt, so binaries unchanged), kanban.db/timeguru.db moved into their state dirs, /opt/unheaded + wotan.yaml root-owned, 4 stale units removed (they ran as **govan**); all 9 health endpoints 200, no new journal errors
 
 ### 2. Units that ran as root
-- [x] nft: `unheaded-nft` + CAP_NET_ADMIN only; confirmed.nft stays root 0600, passed on stdin by systemd (838da7b7)
+- [x] nft: `unheaded-nft` + CAP_NET_ADMIN only; confirmed.nft stays root 0600, passed on stdin by systemd (68784980)
 - [ ] baseline: needs agent-mode probes without `sudo -n` (passwd -S, ufw, aa-status, `sudo -iu root` check uid 0 themselves); FND-010
 - [ ] Doom: `unheaded-doom` + CAP_BPF/PERFMON/NET_ADMIN/SYS_ADMIN, artifacts out of /home; FND-010 (installed nowhere; a live Doom run is a heavy test)
 - [x] victoria: the root docker-compose wrapper unit removed (installed nowhere; victoria is a compose service at uid 16703)
@@ -48,7 +48,7 @@ capabilities it needs. Never root, never a shared account (`unheaded`, `nobody`,
 - [ ] live run of each on west; restore drill green
 
 ### 4. Containers
-- [x] one uid per Unheaded image (pkg/uids), nologin, numeric USER; NET_BIND_SERVICE dropped everywhere; all-in-one dev stage off root (b96f1132)
+- [x] one uid per Unheaded image (pkg/uids), nologin, numeric USER; NET_BIND_SERVICE dropped everywhere; all-in-one dev stage off root (1e9b9eeb)
 - [x] all 7 third-party services: own uid, read_only, cap_drop ALL, no-new-privileges; traefik on a file provider; clickhouse off uid 101 (= _chrony on the hosts); volume-init one-shot chown. Alternate compose files: 75 services baselined (FND-009)
 
 ### 5. Host accounts
