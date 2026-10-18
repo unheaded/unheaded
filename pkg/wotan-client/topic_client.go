@@ -54,6 +54,10 @@ type TopicStreamClient struct {
 	// Circuit breaker state
 	consecutiveFailures atomic.Int64
 	circuitOpen         atomic.Bool
+	// circuitProbe: how often a stream on HTTP polling asks gRPC whether
+	// it is back (TopicPing). Before this nothing ever closed the circuit,
+	// so one Wotan outage left every stream polling HTTP until restart.
+	circuitProbe time.Duration
 
 	// Subscriber state
 	subscribers map[string]*Subscriber
@@ -158,6 +162,7 @@ func NewTopicStreamClient(grpcAddr string, opts ...TopicStreamOption) (*TopicStr
 		initialBackoff: 100 * time.Millisecond,
 		maxBackoff:     30 * time.Second,
 		maxRetries:     10,
+		circuitProbe:   30 * time.Second,
 		subscribers:    make(map[string]*Subscriber),
 		streams:        make(map[string]*activeStream),
 	}
@@ -205,6 +210,7 @@ func NewTopicStreamClientWithTLS(grpcAddr string, creds credentials.TransportCre
 		initialBackoff: 100 * time.Millisecond,
 		maxBackoff:     30 * time.Second,
 		maxRetries:     10,
+		circuitProbe:   30 * time.Second,
 		subscribers:    make(map[string]*Subscriber),
 		streams:        make(map[string]*activeStream),
 	}
@@ -271,7 +277,7 @@ func (c *TopicStreamClient) Publish(ctx context.Context, topic string, payload [
 
 	// If circuit breaker is open and we have HTTP fallback, use it
 	if c.circuitOpen.Load() && c.httpClient != nil {
-		return c.httpClient.Publish(ctx, topic, payload)
+		return c.fallbackPublish(ctx, sub, payload)
 	}
 
 	req := &chatpb.TopicPublishRequest{
@@ -283,15 +289,32 @@ func (c *TopicStreamClient) Publish(ctx context.Context, topic string, payload [
 	_, err := c.client.PublishTopic(ctx, req)
 	if err != nil {
 		c.recordFailure()
-		// Try HTTP fallback on gRPC failure
+		// Try HTTP fallback on gRPC failure. If that fails too, say why
+		// gRPC failed: the fallback's error alone hid it.
 		if c.httpClient != nil {
-			return c.httpClient.Publish(ctx, topic, payload)
+			if herr := c.fallbackPublish(ctx, sub, payload); herr != nil {
+				return fmt.Errorf("publish topic: %w (HTTP fallback: %v)", err, herr)
+			}
+			return nil
 		}
 		return fmt.Errorf("publish topic: %w", err)
 	}
 
 	c.recordSuccess()
 	return nil
+}
+
+// fallbackPublish publishes over the HTTP fallback. The HTTP client keeps
+// its own memberships and Subscribe above never made one there, so join
+// under the same display name first: without it every fallback publish
+// failed "not subscribed to topic".
+func (c *TopicStreamClient) fallbackPublish(ctx context.Context, sub *Subscriber, payload []byte) error {
+	if _, ok := c.httpClient.GetSubscriber(sub.Topic); !ok {
+		if _, err := c.httpClient.Subscribe(ctx, sub.Topic, sub.DisplayName); err != nil {
+			return fmt.Errorf("join %s: %w", sub.Topic, err)
+		}
+	}
+	return c.httpClient.Publish(ctx, sub.Topic, payload)
 }
 
 // GetMessages retrieves messages from a topic.
@@ -427,10 +450,14 @@ func (c *TopicStreamClient) streamLoop(ctx context.Context, topicPattern string,
 		default:
 		}
 
-		// If circuit breaker is open, fall back to HTTP polling
+		// If circuit breaker is open, fall back to HTTP polling until a
+		// probe finds gRPC back
 		if c.circuitOpen.Load() && c.httpClient != nil {
-			c.pollHTTPFallback(ctx, topicPattern, as)
-			return
+			if !c.pollHTTPFallback(ctx, topicPattern, as) {
+				return
+			}
+			backoff = c.initialBackoff
+			continue
 		}
 
 		// Attempt gRPC stream from last known sequence
@@ -457,8 +484,11 @@ func (c *TopicStreamClient) streamLoop(ctx context.Context, topicPattern string,
 
 			// Fall back to HTTP polling if available
 			if c.httpClient != nil {
-				c.pollHTTPFallback(ctx, topicPattern, as)
-				return
+				if !c.pollHTTPFallback(ctx, topicPattern, as) {
+					return
+				}
+				backoff = c.initialBackoff
+				continue
 			}
 			// No HTTP fallback — give up
 			return
@@ -535,14 +565,35 @@ func (c *TopicStreamClient) streamSingle(ctx context.Context, topicPattern strin
 }
 
 // pollHTTPFallback degrades to HTTP polling through the fallback client.
-func (c *TopicStreamClient) pollHTTPFallback(ctx context.Context, topicPattern string, as *activeStream) {
+//
+// It returns true when gRPC is back (this stream's probe answered, or another
+// stream already closed the circuit): the caller resumes streaming from
+// as.lastSeq. It returns false when ctx is done or the consumer went away.
+func (c *TopicStreamClient) pollHTTPFallback(ctx context.Context, topicPattern string, as *activeStream) bool {
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
+	probeEvery := c.circuitProbe
+	if probeEvery <= 0 {
+		probeEvery = 30 * time.Second
+	}
+	probe := time.NewTicker(probeEvery)
+	defer probe.Stop()
 
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return false
+		case <-probe.C:
+			if !c.circuitOpen.Load() {
+				return true
+			}
+			pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			err := c.Ping(pingCtx)
+			cancel()
+			if err == nil {
+				c.ResetCircuitBreaker()
+				return true
+			}
 		case <-ticker.C:
 			lastSeq := as.lastSeq.Load()
 			if lastSeq < 0 {
@@ -582,7 +633,7 @@ func (c *TopicStreamClient) pollHTTPFallback(ctx context.Context, topicPattern s
 					continue
 				}
 				if !as.sc.send(ctx, msg) {
-					return
+					return false
 				}
 			}
 		}

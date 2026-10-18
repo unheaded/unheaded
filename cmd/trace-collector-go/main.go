@@ -357,7 +357,7 @@ func (wp *WotanPublisher) ConnectGRPC(ctx context.Context, grpcAddr, httpAddr st
 		"ebpf.flow.events", "ebpf.packet.events", "ebpf.latency.events",
 	}
 	for _, topic := range topics {
-		if _, err := tsc.Subscribe(ctx, topic, "trace-collector-go"); err != nil {
+		if _, err := tsc.Subscribe(ctx, topic, "trace-collector"); err != nil {
 			log.Warn().Err(err).Str("topic", topic).Msg("failed to subscribe")
 		}
 	}
