@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# trace-collector-go: loads the packet-marker (XDP), flow-tracker (TC) and
+# latency-probe (kprobe) eBPF programs and publishes their events to Wotan
+# (traces.* and the ebpf.*.events mirrors).
+#
+# Install (users first: deploy/sysusers.d/unheaded.conf):
+#   go build -o /tmp/trace-collector-go ./cmd/trace-collector-go
+#   sudo install -m 0755 /tmp/trace-collector-go /usr/local/bin/
+#   sudo install -d -m 0755 /usr/local/lib/unheaded/ebpf
+#   sudo install -m 0644 <packet-marker flow-tracker latency-probe> /usr/local/lib/unheaded/ebpf/
+#   sudo cp deploy/systemd/unheaded-trace-collector.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl start unheaded-trace-collector
+# The interface defaults to br-unhe-data (the compose data network); set
+# TRACE_IFACE in /etc/unheaded/trace-collector.env to change it.
+#
+# Runs as unheaded-trace-collector with CAP_BPF, CAP_PERFMON (kprobes) and
+# CAP_NET_ADMIN (XDP and TC attach) only; bpf and perf_event_open are allowed
+# back after the @privileged deny. The objects stay root-owned (the loader
+# refuses any that are not). No map pinning (--map-pin-path=): /sys/fs/bpf is
+# root 0700, and nothing reads pins from this process. Logs go to the journal,
+# which rotates them; under a hand launch they went to a file nothing rotated
+# (4.3 GB in ten hours while Wotan was down, 2026-10-18).
+
+[Unit]
+Description=Unheaded trace collector (eBPF to Wotan)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/deploy/systemd/README.md
+After=network-online.target systemd-sysusers.service docker.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=TRACE_IFACE=br-unhe-data
+EnvironmentFile=-/etc/unheaded/trace-collector.env
+ExecStart=/usr/local/bin/trace-collector-go --unified --interface ${TRACE_IFACE} --ebpf-obj-dir /usr/local/lib/unheaded/ebpf --map-pin-path= --log-json
+Restart=on-failure
+RestartSec=5s
+
+User=unheaded-trace-collector
+Group=unheaded-trace-collector
+UMask=0077
+CapabilityBoundingSet=CAP_BPF CAP_PERFMON CAP_NET_ADMIN
+AmbientCapabilities=CAP_BPF CAP_PERFMON CAP_NET_ADMIN
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallFilter=bpf perf_event_open
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

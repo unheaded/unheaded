@@ -33,6 +33,7 @@ manually with `sudo docker compose up grafana -d` when you want dashboards.
 | `unheaded-kanban.service`       | 16668         |                                    |
 | `unheaded-daemon.service`       | 17000, 17001  | Control plane / drift detection    |
 | `unheaded-akira.service`        | 19100         | Health monitor                     |
+| `unheaded-trace-collector.service` | 16670, 16671 | eBPF (XDP/TC/kprobes) → Wotan; CAP_BPF, CAP_PERFMON, CAP_NET_ADMIN only. Runs on west too, beside the compose stack |
 
 ## Install (on EAST)
 

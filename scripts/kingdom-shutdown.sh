@@ -119,6 +119,12 @@ BINARIES=(
 # ── Phase 1: Graceful SIGTERM to Go services ──────────────────────────
 log_info "Phase 1: Sending SIGTERM to Unheaded services..."
 killed=0
+# Under its unit, stop it through systemd (deploy/systemd/unheaded-trace-collector.service).
+if systemctl is-active --quiet unheaded-trace-collector 2>/dev/null; then
+    log_info "  Stopping unheaded-trace-collector.service..."
+    run systemctl stop unheaded-trace-collector || true
+    ((killed++)) || true
+fi
 for bin in "${BINARIES[@]}"; do
     if pgrep -f "$bin" > /dev/null 2>&1; then
         log_info "  Stopping $bin..."

@@ -155,6 +155,15 @@ if [[ "$DOCKER_ONLY" != "true" ]]; then
             continue
         fi
 
+        # Installed as a unit: start it there, as its own nologin user with
+        # only the BPF capabilities, logging to the journal.
+        if [[ "$svc" == "trace-collector-go" ]] && systemctl cat unheaded-trace-collector.service > /dev/null 2>&1; then
+            log_info "  Starting unheaded-trace-collector.service..."
+            run systemctl start unheaded-trace-collector || log_warn "  unheaded-trace-collector failed to start"
+            ((started++)) || true
+            continue
+        fi
+
         # Find binary: /opt/unheaded/bin first, then project cmd/ dir
         svc_bin=""
         if [[ -x "$BIN_DIR/$svc" ]]; then
