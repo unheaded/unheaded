@@ -23,6 +23,7 @@ type Metrics struct {
 	RoomMessagesTotal *prom.CounterVec
 	RoomBufferSize    *prom.GaugeVec
 	RoomBufferUsage   *prom.GaugeVec
+	RoomBufferBytes   *prom.GaugeVec
 	RoomBufferWrapped *prom.CounterVec
 
 	// Member metrics
@@ -118,6 +119,14 @@ func Initialize(namespace string) *Metrics {
 				Namespace: namespace,
 				Name:      "room_buffer_usage",
 				Help:      "Current ring buffer usage for each room",
+			},
+			[]string{"room_id"},
+		),
+		RoomBufferBytes: auto.NewGaugeVec(
+			prom.GaugeOpts{
+				Namespace: namespace,
+				Name:      "room_buffer_bytes",
+				Help:      "Payload bytes held in each room's ring buffer (bounded by --buffer-bytes)",
 			},
 			[]string{"room_id"},
 		),
@@ -278,9 +287,10 @@ func (m *Metrics) RecordMessageDeleted(roomID string, success bool, reason strin
 }
 
 // UpdateRoomBufferMetrics updates room buffer usage metrics
-func (m *Metrics) UpdateRoomBufferMetrics(roomID string, size, usage int, wrapped bool) {
+func (m *Metrics) UpdateRoomBufferMetrics(roomID string, size, usage, bytes int) {
 	m.RoomBufferSize.WithLabelValues(roomID).Set(float64(size))
 	m.RoomBufferUsage.WithLabelValues(roomID).Set(float64(usage))
+	m.RoomBufferBytes.WithLabelValues(roomID).Set(float64(bytes))
 }
 
 // RecordStreamCreated records stream creation

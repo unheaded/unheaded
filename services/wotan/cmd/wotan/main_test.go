@@ -316,7 +316,7 @@ func TestCollectSystemMetrics_ReturnsOnContextCancel(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		collectSystemMetrics(ctx, m)
+		collectSystemMetrics(ctx, m, room.NewManager(10))
 		close(done)
 	}()
 

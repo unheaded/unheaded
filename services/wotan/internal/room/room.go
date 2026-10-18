@@ -27,6 +27,10 @@ type Manager struct {
 	mu         sync.RWMutex
 	rooms      map[string]*Room // room ID -> room
 	bufferSize int
+	// bufferBytes is each room's byte budget (RingBuffer.SetMaxBytes); 0
+	// means none. Count alone does not bound memory: a trace batch is ~32 KB,
+	// so 10000 of them is 320 MB in one room.
+	bufferBytes int
 	// seq numbers messages across every room, so a cursor taken over several
 	// rooms (a wildcard read) orders them. In memory: a restart begins at 1.
 	seq atomic.Int64
@@ -46,6 +50,13 @@ func NewManager(bufferSize int) *Manager {
 	}
 }
 
+// SetBufferBytes sets the byte budget for rooms created from now on.
+func (m *Manager) SetBufferBytes(n int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.bufferBytes = n
+}
+
 // Create creates a new room with the given ID and name
 func (m *Manager) Create(id, name string) *Room {
 	m.mu.Lock()
@@ -63,6 +74,7 @@ func (m *Manager) Create(id, name string) *Room {
 		Buffer:        ringbuffer.NewShared(m.bufferSize, &m.seq),
 		KeyValueStore: make(map[string]string),
 	}
+	room.Buffer.SetMaxBytes(m.bufferBytes)
 
 	m.rooms[id] = room
 	return room

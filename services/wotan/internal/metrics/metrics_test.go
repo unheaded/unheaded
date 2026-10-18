@@ -168,8 +168,8 @@ func TestRecordMessageDeleted(t *testing.T) {
 }
 
 func TestUpdateRoomBufferMetrics(t *testing.T) {
-	testMetrics.UpdateRoomBufferMetrics("room-1", 1024, 512, false)
-	testMetrics.UpdateRoomBufferMetrics("room-2", 2048, 2048, true)
+	testMetrics.UpdateRoomBufferMetrics("room-1", 1024, 512, 4096)
+	testMetrics.UpdateRoomBufferMetrics("room-2", 2048, 2048, 0)
 }
 
 func TestRecordStreamCreated(t *testing.T) {

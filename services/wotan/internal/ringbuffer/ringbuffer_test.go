@@ -1083,3 +1083,106 @@ func TestGetAfter(t *testing.T) {
 		t.Errorf("unwrapped GetAfter(1,0) = %v, want [2]", got)
 	}
 }
+
+// TestMaxBytes_DropsOldest: over the byte budget, the oldest messages go
+// first, the count still caps, and seq paging skips the dropped ones.
+func TestMaxBytes_DropsOldest(t *testing.T) {
+	rb := New(100)
+	rb.SetMaxBytes(30)
+	for i := 0; i < 5; i++ {
+		_, over := rb.Push(createTestMessage("r", "0123456789")) // 10 bytes
+		if want := i >= 3; over != want {
+			t.Errorf("push %d: overwritten = %v, want %v", i+1, over, want)
+		}
+	}
+	if rb.Count() != 3 || rb.Bytes() != 30 {
+		t.Fatalf("Count/Bytes = %d/%d, want 3/30", rb.Count(), rb.Bytes())
+	}
+	if got := seqsOf(rb.Get()); len(got) != 3 || got[0] != 3 || got[2] != 5 {
+		t.Errorf("Get seqs = %v, want [3 4 5]", got)
+	}
+	if got := seqsOf(rb.GetAfter(0, 0)); len(got) != 3 || got[0] != 3 {
+		t.Errorf("GetAfter(0) = %v, want [3 4 5]", got)
+	}
+	if got := seqsOf(rb.GetAfter(3, 1)); len(got) != 1 || got[0] != 4 {
+		t.Errorf("GetAfter(3,1) = %v, want [4]", got)
+	}
+}
+
+// TestMaxBytes_KeepsNewest: a message bigger than the whole budget is still
+// stored, alone.
+func TestMaxBytes_KeepsNewest(t *testing.T) {
+	rb := New(10)
+	rb.SetMaxBytes(8)
+	rb.Push(createTestMessage("r", "abc"))
+	big := createTestMessage("r", "0123456789abcdef")
+	rb.Push(big)
+	got := rb.Get()
+	if len(got) != 1 || got[0].ID != big.ID || rb.Bytes() != 16 {
+		t.Fatalf("Get = %d messages, Bytes = %d; want only the 16-byte one", len(got), rb.Bytes())
+	}
+}
+
+// TestMaxBytes_WrapAndDelete: byte drops and count overwrites interleave on a
+// small ring; delete, GetByID and GetSince still find messages, and Bytes
+// stays the sum of what is held.
+func TestMaxBytes_WrapAndDelete(t *testing.T) {
+	rb := New(4)
+	rb.SetMaxBytes(12)
+	var msgs []*Message
+	for _, c := range []string{"aaaa", "bb", "cccccc", "d", "eeee", "ff", "g"} {
+		m := createTestMessage("r", c)
+		msgs = append(msgs, m)
+		rb.Push(m)
+	}
+	sum := func() int {
+		n := 0
+		for _, m := range rb.Get() {
+			n += len(m.Content)
+		}
+		return n
+	}
+	if rb.Bytes() != sum() || rb.Bytes() > 12 {
+		t.Fatalf("Bytes = %d, held sum = %d, budget 12", rb.Bytes(), sum())
+	}
+	// Newest four that fit: "d","eeee","ff","g" = 8 bytes (count cap 4).
+	if got := rb.Get(); len(got) != 4 || got[0].Content != "d" || got[3].Content != "g" {
+		t.Fatalf("Get = %v", contents(got))
+	}
+	if !rb.Delete(msgs[4].ID, msgs[4].CreatorID, "eeee") {
+		t.Fatal("Delete eeee failed")
+	}
+	if got := contents(rb.Get()); len(got) != 3 || got[0] != "d" || got[1] != "ff" || got[2] != "g" {
+		t.Fatalf("after delete Get = %v", got)
+	}
+	if rb.Bytes() != sum() {
+		t.Errorf("Bytes = %d after delete, held sum = %d", rb.Bytes(), sum())
+	}
+	if rb.GetByID(msgs[6].ID) == nil || rb.GetByID(msgs[0].ID) != nil {
+		t.Error("GetByID: want newest found and dropped oldest gone")
+	}
+	if got := rb.GetSince(time.Time{}); len(got) != 3 {
+		t.Errorf("GetSince(zero) = %d messages, want 3", len(got))
+	}
+	m := createTestMessage("r", "hhhhhhhhhh") // 10 bytes: d and ff must go, g still fits
+	rb.Push(m)
+	if got := contents(rb.Get()); len(got) != 2 || got[0] != "g" || got[1] != "hhhhhhhhhh" || rb.Bytes() != 11 {
+		t.Errorf("after big push Get = %v, Bytes = %d", got, rb.Bytes())
+	}
+}
+
+func contents(msgs []*Message) []string {
+	out := make([]string, len(msgs))
+	for i, m := range msgs {
+		out[i] = m.Content
+	}
+	return out
+}
+
+func seqsOf(msgs []*Message) []int64 {
+	out := make([]int64, len(msgs))
+	for i, m := range msgs {
+		out[i] = m.Seq
+	}
+	return out
+}

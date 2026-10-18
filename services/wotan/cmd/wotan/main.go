@@ -49,6 +49,7 @@ var (
 type Config struct {
 	// Server
 	BufferSize   int
+	BufferBytes  int
 	HTTPPort     int
 	GRPCPort     int
 	AdminEnabled bool
@@ -112,6 +113,7 @@ func main() {
 
 	log.Info().
 		Int("buffer_size", config.BufferSize).
+		Int("buffer_bytes", config.BufferBytes).
 		Int("http_port", config.HTTPPort).
 		Int("grpc_port", config.GRPCPort).
 		Bool("tls_enabled", config.EnableTLS).
@@ -128,11 +130,12 @@ func main() {
 	// cleanly within the shutdown deadline (not after it).
 	runCtx, runCancel := context.WithCancel(context.Background())
 
-	// Start metrics collector
-	go collectSystemMetrics(runCtx, m)
-
 	// Initialize managers
 	roomManager := room.NewManager(config.BufferSize)
+	roomManager.SetBufferBytes(config.BufferBytes)
+
+	// Start metrics collector
+	go collectSystemMetrics(runCtx, m, roomManager)
 	memberManager := member.NewManager()
 	messageWotan := wotan.NewWotan()
 
@@ -387,6 +390,7 @@ func parseFlags(fs *flag.FlagSet, args []string) Config {
 
 	// Server flags
 	fs.IntVar(&config.BufferSize, "buffer-size", 10000, "Ring buffer size per room")
+	fs.IntVar(&config.BufferBytes, "buffer-bytes", 8<<20, "Payload byte budget per room; oldest messages are dropped past it (0 = none)")
 	fs.IntVar(&config.HTTPPort, "http-port", 18000, "HTTP REST API port")
 	fs.IntVar(&config.GRPCPort, "grpc-port", 18001, "gRPC streaming port")
 	fs.BoolVar(&config.AdminEnabled, "admin", true, "Enable admin endpoints")
@@ -492,7 +496,7 @@ func setupMiddleware(handler http.Handler, rateLimiter *middleware.RateLimiter, 
 
 // collectSystemMetrics periodically collects system metrics. Returns
 // when ctx is canceled (during graceful shutdown).
-func collectSystemMetrics(ctx context.Context, m *metrics.Metrics) {
+func collectSystemMetrics(ctx context.Context, m *metrics.Metrics, rooms *room.Manager) {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
@@ -505,6 +509,9 @@ func collectSystemMetrics(ctx context.Context, m *metrics.Metrics) {
 			runtime.ReadMemStats(&mem)
 			m.GoroutinesActive.Set(float64(runtime.NumGoroutine()))
 			m.MemoryAllocated.Set(float64(mem.Alloc))
+			for _, rm := range rooms.List() {
+				m.UpdateRoomBufferMetrics(rm.ID, rm.Buffer.Size(), rm.Buffer.Count(), rm.Buffer.Bytes())
+			}
 		}
 	}
 }

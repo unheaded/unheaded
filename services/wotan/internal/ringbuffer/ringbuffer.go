@@ -26,7 +26,9 @@ type Message struct {
 }
 
 // RingBuffer is a fixed-size circular buffer for messages
-// When full, oldest messages are overwritten
+// When full, oldest messages are overwritten. With a byte budget
+// (SetMaxBytes), oldest messages are also dropped while the contents exceed
+// it: the count alone does not bound memory, since one message can be 32 KB.
 type RingBuffer struct {
 	mu       sync.RWMutex
 	buffer   []*Message
@@ -35,6 +37,8 @@ type RingBuffer struct {
 	count    int // current number of messages
 	wrapping bool
 	lastSeq  int64 // Seq of the most recent Push
+	maxBytes int   // budget for the sum of len(Content); 0 means none
+	bytes    int   // sum of len(Content) held
 	// counter, when set, is shared with other buffers (NewShared): seqs are
 	// then unique and ordered across all of them, not just within this one.
 	counter *atomic.Int64
@@ -61,8 +65,33 @@ func NewShared(size int, counter *atomic.Int64) *RingBuffer {
 	return rb
 }
 
+// SetMaxBytes sets the byte budget: after each Push, oldest messages are
+// dropped until the contents fit, except the newest, which is always kept.
+// n <= 0 removes the budget. Takes effect on the next Push.
+func (rb *RingBuffer) SetMaxBytes(n int) {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+	if n < 0 {
+		n = 0
+	}
+	rb.maxBytes = n
+}
+
+// Bytes returns the sum of len(Content) over the messages held.
+func (rb *RingBuffer) Bytes() int {
+	rb.mu.RLock()
+	defer rb.mu.RUnlock()
+	return rb.bytes
+}
+
+// oldest is the position of the oldest message. Caller holds rb.mu.
+func (rb *RingBuffer) oldest() int {
+	return (rb.head - rb.count + rb.size) % rb.size
+}
+
 // Push adds a message to the ring buffer
-// Returns the message ID and whether an old message was overwritten
+// Returns the message ID and whether an old message was overwritten (or
+// dropped for the byte budget)
 func (rb *RingBuffer) Push(msg *Message) (uuid.UUID, bool) {
 	rb.mu.Lock()
 	defer rb.mu.Unlock()
@@ -71,6 +100,7 @@ func (rb *RingBuffer) Push(msg *Message) (uuid.UUID, bool) {
 	if rb.count == rb.size {
 		overwritten = true
 		rb.wrapping = true
+		rb.bytes -= len(rb.buffer[rb.head].Content)
 	}
 
 	// Assigned and stored under rb.mu: a reader that sees a shared counter
@@ -82,10 +112,19 @@ func (rb *RingBuffer) Push(msg *Message) (uuid.UUID, bool) {
 	}
 	msg.Seq = rb.lastSeq
 	rb.buffer[rb.head] = msg
+	rb.bytes += len(msg.Content)
 	rb.head = (rb.head + 1) % rb.size
 
 	if rb.count < rb.size {
 		rb.count++
+	}
+
+	for rb.maxBytes > 0 && rb.bytes > rb.maxBytes && rb.count > 1 {
+		i := rb.oldest()
+		rb.bytes -= len(rb.buffer[i].Content)
+		rb.buffer[i] = nil
+		rb.count--
+		overwritten = true
 	}
 
 	return msg.ID, overwritten
@@ -101,17 +140,9 @@ func (rb *RingBuffer) Get() []*Message {
 	}
 
 	result := make([]*Message, rb.count)
-
-	if !rb.wrapping {
-		// Buffer hasn't wrapped yet, just copy from start to head
-		copy(result, rb.buffer[:rb.count])
-	} else {
-		// Buffer has wrapped, need to copy in correct order
-		// Oldest message is at head position, newest is at head-1
-		oldestIdx := rb.head
-		for i := 0; i < rb.count; i++ {
-			result[i] = rb.buffer[(oldestIdx+i)%rb.size]
-		}
+	oldestIdx := rb.oldest()
+	for i := 0; i < rb.count; i++ {
+		result[i] = rb.buffer[(oldestIdx+i)%rb.size]
 	}
 
 	return result
@@ -126,10 +157,7 @@ func (rb *RingBuffer) GetAfter(after int64, limit int) []*Message {
 	defer rb.mu.RUnlock()
 
 	result := []*Message{}
-	start := 0
-	if rb.wrapping {
-		start = rb.head
-	}
+	start := rb.oldest()
 	for i := 0; i < rb.count; i++ {
 		msg := rb.buffer[(start+i)%rb.size]
 		if msg.Seq <= after {
@@ -153,20 +181,11 @@ func (rb *RingBuffer) GetSince(since time.Time) []*Message {
 	}
 
 	var result []*Message
-
-	if !rb.wrapping {
-		for i := 0; i < rb.count; i++ {
-			if rb.buffer[i].Timestamp.After(since) {
-				result = append(result, rb.buffer[i])
-			}
-		}
-	} else {
-		oldestIdx := rb.head
-		for i := 0; i < rb.count; i++ {
-			msg := rb.buffer[(oldestIdx+i)%rb.size]
-			if msg.Timestamp.After(since) {
-				result = append(result, msg)
-			}
+	oldestIdx := rb.oldest()
+	for i := 0; i < rb.count; i++ {
+		msg := rb.buffer[(oldestIdx+i)%rb.size]
+		if msg.Timestamp.After(since) {
+			result = append(result, msg)
 		}
 	}
 
@@ -184,39 +203,26 @@ func (rb *RingBuffer) Delete(id uuid.UUID, creatorID uuid.UUID, content string) 
 	}
 
 	// Triple verification: ID + CreatorID + Content
-	if !rb.wrapping {
-		for i := 0; i < rb.count; i++ {
-			msg := rb.buffer[i]
-			if msg != nil && msg.ID == id && msg.CreatorID == creatorID && msg.Content == content {
-				// Shift messages to fill the gap
-				copy(rb.buffer[i:], rb.buffer[i+1:rb.count])
-				rb.buffer[rb.count-1] = nil
-				rb.count--
-				rb.head = rb.count
-				return true
+	oldestIdx := rb.oldest()
+	for i := 0; i < rb.count; i++ {
+		actualIdx := (oldestIdx + i) % rb.size
+		msg := rb.buffer[actualIdx]
+		if msg != nil && msg.ID == id && msg.CreatorID == creatorID && msg.Content == content {
+			// Remove by shifting the newer messages back one place
+			for j := i; j < rb.count-1; j++ {
+				fromIdx := (oldestIdx + j + 1) % rb.size
+				toIdx := (oldestIdx + j) % rb.size
+				rb.buffer[toIdx] = rb.buffer[fromIdx]
 			}
-		}
-	} else {
-		oldestIdx := rb.head
-		for i := 0; i < rb.count; i++ {
-			actualIdx := (oldestIdx + i) % rb.size
-			msg := rb.buffer[actualIdx]
-			if msg != nil && msg.ID == id && msg.CreatorID == creatorID && msg.Content == content {
-				// Remove by shifting in circular buffer
-				for j := i; j < rb.count-1; j++ {
-					fromIdx := (oldestIdx + j + 1) % rb.size
-					toIdx := (oldestIdx + j) % rb.size
-					rb.buffer[toIdx] = rb.buffer[fromIdx]
-				}
-				lastIdx := (oldestIdx + rb.count - 1) % rb.size
-				rb.buffer[lastIdx] = nil
-				rb.count--
-				rb.head = (rb.head - 1 + rb.size) % rb.size
-				if rb.count < rb.size {
-					rb.wrapping = false
-				}
-				return true
+			lastIdx := (oldestIdx + rb.count - 1) % rb.size
+			rb.buffer[lastIdx] = nil
+			rb.bytes -= len(msg.Content)
+			rb.count--
+			rb.head = (rb.head - 1 + rb.size) % rb.size
+			if rb.count < rb.size {
+				rb.wrapping = false
 			}
+			return true
 		}
 	}
 
@@ -232,19 +238,11 @@ func (rb *RingBuffer) GetByID(id uuid.UUID) *Message {
 		return nil
 	}
 
-	if !rb.wrapping {
-		for i := 0; i < rb.count; i++ {
-			if rb.buffer[i].ID == id {
-				return rb.buffer[i]
-			}
-		}
-	} else {
-		oldestIdx := rb.head
-		for i := 0; i < rb.count; i++ {
-			msg := rb.buffer[(oldestIdx+i)%rb.size]
-			if msg.ID == id {
-				return msg
-			}
+	oldestIdx := rb.oldest()
+	for i := 0; i < rb.count; i++ {
+		msg := rb.buffer[(oldestIdx+i)%rb.size]
+		if msg.ID == id {
+			return msg
 		}
 	}
 

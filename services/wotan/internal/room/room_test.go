@@ -5,6 +5,7 @@ package room
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1059,5 +1060,23 @@ func TestManager_GlobalSeq(t *testing.T) {
 	}
 	if after := a.Buffer.GetAfter(1, 0); len(after) != 1 || after[0].Seq != 3 {
 		t.Errorf("a after 1 = %v, want only seq 3", after)
+	}
+}
+
+// TestManager_BufferBytes: rooms created after SetBufferBytes hold no more
+// payload than the budget, however many messages are sent.
+func TestManager_BufferBytes(t *testing.T) {
+	m := NewManager(1000)
+	m.SetBufferBytes(1 << 10)
+	r := m.Create("traces.flow", "traces.flow")
+	payload := strings.Repeat("x", 100)
+	for i := 0; i < 50; i++ {
+		r.SendMessage(uuid.New(), payload)
+	}
+	if got := r.Buffer.Bytes(); got > 1<<10 {
+		t.Fatalf("room holds %d bytes, budget 1024", got)
+	}
+	if got := r.Buffer.Count(); got != 10 {
+		t.Errorf("room holds %d messages, want 10", got)
 	}
 }

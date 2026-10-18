@@ -564,6 +564,9 @@ services:
     environment:
       LOG_LEVEL: info
       WOTAN_TOPIC_CONFIG: /etc/wotan/wotan.yaml   # auto-approve allowlist; without it every subscriber stays pending_approval
+      # Under the 256M limit so the GC works harder before the kernel OOM-kills.
+      # Payload is bounded by --buffer-bytes (8 MiB per room by default).
+      GOMEMLIMIT: "200MiB"
     ports:
       - "18001:18001"     # gRPC streaming
       - "18000:18000"     # HTTP REST API
