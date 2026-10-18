@@ -119,10 +119,10 @@ echo "all checks passed"
 if ((GO)); then
 	PORT="$("${DOCKER[@]}" port "$N" 5432/tcp | head -1 | sed 's/.*://')"
 	# A fresh schema for the Go tests: the checks above left rows behind.
-	psql_as unheaded unheaded <<<"DROP DATABASE unheaded_config WITH (FORCE); CREATE DATABASE unheaded_config;" >/dev/null
+	psql_as unheaded postgres <<<"DROP DATABASE unheaded_config WITH (FORCE); CREATE DATABASE unheaded_config;" >/dev/null
 	psql_as unheaded unheaded_config <"$R/db/migrations/005_config_schema.sql" >/dev/null
 	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_config <"$R/db/migrations/013_compliance_config.sql"
-	psql_as unheaded unheaded <<<"DROP DATABASE unheaded_ops WITH (FORCE); CREATE DATABASE unheaded_ops;" >/dev/null
+	psql_as unheaded postgres <<<"DROP DATABASE unheaded_ops WITH (FORCE); CREATE DATABASE unheaded_ops;" >/dev/null
 	psql_as unheaded unheaded_ops <"$R/db/migrations/004_ops_schema.sql" >/dev/null
 	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/014_compliance_ops.sql"
 	# 022 replaces 004's audit_events (the pkg/audit taxonomy, W-04); 015
@@ -133,7 +133,7 @@ if ((GO)); then
 		echo "[FAIL] 022 replaced a non-empty audit_events"; exit 1
 	fi
 	echo "[PASS] 022 refuses a non-empty audit_events"
-	psql_as unheaded unheaded <<<"DROP DATABASE unheaded_ops WITH (FORCE); CREATE DATABASE unheaded_ops;" >/dev/null
+	psql_as unheaded postgres <<<"DROP DATABASE unheaded_ops WITH (FORCE); CREATE DATABASE unheaded_ops;" >/dev/null
 	psql_as unheaded unheaded_ops <"$R/db/migrations/004_ops_schema.sql" >/dev/null
 	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/014_compliance_ops.sql"
 	"${DOCKER[@]}" exec -i "$N" psql -X -q -1 -v ON_ERROR_STOP=1 -U unheaded -d unheaded_ops <"$R/db/migrations/015_ops_history_append_only.sql"
@@ -147,13 +147,13 @@ if ((GO)); then
 	(cd "$R" && WELL_TEST_OPS_DSN="host=127.0.0.1 port=$PORT user=ops_writer password=$OPS_PW dbname=unheaded_ops sslmode=disable" \
 		go test ./pkg/database/ -run Integration -count=1 -v | grep -vE '^(=== RUN)')
 	# End to end: the command itself, against the same throwaway databases.
-	(cd "$R" && WELL_HOST=127.0.0.1 WELL_PORT="$PORT" \
+	(cd "$R" && WELL_HOST=127.0.0.1 WELL_PORT="$PORT" WELL_SSLMODE=disable \
 		WELL_CONFIG_USER=config_admin WELL_CONFIG_PASSWORD="$CFG_PW" \
 		WELL_OPS_USER=ops_writer WELL_OPS_PASSWORD="$OPS_PW" \
 		go run ./cmd/compliance-evidence well sync -dry-run)
 	# profile set without -yes only shows the switch. (No export here: it
 	# would rewrite the repo's own YAML from these test rows.)
-	(cd "$R" && WELL_HOST=127.0.0.1 WELL_PORT="$PORT" \
+	(cd "$R" && WELL_HOST=127.0.0.1 WELL_PORT="$PORT" WELL_SSLMODE=disable \
 		WELL_CONFIG_USER=config_admin WELL_CONFIG_PASSWORD="$CFG_PW" \
 		go run ./cmd/compliance-evidence profile set -host east -profile cis-l1-server -reason "e2e dry")
 fi
