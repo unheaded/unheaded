@@ -173,31 +173,19 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 	}
 }
 
-// Timeout middleware adds request timeout
+// Timeout bounds each request with http.TimeoutHandler: the response is
+// buffered, and on timeout the client gets 503 with a JSON body while the
+// handler's later writes are dropped.
+//
+// This used to run the handler in a goroutine and answer 504 itself on
+// timeout, while that goroutine went on writing to the same ResponseWriter.
+// Once the outer handler returned, net/http recycled the writer: a /metrics
+// scrape slowed by load wrote into a nil bufio.Writer and the panic killed
+// Wotan (2026-10-18), out of Recovery's reach on its own goroutine.
+// TimeoutHandler re-raises a handler panic on the request's goroutine.
 func Timeout(duration time.Duration) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx, cancel := context.WithTimeout(r.Context(), duration)
-			defer cancel()
-
-			r = r.WithContext(ctx)
-
-			done := make(chan struct{})
-			go func() {
-				next.ServeHTTP(w, r)
-				close(done)
-			}()
-
-			select {
-			case <-done:
-				return
-			case <-ctx.Done():
-				log.Warn().
-					Str("path", r.URL.Path).
-					Msg("request_timeout")
-				http.Error(w, `{"error":"request_timeout","message":"Request exceeded timeout"}`, http.StatusGatewayTimeout)
-			}
-		})
+		return http.TimeoutHandler(next, duration, `{"error":"request_timeout","message":"Request exceeded timeout"}`)
 	}
 }
 

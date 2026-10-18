@@ -287,8 +287,48 @@ func TestTimeout_Exceeds(t *testing.T) {
 
 	handler.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusGatewayTimeout {
-		t.Errorf("Status = %d, want %d for timeout", rec.Code, http.StatusGatewayTimeout)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Errorf("Status = %d, want %d for timeout", rec.Code, http.StatusServiceUnavailable)
+	}
+}
+
+// A handler that outlives the timeout cannot write into the response that
+// was already sent. It used to: on a real connection that write hit the
+// recycled writer and panicked Wotan.
+func TestTimeout_LateWriteDropped(t *testing.T) {
+	wrote := make(chan error, 1)
+	handler := Timeout(20 * time.Millisecond)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		<-r.Context().Done()
+		time.Sleep(20 * time.Millisecond)
+		_, err := w.Write([]byte("late"))
+		wrote <- err
+	}))
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
+
+	select {
+	case err := <-wrote:
+		if err == nil {
+			t.Error("late Write succeeded, want http.ErrHandlerTimeout")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("handler never wrote")
+	}
+	if strings.Contains(rec.Body.String(), "late") {
+		t.Errorf("late write reached the response: %q", rec.Body.String())
+	}
+}
+
+// A panic in a timed handler reaches Recovery instead of killing the process.
+func TestTimeout_PanicReachesRecovery(t *testing.T) {
+	handler := Recovery(Timeout(time.Second)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		panic("boom")
+	})))
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest("GET", "/x", nil))
+	if rec.Code != http.StatusInternalServerError {
+		t.Errorf("Status = %d, want 500 from Recovery", rec.Code)
 	}
 }
 
