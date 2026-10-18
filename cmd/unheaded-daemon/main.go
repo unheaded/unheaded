@@ -84,6 +84,9 @@ var (
 const (
 	TopicCuirassDrift   = "cuirass.drift"
 	TopicCuirassMetrics = "cuirass.metrics"
+
+	// wotanDisplayName must be on configs/wotan.yaml topics.auto_approve.
+	wotanDisplayName = "cuirass"
 )
 
 // Daemon represents the unheaded-daemon control plane
@@ -595,15 +598,18 @@ func (d *Daemon) initWotan() error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
+	// Join as "cuirass", the name on configs/wotan.yaml topics.auto_approve.
+	// "cuirass-<node id>" embedded the container id, so no allowlist could
+	// match it and both subscriptions sat pending: nothing was published.
 	// Subscribe to drift topic
-	_, err = client.Subscribe(ctx, TopicCuirassDrift, fmt.Sprintf("cuirass-%s", d.config.NodeID))
+	_, err = client.Subscribe(ctx, TopicCuirassDrift, wotanDisplayName)
 	if err != nil {
 		client.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 		return fmt.Errorf("subscribe to %s: %w", TopicCuirassDrift, err)
 	}
 
 	// Subscribe to metrics topic
-	_, err = client.Subscribe(ctx, TopicCuirassMetrics, fmt.Sprintf("cuirass-%s", d.config.NodeID))
+	_, err = client.Subscribe(ctx, TopicCuirassMetrics, wotanDisplayName)
 	if err != nil {
 		client.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
 		return fmt.Errorf("subscribe to %s: %w", TopicCuirassMetrics, err)

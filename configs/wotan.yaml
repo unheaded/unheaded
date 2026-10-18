@@ -28,6 +28,7 @@ topics:
     - "kanban-app"        # logagg display name
     - "daemon"
     - "unheaded-daemon"   # logagg display name
+    - "cuirass"           # unheaded-daemon's cuirass.drift / cuirass.metrics publisher
     - "trace-collector"
     - "sophia-service"        # sophia's own gRPC display name (not "sophia")
     - "monad-service"         # monad's own gRPC display name (not "monad")
