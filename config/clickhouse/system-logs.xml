@@ -1,0 +1,50 @@
+<!-- SPDX-License-Identifier: GPL-3.0-or-later -->
+<!-- ClickHouse's own system log tables, sized for a 2G container.
+
+     With the defaults, ClickHouse logged itself into ~6.8 GiB of system tables
+     (text_log alone 6.2 GiB, a copy of the console log Vector already ships)
+     and spent its memory merging them: metric_log has ~1100 columns, and its
+     horizontal merges ran into the 1.8 GiB server limit 1648 times in two
+     hours (2026-10-18), alongside our own inserts.
+
+     Off: text_log (the console log is the record), trace_log (sampling
+     profiler), metric_log and asynchronous_metric_log (nothing reads them;
+     scrape ClickHouse's Prometheus endpoint if its metrics are wanted),
+     processors_profile_log. Kept with a 7-day TTL: query_log, error_log,
+     part_log, query_metric_log. -->
+<clickhouse>
+    <text_log remove="1"/>
+    <trace_log remove="1"/>
+    <metric_log remove="1"/>
+    <asynchronous_metric_log remove="1"/>
+    <processors_profile_log remove="1"/>
+
+    <query_log>
+        <database>system</database>
+        <table>query_log</table>
+        <partition_by>event_date</partition_by>
+        <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </query_log>
+    <error_log>
+        <database>system</database>
+        <table>error_log</table>
+        <partition_by>event_date</partition_by>
+        <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </error_log>
+    <part_log>
+        <database>system</database>
+        <table>part_log</table>
+        <partition_by>event_date</partition_by>
+        <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </part_log>
+    <query_metric_log>
+        <database>system</database>
+        <table>query_metric_log</table>
+        <partition_by>event_date</partition_by>
+        <ttl>event_date + INTERVAL 7 DAY DELETE</ttl>
+        <flush_interval_milliseconds>7500</flush_interval_milliseconds>
+    </query_metric_log>
+</clickhouse>

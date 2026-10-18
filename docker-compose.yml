@@ -379,6 +379,7 @@ services:
     volumes:
       - clickhouse-data:/var/lib/clickhouse
       - ./config/clickhouse/logger.xml:/etc/clickhouse-server/config.d/logger.xml:ro
+      - ./config/clickhouse/system-logs.xml:/etc/clickhouse-server/config.d/system-logs.xml:ro
     networks:
       - observe
     labels:
