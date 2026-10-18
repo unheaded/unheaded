@@ -28,14 +28,27 @@ networking.firewall = {
 };
 ```
 
-### Container Hardening
+### Service Isolation
 
-Every service container runs with NixOS-enforced hardening (see Architecture for full list):
-- `NoNewPrivileges = true`
-- Seccomp: `@system-service` allowlist, `~@privileged` denied
-- Filesystem: `ProtectSystem = "strict"`, `PrivateTmp`, `ProtectHome`
-- Capabilities: minimum required only (`CAP_NET_BIND_SERVICE`)
-- Process isolation: `PrivateDevices`, `ProtectKernelTunables`, `ProtectControlGroups`
+One service, one account (2026-10-18): every service runs as its own system
+account with no shell, no home and no group shared with another service.
+Never root, never `nobody`/`www-data`, never uid 1000 (a human account on the
+hosts).
+
+- **systemd units** (`deploy/systemd`): accounts from `deploy/sysusers.d/unheaded.conf`,
+  writable state only in the unit's own `StateDirectory`, `UMask=0077`, no
+  capabilities, `ProtectSystem=strict`, `ProtectProc=invisible`, `@system-service`
+  minus `@privileged @resources`. Details: [[Systemd Units|Systemd-Units]].
+- **Containers** (`docker-compose.yml`): one numeric uid each from `pkg/uids`
+  (Unheaded services 16720-16759, telemetry 16700-16719, infrastructure 16780-16799,
+  postgres the image's 70), `read_only`, `cap_drop: ALL`, `no-new-privileges`.
+  No container holds the Docker socket (traefik reads its routes from a file).
+- **Enforced**: `pkg/uids` tests hold compose, the Dockerfile and the k8s
+  manifests to the registry; `scripts/check-compose-hardening.sh` and
+  `scripts/check-systemd-units.sh` run in CI.
+- **Not yet** (FND-010): the baseline agent, the Doom units and the Well's
+  backup jobs still start as root; the undeployed alternate compose files
+  (FND-009) are baselined, shrink-only.
 
 ### Secrets Management
 
