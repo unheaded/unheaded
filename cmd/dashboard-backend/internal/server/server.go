@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"os"
 	"runtime"
@@ -26,6 +27,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 	wotanClient "unheaded/pkg/wotan-client"
@@ -221,6 +223,9 @@ type Server struct {
 	traceCollector    TraceCollector    // Optional: set via SetTraceCollector
 	healthAggregator  HealthAggregator  // Optional: set via SetHealthAggregator
 	ebpfIngestor      *ebpfPkg.Ingestor // Optional: set via config when trace-collector active
+	// viewerPacketsDropped counts packet and flow events left out of the live view
+	// because they are this dashboard's own WebSocket traffic (isViewerFlow).
+	viewerPacketsDropped atomic.Int64
 
 	// PostgreSQL health persistence (optional — nil when Postgres unavailable)
 	wellDB     *sql.DB
@@ -1890,6 +1895,17 @@ func (s *Server) broadcastEBPFEvents(ctx context.Context) {
 	defer s.wg.Done()
 
 	s.ebpfIngestor.OnEvent(func(env ebpfPkg.EventEnvelope) {
+		var key *ebpfPkg.FlowKey
+		switch e := env.Data.(type) {
+		case *ebpfPkg.PacketEvent:
+			key = &e.FlowKey
+		case *ebpfPkg.FlowEvent:
+			key = &e.FlowKey
+		}
+		if key != nil && s.isViewerFlow(key.SrcAddr, key.SrcPort, key.DstAddr, key.DstPort) {
+			s.viewerPacketsDropped.Add(1)
+			return
+		}
 		data, err := json.Marshal(map[string]interface{}{
 			"type": "ebpf_" + env.Type,
 			"seq":  env.Seq,
@@ -1924,6 +1940,10 @@ func (s *Server) broadcastTraceEvents(ctx context.Context) {
 			return
 		}
 
+		if (event.Topic == "traces.packet" || event.Topic == "traces.flow") && s.isViewerTraceEvent(event.Data) {
+			s.viewerPacketsDropped.Add(1)
+			return
+		}
 		traceEvt := s.parseTraceTopicEvent(event)
 		s.traceBuffer.Add(traceEvt)
 
@@ -1949,6 +1969,39 @@ func (s *Server) broadcastTraceEvents(ctx context.Context) {
 	})
 
 	<-ctx.Done()
+}
+
+// isViewerFlow reports whether a packet or flow belongs to one of this dashboard's
+// own WebSocket viewers. Those packets are left out of the live view: every
+// frame sent to a viewer is a packet the tracer reports, which the dashboard
+// then sends as another frame. With one browser open the loop ran the packet
+// stream from 3 events/s to the collector's 10,000/s cap (2026-10-18), all of
+// it the dashboard watching itself. The flow graph still counts them.
+func (s *Server) isViewerFlow(srcAddr string, srcPort uint16, dstAddr string, dstPort uint16) bool {
+	if s.wsServer == nil {
+		return false
+	}
+	return s.wsServer.IsClientAddr(net.JoinHostPort(srcAddr, strconv.Itoa(int(srcPort)))) ||
+		s.wsServer.IsClientAddr(net.JoinHostPort(dstAddr, strconv.Itoa(int(dstPort))))
+}
+
+// isViewerTraceEvent is isViewerFlow for a traces.* event: traces.packet
+// carries src_ip/src_port/dst_ip/dst_port, traces.flow a nested flow_key.
+func (s *Server) isViewerTraceEvent(d map[string]interface{}) bool {
+	srcIP, _ := d["src_ip"].(string)
+	dstIP, _ := d["dst_ip"].(string)
+	srcPort, _ := d["src_port"].(float64)
+	dstPort, _ := d["dst_port"].(float64)
+	if fk, ok := d["flow_key"].(map[string]interface{}); ok {
+		srcIP, _ = fk["src_addr"].(string)
+		dstIP, _ = fk["dst_addr"].(string)
+		srcPort, _ = fk["src_port"].(float64)
+		dstPort, _ = fk["dst_port"].(float64)
+	}
+	if srcIP == "" || dstIP == "" {
+		return false
+	}
+	return s.isViewerFlow(srcIP, uint16(srcPort), dstIP, uint16(dstPort)) // #nosec G115 -- ports from the tracer's JSON, 0-65535
 }
 
 // parseTraceTopicEvent converts an events.Event from a traces.* topic into a TraceEvent.
@@ -2267,8 +2320,9 @@ func (s *Server) handleEBPFStats(w http.ResponseWriter, r *http.Request) {
 
 	stats := s.ebpfIngestor.Stats()
 	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		"active": true,
-		"stats":  stats,
+		"active":                 true,
+		"stats":                  stats,
+		"viewer_packets_dropped": s.viewerPacketsDropped.Load(),
 	})
 }
 

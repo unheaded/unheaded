@@ -17,8 +17,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -616,5 +618,77 @@ func TestTracePipeline_OneWebSocketMessagePerEvent(t *testing.T) {
 	}
 	if traces != 1 {
 		t.Errorf("one trace event reached the browser %d times, want 1", traces)
+	}
+}
+
+// Packets on a live viewer's own WebSocket connection are left out of the
+// live view; every other packet still goes out. With them in, each frame
+// sent to a viewer came back as a traced packet and another frame, and one
+// open browser drove the stream to the collector's 10,000 events/s cap.
+func TestViewerOwnPacketsLeftOut(t *testing.T) {
+	config := DefaultConfig()
+	config.WotanAddr = "localhost:19999"
+	srv, err := NewServer(config, testPipelineLogger())
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer func() {
+		cancel()
+		sctx, scancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer scancel()
+		srv.Shutdown(sctx)
+	}()
+	if err := srv.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+	wsServer := srv.GetWebSocketServer()
+	hs := httptest.NewServer(http.HandlerFunc(wsServer.HandleWebSocket))
+	defer hs.Close()
+	conn, resp, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(hs.URL, "http"), sameOriginHeader(hs.URL))
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	deadline := time.Now().Add(2 * time.Second)
+	for wsServer.ConnectionCount() == 0 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// The tracer reports the viewer's connection from the dashboard's side:
+	// dashboard ip:port -> the peer the dashboard sees.
+	peerHost, peerPortStr, _ := net.SplitHostPort(conn.LocalAddr().String())
+	peerPort, _ := strconv.Atoi(peerPortStr)
+	dashHost, dashPortStr, _ := net.SplitHostPort(conn.RemoteAddr().String())
+	dashPort, _ := strconv.Atoi(dashPortStr)
+
+	if !srv.isViewerFlow(dashHost, uint16(dashPort), peerHost, uint16(peerPort)) {
+		t.Error("dashboard -> viewer packet not recognised as the viewer's")
+	}
+	if !srv.isViewerFlow(peerHost, uint16(peerPort), dashHost, uint16(dashPort)) {
+		t.Error("viewer -> dashboard packet not recognised as the viewer's")
+	}
+	if srv.isViewerFlow("10.10.10.20", 8000, "10.10.10.10", 9090) {
+		t.Error("an unrelated flow was treated as viewer traffic")
+	}
+	traceFields := map[string]interface{}{
+		"src_ip": dashHost, "src_port": float64(dashPort),
+		"dst_ip": peerHost, "dst_port": float64(peerPort),
+	}
+	if !srv.isViewerTraceEvent(traceFields) {
+		t.Error("traces.packet event on the viewer's connection not recognised")
+	}
+	flowFields := map[string]interface{}{"flow_key": map[string]interface{}{
+		"src_addr": peerHost, "src_port": float64(peerPort),
+		"dst_addr": dashHost, "dst_port": float64(dashPort),
+	}}
+	if !srv.isViewerTraceEvent(flowFields) {
+		t.Error("traces.flow event on the viewer's connection not recognised")
+	}
+	if srv.isViewerTraceEvent(map[string]interface{}{"src_ip": "10.0.0.1", "src_port": 1.0, "dst_ip": "10.0.0.2", "dst_port": 2.0}) {
+		t.Error("unrelated traces.packet event treated as viewer traffic")
 	}
 }

@@ -1219,3 +1219,33 @@ func TestWriteFrame_EmptyPayload(t *testing.T) {
 func newBufioReader(r io.Reader) *bufio.Reader {
 	return bufio.NewReader(r)
 }
+
+// ---------- IsClientAddr ----------
+
+// IsClientAddr knows a connected client by the TCP peer address the server
+// sees, and forgets it on disconnect: the dashboard leaves packets on these
+// connections out of the live view (the viewer feedback loop).
+func TestIsClientAddr(t *testing.T) {
+	srv, hs, cleanup := startTestServer(t, nil)
+	defer cleanup()
+
+	conn := dialWS(t, wsURL(hs))
+	if !waitForCount(srv, 1) {
+		t.Fatal("client did not register")
+	}
+	peer := conn.LocalAddr().String() // the server's view of the peer
+	if !srv.IsClientAddr(peer) {
+		t.Fatalf("IsClientAddr(%s) = false for a connected client", peer)
+	}
+	if srv.IsClientAddr("127.0.0.1:1") {
+		t.Error("IsClientAddr true for an address with no client")
+	}
+
+	conn.Close()
+	for i := 0; i < 100 && srv.IsClientAddr(peer); i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	if srv.IsClientAddr(peer) {
+		t.Error("IsClientAddr still true after the client disconnected")
+	}
+}

@@ -153,6 +153,9 @@ type Server struct {
 	log       *logger.Logger
 	clients   map[*Client]bool
 	clientsMu sync.RWMutex
+	// clientAddrs counts connected clients by remote "ip:port", as this
+	// process sees the TCP peer (IsClientAddr).
+	clientAddrs map[string]int
 
 	broadcast  chan []byte
 	register   chan *Client
@@ -215,13 +218,14 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 	}
 
 	s := &Server{
-		config:     config,
-		log:        log,
-		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte, broadcastBuffer),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-		shutdown:   make(chan struct{}),
+		config:      config,
+		log:         log,
+		clients:     make(map[*Client]bool),
+		clientAddrs: make(map[string]int),
+		broadcast:   make(chan []byte, broadcastBuffer),
+		register:    make(chan *Client),
+		unregister:  make(chan *Client),
+		shutdown:    make(chan struct{}),
 	}
 
 	return s, nil
@@ -261,6 +265,9 @@ func (s *Server) run(ctx context.Context) {
 		case client := <-s.register:
 			s.clientsMu.Lock()
 			s.clients[client] = true
+			if a := client.remoteAddr(); a != "" {
+				s.clientAddrs[a]++
+			}
 			s.clientsMu.Unlock()
 
 			s.log.Debug().
@@ -276,6 +283,11 @@ func (s *Server) run(ctx context.Context) {
 			s.clientsMu.Lock()
 			if _, ok := s.clients[client]; ok {
 				delete(s.clients, client)
+				if a := client.remoteAddr(); a != "" {
+					if s.clientAddrs[a]--; s.clientAddrs[a] <= 0 {
+						delete(s.clientAddrs, a)
+					}
+				}
 				client.Close()
 			}
 			s.clientsMu.Unlock()
@@ -673,6 +685,24 @@ func (s *Server) writeFrame(c *Client, opcode byte, payload []byte) error {
 // demo injector publishes ~75 events at once each second) and every event
 // is a broadcast. At 256 the channel overflowed in steady state.
 const broadcastBuffer = 4096
+
+// IsClientAddr reports whether a connected WebSocket client's TCP peer is
+// addr ("ip:port", as net.JoinHostPort writes it). The dashboard uses it to
+// leave its own viewers' traffic out of the live packet view: every frame it
+// sends a viewer is a packet the tracer reports, which becomes another frame.
+func (s *Server) IsClientAddr(addr string) bool {
+	s.clientsMu.RLock()
+	defer s.clientsMu.RUnlock()
+	return s.clientAddrs[addr] > 0
+}
+
+// remoteAddr is the client's TCP peer, "" if unknown.
+func (c *Client) remoteAddr() string {
+	if c.conn == nil || c.conn.RemoteAddr() == nil {
+		return ""
+	}
+	return c.conn.RemoteAddr().String()
+}
 
 // Broadcast sends a message to all connected clients. With none connected it
 // does nothing: queuing messages for nobody only produced drop warnings.
