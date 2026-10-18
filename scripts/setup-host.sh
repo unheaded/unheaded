@@ -333,56 +333,29 @@ EOF
 
 # Create unheaded user
 setup_user() {
-    log_info "Setting up unheaded user..."
+    log_info "Creating one nologin system account per service..."
 
-    if id unheaded &>/dev/null; then
-        log_info "User 'unheaded' already exists, skipping..."
-        return
-    fi
+    local project_root
+    project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    install -d -m 0755 /etc/sysusers.d
+    install -m 0644 "$project_root/deploy/sysusers.d/unheaded.conf" /etc/sysusers.d/unheaded.conf
+    systemd-sysusers /etc/sysusers.d/unheaded.conf
 
-    useradd -r -s /usr/sbin/nologin -d /opt/unheaded -m unheaded
-    usermod -aG lxd unheaded
-
-    log_success "User 'unheaded' created"
+    log_success "Service accounts created (deploy/sysusers.d/unheaded.conf)"
 }
 
-# Setup systemd service for unheaded-daemon
+# Install the unheaded-daemon unit from deploy/systemd: its own account, no
+# capabilities, systemd-managed state directory.
 setup_systemd() {
     log_info "Setting up systemd service..."
 
-    cat > /etc/systemd/system/unheaded-daemon.service <<EOF
-[Unit]
-Description=Unheaded Control Plane Daemon
-Documentation=https://github.com/unheaded/unheaded
-After=network-online.target lxd.service
-Wants=network-online.target
-
-[Service]
-Type=simple
-User=root
-Group=root
-ExecStart=/usr/local/bin/unheaded-daemon
-Restart=on-failure
-RestartSec=5s
-LimitNOFILE=65536
-LimitMEMLOCK=infinity
-
-# Security hardening
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_ADMIN CAP_BPF CAP_PERFMON
-AmbientCapabilities=CAP_NET_ADMIN CAP_SYS_ADMIN CAP_BPF CAP_PERFMON
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/unheaded /var/lib/unheaded /sys/fs/bpf
-
-[Install]
-WantedBy=multi-user.target
-EOF
+    local project_root
+    project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    install -m 0644 "$project_root/deploy/systemd/unheaded-daemon.service" /etc/systemd/system/unheaded-daemon.service
 
     systemctl daemon-reload
 
-    log_success "Systemd service created (not started yet)"
+    log_success "Systemd service installed (not started yet)"
 }
 
 # Setup kingdom startup and shutdown services
@@ -450,12 +423,10 @@ check_virt() {
 setup_directories() {
     log_info "Creating directory structure..."
 
-    mkdir -p /opt/unheaded/{bin,config,data,logs}
-    mkdir -p /var/lib/unheaded/{state,ebpf}
-    mkdir -p /etc/unheaded
-
-    chown -R unheaded:unheaded /opt/unheaded
-    chown -R unheaded:unheaded /var/lib/unheaded
+    # Root-owned: services only read these. Each service's writable state is
+    # its own StateDirectory under /var/lib/unheaded, created by systemd.
+    install -d -o root -g root -m 0755 /opt/unheaded /opt/unheaded/bin /opt/unheaded/config /var/lib/unheaded
+    install -d -o root -g root -m 0755 /etc/unheaded
 
     log_success "Directories created"
 }

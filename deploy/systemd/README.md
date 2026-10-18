@@ -46,11 +46,10 @@ sudo cp deploy/systemd/*.service /etc/systemd/system/
 sudo cp deploy/systemd/huginn.env.example /etc/huginn.env
 sudo sed -i 's|http://localhost:8428|http://192.168.13.1:8428|' /etc/huginn.env
 
-# Create data dirs and unheaded user if not present
-sudo useradd -r -s /sbin/nologin unheaded 2>/dev/null || true
-for svc in wotan timeguru captain architect micromanager monad sophia dashboard kanban daemon akira; do
-    sudo install -d -o unheaded -g unheaded /var/lib/unheaded/$svc
-done
+# One nologin account per service (systemd creates each StateDirectory)
+sudo install -d -m 0755 /etc/sysusers.d
+sudo install -m 0644 deploy/sysusers.d/unheaded.conf /etc/sysusers.d/
+sudo systemd-sysusers
 
 sudo systemctl daemon-reload
 
@@ -102,6 +101,37 @@ cd ~/tmp/unheaded && sudo docker compose up grafana -d
 # Stop when done:
 cd ~/tmp/unheaded && sudo docker compose stop grafana
 ```
+
+## Isolation
+
+Every service runs as its own system account from
+[`deploy/sysusers.d/unheaded.conf`](../sysusers.d/unheaded.conf): no shell
+(`/usr/sbin/nologin`), no home, no password, its own group. No account is
+shared between services, none is root, `nobody` or uid 1000.
+
+Each long-running unit carries the same sandbox:
+
+| What | How |
+|---|---|
+| Writable state | `StateDirectory=unheaded/<svc>` only (mode 0700, owned by the service; systemd creates it); everything else read-only (`ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp`) |
+| Files it creates | `UMask=0077` |
+| Privilege | no capabilities (`CapabilityBoundingSet=`), `NoNewPrivileges`, no setuid (`RestrictSUIDSGID`) |
+| Kernel | no tunables, modules, kernel log, cgroups, clock, hostname, devices |
+| Other processes | `ProtectProc=invisible` (huginn excepted: it reports host-wide numbers) |
+| Syscalls | `@system-service` minus `@privileged @resources`, native arch only; a denied call returns EPERM |
+| Network | `AF_UNIX AF_INET AF_INET6` only |
+
+Binaries and config are root-owned and not writable by any service account:
+a service must not be able to replace what it, or root, runs.
+
+Consequence: no service is in the `docker` group any more, so
+`pkg/metrics`' Docker collector reports nothing when a service runs under
+systemd (FND-006: docker group membership is root-equivalent).
+
+East's services come from the `.deb` packages (`scripts/build-all-debs.sh`,
+which now ships these units and the matching sysusers line). Until east's
+packages are rebuilt, each unit there has the same sandbox as a drop-in,
+`/etc/systemd/system/unheaded-<pkg>.service.d/10-isolation.conf` (2026-10-18).
 
 ## Binary paths
 

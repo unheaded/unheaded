@@ -32,6 +32,16 @@ go build -ldflags="-s -w" -o /tmp/build-captain ./services/captain/cmd/captain/ 
 go build -ldflags="-s -w" -o /tmp/build-architect ./services/architect/cmd/architect/ 2>/dev/null && echo "  architect: OK" || echo "  architect: SKIP"
 go build -ldflags="-s -w" -o /tmp/build-micromanager ./services/micromanager/cmd/micromanager/ 2>/dev/null && echo "  micromanager: OK" || echo "  micromanager: SKIP"
 
+# deploy/systemd unit for each packaged binary
+unit_for() {
+    case "$1" in
+    dashboard-backend) echo unheaded-dashboard.service ;;
+    kanban-app) echo unheaded-kanban.service ;;
+    unheaded-daemon) echo unheaded-daemon.service ;;
+    *) echo "unheaded-$1.service" ;;
+    esac
+}
+
 # Build .deb for each service
 BUILT=0
 for svc in wotan unheaded-daemon dashboard-backend kanban-app akira timeguru captain architect micromanager; do
@@ -65,37 +75,25 @@ Section: admin
 Priority: optional
 EOF
 
-    # Systemd unit
-    cat > "$PKG_DIR/etc/systemd/system/${PKG_NAME}.service" <<EOF
-[Unit]
-Description=Unheaded ${svc}
-After=network.target
+    # Systemd unit: the repo's unit (own user, sandbox), binary path moved to
+    # where the package puts it. Unit name stays the package name.
+    UNIT_SRC="$PROJECT_ROOT/deploy/systemd/$(unit_for "$svc")"
+    sed 's|/usr/local/bin/|/opt/unheaded/bin/|g' "$UNIT_SRC" >"$PKG_DIR/etc/systemd/system/${PKG_NAME}.service"
 
-[Service]
-Type=simple
-User=unheaded
-Group=unheaded
-ExecStart=/opt/unheaded/bin/${svc}
-Restart=always
-RestartSec=5
-NoNewPrivileges=true
-ProtectSystem=strict
-ReadWritePaths=/var/lib/unheaded /var/log/unheaded
+    # The service's own nologin account (one line of deploy/sysusers.d/unheaded.conf).
+    SVC_USER="$(sed -n 's/^User=//p' "$UNIT_SRC")"
+    mkdir -p "$PKG_DIR/usr/lib/sysusers.d"
+    awk -v u="$SVC_USER" '$1 == "u" && $2 == u' "$PROJECT_ROOT/deploy/sysusers.d/unheaded.conf" \
+        >"$PKG_DIR/usr/lib/sysusers.d/${PKG_NAME}.conf"
+    [ -s "$PKG_DIR/usr/lib/sysusers.d/${PKG_NAME}.conf" ] || { echo "  FAIL: $SVC_USER not in deploy/sysusers.d/unheaded.conf" >&2; exit 1; }
 
-[Install]
-WantedBy=multi-user.target
-EOF
-
-    # Postinst
-    cat > "$PKG_DIR/DEBIAN/postinst" <<'POSTINST'
+    # Postinst: create the account; systemd creates and owns the StateDirectory.
+    cat > "$PKG_DIR/DEBIAN/postinst" <<POSTINST
 #!/bin/sh
 set -e
-if ! id -u unheaded > /dev/null 2>&1; then
-    useradd --system --home-dir /opt/unheaded --shell /usr/sbin/nologin unheaded
-fi
-mkdir -p /var/lib/unheaded /var/log/unheaded
-chown unheaded:unheaded /var/lib/unheaded /var/log/unheaded
+systemd-sysusers /usr/lib/sysusers.d/${PKG_NAME}.conf
 systemctl daemon-reload
+systemctl try-restart ${PKG_NAME}.service || true
 POSTINST
     chmod 755 "$PKG_DIR/DEBIAN/postinst"
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Install:
+# Install (users first: deploy/sysusers.d/unheaded.conf, see its header):
 #   sudo cp deploy/systemd/unheaded-timeguru.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
 #   sudo systemctl start unheaded-timeguru    # manual only — NOT enabled on boot
@@ -13,8 +13,6 @@ Requires=unheaded-wotan.service
 
 [Service]
 Type=simple
-User=unheaded
-Group=unheaded
 Environment=PORT=19000
 EnvironmentFile=-/etc/unheaded/timeguru.env
 ExecStart=/usr/local/bin/timeguru
@@ -23,24 +21,41 @@ Restart=on-failure
 RestartSec=5s
 TimeoutStopSec=15s
 
+LimitNOFILE=4096
+
+User=unheaded-timeguru
+Group=unheaded-timeguru
+StateDirectory=unheaded/timeguru
+StateDirectoryMode=0700
+UMask=0077
+
+# Sandbox (deploy/systemd/README.md#isolation). The user comes from
+# deploy/sysusers.d/unheaded.conf: system account, /usr/sbin/nologin.
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectControlGroups=yes
-RestrictRealtime=yes
-RestrictNamespaces=yes
-RestrictSUIDSGID=yes
-LockPersonality=yes
 PrivateTmp=yes
 PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
 CapabilityBoundingSet=
 AmbientCapabilities=
-ReadWritePaths=/var/lib/unheaded/timeguru
+SystemCallArchitectures=native
 SystemCallFilter=@system-service
 SystemCallFilter=~@privileged @resources @reboot @module @swap
-LimitNOFILE=4096
+SystemCallErrorNumber=EPERM
 
 [Install]
 WantedBy=multi-user.target
