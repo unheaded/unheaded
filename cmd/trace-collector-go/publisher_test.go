@@ -13,6 +13,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+
 	"unheaded/pkg/ebpf"
 	wotanClient "unheaded/pkg/wotan-client"
 )
@@ -602,5 +605,50 @@ func TestTracePublisher_RunWithHTTPFallback(t *testing.T) {
 	stats := pub.Stats()
 	if stats.FlushCycles == 0 {
 		t.Error("expected at least 1 flush cycle")
+	}
+}
+
+// TestFlush_LogsOncePerOutage: a run of failed batches on a topic logs the
+// first failure only (until the 1000th); a success ends the run and logs
+// the recovery with the count. Each failure was one log line before, which
+// wrote 4.3 GB while Wotan was down for ten hours.
+func TestFlush_LogsOncePerOutage(t *testing.T) {
+	var buf strings.Builder
+	prev := log.Logger
+	log.Logger = zerolog.New(&buf)
+	defer func() { log.Logger = prev }()
+
+	// Nothing listens here: every gRPC publish fails, and there is no
+	// HTTP fallback.
+	tsc, err := wotanClient.NewTopicStreamClient("127.0.0.1:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tsc.Close()
+	for _, topic := range []string{TopicTracesFlow, "ebpf.flow.events"} { // flow events are mirrored
+		if _, err := tsc.Subscribe(context.Background(), topic, "trace-collector"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	pub := NewTracePublisher(DefaultTracePublisherConfig())
+	pub.tsc = tsc
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for i := 0; i < 5; i++ {
+		pub.PublishFlowEvent(json.RawMessage(`{"n":1}`))
+		pub.Flush(ctx)
+	}
+	if got := strings.Count(buf.String(), "failed to publish batch"); got != 2 {
+		t.Fatalf("5 failed batches on each of 2 topics logged %d times, want 2 (once per topic):\n%s", got, buf.String())
+	}
+	if got := pub.Stats().Errors; got != 10 {
+		t.Errorf("Stats().Errors = %d, want 10 (every failure still counted)", got)
+	}
+	if n := pub.noteSuccess(TopicTracesFlow); n != 5 {
+		t.Errorf("failure run = %d, want 5", n)
+	}
+	if n := pub.noteFailure(TopicTracesFlow); n != 1 {
+		t.Errorf("after recovery the next failure starts a new run at %d, want 1", n)
 	}
 }

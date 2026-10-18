@@ -134,15 +134,27 @@ type TracePublisher struct {
 	mu      sync.Mutex
 	batches map[string][]json.RawMessage
 
+	// failures counts each topic's consecutive failed batches. Only the
+	// first of an outage, every failLogEvery-th, and the recovery are
+	// logged: while Wotan is down every batch fails, and logging each one
+	// wrote 4.3 GB in ten hours (2026-10-18). Metrics still count them all.
+	failMu   sync.Mutex
+	failures map[string]uint64
+
 	// gRPC client for Wotan topic publishing
 	tsc *wotanClient.TopicStreamClient
 }
 
+// failLogEvery: during a long outage, one reminder per this many failed
+// batches on a topic (about every 40 s at the observed ~25 batches/s).
+const failLogEvery = 1000
+
 // NewTracePublisher creates a new publisher with the given configuration.
 func NewTracePublisher(config TracePublisherConfig) *TracePublisher {
 	return &TracePublisher{
-		config:  config,
-		batches: make(map[string][]json.RawMessage),
+		config:   config,
+		batches:  make(map[string][]json.RawMessage),
+		failures: make(map[string]uint64),
 	}
 }
 
@@ -171,7 +183,9 @@ func (tp *TracePublisher) Connect(ctx context.Context) error {
 		TopicEBPFPacket, TopicEBPFFlow, TopicEBPFLatency,
 	}
 	for _, topic := range topics {
-		if _, err := tsc.Subscribe(ctx, topic, "trace-collector-go"); err != nil {
+		// "trace-collector" is on the auto_approve list in configs/wotan.yaml;
+		// the HTTP fallback joins under it too.
+		if _, err := tsc.Subscribe(ctx, topic, "trace-collector"); err != nil {
 			tsc.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
 			return fmt.Errorf("subscribe to %s: %w", topic, err)
 		}
@@ -258,11 +272,17 @@ func (tp *TracePublisher) Flush(ctx context.Context) {
 		if err := tp.sendBatch(ctx, topic, messages); err != nil {
 			atomic.AddUint64(&tp.stats.Errors, 1)
 			publisherErrorsTotal.WithLabelValues(topic).Inc()
-			log.Error().Err(err).
-				Str("topic", topic).
-				Int("count", len(messages)).
-				Msg("failed to publish batch")
+			if n := tp.noteFailure(topic); n == 1 || n%failLogEvery == 0 {
+				log.Error().Err(err).
+					Str("topic", topic).
+					Int("count", len(messages)).
+					Uint64("failed_batches", n).
+					Msg("failed to publish batch (logged once per outage, then every 1000)")
+			}
 		} else {
+			if n := tp.noteSuccess(topic); n > 0 {
+				log.Info().Str("topic", topic).Uint64("failed_batches", n).Msg("publishing recovered")
+			}
 			atomic.AddUint64(&tp.stats.BatchesSent, 1)
 			atomic.AddUint64(&tp.stats.EventsSent, uint64(len(messages)))
 			publisherBatchesTotal.WithLabelValues(topic).Inc()
@@ -319,6 +339,23 @@ func (tp *TracePublisher) Stats() TracePublisherStats {
 }
 
 // ── Internal methods ──────────────────────────────────────────────────────
+
+// noteFailure counts a failed batch on topic and returns the run so far.
+func (tp *TracePublisher) noteFailure(topic string) uint64 {
+	tp.failMu.Lock()
+	defer tp.failMu.Unlock()
+	tp.failures[topic]++
+	return tp.failures[topic]
+}
+
+// noteSuccess ends topic's failure run and returns how long it was.
+func (tp *TracePublisher) noteSuccess(topic string) uint64 {
+	tp.failMu.Lock()
+	defer tp.failMu.Unlock()
+	n := tp.failures[topic]
+	delete(tp.failures, topic)
+	return n
+}
 
 // enqueue adds a JSON payload to the given topic's batch. If the batch
 // reaches BatchSize, it is flushed immediately.
