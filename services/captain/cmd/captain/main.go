@@ -34,14 +34,17 @@ func run() error {
 	discovery.SetupServiceDiscovery(ctx, nil, "captain", 19002)
 
 	// Configuration
-	wotanAddr := getEnv("WOTAN_ADDR", "localhost:18001")
 	httpAddr := getEnv("HTTP_ADDR", "0.0.0.0:19002")
 	dataPath := getEnv("DATA_PATH", "/var/lib/unheaded/captain")
 
 	// Transport config
+	// WOTAN_ADDR is Wotan's HTTP address and WOTAN_GRPC_ADDR the gRPC one
+	// (ConfigFromEnv reads both). One WOTAN_ADDR used to serve as both,
+	// defaulting to localhost:18001: the HTTP client dialled the gRPC port
+	// on bare metal, and in compose the gRPC transport dialled the HTTP port.
 	transportCfg := transport.DefaultConfig()
 	transport.ConfigFromEnv(&transportCfg)
-	transportCfg.WotanGRPCAddr = wotanAddr
+	wotanAddr := transportCfg.WotanHTTPAddr
 
 	// Health server
 	healthSrv := transport.NewHealthServer("captain")

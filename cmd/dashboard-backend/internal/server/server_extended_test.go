@@ -66,8 +66,8 @@ func TestDefaultConfig(t *testing.T) {
 	if cfg.WriteTimeout != 15*time.Second {
 		t.Errorf("WriteTimeout = %v, want 15s", cfg.WriteTimeout)
 	}
-	if cfg.WotanAddr != "localhost:18001" {
-		t.Errorf("WotanAddr = %q, want localhost:18001", cfg.WotanAddr)
+	if cfg.WotanAddr != "localhost:18000" {
+		t.Errorf("WotanAddr = %q, want localhost:18000", cfg.WotanAddr)
 	}
 	if cfg.ServiceName != "dashboard-backend" {
 		t.Errorf("ServiceName = %q, want dashboard-backend", cfg.ServiceName)

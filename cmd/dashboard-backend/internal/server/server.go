@@ -106,7 +106,7 @@ func DefaultConfig() *Config {
 		ListenAddr:   ports.DefaultAddr(ports.DashboardBackend),
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,
-		WotanAddr:    "localhost:18001",
+		WotanAddr:    "localhost:18000", // Wotan HTTP (18001 is gRPC)
 		ServiceName:  "dashboard-backend",
 	}
 }

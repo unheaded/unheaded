@@ -1383,7 +1383,7 @@ func loadConfig(path string) *Config {
 		HTTPAddr:      getEnvOrDefault("HTTP_ADDR", ports.DefaultAddr(ports.DaemonHTTP)),
 		GRPCAddr:      getEnvOrDefault("GRPC_ADDR", ports.DefaultAddr(ports.DaemonGRPC)),
 		LXDSocket:     getEnvOrDefault("LXD_SOCKET", "/var/lib/lxd/unix.socket"),
-		WotanAddr:     getEnvOrDefault("WOTAN_ADDR", "localhost:18001"),
+		WotanAddr:     getEnvOrDefault("WOTAN_ADDR", fmt.Sprintf("localhost:%d", ports.WotanHTTP)), // HTTP; 18001 is gRPC
 		WotanGRPCAddr: getEnvOrDefault("WOTAN_GRPC_ADDR", ""),
 		PollInterval:  30 * time.Second,
 		LogLevel:      getEnvOrDefault("LOG_LEVEL", "info"),

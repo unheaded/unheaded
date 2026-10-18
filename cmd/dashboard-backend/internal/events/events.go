@@ -84,7 +84,7 @@ type Config struct {
 // DefaultConfig returns default event streamer configuration
 func DefaultConfig() *Config {
 	return &Config{
-		WotanAddr:   "localhost:18001",
+		WotanAddr:   "localhost:18000", // Wotan HTTP (18001 is gRPC)
 		ServiceName: "dashboard-backend",
 		Topics: []string{
 			"metrics.*",

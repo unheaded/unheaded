@@ -68,7 +68,7 @@ func main() {
 
 	log.Info().
 		Str("addr", *addr).
-		Str("wotan", *wotanAddr).
+		Str("wotan", transportCfg.WotanHTTPAddr).
 		Str("transport", string(transportCfg.Type)).
 		Str("log_level", *logLevel).
 		Bool("mock_wotan", *useMock).
@@ -83,8 +83,12 @@ func main() {
 		wotanConn = nil
 		healthSrv.SetGRPCStatus(false)
 	} else {
+		// The RESOLVED address: dialling *wotanAddr used the flag's
+		// localhost default whatever WOTAN_ADDR said, so in compose the
+		// Wotan integration never started (alerts.critical subscribe
+		// refused on [::1]:18000).
 		var err error
-		wotanConn, err = wotanClient.NewClient(*wotanAddr)
+		wotanConn, err = wotanClient.NewClient(transportCfg.WotanHTTPAddr)
 		if err != nil {
 			healthSrv.SetGRPCStatus(false)
 			log.Fatal().Err(err).Msg("failed to create Wotan client")

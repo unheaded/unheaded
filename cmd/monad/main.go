@@ -63,7 +63,7 @@ var (
 
 var (
 	listenAddr = flag.String("listen", ports.DefaultAddr(ports.Monad), "HTTP listen address")
-	wotanAddr  = flag.String("wotan", "localhost:18001", "Wotan server address")
+	wotanAddr  = flag.String("wotan", "", "Wotan HTTP address (host:port); default WOTAN_ADDR, then localhost:18000")
 	debug      = flag.Bool("debug", false, "Enable debug logging")
 	jsonLogs   = flag.Bool("json", false, "Output logs in JSON format")
 )
@@ -78,14 +78,17 @@ func main() {
 	if addr := os.Getenv("MONAD_LISTEN_ADDR"); addr != "" {
 		*listenAddr = addr
 	}
-	if addr := os.Getenv("WOTAN_ADDR"); addr != "" {
-		*wotanAddr = addr
-	}
 
-	// Transport config
+	// -wotan / WOTAN_ADDR is Wotan's HTTP address (pkg/transport's
+	// convention); WOTAN_GRPC_ADDR is the gRPC one. This used one value for
+	// both, defaulting to localhost:18001: on bare metal the HTTP client
+	// dialled the gRPC port, and in compose (WOTAN_ADDR=wotan:18000) the
+	// gRPC transport dialled the HTTP port.
 	transportCfg := transport.DefaultConfig()
 	transport.ConfigFromEnv(&transportCfg)
-	transportCfg.WotanGRPCAddr = *wotanAddr
+	if *wotanAddr != "" {
+		transportCfg.WotanHTTPAddr = "http://" + *wotanAddr
+	}
 
 	// Service lifecycle context
 	ctx, cancel := context.WithCancel(context.Background())
@@ -120,17 +123,17 @@ func main() {
 		Msg("starting Monad service - The Supreme Orchestrator")
 
 	// Connect to Wotan
-	wotan, err := wotanClient.NewClient(*wotanAddr)
+	wotan, err := wotanClient.NewClient(transportCfg.WotanHTTPAddr)
 	if err != nil {
 		log.Warn().
 			Err(err).
-			Str("wotan_addr", *wotanAddr).
+			Str("wotan_addr", transportCfg.WotanHTTPAddr).
 			Msg("failed to create Wotan client, continuing without message bus")
 		healthSrv.SetGRPCStatus(false)
 		wotan = nil
 	} else {
 		log.Info().
-			Str("wotan_addr", *wotanAddr).
+			Str("wotan_addr", transportCfg.WotanHTTPAddr).
 			Msg("Wotan client created")
 
 		// Subscribe to monad operations topic
@@ -180,7 +183,7 @@ func main() {
 
 	log.Info().
 		Str("addr", *listenAddr).
-		Str("wotan", *wotanAddr).
+		Str("wotan", transportCfg.WotanHTTPAddr).
 		Msg("Monad service running - The One from which all emanates")
 
 	// Wait for interrupt signal

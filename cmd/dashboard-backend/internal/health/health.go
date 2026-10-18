@@ -858,7 +858,7 @@ var DefaultServiceEndpoints = map[string]string{
 	"captain":      "localhost:19002",
 	"architect":    "localhost:19001",
 	"micromanager": "localhost:19003",
-	"wotan":        "localhost:18001",
+	"wotan":        "localhost:18000", // HTTP: /health, /metrics (18001 is gRPC)
 	"gateway":      "localhost:21000",
 }
 

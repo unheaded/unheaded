@@ -62,7 +62,7 @@ var (
 
 var (
 	listenAddr = flag.String("listen", ports.DefaultAddr(ports.Sophia), "HTTP listen address")
-	wotanAddr  = flag.String("wotan", "localhost:18001", "Wotan server address")
+	wotanAddr  = flag.String("wotan", "", "Wotan HTTP address (host:port); default WOTAN_ADDR, then localhost:18000")
 	debug      = flag.Bool("debug", false, "Enable debug logging")
 	jsonLogs   = flag.Bool("json", false, "Output logs in JSON format")
 )
@@ -802,9 +802,6 @@ func main() {
 	if addr := os.Getenv("SOPHIA_LISTEN_ADDR"); addr != "" {
 		*listenAddr = addr
 	}
-	if addr := os.Getenv("WOTAN_ADDR"); addr != "" {
-		*wotanAddr = addr
-	}
 	if os.Getenv("SOPHIA_DEBUG") == "true" {
 		*debug = true
 	}
@@ -813,10 +810,15 @@ func main() {
 	}
 
 	// Transport config
+	// -wotan / WOTAN_ADDR is Wotan's HTTP address (pkg/transport's
+	// convention); WOTAN_GRPC_ADDR is the gRPC one. This used one value for
+	// both, defaulting to localhost:18001: on bare metal the HTTP client
+	// dialled the gRPC port, and in compose (WOTAN_ADDR=wotan:18000) the
+	// gRPC transport dialled the HTTP port.
 	transportCfg := transport.DefaultConfig()
 	transport.ConfigFromEnv(&transportCfg)
 	if *wotanAddr != "" {
-		transportCfg.WotanGRPCAddr = *wotanAddr
+		transportCfg.WotanHTTPAddr = "http://" + *wotanAddr
 	}
 
 	// Health server
@@ -849,12 +851,12 @@ func main() {
 	var wotanInstance *wotanClient.Client
 	wotanEnabled := os.Getenv("WOTAN_ENABLED") != "false"
 
-	if wotanEnabled && *wotanAddr != "" {
+	if wotanEnabled && transportCfg.WotanHTTPAddr != "" {
 		log.Info().
-			Str("wotan_addr", *wotanAddr).
+			Str("wotan_addr", transportCfg.WotanHTTPAddr).
 			Msg("connecting to Wotan")
 
-		client, err := wotanClient.NewClient(*wotanAddr)
+		client, err := wotanClient.NewClient(transportCfg.WotanHTTPAddr)
 		if err != nil {
 			log.Warn().
 				Err(err).
@@ -927,7 +929,7 @@ func main() {
 
 	log.Info().
 		Str("addr", *listenAddr).
-		Str("wotan", *wotanAddr).
+		Str("wotan", transportCfg.WotanHTTPAddr).
 		Bool("wotan_connected", wotanInstance != nil).
 		Bool("inference_enabled", sophiaConfig.EnableInference).
 		Msg("Sophia HTTP server running")

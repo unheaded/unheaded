@@ -78,7 +78,7 @@ var (
 
 var (
 	listenAddr    = flag.String("listen", ports.DefaultAddr(ports.DashboardBackend), "HTTP listen address")
-	wotanAddr     = flag.String("wotan", "localhost:18001", "Wotan server address")
+	wotanAddr     = flag.String("wotan", "", "Wotan HTTP address (host:port); default WOTAN_ADDR, then localhost:18000")
 	wotanGRPCAddr = flag.String("wotan-grpc-addr", "", "Wotan gRPC address for TopicStream (enables real eBPF events)")
 	debug         = flag.Bool("debug", false, "Enable debug logging")
 	jsonLogs      = flag.Bool("json", false, "Output logs in JSON format")
@@ -141,6 +141,10 @@ func main() {
 	if *wotanAddr != "" {
 		transportCfg.WotanHTTPAddr = "http://" + *wotanAddr
 	}
+	// Every HTTP client below uses this resolved address. The flag used to
+	// default to localhost:18001, the gRPC port: under the systemd unit
+	// (no --wotan) every HTTP subscribe failed "malformed HTTP response".
+	wotanHTTP := transportCfg.WotanHTTPAddr
 	if *wotanGRPCAddr != "" {
 		transportCfg.WotanGRPCAddr = *wotanGRPCAddr
 	}
@@ -156,7 +160,7 @@ func main() {
 
 	// Log aggregation publisher — forwards structured logs to Wotan
 	var logConn transport.Connection
-	if *wotanAddr != "" {
+	if wotanHTTP != "" {
 		var err error
 		if logConn, err = logagg.Connect(context.Background(), transportCfg, "dashboard-backend"); err != nil {
 			// best-effort: logs stay local, but say why so a nil here is not silent
@@ -189,7 +193,7 @@ func main() {
 	// Create server config
 	config := &server.Config{
 		ListenAddr:   *listenAddr,
-		WotanAddr:    *wotanAddr,
+		WotanAddr:    wotanHTTP,
 		ServiceName:  "dashboard-backend",
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
@@ -221,7 +225,7 @@ func main() {
 		},
 
 		EventsConfig: &events.Config{
-			WotanAddr:         *wotanAddr,
+			WotanAddr:         wotanHTTP,
 			ServiceName:       "dashboard-backend",
 			Topics:            getEventTopics(),
 			BufferSize:        1000,
@@ -250,7 +254,7 @@ func main() {
 	if grpcAddr != "" {
 		log.Info().Str("grpc_addr", grpcAddr).Msg("creating TopicStreamClient for eBPF event ingestion")
 
-		httpFallback, _ := wotanClient.NewClient(*wotanAddr)
+		httpFallback, _ := wotanClient.NewClient(wotanHTTP)
 		tsc, err := wotanClient.NewTopicStreamClient(grpcAddr,
 			wotanClient.WithHTTPFallback(httpFallback),
 			// The dashboard is a live view: replaying Wotan's held history on
@@ -316,7 +320,7 @@ func main() {
 
 	log.Info().
 		Str("addr", *listenAddr).
-		Str("wotan", *wotanAddr).
+		Str("wotan", wotanHTTP).
 		Int("max_connections", *maxConnections).
 		Dur("scrape_interval", *scrapeInterval).
 		Dur("health_interval", *healthInterval).
