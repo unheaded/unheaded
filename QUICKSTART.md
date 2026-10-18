@@ -138,7 +138,7 @@ These come up with `docker compose up -d` alongside the services above.
 |-----------|-----------|--------------|------|
 | Traefik (edge) | unheaded-traefik | 80 (HTTP), 443 (HTTPS), 50051 (gRPC) | Reverse proxy / ingress. Override via `.env` (`TRAEFIK_HTTP_PORT`/`TRAEFIK_HTTPS_PORT`) if 80/443 are taken. |
 | Grafana | unheaded-grafana | 3001 | Dashboards (admin / `GRAFANA_ADMIN_PASSWORD` from `.env`) |
-| VictoriaMetrics | unheaded-victoria | 8428 | Prometheus-compatible metrics store |
+| VictoriaMetrics | unheaded-victoria (compose service `victoria`) | 8428 | Prometheus-compatible metrics store |
 | ClickHouse | unheaded-clickhouse | 8123 (HTTP), 9000 (native) | Log store |
 | PostgreSQL | unheaded-postgres | 5432 | "The Well" |
 | CoreDNS | unheaded-coredns | 5353 | Dev DNS for `*.unheaded.local`. Override via `.env` (`COREDNS_PORT`) if 5353 is taken (macOS Bonjour / Pi-hole). |

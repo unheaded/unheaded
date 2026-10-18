@@ -8,7 +8,6 @@ WEST runs these via Docker (`docker compose`); EAST runs them via systemd.
 | Unit                            | Boot policy        | Rationale                                    |
 |---------------------------------|--------------------|----------------------------------------------|
 | `huginn.service`                | **enabled**        | Always-on; historical metrics need no gap    |
-| `unheaded-victoria.service`     | **enabled**        | TSDB backing store for huginn                |
 | All other units                 | disabled (manual)  | Dev/staging services, start per session      |
 
 Grafana is NOT auto-started — resource cost isn't worth it when idle. Start it
@@ -19,7 +18,6 @@ manually with `sudo docker compose up grafana -d` when you want dashboards.
 | Unit file                       | Port(s)       | Notes                              |
 |---------------------------------|---------------|------------------------------------|
 | `huginn.service`                | 9110          | Host metrics agent — **boot-enabled** (ADR-084) |
-| `unheaded-victoria.service`     | 8428          | VictoriaMetrics TSDB — **boot-enabled**     |
 | `unheaded-doom.target`          | —             | **DOOM pipeline target** — starts all 3 units below |
 | `unheaded-doom-ring.service`    | —             | monad netns ring setup (one-shot)  |
 | `unheaded-doom-runner.service`  | —             | Aya MBC executor + ROM + XDP attach |
@@ -42,9 +40,10 @@ manually with `sudo docker compose up grafana -d` when you want dashboards.
 # Copy units
 sudo cp deploy/systemd/*.service /etc/systemd/system/
 
-# huginn env (edit HUGINN_VM for EAST — push to WEST's VictoriaMetrics)
+# huginn env (edit HUGINN_VM for EAST — push to WEST's VictoriaMetrics;
+# 192.168.13.2 is west on the P2P link, 192.168.13.1 is east itself)
 sudo cp deploy/systemd/huginn.env.example /etc/huginn.env
-sudo sed -i 's|http://localhost:8428|http://192.168.13.1:8428|' /etc/huginn.env
+sudo sed -i 's|http://localhost:8428|http://192.168.13.2:8428|' /etc/huginn.env
 
 # One nologin account per service (systemd creates each StateDirectory)
 sudo install -d -m 0755 /etc/sysusers.d
@@ -53,9 +52,9 @@ sudo systemd-sysusers
 
 sudo systemctl daemon-reload
 
-# Enable always-on services (huginn + victoria)
+# Enable the always-on service. VictoriaMetrics runs on west only, in
+# docker compose (service `victoria`, uid 16703); there is no unit for it.
 sudo systemctl enable --now huginn
-sudo systemctl enable --now unheaded-victoria
 ```
 
 ## Manual session start (other services)

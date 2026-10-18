@@ -1160,12 +1160,14 @@ controls:
     title: Containers run least-privilege, with exceptions only shrinking
     statement: >-
       Every compose service declares a read-only root filesystem, drops all
-      Linux capabilities, sets no-new-privileges and is never privileged,
-      except the services listed in docs/security/compose-hardening-baseline.txt
-      (seven third-party images as of 2026-09-30: clickhouse, coredns,
-      grafana, postgres, traefik, vector, victoria). That list may only
-      shrink; the gate fails on a new unhardened service and on a stale
-      exception. It does NOT say the listed services are hardened.
+      Linux capabilities, sets no-new-privileges, is never privileged and
+      runs as its own explicit user (never 1000, root only for a one-shot
+      without network), except the services listed in
+      docs/security/compose-hardening-baseline.txt (docker-compose.yml: empty
+      since 2026-10-18) and docs/security/compose-hardening-baseline-alt.txt
+      (the other, undeployed compose files: 75 services, FND-009). Both lists
+      may only shrink; the gate fails on a new unhardened service and on a
+      stale exception. It does NOT say the listed services are hardened.
     rationale: >-
       Least privilege and least functionality for workloads (AC-6, CM-7),
       process isolation (SC-39), as declared configuration (CM-6); 800-171

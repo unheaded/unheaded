@@ -567,6 +567,7 @@ ci-fetch-doomgeneric|fetches a pinned checkout the Go jobs need; no verdict of i
 lib/logpath|prints the durable log path for a service (ADR-092); no verdict of its own
 well/set-role-passwords|sets role passwords from the environment (runbooks); no verdict of its own
 well/make-tls|makes TLS material outside the repo; exercised by well/test-config, no verdict of its own
+db-backup|writes a backup set (runbooks/data/postgresql-backup-restore.yaml); its refusals and the set it writes are proven by well/test-backup-restore
 well/restore-drill|needs a backup set to run; its refusals are provoked by well/test-backup-restore (flipped byte, wrong count, unlisted dump)
 well/test-converge-live-app|compares the live Well (or a restored set) with a fresh bootstrap; needs that Well, runbook verify step
 "

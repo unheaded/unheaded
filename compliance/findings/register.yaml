@@ -146,6 +146,44 @@ findings:
     decision: anything else the LAN must reach on west (lxd 8443 remote, dashboards 20000/20001, the apt repo on 18888)
 
   # --- step 7: application level ---------------------------------------------
+  - id: FND-009
+    title: >-
+      75 services in the compose files other than docker-compose.yml (per-host stacks, telemetry, load balancers,
+      sophia-eye, vllm, wireguard) are not least-privilege: no explicit user, no read_only/cap_drop/no-new-privileges;
+      three mount the Docker socket (promtail) and three are privileged (opnsense, ipfire, suricata)
+    verify: docs/security/compose-hardening-baseline-alt.txt is empty and scripts/check-compose-hardening.sh passes
+    severity: low
+    class: container
+    opened: 2026-10-18
+    exposure: none of these files is deployed on west or east (2026-10-18); the gate keeps new services from joining the list
+    lockout: none
+    step: 7
+    plan: >-
+      Same recipe as docker-compose.yml (docs/battle-plans/SERVICE-ISOLATION-2026-10-18.md): pkg/uids number, read_only +
+      tmpfs, cap_drop ALL plus the minimum, no-new-privileges; promtail off the socket (file source on
+      /var/lib/docker/containers read-only, or drop it for Vector); the firewall VMs need a decision on whether they stay
+      containers at all
+
+  - id: FND-010
+    title: >-
+      Units that still start as root: unheaded-baseline (probes shell out to sudo -n and to tools that check uid 0:
+      passwd -S, ufw, aa-status, sudo -iu root), the three Doom units (BPF/XDP/netns, binaries under /home/govan), and the
+      Well's backup/drill/offsite jobs (docker exec into the Well, i.e. the Docker socket)
+    verify: every deploy/systemd *.service has a User= from deploy/sysusers.d (or DynamicUser) and the jobs still pass live
+    severity: medium
+    class: service
+    opened: 2026-10-18
+    exposure: baseline and the Doom units are installed on no host; the Well jobs run nightly on west (root, but sandboxed, no network beyond the offsite copy)
+    lockout: none
+    step: 7
+    plan: >-
+      Well jobs: PostgreSQL 16 client+server binaries on the host (PGDG), backup over TLS as well_backup from its own
+      account with a systemd credential, drill as an unprivileged throwaway cluster in a private dir; waits for Stevie's
+      Ubuntu 26.04 upgrade (he does OS-level changes). Baseline: agent-mode probes without sudo, as unheaded-baseline with
+      CAP_DAC_READ_SEARCH (+ CAP_NET_ADMIN for nft/iptables reads), proven verdict-for-verdict against a root run.
+      Doom: unheaded-doom with CAP_BPF CAP_PERFMON CAP_NET_ADMIN CAP_SYS_ADMIN, artifacts installed out of /home
+    decision: PGDG apt repo + postgresql-16 packages on west, after the OS upgrade
+
   - source: "gate-script:scripts/compliance/check-service-auth.sh"
     severity: high
     class: app
@@ -169,16 +207,6 @@ findings:
       edge effectively serves plain HTTP only; a redirect alone would 404 both. Order: pick a certificate source, enable TLS
       on websecure (entrypoint http.tls), a file-provider tls.options.default minVersion VersionTLS13, move ping off
       the web entrypoint (the healthcheck probes :80/ping), then redirect web to websecure, then drop api.insecure
-
-  - id: FND-002
-    title: Seven third-party containers run without the least-privilege baseline (listed in docs/security/compose-hardening-baseline.txt)
-    verify: compose-hardening-baseline.txt is empty and scripts/check-compose-hardening.sh passes
-    severity: medium
-    class: container
-    opened: 2026-09-30
-    lockout: none
-    step: 7
-    plan: one service at a time - read_only, cap_drop ALL plus the minimum, no-new-privileges, dedicated non-root user
 
   - id: FND-003
     title: >-
@@ -783,29 +811,6 @@ findings:
     accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: "/etc/profile.d/00-unheaded-tmout.sh: readonly TMOUT=900; export TMOUT. Long interactive jobs belong in tmux or systemd-run, which TMOUT does not end"
 
-  - source: "host-probe:west:acct-system-no-shell"
-    severity: low
-    class: account
-    opened: 2026-09-30
-    lockout: none
-    step: 4
-    plan: "unheaded (uid 993) has /bin/bash because scripts/setup-host.sh created it that way (fixed in the repo 2026-09-30; the .deb, Jenkinsfile and postinst already use nologin, and nothing logs in as unheaded): usermod -s /usr/sbin/nologin unheaded. frr (/bin/sh) comes from the FRR package: check its maintainer scripts before changing it"
-
-  - id: FND-006
-    title: The unheaded service account on west is in the docker and lxd groups, each of which is root-equivalent
-    verify: id unheaded on west lists neither docker nor lxd, and the services that run as unheaded still work
-    host: west
-    severity: medium
-    class: account
-    opened: 2026-09-30
-    exposure: any service running as unheaded (and anyone who gets code execution in one) can start a privileged container and own the host
-    lockout: none
-    step: 5
-    plan: >-
-      Find which services need the docker socket or LXD (the dashboard's container metrics, the deploy scripts), give them a narrower path
-      (a read-only socket proxy, or a dedicated user per service), then gpasswd -d unheaded docker and lxd. scripts/setup-host.sh adds lxd.
-    decision: which services running as unheaded genuinely need docker or LXD access
-
   - id: FND-007
     title: pkg/database falls back to the Well superuser with a built-in password when WELL_USER/WELL_PASSWORD are unset
     verify: go test ./pkg/database/... includes a test that Connect fails loudly with no WELL_USER/WELL_PASSWORD, and no Go file sets a password default
@@ -1376,17 +1381,6 @@ findings:
     step: 4
     plan: same as west; east has fewer shared-file workflows
     decision: as west
-
-  - source: "host-probe:west:home-dirs"
-    severity: low
-    class: account
-    opened: 2026-10-13
-    lockout: none
-    step: 4
-    plan: >-
-      Both are system accounts with a login shell, already open as acct-system-no-shell: unheaded (/opt/unheaded 0755) and
-      frr (home /nonexistent, /bin/sh from the FRR package). usermod -s /usr/sbin/nologin unheaded drops it from this check;
-      chmod 0750 /opt/unheaded only after checking what reads it (services run as unheaded)
 
   - source: "host-probe:west:dot-files"
     severity: low
