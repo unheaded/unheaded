@@ -32,6 +32,10 @@ spec:
       containers:
         - name: postgres
           image: postgres:16.15-alpine
+          # The repo's server configuration, as compose runs it (ERDA 4.1):
+          # TLS 1.3 only with the certificate from the the-well-tls secret,
+          # hba rules from db/pg_hba.k8s.conf.
+          args: ["postgres", "-c", "config_file=/etc/postgresql/postgresql.conf"]
           ports:
             - { name: postgres, containerPort: 5432 }
           env:
@@ -54,6 +58,10 @@ spec:
             - { name: migrations, mountPath: /migrations }
             - { name: run, mountPath: /var/run/postgresql }
             - { name: tmp, mountPath: /tmp }
+            # Two files, not the directory: the TLS secret mounts beside them.
+            - { name: config, mountPath: /etc/postgresql/postgresql.conf, subPath: postgresql.conf, readOnly: true }
+            - { name: config, mountPath: /etc/postgresql/pg_hba.conf, subPath: pg_hba.conf, readOnly: true }
+            - { name: tls, mountPath: /etc/postgresql/tls, readOnly: true }
           readinessProbe:
             exec: { command: ["pg_isready", "-U", "unheaded", "-d", "postgres"] }
             initialDelaySeconds: 10
@@ -75,6 +83,15 @@ spec:
           configMap: { name: the-well-initdb, defaultMode: 0444 }
         - name: run
           emptyDir: {}
+        - name: config
+          configMap: { name: the-well-config, defaultMode: 0444 }
+        # Create from scripts/well/make-tls.sh's output (keys never enter the
+        # repo): kubectl -n unheaded create secret generic the-well-tls
+        #   --from-file=server.crt --from-file=server.key --from-file=ca.crt
+        # Root-owned, group 70 (fsGroup), 0440: PostgreSQL accepts a
+        # root-owned key its group can read.
+        - name: tls
+          secret: { secretName: the-well-tls, defaultMode: 0440 }
         - name: tmp
           emptyDir: { medium: Memory, sizeLimit: 64Mi }
   volumeClaimTemplates:
