@@ -48,8 +48,12 @@ Source-based build (above) is for development; cask build is for release.
 ## Smoke after build
 
 ```bash
-# Boot the daemon in dry-run mode (does NOT touch the filesystem)
-./bin/heimdall-daemon -dry-run -baseline /tmp/mimir-test-baseline
+# The daemon only reads (alerts only, ADR-043). It trusts a manifest only
+# with a valid ML-DSA-65 seal next to it (<manifest>.seal):
+./bin/heimdall-daemon -manifest mjolnir.yaml -sign-key /secure/heimdall.seed   # writes mjolnir.yaml.seal (seed file 0600)
+./bin/heimdall-daemon -manifest mjolnir.yaml -pubkey heimdall.pub
+# A lab run without a key has to say so:
+./bin/heimdall-daemon -manifest references/baseline/mjolnir.example.yaml -allow-unsigned
 
 # In another terminal: trigger a manual scan via UPC packet (Linux + CAP_NET_RAW)
 ./bin/gjallarhorn-sender -target ::1 -reason "smoke test"

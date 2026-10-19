@@ -17,6 +17,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -25,6 +27,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 	"gopkg.in/yaml.v3"
 
 	"unheaded/pkg/enkrateia"
@@ -68,12 +71,46 @@ type Heimdall struct {
 	mu         sync.RWMutex
 }
 
-// LoadManifest parses a Mjölnir YAML manifest from disk.
-// TODO: verify attached GungnirSeal before trusting the manifest.
-func LoadManifest(path string) (*MjolnirManifest, error) {
+// Trust says how a manifest is checked before Heimdall believes it.
+type Trust struct {
+	// PubKey verifies the manifest's detached seal (<manifest>.seal, a
+	// JSON gungnir.GungnirSeal over the manifest's exact bytes).
+	PubKey *mldsa65.PublicKey
+	// AllowUnsigned loads a manifest with no key to check it against: a
+	// lab run only. Without a key and without this, loading fails.
+	AllowUnsigned bool
+}
+
+// ErrUnverified refuses a manifest nothing vouches for.
+var ErrUnverified = errors.New("no public key to verify the manifest's seal (--pubkey), and --allow-unsigned not given")
+
+// SealPath is where a manifest's detached seal lives.
+func SealPath(manifest string) string { return manifest + ".seal" }
+
+// LoadManifest reads a Mjölnir manifest and, with trust.PubKey, verifies its
+// ML-DSA-65 seal over the exact bytes before parsing them (ADR-043: the
+// baseline is the thing an attacker most wants to swap; drift detection
+// against a forged baseline reports nothing).
+func LoadManifest(path string, trust Trust) (*MjolnirManifest, error) {
 	data, err := os.ReadFile(path) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
 	if err != nil {
 		return nil, fmt.Errorf("read manifest: %w", err)
+	}
+	switch {
+	case trust.PubKey != nil:
+		raw, err := os.ReadFile(SealPath(path)) // #nosec G304 -- next to the operator-configured manifest
+		if err != nil {
+			return nil, fmt.Errorf("read seal: %w", err)
+		}
+		var seal gungnir.GungnirSeal
+		if err := json.Unmarshal(raw, &seal); err != nil {
+			return nil, fmt.Errorf("parse seal: %w", err)
+		}
+		if err := gungnir.Verify(data, &seal, trust.PubKey); err != nil {
+			return nil, fmt.Errorf("manifest seal: %w", err)
+		}
+	case !trust.AllowUnsigned:
+		return nil, ErrUnverified
 	}
 	var m MjolnirManifest
 	if err := yaml.Unmarshal(data, &m); err != nil {
@@ -161,13 +198,52 @@ func (h *Heimdall) Run(ctx context.Context, scanInterval time.Duration) error {
 	}
 }
 
+// signManifest writes manifest's detached seal with the private key seed in
+// keyPath (gungnir.LoadSeedFile refuses a key file others can read).
+func signManifest(manifest, keyPath string, ttl time.Duration) error {
+	priv, err := gungnir.LoadSeedFile(keyPath)
+	if err != nil {
+		return err
+	}
+	signer, err := gungnir.NewSignerWithID(priv)
+	if err != nil {
+		return err
+	}
+	data, err := os.ReadFile(manifest) // #nosec G304 -- operator-supplied path
+	if err != nil {
+		return err
+	}
+	seal, err := signer.SignFor(data, ttl)
+	if err != nil {
+		return err
+	}
+	out, err := json.MarshalIndent(seal, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(SealPath(manifest), append(out, '\n'), 0o644) // #nosec G306 G703 -- a seal is public; the path is the operator's own --manifest flag plus ".seal"
+}
+
 func main() {
 	var (
-		manifestPath = flag.String("manifest", "references/baseline/mjolnir.example.yaml", "Path to Mjölnir manifest")
-		nodeID       = flag.String("node-id", "", "Node identifier (defaults to hostname)")
-		scanInterval = flag.Duration("scan-interval", 30*time.Second, "Baseline scan interval")
+		manifestPath  = flag.String("manifest", "references/baseline/mjolnir.example.yaml", "Path to Mjölnir manifest")
+		nodeID        = flag.String("node-id", "", "Node identifier (defaults to hostname)")
+		scanInterval  = flag.Duration("scan-interval", 30*time.Second, "Baseline scan interval")
+		pubKeyPath    = flag.String("pubkey", "", "ML-DSA-65 public key file: verify <manifest>.seal before trusting the manifest")
+		allowUnsigned = flag.Bool("allow-unsigned", false, "load a manifest without verifying a seal (lab runs only)")
+		signKey       = flag.String("sign-key", "", "sign --manifest with this private key seed, write <manifest>.seal, exit")
+		signTTL       = flag.Duration("sign-ttl", 30*24*time.Hour, "how long a seal written by --sign-key stays valid")
 	)
 	flag.Parse()
+
+	if *signKey != "" {
+		if err := signManifest(*manifestPath, *signKey, *signTTL); err != nil {
+			fmt.Fprintf(os.Stderr, "sign manifest: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("wrote %s\n", SealPath(*manifestPath))
+		return
+	}
 
 	if *nodeID == "" {
 		hostname, _ := os.Hostname()
@@ -177,7 +253,18 @@ func main() {
 	fmt.Printf("Heimdall Daemon starting (node=%s)\n", *nodeID)
 	fmt.Printf("ADR-043 hard condition #1: alerts only, no auto-restore\n")
 
-	manifest, err := LoadManifest(*manifestPath)
+	trust := Trust{AllowUnsigned: *allowUnsigned}
+	if *pubKeyPath != "" {
+		pub, err := gungnir.LoadPublicKeyFile(*pubKeyPath)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "load public key: %v\n", err)
+			os.Exit(1)
+		}
+		trust.PubKey = pub
+	} else if *allowUnsigned {
+		fmt.Fprintln(os.Stderr, "WARNING: --allow-unsigned: the manifest is not verified; drift against a forged baseline goes unseen")
+	}
+	manifest, err := LoadManifest(*manifestPath, trust)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "load manifest: %v\n", err)
 		os.Exit(1)
@@ -185,9 +272,6 @@ func main() {
 	fmt.Printf("Loaded Mjölnir: %s v%s (%d files, %d packages)\n",
 		manifest.Metadata.Name, manifest.Metadata.Version,
 		len(manifest.Spec.Files), len(manifest.Spec.Packages))
-
-	// Placeholder key for dev
-	_ = gungnir.GenerateDevKey
 
 	h := &Heimdall{
 		nodeID:     *nodeID,

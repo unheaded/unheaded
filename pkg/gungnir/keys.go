@@ -46,12 +46,7 @@ func (s *Signer) SignFor(payload []byte, ttl time.Duration) (*GungnirSeal, error
 	if ttl <= 0 || ttl > 31*24*time.Hour {
 		return nil, fmt.Errorf("gungnir: ttl %s outside (0, 31 days]", ttl)
 	}
-	seal, err := s.Sign(payload)
-	if err != nil {
-		return nil, err
-	}
-	seal.ExpiresAtUnix = seal.IssuedAtUnix + int64(ttl/time.Second)
-	return seal, nil
+	return s.sign(payload, ttl)
 }
 
 // LoadSeedFile reads a private key seed file (32 bytes), refusing one that

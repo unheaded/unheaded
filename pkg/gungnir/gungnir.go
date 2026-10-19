@@ -8,7 +8,9 @@
 package gungnir
 
 import (
+	"bytes"
 	"crypto/sha256"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"time"
@@ -70,22 +72,49 @@ func NewSigner(priv *mldsa65.PrivateKey) (*Signer, error) {
 	}, nil
 }
 
-// Sign produces a GungnirSeal over the given payload.
-func (s *Signer) Sign(payload []byte) (*GungnirSeal, error) {
-	h := sha256.Sum256(payload)
-	sig := make([]byte, mldsa65.SignatureSize)
-	if err := mldsa65.SignTo(s.priv, h[:], nil, false, sig); err != nil {
-		return nil, err
+// sealContext is ML-DSA's context string (FIPS 204): it keeps these
+// signatures apart from anything else the same key might sign.
+const sealContext = "unheaded/gungnir/seal/v2"
+
+// signedMessage is what a seal's signature covers: every field Verify acts
+// on, each length-prefixed. The first version signed only the payload hash,
+// so expiry, issue time, key ID and algorithm could be edited on a valid
+// seal: a stale seal could be made fresh again by rewriting ExpiresAtUnix.
+func signedMessage(seal *GungnirSeal) []byte {
+	var b bytes.Buffer
+	field := func(p []byte) {
+		_ = binary.Write(&b, binary.BigEndian, uint32(len(p))) // #nosec G115 -- fields are a hash, a short name and a key id
+		b.Write(p)
 	}
+	field([]byte(seal.Algorithm))
+	field([]byte(seal.KeyId))
+	_ = binary.Write(&b, binary.BigEndian, seal.IssuedAtUnix)
+	_ = binary.Write(&b, binary.BigEndian, seal.ExpiresAtUnix)
+	field(seal.PayloadSha256)
+	return b.Bytes()
+}
+
+// Sign produces a GungnirSeal over the given payload, valid for one hour.
+func (s *Signer) Sign(payload []byte) (*GungnirSeal, error) {
+	return s.sign(payload, time.Hour)
+}
+
+func (s *Signer) sign(payload []byte, ttl time.Duration) (*GungnirSeal, error) {
+	h := sha256.Sum256(payload)
 	now := time.Now().Unix()
-	return &GungnirSeal{
+	seal := &GungnirSeal{
 		PayloadSha256: h[:],
-		Mldsa65Sig:    sig,
 		KeyId:         s.keyID,
 		IssuedAtUnix:  now,
-		ExpiresAtUnix: now + 3600, // 1 hour for dev
+		ExpiresAtUnix: now + int64(ttl/time.Second),
 		Algorithm:     Algorithm,
-	}, nil
+	}
+	sig := make([]byte, mldsa65.SignatureSize)
+	if err := mldsa65.SignTo(s.priv, signedMessage(seal), []byte(sealContext), false, sig); err != nil {
+		return nil, err
+	}
+	seal.Mldsa65Sig = sig
+	return seal, nil
 }
 
 // PublicKey returns the signer's public key bytes.
@@ -109,7 +138,7 @@ func Verify(payload []byte, seal *GungnirSeal, pubKey *mldsa65.PublicKey) error 
 	if string(h[:]) != string(seal.PayloadSha256) {
 		return ErrPayloadHash
 	}
-	if !mldsa65.Verify(pubKey, h[:], nil, seal.Mldsa65Sig) {
+	if !mldsa65.Verify(pubKey, signedMessage(seal), []byte(sealContext), seal.Mldsa65Sig) {
 		return ErrBadSignature
 	}
 	return nil
