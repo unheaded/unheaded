@@ -210,6 +210,28 @@ findings:
       the modprobe stopgap on both hosts (host change); whether west keeps unprivileged user namespaces open for LXD
       (turning the restriction back on may break LXD's unprivileged containers: test first)
 
+  - id: FND-012
+    title: >-
+      East's packaged unit files are group-writable (0664), and unheaded-wotan.service is owned by govan:govan, so the
+      login account can rewrite a unit that systemd starts. scripts/build-all-debs.sh packaged with the builder's umask
+      (0002); the govan ownership is from a hand copy
+    verify: >-
+      find /etc/systemd/system -maxdepth 2 -type f ( ! -user root -o -perm -g+w -o -perm -o+w ) prints nothing on west
+      and east
+    severity: low
+    class: fileperm
+    host: east
+    opened: 2026-10-19
+    exposure: >-
+      none beyond govan today: govan has passwordless sudo on east. It becomes an escalation path the day sudo is
+      tightened (the sshd/sudo findings above)
+    lockout: none
+    step: 2
+    plan: >-
+      Fixed in the builder 2026-10-19 (umask 022, packages now 0644/0755). Rebuild and reinstall east's packages
+      (scripts/build-all-debs.sh; already wanted for the 18001 fix), then
+      sudo chown root:root /etc/systemd/system/unheaded-wotan.service && sudo chmod 0644 /etc/systemd/system/unheaded-*.service
+
   - source: "gate-script:scripts/compliance/check-service-auth.sh"
     severity: high
     class: app
