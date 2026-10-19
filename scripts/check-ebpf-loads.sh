@@ -34,6 +34,8 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/lib/sets.sh
+source "${REPO_ROOT}/scripts/lib/sets.sh"
 EBPF="${REPO_ROOT}/ebpf"
 TARGET="${EBPF_LOAD_TARGET_DIR:-${EBPF}/target/load-gate}"
 KNOWN="${REPO_ROOT}/docs/policy/ebpf-load-known-failing.txt"
@@ -128,9 +130,9 @@ failing="$(printf '%s\n' "$results" | awk '$2=="FAIL" {print $1}' | sort -u)"
 loading="$(printf '%s\n' "$results" | awk '$2=="OK" {print $1}' | sort -u)"
 known="$(sed 's/#.*//' "$KNOWN" | awk 'NF {print $1}' | sort -u)"
 
-unexpected="$(comm -23 <(printf '%s\n' "$failing" | grep .) <(printf '%s\n' "$known" | grep .))"
-now_loads="$(comm -12 <(printf '%s\n' "$known" | grep .) <(printf '%s\n' "$loading" | grep .))"
-stale="$(comm -23 <(printf '%s\n' "$known" | grep .) <(printf '%s\n' "$failing" "$loading" | grep . | sort -u))"
+unexpected="$(set_comm -23 "$failing" "$known")"
+now_loads="$(set_comm -12 "$known" "$loading")"
+stale="$(set_comm -23 "$known" "$(printf '%s\n' "$failing" "$loading" | grep . | sort -u)")"
 
 rc=0
 if [[ -n "$unexpected" ]]; then

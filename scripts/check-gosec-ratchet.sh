@@ -20,6 +20,8 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/lib/sets.sh
+source "${REPO_ROOT}/scripts/lib/sets.sh"
 WORKFLOW="${REPO_ROOT}/.github/workflows/security.yml"
 BASELINE="${REPO_ROOT}/docs/security/gosec-ratchet-baseline.txt"
 
@@ -42,8 +44,8 @@ ALLOWED="$(grep -E '^G[0-9]+$' "${BASELINE}" | sort -u)"
 
 # Any rule excluded in the workflow but absent from the baseline is a NEW
 # suppression. That is the thing this script exists to stop.
-ADDED="$(comm -23 <(printf '%s\n' "${CURRENT}") <(printf '%s\n' "${ALLOWED}"))"
-REMOVED="$(comm -13 <(printf '%s\n' "${CURRENT}") <(printf '%s\n' "${ALLOWED}"))"
+ADDED="$(set_comm -23 "${CURRENT}" "${ALLOWED}")"
+REMOVED="$(set_comm -13 "${CURRENT}" "${ALLOWED}")"
 
 if [ -n "${CURRENT}" ] && [ -n "${ADDED}" ]; then
     echo "============================================================"

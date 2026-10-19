@@ -26,6 +26,8 @@
 set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/lib/sets.sh
+source "${REPO_ROOT}/scripts/lib/sets.sh"
 BASELINE="${REPO_ROOT}/.gitleaksignore"
 MANIFEST="${REPO_ROOT}/docs/security/gitleaks-baseline-fingerprints.txt"
 
@@ -67,7 +69,7 @@ ALLOWED_N="$(printf '%s' "${ALLOWED_SET}" | grep -c . || true)"
 : "${ALLOWED_N:=0}"
 
 # Set difference: present in .gitleaksignore, absent from the manifest.
-ADDED="$(comm -23 <(printf '%s\n' "${CURRENT_SET}") <(printf '%s\n' "${ALLOWED_SET}") | grep -E '^[a-zA-Z0-9]' || true)"
+ADDED="$(set_comm -23 "${CURRENT_SET}" "${ALLOWED_SET}" | grep -E '^[a-zA-Z0-9]' || true)"
 
 if [ -n "${ADDED}" ]; then
     echo "============================================================"

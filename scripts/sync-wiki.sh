@@ -36,6 +36,8 @@ set -euo pipefail
 # ── Resolve paths ────────────────────────────────────────────────────────────
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+# shellcheck source=scripts/lib/sets.sh
+source "${REPO_ROOT}/scripts/lib/sets.sh"
 SRC="${WIKI_SRC:-$REPO_ROOT/wiki}"
 DEST="${WIKI_DEST:-$HOME/tmp/unheaded-wiki}"
 
@@ -92,8 +94,8 @@ while IFS= read -r f; do
   [ -z "$f" ] && continue
   in_preserve "$f" && continue
   ORPHANS+=("$f")
-done < <(comm -13 <(cd "$SRC" && ls -1 ./*.md 2>/dev/null | sed 's|^\./||' | sort) \
-                  <(cd "$DEST" && ls -1 ./*.md 2>/dev/null | sed 's|^\./||' | sort))
+done < <(set_comm -13 "$(cd "$SRC" && ls -1 ./*.md 2>/dev/null | sed 's|^\./||' | sort)" \
+                      "$(cd "$DEST" && ls -1 ./*.md 2>/dev/null | sed 's|^\./||' | sort)")
 
 if [ "${#ORPHANS[@]}" -eq 0 ]; then
   echo "  (none)"

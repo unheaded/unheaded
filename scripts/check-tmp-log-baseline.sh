@@ -28,6 +28,8 @@ set -uo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 MANIFEST="${REPO_ROOT}/docs/policy/tmp-log-baseline.txt"
+# shellcheck source=scripts/lib/sets.sh
+source "${REPO_ROOT}/scripts/lib/sets.sh"
 
 cd "$REPO_ROOT" || exit 2
 
@@ -57,8 +59,8 @@ fi
 baseline="$(grep -v '^#' "$MANIFEST" | grep -v '^[[:space:]]*$' | sort -u)"
 
 # Anything present now that is not in the baseline is a NEW /tmp log path.
-added="$(comm -23 <(printf '%s\n' "$current") <(printf '%s\n' "$baseline"))"
-removed="$(comm -13 <(printf '%s\n' "$current") <(printf '%s\n' "$baseline"))"
+added="$(set_comm -23 "$current" "$baseline")"
+removed="$(set_comm -13 "$current" "$baseline")"
 
 if [[ -n "$added" ]]; then
     echo "[FAIL] new /tmp log path(s) added (ADR-092):" >&2
