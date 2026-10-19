@@ -33,4 +33,33 @@ if [[ $fail -ne 0 ]]; then
 	echo "check-systemd-units: systemd would silently ignore the directives above"
 	exit 1
 fi
-echo "[PASS] ${#units[@]} unit files verify cleanly"
+
+# Every User= is an account deploy/sysusers.d/unheaded.conf creates (its
+# header promised this check; it did not exist until 2026-10-19), and
+# Group= is that account's own group: a group two services share is a
+# shared account. A unit whose user has no line fails to start on a fresh
+# host ("Failed to determine user credentials").
+SYSUSERS="${REPO_ROOT}/deploy/sysusers.d/unheaded.conf"
+declare -A OTHER_ACCOUNTS=(
+	[well-backup-copy]="east only, created by useradd with its chroot home (unheaded-well-offsite.service)"
+)
+accounts=0
+for u in "$DIR"/*.service; do
+	user="$(sed -n 's/^User=//p' "$u" | tail -1)"
+	[[ -n "$user" ]] || continue
+	grep -q '^DynamicUser=yes' "$u" && continue
+	accounts=$((accounts + 1))
+	if [[ -z "${OTHER_ACCOUNTS[$user]:-}" ]] && ! awk -v n="$user" '$1 == "u" && $2 == n { f = 1 } END { exit !f }' "$SYSUSERS"; then
+		echo "[FAIL] $(basename "$u"): User=$user has no line in ${SYSUSERS#"$REPO_ROOT"/}"
+		fail=1
+	fi
+	group="$(sed -n 's/^Group=//p' "$u" | tail -1)"
+	if [[ -n "$group" && "$group" != "$user" ]]; then
+		echo "[FAIL] $(basename "$u"): Group=$group is not User=$user's own group"
+		fail=1
+	fi
+done
+if [[ $fail -ne 0 ]]; then
+	exit 1
+fi
+echo "[PASS] ${#units[@]} unit files verify cleanly; ${accounts} run as their own account (sysusers, or named above)"
