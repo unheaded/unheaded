@@ -49,6 +49,12 @@ latest; Loki 2.9.0 / 2.9.4 / 3.0.0).
 
 ## Open
 
+**Ratchet (2026-10-19):** `scripts/check-image-tags.sh` (security.yml,
+meta-gate) lists every compose, Kubernetes and Dockerfile `FROM` image
+without an exact version, per file, in `docs/policy/image-tag-baseline.txt`
+(80 entries at creation). A new one fails; pinning one fails until its line
+is removed (`--update`, which refuses additions). The items below shrink it.
+
 - The other compose files (monitoring, observability, hosts, zhen): floating
   and `latest` tags, and duplicate versions to consolidate.
 - `FROM` lines: `golang:1.27-alpine`, `debian:bookworm-slim`,
