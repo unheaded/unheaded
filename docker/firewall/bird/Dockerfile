@@ -2,7 +2,7 @@
 # BIRD Dockerfile — builds from ~/tmp/bird-master/ source
 # Multi-stage build for minimal final image
 
-FROM alpine:3.19 AS builder
+FROM alpine:3.24 AS builder
 
 RUN apk add --no-cache \
     build-base autoconf flex bison \
@@ -22,7 +22,7 @@ RUN autoreconf -fi && \
     make -j$(nproc) && \
     make install
 
-FROM alpine:3.19
+FROM alpine:3.24
 
 RUN apk add --no-cache libssh readline && \
     addgroup -S -g 153 bird && \
