@@ -1,5 +1,5 @@
 version: 1.0.0
-last_updated: 2026-10-15T20:17:13.542135159Z
+last_updated: 2026-10-19T10:33:05.529718316Z
 status: alpha
 phases:
   - id: phase-0
@@ -70,9 +70,11 @@ phases:
       - phase-3-item-4edd7ab2
       - phase-3-item-f9e1a413
       - phase-3-item-a97e4757
+      - phase-3-item-ee7c6e87
+      - phase-3-item-55b1241c
       - phase-3-item-020526f9
       - phase-3-item-9f7e0f1a
-      - phase-3-item-59ee6692
+      - phase-3-item-5d165ac5
       - phase-3-item-d0b986af
       - phase-3-item-bb2c9dfc
       - phase-3-item-db8f98f1
@@ -346,6 +348,16 @@ milestones:
     status: completed
     progress: 100
     description: '**The Well onto the ledger (2026-10-14 → 10-15).** ERDA audit plan finished: every migration through `cmd/well-migrate` (ADR-101) with a NOLOGIN owner role per database; PUBLIC CONNECT revoked; repo-owned `postgresql.conf`/`pg_hba.conf`, TLS 1.3 only, data checksums, Postgres 16.15; every role password and the superuser''s rotated out of the repo; legacy `unheaded` database archived and dropped; no service creates tables at startup; nightly backup sets on a different disk from the data (refused otherwise), copied to east by an account that cannot delete, weekly restore drill, alerts through Huginn''s textfile collector; RPO 24 h (ADR-016 amendment, Accepted). Wiki: The-Well, Well-Backups.'
+  - id: phase-3-item-ee7c6e87
+    name: Service isolation and the smoke-test catch pass
+    status: completed
+    progress: 100
+    description: '**Service isolation and the smoke-test catch pass (2026-10-18, `develop`).** Every systemd service its own nologin account (`deploy/sysusers.d`), the shared `unheaded` account deleted on both hosts, every container its own uid (`pkg/uids`), third-party services hardened. Then, loading the stack: Wotan OOM-killed (ring buffers capped by count only), a trace-collector log of 4.3 GB in 10 h, ClickHouse''s own system logs over its memory limit, a dashboard live view that traced its own viewers into a loop; each fixed and gated.'
+  - id: phase-3-item-55b1241c
+    name: Overnight churn
+    status: completed
+    progress: 100
+    description: '**Overnight churn: threats, gates, signatures (2026-10-19, `develop`).** `cmd/kev-poller` keeps the CISA KEV catalog (ADR-055) and refreshed the threat register after 175 days: two exploited kernel CVEs unpatched on both hosts (FND-011). Wotan''s second OOM traced to no budget across topics (reproduced: old image OOM-killed, new one holds at 139 MiB). Signing turned out decorative in two places: Wotan checked `config.*` signatures against the key the publisher sent, and gungnir seals did not sign their expiry; both fixed, with replay protection. The baseline agent runs without root and no longer audits its own mount namespace (it had 8 false passes). New ratchets: third-party packages, floating image tags, unit binaries and accounts, pip-audit; the fuzz job had only ever reached 3 of 12 fuzz packages. Kubernetes Well TLS-only, proved on kind.'
   - id: phase-3-item-020526f9
     name: Resolved since this list was written:* Captain Track call
     status: completed
@@ -356,11 +368,11 @@ milestones:
     status: pending
     progress: 0
     description: WAVE14 retrain (extended-epoch, rank=16/alpha=32 unchanged, ≥3 epochs ≈ 10704 example-steps)
-  - id: phase-3-item-59ee6692
-    name: SBOM regen + license scan + threat refresh
+  - id: phase-3-item-5d165ac5
+    name: SBOM regen + license scan
     status: pending
     progress: 0
-    description: SBOM regen + license scan + threat refresh (REMOTE; full ScanCode regen last 2026-04-04)
+    description: SBOM regen + license scan (REMOTE; full ScanCode regen last 2026-04-04); threat refresh is now `kev-poller report` (last 2026-10-19)
   - id: phase-3-item-d0b986af
     name: Demo video + README polish for VC/public readiness
     status: pending
@@ -402,4 +414,4 @@ milestones:
     progress: 0
     description: Multi-tenant isolation hardening
 metadata:
-  overall_progress: 83%
+  overall_progress: 84%
