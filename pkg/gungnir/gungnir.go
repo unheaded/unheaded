@@ -25,7 +25,7 @@ var (
 	ErrWrongAlgo    = errors.New("gungnir: wrong algorithm (only ml-dsa-65 accepted)")
 	ErrSealExpired  = errors.New("gungnir: seal expired")
 	ErrPayloadHash  = errors.New("gungnir: payload hash mismatch")
-	ErrBadSignature = errors.New("gungnir: signature verification failed")
+	ErrBadSignature = errors.New("gungnir: signature verification failed (wrong key, altered seal, or a seal written before seal v2: re-sign it)")
 )
 
 // GungnirSeal is the ML-DSA-65 signature wrapper for Mjölnir manifests
