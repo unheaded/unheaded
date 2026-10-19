@@ -15,7 +15,7 @@ Two authentication mechanisms are planned:
 - Used by: Dashboard UI, CLI (`wotan-ctl`), third-party integrations
 - Flow: Client presents `Authorization: Bearer <token>` header
 - Validation: JWKS endpoint or pre-shared public key
-- Claims: `sub` (subject), `roles` (authorization), `exp` (expiry)
+- Claims: `sub` (subject), `roles` (authorization), `exp` (expiry, required: a token without it is refused)
 - Library: `golang-jwt/jwt` (not yet added to go.mod)
 
 ### 2. mTLS (Inter-Service Communication)

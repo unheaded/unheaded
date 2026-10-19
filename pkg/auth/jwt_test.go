@@ -305,7 +305,8 @@ func TestJWTAuthenticator_CaseInsensitiveBearer(t *testing.T) {
 }
 
 func TestJWTAuthenticator_NoExpiration(t *testing.T) {
-	// Token without expiration should be accepted (exp=0 means no expiration check)
+	// A token without exp is refused: it would never expire, so a leaked one
+	// could not be outlived (RFC 8725 §3.10 treats exp as the baseline).
 	auth := newJWTAuth()
 	token := makeTestToken(t, &JWTClaims{
 		Sub:   "admin@unheaded.dev",
@@ -317,12 +318,23 @@ func TestJWTAuthenticator_NoExpiration(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/timeline", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 
-	identity, err := auth.Authenticate(context.Background(), req)
-	if err != nil {
-		t.Fatalf("expected no error for token without exp, got: %v", err)
+	if _, err := auth.Authenticate(context.Background(), req); !errors.Is(err, ErrUnauthenticated) {
+		t.Fatalf("token without exp: want ErrUnauthenticated, got %v", err)
 	}
-	if identity.Subject != "admin@unheaded.dev" {
-		t.Errorf("Subject = %q, want %q", identity.Subject, "admin@unheaded.dev")
+}
+
+func TestJWTAuthenticator_EmptyKeyRefusesEverything(t *testing.T) {
+	// An authenticator built without a key must not accept a token signed
+	// with the empty key, which anyone can produce.
+	empty := NewJWTAuthenticator(JWTConfig{})
+	token, err := SignToken(nil, &JWTClaims{Sub: "x", Exp: time.Now().Add(time.Hour).Unix()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	if _, err := empty.Authenticate(context.Background(), req); err == nil {
+		t.Fatal("a token signed with the empty key was accepted")
 	}
 }
 

@@ -57,8 +57,13 @@ func (c *JWTClaims) Validate(now time.Time, issuer, audience string, clockSkew t
 	unixNow := now.Unix()
 	skewSeconds := int64(clockSkew.Seconds())
 
-	// Check expiration (with clock skew tolerance)
-	if c.Exp > 0 && unixNow > c.Exp+skewSeconds {
+	// Check expiration (with clock skew tolerance). A token without exp is
+	// refused: it would be valid forever, and a leaked one could never be
+	// outlived. Every issuer here sets it (service_token.go).
+	if c.Exp == 0 {
+		return fmt.Errorf("%w: token has no expiry (exp)", ErrUnauthenticated)
+	}
+	if unixNow > c.Exp+skewSeconds {
 		return ErrTokenExpired
 	}
 
@@ -180,6 +185,11 @@ func (j *JWTAuthenticator) parseAndVerify(tokenStr string) (*JWTClaims, error) {
 
 	if header.Alg != "HS256" {
 		return nil, fmt.Errorf("%w: unsupported algorithm %q", ErrUnauthenticated, header.Alg)
+	}
+	// With no key, an HMAC anyone can compute would pass. Callers only build
+	// a JWTAuthenticator with a key; this fails closed if one ever does not.
+	if len(j.signingKey) == 0 {
+		return nil, fmt.Errorf("%w: no signing key configured", ErrUnauthenticated)
 	}
 
 	// Verify signature
