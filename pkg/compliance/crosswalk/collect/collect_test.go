@@ -1187,3 +1187,48 @@ func TestPAMVersionAndFirewallUtilityProbes(t *testing.T) {
 		}
 	}
 }
+
+// TestProbesUseUHPriv: a probe that hard-codes sudo cannot run in the agent
+// (its own account, NoNewPrivileges); it would report UNEVALUATED there.
+// Only the two root-facts fallbacks may name sudo, behind $UH_ROOT_FACTS.
+func TestProbesUseUHPriv(t *testing.T) {
+	for name, p := range Probes {
+		if !strings.Contains(p.Command, "sudo -") { // sudo run with options, not the package name
+			continue
+		}
+		if name == "apparmor-profiles-enforced" || name == "root-path" {
+			if !strings.Contains(p.Command, `if [ -n "$UH_ROOT_FACTS" ]`) {
+				t.Errorf("%s: sudo fallback without the root-facts branch", name)
+			}
+			continue
+		}
+		t.Errorf("%s hard-codes sudo; use $UH_PRIV: %s", name, p.Command)
+	}
+}
+
+func TestHostProbesPrelude(t *testing.T) {
+	cases := []struct {
+		p    HostProbes
+		want string
+	}{
+		{HostProbes{}, "UH_PRIV='sudo -n'\nUH_ROOT_FACTS=''\n"},
+		{HostProbes{Direct: true, RootFacts: "/run/unheaded-baseline"}, "UH_PRIV=\nUH_ROOT_FACTS='/run/unheaded-baseline'\n"},
+		{HostProbes{Direct: true, RootFacts: "/x'; rm -rf /"}, "UH_PRIV=\nUH_ROOT_FACTS='/x'\\''; rm -rf /'\n"},
+	}
+	for _, c := range cases {
+		if got := c.p.probePrelude(); got != c.want {
+			t.Errorf("prelude %+v = %q, want %q", c.p, got, c.want)
+		}
+	}
+	var script string
+	hp := &HostProbes{Hostname: "h", Direct: true, Run: func(_ context.Context, _, s string) (string, error) {
+		script = s
+		return "", nil
+	}}
+	if _, err := hp.Collect(context.Background(), []crosswalk.Source{{Kind: crosswalk.KindHostProbe, Ref: "apparmor-enabled"}}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(script, "UH_PRIV=\n") {
+		t.Fatalf("script does not start with the prelude: %q", script)
+	}
+}

@@ -37,7 +37,7 @@ capabilities it needs. Never root, never a shared account (`unheaded`, `nobody`,
 
 ### 2. Units that ran as root
 - [x] nft: `unheaded-nft` + CAP_NET_ADMIN only; confirmed.nft stays root 0600, passed on stdin by systemd (68784980)
-- [ ] baseline: needs agent-mode probes without `sudo -n` (passwd -S, ufw, aa-status, `sudo -iu root` check uid 0 themselves); FND-010
+- [x] baseline (2026-10-19, repo; not installed): probes say `$UH_PRIV` (sudo -n for the central pull, empty in the agent); passwd -S -> /etc/shadow with pw_status's rule; ufw status -> ufw.conf ENABLED; aa-status and root's login PATH written by one `ExecStartPre=+` line into /run/unheaded-baseline; agent `sshd -T` without sudo. Unit: `User=unheaded-baseline`, CAP_DAC_READ_SEARCH + CAP_NET_ADMIN, no mount namespacing (the old unit's ProtectHome/PrivateTmp/... made 8 checks false-PASS on west). Proof: 219/219 verdicts and details identical to a root run, on west and east, and the real unit body run end-to-end on west; FND-010
 - [ ] Doom: `unheaded-doom` + CAP_BPF/PERFMON/NET_ADMIN/SYS_ADMIN, artifacts out of /home; FND-010 (installed nowhere; a live Doom run is a heavy test)
 - [x] victoria: the root docker-compose wrapper unit removed (installed nowhere; victoria is a compose service at uid 16703)
 

@@ -15,7 +15,7 @@
 // node-exporter textfile. Exit 0 when the checks ran (deviations are data),
 // 1 when the host could not be evaluated.
 //
-//	unheaded-baseline                      # as root, from the systemd timer
+//	unheaded-baseline -root-facts /run/unheaded-baseline   # from the systemd timer, as unheaded-baseline
 //	unheaded-baseline -hostname east -textfile-dir /var/lib/node_exporter/textfile
 package main
 
@@ -57,7 +57,8 @@ type options struct {
 	textfileDir  string
 	hostname     string
 	procSys      string
-	trustedUID   int // owner the baseline must have; root in production
+	rootFacts    string // directory of root-only facts (unit ExecStartPre=+); "" = none
+	trustedUID   int    // owner the baseline must have; root in production
 	now          func() time.Time
 	sshdDump     func(ctx context.Context, host string) (string, error)
 	runProbes    func(ctx context.Context, host, script string) (string, error)
@@ -91,6 +92,7 @@ func main() {
 	flag.StringVar(&o.stateDir, "state-dir", "/var/lib/unheaded/baseline", "where report.json is written")
 	flag.StringVar(&o.textfileDir, "textfile-dir", "", "node-exporter textfile directory (optional)")
 	flag.StringVar(&o.hostname, "hostname", "", "host name in the baseline (default: os.Hostname)")
+	flag.StringVar(&o.rootFacts, "root-facts", "", "directory holding aa-status.json and root-path, written as root before the agent runs")
 	timeout := flag.Duration("timeout", 2*time.Minute, "give up after this long")
 	flag.Parse()
 	o.trustedUID = 0
@@ -204,7 +206,10 @@ func evaluate(ctx context.Context, o options, host string, sources []crosswalk.S
 	refuse := func(h string) error { return fmt.Errorf("agent evaluates only %s, not %s", host, h) }
 	dump := o.sshdDump
 	if dump == nil {
-		dump = func(ctx context.Context, h string) (string, error) { return collect.SSHDDump(ctx, h, true) }
+		// No sudo: the agent reads sshd's host keys with CAP_DAC_READ_SEARCH
+		// (or runs as root). sudo would need setuid, which NoNewPrivileges=
+		// and the unprivileged account rule out.
+		dump = func(ctx context.Context, h string) (string, error) { return collect.LocalSSHDDump(ctx) }
 	}
 	runProbes := o.runProbes
 	if runProbes == nil {
@@ -223,7 +228,7 @@ func evaluate(ctx context.Context, o options, host string, sources []crosswalk.S
 			}
 			return dump(ctx, h)
 		}},
-		&collect.HostProbes{Hostname: host, Now: now, Run: func(ctx context.Context, h, script string) (string, error) {
+		&collect.HostProbes{Hostname: host, Now: now, Direct: true, RootFacts: o.rootFacts, Run: func(ctx context.Context, h, script string) (string, error) {
 			if h != host {
 				return "", refuse(h)
 			}

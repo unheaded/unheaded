@@ -297,3 +297,57 @@ func TestEveryBaselineProbeHasAnAction(t *testing.T) {
 		}
 	}
 }
+
+// TestUnitSeesTheHost guards FND-010's measurement: an auditor in a mount
+// namespace audits the namespace. With ProtectHome, ProtectSystem,
+// PrivateTmp and the rest, 8 of west's 219 checks turned from fail to pass
+// (2026-10-19). The unit runs as its own account with exactly the two
+// capabilities the probes were proven to need, and hands it the root facts.
+func TestUnitSeesTheHost(t *testing.T) {
+	raw, err := os.ReadFile("../../deploy/systemd/unheaded-baseline.service")
+	if err != nil {
+		t.Fatal(err)
+	}
+	set := map[string]string{}
+	for _, l := range strings.Split(string(raw), "\n") {
+		if k, v, ok := strings.Cut(strings.TrimSpace(l), "="); ok && !strings.HasPrefix(k, "#") {
+			set[k] = v
+		}
+	}
+	for _, k := range []string{
+		"ProtectSystem", "ProtectHome", "PrivateTmp", "PrivateDevices", "PrivateMounts",
+		"ProtectKernelTunables", "ProtectKernelModules", "ProtectKernelLogs", "ProtectControlGroups",
+		"ProtectProc", "ProcSubset", "ReadOnlyPaths", "ReadWritePaths", "InaccessiblePaths",
+		"TemporaryFileSystem", "BindPaths", "BindReadOnlyPaths", "RootDirectory", "RootImage",
+		"MountAPIVFS", "PrivateNetwork", "NetworkNamespacePath", "DynamicUser",
+	} {
+		if v, ok := set[k]; ok {
+			t.Errorf("%s=%s: puts the auditor in a namespace that changes what it sees", k, v)
+		}
+	}
+	want := map[string]string{
+		"User":                  "unheaded-baseline",
+		"AmbientCapabilities":   "CAP_DAC_READ_SEARCH CAP_NET_ADMIN",
+		"CapabilityBoundingSet": "CAP_DAC_READ_SEARCH CAP_NET_ADMIN",
+		"NoNewPrivileges":       "yes",
+		"RuntimeDirectory":      "unheaded-baseline",
+	}
+	for k, v := range want {
+		if set[k] != v {
+			t.Errorf("%s=%q, want %q", k, set[k], v)
+		}
+	}
+	if !strings.HasSuffix(set["ExecStart"], "-root-facts /run/unheaded-baseline") {
+		t.Errorf("ExecStart=%q does not pass the root facts", set["ExecStart"])
+	}
+	if !strings.HasPrefix(set["ExecStartPre"], "+") {
+		t.Error("ExecStartPre must be the one privileged line (+) that writes the root facts")
+	}
+	sysusers, err := os.ReadFile("../../deploy/sysusers.d/unheaded.conf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(sysusers), "u     unheaded-baseline ") {
+		t.Error("deploy/sysusers.d/unheaded.conf has no unheaded-baseline account")
+	}
+}

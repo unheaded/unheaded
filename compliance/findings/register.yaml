@@ -180,8 +180,9 @@ findings:
     plan: >-
       Well jobs: PostgreSQL 16 client+server binaries on the host (PGDG), backup over TLS as well_backup from its own
       account with a systemd credential, drill as an unprivileged throwaway cluster in a private dir; waits for Stevie's
-      Ubuntu 26.04 upgrade (he does OS-level changes). Baseline: agent-mode probes without sudo, as unheaded-baseline with
-      CAP_DAC_READ_SEARCH (+ CAP_NET_ADMIN for nft/iptables reads), proven verdict-for-verdict against a root run.
+      Ubuntu 26.04 upgrade (he does OS-level changes). Baseline: DONE in the repo 2026-10-19, waiting
+      on the install (Stevie's yes per host): runs as unheaded-baseline with CAP_DAC_READ_SEARCH + CAP_NET_ADMIN,
+      root-only facts from one ExecStartPre=+ line; 219/219 verdicts identical to a root run on west and east.
       Doom: unheaded-doom with CAP_BPF CAP_PERFMON CAP_NET_ADMIN CAP_SYS_ADMIN, artifacts installed out of /home
     decision: PGDG apt repo + postgresql-16 packages on west, after the OS upgrade
 

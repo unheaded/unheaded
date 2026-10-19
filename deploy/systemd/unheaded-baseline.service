@@ -3,16 +3,29 @@
 # nothing. Run by unheaded-baseline.timer (every 5 min) and
 # unheaded-baseline.path (config file changes).
 # Install (needs Stevie's yes per host; east first):
+#   sudo install -m 0644 deploy/sysusers.d/unheaded.conf /etc/sysusers.d/ && sudo systemd-sysusers
 #   sudo install -m 0755 unheaded-baseline /usr/local/bin/
 #   sudo install -d -m 0755 /usr/share/unheaded/baseline
 #   sudo install -m 0644 compliance/baseline/baseline.yaml /usr/share/unheaded/baseline/
 #   sudo cp deploy/systemd/unheaded-baseline.{service,timer,path} /etc/systemd/system/
 #   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-baseline.timer unheaded-baseline.path
 #
-# Hardening tested with systemd-run on west 2026-09-30: every check still
-# evaluates. The capability set is the minimum found: CAP_NET_ADMIN for
-# `iptables -S`, CAP_SETUID/SETGID/AUDIT_WRITE for `sudo -n sshd -T`. With
-# less, the sshd checks report UNEVALUATED (visible, not silent).
+# Runs as its own account, not root (FND-010). CAP_DAC_READ_SEARCH reads
+# what root-only files the checks need (/etc/shadow, sudoers, grub.cfg, sshd
+# host keys for `sshd -T`); CAP_NET_ADMIN reads iptables and nft. Neither
+# lets it write anything root owns. The two facts only uid 0 can see
+# (aa-status's profile list, root's login PATH) are written by the one
+# privileged line, ExecStartPre=+, into the runtime directory.
+#
+# NO mount namespacing (ProtectSystem, ProtectHome, PrivateTmp,
+# PrivateDevices, ProtectKernel*, ProtectControlGroups, ReadOnlyPaths, ...).
+# This is an auditor: inside a namespace it audits the namespace. Measured
+# 2026-10-19 on west: with those directives 19 of 219 verdicts changed and 8
+# turned from fail to PASS (/home nodev and nosuid, /var/log nosuid,
+# usb-storage, dot files). Without them, as this account with these two
+# capabilities: 219 of 219 verdicts and details identical to a plain root
+# run, on west and on east. cmd/unheaded-baseline's tests refuse those
+# directives here.
 
 [Unit]
 Description=Unheaded host baseline agent (audit mode, ADR-098)
@@ -20,29 +33,31 @@ Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-098
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/bin/unheaded-baseline
+User=unheaded-baseline
+Group=unheaded-baseline
+RuntimeDirectory=unheaded-baseline
+RuntimeDirectoryMode=0750
+ExecStartPre=+/bin/sh -c 'umask 027; d="$RUNTIME_DIRECTORY"; aa-status --json > "$d/aa-status.json" 2>/dev/null; sudo -n -Hiu root env 2>/dev/null | sed -n "s/^PATH=//p" > "$d/root-path"; chgrp unheaded-baseline "$d/aa-status.json" "$d/root-path"; exit 0'
+ExecStart=/usr/local/bin/unheaded-baseline -root-facts /run/unheaded-baseline
 StateDirectory=unheaded/baseline
 StateDirectoryMode=0755
+UMask=0022
 TimeoutStartSec=3min
 Nice=10
 IOSchedulingClass=idle
 
+AmbientCapabilities=CAP_DAC_READ_SEARCH CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_DAC_READ_SEARCH CAP_NET_ADMIN
 NoNewPrivileges=yes
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_SETUID CAP_SETGID CAP_AUDIT_WRITE
-ProtectSystem=strict
-ProtectHome=yes
-PrivateTmp=yes
-PrivateDevices=yes
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectKernelLogs=yes
-ProtectControlGroups=yes
-ProtectHostname=yes
 ProtectClock=yes
+ProtectHostname=yes
 RestrictNamespaces=yes
 RestrictRealtime=yes
+RestrictSUIDSGID=yes
 LockPersonality=yes
 MemoryDenyWriteExecute=yes
+RemoveIPC=yes
 RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
 SystemCallArchitectures=native
 SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM

@@ -567,6 +567,18 @@ func SSHDDump(ctx context.Context, host string, local bool) (string, error) {
 	return out.String(), nil
 }
 
+// LocalSSHDDump runs `sshd -T` without sudo: for the agent, which reads the
+// host keys with CAP_DAC_READ_SEARCH instead of being root.
+func LocalSSHDDump(ctx context.Context) (string, error) {
+	var out bytes.Buffer
+	cmd := exec.CommandContext(ctx, "sshd", "-T")
+	cmd.Stdout = &out
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("sshd -T: %w", err)
+	}
+	return out.String(), nil
+}
+
 // HostSSHD checks effective sshd settings on each host its refs name.
 type HostSSHD struct {
 	Hostname string // default os.Hostname()
@@ -656,7 +668,7 @@ func (h *HostSSHD) Collect(ctx context.Context, sources []crosswalk.Source) ([]c
 
 // Probe reads one fact about a host with a fixed shell command and judges it.
 type Probe struct {
-	Command string                                      // run by sh on the host; may use sudo -n
+	Command string                                      // run by sh on the host; $UH_PRIV prefixes what needs root (see HostProbes)
 	Judge   func(out string) (pass bool, detail string) // out is the command's stdout
 	// Baseline marks a probe of host configuration, which the host agent
 	// also evaluates (ADR-098). Operational probes (backup recency, which
@@ -675,8 +687,8 @@ var Probes = map[string]Probe{
 		// deploy/nftables), whose input chain drops by policy for IPv4 and
 		// IPv6 at once. A drop policy in any input base chain is final.
 		Baseline: true,
-		Command: "sudo -n iptables -S INPUT; echo ---; sudo -n ip6tables -S INPUT; echo ---; " +
-			"sudo -n nft list chain inet unheaded input | grep -m1 'hook input'",
+		Command: "$UH_PRIV iptables -S INPUT; echo ---; $UH_PRIV ip6tables -S INPUT; echo ---; " +
+			"$UH_PRIV nft list chain inet unheaded input | grep -m1 'hook input'",
 		Judge: func(out string) (bool, string) {
 			parts := strings.SplitN(out, "---", 3)
 			for len(parts) < 3 {
@@ -765,6 +777,26 @@ type HostProbes struct {
 	// host, else over ssh). Default: RunScript.
 	Run func(ctx context.Context, host, script string) (string, error)
 	Now func() time.Time
+	// Direct: the script already runs with the privileges the probes need
+	// (the agent: its own account with CAP_DAC_READ_SEARCH and
+	// CAP_NET_ADMIN), so $UH_PRIV is empty. Otherwise it is "sudo -n" (the
+	// central pull, over ssh as an operator with passwordless sudo).
+	Direct bool
+	// RootFacts names a directory with the two facts only uid 0 can read,
+	// written before the agent starts (unheaded-baseline.service
+	// ExecStartPre=+): aa-status.json and root-path. Empty: the probes get
+	// them through sudo.
+	RootFacts string
+}
+
+// probePrelude sets the variables probe commands use: $UH_PRIV in front of
+// what needs privilege, $UH_ROOT_FACTS for what only root can read.
+func (p *HostProbes) probePrelude() string {
+	priv := "UH_PRIV='sudo -n'\n"
+	if p.Direct {
+		priv = "UH_PRIV=\n"
+	}
+	return priv + "UH_ROOT_FACTS=" + shQuote(p.RootFacts) + "\n"
 }
 
 // RunScript runs a probe script locally or on host over ssh.
@@ -830,6 +862,7 @@ func (p *HostProbes) Collect(ctx context.Context, sources []crosswalk.Source) ([
 	var recs []crosswalk.Record
 	for _, host := range hosts {
 		var b strings.Builder
+		b.WriteString(p.probePrelude())
 		seen := map[string]bool{}
 		for _, c := range byHost[host] {
 			if !seen[c.probe] {

@@ -39,7 +39,7 @@ The offsite SFTP account is nologin, chrooted and key-only (`deploy/east/sshd-we
 | `unheaded-daemon.service` | Control plane |
 | `unheaded-nft.service` | Loads the last confirmed `inet unheaded` ruleset |
 | `unheaded-trace-collector.service` | eBPF trace collector (XDP, TC, kprobes) publishing to Wotan |
-| `unheaded-baseline.service` + `.timer` + `.path` | Host baseline agent (ADR-098): every 5 min and on `sshd_config` change |
+| `unheaded-baseline.service` + `.timer` + `.path` | Host baseline agent (ADR-098): every 5 min and on `sshd_config` change. Runs as `unheaded-baseline` with CAP_DAC_READ_SEARCH + CAP_NET_ADMIN and deliberately **no** mount sandboxing: an auditor in a namespace audits the namespace |
 | `unheaded-well-backup` / `-drill` / `-offsite` / `-offsite-check` | The Well's backup jobs (above) |
 | `huginn.service` | Metrics agent |
 | `node-exporter.service` | Prometheus node_exporter (third-party binary) |
