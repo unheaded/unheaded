@@ -1,0 +1,23 @@
+# promtool test rules network_test.yml (from this directory)
+rule_files:
+  - ../network.yml
+evaluation_interval: 1m
+tests:
+  # A burst of 5 (PMTUD doing its job) does not alert; 6/min for 45m does.
+  - interval: 1m
+    input_series:
+      - series: 'node_netstat_Icmp6_InPktTooBigs{instance="west:9100",job="node_exporter"}'
+        values: '0 5 5x60'
+      - series: 'node_netstat_Icmp6_InPktTooBigs{instance="east:9100",job="node_exporter"}'
+        values: '0+6x60'
+    alert_rule_test:
+      - eval_time: 40m
+        alertname: IPv6PacketTooBigSustained
+        exp_alerts:
+          - exp_labels: {severity: warning, instance: "east:9100", job: node_exporter}
+            exp_annotations:
+              summary: "east:9100 keeps receiving ICMPv6 Packet Too Big"
+              description: "6/min for 15m: something sends packets over the path MTU (ADR-014: clamp TCP MSS to 1220, keep UDP under 1256 bytes)"
+      - eval_time: 10m
+        alertname: IPv6PacketTooBigSustained
+        exp_alerts: []

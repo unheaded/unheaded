@@ -107,7 +107,7 @@ When deploying services in the Kingdom, ensure:
 
 - [ ] **DNS over IPv6**: Ensure DNS response size fits within 1280 bytes (UDP) or use TCP fallback (RFC 6891 EDNS0).
 
-- [ ] **Monitoring**: Log all ICMPv6 "Packet Too Big" messages (ICMP type 2, code 0) and alert if they appear frequently.
+- [x] **Monitoring**: Log all ICMPv6 "Packet Too Big" messages (ICMP type 2, code 0) and alert if they appear frequently. *(2026-10-19: counted, not logged one by one: node_exporter exports `node_netstat_Icmp6_{In,Out}PktTooBigs` (`deploy/systemd/node-exporter.service`); `IPv6PacketTooBigSustained` fires past 3/min for 15 min, `monitoring/prometheus/rules/network.yml`, promtool-tested. West had seen 5 since boot.)*
 
 ## Appendix: Future Fragmentation Support (Phase 3+)
 

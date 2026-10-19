@@ -1,0 +1,25 @@
+# Prometheus alert rules - IPv6 path MTU (ADR-014)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2024-2026 Stevie Bellis
+#
+# The Monad header rides in an IPv6 hop-by-hop option, so every packet is
+# 24 bytes longer than the application thinks, and IPv6 routers never
+# fragment: a packet over the path MTU is dropped and the sender gets an
+# ICMPv6 Packet Too Big. A few of those are path MTU discovery working. A
+# steady stream means something keeps sending too large (MSS not clamped,
+# UDP over 1256 bytes) and each one is a dropped packet. The counter is
+# node_exporter's netstat Icmp6_InPktTooBigs, which deploy/systemd/
+# node-exporter.service adds to the default field set.
+
+groups:
+  - name: ipv6-path-mtu
+    interval: 1m
+    rules:
+      - alert: IPv6PacketTooBigSustained
+        expr: rate(node_netstat_Icmp6_InPktTooBigs[15m]) * 60 > 3
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "{{ $labels.instance }} keeps receiving ICMPv6 Packet Too Big"
+          description: "{{ $value | humanize }}/min for 15m: something sends packets over the path MTU (ADR-014: clamp TCP MSS to 1220, keep UDP under 1256 bytes)"

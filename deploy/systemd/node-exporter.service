@@ -16,7 +16,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/node_exporter --collector.systemd --collector.processes
+# netstat fields: node_exporter 1.10's default set plus Icmp6_{In,Out}PktTooBigs
+# (ADR-014, monitoring/prometheus/rules/network.yml). $$ is a literal $.
+ExecStart=/usr/local/bin/node_exporter --collector.systemd --collector.processes "--collector.netstat.fields=^(.*_(InErrors|InErrs)|Ip_Forwarding|Ip(6|Ext)_(InOctets|OutOctets)|Icmp6?_(InMsgs|OutMsgs)|Icmp6_(InPktTooBigs|OutPktTooBigs)|TcpExt_(Listen.*|Syncookies.*|TCPSynRetrans|TCPTimeouts|TCPOFOQueue|TCPRcvQDrop)|Tcp_(ActiveOpens|InSegs|OutSegs|OutRsts|PassiveOpens|RetransSegs|CurrEstab)|Udp6?_(InDatagrams|OutDatagrams|NoPorts|RcvbufErrors|SndbufErrors))$$"
 Restart=on-failure
 RestartSec=5s
 
