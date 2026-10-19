@@ -129,8 +129,18 @@ func TestReplayAndStale(t *testing.T) {
 	if err := tv.Verify("config.baseline", "n1", []byte("v1"), sg); err != nil {
 		t.Fatalf("first delivery: %v", err)
 	}
+	// Verify alone records nothing: a refused publish can be retried.
+	if err := tv.Verify("config.baseline", "n1", []byte("v1"), sg); err != nil {
+		t.Fatalf("verify again before Accept: %v", err)
+	}
+	if err := tv.Accept(sg); err != nil {
+		t.Fatalf("accept: %v", err)
+	}
 	if err := tv.Verify("config.baseline", "n1", []byte("v1"), sg); err != ErrReplay {
 		t.Fatalf("second delivery: want ErrReplay, got %v", err)
+	}
+	if err := tv.Accept(sg); err != ErrReplay {
+		t.Fatalf("second Accept: want ErrReplay, got %v", err)
 	}
 
 	old, err := ts.SignAt("config.baseline", "n1", []byte("v0"), time.Now().Add(-MaxSkew-time.Minute))

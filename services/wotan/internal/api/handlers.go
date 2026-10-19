@@ -15,6 +15,7 @@ import (
 	"unheaded/pkg/httputil"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/room"
+	"unheaded/services/wotan/internal/signing"
 	"unheaded/services/wotan/internal/store"
 	"unheaded/services/wotan/internal/wotan"
 )
@@ -162,7 +163,7 @@ func (s *Server) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	// A topic's room is its name: this path must not reach config.* rooms,
 	// which only take signed messages over gRPC.
-	if RequiresSignature(req.RoomID) {
+	if signing.RequiresSignature(req.RoomID) {
 		writeError(w, http.StatusForbidden, "config.* topics are published over gRPC with an ML-DSA-65 signature")
 		return
 	}
@@ -207,6 +208,12 @@ func (s *Server) DeleteMessage(w http.ResponseWriter, r *http.Request) {
 
 	if req.Content == "" || req.RoomID == "" {
 		writeError(w, http.StatusBadRequest, "message_id, content, and room_id are required")
+		return
+	}
+	// Signed config.* messages are not deletable over HTTP: the triple
+	// check uses fields any reader of the room can see.
+	if signing.RequiresSignature(req.RoomID) {
+		writeError(w, http.StatusForbidden, "config.* messages cannot be deleted over HTTP")
 		return
 	}
 

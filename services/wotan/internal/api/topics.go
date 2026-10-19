@@ -18,6 +18,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"unheaded/pkg/httputil"
 	"unheaded/services/wotan/internal/ringbuffer"
+	"unheaded/services/wotan/internal/signing"
 	"unheaded/services/wotan/internal/store"
 	"unheaded/services/wotan/internal/topicpattern"
 )
@@ -193,7 +194,7 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "cannot publish to a topic pattern")
 		return
 	}
-	if RequiresSignature(topic) {
+	if signing.RequiresSignature(topic) {
 		writeError(w, http.StatusForbidden, "config.* topics are published over gRPC with an ML-DSA-65 signature")
 		return
 	}

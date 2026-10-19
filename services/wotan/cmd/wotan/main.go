@@ -35,6 +35,7 @@ import (
 	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/middleware"
 	"unheaded/services/wotan/internal/room"
+	"unheaded/services/wotan/internal/signing"
 	"unheaded/services/wotan/internal/store"
 	"unheaded/services/wotan/internal/wotan"
 	chatpb "unheaded/services/wotan/proto"
@@ -136,6 +137,7 @@ func main() {
 	roomManager := room.NewManager(config.BufferSize)
 	roomManager.SetBufferBytes(config.BufferBytes)
 	roomManager.SetTotalBytes(config.BufferTotal)
+	roomManager.SetKeep(signing.RequiresSignature) // signed config.* is never evicted for log traffic
 
 	// Start metrics collector
 	go collectSystemMetrics(runCtx, m, roomManager)

@@ -34,6 +34,9 @@ type Manager struct {
 	// totalBytes is the budget for all rooms' footprints together
 	// (EnforceTotal); 0 means none.
 	totalBytes int
+	// keep names rooms EnforceTotal never evicts from (signed config.*:
+	// small, and losing one silently is worse than holding it).
+	keep func(roomID string) bool
 	// seq numbers messages across every room, so a cursor taken over several
 	// rooms (a wildcard read) orders them. In memory: a restart begins at 1.
 	seq atomic.Int64
@@ -74,13 +77,23 @@ func (m *Manager) SetTotalBytes(n int) {
 	m.totalBytes = n
 }
 
-// EnforceTotal drops the oldest messages of the largest rooms, one at a
-// time, until the rooms' combined footprint (ringbuffer.Footprint) is within
-// the total budget. It returns the combined footprint afterwards and how
-// many messages it dropped.
+// SetKeep names rooms EnforceTotal must not evict from. They still count
+// toward the total.
+func (m *Manager) SetKeep(keep func(roomID string) bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.keep = keep
+}
+
+// EnforceTotal drops the oldest messages of the largest rooms until the
+// rooms' combined footprint (ringbuffer.Footprint) is within the total
+// budget, skipping rooms SetKeep protects. It takes from the largest room
+// until it is no larger than the next one (or the total fits), then
+// rescans, so the work is per room, not per message. It returns the
+// combined footprint afterwards and how many messages it dropped.
 func (m *Manager) EnforceTotal() (total, dropped int) {
 	m.mu.RLock()
-	budget := m.totalBytes
+	budget, keep := m.totalBytes, m.keep
 	rooms := make([]*Room, 0, len(m.rooms))
 	for _, r := range m.rooms {
 		rooms = append(rooms, r)
@@ -88,29 +101,41 @@ func (m *Manager) EnforceTotal() (total, dropped int) {
 	m.mu.RUnlock()
 
 	sizes := make([]int, len(rooms))
+	evictable := make([]bool, len(rooms))
 	for i, r := range rooms {
 		sizes[i] = r.Buffer.Footprint()
 		total += sizes[i]
+		evictable[i] = keep == nil || !keep(r.ID)
 	}
 	for budget > 0 && total > budget {
-		big := 0
+		big, next := -1, 0
 		for i := range sizes {
-			if sizes[i] > sizes[big] {
+			if !evictable[i] || sizes[i] == 0 {
+				continue
+			}
+			if big < 0 || sizes[i] > sizes[big] {
+				if big >= 0 {
+					next = max(next, sizes[big])
+				}
 				big = i
+			} else {
+				next = max(next, sizes[i])
 			}
 		}
-		if sizes[big] == 0 {
-			break
+		if big < 0 {
+			break // only protected or empty rooms left
 		}
-		freed := rooms[big].Buffer.EvictOldest()
-		if freed == 0 {
-			total -= sizes[big] // emptied meanwhile
-			sizes[big] = 0
-			continue
+		for total > budget && sizes[big] > 0 && sizes[big] >= next {
+			freed := rooms[big].Buffer.EvictOldest()
+			if freed == 0 {
+				total -= sizes[big] // emptied meanwhile
+				sizes[big] = 0
+				break
+			}
+			sizes[big] -= freed
+			total -= freed
+			dropped++
 		}
-		sizes[big] -= freed
-		total -= freed
-		dropped++
 	}
 	return total, dropped
 }

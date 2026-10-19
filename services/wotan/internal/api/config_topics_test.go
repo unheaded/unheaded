@@ -44,6 +44,17 @@ func TestHTTPRefusesConfigTopics(t *testing.T) {
 		t.Fatal("a config.* room message was stored")
 	}
 
+	// Nor can a signed message be deleted over HTTP: the triple check uses
+	// id, creator and content, which any reader of the room has.
+	cfg := srv.RoomManager.GetOrCreate("config.kingdom", "config.kingdom")
+	signedMsg, _ := cfg.SendMessage(mbr.ID, "signed config")
+	del, _ := json.Marshal(DeleteMessageRequest{MemberID: mbr.ID, RoomID: "config.kingdom", MessageID: signedMsg.ID, Content: "signed config"})
+	rec = httptest.NewRecorder()
+	srv.DeleteMessage(rec, httptest.NewRequest(http.MethodPost, "/delete", bytes.NewReader(del)))
+	if rec.Code != http.StatusForbidden || len(cfg.GetMessages()) != 1 {
+		t.Fatalf("delete of a config.* message = %d, %d left", rec.Code, len(cfg.GetMessages()))
+	}
+
 	// Other topics are unaffected.
 	other := subscribeID(t, srv, "alerts.disk")
 	publish(t, srv, "alerts.disk", other, "ok")

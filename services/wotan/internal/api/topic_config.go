@@ -88,10 +88,3 @@ func (c *TopicConfig) TrustedSigningKeys() ([][]byte, error) {
 	}
 	return keys, nil
 }
-
-// RequiresSignature reports whether topic may only be published signed
-// (config.*, ADR-043 #2). The HTTP API carries no signature, so it refuses
-// these topics; only the gRPC path can publish them.
-func RequiresSignature(topic string) bool {
-	return strings.HasPrefix(topic, "config.")
-}

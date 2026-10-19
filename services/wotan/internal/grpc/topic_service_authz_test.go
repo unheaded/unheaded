@@ -6,6 +6,7 @@ package grpc
 import (
 	"context"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -141,5 +142,43 @@ func TestPublishTopic_SelfSignedConfigRefused(t *testing.T) {
 	// The same signed request again is a replay.
 	if _, err := trusted.PublishTopic(context.Background(), req); status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("replayed config.* publish: %v, want PermissionDenied", err)
+	}
+}
+
+// TestPublishTopic_RefusedSignedPublishCanBeRetried: a signed publish
+// refused because its sender is not approved yet does not burn the
+// signature, and a refused publish leaves no room behind.
+func TestPublishTopic_RefusedSignedPublishCanBeRetried(t *testing.T) {
+	_, signer, err := pqc.GenerateMLDSAKeyPair(pqc.MLDSA65)
+	if err != nil {
+		t.Fatal(err)
+	}
+	members := member.NewManager()
+	rooms := room.NewManager(100)
+	svc := NewTopicService(rooms, members, wotan.NewWotan(), signer.PublicKey())
+	pending := members.RequestJoin("config.kingdom", "operator", "", time.Hour)
+
+	sg, err := signing.NewTopicSigner(signer).Sign("config.kingdom", pending.ID.String(), []byte(`{"v":1}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := &chatpb.TopicPublishRequest{
+		Topic: "config.kingdom", SenderId: pending.ID.String(), Payload: []byte(`{"v":1}`),
+		Signature: sg.Signature, PublicKey: sg.PublicKey, Algorithm: sg.Algorithm, SignedAtUnixMs: sg.SignedAtUnixMs,
+	}
+	if _, err := svc.PublishTopic(context.Background(), req); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("unapproved sender: %v", err)
+	}
+	if _, err := rooms.Get("config.kingdom"); err == nil {
+		t.Fatal("a refused publish created the room")
+	}
+	if err := members.Approve(pending.ID, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.PublishTopic(context.Background(), req); err != nil {
+		t.Fatalf("same signed request after approval: %v", err)
+	}
+	if _, err := svc.PublishTopic(context.Background(), req); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("third time is a replay: %v", err)
 	}
 }

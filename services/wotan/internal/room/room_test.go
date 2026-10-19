@@ -1123,3 +1123,30 @@ func TestEnforceTotal(t *testing.T) {
 		t.Fatalf("total %d over a 1-byte budget", total)
 	}
 }
+
+// TestEnforceTotalKeep: rooms SetKeep protects count toward the total but
+// lose nothing, even when they are the largest; with only protected rooms
+// left over budget, EnforceTotal stops instead of spinning.
+func TestEnforceTotalKeep(t *testing.T) {
+	m := NewManager(1000)
+	cfg, logs := m.Create("config.west", "config.west"), m.Create("logs.a.info", "logs.a.info")
+	u := uuid.New()
+	for i := 0; i < 50; i++ {
+		cfg.SendMessage(u, strings.Repeat("c", 1000))
+		logs.SendMessage(u, strings.Repeat("l", 100))
+	}
+	m.SetKeep(func(id string) bool { return strings.HasPrefix(id, "config.") })
+	m.SetTotalBytes(cfg.Buffer.Footprint() + logs.Buffer.Footprint()/2)
+	total, dropped := m.EnforceTotal()
+	if cfg.Buffer.Count() != 50 {
+		t.Fatalf("protected room lost %d messages", 50-cfg.Buffer.Count())
+	}
+	if dropped == 0 || total > cfg.Buffer.Footprint()+logs.Buffer.Footprint() {
+		t.Fatalf("unprotected room not trimmed: total %d dropped %d", total, dropped)
+	}
+
+	m.SetTotalBytes(1)
+	if total, _ := m.EnforceTotal(); total != cfg.Buffer.Footprint() || logs.Buffer.Count() != 0 || cfg.Buffer.Count() != 50 {
+		t.Fatalf("over budget with only a protected room: total %d, logs %d, config %d", total, logs.Buffer.Count(), cfg.Buffer.Count())
+	}
+}

@@ -110,8 +110,10 @@ func NewTopicVerifier(trusted ...[]byte) (*TopicVerifier, error) {
 
 // Verify checks a topic message signature: algorithm, a trusted key, the
 // signing time within MaxSkew of now, the signature over topic, sender,
-// signing time and payload, and that this signature was not accepted
-// before within the window.
+// signing time and payload, and that this signature has not been accepted
+// within the window. It records nothing: call Accept once the message is
+// actually taken, so a publish refused for another reason (sender not
+// approved yet) can be retried with the same signature.
 func (tv *TopicVerifier) Verify(topic, senderID string, payload []byte, sg Signed) error {
 	if sg.Algorithm != Algorithm {
 		return ErrWrongAlgorithm
@@ -135,15 +137,26 @@ func (tv *TopicVerifier) Verify(topic, senderID string, payload []byte, sg Signe
 	if !ok {
 		return ErrInvalidSignature
 	}
-	// Only verified signatures reach the cache, so its size is bounded by
-	// what trusted signers send in one window.
+	tv.mu.Lock()
+	defer tv.mu.Unlock()
+	if _, dup := tv.seen[sha256.Sum256(sg.Signature)]; dup {
+		return ErrReplay
+	}
+	return nil
+}
+
+// Accept records a verified signature as used, atomically: of two copies
+// of one message racing past Verify, only the first is accepted. Only
+// verified signatures reach it, so the cache is bounded by what trusted
+// signers send in one window.
+func (tv *TopicVerifier) Accept(sg Signed) error {
 	id := sha256.Sum256(sg.Signature)
 	tv.mu.Lock()
 	defer tv.mu.Unlock()
 	if _, dup := tv.seen[id]; dup {
 		return ErrReplay
 	}
-	tv.seen[id] = sg.SignedAtUnixMs + skew
+	tv.seen[id] = sg.SignedAtUnixMs + MaxSkew.Milliseconds()
 	return nil
 }
 

@@ -264,7 +264,6 @@ func (rb *RingBuffer) LastSeq() int64 {
 	return rb.lastSeq
 }
 
-// Count returns the current number of messages in the buffer
 // initialSlots is a new buffer's first allocation.
 const initialSlots = 16
 
@@ -312,6 +311,7 @@ func (rb *RingBuffer) EvictOldest() int {
 	return n + MessageOverhead
 }
 
+// Count returns the current number of messages in the buffer
 func (rb *RingBuffer) Count() int {
 	rb.mu.RLock()
 	defer rb.mu.RUnlock()

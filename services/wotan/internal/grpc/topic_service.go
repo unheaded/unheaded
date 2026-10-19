@@ -412,7 +412,10 @@ func (s *TopicService) PublishTopic(
 		return nil, status.Error(codes.InvalidArgument, "payload is required")
 	}
 
-	// ADR-043 hard condition #2: config.* topics require ML-DSA-65 signature
+	// ADR-043 hard condition #2: config.* topics require ML-DSA-65 signature.
+	// The signature is recorded as used (Accept) only once the message is
+	// taken, after the sender checks below.
+	var signed *signing.Signed
 	if signing.RequiresSignature(req.Topic) {
 		if len(req.Signature) == 0 || len(req.PublicKey) == 0 {
 			logger.FromContext(ctx).Warn().
@@ -428,9 +431,10 @@ func (s *TopicService) PublishTopic(
 				Msg("config_topic_verifier_unavailable")
 			return nil, status.Error(codes.PermissionDenied, "signature verification unavailable")
 		}
-		if err := s.topicVerifier.Verify(req.Topic, req.SenderId, req.Payload, signing.Signed{
+		signed = &signing.Signed{
 			Signature: req.Signature, PublicKey: req.PublicKey, Algorithm: req.Algorithm, SignedAtUnixMs: req.SignedAtUnixMs,
-		}); err != nil {
+		}
+		if err := s.topicVerifier.Verify(req.Topic, req.SenderId, req.Payload, *signed); err != nil {
 			logger.FromContext(ctx).Warn().
 				Err(err).
 				Str("topic", req.Topic).
@@ -438,9 +442,6 @@ func (s *TopicService) PublishTopic(
 			return nil, status.Error(codes.PermissionDenied, "signature verification failed: "+err.Error())
 		}
 	}
-
-	// Get or create the room for this topic
-	rm := s.roomManager.GetOrCreate(req.Topic, req.Topic)
 
 	// Get or create the sender member
 	var senderID uuid.UUID
@@ -491,6 +492,17 @@ func (s *TopicService) PublishTopic(
 		}
 		senderID = defaultMember.ID
 	}
+
+	if signed != nil {
+		if err := s.topicVerifier.Accept(*signed); err != nil {
+			logger.FromContext(ctx).Warn().Err(err).Str("topic", req.Topic).Msg("config_topic_replay")
+			return nil, status.Error(codes.PermissionDenied, "signature verification failed: "+err.Error())
+		}
+	}
+
+	// The room exists only once a publish is authorized: an unauthorized
+	// caller must not be able to create rooms by naming topics.
+	rm := s.roomManager.GetOrCreate(req.Topic, req.Topic)
 
 	// Send message to room's ring buffer
 	msg, _ := rm.SendMessage(senderID, string(req.Payload))
