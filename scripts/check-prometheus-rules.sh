@@ -24,7 +24,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 RULES="${REPO_ROOT}/monitoring/prometheus/rules"
 COMPOSE="${REPO_ROOT}/monitoring/docker-compose.yml"
 # 3.10.0 resolved to this digest on 2026-10-13.
-CURRENT_IMAGE="${CURRENT_PROM_IMAGE:-prom/prometheus:v3.10.0@sha256:4a61322ac1103a0e3aea2a61ef1718422a48fa046441f299d71e660a3bc71ae9}"
+CURRENT_IMAGE="${CURRENT_PROM_IMAGE:-prom/prometheus:v3.15.0@sha256:efd719c99d83b060d9daefdcf00360461adf279f45ef5391f8d111892118753e}"
 
 if ! docker info >/dev/null 2>&1; then
     echo "[FAIL] docker is required to run promtool; this gate does not pass by skipping." >&2
