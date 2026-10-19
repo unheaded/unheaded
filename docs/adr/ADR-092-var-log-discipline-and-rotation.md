@@ -57,6 +57,10 @@ by any default rotation.
 what the json-file driver keeps on disk, and it does not exist on a host where
 Vector is not running.
 
+*Correction (2026-10-19):* it never shipped anything. `docker_logs` needs the
+Docker socket, and the compose service never mounted it; nothing created the
+`unheaded_logs.logs` table it wrote to. See step 8 in Progress.
+
 **4. `logagg` publishes structured logs to Wotan** (`918808fd`). Also a copy,
 also in-memory at the far end, and deliberately lossy — it drops on a full queue.
 
@@ -234,7 +238,7 @@ batches). This one is checkable:
 | 2, 4 | **no subject yet** (checked 2026-10-13) | every deploy/systemd unit logs to journald (stdout); no deployed service opens its own log file. `unheaded-daemon`'s `AuditPath: /var/log/unheaded/audit.log` is a config field nothing reads, and `pkg/audit/storage`'s file backend (its own daily rotation) has no caller. Directories and stanzas land with the first service that owns a file handle, per the order above: a stanza for a path nothing writes is the ADR-091 shape |
 | 5 | open | CI check; today only the compose half exists (`check-compose-log-caps.sh`) |
 | 7 | partial | Huginn exports `/var/log` free space and per-directory sizes with alerts (`monitoring/prometheus/rules/host.yml`, 2026-10-13); journald capped at 1G/200M on both hosts 2026-10-13 (`journald-caps` fix; east 4.0G -> 973M, west 3.4G -> 971M, old journals archived first); separate `/var/log` filesystem open (west's `/var/log` shares `/dev/sdb` with `/var`) |
-| 8 | **open** (added 2026-10-13) | ship every host log off-host to long-term storage; see the amendment below |
+| 8 | **west's journal: built, not deployed** (2026-10-19); container stdout and east open | see "Step 8, 2026-10-19" below |
 
 **Amendment (2026-10-13): processes an operator starts by hand.** Every
 remaining call site was a dev script or runbook run as the operator, not a
@@ -285,3 +289,53 @@ first. On 2026-10-13 each host's full journal was archived to
 before the caps were applied. Verification for step 8: a test log line
 written with `logger` on each host is queryable in the long-term store
 within a minute, and an alert fires when a host stops shipping.
+
+**Step 8, 2026-10-19: the journal ships; container stdout does not yet.**
+Found first: the Vector pipeline had never shipped a line. Its only source,
+`docker_logs`, needs the Docker socket, which compose never mounted (and
+1e9b9eeb rightly refuses: the socket is root on the host), and no
+`unheaded_logs.logs` table existed. Every "Vector ships stdout" comment in
+`docker-compose.yml` was false; they now say the json-file caps are the only
+copy.
+
+Built (`config/vector/vector.yaml`, `config/clickhouse/schema/001-logs.sql`,
+compose `clickhouse-schema` + `vector`):
+
+- Vector's `journald` source reads the host's `/var/log/journal` read-only
+  through the journal's `adm` ACL (gid 4 on both hosts), as its own uid,
+  cap-drop ALL, read-only root. Every unit, kernel, auth/authpriv (sshd,
+  sudo, PAM) and kernel audit records.
+- Rows: timestamp, host, unit, level, retention class, message, every other
+  journal field as JSON. `retention = audit` for auth/authpriv and audit
+  records (kept 455 days: 90 online + the 1-year archive, held here until an
+  archive tier exists), `operational` for the rest (90 days), as table TTLs.
+- The cursor lives on the `vector-data` volume. `journalctl --follow`
+  restarts at the current boot even when resuming from a cursor in an
+  earlier one (systemd 252 in the image and 257 on the hosts), which would
+  drop the shutdown sequence logged after Vector stopped; `--merge` makes it
+  resume at the cursor. Vector is at-least-once, so the table is a
+  ReplacingMergeTree keyed on boot id + monotonic time + message hash.
+- `clickhouse-schema` applies `config/clickhouse/schema/*.sql` on every
+  `up`, so west's existing `clickhouse-data` volume gets the table (an
+  initdb script runs only on an empty volume).
+
+Verified on west against a throwaway ClickHouse 24.12.6.70 with the real
+journal: a `logger` line and an `authpriv` line were queryable within
+seconds (the second classed `audit`); a cursor planted in the previous boot
+shipped that boot's last two entries; a replay from a rewound cursor merged
+back to one row per entry (2151 rows for 2150 journal entries in the
+window); Vector held 12-20 MiB.
+
+To deploy (Stevie): `docker compose up -d volume-init clickhouse
+clickhouse-schema vector`. The first start has no cursor and backfills the
+whole journal (2.2M entries on west, ~190k rows per 30 s).
+
+Note: the table is as sensitive as the journal. sudo logs full command
+lines, so a secret passed on one (`sudo docker run -e PASSWORD=...`) lands
+in ClickHouse too. ClickHouse listens on loopback only and has one user.
+
+Still open: container stdout (needs a socket proxy limited to reading logs,
+or the journald logging driver so stdout reaches the journal; either is a
+host decision); east's journal (no stack runs there: needs its own shipper
+or `systemd-journal-remote`); the "host stopped shipping" alert (Vector's
+metrics are not scraped yet).

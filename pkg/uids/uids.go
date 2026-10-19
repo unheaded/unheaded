@@ -55,6 +55,10 @@ const (
 	// image's writable dirs are 0777, so any uid works; existing volumes are
 	// chowned once by compose's volume-init (2026-10-18).
 	ClickHouse = 16707
+	// ClickHouseSchema is compose's one-shot that applies
+	// config/clickhouse/schema/ to the running ClickHouse (a client only;
+	// owns no files).
+	ClickHouseSchema = 16708
 )
 
 // Kingdom services tier (16720-16759). These are Unheaded's own Go binaries
@@ -176,15 +180,16 @@ var Registry = map[string]int{
 	"kenoma":    Kenoma,
 	"pleroma":   Pleroma,
 
-	"void-collector":  VoidCollector,
-	"vllm":            VLLM,
-	"suricata":        Suricata,
-	"wireguard":       WireGuard,
-	"traefik":         Traefik,
-	"coredns":         CoreDNS,
-	"haproxy-ingress": HAProxyIngress,
-	"clickhouse":      ClickHouse,
-	"postgres":        Postgres,
+	"void-collector":    VoidCollector,
+	"vllm":              VLLM,
+	"suricata":          Suricata,
+	"wireguard":         WireGuard,
+	"traefik":           Traefik,
+	"coredns":           CoreDNS,
+	"haproxy-ingress":   HAProxyIngress,
+	"clickhouse":        ClickHouse,
+	"clickhouse-schema": ClickHouseSchema,
+	"postgres":          Postgres,
 }
 
 // Lookup returns the assigned UID for a service.

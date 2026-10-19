@@ -82,6 +82,9 @@ volumes:
   clickhouse-data:
     labels:
       kingdom.component: "logging"
+  vector-data:
+    labels:
+      kingdom.component: "logging"
   victoria-data:
     labels:
       kingdom.component: "metrics"
@@ -115,7 +118,7 @@ services:
   traefik:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     image: traefik:v3.3.7
@@ -219,14 +222,16 @@ services:
         own() { [ "$$(stat -c %u:%g "$$2")" = "$$1" ] || chown -R "$$1" "$$2"; }
         own 16703:16703 /volumes/victoria
         own 16707:16707 /volumes/clickhouse
+        own 16706:16706 /volumes/vector
     volumes:
       - victoria-data:/volumes/victoria
       - clickhouse-data:/volumes/clickhouse
+      - vector-data:/volumes/vector
 
   victoria:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     image: victoriametrics/victoria-metrics:v1.108.1
@@ -275,7 +280,7 @@ services:
   postgres:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     image: postgres:16.15-alpine  # exact tag (ADR-102): minor upgrades only after a restore drill
@@ -349,7 +354,7 @@ services:
   clickhouse:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     image: clickhouse/clickhouse-server:24.12.6.70
@@ -402,36 +407,75 @@ services:
         hard: 65536
 
   # --- Log Pipeline: Vector (eBPF events → ClickHouse) ---
-  vector:
+  # Applies config/clickhouse/schema/*.sql on every `up` (idempotent), so an
+  # existing clickhouse-data volume gets new tables too; an initdb script
+  # would only ever run on an empty one.
+  clickhouse-schema:
     logging:
-      # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
       driver: "json-file"
-      options: { max-size: "10m", max-file: "3" }
-    image: timberio/vector:0.43.1-debian
-    container_name: unheaded-vector
-    user: "16706:16706"   # pkg/uids
+      options: { max-size: "1m", max-file: "1" }
+    image: clickhouse/clickhouse-server:24.12.6.70
+    container_name: unheaded-clickhouse-schema
+    user: "16708:16708"   # pkg/uids
     read_only: true
     security_opt:
       - no-new-privileges:true
     cap_drop:
       - ALL
     tmpfs:
-      - /var/lib/vector:uid=16706,gid=16706,size=64M   # data_dir (checkpoints)
+      - /tmp:size=8M
+    restart: "no"
+    environment:
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in .env - credentials are not stored in this repo}
+    entrypoint: ["sh", "-ec"]
+    command:
+      - |
+        for f in /schema/*.sql; do
+          clickhouse-client --host clickhouse --user unheaded --multiquery < "$$f"
+        done
+    volumes:
+      - ./config/clickhouse/schema:/schema:ro
+    networks:
+      - observe
+    depends_on:
+      clickhouse:
+        condition: service_healthy
+
+  # Ships the host journal to ClickHouse (config/vector/vector.yaml, ADR-092
+  # step 8). Reads /var/log/journal through the journal's adm ACL (gid 4 on
+  # Debian/Ubuntu; west and east checked 2026-10-19). The cursor lives on
+  # vector-data so a restart resumes instead of re-reading the journal.
+  vector:
+    logging:
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
+    image: timberio/vector:0.43.1-debian
+    container_name: unheaded-vector
+    user: "16706:16706"   # pkg/uids; volume-init chowns its data volume
+    group_add:
+      - "4"   # adm: read the host journal
+    read_only: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
     environment:
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?set CLICKHOUSE_PASSWORD in .env - credentials are not stored in this repo}
     restart: unless-stopped
     volumes:
       - ./config/vector/vector.yaml:/etc/vector/vector.yaml:ro
+      - /var/log/journal:/var/log/journal:ro
+      - vector-data:/var/lib/unheaded-vector
     networks:
       - observe
-      - data
     labels:
       kingdom.armor: "vambraces"
       kingdom.role: "log-pipeline"
     depends_on:
-      clickhouse:
-        condition: service_healthy
+      volume-init:
+        condition: service_completed_successfully
+      clickhouse-schema:
+        condition: service_completed_successfully
     healthcheck:
       disable: true  # image has no wget/curl and `vector top` needs a TTY; vector verified running via logs
     deploy:
@@ -448,7 +492,7 @@ services:
   grafana:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     image: grafana/grafana:11.5.1
@@ -500,7 +544,7 @@ services:
   coredns:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     image: coredns/coredns:1.12.0
@@ -546,7 +590,7 @@ services:
   wotan:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     build:
@@ -598,7 +642,7 @@ services:
   timeguru:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     build:
@@ -657,7 +701,7 @@ services:
   captain:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     build:
@@ -705,7 +749,7 @@ services:
   architect:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     build:
@@ -752,7 +796,7 @@ services:
   micromanager:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     environment:
@@ -848,7 +892,7 @@ services:
   monad:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     build:
@@ -895,7 +939,7 @@ services:
   sophia:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     build:
@@ -942,7 +986,7 @@ services:
   dashboard-backend:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     build:
@@ -1016,7 +1060,7 @@ services:
   kanban-app:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     build:
@@ -1077,7 +1121,7 @@ services:
   cuirass:
     logging:
       # ADR-092: the cap lives here, not in an untracked host daemon.json.
-      # 3x10MB is a local buffer; Vector ships stdout to ClickHouse.
+      # 3x10MB is the only copy: container stdout does not ship (ADR-092 step 8).
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
     build:

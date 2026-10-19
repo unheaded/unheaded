@@ -1,43 +1,84 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Ships the host's journal (every unit, plus auth, sudo, PAM and kernel
+# audit records) to ClickHouse unheaded_logs.logs (ADR-092 step 8; schema
+# and retention in config/clickhouse/schema/001-logs.sql).
+#
+# Container stdout does not ship: docker_logs needs the Docker socket,
+# which is root on the host (1e9b9eeb), and Vector never had it. The
+# json-file 3x10MB caps are the only copy (ADR-092 step 8, open).
 api:
   enabled: true
   address: "0.0.0.0:8686"
 
-sources:
-  docker_logs:
-    type: docker_logs
-    include_containers:
-      - "unheaded-*"
+# journald cursor; a volume, so a restart resumes. Not /var/lib/vector: the
+# image ships that directory root-owned, and Docker copies its ownership onto
+# an empty volume mounted there.
+data_dir: /var/lib/unheaded-vector
 
-  internal_metrics:
-    type: internal_metrics
+sources:
+  journal:
+    type: journald
+    journal_directory: /var/log/journal
+    # Every boot, and resume across them. current_boot_only alone is not
+    # enough: `journalctl --follow` starts at the current boot even with
+    # --after-cursor in an earlier one (systemd 252 in the image and 257 on
+    # the hosts, tested 2026-10-19), dropping the shutdown sequence logged
+    # after Vector stopped. --merge makes it resume at the cursor.
+    current_boot_only: false
+    extra_args: ["--merge"]
 
 transforms:
-  parse_json:
+  journal_rows:
     type: remap
     inputs:
-      - docker_logs
+      - journal
     source: |
-      . = parse_json(.message) ?? .
-      .container = .container_name
-      .timestamp = now()
+      prio = to_int(.PRIORITY) ?? 6
+      level = if prio <= 0 { "emerg" } else if prio == 1 { "alert" } else if prio == 2 { "crit" } else if prio == 3 { "err" } else if prio == 4 { "warning" } else if prio == 5 { "notice" } else if prio == 6 { "info" } else { "debug" }
+      facility = to_int(.SYSLOG_FACILITY) ?? -1
+      audit = facility == 4 || facility == 10 || ."_TRANSPORT" == "audit"
+      # The systemd unit names a service; for sudo, sshd sessions and
+      # systemd itself it is user@N.service, session-N.scope or init.scope,
+      # and the syslog identifier says more.
+      unit = string(."_SYSTEMD_UNIT") ?? ""
+      if unit == "" || starts_with(unit, "user@") || starts_with(unit, "session-") || unit == "init.scope" {
+        unit = string(.SYSLOG_IDENTIFIER) ?? string(."_COMM") ?? unit
+      }
+      if unit == "" { unit = "unknown" }
+      message = string(.message) ?? encode_json(.message)
+      # One journal entry, for ClickHouse's dedupe (Vector drops __CURSOR
+      # from events): boot, monotonic microseconds, and the message.
+      entry = (string(."_BOOT_ID") ?? "") + ":" + (string(."__MONOTONIC_TIMESTAMP") ?? "") + ":" + to_string(seahash(message))
+      ts = .timestamp
+      host = string(.host) ?? "unknown"
+      rest = .
+      rest = remove!(rest, ["message"])
+      rest = remove!(rest, ["timestamp"])
+      rest = remove!(rest, ["host"])
+      rest = remove!(rest, ["source_type"])
+      retention = if audit { "audit" } else { "operational" }
+      . = {
+        "timestamp": ts,
+        "host": host,
+        "source": "journald",
+        "unit": unit,
+        "level": level,
+        "retention": retention,
+        "message": message,
+        "entry": entry,
+        "fields": encode_json(rest)
+      }
 
 sinks:
   clickhouse:
     type: clickhouse
     inputs:
-      - parse_json
+      - journal_rows
     endpoint: "http://clickhouse:8123"
     database: "unheaded_logs"
     table: "logs"
+    date_time_best_effort: true
     auth:
       strategy: "basic"
       user: "unheaded"
       password: "${CLICKHOUSE_PASSWORD}"   # from compose; no default credential
-    skip_unknown_fields: true
-
-  console:
-    type: console
-    inputs:
-      - parse_json
-    encoding:
-      codec: json

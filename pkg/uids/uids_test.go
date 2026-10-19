@@ -110,11 +110,12 @@ var helmOnly = map[string]bool{
 // composeOnly lists services that exist only in docker-compose.yml (or as the
 // Dockerfile's default stage). TestComposeMatchesRegistry checks them instead.
 var composeOnly = map[string]bool{
-	"akira":          true,
-	"all-in-one-dev": true,
-	"coredns":        true,
-	"postgres":       true,
-	"traefik":        true,
+	"akira":             true,
+	"all-in-one-dev":    true,
+	"clickhouse-schema": true,
+	"coredns":           true,
+	"postgres":          true,
+	"traefik":           true,
 }
 
 // pendingHardening are services whose registry UID is deliberately NOT yet
