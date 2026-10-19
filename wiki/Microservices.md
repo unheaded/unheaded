@@ -44,7 +44,7 @@ See [[eBPF Programs|eBPF-Programs]] and [[Observability Backends|Observability-B
 
 | Binary | What it does | ADR |
 |--------|--------------|-----|
-| `unheaded-baseline` | Host baseline agent, audit mode only (timer + path units) | 098 |
+| `unheaded-baseline` | Host baseline agent, audit mode only (timer + path units). Runs as `unheaded-baseline` with CAP_DAC_READ_SEARCH and CAP_NET_ADMIN, no mount sandbox (it must see the host), root-only facts from one `ExecStartPre=+` line | 098 |
 | `unheaded-remediate` | Applies fixes from the remediation model; backup, undo, hash-chained journal | 099 |
 | `compliance-evidence` | Collects evidence for the compliance catalog; `well sync` writes it to The Well | 097 / 098 |
 | `yggdrasil-evidence` | Validates, signs and verifies Yggdrasil evidence | — |

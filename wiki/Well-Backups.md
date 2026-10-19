@@ -60,3 +60,7 @@ Runbooks: `runbooks/deploy/emergency-rollback.yaml`, `runbooks/data/postgresql-m
 ---
 
 > **Source:** [THE_WELL_OPERATIONS.md](../docs/architecture/THE_WELL_OPERATIONS.md) · [ADR-016](../docs/adr/ADR-016-postgres-the-well.md) · [db-backup.sh](../scripts/db-backup.sh) · [deploy/systemd/](../deploy/systemd/)
+
+## Not The Well: the repository (FND-005)
+
+Commits not yet pushed to GitHub exist only on west's disk. `scripts/backup/git-mirror.sh push` copies every ref to a bare repository on east every 30 minutes (user timer `deploy/systemd/user/unheaded-git-mirror.timer`). It never prunes, and the bare repository keeps reflogs forever and refuses deletions, so a branch deleted or rewritten on west (re-signing) stays recoverable on east. `git-mirror.sh check` fails while any ref is behind. **Not installed yet**: steps in the service file's header.
