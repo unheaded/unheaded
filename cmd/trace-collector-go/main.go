@@ -28,7 +28,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/json"
@@ -315,25 +314,50 @@ func TransformEvent(ev *ebpf.AnamnesisEvent) ([]byte, error) {
 
 // WotanPublisher batches events and publishes them to Wotan topics.
 // This is the legacy publisher used in Anamnesis mode. The unified mode
-// uses TracePublisher from publisher.go instead.
+// uses TracePublisher from publisher.go instead, and gives its readers no
+// WotanPublisher: they used to get one that was never connected, so every
+// batch also went out over the REST path below, duplicating what
+// TracePublisher had already sent.
 type WotanPublisher struct {
-	addr       string
-	batchSize  int
-	batchTime  time.Duration
-	connected  atomic.Bool
-	published  uint64
-	tsc        *wotanClient.TopicStreamClient
-	httpClient *http.Client
+	addr      string
+	batchSize int
+	batchTime time.Duration
+	connected atomic.Bool
+	published uint64
+	tsc       *wotanClient.TopicStreamClient
+	// rest publishes when gRPC never connected: wotan-client's HTTP client,
+	// which joins the topic and sends {subscriber_id, payload}. This path
+	// used to POST the raw batch as the body; Wotan answered 400 to every
+	// one ("invalid request body" for an array, "payload is required" for
+	// an object) and the status was never read, so it counted as success
+	// (~150 rejected requests/s on west, 2026-10-18).
+	rest   *wotanClient.Client
+	restMu sync.Mutex // one join per topic
 }
 
 // NewWotanPublisher creates a publisher.
 func NewWotanPublisher(addr string, batchSize int, batchTimeout time.Duration) *WotanPublisher {
-	return &WotanPublisher{
-		addr:       addr,
-		batchSize:  batchSize,
-		batchTime:  batchTimeout,
-		httpClient: &http.Client{Timeout: 5 * time.Second},
+	wp := &WotanPublisher{addr: addr, batchSize: batchSize, batchTime: batchTimeout}
+	if c, err := wotanClient.NewClient(addr); err == nil {
+		wp.rest = c
 	}
+	return wp
+}
+
+// restPublish publishes over Wotan's REST API, joining the topic first.
+func (wp *WotanPublisher) restPublish(ctx context.Context, topic string, payload []byte) error {
+	if wp.rest == nil {
+		return fmt.Errorf("no Wotan address for REST publishing")
+	}
+	wp.restMu.Lock()
+	if _, ok := wp.rest.GetSubscriber(topic); !ok {
+		if _, err := wp.rest.Subscribe(ctx, topic, "trace-collector"); err != nil {
+			wp.restMu.Unlock()
+			return fmt.Errorf("join %s: %w", topic, err)
+		}
+	}
+	wp.restMu.Unlock()
+	return wp.rest.Publish(ctx, topic, payload)
 }
 
 // ConnectGRPC establishes a gRPC TopicStream connection to Wotan.
@@ -388,22 +412,9 @@ func (wp *WotanPublisher) PublishBatch(ctx context.Context, topic string, events
 			wp.connected.Store(false)
 			return fmt.Errorf("gRPC publish to %s: %w", topic, err)
 		}
-	} else {
-		// HTTP fallback via Wotan REST API
-		url := fmt.Sprintf("http://%s/api/v1/topics/%s/publish", wp.addr, topic)
-		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
-		if err != nil {
-			return fmt.Errorf("create request: %w", err)
-		}
-		req.Header.Set("Content-Type", "application/json")
-		req.Header.Set("X-Sender-ID", "trace-collector-go")
-
-		resp, err := wp.httpClient.Do(req)
-		if err != nil {
-			wp.connected.Store(false)
-			return fmt.Errorf("HTTP publish to %s: %w", topic, err)
-		}
-		resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
+	} else if err := wp.restPublish(ctx, topic, payload); err != nil {
+		wp.connected.Store(false)
+		return fmt.Errorf("HTTP publish to %s: %w", topic, err)
 	}
 
 	atomic.AddUint64(&wp.published, uint64(len(events)))
@@ -420,18 +431,7 @@ func (wp *WotanPublisher) PublishRaw(ctx context.Context, topic string, payload 
 	if wp.tsc != nil {
 		return wp.tsc.Publish(ctx, topic, payload)
 	}
-	url := fmt.Sprintf("http://%s/api/v1/topics/%s/publish", wp.addr, topic)
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(payload))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := wp.httpClient.Do(req)
-	if err != nil {
-		return err
-	}
-	resp.Body.Close() // #nosec G104 -- draining and closing a response body; a close error cannot change the outcome
-	return nil
+	return wp.restPublish(ctx, topic, payload)
 }
 
 // IsConnected returns true if the last publish succeeded.
@@ -707,7 +707,9 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	if *enablePacketMarker {
 		readerConfig := DefaultTraceReaderConfig()
 		readerConfig.ReadInterval = *readInterval
-		traceReader := NewTraceReader(loader, NewWotanPublisher(*wotanHTTPAddr, *batchSize, *batchTimeout), readerConfig)
+		// No reader-side publisher: the loop below publishes each entry
+		// through TracePublisher.
+		traceReader := NewTraceReader(loader, nil, readerConfig)
 		state.TraceReader = traceReader
 
 		go traceReader.Run(ctx)
@@ -728,8 +730,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	// Start FlowReader (flow_tracker TC maps)
 	if *enableFlowTracker && programs[1].Loaded {
 		flowConfig := DefaultFlowReaderConfig()
-		wotanPub := NewWotanPublisher(*wotanHTTPAddr, *batchSize, *batchTimeout)
-		flowReader := NewFlowReader(loader, wotanPub, flowConfig)
+		flowReader := NewFlowReader(loader, nil, flowConfig) // published below via TracePublisher
 
 		go flowReader.Run(ctx)
 
@@ -792,7 +793,6 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	if *enableLatencyProbe && programs[2].Loaded {
 		if directLatencyMap != nil {
 			// Use direct cilium/ebpf map reader for proper kprobe data
-			wotanPub := NewWotanPublisher(*wotanHTTPAddr, *batchSize, *batchTimeout)
 			go func() {
 				ticker := time.NewTicker(200 * time.Millisecond)
 				defer ticker.Stop()
@@ -848,7 +848,6 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 							if err != nil {
 								continue
 							}
-							_ = wotanPub.PublishRaw(ctx, "traces.latency", payload)
 							publisher.PublishLatencyEvent(payload)
 						}
 						if iter.Err() == nil { // a partial sweep must not forget unvisited flows
@@ -861,8 +860,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 		} else {
 			// Fallback: use standard loader's map reader
 			latencyConfig := DefaultLatencyReaderConfig()
-			wotanPub := NewWotanPublisher(*wotanHTTPAddr, *batchSize, *batchTimeout)
-			latencyReader := NewLatencyReader(loader, wotanPub, latencyConfig)
+			latencyReader := NewLatencyReader(loader, nil, latencyConfig) // published below via TracePublisher
 
 			go latencyReader.Run(ctx)
 

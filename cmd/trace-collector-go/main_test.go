@@ -6,7 +6,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -234,12 +233,48 @@ func TestTransformEvent(t *testing.T) {
 
 // ── WotanPublisher tests ────────────────────────────────────────────────────
 
-func TestWotanPublisher_PublishBatch(t *testing.T) {
-	var received []byte
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		received, _ = io.ReadAll(r.Body)
+// fakeWotan answers the two REST calls the publisher makes the way
+// services/wotan's handlers do: join returns an approved subscriber, and
+// publish wants {"subscriber_id", "payload"} with that ID and a non-empty
+// payload string, else 400. The old fake accepted any body, which is how
+// a publisher that POSTed the raw batch passed its test and failed live.
+type fakeWotan struct {
+	subscriberID string
+	payloads     map[string][]string // topic -> payload strings accepted
+	rejected     int
+	reject       bool // answer every publish 400
+}
+
+func (f *fakeWotan) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/topics/")
+	switch {
+	case strings.HasSuffix(path, "/subscribe"):
+		topic := strings.TrimSuffix(path, "/subscribe")
 		w.WriteHeader(http.StatusCreated)
-	}))
+		_ = json.NewEncoder(w).Encode(map[string]any{"subscriber": map[string]string{
+			"subscriber_id": f.subscriberID, "topic": topic, "display_name": "trace-collector", "status": "approved",
+		}})
+	case strings.HasSuffix(path, "/publish"):
+		topic := strings.TrimSuffix(path, "/publish")
+		var req struct {
+			SubscriberID string `json:"subscriber_id"`
+			Payload      string `json:"payload"`
+		}
+		if f.reject || json.NewDecoder(r.Body).Decode(&req) != nil || req.Payload == "" || req.SubscriberID != f.subscriberID {
+			f.rejected++
+			http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+			return
+		}
+		f.payloads[topic] = append(f.payloads[topic], req.Payload)
+		w.WriteHeader(http.StatusCreated)
+	default:
+		http.NotFound(w, r)
+	}
+}
+
+func TestWotanPublisher_PublishBatch(t *testing.T) {
+	f := &fakeWotan{subscriberID: "6f1c2d3e-0000-4000-8000-000000000001", payloads: map[string][]string{}}
+	srv := httptest.NewServer(f)
 	defer srv.Close()
 
 	addr := strings.TrimPrefix(srv.URL, "http://")
@@ -251,16 +286,46 @@ func TestWotanPublisher_PublishBatch(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	err := pub.PublishBatch(ctx, TopicBirth, events)
-	if err != nil {
-		t.Fatalf("PublishBatch: %v", err)
+	if err := pub.PublishBatch(ctx, TopicBirth, events); err != nil {
+		t.Fatalf("PublishBatch: %v (fake rejected %d)", err, f.rejected)
 	}
-
 	if !pub.IsConnected() {
 		t.Error("expected connected after publish")
 	}
-	if len(received) == 0 {
-		t.Error("server received no payload")
+	got := f.payloads[TopicBirth]
+	if len(got) != 1 {
+		t.Fatalf("want one accepted publish on %s, got %d (rejected %d)", TopicBirth, len(got), f.rejected)
+	}
+	var decoded []map[string]any
+	if err := json.Unmarshal([]byte(got[0]), &decoded); err != nil || len(decoded) != 2 {
+		t.Fatalf("payload is not the 2-event batch: %v %s", err, got[0])
+	}
+
+	// A JSON object (the latency path) goes out as the payload string too.
+	if err := pub.PublishRaw(ctx, "traces.latency", []byte(`{"latency_ns":1}`)); err != nil {
+		t.Fatalf("PublishRaw: %v", err)
+	}
+	if p := f.payloads["traces.latency"]; len(p) != 1 || p[0] != `{"latency_ns":1}` {
+		t.Fatalf("latency payload = %v", p)
+	}
+}
+
+// A rejected publish is an error, not a success: the old path never read
+// the status, so 400s counted as published and connected stayed true.
+func TestWotanPublisher_RejectedIsError(t *testing.T) {
+	f := &fakeWotan{subscriberID: "6f1c2d3e-0000-4000-8000-000000000002", payloads: map[string][]string{}, reject: true}
+	srv := httptest.NewServer(f)
+	defer srv.Close()
+	pub := NewWotanPublisher(strings.TrimPrefix(srv.URL, "http://"), 100, 50*time.Millisecond)
+	err := pub.PublishBatch(context.Background(), TopicBirth, []*ebpf.AnamnesisEvent{makeEvent(ebpf.EventBirth, 0, 1, 1)})
+	if err == nil {
+		t.Fatal("a 400 from Wotan was reported as published")
+	}
+	if pub.IsConnected() {
+		t.Error("connected stayed true after a rejected publish")
+	}
+	if err := pub.PublishRaw(context.Background(), "traces.latency", []byte(`{}`)); err == nil {
+		t.Fatal("PublishRaw swallowed a 400")
 	}
 }
 
