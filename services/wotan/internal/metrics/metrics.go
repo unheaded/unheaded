@@ -25,6 +25,9 @@ type Metrics struct {
 	RoomBufferUsage   *prom.GaugeVec
 	RoomBufferBytes   *prom.GaugeVec
 	RoomBufferWrapped *prom.CounterVec
+	// Every room together, against --buffer-bytes-total.
+	RoomBuffersFootprint prom.Gauge
+	RoomBufferEvicted    prom.Counter
 
 	// Member metrics
 	MembersTotal       *prom.GaugeVec
@@ -129,6 +132,20 @@ func Initialize(namespace string) *Metrics {
 				Help:      "Payload bytes held in each room's ring buffer (bounded by --buffer-bytes)",
 			},
 			[]string{"room_id"},
+		),
+		RoomBuffersFootprint: auto.NewGauge(
+			prom.GaugeOpts{
+				Namespace: namespace,
+				Name:      "room_buffers_footprint_bytes",
+				Help:      "Content plus per-message overhead held by every room together (bounded by --buffer-bytes-total)",
+			},
+		),
+		RoomBufferEvicted: auto.NewCounter(
+			prom.CounterOpts{
+				Namespace: namespace,
+				Name:      "room_buffer_total_evicted_total",
+				Help:      "Messages dropped, oldest of the largest rooms first, to keep every room together within --buffer-bytes-total",
+			},
 		),
 		RoomBufferWrapped: auto.NewCounterVec(
 			prom.CounterOpts{

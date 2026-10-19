@@ -566,7 +566,9 @@ services:
       LOG_LEVEL: info
       WOTAN_TOPIC_CONFIG: /etc/wotan/wotan.yaml   # auto-approve allowlist; without it every subscriber stays pending_approval
       # Under the 256M limit so the GC works harder before the kernel OOM-kills.
-      # Payload is bounded by --buffer-bytes (8 MiB per room by default).
+      # Payload is bounded by --buffer-bytes (8 MiB per room) and, for every
+      # room together, --buffer-bytes-total (64 MiB): per-room budgets alone
+      # let ~50 log topics hold 290 MiB of heap (OOM-killed 2026-10-18).
       GOMEMLIMIT: "200MiB"
     ports:
       - "18001:18001"     # gRPC streaming

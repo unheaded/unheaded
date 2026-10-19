@@ -24,7 +24,7 @@ DNS-like hierarchy with subscription mirroring:
 
 ## Behaviour worth knowing
 
-- **Each topic holds at most 10,000 messages and 8 MiB of payload** (`--buffer-size`, `--buffer-bytes`); past either, the oldest go first. The count alone let one trace topic (~32 KB batches) reach 320 MB, and Wotan was OOM-killed at its 256 MiB limit within 30 minutes (2026-10-18). Per-topic fill: `unheaded_chat_room_buffer_bytes`. A reader that falls further behind than the buffer holds sees the gap as a jump in seq.
+- **Each topic holds at most 10,000 messages and 8 MiB of payload** (`--buffer-size`, `--buffer-bytes`); past either, the oldest go first. The count alone let one trace topic (~32 KB batches) reach 320 MB, and Wotan was OOM-killed at its 256 MiB limit within 30 minutes (2026-10-18). Per-topic fill: `unheaded_chat_room_buffer_bytes`. **All topics together hold at most 64 MiB** (`--buffer-bytes-total`, content plus ~192 bytes per message): every 250 ms the oldest messages of the largest topics go first. Per-topic budgets alone did not bound Wotan: ~50 log topics of 10,000 small messages each held 290 MiB (OOM-killed again 2026-10-18, reproduced locally). Total: `unheaded_chat_room_buffers_footprint_bytes`, drops: `unheaded_chat_room_buffer_total_evicted_total`. A reader that falls further behind than the buffer holds sees the gap as a jump in seq.
 - **Seqs are global across topics.** HTTP and gRPC paging resume from `after_seq`, so a client picks up where it left off across a Wotan restart.
 - **Wildcard topics** over HTTP and gRPC: `alerts.*` (one segment), `logs.#` (one or more segments).
 - **Join + approval:** services `POST /api/v1/join`; unknown names wait in `/api/v1/admin/pending` until approved.

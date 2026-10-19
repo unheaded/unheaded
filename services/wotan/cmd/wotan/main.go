@@ -50,6 +50,7 @@ type Config struct {
 	// Server
 	BufferSize   int
 	BufferBytes  int
+	BufferTotal  int
 	HTTPPort     int
 	GRPCPort     int
 	AdminEnabled bool
@@ -114,6 +115,7 @@ func main() {
 	log.Info().
 		Int("buffer_size", config.BufferSize).
 		Int("buffer_bytes", config.BufferBytes).
+		Int("buffer_bytes_total", config.BufferTotal).
 		Int("http_port", config.HTTPPort).
 		Int("grpc_port", config.GRPCPort).
 		Bool("tls_enabled", config.EnableTLS).
@@ -133,9 +135,11 @@ func main() {
 	// Initialize managers
 	roomManager := room.NewManager(config.BufferSize)
 	roomManager.SetBufferBytes(config.BufferBytes)
+	roomManager.SetTotalBytes(config.BufferTotal)
 
 	// Start metrics collector
 	go collectSystemMetrics(runCtx, m, roomManager)
+	go enforceBufferTotal(runCtx, m, roomManager)
 	memberManager := member.NewManager()
 	messageWotan := wotan.NewWotan()
 
@@ -391,6 +395,7 @@ func parseFlags(fs *flag.FlagSet, args []string) Config {
 	// Server flags
 	fs.IntVar(&config.BufferSize, "buffer-size", 10000, "Ring buffer size per room")
 	fs.IntVar(&config.BufferBytes, "buffer-bytes", 8<<20, "Payload byte budget per room; oldest messages are dropped past it (0 = none)")
+	fs.IntVar(&config.BufferTotal, "buffer-bytes-total", 64<<20, "Budget for every room together, content plus per-message overhead; the oldest messages of the largest rooms are dropped past it (0 = none)")
 	fs.IntVar(&config.HTTPPort, "http-port", 18000, "HTTP REST API port")
 	fs.IntVar(&config.GRPCPort, "grpc-port", 18001, "gRPC streaming port")
 	fs.BoolVar(&config.AdminEnabled, "admin", true, "Enable admin endpoints")
@@ -511,6 +516,29 @@ func collectSystemMetrics(ctx context.Context, m *metrics.Metrics, rooms *room.M
 			m.MemoryAllocated.Set(float64(mem.Alloc))
 			for _, rm := range rooms.List() {
 				m.UpdateRoomBufferMetrics(rm.ID, rm.Buffer.Size(), rm.Buffer.Count(), rm.Buffer.Bytes())
+			}
+		}
+	}
+}
+
+// enforceBufferTotal keeps every room together within --buffer-bytes-total.
+// Per-room budgets alone did not bound Wotan: it was OOM-killed in its 256
+// MiB container (2026-10-18) and, reproduced locally, ~50 log topics of
+// 10,000 small messages each held 290 MiB of heap while every room was
+// within its own budget. Every 250 ms: between ticks Wotan can overshoot
+// by what arrives in that time, a few hundred KB at observed rates.
+func enforceBufferTotal(ctx context.Context, m *metrics.Metrics, rooms *room.Manager) {
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			total, dropped := rooms.EnforceTotal()
+			m.RoomBuffersFootprint.Set(float64(total))
+			if dropped > 0 {
+				m.RoomBufferEvicted.Add(float64(dropped))
 			}
 		}
 	}

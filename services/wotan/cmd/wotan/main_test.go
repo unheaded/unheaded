@@ -41,6 +41,7 @@ func TestParseFlags_Defaults(t *testing.T) {
 		want any
 	}{
 		{"BufferSize", cfg.BufferSize, 10000},
+		{"BufferTotal", cfg.BufferTotal, 64 << 20},
 		{"HTTPPort", cfg.HTTPPort, 18000},
 		{"GRPCPort", cfg.GRPCPort, 18001},
 		{"AdminEnabled", cfg.AdminEnabled, true},

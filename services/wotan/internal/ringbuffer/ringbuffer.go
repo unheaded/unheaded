@@ -259,6 +259,36 @@ func (rb *RingBuffer) LastSeq() int64 {
 }
 
 // Count returns the current number of messages in the buffer
+// MessageOverhead is what a held message costs beyond its Content
+// (Message struct, IDs, its slot). Measured 2026-10-19: 500,000 messages of
+// ~440 bytes held 210 MiB of content in 290 MiB of heap, ~160 bytes each;
+// rounded up. The total budget (room.Manager) counts it.
+const MessageOverhead = 192
+
+// Footprint is the memory the held messages take: their content plus
+// MessageOverhead each.
+func (rb *RingBuffer) Footprint() int {
+	rb.mu.RLock()
+	defer rb.mu.RUnlock()
+	return rb.bytes + rb.count*MessageOverhead
+}
+
+// EvictOldest drops the oldest message and returns the footprint it held;
+// 0 when the buffer is empty.
+func (rb *RingBuffer) EvictOldest() int {
+	rb.mu.Lock()
+	defer rb.mu.Unlock()
+	if rb.count == 0 {
+		return 0
+	}
+	i := rb.oldest()
+	n := len(rb.buffer[i].Content)
+	rb.bytes -= n
+	rb.buffer[i] = nil
+	rb.count--
+	return n + MessageOverhead
+}
+
 func (rb *RingBuffer) Count() int {
 	rb.mu.RLock()
 	defer rb.mu.RUnlock()

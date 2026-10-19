@@ -1186,3 +1186,30 @@ func seqsOf(msgs []*Message) []int64 {
 	}
 	return out
 }
+
+func TestFootprintAndEvictOldest(t *testing.T) {
+	rb := New(10)
+	if rb.EvictOldest() != 0 || rb.Footprint() != 0 {
+		t.Fatal("empty buffer must have nothing to evict and no footprint")
+	}
+	rb.Push(createTestMessage("r", "aaaa"))
+	rb.Push(createTestMessage("r", "bbbbbbbb"))
+	if got, want := rb.Footprint(), 12+2*MessageOverhead; got != want {
+		t.Fatalf("Footprint = %d, want %d", got, want)
+	}
+	if freed := rb.EvictOldest(); freed != 4+MessageOverhead {
+		t.Fatalf("EvictOldest freed %d, want the oldest (4 + overhead)", freed)
+	}
+	msgs := rb.Get()
+	if len(msgs) != 1 || msgs[0].Content != "bbbbbbbb" {
+		t.Fatalf("after eviction: %+v", msgs)
+	}
+	if rb.Bytes() != 8 || rb.Count() != 1 {
+		t.Fatalf("bytes %d count %d", rb.Bytes(), rb.Count())
+	}
+	// Pushing after an eviction keeps order and accounting.
+	rb.Push(createTestMessage("r", "cc"))
+	if msgs := rb.Get(); len(msgs) != 2 || msgs[1].Content != "cc" || rb.Bytes() != 10 {
+		t.Fatalf("after push: %+v bytes %d", msgs, rb.Bytes())
+	}
+}

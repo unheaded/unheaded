@@ -1080,3 +1080,46 @@ func TestManager_BufferBytes(t *testing.T) {
 		t.Errorf("room holds %d messages, want 10", got)
 	}
 }
+
+// TestEnforceTotal: the rooms together stay within the total budget, the
+// largest room gives up its oldest messages first, and every room keeps its
+// newest messages.
+func TestEnforceTotal(t *testing.T) {
+	m := NewManager(1000)
+	big, small := m.Create("traces.flow", "traces.flow"), m.Create("logs.a.info", "logs.a.info")
+	u := uuid.New()
+	for i := 0; i < 100; i++ {
+		big.SendMessage(u, fmt.Sprintf("%04d%s", i, strings.Repeat("x", 996))) // 1000 bytes
+	}
+	for i := 0; i < 100; i++ {
+		small.SendMessage(u, fmt.Sprintf("%04d%s", i, strings.Repeat("y", 96))) // 100 bytes
+	}
+	before := big.Buffer.Footprint() + small.Buffer.Footprint()
+
+	if total, dropped := m.EnforceTotal(); total != before || dropped != 0 {
+		t.Fatalf("no budget set: total %d dropped %d", total, dropped)
+	}
+
+	budget := before / 2
+	m.SetTotalBytes(budget)
+	total, dropped := m.EnforceTotal()
+	if total > budget || dropped == 0 {
+		t.Fatalf("total %d over budget %d (dropped %d)", total, budget, dropped)
+	}
+	if got := big.Buffer.Footprint() + small.Buffer.Footprint(); got != total {
+		t.Fatalf("reported total %d, rooms hold %d", total, got)
+	}
+	if small.Buffer.Count() != 100 {
+		t.Fatalf("the small room lost %d messages before the large one was down to its size", 100-small.Buffer.Count())
+	}
+	msgs := big.Buffer.Get()
+	if len(msgs) == 0 || !strings.HasPrefix(msgs[len(msgs)-1].Content, "0099") || strings.HasPrefix(msgs[0].Content, "0000") {
+		t.Fatal("the large room must lose its oldest messages and keep its newest")
+	}
+
+	// A budget below one room's floor empties the largest first, then the next.
+	m.SetTotalBytes(1)
+	if total, _ := m.EnforceTotal(); total > 1 {
+		t.Fatalf("total %d over a 1-byte budget", total)
+	}
+}

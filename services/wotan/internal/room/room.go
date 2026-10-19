@@ -31,6 +31,9 @@ type Manager struct {
 	// means none. Count alone does not bound memory: a trace batch is ~32 KB,
 	// so 10000 of them is 320 MB in one room.
 	bufferBytes int
+	// totalBytes is the budget for all rooms' footprints together
+	// (EnforceTotal); 0 means none.
+	totalBytes int
 	// seq numbers messages across every room, so a cursor taken over several
 	// rooms (a wildcard read) orders them. In memory: a restart begins at 1.
 	seq atomic.Int64
@@ -55,6 +58,61 @@ func (m *Manager) SetBufferBytes(n int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.bufferBytes = n
+}
+
+// SetTotalBytes sets the budget for all rooms together (EnforceTotal); 0
+// means none. The per-room budget bounds one topic; this bounds how many
+// topics Wotan can hold at once. With only per-room budgets, ~50 log rooms
+// of 10,000 small messages each reached 290 MiB of heap (2026-10-19), past
+// the 256 MiB container limit, while every room was within its own budget.
+func (m *Manager) SetTotalBytes(n int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if n < 0 {
+		n = 0
+	}
+	m.totalBytes = n
+}
+
+// EnforceTotal drops the oldest messages of the largest rooms, one at a
+// time, until the rooms' combined footprint (ringbuffer.Footprint) is within
+// the total budget. It returns the combined footprint afterwards and how
+// many messages it dropped.
+func (m *Manager) EnforceTotal() (total, dropped int) {
+	m.mu.RLock()
+	budget := m.totalBytes
+	rooms := make([]*Room, 0, len(m.rooms))
+	for _, r := range m.rooms {
+		rooms = append(rooms, r)
+	}
+	m.mu.RUnlock()
+
+	sizes := make([]int, len(rooms))
+	for i, r := range rooms {
+		sizes[i] = r.Buffer.Footprint()
+		total += sizes[i]
+	}
+	for budget > 0 && total > budget {
+		big := 0
+		for i := range sizes {
+			if sizes[i] > sizes[big] {
+				big = i
+			}
+		}
+		if sizes[big] == 0 {
+			break
+		}
+		freed := rooms[big].Buffer.EvictOldest()
+		if freed == 0 {
+			total -= sizes[big] // emptied meanwhile
+			sizes[big] = 0
+			continue
+		}
+		sizes[big] -= freed
+		total -= freed
+		dropped++
+	}
+	return total, dropped
 }
 
 // Create creates a new room with the given ID and name
