@@ -42,7 +42,11 @@ UMask=0077
 # deploy/sysusers.d/unheaded.conf: system account, /usr/sbin/nologin.
 NoNewPrivileges=yes
 ProtectSystem=strict
-ProtectHome=yes
+# read-only, not yes: "yes" puts an empty tmpfs over /home, so a separate
+# /home filesystem (the CIS layout the findings plan asks for) would drop
+# out of host_disk_* without a sign. read-only keeps the real mount in
+# /proc/mounts for statfs and still denies writes.
+ProtectHome=read-only
 PrivateTmp=yes
 PrivateDevices=yes
 ProtectKernelTunables=yes
