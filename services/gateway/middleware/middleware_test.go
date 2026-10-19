@@ -1204,3 +1204,36 @@ func TestFormatFloat(t *testing.T) {
 		}
 	}
 }
+
+// TestAuth_JWTRefusals: tokens the validator must refuse even though their
+// HMAC checks out: signed under the empty key when no secret is configured
+// (API keys only), a header alg other than HS256, and no exp.
+func TestAuth_JWTRefusals(t *testing.T) {
+	exp := time.Now().Add(time.Hour).Unix()
+	resign := func(secret, header string, claims JWTClaims) string {
+		cj, _ := json.Marshal(claims)
+		in := base64.RawURLEncoding.EncodeToString([]byte(header)) + "." + base64.RawURLEncoding.EncodeToString(cj)
+		mac := hmac.New(sha256.New, []byte(secret))
+		mac.Write([]byte(in))
+		return in + "." + base64.RawURLEncoding.EncodeToString(mac.Sum(nil))
+	}
+	cases := []struct {
+		name, secret, token string
+	}{
+		{"empty secret", "", buildJWT("", JWTClaims{Subject: "u", ExpiresAt: exp})},
+		{"alg none", "s", resign("s", `{"alg":"none"}`, JWTClaims{Subject: "u", ExpiresAt: exp})},
+		{"alg HS512", "s", resign("s", `{"alg":"HS512"}`, JWTClaims{Subject: "u", ExpiresAt: exp})},
+		{"no exp", "s", buildJWT("s", JWTClaims{Subject: "u"})},
+	}
+	for _, c := range cases {
+		cfg := &config.AuthConfig{Enabled: true, JWTSecret: c.secret, APIKeys: []string{"k"}, APIKeyHeader: "X-API-Key"}
+		h := NewAuthMiddleware(cfg, testLogger()).Handler(okHandler())
+		req := httptest.NewRequest(http.MethodGet, "/secret", nil)
+		req.Header.Set("Authorization", "Bearer "+c.token)
+		rr := httptest.NewRecorder()
+		h.ServeHTTP(rr, req)
+		if rr.Code != http.StatusUnauthorized {
+			t.Errorf("%s: got %d, want 401", c.name, rr.Code)
+		}
+	}
+}

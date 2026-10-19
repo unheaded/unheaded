@@ -117,11 +117,31 @@ func (m *AuthMiddleware) Handler(next http.Handler) http.Handler {
 	})
 }
 
-// validateJWT validates a JWT token and returns claims.
+// validateJWT validates an HS256 JWT and returns its claims. It refuses
+// every token when no secret is configured (an HMAC under the empty key is
+// forgeable by anyone), any header alg other than HS256, and tokens with no
+// exp (they would be valid forever).
 func (m *AuthMiddleware) validateJWT(token string) (*JWTClaims, error) {
+	if m.cfg.JWTSecret == "" {
+		return nil, &AuthError{Message: "JWT auth not configured"}
+	}
 	parts := strings.Split(token, ".")
 	if len(parts) != 3 {
 		return nil, &AuthError{Message: "invalid token format"}
+	}
+
+	headerData, err := base64.RawURLEncoding.DecodeString(parts[0])
+	if err != nil {
+		return nil, &AuthError{Message: "invalid header encoding"}
+	}
+	var header struct {
+		Alg string `json:"alg"`
+	}
+	if err := json.Unmarshal(headerData, &header); err != nil {
+		return nil, &AuthError{Message: "invalid header JSON"}
+	}
+	if header.Alg != "HS256" {
+		return nil, &AuthError{Message: "unsupported alg"}
 	}
 
 	// Verify signature
@@ -149,7 +169,10 @@ func (m *AuthMiddleware) validateJWT(token string) (*JWTClaims, error) {
 
 	// Validate claims
 	now := time.Now().Unix()
-	if claims.ExpiresAt != 0 && claims.ExpiresAt < now {
+	if claims.ExpiresAt == 0 {
+		return nil, &AuthError{Message: "token has no exp"}
+	}
+	if claims.ExpiresAt < now {
 		return nil, &AuthError{Message: "token expired"}
 	}
 
