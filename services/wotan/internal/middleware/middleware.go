@@ -6,6 +6,7 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -32,7 +33,44 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 	return size, err
 }
 
-// Logging middleware logs HTTP requests with structured logging
+// failureLogEvery is how often a run of failures with the same status is
+// logged: the first one at once, then one line per interval carrying how
+// many were not logged in between.
+const failureLogEvery = 10 * time.Second
+
+// failureLog rate-limits failure lines per status code (a bounded key: the
+// path is client input and would not be).
+type failureLog struct {
+	mu   sync.Mutex
+	last map[int]time.Time
+	held map[int]int
+}
+
+var failures = &failureLog{last: map[int]time.Time{}, held: map[int]int{}}
+
+// allow reports whether a failure with this status is logged now, and how
+// many with it were held back since the last line.
+func (f *failureLog) allow(status int, now time.Time) (bool, int) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if t, ok := f.last[status]; ok && now.Sub(t) < failureLogEvery {
+		f.held[status]++
+		return false, 0
+	}
+	n := f.held[status]
+	f.last[status], f.held[status] = now, 0
+	return true, n
+}
+
+// Logging middleware logs HTTP requests with structured logging.
+//
+// Successful requests are logged at debug. Wotan serves hundreds a second
+// (topic polls, publishes, scrapes): two info lines each filled the 3 x 10
+// MB container log in about four minutes, so when Wotan was OOM-killed
+// (2026-10-18) everything before was gone, and a client sending ~150 bad
+// requests a second hid among them. Failures (4xx warn, 5xx error) are
+// logged with method and path, at most once per status every
+// failureLogEvery, with the count held back in between.
 func Logging(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
@@ -54,7 +92,7 @@ func Logging(next http.Handler) http.Handler {
 		}
 
 		// Log request start
-		reqLogger.Info().
+		reqLogger.Debug().
 			Str("method", r.Method).
 			Str("path", r.URL.Path).
 			Str("remote_addr", r.RemoteAddr).
@@ -66,11 +104,31 @@ func Logging(next http.Handler) http.Handler {
 
 		// Log request completion
 		duration := time.Since(start)
-		reqLogger.Info().
-			Int("status_code", wrapped.statusCode).
+		status := wrapped.statusCode
+		if status < 400 {
+			reqLogger.Debug().
+				Int("status_code", status).
+				Int("response_size", wrapped.size).
+				Dur("duration_ms", duration).
+				Msg("http_request_complete")
+			return
+		}
+		ok, held := failures.allow(status, time.Now())
+		if !ok {
+			return
+		}
+		ev := reqLogger.Warn()
+		if status >= 500 {
+			ev = reqLogger.Error()
+		}
+		ev.Str("method", r.Method).
+			Str("path", r.URL.Path).
+			Str("remote_addr", r.RemoteAddr).
+			Int("status_code", status).
 			Int("response_size", wrapped.size).
 			Dur("duration_ms", duration).
-			Msg("http_request_complete")
+			Int("same_status_not_logged", held).
+			Msg("http_request_failed")
 	})
 }
 

@@ -4,11 +4,14 @@
 package middleware
 
 import (
+	"bytes"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/rs/zerolog"
 
 	pkgmetrics "unheaded/pkg/metrics"
 	"unheaded/services/wotan/internal/logger"
@@ -101,6 +104,54 @@ func TestLogging_PreservesStatusCode(t *testing.T) {
 
 	if rec.Code != http.StatusNotFound {
 		t.Errorf("Status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+// TestLogging_Levels: success is debug only; failures are warn (4xx) or
+// error (5xx), one line per status per failureLogEvery, the next one
+// carrying how many were held back.
+func TestLogging_Levels(t *testing.T) {
+	var buf bytes.Buffer
+	lg := zerolog.New(&buf).Level(zerolog.InfoLevel)
+	failures = &failureLog{last: map[int]time.Time{}, held: map[int]int{}}
+	status := http.StatusOK
+	handler := Logging(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(status)
+	}))
+	serve := func(n int) {
+		for i := 0; i < n; i++ {
+			req := httptest.NewRequest("POST", "/api/v1/topics/t/publish", nil)
+			req = req.WithContext(logger.WithContext(req.Context(), &lg))
+			handler.ServeHTTP(httptest.NewRecorder(), req)
+		}
+	}
+
+	serve(50)
+	if buf.Len() != 0 {
+		t.Fatalf("successful requests logged at info: %s", buf.String())
+	}
+
+	status = http.StatusBadRequest
+	serve(150)
+	lines := strings.Split(strings.TrimSpace(buf.String()), "\n")
+	if len(lines) != 1 || !strings.Contains(lines[0], `"level":"warn"`) ||
+		!strings.Contains(lines[0], `"path":"/api/v1/topics/t/publish"`) || !strings.Contains(lines[0], `"status_code":400`) {
+		t.Fatalf("150 identical 400s should give one warn line with method and path, got %d: %s", len(lines), buf.String())
+	}
+
+	// After the interval the next one is logged with the count held back.
+	failures.last[http.StatusBadRequest] = time.Now().Add(-failureLogEvery)
+	buf.Reset()
+	serve(1)
+	if !strings.Contains(buf.String(), `"same_status_not_logged":149`) {
+		t.Fatalf("held-back count missing: %s", buf.String())
+	}
+
+	status = http.StatusInternalServerError
+	buf.Reset()
+	serve(3)
+	if strings.Count(buf.String(), "\n") != 1 || !strings.Contains(buf.String(), `"level":"error"`) {
+		t.Fatalf("5xx should be one error line: %s", buf.String())
 	}
 }
 
