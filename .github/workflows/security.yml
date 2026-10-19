@@ -318,7 +318,7 @@ jobs:
   lich-fuzz:
     name: Lich Fuzz Harnesses
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
@@ -331,26 +331,36 @@ jobs:
       - name: Fetch doomgeneric (go.mod replace target)
         run: ./scripts/ci-fetch-doomgeneric.sh
 
+      # Every package with a Fuzz function, each target for FUZZ_TIME. This
+      # was `go list ./... | head -50`: 3 of the 12 packages with fuzz
+      # targets were in the first 50 of 298, so the rest were never fuzzed
+      # here (their seed corpora still ran as plain tests). 99 targets at
+      # 10 s took about 19 minutes on west.
       - name: Run Go fuzz tests (short)
         run: |
-          # Run each fuzz target for 30 seconds
-          FUZZ_TIME=30s
+          FUZZ_TIME=10s
           failed=0
-          for pkg in $(go list ./... | head -50); do
-            fuzz_targets=$(go test -list 'Fuzz.*' "$pkg" 2>/dev/null | grep '^Fuzz' || true)
-            for target in $fuzz_targets; do
+          n=0
+          for dir in $(git ls-files '*_test.go' | xargs grep -l '^func Fuzz' | xargs -n1 dirname | sort -u); do
+            pkg="./$dir"
+            for target in $(go test -list '^Fuzz' "$pkg" | grep '^Fuzz'); do
+              n=$((n + 1))
               echo "Fuzzing $pkg :: $target (${FUZZ_TIME})"
-              if ! go test -fuzz="^${target}$" -fuzztime="${FUZZ_TIME}" -timeout 60s "$pkg"; then
-                echo "::warning::Fuzz failure in $pkg :: $target"
+              if ! go test -run '^$' -fuzz="^${target}\$" -fuzztime="${FUZZ_TIME}" -timeout 120s "$pkg"; then
+                echo "::error::Fuzz failure in $pkg :: $target"
                 failed=1
               fi
             done
           done
+          if [ "$n" -eq 0 ]; then
+            echo "::error::no fuzz targets found; refusing to pass vacuously"
+            exit 1
+          fi
           if [ "$failed" -eq 1 ]; then
             echo "::error::One or more fuzz targets found issues"
             exit 1
           fi
-          echo "All fuzz targets passed"
+          echo "All $n fuzz targets passed"
 
   doom-security:
     name: Doom Range Port Security
