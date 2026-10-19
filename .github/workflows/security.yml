@@ -175,6 +175,11 @@ jobs:
       - name: /tmp log paths may only shrink
         run: ./scripts/check-tmp-log-baseline.sh
 
+      # ADR-096 §3: a package the build pulls in that nobody recorded (go.sum,
+      # Cargo.lock, requirements, package.json) fails here.
+      - name: Third-party packages may only shrink
+        run: ./scripts/check-dependency-baseline.sh
+
       - name: gitleaks (full history — reporting only, see PRE-PUBLIC-BLOCKERS.md)
         continue-on-error: true
         run: /tmp/gitleaks git --no-banner --redact --exit-code 1 .

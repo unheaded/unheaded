@@ -186,6 +186,20 @@ where the risk is.
   does not claim to detect it. It asks instead for evidence a person
   reviewed the code, and it reviews the code itself.
 
+## Progress
+
+**2026-10-19, §3's last bullet, as a baseline until the register exists:**
+`scripts/check-dependency-baseline.sh` (security.yml, meta-gate) fails when
+the build pulls in a package that is not in
+`docs/policy/dependency-baseline.txt`: every module in a tracked `go.sum`,
+every registry or git package in a `Cargo.lock`, every `requirements*.txt`
+entry and every `package.json` dependency (746 at creation: 123 Go, 416
+Rust, 206 Python, 1 npm). It compares the set, so a swap fails; a removal
+fails until the line goes too (`--update`, which refuses to add). Adding a
+line by hand in the commit that adds the package is the recorded admission
+§2 asks for, visible in review. Not covered yet: version bumps, archive /
+owner-change re-checks, container digests (ADR-102 pins tags).
+
 ## Immediate findings for the ADR-095 register
 
 Surfaced while writing this; each is an entry, not work done here:
