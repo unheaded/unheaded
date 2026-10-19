@@ -415,6 +415,12 @@ The unheaded-sentinel skill has been created as the Kingdom's blue team counterp
 
 ## TODO: CVE Poller — Automated Vulnerability Feed
 
+> **2026-10-19:** taken up by ADR-055. The CISA KEV part exists
+> (`cmd/kev-poller`: hourly, matched against `config/kev-poller/stack.yaml`,
+> renders the threat-register entry). Go and Rust advisories are covered
+> by govulncheck and cargo-audit in CI. NVD, the kernel list and SBOM
+> cross-referencing are still open (ADR-055 Phase 4).
+
 **Priority**: Age 2b / Age 3
 **Owner**: Sentinel + Architect + Developer
 

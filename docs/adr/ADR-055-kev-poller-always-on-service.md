@@ -220,10 +220,10 @@ This ADR is "Planned" until each of the following lands. It flips to "Accepted" 
 - [ ] Phase 0 verified (K8s cluster exists on WEST + EAST, or Phase 0 sub-plan is in-flight)
 - [x] Phase 1 service runnable as `kev-poller --once` and passes smoke test (2026-10-19)
 - [ ] Phase 2 DaemonSet deployed; 24h of clean operation observed
-- [ ] Phase 3 threat-register-updater closes the auto-refresh loop
+- [ ] Phase 3 threat-register-updater closes the auto-refresh loop (2026-10-19: `kev-poller report` renders the entry; committing it is still a person's step)
 - [ ] ADR-INDEX updated: ADR-055 status Planned → Accepted
 - [ ] Phase 4 (NIST NVD) added to backlog as ADR-056 (separate ADR; same pattern)
-- [ ] CLAUDE.md updated with kev-poller in service inventory + port allocation in The Doom Range
+- [x] CLAUDE.md updated with kev-poller in service inventory + port allocation in The Doom Range (port registry table, 2026-10-19)
 
 ---
 
