@@ -22,24 +22,24 @@ toolchain go1.27.2
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/cilium/ebpf v0.22.0
-	github.com/cloudflare/circl v1.6.3
-	github.com/fsnotify/fsnotify v1.7.0
+	github.com/cloudflare/circl v1.6.5
+	github.com/fsnotify/fsnotify v1.10.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
-	github.com/lib/pq v1.10.9
-	github.com/rs/zerolog v1.31.0
-	github.com/sony/gobreaker v0.5.0
+	github.com/lib/pq v1.12.3
+	github.com/rs/zerolog v1.35.1
+	github.com/sony/gobreaker v1.0.0
 	github.com/unheaded/doomgeneric v0.0.0
-	github.com/yuin/goldmark v1.7.17
-	golang.org/x/crypto v0.57.0
-	golang.org/x/sys v0.48.0
-	golang.org/x/text v0.42.0
-	golang.org/x/time v0.5.0
-	google.golang.org/grpc v1.83.2
-	google.golang.org/protobuf v1.36.11
+	github.com/yuin/goldmark v1.8.6
+	golang.org/x/crypto v0.58.0
+	golang.org/x/sys v0.49.0
+	golang.org/x/text v0.43.0
+	golang.org/x/time v0.16.0
+	google.golang.org/grpc v1.84.0
+	google.golang.org/protobuf v1.36.12
 	gopkg.in/yaml.v3 v3.0.1
-	modernc.org/sqlite v1.44.3
+	modernc.org/sqlite v1.60.1
 )
 
 replace (
@@ -50,15 +50,14 @@ replace (
 
 require (
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/mattn/go-colorable v0.1.13 // indirect
-	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mattn/go-colorable v0.1.14 // indirect
+	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	golang.org/x/exp v0.0.0-20251023183803-a4bb9ffd2546 // indirect
 	golang.org/x/net v0.60.0 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
-	modernc.org/libc v1.67.6 // indirect
+	modernc.org/libc v1.77.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
-	modernc.org/memory v1.11.0 // indirect
+	modernc.org/memory v1.12.1 // indirect
 )
