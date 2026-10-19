@@ -305,8 +305,8 @@ func TestLogStream_ServeHTTP_SSEHeaders(t *testing.T) {
 	if co := w.Header().Get("Connection"); co != "keep-alive" {
 		t.Errorf("Connection = %q, want keep-alive", co)
 	}
-	if ac := w.Header().Get("Access-Control-Allow-Origin"); ac != "*" {
-		t.Errorf("Access-Control-Allow-Origin = %q, want *", ac)
+	if ac := w.Header().Get("Access-Control-Allow-Origin"); ac != "" {
+		t.Errorf("Access-Control-Allow-Origin = %q: the log stream is same-origin only", ac)
 	}
 }
 

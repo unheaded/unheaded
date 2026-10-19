@@ -141,3 +141,39 @@ func TestReadyHandler_ReturnsOKWhenReady(t *testing.T) {
 		t.Errorf("ready: status = %d, want 200", w.Code)
 	}
 }
+
+// TestCORSAllowlist: no Access-Control-Allow-Origin unless the origin is
+// listed in CORS_ALLOWED_ORIGINS; "*" in the list is ignored.
+func TestCORSAllowlist(t *testing.T) {
+	hs := &HTTPServer{}
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(http.StatusOK) })
+	do := func(method, origin string) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, "/api/v1/dictionaries", nil)
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+		rr := httptest.NewRecorder()
+		hs.corsMiddleware(next).ServeHTTP(rr, req)
+		return rr
+	}
+
+	t.Setenv("CORS_ALLOWED_ORIGINS", "")
+	if rr := do(http.MethodDelete, "https://evil.example"); rr.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatal("an unlisted origin got CORS headers")
+	}
+
+	t.Setenv("CORS_ALLOWED_ORIGINS", "*, http://west:20000")
+	if rr := do(http.MethodGet, "https://evil.example"); rr.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatal(`"*" in the list opened every origin`)
+	}
+	rr := do(http.MethodGet, "http://west:20000")
+	if rr.Header().Get("Access-Control-Allow-Origin") != "http://west:20000" || rr.Header().Get("Vary") != "Origin" {
+		t.Fatalf("listed origin: %v", rr.Header())
+	}
+	if rr := do(http.MethodOptions, "http://west:20000"); rr.Code != http.StatusNoContent {
+		t.Fatalf("preflight from a listed origin = %d", rr.Code)
+	}
+	if rr := do(http.MethodGet, ""); rr.Code != http.StatusOK || rr.Header().Get("Access-Control-Allow-Origin") != "" {
+		t.Fatal("a request without Origin must pass through untouched")
+	}
+}

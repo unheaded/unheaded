@@ -84,7 +84,9 @@ func (ls *LogStream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	// No Access-Control-Allow-Origin: the dashboard reads this stream from
+	// its own origin (/ws/logs). A wildcard let any web page in an
+	// operator's browser read every service's live logs.
 	flusher.Flush()
 
 	ctx := r.Context()

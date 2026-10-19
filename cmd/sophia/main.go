@@ -36,6 +36,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -316,18 +317,33 @@ func (hs *HTTPServer) recoveryMiddleware(next http.Handler) http.Handler {
 	})
 }
 
-// corsMiddleware adds CORS headers.
+// corsMiddleware answers CORS only for origins listed in
+// CORS_ALLOWED_ORIGINS (comma-separated, exact scheme://host[:port]). It
+// sent Access-Control-Allow-Origin: * with POST, PUT and DELETE allowed,
+// so any web page open in an operator's browser on the LAN could change
+// Sophia's dictionaries (no auth unless AUTH_ENABLED). Nothing in the repo
+// calls Sophia from a browser; server-side clients do not use CORS.
 func (hs *HTTPServer) corsMiddleware(next http.Handler) http.Handler {
+	allowed := map[string]bool{}
+	for _, o := range strings.Split(os.Getenv("CORS_ALLOWED_ORIGINS"), ",") {
+		if o = strings.TrimSpace(o); o != "" && o != "*" {
+			allowed[o] = true
+		}
+	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
-
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
+		origin := r.Header.Get("Origin")
+		if origin == "" || !allowed[origin] {
+			next.ServeHTTP(w, r)
 			return
 		}
-
+		w.Header().Set("Access-Control-Allow-Origin", origin)
+		w.Header().Add("Vary", "Origin")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Request-ID")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
 		next.ServeHTTP(w, r)
 	})
 }
