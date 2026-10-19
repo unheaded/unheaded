@@ -160,18 +160,18 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 | Tool | Purpose | Where |
 |------|---------|-------|
 | gosec | Go static analysis, ratcheted per rule | `scripts/check-gosec-ratchet.sh`, CI |
-| govulncheck, cargo-audit, grype, trivy | Dependency and image vulnerabilities | `.github/workflows/` |
+| govulncheck, cargo-audit, pip-audit, grype, trivy | Dependency and image vulnerabilities; pip-audit's accepted findings may only shrink | `.github/workflows/`, `scripts/check-python-audit.sh` |
+| Dependency baseline | No third-party package (go.sum, Cargo.lock, requirements, package.json) enters unrecorded (ADR-096) | `scripts/check-dependency-baseline.sh` |
+| Image tags | No new floating image tag; the existing ones may only shrink (ADR-102) | `scripts/check-image-tags.sh` |
+| Unit binaries / accounts | Every systemd unit runs a binary the repo builds, as its own sysusers account | `scripts/check-unit-binaries.sh`, `scripts/check-systemd-units.sh` |
 | gitleaks + shrink-only baseline | Secrets in the tree | `scripts/check-secrets-baseline.sh` |
-| bandit, ruff, shellcheck, eslint, clippy | Python, shell, JS and Rust lint (gating) | CI |
+| ruff, shellcheck, eslint, clippy | Python, shell, JS and Rust lint (gating) | CI |
+| bandit, hadolint | Python security lint, Dockerfile lint (reporting only) | CI |
 | syft | SBOM | CI |
 | Meta-gate | Plants a violation in every gate and requires it to fail | `scripts/check-gates-can-fail.sh` |
+| Go fuzz targets | Every package with Fuzz functions, 10 s each, on every security run | `.github/workflows/security.yml` (lich-fuzz) |
 | LICH campaigns | Fuzz / red team (ADR-062); LICH-005 fuzzes `.bpf.o` through the real loader into `bpf(2)` | `tomb/lich/`, `crates/*/fuzz/` |
 | Fuzz targets | MBC interpreter fuzzing | `crates/monad-mbc/fuzz/` |
-
-------|---------|----------|
-| gosec | Go static security analysis | `Makefile` lint target |
-| Fuzz targets | MBC interpreter fuzzing | `crates/monad-mbc/fuzz/` |
-| Lich campaigns | Targeted attack testing | `tests/security/doom/` (planned) |
 | Seccomp profiles | Syscall filtering | `nix/modules/hardening.nix` |
 | Network policies | Firewall rules | `nix/containers/*.nix` |
 
