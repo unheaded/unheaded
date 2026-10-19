@@ -14,7 +14,7 @@
 | Hard Condition | Evidence |
 |---|---|
 | #1 Alerts-only v1 | ✓ pkg/enkrateia tests + zero FS mutations on EAST |
-| #2 Wotan config.* signing | ✓ services/wotan/internal/signing/ + 6 tests |
+| #2 Wotan config.* signing | ✓ services/wotan/internal/signing/ + 6 tests. **Corrected 2026-10-19:** it was not met. The signature was checked against the public key the publisher sent with it (anyone could self-sign), the HTTP paths accepted config.* unsigned, and nothing stopped a replay. Fixed in 472290bd and a6a61d3c: trusted keys only (`topics.signing_keys`), HTTP refuses config.*, signed time + replay window. Heimdall also did not verify its baseline's seal until 2c554119 |
 | #3 Baseline immutability (dm-verity) | DEFERRED to v2 (PoC scope) |
 | #4 HSM-grade key + quarterly rotation | DOCUMENTED (dev keys for spike) |
 | #5 Semantic-aware drift (v2) | DEFERRED — v1 is byte-level alerts |
