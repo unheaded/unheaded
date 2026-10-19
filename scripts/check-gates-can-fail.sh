@@ -519,6 +519,16 @@ provoke_systemd_units() {
     grep -q '^SystemCallFilter=~@privileged ~@resources' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_git_mirror() {
+    # Contract (FND-005): the mirror never loses a ref west deleted. Switch
+    # to push --mirror, which prunes them.
+    local f="scripts/backup/git-mirror.sh"
+    backup "${f}"
+    sed -i "s|push --quiet --force \"\$DEST\" '+refs/\*:refs/\*'|push --quiet --mirror \"\$DEST\"|" "${REPO_ROOT}/${f}"
+    grep -q 'push --quiet --mirror' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -540,6 +550,7 @@ check-well-migrations|provoke_well_migrations|fast|an untracked migration file t
 check-well-lint|provoke_well_lint|fast|service code that runs CREATE TABLE at startup (a new ddl-outside-ledger finding)
 check-k8s-well-initdb|provoke_k8s_well_initdb|fast|a migration edited without re-rendering the Kubernetes initdb ConfigMap
 check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
+backup/test-git-mirror|provoke_git_mirror|fast|git-mirror.sh switched to push --mirror, which prunes refs east must keep
 well/test-compliance-schema|provoke_well_compliance_schema|slow|audit_events' TRUNCATE guard removed from 015 (needs docker)
 well/test-migrate|provoke_well_migrate|slow|the runner's drift refusal removed, so apply runs past an edited file (needs docker)
 well/test-backup-restore|provoke_well_backup_restore|slow|db-backup.sh leaving unheaded_ops out of the set (needs docker)

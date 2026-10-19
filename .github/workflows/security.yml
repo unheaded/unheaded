@@ -444,6 +444,11 @@ jobs:
       - name: Deployed config, pg_hba and TLS
         run: ./scripts/well/test-config.sh
 
+      # FND-005: the repository mirror to east keeps refs west deleted or
+      # rewrote. Local throwaway repos only; no network.
+      - name: Repository mirror keeps what west drops
+        run: ./scripts/backup/test-git-mirror.sh
+
   # ============================================================================
   # Alert rules: every Prometheus rule parses and its promtool tests pass
   # ============================================================================

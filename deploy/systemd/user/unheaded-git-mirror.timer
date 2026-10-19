@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Every 30 minutes (Stevie 2026-09-30, FND-005). Persistent: a run missed
+# while west was off happens shortly after it is back.
+
+[Unit]
+Description=Unheaded: push every repository ref to east every 30 minutes
+
+[Timer]
+OnCalendar=*:0/30
+Persistent=true
+RandomizedDelaySec=60
+
+[Install]
+WantedBy=timers.target

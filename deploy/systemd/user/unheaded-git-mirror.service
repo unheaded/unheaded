@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# FND-005: push every ref of ~/tmp/unheaded to a bare repository on east.
+# A USER unit, not a system service: it reads the operator's own repository
+# and uses the operator's own ssh key to east, so a separate account would
+# need read access into a home directory and a key of its own for no gain.
+#
+# Install (as the operator, on west):
+#   GIT_MIRROR_DEST=govan@east:backups/unheaded.git scripts/backup/git-mirror.sh init
+#   mkdir -p ~/.config/systemd/user ~/.config/unheaded
+#   cp deploy/systemd/user/unheaded-git-mirror.{service,timer} ~/.config/systemd/user/
+#   echo 'GIT_MIRROR_DEST=govan@east:backups/unheaded.git' > ~/.config/unheaded/git-mirror.env
+#   systemctl --user daemon-reload && systemctl --user enable --now unheaded-git-mirror.timer
+#   sudo loginctl enable-linger "$USER"     # keep running while logged out
+
+[Unit]
+Description=Unheaded: push every repository ref to east (FND-005)
+
+[Service]
+Type=oneshot
+EnvironmentFile=%h/.config/unheaded/git-mirror.env
+ExecStart=%h/tmp/unheaded/scripts/backup/git-mirror.sh push
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=10min
