@@ -63,7 +63,8 @@ findings:
     step: 1
     plan: >-
       On GitHub at 289aabcb every gate bit except check-clippy, INCONCLUSIVE because clippy was already red (protoc missing). 7682968c
-      installs protoc in this job too; resolves when pushed
+      installs protoc in this job too. At f6047659 (2026-10-19) red again: live-path-inventory INCONCLUSIVE, docs/LIVE-PATHS.md not
+      regenerated after 25c56cf9 gave trace-collector a unit. f6e10ed7 regenerates it; resolves when pushed
 
   # --- step 2: sysctl (reversible, no lockout) -----------------------------
   # --- step 3: auditd -------------------------------------------------------
@@ -333,6 +334,18 @@ findings:
     step: 4
     accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: chmod 600 /etc/ssh/sshd_config /etc/ssh/sshd_config.d/99-unheaded.conf (and any drop-in created later, including 00-unheaded.conf)
+
+  # Our own drop-in, not the host's SSH settings that west's acceptance
+  # covers: deploy/systemd/unheaded-well-offsite.service told the installer
+  # 0644. Fixed to 0600 there 2026-10-19; east's installed copy still 0644.
+  - source: "host-probe:east:perm-sshd-config"
+    severity: low
+    class: fileperm
+    opened: 2026-10-18
+    exposure: world-readable sshd drop-in for the well-backup-copy chroot (no secrets in it)
+    lockout: none
+    step: 4
+    plan: on east, sudo chmod 600 /etc/ssh/sshd_config.d/60-unheaded-well-offsite.conf (sshd reads it as root; no reload needed)
 
   # --- CIS 1.1.2.x mounts (2026-09-30) ------------------------------------
 

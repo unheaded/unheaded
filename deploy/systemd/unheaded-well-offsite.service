@@ -17,7 +17,7 @@
 #   sudo install -d -o root -g root -m 0755 /var/lib/well-backup-copy /var/lib/well-backup-copy/.ssh /var/backups/unheaded-well-west
 #   sudo install -d -o well-backup-copy -g well-backup-copy -m 0700 /var/backups/unheaded-well-west/sets
 #   (west's id_ed25519.pub) | sudo install -m 0644 /dev/stdin /var/lib/well-backup-copy/.ssh/authorized_keys
-#   sudo install -m 0644 deploy/east/sshd-well-offsite.conf /etc/ssh/sshd_config.d/60-unheaded-well-offsite.conf
+#   sudo install -m 0600 deploy/east/sshd-well-offsite.conf /etc/ssh/sshd_config.d/60-unheaded-well-offsite.conf
 #   sudo sshd -t && sudo systemctl reload ssh
 #   sudo install -m 0755 scripts/well/offsite-check.sh /usr/local/lib/unheaded/well/
 #   sudo cp deploy/systemd/unheaded-well-offsite-check.{service,timer} /etc/systemd/system/
