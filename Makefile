@@ -1,4 +1,4 @@
-.PHONY: all build test clean ebpf containers dev deploy docs help \
+.PHONY: all build test clean ebpf containers dev deploy docs help binaries install \
        ebpf-shield ebpf-hop ebpf-yaldabaoth ebpf-monad-cpu \
        build-monad-mbc pin-ebpf unpin-ebpf test-ebpf-compat \
        test-e2e-bpf deploy-down deploy-status deploy-lxd deploy-logs \
@@ -35,6 +35,20 @@ help: ## Show this help
 
 build: build-daemon build-services ## Build all Go binaries
 	@echo "✓ All binaries built"
+
+# ADR-085 Phase 1: the binaries deploy/systemd runs, from one map
+# (scripts/build-binaries.sh). Build as yourself, install as root: the
+# install step only copies, so root never runs the Go toolchain.
+RELEASE_DIR ?= $(BINARY_DIR)/release
+PREFIX ?= /usr/local
+
+binaries: ## Build every binary the systemd units run into bin/release/
+	scripts/build-binaries.sh --out $(RELEASE_DIR)
+
+install: ## Copy bin/release/* to $(DESTDIR)$(PREFIX)/bin (run make binaries first, then sudo make install)
+	@test -d $(RELEASE_DIR) || { echo "no $(RELEASE_DIR): run 'make binaries' first (not as root)"; exit 1; }
+	install -d $(DESTDIR)$(PREFIX)/bin
+	install -m 0755 $(RELEASE_DIR)/* $(DESTDIR)$(PREFIX)/bin/
 
 build-daemon: ## Build unheaded-daemon
 	@echo "Building unheaded-daemon..."

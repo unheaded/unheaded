@@ -180,6 +180,10 @@ jobs:
       - name: Third-party packages may only shrink
         run: ./scripts/check-dependency-baseline.sh
 
+      # ADR-085: a unit must not run a /usr/local/bin binary nothing builds.
+      - name: Every unit's binary is built by scripts/build-binaries.sh
+        run: ./scripts/check-unit-binaries.sh
+
       - name: gitleaks (full history — reporting only, see PRE-PUBLIC-BLOCKERS.md)
         continue-on-error: true
         run: /tmp/gitleaks git --no-banner --redact --exit-code 1 .

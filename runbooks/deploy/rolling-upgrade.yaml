@@ -34,7 +34,7 @@ steps:
   - name: publish-to-repo
     action: shell
     command: |
-      for deb in /tmp/unheaded-debs/*.deb; do
+      for deb in ~/tmp/unheaded/dist/debs/*.deb; do
         reprepro -b /var/lib/apt-repo includedeb noble "$deb" 2>/dev/null
       done
     description: "Publish new packages to APT repo"

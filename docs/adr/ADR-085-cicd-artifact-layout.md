@@ -110,6 +110,22 @@ kernel work reaches a stable point. Phases are ordered by dependency.
 - Ensure all binaries in `deploy/systemd/*.service` `ExecStart` lines exist after
   `make install`
 
+**Progress (2026-10-19):** `scripts/build-binaries.sh` holds the one map from
+binary to Go package for everything `deploy/systemd` runs (16, plus
+node_exporter named as third-party). `make binaries` builds them into
+`bin/release/` as the operator; `sudo make install` only copies them to
+`$(DESTDIR)$(PREFIX)/bin` (default `/usr/local/bin`), so root never runs the
+Go toolchain. `scripts/check-unit-binaries.sh` (security.yml, meta-gate)
+fails when a unit points at a binary the map does not build.
+`scripts/build-all-debs.sh` uses the same builder: a failed build fails the
+run (it used to print SKIP), nothing goes through fixed `/tmp` paths, debs
+land in `dist/debs/`, and modes no longer follow the builder's umask (east's
+installed units are 0664 from that, FND-012). Still open here: the
+`make install-east` step, and packages still install to `/opt/unheaded/bin`,
+not `/usr/local/bin` as this ADR says (changing it moves east's binaries;
+do it with the next east rebuild). The `unheaded` system user above is
+retired: each service has its own account (`deploy/sysusers.d`).
+
 ### Phase 2 — `.deb` packaging per service
 
 - One `.deb` per Kingdom service (timeguru, captain, architect, etc. + huginn)

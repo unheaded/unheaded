@@ -538,6 +538,15 @@ provoke_dependency_baseline() {
     printf 'meta-gate-probe-package==0.0.1\n' >>"${REPO_ROOT}/${f}"
 }
 
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_unit_binaries() {
+    # Contract (ADR-085): a unit runs only binaries build-binaries.sh builds.
+    local f="deploy/systemd/unheaded-akira.service"
+    backup "${f}"
+    sed -i 's|^ExecStart=/usr/local/bin/akira |ExecStart=/usr/local/bin/akira-unbuilt |' "${REPO_ROOT}/${f}"
+    grep -q '^ExecStart=/usr/local/bin/akira-unbuilt ' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -560,6 +569,7 @@ check-well-lint|provoke_well_lint|fast|service code that runs CREATE TABLE at st
 check-k8s-well-initdb|provoke_k8s_well_initdb|fast|a migration edited without re-rendering the Kubernetes initdb ConfigMap
 check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
 check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package added to raft/requirements.txt
+check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
 backup/test-git-mirror|provoke_git_mirror|fast|git-mirror.sh switched to push --mirror, which prunes refs east must keep
 well/test-compliance-schema|provoke_well_compliance_schema|slow|audit_events' TRUNCATE guard removed from 015 (needs docker)
 well/test-migrate|provoke_well_migrate|slow|the runner's drift refusal removed, so apply runs past an edited file (needs docker)
@@ -590,6 +600,7 @@ well/set-role-passwords|sets role passwords from the environment (runbooks); no 
 well/make-tls|makes TLS material outside the repo; exercised by well/test-config, no verdict of its own
 db-backup|writes a backup set (runbooks/data/postgresql-backup-restore.yaml); its refusals and the set it writes are proven by well/test-backup-restore
 well/restore-drill|needs a backup set to run; its refusals are provoked by well/test-backup-restore (flipped byte, wrong count, unlisted dump)
+build-binaries|builds the unit binaries (make binaries, build-all-debs); its --check-units verdict is check-unit-binaries
 well/test-converge-live-app|compares the live Well (or a restored set) with a fresh bootstrap; needs that Well, runbook verify step
 "
 

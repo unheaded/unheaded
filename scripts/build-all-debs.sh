@@ -1,36 +1,30 @@
 #!/bin/bash
+# SPDX-License-Identifier: GPL-3.0-or-later
 # build-all-debs.sh — Build .deb packages for all Unheaded services
-# ADR-026: .deb Packaging Pipeline
+# ADR-026: .deb Packaging Pipeline. Binaries come from
+# scripts/build-binaries.sh (ADR-085); a binary that fails to build fails
+# this script instead of being skipped.
 set -euo pipefail
+# Package modes must not depend on the builder's umask (0002 made unit
+# files 0664 and directories 0775 inside the .deb).
+umask 022
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 VERSION="${1:-1.0.0}"
-OUTPUT_DIR="/tmp/unheaded-debs"
+# Not a fixed /tmp path: another local user could pre-create it.
+OUTPUT_DIR="${DEB_OUTPUT_DIR:-${PROJECT_ROOT}/dist/debs}"
 mkdir -p "$OUTPUT_DIR"
+BUILD_DIR="$(mktemp -d)"
+trap 'rm -rf "$BUILD_DIR"' EXIT
+SERVICES=(wotan unheaded-daemon dashboard-backend kanban-app akira timeguru captain architect micromanager)
 
 echo "=============================================="
 echo "UNHEADED .DEB BUILD — v${VERSION}"
 echo "=============================================="
 
-# Build all Go binaries first
-echo "Building Go binaries..."
-cd "$PROJECT_ROOT"
-go build -ldflags="-s -w" ./... 2>&1 | tail -3
-echo "  Go build complete"
-
-
-# Build binary for each service
-echo ""
 echo "Building service binaries..."
-go build -ldflags="-s -w" -o /tmp/build-wotan ./services/wotan/cmd/wotan/ 2>/dev/null && echo "  wotan: OK" || echo "  wotan: SKIP"
-go build -ldflags="-s -w" -o /tmp/build-unheaded-daemon ./cmd/unheaded-daemon/ 2>/dev/null && echo "  daemon: OK" || echo "  daemon: SKIP"
-go build -ldflags="-s -w" -o /tmp/build-dashboard-backend ./cmd/dashboard-backend/ 2>/dev/null && echo "  dashboard: OK" || echo "  dashboard: SKIP"
-go build -ldflags="-s -w" -o /tmp/build-kanban-app ./cmd/kanban-app/ 2>/dev/null && echo "  kanban: OK" || echo "  kanban: SKIP"
-go build -ldflags="-s -w" -o /tmp/build-akira ./cmd/akira/ 2>/dev/null && echo "  akira: OK" || echo "  akira: SKIP"
-go build -ldflags="-s -w" -o /tmp/build-timeguru ./services/timeguru/cmd/timeguru/ 2>/dev/null && echo "  timeguru: OK" || echo "  timeguru: SKIP"
-go build -ldflags="-s -w" -o /tmp/build-captain ./services/captain/cmd/captain/ 2>/dev/null && echo "  captain: OK" || echo "  captain: SKIP"
-go build -ldflags="-s -w" -o /tmp/build-architect ./services/architect/cmd/architect/ 2>/dev/null && echo "  architect: OK" || echo "  architect: SKIP"
-go build -ldflags="-s -w" -o /tmp/build-micromanager ./services/micromanager/cmd/micromanager/ 2>/dev/null && echo "  micromanager: OK" || echo "  micromanager: SKIP"
+cd "$PROJECT_ROOT"
+"$PROJECT_ROOT/scripts/build-binaries.sh" --out "$BUILD_DIR" "${SERVICES[@]}"
 
 # deploy/systemd unit for each packaged binary
 unit_for() {
@@ -44,12 +38,8 @@ unit_for() {
 
 # Build .deb for each service
 BUILT=0
-for svc in wotan unheaded-daemon dashboard-backend kanban-app akira timeguru captain architect micromanager; do
-    BIN="/tmp/build-${svc}"
-    if [ ! -f "$BIN" ]; then
-        echo "  SKIP: $svc (binary not found)"
-        continue
-    fi
+for svc in "${SERVICES[@]}"; do
+    BIN="${BUILD_DIR}/${svc}"
 
     PKG_NAME="unheaded-${svc}"
     PKG_DIR="${OUTPUT_DIR}/${PKG_NAME}_${VERSION}"
@@ -118,6 +108,6 @@ echo ""
 echo "=============================================="
 echo "BUILD COMPLETE: ${BUILT} packages"
 echo "=============================================="
-ls -lh ${OUTPUT_DIR}/*.deb 2>/dev/null
+ls -lh "${OUTPUT_DIR}"/*.deb 2>/dev/null
 echo ""
 echo "To publish: reprepro -b /var/lib/apt-repo includedeb noble ${OUTPUT_DIR}/*.deb"
