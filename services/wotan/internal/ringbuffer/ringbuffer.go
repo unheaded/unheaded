@@ -50,7 +50,10 @@ func New(size int) *RingBuffer {
 		size = 1000 // default size
 	}
 	return &RingBuffer{
-		buffer: make([]*Message, size),
+		// Slots grow as messages arrive (grow), up to size. Allocating all
+		// of them up front cost every room 80 KB at the default 10,000, and
+		// any approved client can create rooms by naming new topics.
+		buffer: make([]*Message, 0, min(size, initialSlots)),
 		size:   size,
 		head:   0,
 		count:  0,
@@ -111,6 +114,9 @@ func (rb *RingBuffer) Push(msg *Message) (uuid.UUID, bool) {
 		rb.lastSeq++
 	}
 	msg.Seq = rb.lastSeq
+	if rb.head == len(rb.buffer) {
+		rb.grow()
+	}
 	rb.buffer[rb.head] = msg
 	rb.bytes += len(msg.Content)
 	rb.head = (rb.head + 1) % rb.size
@@ -259,6 +265,23 @@ func (rb *RingBuffer) LastSeq() int64 {
 }
 
 // Count returns the current number of messages in the buffer
+// initialSlots is a new buffer's first allocation.
+const initialSlots = 16
+
+// grow adds one slot, doubling the backing array (never past size). It is
+// only called while the buffer has not yet wrapped: head can reach size
+// only once all size slots exist, so every (oldest+i)%size index below
+// count stays inside the slice.
+func (rb *RingBuffer) grow() {
+	if cap(rb.buffer) == len(rb.buffer) {
+		n := min(rb.size, max(initialSlots, 2*cap(rb.buffer)))
+		b := make([]*Message, len(rb.buffer), n)
+		copy(b, rb.buffer)
+		rb.buffer = b
+	}
+	rb.buffer = rb.buffer[:len(rb.buffer)+1]
+}
+
 // MessageOverhead is what a held message costs beyond its Content
 // (Message struct, IDs, its slot). Measured 2026-10-19: 500,000 messages of
 // ~440 bytes held 210 MiB of content in 290 MiB of heap, ~160 bytes each;

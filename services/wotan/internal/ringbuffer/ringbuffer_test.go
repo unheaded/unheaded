@@ -4,6 +4,7 @@
 package ringbuffer
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -1211,5 +1212,51 @@ func TestFootprintAndEvictOldest(t *testing.T) {
 	rb.Push(createTestMessage("r", "cc"))
 	if msgs := rb.Get(); len(msgs) != 2 || msgs[1].Content != "cc" || rb.Bytes() != 10 {
 		t.Fatalf("after push: %+v bytes %d", msgs, rb.Bytes())
+	}
+}
+
+// TestSlotsGrowOnDemand: a buffer allocates slots as messages arrive, not
+// all of size up front, and behaves exactly as before across the point
+// where it starts to wrap.
+func TestSlotsGrowOnDemand(t *testing.T) {
+	const size = 100
+	rb := New(size)
+	if cap(rb.buffer) > initialSlots {
+		t.Fatalf("new buffer allocated %d slots", cap(rb.buffer))
+	}
+	contents := func() []string {
+		var out []string
+		for _, m := range rb.Get() {
+			out = append(out, m.Content)
+		}
+		return out
+	}
+	for i := 0; i < 40; i++ {
+		rb.Push(createTestMessage("r", fmt.Sprintf("m%03d", i)))
+	}
+	if cap(rb.buffer) > size || len(rb.buffer) != 40 {
+		t.Fatalf("after 40: len %d cap %d", len(rb.buffer), cap(rb.buffer))
+	}
+	// Evictions and a delete while still growing, then keep pushing.
+	rb.EvictOldest()
+	rb.EvictOldest()
+	victim := rb.Get()[5]
+	if !rb.Delete(victim.ID, victim.CreatorID, victim.Content) {
+		t.Fatal("delete failed")
+	}
+	for i := 40; i < 250; i++ {
+		rb.Push(createTestMessage("r", fmt.Sprintf("m%03d", i)))
+	}
+	if cap(rb.buffer) != size || len(rb.buffer) != size {
+		t.Fatalf("after wrapping: len %d cap %d, want %d", len(rb.buffer), cap(rb.buffer), size)
+	}
+	got := contents()
+	if len(got) != size || got[0] != "m150" || got[size-1] != "m249" {
+		t.Fatalf("after wrapping: %d messages, first %q last %q", len(got), got[0], got[len(got)-1])
+	}
+	for i := 1; i < len(got); i++ {
+		if got[i] <= got[i-1] {
+			t.Fatalf("out of order at %d: %q after %q", i, got[i], got[i-1])
+		}
 	}
 }
