@@ -81,6 +81,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
     -o /build/bin/akira ./cmd/akira
 
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -o /build/bin/kev-poller ./cmd/kev-poller
+
 # ============================================================================
 # STAGE 2: WOTAN - THE FAE CHAMBER
 # ============================================================================
@@ -211,6 +215,32 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:19100/health || exit 1
 
 ENTRYPOINT ["/app/akira"]
+
+# ============================================================================
+# KEV-POLLER: CISA Known Exploited Vulnerabilities feed (ADR-055). Writes to
+# /data (mount a volume there); outbound https to www.cisa.gov only.
+FROM alpine:3.24 AS kev-poller
+
+RUN apk add --no-cache ca-certificates tzdata
+
+# Own account (pkg/uids): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16732 kevpoller && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16732 -G kevpoller kevpoller
+
+WORKDIR /app
+
+COPY --from=builder /build/bin/kev-poller /app/kev-poller
+
+RUN mkdir -p /data && chown 16732:16732 /data && chmod 0750 /data
+
+USER 16732:16732
+
+EXPOSE 19120
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:19120/health || exit 1
+
+ENTRYPOINT ["/app/kev-poller", "--state-dir", "/data"]
 
 # ============================================================================
 FROM alpine:3.24 AS micromanager

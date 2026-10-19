@@ -1,0 +1,128 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# kev-poller as a DaemonSet: one poller per node (ADR-055 Phase 2), each
+# keeping its own copy of the CISA KEV catalog in the node's
+# /var/lib/unheaded/threat-feeds/cisa-kev. Leader election (one puller,
+# N standbys) is ADR-055 Phase 5.
+#
+# The hostPath directory must be owned by the pod's uid before the first
+# start (kubelet creates DirectoryOrCreate paths root:root 0755, and a hostPath
+# ignores fsGroup):
+#   sudo install -d -m 0750 -o 16732 -g 16732 /var/lib/unheaded/threat-feeds/cisa-kev
+# A node that also runs deploy/systemd/unheaded-kev-poller.service must pick
+# one of the two: they would share the directory under different uids.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: unheaded-threat-feeds
+  # The pod meets "restricted" except for the hostPath volume, which every
+  # Pod Security level above "privileged" refuses. So enforce is privileged
+  # and restricted is kept as warn + audit: anything else that drifts from
+  # restricted still shows up.
+  labels:
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kev-poller
+  namespace: unheaded-threat-feeds
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kev-poller
+  namespace: unheaded-threat-feeds
+  labels:
+    app: kev-poller
+    tier: threat-feeds
+spec:
+  selector:
+    matchLabels:
+      app: kev-poller
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: kev-poller
+        tier: threat-feeds
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "19120"
+    spec:
+      serviceAccountName: kev-poller
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: 16732
+        runAsGroup: 16732
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: kev-poller
+        image: ghcr.io/unheaded/kev-poller:0.1.0-alpha
+        args: ["--interval", "1h", "--node", "$(NODE_NAME)"]
+        env:
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef: { fieldPath: spec.nodeName }
+        - name: WOTAN_ADDR
+          value: "wotan.unheaded.svc.cluster.local:18000"
+        ports:
+        - containerPort: 19120
+          name: http
+        resources:
+          requests: { memory: "32Mi", cpu: "10m" }
+          limits: { memory: "128Mi", cpu: "200m" }
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        livenessProbe:
+          httpGet: { path: /health, port: http }
+          periodSeconds: 30
+        # Ready once a valid catalog is stored, so a node that has never
+        # reached CISA shows NotReady instead of serving nothing.
+        readinessProbe:
+          httpGet: { path: /ready, port: http }
+          periodSeconds: 30
+        volumeMounts:
+        - name: feed
+          mountPath: /data
+        - name: tmp
+          mountPath: /tmp
+      volumes:
+      - name: feed
+        hostPath:
+          path: /var/lib/unheaded/threat-feeds/cisa-kev
+          type: Directory
+      - name: tmp
+        emptyDir: { sizeLimit: 16Mi }
+---
+# Egress: DNS, https to the world (CISA's CDN has no stable address set), and
+# Wotan. Nothing may connect in except to the probe/metrics port.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: kev-poller
+  namespace: unheaded-threat-feeds
+spec:
+  podSelector:
+    matchLabels:
+      app: kev-poller
+  policyTypes: ["Ingress", "Egress"]
+  ingress:
+  - ports:
+    - { port: 19120, protocol: TCP }
+  egress:
+  - ports:
+    - { port: 53, protocol: UDP }
+    - { port: 53, protocol: TCP }
+  - ports:
+    - { port: 443, protocol: TCP }
+  - ports:
+    - { port: 18000, protocol: TCP }

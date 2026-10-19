@@ -144,6 +144,65 @@ Per Kingdom lore (Lore + Kingdom skills), this service maps to:
 
 ---
 
+## Progress
+
+| phase | state (2026-10-19) | where |
+|---|---|---|
+| 0. K8s lab on WEST+EAST | **absent**: no k3s, kubelet or microk8s on west or east (checked 2026-10-19) | ADR-047 |
+| 1. service | **built and tested**; `--once` against the live feed: catalog 2026.10.16, 1748 entries; second pull a 304; seeded with the 2026-04-27 archive it reports the 165 CVEs added since | `cmd/kev-poller`, `pkg/threatfeed/kev` |
+| 2. DaemonSet | **manifest written, not applied** (no cluster) | `deploy/k8s/kev-poller/daemonset.yaml` |
+| 2b. systemd | **unit written, not installed**: the always-on path that needs no cluster | `deploy/systemd/unheaded-kev-poller.service` |
+| 3. threat-register updater | open | |
+| 4. NVD poller | open | |
+| 5. leader election | open | |
+
+Built differently from the text above, and why:
+
+- **Location.** `cmd/kev-poller` + `pkg/threatfeed/kev` (the repo's layout for
+  binaries and libraries), not `services/sentinel-feeds/`. `k8s/` does not exist;
+  manifests live under `deploy/k8s/` where the `pkg/uids` gate checks them.
+- **Name.** `kev-poller`, not Munin: ADR-086 already took Muninn for the
+  observability pipeline.
+- **Port 19120** (`pkg/ports.KEVPoller`), uid 16732 (`pkg/uids`), host
+  account `unheaded-kev-poller` (sysusers), Wotan display name `kev-poller`
+  (auto-approved in `configs/wotan.yaml`).
+- **Interval** is any duration from 15m to 24h (default 1h), from
+  `--interval` or `KEV_PULL_INTERVAL`; `KEV_FEED_URL` and `KEV_OUTPUT_PATH`
+  as specified.
+- **Polite pulls.** Conditional GET (ETag / If-Modified-Since): an unchanged
+  catalog costs a 304. https only, no redirect off https, 32 MiB body cap.
+- **Validation before replacing the last good copy:** count matches the
+  list, every cveID is `CVE-YYYY-NNNN+` and unique, no trailing data. A bad
+  feed, an HTTP error or a write failure keeps the previous catalog; retries
+  back off from 1m to the interval.
+- **Storage.** `latest.json` (the bytes as published), `state.json`
+  (sha256, version, count, validators), `snapshots/<UTC>-<sha8>.json` only
+  when the content changes, pruned after 30 days (`--keep`), newest always
+  kept. Writes are temp-file + rename.
+- **Wotan.** `threats.cisa-kev.updates` on every good pull (version, count,
+  sha256, changed, added/removed counts). `threats.cisa-kev.delta` only when
+  something changed, in chunks of 50 entries (a backfill can be hundreds;
+  Wotan bodies are capped at 1 MB), removed IDs in the first chunk. The first
+  catalog a poller ever stores is a baseline: no delta.
+- **Metrics:** `unheaded_kev_pull_{success,failure}_total`,
+  `unheaded_kev_last_pull_timestamp_seconds`,
+  `unheaded_kev_last_success_timestamp_seconds`, `unheaded_kev_total_count`,
+  `unheaded_kev_delta_count`, plus `unheaded_http_*`. Alerts
+  `KEVFeedStale` (6h), `KEVFeedExpired` (7 days, ADR-052), `KEVPollerDown`
+  in `monitoring/prometheus/rules/threat-feeds.yml` (promtool-tested), scrape
+  job `kev_poller`.
+- `/ready` is 503 until a valid catalog is stored (pulled, or loaded at
+  start); `GET /api/v1/kev` shows the stored state, the last error and the
+  next pull.
+
+To make it always on (Stevie: host change):
+`go build -o kev-poller ./cmd/kev-poller && sudo install -m 0755 kev-poller /usr/local/bin/`,
+then `sudo systemd-sysusers` with the repo's `deploy/sysusers.d/unheaded.conf`,
+install the unit, `systemctl enable --now unheaded-kev-poller`. Wotan
+needs a restart to pick up the new auto-approve entry.
+
+---
+
 ## Alternatives considered
 
 1. **Continue manual pulls per Round Table**. Rejected — Stevie's directive explicitly requires always-on; manual is what failed in this Round Table when the proxy 403'd.
@@ -159,7 +218,7 @@ Per Kingdom lore (Lore + Kingdom skills), this service maps to:
 This ADR is "Planned" until each of the following lands. It flips to "Accepted" when:
 
 - [ ] Phase 0 verified (K8s cluster exists on WEST + EAST, or Phase 0 sub-plan is in-flight)
-- [ ] Phase 1 service runnable as `kev-poller --once` and passes smoke test
+- [x] Phase 1 service runnable as `kev-poller --once` and passes smoke test (2026-10-19)
 - [ ] Phase 2 DaemonSet deployed; 24h of clean operation observed
 - [ ] Phase 3 threat-register-updater closes the auto-refresh loop
 - [ ] ADR-INDEX updated: ADR-055 status Planned → Accepted

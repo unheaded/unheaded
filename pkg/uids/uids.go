@@ -75,6 +75,7 @@ const (
 	KanbanApp        = 16729
 	Gateway          = 16730
 	Akira            = 16731
+	KEVPoller        = 16732
 	// AllInOneDev is the Dockerfile's default stage: every service under one
 	// supervisord in one container (development only), so one account.
 	AllInOneDev = 16759
@@ -160,6 +161,7 @@ var Registry = map[string]int{
 	"kanban-app":        KanbanApp,
 	"gateway":           Gateway,
 	"akira":             Akira,
+	"kev-poller":        KEVPoller,
 	"all-in-one-dev":    AllInOneDev,
 
 	"cuirass":      Cuirass,

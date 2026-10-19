@@ -1232,6 +1232,7 @@ All Unheaded services use high ports to avoid conflicts with standard dev tools 
 | monad | 19004 | gRPC | State Management |
 | sophia | 19005 | gRPC | Knowledge Graph |
 | cuirass | 19006 | HTTP | Control Plane Service |
+| kev-poller | 19120 | HTTP | CISA KEV feed poller (ADR-055) |
 | dashboard-backend | 20000 | HTTP/WS | Observability |
 | kanban-app | 20001 | HTTP/WS | User Interface |
 | haproxy-edge | 21080/21443/21404 | HTTP/HTTPS/Stats | Edge LB: TLS term, rate limiting |

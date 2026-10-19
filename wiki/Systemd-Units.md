@@ -31,6 +31,7 @@ The offsite SFTP account is nologin, chrooted and key-only (`deploy/east/sshd-we
 |------|-------------|
 | `unheaded-wotan.service` | Message bus (start first; others depend on it) |
 | `unheaded-akira.service` | Health monitor + service sweep |
+| `unheaded-kev-poller.service` | CISA KEV feed poller (ADR-055), `:19120`; meant to be enabled (always on); not installed yet |
 | `unheaded-dashboard.service` | Dashboard backend, `:20000` |
 | `unheaded-kanban.service` | Task board |
 | `unheaded-timeguru` / `-architect` / `-captain` / `-micromanager.service` | Court services |

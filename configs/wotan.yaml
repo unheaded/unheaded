@@ -30,6 +30,7 @@ topics:
     - "unheaded-daemon"   # logagg display name
     - "cuirass"           # unheaded-daemon's cuirass.drift / cuirass.metrics publisher
     - "trace-collector"
+    - "kev-poller"            # threats.cisa-kev.{updates,delta} (ADR-055)
     - "sophia-service"        # sophia's own gRPC display name (not "sophia")
     - "monad-service"         # monad's own gRPC display name (not "monad")
     - "kanban-app-timeline"   # kanban's timeline subscription

@@ -8,6 +8,7 @@ Every binary under `cmd/`, grouped by role. Ports are in [[Port Registry|Port-Re
 |--------|--------------|------|
 | `wotan` (`services/wotan`) | Message bus, ring buffer, protocol RAM | [[Service-Wotan]] |
 | `akira` | Health daemon: ping/pong sweep, percentage consensus, reports into The Well | [[Service-Akira]] |
+| `kev-poller` | Keeps the CISA KEV catalog current (`:19120`): hourly conditional GET, validated snapshots in `/var/lib/unheaded/threat-feeds/cisa-kev`, deltas on Wotan `threats.cisa-kev.delta` | [[ADR-055-KEV-Poller-Always-on-Service]] |
 | `dashboard-backend` | Metrics + WebSocket backend for the live dashboard (`:20000`) | [[Service-Dashboard-Backend]] |
 | `kanban-app` | Task board backed by The Well | [[Service-Kanban-App]] |
 | `monad` | HTTP API for the Monad state service | [[Protocol-Technical-Summary]] |

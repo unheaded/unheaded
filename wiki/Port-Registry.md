@@ -13,6 +13,7 @@ From `pkg/ports/ports.go` (2026-10-15):
 | Wotan | 18000-18099 | wotan 18000 (HTTP) / 18001 (gRPC) |
 | Core Services | 19000-19099 | timeguru 19000, architect 19001, captain 19002, micromanager 19003, monad 19004, sophia 19005, cuirass 19006, key-mgmt 19007, pqc-verifier 19008, shield 19009, firewall 19010, canary 19011, chaos 19012, QoS 19013, backup-mgr 19014, compliance 19015, NFV 19016, version 19017, anomaly 19018, telemetry-agg 19019 |
 | Health | 19100 | akira |
+| Threat feeds | 19120 | kev-poller (ADR-055) |
 | Applications | 20000-20099 | dashboard-backend 20000, kanban-app 20001, wiki-server 20002 |
 | AI | 20100-20106 | vLLM DeepSeek 20100, vLLM Qwen 20101, Qdrant 20102, BGE-M3 20104, Sophia-Eye 20105, AI web UI 20106 |
 | Gateway | 21000-21443 | gateway HTTP 21000, HTTPS 21443 (in compose, Traefik's dashboard is on `127.0.0.1:21000`) |

@@ -53,6 +53,9 @@ const (
 	// Kingdom health (19100-19109)
 	Akira = 19100 // consensus health daemon (ADR-029)
 
+	// Threat-intel feeds (19120-19129; 19110 is loadbalancer xdpsync's)
+	KEVPoller = 19120 // CISA KEV catalog poller (ADR-055)
+
 	// Applications (20000-20999)
 	DashboardBackend = 20000
 	KanbanApp        = 20001

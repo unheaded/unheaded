@@ -1,0 +1,41 @@
+# Prometheus alert rules - threat-intel feeds (ADR-055)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2026 Stevie Bellis
+#
+# kev-poller pulls the CISA KEV catalog hourly and keeps the last good copy
+# when a pull fails. unheaded_kev_last_success_timestamp_seconds is 0 until
+# the first good pull, so a poller that has never reached CISA reads as
+# stale, not as fresh. ADR-052 allows the threat register to be at most 7
+# days old. Until FND-001 is closed Alertmanager's receiver is `null` and
+# none of this reaches anyone.
+
+groups:
+  - name: threat-feeds
+    interval: 1m
+    rules:
+      - alert: KEVFeedStale
+        expr: time() - unheaded_kev_last_success_timestamp_seconds > 6 * 3600
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "CISA KEV catalog on {{ $labels.instance }} not refreshed for 6h"
+          description: "Last good pull {{ $value | humanizeDuration }} ago; GET /api/v1/kev on the poller shows the last error"
+
+      - alert: KEVFeedExpired
+        expr: time() - unheaded_kev_last_success_timestamp_seconds > 7 * 86400
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "CISA KEV catalog on {{ $labels.instance }} older than 7 days (ADR-052)"
+          description: "Last good pull {{ $value | humanizeDuration }} ago; the threat register is past its freshness limit"
+
+      - alert: KEVPollerDown
+        expr: up{job="kev_poller"} == 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "kev-poller on {{ $labels.instance }} is not answering /metrics"
+          description: "ADR-055 requires it always on; systemctl status unheaded-kev-poller"

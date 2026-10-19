@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# CISA KEV catalog poller (ADR-055). Writes
+# /var/lib/unheaded/threat-feeds/cisa-kev/{latest.json,state.json,snapshots/}
+# and announces changes on Wotan when it is reachable (it runs without it).
+#
+# Install (users first: deploy/sysusers.d/unheaded.conf, see its header):
+#   sudo install -m 0755 kev-poller /usr/local/bin/
+#   sudo cp deploy/systemd/unheaded-kev-poller.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now unheaded-kev-poller   # ADR-055: always on
+
+[Unit]
+Description=Unheaded kev-poller — CISA Known Exploited Vulnerabilities feed
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/adr/ADR-055-kev-poller-always-on-service.md
+After=network-online.target
+Wants=network-online.target
+# Wotan is optional: publishing waits for it, polling does not.
+After=unheaded-wotan.service
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/unheaded/kev-poller.env
+ExecStart=/usr/local/bin/kev-poller --port 19120 --state-dir /var/lib/unheaded/threat-feeds/cisa-kev
+WorkingDirectory=/var/lib/unheaded/threat-feeds/cisa-kev
+Restart=always
+RestartSec=30s
+TimeoutStopSec=15s
+
+LimitNOFILE=1024
+MemoryMax=128M
+
+User=unheaded-kev-poller
+Group=unheaded-kev-poller
+StateDirectory=unheaded/threat-feeds/cisa-kev
+StateDirectoryMode=0750
+UMask=0027
+
+# Sandbox (deploy/systemd/README.md#isolation). The user comes from
+# deploy/sysusers.d/unheaded.conf: system account, /usr/sbin/nologin.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

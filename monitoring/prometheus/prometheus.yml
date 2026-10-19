@@ -127,6 +127,13 @@ scrape_configs:
         labels:
           service: "unheaded-daemon"
 
+  # CISA KEV feed poller, one per host (ADR-055); alerts in rules/threat-feeds.yml
+  - job_name: kev_poller
+    static_configs:
+      - targets:
+          - '[fd00:dead:beef::1]:19120'
+          - '[fd00:dead:beef::2]:19120'
+
   # Dashboard backend (host metrics + service metrics)
   - job_name: dashboard_backend
     static_configs:
