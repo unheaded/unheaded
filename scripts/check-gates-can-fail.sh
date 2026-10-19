@@ -547,6 +547,15 @@ provoke_unit_binaries() {
     grep -q '^ExecStart=/usr/local/bin/akira-unbuilt ' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_python_audit() {
+    # Contract (ADR-096 §3): no unaccepted advisory in pinned Python
+    # requirements. Pin a release with published advisories.
+    local f="raft/requirements.txt"
+    backup "${f}"
+    printf 'jinja2==2.10\n' >>"${REPO_ROOT}/${f}"
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -570,6 +579,7 @@ check-k8s-well-initdb|provoke_k8s_well_initdb|fast|a migration edited without re
 check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
 check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package added to raft/requirements.txt
 check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
+check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt
 backup/test-git-mirror|provoke_git_mirror|fast|git-mirror.sh switched to push --mirror, which prunes refs east must keep
 well/test-compliance-schema|provoke_well_compliance_schema|slow|audit_events' TRUNCATE guard removed from 015 (needs docker)
 well/test-migrate|provoke_well_migrate|slow|the runner's drift refusal removed, so apply runs past an edited file (needs docker)

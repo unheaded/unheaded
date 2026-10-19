@@ -296,7 +296,7 @@ jobs:
       # ruff at the python job's pin: without it check-ruff exits 127 on the
       # clean tree, which the meta-gate reads as "already failing" — this job
       # had never passed since it landed (2026-09-09).
-      - run: pip install --quiet pyyaml ruff==0.16.0
+      - run: pip install --quiet pyyaml ruff==0.16.0 pip-audit==2.10.1
 
       # bpf-verifier-check and check-ebpf-loads build ebpf/ for
       # bpfel-unknown-none: nightly + rust-src (ebpf/rust-toolchain.toml) and

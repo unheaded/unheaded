@@ -200,6 +200,13 @@ line by hand in the commit that adds the package is the recorded admission
 §2 asks for, visible in review. Not covered yet: version bumps, archive /
 owner-change re-checks, container digests (ADR-102 pins tags).
 
+**2026-10-19, §3's OSV check for Python:** `scripts/check-python-audit.sh`
+(security.yml job `python-audit`, meta-gate) runs pip-audit 2.10.1 over every
+fully pinned `requirements*.txt` (raft/, sbom/); an advisory not listed in
+`docs/policy/python-audit-accepted.txt` fails, and so does an accepted line
+that no longer matches. Two torch advisories are accepted, tracked by FND-013.
+notebooks/ and tomb/grimoire/rag/ are unpinned and not audited.
+
 ## Immediate findings for the ADR-095 register
 
 Surfaced while writing this; each is an entry, not work done here:

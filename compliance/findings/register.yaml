@@ -232,6 +232,26 @@ findings:
       (scripts/build-all-debs.sh; already wanted for the 18001 fix), then
       sudo chown root:root /etc/systemd/system/unheaded-wotan.service && sudo chmod 0644 /etc/systemd/system/unheaded-*.service
 
+  - id: FND-013
+    title: >-
+      PyTorch carries two published advisories: the pinned torch==2.10.0 (raft/requirements.txt,
+      sbom/python-requirements.txt) and, worse, the torch actually installed on west, 2.6.0 (+rocm6.1 system-wide,
+      +cpu in ~/tmp/gemma4-venv): CVE-2025-3000 (memory corruption in torch.jit.script, fixed in 2.13.0) and
+      CVE-2026-4538 (deserialization in the pt2 loader, no fixed release)
+    verify: scripts/check-python-audit.sh passes with docs/policy/python-audit-accepted.txt holding no torch line
+    severity: low
+    class: package
+    host: west
+    opened: 2026-10-19
+    exposure: local only (a crafted model or script must be loaded); the forge loads models we converted ourselves
+    lockout: none
+    step: 3
+    plan: >-
+      Move the training environment and the pins to a current torch (2.14.1 on PyPI 2026-10-19) with the matching
+      ROCm wheel, run a short forge/RAFT training smoke on the GPU, then regenerate sbom/python-requirements.txt
+      from that environment rather than by hand. Until PYSEC-2026-139 has a fix, load only .pt2 files built here
+    decision: when to take the GPU stack to a current torch (a ROCm upgrade and a training run, not a pin edit)
+
   - source: "gate-script:scripts/compliance/check-service-auth.sh"
     severity: high
     class: app

@@ -1,0 +1,5 @@
+# Known vulnerabilities in pinned Python requirements that are accepted for
+# now (scripts/check-python-audit.sh). This list may only SHRINK.
+# <package> <advisory id>  # reason; the finding that tracks the fix
+torch PYSEC-2025-194   # CVE-2025-3000, local memory corruption in torch.jit.script; fixed in 2.13.0. Bump waits on a ROCm training smoke test (FND-013)
+torch PYSEC-2026-139   # CVE-2026-4538, local deserialization in the pt2 loader; no fixed release yet. Load only our own .pt2 files (FND-013)

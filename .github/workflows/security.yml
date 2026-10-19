@@ -230,6 +230,29 @@ jobs:
           retention-days: 30
 
   # ============================================================================
+  # Python: known vulnerabilities in pinned requirements (ADR-096 §3)
+  # ============================================================================
+  # Go has govulncheck and Rust cargo audit above; Python had nothing.
+  # Accepted findings live in docs/policy/python-audit-accepted.txt, which
+  # may only shrink.
+  python-audit:
+    name: Python Audit (pip-audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: pip install --quiet pip-audit==2.10.1
+
+      - name: Pinned requirements have no unaccepted advisories
+        run: ./scripts/check-python-audit.sh
+
+  # ============================================================================
   # Filesystem Vulnerability Scan
   # ============================================================================
   trivy-fs:
