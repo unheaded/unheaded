@@ -185,6 +185,31 @@ findings:
       Doom: unheaded-doom with CAP_BPF CAP_PERFMON CAP_NET_ADMIN CAP_SYS_ADMIN, artifacts installed out of /home
     decision: PGDG apt repo + postgresql-16 packages on west, after the OS upgrade
 
+  - id: FND-011
+    title: >-
+      Two Linux kernel vulnerabilities on CISA's KEV list (exploited in the wild) are unpatched on west and east, and
+      Ubuntu has no fixed kernel yet: CVE-2026-53266 (ebtables SNAT out-of-bounds write, KEV 2026-09-18) and
+      CVE-2026-53362 (privilege escalation via the IPv6 stack, KEV 2026-08-27). Both hosts run 6.17.0-41-generic
+    verify: pro fix CVE-2026-53266 --dry-run and pro fix CVE-2026-53362 --dry-run report "resolved" on west and east
+    severity: high
+    class: package
+    opened: 2026-10-19
+    exposure: >-
+      local privilege escalation; needs code already running on the host. West is the wider target: LXD sets
+      kernel.apparmor_restrict_unprivileged_userns=0 at runtime (/run/sysctl.d/zz-lxd.conf), so any local account can
+      make a user namespace and reach netfilter/IPv6 code with CAP_NET_ADMIN there; east keeps Ubuntu's default (1).
+      No ebtables module is loaded on either host (checked 2026-10-19). Found by kev-poller's first pull (ADR-055)
+    lockout: none
+    step: 3
+    plan: >-
+      Install the fixed kernel as soon as Ubuntu publishes it (unattended-upgrades or apt), then reboot; re-run the
+      verify commands. Until then, for CVE-2026-53266: nothing here uses ebtables, so /etc/modprobe.d/unheaded-cis.conf
+      can gain `install ebtables /bin/false`, `install ebtable_nat /bin/false`, `install ebt_snat /bin/false` (no
+      module to unload today). CVE-2026-53362 has no published mitigation short of the fixed kernel
+    decision: >-
+      the modprobe stopgap on both hosts (host change); whether west keeps unprivileged user namespaces open for LXD
+      (turning the restriction back on may break LXD's unprivileged containers: test first)
+
   - source: "gate-script:scripts/compliance/check-service-auth.sh"
     severity: high
     class: app
