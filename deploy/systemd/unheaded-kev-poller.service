@@ -5,6 +5,7 @@
 #
 # Install (users first: deploy/sysusers.d/unheaded.conf, see its header):
 #   sudo install -m 0755 kev-poller /usr/local/bin/
+#   sudo install -m 0644 config/kev-poller/stack.yaml /etc/unheaded/kev-stack.yaml
 #   sudo cp deploy/systemd/unheaded-kev-poller.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now unheaded-kev-poller   # ADR-055: always on
@@ -20,7 +21,8 @@ After=unheaded-wotan.service
 [Service]
 Type=simple
 EnvironmentFile=-/etc/unheaded/kev-poller.env
-ExecStart=/usr/local/bin/kev-poller --port 19120 --state-dir /var/lib/unheaded/threat-feeds/cisa-kev
+# --stack: install config/kev-poller/stack.yaml as /etc/unheaded/kev-stack.yaml
+ExecStart=/usr/local/bin/kev-poller --port 19120 --state-dir /var/lib/unheaded/threat-feeds/cisa-kev --stack /etc/unheaded/kev-stack.yaml
 WorkingDirectory=/var/lib/unheaded/threat-feeds/cisa-kev
 Restart=always
 RestartSec=30s

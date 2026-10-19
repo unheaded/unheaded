@@ -230,6 +230,7 @@ RUN addgroup -S -g 16732 kevpoller && \
 WORKDIR /app
 
 COPY --from=builder /build/bin/kev-poller /app/kev-poller
+COPY config/kev-poller/stack.yaml /etc/unheaded/kev-stack.yaml
 
 RUN mkdir -p /data && chown 16732:16732 /data && chmod 0750 /data
 
@@ -240,7 +241,7 @@ EXPOSE 19120
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:19120/health || exit 1
 
-ENTRYPOINT ["/app/kev-poller", "--state-dir", "/data"]
+ENTRYPOINT ["/app/kev-poller", "--state-dir", "/data", "--stack", "/etc/unheaded/kev-stack.yaml"]
 
 # ============================================================================
 FROM alpine:3.24 AS micromanager

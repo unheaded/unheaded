@@ -17,6 +17,11 @@
 //
 //	kev-poller --once                    # one pull, print a summary, exit
 //	kev-poller --interval 1h             # daemon (15m..24h)
+//	kev-poller report --since 2026-04-27 # threat-register entry from the stored catalog
+//
+// With --stack (config/kev-poller/stack.yaml), added entries that match what
+// the Kingdom runs are tagged with their categories, logged as warnings and
+// counted separately (ADR-055 Phase 3).
 package main
 
 import (
@@ -25,6 +30,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
@@ -62,6 +68,7 @@ type config struct {
 	port     int
 	wotan    string
 	node     string
+	stack    string
 	once     bool
 }
 
@@ -76,6 +83,7 @@ func parseFlags(args []string) (config, error) {
 	fs.IntVar(&c.port, "port", ports.KEVPoller, "HTTP port for /health, /ready, /metrics, /api/v1/kev")
 	fs.StringVar(&c.wotan, "wotan", envOr("WOTAN_ADDR", "localhost:18000"), "Wotan HTTP address; empty disables publishing")
 	fs.StringVar(&c.node, "node", "", "node identifier (default: hostname)")
+	fs.StringVar(&c.stack, "stack", os.Getenv("KEV_STACK"), "stack file (config/kev-poller/stack.yaml): tag entries the Kingdom runs")
 	fs.BoolVar(&c.once, "once", false, "pull once, print a summary, exit (non-zero on failure)")
 	if err := fs.Parse(args); err != nil {
 		return c, err
@@ -108,6 +116,9 @@ func main() {
 	zerolog.SetGlobalLevel(zerolog.InfoLevel)
 	log.Logger = zerolog.New(os.Stderr).With().Timestamp().Str("service", serviceName).Logger()
 
+	if len(os.Args) > 1 && os.Args[1] == "report" {
+		os.Exit(runReport(os.Args[2:], os.Stdout))
+	}
 	cfg, err := parseFlags(os.Args[1:])
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -119,6 +130,12 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("bad feed URL")
 	}
+	var stack *kev.Stack
+	if cfg.stack != "" {
+		if stack, err = kev.LoadStack(cfg.stack); err != nil {
+			log.Fatal().Err(err).Msg("bad stack file")
+		}
+	}
 	p := &kev.Poller{Fetcher: fetcher, Store: kev.Store{Dir: cfg.stateDir}}
 	if err := p.Init(); err != nil {
 		// The next good pull replaces it; until then there is nothing to diff against.
@@ -126,14 +143,15 @@ func main() {
 	}
 
 	if cfg.once {
-		os.Exit(runOnce(p, cfg))
+		os.Exit(runOnce(p, stack, cfg))
 	}
 
 	m := newPollMetrics()
-	d := &daemon{cfg: cfg, poller: p, metrics: m, publish: connectWotan(cfg.wotan)}
+	d := &daemon{cfg: cfg, poller: p, stack: stack, metrics: m, publish: connectWotan(cfg.wotan)}
 	if st := p.Current(); st != nil {
 		m.count.Set(float64(st.Count))
 	}
+	d.setRelevantCount()
 
 	srv := &http.Server{
 		Addr:              fmt.Sprintf(":%d", cfg.port),
@@ -162,7 +180,7 @@ func main() {
 	log.Info().Msg("kev-poller stopped")
 }
 
-func runOnce(p *kev.Poller, cfg config) int {
+func runOnce(p *kev.Poller, stack *kev.Stack, cfg config) int {
 	ctx, cancel := context.WithTimeout(context.Background(), cfg.timeout+10*time.Second)
 	defer cancel()
 	out, err := p.Poll(ctx)
@@ -182,7 +200,11 @@ func runOnce(p *kev.Poller, cfg config) int {
 	default:
 		fmt.Printf("%d added, %d removed\n", len(out.Delta.Added), len(out.Delta.Removed))
 		for _, v := range out.Delta.Added {
-			fmt.Printf("  + %s %s %s\n", v.CVEID, v.VendorProject, v.Product)
+			tag := ""
+			if cats := stack.Classify(v); len(cats) > 0 {
+				tag = "  [STACK: " + strings.Join(cats, ", ") + "]"
+			}
+			fmt.Printf("  + %s %s %s%s\n", v.CVEID, v.VendorProject, v.Product, tag)
 		}
 		for _, id := range out.Delta.Removed {
 			fmt.Printf("  - %s\n", id)
@@ -199,6 +221,8 @@ type pollMetrics struct {
 	lastSuccess *metrics.Gauge
 	count       *metrics.Gauge
 	delta       *metrics.Gauge
+	relevant    *metrics.Gauge
+	relAdded    *metrics.Counter
 }
 
 func newPollMetrics() *pollMetrics {
@@ -210,8 +234,10 @@ func newPollMetrics() *pollMetrics {
 		lastSuccess: metrics.NewGauge("unheaded_kev_last_success_timestamp_seconds", "Unix time of the last successful pull; alert on its age", nil),
 		count:       metrics.NewGauge("unheaded_kev_total_count", "Entries in the stored catalog", nil),
 		delta:       metrics.NewGauge("unheaded_kev_delta_count", "CVEs added by the last catalog change", nil),
+		relevant:    metrics.NewGauge("unheaded_kev_stack_count", "Entries in the stored catalog that match the stack file", nil),
+		relAdded:    metrics.NewCounter("unheaded_kev_stack_added_total", "Added entries that match the stack file, since start", nil),
 	}
-	for _, c := range []metrics.Collector{m.success, m.failure, m.lastPull, m.lastSuccess, m.count, m.delta} {
+	for _, c := range []metrics.Collector{m.success, m.failure, m.lastPull, m.lastSuccess, m.count, m.delta, m.relevant, m.relAdded} {
 		m.reg.MustRegister(c)
 	}
 	return m
@@ -250,6 +276,7 @@ func connectWotan(addr string) publisher {
 type daemon struct {
 	cfg     config
 	poller  *kev.Poller
+	stack   *kev.Stack // nil: no tagging
 	metrics *pollMetrics
 	publish publisher
 
@@ -301,8 +328,15 @@ func (d *daemon) pollOnce(ctx context.Context) error {
 	d.metrics.success.Inc()
 	d.metrics.lastSuccess.SetToCurrentTime()
 	d.metrics.count.Set(float64(out.State.Count))
+	tagged := d.stack.Relevant(out.Delta.Added)
+	for _, t := range tagged {
+		log.Warn().Str("cve", t.CVEID).Str("vendor", t.VendorProject).Str("product", t.Product).
+			Strs("categories", t.Categories).Str("due", t.DueDate).Msg("KEV entry added for something the Kingdom runs")
+	}
 	if !out.NotModified {
 		d.metrics.delta.Set(float64(len(out.Delta.Added)))
+		d.metrics.relAdded.Add(float64(len(tagged)))
+		d.setRelevantCount()
 		if n, err := d.poller.Store.Prune(d.cfg.keep, time.Now()); err != nil {
 			log.Warn().Err(err).Msg("snapshot prune failed")
 		} else if n > 0 {
@@ -317,8 +351,17 @@ func (d *daemon) pollOnce(ctx context.Context) error {
 		Int("added", len(out.Delta.Added)).
 		Int("removed", len(out.Delta.Removed)).
 		Msg("pull ok")
-	d.announce(out)
+	d.announce(out, len(tagged))
 	return nil
+}
+
+func (d *daemon) setRelevantCount() {
+	if d.stack == nil {
+		return
+	}
+	if c := d.poller.Catalog(); c != nil {
+		d.metrics.relevant.Set(float64(len(d.stack.Relevant(c.Vulnerabilities))))
+	}
 }
 
 // updateMsg is published on every successful pull.
@@ -331,6 +374,7 @@ type updateMsg struct {
 	Changed        bool   `json:"changed"`
 	Bootstrap      bool   `json:"bootstrap"`
 	Added          int    `json:"added"`
+	StackAdded     int    `json:"stack_added"` // of Added, entries matching the stack file
 	Removed        int    `json:"removed"`
 	Time           int64  `json:"time"` // Unix ms
 }
@@ -339,19 +383,19 @@ type updateMsg struct {
 // entries (CISA's backfills); Wotan bodies are capped at 1 MB, so the delta
 // goes out in chunks of deltaChunk entries, Removed in the first.
 type deltaMsg struct {
-	Feed           string              `json:"feed"`
-	Node           string              `json:"node"`
-	CatalogVersion string              `json:"catalog_version"`
-	Chunk          int                 `json:"chunk"`  // 1-based
-	Chunks         int                 `json:"chunks"` // total
-	Added          []kev.Vulnerability `json:"added"`
-	Removed        []string            `json:"removed,omitempty"`
-	Time           int64               `json:"time"`
+	Feed           string       `json:"feed"`
+	Node           string       `json:"node"`
+	CatalogVersion string       `json:"catalog_version"`
+	Chunk          int          `json:"chunk"`  // 1-based
+	Chunks         int          `json:"chunks"` // total
+	Added          []kev.Tagged `json:"added"`  // categories set where the stack file matches
+	Removed        []string     `json:"removed,omitempty"`
+	Time           int64        `json:"time"`
 }
 
 const deltaChunk = 50
 
-func deltaMessages(node string, out kev.Outcome, now time.Time) []deltaMsg {
+func deltaMessages(node string, stack *kev.Stack, out kev.Outcome, now time.Time) []deltaMsg {
 	if out.Delta.Empty() {
 		return nil
 	}
@@ -364,10 +408,10 @@ func deltaMessages(node string, out kev.Outcome, now time.Time) []deltaMsg {
 		lo, hi := i*deltaChunk, min((i+1)*deltaChunk, len(out.Delta.Added))
 		m := deltaMsg{
 			Feed: "cisa-kev", Node: node, CatalogVersion: out.State.CatalogVersion,
-			Chunk: i + 1, Chunks: n, Added: out.Delta.Added[lo:hi], Time: now.UnixMilli(),
+			Chunk: i + 1, Chunks: n, Added: []kev.Tagged{}, Time: now.UnixMilli(),
 		}
-		if m.Added == nil {
-			m.Added = []kev.Vulnerability{}
+		for _, v := range out.Delta.Added[lo:hi] {
+			m.Added = append(m.Added, kev.Tagged{Vulnerability: v, Categories: stack.Classify(v)})
 		}
 		if i == 0 {
 			m.Removed = out.Delta.Removed
@@ -377,7 +421,7 @@ func deltaMessages(node string, out kev.Outcome, now time.Time) []deltaMsg {
 	return msgs
 }
 
-func (d *daemon) announce(out kev.Outcome) {
+func (d *daemon) announce(out kev.Outcome, stackAdded int) {
 	if d.publish == nil {
 		return
 	}
@@ -394,10 +438,10 @@ func (d *daemon) announce(out kev.Outcome) {
 	send(topicUpdates, updateMsg{
 		Feed: "cisa-kev", Node: d.cfg.node, CatalogVersion: out.State.CatalogVersion,
 		Count: out.State.Count, SHA256: out.State.SHA256, Changed: !out.NotModified,
-		Bootstrap: out.Bootstrap, Added: len(out.Delta.Added), Removed: len(out.Delta.Removed),
-		Time: now.UnixMilli(),
+		Bootstrap: out.Bootstrap, Added: len(out.Delta.Added), StackAdded: stackAdded,
+		Removed: len(out.Delta.Removed), Time: now.UnixMilli(),
 	})
-	for _, m := range deltaMessages(d.cfg.node, out, now) {
+	for _, m := range deltaMessages(d.cfg.node, d.stack, out, now) {
 		send(topicDelta, m)
 	}
 }
@@ -432,4 +476,41 @@ func (d *daemon) handler() http.Handler {
 		httputil.WriteJSON(w, http.StatusOK, resp)
 	})
 	return httputil.NewServiceMetrics(serviceName).Instrument(mux, mux)
+}
+
+// runReport prints a threat-register refresh entry (markdown) from the
+// stored catalog; it does not pull.
+func runReport(args []string, w io.Writer) int {
+	fs := flag.NewFlagSet("kev-poller report", flag.ContinueOnError)
+	since := fs.String("since", "", "count entries added on or after this date (YYYY-MM-DD); required")
+	stateDir := fs.String("state-dir", envOr("KEV_OUTPUT_PATH", "/var/lib/unheaded/threat-feeds/cisa-kev"), "where latest.json is")
+	stackPath := fs.String("stack", envOr("KEV_STACK", "config/kev-poller/stack.yaml"), "stack file; empty to skip matching")
+	recent := fs.Int("recent", 15, "how many other new entries to list")
+	if err := fs.Parse(args); err != nil {
+		return 2
+	}
+	if _, err := time.Parse("2006-01-02", *since); err != nil {
+		fmt.Fprintln(os.Stderr, "kev-poller report: --since YYYY-MM-DD is required")
+		return 2
+	}
+	c, st, err := kev.Store{Dir: *stateDir}.Load()
+	if err != nil || c == nil {
+		fmt.Fprintf(os.Stderr, "kev-poller report: no usable catalog in %s (%v); pull one with --once\n", *stateDir, err)
+		return 1
+	}
+	var stack *kev.Stack
+	if *stackPath != "" {
+		if stack, err = kev.LoadStack(*stackPath); err != nil {
+			fmt.Fprintf(os.Stderr, "kev-poller report: %v\n", err)
+			return 1
+		}
+	}
+	err = kev.WriteReport(w, c, st, stack, kev.ReportOptions{
+		Since: *since, Today: time.Now().UTC().Format("2006-01-02"), StackPath: *stackPath, Recent: *recent,
+	})
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "kev-poller report: %v\n", err)
+		return 1
+	}
+	return 0
 }

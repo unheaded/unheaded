@@ -41,18 +41,18 @@ func TestParseFlagsInterval(t *testing.T) {
 
 func TestDeltaMessagesChunking(t *testing.T) {
 	var out kev.Outcome
-	if msgs := deltaMessages("n", out, time.Now()); msgs != nil {
+	if msgs := deltaMessages("n", nil, out, time.Now()); msgs != nil {
 		t.Fatalf("empty delta produced %d messages", len(msgs))
 	}
 	out.Delta.Removed = []string{"CVE-2020-0001"}
-	msgs := deltaMessages("n", out, time.Now())
+	msgs := deltaMessages("n", nil, out, time.Now())
 	if len(msgs) != 1 || len(msgs[0].Removed) != 1 || msgs[0].Added == nil {
 		t.Fatalf("removal-only delta: %+v", msgs)
 	}
 	for i := 0; i < 2*deltaChunk+1; i++ {
 		out.Delta.Added = append(out.Delta.Added, kev.Vulnerability{CVEID: fmt.Sprintf("CVE-2026-%04d", i)})
 	}
-	msgs = deltaMessages("n", out, time.Now())
+	msgs = deltaMessages("n", nil, out, time.Now())
 	if len(msgs) != 3 {
 		t.Fatalf("want 3 chunks, got %d", len(msgs))
 	}
@@ -163,5 +163,48 @@ func TestDaemonPollPublishesAndServes(t *testing.T) {
 		if !strings.Contains(m, want) {
 			t.Errorf("/metrics lacks %q", want)
 		}
+	}
+}
+
+func TestStackTaggingInDelta(t *testing.T) {
+	stack, err := kev.ParseStack([]byte("categories:\n  - {name: linux-kernel, match: [{vendor: Linux, product: Kernel}]}\n"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var out kev.Outcome
+	out.Delta.Added = []kev.Vulnerability{
+		{CVEID: "CVE-2026-0001", VendorProject: "Linux", Product: "Kernel"},
+		{CVEID: "CVE-2026-0002", VendorProject: "Acme", Product: "Widget"},
+	}
+	msgs := deltaMessages("n", stack, out, time.Now())
+	b, _ := json.Marshal(msgs[0])
+	if !strings.Contains(string(b), `"cveID":"CVE-2026-0001","vendorProject":"Linux"`) ||
+		!strings.Contains(string(b), `"categories":["linux-kernel"]`) {
+		t.Fatalf("tagged entry missing or not flattened: %s", b)
+	}
+	if strings.Count(string(b), `"categories"`) != 1 {
+		t.Fatalf("only the stack entry carries categories: %s", b)
+	}
+}
+
+func TestReportCommand(t *testing.T) {
+	dir := t.TempDir()
+	raw := catalog("1", "CVE-2024-0001")
+	c, _ := kev.Parse(raw)
+	if err := (kev.Store{Dir: dir}).Save(raw, c, kev.State{}, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	var b strings.Builder
+	if rc := runReport([]string{"--state-dir", dir, "--stack", "", "--since", "2026-01-01"}, &b); rc != 0 {
+		t.Fatalf("rc=%d", rc)
+	}
+	if !strings.Contains(b.String(), "kev-poller report") {
+		t.Fatalf("no report: %s", b.String())
+	}
+	if rc := runReport([]string{"--state-dir", dir}, &b); rc != 2 {
+		t.Fatalf("missing --since: rc=%d", rc)
+	}
+	if rc := runReport([]string{"--state-dir", t.TempDir(), "--since", "2026-01-01"}, &b); rc != 1 {
+		t.Fatalf("empty state dir: rc=%d", rc)
 	}
 }

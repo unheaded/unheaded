@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# What the Kingdom runs, in CISA KEV's own vendorProject / product names
+# (ADR-055 Phase 3). kev-poller tags every added KEV entry that matches with
+# the category names below; `kev-poller report` lists them for the threat
+# register (docs/security/threat-register.md, whose "Active threat
+# categories" these follow).
+#
+# A rule matches when vendor equals the entry's vendorProject and, if given,
+# product equals its product (both ignoring case). Exact names, not
+# substrings: "rust" must not match "BeyondTrust". Check a new rule against
+# the catalog: kev-poller report --since 2000-01-01 lists what it catches.
+categories:
+  - name: linux-kernel
+    title: Linux kernel + eBPF
+    match:
+      - {vendor: Linux, product: Kernel}
+
+  - name: amd-gpu
+    title: AMD GPU / HIP / ROCm
+    match:
+      - {vendor: AMD}
+
+  - name: containers
+    title: Container runtimes
+    match:
+      - {vendor: Docker}
+      - {vendor: Kubernetes}
+      - {vendor: Canonical}   # LXD, snapd
+      - {vendor: containerd}
+      - {vendor: runc}
+
+  - name: edge
+    title: Common edge components
+    match:
+      - {vendor: F5, product: NGINX}
+      - {vendor: Nginx}
+      - {vendor: HAProxy}
+      - {vendor: OpenSSL}
+      - {vendor: Traefik Labs}
+      - {vendor: curl}
+
+  - name: host-userland
+    title: Host userland (Ubuntu on west and east)
+    match:
+      - {vendor: GNU}             # bash, glibc, inetutils
+      - {vendor: Sudo}
+      - {vendor: Red Hat, product: Polkit}
+      - {vendor: OpenBSD, product: OpenSSH}
+      - {vendor: OpenSSH}
+      - {vendor: systemd}
+      - {vendor: XZ Utils}
+      - {vendor: Tukaani}
+
+  - name: data
+    title: Data and observability services
+    match:
+      - {vendor: PostgreSQL}
+      - {vendor: Grafana Labs}
+      - {vendor: ClickHouse}
+      - {vendor: Redis}
+      - {vendor: Prometheus}
+      - {vendor: VictoriaMetrics}
+
+  - name: build
+    title: Source control and CI
+    match:
+      - {vendor: Git}
+      - {vendor: Jenkins}

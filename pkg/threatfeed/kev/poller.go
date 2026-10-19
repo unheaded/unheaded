@@ -45,6 +45,14 @@ func (p *Poller) Init() error {
 	return nil
 }
 
+// Catalog returns the last good catalog, or nil before the first. Callers
+// must not modify it.
+func (p *Poller) Catalog() *Catalog {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+	return p.cur
+}
+
 // Current returns the last good catalog's state, or nil before the first.
 func (p *Poller) Current() *State {
 	p.mu.RLock()

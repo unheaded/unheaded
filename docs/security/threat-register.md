@@ -1,14 +1,93 @@
 # Threat Register — Unheaded Kingdom
 
-**Last refreshed**: 2026-04-27 (Cowork-on-Macbook + Stevie-uploaded KEV feed)
+**Last refreshed**: 2026-10-19 (kev-poller, ADR-055; previous: 2026-04-27)
 **Owners**: MoatGhost (compliance + threat intel) + Sentinel (blue team monitoring)
 **Cadence**: refreshed every Round Table sprint or weekly, whichever first
 **Source feeds**: CISA KEV (primary), NIST NVD (secondary), GitHub Security Advisories (tertiary), supply-chain advisories per language ecosystem
-**Snapshot of source feed**: `docs/security/feeds/cisa-kev-2026-04-27.json` (1583 entries, KEV upstream as of upload)
+**Snapshot of source feed**: catalog 2026.10.16, 1748 entries, sha256 `b6e27975f6635ecfc546fbd4fd6e444ba63a07ab2abc8876229d77fe083d357d` (kev-poller keeps snapshots on the host, `/var/lib/unheaded/threat-feeds/cisa-kev/`); previous: `docs/security/feeds/cisa-kev-2026-04-27.json` (1583 entries)
 
 ---
 
 ## Refresh log
+
+### 2026-10-19: first kev-poller refresh (ADR-055)
+
+Pulled with `kev-poller --once`, rendered with
+`kev-poller report --since 2026-04-25 --stack config/kev-poller/stack.yaml`.
+The register was 175 days old (ADR-052 allows 7). The report:
+
+**CISA KEV catalog** 2026.10.16: 1748 entries, dateAdded 2021-11-03 to 2026-10-16, pulled 2026-10-19 04:42Z (sha256 b6e27975f663).
+
+- Added since 2026-04-25: **165**
+- In the Kingdom's stack (`config/kev-poller/stack.yaml`): **7** of them; 52 in the whole catalog
+
+**Stack entries added since 2026-04-25**:
+
+| Added | CVE | Vendor / product | Name | Category | CISA due |
+|---|---|---|---|---|---|
+| 2026-09-18 | CVE-2025-39682 | Linux / Kernel | Linux Kernel Improper Check for Unusual or Exceptional Conditions Vulnerability | linux-kernel | 2026-09-21 |
+| 2026-09-18 | CVE-2025-39964 | Linux / Kernel | Linux Kernel Race Condition Vulnerability | linux-kernel | 2026-09-21 |
+| 2026-09-18 | CVE-2026-53266 | Linux / Kernel | Linux Kernel Out-of-Bounds Write Vulnerability | linux-kernel | 2026-09-21 |
+| 2026-08-27 | CVE-2026-53362 | Linux / Kernel | Linux Kernel Unspecified Vulnerability | linux-kernel | 2026-08-30 |
+| 2026-08-26 | CVE-2022-0995 | Linux / Kernel | Linux Kernel Out-of-Bounds Write Vulnerability | linux-kernel | 2026-08-29 |
+| 2026-06-02 | CVE-2022-0492 | Linux / Kernel | Linux Kernel Improper Authentication Vulnerability | linux-kernel | 2026-06-05 |
+| 2026-05-01 | CVE-2026-31431 | Linux / Kernel | Linux Kernel Incorrect Resource Transfer Between Spheres Vulnerability | linux-kernel | 2026-05-15 |
+
+Patched on a host? The catalog cannot say. On each Ubuntu host: `pro fix <CVE> --dry-run`:
+
+    pro fix CVE-2025-39682 --dry-run
+    pro fix CVE-2025-39964 --dry-run
+    pro fix CVE-2026-53266 --dry-run
+    pro fix CVE-2026-53362 --dry-run
+    pro fix CVE-2022-0995 --dry-run
+    pro fix CVE-2022-0492 --dry-run
+    pro fix CVE-2026-31431 --dry-run
+
+**Other entries added since 2026-04-25** (informational, newest first, 15 of 158 shown):
+
+| Added | CVE | Vendor / product | Name |
+|---|---|---|---|
+| 2026-10-16 | CVE-2025-61624 | Fortinet / Multiple Products | Fortinet Multiple Products Path Traversal Vulnerability |
+| 2026-10-16 | CVE-2026-102764 | BeyondTrust / Remote Support | BeyondTrust Remote Support Authentication Bypass by Spoofing Vulnerability |
+| 2026-10-15 | CVE-2026-21589 | Atlassian / Multiple Products | Atlassian Multiple Products Files or Directories Accessible to External Parties Vulnerability |
+| 2026-10-14 | CVE-2026-0322 | Palo Alto Networks / PAN-OS | Palo Alto Networks PAN-OS Code Injection Vulnerability |
+| 2026-10-14 | CVE-2026-105133 | Ahsay / AhsayCBS | Ahsay AhsayCBS Improper Authentication Vulnerability |
+| 2026-10-14 | CVE-2026-105134 | Ahsay / AhsayCBS | Ahsay AhsayCBS Command Injection Vulnerability |
+| 2026-10-14 | CVE-2026-76519 | Cisco / Secure Email Gateway | Cisco Secure Email Gateway Relative Path Traversal Vulnerability |
+| 2026-10-13 | CVE-2026-104935 | Ivanti / Connect Secure | Ivanti Connect Secure Authentication Bypass by Spoofing Vulnerability |
+| 2026-10-13 | CVE-2026-96951 | Microsoft / Windows | Microsoft Windows Command Injection Vulnerability |
+| 2026-10-08 | CVE-2015-3306 | ProFTPD / ProFTPD | ProFTPD Improper Access Control Vulnerability |
+| 2026-10-08 | CVE-2015-5477 | ISC / BIND | ISC BIND Data Processing Errors Vulnerability |
+| 2026-10-08 | CVE-2016-3081 | Apache / Struts | Apache Struts Command Injection Vulnerability |
+| 2026-10-08 | CVE-2021-3199 | ONLYOFFICE / Docs | ONLYOFFICE Docs Server Path Traversal Vulnerability |
+| 2026-10-08 | CVE-2023-22894 | Strapi / Strapi | Strapi Cleartext Storage of Sensitive Information Vulnerability |
+| 2026-10-04 | CVE-2026-88779 | Citrix / NetScaler | Citrix NetScaler Improper Restriction of Operations within the Bounds of a Memory Buffer Vulnerability |
+
+**Checked on the hosts** (`pro fix <CVE> --dry-run`, both on 6.17.0-41-generic, 2026-10-19):
+
+| CVE | west | east |
+|---|---|---|
+| CVE-2026-31431 | resolved | resolved |
+| CVE-2022-0492, CVE-2022-0995, CVE-2025-39964, CVE-2025-39682 | not affected | not affected |
+| **CVE-2026-53266** (ebtables SNAT OOB write) | **not resolved, no fix from Ubuntu** | **not resolved** |
+| **CVE-2026-53362** (privilege escalation via IPv6) | **not resolved, no fix from Ubuntu** | **not resolved** |
+
+Exposure: both need code already running on the host. West is wider: LXD
+sets `kernel.apparmor_restrict_unprivileged_userns=0` at runtime
+(`/run/sysctl.d/zz-lxd.conf`), so any local account can reach netfilter and
+IPv6 code with CAP_NET_ADMIN inside a user namespace; east keeps Ubuntu's
+default (1). No ebtables module is loaded on either host.
+
+**Verdict**: two exploited kernel vulnerabilities open on both hosts with no
+vendor fix. Tracked as **FND-011** (high) in `compliance/findings/register.yaml`.
+
+**Action items**:
+- [ ] Fixed kernel on west and east as soon as Ubuntu ships it, then reboot; re-run the two `pro fix` checks (FND-011)
+- [ ] Stopgap for CVE-2026-53266: block `ebtables`, `ebtable_nat`, `ebt_snat` in `/etc/modprobe.d/unheaded-cis.conf` (unused on both hosts; host change, Stevie)
+- [ ] Decide whether west keeps unprivileged user namespaces open for LXD (test LXD with the restriction on first)
+- [ ] Install and enable `unheaded-kev-poller.service` so this refresh stops depending on a session (ADR-055)
+
+---
 
 ### 2026-04-27 — Round Table sprint
 
@@ -66,7 +145,7 @@
 ### Category 1 — Linux kernel + eBPF
 **Why**: Unheaded runs eBPF programs at XDP/TC layers; kernel CVEs directly affect production.
 **Feeds**: CISA KEV (Linux/kernel filter), NIST NVD (CPE: cpe:/o:linux:linux_kernel)
-**Last entry**: PENDING (CISA KEV unreachable 2026-04-27)
+**Last entry**: 2026-10-19: 7 kernel entries added to KEV since April; CVE-2026-53266 and CVE-2026-53362 unpatched on west and east (FND-011)
 **Notes**: WEST runs kernel 6.17.0-19; EAST runs comparable. Track 6.x advisories specifically.
 
 ### Category 2 — AMD GPU / HIP / ROCm
