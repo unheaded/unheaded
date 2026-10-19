@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -16,6 +17,7 @@ import (
 
 	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
 
+	"unheaded/pkg/enkrateia"
 	"unheaded/pkg/gungnir"
 )
 
@@ -281,5 +283,53 @@ func TestSignManifest_RefusesReadableKey(t *testing.T) {
 	}
 	if err := signManifest(path, seed, time.Hour); !errors.Is(err, gungnir.ErrKeyFilePerms) {
 		t.Fatalf("world-readable key accepted: %v", err)
+	}
+}
+
+// TestRun_StopsWhenSealStopsVerifying: the seal is re-checked every scan, so
+// a manifest swapped after startup, or a seal that expires while the daemon
+// runs, stops it instead of being trusted from the startup check.
+func TestRun_StopsWhenSealStopsVerifying(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "mjolnir.yaml")
+	if err := os.WriteFile(path, []byte(sealedManifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	seed, pub := keyPair(t, dir, 7)
+	run := func(ttl time.Duration, during func()) error {
+		if err := os.WriteFile(path, []byte(sealedManifest), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := signManifest(path, seed, ttl); err != nil {
+			t.Fatal(err)
+		}
+		trust := Trust{PubKey: pub}
+		m, err := LoadManifest(path, trust)
+		if err != nil {
+			t.Fatal(err)
+		}
+		h := &Heimdall{nodeID: "t", manifestPath: path, trust: trust, manifest: m, aggregator: enkrateia.NewAggregator(16)}
+		ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+		defer cancel()
+		during()
+		return h.Run(ctx, 20*time.Millisecond)
+	}
+
+	err := run(time.Hour, func() {
+		tampered := strings.Replace(sealedManifest, `sha256: "00"`, `sha256: "01"`, 1)
+		if err := os.WriteFile(path, []byte(tampered), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if !errors.Is(err, gungnir.ErrPayloadHash) {
+		t.Fatalf("manifest swapped after startup: %v", err)
+	}
+
+	if err := run(time.Second, func() {}); !errors.Is(err, gungnir.ErrSealExpired) {
+		t.Fatalf("seal expiring while running: %v", err)
+	}
+
+	if err := run(time.Hour, func() {}); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("a valid seal must keep running: %v", err)
 	}
 }

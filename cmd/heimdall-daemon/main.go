@@ -65,10 +65,12 @@ type MjolnirManifest struct {
 
 // Heimdall is the daemon state.
 type Heimdall struct {
-	nodeID     string
-	manifest   *MjolnirManifest
-	aggregator *enkrateia.Aggregator
-	mu         sync.RWMutex
+	nodeID       string
+	manifestPath string
+	trust        Trust
+	manifest     *MjolnirManifest
+	aggregator   *enkrateia.Aggregator
+	mu           sync.RWMutex
 }
 
 // Trust says how a manifest is checked before Heimdall believes it.
@@ -166,7 +168,24 @@ func hashFile(path string) (string, error) {
 	return hex.EncodeToString(sum[:]), nil
 }
 
-// Run starts the daemon loop.
+// Reload reads and verifies the manifest again. A seal checked once at
+// startup would keep vouching for the baseline long after it expired;
+// re-checking it every scan makes expiry (and a swapped manifest or seal)
+// stop the daemon, and lets a re-signed manifest take effect without a
+// restart.
+func (h *Heimdall) Reload() error {
+	m, err := LoadManifest(h.manifestPath, h.trust)
+	if err != nil {
+		return err
+	}
+	h.mu.Lock()
+	h.manifest = m
+	h.mu.Unlock()
+	return nil
+}
+
+// Run starts the daemon loop. It returns an error when the manifest stops
+// verifying (Reload).
 func (h *Heimdall) Run(ctx context.Context, scanInterval time.Duration) error {
 	// Alert drain goroutine — publishes to Wotan drift.detected.<node_id>
 	// TODO: wire to actual Wotan client with ML-DSA-65 signing
@@ -193,6 +212,9 @@ func (h *Heimdall) Run(ctx context.Context, scanInterval time.Duration) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
+			if err := h.Reload(); err != nil {
+				return fmt.Errorf("manifest no longer trusted, stopping: %w", err)
+			}
 			h.ScanFiles()
 		}
 	}
@@ -274,9 +296,11 @@ func main() {
 		len(manifest.Spec.Files), len(manifest.Spec.Packages))
 
 	h := &Heimdall{
-		nodeID:     *nodeID,
-		manifest:   manifest,
-		aggregator: enkrateia.NewAggregator(1024),
+		nodeID:       *nodeID,
+		manifestPath: *manifestPath,
+		trust:        trust,
+		manifest:     manifest,
+		aggregator:   enkrateia.NewAggregator(1024),
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
