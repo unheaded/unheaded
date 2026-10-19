@@ -57,6 +57,7 @@
 - [[Kanban|Service-Kanban-App]]
 - [[Akira|Service-Akira]]
 - [[Huginn|Service-Huginn]]
+- [[kev-poller|Service-KEV-Poller]]
 
 **S36 Four Pillars**
 - [[Port Registry|Port-Registry]]

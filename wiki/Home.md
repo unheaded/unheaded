@@ -88,6 +88,7 @@ Recent:
 - [[Kanban App|Service-Kanban-App]]
 - [[Akira|Service-Akira]] — health checks + percentage consensus (ADR-029)
 - [[Huginn|Service-Huginn]] — host metrics agent on each host (ADR-084)
+- [[kev-poller|Service-KEV-Poller]] — CISA KEV feed, tagged against what we run (ADR-055)
 
 ## S36 Four Pillars
 
