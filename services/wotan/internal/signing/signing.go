@@ -5,8 +5,10 @@
 package signing
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"errors"
+	"slices"
 	"strings"
 
 	"unheaded/pkg/crypto/pqc"
@@ -45,24 +47,49 @@ func (ts *TopicSigner) Sign(topic, senderID string, payload []byte) ([]byte, []b
 	return sig, ts.pubKey, Algorithm, nil
 }
 
-// TopicVerifier verifies ML-DSA-65 signatures on Wotan topic messages.
+// TopicVerifier verifies ML-DSA-65 signatures on Wotan topic messages
+// against a fixed set of trusted public keys.
+//
+// It used to verify against the public key the publisher sent in the same
+// request. A signature then proves only that the sender holds *some* key:
+// anyone could generate a pair, sign a config.* message and attach their
+// own public key. The key in the request must now be one of trusted, the
+// keys the operator configured (configs/wotan.yaml topics.signing_keys).
+// With none configured, every signed publish is refused.
 type TopicVerifier struct {
 	verifier *pqc.MLDSAVerifier
+	trusted  [][]byte
 }
 
+// ErrNoTrustedKeys refuses signed publishes when no signing key is trusted.
+var ErrNoTrustedKeys = errors.New("signing: no trusted signing keys configured (topics.signing_keys)")
+
+// ErrUntrustedKey refuses a signature made with a key Wotan does not trust.
+var ErrUntrustedKey = errors.New("signing: public key is not a trusted signing key")
+
 // NewTopicVerifier creates a verifier for ML-DSA-65.
-func NewTopicVerifier() (*TopicVerifier, error) {
+func NewTopicVerifier(trusted ...[]byte) (*TopicVerifier, error) {
 	v, err := pqc.NewMLDSAVerifier(pqc.MLDSA65)
 	if err != nil {
 		return nil, err
 	}
-	return &TopicVerifier{verifier: v}, nil
+	keys := make([][]byte, 0, len(trusted))
+	for _, k := range trusted {
+		keys = append(keys, bytes.Clone(k))
+	}
+	return &TopicVerifier{verifier: v, trusted: keys}, nil
 }
 
 // Verify checks a topic message signature.
 func (tv *TopicVerifier) Verify(topic, senderID string, payload, signature, publicKey []byte, algorithm string) error {
 	if algorithm != Algorithm {
 		return ErrWrongAlgorithm
+	}
+	if len(tv.trusted) == 0 {
+		return ErrNoTrustedKeys
+	}
+	if !slices.ContainsFunc(tv.trusted, func(k []byte) bool { return bytes.Equal(k, publicKey) }) {
+		return ErrUntrustedKey
 	}
 	canonical := canonicalize(topic, senderID, payload)
 	ok, err := tv.verifier.Verify(canonical, signature, publicKey)

@@ -38,6 +38,12 @@ topics:
     - "akira"
     - "zhenai"
 
+  # ML-DSA-65 public keys (base64) trusted to sign config.* messages
+  # (ADR-043 #2). config.* is published only over gRPC, signed by one of
+  # these; the key a publisher sends is checked against this list, never
+  # trusted on its own. Empty: every config.* publish is refused.
+  signing_keys: []
+
 # Persistent store configuration (Wave 9)
 # Options: memory (default), wal, postgres, hybrid
 # Hybrid = WAL write-ahead + PostgreSQL durable (recommended for production)

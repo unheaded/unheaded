@@ -160,6 +160,13 @@ func (s *Server) SendMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A topic's room is its name: this path must not reach config.* rooms,
+	// which only take signed messages over gRPC.
+	if RequiresSignature(req.RoomID) {
+		writeError(w, http.StatusForbidden, "config.* topics are published over gRPC with an ML-DSA-65 signature")
+		return
+	}
+
 	// Get room
 	rm, err := s.RoomManager.Get(req.RoomID)
 	if err != nil {

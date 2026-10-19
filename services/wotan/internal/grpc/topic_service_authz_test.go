@@ -9,8 +9,10 @@ import (
 
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"unheaded/pkg/crypto/pqc"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/room"
+	"unheaded/services/wotan/internal/signing"
 	"unheaded/services/wotan/internal/wotan"
 	chatpb "unheaded/services/wotan/proto"
 )
@@ -97,5 +99,42 @@ func TestPublishTopic_NoAllowlistKeepsPriorBehaviour(t *testing.T) {
 		Metadata: map[string]string{"display_name": "anyone"},
 	}); err != nil {
 		t.Fatalf("nil AutoApprove should not reject: %v", err)
+	}
+}
+
+// TestPublishTopic_SelfSignedConfigRefused: a correctly signed config.*
+// message is refused when the key is the sender's own rather than one the
+// operator trusts. Before, the verifier took the key from the request, so
+// this was accepted.
+func TestPublishTopic_SelfSignedConfigRefused(t *testing.T) {
+	_, signer, err := pqc.GenerateMLDSAKeyPair(pqc.MLDSA65)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ts := signing.NewTopicSigner(signer)
+	sig, pub, algo, err := ts.Sign("config.kingdom", "", []byte(`{"evil":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := &chatpb.TopicPublishRequest{
+		Topic: "config.kingdom", Payload: []byte(`{"evil":true}`),
+		Signature: sig, PublicKey: pub, Algorithm: algo,
+	}
+	if _, err := productionTopicService().PublishTopic(context.Background(), req); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("config.* publish with no trusted keys: %v, want PermissionDenied", err)
+	}
+	_, operator, err := pqc.GenerateMLDSAKeyPair(pqc.MLDSA65)
+	if err != nil {
+		t.Fatal(err)
+	}
+	other := NewTopicService(room.NewManager(100), member.NewManager(), wotan.NewWotan(), operator.PublicKey())
+	if _, err := other.PublishTopic(context.Background(), req); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("self-signed config.* publish to a Wotan trusting another key: %v, want PermissionDenied", err)
+	}
+
+	// Trusted, it goes through.
+	trusted := NewTopicService(room.NewManager(100), member.NewManager(), wotan.NewWotan(), pub)
+	if _, err := trusted.PublishTopic(context.Background(), req); err != nil {
+		t.Fatalf("publish signed by a trusted key: %v", err)
 	}
 }

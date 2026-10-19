@@ -4,7 +4,7 @@ ADR-043 hard condition #2: all messages on `config.*` topics MUST be
 ML-DSA-65 signed before [[Mímir's Law|Mimirs-Law]] spike begins.
 Implemented as a prerequisite sprint on `main` before the spike branch.
 
-> **Status**: SHIPPED 2026-04-11 (commit `5e0d0400`)
+> **Status**: SHIPPED 2026-04-11 (commit `5e0d0400`); **fixed 2026-10-19**: until then the signature was checked against the public key the publisher sent in the same request, so anyone could sign with a key of their own and pass, and the HTTP publish path took `config.*` without any signature. Now Wotan verifies only against the keys in `configs/wotan.yaml` → `topics.signing_keys` (base64 ML-DSA-65 public keys; empty = every `config.*` publish refused), and both HTTP write paths refuse `config.*`.
 
 ## What Got Wired
 
@@ -31,6 +31,10 @@ func RequiresSignature(topic string) bool {
 
 Default: `config.*` requires signatures. Other topics (`drift.detected.*`,
 `logs.*`, `alerts.*`) currently optional but MAY adopt the same pattern.
+
+## Trusted keys
+
+`config.*` is accepted only over gRPC, signed by a key listed in `topics.signing_keys`. The `public_key` in the request is used only to pick which trusted key to check; a key not on the list is `ErrUntrustedKey` (PermissionDenied). No replay protection yet: the canonical form has no timestamp or nonce, so a signed message can be published again.
 
 ## Algorithm Lock
 

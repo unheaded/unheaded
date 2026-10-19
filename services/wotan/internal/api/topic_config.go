@@ -4,6 +4,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strings"
@@ -19,6 +20,9 @@ import (
 type TopicConfig struct {
 	Topics struct {
 		AutoApprove []string `yaml:"auto_approve"`
+		// SigningKeys are the base64 ML-DSA-65 public keys trusted to sign
+		// config.* messages (ADR-043 #2). None: config.* is closed.
+		SigningKeys []string `yaml:"signing_keys"`
 	} `yaml:"topics"`
 
 	// allowSet is built from AutoApprove for O(1) lookups
@@ -65,4 +69,29 @@ func (c *TopicConfig) IsAutoApproved(displayName string) bool {
 
 	_, ok := c.allowSet[strings.ToLower(strings.TrimSpace(displayName))]
 	return ok
+}
+
+// TrustedSigningKeys decodes topics.signing_keys. A key that is not valid
+// base64 is an error rather than skipped: a typo must not silently leave a
+// signer untrusted while the operator believes it is.
+func (c *TopicConfig) TrustedSigningKeys() ([][]byte, error) {
+	if c == nil {
+		return nil, nil
+	}
+	keys := make([][]byte, 0, len(c.Topics.SigningKeys))
+	for i, k := range c.Topics.SigningKeys {
+		b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(k))
+		if err != nil || len(b) == 0 {
+			return nil, fmt.Errorf("topics.signing_keys[%d]: not a base64 public key", i)
+		}
+		keys = append(keys, b)
+	}
+	return keys, nil
+}
+
+// RequiresSignature reports whether topic may only be published signed
+// (config.*, ADR-043 #2). The HTTP API carries no signature, so it refuses
+// these topics; only the gRPC path can publish them.
+func RequiresSignature(topic string) bool {
+	return strings.HasPrefix(topic, "config.")
 }

@@ -193,6 +193,10 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "cannot publish to a topic pattern")
 		return
 	}
+	if RequiresSignature(topic) {
+		writeError(w, http.StatusForbidden, "config.* topics are published over gRPC with an ML-DSA-65 signature")
+		return
+	}
 
 	var req struct {
 		SubscriberID string `json:"subscriber_id"`

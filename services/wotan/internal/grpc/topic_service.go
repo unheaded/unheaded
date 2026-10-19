@@ -64,13 +64,16 @@ type AutoApprover interface {
 	IsAutoApproved(displayName string) bool
 }
 
-// NewTopicService creates a new TopicService.
+// NewTopicService creates a new TopicService. signingKeys are the ML-DSA-65
+// public keys trusted to sign config.* messages; with none, every config.*
+// publish is refused.
 func NewTopicService(
 	roomManager *room.Manager,
 	memberManager *member.Manager,
 	msgWotan *wotan.Wotan,
+	signingKeys ...[]byte,
 ) *TopicService {
-	verifier, _ := signing.NewTopicVerifier() // nil-safe: PublishTopic checks before use
+	verifier, _ := signing.NewTopicVerifier(signingKeys...) // nil-safe: PublishTopic checks before use
 	return &TopicService{
 		roomManager:   roomManager,
 		memberManager: memberManager,

@@ -284,7 +284,12 @@ func main() {
 	chatService := grpcservice.NewChatService(roomManager, memberManager, messageWotan)
 
 	// Create TopicStream gRPC service - THE COSMIC WHEEL
-	topicService := grpcservice.NewTopicService(roomManager, memberManager, messageWotan)
+	signingKeys, err := topicCfg.TrustedSigningKeys()
+	if err != nil {
+		log.Fatal().Err(err).Str("path", topicConfigPath).Msg("topic_config_signing_keys_invalid")
+	}
+	log.Info().Int("trusted_signing_keys", len(signingKeys)).Msg("config.* publishes need a signature from one of these keys")
+	topicService := grpcservice.NewTopicService(roomManager, memberManager, messageWotan, signingKeys...)
 	// Same allowlist the HTTP path applies, so a publisher cannot dodge the
 	// approval gate simply by using gRPC (configs/wotan.yaml topics.auto_approve).
 	topicService.AutoApprove = topicCfg
