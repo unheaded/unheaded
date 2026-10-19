@@ -86,7 +86,9 @@ spec:
         - name: config
           configMap: { name: the-well-config, defaultMode: 0444 }
         # Create from scripts/well/make-tls.sh's output (keys never enter the
-        # repo): kubectl -n unheaded create secret generic the-well-tls
+        # repo; WELL_TLS_EXTRA_DNS=the-well,the-well.unheaded.svc adds the
+        # service names, for sslmode=verify-full):
+        # kubectl -n unheaded create secret generic the-well-tls
         #   --from-file=server.crt --from-file=server.key --from-file=ca.crt
         # Root-owned, group 70 (fsGroup), 0440: PostgreSQL accepts a
         # root-owned key its group can read.

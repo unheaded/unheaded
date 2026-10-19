@@ -20,6 +20,18 @@ DIR="${1:?usage: $0 DIR [--renew]}"
 RENEW="${2:-}"
 R="$(cd "$(dirname "$0")/../.." && pwd)"
 PG_GID="${WELL_PG_GID:-70}"
+# More DNS names for the certificate, comma-separated, so clients can use
+# sslmode=verify-full where the Well has another name: on Kubernetes,
+# WELL_TLS_EXTRA_DNS=the-well,the-well.unheaded.svc,the-well.unheaded.svc.cluster.local
+SANS="DNS:postgres,DNS:unheaded-postgres,DNS:localhost,IP:127.0.0.1"
+if [[ -n "${WELL_TLS_EXTRA_DNS:-}" ]]; then
+	IFS=',' read -r -a extra <<<"$WELL_TLS_EXTRA_DNS"
+	for n in "${extra[@]}"; do
+		[[ "$n" =~ ^[A-Za-z0-9]([A-Za-z0-9-]{0,62})(\.[A-Za-z0-9]([A-Za-z0-9-]{0,62}))*$ ]] ||
+			{ echo "[well-tls] not a DNS name: '$n'" >&2; exit 1; }
+		SANS="$SANS,DNS:$n"
+	done
+fi
 DAYS_CA=3650 DAYS_SERVER=825
 
 mkdir -p -- "$DIR"
@@ -37,7 +49,7 @@ fi
 T="$(mktemp -d)"; trap 'rm -rf -- "$T"' EXIT
 openssl req -new -nodes -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
 	-subj "/CN=unheaded-postgres" -keyout "$T/server.key" -out "$T/server.csr" 2>/dev/null
-printf '%s\n' "subjectAltName=DNS:postgres,DNS:unheaded-postgres,DNS:localhost,IP:127.0.0.1" \
+printf '%s\n' "subjectAltName=$SANS" \
 	"basicConstraints=critical,CA:FALSE" "keyUsage=critical,digitalSignature" "extendedKeyUsage=serverAuth" >"$T/ext"
 openssl x509 -req -in "$T/server.csr" -CA "$DIR/ca.crt" -CAkey "$DIR/ca.key" -CAcreateserial \
 	-days "$DAYS_SERVER" -extfile "$T/ext" -out "$T/server.crt" 2>/dev/null
