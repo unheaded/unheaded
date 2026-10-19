@@ -343,7 +343,20 @@ jobs:
           n=0
           for dir in $(git ls-files '*_test.go' | xargs grep -l '^func Fuzz' | xargs -n1 dirname | sort -u); do
             pkg="./$dir"
-            for target in $(go test -list '^Fuzz' "$pkg" | grep '^Fuzz'); do
+            # A package that fails to build lists nothing: without these
+            # checks its targets would drop out of the job silently.
+            if ! list=$(go test -list '^Fuzz' "$pkg"); then
+              echo "::error::go test -list failed for $pkg"
+              failed=1
+              continue
+            fi
+            targets=$(printf '%s\n' "$list" | grep '^Fuzz' || true)
+            if [ -z "$targets" ]; then
+              echo "::error::$pkg has func Fuzz* in its tests but go test -list found none"
+              failed=1
+              continue
+            fi
+            for target in $targets; do
               n=$((n + 1))
               echo "Fuzzing $pkg :: $target (${FUZZ_TIME})"
               if ! go test -run '^$' -fuzz="^${target}\$" -fuzztime="${FUZZ_TIME}" -timeout 120s "$pkg"; then
