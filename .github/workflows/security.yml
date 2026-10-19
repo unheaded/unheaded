@@ -496,3 +496,8 @@ jobs:
 
       - name: Rules parse and rule tests pass
         run: ./scripts/check-prometheus-rules.sh
+
+      # FND-001: the rendered email config delivers (SMTP sink, throwaway
+      # containers) and the stock config still loads.
+      - name: Alertmanager email path
+        run: ./scripts/monitoring/test-alertmanager-email.sh

@@ -1,5 +1,8 @@
-# AlertManager configuration - Alert routing and deduplication
-# Stub configuration - requires receiver setup before production
+# Alertmanager: the stock configuration. Its only receiver is null, so
+# alerts reach nobody (FND-001). Email delivery is rendered from
+# /etc/unheaded/alertmanager.env by scripts/monitoring/render-alertmanager.sh
+# into rendered/alertmanager.yml, selected with ALERTMANAGER_CONFIG_FILE in
+# monitoring/.env.
 #
 # Unheaded Kingdom infrastructure
 # License: MIT, Copyright (c) 2024-2026 Stevie Bellis
@@ -18,36 +21,3 @@ receivers:
   - name: 'null'
 
 inhibit_rules: []
-
-# TODO: Before production deployment, configure actual receivers:
-# 
-# Recommended integrations:
-#   - PagerDuty (critical infrastructure alerts)
-#   - Slack (operational notifications)
-#   - Email (escalation chain)
-#   - Webhooks (custom integrations)
-#
-# Example PagerDuty receiver:
-#   - name: 'pagerduty'
-#     pagerduty_configs:
-#       - service_key: '<service-key>'
-#         description: '{{ .GroupLabels.alertname }} on {{ .GroupLabels.host }}'
-#
-# Example Slack receiver:
-#   - name: 'slack'
-#     slack_configs:
-#       - api_url: '<webhook-url>'
-#         channel: '#unheaded-alerts'
-#         title: 'Unheaded Infrastructure Alert'
-#
-# Example routing for critical alerts:
-#   route:
-#     receiver: 'null'
-#     routes:
-#       - match:
-#           severity: critical
-#         receiver: 'pagerduty'
-#         continue: true
-#       - match:
-#           severity: warning
-#         receiver: 'slack'

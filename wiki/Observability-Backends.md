@@ -22,7 +22,7 @@ Unheaded emits OpenTelemetry-compatible signals (metrics, logs, traces). Users p
 | VictoriaMetrics, Grafana | in `docker-compose.yml`, running when the stack is up (Victoria scrapes 10 targets) |
 | ClickHouse | running with the stack; its own system log tables trimmed to fit 2G (`config/clickhouse/system-logs.xml`: text/trace/metric logs off, the rest 7-day TTL) |
 | Vector → ClickHouse container logs | **not working** (2026-10-18): the `docker_logs` source needs the Docker socket, which vector has never been given, and nothing creates `unheaded_logs.logs`. Open design choice (socket proxy, read-only containers dir, or a logging driver) |
-| Prometheus alert rules (`monitoring/prometheus/rules/`) | `promtool`-tested in CI; nothing evaluates them on west, Alertmanager receiver is `null` (FND-001) |
+| Prometheus alert rules (`monitoring/prometheus/rules/`) | `promtool`-tested in CI; nothing evaluates them on west, and the stock Alertmanager receiver is `null` (FND-001). Email: `scripts/monitoring/render-alertmanager.sh /etc/unheaded/alertmanager.env` writes `monitoring/alertmanager/rendered/alertmanager.yml` (relay and recipients from the env file, SMTP password from a file outside the repo); select it with `ALERTMANAGER_CONFIG_FILE` and `ALERTMANAGER_SECRETS_DIR` in `monitoring/.env`. Tested end to end against an SMTP sink in CI |
 | Logs | zerolog → Wotan `logs.<service>.<level>` → dashboard live tail ([[Log-Aggregation]]) |
 | Dashboard | live on `:20000`: overview (req/s, 5xx, p95), flow graph, logs, compliance |
 

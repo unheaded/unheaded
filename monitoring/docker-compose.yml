@@ -145,8 +145,12 @@ services:
     volumes:
       - ./alertmanager:/etc/alertmanager:ro
       - alertmanager_data:/alertmanager
+      # FND-001: the SMTP password file (scripts/monitoring/render-alertmanager.sh).
+      # Default is an empty directory: the stock config sends nothing.
+      - ${ALERTMANAGER_SECRETS_DIR:-./alertmanager/no-secrets}:/etc/alertmanager-secrets:ro
     command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      # rendered/alertmanager.yml once render-alertmanager.sh has run
+      - '--config.file=/etc/alertmanager/${ALERTMANAGER_CONFIG_FILE:-alertmanager.yml}'
       - '--storage.path=/alertmanager'
     networks: [monitoring]
     healthcheck:

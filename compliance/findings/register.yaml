@@ -30,7 +30,12 @@ findings:
     exposure: every other control's alarm path depends on this
     lockout: none
     step: 1
-    plan: email receiver (Stevie 2026-09-30; PagerDuty or similar later); run the monitoring stack; Watchdog heartbeat cross-watched by west and east
+    plan: >-
+      email receiver (Stevie 2026-09-30; PagerDuty or similar later); run the monitoring stack; Watchdog heartbeat
+      cross-watched by west and east. Email receiver BUILT 2026-10-19: scripts/monitoring/render-alertmanager.sh renders
+      it from /etc/unheaded/alertmanager.env (relay, from, to), password from a file outside the repo; critical repeats
+      hourly and silences its own warning; tested end to end against an SMTP sink (CI). What is left is the relay choice,
+      the env and password files, and starting the monitoring stack
     decision: SMTP relay for the email receiver (credentials from a file outside the repo)
 
   - source: "github-job:Static Analysis/Rust (clippy)"

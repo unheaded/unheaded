@@ -556,6 +556,23 @@ provoke_python_audit() {
     printf 'jinja2==2.10\n' >>"${REPO_ROOT}/${f}"
 }
 
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_alertmanager_email() {
+    # Contract (FND-001): a critical alert silences its own warning, so
+    # one incident is one mail. Drop the inhibit rule from the render.
+    local f="scripts/monitoring/render-alertmanager.sh"
+    backup "${f}"
+    python3 - "${REPO_ROOT}/${f}" <<'PY'
+import sys
+p = sys.argv[1]
+s = open(p).read()
+old = "inhibit_rules:\n  - source_matchers: ['severity=\"critical\"']\n    target_matchers: ['severity=\"warning\"']\n    equal: ['alertname', 'host']\n"
+if old not in s:
+    sys.exit("provocation anchor missing")
+open(p, "w").write(s.replace(old, "inhibit_rules: []\n"))
+PY
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -588,6 +605,7 @@ well/test-config|provoke_well_config|slow|pg_hba letting service roles in withou
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-suricata-rules|provoke_suricata_rules|slow|the original ipv6-exthdr keyword restored in the canonical Monad rules (needs docker)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
+monitoring/test-alertmanager-email|provoke_alertmanager_email|slow|the critical-silences-warning inhibit rule dropped from the render (needs docker)
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 
@@ -611,6 +629,7 @@ well/make-tls|makes TLS material outside the repo; exercised by well/test-config
 db-backup|writes a backup set (runbooks/data/postgresql-backup-restore.yaml); its refusals and the set it writes are proven by well/test-backup-restore
 well/restore-drill|needs a backup set to run; its refusals are provoked by well/test-backup-restore (flipped byte, wrong count, unlisted dump)
 build-binaries|builds the unit binaries (make binaries, build-all-debs); its --check-units verdict is check-unit-binaries
+monitoring/render-alertmanager|renders Alertmanager's email config from an env file; proven by monitoring/test-alertmanager-email
 well/test-converge-live-app|compares the live Well (or a restored set) with a fresh bootstrap; needs that Well, runbook verify step
 "
 
