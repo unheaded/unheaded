@@ -3,6 +3,7 @@ package signing
 
 import (
 	"testing"
+	"time"
 
 	"unheaded/pkg/crypto/pqc"
 )
@@ -16,24 +17,26 @@ func generateTestSigner(t *testing.T) *TopicSigner {
 	return NewTopicSigner(signer)
 }
 
+func sign(t *testing.T, ts *TopicSigner, topic, sender, payload string) Signed {
+	t.Helper()
+	sg, err := ts.Sign(topic, sender, []byte(payload))
+	if err != nil {
+		t.Fatalf("sign: %v", err)
+	}
+	return sg
+}
+
 func TestSignVerifyRoundTrip(t *testing.T) {
 	ts := generateTestSigner(t)
 	tv, err := NewTopicVerifier(ts.pubKey)
 	if err != nil {
 		t.Fatalf("new verifier: %v", err)
 	}
-
-	sig, pub, algo, err := ts.Sign("config.baseline", "heimdall-01", []byte("mjolnir-v1"))
-	if err != nil {
-		t.Fatalf("sign: %v", err)
+	sg := sign(t, ts, "config.baseline", "heimdall-01", "mjolnir-v1")
+	if sg.Algorithm != Algorithm {
+		t.Fatalf("expected algorithm %s, got %s", Algorithm, sg.Algorithm)
 	}
-
-	if algo != Algorithm {
-		t.Fatalf("expected algorithm %s, got %s", Algorithm, algo)
-	}
-
-	err = tv.Verify("config.baseline", "heimdall-01", []byte("mjolnir-v1"), sig, pub, algo)
-	if err != nil {
+	if err := tv.Verify("config.baseline", "heimdall-01", []byte("mjolnir-v1"), sg); err != nil {
 		t.Fatalf("verify: %v", err)
 	}
 }
@@ -41,21 +44,18 @@ func TestSignVerifyRoundTrip(t *testing.T) {
 func TestRejectTamperedPayload(t *testing.T) {
 	ts := generateTestSigner(t)
 	tv, _ := NewTopicVerifier(ts.pubKey)
-
-	sig, pub, algo, _ := ts.Sign("config.baseline", "heimdall-01", []byte("original"))
-	err := tv.Verify("config.baseline", "heimdall-01", []byte("tampered"), sig, pub, algo)
-	if err == nil {
-		t.Fatal("expected rejection of tampered payload")
+	sg := sign(t, ts, "config.baseline", "heimdall-01", "original")
+	if err := tv.Verify("config.baseline", "heimdall-01", []byte("tampered"), sg); err != ErrInvalidSignature {
+		t.Fatalf("tampered payload: %v", err)
 	}
 }
 
 func TestRejectWrongAlgorithm(t *testing.T) {
 	ts := generateTestSigner(t)
 	tv, _ := NewTopicVerifier(ts.pubKey)
-
-	sig, pub, _, _ := ts.Sign("config.baseline", "heimdall-01", []byte("payload"))
-	err := tv.Verify("config.baseline", "heimdall-01", []byte("payload"), sig, pub, "hmac-sha256")
-	if err != ErrWrongAlgorithm {
+	sg := sign(t, ts, "config.baseline", "heimdall-01", "payload")
+	sg.Algorithm = "hmac-sha256"
+	if err := tv.Verify("config.baseline", "heimdall-01", []byte("payload"), sg); err != ErrWrongAlgorithm {
 		t.Fatalf("expected ErrWrongAlgorithm, got %v", err)
 	}
 }
@@ -63,11 +63,9 @@ func TestRejectWrongAlgorithm(t *testing.T) {
 func TestRejectWrongSender(t *testing.T) {
 	ts := generateTestSigner(t)
 	tv, _ := NewTopicVerifier(ts.pubKey)
-
-	sig, pub, algo, _ := ts.Sign("config.baseline", "heimdall-01", []byte("payload"))
-	err := tv.Verify("config.baseline", "attacker", []byte("payload"), sig, pub, algo)
-	if err == nil {
-		t.Fatal("expected rejection of wrong sender")
+	sg := sign(t, ts, "config.baseline", "heimdall-01", "payload")
+	if err := tv.Verify("config.baseline", "attacker", []byte("payload"), sg); err != ErrInvalidSignature {
+		t.Fatalf("wrong sender: %v", err)
 	}
 }
 
@@ -82,22 +80,19 @@ func TestRequiresSignature(t *testing.T) {
 		{"logs.wotan.info", false},
 		{"alerts.critical", false},
 	}
-
 	for _, tt := range tests {
-		got := RequiresSignature(tt.topic)
-		if got != tt.want {
+		if got := RequiresSignature(tt.topic); got != tt.want {
 			t.Errorf("RequiresSignature(%q) = %v, want %v", tt.topic, got, tt.want)
 		}
 	}
 }
 
 func TestUnsignedConfigTopicRejected(t *testing.T) {
-	tv, _ := NewTopicVerifier()
-
-	// Empty signature on config.* topic
-	err := tv.Verify("config.baseline", "sender", []byte("payload"), nil, nil, Algorithm)
-	if err == nil {
-		t.Fatal("expected rejection of nil signature on config topic")
+	ts := generateTestSigner(t)
+	tv, _ := NewTopicVerifier(ts.pubKey)
+	empty := Signed{Algorithm: Algorithm, PublicKey: ts.pubKey, SignedAtUnixMs: time.Now().UnixMilli()}
+	if err := tv.Verify("config.baseline", "sender", []byte("payload"), empty); err == nil {
+		t.Fatal("expected rejection of an empty signature")
 	}
 }
 
@@ -110,19 +105,53 @@ func TestRejectSelfSuppliedKey(t *testing.T) {
 	attacker := generateTestSigner(t)
 	tv, _ := NewTopicVerifier(trusted.pubKey)
 
-	sig, pub, algo, _ := attacker.Sign("config.baseline", "heimdall-01", []byte("forged"))
-	if err := tv.Verify("config.baseline", "heimdall-01", []byte("forged"), sig, pub, algo); err != ErrUntrustedKey {
+	forged := sign(t, attacker, "config.baseline", "heimdall-01", "forged")
+	if err := tv.Verify("config.baseline", "heimdall-01", []byte("forged"), forged); err != ErrUntrustedKey {
 		t.Fatalf("self-signed message: want ErrUntrustedKey, got %v", err)
 	}
-
 	none, _ := NewTopicVerifier()
-	if err := none.Verify("config.baseline", "heimdall-01", []byte("forged"), sig, pub, algo); err != ErrNoTrustedKeys {
+	if err := none.Verify("config.baseline", "heimdall-01", []byte("forged"), forged); err != ErrNoTrustedKeys {
 		t.Fatalf("no trusted keys: want ErrNoTrustedKeys, got %v", err)
 	}
-
-	// The trusted key still works.
-	sig, pub, algo, _ = trusted.Sign("config.baseline", "heimdall-01", []byte("real"))
-	if err := tv.Verify("config.baseline", "heimdall-01", []byte("real"), sig, pub, algo); err != nil {
+	real := sign(t, trusted, "config.baseline", "heimdall-01", "real")
+	if err := tv.Verify("config.baseline", "heimdall-01", []byte("real"), real); err != nil {
 		t.Fatalf("trusted key: %v", err)
+	}
+}
+
+// TestReplayAndStale: the same signed message is accepted once; one signed
+// too far from now is refused; and moving its signing time breaks the
+// signature (the time is signed).
+func TestReplayAndStale(t *testing.T) {
+	ts := generateTestSigner(t)
+	tv, _ := NewTopicVerifier(ts.pubKey)
+	sg := sign(t, ts, "config.baseline", "n1", "v1")
+	if err := tv.Verify("config.baseline", "n1", []byte("v1"), sg); err != nil {
+		t.Fatalf("first delivery: %v", err)
+	}
+	if err := tv.Verify("config.baseline", "n1", []byte("v1"), sg); err != ErrReplay {
+		t.Fatalf("second delivery: want ErrReplay, got %v", err)
+	}
+
+	old, err := ts.SignAt("config.baseline", "n1", []byte("v0"), time.Now().Add(-MaxSkew-time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := tv.Verify("config.baseline", "n1", []byte("v0"), old); err != ErrStale {
+		t.Fatalf("stale: want ErrStale, got %v", err)
+	}
+	old.SignedAtUnixMs = time.Now().UnixMilli() // freshen the time, keep the old signature
+	if err := tv.Verify("config.baseline", "n1", []byte("v0"), old); err != ErrInvalidSignature {
+		t.Fatalf("re-dated stale message: want ErrInvalidSignature, got %v", err)
+	}
+
+	// Once the window has passed, the cache forgets: by then the message is
+	// stale anyway.
+	tv.now = func() time.Time { return time.Now().Add(MaxSkew + time.Minute) }
+	if err := tv.Verify("config.baseline", "n1", []byte("v1"), sg); err != ErrStale {
+		t.Fatalf("after the window: want ErrStale, got %v", err)
+	}
+	if len(tv.seen) != 0 {
+		t.Fatalf("expired entries kept: %d", len(tv.seen))
 	}
 }

@@ -112,13 +112,14 @@ func TestPublishTopic_SelfSignedConfigRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	ts := signing.NewTopicSigner(signer)
-	sig, pub, algo, err := ts.Sign("config.kingdom", "", []byte(`{"evil":true}`))
+	sg, err := ts.Sign("config.kingdom", "", []byte(`{"evil":true}`))
 	if err != nil {
 		t.Fatal(err)
 	}
+	pub := sg.PublicKey
 	req := &chatpb.TopicPublishRequest{
 		Topic: "config.kingdom", Payload: []byte(`{"evil":true}`),
-		Signature: sig, PublicKey: pub, Algorithm: algo,
+		Signature: sg.Signature, PublicKey: pub, Algorithm: sg.Algorithm, SignedAtUnixMs: sg.SignedAtUnixMs,
 	}
 	if _, err := productionTopicService().PublishTopic(context.Background(), req); status.Code(err) != codes.PermissionDenied {
 		t.Fatalf("config.* publish with no trusted keys: %v, want PermissionDenied", err)
@@ -136,5 +137,9 @@ func TestPublishTopic_SelfSignedConfigRefused(t *testing.T) {
 	trusted := NewTopicService(room.NewManager(100), member.NewManager(), wotan.NewWotan(), pub)
 	if _, err := trusted.PublishTopic(context.Background(), req); err != nil {
 		t.Fatalf("publish signed by a trusted key: %v", err)
+	}
+	// The same signed request again is a replay.
+	if _, err := trusted.PublishTopic(context.Background(), req); status.Code(err) != codes.PermissionDenied {
+		t.Fatalf("replayed config.* publish: %v, want PermissionDenied", err)
 	}
 }

@@ -428,7 +428,9 @@ func (s *TopicService) PublishTopic(
 				Msg("config_topic_verifier_unavailable")
 			return nil, status.Error(codes.PermissionDenied, "signature verification unavailable")
 		}
-		if err := s.topicVerifier.Verify(req.Topic, req.SenderId, req.Payload, req.Signature, req.PublicKey, req.Algorithm); err != nil {
+		if err := s.topicVerifier.Verify(req.Topic, req.SenderId, req.Payload, signing.Signed{
+			Signature: req.Signature, PublicKey: req.PublicKey, Algorithm: req.Algorithm, SignedAtUnixMs: req.SignedAtUnixMs,
+		}); err != nil {
 			logger.FromContext(ctx).Warn().
 				Err(err).
 				Str("topic", req.Topic).

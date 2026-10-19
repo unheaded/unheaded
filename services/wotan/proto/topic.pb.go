@@ -288,11 +288,15 @@ type TopicPublishRequest struct {
 	Payload  []byte                 `protobuf:"bytes,3,opt,name=payload,proto3" json:"payload,omitempty"`
 	Metadata map[string]string      `protobuf:"bytes,4,rep,name=metadata,proto3" json:"metadata,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	// ML-DSA-65 signature fields (ADR-043 hard condition #2)
-	Signature     []byte `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
-	PublicKey     []byte `protobuf:"bytes,6,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	Algorithm     string `protobuf:"bytes,7,opt,name=algorithm,proto3" json:"algorithm,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Signature []byte `protobuf:"bytes,5,opt,name=signature,proto3" json:"signature,omitempty"`
+	PublicKey []byte `protobuf:"bytes,6,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	Algorithm string `protobuf:"bytes,7,opt,name=algorithm,proto3" json:"algorithm,omitempty"`
+	// When the publisher signed, in Unix milliseconds. Covered by the
+	// signature; Wotan refuses it outside a few minutes of its own clock and
+	// refuses the same signature twice within that window (replay).
+	SignedAtUnixMs int64 `protobuf:"varint,8,opt,name=signed_at_unix_ms,json=signedAtUnixMs,proto3" json:"signed_at_unix_ms,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *TopicPublishRequest) Reset() {
@@ -372,6 +376,13 @@ func (x *TopicPublishRequest) GetAlgorithm() string {
 		return x.Algorithm
 	}
 	return ""
+}
+
+func (x *TopicPublishRequest) GetSignedAtUnixMs() int64 {
+	if x != nil {
+		return x.SignedAtUnixMs
+	}
+	return 0
 }
 
 type TopicPublishResponse struct {
@@ -585,7 +596,7 @@ const file_topic_proto_rawDesc = "" +
 	"\n" +
 	"public_key\x18\n" +
 	" \x01(\fR\tpublicKey\x12\x1c\n" +
-	"\talgorithm\x18\v \x01(\tR\talgorithm\"\xbf\x02\n" +
+	"\talgorithm\x18\v \x01(\tR\talgorithm\"\xea\x02\n" +
 	"\x13TopicPublishRequest\x12\x14\n" +
 	"\x05topic\x18\x01 \x01(\tR\x05topic\x12\x1b\n" +
 	"\tsender_id\x18\x02 \x01(\tR\bsenderId\x12\x18\n" +
@@ -594,7 +605,8 @@ const file_topic_proto_rawDesc = "" +
 	"\tsignature\x18\x05 \x01(\fR\tsignature\x12\x1d\n" +
 	"\n" +
 	"public_key\x18\x06 \x01(\fR\tpublicKey\x12\x1c\n" +
-	"\talgorithm\x18\a \x01(\tR\talgorithm\x1a;\n" +
+	"\talgorithm\x18\a \x01(\tR\talgorithm\x12)\n" +
+	"\x11signed_at_unix_ms\x18\b \x01(\x03R\x0esignedAtUnixMs\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x82\x01\n" +
@@ -628,7 +640,7 @@ var (
 
 func file_topic_proto_rawDescGZIP() []byte {
 	file_topic_proto_rawDescOnce.Do(func() {
-		file_topic_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_topic_proto_rawDesc), len(file_topic_proto_rawDesc))) // #nosec G103 -- protoc-gen-go generated protoimpl code, not hand-written
+		file_topic_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_topic_proto_rawDesc), len(file_topic_proto_rawDesc)))
 	})
 	return file_topic_proto_rawDescData
 }
@@ -677,7 +689,7 @@ func file_topic_proto_init() {
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_topic_proto_rawDesc), len(file_topic_proto_rawDesc)), // #nosec G103 -- protoc-gen-go generated protoimpl code, not hand-written
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_topic_proto_rawDesc), len(file_topic_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   8,
 			NumExtensions: 0,

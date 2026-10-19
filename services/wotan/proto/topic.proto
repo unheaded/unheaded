@@ -56,6 +56,10 @@ message TopicPublishRequest {
   bytes signature = 5;
   bytes public_key = 6;
   string algorithm = 7;
+  // When the publisher signed, in Unix milliseconds. Covered by the
+  // signature; Wotan refuses it outside a few minutes of its own clock and
+  // refuses the same signature twice within that window (replay).
+  int64 signed_at_unix_ms = 8;
 }
 
 message TopicPublishResponse {

@@ -18,7 +18,7 @@ Implemented as a prerequisite sprint on `main` before the spike branch.
 
 ## Canonical Form
 
-Sign the SHA-256 of `topic ‖ "\x00" ‖ sender_id ‖ "\x00" ‖ payload`.
+Sign the SHA-256 of `"wotan/topic-sig/v2" ‖ 0 ‖ topic ‖ 0 ‖ sender_id ‖ 0 ‖ signed_at (int64 big-endian, Unix ms) ‖ payload` (v2, 2026-10-19; v1 had no time).
 Deterministic, includes sender to prevent identity spoofing.
 
 ## Topic Policy
@@ -34,7 +34,7 @@ Default: `config.*` requires signatures. Other topics (`drift.detected.*`,
 
 ## Trusted keys
 
-`config.*` is accepted only over gRPC, signed by a key listed in `topics.signing_keys`. The `public_key` in the request is used only to pick which trusted key to check; a key not on the list is `ErrUntrustedKey` (PermissionDenied). No replay protection yet: the canonical form has no timestamp or nonce, so a signed message can be published again.
+`config.*` is accepted only over gRPC, signed by a key listed in `topics.signing_keys`. The `public_key` in the request is used only to pick which trusted key to check; a key not on the list is `ErrUntrustedKey` (PermissionDenied). Replays: the request carries `signed_at_unix_ms`, which the signature covers. Wotan refuses it more than 5 minutes from its own clock and refuses a signature it has already accepted within that window (a restart forgets them, so a message signed in the last 5 minutes could be replayed once after one).
 
 ## Algorithm Lock
 
