@@ -68,8 +68,9 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.path=/prometheus'
       - '--storage.tsdb.retention.time=15d'
-      - '--web.enable-admin-api'
-      - '--web.enable-lifecycle'
+      # No --web.enable-admin-api / --web.enable-lifecycle: 9090 is published
+      # and those APIs have no auth (delete series, snapshots, /-/quit). Reload
+      # rules with `docker kill -s HUP unheaded-prometheus`.
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks: [monitoring]

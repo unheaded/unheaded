@@ -44,7 +44,7 @@ in {
         then /etc/unheaded/prometheus/prometheus.yml
         else /etc/unheaded/prometheus/prometheus-host-b.yml;
       # retentionTime as string
-      extraFlags = [ "--storage.tsdb.retention.time=15d" "--web.enable-admin-api" ];
+      extraFlags = [ "--storage.tsdb.retention.time=15d" ]; # no --web.enable-admin-api: unauthenticated delete/snapshot
     };
     
     # --- Grafana (primary only) ---
