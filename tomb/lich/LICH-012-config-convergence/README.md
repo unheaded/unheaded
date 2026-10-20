@@ -64,7 +64,7 @@ produce either an exploit (finding) or a signed "no exploit" certification.
 | L12b | Publish `config.*` without a valid signature | **FINDING, fixed**: the signature was checked against the key the publisher sent with it (decorative), and the HTTP path took `config.*` unsigned. Now trusted keys only (`topics.signing_keys`, empty = closed), HTTP refuses `config.*` | 472290bd |
 | L12b | Replay a signed `config.*` message | **FINDING, fixed**: signed `signed_at_unix_ms`, ±5 min window, accepted-signature cache | a6a61d3c |
 | L12b | Spoof sender / burn a signature with a refused publish | **FINDING, fixed**: signature recorded only after sender authz; rooms created only after authz | 169d93fc |
-| L12b | Flood the verifier | Not attempted | — |
+| L12b | Flood the verifier | **FINDING, fixed**: the signature was verified before the sender was authorized, and trusted public keys are public, so a caller the allowlist refuses could make every request cost an ML-DSA verify. Authorization now runs first. (Found alongside: one member per unnamed publish, never freed: 245 B/message) | bfdb194f |
 | L12c | enkrateia writes the filesystem | No exploit; the test that claimed to prove it could not fail ("no assertion needed"). Now an import allowlist read from the package source fails on any `os`/`syscall`/`exec`/net import | this commit |
 | L12c | TOCTOU detection → alert | Not applicable while alerts-only (ADR-043 #1): nothing acts on the alert | — |
 | L12d | heimdall-bpf verifier bombs, ringbuf overflow, map poisoning | Not run (needs sudo and a live attach) | — |
@@ -72,9 +72,8 @@ produce either an exploit (finding) or a signed "no exploit" certification.
 | L12e | Malformed / ambiguous triggers | **FINDING, fixed**: `Unmarshal` accepted any length >= 20 and ignored the reserved bytes, so different datagrams meant the same trigger. Now exactly 20 bytes, reserved zero; `FuzzUnmarshal` requires every accepted datagram to re-marshal byte-identically (10M execs clean) | this commit |
 | L12e | Integer overflow in `cluster_id` / `manifest_ptr` | No exploit: fixed-width big-endian reads of a length-checked buffer | — |
 
-Count against the criteria below: 5 exploitable findings, all fixed on
-develop; L12a key storage, L12b flooding and L12d still to run before a
-verdict.
+Count against the criteria below: 6 exploitable findings, all fixed on
+develop; L12a key storage and L12d still to run before a verdict.
 
 ## Success Criteria
 
