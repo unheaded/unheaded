@@ -23,8 +23,47 @@
 # See "D11" in docs/battle-plans/STAGING-LADDER-DECISIONS.md. Left in place
 # rather than deleted: it is the record of the intended Docker topology, and
 # every service definition below except the ones named above is sound.
+#
+# FND-009 (2026-10-20): every service with a pkg/uids number runs as it,
+# read-only, cap_drop ALL, no-new-privileges, after volume-init chowns its
+# volume; healthchecks use the images' busybox wget on 127.0.0.1 (curl is not
+# in them, and localhost is ::1). Still on the hardening baseline, each for a
+# reason: the firewall VMs (privileged, need the D11 decision), shield and
+# unheaded-daemon (the D11 host-network question), and services whose images
+# exist nowhere in this repo (no uid allocated for them).
 version: '3.8'
 services:
+  # One-shot: hands each named volume to its service's uid (pkg/uids); a fresh
+  # volume inherits the image's owner. chown only when it differs.
+  volume-init:
+    image: alpine:3.24
+    user: "0:0"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH]
+    security_opt:
+    - no-new-privileges:true
+    volumes:
+    - wotan-data:/volumes/wotan-data
+    - monad-data:/volumes/monad-data
+    - sophia-data:/volumes/sophia-data
+    - anamnesis-data:/volumes/anamnesis-data
+    - dashboard-backend-data:/volumes/dashboard-backend-data
+    - gateway-data:/volumes/gateway-data
+    - prometheus-data:/volumes/prometheus-data
+    command:
+    - sh
+    - -ec
+    - |
+      own() { [ "$$(stat -c %u:%g "$$2")" = "$$1" ] || chown -R "$$1" "$$2"; }
+      own 16720:16720 /volumes/wotan-data
+      own 16726:16726 /volumes/monad-data
+      own 16727:16727 /volumes/sophia-data
+      own 16760:16760 /volumes/anamnesis-data
+      own 16728:16728 /volumes/dashboard-backend-data
+      own 16730:16730 /volumes/gateway-data
+      own 16700:16700 /volumes/prometheus-data
   ipfire:
     build:
       context: ../firewall/ipfire
@@ -112,6 +151,14 @@ services:
     image: unheaded-wotan:${VERSION:-dev}
     container_name: unheaded-wotan
     restart: unless-stopped
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+    user: "16720:16720"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+    - no-new-privileges:true
     networks:
       unheaded:
         ipv6_address: fd00:dead:beef:2::101
@@ -126,9 +173,10 @@ services:
     healthcheck:
       test:
       - CMD
-      - curl
-      - -f
-      - http://localhost:8222/healthz
+      - wget
+      - -q
+      - --spider
+      - http://127.0.0.1:8222/healthz
       interval: 10s
       timeout: 5s
       retries: 3
@@ -142,9 +190,6 @@ services:
       prometheus.io/scrape: 'true'
       prometheus.io/port: '8222'
       prometheus.io/path: /metrics
-    security_opt:
-    - no-new-privileges:true
-    read_only: true
     tmpfs:
     - /tmp:size=64m,mode=1777
     volumes:
@@ -153,6 +198,11 @@ services:
     image: unheaded-monad:${VERSION:-dev}
     container_name: unheaded-monad
     restart: unless-stopped
+    user: "16726:16726"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+    - no-new-privileges:true
     networks:
       unheaded:
         ipv6_address: fd00:dead:beef:2::102
@@ -163,14 +213,17 @@ services:
     ports:
     - 5000:5000
     depends_on:
+      volume-init:
+        condition: service_completed_successfully
       wotan:
         condition: service_healthy
     healthcheck:
       test:
       - CMD
-      - curl
-      - -f
-      - http://localhost:5000/health
+      - wget
+      - -q
+      - --spider
+      - http://127.0.0.1:5000/health
       interval: 10s
       timeout: 5s
       retries: 3
@@ -184,9 +237,6 @@ services:
       prometheus.io/scrape: 'true'
       prometheus.io/port: '5000'
       prometheus.io/path: /metrics
-    security_opt:
-    - no-new-privileges:true
-    read_only: true
     tmpfs:
     - /tmp:size=64m,mode=1777
     volumes:
@@ -195,6 +245,11 @@ services:
     image: unheaded-sophia:${VERSION:-dev}
     container_name: unheaded-sophia
     restart: unless-stopped
+    user: "16727:16727"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+    - no-new-privileges:true
     networks:
       unheaded:
         ipv6_address: fd00:dead:beef:2::103
@@ -205,14 +260,17 @@ services:
     ports:
     - 5001:5001
     depends_on:
+      volume-init:
+        condition: service_completed_successfully
       wotan:
         condition: service_healthy
     healthcheck:
       test:
       - CMD
-      - curl
-      - -f
-      - http://localhost:5001/health
+      - wget
+      - -q
+      - --spider
+      - http://127.0.0.1:5001/health
       interval: 10s
       timeout: 5s
       retries: 3
@@ -226,20 +284,19 @@ services:
       prometheus.io/scrape: 'true'
       prometheus.io/port: '5001'
       prometheus.io/path: /metrics
-    security_opt:
-    - no-new-privileges:true
-    read_only: true
     tmpfs:
     - /tmp:size=64m,mode=1777
-    cap_add:
-    - NET_RAW
-    - NET_ADMIN
     volumes:
     - sophia-data:/var/lib/sophia
   anamnesis:
     image: unheaded-anamnesis:${VERSION:-dev}
     container_name: unheaded-anamnesis
     restart: unless-stopped
+    user: "16760:16760"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+    - no-new-privileges:true
     networks:
       unheaded:
         ipv6_address: fd00:dead:beef:2::104
@@ -250,14 +307,17 @@ services:
     ports:
     - 5002:5002
     depends_on:
+      volume-init:
+        condition: service_completed_successfully
       wotan:
         condition: service_healthy
     healthcheck:
       test:
       - CMD
-      - curl
-      - -f
-      - http://localhost:5002/health
+      - wget
+      - -q
+      - --spider
+      - http://127.0.0.1:5002/health
       interval: 10s
       timeout: 5s
       retries: 3
@@ -271,9 +331,6 @@ services:
       prometheus.io/scrape: 'true'
       prometheus.io/port: '5002'
       prometheus.io/path: /metrics
-    security_opt:
-    - no-new-privileges:true
-    read_only: true
     tmpfs:
     - /tmp:size=64m,mode=1777
     volumes:
@@ -328,6 +385,11 @@ services:
     image: unheaded-dashboard-backend:${VERSION:-dev}
     container_name: unheaded-dashboard-backend
     restart: unless-stopped
+    user: "16728:16728"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+    - no-new-privileges:true
     networks:
       unheaded:
         ipv6_address: fd00:dead:beef:2::301
@@ -338,14 +400,17 @@ services:
     ports:
     - 7000:7000
     depends_on:
+      volume-init:
+        condition: service_completed_successfully
       anamnesis:
         condition: service_healthy
     healthcheck:
       test:
       - CMD
-      - curl
-      - -f
-      - http://localhost:7000/health
+      - wget
+      - -q
+      - --spider
+      - http://127.0.0.1:7000/health
       interval: 10s
       timeout: 5s
       retries: 3
@@ -359,9 +424,6 @@ services:
       prometheus.io/scrape: 'true'
       prometheus.io/port: '7000'
       prometheus.io/path: /metrics
-    security_opt:
-    - no-new-privileges:true
-    read_only: true
     tmpfs:
     - /tmp:size=64m,mode=1777
     volumes:
@@ -370,6 +432,11 @@ services:
     image: unheaded-gateway:${VERSION:-dev}
     container_name: unheaded-gateway
     restart: unless-stopped
+    user: "16730:16730"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+    - no-new-privileges:true
     networks:
       unheaded:
         ipv6_address: fd00:dead:beef:2::305
@@ -380,14 +447,17 @@ services:
     ports:
     - 8080:8080
     depends_on:
+      volume-init:
+        condition: service_completed_successfully
       dashboard-backend:
         condition: service_healthy
     healthcheck:
       test:
       - CMD
-      - curl
-      - -f
-      - http://localhost:8080/health
+      - wget
+      - -q
+      - --spider
+      - http://127.0.0.1:8080/health
       interval: 10s
       timeout: 5s
       retries: 3
@@ -401,9 +471,6 @@ services:
       prometheus.io/scrape: 'true'
       prometheus.io/port: '8080'
       prometheus.io/path: /metrics
-    security_opt:
-    - no-new-privileges:true
-    read_only: true
     tmpfs:
     - /tmp:size=64m,mode=1777
     volumes:
@@ -412,6 +479,14 @@ services:
     image: prom/prometheus:v2.51.0
     container_name: unheaded-prometheus-outpost
     restart: unless-stopped
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+    user: "16700:16700"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+    - no-new-privileges:true
     networks:
       unheaded:
         ipv6_address: fd00:dead:beef:2::701
@@ -431,9 +506,10 @@ services:
     healthcheck:
       test:
       - CMD
-      - curl
-      - -f
-      - http://localhost:9090/-/healthy
+      - wget
+      - -q
+      - --spider
+      - http://127.0.0.1:9090/-/healthy
       interval: 10s
       timeout: 5s
       retries: 3
@@ -443,15 +519,20 @@ services:
         limits:
           cpus: '1.0'
           memory: 256M
-    security_opt:
-    - no-new-privileges:true
-    read_only: true
     tmpfs:
     - /tmp:size=64m,mode=1777
   promtail:
     image: grafana/promtail:3.0.0
     container_name: unheaded-promtail
     restart: unless-stopped
+    # adm reads /var/log and the journal; the Docker socket (root on the host)
+    # and /var/lib/docker/containers (root-only files) are gone (FND-009).
+    group_add: ["4"]
+    user: "16704:16704"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+    - no-new-privileges:true
     networks:
       unheaded:
         ipv6_address: fd00:dead:beef:2::702
@@ -462,22 +543,22 @@ services:
     volumes:
     - /etc/unheaded/promtail/promtail-host-b.yaml:/etc/promtail/config.yaml:ro
     - /var/log:/var/log:ro
-    - /var/lib/docker/containers:/var/lib/docker/containers:ro
-    - /var/run/docker.sock:/var/run/docker.sock
     deploy:
       resources:
         limits:
           cpus: '0.5'
           memory: 128M
-    security_opt:
-    - no-new-privileges:true
-    read_only: true
     tmpfs:
     - /tmp:size=64m,mode=1777
   node-exporter:
     image: prom/node-exporter:v1.7.0
     container_name: unheaded-node-exporter
     restart: unless-stopped
+    user: "16705:16705"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+    - no-new-privileges:true
     networks:
       unheaded:
         ipv6_address: fd00:dead:beef:2::703
@@ -495,9 +576,10 @@ services:
     healthcheck:
       test:
       - CMD
-      - curl
-      - -f
-      - http://localhost:9100/metrics
+      - wget
+      - -q
+      - --spider
+      - http://127.0.0.1:9100/metrics
       interval: 10s
       timeout: 5s
       retries: 3
@@ -511,9 +593,6 @@ services:
       prometheus.io/scrape: 'true'
       prometheus.io/port: '9100'
       prometheus.io/path: /metrics
-    security_opt:
-    - no-new-privileges:true
-    read_only: true
     tmpfs:
     - /tmp:size=64m,mode=1777
   wireguard:
@@ -525,13 +604,18 @@ services:
         ipv6_address: fd00:dead:beef:2::800
     ports:
     - 51820:51820/udp
+    # Root by necessity, bounded as docker/wireguard/docker-compose.wireguard.yml
+    # (each cap measured 2026-10-20): NET_ADMIN for the tunnel; CHOWN SETUID
+    # SETGID DAC_OVERRIDE for s6's init. No SYS_MODULE (the host loads it).
+    cap_drop: [ALL]
     cap_add:
     - NET_ADMIN
-    - SYS_MODULE
+    - CHOWN
+    - SETUID
+    - SETGID
+    - DAC_OVERRIDE
     environment:
       LOG_LEVEL: ${LOG_LEVEL:-info}
-      PUID: 1000
-      PGID: 1000
       TZ: UTC
       SERVERURL: ${WG_ENDPOINT_HOST:-auto}
       SERVERPORT: 51820
@@ -541,13 +625,13 @@ services:
       INTERFACE: eth0
     volumes:
     - wireguard-config:/config
-    - /lib/modules:/lib/modules:ro
     healthcheck:
       test:
       - CMD
-      - test
-      - -e
-      - /config/wg0.conf
+      - wg
+      - show
+      - all
+      - peers
       interval: 10s
       timeout: 5s
       retries: 3
@@ -558,14 +642,17 @@ services:
           cpus: '1.0'
           memory: 256M
     security_opt:
-    - no-new-privileges:false
+    - no-new-privileges:true
     privileged: false
     sysctls:
     - net.ipv4.ip_forward=1
     - net.ipv6.conf.all.forwarding=1
-    read_only: false
+    # Read-only root: the image then ignores PUID and /config belongs to its
+    # built-in 911:1001 (no account on west or east). Was PUID 1000 = govan.
+    read_only: true
     tmpfs:
     - /tmp:size=64m,mode=1777
+    - /run:exec
 volumes:
   ipfire-images: null
   ipfire-data: null

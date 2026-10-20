@@ -20,6 +20,7 @@ import (
 var composeToRegistry = map[string]string{
 	"victoria":      "victoriametrics",
 	"vllm-deepseek": "vllm",
+	"kanban":        "kanban-app",
 }
 
 var composeUserRe = regexp.MustCompile(`^(\d+):(\d+)$`)
