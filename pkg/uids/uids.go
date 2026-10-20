@@ -101,6 +101,15 @@ const (
 	Pauldrons   = 16744
 	Shield      = 16745
 	Sword       = 16746
+	// docker/docker-compose.loadbalancers.yml (kingdom.armor: pauldrons).
+	HAProxyEdge     = 16747
+	HAProxyInternal = 16748
+	NginxWotan      = 16749
+	NginxMonad      = 16750
+	NginxSophia     = 16751
+	NginxDashboard  = 16752
+	NginxKanban     = 16753
+	NginxGateway    = 16754
 )
 
 // Gnostic tier (16760-16779). State and history services.
@@ -185,6 +194,15 @@ var Registry = map[string]int{
 	"pauldrons":    Pauldrons,
 	"shield":       Shield,
 	"sword":        Sword,
+
+	"haproxy-edge":     HAProxyEdge,
+	"haproxy-internal": HAProxyInternal,
+	"nginx-wotan":      NginxWotan,
+	"nginx-monad":      NginxMonad,
+	"nginx-sophia":     NginxSophia,
+	"nginx-dashboard":  NginxDashboard,
+	"nginx-kanban":     NginxKanban,
+	"nginx-gateway":    NginxGateway,
 
 	"anamnesis": Anamnesis,
 	"kenoma":    Kenoma,

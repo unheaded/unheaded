@@ -6,6 +6,14 @@
 # WHO:  Operator (owner), Developer (consumer for local dev)
 # DECISION: HAProxy for edge/internal TCP+HTTP, Nginx for per-service HTTP
 # =============================================================================
+# Each service: own uid (pkg/uids, 16747-16754), read-only root, cap_drop ALL,
+# no-new-privileges; all listeners are above 1024. Relative paths resolve from
+# the project directory, which is the repo root (the first -f file's).
+# KNOWN BROKEN (2026-10-20, not fixed here): both haproxy.cfg files fail
+# `haproxy -c` on 2.9 (module-path, missing /etc/haproxy/errors/*, log-format
+# fetches in TCP context), the edge's TLS bind needs /etc/haproxy/certs, and
+# nginx-gateway.conf proxies to a gateway service the stack does not run.
+#
 # USAGE:
 #   docker compose -f docker-compose.yml -f docker/docker-compose.loadbalancers.yml up -d
 #   docker compose -f docker-compose.yml -f docker/docker-compose.loadbalancers.yml ps
@@ -23,12 +31,19 @@ services:
     image: haproxy:2.9-alpine
     container_name: unheaded-haproxy-edge
     restart: unless-stopped
+    user: "16747:16747"
+    read_only: true
+    tmpfs:
+      - /var/run:uid=16747,gid=16747   # stats socket
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "21080:21080"   # HTTP ingress
       - "21443:21443"   # HTTPS ingress
       - "21404:21404"   # Metrics/healthcheck
     volumes:
-      - ./haproxy/edge/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./docker/haproxy/edge/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     networks:
       - control
       - data
@@ -39,7 +54,7 @@ services:
       prometheus.io/port: "21404"
       prometheus.io/path: "/metrics"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:21404/healthz"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:21404/healthz"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -62,11 +77,18 @@ services:
     image: haproxy:2.9-alpine
     container_name: unheaded-haproxy-internal
     restart: unless-stopped
+    user: "16748:16748"
+    read_only: true
+    tmpfs:
+      - /var/run:uid=16748,gid=16748   # stats socket
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "21081:21081"   # Internal HTTP load balancing
       - "21405:21405"   # Metrics/healthcheck
     volumes:
-      - ./haproxy/internal/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+      - ./docker/haproxy/internal/haproxy.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
     networks:
       - control
       - data
@@ -77,7 +99,7 @@ services:
       prometheus.io/port: "21405"
       prometheus.io/path: "/metrics"
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:21405/healthz"]
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:21405/healthz"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -102,8 +124,17 @@ services:
     image: nginx:1.25-alpine
     container_name: unheaded-nginx-wotan
     restart: unless-stopped
+    user: "16749:16749"
+    read_only: true
+    tmpfs:
+      - /var/run:uid=16749,gid=16749   # pid
+      - /var/cache/nginx:uid=16749,gid=16749   # client/proxy temp
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     volumes:
-      - ./nginx/nginx-wotan.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/nginx-wotan.conf:/etc/nginx/nginx.conf:ro
     networks:
       - data
     labels:
@@ -113,7 +144,7 @@ services:
       prometheus.io/port: "18080"
       prometheus.io/path: "/stub_status"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:18080/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:18080/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -136,8 +167,17 @@ services:
     image: nginx:1.25-alpine
     container_name: unheaded-nginx-monad
     restart: unless-stopped
+    user: "16750:16750"
+    read_only: true
+    tmpfs:
+      - /var/run:uid=16750,gid=16750   # pid
+      - /var/cache/nginx:uid=16750,gid=16750   # client/proxy temp
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     volumes:
-      - ./nginx/nginx-monad.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/nginx-monad.conf:/etc/nginx/nginx.conf:ro
     networks:
       - data
     labels:
@@ -147,7 +187,7 @@ services:
       prometheus.io/port: "19080"
       prometheus.io/path: "/stub_status"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:19080/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:19080/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -170,8 +210,17 @@ services:
     image: nginx:1.25-alpine
     container_name: unheaded-nginx-sophia
     restart: unless-stopped
+    user: "16751:16751"
+    read_only: true
+    tmpfs:
+      - /var/run:uid=16751,gid=16751   # pid
+      - /var/cache/nginx:uid=16751,gid=16751   # client/proxy temp
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     volumes:
-      - ./nginx/nginx-sophia.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/nginx-sophia.conf:/etc/nginx/nginx.conf:ro
     networks:
       - data
     labels:
@@ -181,7 +230,7 @@ services:
       prometheus.io/port: "19081"
       prometheus.io/path: "/stub_status"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:19081/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:19081/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -204,8 +253,17 @@ services:
     image: nginx:1.25-alpine
     container_name: unheaded-nginx-dashboard
     restart: unless-stopped
+    user: "16752:16752"
+    read_only: true
+    tmpfs:
+      - /var/run:uid=16752,gid=16752   # pid
+      - /var/cache/nginx:uid=16752,gid=16752   # client/proxy temp
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     volumes:
-      - ./nginx/nginx-dashboard.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/nginx-dashboard.conf:/etc/nginx/nginx.conf:ro
     networks:
       - data
     labels:
@@ -215,7 +273,7 @@ services:
       prometheus.io/port: "20080"
       prometheus.io/path: "/stub_status"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:20080/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:20080/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -238,8 +296,17 @@ services:
     image: nginx:1.25-alpine
     container_name: unheaded-nginx-kanban
     restart: unless-stopped
+    user: "16753:16753"
+    read_only: true
+    tmpfs:
+      - /var/run:uid=16753,gid=16753   # pid
+      - /var/cache/nginx:uid=16753,gid=16753   # client/proxy temp
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     volumes:
-      - ./nginx/nginx-kanban.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/nginx-kanban.conf:/etc/nginx/nginx.conf:ro
     networks:
       - data
     labels:
@@ -249,7 +316,7 @@ services:
       prometheus.io/port: "20081"
       prometheus.io/path: "/stub_status"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:20081/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:20081/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -272,8 +339,17 @@ services:
     image: nginx:1.25-alpine
     container_name: unheaded-nginx-gateway
     restart: unless-stopped
+    user: "16754:16754"
+    read_only: true
+    tmpfs:
+      - /var/run:uid=16754,gid=16754   # pid
+      - /var/cache/nginx:uid=16754,gid=16754   # client/proxy temp
+      - /tmp
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     volumes:
-      - ./nginx/nginx-gateway.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/nginx-gateway.conf:/etc/nginx/nginx.conf:ro
     networks:
       - data
     labels:
@@ -283,7 +359,7 @@ services:
       prometheus.io/port: "21090"
       prometheus.io/path: "/stub_status"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:21090/health"]
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:21090/health"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -293,8 +369,8 @@ services:
       options:
         max-size: "50m"
         max-file: "5"
-    depends_on:
-      - gateway
+    # No depends_on: docker-compose.yml has no gateway service (compose
+    # refused the whole project). nginx-gateway.conf's upstream needs one.
     deploy:
       resources:
         limits:
@@ -302,13 +378,10 @@ services:
           memory: "128M"
 
 # =============================================================================
-# NETWORKS (external, defined in main docker-compose.yml)
+# NETWORKS: control and data come from docker-compose.yml. Declaring them
+# here as `external: true` made the merged project look for networks literally
+# named control/data, which do not exist; this file adds none of its own.
 # =============================================================================
-networks:
-  control:
-    external: true
-  data:
-    external: true
 
 # =============================================================================
 # LABELS LEGEND
