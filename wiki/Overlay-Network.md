@@ -13,6 +13,8 @@ Everything that names a host on the overlay uses these: Prometheus targets and r
 
 **2026-10-20:** the hosts ran the mirror image of this (west `::2`/`:2::/64`, east `::1`/`:1::/64`), so every `::1` in the repo reached east. Both hosts were re-addressed to the table above; backups of the previous wg0, FRR and BIRD configs are in `/var/lib/unheaded/remediate/20261020T145144Z-overlay-flip/` on each host. Verified: ping both ways, BGP Established with both prefixes exchanged.
 
+Alerting: west's monitoring Prometheus scrapes east's node_exporter at `[fd00:dead:beef::2]:9100` over wg0, so `NodeExporterDown` for that target fires when the overlay (or east) is down.
+
 Known gap: BIRD's BGP session has no `bfd on`, so the BFD peers FRR configures for east stay down. BGP does not depend on them (hold time 90 s).
 
 Check:
