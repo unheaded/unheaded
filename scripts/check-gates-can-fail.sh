@@ -645,6 +645,7 @@ drift-detect|reports drift; alerts-only by design (pkg/enkrateia contract)
 qa-smoke|prints a score for a human to compare against the previous batch
 ci-fetch-doomgeneric|fetches a pinned checkout the Go jobs need; no verdict of its own
 lib/logpath|prints the durable log path for a service (ADR-092); no verdict of its own
+lib/deb-maintscripts|generates the .deb maintainer scripts (build-all-debs, Jenkinsfile); proven by test-deb-maintscripts
 well/set-role-passwords|sets role passwords from the environment (runbooks); no verdict of its own
 well/make-tls|makes TLS material outside the repo; exercised by well/test-config, no verdict of its own
 db-backup|writes a backup set (runbooks/data/postgresql-backup-restore.yaml); its refusals and the set it writes are proven by well/test-backup-restore
