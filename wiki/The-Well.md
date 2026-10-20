@@ -44,7 +44,7 @@ PUBLIC has no CONNECT or TEMP anywhere: a role reaches only the databases it is 
 ## Connecting
 
 - **TLS 1.3 only** for every network connection; anything else is rejected (`db/pg_hba.conf`). Clients use `sslmode=require` (Go clients: `WELL_SSLMODE`, default `require`); `verify-full` with `sslrootcert=/etc/unheaded/well-tls/ca.crt`.
-- **On Kubernetes** (`kubernetes/manifests/base/the-well/`) the same: the StatefulSet runs `db/postgresql.conf` with `db/pg_hba.k8s.conf` (TLS + SCRAM for pods, the superuser only inside the pod) and the certificate from the `the-well-tls` secret, made by `make-tls.sh` (`WELL_TLS_EXTRA_DNS=the-well,the-well.unheaded.svc` for `verify-full`). Proved on kind 2026-10-19.
+- **On Kubernetes** (`kubernetes/manifests/base/the-well/`) the same: the StatefulSet runs `db/postgresql.conf` with `db/pg_hba.k8s.conf` (TLS + SCRAM for pods from private address space to the four Well databases by name, the superuser only inside the pod) and the certificate from the `the-well-tls` secret, made by `make-tls.sh` (`WELL_TLS_EXTRA_DNS=the-well,the-well.unheaded.svc` for `verify-full`). Proved on kind 2026-10-19.
 - From containers: host `postgres:5432` on the `data` network (`172.28.1.0/24`).
 - From west itself: `127.0.0.1:5432` (published to localhost only).
 - `docker exec` over the socket needs no password (root on the host already).

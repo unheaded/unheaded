@@ -2,6 +2,7 @@
 -- Host logs shipped by Vector (config/vector/vector.yaml), ADR-092 step 8.
 -- Applied on every `docker compose up` by the clickhouse-schema one-shot, so
 -- every statement must be idempotent.
+-- well:ignore schema-outside-ledger ClickHouse log store, not the Well: ADR-101's ledger is Postgres-only, and this file is the whole ClickHouse schema, applied idempotently by clickhouse-schema
 --
 -- Retention (docs/policy/retention-policy-v1-2026-05-06.md):
 --   audit        auth/authpriv facilities and kernel audit records (sshd,
@@ -9,6 +10,7 @@
 --                kept here until an archive tier exists -> 455 days
 --   operational  everything else: 90 days
 CREATE TABLE IF NOT EXISTS unheaded_logs.logs
+-- well:ignore mysql-syntax,no-primary-key ClickHouse DDL: LowCardinality/DateTime64 are its types and ORDER BY is a MergeTree's key
 (
     timestamp  DateTime64(3, 'UTC'),
     host       LowCardinality(String),
