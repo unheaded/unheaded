@@ -175,7 +175,7 @@ func TestSendMessage_Success(t *testing.T) {
 
 	// Setup: create room and approved member
 	server.RoomManager.Create("test-room", "Test Room")
-	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 
 	reqBody := SendMessageRequest{
@@ -272,7 +272,7 @@ func TestSendMessage_MemberNotApproved(t *testing.T) {
 	server.RoomManager.Create("test-room", "Test Room")
 
 	// Member exists but not approved
-	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 
 	reqBody := SendMessageRequest{
 		MemberID: mbr.ID,
@@ -316,7 +316,7 @@ func TestSendMessage_RoomNotFound(t *testing.T) {
 	server := setupTestServer()
 
 	// Create approved member but no room
-	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 
 	reqBody := SendMessageRequest{
@@ -345,7 +345,7 @@ func TestDeleteMessage_Success(t *testing.T) {
 
 	// Setup: create room, approved member, and message
 	rm, _ := server.RoomManager.Create("test-room", "Test Room")
-	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 	msg, _ := rm.SendMessage(mbr.ID, "Hello, World!")
 
@@ -386,7 +386,7 @@ func TestDeleteMessage_PostMethodAllowed(t *testing.T) {
 	server := setupTestServer()
 
 	rm, _ := server.RoomManager.Create("test-room", "Test Room")
-	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 	msg, _ := rm.SendMessage(mbr.ID, "Hello")
 
@@ -463,7 +463,7 @@ func TestDeleteMessage_MissingFields(t *testing.T) {
 func TestDeleteMessage_MemberNotApproved(t *testing.T) {
 	server := setupTestServer()
 	server.RoomManager.Create("test-room", "Test Room")
-	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 
 	reqBody := DeleteMessageRequest{
 		MemberID:  mbr.ID,
@@ -486,7 +486,7 @@ func TestDeleteMessage_MemberNotApproved(t *testing.T) {
 func TestDeleteMessage_RoomNotFound(t *testing.T) {
 	server := setupTestServer()
 
-	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 
 	reqBody := DeleteMessageRequest{
@@ -511,7 +511,7 @@ func TestDeleteMessage_VerificationFailed(t *testing.T) {
 	server := setupTestServer()
 
 	rm, _ := server.RoomManager.Create("test-room", "Test Room")
-	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 	msg, _ := rm.SendMessage(mbr.ID, "Original content")
 
@@ -548,7 +548,7 @@ func TestGetMessages_Success(t *testing.T) {
 	server := setupTestServer()
 
 	rm, _ := server.RoomManager.Create("test-room", "Test Room")
-	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 
 	// Add messages
@@ -633,7 +633,7 @@ func TestGetMessages_InvalidMemberID(t *testing.T) {
 func TestGetMessages_MemberNotApproved(t *testing.T) {
 	server := setupTestServer()
 	server.RoomManager.Create("test-room", "Test Room")
-	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 
 	req := httptest.NewRequest(http.MethodGet, "/messages?room_id=test-room&member_id="+mbr.ID.String(), nil)
 	rec := httptest.NewRecorder()
@@ -648,7 +648,7 @@ func TestGetMessages_MemberNotApproved(t *testing.T) {
 func TestGetMessages_RoomNotFound(t *testing.T) {
 	server := setupTestServer()
 
-	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 
 	req := httptest.NewRequest(http.MethodGet, "/messages?room_id=nonexistent&member_id="+mbr.ID.String(), nil)
@@ -711,7 +711,7 @@ func TestGetPendingMembers_MethodNotAllowed(t *testing.T) {
 func TestApproveMember_Success(t *testing.T) {
 	server := setupTestServer()
 
-	mbr := server.MemberManager.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("room1", "Alice", "", 5*time.Minute)
 
 	reqBody := map[string]string{
 		"member_id":   mbr.ID.String(),
@@ -807,7 +807,7 @@ func TestApproveMember_MemberNotFound(t *testing.T) {
 func TestDenyMember_Success(t *testing.T) {
 	server := setupTestServer()
 
-	mbr := server.MemberManager.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("room1", "Alice", "", 5*time.Minute)
 
 	reqBody := map[string]string{
 		"member_id": mbr.ID.String(),
@@ -943,7 +943,7 @@ func TestApproveAllMembers_Success(t *testing.T) {
 func TestApproveAllMembers_DefaultApprovedBy(t *testing.T) {
 	server := setupTestServer()
 
-	mbr := server.MemberManager.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("room1", "Alice", "", 5*time.Minute)
 
 	// Empty body should default to "admin"
 	req := httptest.NewRequest(http.MethodPost, "/admin/approve-all", nil)
@@ -1123,7 +1123,7 @@ func TestIntegration_MultipleUsers(t *testing.T) {
 	memberIDs := make([]uuid.UUID, len(users))
 
 	for i, name := range users {
-		mbr := server.MemberManager.RequestJoin("chat", name, "", 5*time.Minute)
+		mbr, _ := server.MemberManager.RequestJoin("chat", name, "", 5*time.Minute)
 		server.MemberManager.Approve(mbr.ID, "admin")
 		memberIDs[i] = mbr.ID
 	}
@@ -1336,7 +1336,7 @@ func TestSendMessage_NilWotan(t *testing.T) {
 	server.AdminAPIKey = testAdminAPIKey
 
 	server.RoomManager.Create("test-room", "Test Room")
-	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 
 	reqBody := SendMessageRequest{
@@ -1363,7 +1363,7 @@ func TestDeleteMessage_NilWotan(t *testing.T) {
 	server.AdminAPIKey = testAdminAPIKey
 
 	rm, _ := server.RoomManager.Create("test-room", "Test Room")
-	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 	msg, _ := rm.SendMessage(mbr.ID, "Hello, World!")
 
@@ -1461,7 +1461,7 @@ func BenchmarkSendMessage(b *testing.B) {
 
 	// Setup: create room and approved member
 	server.RoomManager.Create("bench-room", "Bench Room")
-	mbr := server.MemberManager.RequestJoin("bench-room", "BenchUser", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("bench-room", "BenchUser", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 
 	reqBody := SendMessageRequest{
@@ -1486,7 +1486,7 @@ func BenchmarkGetMessages(b *testing.B) {
 
 	// Setup: create room, member, and messages
 	server.RoomManager.Create("bench-room", "Bench Room")
-	mbr := server.MemberManager.RequestJoin("bench-room", "BenchUser", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("bench-room", "BenchUser", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 
 	// Add 100 messages
@@ -1512,7 +1512,7 @@ func BenchmarkGetMessages_1000(b *testing.B) {
 	// Setup with larger buffer
 	server.RoomManager = room.NewManager(2000)
 	server.RoomManager.Create("bench-room", "Bench Room")
-	mbr := server.MemberManager.RequestJoin("bench-room", "BenchUser", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("bench-room", "BenchUser", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 
 	// Add 1000 messages
@@ -1537,7 +1537,7 @@ func BenchmarkDeleteMessage(b *testing.B) {
 
 	// Setup
 	server.RoomManager.Create("bench-room", "Bench Room")
-	mbr := server.MemberManager.RequestJoin("bench-room", "BenchUser", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("bench-room", "BenchUser", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 
 	rm, _ := server.RoomManager.Get("bench-room")
@@ -1597,7 +1597,7 @@ func BenchmarkApproveMember(b *testing.B) {
 	// Pre-create pending members
 	members := make([]uuid.UUID, b.N)
 	for i := 0; i < b.N; i++ {
-		mbr := server.MemberManager.RequestJoin("room1", "User", "", 5*time.Minute)
+		mbr, _ := server.MemberManager.RequestJoin("room1", "User", "", 5*time.Minute)
 		members[i] = mbr.ID
 	}
 
@@ -1646,7 +1646,7 @@ func BenchmarkConcurrentRequests(b *testing.B) {
 
 	// Setup
 	server.RoomManager.Create("bench-room", "Bench Room")
-	mbr := server.MemberManager.RequestJoin("bench-room", "BenchUser", "", 5*time.Minute)
+	mbr, _ := server.MemberManager.RequestJoin("bench-room", "BenchUser", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 
 	reqBody := SendMessageRequest{

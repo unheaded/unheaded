@@ -156,7 +156,7 @@ func TestPublishTopic_RefusedSignedPublishCanBeRetried(t *testing.T) {
 	members := member.NewManager()
 	rooms := room.NewManager(100)
 	svc := NewTopicService(rooms, members, wotan.NewWotan(), signer.PublicKey())
-	pending := members.RequestJoin("config.kingdom", "operator", "", time.Hour)
+	pending, _ := members.RequestJoin("config.kingdom", "operator", "", time.Hour)
 
 	sg, err := signing.NewTopicSigner(signer).Sign("config.kingdom", pending.ID.String(), []byte(`{"v":1}`))
 	if err != nil {

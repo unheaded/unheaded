@@ -38,6 +38,7 @@ type Manager struct {
 	members map[uuid.UUID]*Member  // member ID -> member
 	byRoom  map[string][]uuid.UUID // room ID -> member IDs
 	auto    map[autoKey]uuid.UUID  // (room, name) -> its auto-approved publisher
+	max     int                    // SetMaxMembers; 0 means no cap
 }
 
 type autoKey struct{ room, name string }
@@ -80,20 +81,38 @@ func (m *Manager) Remove(memberID uuid.UUID) bool {
 	return true
 }
 
+// SetMaxMembers caps how many members exist at once (0 = none). Several
+// unauthenticated paths create members (an allowlisted HTTP subscribe, a gRPC
+// stream or publish) and approved members are never reaped, so without a cap
+// a client could grow Wotan without bound.
+func (m *Manager) SetMaxMembers(n int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.max = n
+}
+
+// full reports whether creating a member would pass the cap. Callers hold mu.
+func (m *Manager) full() bool {
+	return m.max > 0 && len(m.members) >= m.max
+}
+
 // EnsureApproved returns the approved publisher member for (roomID, name),
 // creating it on first use. Unnamed publishers (both Wotan gRPC clients send
 // no sender_id) got a new member per message before, and approved members
 // are never cleaned up: one member per message, forever (~245 B each).
 // Callers must have authorized name for roomID already.
-func (m *Manager) EnsureApproved(roomID, name, approvedBy string) *Member {
+func (m *Manager) EnsureApproved(roomID, name, approvedBy string) (*Member, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	key := autoKey{roomID, name}
 	if id, ok := m.auto[key]; ok {
 		if member, ok := m.members[id]; ok && member.Status == StatusApproved {
-			return member
+			return member, nil
 		}
+	}
+	if m.full() {
+		return nil, ErrTooManyMembers
 	}
 	now := time.Now()
 	member := &Member{
@@ -108,13 +127,17 @@ func (m *Manager) EnsureApproved(roomID, name, approvedBy string) *Member {
 	m.members[member.ID] = member
 	m.byRoom[roomID] = append(m.byRoom[roomID], member.ID)
 	m.auto[key] = member.ID
-	return member
+	return member, nil
 }
 
 // RequestJoin creates a new pending member request
-func (m *Manager) RequestJoin(roomID, name, publicKey string, timeout time.Duration) *Member {
+func (m *Manager) RequestJoin(roomID, name, publicKey string, timeout time.Duration) (*Member, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	if m.full() {
+		return nil, ErrTooManyMembers
+	}
 
 	now := time.Now()
 	expiresAt := now.Add(timeout)
@@ -132,7 +155,7 @@ func (m *Manager) RequestJoin(roomID, name, publicKey string, timeout time.Durat
 	m.members[member.ID] = member
 	m.byRoom[roomID] = append(m.byRoom[roomID], member.ID)
 
-	return member
+	return member, nil
 }
 
 // Approve approves a pending member
@@ -331,6 +354,8 @@ func (m *Manager) CleanupExpiredPending() int {
 var (
 	ErrMemberNotFound = &MemberError{msg: "member not found"}
 	ErrInvalidStatus  = &MemberError{msg: "invalid member status for this operation"}
+	// ErrTooManyMembers: creating the member would pass SetMaxMembers.
+	ErrTooManyMembers = &MemberError{msg: "too many members"}
 )
 
 type MemberError struct {

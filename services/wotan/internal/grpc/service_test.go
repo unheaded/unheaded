@@ -125,7 +125,7 @@ func TestString(t *testing.T) {
 	// Add some data
 	service.roomManager.Create("room1", "Room 1")
 	service.roomManager.Create("room2", "Room 2")
-	mbr := service.memberManager.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	mbr, _ := service.memberManager.RequestJoin("room1", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
 	str := service.String()
@@ -152,7 +152,7 @@ func TestGetCreatorName(t *testing.T) {
 	}
 
 	// Test with existing member
-	mbr := service.memberManager.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	mbr, _ := service.memberManager.RequestJoin("room1", "Alice", "", 5*time.Minute)
 	name = service.getCreatorName(mbr.ID)
 	if name != "Alice" {
 		t.Errorf("getCreatorName() = %s, want 'Alice'", name)
@@ -222,7 +222,7 @@ func TestStreamMessages_MemberNotApproved(t *testing.T) {
 	stream := newMockStream(ctx)
 
 	// Create pending member (not approved)
-	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 
 	req := &chatpb.StreamRequest{
 		MemberId: mbr.ID.String(),
@@ -252,7 +252,7 @@ func TestStreamMessages_RoomNotFound(t *testing.T) {
 	stream := newMockStream(ctx)
 
 	// Create and approve member
-	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
 	req := &chatpb.StreamRequest{
@@ -281,7 +281,7 @@ func TestStreamMessages_HistoricalMessages(t *testing.T) {
 
 	// Setup room and member
 	rm, _ := service.roomManager.Create("test-room", "Test Room")
-	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
 	// Add historical messages
@@ -341,7 +341,7 @@ func TestStreamMessages_SendError_Historical(t *testing.T) {
 
 	// Setup room and member
 	rm, _ := service.roomManager.Create("test-room", "Test Room")
-	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
 	// Add a message
@@ -374,7 +374,7 @@ func TestStreamMessages_LiveMessages(t *testing.T) {
 
 	// Setup room and member
 	service.roomManager.Create("test-room", "Test Room")
-	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -446,7 +446,7 @@ func TestStreamMessages_DeletedEvent(t *testing.T) {
 
 	// Setup room and member
 	service.roomManager.Create("test-room", "Test Room")
-	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -492,7 +492,7 @@ func TestStreamMessages_SendErrorLive(t *testing.T) {
 
 	// Setup room and member
 	service.roomManager.Create("test-room", "Test Room")
-	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
 	ctx := context.Background()
@@ -542,7 +542,7 @@ func TestStreamMessages_ChannelClosed(t *testing.T) {
 
 	// Setup room and member
 	service.roomManager.Create("test-room", "Test Room")
-	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
 	ctx := context.Background()
@@ -581,7 +581,7 @@ func TestStreamMessages_NoSinceTimestamp(t *testing.T) {
 
 	// Setup room and member
 	rm, _ := service.roomManager.Create("test-room", "Test Room")
-	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
 	// Add messages before streaming
@@ -637,7 +637,7 @@ func TestStreamMessages_FutureSinceTimestamp(t *testing.T) {
 
 	// Setup room and member
 	rm, _ := service.roomManager.Create("test-room", "Test Room")
-	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
 	// Add old message
@@ -689,7 +689,7 @@ func TestStreamMessages_EventFields(t *testing.T) {
 
 	// Setup room and member
 	service.roomManager.Create("test-room", "Test Room")
-	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
+	mbr, _ := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
 	ctx, cancel := context.WithCancel(context.Background())

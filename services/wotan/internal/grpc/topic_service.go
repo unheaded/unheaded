@@ -112,7 +112,11 @@ func (s *TopicService) StreamTopics(
 	subscriptionTopic := fmt.Sprintf("_topic_pattern_%s_%s", req.TopicPattern, uuid.New().String())
 
 	// Auto-create and approve subscriber member
-	newMember := s.memberManager.RequestJoin(subscriptionTopic, displayName, "", 24*time.Hour)
+	newMember, err := s.memberManager.RequestJoin(subscriptionTopic, displayName, "", 24*time.Hour)
+	if err != nil {
+		logger.FromContext(ctx).Warn().Err(err).Str("topic_pattern", req.TopicPattern).Msg("subscriber_refused")
+		return status.Error(codes.ResourceExhausted, err.Error())
+	}
 	if err := s.memberManager.Approve(newMember.ID, "topic-auto-approve"); err != nil {
 		logger.FromContext(ctx).Error().
 			Err(err).
@@ -494,7 +498,12 @@ func (s *TopicService) PublishTopic(
 	// The unnamed publisher's member: one per (topic, name), made only for a
 	// publish that passed every check above.
 	if autoPublisher != "" {
-		senderID = s.memberManager.EnsureApproved(req.Topic, autoPublisher, "topic-auto-approve").ID
+		publisher, err := s.memberManager.EnsureApproved(req.Topic, autoPublisher, "topic-auto-approve")
+		if err != nil {
+			logger.FromContext(ctx).Warn().Err(err).Str("topic", req.Topic).Msg("publisher_refused")
+			return nil, status.Error(codes.ResourceExhausted, err.Error())
+		}
+		senderID = publisher.ID
 	}
 
 	if signed != nil {

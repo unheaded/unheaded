@@ -246,7 +246,7 @@ func TestPublishTopic_WithSenderID(t *testing.T) {
 	svc := setupTopicService()
 
 	// Create and approve a member
-	mbr := svc.memberManager.RequestJoin("test-topic", "TestUser", "", 5*time.Minute)
+	mbr, _ := svc.memberManager.RequestJoin("test-topic", "TestUser", "", 5*time.Minute)
 	svc.memberManager.Approve(mbr.ID, "admin")
 
 	resp, err := svc.PublishTopic(context.Background(), &chatpb.TopicPublishRequest{
@@ -285,7 +285,7 @@ func TestPublishTopic_SenderNotApproved(t *testing.T) {
 	svc := setupTopicService()
 
 	// Create member but do NOT approve
-	mbr := svc.memberManager.RequestJoin("test-topic", "PendingUser", "", 5*time.Minute)
+	mbr, _ := svc.memberManager.RequestJoin("test-topic", "PendingUser", "", 5*time.Minute)
 
 	_, err := svc.PublishTopic(context.Background(), &chatpb.TopicPublishRequest{
 		Topic:    "test-topic",
@@ -479,7 +479,7 @@ func TestStreamTopics_LiveMessages(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Publish a message to the matching topic
-	mbr := svc.memberManager.RequestJoin("events.user", "publisher", "", 5*time.Minute)
+	mbr, _ := svc.memberManager.RequestJoin("events.user", "publisher", "", 5*time.Minute)
 	svc.memberManager.Approve(mbr.ID, "admin")
 
 	svc.wotan.PublishMessageCreated(&ringbuffer.Message{
@@ -534,7 +534,7 @@ func TestStreamTopics_SendErrorOnLive(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Publish to trigger send error
-	mbr := svc.memberManager.RequestJoin("test.topic", "pub", "", 5*time.Minute)
+	mbr, _ := svc.memberManager.RequestJoin("test.topic", "pub", "", 5*time.Minute)
 	svc.memberManager.Approve(mbr.ID, "admin")
 	svc.wotan.PublishMessageCreated(&ringbuffer.Message{
 		ID:        uuid.New(),
@@ -559,7 +559,7 @@ func TestStreamTopics_HistoricalReplay(t *testing.T) {
 
 	// Pre-create topic and add messages
 	rm, _ := svc.roomManager.Create("orders.created", "Orders Created")
-	creator := svc.memberManager.RequestJoin("orders.created", "sys", "", 5*time.Minute)
+	creator, _ := svc.memberManager.RequestJoin("orders.created", "sys", "", 5*time.Minute)
 	svc.memberManager.Approve(creator.ID, "admin")
 	rm.SendMessage(creator.ID, "order-1")
 	rm.SendMessage(creator.ID, "order-2")
@@ -623,7 +623,7 @@ func TestStreamTopics_HistoricalSendError(t *testing.T) {
 	svc := setupTopicService()
 
 	rm, _ := svc.roomManager.Create("errors.topic", "Errors")
-	creator := svc.memberManager.RequestJoin("errors.topic", "sys", "", 5*time.Minute)
+	creator, _ := svc.memberManager.RequestJoin("errors.topic", "sys", "", 5*time.Minute)
 	svc.memberManager.Approve(creator.ID, "admin")
 	rm.SendMessage(creator.ID, "msg-1")
 	rm.SendMessage(creator.ID, "msg-2")
@@ -751,7 +751,7 @@ func TestStreamTopics_MultipleMatchingTopics(t *testing.T) {
 
 	time.Sleep(100 * time.Millisecond)
 
-	mbr := svc.memberManager.RequestJoin("events.created", "pub", "", 5*time.Minute)
+	mbr, _ := svc.memberManager.RequestJoin("events.created", "pub", "", 5*time.Minute)
 	svc.memberManager.Approve(mbr.ID, "admin")
 
 	// Publish to two different matching topics
@@ -1017,7 +1017,7 @@ func replaySeqs(t *testing.T, svc *TopicService, pattern string, since int64) ma
 
 func seedTopic(svc *TopicService, topic string, n int) {
 	rm, _ := svc.roomManager.Create(topic, topic)
-	m := svc.memberManager.RequestJoin(topic, "sys", "", 5*time.Minute)
+	m, _ := svc.memberManager.RequestJoin(topic, "sys", "", 5*time.Minute)
 	svc.memberManager.Approve(m.ID, "admin")
 	for i := 0; i < n; i++ {
 		rm.SendMessage(m.ID, fmt.Sprintf("m%d", i+1))
@@ -1052,7 +1052,7 @@ func TestStreamTopics_PatternStreamReplayAndRestart(t *testing.T) {
 	svc := setupTopicService()
 	a, _ := svc.roomManager.Create("multi.a", "multi.a")
 	b, _ := svc.roomManager.Create("multi.b", "multi.b")
-	m := svc.memberManager.RequestJoin("multi.a", "sys", "", 5*time.Minute)
+	m, _ := svc.memberManager.RequestJoin("multi.a", "sys", "", 5*time.Minute)
 	svc.memberManager.Approve(m.ID, "admin")
 	for _, r := range []*room.Room{a, b, a, b, b} { // seqs 1..5 interleaved
 		r.SendMessage(m.ID, "x")

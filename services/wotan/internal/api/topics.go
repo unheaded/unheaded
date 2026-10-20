@@ -136,7 +136,11 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create a pending member
-	newMember := s.MemberManager.RequestJoin(topic, req.DisplayName, "", s.PendingApprovalTimeout)
+	newMember, err := s.MemberManager.RequestJoin(topic, req.DisplayName, "", s.PendingApprovalTimeout)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
 
 	// Auto-approve only if display_name is in the allowlist
 	status := "pending"

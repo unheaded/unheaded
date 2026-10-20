@@ -53,6 +53,7 @@ type Config struct {
 	BufferBytes  int
 	BufferTotal  int
 	MaxRooms     int
+	MaxMembers   int
 	HTTPPort     int
 	GRPCPort     int
 	AdminEnabled bool
@@ -145,6 +146,7 @@ func main() {
 	go collectSystemMetrics(runCtx, m, roomManager)
 	go enforceBufferTotal(runCtx, m, roomManager)
 	memberManager := member.NewManager()
+	memberManager.SetMaxMembers(config.MaxMembers)
 	messageWotan := wotan.NewWotan()
 
 	// Initialize persistent store (if configured). When this falls back
@@ -404,6 +406,7 @@ func parseFlags(fs *flag.FlagSet, args []string) Config {
 	// Server flags
 	fs.IntVar(&config.BufferSize, "buffer-size", 10000, "Ring buffer size per room")
 	fs.IntVar(&config.BufferBytes, "buffer-bytes", 8<<20, "Payload byte budget per room; oldest messages are dropped past it (0 = none)")
+	fs.IntVar(&config.MaxMembers, "max-members", 100000, "Most members (subscribers and publishers) that may exist at once; past it new subscribes and new publishers are refused (0 = none). Approved members are never reaped")
 	fs.IntVar(&config.MaxRooms, "max-rooms", 10000, "Most rooms (topics) that may exist; publishing to a new topic past it is refused (0 = none). Rooms are never reaped, and any auto-approved publisher mints one by naming a topic")
 	fs.IntVar(&config.BufferTotal, "buffer-bytes-total", 64<<20, "Budget for every room together, content plus per-message overhead; the oldest messages of the largest rooms are dropped past it (0 = none)")
 	fs.IntVar(&config.HTTPPort, "http-port", 18000, "HTTP REST API port")

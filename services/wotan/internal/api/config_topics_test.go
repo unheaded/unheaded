@@ -31,7 +31,7 @@ func TestHTTPRefusesConfigTopics(t *testing.T) {
 
 	// The room-message path reaches the same rooms by name.
 	srv.RoomManager.Create("config.apply", "config.apply")
-	mbr := srv.MemberManager.RequestJoin("config.apply", "Mallory", "", 5*time.Minute)
+	mbr, _ := srv.MemberManager.RequestJoin("config.apply", "Mallory", "", 5*time.Minute)
 	srv.MemberManager.Approve(mbr.ID, "admin")
 	body, _ := json.Marshal(SendMessageRequest{MemberID: mbr.ID, RoomID: "config.apply", Content: "evil"})
 	rec := httptest.NewRecorder()

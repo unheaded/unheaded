@@ -34,7 +34,7 @@ func TestRequestJoin(t *testing.T) {
 	mgr := NewManager()
 	timeout := 5 * time.Minute
 
-	member := mgr.RequestJoin("room1", "Alice", "pubkey123", timeout)
+	member, _ := mgr.RequestJoin("room1", "Alice", "pubkey123", timeout)
 
 	if member == nil {
 		t.Fatal("RequestJoin() returned nil")
@@ -83,9 +83,9 @@ func TestRequestJoin(t *testing.T) {
 func TestRequestJoin_MultipleRooms(t *testing.T) {
 	mgr := NewManager()
 
-	member1 := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
-	member2 := mgr.RequestJoin("room2", "Bob", "", 5*time.Minute)
-	member3 := mgr.RequestJoin("room1", "Charlie", "", 5*time.Minute)
+	member1, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	member2, _ := mgr.RequestJoin("room2", "Bob", "", 5*time.Minute)
+	member3, _ := mgr.RequestJoin("room1", "Charlie", "", 5*time.Minute)
 
 	if mgr.Count() != 3 {
 		t.Errorf("Count() = %d, want 3", mgr.Count())
@@ -112,7 +112,7 @@ func TestRequestJoin_MultipleRooms(t *testing.T) {
 // TestApprove tests approving pending members
 func TestApprove(t *testing.T) {
 	mgr := NewManager()
-	member := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	member, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
 
 	// Approve the member
 	err := mgr.Approve(member.ID, "admin")
@@ -154,7 +154,7 @@ func TestApprove_NonExistentMember(t *testing.T) {
 // TestApprove_AlreadyApproved tests approving already approved member
 func TestApprove_AlreadyApproved(t *testing.T) {
 	mgr := NewManager()
-	member := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	member, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
 
 	// Approve once
 	mgr.Approve(member.ID, "admin1")
@@ -179,7 +179,7 @@ func TestApprove_AlreadyApproved(t *testing.T) {
 // TestDeny tests denying pending members
 func TestDeny(t *testing.T) {
 	mgr := NewManager()
-	member := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	member, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
 
 	// Deny the member
 	err := mgr.Deny(member.ID)
@@ -223,7 +223,7 @@ func TestDeny_NonExistentMember(t *testing.T) {
 // TestDeny_AlreadyApproved tests denying already approved member
 func TestDeny_AlreadyApproved(t *testing.T) {
 	mgr := NewManager()
-	member := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	member, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
 
 	// Approve member
 	mgr.Approve(member.ID, "admin")
@@ -247,9 +247,9 @@ func TestDeny_AlreadyApproved(t *testing.T) {
 // TestDeny_MultipleMembers tests denying one of multiple members
 func TestDeny_MultipleMembers(t *testing.T) {
 	mgr := NewManager()
-	member1 := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
-	member2 := mgr.RequestJoin("room1", "Bob", "", 5*time.Minute)
-	member3 := mgr.RequestJoin("room1", "Charlie", "", 5*time.Minute)
+	member1, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	member2, _ := mgr.RequestJoin("room1", "Bob", "", 5*time.Minute)
+	member3, _ := mgr.RequestJoin("room1", "Charlie", "", 5*time.Minute)
 
 	// Deny middle member
 	err := mgr.Deny(member2.ID)
@@ -285,9 +285,9 @@ func TestApproveAll(t *testing.T) {
 	mgr := NewManager()
 
 	// Create multiple pending members
-	member1 := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
-	member2 := mgr.RequestJoin("room2", "Bob", "", 5*time.Minute)
-	member3 := mgr.RequestJoin("room1", "Charlie", "", 5*time.Minute)
+	member1, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	member2, _ := mgr.RequestJoin("room2", "Bob", "", 5*time.Minute)
+	member3, _ := mgr.RequestJoin("room1", "Charlie", "", 5*time.Minute)
 
 	// Approve one manually first
 	mgr.Approve(member1.ID, "admin1")
@@ -331,7 +331,7 @@ func TestApproveAll_NoPendingMembers(t *testing.T) {
 	}
 
 	// Create and approve a member
-	member := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	member, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
 	mgr.Approve(member.ID, "admin1")
 
 	// ApproveAll should return 0
@@ -344,7 +344,7 @@ func TestApproveAll_NoPendingMembers(t *testing.T) {
 // TestGet tests retrieving members by ID
 func TestGet(t *testing.T) {
 	mgr := NewManager()
-	created := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	created, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
 
 	// Get existing member
 	member, err := mgr.Get(created.ID)
@@ -370,8 +370,8 @@ func TestGet(t *testing.T) {
 func TestGetByRoom(t *testing.T) {
 	mgr := NewManager()
 
-	member1 := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
-	member2 := mgr.RequestJoin("room1", "Bob", "", 5*time.Minute)
+	member1, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	member2, _ := mgr.RequestJoin("room1", "Bob", "", 5*time.Minute)
 	mgr.RequestJoin("room2", "Charlie", "", 5*time.Minute)
 
 	// Approve one member
@@ -419,9 +419,9 @@ func TestGetAllPending(t *testing.T) {
 	}
 
 	// Create multiple members across rooms
-	member1 := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
-	member2 := mgr.RequestJoin("room2", "Bob", "", 5*time.Minute)
-	member3 := mgr.RequestJoin("room3", "Charlie", "", 5*time.Minute)
+	member1, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	member2, _ := mgr.RequestJoin("room2", "Bob", "", 5*time.Minute)
+	member3, _ := mgr.RequestJoin("room3", "Charlie", "", 5*time.Minute)
 
 	// Approve one
 	mgr.Approve(member1.ID, "admin")
@@ -453,7 +453,7 @@ func TestGetAllPending(t *testing.T) {
 func TestIsApproved(t *testing.T) {
 	mgr := NewManager()
 
-	member := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	member, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
 
 	// Pending member should not be approved
 	if mgr.IsApproved(member.ID) {
@@ -505,7 +505,7 @@ func TestCount(t *testing.T) {
 func TestCountByRoom(t *testing.T) {
 	mgr := NewManager()
 
-	member1 := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	member1, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
 	mgr.RequestJoin("room1", "Bob", "", 5*time.Minute)
 	mgr.RequestJoin("room2", "Charlie", "", 5*time.Minute)
 
@@ -542,9 +542,9 @@ func TestCleanupExpiredPending(t *testing.T) {
 	mgr := NewManager()
 
 	// Create member with very short timeout
-	member1 := mgr.RequestJoin("room1", "Alice", "", 1*time.Millisecond)
+	member1, _ := mgr.RequestJoin("room1", "Alice", "", 1*time.Millisecond)
 	// Create member with long timeout
-	member2 := mgr.RequestJoin("room1", "Bob", "", 1*time.Hour)
+	member2, _ := mgr.RequestJoin("room1", "Bob", "", 1*time.Hour)
 
 	// Wait for first member to expire
 	time.Sleep(10 * time.Millisecond)
@@ -604,7 +604,7 @@ func TestCleanupExpiredPending_NoExpired(t *testing.T) {
 func TestCleanupExpiredPending_ApprovedNotRemoved(t *testing.T) {
 	mgr := NewManager()
 
-	member := mgr.RequestJoin("room1", "Alice", "", 1*time.Millisecond)
+	member, _ := mgr.RequestJoin("room1", "Alice", "", 1*time.Millisecond)
 	mgr.Approve(member.ID, "admin")
 
 	// Wait for what would be expiry
@@ -628,7 +628,7 @@ func TestCleanupExpiredPending_MultipleRooms(t *testing.T) {
 	mgr.RequestJoin("room1", "Alice", "", 1*time.Millisecond)
 	mgr.RequestJoin("room2", "Bob", "", 1*time.Millisecond)
 	// Create non-expired member
-	member3 := mgr.RequestJoin("room3", "Charlie", "", 1*time.Hour)
+	member3, _ := mgr.RequestJoin("room3", "Charlie", "", 1*time.Hour)
 
 	time.Sleep(10 * time.Millisecond)
 
@@ -699,7 +699,7 @@ func TestConcurrent_ApproveAndGet(t *testing.T) {
 	// Create members
 	memberIDs := make([]uuid.UUID, 50)
 	for i := 0; i < 50; i++ {
-		member := mgr.RequestJoin("room1", "User", "", 5*time.Minute)
+		member, _ := mgr.RequestJoin("room1", "User", "", 5*time.Minute)
 		memberIDs[i] = member.ID
 	}
 
@@ -738,7 +738,7 @@ func TestConcurrent_DenyAndList(t *testing.T) {
 	// Create members
 	memberIDs := make([]uuid.UUID, 50)
 	for i := 0; i < 50; i++ {
-		member := mgr.RequestJoin("room1", "User", "", 5*time.Minute)
+		member, _ := mgr.RequestJoin("room1", "User", "", 5*time.Minute)
 		memberIDs[i] = member.ID
 	}
 
@@ -810,7 +810,7 @@ func TestConcurrent_IsApproved(t *testing.T) {
 	mgr := NewManager()
 	var wg sync.WaitGroup
 
-	member := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
+	member, _ := mgr.RequestJoin("room1", "Alice", "", 5*time.Minute)
 
 	// Concurrent IsApproved checks while approving
 	for i := 0; i < 100; i++ {
@@ -939,7 +939,7 @@ func TestMember_Fields(t *testing.T) {
 	mgr := NewManager()
 	timeout := 10 * time.Minute
 
-	member := mgr.RequestJoin("test-room", "TestUser", "test-pubkey", timeout)
+	member, _ := mgr.RequestJoin("test-room", "TestUser", "test-pubkey", timeout)
 
 	// Verify all fields
 	if member.ID == uuid.Nil {
@@ -973,8 +973,8 @@ func TestMember_Fields(t *testing.T) {
 
 func TestRemove(t *testing.T) {
 	m := NewManager()
-	a := m.RequestJoin("room", "a", "", time.Hour)
-	b := m.EnsureApproved("room", "b", "test")
+	a, _ := m.RequestJoin("room", "a", "", time.Hour)
+	b, _ := m.EnsureApproved("room", "b", "test")
 	if !m.Remove(a.ID) || m.Remove(a.ID) {
 		t.Fatal("Remove should succeed once, then report the member gone")
 	}
@@ -985,24 +985,52 @@ func TestRemove(t *testing.T) {
 	if m.Count() != 0 || len(m.byRoom) != 0 || len(m.auto) != 0 {
 		t.Fatalf("after removing all: members=%d rooms=%d auto=%d, want 0 0 0", m.Count(), len(m.byRoom), len(m.auto))
 	}
-	if c := m.EnsureApproved("room", "b", "test"); c.ID == b.ID {
+	if c, _ := m.EnsureApproved("room", "b", "test"); c.ID == b.ID {
 		t.Fatal("EnsureApproved returned a removed member")
 	}
 }
 
 func TestEnsureApproved_OnePerRoomAndName(t *testing.T) {
 	m := NewManager()
-	first := m.EnsureApproved("logs.x", "service", "test")
+	first, _ := m.EnsureApproved("logs.x", "service", "test")
 	if !m.IsApproved(first.ID) {
 		t.Fatal("EnsureApproved member is not approved")
 	}
-	if again := m.EnsureApproved("logs.x", "service", "test"); again.ID != first.ID {
+	if again, _ := m.EnsureApproved("logs.x", "service", "test"); again.ID != first.ID {
 		t.Fatal("second call made a new member")
 	}
-	if other := m.EnsureApproved("logs.y", "service", "test"); other.ID == first.ID {
+	if other, _ := m.EnsureApproved("logs.y", "service", "test"); other.ID == first.ID {
 		t.Fatal("a different room shared the member")
 	}
 	if m.Count() != 2 {
 		t.Fatalf("members = %d, want 2", m.Count())
+	}
+}
+
+// Members are created by unauthenticated paths (HTTP subscribe with an
+// allowlisted name, gRPC streams and publishes) and approved ones are never
+// reaped; a cap bounds them whatever the path.
+func TestMaxMembers(t *testing.T) {
+	m := NewManager()
+	m.SetMaxMembers(2)
+	a, err := m.RequestJoin("r", "a", "", time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.EnsureApproved("r", "pub", "test"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.RequestJoin("r", "c", "", time.Hour); err != ErrTooManyMembers {
+		t.Fatalf("RequestJoin past the cap: err=%v, want ErrTooManyMembers", err)
+	}
+	if _, err := m.EnsureApproved("r", "other", "test"); err != ErrTooManyMembers {
+		t.Fatalf("EnsureApproved past the cap: err=%v, want ErrTooManyMembers", err)
+	}
+	if _, err := m.EnsureApproved("r", "pub", "test"); err != nil {
+		t.Fatalf("an existing publisher must still resolve at the cap: %v", err)
+	}
+	m.Remove(a.ID)
+	if _, err := m.RequestJoin("r", "c", "", time.Hour); err != nil {
+		t.Fatalf("after a removal there is space again: %v", err)
 	}
 }

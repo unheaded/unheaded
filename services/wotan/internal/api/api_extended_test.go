@@ -251,7 +251,7 @@ func TestRingbufferToTopicMessage(t *testing.T) {
 	srv := setupTestServerWithTopics()
 
 	rm, _ := srv.RoomManager.Create("test-topic", "Test Topic")
-	mbr := srv.MemberManager.RequestJoin("test-topic", "publisher", "", 5*time.Minute)
+	mbr, _ := srv.MemberManager.RequestJoin("test-topic", "publisher", "", 5*time.Minute)
 	srv.MemberManager.Approve(mbr.ID, "admin")
 
 	msg, _ := rm.SendMessage(mbr.ID, "test payload")
@@ -520,7 +520,7 @@ func TestPublishTopic_SubscriberNotApproved(t *testing.T) {
 	srv := setupTestServerWithTopics()
 
 	// Create a member that is pending (not approved)
-	mbr := srv.MemberManager.RequestJoin("alerts", "pending-svc", "", 5*time.Minute)
+	mbr, _ := srv.MemberManager.RequestJoin("alerts", "pending-svc", "", 5*time.Minute)
 
 	body, _ := json.Marshal(map[string]string{
 		"subscriber_id": mbr.ID.String(),
