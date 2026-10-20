@@ -6,7 +6,7 @@
 # (deploy/sophia-eye/docker-compose.yml does this). Its old context,
 # ./sophia-gateway, had no Dockerfile and no go.mod.
 
-FROM golang:1.27-alpine AS builder
+FROM golang:1.27.2-alpine3.24 AS builder
 
 WORKDIR /build
 COPY go.mod go.sum ./
