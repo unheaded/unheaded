@@ -18,7 +18,8 @@
 # The password never passes through here or the repo: Alertmanager reads it
 # from /etc/alertmanager-secrets/smtp-password, the container path of
 # ALERTMANAGER_SECRETS_DIR (monitoring/docker-compose.yml), e.g.
-# /etc/unheaded/alertmanager/smtp-password, 0400, owned by uid 65534 (prom/alertmanager runs as nobody).
+# /etc/unheaded/alertmanager/smtp-password, 0400, owned by uid 16709 (the
+# compose user for alertmanager, pkg/uids.Alertmanager).
 #
 # Output: monitoring/alertmanager/rendered/alertmanager.yml (gitignored).
 # Then in monitoring/.env:
