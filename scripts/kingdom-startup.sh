@@ -121,6 +121,12 @@ HEALTH_ENDPOINTS=(
     "protocol-api:16666"
 )
 
+# ── Phase 0: Silence alert mail during warm-up (ADR-100) ─────────────
+# Services that are still starting look down to the SLOs. Best effort: the
+# monitoring stack may not be up yet.
+"$SCRIPT_DIR/monitoring/maintenance.sh" 15m "kingdom-startup warm-up" >/dev/null 2>&1 ||
+    log_warn "Alertmanager not reachable; warm-up not silenced"
+
 # ── Phase 1: Start Docker containers ─────────────────────────────────
 if [[ "$NATIVE_ONLY" != "true" ]]; then
     log_info "Phase 1: Starting Docker containers..."

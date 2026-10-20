@@ -22,7 +22,7 @@ die() { echo "[FAIL] $*" >&2; exit 1; }
 command -v curl >/dev/null || die "curl is required"
 command -v python3 >/dev/null || die "python3 is required"
 
-silences() { curl -fsS "$AM_URL/api/v2/silences"; }
+silences() { curl -fsS -m 5 "$AM_URL/api/v2/silences"; }
 
 case "${1:-}" in
 --list)
@@ -39,7 +39,7 @@ for s in json.load(sys.stdin):
     if s["status"]["state"] == "active" and s["comment"].startswith(sys.argv[1]):
         print(s["id"])' "$PREFIX")"
 	for id in $ids; do
-		curl -fsS -X DELETE "$AM_URL/api/v2/silence/$id" >/dev/null
+		curl -fsS -m 5 -X DELETE "$AM_URL/api/v2/silence/$id" >/dev/null
 		echo "[ok] ended $id"
 	done
 	[[ -n "$ids" ]] || echo "[ok] no maintenance silence active"
@@ -68,7 +68,7 @@ print(json.dumps({
 }))
 PY
 )"
-	id="$(curl -fsS -X POST -H 'Content-Type: application/json' "$AM_URL/api/v2/silences" -d "$body" |
+	id="$(curl -fsS -m 5 -X POST -H 'Content-Type: application/json' "$AM_URL/api/v2/silences" -d "$body" |
 		python3 -c 'import json,sys; print(json.load(sys.stdin)["silenceID"])')"
 	echo "[ok] pages and tickets silenced for $duration ($id): $reason"
 	echo "     end early: $0 --end"

@@ -100,7 +100,7 @@ scripts/monitoring/maintenance.sh --list
 scripts/monitoring/maintenance.sh --end
 ```
 
-Alerts still fire and show; only mail stops.
+Alerts still fire and show; only mail stops. `scripts/kingdom-shutdown.sh` silences 30m before it stops anything, and `kingdom-startup.sh` silences 15m of warm-up (both best effort).
 
 ## When one arrives
 

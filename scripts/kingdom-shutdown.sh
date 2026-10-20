@@ -116,6 +116,14 @@ BINARIES=(
     wotan
 )
 
+# ── Phase 0: Silence alert mail (ADR-100) ────────────────────────────
+# A planned stop burns error budget like an outage; without this the SLOs
+# page about it. 30m covers a reboot; kingdom-startup silences its own
+# warm-up. Best effort: if Alertmanager is not running there is nothing to page.
+log_info "Phase 0: Silencing pages and tickets for 30m..."
+run "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/monitoring/maintenance.sh" 30m "kingdom-shutdown" >/dev/null 2>&1 ||
+    log_warn "  Alertmanager not reachable; nothing silenced"
+
 # ── Phase 1: Graceful SIGTERM to Go services ──────────────────────────
 log_info "Phase 1: Sending SIGTERM to Unheaded services..."
 killed=0
