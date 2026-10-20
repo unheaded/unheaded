@@ -22,13 +22,25 @@ scrape_configs:
           - '[fd00:dead:beef::1]:9100'
           - '[fd00:dead:beef::2]:9100'
 
-  # Unheaded daemon metrics
+  # Unheaded daemon metrics. West runs it in docker-compose.yml as cuirass
+  # (published on 19006), east as unheaded-unheaded-daemon on 17000. These
+  # were :9090 on both, which is this Prometheus on west and nothing on east.
   - job_name: unheaded_daemon
     metrics_path: /metrics
     static_configs:
-      - targets:
-          - '[fd00:dead:beef::1]:9090'
-          - '[fd00:dead:beef::2]:9090'
+      - targets: ['[fd00:dead:beef::1]:19006']
+        labels: {host: west}
+      - targets: ['[fd00:dead:beef::2]:17000']
+        labels: {host: east}
+
+  # Huginn (host metrics agent, ADR-084) on west: it also serves the Well's
+  # backup/offsite/drill textfile metrics that rules/well.yml alerts on. It
+  # pushes to VictoriaMetrics, which evaluates no rules; scraped here so the
+  # Well alerts have data.
+  - job_name: huginn
+    static_configs:
+      - targets: ['[fd00:dead:beef::1]:9110']
+        labels: {host: west}
 
   # FRR exporter (host-a only)
   - job_name: frr_exporter
