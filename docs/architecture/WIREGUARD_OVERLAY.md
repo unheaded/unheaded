@@ -1,5 +1,7 @@
 # WireGuard IPv6 Overlay Design
 
+> Live state verified 2026-10-20 (west `::1`, east `::2`, as below); see `wiki/Overlay-Network.md`. The hosts had run the mirror image until then.
+
 **Status:** Age 2 Epic
 **Sprint:** S77
 **Author:** Architect + Developer

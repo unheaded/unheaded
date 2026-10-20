@@ -243,27 +243,6 @@ findings:
       from that environment rather than by hand. Until PYSEC-2026-139 has a fix, load only .pt2 files built here
     decision: when to take the GPU stack to a current torch (a ROCm upgrade and a training run, not a pin edit)
 
-  - id: FND-014
-    title: >-
-      The overlay is addressed the other way round from the repo: config/wireguard/west.conf, east-bootstrap.sh and
-      every monitoring target say west = fd00:dead:beef::1 and east = ::2, but west's installed wg0 is ::2 (peer ::1 =
-      east) and its BGP originates fd00:dead:beef:2::/64. Anything in the repo that means "west" at ::1 reaches east:
-      ~35 Prometheus targets, its remote_write, Grafana's VictoriaMetrics datasource, the routing and validation scripts
-    verify: west's /etc/wireguard/wg0.conf Address equals config/wireguard/west.conf's, and the Prometheus node_exporter
-      target for west is up through the overlay
-    severity: medium
-    class: service  # wg0 (wg-quick) and FRR configuration
-    host: west
-    opened: 2026-10-20
-    exposure: none to outsiders; monitoring and remote_write point at the wrong host, so west's alerts would describe east
-    lockout: high  # re-addressing wg0 and BGP drops the overlay until both ends match; keep the P2P/SSH path open
-    step: 7
-    plan: >-
-      Pick one side. Re-address both hosts to the repo (west ::1, east ::2: wg0 Address/AllowedIPs, FRR neighbors and
-      originated prefixes, one host at a time over the P2P link), or flip the repo to the live layout in one sweep of
-      the files above. The hosts are consistent with each other today, the repo is consistent with itself
-    decision: which addressing is canonical, the live one or the repo's
-
   - source: "gate-script:scripts/compliance/check-service-auth.sh"
     severity: high
     class: app
