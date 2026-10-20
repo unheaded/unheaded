@@ -18,6 +18,7 @@ groups:
         for: 15m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "CISA KEV catalog on {{ $labels.instance }} not refreshed for 6h"
           description: "Last good pull {{ $value | humanizeDuration }} ago; GET /api/v1/kev on the poller shows the last error"
@@ -27,6 +28,7 @@ groups:
         for: 15m
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "CISA KEV catalog on {{ $labels.instance }} older than 7 days (ADR-052)"
           description: "Last good pull {{ $value | humanizeDuration }} ago; the threat register is past its freshness limit"
@@ -36,6 +38,7 @@ groups:
         for: 15m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "kev-poller on {{ $labels.instance }} is not answering /metrics"
           description: "ADR-055 requires it always on; systemctl status unheaded-kev-poller"

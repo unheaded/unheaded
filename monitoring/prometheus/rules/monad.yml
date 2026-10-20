@@ -12,6 +12,7 @@ groups:
         for: 2m
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "Monad HbH drop rate elevated"
           description: "HbH packet drops > 1% on {{ $labels.host }}"
@@ -22,6 +23,7 @@ groups:
         for: 30s
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "BGP session down on {{ $labels.host }}"
           description: "BGP session to {{ $labels.peer }} is not up"
@@ -32,6 +34,7 @@ groups:
         for: 0m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "BFD failover triggered"
           description: "Failover event detected on {{ $labels.host }}, may indicate link degradation"
@@ -42,6 +45,7 @@ groups:
         for: 1m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "Suricata Monad signature spike"
           description: "Monad protocol alerts > 10/s on {{ $labels.host }}"
@@ -52,6 +56,7 @@ groups:
         for: 1m
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "Routing health service down"
           description: "routing-health (port 8080) is not responding on {{ $labels.host }}"
@@ -62,6 +67,7 @@ groups:
         for: 2m
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "Node exporter down on {{ $labels.instance }}"
           description: "Cannot scrape node_exporter from {{ $labels.instance }}"

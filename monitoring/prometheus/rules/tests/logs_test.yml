@@ -21,7 +21,7 @@ tests:
       - eval_time: 106m
         alertname: JournalNotShipping
         exp_alerts:
-          - exp_labels: {severity: critical, instance: "host.docker.internal:9598"}
+          - exp_labels: {severity: critical, urgency: none, instance: "host.docker.internal:9598"}
             exp_annotations:
               summary: "host.docker.internal:9598 has shipped no journal entries to ClickHouse for 45m"
               description: "Audit records are not leaving the host; docker logs unheaded-vector, and check clickhouse is up"
@@ -44,7 +44,7 @@ tests:
       - eval_time: 30m
         alertname: JournalShipErrors
         exp_alerts:
-          - exp_labels: {severity: warning, instance: west}
+          - exp_labels: {severity: warning, urgency: none, instance: west}
             exp_annotations:
               summary: "Vector on west keeps failing to write to ClickHouse"
               description: "15 sink errors in 15m; Vector retries, so rows may be late rather than lost"
@@ -54,7 +54,7 @@ tests:
       - eval_time: 72m
         alertname: VectorDown
         exp_alerts:
-          - exp_labels: {severity: warning, instance: west, job: vector}
+          - exp_labels: {severity: warning, urgency: none, instance: west, job: vector}
             exp_annotations:
               summary: "Vector on west is not answering /metrics"
               description: "The journal is not shipping while it is down; docker compose ps vector"

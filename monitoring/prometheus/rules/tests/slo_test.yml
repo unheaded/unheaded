@@ -1,0 +1,132 @@
+# promtool test rules slo_test.yml (from this directory)
+# The rules are generated (observability/alerting/policy.yaml); these pin how
+# the burn-rate tiers behave. Every test feeds healthy series for every SLO
+# (a missing series counts as bad) and then breaks one or two.
+rule_files:
+  - ../slo.yml
+evaluation_interval: 1m
+tests:
+  # All healthy for three days: nothing fires.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="wotan",instance="west"}'
+        values: '1x4500'
+      - series: 'up{job="wotan",instance="east"}'
+        values: '1x4500'
+      - series: 'up{job="dashboard_backend",instance="west"}'
+        values: '1x4500'
+      - series: 'huginn_pg_up{db="unheaded_app"}'
+        values: '1x4500'
+      - series: 'unheaded_well_backup_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'unheaded_well_offsite_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'unheaded_well_drill_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'up{job="node_exporter",instance="[fd00:dead:beef::2]:9100"}'
+        values: '1x4500'
+      - series: 'vector_component_sent_events_total{job="vector",component_id="clickhouse"}'
+        values: '0+10x4500'
+      - series: 'unheaded_kev_last_success_timestamp_seconds'
+        values: '0+60x4500'
+    alert_rule_test:
+      - eval_time: 4400m
+        alertname: ErrorBudgetBurn
+        exp_alerts: []
+
+  # East's Wotan down for 30 minutes after three good days.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="wotan",instance="west"}'
+        values: '1x4500'
+      - series: 'up{job="wotan",instance="east"}'
+        values: '1x4400 0x30 1x69'
+      - series: 'up{job="dashboard_backend",instance="west"}'
+        values: '1x4500'
+      - series: 'huginn_pg_up{db="unheaded_app"}'
+        values: '1x4500'
+      - series: 'unheaded_well_backup_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'unheaded_well_offsite_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'unheaded_well_drill_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'up{job="node_exporter",instance="[fd00:dead:beef::2]:9100"}'
+        values: '1x4500'
+      - series: 'vector_component_sent_events_total{job="vector",component_id="clickhouse"}'
+        values: '0+10x4500'
+      - series: 'unheaded_kev_last_success_timestamp_seconds'
+        values: '0+60x4500'
+    alert_rule_test:
+      # 3 minutes in: a blip. No alert.
+      - eval_time: 4403m
+        alertname: ErrorBudgetBurn
+        exp_alerts: []
+      # 15 minutes in: one page, fast tier only (6h, 1d, 3d are below theirs).
+      - eval_time: 4415m
+        alertname: ErrorBudgetBurn
+        exp_alerts:
+          - exp_labels: {slo: wotan, service: wotan, urgency: page, tier: fast}
+            exp_annotations:
+              summary: "SLO wotan: The message bus answers on both hosts"
+              description: "Burning the error budget (99.5% over 28d) 25.0x as fast as it allows, over the last 1h; 66% of it left. Check: up{job=\"wotan\"} in Prometheus says which host; docker ps / systemctl status unheaded-wotan there; its log ends with the reason it stopped."
+              runbook_url: "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml"
+      # Back for 10 minutes. The outage spent 7.5% of the month's budget,
+      # so the 6h tier (5% in 6h) still holds until its 30m window is clean;
+      # it is a page too, so it rides in the same mail group.
+      - eval_time: 4440m
+        alertname: ErrorBudgetBurn
+        exp_alerts:
+          - exp_labels: {slo: wotan, service: wotan, urgency: page, tier: medium}
+            exp_annotations:
+              summary: "SLO wotan: The message bus answers on both hosts"
+              description: "Burning the error budget (99.5% over 28d) 8.6x as fast as it allows, over the last 6h; 30% of it left. Check: up{job=\"wotan\"} in Prometheus says which host; docker ps / systemctl status unheaded-wotan there; its log ends with the reason it stopped."
+              runbook_url: "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml"
+      # 30 clean minutes: everything resolves.
+      - eval_time: 4470m
+        alertname: ErrorBudgetBurn
+        exp_alerts: []
+
+  # page: false SLO (overlay) sends its fast tier as a ticket; a series that
+  # disappears (the Well exporter's) is bad, not silent.
+  - interval: 1m
+    input_series:
+      - series: 'up{job="wotan",instance="west"}'
+        values: '1x4500'
+      - series: 'up{job="wotan",instance="east"}'
+        values: '1x4500'
+      - series: 'up{job="dashboard_backend",instance="west"}'
+        values: '1x4500'
+      - series: 'huginn_pg_up{db="unheaded_app"}'
+        values: '1x4400 _x30'
+      - series: 'unheaded_well_backup_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'unheaded_well_offsite_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'unheaded_well_drill_last_success_timestamp_seconds'
+        values: '0+60x4500'
+      - series: 'up{job="node_exporter",instance="[fd00:dead:beef::2]:9100"}'
+        values: '1x4400 0x30'
+      - series: 'vector_component_sent_events_total{job="vector",component_id="clickhouse"}'
+        values: '0+10x4500'
+      - series: 'unheaded_kev_last_success_timestamp_seconds'
+        values: '0+60x4500'
+    alert_rule_test:
+      - eval_time: 4420m
+        alertname: ErrorBudgetBurn
+        exp_alerts:
+          - exp_labels: {slo: overlay, service: wireguard, urgency: ticket, tier: fast}
+            exp_annotations:
+              summary: "SLO overlay: West reaches east over the WireGuard overlay"
+              description: "Burning the error budget (99% over 28d) 33.3x as fast as it allows, over the last 1h; 55% of it left. Check: ping -c3 fd00:dead:beef::2; sudo wg show; sudo vtysh -c 'show bfd peers brief'; wiki/Overlay-Network.md."
+              runbook_url: "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml"
+          - exp_labels: {slo: well, service: postgres, urgency: page, tier: fast}
+            exp_annotations:
+              summary: "SLO well: The Well accepts connections for every database"
+              description: "Burning the error budget (99.5% over 28d) 53.3x as fast as it allows, over the last 1h; 28% of it left. Check: huginn_pg_up by db; docker ps -a | grep postgres; docker logs unheaded-postgres | tail. Kanban and compliance fall back while it is down."
+              runbook_url: "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml"
+          - exp_labels: {slo: well, service: postgres, urgency: page, tier: medium}
+            exp_annotations:
+              summary: "SLO well: The Well accepts connections for every database"
+              description: "Burning the error budget (99.5% over 28d) 8.9x as fast as it allows, over the last 6h; 28% of it left. Check: huginn_pg_up by db; docker ps -a | grep postgres; docker logs unheaded-postgres | tail. Kanban and compliance fall back while it is down."
+              runbook_url: "https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml"

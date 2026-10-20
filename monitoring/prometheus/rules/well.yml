@@ -20,6 +20,7 @@ groups:
         for: 45m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "No backup of The Well on {{ $labels.host }} for over a day"
           description: "Last good set {{ $value | humanizeDuration }} ago; see journalctl -u unheaded-well-backup"
@@ -29,6 +30,7 @@ groups:
         for: 45m
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "No backup of The Well on {{ $labels.host }} for two nights"
           description: "Last good set {{ $value | humanizeDuration }} ago; a restore now would lose more than two days"
@@ -38,6 +40,7 @@ groups:
         for: 45m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "No backup set of The Well copied to east for over a day"
           description: "Last copy {{ $value | humanizeDuration }} ago; see journalctl -u unheaded-well-offsite"
@@ -47,6 +50,7 @@ groups:
         for: 45m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "No passing restore drill of The Well for over a week"
           description: "Last pass {{ $value | humanizeDuration }} ago; an untested backup is a hope, see journalctl -u unheaded-well-drill"
@@ -56,6 +60,7 @@ groups:
         for: 30m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "No backup metrics for The Well"
           description: "huginn has no textfile_dir, cannot read /var/lib/unheaded/textfile, or no backup has ever succeeded"
@@ -65,6 +70,7 @@ groups:
         for: 10m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "{{ $labels.file }} on {{ $labels.host }} has malformed lines"
           description: "huginn dropped {{ $value }} line(s); whatever wrote the file is broken"

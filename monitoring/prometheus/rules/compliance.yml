@@ -22,6 +22,7 @@ groups:
         for: 5m
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "Findings register cannot be built"
           description: "dashboard-backend could not read the catalog, register or evidence; the finding count is not trustworthy until fixed"
@@ -31,6 +32,7 @@ groups:
         for: 15m
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "No findings register metrics"
           description: "dashboard-backend is down, not scraped, or started without --compliance-root"
@@ -43,6 +45,7 @@ groups:
         for: 10m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "No new compliance evidence for over 6 hours"
           description: "Newest evidence record is {{ $value | humanizeDuration }} old; run cmd/compliance-evidence"
@@ -55,6 +58,7 @@ groups:
         expr: (unheaded_compliance_finding unless unheaded_compliance_finding offset 1h) and on() (count(unheaded_compliance_finding offset 1h) > 0)
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "New finding: {{ $labels.key }}"
           description: "{{ $labels.key }} on {{ $labels.host }} ({{ $labels.severity }}) started failing within the last hour"
@@ -63,6 +67,7 @@ groups:
         expr: (unheaded_compliance_finding{severity=~"critical|high"} unless unheaded_compliance_finding offset 1h) and on() (count(unheaded_compliance_finding offset 1h) > 0)
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "New {{ $labels.severity }} finding: {{ $labels.key }}"
           description: "{{ $labels.key }} on {{ $labels.host }} started failing within the last hour"
@@ -72,6 +77,7 @@ groups:
         for: 5m
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "Critical finding open: {{ $labels.key }}"
           description: "{{ $labels.key }} on {{ $labels.host }}; due 7 days after it opened"
@@ -81,6 +87,7 @@ groups:
         for: 1h
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "{{ $value }} finding(s) have no register entry"
           description: "Add them to compliance/findings/register.yaml with a severity and plan"
@@ -89,6 +96,7 @@ groups:
         expr: unheaded_compliance_findings_overdue > 0
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "{{ $value }} finding(s) past their due date"
           description: "See /compliance; due = opened + severity window (7/30/90/180 days)"
@@ -97,6 +105,7 @@ groups:
         expr: unheaded_compliance_acceptances_expired > 0
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "{{ $value }} risk acceptance(s) expired"
           description: "Fix the finding or re-decide the acceptance in compliance/findings/register.yaml"
@@ -113,6 +122,7 @@ groups:
         for: 15m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "Compliance {{ $labels.kind }} served from fallback ({{ $labels.source }})"
           description: "The Well served compliance {{ $labels.kind }} in the last 24h; the dashboard has read it from the repo files for 15m, so changes made in The Well are not shown"

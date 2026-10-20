@@ -1,0 +1,137 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# Alerting policy (ADR-100): the one file that decides what reaches a human.
+#
+#   Only an SLO burning its error budget notifies. Every other alert rule is
+#   urgency "none": evaluated, visible in Prometheus/Alertmanager/Grafana,
+#   never sent. Stevie, 2026-10-20: "I'm not going to read 500 alerts, I
+#   might read 5 if something is worth checking out."
+#
+# After editing: go run ./cmd/alert-policy   (regenerates the files below)
+#   monitoring/prometheus/rules/slo.yml        SLIs, burn-rate alerts
+#   monitoring/alertmanager/alertmanager.yml   routing by urgency
+# CI fails if they are out of date (go run ./cmd/alert-policy --check).
+#
+# Urgency (the label every alert carries):
+#   page    budget burning fast enough to matter today: mailed right away
+#   ticket  budget burning slowly: one digest a day, at mailer.digest_at
+#   none    recorded only (causes, symptoms of causes, compliance)
+#
+# Runtime controls, no edit needed:
+#   scripts/monitoring/maintenance.sh 30m "reboot west"   silence while you work
+#   http://<west>:9093                                    Alertmanager: what is firing
+#   curl -s localhost:19130/v1/outbox                     what the mailer sent / would send
+
+mailer:
+  # dry-run: decide and log every mail, send none. Run a week like this,
+  # read the outbox, tune, then switch to send.
+  mode: dry-run
+  # Hard cap across everything, per calendar day in timezone. The last
+  # allowed mail says so; past it nothing is sent until midnight, and the
+  # next digest counts what was held back.
+  max_per_day: 6
+  digest_at: "09:00"
+  timezone: America/Chicago
+
+# Alertmanager timing for urgency=page. Alertmanager passes every change in
+# the set of firing pages to the mailer within group_interval; the mailer
+# mails only news (an SLO starting to burn, or all clear) and a reminder
+# after repeat_interval. So one incident is two mails, however it flaps.
+page:
+  group_wait: 2m
+  group_interval: 5m
+  repeat_interval: 12h
+
+# Cause alerts that should notify anyway. Keep this empty: every entry is
+# noise the SLOs should already catch. Form:
+#   - alert: WellBackupMissing
+#     urgency: ticket
+#     reason: why the SLOs miss it
+promote: []
+
+# Burn-rate tiers (Google SRE Workbook ch. 5, table 5-8). An alert fires
+# when both windows exceed burn x (1 - objective). page: false SLOs send the
+# fast tiers as tickets too.
+#   fast    1h and 5m    at 14.4  (2% of a 30-day budget in an hour)   page
+#   medium  6h and 30m   at 6     (5% in six hours)                     page
+#   slow    1d and 2h    at 3     (10% in a day)                        ticket
+#   steady  3d and 6h    at 1     (10% in three days)                   ticket
+#
+# Every SLI is time-based: "good" is a PromQL expression that is 1 when the
+# service is good this minute and 0 when not. A missing result counts as
+# bad, so a scrape target that disappears does not look healthy.
+window: 28d
+slos:
+  - name: wotan
+    service: wotan
+    description: The message bus answers on both hosts
+    objective: 99.5
+    page: true
+    good: avg(up{job="wotan"})
+    checks: >-
+      up{job="wotan"} in Prometheus says which host; docker ps / systemctl
+      status unheaded-wotan there; its log ends with the reason it stopped.
+
+  - name: dashboard
+    service: dashboard-backend
+    description: The dashboard answers on both hosts
+    objective: 99.5
+    page: true
+    good: avg(up{job="dashboard_backend"})
+    checks: >-
+      up{job="dashboard_backend"} says which host; curl :20000/health there;
+      it needs Wotan, so check the wotan SLO first.
+
+  - name: well
+    service: postgres
+    description: The Well accepts connections for every database
+    objective: 99.5
+    page: true
+    good: min(huginn_pg_up)
+    checks: >-
+      huginn_pg_up by db; docker ps -a | grep postgres; docker logs
+      unheaded-postgres | tail. Kanban and compliance fall back while it is down.
+
+  - name: well-backups
+    service: postgres
+    description: A restorable copy of The Well is under a day old, on west and on east
+    objective: 99.0
+    page: false
+    good: >-
+      (time() - max(unheaded_well_backup_last_success_timestamp_seconds) < bool 26 * 3600)
+      * (time() - max(unheaded_well_offsite_last_success_timestamp_seconds) < bool 26 * 3600)
+      * (time() - max(unheaded_well_drill_last_success_timestamp_seconds) < bool 8 * 86400)
+    checks: >-
+      journalctl -u unheaded-well-backup / -offsite / -drill on west; the
+      backup fails loudly while postgres is down (see the well SLO).
+
+  - name: overlay
+    service: wireguard
+    description: West reaches east over the WireGuard overlay
+    objective: 99.0
+    page: false
+    good: max(up{job="node_exporter",instance="[fd00:dead:beef::2]:9100"})
+    checks: >-
+      ping -c3 fd00:dead:beef::2; sudo wg show; sudo vtysh -c 'show bfd peers
+      brief'; wiki/Overlay-Network.md.
+
+  - name: log-shipping
+    service: vector
+    description: Journal lines reach ClickHouse
+    objective: 99.0
+    page: false
+    good: sum(increase(vector_component_sent_events_total{job="vector",component_id="clickhouse"}[30m])) > bool 0
+    checks: >-
+      docker logs unheaded-vector | tail; vector_component_errors_total by
+      component; is unheaded-clickhouse up.
+
+  - name: kev-feed
+    service: kev-poller
+    description: The CISA KEV catalog is under six hours old on at least one host
+    objective: 99.0
+    page: false
+    good: time() - max(unheaded_kev_last_success_timestamp_seconds) < bool 6 * 3600
+    checks: >-
+      systemctl status unheaded-kev-poller on each host; curl :19120/health;
+      CISA's feed itself may be down.

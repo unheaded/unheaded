@@ -9,6 +9,7 @@ groups:
         for: 30s
         labels:
           severity: critical
+          urgency: none
           component: haproxy
         annotations:
           summary: "HAProxy backend server is down for {{ $labels.backend }}"
@@ -22,6 +23,7 @@ groups:
         for: 2m
         labels:
           severity: warning
+          urgency: none
           component: haproxy
         annotations:
           summary: "HAProxy backend {{ $labels.backend }} has high error rate"
@@ -35,6 +37,7 @@ groups:
         for: 5m
         labels:
           severity: warning
+          urgency: none
           component: haproxy
         annotations:
           summary: "HAProxy backend {{ $labels.backend }} has high latency"
@@ -47,6 +50,7 @@ groups:
         for: 2m
         labels:
           severity: warning
+          urgency: none
           component: haproxy
         annotations:
           summary: "HAProxy frontend {{ $labels.frontend }} connection saturation"
@@ -59,6 +63,7 @@ groups:
         for: 1m
         labels:
           severity: warning
+          urgency: none
           component: haproxy
         annotations:
           summary: "HAProxy rate limiting active for frontend {{ $labels.frontend }}"
@@ -72,6 +77,7 @@ groups:
         for: 2m
         labels:
           severity: warning
+          urgency: none
           component: nginx
         annotations:
           summary: "Nginx {{ $labels.service }} has high error rate"
@@ -84,6 +90,7 @@ groups:
         for: 1m
         labels:
           severity: critical
+          urgency: none
           component: nginx
         annotations:
           summary: "Nginx upstream server is down for {{ $labels.service }}"

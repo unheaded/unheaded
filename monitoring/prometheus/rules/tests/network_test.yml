@@ -14,7 +14,7 @@ tests:
       - eval_time: 40m
         alertname: IPv6PacketTooBigSustained
         exp_alerts:
-          - exp_labels: {severity: warning, instance: "east:9100", job: node_exporter}
+          - exp_labels: {severity: warning, urgency: none, instance: "east:9100", job: node_exporter}
             exp_annotations:
               summary: "east:9100 keeps receiving ICMPv6 Packet Too Big"
               description: "6/min for 15m: something sends packets over the path MTU (ADR-014: clamp TCP MSS to 1220, keep UDP under 1256 bytes)"

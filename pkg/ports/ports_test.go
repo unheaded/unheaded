@@ -75,6 +75,7 @@ func allPorts(t *testing.T) map[string]int {
 		"UPCTtyBridge": UPCTtyBridge,
 		"Akira":        Akira,
 		"KEVPoller":    KEVPoller,
+		"AlertMailer":  AlertMailer,
 	}
 }
 

@@ -37,14 +37,14 @@ tests:
       - eval_time: 18m
         alertname: ComplianceReportBroken
         exp_alerts:
-          - exp_labels: {severity: critical}
+          - exp_labels: {severity: critical, urgency: none}
             exp_annotations:
               summary: "Findings register cannot be built"
               description: "dashboard-backend could not read the catalog, register or evidence; the finding count is not trustworthy until fixed"
       - eval_time: 75m
         alertname: ComplianceNewSevereFinding
         exp_alerts:
-          - exp_labels: {severity: critical, key: "host-sshd:east:x", host: east}
+          - exp_labels: {severity: critical, urgency: none, key: "host-sshd:east:x", host: east}
             exp_annotations:
               summary: "New high finding: host-sshd:east:x"
               description: "host-sshd:east:x on east started failing within the last hour"
@@ -55,7 +55,7 @@ tests:
       - eval_time: 8m
         alertname: ComplianceAcceptanceExpired
         exp_alerts:
-          - exp_labels: {severity: critical}
+          - exp_labels: {severity: critical, urgency: none}
             exp_annotations:
               summary: "1 risk acceptance(s) expired"
               description: "Fix the finding or re-decide the acceptance in compliance/findings/register.yaml"
@@ -80,7 +80,7 @@ tests:
       - eval_time: 50m
         alertname: ComplianceWellFallback
         exp_alerts:
-          - exp_labels: {severity: warning, kind: register, source: yaml-fallback}
+          - exp_labels: {severity: warning, urgency: none, kind: register, source: yaml-fallback}
             exp_annotations:
               summary: "Compliance register served from fallback (yaml-fallback)"
               description: "The Well served compliance register in the last 24h; the dashboard has read it from the repo files for 15m, so changes made in The Well are not shown"

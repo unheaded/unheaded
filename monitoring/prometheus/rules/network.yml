@@ -20,6 +20,7 @@ groups:
         for: 15m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "{{ $labels.instance }} keeps receiving ICMPv6 Packet Too Big"
           description: "{{ $value | humanize }}/min for 15m: something sends packets over the path MTU (ADR-014: clamp TCP MSS to 1220, keep UDP under 1256 bytes)"

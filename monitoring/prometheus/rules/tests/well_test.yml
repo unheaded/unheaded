@@ -21,7 +21,7 @@ tests:
       - eval_time: 27h
         alertname: WellBackupLate
         exp_alerts:
-          - exp_labels: {severity: warning, host: west}
+          - exp_labels: {severity: warning, urgency: none, host: west}
             exp_annotations:
               summary: "No backup of The Well on west for over a day"
               description: "Last good set 1d 3h 0m 0s ago; see journalctl -u unheaded-well-backup"
@@ -31,14 +31,14 @@ tests:
       - eval_time: 51h
         alertname: WellBackupMissing
         exp_alerts:
-          - exp_labels: {severity: critical, host: west}
+          - exp_labels: {severity: critical, urgency: none, host: west}
             exp_annotations:
               summary: "No backup of The Well on west for two nights"
               description: "Last good set 2d 3h 0m 0s ago; a restore now would lose more than two days"
       - eval_time: 27h
         alertname: WellOffsiteLate
         exp_alerts:
-          - exp_labels: {severity: warning, host: west}
+          - exp_labels: {severity: warning, urgency: none, host: west}
             exp_annotations:
               summary: "No backup set of The Well copied to east for over a day"
               description: "Last copy 1d 3h 0m 0s ago; see journalctl -u unheaded-well-offsite"
@@ -48,14 +48,14 @@ tests:
       - eval_time: 9d
         alertname: WellDrillLate
         exp_alerts:
-          - exp_labels: {severity: warning, host: west}
+          - exp_labels: {severity: warning, urgency: none, host: west}
             exp_annotations:
               summary: "No passing restore drill of The Well for over a week"
               description: "Last pass 9d 0h 0m 0s ago; an untested backup is a hope, see journalctl -u unheaded-well-drill"
       - eval_time: 40m
         alertname: HuginnTextfileRejected
         exp_alerts:
-          - exp_labels: {severity: warning, host: west, file: well_backup.prom}
+          - exp_labels: {severity: warning, urgency: none, host: west, file: well_backup.prom}
             exp_annotations:
               summary: "well_backup.prom on west has malformed lines"
               description: "huginn dropped 2 line(s); whatever wrote the file is broken"
@@ -89,7 +89,7 @@ tests:
       - eval_time: 45m
         alertname: WellBackupMetricsMissing
         exp_alerts:
-          - exp_labels: {severity: warning}
+          - exp_labels: {severity: warning, urgency: none}
             exp_annotations:
               summary: "No backup metrics for The Well"
               description: "huginn has no textfile_dir, cannot read /var/lib/unheaded/textfile, or no backup has ever succeeded"

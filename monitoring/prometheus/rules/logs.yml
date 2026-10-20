@@ -18,6 +18,7 @@ groups:
         for: 15m
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "{{ $labels.instance }} has shipped no journal entries to ClickHouse for 45m"
           description: "Audit records are not leaving the host; docker logs unheaded-vector, and check clickhouse is up"
@@ -27,6 +28,7 @@ groups:
         for: 15m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "Vector on {{ $labels.instance }} keeps failing to write to ClickHouse"
           description: "{{ $value }} sink errors in 15m; Vector retries, so rows may be late rather than lost"
@@ -36,6 +38,7 @@ groups:
         for: 10m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "Vector on {{ $labels.instance }} is not answering /metrics"
           description: "The journal is not shipping while it is down; docker compose ps vector"

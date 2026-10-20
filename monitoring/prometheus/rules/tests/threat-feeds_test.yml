@@ -15,7 +15,7 @@ tests:
       - eval_time: 6h20m
         alertname: KEVFeedStale
         exp_alerts:
-          - exp_labels: {severity: warning, instance: "west:19120", job: kev_poller}
+          - exp_labels: {severity: warning, urgency: none, instance: "west:19120", job: kev_poller}
             exp_annotations:
               summary: "CISA KEV catalog on west:19120 not refreshed for 6h"
               description: "Last good pull 6h 20m 0s ago; GET /api/v1/kev on the poller shows the last error"
@@ -25,7 +25,7 @@ tests:
       - eval_time: 7d20m
         alertname: KEVFeedExpired
         exp_alerts:
-          - exp_labels: {severity: critical, instance: "west:19120", job: kev_poller}
+          - exp_labels: {severity: critical, urgency: none, instance: "west:19120", job: kev_poller}
             exp_annotations:
               summary: "CISA KEV catalog on west:19120 older than 7 days (ADR-052)"
               description: "Last good pull 7d 0h 20m 0s ago; the threat register is past its freshness limit"
@@ -48,7 +48,7 @@ tests:
       - eval_time: 80m
         alertname: KEVPollerDown
         exp_alerts:
-          - exp_labels: {severity: warning, instance: "east:19120", job: kev_poller}
+          - exp_labels: {severity: warning, urgency: none, instance: "east:19120", job: kev_poller}
             exp_annotations:
               summary: "kev-poller on east:19120 is not answering /metrics"
               description: "ADR-055 requires it always on; systemctl status unheaded-kev-poller"

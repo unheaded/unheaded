@@ -56,6 +56,9 @@ const (
 	// Threat-intel feeds (19120-19129; 19110 is loadbalancer xdpsync's)
 	KEVPoller = 19120 // CISA KEV catalog poller (ADR-055)
 
+	// Alerting (19130-19139)
+	AlertMailer = 19130 // alert-mailer: Alertmanager webhook to capped email (ADR-100)
+
 	// Applications (20000-20999)
 	DashboardBackend = 20000
 	KanbanApp        = 20001

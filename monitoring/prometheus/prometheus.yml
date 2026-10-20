@@ -152,12 +152,24 @@ scrape_configs:
     static_configs:
       - targets: ['host.docker.internal:9598']
 
-  # Dashboard backend (host metrics + service metrics)
+  # Dashboard backend, one per host (host metrics + service metrics). The
+  # dashboard SLO (observability/alerting/policy.yaml) is up on both.
   - job_name: dashboard_backend
     static_configs:
-      - targets: ['host.docker.internal:20000']
+      - targets:
+          - '[fd00:dead:beef::1]:20000'
+          - '[fd00:dead:beef::2]:20000'
         labels:
           service: "dashboard-backend"
+
+  # Wotan, one per host; the wotan SLO is up on both.
+  - job_name: wotan
+    static_configs:
+      - targets:
+          - '[fd00:dead:beef::1]:18000'
+          - '[fd00:dead:beef::2]:18000'
+        labels:
+          service: "wotan"
 
 remote_write:
   - url: 'http://[fd00:dead:beef::1]:8428/api/v1/write'

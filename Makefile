@@ -1,4 +1,4 @@
-.PHONY: all build test clean ebpf containers dev deploy docs help binaries install \
+.PHONY: all build test clean ebpf containers dev deploy docs help binaries install alerts \
        ebpf-shield ebpf-hop ebpf-yaldabaoth ebpf-monad-cpu \
        build-monad-mbc pin-ebpf unpin-ebpf test-ebpf-compat \
        test-e2e-bpf deploy-down deploy-status deploy-lxd deploy-logs \
@@ -209,6 +209,9 @@ test-ebpf-compat: ## Verify eBPF workspace builds for host target (type-checks o
 	@echo "✓ eBPF type-check passed"
 
 ##@ Testing
+
+alerts: ## Regenerate SLO rules + Alertmanager routing from observability/alerting/policy.yaml (ADR-100)
+	go run ./cmd/alert-policy
 
 test: test-go test-rust ## Run all tests
 	@echo "✓ All tests passed"

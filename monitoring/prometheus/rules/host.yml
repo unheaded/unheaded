@@ -18,6 +18,7 @@ groups:
         for: 10m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "{{ $labels.mount }} on {{ $labels.host }} under 10% free"
           description: "{{ $labels.mount }} ({{ $labels.device }}) has {{ $value | humanizePercentage }} left"
@@ -27,6 +28,7 @@ groups:
         for: 5m
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "{{ $labels.mount }} on {{ $labels.host }} under 3% free"
           description: "{{ $labels.mount }} ({{ $labels.device }}) has {{ $value | humanizePercentage }} left; writes will start failing"
@@ -40,6 +42,7 @@ groups:
         for: 30m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "{{ $labels.mount }} on {{ $labels.host }} fills within 24h at this rate"
           description: "{{ $labels.mount }} ({{ $labels.device }}) is under 25% free and its 6h trend reaches zero within a day"
@@ -52,6 +55,7 @@ groups:
         for: 10m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "Filesystem holding {{ $labels.path }} on {{ $labels.host }} under 15% free"
           description: "{{ $value | humanizePercentage }} left; check huginn_log_dir_bytes for the service filling it"
@@ -65,6 +69,7 @@ groups:
         for: 15m
         labels:
           severity: critical
+          urgency: none
         annotations:
           summary: "Filesystem holding {{ $labels.path }} on {{ $labels.host }} fills within 6h"
           description: "At the last hour's rate the filesystem is full within 6h; a runaway logger is the usual cause (ADR-092 section 6)"
@@ -77,6 +82,7 @@ groups:
         for: 30m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "/var/log/unheaded/{{ $labels.dir }} on {{ $labels.host }} over 1 GB"
           description: "{{ $value | humanize1024 }}B, above ADR-092's per-service rotation budget; treat as a defect in the service, not a capacity problem"
@@ -89,6 +95,7 @@ groups:
         for: 15m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "/var/log/unheaded/{{ $labels.dir }} on {{ $labels.host }} growing over 1 MiB/s"
           description: "Growing {{ $value | humanize1024 }}B/s for 15m; rate-limit the log line at its source (ADR-092 section 6)"
@@ -100,6 +107,7 @@ groups:
         for: 15m
         labels:
           severity: warning
+          urgency: none
         annotations:
           summary: "huginn can no longer read /var/log/unheaded on {{ $labels.host }}"
           description: "Log directory sizes are unknown; the directory was removed or its permissions changed"
