@@ -64,6 +64,7 @@ cloud-init.user-data: |
 
       limits_config:
         retention_period: 2160h
+        deletion_mode: disabled  # the delete API has no auth (auth_enabled: false); deleting logs needs a config change
         split_queries_by_interval: 24h
         max_streams_per_user: 10000
         max_global_streams_per_user: 10000

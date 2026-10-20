@@ -22,6 +22,8 @@ data:
       ring:
         kvstore:
           store: inmemory
+    limits_config:
+      deletion_mode: disabled  # the delete API has no auth (auth_enabled: false); deleting logs needs a config change
     schema_config:
       configs:
         - from: 2024-01-01

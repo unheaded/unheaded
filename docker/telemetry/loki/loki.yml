@@ -28,6 +28,7 @@ schema_config:
         period: 24h
 
 limits_config:
+  deletion_mode: disabled  # the delete API has no auth (auth_enabled: false); deleting logs needs a config change
   retention_period: 90d
   ingestion_rate_mb: 16
   ingestion_burst_size_mb: 32
