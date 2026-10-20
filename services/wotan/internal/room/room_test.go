@@ -54,7 +54,7 @@ func TestManager_Create(t *testing.T) {
 	mgr := NewManager(100)
 
 	// Create first room
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 
 	if room == nil {
 		t.Fatal("Create() returned nil")
@@ -83,8 +83,8 @@ func TestManager_Create(t *testing.T) {
 func TestManager_Create_Duplicate(t *testing.T) {
 	mgr := NewManager(100)
 
-	room1 := mgr.Create("room1", "Room One")
-	room2 := mgr.Create("room1", "Different Name")
+	room1, _ := mgr.Create("room1", "Room One")
+	room2, _ := mgr.Create("room1", "Different Name")
 
 	// Should return the same room instance
 	if room1 != room2 {
@@ -101,7 +101,7 @@ func TestManager_Create_Duplicate(t *testing.T) {
 // TestManager_Get tests room retrieval
 func TestManager_Get(t *testing.T) {
 	mgr := NewManager(100)
-	created := mgr.Create("room1", "Room One")
+	created, _ := mgr.Create("room1", "Room One")
 
 	// Get existing room
 	room, err := mgr.Get("room1")
@@ -127,7 +127,7 @@ func TestManager_GetOrCreate(t *testing.T) {
 	mgr := NewManager(100)
 
 	// Create room via GetOrCreate
-	room1 := mgr.GetOrCreate("room1", "Room One")
+	room1, _ := mgr.GetOrCreate("room1", "Room One")
 	if room1 == nil {
 		t.Fatal("GetOrCreate() returned nil")
 	}
@@ -139,7 +139,7 @@ func TestManager_GetOrCreate(t *testing.T) {
 	}
 
 	// Get existing room via GetOrCreate
-	room2 := mgr.GetOrCreate("room1", "Different Name")
+	room2, _ := mgr.GetOrCreate("room1", "Different Name")
 	if room2 != room1 {
 		t.Error("GetOrCreate() returned different room instance for existing room")
 	}
@@ -245,7 +245,7 @@ func TestManager_Count(t *testing.T) {
 // TestRoom_SendMessage tests sending messages to a room
 func TestRoom_SendMessage(t *testing.T) {
 	mgr := NewManager(100)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	creatorID := uuid.New()
 
 	// Send first message
@@ -274,7 +274,7 @@ func TestRoom_SendMessage(t *testing.T) {
 // TestRoom_GetMessages tests retrieving messages
 func TestRoom_GetMessages(t *testing.T) {
 	mgr := NewManager(100)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	creatorID := uuid.New()
 
 	// Empty room
@@ -305,7 +305,7 @@ func TestRoom_GetMessages(t *testing.T) {
 // TestRoom_GetMessagesSince tests timestamp filtering
 func TestRoom_GetMessagesSince(t *testing.T) {
 	mgr := NewManager(100)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	creatorID := uuid.New()
 
 	baseTime := time.Now()
@@ -350,7 +350,7 @@ func TestRoom_GetMessagesSince(t *testing.T) {
 // TestRoom_DeleteMessage tests message deletion
 func TestRoom_DeleteMessage(t *testing.T) {
 	mgr := NewManager(100)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	creatorID := uuid.New()
 
 	msg1, _ := room.SendMessage(creatorID, "Message 1")
@@ -395,7 +395,7 @@ func TestRoom_DeleteMessage(t *testing.T) {
 // TestRoom_SetKV tests key-value storage
 func TestRoom_SetKV(t *testing.T) {
 	mgr := NewManager(100)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 
 	room.SetKV("key1", "value1")
 	room.SetKV("key2", "value2")
@@ -421,7 +421,7 @@ func TestRoom_SetKV(t *testing.T) {
 // TestRoom_SetKV_Overwrite tests overwriting existing keys
 func TestRoom_SetKV_Overwrite(t *testing.T) {
 	mgr := NewManager(100)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 
 	room.SetKV("key1", "original")
 	room.SetKV("key1", "updated")
@@ -438,7 +438,7 @@ func TestRoom_SetKV_Overwrite(t *testing.T) {
 // TestRoom_GetKV_NonExistent tests getting non-existent key
 func TestRoom_GetKV_NonExistent(t *testing.T) {
 	mgr := NewManager(100)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 
 	val, exists := room.GetKV("nonexistent")
 	if exists {
@@ -452,7 +452,7 @@ func TestRoom_GetKV_NonExistent(t *testing.T) {
 // TestRoom_DeleteKV tests key-value deletion
 func TestRoom_DeleteKV(t *testing.T) {
 	mgr := NewManager(100)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 
 	room.SetKV("key1", "value1")
 	room.SetKV("key2", "value2")
@@ -481,7 +481,7 @@ func TestRoom_DeleteKV(t *testing.T) {
 // TestRoom_GetAllKV tests retrieving all key-value pairs
 func TestRoom_GetAllKV(t *testing.T) {
 	mgr := NewManager(100)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 
 	// Empty KV store
 	kv := room.GetAllKV()
@@ -515,7 +515,7 @@ func TestRoom_GetAllKV(t *testing.T) {
 // TestRoom_GetAllKV_ImmutableCopy tests that GetAllKV returns a copy
 func TestRoom_GetAllKV_ImmutableCopy(t *testing.T) {
 	mgr := NewManager(100)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 
 	room.SetKV("key1", "value1")
 
@@ -538,7 +538,7 @@ func TestRoom_GetAllKV_ImmutableCopy(t *testing.T) {
 // TestRoom_Stats tests statistics retrieval
 func TestRoom_Stats(t *testing.T) {
 	mgr := NewManager(100)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	creatorID := uuid.New()
 
 	// Initial stats
@@ -678,7 +678,7 @@ func TestConcurrent_ListAndDelete(t *testing.T) {
 // TestConcurrent_RoomMessages tests concurrent message operations on a room
 func TestConcurrent_RoomMessages(t *testing.T) {
 	mgr := NewManager(1000)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	var wg sync.WaitGroup
 
 	// Concurrent message sends
@@ -711,7 +711,7 @@ func TestConcurrent_RoomMessages(t *testing.T) {
 // TestConcurrent_RoomKV tests concurrent KV operations on a room
 func TestConcurrent_RoomKV(t *testing.T) {
 	mgr := NewManager(100)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	var wg sync.WaitGroup
 
 	// Concurrent sets
@@ -805,7 +805,7 @@ func TestConcurrent_MixedOperations(t *testing.T) {
 func TestManager_BufferSize(t *testing.T) {
 	bufferSize := 50
 	mgr := NewManager(bufferSize)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 
 	if room.Buffer.Size() != bufferSize {
 		t.Errorf("Room buffer size = %d, want %d", room.Buffer.Size(), bufferSize)
@@ -826,7 +826,7 @@ func TestManager_BufferSize(t *testing.T) {
 // TestRoom_MessageOverwrite tests message overwrite behavior in room
 func TestRoom_MessageOverwrite(t *testing.T) {
 	mgr := NewManager(3)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	creatorID := uuid.New()
 
 	// Fill buffer
@@ -861,7 +861,7 @@ func TestRoom_MessageOverwrite(t *testing.T) {
 // TestRoom_StatsBufferWrapping tests stats reflect buffer wrapping
 func TestRoom_StatsBufferWrapping(t *testing.T) {
 	mgr := NewManager(2)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	creatorID := uuid.New()
 
 	stats := room.Stats()
@@ -913,7 +913,7 @@ func BenchmarkManager_GetOrCreate(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_ = mgr.GetOrCreate("room"+string(rune(i%100)), "Room")
+		_, _ = mgr.GetOrCreate("room"+string(rune(i%100)), "Room")
 	}
 }
 
@@ -933,7 +933,7 @@ func BenchmarkManager_List(b *testing.B) {
 // BenchmarkRoom_SendMessage measures message sending performance
 func BenchmarkRoom_SendMessage(b *testing.B) {
 	mgr := NewManager(10000)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	creatorID := uuid.New()
 
 	b.ResetTimer()
@@ -945,7 +945,7 @@ func BenchmarkRoom_SendMessage(b *testing.B) {
 // BenchmarkRoom_GetMessages measures message retrieval performance
 func BenchmarkRoom_GetMessages(b *testing.B) {
 	mgr := NewManager(1000)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	creatorID := uuid.New()
 
 	for i := 0; i < 1000; i++ {
@@ -961,7 +961,7 @@ func BenchmarkRoom_GetMessages(b *testing.B) {
 // BenchmarkRoom_GetMessagesSince measures historical retrieval
 func BenchmarkRoom_GetMessagesSince(b *testing.B) {
 	mgr := NewManager(1000)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	creatorID := uuid.New()
 
 	for i := 0; i < 1000; i++ {
@@ -978,7 +978,7 @@ func BenchmarkRoom_GetMessagesSince(b *testing.B) {
 // BenchmarkRoom_SetKV measures key-value set performance
 func BenchmarkRoom_SetKV(b *testing.B) {
 	mgr := NewManager(1000)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -989,7 +989,7 @@ func BenchmarkRoom_SetKV(b *testing.B) {
 // BenchmarkRoom_GetKV measures key-value get performance
 func BenchmarkRoom_GetKV(b *testing.B) {
 	mgr := NewManager(1000)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 
 	for i := 0; i < 100; i++ {
 		room.SetKV("key"+string(rune(i)), "value")
@@ -1004,7 +1004,7 @@ func BenchmarkRoom_GetKV(b *testing.B) {
 // BenchmarkRoom_Stats measures stats collection performance
 func BenchmarkRoom_Stats(b *testing.B) {
 	mgr := NewManager(1000)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	creatorID := uuid.New()
 
 	for i := 0; i < 500; i++ {
@@ -1023,7 +1023,7 @@ func BenchmarkRoom_Stats(b *testing.B) {
 // BenchmarkConcurrentRoomOps measures concurrent room operations
 func BenchmarkConcurrentRoomOps(b *testing.B) {
 	mgr := NewManager(10000)
-	room := mgr.Create("room1", "Room One")
+	room, _ := mgr.Create("room1", "Room One")
 	creatorID := uuid.New()
 
 	// Pre-populate
@@ -1044,8 +1044,8 @@ func BenchmarkConcurrentRoomOps(b *testing.B) {
 // taken across several rooms (a wildcard read) is meaningful.
 func TestManager_GlobalSeq(t *testing.T) {
 	m := NewManager(10)
-	a := m.Create("a", "a")
-	b := m.Create("b", "b")
+	a, _ := m.Create("a", "a")
+	b, _ := m.Create("b", "b")
 	member := uuid.New()
 	var got []int64
 	for _, r := range []*Room{a, b, a, b, b} {
@@ -1068,7 +1068,7 @@ func TestManager_GlobalSeq(t *testing.T) {
 func TestManager_BufferBytes(t *testing.T) {
 	m := NewManager(1000)
 	m.SetBufferBytes(1 << 10)
-	r := m.Create("traces.flow", "traces.flow")
+	r, _ := m.Create("traces.flow", "traces.flow")
 	payload := strings.Repeat("x", 100)
 	for i := 0; i < 50; i++ {
 		r.SendMessage(uuid.New(), payload)
@@ -1086,7 +1086,8 @@ func TestManager_BufferBytes(t *testing.T) {
 // newest messages.
 func TestEnforceTotal(t *testing.T) {
 	m := NewManager(1000)
-	big, small := m.Create("traces.flow", "traces.flow"), m.Create("logs.a.info", "logs.a.info")
+	big, _ := m.Create("traces.flow", "traces.flow")
+	small, _ := m.Create("logs.a.info", "logs.a.info")
 	u := uuid.New()
 	for i := 0; i < 100; i++ {
 		big.SendMessage(u, fmt.Sprintf("%04d%s", i, strings.Repeat("x", 996))) // 1000 bytes
@@ -1129,7 +1130,8 @@ func TestEnforceTotal(t *testing.T) {
 // left over budget, EnforceTotal stops instead of spinning.
 func TestEnforceTotalKeep(t *testing.T) {
 	m := NewManager(1000)
-	cfg, logs := m.Create("config.west", "config.west"), m.Create("logs.a.info", "logs.a.info")
+	cfg, _ := m.Create("config.west", "config.west")
+	logs, _ := m.Create("logs.a.info", "logs.a.info")
 	u := uuid.New()
 	for i := 0; i < 50; i++ {
 		cfg.SendMessage(u, strings.Repeat("c", 1000))
@@ -1148,5 +1150,32 @@ func TestEnforceTotalKeep(t *testing.T) {
 	m.SetTotalBytes(1)
 	if total, _ := m.EnforceTotal(); total != cfg.Buffer.Footprint() || logs.Buffer.Count() != 0 || cfg.Buffer.Count() != 50 {
 		t.Fatalf("over budget with only a protected room: total %d, logs %d, config %d", total, logs.Buffer.Count(), cfg.Buffer.Count())
+	}
+}
+
+// Any auto-approved publisher (gRPC has no rate limit, and the default
+// publisher name is on the allowlist) could mint rooms by naming topics;
+// nothing ever removed them. A cap bounds rooms, and with them the
+// one-member-per-(topic, name) publishers.
+func TestManager_MaxRooms(t *testing.T) {
+	m := NewManager(10)
+	m.SetMaxRooms(2)
+	if _, err := m.GetOrCreate("a", "a"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.GetOrCreate("b", "b"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.GetOrCreate("c", "c"); err != ErrTooManyRooms {
+		t.Fatalf("third room: err=%v, want ErrTooManyRooms", err)
+	}
+	if r, err := m.GetOrCreate("a", "a"); err != nil || r == nil {
+		t.Fatalf("an existing room must still open at the cap: %v", err)
+	}
+	if err := m.Delete("b"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := m.GetOrCreate("c", "c"); err != nil {
+		t.Fatalf("after a delete there is room again: %v", err)
 	}
 }

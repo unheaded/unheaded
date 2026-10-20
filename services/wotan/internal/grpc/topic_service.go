@@ -506,7 +506,11 @@ func (s *TopicService) PublishTopic(
 
 	// The room exists only once a publish is authorized: an unauthorized
 	// caller must not be able to create rooms by naming topics.
-	rm := s.roomManager.GetOrCreate(req.Topic, req.Topic)
+	rm, err := s.roomManager.GetOrCreate(req.Topic, req.Topic)
+	if err != nil {
+		logger.FromContext(ctx).Warn().Err(err).Str("topic", req.Topic).Msg("room_refused")
+		return nil, status.Error(codes.ResourceExhausted, err.Error())
+	}
 
 	// Send message to room's ring buffer
 	msg, _ := rm.SendMessage(senderID, string(req.Payload))

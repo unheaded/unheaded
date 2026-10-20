@@ -280,7 +280,7 @@ func TestStreamMessages_HistoricalMessages(t *testing.T) {
 	service := setupTestService()
 
 	// Setup room and member
-	rm := service.roomManager.Create("test-room", "Test Room")
+	rm, _ := service.roomManager.Create("test-room", "Test Room")
 	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
@@ -340,7 +340,7 @@ func TestStreamMessages_SendError_Historical(t *testing.T) {
 	service := setupTestService()
 
 	// Setup room and member
-	rm := service.roomManager.Create("test-room", "Test Room")
+	rm, _ := service.roomManager.Create("test-room", "Test Room")
 	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
@@ -580,7 +580,7 @@ func TestStreamMessages_NoSinceTimestamp(t *testing.T) {
 	service := setupTestService()
 
 	// Setup room and member
-	rm := service.roomManager.Create("test-room", "Test Room")
+	rm, _ := service.roomManager.Create("test-room", "Test Room")
 	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 
@@ -636,7 +636,7 @@ func TestStreamMessages_FutureSinceTimestamp(t *testing.T) {
 	service := setupTestService()
 
 	// Setup room and member
-	rm := service.roomManager.Create("test-room", "Test Room")
+	rm, _ := service.roomManager.Create("test-room", "Test Room")
 	mbr := service.memberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	service.memberManager.Approve(mbr.ID, "admin")
 

@@ -344,7 +344,7 @@ func TestDeleteMessage_Success(t *testing.T) {
 	server := setupTestServer()
 
 	// Setup: create room, approved member, and message
-	rm := server.RoomManager.Create("test-room", "Test Room")
+	rm, _ := server.RoomManager.Create("test-room", "Test Room")
 	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 	msg, _ := rm.SendMessage(mbr.ID, "Hello, World!")
@@ -385,7 +385,7 @@ func TestDeleteMessage_Success(t *testing.T) {
 func TestDeleteMessage_PostMethodAllowed(t *testing.T) {
 	server := setupTestServer()
 
-	rm := server.RoomManager.Create("test-room", "Test Room")
+	rm, _ := server.RoomManager.Create("test-room", "Test Room")
 	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 	msg, _ := rm.SendMessage(mbr.ID, "Hello")
@@ -510,7 +510,7 @@ func TestDeleteMessage_RoomNotFound(t *testing.T) {
 func TestDeleteMessage_VerificationFailed(t *testing.T) {
 	server := setupTestServer()
 
-	rm := server.RoomManager.Create("test-room", "Test Room")
+	rm, _ := server.RoomManager.Create("test-room", "Test Room")
 	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 	msg, _ := rm.SendMessage(mbr.ID, "Original content")
@@ -547,7 +547,7 @@ func TestDeleteMessage_VerificationFailed(t *testing.T) {
 func TestGetMessages_Success(t *testing.T) {
 	server := setupTestServer()
 
-	rm := server.RoomManager.Create("test-room", "Test Room")
+	rm, _ := server.RoomManager.Create("test-room", "Test Room")
 	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 
@@ -1362,7 +1362,7 @@ func TestDeleteMessage_NilWotan(t *testing.T) {
 	server := NewServer(roomMgr, memberMgr, nil, 5*time.Minute)
 	server.AdminAPIKey = testAdminAPIKey
 
-	rm := server.RoomManager.Create("test-room", "Test Room")
+	rm, _ := server.RoomManager.Create("test-room", "Test Room")
 	mbr := server.MemberManager.RequestJoin("test-room", "Alice", "", 5*time.Minute)
 	server.MemberManager.Approve(mbr.ID, "admin")
 	msg, _ := rm.SendMessage(mbr.ID, "Hello, World!")

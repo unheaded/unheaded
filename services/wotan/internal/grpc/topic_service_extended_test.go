@@ -558,7 +558,7 @@ func TestStreamTopics_HistoricalReplay(t *testing.T) {
 	svc := setupTopicService()
 
 	// Pre-create topic and add messages
-	rm := svc.roomManager.Create("orders.created", "Orders Created")
+	rm, _ := svc.roomManager.Create("orders.created", "Orders Created")
 	creator := svc.memberManager.RequestJoin("orders.created", "sys", "", 5*time.Minute)
 	svc.memberManager.Approve(creator.ID, "admin")
 	rm.SendMessage(creator.ID, "order-1")
@@ -622,7 +622,7 @@ func TestStreamTopics_HistoricalReplay(t *testing.T) {
 func TestStreamTopics_HistoricalSendError(t *testing.T) {
 	svc := setupTopicService()
 
-	rm := svc.roomManager.Create("errors.topic", "Errors")
+	rm, _ := svc.roomManager.Create("errors.topic", "Errors")
 	creator := svc.memberManager.RequestJoin("errors.topic", "sys", "", 5*time.Minute)
 	svc.memberManager.Approve(creator.ID, "admin")
 	rm.SendMessage(creator.ID, "msg-1")
@@ -977,7 +977,7 @@ func TestForwardTopicEvents_SubscribersAgreeOnSeq(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	rm := svc.roomManager.GetOrCreate("agree", "agree")
+	rm, _ := svc.roomManager.GetOrCreate("agree", "agree")
 	var chans []chan *topicEvent
 	for i := 0; i < 2; i++ {
 		ch := make(chan *topicEvent, 10)
@@ -1016,7 +1016,7 @@ func replaySeqs(t *testing.T, svc *TopicService, pattern string, since int64) ma
 }
 
 func seedTopic(svc *TopicService, topic string, n int) {
-	rm := svc.roomManager.Create(topic, topic)
+	rm, _ := svc.roomManager.Create(topic, topic)
 	m := svc.memberManager.RequestJoin(topic, "sys", "", 5*time.Minute)
 	svc.memberManager.Approve(m.ID, "admin")
 	for i := 0; i < n; i++ {
@@ -1050,8 +1050,8 @@ func TestStreamTopics_CursorFromBeforeRestartReplaysHeld(t *testing.T) {
 // client's cursor).
 func TestStreamTopics_PatternStreamReplayAndRestart(t *testing.T) {
 	svc := setupTopicService()
-	a := svc.roomManager.Create("multi.a", "multi.a")
-	b := svc.roomManager.Create("multi.b", "multi.b")
+	a, _ := svc.roomManager.Create("multi.a", "multi.a")
+	b, _ := svc.roomManager.Create("multi.b", "multi.b")
 	m := svc.memberManager.RequestJoin("multi.a", "sys", "", 5*time.Minute)
 	svc.memberManager.Approve(m.ID, "admin")
 	for _, r := range []*room.Room{a, b, a, b, b} { // seqs 1..5 interleaved
@@ -1086,7 +1086,7 @@ func TestStreamTopics_PatternStreamReplayAndRestart(t *testing.T) {
 func TestStreamTopics_ReplayUpperBound(t *testing.T) {
 	svc := setupTopicService()
 	seedTopic(svc, "ub.a", 1) // seq 1; LastSeq = 1
-	rm := svc.roomManager.Create("ub.b", "ub.b")
+	rm, _ := svc.roomManager.Create("ub.b", "ub.b")
 	var ahead atomic.Int64
 	ahead.Store(1)
 	rm.Buffer = ringbuffer.NewShared(10, &ahead)

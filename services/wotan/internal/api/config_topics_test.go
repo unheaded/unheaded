@@ -46,7 +46,7 @@ func TestHTTPRefusesConfigTopics(t *testing.T) {
 
 	// Nor can a signed message be deleted over HTTP: the triple check uses
 	// id, creator and content, which any reader of the room has.
-	cfg := srv.RoomManager.GetOrCreate("config.kingdom", "config.kingdom")
+	cfg, _ := srv.RoomManager.GetOrCreate("config.kingdom", "config.kingdom")
 	signedMsg, _ := cfg.SendMessage(mbr.ID, "signed config")
 	del, _ := json.Marshal(DeleteMessageRequest{MemberID: mbr.ID, RoomID: "config.kingdom", MessageID: signedMsg.ID, Content: "signed config"})
 	rec = httptest.NewRecorder()

@@ -250,7 +250,7 @@ func TestIsTopicChar(t *testing.T) {
 func TestRingbufferToTopicMessage(t *testing.T) {
 	srv := setupTestServerWithTopics()
 
-	rm := srv.RoomManager.Create("test-topic", "Test Topic")
+	rm, _ := srv.RoomManager.Create("test-topic", "Test Topic")
 	mbr := srv.MemberManager.RequestJoin("test-topic", "publisher", "", 5*time.Minute)
 	srv.MemberManager.Approve(mbr.ID, "admin")
 
@@ -1034,7 +1034,7 @@ func TestPublishTopic_SequenceNumbers(t *testing.T) {
 func TestGetTopicMessages_Paging(t *testing.T) {
 	srv := NewServer(room.NewManager(2*maxTopicMessagesPage), member.NewManager(), wotan.NewWotan(), 5*time.Minute)
 	srv.InitTopics()
-	rm := srv.RoomManager.Create("pg", "pg")
+	rm, _ := srv.RoomManager.Create("pg", "pg")
 	for i := 0; i < maxTopicMessagesPage+5; i++ {
 		rm.SendMessage(uuid.New(), "m")
 	}

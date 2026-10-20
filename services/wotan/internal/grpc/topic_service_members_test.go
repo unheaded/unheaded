@@ -109,3 +109,26 @@ func TestStreamTopics_MemberLeavesWithTheStream(t *testing.T) {
 		}
 	}
 }
+
+// Past the room cap, a publish naming a new topic is refused with
+// ResourceExhausted; existing topics keep working.
+func TestPublishTopic_RoomCap(t *testing.T) {
+	rooms := room.NewManager(100)
+	rooms.SetMaxRooms(3)
+	svc := NewTopicService(rooms, member.NewManager(), wotan.NewWotan())
+	pub := func(topic string) error {
+		_, err := svc.PublishTopic(context.Background(), &chatpb.TopicPublishRequest{Topic: topic, Payload: []byte("x")})
+		return err
+	}
+	for _, topic := range []string{"t1", "t2", "t3"} {
+		if err := pub(topic); err != nil {
+			t.Fatalf("%s: %v", topic, err)
+		}
+	}
+	if err := pub("t4"); status.Code(err) != codes.ResourceExhausted {
+		t.Fatalf("fourth topic: %v, want ResourceExhausted", err)
+	}
+	if err := pub("t1"); err != nil {
+		t.Fatalf("existing topic at the cap: %v", err)
+	}
+}

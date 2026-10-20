@@ -130,7 +130,7 @@ func TestGetTopicMessages_WildcardUpperBound(t *testing.T) {
 	srv := setupTestServerWithTopics()
 	id := subscribeID(t, srv, "alerts.a")
 	publish(t, srv, "alerts.a", id, "seen") // seq 1; manager LastSeq = 1
-	rm := srv.RoomManager.Create("alerts.b", "alerts.b")
+	rm, _ := srv.RoomManager.Create("alerts.b", "alerts.b")
 	var ahead atomic.Int64
 	ahead.Store(1)
 	rm.Buffer = ringbuffer.NewShared(10, &ahead) // numbers ahead of the manager

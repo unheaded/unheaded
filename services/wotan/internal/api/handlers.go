@@ -122,7 +122,10 @@ func (s *Server) JoinRoom(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Create or get room
-	s.RoomManager.GetOrCreate(req.RoomID, req.RoomID)
+	if _, err := s.RoomManager.GetOrCreate(req.RoomID, req.RoomID); err != nil {
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
 
 	// Create pending member with timeout
 	newMember := s.MemberManager.RequestJoin(req.RoomID, req.Name, req.PublicKey, s.PendingApprovalTimeout)

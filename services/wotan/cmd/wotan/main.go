@@ -52,6 +52,7 @@ type Config struct {
 	BufferSize   int
 	BufferBytes  int
 	BufferTotal  int
+	MaxRooms     int
 	HTTPPort     int
 	GRPCPort     int
 	AdminEnabled bool
@@ -137,6 +138,7 @@ func main() {
 	roomManager := room.NewManager(config.BufferSize)
 	roomManager.SetBufferBytes(config.BufferBytes)
 	roomManager.SetTotalBytes(config.BufferTotal)
+	roomManager.SetMaxRooms(config.MaxRooms)
 	roomManager.SetKeep(signing.RequiresSignature) // signed config.* is never evicted for log traffic
 
 	// Start metrics collector
@@ -402,6 +404,7 @@ func parseFlags(fs *flag.FlagSet, args []string) Config {
 	// Server flags
 	fs.IntVar(&config.BufferSize, "buffer-size", 10000, "Ring buffer size per room")
 	fs.IntVar(&config.BufferBytes, "buffer-bytes", 8<<20, "Payload byte budget per room; oldest messages are dropped past it (0 = none)")
+	fs.IntVar(&config.MaxRooms, "max-rooms", 10000, "Most rooms (topics) that may exist; publishing to a new topic past it is refused (0 = none). Rooms are never reaped, and any auto-approved publisher mints one by naming a topic")
 	fs.IntVar(&config.BufferTotal, "buffer-bytes-total", 64<<20, "Budget for every room together, content plus per-message overhead; the oldest messages of the largest rooms are dropped past it (0 = none)")
 	fs.IntVar(&config.HTTPPort, "http-port", 18000, "HTTP REST API port")
 	fs.IntVar(&config.GRPCPort, "grpc-port", 18001, "gRPC streaming port")

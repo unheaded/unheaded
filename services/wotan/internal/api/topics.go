@@ -129,7 +129,10 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 	// names a set of topics, not one: creating a room for it made a topic
 	// literally called "alerts.*".
 	if !topicpattern.IsPattern(topic) {
-		s.RoomManager.GetOrCreate(topic, topic)
+		if _, err := s.RoomManager.GetOrCreate(topic, topic); err != nil {
+			writeError(w, http.StatusServiceUnavailable, err.Error())
+			return
+		}
 	}
 
 	// Create a pending member
@@ -227,7 +230,11 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get or create the room for this topic
-	rm := s.RoomManager.GetOrCreate(topic, topic)
+	rm, err := s.RoomManager.GetOrCreate(topic, topic)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, err.Error())
+		return
+	}
 
 	// Send message to room's ring buffer
 	msg, _ := rm.SendMessage(subscriberUUID, req.Payload)

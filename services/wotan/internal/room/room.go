@@ -34,6 +34,8 @@ type Manager struct {
 	// totalBytes is the budget for all rooms' footprints together
 	// (EnforceTotal); 0 means none.
 	totalBytes int
+	// maxRooms caps how many rooms exist (SetMaxRooms); 0 means none.
+	maxRooms int
 	// keep names rooms EnforceTotal never evicts from (signed config.*:
 	// small, and losing one silently is worse than holding it).
 	keep func(roomID string) bool
@@ -140,14 +142,27 @@ func (m *Manager) EnforceTotal() (total, dropped int) {
 	return total, dropped
 }
 
-// Create creates a new room with the given ID and name
-func (m *Manager) Create(id, name string) *Room {
+// SetMaxRooms caps the number of rooms (0 = none). Publishers mint a room
+// by naming a topic, and rooms are never reaped, so without a cap any
+// auto-approved caller could grow Wotan without bound.
+func (m *Manager) SetMaxRooms(n int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.maxRooms = n
+}
+
+// Create creates a new room with the given ID and name, or returns the
+// existing one. Past SetMaxRooms it refuses a new room (ErrTooManyRooms).
+func (m *Manager) Create(id, name string) (*Room, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
 	// Check if room already exists
 	if room, exists := m.rooms[id]; exists {
-		return room
+		return room, nil
+	}
+	if m.maxRooms > 0 && len(m.rooms) >= m.maxRooms {
+		return nil, ErrTooManyRooms
 	}
 
 	room := &Room{
@@ -160,7 +175,7 @@ func (m *Manager) Create(id, name string) *Room {
 	room.Buffer.SetMaxBytes(m.bufferBytes)
 
 	m.rooms[id] = room
-	return room
+	return room, nil
 }
 
 // Get retrieves a room by ID
@@ -176,14 +191,15 @@ func (m *Manager) Get(id string) (*Room, error) {
 	return room, nil
 }
 
-// GetOrCreate retrieves a room or creates it if it doesn't exist
-func (m *Manager) GetOrCreate(id, name string) *Room {
+// GetOrCreate retrieves a room or creates it if it doesn't exist (within
+// SetMaxRooms; see Create).
+func (m *Manager) GetOrCreate(id, name string) (*Room, error) {
 	m.mu.RLock()
 	room, exists := m.rooms[id]
 	m.mu.RUnlock()
 
 	if exists {
-		return room
+		return room, nil
 	}
 
 	return m.Create(id, name)
@@ -304,6 +320,8 @@ func (r *Room) Stats() map[string]interface{} {
 // Errors
 var (
 	ErrRoomNotFound = &RoomError{msg: "room not found"}
+	// ErrTooManyRooms: creating the room would pass SetMaxRooms.
+	ErrTooManyRooms = &RoomError{msg: "too many rooms"}
 )
 
 type RoomError struct {
