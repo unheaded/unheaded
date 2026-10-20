@@ -4,14 +4,14 @@ datasources:
   - name: Prometheus
     type: prometheus
     access: proxy
-    url: http://localhost:9090
+    url: http://prometheus:9090   # the compose service; localhost is Grafana itself
     isDefault: true
     editable: true
 
   - name: Loki
     type: loki
     access: proxy
-    url: http://localhost:3100
+    url: http://loki:3100
     editable: true
 
   - name: VictoriaMetrics

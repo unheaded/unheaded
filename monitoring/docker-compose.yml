@@ -9,11 +9,17 @@ version: "3.9"
 networks:
   monitoring:
     driver: bridge
+    # IPv6 on: every host target and the remote_write are overlay addresses
+    # (fd00:dead:beef::/48 on wg0); an IPv4-only network cannot reach them.
+    enable_ipv6: true
     ipam:
       config:
         # 172.20.0.0/16 overlapped kind and netbox-docker on west (2026-10-20);
         # the main stack holds 172.28.0-2.0/24.
         - subnet: 172.28.3.0/24
+        # Outside the overlay's /48 and next to the daemon's fixed-cidr-v6
+        # (fd00:d0c0:e700::/48), so it can never shadow an overlay route.
+        - subnet: fd00:d0c0:e703::/64
 
 volumes:
   prometheus_data:
@@ -92,7 +98,9 @@ services:
 
   grafana:
     image: grafana/grafana:10.4.0
-    container_name: unheaded-grafana
+    # Not unheaded-grafana: docker-compose.yml's Grafana has that name, and
+    # the two stacks run on the same host.
+    container_name: unheaded-monitoring-grafana
     restart: unless-stopped
     user: "16701:16701"
     read_only: true
@@ -172,8 +180,8 @@ services:
     user: "16703:16703"
     read_only: true
     cap_drop: [ALL]
-    ports:
-      - "8428:8428"
+    # No host port: docker-compose.yml's VictoriaMetrics owns 8428 on the
+    # host, and Prometheus here remote-writes to that one.
     volumes:
       - victoriametrics_data:/storage
     command:
@@ -237,34 +245,6 @@ services:
     security_opt:
       - no-new-privileges:true
 
-  node-exporter:
-    image: prom/node-exporter:v1.12.1
-    container_name: unheaded-node-exporter
-    restart: unless-stopped
-    user: "16705:16705"
-    read_only: true
-    cap_drop: [ALL]
-    ports:
-      - "9100:9100"
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.sysfs=/host/sys'
-      - '--path.rootfs=/rootfs'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    networks: [monitoring]
-    healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:9100/metrics"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 128M
-    security_opt:
-      - no-new-privileges:true
+  # No node-exporter container: each host runs deploy/systemd/node-exporter.service
+  # on :9100 (so a container could not bind it), and the node_exporter job in
+  # prometheus/prometheus.yml scrapes those units over the overlay.
