@@ -17,60 +17,24 @@ remote_write:
       max_shards: 200
       min_shards: 1
       max_samples_per_send: 1000
-      batch_send_wait: 5s
       min_backoff: 30ms
       max_backoff: 100ms
 
 # Scrape configurations
 scrape_configs:
-  # Scrape all unheaded services via Docker SD
-  - job_name: unheaded-services
-    docker_sd_configs:
-      - host: unix:///var/run/docker.sock
-        refresh_interval: 10s
-        filters:
-          - name: label
-            values: ["com.docker.compose.project=unheaded"]
-    relabel_configs:
-      # Only scrape containers with prometheus.io/scrape=true label
-      - source_labels: [__meta_docker_container_label_prometheus_io_scrape]
-        action: keep
-        regex: 'true'
-      # Get port from prometheus.io/port label
-      - source_labels: [__meta_docker_container_label_prometheus_io_port]
-        action: replace
-        regex: ([^:]+)(?::\d+)?
-        replacement: ${1}:${1}
-        target_label: __address__
-      # Get path from prometheus.io/path label, default /metrics
-      - source_labels: [__meta_docker_container_label_prometheus_io_path]
-        action: replace
-        regex: (.+)
-        target_label: __metrics_path__
-      # Use container name as instance
-      - source_labels: [__meta_docker_container_name]
-        action: replace
-        regex: /?(.*)
-        target_label: instance
-      # Use service name as label
-      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
-        action: replace
-        target_label: service
-      # Add container ID
-      - source_labels: [__meta_docker_container_id]
-        action: replace
-        regex: (.{12}).*
-        target_label: container_id
+  # Unheaded services were found through docker_sd_configs on the Docker socket,
+  # which this stack never mounted into prometheus (and which is root on the
+  # host). List scrape targets statically instead.
 
   # Node exporter
   - job_name: node-exporter
     static_configs:
-      - targets: ['localhost:9100']
+      - targets: ['host.docker.internal:9100']  # node-exporter is on the host network
 
   # eBPF exporter
   - job_name: ebpf-exporter
     static_configs:
-      - targets: ['localhost:9435']
+      - targets: ['host.docker.internal:9435']
 
   # Prometheus self-scrape
   - job_name: prometheus

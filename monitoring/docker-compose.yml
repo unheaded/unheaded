@@ -107,7 +107,7 @@ services:
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-changeme}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in monitoring/.env - credentials are not stored in this repo}
       - GF_AUTH_ANONYMOUS_ENABLED=false
       - GF_SERVER_HTTP_ADDR=0.0.0.0
       - GF_INSTALL_PLUGINS=grafana-piechart-panel

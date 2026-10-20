@@ -33,7 +33,6 @@ limits_config:
   ingestion_burst_size_mb: 32
   per_stream_rate_limit: 3MB
   per_stream_rate_limit_burst: 15MB
-  max_entries_limit_per_second: 50000
   max_cache_freshness_per_query: 10m
   enforce_metric_name: false
   reject_old_samples: true

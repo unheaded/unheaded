@@ -1,9 +1,43 @@
 version: '3.8'
 
 services:
+  # One-shot: hands each named volume to its service's uid (pkg/uids). A fresh
+  # volume inherits the image's owner, and older volumes belong to the image
+  # defaults (nobody, 10001, 472, root); chown only when it differs.
+  volume-init:
+    image: alpine:3.24
+    user: "0:0"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - prometheus-data:/volumes/prometheus
+      - victoriametrics-data:/volumes/victoriametrics
+      - loki-data:/volumes/loki
+      - grafana-data:/volumes/grafana
+      - promtail-data:/volumes/promtail
+    command:
+      - sh
+      - -ec
+      - |
+        own() { [ "$$(stat -c %u:%g "$$2")" = "$$1" ] || chown -R "$$1" "$$2"; }
+        own 16700:16700 /volumes/prometheus
+        own 16703:16703 /volumes/victoriametrics
+        own 16702:16702 /volumes/loki
+        own 16701:16701 /volumes/grafana
+        own 16704:16704 /volumes/promtail
+
   prometheus:
     image: prom/prometheus:v2.51.0
     container_name: unheaded-prometheus
+    user: "16700:16700"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "9090:9090"
     volumes:
@@ -16,31 +50,52 @@ services:
       - '--storage.tsdb.retention.time=7d'
       - '--web.console.libraries=/usr/share/prometheus/console_libraries'
       - '--web.console.templates=/usr/share/prometheus/consoles'
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
     networks:
       - unheaded-telemetry
     restart: unless-stopped
-    labels:
-      - "com.docker.compose.project=unheaded"
 
   victoriametrics:
     image: victoriametrics/victoria-metrics:v1.99.0
     container_name: unheaded-victoriametrics
+    user: "16703:16703"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "8428:8428"
     volumes:
-      - ./victoriametrics/flags.conf:/etc/victoriametrics/flags.conf:ro
       - victoriametrics-data:/victoria-metrics-data
     command:
-      - '--config.file=/etc/victoriametrics/flags.conf'
+      - '-retentionPeriod=90d'
+      - '-storageDataPath=/victoria-metrics-data'
+      - '-httpListenAddr=:8428'
+      - '-memory.allowedPercent=60'
+      - '-search.maxQueryDuration=30s'
+      - '-search.maxUniqueTimeseries=1000000'
+      - '-promscrape.suppressDuplicateScrapeTargetErrors'
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
     networks:
       - unheaded-telemetry
     restart: unless-stopped
-    labels:
-      - "com.docker.compose.project=unheaded"
 
   loki:
     image: grafana/loki:2.9.0
     container_name: unheaded-loki
+    user: "16702:16702"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "3100:3100"
       - "9096:9096"
@@ -48,32 +103,50 @@ services:
       - ./loki/loki.yml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
     command: -config.file=/etc/loki/local-config.yaml
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
     networks:
       - unheaded-telemetry
     restart: unless-stopped
-    labels:
-      - "com.docker.compose.project=unheaded"
 
   promtail:
     image: grafana/promtail:2.9.0
     container_name: unheaded-promtail
+    user: "16704:16704"
+    read_only: true
+    # adm reads the journal (its ACL), as docker-compose.yml's vector does.
+    group_add: ["4"]
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "9080:9080"
     volumes:
       - ./promtail/promtail.yml:/etc/promtail/config.yml:ro
-      - /var/run/docker.sock:/var/run/docker.sock
-      - /var/lib/docker/containers:/var/lib/docker/containers:ro
-      - /var/log:/var/log:ro
+      # The host journal, read-only. Was the Docker socket (root on the host,
+      # :ro does not limit the API) plus /var/lib/docker/containers, which only
+      # root can read. Container stdout reaches the journal once Docker logs
+      # through journald (ADR-092 step 8, open).
+      - /var/log/journal:/var/log/journal:ro
+      - /etc/machine-id:/etc/machine-id:ro
+      - promtail-data:/var/lib/promtail
     command: -config.file=/etc/promtail/config.yml
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
     networks:
       - unheaded-telemetry
     restart: unless-stopped
-    labels:
-      - "com.docker.compose.project=unheaded"
 
   node-exporter:
     image: prom/node-exporter:v1.8.0
     container_name: unheaded-node-exporter
+    user: "16705:16705"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "9100:9100"
     pid: host
@@ -94,17 +167,24 @@ services:
       - '--collector.netdev'
       - '--collector.netstat'
     restart: unless-stopped
-    labels:
-      - "com.docker.compose.project=unheaded"
 
   grafana:
     image: grafana/grafana:10.4.0
     container_name: unheaded-grafana
+    user: "16701:16701"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M
+      - /var/log/grafana:uid=16701,gid=16701,size=16M
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
     ports:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD - credentials are not stored in this repo}
+      - GF_SECURITY_SECRET_KEY=${GRAFANA_SECRET_KEY:?set GRAFANA_SECRET_KEY - credentials are not stored in this repo}
       - GF_PATHS_PROVISIONING=/etc/grafana/provisioning
       - GF_LOG_LEVEL=warn
     volumes:
@@ -113,13 +193,15 @@ services:
       - ./grafana/provisioning/dashboards:/etc/grafana/provisioning/dashboards:ro
       - grafana-data:/var/lib/grafana
     depends_on:
-      - victoriametrics
-      - loki
+      volume-init:
+        condition: service_completed_successfully
+      victoriametrics:
+        condition: service_started
+      loki:
+        condition: service_started
     networks:
       - unheaded-telemetry
     restart: unless-stopped
-    labels:
-      - "com.docker.compose.project=unheaded"
 
 volumes:
   prometheus-data:
@@ -129,6 +211,8 @@ volumes:
   loki-data:
     driver: local
   grafana-data:
+    driver: local
+  promtail-data:
     driver: local
 
 networks:

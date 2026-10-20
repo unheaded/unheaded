@@ -64,11 +64,5 @@ docker/hosts/host-b/docker-compose.yml:sophia
 docker/hosts/host-b/docker-compose.yml:suricata
 docker/hosts/host-b/docker-compose.yml:wireguard
 docker/hosts/host-b/docker-compose.yml:wotan
-docker/telemetry/docker-compose.telemetry.yml:grafana
-docker/telemetry/docker-compose.telemetry.yml:loki
-docker/telemetry/docker-compose.telemetry.yml:node-exporter
-docker/telemetry/docker-compose.telemetry.yml:prometheus
-docker/telemetry/docker-compose.telemetry.yml:promtail
-docker/telemetry/docker-compose.telemetry.yml:victoriametrics
 docker/vllm-rocm/docker-compose.vllm.yml:vllm-deepseek
 docker/wireguard/docker-compose.wireguard.yml:wireguard
