@@ -37,8 +37,9 @@ findings:
       hourly and silences its own warning; tested end to end against an SMTP sink (CI). 2026-10-20: Prometheus had no
       alerting block, so no alert ever reached Alertmanager; fixed (d5e39b31) and the same test now proves a firing rule
       arrives. The monitoring stack can now start on west (its subnet overlapped kind/netbox) and needs
-      GRAFANA_ADMIN_PASSWORD in monitoring/.env. What is left is the relay choice, the env and password files, and
-      starting the monitoring stack
+      GRAFANA_ADMIN_PASSWORD in monitoring/.env. 2026-10-20 at Stevie's word: monitoring/.env written, the stack runs
+      on west (5/5 healthy), every deployed host target up, alerts reach Alertmanager (only true ones firing). What is
+      left is the SMTP relay choice and its env and password files (the receiver is still null)
     decision: SMTP relay for the email receiver (credentials from a file outside the repo)
 
   - source: "github-job:Static Analysis/Gates can actually fail"
