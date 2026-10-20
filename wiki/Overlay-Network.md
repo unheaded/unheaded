@@ -1,6 +1,6 @@
 # Overlay Network
 
-West and east talk over WireGuard (`wg0`) on the direct P2P Ethernet link, with eBGP on top. Design and addressing plan: `docs/architecture/WIREGUARD_OVERLAY.md`; repo configs: `config/wireguard/west.conf`, `config/wireguard/east.conf`, `routing/frr/frr.conf`, `routing/bird/bird.conf`.
+West and east talk over WireGuard (`wg0`) on the direct P2P Ethernet link, with eBGP on top. Design and addressing plan: `docs/architecture/WIREGUARD_OVERLAY.md`; repo configs: `config/wireguard/west.conf`, `config/wireguard/east.conf`, `routing/frr/west.conf`, `routing/bird/east.conf` (copies of what is deployed; `routing/frr/frr.conf` and `routing/bird/bird.conf` are the host-a/host-b design, not what runs).
 
 | | west | east |
 |---|---|---|
@@ -15,7 +15,7 @@ Everything that names a host on the overlay uses these: Prometheus targets and r
 
 Alerting: west's monitoring Prometheus scrapes east's node_exporter at `[fd00:dead:beef::2]:9100` over wg0, so `NodeExporterDown` for that target fires when the overlay (or east) is down.
 
-Known gap: BIRD's BGP session has no `bfd on`, so the BFD peers FRR configures for east stay down. BGP does not depend on them (hold time 90 s).
+BFD: one multihop session (UDP 4784, 300 ms, multiplier 3, so about 0.9 s to detect a dead path) that both BGP sessions are bound to: BIRD `bfd on`, FRR `neighbor ... bfd`. BIRD sends multihop BFD with hop limit 64, so FRR's peer sets `minimum-ttl 64`. Until 2026-10-20 BIRD never asked for a session and FRR only accepted hop limit 254+, so BFD had never come up and a dead tunnel took the 90 s BGP hold time to notice. Previous configs: `/var/lib/unheaded/remediate/*-bfd/` on each host.
 
 Check:
 
@@ -23,4 +23,6 @@ Check:
 ip -6 addr show wg0                                   # west: fd00:dead:beef::1
 sudo vtysh -c 'show bgp ipv6 unicast summary'         # fd00:dead:beef::2 Established, 2 prefixes
 ssh east 'sudo birdc show protocols'                  # west  BGP  up  Established
+sudo vtysh -c 'show bfd peers brief'                  # fd00:dead:beef::2  up
+ssh east 'sudo birdc show bfd sessions'               # fd00:dead:beef::1  Up  0.300
 ```
