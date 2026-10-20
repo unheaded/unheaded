@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -199,6 +200,15 @@ type Service struct {
 	transactions map[string]*Transaction
 	stateChanges []StateChange
 
+	// Retention: every operation (with its client-supplied input), transaction
+	// and state change used to be kept forever. The newest max* are kept; the
+	// order slices let the oldest go first. 0 means unbounded.
+	opOrder         []string
+	txOrder         []string
+	maxOperations   int
+	maxTransactions int
+	maxStateChanges int
+
 	opCounter int64
 	txCounter int64
 
@@ -255,7 +265,26 @@ func NewService(log *logger.Logger, wotan *wotanClient.Client) *Service {
 		mutationHandlers: make(map[string]MutationHandler),
 		effectHandlers:   make(map[string]EffectHandler),
 		alertsCh:         make(chan *wotanClient.Message, 100),
+		maxOperations:    DefaultMaxOperations,
+		maxTransactions:  DefaultMaxTransactions,
+		maxStateChanges:  DefaultMaxStateChanges,
 	}
+}
+
+// Retention defaults: a few MB at most, inside the compose container's 128 MiB.
+const (
+	DefaultMaxOperations   = 10000
+	DefaultMaxTransactions = 1000
+	DefaultMaxStateChanges = 10000
+)
+
+// trimOrder drops the oldest IDs past max from order and from m. Callers hold mu.
+func trimOrder[V any](order []string, m map[string]V, max int) []string {
+	for max > 0 && len(order) > max {
+		delete(m, order[0])
+		order = order[1:]
+	}
+	return order
 }
 
 // Start initializes Wotan subscriptions and starts listening for alerts
@@ -410,6 +439,9 @@ func (s *Service) Mutate(ctx context.Context, name string, input interface{}) Re
 	// Record state changes
 	s.mu.Lock()
 	s.stateChanges = append(s.stateChanges, changes...)
+	if s.maxStateChanges > 0 && len(s.stateChanges) > s.maxStateChanges {
+		s.stateChanges = append([]StateChange(nil), s.stateChanges[len(s.stateChanges)-s.maxStateChanges:]...)
+	}
 	s.mu.Unlock()
 
 	op.Output = result
@@ -464,6 +496,7 @@ func (s *Service) BeginTransaction(ctx context.Context) *TransactionBuilder {
 	}
 
 	s.transactions[tx.ID] = tx
+	s.txOrder = trimOrder(append(s.txOrder, tx.ID), s.transactions, s.maxTransactions)
 
 	return &TransactionBuilder{
 		service: s,
@@ -576,6 +609,7 @@ func (s *Service) startOperation(name string, opType OperationType, input interf
 	}
 
 	s.operations[op.ID] = op
+	s.opOrder = trimOrder(append(s.opOrder, op.ID), s.operations, s.maxOperations)
 	return op
 }
 
@@ -702,14 +736,9 @@ func (s *Service) ListOperations(limit int) []*Operation {
 		ops = append(ops, op)
 	}
 
-	// Sort by start time (most recent first)
-	for i := 0; i < len(ops)-1; i++ {
-		for j := i + 1; j < len(ops); j++ {
-			if ops[i].StartedAt.Before(ops[j].StartedAt) {
-				ops[i], ops[j] = ops[j], ops[i]
-			}
-		}
-	}
+	// Most recent first. (Was a bubble sort over every operation ever run,
+	// under the read lock: O(n^2) per list request.)
+	sort.Slice(ops, func(i, j int) bool { return ops[i].StartedAt.After(ops[j].StartedAt) })
 
 	if limit > 0 && len(ops) > limit {
 		ops = ops[:limit]
