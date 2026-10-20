@@ -37,14 +37,78 @@ type Manager struct {
 	mu      sync.RWMutex
 	members map[uuid.UUID]*Member  // member ID -> member
 	byRoom  map[string][]uuid.UUID // room ID -> member IDs
+	auto    map[autoKey]uuid.UUID  // (room, name) -> its auto-approved publisher
 }
+
+type autoKey struct{ room, name string }
 
 // NewManager creates a new member manager
 func NewManager() *Manager {
 	return &Manager{
 		members: make(map[uuid.UUID]*Member),
 		byRoom:  make(map[string][]uuid.UUID),
+		auto:    make(map[autoKey]uuid.UUID),
 	}
+}
+
+// Remove deletes a member, e.g. a stream's subscriber when the stream ends.
+// It reports whether the member existed.
+func (m *Manager) Remove(memberID uuid.UUID) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	member, ok := m.members[memberID]
+	if !ok {
+		return false
+	}
+	delete(m.members, memberID)
+	ids := m.byRoom[member.RoomID]
+	for i, id := range ids {
+		if id == memberID {
+			ids = append(ids[:i], ids[i+1:]...)
+			break
+		}
+	}
+	if len(ids) == 0 {
+		delete(m.byRoom, member.RoomID)
+	} else {
+		m.byRoom[member.RoomID] = ids
+	}
+	if key := (autoKey{member.RoomID, member.Name}); m.auto[key] == memberID {
+		delete(m.auto, key)
+	}
+	return true
+}
+
+// EnsureApproved returns the approved publisher member for (roomID, name),
+// creating it on first use. Unnamed publishers (both Wotan gRPC clients send
+// no sender_id) got a new member per message before, and approved members
+// are never cleaned up: one member per message, forever (~245 B each).
+// Callers must have authorized name for roomID already.
+func (m *Manager) EnsureApproved(roomID, name, approvedBy string) *Member {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	key := autoKey{roomID, name}
+	if id, ok := m.auto[key]; ok {
+		if member, ok := m.members[id]; ok && member.Status == StatusApproved {
+			return member
+		}
+	}
+	now := time.Now()
+	member := &Member{
+		ID:          uuid.New(),
+		Name:        name,
+		Status:      StatusApproved,
+		RequestedAt: now,
+		ApprovedAt:  &now,
+		ApprovedBy:  approvedBy,
+		RoomID:      roomID,
+	}
+	m.members[member.ID] = member
+	m.byRoom[roomID] = append(m.byRoom[roomID], member.ID)
+	m.auto[key] = member.ID
+	return member
 }
 
 // RequestJoin creates a new pending member request

@@ -970,3 +970,39 @@ func TestMember_Fields(t *testing.T) {
 		t.Error("Member.ApprovedBy should be empty for pending member")
 	}
 }
+
+func TestRemove(t *testing.T) {
+	m := NewManager()
+	a := m.RequestJoin("room", "a", "", time.Hour)
+	b := m.EnsureApproved("room", "b", "test")
+	if !m.Remove(a.ID) || m.Remove(a.ID) {
+		t.Fatal("Remove should succeed once, then report the member gone")
+	}
+	if got := m.CountByRoom("room", StatusApproved); got != 1 {
+		t.Fatalf("approved in room = %d, want b only", got)
+	}
+	m.Remove(b.ID)
+	if m.Count() != 0 || len(m.byRoom) != 0 || len(m.auto) != 0 {
+		t.Fatalf("after removing all: members=%d rooms=%d auto=%d, want 0 0 0", m.Count(), len(m.byRoom), len(m.auto))
+	}
+	if c := m.EnsureApproved("room", "b", "test"); c.ID == b.ID {
+		t.Fatal("EnsureApproved returned a removed member")
+	}
+}
+
+func TestEnsureApproved_OnePerRoomAndName(t *testing.T) {
+	m := NewManager()
+	first := m.EnsureApproved("logs.x", "service", "test")
+	if !m.IsApproved(first.ID) {
+		t.Fatal("EnsureApproved member is not approved")
+	}
+	if again := m.EnsureApproved("logs.x", "service", "test"); again.ID != first.ID {
+		t.Fatal("second call made a new member")
+	}
+	if other := m.EnsureApproved("logs.y", "service", "test"); other.ID == first.ID {
+		t.Fatal("a different room shared the member")
+	}
+	if m.Count() != 2 {
+		t.Fatalf("members = %d, want 2", m.Count())
+	}
+}

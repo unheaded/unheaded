@@ -122,6 +122,9 @@ func (s *TopicService) StreamTopics(
 	}
 
 	memberID := newMember.ID
+	// The member exists for this stream only (its room name is unique to it):
+	// without this, every reconnect left one behind for good.
+	defer s.memberManager.Remove(memberID)
 
 	logger.FromContext(ctx).Info().
 		Str("member_id", memberID.String()).
@@ -412,39 +415,9 @@ func (s *TopicService) PublishTopic(
 		return nil, status.Error(codes.InvalidArgument, "payload is required")
 	}
 
-	// ADR-043 hard condition #2: config.* topics require ML-DSA-65 signature.
-	// The signature is recorded as used (Accept) only once the message is
-	// taken, after the sender checks below.
-	var signed *signing.Signed
-	if signing.RequiresSignature(req.Topic) {
-		if len(req.Signature) == 0 || len(req.PublicKey) == 0 {
-			logger.FromContext(ctx).Warn().
-				Str("topic", req.Topic).
-				Msg("config_topic_unsigned")
-			return nil, status.Error(codes.InvalidArgument, "config.* topics require ML-DSA-65 signature")
-		}
-		// Fail closed. A verifier that could not be constructed must reject
-		// config.* publishes, never wave them through unchecked.
-		if s.topicVerifier == nil {
-			logger.FromContext(ctx).Error().
-				Str("topic", req.Topic).
-				Msg("config_topic_verifier_unavailable")
-			return nil, status.Error(codes.PermissionDenied, "signature verification unavailable")
-		}
-		signed = &signing.Signed{
-			Signature: req.Signature, PublicKey: req.PublicKey, Algorithm: req.Algorithm, SignedAtUnixMs: req.SignedAtUnixMs,
-		}
-		if err := s.topicVerifier.Verify(req.Topic, req.SenderId, req.Payload, *signed); err != nil {
-			logger.FromContext(ctx).Warn().
-				Err(err).
-				Str("topic", req.Topic).
-				Msg("config_topic_signature_invalid")
-			return nil, status.Error(codes.PermissionDenied, "signature verification failed: "+err.Error())
-		}
-	}
-
-	// Get or create the sender member
+	// Authorize the sender first (read-only checks; nothing is created yet).
 	var senderID uuid.UUID
+	var autoPublisher string // set when the caller sent no sender_id
 	if req.SenderId != "" {
 		var err error
 		senderID, err = uuid.Parse(req.SenderId)
@@ -482,15 +455,46 @@ func (s *TopicService) PublishTopic(
 			return nil, status.Error(codes.PermissionDenied, "publisher not approved")
 		}
 
-		defaultMember := s.memberManager.RequestJoin(req.Topic, displayName, "", 24*time.Hour)
-		if err := s.memberManager.Approve(defaultMember.ID, "topic-auto-approve"); err != nil {
+		autoPublisher = displayName
+	}
+
+	// ADR-043 hard condition #2: config.* topics require ML-DSA-65 signature.
+	// Checked only after the sender is authorized, so a caller the allowlist
+	// refuses never costs an ML-DSA verify (LICH-012 L12b: trusted keys are
+	// public, so anyone can make a request reach it). The signature is
+	// recorded as used (Accept) only once the message is taken, below.
+	var signed *signing.Signed
+	if signing.RequiresSignature(req.Topic) {
+		if len(req.Signature) == 0 || len(req.PublicKey) == 0 {
+			logger.FromContext(ctx).Warn().
+				Str("topic", req.Topic).
+				Msg("config_topic_unsigned")
+			return nil, status.Error(codes.InvalidArgument, "config.* topics require ML-DSA-65 signature")
+		}
+		// Fail closed. A verifier that could not be constructed must reject
+		// config.* publishes, never wave them through unchecked.
+		if s.topicVerifier == nil {
 			logger.FromContext(ctx).Error().
+				Str("topic", req.Topic).
+				Msg("config_topic_verifier_unavailable")
+			return nil, status.Error(codes.PermissionDenied, "signature verification unavailable")
+		}
+		signed = &signing.Signed{
+			Signature: req.Signature, PublicKey: req.PublicKey, Algorithm: req.Algorithm, SignedAtUnixMs: req.SignedAtUnixMs,
+		}
+		if err := s.topicVerifier.Verify(req.Topic, req.SenderId, req.Payload, *signed); err != nil {
+			logger.FromContext(ctx).Warn().
 				Err(err).
 				Str("topic", req.Topic).
-				Msg("failed_to_create_default_publisher")
-			return nil, status.Error(codes.Internal, "failed to create publisher")
+				Msg("config_topic_signature_invalid")
+			return nil, status.Error(codes.PermissionDenied, "signature verification failed: "+err.Error())
 		}
-		senderID = defaultMember.ID
+	}
+
+	// The unnamed publisher's member: one per (topic, name), made only for a
+	// publish that passed every check above.
+	if autoPublisher != "" {
+		senderID = s.memberManager.EnsureApproved(req.Topic, autoPublisher, "topic-auto-approve").ID
 	}
 
 	if signed != nil {
