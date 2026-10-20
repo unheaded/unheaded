@@ -1,0 +1,41 @@
+# Prometheus alert rules - log shipping (ADR-092 step 8)
+# Unheaded Kingdom infrastructure
+# License: GPL-3.0-or-later, Copyright (c) 2026 Stevie Bellis
+#
+# Vector ships the host journal to ClickHouse (config/vector/vector.yaml).
+# The journal is never quiet for half an hour on a running host (timers,
+# sessions, the kernel), so a sink that sent nothing for 30 minutes is
+# broken, and the audit records (sshd, sudo, PAM) it carries are being kept
+# only in the journal's own rotation. Until FND-001 is closed Alertmanager's
+# receiver is `null` and none of this reaches anyone.
+
+groups:
+  - name: logs
+    interval: 1m
+    rules:
+      - alert: JournalNotShipping
+        expr: sum by (instance) (increase(vector_component_sent_events_total{job="vector",component_id="clickhouse"}[30m])) == 0
+        for: 15m
+        labels:
+          severity: critical
+        annotations:
+          summary: "{{ $labels.instance }} has shipped no journal entries to ClickHouse for 45m"
+          description: "Audit records are not leaving the host; docker logs unheaded-vector, and check clickhouse is up"
+
+      - alert: JournalShipErrors
+        expr: sum by (instance) (increase(vector_component_errors_total{job="vector",component_id="clickhouse"}[15m])) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Vector on {{ $labels.instance }} keeps failing to write to ClickHouse"
+          description: "{{ $value }} sink errors in 15m; Vector retries, so rows may be late rather than lost"
+
+      - alert: VectorDown
+        expr: up{job="vector"} == 0
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Vector on {{ $labels.instance }} is not answering /metrics"
+          description: "The journal is not shipping while it is down; docker compose ps vector"

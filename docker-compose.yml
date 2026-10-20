@@ -466,6 +466,11 @@ services:
       - ./config/vector/vector.yaml:/etc/vector/vector.yaml:ro
       - /var/log/journal:/var/log/journal:ro
       - vector-data:/var/lib/unheaded-vector
+    # Vector's metrics for monitoring/prometheus (job vector, rules/logs.yml).
+    # On docker0's gateway (what host.docker.internal resolves to), not on
+    # the LAN; VECTOR_METRICS_BIND if a host's docker0 differs.
+    ports:
+      - "${VECTOR_METRICS_BIND:-172.17.0.1}:9598:9598"
     networks:
       - observe
     labels:

@@ -337,5 +337,16 @@ in ClickHouse too. ClickHouse listens on loopback only and has one user.
 Still open: container stdout (needs a socket proxy limited to reading logs,
 or the journald logging driver so stdout reaches the journal; either is a
 host decision); east's journal (no stack runs there: needs its own shipper
-or `systemd-journal-remote`); the "host stopped shipping" alert (Vector's
-metrics are not scraped yet).
+or `systemd-journal-remote`).
+
+**2026-10-20: the "stopped shipping" alert.** Vector exports its own
+counters (`internal_metrics` -> `prometheus_exporter` :9598), published on
+docker0's gateway only (`host.docker.internal`, not the LAN), scraped by
+monitoring/prometheus as job `vector`. `rules/logs.yml`: JournalNotShipping
+(critical: the ClickHouse sink sent nothing for 30m, held 15m; a running
+host's journal is never that quiet), JournalShipErrors, VectorDown;
+promtool-tested. Verified on west with a throwaway ClickHouse and Vector
+run as compose runs it: a `logger` line landed in the table and the sink's
+`vector_component_sent_events_total` counted it, read through host-gateway
+from a container; the port is not reachable on the LAN address. Fires only
+once the monitoring stack runs (FND-001).

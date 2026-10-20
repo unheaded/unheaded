@@ -27,6 +27,11 @@ sources:
     current_boot_only: false
     extra_args: ["--merge"]
 
+  # Vector's own counters (events read, sent, errors per component), for the
+  # "host stopped shipping" alert (monitoring/prometheus/rules/logs.yml).
+  vector_metrics:
+    type: internal_metrics
+
 transforms:
   journal_rows:
     type: remap
@@ -82,3 +87,11 @@ sinks:
       strategy: "basic"
       user: "unheaded"
       password: "${CLICKHOUSE_PASSWORD}"   # from compose; no default credential
+
+  # Scraped by monitoring/prometheus as job vector. compose publishes it on
+  # the docker0 gateway only (host.docker.internal), not on the LAN.
+  prometheus:
+    type: prometheus_exporter
+    inputs:
+      - vector_metrics
+    address: "0.0.0.0:9598"

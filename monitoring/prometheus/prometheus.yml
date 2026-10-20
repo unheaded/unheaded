@@ -134,6 +134,12 @@ scrape_configs:
           - '[fd00:dead:beef::1]:19120'
           - '[fd00:dead:beef::2]:19120'
 
+  # Vector's own counters (ADR-092 step 8); alerts in rules/logs.yml.
+  # docker-compose.yml publishes 9598 on the docker0 gateway only.
+  - job_name: vector
+    static_configs:
+      - targets: ['host.docker.internal:9598']
+
   # Dashboard backend (host metrics + service metrics)
   - job_name: dashboard_backend
     static_configs:
