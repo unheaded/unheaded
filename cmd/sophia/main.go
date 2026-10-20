@@ -540,6 +540,11 @@ func (hs *HTTPServer) learnKnowledgeHandler(w http.ResponseWriter, r *http.Reque
 	// Learn
 	ctx := r.Context()
 	if err := hs.service.Learn(ctx, knowledge); err != nil {
+		if errors.Is(err, sophia.ErrKnowledgeFull) {
+			hs.log.Warn().Err(err).Msg("knowledge store full")
+			hs.writeError(w, http.StatusInsufficientStorage, "KNOWLEDGE_FULL", err.Error())
+			return
+		}
 		hs.log.Error().Err(err).Msg("failed to learn knowledge")
 		hs.writeError(w, http.StatusInternalServerError, "LEARN_ERROR", err.Error())
 		return

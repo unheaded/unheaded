@@ -11,6 +11,7 @@ package sophia
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -145,6 +146,12 @@ type Service struct {
 	predicateIndex map[string][]string // predicate -> knowledge IDs
 	typeIndex      map[KnowledgeType][]string
 
+	// knowledgeBytes approximates the memory held by knowledge (knowledgeSize),
+	// against MaxKnowledgeBytes. decisionOrder is decisions oldest first, so
+	// the oldest can go past MaxDecisions.
+	knowledgeBytes int
+	decisionOrder  []string
+
 	// Counters
 	knowledgeCounter int64
 	insightCounter   int64
@@ -164,7 +171,13 @@ func (s *Service) WotanDrops() int64 {
 
 // Config holds Sophia service configuration.
 type Config struct {
+	// MaxKnowledge and MaxKnowledgeBytes bound what /api/v1/knowledge, which
+	// takes unauthenticated POSTs of up to 64 KB, can make this hold: past
+	// either, Learn refuses (ErrKnowledgeFull). MaxDecisions keeps only the
+	// newest decisions. 0 means no bound.
 	MaxKnowledge      int           `json:"max_knowledge"`
+	MaxKnowledgeBytes int           `json:"max_knowledge_bytes"`
+	MaxDecisions      int           `json:"max_decisions"`
 	InsightTTL        time.Duration `json:"insight_ttl"`
 	MinConfidence     float64       `json:"min_confidence"`
 	EnableInference   bool          `json:"enable_inference"`
@@ -176,6 +189,8 @@ type Config struct {
 func DefaultConfig() *Config {
 	return &Config{
 		MaxKnowledge:      100000,
+		MaxKnowledgeBytes: 32 << 20, // the compose container has 128 MiB
+		MaxDecisions:      10000,
 		InsightTTL:        24 * time.Hour,
 		MinConfidence:     0.5,
 		EnableInference:   true,
@@ -318,6 +333,21 @@ func (s *Service) Learn(ctx context.Context, k *Knowledge) error {
 	if k.Confidence > 1 {
 		k.Confidence = 1
 	}
+
+	// Bounded: a configured limit the store never checked was no limit.
+	size := knowledgeSize(k)
+	prev, replacing := s.knowledge[k.ID]
+	if !replacing && s.config.MaxKnowledge > 0 && len(s.knowledge) >= s.config.MaxKnowledge {
+		return ErrKnowledgeFull
+	}
+	grow := size
+	if replacing {
+		grow -= knowledgeSize(prev)
+	}
+	if s.config.MaxKnowledgeBytes > 0 && s.knowledgeBytes+grow > s.config.MaxKnowledgeBytes {
+		return ErrKnowledgeFull
+	}
+	s.knowledgeBytes += grow
 
 	// Store knowledge
 	s.knowledge[k.ID] = k
@@ -651,6 +681,11 @@ func (s *Service) Decide(ctx context.Context, question string, options []Option,
 
 	s.mu.Lock()
 	s.decisions[decisionID] = decision
+	s.decisionOrder = append(s.decisionOrder, decisionID)
+	for s.config.MaxDecisions > 0 && len(s.decisionOrder) > s.config.MaxDecisions {
+		delete(s.decisions, s.decisionOrder[0])
+		s.decisionOrder = s.decisionOrder[1:]
+	}
 	s.mu.Unlock()
 
 	s.log.Info().
@@ -917,4 +952,24 @@ func (s *Service) Stats() map[string]interface{} {
 		"indexed_subjects":   len(s.subjectIndex),
 		"indexed_predicates": len(s.predicateIndex),
 	}
+}
+
+// ErrKnowledgeFull is returned by Learn past MaxKnowledge or
+// MaxKnowledgeBytes.
+var ErrKnowledgeFull = errors.New("sophia: knowledge store is full")
+
+// knowledgeSize approximates the bytes k holds: its strings, metadata as
+// JSON, embeddings and relations, plus a fixed overhead for the struct, the
+// map entry and three index entries.
+func knowledgeSize(k *Knowledge) int {
+	n := 256 + len(k.ID) + len(k.Subject) + len(k.Predicate) + len(k.Object) + len(k.Source) + 8*len(k.Embeddings)
+	for _, r := range k.Relations {
+		n += len(r) + 16
+	}
+	if len(k.Metadata) > 0 {
+		if b, err := json.Marshal(k.Metadata); err == nil {
+			n += len(b)
+		}
+	}
+	return n
 }
