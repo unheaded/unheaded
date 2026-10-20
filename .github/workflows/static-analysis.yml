@@ -248,20 +248,11 @@ jobs:
 
       # trivy misconfig flags DS-0002 "Image user should not be 'root'" across
       # 6+ Dockerfiles. hadolint catches the same class earlier and explains it
-      # better. Pairs with the pkg/uids run-as-identity registry, which today
-      # covers only the K8s telemetry tier.
-      - name: hadolint
-        continue-on-error: true
-        run: |
-          docker run --rm -i hadolint/hadolint:latest-alpine hadolint --no-color - \
-            < /dev/null || true
-          fail=0
-          for f in $(git ls-files '*Dockerfile*'); do
-            echo "::group::hadolint $f"
-            docker run --rm -i hadolint/hadolint:latest-alpine hadolint --no-color - < "$f" || fail=1
-            echo "::endgroup::"
-          done
-          exit $fail
+      # better. A ratchet since 2026-10-20 (it was advisory, on an unpinned
+      # image, and had never parsed the root Dockerfile): a file it cannot
+      # parse fails, and (rule, file) counts may only shrink.
+      - name: hadolint ratchet
+        run: ./scripts/check-hadolint.sh
 
   # ==========================================================================
   # META-GATE

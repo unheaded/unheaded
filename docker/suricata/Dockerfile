@@ -53,17 +53,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #   ./configure --enable-ebpf --enable-af-packet --prefix=/usr/local
 #   make && make install
 
-# Create placeholder script to verify binary features
-RUN mkdir -p /tmp/check && cat > /tmp/check/verify-suricata.sh << 'EOFSCRIPT' \
-#!/bin/bash
-if ! command -v suricata &>/dev/null; then
-    echo "ERROR: suricata binary not found"
-    exit 1
-fi
-suricata --build-info | grep -q "eBPF support: yes" || (echo "ERROR: eBPF not enabled" && exit 1)
-suricata --build-info | grep -q "AF_PACKET support: yes" || (echo "ERROR: AF_PACKET not enabled" && exit 1)
-echo "Binary verification complete"
-EOFSCRIPT
+# (A RUN heredoc wrote a verify-suricata.sh placeholder here that no stage
+# ever copied or ran; removed 2026-10-20 so hadolint can parse this file.)
 
 # === Stage 2: Runtime ===
 FROM ubuntu:24.04 AS runtime

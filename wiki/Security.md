@@ -166,7 +166,8 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 | Unit binaries / accounts | Every systemd unit runs a binary the repo builds, as its own sysusers account | `scripts/check-unit-binaries.sh`, `scripts/check-systemd-units.sh` |
 | gitleaks + shrink-only baseline | Secrets in the tree | `scripts/check-secrets-baseline.sh` |
 | ruff, shellcheck, eslint, clippy | Python, shell, JS and Rust lint (gating) | CI |
-| bandit, hadolint | Python security lint, Dockerfile lint (reporting only) | CI |
+| hadolint | Dockerfile lint: a Dockerfile it cannot parse fails; (rule, file) counts may only shrink | `scripts/check-hadolint.sh` |
+| bandit | Python security lint (reporting only) | CI |
 | syft | SBOM | CI |
 | Meta-gate | Plants a violation in every gate and requires it to fail | `scripts/check-gates-can-fail.sh` |
 | Go fuzz targets | Every package with Fuzz functions, 10 s each, on every security run | `.github/workflows/security.yml` (lich-fuzz) |

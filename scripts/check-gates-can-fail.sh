@@ -530,6 +530,15 @@ provoke_git_mirror() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_hadolint() {
+    # Contract: no new Dockerfile finding lands unrecorded. A RUN that cd's
+    # instead of using WORKDIR (DL3003) in the root Dockerfile.
+    local f="Dockerfile"
+    backup "${f}"
+    printf '\nRUN cd /tmp && ls\n' >>"${REPO_ROOT}/${f}"
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_deb_maintscripts() {
     # Contract (ADR-085 Phase 2): an apt upgrade leaves the service enabled.
     # Make prerm stop and disable on every call, as it used to.
@@ -617,6 +626,7 @@ check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package
 check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
 check-image-tags|provoke_image_tags|fast|traefik:v3.3.7 floated back to traefik:latest in docker-compose.yml
 check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt
+check-hadolint|provoke_hadolint|slow|a RUN that cd's (DL3003) appended to the root Dockerfile (needs docker)
 test-deb-maintscripts|provoke_deb_maintscripts|fast|prerm disabling the service on every call, upgrades included
 backup/test-git-mirror|provoke_git_mirror|fast|git-mirror.sh switched to push --mirror, which prunes refs east must keep
 well/test-compliance-schema|provoke_well_compliance_schema|slow|audit_events' TRUNCATE guard removed from 015 (needs docker)
