@@ -18,7 +18,8 @@ import (
 // composeToRegistry maps a compose service name to its registry name where
 // the two differ.
 var composeToRegistry = map[string]string{
-	"victoria": "victoriametrics",
+	"victoria":      "victoriametrics",
+	"vllm-deepseek": "vllm",
 }
 
 var composeUserRe = regexp.MustCompile(`^(\d+):(\d+)$`)

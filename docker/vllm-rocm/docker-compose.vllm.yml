@@ -21,10 +21,21 @@ services:
       - /dev/kfd:/dev/kfd
       - /dev/dri:/dev/dri
     
-    # User/group for GPU access
+    # Own uid (pkg/uids VLLM), as kubernetes/manifests/overlays/gpu-vllm.
+    # GPU access is group membership, not root: /dev/kfd and renderD* are
+    # root:render 0660 on west. Numeric host gids (pkg/uids HostGroupRender,
+    # HostGroupVideo): names would resolve in the image's /etc/group, whose
+    # render is not the host's 992.
+    user: "16781:16781"
     group_add:
-      - video
-      - render
+      - "992"
+      - "44"
+    read_only: true
+    tmpfs:
+      - /tmp:size=1g
+      - /tmp/prometheus:uid=16781,gid=16781,size=64m
+      # HOME: HF, torch and triton caches
+      - /home/vllm:uid=16781,gid=16781,size=2g
     
     environment:
       # ROCm configuration for gfx1101 (RX 7700 XT)
@@ -43,13 +54,12 @@ services:
       # Logging and observability
       VLLM_LOGGING_LEVEL: "${UNHEADED_LOG_LEVEL:-info}"
       PROMETHEUS_MULTIPROC_DIR: "/tmp/prometheus"
+      HOME: /home/vllm
     
     # Volume mounts
     volumes:
       # Read-only model cache (pre-downloaded weights)
       - /mnt/models:/models:ro
-      # Prometheus metrics (optional)
-      - prometheus-tmp:/tmp/prometheus
     
     # Port mappings
     ports:
@@ -82,14 +92,13 @@ services:
       prometheus.io/port: "20100"
       prometheus.io/path: "/metrics"
     
-    # Security options
+    # Security options. apparmor=unconfined and SYS_PTRACE are gone: GPU
+    # access needs neither (the k8s manifest runs under the runtime default
+    # profile), and Docker grants added caps to a non-root uid only in the
+    # bounding set, so SYS_PTRACE was never effective.
     security_opt:
       - no-new-privileges:true
-      - apparmor=unconfined
-    
-    # Capabilities required for GPU access
-    cap_add:
-      - SYS_PTRACE
+    cap_drop: [ALL]
     
     # Health check for liveness probe
     healthcheck:
@@ -105,11 +114,6 @@ services:
       options:
         max-size: "100m"
         max-file: "3"
-
-# Shared named volumes
-volumes:
-  prometheus-tmp:
-    driver: local
 
 # Shared network for inter-service communication
 networks:

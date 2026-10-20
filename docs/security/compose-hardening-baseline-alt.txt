@@ -64,5 +64,4 @@ docker/hosts/host-b/docker-compose.yml:sophia
 docker/hosts/host-b/docker-compose.yml:suricata
 docker/hosts/host-b/docker-compose.yml:wireguard
 docker/hosts/host-b/docker-compose.yml:wotan
-docker/vllm-rocm/docker-compose.vllm.yml:vllm-deepseek
 docker/wireguard/docker-compose.wireguard.yml:wireguard

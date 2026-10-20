@@ -8,12 +8,27 @@ services:
   wireguard:
     image: lscr.io/linuxserver/wireguard:latest
     container_name: unheaded-wireguard
+    # Root by necessity (pkg/uids pendingHardening: a non-root uid gets CapEff 0
+    # and EPERM creating the link). Bounded instead: measured 2026-10-20 on west
+    # with this image, the tunnel needs NET_ADMIN, and s6's init needs CHOWN,
+    # SETUID, SETGID and DAC_OVERRIDE to hand /config to PUID; FOWNER and
+    # SYS_MODULE are not needed (west's kernel has wireguard loaded).
+    read_only: true
+    tmpfs:
+      - /run:exec
+      - /tmp
+    cap_drop: [ALL]
     cap_add:
       - NET_ADMIN
-      - SYS_MODULE
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
     environment:
-      - PUID=1000
-      - PGID=1000
+      # No PUID/PGID: with a read-only root the image cannot rewrite its
+      # /etc/passwd and ignores them, so /config belongs to its built-in abc,
+      # 911:1001 (no account on west or east, 2026-10-20). Was PUID 1000 =
+      # govan on the hosts.
       - TZ=UTC
       - SERVERURL=${WG_SERVERURL:-auto}
       - SERVERPORT=51820
@@ -24,7 +39,6 @@ services:
       - LOG_CONFS=false
     volumes:
       - ./config:/config
-      - /lib/modules:/lib/modules:ro
     ports:
       - "51820:51820/udp"
     sysctls:
@@ -53,7 +67,8 @@ networks:
       com.docker.network.bridge.enable_ip_masquerade: "true"
     ipam:
       config:
-        - subnet: 172.20.0.0/16
-          gateway: 172.20.0.1
+        # was 172.20.0.0/16, which overlaps kind and netbox-docker on west
+        - subnet: 172.28.4.0/24
+          gateway: 172.28.4.1
         - subnet: "fd00:dead:cafe::/64"
           gateway: "fd00:dead:cafe::1"

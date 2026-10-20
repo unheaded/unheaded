@@ -40,8 +40,9 @@ RUN pip3 install --no-cache-dir \
     typing-extensions
 
 # Create non-root user for vLLM service
-RUN groupadd -g 10001 vllm && \
-    useradd -u 10001 -g vllm -d /home/vllm -s /sbin/nologin -m vllm && \
+# uid/gid 16781 = pkg/uids VLLM, as the compose file and k8s manifest run it.
+RUN groupadd -g 16781 vllm && \
+    useradd -u 16781 -g vllm -d /home/vllm -s /sbin/nologin -m vllm && \
     mkdir -p /vllm && \
     chown -R vllm:vllm /vllm
 
