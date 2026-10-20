@@ -85,6 +85,7 @@ EOF
     deb_postinst "$PKG_NAME" >"$PKG_DIR/DEBIAN/postinst"
     deb_prerm "$PKG_NAME" >"$PKG_DIR/DEBIAN/prerm"
     chmod 755 "$PKG_DIR/DEBIAN/postinst" "$PKG_DIR/DEBIAN/prerm"
+    deb_conffiles "$svc" "$PKG_DIR" "$PROJECT_ROOT"
 
     # Build .deb
     dpkg-deb --root-owner-group --build "$PKG_DIR" 2>/dev/null

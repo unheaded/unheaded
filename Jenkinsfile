@@ -286,6 +286,7 @@ EOF
               deb_postinst ${PKG_NAME} > ${PKG_DIR}/DEBIAN/postinst
               deb_prerm ${PKG_NAME} > ${PKG_DIR}/DEBIAN/prerm
               chmod 755 ${PKG_DIR}/DEBIAN/postinst ${PKG_DIR}/DEBIAN/prerm
+              deb_conffiles ${svc_bin} ${PKG_DIR} .
 
               dpkg-deb --build ${PKG_DIR}
               echo "  Built: ${PKG_NAME}_${VERSION}.deb"

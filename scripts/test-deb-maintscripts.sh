@@ -49,4 +49,13 @@ systemctl daemon-reload
 systemctl try-restart unheaded-wotan.service"
 expect "postinst abort-upgrade touches nothing" "$(run postinst abort-upgrade 1.0.1)" ""
 
+# The wotan package ships the topic config its unit reads, as a conffile.
+mkdir -p "$T/pkg/DEBIAN" "$T/other/DEBIAN"
+deb_conffiles wotan "$T/pkg" "$REPO_ROOT"
+expect "wotan ships /etc/unheaded/wotan.yaml as a conffile" "$(cat "$T/pkg/DEBIAN/conffiles")" "/etc/unheaded/wotan.yaml"
+expect "wotan.yaml is the repo's configs/wotan.yaml" "$(cmp -s "$REPO_ROOT/configs/wotan.yaml" "$T/pkg/etc/unheaded/wotan.yaml" && echo same)" "same"
+expect "unit reads that path" "$(grep -c -- '--topic-config /etc/unheaded/wotan.yaml' "$REPO_ROOT/deploy/systemd/unheaded-wotan.service")" "1"
+deb_conffiles timeguru "$T/other" "$REPO_ROOT"
+expect "other services ship no conffiles" "$(ls "$T/other/DEBIAN")" ""
+
 exit "$fail"

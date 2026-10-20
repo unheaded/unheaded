@@ -211,6 +211,12 @@ func main() {
 		Str("config_path", topicConfigPath).
 		Int("auto_approve_count", len(topicCfg.Topics.AutoApprove)).
 		Msg("loaded_topic_config")
+	if len(topicCfg.Topics.AutoApprove) == 0 {
+		// A missing file loads as deny-all. East ran this way for weeks
+		// (2026-10-20): every service's publishes refused, nothing said why.
+		log.Warn().Str("config_path", topicConfigPath).
+			Msg("topic_config_allowlist_empty: no publisher or subscriber will be auto-approved")
+	}
 
 	// Create API server
 	apiServer := api.NewServer(roomManager, memberManager, messageWotan, config.PendingApprovalTimeout)

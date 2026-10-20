@@ -19,7 +19,9 @@ topics:
     - "timeguru"
     - "captain"
     - "architect"
+    - "architect-service"    # architect's alerts.critical / architecture.updates subscriptions
     - "micromanager"
+    - "micromanager-service" # micromanager's alerts.critical subscription
     - "monad"
     - "sophia"
     - "dashboard"

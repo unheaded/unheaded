@@ -8,6 +8,7 @@
 #
 #   deb_postinst unheaded-wotan >"$PKG_DIR/DEBIAN/postinst"
 #   deb_prerm    unheaded-wotan >"$PKG_DIR/DEBIAN/prerm"
+#   deb_conffiles wotan "$PKG_DIR" "$REPO_ROOT"
 #
 # Tested by scripts/test-deb-maintscripts.sh.
 
@@ -26,6 +27,20 @@ configure)
 	;;
 esac
 SCRIPT
+}
+
+# deb_conffiles SVC PKG_DIR REPO_ROOT: install the config files the service's
+# unit reads into the package tree and list them in DEBIAN/conffiles, so dpkg
+# keeps local edits on upgrade. Wotan's unit reads --topic-config
+# /etc/unheaded/wotan.yaml; the package did not ship it, so on east no
+# publisher was ever auto-approved (found 2026-10-20).
+deb_conffiles() {
+	case "$1" in
+	wotan)
+		install -D -m 0644 "$3/configs/wotan.yaml" "$2/etc/unheaded/wotan.yaml"
+		echo /etc/unheaded/wotan.yaml >"$2/DEBIAN/conffiles"
+		;;
+	esac
 }
 
 # deb_prerm PKG: stop and disable only when the package is being removed.
