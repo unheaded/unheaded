@@ -206,7 +206,10 @@ services:
     read_only: true
     cap_drop: [ALL]
     ports:
-      - "9093:9093"
+      # Loopback only: Prometheus reaches it over the compose network, and
+      # its API takes silences from anyone (no auth), which would mute every
+      # alert. The UI: ssh -L 9093:127.0.0.1:9093 west.
+      - "127.0.0.1:9093:9093"
     volumes:
       - ./alertmanager:/etc/alertmanager:ro
       - alertmanager_data:/alertmanager

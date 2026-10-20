@@ -7,20 +7,24 @@
 # that monitoring/docker-compose.yml runs, delivers a critical alert to an
 # SMTP sink (Mailpit); a warning with the same name and host is inhibited;
 # the stock config and an authenticated render pass amtool; bad env files
-# are refused. Needs docker. Nothing touches the monitoring stack.
+# are refused; and monitoring/prometheus/prometheus.yml sends a firing rule
+# to Alertmanager at all (it named none until 2026-10-20, so no alert ever
+# left Prometheus). Needs docker. Nothing touches the monitoring stack.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 RENDER="$REPO_ROOT/scripts/monitoring/render-alertmanager.sh"
 AM_IMAGE="$(awk '/image: *prom\/alertmanager/ {print $2; exit}' "$REPO_ROOT/monitoring/docker-compose.yml")"
+PROM_IMAGE="$(awk '/image: *prom\/prometheus/ {print $2; exit}' "$REPO_ROOT/monitoring/docker-compose.yml")"
 SINK_IMAGE="axllent/mailpit:v1.27.10"
 [[ -n "$AM_IMAGE" ]] || { echo "[FAIL] no prom/alertmanager image in monitoring/docker-compose.yml" >&2; exit 1; }
+[[ -n "$PROM_IMAGE" ]] || { echo "[FAIL] no prom/prometheus image in monitoring/docker-compose.yml" >&2; exit 1; }
 command -v docker >/dev/null || { echo "[FAIL] docker is required; this test does not pass by skipping" >&2; exit 2; }
 
 T="$(mktemp -d)"
 NET="uh-am-test-$$"
 cleanup() {
-	docker rm -f "$NET-am" "$NET-sink" >/dev/null 2>&1 || true
+	docker rm -f "$NET-am" "$NET-sink" "$NET-am2" "$NET-prom" >/dev/null 2>&1 || true
 	docker network rm "$NET" >/dev/null 2>&1 || true
 	rm -rf "$T"
 }
@@ -76,4 +80,34 @@ n="$(grep -o '"Subject":"[^"]*UhMailTest[^"]*"' <<<"$msgs" | wc -l)"
 [[ "$n" -eq 1 ]] || fail "$n mails for UhMailTest; the warning should be inhibited by the critical"
 grep -q 'severity = "critical"\|critical' <<<"$msgs" || fail "the mail is not the critical alert"
 echo "[ok] critical alert mailed to ops@example.org; same-name warning inhibited"
-echo "[PASS] alertmanager email path: 3 checks"
+
+# Prometheus -> Alertmanager, with the repo's prometheus.yml: an always-firing
+# rule must show up in an Alertmanager reachable as "alertmanager" (the
+# compose service name), or every rule fires into nothing.
+mkdir -p "$T/prom/rules"
+cp "$REPO_ROOT/monitoring/prometheus/prometheus.yml" "$T/prom/"
+cat >"$T/prom/rules/uh-path-test.yml" <<'RULES'
+groups:
+  - name: uh-path-test
+    interval: 5s
+    rules:
+      - alert: UhPromToAlertmanager
+        expr: vector(1)
+        labels:
+          severity: warning
+RULES
+chmod -R a+rX "$T/prom"
+docker run -d --name "$NET-am2" --network "$NET" --network-alias alertmanager \
+	-v "$REPO_ROOT/monitoring/alertmanager:/etc/alertmanager:ro" "$AM_IMAGE" \
+	--config.file=/etc/alertmanager/alertmanager.yml --storage.path=/tmp >/dev/null
+docker run -d --name "$NET-prom" --network "$NET" -v "$T/prom:/etc/prometheus:ro" "$PROM_IMAGE" \
+	--config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/tmp >/dev/null
+got=""
+for _ in $(seq 1 60); do
+	got="$(api "http://$NET-am2:9093/api/v2/alerts" 2>/dev/null || true)"
+	grep -q UhPromToAlertmanager <<<"$got" && break
+	sleep 1
+done
+grep -q UhPromToAlertmanager <<<"$got" || fail "a firing rule never reached Alertmanager: monitoring/prometheus/prometheus.yml must send alerts to alertmanager:9093"
+echo "[ok] a firing rule in monitoring/prometheus reaches Alertmanager"
+echo "[PASS] alertmanager email path: 4 checks"

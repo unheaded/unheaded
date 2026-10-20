@@ -154,3 +154,12 @@ remote_write:
 
 rule_files:
   - 'rules/*.yml'
+
+# Where firing rules go. Without this block Prometheus evaluated every rule
+# and sent nothing anywhere (2026-10-20): Alertmanager, and the email path
+# behind it (FND-001), never saw an alert. scripts/monitoring/
+# test-alertmanager-email.sh proves a firing rule arrives.
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
