@@ -508,6 +508,11 @@ jobs:
       - name: Repository mirror keeps what west drops
         run: ./scripts/backup/test-git-mirror.sh
 
+      # ADR-085 Phase 2: the .deb maintainer scripts, as dpkg calls them.
+      # An upgrade must never stop or disable the service.
+      - name: Package maintainer scripts keep services across upgrades
+        run: ./scripts/test-deb-maintscripts.sh
+
   # ============================================================================
   # Alert rules: every Prometheus rule parses and its promtool tests pass
   # ============================================================================

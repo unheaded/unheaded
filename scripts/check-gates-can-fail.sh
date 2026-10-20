@@ -530,6 +530,16 @@ provoke_git_mirror() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_deb_maintscripts() {
+    # Contract (ADR-085 Phase 2): an apt upgrade leaves the service enabled.
+    # Make prerm stop and disable on every call, as it used to.
+    local f="scripts/lib/deb-maintscripts.sh"
+    backup "${f}"
+    sed -i 's/^remove|deconfigure)$/*)/' "${REPO_ROOT}/${f}"
+    grep -q '^\*)$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_dependency_baseline() {
     # Contract (ADR-096 §3): no package enters the build unrecorded. Add one
     # to a tracked requirements file, as an assistant-suggested import would.
@@ -607,6 +617,7 @@ check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package
 check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
 check-image-tags|provoke_image_tags|fast|traefik:v3.3.7 floated back to traefik:latest in docker-compose.yml
 check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt
+test-deb-maintscripts|provoke_deb_maintscripts|fast|prerm disabling the service on every call, upgrades included
 backup/test-git-mirror|provoke_git_mirror|fast|git-mirror.sh switched to push --mirror, which prunes refs east must keep
 well/test-compliance-schema|provoke_well_compliance_schema|slow|audit_events' TRUNCATE guard removed from 015 (needs docker)
 well/test-migrate|provoke_well_migrate|slow|the runner's drift refusal removed, so apply runs past an edited file (needs docker)

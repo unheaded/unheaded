@@ -10,6 +10,8 @@ set -euo pipefail
 umask 022
 
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# shellcheck source=scripts/lib/deb-maintscripts.sh
+. "$PROJECT_ROOT/scripts/lib/deb-maintscripts.sh"
 VERSION="${1:-1.0.0}"
 # Not a fixed /tmp path: another local user could pre-create it.
 OUTPUT_DIR="${DEB_OUTPUT_DIR:-${PROJECT_ROOT}/dist/debs}"
@@ -77,25 +79,12 @@ EOF
         >"$PKG_DIR/usr/lib/sysusers.d/${PKG_NAME}.conf"
     [ -s "$PKG_DIR/usr/lib/sysusers.d/${PKG_NAME}.conf" ] || { echo "  FAIL: $SVC_USER not in deploy/sysusers.d/unheaded.conf" >&2; exit 1; }
 
-    # Postinst: create the account; systemd creates and owns the StateDirectory.
-    cat > "$PKG_DIR/DEBIAN/postinst" <<POSTINST
-#!/bin/sh
-set -e
-systemd-sysusers /usr/lib/sysusers.d/${PKG_NAME}.conf
-systemctl daemon-reload
-systemctl try-restart ${PKG_NAME}.service || true
-POSTINST
-    chmod 755 "$PKG_DIR/DEBIAN/postinst"
-
-    # Prerm
-    PKG_SVC="${PKG_NAME}"
-    cat > "$PKG_DIR/DEBIAN/prerm" <<PRERM
-#!/bin/sh
-set -e
-systemctl stop ${PKG_SVC} 2>/dev/null || true
-systemctl disable ${PKG_SVC} 2>/dev/null || true
-PRERM
-    chmod 755 "$PKG_DIR/DEBIAN/prerm"
+    # Maintainer scripts (scripts/lib/deb-maintscripts.sh): postinst creates
+    # the account (systemd creates and owns the StateDirectory); prerm stops
+    # and disables only on removal, never on upgrade.
+    deb_postinst "$PKG_NAME" >"$PKG_DIR/DEBIAN/postinst"
+    deb_prerm "$PKG_NAME" >"$PKG_DIR/DEBIAN/prerm"
+    chmod 755 "$PKG_DIR/DEBIAN/postinst" "$PKG_DIR/DEBIAN/prerm"
 
     # Build .deb
     dpkg-deb --root-owner-group --build "$PKG_DIR" 2>/dev/null

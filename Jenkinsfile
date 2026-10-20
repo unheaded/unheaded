@@ -279,24 +279,13 @@ EOF
               awk -v u="${SVC_USER}" '$1 == "u" && $2 == u' deploy/sysusers.d/unheaded.conf > ${PKG_DIR}/usr/lib/sysusers.d/${PKG_NAME}.conf
               test -s ${PKG_DIR}/usr/lib/sysusers.d/${PKG_NAME}.conf
 
-              # Post-install script: the service's own account; systemd makes its StateDirectory
-              cat > ${PKG_DIR}/DEBIAN/postinst <<POSTINST
-#!/bin/sh
-set -e
-systemd-sysusers /usr/lib/sysusers.d/${PKG_NAME}.conf
-systemctl daemon-reload
-systemctl try-restart ${PKG_NAME}.service || true
-POSTINST
-              chmod 755 ${PKG_DIR}/DEBIAN/postinst
-
-              # Pre-remove script
-              cat > ${PKG_DIR}/DEBIAN/prerm <<PRERM
-#!/bin/sh
-set -e
-systemctl stop ${PKG_NAME} 2>/dev/null || true
-systemctl disable ${PKG_NAME} 2>/dev/null || true
-PRERM
-              chmod 755 ${PKG_DIR}/DEBIAN/prerm
+              # Maintainer scripts, shared with scripts/build-all-debs.sh
+              # (scripts/lib/deb-maintscripts.sh): prerm stops and disables
+              # only on removal, never on upgrade.
+              . scripts/lib/deb-maintscripts.sh
+              deb_postinst ${PKG_NAME} > ${PKG_DIR}/DEBIAN/postinst
+              deb_prerm ${PKG_NAME} > ${PKG_DIR}/DEBIAN/prerm
+              chmod 755 ${PKG_DIR}/DEBIAN/postinst ${PKG_DIR}/DEBIAN/prerm
 
               dpkg-deb --build ${PKG_DIR}
               echo "  Built: ${PKG_NAME}_${VERSION}.deb"
