@@ -13,8 +13,11 @@ Requires=unheaded-wotan.service
 
 [Service]
 Type=simple
+# AKIRA_OPTS in akira.env carries host-specific flags, e.g.
+# AKIRA_OPTS=--config /etc/unheaded/akira.yaml (the targets this host runs);
+# unset, akira checks its built-in target list.
 EnvironmentFile=-/etc/unheaded/akira.env
-ExecStart=/usr/local/bin/akira --port 19100
+ExecStart=/usr/local/bin/akira --port 19100 $AKIRA_OPTS
 WorkingDirectory=/var/lib/unheaded/akira
 Restart=on-failure
 RestartSec=10s
