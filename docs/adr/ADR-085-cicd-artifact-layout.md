@@ -135,6 +135,17 @@ retired: each service has its own account (`deploy/sysusers.d`).
 - Signed with the Kingdom GPG key
 - Published to local APT repo at `/var/lib/unheaded/apt-repo/`
 
+**Progress (2026-10-20):** `scripts/build-all-debs.sh` builds one package per
+service with the repo's unit, the service's own sysusers.d line and
+maintainer scripts from `scripts/lib/deb-maintscripts.sh` (shared with the
+Jenkinsfile). Its prerm used to stop and disable on every call, upgrades
+included, so any `apt upgrade` left the service disabled for the next boot;
+it now acts only on removal (`scripts/test-deb-maintscripts.sh`, and a real
+dpkg install/upgrade/remove in ubuntu:24.04). The first upgrade from an
+already-installed package still runs that package's old prerm: enable the
+services once after it. Still open: signing, publishing to the repo, and the
+package for unheaded-daemon is named `unheaded-unheaded-daemon`.
+
 ### Phase 3 — CI pipeline (Jenkins or GHA)
 
 - On merge to `main`: `go build ./...`, `cargo build --release` (non-ascend +
