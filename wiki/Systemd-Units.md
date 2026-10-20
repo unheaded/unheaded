@@ -13,7 +13,7 @@ Unit files live in `deploy/systemd/`. West runs most services in `docker compose
 | `unheaded-well-backup.timer` | enabled | Nightly backup set, 03:30 |
 | `unheaded-well-drill.timer` | enabled | Restore drill of the newest set, Sundays 05:00 |
 | `unheaded-well-offsite.service` | static | Copies the newest set to east (run after a good backup) |
-| `unheaded-trace-collector.service` | disabled (start per session) | eBPF trace collector beside the compose stack, as `unheaded-trace-collector` with `CAP_BPF`, `CAP_PERFMON`, `CAP_NET_ADMIN` only; logs in the journal (`journalctl -u unheaded-trace-collector`). Installed 2026-10-18 |
+| `unheaded-trace-collector.service` | enabled (2026-10-20; before that started by hand, so nothing ran after a reboot) | eBPF trace collector beside the compose stack: XDP (packet-marker) and TC (flow-tracker) on `br-unhe-data`, 6 TCP kprobes (latency-probe), objects in `/usr/local/lib/unheaded/ebpf/`. Runs as `unheaded-trace-collector` with `CAP_BPF`, `CAP_PERFMON`, `CAP_NET_ADMIN` only; health on `:16671/health`; logs in the journal (`journalctl -u unheaded-trace-collector`). Installed 2026-10-18 |
 
 West is not up 24/7: timers catch up at boot. Backup paths and alerts: [[Well Backups|Well-Backups]].
 
@@ -25,7 +25,8 @@ West is not up 24/7: timers catch up at boot. Backup paths and alerts: [[Well Ba
 | `huginn.service` | Boot-enabled metrics agent, pushes to west's VictoriaMetrics (`192.168.13.2:8428`, the P2P link) |
 | `node-exporter.service` | node_exporter 1.12.1 as `node-exporter`, `:9100`; scraped by west's monitoring Prometheus over the overlay, so `NodeExporterDown` for `[fd00:dead:beef::2]:9100` also means the overlay is down. Installed 2026-10-20 |
 | `unheaded-kev-poller.service` | CISA KEV poller, `:19120`. Installed 2026-10-20 |
-| `unheaded-{wotan,timeguru,architect,captain,micromanager,akira,dashboard-backend,kanban-app,unheaded-daemon}.service` | `.deb` packages 1.0.1 (2026-10-20) with the repo units (own account each; binaries in `/opt/unheaded/bin`, root-owned). The older `10-isolation.conf` drop-ins remain and say the same. Akira reads `AKIRA_OPTS=--config /opt/unheaded/etc/akira.yaml` from `/etc/unheaded/akira.env` |
+| `unheaded-trace-collector.service` | Same unit, binary and eBPF objects as west, enabled 2026-10-20. Attaches to `lo` (`TRACE_IFACE=lo` in `/etc/unheaded/trace-collector.env`): east's services run on the host network, so their traffic is on loopback. Publishes to east's Wotan. The old `unheaded-ebpf` 1.0.0 package (23 objects in `/opt/unheaded/ebpf` that nothing loaded) was removed; a copy is in `/var/lib/unheaded/remediate/20261020T181913Z-ebpf-pkg/` |
+| `unheaded-{wotan,timeguru,architect,captain,micromanager,akira,dashboard-backend,kanban-app,unheaded-daemon}.service` | `.deb` packages 1.0.1 (2026-10-20) with the repo units (own account each; binaries in `/opt/unheaded/bin`, root-owned). The older `10-isolation.conf` drop-ins remain and say the same. Akira reads `AKIRA_OPTS=--config /opt/unheaded/etc/akira.yaml` from `/etc/unheaded/akira.env`. Wotan reads its allowlist from `/etc/unheaded/wotan.yaml` (`configs/wotan.yaml`; the package ships it as a conffile since 2026-10-20, before which it was missing and Wotan refused every service's publishes) |
 
 The offsite SFTP account is nologin, chrooted and key-only (`deploy/east/sshd-well-offsite.conf`).
 

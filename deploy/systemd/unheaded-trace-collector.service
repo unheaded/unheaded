@@ -9,7 +9,8 @@
 #   sudo install -d -m 0755 /usr/local/lib/unheaded/ebpf
 #   sudo install -m 0644 <packet-marker flow-tracker latency-probe> /usr/local/lib/unheaded/ebpf/
 #   sudo cp deploy/systemd/unheaded-trace-collector.service /etc/systemd/system/
-#   sudo systemctl daemon-reload && sudo systemctl start unheaded-trace-collector
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-trace-collector
+# East (services on the host network): TRACE_IFACE=lo in the env file.
 # The interface defaults to br-unhe-data (the compose data network); set
 # TRACE_IFACE in /etc/unheaded/trace-collector.env to change it.
 #
