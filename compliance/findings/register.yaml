@@ -132,21 +132,25 @@ findings:
   # --- step 7: application level ---------------------------------------------
   - id: FND-009
     title: >-
-      75 services in the compose files other than docker-compose.yml (per-host stacks, telemetry, load balancers,
-      sophia-eye, vllm, wireguard) are not least-privilege: no explicit user, no read_only/cap_drop/no-new-privileges;
-      three mount the Docker socket (promtail) and three are privileged (opnsense, ipfire, suricata)
+      22 services in the compose files other than docker-compose.yml are not least-privilege (was 75 on 2026-10-18):
+      the firewall VMs (opnsense, frr, ipfire, bird, suricata: privileged or root), shield and unheaded-daemon in
+      host-a (the D11 host-network decision), WireGuard twice (root by necessity, bounded), and 13 host-a services
+      whose images exist nowhere in the repo
     verify: docs/security/compose-hardening-baseline-alt.txt is empty and scripts/check-compose-hardening.sh passes
     severity: low
     class: container
     opened: 2026-10-18
-    exposure: none of these files is deployed on west or east (2026-10-18); the gate keeps new services from joining the list
+    exposure: none of these files is deployed on west or east (2026-10-20); the gate keeps new services from joining the list
     lockout: none
     step: 7
     plan: >-
-      Same recipe as docker-compose.yml (docs/battle-plans/SERVICE-ISOLATION-2026-10-18.md): pkg/uids number, read_only +
-      tmpfs, cap_drop ALL plus the minimum, no-new-privileges; promtail off the socket (file source on
-      /var/lib/docker/containers read-only, or drop it for Vector); the firewall VMs need a decision on whether they stay
-      containers at all
+      Done 2026-10-20 for 53 services (monitoring, telemetry, sophia-eye, loadbalancers, vllm, host-a/host-b known
+      services): own pkg/uids number, read_only + measured tmpfs, cap_drop ALL, no-new-privileges, volume-init chown;
+      promtail off the Docker socket everywhere (journal/var/log via the adm group); each stack that can run was run on
+      west. Left: WireGuard needs root (EPERM otherwise, measured), so it stays listed with cap_drop ALL + NET_ADMIN and
+      the four s6 init caps, read-only; the firewall VMs need a decision on whether they stay containers at all; host-a's
+      shield/unheaded-daemon wait on D11; the 13 imageless host-a services get uids only if D11 keeps the stack
+    decision: whether the firewall VMs stay containers, and D11 (host-a network mode; keep or retire the per-host stacks)
 
   - id: FND-010
     title: >-
