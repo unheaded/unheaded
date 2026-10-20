@@ -72,9 +72,3 @@ docker/telemetry/docker-compose.telemetry.yml:promtail
 docker/telemetry/docker-compose.telemetry.yml:victoriametrics
 docker/vllm-rocm/docker-compose.vllm.yml:vllm-deepseek
 docker/wireguard/docker-compose.wireguard.yml:wireguard
-monitoring/docker-compose.yml:alertmanager
-monitoring/docker-compose.yml:grafana
-monitoring/docker-compose.yml:loki
-monitoring/docker-compose.yml:node-exporter
-monitoring/docker-compose.yml:prometheus
-monitoring/docker-compose.yml:victoriametrics

@@ -59,6 +59,8 @@ const (
 	// config/clickhouse/schema/ to the running ClickHouse (a client only;
 	// owns no files).
 	ClickHouseSchema = 16708
+	// Alertmanager is monitoring/docker-compose.yml's (FND-001, FND-009).
+	Alertmanager = 16709
 )
 
 // Kingdom services tier (16720-16759). These are Unheaded's own Go binaries
@@ -189,6 +191,7 @@ var Registry = map[string]int{
 	"haproxy-ingress":   HAProxyIngress,
 	"clickhouse":        ClickHouse,
 	"clickhouse-schema": ClickHouseSchema,
+	"alertmanager":      Alertmanager,
 	"postgres":          Postgres,
 }
 

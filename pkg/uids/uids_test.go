@@ -107,10 +107,12 @@ var helmOnly = map[string]bool{
 	"unheaded-daemon": true,
 }
 
-// composeOnly lists services that exist only in docker-compose.yml (or as the
-// Dockerfile's default stage). TestComposeMatchesRegistry checks them instead.
+// composeOnly lists services that exist only in compose files (or as the
+// Dockerfile's default stage). TestComposeMatchesRegistry and
+// TestAltComposeMatchesRegistry check them instead.
 var composeOnly = map[string]bool{
 	"akira":             true,
+	"alertmanager":      true,
 	"all-in-one-dev":    true,
 	"clickhouse-schema": true,
 	"coredns":           true,

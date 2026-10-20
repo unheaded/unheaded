@@ -11,7 +11,9 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
+        # 172.20.0.0/16 overlapped kind and netbox-docker on west (2026-10-20);
+        # the main stack holds 172.28.0-2.0/24.
+        - subnet: 172.28.3.0/24
 
 volumes:
   prometheus_data:
@@ -21,10 +23,42 @@ volumes:
   alertmanager_data:
 
 services:
+  # One-shot: hands each named volume to its service's uid (pkg/uids). A
+  # fresh volume inherits the image's owner (nobody, 472, 10001), and a volume
+  # from before 2026-10-20 is owned by those; chown only when it differs.
+  volume-init:
+    image: alpine:3.24
+    user: "0:0"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - prometheus_data:/volumes/prometheus
+      - grafana_data:/volumes/grafana
+      - loki_data:/volumes/loki
+      - victoriametrics_data:/volumes/victoriametrics
+      - alertmanager_data:/volumes/alertmanager
+    command:
+      - sh
+      - -ec
+      - |
+        own() { [ "$$(stat -c %u:%g "$$2")" = "$$1" ] || chown -R "$$1" "$$2"; }
+        own 16700:16700 /volumes/prometheus
+        own 16701:16701 /volumes/grafana
+        own 16702:16702 /volumes/loki
+        own 16703:16703 /volumes/victoriametrics
+        own 16709:16709 /volumes/alertmanager
+
   prometheus:
     image: prom/prometheus:v3.15.0
     container_name: unheaded-prometheus
     restart: unless-stopped
+    user: "16700:16700"
+    read_only: true
+    cap_drop: [ALL]
     ports:
       - "9090:9090"
     volumes:
@@ -39,6 +73,9 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks: [monitoring]
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9090/-/healthy"]
       interval: 30s
@@ -56,6 +93,12 @@ services:
     image: grafana/grafana:10.4.0
     container_name: unheaded-grafana
     restart: unless-stopped
+    user: "16701:16701"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M
+      - /var/log/grafana:uid=16701,gid=16701,size=16M
+    cap_drop: [ALL]
     ports:
       - "3000:3000"
     volumes:
@@ -70,8 +113,12 @@ services:
       - GF_INSTALL_PLUGINS=grafana-piechart-panel
     networks: [monitoring]
     depends_on:
-      - prometheus
-      - loki
+      volume-init:
+        condition: service_completed_successfully
+      prometheus:
+        condition: service_started
+      loki:
+        condition: service_started
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3000/api/health"]
       interval: 30s
@@ -89,6 +136,11 @@ services:
     image: grafana/loki:3.0.0
     container_name: unheaded-loki
     restart: unless-stopped
+    user: "16702:16702"
+    read_only: true
+    tmpfs:
+      - /tmp:size=64M
+    cap_drop: [ALL]
     ports:
       - "3100:3100"
     volumes:
@@ -96,6 +148,9 @@ services:
       - loki_data:/var/lib/loki
     command: -config.file=/etc/loki/loki.yaml
     networks: [monitoring]
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:3100/ready"]
       interval: 30s
@@ -113,6 +168,9 @@ services:
     image: victoriametrics/victoria-metrics:v1.108.1
     container_name: unheaded-victoriametrics
     restart: unless-stopped
+    user: "16703:16703"
+    read_only: true
+    cap_drop: [ALL]
     ports:
       - "8428:8428"
     volumes:
@@ -123,8 +181,11 @@ services:
       - '--dedup.minScrapeInterval=15s'
       - '--httpListenAddr=:8428'
     networks: [monitoring]
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8428/-/healthy"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8428/-/healthy"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -140,6 +201,9 @@ services:
     image: prom/alertmanager:v0.34.1
     container_name: unheaded-alertmanager
     restart: unless-stopped
+    user: "16709:16709"
+    read_only: true
+    cap_drop: [ALL]
     ports:
       - "9093:9093"
     volumes:
@@ -153,6 +217,9 @@ services:
       - '--config.file=/etc/alertmanager/${ALERTMANAGER_CONFIG_FILE:-alertmanager.yml}'
       - '--storage.path=/alertmanager'
     networks: [monitoring]
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "http://localhost:9093/-/healthy"]
       interval: 30s
@@ -170,6 +237,9 @@ services:
     image: prom/node-exporter:v1.12.1
     container_name: unheaded-node-exporter
     restart: unless-stopped
+    user: "16705:16705"
+    read_only: true
+    cap_drop: [ALL]
     ports:
       - "9100:9100"
     command:
