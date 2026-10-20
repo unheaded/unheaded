@@ -256,7 +256,7 @@ findings:
     host: west
     opened: 2026-10-20
     exposure: none to outsiders; monitoring and remote_write point at the wrong host, so west's alerts would describe east
-    lockout: medium (re-addressing wg0 and BGP drops the overlay until both ends match; keep the P2P/SSH path open)
+    lockout: high  # re-addressing wg0 and BGP drops the overlay until both ends match; keep the P2P/SSH path open
     step: 7
     plan: >-
       Pick one side. Re-address both hosts to the repo (west ::1, east ::2: wg0 Address/AllowedIPs, FRR neighbors and
