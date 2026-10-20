@@ -34,8 +34,11 @@ findings:
       email receiver (Stevie 2026-09-30; PagerDuty or similar later); run the monitoring stack; Watchdog heartbeat
       cross-watched by west and east. Email receiver BUILT 2026-10-19: scripts/monitoring/render-alertmanager.sh renders
       it from /etc/unheaded/alertmanager.env (relay, from, to), password from a file outside the repo; critical repeats
-      hourly and silences its own warning; tested end to end against an SMTP sink (CI). What is left is the relay choice,
-      the env and password files, and starting the monitoring stack
+      hourly and silences its own warning; tested end to end against an SMTP sink (CI). 2026-10-20: Prometheus had no
+      alerting block, so no alert ever reached Alertmanager; fixed (d5e39b31) and the same test now proves a firing rule
+      arrives. The monitoring stack can now start on west (its subnet overlapped kind/netbox) and needs
+      GRAFANA_ADMIN_PASSWORD in monitoring/.env. What is left is the relay choice, the env and password files, and
+      starting the monitoring stack
     decision: SMTP relay for the email receiver (credentials from a file outside the repo)
 
   - source: "github-job:Static Analysis/Gates can actually fail"
