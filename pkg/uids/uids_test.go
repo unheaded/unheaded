@@ -113,6 +113,7 @@ var helmOnly = map[string]bool{
 var composeOnly = map[string]bool{
 	"akira":             true,
 	"alertmanager":      true,
+	"alert-mailer":      true,
 	"all-in-one-dev":    true,
 	"clickhouse-schema": true,
 	"embeddings":        true,

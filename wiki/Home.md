@@ -128,6 +128,8 @@ Full record: [[Timeline]] (`references/timeline.md`).
 - [[Containers]] — LXD, containerd, NixOS, Docker
 - [[IaC Backends|IaC-Backends]] — Ansible, Terraform, Puppet, Kubernetes, Chef, Salt
 - [[Observability Backends|Observability-Backends]] — VictoriaMetrics + Grafana + ClickHouse/Vector live; ELK, Jaeger, Nagios adapters
+- [[Alerting]] — only SLO error-budget burn notifies; urgency page/ticket/none; capped mailer, dry-run first
+- [[Overlay Network|Overlay-Network]] — WireGuard + BGP + BFD between west and east
 - [[eBPF Programs|eBPF-Programs]] — Rust/Aya + cilium/ebpf, L2–L7
 - [[Fae Chamber Contracts|Fae-Chamber-Contracts]]
 - [[Service Breakout Strategy|Service-Breakout-Strategy]]

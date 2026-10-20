@@ -20,8 +20,8 @@ Counted from the Full Index by the first word of each status (2026-10-15).
 
 | Status | Count |
 |--------|-------|
-| Accepted | 47 |
-| Proposed | 15 |
+| Accepted | 48 |
+| Proposed | 14 |
 | Planned | 14 |
 | In Progress | 5 |
 | Deferred | 5 |
@@ -154,6 +154,6 @@ Counted from the Full Index by the first word of each status (2026-10-15).
 | [097](ADR-097-compliance-crosswalk.md) | Compliance crosswalk: common controls in `compliance/catalog/controls.yaml` map many-to-many onto frameworks with publisher denominators (800-53 1014, FedRAMP L/M/H, CSF 2.0, 800-171, SSDF, SOC 2, ISO 27001); evidence that can fail (CI jobs, gates, signatures, host sysctl/sshd/probes, signed attestations); dashboard `/compliance` + CSV export | **Proposed** | 2026-09-30 |
 | [098](ADR-098-findings-register-and-baseline-modes.md) | Rolling findings register (count generated from evidence, triage in `compliance/findings/register.yaml`, closes only when evidence passes) + host baselines in **audit** (default, SELinux permissive) or **enforcing** mode; enforcing gated on LICH-012 against the agent + 7-day clean soak + Stevie sign-off; does not amend ADR-043 | **Proposed** | 2026-09-30 |
 | [099](ADR-099-remediation-as-code-and-control-profiles.md) | Remediation as code: each fix once as data from a closed action set; control profiles (`none`/`lab`/`cis-l1-server`/`all`) switch remediation, never detection; native executor, Ansible and runbook renderers; apply journal as evidence. Amended same day: state lives in The Well, YAML is seed and fallback, hosts act only on sealed snapshots | **Proposed** | 2026-10-01 |
-| [100](ADR-100-sre-alongside-compliance.md) | SRE alongside compliance: SLOs as data and as crosswalk evidence, multi-window burn-rate alerts, every alert with a runbook and a firing test, Watchdog, blameless postmortems; first instance a per-service log-volume deviation SLO (spam and silence). Idea recorded, not started | **Proposed** | 2026-10-01 |
+| [100](ADR-100-sre-alongside-compliance.md) | SRE alongside compliance: SLOs as data and as crosswalk evidence, multi-window burn-rate alerts, every alert with a runbook and a firing test, Watchdog, blameless postmortems; first instance a per-service log-volume deviation SLO (spam and silence). Built 2026-10-20: only SLO burn notifies (urgency page/ticket/none), capped alert-mailer in dry-run; log-volume and Watchdog not yet | **Accepted** | 2026-10-01 |
 | [101](ADR-101-well-migration-ledger.md) | The Well's migrations: `db/migrations/MANIFEST` orders and routes every file, a `well_schema_migrations` ledger per database records each with its sha256, `db/init.sh` and `cmd/well-migrate` (check/status/apply/baseline) share both; drift refuses, lock and statement timeouts per migration | **Proposed** (in use on the live Well since 2026-10-15) | 2026-10-14 |
 | [102](ADR-102-container-image-versions.md) | Container images use exact version tags (no `latest`, no floating minor), pinned to what runs today; upgrades are their own commits; digests deferred until a bot can bump them; reassess then | **Accepted** | 2026-10-15 |

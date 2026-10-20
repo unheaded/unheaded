@@ -5,7 +5,7 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-100: SRE alongside compliance (SLOs, error budgets, actionable alerts), starting with log-volume deviation
 
-**Status:** Proposed. The idea is recorded here; no work has started (Stevie 2026-10-01: "ADR that idea, don't work it now").
+**Status:** Accepted 2026-10-20; Phases 1 (partly) and 2 built, see Implementation. Proposed 2026-10-01 (Stevie: "ADR that idea, don't work it now").
 **Date:** 2026-10-01
 **Related:**
 
@@ -111,6 +111,42 @@ Built side by side, each SRE artifact is also evidence. That is the overlapping-
 1. SLO targets for the lab: start at 99% over 28 days and tighten from data, or something else?
 2. Error-budget policy: does an exhausted budget freeze feature work on that service, or only raise it on the Kanban board?
 3. Postmortem threshold: every alert that reached email, or only incidents with impact (data loss, a service down more than 1 h, a silent failure longer than a day)?
+
+## Decisions (Stevie, 2026-10-20)
+
+- "Think about Google's SRE mentality with alerting and monitoring: deviation in SLO and SLA should be the only alerts, no noise. We should have a way to fine tune and control all this and attach labels regarding urgency."
+- "I'm not going to read 500 alerts, I might read 5 if something is worth checking out."
+- "I also don't want to blow up my inbox with self-created spam or false positives, or get on Gmail's naughty list and have my domain blacklisted."
+
+These answer the questions above:
+
+1. **Targets:** 99.5% over 28 days for what Stevie uses directly (Wotan, the dashboard, The Well); 99% for the rest. Tighten from data.
+2. **Budget policy:** not decided. Exhausted budgets show on Alertmanager/Grafana; nothing is frozen.
+3. **Postmortems:** not decided.
+
+## Implementation (2026-10-20)
+
+| Piece | Where |
+|---|---|
+| Policy, the one file to tune: SLOs, mailer cap/digest/mode, promotions | `observability/alerting/policy.yaml` |
+| Generator and checks (stale files, hand rules not `urgency: none`, policy refusals) | `cmd/alert-policy`, CI step in security.yml |
+| SLO rules: SLIs, 7 error-ratio windows, budget remaining, 4 burn-rate tiers per SLO | `monitoring/prometheus/rules/slo.yml` (generated), `tests/slo_test.yml` |
+| Routing by `urgency` (page / ticket / none) | `monitoring/alertmanager/alertmanager.yml` (generated, no secrets) |
+| The only sender: daily cap, ticket digest, two mails per incident, dry-run, outbox | `cmd/alert-mailer`, `docker/alert-mailer/Dockerfile`, compose service `alert-mailer` |
+| Planned-work silences | `scripts/monitoring/maintenance.sh` |
+| Runbook for every notifying alert | `runbooks/observe/slo-error-budget-burn.yaml` |
+| End-to-end proof | `scripts/monitoring/test-alert-path.sh` (meta-gate provoked) |
+| Operator page | `wiki/Alerting.md` |
+
+Changes from the text above:
+
+- **SLIs are time-based** ("good this minute"), not request ratios. Lab traffic is too thin for request ratios, and a dead service sends no requests, so its ratio would look fine.
+- **Every hand-written rule is `urgency: none`.** The rules still evaluate and show in Alertmanager and Grafana; they never notify. A cause alert can be promoted in the policy, with a reason.
+- **Alertmanager sends no mail itself.** alert-mailer does, so the cap and the digest hold no matter how Alertmanager groups.
+- **No Watchdog yet.** A dead-man's switch needs a receiver outside this host (a heartbeat service). Mailing one daily would be exactly the noise this ADR removes.
+- **Log-volume deviation (Phase 3) is not built.** `log-shipping` covers silence (nothing delivered); spam detection is still to come.
+
+Live on west in `mode: dry-run` from 2026-10-20. All 7 SLIs good, nothing firing. Next: a week of outbox review, then the Gmail app password and `mode: send` (wiki/Alerting.md).
 
 ## Consequences
 

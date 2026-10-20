@@ -303,5 +303,3 @@ db/migrations/init.sh
 *.tfstate.backup
 .terragrunt-cache/
 
-# Rendered Alertmanager config (scripts/monitoring/render-alertmanager.sh)
-monitoring/alertmanager/rendered/

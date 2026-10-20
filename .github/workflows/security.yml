@@ -522,14 +522,29 @@ jobs:
   prometheus-rules:
     name: Prometheus alert rules
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Fetch doomgeneric (go.mod replace target)
+        run: ./scripts/ci-fetch-doomgeneric.sh
+
+      # ADR-100: slo.yml and alertmanager.yml are generated from
+      # observability/alerting/policy.yaml, and every hand-written rule is
+      # urgency none (only SLOs notify).
+      - name: Alert policy generated files are current
+        run: go run ./cmd/alert-policy --check
 
       - name: Rules parse and rule tests pass
         run: ./scripts/check-prometheus-rules.sh
 
-      # FND-001: the rendered email config delivers (SMTP sink, throwaway
-      # containers) and the stock config still loads.
-      - name: Alertmanager email path
-        run: ./scripts/monitoring/test-alertmanager-email.sh
+      # ADR-100 / FND-001: Prometheus -> Alertmanager -> alert-mailer -> SMTP
+      # sink on throwaway containers; urgency none mails no one; the cap holds.
+      - name: Alert path end to end
+        run: ./scripts/monitoring/test-alert-path.sh

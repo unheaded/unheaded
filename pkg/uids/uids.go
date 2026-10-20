@@ -61,6 +61,10 @@ const (
 	ClickHouseSchema = 16708
 	// Alertmanager is monitoring/docker-compose.yml's (FND-001, FND-009).
 	Alertmanager = 16709
+	// AlertMailer is monitoring/docker-compose.yml's alert-mailer (ADR-100):
+	// the only thing that sends alert mail, so the only holder of the SMTP
+	// login.
+	AlertMailer = 16710
 )
 
 // Kingdom services tier (16720-16759). These are Unheaded's own Go binaries
@@ -222,6 +226,7 @@ var Registry = map[string]int{
 	"clickhouse":        ClickHouse,
 	"clickhouse-schema": ClickHouseSchema,
 	"alertmanager":      Alertmanager,
+	"alert-mailer":      AlertMailer,
 	"postgres":          Postgres,
 }
 

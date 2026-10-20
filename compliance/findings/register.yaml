@@ -22,7 +22,7 @@ findings:
   # --- step 1: no host risk ---------------------------------------------
   - id: FND-001
     title: Alerts reach nobody. Alertmanager routes everything to a receiver named null, and the monitoring stack is not running on west.
-    verify: a test alert with severity=critical is delivered to Stevie; later a host-probe (alert-route) replaces this entry
+    verify: a page-urgency SLO alert is delivered to Stevie by alert-mailer in mode send; later a host-probe (alert-route) replaces this entry
     host: west
     severity: high
     class: app
@@ -39,8 +39,12 @@ findings:
       arrives. The monitoring stack can now start on west (its subnet overlapped kind/netbox) and needs
       GRAFANA_ADMIN_PASSWORD in monitoring/.env. 2026-10-20 at Stevie's word: monitoring/.env written, the stack runs
       on west (5/5 healthy), every deployed host target up, alerts reach Alertmanager (only true ones firing). What is
-      left is the SMTP relay choice and its env and password files (the receiver is still null)
-    decision: SMTP relay for the email receiver (credentials from a file outside the repo)
+      left is the SMTP relay choice and its env and password files (the receiver is still null). 2026-10-20 (Stevie:
+      "deviation in slo and sla should be the only alerts - no noise", "I might read 5"): ADR-100 built. Only SLO
+      burn-rate alerts notify (observability/alerting/policy.yaml, 7 SLOs, urgency page/ticket/none); alert-mailer is
+      the only sender, capped at 6 a day, tickets in one 09:00 digest, running on west in dry-run. Left: a week of
+      dry-run outbox review, then the Gmail app password (wiki/Alerting.md) and mode send
+    decision: SMTP relay (Stevie leaning to the bellis.tech Google Workspace account) and when to leave dry-run
 
   - source: "github-job:Static Analysis/Gates can actually fail"
     severity: medium

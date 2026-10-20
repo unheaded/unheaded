@@ -1,0 +1,59 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: slo-error-budget-burn
+  description: An SLO is spending its error budget faster than it can afford (ErrorBudgetBurn)
+  owner: architect
+  estimated_duration: 15m
+  risk: low
+  requires_sudo: false
+
+env:
+  PROJECT_ROOT: "~/tmp/unheaded"
+
+notes: |
+  ADR-100. The only alert that notifies anyone. Labels say which SLO
+  (slo), how urgent (urgency: page = mailed now, ticket = in the 09:00
+  digest) and which burn-rate tier (fast 1h, medium 6h, slow 1d, steady 3d).
+  The mail's "Check:" line is the SLO's own first steps, from
+  observability/alerting/policy.yaml.
+
+  The burn rate is how many times faster than sustainable the budget is
+  going: 1x spends exactly the budget over 28 days. "N% of it left" is
+  the remaining budget over the window.
+
+  If this was planned work (a reboot, a stack restart): silence first next
+  time, scripts/monitoring/maintenance.sh 30m "why". If it fired and
+  nothing was wrong, that is a false positive: fix the SLI or the objective
+  in the policy, do not just silence it.
+
+steps:
+  - name: what-is-burning
+    action: shell
+    command: |
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=ALERTS{alertname="ErrorBudgetBurn",alertstate="firing"}' |
+        python3 -c 'import json,sys; [print(r["metric"]["slo"], r["metric"]["tier"], r["metric"]["urgency"]) for r in json.load(sys.stdin)["data"]["result"]]'
+
+  - name: the-sli-now
+    action: shell
+    command: |
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=slo:good' |
+        python3 -c 'import json,sys; [print(r["metric"]["slo"], "good" if float(r["value"][1]) >= 1 else "BAD", r["value"][1]) for r in json.load(sys.stdin)["data"]["result"]]'
+
+  - name: budget-left
+    action: shell
+    command: |
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=slo:error_budget_remaining' |
+        python3 -c 'import json,sys; [print(r["metric"]["slo"], "%.0f%%" % (100*float(r["value"][1]))) for r in json.load(sys.stdin)["data"]["result"]]'
+
+  - name: what-the-mailer-did
+    action: shell
+    command: |
+      curl -s http://127.0.0.1:19130/v1/status; echo
+      curl -s http://127.0.0.1:19130/v1/outbox | python3 -c 'import json,sys; [print(e["time"], e["outcome"], e["subject"]) for e in json.load(sys.stdin)[-10:]]'
+
+verification:
+  - name: no-burn
+    command: |
+      curl -s 'http://127.0.0.1:9090/api/v1/query' --data-urlencode 'query=count(ALERTS{alertname="ErrorBudgetBurn",alertstate="firing"}) or vector(0)' |
+        python3 -c 'import json,sys; v=json.load(sys.stdin)["data"]["result"][0]["value"][1]; print("firing:", v); sys.exit(v != "0")'
