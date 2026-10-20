@@ -2,6 +2,10 @@
 package enkrateia
 
 import (
+	"go/parser"
+	"go/token"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -50,8 +54,39 @@ func TestNoFileSystemMutationsOnDrift(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("expected alert")
 	}
-	// No assertion needed — the test passes if no syscall was made.
-	// The package source contains zero os.Write/os.Create/syscall.Unlink references.
+}
+
+// TestImportsCannotTouchTheFilesystem makes HARD CONDITION #1 a check that
+// can fail (LICH-012 L12c): TestNoFileSystemMutationsOnDrift above only
+// exercises the path. The package may import nothing that reaches the
+// filesystem, a process or the network; a new import has to be argued onto
+// this list.
+func TestImportsCannotTouchTheFilesystem(t *testing.T) {
+	allowed := map[string]bool{"sync": true, "time": true, "errors": true, "fmt": true, "context": true}
+	files, err := filepath.Glob("*.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	checked := 0
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		parsed, err := parser.ParseFile(token.NewFileSet(), f, nil, parser.ImportsOnly)
+		if err != nil {
+			t.Fatal(err)
+		}
+		checked++
+		for _, imp := range parsed.Imports {
+			path := strings.Trim(imp.Path.Value, `"`)
+			if !allowed[path] {
+				t.Errorf("%s imports %q: enkrateia is alerts-only and may not reach the filesystem (ADR-043 #1)", f, path)
+			}
+		}
+	}
+	if checked == 0 {
+		t.Fatal("no package sources found; refusing to pass vacuously")
+	}
 }
 
 func TestBufferOverflowDropsGracefully(t *testing.T) {

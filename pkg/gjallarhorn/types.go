@@ -42,6 +42,8 @@ var (
 	ErrShortPacket = errors.New("gjallarhorn: short packet")
 	ErrBadMagic    = errors.New("gjallarhorn: magic mismatch (not GJLR)")
 	ErrBadKind     = errors.New("gjallarhorn: unknown trigger kind")
+	ErrLongPacket  = errors.New("gjallarhorn: packet longer than 20 bytes")
+	ErrReservedSet = errors.New("gjallarhorn: reserved bytes 17-19 are not zero")
 )
 
 // Marshal encodes a Packet into 20 bytes (the Monad register payload).
@@ -55,10 +57,17 @@ func (p *Packet) Marshal() []byte {
 	return buf
 }
 
-// Unmarshal decodes a 20-byte buffer into a Packet.
+// Unmarshal decodes a 20-byte buffer into a Packet. It accepts only the one
+// encoding Marshal produces: exactly 20 bytes, reserved bytes zero (LICH-012
+// L12e). Triggers are unauthenticated by design (ADR-043): what one may cause
+// is bounded by the Mjölnir manifest's gungnir seal, which the consumer
+// verifies, never by anything in this packet.
 func Unmarshal(buf []byte) (*Packet, error) {
 	if len(buf) < PacketSize {
 		return nil, ErrShortPacket
+	}
+	if len(buf) > PacketSize {
+		return nil, ErrLongPacket
 	}
 	if buf[0] != 'G' || buf[1] != 'J' || buf[2] != 'L' || buf[3] != 'R' {
 		return nil, ErrBadMagic
@@ -66,6 +75,9 @@ func Unmarshal(buf []byte) (*Packet, error) {
 	kind := TriggerKind(buf[4])
 	if kind != BootstrapBroadcast && kind != ReverifyUnicast {
 		return nil, ErrBadKind
+	}
+	if buf[17]|buf[18]|buf[19] != 0 {
+		return nil, ErrReservedSet
 	}
 	return &Packet{
 		Magic:       Magic,

@@ -62,3 +62,41 @@ func TestPacketSize20Bytes(t *testing.T) {
 		t.Fatalf("PacketSize must be 20 bytes (Monad register), got %d", PacketSize)
 	}
 }
+
+// LICH-012 L12e: a trigger has exactly one encoding. A parser that accepts
+// trailing bytes or set reserved bits lets two different datagrams mean the
+// same trigger (and carry data past every check), so it must refuse both.
+func TestUnmarshalRejectsTrailingBytes(t *testing.T) {
+	buf := append((&Packet{Kind: ReverifyUnicast, ClusterID: 7}).Marshal(), 0xAA)
+	if _, err := Unmarshal(buf); err != ErrLongPacket {
+		t.Fatalf("21-byte datagram: err=%v, want ErrLongPacket", err)
+	}
+}
+
+func TestUnmarshalRejectsReservedBits(t *testing.T) {
+	for i := 17; i < PacketSize; i++ {
+		buf := (&Packet{Kind: BootstrapBroadcast, ClusterID: 1}).Marshal()
+		buf[i] = 0x01
+		if _, err := Unmarshal(buf); err != ErrReservedSet {
+			t.Fatalf("reserved byte %d set: err=%v, want ErrReservedSet", i, err)
+		}
+	}
+}
+
+// FuzzUnmarshal: any datagram Unmarshal accepts re-marshals to exactly the
+// same bytes.
+func FuzzUnmarshal(f *testing.F) {
+	f.Add((&Packet{Kind: BootstrapBroadcast, ClusterID: 42, ManifestPtr: 0xCAFEBABEDEADBEEF}).Marshal())
+	f.Add((&Packet{Kind: ReverifyUnicast}).Marshal())
+	f.Add(append((&Packet{Kind: ReverifyUnicast}).Marshal(), 0))
+	f.Add([]byte("GJLR"))
+	f.Fuzz(func(t *testing.T, buf []byte) {
+		p, err := Unmarshal(buf)
+		if err != nil {
+			return
+		}
+		if got := p.Marshal(); !bytes.Equal(got, buf) {
+			t.Fatalf("accepted %x, which re-marshals as %x", buf, got)
+		}
+	})
+}
