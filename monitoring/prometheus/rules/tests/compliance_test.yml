@@ -3,12 +3,34 @@ rule_files:
   - ../compliance.yml
 evaluation_interval: 1m
 tests:
+  # Fresh Prometheus: every open finding is there from the first sample and
+  # there is no hour-old register to compare with. Nothing is "new".
+  - interval: 1m
+    input_series:
+      - series: 'unheaded_compliance_finding{key="a",host="west",severity="high"}'
+        values: '1x120'
+      - series: 'unheaded_compliance_finding{key="b",host="west",severity="low"}'
+        values: '1x120'
+    alert_rule_test:
+      - eval_time: 10m
+        alertname: ComplianceNewFinding
+        exp_alerts: []
+      - eval_time: 10m
+        alertname: ComplianceNewSevereFinding
+        exp_alerts: []
+      - eval_time: 90m
+        alertname: ComplianceNewFinding
+        exp_alerts: []
+
   - interval: 1m
     input_series:
       - series: 'unheaded_compliance_report_ok'
         values: '1x10 0x10'
       - series: 'unheaded_compliance_finding{key="host-sshd:east:x",host="east",severity="high"}'
         values: '_x70 1x100'
+      # The register is never empty: an old finding there all along.
+      - series: 'unheaded_compliance_finding{key="host-probe:west:old",host="west",severity="low"}'
+        values: '1x170'
       - series: 'unheaded_compliance_acceptances_expired'
         values: '0x5 1x5'
     alert_rule_test:

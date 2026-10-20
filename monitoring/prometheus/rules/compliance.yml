@@ -47,9 +47,12 @@ groups:
           summary: "No new compliance evidence for over 6 hours"
           description: "Newest evidence record is {{ $value | humanizeDuration }} old; run cmd/compliance-evidence"
 
-      # A finding that was not there an hour ago: something regressed.
+      # A finding that was not there an hour ago: something regressed. Only
+      # when there is an hour-old register to compare with: on a fresh
+      # Prometheus (or after an evidence gap, which ComplianceEvidenceSilent
+      # covers) every open finding looked new, ~140 alerts at once.
       - alert: ComplianceNewFinding
-        expr: unheaded_compliance_finding unless unheaded_compliance_finding offset 1h
+        expr: (unheaded_compliance_finding unless unheaded_compliance_finding offset 1h) and on() (count(unheaded_compliance_finding offset 1h) > 0)
         labels:
           severity: warning
         annotations:
@@ -57,7 +60,7 @@ groups:
           description: "{{ $labels.key }} on {{ $labels.host }} ({{ $labels.severity }}) started failing within the last hour"
 
       - alert: ComplianceNewSevereFinding
-        expr: (unheaded_compliance_finding{severity=~"critical|high"} unless unheaded_compliance_finding offset 1h)
+        expr: (unheaded_compliance_finding{severity=~"critical|high"} unless unheaded_compliance_finding offset 1h) and on() (count(unheaded_compliance_finding offset 1h) > 0)
         labels:
           severity: critical
         annotations:
