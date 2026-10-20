@@ -88,6 +88,10 @@ volumes:
   victoria-data:
     labels:
       kingdom.component: "metrics"
+  # VictoriaMetrics' admin key (made by volume-init), outside its data volume.
+  victoria-auth:
+    labels:
+      kingdom.component: "metrics"
   traefik-certs:
     labels:
       kingdom.component: "gateway"
@@ -223,8 +227,19 @@ services:
         own 16703:16703 /volumes/victoria
         own 16707:16707 /volumes/clickhouse
         own 16706:16706 /volumes/vector
+        # VictoriaMetrics' admin key, made once: delete_series, snapshots,
+        # force merge, cache reset, reload, pprof and flags need it (8428 is
+        # published, and those endpoints had no auth). root:16703, 0440, so
+        # only victoria reads it and this one-shot can always recreate it.
+        # Operator use: docker exec unheaded-victoria cat /victoria-auth/admin.key
+        k=/volumes/victoria-auth
+        [ -s "$$k/admin.key" ] || (umask 077; od -An -tx1 -N32 /dev/urandom | tr -d ' \n' >"$$k/admin.key")
+        chown 0:16703 "$$k" "$$k/admin.key"
+        chmod 0750 "$$k"
+        chmod 0440 "$$k/admin.key"
     volumes:
       - victoria-data:/volumes/victoria
+      - victoria-auth:/volumes/victoria-auth
       - clickhouse-data:/volumes/clickhouse
       - vector-data:/volumes/vector
 
@@ -252,12 +267,24 @@ services:
       - "-httpListenAddr=:8428"
       - "-selfScrapeInterval=15s"
       - "-promscrape.config=/etc/victoria/scrape.yml"
+      # Admin endpoints need the key volume-init made (writes, queries and
+      # /metrics stay open: huginn and the scrapers use them).
+      - "-deleteAuthKey=file:///victoria-auth/admin.key"
+      - "-snapshotAuthKey=file:///victoria-auth/admin.key"
+      - "-forceMergeAuthKey=file:///victoria-auth/admin.key"
+      - "-forceFlushAuthKey=file:///victoria-auth/admin.key"
+      - "-search.resetCacheAuthKey=file:///victoria-auth/admin.key"
+      - "-reloadAuthKey=file:///victoria-auth/admin.key"
+      - "-pprofAuthKey=file:///victoria-auth/admin.key"
+      - "-configAuthKey=file:///victoria-auth/admin.key"
+      - "-flagsAuthKey=file:///victoria-auth/admin.key"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:
       - "8428:8428"  # Prometheus-compatible API
     volumes:
       - victoria-data:/victoria-data
+      - victoria-auth:/victoria-auth:ro
       - ./config/victoria/scrape.yml:/etc/victoria/scrape.yml:ro
     networks:
       - observe
