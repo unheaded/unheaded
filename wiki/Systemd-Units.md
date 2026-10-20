@@ -7,7 +7,9 @@ Unit files live in `deploy/systemd/`. West runs most services in `docker compose
 | Unit | State | What |
 |------|-------|------|
 | `huginn.service` | enabled | Host metrics agent as `unheaded-huginn`; `PGPASSWORD` in `/etc/huginn.env` |
-| `node-exporter.service` | enabled | Prometheus node_exporter as `node-exporter` (`:9100`) |
+| `node-exporter.service` | enabled | Prometheus node_exporter 1.12.1 (release checksum verified) as `node-exporter` (`:9100`) |
+| `unheaded-kev-poller.service` | enabled | CISA KEV poller (ADR-055) as `unheaded-kev-poller`, `:19120`; installed 2026-10-20 |
+| `unheaded-compliance-evidence.timer` (user, govan) | enabled | Every 2 h: `go run ./cmd/compliance-evidence` into `var/compliance/evidence.json` (dashboard-backend reads it; `ComplianceEvidenceSilent` after 6 h). Linger on for govan. Installed 2026-10-20 |
 | `unheaded-well-backup.timer` | enabled | Nightly backup set, 03:30 |
 | `unheaded-well-drill.timer` | enabled | Restore drill of the newest set, Sundays 05:00 |
 | `unheaded-well-offsite.service` | static | Copies the newest set to east (run after a good backup) |
@@ -20,8 +22,10 @@ West is not up 24/7: timers catch up at boot. Backup paths and alerts: [[Well Ba
 | Unit | What |
 |------|------|
 | `unheaded-well-offsite-check.timer` | Daily 06:00: verifies and prunes offsite sets (keeps newest 14) |
-| `huginn.service` | Boot-enabled metrics agent, pushes to west's VictoriaMetrics |
-| `unheaded-{wotan,timeguru,architect,captain,micromanager,akira,dashboard-backend,kanban-app,unheaded-daemon}.service` | From the `.deb` packages (binaries in `/opt/unheaded/bin`, root-owned); each runs as its own account through `/etc/systemd/system/<unit>.service.d/10-isolation.conf` until the packages are rebuilt with the repo units |
+| `huginn.service` | Boot-enabled metrics agent, pushes to west's VictoriaMetrics (`192.168.13.2:8428`, the P2P link) |
+| `node-exporter.service` | node_exporter 1.12.1 as `node-exporter`, `:9100`; scraped by west's monitoring Prometheus over the overlay, so `NodeExporterDown` for `[fd00:dead:beef::2]:9100` also means the overlay is down. Installed 2026-10-20 |
+| `unheaded-kev-poller.service` | CISA KEV poller, `:19120`. Installed 2026-10-20 |
+| `unheaded-{wotan,timeguru,architect,captain,micromanager,akira,dashboard-backend,kanban-app,unheaded-daemon}.service` | `.deb` packages 1.0.1 (2026-10-20) with the repo units (own account each; binaries in `/opt/unheaded/bin`, root-owned). The older `10-isolation.conf` drop-ins remain and say the same. Akira reads `AKIRA_OPTS=--config /opt/unheaded/etc/akira.yaml` from `/etc/unheaded/akira.env` |
 
 The offsite SFTP account is nologin, chrooted and key-only (`deploy/east/sshd-well-offsite.conf`).
 
@@ -31,7 +35,7 @@ The offsite SFTP account is nologin, chrooted and key-only (`deploy/east/sshd-we
 |------|-------------|
 | `unheaded-wotan.service` | Message bus (start first; others depend on it) |
 | `unheaded-akira.service` | Health monitor + service sweep |
-| `unheaded-kev-poller.service` | CISA KEV feed poller (ADR-055), `:19120`; meant to be enabled (always on); not installed yet |
+| `unheaded-kev-poller.service` | CISA KEV feed poller (ADR-055), `:19120`; always on, installed on west and east 2026-10-20 |
 | `unheaded-dashboard.service` | Dashboard backend, `:20000` |
 | `unheaded-kanban.service` | Task board |
 | `unheaded-timeguru` / `-architect` / `-captain` / `-micromanager.service` | Court services |

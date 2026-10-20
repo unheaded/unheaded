@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Collect compliance evidence (cmd/compliance-evidence) into
+# var/compliance/evidence.json, which dashboard-backend reads; its
+# ComplianceEvidenceSilent alert fires after 6 h without a new record, and
+# nothing ran the collector on a schedule.
+# A USER unit, like unheaded-git-mirror: the collector reads the operator's
+# repository and uses the operator's sudo -n and ssh to east for the host
+# probes, the same as a manual run (~20 s).
+#
+# Install (as the operator, on west):
+#   mkdir -p ~/.config/systemd/user
+#   cp deploy/systemd/user/unheaded-compliance-evidence.{service,timer} ~/.config/systemd/user/
+#   systemctl --user daemon-reload && systemctl --user enable --now unheaded-compliance-evidence.timer
+#   sudo loginctl enable-linger "$USER"     # keep running while logged out
+
+[Unit]
+Description=Unheaded: collect compliance evidence (ADR-097)
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/tmp/unheaded
+Environment=PATH=/usr/local/go/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/local/go/bin/go run ./cmd/compliance-evidence
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=15min

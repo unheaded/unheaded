@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Every 2 h, well inside ComplianceEvidenceSilent's 6 h.
+[Unit]
+Description=Unheaded: collect compliance evidence every 2 hours
+
+[Timer]
+OnBootSec=10min
+OnUnitActiveSec=2h
+RandomizedDelaySec=5min
+Persistent=true
+
+[Install]
+WantedBy=timers.target
