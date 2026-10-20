@@ -3,13 +3,6 @@
 # none deployed on west or east as of 2026-10-18) that are not yet read_only,
 # cap_drop ALL, no-new-privileges, own non-root non-1000 user. path:service.
 # May only SHRINK (scripts/check-compose-hardening.sh). Register: FND-009.
-deploy/sophia-eye/docker-compose.yml:embeddings
-deploy/sophia-eye/docker-compose.yml:open-webui
-deploy/sophia-eye/docker-compose.yml:prometheus
-deploy/sophia-eye/docker-compose.yml:qdrant
-deploy/sophia-eye/docker-compose.yml:qwen-coder
-deploy/sophia-eye/docker-compose.yml:sophia-gateway
-deploy/sophia-eye/docker-compose.yml:vllm
 docker/docker-compose.loadbalancers.yml:haproxy-edge
 docker/docker-compose.loadbalancers.yml:haproxy-internal
 docker/docker-compose.loadbalancers.yml:nginx-dashboard

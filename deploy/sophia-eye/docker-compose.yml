@@ -2,17 +2,63 @@ version: '3.9'
 name: sophia-eye
 
 services:
+  # One-shot: hands each named volume, and Qdrant's /fast/qdrant, to its
+  # service's uid (pkg/uids); chown only when the owner differs.
+  volume-init:
+    image: alpine:3.24
+    user: "0:0"
+    network_mode: none
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH]
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - vllm-cache:/volumes/vllm-cache
+      - qwen-cache:/volumes/qwen-cache
+      - /fast/qdrant:/volumes/qdrant-storage
+      - qdrant-snapshots:/volumes/qdrant-snapshots
+      - webui-data:/volumes/webui-data
+      - webui-uploads:/volumes/webui-uploads
+      - prometheus-data:/volumes/prometheus
+    command:
+      - sh
+      - -ec
+      - |
+        own() { [ "$$(stat -c %u:%g "$$2")" = "$$1" ] || chown -R "$$1" "$$2"; }
+        own 16781:16781 /volumes/vllm-cache
+        own 16786:16786 /volumes/qwen-cache
+        own 16787:16787 /volumes/qdrant-storage
+        own 16787:16787 /volumes/qdrant-snapshots
+        own 16789:16789 /volumes/webui-data
+        own 16789:16789 /volumes/webui-uploads
+        own 16700:16700 /volumes/prometheus
+
   vllm:
     image: vllm/vllm-openai:latest-rocm
     container_name: sophia-vllm-deepseek
     hostname: vllm
     restart: unless-stopped
+    user: "16781:16781"
+    group_add:
+      # host render and video gids (pkg/uids HostGroupRender/Video): /dev/kfd
+      # and renderD* are root:render 0660, so the GPU needs the group, not root
+      - "992"
+      - "44"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=4g
 
     volumes:
       - /data/models:/models:ro
-      - vllm-cache:/root/.cache
+      # HOME (HF modules for --trust-remote-code, triton/flashinfer JIT)
+      - vllm-cache:/cache
 
     environment:
+      HOME: /cache
       VLLM_WORKER_MULTIPROC_METHOD: spawn
       HIP_VISIBLE_DEVICES: "0"
       ROCR_VISIBLE_DEVICES: "0"
@@ -37,6 +83,10 @@ services:
         limits:
           cpus: '4'
           memory: 12G
+
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
 
     command: >
       --model /models/deepseek-r1-7b
@@ -67,12 +117,25 @@ services:
     container_name: sophia-vllm-qwen
     hostname: qwen-coder
     restart: unless-stopped
+    user: "16786:16786"
+    group_add:
+      # host render and video gids (pkg/uids HostGroupRender/Video): /dev/kfd
+      # and renderD* are root:render 0660, so the GPU needs the group, not root
+      - "992"
+      - "44"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=4g
 
     volumes:
       - /data/models:/models:ro
-      - qwen-cache:/root/.cache
+      - qwen-cache:/cache
 
     environment:
+      HOME: /cache
       VLLM_WORKER_MULTIPROC_METHOD: spawn
       HIP_VISIBLE_DEVICES: "0"
       ROCR_VISIBLE_DEVICES: "0"
@@ -117,6 +180,8 @@ services:
       start_period: 60s
 
     depends_on:
+      volume-init:
+        condition: service_completed_successfully
       vllm:
         condition: service_healthy
 
@@ -131,15 +196,28 @@ services:
     container_name: sophia-qdrant
     hostname: qdrant
     restart: unless-stopped
+    user: "16787:16787"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
 
     volumes:
       - /fast/qdrant:/qdrant/storage
       - qdrant-snapshots:/qdrant/snapshots
 
+    # Qdrant reads QDRANT__SECTION__KEY. The old QDRANT_API_KEY and
+    # QDRANT_CORS_ALLOW_ORIGINS were not Qdrant settings: the API was open
+    # with no key at all, and the CLI flags this service passed do not exist,
+    # so it never started.
     environment:
-      QDRANT_API_KEY: "sophia-qdrant-key"
-      QDRANT_CORS_ALLOW_ORIGINS: "true"
-      QDRANT_LOG_LEVEL: "info"
+      QDRANT__SERVICE__ENABLE_CORS: "false"
+      QDRANT__SERVICE__HTTP_PORT: "6333"
+      QDRANT__SERVICE__GRPC_PORT: "6334"
+      QDRANT__STORAGE__STORAGE_PATH: /qdrant/storage
+      QDRANT__STORAGE__SNAPSHOTS_PATH: /qdrant/snapshots
+      QDRANT__LOG_LEVEL: "INFO"
+      QDRANT_INIT_FILE_PATH: /qdrant/storage/.qdrant-initialized
       TZ: UTC
 
     ports:
@@ -156,18 +234,20 @@ services:
           cpus: '2'
           memory: 2G
 
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:6333/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+    # The key comes from the qdrant_api_key secret (a file, so it is not in
+    # the container's environment for `docker inspect` to show).
+    secrets:
+      - qdrant_api_key
+    command:
+      - sh
+      - -ec
+      - 'QDRANT__SERVICE__API_KEY="$$(cat /run/secrets/qdrant_api_key)"; export QDRANT__SERVICE__API_KEY; exec ./entrypoint.sh'
 
-    command: >
-      --storage-path /qdrant/storage
-      --snapshot-path /qdrant/snapshots
-      --http-port 6333
-      --grpc-port 6334
+    # No healthcheck: the image has no curl, wget or bash (the old curl check
+    # could never pass). Dependents wait for service_started.
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
 
     logging:
       driver: "json-file"
@@ -180,7 +260,15 @@ services:
     container_name: sophia-embeddings
     hostname: embeddings
     restart: unless-stopped
+    user: "16788:16788"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
 
+    # The cpu image loads onnx/model.onnx from this directory.
     volumes:
       - /data/models/bge-m3:/data:ro
 
@@ -189,7 +277,7 @@ services:
       TZ: UTC
 
     ports:
-      - "20104:80"
+      - "20104:8080"
 
     networks:
       - sophia-eye
@@ -201,17 +289,14 @@ services:
           cpus: '2'
           memory: 4G
 
+    # 8080: a non-root uid cannot bind 80. --workers is not a TEI flag (it
+    # refused to start); --tokenization-workers is the one that exists.
     command: >
       --model-id /data
-      --port 80
-      --workers 4
+      --port 8080
+      --tokenization-workers 4
 
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
+    # No healthcheck: the image has no curl or wget.
 
     logging:
       driver: "json-file"
@@ -224,24 +309,48 @@ services:
     container_name: sophia-webui
     hostname: open-webui
     restart: unless-stopped
+    user: "16789:16789"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp
+      - /home/openwebui:uid=16789,gid=16789
 
     volumes:
       - webui-data:/app/backend/data
       - webui-uploads:/app/backend/data/uploads
 
+    # QDRANT_URL and the ollama embedding engine pointed nowhere: Open WebUI
+    # reads QDRANT_URI (it refused to start without it), and TEI speaks the
+    # OpenAI embeddings API. WEBUI_AUTH was false on a published port: anyone
+    # who could reach 20105 was admin. The first account created is admin.
     environment:
+      HOME: /home/openwebui
+      # The image copies its static files at start; its own dir is read-only.
+      STATIC_DIR: /app/backend/data/static
       OPENAI_API_BASE_URL: "http://vllm:8000/v1"
       OPENAI_API_KEY: "unheaded-local"
-      WEBUI_SECRET_KEY: "sophia-webui-secret"
-      WEBUI_HOSTNAME: "0.0.0.0"
-      WEBUI_PORT: "8080"
-      WEBUI_AUTH: "false"
-      RAG_EMBEDDING_ENGINE: "ollama"
+      WEBUI_SECRET_KEY_FILE: /run/secrets/webui_secret_key
+      WEBUI_AUTH: "true"
+      PORT: "8080"
+      RAG_EMBEDDING_ENGINE: "openai"
       RAG_EMBEDDING_MODEL: "bge-m3"
-      RAG_EMBEDDING_ENGINE_API_BASE_URL: "http://embeddings:80"
+      RAG_OPENAI_API_BASE_URL: "http://embeddings:8080/v1"
+      RAG_OPENAI_API_KEY: "unused"
       VECTOR_DB: "qdrant"
-      QDRANT_URL: "http://qdrant:6333"
+      QDRANT_URI: "http://qdrant:6333"
+      OFFLINE_MODE: "true"
       TZ: UTC
+
+    secrets:
+      - qdrant_api_key
+      - webui_secret_key
+    command:
+      - bash
+      - -ec
+      - 'QDRANT_API_KEY="$$(cat /run/secrets/qdrant_api_key)"; export QDRANT_API_KEY; exec bash start.sh'
 
     ports:
       - "20105:8080"
@@ -257,19 +366,21 @@ services:
           memory: 2G
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
       interval: 15s
       timeout: 5s
       retries: 5
       start_period: 45s
 
     depends_on:
+      volume-init:
+        condition: service_completed_successfully
       vllm:
         condition: service_healthy
       qdrant:
-        condition: service_healthy
+        condition: service_started
       embeddings:
-        condition: service_healthy
+        condition: service_started
 
     logging:
       driver: "json-file"
@@ -278,12 +389,19 @@ services:
         max-file: "3"
 
   sophia-gateway:
+    # Context is the repo root: the gateway imports unheaded/pkg/... (the old
+    # ./sophia-gateway context had no Dockerfile and no go.mod).
     build:
-      context: ./sophia-gateway
-      dockerfile: Dockerfile
+      context: ../..
+      dockerfile: deploy/sophia-eye/sophia-gateway/Dockerfile
     container_name: sophia-gateway
     hostname: sophia-gateway
     restart: unless-stopped
+    user: "16733:16733"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
 
     environment:
       UNHEADED_PROTOCOL_API: "http://bare-metal:17100"
@@ -291,7 +409,7 @@ services:
       VLLM_ENDPOINT: "http://vllm:8000"
       QWEN_ENDPOINT: "http://qwen-coder:8000"
       QDRANT_ENDPOINT: "http://qdrant:6333"
-      EMBEDDINGS_ENDPOINT: "http://embeddings:80"
+      EMBEDDINGS_ENDPOINT: "http://embeddings:8080"
       SOPHIA_SERVICE_NAME: "sophia-eye"
       SOPHIA_GATEWAY_PORT: "20105"
       LOG_LEVEL: "info"
@@ -313,7 +431,7 @@ services:
           memory: 1G
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/health"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -325,9 +443,9 @@ services:
       qwen-coder:
         condition: service_healthy
       qdrant:
-        condition: service_healthy
+        condition: service_started
       embeddings:
-        condition: service_healthy
+        condition: service_started
 
     logging:
       driver: "json-file"
@@ -340,6 +458,16 @@ services:
     container_name: sophia-prometheus
     hostname: prometheus
     restart: unless-stopped
+    user: "16700:16700"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      volume-init:
+        condition: service_completed_successfully
+    secrets:
+      - qdrant_api_key
 
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
@@ -368,7 +496,7 @@ services:
       - '--web.console.templates=/etc/prometheus/consoles'
 
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9090/-/healthy"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/-/healthy"]
       interval: 15s
       timeout: 5s
       retries: 3
@@ -379,6 +507,15 @@ services:
       options:
         max-size: "50m"
         max-file: "2"
+
+# Files outside the repo, one secret per line-free file (e.g. openssl rand
+# -hex 32 > /etc/unheaded/sophia-eye/qdrant-api-key; chmod 0444, because each
+# container reads it as its own uid). Compose refuses to start without them.
+secrets:
+  qdrant_api_key:
+    file: ${QDRANT_API_KEY_FILE:?set QDRANT_API_KEY_FILE to a file holding the Qdrant API key - credentials are not stored in this repo}
+  webui_secret_key:
+    file: ${WEBUI_SECRET_KEY_FILE:?set WEBUI_SECRET_KEY_FILE to a file holding the Open WebUI secret key - credentials are not stored in this repo}
 
 volumes:
   vllm-cache:
@@ -399,7 +536,8 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 172.20.0.0/16
+        # was 172.20.0.0/16, which overlaps kind and netbox-docker on west
+        - subnet: 172.28.5.0/24
 
   unheaded-fabric:
     external: true

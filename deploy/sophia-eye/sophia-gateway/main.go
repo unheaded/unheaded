@@ -145,7 +145,7 @@ func NewSophiaGateway() *SophiaGateway {
 		sg.qdrantAddr = "http://qdrant:6333"
 	}
 	if sg.embeddAddr == "" {
-		sg.embeddAddr = "http://embeddings:80"
+		sg.embeddAddr = "http://embeddings:8080"
 	}
 	if sg.serviceName == "" {
 		sg.serviceName = "sophia-eye"

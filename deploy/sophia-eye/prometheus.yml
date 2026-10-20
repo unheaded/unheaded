@@ -41,13 +41,19 @@ scrape_configs:
         labels:
           model_role: coder
 
+  # Qdrant's /metrics is behind its API key (401 without it); compose hands
+  # the key to this container as the qdrant_api_key secret.
   - job_name: qdrant
+    authorization:
+      type: Bearer
+      credentials_file: /run/secrets/qdrant_api_key
     static_configs:
       - targets: ['qdrant:6333']
 
-  # text-embeddings-inference listens on 80 inside the container.
+  # text-embeddings-inference listens on 8080 inside the container (it runs
+  # as its own uid, which cannot bind 80).
   - job_name: embeddings
     static_configs:
-      - targets: ['embeddings:80']
+      - targets: ['embeddings:8080']
 
 # open-webui is deliberately not scraped: it exposes no Prometheus endpoint.

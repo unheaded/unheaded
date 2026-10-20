@@ -82,6 +82,8 @@ const (
 	Gateway          = 16730
 	Akira            = 16731
 	KEVPoller        = 16732
+	// SophiaGateway is deploy/sophia-eye's gateway (its own compose stack).
+	SophiaGateway = 16733
 	// AllInOneDev is the Dockerfile's default stage: every service under one
 	// supervisord in one container (development only), so one account.
 	AllInOneDev = 16759
@@ -120,6 +122,11 @@ const (
 	WireGuard     = 16783
 	Traefik       = 16784
 	CoreDNS       = 16785
+	// deploy/sophia-eye: the second vLLM server, and the RAG stack around it.
+	QwenCoder  = 16786
+	Qdrant     = 16787
+	Embeddings = 16788 // text-embeddings-inference
+	OpenWebUI  = 16789
 )
 
 // Third-party image UIDs. These are NOT ours to choose: each image ships data
@@ -168,6 +175,7 @@ var Registry = map[string]int{
 	"gateway":           Gateway,
 	"akira":             Akira,
 	"kev-poller":        KEVPoller,
+	"sophia-gateway":    SophiaGateway,
 	"all-in-one-dev":    AllInOneDev,
 
 	"cuirass":      Cuirass,
@@ -188,6 +196,10 @@ var Registry = map[string]int{
 	"wireguard":         WireGuard,
 	"traefik":           Traefik,
 	"coredns":           CoreDNS,
+	"qwen-coder":        QwenCoder,
+	"qdrant":            Qdrant,
+	"embeddings":        Embeddings,
+	"open-webui":        OpenWebUI,
 	"haproxy-ingress":   HAProxyIngress,
 	"clickhouse":        ClickHouse,
 	"clickhouse-schema": ClickHouseSchema,
