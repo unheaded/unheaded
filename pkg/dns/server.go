@@ -264,10 +264,14 @@ func (s *Server) handleUDP(data []byte, addr *net.UDPAddr) {
 		return
 	}
 
+	limit, edns := udpLimit(msg)
 	w := &udpResponseWriter{
 		conn:       s.udpListener,
 		remoteAddr: addr,
 		localAddr:  s.udpListener.LocalAddr(),
+		limit:      limit,
+		edns:       edns,
+		truncated:  &s.stats.TruncatedUDP,
 	}
 
 	ctx := context.Background()
@@ -384,21 +388,7 @@ func (s *Server) defaultHandler(ctx context.Context, w ResponseWriter, r *Messag
 	}
 
 	if resp != nil {
-		// Check for truncation on UDP
-		if !w.IsTCP() {
-			data, _ := resp.Pack()
-			if len(data) > MaxUDPSize {
-				atomic.AddUint64(&s.stats.TruncatedUDP, 1)
-				resp.Header.Flags |= FlagTC
-				// Truncate answers
-				if len(resp.Answers) > 0 {
-					resp.Answers = resp.Answers[:1]
-				}
-				resp.Authority = nil
-				resp.Additional = nil
-			}
-		}
-
+		// Over UDP the writer caps the size (udpResponseWriter.WriteMsg).
 		if err := w.WriteMsg(resp); err != nil {
 			s.log("write error: %v", err)
 		}
@@ -451,20 +441,86 @@ func (s *Server) log(format string, args ...interface{}) {
 	}
 }
 
-// udpResponseWriter implements ResponseWriter for UDP
+// MaxEDNSUDPSize is the most this server sends in one UDP reply, whatever
+// a client advertises: 1280 (the IPv6 minimum MTU) - 40 (IPv6) - 8 (UDP).
+// A larger datagram would be fragmented, and the Kingdom drops IPv6
+// fragments at ingress (ADR-014); the client retries over TCP instead.
+const MaxEDNSUDPSize = 1232
+
+// udpLimit is the reply size the query allows over UDP: 512 without EDNS0
+// (RFC 1035), else the advertised size within [512, MaxEDNSUDPSize]
+// (RFC 6891 §6.2.5).
+func udpLimit(q *Message) (limit int, edns bool) {
+	for _, rr := range q.Additional {
+		if rr.Type != TypeOPT {
+			continue
+		}
+		size := int(rr.Class)
+		if size < MaxUDPSize {
+			size = MaxUDPSize
+		}
+		if size > MaxEDNSUDPSize {
+			size = MaxEDNSUDPSize
+		}
+		return size, true
+	}
+	return MaxUDPSize, false
+}
+
+// udpResponseWriter implements ResponseWriter for UDP. Every handler's reply
+// goes through WriteMsg, so the size limit holds for all of them.
 type udpResponseWriter struct {
 	conn       *net.UDPConn
 	remoteAddr *net.UDPAddr
 	localAddr  net.Addr
+	limit      int     // 0 means MaxUDPSize
+	edns       bool    // the query carried an OPT record
+	truncated  *uint64 // ServerStats.TruncatedUDP, may be nil
 }
 
+// WriteMsg sends msg, or, if it does not fit the limit, its header and
+// question with TC set and no records, so the client retries over TCP
+// (RFC 2181 §9; a partial answer set would be cached as if complete).
+// An EDNS0 query gets an OPT record back (RFC 6891 §7).
 func (w *udpResponseWriter) WriteMsg(msg *Message) error {
-	data, err := msg.Pack()
+	limit := w.limit
+	if limit == 0 {
+		limit = MaxUDPSize
+	}
+	out := *msg
+	if w.edns && optRecord(&out) == nil {
+		out.Additional = append(append([]ResourceRecord(nil), out.Additional...),
+			ResourceRecord{Name: ".", Type: TypeOPT, Class: MaxEDNSUDPSize})
+	}
+	data, err := out.Pack()
 	if err != nil {
 		return err
 	}
+	if len(data) > limit {
+		if w.truncated != nil {
+			atomic.AddUint64(w.truncated, 1)
+		}
+		tc := Message{Header: out.Header, Questions: out.Questions}
+		tc.Header.Flags |= FlagTC
+		if opt := optRecord(&out); opt != nil {
+			tc.Additional = []ResourceRecord{*opt}
+		}
+		if data, err = tc.Pack(); err != nil {
+			return err
+		}
+	}
 	_, err = w.conn.WriteToUDP(data, w.remoteAddr)
 	return err
+}
+
+// optRecord returns m's OPT pseudo-record, if any.
+func optRecord(m *Message) *ResourceRecord {
+	for i := range m.Additional {
+		if m.Additional[i].Type == TypeOPT {
+			return &m.Additional[i]
+		}
+	}
+	return nil
 }
 
 func (w *udpResponseWriter) LocalAddr() net.Addr {

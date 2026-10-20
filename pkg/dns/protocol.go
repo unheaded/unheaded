@@ -6,6 +6,7 @@ package dns
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -434,23 +435,25 @@ func packResourceRecord(buf *bytes.Buffer, rr *ResourceRecord, offsets map[strin
 		return err
 	}
 
-	// Pack RData
-	rdataBuf := &bytes.Buffer{}
-	if err := rr.packRData(rdataBuf, offsets); err != nil {
+	// Pack RData in place, after a placeholder RDLENGTH. Names inside it
+	// (NS, CNAME, MX, SOA, PTR) take part in compression, so the offsets
+	// they record must be offsets in the message: packing into a separate
+	// buffer recorded them from 0, and later pointers aimed into the header.
+	lenAt := buf.Len()
+	buf.Write([]byte{0, 0})
+	start := buf.Len()
+	if err := rr.packRData(buf, offsets); err != nil {
 		return err
 	}
 
-	rdata := rdataBuf.Bytes()
 	// RDLENGTH is a 16-bit field. Truncating here would emit a length that
 	// disagrees with the bytes that follow, desynchronising every parser
 	// reading the rest of the message.
-	if len(rdata) > math.MaxUint16 {
-		return fmt.Errorf("dns: rdata %d bytes exceeds the 16-bit RDLENGTH field", len(rdata))
+	n := buf.Len() - start
+	if n > math.MaxUint16 {
+		return fmt.Errorf("dns: rdata %d bytes exceeds the 16-bit RDLENGTH field", n)
 	}
-	if err := binary.Write(buf, binary.BigEndian, uint16(len(rdata))); err != nil { // #nosec G115 -- bounded by the MaxUint16 check above
-		return err
-	}
-	buf.Write(rdata)
+	binary.BigEndian.PutUint16(buf.Bytes()[lenAt:], uint16(n)) // #nosec G115 -- bounded by the MaxUint16 check above
 
 	return nil
 }
@@ -584,10 +587,11 @@ func RcodeToString(rc uint8) string {
 	}
 }
 
-var idCounter uint16
-
-// generateID generates a unique message ID
+// generateID returns a random message ID. A counter let anyone who saw one
+// query predict the next ID, leaving the source port as the only guess
+// between an off-path attacker and a forged answer (RFC 5452).
 func generateID() uint16 {
-	idCounter++
-	return idCounter
+	var b [2]byte
+	_, _ = rand.Read(b[:]) // crypto/rand.Read never fails (Go 1.24+)
+	return binary.BigEndian.Uint16(b[:])
 }

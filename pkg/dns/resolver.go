@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -172,12 +173,6 @@ func (r *Resolver) forward(ctx context.Context, msg *Message) (*Message, error) 
 
 	atomic.AddUint64(&r.stats.Forwards, 1)
 
-	// Pack the query
-	queryData, err := msg.Pack()
-	if err != nil {
-		return r.errorResponse(msg, RcodeServerFailure), err
-	}
-
 	// Round-robin selection with fallback
 	startIdx := int(atomic.AddUint32(&r.roundRobin, 1)) % len(upstreams)
 
@@ -187,11 +182,12 @@ func (r *Resolver) forward(ctx context.Context, msg *Message) (*Message, error) 
 			idx := (startIdx + i) % len(upstreams)
 			upstream := upstreams[idx]
 
-			resp, err := r.forwardTo(ctx, upstream, queryData)
+			resp, err := r.forwardTo(ctx, upstream, msg)
 			if err != nil {
 				lastErr = err
 				continue
 			}
+			resp.Header.ID = msg.Header.ID
 
 			// Cache the response
 			r.cache.Set(resp)
@@ -209,15 +205,44 @@ func (r *Resolver) forward(ctx context.Context, msg *Message) (*Message, error) 
 }
 
 // forwardTo forwards a query to a specific upstream server
-func (r *Resolver) forwardTo(ctx context.Context, upstream string, queryData []byte) (*Message, error) {
+func (r *Resolver) forwardTo(ctx context.Context, upstream string, query *Message) (*Message, error) {
 	if r.useTCP {
-		return r.forwardTCP(ctx, upstream, queryData)
+		return r.forwardTCP(ctx, upstream, query)
 	}
-	return r.forwardUDP(ctx, upstream, queryData)
+	return r.forwardUDP(ctx, upstream, query)
 }
 
-// forwardUDP forwards a query via UDP
-func (r *Resolver) forwardUDP(ctx context.Context, upstream string, queryData []byte) (*Message, error) {
+// errMismatchedReply is a reply that does not answer the query sent.
+var errMismatchedReply = errors.New("dns: reply does not match the query (ID, QR or question)")
+
+// upstreamQuery is query under a fresh random ID: the client's ID is the
+// client's, and an upstream exchange needs one an attacker cannot know.
+func upstreamQuery(query *Message) (*Message, []byte, error) {
+	out := *query
+	out.Header.ID = generateID()
+	data, err := out.Pack()
+	return &out, data, err
+}
+
+// answers reports whether reply is the answer to sent: same ID, a response,
+// and the same single question (names compare case-insensitively).
+func answers(sent, reply *Message) bool {
+	if reply.Header.ID != sent.Header.ID || reply.Header.Flags&FlagQR == 0 {
+		return false
+	}
+	if len(sent.Questions) != 1 || len(reply.Questions) != 1 {
+		return false
+	}
+	q, a := sent.Questions[0], reply.Questions[0]
+	return q.Type == a.Type && q.Class == a.Class &&
+		strings.EqualFold(strings.TrimSuffix(q.Name, "."), strings.TrimSuffix(a.Name, "."))
+}
+
+// forwardUDP forwards a query via UDP. A datagram that does not answer the
+// query (wrong ID or question) is dropped and the read continues until the
+// deadline, so a forged packet can neither be accepted nor block the real
+// reply (RFC 5452 §9.1).
+func (r *Resolver) forwardUDP(ctx context.Context, upstream string, query *Message) (*Message, error) {
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
@@ -235,35 +260,37 @@ func (r *Resolver) forwardUDP(ctx context.Context, upstream string, queryData []
 		_ = conn.SetDeadline(deadline)
 	}
 
+	sent, queryData, err := upstreamQuery(query)
+	if err != nil {
+		return nil, err
+	}
+
 	// Send query
 	if _, err := conn.Write(queryData); err != nil {
 		return nil, err
 	}
 
-	// Read response
 	respData := make([]byte, MaxUDPSize)
-	n, err := conn.Read(respData)
-	if err != nil {
-		return nil, err
+	for {
+		n, err := conn.Read(respData)
+		if err != nil {
+			return nil, err
+		}
+		resp := &Message{}
+		if err := resp.Unpack(respData[:n]); err != nil || !answers(sent, resp) {
+			continue
+		}
+		// Check for truncation
+		if resp.Header.Flags&FlagTC != 0 {
+			// Retry with TCP
+			return r.forwardTCP(ctx, upstream, query)
+		}
+		return resp, nil
 	}
-
-	// Parse response
-	resp := &Message{}
-	if err := resp.Unpack(respData[:n]); err != nil {
-		return nil, err
-	}
-
-	// Check for truncation
-	if resp.Header.Flags&FlagTC != 0 {
-		// Retry with TCP
-		return r.forwardTCP(ctx, upstream, queryData)
-	}
-
-	return resp, nil
 }
 
 // forwardTCP forwards a query via TCP
-func (r *Resolver) forwardTCP(ctx context.Context, upstream string, queryData []byte) (*Message, error) {
+func (r *Resolver) forwardTCP(ctx context.Context, upstream string, query *Message) (*Message, error) {
 	ctx, cancel := context.WithTimeout(ctx, r.timeout)
 	defer cancel()
 
@@ -278,6 +305,11 @@ func (r *Resolver) forwardTCP(ctx context.Context, upstream string, queryData []
 	// Set deadline
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = conn.SetDeadline(deadline)
+	}
+
+	sent, queryData, err := upstreamQuery(query)
+	if err != nil {
+		return nil, err
 	}
 
 	// TCP DNS uses 2-byte length prefix
@@ -312,6 +344,9 @@ func (r *Resolver) forwardTCP(ctx context.Context, upstream string, queryData []
 	resp := &Message{}
 	if err := resp.Unpack(respData); err != nil {
 		return nil, err
+	}
+	if !answers(sent, resp) {
+		return nil, errMismatchedReply
 	}
 
 	return resp, nil
@@ -460,14 +495,10 @@ func (rr *RecursiveResolver) resolveRecursiveWithDepth(ctx context.Context, name
 
 	// Build query
 	query := NewQuery(name, qtype)
-	queryData, err := query.Pack()
-	if err != nil {
-		return nil, err
-	}
 
 	// Try each server
 	for _, server := range servers {
-		resp, err := rr.forwardUDP(ctx, server, queryData)
+		resp, err := rr.forwardUDP(ctx, server, query)
 		if err != nil {
 			continue
 		}
@@ -537,11 +568,6 @@ func (pr *ParallelResolver) ResolveParallel(ctx context.Context, msg *Message) (
 		}
 	}
 
-	queryData, err := msg.Pack()
-	if err != nil {
-		return pr.errorResponse(msg, RcodeServerFailure), err
-	}
-
 	// Query upstreams in parallel
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
@@ -551,7 +577,7 @@ func (pr *ParallelResolver) ResolveParallel(ctx context.Context, msg *Message) (
 
 	for _, upstream := range upstreams {
 		go func(us string) {
-			resp, err := pr.forwardUDP(ctx, us, queryData)
+			resp, err := pr.forwardUDP(ctx, us, msg)
 			if err != nil {
 				errs <- err
 				return
@@ -565,6 +591,7 @@ func (pr *ParallelResolver) ResolveParallel(ctx context.Context, msg *Message) (
 	for i := 0; i < len(upstreams); i++ {
 		select {
 		case resp := <-results:
+			resp.Header.ID = msg.Header.ID
 			pr.cache.Set(resp)
 			return resp, nil
 		case err := <-errs:
