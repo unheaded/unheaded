@@ -99,13 +99,13 @@ But there's a **DoS risk**: an attacker can send millions of fragment headers to
 
 When deploying services in the Kingdom, ensure:
 
-- [ ] **TCP MSS Clamping**: TC ingress/egress uses `bpf_skb_adjust_room()` or `iptables -j TCPMSS --set-mss 1220` to clamp MSS to (MTU - IPv6 header - TCP header) = 1220 bytes (assuming 1280 MTU, 40-byte IPv6, 20-byte TCP).
+- [ ] **TCP MSS Clamping**: TC ingress/egress uses `bpf_skb_adjust_room()` or `iptables -j TCPMSS --set-mss 1220` to clamp MSS to (MTU - IPv6 header - TCP header) = 1220 bytes (assuming 1280 MTU, 40-byte IPv6, 20-byte TCP). *(2026-10-20: a host's own connections already take MSS from the egress interface's MTU; clamping matters only for traffic forwarded into a smaller-MTU tunnel (wg0, the overlay). The rule for that is nftables `tcp flags syn tcp option maxseg size set rt mtu` in the forward chain, and lands with the host firewall (deploy/nftables, the open firewall findings), not before it.)*
 
-- [ ] **UDP payload limit**: Application layer enforces max UDP datagram size ≤ 1256 bytes (1280 MTU - 24 HBH header).
+- [x] **UDP payload limit**: Application layer enforces max UDP datagram size ≤ 1256 bytes (1280 MTU - 24 HBH header). *(2026-10-20, inventory of every UDP sender in the tree: Gjallarhorn triggers are 20 bytes (`pkg/gjallarhorn.PacketSize`); DNS (`pkg/dns`) caps every UDP reply at 1232 (below); the L4 load balancer relays client datagrams unchanged and cannot make them larger. Note the 1232 figure is the RFC-standard 1280 - 40 - 8, the same budget minus the HBH header this line assumes.)*
 
-- [ ] **gRPC streaming**: HTTP/2 frame size negotiation defaults to 16KB, which WILL fragment. Explicitly configure `--max-connection-idle-time` and frame size limits.
+- [x] **gRPC streaming**: HTTP/2 frame size negotiation defaults to 16KB, which WILL fragment. Explicitly configure `--max-connection-idle-time` and frame size limits. *(2026-10-20: not applicable, the premise is wrong. HTTP/2 frames ride a TCP byte stream; TCP cuts it into segments no larger than the MSS, so a 16 KB frame becomes several full-size segments, never an IP fragment. IPv6 routers never fragment, and the sending stack fragments only UDP/raw datagrams. What gRPC needs is working PMTUD on TCP, which is the MSS item above.)*
 
-- [ ] **DNS over IPv6**: Ensure DNS response size fits within 1280 bytes (UDP) or use TCP fallback (RFC 6891 EDNS0).
+- [x] **DNS over IPv6**: Ensure DNS response size fits within 1280 bytes (UDP) or use TCP fallback (RFC 6891 EDNS0). *(2026-10-20: `pkg/dns`'s UDP writer caps every reply, from any handler, at 512 without EDNS0 and at min(advertised, 1232) with it; anything larger goes out as TC with no partial answer set, so the client retries over TCP (c6474eb9; before, a non-default handler sent a 3229-byte datagram). CoreDNS (`config/coredns/Corefile`) runs `bufsize 1232` on both server blocks; verified on west: `dig +bufsize=4096` gets `udp: 1232` back.)*
 
 - [x] **Monitoring**: Log all ICMPv6 "Packet Too Big" messages (ICMP type 2, code 0) and alert if they appear frequently. *(2026-10-19: counted, not logged one by one: node_exporter exports `node_netstat_Icmp6_{In,Out}PktTooBigs` (`deploy/systemd/node-exporter.service`); `IPv6PacketTooBigSustained` fires past 3/min for 15 min, `monitoring/prometheus/rules/network.yml`, promtool-tested. West had seen 5 since boot.)*
 

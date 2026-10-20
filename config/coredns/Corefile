@@ -3,6 +3,10 @@
 unheaded.local:1053 {
     log
     errors
+    # Never answer UDP with more than 1232 bytes (1280 IPv6 minimum MTU - 40
+    # - 8): a bigger datagram fragments, and the Kingdom drops IPv6 fragments
+    # at ingress (ADR-014). Clients retry larger answers over TCP.
+    bufsize 1232
     health {
         lameduck 5s
     }
@@ -43,6 +47,7 @@ unheaded.local:1053 {
 }
 
 .:1053 {
+    bufsize 1232
     forward . 8.8.8.8 8.8.4.4
     log
     errors
