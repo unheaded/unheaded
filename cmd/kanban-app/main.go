@@ -1161,6 +1161,11 @@ func validateTaskInput(task *Task) error {
 }
 
 // handleSSE handles Server-Sent Events for real-time updates
+// maxSSEClients bounds open /api/v1/stream connections. Each holds a
+// goroutine and a channel until the client hangs up, and the rate limit
+// (120/min per address) does not bound how many stay open.
+const maxSSEClients = 256
+
 func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	// Check if client supports SSE
 	flusher, ok := w.(http.Flusher)
@@ -1179,6 +1184,11 @@ func (s *Server) handleSSE(w http.ResponseWriter, r *http.Request) {
 	clientCh := make(chan []byte, 10)
 
 	s.sseMu.Lock()
+	if len(s.sseClients) >= maxSSEClients {
+		s.sseMu.Unlock()
+		http.Error(w, "too many open streams", http.StatusServiceUnavailable)
+		return
+	}
 	s.sseClients[clientCh] = true
 	s.sseMu.Unlock()
 
