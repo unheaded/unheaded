@@ -142,11 +142,12 @@ func main() {
 	roomManager.SetMaxRooms(config.MaxRooms)
 	roomManager.SetKeep(signing.RequiresSignature) // signed config.* is never evicted for log traffic
 
-	// Start metrics collector
-	go collectSystemMetrics(runCtx, m, roomManager)
-	go enforceBufferTotal(runCtx, m, roomManager)
 	memberManager := member.NewManager()
 	memberManager.SetMaxMembers(config.MaxMembers)
+
+	// Start metrics collector
+	go collectSystemMetrics(runCtx, m, roomManager, memberManager)
+	go enforceBufferTotal(runCtx, m, roomManager)
 	messageWotan := wotan.NewWotan()
 
 	// Initialize persistent store (if configured). When this falls back
@@ -514,7 +515,7 @@ func setupMiddleware(handler http.Handler, rateLimiter *middleware.RateLimiter, 
 
 // collectSystemMetrics periodically collects system metrics. Returns
 // when ctx is canceled (during graceful shutdown).
-func collectSystemMetrics(ctx context.Context, m *metrics.Metrics, rooms *room.Manager) {
+func collectSystemMetrics(ctx context.Context, m *metrics.Metrics, rooms *room.Manager, members *member.Manager) {
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
@@ -530,7 +531,19 @@ func collectSystemMetrics(ctx context.Context, m *metrics.Metrics, rooms *room.M
 			for _, rm := range rooms.List() {
 				m.UpdateRoomBufferMetrics(rm.ID, rm.Buffer.Size(), rm.Buffer.Count(), rm.Buffer.Bytes())
 			}
+			updateCountGauges(m, rooms, members)
 		}
+	}
+}
+
+// updateCountGauges sets rooms_total, members_approved and members_pending.
+// They were registered and never set: they read 0 while one member per
+// publish piled up for good (bfdb194f).
+func updateCountGauges(m *metrics.Metrics, rooms *room.Manager, members *member.Manager) {
+	m.RoomsTotal.Set(float64(rooms.Count()))
+	if members != nil {
+		m.MembersApproved.Set(float64(members.CountByStatus(member.StatusApproved)))
+		m.MembersPending.Set(float64(members.CountByStatus(member.StatusPending)))
 	}
 }
 

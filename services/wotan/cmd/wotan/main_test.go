@@ -317,7 +317,7 @@ func TestCollectSystemMetrics_ReturnsOnContextCancel(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		collectSystemMetrics(ctx, m, room.NewManager(10))
+		collectSystemMetrics(ctx, m, room.NewManager(10), member.NewManager())
 		close(done)
 	}()
 
@@ -401,3 +401,33 @@ func TestTickers_DoNotLeakOnDeadlineExceeded(t *testing.T) {
 // import isn't unused). This also doubles as a tiny sanity check that
 // our route list grep'd above stays in sync.
 var _ = strings.HasPrefix
+
+// rooms_total, members_approved and members_pending were registered and
+// never set, so they read 0 while one member per publish piled up
+// (bfdb194f). updateCountGauges sets them on every collector tick.
+func TestUpdateCountGauges(t *testing.T) {
+	m := metrics.Initialize("wotan_test_count_gauges")
+	rooms := room.NewManager(10)
+	members := member.NewManager()
+	for _, id := range []string{"a", "b", "c"} {
+		if _, err := rooms.GetOrCreate(id, id); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := members.EnsureApproved("a", "service", "t"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := members.RequestJoin("b", "someone", "", time.Hour); err != nil {
+		t.Fatal(err)
+	}
+	updateCountGauges(m, rooms, members)
+	if got := m.RoomsTotal.Value(); got != 3 {
+		t.Errorf("rooms_total = %v, want 3", got)
+	}
+	if got := m.MembersApproved.Value(); got != 1 {
+		t.Errorf("members_approved = %v, want 1", got)
+	}
+	if got := m.MembersPending.Value(); got != 1 {
+		t.Errorf("members_pending = %v, want 1", got)
+	}
+}

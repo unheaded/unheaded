@@ -288,6 +288,19 @@ func (m *Manager) IsApproved(memberID uuid.UUID) bool {
 	return member.Status == StatusApproved
 }
 
+// CountByStatus returns how many members have status s.
+func (m *Manager) CountByStatus(s Status) int {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	n := 0
+	for _, member := range m.members {
+		if member.Status == s {
+			n++
+		}
+	}
+	return n
+}
+
 // Count returns the total number of members
 func (m *Manager) Count() int {
 	m.mu.RLock()
