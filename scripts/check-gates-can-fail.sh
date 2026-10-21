@@ -49,7 +49,7 @@
 #   cargo clippy -- -D warnings      (ebpf.yml)
 #   cargo fmt -- --check             (ebpf.yml)
 #   go build ./... / go vet ./...    (ci.yml)
-#   npx eslint .                     (static-analysis.yml)
+#   eslint, from package-lock.json   (static-analysis.yml)
 #   the shellcheck -S warning sweep  (static-analysis.yml)
 #
 # (that last line is worded to avoid starting with the tool's name — a comment

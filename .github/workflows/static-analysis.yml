@@ -197,7 +197,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
 
@@ -225,19 +225,26 @@ jobs:
       # getFriendlyErrorMessage, which is defined only inside a different
       # file's IIFE, so saving a failed task threw ReferenceError from the
       # error handler itself. Fixed.
-      # The version comes from package.json so the pin lives in one place;
-      # repeating it here is how the two drift apart.
+      # Installed from package-lock.json, not `npx eslint@<ver>`: that pinned
+      # eslint and fetched its ~76 dependencies fresh from npm on every run,
+      # with this repo checked out and a read token. npm ci refuses a lockfile that
+      # disagrees with package.json and checks every tarball's integrity hash;
+      # --ignore-scripts runs no package code at install; `npm audit
+      # signatures` fails on any package without a valid registry signature.
+      # New npm packages also need a line in the dependency baseline (ADR-096).
+      # This is lint tooling only: nothing that ships uses Node (ADR-006).
       #
       # --config is required from eslint 10 on: without it, config discovery
       # reaches into llama.cpp/tools/server/webui/eslint.config.js — vendored,
       # gitignored, and already in this config's `ignores` — and dies importing
       # a plugin that is not installed. Ignores do not prevent config
       # discovery.
-      - name: eslint (GATING)
+      - name: Install eslint from the lockfile
         run: |
-          version="$(python3 -c 'import json;d=json.load(open("package.json"));print((d.get("devDependencies") or d["dependencies"])["eslint"])')"
-          echo "eslint pinned at ${version} (from package.json)"
-          npx --yes "eslint@${version}" --config eslint.config.js .
+          npm ci --ignore-scripts --no-audit --no-fund
+          npm audit signatures
+      - name: eslint (GATING)
+        run: ./node_modules/.bin/eslint --config eslint.config.js .
 
   dockerfiles:
     name: Dockerfiles (hadolint)

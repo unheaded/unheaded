@@ -76,6 +76,20 @@ Reference implementations that validated this approach exist in the team's other
 - **Testing limitations**: No Jest, no React Testing Library, no Cypress component testing. Frontend testing relies on E2E browser tests, which are slower and less granular.
 - **Accessibility**: Frameworks like React have mature accessibility libraries (react-aria, reach-ui). Vanilla JS requires manual ARIA attribute management.
 
+## Exception: eslint in CI (2026-10-21)
+
+The one place npm is allowed is the JavaScript lint job, and nothing it installs ships.
+
+- `package.json` is a lint-only manifest with one devDependency, `eslint`, at an exact version.
+- `package-lock.json` pins all 77 packages (eslint and everything it pulls in) by version and sha512 integrity, all from registry.npmjs.org.
+- CI (`static-analysis.yml`, JavaScript job) runs `npm ci --ignore-scripts` (fails if the lockfile and manifest disagree; no install scripts run), then `npm audit signatures` (fails on any package without a valid registry signature), then `./node_modules/.bin/eslint`. The job has a read-only token.
+- Every package in the lockfile is a line in `docs/policy/dependency-baseline.txt`; a new one fails `scripts/check-dependency-baseline.sh` until a person admits it (ADR-096).
+- Before this, the job ran `npx eslint@<version>`, which pinned eslint but fetched its dependencies fresh on every run.
+
+Nothing else may use Node or npm: no build step, no runtime, no `node_modules` in any image, and **no `npm` on west or east**. eslint executes its dependencies' code while it lints (`--ignore-scripts` does not stop that), so the only place it runs is the throwaway CI runner, with a read-only token and no secrets. On a host it would run as govan, next to the repo `.env` and passwordless sudo: the September 2025 npm worm stole tokens exactly that way, and `debug`, hijacked in it (4.4.2), is in this tree (locked at 4.4.3).
+
+This exception is temporary (BlackMage review, 2026-10-21). The end state is no npm at all: a single-binary JavaScript linter pinned by checksum, like hadolint and gitleaks, once it reproduces the checks eslint gates on (no-undef across the shared-global `<script>` files, no-unused-vars, no-redeclare); then `package.json`, `package-lock.json` and the npm baseline lines go. `docker/services/dashboard-frontend` (a `node:22` build that could not run) was removed for that reason (a14e0d52).
+
 ## References
 
 - `cmd/kanban-app/static/` -- Kanban frontend (vanilla HTML/CSS/JS)

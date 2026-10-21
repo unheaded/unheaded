@@ -18,7 +18,8 @@
 #   go     every module path in a tracked go.sum (the full graph)
 #   cargo  every registry or git package in a tracked Cargo.lock (no path/workspace crates)
 #   pypi   every requirement in a tracked requirements*.txt (name normalised per PEP 503)
-#   npm    every dependency and devDependency in a tracked package.json
+#   npm    every dependency and devDependency in a tracked package.json, and
+#          every installed package in a tracked package-lock.json (the full graph)
 #
 # Identity, not version: a bump is not caught here (ADR-096 asks for review of
 # those too; that is the register's job once it exists). Compares the SET, not
@@ -63,6 +64,15 @@ d = json.load(open(sys.argv[1]))
 for k in ("dependencies", "devDependencies", "optionalDependencies", "peerDependencies"):
     for name in d.get(k, {}):
         print("npm " + name)
+' "$f"
+	done
+	git ls-files -z '*package-lock.json' | while IFS= read -r -d '' f; do
+		python3 -I -c '
+import json, sys
+d = json.load(open(sys.argv[1]))
+for path, p in d.get("packages", {}).items():
+    if path and not p.get("link"):
+        print("npm " + (p.get("name") or path.rsplit("node_modules/", 1)[-1]))
 ' "$f"
 	done
 }
