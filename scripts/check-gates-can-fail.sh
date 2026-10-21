@@ -576,6 +576,15 @@ provoke_python_audit() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_npm_freshness() {
+    # Contract (ADR-006): the npm lint tooling is not behind a release that
+    # has cleared its cooldown. Pin an eslint long superseded.
+    local f="package.json"
+    backup "${f}"
+    sed -i 's/"eslint": "[^"]*"/"eslint": "9.0.0"/' "${REPO_ROOT}/${f}"
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_alert_path() {
     # Contract (ADR-100): an urgency none alert reaches no one. Route
     # Alertmanager's default (urgency none, unlabelled) to the page receiver.
@@ -626,6 +635,7 @@ check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package
 check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
 check-image-tags|provoke_image_tags|fast|traefik:v3.3.7 floated back to traefik:latest in docker-compose.yml
 check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt
+check-npm-freshness|provoke_npm_freshness|fast|eslint pinned back to 9.0.0, long past the 7-day cooldown (needs the npm registry)
 check-hadolint|provoke_hadolint|slow|a RUN that cd's (DL3003) appended to the root Dockerfile (needs docker)
 test-deb-maintscripts|provoke_deb_maintscripts|fast|prerm disabling the service on every call, upgrades included
 backup/test-git-mirror|provoke_git_mirror|fast|git-mirror.sh switched to push --mirror, which prunes refs east must keep

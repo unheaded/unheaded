@@ -239,6 +239,32 @@ jobs:
   # Go has govulncheck and Rust cargo audit above; Python had nothing.
   # Accepted findings live in docs/policy/python-audit-accepted.txt, which
   # may only shrink.
+  # npm: the eslint lint tooling is the only npm use (ADR-006). The lockfile
+  # fixes what runs; this checks it every day. Neither step installs or runs
+  # package code: npm audit reads package-lock.json, the freshness check
+  # reads the registry.
+  npm-audit:
+    name: npm Audit (eslint lockfile)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      - name: Known vulnerabilities in the lockfile
+        run: npm audit --package-lock-only --audit-level=low
+
+      # Stay current: fail once a newer eslint has been out 7 days. The wait
+      # is deliberate: hijacked releases (debug 4.4.2, Sept 2025) were pulled
+      # within hours, so day-one versions are the risky ones. Fix: bump
+      # package.json, `npm install --package-lock-only --ignore-scripts`, and
+      # add any new package names to the dependency baseline.
+      - name: eslint is current (7-day cooldown)
+        run: ./scripts/check-npm-freshness.sh
+
   python-audit:
     name: Python Audit (pip-audit)
     runs-on: ubuntu-latest
