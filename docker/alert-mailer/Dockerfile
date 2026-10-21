@@ -17,7 +17,9 @@ RUN sed -i '/doomgeneric/d' go.mod go.sum && \
 FROM alpine:3.24
 
 # ca-certificates: STARTTLS to the relay verifies its certificate. The
-# timezone database is compiled into the binary (time/tzdata).
+# timezone database is compiled into the binary (time/tzdata). Unpinned on
+# purpose: a pinned root store keeps distrusted CAs (emSign, 2026-10-19).
+# hadolint ignore=DL3018
 RUN apk add --no-cache ca-certificates
 
 # Own account (pkg/uids AlertMailer): no shell, no home.
@@ -31,6 +33,6 @@ USER 16710:16710
 EXPOSE 19130
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:19130/health || exit 1
+    CMD ["wget", "--no-verbose", "--tries=1", "--spider", "http://127.0.0.1:19130/health"]
 
 ENTRYPOINT ["/app/alert-mailer"]
