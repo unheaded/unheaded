@@ -3,8 +3,12 @@
 # Per ADR-052 + docs/security/cargo-audit-wave-d-rand-disposition-2026-05-07.md.
 # RUSTSEC-2026-0097 N/A: ebpf-collector uses log + env_logger; no custom
 # global logger that calls rand::rng().
+# RUSTSEC-2026-0381 N/A for 0.26.11: that version is a shim whose only item is
+# `pub use parent::TLS_SERVER_ROOTS` from webpki-roots 1.x, locked at 1.0.10
+# (fixed). The advisory matches on version alone. Goes when ureq 2 -> 3.
 
 [advisories]
 ignore = [
     "RUSTSEC-2026-0097",  # rand unsoundness with custom logger — N/A
+    "RUSTSEC-2026-0381",  # webpki-roots 0.26.11 shim re-exports 1.0.10 roots — N/A
 ]
