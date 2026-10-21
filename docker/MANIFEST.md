@@ -101,7 +101,7 @@ All Dockerfiles follow consistent patterns:
 
 ### Build Arguments
 ```
-ARG GO_VERSION=1.24.0
+ARG GO_VERSION=1.27.3
 ARG VERSION=dev
 ARG BUILD_DATE=unknown
 ARG COMMIT=unknown

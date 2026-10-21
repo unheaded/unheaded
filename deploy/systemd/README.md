@@ -129,9 +129,10 @@ Consequence: no service is in the `docker` group any more, so
 systemd (FND-006: docker group membership is root-equivalent).
 
 East's services come from the `.deb` packages (`scripts/build-all-debs.sh`,
-which now ships these units and the matching sysusers line). Until east's
-packages are rebuilt, each unit there has the same sandbox as a drop-in,
-`/etc/systemd/system/unheaded-<pkg>.service.d/10-isolation.conf` (2026-10-18).
+which ships these units and the matching sysusers line). East was purged and
+reinstalled at `0.1.0~alpha+<commit>` on 2026-10-21; the interim
+`10-isolation.conf` drop-ins (2026-10-18) were removed then, since the
+packaged units carry the same sandbox.
 
 ## Binary paths
 

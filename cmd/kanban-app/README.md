@@ -394,7 +394,7 @@ export WOTAN_ADDR=wotan.unheaded.local:9090
 ### Docker (Future)
 
 ```dockerfile
-FROM golang:1.21-alpine AS builder
+FROM golang:1.27-alpine AS builder
 WORKDIR /app
 COPY . .
 RUN go build -o kanban-app ./cmd/kanban-app

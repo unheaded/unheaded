@@ -3,7 +3,7 @@
 # docker/services/gateway/Dockerfile
 # TLS gateway with certificate volume mount support
 
-ARG GO_VERSION=1.24.0
+ARG GO_VERSION=1.27.3
 ARG VERSION=dev
 ARG BUILD_DATE=unknown
 ARG COMMIT=unknown

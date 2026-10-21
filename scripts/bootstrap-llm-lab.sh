@@ -20,7 +20,8 @@ IFS=$'\n\t'
 readonly ROCM_VERSION="6.4"                       # ROCm major.minor
 readonly ROCM_APT_VERSION="6.4.2"                 # APT package version
 readonly AMDGPU_INSTALL_VERSION="6.4.60402-1"     # amdgpu-install version
-readonly GO_VERSION="1.24.0"                      # Go toolchain
+readonly GO_VERSION="1.27.3"                      # Go toolchain
+readonly GO_SHA256="65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40" # go.dev/dl, linux-amd64
 readonly RUST_TOOLCHAIN="nightly"                 # Rust nightly for eBPF
 readonly NODE_VERSION="22"                        # Node LTS for dashboard
 readonly VLLM_PORT=20100                          # vLLM inference port
@@ -671,6 +672,8 @@ phase_dev_tools() {
     else
         local go_tar="go${GO_VERSION}.linux-amd64.tar.gz"
         run wget -q "https://go.dev/dl/${go_tar}" -O "/tmp/${go_tar}"
+        $DRY_RUN || echo "${GO_SHA256}  /tmp/${go_tar}" | sha256sum -c --quiet - || {
+            rm -f "/tmp/${go_tar}"; die "Go ${GO_VERSION} does not match its pinned sha256"; }
         run rm -rf /usr/local/go
         run tar -C /usr/local -xzf "/tmp/${go_tar}"
         rm -f "/tmp/${go_tar}"

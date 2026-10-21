@@ -2,7 +2,7 @@
 # Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # docker/services/service-discovery/Dockerfile
 
-ARG GO_VERSION=1.24.0
+ARG GO_VERSION=1.27.3
 ARG VERSION=dev
 ARG BUILD_DATE=unknown
 ARG COMMIT=unknown

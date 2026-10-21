@@ -12,7 +12,7 @@
 #   BUILD_DATE — ISO 8601 build timestamp
 #   COMMIT     — git short SHA
 
-ARG GO_VERSION=1.24.0
+ARG GO_VERSION=1.27.3
 ARG SERVICE=undefined
 ARG VERSION=dev
 ARG BUILD_DATE=unknown
