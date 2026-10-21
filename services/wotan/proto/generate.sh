@@ -47,5 +47,11 @@ for f in *.pb.go; do
     fi
 done
 
+# protoimpl's raw-descriptor lines use unsafe.Slice/StringData, which gosec
+# flags as G103 and CI fails on. Regenerating without this dropped the
+# annotation from topic.pb.go once (a6a61d3c). Idempotent.
+NOSEC=" // #nosec G103 -- protoc-gen-go generated protoimpl code, not hand-written"
+sed -i -E "/unsafe\.Slice\(unsafe\.StringData\(/{/#nosec G103/!s|\$|${NOSEC}|}" *.pb.go
+
 echo "Done! Generated files:"
 ls -lh *.pb.go
