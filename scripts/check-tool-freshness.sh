@@ -26,6 +26,7 @@ TOOLS=(
 	"grype|scripts/lib/tool-pins.sh|GRYPE_VERSION|anchore/grype|v"
 	"helm|scripts/lib/tool-pins.sh|HELM_VERSION|helm/helm|v"
 	"kubeconform|scripts/lib/tool-pins.sh|KUBECONFORM_VERSION|yannh/kubeconform|v"
+	"hadolint|scripts/lib/tool-pins.sh|HADOLINT_VERSION|hadolint/hadolint|v"
 )
 
 python3 -I - "$COOLDOWN_DAYS" "${TOOLS[@]}" <<'PY'

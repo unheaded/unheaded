@@ -23,8 +23,10 @@
 set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 BASELINE="$REPO_ROOT/docs/policy/hadolint-baseline.tsv"
-IMAGE="${HADOLINT_IMAGE:-hadolint/hadolint:v2.15.1-alpine@sha256:a1d49ae1a4e83c1dbad26b8c1ad7588c8bd1e04f4866b34ad3cac50335198552}"
 cd "$REPO_ROOT"
+# shellcheck source=scripts/lib/tool-pins.sh
+source scripts/lib/tool-pins.sh
+IMAGE="${HADOLINT_IMAGE:-hadolint/hadolint:v${HADOLINT_VERSION}-alpine@${HADOLINT_IMAGE_DIGEST}}"
 
 if ! docker info >/dev/null 2>&1; then
 	echo "[FAIL] docker is required to run hadolint; this gate does not pass by skipping." >&2

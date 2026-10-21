@@ -27,5 +27,9 @@ GRYPE_SHA256="0a9ee97ef5ae2ee953b0a80098105052e846cdbe319a57d808b519c33cd1343d" 
 HELM_VERSION="4.3.0"
 HELM_SHA256="86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb" # helm-v<v>-linux-amd64.tar.gz (get.helm.sh, matches the release notes)
 
+# hadolint runs from its image, pinned by digest (scripts/check-hadolint.sh).
+HADOLINT_VERSION="2.15.1"
+HADOLINT_IMAGE_DIGEST="sha256:a1d49ae1a4e83c1dbad26b8c1ad7588c8bd1e04f4866b34ad3cac50335198552" # hadolint/hadolint:v<v>-alpine
+
 KUBECONFORM_VERSION="0.8.0"
 KUBECONFORM_SHA256="9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883" # kubeconform-linux-amd64.tar.gz
