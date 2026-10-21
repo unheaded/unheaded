@@ -581,7 +581,7 @@ func TestJWTAuthenticator_UnsupportedAlgorithm(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/timeline", nil)
 	// base64url of {"alg":"none","typ":"JWT"} = eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0
 	// base64url of {"sub":"hacker"} = eyJzdWIiOiJoYWNrZXIifQ
-	req.Header.Set("Authorization", "Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJoYWNrZXIifQ.")
+	req.Header.Set("Authorization", "Bearer eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJoYWNrZXIifQ.") // gitleaks:allow unsigned alg:none test token, no key
 
 	_, err := auth.Authenticate(context.Background(), req)
 	if !errors.Is(err, ErrUnauthenticated) {
