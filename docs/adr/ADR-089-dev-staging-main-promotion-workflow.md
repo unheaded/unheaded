@@ -121,10 +121,20 @@ covers?
 
 - Protected. No direct pushes, ever. Fast-forward or merge from `staging` only.
 - Signed commits required.
-- Tagged on promotion.
+- Tagged on promotion, and only then (see "Release tags" below).
 - **`main` must always be a state you would be willing to show someone.** That is the
   whole standard. This repo is heading for public release; `main` is the thing the
   public sees.
+
+### Release tags
+
+**Stevie, 2026-10-21:** tags mark a promotion into `main` from a `staging` that was verified working, and nothing else. No promotion has happened under this workflow yet, so no release tag is due.
+
+- One **signed, annotated** tag per promotion: `git tag -s vX.Y.Z -m "..."` on the `main` commit the promotion produced. Stevie tags and pushes; Claude never pushes.
+- Never on `develop` pushes, `staging` merges or work in progress. Bookmarks before risky operations (`pre-flatten-*`, `pre-signing-backup`) are local safety nets, not releases; they do not start with `v`.
+- `release.yml` and `docker.yml` already trigger on `v*`. `release.yml` is disabled on GitHub; check both before the first real tag (its SBOM step now uses the pinned syft).
+- Built artifacts should say which commit they came from. The Makefile already stamps binaries with `git describe --tags --always --dirty`. `scripts/build-all-debs.sh` does not: it takes a hand-set version (default `1.0.0`), so east's packages read `1.0.1` with no commit behind them.
+- **Open (Stevie):** east already has `1.0.1` installed. Versions derived from the only release tag so far (`v0.1.0-alpha`) sort below `1.0.1`, so apt would treat every new build as a downgrade. Options: make the first real tag `v1.1.0` or later; or add a Debian epoch (`1:`) once, which outranks every pre-epoch version for good. Until that is decided the deb version stays hand-set.
 
 ### Topic branch naming
 
@@ -212,6 +222,7 @@ If a promotion turns out bad:
 | Default branch = `develop` | **Not done** — needs GitHub UI (D5) |
 | Branch protection on `main` | **Not done** — needs GitHub UI (D5) |
 | Signed commits required on `main` | Convention today; enforced once protection lands |
+| Signed release tag per promotion | Rule set 2026-10-21; first one at the first promotion. Deb versions from tags: open (epoch vs first tag ≥ v1.1.0) |
 
 The first real exercise of this workflow is the Staging Ladder sprint
 (`docs/battle-plans/STAGING-LADDER-2026-08-03.md`), which is deliberately structured to
