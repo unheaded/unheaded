@@ -45,7 +45,7 @@ hosts/
 - 1 foundational: wotan (NATS message bus)
 - 3 protocol services: monad, sophia, anamnesis
 - 2 core daemons: shield, unheaded-daemon
-- 6 API/Dashboard: dashboard-backend, dashboard-frontend, protocol-api, trace-collector, gateway, service-discovery
+- 5 API/Dashboard: dashboard-backend, protocol-api, trace-collector, gateway, service-discovery
 - 2 high-performance: doom, lich
 - 5 orchestration: captain, micromanager, timeguru, architect, developer
 - 6 data/knowledge: kanban, lore, busboy, kingdom, blackmage, moatghost

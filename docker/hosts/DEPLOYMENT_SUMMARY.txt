@@ -60,7 +60,6 @@ Services (30 total):
 
   API & Dashboard (6):
     - dashboard-backend (metrics API) - 2.0 cpus, 512M mem
-    - dashboard-frontend (web UI) - 1.0 cpus, 256M mem
     - protocol-api (protocol interface) - 2.0 cpus, 512M mem
     - trace-collector (distributed tracing) - 2.0 cpus, 512M mem
     - gateway (API ingress) - 2.0 cpus, 512M mem

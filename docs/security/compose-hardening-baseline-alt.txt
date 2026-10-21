@@ -5,7 +5,6 @@
 # May only SHRINK (scripts/check-compose-hardening.sh). Register: FND-009.
 docker/hosts/host-a/docker-compose.yml:blackmage
 docker/hosts/host-a/docker-compose.yml:busboy
-docker/hosts/host-a/docker-compose.yml:dashboard-frontend
 docker/hosts/host-a/docker-compose.yml:developer
 docker/hosts/host-a/docker-compose.yml:doom
 docker/hosts/host-a/docker-compose.yml:ebpf-exporter

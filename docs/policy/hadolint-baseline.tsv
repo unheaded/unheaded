@@ -54,7 +54,6 @@ DL3066	docker/services/architect/Dockerfile	1
 DL3066	docker/services/busboy/Dockerfile	1
 DL3066	docker/services/captain/Dockerfile	1
 DL3066	docker/services/dashboard-backend/Dockerfile	1
-DL3066	docker/services/dashboard-frontend/Dockerfile	1
 DL3066	docker/services/developer/Dockerfile	1
 DL3066	docker/services/doom/Dockerfile	1
 DL3066	docker/services/gateway/Dockerfile	1

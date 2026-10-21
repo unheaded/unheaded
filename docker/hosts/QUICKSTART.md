@@ -158,8 +158,7 @@ docker-compose exec prometheus curl -s http://[fd00:dead:beef::1]:8428/api/v1/la
 2. monad, sophia, anamnesis (protocol services)
 3. shield, unheaded-daemon (core daemons)
 4. All API services, daemons, processors
-5. dashboard-frontend (UI)
-6. Telemetry stack (prometheus, grafana, loki)
+5. Telemetry stack (prometheus, grafana, loki)
 ```
 
 ### Host-B Service Dependencies

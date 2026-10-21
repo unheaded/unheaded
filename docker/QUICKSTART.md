@@ -47,7 +47,7 @@ export BUILD_DATE=$(date -u +'%Y-%m-%dT%H:%M:%SZ')
 export COMMIT=$(git rev-parse --short HEAD)
 
 for service in monad sophia wotan anamnesis shield \
-               unheaded-daemon dashboard-backend dashboard-frontend \
+               unheaded-daemon dashboard-backend \
                protocol-api trace-collector gateway service-discovery \
                doom lich captain micromanager timeguru architect \
                developer kanban lore busboy kingdom blackmage moatghost; do
@@ -70,9 +70,6 @@ echo "All 25 services built successfully!"
 - captain, micromanager, timeguru, architect, developer
 - kanban, lore, busboy, kingdom, moatghost
 - dashboard-backend, doom
-
-### Frontend
-- dashboard-frontend (Node → nginx)
 
 ### eBPF/Privileged (debian:bookworm-slim)
 - shield (CAP_BPF, CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_SYS_RESOURCE)
@@ -113,7 +110,6 @@ echo "All 25 services built successfully!"
 | blackmage | 50066 |
 | moatghost | 50067 |
 | dashboard-backend | 8080 |
-| dashboard-frontend | 3001 |
 | gateway | 8443 |
 | trace-collector | 9411 |
 | doom | 16680 |
@@ -158,7 +154,6 @@ docker/
 │   ├── shield/Dockerfile                  (30 lines) ★ eBPF
 │   ├── unheaded-daemon/Dockerfile         (30 lines) ★ eBPF
 │   ├── dashboard-backend/Dockerfile       (30 lines)
-│   ├── dashboard-frontend/Dockerfile      (20 lines) ★ Node/Nginx
 │   ├── protocol-api/Dockerfile            (30 lines)
 │   ├── trace-collector/Dockerfile         (30 lines)
 │   ├── gateway/Dockerfile                 (30 lines)

@@ -89,8 +89,8 @@ Comprehensive build & deployment automation:
 - `make logs SERVICE=monad` — Follow service logs
 - `make clean` — Remove all images
 
-**All 25 services included:**
-monad, sophia, wotan, anamnesis, shield, unheaded-daemon, dashboard-backend, dashboard-frontend, protocol-api, trace-collector, gateway, service-discovery, doom, lich, captain, micromanager, timeguru, architect, developer, kanban, lore, busboy, kingdom, blackmage, moatghost
+**All 24 services included:**
+monad, sophia, wotan, anamnesis, shield, unheaded-daemon, dashboard-backend, protocol-api, trace-collector, gateway, service-discovery, doom, lich, captain, micromanager, timeguru, architect, developer, kanban, lore, busboy, kingdom, blackmage, moatghost
 
 ### 4. Environment Configuration
 

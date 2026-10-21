@@ -95,8 +95,7 @@ docker-compose logs unheaded-wotan
 - **unheaded-daemon**: Main daemon process
 
 ### API & Dashboard
-- **dashboard-backend**: Metrics aggregation API
-- **dashboard-frontend**: Web UI (via dashboard-backend)
+- **dashboard-backend**: Metrics aggregation API and the web UI (embedded vanilla JS)
 - **protocol-api**: Protocol interface API
 - **trace-collector**: Distributed trace collection
 - **gateway**: API gateway and load balancer

@@ -31,13 +31,8 @@ Using `gcr.io/distroless/static-debian12:nonroot`
 17. **docker/services/kingdom/Dockerfile** — Core service (50065/gRPC)
 18. **docker/services/moatghost/Dockerfile** — Security service (50067/gRPC)
 
-#### Frontend Service
-19. **docker/services/dashboard-frontend/Dockerfile**
-    - Node.js 22 Alpine builder → nginx Alpine runtime
-    - Static asset serving optimized
-    - Exposes 3001/HTTP
-
-20. **docker/services/dashboard-backend/Dockerfile**
+#### Dashboard Service (serves the vanilla-JS UI, ADR-006)
+19. **docker/services/dashboard-backend/Dockerfile**
     - Standard Go service with HTTP + WebSocket
     - Distroless
     - Exposes 8080/HTTP
@@ -45,22 +40,22 @@ Using `gcr.io/distroless/static-debian12:nonroot`
 #### eBPF/Privileged Services (4 services)
 Using `debian:bookworm-slim` with libbpf0 and custom UID 10001
 
-21. **docker/services/shield/Dockerfile** — eBPF WAF
+20. **docker/services/shield/Dockerfile** — eBPF WAF
     - Requires: CAP_BPF, CAP_NET_ADMIN, CAP_SYS_ADMIN, CAP_SYS_RESOURCE
     - Exposes 50055/gRPC
     - Includes libbpf0, ca-certificates
 
-22. **docker/services/unheaded-daemon/Dockerfile** — System daemon
+21. **docker/services/unheaded-daemon/Dockerfile** — System daemon
     - Requires: CAP_BPF, CAP_NET_ADMIN
     - Internal service (no EXPOSE)
     - Includes libbpf0, ca-certificates
 
-23. **docker/services/lich/Dockerfile** — Adversary scanner
+22. **docker/services/lich/Dockerfile** — Adversary scanner
     - Requires: CAP_NET_RAW, CAP_NET_ADMIN
     - Internal service (no EXPOSE)
     - Includes ca-certificates
 
-24. **docker/services/blackmage/Dockerfile** — Pentesting service
+23. **docker/services/blackmage/Dockerfile** — Pentesting service
     - Requires: CAP_NET_RAW
     - Exposes 50066/gRPC
     - Includes ca-certificates

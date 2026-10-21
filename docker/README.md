@@ -66,7 +66,6 @@ Complete deployment of the Unheaded Kingdom system:
 **Observability:**
 - `trace-collector` — Distributed trace collection
 - `dashboard-backend` — Metrics API
-- `dashboard-frontend` — Web UI
 
 **Application Services:**
 - `doom`, `lich`, `captain`, `micromanager`, `timeguru`

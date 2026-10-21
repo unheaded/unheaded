@@ -7,9 +7,9 @@ COMMIT    ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo unknown)
 BUILD_DATE ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 REGISTRY  ?= ghcr.io/stevenrbellis/unheaded
 
-# All 25 service names
+# All 24 service names
 SERVICES := monad sophia wotan anamnesis shield unheaded-daemon \
-            dashboard-backend dashboard-frontend protocol-api \
+            dashboard-backend protocol-api \
             trace-collector gateway service-discovery doom lich \
             captain micromanager timeguru architect developer \
             kanban lore busboy kingdom blackmage moatghost

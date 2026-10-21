@@ -45,9 +45,6 @@ Complete, production-ready Docker infrastructure-as-code for the Unheaded Kingdo
 - `services/lich/Dockerfile` — Internal, CAP_NET_RAW+CAP_NET_ADMIN
 - `services/blackmage/Dockerfile` — 50066/gRPC, CAP_NET_RAW
 
-#### Frontend (1 Node/Nginx)
-- `services/dashboard-frontend/Dockerfile` — 3001/HTTP, node:22-alpine→nginx:alpine
-
 ### Documentation
 
 | File | Lines | Content |
@@ -148,7 +145,6 @@ Build Context Opt:     1 (.dockerignore)
 - 50067: moatghost
 
 ### HTTP/Special Ports
-- 3001: dashboard-frontend
 - 3002: kanban
 - 4222: wotan (NATS)
 - 8080: dashboard-backend

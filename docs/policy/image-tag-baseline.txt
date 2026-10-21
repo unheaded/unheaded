@@ -28,8 +28,6 @@ docker/services/captain/Dockerfile debian:bookworm-slim
 docker/services/captain/Dockerfile gcr.io/distroless/static-debian12:nonroot
 docker/services/dashboard-backend/Dockerfile debian:bookworm-slim
 docker/services/dashboard-backend/Dockerfile gcr.io/distroless/static-debian12:nonroot
-docker/services/dashboard-frontend/Dockerfile nginx:alpine
-docker/services/dashboard-frontend/Dockerfile node:22-alpine
 docker/services/developer/Dockerfile debian:bookworm-slim
 docker/services/developer/Dockerfile gcr.io/distroless/static-debian12:nonroot
 docker/services/doom/Dockerfile debian:bookworm-slim

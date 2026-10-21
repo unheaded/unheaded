@@ -69,12 +69,6 @@ scrape_configs:
         labels:
           service: 'dashboard-backend'
 
-  - job_name: 'dashboard-frontend'
-    static_configs:
-      - targets: ['dashboard-frontend:3000']
-        labels:
-          service: 'dashboard-frontend'
-
   - job_name: 'protocol-api'
     static_configs:
       - targets: ['protocol-api:7001']

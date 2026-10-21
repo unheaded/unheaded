@@ -505,46 +505,6 @@ services:
     - /tmp:size=64m,mode=1777
     volumes:
     - dashboard-backend-data:/var/lib/dashboard-backend
-  dashboard-frontend:
-    image: unheaded-dashboard-frontend:${VERSION:-dev}
-    container_name: unheaded-dashboard-frontend
-    restart: unless-stopped
-    networks:
-      unheaded:
-        ipv6_address: fd00:dead:beef:1::302
-    environment:
-      LOG_LEVEL: ${LOG_LEVEL:-info}
-      DASHBOARD_FRONTEND_PORT: '3000'
-      API_ENDPOINT: http://dashboard-backend:7000
-    ports:
-    - 3000:3000
-    depends_on:
-      dashboard-backend:
-        condition: service_healthy
-    healthcheck:
-      test:
-      - CMD
-      - curl
-      - -f
-      - http://localhost:3000/health
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 10s
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 256M
-    labels:
-      prometheus.io/scrape: 'true'
-      prometheus.io/port: '3000'
-      prometheus.io/path: /metrics
-    security_opt:
-    - no-new-privileges:true
-    read_only: true
-    tmpfs:
-    - /tmp:size=64m,mode=1777
   protocol-api:
     image: unheaded-protocol-api:${VERSION:-dev}
     container_name: unheaded-protocol-api
