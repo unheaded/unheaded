@@ -27,24 +27,11 @@ OXLINT_SHA256="af29dc3ad2f6235590f114928c524649b2233cf27c9057e75ec16d0d7acf7d27"
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
-[[ "$(uname -sm)" == "Linux x86_64" ]] || { echo "[FAIL] pinned for Linux x86_64 only, not $(uname -sm)" >&2; exit 2; }
-
-CACHE="${OXLINT_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/unheaded-tools/oxlint-${OXLINT_VERSION}}"
-TARBALL="$CACHE/oxlint.tar.gz"
-BIN="$CACHE/oxlint-x86_64-unknown-linux-musl"
-mkdir -p "$CACHE"
-if [[ ! -f "$TARBALL" ]]; then
-	curl -fsSL --retry 3 -o "$TARBALL.part" \
-		"https://github.com/oxc-project/oxc/releases/download/oxlint_v${OXLINT_VERSION}/oxlint-x86_64-unknown-linux-musl.tar.gz"
-	mv "$TARBALL.part" "$TARBALL"
-fi
-# Every run, not only after a download: a swapped cache file must not run.
-echo "${OXLINT_SHA256}  ${TARBALL}" | sha256sum -c --quiet - || {
-	echo "[FAIL] oxlint ${OXLINT_VERSION} tarball does not match its pinned sha256; deleted" >&2
-	rm -f "$TARBALL" "$BIN"
-	exit 2
-}
-tar -xzf "$TARBALL" -C "$CACHE"
+# shellcheck source=scripts/lib/fetch-tool.sh
+source scripts/lib/fetch-tool.sh
+BIN="$(fetch_tool oxlint "$OXLINT_VERSION" \
+	"https://github.com/oxc-project/oxc/releases/download/oxlint_v${OXLINT_VERSION}/oxlint-x86_64-unknown-linux-musl.tar.gz" \
+	"$OXLINT_SHA256" oxlint-x86_64-unknown-linux-musl)"
 
 OUT="$(mktemp)"
 trap 'rm -f "$OUT"' EXIT

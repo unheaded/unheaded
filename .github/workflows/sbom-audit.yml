@@ -26,9 +26,12 @@ jobs:
       - name: Fetch doomgeneric (go.mod replace target)
         run: ./scripts/ci-fetch-doomgeneric.sh
 
+      # Pinned release + sha256 (was `curl .../main/install.sh | sh`, i.e.
+      # whatever was on syft's main branch, run with this job's token).
       - name: Install Syft
         run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          ./scripts/ci-install-sbom-tools.sh "$RUNNER_TEMP/bin" syft
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       # grype-scan below reads sbom-results/sbom-cyclonedx.json. This step
       # used to run scripts/generate-sbom.sh, which writes sbom/*.json (the
@@ -68,7 +71,8 @@ jobs:
 
       - name: Install Grype
         run: |
-          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+          ./scripts/ci-install-sbom-tools.sh "$RUNNER_TEMP/bin" grype
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
 
       - name: Run Grype scan on CycloneDX SBOM
         run: |

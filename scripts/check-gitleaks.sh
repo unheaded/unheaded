@@ -24,23 +24,11 @@ GITLEAKS_SHA256="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470e
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
-[[ "$(uname -sm)" == "Linux x86_64" ]] || { echo "[FAIL] pinned for Linux x86_64 only, not $(uname -sm)" >&2; exit 2; }
-
-CACHE="${GITLEAKS_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/unheaded-tools/gitleaks-${GITLEAKS_VERSION}}"
-TARBALL="$CACHE/gitleaks.tar.gz"
-mkdir -p "$CACHE"
-if [[ ! -f "$TARBALL" ]]; then
-	curl -fsSL --retry 3 -o "$TARBALL.part" \
-		"https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
-	mv "$TARBALL.part" "$TARBALL"
-fi
-# Every run, not only after a download: a swapped cache file must not run.
-echo "${GITLEAKS_SHA256}  ${TARBALL}" | sha256sum -c --quiet - || {
-	echo "[FAIL] gitleaks ${GITLEAKS_VERSION} tarball does not match its pinned sha256; deleted" >&2
-	rm -f "$TARBALL"
-	exit 2
-}
-tar -xzf "$TARBALL" -C "$CACHE" gitleaks
+# shellcheck source=scripts/lib/fetch-tool.sh
+source scripts/lib/fetch-tool.sh
+BIN="$(fetch_tool gitleaks "$GITLEAKS_VERSION" \
+	"https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+	"$GITLEAKS_SHA256" gitleaks)"
 
 TREE="$(mktemp -d)"
 trap 'rm -rf "$TREE"' EXIT
@@ -48,5 +36,5 @@ git ls-files -z | tar --null -T - -cf - | tar -xf - -C "$TREE"
 n="$(git ls-files | wc -l)"
 [[ "$n" -gt 0 ]] || { echo "[FAIL] no tracked files; refusing to pass vacuously" >&2; exit 2; }
 cd "$TREE"
-"$CACHE/gitleaks" dir --no-banner --redact --exit-code 1 .
+"$BIN" dir --no-banner --redact --exit-code 1 .
 echo "[PASS] gitleaks ${GITLEAKS_VERSION}: no new secrets in ${n} tracked files"

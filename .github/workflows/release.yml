@@ -73,9 +73,11 @@ jobs:
           sha256sum * > checksums.txt
 
       - name: Generate SBOM for release
+        # Pinned syft (sha256-checked). `go install github.com/anchore/syft@latest`
+        # floated, and could not build anyway: the binary is at ./cmd/syft.
         run: |
-          go install github.com/anchore/syft@latest
-          syft dir:. -o cyclonedx-json=dist/sbom.json
+          ./scripts/ci-install-sbom-tools.sh "$RUNNER_TEMP/bin" syft
+          "$RUNNER_TEMP/bin/syft" dir:. -o cyclonedx-json=dist/sbom.json
 
       - name: Create Release
         uses: softprops/action-gh-release@de2c0eb89ae2a093876385947365aca7b0e5f844 # v1
