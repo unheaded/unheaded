@@ -165,7 +165,9 @@ The NIST 800-207 Zero Trust Architecture principle provides a strong foundation:
 | Image tags | No new floating image tag; the existing ones may only shrink (ADR-102) | `scripts/check-image-tags.sh` |
 | Unit binaries / accounts | Every systemd unit runs a binary the repo builds, as its own sysusers account | `scripts/check-unit-binaries.sh`, `scripts/check-systemd-units.sh` |
 | gitleaks + shrink-only baseline | Secrets in the tree | `scripts/check-secrets-baseline.sh` |
-| ruff, shellcheck, eslint, clippy | Python, shell, JS and Rust lint (gating) | CI |
+| ruff, shellcheck, clippy | Python, shell and Rust lint (gating) | CI |
+| oxlint (pinned binary, sha256) | JavaScript lint (gating); replaced eslint, the only npm use (ADR-006) | `scripts/check-js-lint.sh` |
+| release freshness | Pinned tools fail once a newer release is 7 days old | `scripts/check-tool-freshness.sh` |
 | hadolint | Dockerfile lint: a Dockerfile it cannot parse fails; (rule, file) counts may only shrink | `scripts/check-hadolint.sh` |
 | bandit | Python security lint (reporting only) | CI |
 | syft | SBOM | CI |

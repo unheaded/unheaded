@@ -76,20 +76,20 @@ Reference implementations that validated this approach exist in the team's other
 - **Testing limitations**: No Jest, no React Testing Library, no Cypress component testing. Frontend testing relies on E2E browser tests, which are slower and less granular.
 - **Accessibility**: Frameworks like React have mature accessibility libraries (react-aria, reach-ui). Vanilla JS requires manual ARIA attribute management.
 
-## Exception: eslint in CI (2026-10-21)
+## No npm, including lint tooling (2026-10-21)
 
-The one place npm is allowed is the JavaScript lint job, and nothing it installs ships.
+JavaScript is linted by **oxlint** (oxc-project, MIT), one static binary pinned by version and sha256 in `scripts/check-js-lint.sh` and checked on every run, the same way gitleaks and hadolint are pinned. Rules and globals live in `.oxlintrc.json`. Nothing in the repo installs or runs npm, on CI or on a host.
 
-- `package.json` is a lint-only manifest with one devDependency, `eslint`, at an exact version.
-- `package-lock.json` pins all 77 packages (eslint and everything it pulls in) by version and sha512 integrity, all from registry.npmjs.org.
-- CI (`static-analysis.yml`, JavaScript job) runs `npm ci --ignore-scripts` (fails if the lockfile and manifest disagree; no install scripts run), then `npm audit signatures` (fails on any package without a valid registry signature), then `./node_modules/.bin/eslint`. The job has a read-only token.
-- Every package in the lockfile is a line in `docs/policy/dependency-baseline.txt`; a new one fails `scripts/check-dependency-baseline.sh` until a person admits it (ADR-096).
-- Before this, the job ran `npx eslint@<version>`, which pinned eslint but fetched its dependencies fresh on every run.
-- The lockfile fixes *what runs*; it is not a freeze. `security.yml` (npm-audit job, daily and on every push) runs `npm audit` against it and `scripts/check-npm-freshness.sh`, which fails once a newer eslint has been out 7 days (hijacked releases are usually pulled within hours, so day-one versions are left alone). Bump = edit package.json, `npm install --package-lock-only --ignore-scripts`, add new names to the baseline.
+How it got here, all on 2026-10-21:
 
-Nothing else may use Node or npm: no build step, no runtime, no `node_modules` in any image, and **no `npm` on west or east**. eslint executes its dependencies' code while it lints (`--ignore-scripts` does not stop that), so the only place it runs is the throwaway CI runner, with a read-only token and no secrets. On a host it would run as govan, next to the repo `.env` and passwordless sudo: the September 2025 npm worm stole tokens exactly that way, and `debug`, hijacked in it (4.4.2), is in this tree (locked at 4.4.3).
+1. The CI lint job ran `npx eslint@<version>`: eslint pinned, its ~76 npm dependencies fetched fresh on every run. eslint **executes** those dependencies while it lints (`--ignore-scripts` does not stop that).
+2. Locked down first (14f90eae): `package-lock.json` with sha512 for all 77 packages, `npm ci --ignore-scripts`, `npm audit signatures`, every package in the dependency baseline. Then kept current rather than frozen (fa543c0f): daily `npm audit` plus a 7-day-cooldown freshness gate.
+3. BlackMage review at Stevie's ask ("should we allow npm at all"): CI-only use was LOW (throwaway runner, read token, no secrets), but npm on a host is HIGH. On west it runs as govan next to the repo `.env` and passwordless sudo; the Sept 2025 npm worm stole tokens exactly that way, and `debug`, hijacked in it (4.4.2), was in this tree. Verdict: a fenced, temporary exception whose end state is no npm.
+4. That end state: oxlint 1.88.0 reproduced eslint 10.12.0 on the same 41 files: 0 findings, 57 of 59 rules (`no-dupe-args` reports as `no-redeclare`; legacy octal literals such as `071` are not caught), and 9 of 10 planted bugs including the original `no-undef` one. Two adjustments: it lints only `.js` like the eslint config did (`.cjs`/`.mjs`/`.jsx`/`.ts` ignored), and the cross-file globals moved from `/* global */` comments, which oxlint does not read, into per-file `overrides`.
 
-This exception is temporary (BlackMage review, 2026-10-21). The end state is no npm at all: a single-binary JavaScript linter pinned by checksum, like hadolint and gitleaks, once it reproduces the checks eslint gates on (no-undef across the shared-global `<script>` files, no-unused-vars, no-redeclare); then `package.json`, `package-lock.json` and the npm baseline lines go. `docker/services/dashboard-frontend` (a `node:22` build that could not run) was removed for that reason (a14e0d52).
+Kept current by `scripts/check-tool-freshness.sh` (security.yml, daily and on push): it fails once a newer oxlint has been out 7 days, so day-one releases (the hijack window) are never adopted and nothing goes stale. A bump updates `OXLINT_VERSION` and `OXLINT_SHA256` together. Both scripts are proven to fail by `scripts/check-gates-can-fail.sh`.
+
+`docker/services/dashboard-frontend` (a `node:22` build that could not run) was removed for the same reason (a14e0d52).
 
 ## References
 

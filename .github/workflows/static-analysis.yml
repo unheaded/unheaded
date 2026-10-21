@@ -192,59 +192,23 @@ jobs:
           --skip B603,B607,B404,B311,B605,B101
 
   javascript:
-    name: JavaScript (eslint)
+    name: JavaScript (oxlint)
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: '22'
 
-      # GATING as of 2026-08-03. Baseline 57 -> 0 the same day, with no rule-ID
-      # exclusions: every finding was fixed, or annotated with the reason it does
-      # not apply. The only suppression is the Anamnesis event-code table in
-      # doom-viewport.js, kept complete because a partial copy of a wire-protocol
-      # registry is how two copies drift apart.
+      # GATING since 2026-08-03 (eslint then: baseline 57 -> 0 the same day; it
+      # found one real bug, kanban/js/task-modal.js calling a function defined
+      # only inside another file's IIFE, so saving a failed task threw
+      # ReferenceError from its own error handler).
       #
-      # First measurement of this surface, 2026-08-03: 40 tracked files, ~21K
-      # lines, and no eslint config or package.json had ever existed. Honest
-      # baseline is 57 — 42 no-unused-vars, 9 no-redeclare, 5
-      # no-prototype-builtins, 1 no-empty.
-      #
-      # Two corrections were needed before that number meant anything. A first
-      # run reported 435, but ~250 of those came from generated rustdoc under
-      # crates/upc-api/target/doc, which is untracked and gitignored — the
-      # ignore glob has to be "**/target/**", because cargo writes a target/
-      # inside every crate, not just at the repo root. Another 94 were
-      # cross-file globals: these pages load several <script> tags sharing one
-      # global scope, and eslint lints one file at a time. Those are declared
-      # in eslint.config.js with the file that defines each.
-      #
-      # The run also found one real bug: kanban/js/task-modal.js called
-      # getFriendlyErrorMessage, which is defined only inside a different
-      # file's IIFE, so saving a failed task threw ReferenceError from the
-      # error handler itself. Fixed.
-      # Installed from package-lock.json, not `npx eslint@<ver>`: that pinned
-      # eslint and fetched its ~76 dependencies fresh from npm on every run,
-      # with this repo checked out and a read token. npm ci refuses a lockfile that
-      # disagrees with package.json and checks every tarball's integrity hash;
-      # --ignore-scripts runs no package code at install; `npm audit
-      # signatures` fails on any package without a valid registry signature.
-      # New npm packages also need a line in the dependency baseline (ADR-096).
-      # This is lint tooling only: nothing that ships uses Node (ADR-006).
-      #
-      # --config is required from eslint 10 on: without it, config discovery
-      # reaches into llama.cpp/tools/server/webui/eslint.config.js — vendored,
-      # gitignored, and already in this config's `ignores` — and dies importing
-      # a plugin that is not installed. Ignores do not prevent config
-      # discovery.
-      - name: Install eslint from the lockfile
-        run: |
-          npm ci --ignore-scripts --no-audit --no-fund
-          npm audit signatures
-      - name: eslint (GATING)
-        run: ./node_modules/.bin/eslint --config eslint.config.js .
+      # oxlint since 2026-10-21 (ADR-006): eslint was the repo's only npm use
+      # and runs its ~76 dependencies' code while it lints. oxlint is one static
+      # binary, pinned by version and sha256 in the script; same rules, 0
+      # findings on the same files. No Node on the runner at all.
+      - name: oxlint (GATING)
+        run: ./scripts/check-js-lint.sh
 
   dockerfiles:
     name: Dockerfiles (hadolint)

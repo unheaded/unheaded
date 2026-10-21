@@ -46,7 +46,7 @@ controls:
     statement: >-
       Every push runs gosec (Go, at v2.29.0 with the module's toolchain),
       clippy over all Rust workspaces (ratcheted at zero warnings), ruff
-      (Python), shellcheck (warnings and errors) and eslint; each job fails
+      (Python), shellcheck (warnings and errors) and oxlint; each job fails
       the build on a new finding.
     rationale: >-
       Developer security testing with static code analysis (SA-11, SA-11(1));
@@ -59,7 +59,7 @@ controls:
       - {kind: github-job, ref: "Static Analysis/Rust (clippy)"}
       - {kind: github-job, ref: "Static Analysis/Python (ruff + bandit)"}
       - {kind: github-job, ref: "Static Analysis/Shell (shellcheck)"}
-      - {kind: github-job, ref: "Static Analysis/JavaScript (eslint)"}
+      - {kind: github-job, ref: "Static Analysis/JavaScript (oxlint)"}
     mappings:
       nist-800-53r5: [SA-11, SA-11(1)]
       nist-csf-2: [PR.PS-06]

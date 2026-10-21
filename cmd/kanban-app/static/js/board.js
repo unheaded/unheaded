@@ -7,8 +7,8 @@
  * Board module for The Unheaded Kingdom's Kanban Board
  */
 // These pages load several <script> tags sharing one global scope; the names
-// below are defined by sibling files, which eslint cannot see file-by-file.
-/* global API, Cards */
+// below are defined by sibling files: API, Cards. The linter, which reads one
+// file at a time, is told about them per file in .oxlintrc.json (overrides).
 
 const Board = (function() {
     'use strict';

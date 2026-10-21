@@ -3,8 +3,8 @@
  * All styles via CSS classes (CSP-compliant, no inline styles).
  */
 // These pages load several <script> tags sharing one global scope; the names
-// below are defined by sibling files, which eslint cannot see file-by-file.
-/* global App, Board */
+// below are defined by sibling files: App, Board. The linter, which reads one
+// file at a time, is told about them per file in .oxlintrc.json (overrides).
 
 (function() {
     'use strict';

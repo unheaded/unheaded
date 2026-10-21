@@ -213,8 +213,9 @@ The following Rust crates are used in the Unheaded Kingdom's eBPF components, tr
 
 ## JavaScript / Dashboard Dependencies
 
-The Unheaded dashboard is vanilla JavaScript. `package.json` at the repo root is a
-lint-only manifest (it pins eslint) and ships nothing.
+The Unheaded dashboard is vanilla JavaScript. Nothing in the repo uses npm (ADR-006);
+JavaScript is linted by oxlint (MIT, oxc-project), a static binary pinned by sha256 in
+`scripts/check-js-lint.sh`, which ships nothing.
 
 | Library | License | Purpose |
 |---------|---------|---------|
