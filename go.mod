@@ -17,7 +17,10 @@ go 1.26.0
 // 1.27.2 on 2026-10-13: 13 reachable stdlib vulnerabilities in 1.27.1
 // (net/http, http2, crypto/tls, mime/multipart, os, html/template;
 // GO-2026-6600..6617), with golang.org/x/net v0.60.0 for the http2 ones.
-toolchain go1.27.2
+//
+// 1.27.3 on 2026-10-21: crypto/x509 distrusts the compromised emSign
+// intermediates (GO-2026-6809), reachable through every TLS client here.
+toolchain go1.27.3
 
 require (
 	github.com/BurntSushi/toml v1.6.0

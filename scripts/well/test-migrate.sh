@@ -64,7 +64,7 @@ printf '%s\n' "unheaded_ops 898_test_init_owner.sql" "unheaded_ops 899_test_init
 start "$N" "$M"
 PORT="$("${DOCKER[@]}" port "$N" 5432/tcp | head -1 | sed 's/.*://')"
 
-(cd "$R" && GOTOOLCHAIN="${GOTOOLCHAIN:-go1.27.2}" go build -o "$TMP/well-migrate" ./cmd/well-migrate)
+(cd "$R" && GOTOOLCHAIN="${GOTOOLCHAIN:-go1.27.3}" go build -o "$TMP/well-migrate" ./cmd/well-migrate)
 wm() { WELL_SSLMODE=disable WELL_HOST=127.0.0.1 WELL_PORT="${WP:-$PORT}" WELL_MIGRATE_PASSWORD="$PW" "$TMP/well-migrate" -dir "$M" "$@"; }
 
 fails=0

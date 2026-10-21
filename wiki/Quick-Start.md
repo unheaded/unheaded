@@ -6,7 +6,7 @@ Get Unheaded running locally in ~10 minutes.
 
 | Tool | Version | Check |
 |------|---------|-------|
-| Go | 1.26+ (toolchain go1.27.2 per go.mod) | `go version` |
+| Go | 1.26+ (toolchain go1.27.3 per go.mod) | `go version` |
 | Docker + Compose | 20.10+ | `docker compose version` |
 | curl | any | `curl --version` |
 | Git | any | `git --version` |

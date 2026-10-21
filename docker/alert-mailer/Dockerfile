@@ -4,7 +4,7 @@
 # alert-mailer (ADR-100). Build context is the repo root (it imports
 # unheaded/pkg/...): monitoring/docker-compose.yml does this.
 
-FROM golang:1.27.2-alpine3.24 AS builder
+FROM golang:1.27.3-alpine3.24 AS builder
 
 WORKDIR /build
 COPY go.mod go.sum ./
