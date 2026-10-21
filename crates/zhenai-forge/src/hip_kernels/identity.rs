@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 //
 // WAVE11 identity-kernel Rust wrapper — smoke test for the HIP build pipeline.
 // If this doesn't launch correctly, nothing else in WAVE11 will.

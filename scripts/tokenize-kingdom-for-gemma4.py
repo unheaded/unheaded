@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 """
 WAVE10F Phase 7.1 vertical slice: Gemma 4 tokenization of the Kingdom RAFT
 corpus for zhenai-forge.

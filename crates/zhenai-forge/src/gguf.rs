@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 
 //! GGUF file reader — zero-copy mmap-based parsing.
 //! Reads quantized model files without decompressing to fp16.

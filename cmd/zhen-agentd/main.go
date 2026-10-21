@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 
 // Command zhen-agentd is the long-running HTTP daemon variant of
 // zhen-agent. Same agent runtime (pkg/agent + pkg/champion + cs/vor +

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 //
 // WAVE11 identity kernel — proves the HIP → Rust → GPU launch pipeline works.
 // First kernel we ever launch. If this fails, nothing else in WAVE11 works.

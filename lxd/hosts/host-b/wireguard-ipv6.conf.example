@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # host-b/wireguard-ipv6.conf.example
 # WireGuard IPv6 configuration for host-b → host-a tunnel
 # Architecture: fd00:dead:beef::/48 addressing scheme

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 #
 # scripts/zhen-agent-preflight.sh — checks that the prerequisites for
 # running zhen-agent are satisfied. Designed to be invoked by

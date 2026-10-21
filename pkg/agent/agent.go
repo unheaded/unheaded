@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 
 // Package agent implements the minimal ReAct-style runtime that drives
 // the Zhen agent. Phase D-A: connects zhen-rag (retrieval + LLM) to

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # docker/base/Dockerfile.base — Unheaded multi-stage Go build base
 #
 # Stage 1: builder — full Go toolchain for compilation
@@ -71,7 +71,7 @@ LABEL org.opencontainers.image.title="unheaded-${SERVICE}" \
       org.opencontainers.image.created="${BUILD_DATE}" \
       org.opencontainers.image.revision="${COMMIT}" \
       org.opencontainers.image.licenses="MIT" \
-      org.opencontainers.image.vendor="Steven Bellis" \
+      org.opencontainers.image.vendor="Stevie Bellis" \
       org.opencontainers.image.source="https://github.com/stevenrbellis/unheaded"
 
 # Pull CA certs from certs stage

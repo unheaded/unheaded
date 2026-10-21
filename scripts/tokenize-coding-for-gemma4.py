@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-3.0-or-later
-# Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 """
 Coding-corpus tokenizer — adapter of `tokenize-kingdom-for-gemma4.py`
 for the `{question, answer}` schema produced by `build-coding-corpus.py`.

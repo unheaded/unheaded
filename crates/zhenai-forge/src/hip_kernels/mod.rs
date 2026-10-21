@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 //
 // WAVE11 HIP kernel FFI — host-side wrappers for custom kernels compiled
 // via hipcc (see `build.rs`). All kernels expose an `extern "C"` launch

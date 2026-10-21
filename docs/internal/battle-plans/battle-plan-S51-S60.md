@@ -352,7 +352,7 @@ Confidence: Medium-High (hardware availability is the variable)
 - [ ] **Step 1** [R]: Read current THIRD_PARTY.md for existing license landscape
 - [ ] **Step 2** [R]: Read MariaDB BSL 1.1 template for reference
 - [ ] **Step 3** [W]: Create `LICENSE` file — BSL 1.1 with:
-  - Licensor: Steven R. Bellis / Unheaded
+  - Licensor: Stevie R. Bellis / Unheaded
   - Licensed Work: Unheaded (all versions)
   - Change Date: 4 years from first public release (or K8s-scale adoption trigger)
   - Change License: Apache 2.0 OR MIT (Muck decides)

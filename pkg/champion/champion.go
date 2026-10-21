@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Package champion implements the Zhen Champion Agent — an active Kingdom agent
 // that can read tasks, search the corpus, read files (sandboxed), and check service

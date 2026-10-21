@@ -46,7 +46,7 @@
 
 ### Copyright Notice
 
-   Copyright (c) 2026 Steven R. Bellis.  All rights reserved.
+   Copyright (c) 2026 Stevie R. Bellis.  All rights reserved.
 
 ### Table of Contents
 
@@ -1635,5 +1635,5 @@
 
 ### Author's Address
 
-   Steven R. Bellis
+   Stevie R. Bellis
    Email: stevenrbellis@gmail.com

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # Multi-stage Suricata Docker build for Unheaded Kingdom
 #
 # PARKED AND NOT WORKING (checked 2026-09-25). This image contains NO Suricata
@@ -59,7 +59,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # === Stage 2: Runtime ===
 FROM ubuntu:24.04 AS runtime
 
-LABEL maintainer="Steven Bellis"
+LABEL maintainer="Stevie Bellis"
 LABEL description="Suricata IDS/IPS with EVE JSON boundary for GPL isolation"
 LABEL org.unheaded.service="suricata"
 

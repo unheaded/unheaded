@@ -1,6 +1,6 @@
 # Monad Protocol Signatures — Unheaded Kingdom
 # SPDX-License-Identifier: MIT
-# Copyright (c) 2024-2026 Steven Bellis. All rights reserved.
+# Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 # SID range: 9000001-9000099
 #
 # CANONICAL COPY. kubernetes/manifests/base/suricata/configmap.yaml carries a

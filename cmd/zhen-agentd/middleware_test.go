@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-// Copyright (c) 2025-2026 Steven Bellis. All rights reserved.
+// Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 
 // Blue-team / QA integration tests for the daemon's outer middleware
 // chain (auth + rate-limit). The standard newTestDaemon helper omits
