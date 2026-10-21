@@ -21,6 +21,7 @@ cd "$(dirname "$0")/.."
 
 TOOLS=(
 	"oxlint|scripts/check-js-lint.sh|OXLINT_VERSION|oxc-project/oxc|oxlint_v"
+	"gitleaks|scripts/check-gitleaks.sh|GITLEAKS_VERSION|gitleaks/gitleaks|v"
 )
 
 python3 -I - "$COOLDOWN_DAYS" "${TOOLS[@]}" <<'PY'

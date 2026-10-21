@@ -585,6 +585,15 @@ provoke_js_lint() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_gitleaks() {
+    # Contract: a new secret in a tracked file fails. Plant an AWS access key
+    # ID, assembled here so this script never contains one itself.
+    local f="docs/compliance/SECRETS-SCAN.md"
+    backup "${f}"
+    printf '\naws_access_key_id = %s%s\n' "AKIA" "Q7ZK3M5R2TXW4P6N" >>"${REPO_ROOT}/${f}"
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_tool_freshness() {
     # Contract: release-pinned tools are not behind a release past its 7-day
     # cooldown. Pin oxlint back to a long-superseded release.
@@ -645,6 +654,7 @@ check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at
 check-image-tags|provoke_image_tags|fast|traefik:v3.3.7 floated back to traefik:latest in docker-compose.yml
 check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt
 check-js-lint|provoke_js_lint|fast|the first lint run's real bug restored: a call to a function another file's IIFE hides (no-undef)
+check-gitleaks|provoke_gitleaks|fast|an AWS access key ID appended to a tracked doc (downloads the pinned gitleaks once)
 check-tool-freshness|provoke_tool_freshness|fast|oxlint pinned back to 1.0.0, long past the 7-day cooldown (needs the GitHub API)
 check-hadolint|provoke_hadolint|slow|a RUN that cd's (DL3003) appended to the root Dockerfile (needs docker)
 test-deb-maintscripts|provoke_deb_maintscripts|fast|prerm disabling the service on every call, upgrades included
