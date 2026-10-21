@@ -7,8 +7,8 @@
 # Replaces eslint, the repo's only npm use: eslint runs its ~76 npm
 # dependencies' code while it lints, and the Sept 2025 npm worm showed what
 # that costs on a host. oxlint is one static binary from the oxc project,
-# pinned here by version and sha256 (checked on every run), the same way
-# gitleaks and hadolint are pinned. No npm, no node_modules.
+# pinned by version and sha256 in lib/tool-pins.sh (checked on every run),
+# like gitleaks, syft, grype and helm. No npm, no node_modules.
 #
 # Rules and globals are in .oxlintrc.json: eslint's core correctness rules,
 # the browser globals, and, per file, the globals other <script> files on
@@ -22,11 +22,10 @@
 #   scripts/check-js-lint.sh
 set -euo pipefail
 
-OXLINT_VERSION="1.88.0"
-OXLINT_SHA256="af29dc3ad2f6235590f114928c524649b2233cf27c9057e75ec16d0d7acf7d27" # oxlint-x86_64-unknown-linux-musl.tar.gz
-
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
+# shellcheck source=scripts/lib/tool-pins.sh
+source scripts/lib/tool-pins.sh
 # shellcheck source=scripts/lib/fetch-tool.sh
 source scripts/lib/fetch-tool.sh
 BIN="$(fetch_tool oxlint "$OXLINT_VERSION" \

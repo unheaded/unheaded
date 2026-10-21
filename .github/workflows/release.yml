@@ -76,7 +76,7 @@ jobs:
         # Pinned syft (sha256-checked). `go install github.com/anchore/syft@latest`
         # floated, and could not build anyway: the binary is at ./cmd/syft.
         run: |
-          ./scripts/ci-install-sbom-tools.sh "$RUNNER_TEMP/bin" syft
+          ./scripts/ci-install-tools.sh "$RUNNER_TEMP/bin" syft
           "$RUNNER_TEMP/bin/syft" dir:. -o cyclonedx-json=dist/sbom.json
 
       - name: Create Release

@@ -594,10 +594,19 @@ provoke_gitleaks() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_helm_security() {
+    # Contract: every container the chart renders has a read-only root
+    # filesystem. Flip the chart-wide default.
+    local f="helm/unheaded/values.yaml"
+    backup "${f}"
+    sed -i 's/readOnlyRootFilesystem: true/readOnlyRootFilesystem: false/' "${REPO_ROOT}/${f}"
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_tool_freshness() {
     # Contract: release-pinned tools are not behind a release past its 7-day
     # cooldown. Pin oxlint back to a long-superseded release.
-    local f="scripts/check-js-lint.sh"
+    local f="scripts/lib/tool-pins.sh"
     backup "${f}"
     sed -i 's/^OXLINT_VERSION="[^"]*"/OXLINT_VERSION="1.0.0"/' "${REPO_ROOT}/${f}"
 }
@@ -655,6 +664,7 @@ check-image-tags|provoke_image_tags|fast|traefik:v3.3.7 floated back to traefik:
 check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt
 check-js-lint|provoke_js_lint|fast|the first lint run's real bug restored: a call to a function another file's IIFE hides (no-undef)
 check-gitleaks|provoke_gitleaks|fast|an AWS access key ID appended to a tracked doc (downloads the pinned gitleaks once)
+check-helm-security|provoke_helm_security|fast|the chart-wide readOnlyRootFilesystem flipped to false in values.yaml (downloads the pinned Helm once)
 check-tool-freshness|provoke_tool_freshness|fast|oxlint pinned back to 1.0.0, long past the 7-day cooldown (needs the GitHub API)
 check-hadolint|provoke_hadolint|slow|a RUN that cd's (DL3003) appended to the root Dockerfile (needs docker)
 test-deb-maintscripts|provoke_deb_maintscripts|fast|prerm disabling the service on every call, upgrades included
@@ -684,7 +694,7 @@ kanban-git-link|writes kanban links, no verdict
 drift-detect|reports drift; alerts-only by design (pkg/enkrateia contract)
 qa-smoke|prints a score for a human to compare against the previous batch
 ci-fetch-doomgeneric|fetches a pinned checkout the Go jobs need; no verdict of its own
-ci-install-sbom-tools|installs pinned syft/grype (sha256 via lib/fetch-tool, which check-js-lint and check-gitleaks also use); no verdict of its own
+ci-install-tools|installs pinned syft/grype/helm/kubeconform for CI jobs (lib/tool-pins + lib/fetch-tool, which the check-* scripts also use); no verdict of its own
 lib/logpath|prints the durable log path for a service (ADR-092); no verdict of its own
 lib/deb-maintscripts|generates the .deb maintainer scripts (build-all-debs, Jenkinsfile); proven by test-deb-maintscripts
 well/set-role-passwords|sets role passwords from the environment (runbooks); no verdict of its own

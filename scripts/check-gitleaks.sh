@@ -6,9 +6,9 @@
 #
 # The CI step used to curl gitleaks 8.28.0 and run it with no checksum, so a
 # swapped release asset would have run with the repo checked out. Now the
-# version and sha256 are pinned here and checked on every run (the same as
-# oxlint in check-js-lint.sh), and scripts/check-tool-freshness.sh fails once
-# a newer release has been out 7 days.
+# version and sha256 are pinned in lib/tool-pins.sh and checked on every run
+# (lib/fetch-tool.sh), and scripts/check-tool-freshness.sh fails once a newer
+# release has been out 7 days.
 #
 # Scans the tracked files only, in a temporary copy: that is what a CI
 # checkout holds, and on a host it keeps untracked files such as the repo
@@ -19,11 +19,10 @@
 #   scripts/check-gitleaks.sh
 set -euo pipefail
 
-GITLEAKS_VERSION="8.30.1"
-GITLEAKS_SHA256="551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb" # gitleaks_<v>_linux_x64.tar.gz
-
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$REPO_ROOT"
+# shellcheck source=scripts/lib/tool-pins.sh
+source scripts/lib/tool-pins.sh
 # shellcheck source=scripts/lib/fetch-tool.sh
 source scripts/lib/fetch-tool.sh
 BIN="$(fetch_tool gitleaks "$GITLEAKS_VERSION" \

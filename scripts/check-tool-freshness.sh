@@ -13,17 +13,19 @@
 # lifts the anonymous rate limit.
 #
 # One row per tool: name | file holding the pin | variable | repo | tag prefix.
-# Bumping a pin also means updating its sha256 in the same file.
+# All pins live in scripts/lib/tool-pins.sh; a bump updates the sha256 too.
 set -euo pipefail
 
 COOLDOWN_DAYS="${COOLDOWN_DAYS:-7}"
 cd "$(dirname "$0")/.."
 
 TOOLS=(
-	"oxlint|scripts/check-js-lint.sh|OXLINT_VERSION|oxc-project/oxc|oxlint_v"
-	"gitleaks|scripts/check-gitleaks.sh|GITLEAKS_VERSION|gitleaks/gitleaks|v"
-	"syft|scripts/ci-install-sbom-tools.sh|SYFT_VERSION|anchore/syft|v"
-	"grype|scripts/ci-install-sbom-tools.sh|GRYPE_VERSION|anchore/grype|v"
+	"oxlint|scripts/lib/tool-pins.sh|OXLINT_VERSION|oxc-project/oxc|oxlint_v"
+	"gitleaks|scripts/lib/tool-pins.sh|GITLEAKS_VERSION|gitleaks/gitleaks|v"
+	"syft|scripts/lib/tool-pins.sh|SYFT_VERSION|anchore/syft|v"
+	"grype|scripts/lib/tool-pins.sh|GRYPE_VERSION|anchore/grype|v"
+	"helm|scripts/lib/tool-pins.sh|HELM_VERSION|helm/helm|v"
+	"kubeconform|scripts/lib/tool-pins.sh|KUBECONFORM_VERSION|yannh/kubeconform|v"
 )
 
 python3 -I - "$COOLDOWN_DAYS" "${TOOLS[@]}" <<'PY'
