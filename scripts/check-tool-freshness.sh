@@ -27,7 +27,7 @@ TOOLS=(
 )
 
 python3 -I - "$COOLDOWN_DAYS" "${TOOLS[@]}" <<'PY'
-import datetime, json, os, re, sys, urllib.request
+import datetime, json, os, re, sys, urllib.error, urllib.request
 
 cooldown = datetime.timedelta(days=int(sys.argv[1]))
 now = datetime.datetime.now(datetime.timezone.utc)
@@ -38,6 +38,34 @@ if os.environ.get("GITHUB_TOKEN"):
 def key(v):
     return tuple(int(x) for x in v.split("."))
 
+# Release lists are cached for an hour: the anonymous API allows 60 calls an
+# hour, and the meta-gate runs this several times. CI sets GITHUB_TOKEN.
+CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "unheaded-tools", "releases")
+
+def releases(repo):
+    path = os.path.join(CACHE, repo.replace("/", "__") + ".json")
+    try:
+        if now.timestamp() - os.path.getmtime(path) < 3600:
+            return json.load(open(path))
+    except OSError:
+        pass
+    out = []
+    for page in range(1, 4):
+        req = urllib.request.Request(f"https://api.github.com/repos/{repo}/releases?per_page=100&page={page}", headers=headers)
+        try:
+            with urllib.request.urlopen(req, timeout=30) as r:
+                rels = json.load(r)
+        except urllib.error.HTTPError as e:
+            msg = "rate-limited; set GITHUB_TOKEN" if e.code in (403, 429) else f"HTTP {e.code}"
+            print(f"[FAIL] {repo} releases: {msg}. This gate does not pass by skipping.")
+            sys.exit(2)
+        out += [{k: r.get(k) for k in ("tag_name", "draft", "prerelease", "published_at")} for r in rels]
+        if len(rels) < 100:
+            break
+    os.makedirs(CACHE, exist_ok=True)
+    json.dump(out, open(path, "w"))
+    return out
+
 stale = 0
 for row in sys.argv[2:]:
     name, path, var, repo, prefix = row.split("|")
@@ -47,23 +75,17 @@ for row in sys.argv[2:]:
         sys.exit(2)
     pinned = m.group(1)
     ripe, newest = [], None
-    for page in range(1, 4):
-        req = urllib.request.Request(f"https://api.github.com/repos/{repo}/releases?per_page=100&page={page}", headers=headers)
-        with urllib.request.urlopen(req, timeout=30) as r:
-            rels = json.load(r)
-        for rel in rels:
-            tag = rel["tag_name"]
-            if rel["draft"] or rel["prerelease"] or not tag.startswith(prefix):
-                continue
-            v = tag[len(prefix):]
-            if not re.fullmatch(r"[0-9]+(\.[0-9]+)*", v):
-                continue
-            newest = max(newest or v, v, key=key)
-            published = datetime.datetime.fromisoformat(rel["published_at"].replace("Z", "+00:00"))
-            if now - published >= cooldown:
-                ripe.append(v)
-        if len(rels) < 100:
-            break
+    for rel in releases(repo):
+        tag = rel["tag_name"]
+        if rel["draft"] or rel["prerelease"] or not tag.startswith(prefix):
+            continue
+        v = tag[len(prefix):]
+        if not re.fullmatch(r"[0-9]+(\.[0-9]+)*", v):
+            continue
+        newest = max(newest or v, v, key=key)
+        published = datetime.datetime.fromisoformat(rel["published_at"].replace("Z", "+00:00"))
+        if now - published >= cooldown:
+            ripe.append(v)
     target = max(ripe, key=key) if ripe else pinned
     if key(pinned) >= key(target):
         note = "" if newest in (None, pinned) else f" ({newest} still in its {cooldown.days}d cooldown)"
