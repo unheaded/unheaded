@@ -133,8 +133,8 @@ covers?
 - One **signed, annotated** tag per promotion: `git tag -s vX.Y.Z -m "..."` on the `main` commit the promotion produced. Stevie tags and pushes; Claude never pushes.
 - Never on `develop` pushes, `staging` merges or work in progress. Bookmarks before risky operations (`pre-flatten-*`, `pre-signing-backup`) are local safety nets, not releases; they do not start with `v`.
 - `release.yml` and `docker.yml` already trigger on `v*`. `release.yml` is disabled on GitHub; check both before the first real tag (its SBOM step now uses the pinned syft).
-- Built artifacts should say which commit they came from. The Makefile already stamps binaries with `git describe --tags --always --dirty`. `scripts/build-all-debs.sh` does not: it takes a hand-set version (default `1.0.0`), so east's packages read `1.0.1` with no commit behind them.
-- **Open (Stevie):** east already has `1.0.1` installed. Versions derived from the only release tag so far (`v0.1.0-alpha`) sort below `1.0.1`, so apt would treat every new build as a downgrade. Options: make the first real tag `v1.1.0` or later; or add a Debian epoch (`1:`) once, which outranks every pre-epoch version for good. Until that is decided the deb version stays hand-set.
+- Built artifacts say which commit they came from. The Makefile stamps binaries with `git describe --tags --always --dirty`. `scripts/build-all-debs.sh` defaults to `0.1.0~alpha+<commit time UTC>.g<hash>` (Debian `~` sorts before the release, so these all precede a future `0.1.0`) and refuses a dirty tree unless given a version.
+- **Stevie, 2026-10-21:** "purge from east and start with v0.1.0-alpha this is barely even alpha at this point". East's hand-versioned `1.0.0`/`1.0.1` packages were purged, not outranked: no epoch, and no inflated first tag.
 
 ### Topic branch naming
 

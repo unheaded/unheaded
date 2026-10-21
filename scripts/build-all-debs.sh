@@ -12,7 +12,19 @@ umask 022
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # shellcheck source=scripts/lib/deb-maintscripts.sh
 . "$PROJECT_ROOT/scripts/lib/deb-maintscripts.sh"
-VERSION="${1:-1.0.0}"
+# Default version: v0.1.0-alpha in Debian form (`~` sorts before the release,
+# so 0.1.0~alpha < 0.1.0), plus the commit it was built from. The commit
+# time keeps successive builds ordered for apt; the hash names the commit.
+# A dirty tree has no commit to name, so it needs an explicit version.
+if [[ -n "${1:-}" ]]; then
+    VERSION="$1"
+else
+    [[ -z "$(git -C "$PROJECT_ROOT" status --porcelain)" ]] || {
+        echo "FAIL: uncommitted changes; commit first or pass a version" >&2
+        exit 1
+    }
+    VERSION="0.1.0~alpha+$(TZ=UTC git -C "$PROJECT_ROOT" show -s --format=%cd --date=format-local:%Y%m%d%H%M%S HEAD).g$(git -C "$PROJECT_ROOT" rev-parse --short=8 HEAD)"
+fi
 # Not a fixed /tmp path: another local user could pre-create it.
 OUTPUT_DIR="${DEB_OUTPUT_DIR:-${PROJECT_ROOT}/dist/debs}"
 mkdir -p "$OUTPUT_DIR"
