@@ -6,8 +6,11 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The repo's generated files match its policy, and every hand-written rule
@@ -111,5 +114,45 @@ func TestPromotionRoutesOneAlert(t *testing.T) {
 	page := strings.Index(s, `- urgency="page"`)
 	if promo < 0 || page < 0 || promo > page {
 		t.Fatalf("promotion route missing or after the urgency routes:\n%s", s)
+	}
+}
+
+// A tier keeps firing until its short window is clean again, so a silence
+// that ends when the work ends still mails about the planned outage (the
+// medium page fired 15m after a restart, 2026-10-21). maintenance.sh adds
+// a tail per urgency; each must cover the longest short window that can
+// notify at that urgency. Page tiers notify as tickets for SLOs that do
+// not page, so every tier counts for tickets.
+func TestMaintenanceTailsCoverShortWindows(t *testing.T) {
+	src, err := os.ReadFile(filepath.Join("..", "..", "scripts", "monitoring", "maintenance.sh"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	tail := func(name string) time.Duration {
+		m := regexp.MustCompile(`(?m)^` + name + `=(\d+)$`).FindSubmatch(src)
+		if m == nil {
+			t.Fatalf("maintenance.sh: no %s=<minutes> line", name)
+		}
+		n, _ := strconv.Atoi(string(m[1]))
+		return time.Duration(n) * time.Minute
+	}
+	var page, ticket time.Duration
+	for _, tr := range tiers {
+		d, err := time.ParseDuration(tr.short)
+		if err != nil {
+			t.Fatalf("tier %s: short %q: %v", tr.name, tr.short, err)
+		}
+		if tr.pages && d > page {
+			page = d
+		}
+		if d > ticket {
+			ticket = d
+		}
+	}
+	if got := tail("PAGE_TAIL_MIN"); got < page {
+		t.Errorf("PAGE_TAIL_MIN = %v, the page tiers' short windows reach %v", got, page)
+	}
+	if got := tail("TICKET_TAIL_MIN"); got < ticket {
+		t.Errorf("TICKET_TAIL_MIN = %v, the short windows reach %v", got, ticket)
 	}
 }

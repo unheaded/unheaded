@@ -95,12 +95,12 @@ STARTTLS is required, and a login over plaintext is refused. A relay error is no
 A reboot or a stack restart burns budget like an outage does. Silence first:
 
 ```bash
-scripts/monitoring/maintenance.sh 30m "reboot west"   # silences page and ticket, at most 24h
+scripts/monitoring/maintenance.sh 30m "reboot west"   # 30m of work, at most 24h
 scripts/monitoring/maintenance.sh --list
 scripts/monitoring/maintenance.sh --end
 ```
 
-Alerts still fire and show; only mail stops. `scripts/kingdom-shutdown.sh` silences 30m before it stops anything, and `kingdom-startup.sh` silences 15m of warm-up (both best effort).
+Alerts still fire and show; only mail stops. The duration is the work; each silence runs past it until the tiers can have cleared: pages +30m (the medium tier's short window), tickets +6h (the steady tier's). A silence that ended with the work mailed about the planned outage after it was over. `cmd/alert-policy`'s tests keep the tails in step with the tiers. `scripts/kingdom-shutdown.sh` silences 30m of work before it stops anything, and `kingdom-startup.sh` 15m of warm-up (both best effort).
 
 ## When one arrives
 
