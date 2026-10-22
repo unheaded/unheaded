@@ -23,7 +23,6 @@ readonly AMDGPU_INSTALL_VERSION="6.4.60402-1"     # amdgpu-install version
 readonly GO_VERSION="1.27.3"                      # Go toolchain
 readonly GO_SHA256="65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40" # go.dev/dl, linux-amd64
 readonly RUST_TOOLCHAIN="nightly"                 # Rust nightly for eBPF
-readonly NODE_VERSION="22"                        # Node LTS for dashboard
 readonly VLLM_PORT=20100                          # vLLM inference port
 readonly NVME_MOUNT="/mnt/nvme"                   # Fast storage mount
 readonly HDD_MOUNT="/mnt/hdd"                     # Slow storage mount
@@ -370,7 +369,7 @@ export CONDA_PKGS_DIRS="${HDD_MOUNT}/cache/conda/pkgs"
 export TENSORBOARD_LOGDIR="${HDD_MOUNT}/tensorboard"
 export WANDB_DIR="${HDD_MOUNT}/wandb"
 
-# XDG cache → HDD (npm, go, misc caches)
+# XDG cache → HDD (go, misc caches)
 export XDG_CACHE_HOME="${HDD_MOUNT}/cache"
 
 # vLLM: AMD AITER acceleration (optimized attention for ROCm)
@@ -663,7 +662,7 @@ LXDPRESEED
 # PHASE 6: GO + RUST + NIX (Build Environment)
 # ─────────────────────────────────────────────────────────────────────────────
 phase_dev_tools() {
-    phase "6/16 — DEV ENVIRONMENT (Go, Rust, Nix, Node)"
+    phase "6/16 — DEV ENVIRONMENT (Go, Rust, Nix)"
 
     # ── Go ──
     step "Installing Go ${GO_VERSION}..."
@@ -739,14 +738,8 @@ trusted-users = root @wheel @sudo
 NIXCFG
     fi
 
-    # ── Node.js (for dashboard) ──
-    step "Installing Node.js ${NODE_VERSION}..."
-    if command -v node &>/dev/null; then
-        ok "Node.js already installed: $(node --version)"
-    else
-        run curl -fsSL "https://deb.nodesource.com/setup_${NODE_VERSION}.x" | bash -
-        run apt-get install -y nodejs
-    fi
+    # No Node.js: the dashboard is vanilla JS served by dashboard-backend, the
+    # JS linter is a static oxlint binary, and ADR-006 keeps npm off the hosts.
 
     # ── golangci-lint ──
     step "Installing golangci-lint..."
@@ -1173,7 +1166,7 @@ VLLMSTART
 }
 
 # ─────────────────────────────────────────────────────────────────────────────
-# PHASE 12: CLAUDE CODE CLI + AI TOOLING (npm: @anthropic-ai/claude-code)
+# PHASE 12: CLAUDE CODE CLI + AI TOOLING
 # ─────────────────────────────────────────────────────────────────────────────
 phase_claude_cli() {
     phase "12/16 — CLAUDE CODE CLI + AI TOOLING"
@@ -1183,20 +1176,13 @@ phase_claude_cli() {
     if command -v claude &>/dev/null; then
         ok "Claude Code already installed: $(claude --version 2>/dev/null || echo 'available')"
     else
-        # Claude Code installs via npm
-        if command -v npm &>/dev/null; then
-            run npm install -g @anthropic-ai/claude-code 2>/dev/null || {
-                warn "npm install failed — trying npx..."
-                info "You can run: npx @anthropic-ai/claude-code"
-            }
+        # The native installer, as the operator rather than root: a single
+        # binary in ~/.local/bin that updates itself; no Node or npm (ADR-006).
+        if [[ -n "${SUDO_USER:-}" ]]; then
+            run sudo -u "${SUDO_USER}" -H bash -c 'curl -fsSL https://claude.ai/install.sh | bash' ||
+                warn "Claude Code install failed; as ${SUDO_USER}: curl -fsSL https://claude.ai/install.sh | bash"
         else
-            warn "npm not available — install Node.js first, then:"
-            warn "  npm install -g @anthropic-ai/claude-code"
-        fi
-
-        # Also install for sudo user
-        if [[ -n "${SUDO_USER:-}" ]] && command -v npm &>/dev/null; then
-            sudo -u "${SUDO_USER}" npm install -g @anthropic-ai/claude-code 2>/dev/null || true
+            warn "Not run through sudo; install Claude Code as the operator: curl -fsSL https://claude.ai/install.sh | bash"
         fi
     fi
 
