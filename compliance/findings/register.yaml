@@ -46,17 +46,6 @@ findings:
       dry-run outbox review, then the Gmail app password (wiki/Alerting.md) and mode send
     decision: SMTP relay (Stevie leaning to the bellis.tech Google Workspace account) and when to leave dry-run
 
-  - source: "github-job:Static Analysis/Gates can actually fail"
-    severity: medium
-    class: ci
-    opened: 2026-09-30
-    lockout: none
-    step: 1
-    plan: >-
-      On GitHub at 289aabcb every gate bit except check-clippy, INCONCLUSIVE because clippy was already red (protoc missing). 7682968c
-      installs protoc in this job too. At f6047659 (2026-10-19) red again: live-path-inventory INCONCLUSIVE, docs/LIVE-PATHS.md not
-      regenerated after 25c56cf9 gave trace-collector a unit. f6e10ed7 regenerates it; resolves when pushed
-
   # --- step 2: sysctl (reversible, no lockout) -----------------------------
   # --- step 3: auditd -------------------------------------------------------
   # --- step 4: low-risk sshd keys -------------------------------------------
