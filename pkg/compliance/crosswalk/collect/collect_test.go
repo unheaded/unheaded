@@ -1238,3 +1238,16 @@ func TestHostProbesPrelude(t *testing.T) {
 		t.Fatalf("script does not start with the prelude: %q", script)
 	}
 }
+
+// TestProbesFailClosed: output that says nothing was checked never passes.
+// A missing tool (modprobe off PATH), a refused sudo or an empty section
+// once passed usb-storage, an MTA check and the backup check.
+func TestProbesFailClosed(t *testing.T) {
+	for name, p := range Probes {
+		for _, out := range []string{"", "sh: 1: modprobe: not found\n", "sudo: a password is required\n"} {
+			if pass, detail := p.Judge(out); pass {
+				t.Errorf("%s passes on %q: %s", name, out, detail)
+			}
+		}
+	}
+}
