@@ -26,7 +26,6 @@ Production-ready code and releases. Only merge stable, fully-tested changes.
 - [x] `govulncheck` — Go vulnerability check (ci.yml)
 - [x] `gosec` — Go security scan (ci.yml)
 - [x] `license-check` — License compliance (ci.yml)
-- [x] `ci-gate` — Protocol Foundation CI gate (ci-protocol.yml, if applicable)
 
 #### Required Reviews
 - [x] Require pull request reviews before merging: **2 approvals**

@@ -1,6 +1,5 @@
 // Unheaded Protocol Foundation - Jenkinsfile
 // Go + Rust + eBPF builds for protocol-foundation branch
-// Mirrors ci-protocol.yml with Jenkins-specific orchestration
 
 pipeline {
   agent {

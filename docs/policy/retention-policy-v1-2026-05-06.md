@@ -186,7 +186,6 @@ through review.
 | Workflow | Artefact | Today | Policy v1 |
 |---|---|---|---|
 | `ci.yml` | `coverage-out` | 7 days | 7 days (operational only) |
-| `ci-protocol.yml` | (two artefacts) | 7 days, 14 days | 14 days |
 | `gpl-boundary.yml` | `gpl-boundary-report` | 30 days | 30 days |
 | `sbom-audit.yml` | `sbom-artifacts` | 30 days | **365 days** (raised — SBOM evidence) |
 | `sbom-audit.yml` | `sbom-audit-report` | 90 days | **365 days** (raised — audit evidence) |
@@ -931,7 +930,7 @@ ground truth.
 - `db/migrations/008_zhen_memories.sql` — Zhen memory store
 - `db/migrations/009_zhen_actions.sql` — Champion action log + snapshots
 - `db/migrations/010_zhen_conversations.sql` — Zhen conversation history
-- `.github/workflows/{ci,ci-protocol,gpl-boundary,sbom,sbom-audit,security}.yml`
+- `.github/workflows/{ci,gpl-boundary,sbom,sbom-audit,security}.yml`
   — CI artefact retention current settings
 - `scripts/build-sealed-cask.sh` — Sealed Cask producer
 - `scripts/verify-binding-rune.sh` — Sealed Cask integrity verifier

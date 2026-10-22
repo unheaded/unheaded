@@ -99,7 +99,7 @@ jobs:
           components: rust-src
 
       - name: Install bpf-linker
-        run: cargo install bpf-linker --no-default-features  # as ci-protocol.yml
+        run: cargo install bpf-linker --no-default-features
 
       - name: Kernel
         run: uname -r
