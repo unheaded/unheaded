@@ -24,8 +24,8 @@ SYFT_SHA256="c069905b391cc4c20a5ba65ad5c10be2a7ba074f8ea6ad203e24d14e303dad47" #
 GRYPE_VERSION="0.120.1"
 GRYPE_SHA256="0a9ee97ef5ae2ee953b0a80098105052e846cdbe319a57d808b519c33cd1343d" # grype_<v>_linux_amd64.tar.gz
 
-HELM_VERSION="4.3.0"
-HELM_SHA256="86584a54def73570558f66f5111cc53dfed56689637ae32c1201205d494f54fb" # helm-v<v>-linux-amd64.tar.gz (get.helm.sh, matches the release notes)
+HELM_VERSION="4.3.1"
+HELM_SHA256="0403a88ae20913d11b10a2467b50087721fea7581736da6b9d3992f5357fe54b" # helm-v<v>-linux-amd64.tar.gz (get.helm.sh, matches the release notes)
 
 # hadolint runs from its image, pinned by digest (scripts/check-hadolint.sh).
 HADOLINT_VERSION="2.15.1"
