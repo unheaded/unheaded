@@ -5,7 +5,8 @@
 # Exercises scripts/backup/git-mirror.sh against throwaway repositories:
 # init, push, check (green and red), a rewritten branch keeps its old tip on
 # the mirror, a deleted branch stays on the mirror, an uninitialised
-# destination is refused, and GIT_MIRROR_DEST unset fails loudly.
+# destination is refused, GIT_MIRROR_DEST unset fails loudly, and a mirror
+# over GIT_MIRROR_MAX_MB fails the push.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 MIRROR="$HERE/git-mirror.sh"
@@ -58,4 +59,12 @@ git -C "$GIT_MIRROR_DEST" config gc.reflogExpire 90.days
 "$MIRROR" push >/dev/null 2>&1 && fail "pushed to a mirror whose reflogs expire"
 pass "mirror with expiring reflogs refused"
 
-echo "[PASS] git-mirror: 7 checks"
+git -C "$GIT_MIRROR_DEST" config gc.reflogExpire never
+GIT_MIRROR_MAX_MB=1 "$MIRROR" push >/dev/null 2>&1 || fail "push green under the size cap with an empty mirror"
+head -c 2000000 /dev/urandom >"$GIT_MIRROR_DEST/ballast"
+GIT_MIRROR_MAX_MB=1 "$MIRROR" push >/dev/null 2>&1 && fail "push green with the mirror over GIT_MIRROR_MAX_MB"
+rm -f "$GIT_MIRROR_DEST/ballast"
+GIT_MIRROR_MAX_MB=0 "$MIRROR" push >/dev/null 2>&1 && fail "GIT_MIRROR_MAX_MB=0 accepted"
+pass "mirror over GIT_MIRROR_MAX_MB fails the push"
+
+echo "[PASS] git-mirror: 8 checks"

@@ -18,11 +18,17 @@
 # GIT_MIRROR_REPO defaults to the repository this script is in. With
 # GIT_MIRROR_METRICS set to a directory, push writes
 # unheaded_git_mirror_last_success_timestamp_seconds there (Huginn textfile).
+#
+# Keeping everything forever must not mean growing without bound: push
+# fails (the unit goes red) once the mirror passes GIT_MIRROR_MAX_MB
+# (default 2048 MiB; the repository's .git was ~200 MiB on 2026-10-22).
 set -euo pipefail
 
 REPO="${GIT_MIRROR_REPO:-$(cd "$(dirname "$0")/../.." && pwd)}"
 DEST="${GIT_MIRROR_DEST:?set GIT_MIRROR_DEST (user@host:path/repo.git, or a local path)}"
 METRICS="${GIT_MIRROR_METRICS:-}"
+MAX_MB="${GIT_MIRROR_MAX_MB:-2048}"
+[[ "$MAX_MB" =~ ^[1-9][0-9]*$ ]] || { echo "[git-mirror] GIT_MIRROR_MAX_MB must be a positive integer: $MAX_MB" >&2; exit 2; }
 export GIT_SSH_COMMAND="${GIT_SSH_COMMAND:-ssh -o BatchMode=yes -o ConnectTimeout=15}"
 
 git -C "$REPO" rev-parse --git-dir >/dev/null 2>&1 || { echo "[git-mirror] not a git repository: $REPO" >&2; exit 2; }
@@ -77,9 +83,14 @@ cmd_push() {
 		[[ "$got" == "$want" ]] || { echo "[git-mirror] $DEST has $key='$got', want '$want': run init" >&2; exit 1; }
 	done
 	git -C "$REPO" push --quiet --force "$DEST" '+refs/*:refs/*'
-	local now
+	local now size_mb
 	now="$(date +%s)"
-	echo "[git-mirror] $(git -C "$REPO" for-each-ref | wc -l) refs -> $DEST"
+	size_mb="$(on_dest du -sm . | cut -f1)"
+	echo "[git-mirror] $(git -C "$REPO" for-each-ref | wc -l) refs -> $DEST (${size_mb} MiB)"
+	if ((size_mb > MAX_MB)); then
+		echo "[git-mirror] FAIL: $DEST is ${size_mb} MiB, over GIT_MIRROR_MAX_MB=${MAX_MB}; find out what grew before raising it" >&2
+		exit 1
+	fi
 	if [[ -n "$METRICS" ]]; then
 		printf '# HELP unheaded_git_mirror_last_success_timestamp_seconds Last push of every repository ref to east (FND-005).\n# TYPE unheaded_git_mirror_last_success_timestamp_seconds gauge\nunheaded_git_mirror_last_success_timestamp_seconds %s\n' "$now" >"$METRICS/.git_mirror.prom.tmp"
 		chmod 0644 "$METRICS/.git_mirror.prom.tmp"
