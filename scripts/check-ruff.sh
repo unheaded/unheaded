@@ -50,7 +50,7 @@ cd "${REPO_ROOT}" || exit 1
 RUFF="${RUFF:-ruff}"
 if ! command -v "${RUFF}" >/dev/null 2>&1; then
     echo "check-ruff: ${RUFF} not found on PATH." >&2
-    echo "  CI pins ruff==0.16.0; an unpinned ruff moves the baseline between" >&2
+    echo "  CI pins ruff (.github/ci-python/requirements.in); an unpinned ruff moves the baseline between" >&2
     echo "  minor releases because its default rule set changes." >&2
     exit 127
 fi

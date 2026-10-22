@@ -14,7 +14,7 @@ import json
 import os
 import sys
 import unittest
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 # Add scripts dir to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
@@ -63,7 +63,7 @@ class MockCursor:
                 'confidence': params[6] if len(params) > 6 else 0.0,
                 'trace_id': params[7] if len(params) > 7 else '',
                 'parent_action': params[8] if len(params) > 8 else None,
-                'planned_at': datetime.now(timezone.utc),
+                'planned_at': datetime.now(UTC),
                 'started_at': None,
                 'completed_at': None,
                 'elapsed_ms': 0,
@@ -83,7 +83,7 @@ class MockCursor:
                 'content_before': params[3],
                 'content_after': params[4],
                 'metadata': json.loads(params[5]) if isinstance(params[5], str) else params[5],
-                'snapshot_at': datetime.now(timezone.utc),
+                'snapshot_at': datetime.now(UTC),
             }
             self._db['snapshots'].append(snapshot)
             self._result = (snap_id,)
@@ -96,18 +96,18 @@ class MockCursor:
             if action:
                 if 'status = \'executing\'' in query:
                     action['status'] = 'executing'
-                    action['started_at'] = datetime.now(timezone.utc)
+                    action['started_at'] = datetime.now(UTC)
                 elif 'status = \'completed\'' in query:
                     action['status'] = 'completed'
                     action['result'] = json.loads(params[0]) if isinstance(params[0], str) else params[0]
                     action['result_summary'] = params[1]
-                    action['completed_at'] = datetime.now(timezone.utc)
+                    action['completed_at'] = datetime.now(UTC)
                     action['elapsed_ms'] = params[2]
                 elif 'status = \'failed\'' in query:
                     action['status'] = 'failed'
                     action['error'] = params[0]
                     action['elapsed_ms'] = params[1]
-                    action['completed_at'] = datetime.now(timezone.utc)
+                    action['completed_at'] = datetime.now(UTC)
                 elif 'status = \'reverted\'' in query:
                     action['status'] = 'reverted'
                     action['reverted_by'] = params[0]
@@ -140,7 +140,7 @@ class MockCursor:
                 a for a in self._db['actions'].values()
                 if a['session_id'] == session_id
             ]
-            matching.sort(key=lambda a: a['planned_at'] or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
+            matching.sort(key=lambda a: a['planned_at'] or datetime.min.replace(tzinfo=UTC), reverse=True)
             self._results = [self._action_to_full_row(a) for a in matching[:limit]]
             return
 

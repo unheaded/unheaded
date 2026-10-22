@@ -5,7 +5,7 @@ bandit==1.9.4
 jsonschema==4.26.0
 pip-audit==2.10.1
 pyyaml==6.0.3
-ruff==0.16.0
+ruff==0.17.1
 yamllint==1.38.0
 
 # Security fixes newer than the 7-day cooldown, one line each:

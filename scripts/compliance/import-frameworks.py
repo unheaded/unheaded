@@ -149,7 +149,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default="compliance/catalog/frameworks")
     out = ap.parse_args().out
-    now = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = datetime.datetime.now(datetime.UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     def prov(url, data, meta):
         return {"source": url, "retrieved_utc": now, "sha256": hashlib.sha256(data).hexdigest(),
