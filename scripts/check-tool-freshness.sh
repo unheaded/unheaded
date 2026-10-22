@@ -14,6 +14,11 @@
 #
 # One row per tool: name | file holding the pin | variable | repo | tag prefix.
 # All pins live in scripts/lib/tool-pins.sh; a bump updates the sha256 too.
+#
+# Also every workflow action pinned to a branch commit (`uses: o/r@<sha> #
+# master, <date>`), which Dependabot cannot bump: stale once the branch has a
+# commit COOLDOWN_DAYS old that the pin lacks. A pin that is no longer on its
+# branch (force-push, rewritten history) fails outright: find out why first.
 set -euo pipefail
 
 COOLDOWN_DAYS="${COOLDOWN_DAYS:-7}"
@@ -96,5 +101,52 @@ for row in sys.argv[2:]:
     else:
         print(f"[STALE] {name} {pinned}; {target} has been out {cooldown.days}d or more (bump {var} and its sha256 in {path})")
         stale += 1
+
+def compare(repo, base, branch):
+    path = os.path.join(CACHE, f"{repo.replace('/', '__')}__{base[:12]}__{branch}.json")
+    try:
+        if now.timestamp() - os.path.getmtime(path) < 3600:
+            return json.load(open(path))
+    except OSError:
+        pass
+    req = urllib.request.Request(f"https://api.github.com/repos/{repo}/compare/{base}...{branch}", headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            d = json.load(r)
+    except urllib.error.HTTPError as e:
+        msg = "rate-limited; set GITHUB_TOKEN" if e.code in (403, 429) else f"HTTP {e.code}"
+        print(f"[FAIL] {repo} compare {base[:12]}...{branch}: {msg}. This gate does not pass by skipping.")
+        sys.exit(2)
+    out = {"status": d["status"], "commits": [(c["sha"], c["commit"]["committer"]["date"]) for c in d["commits"]]}
+    os.makedirs(CACHE, exist_ok=True)
+    json.dump(out, open(path, "w"))
+    return out
+
+# Branch pins: the comment names a branch (not a v1.2.3 tag) and the pin date.
+pins = {}
+pin_re = re.compile(r"uses:\s*([\w.-]+/[\w.-]+)(?:/[^@\s]*)?@([0-9a-f]{40})\s*#\s*([A-Za-z][\w.-]*)(?: branch)?, \d{4}-\d{2}-\d{2}\s*$")
+wf = ".github/workflows"
+for f in sorted(os.listdir(wf)):
+    if f.endswith((".yml", ".yaml")):
+        for line in open(os.path.join(wf, f)):
+            m = pin_re.search(line)
+            if m and not re.fullmatch(r"v?[0-9][\w.-]*", m.group(3)):
+                pins.setdefault(m.groups(), []).append(f)
+for (repo, sha, branch), files in sorted(pins.items()):
+    name = f"{repo}@{branch}"
+    d = compare(repo, sha, branch)
+    if d["status"] == "identical":
+        print(f"[ok]    {name} {sha[:12]}")
+        continue
+    if d["status"] != "ahead":
+        print(f"[FAIL]  {name}: pinned {sha[:12]} is no longer on {branch} ({d['status']}); history was rewritten, check why before re-pinning ({', '.join(sorted(set(files)))})")
+        stale += 1
+        continue
+    ripe = [c for c in d["commits"] if now - datetime.datetime.fromisoformat(c[1].replace("Z", "+00:00")) >= cooldown]
+    if ripe:
+        print(f"[STALE] {name} {sha[:12]}; {ripe[-1][0][:12]} ({ripe[-1][1][:10]}) has been on {branch} {cooldown.days}d or more (re-pin in {', '.join(sorted(set(files)))})")
+        stale += 1
+    else:
+        print(f"[ok]    {name} {sha[:12]} ({len(d['commits'])} newer commit(s) still in their {cooldown.days}d cooldown)")
 sys.exit(1 if stale else 0)
 PY

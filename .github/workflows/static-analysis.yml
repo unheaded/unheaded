@@ -105,11 +105,13 @@ jobs:
       # so the LAST one is what every other workspace lints with. Stable goes
       # last. With nightly last, host crates were linted by whatever clippy
       # shipped that night, so the ratchet could go red with no code change.
-      - uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly branch, 2026-10-15
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-16
         with:
+          toolchain: nightly
           components: clippy, rust-src
-      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable branch, 2026-10-15
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-16
         with:
+          toolchain: stable
           components: clippy
 
       # tonic-build in cmd/ebpf-collector and crates/zhend runs protoc, which
@@ -265,13 +267,15 @@ jobs:
       # bpf-linker. Without bpf-linker nothing builds, so neither gate can
       # show it bites. Stable last: it is the default the clippy provocation
       # lints host crates with (see the clippy job).
-      - uses: dtolnay/rust-toolchain@f0d5300ba8908d942c808f4d31c08471d7798ba3 # nightly branch, 2026-10-15
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-16
         if: github.event_name == 'push'
         with:
+          toolchain: nightly
           components: clippy, rust-src
-      - uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable branch, 2026-10-15
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-16
         if: github.event_name == 'push'
         with:
+          toolchain: stable
           components: clippy
 
       # 0.10.2, pinned: its default feature links through rustc's own LLVM

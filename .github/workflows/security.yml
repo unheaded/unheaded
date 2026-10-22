@@ -202,7 +202,9 @@ jobs:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
 
       - name: Install Rust stable
-        uses: dtolnay/rust-toolchain@686976e191b89faba57d3206551f0f330d8cb249 # stable branch, 2026-10-15
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-16
+        with:
+          toolchain: stable
 
       - name: Install cargo-audit
         run: cargo install cargo-audit
@@ -283,7 +285,7 @@ jobs:
       # as of 2026-07-29), so this is a real gate from day one — any committed
       # credential fails the build immediately.
       - name: Trivy secret scan
-        uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0 # master branch, 2026-10-15
+        uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0 # master, 2026-10-15
         with:
           scan-type: fs
           scan-ref: '.'
@@ -292,7 +294,7 @@ jobs:
 
       # Dependency vulnerabilities.
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0 # master branch, 2026-10-15
+        uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0 # master, 2026-10-15
         with:
           scan-type: fs
           scan-ref: '.'
@@ -311,7 +313,7 @@ jobs:
       # .trivyignore.yaml in this mode. Verified — without the flag the file is
       # decorative and every documented exception is silently ignored.
       - name: Trivy IaC misconfiguration scan
-        uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0 # master branch, 2026-10-15
+        uses: aquasecurity/trivy-action@6abccf398f78b4c337599c0656f933d91efb91a0 # master, 2026-10-15
         with:
           scan-type: fs
           scan-ref: '.'
