@@ -38,7 +38,7 @@ Top-level layout of the monorepo (`develop`, 2026-10-16). Binaries: [[Microservi
 | `containers/`, `lxd/`, `nix/`, `nixos/` | The four container runtimes + NixOS host config ([[Containers]]) |
 | `kubernetes/`, `helm/` | K8s manifests and chart |
 | `monitoring/` | Prometheus rules, Grafana dashboards, Loki, Alertmanager |
-| `routing/` | BIRD, FRR, OSPF, IS-IS, MPLS, Suricata configs |
+| `routing/` | BIRD, FRR, OSPF, IS-IS, MPLS configs |
 | `debian/`, `jenkins/` | Packaging, Jenkins pipeline |
 | `runbooks/` | YAML runbooks ([[Runbooks]]) |
 | `systemd/` | Kingdom startup/shutdown units |

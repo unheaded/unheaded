@@ -44,7 +44,7 @@ images:
 ```
 
 Third-party images (postgres, prometheus, grafana, loki, victoria-metrics,
-clickhouse, vector, haproxy, busybox, node-exporter, promtail, suricata) are pinned to
+clickhouse, vector, haproxy, busybox, node-exporter, promtail) are pinned to
 the same versions the Docker stack uses.
 
 ## 3. Secrets
@@ -144,7 +144,7 @@ time, honoring ordering.
 | Service A can't reach B | CNI not enforcing policy, or missing `kingdom.*` label. |
 | `wait-for-wotan` init never finishes | Wotan not Ready; `kubectl -n unheaded logs sts/wotan`. |
 | Pod rejected on admission | Violates PSA `restricted` — fix its securityContext. |
-| Suricata/node-exporter `CrashLoop` | Host networking/caps unavailable on that node. |
+| node-exporter `CrashLoop` | Host networking/caps unavailable on that node. |
 
 Useful commands:
 

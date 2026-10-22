@@ -402,7 +402,6 @@ with lib;
   #
   # DISABLED HEAVY SERVICES (not included in EAST):
   #   - vllm-rocm: GPU inference (no GPU in EAST)
-  #   - suricata: IDS/IPS (network inspection at WEST gateway)
   #   - elasticsearch: Full-text search (logs on WEST Loki)
   #   - vectordb: Embedding storage (on WEST)
   #   - kanban/dashboard-app: Heavy web frontends (lightweight alternatives on WEST)

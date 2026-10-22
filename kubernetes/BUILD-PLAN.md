@@ -35,9 +35,9 @@ just want a cluster.
    │  prometheus victoriametrics loki grafana                    │
    │  node-exporter(DS) promtail(DS) clickhouse vector           │
    └─────────────────────────────────────────────────────────────┘
-   ┌──────── security ────────┐   ┌──── optional overlays ────┐
-   │  suricata (IDS DaemonSet) │   │ gpu-vllm   wireguard      │
-   └───────────────────────────┘   └───────────────────────────┘
+   ┌──── optional overlays ────┐
+   │ gpu-vllm   wireguard      │
+   └───────────────────────────┘
 ```
 
 Ports are the canonical **Doom Range** (16666–26666) from `pkg/ports/ports.go`. No
@@ -49,7 +49,7 @@ upstream image port (5432 Postgres, 9090 Prometheus, 3000 Grafana, etc.).
 ## 1. Prerequisites
 
 - 3 nodes (or 1 for a lab): `controller-0`, `worker-0`, `worker-1`. Ubuntu 22.04+ /
-  any systemd Linux, kernel 6.0+ (eBPF + Suricata want a recent kernel).
+  any systemd Linux, kernel 6.0+ (eBPF wants a recent kernel).
 - `cfssl` / `cfssljson` (PKI), `etcd`, `kubectl`, the Kubernetes server binaries
   (`kube-apiserver`, `kube-controller-manager`, `kube-scheduler`, `kubelet`,
   `kube-proxy`), and `containerd` + `runc` + CNI plugins.
@@ -243,11 +243,10 @@ for s in monad sophia timeguru architect captain micromanager cuirass \
   kubectl apply -k manifests/base/$s
 done
 
-# Wave 3 — edge, observability, security
+# Wave 3 — edge, observability
 kubectl apply -k manifests/base/loadbalancers
 kubectl apply -k manifests/base/telemetry
 kubectl apply -k manifests/base/logging
-kubectl apply -k manifests/base/suricata
 ```
 
 Or, the whole thing through an overlay (recommended once you trust it):
@@ -269,7 +268,7 @@ Pod Security Admission is set to **restricted** on the namespace
 (`pod-security.kubernetes.io/enforce: restricted`). Every workload satisfies it:
 `runAsNonRoot`, `allowPrivilegeEscalation: false`, `readOnlyRootFilesystem` where
 feasible, `capabilities.drop: [ALL]`, `seccompProfile: RuntimeDefault`. The three
-documented exceptions (Suricata, node-exporter/promtail host mounts, and the optional
+documented exceptions (node-exporter/promtail host mounts, and the optional
 WireGuard/vLLM overlays) keep every restriction they can and add back only the single
 capability they truly need.
 
@@ -342,7 +341,6 @@ NetworkPolicy requirement explicit — all three are load-bearing for this stack
 | `docker-compose.loadbalancers.yml` HAProxy edge/internal | `loadbalancers/haproxy-*.yaml` (Deployment+Service) |
 | HAProxy/nginx per-app sidecars | per-service ClusterIP Services + optional `ingress.yaml` |
 | `docker-compose.telemetry.yml` | `telemetry/*` (Deployments + node-exporter/promtail DaemonSets) |
-| `docker/suricata` | `suricata/daemonset.yaml` (hostNetwork IDS) |
 | `docker-compose.vllm.yml` | `overlays/gpu-vllm/` (`amd.com/gpu`) |
 | `docker-compose.wireguard.yml` | `overlays/wireguard/` (host-net DaemonSet) |
 | `docker/Makefile` build/push | image build loop in §1 + overlay `images:` |

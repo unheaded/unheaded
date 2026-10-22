@@ -49,7 +49,6 @@ stacks, translated to Kubernetes:
   an idiomatic `Ingress` alternative.
 - **Observability** — Prometheus, VictoriaMetrics, Loki, Grafana, plus
   `node-exporter` and `promtail` `DaemonSet`s; ClickHouse + Vector for log storage.
-- **Security** — Suricata IDS `DaemonSet`.
 - **Optional overlays** — `gpu-vllm` (vLLM on ROCm, `amd.com/gpu`) and `wireguard`
   (east-west `fd00:dead:beef::/48` overlay).
 
@@ -69,7 +68,7 @@ kubernetes/
     │   ├── the-well/  wotan/    # StatefulSets
     │   ├── monad/ sophia/ timeguru/ architect/ captain/ micromanager/
     │   ├── cuirass/ dashboard-backend/ kanban-app/ gateway/
-    │   ├── loadbalancers/   telemetry/   logging/   suricata/
+    │   ├── loadbalancers/   telemetry/   logging/
     │   └── kustomization.yaml
     └── overlays/
         ├── dev/             # NodePort exposure, LOG_LEVEL=debug
@@ -101,7 +100,7 @@ feasible), `capabilities.drop: [ALL]`, `seccompProfile: RuntimeDefault`. The Doo
 Range deliberately uses ports > 1024, so **no `NET_BIND_SERVICE` is needed** for the
 services. Network posture is **default-deny** ingress+egress with explicit allows —
 the Kubernetes expression of the Docker firewall/default-deny stance. Documented
-exceptions (Suricata, host-metric DaemonSets, GPU/WireGuard overlays) keep every
+exceptions (host-metric DaemonSets, GPU/WireGuard overlays) keep every
 restriction they can and add back only what they must.
 
 ## License

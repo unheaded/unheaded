@@ -293,6 +293,8 @@
 
 ## RING 11 — IDS/IPS (Suricata, Monad Sigs, eBPF Bypass)
 
+> **Removed 2026-10-22 (Stevie: build our own later, or leave an IDS to the adopter).** This ring is the original design, kept as a record; nothing in the repo implements it now.
+
 → **Suricata** (host-a, GPL-2.0, NfQueue inline + AF_PACKET bypass)  
 • Inline mode: nfqueue 0:50 (kernel → Suricata → kernel), verdict ACCEPT/DROP/REPEAT  
 ◆ Input source: pflog from OPNsense, Monad-tagged packets (eve-log contains flow_label)  

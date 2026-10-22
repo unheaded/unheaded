@@ -392,17 +392,6 @@ provoke_ebpf_loads() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
-provoke_suricata_rules() {
-    # Contract: the Monad Suricata rules load and fire on exactly the packets
-    # they should. Plant the original defect: `ipv6-exthdr`, which is not a
-    # Suricata keyword, so no rule loads.
-    local f="routing/suricata/rules/unheaded-monad.rules"
-    backup "${f}"
-    sed -i '0,/ipv6.hdr; content:"|00|"; offset:6; depth:1;/s//ipv6-exthdr: hbh;/' "${REPO_ROOT}/${f}"
-    grep -q "ipv6-exthdr" "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
-}
-
-# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_prometheus_rules() {
     # Contract: every alert rule parses and its tests pass. Plant a threshold
     # edit that parses fine but no longer fires on the case its test pins.
@@ -674,7 +663,6 @@ well/test-migrate|provoke_well_migrate|slow|the runner's drift refusal removed, 
 well/test-backup-restore|provoke_well_backup_restore|slow|db-backup.sh leaving unheaded_ops out of the set (needs docker)
 well/test-config|provoke_well_config|slow|pg_hba letting service roles in without TLS (needs docker)
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
-check-suricata-rules|provoke_suricata_rules|slow|the original ipv6-exthdr keyword restored in the canonical Monad rules (needs docker)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
 check-gates-can-fail|SELF|self|this script — see the self-exemption note

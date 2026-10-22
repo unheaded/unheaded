@@ -130,7 +130,7 @@ findings:
   - id: FND-009
     title: >-
       22 services in the compose files other than docker-compose.yml are not least-privilege (was 75 on 2026-10-18):
-      the firewall VMs (opnsense, frr, ipfire, bird, suricata: privileged or root), shield and unheaded-daemon in
+      the firewall VMs (opnsense, frr, ipfire, bird: privileged or root), shield and unheaded-daemon in
       host-a (the D11 host-network decision), WireGuard twice (root by necessity, bounded), and 13 host-a services
       whose images exist nowhere in the repo
     verify: docs/security/compose-hardening-baseline-alt.txt is empty and scripts/check-compose-hardening.sh passes

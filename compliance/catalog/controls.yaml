@@ -183,27 +183,6 @@ controls:
       nist-800-53r5: [CM-10]
       iso27001-2022: [A.5.32]
 
-  - id: UH-IDS-01
-    title: Intrusion detection rules load and fire as intended
-    statement: >-
-      Every push replays generated Monad packets through the Suricata
-      images the DaemonSet and Nix hosts run, and fails unless every rule
-      loads and fires on its intended packet and stays silent otherwise.
-    rationale: >-
-      System monitoring for attacks (SI-4) is only real if the detection
-      content loads; this proves it on every change (CSF DE.CM-01 networks
-      monitored; ISO A.8.16 monitoring activities; SOC 2 CC7.2 anomaly
-      detection; 800-171 03.14.06).
-    freshness_days: 7
-    evidence:
-      - {kind: github-job, ref: "Security Scan (Daily + PR)/Suricata Monad rules"}
-    mappings:
-      nist-800-53r5: [SI-4]
-      nist-800-171r3: ["03.14.06"]
-      nist-csf-2: [DE.CM-01]
-      soc2-security: [CC7.2]
-      iso27001-2022: [A.8.16]
-
   - id: UH-CFG-01
     title: Container logging and mount configuration is enforced from the compose file
     statement: >-

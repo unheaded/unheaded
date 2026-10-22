@@ -1,5 +1,5 @@
 # Promtail configuration - Log shipper for Outpost (host-b)
-# Collects logs from systemd, BIRD, IPFire nftables, Suricata, Docker, and Unheaded services
+# Collects logs from systemd, BIRD, IPFire nftables, Docker, and Unheaded services
 # Remote write to host-a Loki via WireGuard
 # Unheaded Kingdom infrastructure
 # License: MIT, Copyright (c) 2024-2026 Stevie Bellis
@@ -74,28 +74,6 @@ scrape_configs:
       - files:
           - /var/log/firewall.log
 
-  # Suricata IDS alerts (eve.json)
-  - job_name: suricata
-    static_configs:
-      - targets:
-          - localhost
-        labels:
-          host: "outpost"
-          job: "suricata"
-          service: "suricata"
-    pipeline_stages:
-      - json:
-          expressions:
-            event_type: event_type
-            alert_sig: alert.signature_id
-            alert_action: alert.action
-      - labels:
-          event_type: event_type
-          alert_sig: alert_sig
-          alert_action: alert_action
-    file_sd_configs:
-      - files:
-          - /var/log/suricata/eve.json
 
   # Docker container logs
   - job_name: docker

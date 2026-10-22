@@ -60,9 +60,6 @@ misconfigurations:
   # These are not hardening gaps; the capability IS the function. Each was
   # checked against what the workload actually does, not waved through:
   #
-  #   suricata       an IDS that reads raw packets off the wire. hostNetwork +
-  #                  NET_RAW is the entire point; without it there is nothing
-  #                  to inspect.
   #   wireguard      a VPN. NET_ADMIN configures the interface, hostNetwork
   #                  carries the tunnel. (SYS_MODULE and the /lib/modules
   #                  hostPath were removed 2026-09-25, tunnel verified without.)
@@ -71,25 +68,17 @@ misconfigurations:
   #   node-exporter  host metrics. hostPID and the /proc,/sys mounts ARE the
   #                  data source; without them it exports nothing.
   #
-  # The applicable control for all four is capability scoping (which they
+  # The applicable control for all three is capability scoping (which they
   # already do — none uses privileged:true) plus the dedicated UIDs now
   # assigned in pkg/uids. Removing the access would remove the service.
   - id: KSV-0009
     paths:
-      - "kubernetes/manifests/base/suricata/daemonset.yaml"
       - "kubernetes/manifests/overlays/wireguard/wireguard.yaml"
       - "deploy/k8s/ebpf/void-collector-daemonset.yaml"
       - "kubernetes/manifests/base/telemetry/node-exporter-daemonset.yaml"
     statement: >-
-      hostNetwork is inherent: packet-capture IDS, VPN tunnel, eBPF collector
-      and host metrics respectively. Capability-scoped, none privileged:true.
-
-  - id: KSV-0119
-    paths:
-      - "kubernetes/manifests/base/suricata/daemonset.yaml"
-    statement: >-
-      NET_RAW is what lets Suricata read raw packets. Without it the IDS has
-      no input.
+      hostNetwork is inherent: VPN tunnel, eBPF collector and host metrics
+      respectively. Capability-scoped, none privileged:true.
 
   - id: KSV-0010
     paths:
@@ -195,18 +184,16 @@ misconfigurations:
       Control plane reconciling Deployments. Read-only except update/patch on
       deployments/replicasets; no pod create/delete and no secrets access.
 
-  # Same inherent-access set already documented above for KSV-0009/0119/0120:
-  # a packet-capture IDS, a VPN loading a kernel module, an eBPF collector and
-  # host metrics. The capability and the hostPath ARE the function.
+  # Same inherent-access set already documented above for KSV-0009/0120:
+  # a VPN loading a kernel module, an eBPF collector and host metrics. The capability and the hostPath ARE the function.
   - id: KSV-0022
     paths:
       - "deploy/k8s/ebpf/void-collector-daemonset.yaml"
-      - "kubernetes/manifests/base/suricata/daemonset.yaml"
       - "kubernetes/manifests/overlays/wireguard/wireguard.yaml"
       - "kubernetes/manifests/overlays/gpu-vllm/vllm.yaml"
     statement: >-
       Capabilities are scoped and additive over drop:ALL — BPF/PERFMON for the
-      collector, NET_RAW for the IDS, NET_ADMIN for the VPN, SYS_PTRACE for
+      collector, NET_ADMIN for the VPN, SYS_PTRACE for
       the ROCm runtime.
 
   - id: KSV-0023

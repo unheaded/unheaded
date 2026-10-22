@@ -821,7 +821,7 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 - S52 Legal/Compliance: SPDX headers on 838 Go files, GPL boundary documented
 - S59 Dashboard Polish: Design system, demo data, Kanban review column
 - S67 Wire Format Freeze: v0x01 locked, 12 IANA registries, IPR clear
-- S67-S69 Multi-agent swarm: Observability stack, Suricata IDS, alternate routing (81 files)
+- S67-S69 Multi-agent swarm: Observability stack, Suricata IDS (removed 2026-10-22), alternate routing (81 files)
 - eBPF AF_XDP pipeline: 920K pps validated, Rust FFI + Go bridge
 - DOOM-on-Monad: Computational completeness proof
 - doom-runner (crates/doom-runner/): Aya-based Rust runtime replacing shell/Go loader chain

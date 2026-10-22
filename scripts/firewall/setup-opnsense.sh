@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: MIT
 # setup-opnsense.sh — Post-boot OPNsense configuration
 # Runs AFTER OPNsense boots and completes initial setup wizard
-# Configures: interfaces, firewall rules, Monad HbH passthrough, FRR plugin, Suricata rules
+# Configures: interfaces, firewall rules, Monad HbH passthrough, FRR plugin
 
 set -euo pipefail
 

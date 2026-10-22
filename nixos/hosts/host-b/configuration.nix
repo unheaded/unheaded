@@ -15,7 +15,6 @@
     ../../modules/wireguard.nix
     ../../modules/bird.nix
     ../../modules/ebpf-exporter.nix
-    ../../modules/suricata.nix
     ../../modules/services/monad.nix
     ../../modules/services/wotan.nix
     ../../modules/services/anamnesis.nix
@@ -31,17 +30,6 @@
     routerId = "10.20.255.2";
     forgePeer = "fd00:dead:beef::1";
     forgeAs = 65001;
-  };
-
-  # ── Suricata IDS/IPS — Monad HbH Detection ──────────────────────────────────
-  # PARKED 2026-09-25: see docs/research/FUTURE_INTEGRATIONS.md. The module
-  # still evaluates and is tested (scripts/check-suricata-rules.sh).
-  services.unheaded.suricata = {
-    enable = false;
-    interface = "eth1";
-    homeNet = ["10.20.0.0/16" "fd00:dead:beef::/48"];
-    idsMode = "alert";
-    monadRulesEnable = true;
   };
 
   # ── Observability Stack (Secondary: Promtail + remote_write only) ────────────

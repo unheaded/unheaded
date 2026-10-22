@@ -21,6 +21,5 @@ docker/hosts/host-a/docker-compose.yml:trace-collector
 docker/hosts/host-a/docker-compose.yml:unheaded-daemon
 docker/hosts/host-b/docker-compose.yml:bird
 docker/hosts/host-b/docker-compose.yml:ipfire
-docker/hosts/host-b/docker-compose.yml:suricata
 docker/hosts/host-b/docker-compose.yml:wireguard
 docker/wireguard/docker-compose.wireguard.yml:wireguard

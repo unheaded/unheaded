@@ -1,7 +1,7 @@
 # Loki security log retention override - 90-day retention for security logs
 # Apply with: loki --config.file=loki.yaml --config.expand-env=true
 # This config extends the base loki.yaml with per-tenant overrides for streams
-# matching security-critical jobs (firewall, suricata, ids).
+# matching security-critical jobs (firewall, ids).
 #
 # To use: Load this as a secondary config file or merge with main loki.yaml
 # Unheaded Kingdom infrastructure
@@ -17,14 +17,14 @@
 #   retention_period: 720h  # Default 30 days
 #   # Security logs: 90-day retention
 #   per_stream_limits:
-#     - selector: '{job=~"firewall|suricata|ids"}'
+#     - selector: '{job=~"firewall|ids"}'
 #       retention_period: 2160h  # 90 days
 
 # Alternatively, use overrides config (Loki 2.4+):
 overrides:
   # Security jobs get extended retention
   security:
-    retention_period: 2160h  # 90 days for firewall/suricata/ids streams
+    retention_period: 2160h  # 90 days for firewall/ids streams
 
 # Example configuration snippet for loki.yaml to enable this:
 #
@@ -40,7 +40,7 @@ overrides:
 #
 # 3. Apply label-based routing in Promtail:
 #    scrape_configs:
-#      - job_name: suricata
+#      - job_name: firewall
 #        labels:
 #          __tenant_id__: security
 

@@ -17,8 +17,7 @@
 #   comment says ~/tmp/bird-master/), not the config directory.
 #
 #   compose builds every `build:` service before starting anything, so these two
-#   take the whole stack down with them — including `suricata`, whose own rules
-#   mount was fixed separately and is now correct.
+#   take the whole stack down with them.
 #
 # See "D11" in docs/battle-plans/STAGING-LADDER-DECISIONS.md. Left in place
 # rather than deleted: it is the record of the intended Docker topology, and
@@ -335,52 +334,6 @@ services:
     - /tmp:size=64m,mode=1777
     volumes:
     - anamnesis-data:/var/lib/anamnesis
-  suricata:
-    # PARKED 2026-09-25 (docs/research/FUTURE_INTEGRATIONS.md). Not started by
-    # default: only with `--profile ids`. The image has no Suricata binary
-    # (see docker/suricata/Dockerfile), so it would exit at once and loop.
-    profiles: ["ids"]
-    build:
-      context: ../../suricata
-      dockerfile: Dockerfile
-    image: unheaded/suricata:latest
-    container_name: unheaded-suricata
-    restart: unless-stopped
-    privileged: true
-    cap_add:
-    - NET_RAW
-    - NET_ADMIN
-    - SYS_NICE
-    network_mode: host
-    environment:
-    - SURICATA_INTERFACE=eth1
-    - SURICATA_LOG_DIR=/var/log/suricata
-    volumes:
-    - suricata_logs:/var/log/suricata
-    - ./../../suricata/suricata.yaml:/etc/suricata/suricata.yaml:ro
-    # Three levels up, not two: this file is docker/hosts/host-b/, and the rules
-    # live at the repo root in routing/suricata/. ../../ landed on
-    # docker/routing/suricata/rules, which does not exist — docker then created
-    # it as an empty directory and suricata started with no rules at all.
-    - ./../../../routing/suricata/rules:/etc/suricata/rules:ro
-    - /sys/fs/bpf:/sys/fs/bpf:rw
-    healthcheck:
-      test:
-      - CMD
-      - test
-      - -S
-      - /run/suricata/suricata.socket
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    labels:
-      prometheus.io/scrape: 'false'
-      unheaded.role: ids
-      unheaded.tier: security
-    security_opt:
-    - no-new-privileges:false
-    tmpfs:
-    - /run/suricata:size=64m,mode=0755
   dashboard-backend:
     image: unheaded-dashboard-backend:${VERSION:-dev}
     container_name: unheaded-dashboard-backend
@@ -662,7 +615,6 @@ volumes:
   monad-data: null
   sophia-data: null
   anamnesis-data: null
-  suricata_logs: null
   dashboard-backend-data: null
   gateway-data: null
   prometheus-data: null

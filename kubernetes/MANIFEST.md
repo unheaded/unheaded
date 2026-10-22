@@ -72,7 +72,6 @@ Every core service: `runAsNonRoot`, `readOnlyRootFilesystem`, `drop: [ALL]`,
 
 | Path | Kind | Notes |
 |------|------|-------|
-| `base/suricata/daemonset.yaml` (+configmap) | DaemonSet | hostNetwork IDS; adds `NET_ADMIN`,`NET_RAW`,`SYS_NICE` |
 
 ## Overlays
 
@@ -87,7 +86,6 @@ Every core service: `runAsNonRoot`, `readOnlyRootFilesystem`, `drop: [ALL]`,
 
 | Workload | Exception | Why |
 |----------|-----------|-----|
-| `suricata` | `hostNetwork`, root, `NET_ADMIN`/`NET_RAW` | raw packet capture (IDS) |
 | `node-exporter` | `hostPID`/`hostNetwork`, host `/proc`,`/sys` (ro) | node-level metrics |
 | `promtail` | host log dirs (ro) | tails container stdout |
 | `gpu-vllm` | `SYS_PTRACE`, `/dev/kfd`,`/dev/dri`, GPU node | ROCm GPU passthrough |
@@ -102,4 +100,4 @@ RuntimeDefault`, no privilege escalation).
 - Manifest files: see `find manifests -name '*.yaml' | wc -l` (84 YAML files at
   authoring time).
 - Services mirrored: 10 Kingdom services + gateway + Wotan + The Well + 2 HAProxy LBs
-  + 6 observability components + Suricata, plus 2 optional overlays.
+  + 6 observability components, plus 2 optional overlays.

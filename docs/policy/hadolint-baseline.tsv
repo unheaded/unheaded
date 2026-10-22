@@ -29,7 +29,6 @@ DL3008	docker/services/timeguru/Dockerfile	1
 DL3008	docker/services/trace-collector/Dockerfile	1
 DL3008	docker/services/unheaded-daemon/Dockerfile	1
 DL3008	docker/services/wotan/Dockerfile	1
-DL3008	docker/suricata/Dockerfile	2
 DL3008	docker/vllm-rocm/Dockerfile	1
 DL3008	routing/frr/Dockerfile	2
 DL3013	docker/vllm-rocm/Dockerfile	2
@@ -43,7 +42,6 @@ DL3025	deploy/sophia-eye/sophia-gateway/Dockerfile	1
 DL3025	docker/firewall/bird/Dockerfile	1
 DL3025	docker/firewall/frr/Dockerfile	1
 DL3025	docker/routing/ospf/Dockerfile	1
-DL3025	docker/suricata/Dockerfile	1
 DL3025	docker/vllm-rocm/Dockerfile	1
 DL3059	Dockerfile	11
 DL3059	docker/vllm-rocm/Dockerfile	2
@@ -69,7 +67,6 @@ DL3066	docker/services/sophia/Dockerfile	1
 DL3066	docker/services/timeguru/Dockerfile	1
 DL3066	docker/services/trace-collector/Dockerfile	1
 DL3066	docker/services/wotan/Dockerfile	1
-DL3066	docker/suricata/Dockerfile	1
 DL3066	docker/vllm-rocm/Dockerfile	1
 SC2046	docker/firewall/bird/Dockerfile	1
 SC2046	docker/firewall/frr/Dockerfile	1

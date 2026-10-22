@@ -33,7 +33,6 @@ behaviour.
 | `ebpf-collector` | Rust collector variant (uses aya for richer kernel-side semantics) |
 | `ebpf-exporter` | Prometheus exporter for BPF map metrics |
 | `services/anamnesis/` | event-history service — replayable timeline of what happened |
-| `pkg/anamnesis/` | Suricata IDS integration (optional — for adopters who want IDS events in the same trace timeline) |
 | `dashboard-backend` | aggregated metrics + WebSocket streaming (optional UI; the trace data is usable headless) |
 
 Plus three eBPF programs (Rust, via Aya):

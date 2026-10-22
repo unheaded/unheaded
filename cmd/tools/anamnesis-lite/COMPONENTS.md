@@ -14,7 +14,6 @@
 | Path | Purpose |
 |---|---|
 | `services/anamnesis/anamnesis.go` | event-history service — replayable timeline of what happened |
-| `pkg/anamnesis/suricata.go` | optional Suricata IDS integration (IDS events in the same trace timeline) |
 | `pkg/ebpf/maploader/` | BPF map management library |
 | `pkg/ebpf/loader.go` | BPF program loader (Go) |
 
@@ -39,7 +38,7 @@
 ## Test surface
 
 ```bash
-go test ./services/anamnesis/... ./pkg/anamnesis/... ./pkg/ebpf/...
+go test ./services/anamnesis/... ./pkg/ebpf/...
 go test ./cmd/trace-collector-go/...
 ```
 

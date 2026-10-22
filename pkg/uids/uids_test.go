@@ -145,18 +145,10 @@ var composeOnly = map[string]bool{
 // fails if one is deleted, it just does not yet demand the UID. A pending
 // manifest may declare runAsUser: 0 explicitly; any other mismatch fails.
 //
-// Both entries were measured on a live (kind) cluster on 2026-09-25. suricata can
-// close once there is an image whose suricata user has the registry UID. wireguard
+// The entry was measured on a live (kind) cluster on 2026-09-25. wireguard
 // cannot close while it runs in a container: its entry records a proven limit,
 // not unfinished work.
 var pendingHardening = map[string]string{
-	// Measured on kind 2026-09-25: runAsUser 16782 is impossible with this
-	// image, since no_new_privs keeps the added caps from a non-root process
-	// and capture fails with EPERM. The pod now starts as root and Suricata
-	// drops itself to the image's uid 998 (CapEff NET_ADMIN|NET_RAW|SYS_NICE,
-	// empty bounding set). Done means an image whose suricata user is 16782.
-	"suricata": "starts as root and self-drops to uid 998 (measured on kind); " +
-		"16782 needs an image whose suricata user has that UID",
 	// Measured 2026-09-25: as uid 16783 with NET_ADMIN added, CapEff is 0 and
 	// creating the link fails with EPERM. A kernel tunnel needs root here, so
 	// this entry is permanent while WireGuard runs in a container. The manifest

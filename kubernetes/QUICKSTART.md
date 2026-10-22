@@ -52,7 +52,7 @@ This applies, in the order encoded by the kustomizations and enforced at runtime
 1. namespace, ConfigMap/Secret, default-deny + allow NetworkPolicies
 2. `the-well` (PostgreSQL) and `wotan` (bus) StatefulSets
 3. core services (`monad` … `gateway`)
-4. HAProxy edge/internal, the telemetry stack, ClickHouse/Vector, Suricata
+4. HAProxy edge/internal, the telemetry stack, ClickHouse/Vector
 
 ## 4. Watch it come up
 

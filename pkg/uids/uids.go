@@ -131,10 +131,10 @@ const (
 const (
 	VoidCollector = 16780
 	VLLM          = 16781
-	Suricata      = 16782
-	WireGuard     = 16783
-	Traefik       = 16784
-	CoreDNS       = 16785
+	// 16782 retired: Suricata, removed 2026-10-22. Not reused.
+	WireGuard = 16783
+	Traefik   = 16784
+	CoreDNS   = 16785
 	// deploy/sophia-eye: the second vLLM server, and the RAG stack around it.
 	QwenCoder  = 16786
 	Qdrant     = 16787
@@ -214,7 +214,6 @@ var Registry = map[string]int{
 
 	"void-collector":    VoidCollector,
 	"vllm":              VLLM,
-	"suricata":          Suricata,
 	"wireguard":         WireGuard,
 	"traefik":           Traefik,
 	"coredns":           CoreDNS,

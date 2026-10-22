@@ -61,7 +61,6 @@ docker/services/trace-collector/Dockerfile gcr.io/distroless/static-debian12:non
 docker/services/unheaded-daemon/Dockerfile debian:bookworm-slim
 docker/services/wotan/Dockerfile debian:bookworm-slim
 docker/services/wotan/Dockerfile gcr.io/distroless/static-debian12:nonroot
-docker/suricata/Dockerfile ubuntu:24.04
 docker/wireguard/docker-compose.wireguard.yml lscr.io/linuxserver/wireguard:latest
 kubernetes/manifests/base/architect/deployment.yaml busybox:1.36
 kubernetes/manifests/base/captain/deployment.yaml busybox:1.36

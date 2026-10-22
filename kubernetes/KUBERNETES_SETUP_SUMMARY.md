@@ -19,7 +19,6 @@ Kingdom on Kubernetes, mirroring:
 - `docker/telemetry/docker-compose.telemetry.yml` — Prometheus/VM/Loki/Grafana/exporters.
 - `docker/vllm-rocm/docker-compose.vllm.yml` — vLLM on ROCm (optional overlay).
 - `docker/wireguard/docker-compose.wireguard.yml` — east-west overlay (optional overlay).
-- `docker/suricata/` — IDS (DaemonSet).
 
 ## Service inventory & ports (unchanged from the registry)
 
@@ -42,7 +41,6 @@ Kingdom on Kubernetes, mirroring:
 | prometheus / victoriametrics / loki / grafana | 9090 / 8428 / 3100 / 3000 | Deployments (+PVCs) |
 | node-exporter / promtail | 9100 / 9080 | DaemonSets |
 | clickhouse / vector | 8123,9000 / — | StatefulSet / Deployment |
-| suricata | hostNetwork | DaemonSet |
 | vllm-deepseek *(overlay)* | 20100 | Deployment + Service |
 | wireguard *(overlay)* | 51820/udp | DaemonSet |
 
@@ -86,7 +84,7 @@ Mirrors the NixOS baseline in `CLAUDE.md`: nonroot, no privilege escalation,
 read-only root FS where feasible, all caps dropped, `seccomp: RuntimeDefault`, and a
 namespace-wide default-deny network stance with explicit, label-driven allows. Because
 the Doom Range uses ports > 1024, the services need no `NET_BIND_SERVICE`. Five
-workloads carry documented, minimal exceptions (Suricata, node-exporter, promtail, and
+workloads carry documented, minimal exceptions (node-exporter, promtail, and
 the optional vLLM/WireGuard overlays).
 
 ## Next steps

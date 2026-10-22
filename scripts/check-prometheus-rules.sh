@@ -49,8 +49,7 @@ fi
 #
 # UNTESTED may only SHRINK. Both entries alert on series nothing scrapes
 # (2026-10-13): monad.yml's unheaded_monad_hbh_drop_total, unheaded_bgp_session_up,
-# unheaded_bfd_failover_total, unheaded_suricata_alert_total and
-# unheaded_routing_health_up are emitted by no code in this repo, and
+# unheaded_bfd_failover_total and unheaded_routing_health_up are emitted by no code in this repo, and
 # loadbalancers.yml's haproxy_*/nginx_* have no scrape job in prometheus.yml.
 # Testing them would pin thresholds on metrics that do not exist; deciding
 # which metrics they should watch comes first.

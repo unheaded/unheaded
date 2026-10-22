@@ -969,11 +969,6 @@ phase_networking() {
     step "Installing Nginx..."
     run apt-get install -y nginx 2>/dev/null || warn "Nginx install failed"
 
-    # Suricata (IDS/IPS)
-    step "Installing Suricata..."
-    run apt-get install -y suricata 2>/dev/null || warn "Suricata install failed"
-    run systemctl disable suricata 2>/dev/null || true  # Don't start yet
-
     ok "Networking stack installed"
 }
 

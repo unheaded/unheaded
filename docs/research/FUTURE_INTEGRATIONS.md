@@ -4,7 +4,9 @@ Research and planning for future integration sprints.
 
 ---
 
-## Suricata IDS/IPS — FUTURE SPRINT
+## Suricata IDS/IPS — REMOVED
+
+> **Removed 2026-10-22 (Stevie: build our own later, or leave an IDS to the adopter).** Every Suricata file (docker/suricata, the K8s DaemonSet, the LXD and Nix modules, routing/suricata rules, pkg/anamnesis's EVE reader, scripts/check-suricata-rules.sh and its CI job, catalog control UH-IDS-01) was deleted. The notes below are history.
 
 **Source**: https://github.com/OISF/suricata (cloned to ~/tmp/suricata/)
 **License**: GPL-2.0

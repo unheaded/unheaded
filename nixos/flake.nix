@@ -39,7 +39,6 @@
         buildInputs = with pkgs; [
           frr
           bird2
-          suricata
         ];
       };
 
