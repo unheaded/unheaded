@@ -151,22 +151,21 @@ findings:
 
   - id: FND-010
     title: >-
-      Units that still start as root: unheaded-baseline (probes shell out to sudo -n and to tools that check uid 0:
-      passwd -S, ufw, aa-status, sudo -iu root), the three Doom units (BPF/XDP/netns, binaries under /home/govan), and the
+      Units that still start as root: the three Doom units (BPF/XDP/netns, binaries under /home/govan) and the
       Well's backup/drill/offsite jobs (docker exec into the Well, i.e. the Docker socket)
     verify: every deploy/systemd *.service has a User= from deploy/sysusers.d (or DynamicUser) and the jobs still pass live
     severity: medium
     class: service
     opened: 2026-10-18
-    exposure: baseline and the Doom units are installed on no host; the Well jobs run nightly on west (root, but sandboxed, no network beyond the offsite copy)
+    exposure: the Doom units are installed on no host; the Well jobs run nightly on west (root, but sandboxed, no network beyond the offsite copy)
     lockout: none
     step: 7
     plan: >-
       Well jobs: PostgreSQL 16 client+server binaries on the host (PGDG), backup over TLS as well_backup from its own
       account with a systemd credential, drill as an unprivileged throwaway cluster in a private dir; waits for Stevie's
-      Ubuntu 26.04 upgrade (he does OS-level changes). Baseline: DONE in the repo 2026-10-19, waiting
-      on the install (Stevie's yes per host): runs as unheaded-baseline with CAP_DAC_READ_SEARCH + CAP_NET_ADMIN,
-      root-only facts from one ExecStartPre=+ line; 219/219 verdicts identical to a root run on west and east.
+      Ubuntu 26.04 upgrade (he does OS-level changes). Baseline: DONE, installed on east then west
+      2026-10-22 at Stevie's yes: runs as unheaded-baseline with CAP_DAC_READ_SEARCH + CAP_NET_ADMIN, root-only
+      facts from one ExecStartPre=+ line; its 219 verdicts match the central pull on both hosts.
       Doom: unheaded-doom with CAP_BPF CAP_PERFMON CAP_NET_ADMIN CAP_SYS_ADMIN, artifacts installed out of /home
     decision: PGDG apt repo + postgresql-16 packages on west, after the OS upgrade
 
@@ -317,24 +316,6 @@ findings:
     accepted: {reason: "Stevie 2026-09-30: develop environment, ssh forwarding may be used", compensating: "CIS Level 1 Server does not require it; key-only login (step 5) limits who can forward", accepted_on: 2026-09-30, until: 2026-12-29}
     plan: first find out whether anything uses ssh -L/-R/-A to east; if so, accept (Level 1 does not require it)
 
-  - id: FND-005
-    title: Unpushed commits on west exist in one place only; a disk failure on west loses everything not yet pushed to GitHub
-    verify: a timer on west mirrors every ref of ~/tmp/unheaded to a bare repository on east at least every 30 minutes, and the newest mirrored commit is at most 30 minutes behind west
-    host: west
-    severity: low
-    class: backup
-    opened: 2026-09-30
-    lockout: none
-    step: 1
-    plan: >-
-      Stevie 2026-09-30 (low priority): every 30 minutes. `git push --mirror` to a bare repo on east over the P2P link rather than rsync of the
-      tree: it copies commits atomically (a copy of .git taken mid-commit can be inconsistent) and skips build output. Working-tree
-      changes that are not committed are not covered; an rsync of the tree without target/ could be added if wanted.
-      Built 2026-10-19, not installed: scripts/backup/git-mirror.sh (init / push / check) pushes +refs/*:refs/* without prune to a
-      bare repo whose reflogs never expire and which refuses deletions, so refs west deletes or rewrites (re-signing) stay
-      recoverable; deploy/systemd/user/unheaded-git-mirror.{service,timer} every 30 min (a user unit: the operator's repo and
-      ssh key). Tested by scripts/backup/test-git-mirror.sh (CI, meta-gate). Install steps in the service file's header.
-
   # --- CIS 1.1.1.x kernel modules and 5.1.1 sshd_config modes (2026-09-30) ----
 
   - source: "host-probe:west:kmod-usb-storage-disabled"
@@ -364,18 +345,6 @@ findings:
     step: 4
     accepted: {reason: "Stevie 2026-10-01: lab environment, SSH and passwords stay as they are; reported, not changed", compensating: "reachable only from the home LAN and the west-east P2P link; the ISP edge drops unsolicited inbound (FND-004)", accepted_on: 2026-10-01, until: 2026-12-30}
     plan: chmod 600 /etc/ssh/sshd_config /etc/ssh/sshd_config.d/99-unheaded.conf (and any drop-in created later, including 00-unheaded.conf)
-
-  # Our own drop-in, not the host's SSH settings that west's acceptance
-  # covers: deploy/systemd/unheaded-well-offsite.service told the installer
-  # 0644. Fixed to 0600 there 2026-10-19; east's installed copy still 0644.
-  - source: "host-probe:east:perm-sshd-config"
-    severity: low
-    class: fileperm
-    opened: 2026-10-18
-    exposure: world-readable sshd drop-in for the well-backup-copy chroot (no secrets in it)
-    lockout: none
-    step: 4
-    plan: on east, sudo chmod 600 /etc/ssh/sshd_config.d/60-unheaded-well-offsite.conf (sshd reads it as root; no reload needed)
 
   # --- CIS 1.1.2.x mounts (2026-09-30) ------------------------------------
 
@@ -1413,28 +1382,3 @@ findings:
       Closes with the firewall decision (UH-FW-01, ADR-098 step 6): load deploy/nftables/east.nft through
       scripts/host/nft-apply-confirm.sh and enable unheaded-nft.service, then disable ufw.service so one utility owns it
     decision: the firewall rollout (same as host-iptables:east default deny)
-
-  # --- ADR-098 phase 2c: agent vs central pull, UH-BASE-01 (2026-10-13) ---------
-
-  - source: "host-agent:west:baseline-report"
-    severity: medium
-    class: app
-    opened: 2026-10-13
-    lockout: none
-    step: 3
-    plan: >-
-      Install unheaded-baseline (binary, root-owned /usr/share/unheaded/baseline/baseline.yaml, and the
-      deploy/systemd unheaded-baseline service/timer/path units; audit only, no enforcing code path). Tested
-      2026-10-13 without installing: run as root into a scratch directory on west, its report agreed with the
-      central pull on all 219 checks both evaluated
-    decision: installing the baseline agent on west and east (ADR-098 phase 2)
-    exposure: without the agent the central pull is the only path, so a host that hides a change from ssh reads goes unnoticed
-
-  - source: "host-agent:east:baseline-report"
-    severity: medium
-    class: app
-    opened: 2026-10-13
-    lockout: none
-    step: 3
-    plan: same as west
-    decision: as west
