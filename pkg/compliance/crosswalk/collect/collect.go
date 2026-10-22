@@ -789,6 +789,11 @@ type HostProbes struct {
 	RootFacts string
 }
 
+// probePath puts the sbin directories first: probes call modprobe, sshd,
+// sysctl and the like, and a caller's PATH (a user unit, a cron job) may
+// leave them out.
+const probePath = "PATH=/usr/local/sbin:/usr/sbin:/sbin:$PATH\n"
+
 // probePrelude sets the variables probe commands use: $UH_PRIV in front of
 // what needs privilege, $UH_ROOT_FACTS for what only root can read.
 func (p *HostProbes) probePrelude() string {
@@ -796,7 +801,7 @@ func (p *HostProbes) probePrelude() string {
 	if p.Direct {
 		priv = "UH_PRIV=\n"
 	}
-	return priv + "UH_ROOT_FACTS=" + shQuote(p.RootFacts) + "\n"
+	return probePath + priv + "UH_ROOT_FACTS=" + shQuote(p.RootFacts) + "\n"
 }
 
 // RunScript runs a probe script locally or on host over ssh.

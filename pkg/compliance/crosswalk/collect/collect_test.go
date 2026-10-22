@@ -607,6 +607,10 @@ func TestKernelModuleProbes(t *testing.T) {
 		{"loaded right now", "loaded=1\nloadable=install /bin/false \nblacklist=blacklist cramfs\n", false},
 		{"built into the kernel", "loaded=0\nloadable=builtin cramfs \nblacklist=blacklist cramfs\n", false},
 		{"no output", "", false},
+		// The collector's user unit had no /usr/sbin on PATH: the shell's
+		// own "not found" for modprobe passed every module as absent.
+		{"modprobe not on PATH", "loaded=0\nloadable=sh: 1: modprobe: not found \nblacklist=\n", false},
+		{"other module not found", "loaded=0\nloadable=modprobe: FATAL: Module mtd not found in directory /lib/modules/6.17 \nblacklist=\n", false},
 	} {
 		pass, detail := Probes["kmod-cramfs-disabled"].Judge(tc.out)
 		if pass != tc.pass {
@@ -1211,9 +1215,9 @@ func TestHostProbesPrelude(t *testing.T) {
 		p    HostProbes
 		want string
 	}{
-		{HostProbes{}, "UH_PRIV='sudo -n'\nUH_ROOT_FACTS=''\n"},
-		{HostProbes{Direct: true, RootFacts: "/run/unheaded-baseline"}, "UH_PRIV=\nUH_ROOT_FACTS='/run/unheaded-baseline'\n"},
-		{HostProbes{Direct: true, RootFacts: "/x'; rm -rf /"}, "UH_PRIV=\nUH_ROOT_FACTS='/x'\\''; rm -rf /'\n"},
+		{HostProbes{}, probePath + "UH_PRIV='sudo -n'\nUH_ROOT_FACTS=''\n"},
+		{HostProbes{Direct: true, RootFacts: "/run/unheaded-baseline"}, probePath + "UH_PRIV=\nUH_ROOT_FACTS='/run/unheaded-baseline'\n"},
+		{HostProbes{Direct: true, RootFacts: "/x'; rm -rf /"}, probePath + "UH_PRIV=\nUH_ROOT_FACTS='/x'\\''; rm -rf /'\n"},
 	}
 	for _, c := range cases {
 		if got := c.p.probePrelude(); got != c.want {
@@ -1228,7 +1232,7 @@ func TestHostProbesPrelude(t *testing.T) {
 	if _, err := hp.Collect(context.Background(), []crosswalk.Source{{Kind: crosswalk.KindHostProbe, Ref: "apparmor-enabled"}}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.HasPrefix(script, "UH_PRIV=\n") {
+	if !strings.HasPrefix(script, probePath+"UH_PRIV=\n") {
 		t.Fatalf("script does not start with the prelude: %q", script)
 	}
 }

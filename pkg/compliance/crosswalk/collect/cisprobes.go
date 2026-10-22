@@ -116,8 +116,12 @@ func kernelModuleProbe(mod string) Probe {
 			switch {
 			case loaded != "0":
 				return false, mod + " is loaded"
-			case strings.Contains(load, "not found"):
+			case strings.Contains(load, "FATAL: Module "+mod+" not found"):
+				// modprobe's own message only: the shell's "modprobe: not
+				// found" means nothing was checked.
 				return true, mod + " not available for this kernel"
+			case strings.Contains(load, "not found"):
+				return false, mod + ": not checked (" + load + ")"
 			case strings.Contains(load, "builtin"):
 				return false, mod + " is built into the kernel"
 			case !strings.Contains(load, "install /bin/false") && !strings.Contains(load, "install /bin/true"):
