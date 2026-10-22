@@ -19,6 +19,9 @@
 # master, <date>`), which Dependabot cannot bump: stale once the branch has a
 # commit COOLDOWN_DAYS old that the pin lacks. A pin that is no longer on its
 # branch (force-push, rewritten history) fails outright: find out why first.
+#
+# And the CI Python tools' exact pins in .github/ci-python/requirements.in,
+# against PyPI (re-lock with scripts/ci-python-lock.sh after a bump).
 set -euo pipefail
 
 COOLDOWN_DAYS="${COOLDOWN_DAYS:-7}"
@@ -148,5 +151,44 @@ for (repo, sha, branch), files in sorted(pins.items()):
         stale += 1
     else:
         print(f"[ok]    {name} {sha[:12]} ({len(d['commits'])} newer commit(s) still in their {cooldown.days}d cooldown)")
+
+# CI Python tools: "name==x.y.z" lines of requirements.in vs PyPI.
+def pypi(name):
+    path = os.path.join(CACHE, "pypi__" + name + ".json")
+    try:
+        if now.timestamp() - os.path.getmtime(path) < 3600:
+            return json.load(open(path))
+    except OSError:
+        pass
+    try:
+        with urllib.request.urlopen(f"https://pypi.org/pypi/{name}/json", timeout=30) as r:
+            d = json.load(r)
+    except urllib.error.HTTPError as e:
+        print(f"[FAIL] PyPI {name}: HTTP {e.code}. This gate does not pass by skipping.")
+        sys.exit(2)
+    out = {}
+    for v, files in d["releases"].items():
+        live = [f for f in files if not f.get("yanked")]
+        if live and re.fullmatch(r"[0-9]+(\.[0-9]+)*", v):
+            out[v] = min(f["upload_time_iso_8601"] for f in live)
+    os.makedirs(CACHE, exist_ok=True)
+    json.dump(out, open(path, "w"))
+    return out
+
+for line in open(".github/ci-python/requirements.in"):
+    m = re.match(r"^([A-Za-z0-9._-]+)==([0-9.]+)\s*$", line)
+    if not m:
+        continue
+    name, pinned = m.groups()
+    rels = pypi(name)
+    ripe = [v for v, t in rels.items() if now - datetime.datetime.fromisoformat(t.replace("Z", "+00:00")) >= cooldown]
+    newest = max(rels, key=key) if rels else pinned
+    target = max(ripe, key=key) if ripe else pinned
+    if key(pinned) >= key(target):
+        note = "" if newest == pinned else f" ({newest} still in its {cooldown.days}d cooldown)"
+        print(f"[ok]    pypi {name} {pinned}{note}")
+    else:
+        print(f"[STALE] pypi {name} {pinned}; {target} has been out {cooldown.days}d or more (bump requirements.in, then scripts/ci-python-lock.sh)")
+        stale += 1
 sys.exit(1 if stale else 0)
 PY

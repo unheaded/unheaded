@@ -266,7 +266,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install pip-audit
-        run: pip install --quiet pip-audit==2.10.1
+        run: pip install --quiet --require-hashes --no-deps --only-binary=:all: -r .github/ci-python/requirements.txt
 
       - name: Pinned requirements have no unaccepted advisories
         run: ./scripts/check-python-audit.sh

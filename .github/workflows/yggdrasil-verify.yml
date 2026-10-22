@@ -55,7 +55,7 @@ jobs:
         with: { python-version: '3.12' }
       - name: yamllint
         run: |
-          pip install --quiet yamllint jsonschema pyyaml
+          pip install --quiet --require-hashes --no-deps --only-binary=:all: -r .github/ci-python/requirements.txt
           yamllint -d relaxed nix/yggdrasil/evidence-pack/schema/manifest-v1.yaml
       - name: Test fixture validates
         run: |
