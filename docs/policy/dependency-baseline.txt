@@ -17,7 +17,6 @@ cargo anstyle-query
 cargo anstyle-wincon
 cargo anyhow
 cargo arbitrary
-cargo arrayref
 cargo arrayvec
 cargo assert_matches
 cargo async-stream
@@ -50,6 +49,8 @@ cargo bitflags
 cargo blake3
 cargo block-buffer
 cargo block2
+cargo borsh
+cargo borsh-derive
 cargo bumpalo
 cargo byteorder
 cargo bytes
@@ -77,6 +78,7 @@ cargo constant_time_eq
 cargo core-error
 cargo core-foundation
 cargo core-foundation-sys
+cargo core_detect
 cargo cpufeatures
 cargo crc32fast
 cargo criterion
@@ -94,6 +96,9 @@ cargo ctrlc
 cargo curve25519-dalek
 cargo curve25519-dalek-derive
 cargo data-encoding
+cargo defmt
+cargo defmt-macros
+cargo defmt-parser
 cargo derive_arbitrary
 cargo digest
 cargo dispatch2
@@ -156,7 +161,6 @@ cargo icu_normalizer_data
 cargo icu_properties
 cargo icu_properties_data
 cargo icu_provider
-cargo id-arena
 cargo idna
 cargo idna_adapter
 cargo indexmap
@@ -168,6 +172,7 @@ cargo is_terminal_polyfill
 cargo itertools
 cargo itoa
 cargo jiff
+cargo jiff-core
 cargo jiff-static
 cargo jni
 cargo jni-macros
@@ -176,7 +181,6 @@ cargo jni-sys-macros
 cargo jobserver
 cargo js-sys
 cargo lazy_static
-cargo leb128fmt
 cargo libc
 cargo libfuzzer-sys
 cargo libm
@@ -216,7 +220,6 @@ cargo petgraph
 cargo pin-project
 cargo pin-project-internal
 cargo pin-project-lite
-cargo pin-utils
 cargo pkg-config
 cargo plain
 cargo plotters
@@ -232,6 +235,7 @@ cargo pqcrypto-mldsa
 cargo pqcrypto-mlkem
 cargo pqcrypto-traits
 cargo prettyplease
+cargo proc-macro-crate
 cargo proc-macro2
 cargo proc-macro2-diagnostics
 cargo procfs
@@ -317,7 +321,6 @@ cargo thread_local
 cargo tinystr
 cargo tinytemplate
 cargo tinyvec
-cargo tinyvec_macros
 cargo tokio
 cargo tokio-macros
 cargo tokio-rustls
@@ -327,6 +330,7 @@ cargo tokio-util
 cargo toml
 cargo toml_datetime
 cargo toml_edit
+cargo toml_parser
 cargo toml_write
 cargo tonic
 cargo tonic-build
@@ -346,13 +350,14 @@ cargo typenum
 cargo unarray
 cargo unicase
 cargo unicode-ident
-cargo unicode-xid
 cargo universal-hash
 cargo untrusted
 cargo unty
 cargo ureq
+cargo ureq-proto
 cargo url
 cargo utf-8
+cargo utf8-zero
 cargo utf8_iter
 cargo utf8parse
 cargo valuable
@@ -363,15 +368,11 @@ cargo walkdir
 cargo want
 cargo wasi
 cargo wasip2
-cargo wasip3
 cargo wasm-bindgen
 cargo wasm-bindgen-futures
 cargo wasm-bindgen-macro
 cargo wasm-bindgen-macro-support
 cargo wasm-bindgen-shared
-cargo wasm-encoder
-cargo wasm-metadata
-cargo wasmparser
 cargo web-sys
 cargo web-time
 cargo webpki-root-certs
@@ -399,11 +400,6 @@ cargo windows_x86_64_gnullvm
 cargo windows_x86_64_msvc
 cargo winnow
 cargo wit-bindgen
-cargo wit-bindgen-core
-cargo wit-bindgen-rust
-cargo wit-bindgen-rust-macro
-cargo wit-component
-cargo wit-parser
 cargo writeable
 cargo x25519-dalek
 cargo yoke
@@ -417,6 +413,7 @@ cargo zeroize_derive
 cargo zerotrie
 cargo zerovec
 cargo zerovec-derive
+cargo zlib-rs
 cargo zmij
 go cloud.google.com/go
 go cloud.google.com/go/auth

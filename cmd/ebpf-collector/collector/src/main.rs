@@ -233,8 +233,8 @@ impl WotanPublisher {
 
         for attempt in 0..max_retries {
             match ureq::post(&url)
-                .set("Content-Type", "application/json")
-                .send_bytes(payload)
+                .header("Content-Type", "application/json")
+                .send(payload)
             {
                 Ok(_) => return,
                 Err(e) => {
