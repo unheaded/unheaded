@@ -578,6 +578,7 @@ func TestProbeJudges(t *testing.T) {
 		{"db-backup-recent", "2026-10-15 scheduled\n---\n2026-10-15\n", true},
 		{"db-backup-recent", "\n---\n2026-09-22\n", false},
 		{"db-backup-recent", "\n---\n\n", false},
+		{"db-backup-recent", "find: '/srv/backups': Permission denied\n---\n\n", false},
 		{"firewall-inbound-deny", "-P INPUT DROP\n---\n-P INPUT DROP\n", true},
 		{"firewall-inbound-deny", "-P INPUT DROP\n---\n", false},
 		// the package-owned nft table (ADR-098 step 6) decides even with iptables at ACCEPT
@@ -732,9 +733,10 @@ func TestServiceClientCronProbes(t *testing.T) {
 		{"at-restricted", "installed=\n", true}, // at not installed: nothing to restrict
 		{"at-restricted", "installed=at\nallow=ABSENT\ndeny=ABSENT\n", false},
 		{"at-restricted", "installed=at\nallow=/etc/at.allow 640 0 root\ndeny=/etc/at.deny 640 0 root\n", true},
-		{"mta-local-only", "", true}, // nothing listening on 25/465/587
-		{"mta-local-only", "127.0.0.1:25\n[::1]:25\n", true},
-		{"mta-local-only", "0.0.0.0:25\n", false},
+		{"mta-local-only", "@ok\n", true}, // nothing listening on 25/465/587
+		{"mta-local-only", "@ok\n127.0.0.1:25\n[::1]:25\n", true},
+		{"mta-local-only", "@ok\n0.0.0.0:25\n", false},
+		{"mta-local-only", "", false}, // ss did not run: not "nothing listening"
 		{"perm-etc-crontab", "/etc/crontab 644 0 root\n", false},
 		{"perm-etc-cron-d", "/etc/cron.d 700 0 root\n", true},
 	} {

@@ -6,6 +6,7 @@ package collect
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -458,15 +459,20 @@ func allowDenyProbe(allow, pkg, group string, denyAllowed bool) Probe {
 }
 
 // mtaLocalOnlyProbe: CIS 2.1.21, no mail transfer agent listening on a
-// non-loopback address (ports 25, 465, 587).
+// non-loopback address (ports 25, 465, 587). "@ok" marks that ss ran: empty
+// output would otherwise read as nothing listening.
 func mtaLocalOnlyProbe() Probe {
 	return Probe{
 		Baseline: true,
-		Command:  `ss -ltnH 2>/dev/null | awk '{print $4}' | grep -E ':(25|465|587)$' || true`,
+		Command:  `l=$(ss -ltnH 2>/dev/null) && echo @ok; printf '%s\n' "$l" | awk '{print $4}' | grep -E ':(25|465|587)$' || true`,
 		Judge: func(out string) (bool, string) {
+			fields := strings.Fields(out)
+			if !slices.Contains(fields, "@ok") {
+				return false, "ss did not run: listeners unknown"
+			}
 			var exposed []string
-			for _, a := range strings.Fields(out) {
-				if !strings.HasPrefix(a, "127.") && !strings.HasPrefix(a, "[::1]") {
+			for _, a := range fields {
+				if a != "@ok" && !strings.HasPrefix(a, "127.") && !strings.HasPrefix(a, "[::1]") {
 					exposed = append(exposed, a)
 				}
 			}

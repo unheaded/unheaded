@@ -754,7 +754,7 @@ var Probes = map[string]Probe{
 			if newest == "" {
 				newest = "none"
 			}
-			return recent != "", "newest database backup " + newest + " (required within 7 days)"
+			return backupLineRe.MatchString(recent), "newest database backup " + newest + " (required within 7 days)"
 		},
 	},
 	"apparmor-enabled": {
@@ -766,6 +766,9 @@ var Probes = map[string]Probe{
 		},
 	},
 }
+
+// backupLineRe: a db-backup-recent find line, "<YYYY-MM-DD> <what>".
+var backupLineRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \S`)
 
 var probeRefRe = regexp.MustCompile(`^(?:([a-z0-9][a-z0-9-]{0,62}):)?([a-z0-9-]+)$`)
 
