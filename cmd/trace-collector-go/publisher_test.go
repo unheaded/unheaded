@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
@@ -650,5 +651,46 @@ func TestFlush_LogsOncePerOutage(t *testing.T) {
 	}
 	if n := pub.noteFailure(TopicTracesFlow); n != 1 {
 		t.Errorf("after recovery the next failure starts a new run at %d, want 1", n)
+	}
+}
+
+// TestPublishRaw_LogsOncePerOutage: the readers' best-effort publishes
+// (flow, latency, trace, stats) logged every failure; with Wotan down that
+// was 755k "flow publish failed" lines in west's syslog in four days
+// (2026-10-18..22).
+func TestPublishRaw_LogsOncePerOutage(t *testing.T) {
+	var buf strings.Builder
+	prev := log.Logger
+	log.Logger = zerolog.New(&buf)
+	defer func() { log.Logger = prev }()
+
+	tsc, err := wotanClient.NewTopicStreamClient("127.0.0.1:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer tsc.Close()
+	if _, err := tsc.Subscribe(context.Background(), "ebpf.flow.events", "trace-collector"); err != nil {
+		t.Fatal(err)
+	}
+	wp := &WotanPublisher{tsc: tsc}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for i := 0; i < 5; i++ {
+		if err := wp.PublishRaw(ctx, "ebpf.flow.events", []byte(`{"n":1}`)); err == nil {
+			t.Fatal("publish to a dead Wotan succeeded")
+		}
+	}
+	if got := strings.Count(buf.String(), "best-effort publish failed"); got != 1 {
+		t.Fatalf("5 failed publishes logged %d times, want 1:\n%s", got, buf.String())
+	}
+	wp.notePublish("ebpf.flow.events", nil)
+	if !strings.Contains(buf.String(), "best-effort publishing recovered") {
+		t.Errorf("recovery not logged:\n%s", buf.String())
+	}
+	buf.Reset()
+	wp.notePublish("ebpf.flow.events", errors.New("down again"))
+	if got := strings.Count(buf.String(), "best-effort publish failed"); got != 1 {
+		t.Errorf("first failure after recovery logged %d times, want 1", got)
 	}
 }

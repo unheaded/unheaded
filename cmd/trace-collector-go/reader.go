@@ -331,9 +331,7 @@ func (r *TraceReader) publishTraceEntries(ctx context.Context, entries []*TraceE
 	// Publishing failures are logged but do not fail the reader — trace
 	// collection must continue even when Wotan is temporarily unreachable.
 	if r.publisher != nil {
-		if pubErr := r.publisher.PublishRaw(ctx, r.config.TraceTopic, payload); pubErr != nil {
-			log.Debug().Err(pubErr).Str("topic", r.config.TraceTopic).Msg("trace publish failed (best-effort)")
-		}
+		_ = r.publisher.PublishRaw(ctx, r.config.TraceTopic, payload) // logs once per outage
 	}
 	return nil
 }

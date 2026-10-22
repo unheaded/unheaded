@@ -436,9 +436,7 @@ func (lr *LatencyReader) publishLatencySamples(ctx context.Context, samples []*L
 	// Publishing failures are logged but do not fail the reader — trace
 	// collection must continue even when Wotan is temporarily unreachable.
 	if lr.publisher != nil {
-		if pubErr := lr.publisher.PublishRaw(ctx, lr.config.LatencyTopic, payload); pubErr != nil {
-			log.Debug().Err(pubErr).Str("topic", lr.config.LatencyTopic).Msg("latency publish failed (best-effort)")
-		}
+		_ = lr.publisher.PublishRaw(ctx, lr.config.LatencyTopic, payload) // logs once per outage
 	}
 	return nil
 }

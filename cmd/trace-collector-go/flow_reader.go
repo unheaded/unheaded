@@ -636,13 +636,11 @@ func (fr *FlowReader) publishFlowEvents(ctx context.Context, events []*FlowEvent
 			flowReaderEventsTotal.WithLabelValues(je.EventType).Inc()
 		}
 
-		// Publish to Wotan via the publisher (best-effort).
-		// Publishing failures are logged but do not block event processing —
-		// trace collection must continue when Wotan is temporarily unreachable.
+		// Publish to Wotan via the publisher (best-effort; PublishRaw logs
+		// failures once per outage). Trace collection must continue when
+		// Wotan is temporarily unreachable.
 		if fr.publisher != nil {
-			if pubErr := fr.publisher.PublishRaw(ctx, fr.config.FlowTopic, payload); pubErr != nil {
-				log.Debug().Err(pubErr).Str("topic", fr.config.FlowTopic).Msg("flow publish failed (best-effort)")
-			}
+			_ = fr.publisher.PublishRaw(ctx, fr.config.FlowTopic, payload)
 		}
 	}
 }

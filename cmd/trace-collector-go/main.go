@@ -333,6 +333,13 @@ type WotanPublisher struct {
 	// (~150 rejected requests/s on west, 2026-10-18).
 	rest   *wotanClient.Client
 	restMu sync.Mutex // one join per topic
+
+	// failures: each topic's run of failed PublishRaw calls, logged like
+	// TracePublisher's (first, every failLogEvery-th, recovery). The readers
+	// logged every failure: 755k lines in west's syslog in four days with
+	// Wotan down (2026-10-18..22).
+	failMu   sync.Mutex
+	failures map[string]uint64
 }
 
 // NewWotanPublisher creates a publisher.
@@ -426,12 +433,40 @@ func (wp *WotanPublisher) PublishBatch(ctx context.Context, topic string, events
 	return nil
 }
 
-// PublishRaw publishes a raw JSON payload to a Wotan topic.
+// PublishRaw publishes a raw JSON payload to a Wotan topic. Callers treat
+// it as best-effort; failures are logged here, once per outage.
 func (wp *WotanPublisher) PublishRaw(ctx context.Context, topic string, payload []byte) error {
+	var err error
 	if wp.tsc != nil {
-		return wp.tsc.Publish(ctx, topic, payload)
+		err = wp.tsc.Publish(ctx, topic, payload)
+	} else {
+		err = wp.restPublish(ctx, topic, payload)
 	}
-	return wp.restPublish(ctx, topic, payload)
+	wp.notePublish(topic, err)
+	return err
+}
+
+// notePublish records a PublishRaw outcome on topic and logs the first
+// failure of a run, every failLogEvery-th, and the recovery.
+func (wp *WotanPublisher) notePublish(topic string, err error) {
+	wp.failMu.Lock()
+	n := wp.failures[topic]
+	if err == nil {
+		delete(wp.failures, topic)
+	} else {
+		n++
+		if wp.failures == nil {
+			wp.failures = make(map[string]uint64)
+		}
+		wp.failures[topic] = n
+	}
+	wp.failMu.Unlock()
+	switch {
+	case err == nil && n > 0:
+		log.Info().Str("topic", topic).Uint64("failed", n).Msg("best-effort publishing recovered")
+	case err != nil && (n == 1 || n%failLogEvery == 0):
+		log.Warn().Err(err).Str("topic", topic).Uint64("failed", n).Msg("best-effort publish failed (logged once per outage, then every 1000)")
+	}
 }
 
 // IsConnected returns true if the last publish succeeded.
