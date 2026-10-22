@@ -23,8 +23,7 @@ sudo reboot                                 # AMD GPU driver needs reboot
 | Go | 1.26+ (go.mod toolchain go1.27.3) | [go.dev/dl](https://go.dev/dl/) | `go version` |
 | Rust | nightly | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh` | `rustc --version` |
 | Docker + Compose | 24+ | [docs.docker.com](https://docs.docker.com/engine/install/) | `docker compose version` |
-| Node.js | 22 LTS | [nodesource](https://deb.nodesource.com/) | `node --version` |
-| Claude Code | latest | `npm install -g @anthropic-ai/claude-code` | `claude --version` |
+| Claude Code | latest | `curl -fsSL https://claude.ai/install.sh \| bash` (native installer; no Node or npm, ADR-006) | `claude --version` |
 | curl | any | pre-installed | `curl --version` |
 | Git + LFS | any | `apt install git git-lfs` | `git --version` |
 

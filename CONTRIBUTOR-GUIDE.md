@@ -57,14 +57,13 @@ This handles all prerequisites below plus GPU drivers, kernel tuning, eBPF envir
 
 | Tool | Version | Install | Check |
 |------|---------|---------|-------|
-| **Go** | 1.25+ | `wget https://go.dev/dl/go1.25.0.linux-amd64.tar.gz && tar -C /usr/local -xzf go*.tar.gz` | `go version` |
+| **Go** | 1.26+ (go.mod toolchain go1.27.3) | [go.dev/dl](https://go.dev/dl/) | `go version` |
 | **Rust** | nightly | `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \| sh -s -- -y --default-toolchain nightly` | `rustc --version` |
 | **Rust eBPF targets** | — | `rustup target add x86_64-unknown-linux-musl && rustup component add rust-src && cargo install bpf-linker` | `cargo install --list \| grep bpf` |
 | **Docker + Compose** | 24+ | [docs.docker.com/engine/install](https://docs.docker.com/engine/install/) | `docker compose version` |
 | **LXD/Incus** | latest | `snap install lxd` | `lxd --version` |
 | **Nix** | 2.18+ | `curl -L https://nixos.org/nix/install \| sh -s -- --daemon` | `nix --version` |
-| **Node.js** | 22 LTS | `curl -fsSL https://deb.nodesource.com/setup_22.x \| bash && apt install nodejs` | `node --version` |
-| **Claude Code** | latest | `npm install -g @anthropic-ai/claude-code` | `claude --version` |
+| **Claude Code** | latest | `curl -fsSL https://claude.ai/install.sh \| bash` (native installer, as your user; no Node or npm, ADR-006) | `claude --version` |
 | **Linux kernel** | 6.8+ | Ubuntu 25.x ships 6.14 | `uname -r` |
 | **eBPF tools** | — | `apt install bpftool bpftrace bpfcc-tools clang llvm libbpf-dev` | `bpftool version` |
 | **SOPS + age** | — | `apt install age` + [github.com/getsops/sops](https://github.com/getsops/sops/releases) | `sops --version && age --version` |
