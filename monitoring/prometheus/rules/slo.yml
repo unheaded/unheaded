@@ -15,7 +15,7 @@ groups:
           service: wotan
           slo: wotan
       - record: slo:good
-        expr: (avg(up{job="dashboard_backend"})) or on() vector(0)
+        expr: (avg(up{job="dashboard-backend"})) or on() vector(0)
         labels:
           service: dashboard-backend
           slo: dashboard
@@ -180,7 +180,7 @@ groups:
           tier: fast
           urgency: page
         annotations:
-          description: 'Burning the error budget (99.5% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1h; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: up{job="dashboard_backend"} says which host; curl :20000/health there; it needs Wotan, so check the wotan SLO first.'
+          description: 'Burning the error budget (99.5% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1h; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: up{job="dashboard-backend"} says which host; curl :20000/health there; it needs Wotan, so check the wotan SLO first.'
           runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
           summary: 'SLO dashboard: The dashboard answers on both hosts'
       - alert: ErrorBudgetBurn
@@ -192,7 +192,7 @@ groups:
           tier: medium
           urgency: page
         annotations:
-          description: 'Burning the error budget (99.5% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 6h; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: up{job="dashboard_backend"} says which host; curl :20000/health there; it needs Wotan, so check the wotan SLO first.'
+          description: 'Burning the error budget (99.5% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 6h; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: up{job="dashboard-backend"} says which host; curl :20000/health there; it needs Wotan, so check the wotan SLO first.'
           runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
           summary: 'SLO dashboard: The dashboard answers on both hosts'
       - alert: ErrorBudgetBurn
@@ -204,7 +204,7 @@ groups:
           tier: slow
           urgency: ticket
         annotations:
-          description: 'Burning the error budget (99.5% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1d; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: up{job="dashboard_backend"} says which host; curl :20000/health there; it needs Wotan, so check the wotan SLO first.'
+          description: 'Burning the error budget (99.5% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 1d; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: up{job="dashboard-backend"} says which host; curl :20000/health there; it needs Wotan, so check the wotan SLO first.'
           runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
           summary: 'SLO dashboard: The dashboard answers on both hosts'
       - alert: ErrorBudgetBurn
@@ -216,7 +216,7 @@ groups:
           tier: steady
           urgency: ticket
         annotations:
-          description: 'Burning the error budget (99.5% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 3d; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: up{job="dashboard_backend"} says which host; curl :20000/health there; it needs Wotan, so check the wotan SLO first.'
+          description: 'Burning the error budget (99.5% over 28d) {{ $value | printf "%.1f" }}x as fast as it allows, over the last 3d; {{ with query "100 * slo:error_budget_remaining{slo=\"dashboard\"}" }}{{ . | first | value | printf "%.0f" }}%{{ else }}an unknown share{{ end }} of it left. Check: up{job="dashboard-backend"} says which host; curl :20000/health there; it needs Wotan, so check the wotan SLO first.'
           runbook_url: https://github.com/unheaded/unheaded/blob/develop/runbooks/observe/slo-error-budget-burn.yaml
           summary: 'SLO dashboard: The dashboard answers on both hosts'
       - alert: ErrorBudgetBurn

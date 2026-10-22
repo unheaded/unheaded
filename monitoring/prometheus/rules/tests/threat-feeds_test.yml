@@ -6,7 +6,7 @@ tests:
   # A good pull at t=0 and none after: stale past 6h (+15m), expired past 7d.
   - interval: 1m
     input_series:
-      - series: 'unheaded_kev_last_success_timestamp_seconds{instance="west:19120",job="kev_poller"}'
+      - series: 'unheaded_kev_last_success_timestamp_seconds{instance="west:19120",job="kev-poller"}'
         values: '0x11000'
     alert_rule_test:
       - eval_time: 6h
@@ -15,7 +15,7 @@ tests:
       - eval_time: 6h20m
         alertname: KEVFeedStale
         exp_alerts:
-          - exp_labels: {severity: warning, urgency: none, instance: "west:19120", job: kev_poller}
+          - exp_labels: {severity: warning, urgency: none, instance: "west:19120", job: kev-poller}
             exp_annotations:
               summary: "CISA KEV catalog on west:19120 not refreshed for 6h"
               description: "Last good pull 6h 20m 0s ago; GET /api/v1/kev on the poller shows the last error"
@@ -25,7 +25,7 @@ tests:
       - eval_time: 7d20m
         alertname: KEVFeedExpired
         exp_alerts:
-          - exp_labels: {severity: critical, urgency: none, instance: "west:19120", job: kev_poller}
+          - exp_labels: {severity: critical, urgency: none, instance: "west:19120", job: kev-poller}
             exp_annotations:
               summary: "CISA KEV catalog on west:19120 older than 7 days (ADR-052)"
               description: "Last good pull 7d 0h 20m 0s ago; the threat register is past its freshness limit"
@@ -34,9 +34,9 @@ tests:
   # KEVPollerDown after 15m of that.
   - interval: 1m
     input_series:
-      - series: 'unheaded_kev_last_success_timestamp_seconds{instance="east:19120",job="kev_poller"}'
+      - series: 'unheaded_kev_last_success_timestamp_seconds{instance="east:19120",job="kev-poller"}'
         values: '0+60x120'
-      - series: 'up{instance="east:19120",job="kev_poller"}'
+      - series: 'up{instance="east:19120",job="kev-poller"}'
         values: '1x60 0x60'
     alert_rule_test:
       - eval_time: 119m
@@ -48,7 +48,7 @@ tests:
       - eval_time: 80m
         alertname: KEVPollerDown
         exp_alerts:
-          - exp_labels: {severity: warning, urgency: none, instance: "east:19120", job: kev_poller}
+          - exp_labels: {severity: warning, urgency: none, instance: "east:19120", job: kev-poller}
             exp_annotations:
               summary: "kev-poller on east:19120 is not answering /metrics"
               description: "ADR-055 requires it always on; systemctl status unheaded-kev-poller"

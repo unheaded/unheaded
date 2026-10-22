@@ -78,9 +78,9 @@ slos:
     description: The dashboard answers on both hosts
     objective: 99.5
     page: true
-    good: avg(up{job="dashboard_backend"})
+    good: avg(up{job="dashboard-backend"})
     checks: >-
-      up{job="dashboard_backend"} says which host; curl :20000/health there;
+      up{job="dashboard-backend"} says which host; curl :20000/health there;
       it needs Wotan, so check the wotan SLO first.
 
   - name: well

@@ -34,7 +34,7 @@ groups:
           description: "Last good pull {{ $value | humanizeDuration }} ago; the threat register is past its freshness limit"
 
       - alert: KEVPollerDown
-        expr: up{job="kev_poller"} == 0
+        expr: up{job="kev-poller"} == 0
         for: 15m
         labels:
           severity: warning

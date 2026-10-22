@@ -16,7 +16,7 @@ scrape_configs:
       - targets: ['localhost:9100']
 
   # Local unheaded daemon metrics
-  - job_name: unheaded_daemon
+  - job_name: unheaded-daemon
     metrics_path: /metrics
     static_configs:
       - targets: ['localhost:9090']

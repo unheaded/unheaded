@@ -41,7 +41,7 @@ scrape_configs:
       - targets: ["host.docker.internal:19005"]
     metrics_path: /metrics
 
-  - job_name: "cuirass"
+  - job_name: "unheaded-daemon"
     scrape_interval: 10s
     static_configs:
       - targets: ["host.docker.internal:19006"]

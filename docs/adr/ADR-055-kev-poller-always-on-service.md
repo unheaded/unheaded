@@ -151,7 +151,7 @@ Per Kingdom lore (Lore + Kingdom skills), this service maps to:
 | 0. K8s lab on WEST+EAST | **absent**: no k3s, kubelet or microk8s on west or east (checked 2026-10-19) | ADR-047 |
 | 1. service | **built and tested**; `--once` against the live feed: catalog 2026.10.16, 1748 entries; second pull a 304; seeded with the 2026-04-27 archive it reports the 165 CVEs added since | `cmd/kev-poller`, `pkg/threatfeed/kev` |
 | 2. DaemonSet | **manifest written, not applied** (no cluster) | `deploy/k8s/kev-poller/daemonset.yaml` |
-| 2b. systemd | **installed and enabled on west and east, 2026-10-20** (always on, as `unheaded-kev-poller`; first pulls succeeded on both; scraped by monitoring/prometheus as job `kev_poller`, both up) | `deploy/systemd/unheaded-kev-poller.service` |
+| 2b. systemd | **installed and enabled on west and east, 2026-10-20** (always on, as `unheaded-kev-poller`; first pulls succeeded on both; scraped by monitoring/prometheus as job `kev-poller`, both up) | `deploy/systemd/unheaded-kev-poller.service` |
 | 3. threat-register updater | **report, not a bot**: `--stack config/kev-poller/stack.yaml` tags added entries the Kingdom runs (KEV's own vendor/product names, exact match; categories follow the register), logs them as warnings, counts them (`unheaded_kev_stack_count`, `unheaded_kev_stack_added_total`) and marks them in delta messages; `kev-poller report --since DATE` renders the register's refresh entry. A person commits it: a bot with push rights to the repo is more than this needs. First refresh 2026-10-19 found FND-011 | `config/kev-poller/stack.yaml`, `pkg/threatfeed/kev/{stack,report}.go` |
 | 4. NVD poller | open; **lower value than it looked** (2026-10-19): what NVD would add is already watched elsewhere: our Go, Rust and Python dependencies by govulncheck, cargo audit and pip-audit (CI, gating), container images by trivy and grype (CI), host packages by Ubuntu's own feed (`pro fix`, unattended-upgrades). KEV stays the high-signal feed: exploited, not merely published. Revisit if a component we run is in none of those | |
 | 5. leader election | open | |
@@ -190,7 +190,7 @@ Built differently from the text above, and why:
   `unheaded_kev_delta_count`, plus `unheaded_http_*`. Alerts
   `KEVFeedStale` (6h), `KEVFeedExpired` (7 days, ADR-052), `KEVPollerDown`
   in `monitoring/prometheus/rules/threat-feeds.yml` (promtool-tested), scrape
-  job `kev_poller`.
+  job `kev-poller`.
 - `/ready` is 503 until a valid catalog is stored (pulled, or loaded at
   start); `GET /api/v1/kev` shows the stored state, the last error and the
   next pull.

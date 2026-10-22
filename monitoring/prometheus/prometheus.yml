@@ -22,10 +22,10 @@ scrape_configs:
           - '[fd00:dead:beef::1]:9100'
           - '[fd00:dead:beef::2]:9100'
 
-  # Unheaded daemon metrics. West runs it in docker-compose.yml as cuirass
+  # Unheaded daemon metrics (job = binary name). West runs it in docker-compose.yml as cuirass
   # (published on 19006), east as unheaded-unheaded-daemon on 17000. These
   # were :9090 on both, which is this Prometheus on west and nothing on east.
-  - job_name: unheaded_daemon
+  - job_name: unheaded-daemon
     metrics_path: /metrics
     static_configs:
       - targets: ['[fd00:dead:beef::1]:19006']
@@ -140,7 +140,7 @@ scrape_configs:
           service: "unheaded-daemon"
 
   # CISA KEV feed poller, one per host (ADR-055); alerts in rules/threat-feeds.yml
-  - job_name: kev_poller
+  - job_name: kev-poller
     static_configs:
       - targets:
           - '[fd00:dead:beef::1]:19120'
@@ -154,7 +154,7 @@ scrape_configs:
 
   # Dashboard backend, one per host (host metrics + service metrics). The
   # dashboard SLO (observability/alerting/policy.yaml) is up on both.
-  - job_name: dashboard_backend
+  - job_name: dashboard-backend
     static_configs:
       - targets:
           - '[fd00:dead:beef::1]:20000'
