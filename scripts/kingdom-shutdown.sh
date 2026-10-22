@@ -187,9 +187,13 @@ if [[ "$KEEP_CONTAINERS" != "true" ]]; then
         run docker compose -f "$COMPOSE_FILE" down 2>/dev/null || log_warn "  docker compose down failed (ignored)"
     fi
 
-    # Stop any straggler unheaded containers
+    # Stop any straggler unheaded containers. The monitoring stack is left
+    # alone: it stays up across a shutdown (restart: unless-stopped) so it can
+    # watch the next boot, and a docker stop here would keep it down after.
     if command -v docker &> /dev/null; then
-        stragglers=$(docker ps --filter name=unheaded -q 2>/dev/null || true)
+        stragglers=$(docker ps --filter name=unheaded \
+            --format '{{.ID}} {{.Label "com.docker.compose.project"}}' 2>/dev/null |
+            awk '$2 != "monitoring" { print $1 }' || true)
         if [[ -n "$stragglers" ]]; then
             log_info "  Stopping straggler containers..."
             # shellcheck disable=SC2086  # a whitespace-separated list of container IDs
