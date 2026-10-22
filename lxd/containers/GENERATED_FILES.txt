@@ -28,7 +28,6 @@ OBSERVABILITY (2 services)
 
 PRESENTATION (3 services)
  13. dashboard-backend.yaml        - Dashboard API (8080) [Priority 60]
- 14. dashboard-frontend.yaml       - Web UI (3001) [Priority 55]
  15. kanban.yaml                   - Project mgmt (3002) [Priority 45]
 
 COMPUTE (1 service)
@@ -112,7 +111,6 @@ CPU Allocation:
   - Total capacity:                 ~54 vCPU
 
 Memory Allocation:
-  - 256 MB:                          1 service (dashboard-frontend)
   - 512 MB:                         21 services
   - 1 GB:                            3 services
   - 2 GB:                            2 services

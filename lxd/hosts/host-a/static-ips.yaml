@@ -41,11 +41,6 @@ containers:
     ipv6: "fd00:dead:beef:1::107"
     port: 8080
 
-  dashboard-frontend:
-    ipv4: "10.20.1.8"
-    ipv6: "fd00:dead:beef:1::108"
-    port: 3001
-
   protocol-api:
     ipv4: "10.20.1.9"
     ipv6: "fd00:dead:beef:1::109"

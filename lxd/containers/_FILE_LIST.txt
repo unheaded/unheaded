@@ -37,7 +37,6 @@ OBSERVABILITY (2 services):
 
 PRESENTATION (3 services):
   ✓ dashboard-backend.yaml      - Dashboard API server (8080) [Priority 60]
-  ✓ dashboard-frontend.yaml     - Web UI frontend (3001) [Priority 55]
   ✓ kanban.yaml                 - Project management (3002) [Priority 45]
 
 COMPUTE (1 service):

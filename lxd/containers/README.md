@@ -64,7 +64,6 @@ User-facing dashboards and interfaces.
 |---------|------|----------|-----|-----|------|
 | Dashboard Backend | 8080 | 60 | 2 | 512MB | `dashboard-backend.yaml` |
 | Kanban | 3002 | 45 | 2 | 512MB | `kanban.yaml` |
-| Dashboard Frontend | 3001 | 55 | 1 | 256MB | `dashboard-frontend.yaml` |
 
 ### Compute (1 container)
 Heavy computation workload.
@@ -324,7 +323,6 @@ All 30 services and their exposed ports:
 **Additional Ports:**
 - 4222 = Wotan (NATS)
 - 3000 = Grafana
-- 3001 = Dashboard Frontend
 - 3002 = Kanban
 - 3100 = Loki
 - 8080 = Dashboard Backend

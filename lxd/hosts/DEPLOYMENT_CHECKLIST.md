@@ -179,7 +179,7 @@ ssh user@host-a ip addr show | grep 'inet '
 Then access from your local machine:
 - [ ] Grafana: http://host-a-ip:3000 (admin/admin)
 - [ ] Prometheus: http://host-a-ip:9090
-- [ ] Dashboard Frontend: http://host-a-ip:3001
+- [ ] Dashboard (served by dashboard-backend): http://host-a-ip:8080
 
 ### Step 11: Configure Static IPs (Optional but Recommended)
 ```bash

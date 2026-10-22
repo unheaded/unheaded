@@ -25,7 +25,6 @@
 
 ### Presentation (3)
 - dashboard-backend.yaml  (port 8080, priority 60, tier: presentation)
-- dashboard-frontend.yaml (port 3001, priority 55, tier: presentation)
 - kanban.yaml             (port 3002, priority 45, tier: presentation)
 
 ### Compute (1)

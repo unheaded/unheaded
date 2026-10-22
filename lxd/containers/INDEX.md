@@ -29,7 +29,6 @@
 | 70 | Protocol API | 50056 | protocol-api.yaml | protocol |
 | 65 | Gateway | 8443 | gateway.yaml | infrastructure |
 | 60 | Dashboard Backend | 8080 | dashboard-backend.yaml | presentation |
-| 55 | Dashboard Frontend | 3001 | dashboard-frontend.yaml | presentation |
 | 50 | Doom | 16680 | doom.yaml | compute |
 | 45 | Kanban | 3002 | kanban.yaml | presentation |
 | 40 | Captain | 50058 | captain.yaml | royal-court |
@@ -54,7 +53,7 @@
 - captain.yaml, micromanager.yaml, architect.yaml, developer.yaml, lore.yaml, busboy.yaml, kingdom.yaml
 
 **Medium (2 vCPU, 512MB-1GB):**
-- monad.yaml, sophia.yaml, anamnesis.yaml, protocol-api.yaml, gateway.yaml, trace-collector.yaml, dashboard-backend.yaml, dashboard-frontend.yaml, kanban.yaml, blackmage.yaml, moatghost.yaml, wotan.yaml, service-discovery.yaml
+- monad.yaml, sophia.yaml, anamnesis.yaml, protocol-api.yaml, gateway.yaml, trace-collector.yaml, dashboard-backend.yaml, kanban.yaml, blackmage.yaml, moatghost.yaml, wotan.yaml, service-discovery.yaml
 
 **Large (4 vCPU, 1-2GB):**
 - shield.yaml, unheaded-daemon.yaml, doom.yaml, lich.yaml, ebpf-exporter.yaml
@@ -68,7 +67,7 @@
 ### Services by Profile Requirements
 
 **unheaded-base only (22 services):**
-monad, sophia, anamnesis, protocol-api, gateway, dashboard-backend, dashboard-frontend, kanban, captain, micromanager, timeguru, architect, developer, lore, busboy, kingdom, blackmage, moatghost, trace-collector, wotan, service-discovery
+monad, sophia, anamnesis, protocol-api, gateway, dashboard-backend, kanban, captain, micromanager, timeguru, architect, developer, lore, busboy, kingdom, blackmage, moatghost, trace-collector, wotan, service-discovery
 
 **unheaded-base + unheaded-ebpf (4 services):**
 shield, unheaded-daemon, lich, ebpf-exporter
@@ -102,7 +101,6 @@ prometheus, victoriametrics, loki, grafana
 
 **Presentation:**
 - **dashboard-backend.yaml** - Dashboard API server
-- **dashboard-frontend.yaml** - Web UI (1 vCPU, 256MB)
 - **kanban.yaml** - Project management interface
 
 **Compute:**

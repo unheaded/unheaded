@@ -106,7 +106,7 @@ Complete service deployment script that:
 - Phase 2: monad, sophia, anamnesis (protocol layer)
 - Phase 3: shield, unheaded-daemon (eBPF control)
 - Phase 4: gateway, service-discovery (routing)
-- Phase 5: dashboard-backend, dashboard-frontend, protocol-api (presentation)
+- Phase 5: dashboard-backend, protocol-api (presentation)
 - Phase 6: trace-collector, doom (observability/compute)
 - Phase 7-8: 11 service containers (kanban, captain, etc.)
 - Phase 9: lich (adversary, last)
@@ -179,7 +179,6 @@ Core service deployment for host-b:
 | gateway | 2 | 512MB | - |
 | service-discovery | 1 | 256MB | - |
 | dashboard-backend | 2 | 512MB | - |
-| dashboard-frontend | 1 | 256MB | - |
 | protocol-api | 2 | 512MB | - |
 | trace-collector | 2 | 512MB | - |
 | doom | 4 | 1GB | - |

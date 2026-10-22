@@ -18,7 +18,6 @@
     
     # Layer 3: Frontend & Dashboard
     ./dashboard-backend.nix        # Dashboard backend Cape & Cloak
-    ./dashboard-frontend.nix       # Dashboard frontend UI static serve
     
     # Layer 4: Protocol & API
     ./protocol-api.nix             # Protocol API wire format validation & Gauntlets

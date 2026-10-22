@@ -251,8 +251,8 @@ http://10.20.0.1:9090
 # Access Loki
 http://10.20.0.1:3100
 
-# Access Dashboard Frontend
-http://10.20.0.1:3001
+# Access the dashboard (dashboard-backend serves the UI)
+http://10.20.1.7:8080
 ```
 
 ### Troubleshoot Service

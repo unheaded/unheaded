@@ -16,7 +16,6 @@ This directory contains 25 NixOS systemd service modules for the Unheaded Kingdo
 
 ### Layer 3: Frontend & Dashboard (2 services)
 - `dashboard-backend.nix` - Dashboard backend Cape & Cloak [HTTP :8080]
-- `dashboard-frontend.nix` - Dashboard frontend UI static serve [HTTP :3001]
 
 ### Layer 4: Protocol & API (3 services)
 - `protocol-api.nix` - Protocol API wire format validation & Gauntlets [gRPC :50056]
@@ -86,7 +85,6 @@ services.unheaded.wotan.enable = true;
 - 50067: moatghost
 
 ### HTTP/HTTPS Ports
-- 3001: dashboard-frontend
 - 3002: kanban
 - 8080: dashboard-backend
 - 8443: gateway
@@ -123,7 +121,6 @@ services.unheaded.wotan.enable = true;
 ## Resource Allocation Strategy
 
 ### Minimal (256M memory, 100% CPU)
-- dashboard-frontend (static file serving)
 - lore (naming lookups)
 
 ### Small (512M memory, 200% CPU)

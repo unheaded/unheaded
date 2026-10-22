@@ -83,11 +83,9 @@ DNS Mode: Managed by LXD
 - **service-discovery** (10.20.1.12): Service registry
   - CPU: 1, Memory: 256MB, Ports: 50057 (gRPC), 8500 (HTTP)
 
-#### Phase 5: Presentation (3)
-- **dashboard-backend** (10.20.1.7): Dashboard API
+#### Phase 5: Presentation (2)
+- **dashboard-backend** (10.20.1.7): Dashboard API and web UI (the UI is embedded in the binary)
   - CPU: 2, Memory: 512MB, Port: 8080
-- **dashboard-frontend** (10.20.1.8): Web UI
-  - CPU: 1, Memory: 256MB, Port: 3001
 - **protocol-api** (10.20.1.9): Protocol API
   - CPU: 2, Memory: 512MB, Port: 50056
 
@@ -266,7 +264,7 @@ wotan (message bus)
   ├─ monad, sophia, anamnesis (protocol layer)
   │   └─ shield, unheaded-daemon (eBPF control)
   │       └─ gateway, service-discovery (routing)
-  │           ├─ dashboard-backend, dashboard-frontend, protocol-api (presentation)
+  │           ├─ dashboard-backend, protocol-api (presentation)
   │           │   └─ kanban, captain, micromanager, timeguru, architect, developer, lore, busboy, kingdom, blackmage, moatghost (services)
   │           │       └─ lich (adversary - runs after all others)
   │           └─ trace-collector, doom (observability)

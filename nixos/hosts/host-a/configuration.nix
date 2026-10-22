@@ -23,7 +23,6 @@
     ../../modules/services/shield.nix
     ../../modules/services/unheaded-daemon.nix
     ../../modules/services/dashboard-backend.nix
-    ../../modules/services/dashboard-frontend.nix
     ../../modules/services/protocol-api.nix
     ../../modules/services/trace-collector.nix
     ../../modules/services/gateway.nix

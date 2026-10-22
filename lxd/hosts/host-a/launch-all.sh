@@ -227,12 +227,10 @@ push_and_start_service "service-discovery"
 sleep 2
 
 # Phase 5: Presentation layer
-log_info "Phase 5: Launching presentation (dashboard-backend, dashboard-frontend, protocol-api)..."
+log_info "Phase 5: Launching presentation (dashboard-backend, protocol-api)..."
 launch_container "dashboard-backend" 2 512
-launch_container "dashboard-frontend" 1 256
 launch_container "protocol-api" 2 512
 push_and_start_service "dashboard-backend"
-push_and_start_service "dashboard-frontend"
 push_and_start_service "protocol-api"
 sleep 2
 
