@@ -95,7 +95,7 @@ func main() {
 	defer cancel()
 
 	// Service discovery registration
-	discovery.SetupServiceDiscovery(ctx, nil, "monad", 19004)
+	discovery.Start(ctx, transportCfg, "monad", 19004)
 
 	// Health server
 	healthSrv := transport.NewHealthServer("monad")

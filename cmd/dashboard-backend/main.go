@@ -290,7 +290,7 @@ func main() {
 	defer cancel()
 
 	// Service discovery registration
-	discovery.SetupServiceDiscovery(ctx, nil, "dashboard-backend", 20000)
+	discovery.Start(ctx, transportCfg, "dashboard-backend", 20000)
 
 	// Profiling. Off unless PPROF_ADDR is set, and meant for a loopback address
 	// inside the container (`docker exec ... wget -O- http://127.0.0.1:6060/

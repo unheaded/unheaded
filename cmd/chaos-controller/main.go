@@ -26,6 +26,7 @@ import (
 	"unheaded/pkg/discovery"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/ports"
+	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/yaldabaoth"
 )
@@ -551,8 +552,10 @@ func main() {
 		log.Error().Err(err).Msg("failed to start controller")
 	}
 
-	// Service discovery — best-effort
-	discovery.SetupServiceDiscovery(ctx, nil, "chaos-controller", ports.Chaos)
+	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
+	transportCfg := transport.DefaultConfig()
+	transport.ConfigFromEnv(&transportCfg)
+	discovery.Start(ctx, transportCfg, "chaos-controller", ports.Chaos)
 
 	// Set up HTTP server
 	mux := http.NewServeMux()

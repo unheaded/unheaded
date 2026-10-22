@@ -230,7 +230,7 @@ func main() {
 	defer stop()
 
 	// Service discovery registration (best-effort, nil conn until transport.Connect)
-	discovery.SetupServiceDiscovery(ctx, nil, "timeguru", 19000)
+	discovery.Start(ctx, transportCfg, "timeguru", 19000)
 
 	// Start HTTP server in goroutine. Bind synchronously so that anything
 	// announced below can be fetched the moment the announcement lands.

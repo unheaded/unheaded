@@ -30,9 +30,6 @@ func run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Service discovery registration (best-effort, nil conn until transport.Connect)
-	discovery.SetupServiceDiscovery(ctx, nil, "captain", 19002)
-
 	// Configuration
 	httpAddr := getEnv("HTTP_ADDR", "0.0.0.0:19002")
 	dataPath := getEnv("DATA_PATH", "/var/lib/unheaded/captain")
@@ -45,6 +42,9 @@ func run() error {
 	transportCfg := transport.DefaultConfig()
 	transport.ConfigFromEnv(&transportCfg)
 	wotanAddr := transportCfg.WotanHTTPAddr
+
+	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
+	discovery.Start(ctx, transportCfg, "captain", 19002)
 
 	// Health server
 	healthSrv := transport.NewHealthServer("captain")

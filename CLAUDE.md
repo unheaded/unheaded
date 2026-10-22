@@ -148,7 +148,7 @@ Four-layer approach implemented in `pkg/discovery/`:
 3. **Convention scan:** /opt/unheaded/<service>/config.yaml discovery
 4. **Static fallback:** configs/services.yaml for known-good defaults
 
-All 10 services call `discovery.SetupServiceDiscovery()` on startup for automatic registration and peer discovery.
+11 services call `discovery.Start(ctx, transportCfg, name, port)` on startup: it joins `system.discovery` as `name` (must be on Wotan's `topics.auto_approve`), announces `$DISCOVERY_ADDR` or the hostname every 15 s, and retries in the background until Wotan answers. Until 2026-10-22 every service passed a nil connection and nothing ever registered.
 
 ### Log Aggregation — "The Chronicler's Well"
 

@@ -6,9 +6,6 @@ package discovery
 import (
 	"context"
 	"fmt"
-	"log"
-
-	"unheaded/pkg/transport"
 )
 
 // SetupDiscovery creates, registers, and starts a discovery registry for a
@@ -55,35 +52,4 @@ func SetupDiscovery(ctx context.Context, serviceName, addr string, port int, wot
 	}
 
 	return reg, nil
-}
-
-// SetupServiceDiscovery registers a service using the transport layer and
-// deregisters on context cancellation. This is best-effort — failures are
-// logged but do not prevent startup.
-//
-// Example usage:
-//
-//	reg, _ := discovery.SetupServiceDiscovery(ctx, conn, "timeguru", 19000)
-//	// reg is non-nil even on registration failure
-func SetupServiceDiscovery(ctx context.Context, conn transport.Connection, name string, port int) *Registrar {
-	reg := NewRegistrar(conn, name, port, "http")
-
-	if conn == nil {
-		log.Printf("[discovery] %s: no transport connection — skipping registration", name)
-		return reg
-	}
-
-	if err := reg.Register(ctx); err != nil {
-		log.Printf("[discovery] %s: registration failed (non-fatal): %v", name, err)
-	}
-
-	// Deregister on context cancellation.
-	go func() { // #nosec G118 -- goroutine exists solely to observe ctx.Done() and deregister
-		<-ctx.Done()
-		if err := reg.Deregister(context.Background()); err != nil {
-			log.Printf("[discovery] %s: deregistration failed: %v", name, err)
-		}
-	}()
-
-	return reg
 }

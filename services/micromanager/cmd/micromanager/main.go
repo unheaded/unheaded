@@ -143,7 +143,7 @@ func main() {
 	ctx := context.Background()
 
 	// Service discovery registration (best-effort, nil conn until transport.Connect)
-	discovery.SetupServiceDiscovery(ctx, nil, "micromanager", 19003)
+	discovery.Start(ctx, transportCfg, "micromanager", 19003)
 
 	if err := service.Start(ctx); err != nil {
 		log.Error().Err(err).Msg("failed to start service")

@@ -930,7 +930,7 @@ func main() {
 	defer cancel()
 
 	// Service discovery registration
-	discovery.SetupServiceDiscovery(ctx, nil, "sophia", 19005)
+	discovery.Start(ctx, transportCfg, "sophia", 19005)
 
 	if err := sophiaService.Start(ctx); err != nil {
 		log.Fatal().Err(err).Msg("failed to start Sophia service")

@@ -1235,8 +1235,8 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// Service discovery — best-effort registration (nil conn until transport is wired)
-	discovery.SetupServiceDiscovery(ctx, nil, "trace-collector", 16670)
+	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
+	discovery.Start(ctx, transportCfg, "trace-collector", 16670)
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)

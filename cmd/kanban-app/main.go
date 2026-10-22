@@ -1505,10 +1505,10 @@ func main() {
 		log.Info().Msg("Log forwarding to Wotan enabled via logagg publisher")
 	}
 
-	// Service discovery — best-effort registration (nil conn until transport is wired)
+	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
 	defer discoveryCancel()
-	discovery.SetupServiceDiscovery(discoveryCtx, nil, "kanban-app", 20001)
+	discovery.Start(discoveryCtx, transportCfg, "kanban-app", 20001)
 
 	// Initialize Wotan client
 	// WOTAN_ADDR = HTTP control plane (subscribe, publish, admin, circuit-breaker fallback)

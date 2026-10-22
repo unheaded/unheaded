@@ -6,7 +6,11 @@
 // This file is the SINGLE SOURCE OF TRUTH for port assignments.
 package ports
 
-import "fmt"
+import (
+	"fmt"
+	"net"
+	"strconv"
+)
 
 const (
 	// Infrastructure Tier (16666-16999)
@@ -91,6 +95,20 @@ const (
 // DefaultAddr returns ":<port>" string for net.Listen.
 func DefaultAddr(port int) string {
 	return fmt.Sprintf(":%d", port)
+}
+
+// PortOf returns the port of a listen address such as ":19006" or
+// "0.0.0.0:17000", or fallback when addr has no valid port.
+func PortOf(addr string, fallback int) int {
+	_, p, err := net.SplitHostPort(addr)
+	if err != nil {
+		return fallback
+	}
+	n, err := strconv.Atoi(p)
+	if err != nil || n < 1 || n > 65535 {
+		return fallback
+	}
+	return n
 }
 
 // DefaultWotanGRPC returns the default Wotan gRPC dial target.

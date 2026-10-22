@@ -432,10 +432,10 @@ func main() {
 	log.AddHook(logPublisher.LoggerHook())
 	defer logPublisher.Close()
 
-	// Service discovery — best-effort registration (nil conn until transport is wired)
+	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
 	defer discoveryCancel()
-	discovery.SetupServiceDiscovery(discoveryCtx, nil, "unheaded-daemon", 17000)
+	discovery.Start(discoveryCtx, transportCfg, "unheaded-daemon", ports.PortOf(cfg.HTTPAddr, ports.DaemonHTTP))
 
 	// Create daemon
 	daemon := NewDaemon(cfg, log, transportCfg, healthSrv)

@@ -141,3 +141,14 @@ func TestDefaultWotanHTTP(t *testing.T) {
 		t.Errorf("DefaultWotanHTTP() = %q, want %q", got, "http://localhost:18000")
 	}
 }
+
+func TestPortOf(t *testing.T) {
+	for addr, want := range map[string]int{
+		":19006": 19006, "0.0.0.0:17000": 17000, "[::]:20000": 20000,
+		"": 17000, "19006": 17000, ":0": 17000, ":http": 17000, ":70000": 17000,
+	} {
+		if got := PortOf(addr, 17000); got != want {
+			t.Errorf("PortOf(%q) = %d, want %d", addr, got, want)
+		}
+	}
+}
