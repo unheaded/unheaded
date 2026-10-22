@@ -39,6 +39,7 @@ import (
 	"github.com/gorilla/websocket"
 
 	"unheaded/pkg/auth"
+	"unheaded/pkg/httputil"
 )
 
 // Service metadata.
@@ -165,9 +166,9 @@ func main() {
 		upgrader: websocket.Upgrader{
 			ReadBufferSize:  1024,
 			WriteBufferSize: screenSize*4 + 1024, // RGBA frame (256000) + tag + overhead
-			CheckOrigin: func(r *http.Request) bool {
-				return true // Allow all origins for development
-			},
+			// Same origin (doom.html, served here), or an exact entry of
+			// WS_ALLOWED_ORIGINS: the socket carries keyboard input.
+			CheckOrigin: httputil.SameOriginOrAllowed(httputil.OriginsFromEnv("WS_ALLOWED_ORIGINS")),
 		},
 	}
 

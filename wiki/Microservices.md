@@ -59,7 +59,7 @@ See [[eBPF Programs|eBPF-Programs]] and [[Observability Backends|Observability-B
 | Binary | What it does |
 |--------|--------------|
 | `upc-bootctl` | UPC kernel image loader + boot dispatcher (ASCEND-LINUX) |
-| `upc-tty-bridge` | WebSocket bridge for UPC tty streams |
+| `upc-tty-bridge` | WebSocket bridge for UPC tty streams; same-origin WebSockets only, extra origins via `WS_ALLOWED_ORIGINS` (doom-bridge too) |
 | `gjallarhorn-sender` / `-listener` | Emit / receive UPC trigger packets (Mímir's Law) |
 | `doom`, `doom-loader`, `doom-bridge`, `doom-cpu-dump` | Doom engine CLI, ROM/RAM loader, BPF map access, CPU state dump |
 | `doom-go-injector`, `doom-injector-c` | Packet injectors (Go, raw AF_PACKET C) |

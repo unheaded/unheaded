@@ -8,8 +8,11 @@ import (
 	"bytes"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 var _ = time.Second // keep "time" import alive after test reshuffles
@@ -224,4 +227,37 @@ func TestHandleTtyIngest_OnlyTargetInstanceReceives(t *testing.T) {
 	if drainChan(subOther.out) != "" {
 		t.Error("instance 100 subscriber should NOT have received the payload")
 	}
+}
+
+// ─── WebSocket Origin ────────────────────────────────────────────────────────
+
+// TestConsoleRefusesForeignOrigin: the console upgrader accepted every
+// Origin, so any page in a LAN browser could read (and later type into)
+// the UPC console.
+func TestConsoleRefusesForeignOrigin(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return // Upgrade has already answered 403
+		}
+		_ = conn.Close()
+	}))
+	defer srv.Close()
+	wsURL := "ws" + strings.TrimPrefix(srv.URL, "http") + "/console?instance=222"
+
+	_, resp, err := websocket.DefaultDialer.Dial(wsURL, http.Header{"Origin": {"https://evil.example"}})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err == nil || resp == nil || resp.StatusCode != http.StatusForbidden {
+		t.Fatalf("foreign Origin: err=%v resp=%v, want a 403 refusal", err, resp)
+	}
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, http.Header{"Origin": {srv.URL}})
+	if resp != nil {
+		_ = resp.Body.Close()
+	}
+	if err != nil {
+		t.Fatalf("same Origin refused: %v", err)
+	}
+	_ = conn.Close()
 }

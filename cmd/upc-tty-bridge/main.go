@@ -30,6 +30,8 @@ import (
 	"time"
 
 	"github.com/gorilla/websocket"
+
+	"unheaded/pkg/httputil"
 )
 
 const (
@@ -41,9 +43,11 @@ const (
 var upgrader = websocket.Upgrader{
 	ReadBufferSize:  1024,
 	WriteBufferSize: 4096,
-	// LAN-only deployment per ADR-049 + raft/CLAUDE.md T8 disposition;
-	// CSRF mitigation is the LAN posture, not Origin-checking here.
-	CheckOrigin: func(r *http.Request) bool { return true },
+	// Same origin, or an exact entry of WS_ALLOWED_ORIGINS. Accepting every
+	// Origin let any web page open in a LAN browser read the UPC console,
+	// and type into it once KBD_MAP input lands; the LAN posture (ADR-049)
+	// does not stop a page the operator's own browser loads.
+	CheckOrigin: httputil.SameOriginOrAllowed(httputil.OriginsFromEnv("WS_ALLOWED_ORIGINS")),
 }
 
 // Subscriber tracks one connected browser xterm.js session.
