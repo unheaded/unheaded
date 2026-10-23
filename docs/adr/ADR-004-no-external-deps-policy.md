@@ -101,6 +101,7 @@ Dependencies from established organizations, approved by owner on a case-by-case
 | `google.golang.org/protobuf` | Google | Protobuf codec, required by gRPC. BSD-3-Clause | 2026-04-03 |
 | `cloudflare/circl` | Cloudflare | PQ cryptography: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205). Scope widened to record actual use, audit 2026-09-24 | 2026-03-15 |
 | `lib/pq` | Go community (widely used) | Pure Go PostgreSQL driver | 2026-03-15 |
+| `github.com/anthropics/anthropic-sdk-go` | Anthropic | Official Claude API client for `pkg/claudebridge` (ADR-104). MIT. Review below | 2026-10-23, **owner sign-off pending** |
 
 **Approval process:** New exceptions require owner sign-off. Target: Kanban board approval workflow (see ADR-025).
 
@@ -185,6 +186,25 @@ net/url, html/template, crypto/tls, encoding/asn1); *resolved 2026-09-25:
 toolchain pinned to go1.25.13, govulncheck clean for stdlib.* The `Rust Cargo Audit` and
 gitleaks jobs are also failing; not investigated here. ADR-095's
 supply-chain track covers the unregistered modules.
+
+### Admission — `anthropic-sdk-go` v1.82.0 (2026-10-23, ADR-096 §2)
+
+Recorded in the commit that adds it to the root module, with its
+`docs/policy/dependency-baseline.txt` lines. Signals not checked are marked
+*not assessed*.
+
+| step | finding |
+|---|---|
+| 1. Minimise | The Claude API could be reached with `net/http` (as `pkg/mcpclient` reaches MCP with the standard library). Not taken: the task brief requires the official SDK, and the SDK owns the parts that change with the API (streaming accumulation, refusal fallbacks, credential chain incl. `ant auth login` profiles and workload identity). Revisit if the transitive set grows. |
+| 2. Named and confirmed | Named in the brief for Stevie's 2026-10-23 request ("mcp to Claude api"). Module path `github.com/anthropics/anthropic-sdk-go` confirmed on proxy.golang.org; v1.82.0 published 2026-10-15T19:41Z from tag `v1.82.0`, commit `543d266ce81a`. Already in the tree as an indirect dependency of `tools/gosec` (v1.66.0). |
+| 3. Cheap signals | Owner is the API vendor's own GitHub organisation; releases weekly; not archived. Recent change of control: not assessed. |
+| 4. Anchored signals / depth | Vendor-published client for its own API; imported by gosec. Read: the credential chain (`client.go` `DefaultClientOptions`), stream accumulation (`betamessageutil.go` `Accumulate`), the request/usage types `pkg/claudebridge` builds and prices. Not read: `internal/requestconfig`, `packages/ssestream`, the OpenTelemetry wrappers. |
+| 5. Efficiency | Not benchmarked; one HTTPS request per model turn, network-bound. |
+| 6. Pin | `go.sum` hash. Cooldown: newest release at least 7 days old on 2026-10-23 (v1.83.0 and v1.84.0 were 3 days old). |
+| Licence | MIT (Copyright 2023 Anthropic, PBC); GPL-3.0 compatible. |
+| Compiled-in transitive modules (18) | `bahlo/generic-list-go` (BSD-3), `buger/jsonparser` (MIT), `cespare/xxhash/v2`, `go-logr/logr`, `go-logr/stdr`, `invopop/jsonschema` (MIT, file `COPYING`), `pb33f/ordered-map/v2` (Apache-2.0), `standard-webhooks/.../libraries` (MIT), `tidwall/gjson`, `match`, `pretty`, `sjson` (MIT), `go.opentelemetry.io/otel`, `/metric`, `/trace`, `/auto/sdk` (Apache-2.0), `go.yaml.in/yaml/v4` **v4.0.0-rc.2, a release candidate** (MIT + Apache-2.0), `golang.org/x/sync` (licences of `xxhash`, `logr`, `stdr`, `x/sync` not re-checked here). All were already in the baseline through `tools/gosec`; none is new to the build list. |
+| New baseline lines (22) | `go.sum` checksum entries `go mod tidy` records for the tests of the SDK's packages: the AWS SDK v2 family and `smithy-go` (Bedrock), `golang.org/x/oauth2` and `cloud.google.com/go/auth/oauth2adapt` (Vertex), `modelcontextprotocol/go-sdk`, `google/jsonschema-go`, `segmentio/asm`, `segmentio/encoding`, `yosida95/uritemplate/v3`, `otelgrpc`. `go list -deps -test ./...` loads none of them: no binary or test in this repository compiles them. |
+| govulncheck | Clean for the new code paths; the one module-level finding (GO-2026-5932, `x/crypto/openpgp`, not called) predates this change. |
 
 ## Long-Term Replacement Strategy
 
