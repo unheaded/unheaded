@@ -16,11 +16,15 @@ on:
   pull_request:
     paths:
       - 'nix/yggdrasil/**'
+      - 'cmd/yggdrasil-evidence/**'
+      - 'pkg/gungnir/**'
       - '.github/workflows/yggdrasil-verify.yml'
   push:
     branches: [main, develop, staging]
     paths:
       - 'nix/yggdrasil/**'
+      - 'cmd/yggdrasil-evidence/**'
+      - 'pkg/gungnir/**'
 
 permissions:
   contents: read
@@ -57,14 +61,16 @@ jobs:
         run: |
           pip install --quiet --require-hashes --no-deps --only-binary=:all: -r .github/ci-python/requirements.txt
           yamllint -d relaxed nix/yggdrasil/evidence-pack/schema/manifest-v1.yaml
-      - name: Test fixture validates
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Go validator, evidence seals, schema drift guard
+        run: go test -race -count=1 ./cmd/yggdrasil-evidence/... ./pkg/gungnir/...
+      - name: Go validator vs Python jsonschema on every fixture
         run: |
-          python3 -c "
-          import yaml, jsonschema, pathlib
-          schema = yaml.safe_load(pathlib.Path('nix/yggdrasil/evidence-pack/schema/manifest-v1.yaml').read_text())
-          # Just confirm the schema itself loads + parses
-          print('Schema loaded:', schema.get('schema_version', schema.get('\$id', 'unknown')))
-          "
+          go build -o "${RUNNER_TEMP}/yggdrasil-evidence" ./cmd/yggdrasil-evidence
+          YE="${RUNNER_TEMP}/yggdrasil-evidence" bash nix/yggdrasil/tests/test-manifest-differential.sh
 
   packer-validate:
     name: Packer validate

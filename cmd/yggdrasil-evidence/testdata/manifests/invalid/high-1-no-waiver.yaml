@@ -1,0 +1,51 @@
+# invalid: maximum: cve_scan.high must be 0 (the manifest reports unwaived HIGH only)
+schema_version: "1.0.0"
+image:
+  iso_path: "yggdrasil-0.1.0-amd64.iso"
+  iso_sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+  iso_size_bytes: 4096
+  build_date_utc: "2026-10-23T12:00:00Z"
+  build_host: "builder-1"
+anchor:
+  release_codename: "bookworm"
+  release_version: "12.7"
+  release_date: "2024-08-31"
+  debian_commit: "0123456789abcdef0123456789abcdef01234567"
+overlay:
+  patch_count: 0
+  patches: []
+  total_loc_delta: 0
+sbom:
+  spdx_path: "sbom.spdx.json"
+  cyclonedx_path: "sbom.cyclonedx.json"
+  package_count: 3
+  license_summary:
+    GPL-3.0-or-later: 1
+    MIT: 2
+cve_scan:
+  scan_date_utc: "2026-10-23T12:05:00Z"
+  scanner: "trivy"
+  scanner_version: "0.57.0"
+  critical: 0
+  high: 1
+  medium: 2
+  low: 5
+  waivers: []
+cis_benchmark:
+  benchmark: "CIS Debian Linux 12 Benchmark"
+  level: 1
+  score_percent: 96.5
+  lynis_hardening_score: 91
+upc_doctor:
+  exit_code: 0
+  kernel_version: "6.1.0-26-amd64"
+  bpf_subsystem: true
+  xdp_supported: true
+  upc_bootctl_present: true
+  upc_tty_bridge_active: true
+  monad_cpu_ebpf_present: true
+  healthz_reachable: true
+chain_of_custody:
+  - timestamp_utc: "2026-10-23T12:10:00Z"
+    actor: "yggdrasil-build-pipeline@builder-1"
+    action: "build image yggdrasil-0.1.0-amd64.iso"

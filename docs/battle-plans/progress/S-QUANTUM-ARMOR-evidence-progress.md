@@ -25,3 +25,15 @@ steps are never attempted; they are reported.
 `go test -race -count=1 ./pkg/gungnir/... ./cmd/heimdall-daemon/... ./cmd/compliance-evidence/... ./cmd/yggdrasil-evidence/...`: 4 ok, 0 FAIL.
 
 ## Log
+
+### Phase 10.1 (Steps 190-195)
+- 190-191: `pkg/gungnir/evidence_test.go` written; red = build failure (no `SignEvidence`).
+- 192-193: `pkg/gungnir/evidence.go`; green with `-race`; heimdall-daemon and compliance-evidence unchanged ok. `FuzzParseEvidenceSeal` 30 s: no crasher.
+- 194: `git diff --stat HEAD -- pkg/gungnir/gungnir.go pkg/gungnir/keys.go` empty.
+- 195: committed.
+
+### Phase 10.2 (Steps 196-202)
+- 196: 3 valid + 16 invalid fixtures (the plan's 14 plus `unquoted-date`, `yes-as-string` to pin YAML 1.1 scalar typing).
+- 197-199: `manifest.go` = Go copy of the schema's rules (type/required/const/enum/min/max/pattern/format per JSON pointer) + a small engine over `yaml.Node`; typed decode with `KnownFields(true)` after it. `main.go` refactored to `run(args, stdout, stderr) int`. `TestSchemaDriftGuard` green and proven to fail on six schema edits. `FuzzValidateManifest` 45 s: no crasher.
+- 200: differential: `AGREE 19/19 (1 documented Go-only rejection)`; a fake always-valid binary makes it `DISAGREE: 17 of 19`, rc=1.
+- 201: `yggdrasil-verify.yml` runs `go test` + the differential (setup-go pinned as in ci.yml); YAML OK, PINNED_OK. Triggers now include `cmd/yggdrasil-evidence/**` and `pkg/gungnir/**` (otherwise a validator change would not run its own gate).

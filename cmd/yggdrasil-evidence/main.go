@@ -6,8 +6,8 @@
 //
 // Subcommands:
 //
-//	validate  — yamllint + JSON-Schema validate manifest.yaml against
-//	            nix/yggdrasil/evidence-pack/schema/manifest-v1.yaml
+//	validate  — validate manifest.yaml against schema v1
+//	            (nix/yggdrasil/evidence-pack/schema/manifest-v1.yaml)
 //	sign      — produce manifest.yaml.sig via cloudflare/circl ML-DSA-65
 //	verify    — full evidence-pack verification (signature + ISO hash +
 //	            CI gates per the manifest)
@@ -16,48 +16,63 @@
 // Scaffold only — implementation lights up at task #65 (packer pipeline).
 // The CLI surface is the contract; runbooks at
 // nix/yggdrasil/evidence-pack/runbooks/ reference these subcommands.
+//
+// Exit codes: 0 ok, 1 verification failed, 2 usage or unreadable input.
 package main
 
 import (
 	"flag"
 	"fmt"
+	"io"
 	"os"
 )
 
-func main() {
-	if len(os.Args) < 2 {
-		usage()
-		os.Exit(2)
-	}
+const (
+	exitOK    = 0
+	exitFail  = 1
+	exitUsage = 2
+)
 
-	switch os.Args[1] {
+func main() {
+	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+// run is main without os.Exit, so every subcommand is testable in-process.
+func run(args []string, stdout, stderr io.Writer) int {
+	if len(args) < 1 {
+		usage(stderr)
+		return exitUsage
+	}
+	rest := args[1:]
+	switch args[0] {
 	case "validate":
-		cmdValidate(os.Args[2:])
+		return cmdValidate(rest, stdout, stderr)
 	case "sign":
-		cmdSign(os.Args[2:])
+		return cmdSign(rest, stdout, stderr)
 	case "verify":
-		cmdVerify(os.Args[2:])
+		return cmdVerify(rest, stdout, stderr)
 	case "verify-signature":
-		cmdVerifySignature(os.Args[2:])
+		return cmdVerifySignature(rest, stdout, stderr)
 	case "verify-iso":
-		cmdVerifyISO(os.Args[2:])
+		return cmdVerifyISO(rest, stdout, stderr)
 	case "verify-gates":
-		cmdVerifyGates(os.Args[2:])
+		return cmdVerifyGates(rest, stdout, stderr)
 	case "verify-custody":
-		cmdVerifyCustody(os.Args[2:])
+		return cmdVerifyCustody(rest, stdout, stderr)
 	case "diff":
-		cmdDiff(os.Args[2:])
+		return cmdDiff(rest, stdout, stderr)
 	case "-h", "--help", "help":
-		usage()
+		usage(stdout)
+		return exitOK
 	default:
-		fmt.Fprintf(os.Stderr, "yggdrasil-evidence: unknown subcommand %q\n", os.Args[1])
-		usage()
-		os.Exit(2)
+		fmt.Fprintf(stderr, "yggdrasil-evidence: unknown subcommand %q\n", args[0])
+		usage(stderr)
+		return exitUsage
 	}
 }
 
-func usage() {
-	fmt.Fprintln(os.Stderr, `yggdrasil-evidence — Validate, sign, and verify Yggdrasil signed-manifest evidence packs.
+func usage(w io.Writer) {
+	fmt.Fprintln(w, `yggdrasil-evidence — Validate, sign, and verify Yggdrasil signed-manifest evidence packs.
 
 Usage:
   yggdrasil-evidence <subcommand> [flags]
@@ -72,102 +87,147 @@ Subcommands:
   verify-custody     Just check the chain-of-custody log
   diff               Diff two evidence packs
 
+Exit codes: 0 ok, 1 verification failed, 2 usage or unreadable input.
+
 See: nix/yggdrasil/evidence-pack/README.md for the full spec.
 See: nix/yggdrasil/evidence-pack/runbooks/ for operator runbooks.`)
 }
 
-// --- subcommand stubs ---
-//
-// Each subcommand is wired with its flag-set and a TODO panic so the
-// runbook contract is captured. Implementation lights up at task #65.
-
-func cmdValidate(args []string) {
-	fs := flag.NewFlagSet("validate", flag.ExitOnError)
-	schema := fs.String("schema", "nix/yggdrasil/evidence-pack/schema/manifest-v1.yaml", "Path to JSON Schema")
-	_ = fs.Parse(args)
-	if fs.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "validate: expected one positional arg (manifest.yaml path)")
-		os.Exit(2)
-	}
-	manifest := fs.Arg(0)
-	fmt.Fprintf(os.Stderr, "TODO(task #65): yamllint + JSON-Schema validate %s against %s\n", manifest, *schema)
-	os.Exit(1)
+// newFlags returns a FlagSet that reports to stderr and never exits.
+func newFlags(name string, stderr io.Writer) *flag.FlagSet {
+	fs := flag.NewFlagSet(name, flag.ContinueOnError)
+	fs.SetOutput(stderr)
+	return fs
 }
 
-func cmdSign(args []string) {
-	fs := flag.NewFlagSet("sign", flag.ExitOnError)
+func cmdValidate(args []string, stdout, stderr io.Writer) int {
+	fs := newFlags("validate", stderr)
+	schema := fs.String("schema", "", "optional: refuse to run unless this schema file matches the rules built into this binary")
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
+	if fs.NArg() != 1 {
+		fmt.Fprintln(stderr, "validate: expected one positional arg (manifest.yaml path)")
+		return exitUsage
+	}
+	if *schema != "" {
+		b, err := os.ReadFile(*schema)
+		if err != nil {
+			fmt.Fprintf(stderr, "validate: %v\n", err)
+			return exitUsage
+		}
+		if drift := schemaDrift(b); len(drift) > 0 {
+			fmt.Fprintf(stderr, "validate: %s does not match the schema v1 rules built into this binary:\n", *schema)
+			for _, d := range drift {
+				fmt.Fprintln(stderr, "  "+d)
+			}
+			return exitUsage
+		}
+	}
+	path := fs.Arg(0)
+	data, err := readBounded(path, maxManifestBytes)
+	if err != nil {
+		fmt.Fprintf(stderr, "validate: %v\n", err)
+		return exitUsage
+	}
+	if _, err := ValidateManifest(data); err != nil {
+		fmt.Fprintf(stderr, "validate: %s: INVALID\n%v\n", path, err)
+		return exitFail
+	}
+	fmt.Fprintf(stdout, "validate: %s: OK (schema v1)\n", path)
+	return exitOK
+}
+
+// readBounded reads a regular file of at most limit bytes.
+func readBounded(path string, limit int64) ([]byte, error) {
+	f, err := os.Open(path) // #nosec G304 -- operator-named input file
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	fi, err := f.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !fi.Mode().IsRegular() {
+		return nil, fmt.Errorf("%s: not a regular file", path)
+	}
+	b, err := io.ReadAll(io.LimitReader(f, limit+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(b)) > limit {
+		return nil, fmt.Errorf("%s: larger than %d bytes", path, limit)
+	}
+	return b, nil
+}
+
+// --- subcommand stubs (Phase 11) ---
+
+func todo(stderr io.Writer, what string) int {
+	fmt.Fprintf(stderr, "TODO(task #65): %s\n", what)
+	return exitFail
+}
+
+func cmdSign(args []string, _, stderr io.Writer) int {
+	fs := newFlags("sign", stderr)
 	key := fs.String("key", "/etc/yggdrasil/build.key", "ML-DSA-65 private key path")
 	in := fs.String("in", "", "Input file to sign")
 	out := fs.String("out", "", "Output signature file")
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		return exitUsage
+	}
 	if *in == "" || *out == "" {
-		fmt.Fprintln(os.Stderr, "sign: --in and --out are required")
-		os.Exit(2)
+		fmt.Fprintln(stderr, "sign: --in and --out are required")
+		return exitUsage
 	}
-	fmt.Fprintf(os.Stderr, "TODO(task #65): sign %s with key %s -> %s via pkg/gungnir/\n", *in, *key, *out)
-	os.Exit(1)
+	return todo(stderr, fmt.Sprintf("sign %s with key %s -> %s via pkg/gungnir/", *in, *key, *out))
 }
 
-func cmdVerify(args []string) {
-	fs := flag.NewFlagSet("verify", flag.ExitOnError)
-	pubkey := fs.String("pubkey", "/etc/yggdrasil/root.pubkey", "ML-DSA-65 root public key path")
-	_ = fs.Parse(args)
-	if fs.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "verify: expected one positional arg (evidence-pack tarball)")
-		os.Exit(2)
-	}
-	pack := fs.Arg(0)
-	fmt.Fprintf(os.Stderr, "TODO(task #65): full verify %s with pubkey %s\n", pack, *pubkey)
-	os.Exit(1)
-}
-
-func cmdVerifySignature(args []string) {
-	fs := flag.NewFlagSet("verify-signature", flag.ExitOnError)
-	pubkey := fs.String("pubkey", "/etc/yggdrasil/root.pubkey", "ML-DSA-65 public key path")
-	_ = fs.Parse(args)
-	if fs.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "verify-signature: expected one positional arg (evidence-pack tarball)")
-		os.Exit(2)
-	}
-	fmt.Fprintf(os.Stderr, "TODO(task #65): verify-signature %s with pubkey %s\n", fs.Arg(0), *pubkey)
-	os.Exit(1)
-}
-
-func cmdVerifyISO(args []string) {
-	fs := flag.NewFlagSet("verify-iso", flag.ExitOnError)
-	iso := fs.String("iso", "", "Path to the ISO file to verify against")
-	_ = fs.Parse(args)
-	if *iso == "" || fs.NArg() != 1 {
-		fmt.Fprintln(os.Stderr, "verify-iso: --iso and a positional evidence-pack arg are required")
-		os.Exit(2)
-	}
-	fmt.Fprintf(os.Stderr, "TODO(task #65): verify-iso %s against pack %s\n", *iso, fs.Arg(0))
-	os.Exit(1)
-}
-
-func cmdVerifyGates(args []string) {
+func cmdVerify(args []string, _, stderr io.Writer) int {
 	if len(args) != 1 {
-		fmt.Fprintln(os.Stderr, "verify-gates: expected one positional arg (evidence-pack tarball)")
-		os.Exit(2)
+		fmt.Fprintln(stderr, "verify: expected one positional arg (evidence-pack tarball)")
+		return exitUsage
 	}
-	fmt.Fprintf(os.Stderr, "TODO(task #65): verify-gates %s (CRITICAL/HIGH==0, CIS≥95%%, Lynis≥90, doctor exit==0)\n", args[0])
-	os.Exit(1)
+	return todo(stderr, "full verify "+args[0])
 }
 
-func cmdVerifyCustody(args []string) {
+func cmdVerifySignature(args []string, _, stderr io.Writer) int {
 	if len(args) != 1 {
-		fmt.Fprintln(os.Stderr, "verify-custody: expected one positional arg (evidence-pack tarball)")
-		os.Exit(2)
+		fmt.Fprintln(stderr, "verify-signature: expected one positional arg (evidence-pack tarball)")
+		return exitUsage
 	}
-	fmt.Fprintf(os.Stderr, "TODO(task #65): verify-custody %s (monotonic timestamps, signature chain)\n", args[0])
-	os.Exit(1)
+	return todo(stderr, "verify-signature "+args[0])
 }
 
-func cmdDiff(args []string) {
+func cmdVerifyISO(args []string, _, stderr io.Writer) int {
+	if len(args) < 1 {
+		fmt.Fprintln(stderr, "verify-iso: --iso and a positional evidence-pack arg are required")
+		return exitUsage
+	}
+	return todo(stderr, "verify-iso")
+}
+
+func cmdVerifyGates(args []string, _, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintln(stderr, "verify-gates: expected one positional arg (evidence-pack tarball)")
+		return exitUsage
+	}
+	return todo(stderr, "verify-gates "+args[0])
+}
+
+func cmdVerifyCustody(args []string, _, stderr io.Writer) int {
+	if len(args) != 1 {
+		fmt.Fprintln(stderr, "verify-custody: expected one positional arg (evidence-pack tarball)")
+		return exitUsage
+	}
+	return todo(stderr, "verify-custody "+args[0])
+}
+
+func cmdDiff(args []string, _, stderr io.Writer) int {
 	if len(args) != 2 {
-		fmt.Fprintln(os.Stderr, "diff: expected two positional args (old-pack, new-pack)")
-		os.Exit(2)
+		fmt.Fprintln(stderr, "diff: expected two positional args (old-pack, new-pack)")
+		return exitUsage
 	}
-	fmt.Fprintf(os.Stderr, "TODO(task #65): diff %s -> %s\n", args[0], args[1])
-	os.Exit(1)
+	return todo(stderr, "diff "+args[0]+" -> "+args[1])
 }
