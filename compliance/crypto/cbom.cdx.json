@@ -644,6 +644,92 @@
     },
     {
       "type": "cryptographic-asset",
+      "bom-ref": "cmd/yggdrasil-evidence/custody.go:28:sig-import",
+      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/yggdrasil-evidence/custody.go:28"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cmd/yggdrasil-evidence/sign.go:21:sig-import",
+      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/yggdrasil-evidence/sign.go:21"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
       "bom-ref": "compliance/crypto/hosts/east.json:0:host-sshd",
       "name": "sshd on east",
       "cryptoProperties": {
@@ -1373,7 +1459,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "nix/yggdrasil/overlay/patches/0002-sshd-config-hardening.patch:39:sshd-kex",
+      "bom-ref": "nix/yggdrasil/overlay/patches/0002-sshd-config-hardening.patch:41:sshd-kex",
       "name": "sshd KexAlgorithms",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1391,12 +1477,8 @@
           "value": "the client's order picks among these; only a hybrid-only list guarantees a hybrid"
         },
         {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: sshd-kex-classical"
-        },
-        {
           "name": "unheaded:kex-groups",
-          "value": "curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512"
+          "value": "sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512"
         },
         {
           "name": "unheaded:link-state",
@@ -1408,7 +1490,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "classical"
+          "value": "hybrid-opportunistic"
         },
         {
           "name": "unheaded:scanner",
@@ -1416,13 +1498,13 @@
         },
         {
           "name": "unheaded:source",
-          "value": "nix/yggdrasil/overlay/patches/0002-sshd-config-hardening.patch:39"
+          "value": "nix/yggdrasil/overlay/patches/0002-sshd-config-hardening.patch:41"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "nix/yggdrasil/provisioners/05-cis-hardening.sh:104:sshd-kex",
+      "bom-ref": "nix/yggdrasil/provisioners/05-cis-hardening.sh:107:sshd-kex",
       "name": "sshd KexAlgorithms",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1440,12 +1522,8 @@
           "value": "the client's order picks among these; only a hybrid-only list guarantees a hybrid"
         },
         {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: sshd-kex-classical"
-        },
-        {
           "name": "unheaded:kex-groups",
-          "value": "curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group-exchange-sha256"
+          "value": "sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp521,ecdh-sha2-nistp384,ecdh-sha2-nistp256,diffie-hellman-group-exchange-sha256"
         },
         {
           "name": "unheaded:link-state",
@@ -1457,7 +1535,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "classical"
+          "value": "hybrid-opportunistic"
         },
         {
           "name": "unheaded:scanner",
@@ -1465,7 +1543,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "nix/yggdrasil/provisioners/05-cis-hardening.sh:104"
+          "value": "nix/yggdrasil/provisioners/05-cis-hardening.sh:107"
         }
       ]
     },
@@ -2385,6 +2463,49 @@
         {
           "name": "unheaded:source",
           "value": "pkg/crypto/pqc/slh_dsa.go:9"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/gungnir/evidence.go:35:sig-import",
+      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/gungnir/evidence.go:35"
         }
       ]
     },
@@ -3969,7 +4090,7 @@
         },
         {
           "name": "unheaded:kex-groups",
-          "value": "sntrup761x25519-sha512@openssh.com,curve25519-sha256"
+          "value": "mlkem768x25519-sha256,sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256"
         },
         {
           "name": "unheaded:link-state",
@@ -4113,6 +4234,47 @@
         {
           "name": "unheaded:source",
           "value": "scripts/wireguard/setup-wireguard.sh:150"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "scripts/wireguard/test-rotate-psk.sh:109:wireguard",
+      "name": "WireGuard peer",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "other"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "a pre-shared key is mixed into the Noise handshake: post-quantum only while the PSK stays secret, and it is static until rotated"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-psk-static"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "config"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "scripts/wireguard/test-rotate-psk.sh:109"
         }
       ]
     },
