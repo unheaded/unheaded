@@ -17,8 +17,17 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
 	"unheaded/pkg/sandbox"
 )
+
+// checkRunsTotal counts run_check calls by allowlisted key and result
+// (pass, fail, error, refused); unknown keys are counted as "unknown".
+var checkRunsTotal = auto.NewCounterVec(prom.CounterOpts{
+	Name: "zhen_check_runs_total",
+	Help: "run_check calls by check and result.",
+}, []string{"check", "result"})
 
 // run_check (S-TWO-BRAINS Step 161): a model may ask for a test to run,
 // but never supplies a command. It names a key from configs/zhen-checks.yaml
@@ -170,8 +179,19 @@ func (c *Champion) RunCheck(ctx context.Context, key, path, crate string) (RunCh
 	start := time.Now()
 	res := RunCheckResult{Check: key, Path: path, Exit: -1}
 	actionID, _ := c.logAction(ctx, "run_check", fmt.Sprintf("run_check %s %s", key, path), "user")
+	label := "unknown"
+	if c.runCheck != nil && c.runCheck.Checks != nil {
+		if _, ok := c.runCheck.Checks.Specs[key]; ok {
+			label = key
+		}
+	}
 	fail := func(err error) (RunCheckResult, error) {
 		c.completeAction(ctx, actionID, "failed", "", err.Error(), time.Since(start))
+		result := "refused"
+		if res.Exit != -1 || strings.HasPrefix(err.Error(), "check could not run") {
+			result = "error"
+		}
+		checkRunsTotal.WithLabelValues(label, result).Inc()
 		return res, err
 	}
 	wt, err := c.worktreeOf()
@@ -216,10 +236,11 @@ func (c *Champion) RunCheck(ctx context.Context, key, path, crate string) (RunCh
 		return fail(fmt.Errorf("check could not run: %w", err))
 	}
 	res.Pass = sr.Exit == 0 && (!spec.FailOnOutput || strings.TrimSpace(sr.Output) == "")
-	status := "completed"
+	status, result := "completed", "pass"
 	if !res.Pass {
-		status = "check_failed"
+		status, result = "check_failed", "fail"
 	}
+	checkRunsTotal.WithLabelValues(label, result).Inc()
 	c.completeAction(ctx, actionID, status, fmt.Sprintf("exit=%d pass=%v", res.Exit, res.Pass), "", time.Since(start))
 	return res, nil
 }

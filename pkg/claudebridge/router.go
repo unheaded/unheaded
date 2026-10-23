@@ -13,6 +13,23 @@ import (
 	"time"
 
 	"gopkg.in/yaml.v3"
+
+	"unheaded/pkg/metrics/auto"
+	"unheaded/pkg/metrics/prom"
+)
+
+// Routing metrics (S-TWO-BRAINS Step 187), on the default registry that
+// zhen-agentd's /metrics serves. Families outside the routing table are
+// counted as "default" so a caller cannot grow the label set.
+var (
+	routeTotal = auto.NewCounterVec(prom.CounterOpts{
+		Name: "zhen_route_total",
+		Help: "Routed tasks by family, route and outcome (pass, fail, answered, stopped, error).",
+	}, []string{"family", "route", "outcome"})
+	escalationsTotal = auto.NewCounterVec(prom.CounterOpts{
+		Name: "zhen_escalations_total",
+		Help: "Escalations to Claude by family and reason (escalated_check_fail, escalated_parse_fail, ...).",
+	}, []string{"family", "reason"})
 )
 
 // The threshold router (S-TWO-BRAINS Phase 5): configs/zhen-routing.yaml,
@@ -194,10 +211,29 @@ func (r *ThresholdRouter) redact(ctx context.Context, s string) string {
 }
 
 // Run routes one task.
-func (r *ThresholdRouter) Run(ctx context.Context, family, task string) (RouteOutcome, error) {
+func (r *ThresholdRouter) Run(ctx context.Context, family, task string) (out RouteOutcome, err error) {
 	fr := r.Config.For(family)
-	out := RouteOutcome{Family: family, Route: fr.Route}
-	defer func() { out.CostUSD = out.Cost.USD() }()
+	out = RouteOutcome{Family: family, Route: fr.Route}
+	defer func() {
+		out.CostUSD = out.Cost.USD()
+		label := "default"
+		if _, ok := r.Config.Families[family]; ok {
+			label = family
+		}
+		outcome := out.Check
+		switch {
+		case err != nil:
+			outcome = "error"
+		case outcome == "" && out.Stop != "":
+			outcome = "stopped"
+		case outcome == "":
+			outcome = "answered"
+		}
+		routeTotal.WithLabelValues(label, out.Route, outcome).Inc()
+		if out.Escalated {
+			escalationsTotal.WithLabelValues(label, out.RouteReason).Inc()
+		}
+	}()
 	budget, err := USDToNano(fr.MaxClaudeUSD)
 	if err != nil {
 		return out, err

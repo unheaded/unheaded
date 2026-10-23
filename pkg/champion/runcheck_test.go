@@ -234,3 +234,18 @@ func TestRunCheck_SandboxErrorIsAnError(t *testing.T) {
 		t.Error("a sandbox that could not start counted as a result")
 	}
 }
+
+func TestRunCheck_Metrics(t *testing.T) {
+	fs := &fakeSandbox{res: sandbox.Result{Exit: 0}}
+	c, _, _, _ := agentChampion(t, fs)
+	pass := checkRunsTotal.WithLabelValues("go-vet", "pass").Value()
+	refused := checkRunsTotal.WithLabelValues("unknown", "refused").Value()
+	_, _ = c.RunCheck(context.Background(), "go-vet", ".", "")
+	_, _ = c.RunCheck(context.Background(), "made-up", ".", "")
+	if checkRunsTotal.WithLabelValues("go-vet", "pass").Value() != pass+1 {
+		t.Error("pass not counted")
+	}
+	if checkRunsTotal.WithLabelValues("unknown", "refused").Value() != refused+1 {
+		t.Error("an unknown key was not counted as unknown/refused")
+	}
+}

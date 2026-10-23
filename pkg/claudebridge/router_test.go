@@ -254,3 +254,24 @@ func TestParseFileBlocks(t *testing.T) {
 		t.Errorf("err = %v", err)
 	}
 }
+
+func TestRouter_Metrics(t *testing.T) {
+	before := routeTotal.WithLabelValues("repo-task", RouteLocalFirst, "pass").Value()
+	esc := escalationsTotal.WithLabelValues("repo-task", "escalated_check_fail").Value()
+	other := routeTotal.WithLabelValues("default", RouteClaudeDirect, "answered").Value()
+	f := &routeFakes{local: []string{draft}, checks: []bool{false, false, true}, claudeText: "ok"}
+	if _, err := f.router(testRouting(), true).Run(context.Background(), "repo-task", "x"); err != nil {
+		t.Fatal(err)
+	}
+	if routeTotal.WithLabelValues("repo-task", RouteLocalFirst, "pass").Value() != before+1 {
+		t.Error("zhen_route_total not counted")
+	}
+	if escalationsTotal.WithLabelValues("repo-task", "escalated_check_fail").Value() != esc+1 {
+		t.Error("zhen_escalations_total not counted")
+	}
+	f2 := &routeFakes{claudeText: "a"}
+	_, _ = f2.router(testRouting(), false).Run(context.Background(), "attacker-chosen-label", "q")
+	if routeTotal.WithLabelValues("default", RouteClaudeDirect, "answered").Value() != other+1 {
+		t.Error("an unknown family was not folded into default")
+	}
+}
