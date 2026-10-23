@@ -68,7 +68,10 @@
       Group = "unheaded";
 
       # ALPHA: Uses pre-built binary. Build from Go source (services/wotan/) planned for Age 2. See docs/SERVICE_BREAKOUT_STRATEGY.md
-      ExecStart = "${pkgs.wotan}/bin/wotan --grpc-addr=0.0.0.0:18001 --http-addr=0.0.0.0:18000 --metrics-addr=0.0.0.0:9100";
+      # Wotan's listener flags are --grpc-port/--http-port (it binds all
+      # addresses and serves /metrics on the HTTP port); --grpc-addr,
+      # --http-addr and --metrics-addr do not exist and stop it at startup.
+      ExecStart = "${pkgs.wotan}/bin/wotan --grpc-port=18001 --http-port=18000";
 
       # Working directory
       WorkingDirectory = "/var/lib/unheaded/wotan";
