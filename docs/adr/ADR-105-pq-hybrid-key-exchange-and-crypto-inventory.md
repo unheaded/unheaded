@@ -158,10 +158,99 @@ All nineteen hypotheses held:
    `cuirass.drift` start differently, and `pkg/state`'s `drift.detected` is an
    event *type* inside `cuirass.reconciliation` payloads, not a topic.
 
+9. **WireGuard: scheduled PSK rotation.** `scripts/wireguard/rotate-psk.sh`
+   (a dry run unless `--apply`) generates a fresh PSK on west, installs it on east
+   over SSH (which negotiates `mlkem768x25519-sha256`, H10, so the PSK never crosses
+   a classical-only channel), applies it with `wg set` (no restart), checks for a
+   handshake within 60 s and rolls back on failure. A weekly systemd timer ships but
+   is not enabled. Rosenpass is parked (C/liboqs dependency, ADR-004).
+   *Rationale:* a WireGuard PSK mixed into the Noise handshake gives post-quantum
+   confidentiality while the PSK stays secret; rotation bounds the damage of a
+   leaked PSK (today's has not changed since 2026-03-25, H11); no new dependency.
+   *Override only if:* H10 were false (SSH not hybrid); rotation would then wait
+   for E2. H10 held.
+
+10. **sshd target.** Hosts: `mlkem768x25519-sha256` first and present
+    (opportunistic), as both hosts already are (H10). Strict hybrid-only is
+    [ESCALATE] E2 (lockout risk). Repo configs: the runbook and the Ubuntu paths list
+    `mlkem768x25519-sha256,sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256`;
+    Yggdrasil (bookworm anchor, OpenSSH 9.2, no ML-KEM) lists
+    `sntrup761x25519-sha512@openssh.com` first, with a comment to switch to mlkem at
+    the trixie anchor bump. A new probe `sshd-kex-pq` (every KEX entry hybrid) maps to
+    the new control as the strict target; `sshd-kex` stays.
+    *Rationale:* SSH key exchange is chosen by the client's order; only a hybrid-only
+    server list guarantees a hybrid. Making it hybrid-only is a lockout-relevant
+    change on Stevie's hosts.
+    *Override only if:* Stevie says strict now.
+
+11. **CNSA 2.0 posture: not claimed.** We claim NIST PQC (FIPS 203/204) hybrid
+    migration progress only. The CBOM records CNSA 2.0 as not met
+    (`unheaded:cnsa2 = no`): ML-KEM-768 and ML-DSA-65 are category 3, CNSA 2.0
+    requires ML-KEM-1024 and ML-DSA-87. `SecP384r1MLKEM1024` is already negotiable by
+    Go peers (Go 1.26 default) and is noted, not claimed.
+    *Rationale:* honesty rules (ADR-097 §5); NSM-10 and OMB M-23-02 ask for an
+    inventory, which we can give truthfully.
+    *Override only if:* Stevie wants a CNSA 2.0 track (a separate sprint).
+
 ## Consequences
 
-(Completed with decisions 9-11.)
+**What the gates enforce.** `scripts/check-crypto-inventory.sh` fails when the
+checked-in CBOM no longer matches a regeneration from the tree, so every new TLS,
+SSH, WireGuard, Postgres or signature site shows up in review. `scripts/check-pq-kex.sh`
+fails on any new classical-only key-exchange configuration: a `CurvePreferences`
+list with no hybrid group, a first-party TLS floor below 1.3, a `tlsmlkem=0` /
+`tlssecpmlkem=0` kill switch, a go.mod `go` directive below 1.24, a rustls `ring`
+provider, a Postgres image below 18 serving TLS, or an sshd `KexAlgorithms` list with
+no hybrid. Its baseline (`docs/policy/pq-kex-baseline.txt`) holds today's violations
+and may only shrink (ADR-098). Both gates are registered with the meta-gate, which
+proves each one fails when provoked. `cmd/lich-security` is exempt from the lint: it
+probes weak TLS on purpose.
+
+**What stays classical, and why.**
+- **The Well** stays on PG 16 (P-256 only) until Stevie runs E1 (PG 18 upgrade with
+  `ssl_groups`, after a backup and restore drill, ADR-102). It stays in the lint
+  baseline until then.
+- **Plaintext links**: compose Wotan and the edge Traefik have no TLS today (accepted
+  finding, 2026-09-30). The fixes here make them hybrid the day TLS is turned on;
+  turning it on is another sprint (ADR-034, ADR-103).
+- **Third-party outbound clients** (SMTP relays, the CISA KEV feed, Splunk HEC, load-balancer health
+  checks to user backends)
+  negotiate whatever the far end offers: hybrid with a modern server, classical
+  otherwise. They are inventoried as `hybrid-opportunistic` / `third-party-peer`.
+- **Preferred listeners** guarantee a hybrid only against a client that offers one.
+  A client that lists a classical group first may still get it. The observed Go
+  behaviour is recorded here by the red-team step (Phase 14).
+- **Certificates and signatures on live sessions** stay classical (ECDSA, RSA,
+  Ed25519). They are not exposed to harvest-now-decrypt-later; PQ certificates are
+  parked until the ecosystem and NIST IR 8547's timeline call for them.
+- **SSH** stays opportunistic (hybrid first, classical accepted) until E2.
+- **WireGuard** remains X25519 Noise plus a static PSK; the PSK is the
+  post-quantum part, so it is only as strong as its secrecy and rotation (E3).
+- **CNSA 2.0** is not met and not claimed (decision 11).
+
+**Costs.** Strict links fail closed against any peer without a hybrid group: an
+old Go (< 1.24) binary or a non-Go client on a Strict port cannot connect. That is
+the point on links we own both ends of; Appendix A.2 of the sprint plan moves a
+site to Preferred, with a test, if a real client breaks. Rust crates take a C
+toolchain dependency through `aws-lc-sys` (already compiled today via
+tokio-rustls's defaults).
 
 ## Open questions
 
-(Completed with decisions 9-11.)
+The sprint prepares these and stops; each needs Stevie (plan Appendix B.2):
+
+- **E1**: upgrade the live Well from PG 16 to PG 18 with `ssl_groups` (hybrid TLS).
+  Prepared: include file, throwaway-container proof suite, dry-run runbook with a
+  restore drill.
+- **E2**: make sshd on west and east hybrid-only (lockout risk). Prepared: strict
+  probe, repo configs, procedure (east first, a second session kept open).
+- **E3**: the first live WireGuard PSK rotation, and enabling the weekly timer.
+  Prepared: a tested rotation tool (dry run by default), units not enabled.
+- **E4**: the production evidence build key: where the seed lives, who holds it,
+  how `build.pubkey` is published, the rotation ceremony. Prepared: `sign`,
+  `pubkey` and `verify*` working with ephemeral keys.
+- **E5**: a Heimdall drift key per node, enrolled in live Wotan `signed_prefixes`,
+  and a unit to run Heimdall. Prepared: signed publish, scoped verification,
+  fail-closed configuration.
+
+Also for Stevie, not blocking: accept this ADR.

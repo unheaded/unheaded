@@ -1,7 +1,7 @@
 # ADR Index — Unheaded Architecture Decision Records
 
 **Last updated:** 2026-10-23
-**Total:** 101 entries (ADR-001 to ADR-104 plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
+**Total:** 102 entries (ADR-001 to ADR-105 plus 012b and 69420), all listed in the status table below (ADR-012b deprecated; ADR-035 superseded by ADR-064; ADR-065 superseded by Phase A finding; ADR-69420 pipe-dream). The count above and the table are the current-status view. The dated "*N new ADRs added <date>*" sections further down are **historical snapshots** — they record status as of the day an ADR was added and are deliberately not updated, so where they disagree with the table, the table is correct.
 
 
 **ADR-084 added 2026-07-24:** Huginn host metrics agent — renames `cmd/host-agent` → `cmd/huginn`, establishes naming, systemd units in `deploy/systemd/`.
@@ -21,7 +21,7 @@ Counted from the Full Index by the first word of each status (2026-10-15).
 | Status | Count |
 |--------|-------|
 | Accepted | 48 |
-| Proposed | 16 |
+| Proposed | 17 |
 | Planned | 14 |
 | In Progress | 5 |
 | Deferred | 5 |
@@ -29,7 +29,7 @@ Counted from the Full Index by the first word of each status (2026-10-15).
 | PoC / Research | 3 |
 | Superseded / Deprecated | 4 |
 | Acknowledged | 1 |
-| **Total** | **101** |
+| **Total** | **102** |
 
 **Four new ADRs added 2026-04-27 from Round Table sprint follow-through:**
 - ADR-051 (WAVE13 generate path) — Draft, pending Phase 2 verdict
@@ -159,3 +159,4 @@ Counted from the Full Index by the first word of each status (2026-10-15).
 | [102](ADR-102-container-image-versions.md) | Container images use exact version tags (no `latest`, no floating minor), pinned to what runs today; upgrades are their own commits; digests deferred until a bot can bump them; reassess then | **Accepted** | 2026-10-15 |
 | [103](ADR-103-service-auth-token-distribution.md) | Service auth: Ed25519 JWTs only (shared HMAC key retires); one key pair per service, private key a 0400 file owned by its uid, public keys in trust.d plus a per-service caller allowlist; users via OIDC JWKS with a small built-in issuer as the lab default; browsers hold only session cookies (BFF); hashed `uhk_` API keys for automation; rollout one service at a time, Cuirass first | **Proposed** (design only) | 2026-10-23 |
 | [104](ADR-104-zhenai-claude-api-bridge.md) | ZhenAI → Claude API bridge: `pkg/claudebridge` + `cmd/zhen-claude`, official Go SDK, claude-opus-5-5 with adaptive thinking, streaming and refusal fallbacks; tools from zhentools Providers, every Claude tool call through the Champion gate (mutating refused pending confirmation; MCP tools read-only by default); hard per-day spend cap from usage and a price table; audit without prompt text; ADR-053 Router interface. Not the API's MCP connector (west is not internet-facing). Reverses ADR-017's "scrapped" | **Proposed** (built, not yet run live) | 2026-10-23 |
+| [105](ADR-105-pq-hybrid-key-exchange-and-crypto-inventory.md) | Hybrid ML-KEM key exchange on every link we own: Strict (hybrid-only, TLS 1.3) and Preferred (Go default, TLS 1.3 floor) profiles in `pkg/tls`; aws-lc-rs for rustls; a deterministic CycloneDX 1.6 crypto inventory (`compliance/crypto/cbom.cdx.json`) with a stale gate and a shrink-only classical-KEX lint; non-expiring ML-DSA-65 evidence seals; signed `drift.*` Wotan topics; WireGuard PSK rotation; CNSA 2.0 not claimed. Host changes (Well PG 18, strict sshd, PSK rotation, keys) are escalations E1-E5 | **Proposed** | 2026-10-23 |
