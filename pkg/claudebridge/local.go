@@ -4,26 +4,23 @@
 package claudebridge
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"net/http"
-	"net/url"
 	"os/exec"
 	"strings"
 	"time"
+
+	"unheaded/pkg/localllm"
 )
 
 // Local model defaults (llama-server, OpenAI-compatible API).
 const (
-	DefaultLocalURL       = "http://127.0.0.1:8081"
-	DefaultLocalModel     = "local" // llama-server answers with whatever it loaded
-	DefaultLocalMaxTokens = 1024
-	DefaultLocalTimeout   = 120 * time.Second
-	maxLocalBodyBytes     = 1 << 20
+	DefaultLocalURL       = localllm.DefaultURL
+	DefaultLocalModel     = localllm.DefaultModel
+	DefaultLocalMaxTokens = localllm.DefaultMaxTokens
+	DefaultLocalTimeout   = localllm.DefaultTimeout
 )
 
 // DefaultLocalSystem is the system prompt for the local leg of -route
@@ -35,13 +32,14 @@ You have no tools and cannot read files. Answer plainly and briefly. If you are 
 // "length"), so it is incomplete.
 var ErrLocalTruncated = errors.New("local answer cut off at max_tokens")
 
-// LocalLLM is a client for llama-server's /v1/chat/completions. It asks;
+// LocalLLM asks llama-server one question through pkg/localllm. It asks;
 // it never starts, stops or swaps a model.
 type LocalLLM struct {
 	BaseURL     string // default DefaultLocalURL
 	Model       string // default DefaultLocalModel
 	MaxTokens   int    // default DefaultLocalMaxTokens
 	Temperature float64
+	Seed        *int          // nil: not sent
 	Timeout     time.Duration // per call; default DefaultLocalTimeout
 	HTTP        *http.Client  // default: a client with no extra settings
 }
@@ -51,115 +49,45 @@ type LocalAnswer struct {
 	Model        string // as reported by the server, else the requested one
 	Text         string
 	FinishReason string
+	InputTokens  int64
+	OutputTokens int64
 }
 
-type localMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
+func (l *LocalLLM) client() *localllm.Client {
+	return &localllm.Client{BaseURL: l.BaseURL, Model: l.Model, MaxTokens: l.MaxTokens, Timeout: l.Timeout, HTTP: l.HTTP}
+}
+
+func (l *LocalLLM) request(system, prompt string) localllm.Request {
+	var msgs []localllm.Message
+	if system != "" {
+		msgs = append(msgs, localllm.Message{Role: "system", Content: system})
+	}
+	msgs = append(msgs, localllm.Message{Role: "user", Content: prompt})
+	return localllm.Request{Messages: msgs, Temperature: l.Temperature, Seed: l.Seed}
 }
 
 // RequestJSON returns the request body Complete would send.
 func (l *LocalLLM) RequestJSON(system, prompt string) ([]byte, error) {
-	msgs := []localMessage{}
-	if system != "" {
-		msgs = append(msgs, localMessage{Role: "system", Content: system})
-	}
-	msgs = append(msgs, localMessage{Role: "user", Content: prompt})
-	maxTokens := l.MaxTokens
-	if maxTokens == 0 {
-		maxTokens = DefaultLocalMaxTokens
-	}
-	model := l.Model
-	if model == "" {
-		model = DefaultLocalModel
-	}
-	return json.Marshal(map[string]any{
-		"model":       model,
-		"messages":    msgs,
-		"max_tokens":  maxTokens,
-		"temperature": l.Temperature,
-		"stream":      false,
-	})
+	return l.client().Body(l.request(system, prompt))
 }
 
 // Endpoint is the chat-completions URL, or an error for a base URL that
 // is not http(s).
-func (l *LocalLLM) Endpoint() (string, error) {
-	base := l.BaseURL
-	if base == "" {
-		base = DefaultLocalURL
-	}
-	u, err := url.Parse(base)
-	if err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
-		return "", fmt.Errorf("local LLM URL %q is not an http(s) URL", base)
-	}
-	return strings.TrimRight(base, "/") + "/v1/chat/completions", nil
-}
+func (l *LocalLLM) Endpoint() (string, error) { return l.client().Endpoint() }
 
 // Complete asks the local model once. A down server, a non-200 status, a
 // malformed or empty answer, or finish_reason "length" (ErrLocalTruncated,
 // returned with the partial answer) is an error.
 func (l *LocalLLM) Complete(ctx context.Context, system, prompt string) (LocalAnswer, error) {
-	endpoint, err := l.Endpoint()
+	a, err := l.client().Chat(ctx, l.request(system, prompt))
 	if err != nil {
 		return LocalAnswer{}, err
 	}
-	body, err := l.RequestJSON(system, prompt)
-	if err != nil {
-		return LocalAnswer{}, err
-	}
-	timeout := l.Timeout
-	if timeout <= 0 {
-		timeout = DefaultLocalTimeout
-	}
-	ctx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return LocalAnswer{}, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	client := l.HTTP
-	if client == nil {
-		client = &http.Client{}
-	}
-	resp, err := client.Do(req) // #nosec G704 -- operator-configured local endpoint, scheme checked in Endpoint
-	if err != nil {
-		return LocalAnswer{}, fmt.Errorf("local LLM unavailable: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-	raw, err := io.ReadAll(io.LimitReader(resp.Body, maxLocalBodyBytes+1))
-	if err != nil {
-		return LocalAnswer{}, fmt.Errorf("local LLM: read: %w", err)
-	}
-	if len(raw) > maxLocalBodyBytes {
-		return LocalAnswer{}, fmt.Errorf("local LLM: response exceeds %d bytes", maxLocalBodyBytes)
-	}
-	if resp.StatusCode != http.StatusOK {
-		snippet := raw
-		if len(snippet) > 200 {
-			snippet = snippet[:200]
-		}
-		return LocalAnswer{}, fmt.Errorf("local LLM: HTTP %d: %s", resp.StatusCode, strings.TrimSpace(string(snippet)))
-	}
-	var cr struct {
-		Model   string `json:"model"`
-		Choices []struct {
-			FinishReason string       `json:"finish_reason"`
-			Message      localMessage `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.Unmarshal(raw, &cr); err != nil || len(cr.Choices) == 0 {
-		return LocalAnswer{}, errors.New("local LLM: response is not an OpenAI chat completion")
-	}
-	ans := LocalAnswer{Model: cr.Model, Text: cr.Choices[0].Message.Content, FinishReason: cr.Choices[0].FinishReason}
-	if ans.Model == "" {
-		ans.Model = l.Model
-	}
+	ans := LocalAnswer{Model: a.Model, Text: a.Text, FinishReason: a.FinishReason, InputTokens: a.PromptTokens, OutputTokens: a.CompletionTokens}
 	if strings.TrimSpace(ans.Text) == "" {
 		return ans, errors.New("local LLM: empty answer")
 	}
-	if ans.FinishReason == "length" {
+	if a.Truncated() {
 		return ans, ErrLocalTruncated
 	}
 	return ans, nil

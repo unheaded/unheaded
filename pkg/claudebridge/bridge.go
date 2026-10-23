@@ -254,6 +254,8 @@ type Reply struct {
 	ServedBy   string
 	Requests   int
 	Cost       NanoUSD
+	// Token totals over the turn's requests.
+	InputTokens, OutputTokens int64
 }
 
 // Send adds prompt as a user turn and runs the tool loop until Claude
@@ -448,6 +450,8 @@ func (c *Conversation) request(ctx context.Context, iter int, reply *Reply) (*an
 	rec.Cost, rec.DaySpent = cost, day
 	reply.Cost += cost
 	reply.Requests++
+	reply.InputTokens += msg.Usage.InputTokens + msg.Usage.CacheReadInputTokens + msg.Usage.CacheCreationInputTokens
+	reply.OutputTokens += msg.Usage.OutputTokens
 
 	rec.MessageID = msg.ID
 	rec.ServedBy = string(msg.Model)

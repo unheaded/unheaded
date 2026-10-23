@@ -19,7 +19,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"flag"
@@ -34,6 +33,7 @@ import (
 
 	"unheaded/pkg/agent"
 	"unheaded/pkg/champion"
+	"unheaded/pkg/localllm"
 )
 
 const (
@@ -277,68 +277,21 @@ type llamaLLM struct {
 	model   string
 }
 
-type chatMessage struct {
-	Role    string `json:"role"`
-	Content string `json:"content"`
-}
-
-type chatRequest struct {
-	Model       string        `json:"model"`
-	Messages    []chatMessage `json:"messages"`
-	MaxTokens   int           `json:"max_tokens,omitempty"`
-	Temperature float64       `json:"temperature,omitempty"`
-	Seed        int           `json:"seed,omitempty"`
-	Stream      bool          `json:"stream"`
-}
-
-type chatChoice struct {
-	Index   int         `json:"index"`
-	Message chatMessage `json:"message"`
-}
-
-type chatResponse struct {
-	Choices []chatChoice `json:"choices"`
-}
-
 func (l *llamaLLM) Complete(ctx context.Context, msgs []agent.Message, maxTokens int, temp float64, seed int) (string, error) {
-	cm := make([]chatMessage, len(msgs))
+	lm := make([]localllm.Message, len(msgs))
 	for i, m := range msgs {
-		cm[i] = chatMessage{Role: m.Role, Content: m.Content}
+		lm[i] = localllm.Message{Role: m.Role, Content: m.Content}
 	}
-	body, err := json.Marshal(chatRequest{
-		Model:       l.model,
-		Messages:    cm,
-		MaxTokens:   maxTokens,
-		Temperature: temp,
-		Seed:        seed,
-		Stream:      false,
-	})
+	c := &localllm.Client{BaseURL: l.baseURL, Model: l.model, HTTP: l.client, Timeout: l.client.Timeout}
+	req := localllm.Request{Messages: lm, MaxTokens: maxTokens, Temperature: temp}
+	if seed != 0 { // as before the lift: seed 0 means "not set"
+		req.Seed = &seed
+	}
+	a, err := c.Chat(ctx, req)
 	if err != nil {
 		return "", err
 	}
-	endpoint := strings.TrimRight(l.baseURL, "/") + "/v1/chat/completions"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := l.client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		b, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("status %d: %s", resp.StatusCode, b)
-	}
-	var cr chatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
-		return "", fmt.Errorf("decode: %w", err)
-	}
-	if len(cr.Choices) == 0 {
-		return "", fmt.Errorf("empty response")
-	}
-	return cr.Choices[0].Message.Content, nil
+	return a.Text, nil
 }
 
 // --- stderrActionStore: ActionStore that prints to stderr (no DB binding) ---

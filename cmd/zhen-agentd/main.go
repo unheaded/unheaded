@@ -21,7 +21,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -46,6 +45,7 @@ import (
 	"unheaded/pkg/champion"
 	"unheaded/pkg/champion/pgstore"
 	"unheaded/pkg/claudebridge"
+	"unheaded/pkg/localllm"
 	"unheaded/pkg/metrics/prom"
 )
 
@@ -1069,59 +1069,17 @@ type llamaUsage struct {
 }
 
 func (l *llamaLLM) complete(ctx context.Context, msgs []agent.Message, maxTokens int, temp float64, seed int) (string, llamaUsage, error) {
-	var u llamaUsage
-	cm := make([]map[string]string, len(msgs))
+	lm := make([]localllm.Message, len(msgs))
 	for i, m := range msgs {
-		cm[i] = map[string]string{"role": m.Role, "content": m.Content}
+		lm[i] = localllm.Message{Role: m.Role, Content: m.Content}
 	}
-	body, err := json.Marshal(map[string]any{
-		"model":       l.model,
-		"messages":    cm,
-		"max_tokens":  maxTokens,
-		"temperature": temp,
-		"seed":        seed,
-		"stream":      false,
-	})
+	c := &localllm.Client{BaseURL: l.baseURL, Model: l.model, HTTP: l.client, Timeout: httpTimeout}
+	a, err := c.Chat(ctx, localllm.Request{Messages: lm, MaxTokens: maxTokens, Temperature: temp, Seed: &seed})
+	u := llamaUsage{Model: a.Model, FinishReason: a.FinishReason, PromptTokens: a.PromptTokens, CompletionTokens: a.CompletionTokens}
 	if err != nil {
 		return "", u, err
 	}
-	endpoint := strings.TrimRight(l.baseURL, "/") + "/v1/chat/completions"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return "", u, err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := l.client.Do(req)
-	if err != nil {
-		return "", u, err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		b, _ := io.ReadAll(io.LimitReader(resp.Body, 4096))
-		return "", u, fmt.Errorf("status %d: %s", resp.StatusCode, b)
-	}
-	var cr struct {
-		Model   string `json:"model"`
-		Choices []struct {
-			FinishReason string `json:"finish_reason"`
-			Message      struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-		Usage struct {
-			PromptTokens     int64 `json:"prompt_tokens"`
-			CompletionTokens int64 `json:"completion_tokens"`
-		} `json:"usage"`
-	}
-	if err := json.NewDecoder(io.LimitReader(resp.Body, 8<<20)).Decode(&cr); err != nil {
-		return "", u, fmt.Errorf("decode: %w", err)
-	}
-	u = llamaUsage{Model: cr.Model, PromptTokens: max(cr.Usage.PromptTokens, 0), CompletionTokens: max(cr.Usage.CompletionTokens, 0)}
-	if len(cr.Choices) == 0 {
-		return "", u, fmt.Errorf("empty response")
-	}
-	u.FinishReason = cr.Choices[0].FinishReason
-	return cr.Choices[0].Message.Content, u, nil
+	return a.Text, u, nil
 }
 
 type stderrActionStore struct {
