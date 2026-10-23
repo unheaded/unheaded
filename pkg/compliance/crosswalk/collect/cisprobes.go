@@ -1173,6 +1173,13 @@ func firstN(items []string, n int) string {
 // a real login shell listed in /etc/shells (CIS 7.2.9's definition).
 const interactiveUsers = `awk -F: 'NR==FNR { if ($0 ~ /^\// && $0 !~ /(nologin|false)$/) s[$0] = 1; next } ($7 in s) { print $1, $6 }' /etc/shells /etc/passwd`
 
+// forInteractiveUsers runs body for each "u h" from interactiveUsers, then
+// prints "@ok". If the account files cannot be read there is no "@ok": no
+// users read is not "no offenders".
+func forInteractiveUsers(body string) string {
+	return `if users=$(` + interactiveUsers + `); then printf '%s\n' "$users" | while read -r u h; do [ -n "$u" ] || continue; ` + body + `; done; echo @ok; fi`
+}
+
 // Root, su and user environments (CIS 5.2.7, 5.4.2.4-5.4.2.6, 5.4.3.3,
 // 7.2.9, 7.2.10). Values from ComplianceAsCode's rules for these IDs at the
 // pinned commit: su needs an empty pam_wheel group, root is locked or has
@@ -1203,7 +1210,9 @@ func init() {
 		`printf '%s\n' "$p" | $UH_PRIV sh -c 'read -r p; IFS=:; for d in $p; do [ -n "$d" ] || continue; `+
 		`if [ -d "$d" ]; then stat -Lc "dir %U %a %n" "$d"; else echo "missing $d"; fi; done'; echo @ok`,
 		judgeRootPath)
-	Probes["root-umask"] = markerLinesProbe(`$UH_PRIV grep -Hs -E '^[[:space:]]*umask' /root/.bash_profile /root/.bashrc /root/.profile; echo @ok`,
+	// "@ok" only from a shell that could enter /root: a refused sudo, or an
+	// agent without CAP_DAC_READ_SEARCH, reads none of root's files.
+	Probes["root-umask"] = markerLinesProbe(`$UH_PRIV sh -c 'cd /root && { grep -Hs -E "^[[:space:]]*umask" /root/.bash_profile /root/.bashrc /root/.profile; echo @ok; }'`,
 		func(lines []string) (bool, string) {
 			for _, l := range lines {
 				if ok, v := umaskStrict(l); !ok {
@@ -1226,10 +1235,12 @@ func init() {
 			}
 			return true, fmt.Sprintf("%d umask settings, all 0027 or stricter", len(lines))
 		})
-	Probes["home-dirs"] = markerLinesProbe(interactiveUsers+` | while read -r u h; do if [ -d "$h" ]; then stat -Lc "home $u %U %a %n" "$h"; else echo "missing $u $h"; fi; done; echo @ok`,
+	Probes["home-dirs"] = markerLinesProbe(forInteractiveUsers(`if [ -d "$h" ]; then stat -Lc "home $u %U %a %n" "$h" || echo "unreadable $u $h"; else echo "missing $u $h"; fi`),
 		judgeHomeDirs)
-	Probes["dot-files"] = markerLinesProbe(interactiveUsers+` | while read -r u h; do [ -d "$h" ] || continue; `+
-		`$UH_PRIV find "$h" -maxdepth 1 -name '.*' -type f -printf "dot $u %u %m %p\n" 2>/dev/null; done; echo @ok`,
+	// A home find could not list (sudo refused, no CAP_DAC_READ_SEARCH)
+	// prints "unreadable": no dot files seen is not "none are loose".
+	Probes["dot-files"] = markerLinesProbe(forInteractiveUsers(`[ -d "$h" ] || continue; `+
+		`$UH_PRIV find "$h" -maxdepth 1 -name '.*' -type f -printf "dot $u %u %m %p\n" 2>/dev/null || echo "unreadable $u $h"`),
 		judgeDotFiles)
 }
 
@@ -1270,8 +1281,13 @@ func judgeSuRestricted(lines []string) (bool, string) {
 	return false, "su group " + group + " does not exist"
 }
 
+// judgeRootPath needs a "dir" or "missing" line for every PATH entry: an
+// entry the privileged shell never reported (sudo refused, stat failed) was
+// not checked, which is not a pass.
 func judgeRootPath(lines []string) (bool, string) {
-	var bad []string
+	var bad, entries []string
+	checked := map[string]bool{}
+	read := false
 	for _, l := range lines {
 		switch {
 		case strings.HasPrefix(l, "path "):
@@ -1279,24 +1295,38 @@ func judgeRootPath(lines []string) (bool, string) {
 			if p == "" {
 				return false, "root PATH not read"
 			}
+			read = true
 			for _, d := range strings.Split(p, ":") {
 				if d == "" || d == "." {
 					bad = append(bad, fmt.Sprintf("entry %q", d))
+				} else {
+					entries = append(entries, d)
 				}
 			}
 		case strings.HasPrefix(l, "missing "):
-			bad = append(bad, strings.TrimPrefix(l, "missing ")+" is not a directory")
+			d := strings.TrimPrefix(l, "missing ")
+			checked[d] = true
+			bad = append(bad, d+" is not a directory")
 		case strings.HasPrefix(l, "dir "):
 			f := strings.Fields(l)
 			if len(f) < 4 {
 				continue
 			}
+			checked[strings.Join(f[3:], " ")] = true
 			m, err := strconv.ParseUint(f[2], 8, 32)
 			if f[1] != "root" {
 				bad = append(bad, f[3]+" owned by "+f[1])
 			} else if err != nil || m&0o022 != 0 {
 				bad = append(bad, f[3]+" mode "+f[2]+" (group or other writable)")
 			}
+		}
+	}
+	if !read {
+		return false, "root PATH not read"
+	}
+	for _, d := range entries {
+		if !checked[d] {
+			bad = append(bad, d+" not checked")
 		}
 	}
 	if len(bad) > 0 {
@@ -1333,6 +1363,8 @@ func judgeHomeDirs(lines []string) (bool, string) {
 		switch {
 		case len(f) >= 3 && f[0] == "missing":
 			bad = append(bad, f[1]+": home "+f[2]+" missing")
+		case len(f) >= 3 && f[0] == "unreadable":
+			bad = append(bad, f[1]+": home "+f[2]+" not checked (stat failed)")
 		case len(f) >= 5 && f[0] == "home":
 			n++
 			m, err := strconv.ParseUint(f[3], 8, 32)
@@ -1353,6 +1385,10 @@ func judgeDotFiles(lines []string) (bool, string) {
 	var bad []string
 	for _, l := range lines {
 		f := strings.Fields(l)
+		if len(f) >= 3 && f[0] == "unreadable" {
+			bad = append(bad, f[2]+" not checked ("+f[1]+"'s home could not be listed)")
+			continue
+		}
 		if len(f) < 5 || f[0] != "dot" {
 			continue
 		}

@@ -1146,6 +1146,10 @@ func TestRootAndUserEnvironmentProbes(t *testing.T) {
 		{"root-path", "path /usr/bin:/opt/x\ndir root 755 /usr/bin\ndir root 775 /opt/x\n@ok\n", false},
 		{"root-path", "path /usr/bin:/opt/x\ndir root 755 /usr/bin\nmissing /opt/x\n@ok\n", false},
 		{"root-path", "path \n@ok\n", false},
+		// The privileged stat never ran (sudo refused): no entry was checked.
+		{"root-path", "path /usr/sbin:/usr/bin\n@ok\n", false},
+		{"root-path", "path /usr/sbin:/usr/bin\ndir root 755 /usr/sbin\n@ok\n", false},
+		{"root-path", "@ok\n", false},
 		{"root-umask", "@ok\n", true},
 		{"root-umask", "/root/.bashrc:umask 077\n@ok\n", true},
 		{"root-umask", "/root/.bashrc:umask 022\n@ok\n", false},
@@ -1158,12 +1162,16 @@ func TestRootAndUserEnvironmentProbes(t *testing.T) {
 		{"home-dirs", "home govan govan 755 /home/govan\n@ok\n", false},
 		{"home-dirs", "home govan root 700 /home/govan\n@ok\n", false},
 		{"home-dirs", "missing frr /nonexistent\n@ok\n", false},
+		{"home-dirs", "home root root 700 /root\nunreadable govan /home/govan\n@ok\n", false},
 		{"dot-files", "dot govan govan 644 /home/govan/.profile\ndot govan govan 600 /home/govan/.bash_history\n@ok\n", true},
 		{"dot-files", "dot govan govan 664 /home/govan/.gitconfig\n@ok\n", false},
 		{"dot-files", "dot govan govan 640 /home/govan/.bash_history\n@ok\n", false},
 		{"dot-files", "dot govan govan 600 /home/govan/.netrc\n@ok\n", false},
 		{"dot-files", "dot govan root 644 /home/govan/.profile\n@ok\n", false},
 		{"dot-files", "dot govan govan 644 /home/govan/.profile\n", false}, // did not complete
+		// A refused sudo once listed nothing and passed: every home unread.
+		{"dot-files", "unreadable root /root\nunreadable govan /home/govan\n@ok\n", false},
+		{"dot-files", "dot govan govan 644 /home/govan/.profile\nunreadable root /root\n@ok\n", false},
 	} {
 		p, ok := Probes[tc.probe]
 		if !ok || !p.Baseline {
@@ -1243,6 +1251,61 @@ func TestHostProbesPrelude(t *testing.T) {
 	}
 	if !strings.HasPrefix(script, probePath+"UH_PRIV=\n") {
 		t.Fatalf("script does not start with the prelude: %q", script)
+	}
+}
+
+// privRefusedFacts is a root-facts directory with a root PATH but no
+// aa-status.json, for running probe commands without privilege.
+func privRefusedFacts(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "root-path"), []byte("/usr/bin:/bin\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+// runProbeCommand runs one probe's command on this host the way HostProbes
+// does, with $UH_PRIV set to priv, and judges it. Commands only read.
+func runProbeCommand(t *testing.T, name, priv, facts string) (bool, string) {
+	t.Helper()
+	script := probePath + "UH_PRIV=" + priv + "\nUH_ROOT_FACTS=" + shQuote(facts) + "\n" +
+		fmt.Sprintf("echo @@%s; { %s; } 2>/dev/null\nexit 0\n", name, Probes[name].Command)
+	out, err := exec.Command("sh", "-c", script).Output() // #nosec G204 -- the constant probe table
+	if err != nil {
+		t.Fatalf("%s: %v", name, err)
+	}
+	sec, ok := strings.CutPrefix(string(out), "@@"+name+"\n")
+	if !ok {
+		t.Fatalf("%s: no section in %q", name, out)
+	}
+	return Probes[name].Judge(sec)
+}
+
+// probeTools skips a test that runs probe commands where they cannot run.
+func probeTools(t *testing.T) {
+	t.Helper()
+	for _, tool := range []string{"sh", "awk", "find", "stat"} {
+		if _, err := exec.LookPath(tool); err != nil {
+			t.Skip("no " + tool)
+		}
+	}
+}
+
+// TestProbeCommandsFailWhenPrivilegeRefused runs every probe that needs
+// privilege with $UH_PRIV refusing (the central pull when sudo -n is
+// refused). None may pass: dot-files once did, because its "@ok" came from
+// outside the refused command, which had listed nothing.
+func TestProbeCommandsFailWhenPrivilegeRefused(t *testing.T) {
+	probeTools(t)
+	facts := privRefusedFacts(t)
+	for name, p := range Probes {
+		if !strings.Contains(p.Command, "$UH_PRIV") {
+			continue
+		}
+		if pass, detail := runProbeCommand(t, name, "false", facts); pass {
+			t.Errorf("%s passes with privilege refused: %s", name, detail)
+		}
 	}
 }
 
