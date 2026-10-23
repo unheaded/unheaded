@@ -5,6 +5,7 @@ package wotanClient
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"net"
@@ -16,6 +17,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
@@ -957,15 +959,20 @@ func TestNewTopicStreamClientWithTLS_Valid(t *testing.T) {
 // WithTLS TESTS
 // ============================================================================
 
-func TestWithTLS_SetsMetadataMarker(t *testing.T) {
+// WithTLS keeps the creds for the dial (it used to set only a metadata
+// marker and dial in plaintext; see TestTopicStreamClient_WithTLSUsesTLS).
+func TestWithTLS_StoresCreds(t *testing.T) {
 	c := &TopicStreamClient{
 		metadata: make(map[string]string),
 	}
-	opt := WithTLS(nil)
-	opt(c)
+	creds := credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS13})
+	WithTLS(creds)(c)
 
-	if _, ok := c.metadata["_tls_creds"]; !ok {
-		t.Error("expected _tls_creds marker in metadata")
+	if c.tlsCreds != creds {
+		t.Error("WithTLS did not keep its creds")
+	}
+	if len(c.metadata) != 0 {
+		t.Errorf("WithTLS wrote request metadata: %v", c.metadata)
 	}
 }
 

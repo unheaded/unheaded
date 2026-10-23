@@ -5,6 +5,7 @@ package wotanClient
 
 import (
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -18,6 +19,7 @@ import (
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
@@ -698,6 +700,32 @@ func TestGetMessages_WotanErrorIsNotEmpty(t *testing.T) {
 			t.Fatalf("got %d messages, err %v; want the 3 over HTTP", len(msgs), err)
 		}
 	})
+}
+
+// WithTLS dials with TLS. It used to dial in plaintext whatever creds it
+// was given: against a plaintext server a TLS client must fail the
+// handshake, and it succeeded.
+func TestTopicStreamClient_WithTLSUsesTLS(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gs := grpc.NewServer() // plaintext
+	chatpb.RegisterTopicStreamServer(gs, newMockServer())
+	go func() { _ = gs.Serve(lis) }()
+	t.Cleanup(gs.Stop)
+
+	tlsCreds := credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS13})
+	client, err := NewTopicStreamClient(lis.Addr().String(), WithTLS(tlsCreds))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { client.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	if err := client.Ping(ctx); err == nil {
+		t.Fatal("a TLS client reached a plaintext server: WithTLS dialled in plaintext")
+	}
 }
 
 // A quiet stream that stays up is healthy: its failures do not carry over

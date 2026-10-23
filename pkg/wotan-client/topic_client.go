@@ -39,6 +39,9 @@ type TopicStreamClient struct {
 	// queryTimeout bounds GetMessages; 0 means defaultQueryTimeout.
 	queryTimeout time.Duration
 
+	// tlsCreds, when set (WithTLS), secure the gRPC connection.
+	tlsCreds credentials.TransportCredentials
+
 	// Options
 	grpcAddr   string
 	bufferSize int
@@ -87,11 +90,12 @@ type activeStream struct {
 type TopicStreamOption func(*TopicStreamClient)
 
 // WithTLS configures the gRPC connection to use TLS credentials.
+//
+// It used to record only that TLS was wanted and dial in plaintext anyway,
+// so a caller asking for TLS got an unencrypted connection with no error.
 func WithTLS(creds credentials.TransportCredentials) TopicStreamOption {
 	return func(c *TopicStreamClient) {
-		// Store creds to use during dial; applied in NewTopicStreamClient
-		c.metadata["_tls_creds"] = "set" // marker; actual creds stored separately
-		// We handle this specially in the constructor — see below
+		c.tlsCreds = creds
 	}
 }
 
@@ -178,17 +182,12 @@ func NewTopicStreamClient(grpcAddr string, opts ...TopicStreamOption) (*TopicStr
 	}
 
 	// Dial gRPC
-	var dialOpts []grpc.DialOption
-	if _, hasTLS := c.metadata["_tls_creds"]; hasTLS {
-		// TLS configured but creds passed via option — caller should use WithTLSCreds
-		delete(c.metadata, "_tls_creds")
-		// Fall through to insecure if no creds actually provided
-		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	} else {
-		dialOpts = append(dialOpts, grpc.WithTransportCredentials(insecure.NewCredentials()))
+	creds := c.tlsCreds
+	if creds == nil {
+		creds = insecure.NewCredentials()
 	}
 
-	conn, err := grpc.NewClient(grpcAddr, dialOpts...)
+	conn, err := grpc.NewClient(grpcAddr, grpc.WithTransportCredentials(creds))
 	if err != nil {
 		return nil, fmt.Errorf("dial gRPC server %s: %w", grpcAddr, err)
 	}
