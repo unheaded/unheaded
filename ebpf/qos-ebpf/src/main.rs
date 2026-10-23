@@ -30,8 +30,8 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::{
-    flags, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN, IPV6_NEXTHDR_HBH,
-    MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
+    flags, token_bucket, AnamnesisEvent, EventType, Monad, HBH_TOTAL_LEN, IPV6_FIXED_HDR_LEN,
+    IPV6_NEXTHDR_HBH, MONAD_OPT_DATA_LEN, MONAD_OPT_TYPE, MONAD_SIZE,
 };
 
 // ── BPF Maps ─────────────────────────────────────────────────────────────────
@@ -309,27 +309,22 @@ fn try_qos_xdp(ctx: &XdpContext) -> Result<u32, ()> {
             (rate_limit_mbps * BITS_PER_MBIT) / (BITS_PER_BYTE * 1_000)
         };
 
-        // Rate in bytes per nanosecond (avoid division by zero).
-        // rate_bpns = (rate_limit_mbps * 1_000_000) / (8 * 1_000_000_000)
-        //           = rate_limit_mbps / 8_000
-        // To maintain precision, we compute: tokens_to_add = elapsed_ns * rate_limit_mbps / 8_000
-
         if let Some(bucket) = TOKEN_BUCKETS.get_ptr_mut(&flow_id) {
             let bucket_ref = unsafe { &mut *bucket };
-            let elapsed = now.saturating_sub(bucket_ref.last_refill_ns);
 
-            // Refill tokens: tokens += elapsed_ns * rate_mbps * 1_000_000 / (8 * 1_000_000_000)
-            // Simplified: tokens += elapsed_ns * rate_mbps / 8_000
-            let tokens_to_add = if rate_limit_mbps > 0 {
-                // Use wrapping_mul — BPF doesn't support u128 (__multi3) from saturating_mul
-                (elapsed / 8_000).wrapping_mul(rate_limit_mbps)
-            } else {
-                0
-            };
-
-            if tokens_to_add > 0 {
-                bucket_ref.tokens = (bucket_ref.tokens + tokens_to_add).min(bucket_capacity);
-                bucket_ref.last_refill_ns = now;
+            // Refill: rate_limit_mbps bytes per whole 8,000 ns elapsed; the
+            // sub-quantum remainder carries to the next refill (see
+            // monad_common::token_bucket, tested off-target).
+            let r = token_bucket::refill(
+                bucket_ref.tokens,
+                bucket_ref.last_refill_ns,
+                now,
+                rate_limit_mbps,
+                bucket_capacity,
+            );
+            if r.refilled {
+                bucket_ref.tokens = r.tokens;
+                bucket_ref.last_refill_ns = r.last_refill_ns;
                 increment_stat(STAT_BUCKET_REFILLED);
             }
 

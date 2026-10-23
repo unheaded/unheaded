@@ -130,6 +130,11 @@ pub mod fs_walk;
 /// math, free-slot policy, and the off-target inode-state model (Gate D).
 pub mod fdtable;
 
+// ── qos-ebpf token bucket ────────────────────────────────────────────────────
+
+/// Pure token-bucket refill step used by `qos-ebpf` (unit-tested off-target).
+pub mod token_bucket;
+
 // ── Monad Flags bitfield ──────────────────────────────────────────────────────
 
 /// Flags bitfield constants for [`Monad::flags`] (offset [`OFF_FLAGS`]).
