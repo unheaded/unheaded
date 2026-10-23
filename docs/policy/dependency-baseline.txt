@@ -34,7 +34,6 @@ cargo aya-ebpf
 cargo aya-ebpf-bindings
 cargo aya-ebpf-cty
 cargo aya-ebpf-macros
-cargo aya-log
 cargo aya-log-common
 cargo aya-log-ebpf
 cargo aya-log-ebpf-macros
@@ -145,7 +144,6 @@ cargo hostname
 cargo http
 cargo http-body
 cargo http-body-util
-cargo http-range-header
 cargo httparse
 cargo httpdate
 cargo hyper
@@ -195,7 +193,6 @@ cargo matchit
 cargo memchr
 cargo memmap2
 cargo mime
-cargo mime_guess
 cargo miniz_oxide
 cargo mio
 cargo multimap
@@ -312,8 +309,6 @@ cargo subtle
 cargo syn
 cargo sync_wrapper
 cargo synstructure
-cargo system-configuration
-cargo system-configuration-sys
 cargo tempfile
 cargo thiserror
 cargo thiserror-impl
@@ -348,7 +343,6 @@ cargo try-lock
 cargo tungstenite
 cargo typenum
 cargo unarray
-cargo unicase
 cargo unicode-ident
 cargo universal-hash
 cargo untrusted
@@ -385,7 +379,6 @@ cargo windows-core
 cargo windows-implement
 cargo windows-interface
 cargo windows-link
-cargo windows-registry
 cargo windows-result
 cargo windows-strings
 cargo windows-sys

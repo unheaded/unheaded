@@ -9,7 +9,6 @@ path = "src/main.rs"
 
 [dependencies]
 aya = "0.13"
-aya-log = "0.2"
 ebpf-common = { path = "../common" }
 tokio = { version = "1", features = ["full"] }
 tonic = "0.12"

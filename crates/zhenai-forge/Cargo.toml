@@ -10,7 +10,6 @@ authors = ["Stevie Bellis <stevie@bellis.tech>"]
 # All deps predate July 2019 per ADR-004
 memmap2 = "0.9"          # mmap for GGUF zero-copy (fork of memmap 2015)
 half = "2.4"             # f16 type (2017)
-rayon = "1.10"           # parallel data loading (2016)
 serde = { version = "1", features = ["derive"] }  # serialization (2015)
 serde_json = "1"         # JSONL parsing (2015)
 

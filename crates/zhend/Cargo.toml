@@ -16,7 +16,6 @@ hex = "0.4"
 
 # Storage
 sled = "0.34"
-memmap2 = "0.9"
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

@@ -11,7 +11,6 @@ tokio = { version = "1", features = ["full"] }
 
 # HTTP server - quasi-standard, acceptable per Sacred Law
 hyper = { version = "1", features = ["full"] }
-hyper-util = { version = "0.1", features = ["full"] }
 http-body-util = "0.1"
 
 # TLS - rustls is the pure-Rust choice
