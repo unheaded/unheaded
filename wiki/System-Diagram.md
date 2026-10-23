@@ -38,7 +38,7 @@ How the pieces connect: the planes, the hosts, and what is live today. Layer-by-
 | Host | Role | Live |
 |------|------|------|
 | west | Dev + test host, compose stack | The Well, kanban-app, dashboard-backend, Wotan, Akira (compose); Huginn (systemd); backup + drill timers. VictoriaMetrics is down, so Huginn's pushes fail (FND-001) |
-| east | Staging, bare metal (4 core, 8 GB) | Offsite backup target + daily check; Huginn + VictoriaMetrics units |
+| east | Staging, bare metal (4 core, 8 GB) | Kingdom services as `.deb` systemd units (Wotan, Akira, Timeguru, Architect, Captain, Micromanager, dashboard-backend, kanban-app, unheaded-daemon); Huginn (pushes to west's VictoriaMetrics), node_exporter, kev-poller, trace-collector, baseline; offsite backup target + daily check ([[Systemd Units|Systemd-Units]]) |
 
 West ↔ east is a point-to-point link (192.168.13.1 ↔ 192.168.13.2). West is not up 24/7.
 

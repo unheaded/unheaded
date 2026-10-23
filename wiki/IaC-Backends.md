@@ -16,36 +16,27 @@ Unheaded generates configuration artifacts for the user's preferred toolchain. T
 ## How It Works
 
 ```
-Desired State (Git)
+ServiceConfig (name, port, health/ready/metrics paths, …)
        │
        ▼
-  pkg/iac/renderer.go   ◄── IaCRenderer interface
+  pkg/iac/iac.go   ◄── Renderer interface: Render, RenderAll, Validate, Diff
        │
-       ├── ansible/      → playbook.yml, roles/, inventory/
-       ├── terraform/    → main.tf, variables.tf, modules/
-       ├── puppet/       → manifests/, hiera/, modules/
-       ├── kubernetes/   → manifests/, charts/, operators/
-       ├── chef/         → cookbooks/, recipes/, data_bags/
-       └── salt/         → states/, pillars/, grains/
+       ├── ansible.go     ├── terraform.go   ├── puppet.go
+       ├── kubernetes.go  ├── chef.go        └── salt.go
 ```
 
-The IaC layer consumes the same core packages (`pkg/`) and generates output in the user's dialect. Adding a new backend is writing an output renderer — the control plane, eBPF layer, and Wotan integration don't change.
+Each backend is one renderer in `pkg/iac/`; `validate.go` checks output structure. Adding a backend is writing a renderer: the control plane, eBPF layer and Wotan integration don't change. The renderers take per-service configs, not the control plane's desired state; the CLI feeds them a fixed list of the ten core services and their Doom Range ports (`cmd/unheaded-cli/cmd/generate.go`).
 
 ## CLI Usage
 
 ```bash
-# Generate Ansible playbooks from current desired state
-unheaded generate --backend=ansible --output=./deploy/ansible/
-
-# Generate Terraform modules
-unheaded generate --backend=terraform --output=./deploy/terraform/
-
-# Generate Kubernetes manifests + Helm charts
-unheaded generate --backend=k8s --output=./deploy/k8s/
-
-# Generate for all backends at once
-unheaded generate --backend=all --output=./deploy/
+unheaded generate list                                       # backends
+unheaded generate iac --backend ansible                      # all core services -> ./generated/ansible/
+unheaded generate iac --backend kubernetes --services wotan,timeguru --out ./deploy-out
+unheaded generate iac --backend terraform --dry-run          # list files, write nothing
 ```
+
+Backends: `ansible`, `terraform`, `puppet`, `kubernetes`, `chef`, `salt` (no `all`, no `k8s` alias).
 
 ## Design Principles
 
@@ -53,7 +44,7 @@ Each renderer is a **pure function**: desired state in, config artifacts out. No
 
 ## Status
 
-Epoch 1.4b (The Forge of Many Tongues) — scaffolded, `IaCRenderer` interface defined. Full implementation planned for Age 2 (Beta).
+All six renderers exist with tests (`pkg/iac/iac_test.go`, `integration_test.go`). `remediation_ansible.go` also renders the compliance remediation model as Ansible (ADR-099).
 
 ---
 
