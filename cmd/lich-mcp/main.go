@@ -46,6 +46,13 @@ const (
 )
 
 func main() {
+	// Subcommands share the server's policy file but do not serve. `confirm`
+	// is the out-of-band approval CLI (Phase 4); `drive` is the Claude driver
+	// (Phase 6). Both are part of the one binary the kill switch owns.
+	if len(os.Args) > 1 && os.Args[1] == "confirm" {
+		os.Exit(confirmMain(os.Args[2:]))
+	}
+
 	cfgPath := flag.String("config", "configs/lich-mcp.yaml", "path to the Lich MCP server policy (scope, limits, kill switch)")
 	root := flag.String("project-root", "", "checkout root; defaults to $PWD")
 	emittedBy := flag.String("emitted-by", "lich-mcp/stdio", "audit identity for the caller driving these tools")
@@ -118,10 +125,20 @@ func newServer(cfgPath, projectRoot, emittedBy string, logger *slog.Logger) (*se
 	if err != nil {
 		return nil, err
 	}
-	gate, err := claudebridge.NewChampionGate(champ)
+	championGate, err := claudebridge.NewChampionGate(champ)
 	if err != nil {
 		return nil, err
 	}
+	// Out-of-band confirmation (Phase 4): a refused-pending mutating tool
+	// (lich_file_finding) parks a ticket an operator approves with
+	// `lich-mcp confirm approve <id>`. The approval binds to the exact call.
+	store, err := lichtools.NewPendingStore(cfg.PendingDirAbs())
+	if err != nil {
+		return nil, err
+	}
+	var gate claudebridge.Gate = newConfirmGate(championGate, store, projectRoot, func(event, id, tool string) {
+		logger.Info("lich confirm", "event", event, "ticket", id, "tool", tool)
+	})
 
 	// Confinement: the unprivileged netns sandbox (LXD is an [ESCALATE], not
 	// used). The results tree is the only writable path; everything else is

@@ -18,6 +18,20 @@ scope:
   harness_dir: "tomb/lich/harnesses"
   # Crash artifacts are read only from under this tree.
   results_dir: "tomb/lich/results"
+  # The local-model driver (Phase 5) writes seeds only under this tree.
+  seeds_dir: "tomb/lich/seeds"
+
+# Out-of-band confirmation tickets (Phase 4). A mutating tool (lich_file_finding)
+# refused pending-confirmation parks a ticket here; an operator approves it with
+# `lich-mcp confirm approve <id>`. This is the operator's own 0700 directory; the
+# approval binds to the exact call and never travels through any model.
+pending_dir: "var/lich/pending"
+
+# The already-running llama-server (OpenAI-compatible) the local_llm tool and the
+# local-model driver ask. It is NEVER started or swapped from here (model loads
+# go through scripts/switch-model.sh's fit check). Free of dollar cost.
+local_llm_url: "http://127.0.0.1:8081"
+local_llm_model: "local"
 
 # Per-sandbox resource envelope. A target with no explicit limit gets these.
 # Swap is never counted (no-OOM-from-UI-actions rule); a fit check runs first.

@@ -42,6 +42,11 @@ const (
 	DefaultNetNS               = "lich-noegress"
 	DefaultResultsDir          = "tomb/lich/results"
 	DefaultRegisterRelPath     = "compliance/findings/register.yaml"
+	DefaultPendingDirRelPath   = "var/lich/pending"
+	DefaultSeedsDir            = "tomb/lich/seeds"
+	// DefaultLocalLLMURL is the already-running llama-server (OpenAI-compatible);
+	// the local driver asks it and never starts or swaps a model.
+	DefaultLocalLLMURL = "http://127.0.0.1:8081"
 )
 
 // ErrSecretInConfig is returned when the config references a credential. Per
@@ -73,7 +78,17 @@ type Config struct {
 		SandboxPrefix string `yaml:"sandbox_prefix"`
 		HarnessDir    string `yaml:"harness_dir"`
 		ResultsDir    string `yaml:"results_dir"`
+		SeedsDir      string `yaml:"seeds_dir"`
 	} `yaml:"scope"`
+
+	// PendingDir holds out-of-band confirmation tickets (Phase 4). It is the
+	// operator's own 0700 directory; a tool argument can never point elsewhere.
+	PendingDir string `yaml:"pending_dir"`
+
+	// LocalLLMURL is the already-running llama-server the local_llm tool and the
+	// local-model driver (Phase 5) ask. It is never started or swapped here.
+	LocalLLMURL   string `yaml:"local_llm_url"`
+	LocalLLMModel string `yaml:"local_llm_model"`
 
 	Limits Limits `yaml:"limits"`
 
@@ -133,6 +148,15 @@ func (c *Config) applyDefaultsAndValidate() error {
 	}
 	if c.Scope.ResultsDir == "" {
 		c.Scope.ResultsDir = DefaultResultsDir
+	}
+	if c.Scope.SeedsDir == "" {
+		c.Scope.SeedsDir = DefaultSeedsDir
+	}
+	if c.PendingDir == "" {
+		c.PendingDir = DefaultPendingDirRelPath
+	}
+	if c.LocalLLMURL == "" {
+		c.LocalLLMURL = DefaultLocalLLMURL
 	}
 	if c.NetNS == "" {
 		c.NetNS = DefaultNetNS
@@ -202,6 +226,16 @@ func (c *Config) ResultsDirAbs() string {
 // RegisterAbs resolves the findings register path against the project root.
 func (c *Config) RegisterAbs() string {
 	return c.resolve(c.Findings.Register)
+}
+
+// PendingDirAbs resolves the confirmation-ticket directory against the root.
+func (c *Config) PendingDirAbs() string {
+	return c.resolve(c.PendingDir)
+}
+
+// SeedsDirAbs resolves the seed-corpus directory against the root.
+func (c *Config) SeedsDirAbs() string {
+	return c.resolve(c.Scope.SeedsDir)
 }
 
 func (c *Config) resolve(p string) string {
