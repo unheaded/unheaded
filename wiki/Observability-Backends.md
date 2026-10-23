@@ -28,34 +28,17 @@ Unheaded emits OpenTelemetry-compatible signals (metrics, logs, traces). Users p
 
 ## How It Works
 
-```
-eBPF Data Plane → Wotan Ring Buffer → ObservabilityAdapter interface
-                                              │
-                                              ├── prometheus/    → scrape configs, recording rules
-                                              ├── grafana/       → dashboard JSON, datasources
-                                              ├── elk/           → Logstash pipelines, Kibana index patterns
-                                              ├── fluentd/       → Fluent Bit configs, parsers
-                                              ├── jaeger/        → collector config, trace export
-                                              ├── nagios/        → check configs, NRPE integration
-                                              ├── flume/         → agent configs, channel definitions
-                                              ├── loki/          → Promtail config, log labels
-                                              └── alertmanager/  → alert rules, routing trees
-```
-
-Each adapter is a config generator — it consumes Unheaded's signal schema and produces valid, working configs for the target tool. No code changes needed. Drop in, start collecting.
+Adapters are config generators in `pkg/observability/` (`prometheus.go`, `grafana.go`, `elk.go`, `fluentd.go`, `jaeger.go`, `loki.go`, `nagios.go`, `zerolog.go`). Each consumes Unheaded's signal schema and emits a config for the target tool. Backends known to the package: prometheus, grafana, elk, fluentd, jaeger, nagios, loki, wotan (planned). Datadog, InfluxDB, Splunk, Flume, Zipkin, Tempo and the SIEMs in the table above have no adapter yet.
 
 ## CLI Usage
 
 ```bash
-# Generate Prometheus scrape config + Grafana dashboards
-unheaded observe --backend=prometheus,grafana   # cmd/unheaded-cli --output=./observability/
-
-# Generate ELK stack configs
-unheaded observe --backend=elk --output=./observability/
-
-# Generate everything
-unheaded observe --backend=all --output=./observability/
+unheaded observe list                                        # backends and their status
+unheaded observe config --backend elk --service timeguru [--host localhost:9200]
+unheaded observe dashboard --service timeguru               # Grafana dashboard JSON
 ```
+
+`observe config` supports `elk`, `fluentd`, `loki`, `jaeger` and `nagios`, and prints to stdout (`cmd/unheaded-cli/cmd/observe.go`).
 
 ## Phased Roadmap
 
@@ -67,7 +50,7 @@ unheaded observe --backend=all --output=./observability/
 
 ## Licensing
 
-All supported backends are open source (Apache-2.0, MIT, GPL, or similar). Unheaded adapter configs are MIT-licensed. See [LICENSES/THIRD_PARTY.md](../LICENSES/THIRD_PARTY.md) for attribution.
+All supported backends are open source (Apache-2.0, MIT, GPL, or similar). Unheaded's adapter code is GPL-3.0-or-later. See [LICENSES/THIRD_PARTY.md](../LICENSES/THIRD_PARTY.md) for attribution.
 
 ---
 
