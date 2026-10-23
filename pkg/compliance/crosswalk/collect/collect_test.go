@@ -33,13 +33,19 @@ func fakeGitHub(t *testing.T, hits *int) *httptest.Server {
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /repos/o/r/actions/runs", func(w http.ResponseWriter, r *http.Request) {
 		*hits++
-		if r.URL.Query().Get("branch") != "develop" || r.URL.Query().Get("status") != "completed" {
+		q := r.URL.Query()
+		if q.Get("branch") != "develop" || q.Get("status") != "completed" || q.Get("event") != "push" {
 			t.Errorf("runs query = %s", r.URL.RawQuery)
 		}
+		own := map[string]string{"full_name": "o/r"}
 		_ = json.NewEncoder(w).Encode(map[string]any{"workflow_runs": []map[string]any{
-			{"id": 2, "name": "W", "head_sha": "bbbb"},
-			{"id": 1, "name": "W", "head_sha": "aaaa"},
-			{"id": 3, "name": "V", "head_sha": "bbbb"},
+			// Newest: a pull request from a fork's "develop" branch, which
+			// ran the fork's own workflow. Never evidence for o/r.
+			{"id": 9, "name": "W", "head_sha": "ffff", "event": "pull_request", "head_repository": map[string]string{"full_name": "evil/r"}},
+			{"id": 8, "name": "W", "head_sha": "eeee", "event": "push", "head_repository": map[string]string{"full_name": "evil/r"}},
+			{"id": 2, "name": "W", "head_sha": "bbbb", "event": "push", "head_repository": own},
+			{"id": 1, "name": "W", "head_sha": "aaaa", "event": "push", "head_repository": own},
+			{"id": 3, "name": "V", "head_sha": "bbbb", "event": "push", "head_repository": own},
 		}})
 	})
 	jobs := map[string][]map[string]any{
@@ -51,6 +57,8 @@ func fakeGitHub(t *testing.T, hits *int) *httptest.Server {
 		},
 		"1": {{"name": "old", "conclusion": "success", "completed_at": "2026-09-29T10:00:00Z"}},
 		"3": {{"name": "v", "conclusion": "success", "completed_at": "2026-09-30T09:00:00Z"}},
+		"9": {{"name": "fail", "conclusion": "success", "completed_at": "2026-09-30T11:00:00Z"}},
+		"8": {{"name": "fail", "conclusion": "success", "completed_at": "2026-09-30T11:00:00Z"}},
 	}
 	mux.HandleFunc("GET /repos/o/r/actions/runs/{id}/jobs", func(w http.ResponseWriter, r *http.Request) {
 		*hits++

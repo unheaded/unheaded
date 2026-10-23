@@ -85,6 +85,9 @@ func (g *GitHubJobs) get(ctx context.Context, url string, v any) error {
 
 // Collect returns one record per requested github-job source whose job
 // concluded success or failure in its workflow's latest completed run.
+// Only push runs of Repo itself count: the branch filter matches a run's
+// head branch, so a pull request from a fork's branch named like Branch
+// is listed too, and it runs the fork's own copy of the workflow.
 func (g *GitHubJobs) Collect(ctx context.Context, sources []crosswalk.Source) ([]crosswalk.Record, error) {
 	if !repoRe.MatchString(g.Repo) || strings.Contains(g.Repo, "..") {
 		return nil, fmt.Errorf("github repo %q", g.Repo)
@@ -116,12 +119,16 @@ func (g *GitHubJobs) Collect(ctx context.Context, sources []crosswalk.Source) ([
 
 	var runs struct {
 		WorkflowRuns []struct {
-			ID      int64  `json:"id"`
-			Name    string `json:"name"`
-			HeadSHA string `json:"head_sha"`
+			ID             int64  `json:"id"`
+			Name           string `json:"name"`
+			HeadSHA        string `json:"head_sha"`
+			Event          string `json:"event"`
+			HeadRepository struct {
+				FullName string `json:"full_name"`
+			} `json:"head_repository"`
 		} `json:"workflow_runs"`
 	}
-	url := fmt.Sprintf("%s/repos/%s/actions/runs?branch=%s&status=completed&per_page=100", base, g.Repo, g.Branch)
+	url := fmt.Sprintf("%s/repos/%s/actions/runs?branch=%s&event=push&status=completed&per_page=100", base, g.Repo, g.Branch)
 	if err := g.get(ctx, url, &runs); err != nil {
 		return nil, fmt.Errorf("list runs: %w", err)
 	}
@@ -129,7 +136,7 @@ func (g *GitHubJobs) Collect(ctx context.Context, sources []crosswalk.Source) ([
 	var recs []crosswalk.Record
 	done := make(map[string]bool)
 	for _, run := range runs.WorkflowRuns { // newest first
-		if want[run.Name] == nil || done[run.Name] {
+		if want[run.Name] == nil || done[run.Name] || run.Event != "push" || !strings.EqualFold(run.HeadRepository.FullName, g.Repo) {
 			continue
 		}
 		done[run.Name] = true
