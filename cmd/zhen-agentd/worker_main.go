@@ -47,6 +47,12 @@ type workerFlags struct {
 	privacyMode string
 	localModel  string
 	gpuLock     string
+
+	overnight bool
+	window    string
+	maxCards  int
+	stopFile  string
+	reportDir string
 }
 
 func defaultStateDir() string {
@@ -86,6 +92,11 @@ func registerWorkerFlags(fs *flag.FlagSet, wf *workerFlags) {
 	fs.StringVar(&wf.ledger, "ledger", "", "with -worker -claude live: spend ledger (default zhen-claude's)")
 	fs.Float64Var(&wf.dailyCapUSD, "daily-cap-usd", 5, "with -worker -claude live: hard spend cap per UTC day of -ledger")
 	fs.StringVar(&wf.privacyMode, "privacy", "standard", "with -worker: privacy tier of the Claude leg: standard or strict")
+	fs.BoolVar(&wf.overnight, "overnight", false, "run the worker unattended inside -window, then exit: its own ledger and cap (default $STATE/zhen-claude/spend-overnight.json, $3), -max-cards, a memory floor that never counts swap (ZHEN_MEM_FLOOR_BYTES may raise it), the -stop-file, strict privacy; writes a morning report to -report-dir")
+	fs.StringVar(&wf.window, "window", "01:00-07:00", "with -overnight: local-time window HH:MM-HH:MM (may cross midnight)")
+	fs.IntVar(&wf.maxCards, "max-cards", 5, "with -overnight: cards tried per night")
+	fs.StringVar(&wf.stopFile, "stop-file", filepath.Join(defaultStateDir(), "zhen-agentd.stop"), "with -overnight: when this file exists the night stops (a card in flight finishes its check and commits nothing)")
+	fs.StringVar(&wf.reportDir, "report-dir", filepath.Join(defaultStateDir(), "zhen-reports"), "with -overnight: morning reports (<date>.md, 0600)")
 	fs.StringVar(&wf.gpuLock, "gpu-lock", gpulease.DefaultPath(), "GPU lease file shared with scripts/switch-model.sh and forge-train.sh (env GPU_LOCK); each local call holds it shared, a card waits while it is held exclusively; \"\" = no lease")
 	fs.StringVar(&wf.localModel, "local-model", envOr("ZHEN_LOCAL_LLM_MODEL", claudebridge.DefaultLocalModel), "with -worker: local model name when the family names none")
 }

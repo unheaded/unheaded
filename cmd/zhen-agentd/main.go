@@ -81,6 +81,16 @@ func main() {
 	var wf workerFlags
 	registerWorkerFlags(flag.CommandLine, &wf)
 	flag.Parse()
+	if wf.overnight {
+		set := map[string]bool{}
+		flag.Visit(func(f *flag.Flag) { set[f.Name] = true })
+		if set["privacy"] && wf.privacyMode != "strict" {
+			fmt.Fprintln(os.Stderr, "zhen-agentd: -overnight forces -privacy strict")
+		}
+		if err := applyOvernightDefaults(&wf, set, defaultStateDir()); err != nil {
+			fatal("overnight: %v", err)
+		}
+	}
 
 	vorURL := envOr("VOR_URL", defaultVorURL)
 	llamaURL := envOr("LLAMA_URL", defaultLlamaURL)
@@ -155,10 +165,20 @@ func main() {
 	workerDone := make(chan struct{})
 	if wf.enabled {
 		wlog := slog.New(slog.NewJSONHandler(os.Stderr, nil)).With("service", "zhen-agentd")
-		w, closeWorker, err := buildWorker(workerCtx, wf, rootAbs, llamaURL, "interactive", aud, wlog)
+		mode := "interactive"
+		if wf.overnight {
+			mode = "overnight"
+		}
+		w, closeWorker, err := buildWorker(workerCtx, wf, rootAbs, llamaURL, mode, aud, wlog)
 		defer closeWorker()
 		if err != nil {
 			fatal("worker init: %v", err)
+		}
+		if wf.overnight {
+			code := runOvernight(workerCtx, w, wf, aud, wlog)
+			aud.close()
+			closeWorker()
+			os.Exit(code)
 		}
 		if wf.once {
 			res, err := w.runOnce(workerCtx)
