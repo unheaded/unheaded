@@ -92,6 +92,11 @@ budget-aware handler with a green gate. Pick off as budget/interest allows.*
       FS path (needs a block-alloc story; scope carefully vs verifier budget).
 - [ ] **1.3.3** Pipes (`|`) + a couple more shell builtins.
 - [ ] **1.3.4 GATE (per item):** new capability works; regression sweep (1.1.3) green.
+- [~] **1.3.5** EVOLUTION-1 Stage 1 (getpid trap flip). S5 2026-10-23: S1.2 closed (translator
+      CSR scratch aliasing fixed; `userret` restores from sscratch); the injected getpid round
+      trip works, but the kernel answers pid 1 where BPF answers 0, so `GETPID_INJECT` stays
+      `false`. REMAINS: pid identity / proc[] reconciliation before the flag flips. Detail:
+      `EVOLUTION-1-TRAP-FLIP.md` §Stage 1 status.
 
 ### Epic 1.4 — Code-store readiness (only when an image needs it)
 - [x] **1.4.1** Option A `large-image` feature (ROM_MAP 4×, RV2MBC 8×) — DONE + validated
@@ -104,6 +109,19 @@ budget-aware handler with a green gate. Pick off as budget/interest allows.*
 - [ ] **1.4.2** Keep options B (demand-translate) + C (RAM-resident code) documented in the audit;
       **measure a spike before committing** to either. Do NOT build speculatively — a small
       own-kernel (Track 2) may fit today's maps and moot this.
+
+### Epic 1.5 — Cartridges (third ADR-080 client)
+Plan: `docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md` Part 2 (Phases 9–19). Decision
+record: `docs/adr/ADR-108-mbc-cartridges.md` (Proposed). Small signed MBC network functions
+run per flow by `ebpf/cartridge-ebpf` (its own object and verifier budget; monad-cpu-ebpf
+untouched).
+- [x] **1.5.1** ADR-108 + Cartridge ABI v0 + spec gate; RFC Editor requests open
+      (`docs/protocol/RFC-EDITOR-REQUESTS-S5.md`).
+- [x] **1.5.2** Shared `no_std` step function + host reference (`crates/upc-cartridge`).
+- [x] **1.5.3** `cartridge-ebpf` under its verifier-budget gate; harness third variant
+      (cart_xdp 14,395 / cart_tick 22,575 of 500,000).
+- [x] **1.5.4** Sophia registry + signed loader (`upc-cartridgectl`).
+- [ ] **1.5.5** Rate limiter, sampler, int8 scorer → `services/anomaly`; Anamnesis replay; Lich hooks.
 
 ---
 

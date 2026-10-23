@@ -23,6 +23,8 @@ members = [
     "nfv-ebpf",
     "version-ebpf",
     "anomaly-ebpf",
+    # --- MBC cartridges (ADR-108, S5) ---
+    "cartridge-ebpf",
     # --- Post-Quantum Cryptographic Authentication ---
     "pqc-common",
     # --- AF_XDP Zero-Copy Packet I/O ---

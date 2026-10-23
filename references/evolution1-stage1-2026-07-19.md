@@ -257,3 +257,42 @@ experiment with `userret ← csrr a0,sscratch`.
 **Tree state after this follow-on:** GREEN, all probes reverted, kernel .mbc
 byte-identical to the S1.0/S1.1 build (11769 / 47076). No new uncommitted files
 beyond the S1.0/S1.1 set already listed above.
+
+## S1.2 ROOT CAUSE (S5, 2026-10-23) — translator CSR scratch aliasing
+
+Confirmed on the host emulator and on the live BPF interpreter. Plan:
+`docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md` Phase 1.
+
+The RV32I→MBC translator's CSR arm (0x73) used **r12** as the CSR address register,
+**r13** as the read-modify-write temp and **r14** as the CSRRC mask. Under
+`map_register` those are RV **a4**, **a5** and **ra** — live registers. `csrr`
+(= CSRRS rs1=x0) still ran the RMW path, so every `csrr` wrote the CSR address into
+a4 and the CSR value into a5 (and re-stored the CSR).
+
+`prepare_return`: `lw a5,48(a0)` (a5 = p->trapframe = 0x7be000) → `csrr a2,satp`
+(**a5 ← satp = 0x7ff**, the ppn of the first kalloc'd page 0x7FF000 under PHYSTOP
+0x800000; `SATP_SV39` is 0 on ilp32e) → `sw a2..a4, 0..16(a5)` (the trapframe's
+kernel_satp/sp/trap/hartid went to address 0x7ff, not the trapframe) →
+`csrw sscratch,a5` stores 0x7ff. Exactly the July `Z:SS ss=000007ff`.
+
+Also: `csrw <csr>, a4` stored the CSR *address* (r12) instead of a4 — prepare_return's
+`mv a4,tp … csrw sstatus,a4` wrote 0xF400 into sstatus.
+
+**Host evidence** (`crates/monad-mbc/tests/csr_alias.rs`, red, `#[ignore]`d until the
+Phase 2 fix):
+- `csr_alias_prepare_return_sscratch_gets_trapframe`: sscratch slot = 2047 (0x7ff), want 0x7be000
+- `csr_alias_csrw_from_a4_stores_a4_value`: sstatus slot = 62464 (0xF400), want a4
+- `csr_alias_unrelated_csrr_preserves_a4_a5`: a4 = 62976 (0xF600) after `csrr a2,satp`
+- `csr_alias_csrrc_preserves_ra`: ra = 0xFFFFFFFD (the NOT'd mask)
+- `csr_alias_csrrw_rd_eq_rs1_swaps`: sscratch keeps its old value (source lost)
+
+**Live evidence** (temporary probe in forkret right *after* `prepare_return()`, so
+`prepare_return`'s instruction sequence stayed identical; reverted, kernel rebuilt
+byte-identical `80ce532e…`, 7552 → 11769):
+`Z:SS satp=000007ff ss=000007ff tf=007be000`.
+A first probe placed *inside* `prepare_return` changed its register allocation
+(trapframe moved to a1) and the bug disappeared (`ss=007be000`): a probe must not
+perturb the code under test.
+
+The `csrw sscratch` idiom was never fragile; the preceding `csrr` corrupted its
+source register. Fix: Phase 2 (translator), then Phase 3 (userret ← sscratch, flip).

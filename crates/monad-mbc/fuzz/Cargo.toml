@@ -33,3 +33,8 @@ doc = false
 name = "fuzz_mbc_roundtrip"
 path = "fuzz_targets/fuzz_mbc_roundtrip.rs"
 doc = false
+
+[[bin]]
+name = "fuzz_cart_step"
+path = "fuzz_targets/fuzz_cart_step.rs"
+doc = false

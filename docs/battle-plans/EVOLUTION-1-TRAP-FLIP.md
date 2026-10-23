@@ -131,6 +131,31 @@ injection block vs one retired handler); 16-gate harness ALL GREEN; Doom
 untouched (737,087 exact). Rollback = one guard flag. This falsifies the
 entry-half question for real, at minimum blast radius.
 
+**Stage 1 status (S5, 2026-10-23 — `docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md`
+Phase 3): trap path DONE; flag stays OFF.**
+- **S1.2 root cause** was the translator, not the kernel: its CSR arm used r13 (= a5) as an
+  RMW temp, so `prepare_return`'s `csrr a2,satp` overwrote a5 (p->trapframe) with satp
+  (0x7ff) right before `csrw sscratch,a5`. Fixed in `crates/monad-mbc` (ADR-067 Decision 2
+  implementation note). `userret` now restores from `csrr a0, sscratch` (not `mv a0, a1`);
+  the 12-boot corpus is byte-identical with it.
+- **Round trip proven** with `GETPID_INJECT = true`: getpidprobe prints
+  `GP: getpid-returned`, ends at priv=3 at the same exit PC as the flag-OFF control,
+  rom_fault=0, no DEAD sentinel. Cost: +1,348 MBC instructions for the round trip
+  (insn_count 5,085,866 vs 5,084,518).
+- **Verifier**: flag ON 911,319 vs flag OFF 926,542 (−15,223 on this toolchain; July
+  measured +5,409). Harness ALL GREEN and 8/8 corpus SAME with the flag ON; Doom 761,580
+  unchanged either way.
+- **Observed pid differs**: flag ON prints `GP: pid=1`, flag OFF `GP: pid=0`. The kernel
+  answers from its own proc[] (xv6 `allocpid` gives init pid 1); BPF answers with its slot
+  index (0 = init), which gate2 relies on. That is the dual-books row above showing up on
+  pid identity, not on the trap path. By read (not yet run): a BPF-forked child would also
+  enter the kernel with `cpu->proc` = init and get pid 1.
+- **Decision (plan Step 102)**: the recommendation was "ship `true` iff the ON/OFF probe
+  lines match"; they do not, so `GETPID_INJECT` stays `false`. Rollback/forward is still
+  one const. Turning it on needs a pid-identity decision first (kernel numbering vs BPF
+  slots, i.e. proc[] reconciliation — out of S5 scope). Next probe: a child process that
+  calls getpid with the flag ON.
+
 ### Stage 2 — MIGRATION LADDER (big; needs D1=(a)/(c), own battle plan)
 Retire BPF handlers one at a time, cheapest-state-first (getpid → uptime/
 pause → write → read → fstat/dup/close → open (fs_walk hand-off) → fork/

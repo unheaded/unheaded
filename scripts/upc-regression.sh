@@ -12,7 +12,10 @@
 #   2. NO REGRESSION — Doom playable (loads), xv6 corpus green (ls/cat/echo/wc),
 #      gate2 ISOLATION-PASS.
 #
-# Prints both verifier budgets. Exit 0 iff everything green (CI-gateable).
+# Prints all three verifier budgets. Exit 0 iff everything green (CI-gateable).
+#   3. (S5, ADR-108) the cartridge object cartridge-ebpf loads with each of
+#      cart_xdp / cart_tick <= 500,000 processed insns, and its root-gated
+#      pkg/cartridge tests pass.
 # Requires passwordless sudo (netns + XDP). Rebuilds the ascend object at the
 # end so the on-disk object matches the xv6/Linux dev default.
 set -uo pipefail
@@ -54,7 +57,7 @@ xv6_expect() { # $1=input line  $2=grep token  $3=label
 echo "== UPC regression harness =="
 
 # ---- Variant 1: ascend (xv6 / Linux) --------------------------------------
-echo "[1/2] ascend build (xv6 corpus)"
+echo "[1/3] ascend build (xv6 corpus)"
 ( cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 ) \
   | grep -qE "error" && { fail "ascend build"; }
 
@@ -108,7 +111,7 @@ grep -aq 'hello' <<<"$UI" && pass "uinit forks+execs sh, echo runs" \
 # won't load." doom-runner loads it through the real pipeline; "pipeline
 # complete" == loaded == under budget. (Exact Doom insn count would need the
 # UPC_VERIFIER_STATS knob mirrored into doom-runner — future enhancement.)
-echo "[2/2] non-ascend build (Doom load)"
+echo "[2/3] non-ascend build (Doom load)"
 ( cd "$EBPF" && cargo build --release -p monad-cpu-ebpf 2>&1 ) \
   | grep -qE "error" && { fail "non-ascend build"; }
 
@@ -133,6 +136,38 @@ if [ -f "$WAD" ]; then
   wait 2>/dev/null
 else
   note "Doom: SKIPPED — WAD not found at $WAD (set DOOM_WAD=...)"
+fi
+
+# ---- Variant 3: cartridge-ebpf (ADR-108) — LOAD test + budget gate ---------
+# Its own object and verifier budget (never loaded by Doom or xv6). The
+# root-gated pkg/cartridge tests load it through cilium/ebpf (bpftool cannot
+# open Aya's legacy maps section), print processed-insn counts and fail any
+# program over 500,000; the rest of the package's root tests run cartridges
+# through BPF_PROG_TEST_RUN (no attach).
+echo "[3/3] cartridge-ebpf (load + verifier gate + cartridge tests)"
+if ( cd "$EBPF" && cargo build --release -p cartridge-ebpf 2>&1 ) | grep -qE "^error"; then
+  fail "cartridge-ebpf build"
+elif ( cargo build --release --manifest-path "$ROOT/crates/upc-cartridge/Cargo.toml" 2>&1 ) | grep -qE "^error"; then
+  fail "upc-cartridge (cart CLI) build"
+else
+  CT="$(mktemp)"
+  if ( cd "$ROOT" && go test -c -o "$CT" ./pkg/cartridge/ ) >/dev/null 2>&1; then
+    COUT="$(cd "$ROOT/pkg/cartridge" && sudo "$CT" -test.v 2>&1)"
+    for prog in cart_xdp cart_tick; do
+      n="$(grep -aoE "VERIFIER $prog processed [0-9]+" <<<"$COUT" | grep -oE '[0-9]+$')"
+      if [ -z "$n" ]; then fail "cartridge $prog: no verifier count"
+      elif [ "$n" -le 500000 ]; then pass "cartridge $prog verifier $n insns (<= 500,000)"
+      else fail "cartridge $prog verifier $n insns (> 500,000)"; fi
+    done
+    if grep -aq '^PASS$' <<<"$COUT" && ! grep -aq -- '--- FAIL' <<<"$COUT"; then
+      pass "pkg/cartridge root tests ($(grep -ac -- '--- PASS' <<<"$COUT") passed)"
+    else
+      fail "pkg/cartridge root tests"; grep -a -- '--- FAIL' <<<"$COUT" | head -5
+    fi
+  else
+    fail "pkg/cartridge test build"
+  fi
+  rm -f "$CT"
 fi
 
 echo "== $( [ $FAIL -eq 0 ] && echo 'ALL GREEN' || echo 'REGRESSION DETECTED' ) =="

@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+[package]
+name        = "cartridge-ebpf"
+description = "MBC cartridge interpreter: cart_xdp (per packet) + cart_tick (per queued flow), ADR-108"
+version.workspace   = true
+edition.workspace   = true
+publish.workspace   = true
+
+[[bin]]
+name = "cartridge-ebpf"
+path = "src/main.rs"
+
+[dependencies]
+aya-ebpf.workspace     = true
+monad-common.workspace = true
