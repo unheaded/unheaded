@@ -192,6 +192,37 @@ jobs:
         run: /tmp/gitleaks git --no-banner --redact --exit-code 1 .
 
   # ============================================================================
+  # Post-quantum key exchange (ADR-105)
+  # ============================================================================
+  # Its own job, next to the image-tag ratchet above, because it needs Go
+  # (cmd/crypto-inventory) and Python jsonschema (the CycloneDX schema check),
+  # which the gitleaks job does not set up.
+  crypto-inventory:
+    name: Crypto inventory (CBOM) is fresh and schema-valid
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+
+      - name: Set up Go
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: "3.12"
+
+      - name: Install jsonschema (hashed lock)
+        run: "pip install --quiet --require-hashes --no-deps --only-binary=:all: -r .github/ci-python/requirements.txt"
+
+      # ADR-105: compliance/crypto/cbom.cdx.json must equal a regeneration
+      # from the tree, and validate against the CycloneDX 1.6 schema.
+      - name: Crypto inventory matches the tree
+        run: ./scripts/check-crypto-inventory.sh --schema
+
+  # ============================================================================
   # Rust Security
   # ============================================================================
   cargo-audit:

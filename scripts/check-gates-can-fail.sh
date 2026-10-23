@@ -657,6 +657,16 @@ provoke_evidence_pack() {
     grep -q '^  critical: 1$' "${REPO_ROOT}/${f}"
 }
 
+provoke_crypto_inventory() {
+    # Contract (ADR-105 decision 4): the checked-in CBOM is exactly what the
+    # tree regenerates. Append one component the tree does not contain.
+    local f="compliance/crypto/cbom.cdx.json"
+    backup "${f}"
+    jq '.components += [{"type":"cryptographic-asset","bom-ref":"meta-gate:1:probe","name":"meta-gate probe","cryptoProperties":{"assetType":"protocol","protocolProperties":{"type":"tls"}},"properties":[]}]' \
+        "${BACKUP_DIR}/$(echo "${f}" | tr '/' '_')" >"${REPO_ROOT}/${f}" || return 1
+    grep -q 'meta-gate:1:probe' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -681,6 +691,7 @@ check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back 
 check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package added to raft/requirements.txt
 check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
 check-image-tags|provoke_image_tags|fast|traefik:v3.3.7 floated back to traefik:latest in docker-compose.yml
+check-crypto-inventory|provoke_crypto_inventory|fast|a component the tree does not contain appended to compliance/crypto/cbom.cdx.json
 check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt
 check-js-lint|provoke_js_lint|fast|the first lint run's real bug restored: a call to a function another file's IIFE hides (no-undef)
 check-gitleaks|provoke_gitleaks|fast|an AWS access key ID appended to a tracked doc (downloads the pinned gitleaks once)
