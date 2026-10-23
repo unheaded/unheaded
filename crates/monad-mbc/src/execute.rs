@@ -338,9 +338,11 @@ impl Cpu {
                 set_flags(self, result, carry);
                 self.state.regs[dst] = result;
             }
+            // Flags follow monad-cpu-ebpf (the shipping engine): MUL, the
+            // shifts and MULH never set C (S5 H-C3 differential).
             op::MUL => {
-                let (result, carry) = self.state.regs[dst].overflowing_mul(self.state.regs[src]);
-                set_flags(self, result, carry);
+                let result = self.state.regs[dst].wrapping_mul(self.state.regs[src]);
+                set_flags(self, result, false);
                 self.state.regs[dst] = result;
             }
             // clippy::manual_checked_ops suggests checked_div here. It is wrong for
@@ -397,77 +399,49 @@ impl Cpu {
 
             // === Shift operations (immediate) ===
             op::SHL => {
-                let shamt = imm & 0xFF;
-                let result = self.state.regs[dst].wrapping_shl(shamt);
-                let carry = if shamt > 0 && shamt <= 32 {
-                    (self.state.regs[dst] >> (32 - shamt)) & 1 != 0
-                } else {
-                    false
-                };
-                set_flags(self, result, carry);
+                let shamt = imm & 0x1F;
+                let result = self.state.regs[dst] << shamt;
+                set_flags(self, result, false);
                 self.state.regs[dst] = result;
             }
             op::SHR => {
-                let shamt = imm & 0xFF;
-                let result = self.state.regs[dst].wrapping_shr(shamt);
-                let carry = if shamt > 0 && shamt <= 32 {
-                    (self.state.regs[dst] >> (shamt - 1)) & 1 != 0
-                } else {
-                    false
-                };
-                set_flags(self, result, carry);
+                let shamt = imm & 0x1F;
+                let result = self.state.regs[dst] >> shamt;
+                set_flags(self, result, false);
                 self.state.regs[dst] = result;
             }
             op::SAR => {
-                let shamt = imm & 0xFF;
-                let result = (self.state.regs[dst] as i32).wrapping_shr(shamt) as u32;
-                let carry = if shamt > 0 && shamt <= 32 {
-                    ((self.state.regs[dst] as i32) >> (shamt - 1)) & 1 != 0
-                } else {
-                    false
-                };
-                set_flags(self, result, carry);
+                let shamt = imm & 0x1F;
+                let result = ((self.state.regs[dst] as i32) >> shamt) as u32;
+                set_flags(self, result, false);
                 self.state.regs[dst] = result;
             }
 
             // === Shift operations (register) ===
             op::SHLR => {
-                let shamt = self.state.regs[src] & 0xFF;
-                let result = self.state.regs[dst].wrapping_shl(shamt);
-                let carry = if shamt > 0 && shamt <= 32 {
-                    (self.state.regs[dst] >> (32 - shamt)) & 1 != 0
-                } else {
-                    false
-                };
-                set_flags(self, result, carry);
+                let shamt = self.state.regs[src] & 0x1F;
+                let result = self.state.regs[dst] << shamt;
+                set_flags(self, result, false);
                 self.state.regs[dst] = result;
             }
             op::SHRR => {
-                let shamt = self.state.regs[src] & 0xFF;
-                let result = self.state.regs[dst].wrapping_shr(shamt);
-                let carry = if shamt > 0 && shamt <= 32 {
-                    (self.state.regs[dst] >> (shamt - 1)) & 1 != 0
-                } else {
-                    false
-                };
-                set_flags(self, result, carry);
+                let shamt = self.state.regs[src] & 0x1F;
+                let result = self.state.regs[dst] >> shamt;
+                set_flags(self, result, false);
                 self.state.regs[dst] = result;
             }
             op::SARR => {
-                let shamt = self.state.regs[src] & 0xFF;
-                let result = (self.state.regs[dst] as i32).wrapping_shr(shamt) as u32;
-                let carry = if shamt > 0 && shamt <= 32 {
-                    ((self.state.regs[dst] as i32) >> (shamt - 1)) & 1 != 0
-                } else {
-                    false
-                };
-                set_flags(self, result, carry);
+                let shamt = self.state.regs[src] & 0x1F;
+                let result = ((self.state.regs[dst] as i32) >> shamt) as u32;
+                set_flags(self, result, false);
                 self.state.regs[dst] = result;
             }
 
+            // MULH is the SIGNED high word (RV32M MULH; monad-cpu-ebpf). The
+            // unsigned form is MULHU.
             op::MULH => {
-                let a = self.state.regs[dst] as u64;
-                let b = self.state.regs[src] as u64;
+                let a = self.state.regs[dst] as i32 as i64;
+                let b = self.state.regs[src] as i32 as i64;
                 let result = ((a * b) >> 32) as u32;
                 set_flags(self, result, false);
                 self.state.regs[dst] = result;
@@ -530,7 +504,8 @@ impl Cpu {
             op::JN if (self.state.flags & mf::N) != 0 => {
                 self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
             }
-            op::JP if (self.state.flags & mf::N) == 0 && (self.state.flags & mf::Z) == 0 => {
+            // JP = "not negative" (N clear), as in monad-cpu-ebpf; Z is not tested.
+            op::JP if (self.state.flags & mf::N) == 0 => {
                 self.state.pc = self.state.pc.wrapping_add(branch_offset as u32);
             }
             op::JC if (self.state.flags & mf::C) != 0 => {
@@ -1386,7 +1361,8 @@ mod tests {
         cpu.state.regs[0] = 0x80000000;
         cpu.execute_insn(shift(op::SHL, 0, 1)).unwrap();
         assert_eq!(cpu.state.regs[0], 0);
-        assert!(cpu.state.flags & mf::C != 0);
+        // monad-cpu-ebpf never sets C on a shift (S5 H-C3); Z from the result.
+        assert_eq!(cpu.state.flags & (mf::C | mf::Z), mf::Z);
     }
 
     #[test]
@@ -1438,8 +1414,8 @@ mod tests {
         cpu.state.regs[0] = 0x80000000;
         cpu.state.regs[1] = 2;
         cpu.execute_insn(alu(op::MULH, 0, 1)).unwrap();
-        // 0x80000000 * 2 = 0x1_00000000, high word = 1
-        assert_eq!(cpu.state.regs[0], 1);
+        // MULH is signed (RV32M, monad-cpu-ebpf): -2^31 * 2 = -2^32, high word -1.
+        assert_eq!(cpu.state.regs[0], 0xFFFF_FFFF);
     }
 
     #[test]
@@ -1939,11 +1915,15 @@ mod tests {
     #[test]
     fn test_mulh_large_product() {
         let mut cpu = Cpu::new();
-        // 0x80000000 * 2 = 0x1_00000000 → high word = 1
+        // Signed: 0x40000000 * 4 = 2^32 → high word 1; -2^31 * 2 → -1.
+        cpu.state.regs[0] = 0x40000000;
+        cpu.state.regs[1] = 4;
+        cpu.execute_insn(alu(op::MULH, 0, 1)).unwrap();
+        assert_eq!(cpu.state.regs[0], 1);
         cpu.state.regs[0] = 0x80000000;
         cpu.state.regs[1] = 2;
         cpu.execute_insn(alu(op::MULH, 0, 1)).unwrap();
-        assert_eq!(cpu.state.regs[0], 1);
+        assert_eq!(cpu.state.regs[0], 0xFFFF_FFFF);
     }
 
     #[test]
