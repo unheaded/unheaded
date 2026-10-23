@@ -217,6 +217,33 @@ Graduated capability model. Zhen starts constrained, earns more capability over 
 
 **Current target: Level 1 → Level 2.** Level 3 deferred.
 
+### Level 2 amendment: branch-sandbox sub-mode (Proposed, 2026-10-23)
+
+**Status: Proposed, for Stevie to accept or reject** (S-TWO-BRAINS Step 175;
+code: `pkg/champion/branchsandbox.go`).
+
+A model's mutating tool call has no retrieval-derived justification, so Rule 2
+refuses it pending out-of-band confirmation (`zhen-claude -confirm tty|queue`).
+For agent work on a throwaway branch, per-call approvals would stall every task
+(a 3 a.m. card cannot wait for a human per write). The proposal moves the review
+gate from the call to the branch:
+
+- When the Champion's project root is a real directory (no symlink in its path)
+  under the agent worktree root (`~/.cache/unheaded/zhen-worktrees` by default),
+  checked out on a branch matching `^zhen/[a-z0-9-]{1,64}$`, Rule 2 is
+  satisfied for `write_file` and `patch_file` by the sandbox; the action log
+  records the justification `branch-sandbox:<branch>`.
+- Rules 1 and 3 are unchanged; nothing under `.git` is writable (hooks there
+  would run on Stevie's review); the branch is re-checked on every call (a
+  switch to another branch turns the mode off).
+- Every other mutating tool (`kanban_*`, `runbook_execute`, model swaps) still
+  needs confirmation; `run_check` runs allowlisted checks in a no-network
+  sandbox inside the worktree only.
+- Stevie reviews the whole branch before anything merges; nothing is pushed.
+
+Outside such a worktree nothing changes. If rejected: models return patches as
+text and the agent applies them (still sandboxed, still reviewed).
+
 ## MCP Server Architecture
 
 Zhen exposes capabilities as MCP tools. Any MCP client (Claude Code, Claude Desktop, custom) can use them.

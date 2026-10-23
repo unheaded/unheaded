@@ -145,4 +145,4 @@ All live Claude calls of this run go through `-ledger $SCRATCH/spend.json`
 
 | 121 | `-tools mcp`, summarise `service_health`, `-effort low`, 2 requests | 0.010566 | 0.011570 |
 
-| 145 | two-brains eval, Claude Opus 5.5 effort low, 76 tasks (79 requests incl. repo-task tool loops: none; 3 extra = 2-turn answers) | 1.312553 | 1.324123 |
+| 145 | two-brains eval, Claude Opus 5.5 effort low, 76 tasks, 76 requests (ledger now 79: +1 smoke, +2 Step 121) | 1.312553 | 1.324123 |
