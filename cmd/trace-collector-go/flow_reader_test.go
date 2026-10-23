@@ -315,7 +315,7 @@ func TestFlowReader_NewFlowDetection(t *testing.T) {
 
 	// Insert a flow into the mock flow state map
 	fk := makeFlowKey([4]byte{10, 10, 10, 1}, [4]byte{10, 10, 10, 2}, 8080, 443, 6)
-	fs := makeFlowState(ConnStateEstablished, 1000, uint64(time.Now().UnixNano()), 10, 20, 5000, 10000)
+	fs := makeFlowState(ConnStateEstablished, 1000, ktimeNow(), 10, 20, 5000, 10000)
 	insertFlow(loader.flowMap, fk, fs)
 
 	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
@@ -355,7 +355,7 @@ func TestFlowReader_StateChangeDetection(t *testing.T) {
 	loader := NewMockBPFLoader()
 
 	fk := makeFlowKey([4]byte{10, 10, 10, 1}, [4]byte{10, 10, 10, 2}, 8080, 443, 6)
-	fs := makeFlowState(ConnStateEstablished, 1000, uint64(time.Now().UnixNano()), 10, 20, 5000, 10000)
+	fs := makeFlowState(ConnStateEstablished, 1000, ktimeNow(), 10, 20, 5000, 10000)
 	insertFlow(loader.flowMap, fk, fs)
 
 	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
@@ -394,7 +394,7 @@ func TestFlowReader_StaleFlowExpiration(t *testing.T) {
 	loader := NewMockBPFLoader()
 
 	// Insert a flow with a recent last_seen so it survives the first poll
-	nowNS := uint64(time.Now().UnixNano())
+	nowNS := ktimeNow()
 	fk := makeFlowKey([4]byte{10, 10, 10, 1}, [4]byte{10, 10, 10, 2}, 8080, 443, 6)
 	fs := makeFlowState(ConnStateEstablished, nowNS-1000, nowNS, 10, 20, 5000, 10000)
 	insertFlow(loader.flowMap, fk, fs)
@@ -442,7 +442,7 @@ func TestFlowReader_DisappearedFlowExpiration(t *testing.T) {
 	loader := NewMockBPFLoader()
 
 	fk := makeFlowKey([4]byte{10, 10, 10, 1}, [4]byte{10, 10, 10, 2}, 8080, 443, 6)
-	fs := makeFlowState(ConnStateEstablished, 1000, uint64(time.Now().UnixNano()), 10, 20, 5000, 10000)
+	fs := makeFlowState(ConnStateEstablished, 1000, ktimeNow(), 10, 20, 5000, 10000)
 	insertFlow(loader.flowMap, fk, fs)
 
 	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
@@ -495,7 +495,7 @@ func TestFlowReader_MultipleFlows(t *testing.T) {
 	loader := NewMockBPFLoader()
 
 	// Insert 5 distinct flows
-	nowNS := uint64(time.Now().UnixNano())
+	nowNS := ktimeNow()
 	for i := 0; i < 5; i++ {
 		fk := makeFlowKey(
 			[4]byte{10, 10, 10, 1},
@@ -561,7 +561,7 @@ func TestFlowReader_UnchangedFlowNoEvent(t *testing.T) {
 	loader := NewMockBPFLoader()
 
 	fk := makeFlowKey([4]byte{10, 10, 10, 1}, [4]byte{10, 10, 10, 2}, 8080, 443, 6)
-	fs := makeFlowState(ConnStateEstablished, 1000, uint64(time.Now().UnixNano()), 10, 20, 5000, 10000)
+	fs := makeFlowState(ConnStateEstablished, 1000, ktimeNow(), 10, 20, 5000, 10000)
 	insertFlow(loader.flowMap, fk, fs)
 
 	publisher := NewWotanPublisher("localhost:9090", 100, 50*time.Millisecond)
@@ -664,7 +664,7 @@ func TestFlowReader_StatsAccuracy(t *testing.T) {
 	reader := NewFlowReader(loader, publisher, DefaultFlowReaderConfig())
 
 	// Insert 3 flows
-	nowNS := uint64(time.Now().UnixNano())
+	nowNS := ktimeNow()
 	for i := 0; i < 3; i++ {
 		fk := makeFlowKey([4]byte{10, 0, 0, 1}, [4]byte{10, 0, 0, byte(2 + i)}, uint16(1000+i), 80, 6)
 		fs := makeFlowState(ConnStateEstablished, nowNS-1000, nowNS, 10, 20, 1000, 2000)
@@ -813,7 +813,7 @@ func TestFlowReader_MultipleStateTransitions(t *testing.T) {
 	loader := NewMockBPFLoader()
 
 	fk := makeFlowKey([4]byte{10, 10, 10, 1}, [4]byte{10, 10, 10, 2}, 8080, 443, 6)
-	nowNS := uint64(time.Now().UnixNano())
+	nowNS := ktimeNow()
 
 	states := []uint8{
 		ConnStateSynSent,

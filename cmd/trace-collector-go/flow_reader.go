@@ -532,12 +532,12 @@ func (fr *FlowReader) pollOnce(ctx context.Context) {
 
 	// Expire stale flows: flows we previously knew about but are not in the BPF map,
 	// or flows that haven't been seen recently.
-	nowNS := uint64(time.Now().UnixNano())
+	nowNS := ktimeNow()
 	staleTTLNS := uint64(fr.config.StaleTTL.Nanoseconds()) // #nosec G115 -- bounded by construction; see the surrounding guard
 	expired := 0
 
 	for keyHex, flow := range fr.knownFlows {
-		if !seenKeys[keyHex] || (nowNS > flow.State.LastSeenNS && nowNS-flow.State.LastSeenNS > staleTTLNS) {
+		if !seenKeys[keyHex] || olderThan(nowNS, flow.State.LastSeenNS, staleTTLNS) {
 			// Emit expired event
 			event := &FlowEventEntry{
 				TimestampNS: nowNS,

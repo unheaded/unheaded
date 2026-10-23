@@ -234,7 +234,7 @@ func (fc *FlowCorrelator) GC(nowNs uint64) int {
 	ttlNs := uint64(fc.ttl.Nanoseconds()) // #nosec G115 -- bounded by construction; see the surrounding guard
 	removed := 0
 	for fl, rec := range fc.flows {
-		if nowNs-rec.StartNs > ttlNs {
+		if olderThan(nowNs, rec.StartNs, ttlNs) {
 			delete(fc.flows, fl)
 			removed++
 		}
@@ -1084,7 +1084,7 @@ func runAnamnesisMode(ctx context.Context, healthSrv *transport.HealthServer, tr
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				removed := correlator.GC(uint64(time.Now().UnixNano()))
+				removed := correlator.GC(ktimeNow())
 				if removed > 0 {
 					log.Debug().Int("removed", removed).Int("remaining", correlator.Len()).Msg("flow GC")
 				}

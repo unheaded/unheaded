@@ -222,7 +222,7 @@ func (pc *PacketCorrelator) GC(nowNS uint64) int {
 	removed := 0
 
 	for ft, flow := range pc.flows {
-		if nowNS-flow.LastSeen > ttlNS {
+		if olderThan(nowNS, flow.LastSeen, ttlNS) {
 			delete(pc.flows, ft)
 			removed++
 		}
@@ -266,8 +266,7 @@ func (pc *PacketCorrelator) RunGC(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			nowNS := uint64(time.Now().UnixNano())
-			removed := pc.GC(nowNS)
+			removed := pc.GC(ktimeNow())
 			if removed > 0 {
 				// Logged at debug level to avoid noise
 				_ = removed

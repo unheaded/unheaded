@@ -208,7 +208,7 @@ func TestPacketCorrelator_GCKeepsFresh(t *testing.T) {
 	config.FlowTTL = 1 * time.Second
 	pc := NewPacketCorrelator(config)
 
-	nowNS := uint64(time.Now().UnixNano())
+	nowNS := ktimeNow()
 
 	// Add a fresh flow
 	entry := makeTraceEntry(
