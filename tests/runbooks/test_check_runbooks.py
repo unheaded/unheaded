@@ -127,6 +127,7 @@ def test_good_legacy_and_draft_pass(tmp_path):
     (lambda s: s.replace("  - name: by-hand\n", "  - action: manual\n"), "step-key"),
     (lambda s: s.replace("{name}", "other-name", 1), "name-mismatch"),
     (lambda s: "a: [1, 2\n", "parse"),
+    (lambda s: s.replace('command: "echo hi"', 'command: "echo [REDACTED:host#1]"'), "redaction-placeholder"),
 ])
 def test_each_legacy_rule_fails(tmp_path, mutate, rule):
     text = mutate(GOOD_LEGACY)

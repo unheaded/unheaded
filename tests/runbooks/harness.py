@@ -103,6 +103,47 @@ def run_step(rb, name, env=None, field="command", cwd=None, timeout=120, check=T
     return r
 
 
+_SPLIT = re.compile(r"\|\||&&|[|;]|\$\(|`|<\(|\)")
+
+
+def commands(text):
+    """The simple commands of a shell snippet, roughly: one argv-ish string
+    per pipeline element, `sudo`/`sudo -n` and leading VAR= assignments
+    stripped, comments, `set -...` and control keywords dropped. Good enough
+    to hold read-only runbook steps to an allowlist, not a shell parser."""
+    out = []
+    for line in (text or "").splitlines():
+        # Quoted text is one word: mask it so a | or ( inside a jq or awk
+        # program is not taken for a pipeline.
+        quoted = []
+
+        def mask(m):
+            quoted.append(m.group(0))
+            return f"\x00{len(quoted) - 1}\x00"
+
+        line = re.sub(r"'[^']*'|\"(?:[^\"\\]|\\.)*\"", mask, line)
+        line = line.split(" #", 1)[0].strip()
+        if not line or line.startswith("#"):
+            continue
+        for seg in _SPLIT.split(line):
+            seg = re.sub(r"\x00(\d+)\x00", lambda m: quoted[int(m.group(1))], seg)
+            seg = seg.strip().lstrip("({!").strip()
+            seg = re.sub(r"^(?:[A-Za-z_]\w*=\S*\s+)+", "", seg)
+            seg = re.sub(r"^sudo(?:\s+-n)?\s+", "", seg)
+            words = seg.split()
+            if words and words[0] == "for":
+                continue
+            while words and words[0] in ("if", "elif", "while", "until", "then", "else", "do", "!"):
+                words = words[1:]
+            seg = " ".join(words)
+            if not words or words[0] in ("fi", "done", "}", "esac") or re.fullmatch(r"[A-Za-z_]\w*=.*", seg):
+                continue
+            if seg.startswith("set -"):
+                continue
+            out.append(seg)
+    return out
+
+
 def requires(*cmds):
     missing = [c for c in cmds if shutil.which(c) is None]
     return pytest.mark.skipif(bool(missing), reason=f"needs {', '.join(missing)} on PATH")

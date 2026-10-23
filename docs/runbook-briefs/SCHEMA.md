@@ -69,4 +69,6 @@ Rules:
    private key file; name the variable or the file instead.
 6. Read-only checks first, then changes, then verification, then the
    write-up. Every change has a `verify` or a following check step.
-7. `host:` only `west` or `east`. No IP addresses anywhere.
+7. `host:` only `west` or `east`. No host IP addresses anywhere (loopback
+   `127.0.0.1` is fine); a peer or host address is a parameter without a
+   default, guarded with `: "${NAME:?set NAME}"` before use.

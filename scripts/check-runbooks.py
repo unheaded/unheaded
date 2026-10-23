@@ -18,6 +18,9 @@ Every runbook:
                    command and precondition check (manual text is prose
                    with placeholders, so it is not parsed)
   parse            the file is YAML and a mapping
+  redaction-placeholder
+                   no "[REDACTED:" text: a privacy-filter placeholder a model
+                   copied from its filtered prompt into the runbook
 
 A runbook with metadata.status (the S-TWO-BRAINS ones) also:
   status           draft | approved
@@ -133,6 +136,12 @@ def check_file(path, rel, root):
     if not isinstance(rb, dict):
         add("parse", "file", "not a mapping")
         return out
+    with open(path, encoding="utf-8") as f:
+        for n, line in enumerate(f, 1):
+            if "[REDACTED:" in line:
+                # pkg/claudebridge/privacy placeholders: a model saw a filtered
+                # prompt and wrote the placeholder back. Never a real value.
+                add("redaction-placeholder", f"line {n}", "privacy-filter placeholder written into the runbook")
 
     for k in TOP_REQUIRED:
         if k not in rb:

@@ -37,6 +37,13 @@ def test_run_step_expands_like_the_runner():
     assert harness.run_step(rb, "s", env={"P": "op", "A": "op"}).stdout.strip() == "from-env op"
 
 
+def test_commands_splits_pipelines_and_strips_sudo():
+    text = "set -euo pipefail\n# note\nsudo -n vtysh -c 'show bgp summary' | grep -q Est && echo ok\nX=1 ip -br link show wg0\n"
+    assert harness.commands(text) == ["vtysh -c 'show bgp summary'", "grep -q Est", "echo ok", "ip -br link show wg0"]
+    assert harness.commands("if systemctl is-active frr; then echo y; fi") == ["systemctl is-active frr", "echo y"]
+    assert "date +%s" in harness.commands("now=$(date +%s)")
+
+
 def test_throwaway_wotan_answers_and_restarts(throwaway_wotan):
     w = throwaway_wotan
     code, body = harness.http("GET", w.url + "/health")

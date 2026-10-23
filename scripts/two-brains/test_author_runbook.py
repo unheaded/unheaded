@@ -138,6 +138,15 @@ def test_findings_go_back_to_the_local_model(tmp_path, zhen_claude, fake_llama):
     assert s["claude_findings"] == 1 and s["local_revisions"] == 1
     assert "description vague" in FakeLlama.prompts[1]
     assert "disk and inode use" in (Path(s["worktree"]) / REL).read_text()
+    assert s["findings_applied"] == "yes"
+
+
+def test_unchanged_revision_is_reported_as_unapplied(tmp_path, zhen_claude, fake_llama):
+    FakeLlama.answers = [answer(GOOD), answer(GOOD)]
+    findings = [{"severity": "high", "step": "show-disk", "finding": "x", "fix": "y"}]
+    r, s = run(tmp_path, zhen_claude, fake_llama, findings)
+    assert r.returncode == 0, r.stderr  # the harness passes; with --claude live Claude would patch now
+    assert s["findings_applied"] == "no" and s["claude_patched"] is False
 
 
 def test_draft_that_never_passes_fails_without_claude_patch(tmp_path, zhen_claude, fake_llama):
