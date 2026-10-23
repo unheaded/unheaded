@@ -26,6 +26,7 @@ import (
 	"unheaded/pkg/httputil"
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/metrics"
+	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/timeguru/internal/api"
@@ -232,7 +233,7 @@ func main() {
 	defer stop()
 
 	// Service discovery registration (best-effort, nil conn until transport.Connect)
-	discovery.Start(ctx, transportCfg, "timeguru", 19000)
+	discovery.Start(ctx, transportCfg, "timeguru", ports.PortOf(":"+config.Port, ports.Timeguru))
 
 	// Start HTTP server in goroutine. Bind synchronously so that anything
 	// announced below can be fetched the moment the announcement lands.

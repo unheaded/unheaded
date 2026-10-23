@@ -13,6 +13,7 @@ import (
 	"syscall"
 
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/captain"
@@ -44,7 +45,7 @@ func run() error {
 	wotanAddr := transportCfg.WotanHTTPAddr
 
 	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
-	discovery.Start(ctx, transportCfg, "captain", 19002)
+	discovery.Start(ctx, transportCfg, "captain", ports.PortOf(httpAddr, ports.Captain))
 
 	// Health server
 	healthSrv := transport.NewHealthServer("captain")

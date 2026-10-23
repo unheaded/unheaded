@@ -21,6 +21,7 @@ import (
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
+	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/micromanager"
@@ -149,7 +150,7 @@ func main() {
 	ctx := context.Background()
 
 	// Service discovery registration (best-effort, nil conn until transport.Connect)
-	discovery.Start(ctx, transportCfg, "micromanager", 19003)
+	discovery.Start(ctx, transportCfg, "micromanager", ports.PortOf(":"+*port, ports.Micromanager))
 
 	if err := service.Start(ctx); err != nil {
 		log.Error().Err(err).Msg("failed to start service")

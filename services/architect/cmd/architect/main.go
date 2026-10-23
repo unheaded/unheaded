@@ -138,7 +138,7 @@ func main() {
 	defer alertCancel()
 
 	// Service discovery registration (best-effort, nil conn until transport.Connect)
-	discovery.Start(svcCtx, transportCfg, "architect", 19001)
+	discovery.Start(svcCtx, transportCfg, "architect", ports.PortOf(*addr, ports.Architect))
 
 	// HTTP handler
 	handler := architect.NewHTTPHandler(svc)

@@ -38,6 +38,7 @@ import (
 	"unheaded/pkg/logagg"
 	"unheaded/pkg/logger"
 	"unheaded/pkg/metrics"
+	"unheaded/pkg/ports"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 )
@@ -1580,7 +1581,7 @@ func main() {
 	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
 	discoveryCtx, discoveryCancel := context.WithCancel(context.Background())
 	defer discoveryCancel()
-	discovery.Start(discoveryCtx, transportCfg, "kanban-app", 20001)
+	discovery.Start(discoveryCtx, transportCfg, "kanban-app", ports.PortOf(":"+cfg.Port, ports.KanbanApp))
 
 	// Initialize Wotan client
 	// WOTAN_ADDR = HTTP control plane (subscribe, publish, admin, circuit-breaker fallback)
