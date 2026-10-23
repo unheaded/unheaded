@@ -4,8 +4,13 @@
 package metrics
 
 import (
+	"io"
+	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
+
+	"unheaded/pkg/metrics/prom"
 )
 
 // testMetrics is initialized once to avoid duplicate Prometheus registration panics.
@@ -150,6 +155,37 @@ func TestRecordHTTPRequest(t *testing.T) {
 	testMetrics.RecordHTTPRequest("POST", "/api/v1/rooms", 201, 100*time.Millisecond)
 	testMetrics.RecordHTTPRequest("GET", "/not-found", 404, 5*time.Millisecond)
 	testMetrics.RecordHTTPRequest("POST", "/api/v1/rooms", 500, 200*time.Millisecond)
+}
+
+// The status label is the status class ("2xx", "4xx"). It was built with
+// string(rune(code/100)), which is the control character U+0002, not "2":
+// east exported status="\x02xx" on every request, so a query for
+// status="2xx" or status="5xx" matched nothing.
+func TestRecordHTTPRequest_StatusClassLabel(t *testing.T) {
+	testMetrics.RecordHTTPRequest("GET", "/status-class", 204, time.Millisecond)
+	testMetrics.RecordHTTPRequest("GET", "/status-class", 503, time.Millisecond)
+
+	rec := httptest.NewRecorder()
+	prom.Handler().ServeHTTP(rec, httptest.NewRequest("GET", "/metrics", nil))
+	body, _ := io.ReadAll(rec.Body)
+
+	var lines []string
+	for _, l := range strings.Split(string(body), "\n") {
+		if strings.HasPrefix(l, "test_wotan_http_requests_total{") && strings.Contains(l, `path="/status-class"`) {
+			lines = append(lines, l)
+		}
+	}
+	for _, want := range []string{`status="2xx"`, `status="5xx"`} {
+		found := false
+		for _, l := range lines {
+			if strings.Contains(l, want) {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("no series with %s; got %q", want, lines)
+		}
+	}
 }
 
 func TestRecordMessageCreated(t *testing.T) {
