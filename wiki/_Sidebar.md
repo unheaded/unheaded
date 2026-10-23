@@ -85,6 +85,7 @@
 - [[Unheaded Protocol|Unheaded-Protocol]]
 - [[Dream Ladder|UPC-Dream-Ladder]]
 - [[Linux on UPC|Linux-on-UPC]]
+- [[UPC Cartridges|UPC-Cartridges]]
 - [[Doom on UPC|Doom-on-UPC]]
 - [[Doom over IPv6|Doom-over-IPv6]] *(legacy)*
 - [[Kingdom Mode Math|Kingdom-Mode-Math]]

@@ -277,6 +277,24 @@ From the interpreter's side a cartridge is untrusted code.
 - **Who can load**: writing the maps needs CAP_BPF; pinned maps are 0600 and
   the registry directory 0700.
 
+## Signing and loading (as built, S5 Phase 12)
+
+- Lab key: a 32-byte ML-DSA-65 seed, mode 0600, outside the repo
+  (`head -c 32 /dev/urandom`); public key via
+  `yggdrasil-evidence pubkey --key SEED --out PUB`. Where a non-lab key
+  lives is the operator's decision (ADR-043 #4).
+- `upc-cartridgectl sign --key SEED --ttl D X.cart` writes `X.cart.seal`
+  (`gungnir.SignFor`, TTL ≤ 31 days).
+- `register` and `load` read the image once and run, on those bytes: the
+  seal against the pinned `--pubkey`, `cart validate -` on stdin, the ABI v0
+  decode; `load` also matches the registry record's sha256. Only then are
+  the bytes written to the slot (config and generation last).
+- Registry storage (Sophia or `--registry-dir`) is untrusted: a swapped blob
+  fails its sha or its seal.
+- Pins: maps and programs under one bpffs directory (0700 dir, 0600 pins);
+  registry directories 0700, files 0600. Writing the maps needs CAP_BPF.
+- Recipe and commands: `cartridges/README.md`, `wiki/UPC-Cartridges.md`.
+
 ## Non-goals (v0)
 
 No Monad wire change. No new MBC opcode (a `DOT4` for the scorer would be a
