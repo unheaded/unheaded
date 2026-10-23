@@ -72,6 +72,10 @@ type TopicStreamClient struct {
 
 	// Closed flag
 	closed atomic.Bool
+	// lifeCtx is cancelled by Close; every stream's ctx ends with it.
+	lifeCtx    context.Context
+	lifeCancel context.CancelFunc
+	lifeOnce   sync.Once
 }
 
 // activeStream tracks a running stream goroutine
@@ -417,6 +421,11 @@ func (c *TopicStreamClient) StreamMessages(ctx context.Context, topicPattern str
 	sc := newSafeChannel(c.bufferSize)
 
 	streamCtx, cancel := context.WithCancel(ctx)
+	// Close ends every stream, including one a later StreamMessages on the
+	// same pattern displaced from c.streams. Close used to reach only the
+	// map, so a displaced stream outlived it: reconnecting to the closed
+	// connection, tripping the circuit and polling HTTP for good.
+	stop := context.AfterFunc(c.lifetime(), cancel)
 
 	as := &activeStream{
 		sc:     sc,
@@ -427,12 +436,29 @@ func (c *TopicStreamClient) StreamMessages(ctx context.Context, topicPattern str
 	}
 
 	c.streamMu.Lock()
+	if c.closed.Load() {
+		c.streamMu.Unlock()
+		stop()
+		cancel()
+		return nil, errors.New("client closed")
+	}
 	c.streams[topicPattern] = as
 	c.streamMu.Unlock()
 
-	go c.streamLoop(streamCtx, topicPattern, sub, as)
+	go func() {
+		defer stop()
+		c.streamLoop(streamCtx, topicPattern, sub, as)
+	}()
 
 	return sc.ch, nil
+}
+
+// lifetime is a context cancelled by Close.
+func (c *TopicStreamClient) lifetime() context.Context {
+	c.lifeOnce.Do(func() {
+		c.lifeCtx, c.lifeCancel = context.WithCancel(context.Background())
+	})
+	return c.lifeCtx
 }
 
 // streamLoop is the main streaming goroutine with reconnection logic.
@@ -440,7 +466,10 @@ func (c *TopicStreamClient) streamLoop(ctx context.Context, topicPattern string,
 	defer func() {
 		as.sc.closeCh()
 		c.streamMu.Lock()
-		delete(c.streams, topicPattern)
+		// Only its own entry: a later stream on the pattern may own it now.
+		if c.streams[topicPattern] == as {
+			delete(c.streams, topicPattern)
+		}
 		c.streamMu.Unlock()
 	}()
 
@@ -684,6 +713,8 @@ func (c *TopicStreamClient) Close() error {
 	}
 
 	// Cancel all active streams
+	c.lifetime()
+	c.lifeCancel()
 	c.streamMu.Lock()
 	for topic, as := range c.streams {
 		as.cancel()

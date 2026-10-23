@@ -441,6 +441,49 @@ func TestTopicStreamClient_OneBlipDoesNotTripManyStreams(t *testing.T) {
 	}
 }
 
+// Close ends every stream. A second StreamMessages on a pattern displaced
+// the first from the client's map and, when the first ended, lost its own
+// entry too, so Close never reached it: it went on reconnecting to the
+// closed connection (and, with a fallback, polled HTTP for good). A stream
+// asked for after Close is refused rather than started.
+func TestTopicStreamClient_CloseEndsEveryStream(t *testing.T) {
+	srv := newMockServer()
+	lis := startMockServer(t, srv)
+	client, err := newTopicStreamClientWithDialer(lis)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+	client.Subscribe(ctx, "tasks.*", "kanban")
+	ctx1, cancel1 := context.WithCancel(ctx)
+	ch1, err := client.StreamMessages(ctx1, "tasks.*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	ch2, err := client.StreamMessages(ctx, "tasks.*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	cancel1()
+	for range ch1 {
+	}
+	if err := client.Close(); err != nil {
+		t.Fatal(err)
+	}
+	select {
+	case _, ok := <-ch2:
+		if ok {
+			t.Fatal("got a message")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("second stream still open after Close")
+	}
+	if _, err := client.StreamMessages(ctx, "tasks.*"); err == nil {
+		t.Error("StreamMessages after Close started a stream")
+	}
+}
+
 // A quiet stream that stays up is healthy: its failures do not carry over
 // to the next blip. Only a delivered message used to reset the count, so a
 // stream on a quiet topic tripped after maxRetries Wotan restarts spread
