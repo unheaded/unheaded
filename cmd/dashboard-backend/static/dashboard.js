@@ -687,12 +687,21 @@
         }
     }
 
+    // The ingestor's event types (internal/ebpf/types.go): packet and flow
+    // carry a nested flow_key (protocol is a number), a flow its state under
+    // flow_state, latency latency_ns, a syscall syscall_nr and comm. This read
+    // src_ip/state/latency_us/syscall, which no event has: every row said
+    // "? → ?", "[]", "0μs".
+    var PROTO_NAMES = { 1: 'ICMP', 6: 'TCP', 17: 'UDP', 58: 'ICMPv6' };
     function formatEBPFSummary(type, data) {
         if (!data) return type + ' event';
-        if (type === 'packet') return (data.src_ip || '?') + ' → ' + (data.dst_ip || '?') + ' ' + (data.protocol || '');
-        if (type === 'flow') return (data.src_ip || '?') + ':' + (data.src_port || '') + ' → ' + (data.dst_ip || '?') + ':' + (data.dst_port || '') + ' [' + (data.state || '') + ']';
-        if (type === 'latency') return (data.operation || '?') + ' ' + (data.latency_us || 0) + 'μs';
-        if (type === 'syscall') return (data.syscall || '?') + ' pid=' + (data.pid || 0);
+        var k = data.flow_key || {};
+        var ends = (k.src_addr || '?') + ':' + (k.src_port || 0) + ' → ' + (k.dst_addr || '?') + ':' + (k.dst_port || 0);
+        var proto = PROTO_NAMES[k.protocol] || (k.protocol != null ? 'proto ' + k.protocol : '');
+        if (type === 'packet') return ends + ' ' + proto + ' ' + (data.packet_len || 0) + 'B';
+        if (type === 'flow') return ends + ' ' + proto + ' [' + ((data.flow_state || {}).state || '') + '] ' + (data.event_type || '');
+        if (type === 'latency') return (data.operation || '?') + ' ' + ((data.latency_ns || 0) / 1000).toFixed(1) + 'μs';
+        if (type === 'syscall') return (data.comm || '?') + ' syscall ' + (data.syscall_nr != null ? data.syscall_nr : '?') + ' pid=' + (data.pid || 0);
         return type + ' event';
     }
 
