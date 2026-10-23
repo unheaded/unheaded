@@ -127,7 +127,11 @@ func (tm *TaskManager) Initialize(ctx context.Context) error {
 		// Load from SQLite — persisted state survives restarts
 		storeTasks, err := tm.store.GetAllTasks()
 		if err != nil {
-			log.Error().Err(err).Msg("store load failed, falling back to hardcoded tasks")
+			// Read-only, as when the seed fails. The board below is the
+			// hardcoded seed, not what the store holds; left writable, an
+			// edit to a seed card upserted it over the stored row.
+			log.Error().Err(err).Msg("store load failed, falling back to hardcoded tasks (read-only)")
+			tm.store = nil
 		} else {
 			for i := range storeTasks {
 				task := &storeTasks[i]

@@ -539,8 +539,16 @@ func (w *statusWriter) Flush() {
 // writable: a write lands in a database (The Well or SQLite), directly or
 // through the TaskManager. Without one the board is read-only: writes used
 // to go to memory, answer 201/200, and vanish on restart.
+//
+// With a TaskManager every write goes through it, so its store decides: main
+// hands the server the same store, and TaskManager drops its copy when the
+// store fails at startup (seed or load), so the server's copy said writable
+// for writes that only reached memory.
 func (s *Server) writable() bool {
-	return s.store != nil || (s.taskManager != nil && s.taskManager.store != nil)
+	if s.taskManager != nil {
+		return s.taskManager.store != nil
+	}
+	return s.store != nil
 }
 
 // refuseIfReadOnly answers 503 to a write when there is no database.
