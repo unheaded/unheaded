@@ -57,5 +57,79 @@ class TestProjectRootAndVersion(unittest.TestCase):
         self.assertNotEqual(opts.server_version, version("mcp"))
 
 
+@unittest.skipUnless(HAVE_MCP, "mcp package not installed")
+class TestValidatePath(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        base = Path(os.path.realpath(self._tmp.name))
+        self.base = base
+        self.root = base / "unheaded"
+        self.outside = base / "outside"
+        self.evil = base / "unheaded-evil"
+        for d in (self.root / "pkg", self.root / "docs", self.outside, self.evil):
+            d.mkdir(parents=True)
+        for f in (self.root / "README.md", self.root / ".env", self.outside / "loot.txt",
+                  self.evil / "loot.txt", self.root / "pkg" / "secrets_manager.go"):
+            f.write_text("x")
+        os.symlink(self.outside, self.root / "docs" / "escape")
+        os.symlink(self.root / ".env", self.root / "docs" / "harmless-name")
+        self._patch = mock.patch.object(zms, "ALLOWED_PATHS", [str(self.root)])
+        self._patch.start()
+
+    def tearDown(self):
+        self._patch.stop()
+        self._tmp.cleanup()
+
+    def assertAllowed(self, path):
+        got, err = zms.validate_path(str(path))
+        self.assertIsNone(err, f"{path} should be allowed")
+        return got
+
+    def assertDenied(self, path):
+        got, err = zms.validate_path(str(path))
+        self.assertIsNone(got, f"{path} should be denied")
+        self.assertTrue(err)
+
+    def test_inside_allowed(self):
+        self.assertEqual(self.assertAllowed(self.root / "README.md"), str(self.root / "README.md"))
+        self.assertAllowed(self.root)
+        self.assertAllowed(self.root / "pkg" / "new-file.go")
+
+    def test_sibling_prefix_denied(self):
+        self.assertDenied(self.evil / "loot.txt")
+
+    def test_symlink_escape_denied(self):
+        self.assertDenied(self.root / "docs" / "escape" / "loot.txt")
+
+    def test_symlink_to_denied_name_denied(self):
+        self.assertDenied(self.root / "docs" / "harmless-name")
+
+    def test_traversal_component_denied(self):
+        self.assertDenied(f"{self.root}/pkg/../../outside/loot.txt")
+
+    def test_dotdot_inside_name_allowed(self):
+        self.assertAllowed(self.root / "pkg" / "notes..md")
+
+    def test_deny_matches_by_component(self):
+        self.assertAllowed(self.root / "pkg" / "secrets_manager.go")
+        self.assertAllowed(self.root / "docs" / "shadowing.md")
+        for p in (".env", ".env.local", "pkg/.ssh/config", "keys/id_rsa.pub",
+                  "secrets/db.yaml", "credentials.json", "id_ed25519"):
+            self.assertDenied(self.root / p)
+
+    def test_deny_applies_below_root_only(self):
+        # A sandbox root that itself sits under a deny-listed name stays usable.
+        root = self.base / "secrets" / "unheaded"
+        root.mkdir(parents=True)
+        (root / "README.md").write_text("x")
+        with mock.patch.object(zms, "ALLOWED_PATHS", [str(root)]):
+            self.assertAllowed(root / "README.md")
+            self.assertDenied(root / ".env")
+
+    def test_empty_and_nul_denied(self):
+        self.assertDenied("")
+        self.assertDenied(f"{self.root}/README.md\x00.txt")
+
+
 if __name__ == "__main__":
     unittest.main()

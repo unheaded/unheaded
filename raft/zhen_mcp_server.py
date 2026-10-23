@@ -83,17 +83,52 @@ SERVICES = {
 }
 
 
+def _within(path: str, root: str) -> bool:
+    """True if path is root or below it. Both must already be realpath'd."""
+    try:
+        return os.path.commonpath([path, root]) == root
+    except ValueError:
+        return False
+
+
+def _denied_component(rel: str) -> str | None:
+    """Deny entry matched by a path component of rel, else None.
+
+    A component matches an entry when it equals it or is the entry plus a
+    dotted suffix (.env.local, id_rsa.pub, credentials.json), so
+    secrets_manager.go and shadowing.md stay readable.
+    """
+    for part in Path(rel).parts:
+        low = part.lower()
+        for denied in DENIED_PATTERNS:
+            if low == denied or low.startswith(denied + "."):
+                return denied
+    return None
+
+
 def validate_path(path: str) -> tuple[str | None, str | None]:
-    """Validate path is within sandbox. Returns (abs_path, error)."""
-    if ".." in path:
+    """Validate path is within sandbox. Returns (real_path, error).
+
+    The path is fully resolved (symlinks included) and must stay under an
+    allowed root by path component, not string prefix. Deny entries are
+    matched per component of the resolved path below that root.
+    """
+    if not isinstance(path, str) or not path:
+        return None, "Empty path"
+    if "\x00" in path:
+        return None, "NUL byte in path"
+    expanded = os.path.expanduser(path)
+    if ".." in Path(expanded).parts:
         return None, "Path traversal blocked"
-    abs_path = os.path.abspath(os.path.expanduser(path))
-    for denied in DENIED_PATTERNS:
-        if denied in abs_path:
-            return None, f"Path contains denied pattern: {denied}"
+    real = os.path.realpath(expanded)
     for allowed in ALLOWED_PATHS:
-        if abs_path.startswith(os.path.abspath(allowed)):
-            return abs_path, None
+        root = os.path.realpath(allowed)
+        if not _within(real, root):
+            continue
+        denied = _denied_component(os.path.relpath(real, root))
+        if denied:
+            return None, f"Path contains denied component: {denied}"
+        return real, None
     return None, "Path outside sandbox"
 
 
@@ -118,7 +153,7 @@ async def list_tools():
         ),
         Tool(
             name="file_read",
-            description="Read a file from the Unheaded project (sandboxed). Allowed: ~/tmp/unheaded/, /var/zhen/. Blocked: .ssh, .env, secrets.",
+            description="Read a file from the Unheaded project (sandboxed). Allowed: the repo root and /var/zhen/, symlinks resolved. Blocked: .ssh, .env, secrets, credentials, private keys.",
             inputSchema={
                 "type": "object",
                 "properties": {
