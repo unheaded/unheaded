@@ -51,6 +51,13 @@ type Config struct {
 	Temperature    float64
 	Seed           int // nonzero pins LLM sampling
 	RequestTimeout time.Duration
+	// OnPending, when set, decides what happens to a tool call the gate
+	// refuses pending confirmation, instead of issuing an in-memory
+	// confirmation token: it may queue the call for out-of-band approval
+	// and return the queue id ("" = denied). With it set no token is ever
+	// issued, so none can reach whoever reads the trace (S-TWO-BRAINS
+	// Step 222: an /ask caller may be a model).
+	OnPending func(ctx context.Context, tc champion.ToolCall, reason string) (queueID string)
 }
 
 func (c *Config) defaulted() Config {
@@ -140,7 +147,8 @@ type Turn struct {
 	Answer       string             // non-empty when the turn finalized
 	Refused      bool               // gate refused the tool call
 	Pending      bool               // gate refused with PendingConfirmation
-	PendingToken string             // confirmation token if Pending
+	PendingToken string             // confirmation token if Pending (only without Config.OnPending)
+	QueueID      string             // out-of-band queue id if Pending and OnPending queued it
 }
 
 // modelOutput is what we ask the LLM to produce per turn.
@@ -278,7 +286,9 @@ func (a *Agent) Stream(ctx context.Context, goal string, cb TurnCallback) (*Resu
 				t.Refused = true
 				if ge.PendingConfirmation() {
 					t.Pending = true
-					if a.champ != nil {
+					if a.cfg.OnPending != nil {
+						t.QueueID = a.cfg.OnPending(ctx, tc, ge.Error())
+					} else if a.champ != nil {
 						if tok, terr := a.champ.IssuePendingConfirmation(tc); terr == nil {
 							t.PendingToken = tok
 						}

@@ -66,7 +66,8 @@
           "answer": {"type": "string"},
           "refused": {"type": "boolean"},
           "pending_confirmation": {"type": "boolean"},
-          "pending_token": {"type": "string", "description": "Single-use token for /api/v1/agent/confirm"}
+          "pending_token": {"type": "string", "description": "Single-use token for /api/v1/agent/confirm; only under -ask-tokens (legacy)"},
+          "queue_id": {"type": "string", "description": "Out-of-band approval queue id (zhen-claude confirm approve <id>), with -confirm-queue"}
         }
       },
       "ConfirmRequest": {

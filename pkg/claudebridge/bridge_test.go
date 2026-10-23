@@ -181,6 +181,11 @@ func TestSend_ToolUseLoop(t *testing.T) {
 	if h.audit.tools[0].InputSHA256 == "" || h.audit.tools[0].InputBytes != len(in) {
 		t.Errorf("tool audit should record input size and hash: %+v", h.audit.tools[0])
 	}
+	// Claude's tool calls say so, whatever the auditor's default backend
+	// (zhen-agentd's is local; S-TWO-BRAINS Step 220).
+	if h.audit.tools[0].Backend != BackendClaude {
+		t.Errorf("tool record backend = %q", h.audit.tools[0].Backend)
+	}
 }
 
 func TestSend_RequestShape(t *testing.T) {

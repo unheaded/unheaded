@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"unheaded/pkg/gpulease"
 )
 
 func testRouting() *RoutingConfig {
@@ -166,6 +168,26 @@ func TestRouter_BudgetStops(t *testing.T) {
 	}
 }
 
+// The cap can stop a Claude leg after it already changed the worktree
+// (S-TWO-BRAINS Step 219: patch_file and run_check in the first request,
+// the closing request refused). The check still judges what was bought.
+func TestRouter_BudgetStopStillChecks(t *testing.T) {
+	f := &routeFakes{local: []string{draft}, checks: []bool{false, false, true}, claudeCost: 16_716_000,
+		claudeErr: fmt.Errorf("claudebridge: %w", ErrSpendCap)}
+	out, err := f.router(testRouting(), true).Run(context.Background(), "repo-task", "x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Stop != "escalation_budget" || out.Check != "pass" || out.Cost != 16_716_000 {
+		t.Errorf("out = %+v", out)
+	}
+	// A cap hit before anything was sent: nothing changed, the check fails.
+	f2 := &routeFakes{local: []string{draft}, checks: []bool{false, false}, claudeErr: fmt.Errorf("claudebridge: %w", ErrSpendCap)}
+	if out, _ := f2.router(testRouting(), true).Run(context.Background(), "repo-task", "x"); out.Check != "fail" || out.Stop != "escalation_budget" {
+		t.Errorf("out = %+v", out)
+	}
+}
+
 func TestRouter_ParseFailureEscalatesWhenConfigured(t *testing.T) {
 	f := &routeFakes{local: []string{"no blocks here"}, checks: []bool{true}, claudeText: "ok"}
 	out, _ := f.router(testRouting(), true).Run(context.Background(), "parse-only", "x")
@@ -273,5 +295,14 @@ func TestRouter_Metrics(t *testing.T) {
 	_, _ = f2.router(testRouting(), false).Run(context.Background(), "attacker-chosen-label", "q")
 	if routeTotal.WithLabelValues("default", RouteClaudeDirect, "answered").Value() != other+1 {
 		t.Error("an unknown family was not folded into default")
+	}
+}
+
+// A busy GPU is a reason to wait, not to escalate (Step 233).
+func TestRouter_GPUBusyNeverEscalates(t *testing.T) {
+	f := &routeFakes{local: []string{draft}, checks: []bool{false}, localErr: fmt.Errorf("local LLM: %w", gpulease.ErrTimeout)}
+	out, err := f.router(testRouting(), true).Run(context.Background(), "parse-only", "x")
+	if !errors.Is(err, gpulease.ErrTimeout) || out.Stop != "gpu_busy" || len(f.claudeCalls) != 0 {
+		t.Errorf("out %+v err %v claude calls %d", out, err, len(f.claudeCalls))
 	}
 }

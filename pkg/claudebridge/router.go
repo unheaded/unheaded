@@ -14,6 +14,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
+	"unheaded/pkg/gpulease"
 	"unheaded/pkg/metrics/auto"
 	"unheaded/pkg/metrics/prom"
 )
@@ -190,8 +191,11 @@ type RouteOutcome struct {
 	Check         string  `json:"check"` // pass, fail, error, "" (no check)
 	Cost          NanoUSD `json:"-"`
 	CostUSD       string  `json:"cost_usd"`
-	Stop          string  `json:"stop,omitempty"` // escalation_budget, not_escalated, local_only, no_answer
+	Stop          string  `json:"stop,omitempty"` // escalation_budget, not_escalated, local_only, no_answer, gpu_busy
 	Text          string  `json:"-"`
+	// CheckOutput is the last check's output, unredacted (for the
+	// operator's review note on this host; never put into a prompt).
+	CheckOutput string `json:"-"`
 }
 
 const maxCheckOutputInPrompt = 4 << 10
@@ -258,6 +262,12 @@ func (r *ThresholdRouter) Run(ctx context.Context, family, task string) (out Rou
 		t0 := time.Now()
 		ans, lerr := r.Local(ctx, prompt)
 		r.auditLocal(ctx, family, reason, ans, lerr, time.Since(t0))
+		if errors.Is(lerr, gpulease.ErrTimeout) {
+			// The GPU is held by a model swap or a training run: that is
+			// a reason to wait, never to pay Claude (S-TWO-BRAINS Step 233).
+			out.Stop = "gpu_busy"
+			return out, lerr
+		}
 		if lerr != nil || strings.TrimSpace(ans.Text) == "" {
 			failKind = "parse_fail"
 			if ctx.Err() != nil {
@@ -282,6 +292,7 @@ func (r *ThresholdRouter) Run(ctx context.Context, family, task string) (out Rou
 			out.Check = "error"
 			return out, cerr
 		}
+		out.CheckOutput = co.Output
 		if co.Pass {
 			out.Check, out.Text = "pass", ans.Text
 			return out, nil
@@ -328,7 +339,24 @@ func (r *ThresholdRouter) claudeLeg(ctx context.Context, out RouteOutcome, promp
 	if err != nil {
 		if errors.Is(err, ErrSpendCap) {
 			out.Stop = "escalation_budget"
-			if r.Check != nil && out.Check == "" {
+			// The cap stopped a leg that already spent (and may have
+			// changed the worktree): the check, which costs nothing,
+			// still judges what was bought. A leg refused before its
+			// first request changed nothing.
+			if r.Check != nil && cr.Cost > 0 {
+				co, cerr := r.Check(ctx)
+				if cerr != nil {
+					out.Check = "error"
+					return out, cerr
+				}
+				out.CheckOutput = co.Output
+				out.Check = "fail"
+				if co.Pass {
+					out.Check = "pass"
+				}
+				return out, nil
+			}
+			if r.Check != nil {
 				out.Check = "fail"
 			}
 			return out, nil
@@ -343,6 +371,7 @@ func (r *ThresholdRouter) claudeLeg(ctx context.Context, out RouteOutcome, promp
 		out.Check = "error"
 		return out, cerr
 	}
+	out.CheckOutput = co.Output
 	out.Check = "fail"
 	if co.Pass {
 		out.Check = "pass"

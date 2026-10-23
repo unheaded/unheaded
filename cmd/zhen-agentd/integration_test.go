@@ -102,6 +102,12 @@ func newTestDaemon(t *testing.T, retr agent.Retriever, llm agent.LLM) (*httptest
 // the root path embedded in scripted LLM responses.
 func newTestDaemonWithRoot(t *testing.T, root string, retr agent.Retriever, llm agent.LLM) *httptest.Server {
 	t.Helper()
+	return newTestDaemonOpts(t, root, retr, llm, nil)
+}
+
+// newTestDaemonOpts lets a test adjust the server (legacyAskTokens).
+func newTestDaemonOpts(t *testing.T, root string, retr agent.Retriever, llm agent.LLM, opt func(*server)) *httptest.Server {
+	t.Helper()
 	store := newMetricsActionStore(nopActionStore{})
 	pool := newChampionPool(store, nil)
 
@@ -117,6 +123,9 @@ func newTestDaemonWithRoot(t *testing.T, root string, retr agent.Retriever, llm 
 		vorURL:   "http://127.0.0.1:1",
 		llamaURL: "http://127.0.0.1:1",
 		ready:    newReadyTracker(&http.Client{}, "http://127.0.0.1:1", "http://127.0.0.1:1"),
+	}
+	if opt != nil {
+		opt(srv)
 	}
 
 	mux := http.NewServeMux()
@@ -512,7 +521,7 @@ func TestIntegration_Confirm_HappyPath(t *testing.T) {
 		// Turn 2: after observation comes back with the refusal, model wraps up.
 		`{"thought":"surfaced confirmation","answer":"awaiting user confirmation"}`,
 	}}
-	ts := newTestDaemonWithRoot(t, root, externalStub(), llm)
+	ts := newTestDaemonOpts(t, root, externalStub(), llm, legacyAskTokens)
 
 	// 1. POST /ask — expect a pending-token in trace.
 	resp := mustPostJSON(t, ts.URL+"/api/v1/agent/ask", map[string]any{
@@ -705,3 +714,7 @@ func TestIntegration_Ask_PoolReusesChampionAcrossRequests(t *testing.T) {
 		}
 	}
 }
+
+// legacyAskTokens is -ask-tokens: /ask traces carry pending tokens again
+// (the web UI consent path these tests exercise; off by default).
+func legacyAskTokens(s *server) { s.askTokens = true }

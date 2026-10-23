@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# zhen-agentd overnight mode (S-TWO-BRAINS Phase 7, wiki/Zhen-Agents.md):
+# work Kanban cards handed to Zhen into local zhen/<card> branches inside
+# the window, then write the morning report to
+# ~/.local/state/unheaded/zhen-reports/<date>.md and exit. Nothing is
+# pushed. Limits: -max-cards, the overnight ledger's own cap
+# (spend-overnight.json, $3 a day by default), a memory floor that never
+# counts swap, the GPU lease shared with forge training, and the stop file
+# ~/.local/state/unheaded/zhen-agentd.stop (touch it to stop; a card in
+# flight finishes its check and commits nothing).
+#
+# A USER unit: it works in the operator's own checkout and runs each check
+# through `systemd-run --user` (the run_check sandbox). It never starts,
+# stops or swaps a model: llama-server must already be up for local legs
+# (scripts/switch-model.sh), or local legs fail and the night stops after
+# two infrastructure failures.
+#
+# The environment file is Stevie's, outside the repository, mode 0600:
+#   ANTHROPIC_API_KEY=...        (the Claude leg; leave out for local only)
+#   WELL_APP_ZHEN_DSN=...        (cards and runs, unheaded_app as app_zhen)
+#   WELL_OPS_DSN=...             (llm_requests and audit_events, ops_writer)
+#   LLAMA_URL=http://127.0.0.1:8081
+#
+# Not enabled by the plan (Step 254 is Stevie's call). To enable:
+#   systemctl --user link ~/tmp/unheaded/deploy/systemd/user/zhen-agentd-overnight.{service,timer}
+#   systemctl --user daemon-reload && systemctl --user enable --now zhen-agentd-overnight.timer
+#   sudo loginctl enable-linger "$USER"     # run while logged out
+# To disable: systemctl --user disable --now zhen-agentd-overnight.timer
+
+[Unit]
+Description=Zhen: work handed-over Kanban cards into zhen/ branches overnight
+Documentation=file:%h/tmp/unheaded/wiki/Zhen-Agents.md
+
+[Service]
+Type=exec
+WorkingDirectory=%h/tmp/unheaded
+EnvironmentFile=%h/.config/unheaded/zhen-agentd.env
+# The env file holds the Claude key: refuse to start unless it is the
+# operator's own and 0600 (or 0400).
+ExecStartPre=/bin/sh -c 'f=%h/.config/unheaded/zhen-agentd.env; [ -O "$f" ] && case "$(stat -c %%a "$f")" in 600|400) exit 0;; esac; echo "zhen-agentd-overnight: $f must be yours and mode 0600" >&2; exit 1'
+ExecStart=%h/tmp/unheaded/bin/zhen-agentd -worker -overnight -window 01:00-07:00 -max-cards 5 \
+    -project-root %h/tmp/unheaded -claude live -effort low -audit-well
+# The window is 6 h; a run that outlives it by 30 min is stopped.
+RuntimeMaxSec=6h30min
+TimeoutStopSec=5min
+KillSignal=SIGTERM
+# The daemon itself; each check runs in its own sandboxed transient unit.
+MemoryMax=3G
+TasksMax=512
+Nice=10
+IOSchedulingClass=idle
+NoNewPrivileges=yes
+UMask=0077

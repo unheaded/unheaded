@@ -28,6 +28,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -75,8 +76,21 @@ func main() {
 		auditWell    = flag.Bool("audit-well", false, "record one llm_requests row per llama-server call and one audit_events row per Champion gate decision in the Well (DSN from env WELL_OPS_DSN)")
 		confirmQ     = flag.Bool("confirm-queue", false, "queue agent-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with `zhen-claude confirm`")
 		auditWotan   = flag.Bool("audit-wotan", false, "also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
+		askTokens    = flag.Bool("ask-tokens", false, "legacy: return pending-confirmation tokens in /api/v1/agent/ask traces. Only for a listener no model can reach; by default /ask queues (-confirm-queue) or denies such writes and returns no token")
 	)
+	var wf workerFlags
+	registerWorkerFlags(flag.CommandLine, &wf)
 	flag.Parse()
+	if wf.overnight {
+		set := map[string]bool{}
+		flag.Visit(func(f *flag.Flag) { set[f.Name] = true })
+		if set["privacy"] && wf.privacyMode != "strict" {
+			fmt.Fprintln(os.Stderr, "zhen-agentd: -overnight forces -privacy strict")
+		}
+		if err := applyOvernightDefaults(&wf, set, defaultStateDir()); err != nil {
+			fatal("overnight: %v", err)
+		}
+	}
 
 	vorURL := envOr("VOR_URL", defaultVorURL)
 	llamaURL := envOr("LLAMA_URL", defaultLlamaURL)
@@ -146,16 +160,55 @@ func main() {
 	}
 	defer closeQueue()
 
+	workerCtx, stopWorker := context.WithCancel(context.Background())
+	defer stopWorker()
+	workerDone := make(chan struct{})
+	if wf.enabled {
+		wlog := slog.New(slog.NewJSONHandler(os.Stderr, nil)).With("service", "zhen-agentd")
+		mode := "interactive"
+		if wf.overnight {
+			mode = "overnight"
+		}
+		w, closeWorker, err := buildWorker(workerCtx, wf, rootAbs, llamaURL, mode, aud, wlog)
+		defer closeWorker()
+		if err != nil {
+			fatal("worker init: %v", err)
+		}
+		if wf.overnight {
+			code := runOvernight(workerCtx, w, wf, aud, wlog)
+			aud.close()
+			closeWorker()
+			os.Exit(code)
+		}
+		if wf.once {
+			res, err := w.runOnce(workerCtx)
+			fmt.Println(resultJSON(res))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "zhen-agentd: worker: %v\n", err)
+				aud.close()
+				os.Exit(1)
+			}
+			return
+		}
+		go func() { defer close(workerDone); workerLoop(workerCtx, w, wf.poll, wlog) }()
+	} else {
+		close(workerDone)
+		if wf.once {
+			fatal("-once needs -worker")
+		}
+	}
+
 	httpClient := &http.Client{Timeout: httpTimeout}
 	srv := &server{
 		pool:        pool,
 		defaultRoot: rootAbs,
 		allowed:     allowed,
 		retriever:   &vorRetriever{client: httpClient, baseURL: vorURL, maxChars: defaultMaxChars},
-		llm:         &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName, audit: aud.auditor},
+		llm:         &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName, audit: aud.auditor, gpuLock: wf.gpuLock},
 		vorURL:      vorURL,
 		llamaURL:    llamaURL,
 		ready:       newReadyTracker(httpClient, vorURL, llamaURL),
+		askTokens:   *askTokens,
 	}
 	if queue != nil {
 		srv.confirmQueue = queue
@@ -232,7 +285,14 @@ func main() {
 		}
 	}
 
-	// Graceful shutdown.
+	// Graceful shutdown: the worker first (a card in flight is cancelled,
+	// nothing partial is committed), then the listener.
+	stopWorker()
+	select {
+	case <-workerDone:
+	case <-time.After(shutdownTimeout):
+		fmt.Fprintln(os.Stderr, "zhen-agentd: worker did not stop in time")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	if err := httpSrv.Shutdown(ctx); err != nil {
@@ -355,9 +415,11 @@ type server struct {
 	confirmQueue claudebridge.ConfirmQueue   // nil: agent-loop writes are denied
 	confirmPub   claudebridge.JSONPublisher  // zhen.confirm.pending notices
 	confirmAudit claudebridge.ConfirmAuditor // confirm_issue events
-	vorURL       string
-	llamaURL     string
-	ready        *readyTracker
+	// askTokens restores the legacy /ask behaviour (tokens in the trace).
+	askTokens bool
+	vorURL    string
+	llamaURL  string
+	ready     *readyTracker
 }
 
 // championPool caches *champion.Champion instances keyed by absolute
@@ -430,6 +492,7 @@ type traceEntry struct {
 	Refused      bool   `json:"refused,omitempty"`
 	Pending      bool   `json:"pending_confirmation,omitempty"`
 	PendingToken string `json:"pending_token,omitempty"`
+	QueueID      string `json:"queue_id,omitempty"`
 }
 
 func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
@@ -491,6 +554,9 @@ func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
 		Temperature:   pickFloat(req.Temperature, 0.4),
 		Seed:          req.Seed,
 	}
+	if !s.askTokens {
+		cfg.OnPending = s.askPending(champ, req.SessionID)
+	}
 	a := agent.New(cfg, champ, s.retriever, s.llm)
 
 	res, err := a.Run(withRunID(r.Context()), req.Goal)
@@ -534,6 +600,7 @@ func traceFor(turns []agent.Turn) []traceEntry {
 			Refused:      t.Refused,
 			Pending:      t.Pending,
 			PendingToken: t.PendingToken,
+			QueueID:      t.QueueID,
 		}
 		if t.ToolCall != nil {
 			e.Tool = t.ToolCall.Name
@@ -665,6 +732,9 @@ func (s *server) handleAskStream(w http.ResponseWriter, r *http.Request) {
 		Temperature:   pickFloat(req.Temperature, 0.4),
 		Seed:          req.Seed,
 	}
+	if !s.askTokens {
+		cfg.OnPending = s.askPending(champ, req.SessionID)
+	}
 	a := agent.New(cfg, champ, s.retriever, s.llm)
 
 	res, err := a.Stream(withRunID(r.Context()), req.Goal, func(t agent.Turn) bool {
@@ -709,6 +779,7 @@ func traceEntryFromAgent(t agent.Turn) traceEntry {
 		Refused:      t.Refused,
 		Pending:      t.Pending,
 		PendingToken: t.PendingToken,
+		QueueID:      t.QueueID,
 	}
 	if t.ToolCall != nil {
 		e.Tool = t.ToolCall.Name
@@ -1039,6 +1110,7 @@ type llamaLLM struct {
 	baseURL string
 	model   string
 	audit   claudebridge.Auditor // nil: not audited
+	gpuLock string               // shared GPU lease per call ("" = none)
 }
 
 // Complete asks llama-server once and, when auditing is on, records the
@@ -1073,7 +1145,7 @@ func (l *llamaLLM) complete(ctx context.Context, msgs []agent.Message, maxTokens
 	for i, m := range msgs {
 		lm[i] = localllm.Message{Role: m.Role, Content: m.Content}
 	}
-	c := &localllm.Client{BaseURL: l.baseURL, Model: l.model, HTTP: l.client, Timeout: httpTimeout}
+	c := &localllm.Client{BaseURL: l.baseURL, Model: l.model, HTTP: l.client, Timeout: httpTimeout, GPULock: l.gpuLock}
 	a, err := c.Chat(ctx, localllm.Request{Messages: lm, MaxTokens: maxTokens, Temperature: temp, Seed: &seed})
 	u := llamaUsage{Model: a.Model, FinishReason: a.FinishReason, PromptTokens: a.PromptTokens, CompletionTokens: a.CompletionTokens}
 	if err != nil {

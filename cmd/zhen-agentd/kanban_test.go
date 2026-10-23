@@ -104,6 +104,9 @@ func newKanbanDaemon(t *testing.T, kStore champion.KanbanStore, retr agent.Retri
 		llamaURL:    "http://127.0.0.1:1",
 		ready:       newReadyTracker(&http.Client{}, "http://127.0.0.1:1", "http://127.0.0.1:1"),
 	}
+	// These tests walk the web UI's token consent path (-ask-tokens);
+	// the default /ask issues no token (ask_tokens_test.go).
+	legacyAskTokens(srv)
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", prom.Handler())
 	mux.Handle("/api/v1/agent/ask", instrument("/api/v1/agent/ask", http.HandlerFunc(srv.handleAsk)))
