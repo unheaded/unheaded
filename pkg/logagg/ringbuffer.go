@@ -4,6 +4,7 @@
 package logagg
 
 import (
+	"math"
 	"strings"
 	"sync"
 )
@@ -63,14 +64,16 @@ func (rb *RingBuffer) Since(seq uint64) ([]LogEntry, uint64) {
 	if seq >= rb.written {
 		return nil, rb.written
 	}
-	n := rb.written - seq
-	if n > uint64(rb.count) {
-		n = uint64(rb.count)
+	// n = min(written-seq, count), computed without a narrowing conversion:
+	// count bounds it, and a gap too large for an int is larger than count.
+	n := rb.count
+	if gap := rb.written - seq; gap <= math.MaxInt && int(gap) < n {
+		n = int(gap)
 	}
 	out := make([]LogEntry, 0, n)
-	for i := uint64(0); i < n; i++ {
+	for i := 0; i < n; i++ {
 		// head-1 is the newest; walk back n-1 entries, then forward.
-		idx := (rb.head - int(n) + int(i) + rb.capacity) % rb.capacity
+		idx := (rb.head - n + i + rb.capacity) % rb.capacity
 		out = append(out, rb.entries[idx])
 	}
 	return out, rb.written
