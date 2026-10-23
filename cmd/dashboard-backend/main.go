@@ -246,11 +246,11 @@ func main() {
 		}(),
 	}
 
-	// Create eBPF ingestor if gRPC address is provided (or from WOTAN_GRPC_ADDR env)
-	grpcAddr := *wotanGRPCAddr
-	if grpcAddr == "" {
-		grpcAddr = os.Getenv("WOTAN_GRPC_ADDR")
-	}
+	// eBPF ingestor on the resolved Wotan gRPC address (flag, then
+	// WOTAN_GRPC_ADDR, then the transport default). It used to need the flag
+	// or env explicitly, so the deb (no dashboard.env) never started it and
+	// /api/v1/flows and /api/v1/ebpf/* stayed dead on east.
+	grpcAddr := transportCfg.WotanGRPCAddr
 	if grpcAddr != "" {
 		log.Info().Str("grpc_addr", grpcAddr).Msg("creating TopicStreamClient for eBPF event ingestion")
 
