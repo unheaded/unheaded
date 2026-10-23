@@ -120,3 +120,171 @@ None stuck. No [ESCALATE] step lies in Phases 0-4; E1-E5 belong to Phases 8-12.
   linted. Hosts use `wg0`; east keeps the PSK in `preshared.key` and `wg0.conf`, west inline.
 - Phase 12 / everyone: `scripts/check-gates-can-fail.sh` REGISTRY gained two rows after
   `check-image-tags`; merge by keeping all rows.
+
+## Track: Phases 13-14 (Coordinator: MoatGhost, Librarian, BlackMage, Marshal), branch `sprint1/wrap` off develop `6884d105`
+
+Skip Protocol acknowledged as above. Go runs with a scratch `GOWORK` (doomgeneric
+replace); commits `--no-gpg-sign`. Baseline at `6884d105` (scratch clone, before any
+change): `go test -count=1 ./...` 278 ok / 0 FAIL.
+
+### Phase 13 (Steps 249-260): done
+
+- 249: every requirement ID exists (800-53 CM-8, SC-8, SC-8(1), SC-12, SC-13, SI-7, AU-10,
+  SR-4; CSF ID.AM-02, PR.DS-02; 800-171 03.13.08; SSDF PS.2; SOC 2 CC6.7, CC8.1; ISO A.5.9,
+  A.8.24).
+- 250: `UH-PQC-01` (CBOM current), `UH-PQC-02` (first-party KEX hybrid), `UH-PQC-03` (host
+  sshd hybrid-only; FAILS today, E2), `UH-EVID-01` (signed, verifiable build evidence).
+  Amendment: UH-PQC-01 maps ISO A.5.9 as well as A.8.24, because
+  `TestMappingsCorroborated` requires NIST's ISO reference for ID.AM-02 (A.5.9).
+  `compliance/baseline/baseline.yaml` regenerated (+2 host probes, `sshd-kex-pq`).
+- 251: `go test ./pkg/compliance/...` 11 ok; no test pins the control count.
+- 252: FND-015 (Well P-256, E1), `host-probe:{west,east}:sshd-kex-pq` (E2), FND-016
+  (static PSK, E3), FND-017 (plaintext internal links), plus, beyond the plan: FND-018
+  (no production evidence key, E4), FND-019 (no drift keys, E5), FND-020 (replication
+  drops signatures), FND-021 (ring byte budget ignores signatures), FND-022
+  (rustls-pemfile unmaintained), FND-023 (the wotan-client flake, resolved by `c2ca5e74`).
+  ADR-098's generated section NOT regenerated (develop unsigned; regenerate after re-sign).
+- Flake (parked item, fixed): `TestGRPCClient_GetMessages` / `_AfterSeq` failed 8 in 40
+  runs at base. Root cause: at the 200 ms query timeout the server's own deadline ends the
+  stream and grpc can deliver that (`DeadlineExceeded` via RST_STREAM CANCEL, or
+  `Canceled`) to `Recv` before `queryCtx`'s timer has set `Err()`, so `queryEnded` said
+  "Wotan failed". Fix: a `DeadlineExceeded`/`Canceled` at or after our deadline is the
+  normal end. `TestQueryEnded_ServerReportsOurDeadlineFirst` red then green; after: 0
+  failures in 200 `-race` runs.
+- `cmd/crypto-inventory` (lead item from the KEX-Go track): gosec 10 + staticcheck 1 -> 0.
+  G204/G702: git now runs with constant arguments and `cmd.Dir`. G703: every file the tool
+  reads or writes goes through an `os.Root` at the repository top (paths are
+  repository-relative; a path or symlink out of the repo is refused; red test first).
+  G101/G402 false positives: leading `#nosec`. QF1001: De Morgan.
+- 255-256: SECURITY.md Cryptography rewritten; ADR-105 gained "Decisions made during
+  implementation" (evidence seals, custody, waivers, validator strictness, signed sender,
+  prefix rules, Heimdall identity, ErrInvalidSignature, aws-lc-rs, Well dump/restore, LB
+  opt-ins, PSK wait 200 s; decision 9 amended 60 s -> 200 s), status still Proposed;
+  wiki `Post-Quantum-Key-Exchange` (Home + _Sidebar), The-Well, Overlay-Network (PSK ops
+  facts), ADR-Index mirror (+104, +105); zhen-pq-threat-model rec 13 done;
+  `nix/yggdrasil/README.md` #68 implemented; CLAUDE.md What's Done line. No CHANGELOG
+  entry: CHANGELOG.md is not kept for develop. LIVE-PATHS: no `cmd/` main package added.
+- 257: consistency grep empty. 258: `sync-wiki.sh --dry-run` only (nothing written).
+- 260 EXIT GATE: controls 4, findings 5, `pkg/compliance` 0 FAIL. PASS.
+
+### Phase 14 (Steps 261-277)
+
+- 261: `go build ./...` ok; `go test -count=1 ./...` 278 ok / 0 FAIL, the same package set
+  as the base. ZERO NEW FAILURES. (Run at `4cd32c28`; the two later Go/script fixes were
+  re-tested on their own: `go test -race ./pkg/logagg/...` ok, clippy gate PASS.)
+- 262: `-race` on every touched package: 55 ok / 0 FAIL.
+- 263: Rust (`cargo test --quiet`, summed): waf 58 passed, zhend 163, trace-collector 163
+  (1 ignored), upc-bootctl 25; 0 failed anywhere; identical to the Phase 7 post-change counts.
+  Clippy: `scripts/check-clippy.sh` FAILED on develop (since Phase 3): it treats every
+  tracked Cargo.lock as a workspace, and `cmd/crypto-inventory/testdata/rust/Cargo.lock` is
+  a fixture with no Cargo.toml. The meta-gate's `--quick` skips this slow gate, so no
+  track saw it. Fixed (`cf6da70e`): lockfiles under `testdata/` are skipped. After:
+  `PASS: clippy 0/0 warnings, 0 errors` over 19 workspaces.
+  `cargo audit` (all 20 lockfiles, as CI): 0 vulnerabilities; warnings unmaintained only
+  (waf RUSTSEC-2025-0134 = FND-022; zhend instant/paste/fxhash/bincode/pqcrypto-*, as
+  before the sprint).
+- 264: gosec ratchet PASS; gitleaks PASS (5362 tracked files); secrets baseline PASS (20);
+  govulncheck: 0 reachable (1 in a required module, golang.org/x/crypto GO-2026-5932, not
+  called, no fix released). gosec `./...` as CI runs it found 3 G115 in
+  `pkg/logagg/ringbuffer.go` (`d8d916f9`, another session's commit of 2026-10-23, so the
+  develop gosec job was red); fixed without conversions (`4e8d9c46`), after: 0 issues.
+- 265: meta-gate `--quick` in a clean clone of `4e8d9c46` (sibling `projects` symlink for the
+  doomgeneric replace; ruff 0.17.1 and pip-audit 2.10.1 from a scratch venv installed with
+  `--require-hashes` from `.github/ci-python/requirements.txt`; `GOWORK=off`): rc=0,
+  `PASS: 33 gate(s) proven to fail when violated, 11 skipped` (slow tier), 6 not provable
+  here (sudo / live XDP / images). The sprint's rows: check-crypto-inventory, check-pq-kex,
+  check-evidence-pack, wireguard/test-rotate-psk, check-ruff, check-python-audit,
+  live-path-inventory all "bites when provoked"; check-clippy and well/test-pq-groups are
+  slow (skipped by `--quick`; clippy run directly above). A first run reported 5
+  INCONCLUSIVE: the clone sat under a scratch dir holding a `go.work`, which Go picked up
+  from the parent; not a repo problem.
+- 266: PQ baseline holds 4 lines, each with its reason (2 LB opt-ins accepted, 2 Postgres
+  held until E1). CBOM fresh and schema-valid. First-party classical TLS in the CBOM: the
+  Well (3 components, FND-015) and the LB `max_version` opt-in (accepted). Also classical,
+  not TLS: `pkg/secrets/encryption/age.go` (age X25519 recipients) and two WireGuard peers
+  without a PSK in repo configs that are not deployed
+  (`runbooks/network/wireguard-overlay.yaml`, `scripts/firewall/setup-ipfire.sh`): noted,
+  not triaged here.
+- 267: nothing regenerated (CBOM and LIVE-PATHS unchanged).
+- 268-272 red team (`53df15c5`, details in `docs/security/pq-preflight-2026-10-23.md`
+  "Post-sprint verification" and LICH-012):
+  - Downgrade: Strict refuses X25519-only, P-256-only and TLS 1.2; Preferred falls back
+    only for a client with no hybrid at all. With a classical group listed first, Go
+    sends a HelloRetryRequest and still negotiates X25519MLKEM768 (written into ADR-105
+    Consequences).
+  - Evidence tamper: `../evil`, symlink and hardlink to /etc/passwd, duplicate manifest,
+    absolute entry, a seal from another key, a same-key seal over another manifest: all
+    rc=1; strace shows no access outside the tarball.
+  - Key hygiene: clean (one bare `BEGIN PRIVATE KEY` header string in a WAF
+    leak-detection test, pre-existing, no key).
+  - New findings: none at medium or above; two low (FND-020, FND-021).
+- 273: `~/tmp/next.md` NOT edited by this track: the lead keeps it (S17c already tracks
+  Sprint 1 and the open decisions). Everything Step 273 asks for is in the closing
+  summary below.
+- 274-277: shift report below; never pushed; the plan file was not ticked in place.
+
+### Marshal shift report (Phases 13-14)
+
+- Steps: 249-272 and 274-277 done; 273 deviated (next.md left to the lead, content here);
+  0 STUCK; 0 ESCALATE attempted (E1-E5 remain Stevie's).
+- Citations: 1 (S2, plan deviation, logged): two pre-existing develop breaks fixed outside
+  Phases 13-14 because the final regression could not pass without them (clippy gate
+  fixture, logagg G115). Parked, not done: the age X25519 and PSK-less WireGuard repo
+  configs; ADR-098 regeneration.
+- Plan compliance: 28 of 29 steps as written (97%).
+
+## Sprint 1 closing summary
+
+**Status: DONE pending Stevie's decisions.** All 15 phases (277 steps) executed across
+seven tracks; nothing STUCK; every phase exit gate passed. develop is unsigned from this
+sprint (re-sign before push); nothing pushed; no host changed.
+
+What exists now:
+- Every first-party Go and Rust TLS surface negotiates `X25519MLKEM768` and a handshake
+  test asserts it; Strict links (Wotan gRPC, wotan-client, mtls, mesh) refuse classical.
+- `compliance/crypto/cbom.cdx.json` (CycloneDX 1.6, 111 components) from
+  `cmd/crypto-inventory`; gates `check-crypto-inventory` and `check-pq-kex` (baseline
+  15 -> 4) in CI, both proven to bite by the meta-gate.
+- rustls on aws-lc-rs (WAF, zhend QUIC); unused TLS features dropped; dependency baseline
+  764 -> 747.
+- The Well's PG 18 hybrid proven in throwaway containers (24/24) with an upgrade runbook.
+- sshd strict probe; `rotate-psk.sh` + harness + (disabled) weekly timer.
+- `yggdrasil-evidence`: all subcommands implemented, ML-DSA-65 evidence seals, signed
+  custody, gate `check-evidence-pack`.
+- Signed `drift.*`: `pkg/wotansig`, per-prefix keys in Wotan, signatures delivered to
+  subscribers, Heimdall publishes signed drift.
+- Compliance: UH-PQC-01..03, UH-EVID-01; FND-015..023 plus the two sshd-kex-pq sources.
+
+Final regression (tip `sprint1/wrap`): Go 278 ok / 0 FAIL (= base); race 55 ok / 0 FAIL;
+Rust 409 passed / 0 failed (waf 58, zhend 163, trace-collector 163 + 1 ignored,
+upc-bootctl 25); clippy 0/0 (19 workspaces); cargo audit 0 vulnerabilities (20 lockfiles);
+govulncheck 0 reachable; gosec 0 issues; gitleaks, secrets baseline, gosec ratchet PASS;
+CBOM fresh + schema-valid; PQ-KEX PASS (4); meta-gate `--quick` in a clean clone rc=0 (33 proven, 11 slow skipped).
+
+**Stevie's open decisions (one list):**
+1. E1: upgrade the live Well PG 16 -> 18 with `ssl_groups` (FND-015;
+   `runbooks/data/well-pg18-upgrade.yaml`).
+2. E2: make sshd hybrid-only on west and east, east first (lockout risk; UH-PQC-03;
+   `docs/security/pq-host-escalations.md`).
+3. E3: first live WireGuard PSK rotation (`rotate-psk.sh --apply`) and enabling
+   `unheaded-wg-psk-rotate.timer` (FND-016).
+4. E4: the production evidence build key: where the seed lives, who holds it, how
+   `build.pubkey` is published, the rotation ceremony (FND-018).
+5. E5: a Heimdall drift key per node, its public key in Wotan's `drift.` keys, a Heimdall
+   unit (FND-019).
+6. Accept ADR-105 (Proposed).
+7. Sign off the `aws-lc-rs` 1.18.2 / `aws-lc-sys` 0.46.0 admission (ADR-004).
+8. Sign off the `anthropic-sdk-go` v1.82.0 admission (ADR-004, ADR-104).
+
+Housekeeping for whoever merges: re-sign the unsigned commits
+(`scripts/resign-unpushed.py`) before pushing; regenerate ADR-098's generated findings
+section after the re-sign; merge `sprint1/wrap` into develop.
+
+Parked (Appendix B.3 plus this track): TLS on for internal links (FND-017) · edge TLS ·
+PQ certificates · Monad wire-level PQC (frozen) · Zhen hybrid-KEM combiner review ·
+Heimdall BPF ringbuf / Gjallarhorn listener · root -> build key chain · Rosenpass · CNSA
+2.0 · merging the TLS helper packages · FND-014 password rotation · east deb rebuild ·
+`cmd/ebpf-collector` proto field 12 · replication signatures (FND-020) · ring byte budget
+(FND-021) · rustls-pemfile (FND-022) · Heimdall metrics not scraped (no listener) ·
+`TopicStreamClient.PublishSigned` · WAF does not log the negotiated group · age X25519 in
+`pkg/secrets/encryption` · PSK-less WireGuard peers in two undeployed repo configs.

@@ -4,13 +4,13 @@ Brainstormed with Stevie on 2026-10-23 (Captain/Warmonger), then forged into
 full battle plans. Order: 1 → 2 → 3 → 4 → 5. Each plan has its own PREFLIGHT,
 gates and [ESCALATE] steps; the decisions below are the ones that need Stevie.
 
-| # | Sprint | Plan | Size | ADR |
-|---|---|---|---|---|
-| 1 | Quantum Armor: hybrid ML-KEM everywhere, crypto inventory, signed evidence | [S-QUANTUM-ARMOR](S-QUANTUM-ARMOR-battle-plan.md) | 15 phases, 277 steps | ADR-105 |
-| 2 | Two Brains, One Gate: Champion live, local model + Claude, runbooks, training-data flywheel | [S-TWO-BRAINS](S-TWO-BRAINS-battle-plan.md) | 15 phases, 456 steps | ADR-106 |
-| 3 | Real Steel: dead code swept, deploy made real, then real chaos | [S-REAL-STEEL](S-REAL-STEEL-battle-plan.md) | 17 phases, 404 steps | next free |
-| 4 | Lich Awakens: red team via MCP (local model + Claude) | [S-LICH-AWAKENS](S-LICH-AWAKENS-battle-plan.md) | 12 phases, 268 steps | none new |
-| 5 | UPC: finish pending work, then compute on the wire (MBC cartridges) | [S-UPC-WIRE-COMPUTE](S-UPC-WIRE-COMPUTE-battle-plan.md) | 20 phases, 452 steps | next free |
+| # | Sprint | Plan | Size | ADR | Status (2026-10-23) |
+|---|---|---|---|---|---|
+| 1 | Quantum Armor: hybrid ML-KEM everywhere, crypto inventory, signed evidence | [S-QUANTUM-ARMOR](S-QUANTUM-ARMOR-battle-plan.md) | 15 phases, 277 steps | ADR-105 | **Done** pending Stevie's decisions (E1-E5, ADR-105 acceptance, aws-lc-rs sign-off): all 15 phases executed, nothing STUCK; final regression green. Closing summary: [progress](progress/S-QUANTUM-ARMOR-progress.md#sprint-1-closing-summary). Phases 13-14 on branch `sprint1/wrap`, not yet merged |
+| 2 | Two Brains, One Gate: Champion live, local model + Claude, runbooks, training-data flywheel | [S-TWO-BRAINS](S-TWO-BRAINS-battle-plan.md) | 15 phases, 456 steps | ADR-106 | In progress on branch `sprint/two-brains` (not merged) |
+| 3 | Real Steel: dead code swept, deploy made real, then real chaos | [S-REAL-STEEL](S-REAL-STEEL-battle-plan.md) | 17 phases, 404 steps | next free | In progress on branch `sprint/real-steel` (not merged) |
+| 4 | Lich Awakens: red team via MCP (local model + Claude) | [S-LICH-AWAKENS](S-LICH-AWAKENS-battle-plan.md) | 12 phases, 268 steps | none new | Not started (no branch in the 2026-10-23 handoff) |
+| 5 | UPC: finish pending work, then compute on the wire (MBC cartridges) | [S-UPC-WIRE-COMPUTE](S-UPC-WIRE-COMPUTE-battle-plan.md) | 20 phases, 452 steps | next free | In progress on branch `sprint/upc-wire-compute` (not merged) |
 
 Done before forging (2026-10-23, on develop): `.mcp.json` registers the Zhen
 MCP server for Claude Code; the `local_llm` MCP tool; `zhen-claude -route
@@ -34,9 +34,19 @@ auto`, `-capture`, and `-local-only` / `local_only` in
 
 ## Decisions for Stevie, by sprint
 
-1. Quantum Armor: accept ADR-105; Postgres 16 → 18 with `ssl_groups`; sshd
-   hybrid-only on west/east (lockout risk); first live WireGuard PSK
-   rotation; where the evidence-signing key lives; Heimdall per-node keys.
+1. Quantum Armor (sprint done; these are what is left, all prepared):
+   - E1: live Well PostgreSQL 16 → 18 with `ssl_groups` (FND-015;
+     `runbooks/data/well-pg18-upgrade.yaml`).
+   - E2: sshd hybrid-only on west/east, lockout risk (UH-PQC-03;
+     `docs/security/pq-host-escalations.md`).
+   - E3: first live WireGuard PSK rotation and the weekly timer (FND-016).
+   - E4: where the production evidence build key lives, who holds it, how
+     `build.pubkey` is published (FND-018).
+   - E5: Heimdall drift key per node, enrolment in Wotan, a Heimdall unit
+     (FND-019).
+   - Accept ADR-105 (Proposed).
+   - Sign off the `aws-lc-rs` / `aws-lc-sys` admission (ADR-004).
+   - Sign off the `anthropic-sdk-go` admission (ADR-004, ADR-104).
 2. Two Brains: apply Well migrations 030-034 as one batch; first unattended
    overnight run and its cap; approve the 11 new runbooks; Anthropic support
    on Claude-authored text as training targets (flag off until a written yes);
