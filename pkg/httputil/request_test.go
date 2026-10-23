@@ -73,3 +73,31 @@ func TestDecodeJSONBody(t *testing.T) {
 		})
 	}
 }
+
+// TestDecodeJSONBody_OverLimit: the body used to be cut at the limit and
+// parsed, so a JSON value followed by padding past the limit was accepted;
+// a body over the limit is now refused with 413 whatever its content.
+func TestDecodeJSONBody_OverLimit(t *testing.T) {
+	const limit = 64
+	for name, body := range map[string]string{
+		"valid json then padding": `{"title":"test"}` + strings.Repeat(" ", limit),
+		"one byte over":           `{"title":"` + strings.Repeat("a", limit-11) + `"}`,
+	} {
+		req, _ := http.NewRequest("POST", "/test", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		var dst map[string]string
+		err := DecodeJSONBody(req, limit, &dst)
+		reqErr, ok := IsRequestError(err)
+		if !ok || reqErr.Status != http.StatusRequestEntityTooLarge {
+			t.Errorf("%s (%d bytes, limit %d): err = %v, want 413", name, len(body), limit, err)
+		}
+	}
+
+	exact := `{"title":"` + strings.Repeat("a", limit-12) + `"}`
+	req, _ := http.NewRequest("POST", "/test", strings.NewReader(exact))
+	req.Header.Set("Content-Type", "application/json")
+	var dst map[string]string
+	if err := DecodeJSONBody(req, limit, &dst); err != nil {
+		t.Errorf("body of exactly %d bytes (limit %d): %v", len(exact), limit, err)
+	}
+}

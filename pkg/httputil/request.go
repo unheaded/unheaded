@@ -29,12 +29,23 @@ func DecodeJSONBody(r *http.Request, maxSize int64, dst interface{}) error {
 		maxSize = DefaultMaxBodySize
 	}
 
-	body, err := io.ReadAll(io.LimitReader(r.Body, maxSize))
+	// One byte past the limit tells a body that fits from one that was cut
+	// short: truncated to the limit, a JSON value followed by padding still
+	// parses, and the oversized request would be accepted.
+	body, err := io.ReadAll(io.LimitReader(r.Body, maxSize+1))
 	if err != nil {
 		return &RequestError{
 			Status:  http.StatusBadRequest,
 			Code:    "READ_BODY_FAILED",
 			Message: "failed to read request body",
+		}
+	}
+
+	if int64(len(body)) > maxSize {
+		return &RequestError{
+			Status:  http.StatusRequestEntityTooLarge,
+			Code:    "BODY_TOO_LARGE",
+			Message: fmt.Sprintf("request body exceeds %d bytes", maxSize),
 		}
 	}
 
