@@ -222,7 +222,7 @@ findings:
     lockout: none
     step: 7
     plan: token distribution design first (clients, dashboard, kanban), then AUTH_ENABLED per service, one at a time
-    decision: mode settled - Stevie 2026-09-30 wants several (SSO/OIDC, JWT, API key), selectable per deployment; open is where keys and the IdP live
+    decision: mode settled - Stevie 2026-09-30 wants several (SSO/OIDC, JWT, API key), selectable per deployment; where keys and the IdP live is proposed in ADR-103 (2026-10-23, 4 open questions for Stevie)
 
   - source: "gate-script:scripts/compliance/check-edge-tls.sh"
     severity: medium
