@@ -14,9 +14,13 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/pem"
 	"errors"
+	"io"
 	"math/big"
 	"net"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -62,6 +66,28 @@ func SelfSigned(t testing.TB) tls.Certificate {
 	return tls.Certificate{Certificate: [][]byte{der}, PrivateKey: key, Leaf: leaf}
 }
 
+// WritePEM writes cert (made by SelfSigned) and its key as PEM files into
+// dir (0600) and returns their paths, for code that loads files.
+func WritePEM(t testing.TB, dir string, cert tls.Certificate) (certFile, keyFile string) {
+	t.Helper()
+	key, ok := cert.PrivateKey.(*ecdsa.PrivateKey)
+	if !ok || len(cert.Certificate) == 0 {
+		t.Fatalf("pqtest: WritePEM wants a SelfSigned certificate")
+	}
+	kder, err := x509.MarshalECPrivateKey(key)
+	if err != nil {
+		t.Fatalf("pqtest: marshal key: %v", err)
+	}
+	certFile, keyFile = filepath.Join(dir, "pqtest.crt"), filepath.Join(dir, "pqtest.key")
+	if err := os.WriteFile(certFile, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: cert.Certificate[0]}), 0o600); err != nil {
+		t.Fatalf("pqtest: write cert: %v", err)
+	}
+	if err := os.WriteFile(keyFile, pem.EncodeToMemory(&pem.Block{Type: "EC PRIVATE KEY", Bytes: kder}), 0o600); err != nil {
+		t.Fatalf("pqtest: write key: %v", err)
+	}
+	return certFile, keyFile
+}
+
 // Pool returns a CertPool that trusts cert (made by SelfSigned).
 func Pool(cert tls.Certificate) *x509.CertPool {
 	p := x509.NewCertPool()
@@ -99,6 +125,11 @@ func Handshake(t testing.TB, srv, cli *tls.Config) (tls.ConnectionState, error) 
 	cliErr := client.Handshake()
 	if cliErr != nil {
 		_ = cc.Close() // unblock the server
+	} else {
+		// In TLS 1.3 the client finishes first; drain what the server still
+		// writes (tickets, or an alert when it rejects the client's
+		// certificate) so it never blocks on the unbuffered pipe.
+		go func() { _, _ = io.Copy(io.Discard, cc) }()
 	}
 	sErr := <-srvErr
 	if cliErr != nil {

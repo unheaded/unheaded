@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
 	pqtls "unheaded/pkg/tls"
 )
@@ -71,6 +72,22 @@ func TestHandshakeReportsAFailure(t *testing.T) {
 		CurvePreferences: []tls.CurveID{tls.X25519}}
 	if _, err := Handshake(t, srv, cli); err == nil {
 		t.Fatal("a classical-only client completed a handshake with a Strict server")
+	}
+}
+
+// TestHandshakeServerRejectsLate: in TLS 1.3 the client finishes before the
+// server checks its certificate; the server's rejection must still be
+// reported, and promptly (its alert must not block on the pipe).
+func TestHandshakeServerRejectsLate(t *testing.T) {
+	cert := SelfSigned(t)
+	srv := pqtls.ApplyStrict(&tls.Config{Certificates: []tls.Certificate{cert}, ClientAuth: tls.RequireAnyClientCert})
+	cli := &tls.Config{RootCAs: Pool(cert), ServerName: "localhost", MinVersion: tls.VersionTLS13}
+	start := time.Now()
+	if _, err := Handshake(t, srv, cli); err == nil {
+		t.Fatal("server rejection (no client certificate) not reported")
+	}
+	if d := time.Since(start); d > Timeout/2 {
+		t.Errorf("rejection took %v: the server blocked writing its alert", d)
 	}
 }
 
