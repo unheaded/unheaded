@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"time"
@@ -80,7 +81,50 @@ func Load(objPath string, opts Options) (*Cart, error) {
 			c.Verifier[name] = n
 		}
 	}
+	if opts.PinDir != "" {
+		// Pin the programs too, so the interpreter outlives this process and
+		// another invocation (upc-cartridgectl load/bench/pump) can run it.
+		for name, p := range coll.Programs {
+			if err := p.Pin(filepath.Join(opts.PinDir, name)); err != nil {
+				_ = c.Unpin()
+				coll.Close()
+				return nil, fmt.Errorf("cartridge: pin %s: %w", name, err)
+			}
+		}
+	}
 	return c, nil
+}
+
+// Map and program names in the object (and under a pin directory).
+var (
+	MapNames     = []string{"CART_ROM", "CART_DATA", "CART_SLOT", "FLOW_STATE", "FLOW_META", "SCORE_QUEUE", "TICK_JOB", "CART_EVENTS", "CART_STATS", "CART_CFG", "BREAKER", "ZERO_STATE"}
+	ProgramNames = []string{"cart_xdp", "cart_tick"}
+)
+
+// Open attaches to an interpreter another process loaded with
+// Options.PinDir (its pinned maps and programs). Close releases this
+// process's references only; Unpin removes the pins.
+func Open(pinDir string) (*Cart, error) {
+	coll := &ebpf.Collection{Maps: map[string]*ebpf.Map{}, Programs: map[string]*ebpf.Program{}}
+	fail := func(err error) (*Cart, error) {
+		coll.Close()
+		return nil, err
+	}
+	for _, n := range MapNames {
+		m, err := ebpf.LoadPinnedMap(filepath.Join(pinDir, n), nil)
+		if err != nil {
+			return fail(fmt.Errorf("cartridge: open map %s: %w (is the interpreter up?)", n, err))
+		}
+		coll.Maps[n] = m
+	}
+	for _, n := range ProgramNames {
+		p, err := ebpf.LoadPinnedProgram(filepath.Join(pinDir, n), nil)
+		if err != nil {
+			return fail(fmt.Errorf("cartridge: open program %s: %w", n, err))
+		}
+		coll.Programs[n] = p
+	}
+	return &Cart{coll: coll, Verifier: map[string]int{}, pinDir: pinDir}, nil
 }
 
 // Close unloads the programs and closes the maps. Pins (if any) stay until
@@ -97,6 +141,11 @@ func (c *Cart) Unpin() error {
 	for _, m := range c.coll.Maps {
 		if m.IsPinned() {
 			errs = append(errs, m.Unpin())
+		}
+	}
+	for _, p := range c.coll.Programs {
+		if p.IsPinned() {
+			errs = append(errs, p.Unpin())
 		}
 	}
 	if c.pinDir != "" {
@@ -217,9 +266,6 @@ func (c *Cart) Stats() ([StatCount]uint64, error) {
 	}
 	return out, nil
 }
-
-// SlotStat is one per-slot counter.
-func SlotStat(s [StatCount]uint64, slot, off int) uint64 { return s[slot*8+off] }
 
 // QueueNonEmpty peeks SCORE_QUEUE (a BPF queue has no length; peek is the
 // only non-consuming read).

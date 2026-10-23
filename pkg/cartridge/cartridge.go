@@ -262,8 +262,10 @@ func (s CartState) Hash() uint32 {
 			eat(b)
 		}
 	}
-	eat(byte(s.PC))
-	eat(byte(s.PC >> 8))
+	var pc [2]byte
+	binary.LittleEndian.PutUint16(pc[:], s.PC)
+	eat(pc[0])
+	eat(pc[1])
 	eat(s.Flags)
 	for _, m := range s.Mem {
 		binary.LittleEndian.PutUint32(w[:], m)
@@ -328,3 +330,6 @@ func writeSlot(w slotWriter, slot int, img *Image, gen uint32) error {
 	}
 	return nil
 }
+
+// SlotStat is one per-slot counter from a CART_STATS snapshot.
+func SlotStat(s [StatCount]uint64, slot, off int) uint64 { return s[slot*8+off] }
