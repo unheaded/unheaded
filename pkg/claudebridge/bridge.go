@@ -496,6 +496,7 @@ func (c *Conversation) runTool(ctx context.Context, id, name string, input json.
 		Name:         name,
 		InputBytes:   len(input),
 		InputSHA256:  hex.EncodeToString(sum[:]),
+		Model:        model,
 	}
 	t0 := time.Now()
 	finish := func(text string, isError bool) anthropic.BetaContentBlockParamUnion {

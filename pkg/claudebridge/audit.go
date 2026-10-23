@@ -30,6 +30,13 @@ type RequestRecord struct {
 	Duration        time.Duration
 	Err             string // "" on success; set when refused before sending or failed
 	Sent            bool   // false when refused before anything reached the API
+
+	// Routing context (S-TWO-BRAINS). Zero values keep the old behaviour:
+	// the auditor's own backend, no family, no route reason.
+	Backend     string // "claude" or "local"; "" = the auditor's default
+	TaskFamily  string // eval/routing family, e.g. "repo-task"
+	RouteReason string // llm_requests.route_reason
+	Redactions  int    // values the privacy tier redacted from this request
 }
 
 // ToolRecord summarises one tool call. The input is recorded by size and
@@ -48,6 +55,9 @@ type ToolRecord struct {
 	OutputBytes  int
 	Truncated    bool
 	Duration     time.Duration
+	Model        string // model that asked for the call (actor in audit_events)
+	Backend      string // "claude" or "local"; "" = the auditor's default
+	Redactions   int    // values the privacy tier redacted from the result
 }
 
 // Auditor receives every request and tool call. Implementations must be
