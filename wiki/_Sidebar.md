@@ -103,6 +103,7 @@
 **AI**
 - [[Zhen AI|Zhen-AI]]
 - [[Zhen Audit|Zhen-Audit]]
+- [[Zhen Confirmation|Zhen-Confirmation]]
 
 **Lore & Naming**
 - [[Lore Index|Lore-Index]]

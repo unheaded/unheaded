@@ -89,6 +89,7 @@ Step 89: no human at the terminal during this run, so the interactive live `-con
 ## ESCALATE answers
 
 - **Step 59 [ESCALATE] — OPEN.** Apply migration 030 (`unheaded_ops.llm_requests`) to the live Well? Additive, new append-only table, tested on throwaway servers (`scripts/well/test-llm-requests.sh`, bite-checked). The Well is down (H8) and live apply is Stevie's call (ADR-101 `well-migrate apply -yes`). Not applied; Step 61 (live check) skipped. Batch with 031 (Step 94).
+- **Step 94 [ESCALATE] — OPEN.** Apply migration 031 (`unheaded_app.zhen_pending_confirmations`) to the live Well, batched with 030 (Step 59). Additive new table, tested and bite-checked on throwaway servers (`scripts/well/test-zhen-confirm.sh`). Until it is applied, `-confirm queue` and `zhen-agentd -confirm-queue` cannot start against the live Well (they need the table); `-confirm tty` and `deny` work without it.
 
 ## Spend log
 

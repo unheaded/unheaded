@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"time"
+	"unicode/utf8"
 )
 
 // Out-of-band confirmation bound by hash (S-TWO-BRAINS Phase 2). A
@@ -52,6 +53,13 @@ type PendingCall struct {
 func CanonicalCall(tool string, args map[string]any, projectRoot string) ([]byte, string, error) {
 	if args == nil {
 		args = map[string]any{}
+	}
+	// encoding/json turns every invalid UTF-8 byte into U+FFFD, so two
+	// different byte strings would hash alike (found by
+	// FuzzPendingCallFor). Arguments decoded from JSON are always valid;
+	// anything else is refused rather than hashed ambiguously.
+	if !validUTF8Value(tool) || !validUTF8Value(projectRoot) || !validUTF8Value(args) {
+		return nil, "", errors.New("canonical call: a string is not valid UTF-8")
 	}
 	b, err := json.Marshal(map[string]any{"tool": tool, "args": args, "project_root": projectRoot})
 	if err != nil {
@@ -144,3 +152,25 @@ func (c *Champion) confirmedGate(ctx context.Context, tc ToolCall) error {
 // CheckPath reports whether path passes the sandbox's path rules (Rule 1,
 // symlinks resolved). For callers that show a file before a decision.
 func (c *Champion) CheckPath(path string) error { return c.validatePath(path) }
+
+// validUTF8Value reports whether every string in v (keys included) is
+// valid UTF-8.
+func validUTF8Value(v any) bool {
+	switch x := v.(type) {
+	case string:
+		return utf8.ValidString(x)
+	case map[string]any:
+		for k, sub := range x {
+			if !utf8.ValidString(k) || !validUTF8Value(sub) {
+				return false
+			}
+		}
+	case []any:
+		for _, sub := range x {
+			if !validUTF8Value(sub) {
+				return false
+			}
+		}
+	}
+	return true
+}
