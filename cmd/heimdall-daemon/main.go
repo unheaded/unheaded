@@ -77,6 +77,22 @@ type Heimdall struct {
 	drift *driftSink
 	// printAlert writes an alert line; nil means stdout.
 	printAlert func(string)
+	// logf writes an operational line ([HORN], [BPF]); nil means stdout.
+	logf func(format string, args ...any)
+
+	// hookEvents carries decoded BPF ringbuf records (bpf.go); nil = no
+	// BPF, polling only.
+	hookEvents <-chan hookEvent
+	// hornPolicy decides what a Gjallarhorn does; nil = horns ignored.
+	hornPolicy *hornPolicy
+	// hornCounters reads the XDP observer's counters for log lines.
+	hornCounters func() map[string]uint64
+	// debounce is the file-event coalescing delay (0 = 250 ms).
+	debounce time.Duration
+
+	// lastSeen is the hash each watched path had at the previous scan
+	// ("" = missing), so event-driven scans alert on changes only.
+	lastSeen map[string]string
 }
 
 // Trust says how a manifest is checked before Heimdall believes it.
@@ -130,18 +146,34 @@ func LoadManifest(path string, trust Trust) (*MjolnirManifest, error) {
 	return &m, nil
 }
 
-// ScanFiles walks the manifest file list and reports drift.
+// ScanFiles walks the manifest file list and reports every drifted file
+// (the polling and reverify "reminder" flows).
 // Byte-level diff (v1) — semantic diff is deferred to v2 (BlackMage #5).
-func (h *Heimdall) ScanFiles() {
-	h.mu.RLock()
-	defer h.mu.RUnlock()
+func (h *Heimdall) ScanFiles() { h.scan(false) }
+
+// ScanChanged reports only files whose drift is new or whose content
+// changed since the previous scan (the event-driven flow: a busy host's
+// write noise must not re-alert the same drift every 250 ms).
+func (h *Heimdall) ScanChanged() { h.scan(true) }
+
+func (h *Heimdall) scan(onlyChanged bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
 
 	if h.manifest == nil {
 		return
 	}
+	if h.lastSeen == nil {
+		h.lastSeen = map[string]string{}
+	}
 
 	for _, f := range h.manifest.Spec.Files {
 		actual, err := hashFile(f.Path)
+		prev, known := h.lastSeen[f.Path]
+		h.lastSeen[f.Path] = actual // "" when missing
+		if onlyChanged && known && prev == actual {
+			continue
+		}
 		if err != nil {
 			// File missing → drift
 			h.aggregator.HandleDrift(enkrateia.DriftEvent{
@@ -218,12 +250,31 @@ func (h *Heimdall) Run(ctx context.Context, scanInterval time.Duration) error {
 		}
 	}()
 
-	// TODO: wire BPF ringbuf reader (Aya userspace) for event-driven scanning
-	// TODO: wire Gjallarhorn XDP listener for UPC trigger packets
+	logf := h.logf
+	if logf == nil {
+		logf = func(f string, a ...any) { fmt.Printf(f+"\n", a...) }
+	}
+	delay := h.debounce
+	if delay == 0 {
+		delay = 250 * time.Millisecond
+	}
 
-	// Periodic baseline scan (v1 — polling)
+	// Three triggers, one loop: the periodic poll, BPF file events
+	// (vfs_write / execve, debounced), and Gjallarhorn horns seen by XDP
+	// (rate-limited). Any of them can re-check the seal; a seal that stops
+	// verifying stops the daemon, whichever trigger found it.
 	ticker := time.NewTicker(scanInterval)
 	defer ticker.Stop()
+	deb := newDebouncer(delay)
+	filter := hookFilter{selfPID: uint32(os.Getpid())} // #nosec G115 -- pids fit in u32 (pid_max <= 2^22)
+	var debTimer *time.Timer
+	var debC <-chan time.Time
+	defer func() {
+		if debTimer != nil {
+			debTimer.Stop()
+		}
+	}()
+	events := h.hookEvents
 
 	for {
 		select {
@@ -234,6 +285,45 @@ func (h *Heimdall) Run(ctx context.Context, scanInterval time.Duration) error {
 				return fmt.Errorf("manifest no longer trusted, stopping: %w", err)
 			}
 			h.ScanFiles()
+		case ev, ok := <-events:
+			if !ok {
+				events = nil
+				continue
+			}
+			now := time.Now()
+			if ev.Horn != nil && h.hornPolicy != nil {
+				act := h.hornPolicy.Decide(*ev.Horn, now)
+				counters := ""
+				if h.hornCounters != nil {
+					c := h.hornCounters()
+					counters = fmt.Sprintf(" xdp seen=%d valid=%d bad_magic=%d bad_kind=%d bad_len=%d bad_reserved=%d",
+						c["seen"], c["valid"], c["bad_magic"], c["bad_kind"], c["bad_len"], c["bad_reserved"])
+				}
+				logf("[HORN] kind=%d cluster=%d manifest_ptr=0x%016x src=%08x action=%s%s",
+					ev.Horn.Kind, ev.Horn.Cluster, ev.Horn.ManifestPtr, ev.Horn.SrcHash, act, counters)
+				if act == HornReverify {
+					if err := h.Reload(); err != nil {
+						return fmt.Errorf("manifest no longer trusted, stopping: %w", err)
+					}
+					h.ScanFiles()
+					logf("[HORN] re-verified manifest and scanned (event-driven)")
+				}
+			}
+			if ev.Drift != nil && filter.Wanted(*ev.Drift) {
+				deb.Kick(now)
+				if debC == nil {
+					debTimer = time.NewTimer(deb.Wait(now))
+					debC = debTimer.C
+				}
+			}
+		case <-debC:
+			now := time.Now()
+			if deb.Due(now) {
+				debC = nil
+				h.ScanChanged()
+			} else {
+				debTimer.Reset(deb.Wait(now))
+			}
 		}
 	}
 }
@@ -276,8 +366,20 @@ func main() {
 		wotanGRPC     = flag.String("wotan-grpc", "", "Wotan gRPC address: publish each drift alert to drift.detected.<node-id>, signed (UNHEADED_GRPC_TLS=1 for TLS)")
 		driftSignKey  = flag.String("drift-sign-key", "", "ML-DSA-65 seed (0600) that signs drift events; must not be the --sign-key or --pubkey key")
 		publishQueue  = flag.Int("publish-queue", 256, "drift events held for Wotan before the oldest is dropped")
+		bpfDir        = flag.String("bpf-dir", "", "directory with the heimdall-bpf objects: attach vfs_write/execve hooks (event-driven scans); needs CAP_BPF")
+		xdpIface      = flag.String("xdp-iface", "", "attach the observe-only Gjallarhorn XDP program here (needs --bpf-dir)")
+		xdpMode       = flag.String("xdp-mode", "generic", "XDP attach mode: generic | native")
+		cluster       = flag.Uint("cluster", 1, "this node's Gjallarhorn cluster ID; reverify horns for other clusters are ignored")
 	)
 	flag.Parse()
+	if *xdpMode != "generic" && *xdpMode != "native" {
+		fmt.Fprintf(os.Stderr, "--xdp-mode must be generic or native, got %q\n", *xdpMode)
+		os.Exit(2)
+	}
+	if *cluster > 0xFFFFFFFF {
+		fmt.Fprintln(os.Stderr, "--cluster must fit in 32 bits")
+		os.Exit(2)
+	}
 
 	// ADR-043 #4: the drift key is never the manifest key, whichever mode
 	// this run is in.
@@ -350,6 +452,32 @@ func main() {
 		os.Exit(1)
 	}
 	h.drift = sink
+
+	// BPF hooks are optional: any load/attach failure is logged once and
+	// the daemon keeps polling (S5 Step 150).
+	if *bpfDir != "" {
+		hooks, errs := loadHooks(HookConfig{Dir: *bpfDir, XDPIface: *xdpIface, XDPMode: *xdpMode})
+		for _, e := range errs {
+			fmt.Fprintf(os.Stderr, "[BPF] %v (continuing without it)\n", e)
+		}
+		if hooks != nil {
+			defer hooks.Close()
+			h.hookEvents = hooks.Events()
+			h.hornCounters = hooks.HornCounters
+			for name, n := range hooks.Verifier {
+				fmt.Printf("[BPF] %s loaded, verifier processed %d insns\n", name, n)
+			}
+			defer func() {
+				c := hooks.HornCounters()
+				fmt.Printf("[BPF] xdp counters at exit: seen=%d valid=%d bad_magic=%d bad_kind=%d bad_len=%d bad_reserved=%d rb_full=%d\n",
+					c["seen"], c["valid"], c["bad_magic"], c["bad_kind"], c["bad_len"], c["bad_reserved"], c["rb_full"])
+			}()
+		}
+	} else if *xdpIface != "" {
+		fmt.Fprintln(os.Stderr, "--xdp-iface needs --bpf-dir")
+		os.Exit(2)
+	}
+	h.hornPolicy = newHornPolicy(uint32(*cluster), time.Now()) // #nosec G115 -- range-checked above
 
 	// Graceful shutdown
 	sigCh := make(chan os.Signal, 1)
