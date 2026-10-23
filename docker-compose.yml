@@ -642,8 +642,10 @@ services:
       - ALL
     tmpfs:
       - /tmp:size=64M
+    # Wotan reads its log level from --log-level only; a LOG_LEVEL env var
+    # here was never read.
+    command: ["--log-level", "info"]
     environment:
-      LOG_LEVEL: info
       WOTAN_TOPIC_CONFIG: /etc/wotan/wotan.yaml   # auto-approve allowlist; without it every subscriber stays pending_approval
       # Under the 256M limit so the GC works harder before the kernel OOM-kills.
       # Payload is bounded by --buffer-bytes (8 MiB per room) and, for every
