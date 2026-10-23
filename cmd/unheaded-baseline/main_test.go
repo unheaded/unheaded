@@ -9,6 +9,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -66,7 +67,12 @@ func newFixture(t *testing.T) *fixture {
 		},
 		runProbes: func(_ context.Context, host, script string) (string, error) {
 			f.calls = append(f.calls, "probe:"+host)
-			return "@@auditd-running\ninactive\n@@firewall-inbound-deny\n-P INPUT DROP\n---\n-P INPUT DROP\n", nil
+			m := regexp.MustCompile(`echo @@([0-9a-f]{32}) `).FindStringSubmatch(script)
+			if m == nil {
+				return "", errors.New("no section tag in the probe script")
+			}
+			h := "@@" + m[1] + " "
+			return h + "auditd-running\ninactive\n" + h + "firewall-inbound-deny\n-P INPUT DROP\n---\n-P INPUT DROP\n", nil
 		},
 	}
 	return f

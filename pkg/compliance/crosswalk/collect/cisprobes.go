@@ -1498,8 +1498,9 @@ func init() {
 // ComplianceAsCode's package_pam_runtime_installed) checks libpam-runtime
 // >= 1.5.3-5; pam-runtime-version checks that, never "latest", which a
 // host check cannot know.
-// Section markers are "%%", never "@@": HostProbes splits a host's script
-// output on lines starting "@@", so "@@pam" ended this probe's section.
+// Section markers are "%%", never "@@": HostProbes once split a host's
+// script output on every line starting "@@", so "@@pam" ended this probe's
+// section (it now splits only on its per-run tagged headers).
 const pamDump = `echo %%pam; cat /etc/pam.d/common-auth /etc/pam.d/common-account /etc/pam.d/common-password /etc/pam.d/common-session 2>/dev/null; ` +
 	`echo %%pwq; cat /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf 2>/dev/null; ` +
 	`echo %%fl; cat /etc/security/faillock.conf 2>/dev/null; ` +

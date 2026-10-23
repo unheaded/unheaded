@@ -11,6 +11,8 @@ package collect
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -767,13 +769,50 @@ var Probes = map[string]Probe{
 	},
 }
 
+// sectionTag is a fresh random tag for one host's probe script.
+func sectionTag() (string, error) {
+	b := make([]byte, 16)
+	if _, err := rand.Read(b); err != nil {
+		return "", fmt.Errorf("section tag: %w", err)
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// splitSections cuts probe script output at "@@<tag> <probe>" lines. Any
+// other line, "@@" or not, is content. A probe whose header appears twice
+// is returned in forged: something printed a header it could only have
+// guessed, and neither section can be trusted.
+func splitSections(out, tag string) (sections map[string]string, forged map[string]bool) {
+	sections, forged = map[string]string{}, map[string]bool{}
+	head := "@@" + tag + " "
+	var cur string
+	for _, line := range strings.Split(out, "\n") {
+		if name, ok := strings.CutPrefix(line, head); ok {
+			if _, dup := sections[name]; dup {
+				forged[name] = true
+			}
+			cur = name
+			sections[cur] = ""
+			continue
+		}
+		if cur != "" {
+			sections[cur] += line + "\n"
+		}
+	}
+	return sections, forged
+}
+
 // backupLineRe: a db-backup-recent find line, "<YYYY-MM-DD> <what>".
 var backupLineRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \S`)
 
 var probeRefRe = regexp.MustCompile(`^(?:([a-z0-9][a-z0-9-]{0,62}):)?([a-z0-9-]+)$`)
 
 // HostProbes runs the named probes on each host its refs name: one script
-// per host, sections delimited by "@@<probe>" lines.
+// per host, sections delimited by "@@<tag> <probe>" lines. The tag is
+// random per run and travels only on the script's stdin: probe output
+// includes names other users choose (dot-files lists every home's dot
+// files), and a file named ".x\n@@<probe>\n@ok" once replaced that
+// probe's section with "@ok", a pass.
 type HostProbes struct {
 	Hostname string // default os.Hostname()
 	// Run executes script with sh on host (locally for the collector's own
@@ -807,14 +846,18 @@ func (p *HostProbes) probePrelude() string {
 	return probePath + priv + "UH_ROOT_FACTS=" + shQuote(p.RootFacts) + "\n"
 }
 
-// RunScript runs a probe script locally or on host over ssh.
+// RunScript runs a probe script locally or on host over ssh. The script is
+// sh's stdin, never an argument: arguments are world-readable in /proc, and
+// HostProbes' section tag must stay secret from the users whose files the
+// probes list.
 func RunScript(ctx context.Context, host, script string, local bool) (string, error) {
 	var cmd *exec.Cmd
 	if local {
-		cmd = exec.CommandContext(ctx, "sh", "-c", script) // #nosec G204 -- script is assembled only from the constant Probes table
+		cmd = exec.CommandContext(ctx, "sh", "-s")
 	} else {
-		cmd = exec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", host, "sh -c "+shQuote(script)) // #nosec G204 -- host matched the ref regex; script from the constant Probes table, shell-quoted
+		cmd = exec.CommandContext(ctx, "ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=10", "--", host, "sh -s") // #nosec G204 -- host matched the ref regex; the remote command is constant
 	}
+	cmd.Stdin = strings.NewReader(script)
 	var out bytes.Buffer
 	cmd.Stdout = &out
 	// A probe's own command may fail (auditd inactive exits 3); the script
@@ -869,13 +912,18 @@ func (p *HostProbes) Collect(ctx context.Context, sources []crosswalk.Source) ([
 	}
 	var recs []crosswalk.Record
 	for _, host := range hosts {
+		tag, err := sectionTag()
+		if err != nil {
+			return nil, err
+		}
 		var b strings.Builder
 		b.WriteString(p.probePrelude())
 		seen := map[string]bool{}
 		for _, c := range byHost[host] {
 			if !seen[c.probe] {
 				seen[c.probe] = true
-				fmt.Fprintf(&b, "echo @@%s; { %s; } 2>/dev/null\n", c.probe, Probes[c.probe].Command)
+				// stdin is the script itself (RunScript): no probe may read it.
+				fmt.Fprintf(&b, "echo @@%s %s; { %s; } </dev/null 2>/dev/null\n", tag, c.probe, Probes[c.probe].Command)
 			}
 		}
 		b.WriteString("exit 0\n")
@@ -883,22 +931,11 @@ func (p *HostProbes) Collect(ctx context.Context, sources []crosswalk.Source) ([
 		if err != nil {
 			continue // unreachable: no verdicts
 		}
-		sections := map[string]string{}
-		var cur string
-		for _, line := range strings.Split(out, "\n") {
-			if name, ok := strings.CutPrefix(line, "@@"); ok {
-				cur = name
-				sections[cur] = ""
-				continue
-			}
-			if cur != "" {
-				sections[cur] += line + "\n"
-			}
-		}
+		sections, forged := splitSections(out, tag)
 		for _, c := range byHost[host] {
 			sec, ok := sections[c.probe]
-			if !ok {
-				continue
+			if !ok || forged[c.probe] {
+				continue // no section, or two: no verdict
 			}
 			pass, detail := Probes[c.probe].Judge(sec)
 			v := crosswalk.VerdictFail

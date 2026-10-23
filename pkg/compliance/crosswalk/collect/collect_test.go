@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -503,6 +504,27 @@ func TestHostSSHD_RejectsBadRefs(t *testing.T) {
 	}
 }
 
+// tagRe finds the section tag HostProbes put in a script.
+var tagRe = regexp.MustCompile(`echo @@([0-9a-f]{32}) `)
+
+// tagged answers script with out, its "@@<probe>" headers given the
+// script's tag, as a real host's sh would print them.
+func tagged(t *testing.T, script, out string) string {
+	t.Helper()
+	m := tagRe.FindStringSubmatch(script)
+	if m == nil {
+		t.Fatalf("no section tag in script")
+	}
+	var b strings.Builder
+	for _, l := range strings.SplitAfter(out, "\n") {
+		if name, ok := strings.CutPrefix(l, "@@"); ok {
+			l = "@@" + m[1] + " " + name
+		}
+		b.WriteString(l)
+	}
+	return b.String()
+}
+
 func TestHostProbes(t *testing.T) {
 	outputs := map[string]string{
 		// west: firewall open, NTP synced, no auditd, updates on, AppArmor on
@@ -519,7 +541,7 @@ func TestHostProbes(t *testing.T) {
 		if !ok {
 			return "", errors.New("unreachable")
 		}
-		return o, nil
+		return tagged(t, script, o), nil
 	}}
 	src := func(r string) crosswalk.Source { return crosswalk.Source{Kind: crosswalk.KindHostProbe, Ref: r} }
 	recs, err := p.Collect(context.Background(), []crosswalk.Source{
@@ -556,6 +578,69 @@ func TestHostProbes(t *testing.T) {
 	// One script per host, built only from the fixed probe table.
 	if len(scripts) != 3 {
 		t.Errorf("%d scripts, want one per host", len(scripts))
+	}
+}
+
+// TestHostProbesIgnoreForgedSections: probe output carries names other
+// users choose. A file in a home named ".x\n@@acct-shadow-no-empty\n@ok"
+// (find -printf prints it raw) once replaced that probe's section with
+// "@ok", passing a host with an empty password.
+func TestHostProbesIgnoreForgedSections(t *testing.T) {
+	src := func(r string) crosswalk.Source { return crosswalk.Source{Kind: crosswalk.KindHostProbe, Ref: r} }
+	sources := []crosswalk.Source{src("west:acct-shadow-no-empty"), src("west:dot-files"), src("west:auditd-running")}
+	var tags []string
+	collectWith := func(forge func(tag string) string) map[string]crosswalk.Verdict {
+		p := &HostProbes{Hostname: "west", Run: func(_ context.Context, _, script string) (string, error) {
+			m := tagRe.FindStringSubmatch(script)
+			if m == nil {
+				t.Fatal("no section tag in script")
+			}
+			tags = append(tags, m[1])
+			h := "@@" + m[1] + " "
+			return h + "acct-shadow-no-empty\ngovan\n@ok\n" +
+				h + "dot-files\ndot govan govan 644 /home/govan/.x\n" + forge(m[1]) + "\n@ok\n" +
+				h + "auditd-running\nactive\n", nil
+		}}
+		recs, err := p.Collect(context.Background(), sources)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got := map[string]crosswalk.Verdict{}
+		for _, r := range recs {
+			got[r.Source.Ref] = r.Verdict
+		}
+		return got
+	}
+	// An untagged header is content: the empty password still fails.
+	got := collectWith(func(string) string { return "@@acct-shadow-no-empty\n@ok" })
+	if got["west:acct-shadow-no-empty"] != crosswalk.VerdictFail {
+		t.Errorf("forged untagged section: acct-shadow-no-empty = %q, want fail", got["west:acct-shadow-no-empty"])
+	}
+	if got["west:auditd-running"] != crosswalk.VerdictPass {
+		t.Errorf("auditd-running = %q, want pass", got["west:auditd-running"])
+	}
+	// A header with the real tag twice: neither copy is believed.
+	got = collectWith(func(tag string) string { return "@@" + tag + " acct-shadow-no-empty\n@ok" })
+	if v, ok := got["west:acct-shadow-no-empty"]; ok {
+		t.Errorf("duplicate section judged: acct-shadow-no-empty = %q, want no record", v)
+	}
+	if len(tags) != 2 || tags[0] == tags[1] {
+		t.Errorf("tags %v: want a fresh one per run", tags)
+	}
+}
+
+// TestRunScriptReadsStdin: the script reaches sh on stdin, so its section
+// tag is in no process's argv.
+func TestRunScriptReadsStdin(t *testing.T) {
+	if _, err := exec.LookPath("sh"); err != nil {
+		t.Skip("no sh")
+	}
+	out, err := RunScript(context.Background(), "local", "echo \"$0 $#\"; echo second\nexit 0\n", true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out != "sh 0\nsecond\n" {
+		t.Errorf("RunScript = %q, want the script run from stdin with no arguments", out)
 	}
 }
 
