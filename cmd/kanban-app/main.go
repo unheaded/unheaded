@@ -1487,19 +1487,14 @@ func (s *Server) handleTimelineCards(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Last resort: regular tasks
+	// No timeline: no timeline cards. This used to answer with the board's
+	// own tasks (source "fallback"), which the board merges with
+	// /api/v1/tasks and then announces "Timeline Loaded: Kanban is tracking
+	// its own timeline". On east, where timeguru has no timeline, every page
+	// load said so over the same 64 tasks.
 	if tasks == nil {
-		if s.taskManager != nil {
-			taskList := s.taskManager.GetAllTasks()
-			tasks = taskList
-			count = len(taskList)
-		} else {
-			s.tasksMu.RLock()
-			tasks = s.tasks
-			count = len(s.tasks)
-			s.tasksMu.RUnlock()
-		}
-		source = "fallback"
+		tasks = []*Task{}
+		source = "none"
 	}
 
 	w.Header().Set("Content-Type", "application/json")

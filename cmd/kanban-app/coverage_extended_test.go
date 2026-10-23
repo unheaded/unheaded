@@ -1022,7 +1022,10 @@ func TestHandleTimelineCards_WithTimelineTasks(t *testing.T) {
 	}
 }
 
-func TestHandleTimelineCards_InMemoryFallback(t *testing.T) {
+// No timeline is no timeline cards, not the board's own tasks relabelled:
+// the board merges this with /api/v1/tasks and announced "Timeline Loaded:
+// Kanban is tracking its own timeline" whenever it was non-empty.
+func TestHandleTimelineCards_NoTimelineIsEmpty(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	server := &Server{
@@ -1041,10 +1044,14 @@ func TestHandleTimelineCards_InMemoryFallback(t *testing.T) {
 		t.Errorf("expected 200, got %d", w.Code)
 	}
 
-	var resp map[string]interface{}
+	var resp struct {
+		Tasks  []Task `json:"tasks"`
+		Count  int    `json:"count"`
+		Source string `json:"source"`
+	}
 	json.NewDecoder(w.Body).Decode(&resp)
-	if resp["source"] != "fallback" {
-		t.Errorf("expected source 'fallback', got %v", resp["source"])
+	if resp.Source != "none" || resp.Count != 0 || resp.Tasks == nil || len(resp.Tasks) != 0 {
+		t.Errorf("got source %q, count %d, %d tasks (nil %v); want none, 0, []", resp.Source, resp.Count, len(resp.Tasks), resp.Tasks == nil)
 	}
 }
 
@@ -2951,10 +2958,10 @@ func TestHandleTimelineCards_WithTaskManager_NoTimeline(t *testing.T) {
 
 	var resp map[string]interface{}
 	json.NewDecoder(w.Body).Decode(&resp)
-	// Should fall back to regular tasks from TaskManager
-	source := resp["source"].(string)
-	if source != "fallback" {
-		t.Errorf("expected source 'fallback', got %q", source)
+	// No timeline cards, though TaskManager holds tasks (east's state:
+	// 64 tasks answered here as source "fallback").
+	if resp["source"] != "none" || resp["count"] != float64(0) {
+		t.Errorf("got source %v, count %v; want none, 0", resp["source"], resp["count"])
 	}
 }
 
