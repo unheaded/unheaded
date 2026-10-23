@@ -801,6 +801,7 @@ monitoring/maintenance|creates or ends an Alertmanager silence for planned work 
 build-binaries|builds the unit binaries (make binaries, build-all-debs); its --check-units verdict is check-unit-binaries
 wireguard/rotate-psk|rotates the WireGuard PSK on west/east (dry run unless --apply); its rollback and refusals are proven by wireguard/test-rotate-psk
 well/test-converge-live-app|compares the live Well (or a restored set) with a fresh bootstrap; needs that Well, runbook verify step
+zhen-mcp|launches the Zhen MCP server for Claude Code (.mcp.json, runbooks/security/mcp-write-exec-enablement.yaml); no verdict of its own
 "
 
 # ---------------------------------------------------------------------------
