@@ -225,7 +225,10 @@ func (c *Champion) RunCheck(ctx context.Context, key, path, crate string) (RunCh
 	}
 	ctx, cancel := context.WithTimeout(ctx, spec.Timeout+30*time.Second)
 	defer cancel()
-	env := append([]string{"HOME=" + wt}, c.runCheck.Env...)
+	// Tools that keep config or caches under $HOME (Go's telemetry
+	// counters in ~/.config/go) write them to the unit's private /tmp, not
+	// into the worktree, where they would end up in an agent commit.
+	env := append([]string{"HOME=" + wt, "XDG_CONFIG_HOME=/tmp/.config", "XDG_CACHE_HOME=/tmp/.cache"}, c.runCheck.Env...)
 	sr, err := run(ctx, sandbox.Config{
 		Dir: wt, Writable: c.runCheck.Writable, ReadOnly: c.runCheck.ReadOnly, Env: env,
 		RuntimeMax: spec.Timeout, MemoryMax: sandbox.DefaultMemoryMax, TasksMax: sandbox.DefaultTasksMax,

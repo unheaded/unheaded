@@ -23,7 +23,7 @@ import (
 const noteCheckTail = 2 << 10
 
 func (w *worker) writeNote(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec, run zhenagent.Run, wt, status, reason string,
-	o claudebridge.RouteOutcome, head string) string {
+	o claudebridge.RouteOutcome, head string, artefacts []string) string {
 	name := strings.TrimPrefix(run.Branch, "zhen/") + ".md"
 	path := filepath.Join(w.cfg.ReviewDir, name)
 	var b strings.Builder
@@ -44,7 +44,7 @@ func (w *worker) writeNote(ctx context.Context, c zhenagent.Card, spec zhenagent
 		fmt.Fprintf(&b, ", stop %s", o.Stop)
 	}
 	fmt.Fprintf(&b, "\n- Check: `%s` on `%s`: %s\n", spec.Check, spec.Path, map[bool]string{true: o.Check, false: "not run"}[o.Check != ""])
-	fmt.Fprintf(&b, "- Claude cost: $%s\n\n", o.Cost.USD())
+	fmt.Fprintf(&b, "- Claude cost: %s\n\n", o.Cost.USD())
 
 	b.WriteString("## Task (from the card; untrusted text)\n\n")
 	for _, l := range strings.Split(spec.Task, "\n") {
@@ -67,6 +67,16 @@ func (w *worker) writeNote(ctx context.Context, c zhenagent.Card, spec zhenagent
 		b.WriteString("(no worktree)\n")
 	}
 	b.WriteString("```\n")
+	if len(artefacts) > 0 {
+		b.WriteString("\nTool files the check left in the worktree, not committed (new files in a hidden top-level directory never are):\n\n")
+		for i, a := range artefacts {
+			if i >= 20 {
+				fmt.Fprintf(&b, "- ... and %d more\n", len(artefacts)-20)
+				break
+			}
+			fmt.Fprintf(&b, "- `%s`\n", a)
+		}
+	}
 
 	if o.CheckOutput != "" {
 		tail := o.CheckOutput

@@ -472,8 +472,13 @@ func LiveClaude(o LiveClaudeOptions) ClaudeLeg {
 		if in.Root != "" {
 			system = ClaudeSystem(in.Root, in.Branch, in.Check, "")
 		}
+		maxTokens := fitMaxTokens(taskCap, prices.Max().Output, min(o.MaxTokens, 4096))
+		if maxTokens == 0 {
+			return claudebridge.ClaudeResult{}, fmt.Errorf("routed escalation: budget %s is under one request of %d output tokens: %w",
+				taskCap.USD(), minLegTokens, claudebridge.ErrSpendCap)
+		}
 		b, err := claudebridge.New(ctx, claudebridge.Config{
-			Model: o.Model, Effort: o.Effort, MaxTokens: min(o.MaxTokens, 4096), DisableFallbacks: true, MaxIterations: 8,
+			Model: o.Model, Effort: o.Effort, MaxTokens: maxTokens, DisableFallbacks: true, MaxIterations: 8,
 			System: system, Providers: providers, Gate: gate, Prices: prices, Ledger: taskLedger,
 			Auditor: o.Auditor, Confirmer: claudebridge.DenyConfirmer{}, Privacy: in.Filter, ProjectRoot: in.Root,
 			Warn: func(m string) { log.Warn("privacy", "note", m) },
@@ -497,6 +502,27 @@ func LiveClaude(o LiveClaudeOptions) ClaudeLeg {
 		}
 		return res, sendErr
 	}
+}
+
+// minLegTokens is the smallest max_tokens a Claude leg is worth sending.
+const minLegTokens = 1024
+
+// fitMaxTokens sizes max_tokens so that one request's output, at the
+// price table's highest output rate, stays within 70 % of the task cap
+// (the rest is for the input). The bridge reserves every request's worst
+// case before sending it, so a family cap under one 4096-token request
+// would otherwise refuse every Claude leg before anything was sent.
+// 0 means not even minLegTokens fit.
+func fitMaxTokens(capNano claudebridge.NanoUSD, maxOutRate, want int64) int64 {
+	if maxOutRate <= 0 || capNano <= 0 {
+		return 0
+	}
+	fit := int64(capNano) * 7 / 10 / maxOutRate
+	n := min(want, fit)
+	if n < minLegTokens {
+		return 0
+	}
+	return n
 }
 
 // FakeClaude stands in for the Claude leg without any network call (dry

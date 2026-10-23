@@ -114,6 +114,12 @@ func TestRunCheck_ArgvAndPass(t *testing.T) {
 	if fs.cfg.Env[0] != "HOME="+wt {
 		t.Errorf("env = %v", fs.cfg.Env)
 	}
+	// Tool config and caches (Go telemetry counters, ...) go to the unit's
+	// private /tmp, never into the worktree a commit is made from (Step 218).
+	env := strings.Join(fs.cfg.Env, " ")
+	if !strings.Contains(env, "XDG_CONFIG_HOME=/tmp/") || !strings.Contains(env, "XDG_CACHE_HOME=/tmp/") || strings.Contains(env, "XDG_CONFIG_HOME="+wt) {
+		t.Errorf("env = %v", fs.cfg.Env)
+	}
 	if len(store.actions) != 1 || store.actions[0].ActionType != "run_check" || store.actions[0].Status != "completed" {
 		t.Errorf("actions = %+v", store.actions)
 	}

@@ -134,6 +134,7 @@ type cardResult struct {
 	Route      claudebridge.RouteOutcome
 	ReviewNote string
 	Skipped    []skipNote
+	Artefacts  []string // tool files left in the worktree, not committed
 }
 
 func execGit(ctx context.Context, dir string, args ...string) ([]byte, error) {
@@ -422,7 +423,7 @@ func (w *worker) work(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec
 
 	end := func(status, reason string, infra bool, o claudebridge.RouteOutcome, head string, changed int) cardResult {
 		res.Infra, res.Route, res.Reason = infra, o, reason
-		res.ReviewNote = w.writeNote(bg, c, spec, run, wt, status, reason, o, head)
+		res.ReviewNote = w.writeNote(bg, c, spec, run, wt, status, reason, o, head, res.Artefacts)
 		if err := w.cfg.Store.Finish(bg, run.ID, zhenagent.Outcome{Status: status, HeadCommit: head, Summary: summaryOf(o, res.ReviewNote, changed),
 			ClaudeNanoUSD: int64(o.Cost), Error: reason}); err != nil {
 			log.Error("worker_finish", "error", err.Error())
@@ -484,20 +485,16 @@ func (w *worker) work(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec
 		}
 		return end(zhenagent.StatusFailed, why, false, o, "", 0)
 	}
-	st, err := w.cfg.Git(ctx, wt, "status", "--porcelain=v1", "--untracked-files=all")
+	paths, artefacts, err := w.changedPaths(ctx, wt)
 	if err != nil {
 		return end(zhenagent.StatusFailed, "status: "+err.Error(), true, o, "", 0)
 	}
-	changed := 0
-	for _, l := range strings.Split(strings.TrimSpace(string(st)), "\n") {
-		if strings.TrimSpace(l) != "" {
-			changed++
-		}
-	}
+	res.Artefacts = artefacts
+	changed := len(paths)
 	if changed == 0 {
 		return end(zhenagent.StatusFailed, "check passed but no change was made", false, o, "", 0)
 	}
-	if _, err := w.cfg.Git(ctx, wt, "add", "-A", "--", "."); err != nil {
+	if _, err := w.cfg.Git(ctx, wt, append([]string{"add", "-A", "--"}, paths...)...); err != nil {
 		return end(zhenagent.StatusFailed, "add: "+err.Error(), true, o, "", changed)
 	}
 	trailers := []string{"Zhen-Card: " + c.ID, "Zhen-Route: " + o.Route + "/" + o.RouteReason, "Zhen-Run: " + run.ID}
@@ -508,7 +505,7 @@ func (w *worker) work(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec
 		trailers = append(trailers, claudeCoAuthor)
 	}
 	body := fmt.Sprintf("Kanban card %s, worked by zhen-agentd (%s, family %s): check %s on %s passed after %d local attempt(s)%s.",
-		c.ID, w.cfg.Mode, spec.Family, spec.Check, spec.Path, o.LocalAttempts, map[bool]string{true: " and a Claude leg (" + o.RouteReason + ", $" + o.Cost.USD() + ")", false: ""}[claudeWrote(o)])
+		c.ID, w.cfg.Mode, spec.Family, spec.Check, spec.Path, o.LocalAttempts, map[bool]string{true: " and a Claude leg (" + o.RouteReason + ", " + o.Cost.USD() + ")", false: ""}[claudeWrote(o)])
 	if _, err := w.cfg.Git(ctx, wt, "commit", "--no-verify", "--no-gpg-sign", "--author", zhenaiAuthor,
 		"-m", commitSubject(c), "-m", body, "-m", strings.Join(trailers, "\n")); err != nil {
 		return end(zhenagent.StatusFailed, "commit: "+err.Error(), true, o, "", changed)
@@ -518,6 +515,35 @@ func (w *worker) work(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec
 		return end(zhenagent.StatusFailed, "rev-parse: "+err.Error(), true, o, "", changed)
 	}
 	return end(zhenagent.StatusSucceeded, "", false, o, strings.TrimSpace(string(head)), changed)
+}
+
+// maxCommitPaths bounds what one agent commit may touch.
+const maxCommitPaths = 200
+
+// changedPaths lists the worktree's changes to commit. New files in a
+// hidden top-level directory (.config/, .cache/, ...) are tool artefacts
+// a check left behind, never committed: they are returned separately for
+// the review note.
+func (w *worker) changedPaths(ctx context.Context, wt string) (paths, artefacts []string, err error) {
+	out, err := w.cfg.Git(ctx, wt, "-c", "status.renames=false", "status", "--porcelain=v1", "-z", "--untracked-files=all")
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, e := range strings.Split(string(out), "\x00") {
+		if len(e) < 4 {
+			continue
+		}
+		xy, p := e[:2], e[3:]
+		if xy == "??" && strings.HasPrefix(p, ".") {
+			artefacts = append(artefacts, p)
+			continue
+		}
+		paths = append(paths, p)
+	}
+	if len(paths) > maxCommitPaths {
+		return nil, artefacts, fmt.Errorf("%d changed paths (over %d)", len(paths), maxCommitPaths)
+	}
+	return paths, artefacts, nil
 }
 
 func commitSubject(c zhenagent.Card) string {

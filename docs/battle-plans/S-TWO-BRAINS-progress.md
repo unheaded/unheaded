@@ -172,3 +172,64 @@ All live Claude calls of this run go through `-ledger $SCRATCH/spend.json`
 | 183 | the same 3 fixtures, `--route local` (comparison) | 0.000000 | 1.349625 |
 
 **Total live Claude spend for this run: $1.349625** (run ledger $1.324123 + Phase 5 ledger $0.025502), under the $5 budget.
+
+---
+
+# Phases 6-7 run (Steps 197-258)
+
+A second worktree agent on `sprint/two-brains`, from `14de0842` (Phases
+0-5 done). Unsigned commits, nothing pushed, the live Well not touched.
+Other agents hold Phases 8-9 (`sprint/two-brains-runbooks`) and 10-11, 13
+(`sprint/two-brains-flywheel`). Live Claude cap for this run: $2, effort
+low; GPU / llama-server shared with the runbook agent: it was **not
+running** (`pgrep -af llama-server` empty), so it was never started, and
+every local leg below ran against a fake OpenAI-compatible server
+(`$SCRATCH/fake_llama.py`, answers the go-nil-map fix).
+
+Deviations: the demo project root is a throwaway clone of
+`sprint/two-brains` (with a local `develop` at its tip plus the live
+fixtures), and the agent root and review dir sit beside it under
+`.demo/` in this worktree (never added): the shared checkout's `develop`
+lacks the sprint's code and the live fixtures, and demo branches named
+after throwaway cards do not belong in the shared repository. Wotan is
+down (H8), so `-audit-wotan` was not exercised live (unit-tested).
+
+## Phase 6 decisions
+
+- **Step 197** [DECIDE] recommendation taken (owner `zhen`, todo, task/tech-debt/bug/docs, a strict ```zhen block; claim = 032 row with a partial unique index; 30-min lease renewed every 5 min; card moves audited as `actor_type='service'`; branch `zhen/<card>` from local develop; author Zhenai, committer the repo identity, unsigned, Zhen-* trailers). Additions: a card gets **2 attempts** (failed/abandoned/rejected count, cancelled does not), the second on `zhen/<card>-2`; a card id that does not lower-case into `^[a-z0-9][a-z0-9-]{0,59}$` is skipped, never rewritten; an existing branch or worktree is skipped, never overwritten; commits run with `--no-verify` (git hooks would run on model-written code outside the sandbox; the sandboxed check is the judge).
+- **Step 198** Erda additions to the plan's SQL: plain `CREATE` (Law 1, as 030/031); CHECKs on family, base/head commit shape, error <= 1000, `lease_until > claimed_at`, `(status in accepted/rejected) = (reviewed_at IS NOT NULL)`; an insert trigger (born `claimed`, no head or review); the identity set widened to claimed_at, mode and family; a finished run's outcome is immutable, review fields move only with accept/reject; DELETE/TRUNCATE refused; `zhen_agent_runs_card_idx (card_id, claimed_at DESC)` serves the FK and the attempt count. Grants: 003 already gives app_zhen SELECT on kanban_tasks; 032 adds column UPDATE (status, progress, commits, updated_at) only, which is also what `FOR UPDATE SKIP LOCKED` needs. FK RESTRICT: a card with run history cannot be hard-deleted (kanban-app soft-deletes). Lint: P3 `text-surrogate-pk` (the 16-hex id Stevie types) and the corpus P3, as 031.
+- **Step 202** the race is 8 concurrent app_zhen sessions; the bite (index dropped) gives 8 winners. Registered in `check-gates-can-fail.sh`. The script's Go part runs `pkg/zhenagent`'s store conformance suite against the same server (cards inserted as app_kanban).
+- **Step 205 [ESCALATE]** live apply of 032: batched with 030/031 (below).
+- **Step 209** the routed loop was lifted from `cmd/zhen-claude` into `pkg/zhenroute` so the worker runs it **in process** (the plan's answer to Phase 5's open item h: the worker never goes through `/ask`). zhen-claude's routed tests pass unchanged on the lifted code. `-worker -once` works **one** card per invocation (WIP 1), so Step 217's "two branches" took two invocations.
+- **Step 212** the review note is `$STATE/zhen-reviews/<branch name>.md` (the plan says `<card>.md`; the branch name keeps a retry's note apart); it landed with the worker because the worker's tests check it.
+
+## Phase 6 findings (found by the live steps, fixed, tested)
+
+- **Step 218 [V] failed, [D] 218a**: the first live card committed 7 Go telemetry files besides the fix. `run_check` sets `HOME=<worktree>`, so the toolchain wrote `~/.config/go/telemetry` into the worktree and `git add -A` took it. Fixed twice: `run_check` now sets `XDG_CONFIG_HOME`/`XDG_CACHE_HOME` to the unit's private `/tmp` (test in `TestRunCheck_ArgvAndPass`); the worker never commits new files in a hidden top-level directory (listed in the review note instead; `TestWorker_ToolArtefactsNotCommitted`, `TestWorker_OnlyArtefactsIsNoChange`). The flawed run was rejected through the new `zhen-claude review reject` (card back to todo, worktree removed, branch kept); the retry on `zhen/live-go-nil-map-2` committed `lib.go` only. Also fixed: the note printed `$$0.000000`.
+- **Step 219, [D] 219a**: every family cap in the generated `configs/zhen-routing.yaml` ($0.05-$0.07) and the card's $0.10 are below the bridge's worst-case reservation for one request at `max_tokens` 4096 ($0.1024 at the table's highest output rate), so a Claude leg of the generated config could never send a request (`escalation_budget`, $0, sent=false in `llm_requests`). Phase 5's one live escalation used a scratch routing file with a larger cap, so it did not show. Fixed: `zhenroute.LiveClaude` sizes `max_tokens` to 70 % of the task cap at the highest output rate (floor 1024; below it an honest spend-cap stop; `TestFitMaxTokens`).
+- **Step 219, [D] 219b**: with that fixed, the leg's first request ($0.016716) called `patch_file` and `run_check` (the fix was correct and passed), the closing request did not fit the remaining budget, and the router marked the check `fail` without running it. Fixed in `ThresholdRouter.claudeLeg`: a spend-cap stop after a leg has spent still runs the (free) check (`TestRouter_BudgetStopStillChecks`; a leg refused before its first request still ends `fail`). **Open for Stevie (not changed):** under worst-case reservation, a multi-request tool loop needs about one 4096-token request of headroom per remaining turn; the generated caps leave a Claude leg one request. Either the eval-derived caps get that headroom, or the bridge shrinks `max_tokens` per request to what is left. A cost-semantics choice; recorded, not made here.
+- **Step 220**: Claude's tool calls under zhen-agentd were recorded as `actor_id zhen-local/claude-opus-5-5` (the bridge's `ToolRecord` left `Backend` empty; agentd's auditor defaults to local). The bridge now marks its tool records `claude` (assertion added to the bridge's tool-loop test).
+
+## Phase 6 live run (Steps 216-221)
+
+Throwaway Well `qa-zhen-agent-runs-*` (`scripts/well/test-zhen-agent-runs.sh --sql-only --keep`; its own test rows stay: block-less `race-card` and `chk-card` are skipped and logged by every poll), kanban-app on it as app_kanban (Postgres, not SQLite), cards created through `POST /api/v1/tasks`:
+
+| Card | Owner / type | Block | Expected | Result |
+|---|---|---|---|---|
+| `live-go-nil-map` | zhen / task | repo-task, fixture-check, `eval/two-brains/live/go-nil-map` | local_only, fake local fix passes | run 1 succeeded but carried telemetry files (218a), rejected; run 2 `ee6619734dbf079e` succeeded on `zhen/live-go-nil-map-2`, `lib.go` only, card in review |
+| `live-docs-usage` | zhen / docs | docs (default: claude_direct), fixture-check | fake Claude changes nothing: failed | failed twice (2 attempts: a failed card goes back to todo and the next poll retries it) |
+| `live-not-for-zhen` | Stevie / task | yes | never touched | not a candidate (owner filter in the query), card untouched |
+| `live-docs-usage-b` | zhen / docs | as above, $0.10 | real Claude | run 1 `escalation_budget` before sending (219a); run 2 spent $0.016716, fixed the file, check not rerun (219b) -> failed; attempts used up |
+| `live-docs-usage-c` | zhen / docs | as above, $0.10 | real Claude, both fixes in | `a5f4cae1d0e46808` succeeded on `zhen/live-docs-usage-c`: Claude `patch_file` + `run_check`, $0.016656, commit by Zhenai with `Co-Authored-By: Claude`, card in review |
+
+Step 218 [V] (after 218a): `zhen/*` branches exist only in the demo clone; `git reflog --all` has 0 push entries; the demo clone's only remote ref is the clone source. Step 220 [V]: per run, `zhen_agent_runs` holds the outcome and cost; `audit_events` holds `card_move` / `agent_run` (`service`), Claude's `tool_call`s (`model`), the reject (`human`, `govan@west`); `llm_requests` holds every request, the refused ones with `sent=false` and the cap message.
+
+## Phase 6-7 spend log
+
+Run-private ledger `$SCRATCH/spend-phase6.json` (cap $0.50 for Phase 6), `-effort low`.
+
+| Step | What | Cost (USD) | Running total |
+|---|---|---|---|
+| 219 | live-docs-usage-b run 1: refused before sending (219a) | 0.000000 | 0.000000 |
+| 219 | live-docs-usage-b run 2: 1 request sent, 1 refused (219b) | 0.016716 | 0.016716 |
+| 219 | live-docs-usage-c: 1 request sent, 1 refused, check passed | 0.016656 | 0.033372 |

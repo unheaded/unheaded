@@ -166,6 +166,26 @@ func TestRouter_BudgetStops(t *testing.T) {
 	}
 }
 
+// The cap can stop a Claude leg after it already changed the worktree
+// (S-TWO-BRAINS Step 219: patch_file and run_check in the first request,
+// the closing request refused). The check still judges what was bought.
+func TestRouter_BudgetStopStillChecks(t *testing.T) {
+	f := &routeFakes{local: []string{draft}, checks: []bool{false, false, true}, claudeCost: 16_716_000,
+		claudeErr: fmt.Errorf("claudebridge: %w", ErrSpendCap)}
+	out, err := f.router(testRouting(), true).Run(context.Background(), "repo-task", "x")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Stop != "escalation_budget" || out.Check != "pass" || out.Cost != 16_716_000 {
+		t.Errorf("out = %+v", out)
+	}
+	// A cap hit before anything was sent: nothing changed, the check fails.
+	f2 := &routeFakes{local: []string{draft}, checks: []bool{false, false}, claudeErr: fmt.Errorf("claudebridge: %w", ErrSpendCap)}
+	if out, _ := f2.router(testRouting(), true).Run(context.Background(), "repo-task", "x"); out.Check != "fail" || out.Stop != "escalation_budget" {
+		t.Errorf("out = %+v", out)
+	}
+}
+
 func TestRouter_ParseFailureEscalatesWhenConfigured(t *testing.T) {
 	f := &routeFakes{local: []string{"no blocks here"}, checks: []bool{true}, claudeText: "ok"}
 	out, _ := f.router(testRouting(), true).Run(context.Background(), "parse-only", "x")

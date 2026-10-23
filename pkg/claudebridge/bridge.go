@@ -592,6 +592,7 @@ func (c *Conversation) runTool(ctx context.Context, id, name string, input json.
 	b := c.b
 	sum := sha256.Sum256(input)
 	run := &toolRun{b: b, t0: time.Now(), id: id, input: input, model: model, rec: ToolRecord{
+		Backend:      BackendClaude, // the bridge only ever runs Claude's tool calls
 		Conversation: c.id,
 		ToolUseID:    id,
 		Name:         name,

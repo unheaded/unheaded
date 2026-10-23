@@ -71,6 +71,8 @@ type fakeRunner struct {
 	active  atomic.Int32
 	maxSeen atomic.Int32
 	hook    func()
+	// artefacts: leave tool files in a hidden top-level directory.
+	artefacts bool
 }
 
 func (f *fakeRunner) Run(ctx context.Context, t zhenroute.Task) (claudebridge.RouteOutcome, error) {
@@ -100,7 +102,49 @@ func (f *fakeRunner) Run(ctx context.Context, t zhenroute.Task) (claudebridge.Ro
 			return claudebridge.RouteOutcome{}, err
 		}
 	}
+	if f.artefacts {
+		// What a check's tools leave behind (Go telemetry under $HOME).
+		d := filepath.Join(t.Worktree, ".config", "go", "telemetry")
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			return claudebridge.RouteOutcome{}, err
+		}
+		if err := os.WriteFile(filepath.Join(d, "weekends"), []byte("x\n"), 0o600); err != nil {
+			return claudebridge.RouteOutcome{}, err
+		}
+	}
 	return f.out, f.err
+}
+
+func TestWorker_ToolArtefactsNotCommitted(t *testing.T) {
+	m := zhenagent.NewMemStore()
+	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	r := &fakeRunner{write: true, artefacts: true, out: passOutcome()}
+	w, _, agent, _ := newTestWorker(t, m, r)
+	res, _ := w.runOnce(context.Background())
+	if res.Outcome != outcomeSucceeded {
+		t.Fatalf("result = %+v", res)
+	}
+	files := gitOut(t, filepath.Join(agent, "good"), "show", "--name-only", "--format=", "HEAD")
+	if files != "pkg/ex/double.go" {
+		t.Errorf("committed %q", files)
+	}
+	note, _ := os.ReadFile(res.ReviewNote)
+	if !strings.Contains(string(note), ".config/go/telemetry/weekends") || !strings.Contains(string(note), "not committed") {
+		t.Errorf("note does not list the artefact:\n%s", note)
+	}
+	if strings.Contains(string(note), "$$") {
+		t.Errorf("note has $$:\n%s", note)
+	}
+}
+
+func TestWorker_OnlyArtefactsIsNoChange(t *testing.T) {
+	m := zhenagent.NewMemStore()
+	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
+	r := &fakeRunner{artefacts: true, out: passOutcome()}
+	w, _, _, _ := newTestWorker(t, m, r)
+	if res, _ := w.runOnce(context.Background()); res.Outcome != outcomeFailed || !strings.Contains(res.Reason, "no change") {
+		t.Errorf("result = %+v", res)
+	}
 }
 
 func passOutcome() claudebridge.RouteOutcome {

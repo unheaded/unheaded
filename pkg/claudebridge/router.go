@@ -332,7 +332,24 @@ func (r *ThresholdRouter) claudeLeg(ctx context.Context, out RouteOutcome, promp
 	if err != nil {
 		if errors.Is(err, ErrSpendCap) {
 			out.Stop = "escalation_budget"
-			if r.Check != nil && out.Check == "" {
+			// The cap stopped a leg that already spent (and may have
+			// changed the worktree): the check, which costs nothing,
+			// still judges what was bought. A leg refused before its
+			// first request changed nothing.
+			if r.Check != nil && cr.Cost > 0 {
+				co, cerr := r.Check(ctx)
+				if cerr != nil {
+					out.Check = "error"
+					return out, cerr
+				}
+				out.CheckOutput = co.Output
+				out.Check = "fail"
+				if co.Pass {
+					out.Check = "pass"
+				}
+				return out, nil
+			}
+			if r.Check != nil {
 				out.Check = "fail"
 			}
 			return out, nil

@@ -129,3 +129,24 @@ func TestApplyDraft_RefusesProtected(t *testing.T) {
 		t.Error("a protected test accepted")
 	}
 }
+
+// A per-task cap below one request's worst case at max_tokens 4096 must
+// shrink max_tokens, not stop every Claude leg at escalation_budget
+// before anything is sent (Step 219a).
+func TestFitMaxTokens(t *testing.T) {
+	const outRate = 25_000 // nano-USD per output token, the table's highest
+	cases := []struct {
+		capNano claudebridge.NanoUSD
+		want    int64
+	}{
+		{250_000_000, 4096}, // $0.25: the configured maximum fits
+		{100_000_000, 2800}, // $0.10: 70 % of the cap at the highest rate
+		{50_000_000, 1400},  // $0.05: the repo-task family cap
+		{30_000_000, 0},     // under the 1024-token floor: no request
+	}
+	for _, c := range cases {
+		if got := fitMaxTokens(c.capNano, outRate, 4096); got != c.want {
+			t.Errorf("cap %d: %d, want %d", c.capNano, got, c.want)
+		}
+	}
+}
