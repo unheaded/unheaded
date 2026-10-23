@@ -414,8 +414,11 @@ func handleMilestoneRoutes(handler *api.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// Parse URL path segments — never use filepath on URL paths (traversal risk)
 		// Expected: /milestones/{id}/update
-		trimmed := strings.TrimPrefix(r.URL.Path, "/milestones/")
-		if trimmed == "" || trimmed == r.URL.Path {
+		// Registered under /milestones/ and /api/v1/milestones/; trimming only
+		// the first left the /api/v1 path untouched, so it always got 400.
+		path := strings.TrimPrefix(r.URL.Path, "/api/v1")
+		trimmed := strings.TrimPrefix(path, "/milestones/")
+		if trimmed == "" || trimmed == path {
 			http.Error(w, "milestone ID required", http.StatusBadRequest)
 			return
 		}

@@ -606,6 +606,12 @@ type SyncResponse struct {
 
 // HandleSync handles POST /api/v1/timeline/sync - triggers file sync to all formats
 func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
+	// It writes (mirror files / the stored timeline); a GET used to do it too.
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		h.writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "use POST", nil)
+		return
+	}
 	if h.syncer == nil {
 		h.writeError(w, http.StatusServiceUnavailable, "SYNC_NOT_CONFIGURED",
 			"file sync is not configured (no output directory)", nil)
@@ -641,6 +647,12 @@ func (h *Handler) HandleSync(w http.ResponseWriter, r *http.Request) {
 
 // HandleImport handles POST /api/v1/timeline/import - imports timeline from JSON/YAML/TOML body
 func (h *Handler) HandleImport(w http.ResponseWriter, r *http.Request) {
+	// It writes (mirror files / the stored timeline); a GET used to do it too.
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		h.writeError(w, http.StatusMethodNotAllowed, "METHOD_NOT_ALLOWED", "use POST", nil)
+		return
+	}
 	// Determine format from query param or Content-Type
 	format := r.URL.Query().Get("format")
 	if format == "" {
