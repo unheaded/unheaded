@@ -259,4 +259,4 @@ A single packet's lifecycle:
 
 ---
 
-*See also: [Architecture](architecture.md) | [Doom over IPv6](doom-over-ipv6.md) | [Security](security.md)*
+*See also: [[Architecture|Architecture]] | [[Doom over IPv6|Doom-over-IPv6]] | [[Security|Security]]*

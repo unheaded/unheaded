@@ -39,9 +39,11 @@ The UPC is a virtual CPU implemented in the eBPF runtime. Monad packets are the 
 - [[The First Packet|The-First-Packet]]
 - [[MBC ISA Reference|MBC-ISA-Reference]]
 - [[Error Registry|Error-Registry]]
+- [[PQC Authentication|PQC-Authentication]]
 
 ### Internet-Drafts
 
+- [[Drafts Index|Drafts-Index]]
 - [[Foundation-06|Draft-Protocol-Foundation-06]]
 - [[Sophia-03|Draft-Sophia-Dictionary-03]]
 - [[Wotan-03|Draft-Wotan-Memory-03]]
@@ -76,6 +78,7 @@ Recent:
 - [[Security TODOs|Security-TODOs]]
 - [[LICH Fuzzing Campaigns|LICH-Campaigns]]
 - [[Dark Grimoire|Dark-Grimoire]]
+- [[SBOM]]
 
 ## Services
 
@@ -144,6 +147,10 @@ Full record: [[Timeline]] (`references/timeline.md`).
 
 - [[The Well|The-Well]] — PostgreSQL: databases, roles, TLS, where everything lives on west
 - [[Well Backups|Well-Backups]] — backup locations (west + east), schedule, alerts, restore
+
+## AI
+
+- [[Zhen AI|Zhen-AI]]
 
 ## Lore & Naming
 

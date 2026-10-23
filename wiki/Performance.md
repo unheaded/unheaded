@@ -152,4 +152,4 @@ At the target rate of 1,000 pps, Doom consumes traffic equivalent to approximate
 
 ---
 
-*See also: [Doom over IPv6](doom-over-ipv6.md) | [Architecture](architecture.md) | [Bug Kill Chain](bug-kill-chain.md)*
+*See also: [[Doom over IPv6|Doom-over-IPv6]] | [[Architecture|Architecture]] | [[Bug Kill Chain|Bug-Kill-Chain]]*

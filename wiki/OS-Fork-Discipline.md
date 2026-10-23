@@ -29,5 +29,5 @@ Yggdrasil (Unheaded OS) is a soft-fork of Debian stable. This doc defines the fo
 ## Cross-references
 
 - [ADR Index](ADR-Index.md)
-- [ADR-69420](ADR-69420-kingdom-bgp-and-unheaded-os.md) — Kingdom BGP + Unheaded OS (the parent ADR)
+- [[ADR-69420|ADR-69420-Kingdom-BGP-and-Unheaded-OS]] — Kingdom BGP + Unheaded OS (the parent ADR)
 - [Architecture overview](Architecture.md)

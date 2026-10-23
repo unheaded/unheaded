@@ -13,17 +13,17 @@ Computational completeness proven by running Doom (1993) inside eBPF: MBC byteco
 ## Wiki Pages
 
 ### Core
-- **[Architecture](architecture.md)** — 6-layer system, Monad wire format, eBPF execution model
-- **[Protocol Specifications](protocol-specs.md)** — Monad, Wotan, Sophia
-- **[Security](security.md)** — NIST 800-207 Zero Trust Architecture, Lich campaigns
+- **[[Architecture|Architecture]]** — 6-layer system, Monad wire format, eBPF execution model
+- **[[Protocol Specifications|Protocol-Specs]]** — Monad, Wotan, Sophia
+- **[[Security|Security]]** — NIST 800-207 Zero Trust Architecture, Lich campaigns
 
 ### Doom-over-IPv6
-- **[Doom over IPv6](doom-over-ipv6.md)** — Technical narrative
-- **[Bug Kill Chain](bug-kill-chain.md)** — Bugs found and fixed during Doom development
-- **[Performance](performance.md)** — Injection rates, optimization roadmap
+- **[[Doom over IPv6|Doom-over-IPv6]]** — Technical narrative
+- **[[Bug Kill Chain|Bug-Kill-Chain]]** — Bugs found and fixed during Doom development
+- **[[Performance|Performance]]** — Injection rates, optimization roadmap
 
 ### Project
-- **[Roadmap](roadmap.md)** — Current state and forward plan
+- **[[Roadmap|Roadmap]]** — Current state and forward plan
 
 ---
 

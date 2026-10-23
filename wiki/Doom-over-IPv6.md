@@ -225,4 +225,4 @@ The same BPF map infrastructure that runs Doom will run production packet tracin
 
 ---
 
-*See also: [Architecture](architecture.md) | [Bug Kill Chain](bug-kill-chain.md) | [Performance](performance.md)*
+*See also: [[Architecture|Architecture]] | [[Bug Kill Chain|Bug-Kill-Chain]] | [[Performance|Performance]]*

@@ -206,4 +206,4 @@ Every major bug encountered during the Doom-over-IPv6 proof of concept, from fir
 
 ---
 
-*See also: [Doom over IPv6](doom-over-ipv6.md) | [Performance](performance.md) | [Architecture](architecture.md)*
+*See also: [[Doom over IPv6|Doom-over-IPv6]] | [[Performance|Performance]] | [[Architecture|Architecture]]*

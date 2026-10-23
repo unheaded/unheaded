@@ -32,5 +32,5 @@ Both views describe the same constant. Same pattern as ELF magic (`\x7fELF` = `0
 ## Cross-references
 
 - [ADR Index](ADR-Index.md)
-- [ADR-067](ADR-067-mbc-isa-v2-and-upc-abi-v1.md) — MBC ISA v2 + UPC ABI v1
+- [[ADR-067|ADR-067-MBC-ISA-V2-and-UPC-ABI-V1]] — MBC ISA v2 + UPC ABI v1
 - [Architecture overview](Architecture.md)
