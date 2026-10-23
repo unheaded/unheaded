@@ -682,17 +682,20 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 120** [TEST][V] ~3m: Green: `gotest ./cmd/unheaded-daemon/...`.
   - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
 - [x] **Step 121** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): managed proxy device as the service's stable endpoint`.
-- [ ] **Step 122** [CODE][TEST] ~25m: Chaos action tests (`chaos_action_test.go`), endpoint `POST /api/v1/containers/{id}/chaos` body `{"action":"stop"|"kill","reason":"..."}`:
+- [x] **Step 122** [CODE][TEST] ~25m: Chaos action tests (`chaos_action_test.go`), endpoint `POST /api/v1/containers/{id}/chaos` body `{"action":"stop"|"kill","reason":"..."}`:
+  - Done 2026-10-23: chaos_action_test.go: 403 without auth, 403 with chaos off, 409 unmanaged (pihole) and unlabelled, 404 unknown, the LXD client refusing both on its own with GETs only, stop=force false / kill=force true, 400/413/415/405 on bad requests, one cuirass.chaos event per call incl. refusals (with the asked action and reason), enforce-mode reconcile restarts a killed instance.
   - 403 unless `AUTH_ENABLED=true` (same rule as PUT/DELETE, `04c34ed0`);
   - 403 unless `CUIRASS_CHAOS=true` (off by default; switched on only for game-day windows);
   - 409 on an unmanaged instance, and 409 unless the instance carries label `chaos=allowed` (`user.unheaded.label.chaos`, set through the desired spec's Labels);
   - `stop` = state stop with `force:false`, `kill` = `force:true`;
   - every call (allowed or refused) publishes `cuirass.chaos` and logs one line with id, action, reason, caller subject;
   - the reconciler is not told: in enforce mode it sees `status != running` on the next sync and starts the instance again (that is the auto-revert, proven live in Phase 11).
-- [ ] **Step 123** [TEST] ~2m: Red: `gotest ./cmd/unheaded-daemon/ -run 'Chaos'`.
-- [ ] **Step 124** [CODE] ~30m: Implement the handler + `lxdREST.ChaosStop(ctx, name, force)` (calls `requireManaged` and checks the label itself: two independent checks, the S17 pattern).
-- [ ] **Step 125** [TEST][V] ~3m: Green: `gotest ./cmd/unheaded-daemon/...`.
-- [ ] **Step 126** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): allowlisted chaos stop/kill, off unless CUIRASS_CHAOS=true`.
+- [x] **Step 123** [TEST] ~2m: Red: `gotest ./cmd/unheaded-daemon/ -run 'Chaos'`.
+- [x] **Step 124** [CODE] ~30m: Implement the handler + `lxdREST.ChaosStop(ctx, name, force)` (calls `requireManaged` and checks the label itself: two independent checks, the S17 pattern).
+  - Done 2026-10-23: chaos_action.go; the body is read (4 KiB cap) before the 403 checks so refusals record what was asked; the Wotan client now also joins cuirass.chaos (as cuirass). Results done|refused|failed (LXD errors 502).
+- [x] **Step 125** [TEST][V] ~3m: Green: `gotest ./cmd/unheaded-daemon/...`.
+  - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
+- [x] **Step 126** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): allowlisted chaos stop/kill, off unless CUIRASS_CHAOS=true`.
 - [ ] **Step 127** [CODE][TEST] ~15m: Metric `cuirass_reconcile_actions_total{action,result}` (result = done|failed|planned|refused) with a test reading `/metrics`; `/api/v1/info` gains `lxd_backend`, `lxd_project`, `enforce`, `prune`, `chaos` (today it reports none of them, so nobody can tell mock from real without reading the env). Chaos injectors (Phase 11) refuse to start unless `enforce` is true.
 - [ ] **Step 128** [TEST][V] ~2m: Green.
 - [ ] **Step 129** [SECURITY] ~20m: BlackMage pass on the three additions; write findings into the phase notes (this file):

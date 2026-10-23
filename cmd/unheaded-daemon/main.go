@@ -141,6 +141,9 @@ type Daemon struct {
 	// because handleMetrics reads it while stateManager's lock is held.
 	logPublisher atomic.Pointer[logagg.Publisher]
 
+	// chaosPublish sends a cuirass.chaos event; nil means publishToWotan.
+	chaosPublish func(ctx context.Context, payload []byte) error
+
 	// Health probing (health_probe.go); health is guarded by stateManager.mu.
 	prober      healthProber
 	health      map[string]*healthRecord
@@ -192,6 +195,9 @@ type LXDClient interface {
 	// UpdateProxy sets (or, with nil, removes) the unheaded-proxy device of a
 	// managed instance, leaving every other device alone.
 	UpdateProxy(ctx context.Context, name string, p *ProxySpec) error
+	// ChaosStop stops (force=false) or kills (force=true) a managed instance
+	// labelled chaos=allowed, checking both itself (chaos_action.go).
+	ChaosStop(ctx context.Context, name string, force bool) error
 	// ListContainers returns all containers. An error means actual state
 	// is unknown, never that it is empty.
 	ListContainers(ctx context.Context) (map[string]*ContainerState, error)
@@ -378,6 +384,9 @@ type Config struct {
 	// Prune lets enforcement delete managed instances nobody desires.
 	// Unmanaged instances are never deleted, pruning or not.
 	Prune bool
+	// Chaos enables POST /api/v1/containers/{id}/chaos (CUIRASS_CHAOS=true),
+	// for game-day windows only. Off by default.
+	Chaos bool
 
 	// LXDBackend is "mock" (the default), "unix" (LXDSocket) or "https"
 	// (LXDURL with a client certificate and the pinned server certificate).
@@ -736,6 +745,13 @@ func (d *Daemon) initWotan() error {
 		return fmt.Errorf("subscribe to %s: %w", TopicCuirassMetrics, err)
 	}
 
+	// Join the chaos topic (to publish chaos requests on it)
+	_, err = client.Subscribe(ctx, TopicCuirassChaos, wotanDisplayName)
+	if err != nil {
+		client.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
+		return fmt.Errorf("subscribe to %s: %w", TopicCuirassChaos, err)
+	}
+
 	d.wotanMu.Lock()
 	d.wotanClient = client
 	d.wotanReady = true
@@ -1004,6 +1020,10 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 
 	// Extract container ID from URL path: /api/v1/containers/{id}
 	id := strings.TrimPrefix(r.URL.Path, "/api/v1/containers/")
+	if target, ok := strings.CutSuffix(id, "/chaos"); ok {
+		d.handleChaos(w, r, target)
+		return
+	}
 	if id == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
@@ -1588,6 +1608,7 @@ func loadConfig(path string) *Config {
 		LogLevel:         getEnvOrDefault("LOG_LEVEL", "info"),
 		Enforce:          os.Getenv("CUIRASS_ENFORCE") == "true",
 		Prune:            os.Getenv("CUIRASS_PRUNE") == "true",
+		Chaos:            os.Getenv("CUIRASS_CHAOS") == "true",
 		ProxyListenAddrs: parseIPList(os.Getenv("CUIRASS_PROXY_LISTEN_ADDRS")),
 	}
 
