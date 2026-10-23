@@ -402,17 +402,12 @@ func (s *Service) Query(ctx context.Context, name string, input interface{}) Res
 	}
 
 	op := s.startOperation(name, OpTypeQuery, input)
-	defer s.completeOperation(op)
 
 	result, err := handler(ctx, input)
+	s.completeOperation(op, result, err)
 	if err != nil {
-		op.Status = OpStatusFailed
-		op.Error = err.Error()
 		return Err[interface{}](err)
 	}
-
-	op.Output = result
-	op.Status = OpStatusCompleted
 	return Ok(result)
 }
 
@@ -427,12 +422,10 @@ func (s *Service) Mutate(ctx context.Context, name string, input interface{}) Re
 	}
 
 	op := s.startOperation(name, OpTypeMutation, input)
-	defer s.completeOperation(op)
 
 	result, changes, err := handler(ctx, input)
 	if err != nil {
-		op.Status = OpStatusFailed
-		op.Error = err.Error()
+		s.completeOperation(op, nil, err)
 		return Err[interface{}](err)
 	}
 
@@ -444,8 +437,9 @@ func (s *Service) Mutate(ctx context.Context, name string, input interface{}) Re
 	}
 	s.mu.Unlock()
 
-	op.Output = result
-	op.Status = OpStatusCompleted
+	// Completed before it is published: the event's duration used to be
+	// read before the deferred completion set it, so it was always 0.
+	s.completeOperation(op, result, nil)
 
 	// Publish operation event to Wotan
 	s.publishOperationEvent(ctx, op)
@@ -469,16 +463,12 @@ func (s *Service) Effect(ctx context.Context, name string, input interface{}) Re
 	}
 
 	op := s.startOperation(name, OpTypeEffect, input)
-	defer s.completeOperation(op)
 
 	err := handler(ctx, input)
+	s.completeOperation(op, nil, err)
 	if err != nil {
-		op.Status = OpStatusFailed
-		op.Error = err.Error()
 		return Err[struct{}](err)
 	}
-
-	op.Status = OpStatusCompleted
 	return Ok(struct{}{})
 }
 
@@ -613,11 +603,23 @@ func (s *Service) startOperation(name string, opType OperationType, input interf
 	return op
 }
 
-// completeOperation marks an operation as finished and records duration.
-func (s *Service) completeOperation(op *Operation) {
+// completeOperation records an operation's outcome and duration. It holds mu:
+// the operation is already in s.operations, where Stats, GetOperation and
+// ListOperations read it, and its fields used to be written unlocked while
+// they did.
+func (s *Service) completeOperation(op *Operation, output interface{}, err error) {
+	s.mu.Lock()
 	now := time.Now()
+	if err != nil {
+		op.Status = OpStatusFailed
+		op.Error = err.Error()
+	} else {
+		op.Status = OpStatusCompleted
+		op.Output = output
+	}
 	op.CompletedAt = &now
 	op.Duration = now.Sub(op.StartedAt)
+	s.mu.Unlock()
 
 	s.log.Debug().
 		Str("op_id", op.ID).
@@ -711,11 +713,17 @@ func (s *Service) publishStateChange(ctx context.Context, eventType string, chan
 }
 
 // GetOperation retrieves an operation by ID.
+// It returns a copy, taken under mu: the HTTP handlers encode it after the
+// lock is released, while a running operation can still complete.
 func (s *Service) GetOperation(id string) (*Operation, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	op, ok := s.operations[id]
-	return op, ok
+	if !ok {
+		return nil, false
+	}
+	snap := *op
+	return &snap, true
 }
 
 // GetTransaction retrieves a transaction by ID.
@@ -726,14 +734,15 @@ func (s *Service) GetTransaction(id string) (*Transaction, bool) {
 	return tx, ok
 }
 
-// ListOperations returns recent operations.
+// ListOperations returns recent operations, as copies (see GetOperation).
 func (s *Service) ListOperations(limit int) []*Operation {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
 	ops := make([]*Operation, 0, len(s.operations))
 	for _, op := range s.operations {
-		ops = append(ops, op)
+		snap := *op
+		ops = append(ops, &snap)
 	}
 
 	// Most recent first. (Was a bubble sort over every operation ever run,
