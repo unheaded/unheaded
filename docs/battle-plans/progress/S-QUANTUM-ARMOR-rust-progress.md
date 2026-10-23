@@ -141,4 +141,50 @@ Clippy baseline (`docs/security/clippy-baseline.txt`): 0 lines for the four work
   `cmd/waf/... rust-ring-provider` and `crates/zhend/... rust-ring-provider`; the CBOM
   should then show the WAF and zhend QUIC as `hybrid` (Preferred profile) and
   trace-collector / upc-bootctl with no TLS asset at all (was `unused-feature`).
-- [x] **157** [C] see the commit that adds this file.
+- [x] **157** [C] `b9d457d9`.
+- [x] **158** [V] **PHASE 7 EXIT GATE**: passed.
+  - `git grep -n 'crypto::ring::default_provider' -- '*.rs'`: no output (no `ring =`
+    dependency or `"ring"` rustls feature left in any `Cargo.toml` either).
+  - `./scripts/check-clippy.sh`: `PASS: clippy 0/0 warnings, 0 errors.`, rc=0, all 19
+    workspaces (including the four touched here).
+  - Both rustls handshake tests assert `X25519MLKEM768` and were seen red on a
+    classical group; audit clean (Step 155).
+
+## Negotiated groups proven
+
+| service | default peer | classical-only peer | test |
+|---|---|---|---|
+| WAF (`cmd/waf`, min TLS 1.3 and 1.2) | `X25519MLKEM768` | `X25519` (accepted edge fallback, Preferred profile) | `tls::tests::handshake_negotiates_x25519mlkem768`, `..._tls12_floor_...`, `classical_only_client_falls_back_to_x25519` |
+| zhend QUIC (`crates/zhend`) | `X25519MLKEM768` | `X25519` (peers outside the Kingdom, Preferred profile) | `api::quic::tests::tls_negotiates_x25519mlkem768`, `tls_classical_only_peer_falls_back_to_x25519` |
+| trace-collector, upc-bootctl | no TLS compiled in | n/a | `publisher::grpc::tests::test_https_*` (https:// refused, never silently cleartext) |
+
+These are in-memory rustls handshakes (the same provider and config the services
+build). No independent-implementation probe (OpenSSL `s_client`) was run against a live
+WAF: the WAF needs a cert on disk and a running process, which Phase 7 does not ask
+for. Phase 6's `scripts/probe-tls-groups.sh` can do it once it lands.
+
+## Definition of Done (Phase 7)
+
+| item | status |
+|---|---|
+| DoD-STD 1: every step executed or logged | 141-155, 157-158 done; 156 DEFERRED (lead) |
+| DoD-STD 2: every [V] and the exit gate passed | yes (above) |
+| DoD-STD 3: zero new failures vs baseline | yes: waf 53→58, zhend 161→163, trace-collector 160→163, upc-bootctl 25→25; 0 failed everywhere |
+| DoD-STD 4: clippy `-D warnings` on touched crates | clean (`--all-targets`), and `check-clippy.sh` 0/0 |
+| DoD-STD 5: commit after the gate | the commit that records this section |
+| DoD-STD 6: no new dependency without the check | no package added to any lockfile; aws-lc-rs/aws-lc-sys recorded in ADR-004; baseline 17 lines smaller |
+| DoD-STD 7: attack surface | no new listener; test keys live in memory only; trace-collector can no longer send to an https:// URL in cleartext |
+| DoD-STD 8: zero user data access | handshake metadata only |
+| `cargo tree -i ring` empty for WAF/zhend | yes for the host target (lock-only entries explained in 146 and 150) |
+| dependency baseline smaller | 764 → 747 |
+| licence gate green | `verify-gpl-boundary.sh` PASS |
+
+## STUCK / ESCALATE
+
+None. No [STUCK] step; no [ESCALATE] condition hit (aws-lc-sys built; no OpenSSL or SSLeay licence).
+
+## Parked (Marshal: noticed, not done here)
+
+- `cmd/waf` still depends on `rustls-pemfile` (RUSTSEC-2025-0134, unmaintained); rustls-pki-types' PEM parser replaces it. Not a TLS key-exchange change.
+- `cmd/trace-collector`: cargo reports `tonic-build` as an unused build dependency (pre-existing).
+- WAF `TlsInfo` does not log the negotiated group; useful for the CBOM/observability later.
