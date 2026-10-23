@@ -268,6 +268,14 @@ def execute_rollback(runbook, env, failed_step, dry_run=False):
             print(f"  [ROLLBACK SKIPPED] {name} (when: {when})")
             continue
 
+        host = expand_env(rb.get("host", ""), env)
+        if host and host.lower() != LOCAL_HOST:
+            # east-nat-internet's east rollback would delete this host's route.
+            print(f"  [ROLLBACK ON {host.upper()}] {name}: run it there:")
+            for line in (command or "").split("\n"):
+                print(f"             {line}")
+            continue
+
         print(f"  [ROLLBACK] {name}")
         if rb.get("action") == "manual":
             # Placeholders such as <previous_version>: the operator's job.
