@@ -978,6 +978,7 @@ func TestLoggingProbes(t *testing.T) {
 		{"journald-file-access", "@ok\n", true},
 		{"journald-file-access", "/var/log/journal/x/system.journal\n@ok\n", false},
 		{"journald-file-access", "", false},
+		{"journald-file-access", "unreadable /var/log/journal\n@ok\n", false}, // find could not list it
 		{"journald-rotation", "SystemMaxUse=1G\nRuntimeMaxUse=200M\n@ok\n", true},
 		{"journald-rotation", "SystemMaxUse=1G\n@ok\n", false},
 		{"journald-rotation", "SystemMaxUse=1G\nRuntimeMaxUse=200M\nSystemMaxUse=\n@ok\n", false}, // last one wins: reset to default
@@ -1390,6 +1391,41 @@ func TestProbeCommandsFailWhenPrivilegeRefused(t *testing.T) {
 		}
 		if pass, detail := runProbeCommand(t, name, "false", facts); pass {
 			t.Errorf("%s passes with privilege refused: %s", name, detail)
+		}
+	}
+}
+
+// TestProbeCommandsFailUnprivileged: the agent runs commands without sudo
+// and relies on CAP_DAC_READ_SEARCH. Without it, a probe that reads a
+// root-only file must not pass on having read nothing (pw-change-past,
+// root-umask and sudo-no-noauth once did). journald-file-access,
+// var-log-perms and root-path are left out: what they read may be readable
+// by the test's own account.
+func TestProbeCommandsFailUnprivileged(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root")
+	}
+	probeTools(t)
+	for _, f := range []string{"/etc/shadow", "/etc/sudoers"} {
+		if fh, err := os.Open(f); err == nil {
+			_ = fh.Close()
+			t.Skipf("%s is readable without privilege here", f)
+		}
+	}
+	if _, err := os.ReadDir("/root"); err == nil {
+		t.Skip("/root is readable without privilege here")
+	}
+	facts := privRefusedFacts(t)
+	for name, p := range Probes {
+		if !strings.Contains(p.Command, "$UH_PRIV") {
+			continue
+		}
+		switch name {
+		case "journald-file-access", "var-log-perms", "root-path":
+			continue
+		}
+		if pass, detail := runProbeCommand(t, name, "", facts); pass {
+			t.Errorf("%s passes without privilege: %s", name, detail)
 		}
 	}
 }

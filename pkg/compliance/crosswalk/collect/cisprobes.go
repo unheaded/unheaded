@@ -510,12 +510,12 @@ func init() {
 	offenders := map[string]string{ // #nosec G101 -- shell commands that read /etc/passwd and /etc/shadow; they hold and print no credentials
 		"acct-passwd-shadowed":    `awk -F: '($2 != "x") {print $1}' /etc/passwd && echo @ok`,
 		"acct-shadow-no-empty":    `$UH_PRIV awk -F: '($2 == "") {print $1}' /etc/shadow && echo @ok`,
-		"acct-groups-exist":       `for g in $(cut -d: -f4 /etc/passwd | sort -u); do grep -q "^[^:]*:[^:]*:$g:" /etc/group || echo "gid $g"; done; echo @ok`,
+		"acct-groups-exist":       `if gs=$(cut -d: -f4 /etc/passwd) && [ -r /etc/group ]; then for g in $(printf '%s\n' "$gs" | sort -u); do grep -q "^[^:]*:[^:]*:$g:" /etc/group || echo "gid $g"; done; echo @ok; fi`,
 		"acct-shadow-group-empty": `sg=$(awk -F: '($1=="shadow"){print $3}' /etc/group); awk -F: '($1=="shadow" && $4!=""){print "members " $4}' /etc/group && awk -F: -v g="$sg" '(g!="" && $4==g){print "primary " $1}' /etc/passwd && echo @ok`,
-		"acct-unique-uid":         `cut -d: -f3 /etc/passwd | sort | uniq -d && echo @ok`,
-		"acct-unique-gid":         `cut -d: -f3 /etc/group | sort | uniq -d && echo @ok`,
-		"acct-unique-user-name":   `cut -d: -f1 /etc/passwd | sort | uniq -d && echo @ok`,
-		"acct-unique-group-name":  `cut -d: -f1 /etc/group | sort | uniq -d && echo @ok`,
+		"acct-unique-uid":         `x=$(cut -d: -f3 /etc/passwd) && printf '%s\n' "$x" | sort | uniq -d && echo @ok`,
+		"acct-unique-gid":         `x=$(cut -d: -f3 /etc/group) && printf '%s\n' "$x" | sort | uniq -d && echo @ok`,
+		"acct-unique-user-name":   `x=$(cut -d: -f1 /etc/passwd) && printf '%s\n' "$x" | sort | uniq -d && echo @ok`,
+		"acct-unique-group-name":  `x=$(cut -d: -f1 /etc/group) && printf '%s\n' "$x" | sort | uniq -d && echo @ok`,
 	}
 	for name, cmd := range offenders {
 		Probes[name] = offenderProbe(cmd)
@@ -540,8 +540,11 @@ func init() {
 	Probes["sudo-installed"] = packageInstalledProbe([]string{"sudo"})
 
 	// Only Defaults lines and !authenticate uses are printed, comments dropped.
-	// "@ok" comes from inside the sudo'd shell: a refused sudo prints nothing.
-	sudoers := `$UH_PRIV sh -c 'cat /etc/sudoers /etc/sudoers.d/* 2>/dev/null; echo @ok' | grep -Ev '^[[:space:]]*#' | grep -E 'Defaults|authenticate|^@ok$'`
+	// "@ok" comes from inside the sudo'd shell, after every file was read: a
+	// refused sudo, or a sudoers file the agent cannot read, prints none
+	// (sudo-no-noauth once passed on an unread /etc/sudoers).
+	sudoers := `$UH_PRIV sh -c 'cat /etc/sudoers || exit; if [ -d /etc/sudoers.d ]; then ls /etc/sudoers.d >/dev/null || exit; ` +
+		`for f in /etc/sudoers.d/*; do [ -e "$f" ] || continue; cat "$f" || exit; done; fi; echo @ok' | grep -Ev '^[[:space:]]*#' | grep -E 'Defaults|authenticate|^@ok$'`
 	Probes["sudo-use-pty"] = markerLinesProbe(sudoers, func(lines []string) (bool, string) {
 		for _, l := range lines {
 			if defaultsSet(l, "use_pty") {
@@ -714,16 +717,16 @@ func init() {
 	// existing-account half of pw-max-days and pw-inactive never ran.
 	hashed := `\$2~/^\\\$/`
 	Probes["pw-max-days"] = defsProbe(`echo "defs=$(awk '/^[[:space:]]*PASS_MAX_DAYS/{print $2}' /etc/login.defs)"; `+
-		`$UH_PRIV sh -c "awk -F: '(`+hashed+` && (\$5==\"\" || \$5>365)){print \"user \" \$1}' /etc/shadow; echo @ok"`,
+		`$UH_PRIV sh -c "awk -F: '(`+hashed+` && (\$5==\"\" || \$5>365)){print \"user \" \$1}' /etc/shadow && echo @ok"`,
 		func(v string) bool { n, err := strconv.Atoi(v); return err == nil && n >= 1 && n <= 365 }, "PASS_MAX_DAYS 1-365")
 	Probes["pw-warn-age"] = defsProbe(`echo "defs=$(awk '/^[[:space:]]*PASS_WARN_AGE/{print $2}' /etc/login.defs)"; echo @ok`,
 		func(v string) bool { n, err := strconv.Atoi(v); return err == nil && n >= 7 }, "PASS_WARN_AGE >= 7")
 	Probes["pw-hash-algo"] = defsProbe(`echo "defs=$(awk '/^[[:space:]]*ENCRYPT_METHOD/{print toupper($2)}' /etc/login.defs)"; echo @ok`,
 		func(v string) bool { return v == "SHA512" || v == "YESCRYPT" }, "ENCRYPT_METHOD SHA512 or YESCRYPT")
 	Probes["pw-inactive"] = defsProbe(`echo "defs=$(useradd -D | awk -F= '/^INACTIVE/{print $2}')"; `+
-		`$UH_PRIV sh -c "awk -F: '(`+hashed+` && (\$7==\"\" || \$7>45 || \$7<0)){print \"user \" \$1}' /etc/shadow; echo @ok"`,
+		`$UH_PRIV sh -c "awk -F: '(`+hashed+` && (\$7==\"\" || \$7>45 || \$7<0)){print \"user \" \$1}' /etc/shadow && echo @ok"`,
 		func(v string) bool { n, err := strconv.Atoi(v); return err == nil && n >= 0 && n <= 45 }, "INACTIVE 0-45")
-	Probes["pw-change-past"] = offenderProbe(`t=$(( $(date +%s) / 86400 )); $UH_PRIV sh -c "awk -F: -v t=$t '(\$3!=\"\" && \$3>t){print \$1}' /etc/shadow; echo @ok"`)
+	Probes["pw-change-past"] = offenderProbe(`t=$(( $(date +%s) / 86400 )); $UH_PRIV sh -c "awk -F: -v t=$t '(\$3!=\"\" && \$3>t){print \$1}' /etc/shadow && echo @ok"`)
 	Probes["acct-root-only-uid0"] = offenderProbe(`awk -F: '($3==0 && $1!="root"){print $1}' /etc/passwd && echo @ok`)
 	Probes["acct-root-only-gid0"] = offenderProbe(`awk -F: '($4==0 && $1!="root"){print $1}' /etc/passwd && echo @ok`)
 	Probes["group-root-only-gid0"] = offenderProbe(`awk -F: '($3==0 && $1!="root"){print $1}' /etc/group && echo @ok`)
@@ -733,8 +736,8 @@ func init() {
 	// read from /etc/shadow with passwd -S's own rule (shadow-utils
 	// pw_status: L when the hash starts with ! or *, NP when empty, else P):
 	// passwd -S refuses to run without uid 0, and the agent has no uid 0.
-	Probes["acct-noshell-locked"] = offenderProbe(`for u in $(awk -F: 'NR==FNR{s[$0]=1;next} !($7 in s){print $1}' /etc/shells /etc/passwd); do ` +
-		`st=$($UH_PRIV awk -F: -v u="$u" '$1==u{print ($2 ~ /^[!*]/) ? "L" : ($2 == "" ? "NP" : "P")}' /etc/shadow 2>/dev/null); [ "$st" = L ] || echo "$u ${st:-unreadable}"; done; echo @ok`)
+	Probes["acct-noshell-locked"] = offenderProbe(`if us=$(awk -F: 'NR==FNR{s[$0]=1;next} !($7 in s){print $1}' /etc/shells /etc/passwd); then for u in $us; do ` +
+		`st=$($UH_PRIV awk -F: -v u="$u" '$1==u{print ($2 ~ /^[!*]/) ? "L" : ($2 == "" ? "NP" : "P")}' /etc/shadow 2>/dev/null); [ "$st" = L ] || echo "$u ${st:-unreadable}"; done; echo @ok; fi`)
 	Probes["shell-tmout"] = markerLinesProbe(`grep -hsE '(^|[[:space:];])(readonly|export|declare|typeset)?[[:space:]]*[-rx[:space:]]*TMOUT' /etc/profile /etc/profile.d/*.sh /etc/bash.bashrc; echo @ok`,
 		func(lines []string) (bool, string) {
 			val, ro, ex := -1, false, false
@@ -1072,8 +1075,16 @@ func init() {
 func init() {
 	// 6.1.1.2: journal files 0640 or stricter, directories not writable by
 	// group or other. Mode only.
-	Probes["journald-file-access"] = markerLinesProbe(`$UH_PRIV sh -c "find /var/log/journal /run/log/journal \\( -type f -perm /0137 \\) -o \\( -type d -perm /0022 \\) 2>/dev/null | head -20; echo @ok"`,
+	// A journal directory find could not read prints "unreadable": an
+	// offender, so never "0640 or stricter".
+	Probes["journald-file-access"] = markerLinesProbe(`$UH_PRIV sh -c "for d in /var/log/journal /run/log/journal; do [ -e \"\$d\" ] || continue; `+
+		`find \"\$d\" \\( -type f -perm /0137 \\) -o \\( -type d -perm /0022 \\) 2>/dev/null || echo \"unreadable \$d\"; done | head -20; echo @ok"`,
 		func(lines []string) (bool, string) {
+			for _, l := range lines {
+				if d, ok := strings.CutPrefix(l, "unreadable "); ok {
+					return false, d + " could not be read: journal not checked"
+				}
+			}
 			if len(lines) > 0 {
 				return false, "journal paths looser than 0640 (files) or group/other-writable (dirs): " + firstN(lines, 3)
 			}
@@ -1118,7 +1129,9 @@ func init() {
 	}
 	// 6.1.4.1: no file under /var/log looser than CIS allows for its name.
 	// Mode only; owner and group are not judged.
-	Probes["var-log-perms"] = markerLinesProbe(`$UH_PRIV sh -c "find /var/log -type f -printf '%m %p\\n' 2>/dev/null; echo @ok"`, judgeVarLogPerms)
+	// "@ok" only when find read all of /var/log: a partial listing once
+	// judged only the files it could see.
+	Probes["var-log-perms"] = markerLinesProbe(`$UH_PRIV sh -c "find /var/log -type f -printf '%m %p\\n' 2>/dev/null && echo @ok"`, judgeVarLogPerms)
 }
 
 // varLogMaxMode is CIS 6.1.4.1's per-name ceiling: login records may be
