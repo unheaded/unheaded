@@ -287,10 +287,20 @@ def write_config(path, families, loc, cla, sources, report=None):
         f.write("\n".join(lines) + "\n")
 
 
-def write_table(path, table, loc, cla, report=None):
+def write_table(path, table, loc, cla, report=None, rows=None, split=None):
     out = ["<!-- SPDX-License-Identifier: GPL-3.0-or-later -->",
-           "# Two-brains eval results (tune half)", "",
-           "Local: `%s/%s`. Claude: `%s`." % (loc[0], loc[1], "%s/%s" % cla if cla else "none"), "",
+           "# Two-brains eval results", ""]
+    if rows is not None:
+        whole = group(rows, split, "all")
+        out += ["## Every configuration, whole set (76 scored tasks)", "",
+                "| config | family | n | pass | rate | $/task | p50 ms | p95 ms |", "|---|---|---|---|---|---|---|---|"]
+        for k in sorted(whole):
+            for fam in sorted(whole[k]):
+                s = family_stats(whole[k][fam])
+                out.append("| %s/%s | %s | %d | %d | %.2f | %.4f | %d | %d |" % (k[0], k[1], fam, s["n"], s["pass"], s["rate"], s["usd_per_task"], s["p50_ms"], s["p95_ms"]))
+        out.append("")
+    out += ["## Tune half (the routing decision)", "",
+           "Local: `%s/%s` (best local configuration on the tune half). Claude: `%s`." % (loc[0], loc[1], "%s/%s" % cla if cla else "none"), "",
            "| family | backend | n | pass | rate | $/task | p50 ms | p95 ms |", "|---|---|---|---|---|---|---|---|"]
     for fam in sorted(table):
         for b in ("local", "claude"):
@@ -325,12 +335,12 @@ def main(argv=None):
         report = verify(families, rows, split, loc, cla)
         write_config(a.verify_holdout, families, loc, cla, sources, report)
         if a.table:
-            write_table(a.table, table, loc, cla, report)
+            write_table(a.table, table, loc, cla, report, rows, split)
         print(json.dumps(report, indent=2, sort_keys=True))
         return 0
     write_config(a.out, families, loc, cla, sources)
     if a.table:
-        write_table(a.table, table, loc, cla)
+        write_table(a.table, table, loc, cla, rows=rows, split=split)
     for fam in sorted(families):
         e = families[fam]
         print("%-10s %-14s L=%.2f C=%s" % (fam, e["route"], e["tune"]["local_rate"], e["tune"]["claude_rate"]))
