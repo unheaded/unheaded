@@ -48,3 +48,18 @@ Phase 9). Lich plan present: `docs/battle-plans/S-LICH-AWAKENS-battle-plan.md`. 
 session's scope is Phases 0–4; east legs belong to Phases 6–7). Mímir drift (Step 23):
 ADR-043 + `wiki/Mimirs-Law.md` say all 13 phases shipped, CLAUDE.md says 9/11/13 pending —
 left for Phase 8.
+
+## Phase 1 — S1.2 root cause (2026-10-23)
+
+**H-S1 CONFIRMED** (host + live). See `references/evolution1-stage1-2026-07-19.md`
+§"S1.2 ROOT CAUSE (S5)". Live: `Z:SS satp=000007ff ss=000007ff tf=007be000`.
+**H-S2 CONFIRMED**: `csrw sstatus,a4` stores 0xF400; any `csrr` overwrites a4 with the
+CSR address. Red tests in `crates/monad-mbc/tests/csr_alias.rs` (5, all `#[ignore]`d).
+
+| ID | Result |
+|---|---|
+| H-S3 | TRUE. Only two forms exist in any built image: `csrr` (CSRRS rd, x0) ×33 and `csrw` (CSRRW x0, rs) ×18, all in kernel.elf. No CSRRS/CSRRC with rs1≠x0, no immediate forms, no CSRRW with rd≠x0. Userland and Doom: zero CSR instructions. |
+| H-S4 | **FALSE**. `start_mbc` reads `mhartid` (0xF14) → byte 0x12C50 > 0xFFFF. Keep the full-range mapping; ADR-067 amended instead of tightened. Indices used: sstatus, stvec, scause, sepc, stval, satp, sscratch, stimecmp, mscratch, mhartid. |
+| H-S5 | TRUE. doom.elf has 0 CSR instructions. |
+
+Kernel `.mbc` byte-identical to Phase 0 after the probe revert.
