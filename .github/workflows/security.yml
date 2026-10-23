@@ -150,6 +150,12 @@ jobs:
       - name: Kubernetes Well initdb matches db/
         run: ./scripts/check-k8s-well-initdb.sh
 
+      # S-TWO-BRAINS Phase 13: the Kanban Genesis cards are reviewed in
+      # db/seed/kanban-genesis.json and reach the Well through migration
+      # 034, rendered from it; neither may drift from the other.
+      - name: Kanban Genesis migration matches its JSON
+        run: ./scripts/check-kanban-genesis.sh
+
       # ADR-095: a moved tag runs new code with this repo's token. Every
       # action is pinned to a commit SHA, with the tag in a comment.
       - name: GitHub Actions pinned to commit SHAs

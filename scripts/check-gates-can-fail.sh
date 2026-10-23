@@ -433,6 +433,16 @@ provoke_k8s_well_initdb() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_kanban_genesis() {
+    # Contract (S-TWO-BRAINS Step 421): 034 is the JSON, rendered. Edit a
+    # card in the JSON without re-rendering.
+    local f="db/seed/kanban-genesis.json"
+    backup "${f}"
+    sed -i 's/"Crest (Kanban Frontend)"/"Crest (Kanban Frontend, edited)"/' "${REPO_ROOT}/${f}"
+    grep -q 'Kanban Frontend, edited' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_actions_pinned() {
     # Contract (ADR-095): no action on a mutable tag. Unpin checkout in
     # security.yml's first job.
@@ -737,6 +747,7 @@ check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file import
 check-well-migrations|provoke_well_migrations|fast|an untracked migration file the MANIFEST does not route
 check-well-lint|provoke_well_lint|fast|service code that runs CREATE TABLE at startup (a new ddl-outside-ledger finding)
 check-k8s-well-initdb|provoke_k8s_well_initdb|fast|a migration edited without re-rendering the Kubernetes initdb ConfigMap
+check-kanban-genesis|provoke_kanban_genesis|fast|a Genesis card title edited in db/seed/kanban-genesis.json without re-rendering migration 034
 check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
 check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package added to raft/requirements.txt
 check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
