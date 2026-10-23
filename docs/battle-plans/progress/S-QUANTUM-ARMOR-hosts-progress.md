@@ -40,7 +40,39 @@ Deployed overlay differs from `setup-wireguard.sh`: `Address` is a /128 per host
 | 182 | done | harness all PASS; registered `wireguard/test-rotate-psk` (fast) with `provoke_rotate_psk`; provocation verified by hand: 2 FAIL, rc=1. Real read-only dry run against west/east: preflight passed, rc=0 |
 | 183 | done | units in `deploy/systemd/` (not `systemd/`: the units gate and every script-backed unit live there); check-systemd-units PASS (32), check-unit-binaries PASS |
 | 184 | done | S77 docs corrected (PSK on, registry/ADR-049 removed, PQ section); also `docs/sprints/S77-WIREGUARD-DESIGN.md`, which repeated the same claims |
-| 185 | done | commit |
+| 185 | done | commit `ca9c5b29` |
+| 186 | ESCALATE E3 | first live rotation + timer: procedure with rollback in `docs/security/pq-host-escalations.md` |
+| 187 | [DEFERRED: lead regenerates after Phase 4 merges] | `cmd/crypto-inventory` (Phase 3) is not on this base; host facts for the CBOM are in the table above |
+| 188 | [DEFERRED: lead regenerates after Phase 4 merges] | nothing to commit without 187 |
+| 189 | PASS | gate output below |
+
+### Phase 9 exit gate (Step 189)
+
+```
+$ grep -c 'wg-peer-registry' docs/WIREGUARD-DESIGN-S77.md
+0
+$ bash scripts/wireguard/test-rotate-psk.sh >/dev/null 2>&1; echo "harness rc=$?"
+harness rc=0
+$ ssh govan@east 'sudo -n find /etc/ssh /etc/wireguard -newer /etc/hostname -mmin -300 2>/dev/null | wc -l'
+0
+west (read-only ls): /etc/wireguard and /etc/ssh/sshd_config.d newest mtime 2026-10-20 (before this session)
+$ go test -race -count=1 ./pkg/compliance/...   -> 11 ok, 0 FAIL
+```
+
+- `sshd-kex-pq` probe tested; harness PASS and registered in the meta-gate; S77 doc no
+  longer claims PSK off or cites the missing registry; E2/E3 written as ESCALATE.
+- "repo sshd lines resolved from the lint baseline": DEFERRED with Step 177 (no
+  `check-pq-kex.sh` / `pq-kex-baseline.txt` on this base).
+- Full meta-gate run not done here (it needs a clean clone and runs every fast gate);
+  the new row was proven by hand: provoked rollback no-op -> harness 2 FAIL, rc=1;
+  restored -> rc=0. `--list` shows the row. Lead: include it in the post-merge meta-gate run.
+
+### DoD (Phase 9)
+
+- DoD-STD 4: `go vet`, `gofmt -l` clean on `pkg/compliance/crosswalk/collect`; golangci-lint 0 issues; gosec clean. shellcheck (all severities) clean on both new scripts and the provisioner.
+- DoD-STD 7: no new listener; no secret on disk in the repo; the only 44-char base64 values printed this session were the two WireGuard PUBLIC keys in the real dry run. No PSK or private key was printed or written.
+- No host change: every host command was a read (`sshd -T`, `ssh -vv ... true`, `wg show` with the PSK column masked, `ls`, `grep -c`, the tool's dry run).
+- No new dependency.
 
 ### Plan amendments (Marshal Pattern 6)
 
