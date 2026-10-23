@@ -53,8 +53,21 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
+__version__ = "0.2.0"
+
 # --- Configuration ---
-PROJECT_ROOT = Path.home() / "tmp" / "unheaded"
+PROJECT_ROOT_ENV = "ZHEN_MCP_PROJECT_ROOT"
+
+
+def resolve_project_root(env=os.environ) -> Path:
+    """Repo root: $ZHEN_MCP_PROJECT_ROOT if set, else the parent of raft/."""
+    override = env.get(PROJECT_ROOT_ENV, "")
+    if override:
+        return Path(os.path.realpath(os.path.expanduser(override)))
+    return Path(os.path.realpath(__file__)).parent.parent
+
+
+PROJECT_ROOT = resolve_project_root()
 RUNBOOKS_DIR = PROJECT_ROOT / "runbooks"
 ALLOWED_PATHS = [
     str(PROJECT_ROOT),
@@ -85,7 +98,7 @@ def validate_path(path: str) -> tuple[str | None, str | None]:
 
 
 # --- MCP Server ---
-app = Server("zhen-champion")
+app = Server("zhen-champion", version=__version__)
 
 
 @app.list_tools()
