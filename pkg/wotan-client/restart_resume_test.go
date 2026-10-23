@@ -656,6 +656,50 @@ func TestHTTPPollers_FullPageFetchesOnAtOnce(t *testing.T) {
 	})
 }
 
+// A GetMessages that Wotan fails is an error (or, with an HTTP fallback,
+// answered over HTTP), not an empty result. Every Recv error but the query
+// timeout used to return what had come so far with a nil error, so a
+// failing Wotan looked like an empty topic.
+func TestGetMessages_WotanErrorIsNotEmpty(t *testing.T) {
+	ctx := context.Background()
+	t.Run("GRPCClient", func(t *testing.T) {
+		srv, gc := setupGRPCBufconn(t)
+		gc.Subscribe(ctx, "tasks.created", "q")
+		srv.setStreamError(status.Error(codes.Unavailable, "wotan down"))
+		if msgs, err := gc.GetMessages(ctx, "tasks.created", 0, 10); err == nil {
+			t.Fatalf("got %d messages and no error from a failing Wotan", len(msgs))
+		}
+	})
+	t.Run("TopicStreamClient", func(t *testing.T) {
+		srv := newMockServer()
+		srv.streamErr = status.Error(codes.Unavailable, "wotan down")
+		client, err := newTopicStreamClientWithDialer(startMockServer(t, srv))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { client.Close() })
+		client.Subscribe(ctx, "tasks.created", "q")
+		if msgs, err := client.GetMessages(ctx, "tasks.created", 0, 10); err == nil {
+			t.Fatalf("got %d messages and no error from a failing Wotan", len(msgs))
+		}
+	})
+	t.Run("TopicStreamClient with fallback", func(t *testing.T) {
+		srv := newMockServer()
+		srv.streamErr = status.Error(codes.Unavailable, "wotan down")
+		httpc, _ := NewClient(pagingWotan(t, "tasks.created", 3))
+		client, err := newTopicStreamClientWithDialer(startMockServer(t, srv), WithHTTPFallback(httpc))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { client.Close() })
+		client.Subscribe(ctx, "tasks.created", "q")
+		msgs, err := client.GetMessages(ctx, "tasks.created", 0, 10)
+		if err != nil || len(msgs) != 3 {
+			t.Fatalf("got %d messages, err %v; want the 3 over HTTP", len(msgs), err)
+		}
+	})
+}
+
 // A quiet stream that stays up is healthy: its failures do not carry over
 // to the next blip. Only a delivered message used to reset the count, so a
 // stream on a quiet topic tripped after maxRetries Wotan restarts spread

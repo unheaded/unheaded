@@ -8,6 +8,7 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"sync"
 	"time"
@@ -213,15 +214,12 @@ func (gc *GRPCClient) GetMessages(ctx context.Context, topic string, afterSeq in
 	for {
 		event, err := stream.Recv()
 		if err != nil {
-			// End of stream is not an error
-			if status.Code(err) == codes.Canceled {
+			if queryEnded(ctx, queryCtx, err) {
 				break
 			}
-			if errors.Is(err, context.DeadlineExceeded) {
-				break
-			}
-			// EOF is expected for bounded queries
-			return messages, nil
+			// Wotan failed the query: say so rather than return what came
+			// so far as if that were all there is.
+			return messages, fmt.Errorf("receive from stream: %w", err)
 		}
 
 		msg := topicEventToMessage(event)
@@ -458,6 +456,13 @@ func isTransientError(err error) bool {
 // subscription that the server never ends, so a query that finds fewer than
 // limit messages returns only when this expires.
 const defaultQueryTimeout = 10 * time.Second
+
+// queryEnded reports whether a GetMessages stream's Recv error is the normal
+// end of the query (the stream ended, the query timeout expired, or the
+// caller cancelled) rather than Wotan failing it.
+func queryEnded(ctx, queryCtx context.Context, err error) bool {
+	return errors.Is(err, io.EOF) || queryCtx.Err() != nil || ctx.Err() != nil
+}
 
 func queryTimeoutOr(d time.Duration) time.Duration {
 	if d > 0 {

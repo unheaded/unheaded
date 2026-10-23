@@ -14,10 +14,8 @@ import (
 
 	"github.com/google/uuid"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	chatpb "unheaded/services/wotan/proto"
 )
@@ -370,12 +368,17 @@ func (c *TopicStreamClient) GetMessages(ctx context.Context, topic string, after
 	for {
 		event, err := stream.Recv()
 		if err != nil {
-			if status.Code(err) == codes.Canceled || errors.Is(err, context.DeadlineExceeded) {
+			if queryEnded(ctx, queryCtx, err) {
 				break
 			}
-			// EOF or end of stream
-			c.recordSuccess()
-			return messages, nil
+			// Wotan failed the query. This used to count as a success and
+			// return what had come so far, often nothing, as if the topic
+			// were empty.
+			c.recordFailure()
+			if c.httpClient != nil {
+				return c.httpClient.GetMessages(ctx, topic, afterSeq, limit)
+			}
+			return messages, fmt.Errorf("stream topics: %w", err)
 		}
 
 		msg := topicEventToMessage(event)
