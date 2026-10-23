@@ -252,7 +252,8 @@ fi
 print_header "5. WOTAN PUB/SUB (MESSAGE BUS)"
 
 print_check "Wotan cross-host topic replication"
-if ssh root@"$host_a_ip" "docker compose exec -T wotan curl -s http://localhost:18001/topics 2>/dev/null | jq -e '.topics[]' >/dev/null 2>&1"; then
+# Wotan's HTTP API is 18000/api/v1/* (18001 is gRPC), probed from the host.
+if ssh root@"$host_a_ip" "curl -s http://localhost:18000/api/v1/topics 2>/dev/null | jq -e '.topics' >/dev/null 2>&1"; then
   pass
   json_add_result "wotan_topics" "PASS"
 else
@@ -261,7 +262,7 @@ else
 fi
 
 print_check "Host-A Wotan can publish to Host-B (cross-host message)"
-if ssh root@"$host_a_ip" "docker compose exec -T wotan curl -X POST -H 'Content-Type: application/json' -d '{\"topic\": \"cross-host-test\", \"message\": \"test\"}' http://localhost:18001/publish 2>/dev/null | grep -q 'success\|published'" || [[ -z "$output_json" ]]; then
+if ssh root@"$host_a_ip" "docker compose exec -T wotan curl -X POST -H 'Content-Type: application/json' -d '{\"topic\": \"cross-host-test\", \"message\": \"test\"}' http://localhost:18001/publish 2>/dev/null | grep -q 'success\|published'"; then   # was `|| [[ -z $output_json ]]`: always PASS without --json
   pass
   json_add_result "wotan_publish" "PASS"
 else
@@ -273,7 +274,7 @@ fi
 print_header "6. SOPHIA KNOWLEDGE GRAPH (DISTRIBUTED STATE)"
 
 print_check "Host-A Sophia has Host-B references"
-if ssh root@"$host_a_ip" "docker compose exec -T sophia curl -s http://localhost:19000/graph 2>/dev/null | jq '.graph[] | select(.id | contains(\"host-b\"))' | grep -q 'id'" || [[ -z "$output_json" ]]; then
+if ssh root@"$host_a_ip" "docker compose exec -T sophia curl -s http://localhost:19000/graph 2>/dev/null | jq '.graph[] | select(.id | contains(\"host-b\"))' | grep -q 'id'"; then   # was `|| [[ -z $output_json ]]`: always PASS without --json
   pass
   json_add_result "sophia_graph_sync" "PASS"
 else

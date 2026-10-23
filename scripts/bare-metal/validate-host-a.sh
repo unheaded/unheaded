@@ -348,7 +348,10 @@ fi
 print_header "7. SERVICE FLEET"
 
 print_check "Docker compose services UP (not 'starting')"
-if docker compose ps | tail -n +2 | awk '{print $NF}' | grep -v -E '^(Up|Exited)' | wc -l | grep -q '^0$'; then
+# State column, not the last one (compose v2 ends with PORTS). And not a
+# pipeline ending in grep: under pipefail, grep -v selecting nothing (all up)
+# exits 1 and failed the check exactly when it should pass.
+if [[ -z "$(docker compose ps -a --format '{{.State}}' | grep -vE '^(running|exited)$')" ]]; then
   pass
   json_add_result "docker_services_up" "PASS"
 else
@@ -356,8 +359,10 @@ else
   json_add_result "docker_services_up" "FAIL"
 fi
 
+# Probed from the host on the ports compose publishes (pkg/ports): the images
+# are alpine with no curl, so `docker compose exec <svc> curl` never ran.
 print_check "Wotan service health (curl localhost:18000/health)"
-if docker compose exec -T wotan curl -s http://localhost:18000/health 2>/dev/null | jq -e '.status == "healthy"' >/dev/null 2>&1; then
+if curl -s http://localhost:18000/health 2>/dev/null | jq -e '.status == "healthy"' >/dev/null 2>&1; then
   pass
   json_add_result "wotan_health" "PASS"
 else
@@ -365,8 +370,8 @@ else
   json_add_result "wotan_health" "FAIL"
 fi
 
-print_check "Sophia service health (curl localhost:19000/health)"
-if docker compose exec -T sophia curl -s http://localhost:19000/health 2>/dev/null | jq -e '.status == "healthy"' >/dev/null 2>&1; then
+print_check "Sophia service health (curl localhost:19005/health)"
+if curl -s http://localhost:19005/health 2>/dev/null | jq -e '.status == "healthy"' >/dev/null 2>&1; then
   pass
   json_add_result "sophia_health" "PASS"
 else
@@ -374,8 +379,8 @@ else
   json_add_result "sophia_health" "FAIL"
 fi
 
-print_check "Monad service health (curl localhost:16666/health)"
-if docker compose exec -T monad curl -s http://localhost:16666/health 2>/dev/null | jq -e '.status == "healthy"' >/dev/null 2>&1; then
+print_check "Monad service health (curl localhost:19004/health)"
+if curl -s http://localhost:19004/health 2>/dev/null | jq -e '.status == "healthy"' >/dev/null 2>&1; then
   pass
   json_add_result "monad_health" "PASS"
 else
@@ -383,17 +388,10 @@ else
   json_add_result "monad_health" "FAIL"
 fi
 
-print_check "Shield service health (curl localhost:16667/health)"
-if docker compose exec -T shield curl -s http://localhost:16667/health 2>/dev/null | jq -e '.status == "healthy"' >/dev/null 2>&1; then
-  pass
-  json_add_result "shield_health" "PASS"
-else
-  fail
-  json_add_result "shield_health" "FAIL"
-fi
-
-print_check "Gateway service health (curl localhost:21000/health)"
-if docker compose exec -T gateway curl -s http://localhost:21000/health 2>/dev/null | jq -e '.status == "healthy"' >/dev/null 2>&1; then
+# No shield or gateway service exists in docker-compose.yml; traefik is the
+# stack's gateway, and it answers /ping on its web entrypoint.
+print_check "Gateway (traefik) ping (curl localhost:${TRAEFIK_HTTP_PORT:-80}/ping)"
+if curl -sf -o /dev/null "http://localhost:${TRAEFIK_HTTP_PORT:-80}/ping" 2>/dev/null; then
   pass
   json_add_result "gateway_health" "PASS"
 else
