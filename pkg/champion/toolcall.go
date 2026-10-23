@@ -83,6 +83,11 @@ var ReadOnlyTools = map[string]bool{
 	"runbook_list":   true,
 	"corpus_search":  true,
 	"service_health": true,
+	// raft/zhen_mcp_server.py's local_llm: one completion from the
+	// llama-server that is already running. It loads nothing (model
+	// loads go through model_switch and switch-model.sh's fit check),
+	// writes nothing, and its answer goes back to the caller as text.
+	"local_llm": true,
 }
 
 // destructivePattern matches any of the destructive shell-verb forms

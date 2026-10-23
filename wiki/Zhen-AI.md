@@ -50,6 +50,14 @@ whether to trust project servers; after that the tools appear as
 `runbook_execute` stay hidden unless the server's environment sets
 `ZHEN_MCP_ALLOW_WRITE=1` / `ZHEN_MCP_ALLOW_EXEC=1`, which `.mcp.json` does not.
 
+`local_llm` lets Claude ask the local model directly: one chat completion from
+llama-server's OpenAI-compatible API (`ZHEN_LOCAL_LLM_URL`, default
+`http://127.0.0.1:8081`). It never starts or swaps a model; if nothing is
+listening the call fails with a message saying so. Start the model yourself
+with `scripts/switch-model.sh <key>` (it runs the memory fit check). Set
+`ZHEN_CAPTURE_DIR` in the server's environment to record each call, redacted,
+for training ([format](../docs/architecture/zhen-capture.md)).
+
 `scripts/zhen-mcp.sh` picks the interpreter: `$ZHEN_MCP_PYTHON`, then
 `~/.venv/zhen/bin/python`, then `python3`. If none can import `mcp` it exits
 non-zero and says what it tried (`/mcp` in Claude Code shows the server as

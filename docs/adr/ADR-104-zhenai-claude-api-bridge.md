@@ -113,10 +113,15 @@ For other providers it runs `AcceptToolCall`, then the provider.
 also offers `file_write`, `file_patch` and `runbook_execute` (which runs
 scripts) with no gate of its own. `AllowTools(MCPReadOnlyTools...)`
 (`corpus_search`, `file_read`, `service_health`, `runbook_list`,
-`runbook_show`) is applied unless `-mcp-mutating` is passed, and even then
-each call still goes through the Champion gate (where Rule 2 refuses it).
-`file_read` was added to the Champion's read-only list for this; Rule 1
-still checks its path.
+`runbook_show`, `local_llm`) is applied unless `-mcp-mutating` is passed,
+and even then each call still goes through the Champion gate (where Rule 2
+refuses it). `file_read` was added to the Champion's read-only list for
+this; Rule 1 still checks its path. `local_llm` (2026-10-23) was added
+too: without it the gate would fail it closed as an unknown, mutating
+tool. It asks the llama-server that is already running for one
+completion and changes nothing on the host; loading a model stays behind
+`model_switch` and `scripts/switch-model.sh`'s fit check. Rule 3 still
+applies to its prompt, so a prompt quoting `rm -rf` is refused.
 
 The out-of-band confirmation flow the Champion already has
 (`IssuePendingConfirmation`) is not wired to the bridge yet; see open

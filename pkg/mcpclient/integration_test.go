@@ -6,6 +6,7 @@ package mcpclient
 import (
 	"context"
 	"encoding/json"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -50,7 +51,8 @@ func pythonWithMCP(t *testing.T) string {
 // TestRealZhenMCPServer drives raft/zhen_mcp_server.py. It calls only
 // read-only tools: runbook_list, service_health (probes local /health
 // ports), runbook_show with bad arguments (refused by schema validation
-// before the handler runs), and a tool name that does not exist.
+// before the handler runs), local_llm against a port nothing listens on
+// (an isError result, not a hang), and a tool name that does not exist.
 func TestRealZhenMCPServer(t *testing.T) {
 	if testing.Short() {
 		t.Skip("spawns the real Python MCP server")
@@ -64,10 +66,26 @@ func TestRealZhenMCPServer(t *testing.T) {
 	}
 	python := pythonWithMCP(t)
 
+	// local_llm must find nothing listening; captures stay off.
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	deadURL := "http://" + ln.Addr().String()
+	_ = ln.Close()
+	var env []string
+	for _, kv := range os.Environ() {
+		if !strings.HasPrefix(kv, "ZHEN_LOCAL_LLM_") && !strings.HasPrefix(kv, "ZHEN_CAPTURE_DIR=") {
+			env = append(env, kv)
+		}
+	}
+	env = append(env, "ZHEN_LOCAL_LLM_URL="+deadURL, "ZHEN_LOCAL_LLM_TIMEOUT=10")
+
 	ctx := context.Background()
 	c, err := Start(ctx, Config{
 		Command:     python,
 		Args:        []string{"-I", server},
+		Env:         env,
 		InitTimeout: 60 * time.Second,
 		CallTimeout: 60 * time.Second,
 	})
@@ -97,7 +115,7 @@ func TestRealZhenMCPServer(t *testing.T) {
 		}
 		t.Logf("tool %s: %.80s", tl.Name, tl.Description)
 	}
-	for _, want := range []string{"corpus_search", "file_read", "service_health", "runbook_list", "runbook_show"} {
+	for _, want := range []string{"corpus_search", "file_read", "service_health", "runbook_list", "runbook_show", "local_llm"} {
 		if !got[want] {
 			t.Errorf("tool %s missing", want)
 		}
@@ -141,6 +159,15 @@ func TestRealZhenMCPServer(t *testing.T) {
 		t.Errorf("runbook_show without name = %+v", res)
 	}
 	t.Logf("runbook_show {}: %s (isError=%v)", res.Text, res.IsError)
+
+	res, err = c.Call(ctx, "local_llm", json.RawMessage(`{"prompt":"hello"}`))
+	if err != nil {
+		t.Fatalf("local_llm: %v", err)
+	}
+	if !res.IsError || !strings.Contains(res.Text, "local LLM unavailable") {
+		t.Errorf("local_llm with nothing listening = %+v", res)
+	}
+	t.Logf("local_llm (down): %.160s (isError=%v)", res.Text, res.IsError)
 
 	res, err = c.Call(ctx, "no_such_tool", nil)
 	if err != nil {

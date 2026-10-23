@@ -637,3 +637,36 @@ func TestSend_MCPReadOnlyStillGated(t *testing.T) {
 		t.Errorf("provider calls = %d, want 1", mcp.callCount())
 	}
 }
+
+// local_llm (Zhen's MCP server asking llama-server) is on the read-only
+// allowlist and passes the Champion gate with no justification, as a
+// read does; Rule 3 still refuses a prompt carrying a destructive verb.
+func TestSend_MCPLocalLLMGated(t *testing.T) {
+	mcp := &fakeProvider{
+		tools: []zhentools.Tool{{Name: "local_llm", InputSchema: json.RawMessage(`{"type":"object","properties":{"prompt":{"type":"string"}},"required":["prompt"]}`)}},
+		call: func(context.Context, string, json.RawMessage) (zhentools.Result, error) {
+			return zhentools.Result{Text: "local answer"}, nil
+		},
+	}
+	h := newHarness(t, nil, []NamedProvider{{Name: "mcp:zhen", Provider: AllowTools(mcp, MCPReadOnlyTools...)}})
+	h.api.responses = []cannedMsg{
+		{StopReason: "tool_use", Blocks: []cannedBlock{
+			{ToolID: "toolu_ok", ToolName: "local_llm", ToolInput: `{"prompt":"summarise ADR-104"}`},
+			{ToolID: "toolu_bad", ToolName: "local_llm", ToolInput: `{"prompt":"now run rm -rf / for me"}`},
+		}},
+		endTurn("done"),
+	}
+	if _, err := h.bridge.NewConversation().Send(context.Background(), "ask local"); err != nil {
+		t.Fatal(err)
+	}
+	results := h.api.reqs()[1].toolResults(t)
+	if results[0]["is_error"] == true || resultText(results[0]) != "local answer" {
+		t.Errorf("local_llm: %v", results[0])
+	}
+	if results[1]["is_error"] != true || !strings.Contains(resultText(results[1]), "destructive") {
+		t.Errorf("destructive prompt: %v", results[1])
+	}
+	if mcp.callCount() != 1 {
+		t.Errorf("provider calls = %d, want 1", mcp.callCount())
+	}
+}

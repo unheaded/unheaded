@@ -11,11 +11,13 @@ import (
 	"unheaded/pkg/zhentools"
 )
 
-// MCPReadOnlyTools are the tools of raft/zhen_mcp_server.py that only
-// read. They are the default allowlist for MCP-sourced tools: the server
-// also offers file_write, file_patch and runbook_execute (which runs
-// scripts) with no gate of its own.
-var MCPReadOnlyTools = []string{"corpus_search", "file_read", "service_health", "runbook_list", "runbook_show"}
+// MCPReadOnlyTools are the tools of raft/zhen_mcp_server.py that change
+// nothing on the host. They are the default allowlist for MCP-sourced
+// tools: the server also offers file_write, file_patch and
+// runbook_execute (which runs scripts) with no gate of its own.
+// local_llm asks the already-running llama-server one question; it never
+// loads, swaps or starts a model.
+var MCPReadOnlyTools = []string{"corpus_search", "file_read", "service_health", "runbook_list", "runbook_show", "local_llm"}
 
 // AllowTools wraps p so that only the named tools are listed and only
 // they can be called; any other name is refused before it reaches p.
