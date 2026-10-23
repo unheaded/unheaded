@@ -121,6 +121,16 @@ pub fn teardown_upc0() {
 ///
 /// Plain ping6 would have flow_label=0 → no match in CPU_MAP → XDP_DROP.
 pub fn send_trigger(count: u32, instance: u8) -> Result<()> {
+    send_trigger_opts(count, instance, true)
+}
+
+/// `send_trigger` for the interactive console loop: prints only on failure,
+/// so a batch every second does not flood stderr.
+pub fn send_trigger_quiet(count: u32, instance: u8) -> Result<()> {
+    send_trigger_opts(count, instance, false)
+}
+
+fn send_trigger_opts(count: u32, instance: u8, verbose: bool) -> Result<()> {
     let flow_label = format!("0x{:X}", instance);
     let count_str = count.to_string();
     // Resolve absolute path so cwd (cargo subdir) doesn't matter.
@@ -167,6 +177,8 @@ pub fn send_trigger(count: u32, instance: u8) -> Result<()> {
             "doom-tick.py FAILED ({}):\nstdout: {}\nstderr: {}",
             out.status, stdout, stderr
         );
+    } else if !verbose {
+        // quiet: success is silent
     } else if !stderr.is_empty() {
         eprintln!("doom-tick.py stderr: {}", stderr);
     } else {

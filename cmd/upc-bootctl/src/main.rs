@@ -14,7 +14,11 @@
 
 use anyhow::{anyhow, bail, Context, Result};
 use clap::{Parser, Subcommand};
+use std::collections::VecDeque;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{mpsc, Arc};
 
 mod bootparams;
 mod netns;
@@ -105,11 +109,44 @@ enum Cmd {
         input: Option<String>,
     },
 
-    /// Attach a host pty to the UPC's tty stream (Mode B demo surface).
+    /// Boot a kernel and run it interactively (Mode A/B): TTY output streams
+    /// to stdout (and the tty-bridge, if running); keystrokes from the bridge
+    /// (browser) and/or stdin are appended live to the guest's KBD ring.
+    /// Runs until Ctrl-C / SIGTERM, or with --stdin until stdin closes and
+    /// the guest goes idle. Tears down XDP + netns on exit, like `boot`.
     Console {
+        /// Kernel MBC image (e.g. xv6-mbc.mbc).
+        #[arg(long)]
+        kernel: PathBuf,
+
+        /// Optional stage-1 bootstub (see `boot`).
+        #[arg(long)]
+        bootstub: Option<PathBuf>,
+
+        /// xv6-format ramdisk (fs.img) at byte 0x00800000 (see `boot`).
+        #[arg(long)]
+        ramdisk: Option<PathBuf>,
+
+        /// Userland MBC image (e.g. init.mbc) (see `boot`).
+        #[arg(long)]
+        userland: Option<PathBuf>,
+
         /// UPC instance ID.
         #[arg(long, default_value_t = 0xDE)]
         instance: u8,
+
+        /// Also read keystrokes from this process's stdin (raw bytes; a
+        /// terminal in canonical mode delivers them a line at a time).
+        #[arg(long)]
+        stdin: bool,
+
+        /// Trigger packets per loop iteration (each = up to 16 MBC insns).
+        #[arg(long, default_value_t = 50_000)]
+        tick_batch: u32,
+
+        /// Print KBD_HEAD / KBD_TAIL / pending bytes after every batch.
+        #[arg(long)]
+        debug_kbd: bool,
     },
 }
 
@@ -452,77 +489,21 @@ fn cmd_validate(kernel: PathBuf) -> Result<()> {
 }
 
 #[allow(clippy::too_many_arguments)]
-fn cmd_boot(
-    kernel: PathBuf,
-    bootstub: Option<PathBuf>,
-    initramfs: Option<PathBuf>,
-    ramdisk: Option<PathBuf>,
-    userland: Option<PathBuf>,
-    triggers: u32,
+/// Load every image into the live BPF maps, set up the netns + XDP attach,
+/// and pre-fill `--input`. Shared by `boot` (fixed trigger budget) and
+/// `console` (interactive loop). Returns the runner (owning the loaded eBPF
+/// object — dropping it detaches XDP) and the initial CPU state.
+fn boot_prepare(
+    kernel: &Path,
+    bootstub: Option<&Path>,
+    ramdisk: Option<&Path>,
+    userland: Option<&Path>,
     instance: u8,
-    dry_run: bool,
-    input: Option<String>,
-) -> Result<()> {
-    cmd_validate(kernel.clone())?;
-
-    println!("\n=== BOOT DISPATCH (dry_run={}) ===", dry_run);
-    println!("instance:      0x{:02X}", instance);
-    if let Some(ref bs) = bootstub {
-        let sz = std::fs::metadata(bs).map(|m| m.len()).unwrap_or(0);
-        println!("bootstub:      {} ({} bytes)", bs.display(), sz);
-    } else {
-        println!("bootstub:      (none — kernel image must inline its own start code)");
-    }
-    if let Some(ref ir) = initramfs {
-        let sz = std::fs::metadata(ir)
-            .with_context(|| format!("stat initramfs: {}", ir.display()))?
-            .len();
-        println!("initramfs:     {} ({} bytes)", ir.display(), sz);
-    } else {
-        println!("initramfs:     (none — kernel boots without /init)");
-    }
-
-    println!("\nBoot Protocol v2 setup (per docs/doom/UPC_BOOT_PROTOCOL_V2.md):");
-    println!(
-        "  1. Allocate PerCPU<MbcCpuState> slot for instance 0x{:02X}",
-        instance
-    );
-    println!("  2. Zero IVT region (byte 0x0000-0x03FF)");
-    println!("  3. Zero CSR region (byte 0x000_F000-0x000_F0FF)");
-    println!("  4. Write default HLT trap handler at 0x0400");
-    println!("  5. Write BootParams v2 (256 bytes) at 0x0100");
-    println!(
-        "     magic = 0x{:08X} (canonical 'UNHD' MSB-first; wire bytes 'DHNU' per ADR-072)",
-        xv6_mbc::BOOT_MAGIC
-    );
-    println!("     version = 2");
-    println!("     kernel_addr = 0x10000 (stage-1 stub)");
-    println!("     bss_start / bss_end (read from kernel.elf .bss)");
-    println!("     boot_random_seed = 32 bytes from getrandom(2)");
-    println!("  6. Load kernel image at byte 0x10000");
-    println!(
-        "     {} words → ROM_MAP slots 0x4000+",
-        std::fs::metadata(&kernel)?.len() / 4
-    );
-    if initramfs.is_some() {
-        println!("  7. Load initramfs at byte 0x800000");
-    }
-    println!("  8. Initialize MbcCpuState:");
-    println!("     PC = 0x4000 (stage-1 stub, word index)");
-    println!("     SP = 0x03F00000 (top of stack, byte address)");
-    println!("     priv_level = 0 (M-mode at boot)");
-    println!("     reservation_address = 0xFFFF_FFFF (no LR)");
-    println!("  9. Dispatch Gjallarhorn UPC trigger packet");
-    println!(" 10. Watch tty stream (compute.tty.{{instance}})");
-
-    if dry_run {
-        println!("\n✓ dry-run complete; no BPF maps touched");
-        return Ok(());
-    }
-
+    input: Option<&str>,
+) -> Result<(runner::BootRunner, runner::MbcCpuState)> {
     // ── LIVE BOOT PATH (Phase 1.1 SHIP per battle-plan-phase11-ship-2026-05-10.md) ──
     let kernel_bytes =
-        std::fs::read(&kernel).with_context(|| format!("read kernel: {}", kernel.display()))?;
+        std::fs::read(kernel).with_context(|| format!("read kernel: {}", kernel.display()))?;
     let _ = check_image_alignment(&kernel_bytes)?;
     let mbc_words: Vec<u32> = kernel_bytes
         .as_chunks::<4>()
@@ -560,7 +541,7 @@ fn cmd_boot(
     // (= byte 0x20000). Phase 1.1 xv6 path (no --bootstub) loads the
     // kernel.mbc starting at slot 0 because xv6's .mbc was built with
     // its own .stage1 region at byte 0x10000 inlined by kernel-mbc.ld.
-    if let Some(ref bs_path) = bootstub {
+    if let Some(bs_path) = bootstub {
         let bs_bytes = std::fs::read(bs_path)
             .with_context(|| format!("read bootstub: {}", bs_path.display()))?;
         check_image_alignment(&bs_bytes)?;
@@ -600,7 +581,7 @@ fn cmd_boot(
     // Phase 1.4: load the xv6-format ramdisk (fs.img) at byte 0x00800000.
     // mkfs produces this image; xv6's fs.c later mounts it. Address per
     // docs/doom/UPC_PAGE_TABLE_LAYOUT.md.
-    if let Some(ref rd) = ramdisk {
+    if let Some(rd) = ramdisk {
         match std::fs::read(rd) {
             Ok(bytes) => match runner.populate_ram(&[(0x00800000, &bytes)]) {
                 Ok(()) => println!(
@@ -695,7 +676,7 @@ fn cmd_boot(
     // links userland at RV byte 0); SRET reads SEPC=0, RV2MBC_MAP[0] points
     // at USER_ROM_BASE, and the user MBC code runs.
     const USER_ROM_BASE: u32 = 0x4000;
-    if let Some(ref up) = userland {
+    if let Some(up) = userland {
         let bytes =
             std::fs::read(up).with_context(|| format!("userland read {} failed", up.display()))?;
         if !bytes.len().is_multiple_of(4) {
@@ -818,7 +799,7 @@ fn cmd_boot(
     // basename hash. init stays at ROM 0x4000 / rv2mbc-base 0; programs
     // start past it and below the kernel's rv2mbc base (0x8000). Loaded
     // as siblings of --userland so the existing boot recipe is unchanged.
-    if let Some(ref up) = userland {
+    if let Some(up) = userland {
         // Headline (Gate B) needs `sh`; ls/cat/echo/wc follow the same
         // pattern for Gate C and slot in after sh's bases.
         const PROGRAMS: &[&str] = &["sh", "echo", "ls", "cat", "wc"];
@@ -904,13 +885,93 @@ fn cmd_boot(
 
     // Gate C: pre-load scripted console input into the KBD ring BEFORE the CPU
     // runs, so the guest's read(5) drain feeds it to sh's gets() as if typed.
-    if let Some(ref s) = input {
+    if let Some(s) = input {
         runner.write_kbd(s.as_bytes())?;
         println!(
             "  ✓ KBD ring pre-filled with {} input byte(s) (--input, read does not echo)",
             s.len()
         );
     }
+
+    Ok((runner, cpu_initial))
+}
+
+fn cmd_boot(
+    kernel: PathBuf,
+    bootstub: Option<PathBuf>,
+    initramfs: Option<PathBuf>,
+    ramdisk: Option<PathBuf>,
+    userland: Option<PathBuf>,
+    triggers: u32,
+    instance: u8,
+    dry_run: bool,
+    input: Option<String>,
+) -> Result<()> {
+    cmd_validate(kernel.clone())?;
+
+    println!("\n=== BOOT DISPATCH (dry_run={}) ===", dry_run);
+    println!("instance:      0x{:02X}", instance);
+    if let Some(ref bs) = bootstub {
+        let sz = std::fs::metadata(bs).map(|m| m.len()).unwrap_or(0);
+        println!("bootstub:      {} ({} bytes)", bs.display(), sz);
+    } else {
+        println!("bootstub:      (none — kernel image must inline its own start code)");
+    }
+    if let Some(ref ir) = initramfs {
+        let sz = std::fs::metadata(ir)
+            .with_context(|| format!("stat initramfs: {}", ir.display()))?
+            .len();
+        println!("initramfs:     {} ({} bytes)", ir.display(), sz);
+    } else {
+        println!("initramfs:     (none — kernel boots without /init)");
+    }
+
+    println!("\nBoot Protocol v2 setup (per docs/doom/UPC_BOOT_PROTOCOL_V2.md):");
+    println!(
+        "  1. Allocate PerCPU<MbcCpuState> slot for instance 0x{:02X}",
+        instance
+    );
+    println!("  2. Zero IVT region (byte 0x0000-0x03FF)");
+    println!("  3. Zero CSR region (byte 0x000_F000-0x000_F0FF)");
+    println!("  4. Write default HLT trap handler at 0x0400");
+    println!("  5. Write BootParams v2 (256 bytes) at 0x0100");
+    println!(
+        "     magic = 0x{:08X} (canonical 'UNHD' MSB-first; wire bytes 'DHNU' per ADR-072)",
+        xv6_mbc::BOOT_MAGIC
+    );
+    println!("     version = 2");
+    println!("     kernel_addr = 0x10000 (stage-1 stub)");
+    println!("     bss_start / bss_end (read from kernel.elf .bss)");
+    println!("     boot_random_seed = 32 bytes from getrandom(2)");
+    println!("  6. Load kernel image at byte 0x10000");
+    println!(
+        "     {} words → ROM_MAP slots 0x4000+",
+        std::fs::metadata(&kernel)?.len() / 4
+    );
+    if initramfs.is_some() {
+        println!("  7. Load initramfs at byte 0x800000");
+    }
+    println!("  8. Initialize MbcCpuState:");
+    println!("     PC = 0x4000 (stage-1 stub, word index)");
+    println!("     SP = 0x03F00000 (top of stack, byte address)");
+    println!("     priv_level = 0 (M-mode at boot)");
+    println!("     reservation_address = 0xFFFF_FFFF (no LR)");
+    println!("  9. Dispatch Gjallarhorn UPC trigger packet");
+    println!(" 10. Watch tty stream (compute.tty.{{instance}})");
+
+    if dry_run {
+        println!("\n✓ dry-run complete; no BPF maps touched");
+        return Ok(());
+    }
+
+    let (mut runner, cpu_initial) = boot_prepare(
+        &kernel,
+        bootstub.as_deref(),
+        ramdisk.as_deref(),
+        userland.as_deref(),
+        instance,
+        input.as_deref(),
+    )?;
 
     // Send Monad-format trigger packets via doom-tick.py. flow_label =
     // instance ID; eBPF dispatches on (flow_label & 0xFF).
@@ -1018,24 +1079,186 @@ fn cmd_boot(
     Ok(())
 }
 
-fn cmd_console(instance: u8) -> Result<()> {
-    println!("=== UPC CONSOLE (instance 0x{:02X}) ===", instance);
-    println!("Console attach mode (Mode B demo surface).");
-    println!();
-    println!("Implementation pending: subscribe to Busboy topic");
-    println!(
-        "compute.tty.0x{:02X}, render bytes to host stdout, capture",
-        instance
-    );
-    println!(
-        "stdin keystrokes and write to KBD_MAP at 0x{:04X}.",
-        instance
-    );
-    println!();
-    println!("Pattern: cmd/doom-bridge/main.go but framing tty bytes");
-    println!("instead of framebuffer pixels.");
+struct ConsoleOpts {
+    kernel: PathBuf,
+    bootstub: Option<PathBuf>,
+    ramdisk: Option<PathBuf>,
+    userland: Option<PathBuf>,
+    instance: u8,
+    stdin: bool,
+    tick_batch: u32,
+    debug_kbd: bool,
+}
 
-    Err(anyhow!("not yet implemented"))
+/// Set on SIGINT / SIGTERM so the console loop can tear down XDP + netns
+/// instead of dying with the program attached.
+fn install_stop_flag() -> Arc<AtomicBool> {
+    let flag = Arc::new(AtomicBool::new(false));
+    let f = flag.clone();
+    std::thread::spawn(move || {
+        let rt = match tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+        {
+            Ok(rt) => rt,
+            Err(e) => {
+                eprintln!("[console] signal runtime: {e}");
+                return;
+            }
+        };
+        rt.block_on(async move {
+            use tokio::signal::unix::{signal, SignalKind};
+            let mut term = signal(SignalKind::terminate()).ok();
+            let term_recv = async {
+                match term.as_mut() {
+                    Some(t) => {
+                        t.recv().await;
+                    }
+                    None => std::future::pending::<()>().await,
+                }
+            };
+            tokio::select! {
+                _ = tokio::signal::ctrl_c() => {}
+                _ = term_recv => {}
+            }
+            f.store(true, Ordering::SeqCst);
+        });
+    });
+    flag
+}
+
+/// Raw stdin bytes, delivered in chunks; `None` = EOF.
+fn spawn_stdin_reader() -> mpsc::Receiver<Option<Vec<u8>>> {
+    let (tx, rx) = mpsc::channel();
+    std::thread::spawn(move || {
+        let mut stdin = std::io::stdin().lock();
+        let mut buf = [0u8; 256];
+        loop {
+            match stdin.read(&mut buf) {
+                Ok(0) | Err(_) => {
+                    let _ = tx.send(None);
+                    return;
+                }
+                Ok(n) => {
+                    if tx.send(Some(buf[..n].to_vec())).is_err() {
+                        return;
+                    }
+                }
+            }
+        }
+    });
+    rx
+}
+
+fn cmd_console(o: ConsoleOpts) -> Result<()> {
+    if o.tick_batch == 0 {
+        bail!("--tick-batch must be > 0");
+    }
+    cmd_validate(o.kernel.clone())?;
+    let stop = install_stop_flag();
+    let (mut runner, _cpu_initial) = boot_prepare(
+        &o.kernel,
+        o.bootstub.as_deref(),
+        o.ramdisk.as_deref(),
+        o.userland.as_deref(),
+        o.instance,
+        None,
+    )?;
+    println!(
+        "\n=== UPC CONSOLE (instance 0x{:02X}) — Ctrl-C to stop ===",
+        o.instance
+    );
+    let result = console_loop(&mut runner, &o, &stop);
+    // Same teardown as `boot`; dropping the runner detaches XDP.
+    let _ = runner.cleanup();
+    netns::teardown_upc0();
+    drop(runner);
+    println!("\n=== UPC CONSOLE closed ===");
+    result
+}
+
+fn console_loop(runner: &mut runner::BootRunner, o: &ConsoleOpts, stop: &AtomicBool) -> Result<()> {
+    const BRIDGE_RETRY_BATCHES: u32 = 20;
+    const IDLE_BATCHES_AFTER_EOF: u32 = 3;
+    let ring = runner::KBD_RING_SLOTS as usize;
+
+    let bridge = tty_bridge::BridgeClient::from_env().ok();
+    let mut bridge_retry_in = 0u32;
+    let stdin_rx = o.stdin.then(spawn_stdin_reader);
+    let mut stdin_eof = false;
+    let mut pending: VecDeque<u8> = VecDeque::new();
+    let mut tty_cursor = 0u32;
+    let mut idle = 0u32;
+    let mut out = std::io::stdout();
+
+    while !stop.load(Ordering::SeqCst) {
+        netns::send_trigger_quiet(o.tick_batch, o.instance)?;
+
+        // Output: guest TTY -> stdout (NULs from the 3-byte MMIO store dropped)
+        // and -> the bridge for browser viewers.
+        let tty = runner.read_tty(&mut tty_cursor)?;
+        if !tty.is_empty() {
+            let shown: Vec<u8> = tty.iter().copied().filter(|&b| b != 0).collect();
+            let _ = out.write_all(&shown);
+            let _ = out.flush();
+        }
+
+        // Bridge: ingest output, drain keystrokes. On any error, back off for
+        // a few batches (the bridge is optional) and try again later.
+        if bridge_retry_in > 0 {
+            bridge_retry_in -= 1;
+        } else if let Some(b) = bridge.as_ref() {
+            let ok = b.ingest(o.instance, &tty).is_ok()
+                && match b.drain(o.instance, ring.saturating_sub(pending.len())) {
+                    Ok(bytes) => {
+                        pending.extend(bytes);
+                        true
+                    }
+                    Err(_) => false,
+                };
+            if !ok {
+                bridge_retry_in = BRIDGE_RETRY_BATCHES;
+            }
+        }
+
+        // stdin chunks. Everything queues locally until the ring has room:
+        // the ring holds 64 bytes, the rest waits here and is never dropped.
+        if let Some(rx) = stdin_rx.as_ref() {
+            while let Ok(msg) = rx.try_recv() {
+                match msg {
+                    Some(b) => pending.extend(b),
+                    None => stdin_eof = true,
+                }
+            }
+        }
+        if !pending.is_empty() {
+            let chunk: Vec<u8> = pending.iter().copied().take(ring).collect();
+            let n = runner.append_kbd(&chunk)?;
+            pending.drain(..n);
+        }
+        let (head, tail) = runner.kbd_indices()?;
+        if o.debug_kbd {
+            eprintln!(
+                "[kbd] head={head} tail={tail} queued={} pending={}",
+                head.wrapping_sub(tail),
+                pending.len()
+            );
+        }
+
+        if runner.cpu_state()?.halted != 0 {
+            eprintln!("\n[console] guest halted");
+            break;
+        }
+        // --stdin: once stdin is closed, everything typed has been consumed
+        // and the guest has been quiet for a few batches, stop.
+        if stdin_eof && pending.is_empty() && head == tail {
+            idle = if tty.is_empty() { idle + 1 } else { 0 };
+            if idle >= IDLE_BATCHES_AFTER_EOF {
+                break;
+            }
+        }
+    }
+    Ok(())
 }
 
 fn main() -> Result<()> {
@@ -1055,7 +1278,25 @@ fn main() -> Result<()> {
         } => cmd_boot(
             kernel, bootstub, initramfs, ramdisk, userland, triggers, instance, dry_run, input,
         ),
-        Cmd::Console { instance } => cmd_console(instance),
+        Cmd::Console {
+            kernel,
+            bootstub,
+            ramdisk,
+            userland,
+            instance,
+            stdin,
+            tick_batch,
+            debug_kbd,
+        } => cmd_console(ConsoleOpts {
+            kernel,
+            bootstub,
+            ramdisk,
+            userland,
+            instance,
+            stdin,
+            tick_batch,
+            debug_kbd,
+        }),
     }
 }
 

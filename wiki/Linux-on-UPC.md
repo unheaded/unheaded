@@ -2,7 +2,7 @@
 
 The ASCEND-LINUX campaign brings a real operating system up on the [Unheaded Protocol Computer](UPC-Overview). Phased six-level Dream Ladder summit (L5 → L6); the kernel of choice for L5 is xv6-riscv (vendored at `crates/xv6-mbc/upstream/`), L6 is uClinux then full Linux+MMU.
 
-**Current state (2026-10-15):** Phase 1 complete (2026-07-03), the kernel fully Unheaded-authored (2026-07-07), and EVOLUTION-1 Stage 1 measured with the getpid flip deferred (2026-07-19). **As of 2026-07-03: ASCEND-LINUX Phase 1 COMPLETE.** xv6 runs an **interactive shell** on the UPC — a scripted command line is read from the console, `sh` forks + exec's it, the child runs and exits, `sh` reaps it, and a fresh `$` prompt returns. The full `init → sh → fork/exec/wait` lifecycle works, backed by a real in-BPF filesystem reader over `fs.img`: `ls` lists the root directory with types/inums/sizes, `cat` prints real file contents (including `>12 KiB` files via single-indirect blocks), `echo` and `wc` run with argv, per-pid MMU isolation holds. Gates A (console stdio) → B (`exec` → `$`) → C (interactive sh) → D (FS reader) → D.1 (`wc`) all shipped. **Next: Unheaded Linux** — an own-built minimal OS evolving from this xv6 substrate ([ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md)); the roadmap is [`docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md`](../docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md).
+**Current state (2026-10-15):** Phase 1 complete (2026-07-03), the kernel fully Unheaded-authored (2026-07-07), EVOLUTION-1 Stage 1 measured with the getpid flip deferred (2026-07-19), and on 2026-10-23 the S1.2 blocker fixed in the translator (injected getpid round-trips; flag still off on pid identity) and the console made interactive. **As of 2026-07-03: ASCEND-LINUX Phase 1 COMPLETE.** xv6 runs an **interactive shell** on the UPC — a scripted command line is read from the console, `sh` forks + exec's it, the child runs and exits, `sh` reaps it, and a fresh `$` prompt returns. The full `init → sh → fork/exec/wait` lifecycle works, backed by a real in-BPF filesystem reader over `fs.img`: `ls` lists the root directory with types/inums/sizes, `cat` prints real file contents (including `>12 KiB` files via single-indirect blocks), `echo` and `wc` run with argv, per-pid MMU isolation holds. Gates A (console stdio) → B (`exec` → `$`) → C (interactive sh) → D (FS reader) → D.1 (`wc`) all shipped. **Next: Unheaded Linux** — an own-built minimal OS evolving from this xv6 substrate ([ADR-081](../docs/adr/ADR-081-unheaded-linux-from-scratch.md)); the roadmap is [`docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md`](../docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md).
 
 This page is the cumulative narrative of the campaign. Live session logs and per-phase root-cause docs live under [`references/`](../references/) and the original battle plan is at [`references/battle-plan-ascend-linux-2026-05-08.md`](../references/battle-plan-ascend-linux-2026-05-08.md).
 
@@ -24,8 +24,8 @@ ADR-067 captures the seven decisions; one shift, 15 commits.
 - Adapters in `crates/xv6-mbc/adapters/`: `start_mbc.c` (the M-mode entry that verifies BootParams, sets MEPC, issues `mret`), `console-mmio.c` (replaces upstream `uart.c`), `blk-ramdisk.c`, `syscall_shims.S`, `swtch_mbc.S`, `trampoline_mbc.S`, `kernel-mbc.ld`, `Makefile.mbc`.
 - Translator extensions in `crates/monad-mbc/`: CSR opcodes via memory-mapped LD/ST, MRET/SRET/WFI/SFENCE.VMA encoding, register-aliasing x18–x31 best-effort.
 - `crates/monad-mbc/src/bin/rv32i_to_mbc.rs` emits `.mbc` + `.rv2mbc` + `.data` sidecars.
-- `cmd/upc-bootctl/` (`validate`, `boot`, `console` subcommands; netns + XDP attach; live trigger packet; TTY drain + bridge POST).
-- `cmd/upc-tty-bridge/` (Go WebSocket bridge at port 26100, Mode A demo).
+- `cmd/upc-bootctl/` (`validate`, `boot`, `console` subcommands; netns + XDP attach; live trigger packets; TTY drain + bridge POST; `console` = interactive keyboard).
+- `cmd/upc-tty-bridge/` (Go WebSocket bridge, loopback 127.0.0.1:26100 by default; queues browser keystrokes for `upc-bootctl console`).
 - `dashboard/upc-console.html` (browser xterm.js).
 
 **SHIP gate (2026-05-10, `3ac1f684`):** boot advances 4000 instructions, transitions M-mode → S-mode (priv 0→1), emits `xv6 booting...` cleanly to TTY_MAP. BPF verifier under 9% of the 900K budget.
@@ -159,7 +159,31 @@ The ownership ladder is climbed: every byte of the boot — userland, kernel edg
 
 ## Demo surface
 
-Mode A (browser xterm) is live: `cmd/upc-tty-bridge/` accepts TTY drain on port 26100, `dashboard/upc-console.html` runs xterm.js against the WebSocket. Mode C (SSH-over-IPv6) is post-Phase-4 work.
+Both console modes are interactive (S5, 2026-10-23). `upc-bootctl console` boots the
+same images as `boot`, then loops: send a batch of trigger packets, print new TTY bytes,
+append typed bytes to the guest's 64-slot KBD ring (HEAD advanced live; the guest's
+`read(5)` drain consumes them, no eBPF change). It stops on Ctrl-C / SIGTERM, or with
+`--stdin` once stdin closes and the guest goes idle, and tears down XDP + netns like
+`boot`. `read` does not echo, so typed text shows only through the command's output.
+
+- **Mode B (host terminal):** keystrokes from stdin.
+  ```bash
+  cd ~/tmp/unheaded/ebpf && sudo ../cmd/upc-bootctl/target/release/upc-bootctl console \
+    --instance 111 --stdin --kernel ../crates/xv6-mbc/upstream/target/xv6-mbc.mbc \
+    --ramdisk ../crates/xv6-mbc/upstream/target/fs.img \
+    --userland ../crates/xv6-mbc/upstream/target/init.mbc
+  ```
+- **Mode A (browser xterm):** start the bridge (`cd cmd/upc-tty-bridge && go run . --listen
+  127.0.0.1:26100`; it serves `dashboard/upc-console.html`), run `console` without `--stdin`,
+  open `http://127.0.0.1:26100/upc-console.html`, instance `111`. The bridge queues WS
+  keystrokes per instance (4096 B; overflow drops newest and counts
+  `upc_tty_kbd_dropped_total` on `/metrics`); `console` pulls them from
+  `GET /api/v1/kbd/drain`, which answers loopback callers only. CR (xterm's Enter) and LF
+  both end a line.
+
+Options: `--tick-batch N` (triggers per loop, default 50,000), `--debug-kbd` (prints
+KBD_HEAD/KBD_TAIL per batch). A 203-byte paste reaches the guest in order, at most 64
+bytes queued in the ring at a time. Mode C (SSH-over-IPv6) is post-Phase-4 work.
 
 ## Cross-references
 

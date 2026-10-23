@@ -130,3 +130,31 @@ of the trapframe. No new attack surface.
   state; no recapture). **L5 gate**: round trip proven, L5 regression green, verifier
   headroom 8.9% with the flag ON / 7.3% OFF; the flip itself is held on pid identity.
   Phase 3 DoD met.
+
+## Phase 4 — TTY bridge live keyboard (2026-10-23)
+
+- **H-K1 TRUE** (Step 111): the ascend `read(5)` FD_CONSOLE drain reads
+  `KBD_MAP[tail & 63]` while `tail < head`, bumps only TAIL, blocks by PC rewind when
+  empty, never resets HEAD/TAIL. No BPF change; verifier unchanged (926,542 / 761,580).
+- `kbd_append_plan` + `BootRunner::append_kbd` (6 unit tests incl. 63→0 slot wrap, u32
+  index wrap, full ring, corrupt indices). `write_kbd` untouched.
+- Bridge: per-instance 4096 B keystroke queue (drop newest, `upc_tty_kbd_dropped_total` on
+  `/metrics`), WS reader pushes into it (TODO removed), `GET /api/v1/kbd/drain` (405
+  non-GET, 403 non-loopback, `max` bounded 1..4096, default 64), `--listen` default
+  `127.0.0.1:26100` (`--port` kept as a deprecated loopback alias). `go test -race` green.
+- `upc-bootctl console` (stub replaced): `boot`'s load path extracted into `boot_prepare`
+  (shared, `boot` output unchanged — 12/12 goldens SAME after the refactor); loop = quiet
+  trigger batch → TTY to stdout + bridge ingest → bridge drain + stdin → `append_kbd`;
+  SIGINT/SIGTERM set a stop flag so teardown always runs.
+- Step 123 (stdin, typed 8 s / 14 s after start, no `--input`): `$ hello`, the full `ls`
+  listing, `$` after each; exited on stdin EOF + idle, rc=0.
+- Steps 126–129 (bridge + `testdata/wsclient`, console without `--stdin`, stopped by
+  SIGTERM): WS output shows `hello`, then a 203-byte paste (15 commands) ran in order
+  (`paste-00` … `paste-13`, `z`); KBD head 0 → 11 → 214, at most 64 queued in the ring,
+  `upc_tty_kbd_dropped_total 0`. A CR-terminated line (xterm Enter) also runs.
+- Step 130/131: harness ALL GREEN (16 PASS); `--input` path unchanged (sweep + specials
+  12/12 SAME). Nothing left attached after any run (`bpftool prog show`, `ip link`,
+  `ip netns`).
+- Not run: an actual browser session (no browser on this host); the WS leg used the Go
+  client. Not done (parked): `--static` flag that `nix/yggdrasil/.../upc-tty-bridge.service`
+  already passes — the bridge still serves `../../dashboard/` relative to its cwd.
