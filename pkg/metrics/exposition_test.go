@@ -57,3 +57,26 @@ func TestLabelValue_InvalidUTF8DoesNotPoisonThePage(t *testing.T) {
 		t.Fatalf("invalid bytes not replaced:\n%q", out)
 	}
 }
+
+// Labels.String is the series key. Unquoted, {a="1,b=2", b="3"} and
+// {a="1", b="2,b=3"} both keyed as a=1,b=2,b=3: the second call got the
+// first series back and its increments were published under the first's
+// labels.
+func TestVec_LabelValuesContainingSeparatorsAreDistinctSeries(t *testing.T) {
+	r := NewRegistry()
+	cv := NewCounterVec("sep_total", "h", nil, []string{"a", "b"})
+	r.MustRegister(cv)
+
+	cv.WithLabels(Labels{"a": "1,b=2", "b": "3"}).Inc()
+	cv.WithLabels(Labels{"a": "1", "b": "2,b=3"}).Add(5)
+
+	out := gatherString(t, r)
+	for _, want := range []string{
+		`sep_total{a="1,b=2",b="3"} 1`,
+		`sep_total{a="1",b="2,b=3"} 5`,
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("missing %q in:\n%s", want, out)
+		}
+	}
+}

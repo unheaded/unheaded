@@ -379,8 +379,8 @@ func TestLabelsString(t *testing.T) {
 	s := l.String()
 
 	// Should be sorted alphabetically
-	if s != "a=1,b=2,c=3" {
-		t.Errorf("expected 'a=1,b=2,c=3', got '%s'", s)
+	if want := `a="1",b="2",c="3"`; s != want {
+		t.Errorf("expected %s, got %s", want, s)
 	}
 }
 

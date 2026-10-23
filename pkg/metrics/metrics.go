@@ -41,7 +41,13 @@ const (
 type Labels map[string]string
 
 // String returns a deterministic string representation of labels
-// suitable for use as a map key.
+// suitable for use as a map key: name="value" pairs, sorted by name, values
+// escaped and quoted as in the exposition format.
+//
+// The quotes are what make it a key. Unquoted, {a="1,b=2", b="3"} and
+// {a="1", b="2,b=3"} were both a=1,b=2,b=3, so a Vec handed the second
+// label set the first one's series, and its samples were published under
+// the wrong labels.
 func (l Labels) String() string {
 	if len(l) == 0 {
 		return ""
@@ -59,8 +65,9 @@ func (l Labels) String() string {
 			buf.WriteByte(',')
 		}
 		buf.WriteString(k)
-		buf.WriteByte('=')
+		buf.WriteString(`="`)
 		buf.WriteString(escapeLabel(l[k]))
+		buf.WriteByte('"')
 	}
 	return buf.String()
 }
