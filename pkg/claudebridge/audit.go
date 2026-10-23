@@ -58,6 +58,8 @@ type ToolRecord struct {
 	Model        string // model that asked for the call (actor in audit_events)
 	Backend      string // "claude" or "local"; "" = the auditor's default
 	Redactions   int    // values the privacy tier redacted from the result
+	Tier         string // privacy tier of the result: T0, T1, T2 ("" = no filter)
+	PrivacyMode  string // standard or strict ("" = no filter)
 }
 
 // Auditor receives every request and tool call. Implementations must be
@@ -94,6 +96,7 @@ func (a SlogAuditor) Request(ctx context.Context, r RequestRecord) {
 		slog.Any("unpriced_models", r.UnpricedModels),
 		slog.Duration("duration", r.Duration),
 		slog.Bool("sent", r.Sent),
+		slog.Int("redactions", r.Redactions),
 		slog.String("error", r.Err),
 	)
 }
@@ -117,6 +120,9 @@ func (a SlogAuditor) ToolCall(ctx context.Context, r ToolRecord) {
 		slog.String("input_sha256", r.InputSHA256),
 		slog.Int("output_bytes", r.OutputBytes),
 		slog.Bool("truncated", r.Truncated),
+		slog.Int("redactions", r.Redactions),
+		slog.String("tier", r.Tier),
+		slog.String("privacy_mode", r.PrivacyMode),
 		slog.Duration("duration", r.Duration),
 	)
 }

@@ -435,6 +435,8 @@ func toolEvent(source, backend string, r ToolRecord) *audit.AuditEvent {
 			"pending":      r.Pending,
 			"is_error":     r.IsError,
 			"redactions":   r.Redactions,
+			"tier":         truncateUTF8Plain(r.Tier, 4),
+			"privacy_mode": truncateUTF8Plain(r.PrivacyMode, 16),
 			"tool_use_id":  truncateUTF8Plain(r.ToolUseID, 64),
 		},
 	}

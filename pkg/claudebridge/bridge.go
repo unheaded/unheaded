@@ -21,6 +21,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
 
 	"unheaded/pkg/champion"
+	"unheaded/pkg/claudebridge/privacy"
 	"unheaded/pkg/zhentools"
 )
 
@@ -99,6 +101,15 @@ type Config struct {
 	// (Champion Rule 2) out of band. nil or DenyConfirmer: refused, as
 	// before Phase 2. See confirm.go.
 	Confirmer Confirmer
+	// Privacy classifies, redacts and (for large ops payloads)
+	// summarises the user prompt and every tool result before they are
+	// sent (S-TWO-BRAINS Phase 3). nil: no filtering (library tests);
+	// zhen-claude always sets it. ProjectRoot is the sandbox it
+	// classifies file reads against.
+	Privacy     *privacy.Filter
+	ProjectRoot string
+	// Warn, if set, receives operator warnings (never content).
+	Warn func(msg string)
 
 	// Credentials reports which credential the client will use and fails
 	// when there is none. Default CredentialSource.
@@ -216,6 +227,8 @@ type Conversation struct {
 
 	family      string // task family for the audit (S-TWO-BRAINS routing)
 	routeReason string // llm_requests.route_reason for every request
+
+	redactions atomic.Int64 // since the last request: prompt + tool results
 }
 
 // SetRoute labels every later request of this conversation, in the audit
@@ -249,6 +262,19 @@ type Reply struct {
 func (c *Conversation) Send(ctx context.Context, prompt string) (*Reply, error) {
 	if strings.TrimSpace(prompt) == "" {
 		return nil, errors.New("claudebridge: empty prompt")
+	}
+	if f := c.b.cfg.Privacy; f != nil {
+		red, counts, err := f.Prompt(ctx, prompt)
+		if err != nil {
+			return nil, fmt.Errorf("claudebridge: privacy filter refused the prompt (nothing sent): %w", err)
+		}
+		if n := counts.Total(); n > 0 {
+			c.redactions.Add(int64(n))
+			if c.b.cfg.Warn != nil {
+				c.b.cfg.Warn(fmt.Sprintf("redacted %d value(s) from the prompt before sending (%s)", n, counts))
+			}
+		}
+		prompt = red
 	}
 	start := len(c.messages)
 	c.messages = append(c.messages, anthropic.NewBetaUserMessage(anthropic.NewBetaTextBlock(prompt)))
@@ -387,7 +413,8 @@ func (c *Conversation) request(ctx context.Context, iter int, reply *Reply) (*an
 	b := c.b
 	params := b.params(c.messages)
 	rec := RequestRecord{Conversation: c.id, Iteration: iter, Model: b.cfg.Model,
-		Backend: BackendClaude, TaskFamily: c.family, RouteReason: c.routeReason}
+		Backend: BackendClaude, TaskFamily: c.family, RouteReason: c.routeReason,
+		Redactions: int(c.redactions.Swap(0))}
 
 	need, err := b.reservation(params)
 	if err != nil {
@@ -599,14 +626,17 @@ func (c *Conversation) runTool(ctx context.Context, id, name string, input json.
 		}
 		return run.finish(ctx, refused.Error(), true), nil
 	case err != nil:
-		run.rec.Decision, run.rec.Reason = "error", err.Error()
-		return run.finish(ctx, "tool failed: "+err.Error(), true), nil
+		run.rec.Decision, run.rec.Reason = "error", firstLine(err.Error())
+		text, isErr := c.filter(ctx, run, "tool failed: "+err.Error(), true)
+		return run.finish(ctx, text, isErr), nil
 	case res.IsError:
 		run.rec.Decision, run.rec.Reason = "error", firstLine(res.Text)
-		return run.finish(ctx, res.Text, true), nil
+		text, isErr := c.filter(ctx, run, res.Text, true)
+		return run.finish(ctx, text, isErr), nil
 	default:
 		run.rec.Decision = "allowed"
-		return run.finish(ctx, res.Text, false), nil
+		text, isErr := c.filter(ctx, run, res.Text, false)
+		return run.finish(ctx, text, isErr), nil
 	}
 }
 
@@ -634,7 +664,43 @@ func (c *Conversation) confirm(ctx context.Context, run *toolRun) anthropic.Beta
 	if text == "" {
 		text = run.refused.Error()
 	}
-	return run.finish(ctx, text, out.IsError)
+	isErr := out.IsError
+	if out.Decision == "approved" {
+		text, isErr = c.filter(ctx, run, text, isErr)
+	}
+	return run.finish(ctx, text, isErr)
+}
+
+// filter passes a tool's output through the privacy tier. Whatever goes
+// wrong, Claude gets an is_error saying the result was withheld, never
+// the raw text.
+func (c *Conversation) filter(ctx context.Context, run *toolRun, text string, isErr bool) (string, bool) {
+	f := c.b.cfg.Privacy
+	if f == nil {
+		return text, isErr
+	}
+	var args map[string]any
+	_ = json.Unmarshal(run.input, &args)
+	out, o, err := f.ToolResult(ctx, run.rec.Name, args, c.b.cfg.ProjectRoot, text)
+	run.rec.Tier, run.rec.PrivacyMode = o.Tier.String(), string(o.Mode)
+	n := o.Counts.Total()
+	run.rec.Redactions = n
+	c.redactions.Add(int64(n))
+	switch {
+	case errors.Is(err, privacy.ErrWithheld):
+		run.rec.Decision, run.rec.Reason = "withheld", "user data"
+		return "withheld: user data (zero user data access); this result never leaves the host", true
+	case errors.Is(err, privacy.ErrStrictWithheld):
+		run.rec.Decision, run.rec.Reason = "withheld", "privacy mode strict"
+		return "withheld: Kingdom ops data is not sent in privacy mode strict", true
+	case err != nil:
+		run.rec.Decision, run.rec.Reason = "withheld", "privacy filter failed"
+		return "withheld: the privacy filter could not check this result, so it was not sent", true
+	}
+	if o.Summarised || o.SummaryUnavailable {
+		run.rec.Truncated = true
+	}
+	return out, isErr
 }
 
 func (c *Conversation) auditConfirm(ctx context.Context, run *toolRun, out ConfirmOutcome) {
