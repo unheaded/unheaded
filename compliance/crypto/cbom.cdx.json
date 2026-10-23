@@ -97,6 +97,90 @@
     },
     {
       "type": "cryptographic-asset",
+      "bom-ref": "cmd/heimdall-daemon/drift.go:23:sig-import",
+      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/heimdall-daemon/drift.go:23"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cmd/heimdall-daemon/drift.go:25:sig-import",
+      "name": "PQC helpers (unheaded/pkg/crypto/pqc)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "post-quantum signatures via the in-tree wrapper; parameter set chosen at run time"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/heimdall-daemon/drift.go:25"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
       "bom-ref": "cmd/heimdall-daemon/main.go:30:sig-import",
       "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
       "cryptoProperties": {
@@ -308,89 +392,6 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/trace-collector/Cargo.lock:0:rust-lock",
-      "name": "rustls 0.23.46",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls",
-          "version": "1.2-1.3"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "providers compiled: ring; aws-lc-rs default_provider offers X25519MLKEM768 first at this version; the provider call sites decide"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "n/a"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/trace-collector/Cargo.lock"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "cmd/trace-collector/Cargo.toml:15:rust-tls-dep",
-      "name": "tonic TLS feature",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "tonic 0.12 tls builds on rustls with ring (features: gzip, tls); no ClientTlsConfig/ServerTlsConfig in the crate"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "unused-feature"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "classical"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/trace-collector/Cargo.toml:15"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
       "bom-ref": "cmd/unheaded-daemon/lxd_rest.go:116:tls-config",
       "name": "TLS client config",
       "cryptoProperties": {
@@ -428,89 +429,6 @@
         {
           "name": "unheaded:source",
           "value": "cmd/unheaded-daemon/lxd_rest.go:116"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "cmd/upc-bootctl/Cargo.lock:0:rust-lock",
-      "name": "rustls 0.23.46",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls",
-          "version": "1.2-1.3"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "providers compiled: ring; aws-lc-rs default_provider offers X25519MLKEM768 first at this version; the provider call sites decide"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "n/a"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/upc-bootctl/Cargo.lock"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "cmd/upc-bootctl/Cargo.toml:31:rust-tls-dep",
-      "name": "reqwest rustls TLS feature",
-      "cryptoProperties": {
-        "assetType": "protocol",
-        "protocolProperties": {
-          "type": "tls"
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "reqwest 0.12 rustls-tls builds on rustls with ring (features: json, rustls-tls, blocking; default-features = false); the crate only uses http:// URLs"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "unused-feature"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "classical"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "rust"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "cmd/upc-bootctl/Cargo.toml:31"
         }
       ]
     },
@@ -558,7 +476,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/Cargo.toml:18:rust-tls-dep",
+      "bom-ref": "cmd/waf/Cargo.toml:20:rust-tls-dep",
       "name": "rustls dependency",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -573,11 +491,7 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "rustls built with the ring provider only; ring has no ML-KEM (features: ring, std; default-features = false)"
-        },
-        {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: rust-ring-provider"
+          "value": "aws-lc-rs provider: X25519MLKEM768 first by default (features: aws_lc_rs, prefer-post-quantum, std, tls12, logging; default-features = false)"
         },
         {
           "name": "unheaded:link-state",
@@ -589,7 +503,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "classical"
+          "value": "hybrid"
         },
         {
           "name": "unheaded:scanner",
@@ -597,14 +511,14 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/waf/Cargo.toml:18"
+          "value": "cmd/waf/Cargo.toml:20"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "cmd/waf/src/tls.rs:140:rust-builder",
-      "name": "rustls config on the process-default provider",
+      "bom-ref": "cmd/waf/src/tls.rs:127:rust-provider",
+      "name": "rustls aws-lc-rs provider",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
@@ -618,7 +532,7 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "rustls built with the ring provider only; ring has no ML-KEM"
+          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
         },
         {
           "name": "unheaded:link-state",
@@ -630,7 +544,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "classical"
+          "value": "hybrid"
         },
         {
           "name": "unheaded:scanner",
@@ -638,7 +552,130 @@
         },
         {
           "name": "unheaded:source",
-          "value": "cmd/waf/src/tls.rs:140"
+          "value": "cmd/waf/src/tls.rs:127"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cmd/waf/src/tls.rs:391:rust-provider",
+      "name": "rustls aws-lc-rs provider",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "hybrid"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "rust"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/waf/src/tls.rs:391"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cmd/waf/src/tls.rs:405:rust-provider",
+      "name": "rustls aws-lc-rs provider",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "hybrid"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "rust"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/waf/src/tls.rs:405"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "cmd/waf/src/tls.rs:420:rust-provider",
+      "name": "rustls aws-lc-rs provider",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "hybrid"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "rust"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "cmd/waf/src/tls.rs:420"
         }
       ]
     },
@@ -1070,7 +1107,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "crates/zhend/Cargo.toml:35:rust-tls-dep",
+      "bom-ref": "crates/zhend/Cargo.toml:39:rust-tls-dep",
       "name": "rustls dependency",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -1085,7 +1122,7 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "aws-lc-rs and ring both compiled; the provider call sites decide, and a process-default builder panics until one is installed (features: ring)"
+          "value": "aws-lc-rs provider: X25519MLKEM768 first by default (features: aws_lc_rs, prefer-post-quantum, std, logging; default-features = false)"
         },
         {
           "name": "unheaded:link-state",
@@ -1097,7 +1134,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "n/a"
+          "value": "hybrid"
         },
         {
           "name": "unheaded:scanner",
@@ -1105,14 +1142,14 @@
         },
         {
           "name": "unheaded:source",
-          "value": "crates/zhend/Cargo.toml:35"
+          "value": "crates/zhend/Cargo.toml:39"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "crates/zhend/src/api/quic.rs:412:rust-provider",
-      "name": "rustls ring provider",
+      "bom-ref": "crates/zhend/src/api/quic.rs:417:rust-provider",
+      "name": "rustls aws-lc-rs provider",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
@@ -1126,11 +1163,7 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "ring has no ML-KEM: X25519/P-256/P-384 only"
-        },
-        {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: rust-ring-provider"
+          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
         },
         {
           "name": "unheaded:link-state",
@@ -1142,7 +1175,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "classical"
+          "value": "hybrid"
         },
         {
           "name": "unheaded:scanner",
@@ -1150,14 +1183,14 @@
         },
         {
           "name": "unheaded:source",
-          "value": "crates/zhend/src/api/quic.rs:412"
+          "value": "crates/zhend/src/api/quic.rs:417"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "crates/zhend/src/api/quic.rs:430:rust-provider",
-      "name": "rustls ring provider",
+      "bom-ref": "crates/zhend/src/api/quic.rs:736:rust-provider",
+      "name": "rustls aws-lc-rs provider",
       "cryptoProperties": {
         "assetType": "protocol",
         "protocolProperties": {
@@ -1171,11 +1204,7 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "ring has no ML-KEM: X25519/P-256/P-384 only"
-        },
-        {
-          "name": "unheaded:finding",
-          "value": "check-pq-kex: rust-ring-provider"
+          "value": "aws-lc-rs provider: X25519MLKEM768 first by default"
         },
         {
           "name": "unheaded:link-state",
@@ -1187,7 +1216,7 @@
         },
         {
           "name": "unheaded:pq-status",
-          "value": "classical"
+          "value": "hybrid"
         },
         {
           "name": "unheaded:scanner",
@@ -1195,7 +1224,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "crates/zhend/src/api/quic.rs:430"
+          "value": "crates/zhend/src/api/quic.rs:736"
         }
       ]
     },
@@ -1911,92 +1940,6 @@
     {
       "type": "cryptographic-asset",
       "bom-ref": "pkg/crypto/pqc/ml_dsa.go:10:sig-import",
-      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "signature",
-          "parameterSetIdentifier": "ML-DSA-65",
-          "nistQuantumSecurityLevel": 3
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "no"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "FIPS 204"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "pq-signature"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "go"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "pkg/crypto/pqc/ml_dsa.go:10"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "pkg/crypto/pqc/ml_dsa.go:11:sig-import",
-      "name": "ML-DSA-87 (github.com/cloudflare/circl/sign/mldsa/mldsa87)",
-      "cryptoProperties": {
-        "assetType": "algorithm",
-        "algorithmProperties": {
-          "primitive": "signature",
-          "parameterSetIdentifier": "ML-DSA-87",
-          "nistQuantumSecurityLevel": 5
-        }
-      },
-      "properties": [
-        {
-          "name": "unheaded:cnsa2",
-          "value": "yes"
-        },
-        {
-          "name": "unheaded:detail",
-          "value": "FIPS 204"
-        },
-        {
-          "name": "unheaded:link-state",
-          "value": "enabled"
-        },
-        {
-          "name": "unheaded:owner",
-          "value": "first-party"
-        },
-        {
-          "name": "unheaded:pq-status",
-          "value": "pq-signature"
-        },
-        {
-          "name": "unheaded:scanner",
-          "value": "go"
-        },
-        {
-          "name": "unheaded:source",
-          "value": "pkg/crypto/pqc/ml_dsa.go:11"
-        }
-      ]
-    },
-    {
-      "type": "cryptographic-asset",
-      "bom-ref": "pkg/crypto/pqc/ml_dsa.go:9:sig-import",
       "name": "ML-DSA-44 (github.com/cloudflare/circl/sign/mldsa/mldsa44)",
       "cryptoProperties": {
         "assetType": "algorithm",
@@ -2033,7 +1976,93 @@
         },
         {
           "name": "unheaded:source",
-          "value": "pkg/crypto/pqc/ml_dsa.go:9"
+          "value": "pkg/crypto/pqc/ml_dsa.go:10"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/crypto/pqc/ml_dsa.go:11:sig-import",
+      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/crypto/pqc/ml_dsa.go:11"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/crypto/pqc/ml_dsa.go:12:sig-import",
+      "name": "ML-DSA-87 (github.com/cloudflare/circl/sign/mldsa/mldsa87)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-87",
+          "nistQuantumSecurityLevel": 5
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "yes"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/crypto/pqc/ml_dsa.go:12"
         }
       ]
     },
@@ -4030,6 +4059,92 @@
     },
     {
       "type": "cryptographic-asset",
+      "bom-ref": "pkg/wotansig/wotansig.go:35:sig-import",
+      "name": "ML-DSA-65 (github.com/cloudflare/circl/sign/mldsa/mldsa65)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/wotansig/wotansig.go:35"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
+      "bom-ref": "pkg/wotansig/wotansig.go:37:sig-import",
+      "name": "ML-DSA-65 (unheaded/pkg/crypto/pqc)",
+      "cryptoProperties": {
+        "assetType": "algorithm",
+        "algorithmProperties": {
+          "primitive": "signature",
+          "parameterSetIdentifier": "ML-DSA-65",
+          "nistQuantumSecurityLevel": 3
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "FIPS 204 via the in-tree wrapper"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "pq-signature"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "go"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "pkg/wotansig/wotansig.go:37"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
       "bom-ref": "runbooks/network/wireguard-overlay.yaml:43:wireguard",
       "name": "WireGuard peer",
       "cryptoProperties": {
@@ -4367,7 +4482,7 @@
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "services/wotan/cmd/wotan/main.go:330:grpc-tls",
+      "bom-ref": "services/wotan/cmd/wotan/main.go:338:grpc-tls",
       "name": "gRPC server TLS credentials",
       "cryptoProperties": {
         "assetType": "protocol",
@@ -4407,20 +4522,18 @@
         },
         {
           "name": "unheaded:source",
-          "value": "services/wotan/cmd/wotan/main.go:330"
+          "value": "services/wotan/cmd/wotan/main.go:338"
         }
       ]
     },
     {
       "type": "cryptographic-asset",
-      "bom-ref": "services/wotan/internal/signing/signing.go:17:sig-import",
-      "name": "ML-DSA-65 (unheaded/pkg/crypto/pqc)",
+      "bom-ref": "services/wotan/internal/signing/signing.go:14:sig-import",
+      "name": "PQC helpers (unheaded/pkg/crypto/pqc)",
       "cryptoProperties": {
         "assetType": "algorithm",
         "algorithmProperties": {
-          "primitive": "signature",
-          "parameterSetIdentifier": "ML-DSA-65",
-          "nistQuantumSecurityLevel": 3
+          "primitive": "signature"
         }
       },
       "properties": [
@@ -4430,7 +4543,7 @@
         },
         {
           "name": "unheaded:detail",
-          "value": "FIPS 204 via the in-tree wrapper"
+          "value": "post-quantum signatures via the in-tree wrapper; parameter set chosen at run time"
         },
         {
           "name": "unheaded:link-state",
@@ -4450,7 +4563,7 @@
         },
         {
           "name": "unheaded:source",
-          "value": "services/wotan/internal/signing/signing.go:17"
+          "value": "services/wotan/internal/signing/signing.go:14"
         }
       ]
     },
