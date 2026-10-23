@@ -19,6 +19,8 @@ import (
 	"net/url"
 	"strings"
 	"time"
+
+	"unheaded/pkg/gpulease"
 )
 
 // Defaults.
@@ -63,7 +65,17 @@ type Client struct {
 	MaxTokens int           // default DefaultMaxTokens
 	Timeout   time.Duration // per call; default DefaultTimeout
 	HTTP      *http.Client  // default: a plain client
+	// GPULock, when set, makes each call hold a shared GPU lease
+	// (pkg/gpulease) for its duration, waiting at most LeaseTimeout
+	// (default DefaultLeaseTimeout) while a model swap or a training run
+	// holds it exclusively; then the call fails with gpulease.ErrTimeout
+	// and nothing is sent.
+	GPULock      string
+	LeaseTimeout time.Duration
 }
+
+// DefaultLeaseTimeout is how long a call waits for the GPU lease.
+const DefaultLeaseTimeout = 10 * time.Second
 
 // Endpoint is the chat-completions URL, or an error for a base URL that
 // is not http(s).
@@ -124,6 +136,17 @@ func (c *Client) Chat(ctx context.Context, r Request) (Answer, error) {
 	body, err := c.Body(r)
 	if err != nil {
 		return Answer{}, err
+	}
+	if c.GPULock != "" {
+		lt := c.LeaseTimeout
+		if lt <= 0 {
+			lt = DefaultLeaseTimeout
+		}
+		lease, err := gpulease.Shared(ctx, c.GPULock, lt)
+		if err != nil {
+			return Answer{}, fmt.Errorf("local LLM: %w", err)
+		}
+		defer func() { _ = lease.Release() }()
 	}
 	timeout := c.Timeout
 	if timeout <= 0 {

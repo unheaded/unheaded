@@ -17,6 +17,7 @@ import (
 	"unicode"
 
 	"unheaded/pkg/claudebridge"
+	"unheaded/pkg/gpulease"
 	"unheaded/pkg/zhenagent"
 	"unheaded/pkg/zhenroute"
 )
@@ -110,6 +111,9 @@ type workerConfig struct {
 	// task: a stopped card finishes its current check, then nothing is
 	// committed and the run is cancelled.
 	Stop func() bool
+	// GPUBusy reports the GPU lease held exclusively (a model swap or a
+	// training run): the card is deferred, not claimed (Step 233).
+	GPUBusy func() bool
 }
 
 type worker struct {
@@ -318,6 +322,10 @@ func (w *worker) runOnce(ctx context.Context) (cardResult, error) {
 			w.cfg.Log.Warn("worker_prune", "error", err.Error())
 		}
 	}
+	if w.cfg.GPUBusy != nil && w.cfg.GPUBusy() {
+		w.cfg.Log.Info("worker_deferred", "reason", "gpu lease held exclusively")
+		return cardResult{Outcome: outcomeDeferred, Reason: "gpu lease held exclusively (model swap or training)"}, nil
+	}
 	c, spec, branch, skipped, err := w.pick(ctx)
 	if err != nil {
 		return cardResult{Outcome: outcomeFailed, Infra: true, Reason: err.Error(), Skipped: skipped}, err
@@ -477,7 +485,16 @@ func (w *worker) work(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec
 		Check: spec.Check, CheckPath: spec.Path, ContextPath: contextDir(spec.Path), MaxClaudeUSD: spec.MaxClaudeUSD,
 	})
 	if ctx.Err() != nil || (w.cfg.Stop != nil && w.cfg.Stop()) {
+		w.dropUncommitted(bg, run, wt)
 		return end(zhenagent.StatusCancelled, "stopped mid-card; nothing committed", false, o, "", 0)
+	}
+	if errors.Is(rerr, gpulease.ErrTimeout) {
+		// The GPU was taken mid-card: wait, never pay Claude for it. A
+		// cancelled run does not count as an attempt.
+		w.dropUncommitted(bg, run, wt)
+		res = end(zhenagent.StatusCancelled, "gpu lease held exclusively mid-card; deferred", false, o, "", 0)
+		res.Outcome = outcomeDeferred
+		return res
 	}
 	if rerr != nil {
 		return end(zhenagent.StatusFailed, "route: "+rerr.Error(), true, o, "", 0)
@@ -522,6 +539,23 @@ func (w *worker) work(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec
 		return end(zhenagent.StatusFailed, "rev-parse: "+err.Error(), true, o, "", changed)
 	}
 	return end(zhenagent.StatusSucceeded, "", false, o, strings.TrimSpace(string(head)), changed)
+}
+
+// dropUncommitted removes a cancelled run's worktree and its branch,
+// only while the branch still points at the base commit (nothing was
+// committed), so the card can start again on the same branch name.
+func (w *worker) dropUncommitted(ctx context.Context, run zhenagent.Run, wt string) {
+	head, err := w.cfg.Git(ctx, w.cfg.Repo, "rev-parse", "--verify", "--quiet", "refs/heads/"+run.Branch)
+	if err != nil || strings.TrimSpace(string(head)) != run.BaseCommit {
+		return
+	}
+	if _, err := w.cfg.Git(ctx, w.cfg.Repo, "worktree", "remove", "--force", "--", wt); err != nil {
+		w.cfg.Log.Warn("worker_drop", "run", run.ID, "error", err.Error())
+		return
+	}
+	if _, err := w.cfg.Git(ctx, w.cfg.Repo, "branch", "-D", "--", run.Branch); err != nil {
+		w.cfg.Log.Warn("worker_drop", "run", run.ID, "error", err.Error())
+	}
 }
 
 // keepEndedWorktrees is how long the worktree of a run that ended without

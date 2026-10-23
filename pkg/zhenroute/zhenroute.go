@@ -80,6 +80,10 @@ type Config struct {
 	LocalModel     string // used when the family names none
 	LocalMaxTokens int
 	LocalTimeout   time.Duration
+	// GPULock / LeaseTimeout: each local call holds a shared GPU lease;
+	// a busy GPU ends the task with gpulease.ErrTimeout (never Claude).
+	GPULock      string
+	LeaseTimeout time.Duration
 
 	// Claude is the Claude leg (nil: no Claude, as for LocalOnly).
 	Claude ClaudeLeg
@@ -284,7 +288,8 @@ func Run(ctx context.Context, cfg Config, t Task) (claudebridge.RouteOutcome, er
 	if root != "" {
 		system = LocalSystem
 	}
-	local := &claudebridge.LocalLLM{BaseURL: cfg.LocalURL, Model: localModel, MaxTokens: max(cfg.LocalMaxTokens, 2048), Timeout: cfg.LocalTimeout, Seed: &seed}
+	local := &claudebridge.LocalLLM{BaseURL: cfg.LocalURL, Model: localModel, MaxTokens: max(cfg.LocalMaxTokens, 2048), Timeout: cfg.LocalTimeout, Seed: &seed,
+		GPULock: cfg.GPULock, LeaseTimeout: cfg.LeaseTimeout}
 	r := &claudebridge.ThresholdRouter{
 		Config: &routing,
 		Local: func(ctx context.Context, p string) (claudebridge.LocalAnswer, error) {

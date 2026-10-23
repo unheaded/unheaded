@@ -11,6 +11,13 @@
 #
 # Usage:
 #   ./scripts/switch-model.sh <model-key>
+#   ./scripts/switch-model.sh --stop      # stop llama-server on LLAMA_PORT, load nothing
+#
+# GPU lease (S-TWO-BRAINS Step 233): the whole swap runs under the
+# exclusive lease of scripts/lib/gpu-lease.sh, so it never meets an
+# inference call (pkg/localllm holds the lease shared per call) or a
+# training run (scripts/forge-train.sh). GPU_LEASE_TIMEOUT (default 600 s)
+# bounds the wait; exit 75 = the lease was not granted in time.
 #
 # Defined model keys (extend MODELS in this script to add more):
 #   qwen-7b      qwen2.5-coder-7b-instruct  (16k ctx, 4 parallel — light, fast,
@@ -39,6 +46,10 @@
 # ~30-90 second gap while the new model loads.
 
 set -euo pipefail
+
+if [[ "${GPU_LEASE_HELD:-}" != exclusive ]]; then
+    exec "$(dirname "${BASH_SOURCE[0]}")/lib/gpu-lease.sh" exclusive "${GPU_LEASE_TIMEOUT:-600}" -- "${BASH_SOURCE[0]}" "$@"
+fi
 
 LLAMA_BIN="${LLAMA_BIN:-/home/govan/tmp/unheaded/llama.cpp/build/bin/llama-server}"
 LLAMA_HOST="${LLAMA_HOST:-127.0.0.1}"
@@ -82,8 +93,28 @@ MODEL_NAME[deepseek]="deepseek-coder-v2-lite-instruct"
 MODEL_NAME[deepseek-cpu]="deepseek-coder-v2-lite-cpu-moe"
 MODEL_NAME[qwen-coder-14b]="qwen2.5-coder-14b-instruct"
 
+# Stop any current llama-server bound on the target port.
+stop_llama() {
+    if ss -lnt 2>/dev/null | grep -q ":${LLAMA_PORT} "; then
+        PID=$(ss -lntp 2>/dev/null | awk -v p=":${LLAMA_PORT}" '$4 ~ p {print $0}' | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)
+        if [[ -n "${PID:-}" ]]; then
+            echo "[switch-model] stopping current llama-server (pid $PID)..."
+            kill "$PID" 2>/dev/null || true
+            for _ in $(seq 1 20); do
+                ss -lnt 2>/dev/null | grep -q ":${LLAMA_PORT} " || break
+                sleep 1
+            done
+        fi
+    fi
+}
+
+if [[ "${1:-}" == "--stop" ]]; then
+    stop_llama
+    exit 0
+fi
+
 if [[ $# -lt 1 ]]; then
-    echo "usage: $0 <model-key>" >&2
+    echo "usage: $0 <model-key> | --stop" >&2
     echo "available keys:" >&2
     for k in "${!MODEL_FILE[@]}"; do
         echo "  $k → $MODELS_DIR/${MODEL_FILE[$k]}" >&2
@@ -181,18 +212,7 @@ echo "[switch-model]   gguf:  $GGUF"
 echo "[switch-model]   flags: $FLAGS"
 echo "[switch-model]   port:  $LLAMA_PORT"
 
-# Stop any current llama-server bound on the target port.
-if ss -lnt 2>/dev/null | grep -q ":${LLAMA_PORT} "; then
-    PID=$(ss -lntp 2>/dev/null | awk -v p=":${LLAMA_PORT}" '$4 ~ p {print $0}' | grep -oE 'pid=[0-9]+' | head -1 | cut -d= -f2)
-    if [[ -n "${PID:-}" ]]; then
-        echo "[switch-model] stopping current llama-server (pid $PID)..."
-        kill "$PID" 2>/dev/null || true
-        for i in $(seq 1 20); do
-            ss -lnt 2>/dev/null | grep -q ":${LLAMA_PORT} " || break
-            sleep 1
-        done
-    fi
-fi
+stop_llama
 
 # Launch the new model in the background.
 LOG="/tmp/llama-${KEY}.log"

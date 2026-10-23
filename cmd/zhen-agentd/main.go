@@ -184,7 +184,7 @@ func main() {
 		defaultRoot: rootAbs,
 		allowed:     allowed,
 		retriever:   &vorRetriever{client: httpClient, baseURL: vorURL, maxChars: defaultMaxChars},
-		llm:         &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName, audit: aud.auditor},
+		llm:         &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName, audit: aud.auditor, gpuLock: wf.gpuLock},
 		vorURL:      vorURL,
 		llamaURL:    llamaURL,
 		ready:       newReadyTracker(httpClient, vorURL, llamaURL),
@@ -1090,6 +1090,7 @@ type llamaLLM struct {
 	baseURL string
 	model   string
 	audit   claudebridge.Auditor // nil: not audited
+	gpuLock string               // shared GPU lease per call ("" = none)
 }
 
 // Complete asks llama-server once and, when auditing is on, records the
@@ -1124,7 +1125,7 @@ func (l *llamaLLM) complete(ctx context.Context, msgs []agent.Message, maxTokens
 	for i, m := range msgs {
 		lm[i] = localllm.Message{Role: m.Role, Content: m.Content}
 	}
-	c := &localllm.Client{BaseURL: l.baseURL, Model: l.model, HTTP: l.client, Timeout: httpTimeout}
+	c := &localllm.Client{BaseURL: l.baseURL, Model: l.model, HTTP: l.client, Timeout: httpTimeout, GPULock: l.gpuLock}
 	a, err := c.Chat(ctx, localllm.Request{Messages: lm, MaxTokens: maxTokens, Temperature: temp, Seed: &seed})
 	u := llamaUsage{Model: a.Model, FinishReason: a.FinishReason, PromptTokens: a.PromptTokens, CompletionTokens: a.CompletionTokens}
 	if err != nil {

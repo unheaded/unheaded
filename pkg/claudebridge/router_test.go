@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"testing"
+
+	"unheaded/pkg/gpulease"
 )
 
 func testRouting() *RoutingConfig {
@@ -293,5 +295,14 @@ func TestRouter_Metrics(t *testing.T) {
 	_, _ = f2.router(testRouting(), false).Run(context.Background(), "attacker-chosen-label", "q")
 	if routeTotal.WithLabelValues("default", RouteClaudeDirect, "answered").Value() != other+1 {
 		t.Error("an unknown family was not folded into default")
+	}
+}
+
+// A busy GPU is a reason to wait, not to escalate (Step 233).
+func TestRouter_GPUBusyNeverEscalates(t *testing.T) {
+	f := &routeFakes{local: []string{draft}, checks: []bool{false}, localErr: fmt.Errorf("local LLM: %w", gpulease.ErrTimeout)}
+	out, err := f.router(testRouting(), true).Run(context.Background(), "parse-only", "x")
+	if !errors.Is(err, gpulease.ErrTimeout) || out.Stop != "gpu_busy" || len(f.claudeCalls) != 0 {
+		t.Errorf("out %+v err %v claude calls %d", out, err, len(f.claudeCalls))
 	}
 }

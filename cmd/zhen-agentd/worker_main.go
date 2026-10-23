@@ -20,6 +20,7 @@ import (
 	"unheaded/pkg/champion"
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/claudebridge/privacy"
+	"unheaded/pkg/gpulease"
 	"unheaded/pkg/zhenagent"
 	"unheaded/pkg/zhenroute"
 )
@@ -45,6 +46,7 @@ type workerFlags struct {
 	dailyCapUSD float64
 	privacyMode string
 	localModel  string
+	gpuLock     string
 }
 
 func defaultStateDir() string {
@@ -84,6 +86,7 @@ func registerWorkerFlags(fs *flag.FlagSet, wf *workerFlags) {
 	fs.StringVar(&wf.ledger, "ledger", "", "with -worker -claude live: spend ledger (default zhen-claude's)")
 	fs.Float64Var(&wf.dailyCapUSD, "daily-cap-usd", 5, "with -worker -claude live: hard spend cap per UTC day of -ledger")
 	fs.StringVar(&wf.privacyMode, "privacy", "standard", "with -worker: privacy tier of the Claude leg: standard or strict")
+	fs.StringVar(&wf.gpuLock, "gpu-lock", gpulease.DefaultPath(), "GPU lease file shared with scripts/switch-model.sh and forge-train.sh (env GPU_LOCK); each local call holds it shared, a card waits while it is held exclusively; \"\" = no lease")
 	fs.StringVar(&wf.localModel, "local-model", envOr("ZHEN_LOCAL_LLM_MODEL", claudebridge.DefaultLocalModel), "with -worker: local model name when the family names none")
 }
 
@@ -169,7 +172,7 @@ func runAuditEvent(ev runEvent) *audit.AuditEvent {
 
 // buildPrivacyFilter is the worker's privacy tier (gitleaks for the
 // secret scan; the local model summarises large ops payloads).
-func buildPrivacyFilter(mode, localURL, localModel string) (*privacy.Filter, error) {
+func buildPrivacyFilter(mode, localURL, localModel, gpuLock string) (*privacy.Filter, error) {
 	r, err := privacy.NewRedactor(privacy.RedactorConfig{Scanner: os.Getenv("ZHEN_SECRET_SCANNER")})
 	if err != nil {
 		return nil, fmt.Errorf("%w (nothing is sent to Claude without the secret scan)", err)
@@ -177,7 +180,7 @@ func buildPrivacyFilter(mode, localURL, localModel string) (*privacy.Filter, err
 	if mode != "standard" && mode != "strict" {
 		return nil, fmt.Errorf("privacy mode %q", mode)
 	}
-	local := &claudebridge.LocalLLM{BaseURL: localURL, Model: localModel, MaxTokens: privacy.DefaultSummaryTokens}
+	local := &claudebridge.LocalLLM{BaseURL: localURL, Model: localModel, MaxTokens: privacy.DefaultSummaryTokens, GPULock: gpuLock}
 	return &privacy.Filter{Redactor: r, Local: claudebridge.LocalCompleter{L: local}, Mode: privacy.Mode(mode)}, nil
 }
 
@@ -195,10 +198,11 @@ func buildWorker(ctx context.Context, wf workerFlags, root, llamaURL, mode strin
 	if err != nil {
 		return nil, closeStore, fmt.Errorf("-checks: %w", err)
 	}
-	filter, ferr := buildPrivacyFilter(wf.privacyMode, llamaURL, wf.localModel)
+	filter, ferr := buildPrivacyFilter(wf.privacyMode, llamaURL, wf.localModel, wf.gpuLock)
 	rc := zhenroute.Config{
 		Routing: routing, ChecksPath: wf.checks, LocalURL: llamaURL, LocalModel: wf.localModel,
 		LocalMaxTokens: 4096, LocalTimeout: 10 * time.Minute, Privacy: filter, PrivacyErr: ferr, Auditor: aud.auditor, Log: log,
+		GPULock: wf.gpuLock, LeaseTimeout: 30 * time.Second,
 	}
 	switch wf.claude {
 	case "fake":
@@ -212,8 +216,13 @@ func buildWorker(ctx context.Context, wf workerFlags, root, llamaURL, mode strin
 	default:
 		return nil, closeStore, fmt.Errorf("-claude %q: fake or live", wf.claude)
 	}
+	var gpuBusy func() bool
+	if wf.gpuLock != "" {
+		lock := wf.gpuLock
+		gpuBusy = func() bool { return gpulease.Busy(lock) }
+	}
 	w, err := newWorker(workerConfig{
-		Store: store, Runner: routeRunner{cfg: rc}, Repo: root, AgentRoot: wf.agentRoot, Base: wf.base, Mode: mode,
+		Store: store, Runner: routeRunner{cfg: rc}, Repo: root, AgentRoot: wf.agentRoot, Base: wf.base, Mode: mode, GPUBusy: gpuBusy,
 		Routing: routing, KnownCheck: func(k string) bool { _, ok := checks.Specs[k]; return ok }, ReviewDir: wf.reviewDir,
 		Events: agentdRunEvents{aud: aud, log: log}, Log: log,
 	})

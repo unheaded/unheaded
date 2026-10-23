@@ -444,14 +444,18 @@ func TestWorker_StopMidCardCommitsNothing(t *testing.T) {
 	m.AddCard(zhenagent.Card{ID: "good", Title: "x", Description: goodDesc, Status: "todo", Type: "task", Owner: "zhen"})
 	var stop atomic.Bool
 	r := &fakeRunner{write: true, out: passOutcome(), hook: func() { stop.Store(true) }}
-	w, _, agent, _ := newTestWorker(t, m, r)
+	w, repo, agent, _ := newTestWorker(t, m, r)
 	w.cfg.Stop = stop.Load
 	res, _ := w.runOnce(context.Background())
 	if res.Outcome != outcomeCancelled {
 		t.Fatalf("result = %+v", res)
 	}
-	if gitOut(t, filepath.Join(agent, "good"), "rev-list", "--count", "develop..HEAD") != "0" {
-		t.Error("a stopped run committed")
+	// Nothing was committed, so the worktree and the branch are gone.
+	if _, err := os.Stat(filepath.Join(agent, "good")); err == nil {
+		t.Error("a stopped run's worktree was kept")
+	}
+	if gitOut(t, repo, "branch", "--list", "zhen/good") != "" {
+		t.Error("a stopped run's branch was kept")
 	}
 	if run, _ := m.Get(context.Background(), res.Run); run.Status != zhenagent.StatusCancelled {
 		t.Errorf("run = %s", run.Status)

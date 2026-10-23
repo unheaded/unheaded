@@ -42,6 +42,10 @@ type LocalLLM struct {
 	Seed        *int          // nil: not sent
 	Timeout     time.Duration // per call; default DefaultLocalTimeout
 	HTTP        *http.Client  // default: a client with no extra settings
+	// GPULock / LeaseTimeout: each call holds a shared GPU lease
+	// (localllm.Client.GPULock); "" = no lease.
+	GPULock      string
+	LeaseTimeout time.Duration
 }
 
 // LocalAnswer is one local completion.
@@ -54,7 +58,8 @@ type LocalAnswer struct {
 }
 
 func (l *LocalLLM) client() *localllm.Client {
-	return &localllm.Client{BaseURL: l.BaseURL, Model: l.Model, MaxTokens: l.MaxTokens, Timeout: l.Timeout, HTTP: l.HTTP}
+	return &localllm.Client{BaseURL: l.BaseURL, Model: l.Model, MaxTokens: l.MaxTokens, Timeout: l.Timeout, HTTP: l.HTTP,
+		GPULock: l.GPULock, LeaseTimeout: l.LeaseTimeout}
 }
 
 func (l *LocalLLM) request(system, prompt string) localllm.Request {
