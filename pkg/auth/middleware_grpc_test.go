@@ -360,3 +360,21 @@ func TestGRPCUnaryInterceptor_GenericErrors(t *testing.T) {
 		}
 	}
 }
+
+// TestGRPCInterceptors_NilIdentityRefused: (nil, nil) from Authenticate is
+// not a success.
+func TestGRPCInterceptors_NilIdentityRefused(t *testing.T) {
+	ctx := metadata.NewIncomingContext(context.Background(), metadata.Pairs("authorization", "Bearer x"))
+	called := false
+	_, err := GRPCUnaryInterceptor(&mockAuthenticator{})(ctx, nil, &grpc.UnaryServerInfo{FullMethod: "/t.S/M"},
+		func(context.Context, interface{}) (interface{}, error) { called = true; return nil, nil })
+	if status.Code(err) != codes.Unauthenticated || called {
+		t.Errorf("unary: err = %v, handler called = %v; want Unauthenticated, not called", err, called)
+	}
+
+	err = GRPCStreamInterceptor(&mockAuthenticator{})(nil, &mockServerStream{ctx: ctx}, &grpc.StreamServerInfo{},
+		func(interface{}, grpc.ServerStream) error { called = true; return nil })
+	if status.Code(err) != codes.Unauthenticated || called {
+		t.Errorf("stream: err = %v, handler called = %v; want Unauthenticated, not called", err, called)
+	}
+}

@@ -166,6 +166,10 @@ func Middleware(auth Authenticator) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			identity, err := auth.Authenticate(r.Context(), r)
+			if err == nil && identity == nil {
+				// An Authenticator that returns neither has proved nothing.
+				err = ErrUnauthenticated
+			}
 			if err != nil {
 				switch {
 				case errors.Is(err, ErrRateLimited):
@@ -194,8 +198,11 @@ func (m *MultiAuthenticator) Authenticate(ctx context.Context, r *http.Request) 
 	var lastErr error
 	for _, a := range m.Authenticators {
 		identity, err := a.Authenticate(ctx, r)
-		if err == nil {
+		if err == nil && identity != nil {
 			return identity, nil
+		}
+		if err == nil {
+			err = ErrUnauthenticated
 		}
 		lastErr = err
 	}

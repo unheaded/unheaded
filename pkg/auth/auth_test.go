@@ -460,6 +460,36 @@ func TestMultiAuthenticator_AllFail(t *testing.T) {
 	}
 }
 
+// TestMiddleware_NilIdentityRefused: an Authenticator that returns
+// (nil, nil) used to be taken as success, by Middleware and by
+// MultiAuthenticator (which then skipped the remaining authenticators),
+// and the request reached the handler with no identity.
+func TestMiddleware_NilIdentityRefused(t *testing.T) {
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	for name, a := range map[string]Authenticator{
+		"single": &mockAuthenticator{},
+		"multi":  &MultiAuthenticator{Authenticators: []Authenticator{&mockAuthenticator{}}},
+	} {
+		rec := httptest.NewRecorder()
+		Middleware(a)(inner).ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/api/v1/x", nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s: (nil, nil) from Authenticate gave %d, want 401", name, rec.Code)
+		}
+	}
+
+	// A later authenticator still gets its turn after a (nil, nil).
+	multi := &MultiAuthenticator{Authenticators: []Authenticator{
+		&mockAuthenticator{},
+		&mockAuthenticator{identity: &Identity{Subject: "second"}},
+	}}
+	id, err := multi.Authenticate(context.Background(), httptest.NewRequest(http.MethodGet, "/", nil))
+	if err != nil || id == nil || id.Subject != "second" {
+		t.Errorf("multi after (nil, nil): id = %v, err = %v, want subject second", id, err)
+	}
+}
+
 // --- SkipAuthPaths Tests ---
 
 // TestSkipAuthPaths_NonCanonicalNotSkipped: a path that begins with a

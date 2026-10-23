@@ -37,7 +37,9 @@ func GRPCUnaryInterceptor(auth Authenticator) grpc.UnaryServerInterceptor {
 		// Create a minimal http.Request with the Authorization header for the authenticator
 		fakeReq := &http.Request{Header: http.Header{"Authorization": authValues}}
 		identity, err := auth.Authenticate(ctx, fakeReq)
-
+		if err == nil && identity == nil {
+			err = ErrUnauthenticated
+		}
 		if err != nil {
 			return nil, grpcAuthError(err)
 		}
@@ -66,7 +68,9 @@ func GRPCStreamInterceptor(auth Authenticator) grpc.StreamServerInterceptor {
 		// Authenticate
 		fakeReq := &http.Request{Header: http.Header{"Authorization": authValues}}
 		identity, err := auth.Authenticate(ss.Context(), fakeReq)
-
+		if err == nil && identity == nil {
+			err = ErrUnauthenticated
+		}
 		if err != nil {
 			return grpcAuthError(err)
 		}
