@@ -75,7 +75,8 @@ form gets through, which is why the directory rules above exist as well.
     {"name": "file_read", "provider": "mcp:raft/zhen_mcp_server.py",
      "decision": "allowed", "input": {"path": "..."}, "output": "...", "is_error": false}
   ],
-  "local":  {"model": "qwen2.5-coder-7b-instruct", "answer": "...", "error": "", "latency_ms": 2100},
+  "local":  {"model": "qwen2.5-coder-7b-instruct", "system": "local system prompt", "answer": "...",
+             "stop_reason": "stop", "latency_ms": 2100},
   "check":  {"argv": ["go", "vet", "./..."], "exit": 1, "accepted": false, "error": "", "latency_ms": 900},
   "claude": {"model": "claude-opus-5-5", "served_by": "claude-opus-5-5", "answer": "...",
              "stop_reason": "end_turn", "requests": 2, "latency_ms": 8400, "cost_usd": "0.021400000"},
@@ -95,8 +96,8 @@ form gets through, which is why the directory rules above exist as well.
 | `source` | `zhen-claude` or `zhen-mcp/local_llm` |
 | `route` | `local`: answered locally and accepted; `claude`: Claude only; `escalated`: local tried first, then Claude |
 | `system`, `prompt` | what the model was asked. For `escalated`, both legs got the same prompt; `system` is Claude's |
-| `tool_calls` | Claude's tool calls in that turn, in order (output cut to 8 KiB before the 64 KiB cap) |
-| `local` | the local leg, when it ran: model the server reported, answer or error, latency |
+| `tool_calls` | Claude's tool calls in that turn, in the order they finished (parallel calls can interleave); output cut to 8 KiB |
+| `local` | the local leg, when it ran: model the server reported, its own `system`, answer or error, `stop_reason` (finish reason), latency |
 | `check` | the `-check` command run on the local answer: argv, exit status (`-1` if it never exited), accepted |
 | `claude` | the Claude leg, when it ran: requested and serving model, answer, stop reason, API requests, cost |
 | `final` | what was printed to the user (empty when every leg failed) |

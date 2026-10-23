@@ -670,3 +670,39 @@ func TestSend_MCPLocalLLMGated(t *testing.T) {
 		t.Errorf("provider calls = %d, want 1", mcp.callCount())
 	}
 }
+
+// OnToolResult sees each call's input and the text Claude got back; the
+// Auditor still sees only sizes and hashes.
+func TestSend_OnToolResultCarriesContent(t *testing.T) {
+	var mu sync.Mutex
+	var traces []ToolTrace
+	h := newHarness(t, nil, nil, func(c *Config) {
+		c.OnToolResult = func(tr ToolTrace) {
+			mu.Lock()
+			defer mu.Unlock()
+			traces = append(traces, tr)
+		}
+	})
+	target := filepath.Join(h.root, "notes.txt")
+	if err := os.WriteFile(target, []byte("the well is on west"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	in, _ := json.Marshal(map[string]string{"path": target})
+	h.api.responses = []cannedMsg{
+		{StopReason: "tool_use", Blocks: []cannedBlock{{ToolID: "toolu_1", ToolName: "read_file", ToolInput: string(in)}}},
+		endTurn("done"),
+	}
+	if _, err := h.bridge.NewConversation().Send(context.Background(), "read it"); err != nil {
+		t.Fatal(err)
+	}
+	if len(traces) != 1 {
+		t.Fatalf("traces = %d", len(traces))
+	}
+	tr := traces[0]
+	if tr.Record.Name != "read_file" || tr.Record.Decision != "allowed" || string(tr.Input) != string(in) || !strings.Contains(tr.Output, "the well is on west") {
+		t.Errorf("trace = %+v", tr)
+	}
+	if h.bridge.System() != DefaultSystem || h.bridge.Model() != DefaultModel {
+		t.Errorf("accessors: %q %q", h.bridge.Model(), h.bridge.System()[:20])
+	}
+}

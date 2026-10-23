@@ -37,6 +37,8 @@ Zhen is Unheaded's AI-assisted development system. It combines retrieval-augment
 | Champion (gated actions: kanban, files, runbooks, model switch) | `pkg/champion/` (ADR-019) |
 | Agent daemon | `cmd/zhen-agentd` (actions + kanban in The Well as `app_zhen`) |
 | CLI | `cmd/zhen-cli` (ADR-059) |
+| Claude API bridge (`-route auto`: local model first, Claude on failure) | `cmd/zhen-claude`, `pkg/claudebridge` (ADR-104) |
+| Training capture (opt-in, redacted JSONL) | `pkg/zhencapture` ([format](../docs/architecture/zhen-capture.md)) |
 | MCP server for Claude Code | `raft/zhen_mcp_server.py`, registered in `.mcp.json` (server `zhen`, launched by `scripts/zhen-mcp.sh`) |
 | Forge (training) | `crates/zhenai-forge/` (ADR-048 backend trait) |
 

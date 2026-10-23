@@ -19,6 +19,7 @@ func noCredentials(t *testing.T) {
 		_ = os.Unsetenv(k)
 	}
 	t.Setenv("ANTHROPIC_CONFIG_DIR", t.TempDir())
+	t.Setenv("ZHEN_CAPTURE_DIR", "") // never capture from a test unless it asks
 }
 
 func baseArgs(t *testing.T) []string {

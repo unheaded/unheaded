@@ -101,6 +101,19 @@ type Config struct {
 	ClientOptions []option.RequestOption
 	// OnText, if set, receives assistant text as it streams.
 	OnText func(string)
+	// OnToolResult, if set, receives every tool call with its input and
+	// the text sent back to Claude. Unlike the Auditor it carries
+	// content (file bodies, answers), so it is for opt-in capture only,
+	// never for logs. Called concurrently when a turn runs tools in
+	// parallel.
+	OnToolResult func(ToolTrace)
+}
+
+// ToolTrace is one tool call with its content, for OnToolResult.
+type ToolTrace struct {
+	Record ToolRecord
+	Input  json.RawMessage
+	Output string // as sent to Claude, after truncation
 }
 
 // Bridge holds the client, the tool set and the cost controls. Safe for
@@ -174,6 +187,12 @@ func New(ctx context.Context, cfg Config) (*Bridge, error) {
 		credentialSource: src,
 	}, nil
 }
+
+// System is the system prompt every request carries.
+func (b *Bridge) System() string { return b.cfg.System }
+
+// Model is the requested model ID.
+func (b *Bridge) Model() string { return b.cfg.Model }
 
 // CredentialSource names the credential in use (never its value).
 func (b *Bridge) CredentialSource() string { return b.credentialSource }
@@ -488,6 +507,9 @@ func (c *Conversation) runTool(ctx context.Context, id, name string, input json.
 		rec.OutputBytes = len(text)
 		rec.Duration = time.Since(t0)
 		b.cfg.Auditor.ToolCall(ctx, rec)
+		if b.cfg.OnToolResult != nil {
+			b.cfg.OnToolResult(ToolTrace{Record: rec, Input: input, Output: text})
+		}
 		return anthropic.NewBetaToolResultBlock(id, text, isError)
 	}
 

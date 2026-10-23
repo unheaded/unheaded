@@ -198,6 +198,54 @@ router must not send to Claude data the operator has not cleared for an
 external API: the zero-user-data-access rule applies to what leaves the
 Kingdom as prompt text.
 
+### 9. `-route auto`: local first, Claude on failure (2026-10-23)
+
+The first, deliberately simple router lives in `cmd/zhen-claude`, not
+behind `Router`. `-route claude` (the default) is unchanged. `-route auto`
+asks the local model once through llama-server's OpenAI-compatible
+`/v1/chat/completions` (`-local-url`, default `$ZHEN_LOCAL_LLM_URL` or
+`http://127.0.0.1:8081`; `claudebridge.LocalLLM`), with a short system
+prompt and no tools. It escalates to Claude when:
+
+- the local call fails: nothing listening, timeout, non-200, malformed or
+  empty answer (`why` `local_error`);
+- the answer stopped at `max_tokens` (`local_truncated`);
+- `-check` rejects it. `-check` is an argv command split on spaces and run
+  without a shell, in the project root, with the answer on stdin and its
+  own output discarded; exit 0 accepts (`check_passed`), any other exit
+  escalates (`check_failed`), and a check that cannot run or times out
+  (`-check-timeout`, default 60 s) escalates too (`check_error`). With no
+  `-check`, a successful local answer is accepted (`local_ok_no_check`).
+
+Each turn logs one `route_decision` line: local tried, model, latency,
+answer size, error; check argv, exit and latency; escalated; why; the
+decision (`local`, `claude`, `none`); Claude's cost and latency; total
+latency. No prompt or answer text. The Claude side (credentials, MCP
+server, ledger) is built only on escalation, so a local answer needs no
+API key, and the spend cap only ever applies to the Claude leg. `-route
+auto` takes one prompt; it refuses `-repl`, because the local model keeps
+no conversation. A local answer is untrusted text either way: it is
+printed, never executed, and `-check` is the operator's own command.
+
+Not in v1: the local leg is not told anything is private, so nothing stops
+an escalation from sending a prompt to Claude that should have stayed
+local. A per-prompt "local only" marker (or a `Router` that classifies by
+data, not difficulty) is the follow-up before this is used on anything
+sensitive.
+
+### 10. Training capture, opt-in (2026-10-23)
+
+`-capture <dir>` (default `$ZHEN_CAPTURE_DIR`, so off unless set) appends
+each turn to a `zhen-capture/v1` JSONL file through `pkg/zhencapture`:
+prompt, system prompts, Claude's tool calls with inputs and (cut) outputs,
+the local answer, the check and its exit, Claude's answer, the accepted
+answer, cost and latency. Every string is redacted against
+`pkg/zhencapture/redact_patterns.json` before it is written; the directory
+must be outside any git work tree and private (0700, files 0600). Claude's
+tool contents reach the collector through `Config.OnToolResult`, wired only
+when capture is on; the Auditor still gets sizes and hashes only. Format:
+`docs/architecture/zhen-capture.md`.
+
 ## Live smoke test (once a key exists)
 
 ```bash
@@ -244,3 +292,9 @@ through the bridge leave the Kingdom.
 4. **Task budget** default (off) once real turns are measured.
 5. **Where audit goes** for a long-running service: Wotan topic, the
    Well's `actions` table, or both.
+6. **Privacy marker for `-route auto`** (§9): how a prompt says "never
+   escalate this", and whether the escalation path should refuse prompts
+   that capture redaction would have touched.
+7. **`-check` conventions**: whether to ship a few standard checks (Go
+   snippet compiles, JSON parses, answer cites a file that exists), or
+   leave it to the operator.

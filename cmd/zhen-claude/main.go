@@ -14,9 +14,20 @@
 // command stops before building a request, except under -dry-run, which
 // prints the request it would send and sends nothing.
 //
+// -route auto asks the local model (llama-server's OpenAI-compatible API)
+// first and escalates to Claude when it is down, errors, cuts off, or its
+// answer fails -check: an argv command, run without a shell, that gets
+// the answer on stdin and accepts it by exiting 0. Credentials are needed
+// only when it escalates. Each decision is a "route_decision" log line.
+//
+// -capture <dir> (or $ZHEN_CAPTURE_DIR) appends every turn, redacted, to
+// a zhen-capture/v1 JSONL file outside the repo
+// (docs/architecture/zhen-capture.md).
+//
 //	zhen-claude -p "Summarise ADR-104 in two sentences" -max-tokens 1024
 //	zhen-claude -repl -tools champion,mcp
 //	zhen-claude -dry-run -p "hello"
+//	zhen-claude -route auto -check "go run ./tools/check-answer" -p "..."
 package main
 
 import (
@@ -31,10 +42,12 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"unheaded/pkg/champion"
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/mcpclient"
+	"unheaded/pkg/zhencapture"
 )
 
 type options struct {
@@ -55,7 +68,26 @@ type options struct {
 	ledgerPath    string
 	pricesPath    string
 	logLevel      string
+
+	route          string
+	check          string
+	checkArgv      []string
+	checkTimeout   time.Duration
+	localURL       string
+	localModel     string
+	localMaxTokens int
+	localTimeout   time.Duration
+	captureDir     string
 }
+
+// Routes.
+const (
+	routeClaude = "claude"
+	routeAuto   = "auto"
+)
+
+// captureToolOutputBytes cuts each tool result in a capture record.
+const captureToolOutputBytes = 8 << 10
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdin, os.Stdout, os.Stderr))
@@ -82,6 +114,14 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 	fs.StringVar(&o.ledgerPath, "ledger", "", "spend ledger file (default $XDG_STATE_HOME/unheaded/zhen-claude/spend.json)")
 	fs.StringVar(&o.pricesPath, "prices", "", "price table JSON (default: the embedded pkg/claudebridge/prices.json)")
 	fs.StringVar(&o.logLevel, "log-level", "info", "audit log level: debug, info, warn, error")
+	fs.StringVar(&o.route, "route", routeClaude, "claude: send to Claude; auto: ask the local model first, escalate to Claude on failure or a failed -check")
+	fs.StringVar(&o.check, "check", "", "with -route auto: command (split on spaces, no shell) that gets the local answer on stdin; exit 0 accepts it. Without it only a local failure escalates")
+	fs.DurationVar(&o.checkTimeout, "check-timeout", 60*time.Second, "time limit for -check")
+	fs.StringVar(&o.localURL, "local-url", envString("ZHEN_LOCAL_LLM_URL", claudebridge.DefaultLocalURL), "llama-server base URL for -route auto (env ZHEN_LOCAL_LLM_URL)")
+	fs.StringVar(&o.localModel, "local-model", envString("ZHEN_LOCAL_LLM_MODEL", claudebridge.DefaultLocalModel), "model name sent to the local server (env ZHEN_LOCAL_LLM_MODEL)")
+	fs.IntVar(&o.localMaxTokens, "local-max-tokens", claudebridge.DefaultLocalMaxTokens, "max_tokens for the local model")
+	fs.DurationVar(&o.localTimeout, "local-timeout", claudebridge.DefaultLocalTimeout, "time limit for the local model's answer")
+	fs.StringVar(&o.captureDir, "capture", os.Getenv("ZHEN_CAPTURE_DIR"), "append each turn, redacted, to <dir>/zhen-capture-YYYY-MM-DD.jsonl; must be outside any repository (env ZHEN_CAPTURE_DIR)")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
 	}
@@ -93,6 +133,21 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 	}
 	if o.repl && o.dryRun {
 		return nil, errors.New("-dry-run works on one prompt, not -repl")
+	}
+	switch o.route {
+	case routeClaude, routeAuto:
+	default:
+		return nil, fmt.Errorf("-route %q: want claude or auto", o.route)
+	}
+	o.checkArgv = strings.Fields(o.check)
+	if o.route != routeAuto && len(o.checkArgv) > 0 {
+		return nil, errors.New("-check needs -route auto")
+	}
+	if o.route == routeAuto && o.repl {
+		return nil, errors.New("-route auto works on one prompt, not -repl (the local model keeps no conversation)")
+	}
+	if o.localMaxTokens < 1 || o.localTimeout <= 0 || o.checkTimeout <= 0 {
+		return nil, errors.New("-local-max-tokens, -local-timeout and -check-timeout must be positive")
 	}
 	return o, nil
 }
@@ -116,7 +171,33 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	b, closeAll, err := build(ctx, o, log, stdout)
+	capw, err := openCapture(o, log)
+	if err != nil {
+		log.Error("startup", "error", err.Error())
+		return 1
+	}
+	tools := &toolCollector{on: capw != nil}
+
+	var prompt string
+	if !o.repl {
+		if prompt = o.prompt; prompt == "" {
+			raw, err := io.ReadAll(io.LimitReader(stdin, 1<<20))
+			if err != nil {
+				log.Error("read stdin", "error", err.Error())
+				return 1
+			}
+			prompt = string(raw)
+		}
+		if strings.TrimSpace(prompt) == "" {
+			_, _ = fmt.Fprintln(stderr, "zhen-claude: no prompt (use -p, stdin, or -repl)")
+			return 2
+		}
+	}
+	if o.route == routeAuto && !o.dryRun {
+		return runAuto(ctx, o, prompt, stdout, stderr, log, capw, tools)
+	}
+
+	b, closeAll, err := build(ctx, o, log, stdout, tools)
 	defer closeAll()
 	if err != nil {
 		log.Error("startup", "error", err.Error())
@@ -124,26 +205,21 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 
 	if o.repl {
-		return repl(ctx, b, stdin, stdout, stderr, log)
-	}
-	prompt := o.prompt
-	if prompt == "" {
-		raw, err := io.ReadAll(io.LimitReader(stdin, 1<<20))
-		if err != nil {
-			log.Error("read stdin", "error", err.Error())
-			return 1
-		}
-		prompt = string(raw)
-	}
-	if strings.TrimSpace(prompt) == "" {
-		_, _ = fmt.Fprintln(stderr, "zhen-claude: no prompt (use -p, stdin, or -repl)")
-		return 2
+		return repl(ctx, b, stdin, stdout, stderr, log, capw, tools)
 	}
 	conv := b.NewConversation()
 	if o.dryRun {
+		if o.route == routeAuto {
+			if code := dryRunLocal(o, prompt, stdout, log); code != 0 {
+				return code
+			}
+		}
 		return dryRun(conv, b, prompt, stdout, log)
 	}
-	if !turn(ctx, conv, prompt, stdout, stderr, log) {
+	t0 := time.Now()
+	reply, err := turn(ctx, conv, prompt, stdout, stderr, log)
+	captureClaudeTurn(capw, b, prompt, reply, err, time.Since(t0), tools, log)
+	if err != nil {
 		return 1
 	}
 	return 0
@@ -151,7 +227,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 // build wires providers, the gate, the cap and the client. closeAll is
 // always safe to call.
-func build(ctx context.Context, o *options, log *slog.Logger, stdout io.Writer) (*claudebridge.Bridge, func(), error) {
+func build(ctx context.Context, o *options, log *slog.Logger, stdout io.Writer, tools *toolCollector) (*claudebridge.Bridge, func(), error) {
 	var closers []func()
 	closeAll := func() {
 		for i := len(closers) - 1; i >= 0; i-- {
@@ -247,6 +323,10 @@ func build(ctx context.Context, o *options, log *slog.Logger, stdout io.Writer) 
 		Auditor:          claudebridge.SlogAuditor{Log: log},
 		OnText:           func(s string) { _, _ = io.WriteString(stdout, s) },
 	}
+	if tools != nil && tools.on {
+		// Content-bearing hook: only wired when -capture is on.
+		cfg.OnToolResult = tools.add
+	}
 	if o.dryRun {
 		cfg.Credentials = func() (string, error) { return "none (dry run)", nil }
 	}
@@ -272,15 +352,15 @@ func dryRun(conv *claudebridge.Conversation, b *claudebridge.Bridge, prompt stri
 	return 0
 }
 
-// turn sends one prompt and reports the outcome; it returns false on error.
-func turn(ctx context.Context, conv *claudebridge.Conversation, prompt string, stdout, stderr io.Writer, log *slog.Logger) bool {
+// turn sends one prompt and reports the outcome.
+func turn(ctx context.Context, conv *claudebridge.Conversation, prompt string, stdout, stderr io.Writer, log *slog.Logger) (*claudebridge.Reply, error) {
 	reply, err := conv.Send(ctx, prompt)
 	_, _ = io.WriteString(stdout, "\n")
 	if reply != nil {
 		log.Info("turn_done", "conversation", conv.ID(), "requests", reply.Requests, "cost_usd", reply.Cost.USD(), "served_by", reply.ServedBy, "stop_reason", reply.StopReason)
 	}
 	if err == nil {
-		return true
+		return reply, nil
 	}
 	var refusal *claudebridge.RefusalError
 	switch {
@@ -294,10 +374,10 @@ func turn(ctx context.Context, conv *claudebridge.Conversation, prompt string, s
 		_, _ = fmt.Fprintf(stderr, "zhen-claude: %v\n", err)
 	}
 	log.Warn("turn_failed", "conversation", conv.ID(), "error", err.Error())
-	return false
+	return reply, err
 }
 
-func repl(ctx context.Context, b *claudebridge.Bridge, stdin io.Reader, stdout, stderr io.Writer, log *slog.Logger) int {
+func repl(ctx context.Context, b *claudebridge.Bridge, stdin io.Reader, stdout, stderr io.Writer, log *slog.Logger, capw *zhencapture.Writer, tools *toolCollector) int {
 	conv := b.NewConversation()
 	sc := bufio.NewScanner(stdin)
 	sc.Buffer(make([]byte, 64<<10), 1<<20)
@@ -313,7 +393,9 @@ func repl(ctx context.Context, b *claudebridge.Bridge, stdin io.Reader, stdout, 
 		case "/quit", "/exit":
 			return 0
 		}
-		turn(ctx, conv, line, stdout, stderr, log)
+		t0 := time.Now()
+		reply, err := turn(ctx, conv, line, stdout, stderr, log)
+		captureClaudeTurn(capw, b, line, reply, err, time.Since(t0), tools, log)
 		if ctx.Err() != nil {
 			return 1
 		}
@@ -323,6 +405,13 @@ func repl(ctx context.Context, b *claudebridge.Bridge, stdin io.Reader, stdout, 
 		return 1
 	}
 	return 0
+}
+
+func envString(key, def string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return def
 }
 
 func envFloat(key string, def float64) float64 {

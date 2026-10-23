@@ -63,6 +63,7 @@ type Record struct {
 // Leg is one model's attempt.
 type Leg struct {
 	Model      string `json:"model,omitempty"`
+	System     string `json:"system,omitempty"` // when it differs per leg (-route auto)
 	ServedBy   string `json:"served_by,omitempty"`
 	Answer     string `json:"answer,omitempty"`
 	Error      string `json:"error,omitempty"`
