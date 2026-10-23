@@ -4,7 +4,7 @@
 #
 # Restore drill: proves a backup set from scripts/db-backup.sh restores.
 #
-#   scripts/well/restore-drill.sh [--image IMAGE] [SET_DIR]
+#   scripts/well/restore-drill.sh [--image IMAGE] [--into-volume VOLUME] [SET_DIR]
 #
 # SET_DIR defaults to the newest complete set under WELL_BACKUP_DIR
 # (default ~/backups/unheaded). The drill:
@@ -23,11 +23,26 @@
 #
 # IMAGE defaults to the image of WELL_CONTAINER (unheaded-postgres) when that
 # container exists, else postgres:16.15-alpine: restore with the same server
-# major the dump came from.
+# major the dump came from. A newer major works too: that is how a set moves
+# to PostgreSQL 18 (runbooks/data/well-pg18-upgrade.yaml).
+#
+# --into-volume VOLUME restores into a NEW docker volume and keeps it (data
+# checksums on, server stopped cleanly) instead of throwing the server away:
+# the upgrade's data step. It refuses a volume that already exists, so it can
+# never write into a live data volume, and deletes the volume it made when
+# the restore or the row-count check fails. The volume is mounted at the
+# image's one declared data volume (PG 16 /var/lib/postgresql/data, PG 18
+# /var/lib/postgresql).
 set -euo pipefail
 
-IMAGE=""
-if [[ "${1:-}" == --image ]]; then IMAGE="${2:?--image needs a value}"; shift 2; fi
+IMAGE="" VOL=""
+while [[ "${1:-}" == --* ]]; do
+	case "$1" in
+	--image) IMAGE="${2:?--image needs a value}"; shift 2 ;;
+	--into-volume) VOL="${2:?--into-volume needs a value}"; shift 2 ;;
+	*) echo "[drill] unknown option $1" >&2; exit 2 ;;
+	esac
+done
 ROOT="${WELL_BACKUP_DIR:-$HOME/backups/unheaded}"
 SET="${1:-}"
 DOCKER=(docker); docker info >/dev/null 2>&1 || DOCKER=(sudo -n docker)
@@ -63,10 +78,31 @@ SU="$(sed -n 's/^superuser=//p' "$SET/cluster.env")"
 # account for every container it caused.
 N="${WELL_DRILL_NAME:-well-drill-$$}"
 [[ "$N" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{0,62}$ ]] || { echo "[drill] bad WELL_DRILL_NAME: '$N'" >&2; exit 2; }
-cleanup() { "${DOCKER[@]}" stop "$N" >/dev/null 2>&1 || true; }
+RUN=(--rm) KEEP=0
+if [[ -n "$VOL" ]]; then
+	[[ "$VOL" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]{1,127}$ ]] || { echo "[drill] bad volume name: '$VOL'" >&2; exit 2; }
+	if "${DOCKER[@]}" volume inspect "$VOL" >/dev/null 2>&1; then
+		echo "[drill] volume $VOL already exists: --into-volume only fills a new one" >&2; exit 2
+	fi
+	"${DOCKER[@]}" image inspect "$IMAGE" >/dev/null 2>&1 || "${DOCKER[@]}" pull -q "$IMAGE" >/dev/null
+	mapfile -t MP < <("${DOCKER[@]}" image inspect -f '{{range $k, $v := .Config.Volumes}}{{println $k}}{{end}}' "$IMAGE" | sed '/^$/d')
+	((${#MP[@]} == 1)) || { echo "[drill] $IMAGE declares ${#MP[@]} volumes, expected one data volume" >&2; exit 2; }
+	"${DOCKER[@]}" volume create "$VOL" >/dev/null
+	# Not --rm: the container is removed explicitly, after a clean stop, so the
+	# volume is never deleted while a server still has it.
+	RUN=(-v "$VOL:${MP[0]}" -e POSTGRES_INITDB_ARGS=--data-checksums)
+	echo "[drill] restoring into new volume $VOL at ${MP[0]}"
+fi
+cleanup() {
+	"${DOCKER[@]}" stop "$N" >/dev/null 2>&1 || true
+	if [[ -n "$VOL" ]]; then
+		"${DOCKER[@]}" rm -f "$N" >/dev/null 2>&1 || true
+		((KEEP)) || "${DOCKER[@]}" volume rm "$VOL" >/dev/null 2>&1 || echo "[drill] could not remove volume $VOL" >&2
+	fi
+}
 trap cleanup EXIT
 start=$(date +%s)
-"${DOCKER[@]}" run -d --rm --name "$N" --network none \
+"${DOCKER[@]}" run -d "${RUN[@]}" --name "$N" --network none \
 	-e POSTGRES_USER="$SU" -e POSTGRES_PASSWORD="throwaway-$RANDOM$RANDOM" -e POSTGRES_DB=postgres "$IMAGE" >/dev/null
 ready=0
 for _ in $(seq 1 60); do
@@ -108,6 +144,10 @@ if ! diff -u "$SET/rowcounts.tsv" "$got"; then
 fi
 tables=$(($(wc -l <"$got") - 1)) rows=$(awk -F'\t' 'NR>1{s+=$3}END{print s+0}' "$got")
 echo "[drill] PASS: ${#DUMPS[@]} databases, $tables tables, $rows rows match; restore took $((restored - start))s"
+if [[ -n "$VOL" ]]; then
+	KEEP=1
+	echo "[drill] kept volume $VOL; its superuser password is a throwaway: set the real ones with scripts/well/set-role-passwords.sh"
+fi
 # ERDA 1.4: on a pass only, so a failing drill shows as a stale timestamp.
 if [[ -n "${WELL_METRICS_DIR:-}" ]]; then
 	m="$WELL_METRICS_DIR/.well_drill.prom.tmp"

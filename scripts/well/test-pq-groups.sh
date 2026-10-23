@@ -16,19 +16,23 @@
 #          the way the upgrade will load it (include_dir). Must negotiate
 #          X25519MLKEM768 with a client that offers it; a classical-only
 #          client still gets X25519 (deliberate fallback for old libpq).
-# Then the upgrade path itself: a backup set taken from the PG 16 server by
-# scripts/db-backup.sh restores on PG 18 with scripts/well/restore-drill.sh
-# (every row count equal), which is how runbooks/data/well-pg18-upgrade.yaml
-# moves the data.
+# Then the upgrade path itself, as runbooks/data/well-pg18-upgrade.yaml runs
+# it: a backup set taken from the PG 16 server by scripts/db-backup.sh
+# restores on PG 18 (restore-drill.sh, every row count equal), then into a
+# new named volume (--into-volume), on which PG 18 starts with the deployed
+# config, keeps its migration ledger and serves the rows over hybrid TLS;
+# --into-volume refuses a volume that already exists.
 #
 # Who negotiated what is read twice: from openssl s_client's own report, and
 # from the server's ServerHello (key_share extension, plaintext in TLS 1.3)
 # by a relay in front of the server, which is the only way to see what a
-# libpq client (psql from each image) got. Both must agree.
+# libpq client (psql from each image) or a Go client (cmd/well-migrate, lib/pq
+# on crypto/tls, as the services connect; skipped without Go) got. Both must
+# agree where both exist.
 #
 # Exits non-zero if PG 18 does not negotiate the hybrid group, or on any
 # other failed check. Every container, network and volume it creates is named
-# qa-pg18-*, and removed on exit (anonymous volumes go with --rm).
+# qa-pg18-*, and removed on exit (anonymous volumes go with their container).
 set -euo pipefail
 
 PG16_IMAGE="${1:-postgres:16.15-alpine@sha256:721873c34ceb9f8d8fc265984940dc982404c105f19ad51be9fdc5970a6080ea}"
@@ -40,13 +44,14 @@ command -v openssl >/dev/null && command -v python3 >/dev/null || { echo "needs 
 openssl list -kem-algorithms 2>/dev/null | grep -qi mlkem768 || { echo "host openssl has no ML-KEM (needs 3.5+): $(openssl version)" >&2; exit 2; }
 
 ID="$$"
-NET="qa-pg18-net-$ID" S16="qa-pg18-s16-$ID" S18="qa-pg18-s18-$ID"
+NET="qa-pg18-net-$ID" S16="qa-pg18-s16-$ID" S18="qa-pg18-s18-$ID" SX="qa-pg18-sx-$ID" VOLX="qa-pg18-vol-$ID"
 SUBNET_PREFIX="172.31.$((RANDOM % 200 + 20))"
 TMP="$(mktemp -d)"
 PW="$(openssl rand -hex 16)"   # per run, throwaway server only
 cleanup() {
 	"${DOCKER[@]}" ps -aq --filter "name=qa-pg18-.*-$ID" | xargs -r "${DOCKER[@]}" rm -f -v >/dev/null 2>&1 || true
 	"${DOCKER[@]}" network rm "$NET" >/dev/null 2>&1 || true
+	"${DOCKER[@]}" volume rm "$VOLX" >/dev/null 2>&1 || true
 	"${SUDO[@]}" rm -rf -- "$TMP"
 }
 trap cleanup EXIT
@@ -100,27 +105,32 @@ wait_ready "$S18" || { echo "PG 18 did not start with the repo config + include"
 P16="$(port_of "$S16")" P18="$(port_of "$S18")"
 
 # --- observers --------------------------------------------------------------
-# relay: one connection, server -> client bytes parsed for the ServerHello's
-# key_share group (a HelloRetryRequest's group is replaced by the real
-# ServerHello's). Prints its port, then the group name (or "none") at the end.
+# relay: server -> client bytes parsed for the ServerHello's key_share group
+# (a HelloRetryRequest's group is replaced by the real ServerHello's). Serves
+# every connection a client opens (well-migrate opens one per database) until
+# none arrives for 2 s. Writes its port to OUTFILE.port, then the distinct
+# groups seen (comma-separated, or "none") to OUTFILE.
 relay() { # upstream_port outfile
 	python3 -I - "$1" "$2" <<'PY' &
 import socket, sys, threading
 up_port, out = int(sys.argv[1]), sys.argv[2]
 NAMES = {0x11EC: "X25519MLKEM768", 0x11EB: "SecP256r1MLKEM768", 0x11ED: "SecP384r1MLKEM1024",
          0x001D: "X25519", 0x0017: "secp256r1", 0x0018: "secp384r1", 0x0202: "MLKEM1024"}
-HRR = bytes.fromhex("CF21AD74E59A6111BE1D8C021E65B891C2A211167ABB8C5E079E09E2C8A8339C")
-ls = socket.socket(); ls.bind(("127.0.0.1", 0)); ls.listen(1)
+ls = socket.socket(); ls.bind(("127.0.0.1", 0)); ls.listen(8)
 open(out + ".port", "w").write(str(ls.getsockname()[1]))
-ls.settimeout(30)
-try:
-    c, _ = ls.accept()
-except OSError:
-    open(out, "w").write("none"); sys.exit(0)
-u = socket.create_connection(("127.0.0.1", up_port), timeout=30)
-c.settimeout(30); u.settimeout(30)
-group = ["none"]
-def pump(src, dst, parse):
+seen, threads = set(), []
+def serve(c):
+    try:
+        u = socket.create_connection(("127.0.0.1", up_port), timeout=30)
+    except OSError:
+        c.close(); return
+    c.settimeout(30); u.settimeout(30)
+    group = ["none"]
+    t = threading.Thread(target=pump, args=(c, u, False, group)); t.start()
+    pump(u, c, True, group); t.join()
+    if group[0] != "none":
+        seen.add(group[0])
+def pump(src, dst, parse, group):
     buf = b""
     started = False
     try:
@@ -141,7 +151,7 @@ def pump(src, dst, parse):
                     if typ != 22 or not body or body[0] != 2:
                         continue
                     sh = body[4:]
-                    rnd, sidl = sh[2:34], sh[34]
+                    sidl = sh[34]   # after legacy_version(2) + random(32)
                     p = 35 + sidl + 3
                     end = p + 2 + int.from_bytes(sh[p:p + 2], "big")
                     p += 2
@@ -149,7 +159,7 @@ def pump(src, dst, parse):
                         et, el = int.from_bytes(sh[p:p + 2], "big"), int.from_bytes(sh[p + 2:p + 4], "big")
                         if et == 0x33:
                             g = int.from_bytes(sh[p + 4:p + 6], "big")
-                            group[0] = NAMES.get(g, "0x%04X" % g) + (" (after HelloRetryRequest)" if rnd == HRR else "")
+                            group[0] = NAMES.get(g, "0x%04X" % g)  # a later real ServerHello overrides an HRR's
                         p += 4 + el
     except OSError:
         pass
@@ -159,9 +169,17 @@ def pump(src, dst, parse):
                 s.shutdown(socket.SHUT_RDWR)
             except OSError:
                 pass
-t = threading.Thread(target=pump, args=(c, u, False)); t.start()
-pump(u, c, True); t.join()
-open(out, "w").write(group[0].replace(" (after HelloRetryRequest)", ""))
+ls.settimeout(30)   # the first client may take a while (docker run)
+while True:
+    try:
+        c, _ = ls.accept()
+    except OSError:
+        break
+    ls.settimeout(2)
+    th = threading.Thread(target=serve, args=(c,)); th.start(); threads.append(th)
+for th in threads:
+    th.join()
+open(out, "w").write(",".join(sorted(seen)) or "none")
 PY
 	for _ in $(seq 1 50); do [[ -s "$2.port" ]] && return 0; sleep 0.1; done
 	return 1
@@ -198,6 +216,19 @@ via_libpq() { # image port setting
 	wait
 	echo "wire=$(cat "$f") ssl=$o"
 }
+# The Go services' path (lib/pq on crypto/tls): cmd/well-migrate status
+# through the relay -> "wire=<groups> rc=<exit>". Skipped without a Go toolchain.
+GO_OK=0
+if command -v go >/dev/null && (cd "$R" && go build -o "$TMP/well-migrate" ./cmd/well-migrate) 2>"$TMP/go-build.log"; then GO_OK=1; fi
+via_go() { # port
+	local f rc=0
+	f="$(relay_file)"
+	relay "$1" "$f"
+	WELL_HOST=127.0.0.1 WELL_PORT="$(cat "$f.port")" WELL_MIGRATE_USER=unheaded WELL_MIGRATE_PASSWORD="$PW" WELL_SSLMODE=require \
+		"$TMP/well-migrate" -dir "$R/db/migrations" status >"$f.out" 2>&1 || rc=$?
+	wait
+	echo "wire=$(cat "$f") rc=$rc"
+}
 expect() { # label got want
 	[[ "$2" == "$3" ]] && pass "$1: $2" || fail "$1: got '$2', want '$3'"
 }
@@ -213,6 +244,9 @@ expect "pg16 openssl offer hybrid,X25519,P-256" "$(via_openssl X25519MLKEM768:X2
 expect "pg16 openssl offer hybrid only (refused)" "$(via_openssl X25519MLKEM768 "$P16")" "openssl=refused wire=none"
 expect "pg16 libpq 16 (psql, PG16 image)" "$(via_libpq "$PG16_IMAGE" "$P16" ssl_ecdh_curve)" "wire=secp256r1 ssl=TLSv1.3/prime256v1"
 expect "pg16 libpq 18 (psql, PG18 image)" "$(via_libpq "$PG18_IMAGE" "$P16" ssl_ecdh_curve)" "wire=secp256r1 ssl=TLSv1.3/prime256v1"
+if ((GO_OK)); then
+	expect "pg16 Go lib/pq (well-migrate status, $(go env GOVERSION))" "$(via_go "$P16")" "wire=secp256r1 rc=0"
+fi
 
 # --- (2) PG 18 + 10-pq-groups.conf -------------------------------------------
 expect "pg18 server" "$(sq "$S18" postgres "SELECT current_setting('server_version') || ' groups=' || current_setting('ssl_groups') || ' min=' || current_setting('ssl_min_protocol_version') || ' checksums=' || current_setting('data_checksums')")" \
@@ -223,6 +257,11 @@ expect "pg18 openssl offer X25519 only (classical fallback)" "$(via_openssl X255
 expect "pg18 openssl offer P-256 only (classical fallback)" "$(via_openssl P-256 "$P18")" "openssl=secp256r1 wire=secp256r1"
 expect "pg18 libpq 18 (psql, PG18 image)" "$(via_libpq "$PG18_IMAGE" "$P18" ssl_groups)" "wire=X25519MLKEM768 ssl=TLSv1.3/X25519MLKEM768:X25519:prime256v1"
 expect "pg18 libpq 16 (psql, PG16 image)" "$(via_libpq "$PG16_IMAGE" "$P18" ssl_groups)" "wire=X25519MLKEM768 ssl=TLSv1.3/X25519MLKEM768:X25519:prime256v1"
+if ((GO_OK)); then
+	expect "pg18 Go lib/pq (well-migrate status, $(go env GOVERSION))" "$(via_go "$P18")" "wire=X25519MLKEM768 rc=0"
+else
+	echo "[SKIP] Go lib/pq client: no Go toolchain ($(head -c 200 "$TMP/go-build.log" 2>/dev/null))"
+fi
 
 # --- (3) the ledger bootstraps on 18 -----------------------------------------
 for db in unheaded_app unheaded_ops unheaded_config; do
@@ -240,6 +279,37 @@ if WELL_CONTAINER="$S16" WELL_BACKUP_DIR="$TMP/backups" "$R/scripts/db-backup.sh
 		pass "pg16 set restores on pg18: $(tail -1 <<<"$out" | sed 's/^\[drill\] //')"
 	else
 		fail "restore of the pg16 set on pg18"; tail -15 <<<"$out"
+	fi
+	# --- (5) the runbook's data step, rehearsed end to end -----------------
+	# Restore into a new named volume, start PG 18 on it exactly as compose
+	# will (repo config + include, uid 70, read-only), set passwords, and
+	# check the ledger and the data over hybrid TLS.
+	if out="$(WELL_DRILL_NAME="qa-pg18-restore-$ID" "$R/scripts/well/restore-drill.sh" --image "$PG18_IMAGE" --into-volume "$VOLX" "$SET" 2>&1)"; then
+		pass "restore into new volume: $(grep -c . <<<"$out") lines, $(grep -o 'restore took [0-9]*s' <<<"$out")"
+		start "$SX" "$PG18_IMAGE" "$TMP/conf18" -v "$R/db/postgresql.pg18.conf.d:/etc/postgresql/conf.d:ro" -v "$VOLX:/var/lib/postgresql"
+		if wait_ready "$SX"; then
+			APW="$(openssl rand -hex 12)"
+			WELL_CONTAINER="$SX" POSTGRES_PASSWORD="$PW" APP_KANBAN_PASSWORD="$APW" \
+				"$R/scripts/well/set-role-passwords.sh" >/dev/null
+			PX="$(port_of "$SX")"
+			expect "upgraded volume: server" "$(sq "$SX" postgres "SELECT current_setting('server_version') || ' checksums=' || current_setting('data_checksums')")" "18.6 checksums=on"
+			if ((GO_OK)); then
+				expect "upgraded volume: well-migrate status (ledger intact)" "$(via_go "$PX")" "wire=X25519MLKEM768 rc=0"
+			fi
+			n="$("${DOCKER[@]}" run --rm --name "qa-pg18-cli-app-$ID" --network host -e PGPASSWORD="$APW" -v "$TMP/tls/ca.crt:/ca.crt:ro" "$PG18_IMAGE" \
+				psql -X -At "host=127.0.0.1 port=$PX user=app_kanban dbname=unheaded_app sslmode=verify-full sslrootcert=/ca.crt" \
+				-c "SELECT count(*) FROM kanban_tasks WHERE id LIKE 'pq%'" 2>&1 || true)"
+			expect "upgraded volume: app_kanban reads its rows over TLS" "$n" "25"
+		else
+			fail "PG 18 did not start on the restored volume"
+		fi
+	else
+		fail "restore into a new volume"; tail -15 <<<"$out"
+	fi
+	if WELL_DRILL_NAME="qa-pg18-refuse-$ID" "$R/scripts/well/restore-drill.sh" --image "$PG18_IMAGE" --into-volume "$VOLX" "$SET" >/dev/null 2>&1; then
+		fail "--into-volume wrote into an existing volume"
+	else
+		pass "--into-volume refuses an existing volume"
 	fi
 else
 	fail "db-backup.sh against pg16"; tail -15 "$TMP/backup.log"

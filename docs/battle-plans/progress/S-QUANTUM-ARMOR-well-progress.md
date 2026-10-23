@@ -19,9 +19,16 @@ Branch base: develop @ `424edf47`. Executed 2026-10-23 by a parallel agent (Erda
 | 159 [R] | done | Read `db/postgresql.conf`, `db/pg_hba.conf`, compose `postgres`, `wiki/The-Well.md`, `wiki/Well-Backups.md`, ADR-101, ADR-102, `scripts/well/test-config.sh`, `make-tls.sh`, `restore-drill.sh`, `test-backup-restore.sh`, `db-backup.sh`, meta-gate registry |
 | 160 [DECIDE] | done | RECOMMENDATION taken: compose stays `postgres:16.15-alpine`; PG 18 config ships as `db/postgresql.pg18.conf.d/10-pq-groups.conf`, loaded only by the upgrade (it mounts the dir at `/etc/postgresql/conf.d` and appends `include_dir` to `db/postgresql.conf`). Override condition (Stevie already approved PG 18) not met. |
 | 161 [W][TEST] | done | `scripts/well/test-pq-groups.sh`. Deviation from the plan text: `scripts/probe-tls-groups.sh` is Phase 6's file and does not exist on this base, so the suite reads the group itself, twice (s_client's report + the ServerHello key_share via an unprivileged relay, which is also how the libpq clients are observed). Adds two checks the runbook depends on: the migration ledger bootstraps on PG 18, and a PG 16 backup set restores on PG 18 (`restore-drill.sh --image`). |
-| 162 [S][TEST] | done | 17/17 PASS, 1m14s, container count 0 (results below). Docker ran without sudo on west. |
+| 162 [S][TEST] | done | 17/17 PASS (1m14s), then 19/19 with the Go client observer (1m27s); container count 0 (results below). Docker ran without sudo on west. Provocation proven in a scratch clone of `4f524a01`: hybrid dropped from the include -> 5 FAIL, rc=1. |
 | 163 [D] | not needed | Both images are Alpine 3.24: PG 18.6 links libssl3 3.5.9, PG 16.15 links 3.5.8. So the Well is classical because PG 16's `ssl_ecdh_curve` sets one curve, not because of its OpenSSL. |
 | 164 [W] | done | `provoke_well_pq_groups` + REGISTRY row `well/test-pq-groups` (slow). |
+| 165 [C] | done | `4f524a01` |
+| 166 [W] | done | `runbooks/data/well-pg18-upgrade.yaml`. [DECIDE] (Erda) dump/restore instead of `pg_upgrade --check`: RECOMMENDATION restore the final backup set into a NEW volume (`restore-drill.sh --into-volume`, new option, refuses an existing volume) and point compose at it; Rationale: the official images carry one major each (pg_upgrade needs both: a new, unadmitted image), the Well is small, dump/restore is the path the Sunday drill already proves, and the PG 16 volume is never written, so rollback is lossless until thaw; Override ONLY if the Well grows past what a restore can do inside an acceptable window (the drill's `unheaded_well_drill_restore_seconds` says when). The suite rehearses the whole data step (restore into a volume, PG 18 on it with the deployed config, role passwords, ledger status over hybrid TLS, app role reads its rows) and checks the refusal. Three automatic steps (image pull, throwaway proof, offline manifest check); every step that reads or changes the live Well is `action: manual`. |
+| 167 [V] | done | YAML OK, `check-manifest-yaml.sh` OK, `run-runbook.py --dry-run` rc=0 (19 steps, no unset parameters). Meta-gate coverage replica: no unregistered gate (the runbook makes `well/test-pq-groups` discoverable; it is registered). |
+| 168 [ESCALATE] | logged | **E1**: live Well PG 16 -> PG 18 with `ssl_groups`. Stevie's call (data-bearing major upgrade, downtime, timing). Not attempted. Everything it needs is prepared: include, proof suite, runbook, the restore-into-volume tool. |
+| 169 [AUDIT-UPDATE] | logged here | For Phase 13's register (not this track's file): "Well TLS key exchange is classical P-256 (PG 16 `ssl_ecdh_curve`, one curve); fix = E1 (`runbooks/data/well-pg18-upgrade.yaml`); verify = `scripts/well/test-pq-groups.sh` + `openssl s_client -starttls postgres -groups X25519MLKEM768` on 127.0.0.1:5432 (or `probe-tls-groups.sh` once Phase 6 merges)". Planned id FND-015. |
+| 170 [B] | DEFERRED | `[DEFERRED: lead regenerates after Phase 4 merges]`: `docs/policy/pq-kex-baseline.txt` does not exist on this base. When it does, the `docker-compose.yml postgres-pre18` line gets `# accepted until E1 (ADR-105, runbooks/data/well-pg18-upgrade.yaml)` above it. |
+| 171 [C] | done | runbook + suite rehearsal + drill option + this log (baseline part deferred with 170) |
 
 ## Images (ADR-102 exact tags, pinned by digest)
 
@@ -32,7 +39,7 @@ Branch base: develop @ `424edf47`. Executed 2026-10-23 by a parallel agent (Erda
 
 PG 18 images change the data layout: `PGDATA=/var/lib/postgresql/18/docker`, `VOLUME /var/lib/postgresql` (PG 16: `/var/lib/postgresql/data`). The upgrade must mount a NEW volume at `/var/lib/postgresql`; the runbook does.
 
-## Step 162 result (2026-10-23, west, host OpenSSL 3.5.3)
+## Step 162 result (2026-10-23, west, host OpenSSL 3.5.3; Go client added after the first commit, 19/19, 1m27s)
 
 ```
 [PASS] pg16 server: 16.15 ecdh=prime256v1 min=TLSv1.3
@@ -40,6 +47,7 @@ PG 18 images change the data layout: `PGDATA=/var/lib/postgresql/18/docker`, `VO
 [PASS] pg16 openssl offer hybrid only (refused): openssl=refused wire=none
 [PASS] pg16 libpq 16 (psql, PG16 image): wire=secp256r1 ssl=TLSv1.3/prime256v1
 [PASS] pg16 libpq 18 (psql, PG18 image): wire=secp256r1 ssl=TLSv1.3/prime256v1
+[PASS] pg16 Go lib/pq (well-migrate status, go1.27.3): wire=secp256r1 rc=0
 [PASS] pg18 server: 18.6 groups=X25519MLKEM768:X25519:prime256v1 min=TLSv1.3 checksums=on
 [PASS] pg18 openssl offer hybrid,X25519,P-256: openssl=X25519MLKEM768 wire=X25519MLKEM768
 [PASS] pg18 openssl offer hybrid only: openssl=X25519MLKEM768 wire=X25519MLKEM768
@@ -47,6 +55,7 @@ PG 18 images change the data layout: `PGDATA=/var/lib/postgresql/18/docker`, `VO
 [PASS] pg18 openssl offer P-256 only (classical fallback): openssl=secp256r1 wire=secp256r1
 [PASS] pg18 libpq 18 (psql, PG18 image): wire=X25519MLKEM768 ssl=TLSv1.3/X25519MLKEM768:X25519:prime256v1
 [PASS] pg18 libpq 16 (psql, PG16 image): wire=X25519MLKEM768 ssl=TLSv1.3/X25519MLKEM768:X25519:prime256v1
+[PASS] pg18 Go lib/pq (well-migrate status, go1.27.3): wire=X25519MLKEM768 rc=0
 [PASS] pg18 init.sh: unheaded_app ledger has the same 10 rows as pg16
 [PASS] pg18 init.sh: unheaded_ops ledger has the same 7 rows as pg16
 [PASS] pg18 init.sh: unheaded_config ledger has the same 9 rows as pg16
@@ -55,6 +64,18 @@ PG 18 images change the data layout: `PGDATA=/var/lib/postgresql/18/docker`, `VO
 all checks passed
 ```
 
-Reading: clients need no change. libpq 16 and 18 (both on OpenSSL 3.5) already offer X25519MLKEM768 first; only the server's group list decides. After the run: no `qa-` container, and the docker volume, network and container lists equal the pre-run snapshot.
+Reading: clients need no change. libpq 16 and 18 (both on OpenSSL 3.5) and the Go services' lib/pq (Go 1.27 crypto/tls defaults) already offer X25519MLKEM768 first; only the server's group list decides. After the run: no `qa-` container, and the docker volume, network and container lists equal the pre-run snapshot.
 
-Also changed: `scripts/well/restore-drill.sh` takes `WELL_DRILL_NAME` (default unchanged, `well-drill-<pid>`), so the suite's drill container is `qa-pg18-drill-<pid>` like everything else it starts. The root-owned copy on west (`/usr/local/lib/unheaded/well/`) is not touched; it keeps working as before.
+Also changed: `scripts/well/restore-drill.sh` takes `WELL_DRILL_NAME` (default unchanged, `well-drill-<pid>`), so the suite's drill container is `qa-pg18-drill-<pid>` like everything else it starts, and `--into-volume VOLUME` (the upgrade's data step: restores into a new volume and keeps it; refuses an existing volume; deletes the one it made on failure). Without options it behaves as before: `test-backup-restore.sh` (its gate, including the three broken-set refusals) passed 28/28 against the changed script, run from a scratch copy with its container names prefixed `qa-pg18-` so this session's naming rule held. The root-owned copy on west (`/usr/local/lib/unheaded/well/`) is not touched.
+
+## Final suite result (after the rehearsal was added: 24/24, 1m58s)
+
+```
+[PASS] restore into new volume: 4 lines, restore took 11s
+[PASS] upgraded volume: server: 18.6 checksums=on
+[PASS] upgraded volume: well-migrate status (ledger intact): wire=X25519MLKEM768 rc=0
+[PASS] upgraded volume: app_kanban reads its rows over TLS: 25
+[PASS] --into-volume refuses an existing volume
+all checks passed
+```
+(the other 19 lines as above)

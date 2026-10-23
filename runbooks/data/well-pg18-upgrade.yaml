@@ -1,0 +1,257 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: well-pg18-upgrade
+  description: The Well from PostgreSQL 16 to 18, for hybrid post-quantum TLS (X25519MLKEM768 via ssl_groups)
+  owner: erda
+  estimated_duration: 45m
+  risk: high
+  requires_sudo: true
+  cs_sources: [databases/postgresql]
+
+notes: |
+  ESCALATE E1 of S-QUANTUM-ARMOR (ADR-105). Stevie decides whether and when;
+  nothing here has been run against the live Well. Dry run first:
+    python3 scripts/run-runbook.py --dry-run runbooks/data/well-pg18-upgrade.yaml
+  Only the first three steps run by themselves, and they touch nothing live
+  (an image pull, the throwaway proof, an offline manifest check). Every step
+  that reads or changes the live Well is `action: manual`: the runner prints
+  it and moves on, so run them yourself, in order, checking each "confirm".
+
+  Why: PostgreSQL 16's ssl_ecdh_curve offers one curve (P-256), so every
+  connection to the Well is classical. PostgreSQL 18's ssl_groups takes a
+  list; db/postgresql.pg18.conf.d/10-pq-groups.conf puts X25519MLKEM768
+  first. The clients need no change: libpq 16/18 on OpenSSL 3.5 and the Go
+  services (lib/pq on Go 1.27 crypto/tls) already offer the hybrid first.
+  Proof, in throwaway containers: scripts/well/test-pq-groups.sh (results in
+  docs/battle-plans/progress/S-QUANTUM-ARMOR-well-progress.md).
+
+  How the data moves: dump and restore, not pg_upgrade. The official images
+  carry one major each (pg_upgrade needs both in one container: a new,
+  unadmitted image), the Well is small, and dump/restore is the path drilled
+  every Sunday. The backup set is restored into a NEW volume by
+  restore-drill.sh --into-volume (row counts checked); the PG 16 volume is
+  never written, so rollback is pointing compose back at it. The PG 18 images
+  keep data in /var/lib/postgresql/18/docker under a volume at
+  /var/lib/postgresql (PG 16: /var/lib/postgresql/data), so the mount changes
+  too. The whole sequence (backup on 16, restore into a new volume, PG 18 on
+  that volume with the deployed config, role passwords, ledger status, rows
+  over hybrid TLS) is rehearsed by scripts/well/test-pq-groups.sh.
+
+  Downtime: writers are stopped from step freeze-writers to thaw. It is about
+  one backup plus two restores (the drill reports its restore time; the
+  Sunday drill's unheaded_well_drill_restore_seconds is the estimate) plus
+  two minutes. Rollback is lossless until thaw; after thaw, writes made on 18
+  would have to be carried back by hand.
+
+  Images: postgres:18.6-alpine, exact tag (ADR-102); the proof ran on digest
+  ${PG18_DIGEST}. If the tag has moved since (Alpine rebuilds re-push it),
+  re-run the proof step on the new digest before going on. ADR-102 rule 3
+  (one version per image) means the config commit moves every
+  postgres:16.15-alpine pin, not only compose.
+
+env:
+  REPO: "~/tmp/unheaded"
+  PG18_IMAGE: "postgres:18.6-alpine"
+  PG18_DIGEST: "sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5"
+  SETS: "/srv/backups/unheaded-well"
+  NEW_VOLUME: "unheaded-dev_postgres18-data"
+  OLD_VOLUME: "unheaded-dev_postgres-data"
+
+preconditions:
+  - check: "test \"$(hostname -s)\" = west"
+    description: "On west, where the Well runs"
+  - check: "test -f ~/tmp/unheaded/.env"
+    description: "Repo .env present (role passwords; never printed)"
+  - check: "openssl version | grep -qE 'OpenSSL 3\\.([5-9]|[1-9][0-9])'"
+    description: "Host OpenSSL 3.5+ (needed to probe for X25519MLKEM768)"
+
+steps:
+  # --- Automatic: nothing below touches the live Well ---------------------
+  - name: pull-image
+    action: shell
+    command: "docker pull -q ${PG18_IMAGE}@${PG18_DIGEST}"
+    verify: "docker image inspect ${PG18_IMAGE}@${PG18_DIGEST} >/dev/null"
+    timeout: 600
+    description: "The image the proof ran on"
+
+  - name: prove-in-throwaway
+    action: shell
+    command: "cd ${REPO} && scripts/well/test-pq-groups.sh"
+    timeout: 900
+    description: "PG 16 classical, PG 18 hybrid, ledger and restore path, all in qa-pg18-* containers"
+    on_fail: "Do not continue. Read the [FAIL] lines; a hybrid FAIL means the include or the image changed."
+
+  - name: manifest-check
+    action: shell
+    command: "cd ${REPO} && go run ./cmd/well-migrate check"
+    description: "Offline: every migration routed (ADR-101)"
+
+  # --- Manual from here: each touches the live Well ------------------------
+  - name: operator-env
+    action: manual
+    command: |
+      # The runner prints manual steps without expanding ${...}: export the env block once.
+      export REPO=~/tmp/unheaded PG18_IMAGE=postgres:18.6-alpine SETS=/srv/backups/unheaded-well
+      export PG18_DIGEST=sha256:898c60cb390d1085bc97bdd6a1ae968757421df394b071848b52b1c09c89d6a5
+      export NEW_VOLUME=unheaded-dev_postgres18-data OLD_VOLUME=unheaded-dev_postgres-data
+    description: "In the shell you run the manual steps from"
+
+  - name: ledger-status
+    action: manual
+    command: |
+      cd ${REPO} && set -a && . ./.env && set +a
+      WELL_MIGRATE_PASSWORD=$POSTGRES_PASSWORD go run ./cmd/well-migrate status
+    verify: "exit status 0: nothing pending, no drift. Pending migrations go in first (runbooks/data/postgresql-migration.yaml)."
+    description: "Read-only. The set taken below must be of a Well whose ledger matches the manifest."
+
+  - name: silence-alerts
+    action: manual
+    command: |
+      cd ${REPO} && scripts/monitoring/maintenance.sh 60m "Well PG 16 -> 18 upgrade (E1)"
+    description: "The stop is planned: no mail about it (ADR-100)"
+
+  - name: freeze-writers
+    action: manual
+    command: |
+      cd ${REPO} && sudo docker compose stop dashboard-backend kanban-app
+      # Anything else with a Well login (another compose file, a host service):
+      sudo docker exec unheaded-postgres psql -X -At -U unheaded -d postgres \
+        -c "SELECT usename, application_name, client_addr FROM pg_stat_activity WHERE backend_type = 'client backend' AND pid <> pg_backend_pid()"
+    verify: "the query prints nothing: no client but you"
+    description: "No writes after the backup, so the restored Well is the whole Well"
+
+  - name: final-backup
+    action: manual
+    command: |
+      sudo systemctl start unheaded-well-backup.service
+      systemctl show -p Result --value unheaded-well-backup.service unheaded-well-offsite.service
+      cat ${SETS}/LATEST
+    verify: "both print success; LATEST names a set from the last few minutes"
+    description: "A full set (globals + every database + row counts), copied to east"
+
+  - name: drill-on-18
+    action: manual
+    command: |
+      SET="${SETS}/$(cat ${SETS}/LATEST)"
+      sudo ${REPO}/scripts/well/restore-drill.sh --image ${PG18_IMAGE}@${PG18_DIGEST} "$SET"
+    verify: "[drill] PASS: every row count matches"
+    description: "The set restores on 18 in a throwaway (ADR-102 restore-drill rule). Never touches the Well."
+
+  - name: restore-into-new-volume
+    action: manual
+    command: |
+      SET="${SETS}/$(cat ${SETS}/LATEST)"
+      sudo ${REPO}/scripts/well/restore-drill.sh --image ${PG18_IMAGE}@${PG18_DIGEST} --into-volume ${NEW_VOLUME} "$SET"
+      docker volume inspect -f '{{.Name}} {{.CreatedAt}}' ${NEW_VOLUME} ${OLD_VOLUME}
+    verify: "[drill] PASS and 'kept volume'; both volumes listed (the old one untouched)"
+    description: "The same restore into a new volume it creates (refuses an existing one), data checksums on"
+
+  - name: stop-pg16
+    action: manual
+    command: |
+      cd ${REPO} && docker inspect -f '{{.Config.Image}}' unheaded-postgres
+      sudo docker compose stop postgres
+    verify: "prints postgres:16.15-alpine, then the container is stopped (not removed)"
+    description: "From here the Well is down"
+
+  - name: config-commit
+    action: manual
+    command: |
+      # One commit (Stevie's), on develop:
+      # docker-compose.yml, service postgres:
+      #   image: postgres:18.6-alpine   # exact tag (ADR-102)
+      #   volumes:  - postgres18-data:/var/lib/postgresql          # was postgres-data:/var/lib/postgresql/data
+      #             - ./db/postgresql.pg18.conf.d:/etc/postgresql/conf.d:ro
+      #   top-level volumes:
+      #     postgres-data:          # keep: the PG 16 cluster, rollback until retire-pg16
+      #     postgres18-data: { external: true, name: unheaded-dev_postgres18-data }
+      #     (external: compose refuses to start on a missing volume instead of
+      #      bootstrapping an empty Well; a fresh install creates it first:
+      #      docker volume create unheaded-dev_postgres18-data)
+      # db/postgresql.conf, appended:
+      #   include_dir = '/etc/postgresql/conf.d'
+      # Every other pin, same version (ADR-102 rule 3), found by:
+      git -C ${REPO} grep -n 'postgres:16.15-alpine'
+      #   kubernetes/manifests/base/the-well/statefulset.yaml: image, data
+      #   mountPath -> /var/lib/postgresql, conf.d mount; scripts/well/*
+      #   defaults; .github/workflows/security.yml; wiki/The-Well.md;
+      #   ADR-016 / ADR-102 notes.
+      # If S-QUANTUM-ARMOR Phase 4 has merged: drop the
+      # 'docker-compose.yml postgres-pre18' line from
+      # docs/policy/pq-kex-baseline.txt and regenerate the CBOM.
+    verify: "scripts/check-image-tags.sh and scripts/well/test-config.sh postgres:18.6-alpine pass on the commit"
+    description: "The config change, reviewed like code"
+
+  - name: start-pg18
+    action: manual
+    command: |
+      cd ${REPO} && sudo docker compose up -d postgres
+      sudo docker compose ps postgres
+      docker exec unheaded-postgres psql -X -At -U unheaded -d postgres \
+        -c "SELECT current_setting('server_version'), current_setting('ssl_groups'), current_setting('data_checksums')"
+    verify: "healthy; 18.6 | X25519MLKEM768:X25519:prime256v1 | on"
+    description: "PG 18 on the restored volume; the entrypoint skips initdb (volume not empty)"
+
+  - name: role-passwords
+    action: manual
+    command: |
+      cd ${REPO} && set -a && . ./.env && set +a && scripts/well/set-role-passwords.sh
+    verify: "one line per role whose variable is set, superuser included"
+    description: "Sets carry no password hashes; the restore's superuser password was a throwaway"
+
+  - name: verify-hybrid-live
+    action: manual
+    command: |
+      openssl s_client -starttls postgres -connect 127.0.0.1:5432 -groups X25519MLKEM768 \
+        -CAfile /etc/unheaded/well-tls/ca.crt </dev/null 2>&1 | grep -E 'Negotiated TLS1.3 group|Verify return code'
+      # or, once S-QUANTUM-ARMOR Phase 6 has merged: scripts/probe-tls-groups.sh 127.0.0.1:5432 --starttls postgres
+    verify: "Negotiated TLS1.3 group: X25519MLKEM768; Verify return code: 0 (ok)"
+    description: "The live port negotiates the hybrid"
+
+  - name: verify-ledger-and-schema
+    action: manual
+    command: |
+      cd ${REPO} && set -a && . ./.env && set +a
+      WELL_MIGRATE_PASSWORD=$POSTGRES_PASSWORD go run ./cmd/well-migrate status
+      scripts/well/test-converge-live-app.sh --live
+    verify: "status exit 0; live unheaded_app schema equals a fresh bootstrap"
+    description: "The ledger came across with the data"
+
+  - name: thaw
+    action: manual
+    command: |
+      cd ${REPO} && sudo docker compose up -d dashboard-backend kanban-app
+      curl -fsS http://127.0.0.1:20000/health && curl -fsS http://127.0.0.1:20001/health
+      scripts/monitoring/maintenance.sh --end
+    verify: "both healthy; writers reconnect (pg_stat_activity shows them)"
+    description: "Last point where rollback loses nothing"
+
+  - name: backup-and-drill-on-18
+    action: manual
+    command: |
+      sudo systemctl start unheaded-well-backup.service unheaded-well-drill.service
+      systemctl show -p Result --value unheaded-well-backup.service unheaded-well-offsite.service unheaded-well-drill.service
+    verify: "success x3 (the drill now defaults to the running container's image, 18)"
+    description: "The first set and drill on 18"
+
+  - name: retire-pg16
+    action: manual
+    command: |
+      # Not today. After 14 nightly sets on 18 and one Sunday drill have passed:
+      docker volume rm ${OLD_VOLUME}
+      # and drop postgres-data from docker-compose.yml.
+    description: "The PG 16 volume is the rollback until then"
+
+rollback:
+  - name: back-to-pg16
+    action: manual
+    when: "any step after stop-pg16 fails"
+    command: |
+      cd ${REPO} && sudo docker compose stop postgres
+      git revert <config-commit>      # image 16.15-alpine, postgres-data mount, no include
+      sudo docker compose up -d postgres dashboard-backend kanban-app
+      scripts/monitoring/maintenance.sh --end
+      # ${OLD_VOLUME} was never written: the Well is as it was at freeze-writers,
+      # passwords included. Keep ${NEW_VOLUME} for diagnosis; remove it later.
+    description: "Lossless before thaw. After thaw, rows written on 18 must be exported from it first."
