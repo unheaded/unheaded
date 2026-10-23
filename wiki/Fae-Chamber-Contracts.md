@@ -6,7 +6,7 @@ Topic and message contracts for Wotan (the Fae Chamber): which service publishes
 
 `<domain>.<event_type>[.<subtype>]`; subscribers may use a trailing wildcard (`tasks.*`).
 
-| Domain | Owner | Topics used in code (2026-10-16) |
+| Domain | Owner | Topics used in code |
 |--------|-------|----------------------------------|
 | `tasks` | Micromanager / kanban | `tasks.created`, `.updated`, `.completed`, `.deleted`, `.created.bulk` |
 | `timeline` | Timeguru | `timeline.updates`, `.updated`, `.sync`, `.task.{created,updated,removed}`, `.phase.{started,completed}`, `.milestone.{hit,missed}` |
@@ -33,7 +33,7 @@ What Wotan stores and returns per topic message (`services/wotan/internal/api/to
   "created_at": "2026-10-16T12:00:00Z", "seq": 12345, "payload": "<string>", "deleted": false }
 ```
 
-`seq` is per-topic and monotonic; consumers page with `seq` / `after_seq` and resume from their cursor after a Wotan restart. Include `trace_id` and a Unix-ms timestamp in the payload; keep payloads under 1 MB.
+`seq` is global across topics and monotonic (in-memory store, the default; the Postgres store numbers per topic); consumers page with `seq` / `after_seq` and resume from their cursor after a Wotan restart. Include `trace_id` and a Unix-ms timestamp in the payload; keep payloads under 1 MB.
 
 ## Rules
 

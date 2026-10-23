@@ -13,17 +13,22 @@ eBPF-based packet-level observability from L2 to L7. XDP ingress, TC egress, kpr
 
 ## Programs
 
-| Program | Layer | Purpose |
-|---------|-------|---------|
-| packet_marker | XDP | Trace ID injection at ingress |
-| flow_tracker | TC | Connection tracking |
-| latency_probe | kprobe | RTT measurement |
-| syscall_tracer | tracepoint | Syscall auditing |
-| shield-ebpf | XDP/TC | Protocol Shield — Monad validation |
-| yaldabaoth-ebpf | XDP | Monad CPU — computational execution engine |
-| monad-cpu-ebpf | XDP | Doom-over-IPv6 substrate (Section 12 proof) |
+Workspace members of `ebpf/Cargo.toml` (GPL-2.0-only):
 
-23,991 LOC Rust across 8 eBPF programs.
+| Program | Hook | Purpose |
+|---------|------|---------|
+| `packet-marker` | XDP | Trace ID injection at ingress |
+| `flow-tracker` | TC | Connection tracking |
+| `latency-probe` | kprobe / kretprobe | TCP latency (RTT) |
+| `syscall-tracer` | raw tracepoint | Syscall auditing |
+| `shield-ebpf` | XDP + TC | Protocol Shield: Monad stamp/validate at the boundary |
+| `hop-ebpf` | XDP | Per-hop Monad processing |
+| `yaldabaoth-ebpf` | TC egress | Chaos: corrupt, delay, duplicate or truncate registered flows |
+| `monad-cpu-ebpf` | XDP | The UPC: MBC interpreter (Doom, xv6) |
+| `firewall-ebpf`, `maglev-ebpf`, `canary-ebpf`, `qos-ebpf`, `failover-ebpf`, `compliance-ebpf`, `nfv-ebpf`, `version-ebpf`, `anomaly-ebpf` | XDP | Monad CPU applications (apps 03-12) |
+| `xdp-redirect` | XDP | AF_XDP redirect (with userspace `af-xdp`) |
+
+Shared crates: `common`, `monad-common`, `pqc-common`, `af-xdp-common`. `trace-collector-go` loads packet-marker, flow-tracker and latency-probe on west and east ([[Systemd Units|Systemd-Units]]).
 
 ## Not tracing ourselves
 
@@ -56,7 +61,7 @@ Other services' traffic to Wotan is still traced: it is real Kingdom traffic.
 
 - **Aya/aya-ebpf**: MIT / Apache-2.0
 - **cilium/ebpf**: Apache-2.0
-- **doomgeneric**: GPL-2.0 (isolated in `doom/doomgeneric/`, does not link Unheaded code)
+- **Doom engine** (id Software linuxdoom-1.10): GPL-2.0, compiled from a checkout outside the repo by `demos/doom/Makefile` into `doom.elf` for the UPC ([[SBOM]])
 
 See [LICENSES/THIRD_PARTY.md](../LICENSES/THIRD_PARTY.md) for full attribution.
 
