@@ -1116,11 +1116,19 @@ class Linter:
 
     # -- Go: SQL built with fmt.Sprintf / concatenation -------------------------------------------------
     def check_go_sql_format(self, path, src):
-        sqlkw = re.compile(r"\b(SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|VALUES|ORDER BY)\b", re.IGNORECASE)
+        kw = r"\b(SELECT|INSERT|UPDATE|DELETE|WHERE|FROM|VALUES|ORDER BY)\b"
+        sqlkw, sqlkw_any = re.compile(kw), re.compile(kw, re.IGNORECASE)
+
+        # SQL is an upper-case keyword, or two different keywords in any case.
+        # One lower-case word is prose: "redacted %d value(s) from the prompt
+        # (%s)" in pkg/claudebridge read as SQL.
+        def is_sql(f):
+            return bool(sqlkw.search(f)) or len({k.lower() for k in sqlkw_any.findall(f)}) >= 2
+
         risky, numeric = [], []
         for m in re.finditer(r"fmt\.Sprintf\(\s*(`[^`]*`|\"(?:[^\"\\\n]|\\.)*\")", src):
             fmtstr = m.group(1)
-            if not sqlkw.search(fmtstr) or DDL_RE.search(fmtstr):
+            if not is_sql(fmtstr) or DDL_RE.search(fmtstr):
                 continue
             verbs = re.findall(r"%[-+# 0]*\d*[svqd]", fmtstr)
             if not verbs:

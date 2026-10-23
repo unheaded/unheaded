@@ -96,16 +96,6 @@ set-not-null-scan	db/converge/2026-10-15-live-unheaded-app.sql	1
 set-not-null-scan	db/migrations/020_app_adopt_startup_ddl.sql	1
 shape-drift	db/converge/2026-10-15-live-unheaded-app.sql	1
 shape-drift	db/migrations/001_initial_schema.sql	4
-string-formatted-sql	cmd/dashboard-backend/internal/events/events.go	1
-string-formatted-sql	cmd/unheaded-cli/cmd/service.go	1
-string-formatted-sql	pkg/champion/champion.go	1
-string-formatted-sql	pkg/champion/write.go	1
-string-formatted-sql	pkg/deploy/pipeline/strategy.go	1
-string-formatted-sql	pkg/deploy/strategy/rolling.go	1
-string-formatted-sql	pkg/iac/kubernetes.go	1
-string-formatted-sql	pkg/metrics/metrics.go	1
-string-formatted-sql	services/kenoma/kenoma.go	1
-string-formatted-sql	services/wotan/internal/circuitbreaker/circuitbreaker.go	1
 text-surrogate-pk	db/migrations/003_app_schema.sql	1
 text-surrogate-pk	db/migrations/004_ops_schema.sql	1
 text-surrogate-pk	db/migrations/013_compliance_config.sql	3

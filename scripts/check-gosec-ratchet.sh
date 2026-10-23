@@ -93,11 +93,30 @@ for f in sys.stdin.read().split():
     # rewritten wholesale by their generator, so a swallowed annotation there
     # cannot survive a regeneration anyway.
     if "Code generated" in src[:400] and "DO NOT EDIT" in src[:400]: continue
-    raw=False
-    for n,l in enumerate(src.split("\n"),1):
-        if "#nosec" in l and (raw or l.split("#nosec")[0].count("`")%2==1):
-            bad.append(f"{f}:{n}")
-        raw ^= (l.count("`")%2==1)
+    # A small Go lexer: comments, interpreted strings and runes are
+    # skipped, so a backtick inside "..." (a regexp of shell
+    # metacharacters, say) no longer flips the raw-string state the way
+    # a per-line backtick parity count did.
+    st=None; i=0; ln=1; L=len(src); hit=set()
+    while i<L:
+        c=src[i]
+        if st is None:
+            if src.startswith("//",i):
+                j=src.find("\n",i); i=L if j<0 else j; continue
+            if src.startswith("/*",i):
+                j=src.find("*/",i+2); j=L if j<0 else j+2
+                ln+=src.count("\n",i,j); i=j; continue
+            if c in "`\"" or c==chr(39): st=c
+        elif st=="`":
+            if src.startswith("#nosec",i): hit.add(ln)
+            if c=="`": st=None
+        elif c=="\\":
+            i+=2; continue
+        elif c==st or c=="\n":
+            st=None
+        if c=="\n": ln+=1
+        i+=1
+    bad+=[f"{f}:{n}" for n in sorted(hit)]
 print("\n".join(bad))
 ')"
     if [ -n "${SWALLOWED}" ]; then
