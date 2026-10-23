@@ -22,6 +22,7 @@ import (
 
 	"unheaded/pkg/certs"
 	"unheaded/pkg/mesh/mtls"
+	pqtls "unheaded/pkg/tls"
 )
 
 // Version is the mesh version.
@@ -203,31 +204,34 @@ func (m *Mesh) ConfigureTLS(cert tls.Certificate, rootCAs *x509.CertPool) error 
 	}
 
 	// Server TLS config (for inbound connections)
-	m.tlsConfig = &tls.Config{
+	// ADR-105 Strict on both sides: mesh peers are our Go binaries, so the
+	// session is TLS 1.3 with a hybrid ML-KEM group or there is none. The
+	// CipherSuites lists apply to TLS 1.2 only and are inert here.
+	m.tlsConfig = pqtls.ApplyStrict(&tls.Config{
 		Certificates: []tls.Certificate{cert},
 		ClientCAs:    rootCAs,
 		ClientAuth:   tls.RequireAndVerifyClientCert,
-		MinVersion:   tls.VersionTLS12,
+		MinVersion:   tls.VersionTLS13,
 		CipherSuites: []uint16{
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 		},
-	}
+	})
 
 	// Client TLS config (for outbound connections)
-	m.clientTLSConfig = &tls.Config{
+	m.clientTLSConfig = pqtls.ApplyStrict(&tls.Config{
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      rootCAs,
-		MinVersion:   tls.VersionTLS12,
+		MinVersion:   tls.VersionTLS13,
 		CipherSuites: []uint16{
 			tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
 			tls.TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
 		},
-	}
+	})
 
 	m.rootCAs = rootCAs
 

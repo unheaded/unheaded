@@ -88,8 +88,8 @@ func TestSetupServiceTLS(t *testing.T) {
 	if tlsCfg.ClientAuth != tls.RequireAndVerifyClientCert {
 		t.Errorf("expected RequireAndVerifyClientCert, got %v", tlsCfg.ClientAuth)
 	}
-	if tlsCfg.MinVersion != tls.VersionTLS12 {
-		t.Errorf("expected MinVersion TLS 1.2, got %d", tlsCfg.MinVersion)
+	if tlsCfg.MinVersion != tls.VersionTLS13 {
+		t.Errorf("expected MinVersion TLS 1.3, got %d", tlsCfg.MinVersion)
 	}
 }
 
@@ -234,8 +234,8 @@ func TestRotatingServerTLSConfig(t *testing.T) {
 	if tlsCfg.ClientCAs == nil {
 		t.Error("ClientCAs not set")
 	}
-	if tlsCfg.MinVersion != tls.VersionTLS12 {
-		t.Errorf("expected MinVersion TLS 1.2, got %d", tlsCfg.MinVersion)
+	if tlsCfg.MinVersion != tls.VersionTLS13 {
+		t.Errorf("expected MinVersion TLS 1.3, got %d", tlsCfg.MinVersion)
 	}
 
 	// Verify the callback returns a valid cert.
@@ -271,8 +271,8 @@ func TestRotatingClientTLSConfig(t *testing.T) {
 	if tlsCfg.RootCAs == nil {
 		t.Error("RootCAs not set")
 	}
-	if tlsCfg.MinVersion != tls.VersionTLS12 {
-		t.Errorf("expected MinVersion TLS 1.2, got %d", tlsCfg.MinVersion)
+	if tlsCfg.MinVersion != tls.VersionTLS13 {
+		t.Errorf("expected MinVersion TLS 1.3, got %d", tlsCfg.MinVersion)
 	}
 
 	// Verify the callback returns a valid cert.

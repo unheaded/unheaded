@@ -20,6 +20,7 @@ import (
 
 	"unheaded/pkg/certs"
 	"unheaded/pkg/certs/ca"
+	pqtls "unheaded/pkg/tls"
 )
 
 var (
@@ -72,7 +73,7 @@ func DefaultProviderConfig(trustDomain, serviceName, namespace string) *Provider
 		CertValidity:   DefaultCertValidity,
 		RotationBuffer: DefaultRotationBuffer,
 		AutoRotate:     true,
-		MinVersion:     tls.VersionTLS12,
+		MinVersion:     tls.VersionTLS13, // ADR-105: ML-KEM exists only in TLS 1.3
 		MaxVersion:     tls.VersionTLS13,
 		CipherSuites: []uint16{
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
@@ -383,8 +384,10 @@ func (p *Provider) generateServiceCertificate() error {
 
 // buildTLSConfigs builds the server and client TLS configurations.
 func (p *Provider) buildTLSConfigs() {
-	// Server config for accepting mTLS connections
-	p.serverConfig = &tls.Config{ //nolint:gosec // MinVersion floored to TLS 1.2 in DefaultConfig
+	// Server config for accepting mTLS connections. ADR-105 Strict:
+	// pqtls.ApplyStrict floors MinVersion to TLS 1.3 and offers hybrid ML-KEM
+	// groups only.
+	p.serverConfig = pqtls.ApplyStrict(&tls.Config{ //nolint:gosec // MinVersion floored to TLS 1.3 by pqtls.ApplyStrict
 		MinVersion:   p.config.MinVersion,
 		MaxVersion:   p.config.MaxVersion,
 		CipherSuites: p.config.CipherSuites,
@@ -398,7 +401,7 @@ func (p *Provider) buildTLSConfigs() {
 		// SessionTicketsDisabled prevents resumed sessions from bypassing
 		// the VerifyPeerCertificate callback (gosec G123 / CWE-295).
 		SessionTicketsDisabled: true,
-	}
+	})
 
 	if p.config.VerifyClient {
 		p.serverConfig.ClientAuth = tls.RequireAndVerifyClientCert
@@ -406,8 +409,8 @@ func (p *Provider) buildTLSConfigs() {
 		p.serverConfig.ClientAuth = tls.NoClientCert
 	}
 
-	// Client config for outbound mTLS connections.
-	p.clientConfig = &tls.Config{
+	// Client config for outbound mTLS connections (Strict, as above).
+	p.clientConfig = pqtls.ApplyStrict(&tls.Config{
 		MinVersion:   p.config.MinVersion,
 		MaxVersion:   p.config.MaxVersion,
 		CipherSuites: p.config.CipherSuites,
@@ -422,7 +425,7 @@ func (p *Provider) buildTLSConfigs() {
 		// above still runs even when true, so peer certs are not left unchecked
 		InsecureSkipVerify:     p.config.SkipVerify,
 		SessionTicketsDisabled: true,
-	}
+	})
 }
 
 // verifyPeerCertificate implements custom peer verification.

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"unheaded/pkg/logger"
+	pqtls "unheaded/pkg/tls"
 )
 
 // lxdREST is an LXDClient over LXD's REST API, standard library only: the
@@ -113,7 +114,8 @@ func newLXDREST(cfg LXDRESTConfig) (*lxdREST, error) {
 		if err != nil {
 			return nil, fmt.Errorf("lxd server cert: %w", err)
 		}
-		tr := &http.Transport{TLSClientConfig: &tls.Config{
+		// ADR-105 Preferred: TLS 1.3 (LXD speaks it), hybrid ML-KEM first.
+		tr := &http.Transport{TLSClientConfig: pqtls.ApplyPreferred(&tls.Config{
 			MinVersion:   tls.VersionTLS13,
 			Certificates: []tls.Certificate{cert},
 			// LXD's server certificate is self-signed; like `lxc`, trust is
@@ -125,7 +127,7 @@ func newLXDREST(cfg LXDRESTConfig) (*lxdREST, error) {
 				}
 				return nil
 			},
-		}}
+		})}
 		return &lxdREST{http: &http.Client{Transport: tr}, base: "https://" + u.Host, project: cfg.Project}, nil
 	default:
 		return nil, errors.New("lxd: no socket or URL")

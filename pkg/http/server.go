@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"unheaded/pkg/ports"
+	pqtls "unheaded/pkg/tls"
 )
 
 // Server wraps the standard http.Server with additional functionality
@@ -177,7 +178,8 @@ func (s *Server) ListenAndServeTLS(addr, certFile, keyFile string) error {
 	}
 
 	if s.server.TLSConfig == nil {
-		s.server.TLSConfig = &tls.Config{}
+		// ADR-105 Preferred: TLS 1.3, hybrid ML-KEM first.
+		s.server.TLSConfig = pqtls.ApplyPreferred(&tls.Config{MinVersion: tls.VersionTLS13})
 	}
 	s.server.TLSConfig.Certificates = []tls.Certificate{cert}
 
@@ -367,7 +369,8 @@ func (s *Server) EnableHTTP2() {
 	// HTTP/2 is enabled by default when using TLS in Go 1.6+
 	// This method exists for explicit configuration
 	if s.server.TLSConfig == nil {
-		s.server.TLSConfig = &tls.Config{}
+		// ADR-105 Preferred: TLS 1.3, hybrid ML-KEM first.
+		s.server.TLSConfig = pqtls.ApplyPreferred(&tls.Config{MinVersion: tls.VersionTLS13})
 	}
 
 	// Ensure HTTP/2 is in the NextProtos list

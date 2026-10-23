@@ -25,6 +25,8 @@ import (
 	"net/url"
 	"os"
 	"time"
+
+	pqtls "unheaded/pkg/tls"
 )
 
 // Algorithm represents a load balancing algorithm.
@@ -251,7 +253,8 @@ type TLSConfig struct {
 	// CAFile is the path to the CA certificate for client verification.
 	CAFile string `json:"ca_file,omitempty" yaml:"ca_file,omitempty"`
 
-	// MinVersion is the minimum TLS version (1.2, 1.3).
+	// MinVersion is the minimum TLS version (1.2, 1.3; unset means 1.3).
+	// "1.2" is an opt-in for old clients: those sessions are classical.
 	MinVersion string `json:"min_version" yaml:"min_version"`
 
 	// MaxVersion is the maximum TLS version.
@@ -728,23 +731,22 @@ func (t *TLSConfig) BuildTLSConfig() (*tls.Config, error) {
 		return nil, fmt.Errorf("load certificate: %w", err)
 	}
 
-	tlsConfig := &tls.Config{
+	// ADR-105 Preferred: TLS 1.3 and Go's default groups (hybrid ML-KEM
+	// first, classical fallback for older clients). Unset min_version is 1.3.
+	tlsConfig := pqtls.ApplyPreferred(&tls.Config{
 		Certificates: []tls.Certificate{cert},
-		MinVersion:   tls.VersionTLS12,
-	}
+		MinVersion:   tls.VersionTLS13,
+		MaxVersion:   tls.VersionTLS13,
+	})
 
-	switch t.MinVersion {
-	case "1.3":
-		tlsConfig.MinVersion = tls.VersionTLS13
-	case "1.2", "":
+	// Operator opt-ins for user frontends with old clients, accepted in
+	// docs/policy/pq-kex-baseline.txt: min_version "1.2" admits classical
+	// TLS 1.2 sessions; max_version "1.2" rules ML-KEM out for every client.
+	if t.MinVersion == "1.2" {
 		tlsConfig.MinVersion = tls.VersionTLS12
 	}
-
-	switch t.MaxVersion {
-	case "1.2":
+	if t.MaxVersion == "1.2" {
 		tlsConfig.MaxVersion = tls.VersionTLS12
-	case "1.3", "":
-		tlsConfig.MaxVersion = tls.VersionTLS13
 	}
 
 	// Configure client auth

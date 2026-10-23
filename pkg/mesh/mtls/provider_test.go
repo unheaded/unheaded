@@ -32,7 +32,7 @@ func TestDefaultProviderConfig(t *testing.T) {
 	if !cfg.VerifyClient {
 		t.Error("VerifyClient should be true")
 	}
-	if cfg.MinVersion != tls.VersionTLS12 {
+	if cfg.MinVersion != tls.VersionTLS13 {
 		t.Errorf("MinVersion = %d", cfg.MinVersion)
 	}
 	if cfg.MaxVersion != tls.VersionTLS13 {

@@ -27,6 +27,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	pqtls "unheaded/pkg/tls"
 )
 
 // Config holds the mTLS configuration for a service.
@@ -89,12 +91,13 @@ func ServerTLSConfig(cfg Config) (*tls.Config, error) {
 		return nil, fmt.Errorf("mtls: load root CA: %w", err)
 	}
 
-	return &tls.Config{
+	// ADR-105 Strict: both ends are our Go binaries, so hybrid ML-KEM or nothing.
+	return pqtls.ApplyStrict(&tls.Config{
 		Certificates: []tls.Certificate{cert},
 		ClientAuth:   tls.RequireAndVerifyClientCert,
 		ClientCAs:    rootCA,
-		MinVersion:   tls.VersionTLS12,
-	}, nil
+		MinVersion:   tls.VersionTLS13,
+	}), nil
 }
 
 // ClientTLSConfig returns a tls.Config for a gRPC/HTTP client using mTLS.
@@ -110,11 +113,11 @@ func ClientTLSConfig(cfg Config) (*tls.Config, error) {
 		return nil, fmt.Errorf("mtls: load root CA: %w", err)
 	}
 
-	return &tls.Config{
+	return pqtls.ApplyStrict(&tls.Config{ // ADR-105 Strict
 		Certificates: []tls.Certificate{cert},
 		RootCAs:      rootCA,
-		MinVersion:   tls.VersionTLS12,
-	}, nil
+		MinVersion:   tls.VersionTLS13,
+	}), nil
 }
 
 func loadCACertPool(caPath string) (*x509.CertPool, error) {
@@ -355,19 +358,19 @@ func (cr *CertRotator) reload() error {
 
 // RotatingServerTLSConfig returns a TLS config that auto-rotates certificates.
 func RotatingServerTLSConfig(rotator *CertRotator) *tls.Config {
-	return &tls.Config{
+	return pqtls.ApplyStrict(&tls.Config{ // ADR-105 Strict
 		GetCertificate: rotator.GetCertificate,
 		ClientAuth:     tls.RequireAndVerifyClientCert,
 		ClientCAs:      rotator.CAPool(),
-		MinVersion:     tls.VersionTLS12,
-	}
+		MinVersion:     tls.VersionTLS13,
+	})
 }
 
 // RotatingClientTLSConfig returns a TLS config that auto-rotates certificates.
 func RotatingClientTLSConfig(rotator *CertRotator) *tls.Config {
-	return &tls.Config{
+	return pqtls.ApplyStrict(&tls.Config{ // ADR-105 Strict
 		GetClientCertificate: rotator.GetClientCertificate,
 		RootCAs:              rotator.CAPool(),
-		MinVersion:           tls.VersionTLS12,
-	}
+		MinVersion:           tls.VersionTLS13,
+	})
 }

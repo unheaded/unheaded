@@ -857,7 +857,7 @@ func (b *Builder) TLS(certFile, keyFile string) *Builder {
 	b.config.TLS = &TLSConfig{
 		CertFile:   certFile,
 		KeyFile:    keyFile,
-		MinVersion: "1.2",
+		MinVersion: "1.3", // ADR-105: hybrid ML-KEM needs TLS 1.3
 	}
 	return b
 }

@@ -11,6 +11,8 @@ import (
 	"net"
 	"sync"
 	"time"
+
+	pqtls "unheaded/pkg/tls"
 )
 
 var (
@@ -51,7 +53,7 @@ func DefaultConfig(trustDomain, serviceName string) *Config {
 		Namespace:      "default",
 		CertValidity:   DefaultCertValidity,
 		RotationBuffer: DefaultRotationBuffer,
-		MinVersion:     tls.VersionTLS12,
+		MinVersion:     tls.VersionTLS13, // ADR-105: ML-KEM exists only in TLS 1.3
 		MaxVersion:     tls.VersionTLS13,
 		CipherSuites: []uint16{
 			tls.TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
@@ -291,9 +293,10 @@ func (m *Manager) buildTLSConfigs() {
 	// Server config.
 	// SessionTicketsDisabled = true so that resumed sessions cannot bypass
 	// the VerifyPeerCertificate callback (gosec G123 / CWE-295).
-	// MinVersion is floored to TLS 1.2 below; gosec G402 cannot see the
-	// floor logic in DefaultConfig() (returns tls.VersionTLS12).
-	m.serverConfig = &tls.Config{ //nolint:gosec // MinVersion floored to TLS 1.2 in DefaultConfig
+	// ADR-105 Strict: pqtls.ApplyStrict floors MinVersion to TLS 1.3 (whatever
+	// the Config says) and offers hybrid ML-KEM groups only; gosec G402 cannot
+	// see that floor.
+	m.serverConfig = pqtls.ApplyStrict(&tls.Config{ //nolint:gosec // MinVersion floored to TLS 1.3 by pqtls.ApplyStrict
 		MinVersion:   m.config.MinVersion,
 		MaxVersion:   m.config.MaxVersion,
 		CipherSuites: m.config.CipherSuites,
@@ -304,10 +307,10 @@ func (m *Manager) buildTLSConfigs() {
 		},
 		VerifyPeerCertificate:  m.verifier.VerifyPeerCertificate,
 		SessionTicketsDisabled: true,
-	}
+	})
 
-	// Client config. Same session-ticket guard.
-	m.clientConfig = &tls.Config{ //nolint:gosec // MinVersion floored to TLS 1.2 in DefaultConfig
+	// Client config. Same session-ticket guard, same Strict profile.
+	m.clientConfig = pqtls.ApplyStrict(&tls.Config{ //nolint:gosec // MinVersion floored to TLS 1.3 by pqtls.ApplyStrict
 		MinVersion:   m.config.MinVersion,
 		MaxVersion:   m.config.MaxVersion,
 		CipherSuites: m.config.CipherSuites,
@@ -320,7 +323,7 @@ func (m *Manager) buildTLSConfigs() {
 		// above still runs even when true, so peer certs are not left unchecked
 		InsecureSkipVerify:     m.config.SkipVerify,
 		SessionTicketsDisabled: true,
-	}
+	})
 }
 
 func (m *Manager) getTLSCertificate() (*tls.Certificate, error) {
