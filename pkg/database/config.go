@@ -6,6 +6,7 @@ package database
 import (
 	"errors"
 	"fmt"
+	"net/netip"
 	"os"
 	"strings"
 )
@@ -15,6 +16,36 @@ import (
 // shipped fallback password is public, and it turns a missing setting into
 // a silent superuser login attempt instead of a startup error.
 var ErrMissingCredentials = errors.New("database credentials not set (credentials are not stored in this repo)")
+
+// ErrWeakTLS is returned by Connect (and CheckTLS) for an sslmode that
+// could carry the session in plaintext to another host. The Well accepts
+// TLS only (db/pg_hba.conf, ERDA 4.2), so a server that answers without it
+// over the network is not The Well; allow and prefer would fall back to
+// plaintext without a word.
+var ErrWeakTLS = errors.New("database sslmode must be require, verify-ca or verify-full (disable only on this host)")
+
+// CheckTLS refuses an sslmode that would let the session run without TLS
+// to anything but this host: allow and prefer anywhere, disable unless the
+// host is a loopback address, localhost or a Unix socket directory.
+func CheckTLS(c Config) error {
+	switch c.SSLMode {
+	case "require", "verify-ca", "verify-full":
+		return nil
+	case "disable":
+		if isLocalHost(c.Host) {
+			return nil
+		}
+	}
+	return fmt.Errorf("%w: sslmode %q for host %q", ErrWeakTLS, c.SSLMode, c.Host)
+}
+
+func isLocalHost(host string) bool {
+	if host == "localhost" || strings.HasPrefix(host, "/") || strings.HasPrefix(host, "@") {
+		return true
+	}
+	ip, err := netip.ParseAddr(host)
+	return err == nil && ip.Unmap().IsLoopback()
+}
 
 // Config holds PostgreSQL connection parameters.
 type Config struct {

@@ -19,6 +19,9 @@ func Connect(ctx context.Context, cfg Config) (*sql.DB, error) {
 	if cfg.User == "" || cfg.Password == "" {
 		return nil, ErrMissingCredentials
 	}
+	if err := CheckTLS(cfg); err != nil {
+		return nil, err
+	}
 	db, err := sql.Open("postgres", cfg.DSN())
 	if err != nil {
 		return nil, fmt.Errorf("database open: %w", err)

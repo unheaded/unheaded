@@ -66,6 +66,44 @@ func TestDSN_QuotesEveryValue(t *testing.T) {
 	}
 }
 
+// The Well accepts TLS only (db/pg_hba.conf). A client that would talk
+// without TLS to anything but this host, or fall back to plaintext when
+// asked (allow, prefer), is refused before it connects: a server that
+// answers without TLS there is not The Well.
+func TestConnect_RefusesWeakSSLMode(t *testing.T) {
+	for name, cfg := range map[string]Config{
+		"disable, network host":  {Host: "postgres", SSLMode: "disable"},
+		"disable, private IP":    {Host: "172.28.1.10", SSLMode: "disable"},
+		"disable, loopback name": {Host: "127.example.com", SSLMode: "disable"},
+		"prefer, loopback":       {Host: "127.0.0.1", SSLMode: "prefer"},
+		"allow, network host":    {Host: "the-well", SSLMode: "allow"},
+		"empty":                  {Host: "postgres", SSLMode: ""},
+		"unknown":                {Host: "postgres", SSLMode: "on"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg.Port, cfg.User, cfg.Password, cfg.DBName = "1", "ops_writer", "p", "unheaded_ops"
+			if _, err := Connect(context.Background(), cfg); !errors.Is(err, ErrWeakTLS) {
+				t.Fatalf("got %v, want ErrWeakTLS (before any connection attempt)", err)
+			}
+		})
+	}
+	for name, cfg := range map[string]Config{
+		"require":            {Host: "postgres", SSLMode: "require"},
+		"verify-full":        {Host: "the-well", SSLMode: "verify-full"},
+		"verify-ca":          {Host: "10.0.0.5", SSLMode: "verify-ca"},
+		"disable, 127.0.0.1": {Host: "127.0.0.1", SSLMode: "disable"},
+		"disable, ::1":       {Host: "::1", SSLMode: "disable"},
+		"disable, localhost": {Host: "localhost", SSLMode: "disable"},
+		"disable, socket":    {Host: "/var/run/postgresql", SSLMode: "disable"},
+	} {
+		t.Run("allowed "+name, func(t *testing.T) {
+			if err := CheckTLS(cfg); err != nil {
+				t.Fatalf("CheckTLS refused %+v: %v", cfg, err)
+			}
+		})
+	}
+}
+
 func unsetenv(t *testing.T, k string) {
 	t.Helper()
 	if err := os.Unsetenv(k); err != nil {
