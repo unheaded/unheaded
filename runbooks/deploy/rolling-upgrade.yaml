@@ -8,6 +8,11 @@ metadata:
   risk: high
   requires_sudo: true
 
+env:
+  # The packages scripts/build-all-debs.sh builds (unheaded-<binary>).
+  # `apt upgrade` would upgrade every package on the host, not these.
+  UNHEADED_PKGS: "unheaded-wotan unheaded-unheaded-daemon unheaded-dashboard-backend unheaded-kanban-app unheaded-akira unheaded-timeguru unheaded-captain unheaded-architect unheaded-micromanager"
+
 steps:
   - name: pre-flight-check
     action: shell
@@ -20,10 +25,14 @@ steps:
 
   - name: backup-state
     action: shell
-    command: |
-      sudo docker exec unheaded-postgres pg_dump -U unheaded -Fc unheaded_app > /var/backups/postgresql/pre-upgrade-$(date +%Y%m%d-%H%M).dump
-    description: "Backup The Well before upgrade"
-    verify: "test -f /var/backups/postgresql/pre-upgrade-*.dump"
+    # The nightly backup unit, run now: every database as well_backup, with
+    # globals, row counts and SHA256SUMS, then the offsite copy to east
+    # (scripts/db-backup.sh, wiki/Well-Backups.md). Type=oneshot, so start
+    # returns when the set is written and fails if it was not.
+    command: "sudo systemctl start unheaded-well-backup.service"
+    timeout: 1800
+    description: "Backup The Well before upgrade (a full backup set)"
+    verify: "test \"$(systemctl show -p Result --value unheaded-well-backup.service)\" = success && cat /srv/backups/unheaded-well/LATEST"
 
   - name: build-new-packages
     action: shell
@@ -42,25 +51,26 @@ steps:
   - name: upgrade-east-first
     action: shell
     command: |
-      ssh govan@east 'sudo apt update -qq && sudo apt upgrade -y 2>&1 | tail -10'
-    description: "Upgrade EAST first (canary)"
-    verify: "ssh govan@east 'systemctl is-active unheaded-wotan 2>/dev/null || echo not-running'"
+      ssh govan@east 'sudo apt-get update -qq && sudo apt-get install --only-upgrade -y ${UNHEADED_PKGS} 2>&1 | tail -10'
+    description: "Upgrade EAST's Unheaded packages first (canary)"
+    # `|| echo not-running` made this verify pass whether Wotan was up or not.
+    verify: "ssh govan@east 'systemctl is-active --quiet unheaded-wotan'"
 
   - name: verify-east-health
     action: shell
     command: |
-      ssh govan@east '~/tmp/unheaded/cmd/akira/akira --once 2>&1 | tail -5'
+      ssh govan@east '/opt/unheaded/bin/akira --once --config /opt/unheaded/etc/akira.yaml 2>&1 | tail -5'
     description: "Run Akira health sweep on EAST after upgrade"
     timeout: 30
 
   - name: upgrade-west
     action: shell
-    command: "sudo apt update -qq && sudo apt upgrade -y 2>&1 | tail -10"
-    description: "Upgrade WEST (primary)"
+    command: "sudo apt-get update -qq && sudo apt-get install --only-upgrade -y ${UNHEADED_PKGS} 2>&1 | tail -10"
+    description: "Upgrade WEST's Unheaded packages (primary)"
 
   - name: verify-west-health
     action: shell
-    command: "~/tmp/unheaded/cmd/akira/akira --once 2>&1 | tail -5"
+    command: "cd ~/tmp/unheaded && go run ./cmd/akira --once 2>&1 | tail -5"
 
   - name: post-upgrade-check
     action: shell
@@ -75,5 +85,6 @@ rollback:
     action: shell
     command: |
       echo "To rollback: sudo apt install unheaded-wotan=<previous_version>"
-      echo "Then restore DB: pg_restore -U unheaded -d unheaded_app /var/backups/postgresql/pre-upgrade-*.dump"
+      echo "Then, only if the upgrade damaged data: restore the set named in"
+      echo "/srv/backups/unheaded-well/LATEST (wiki/Well-Backups.md#restore)"
     when: "step.verify-east-health.failed"
