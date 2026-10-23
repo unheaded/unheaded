@@ -457,5 +457,5 @@ uses its own IPs and ports, listed in `SERVICES` at the top of the script):
 | [`CLAUDE.md`](CLAUDE.md) | Development standards, architecture, coding guidelines |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | 6-layer architecture deep dive |
 | [`references/timeline.md`](references/timeline.md) | Living roadmap (canonical source of truth) |
-| [`docs/UPC_REFERENCE_MANUAL.md`](docs/UPC_REFERENCE_MANUAL.md) | Unheaded Protocol Computer |
+| [`docs/specs/UPC_REFERENCE_MANUAL.md`](docs/specs/UPC_REFERENCE_MANUAL.md) | Unheaded Protocol Computer |
 | [`scripts/README.md`](scripts/README.md) | Deployment script documentation |

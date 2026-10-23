@@ -11,7 +11,7 @@
 # directory mounted, never on the host (no package code runs here, ADR-006's
 # rule for npm applied to pip). The image is the runners' Python (3.12).
 # After a bump: run this, add any new package names to the dependency
-# baseline (ADR-096), and scripts/check-pip-freshness.sh confirms the pins.
+# baseline (ADR-096), and scripts/check-tool-freshness.sh confirms the pins.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
