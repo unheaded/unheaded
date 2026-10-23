@@ -576,7 +576,7 @@ func TestArchitectService_Health_Unhealthy_NilNetwork(t *testing.T) {
 // ============================================================================
 
 func TestHTTPHandler_Ready_Success(t *testing.T) {
-	svc := New()
+	svc := persistentService(t)
 	handler := NewHTTPHandler(svc)
 	req, _ := http.NewRequest("GET", "/ready", nil)
 	rr := httptest.NewRecorder()
@@ -596,7 +596,7 @@ func TestHTTPHandler_Ready_Success(t *testing.T) {
 }
 
 func TestHTTPHandler_Ready_WrongMethod(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 	req, _ := http.NewRequest("POST", "/ready", nil)
 	rr := httptest.NewRecorder()
 
@@ -661,7 +661,7 @@ func TestHTTPHandler_Health_Unhealthy(t *testing.T) {
 // ============================================================================
 
 func TestHTTPHandler_AddNetworkNode_InvalidJSON(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 
 	body := bytes.NewReader([]byte("{not valid json"))
 	req, _ := http.NewRequest("POST", "/network/nodes", body)
@@ -676,7 +676,7 @@ func TestHTTPHandler_AddNetworkNode_InvalidJSON(t *testing.T) {
 }
 
 func TestHTTPHandler_AddNetworkNode_WrongMethod(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 	req, _ := http.NewRequest("GET", "/network/nodes", nil)
 	rr := httptest.NewRecorder()
 
@@ -692,7 +692,7 @@ func TestHTTPHandler_AddNetworkNode_WrongMethod(t *testing.T) {
 // ============================================================================
 
 func TestHTTPHandler_LogDesign_InvalidJSON(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 
 	body := bytes.NewReader([]byte("not json"))
 	req, _ := http.NewRequest("POST", "/design", body)
@@ -707,7 +707,7 @@ func TestHTTPHandler_LogDesign_InvalidJSON(t *testing.T) {
 }
 
 func TestHTTPHandler_LogDesign_WrongMethod(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 	req, _ := http.NewRequest("GET", "/design", nil)
 	rr := httptest.NewRecorder()
 
@@ -723,7 +723,7 @@ func TestHTTPHandler_LogDesign_WrongMethod(t *testing.T) {
 // ============================================================================
 
 func TestHTTPHandler_GetDesignDecisions_Empty(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 	req, _ := http.NewRequest("GET", "/design", nil)
 	rr := httptest.NewRecorder()
 
@@ -739,7 +739,7 @@ func TestHTTPHandler_GetDesignDecisions_Empty(t *testing.T) {
 // ============================================================================
 
 func TestADRManagement_FullWorkflow(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 
 	// Step 1: Log a proposed ADR
 	adr1 := ArchitectureDecision{
@@ -799,7 +799,7 @@ func TestADRManagement_FullWorkflow(t *testing.T) {
 // ============================================================================
 
 func TestDesignReviewWorkflow(t *testing.T) {
-	svc := New()
+	svc := persistentService(t)
 	handler := NewHTTPHandler(svc)
 
 	// 1. Add infrastructure services
@@ -1077,7 +1077,7 @@ func TestArchitectService_ConcurrentAllOps(t *testing.T) {
 // ============================================================================
 
 func TestHTTPHandler_ResponseContentType(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 
 	tests := []struct {
 		name    string

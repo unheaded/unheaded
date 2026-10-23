@@ -46,6 +46,7 @@ func main() {
 	wotanAddr := flag.String("wotan", "localhost:18000", "Wotan HTTP address")
 	logLevel := flag.String("log", "info", "Log level (debug, info, warn, error)")
 	useMock := flag.Bool("mock-wotan", false, "Use mock Wotan client for testing")
+	dataDir := flag.String("data-dir", os.Getenv("ARCHITECT_DATA_DIR"), "State directory (services, nodes, decisions); empty = read-only")
 	flag.Parse()
 
 	// Setup logging
@@ -117,6 +118,11 @@ func main() {
 		svc = architect.NewWithWotan(wotanConn)
 	} else {
 		svc = architect.New()
+	}
+	if *dataDir == "" {
+		log.Warn().Msg("no -data-dir / ARCHITECT_DATA_DIR: writes are refused (state could not survive a restart)")
+	} else if err := svc.EnablePersistence(*dataDir); err != nil {
+		log.Fatal().Err(err).Str("dir", *dataDir).Msg("architect state unreadable; refusing to start with an empty one")
 	}
 
 	// Start service (subscribes to alerts.critical and architecture.updates)

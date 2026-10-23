@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"unheaded/pkg/statefile"
 	wotanClient "unheaded/pkg/wotan-client"
 )
 
@@ -137,6 +138,68 @@ type ArchitectService struct {
 
 	// Degraded mode counter — messages dropped because Wotan is nil
 	wotanDrops int64
+
+	// state persists services, nodes and decisions; nil = not persisted,
+	// and the HTTP write handlers refuse (EnablePersistence).
+	state *statefile.File
+}
+
+// ErrPersist wraps a failed save; the change it was for is undone.
+var ErrPersist = errors.New("persist architect state")
+
+type persistedState struct {
+	Services  map[string]*Service     `json:"services"`
+	Nodes     map[string]*NetworkNode `json:"nodes"`
+	Decisions []ArchitectureDecision  `json:"decisions"`
+}
+
+const stateFileName = "architect-state.json"
+
+// EnablePersistence loads dir's state file (if any) and saves every later
+// change to it. Until 2026-10-23 architect kept everything in memory and a
+// restart lost it. A damaged file is an error, never an empty state.
+func (s *ArchitectService) EnablePersistence(dir string) error {
+	f := statefile.In(dir, stateFileName)
+	if f == nil {
+		return statefile.ErrNoDir
+	}
+	var st persistedState
+	if _, err := f.Load(&st); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, svc := range st.Services {
+		if svc != nil {
+			s.infra.Services[id] = svc
+		}
+	}
+	for id, n := range st.Nodes {
+		if n != nil {
+			s.network.Nodes[id] = n
+		}
+	}
+	s.infra.Decisions = append(s.infra.Decisions, st.Decisions...)
+	s.state = f
+	return nil
+}
+
+// Persistent reports whether writes reach disk.
+func (s *ArchitectService) Persistent() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.state != nil
+}
+
+// saveLocked writes the whole state; the caller holds s.mu.
+func (s *ArchitectService) saveLocked() error {
+	if s.state == nil {
+		return nil
+	}
+	if err := s.state.Save(persistedState{Services: s.infra.Services, Nodes: s.network.Nodes, Decisions: s.infra.Decisions}); err != nil {
+		return fmt.Errorf("%w: %v", ErrPersist, err)
+	}
+	return nil
 }
 
 // WotanDrops returns the total number of messages dropped because Wotan was nil.
@@ -300,7 +363,16 @@ func (s *ArchitectService) AddService(ctx context.Context, service *Service) err
 
 	service.CreatedAt = time.Now()
 	service.UpdatedAt = time.Now()
+	prev, had := s.infra.Services[service.ServiceID]
 	s.infra.Services[service.ServiceID] = service
+	if err := s.saveLocked(); err != nil {
+		if had {
+			s.infra.Services[service.ServiceID] = prev
+		} else {
+			delete(s.infra.Services, service.ServiceID)
+		}
+		return err
+	}
 
 	// Publish state change to Wotan
 	go s.publishStateChange(ctx, "service.added", map[string]interface{}{
@@ -407,7 +479,16 @@ func (s *ArchitectService) AddNetworkNode(ctx context.Context, node *NetworkNode
 
 	node.CreatedAt = time.Now()
 	node.UpdatedAt = time.Now()
+	prev, had := s.network.Nodes[node.NodeID]
 	s.network.Nodes[node.NodeID] = node
+	if err := s.saveLocked(); err != nil {
+		if had {
+			s.network.Nodes[node.NodeID] = prev
+		} else {
+			delete(s.network.Nodes, node.NodeID)
+		}
+		return err
+	}
 
 	// Publish state change to Wotan
 	go s.publishStateChange(ctx, "network.node_added", map[string]interface{}{
@@ -513,6 +594,10 @@ func (s *ArchitectService) LogDecision(ctx context.Context, decision *Architectu
 	decision.CreatedAt = time.Now()
 	decision.UpdatedAt = time.Now()
 	s.infra.Decisions = append(s.infra.Decisions, *decision)
+	if err := s.saveLocked(); err != nil {
+		s.infra.Decisions = s.infra.Decisions[:len(s.infra.Decisions)-1]
+		return err
+	}
 
 	// Publish state change to Wotan
 	go s.publishStateChange(ctx, "decision.logged", map[string]interface{}{

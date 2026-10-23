@@ -694,6 +694,16 @@ func TestFileStorage_DeleteDecision_NonexistentIsOK(t *testing.T) {
 	}
 }
 
+// A corrupt decision file stops startup; it used to be skipped silently,
+// which dropped that decision.
+func TestFileStorage_CorruptFileFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	os.WriteFile(filepath.Join(tmpDir, "bad.json"), []byte("{nope"), 0600)
+	if _, err := NewFileStorage(tmpDir); err == nil {
+		t.Fatal("NewFileStorage loaded a corrupt decision file")
+	}
+}
+
 func TestFileStorage_LoadAll_WithFiles(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -714,9 +724,6 @@ func TestFileStorage_LoadAll_WithFiles(t *testing.T) {
 	// Also write a non-JSON file — should be skipped
 	os.WriteFile(filepath.Join(tmpDir, "readme.txt"), []byte("ignored"), 0600)
 
-	// Also write a corrupt JSON — should be skipped
-	os.WriteFile(filepath.Join(tmpDir, "bad.json"), []byte("{nope"), 0600)
-
 	// Also create a subdirectory — should be skipped
 	os.MkdirAll(filepath.Join(tmpDir, "subdir"), 0700)
 
@@ -725,7 +732,7 @@ func TestFileStorage_LoadAll_WithFiles(t *testing.T) {
 		t.Fatalf("NewFileStorage failed: %v", err)
 	}
 
-	// Should have loaded 3 decisions (skipped txt, bad json, subdir)
+	// Should have loaded 3 decisions (skipped txt, subdir)
 	storage.mu.RLock()
 	count := len(storage.cache)
 	storage.mu.RUnlock()

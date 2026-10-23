@@ -5,6 +5,7 @@ package architect
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -12,6 +13,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/httputil"
+	"unheaded/pkg/statefile"
 )
 
 // HTTPHandler wraps the architect service and provides HTTP endpoints
@@ -30,6 +32,24 @@ func NewHTTPHandler(service *ArchitectService) *HTTPHandler {
 // ============================================================================
 // HELPER METHODS
 // ============================================================================
+
+// refuseReadOnly answers 503 to a write when state is not persisted: a
+// restart would lose it (it used to: architect kept everything in memory).
+func (h *HTTPHandler) refuseReadOnly(w http.ResponseWriter) bool {
+	if h.service.Persistent() {
+		return false
+	}
+	h.writeError(w, http.StatusServiceUnavailable, "READ_ONLY", statefile.ErrNoDir.Error())
+	return true
+}
+
+// statusFor: a failed save is the server's problem (503), not the request's.
+func statusFor(err error) int {
+	if errors.Is(err, ErrPersist) {
+		return http.StatusServiceUnavailable
+	}
+	return http.StatusBadRequest
+}
 
 func (h *HTTPHandler) writeError(w http.ResponseWriter, code int, errCode, message string) {
 	httputil.WriteError(w, code, errCode, message)
@@ -167,11 +187,15 @@ func (h *HTTPHandler) AddService(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.refuseReadOnly(w) {
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	if err := h.service.AddService(ctx, &service); err != nil {
-		h.writeError(w, http.StatusBadRequest, "ADD_SERVICE_FAILED",
+		h.writeError(w, statusFor(err), "ADD_SERVICE_FAILED",
 			fmt.Sprintf("failed to add service: %v", err))
 		return
 	}
@@ -227,11 +251,15 @@ func (h *HTTPHandler) AddNetworkNode(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.refuseReadOnly(w) {
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	if err := h.service.AddNetworkNode(ctx, &node); err != nil {
-		h.writeError(w, http.StatusBadRequest, "ADD_NODE_FAILED",
+		h.writeError(w, statusFor(err), "ADD_NODE_FAILED",
 			fmt.Sprintf("failed to add node: %v", err))
 		return
 	}
@@ -262,11 +290,15 @@ func (h *HTTPHandler) LogDesign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if h.refuseReadOnly(w) {
+		return
+	}
+
 	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	if err := h.service.LogDecision(ctx, &decision); err != nil {
-		h.writeError(w, http.StatusBadRequest, "LOG_DECISION_FAILED",
+		h.writeError(w, statusFor(err), "LOG_DECISION_FAILED",
 			fmt.Sprintf("failed to log decision: %v", err))
 		return
 	}

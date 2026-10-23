@@ -19,7 +19,7 @@ import (
 // ============================================================================
 
 func TestHTTPHandler_Health_Success(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 	req, _ := http.NewRequest("GET", "/health", nil)
 	rr := httptest.NewRecorder()
 
@@ -46,7 +46,7 @@ func TestHTTPHandler_Health_Success(t *testing.T) {
 func TestHTTPHandler_Health_ServesHEAD(t *testing.T) {
 	// Method limits live at registration (httputil.ProbeMethods); Health
 	// itself refused HEAD, which probes use.
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 	req, _ := http.NewRequest(http.MethodHead, "/health", nil)
 	rr := httptest.NewRecorder()
 
@@ -86,7 +86,7 @@ func TestHTTPHandler_GetInfrastructure_Success(t *testing.T) {
 }
 
 func TestHTTPHandler_GetInfrastructure_WrongMethod(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 	req, _ := http.NewRequest("POST", "/infrastructure", nil)
 	rr := httptest.NewRecorder()
 
@@ -98,7 +98,7 @@ func TestHTTPHandler_GetInfrastructure_WrongMethod(t *testing.T) {
 }
 
 func TestHTTPHandler_AddService_Success(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 
 	svc := createValidService()
 	body, _ := json.Marshal(svc)
@@ -122,7 +122,7 @@ func TestHTTPHandler_AddService_Success(t *testing.T) {
 }
 
 func TestHTTPHandler_AddService_InvalidJSON(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 
 	body := bytes.NewReader([]byte("{invalid json}"))
 	req, _ := http.NewRequest("POST", "/infrastructure/services", body)
@@ -137,7 +137,7 @@ func TestHTTPHandler_AddService_InvalidJSON(t *testing.T) {
 }
 
 func TestHTTPHandler_AddService_InvalidService(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 
 	svc := createValidService()
 	svc.ServiceID = "" // invalid
@@ -155,7 +155,7 @@ func TestHTTPHandler_AddService_InvalidService(t *testing.T) {
 }
 
 func TestHTTPHandler_AddService_WrongMethod(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 
 	req, _ := http.NewRequest("GET", "/infrastructure/services", nil)
 	rr := httptest.NewRecorder()
@@ -196,7 +196,7 @@ func TestHTTPHandler_GetNetwork_Success(t *testing.T) {
 }
 
 func TestHTTPHandler_GetNetwork_WrongMethod(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 	req, _ := http.NewRequest("DELETE", "/network", nil)
 	rr := httptest.NewRecorder()
 
@@ -208,7 +208,7 @@ func TestHTTPHandler_GetNetwork_WrongMethod(t *testing.T) {
 }
 
 func TestHTTPHandler_AddNetworkNode_Success(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 
 	node := createValidNetworkNode()
 	body, _ := json.Marshal(node)
@@ -232,7 +232,7 @@ func TestHTTPHandler_AddNetworkNode_Success(t *testing.T) {
 }
 
 func TestHTTPHandler_AddNetworkNode_InvalidNode(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 
 	node := createValidNetworkNode()
 	node.NodeID = "" // invalid
@@ -254,7 +254,7 @@ func TestHTTPHandler_AddNetworkNode_InvalidNode(t *testing.T) {
 // ============================================================================
 
 func TestHTTPHandler_LogDesign_Success(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 
 	decision := createValidDecision()
 	body, _ := json.Marshal(decision)
@@ -278,7 +278,7 @@ func TestHTTPHandler_LogDesign_Success(t *testing.T) {
 }
 
 func TestHTTPHandler_LogDesign_InvalidDecision(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 
 	decision := createValidDecision()
 	decision.Title = "" // invalid
@@ -320,7 +320,7 @@ func TestHTTPHandler_GetDesignDecisions_Success(t *testing.T) {
 }
 
 func TestHTTPHandler_GetDesignDecisions_WrongMethod(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 	req, _ := http.NewRequest("POST", "/design", nil)
 	rr := httptest.NewRecorder()
 
@@ -336,7 +336,7 @@ func TestHTTPHandler_GetDesignDecisions_WrongMethod(t *testing.T) {
 // ============================================================================
 
 func TestHTTPHandler_ErrorResponse_Format(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 	req, _ := http.NewRequest("INVALID", "/infrastructure", nil)
 	rr := httptest.NewRecorder()
 
@@ -354,7 +354,7 @@ func TestHTTPHandler_ErrorResponse_Format(t *testing.T) {
 }
 
 func TestHTTPHandler_SuccessResponse_HasTimestamp(t *testing.T) {
-	handler := NewHTTPHandler(nil)
+	handler := NewHTTPHandler(persistentService(t))
 	req, _ := http.NewRequest("GET", "/health", nil)
 	rr := httptest.NewRecorder()
 
@@ -392,4 +392,15 @@ func TestNewHTTPHandler_WithService(t *testing.T) {
 	if handler.service != service {
 		t.Errorf("handler.service != service")
 	}
+}
+
+// persistentService is an ArchitectService whose writes reach disk; the
+// HTTP write handlers refuse without that.
+func persistentService(t *testing.T) *ArchitectService {
+	t.Helper()
+	svc := New()
+	if err := svc.EnablePersistence(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	return svc
 }

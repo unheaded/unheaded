@@ -59,7 +59,7 @@ func decodeEnvelopeData(t *testing.T, w *httptest.ResponseRecorder) map[string]i
 
 // TestHealth returns 200 OK
 func TestHealth(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -80,7 +80,7 @@ func TestHealth(t *testing.T) {
 
 // TestGetBacklog_Empty returns empty list
 func TestGetBacklog_Empty(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -100,7 +100,7 @@ func TestGetBacklog_Empty(t *testing.T) {
 
 // TestGetBacklog_WithTasks returns task list
 func TestGetBacklog_WithTasks(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task1 := NewTask("task-1", "First", "owner")
 	task2 := NewTask("task-2", "Second", "owner")
 	store.Create(task1)
@@ -125,7 +125,7 @@ func TestGetBacklog_WithTasks(t *testing.T) {
 
 // TestGetBacklog_InvalidMethod rejects non-GET
 func TestGetBacklog_InvalidMethod(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -140,7 +140,7 @@ func TestGetBacklog_InvalidMethod(t *testing.T) {
 
 // TestCreateTask_HappyPath creates a task
 func TestCreateTask_HappyPath(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -171,7 +171,7 @@ func TestCreateTask_HappyPath(t *testing.T) {
 
 // TestCreateTask_EmptyBody rejects empty body
 func TestCreateTask_EmptyBody(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -187,7 +187,7 @@ func TestCreateTask_EmptyBody(t *testing.T) {
 
 // TestCreateTask_EmptyTitle rejects empty title
 func TestCreateTask_EmptyTitle(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -210,7 +210,7 @@ func TestCreateTask_EmptyTitle(t *testing.T) {
 
 // TestCreateTask_InvalidPriority rejects out-of-range priority
 func TestCreateTask_InvalidPriority(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -233,7 +233,7 @@ func TestCreateTask_InvalidPriority(t *testing.T) {
 
 // TestCreateTask_MissingOwner rejects missing owner
 func TestCreateTask_MissingOwner(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -256,7 +256,7 @@ func TestCreateTask_MissingOwner(t *testing.T) {
 
 // TestCreateTask_InvalidMethod rejects non-POST
 func TestCreateTask_InvalidMethod(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -271,7 +271,7 @@ func TestCreateTask_InvalidMethod(t *testing.T) {
 
 // TestUpdateTask_HappyPath updates a task
 func TestUpdateTask_HappyPath(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task := NewTask("task-1", "Original", "owner")
 	store.Create(task)
 
@@ -303,7 +303,7 @@ func TestUpdateTask_HappyPath(t *testing.T) {
 
 // TestUpdateTask_NotFound returns 404
 func TestUpdateTask_NotFound(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -323,7 +323,7 @@ func TestUpdateTask_NotFound(t *testing.T) {
 
 // TestUpdateTask_InvalidStatus rejects invalid status
 func TestUpdateTask_InvalidStatus(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task := NewTask("task-1", "Task", "owner")
 	store.Create(task)
 
@@ -346,7 +346,7 @@ func TestUpdateTask_InvalidStatus(t *testing.T) {
 
 // TestUpdateTask_InvalidMethod rejects non-PUT
 func TestUpdateTask_InvalidMethod(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -361,7 +361,7 @@ func TestUpdateTask_InvalidMethod(t *testing.T) {
 
 // TestUpdateTask_EmptyTaskID rejects empty task ID in path
 func TestUpdateTask_EmptyTaskID(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -377,7 +377,7 @@ func TestUpdateTask_EmptyTaskID(t *testing.T) {
 
 // TestUpdateTask_EmptyBody rejects empty request body
 func TestUpdateTask_EmptyBody(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task := NewTask("task-1", "Task", "owner")
 	store.Create(task)
 
@@ -395,7 +395,7 @@ func TestUpdateTask_EmptyBody(t *testing.T) {
 
 // TestUpdateTask_InvalidJSON rejects invalid JSON body
 func TestUpdateTask_InvalidJSON(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task := NewTask("task-1", "Task", "owner")
 	store.Create(task)
 
@@ -413,7 +413,7 @@ func TestUpdateTask_InvalidJSON(t *testing.T) {
 
 // TestUpdateTask_Description updates description field
 func TestUpdateTask_Description(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task := NewTask("task-1", "Task", "owner")
 	store.Create(task)
 
@@ -441,7 +441,7 @@ func TestUpdateTask_Description(t *testing.T) {
 
 // TestUpdateTask_Assignee updates assignee field
 func TestUpdateTask_Assignee(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task := NewTask("task-1", "Task", "owner")
 	store.Create(task)
 
@@ -469,7 +469,7 @@ func TestUpdateTask_Assignee(t *testing.T) {
 
 // TestUpdateTask_StatusToCompleted updates status to completed
 func TestUpdateTask_StatusToCompleted(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task := NewTask("task-1", "Task", "owner")
 	store.Create(task)
 
@@ -500,7 +500,7 @@ func TestUpdateTask_StatusToCompleted(t *testing.T) {
 
 // TestUpdateTask_StatusToBlocked updates status to blocked (blocker detection)
 func TestUpdateTask_StatusToBlocked(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task := NewTask("task-1", "Task", "owner")
 	store.Create(task)
 
@@ -528,7 +528,7 @@ func TestUpdateTask_StatusToBlocked(t *testing.T) {
 
 // TestUpdateTask_InvalidPriority rejects invalid priority via update
 func TestUpdateTask_InvalidPriority(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task := NewTask("task-1", "Task", "owner")
 	store.Create(task)
 
@@ -551,7 +551,7 @@ func TestUpdateTask_InvalidPriority(t *testing.T) {
 
 // TestCreateTask_WithTagsAndDescription creates task with optional fields
 func TestCreateTask_WithTagsAndDescription(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -591,7 +591,7 @@ func TestCreateTask_WithTagsAndDescription(t *testing.T) {
 
 // TestCreateTask_InvalidJSON rejects invalid JSON body
 func TestCreateTask_InvalidJSON(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -607,7 +607,7 @@ func TestCreateTask_InvalidJSON(t *testing.T) {
 
 // TestCreateTask_PriorityZero rejects priority of 0
 func TestCreateTask_PriorityZero(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -630,7 +630,7 @@ func TestCreateTask_PriorityZero(t *testing.T) {
 
 // TestGetSprintStatus_InvalidMethod rejects non-GET
 func TestGetSprintStatus_InvalidMethod(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -645,7 +645,7 @@ func TestGetSprintStatus_InvalidMethod(t *testing.T) {
 
 // TestGetSprintStatus_WithBlockedTasks includes blocked count
 func TestGetSprintStatus_WithBlockedTasks(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task1 := NewTask("task-1", "Blocked", "owner")
 	task1.Status = StatusBlocked
 	task2 := NewTask("task-2", "Pending", "owner")
@@ -763,7 +763,7 @@ func TestTaskToResponse_AllFields(t *testing.T) {
 
 // TestUpdateTask_TitleOnly updates only the title
 func TestUpdateTask_TitleOnly(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task := NewTask("task-1", "Original", "owner")
 	task.Priority = 2
 	store.Create(task)
@@ -796,7 +796,7 @@ func TestUpdateTask_TitleOnly(t *testing.T) {
 
 // TestUpdateTask_NoTaskIDInPath rejects path without task ID segment
 func TestUpdateTask_NoTaskIDInPath(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -813,7 +813,7 @@ func TestUpdateTask_NoTaskIDInPath(t *testing.T) {
 
 // TestUpdateTask_AllFieldsAtOnce updates all mutable fields in one request
 func TestUpdateTask_AllFieldsAtOnce(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task := NewTask("task-1", "Original", "owner")
 	store.Create(task)
 
@@ -857,7 +857,7 @@ func TestUpdateTask_AllFieldsAtOnce(t *testing.T) {
 
 // TestPrioritySorting_SprintStatus verifies tasks with different priorities appear in sprint status
 func TestPrioritySorting_SprintStatus(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 
 	// Create tasks with various priorities
 	for i := 1; i <= 5; i++ {
@@ -900,7 +900,7 @@ func TestPrioritySorting_SprintStatus(t *testing.T) {
 
 // TestBlockerDetection_FullWorkflow tests creating, blocking, and unblocking a task
 func TestBlockerDetection_FullWorkflow(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -969,7 +969,7 @@ func TestBlockerDetection_FullWorkflow(t *testing.T) {
 
 // TestQAGate_CompletionWorkflow tests the full task lifecycle (QA gate: pending -> in_progress -> completed)
 func TestQAGate_CompletionWorkflow(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 	api := NewAPI(store, service)
 
@@ -1029,7 +1029,7 @@ func TestQAGate_CompletionWorkflow(t *testing.T) {
 
 // TestProgressTracking_MultipleTaskLifecycles tracks progress across multiple tasks
 func TestProgressTracking_MultipleTaskLifecycles(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	service := NewService(store, nil)
 
 	// Create 10 tasks
@@ -1084,7 +1084,7 @@ func TestProgressTracking_MultipleTaskLifecycles(t *testing.T) {
 
 // TestGetSprintStatus returns sprint summary
 func TestGetSprintStatus(t *testing.T) {
-	store := NewStore()
+	store := persistentStore(t)
 	task1 := NewTask("task-1", "Pending", "owner")
 	task2 := NewTask("task-2", "InProgress", "owner")
 	task2.Status = StatusInProgress
@@ -1116,4 +1116,15 @@ func TestGetSprintStatus(t *testing.T) {
 	if int(data["completed"].(float64)) != 1 {
 		t.Errorf("completed = %d, want 1", int(data["completed"].(float64)))
 	}
+}
+
+// persistentStore is a Store whose writes reach disk; the API refuses
+// writes without that.
+func persistentStore(t *testing.T) *Store {
+	t.Helper()
+	s := NewStore()
+	if err := s.EnablePersistence(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	return s
 }

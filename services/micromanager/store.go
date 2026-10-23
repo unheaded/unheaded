@@ -4,14 +4,71 @@
 package micromanager
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 	"time"
+
+	"unheaded/pkg/statefile"
 )
 
 // Store manages task persistence (in-memory with mutex for concurrency)
 type Store struct {
 	tasks map[string]*Task
 	mu    sync.RWMutex
+
+	// state persists the tasks; nil = memory only, and the API refuses
+	// writes (EnablePersistence). Until 2026-10-23 there was no file at all
+	// and a restart lost every task.
+	state *statefile.File
+}
+
+// ErrPersist wraps a failed save; the change it was for is undone.
+var ErrPersist = errors.New("persist micromanager tasks")
+
+const stateFileName = "micromanager-tasks.json"
+
+// EnablePersistence loads dir's task file (if any) and saves every later
+// change to it. A damaged file is an error, never an empty board.
+func (s *Store) EnablePersistence(dir string) error {
+	f := statefile.In(dir, stateFileName)
+	if f == nil {
+		return statefile.ErrNoDir
+	}
+	tasks := map[string]*Task{}
+	if _, err := f.Load(&tasks); err != nil {
+		return err
+	}
+	for id, t := range tasks {
+		if t == nil || t.ID != id {
+			return fmt.Errorf("%s: entry %q does not carry its own id", f.Path, id)
+		}
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for id, t := range tasks {
+		s.tasks[id] = t
+	}
+	s.state = f
+	return nil
+}
+
+// Persistent reports whether writes reach disk.
+func (s *Store) Persistent() bool {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.state != nil
+}
+
+// saveLocked writes every task; the caller holds s.mu.
+func (s *Store) saveLocked() error {
+	if s.state == nil {
+		return nil
+	}
+	if err := s.state.Save(s.tasks); err != nil {
+		return fmt.Errorf("%w: %v", ErrPersist, err)
+	}
+	return nil
 }
 
 // NewStore creates a new task store
@@ -39,7 +96,23 @@ func (s *Store) Create(task *Task) error {
 	}
 
 	s.tasks[task.ID] = task
+	if err := s.saveLocked(); err != nil {
+		delete(s.tasks, task.ID)
+		return err
+	}
 	return nil
+}
+
+// GetCopy retrieves a copy of a task by ID: callers change the copy and hand
+// it to Update, so a half-applied change never reaches the store.
+func (s *Store) GetCopy(id string) (*Task, error) {
+	t, err := s.Get(id)
+	if err != nil {
+		return nil, err
+	}
+	c := *t
+	c.Tags = append([]string(nil), t.Tags...)
+	return &c, nil
 }
 
 // Get retrieves a task by ID
@@ -71,12 +144,17 @@ func (s *Store) Update(task *Task) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.tasks[task.ID]; !exists {
+	prev, exists := s.tasks[task.ID]
+	if !exists {
 		return ErrTaskNotFound
 	}
 
 	task.UpdatedAt = time.Now()
 	s.tasks[task.ID] = task
+	if err := s.saveLocked(); err != nil {
+		s.tasks[task.ID] = prev
+		return err
+	}
 	return nil
 }
 
@@ -89,11 +167,16 @@ func (s *Store) Delete(id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.tasks[id]; !exists {
+	prev, exists := s.tasks[id]
+	if !exists {
 		return ErrTaskNotFound
 	}
 
 	delete(s.tasks, id)
+	if err := s.saveLocked(); err != nil {
+		s.tasks[id] = prev
+		return err
+	}
 	return nil
 }
 

@@ -30,6 +30,7 @@ var (
 	port            = flag.String("port", "19003", "HTTP port to listen on")
 	wotanAddr       = flag.String("wotan", "", "Wotan address (host:port)")
 	logLevel        = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
+	dataDir         = flag.String("data-dir", os.Getenv("MICROMANAGER_DATA_DIR"), "State directory for tasks; empty = read-only")
 	readTimeout     = flag.Duration("read-timeout", 15*time.Second, "HTTP read timeout")
 	writeTimeout    = flag.Duration("write-timeout", 15*time.Second, "HTTP write timeout")
 	idleTimeout     = flag.Duration("idle-timeout", 60*time.Second, "HTTP idle timeout")
@@ -104,6 +105,11 @@ func main() {
 
 	// Create store
 	store := micromanager.NewStore()
+	if *dataDir == "" {
+		log.Warn().Msg("no -data-dir / MICROMANAGER_DATA_DIR: task writes are refused (they could not survive a restart)")
+	} else if err := store.EnablePersistence(*dataDir); err != nil {
+		log.Fatal().Err(err).Str("dir", *dataDir).Msg("task state unreadable; refusing to start with an empty board")
+	}
 
 	// Create Wotan client (if configured).
 	//

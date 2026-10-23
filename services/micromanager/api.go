@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"unheaded/pkg/httputil"
+	"unheaded/pkg/statefile"
 )
 
 // API provides HTTP handlers for the micromanager service
@@ -155,10 +156,14 @@ func (a *API) CreateTask(w http.ResponseWriter, r *http.Request) {
 		task.Tags = req.Tags
 	}
 
+	if a.refuseReadOnly(w) {
+		return
+	}
+
 	// Store task
 	if err := a.store.Create(task); err != nil {
 		log.Error().Err(err).Str("task_id", taskID).Msg("failed to create task")
-		a.error(w, "failed to create task", http.StatusInternalServerError)
+		a.error(w, "failed to create task", storeStatus(err))
 		return
 	}
 
@@ -187,7 +192,7 @@ func (a *API) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get existing task
-	task, err := a.store.Get(taskID)
+	task, err := a.store.GetCopy(taskID)
 	if err != nil {
 		if errors.Is(err, ErrTaskNotFound) {
 			a.error(w, "task not found", http.StatusNotFound)
@@ -246,10 +251,14 @@ func (a *API) UpdateTask(w http.ResponseWriter, r *http.Request) {
 		task.Assignee = assignee
 	}
 
+	if a.refuseReadOnly(w) {
+		return
+	}
+
 	// Store updated task
 	if err := a.store.Update(task); err != nil {
 		log.Error().Err(err).Str("task_id", taskID).Msg("failed to update task")
-		a.error(w, "failed to update task", http.StatusInternalServerError)
+		a.error(w, "failed to update task", storeStatus(err))
 		return
 	}
 
@@ -285,6 +294,24 @@ func (a *API) GetSprintStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 // error writes an error response using the shared httputil package.
+// refuseReadOnly answers 503 to a write when tasks are not persisted: a
+// restart would lose it (it used to: the store was memory only).
+func (a *API) refuseReadOnly(w http.ResponseWriter) bool {
+	if a.store.Persistent() {
+		return false
+	}
+	a.error(w, statefile.ErrNoDir.Error(), http.StatusServiceUnavailable)
+	return true
+}
+
+// storeStatus: a failed save is 503; anything else stays a 500.
+func storeStatus(err error) int {
+	if errors.Is(err, ErrPersist) {
+		return http.StatusServiceUnavailable
+	}
+	return http.StatusInternalServerError
+}
+
 func (a *API) error(w http.ResponseWriter, message string, code int) {
 	httputil.WriteError(w, code, http.StatusText(code), message)
 }

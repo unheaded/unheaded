@@ -47,10 +47,10 @@ func NewFileStorage(basePath string) (*FileStorage, error) {
 		cache:    make(map[string]*Decision),
 	}
 
-	// Load existing decisions
+	// Load existing decisions. A file that cannot be read or decoded stops
+	// startup: skipping it silently dropped that decision.
 	if err := fs.loadAll(context.Background()); err != nil {
-		// Log but don't fail on load error
-		return fs, nil
+		return nil, fmt.Errorf("load decisions: %w", err)
 	}
 
 	return fs, nil
@@ -230,12 +230,12 @@ func (fs *FileStorage) loadAll(ctx context.Context) error {
 
 		data, err := os.ReadFile(filePath) // #nosec G304 -- operator-configured path; no G304 site in this tree derives from an HTTP request (verified)
 		if err != nil {
-			continue // Skip on error
+			return fmt.Errorf("%s: %w", filePath, err)
 		}
 
 		var decision Decision
 		if err := json.Unmarshal(data, &decision); err != nil {
-			continue // Skip invalid files
+			return fmt.Errorf("%s: %w", filePath, err)
 		}
 
 		fs.cache[decision.ID] = &decision
