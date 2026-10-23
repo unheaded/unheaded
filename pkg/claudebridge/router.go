@@ -192,6 +192,9 @@ type RouteOutcome struct {
 	CostUSD       string  `json:"cost_usd"`
 	Stop          string  `json:"stop,omitempty"` // escalation_budget, not_escalated, local_only, no_answer
 	Text          string  `json:"-"`
+	// CheckOutput is the last check's output, unredacted (for the
+	// operator's review note on this host; never put into a prompt).
+	CheckOutput string `json:"-"`
 }
 
 const maxCheckOutputInPrompt = 4 << 10
@@ -282,6 +285,7 @@ func (r *ThresholdRouter) Run(ctx context.Context, family, task string) (out Rou
 			out.Check = "error"
 			return out, cerr
 		}
+		out.CheckOutput = co.Output
 		if co.Pass {
 			out.Check, out.Text = "pass", ans.Text
 			return out, nil
@@ -343,6 +347,7 @@ func (r *ThresholdRouter) claudeLeg(ctx context.Context, out RouteOutcome, promp
 		out.Check = "error"
 		return out, cerr
 	}
+	out.CheckOutput = co.Output
 	out.Check = "fail"
 	if co.Pass {
 		out.Check = "pass"

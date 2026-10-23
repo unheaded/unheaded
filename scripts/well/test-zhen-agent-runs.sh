@@ -20,7 +20,8 @@
 #   7. app_zhen moves a card (status, commits) and takes FOR UPDATE SKIP
 #      LOCKED on it, but cannot change its title or delete it;
 #   8. pkg/zhenagent's SQL store (build tag wellint) against the same
-#      server as app_zhen (WELL_TEST_APP_DSN).
+#      server as app_zhen (WELL_TEST_APP_DSN; cards created as app_kanban,
+#      WELL_TEST_KANBAN_DSN); a skipped Go test counts as a failure.
 #
 #   scripts/well/test-zhen-agent-runs.sh [--sql-only] [--keep] [image]   # default postgres:16.15-alpine
 #
@@ -174,12 +175,13 @@ refused "hard delete of a card with runs" sq "DELETE FROM kanban_tasks WHERE id 
 # 8. The Go store against this server.
 if ((GO)); then
 	export WELL_TEST_APP_DSN="postgres://app_zhen:$ZPW@127.0.0.1:$PORT/unheaded_app?sslmode=disable"
-	if (cd "$R" && go test -count=1 -tags wellint ./pkg/zhenagent/ -run Well -v >"$TMP/go.out" 2>&1); then
+	export WELL_TEST_KANBAN_DSN="postgres://app_kanban:$KPW@127.0.0.1:$PORT/unheaded_app?sslmode=disable"
+	if (cd "$R" && go test -count=1 -race -tags wellint ./pkg/zhenagent/ -run Well -v >"$TMP/go.out" 2>&1) && grep -q '^--- PASS: TestWellAgentRuns' "$TMP/go.out"; then
 		pass "go test -tags wellint ./pkg/zhenagent -run Well"
 	else
 		fail "go store test"; tail -25 "$TMP/go.out" | sed 's/^/    /'
 	fi
-	unset WELL_TEST_APP_DSN
+	unset WELL_TEST_APP_DSN WELL_TEST_KANBAN_DSN
 fi
 
 if ((KEEP)); then

@@ -28,6 +28,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"net/url"
 	"os"
@@ -76,6 +77,8 @@ func main() {
 		confirmQ     = flag.Bool("confirm-queue", false, "queue agent-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with `zhen-claude confirm`")
 		auditWotan   = flag.Bool("audit-wotan", false, "also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
 	)
+	var wf workerFlags
+	registerWorkerFlags(flag.CommandLine, &wf)
 	flag.Parse()
 
 	vorURL := envOr("VOR_URL", defaultVorURL)
@@ -145,6 +148,34 @@ func main() {
 		fatal("confirm-queue init: %v", err)
 	}
 	defer closeQueue()
+
+	workerCtx, stopWorker := context.WithCancel(context.Background())
+	defer stopWorker()
+	workerDone := make(chan struct{})
+	if wf.enabled {
+		wlog := slog.New(slog.NewJSONHandler(os.Stderr, nil)).With("service", "zhen-agentd")
+		w, closeWorker, err := buildWorker(workerCtx, wf, rootAbs, llamaURL, "interactive", aud, wlog)
+		defer closeWorker()
+		if err != nil {
+			fatal("worker init: %v", err)
+		}
+		if wf.once {
+			res, err := w.runOnce(workerCtx)
+			fmt.Println(resultJSON(res))
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "zhen-agentd: worker: %v\n", err)
+				aud.close()
+				os.Exit(1)
+			}
+			return
+		}
+		go func() { defer close(workerDone); workerLoop(workerCtx, w, wf.poll, wlog) }()
+	} else {
+		close(workerDone)
+		if wf.once {
+			fatal("-once needs -worker")
+		}
+	}
 
 	httpClient := &http.Client{Timeout: httpTimeout}
 	srv := &server{
@@ -232,7 +263,14 @@ func main() {
 		}
 	}
 
-	// Graceful shutdown.
+	// Graceful shutdown: the worker first (a card in flight is cancelled,
+	// nothing partial is committed), then the listener.
+	stopWorker()
+	select {
+	case <-workerDone:
+	case <-time.After(shutdownTimeout):
+		fmt.Fprintln(os.Stderr, "zhen-agentd: worker did not stop in time")
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
 	defer cancel()
 	if err := httpSrv.Shutdown(ctx); err != nil {

@@ -88,6 +88,15 @@ var (
 		[]string{"outcome"},
 	)
 
+	agentWorkerRuns = auto.NewCounterVec(
+		prom.CounterOpts{
+			Namespace: "zhen_agentd",
+			Name:      "worker_runs_total",
+			Help:      "Kanban cards the -worker finished, by outcome (succeeded, failed, cancelled).",
+		},
+		[]string{"outcome"},
+	)
+
 	rateLimitedRequests = auto.NewCounter(
 		prom.CounterOpts{
 			Namespace: "zhen_agentd",
