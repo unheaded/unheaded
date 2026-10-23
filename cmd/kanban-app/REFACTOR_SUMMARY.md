@@ -75,7 +75,7 @@ ErrMarshalFailed, ErrPublishFailed, ErrSubscribeFailed
 
 ### 4. Replace Hardcoded Tasks ✅
 **Implementation:**
-- TaskManager loads `getInitialTasks()` on `Initialize()`
+- TaskManager loaded the hardcoded Genesis seed on `Initialize()` (gone since S-TWO-BRAINS Phase 13: the cards are the Well's, migration 034)
 - Subscribes to `tasks.*` topic
 - Streams messages in background goroutine
 - Updates local task cache on Wotan events

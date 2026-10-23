@@ -537,6 +537,23 @@ class TestCapture(unittest.TestCase):
         self.assertFalse(rec["truncated"])
         self.assertEqual(len(rec["id"]), 32)
 
+    def test_linking_fields(self):
+        # S-TWO-BRAINS Step 351: every call gets its own conversation_id;
+        # task_family is passed through when the caller names a valid one.
+        with _llm_env(self.fake.url, ZHEN_CAPTURE_DIR=self.dir):
+            _call("local_llm", {"prompt": "a", "task_family": "repo-task"})
+            _call("local_llm", {"prompt": "b", "task_family": "Not A Family!"})
+            _call("local_llm", {"prompt": "c"})
+        a, b, c = self._lines()
+        self.assertEqual(a["task_family"], "repo-task")
+        self.assertNotIn("task_family", b)
+        self.assertNotIn("task_family", c)
+        ids = {r["conversation_id"] for r in (a, b, c)}
+        self.assertEqual(len(ids), 3)
+        for r in (a, b, c):
+            self.assertRegex(r["conversation_id"], r"^[0-9a-f]{32}$")
+            self.assertNotIn("author_kind", r)
+
     def test_failure_is_captured_too(self):
         with _llm_env(_closed_port_url(), ZHEN_CAPTURE_DIR=self.dir):
             res = _call("local_llm", {"prompt": "hi"})

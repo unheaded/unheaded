@@ -105,6 +105,14 @@ form gets through, which is why the directory rules above exist as well.
 | `cost_usd` | Claude spend for the turn, decimal string; absent when no Claude request was sent |
 | `redactions`, `truncated` | set by the writer |
 | `local_only` | present and `true` when the turn was marked keep-local (`-local-only` / `local_only`): it never went to Claude |
+| `conversation_id` | the conversation the turn belongs to: for `zhen-claude`, the id its `llm_requests` rows carry (an escalated turn takes the Claude conversation's id); for `local_llm`, a fresh id per call. Used by `zhen-flywheel label` to join outcomes |
+| `run_id` | the `zhen_agent_runs` id when an agent run produced the turn |
+| `task_family` | the routing or eval family (`configs/zhen-routing.yaml`); `local_llm` takes it from its optional `task_family` argument |
+| `author_kind` | `human` when `final` is human-written text; absent otherwise (each leg's author is the leg: local or Claude) |
+
+The last four are optional and were added after v1 shipped (a new optional
+field does not bump the schema). Captures become training data through
+`cmd/zhen-flywheel` (`wiki/Zhen-Training-Data.md`).
 
 Absent legs are omitted, not null. Errors are strings; an empty string means
 none.

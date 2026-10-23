@@ -433,6 +433,16 @@ provoke_k8s_well_initdb() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_kanban_genesis() {
+    # Contract (S-TWO-BRAINS Step 421): 034 is the JSON, rendered. Edit a
+    # card in the JSON without re-rendering.
+    local f="db/seed/kanban-genesis.json"
+    backup "${f}"
+    sed -i 's/"Crest (Kanban Frontend)"/"Crest (Kanban Frontend, edited)"/' "${REPO_ROOT}/${f}"
+    grep -q 'Kanban Frontend, edited' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_actions_pinned() {
     # Contract (ADR-095): no action on a mutable tag. Unpin checkout in
     # security.yml's first job.
@@ -544,6 +554,16 @@ provoke_well_zhen_agent_runs() {
     backup "${f}"
     sed -i '/zhen_agent_runs_one_active/d' "${REPO_ROOT}/${f}"
     ! grep -q 'zhen_agent_runs_one_active' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_zhen_captures() {
+    # Contract (S-TWO-BRAINS Step 346): re-labelling is idempotent, one
+    # label per (capture, kind, source row). Turn the UNIQUE into a no-op.
+    local f="db/migrations/033_app_zhen_captures.sql"
+    backup "${f}"
+    sed -i 's/CONSTRAINT zhen_capture_labels_once UNIQUE (capture_id, kind, source_ref)/CONSTRAINT zhen_capture_labels_once CHECK (true)/' "${REPO_ROOT}/${f}"
+    grep -q 'zhen_capture_labels_once CHECK (true)' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
@@ -737,6 +757,7 @@ check-no-client-golang|provoke_no_client_golang|fast|an untracked Go file import
 check-well-migrations|provoke_well_migrations|fast|an untracked migration file the MANIFEST does not route
 check-well-lint|provoke_well_lint|fast|service code that runs CREATE TABLE at startup (a new ddl-outside-ledger finding)
 check-k8s-well-initdb|provoke_k8s_well_initdb|fast|a migration edited without re-rendering the Kubernetes initdb ConfigMap
+check-kanban-genesis|provoke_kanban_genesis|fast|a Genesis card title edited in db/seed/kanban-genesis.json without re-rendering migration 034
 check-actions-pinned|provoke_actions_pinned|fast|actions/checkout unpinned back to @v4 in security.yml
 check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package added to raft/requirements.txt
 check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
@@ -761,6 +782,7 @@ well/test-pq-groups|provoke_well_pq_groups|slow|the hybrid group removed from th
 well/test-llm-requests|provoke_well_llm_requests|slow|llm_requests' UPDATE/DELETE trigger removed from 030 (needs docker)
 well/test-zhen-confirm|provoke_well_zhen_confirm|slow|the one-way transition trigger removed from 031 (needs docker)
 well/test-zhen-agent-runs|provoke_well_zhen_agent_runs|slow|the one-active-run index removed from 032, so a claim race has several winners (needs docker)
+well/test-zhen-captures|provoke_well_zhen_captures|slow|the one-label-per-source UNIQUE on zhen_capture_labels turned into CHECK (true) in 033 (needs docker)
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)

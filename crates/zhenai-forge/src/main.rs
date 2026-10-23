@@ -36,11 +36,14 @@ fn main() {
             eprintln!("                            --data <prepokenized.jsonl>");
             eprintln!("                            [--rank 16] [--alpha 32]");
             eprintln!("                            [--lr 3e-4] [--steps 100]");
-            eprintln!("                            [--answer-start 1] [--cpu]");
+            eprintln!("                            [--answer-start 1] [--cpu] [--strict-data]");
             eprintln!("    Train a Gemma 4 LoRA via the WAVE10F path. Defaults to GPU");
             eprintln!("    (all 14 matmul sites on hipBLAS, ~2s/step warm on E2B). Pass");
             eprintln!("    --cpu to force the CPU fallback (~55-95s/step). Data file is");
-            eprintln!("    JSONL with one {{\"tokens\": [int, ...]}} object per line.");
+            eprintln!("    JSONL with one {{\"tokens\": [int, ...], \"answer_start\": int}} object per line.");
+            eprintln!("    --strict-data (train-gemma4, eval-gemma4): refuse the file, naming the");
+            eprintln!("    line, on any unparseable line, extra key, missing or out-of-range");
+            eprintln!("    answer_start; without it, dropped and defaulted lines are printed.");
             eprintln!("    Tokenize upstream — forge does not include a Gemma 4 tokenizer.");
             eprintln!();
             eprintln!("  zhenai-forge eval   --model <model.gguf>   Evaluate model");
@@ -51,18 +54,44 @@ fn main() {
     }
 }
 
-/// One pre-tokenized RAFT example. Schema mirrors
-/// `scripts/tokenize-kingdom-for-gemma4.py`:
+/// One pre-tokenized example (`tokdata`):
 ///     {"tokens": [int, ...], "answer_start": int}
 ///
 /// `answer_start` is the index of the first token after the prompt portion;
 /// loss is applied only to positions `[answer_start..tokens.len()-1]` during
-/// training. When the field is absent we fall back to the CLI flag value.
-#[derive(serde::Deserialize)]
-struct TrainExample {
-    tokens: Vec<u32>,
-    #[serde(default)]
-    answer_start: Option<usize>,
+/// training. With `--strict-data` it is required and in range; without it,
+/// an example lacking it falls back to `--answer-start`, and the loader says
+/// how many did.
+type TrainExample = tokdata::TokExample;
+
+/// Read and parse a data file, exiting 1 with the reason (and line) when it
+/// is refused; non-strict loads print what they dropped or defaulted.
+fn load_tok_data(
+    path: &str,
+    what: &str,
+    strict: bool,
+    cli_answer_start: usize,
+) -> Vec<TrainExample> {
+    let data = match std::fs::read_to_string(path) {
+        Ok(s) => s,
+        Err(e) => {
+            eprintln!("Failed to read {what} {path}: {e}");
+            std::process::exit(1);
+        }
+    };
+    match tokdata::parse_tokenized_jsonl(&data, strict) {
+        Ok(report) => {
+            tokdata::print_load_warnings(what, &report, cli_answer_start);
+            report.examples
+        }
+        Err(e) => {
+            eprintln!(
+                "{what} {path} refused{}: {e}",
+                if strict { " (--strict-data)" } else { "" }
+            );
+            std::process::exit(1);
+        }
+    }
 }
 
 fn cmd_train_gemma4(args: &[String]) {
@@ -76,6 +105,7 @@ fn cmd_train_gemma4(args: &[String]) {
     let mut answer_start: usize = 1;
     let mut save_every: usize = 0;
     let mut cpu_only: bool = false;
+    let mut strict_data = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -116,6 +146,10 @@ fn cmd_train_gemma4(args: &[String]) {
                 save_every = args[i + 1].parse().unwrap();
                 i += 2;
             }
+            "--strict-data" => {
+                strict_data = true;
+                i += 1;
+            }
             "--cpu" => {
                 cpu_only = true;
                 i += 1;
@@ -131,6 +165,19 @@ fn cmd_train_gemma4(args: &[String]) {
         eprintln!("--model and --data are required");
         std::process::exit(1);
     }
+
+    println!("Loading training data: {}", data_path);
+    // serde_json reads `answer_start` as an integer (the WAVE14 H6 root
+    // cause was a parser that absorbed it into the tokens; see
+    // notes/wave-14/wave14-h2h6-analysis.md). tokdata also refuses, under
+    // --strict-data, every way a line could be dropped or defaulted. The
+    // data is checked before the model is read, so a bad file costs nothing.
+    let examples = load_tok_data(&data_path, "training data", strict_data, answer_start);
+    println!(
+        "  Loaded {} examples{}",
+        examples.len(),
+        if strict_data { " (--strict-data)" } else { "" }
+    );
 
     println!("Loading Gemma 4 GGUF: {}", model_path);
     let model = match gguf::GgufFile::open(&model_path) {
@@ -154,28 +201,6 @@ fn cmd_train_gemma4(args: &[String]) {
     println!("  Active targets: {}", lora.n_active_targets());
     println!("  LoRA size:      {:.1} MB", lora.size_bytes() as f64 / 1e6);
 
-    println!("\nLoading training data: {}", data_path);
-    let data = match std::fs::read_to_string(&data_path) {
-        Ok(s) => s,
-        Err(e) => {
-            eprintln!("Failed to read data: {}", e);
-            std::process::exit(1);
-        }
-    };
-    // Use serde_json so the JSON `answer_start` field is read as an integer
-    // rather than absorbed into the tokens vector by a naive non-digit-split
-    // (the WAVE14 H6 root cause — see notes/wave14-h2h6-analysis.md).
-    let examples: Vec<TrainExample> = data
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .filter_map(|l| serde_json::from_str::<TrainExample>(l).ok())
-        .filter(|ex| ex.tokens.len() >= 2)
-        .collect();
-    println!("  Loaded {} examples", examples.len());
-    if examples.is_empty() {
-        eprintln!("No valid examples found");
-        std::process::exit(1);
-    }
     let n_with_answer_start = examples
         .iter()
         .filter(|ex| ex.answer_start.is_some())
@@ -533,6 +558,7 @@ fn cmd_eval_gemma4(args: &[String]) {
     let mut lora_path = String::new();
     let mut answer_start: usize = 1;
     let mut cpu_only = false;
+    let mut strict_data = false;
 
     let mut i = 0;
     while i < args.len() {
@@ -557,6 +583,10 @@ fn cmd_eval_gemma4(args: &[String]) {
                 cpu_only = true;
                 i += 1;
             }
+            "--strict-data" => {
+                strict_data = true;
+                i += 1;
+            }
             _ => {
                 eprintln!("unknown arg: {}", args[i]);
                 i += 1;
@@ -567,6 +597,13 @@ fn cmd_eval_gemma4(args: &[String]) {
         eprintln!("--model and --data are required");
         std::process::exit(1);
     }
+
+    println!("Loading eval data: {}", data_path);
+    // H7 fix (2026-04-29) — was using the same naive non-digit-split parser
+    // as the pre-fix cmd_train_gemma4 (H6). Migrated to serde_json so the
+    // JSON `answer_start` field is read as an integer rather than absorbed
+    // into the tokens vector. Checked before the model is read.
+    let parsed = load_tok_data(&data_path, "eval data", strict_data, answer_start);
 
     println!("Loading Gemma 4 GGUF: {}", model_path);
     let model = match gguf::GgufFile::open(&model_path) {
@@ -602,18 +639,6 @@ fn cmd_eval_gemma4(args: &[String]) {
         None
     };
 
-    println!("Loading eval data: {}", data_path);
-    // H7 fix (2026-04-29) — was using the same naive non-digit-split parser
-    // as the pre-fix cmd_train_gemma4 (H6). Migrated to serde_json so the
-    // JSON `answer_start` field is read as an integer rather than absorbed
-    // into the tokens vector. Mirrors `eval::load_tokenized_jsonl` shape.
-    let data = std::fs::read_to_string(&data_path).expect("read eval data");
-    let parsed: Vec<TrainExample> = data
-        .lines()
-        .filter(|l| !l.trim().is_empty())
-        .filter_map(|l| serde_json::from_str::<TrainExample>(l).ok())
-        .filter(|ex| ex.tokens.len() >= 2)
-        .collect();
     let n_with_answer_start = parsed.iter().filter(|ex| ex.answer_start.is_some()).count();
     let examples: Vec<Vec<u32>> = parsed.iter().map(|ex| ex.tokens.clone()).collect();
     let per_example_answer_starts: Vec<usize> = parsed

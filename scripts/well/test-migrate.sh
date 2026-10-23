@@ -19,6 +19,9 @@
 #      baselined through 016 without running anything, then apply runs
 #      017 onwards;
 #   9. kingdom_config refuses a change without a reason (028);
+#  10. the Genesis cards (034): a fresh Well gets every card of
+#      db/seed/kanban-genesis.json with its git dates; a Well that already
+#      has a board keeps exactly its cards; both ledgers record 034;
 #   8. owners (025/026): every object but the ledger belongs to its
 #      database's owner role, init.sh and apply create new objects as that
 #      owner unless the entry is flagged superuser, PUBLIC cannot connect
@@ -97,6 +100,15 @@ dups=$(sq unheaded_app "SELECT count(*) FROM pg_index a JOIN pg_index b ON a.ind
 	pass "003's zhen indexes kept" || fail "003's zhen indexes missing"
 [[ "$(sq unheaded_config "SELECT to_regclass('idx_compliance_host_bindings_profile') IS NOT NULL")" == t ]] &&
 	pass "bindings(profile) indexed" || fail "bindings(profile) not indexed"
+# 10. The Genesis cards (034): a fresh Well gets every card of
+# db/seed/kanban-genesis.json, with the dates git gave them.
+GJ="$R/db/seed/kanban-genesis.json"
+want_cards=$(python3 -c 'import json,sys; c=json.load(open(sys.argv[1])); print(len(c), min(x["created_at"] for x in c), max(x["updated_at"] for x in c))' "$GJ")
+got_cards=$(sq unheaded_app "SELECT count(*) || ' ' || to_char(min(created_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') || ' ' || to_char(max(updated_at) AT TIME ZONE 'UTC', 'YYYY-MM-DD\"T\"HH24:MI:SS\"Z\"') FROM kanban_tasks")
+[[ "$got_cards" == "$want_cards" ]] && pass "fresh Well: 034 seeded the Genesis cards with git's dates ($want_cards)" ||
+	fail "fresh Well Genesis: got [$got_cards], want [$want_cards]"
+[[ "$(sq unheaded_app "SELECT mode FROM well_schema_migrations WHERE filename = '034_app_kanban_genesis.sql'")" == initdb ]] &&
+	pass "034 recorded in the fresh ledger" || fail "034 not in the fresh ledger"
 
 # 8. Owners (ERDA 2.2).
 owner_of() { sq "$1" "SELECT pg_get_userbyid(relowner) FROM pg_class WHERE oid = '$2'::regclass"; }
@@ -220,7 +232,14 @@ expect 0 "old Well: baseline through 016" wm baseline -through 016_config_histor
 expect 3 "old Well: 017-019 still pending" wm status
 [[ "$(osq unheaded_config "SELECT count(*) FROM information_schema.columns WHERE table_name = 'kingdom_config_history' AND column_name = 'op'")" == 0 ]] &&
 	pass "baseline ran nothing (019's column absent)" || fail "baseline changed the schema"
+# 10. A Well that already has a board (the live one) keeps exactly its
+# cards: 034 records itself and inserts nothing.
+osq unheaded_app "INSERT INTO kanban_tasks (id, title) VALUES ('live-card', 'a card the live board already has')" >/dev/null
 expect 0 "old Well: apply the rest" wm apply -yes
+[[ "$(osq unheaded_app "SELECT string_agg(id, ',') FROM kanban_tasks")" == live-card ]] &&
+	pass "old Well: 034 left the existing board alone (1 card)" || fail "old Well board: $(osq unheaded_app "SELECT count(*) FROM kanban_tasks") cards"
+[[ "$(osq unheaded_app "SELECT mode FROM well_schema_migrations WHERE filename = '034_app_kanban_genesis.sql'")" == apply ]] &&
+	pass "034 recorded in the old Well's ledger (a no-op there)" || fail "034 not in the old Well's ledger"
 expect 0 "old Well: status clean" wm status
 [[ "$(osq unheaded_config "SELECT count(*) FROM information_schema.columns WHERE table_name = 'kingdom_config_history' AND column_name = 'op'")" == 1 ]] &&
 	pass "apply ran 019 on the old Well" || fail "019 not applied"

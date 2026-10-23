@@ -156,14 +156,10 @@ func NewServer(cfg Config) *Server {
 	if pgErr == nil {
 		pgStore, pgStoreErr := NewPgStore(pgDB)
 		if pgStoreErr == nil {
+			// The Well is the source of cards; a fresh Well gets the
+			// Genesis cards from migration 034, not from this binary.
 			s.store = pgStore
-			if _, err := pgStore.SeedIfEmpty(); err != nil {
-				log.Warn().Err(err).Msg("Postgres seed failed — falling back to SQLite")
-				pgStore.Close() // #nosec G104 -- logging call; a logging failure must not alter control flow
-				s.store = nil
-			} else {
-				log.Info().Msg("Postgres connected — kanban tasks persisted to The Well (standalone mode)")
-			}
+			log.Info().Msg("Postgres connected — kanban tasks persisted to The Well (standalone mode)")
 		} else {
 			log.Warn().Err(pgStoreErr).Msg("Postgres schema init failed — falling back to SQLite")
 			pgDB.Close() // #nosec G104 -- logging call; a logging failure must not alter control flow
@@ -178,19 +174,12 @@ func NewServer(cfg Config) *Server {
 		if cfg.DataDir == "" {
 			dbPath = "./data/kanban.db"
 		}
-		store, err := NewStore(dbPath)
+		store, err := openSQLiteStore(dbPath)
 		if err != nil {
-			log.Error().Err(err).Str("path", dbPath).Msg("failed to initialize SQLite store — falling back to in-memory")
-			s.tasks = getInitialTasks()
+			// No database: an empty, read-only board.
+			log.Error().Err(err).Str("path", dbPath).Msg("failed to initialize SQLite store — empty read-only board")
 		} else {
 			s.store = store
-			// Seed on first run (Genesis Event), no-op on subsequent starts
-			if _, err := store.SeedIfEmpty(); err != nil {
-				log.Error().Err(err).Msg("failed to seed store — falling back to in-memory")
-				s.store = nil
-				store.Close() // #nosec G104 -- failure here cannot change the outcome; the significant error is already being returned
-				s.tasks = getInitialTasks()
-			}
 		}
 	}
 
@@ -214,124 +203,6 @@ func NewServerWithTaskManager(cfg Config, tm *TaskManager, store TaskStore) *Ser
 	}
 	s.initMetrics()
 	return s
-}
-
-// getInitialTasks returns the full Unheaded Kingdom inventory.
-// Every armor piece, gnostic service, active task, vision item, and wishlist entry.
-// This is the COMPLETE view of the project — past, present, and future.
-//
-// CANONICAL SOURCE OF CARDS IS THE WELL (PostgreSQL), NOT THIS FUNCTION.
-// These literals are a ONE-TIME Genesis seed: SeedIfEmpty() writes them to the
-// store only when it is empty (fresh DB). At runtime the kanban pulls every card
-// FROM the store (Postgres → The Well, SQLite fallback). Editing cards here has NO
-// effect on an already-seeded board — add/edit cards via the kanban API so they
-// persist to The Well. This hardcoded inventory is a temporary bootstrap and must
-// not be treated as the system of record. (See pgstore.go / pkg/database, ADR-016.)
-// TODO: extract the Genesis seed out of the binary (e.g. a seed file in The Well).
-func getInitialTasks() []Task {
-	now := time.Now()
-	d := 24 * time.Hour // shorthand
-
-	return []Task{
-		// =====================================================================
-		// MILESTONES — high-level phase gates
-		// =====================================================================
-		{ID: "ms-phase0", Title: "Age 0: The Foundation Stone", Description: "Wotan message bus proves pub/sub patterns. 13,504 LOC shipped.", Status: "done", Type: "milestone", Owner: "Team", Progress: 100, CreatedAt: now.Add(-60 * d), UpdatedAt: now.Add(-45 * d)},
-		{ID: "ms-phase1", Title: "Age 1: The Alpha Ascension", Description: "Full infrastructure armor forged. 237K+ LOC. Target: Feb 2026.", Status: "in-progress", Type: "milestone", Owner: "Team", Progress: 96, CreatedAt: now.Add(-45 * d), UpdatedAt: now},
-		{ID: "ms-phase2", Title: "Age 2: The Beta Trials", Description: "Production hardening, multi-tenant isolation, performance tuning.", Status: "todo", Type: "milestone", Owner: "Team", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
-		{ID: "ms-phase3", Title: "Age 3: The MVP Era", Description: "Full compliance templates, self-healing infra, multi-cloud.", Status: "todo", Type: "milestone", Owner: "Team", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
-
-		// =====================================================================
-		// ARMOR PIECES — infrastructure components (The Knight's Armor)
-		// =====================================================================
-		{ID: "armor-shield", Title: "Shield (WAF)", Description: "Web Application Firewall. 6,057 LOC. Security verified.", Status: "done", Type: "infra", Owner: "Architect", Progress: 95, CreatedAt: now.Add(-40 * d), UpdatedAt: now.Add(-5 * d)},
-		{ID: "armor-hauberk", Title: "Hauberk (Service Mesh)", Description: "Full service discovery, circuit breakers, load-aware routing. 5,914 LOC.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 90, CreatedAt: now.Add(-38 * d), UpdatedAt: now},
-		{ID: "armor-pauldrons", Title: "Pauldrons (Load Balancer)", Description: "L4/L7 load balancing, Maglev consistent hashing, session persistence. 6,719 LOC.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 90, CreatedAt: now.Add(-36 * d), UpdatedAt: now},
-		{ID: "armor-sword", Title: "Sword (Deploy Pipeline)", Description: "Canary, blue-green, rolling deploys. 7,746 LOC.", Status: "in-progress", Type: "infra", Owner: "Developer", Progress: 85, CreatedAt: now.Add(-35 * d), UpdatedAt: now},
-		{ID: "armor-helm", Title: "Helm (DNS Resolver)", Description: "Full DNS-SD, DNSSEC, DoH/DoT. 4,462 LOC.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 85, CreatedAt: now.Add(-34 * d), UpdatedAt: now},
-		{ID: "armor-greaves", Title: "Greaves (Scheduler)", Description: "Bin-pack, affinity rules, preemption. 5,496 LOC.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 85, CreatedAt: now.Add(-33 * d), UpdatedAt: now},
-		{ID: "armor-cuirass", Title: "Cuirass (Control Plane)", Description: "Daemon + state management, API gateway.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 75, CreatedAt: now.Add(-32 * d), UpdatedAt: now},
-		{ID: "armor-gauntlets", Title: "Gauntlets (Container Runtime)", Description: "OCI-compliant, cgroups v2, namespace isolation. 6,955 LOC.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 75, CreatedAt: now.Add(-31 * d), UpdatedAt: now},
-		{ID: "armor-visor", Title: "Visor (Dashboard Backend)", Description: "WebSocket-ready metrics + event aggregation. 5,926 LOC.", Status: "in-progress", Type: "infra", Owner: "Developer", Progress: 70, CreatedAt: now.Add(-20 * d), UpdatedAt: now},
-		{ID: "armor-void", Title: "Whispering Void (eBPF)", Description: "Packet marking, flow tracing, latency probes. 7,196 LOC. Awaiting Linux env.", Status: "in-progress", Type: "infra", Owner: "Architect", Progress: 55, CreatedAt: now.Add(-28 * d), UpdatedAt: now},
-		{ID: "armor-crest", Title: "Crest (Kanban Frontend)", Description: "Real-time Kanban board with SSE + Wotan integration.", Status: "in-progress", Type: "infra", Owner: "Developer", Progress: 95, CreatedAt: now.Add(-10 * d), UpdatedAt: now},
-
-		// =====================================================================
-		// GNOSTIC SERVICES — state & wisdom layer
-		// =====================================================================
-		{ID: "gnostic-monad", Title: "Monad (The One)", Description: "Functional composition engine. ~500 LOC.", Status: "done", Type: "feature", Owner: "Architect", Progress: 100, CreatedAt: now.Add(-15 * d), UpdatedAt: now.Add(-10 * d)},
-		{ID: "gnostic-sophia", Title: "Sophia (Wisdom)", Description: "Knowledge/wisdom management service. ~700 LOC.", Status: "done", Type: "feature", Owner: "Architect", Progress: 100, CreatedAt: now.Add(-15 * d), UpdatedAt: now.Add(-10 * d)},
-		{ID: "gnostic-pleroma", Title: "Pleroma (Desired State)", Description: "Declarative desired state store. The fullness.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 70, CreatedAt: now.Add(-25 * d), UpdatedAt: now},
-		{ID: "gnostic-kenoma", Title: "Kenoma (Actual State)", Description: "Runtime actual state observer. The void/deficiency.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 70, CreatedAt: now.Add(-25 * d), UpdatedAt: now},
-		{ID: "gnostic-anamnesis", Title: "Anamnesis (Event History)", Description: "Immutable event log. Remembrance of all state transitions.", Status: "in-progress", Type: "feature", Owner: "Developer", Progress: 60, CreatedAt: now.Add(-22 * d), UpdatedAt: now},
-		{ID: "gnostic-yaldabaoth", Title: "Yaldabaoth (Chaos Engineering)", Description: "Controlled chaos injection. The demiurge tests resilience.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 40, CreatedAt: now.Add(-20 * d), UpdatedAt: now},
-
-		// =====================================================================
-		// SUPPORT SERVICES
-		// =====================================================================
-		{ID: "svc-wotan", Title: "Wotan (Message Bus)", Description: "Pub/sub message bus. HTTP+gRPC dual transport. 13,504 LOC.", Status: "done", Type: "feature", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-50 * d), UpdatedAt: now.Add(-2 * d)},
-		{ID: "svc-timeguru", Title: "Timeguru (Timeline Seer)", Description: "Project timeline tracking, sync to JSON/YAML/TOML/MD.", Status: "in-progress", Type: "feature", Owner: "Developer", Progress: 80, CreatedAt: now.Add(-18 * d), UpdatedAt: now},
-		{ID: "svc-gateway", Title: "Gateway (API Gateway)", Description: "Unified API ingress, auth, rate limiting.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 60, CreatedAt: now.Add(-16 * d), UpdatedAt: now},
-		{ID: "svc-cape", Title: "Cape (Auth/Identity)", Description: "Authentication, authorization, identity management.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 50, CreatedAt: now.Add(-14 * d), UpdatedAt: now},
-		{ID: "svc-cloak", Title: "Cloak (Secrets Manager)", Description: "SOPS + age secrets management, rotation, audit.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 45, CreatedAt: now.Add(-12 * d), UpdatedAt: now},
-		{ID: "svc-sabatons", Title: "Sabatons (Boot/Init)", Description: "System bootstrap, service startup orchestration.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 40, CreatedAt: now.Add(-10 * d), UpdatedAt: now},
-		{ID: "svc-tassets", Title: "Tassets (Storage Layer)", Description: "Persistent storage abstraction, volume management.", Status: "in-progress", Type: "feature", Owner: "Architect", Progress: 35, CreatedAt: now.Add(-10 * d), UpdatedAt: now},
-		{ID: "svc-vambraces", Title: "Vambraces (Logging/Telemetry)", Description: "Vector -> ClickHouse pipeline, structured logging.", Status: "in-progress", Type: "feature", Owner: "Developer", Progress: 50, CreatedAt: now.Add(-8 * d), UpdatedAt: now},
-
-		// =====================================================================
-		// ACTIVE TASKS — work in progress
-		// =====================================================================
-		{ID: "task-transport-bench", Title: "Transport Benchmarks (HTTP vs gRPC)", Description: "Validated: gRPC 6.2x faster on PollCycle, 10x fewer allocs.", Status: "done", Type: "task", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-2 * d), UpdatedAt: now},
-		{ID: "task-drainbody", Title: "HTTP drainBody() Fix", Description: "json.Decoder left trailing bytes -> socket leak. Production bug caught by benchmarks.", Status: "done", Type: "bug", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-1 * d), UpdatedAt: now},
-		{ID: "task-split-brain", Title: "Kanban Split-Brain Fix", Description: "pollTimeguru disabled when Wotan active. SSE prefers kanban cards.", Status: "done", Type: "bug", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-1 * d), UpdatedAt: now},
-		{ID: "task-dual-transport", Title: "gRPC Primary / HTTP Fallback", Description: "TransportState machine: probe at startup, circuit-breaker degradation.", Status: "done", Type: "feature", Owner: "Developer", Progress: 100, CreatedAt: now.Add(-2 * d), UpdatedAt: now},
-		{ID: "task-wotan-tests", Title: "Wotan Unit Test Suite", Description: "Comprehensive unit tests for core message bus components.", Status: "todo", Type: "task", Owner: "Developer", Progress: 0, CreatedAt: now.Add(-7 * d), UpdatedAt: now},
-		{ID: "task-skill-xrefs", Title: "Skill Cross-References", Description: "Update all skills with bidirectional cross-references.", Status: "todo", Type: "task", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-3 * d), UpdatedAt: now},
-		{ID: "task-cicd", Title: "CI/CD Pipeline Templates", Description: "GitHub Actions for build, test, deploy, release.", Status: "todo", Type: "task", Owner: "Developer", Progress: 0, CreatedAt: now.Add(-3 * d), UpdatedAt: now},
-		{ID: "task-e2e-integration", Title: "Full E2E Integration Tests", Description: "All 23 services wired, health checks green, message flow verified.", Status: "todo", Type: "task", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "task-linux-env", Title: "Linux Dev Environment", Description: "eBPF requires Linux kernel. Set up NixOS VM or bare metal.", Status: "todo", Type: "task", Owner: "Muck", Progress: 0, CreatedAt: now.Add(-14 * d), UpdatedAt: now},
-
-		// =====================================================================
-		// TECH DEBT
-		// =====================================================================
-		{ID: "debt-docker-compose", Title: "Fix Docker Compose Ports", Description: "docker-compose.yml has wotan on 8081/5555, should match standalone defaults 8080/9090.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now.Add(-1 * d), UpdatedAt: now},
-		{ID: "debt-timeguru-db", Title: "Timeguru Local Dev Defaults", Description: "DB_PATH defaults to /opt/unheaded/data/ which doesn't exist on macOS.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "debt-timeline-sync", Title: "Timeline Data Hydration", Description: "timeline.json milestones array is empty. Sync overwrites timeline.md to stubs.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "debt-seed-reconcile", Title: "Reconcile Genesis-seed card edits into running Well board", Description: "Edits to getInitialTasks() (e.g. Cerydwyn rename, de-salesed vision items) only seed a fresh/empty DB — an already-seeded Well does not auto-update. Reconcile live boards via the kanban API/DB. Long-term: lift the Genesis seed out of the binary so The Well is the sole source.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
-
-		// =====================================================================
-		// VISION — high-level north star items
-		// =====================================================================
-		{ID: "vision-4hr-deploy", Title: "4-Hour Production Deploy", Description: "Customer provides app, Unheaded delivers full prod infra in ~4 hours.", Status: "todo", Type: "vision", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-60 * d), UpdatedAt: now},
-		{ID: "vision-compliance", Title: "Drop-In Compliance Templates", Description: "FEDRAMP, NIST, SOC2, PCI-DSS, HIPAA, ITAR, GDPR — overlapping controls visualization.", Status: "todo", Type: "vision", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-60 * d), UpdatedAt: now},
-		{ID: "vision-ebpf-dash", Title: "eBPF Custom Dashboards", Description: "Packet-level observability with in-house dashboards. Trace any flow, graph it, log it.", Status: "todo", Type: "vision", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-60 * d), UpdatedAt: now},
-		{ID: "vision-idp-siem", Title: "Full IDP/SIEM/SOC/NOC Stack", Description: "Complete security operations as drop-in infrastructure components.", Status: "todo", Type: "vision", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-60 * d), UpdatedAt: now},
-		{ID: "vision-zero-trust", Title: "Zero Trust Everywhere", Description: "mTLS everywhere, short-lived certs, zero trust architecture end to end.", Status: "todo", Type: "vision", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-60 * d), UpdatedAt: now},
-
-		// =====================================================================
-		// WISHLIST — future exploration items
-		// =====================================================================
-		{ID: "wish-multi-cloud", Title: "Multi-Cloud Orchestration", Description: "Deploy across major cloud providers and bare metal from single config.", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
-		{ID: "wish-self-healing", Title: "Self-Healing Infrastructure", Description: "Yaldabaoth chaos + Pleroma/Kenoma reconciliation = auto-recovery.", Status: "todo", Type: "wishlist", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
-		{ID: "wish-bazaar", Title: "Unheaded Bazaar", Description: "Community-contributed armor pieces, compliance templates, eBPF probes. The Bazaar where the kingdom trades.", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
-		{ID: "wish-nixos-fleet", Title: "NixOS Container Fleet", Description: "Full L2-L7 network stack inside NixOS LXD containers on Debian bare metal.", Status: "todo", Type: "wishlist", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
-		{ID: "wish-gpu-sched", Title: "GPU-Aware Scheduling", Description: "Greaves scheduler with GPU affinity for ML/AI workloads.", Status: "todo", Type: "wishlist", Owner: "Architect", Progress: 0, CreatedAt: now.Add(-30 * d), UpdatedAt: now},
-		{ID: "wish-norse-naming", Title: "Norse/Ragnarok Religious & Mythological Service Names", Description: "Alternate or additional naming: Yggdrasil (network fabric), Loki (chaos eng), Heimdall (gateway/WAF), Odin (control plane), Bifrost (service mesh), Valkyrie (scheduler), Mjolnir (deploy), Fenrir (container runtime). Ragnarok Online and/or Norse vibes.", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-hindu-naming", Title: "Hindu/Indian/Yoga Religious & Mythological Service Names", Description: "Alternate or additional naming: Indra (load balancer/thunder), Agni (firewall/WAF), Vishnu (state reconciler/preserver), Shiva (chaos eng/destroyer), Brahma (provisioner/creator), Maya (container runtime/illusion), Dharma (compliance/law), Karma (event sourcing/cause-effect), Chakra (service mesh/wheel), Garuda (scheduler/eagle mount).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-chinese-naming", Title: "Chinese/Taoism Religious & Mythological Service Names", Description: "Alternate or additional naming: Pangu (bootstrap/creation), Nuwa (self-healing/repair), Sun Wukong (chaos eng/monkey king), Guanyin (observability/all-seeing), Long Wang (network fabric/dragon king), Zhurong (firewall/fire god), Fuxi (state management/order), Yama (cleanup/reaper), Jade Emperor (control plane), Bai Ze (knowledge/wisdom).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-japanese-naming", Title: "Japanese/Shinto/FF/Anime Religious & Mythological Service Names", Description: "Alternate or additional naming: Amaterasu (observability/sun/light), Susanoo (chaos eng/storm), Tsukuyomi (scheduler/moon/cycles), Izanagi (provisioner/creator), Raijin (load balancer/thunder), Fujin (CDN/wind), Inari (storage/abundance), Jizo (guardian/security), Tengu (WAF/protector), Kitsune (shape-shifting/service mesh).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-pagan-naming", Title: "Pagan/Wiccan/Druidic Mythological Service Names", Description: "Alternate or additional naming: Cernunnos (network fabric/horned god of connections), Brigid (firewall/forge-keeper/healer), Morrigan (chaos eng/phantom queen), Dagda (control plane/all-father with cauldron of plenty), Danu (provisioner/mother of creation), Lugh (load balancer/master of all skills), Arianrhod (scheduler/silver wheel of time), Cerridwen (ADOPTED as Cerydwyn — tomb white-hat triage LLM, blue-team counter to Lich; cauldron of transformation/healing), Herne (service mesh/wild hunt leader), Greenman (self-healing/regeneration spirit).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-shaman-naming", Title: "Shamanistic/Animist/Indigenous Mythological Service Names", Description: "Alternate or additional naming: Thunderbird (load balancer/storm bringer), Coyote (chaos eng/trickster), Spider Woman (service mesh/weaver of connections), Raven (observability/all-seeing creator), Bear Spirit (WAF/guardian protector), Eagle Spirit (gateway/sky surveyor), Snake Spirit (secrets/shedding/renewal), Wendigo (garbage collector/consumer), Dreamtime (event sourcing/eternal now), World Tree (network fabric/axis mundi connecting all layers).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-jewish-naming", Title: "Jewish/Kabbalistic/Hebrew Mythological Service Names", Description: "Alternate or additional naming: Sefirot (service mesh/ten emanations), Ein Sof (control plane/the infinite), Golem (container runtime/animated construct), Shekinah (observability/divine presence), Metatron (gateway/angel of the presence), Tikkun (self-healing/repair of the world), Merkabah (scheduler/divine chariot), Tzimtzum (namespace isolation/divine contraction), Ruach (message bus/divine breath/wind), Malakh (deploy pipeline/messenger angel).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-islamic-naming", Title: "Islamic/Sufi/Arabic Mythological Service Names", Description: "Alternate or additional naming: Jibril (message bus/angel of revelation), Israfil (alerting/trumpet of judgment), Buraq (scheduler/lightning-fast mount), Ruh (control plane/the spirit), Nur (observability/divine light), Mizan (load balancer/scales of balance), Barzakh (network isolation/barrier between realms), Lawh al-Mahfuz (event log/preserved tablet), Qadr (state reconciler/divine decree), Djinn (container runtime/beings of smokeless fire).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-christian-naming", Title: "Christian/Biblical/Angelic Mythological Service Names", Description: "Alternate or additional naming: Seraphim (firewall/burning guardians), Cherubim (WAF/gate keepers of Eden), Logos (control plane/the Word/divine reason), Paraclete (message bus/the helper/advocate), Ark (state store/covenant container), Manna (provisioner/heaven-sent resources), Babel (DNS resolver/language of all tongues), Lazarus (self-healing/resurrection), Alpha-Omega (lifecycle manager/beginning and end), Burning Bush (alerting/unconsumed signal fire).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-wushu-naming", Title: "Taoist Wu Shu (Eight Forms) Infrastructure Service Names", Description: "Map the eight classical forms of Wu Shu to infra services: Form 1 Zhouyu/Incantations (gRPC service definitions/API invocations — the verbalized contracts that invoke services), Form 2 Zhouzu/Divine Justice (chaos engineering/circuit breakers/kill switches — judge-jury-executioner with guardrails), Form 3 Zhanbu/Divination (observability/predictive analytics/anomaly detection — I Ching as pattern recognition, geomancy as topology mapping), Form 4 Qubing/Warding-and-Curing (firewall/WAF/IDS/security hardening — spiritual physician as network healer), Form 5 Qumo/Exorcism (garbage collection/zombie reaping/dead process cleanup — fundamental not advanced), Form 6 Fu/Talismans (config-as-code/sealed secrets/TLS certificates — magical writings that petition services, the Foo petitions that bind intent to infrastructure), Form 7 Yaowu/Herbology (dependency management/package curation/CVE scanning — understanding poison AND antidotes, TCM as holistic system health), Form 8 Tongling/Mediumship (message bus/gRPC streaming/inter-service communication — altered states as protocol negotiation, channeling as pub-sub, astral journeying as distributed tracing).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-taoist-pantheon-naming", Title: "Taoist Pantheon Deep-Cut Service Names", Description: "Beyond the broad strokes in wish-chinese-naming — deep Taoist pantheon: Tai Yi (init system/primordial bootstrap), San Qing/Three Pure Ones (trinity architecture — control plane/data plane/management plane), Domu/Big Dipper Mother (scheduler/celestial navigation/cron), Lei Gong (load balancer/thunder distribution), Xi Wang Mu/Queen Mother of the West (chaos-to-order transformer — primordial dark goddess tamed into empress, like raw packets shaped into structured flows), Zao Jun/Kitchen God (local monitoring agent/node-level observer that reports upstream), Guan Di (WAF/loyalty guardian), Lu Dongbin (deploy pipeline/immortal alchemist who wanders between realms), He Xiangu (health checks/immortal healer), Zhongli Quan (capacity planning/fan that revives the dead = auto-scaling), Wei Huacun (3rd-century priestess — documentation/knowledge base curator), Ge Hong (alchemist-statesman — CI/CD philosopher, ancestor of Ge Xuan the ceremonial magician).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-		{ID: "wish-taoist-alchemy-naming", Title: "Taoist Alchemy & Metaphysics Conceptual Service Names", Description: "Inner/outer alchemy and metaphysics mapped to infra: Neidan/Inner Alchemy (internal service optimization/profiling/the body as tripod cauldron = container self-tuning), Waidan/Outer Alchemy (external tooling/CI-CD/build systems — ritual cauldron crafting physical elixirs of power = artifact builds), Jing-Chi-Shen Trinity (Jing=storage/data layer/nutritive force, Chi=compute/processing/life force, Shen=observability/consciousness/divine intelligence), Wu Xing/Five Movements (five-element resource model — Wood/growth, Fire/processing, Earth/storage, Metal/networking, Water/cooling/cleanup), Bagua/Eight Trigrams (eight-dimensional service health matrix), Yin-Yang (read/write split, hot/cold storage, active/passive failover), Junzi/The Sage (SLO/SLI targets — strive for perfection knowing you will never achieve 100% but never stop aspiring), Qigong (resource management/capacity planning/chi cultivation = the personal power that fuels all rituals, without compute budget your talismans are empty).", Status: "todo", Type: "wishlist", Owner: "Captain", Progress: 0, CreatedAt: now, UpdatedAt: now},
-
-		// REFACTOR
-		{ID: "refactor-taskmanager-rename", Title: "Rename TaskManager to Mythology-Aligned Name", Description: "TaskManager is the nervous system coordinator. Rename to something fitting: Hermes (messenger), Iris (rainbow messenger), Vayu (Hindu wind/messenger), Fujin (wind god), Bifrost (bridge). The unheaded-wotan SKILL stays — only the Go struct/service gets renamed.", Status: "todo", Type: "tech-debt", Owner: "Developer", Progress: 0, CreatedAt: now, UpdatedAt: now},
-	}
 }
 
 // Start starts the HTTP server
@@ -1691,7 +1562,7 @@ func main() {
 				if cfg.DataDir == "" {
 					dbPath = "./data/kanban.db"
 				}
-				sqliteStore, sqliteErr := NewStore(dbPath)
+				sqliteStore, sqliteErr := openSQLiteStore(dbPath)
 				if sqliteErr != nil {
 					log.Warn().Err(sqliteErr).Str("path", dbPath).Msg("SQLite store init failed — TaskManager will run in-memory only")
 				} else {

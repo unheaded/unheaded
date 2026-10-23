@@ -68,16 +68,6 @@ pub fn compute_mean_loss_over_with_backend<B: ForgeBackend>(
     Ok(sum / n as f32)
 }
 
-/// Schema for one pre-tokenized RAFT example. Mirrors the train-side
-/// `TrainExample` in `main.rs` (deliberately duplicated locally to keep
-/// this surgical fix self-contained — see WAVE14 H6 analysis).
-#[derive(serde::Deserialize)]
-struct JsonlExample {
-    tokens: Vec<u32>,
-    #[serde(default)]
-    answer_start: Option<usize>,
-}
-
 /// Load a pre-tokenized JSONL corpus into (tokens, answer_start) pairs.
 /// Expected schema per line: `{"tokens": [int, ...], "answer_start": N}`.
 /// Skips malformed lines with a warning to stderr. Used by the Phase 5
@@ -92,36 +82,19 @@ struct JsonlExample {
 /// for clean consistency.
 pub fn load_tokenized_jsonl(path: &str) -> Result<Vec<(Vec<u32>, usize)>, String> {
     let content = std::fs::read_to_string(path).map_err(|e| format!("read {}: {}", path, e))?;
-    let mut out = Vec::new();
-    let mut n_bad = 0usize;
-    for line in content.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let ex: JsonlExample = match serde_json::from_str(line) {
-            Ok(v) => v,
-            Err(_) => {
-                n_bad += 1;
-                continue;
-            }
-        };
-        if ex.tokens.len() < 2 {
-            n_bad += 1;
-            continue;
-        }
-        // Default answer_start to 1 when JSON omits the field — matches
-        // pre-fix behavior on synthetic test corpora.
-        let answer_start = ex.answer_start.unwrap_or(1);
-        out.push((ex.tokens, answer_start));
-    }
-    if out.is_empty() {
-        return Err(format!("no usable sequences in {}", path));
-    }
-    if n_bad > 0 {
-        eprintln!("load_tokenized_jsonl: {} malformed lines skipped", n_bad);
-    }
-    Ok(out)
+    let report = crate::tokdata::parse_tokenized_jsonl(&content, false)
+        .map_err(|e| format!("{}: {}", path, e))?;
+    // Default answer_start to 1 when JSON omits the field — matches
+    // pre-fix behavior on synthetic test corpora; the count is printed.
+    crate::tokdata::print_load_warnings(path, &report, 1);
+    Ok(report
+        .examples
+        .into_iter()
+        .map(|ex| {
+            let a = ex.answer_start.unwrap_or(1);
+            (ex.tokens, a)
+        })
+        .collect())
 }
 
 /// Build an EvalHarness from two pre-tokenized JSONL files. Uses the

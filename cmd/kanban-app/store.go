@@ -5,8 +5,10 @@ package main
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"sync"
@@ -27,7 +29,6 @@ type TaskStore interface {
 	SaveTask(task *Task) error
 	DeleteTask(id string) error
 	TaskCount() (int, error)
-	SeedIfEmpty() (int, error)
 	Close() error
 }
 
@@ -139,37 +140,110 @@ func (s *Store) initSchema() error {
 }
 
 // ============================================================================
-// SEED — Genesis Event (runs exactly once on empty DB)
+// GENESIS — SQLite dev runs only
 // ============================================================================
 
-// SeedIfEmpty checks if the DB has zero rows. If so, seeds from getInitialTasks().
-// This is idempotent — safe to call on every startup.
-func (s *Store) SeedIfEmpty() (int, error) {
+// GenesisFileEnv names a Genesis JSON (db/seed/kanban-genesis.json) that an
+// empty SQLite store is seeded from. Unset (the default everywhere: compose,
+// debs, units) a new SQLite board starts empty. The Well gets its Genesis
+// cards from migration 034, never from kanban-app.
+const GenesisFileEnv = "KANBAN_GENESIS_FILE"
+
+// openSQLiteStore opens the SQLite store and, when KANBAN_GENESIS_FILE is
+// set, seeds it from that file if it is empty. A seed that fails closes the
+// store: no half-seeded board.
+func openSQLiteStore(dbPath string) (*Store, error) {
+	store, err := NewStore(dbPath)
+	if err != nil {
+		return nil, err
+	}
+	if path := os.Getenv(GenesisFileEnv); path != "" {
+		n, err := store.SeedFromFile(path)
+		if err != nil {
+			_ = store.Close()
+			return nil, fmt.Errorf("%s=%s: %w", GenesisFileEnv, path, err)
+		}
+		log.Info().Int("count", n).Str("file", path).Msg("store: Genesis file applied (cards now in the store)")
+	}
+	return store, nil
+}
+
+// genesisCard is one card of the Genesis JSON.
+type genesisCard struct {
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Description string    `json:"description"`
+	Status      string    `json:"status"`
+	Type        string    `json:"type"`
+	Owner       string    `json:"owner"`
+	Progress    int       `json:"progress"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// maxGenesisBytes bounds the Genesis file (65 cards are ~40 KiB).
+const maxGenesisBytes = 4 << 20
+
+// readGenesisFile parses a Genesis JSON strictly: unknown fields, a
+// missing id or title, a duplicate id, or a bad progress is an error.
+func readGenesisFile(path string) ([]Task, error) {
+	// #nosec G304 G703 -- the operator's own KANBAN_GENESIS_FILE (a dev setting), read only
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close() // #nosec G307 -- read-only file
+	dec := json.NewDecoder(io.LimitReader(f, maxGenesisBytes))
+	dec.DisallowUnknownFields()
+	var cards []genesisCard
+	if err := dec.Decode(&cards); err != nil {
+		return nil, fmt.Errorf("parse genesis file: %w", err)
+	}
+	seen := map[string]bool{}
+	tasks := make([]Task, 0, len(cards))
+	for i, c := range cards {
+		switch {
+		case c.ID == "" || c.Title == "":
+			return nil, fmt.Errorf("genesis card %d: id and title are required", i)
+		case seen[c.ID]:
+			return nil, fmt.Errorf("genesis card %s: duplicate id", c.ID)
+		case c.Progress < 0 || c.Progress > 100:
+			return nil, fmt.Errorf("genesis card %s: progress %d", c.ID, c.Progress)
+		case c.CreatedAt.IsZero() || c.UpdatedAt.IsZero():
+			return nil, fmt.Errorf("genesis card %s: created_at and updated_at are required", c.ID)
+		}
+		seen[c.ID] = true
+		tasks = append(tasks, Task{ID: c.ID, Title: c.Title, Description: c.Description, Status: c.Status, Type: c.Type,
+			Owner: c.Owner, Progress: c.Progress, CreatedAt: c.CreatedAt, UpdatedAt: c.UpdatedAt})
+	}
+	return tasks, nil
+}
+
+// SeedFromFile inserts the cards of a Genesis JSON when the store is
+// empty, in one transaction. It returns the cards inserted, or the
+// existing count when the store already has tasks (nothing is merged).
+func (s *Store) SeedFromFile(path string) (int, error) {
+	tasks, err := readGenesisFile(path)
+	if err != nil {
+		return 0, err
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if err := s.checkOpen(); err != nil {
 		return 0, err
 	}
-
 	var count int
 	if err := s.db.QueryRow("SELECT COUNT(*) FROM tasks").Scan(&count); err != nil {
 		return 0, fmt.Errorf("count existing tasks: %w", err)
 	}
-
 	if count > 0 {
-		log.Info().Int("count", count).Msg("store: database warm — skipping seed")
+		log.Info().Int("count", count).Msg("store: not empty — Genesis file not applied")
 		return count, nil
 	}
-
-	log.Info().Msg("store: database empty — seeding initial tasks (Genesis Event)")
-
-	initialTasks := getInitialTasks()
-
 	tx, err := s.db.Begin()
 	if err != nil {
 		return 0, fmt.Errorf("begin seed transaction: %w", err)
 	}
-
 	stmt, err := tx.Prepare(`
 		INSERT INTO tasks (id, title, description, status, type, owner, progress, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -178,34 +252,18 @@ func (s *Store) SeedIfEmpty() (int, error) {
 		_ = tx.Rollback()
 		return 0, fmt.Errorf("prepare seed statement: %w", err)
 	}
-	defer stmt.Close()
-
-	for _, task := range initialTasks {
-		createdAt := task.CreatedAt.Format(time.RFC3339)
-		updatedAt := task.UpdatedAt.Format(time.RFC3339)
-
-		if _, err := stmt.Exec(
-			task.ID,
-			task.Title,
-			task.Description,
-			task.Status,
-			task.Type,
-			task.Owner,
-			task.Progress,
-			createdAt,
-			updatedAt,
-		); err != nil {
+	defer stmt.Close() // #nosec G307 -- statement close after commit or rollback
+	for _, t := range tasks {
+		if _, err := stmt.Exec(t.ID, t.Title, t.Description, t.Status, t.Type, t.Owner, t.Progress,
+			t.CreatedAt.UTC().Format(time.RFC3339), t.UpdatedAt.UTC().Format(time.RFC3339)); err != nil {
 			_ = tx.Rollback()
-			return 0, fmt.Errorf("seed task %s: %w", task.ID, err)
+			return 0, fmt.Errorf("seed task %s: %w", t.ID, err)
 		}
 	}
-
 	if err := tx.Commit(); err != nil {
 		return 0, fmt.Errorf("commit seed transaction: %w", err)
 	}
-
-	log.Info().Int("count", len(initialTasks)).Msg("store: seed complete — L1 cache is warm")
-	return len(initialTasks), nil
+	return len(tasks), nil
 }
 
 // ============================================================================

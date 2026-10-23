@@ -276,3 +276,32 @@ func TestTruncate(t *testing.T) {
 		t.Errorf("%q", s)
 	}
 }
+
+// The flywheel's linking fields (S-TWO-BRAINS Step 351) are optional:
+// written when set, absent when not, so v1 readers are unaffected.
+func TestWriteLinkingFields(t *testing.T) {
+	w, err := Open(privateDir(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Write(&Record{Source: "test", Route: RouteLocal, Prompt: "p", Final: "a",
+		ConversationID: "conv-1", RunID: "0123456789abcdef", TaskFamily: "repo-task", AuthorKind: AuthorHuman}); err != nil {
+		t.Fatal(err)
+	}
+	if err := w.Write(&Record{Source: "test", Route: RouteLocal, Prompt: "p2", Final: "b"}); err != nil {
+		t.Fatal(err)
+	}
+	lines := readLines(t, w)
+	if len(lines) != 2 {
+		t.Fatalf("lines = %d", len(lines))
+	}
+	m := lines[0]
+	if m["conversation_id"] != "conv-1" || m["run_id"] != "0123456789abcdef" || m["task_family"] != "repo-task" || m["author_kind"] != "human" {
+		t.Errorf("linking fields: %v", m)
+	}
+	for _, k := range []string{"conversation_id", "run_id", "task_family", "author_kind"} {
+		if _, ok := lines[1][k]; ok {
+			t.Errorf("%s present on a record that did not set it", k)
+		}
+	}
+}

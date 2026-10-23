@@ -28,6 +28,9 @@ func createTestServer(t *testing.T) *Server {
 		WriteTimeout:    30 * time.Second,
 		ShutdownTimeout: 10 * time.Second,
 	}
+	// A SQLite dev board seeded from the Genesis file (the Well's board
+	// comes from migration 034; kanban-app itself carries no cards).
+	t.Setenv(GenesisFileEnv, genesisFixture)
 	s := NewServer(cfg)
 	t.Cleanup(func() {
 		if s.store != nil {
@@ -167,6 +170,7 @@ func TestNewServer_ValidConfig(t *testing.T) {
 		ShutdownTimeout: 10 * time.Second,
 	}
 
+	t.Setenv(GenesisFileEnv, genesisFixture)
 	server := NewServer(cfg)
 	t.Cleanup(func() {
 		if server.store != nil {
@@ -555,5 +559,23 @@ func TestE2E_TaskLifecycle(t *testing.T) {
 		if task.ID == "e2e-test-001" {
 			t.Error("task e2e-test-001 still present after DELETE")
 		}
+	}
+}
+
+// Without KANBAN_GENESIS_FILE a new SQLite board is empty: the binary
+// carries no cards (S-TWO-BRAINS Step 426).
+func TestNewServer_NoGenesisFileStartsEmpty(t *testing.T) {
+	t.Setenv(GenesisFileEnv, "")
+	server := NewServer(Config{Port: "0", DataDir: t.TempDir()})
+	t.Cleanup(func() {
+		if server.store != nil {
+			server.store.Close()
+		}
+	})
+	if server.store == nil {
+		t.Fatal("expected a SQLite store")
+	}
+	if n, _ := server.store.TaskCount(); n != 0 {
+		t.Errorf("%d cards on a new board, want 0", n)
 	}
 }

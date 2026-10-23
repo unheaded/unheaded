@@ -31,6 +31,21 @@ func createTestTaskManager(t *testing.T) (*TaskManager, *mock.MockClient) {
 	return tm, mockClient
 }
 
+// createSeededTaskManager is a TaskManager over a SQLite store holding the
+// Genesis cards.
+func createSeededTaskManager(t *testing.T) *TaskManager {
+	t.Helper()
+	store := createTestStore(t)
+	if _, err := store.SeedFromFile(genesisFixture); err != nil {
+		t.Fatal(err)
+	}
+	tm, err := NewTaskManager(mock.NewMockClient(mock.WithAutoApprove()), func(string, interface{}) {}, store)
+	if err != nil {
+		t.Fatalf("failed to create task manager: %v", err)
+	}
+	return tm
+}
+
 func createTestTask(id string) *Task {
 	return &Task{
 		ID:          id,
@@ -102,7 +117,7 @@ func TestNewTaskManager_NilBroadcast_ReturnsError(t *testing.T) {
 // ============================================================================
 
 func TestTaskManager_Initialize_LoadsInitialTasks(t *testing.T) {
-	tm, _ := createTestTaskManager(t)
+	tm := createSeededTaskManager(t)
 
 	ctx := context.Background()
 	if err := tm.Initialize(ctx); err != nil {
@@ -509,7 +524,7 @@ func TestTaskManager_DeleteTask_PublishFails_StillDeletesLocally(t *testing.T) {
 // ============================================================================
 
 func TestTaskManager_GetTask_Exists(t *testing.T) {
-	tm, _ := createTestTaskManager(t)
+	tm := createSeededTaskManager(t)
 	ctx := context.Background()
 
 	tm.Initialize(ctx)
@@ -817,5 +832,20 @@ func TestTaskManager_ConcurrentReadWrite(t *testing.T) {
 
 	for i := 0; i < numOps*2; i++ {
 		<-done
+	}
+}
+
+// Without a store the TaskManager's board is empty (no hardcoded seed)
+// and read-only.
+func TestTaskManager_NoStoreIsEmptyAndReadOnly(t *testing.T) {
+	tm, _ := createTestTaskManager(t)
+	if err := tm.Initialize(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(tm.GetAllTasks()); n != 0 {
+		t.Errorf("%d tasks without a store, want 0", n)
+	}
+	if (&Server{taskManager: tm}).writable() {
+		t.Error("a board without a store is writable")
 	}
 }

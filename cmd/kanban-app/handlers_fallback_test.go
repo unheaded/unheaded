@@ -20,7 +20,6 @@ func (s *stubStore) GetTask(string) (*Task, error) { return nil, nil }
 func (s *stubStore) SaveTask(*Task) error          { return nil }
 func (s *stubStore) DeleteTask(string) error       { return nil }
 func (s *stubStore) TaskCount() (int, error)       { return len(s.tasks), nil }
-func (s *stubStore) SeedIfEmpty() (int, error)     { return 0, nil }
 func (s *stubStore) Close() error                  { return nil }
 
 // emptyTaskManager builds a real TaskManager holding no tasks — the state the

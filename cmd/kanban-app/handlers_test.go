@@ -554,7 +554,7 @@ func TestHandleGetTasks_FallbackMode_NoTaskManager(t *testing.T) {
 	server := &Server{
 		config:     Config{},
 		sseClients: make(map[chan []byte]bool),
-		tasks:      getInitialTasks(),
+		tasks:      loadGenesisFixture(t),
 		ctx:        ctx,
 		cancel:     cancel,
 	}
@@ -579,7 +579,7 @@ func TestHandleGetTasks_FallbackMode_NoTaskManager(t *testing.T) {
 }
 
 func TestHandleGetTasks_WithTaskManager(t *testing.T) {
-	tm, _ := createTestTaskManager(t)
+	tm := createSeededTaskManager(t)
 	server := &Server{taskManager: tm}
 
 	ctx := context.Background()
