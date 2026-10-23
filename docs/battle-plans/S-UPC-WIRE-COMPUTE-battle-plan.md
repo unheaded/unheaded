@@ -182,52 +182,52 @@ P0 ─► P1 ─► P2 ─► P3 ───────────────�
 **Time**: ~1.5 h
 **Agent**: Coordinator
 
-- [ ] **Step 1** [ENV][B] ~1m: Resolve variables (VARIABLES block above), confirm tools
+- [x] **Step 1** [ENV][B] ~1m: Resolve variables (VARIABLES block above), confirm tools
   ```bash
   cd "$(git rev-parse --show-toplevel)" && source <(sed -n '/^export PROJECT_ROOT/,/^commitp/p' docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md)
   for t in cargo go bpftool riscv64-unknown-elf-gcc riscv64-unknown-elf-objdump bpf-linker jq python3 ip; do
     command -v "$t" >/dev/null && echo "OK $t" || echo "MISSING $t"; done
   ```
-- [ ] **Step 2** [V][PREFLIGHT] ~30s: **H0** — base contains `443de3f82`, tree clean, not on `main`/`staging`
+- [x] **Step 2** [V][PREFLIGHT] ~30s: **H0** — base contains `443de3f82`, tree clean, not on `main`/`staging`
   ```bash
   git -C "$PROJECT_ROOT" merge-base --is-ancestor 443de3f82 HEAD && echo H0-ANCESTOR-OK
   git -C "$PROJECT_ROOT" status --porcelain | wc -l; git -C "$PROJECT_ROOT" branch --show-current
   ```
   - If not ancestor → on the sprint branch only: `git -C "$PROJECT_ROOT" reset --hard 443de3f82`
   - If on `main`/`staging` → STOP; switch to the sprint branch (header [DECIDE])
-- [ ] **Step 3** [V] ~30s: All tools from Step 1 present
+- [x] **Step 3** [V] ~30s: All tools from Step 1 present
   - If `bpf-linker` missing → Emergency A.4. If riscv toolchain missing → STOP (Part 1 cannot build kernels)
-- [ ] **Step 4** [B][BUILD] ~5m: Build host tools once (translator, bootctl)
+- [x] **Step 4** [B][BUILD] ~5m: Build host tools once (translator, bootctl)
   ```bash
   cargo build --release --manifest-path "$PROJECT_ROOT/crates/monad-mbc/Cargo.toml" 2>&1 | tail -3
   cargo build --release --manifest-path "$PROJECT_ROOT/cmd/upc-bootctl/Cargo.toml" 2>&1 | tail -3
   ```
-- [ ] **Step 5** [B][S][TEST] ~2m: Regression harness
+- [x] **Step 5** [B][S][TEST] ~2m: Regression harness
   ```bash
   bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tee "$S5/p0-regression.log" | tail -25
   ```
-- [ ] **Step 6** [V][PREFLIGHT] ~30s: **H1** — ends `== ALL GREEN ==`
+- [x] **Step 6** [V][PREFLIGHT] ~30s: **H1** — ends `== ALL GREEN ==`
   - If fail → STOP. This plan assumes a green base. Diagnose under the harness, not this plan.
-- [ ] **Step 7** [V][PREFLIGHT] ~30s: Record budgets
+- [x] **Step 7** [V][PREFLIGHT] ~30s: Record budgets
   ```bash
   grep -aE 'ascend verifier|Doom verifier|verified [0-9]+ insns' "$S5/p0-regression.log" | tee "$S5/p0-budgets.txt"
   ```
   - Expected ≈ ascend 900,031 / Doom 737,087. Different → record as the sprint baseline, note the commit that moved it
-- [ ] **Step 8** [B][S] ~6m: H2 — sweep the 8 corpus boots against `$GOLD`
+- [x] **Step 8** [B][S] ~6m: H2 — sweep the 8 corpus boots against `$GOLD`
   ```bash
   kbuild >/dev/null 2>&1; ubuild >/dev/null 2>&1; sweep | tee "$S5/p0-sweep.txt"
   ```
-- [ ] **Step 9** [V][PREFLIGHT] ~30s: **H2** — 8 × `SAME`
+- [x] **Step 9** [V][PREFLIGHT] ~30s: **H2** — 8 × `SAME`
   - If any `DIFF` → Step 10. All SAME → Step 11
-- [ ] **Step 10** [D][REGEN][S] ~15m: Goldens stale for this HEAD → recapture all 12 from HEAD
+- [x] **Step 10** [D][REGEN][S] ~15m: Goldens stale for this HEAD → recapture all 12 from HEAD
   - Use `references/phase24-t1-2026-07-07.md` §"Golden recapture" + `PHASE22-SH-REPLACE.md` Steps 6/10/12–14 with `GOLD=$HOME/tmp/golden`. Then re-run Step 8; must be 8 × SAME.
-- [ ] **Step 11** [B] ~1m: Capture translator baselines (counts + hashes) for kernel, userland, Doom
+- [x] **Step 11** [B] ~1m: Capture translator baselines (counts + hashes) for kernel, userland, Doom
   ```bash
   sha256sum "$K"/xv6-mbc.mbc "$K"/*.mbc 2>/dev/null | tee "$S5/p0-mbc-sha.txt"
   ls "$PROJECT_ROOT"/doom 2>/dev/null | head; find "$PROJECT_ROOT" -name '*.mbc' -path '*doom*' -newer "$PROJECT_ROOT/go.mod" 2>/dev/null | head
   ```
   - Note the Doom `.mbc` path and its sha in `$S5/p0-mbc-sha.txt` (needed by H-S5)
-- [ ] **Step 12** [B] ~3m: KNOWN FAILURES BASELINE — record actuals
+- [x] **Step 12** [B] ~3m: KNOWN FAILURES BASELINE — record actuals
   ```bash
   { echo "== gate_nway"; (cd "$EBPF" && sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
       --userland "$K/gate_nway.mbc" --triggers 800000 --instance 111 2>&1 | grep -aoE 'NWAY-(PASS|FAIL)' | head -1);
@@ -235,65 +235,65 @@ P0 ─► P1 ─► P2 ─► P3 ───────────────�
     echo "== heimdall-bpf"; (cd "$PROJECT_ROOT/crates/heimdall-bpf" && cargo build --release 2>&1 | tail -2); } \
     | tee "$S5/p0-known-failures.txt"
   ```
-- [ ] **Step 13** [V] ~30s: Baseline matches the KF table (KF1 NWAY-FAIL, `go build` clean, heimdall-bpf builds vfs_write)
+- [x] **Step 13** [V] ~30s: Baseline matches the KF table (KF1 NWAY-FAIL, `go build` clean, heimdall-bpf builds vfs_write)
   - New unexpected failure → add it to KF with evidence; if it blocks Part 1, STOP
-- [ ] **Step 14** [R] ~5m: Read the S1.2 record so Phase 1 starts from the corrected diagnosis
+- [x] **Step 14** [R] ~5m: Read the S1.2 record so Phase 1 starts from the corrected diagnosis
   ```bash
   sed -n '/CORRECTION \/ RE-DIAGNOSIS/,$p' "$PROJECT_ROOT/references/evolution1-stage1-2026-07-19.md" | head -80
   ```
-- [ ] **Step 15** [R] ~3m: Confirm the dormant S1.0/S1.1 code is present
+- [x] **Step 15** [R] ~3m: Confirm the dormant S1.0/S1.1 code is present
   ```bash
   grep -n 'GETPID_INJECT' "$EBPF/monad-cpu-ebpf/src/main.rs" | head -3
   grep -n 'csrr a0, sscratch\|mv a0, a1\|csrw mscratch' "$AD/trampoline_mbc.S"
   grep -n 'w_sscratch' "$AD/utrap.c"; ls "$UP/user/getpidprobe.c"
   ```
-- [ ] **Step 16** [V] ~30s: `GETPID_INJECT: bool = false`, uservec has `csrw mscratch,a0` + `csrr a0,sscratch`, userret has `mv a0, a1`, `prepare_return` calls `w_sscratch`, probe exists
+- [x] **Step 16** [V] ~30s: `GETPID_INJECT: bool = false`, uservec has `csrw mscratch,a0` + `csrr a0,sscratch`, userret has `mv a0, a1`, `prepare_return` calls `w_sscratch`, probe exists
   - Missing → STOP; S1.0/S1.1 are not on this branch (cherry-pick `467cf129`)
-- [ ] **Step 17** [R] ~3m: Disassemble `prepare_return` from the current kernel build
+- [x] **Step 17** [R] ~3m: Disassemble `prepare_return` from the current kernel build
   ```bash
   riscv64-unknown-elf-objdump -d "$UP/kernel/kernel.elf" | awk '/<prepare_return>:/,/ret$/' | tee "$S5/p0-prepare_return.asm"
   ```
-- [ ] **Step 18** [V][PREFLIGHT] ~1m: The sequence `lw a5,48(a0)` … `csrr a2,satp` … `sw a2,0(a5)` … `csrw sscratch,a5` is present in that order, with no write to a5 between the `lw` and the `csrw` other than the `csrr`
+- [x] **Step 18** [V][PREFLIGHT] ~1m: The sequence `lw a5,48(a0)` … `csrr a2,satp` … `sw a2,0(a5)` … `csrw sscratch,a5` is present in that order, with no write to a5 between the `lw` and the `csrw` other than the `csrr`
   - If the order differs → H-S1 needs re-derivation; Phase 1 still runs, from Step 31
-- [ ] **Step 19** [R] ~2m: Read the translator CSR arm + register map (lines move; search by text)
+- [x] **Step 19** [R] ~2m: Read the translator CSR arm + register map (lines move; search by text)
   ```bash
   grep -n 'let csr_ptr = 12u8\|let tmp = 13u8\|let mask = 14u8\|14 => Ok(12)\|15 => Ok(13)' "$PROJECT_ROOT/crates/monad-mbc/src/translator.rs"
   ```
-- [ ] **Step 20** [V] ~30s: All five lines found (CSR pointer r12, RMW temp r13, CSRRC mask r14 = ra, a4→r12, a5→r13)
-- [ ] **Step 21** [B] ~1m: Count CSR instruction forms in every built RV image (feeds H-S3/H-S4/H-S5 later)
+- [x] **Step 20** [V] ~30s: All five lines found (CSR pointer r12, RMW temp r13, CSRRC mask r14 = ra, a4→r12, a5→r13)
+- [x] **Step 21** [B] ~1m: Count CSR instruction forms in every built RV image (feeds H-S3/H-S4/H-S5 later)
   ```bash
   for e in "$UP"/kernel/kernel.elf "$K"/*.elf; do printf '%s ' "$(basename "$e")"; \
     riscv64-unknown-elf-objdump -d "$e" | grep -cE '\scsr[a-z]*\s'; done | tee "$S5/p0-csr-counts.txt"
   ```
-- [ ] **Step 22** [R] ~3m: Read the Mímir's Law phase table and ADR-043 status so Part 1 re-runs, not re-plans
+- [x] **Step 22** [R] ~3m: Read the Mímir's Law phase table and ADR-043 status so Part 1 re-runs, not re-plans
   ```bash
   sed -n '/Phase Status/,/Real-Metal/p' "$PROJECT_ROOT/wiki/Mimirs-Law.md"; sed -n '1,30p' "$PROJECT_ROOT/docs/adr/ADR-043-"*.md
   ```
-- [ ] **Step 23** [V] ~30s: Record the drift: ADR-043 says "all 13 shipped", CLAUDE.md says "9/11/13 pending". Phase 8 reconciles it.
-- [ ] **Step 24** [B][ENV] ~1m: Host facts for Part 1 bare metal (read-only)
+- [x] **Step 23** [V] ~30s: Record the drift: ADR-043 says "all 13 shipped", CLAUDE.md says "9/11/13 pending". Phase 8 reconciles it.
+- [ ] **Step 24** [B][ENV] ~1m: Host facts for Part 1 bare metal (read-only) — west half only; east not contacted this session (Phases 0–4 scope)
   ```bash
   ip -br addr show dev "$WEST_P2P_IF"; ssh -o BatchMode=yes "$EAST" "ip -br addr show dev $EAST_P2P_IF; uname -r" 2>&1 | tail -3
   ```
-- [ ] **Step 25** [V] ~30s: West shows `192.168.13.2/30` + an `fe80::` address; east answers over SSH with `192.168.13.1/30`
+- [ ] **Step 25** [V] ~30s: West shows `192.168.13.2/30` + an `fe80::` address; east answers over SSH with `192.168.13.1/30` — west verified; east leg left to Phases 6–7
   - East unreachable → Phases 6–7 east legs become [BLOCKED]; continue everything else
-- [ ] **Step 26** [B] ~1m: Next free ADR number and Lich sprint plan presence
+- [x] **Step 26** [B] ~1m: Next free ADR number and Lich sprint plan presence
   ```bash
   ls "$PROJECT_ROOT/docs/adr" | grep -oE 'ADR-[0-9]{3}' | sort -u | tail -3
   ls "$PROJECT_ROOT/docs/battle-plans" | grep -i lich || echo "no Lich sprint plan on this branch"
   ```
-- [ ] **Step 27** [V] ~30s: Record `ADR_CART=ADR-<next>` (ADR-105 at forge time) in `$S5/vars.env`; record the Lich plan path if present (Phase 17 targets its hook contract)
+- [x] **Step 27** [V] ~30s: Record `ADR_CART=ADR-<next>` (ADR-105 at forge time) in `$S5/vars.env`; record the Lich plan path if present (Phase 17 targets its hook contract)
   ```bash
   echo "ADR_CART=ADR-105" >> "$S5/vars.env"   # edit if Step 26 shows 105 taken
   ```
-- [ ] **Step 28** [W] ~2m: Start the sprint log
+- [x] **Step 28** [W] ~2m: Start the sprint log
   ```bash
   printf '# S5 UPC wire compute — execution log\n\nbase: %s\nbudgets: %s\n' "$(git -C "$PROJECT_ROOT" rev-parse --short HEAD)" "$(tr '\n' ' ' < "$S5/p0-budgets.txt")" > "$PROJECT_ROOT/references/s5-upc-wire-log.md"
   ```
-- [ ] **Step 29** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 29** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add references/s5-upc-wire-log.md && commitp -m "docs(upc): [S5 1-29] sprint log + preflight baseline"
   ```
-- [ ] **Step 30** [V][GATE] ~1m: **PHASE 0 EXIT GATE** — H0, H1, H2 true; budgets, CSR counts, KF actuals recorded in `$S5`; sprint log committed
+- [x] **Step 30** [V][GATE] ~1m: **PHASE 0 EXIT GATE** — H0, H1, H2 true; budgets, CSR counts, KF actuals recorded in `$S5`; sprint log committed
   - Pass → Phase 1 (and Phase 4, Phase 5 may start in parallel)
   - Fail → DO NOT PROCEED
 
@@ -309,66 +309,66 @@ All steps executed or STUCK-logged · H0/H1/H2 verified · KF baseline recorded 
 **Time**: ~2 h
 **Agent**: Coordinator (Computermancer lens: gate-level, one variable at a time)
 
-- [ ] **Step 31** [R] ~5m: Read how the host emulator runs MBC (needed for a host-side test)
+- [x] **Step 31** [R] ~5m: Read how the host emulator runs MBC (needed for a host-side test)
   ```bash
   grep -n 'pub fn new\|pub fn step\|pub fn run\|pub fn load' "$PROJECT_ROOT/crates/monad-mbc/src/execute.rs" | head; grep -n 'RAM_SIZE' "$PROJECT_ROOT/crates/monad-mbc/src/cpu.rs"
   ```
-- [ ] **Step 32** [V][PREFLIGHT] ~1m: The host CPU can load a word program and run it, and RAM covers 0xF000–0xFFFF (RAM_SIZE 0x10000)
+- [x] **Step 32** [V][PREFLIGHT] ~1m: The host CPU can load a word program and run it, and RAM covers 0xF000–0xFFFF (RAM_SIZE 0x10000)
   - No → write the test against translator output only (Step 34 alternative: assert the emitted MBC sequence)
-- [ ] **Step 33** [W][CODE][TEST] ~20m: Red test — translate the exact `prepare_return` words and run them
+- [x] **Step 33** [W][CODE][TEST] ~20m: Red test — translate the exact `prepare_return` words and run them
   - New test in `crates/monad-mbc/src/translator.rs` `#[cfg(test)]` (or `tests/csr_alias.rs`): build RV words `lw a5,48(a0)` (0x03052783), `csrr a2,satp` (0x18002673), `csrw sscratch,a5` (0x14079073); seed RAM so `[a0+48] = 0x007be000` and the satp slot (`0xF000 + 0x180*4`) = `0x000007ff`; run on the host emulator; assert the sscratch slot (`0xF000 + 0x140*4 = 0xF500`) == `0x007be000` and a5 (r13) == `0x007be000`.
   ```bash
   cargo test --manifest-path "$PROJECT_ROOT/crates/monad-mbc/Cargo.toml" csr_alias 2>&1 | tail -15
   ```
-- [ ] **Step 34** [V] ~1m: **RED for the predicted reason** — sscratch slot reads `0x7ff` and a5 reads `0x7ff`
+- [x] **Step 34** [V] ~1m: **RED for the predicted reason** — sscratch slot reads `0x7ff` and a5 reads `0x7ff`
   - If it reads `0x7be000` (green) → H-S1 FALSE. Go to Step 35. If red with any other value → Step 35.
   - If red with `0x7ff` → H-S1 CONFIRMED on the host. Step 36.
-- [ ] **Step 35** [D] ~20m: H-S1 false → the evolution1 "next probe": dump the MBC emitted for both `csrw sscratch` sites and diff
+- [x] **Step 35** [D] ~20m: H-S1 false → the evolution1 "next probe": dump the MBC emitted for both `csrw sscratch` sites and diff
   ```bash
   "$PROJECT_ROOT/crates/monad-mbc/target/release/mbc-asm" "$K/xv6-mbc.mbc" --disasm 2>"$S5/p1-kernel.dis" >/dev/null; wc -l "$S5/p1-kernel.dis"
   ```
   - Two attempts max, then Skip Protocol on Phases 1–3 and continue with Phase 4/5
-- [ ] **Step 36** [W][CODE][TEST] ~15m: Red test H-S2 — `csrw sstatus,a4` (prepare_return's `0x10071073`) after `mv a4,tp` must store a4's value; and a live a4 must survive any unrelated `csrr`
+- [x] **Step 36** [W][CODE][TEST] ~15m: Red test H-S2 — `csrw sstatus,a4` (prepare_return's `0x10071073`) after `mv a4,tp` must store a4's value; and a live a4 must survive any unrelated `csrr`
   ```bash
   cargo test --manifest-path "$PROJECT_ROOT/crates/monad-mbc/Cargo.toml" csr_alias 2>&1 | tail -15
   ```
-- [ ] **Step 37** [V] ~1m: H-S2 recorded — red tests show (a) sstatus slot receives `0xF400` (the address) instead of a4, (b) a4 clobbered by an unrelated `csrr`
+- [x] **Step 37** [V] ~1m: H-S2 recorded — red tests show (a) sstatus slot receives `0xF400` (the address) instead of a4, (b) a4 clobbered by an unrelated `csrr`
   - If green → H-S2 false; keep the test as a guard, narrow the fix scope in Phase 2
-- [ ] **Step 38** [W][CODE][TEST] ~10m: Red test — CSRRC clobbers `ra` (mask temp r14) and CSRRW rd==rs1 loses the source (the S1.0 idiom)
-- [ ] **Step 39** [V] ~1m: Both red as predicted (or recorded green with reason)
-- [ ] **Step 40** [B][S] ~10m: Confirm on the live UPC — one boot with a temporary value probe, then revert (S1.2 used the same method)
+- [x] **Step 38** [W][CODE][TEST] ~10m: Red test — CSRRC clobbers `ra` (mask temp r14) and CSRRW rd==rs1 loses the source (the S1.0 idiom)
+- [x] **Step 39** [V] ~1m: Both red as predicted (or recorded green with reason)
+- [x] **Step 40** [B][S] ~10m: Confirm on the live UPC — one boot with a temporary value probe, then revert (S1.2 used the same method)
   - Temporary edit in `adapters/utrap.c`: after `w_sscratch(...)` print `r_satp()` and `r_sscratch()` low 32 bits with the existing `mmio_puthex` probe idiom. `kbuild`, boot `echo hello`, capture.
   ```bash
   kbuild >/dev/null && out="$(boot $'echo hello\n')"; grep -aoE 'Z:[A-Z]+ [^·]*' <<<"$out" | head; printf '%s\n' "$out" > "$S5/p1-live-probe.txt"
   ```
-- [ ] **Step 41** [V] ~1m: Live probe shows satp low bits == sscratch == `0x7ff` → H-S1 confirmed on the BPF interpreter too
-- [ ] **Step 42** [B] ~2m: Revert the probe, rebuild, prove byte-identity with the Phase 0 kernel
+- [x] **Step 41** [V] ~1m: Live probe shows satp low bits == sscratch == `0x7ff` → H-S1 confirmed on the BPF interpreter too
+- [x] **Step 42** [B] ~2m: Revert the probe, rebuild, prove byte-identity with the Phase 0 kernel
   ```bash
   git -C "$PROJECT_ROOT" checkout -- crates/xv6-mbc/adapters/utrap.c && kbuild >/dev/null && sha256sum "$K/xv6-mbc.mbc" | diff - <(grep 'xv6-mbc.mbc' "$S5/p0-mbc-sha.txt") && echo KERNEL-RESTORED
   ```
-- [ ] **Step 43** [V] ~30s: `KERNEL-RESTORED`
-- [ ] **Step 44** [B][PREFLIGHT] ~5m: **H-S3** — find set/clear forms with rs1≠x0 and swaps with rd==rs1 in every image
+- [x] **Step 43** [V] ~30s: `KERNEL-RESTORED`
+- [x] **Step 44** [B][PREFLIGHT] ~5m: **H-S3** — find set/clear forms with rs1≠x0 and swaps with rd==rs1 in every image
   ```bash
   for e in "$UP"/kernel/kernel.elf "$K"/*.elf; do riscv64-unknown-elf-objdump -d "$e" | \
     grep -E '\scsrr[sc]i?\s|\scsr[sc]i?\s|\scsrrw\s' | grep -vE 'csrrs\s+[a-z0-9]+,[a-z0-9]+,zero' | sed "s|^|$(basename "$e"): |"; done | tee "$S5/p1-csr-forms.txt" | head -40
   ```
-- [ ] **Step 45** [B][PREFLIGHT] ~3m: **H-S4** — CSR indices used (any ≥ 0x400 → address > 0xFFFF)
+- [x] **Step 45** [B][PREFLIGHT] ~3m: **H-S4** — CSR indices used (any ≥ 0x400 → address > 0xFFFF)
   ```bash
   for e in "$UP"/kernel/kernel.elf "$K"/*.elf; do riscv64-unknown-elf-objdump -d "$e"; done | grep -oE '\scsr[a-z]*\s+[^ ]+' | awk -F, '{print $NF}' | sort | uniq -c | sort -rn | tee "$S5/p1-csr-index.txt"
   ```
-- [ ] **Step 46** [B][PREFLIGHT] ~3m: **H-S5** — CSR instructions in the Doom RV image (path from Step 11)
+- [x] **Step 46** [B][PREFLIGHT] ~3m: **H-S5** — CSR instructions in the Doom RV image (path from Step 11)
   ```bash
   DOOM_ELF="$(find "$PROJECT_ROOT/doom" "$PROJECT_ROOT/crates/doom-runner" -name '*.elf' 2>/dev/null | head -1)"; echo "$DOOM_ELF"
   riscv64-unknown-elf-objdump -d "$DOOM_ELF" | grep -cE '\scsr[a-z]*\s'
   ```
-- [ ] **Step 47** [V] ~1m: Write H-S3/H-S4/H-S5 outcomes into the sprint log (counts + forms)
-- [ ] **Step 48** [W] ~10m: Append "S1.2 root cause (S5)" to `references/evolution1-stage1-2026-07-19.md`: the translator RMW on `csrr` writes the CSR value into r13=a5; the 0x7ff is satp; red tests named; live probe output quoted. No fix yet.
-- [ ] **Step 49** [C] ~1m: **COMMIT CHECKPOINT** (red tests are `#[ignore]`d with a reason pointing at Phase 2, so the tree stays green)
+- [x] **Step 47** [V] ~1m: Write H-S3/H-S4/H-S5 outcomes into the sprint log (counts + forms)
+- [x] **Step 48** [W] ~10m: Append "S1.2 root cause (S5)" to `references/evolution1-stage1-2026-07-19.md`: the translator RMW on `csrr` writes the CSR value into r13=a5; the 0x7ff is satp; red tests named; live probe output quoted. No fix yet.
+- [x] **Step 49** [C] ~1m: **COMMIT CHECKPOINT** (red tests are `#[ignore]`d with a reason pointing at Phase 2, so the tree stays green)
   ```bash
   git -C "$PROJECT_ROOT" add crates/monad-mbc references/evolution1-stage1-2026-07-19.md references/s5-upc-wire-log.md && \
   commitp -m "test(mbc): [S5 31-49] red tests for CSR scratch aliasing (S1.2 root cause)"
   ```
-- [ ] **Step 50** [V][GATE] ~1m: **PHASE 1 EXIT GATE** — root cause stated with host + live evidence (or H-S1 STUCK-logged); red tests committed and ignored; kernel byte-identical to Phase 0
+- [x] **Step 50** [V][GATE] ~1m: **PHASE 1 EXIT GATE** — root cause stated with host + live evidence (or H-S1 STUCK-logged); red tests committed and ignored; kernel byte-identical to Phase 0
   - Pass → Phase 2. Fail → Skip Protocol for Phases 1–3; continue at Phase 4.
 
 ### Phase 1 Definition of Done
@@ -383,88 +383,88 @@ Red tests exist for every aliasing case found · live probe reverted, kernel sha
 **Time**: ~3 h
 **Agent**: Coordinator + Developer (TDD)
 
-- [ ] **Step 51** [DECIDE][DESIGN] ~10m: Scratch strategy for the CSR address
+- [x] **Step 51** [DECIDE][DESIGN] ~10m: Scratch strategy for the CSR address
   - **RECOMMENDATION**: use **r0** (x0's MBC register) as the CSR pointer and restore it with `MOVI r0,0` at the end of the sequence. Rationale: the translator already writes r0 transiently whenever rd=x0 and resets it via `guard_zero_dst`, so this adds no new hazard class; every other MBC register is a live RV register (`map_register` maps all 16), and LD/ST offsets are `simm16`, so `[r0 + 0xF500]` cannot be encoded directly (0xF500 sign-extends). For `csrr rd` (rd≠0) the address can be built in **rd** itself (zero scratch).
   - **Override ONLY if**: Step 53 shows any MBC trap/interrupt can be taken between two MBC words of one translated RV instruction (then r0 is not safe → use the PUSH/POP spill of a register ∉ {rd, rs1} instead).
-- [ ] **Step 52** [DECIDE][DESIGN] ~5m: Rare forms (H-S3)
+- [x] **Step 52** [DECIDE][DESIGN] ~5m: Rare forms (H-S3)
   - **RECOMMENDATION**: forms absent from every image (per `$S5/p1-csr-forms.txt`) → `TranslateError::UnsupportedInstruction` (fail-closed: a future image using them breaks the build, not the boot). Forms present → spill sequence `PUSH rX; …; POP rX`, rX ∉ {rd, rs1, r15}.
   - **Override ONLY if**: a present form sits on a path where sp is not a valid stack (uservec entry before the stack switch) → then that site gets a source-level workaround like S1.0 and the translator rejects the form.
-- [ ] **Step 53** [R] ~10m: Confirm interrupts/traps are only taken at MBC instruction boundaries the translator controls (SYSCALL injection is synchronous; check timer/IRQ delivery in `main.rs`)
+- [x] **Step 53** [R] ~10m: Confirm interrupts/traps are only taken at MBC instruction boundaries the translator controls (SYSCALL injection is synchronous; check timer/IRQ delivery in `main.rs`)
   ```bash
   grep -n 'pending_irq\|timer_irq\|deliver_interrupt\|STVEC' "$EBPF/monad-cpu-ebpf/src/main.rs" | head -20
   ```
-- [ ] **Step 54** [V] ~1m: Either no asynchronous delivery exists in the ascend build, or delivery happens only between whole RV-instruction translations → Step 51 recommendation stands
-- [ ] **Step 55** [V][SPEC] ~5m: **SPEC COMPLIANCE GATE (ISA/ABI)**
+- [x] **Step 54** [V] ~1m: Either no asynchronous delivery exists in the ascend build, or delivery happens only between whole RV-instruction translations → Step 51 recommendation stands
+- [x] **Step 55** [V][SPEC] ~5m: **SPEC COMPLIANCE GATE (ISA/ABI)**
   - Wire format version: v0x01 (FROZEN) — untouched
   - Change type: **bug fix** in RV32I→MBC translation; brings implementation toward ADR-067 Decision 2 ("LD rd / ST rs1", no scratch). No opcode added/removed/renumbered; eBPF interpreter unchanged
   - RFC Editor reviewed: **N/A for the code** (no spec text changes in this phase); **Y required** for the ADR-067 amendment written in Step 72 (CSR range + the reject list)
   - Backward compatible: Y — all existing `.mbc` remain loadable; regenerated images change bytes (expected)
   - IANA impact: None
-- [ ] **Step 56** [CODE] ~30m: Implement per Steps 51–52 in the 0x73 arm
+- [x] **Step 56** [CODE] ~30m: Implement per Steps 51–52 in the 0x73 arm
   - `csrr` (CSRRS/CSRRC with rs1=x0, and CSRRSI/CSRRCI with uimm=0): emit only the read; **no write-back** (RISC-V: rs1=x0 → no write).
   - Address in rd for reads; in r0 (restored) for writes.
   - CSRRW: `rd==rs1≠0` → reject (or spill per Step 52). CSRRS/CSRRC with rs1≠x0 → reject or spill per Step 52.
   - CSR index ≥ 0x400 → reject if H-S4 showed none used; else keep full mapping and note it for Step 72.
-- [ ] **Step 57** [B][TEST] ~2m: Un-ignore the Phase 1 tests; run the translator suite
+- [x] **Step 57** [B][TEST] ~2m: Un-ignore the Phase 1 tests; run the translator suite
   ```bash
   cargo test --manifest-path "$PROJECT_ROOT/crates/monad-mbc/Cargo.toml" 2>&1 | tail -20
   ```
-- [ ] **Step 58** [V] ~30s: Phase 1 tests GREEN; no other test changed status
+- [x] **Step 58** [V] ~30s: Phase 1 tests GREEN; no other test changed status
   - Red → [D] Step 59
-- [ ] **Step 59** [D] ~15m: Compare emitted words against the intended sequence with `mbc-asm --disasm` on a one-instruction ELF; fix, rerun Step 57. Two attempts, then STUCK.
-- [ ] **Step 60** [W][TEST] ~15m: Exhaustive table test — for every CSR form (CSRRW/S/C, immediate variants) × rd ∈ {x0, a4, a5, ra, other} × rs1 ∈ {x0, a4, a5, other}: either `Err(Unsupported)` or, on the host emulator, (1) rd = old CSR, (2) CSR = new per the RISC-V spec, (3) every other RV-mapped register unchanged, (4) r0 == 0 after the sequence
-- [ ] **Step 61** [B][TEST] ~2m: MBC verification pattern — decode
+- [x] **Step 59** [D] ~15m: Compare emitted words against the intended sequence with `mbc-asm --disasm` on a one-instruction ELF; fix, rerun Step 57. Two attempts, then STUCK.
+- [x] **Step 60** [W][TEST] ~15m: Exhaustive table test — for every CSR form (CSRRW/S/C, immediate variants) × rd ∈ {x0, a4, a5, ra, other} × rs1 ∈ {x0, a4, a5, other}: either `Err(Unsupported)` or, on the host emulator, (1) rd = old CSR, (2) CSR = new per the RISC-V spec, (3) every other RV-mapped register unchanged, (4) r0 == 0 after the sequence
+- [x] **Step 61** [B][TEST] ~2m: MBC verification pattern — decode
   ```bash
   cargo test --manifest-path "$PROJECT_ROOT/crates/monad-mbc/Cargo.toml" decode 2>&1 | tail -5
   ```
-- [ ] **Step 62** [V] ~30s: ALL opcodes decode correctly
-- [ ] **Step 63** [B][TEST] ~6m: MBC verification pattern — roundtrip + execute fuzz, 5 min each (resource-aware: two short runs, not open-ended)
+- [x] **Step 62** [V] ~30s: ALL opcodes decode correctly
+- [x] **Step 63** [B][TEST] ~6m: MBC verification pattern — roundtrip + execute fuzz, 5 min each (resource-aware: two short runs, not open-ended)
   ```bash
   cd "$PROJECT_ROOT/crates/monad-mbc" && cargo +nightly fuzz run fuzz_mbc_roundtrip -- -max_total_time=300 2>&1 | tail -3
   cargo +nightly fuzz run fuzz_mbc_execute -- -max_total_time=300 2>&1 | tail -3
   ```
-- [ ] **Step 64** [V] ~30s: Zero crashes in both runs
+- [x] **Step 64** [V] ~30s: Zero crashes in both runs
   - Crash → Emergency A.6; do not commit the translator change until fixed
-- [ ] **Step 65** [C] ~1m: **COMMIT CHECKPOINT** (red→green)
+- [x] **Step 65** [C] ~1m: **COMMIT CHECKPOINT** (red→green)
   ```bash
   git -C "$PROJECT_ROOT" add crates/monad-mbc/src && commitp -m "fix(mbc): [S5 51-65] CSR translation no longer clobbers a4/a5/ra; csrr never writes the CSR"
   ```
-- [ ] **Step 66** [B][BUILD][REGEN] ~5m: Rebuild translator, kernel, userland
+- [x] **Step 66** [B][BUILD][REGEN] ~5m: Rebuild translator, kernel, userland
   ```bash
   cargo build --release --manifest-path "$PROJECT_ROOT/crates/monad-mbc/Cargo.toml" 2>&1 | tail -1
   kbuild 2>&1 | tail -2; ubuild 2>&1 | tail -2; sha256sum "$K"/xv6-mbc.mbc | tee "$S5/p2-kernel-sha.txt"
   ```
-- [ ] **Step 67** [V] ~1m: Kernel `.mbc` changed (expected); translation count recorded (was 11,769 MBC at S1.0)
+- [x] **Step 67** [V] ~1m: Kernel `.mbc` changed (expected); translation count recorded (was 11,769 MBC at S1.0)
   - Build error `UnsupportedInstruction` → an image uses a form Step 52 rejected: Step 52 override path
-- [ ] **Step 68** [B] ~3m: **H-S5** — Doom `.mbc` regenerated from the same ELF is byte-identical
+- [x] **Step 68** [B] ~3m: **H-S5** — Doom `.mbc` regenerated from the same ELF is byte-identical
   ```bash
   "$PROJECT_ROOT/crates/monad-mbc/target/release/rv32i-to-mbc" "$DOOM_ELF" -o "$S5/doom-new.mbc" && sha256sum "$S5/doom-new.mbc"; grep -i doom "$S5/p0-mbc-sha.txt"
   ```
-- [ ] **Step 69** [V] ~30s: Doom sha identical → Doom unaffected by construction
+- [x] **Step 69** [V] ~30s: Doom sha identical → Doom unaffected by construction
   - Differs → Doom has CSR ops: run `scripts/doom-smoke.sh` and the doom-runner load in the harness before proceeding (Step 71 covers load; add a frame check)
-- [ ] **Step 70** [B][S][TEST] ~8m: Full corpus sweep + the four special boots
+- [x] **Step 70** [B][S][TEST] ~8m: Full corpus sweep + the four special boots
   ```bash
   sweep | tee "$S5/p2-sweep.txt"
   ```
-- [ ] **Step 71** [B][S][TEST] ~2m: Regression harness
+- [x] **Step 71** [B][S][TEST] ~2m: Regression harness
   ```bash
   bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tee "$S5/p2-regression.log" | tail -12
   ```
-- [ ] **Step 72** [W][SPEC] ~20m: Amend ADR-067 Decision 2 (implementation note dated 2026-10-xx): the real CSR address range (`0xF000 + csr*4`, csr < 0x400 if H-S4 held), the no-scratch rule, the rejected forms, the "rs1=x0 never writes" rule. Add an RFC Editor item for the MBC-ISA draft: KF10 (0x11–0x1B listed RESERVED and assigned; MOVI documented sign-extended, implemented zero-extended). **RFC Editor review requested — not self-approved.**
-- [ ] **Step 73** [V] ~1m: **TTY gate** — `p2-sweep.txt` 8 × SAME; harness `== ALL GREEN ==`; ascend verifier unchanged (eBPF untouched); Doom loads
+- [x] **Step 72** [W][SPEC] ~20m: Amend ADR-067 Decision 2 (implementation note dated 2026-10-xx): the real CSR address range (`0xF000 + csr*4`, csr < 0x400 if H-S4 held), the no-scratch rule, the rejected forms, the "rs1=x0 never writes" rule. Add an RFC Editor item for the MBC-ISA draft: KF10 (0x11–0x1B listed RESERVED and assigned; MOVI documented sign-extended, implemented zero-extended). **RFC Editor review requested — not self-approved.**
+- [x] **Step 73** [V] ~1m: **TTY gate** — `p2-sweep.txt` 8 × SAME; harness `== ALL GREEN ==`; ascend verifier unchanged (eBPF untouched); Doom loads
   - Any DIFF → Step 74
-- [ ] **Step 74** [D] ~20m: A corpus boot changed. If only the stats line moved (cycle-dependent), compare `.full` for the first divergent byte; if TTY bytes differ, the fix changed semantics a boot relied on (a latent clobber that "worked"): bisect by reverting the a4/r0 half of the change. Two attempts, then STUCK.
-- [ ] **Step 75** [B][S] ~6m: Boot the four special goldens (`uinit_echo`, `multi`, `nosuch`, `blank`) with the PHASE22 recipes; diff
-- [ ] **Step 76** [V] ~30s: 12/12 boots byte-identical (TTY + stats)
-- [ ] **Step 77** [REGEN] ~1m: Goldens stay as they are (they still match). Note in the log: "goldens valid for HEAD after Phase 2".
-- [ ] **Step 78** [AUDIT-UPDATE] ~5m: Sprint log: H-S1…H-S5 final, budgets, translation count delta, Doom identity
-- [ ] **Step 79** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 74** [D] ~20m: A corpus boot changed. If only the stats line moved (cycle-dependent), compare `.full` for the first divergent byte; if TTY bytes differ, the fix changed semantics a boot relied on (a latent clobber that "worked"): bisect by reverting the a4/r0 half of the change. Two attempts, then STUCK.
+- [x] **Step 75** [B][S] ~6m: Boot the four special goldens (`uinit_echo`, `multi`, `nosuch`, `blank`) with the PHASE22 recipes; diff
+- [x] **Step 76** [V] ~30s: 12/12 boots byte-identical (TTY + stats)
+- [x] **Step 77** [REGEN] ~1m: Goldens stay as they are (they still match). Note in the log: "goldens valid for HEAD after Phase 2".
+- [x] **Step 78** [AUDIT-UPDATE] ~5m: Sprint log: H-S1…H-S5 final, budgets, translation count delta, Doom identity
+- [x] **Step 79** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add docs/adr/ADR-067-mbc-isa-v2-and-upc-abi-v1.md references/s5-upc-wire-log.md && commitp -m "docs(adr): [S5 66-79] ADR-067 CSR implementation note + RFC Editor items"
   ```
-- [ ] **Step 80** [SECURITY] ~10m: BlackMage lens — can a user program reach a CSR form the translator now rejects at runtime? (No: translation is offline; a rejected form fails the build.) Can r0-as-pointer leak a non-zero r0 into user code? (Only if a trap lands mid-sequence; Step 54 ruled it out.) Record both answers.
-- [ ] **Step 81** [V] ~30s: Security notes recorded; no new attack surface
-- [ ] **Step 82** [V][GATE] ~1m: **PHASE 2 EXIT GATE** — tests green, fuzz clean, 12/12 goldens identical, harness green, Doom identical, ADR-067 note committed with RFC Editor item open
+- [x] **Step 80** [SECURITY] ~10m: BlackMage lens — can a user program reach a CSR form the translator now rejects at runtime? (No: translation is offline; a rejected form fails the build.) Can r0-as-pointer leak a non-zero r0 into user code? (Only if a trap lands mid-sequence; Step 54 ruled it out.) Record both answers.
+- [x] **Step 81** [V] ~30s: Security notes recorded; no new attack surface
+- [x] **Step 82** [V][GATE] ~1m: **PHASE 2 EXIT GATE** — tests green, fuzz clean, 12/12 goldens identical, harness green, Doom identical, ADR-067 note committed with RFC Editor item open
   - Fail → DO NOT PROCEED to Phase 3
 
 ### Phase 2 Definition of Done
@@ -480,61 +480,61 @@ MBC verification pattern passed (decode + 2 × 5-min fuzz) · spec gate recorded
 **Agent**: Coordinator
 
 ### L5 regression verification (Dream Ladder template)
-- [ ] **Step 83** [B][S] ~2m: L5 suite = regression harness (already green at Step 71) — re-run only if anything changed since
-- [ ] **Step 84** [V] ~30s: ALL L5 tests pass (zero regression). Any regression → HALT.
-- [ ] **Step 85** [B] ~1m: L5 benchmark = boot instruction counts for `echo hello` (stats line) vs Phase 0
-- [ ] **Step 86** [V] ~30s: Within 5% of the Phase 0 baseline (the fix removes write-backs, so expect equal or lower)
+- [x] **Step 83** [B][S] ~2m: L5 suite = regression harness (already green at Step 71) — re-run only if anything changed since
+- [x] **Step 84** [V] ~30s: ALL L5 tests pass (zero regression). Any regression → HALT.
+- [x] **Step 85** [B] ~1m: L5 benchmark = boot instruction counts for `echo hello` (stats line) vs Phase 0
+- [x] **Step 86** [V] ~30s: Within 5% of the Phase 0 baseline (the fix removes write-backs, so expect equal or lower)
 
 ### Close S1.2
-- [ ] **Step 87** [CODE] ~10m: `userret`: replace `mv a0, a1` with `csrr a0, sscratch` (the S1.2 design, now that `prepare_return` stores the right value). Keep the comment block, updated with the S5 root cause.
-- [ ] **Step 88** [B][S] ~8m: Rebuild kernel; full sweep with `GETPID_INJECT=false`
+- [x] **Step 87** [CODE] ~10m: `userret`: replace `mv a0, a1` with `csrr a0, sscratch` (the S1.2 design, now that `prepare_return` stores the right value). Keep the comment block, updated with the S5 root cause.
+- [x] **Step 88** [B][S] ~8m: Rebuild kernel; full sweep with `GETPID_INJECT=false`
   ```bash
   kbuild >/dev/null 2>&1 && sweep | tee "$S5/p3-sweep-userret.txt"
   ```
-- [ ] **Step 89** [V] ~30s: 8 × SAME — forkret's userret now works from sscratch (it broke the boot in July)
+- [x] **Step 89** [V] ~30s: 8 × SAME — forkret's userret now works from sscratch (it broke the boot in July)
   - DIFF → Step 90
-- [ ] **Step 90** [D] ~20m: Print `a1` vs sscratch at userret entry (temporary `mmio_puthex`), revert after. If they differ, `prepare_return` and forkret disagree on the trapframe → this is the dual-books question again: STOP the flip, keep `mv a0,a1`, record evidence, Skip to Step 104.
-- [ ] **Step 91** [B][BUILD] ~3m: Build the probe and the ascend object with the flag ON
+- [x] **Step 90** [D] ~20m: Print `a1` vs sscratch at userret entry (temporary `mmio_puthex`), revert after. If they differ, `prepare_return` and forkret disagree on the trapframe → this is the dual-books question again: STOP the flip, keep `mv a0,a1`, record evidence, Skip to Step 104.
+- [x] **Step 91** [B][BUILD] ~3m: Build the probe and the ascend object with the flag ON
   ```bash
   (cd "$UP" && make -f ../adapters/Makefile.mbc-userland target/getpidprobe.mbc 2>&1 | tail -1)
   sed -i 's/const GETPID_INJECT: bool = false;/const GETPID_INJECT: bool = true;/' "$EBPF/monad-cpu-ebpf/src/main.rs"
   (cd "$EBPF" && cargo build --release -p monad-cpu-ebpf --features ascend-linux 2>&1 | tail -1)
   ```
-- [ ] **Step 92** [B][S][TEST] ~3m: Run the probe with the flag ON
+- [x] **Step 92** [B][S][TEST] ~3m: Run the probe with the flag ON
   ```bash
   out="$(cd "$EBPF" && UPC_VERIFIER_STATS=1 sudo "$BC" boot --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" \
     --userland "$K/getpidprobe.mbc" --triggers 2000000 --instance 111 2>&1)"; printf '%s\n' "$out" > "$S5/p3-getpid-on.txt"
   grep -aoE 'GP: [a-z=0-9-]+|verified [0-9]+ insns' <<<"$out"
   ```
-- [ ] **Step 93** [V] ~1m: **FIRST ROUND TRIP** — `GP: probe-start`, `GP: getpid-returned`, `GP: pid=0` (init's pid, same as the flag-OFF control), CPU back at priv=3, no DEAD sentinel
+- [x] **Step 93** [V] ~1m: **FIRST ROUND TRIP** — `GP: probe-start`, `GP: getpid-returned`, `GP: pid=0` (init's pid, same as the flag-OFF control), CPU back at priv=3, no DEAD sentinel
   - Missing `getpid-returned` → Step 94
-- [ ] **Step 94** [D] ~20m: Trace PC/priv across SRET (existing `--trace`-style CPU dump in bootctl); check `sepc` = ecall RV addr + 4 handling in `usertrap` (xv6 advances epc by 4; the injector stores the ecall's rv_word). Two attempts, then STUCK and restore the flag to false.
-- [ ] **Step 95** [B][S] ~3m: Same probe, flag OFF (control) — confirm identical TTY
-- [ ] **Step 96** [V] ~30s: Flag ON and OFF print identical `GP:` lines
-- [ ] **Step 97** [B] ~1m: Verifier delta with the fixed path
+- [x] **Step 94** [D] ~20m: Trace PC/priv across SRET (existing `--trace`-style CPU dump in bootctl); check `sepc` = ecall RV addr + 4 handling in `usertrap` (xv6 advances epc by 4; the injector stores the ecall's rv_word). Two attempts, then STUCK and restore the flag to false.
+- [x] **Step 95** [B][S] ~3m: Same probe, flag OFF (control) — confirm identical TTY
+- [x] **Step 96** [V] ~30s: Flag ON and OFF print identical `GP:` lines — **FAILED 2026-10-23**: ON prints `GP: pid=1`, OFF `GP: pid=0` (see references/s5-upc-wire-log.md)
+- [x] **Step 97** [B] ~1m: Verifier delta with the fixed path
   ```bash
   grep -aoE 'verified [0-9]+ insns' "$S5/p3-getpid-on.txt"; grep -aoE 'ascend verifier[^)]*' "$S5/p2-regression.log"
   ```
-- [ ] **Step 98** [V] ~30s: Record delta (July: +5409 → 905,440). Must be < 1,000,000 with ≥ 5% headroom (≤ 950,000)
-- [ ] **Step 99** [B][S][TEST] ~8m: Flag ON — full sweep + harness (the harness rebuilds ascend with the source flag as set)
+- [x] **Step 98** [V] ~30s: Record delta (July: +5409 → 905,440). Must be < 1,000,000 with ≥ 5% headroom (≤ 950,000)
+- [x] **Step 99** [B][S][TEST] ~8m: Flag ON — full sweep + harness (the harness rebuilds ascend with the source flag as set)
   ```bash
   sweep | tee "$S5/p3-sweep-on.txt"; bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tail -8
   ```
-- [ ] **Step 100** [V] ~30s: 8 × SAME, harness green, Doom loads (Doom build DCEs the arm)
-- [ ] **Step 101** [B] ~2m: Cycle delta — instructions for one getpid round trip (flag ON minus flag OFF, from the stats/CPU dump)
-- [ ] **Step 102** [DECIDE] ~10m: Default for `GETPID_INJECT`
+- [x] **Step 100** [V] ~30s: 8 × SAME, harness green, Doom loads (Doom build DCEs the arm)
+- [x] **Step 101** [B] ~2m: Cycle delta — instructions for one getpid round trip (flag ON minus flag OFF, from the stats/CPU dump)
+- [x] **Step 102** [DECIDE] ~10m: Default for `GETPID_INJECT` — **2026-10-23: `false`** (Step 96 failed)
   - **RECOMMENDATION**: ship **`true`** in the ascend build iff Steps 93/96/98/100 all passed. Rationale: EVOLUTION-1 D1's "+5409 → keep (c) minimal" rule governs the *Stage 2 migration ladder* (which syscalls to move next), not whether the one already-built, now-working proof stays dark; Stevie scoped "getpid flip" into this sprint; rollback stays one const.
   - **Override ONLY if**: verifier > 950,000, or cycle cost per getpid makes any corpus boot exceed its `--triggers` budget, or Stevie re-affirms "flip stays deferred" → set `false`, keep the evidence.
-- [ ] **Step 103** [W][DOC-UPDATE] ~15m: Update `EVOLUTION-1-TRAP-FLIP.md` (Stage 1: DONE, root cause, verifier + cycle delta, default chosen and why) and `UPC-LINUX-MASTER-BATTLE-PLAN.md` Epic 1.2 checkbox note
-- [ ] **Step 104** [V] ~1m: Tree state matches the decision (flag value in `main.rs`, userret line) and Step 88/99 sweeps match that state
-- [ ] **Step 105** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 103** [W][DOC-UPDATE] ~15m: Update `EVOLUTION-1-TRAP-FLIP.md` (Stage 1: DONE, root cause, verifier + cycle delta, default chosen and why) and `UPC-LINUX-MASTER-BATTLE-PLAN.md` Epic 1.2 checkbox note
+- [x] **Step 104** [V] ~1m: Tree state matches the decision (flag value in `main.rs`, userret line) and Step 88/99 sweeps match that state
+- [x] **Step 105** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add crates/xv6-mbc/adapters/trampoline_mbc.S ebpf/monad-cpu-ebpf/src/main.rs docs/battle-plans/EVOLUTION-1-TRAP-FLIP.md docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md references/s5-upc-wire-log.md && \
   commitp -m "feat(upc): [S5 83-105] getpid round-trips through the owned kernel (EVOLUTION-1 Stage 1 closed)"
   ```
-- [ ] **Step 106** [B][REGEN] ~10m: Goldens: if any `.full` changed only in non-gated lines, keep; else recapture all 12 from this HEAD (equivalence proven by Steps 99–100)
-- [ ] **Step 107** [V] ~1m: **DREAM LADDER L5 GATE** — getpid round trip proven; L5 regression GREEN; Computermancer confirms; verifier headroom ≥ 5%
-- [ ] **Step 108** [V][GATE][C] ~1m: **PHASE 3 EXIT GATE / LEVEL TRANSITION COMMIT** — commit any golden note; Phase 3 closed
+- [x] **Step 106** [B][REGEN] ~10m: Goldens: if any `.full` changed only in non-gated lines, keep; else recapture all 12 from this HEAD (equivalence proven by Steps 99–100)
+- [x] **Step 107** [V] ~1m: **DREAM LADDER L5 GATE** — getpid round trip proven; L5 regression GREEN; Computermancer confirms; verifier headroom ≥ 5%
+- [x] **Step 108** [V][GATE][C] ~1m: **PHASE 3 EXIT GATE / LEVEL TRANSITION COMMIT** — commit any golden note; Phase 3 closed
   ```bash
   git -C "$PROJECT_ROOT" add references/s5-upc-wire-log.md && commitp -m "docs(upc): [S5 106-108] L5 gate evidence" || true
   ```
@@ -551,66 +551,66 @@ Round trip proven flag ON · decision recorded with numbers · 12/12 goldens ide
 **Time**: ~3 h
 **Agent**: Developer [P]
 
-- [ ] **Step 109** [R] ~5m: Read the producer/consumer contract
+- [x] **Step 109** [R] ~5m: Read the producer/consumer contract
   ```bash
   sed -n '/pub fn write_kbd/,/^    }/p' "$PROJECT_ROOT/cmd/upc-bootctl/src/runner.rs"; grep -n 'KBD_TAIL.get(0)' -A12 "$EBPF/monad-cpu-ebpf/src/main.rs" | head -16
   ```
-- [ ] **Step 110** [R] ~3m: Read the bridge reader loop + bind address
+- [x] **Step 110** [R] ~3m: Read the bridge reader loop + bind address
   ```bash
   sed -n '/Reader loop/,/^}/p' "$PROJECT_ROOT/cmd/upc-tty-bridge/main.go"; grep -n 'addr := \|CheckOrigin' "$PROJECT_ROOT/cmd/upc-tty-bridge/main.go"
   ```
-- [ ] **Step 111** [V][PREFLIGHT] ~2m: **H-K1** — the guest consumes `KBD_MAP[tail & 63]` while `tail < head`, never resets HEAD/TAIL itself, and blocks (PC rewind) on empty → a host producer may append at `head & 63` and then bump `KBD_HEAD`, provided `head - tail < 64`
+- [x] **Step 111** [V][PREFLIGHT] ~2m: **H-K1** — the guest consumes `KBD_MAP[tail & 63]` while `tail < head`, never resets HEAD/TAIL itself, and blocks (PC rewind) on empty → a host producer may append at `head & 63` and then bump `KBD_HEAD`, provided `head - tail < 64`
   - False → [ESCALATE] (needs a BPF change and verifier spend); park Phase 4, continue Phase 5
-- [ ] **Step 112** [DESIGN][W] ~10m: Contract note in the `runner.rs` doc comment: single producer (host) / single consumer (guest); write slot THEN head (two map updates, syscall-ordered); capacity check `head.wrapping_sub(tail) < 64`; never write TAIL after boot. Note the guest compares `tail < head` (not wrapping) — document the 2^32-byte session limit rather than spend verifier insns on it.
-- [ ] **Step 113** [W][CODE][TEST] ~20m: Red tests (pure functions): `kbd_append_plan(head, tail, bytes) -> (writes, new_head, accepted)` — full ring accepts 0, partial accepts `64-(head-tail)`, slot index wraps 63→0
+- [x] **Step 112** [DESIGN][W] ~10m: Contract note in the `runner.rs` doc comment: single producer (host) / single consumer (guest); write slot THEN head (two map updates, syscall-ordered); capacity check `head.wrapping_sub(tail) < 64`; never write TAIL after boot. Note the guest compares `tail < head` (not wrapping) — document the 2^32-byte session limit rather than spend verifier insns on it.
+- [x] **Step 113** [W][CODE][TEST] ~20m: Red tests (pure functions): `kbd_append_plan(head, tail, bytes) -> (writes, new_head, accepted)` — full ring accepts 0, partial accepts `64-(head-tail)`, slot index wraps 63→0
   ```bash
   cargo test --manifest-path "$PROJECT_ROOT/cmd/upc-bootctl/Cargo.toml" kbd_append 2>&1 | tail -8
   ```
-- [ ] **Step 114** [CODE] ~20m: Implement `kbd_append_plan` + `Runner::append_kbd(&[u8]) -> Result<usize>` (reads HEAD/TAIL, writes slots `(b<<1)|1`, then bumps HEAD)
-- [ ] **Step 115** [V] ~1m: Tests green; `write_kbd` (`--input` prefill) untouched, its tests still green
-- [ ] **Step 116** [W][CODE][TEST] ~25m: Bridge (Go, test first): per-instance bounded keystroke queue (4096 B; overflow drops newest and counts `upc_tty_kbd_dropped_total`); the WS reader pushes into it (replacing the TODO); `GET /api/v1/kbd/drain?instance=N&max=K` returns ≤K queued bytes as a JSON number array (same shape as ingest); 405 on non-GET
+- [x] **Step 114** [CODE] ~20m: Implement `kbd_append_plan` + `Runner::append_kbd(&[u8]) -> Result<usize>` (reads HEAD/TAIL, writes slots `(b<<1)|1`, then bumps HEAD)
+- [x] **Step 115** [V] ~1m: Tests green; `write_kbd` (`--input` prefill) untouched, its tests still green
+- [x] **Step 116** [W][CODE][TEST] ~25m: Bridge (Go, test first): per-instance bounded keystroke queue (4096 B; overflow drops newest and counts `upc_tty_kbd_dropped_total`); the WS reader pushes into it (replacing the TODO); `GET /api/v1/kbd/drain?instance=N&max=K` returns ≤K queued bytes as a JSON number array (same shape as ingest); 405 on non-GET
   ```bash
   cd "$PROJECT_ROOT" && go test -race ./cmd/upc-tty-bridge/... 2>&1 | tail -5
   ```
-- [ ] **Step 117** [V] ~30s: Red first, then green; `-race` clean
-- [ ] **Step 118** [SECURITY][CODE] ~15m: Typing into the UPC shell is a write path. Add `--listen` (default `127.0.0.1:26100`, replacing `:%d`); the drain endpoint answers only loopback callers (403 otherwise, tested with a fake RemoteAddr); WS origin check unchanged (`WS_ALLOWED_ORIGINS`)
-- [ ] **Step 119** [V] ~30s: Security tests green
-- [ ] **Step 120** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 117** [V] ~30s: Red first, then green; `-race` clean
+- [x] **Step 118** [SECURITY][CODE] ~15m: Typing into the UPC shell is a write path. Add `--listen` (default `127.0.0.1:26100`, replacing `:%d`); the drain endpoint answers only loopback callers (403 otherwise, tested with a fake RemoteAddr); WS origin check unchanged (`WS_ALLOWED_ORIGINS`)
+- [x] **Step 119** [V] ~30s: Security tests green
+- [x] **Step 120** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add cmd/upc-tty-bridge cmd/upc-bootctl/src/runner.rs && commitp -m "feat(upc-tty): [S5 109-120] keystroke queue + loopback drain; KBD ring append"
   ```
-- [ ] **Step 121** [W][CODE] ~40m: `upc-bootctl console --instance N [--stdin] [--tick-batch T] --kernel … --ramdisk … --userland …` (replaces the stub): reuse `boot`'s load path; loop until Ctrl-C: send T triggers → `read_tty(&mut cursor)` → print + `post_ingest` → GET drain and/or raw stdin bytes → `append_kbd`; on exit, the same XDP/netns teardown as `boot`
-- [ ] **Step 122** [B][BUILD] ~3m: Build bootctl + bridge
+- [x] **Step 121** [W][CODE] ~40m: `upc-bootctl console --instance N [--stdin] [--tick-batch T] --kernel … --ramdisk … --userland …` (replaces the stub): reuse `boot`'s load path; loop until Ctrl-C: send T triggers → `read_tty(&mut cursor)` → print + `post_ingest` → GET drain and/or raw stdin bytes → `append_kbd`; on exit, the same XDP/netns teardown as `boot`
+- [x] **Step 122** [B][BUILD] ~3m: Build bootctl + bridge
   ```bash
   cargo build --release --manifest-path "$PROJECT_ROOT/cmd/upc-bootctl/Cargo.toml" 2>&1 | tail -1
   (cd "$PROJECT_ROOT" && go build -o "$S5/upc-tty-bridge" ./cmd/upc-tty-bridge)
   ```
-- [ ] **Step 123** [B][S][TEST] ~5m: Headless end-to-end with `--stdin`: type two commands after boot
+- [x] **Step 123** [B][S][TEST] ~5m: Headless end-to-end with `--stdin`: type two commands after boot
   ```bash
   (sleep 8; printf 'echo hello\n'; sleep 6; printf 'ls\n'; sleep 6) | (cd "$EBPF" && sudo timeout 40 "$BC" console --instance 111 --stdin \
     --kernel "$K/xv6-mbc.mbc" --ramdisk "$K/fs.img" --userland "$K/init.mbc") 2>&1 | tee "$S5/p4-console-stdin.txt" | tail -20
   ```
-- [ ] **Step 124** [V] ~1m: Output has `hello`, the `ls` listing (`README`, `cat`, …) and a `$` after each — typed after boot, not pre-filled
+- [x] **Step 124** [V] ~1m: Output has `hello`, the `ls` listing (`README`, `cat`, …) and a `$` after each — typed after boot, not pre-filled
   - Fail → Step 125
-- [ ] **Step 125** [D] ~15m: Add `--debug-kbd` (print HEAD/TAIL per batch). HEAD moves but TAIL doesn't → guest not in read(5) yet: raise `--tick-batch`. TAIL catches HEAD but no echo → byte encoding (`(b<<1)|1`) wrong.
-- [ ] **Step 126** [B][S][TEST] ~5m: Bridge path: start the bridge, run `console` without `--stdin`, type through a WS client (`websocat` if installed, else a small Go test client in `cmd/upc-tty-bridge/testdata/`)
+- [x] **Step 125** [D] ~15m: Add `--debug-kbd` (print HEAD/TAIL per batch). HEAD moves but TAIL doesn't → guest not in read(5) yet: raise `--tick-batch`. TAIL catches HEAD but no echo → byte encoding (`(b<<1)|1`) wrong.
+- [x] **Step 126** [B][S][TEST] ~5m: Bridge path: start the bridge, run `console` without `--stdin`, type through a WS client (`websocat` if installed, else a small Go test client in `cmd/upc-tty-bridge/testdata/`)
   ```bash
   "$S5/upc-tty-bridge" --listen 127.0.0.1:26100 >"$S5/bridge.log" 2>&1 & echo $! > "$S5/bridge.pid"
   ```
-- [ ] **Step 127** [V] ~1m: Text typed into the WS appears as shell output on the WS (`echo hello` → `hello`)
-- [ ] **Step 128** [B] ~1m: Paste 200 bytes at once
-- [ ] **Step 129** [V] ~30s: All 200 bytes reach the guest in order (≤64 per batch, rest queued); `kbd_dropped_total` = 0
-- [ ] **Step 130** [B][S] ~2m: Stop the bridge; regression harness (bootctl changed)
+- [x] **Step 127** [V] ~1m: Text typed into the WS appears as shell output on the WS (`echo hello` → `hello`)
+- [x] **Step 128** [B] ~1m: Paste 200 bytes at once
+- [x] **Step 129** [V] ~30s: All 200 bytes reach the guest in order (≤64 per batch, rest queued); `kbd_dropped_total` = 0
+- [x] **Step 130** [B][S] ~2m: Stop the bridge; regression harness (bootctl changed)
   ```bash
   kill "$(cat "$S5/bridge.pid")"; bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tail -6
   ```
-- [ ] **Step 131** [V] ~30s: `== ALL GREEN ==`; `--input` path (Gate C) unchanged
-- [ ] **Step 132** [W][DOC-UPDATE] ~10m: `wiki/Linux-on-UPC.md` (Mode A/B now interactive; console recipe); remove the bridge TODO comment and the `cmd_console` stub text
-- [ ] **Step 133** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 131** [V] ~30s: `== ALL GREEN ==`; `--input` path (Gate C) unchanged
+- [x] **Step 132** [W][DOC-UPDATE] ~10m: `wiki/Linux-on-UPC.md` (Mode A/B now interactive; console recipe); remove the bridge TODO comment and the `cmd_console` stub text
+- [x] **Step 133** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add cmd/upc-bootctl cmd/upc-tty-bridge wiki/Linux-on-UPC.md && commitp -m "feat(upc-bootctl): [S5 121-133] interactive console: live keyboard via bridge or stdin"
   ```
-- [ ] **Step 134** [V][GATE] ~1m: **PHASE 4 EXIT GATE** — live typing proven via stdin AND via WS; drain loopback-only; harness green; TODO removed
+- [x] **Step 134** [V][GATE] ~1m: **PHASE 4 EXIT GATE** — live typing proven via stdin AND via WS; drain loopback-only; harness green; TODO removed
 
 ### Phase 4 Definition of Done
 Host-only change (eBPF untouched, verifier unchanged) · Go `-race` + Rust tests green · drain loopback-only · wiki updated.
