@@ -1,0 +1,12 @@
+diff -ruN a/lines.sh b/lines.sh
+--- a/lines.sh	2026-10-23 10:35:51.001780842 +0000
++++ b/lines.sh	2026-10-23 10:35:51.001804212 +0000
+@@ -1,7 +1,7 @@
+ #!/usr/bin/env bash
+ set -euo pipefail
+ n=0
+-while read line; do
++while IFS= read -r line; do
+   n=$((n + 1))
+   printf '%d: %s\n' "$n" "$line"
+ done < "${1:-/dev/stdin}"

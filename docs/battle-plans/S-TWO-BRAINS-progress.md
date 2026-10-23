@@ -94,6 +94,15 @@ What still leaves west for the Claude API, after Phase 3:
 
 Residual risks: (1) the patterns are a deny list — an identifier with no pattern (a project codename, a customer name in a log line) passes in standard mode; `-privacy strict` withholds all T1 for unattended runs. (2) Host names are a configured list (west, east); a new host needs adding (`privacy.RedactorConfig.Hosts`, not yet a flag). (3) Whole-word host redaction also hits the English words "west"/"east" in T1 text; harmless over-redaction. (4) T0 is decided by `git ls-files` at the realpath, so a tracked file is T0 even if its content is sensitive and committed by mistake (that is a repo-hygiene finding, caught by gitleaks in CI). (5) Claude Code sessions use the MCP server directly and are outside this tier (Step 118; listed in `wiki/Zhen-Audit.md`).
 
+## Gates
+
+| Gate | Result | Evidence |
+|---|---|---|
+| Phase 0 (Step 30) | PASS | on `sprint/two-brains`; H1-H16 recorded; baseline 277 ok / 0 FAIL; commit `959ab714` |
+| Phase 1 (Step 62) | PASS | 030 offline checks + throwaway tests, bite-checked (owner UPDATE/DELETE allowed without the trigger -> 3 FAIL); `go test -race` claudebridge/zhen-claude/zhen-agentd ok; `pg_dump` 0 marker hits; Steps 59/61 escalated |
+| Phase 2 (Step 98) | PASS | self-approval and no-leak tests pass and bite (leaking the code into the result and approving on no answer -> 3 FAIL); 031 throwaway tests pass, bite-checked; default `-confirm deny` |
+| Phase 3 (Step 124) | PASS | no planted value survives (`TestRedact_NoPlantedValueSurvives`); `-tags privacy_bite` -> 12 FAIL; fail-closed paths tested (scanner missing, failing, hung; prompt not sent; tool result withheld); default `-privacy standard`. Step 121 live: `service_health` result tier T1, mode standard, 0 redactions (the payload holds service names and ports only, no addresses); consistent. |
+
 ## STUCK
 
 ## ESCALATE answers
@@ -109,3 +118,5 @@ All live Claude calls of this run go through `-ledger $SCRATCH/spend.json`
 | Step | What | Cost (USD) | Running total |
 |---|---|---|---|
 | 27 | smoke, `-effort low`, 1 request | 0.001004 | 0.001004 |
+
+| 121 | `-tools mcp`, summarise `service_health`, `-effort low`, 2 requests | 0.010566 | 0.011570 |

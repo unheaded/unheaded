@@ -1,0 +1,10 @@
+diff -ruN a/lib.go b/lib.go
+--- a/lib.go	2026-10-23 10:35:50.983891813 +0000
++++ b/lib.go	2026-10-23 10:35:50.983917153 +0000
+@@ -11,5 +11,5 @@
+ 	if n >= len(xs) {
+ 		return xs
+ 	}
+-	return xs[len(xs)-n-1:]
++	return xs[len(xs)-n:]
+ }

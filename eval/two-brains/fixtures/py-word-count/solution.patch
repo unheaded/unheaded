@@ -1,0 +1,11 @@
+diff -ruN a/lib.py b/lib.py
+--- a/lib.py	2026-10-23 10:35:50.995498183 +0000
++++ b/lib.py	2026-10-23 10:35:50.995522183 +0000
+@@ -3,5 +3,6 @@
+     """Count words, case-insensitively."""
+     counts = {}
+     for w in text.split():
+-        counts[w.lower()] += 1
++        w = w.lower()
++        counts[w] = counts.get(w, 0) + 1
+     return counts

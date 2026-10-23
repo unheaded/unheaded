@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: disk-usage-report
+  description: Report disk usage of the Well volume
+  owner: micromanager
+  risk: low
+  requires_sudo: false
+
+steps:
+  - name: df
+    action: shell
+    command: "df -h /var"
+    verify: "df /var > /dev/null"
+
+  - name: largest-dirs
+    action: shell
+    command: "du -sh /var/lib/* 2>/dev/null | sort -h | tail -5"

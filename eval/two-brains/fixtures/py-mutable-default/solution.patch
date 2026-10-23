@@ -1,0 +1,12 @@
+diff -ruN a/lib.py b/lib.py
+--- a/lib.py	2026-10-23 10:35:50.992909027 +0000
++++ b/lib.py	2026-10-23 10:35:50.992946217 +0000
+@@ -1,5 +1,7 @@
+ # SPDX-License-Identifier: GPL-3.0-or-later
+-def add_tag(tag, tags=[]):
++def add_tag(tag, tags=None):
+     """Return tags with tag appended."""
++    if tags is None:
++        tags = []
+     tags.append(tag)
+     return tags
