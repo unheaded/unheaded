@@ -823,14 +823,19 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 3 h
 **Agent**: Agent [P:4] (code), Coordinator (Steps 170-176)
 
-- [ ] **Step 161** [DECIDE] ~0m: **D-14 image base = Alpine 3.22 + OpenRC + the static binary.** RECOMMENDATION: build each image from `images:alpine/3.22`: push the binary, an OpenRC service file and `/etc/conf.d/steel-echo` (version-specific fault knobs), `rc-update add`, then `lxc publish` to an alias. Rationale: Alpine brings the DHCP client and init the container needs on lxdbr0, and it stays small; a bare rootfs with the binary as `/sbin/init` would need its own network setup. Override ONLY if west cannot reach the simplestreams server: then build a rootfs tarball (binary as init, IPv6 SLAAC only) and `lxc image import` it, and record H17 against IPv6.
-- [ ] **Step 162** [CODE][TEST] ~40m: `cmd/steel-echo` tests first (`main_test.go`):
+- [x] **Step 161** [DECIDE] ~0m: **D-14 image base = Alpine 3.22 + OpenRC + the static binary.** RECOMMENDATION: build each image from `images:alpine/3.22`: push the binary, an OpenRC service file and `/etc/conf.d/steel-echo` (version-specific fault knobs), `rc-update add`, then `lxc publish` to an alias. Rationale: Alpine brings the DHCP client and init the container needs on lxdbr0, and it stays small; a bare rootfs with the binary as `/sbin/init` would need its own network setup. Override ONLY if west cannot reach the simplestreams server: then build a rootfs tarball (binary as init, IPv6 SLAAC only) and `lxc image import` it, and record H17 against IPv6.
+  - Done 2026-10-23: recommendation recorded (Alpine 3.22 + OpenRC). The override test (west reaching simplestreams) is live and waits on E2; this session builds the four payloads locally only, nothing is imported into LXD.
+- [x] **Step 162** [CODE][TEST] ~40m: `cmd/steel-echo` tests first (`main_test.go`):
+  - Done 2026-10-23: cmd/steel-echo/main_test.go: knob bounds (NaN/Inf/garbage refused, not clamped), health/version/root, root never echoes path/query/headers/body (and 404s with a fixed body), POST / 405, error rate 0.30 +/- 5% over 10k with a fixed seed while /health stays 200, latency knob on / only, house metrics, clean shutdown on context end, SIGTERM/SIGINT/SIGPWR, load flag validation, discover (healthy+running+managed+svc label only; loopback/garbage IPs refused; GET /api/v1/state/actual only), removed instance dropped within one period, failed refresh keeps targets, CSV columns/percentiles/version sanitising, a run against a 50% bad build, connection errors.
   - `serve` (default): `GET /health` 200 `ok`; `GET /version` the ldflags `-X main.version`; `GET /` returns hostname and version only (never echoes request data: zero user data access); `GET /metrics` exposes `unheaded_http_requests_total` / `unheaded_http_request_duration_seconds` through `pkg/httputil` middleware (the house metrics, Session 4); fault knobs `STEEL_ERROR_RATE` (0-1, fraction of `/` answered 500) and `STEEL_LATENCY_MS`; SIGTERM and SIGPWR shut down cleanly (LXD stop sends SIGPWR to init's children via OpenRC).
   - `load`: `--target URL` (fixed) or `--discover $CUIRASS --svc NAME` (every 2 s, the healthy managed instances whose label `svc=NAME`, round-robin, so traffic share = replica share); `--rps`, `--duration`, `--out CSV` with one line per second: `ts,sent,ok,err5xx,errconn,p50_ms,p99_ms,versions_seen`. Discover mode reads only `/api/v1/state/actual` (GET, no key needed).
   - Tests: knob parsing bounds, error-rate within ±5% over 10k requests (fixed seed), discover refresh drops a removed instance within one period, CSV columns.
-- [ ] **Step 163** [TEST] ~2m: Red: `gotest ./cmd/steel-echo/...`.
-- [ ] **Step 164** [CODE] ~45m: Implement (stdlib + existing `pkg/httputil`/`pkg/metrics` only; no new module).
-- [ ] **Step 165** [TEST][V] ~3m: Green; static build works.
+- [x] **Step 163** [TEST] ~2m: Red: `gotest ./cmd/steel-echo/...`.
+  - Done 2026-10-23: red (compile: parseKnobs, server, newServer undefined).
+- [x] **Step 164** [CODE] ~45m: Implement (stdlib + existing `pkg/httputil`/`pkg/metrics` only; no new module).
+  - Done 2026-10-23: main.go (serve|load), serve.go, load.go; stdlib + pkg/httputil + pkg/metrics only. A 3xx/4xx answer counts in sent only (availability stays ok/sent); a tick with no healthy target counts as errconn. API keys are not needed: discover reads the public actual-state GET.
+- [x] **Step 165** [TEST][V] ~3m: Green; static build works.
+  - Done 2026-10-23: green, race-clean; CGO_ENABLED=0 build is statically linked; golangci-lint 0 issues; gosec clean.
   ```bash
   gotest ./cmd/steel-echo/... && (cd "$PROJECT_ROOT" && CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=v1" -o "$SCRATCH/steel-echo" ./cmd/steel-echo && file "$SCRATCH/steel-echo")
   ```
