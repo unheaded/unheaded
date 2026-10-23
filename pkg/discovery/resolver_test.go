@@ -6,6 +6,7 @@ package discovery
 import (
 	"context"
 	"errors"
+	"net"
 	"os"
 	"path/filepath"
 	"testing"
@@ -123,5 +124,29 @@ func TestResolver_ResolveAll_AllNil(t *testing.T) {
 	all := resolver.ResolveAll(context.Background())
 	if len(all) != 0 {
 		t.Errorf("got %d entries, want 0", len(all))
+	}
+}
+
+// The port-scan layer connects to the static port and, on any accept,
+// reported the service "healthy". Anything listening there passes — a
+// different service, a stale process, nc — and a TCP accept says nothing
+// about health either way. It now reports what it saw: "listening".
+func TestResolver_PortScanDoesNotClaimHealthy(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	port := ln.Addr().(*net.TCPAddr).Port
+	static := &StaticConfig{Services: map[string]StaticEntry{
+		"captain": {Host: "127.0.0.1", Port: port, Proto: "http"},
+	}}
+
+	entry, err := NewResolver(nil, nil, static).Resolve(context.Background(), "captain")
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if entry.Health != "listening" {
+		t.Errorf("Health = %q after a bare TCP accept, want \"listening\"", entry.Health)
 	}
 }

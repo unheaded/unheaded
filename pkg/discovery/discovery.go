@@ -52,7 +52,7 @@ type ServiceEntry struct {
 	Name     string            `json:"name"`
 	Address  string            `json:"address"`
 	Port     int               `json:"port"`
-	Health   string            `json:"health"` // "healthy", "degraded", "unhealthy"
+	Health   string            `json:"health"` // "healthy", "degraded", "unhealthy"; "listening" (port accepts) or "unknown" from the fallback layers
 	LastSeen time.Time         `json:"last_seen"`
 	Metadata map[string]string `json:"metadata,omitempty"`
 }

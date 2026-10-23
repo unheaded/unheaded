@@ -42,10 +42,12 @@ func (r *Resolver) Resolve(ctx context.Context, name string) (*ServiceEntry, err
 
 	// Layer 2: Port scan — check if the static/convention-known port is open.
 	// We need to know the expected port first, so try static config.
+	// An accepted connection shows only that something listens on that
+	// port, not that it is this service or that it is healthy.
 	if r.static != nil {
 		if entry, err := r.static.Resolve(name); err == nil {
 			if isPortOpen(entry.Address) {
-				entry.Health = "healthy"
+				entry.Health = "listening"
 				return entry, nil
 			}
 		}
