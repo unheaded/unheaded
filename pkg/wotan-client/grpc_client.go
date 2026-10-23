@@ -469,8 +469,26 @@ const defaultQueryTimeout = 10 * time.Second
 // queryEnded reports whether a GetMessages stream's Recv error is the normal
 // end of the query (the stream ended, the query timeout expired, or the
 // caller cancelled) rather than Wotan failing it.
+//
+// The query timeout can reach Recv from the server before queryCtx's own
+// timer has fired: the server's deadline (sent as grpc-timeout) expires at
+// the same moment, it ends the stream (RST_STREAM CANCEL, which grpc reports
+// as DeadlineExceeded once our deadline has passed, or a Canceled status),
+// and grpc can deliver that before the context timer goroutine runs. A
+// DeadlineExceeded or Canceled at or after our deadline is that timeout.
 func queryEnded(ctx, queryCtx context.Context, err error) bool {
-	return errors.Is(err, io.EOF) || queryCtx.Err() != nil || ctx.Err() != nil
+	if errors.Is(err, io.EOF) || queryCtx.Err() != nil || ctx.Err() != nil {
+		return true
+	}
+	dl, ok := queryCtx.Deadline()
+	if !ok || time.Now().Before(dl) {
+		return false
+	}
+	switch status.Code(err) {
+	case codes.DeadlineExceeded, codes.Canceled:
+		return true
+	}
+	return false
 }
 
 func queryTimeoutOr(d time.Duration) time.Duration {
