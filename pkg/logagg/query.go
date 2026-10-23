@@ -34,6 +34,10 @@ type LogQuery struct {
 	Limit int
 	// Offset is the pagination offset
 	Offset int
+	// Newest counts Limit and Offset back from the newest entry instead of
+	// forward from the oldest. Results are oldest first either way. Without
+	// it a full buffer answered "the last 100" with its first 100.
+	Newest bool
 }
 
 // DefaultLimit is the default number of log entries returned per query.

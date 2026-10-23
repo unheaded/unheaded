@@ -33,6 +33,7 @@ func NewLogHandler(buf *logagg.RingBuffer) *LogHandler {
 //   - to: end time (RFC3339 or Unix timestamp)
 //   - limit: max results (default 100, max 10000)
 //   - offset: pagination offset
+//   - newest: "true" counts limit/offset back from the newest entry (results stay oldest first)
 func (h *LogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -43,6 +44,7 @@ func (h *LogHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		Service: r.URL.Query().Get("service"),
 		Level:   r.URL.Query().Get("level"),
 		Search:  r.URL.Query().Get("search"),
+		Newest:  r.URL.Query().Get("newest") == "true",
 	}
 
 	if fromStr := r.URL.Query().Get("from"); fromStr != "" {

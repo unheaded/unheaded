@@ -19,8 +19,8 @@ Centralized structured logging via Wotan message bus.
 
 ## Dashboard Endpoints
 
-- `GET /api/v1/logs` — Query logs with filters (service, level, search, from, to, limit, offset)
-- `SSE /ws/logs` — Live tail via Server-Sent Events (filtered by service/level)
+- `GET /api/v1/logs` — Query logs with filters (service, level, search, from, to, limit, offset). Results are oldest first; `newest=true` counts limit/offset back from the newest entry (the Logs page and `unheaded service logs` use it). Without it a full buffer answered "the last 500" with its first 500.
+- `SSE /ws/logs` — Live tail via Server-Sent Events (filtered by service/level). Live only, no replay on connect. The broadcast loop follows the ring buffer by sequence number; it used to compare lengths, which stop growing at capacity, so the live tail went silent after the first 10,000 entries.
 - `GET /logs` — Log viewer UI
 
 ## Topic Format

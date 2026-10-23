@@ -99,6 +99,7 @@ const LogViewer = {
         if (this.level) params.set('level', this.level);
         if (this.search) params.set('search', this.search);
         params.set('limit', '500');
+        params.set('newest', 'true'); // the latest 500, not the buffer's first 500
 
         // Time range
         if (this.timeRange) {

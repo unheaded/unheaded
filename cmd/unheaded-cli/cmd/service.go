@@ -218,7 +218,7 @@ func newServiceLogsCommand() *Command {
 			if tail < 1 || tail > 10000 {
 				return fmt.Errorf("--tail must be 1..10000")
 			}
-			q := url.Values{"service": {args[0]}, "limit": {strconv.Itoa(tail)}}
+			q := url.Values{"service": {args[0]}, "limit": {strconv.Itoa(tail)}, "newest": {"true"}}
 			if level != "" {
 				q.Set("level", level)
 			}

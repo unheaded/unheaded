@@ -310,93 +310,97 @@ func TestLogStream_ServeHTTP_SSEHeaders(t *testing.T) {
 	}
 }
 
-func TestLogStream_ServeHTTP_SendsRecentEntries(t *testing.T) {
-	buf := seedBuffer(t)
-	ls := NewLogStream(buf)
+// No replay on connect: the stream is live only (the page loads history
+// with GET /api/v1/logs?newest=true). It used to open with "the last 50",
+// really the buffer's oldest 50, which the page then showed twice.
+func TestLogStream_ServeHTTP_NoReplayOnConnect(t *testing.T) {
+	ls := NewLogStream(seedBuffer(t))
+	body := streamWhile(t, ls, "/ws/logs", func() {})
+	if n := strings.Count(body, "data: "); n != 0 {
+		t.Errorf("SSE data lines on connect = %d, want 0 (live only)", n)
+	}
+}
 
+// streamWhile connects an SSE client, runs during, then disconnects and
+// returns what the client received.
+func streamWhile(t *testing.T, ls *LogStream, target string, during func()) string {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
-	req := httptest.NewRequest(http.MethodGet, "/ws/logs", nil).WithContext(ctx)
+	req := httptest.NewRequest(http.MethodGet, target, nil).WithContext(ctx)
 	w := httptest.NewRecorder()
-
 	done := make(chan struct{})
 	go func() {
 		ls.ServeHTTP(w, req)
 		close(done)
 	}()
-
+	deadline := time.Now().Add(2 * time.Second)
+	for ls.ListenerCount() == 0 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+	during()
 	time.Sleep(50 * time.Millisecond)
 	cancel()
 	<-done
+	return w.Body.String()
+}
 
-	body := w.Body.String()
-	// Should contain SSE "data: " lines for recent entries.
-	count := strings.Count(body, "data: ")
-	if count != 4 {
-		t.Errorf("SSE data lines = %d, want 4 (recent entries)", count)
+func broadcastSeed(t *testing.T, ls *LogStream) {
+	t.Helper()
+	for _, e := range seedBuffer(t).Query(logagg.LogQuery{}) {
+		ls.Broadcast(e)
 	}
+}
 
-	// Verify each line is valid JSON.
+func TestLogStream_ServeHTTP_WithServiceFilter(t *testing.T) {
+	ls := NewLogStream(logagg.NewRingBuffer(100))
+	body := streamWhile(t, ls, "/ws/logs?service=captain", func() { broadcastSeed(t, ls) }) // 2 timeguru, 1 captain, 1 architect
+	if n := strings.Count(body, "data: "); n != 1 {
+		t.Errorf("SSE data lines = %d, want 1 (captain only)", n)
+	}
 	scanner := bufio.NewScanner(strings.NewReader(body))
 	for scanner.Scan() {
 		line := scanner.Text()
 		if !strings.HasPrefix(line, "data: ") {
 			continue
 		}
-		jsonStr := strings.TrimPrefix(line, "data: ")
 		var entry logagg.LogEntry
-		if err := json.Unmarshal([]byte(jsonStr), &entry); err != nil {
-			t.Errorf("invalid JSON in SSE line: %v — %q", err, jsonStr)
+		if err := json.Unmarshal([]byte(strings.TrimPrefix(line, "data: ")), &entry); err != nil {
+			t.Errorf("invalid JSON in SSE line: %v", err)
 		}
 	}
 }
 
-func TestLogStream_ServeHTTP_WithServiceFilter(t *testing.T) {
-	buf := seedBuffer(t) // 2 timeguru, 1 captain, 1 architect
-	ls := NewLogStream(buf)
-
-	ctx, cancel := context.WithCancel(context.Background())
-	req := httptest.NewRequest(http.MethodGet,
-		"/ws/logs?service=captain", nil).WithContext(ctx)
-	w := httptest.NewRecorder()
-
-	done := make(chan struct{})
-	go func() {
-		ls.ServeHTTP(w, req)
-		close(done)
-	}()
-
-	time.Sleep(50 * time.Millisecond)
-	cancel()
-	<-done
-
-	count := strings.Count(w.Body.String(), "data: ")
-	if count != 1 {
-		t.Errorf("SSE data lines = %d, want 1 (captain only)", count)
+func TestLogStream_ServeHTTP_WithLevelFilter(t *testing.T) {
+	ls := NewLogStream(logagg.NewRingBuffer(100))
+	body := streamWhile(t, ls, "/ws/logs?level=error", func() { broadcastSeed(t, ls) })
+	if n := strings.Count(body, "data: "); n != 1 {
+		t.Errorf("SSE data lines = %d, want 1 (error level only)", n)
 	}
 }
 
-func TestLogStream_ServeHTTP_WithLevelFilter(t *testing.T) {
-	buf := seedBuffer(t)
+// The broadcast loop polled Len, which stops at capacity: once the ring was
+// full the live tail went silent. It must keep broadcasting.
+func TestLogStream_BroadcastLoopKeepsGoingWhenFull(t *testing.T) {
+	buf := logagg.NewRingBuffer(3)
+	for i := 0; i < 3; i++ {
+		buf.Push(logagg.LogEntry{Service: "s", Level: "info", Message: "old"})
+	}
 	ls := NewLogStream(buf)
-
 	ctx, cancel := context.WithCancel(context.Background())
-	req := httptest.NewRequest(http.MethodGet,
-		"/ws/logs?level=error", nil).WithContext(ctx)
-	w := httptest.NewRecorder()
-
-	done := make(chan struct{})
-	go func() {
-		ls.ServeHTTP(w, req)
-		close(done)
-	}()
-
-	time.Sleep(50 * time.Millisecond)
-	cancel()
-	<-done
-
-	count := strings.Count(w.Body.String(), "data: ")
-	if count != 1 {
-		t.Errorf("SSE data lines = %d, want 1 (error level only)", count)
+	defer cancel()
+	go ls.StartBroadcastLoop(ctx, buf)
+	time.Sleep(30 * time.Millisecond) // let the loop take its starting sequence
+	body := streamWhile(t, ls, "/ws/logs", func() {
+		for i := 0; i < 5; i++ {
+			buf.Push(logagg.LogEntry{Service: "s", Level: "info", Message: "new"})
+		}
+		time.Sleep(300 * time.Millisecond) // a few 100 ms ticks
+	})
+	if n := strings.Count(body, `"new"`); n < 3 {
+		t.Errorf("live entries after the ring filled = %d, want at least the 3 it still holds", n)
+	}
+	if strings.Contains(body, `"old"`) {
+		t.Error("entries from before the client connected were replayed")
 	}
 }
 
@@ -625,5 +629,20 @@ func TestLogStream_StartBroadcastLoop_NoNewEntries(t *testing.T) {
 		t.Errorf("unexpected broadcast: %q", e.Message)
 	default:
 		// Expected — no new entries, no broadcasts.
+	}
+}
+
+// The Logs page asks for the latest 500; without newest it got the
+// buffer's first 500.
+func TestLogHandler_NewestReturnsLatest(t *testing.T) {
+	h := NewLogHandler(seedBuffer(t))
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(http.MethodGet, "/api/v1/logs?limit=2&newest=true", nil))
+	var got []logagg.LogEntry
+	if err := json.Unmarshal(w.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 2 || got[0].Message != "timeout approaching" || got[1].Message != "design complete" {
+		t.Errorf("newest 2 = %+v, want the last two, oldest first", got)
 	}
 }

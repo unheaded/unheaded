@@ -91,22 +91,10 @@ func (ls *LogStream) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	ctx := r.Context()
 
-	// Send recent entries first (last 50)
-	recent := ls.buffer.Query(logagg.LogQuery{
-		Service: filter.service,
-		Level:   filter.level,
-		Limit:   50,
-	})
-	for _, entry := range recent {
-		data, _ := json.Marshal(entry)
-		// Best-effort SSE writes — client disconnect mid-stream is normal
-		// and not actionable; rely on flusher.Flush failure or the next
-		// Write returning err to detect disconnect.
-		_, _ = w.Write([]byte("data: "))
-		_, _ = w.Write(data)
-		_, _ = w.Write([]byte("\n\n"))
-	}
-	flusher.Flush()
+	// Live only: no replay on connect. The page loads history itself
+	// (GET /api/v1/logs?newest=true). The stream used to start with "the last
+	// 50", which were really the oldest 50 in the buffer, and the page then
+	// showed them twice.
 
 	// Stream new entries
 	for {
@@ -140,7 +128,9 @@ func (ls *LogStream) ListenerCount() int {
 // StartBroadcastLoop polls the ring buffer for new entries and broadcasts them.
 // This is a simple approach — in production, the subscriber would call Broadcast directly.
 func (ls *LogStream) StartBroadcastLoop(ctx context.Context, buf *logagg.RingBuffer) {
-	lastLen := buf.Len()
+	// By sequence, not Len: Len stops growing once the ring is full, and the
+	// live tail used to go silent after the first 10,000 entries.
+	seq := buf.Seq()
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
@@ -149,17 +139,10 @@ func (ls *LogStream) StartBroadcastLoop(ctx context.Context, buf *logagg.RingBuf
 		case <-ctx.Done():
 			return
 		case <-ticker.C:
-			currentLen := buf.Len()
-			if currentLen > lastLen {
-				// New entries — query them and broadcast
-				entries := buf.Query(logagg.LogQuery{
-					Offset: lastLen,
-					Limit:  currentLen - lastLen,
-				})
-				for _, entry := range entries {
-					ls.Broadcast(entry)
-				}
-				lastLen = currentLen
+			var entries []logagg.LogEntry
+			entries, seq = buf.Since(seq)
+			for _, entry := range entries {
+				ls.Broadcast(entry)
 			}
 		}
 	}

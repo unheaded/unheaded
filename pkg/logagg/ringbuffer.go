@@ -17,8 +17,9 @@ type RingBuffer struct {
 	mu       sync.RWMutex
 	entries  []LogEntry
 	capacity int
-	head     int // next write position
-	count    int // total entries stored
+	head     int    // next write position
+	count    int    // total entries stored
+	written  uint64 // entries ever pushed; the sequence number of the newest
 }
 
 // NewRingBuffer creates a ring buffer with the given capacity.
@@ -42,6 +43,37 @@ func (rb *RingBuffer) Push(entry LogEntry) {
 	if rb.count < rb.capacity {
 		rb.count++
 	}
+	rb.written++
+}
+
+// Seq is the sequence number of the newest entry (0 = none yet). It keeps
+// growing after the buffer is full, unlike Len.
+func (rb *RingBuffer) Seq() uint64 {
+	rb.mu.RLock()
+	defer rb.mu.RUnlock()
+	return rb.written
+}
+
+// Since returns, oldest first, the entries pushed after sequence seq that
+// are still in the buffer, and the newest sequence. Entries evicted before
+// the caller came back are gone; the rest are never repeated.
+func (rb *RingBuffer) Since(seq uint64) ([]LogEntry, uint64) {
+	rb.mu.RLock()
+	defer rb.mu.RUnlock()
+	if seq >= rb.written {
+		return nil, rb.written
+	}
+	n := rb.written - seq
+	if n > uint64(rb.count) {
+		n = uint64(rb.count)
+	}
+	out := make([]LogEntry, 0, n)
+	for i := uint64(0); i < n; i++ {
+		// head-1 is the newest; walk back n-1 entries, then forward.
+		idx := (rb.head - int(n) + int(i) + rb.capacity) % rb.capacity
+		out = append(out, rb.entries[idx])
+	}
+	return out, rb.written
 }
 
 // Query returns log entries matching the given query filters.
@@ -56,6 +88,10 @@ func (rb *RingBuffer) Query(q LogQuery) []LogEntry {
 	}
 	if limit > MaxLimit {
 		limit = MaxLimit
+	}
+
+	if q.Newest {
+		return rb.queryNewest(q, limit)
 	}
 
 	// Collect matching entries in chronological order
@@ -90,6 +126,29 @@ func (rb *RingBuffer) Query(q LogQuery) []LogEntry {
 
 	if matches == nil {
 		return []LogEntry{} // return empty slice, not nil
+	}
+	return matches
+}
+
+// queryNewest is Query with Limit and Offset counted back from the newest
+// entry; the result is still oldest first. The caller holds rb.mu.
+func (rb *RingBuffer) queryNewest(q LogQuery, limit int) []LogEntry {
+	matches := []LogEntry{}
+	skipped := 0
+	for i := 0; i < rb.count && len(matches) < limit; i++ {
+		idx := (rb.head - 1 - i + 2*rb.capacity) % rb.capacity
+		entry := rb.entries[idx]
+		if !rb.matchesQuery(entry, q) {
+			continue
+		}
+		if skipped < q.Offset {
+			skipped++
+			continue
+		}
+		matches = append(matches, entry)
+	}
+	for i, j := 0, len(matches)-1; i < j; i, j = i+1, j-1 {
+		matches[i], matches[j] = matches[j], matches[i]
 	}
 	return matches
 }
