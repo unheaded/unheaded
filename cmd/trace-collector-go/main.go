@@ -1184,7 +1184,13 @@ func main() {
 	defer cancel()
 
 	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
-	discovery.Start(ctx, transportCfg, "trace-collector", 16670)
+	// Announce the port that actually serves: unified mode serves only
+	// --metrics-addr (16671); it used to announce 16670 regardless.
+	announceAddr := *httpAddr
+	if *unifiedMode {
+		announceAddr = *metricsAddr
+	}
+	discovery.Start(ctx, transportCfg, "trace-collector", ports.PortOf(announceAddr, ports.TraceCollectorHTTP))
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
