@@ -32,11 +32,13 @@ spec:
             - name: grpc
               containerPort: {{ .Values.wotan.ports.grpc }}
               protocol: TCP
+          # Wotan takes its ports as flags; it never read WOTAN_HTTP_PORT or
+          # WOTAN_GRPC_PORT, so changing the values moved the Service and
+          # probes but not the listener.
+          args:
+            - "--http-port={{ .Values.wotan.ports.http }}"
+            - "--grpc-port={{ .Values.wotan.ports.grpc }}"
           env:
-            - name: WOTAN_HTTP_PORT
-              value: "{{ .Values.wotan.ports.http }}"
-            - name: WOTAN_GRPC_PORT
-              value: "{{ .Values.wotan.ports.grpc }}"
             {{- range $key, $value := .Values.wotan.env }}
             - name: {{ $key }}
               value: "{{ $value }}"
