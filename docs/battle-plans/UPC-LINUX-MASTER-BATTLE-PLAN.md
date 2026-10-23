@@ -112,10 +112,10 @@ budget-aware handler with a green gate. Pick off as budget/interest allows.*
 
 ### Epic 1.5 — Cartridges (third ADR-080 client)
 Plan: `docs/battle-plans/S-UPC-WIRE-COMPUTE-battle-plan.md` Part 2 (Phases 9–19). Decision
-record: `docs/adr/ADR-106-mbc-cartridges.md` (Proposed). Small signed MBC network functions
+record: `docs/adr/ADR-108-mbc-cartridges.md` (Proposed). Small signed MBC network functions
 run per flow by `ebpf/cartridge-ebpf` (its own object and verifier budget; monad-cpu-ebpf
 untouched).
-- [x] **1.5.1** ADR-106 + Cartridge ABI v0 + spec gate; RFC Editor requests open
+- [x] **1.5.1** ADR-108 + Cartridge ABI v0 + spec gate; RFC Editor requests open
       (`docs/protocol/RFC-EDITOR-REQUESTS-S5.md`).
 - [ ] **1.5.2** Shared `no_std` step function + host reference (`crates/upc-cartridge`).
 - [ ] **1.5.3** `cartridge-ebpf` under its verifier-budget gate; harness third variant.

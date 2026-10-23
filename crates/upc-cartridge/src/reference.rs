@@ -14,7 +14,7 @@ use crate::{Image, FLAG_FAIL_CLOSED};
 /// Everything an XDP-stage run may read: the FIELD table and the clock.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct PacketInput {
-    /// FIELD values by id (ADR-106 table).
+    /// FIELD values by id (ADR-108 table).
     pub fields: [u32; FIELD_COUNT as usize],
     /// Clock of the run (NOW_NS_LO returns the low 32 bits).
     pub now_ns: u64,
@@ -114,7 +114,7 @@ pub fn run_tick_job(
     (st, calls)
 }
 
-/// The XDP action a run maps to (ADR-106 D-C3): VERDICT as given, HALT =
+/// The XDP action a run maps to (ADR-108 D-C3): VERDICT as given, HALT =
 /// PASS, any fault = PASS unless the image is fail_closed.
 pub fn xdp_verdict(img: &Image, step: Step) -> u8 {
     debug_assert_eq!(img.stage, STAGE_XDP);

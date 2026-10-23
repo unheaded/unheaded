@@ -42,7 +42,7 @@ uservec `csrw mscratch,a0` + `csrr a0,sscratch`; userret `mv a0, a1`; `prepare_r
 no other write to a5 in between. Translator CSR arm (Step 20): `csr_ptr = 12u8`, `tmp = 13u8`,
 `mask = 14u8`, `14 => Ok(12)`, `15 => Ok(13)` all present.
 
-**Other:** next free ADR number is **ADR-106** (ADR-105 is taken; `ADR_CART=ADR-106` for
+**Other:** next free ADR number is **ADR-108** (ADR-105 is taken; `ADR_CART=ADR-108` for
 Phase 9). Lich plan present: `docs/battle-plans/S-LICH-AWAKENS-battle-plan.md`. West
 `enp16s0` = `192.168.13.2/30` + `fe80::da43:aeff:fe5f:a1c1/64`. East not contacted (this
 session's scope is Phases 0–4; east legs belong to Phases 6–7). Mímir drift (Step 23):
@@ -204,7 +204,7 @@ depends on them. East was not contacted.
 - Marshal entry ruling: Part 1 exit (Step 228) is not passed because Phases 6–8 are
   deferred; the lead session authorised Part 2 on the Phases 0–5 evidence, and Step 228
   itself says east-only items do not block Part 2.
-- D-C1…D-C5 taken as recommended. ADR-106 (Proposed) carries the Cartridge ABI v0, grounded
+- D-C1…D-C5 taken as recommended. ADR-108 (Proposed) carries the Cartridge ABI v0, grounded
   in the shipping engine's semantics (24-bit branch offsets from pc+1, MOVI zero-extend,
   `set_flags` rules). Additions to the forged C.3: `loop_bound` (taken back-edges per tick
   job) so every job is provably bounded; tick per-call budget-out = implicit YIELD;
@@ -216,8 +216,8 @@ depends on them. East was not contacted.
 - RFC Editor requests: `docs/protocol/RFC-EDITOR-REQUESTS-S5.md` (Sophia root key, the
   EVENT_COMPUTED sub-kind, Wotan topics, ADR-067 CSR range, KF10). Draft text only; none
   self-approved.
-- ADR-106 number: free on every local sprint branch at forge time; a parallel branch could
-  still claim it before merge.
+- ADR number: drafted as ADR-108, renumbered **ADR-108** by the lead's allocation across the
+  parallel sprint branches (ADR-108 = Sprint 2 two brains, ADR-107 = Sprint 3 chaos envelope).
 
 ## Phase 10 — shared step function + host reference (2026-10-23)
 

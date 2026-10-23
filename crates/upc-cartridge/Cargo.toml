@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-3.0-or-later
 #
-# crates/upc-cartridge — host side of MBC cartridges (ADR-106): the .cart
+# crates/upc-cartridge — host side of MBC cartridges (ADR-108): the .cart
 # image format, the validator, and the reference runner over the shared
 # monad_common::cart::step (the same source the BPF object compiles), plus
 # the `cart` CLI (build / validate / info).
@@ -12,7 +12,7 @@
 name = "upc-cartridge"
 version = "0.1.0"
 edition = "2021"
-description = "MBC cartridge image format, validator and reference runner (ADR-106)"
+description = "MBC cartridge image format, validator and reference runner (ADR-108)"
 license = "GPL-3.0-or-later"
 publish = false
 

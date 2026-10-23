@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! MBC cartridge interpreter step (ADR-106, Cartridge ABI v0).
+//! MBC cartridge interpreter step (ADR-108, Cartridge ABI v0).
 //!
 //! One `no_std` source compiled into both the BPF object
 //! (`ebpf/cartridge-ebpf`) and the host tools (`crates/upc-cartridge`), so a
-//! cartridge run replays bit-for-bit on the host (ADR-106 determinism
+//! cartridge run replays bit-for-bit on the host (ADR-108 determinism
 //! contract).
 //!
 //! Semantics are the shipping engine's (`monad-cpu-ebpf`): PC advances before
 //! execution, branches add a 24-bit signed offset to `pc + 1`, `MOVI`
-//! zero-extends, flags follow `set_flags`. The opcode set is the ADR-106
+//! zero-extends, flags follow `set_flags`. The opcode set is the ADR-108
 //! allowlist; memory is two bounds-checked windows; inputs come only from
 //! [`CartIo`].
 //!
@@ -40,7 +40,7 @@ pub const FEAT_WORDS: usize = 8;
 /// Number of FIELD ids (0..=12).
 pub const FIELD_COUNT: u32 = 13;
 
-/// FIELD ids (ADR-106). Metadata only: no id returns payload bytes.
+/// FIELD ids (ADR-108). Metadata only: no id returns payload bytes.
 pub mod field {
     /// 4, 6, or 0 (not IP).
     pub const L3_PROTO: u32 = 0;
@@ -108,7 +108,7 @@ pub mod status {
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum FaultKind {
-    /// Opcode outside the ADR-106 allowlist.
+    /// Opcode outside the ADR-108 allowlist.
     BadOpcode = 1,
     /// Address outside both windows, a store to DATA, or a misaligned word access.
     Mem = 2,
@@ -141,7 +141,7 @@ pub enum Step {
     Fault(FaultKind),
 }
 
-/// Machine state (ADR-106, 336 bytes, no implicit padding).
+/// Machine state (ADR-108, 336 bytes, no implicit padding).
 #[repr(C)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CartState {
@@ -182,6 +182,218 @@ impl CartState {
 /// Byte size of [`CartState`] (ABI).
 pub const CART_STATE_SIZE: usize = 336;
 const _: () = assert!(core::mem::size_of::<CartState>() == CART_STATE_SIZE);
+
+/// Number of cartridge slots.
+pub const SLOTS: usize = 4;
+/// `FlowKey.slot` value for the per-flow metadata entry (not a slot).
+pub const META_SLOT: u8 = 0xFF;
+
+/// Flow identity (ADR-108, 40 bytes). IPv4 addresses sit in the first 4
+/// bytes of `src`/`dst`, the rest zero.
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct FlowKey {
+    /// Source address.
+    pub src: [u8; 16],
+    /// Destination address.
+    pub dst: [u8; 16],
+    /// Source port (host order), 0 if not TCP/UDP.
+    pub sport: u16,
+    /// Destination port (host order), 0 if not TCP/UDP.
+    pub dport: u16,
+    /// L4 protocol.
+    pub proto: u8,
+    /// 4 or 6.
+    pub l3: u8,
+    /// Slot this state belongs to, or [`META_SLOT`].
+    pub slot: u8,
+    /// Zero.
+    pub rsv: u8,
+}
+const _: () = assert!(core::mem::size_of::<FlowKey>() == 40);
+
+/// Per-flow metadata behind FIELD ids 7–9 (FLOW_META map value, 24 bytes).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct FlowMeta {
+    /// Clock of the previous packet.
+    pub last_ns: u64,
+    /// Packets so far.
+    pub pkts: u32,
+    /// Bytes so far (saturating).
+    pub bytes: u32,
+    /// Clock of the first packet.
+    pub first_ns: u64,
+}
+const _: () = assert!(core::mem::size_of::<FlowMeta>() == 24);
+
+/// One queued flow for the tick stage (SCORE_QUEUE value, 80 bytes).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct ScoreJob {
+    /// Flow the features describe.
+    pub flow: FlowKey,
+    /// Feature snapshot (`mem[r1>>2 .. +8]` of the queuing cartridge).
+    pub feat: [u32; FEAT_WORDS],
+    /// Slot that queued it.
+    pub src_slot: u8,
+    /// Zero.
+    pub rsv: u8,
+    /// Zero.
+    pub rsv2: u16,
+    /// Low 32 bits of the clock at enqueue.
+    pub enq_ns_lo: u32,
+}
+const _: () = assert!(core::mem::size_of::<ScoreJob>() == 80);
+
+/// Slot configuration (CART_SLOT value, 20 bytes).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct SlotCfg {
+    /// 1 = run this slot.
+    pub active: u8,
+    /// [`STAGE_XDP`] / [`STAGE_TICK`].
+    pub stage: u8,
+    /// Image header flags (bit 0 fail_closed).
+    pub flags: u8,
+    /// Zero.
+    pub rsv: u8,
+    /// Instructions per run / call.
+    pub max_insn: u16,
+    /// ROM length.
+    pub rom_words: u16,
+    /// DATA length.
+    pub data_words: u16,
+    /// Entry PC.
+    pub entry: u16,
+    /// Max taken back-edges per tick job.
+    pub loop_bound: u16,
+    /// Zero.
+    pub rsv2: u16,
+    /// Generation; bumped on every load so stale flow state resets.
+    pub gen: u32,
+}
+const _: () = assert!(core::mem::size_of::<SlotCfg>() == 20);
+
+impl SlotCfg {
+    /// Step-function parameters for this slot.
+    pub const fn cfg(&self) -> CartCfg {
+        CartCfg {
+            stage: self.stage,
+            max_insn: self.max_insn,
+            rom_words: self.rom_words,
+            data_words: self.data_words,
+            entry: self.entry,
+            loop_bound: self.loop_bound,
+        }
+    }
+}
+
+/// One EMIT record (CART_EVENTS ringbuf, 64 bytes).
+#[repr(C)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub struct CartEvent {
+    /// Clock of the run.
+    pub ts_ns: u64,
+    /// Flow the run was for.
+    pub flow: FlowKey,
+    /// `r1` at EMIT.
+    pub kind: u32,
+    /// `r2` at EMIT.
+    pub a: u32,
+    /// `r3` at EMIT.
+    pub b: u32,
+    /// Slot.
+    pub slot: u8,
+    /// Stage.
+    pub stage: u8,
+    /// Zero.
+    pub rsv: u16,
+}
+const _: () = assert!(core::mem::size_of::<CartEvent>() == 64);
+
+/// `CART_STATS` per-slot counter offsets (slot `s` at `s * 8 + off`).
+pub mod stat {
+    /// Runs (XDP: packets seen by the slot; tick: calls).
+    pub const RUNS: u32 = 0;
+    /// Runs that ended PASS.
+    pub const PASS: u32 = 1;
+    /// Runs that ended DROP.
+    pub const DROP: u32 = 2;
+    /// Faults.
+    pub const FAULTS: u32 = 3;
+    /// Instructions executed.
+    pub const INSNS: u32 = 4;
+    /// EMIT records written.
+    pub const EMITS: u32 = 5;
+    /// QUEUE pushes that fit.
+    pub const QUEUE_OK: u32 = 6;
+    /// QUEUE pushes dropped (queue full).
+    pub const QUEUE_DROPS: u32 = 7;
+    /// Global: packets through `cart_xdp`.
+    pub const XDP_PACKETS: u32 = 32;
+    /// Global: `cart_tick` calls.
+    pub const TICK_CALLS: u32 = 33;
+    /// Global: tick jobs finished.
+    pub const TICK_JOBS_DONE: u32 = 34;
+    /// Global: EMIT records dropped (ringbuf full).
+    pub const EVENTS_DROPPED: u32 = 35;
+    /// Global: `cart_tick` calls with no job.
+    pub const TICK_IDLE: u32 = 36;
+    /// Global: slots the fault breaker disabled.
+    pub const BREAKER_TRIPS: u32 = 37;
+    /// Global: tick jobs abandoned because the slot was reloaded.
+    pub const TICK_STALE: u32 = 38;
+    /// Number of counters.
+    pub const COUNT: u32 = 40;
+}
+
+/// `CART_CFG` keys.
+pub mod cfgkey {
+    /// Reserved for the Phase 16 trace switch.
+    pub const TRACE: u32 = 0;
+    /// Fixed clock in ns (0 = the real monotonic clock); makes test runs reproducible.
+    pub const CLOCK_NS: u32 = 2;
+    /// Number of keys.
+    pub const COUNT: u32 = 8;
+}
+
+/// Faults per one-second window that disable a slot (ADR-108 D-C3).
+pub const BREAKER_LIMIT: u32 = 64;
+
+/// floor(log2(iat_us + 1)) capped at 31, for FIELD 7 (branch-only, no loop).
+#[inline(always)]
+pub fn iat_bucket(iat_ns: u64) -> u32 {
+    let mut v = iat_ns / 1000 + 1;
+    let mut r = 0u32;
+    if v >= 1 << 32 {
+        return 31;
+    }
+    if v >= 1 << 16 {
+        v >>= 16;
+        r += 16;
+    }
+    if v >= 1 << 8 {
+        v >>= 8;
+        r += 8;
+    }
+    if v >= 1 << 4 {
+        v >>= 4;
+        r += 4;
+    }
+    if v >= 1 << 2 {
+        v >>= 2;
+        r += 2;
+    }
+    if v >= 1 << 1 {
+        r += 1;
+    }
+    if r > 31 {
+        31
+    } else {
+        r
+    }
+}
 
 /// Run parameters for one slot (from `SlotCfg` / the image header).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -249,6 +461,16 @@ fn set_flags(st: &mut CartState, result: u32, carry: bool) {
         f |= mf::C;
     }
     st.flags = f;
+}
+
+/// Word index into `mem` for a byte address already range-checked by the
+/// caller. The mask is applied to a laundered value: LLVM otherwise folds
+/// "addr < 0x100 && aligned" into one mask test on a register copy and
+/// indexes with the unmasked original, which the BPF verifier rejects as an
+/// unbounded map-value access (S5 Phase 11).
+#[inline(always)]
+fn mem_index(addr: u32) -> usize {
+    (core::hint::black_box(addr >> 2) as usize) & (MEM_WORDS - 1)
 }
 
 /// Execute one instruction. Never panics; every bad input is a [`Step::Fault`].
@@ -410,7 +632,7 @@ pub fn step<R: CartRom + ?Sized, D: CartData + ?Sized, I: CartIo>(
     } else if opc == op::LD || opc == op::LDB {
         let addr = st.regs[s].wrapping_add(simm);
         let word = if addr < (MEM_WORDS as u32) * 4 {
-            Some(st.mem[((addr >> 2) as usize) & (MEM_WORDS - 1)])
+            Some(st.mem[mem_index(addr)])
         } else if addr >= DATA_BASE && addr - DATA_BASE < (cfg.data_words as u32) * 4 {
             data.word((addr - DATA_BASE) >> 2)
         } else {
@@ -430,7 +652,7 @@ pub fn step<R: CartRom + ?Sized, D: CartData + ?Sized, I: CartIo>(
     } else if opc == op::ST {
         let addr = st.regs[d].wrapping_add(simm);
         if addr < (MEM_WORDS as u32) * 4 && addr & 3 == 0 {
-            st.mem[((addr >> 2) as usize) & (MEM_WORDS - 1)] = st.regs[s];
+            st.mem[mem_index(addr)] = st.regs[s];
             Step::Continue
         } else {
             Step::Fault(FaultKind::Mem)
@@ -552,7 +774,7 @@ pub fn begin_job(st: &mut CartState, entry: u16, feat: &[u32; FEAT_WORDS]) {
 }
 
 /// 32-bit FNV-1a over `regs` ‖ `pc` ‖ `flags` ‖ `mem` (little-endian), the
-/// ADR-106 `state_hash`.
+/// ADR-108 `state_hash`.
 pub fn state_hash(st: &CartState) -> u32 {
     let mut h: u32 = 0x811c_9dc5;
     let mut eat = |b: u8| {
@@ -653,6 +875,45 @@ mod tests {
         let (r, st) = exec(STAGE_XDP, &rom, &[], &mut Io::default(), &[(2, a), (3, b)]);
         assert_eq!(r, Step::Halt, "op {o:#x}");
         (st.regs[2], st.flags)
+    }
+
+    #[test]
+    fn cart_iat_bucket() {
+        assert_eq!(iat_bucket(0), 0); // log2(1)
+        assert_eq!(iat_bucket(999), 0);
+        assert_eq!(iat_bucket(1_000), 1); // 1 µs → log2(2)
+        assert_eq!(iat_bucket(3_000), 2); // log2(4)
+        assert_eq!(iat_bucket(1_000_000), 9); // 1 ms → log2(1001)
+        assert_eq!(iat_bucket(1_000_000_000), 19); // 1 s
+        assert_eq!(iat_bucket(u64::MAX), 31);
+        for us in [1u64, 7, 100, 65_535, 1 << 20, (1 << 31) - 2] {
+            let want = (63 - (us + 1).leading_zeros()).min(31);
+            assert_eq!(iat_bucket(us * 1000), want, "{us} µs");
+        }
+    }
+
+    /// Cross-language vector: pkg/cartridge's Go Hash() must give the same.
+    #[test]
+    fn cart_state_hash_vector() {
+        let mut st = CartState::zeroed();
+        for i in 0..16 {
+            st.regs[i] = i as u32;
+        }
+        for i in 0..MEM_WORDS {
+            st.mem[i] = 3 * i as u32;
+        }
+        st.pc = 7;
+        st.flags = 5;
+        assert_eq!(state_hash(&st), 0x6da0_d6f5);
+    }
+
+    #[test]
+    fn cart_record_sizes() {
+        assert_eq!(core::mem::size_of::<FlowKey>(), 40);
+        assert_eq!(core::mem::size_of::<FlowMeta>(), 24);
+        assert_eq!(core::mem::size_of::<ScoreJob>(), 80);
+        assert_eq!(core::mem::size_of::<SlotCfg>(), 20);
+        assert_eq!(core::mem::size_of::<CartEvent>(), 64);
     }
 
     #[test]
@@ -1016,7 +1277,7 @@ mod tests {
         st.flags = mf::C;
         assert_ne!(state_hash(&st), h0);
         st.flags = 0;
-        st.insns = 5; // not part of the hash (ADR-106)
+        st.insns = 5; // not part of the hash (ADR-108)
         assert_eq!(state_hash(&st), h0);
         assert_eq!(state_hash(&CartState::zeroed()), h0);
     }

@@ -3,7 +3,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 Copyright (c) 2024-2026 Stevie Bellis.
 -->
 
-# ADR-106: MBC cartridges — small signed network functions run per flow by a UPC interpreter
+# ADR-108: MBC cartridges — small signed network functions run per flow by a UPC interpreter
 
 **Status:** Proposed (Stevie to accept; RFC Editor items in `docs/protocol/RFC-EDITOR-REQUESTS-S5.md` must be resolved first).
 **Date:** 2026-10-23

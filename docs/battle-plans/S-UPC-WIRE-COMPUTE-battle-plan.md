@@ -946,11 +946,11 @@ A **cartridge** is a small MBC program plus a read-only data blob (e.g. model we
   - **RECOMMENDATION**: trace records reuse **EVENT_COMPUTED (0x01)** ("Shim executed") with a cartridge sub-kind in the payload — no new Anamnesis Event Type registration. Cartridges **never write the Monad header** in v0 (no `SAMPLED`-as-suspicious overload like KF11); scores travel over ringbuf → Wotan.
   - **Override ONLY if**: RFC Editor rules the sub-kind needs its own type → file the registration (Specification Required), keep 0x01 meanwhile.
 - [x] **Step 237** [DESIGN][W] ~20m: Cartridge ABI v0 (Appendix C.3) — syscall numbers, field ids, memory windows, verdict codes, event record layouts, image format `.cart` (header magic `MBCC`, version, stage, max_insn, rom_words, data_words, entry, sha256 of the rest)
-  - S5 2026-10-23: ABI v0 in ADR-106 §Cartridge ABI v0, adapted to the shipping engine's real semantics: 24-bit branch offsets relative to pc+1, MOVI zero-extend, set_flags rules; little-endian 52-byte header (adds loop_bound, flags, reserved; sha256 covers header[0..20) + ROM + DATA); CartState 336 B with explicit status/back_edges/gen.
+  - S5 2026-10-23: ABI v0 in ADR-108 §Cartridge ABI v0, adapted to the shipping engine's real semantics: 24-bit branch offsets relative to pc+1, MOVI zero-extend, set_flags rules; little-endian 52-byte header (adds loop_bound, flags, reserved; sha256 covers header[0..20) + ROM + DATA); CartState 336 B with explicit status/back_edges/gen.
 - [x] **Step 238** [W][SPEC] ~40m: Draft `docs/adr/${ADR_CART}-mbc-cartridges.md` (Status: Proposed): context (ADR-080 third client), D-C1…D-C5, ABI v0, verifier/benchmark gates, determinism contract, Sacred Principle argument, non-goals (no wire change, no new opcode in v0)
-  - S5 2026-10-23: `docs/adr/ADR-106-mbc-cartridges.md` (Proposed). ADR_CART = ADR-106 (105 taken, Phase 0).
+  - S5 2026-10-23: `docs/adr/ADR-108-mbc-cartridges.md` (Proposed). ADR_CART = ADR-108: lead allocation across the parallel sprint branches (ADR-108 = Sprint 2, ADR-107 = Sprint 3); first drafted as ADR-108.
 - [x] **Step 239** [B] ~1m: Confirm the ADR number is still free on `develop`
-  - S5 2026-10-23: ADR-106 absent on `develop`, `sprint/two-brains`, `sprint/real-steel`, `sprint/lich-awakens` (local refs; no fetch). Parallel branches could still claim it before merge.
+  - S5 2026-10-23: Superseded by the lead's allocation: 106 and 107 belong to Sprints 2 and 3; this ADR is ADR-108.
   ```bash
   git -C "$PROJECT_ROOT" fetch -q origin develop 2>/dev/null; git -C "$PROJECT_ROOT" ls-tree --name-only origin/develop docs/adr/ 2>/dev/null | grep -c "${ADR_CART}" || true
   ```
@@ -966,7 +966,7 @@ A **cartridge** is a small MBC program plus a read-only data blob (e.g. model we
   - S5 2026-10-23: H-C2 TRUE: test_run with repeat reports ns/run on 6.17. The benchmark engine is `pkg/cartridge` over `ebpf.Program.Benchmark`, not `bpftool prog run`.
   - No → benchmarks use a veth pair + userspace sender in netns (Emergency A.8); gates still apply, wider tolerance
 - [x] **Step 242** [V][SPEC] ~10m: **SPEC COMPLIANCE GATE (Part 2 design)**
-  - S5 2026-10-23: Spec gate recorded in ADR-106 + request note: v0x01 untouched; extension (new surface + new program, no opcode); RFC Editor requested for the namespace, sub-kind, topics; backward compatible; IANA: new registrations requested, none modified.
+  - S5 2026-10-23: Spec gate recorded in ADR-108 + request note: v0x01 untouched; extension (new surface + new program, no opcode); RFC Editor requested for the namespace, sub-kind, topics; backward compatible; IANA: new registrations requested, none modified.
   - Wire format version: v0x01 (FROZEN) — untouched (cartridges read the Monad option, never write it)
   - Change type: **extension** — a new UPC syscall surface (cartridge ABI v0) and a new BPF program; no MBC opcode added
   - RFC Editor reviewed: **requested** for (a) Sophia namespace (D-C4), (b) EVENT_COMPUTED sub-kind (D-C5), (c) Wotan topics `anomaly.scores`, `upc.cart.*` (Wotan Topic Namespace, Expert Review) — **must be Y before Phase 19 marks the ADR Accepted**; implementation proceeds behind provisional names
@@ -1013,7 +1013,7 @@ Decisions recorded with overrides · spec gate run · threat model written · no
   cargo test --manifest-path "$EBPF/monad-common/Cargo.toml" --target x86_64-unknown-linux-gnu cart 2>&1 | tail -10
   ```
 - [x] **Step 254** [CODE] ~60m: Implement `cart.rs`: decode via existing `MbcInsn`; allowlist ADD SUB MUL MULH AND OR XOR NOT SHL SHR SAR SHLR SHRR SARR MOV MOVI LOAD_IMM32 ADDI CMP JMP JZ JNZ JN JP JC JNC LD ST LDB HALT SYSCALL; memory windows: `[0x0000,0x0100)` → `mem` (flow state), `[0x1000, 0x1000+4*data_words)` → data (read-only); anything else → `Fault(Mem)`; no recursion, no allocation, every array index masked or bounds-checked (verifier-friendly shape)
-  - S5 2026-10-23: Implemented (ABI v0 per ADR-106). Every regs/mem index masked; windows range-checked; faults are values.
+  - S5 2026-10-23: Implemented (ABI v0 per ADR-108). Every regs/mem index masked; windows range-checked; faults are values.
 - [x] **Step 255** [V] ~1m: Tests green on host
 - [x] **Step 256** [B][BUILD] ~3m: `cart.rs` compiles for `bpfel-unknown-none` inside the ebpf workspace (build `monad-common` there)
   - S5 2026-10-23: `cargo build --release -p monad-common` (bpfel) OK; clippy clean.

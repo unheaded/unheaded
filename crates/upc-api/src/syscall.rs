@@ -33,7 +33,7 @@ pub enum FeatureGate {
     /// The `ascend-linux` build — the xv6 / kernel surface.
     AscendLinux,
     /// Not a `monad-cpu-ebpf` feature: the separate `cartridge-ebpf` object
-    /// (ADR-106 D-C1), which carries only the cartridge surface and has its
+    /// (ADR-108 D-C1), which carries only the cartridge surface and has its
     /// own verifier budget. Naming it here lets the host check a cartridge is
     /// never pointed at a Doom or ascend object, and vice versa.
     Cartridge,

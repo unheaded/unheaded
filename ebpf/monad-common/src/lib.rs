@@ -130,10 +130,10 @@ pub mod fs_walk;
 /// math, free-slot policy, and the off-target inode-state model (Gate D).
 pub mod fdtable;
 
-// ── S5 — MBC cartridges (ADR-106) ───────────────────────────────────────────
+// ── S5 — MBC cartridges (ADR-108) ───────────────────────────────────────────
 
 /// Cartridge interpreter step, shared by `cartridge-ebpf` and the host
-/// reference so a run replays bit-for-bit (ADR-106).
+/// reference so a run replays bit-for-bit (ADR-108).
 pub mod cart;
 
 // ── Monad Flags bitfield ──────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! `cart` — build, validate and inspect MBC cartridge images (ADR-106).
+//! `cart` — build, validate and inspect MBC cartridge images (ADR-108).
 //!
 //! ```text
 //! cart build --stage xdp|tick --asm X.s [--data W.bin] [--max-insn N]

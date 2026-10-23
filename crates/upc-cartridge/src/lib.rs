@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
-//! Host side of MBC cartridges (ADR-106, Cartridge ABI v0).
+//! Host side of MBC cartridges (ADR-108, Cartridge ABI v0).
 //!
 //! - [`Image`]: the `.cart` file format (encode / decode). Decoding treats the
 //!   bytes as hostile: every size is range-checked from the header before the
@@ -21,7 +21,7 @@ use sha2::{Digest, Sha256};
 
 pub mod reference;
 
-/// The cartridge syscall surface (ADR-080 §2.4 descriptor, ADR-106 ABI v0).
+/// The cartridge syscall surface (ADR-080 §2.4 descriptor, ADR-108 ABI v0).
 /// It lives here, with the cartridge loader, because upc-api never declares a
 /// guest's surface itself.
 pub static CARTRIDGE_SURFACE: upc_api::SyscallSurface = upc_api::SyscallSurface {
@@ -74,7 +74,7 @@ pub const MAGIC: &[u8; 4] = b"MBCC";
 pub const VERSION: u8 = 0;
 /// Header bytes before ROM (20 fixed + 32 sha256).
 pub const HEADER_LEN: usize = 52;
-/// Header flag: a fault drops instead of passing (ADR-106 D-C3 override).
+/// Header flag: a fault drops instead of passing (ADR-108 D-C3 override).
 pub const FLAG_FAIL_CLOSED: u16 = 1;
 
 /// A decoded `.cart` image.
@@ -262,7 +262,7 @@ impl Image {
     }
 }
 
-/// Opcodes a cartridge may use (ADR-106 allowlist).
+/// Opcodes a cartridge may use (ADR-108 allowlist).
 pub const ALLOWED_OPCODES: &[u8] = &[
     op::NOP,
     op::ADD,
