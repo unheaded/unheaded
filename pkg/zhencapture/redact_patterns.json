@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "note": "Shared by pkg/zhencapture (Go, RE2) and raft/zhen_mcp_server.py (Python re). Keep every pattern inside the common subset: no lookaround, no backreferences. Group 1, if present, is kept before the tag; group 2, if present, is kept after it. Order matters: earlier patterns run first.",
+  "patterns": [
+    {"name": "private_key", "regex": "-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\\s\\S]*?-----END [A-Z0-9 ]*PRIVATE KEY-----"},
+    {"name": "private_key", "regex": "-----BEGIN [A-Z0-9 ]*PRIVATE KEY-----[\\s\\S]*"},
+    {"name": "anthropic_key", "regex": "sk-ant-[A-Za-z0-9_-]{8,}"},
+    {"name": "openai_key", "regex": "\\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}"},
+    {"name": "aws_access_key", "regex": "\\b(?:AKIA|ASIA)[0-9A-Z]{16}\\b"},
+    {"name": "github_token", "regex": "\\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{30,}"},
+    {"name": "github_token", "regex": "\\bgithub_pat_[A-Za-z0-9_]{20,}"},
+    {"name": "slack_token", "regex": "\\bxox[abposr]-[A-Za-z0-9-]{10,}"},
+    {"name": "jwt", "regex": "\\beyJ[A-Za-z0-9_-]{8,}\\.eyJ[A-Za-z0-9_-]{8,}\\.[A-Za-z0-9_-]{8,}"},
+    {"name": "bearer", "regex": "(?i)(\\bbearer\\s+)[A-Za-z0-9._~+/=-]{16,}"},
+    {"name": "url_password", "regex": "(\\b[A-Za-z][A-Za-z0-9+.-]*://[^/\\s:@]+:)[^@\\s/]+(@)"},
+    {"name": "aws_secret", "regex": "(?i)(aws_secret_access_key[\"']?\\s*[=:]\\s*[\"']?)[A-Za-z0-9/+=]{40}"},
+    {"name": "assignment", "regex": "(?i)((?:password|passwd|passphrase|pwd|secret|api[_-]?key|access[_-]?token|auth[_-]?token|refresh[_-]?token|client[_-]?secret|private[_-]?key)[\"']?\\s*[=:]\\s*[\"']?)[^\\s\"',;\\[][^\\s\"',;]{3,}"}
+  ]
+}
