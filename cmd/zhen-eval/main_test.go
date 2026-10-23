@@ -192,6 +192,9 @@ func TestEvaluator_KeyPassAndFail(t *testing.T) {
 	if !strings.Contains(so.String(), "1/2 passed") {
 		t.Errorf("summary = %q", so.String())
 	}
+	if rows[0].CostUSD != "$0.000000" || rows[0].LatencyMS < 0 {
+		t.Errorf("deferred fields lost: cost_usd %q latency %d", rows[0].CostUSD, rows[0].LatencyMS)
+	}
 }
 
 func TestEvaluator_RepoTaskSecondLocalAttemptSeesCheckOutput(t *testing.T) {

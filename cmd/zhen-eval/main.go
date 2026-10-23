@@ -414,8 +414,8 @@ func sha(s string) string {
 // one runs a task: one attempt for key tasks; up to repo-attempts local
 // attempts for check tasks (the next attempt is shown the check output),
 // one for Claude.
-func (e *evaluator) one(ctx context.Context, t Task) Result {
-	r := Result{Task: t.ID, Family: t.Family, Split: t.Split, Backend: e.brain.Name(), Model: e.brain.Model(), Judge: t.Judge,
+func (e *evaluator) one(ctx context.Context, t Task) (r Result) {
+	r = Result{Task: t.ID, Family: t.Family, Split: t.Split, Backend: e.brain.Name(), Model: e.brain.Model(), Judge: t.Judge,
 		At: time.Now().UTC().Format(time.RFC3339)}
 	if e.brain.Name() == "claude" {
 		r.Effort = e.o.effort
