@@ -56,21 +56,63 @@ and symlink escapes.
 
 ## Confinement, resource limits & kill switch
 
-> **Phase 2 fills the sections below.** In Phase 1 `lich_run_harness` passes
-> scope + gate and then **fails closed** (no unconfined execution) because the
-> confinement substrate is not wired yet.
+The substrate is the **unprivileged `unshare` sandbox** (`pkg/lichtools.netnsSandbox`).
+Creating an LXD container / nftables rule / named netns is an **[ESCALATE]** per the
+sprint's SAFETY brief, so it is NOT used; the unprivileged user+net+pid+mount namespace
+is the default and needs no root. If `unshare`/user-namespaces are unavailable the
+sandbox returns `ErrNoConfinement` and `run_harness` **fails closed** — it never runs
+unconfined.
 
-- **No-egress**: every target runs inside a network namespace with no route off
-  the box. Proven unprivileged in preflight H8 (`unshare -rn`: loopback up,
-  egress route+connect blocked, no default route). No-egress is a hard gate: if
-  it cannot be proven, fuzzing does not run.
-- **Resource envelope**: per-sandbox CPU / memory / pids / wall-timeout from
-  `configs/lich-mcp.yaml`; a memory fit check runs before every spawn (swap is
-  never counted); a host-wide cap bounds live sandboxes.
-- **Kill switch**: touch `kill_switch_file` (`/run/lich-mcp.halt`) or send
-  SIGTERM/SIGINT → stop accepting calls, reap every live sandbox, refuse new
-  spawns. Mirrors ADR-063's Marshal HARD-HALT.
-- **Sandbox escape red-team**: results recorded here after Phase 2 Step 67.
+Each confined command runs as:
+
+```
+unshare -r -n -m --pid --mount-proc --fork -- sh -c '<prelude>; exec "$@"' sh \
+    prlimit --nproc=N --as=BYTES --cpu=SECS -- <argv>
+```
+
+- **No-egress** (hard gate): `-n` gives a network namespace with no route off the box.
+  Proven unprivileged in preflight H8 and again in the escape red-team below. If it
+  cannot be proven, fuzzing does not run.
+- **No host filesystem**: the mount namespace remounts `/` **read-only**, gives a private
+  tmpfs `/tmp`, and rebinds only the configured writable paths (the results tree) rw. A
+  write anywhere else fails.
+- **Resource envelope**: per-sandbox CPU-seconds / address-space / pids via `prlimit`,
+  plus a wall-clock timeout that SIGKILLs the whole process group. A memory fit check runs
+  before every spawn (free RAM ≥ `mem_bytes × mem_fit_safety`; **swap is never counted**).
+  A host-wide semaphore (`max_live_sandboxes`) bounds concurrency so a driver cannot
+  fork-bomb the host with run requests (`ErrAtCapacity`).
+- **Kill switch**: touch `kill_switch_file` (`/run/lich-mcp.halt`) or send SIGTERM/SIGINT →
+  stop accepting calls, SIGTERM every live sandbox, and after a grace window SIGKILL +
+  destroy them, writing a `HALTED` audit line. Mirrors ADR-063's Marshal HARD-HALT.
+
+### Sandbox escape red-team (2026-10-23, west, unprivileged netns substrate)
+
+Every escape attempt was run *inside* the production-equivalent confinement and must
+fail. Result: **7 PASS / 0 FAIL** (Step 68 gate PASS — no escape succeeded, so no E1):
+
+| Attempt | Result |
+|---------|--------|
+| DNS resolve a public name | blocked |
+| TCP connect to `1.1.1.1:53` | blocked |
+| ICMP to `1.1.1.1` | blocked |
+| write to `$HOME` (host) | blocked (read-only root) |
+| write to `/etc` | blocked (read-only root) |
+| enumerate host PIDs | isolated (only the ns's own pids visible) |
+| `/proc/1` identity | the namespace init, not host `/sbin/init` |
+| write to private `/tmp` scratch | allowed (legitimate, not an escape) |
+
+Repro: run `unshare -r -n -m --pid --mount-proc --fork -- bash <probe>` where the probe
+applies the prelude above and attempts each escape.
+
+> **Known limitation of the unprivileged fallback**: FS confinement depends on
+> user-namespace mount support (proven available here). On a host where
+> `mount -o remount,ro,bind /` fails, the in-namespace bootstrap exits 97 and
+> `run_harness` fails closed rather than running with a writable root. The no-egress
+> property does not depend on the mount step.
+>
+> **TOCTOU note (for Phase 3)**: scope validates a harness file (incl. symlink
+> resolution) at call time; the sandbox re-reads it read-only at exec, closing the
+> validate→exec gap for the harness tree.
 
 ## Audit
 

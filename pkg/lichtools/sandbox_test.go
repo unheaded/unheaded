@@ -43,13 +43,24 @@ func TestNetnsSandbox_Spawn_RefusesWhenWontFit(t *testing.T) {
 }
 
 func TestNetnsSandbox_ConfineArgv(t *testing.T) {
-	s := &netnsSandbox{unshareBin: "/usr/bin/unshare", prlimitBin: "/usr/bin/prlimit"}
+	s := &netnsSandbox{unshareBin: "/usr/bin/unshare", prlimitBin: "/usr/bin/prlimit", shBin: "/bin/sh"}
 	lim := Limits{PidsMax: 128, MemBytes: 256 << 20, WallTimeout: 30 * time.Second}
 	got := strings.Join(s.confineArgv(lim, []string{"echo", "hi"}), " ")
-	for _, want := range []string{"unshare", "-r", "-n", "--pid", "--mount-proc", "--fork", "prlimit", "--nproc=128", "--as=268435456", "echo hi"} {
+	for _, want := range []string{"unshare", "-r", "-n", "-m", "--pid", "--mount-proc", "--fork", "/bin/sh -c", "remount,ro,bind /", "tmpfs /tmp", "prlimit", "--nproc=128", "--as=268435456", "echo hi"} {
 		if !strings.Contains(got, want) {
 			t.Errorf("confined argv missing %q: %s", want, got)
 		}
+	}
+}
+
+func TestNetnsSandbox_Prelude_WritableQuoted(t *testing.T) {
+	s := &netnsSandbox{writable: []string{"/repo/tomb/lich/results"}}
+	p := s.prelude()
+	if !strings.Contains(p, "remount,ro,bind /") {
+		t.Fatalf("prelude must lock root read-only: %s", p)
+	}
+	if !strings.Contains(p, "'/repo/tomb/lich/results'") {
+		t.Fatalf("prelude must rebind the writable path (quoted): %s", p)
 	}
 }
 
@@ -148,6 +159,32 @@ func limitSoft(procLimits, name string) string {
 		}
 	}
 	return ""
+}
+
+// TestNetnsSandbox_FSConfinement proves the mount-namespace confinement: a
+// write to a host path outside the sandbox (HOME) FAILS (read-only root), while
+// the private /tmp scratch is writable. This is the Step-67 "write outside the
+// mount must fail" escape check.
+func TestNetnsSandbox_FSConfinement(t *testing.T) {
+	requireBareMetal(t)
+	s := bareMetalSandbox(t)
+	h, err := s.Spawn(context.Background(), Target{Kind: KindHarness, Name: "001"}, Limits{})
+	if err != nil {
+		t.Fatalf("Spawn: %v", err)
+	}
+	defer func() { _ = s.Destroy(h) }()
+	script := `if echo x > /tmp/scratch_ok 2>/dev/null; then echo TMPOK; else echo TMPNO; fi; ` +
+		`if echo y > "$HOME/.lich_fs_escape_probe" 2>/dev/null; then echo HLEAK; rm -f "$HOME/.lich_fs_escape_probe"; else echo HBLOCK; fi`
+	res, err := s.Exec(context.Background(), h, []string{"sh", "-c", script})
+	if err != nil {
+		t.Fatalf("Exec: %v", err)
+	}
+	if !strings.Contains(res.Stdout, "TMPOK") {
+		t.Fatalf("private /tmp scratch should be writable: out=%q err=%q", res.Stdout, res.Stderr)
+	}
+	if !strings.Contains(res.Stdout, "HBLOCK") {
+		t.Fatalf("writing outside the sandbox (HOME) must FAIL (read-only root): out=%q", res.Stdout)
+	}
 }
 
 func TestNetnsSandbox_Teardown(t *testing.T) {

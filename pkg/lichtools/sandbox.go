@@ -20,10 +20,9 @@ import (
 )
 
 // Sandbox is the confined execution substrate. Nothing a driver asks for runs
-// outside it. Spawn prepares confinement (and refuses an out-of-scope target or
-// a target that will not fit in RAM); Exec runs one bounded command inside the
-// confinement; Destroy reaps it. Implementations must be safe for concurrent
-// use.
+// outside it. Spawn prepares confinement (and refuses a target that will not
+// fit in RAM); Exec runs one bounded command inside the confinement; Destroy
+// reaps it. Implementations must be safe for concurrent use.
 type Sandbox interface {
 	Spawn(ctx context.Context, t Target, lim Limits) (*Handle, error)
 	Exec(ctx context.Context, h *Handle, argv []string) (ExecResult, error)
@@ -41,6 +40,10 @@ var (
 	// ErrHalted: the kill switch has tripped; no new sandbox is spawned.
 	ErrHalted = errors.New("lichtools: halted by kill switch")
 )
+
+// roRootFailExit is the exit code the in-namespace bootstrap returns when it
+// cannot establish a read-only root — run_harness then fails closed.
+const roRootFailExit = 97
 
 // ExecResult is one bounded command run. Output is capped; Truncated says so.
 type ExecResult struct {
@@ -68,40 +71,57 @@ type Handle struct {
 const maxExecOutputBytes = 64 << 10
 
 // netnsSandbox confines each command with an unprivileged user+net+pid+mount
-// namespace (no egress — proven in preflight H8) and prlimit resource caps.
-// It creates no persistent host state: no LXD container, no named netns, no
-// nftables rule. Creating any of those would be an [ESCALATE]; this is the
+// namespace and prlimit resource caps:
+//
+//   - no egress  : unshare -n gives an unconfigured network namespace with no
+//     route off the box (proven in preflight H8).
+//   - no host FS : the mount namespace remounts / read-only and gives a private
+//     tmpfs /tmp; only explicitly configured writable paths are rebound rw.
+//   - pid isolation: unshare --pid --mount-proc --fork.
+//   - resources  : prlimit caps processes, address space, CPU seconds; a wall
+//     clock timeout kills the whole process group.
+//
+// It creates NO persistent host state: no LXD container, no named netns, no
+// nftables rule. Creating any of those is an [ESCALATE]; this is the
 // unprivileged fallback the sprint's SAFETY brief prefers.
 type netnsSandbox struct {
 	unshareBin string
 	prlimitBin string
-	// memAvailKB returns free RAM in KiB; injectable for tests.
+	shBin      string
+	writable   []string // host dirs re-bound read-write inside the sandbox
 	memAvailKB func() (int64, error)
 	safety     float64
 }
 
-// NewNetnsSandbox builds the unprivileged sandbox. It returns ErrNoConfinement
-// if unshare is unavailable, so a caller never silently runs unconfined.
-func NewNetnsSandbox(memFitSafety float64) (Sandbox, error) {
+// NewNetnsSandbox builds the unprivileged sandbox. writable lists host dirs the
+// confined command may write to (e.g. the results tree); everything else is
+// read-only. Returns ErrNoConfinement if unshare is unavailable, so a caller
+// never silently runs unconfined.
+func NewNetnsSandbox(memFitSafety float64, writable ...string) (Sandbox, error) {
 	ub, err := exec.LookPath("unshare")
 	if err != nil {
 		return nil, fmt.Errorf("%w: %v", ErrNoConfinement, err)
 	}
 	pb, _ := exec.LookPath("prlimit") // optional; limits degrade gracefully if absent
+	sh, err := exec.LookPath("sh")
+	if err != nil {
+		sh = "/bin/sh"
+	}
 	if memFitSafety < 1.0 {
 		memFitSafety = DefaultMemFitSafety
 	}
 	return &netnsSandbox{
 		unshareBin: ub,
 		prlimitBin: pb,
+		shBin:      sh,
+		writable:   append([]string(nil), writable...),
 		memAvailKB: readMemAvailableKB,
 		safety:     memFitSafety,
 	}, nil
 }
 
-// Spawn validates the target has passed scope (caller must have validated;
-// this is defense in depth: Spawn re-checks nothing it does not own, but it
-// does run the memory fit preflight) and reserves a handle.
+// Spawn runs the memory fit preflight and reserves a handle. The caller must
+// have already validated the target against scope; Spawn does not widen it.
 func (s *netnsSandbox) Spawn(_ context.Context, t Target, lim Limits) (*Handle, error) {
 	lim.applyDefaults()
 	if err := s.fits(lim.MemBytes); err != nil {
@@ -148,12 +168,11 @@ func (s *netnsSandbox) Exec(ctx context.Context, h *Handle, argv []string) (Exec
 	defer cancel()
 
 	full := s.confineArgv(h.Limits, argv)
-	cmd := exec.CommandContext(cctx, full[0], full[1:]...) // #nosec G204 -- argv is server-built: unshare/prlimit wrapper + caller argv; caller argv is scope-gated
+	cmd := exec.CommandContext(cctx, full[0], full[1:]...) // #nosec G204 -- argv is server-built: unshare wrapper + a fixed bootstrap; the only variable tail is the scope-gated caller argv
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {
-		// Kill the whole process group, not just the leader.
 		if cmd.Process != nil {
-			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) // whole group
 		}
 		return nil
 	}
@@ -165,9 +184,8 @@ func (s *netnsSandbox) Exec(ctx context.Context, h *Handle, argv []string) (Exec
 	cmd.Stderr = errBuf
 
 	start := time.Now()
-	runErr := cmd.Start()
-	if runErr != nil {
-		return ExecResult{}, fmt.Errorf("lichtools: start confined command: %w", runErr)
+	if err := cmd.Start(); err != nil {
+		return ExecResult{}, fmt.Errorf("lichtools: start confined command: %w", err)
 	}
 	h.mu.Lock()
 	h.proc = cmd.Process
@@ -195,6 +213,9 @@ func (s *netnsSandbox) Exec(ctx context.Context, h *Handle, argv []string) (Exec
 		var ee *exec.ExitError
 		if errors.As(waitErr, &ee) {
 			res.ExitCode = ee.ExitCode()
+			if res.ExitCode == roRootFailExit {
+				return res, fmt.Errorf("lichtools: could not establish confinement (read-only root failed); refused to run")
+			}
 			return res, nil
 		}
 		return res, fmt.Errorf("lichtools: confined command: %w", waitErr)
@@ -205,20 +226,19 @@ func (s *netnsSandbox) Exec(ctx context.Context, h *Handle, argv []string) (Exec
 
 // confineArgv wraps the caller argv in:
 //
-//	unshare -r -n --pid --mount-proc --fork -- [prlimit --nproc --as --cpu --] argv...
+//	unshare -r -n -m --pid --mount-proc --fork -- sh -c '<prelude>; exec "$@"' sh \
+//	    [prlimit --nproc --as --cpu --] argv...
 //
-// -r maps the current user to root inside a new user namespace (no real
-// privilege); -n is a fresh network namespace with no egress (only an unconfigured
-// loopback — H8 proved this blocks the outside world); --pid/--mount-proc/--fork
-// isolate the pid space; prlimit caps processes, address space, and CPU seconds.
+// The prelude (runs as mapped-root inside the namespaces) remounts / read-only,
+// gives a private tmpfs /tmp, and rebinds the configured writable paths rw.
 func (s *netnsSandbox) confineArgv(lim Limits, argv []string) []string {
-	out := []string{s.unshareBin, "-r", "-n", "--pid", "--mount-proc", "--fork", "--"}
+	inner := make([]string, 0, len(argv)+5)
 	if s.prlimitBin != "" {
 		cpuSecs := int(lim.WallTimeout/time.Second) + 5 // CPU-seconds backstop beyond the wall timeout
 		if cpuSecs < 5 {
 			cpuSecs = 5
 		}
-		out = append(out,
+		inner = append(inner,
 			s.prlimitBin,
 			"--nproc="+strconv.Itoa(lim.PidsMax),
 			"--as="+strconv.FormatInt(lim.MemBytes, 10),
@@ -226,7 +246,32 @@ func (s *netnsSandbox) confineArgv(lim Limits, argv []string) []string {
 			"--",
 		)
 	}
-	return append(out, argv...)
+	inner = append(inner, argv...)
+
+	out := []string{s.unshareBin, "-r", "-n", "-m", "--pid", "--mount-proc", "--fork", "--",
+		s.shBin, "-c", s.prelude() + `; exec "$@"`, "sh"}
+	return append(out, inner...)
+}
+
+// prelude is the in-namespace bootstrap that establishes FS confinement. It is
+// fixed server-side text plus the server-configured (not model-controlled)
+// writable paths, shell-quoted.
+func (s *netnsSandbox) prelude() string {
+	lines := []string{
+		`mount --make-rprivate / 2>/dev/null || true`,
+		`mount -t tmpfs tmpfs /tmp 2>/dev/null || true`,
+		`mount -o remount,ro,bind / 2>/dev/null || { echo "lich-mcp: read-only root could not be established" >&2; exit ` + strconv.Itoa(roRootFailExit) + `; }`,
+	}
+	for _, w := range s.writable {
+		q := shSingleQuote(w)
+		lines = append(lines, `mount --bind `+q+` `+q+` 2>/dev/null && mount -o remount,rw,bind `+q+` 2>/dev/null || true`)
+	}
+	return strings.Join(lines, "; ")
+}
+
+// shSingleQuote wraps s in single quotes, escaping any embedded single quote.
+func shSingleQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // Destroy reaps any running process group for the handle and marks it done.
