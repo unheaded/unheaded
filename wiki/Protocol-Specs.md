@@ -75,7 +75,7 @@ MBC (Monad Bytecode) is the compute ISA for Monad programs. 32-bit fixed-width e
 ## 2. Wotan Protocol (Message Bus)
 
 **Specification:** `services/wotan/` (source code is the specification)
-**Memory model RFC:** `docs/protocol/draft-bellis-unheaded-wotan-memory-00.md` and `-01.md`
+**Memory model RFC:** `docs/protocol/draft-bellis-unheaded-wotan-memory-00.md` through `-03.md`
 
 ### Purpose
 
@@ -83,40 +83,54 @@ Wotan is the Kingdom's nervous system -- a triple-role message bus providing rin
 
 ### Transport
 
-- **Protocol:** gRPC over HTTP/2
-- **Default address:** 10.10.10.10:9090
-- **Authentication:** Service identity (mTLS planned for WS5)
+- **gRPC** on `:18001` (`services/wotan/proto/topic.proto`: `TopicStream` with `StreamTopics`, `PublishTopic`, `TopicPing`; `chat.proto` for the legacy room stream; `replication.proto` for the cluster).
+- **HTTP** on `:18000` ([[Wotan|Service-Wotan]] has the routes).
+- **Authentication:** join + approval allowlist (`configs/wotan.yaml` `topics.auto_approve`); ML-DSA-65 signatures on `config.*` ([[Wotan Topic Signing|Wotan-Topic-Signing]]).
 
 ### Message Format
 
-Wotan messages are Protocol Buffer encoded:
-
 ```protobuf
-message WotanMessage {
+message TopicPublishRequest {
   string topic = 1;
-  bytes payload = 2;
-  string trace_id = 3;
-  int64 timestamp_ms = 4;
-  string source_service = 5;
+  string sender_id = 2;
+  bytes payload = 3;
+  map<string, string> metadata = 4;
+  bytes signature = 5;          // ML-DSA-65, config.* only
+  bytes public_key = 6;
+  string algorithm = 7;
+  int64 signed_at_unix_ms = 8;  // covered by the signature; replay window
+}
+
+message TopicEvent {
+  string message_id = 1;
+  string topic = 2;
+  string sender_id = 3;
+  int64 seq = 4;                // global across topics
+  google.protobuf.Timestamp created_at = 5;
+  bytes payload = 6;
+  TopicEventType type = 7;
+  string node_id = 8;
+  bytes signature = 9;
+  bytes public_key = 10;
+  string algorithm = 11;
 }
 ```
 
-**Constraints:**
-- Payload must be < 1 MB
-- All messages must include `trace_id`
-- Timestamps are Unix milliseconds
-- Use protobuf for large messages (not JSON)
+Per-topic buffers and caps: [[Wotan|Service-Wotan]].
 
 ### Topic Hierarchy
 
 ```
-alerts.critical          -- All services subscribe
-alerts.warn              -- Dashboard, monitoring
-timeline.updates         -- Kanban-app, dashboard
-system.outage.reports    -- Dashboard, unheaded-daemon
-metrics.service.{name}   -- Dashboard-backend
-doom.frames              -- Doom-bridge (framebuffer updates)
-doom.stats               -- Doom-bridge (CPU state)
+alerts.critical          -- critical alert broadcast
+alerts.warning           -- warnings (pkg/events)
+timeline.updates         -- timeguru -> kanban-app
+system.health.reports    -- akira reports (ADR-029)
+system.health.consensus  -- akira band changes
+system.discovery         -- service announcements (pkg/discovery)
+logs.<service>.<level>   -- log aggregation (pkg/logagg)
+metrics.<service>        -- metric events, read by dashboard-backend as metrics.*
+config.*                 -- signed configuration
+threats.cisa-kev.*       -- kev-poller
 ```
 
 ### Three Roles
@@ -129,25 +143,15 @@ doom.stats               -- Doom-bridge (CPU state)
 
 ### Client Integration
 
-Every Go service follows the same Wotan integration pattern:
+Go services use `pkg/wotan-client`:
 
 ```go
-func main() {
-    // 1. Connect to Wotan
-    client := wotanClient.New(os.Getenv("WOTAN_ADDR"))
-    defer client.Close()
-
-    // 2. Subscribe to topics
-    client.Subscribe("alerts.critical", handleAlert)
-
-    // 3. Publish state changes
-    client.Publish("timeline.updates", payload)
-
-    // 4. Graceful disconnect on shutdown
-    <-ctx.Done()
-    client.Close()
-}
+client, err := wotanClient.NewClientWithGRPC(httpAddr, grpcAddr) // or NewClient(httpAddr)
+sub, err := client.Subscribe(ctx, "alerts.critical", "timeguru")
+err = client.Publish(ctx, "timeline.updates", payload)
 ```
+
+Most services get the addresses from `transport.ConfigFromEnv()` (`WOTAN_ADDR`, `WOTAN_GRPC_ADDR`; [[Transport Cascade|Transport-Cascade]]).
 
 ---
 
@@ -199,16 +203,24 @@ This allows protocol semantics to change at runtime without packet modification,
 
 ### API
 
+There is no dictionary-management HTTP API (no create, activate or resolve endpoint); the hot-swap above is specified, not served. What runs:
+
+`sophia` service (`cmd/sophia`, `:19005`):
+
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/v1/dictionaries` | GET | List all dictionaries (active, pending, archived) |
-| `/api/v1/dictionaries/{id}` | GET | Get specific dictionary |
-| `/api/v1/dictionaries` | POST | Create new dictionary |
-| `/api/v1/dictionaries/{id}/activate` | POST | Atomic swap to active |
-| `/api/v1/resolve` | POST | Resolve exponent keys to labels |
-| `/health` | GET | Health check |
-| `/ready` | GET | Readiness probe |
-| `/metrics` | GET | Prometheus metrics |
+| `/api/v1/knowledge` | GET, POST | Read or add knowledge entries |
+| `/api/v1/insights` | GET | Insights |
+| `/api/v1/decide` | POST | Decision request |
+| `/api/v1/stats` | GET | Counts |
+| `/health`, `/ready`, `/metrics` | GET | Probes, Prometheus |
+
+`protocol-api` (`cmd/protocol-api`, `:17100`), read-only dictionary listing:
+
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| `/api/v1/sophia/dictionaries` | GET | List dictionaries |
+| `/api/v1/sophia/dictionaries/{id}` | GET | One dictionary |
 
 ---
 
@@ -250,9 +262,9 @@ A single packet's lifecycle:
 | Protocol Foundation (canonical) | `docs/protocol/PROTOCOL_FOUNDATION.md` |
 | Protocol Technical Summary | `docs/protocol/PROTOCOL_TECHNICAL_SUMMARY.md` |
 | MBC ISA Reference | `docs/protocol/mbc-isa-reference.md` |
-| Monad RFC Draft (latest) | `docs/protocol/draft-bellis-unheaded-protocol-foundation-04.md` |
-| Sophia Dictionary RFC | `docs/protocol/draft-bellis-unheaded-sophia-dictionary-01.md` |
-| Wotan Memory Model RFC | `docs/protocol/draft-bellis-unheaded-wotan-memory-01.md` |
+| Monad RFC Draft (latest) | `docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md` |
+| Sophia Dictionary RFC | `docs/protocol/draft-bellis-unheaded-sophia-dictionary-03.md` |
+| Wotan Memory Model RFC | `docs/protocol/draft-bellis-unheaded-wotan-memory-03.md` |
 | Wire Format Patterns | `wiki/Wire-Format-Patterns.md` |
 | Doom-over-IPv6 Architecture | `docs/protocol/doom-over-ipv6-architecture.md` |
 | BPF Map Reference | `docs/doom/BPF-MAP-REFERENCE.md` |
