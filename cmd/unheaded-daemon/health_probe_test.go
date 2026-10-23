@@ -215,6 +215,28 @@ func TestReconcile_RefusesToProbeNonInstanceAddresses(t *testing.T) {
 	}
 }
 
+// A sync that runs out of time stops probing and counts nothing against the
+// instances it did not reach: with many health specs the 30 s reconcile
+// deadline would otherwise mark the tail unhealthy and restart it.
+func TestReconcile_ExpiredSyncCountsNoFailures(t *testing.T) {
+	d, _, p := healthDaemon(t, true)
+	p.err = func(string) error { return context.DeadlineExceeded }
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	d.stateManager.mu.Lock()
+	for range 5 {
+		d.probeHealth(ctx)
+	}
+	rec := d.health["web"]
+	d.stateManager.mu.Unlock()
+	if rec != nil && rec.fails != 0 {
+		t.Errorf("%d failures counted from an expired sync, want 0", rec.fails)
+	}
+	if len(p.callList()) != 0 {
+		t.Errorf("probed %v after the sync's deadline", p.callList())
+	}
+}
+
 // The real prober: 2xx is healthy; a redirect is not followed; anything
 // else, or no answer within the timeout, fails; HTTP_PROXY is ignored.
 func TestHTTPProber(t *testing.T) {

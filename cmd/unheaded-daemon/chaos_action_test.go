@@ -116,6 +116,19 @@ func TestChaos_OffUnlessEnabled(t *testing.T) {
 	}
 }
 
+// Observe mode has no auto-revert (nothing starts the instance again), so
+// chaos is refused there even when switched on.
+func TestChaos_NeedsEnforce(t *testing.T) {
+	f := newChaosFixture(t)
+	f.d.config.Enforce = false
+	if w := f.post("steel-echo-v1-0", killBody); w.Code != http.StatusForbidden {
+		t.Errorf("observe mode: %d, want 403", w.Code)
+	}
+	if calls := f.stopCalls(); len(calls) != 0 {
+		t.Errorf("stopped %v in observe mode", calls)
+	}
+}
+
 func TestChaos_RefusesUnmanagedAndUnlabelled(t *testing.T) {
 	f := newChaosFixture(t)
 	if w := f.post("pihole", killBody); w.Code != http.StatusConflict {
@@ -132,6 +145,30 @@ func TestChaos_RefusesUnmanagedAndUnlabelled(t *testing.T) {
 	}
 	if f.m.containers["pihole"].Status != "running" || f.m.containers["plain-0"].Status != "running" {
 		t.Error("a refused target changed state")
+	}
+}
+
+// permissiveChaos stops anything it is asked to: a client that has lost its
+// own checks.
+type permissiveChaos struct {
+	LXDClient
+	stops int
+}
+
+func (p *permissiveChaos) ChaosStop(context.Context, string, bool) error { p.stops++; return nil }
+
+// The handler refuses on its own, whatever the client would do.
+func TestChaos_HandlerChecksOnItsOwn(t *testing.T) {
+	f := newChaosFixture(t)
+	p := &permissiveChaos{LXDClient: f.m}
+	f.d.lxdClient = p
+	for _, id := range []string{"pihole", "plain-0"} {
+		if w := f.post(id, killBody); w.Code != http.StatusConflict {
+			t.Errorf("%s: %d, want 409 from the handler's own check", id, w.Code)
+		}
+	}
+	if p.stops != 0 {
+		t.Errorf("the client was asked %d times", p.stops)
 	}
 }
 

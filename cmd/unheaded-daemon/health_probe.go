@@ -146,6 +146,11 @@ func (d *Daemon) probeHealth(ctx context.Context) {
 		d.prober = prober
 	}
 	for id, spec := range d.stateManager.desired {
+		if ctx.Err() != nil {
+			// Out of time for this sync: the rest keep their verdicts. A probe
+			// cut short by the sync's deadline is not the instance's fault.
+			return
+		}
 		actual, ok := d.stateManager.actual[id]
 		if spec.Health == nil || !ok || !actual.Managed || actual.Status != "running" {
 			continue
@@ -162,6 +167,9 @@ func (d *Daemon) probeHealth(ctx context.Context) {
 			pctx, cancel := context.WithTimeout(ctx, healthProbeTimeout)
 			err = prober.Probe(pctx, ip, spec.Health.Port, spec.Health.Path)
 			cancel()
+			if err != nil && ctx.Err() != nil {
+				return // the sync ran out of time, not the instance
+			}
 		}
 		if err == nil {
 			rec.fails, rec.status = 0, "healthy"

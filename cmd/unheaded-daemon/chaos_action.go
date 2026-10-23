@@ -127,6 +127,11 @@ func (d *Daemon) chaos(r *http.Request, id string, req *chaosRequest) (int, stri
 	if !d.config.Chaos {
 		return http.StatusForbidden, "refused", "chaos is off (CUIRASS_CHAOS is not true)"
 	}
+	if !d.config.Enforce {
+		// The revert is the reconciler starting the instance again; in
+		// observe mode nothing would, so a kill would stick.
+		return http.StatusForbidden, "refused", "chaos needs CUIRASS_ENFORCE=true (nothing would restart the instance)"
+	}
 	if err := decodeErr; err != nil {
 		var re *httputil.RequestError
 		if errors.As(err, &re) {

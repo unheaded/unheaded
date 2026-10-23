@@ -148,6 +148,8 @@ type Daemon struct {
 	prober      healthProber
 	health      map[string]*healthRecord
 	healthGauge *metrics.GaugeVec
+
+	actionsTotal *metrics.CounterVec
 }
 
 // initMetrics registers every series this daemon publishes. Each reads the
@@ -174,6 +176,17 @@ func (d *Daemon) initMetrics() {
 		"Health probe verdict per managed instance with a health spec: 1 healthy, 0 unhealthy, -1 not yet known",
 		nil, []string{"id"})
 	d.registry.MustRegister(d.healthGauge)
+	d.actionsTotal = metrics.NewCounterVec("cuirass_reconcile_actions_total",
+		"Reconcile actions by action and result (done, failed, planned in observe mode, refused)",
+		nil, []string{"action", "result"})
+	d.registry.MustRegister(d.actionsTotal)
+}
+
+// countAction records one reconcile action's outcome.
+func (d *Daemon) countAction(action, result string) {
+	if d.actionsTotal != nil {
+		d.actionsTotal.WithLabelValues(action, result).Inc()
+	}
 }
 
 // ============================================================================
@@ -1217,17 +1230,28 @@ func (d *Daemon) handleMetrics(w http.ResponseWriter, r *http.Request) {
 }
 
 func (d *Daemon) handleInfo(w http.ResponseWriter, r *http.Request) {
+	backend := d.config.LXDBackend
+	if backend == "" {
+		backend = "mock"
+	}
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		"component":  "cuirass",
-		"version":    version,
-		"git_commit": gitCommit,
-		"build_time": buildTime,
-		"node_id":    d.config.NodeID,
-		"node_name":  d.config.NodeName,
-		"hollow":     "crystal_grotto",
-		"role":       "control_plane",
-		"kingdom":    "unheaded",
+		// Which LXD and which modes are live: mock and real look alike
+		// otherwise without reading the environment.
+		"lxd_backend": backend,
+		"lxd_project": d.config.LXDProject,
+		"enforce":     d.config.Enforce,
+		"prune":       d.config.Prune,
+		"chaos":       d.config.Chaos,
+		"component":   "cuirass",
+		"version":     version,
+		"git_commit":  gitCommit,
+		"build_time":  buildTime,
+		"node_id":     d.config.NodeID,
+		"node_name":   d.config.NodeName,
+		"hollow":      "crystal_grotto",
+		"role":        "control_plane",
+		"kingdom":     "unheaded",
 	})
 }
 
@@ -1336,10 +1360,12 @@ func (d *Daemon) planReconcile() []ReconcileAction {
 // that it would have.
 func (d *Daemon) applyAction(ctx context.Context, a *ReconcileAction) {
 	if a.Error != "" { // refused while planning
+		d.countAction(a.Action, "refused")
 		d.log.Warn().Str("id", a.ContainerID).Str("reason", a.Reason).Msg("Reconcile refused")
 		return
 	}
 	if !d.config.Enforce {
+		d.countAction(a.Action, "planned")
 		a.Planned = true
 		d.log.Info().Str("id", a.ContainerID).Str("action", a.Action).Str("reason", a.Reason).
 			Msg("Observe mode: would act (CUIRASS_ENFORCE is not true)")
@@ -1369,10 +1395,12 @@ func (d *Daemon) applyAction(ctx context.Context, a *ReconcileAction) {
 		err = fmt.Errorf("unknown action %q", a.Action)
 	}
 	if err != nil {
+		d.countAction(a.Action, "failed")
 		d.log.Error().Err(err).Str("id", a.ContainerID).Str("action", a.Action).Msg("Reconcile action failed")
 		a.Error = err.Error()
 		return
 	}
+	d.countAction(a.Action, "done")
 	d.log.Info().Str("id", a.ContainerID).Str("action", a.Action).Msg("Reconcile action done")
 	a.Success = true
 	if a.Action == "create" || a.Action == "restart" || a.Action == "delete" {
