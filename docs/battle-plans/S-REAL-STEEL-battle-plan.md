@@ -925,8 +925,10 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 190** [TEST][V] ~3m: Green, race-clean.
   - Done 2026-10-23: green, race-clean; golangci-lint 0, gosec clean.
 - [ ] **Step 191** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): Cuirass driver for deploy strategies`.
-- [ ] **Step 192** [CODE][TEST] ~20m: Cuirass `POST /api/v1/reconcile` (auth required like PUT; at most one run per second, extra calls get 429; runs one sync+plan+apply cycle and returns its actions): tests in `cmd/unheaded-daemon/reconcile_now_test.go`. Without it a blue-green cutover waits up to one 30 s sync.
-- [ ] **Step 193** [TEST][V] ~3m: `gotest ./cmd/unheaded-daemon/...` green.
+- [x] **Step 192** [CODE][TEST] ~20m: Cuirass `POST /api/v1/reconcile` (auth required like PUT; at most one run per second, extra calls get 429; runs one sync+plan+apply cycle and returns its actions): tests in `cmd/unheaded-daemon/reconcile_now_test.go`. Without it a blue-green cutover waits up to one 30 s sync.
+  - Done 2026-10-23: reconcile_now.go + reconcile_now_test.go: 403 without AUTH_ENABLED, one sync+plan+apply returning its actions, observe mode only plans, 429 + Retry-After within a second, POST only, 502 when the LXD list fails. Also found and fixed while wiring the driver: within one reconcile, update-proxy actions apply in name order, so moving the endpoint to an instance that sorts first (a rollback v3 to v2) would add before removing and LXD cannot bind the address twice; removals now apply first (TestReconcile_ProxyRemovalsApplyFirst). Bites: dropping the auth check or the ordering turns its test red.
+- [x] **Step 193** [TEST][V] ~3m: `gotest ./cmd/unheaded-daemon/...` green.
+  - Done 2026-10-23: gotest ./cmd/unheaded-daemon/... green, race-clean; lint 0; gosec clean.
 - [ ] **Step 194** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): reconcile-now endpoint for deploy cutovers`.
 - [ ] **Step 195** [CODE][TEST] ~25m: Rollback wiring tests: `rollback.Manager` with a `DeploymentLookup` backed by a history store (interface only here; Sword provides the file-backed one in Phase 8), `InstanceUpdater` and `TrafficShifter` adapters over the driver. `TestRollback_RestoresPreviousVersionThroughDriver` (fake Cuirass ends with only the previous version's instances desired and the proxy on them), `TestRollback_NoPreviousVersionIsAnError`, `TestAutoRollbackMonitor_TriggersOnFailedHealth`.
 - [ ] **Step 196** [TEST] ~2m: Red.

@@ -144,6 +144,10 @@ type Daemon struct {
 	// chaosPublish sends a cuirass.chaos event; nil means publishToWotan.
 	chaosPublish func(ctx context.Context, payload []byte) error
 
+	// POST /api/v1/reconcile runs at most once a second (reconcile_now.go).
+	reconcileNowMu   sync.Mutex
+	lastReconcileNow time.Time
+
 	// Health probing (health_probe.go); health is guarded by stateManager.mu.
 	prober      healthProber
 	health      map[string]*healthRecord
@@ -955,6 +959,7 @@ func (d *Daemon) registerHandlers(mux *http.ServeMux) {
 	// Container endpoints
 	mux.HandleFunc("/api/v1/containers", d.handleContainers)
 	mux.HandleFunc("/api/v1/containers/", d.handleContainer)
+	mux.HandleFunc("/api/v1/reconcile", d.handleReconcileNow)
 
 	// Metrics
 	mux.HandleFunc("/metrics", d.handleMetrics)
@@ -1276,13 +1281,20 @@ func (d *Daemon) reconciliationLoop() {
 }
 
 func (d *Daemon) reconcile() {
+	_, _ = d.reconcileOnce()
+}
+
+// reconcileOnce runs one sync, plan and apply cycle and returns what it
+// decided. The error is set when the cycle could not run (no LXD client,
+// LXD list failed).
+func (d *Daemon) reconcileOnce() ([]ReconcileAction, error) {
 	d.stateManager.mu.Lock()
 	defer d.stateManager.mu.Unlock()
 
 	// Check if LXD client is available
 	if d.lxdClient == nil {
 		d.log.Warn().Msg("LXD client not available, skipping reconciliation")
-		return
+		return nil, errors.New("no LXD client")
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -1290,10 +1302,10 @@ func (d *Daemon) reconcile() {
 
 	if err := d.syncActualStateFromLXD(ctx); err != nil {
 		d.log.Error().Err(err).Msg("LXD list failed; skipping reconcile (actual state unknown)")
-		return
+		return nil, fmt.Errorf("LXD list failed: %w", err)
 	}
 	d.probeHealth(ctx)
-	actions := d.planReconcile()
+	actions := proxyRemovalsFirst(d.planReconcile())
 	for i := range actions {
 		d.applyAction(ctx, &actions[i])
 	}
@@ -1305,6 +1317,7 @@ func (d *Daemon) reconcile() {
 	if len(actions) > 0 {
 		go d.publishReconcileEvents(actions)
 	}
+	return actions, nil
 }
 
 // planReconcile decides what reconciliation would do; the caller holds
