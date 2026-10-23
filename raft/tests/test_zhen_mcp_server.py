@@ -221,5 +221,76 @@ class TestRunbookNames(unittest.TestCase):
         self.assertIn("--dry-run", cmd)
 
 
+READ_ONLY_TOOLS = {"corpus_search", "file_read", "service_health", "runbook_list", "runbook_show"}
+
+
+def _gate_env(**flags):
+    """Patch os.environ with both gate flags removed, then `flags` set."""
+    env = {k: v for k, v in os.environ.items()
+           if k not in ("ZHEN_MCP_ALLOW_WRITE", "ZHEN_MCP_ALLOW_EXEC")}
+    env.update(flags)
+    return mock.patch.dict(os.environ, env, clear=True)
+
+
+def _listed():
+    res = _run(zms.app.request_handlers[types.ListToolsRequest](None)).root
+    return {t.name for t in res.tools}
+
+
+@unittest.skipUnless(HAVE_MCP, "mcp package not installed")
+class TestWriteExecGate(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(os.path.realpath(self._tmp.name))
+        self.target = self.root / "f.txt"
+        self.target.write_text("old")
+        self._patch = mock.patch.object(zms, "ALLOWED_PATHS", [str(self.root)])
+        self._patch.start()
+
+    def tearDown(self):
+        self._patch.stop()
+        self._tmp.cleanup()
+
+    def test_default_lists_read_only_tools(self):
+        with _gate_env():
+            self.assertEqual(_listed(), READ_ONLY_TOOLS)
+
+    def test_flags_list_gated_tools(self):
+        with _gate_env(ZHEN_MCP_ALLOW_WRITE="1"):
+            self.assertEqual(_listed(), READ_ONLY_TOOLS | {"file_write", "file_patch"})
+        with _gate_env(ZHEN_MCP_ALLOW_EXEC="1"):
+            self.assertEqual(_listed(), READ_ONLY_TOOLS | {"runbook_execute"})
+        with _gate_env(ZHEN_MCP_ALLOW_WRITE="1", ZHEN_MCP_ALLOW_EXEC="1"):
+            self.assertEqual(len(_listed()), 8)
+
+    def test_only_exact_one_enables(self):
+        for v in ("", "0", "true", "yes", " 1"):
+            with _gate_env(ZHEN_MCP_ALLOW_WRITE=v, ZHEN_MCP_ALLOW_EXEC=v):
+                self.assertEqual(_listed(), READ_ONLY_TOOLS, repr(v))
+
+    def test_write_disabled_is_error(self):
+        with _gate_env():
+            res = _call("file_write", {"path": str(self.root / "new.txt"), "content": "x"})
+            self.assertTrue(res.isError)
+            self.assertIn("ZHEN_MCP_ALLOW_WRITE=1", _text(res))
+            res = _call("file_patch", {"path": str(self.target), "old_text": "old", "new_text": "new"})
+            self.assertTrue(res.isError)
+        self.assertFalse((self.root / "new.txt").exists())
+        self.assertEqual(self.target.read_text(), "old")
+
+    def test_exec_disabled_is_error(self):
+        with _gate_env(ZHEN_MCP_ALLOW_WRITE="1"), mock.patch("subprocess.run") as run:
+            res = _call("runbook_execute", {"name": "service-health-sweep", "dry_run": True})
+            self.assertTrue(res.isError)
+            self.assertIn("ZHEN_MCP_ALLOW_EXEC=1", _text(res))
+            run.assert_not_called()
+
+    def test_write_enabled_works(self):
+        with _gate_env(ZHEN_MCP_ALLOW_WRITE="1"):
+            res = _call("file_patch", {"path": str(self.target), "old_text": "old", "new_text": "new"})
+            self.assertFalse(res.isError, _text(res))
+        self.assertEqual(self.target.read_text(), "new")
+
+
 if __name__ == "__main__":
     unittest.main()

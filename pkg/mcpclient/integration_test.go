@@ -102,6 +102,15 @@ func TestRealZhenMCPServer(t *testing.T) {
 			t.Errorf("tool %s missing", want)
 		}
 	}
+	// Mutating tools are listed only when the server's env opts in.
+	for tool, flag := range map[string]string{
+		"file_write": "ZHEN_MCP_ALLOW_WRITE", "file_patch": "ZHEN_MCP_ALLOW_WRITE",
+		"runbook_execute": "ZHEN_MCP_ALLOW_EXEC",
+	} {
+		if want := os.Getenv(flag) == "1"; got[tool] != want {
+			t.Errorf("tool %s listed=%v, want %v (%s=%q)", tool, got[tool], want, flag, os.Getenv(flag))
+		}
+	}
 	if skipped := c.Diagnostics().SkippedTools; len(skipped) > 0 {
 		t.Errorf("skipped tools: %v", skipped)
 	}

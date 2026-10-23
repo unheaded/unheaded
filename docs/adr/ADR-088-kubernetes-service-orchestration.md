@@ -19,7 +19,7 @@ The Kingdom runs **56 service-level components** across two bare-metal hosts
 | Application services (Docker) | wotan, timeguru, captain, architect, micromanager, monad, sophia, dashboard-backend, kanban-app, cuirass | 10 |
 | Native bare-metal daemons | huginn, unheaded-daemon, akira, trace-collector-go, protocol-api, wiki-server, heimdall-daemon, gjallarhorn-listener, upc-tty-bridge, demo-trace-injector, routing-health | 11 |
 | DOOM pipeline | doom-runner (Rust/Aya), doom-bridge, doom-loader | 3 |
-| Zhenai AI stack | zhen_app (Flask RAG + web UI), zhen_mcp_server (7 MCP tools), zhen_scheduler, llama.cpp inference, zhend (Rust gossip substrate) | 5 |
+| Zhenai AI stack | zhen_app (Flask RAG + web UI), zhen_mcp_server (8 MCP tools, 3 mutating ones env-gated), zhen_scheduler, llama.cpp inference, zhend (Rust gossip substrate) | 5 |
 | Network | WireGuard (WEST↔EAST overlay) | 1 |
 | **Total** | | **56** |
 

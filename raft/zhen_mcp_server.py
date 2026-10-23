@@ -2,28 +2,42 @@
 """
 Zhen Champion MCP Server — Exposes Kingdom capabilities as MCP tools.
 
-Any MCP client (Claude Code, Claude Desktop, custom) can connect and use:
-- corpus_search: FAISS semantic search across 1.76M vectors
-- file_read: Sandboxed file read (allowlist enforced)
-- service_health: Health check all Kingdom services
-- kanban_list: List Kanban tasks
-- runbook_list: List available operational runbooks
-- runbook_show: Show runbook details
+Eight tools. Five are read-only and always listed:
+- corpus_search: semantic search via Zhen's /api/v1/context (:20103)
+- file_read: sandboxed file read (repo root + /var/zhen/, deny list)
+- service_health: health check all Kingdom services
+- runbook_list: list available operational runbooks
+- runbook_show: show one runbook's YAML
 
-Transport: stdio (for Claude Code) or SSE (for web clients)
+Three mutate the host and are OFF by default. They are neither listed nor
+callable (a call returns an isError result) unless the server process is
+started with the matching opt-in, exactly "1":
+- file_write, file_patch   ZHEN_MCP_ALLOW_WRITE=1  (same sandbox as file_read)
+- runbook_execute          ZHEN_MCP_ALLOW_EXEC=1   (runs scripts/run-runbook.py,
+                                                     600s timeout, incl. dry_run)
+
+Other environment:
+- ZHEN_MCP_PROJECT_ROOT  repo root (default: the parent of raft/, derived
+                         from this file's location)
+
+Runbook names must match RUNBOOK_NAME_RE and resolve under runbooks/.
+Unknown tools and rejected arguments come back as isError results.
+
+Transport: stdio (one client). See the SSE note below before adding another.
 
 Usage:
-  # stdio transport (Claude Code)
-  python3 zhen_mcp_server.py
+  python3 raft/zhen_mcp_server.py
 
-  # Add to Claude Code settings.json:
+  # Claude Code settings.json (read-only):
   # "mcpServers": {
   #   "zhen": {
   #     "command": "python3",
-  #     "args": ["/home/govan/tmp/unheaded/raft/zhen_mcp_server.py"],
+  #     "args": ["/path/to/unheaded/raft/zhen_mcp_server.py"],
   #     "env": {}
   #   }
   # }
+  # Add "ZHEN_MCP_ALLOW_WRITE": "1" / "ZHEN_MCP_ALLOW_EXEC": "1" to "env"
+  # only for a client you trust to modify files / run runbooks.
 """
 
 # ruff: noqa: ASYNC210, ASYNC221, ASYNC230
@@ -74,6 +88,20 @@ ALLOWED_PATHS = [
     str(PROJECT_ROOT),
     "/var/zhen/",
 ]
+# Mutating tools -> the env var that must be exactly "1" to expose them.
+GATED_TOOLS = {
+    "file_write": "ZHEN_MCP_ALLOW_WRITE",
+    "file_patch": "ZHEN_MCP_ALLOW_WRITE",
+    "runbook_execute": "ZHEN_MCP_ALLOW_EXEC",
+}
+
+
+def tool_enabled(name: str) -> bool:
+    """Read at call time; ungated tools are always enabled."""
+    flag = GATED_TOOLS.get(name)
+    return flag is None or os.environ.get(flag) == "1"
+
+
 # Runbook names are file stems under runbooks/<category>/. Anything else
 # (glob metacharacters, separators, "..") never reaches glob().
 RUNBOOK_NAME_RE = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
@@ -156,6 +184,10 @@ app = Server("zhen-champion", version=__version__)
 
 @app.list_tools()
 async def list_tools():
+    return [t for t in _all_tools() if tool_enabled(t.name)]
+
+
+def _all_tools() -> list[Tool]:
     return [
         Tool(
             name="corpus_search",
@@ -243,6 +275,9 @@ async def list_tools():
 
 @app.call_tool()
 async def call_tool(name: str, arguments: dict):
+    # Raising makes the mcp library return isError=true with the message.
+    if not tool_enabled(name):
+        raise PermissionError(f"Tool {name} is disabled; start the server with {GATED_TOOLS[name]}=1 to enable it")
     if name == "corpus_search":
         return await tool_corpus_search(arguments)
     elif name == "file_read":
@@ -260,7 +295,6 @@ async def call_tool(name: str, arguments: dict):
     elif name == "runbook_execute":
         return await tool_runbook_execute(arguments)
     else:
-        # Raising makes the mcp library return isError=true with this text.
         raise ValueError(f"Unknown tool: {name}")
 
 

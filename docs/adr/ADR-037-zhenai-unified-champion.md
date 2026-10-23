@@ -14,7 +14,7 @@ Zhenai currently exists as 5 separate components:
 | Component | Language | Purpose | Port |
 |-----------|----------|---------|------|
 | `raft/zhen_app.py` | Python | Flask web UI + RAG pipeline + chat commands | 20103 |
-| `raft/zhen_mcp_server.py` | Python | MCP server for Claude Code (8 tools) | stdio |
+| `raft/zhen_mcp_server.py` | Python | MCP server for Claude Code (8 tools; write/exec off unless `ZHEN_MCP_ALLOW_WRITE`/`ZHEN_MCP_ALLOW_EXEC`=1) | stdio |
 | `raft/zhen_scheduler.py` | Python | Cron-based runbook scheduler + heartbeat | N/A |
 | `pkg/champion/` | Go | Trust Level 1+2, sandboxed R/W, Kanban CRUD | N/A |
 | `crates/zhenai-forge/` | Rust | LoRA training pipeline (GPU) | N/A |
