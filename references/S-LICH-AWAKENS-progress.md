@@ -48,6 +48,26 @@ no-egress with a test that must fail to reach the network.
   over-long. No new dep (go.mod/go.sum unchanged since base). Tests + -race GREEN; vet/fmt clean.
 - Commits: scope `2c4cf6b5`, skeleton `3fc8f3fb`, test `eae55da7`, hardening `b3563f88`.
 
-## Phase 2 — Sandbox substrate: confinement + kill switch — (pending)
+## Phase 2 — Sandbox substrate: confinement + kill switch — COMPLETE (2026-10-23)
 
-## Phase 3 — Lich tools: real behaviour through the gate — (pending)
+- Substrate decision (Step 49): unprivileged `unshare` netns sandbox is the DEFAULT
+  (LXD container creation is an [ESCALATE] per SAFETY brief, not used).
+- `sandbox.go` `netnsSandbox`: `unshare -r -n -m --pid --mount-proc --fork` + a mount
+  prelude (read-only root + private tmpfs `/tmp` + rw binds only for configured writable
+  paths) + `prlimit` (nproc/as/cpu) + wall-timeout with process-group SIGKILL + bounded
+  output. `Spawn` memory-fit preflight (swap never counted) → `ErrWontFit`. Fails closed
+  (`ErrNoConfinement`) if unshare/user-ns absent — never runs unconfined.
+- `killswitch.go`: halt-file + SIGTERM/SIGINT → stop spawns, SIGTERM live sandboxes,
+  grace, SIGKILL+Destroy, HALTED audit; idempotent.
+- `resource.go`: `Semaphore` host-resource cap → `ErrAtCapacity` (no fork-bomb via run
+  requests), race-tested.
+- `run_harness` wired Spawn→Exec→Destroy through scope+gate+semaphore+killswitch; bare-metal
+  test proves MCP-tool → confined-sandbox path.
+- **Escape red-team (Step 67-68): 7 PASS / 0 FAIL** — DNS/TCP/ICMP egress blocked,
+  host-FS and /etc writes blocked, PID namespace isolated, /proc/1 is ns init. No escape →
+  **no E1**. Recorded in `tomb/lich/LICH-MCP-README.md`.
+- Cleanup verified: no stray containers, no named netns, no stray sandbox processes.
+- Commits: sandbox `b1fa760f`, killswitch `7addd661`, semaphore `e7de6656`, red-team
+  `ba5b3ccb`, run_harness-confined `cdd19d9b`.
+
+## Phase 3 — Lich tools: real behaviour through the gate — (in progress)
