@@ -85,6 +85,10 @@ RUN CGO_ENABLED=0 GOOS=linux go build \
     -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
     -o /build/bin/kev-poller ./cmd/kev-poller
 
+RUN CGO_ENABLED=0 GOOS=linux go build \
+    -ldflags "-X main.version=${VERSION} -X main.gitCommit=${GIT_COMMIT} -X main.buildTime=${BUILD_TIME}" \
+    -o /build/bin/sword ./cmd/sword
+
 # ============================================================================
 # STAGE 2: WOTAN - THE FAE CHAMBER
 # ============================================================================
@@ -345,6 +349,33 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider http://localhost:17000/health || exit 1
 
 ENTRYPOINT ["/app/unheaded-daemon"]
+
+# ============================================================================
+# SWORD - the deploy service (S-REAL-STEEL Phase 8, D-09)
+# ============================================================================
+FROM alpine:3.24 AS sword
+
+RUN apk add --no-cache ca-certificates tzdata
+
+# Own account (pkg/uids.Sword): no shell, no home, uid shared with nothing else.
+RUN addgroup -S -g 16746 sword && \
+    adduser -S -D -H -h /nonexistent -s /sbin/nologin -u 16746 -G sword sword
+
+WORKDIR /app
+
+COPY --from=builder /build/bin/sword /app/sword
+
+# The deployment history (SWORD_DATA_DIR); a named volume inherits this owner.
+RUN mkdir -p /data && chown 16746:16746 /data && chmod 0750 /data
+
+USER 16746:16746
+
+EXPOSE 19011
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:19011/health || exit 1
+
+ENTRYPOINT ["/app/sword"]
 
 # ============================================================================
 # STAGE 10: DASHBOARD-BACKEND - THE VISOR (Observability Dashboard)

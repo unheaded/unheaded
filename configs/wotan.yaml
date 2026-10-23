@@ -34,6 +34,7 @@ topics:
     - "trace-collector"
     - "chaos-controller"      # service discovery display name (system.discovery)
     - "kev-poller"            # threats.cisa-kev.{updates,delta} (ADR-055)
+    - "sword"                 # deploy.{started,progress,succeeded,failed,rolled_back} (S-REAL-STEEL)
     - "sophia-service"        # sophia's own gRPC display name (not "sophia")
     - "monad-service"         # monad's own gRPC display name (not "monad")
     - "kanban-app-timeline"   # kanban's timeline subscription

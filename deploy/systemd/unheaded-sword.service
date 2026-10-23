@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Sword, the deploy service (S-REAL-STEEL Phase 8): deployments into LXD
+# through Cuirass, canary analysis, rollbacks. The host path for D-09's
+# fallback (when a compose container cannot reach lxdbr0 instance IPs);
+# the compose service "sword" is the default. Not installed anywhere yet.
+#
+# Install (users first: deploy/sysusers.d/unheaded.conf, see its header):
+#   sudo install -m 0755 sword /usr/local/bin/
+#   sudo install -d -m 0750 -o root -g unheaded-sword /etc/unheaded/sword
+#   sudo install -m 0640 -o root -g unheaded-sword observability/alerting/policy.yaml /etc/unheaded/sword/policy.yaml
+#   # /etc/unheaded/sword/sword.env (0640 root:unheaded-sword) holds
+#   # CUIRASS_API_KEY and AUTH_API_KEYS; never in the repo.
+#   sudo cp deploy/systemd/unheaded-sword.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-sword
+
+[Unit]
+Description=Unheaded Sword — deploys through Cuirass
+After=network-online.target
+Wants=network-online.target
+After=unheaded-daemon.service unheaded-wotan.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/unheaded/sword/sword.env
+Environment=HTTP_ADDR=:19011
+Environment=AUTH_ENABLED=true
+Environment=SWORD_DATA_DIR=/var/lib/unheaded/sword
+Environment=SWORD_SLO_POLICY=/etc/unheaded/sword/policy.yaml
+ExecStart=/usr/local/bin/sword
+WorkingDirectory=/var/lib/unheaded/sword
+Restart=on-failure
+RestartSec=10s
+TimeoutStopSec=15s
+
+LimitNOFILE=1024
+MemoryMax=128M
+
+User=unheaded-sword
+Group=unheaded-sword
+StateDirectory=unheaded/sword
+StateDirectoryMode=0700
+UMask=0077
+
+# Sandbox (deploy/systemd/README.md#isolation). The user comes from
+# deploy/sysusers.d/unheaded.conf: system account, /usr/sbin/nologin.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

@@ -40,6 +40,7 @@ sophia              ./cmd/sophia
 huginn              ./cmd/host-agent
 trace-collector-go  ./cmd/trace-collector-go
 kev-poller          ./cmd/kev-poller
+sword               ./cmd/sword
 unheaded-baseline   ./cmd/unheaded-baseline
 zhen-agentd         ./cmd/zhen-agentd
 "

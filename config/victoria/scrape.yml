@@ -72,3 +72,12 @@ scrape_configs:
     static_configs:
       - targets: ["host.docker.internal:19100"]
     metrics_path: /metrics
+
+  # Sword (compose service sword, 19011, profile "deploy"): deployments and
+  # rollbacks (sword_deployments_total, sword_rollbacks_total). Down outside
+  # a deploy window, so up{job="sword"} is 0 then; no SLO reads it.
+  - job_name: "sword"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:19011"]
+    metrics_path: /metrics
