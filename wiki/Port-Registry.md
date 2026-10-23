@@ -19,7 +19,7 @@ From `pkg/ports/ports.go`:
 | AI | 20100-20106 | vLLM DeepSeek 20100, vLLM Qwen 20101, Qdrant 20102, BGE-M3 20104, Sophia-Eye 20105, AI web UI 20106 |
 | Gateway | 21000-21443 | gateway HTTP 21000, HTTPS 21443 (in compose, Traefik's dashboard is on `127.0.0.1:21000`) |
 | Tools | 22000 | cert-gen |
-| User Apps | 26000-26666 | reserved; UPC tty bridge 26100 |
+| User Apps | 26000-26666 | reserved; UPC tty bridge 26100, upc-cartridgectl metrics 26610 (ADR-108) |
 
 Outside the Doom Range (infrastructure on standard ports):
 

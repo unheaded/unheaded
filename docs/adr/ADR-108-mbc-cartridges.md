@@ -335,6 +335,26 @@ ISA's own spec gate (MBC Opcode Registry, Standards Action).
   in its own object rather than a `cfg` feature, so the Doom/xv6 budgets
   never see it.
 
+## Status at S5 close (2026-10-23)
+
+Still **Proposed**: RFC Editor items 1–5 have no answer, so the provisional names stay.
+Measured against the gates above (`references/s5-upc-wire-log.md`, closing summary):
+
+| Gate | Result |
+|---|---|
+| Verifier budget | cart_xdp 42,743, cart_tick 146,897 (with the trace path); monad-cpu-ebpf unchanged |
+| Load-test | regression harness third variant green |
+| Determinism | BPF == host reference on every check; three engines (shared step, host MBC emulator, BPF) agree on 1,000/1,000 random cartridges; replay bit-exact |
+| Rate limiter | +193 ns over empty-pass: **fail** (bar 150); 1.25× `qos-ebpf`: pass |
+| Sampler | +216 ns: **fail** (bar 120) |
+| Scorer | 232,450 flows/s, XDP path unchanged: pass |
+
+The two failures are the interpreter's cost, about 3–7 ns per MBC instruction on west,
+not the cartridges' logic. The rate limiter follows the `qos-ebpf` refill fix
+(`8ab534b3`, the remainder of `elapsed / 8000` carries), which it found. The scorer's
+model is trained on synthetic flows only. Differential and fuzz hooks for the Lich:
+`tomb/lich/UPC-CARTRIDGE-HOOKS.md`.
+
 ## RFC Editor items (open — not self-approved)
 
 See `docs/protocol/RFC-EDITOR-REQUESTS-S5.md`: (a) Sophia root key for the

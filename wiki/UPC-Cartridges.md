@@ -71,7 +71,7 @@ validator on the exact bytes it then writes.
 
 | Source | Stage | What | Oracle / check |
 |---|---|---|---|
-| `cartridges/ratelimit.s` | xdp | per-flow token bucket; DATA rate_mbps, cap bytes | `ebpf/qos-ebpf` bucket math, verdict for verdict |
+| `cartridges/ratelimit.s` | xdp | per-flow token bucket; DATA rate_mbps, cap bytes | `ebpf/qos-ebpf` bucket math (`monad_common::token_bucket::refill`, remainder carries), verdict for verdict |
 | `cartridges/sampler.s` | xdp | 1:N sampler; EMIT `S`/`F`, QUEUEs an 8-word feature snapshot; always PASS | independent model, exact 1:N |
 | `cartridges/scorer.s` | tick | int8 MLP 8-16-1 over the snapshot; EMIT `A` {score 0..100, model id} | `QModel::score` bit for bit |
 | `cartridges/pass.s`, `drop-udp-9.s` | xdp | plumbing | — |
@@ -113,6 +113,22 @@ BIT-EXACT or the first divergent instruction. Traces carry header fields and
 state, never payload (files 0600). Contract:
 [`docs/architecture/cartridge-replay.md`](../docs/architecture/cartridge-replay.md).
 
+## Differential testing (Lich hooks)
+
+Three engines run cartridges: the shared step (`monad_common::cart`), the host
+MBC emulator (`monad-mbc`) and `cart_xdp` in BPF. They are checked against
+each other on random validated cartridges:
+
+```
+cart diff --seed 0x17 --count 20000          # shared step vs host emulator, lockstep
+sudo CART_DIFF_COUNT=1000 cart.test -test.run ThreeEngines   # + BPF (pkg/cartridge)
+```
+
+Fuzz targets `fuzz_cart_differential` and `fuzz_cart_image` live in
+`crates/monad-mbc/fuzz`, seeds in `tomb/lich/seeds/cartridge/`. Rules,
+commands and the LICH-015 hand-off:
+[`tomb/lich/UPC-CARTRIDGE-HOOKS.md`](../tomb/lich/UPC-CARTRIDGE-HOOKS.md).
+
 ## Budgets and costs (2026-10-23)
 
 | Program | Verifier processed insns | Gate |
@@ -121,6 +137,15 @@ state, never payload (files 0600). Contract:
 | `cart_tick` | 146,897 | 500,000 |
 
 `scripts/upc-regression.sh` load-tests the object as its third variant.
-One interpreted instruction costs about 4-7 ns on west (4 steps per
-`bpf_loop` callback). Measured: rate limiter 343 ns/pkt (native qos-ebpf
-bucket path 299), sampler 360, scorer 251,572 flows/s on one core.
+One interpreted instruction costs about 3-7 ns on west (4 steps per
+`bpf_loop` callback). Measured at the S5 close (test_run, one pinned core):
+
+| | ns/pkt | Gate |
+|---|---|---|
+| empty-pass baseline (IPv6 / TCP frame) | 156 / 149 | — |
+| rate limiter, pass / drop | 349 / 342 (native qos-ebpf 280 / 318) | +193 ns over baseline: fail (150); 1.25x native: pass (3x) |
+| sampler | 365 | +216 ns: fail (120) |
+| scorer | 232,450 flows/s | pass (100,000); XDP path unchanged |
+
+The two failures are interpreter cost, not cartridge logic. The scorer's
+model is trained on synthetic flows only.

@@ -61,9 +61,10 @@ The UPC is a virtual CPU implemented in the eBPF runtime. Monad packets are the 
 
 ## Architecture Decision Records
 
-Canonical mirror: [[ADR Index|ADR-Index]] (100 entries, synced 2026-10-23).
+Canonical mirror: [[ADR Index|ADR-Index]] (103 entries, synced 2026-10-23).
 
 Recent:
+- ADR-108 — MBC cartridges: signed MBC network functions run per flow by `cartridge-ebpf` (Proposed, RFC Editor items open, 2026-10-23)
 - ADR-103 — Service auth: per-service Ed25519 JWTs (Proposed, design only, 2026-10-23)
 - ADR-102 — Container images use exact version tags (Accepted, 2026-10-15)
 - ADR-101 — The Well's migration ledger, `cmd/well-migrate` (Proposed; in use live since 2026-10-15)

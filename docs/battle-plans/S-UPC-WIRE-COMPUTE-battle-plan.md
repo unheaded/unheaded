@@ -1501,28 +1501,30 @@ Fuzz targets clean (or findings logged) · three-engine oracle real (host + BPF,
 
 ## PHASE 18: STRETCH — ONE UPC SPLIT WEST+EAST OVER WOTAN DISTRIBUTED MEMORY (Steps 433-446)
 
+> **[DEFERRED: east escalation] (2026-10-23).** Step 435 [ESCALATE] (east as the second node, scratch Wotan on the P2P link) is unanswered, like Step 177. By the lead's direction the west-netns fallback is not run either: the phase is dropped for this sprint and logged as follow-on card Epic 1.5.6 in `UPC-LINUX-MASTER-BATTLE-PLAN.md` (Step 446's "OR" branch). Nothing was started on east.
+
 **Goal**: Demonstrate a cartridge whose DATA (model weights) lives in Wotan DISTRIBUTED memory and is served to a second node, so one logical UPC spans west+east. Stretch — [ESCALATE] gated and droppable.
 **Prerequisite**: Phases 12, 15 gates. This whole phase is optional; dropping it does not block Phase 19.
 **Time**: ~3 h (stretch)
 **Agent**: Coordinator + Architect
 
-- [ ] **Step 433** [R] ~10m: Read `services/wotan/internal/compute` (`BPFMapCache`, L2 store) and `services/wotan/internal/cluster` (replication client/server) — the DISTRIBUTED seam
-- [ ] **Step 434** [DESIGN][W] ~20m: Split model (ADR appendix): the cartridge ROM + the control plane run on west; the scorer's DATA blob (weights) is published to a Wotan `compute`-namespace topic and fetched by east's `upc-cartridgectl` before it loads the scorer — "distributed memory" = the weights are authored once and served to both nodes. A ScoreJob produced on west can be scored on either node and the score reconciled. Keep it honest: this is distributed *data*, not a mid-execution memory fault across the wire
-- [ ] **Step 435** [ESCALATE][BARE-METAL] ~—: **Stevie approval** for: running a scratch Wotan reachable from east over the P2P link, and running `upc-cartridgectl` + `cartridge-ebpf` as root on east from `/tmp`. Context: east runs the debs; this is a throwaway, removed at phase end. Why no recommendation: live host + a second node. **If not approved: run both "nodes" as two netns on west sharing one scratch Wotan; mark the result "cross-node demonstrated in netns, not across hosts."**
-- [ ] **Step 436** [B][S] ~10m: Scratch Wotan on west bound to `192.168.13.2`; publish the scorer DATA blob to a `compute.cart.weights.<model>` topic
-- [ ] **Step 437** [V] ~1m: Blob published; `curl` the topic from west shows the sha matching the local `.cart` DATA
-- [ ] **Step 438** [B][S][BARE-METAL] ~15m: On east (or netns B): `upc-cartridgectl` subscribes, fetches the DATA, verifies the DATA sha against the signed manifest, loads the scorer locally
-- [ ] **Step 439** [V] ~1m: East's scorer DATA sha == west's; seal verified on the fetched bytes
-- [ ] **Step 440** [B][S][BARE-METAL] ~15m: Feed the same ScoreJob trace to east's scorer; compare scores to west's reference
-- [ ] **Step 441** [V] ~1m: Scores identical across nodes (determinism holds across the wire because the image + inputs are identical)
-- [ ] **Step 442** [SECURITY] ~10m: The weights crossed the wire — they are model parameters, not user data; the DATA blob is signed; east verifies before loading; no payload anywhere. Document the trust boundary
-- [ ] **Step 443** [B][S] ~5m: Teardown (scratch Wotan, east `/tmp` binaries)
-- [ ] **Step 444** [V] ~30s: Clean both sides
-- [ ] **Step 445** [C] ~1m: **COMMIT CHECKPOINT**
+- [ ] **Step 433** [DEFERRED: east escalation] [R] ~10m: Read `services/wotan/internal/compute` (`BPFMapCache`, L2 store) and `services/wotan/internal/cluster` (replication client/server) — the DISTRIBUTED seam
+- [ ] **Step 434** [DEFERRED: east escalation] [DESIGN][W] ~20m: Split model (ADR appendix): the cartridge ROM + the control plane run on west; the scorer's DATA blob (weights) is published to a Wotan `compute`-namespace topic and fetched by east's `upc-cartridgectl` before it loads the scorer — "distributed memory" = the weights are authored once and served to both nodes. A ScoreJob produced on west can be scored on either node and the score reconciled. Keep it honest: this is distributed *data*, not a mid-execution memory fault across the wire
+- [ ] **Step 435** [DEFERRED: east escalation] [ESCALATE][BARE-METAL] ~—: **Stevie approval** for: running a scratch Wotan reachable from east over the P2P link, and running `upc-cartridgectl` + `cartridge-ebpf` as root on east from `/tmp`. Context: east runs the debs; this is a throwaway, removed at phase end. Why no recommendation: live host + a second node. **If not approved: run both "nodes" as two netns on west sharing one scratch Wotan; mark the result "cross-node demonstrated in netns, not across hosts."**
+- [ ] **Step 436** [DEFERRED: east escalation] [B][S] ~10m: Scratch Wotan on west bound to `192.168.13.2`; publish the scorer DATA blob to a `compute.cart.weights.<model>` topic
+- [ ] **Step 437** [DEFERRED: east escalation] [V] ~1m: Blob published; `curl` the topic from west shows the sha matching the local `.cart` DATA
+- [ ] **Step 438** [DEFERRED: east escalation] [B][S][BARE-METAL] ~15m: On east (or netns B): `upc-cartridgectl` subscribes, fetches the DATA, verifies the DATA sha against the signed manifest, loads the scorer locally
+- [ ] **Step 439** [DEFERRED: east escalation] [V] ~1m: East's scorer DATA sha == west's; seal verified on the fetched bytes
+- [ ] **Step 440** [DEFERRED: east escalation] [B][S][BARE-METAL] ~15m: Feed the same ScoreJob trace to east's scorer; compare scores to west's reference
+- [ ] **Step 441** [DEFERRED: east escalation] [V] ~1m: Scores identical across nodes (determinism holds across the wire because the image + inputs are identical)
+- [ ] **Step 442** [DEFERRED: east escalation] [SECURITY] ~10m: The weights crossed the wire — they are model parameters, not user data; the DATA blob is signed; east verifies before loading; no payload anywhere. Document the trust boundary
+- [ ] **Step 443** [DEFERRED: east escalation] [B][S] ~5m: Teardown (scratch Wotan, east `/tmp` binaries)
+- [ ] **Step 444** [DEFERRED: east escalation] [V] ~30s: Clean both sides
+- [ ] **Step 445** [DEFERRED: east escalation] [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add docs/adr references/s5-upc-wire-log.md && commitp -m "feat(cartridge): [S5 433-445] stretch: DISTRIBUTED weights, cross-node deterministic scoring"
   ```
-- [ ] **Step 446** [V][GATE] ~1m: **PHASE 18 EXIT GATE (STRETCH)** — cross-node deterministic scoring demonstrated (hosts or netns), weights signed + served over Wotan; OR phase explicitly dropped and logged as a follow-on card
+- [ ] **Step 446** [DEFERRED: east escalation] [V][GATE] ~1m: **PHASE 18 EXIT GATE (STRETCH)** — cross-node deterministic scoring demonstrated (hosts or netns), weights signed + served over Wotan; OR phase explicitly dropped and logged as a follow-on card
 
 ### Phase 18 Definition of Done
 Either: cross-node deterministic score with signed served weights · trust boundary documented. Or: dropped, logged, nothing left running on east.
@@ -1536,17 +1538,23 @@ Either: cross-node deterministic score with signed served weights · trust bound
 **Time**: ~1.5 h
 **Agent**: Scientist + Librarian + Marshal
 
-- [ ] **Step 447** [SPEC][V] ~15m: **FINAL SPEC COMPLIANCE GATE** — every RFC Editor item from Step 243 has a status (reviewed / still open); the cartridge ADR flips to Accepted only if the namespace + topic registrations are resolved, else stays Proposed with provisional names documented; confirm no Monad wire-format byte changed (`git diff 443de3f82 -- ebpf/monad-common/src/lib.rs | grep -i 'MONAD_SIZE\|HBH_TOTAL_LEN'` empty) and no MBC opcode added
-- [ ] **Step 448** [B][S][TEST] ~5m: Full regression — three UPC variants + all new Go/Rust tests + the whole workspace
+- [x] **Step 447** [SPEC][V] ~15m: **FINAL SPEC COMPLIANCE GATE** — every RFC Editor item from Step 243 has a status (reviewed / still open); the cartridge ADR flips to Accepted only if the namespace + topic registrations are resolved, else stays Proposed with provisional names documented; confirm no Monad wire-format byte changed (`git diff 443de3f82 -- ebpf/monad-common/src/lib.rs | grep -i 'MONAD_SIZE\|HBH_TOTAL_LEN'` empty) and no MBC opcode added
+  - S5 2026-10-23 (session 4): RFC Editor items 1-5 all open (status section in `docs/protocol/RFC-EDITOR-REQUESTS-S5.md`); ADR-108 stays Proposed with provisional names. `443de3f82` is not an ancestor after the re-sign (Phase 0 H0), so the diff ran against the sprint base `f7d730e7`: `ebpf/monad-common/src/lib.rs` adds only `pub mod cart`, the MONAD_SIZE/HBH_TOTAL_LEN grep and an opcode-constant grep are empty, `ebpf/monad-cpu-ebpf` has no diff.
+- [x] **Step 448** [B][S][TEST] ~5m: Full regression — three UPC variants + all new Go/Rust tests + the whole workspace
+  - S5 2026-10-23: harness ALL GREEN (22 cartridge root tests incl. the three-engine differential); 12/12 goldens TTY + stats; Doom translation byte-identical; `go build ./...` + `go test -race` on the listed packages plus cmd/upc-cartridgectl and pkg/ports; Rust upc-cartridge 40, monad-mbc 391, monad-common 110, upc-api 25, 0 failed.
   ```bash
   bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tail -8
   (cd "$PROJECT_ROOT" && go build ./... && go test -race ./cmd/anomaly/... ./cmd/heimdall-daemon/... ./cmd/upc-tty-bridge/... ./pkg/cartridge/... ./services/anomaly/... 2>&1 | tail -6)
   (cd "$PROJECT_ROOT" && cargo test --manifest-path crates/upc-cartridge/Cargo.toml 2>&1 | tail -3)
   ```
-- [ ] **Step 449** [V] ~1m: All green; budgets recorded: ascend (unchanged), Doom (unchanged), cartridge-ebpf (≤ 500K each)
-- [ ] **Step 450** [W][DOC-UPDATE] ~20m: Librarian doc-web ripple — CLAUDE.md (new cartridge layer under the UPC programmatic API; services/anomaly reached), `wiki/_Sidebar`, ADR index, `docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md` Epic 1.5 checkboxes, THIRD_PARTY/SBOM only if a dep changed (it should not)
-- [ ] **Step 451** [W][DOC-UPDATE] ~10m: `~/tmp/next.md` — full S5 handoff (overwrite stale): Part 1 + Part 2 shipped, [ESCALATE] approvals still pending (Steps 177, 435), RFC Editor items open, benchmark numbers, Phase 18 status, what the Lich sprint inherits
-- [ ] **Step 452** [C][GATE] ~1m: **SPRINT EXIT GATE / FINAL COMMIT** — all phase gates passed or STUCK-logged; docs rippled; harness green; nothing left running on west/east; NO push
+- [x] **Step 449** [V] ~1m: All green; budgets recorded: ascend (unchanged), Doom (unchanged), cartridge-ebpf (≤ 500K each)
+  - S5 2026-10-23: ascend 926,542 and Doom 761,580 (unchanged from Phase 0), cart_xdp 42,743, cart_tick 146,897 (<= 500,000). Close re-bench: Gate #1(a) +193 ns FAIL, #1(b) 1.25x PASS, #2 +216 ns FAIL, #3 232,450 flows/s PASS.
+- [x] **Step 450** [W][DOC-UPDATE] ~20m: Librarian doc-web ripple — CLAUDE.md (new cartridge layer under the UPC programmatic API; services/anomaly reached), `wiki/_Sidebar`, ADR index, `docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md` Epic 1.5 checkboxes, THIRD_PARTY/SBOM only if a dep changed (it should not)
+  - S5 2026-10-23: CLAUDE.md (S5 bullet, Mimir K1 note, ASCEND-LINUX S5 update, port 26610), `pkg/ports` `UPCCartridgeMetrics` (the ctl default now comes from it), wiki `UPC-Cartridges` (differential section, close costs), `Port-Registry`, `ADR-Index` mirror synced (104, 105, 108; 103 entries), `Home` (ADR-108 in Recent), canonical ADR-INDEX row and counts (Phase 9 had not bumped them), ADR-108 status-at-close section, master plan Epic 1.5 (1.5.5 done, 1.5.6/1.5.7 open), NEXT-5-SPRINTS status row (mirrors develop's Status column). No dependency change outside the fuzz crate's lock (crates already in the tree), so no THIRD_PARTY/SBOM change. `scripts/sync-wiki.sh --dry-run`: no orphans; the wiki is not pushed.
+- [x] **Step 451** [W][DOC-UPDATE] ~10m: `~/tmp/next.md` — full S5 handoff (overwrite stale): Part 1 + Part 2 shipped, [ESCALATE] approvals still pending (Steps 177, 435), RFC Editor items open, benchmark numbers, Phase 18 status, what the Lich sprint inherits
+  - S5 2026-10-23: `~/tmp/next.md` S5 bullet rewritten in place (other sprints' sections untouched): closed, escalations, decision list, what the Lich inherits.
+- [x] **Step 452** [C][GATE] ~1m: **SPRINT EXIT GATE / FINAL COMMIT** — all phase gates passed or STUCK-logged; docs rippled; harness green; nothing left running on west/east; NO push
+  - S5 2026-10-23: PASSED. All phase gates passed or DEFERRED (6-8, 18: east); harness green; west clean (no BPF programs, netns, pins or processes from S5); east never contacted; not pushed. Explicit paths were staged instead of the block's add-all, per the header commit rule.
   ```bash
   git -C "$PROJECT_ROOT" add -A && git -C "$PROJECT_ROOT" status --porcelain | sed 's/^/  /' && commitp -m "docs(upc): [S5 447-452] cartridges close — spec reconciled, docs rippled, handoff"
   ```

@@ -119,9 +119,17 @@ untouched).
       (`docs/protocol/RFC-EDITOR-REQUESTS-S5.md`).
 - [x] **1.5.2** Shared `no_std` step function + host reference (`crates/upc-cartridge`).
 - [x] **1.5.3** `cartridge-ebpf` under its verifier-budget gate; harness third variant
-      (cart_xdp 14,395 / cart_tick 22,575 of 500,000).
+      (cart_xdp 14,395 / cart_tick 22,575 of 500,000 at first; 42,743 / 146,897 with the
+      trace path, S5 close).
 - [x] **1.5.4** Sophia registry + signed loader (`upc-cartridgectl`).
-- [ ] **1.5.5** Rate limiter, sampler, int8 scorer → `services/anomaly`; Anamnesis replay; Lich hooks.
+- [x] **1.5.5** Rate limiter (== qos-ebpf, remainder fix followed), sampler, int8 scorer →
+      `services/anomaly` via `cmd/anomaly`; Anamnesis replay bit-exact; Lich hooks
+      (`tomb/lich/UPC-CARTRIDGE-HOOKS.md`, three-engine differential). Benchmark gates
+      #1(a) and #2 fail on interpreter cost (known limitation, S5 log).
+- [ ] **1.5.6** DISTRIBUTED: scorer weights served over Wotan to a second node (S5 Phase 18,
+      deferred: needs east as a node, Stevie).
+- [ ] **1.5.7** ADR-108 → Accepted once RFC Editor items 1–3 are answered
+      (`docs/protocol/RFC-EDITOR-REQUESTS-S5.md`).
 
 ---
 

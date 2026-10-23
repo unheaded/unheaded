@@ -588,3 +588,113 @@ divergences); its one finding, MULHU, was fixed here in `4cbef086`.
   and sha2's tree, every crate@version already in `crates/upc-cartridge/Cargo.lock`.
 - gosec (repo-pinned `tools/gosec`): `./pkg/cartridge/...` clean as CI runs it; with
   `-tests` the new test file adds nothing (its env knobs are parsed as numbers).
+
+## Sprint 5 closing summary
+
+S-UPC-WIRE-COMPUTE closed 2026-10-23 on `sprint/upc-wire-compute` (not merged, not pushed;
+commits unsigned, `--no-gpg-sign`, for `scripts/resign-unpushed.py`). Base `f7d730e7`.
+
+### Phases
+
+| Phase | Result |
+|---|---|
+| 0 Preflight | PASSED. Baseline ascend 926,542 / Doom 761,580 (toolchain drift from July's 900,031 / 737,087) |
+| 1 S1.2 root cause | PASSED. `csrr` ran the CSR read-modify-write through a4/a5; proven on host and live |
+| 2 Translator CSR fix | PASSED. Kernel −105 MBC words; userland and Doom byte-identical; ADR-067 note |
+| 3 getpid flip (L5) | Round trip PASSED; flip held: Step 96 FAILED on pid identity (kernel 1, BPF 0); `GETPID_INJECT=false` |
+| 4 Live keyboard | PASSED. `upc-bootctl console`, bridge drain loopback-only |
+| 5 Heimdall XDP + ringbufs | PASSED. K1: vfs_write 20, execve 21, Gjallarhorn XDP 292 insns |
+| 6–8 Mímir's Law 9/11/13 | **DEFERRED** (east as a node, Step 177 [ESCALATE]); Part 1 exit (Step 228) not passed; Part 2 ran on the lead's direction |
+| 9 Cartridge ADR + spec gate | PASSED. ADR-108 Proposed, RFC Editor requests filed |
+| 10 Shared step + host reference | PASSED. H-C3 false: nine host-emulator opcode drifts fixed |
+| 11 cartridge-ebpf | PASSED. Verifier gate, BPF == host hashes, fault breaker |
+| 12 Signed loader + registry | PASSED. Seal + validator on the same bytes; atomic swap |
+| 13 Rate limiter | PASSED; Gate #1(a) FAIL (known limitation). Follows the qos-ebpf remainder fix (session 4) |
+| 14 Flow sampler | PASSED; Gate #2 FAIL (known limitation) |
+| 15 int8 scorer → services/anomaly | PASSED. Gate #3 PASS, quantization gate PASS, end to end on real XDP in a netns |
+| 16 Anamnesis replay | PASSED. Bit-exact live record → replay; divergence named at the right step |
+| 17 Lich hooks | PASSED. Three engines agree 1,000/1,000; fuzz clean |
+| 18 DISTRIBUTED (stretch) | **DEFERRED** (east, Step 435 [ESCALATE]); follow-on card Epic 1.5.6 |
+| 19 Close | PASSED (this section) |
+
+### Final regression (session 4, west)
+
+- `scripts/upc-regression.sh` **ALL GREEN**: ascend **926,542**, Doom **761,580**
+  (both unchanged from Phase 0), cart_xdp **42,743**, cart_tick **146,897** (gate
+  500,000), 22 cartridge root tests incl. the three-engine differential.
+- Goldens **12/12 SAME**, TTY and stats (8 corpus + uinit_echo, multi, nosuch, blank).
+- Doom translation byte-identical: `.mbc` `dcded746…`, `.rv2mbc` `e7ab7b67…`, `.data`
+  `e1191add…`. `ebpf/monad-cpu-ebpf` has no diff against the sprint base.
+- Go: `go build ./...` OK; `go test -race` green on cmd/anomaly, cmd/heimdall-daemon,
+  cmd/upc-tty-bridge, cmd/upc-cartridgectl, pkg/cartridge, pkg/ports, services/anomaly.
+- Rust: upc-cartridge 40, monad-mbc 391, monad-common 110, upc-api 25 tests, 0 failed.
+- Spec gate (Step 447): no Monad wire byte changed, no MBC opcode added; RFC Editor items
+  1–5 all open; ADR-108 stays Proposed.
+- gosec (repo-pinned `tools/gosec`): clean on the sprint's Go packages as CI runs it.
+- West left clean: no BPF programs, netns, pins or processes from S5. East never contacted.
+
+### Benchmark gates (close, 5 × 1,000,000 test_run, median, `taskset -c 5`)
+
+| Gate | Bar | Measured | Result |
+|---|---|---|---|
+| #1(a) rate limiter overhead over b0_pass | ≤ 150 ns | +193 ns pass / +186 ns drop (349 / 342 vs 156) | **FAIL** |
+| #1(b) rate limiter vs native qos-ebpf | ≤ 3× | 1.25× / 1.08× (native 280 / 318 ns, this branch's pre-fix qos-ebpf) | PASS |
+| #2 sampler overhead over b0_pass | ≤ 120 ns | +216 ns (365 vs 149) | **FAIL** |
+| #2 both slots | ≤ sum + 10 % (454 ns) | 473 ns | **FAIL** |
+| #3 scorer throughput | ≥ 100,000 flows/s | 232,450 flows/s; sampler 371 ns with or without the scorer slot | PASS |
+
+Session 3 measured +192 / +228 ns on the same gates; the rate limiter's refill path is up
+to five instructions longer since the remainder fix (36.3 insns/pkt, was 35.3).
+
+### Known limitations
+
+- **Interpreter cost**: ~3–7 ns per interpreted instruction on west (NOP 3.3, MOV 5.1,
+  SYSCALL 5.5, LD 6.6; 4 steps per `bpf_loop` callback), so a 35-instruction cartridge
+  cannot meet a 150 ns (or 120 ns) overhead bar. Gates #1(a) and #2 fail; #1(b) and #3
+  pass. Options for later: fewer instructions per cartridge, more steps per callback
+  (8: about −15 % per instruction for twice the verified callback), or a
+  superinstruction/DOT4 ISA change ([ESCALATE], ISA spec gate).
+- **Scorer** is trained on ten synthetic flow families only. Its held-out accuracy says
+  nothing about real traffic; it ignores the SYN count and is not monotone in window bytes
+  far outside the training range.
+- **Not run live**: the Wotan leg of `anomaly.scores` and the Sophia registry backend
+  (stack down, KF5); both proven against fakes / in-process.
+- `GETPID_INJECT` stays off (pid numbering, below).
+- The three-engine differential covers `cartridge-ebpf`, not the full `monad-cpu-ebpf`
+  engine (privileged opcodes, ascend), which remains LICH-015's east arm.
+
+### Open escalations
+
+- **East as a node** — Step 177 (Mímir's Law Phases 9/11/13: heimdall-daemon as root from
+  `/tmp` on east, XDP generic on `enp2s0`, scratch Wotan on the P2P link) and Step 435
+  (DISTRIBUTED second node). Phases 6–8 and 18 deferred; nothing ran on east.
+- **DOT4** — measured case in ADR-108 (≈1.7× scorer throughput); not needed for Gate #3;
+  any new opcode is a full ISA spec gate in its own sprint.
+- **RFC Editor items 1–5** (`docs/protocol/RFC-EDITOR-REQUESTS-S5.md`): Sophia root key
+  (`x-cartridge`), Anamnesis sub-kind `0x43`, Wotan topics `anomaly.scores` /
+  `upc.cart.*`, ADR-067 CSR range, KF10. If item 2 needs its own Event Type, that
+  registration is [ESCALATE].
+- **getpid pid numbering** — the injected getpid returns through the owned kernel, which
+  answers xv6's `p->pid` (init = 1) while BPF answers its slot (0). Flipping the default
+  needs one numbering (and probably the proc[] reconciliation EVOLUTION-1 parked).
+
+### Stevie's decision list (S5, combined)
+
+1. East as a node for Mímir's Law Phases 9/11/13 (Step 177): approve or keep deferred.
+2. East as the DISTRIBUTED second node (Step 435), or drop Phase 18 for good (card
+   Epic 1.5.6).
+3. getpid: xv6 `p->pid` or the BPF slot numbering; then whether `GETPID_INJECT` defaults on.
+4. ADR-108: accept once the RFC Editor answers items 1–5 (or keep Proposed).
+5. DOT4 / any new MBC opcode: schedule an ISA spec-gate sprint or not.
+6. Interpreter-cost gates #1(a) and #2: accept as the documented cost of interpreted
+   cartridges, or fund follow-on work (callback batching, smaller cartridges, ISA).
+7. Scorer: real labelled traffic before relying on its scores, or keep it a demonstrator.
+8. Merge `sprint/upc-wire-compute` into `develop` (lead merges; Stevie pushes) and re-sign
+   the unsigned commits (`scripts/resign-unpushed.py`).
+
+### What the Lich sprint inherits
+
+`tomb/lich/UPC-CARTRIDGE-HOOKS.md`: `cart diff`, `fuzz_cart_differential`,
+`fuzz_cart_image`, `TestDifferential_ThreeEngines`, seeds in `tomb/lich/seeds/cartridge/`,
+and the LICH-015 merge points (arm C, the MULHU seed closes: `mulhu-probe` converges on
+this branch, re-run after the merge).
