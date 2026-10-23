@@ -152,6 +152,7 @@ def test_host_may_name_a_declared_parameter(tmp_path):
     (lambda s: s.replace('approved_by: ""', "approved_by: stevie"), "approved-by"),
     (lambda s: s.replace("  dry_run_test: tests/runbooks/test_{stem}.py\n", ""), "dry-run-test"),
     (lambda s: s.replace("      set -euo pipefail\n", ""), "set-euo"),
+    (lambda s: s.replace("      echo one\n", "      ! grep -q x /etc/hostname\n"), "negated-command"),
     (lambda s: s.replace("    action: manual\n    irreversible: true", "    action: shell\n    irreversible: true"),
      "irreversible-manual"),
     (lambda s: s.replace('verify: "test -d /"', 'verify: "git push --force origin main"'),

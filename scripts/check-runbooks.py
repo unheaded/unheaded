@@ -30,6 +30,9 @@ A runbook with metadata.status (the S-TWO-BRAINS ones) also:
   dry-run-test     a path, relative to the repo root, that exists
   set-euo          a multi-line shell command or verify starts (after
                    comments) with `set -euo pipefail`
+  negated-command  no `! cmd` line before the last line of a shell command:
+                   set -e does not stop on a negated command, so the check
+                   it was meant to be never fails (found in R5, R6, R10)
   irreversible-manual
                    a step marked `irreversible: true`, or whose shell text
                    pushes, force-pushes, drops, restores over, shreds or
@@ -247,6 +250,10 @@ def check_step(section, i, st, declared, strict, add, seen):
     for f, text in texts:
         if "\n" in text.strip() and not starts_with_set_euo(text):
             add("set-euo", f"{where}.{f}", "multi-line shell must start with `set -euo pipefail`")
+        lines = [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("#")]
+        if any(ln.startswith("! ") for ln in lines[:-1]):
+            add("negated-command", f"{where}.{f}",
+                "set -e ignores a negated command (`! cmd`) unless it is the last one: use `if cmd; then ...; exit 1; fi`")
     if st.get("irreversible") is True:
         add("irreversible-manual", where, "irreversible: true needs action: manual")
     for f, text in texts:
