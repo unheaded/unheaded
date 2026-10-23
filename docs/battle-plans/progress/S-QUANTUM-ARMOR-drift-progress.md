@@ -124,6 +124,35 @@ STUCK/ESCALATE report ordered by how many steps each item unblocks.
   `docs/LIVE-PATHS.md`). Key custody (ADR-043 #4) and a new root-reading
   daemon on the hosts are Stevie's calls. Until then `drift.*` is closed.
 
+- **247 [C]** `a428e186`.
+- **248 [V] PHASE 12 EXIT GATE: PASS.**
+  `grep -c 'TODO: wire to actual Wotan client' cmd/heimdall-daemon/main.go`
+  → `0`; `go test -count=1 -run 'Golden|DriftE2E|LICH012' ./pkg/wotansig/
+  ./services/wotan/...` FAIL count → `0`; `topic.pb.go` header still
+  protoc v3.21.12 / protoc-gen-go v1.36.11, proto diff = field 12 only;
+  E5 logged above.
+
+## DoD (Phase 12)
+
+- Every step executed, E5 [ESCALATE] logged, nothing [STUCK].
+- Regression: the baseline package set plus `pkg/wotansig` with -race:
+  22 ok, 0 FAIL (baseline 21 ok, 0 FAIL).
+- `go vet` clean and `gofmt -l` empty on every touched package/file;
+  golangci-lint 0 issues; gosec (the repo's pinned `tools/gosec` build,
+  as CI runs it) 0 issues on the touched packages, ratchet PASS;
+  govulncheck: 0 vulnerabilities reachable from our code.
+  (`go build ./...` from this worktree fails on `cmd/wotan-ctl`'s
+  `../projects/doomgeneric` replace, which resolves relative to the
+  worktree; environmental and unrelated.)
+- No new dependency (circl, yaml.v3, grpc were already in go.mod); no new
+  production listener; test keys are generated in memory or in
+  `t.TempDir()`; no key printed or committed; `configs/wotan.yaml` trusts no
+  drift key.
+- Monad v0x01 wire format untouched: the one protocol change is an
+  additive field in Wotan's gRPC `TopicEvent` (RFC Editor not required).
+- ADR-043 #1 (no restore path) and #4 (key separation, per-prefix keys)
+  asserted by tests.
+
 ## Parked (seen, not done here)
 
 - Cluster replication (`replication.proto`) does not carry message
