@@ -1,0 +1,17 @@
+# shrink-only (ADR-098 ratchet, ADR-105). Remove lines as Phases 5/7/8/9 fix them.
+# <path> <rule>. Regenerate after a fix: go run ./cmd/crypto-inventory lint --update (refuses additions).
+cmd/waf/Cargo.toml rust-ring-provider
+crates/zhend/src/api/quic.rs rust-ring-provider
+docker-compose.yml postgres-pre18
+kubernetes/manifests/base/the-well/statefulset.yaml postgres-pre18
+nix/yggdrasil/overlay/patches/0002-sshd-config-hardening.patch sshd-kex-classical
+nix/yggdrasil/provisioners/05-cis-hardening.sh sshd-kex-classical
+pkg/http/server.go tls-floor-below-1.3
+pkg/loadbalancer/config.go tls-floor-below-1.3
+pkg/loadbalancer/config.go tls-max-below-1.3
+pkg/mesh/mesh.go tls-floor-below-1.3
+pkg/mesh/mtls/mtls.go tls-floor-below-1.3
+pkg/mesh/mtls/provider.go tls-floor-below-1.3
+pkg/transport/mtls/mtls.go tls-floor-below-1.3
+services/wotan/cmd/wotan/main.go curve-pin-classical
+services/wotan/cmd/wotan/main.go tls-floor-below-1.3

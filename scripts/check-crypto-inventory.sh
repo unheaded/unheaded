@@ -46,7 +46,12 @@ for arg in "$@"; do
 	esac
 done
 
-go run ./cmd/crypto-inventory check --cbom "$CBOM"
+# Build once instead of `go run`: go run reports every non-zero exit as 1,
+# which would hide "could not run" (2) behind "violation" (1).
+tmpd="$(mktemp -d)" || exit 2
+trap 'rm -rf "$tmpd"' EXIT
+go build -o "$tmpd/crypto-inventory" ./cmd/crypto-inventory || exit 2
+"$tmpd/crypto-inventory" check --cbom "$CBOM"
 rc=$?
 [[ $rc -eq 0 ]] || exit "$rc"
 [[ $SCHEMA -eq 1 ]] || exit 0
