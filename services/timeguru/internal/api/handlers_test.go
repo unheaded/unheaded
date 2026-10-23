@@ -381,6 +381,36 @@ func TestHandleHealth_HappyPath(t *testing.T) {
 	}
 }
 
+// /health carries the Wotan client's view (transport, streams) as detail and
+// stays 200 when a stream is down: degraded is not dead (S-REAL-STEEL D-12).
+func TestHandleHealth_IncludesWotanDetail(t *testing.T) {
+	handler := NewHandler(&mockStore{})
+	handler.SetWotanHealth(func() any {
+		return map[string]any{"transport": "HTTP", "streams": map[string]bool{"alerts.critical": false}}
+	})
+	w := httptest.NewRecorder()
+	handler.HandleHealth(w, httptest.NewRequest("GET", "/health", nil))
+	if w.Code != http.StatusOK {
+		t.Errorf("status %d with a stream down, want 200", w.Code)
+	}
+	var body struct {
+		Status string `json:"status"`
+		Wotan  struct {
+			Transport string          `json:"transport"`
+			Streams   map[string]bool `json:"streams"`
+		} `json:"wotan"`
+	}
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatal(err)
+	}
+	if body.Wotan.Transport != "HTTP" {
+		t.Errorf("wotan detail %+v, want transport HTTP", body.Wotan)
+	}
+	if up, ok := body.Wotan.Streams["alerts.critical"]; !ok || up {
+		t.Errorf("streams %v, want alerts.critical: false", body.Wotan.Streams)
+	}
+}
+
 // ============================================================================
 // CONCURRENCY TESTS
 // ============================================================================

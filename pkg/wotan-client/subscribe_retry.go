@@ -1,0 +1,108 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
+
+package wotanClient
+
+import (
+	"context"
+	"log"
+	"math/rand/v2"
+	"time"
+)
+
+// Retry bounds for SubscribeWithRetry.
+var (
+	subscribeRetryMin = 1 * time.Second
+	subscribeRetryMax = 30 * time.Second
+)
+
+// SubscribeWithRetry joins topic as name and, when onMsg is not nil, streams
+// it to onMsg, retrying until ctx ends: 1 s, doubling to 30 s, with jitter.
+// A Wotan that starts after the service, refuses the join, keeps it pending
+// or ends the stream is retried instead of disabling the subscription for
+// the life of the process (timeguru and architect used to log "degraded
+// mode" once at start and never try again).
+//
+// With onMsg nil it only joins (to publish on the topic) and returns nil once
+// Wotan approves. Otherwise it blocks until ctx ends and returns ctx.Err(), so
+// run it in a goroutine. The degraded-mode line is logged once, at the first
+// failure, and recovery once.
+func (c *Client) SubscribeWithRetry(ctx context.Context, topic, name string, onMsg func(*Message)) error {
+	failing := false
+	attempt := 0
+	for {
+		err := c.subscribeOnce(ctx, topic, name, onMsg)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
+		if err == nil {
+			if failing {
+				log.Printf("[INFO] wotan_client: %s joined %s after %d retries", name, topic, attempt)
+			}
+			if onMsg == nil {
+				return nil
+			}
+			if c.isClosed() {
+				return nil // Close ended the stream
+			}
+			// The stream ended on its own: join and stream again, after a
+			// pause so a stream that keeps ending cannot spin.
+			failing, attempt = false, 0
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			case <-time.After(retryDelay(1)):
+			}
+			continue
+		}
+		if !failing {
+			log.Printf("[WARN] wotan_client: %s cannot join %s, retrying in the background (degraded mode): %v", name, topic, err)
+			failing = true
+		}
+		attempt++
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(retryDelay(attempt)):
+		}
+	}
+}
+
+// subscribeOnce joins once and, with onMsg, streams until the stream ends.
+// A stream that ends without error returns nil.
+func (c *Client) subscribeOnce(ctx context.Context, topic, name string, onMsg func(*Message)) error {
+	sub, err := c.Subscribe(ctx, topic, name)
+	if err != nil {
+		return err
+	}
+	if sub.Status != "approved" {
+		return ErrSubscriptionPending
+	}
+	if onMsg == nil {
+		return nil
+	}
+	ch, err := c.StreamMessages(ctx, topic)
+	if err != nil {
+		return err
+	}
+	for msg := range ch {
+		if msg != nil {
+			onMsg(msg)
+		}
+	}
+	return nil
+}
+
+// retryDelay is min(30 s, 1 s * 2^(attempt-1)) with +/-20 % jitter, so many
+// services restarting with Wotan do not retry in lockstep.
+func retryDelay(attempt int) time.Duration {
+	d := subscribeRetryMin
+	for i := 1; i < attempt && d < subscribeRetryMax; i++ {
+		d *= 2
+	}
+	if d > subscribeRetryMax {
+		d = subscribeRetryMax
+	}
+	jitter := 0.8 + 0.4*rand.Float64() // #nosec G404 -- retry jitter, not a secret
+	return time.Duration(float64(d) * jitter)
+}

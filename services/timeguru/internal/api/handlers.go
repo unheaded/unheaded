@@ -56,6 +56,8 @@ type Store interface {
 type Handler struct {
 	store  Store
 	syncer *tsync.Syncer // optional file syncer, nil if not configured
+	// wotanHealth, when set before serving, supplies /health's Wotan detail.
+	wotanHealth func() any
 }
 
 // NewHandler creates a new Handler with defensive validation
@@ -97,6 +99,8 @@ type HealthResponse struct {
 	Status    string    `json:"status"`
 	Version   string    `json:"version"`
 	Timestamp time.Time `json:"timestamp"`
+	// Wotan is the Wotan client's Health() (transport, streams), when set.
+	Wotan any `json:"wotan,omitempty"`
 }
 
 // KanbanTask represents a task in kanban format for the frontend
@@ -504,13 +508,25 @@ func (h *Handler) HandleUpdateMilestone(w http.ResponseWriter, r *http.Request, 
 }
 
 // HandleHealth handles GET /health
+// It stays 200 whatever Wotan's state: the Wotan client's view (transport,
+// per-topic stream liveness) rides along as detail, since degraded is not
+// dead.
 func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
-	h.writeJSON(w, http.StatusOK, HealthResponse{
+	resp := HealthResponse{
 		Service:   "timeguru",
 		Status:    "healthy",
 		Version:   "1.0.0",
 		Timestamp: time.Now().UTC(),
-	})
+	}
+	if h.wotanHealth != nil {
+		resp.Wotan = h.wotanHealth()
+	}
+	h.writeJSON(w, http.StatusOK, resp)
+}
+
+// SetWotanHealth sets where /health reads the Wotan client's state from.
+func (h *Handler) SetWotanHealth(f func() any) {
+	h.wotanHealth = f
 }
 
 // ReadyResponse represents readiness check response

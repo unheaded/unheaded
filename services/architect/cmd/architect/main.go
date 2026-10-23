@@ -125,17 +125,18 @@ func main() {
 		log.Fatal().Err(err).Str("dir", *dataDir).Msg("architect state unreadable; refusing to start with an empty one")
 	}
 
-	// Start service (subscribes to alerts.critical and architecture.updates)
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	if err := svc.Start(ctx); err != nil {
+	// Long-running context for the Wotan subscriptions and discovery.
+	svcCtx, alertCancel := context.WithCancel(context.Background())
+	defer alertCancel()
+
+	// Start the Wotan subscriptions (alerts.critical, architecture.updates);
+	// they join in the background and keep retrying until svcCtx ends. Start
+	// used to get a 10 s context that was cancelled as soon as it returned,
+	// which also ended the alerts.critical listener it had just started.
+	if err := svc.Start(svcCtx); err != nil {
 		healthSrv.SetGRPCStatus(false)
 		log.Warn().Err(err).Msg("failed to start Wotan integration")
 	}
-	cancel()
-
-	// Create a long-running context for alert listening and discovery
-	svcCtx, alertCancel := context.WithCancel(context.Background())
-	defer alertCancel()
 
 	// Service discovery registration (best-effort, nil conn until transport.Connect)
 	discovery.Start(svcCtx, transportCfg, "architect", ports.PortOf(*addr, ports.Architect))

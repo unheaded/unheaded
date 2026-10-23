@@ -66,11 +66,15 @@ func (c *Client) streamFor(topic string) *streamState {
 }
 
 // setStreamUp records whether topic's stream is alive.
-func (c *Client) setStreamUp(topic string, up bool) {
+// isClosed reports whether Close has been called.
+func (c *Client) isClosed() bool {
 	c.flusherMu.Lock()
-	closed := c.closed
-	c.flusherMu.Unlock()
-	if closed {
+	defer c.flusherMu.Unlock()
+	return c.closed
+}
+
+func (c *Client) setStreamUp(topic string, up bool) {
+	if c.isClosed() {
 		return // a stream torn down by Close is not an outage either
 	}
 	c.streamFor(topic).up.Store(up)

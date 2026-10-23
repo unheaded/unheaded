@@ -568,16 +568,20 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 
 ### timeguru and architect stop giving up
 
-- [ ] **Step 85** [R] ~10m: Read `services/timeguru/main.go:64-75` and `services/architect/core.go:240-310`: list each one-shot Subscribe/Join that logs "disabled (degraded mode)" and never retries.
-- [ ] **Step 86** [CODE][TEST] ~20m: Tests: `TestTimeguru_SubscribesWhenWotanStartsLater` and `TestArchitect_SubscribesWhenWotanStartsLater`: start the service's subscription routine against a closed port, then bring up an httptest Wotan; assert a Join/Subscribe arrives within 5 s.
-- [ ] **Step 87** [CODE] ~25m: Implement one helper in `pkg/wotan-client` (`SubscribeWithRetry(ctx, topic, name, onMsg)`: 1 s → 30 s exponential backoff with jitter, stops on ctx) and use it at every site from Step 85. Keep the degraded-mode log, once, at the first failure.
-- [ ] **Step 88** [TEST][V] ~3m: Green.
+- [x] **Step 85** [R] ~10m: Read `services/timeguru/main.go:64-75` and `services/architect/core.go:240-310`: list each one-shot Subscribe/Join that logs "disabled (degraded mode)" and never retries.
+  - Done 2026-10-23: the deployed timeguru is services/timeguru/cmd/timeguru (Dockerfile, debs); its initWotan subscribed once with a 10 s ctx and on failure returned nil, so timeguru ran without Wotan for good. services/timeguru/main.go (the Nix build) did the same for timeline.updates. architect's Start subscribed once and returned the error; and cmd/architect called Start with a 10 s ctx it cancelled right after, which also killed the alerts.critical listener Start had just launched (a second bug, found here).
+- [x] **Step 86** [CODE][TEST] ~20m: Tests: `TestTimeguru_SubscribesWhenWotanStartsLater` and `TestArchitect_SubscribesWhenWotanStartsLater`: start the service's subscription routine against a closed port, then bring up an httptest Wotan; assert a Join/Subscribe arrives within 5 s.
+  - Done 2026-10-23: services/timeguru/cmd/timeguru/wotan_test.go, services/architect/wotan_retry_test.go (+ TestArchitect_HealthIncludesWotanDetail, TestHandleHealth_IncludesWotanDetail for the D-12 /health detail). Red first (compile), then bite: a one-shot SubscribeWithRetry turns both red.
+- [x] **Step 87** [CODE] ~25m: Implement one helper in `pkg/wotan-client` (`SubscribeWithRetry(ctx, topic, name, onMsg)`: 1 s → 30 s exponential backoff with jitter, stops on ctx) and use it at every site from Step 85. Keep the degraded-mode log, once, at the first failure.
+  - Done 2026-10-23: pkg/wotan-client/subscribe_retry.go (onMsg nil = join only); timeguru (both mains) and architect use it; architect main passes its long-lived ctx; /health of both carries the client's Health() as 'wotan' and stays 200. TestArchitectService_Start_SubscribeError now asserts the new contract (nil, retrying).
+- [x] **Step 88** [TEST][V] ~3m: Green.
+  - Done 2026-10-23: green; the two remaining 'disabled (degraded mode)' lines in architect fire only when there is no Wotan client at all (mock mode), not on a failed join; lint 0, gosec clean.
   ```bash
   gotest ./services/timeguru/... ./services/architect/... ./pkg/wotan-client/...
   grep -n 'disabled (degraded mode)' "$PROJECT_ROOT"/services/{timeguru,architect}/*.go
   ```
   - The grep may still print the log line, but every hit must sit in a retry loop (read them).
-- [ ] **Step 89** [C] ~2m: **COMMIT CHECKPOINT**: `fix(timeguru,architect): keep retrying Wotan subscriptions instead of giving up at start`.
+- [x] **Step 89** [C] ~2m: **COMMIT CHECKPOINT**: `fix(timeguru,architect): keep retrying Wotan subscriptions instead of giving up at start`.
 - [ ] **Step 90** [B] ~3m: Same pattern anywhere else? `grep -rn 'wotan unavailable' --include=*.go "$PROJECT_ROOT"/services "$PROJECT_ROOT"/cmd | grep -v _test`. Record the remaining sites in next.md as a follow-on list (Marshal: do not widen this phase to all services).
 
 ### E1-dependent items
