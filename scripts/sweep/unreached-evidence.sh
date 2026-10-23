@@ -20,7 +20,8 @@
 #                   ("n/a" when the package has no non-test .go file)
 #   exported_refl   reflect.|//go:linkname|//export |cgo hits (invisible to the
 #                   compiler: ADR-090 "build passes is not sufficient")
-#   last_touched    date of the last commit touching the directory
+#   last_touched    date of the last commit touching the package's own files
+#                   (sub-packages excluded)
 #   lines           non-test line count (reported only in the sweep ledger,
 #                   which ADR-090 allows for a deletion campaign)
 
@@ -63,7 +64,13 @@ while IFS= read -r pkg; do
     er=$( (grep -E -c "$refl_re" "${prod[@]}" 2>/dev/null || true) | awk -F: '{s+=$NF} END{print s+0}')
     lines=$(cat "${prod[@]}" | wc -l)
   fi
-  lt=$(git log -1 --format=%cs -- "$dir" 2>/dev/null || true)
+  # This package's own files only: a sub-package's commits must not make a
+  # dead parent look recently touched.
+  mapfile -t own < <(find "$dir" -maxdepth 1 -type f | sort)
+  lt=""
+  if [ "${#own[@]}" -gt 0 ]; then
+    lt=$(git log -1 --format=%cs -- "${own[@]}" 2>/dev/null || true)
+  fi
 
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$pkg" "$ti" "$pi" "$fm" "$er" "${lt:-n/a}" "$lines"
 done < "$list"

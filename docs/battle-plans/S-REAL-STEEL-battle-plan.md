@@ -378,20 +378,26 @@ Step 16 at `f7d730e7` (2026-10-23): `go build ./...` clean, `go test -count=1 ./
 
 Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 are the cases where the proof is weakest or the call is a standing Stevie/RFC decision, so they default to keep. Override ONLY if a row's evidence contradicts its rule (e.g. R9 package with `exported_refl > 0` → FLAGGED, ask in the table).
 
-- [ ] **Step 30** [W] ~20m: Write `$VERDICTS` (`docs/sweeps/REAL-STEEL-UNREACHED.tsv`): one row per package from `$SCRATCH/evidence.tsv`, plus non-Go rows (`dashboard/js/<file>` x23, `*.go.dev` files, `transport.Connect`, `pkg/health/aggregator.go`), each with group, evidence summary and recommendation from D-02. `verdict`, `commit` empty.
-- [ ] **Step 31** [V] ~2m: Every row has a group and a recommendation; no G10 row has `exported_refl > 0` without FLAGGED.
+- [x] **Step 30** [W] ~20m: Write `$VERDICTS` (`docs/sweeps/REAL-STEEL-UNREACHED.tsv`): one row per package from `$SCRATCH/evidence.tsv`, plus non-Go rows (`dashboard/js/<file>` x23, `*.go.dev` files, `transport.Connect`, `pkg/health/aggregator.go`), each with group, evidence summary and recommendation from D-02. `verdict`, `commit` empty.
+  - Done 2026-10-23: 178 rows (148 packages, 22+1 dashboard scripts, 5 .go.dev, transport.Connect, pkg/health/aggregator.go). D-02 applied with two readings recorded in the decision doc: R2 covers packages with test files only (they cannot have importers), and G10 is split into eight families (G10a-h) so Stevie can keep a family without row-by-row answers. Rule R8 beat the template's G5 for services/loadbalancer (maglev-ebpf), so it is FLAGGED (F6).
+- [x] **Step 31** [V] ~2m: Every row has a group and a recommendation; no G10 row has `exported_refl > 0` without FLAGGED.
+  - Done 2026-10-23: no row without group/recommendation; the three reflect rows (pkg/config, pkg/testing, services/kenoma) are FLAGGED (F4).
   ```bash
   awk -F'\t' 'NR>1 && ($2=="" || $4=="")' "$VERDICTS" | head; awk -F'\t' 'NR>1{print $2}' "$VERDICTS" | sort | uniq -c
   ```
-- [ ] **Step 32** [D] ~5m: Rows missing a group → re-read that package's doc comment and apply D-02 by hand. 2 attempts → mark the row FLAGGED (Stevie answers it in the table).
-- [ ] **Step 33** [R] ~10m: Cross-edge check: a DELETE row must not be imported by a KEEP/WIRE/PARK row (`$SCRATCH/unreached-edges.txt`) or by any test of a kept package. Any conflict → demote the DELETE to FLAGGED with "imported by <x>".
-- [ ] **Step 34** [B] ~2m: Non-compiler references for every DELETE row (ADR-090 "build passes is not sufficient"): BPF map names, `go:embed`, scripts, Makefile, Dockerfile, compose, systemd, Nix, Helm, docs that name the path.
+- [x] **Step 32** [D] ~5m: Rows missing a group → re-read that package's doc comment and apply D-02 by hand. 2 attempts → mark the row FLAGGED (Stevie answers it in the table).
+  - Done 2026-10-23: not needed.
+- [x] **Step 33** [R] ~10m: Cross-edge check: a DELETE row must not be imported by a KEEP/WIRE/PARK row (`$SCRATCH/unreached-edges.txt`) or by any test of a kept package. Any conflict → demote the DELETE to FLAGGED with "imported by <x>".
+  - Done 2026-10-23: 16 DELETE rows demoted to FLAGGED: imported by tests of live pkg/audit, pkg/secrets, pkg/storage (F1), by tests/e2e (F2), by tests/pqc (F3). Sub-packages imported only by a flagged parent go with its answer (G10f).
+- [x] **Step 34** [B] ~2m: Non-compiler references for every DELETE row (ADR-090 "build passes is not sufficient"): BPF map names, `go:embed`, scripts, Makefile, Dockerfile, compose, systemd, Nix, Helm, docs that name the path.
+  - Done 2026-10-23: 93 of 100 DELETE/MERGE rows have non-Go references; listed per row in the TSV notes.
   ```bash
   cd "$PROJECT_ROOT" && awk -F'\t' '$4=="DELETE"{print $1}' "$VERDICTS" | while read -r p; do d=${p#unheaded/}; \
     n=$(git grep -n -F "$d" -- ':!*.go' ':!docs/sweeps/*' ':!docs/UNREACHED-GO-PACKAGES.md' | wc -l); echo "$n $d"; done | sort -rn | head -30
   ```
   - Non-zero rows: add "references: <files>" to notes; the Phase 1 deletion of that row must edit those files in the same commit.
-- [ ] **Step 35** [W] ~15m: Write `docs/sweeps/REAL-STEEL-DECISIONS.md`: the one-pass decision table for Stevie (template below). One row per GROUP with the package list collapsed, counts, the recommendation, and an "answer" column; FLAGGED rows listed individually underneath. Link it from `docs/UNREACHED-GO-PACKAGES.md` and ADR-090's "Input gathered since" line.
+- [x] **Step 35** [W] ~15m: Write `docs/sweeps/REAL-STEEL-DECISIONS.md`: the one-pass decision table for Stevie (template below). One row per GROUP with the package list collapsed, counts, the recommendation, and an "answer" column; FLAGGED rows listed individually underneath. Link it from `docs/UNREACHED-GO-PACKAGES.md` and ADR-090's "Input gathered since" line.
+  - Done 2026-10-23: docs/sweeps/REAL-STEEL-DECISIONS.md: 16 group rows (G10 split a-h) + 26 FLAGGED rows, Default column on every row, ADR-090 status question; linked from UNREACHED-GO-PACKAGES.md and ADR-090.
 
   Template:
   ```markdown
@@ -409,11 +415,12 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   | G10 | Unused libraries/services | (generated) | Step 21 | DELETE | |
   | F* | FLAGGED rows | one per row | | ask | |
   ```
-- [ ] **Step 36** [V] ~2m: Every TSV row appears in exactly one table group or FLAGGED line.
+- [x] **Step 36** [V] ~2m: Every TSV row appears in exactly one table group or FLAGGED line.
+  - Done 2026-10-23: 178 unique rows, each in exactly one group or F line.
   ```bash
   awk -F'\t' 'NR>1{print $1}' "$VERDICTS" | sort -u | wc -l
   ```
-- [ ] **Step 37** [C] ~2m: **COMMIT CHECKPOINT**.
+- [x] **Step 37** [C] ~2m: **COMMIT CHECKPOINT**.
   ```bash
   commit "docs(sweep): REAL-STEEL unreached ledger and one-pass decision table" "30-37" \
     docs/sweeps/REAL-STEEL-UNREACHED.tsv docs/sweeps/REAL-STEEL-DECISIONS.md docs/UNREACHED-GO-PACKAGES.md docs/adr/ADR-090-total-source-sweep-slop-removal.md
