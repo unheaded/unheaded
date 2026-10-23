@@ -27,7 +27,7 @@ type ServerConfig struct {
 // NewServerTLSConfig builds a *tls.Config suitable for an mTLS HTTP/gRPC server.
 //
 // Enforced settings:
-//   - TLS 1.3 minimum
+//   - TLS 1.3 minimum, Preferred key exchange (hybrid ML-KEM first; pq.go)
 //   - Cipher suites: TLS_AES_256_GCM_SHA384, TLS_CHACHA20_POLY1305_SHA256
 //   - Client cert verification when RequireClientCert is true
 func NewServerTLSConfig(cfg ServerConfig) (*tls.Config, error) {
@@ -44,6 +44,8 @@ func NewServerTLSConfig(cfg ServerConfig) (*tls.Config, error) {
 			tls.TLS_CHACHA20_POLY1305_SHA256,
 		},
 	}
+
+	ApplyPreferred(tlsCfg) // ADR-105: browsers and scrapers reach this; hybrid first
 
 	if cfg.RequireClientCert && len(cfg.CAPEM) > 0 {
 		pool := x509.NewCertPool()
