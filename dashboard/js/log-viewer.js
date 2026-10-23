@@ -52,12 +52,14 @@ const LogViewer = {
             this.serviceSelect.addEventListener('change', () => {
                 this.service = this.serviceSelect.value;
                 this.refresh();
+                this.connectSSE(); // the live tail is filtered server-side too
             });
         }
         if (this.levelSelect) {
             this.levelSelect.addEventListener('change', () => {
                 this.level = this.levelSelect.value;
                 this.refresh();
+                this.connectSSE();
             });
         }
         if (this.searchInput) {
@@ -109,10 +111,12 @@ const LogViewer = {
 
         try {
             const resp = await fetch('/api/v1/logs?' + params.toString());
+            if (!resp.ok) throw new Error('HTTP ' + resp.status);
             const entries = await resp.json();
             this.entries = entries || [];
             this.render();
-            this.updateStatus('connected');
+            // The status is the live tail's (streaming/disconnected); a REST
+            // answer used to overwrite it with "connected".
         } catch (err) {
             this.updateStatus('error: ' + err.message);
         }
@@ -135,6 +139,9 @@ const LogViewer = {
         this.eventSource.onmessage = (event) => {
             try {
                 const entry = JSON.parse(event.data);
+                // The stream filters by service and level only; apply the
+                // search box here, as /api/v1/logs does.
+                if (!this.matchesSearch(entry)) return;
                 this.entries.push(entry);
                 // Keep last 1000 entries in UI
                 if (this.entries.length > 1000) {
@@ -158,6 +165,17 @@ const LogViewer = {
         this.eventSource.onopen = () => {
             this.updateStatus('streaming');
         };
+    },
+
+    /**
+     * Case-insensitive match of the search box against the message and
+     * string fields (pkg/logagg RingBuffer.matchesSearch).
+     */
+    matchesSearch(entry) {
+        if (!this.search) return true;
+        const q = this.search.toLowerCase();
+        if (String(entry.message || '').toLowerCase().includes(q)) return true;
+        return Object.values(entry.fields || {}).some(v => typeof v === 'string' && v.toLowerCase().includes(q));
     },
 
     /**
