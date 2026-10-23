@@ -103,6 +103,61 @@ All nineteen hypotheses held:
    *Override only if:* the schema cannot be fetched reproducibly; then required
    fields are checked by Go struct tests only, and this ADR says so.
 
+5. **Evidence signatures: a domain-separated, non-expiring evidence seal in `pkg/gungnir`.**
+   `SignEvidence(payload, purpose string)` / `VerifyEvidence(payload, seal, pub, purpose)`
+   with ML-DSA-65 context `unheaded/gungnir/evidence/v1` and no expiry
+   (`ExpiresAtUnix = 0`). `Purpose` is covered by the signature; the purposes are
+   `manifest`, `iso-sha256` and `custody-entry`. The seal is stored as a JSON
+   envelope (the same encoding as Heimdall's `.seal`):
+   `{"format":"gungnir-evidence/v1","purpose":…,"payload_sha256":…,"key_id":…,"issued_at_unix":…,"algorithm":"ml-dsa-65","mldsa65_sig":…}`.
+   Different ML-DSA contexts mean a short-lived config seal (`unheaded/gungnir/seal/v2`)
+   can never verify as evidence, and evidence can never verify as a config seal.
+   *Rationale:* quarterly audits verify packs months later; `Verify` rejects
+   anything older than 31 days by design and must keep doing so for config seals.
+   *Override only if:* Stevie wants evidence seals to expire and be re-signed;
+   then `SignFor` with 31 days is reused and the re-sign ceremony is documented.
+
+6. **Manifest validation without new dependencies.** Typed Go structs
+   (`yaml.v3`, `KnownFields(true)`) plus explicit rule checks mirroring
+   `nix/yggdrasil/evidence-pack/schema/manifest-v1.yaml`. A schema-drift test parses
+   the schema and asserts that every `required`, `const`, `minimum`/`maximum`,
+   `pattern` and `enum` it declares is enforced, so it fails when the schema gains
+   a rule the Go code lacks. A differential test in CI runs Python `jsonschema` and
+   the Go validator over the same fixtures and fails on any disagreement. The
+   `yamllint` call in the runbook stays optional.
+   *Rationale:* go.mod has no Go JSON-Schema validator (`invopop/jsonschema`
+   generates schemas, it does not validate); ADR-004.
+   *Override only if:* Stevie approves a validator dependency.
+
+7. **Evidence pack layout and trust anchor.** The tarball root is `manifest/`
+   (as the build runbook and `yggdrasil-build-evidence-pack.sh` already lay it
+   out). There is one trust anchor, `build.pubkey`: `/etc/yggdrasil/build.pubkey`
+   is the default for every verify subcommand and `--pubkey` overrides it. The
+   runbook's `gungnir-sign` (which does not exist) becomes `yggdrasil-evidence sign`.
+   A root→build key certification chain is parked.
+   *Rationale:* the evidence-pack README's invariants already name `build.pubkey`;
+   one anchor is honest about what exists.
+   *Override only if:* Stevie has already generated a root key; then both are kept
+   and `--root` is added.
+
+8. **Signed drift events.** `canonicalize`, `TopicSigner` and a subscriber-side
+   verifier move into a new importable `pkg/wotansig` (byte-identical, proven by a
+   golden vector); `services/wotan/internal/signing` becomes a thin wrapper. Wotan
+   requires signatures on `config.*` and `drift.*`, with keys scoped per prefix
+   (`topics.signed_prefixes: [{prefix, keys}]`; the existing `signing_keys` stays
+   the `config.` list). `TopicEvent` gains `int64 signed_at_unix_ms = 12;`
+   (additive, in Wotan's gRPC API; not the Monad v0x01 wire format, so no RFC
+   Editor review is needed) so subscribers can re-verify end to end. Heimdall
+   publishes `drift.detected.<node_id>` through `wotan-client.PublishSigned`.
+   *Rationale:* ADR-043 hard conditions #1 (alerts only) and #2 (signed topics);
+   the open S17 item "an approved ID can publish to any topic" means unsigned drift
+   is forgeable; scoping stops a Heimdall key from signing `config.*` (ADR-043 #4,
+   key separation).
+   *Override only if:* another publisher already uses a `drift.` prefix. None
+   does (checked 2026-10-23): `kenoma.drift.detected`, `state.drift.detected` and
+   `cuirass.drift` start differently, and `pkg/state`'s `drift.detected` is an
+   event *type* inside `cuirass.reconciliation` payloads, not a topic.
+
 ## Consequences
 
 (Completed with decisions 9-11.)
