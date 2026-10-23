@@ -240,17 +240,48 @@ def execute_steps(runbook, env, dry_run=False, start_step=0):
 def execute_rollback(runbook, env, failed_step, dry_run=False):
     """Execute rollback steps if available."""
     rollbacks = runbook.get("rollback", [])
+    if isinstance(rollbacks, dict):
+        # active-active-cutover nests them: rollback: {description, steps: [...]}
+        rollbacks = rollbacks.get("steps") or []
     if not rollbacks:
         return
+
+    # Steps that completed before the failure (steps run in order).
+    names = [s.get("name", f"step-{i+1}") for i, s in enumerate(runbook.get("steps") or [])]
+    completed = set(names[:names.index(failed_step)]) if failed_step in names else set()
 
     print(f"\n=== Rollback (triggered by: {failed_step}) ===")
     for rb in rollbacks:
         name = rb.get("name", "rollback")
         command = rb.get("command", "")
 
+        # `when: "step.<name>.failed"` (optionally "step.<a>.completed AND
+        # ...") was never read: every rollback ran on every failure, e.g.
+        # restoring sshd_config because an unrelated later step failed.
+        # Free-text conditions ("any step fails") still always apply.
+        when = str(rb.get("when", ""))
+        clauses = re.findall(r"step\.([\w-]+)\.(failed|completed)", when)
+        if clauses and not all(
+            (s == failed_step) if state == "failed" else (s in completed)
+            for s, state in clauses
+        ):
+            print(f"  [ROLLBACK SKIPPED] {name} (when: {when})")
+            continue
+
         print(f"  [ROLLBACK] {name}")
+        if rb.get("action") == "manual":
+            # Placeholders such as <previous_version>: the operator's job.
+            for line in (command or "(see description)").split("\n"):
+                print(f"             {line}")
+            continue
         if command:
-            run_command(command, env=env, dry_run=dry_run)
+            # The output was discarded, so echo-only rollback steps (the
+            # restore instructions) printed nothing, and failures were silent.
+            code, out, err = run_command(command, env=env, dry_run=dry_run)
+            for line in (out.split("\n") if out and not dry_run else []):
+                print(f"           {line}")
+            if code != 0 and not dry_run:
+                print(f"    [ROLLBACK FAIL] exit code {code} {err[:300]}")
 
 
 def main():
