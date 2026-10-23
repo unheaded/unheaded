@@ -1,0 +1,112 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: oom-state-recovery
+  description: Recovery steps for Wotan after an OOM event, crash, or down service
+  owner: wotan
+  estimated_duration: 15m
+  risk: medium
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: claude-opus-5-5
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_wotan_oom_recovery.py
+notes: |
+  This runbook covers the recovery steps for Wotan after it has been OOM-killed, crashed, or restarted. It includes checks to detect the OOM event, a manual step to restart the service, and verification steps to ensure that Wotan has recovered properly. The memory store loses all topics, members, and messages on restart; buffered messages are lost. What self-recovers includes clients rejoining, gRPC streams resuming, HTTP pollers paging, and Wotan down at service start no longer switching log forwarding off. The 2026-10-18 precedent and fixes 0fea41f1/71a29277 are noted. Precedent: OOM-killed 2026-10-18 23:25 UTC (per-topic budgets let ~50 log topics hold 290 MiB of heap), fixed by 0fea41f1 (per-topic byte budget) and 71a29277 (one budget for all topics, --buffer-bytes-total 64 MiB). Self-recovery fixes: 7998692b (clients rejoin), 8bbcaf9b (gRPC streams resume from the right seq), 40ea00d7 (HTTP pollers never redeliver at or below their cursor), c3f91ba1 (log forwarding stays on if Wotan is down at start). Prevention, not steps: the compose 256M memory limit stays; switching store.type to hybrid (WAL + PostgreSQL) is Stevie's decision. Detection steps are alternatives (compose or deb); each says when its install type is absent.
+
+parameters:
+  - name: WOTAN_URL
+    default: "http://127.0.0.1:18000"
+    description: The URL of the Wotan service
+
+steps:
+  - name: detect-kernel-oom
+    action: shell
+    command: "journalctl -k --since -6h --no-pager | grep -i 'killed process' || echo 'no OOM kill in the kernel log (6 h)'"
+    description: "Read-only: did the kernel OOM-kill a process?"
+
+  - name: detect-compose
+    action: shell
+    command: "docker inspect -f '{{.State.OOMKilled}} {{.State.Status}} {{.RestartCount}}' unheaded-wotan || echo 'no unheaded-wotan container (not a compose install)'"
+    description: "Read-only: compose install, OOMKilled / status / restart count (limit 256M, GOMEMLIMIT 200MiB)"
+
+  - name: detect-systemd
+    action: shell
+    command: "systemctl status unheaded-wotan --no-pager || journalctl -u unheaded-wotan --since -6h --no-pager | tail -50 || echo 'no unheaded-wotan unit (not a deb install)'"
+    description: "Read-only: deb install, unit status and recent log"
+
+  - name: detect-metrics
+    action: shell
+    command: "curl -s \"${WOTAN_URL}/metrics\" | grep -E '^unheaded_chat_(memory_allocated_bytes|members_approved|members_pending|rooms_total)' || echo 'no metrics: Wotan is down'"
+    description: "Read-only: memory and member gauges (no answer means Wotan is down)"
+
+  - name: akira-consensus-band
+    action: manual
+    command: |
+      # Read-only: look at Akira's consensus band for wotan (cmd/akira, port 19100).
+    description: "MANUAL. Check Akira's consensus band for wotan before deciding to restart"
+
+  - name: restart-wotan
+    action: manual
+    irreversible: true
+    command: |
+      # Only if Wotan is down. Run ONE of:
+      # compose: docker compose up -d wotan
+      # deb:     sudo systemctl restart unheaded-wotan
+    description: "MANUAL. Only if Wotan is down (see detection). Compose: `docker compose up -d wotan`; deb: `sudo systemctl restart unheaded-wotan`. Run one."
+
+  - name: verify-health
+    action: shell
+    command: |
+      set -euo pipefail
+      curl -sf "${WOTAN_URL}/health" | jq -e '.status == "healthy"'
+    verify: "curl -sf \"${WOTAN_URL}/health\" | jq -e '.status == \"healthy\"' >/dev/null"
+    description: Verify that Wotan is healthy
+
+  - name: verify-members-approved
+    action: shell
+    command: |
+      set -euo pipefail
+      ok=0
+      for i in $(seq 1 60); do
+        if curl -sf "${WOTAN_URL}/health" | jq -e '.total_members > 0' >/dev/null; then
+          ok=1
+          break
+        fi
+        sleep 2
+      done
+      [ "$ok" = 1 ] || { echo 'members did not rejoin in 120s' >&2; exit 1; }
+    verify: "curl -s \"${WOTAN_URL}/metrics\" | awk '/^unheaded_chat_members_approved / {f=1; if ($2 > 0) ok=1} END {exit !(f && ok)}'"
+    description: Verify that approved members are back above zero
+
+  - name: verify-members-pending
+    action: shell
+    command: |
+      set -euo pipefail
+      ok=0
+      for i in $(seq 1 30); do
+        if curl -s "${WOTAN_URL}/metrics" | awk '/^unheaded_chat_members_pending / {f=1; if ($2 == 0) ok=1} END {exit !(f && ok)}'; then
+          ok=1
+          break
+        fi
+        sleep 2
+      done
+      [ "$ok" = 1 ] || { echo 'pending members piling up: see runbooks/wotan/pending-subscription-approval.yaml' >&2; exit 1; }
+    verify: "curl -s \"${WOTAN_URL}/metrics\" | grep -q '^unheaded_chat_members_pending '"
+    on_fail: "A name is missing from auto_approve: see runbooks/wotan/pending-subscription-approval.yaml"
+    description: Verify that pending members settle and are not piling up
+
+  - name: verify-flow
+    action: manual
+    command: |
+      # Check Kanban and dashboard log tail for new entries
+      # Check that `curl -s "${WOTAN_URL}/api/v1/topics"` lists topics again
+    description: "MANUAL. Verify that new entries are appearing in Kanban and the dashboard log tail, and that topics are listed again"
+
+rollback:
+  - name: no-rollback
+    action: manual
+    command: |
+      # No rollback needed; the runbook changes nothing but restarting a dead service.
+    description: "No rollback needed; the runbook changes nothing but restarting a dead service."

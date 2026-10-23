@@ -1,0 +1,26 @@
+# runbooks/.check-baseline: known runbook/v1 problems (scripts/check-runbooks.py).
+# May only shrink. Fix a runbook, then delete its lines. path|rule|where
+runbooks/network/air-gap-egress-validation.yaml|approved-by|metadata.approved_by
+runbooks/network/air-gap-egress-validation.yaml|authored-by|metadata.authored_by
+runbooks/network/air-gap-egress-validation.yaml|dry-run-test|metadata.dry_run_test
+runbooks/network/air-gap-egress-validation.yaml|reviewed-by|metadata.reviewed_by
+runbooks/network/air-gap-egress-validation.yaml|set-euo|steps:enable-strict-egress-firewall.command
+runbooks/network/air-gap-egress-validation.yaml|set-euo|steps:run-zhen-workload.command
+runbooks/network/air-gap-egress-validation.yaml|set-euo|steps:snapshot-firewall-state.command
+runbooks/network/air-gap-egress-validation.yaml|set-euo|steps:start-bpftrace-egress-probe.command
+runbooks/network/air-gap-egress-validation.yaml|set-euo|steps:start-pcap-capture.command
+runbooks/network/air-gap-egress-validation.yaml|status|metadata.status
+runbooks/wotan/active-active-cutover.yaml|approved-by|metadata.approved_by
+runbooks/wotan/active-active-cutover.yaml|authored-by|metadata.authored_by
+runbooks/wotan/active-active-cutover.yaml|dry-run-test|metadata.dry_run_test
+runbooks/wotan/active-active-cutover.yaml|name-mismatch|metadata.name
+runbooks/wotan/active-active-cutover.yaml|reviewed-by|metadata.reviewed_by
+runbooks/wotan/active-active-cutover.yaml|set-euo|rollback:bare-metal-readwrite.command
+runbooks/wotan/active-active-cutover.yaml|set-euo|steps:pre-flight-bare-metal-health.command
+runbooks/wotan/active-active-cutover.yaml|status|metadata.status
+runbooks/wotan/active-active-cutover.yaml|step-key|rollback:announce-rollback
+runbooks/wotan/active-active-cutover.yaml|step-key|rollback:bare-metal-readwrite
+runbooks/wotan/active-active-cutover.yaml|step-key|rollback:dns-restore
+runbooks/wotan/active-active-cutover.yaml|step-key|rollback:drain-k8s
+runbooks/wotan/cluster-failover.yaml|name-mismatch|metadata.name
+runbooks/wotan/cluster-setup.yaml|name-mismatch|metadata.name

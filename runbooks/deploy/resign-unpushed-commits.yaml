@@ -1,0 +1,103 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: resign-unpushed-commits
+  description: Re-sign unpushed commits in a repository
+  owner: warmonger
+  estimated_duration: 10m
+  risk: medium
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: claude-opus-5-5
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_resign_unpushed.py
+notes: |
+  This runbook is for re-signing unpushed commits in a repository when the GPG key was not cached. It ensures that only unpushed commits are re-signed and that the tree remains unchanged after the operation. The script refuses ranges containing merges, keeps refs/backup/<branch>-before-resign, and writes .git/resign-map.txt. A dirty working tree is left untouched: the clean-tree precondition stops the run.
+parameters:
+  - name: REPO
+    default: "$HOME/tmp/unheaded"
+    description: The path to the repository
+  - name: BRANCH
+    default: "develop"
+    description: The branch to operate on
+  - name: BASE
+    default: "origin/develop"
+    description: The base commit to compare against
+preconditions:
+  - check: "test -z \"$(git -C \"${REPO}\" status --porcelain)\""
+    description: The repository must be clean
+  - check: "test \"$(git -C \"${REPO}\" rev-parse --abbrev-ref HEAD)\" = \"${BRANCH}\""
+    description: The current branch must be the specified branch
+steps:
+  - name: probe-signing
+    action: shell
+    command: |
+      set -euo pipefail
+      # commit-tree -S, not gpg --clearsign: clearsign can pass while commit signing fails
+      git -C "${REPO}" commit-tree -S -m probe "$(git -C "${REPO}" write-tree)" >/dev/null
+    on_fail: "The key is not cached: ask Stevie to unlock it (about 8 h), then start again"
+    description: The signing key is usable for commits (the probe object is never referenced)
+
+  - name: fetch-remote
+    action: shell
+    command: |
+      set -euo pipefail
+      git -C "${REPO}" fetch origin
+    description: Fetch the latest changes from the remote repository
+
+  - name: check-base-remote
+    action: shell
+    command: |
+      set -euo pipefail
+      remote_head=$(git -C "${REPO}" ls-remote origin "refs/heads/${BRANCH}" | cut -f1)
+      test -n "${remote_head}"
+      test "$(git -C "${REPO}" rev-parse "${BASE}")" = "${remote_head}"
+    on_fail: "BASE is not what the remote has: never re-sign pushed commits; fix BASE"
+    description: BASE is exactly the remote branch head, so only unpushed commits are rewritten
+
+  - name: list-unpushed-commits
+    action: shell
+    command: |
+      set -euo pipefail
+      git -C "${REPO}" log --format='%h %G? %s' "${BASE}..${BRANCH}"
+    description: List unpushed commits and their GPG status
+
+  - name: re-sign-commits
+    action: shell
+    command: |
+      set -euo pipefail
+      python3 "${REPO}/scripts/resign-unpushed.py" "${REPO}" "${BASE}"
+    verify: |
+      set -euo pipefail
+      test -z "$(git -C "${REPO}" log --format=%G? "${BASE}..${BRANCH}" | grep -v '^G$')" && \
+      test "$(git -C "${REPO}" rev-parse HEAD^{tree})" = "$(git -C "${REPO}" rev-parse "refs/backup/${BRANCH}-before-resign^{tree}")" && \
+      test -s "${REPO}/.git/resign-map.txt" && \
+      test "$(git -C "${REPO}" rev-parse HEAD)" != "$(git -C "${REPO}" rev-parse "refs/backup/${BRANCH}-before-resign")"
+    description: Re-sign unpushed commits
+
+  - name: regenerate-findings
+    action: manual
+    command: |
+      # ADR-098's git-signatures evidence reads commit signatures. A separate commit:
+      cd "${REPO}"
+      go run ./cmd/compliance-evidence findings -adr docs/adr/ADR-098-findings-register-and-baseline-modes.md
+      git -C "${REPO}" diff --stat
+      git -C "${REPO}" commit -S -m "docs(adr): regenerate ADR-098 findings after re-signing" docs/adr/ADR-098-findings-register-and-baseline-modes.md
+    description: "MANUAL. Regenerate ADR-098's findings section and commit it signed (review the diff first)"
+
+  - name: push-commits
+    action: manual
+    irreversible: true
+    command: |
+      git -C "${REPO}" push origin "${BRANCH}"
+    description: "MANUAL. Push the re-signed commits to the remote repository"
+rollback:
+  - name: restore-branch
+    action: manual
+    irreversible: true
+    command: |
+      # Only before the push; after the push there is nothing to undo.
+      git -C "${REPO}" update-ref "refs/heads/${BRANCH}" "refs/backup/${BRANCH}-before-resign"
+    verify: "test \"$(git -C \"${REPO}\" rev-parse \"${BRANCH}\")\" = \"$(git -C \"${REPO}\" rev-parse \"refs/backup/${BRANCH}-before-resign\")\""
+    description: "MANUAL. Before the push only: restore the branch to its state before re-signing"

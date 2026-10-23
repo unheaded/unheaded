@@ -1,0 +1,120 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: well-restore-from-east-offsite
+  description: Restore the Well from a verified offsite backup set on east
+  owner: erda
+  estimated_duration: 60m
+  risk: high
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: claude-opus-5-5
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_well_restore_from_east.py
+notes: |
+  For when west's backup disk or the Well's data volume is gone and the
+  newest good set must come back from east. Same-host restore is
+  runbooks/data/postgresql-backup-restore.yaml. Locations and schedule:
+  wiki/Well-Backups.md.
+  East keeps the newest 14 sets at /var/backups/unheaded-well-west/sets/
+  <YYYY-MM-DD>/well-<HHMMSS>Z/ (root-only), LATEST names the newest. Each set:
+  SHA256SUMS, globals.sql (roles, no password hashes), one pg_dump -Fc
+  <db>.dump per database, rowcounts.tsv, cluster.env (superuser, version).
+  Before starting, run the daily check on east now:
+  sudo systemctl start unheaded-well-offsite-check.service
+  Never restore over a running Well, and never pg_restore --clean into the
+  live Well: restore into a fresh server, then switch.
+parameters:
+  - name: SET
+    description: Relative set path <YYYY-MM-DD>/well-<HHMMSS>Z, read from east's LATEST (no default)
+  - name: STAGE
+    default: "/srv/backups/unheaded-well-restore"
+    description: Stage directory on west for the copied set
+preconditions:
+  - check: "test -n \"${SET:-}\""
+    description: "SET (the relative set path from east's LATEST) is set in the environment"
+steps:
+  - name: verify-checksums-on-east
+    action: shell
+    host: east
+    command: |
+      set -euo pipefail
+      : "${SET:?set SET from LATEST on east}"
+      sudo cat /var/backups/unheaded-well-west/sets/LATEST
+      sudo env SET="${SET}" sh -c 'cd "/var/backups/unheaded-well-west/sets/$SET" && sha256sum -c SHA256SUMS'
+    verify: "sudo test -s \"/var/backups/unheaded-well-west/sets/${SET}/SHA256SUMS\""
+    on_fail: "A bad or incomplete set: pick an older one from LATEST's day directories and start again"
+    description: "Verify the set's checksums on east first"
+
+  - name: copy-backup-to-west
+    action: manual
+    host: west
+    command: |
+      # On west, as root (the offsite account on east is add-only and cannot read back):
+      sudo install -d -m 0700 "${STAGE}/$(dirname "${SET}")"
+      sudo scp -rp root@east:"/var/backups/unheaded-well-west/sets/${SET}" "${STAGE}/$(dirname "${SET}")/"
+    description: "MANUAL. Copy the verified set from east to west's stage directory"
+
+  - name: re-check-checksums-on-west
+    action: shell
+    host: west
+    command: |
+      set -euo pipefail
+      : "${SET:?set SET}"
+      sudo env D="${STAGE}/${SET}" sh -c 'cd "$D" && sha256sum -c SHA256SUMS'
+    description: "Re-check the copied set's checksums on west"
+
+  - name: run-restore-drill
+    action: shell
+    host: west
+    command: |
+      set -euo pipefail
+      : "${SET:?set SET}"
+      sudo /usr/local/lib/unheaded/well/restore-drill.sh "${STAGE}/${SET}"
+    timeout: 1800
+    on_fail: "The set does not restore exactly (checksum, restore or row count): do not use it"
+    description: "Restore drill (scripts/well/restore-drill.sh): throwaway container, row counts compared; never touches the Well"
+
+  - name: bootstrap-fresh-well
+    action: manual
+    irreversible: true
+    host: west
+    command: |
+      # Into a FRESH server bootstrapped with the superuser named in cluster.env
+      # (globals grant roles GRANTED BY it). Never into a running Well.
+      sudo cat "${STAGE}/${SET}/cluster.env"
+      psql -U <superuser> -d postgres -f "${STAGE}/${SET}/globals.sql"
+      # then, for each <db>.dump in the set:
+      pg_restore -U <superuser> --create -d postgres "${STAGE}/${SET}/<db>.dump"
+    description: "MANUAL. Bootstrap a fresh Well: globals, then pg_restore each database"
+
+  - name: set-role-passwords
+    action: manual
+    irreversible: true
+    command: |
+      # Sets carry no passwords. In the repo checkout, with .env loaded (never echoed):
+      set -a && . ./.env && set +a
+      scripts/well/set-role-passwords.sh
+    description: "MANUAL. Set role passwords from .env"
+
+  - name: verify-restore
+    action: manual
+    command: |
+      # In the repo checkout with .env loaded:
+      go run ./cmd/well-migrate status        # must be clean (the ledger came with the dump)
+      # For each database and table in ${STAGE}/${SET}/rowcounts.tsv compare:
+      #   psql -U <superuser> -d <db> -tAc 'SELECT count(*) FROM <table>'
+      # Any mismatch: stop and keep the old volume.
+    description: "MANUAL. well-migrate status clean; every row count equals rowcounts.tsv"
+rollback:
+  - name: back-to-old-volume
+    action: manual
+    irreversible: true
+    command: |
+      # Only if the old data volume still exists (this runbook never deletes it).
+      sudo docker stop unheaded-postgres
+      # Point the postgres service in docker-compose.yml back at <old data volume>, then:
+      sudo docker compose up -d postgres
+      # Check: go run ./cmd/well-migrate status (with .env loaded) is clean.
+    description: "MANUAL. Stop the new server, point compose back at the old data volume, start it, check"

@@ -1,0 +1,102 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: claude-api-key-rotation-spend-breach
+  description: Stop Claude API spending, analyse the breach, rotate the key, resume after review
+  owner: moatghost
+  estimated_duration: 30m
+  risk: high
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: claude-opus-5-5
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_claude_key_rotation.py
+notes: |
+  For a possibly exposed Claude API key or spend past what was expected
+  (a cap hit, an agent loop, a surprise bill). Stop spending first, find
+  out what spent, rotate the key, resume only after review.
+  The key never lives in the repo: Stevie's shell (ANTHROPIC_API_KEY) and
+  the host env file /etc/zhen-agentd.env (EnvironmentFile= of
+  deploy/systemd/zhen-agentd.service, installed 0600 root, deploy/README.md).
+  Known finding: /etc/unheaded/anthropic.env on this host was world-readable
+  (0644). No step prints the key value; sudo is needed only for the system
+  env file and the system unit.
+  Spend-cap semantics: the cap is per UTC day per ledger file
+  (-daily-cap-usd, default 5, env ZHEN_CLAUDE_DAILY_CAP_USD); the worst case
+  is reserved before a request is sent and refused if it would pass the cap;
+  an unparseable ledger refuses every request.
+  Rollback: none for a revoked key (that is the point); resuming is the
+  last step.
+parameters:
+  - name: STATE
+    default: "${XDG_STATE_HOME:-$HOME/.local/state}/unheaded"
+    description: Unheaded state directory (stop file, spend ledger)
+steps:
+  - name: stop-system-agentd
+    action: manual
+    command: |
+      sudo systemctl stop zhen-agentd
+    description: "MANUAL. Stop zhen-agentd first; needs sudo."
+  - name: stop-overnight
+    action: shell
+    command: |
+      set -euo pipefail
+      mkdir -p "${STATE}"
+      touch "${STATE}/zhen-agentd.stop"
+      systemctl --user stop zhen-agentd-overnight.timer zhen-agentd-overnight.service || echo "overnight units not loaded (Phase 7 not installed)"
+    verify: "test -e \"${STATE}/zhen-agentd.stop\""
+    on_fail: "Check that ${STATE} is writable"
+    description: Create the stop file and stop the overnight timer; safe to re-run
+  - name: env-file-modes
+    action: shell
+    command: |
+      set -euo pipefail
+      for f in /etc/zhen-agentd.env /etc/unheaded/anthropic.env; do
+        if [ -e "$f" ]; then stat -c '%a %U %n' "$f"; else echo "absent: $f"; fi
+      done
+    description: List mode and owner of each env file, never its content (expect 600 root)
+  - name: spend-ledger
+    action: shell
+    command: |
+      set -euo pipefail
+      jq . "${STATE}/zhen-claude/spend.json"
+    on_fail: "A missing or unparseable ledger; an unparseable one refuses every request"
+    description: Show the spend ledger (day, spent_nano_usd, requests)
+  - name: well-spend-analysis
+    action: manual
+    command: |
+      -- in unheaded_ops, when the Well is up
+      SELECT date_trunc('hour', occurred_at) AS hour, sum(cost_nano_usd)/1e9 AS usd
+        FROM unheaded_ops.llm_requests GROUP BY 1 ORDER BY 1;
+      SELECT source_service, sum(cost_nano_usd)/1e9 FROM unheaded_ops.llm_requests GROUP BY 1 ORDER BY 2 DESC;
+      SELECT route_reason, sum(cost_nano_usd)/1e9 FROM unheaded_ops.llm_requests GROUP BY 1 ORDER BY 2 DESC;
+      SELECT conversation_id, max(iteration) FROM unheaded_ops.llm_requests GROUP BY 1 ORDER BY 2 DESC LIMIT 20;
+    description: "MANUAL. Spend by hour, source_service, route_reason; a loop shows many iterations per conversation_id."
+  - name: rotate-key-in-console
+    action: manual
+    irreversible: true
+    command: |
+      # Anthropic Console, organisation Stevie uses:
+      # 1. create a new key  2. revoke the old key
+      # Update /etc/zhen-agentd.env (sudoedit; keep 0600 root) and
+      # /etc/unheaded/anthropic.env (sudo chmod 600), and Stevie's shell with an editor, never echo.
+    description: "MANUAL. Rotate: create a new key in the Console, revoke the old one; irreversible."
+  - name: smoke-test
+    action: manual
+    command: |
+      go run ./cmd/zhen-claude -tools none -effort low -max-tokens 1024 -daily-cap-usd 0.50 -p "Reply with the single word OK." 2>smoke.log
+      grep -o 'credentials=[^ ]*' smoke.log   # expect credentials=env, never the value
+    description: "MANUAL. Live smoke costing at most $0.02 (ADR-104); answer must be OK."
+  - name: resume-after-review
+    action: manual
+    command: |
+      sudo systemctl start zhen-agentd
+      rm "<state dir>/zhen-agentd.stop"
+      systemctl --user start zhen-agentd-overnight.timer
+    description: "MANUAL. Resume only after review."
+rollback:
+  - name: no-rollback
+    action: manual
+    command: |
+      # None for a revoked key; resuming is the resume-after-review step.

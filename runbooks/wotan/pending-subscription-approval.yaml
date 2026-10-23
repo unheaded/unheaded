@@ -1,0 +1,147 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: pending-subscription-approval
+  description: Approve pending Wotan subscriptions
+  owner: wotan
+  estimated_duration: 15m
+  risk: medium
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: claude-opus-5-5
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_wotan_pending_approval.py
+notes: |
+  A service's Wotan subscription or publish stays "pending approval". This
+  runbook allowlists a known service display name in `topics.auto_approve`
+  (configs/wotan.yaml and, on deb installs, /etc/unheaded/wotan.yaml), then
+  restarts Wotan. It does not approve through the admin API: that API is
+  unusable today (known gap; every admin call answers 401 `admin
+  authentication not configured`).
+  Approve only known service names: an approved name can publish to any
+  topic (open finding). A name that matches no code must NOT be approved.
+
+parameters:
+  - name: WOTAN_URL
+    default: "http://127.0.0.1:18000"
+    description: The URL of the Wotan service
+  - name: NAME
+    description: The display name to approve (no default)
+  - name: TOPIC
+    description: The topic the service subscribes to (no default)
+
+preconditions:
+  - check: "curl -s \"$WOTAN_URL/metrics\" | grep '^unheaded_chat_members_pending' | awk '$2>0{f=1}END{exit !f}'"
+    description: "unheaded_chat_members_pending is greater than 0 (refreshed every 15 s)"
+
+steps:
+  - name: detect-pending-subscriptions
+    action: manual
+    command: |
+      # Compose:
+      sudo docker logs unheaded-wotan --since 1h 2>&1 | grep topic_subscriber_pending_approval
+      # deb/systemd:
+      sudo journalctl -u unheaded-wotan --since -1h --no-pager | grep topic_subscriber_pending_approval
+      # Read the topic and display_name fields of each line.
+    description: "MANUAL. Find pending members (fields topic, display_name); run the variant for this install."
+
+  - name: check-display-name
+    action: shell
+    command: |
+      set -euo pipefail
+      : "${NAME:?set NAME}"
+      grep -rn "\"${NAME}\"" cmd services pkg
+    on_fail: "No code matches the name: it is a typo or an unknown client. Do NOT approve it."
+    description: "Show where the display name is defined in the code"
+
+  - name: decide-approval
+    action: manual
+    command: |
+      Approve only if check-display-name found the name in the code
+      (discovery.Start(..., name, ...) or a client's display_name).
+      Do NOT approve a name that matches no code: an approved name can
+      publish to any topic.
+    description: "MANUAL. A human decides whether the name is a known service."
+
+  - name: add-to-auto-approve
+    action: manual
+    command: |
+      Add <name> to the nested topics: auto_approve: list in configs/wotan.yaml.
+      Deb installs only: also add it in /etc/unheaded/wotan.yaml (conffile, sudoedit).
+      Never edit only the host copy.
+    description: "MANUAL. Edit the YAML by hand in every live copy."
+
+  - name: validate-config
+    action: shell
+    command: |
+      set -euo pipefail
+      : "${NAME:?set NAME}"
+      python3 -c 'import yaml,sys; yaml.safe_load(open(sys.argv[1]))' configs/wotan.yaml
+      grep -q "${NAME}" configs/wotan.yaml
+      if [ -f /etc/unheaded/wotan.yaml ]; then
+        sudo python3 -c 'import yaml,sys; yaml.safe_load(open(sys.argv[1]))' /etc/unheaded/wotan.yaml
+        sudo grep -q "${NAME}" /etc/unheaded/wotan.yaml
+      fi
+    description: "Validate the YAML and confirm the name is present"
+
+  - name: commit-changes
+    action: shell
+    command: |
+      set -euo pipefail
+      : "${NAME:?set NAME}"
+      git add configs/wotan.yaml
+      git commit -m "wotan: auto-approve ${NAME}"
+    verify: "git log -1 --format=%s | grep -q 'wotan: auto-approve'"
+    description: "Commit only configs/wotan.yaml"
+
+  - name: restart-wotan
+    action: manual
+    irreversible: true
+    command: |
+      # EITHER compose:
+      docker compose up -d --force-recreate wotan
+      # OR deb:
+      sudo systemctl restart unheaded-wotan
+    description: "MANUAL. The store is type: memory; a restart drops every topic, member and buffered message."
+
+  - name: check-mounted-config
+    action: manual
+    command: |
+      # Compose only, after the recreate:
+      docker exec unheaded-wotan grep "<name>" /etc/wotan/wotan.yaml
+    description: "MANUAL. Confirm the mounted /etc/wotan/wotan.yaml has the change."
+
+  - name: verify-approval
+    action: shell
+    command: |
+      set -euo pipefail
+      : "${NAME:?set NAME}"
+      : "${TOPIC:?set TOPIC}"
+      curl -sf "$WOTAN_URL/health"
+      curl -s -X POST "$WOTAN_URL/api/v1/topics/${TOPIC}/subscribe" -H 'Content-Type: application/json' -d "{\"display_name\":\"${NAME}\"}" | jq -e '.subscriber.status == "approved"'
+    on_fail: "Wait up to 5 min for the client to re-ask (defaultPendingRecheck) or restart that service."
+    description: "Health and allowlist probe; the client re-asks within 5 minutes, or restart that service"
+
+rollback:
+  - name: remove-from-auto-approve
+    action: manual
+    command: |
+      Remove <name> from topics.auto_approve in configs/wotan.yaml and,
+      on deb installs, /etc/unheaded/wotan.yaml.
+    description: "MANUAL. Undo the allowlist edit."
+  - name: commit-revert
+    action: manual
+    command: |
+      git add configs/wotan.yaml
+      git commit -m "wotan: revert auto-approve <name>"
+    description: "MANUAL. Commit the revert of configs/wotan.yaml."
+  - name: restart-wotan-rollback
+    action: manual
+    irreversible: true
+    command: |
+      # EITHER compose:
+      docker compose up -d --force-recreate wotan
+      # OR deb:
+      sudo systemctl restart unheaded-wotan
+    description: "MANUAL. Restart loses every in-memory topic, member and buffered message."

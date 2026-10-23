@@ -69,6 +69,7 @@
 #   ./scripts/check-gates-can-fail.sh            # all gates
 #   ./scripts/check-gates-can-fail.sh --quick    # skip gates marked SLOW
 #   ./scripts/check-gates-can-fail.sh --list     # show registry, run nothing
+#   ./scripts/check-gates-can-fail.sh --only NAME  # provoke one registered gate
 #
 # SAFETY
 # It mutates tracked files on purpose. It refuses to run on a dirty tree, and an
@@ -79,6 +80,11 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 cd "${REPO_ROOT}" || exit 1
 
 MODE="${1:-}"
+ONLY=""
+if [ "${MODE}" = "--only" ]; then
+    ONLY="${2:-}"
+    [ -n "${ONLY}" ] || { echo "usage: $0 --only <gate name from --list>" >&2; exit 2; }
+fi
 BACKUP_DIR="$(mktemp -d)"
 TOUCHED=()
 CREATED=()          # files the provocation brought into existence
@@ -737,6 +743,17 @@ provoke_pq_kex() {
     printf 'package tls\n\nimport stdtls "crypto/tls"\n\nvar metaGateProbe = &stdtls.Config{MinVersion: stdtls.VersionTLS13, CurvePreferences: []stdtls.CurveID{stdtls.X25519}}\n' >"${REPO_ROOT}/${f}"
 }
 
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_runbooks() {
+    # Contract (ADR-024, S-TWO-BRAINS Phase 8): every runbook follows runbook/v1
+    # unless its problem is baselined. Give a clean runbook a risk level the
+    # schema does not have.
+    local f="runbooks/observe/service-health-sweep.yaml"
+    backup "${f}"
+    sed -i 's/^  risk: low$/  risk: meta-gate-probe/' "${REPO_ROOT}/${f}"
+    grep -q '^  risk: meta-gate-probe$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -787,6 +804,7 @@ check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
 check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
+check-runbooks|provoke_runbooks|fast|a clean runbook given a risk level runbook/v1 does not have
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 
@@ -817,6 +835,7 @@ build-binaries|builds the unit binaries (make binaries, build-all-debs); its --c
 wireguard/rotate-psk|rotates the WireGuard PSK on west/east (dry run unless --apply); its rollback and refusals are proven by wireguard/test-rotate-psk
 well/test-converge-live-app|compares the live Well (or a restored set) with a fresh bootstrap; needs that Well, runbook verify step
 probe-tls-groups|prints the negotiated group for an endpoint; the Go handshake tests (pkg/tls/pqtest, ADR-105) are the gate
+zhen-mcp|launches the Zhen MCP server for Claude Code (.mcp.json, runbooks/security/mcp-write-exec-enablement.yaml); no verdict of its own
 "
 
 # ---------------------------------------------------------------------------
@@ -922,6 +941,7 @@ fi
 for name in $(printf '%s\n' "${REGISTRY}" | awk -F'|' 'NF>=3 {print $1}' | sort); do
     gate="scripts/${name}.sh"
     [ -f "${gate}" ] || continue
+    [ -n "${ONLY}" ] && [ "${name}" != "${ONLY}" ] && continue
     entry="$(registry_lookup "${name}")"
     fn="$(echo "${entry}" | cut -d'|' -f2)"
     speed="$(echo "${entry}" | cut -d'|' -f3)"
@@ -997,6 +1017,11 @@ if [ "${FAILURES}" -gt 0 ]; then
     echo "  fix the provocation — but prove the gate bites some other way"
     echo "  first."
     echo "============================================================"
+    exit 1
+fi
+
+if [ -n "${ONLY}" ] && [ "${CHECKED}" -eq 0 ]; then
+    echo "FAIL: --only ${ONLY} matched no runnable registered gate (see --list)."
     exit 1
 fi
 

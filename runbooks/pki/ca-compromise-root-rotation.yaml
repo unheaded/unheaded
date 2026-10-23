@@ -1,0 +1,150 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: ca-compromise-root-rotation
+  description: Replace a compromised Kingdom root CA, reissue what it signed, then stop trusting it
+  owner: blackmage
+  estimated_duration: 2h
+  risk: critical
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: claude-opus-5-5
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_ca_root_rotation.py
+notes: |
+  For a suspected exposure of a CA private key (copied, world-readable, in a
+  log, a backup or git). Two CAs exist; decide which one first:
+  - service mesh CA: /var/lib/unheaded/pki/ca/{ca.crt,ca.key} on west and
+    east, service certs /var/lib/unheaded/pki/services/<svc>.{crt,key}
+    (runbooks/pki/generate-kingdom-certs.yaml; per service
+    runbooks/pki/rotate-service-cert.yaml; gateway
+    runbooks/security/tls-cert-rotation.yaml);
+  - the Well's CA: /etc/unheaded/well-tls/{ca.crt,ca.key,server.crt,server.key}
+    from scripts/well/make-tls.sh, which refuses to overwrite a CA: the new
+    root goes into a NEW directory and WELL_TLS_DIR points compose at it.
+  Order: contain, new root, reissue, overlap bundle (old + new), restart one
+  service at a time (ADR-103 rollout order: Cuirass first, Wotan last),
+  verify with the new root only, drop the old root, verify an old leaf fails.
+  Every key-handling and deploy step is manual: the runner only verifies.
+  Never print or cat a private key; keys never enter the repo.
+  Known open items, not fixed here: compose mounts the whole Well TLS dir,
+  ca.key included, into the postgres container; the older PKI runbooks chown
+  keys to the group `unheaded`, which no longer exists (each service has its
+  own account, pkg/uids): give each key to its service's own group.
+parameters:
+  - name: NEW_PKI
+    default: "/var/lib/unheaded/pki-new"
+    description: Directory for the new root and the reissued certificates (root 0700)
+  - name: OLD_CA
+    default: "/var/lib/unheaded/pki/ca/ca.crt"
+    description: The compromised root's certificate (public; never the key)
+  - name: BUNDLE
+    default: "/var/lib/unheaded/pki-new/bundle.pem"
+    description: The trust bundle clients are given
+  - name: LEAF
+    description: A certificate to check against BUNDLE (no default)
+  - name: ENDPOINT
+    description: host:port of a TLS endpoint to check (no default)
+steps:
+  - name: contain
+    action: manual
+    irreversible: true
+    command: |
+      # Stop issuing. Record the old root's fingerprint in the incident notes
+      # (runbooks/security/incident-response.yaml):
+      openssl x509 -noout -fingerprint -sha256 -in "${OLD_CA}"
+      # Move the old CA key off the host (removable media); never copy it elsewhere:
+      sudo mv /var/lib/unheaded/pki/ca/ca.key <offline media>/
+    description: "MANUAL. Stop issuing; take the old CA key offline; record its fingerprint"
+
+  - name: new-root
+    action: manual
+    irreversible: true
+    command: |
+      sudo install -d -m 0700 -o root "${NEW_PKI}"
+      sudo openssl req -x509 -new -nodes -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 \
+        -subj "/CN=Unheaded Kingdom Root CA $(date -u +%Y-%m)" -days 3650 \
+        -keyout "${NEW_PKI}/ca.key" -out "${NEW_PKI}/ca.crt"
+      sudo chmod 0600 "${NEW_PKI}/ca.key"
+      # The Well's CA instead: sudo scripts/well/make-tls.sh <new well-tls dir>
+    description: "MANUAL. Make the new root in a new directory"
+
+  - name: reissue
+    action: manual
+    irreversible: true
+    command: |
+      # For every service cert and the Well server cert, a new key and a cert
+      # from the new root, written into ${NEW_PKI}, each key owned by its
+      # service's own group (pkg/uids), mode 0640:
+      #   openssl req -new -nodes -newkey ec -pkeyopt ec_paramgen_curve:prime256v1 -subj /CN=<svc> -keyout <svc>.key -out <svc>.csr
+      #   openssl x509 -req -in <svc>.csr -CA "${NEW_PKI}/ca.crt" -CAkey "${NEW_PKI}/ca.key" -CAcreateserial -days 90 -out <svc>.crt
+    description: "MANUAL. Reissue every service and Well certificate from the new root"
+
+  - name: build-overlap-bundle
+    action: manual
+    command: |
+      sudo sh -c 'cat "$1" "$2" > "$3"' sh "${NEW_PKI}/ca.crt" "${OLD_CA}" "${BUNDLE}"
+    description: "MANUAL. Trust bundle with the new and the old root for the overlap window; deploy it as every client's CA first"
+
+  - name: check-bundle-has-both-roots
+    action: shell
+    command: |
+      set -euo pipefail
+      test "$(grep -c 'BEGIN CERTIFICATE' "${BUNDLE}")" -ge 2
+    description: "The overlap bundle holds at least the new and the old root"
+
+  - name: restart-one-service
+    action: manual
+    irreversible: true
+    command: |
+      # One at a time, ADR-103 order (Cuirass first, Wotan last). For each:
+      #   install <svc>.crt/.key from ${NEW_PKI} (keep the old pair as <svc>.crt.old / <svc>.key.old)
+      #   sudo systemctl restart <unit>
+      #   then run check-leaf and check-endpoint for it before the next one
+    description: "MANUAL. Deploy and restart services one at a time, each checked before the next"
+
+  - name: check-leaf
+    action: shell
+    command: |
+      set -euo pipefail
+      : "${LEAF:?set LEAF to the certificate to check}"
+      openssl verify -CAfile "${BUNDLE}" "${LEAF}"
+    description: "A certificate verifies against the deployed bundle (exit 0 only if it does)"
+
+  - name: check-endpoint
+    action: shell
+    command: |
+      set -euo pipefail
+      : "${ENDPOINT:?set ENDPOINT to host:port}"
+      openssl s_client -connect "${ENDPOINT}" -CAfile "${NEW_PKI}/ca.crt" -verify_return_error </dev/null >/dev/null
+    description: "A TLS endpoint verifies with the new root only"
+
+  - name: drop-old-root
+    action: manual
+    irreversible: true
+    command: |
+      # When every service runs a new-root certificate:
+      sudo cp "${NEW_PKI}/ca.crt" "${BUNDLE}"
+      # and deploy that bundle to every client again
+    description: "MANUAL. Drop the old root from every bundle"
+
+  - name: check-old-leaf-refused
+    action: shell
+    command: |
+      set -euo pipefail
+      : "${LEAF:?set LEAF to an old-root certificate}"
+      if openssl verify -CAfile "${BUNDLE}" "${LEAF}" >/dev/null 2>&1; then
+        echo "old-root certificate still verifies against ${BUNDLE}" >&2
+        exit 1
+      fi
+    description: "After the drop, a leaf from the old root no longer verifies (exit 0 only if refused)"
+rollback:
+  - name: restore-old-pair
+    action: manual
+    irreversible: true
+    command: |
+      # Until drop-old-root, clients still trust the old root:
+      #   put <svc>.crt.old / <svc>.key.old back for that service
+      sudo systemctl restart <unit>
+    description: "MANUAL. Put the old service certificate back and restart that service"
