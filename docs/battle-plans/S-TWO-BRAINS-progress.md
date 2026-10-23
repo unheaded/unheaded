@@ -117,6 +117,11 @@ Residual risks: (1) the patterns are a deny list — an identifier with no patte
 ### Step 184 — escalation prompt review
 
 The escalation prompt is built by `ThresholdRouter.Run` from three parts: the task text (T0: a card or `TASK.md`, plus the worktree's tracked files, which are the fixture's own repository text), the last local draft (local model output about those files), and the check output, which is cut to 4 KiB and passed through the privacy tier's T1 redaction before it is put into any prompt (`TestRouter_FailingCheckEscalatesOnceWithContext`: a planted `10.10.10.10` in the check output reaches neither the second local attempt nor Claude unredacted). The bridge then redacts the whole prompt again (`Conversation.Send`), and every tool result of the Claude leg goes through the tier as well. Claude's tools in the leg are the Champion's (`read_file`, `write_file`, `patch_file`, `run_check`) confined to the worktree; `-confirm` is deny, so Kanban and runbook tools stay refused. Step 194 bite: a router that ignores `check_fail` in `escalate_on` fails both `TestRouted_LocalFailsClaudeFixes` and `TestRouter_FailingCheckEscalatesOnceWithContext`.
+### Steps 180-183 — live routed runs, and a judge flaw found by them
+
+- **Step 180** (`run-fixture.sh --route auto --family repo-task --split holdout --limit 3`, config as generated): `go-data-race`, `go-join-trailing`, `go-nil-map` all `route=local_only route_reason=local_only check=pass escalated=false cost $0`, 1 local attempt each (qwen-coder-14b), checks in the real sandbox (`go test -race` with cgo inside it). Step 181: consistent with the config (repo-task is `local_only`, adopted on hold-out).
+- **Extra live check (not in the plan, $0.025502):** the config never escalates a repo task, so the live Claude leg was exercised once with a scratch routing file (`repo-task: local_first, local_attempts 1, escalate_on [check_fail]`) on `py-slug`, a tune fixture the local model fails: `route_reason=escalated_check_fail`, Claude's tools in the worktree `write_file` allowed (branch-sandbox), `run_check` allowed, `check=pass`.
+- **Finding: the check judge counted a weakened test as a pass.** The `py-slug` worktree showed the local draft had also edited `test_lib.py`. A sweep of the kept answers: qwen-7b's passing `py-chunks-partial` answer changed the failing assertion (`chunks([1,2,3,4,5], 2) == [[1,2],[3,4],[5]]` removed). So qwen-7b's repo-task score is 16/20, not 17/20; qwen-coder-14b's 19 passes and Claude's 20 edited no test (their only test edit, 14b on `py-slug`, failed anyway). The routing decision used qwen-coder-14b and Claude and is unchanged. Fixed in both judges: a fixture's test and validator files (`*_test.go`, `test_*.py`, `validate_runbook.py`) are protected like `check.sh` in `zhen-eval` and in the routed loop with `fixture-check` (a draft that touches one is refused; a check after one changed does not count); the system prompts now say so. The recorded result files are left as they were run.
 
 ## Gates
 
@@ -146,3 +151,6 @@ All live Claude calls of this run go through `-ledger $SCRATCH/spend.json`
 | 121 | `-tools mcp`, summarise `service_health`, `-effort low`, 2 requests | 0.010566 | 0.011570 |
 
 | 145 | two-brains eval, Claude Opus 5.5 effort low, 76 tasks, 76 requests (ledger now 79: +1 smoke, +2 Step 121) | 1.312553 | 1.324123 |
+
+| 180 | live routed runs, 3 hold-out repo tasks (local_only per config) | 0.000000 | 1.324123 |
+| 180+ | extra live escalation check, py-slug, scratch routing (separate ledger spend-phase5.json) | 0.025502 | 1.349625 |

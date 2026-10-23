@@ -80,6 +80,14 @@ func judgeKey(k *Key, answer string) (bool, string) {
 // protectedFiles cannot be written by an answer.
 var protectedFiles = map[string]bool{"check.sh": true, "TASK.md": true, "solution.patch": true}
 
+// isFixtureTest reports a fixture's test or validator file: part of the
+// check, so an answer may not change it (a weakened assertion would pass
+// the check; found in the qwen-7b run, py-chunks-partial).
+func isFixtureTest(rel string) bool {
+	b := filepath.Base(rel)
+	return strings.HasSuffix(b, "_test.go") || (strings.HasPrefix(b, "test_") && strings.HasSuffix(b, ".py")) || b == "validate_runbook.py"
+}
+
 // fileBlockRE matches ```file:<path>\n<content>``` blocks.
 var fileBlockRE = regexp.MustCompile("(?s)```file:([^\\n`]+)\\n(.*?)```")
 
@@ -120,7 +128,7 @@ func applyBlocks(dir string, blocks []FileBlock) error {
 		if p == "." || filepath.IsAbs(b.Path) || p == ".." || strings.HasPrefix(p, ".."+string(filepath.Separator)) {
 			return fmt.Errorf("path %q is outside the fixture", b.Path)
 		}
-		if protectedFiles[filepath.Base(p)] && filepath.Dir(p) == "." {
+		if (protectedFiles[filepath.Base(p)] && filepath.Dir(p) == ".") || isFixtureTest(p) {
 			return fmt.Errorf("path %q may not be changed", b.Path)
 		}
 		full := filepath.Join(root, p)

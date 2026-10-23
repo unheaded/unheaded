@@ -97,7 +97,7 @@ const (
 Answer concisely and correctly; show code where it helps.`
 	systemRepo = "You fix small code tasks in a repository fixture.\n" +
 		"Reply with the complete new content of every file you change, each in its own fenced code block whose opening line is ```file:<relative path> (for example ```file:lib.go).\n" +
-		"Change only what the task needs. Never change check.sh or TASK.md. A short explanation before the blocks is fine."
+		"Change only what the task needs. Never change check.sh, TASK.md or the tests. A short explanation before the blocks is fine."
 )
 
 type options struct {

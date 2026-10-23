@@ -108,6 +108,8 @@ func TestJudgeCheck(t *testing.T) {
 		"absolute":        {"```file:/tmp/evil.go\nfixed\n```", false, "outside_fixture"},
 		"edits the check": {"```file:check.sh\nexit 0\n```\n```file:lib.go\npackage x // fixed\n```", false, "outside_fixture"},
 		"edits the task":  {"```file:./TASK.md\nnone\n```", false, "outside_fixture"},
+		"edits a test":    {"```file:lib_test.go\npackage x\n```\n```file:lib.go\npackage x // fixed\n```", false, "outside_fixture"},
+		"edits py test":   {"```file:test_lib.py\npass\n```", false, "outside_fixture"},
 	} {
 		cr := judgeCheck(context.Background(), fx, work, tc.answer, r)
 		if cr.Pass != tc.pass || !strings.HasPrefix(cr.Detail, tc.detail) {
@@ -311,7 +313,7 @@ func TestSandboxRunner_RealFixtureSolution(t *testing.T) {
 				return err
 			}
 			rel, _ := filepath.Rel(tmp, p)
-			if protectedFiles[rel] || strings.HasSuffix(rel, ".orig") {
+			if protectedFiles[rel] || isFixtureTest(rel) || strings.HasSuffix(rel, ".orig") {
 				return nil
 			}
 			b, _ := os.ReadFile(p)

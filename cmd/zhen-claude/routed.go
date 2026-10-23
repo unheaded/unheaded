@@ -38,15 +38,44 @@ var routedSandboxRun func(ctx context.Context, cfg sandbox.Config, argv []string
 // protectedFixtureFiles may not change for a check to count.
 var protectedFixtureFiles = []string{"check.sh", "TASK.md", "solution.patch"}
 
+// isFixtureTest: with -run-check fixture-check, a fixture's test and
+// validator files are part of the check and protected like check.sh
+// (a weakened assertion passes the check).
+func isFixtureTest(rel string) bool {
+	b := filepath.Base(rel)
+	return strings.HasSuffix(b, "_test.go") || (strings.HasPrefix(b, "test_") && strings.HasSuffix(b, ".py")) || b == "validate_runbook.py"
+}
+
+// protectedSet lists the worktree files a check depends on.
+func protectedSet(ctx context.Context, root, checkPath, check string) []string {
+	var out []string
+	for _, n := range protectedFixtureFiles {
+		out = append(out, filepath.Join(checkPath, n))
+	}
+	if check != "fixture-check" {
+		return out
+	}
+	files, err := exec.CommandContext(ctx, "git", "-C", root, "ls-files", "-z").Output() // #nosec G702 G204 -- fixed binary and flags; root is the validated agent worktree
+	if err != nil {
+		return out
+	}
+	for _, n := range strings.Split(string(files), "\x00") {
+		if n != "" && isFixtureTest(n) {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
 const routedLocalSystem = "You fix small code tasks in a git worktree.\n" +
 	"Reply with the complete new content of every file you change, each in its own fenced code block whose opening line is ```file:<path relative to the worktree> (for example ```file:lib.go).\n" +
-	"Change only what the task needs. Never change check.sh or TASK.md."
+	"Change only what the task needs. Never change check.sh, TASK.md or the tests."
 
 func routedClaudeSystem(root, branch, check string) string {
 	return fmt.Sprintf(`You are fixing a task in a throwaway git worktree for Stevie Bellis's Unheaded project (GPL-3.0).
 The worktree is %s, on branch %s; Stevie reviews the branch before anything merges, and nothing is pushed.
 You may read files with read_file and change them with write_file or patch_file (absolute paths inside the worktree). You may run the allowlisted check with run_check (check %q, path ".").
-Never change check.sh, TASK.md or anything under .git. Make the smallest change that makes the check pass, run the check, and stop when it passes. Answer briefly.`, root, branch, check)
+Never change check.sh, TASK.md, the tests or anything under .git. Make the smallest change that makes the check pass, run the check, and stop when it passes. Answer briefly.`, root, branch, check)
 }
 
 func validateRoutedFlags(o *options) error {
@@ -179,9 +208,14 @@ func runRouted(ctx context.Context, o *options, prompt string, stdout, stderr io
 		task = prompt + "\n\nFiles in the worktree:\n" + files
 	}
 	protected := map[string]string{}
-	for _, n := range protectedFixtureFiles {
-		rel := filepath.Join(o.checkPath, n)
-		protected[rel] = fileSHA(root, rel)
+	protectedTests := map[string]bool{}
+	if root != "" {
+		for _, rel := range protectedSet(ctx, root, o.checkPath, o.runCheck) {
+			protected[rel] = fileSHA(root, rel)
+			if isFixtureTest(rel) {
+				protectedTests[filepath.Clean(rel)] = true
+			}
+		}
 	}
 
 	localModel := fr.LocalModel
@@ -203,7 +237,9 @@ func runRouted(ctx context.Context, o *options, prompt string, stdout, stderr io
 		Auditor: aud.auditor,
 	}
 	if root != "" {
-		r.Apply = func(ctx context.Context, answer string) error { return applyDraft(ctx, champ, root, answer) }
+		r.Apply = func(ctx context.Context, answer string) error {
+			return applyDraft(ctx, champ, root, answer, protectedTests)
+		}
 	}
 	if o.runCheck != "" {
 		r.Check = func(ctx context.Context) (claudebridge.CheckOutcome, error) {
@@ -288,7 +324,7 @@ func routedChampion(ctx context.Context, o *options, log *slog.Logger) (string, 
 
 // applyDraft writes the local draft's file blocks through the Champion
 // (branch-sandbox mode: Rules 1 and 3 hold, nothing under .git).
-func applyDraft(ctx context.Context, champ *champion.Champion, root, answer string) error {
+func applyDraft(ctx context.Context, champ *champion.Champion, root, answer string, protectedTests map[string]bool) error {
 	blocks, err := claudebridge.ParseFileBlocks(answer)
 	if err != nil {
 		return err
@@ -302,6 +338,9 @@ func applyDraft(ctx context.Context, champ *champion.Champion, root, answer stri
 			if filepath.Base(rel) == p && filepath.Dir(rel) == "." {
 				return fmt.Errorf("path %q may not be changed", b.Path)
 			}
+		}
+		if protectedTests[rel] {
+			return fmt.Errorf("path %q is part of the check and may not be changed", b.Path)
 		}
 		if _, err := champ.Dispatch(ctx, champion.ToolCall{
 			Name: "write_file", Args: map[string]any{"path": filepath.Join(root, rel), "content": b.Content}, EmittedBy: "zhen-local/router",

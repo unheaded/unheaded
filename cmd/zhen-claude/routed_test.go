@@ -272,3 +272,25 @@ func TestRouted_FlagValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestRouted_TestFileEditDoesNotCount(t *testing.T) {
+	agent, wt := agentFixture(t)
+	// The draft "fixes" the task by rewriting the test to expect the bug.
+	weakened := "import unittest\nfrom lib import double\n\nclass T(unittest.TestCase):\n    def test(self):\n        self.assertEqual(double(3), 7)\n\nif __name__ == '__main__':\n    unittest.main()\n"
+	llama, _ := fakeLlamaSeq(t, "```file:test_lib.py\n"+weakened+"```")
+	noCredentials(t)
+	args := routedArgs(t, agent, wt, llama.URL)
+	for i, a := range args {
+		if a == "auto" && args[i-1] == "-route" {
+			args[i] = "local"
+		}
+	}
+	var out, errb bytes.Buffer
+	_ = run(args, strings.NewReader(""), &out, &errb)
+	if m := outcome(t, out.String()); m["check"] == "pass" {
+		t.Errorf("a weakened test passed the check: %v", m)
+	}
+	if b, _ := os.ReadFile(filepath.Join(wt, "test_lib.py")); strings.Contains(string(b), "double(3), 7") {
+		t.Error("the draft rewrote the test")
+	}
+}

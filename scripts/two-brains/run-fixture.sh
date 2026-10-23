@@ -15,13 +15,13 @@
 # Options: --route auto|local, --family F, --split tune|holdout|all,
 # --limit N, --cap-usd USD (the -daily-cap-usd of the ledger below),
 # --ledger PATH (default: zhen-claude's), --ids a,b (fixture ids instead of
-# the split's first N). Needs llama-server for the local leg and, for
+# the split's first N), --routing FILE (default configs/zhen-routing.yaml). Needs llama-server for the local leg and, for
 # route auto, Claude credentials in the environment (never in the repo).
 # ZHEN_CLAUDE overrides the binary (default: go run ./cmd/zhen-claude).
 set -euo pipefail
 
 R="$(cd "$(dirname "$0")/../.." && pwd)"
-ROUTE=auto FAMILY=repo-task SPLIT=holdout LIMIT=3 CAP=0.75 LEDGER="" IDS=""
+ROUTE=auto FAMILY=repo-task SPLIT=holdout LIMIT=3 CAP=0.75 LEDGER="" IDS="" ROUTING="$R/configs/zhen-routing.yaml"
 while (($#)); do
 	case "$1" in
 	--route) ROUTE=$2; shift 2 ;;
@@ -31,6 +31,7 @@ while (($#)); do
 	--cap-usd) CAP=$2; shift 2 ;;
 	--ledger) LEDGER=$2; shift 2 ;;
 	--ids) IDS=$2; shift 2 ;;
+	--routing) ROUTING=$2; shift 2 ;;
 	*) echo "unknown option $1" >&2; exit 2 ;;
 	esac
 done
@@ -84,7 +85,7 @@ for id in "${FIXTURES[@]}"; do
 	task="$(sed '1{/^<!--/d}' "$src/TASK.md")"
 	set +e
 	line="$(cd "$R" && "${ZC[@]}" -route "$ROUTE" -family "$FAMILY" -worktree "$wt" -run-check fixture-check -check-path . \
-		-routing "$R/configs/zhen-routing.yaml" -checks "$R/configs/zhen-checks.yaml" \
+		-routing "$ROUTING" -checks "$R/configs/zhen-checks.yaml" \
 		-effort low -max-tokens 4096 -daily-cap-usd "$CAP" "${ledger_args[@]}" -p "$task" 2>"$wt.log")"
 	rc=$?
 	set -e
