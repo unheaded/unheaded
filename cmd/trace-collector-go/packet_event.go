@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"strings"
 )
 
 // KernelPacketEventSize is the size of packet_marker's PacketEvent
@@ -47,6 +48,54 @@ func DecodeKernelPacketEvent(b []byte) (*TraceEntry, error) {
 		te.Direction = "egress"
 	}
 	return te, nil
+}
+
+// marshalDashboardFlow renders a flow event in the schema the dashboard's
+// ingestor parses from ebpf.flow.events (its ebpf.FlowEvent). trace_id is
+// {high, low} as in packets; it went out as {High, Low} (untagged fields).
+func marshalDashboardFlow(ev *FlowEventEntry) ([]byte, error) {
+	type traceID struct {
+		High uint64 `json:"high"`
+		Low  uint64 `json:"low"`
+	}
+	type flowKey struct {
+		SrcAddr  string `json:"src_addr"`
+		DstAddr  string `json:"dst_addr"`
+		SrcPort  uint16 `json:"src_port"`
+		DstPort  uint16 `json:"dst_port"`
+		Protocol uint8  `json:"protocol"`
+	}
+	type flowState struct {
+		TraceID    traceID `json:"trace_id"`
+		StartNs    uint64  `json:"start_ns"`
+		LastSeenNs uint64  `json:"last_seen_ns"`
+		PacketsIn  uint64  `json:"packets_in"`
+		PacketsOut uint64  `json:"packets_out"`
+		BytesIn    uint64  `json:"bytes_in"`
+		BytesOut   uint64  `json:"bytes_out"`
+		State      string  `json:"state"`
+	}
+	s := &ev.State
+	return json.Marshal(struct {
+		TimestampNs uint64    `json:"timestamp_ns"`
+		FlowKey     flowKey   `json:"flow_key"`
+		FlowState   flowState `json:"flow_state"`
+		EventType   string    `json:"event_type"`
+	}{
+		TimestampNs: ev.TimestampNS,
+		FlowKey:     flowKey{ev.Key.SrcIP().String(), ev.Key.DstIP().String(), ev.Key.SrcPort, ev.Key.DstPort, ev.Key.Protocol},
+		FlowState: flowState{
+			TraceID:    traceID{binary.BigEndian.Uint64(s.TraceID[0:8]), binary.BigEndian.Uint64(s.TraceID[8:16])},
+			StartNs:    s.StartNS,
+			LastSeenNs: s.LastSeenNS,
+			PacketsIn:  s.PacketsIn,
+			PacketsOut: s.PacketsOut,
+			BytesIn:    s.BytesIn,
+			BytesOut:   s.BytesOut,
+			State:      strings.ToLower(s.StateName()),
+		},
+		EventType: ev.EventTypeName(),
+	})
 }
 
 // marshalDashboardPacket renders a packet in the schema the dashboard's

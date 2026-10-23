@@ -88,3 +88,39 @@ func TestMarshalDashboardPacket(t *testing.T) {
 		t.Errorf("dashboard packet = %+v", got)
 	}
 }
+
+// Flow events use the dashboard's ebpf.FlowEvent field names, trace_id
+// {high, low} included: on east (2026-10-23) it went out as {"High","Low"},
+// which Go's case-insensitive decoder hid and any other reader misses.
+func TestMarshalDashboardFlow(t *testing.T) {
+	ev := &FlowEventEntry{
+		TimestampNS: 857754687850080,
+		Key:         FlowKey{SrcAddr: 0x7f000001, DstAddr: 0x7f000001, SrcPort: 19005, DstPort: 51738, Protocol: 6},
+		State: FlowStateEntry{StartNS: 857754687850080, LastSeenNS: 860868687778555,
+			PacketsIn: 3, PacketsOut: 3, BytesIn: 222, BytesOut: 162, State: ConnStateFinWait1},
+		EventType: FlowEventStateChange,
+	}
+	binary.BigEndian.PutUint64(ev.State.TraceID[0:8], 0x0192a3b4c5d6e7f8)
+	binary.BigEndian.PutUint64(ev.State.TraceID[8:16], 0x1122334455667788)
+	raw, err := marshalDashboardFlow(ev)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]any
+	if err := json.Unmarshal(raw, &got); err != nil {
+		t.Fatal(err)
+	}
+	fk, _ := got["flow_key"].(map[string]any)
+	fs, _ := got["flow_state"].(map[string]any)
+	tid, _ := fs["trace_id"].(map[string]any)
+	if got["timestamp_ns"] != float64(857754687850080) || got["event_type"] != "state_change" ||
+		fk["src_addr"] != "127.0.0.1" || fk["dst_addr"] != "127.0.0.1" || fk["src_port"] != float64(19005) ||
+		fk["dst_port"] != float64(51738) || fk["protocol"] != float64(6) ||
+		fs["state"] != "fin_wait1" || fs["packets_in"] != float64(3) || fs["bytes_out"] != float64(162) ||
+		fs["start_ns"] != float64(857754687850080) || fs["last_seen_ns"] != float64(860868687778555) {
+		t.Errorf("dashboard flow = %s", raw)
+	}
+	if tid["high"] != float64(0x0192a3b4c5d6e7f8) || tid["low"] != float64(0x1122334455667788) {
+		t.Errorf("flow_state.trace_id = %v, want {high, low}", fs["trace_id"])
+	}
+}

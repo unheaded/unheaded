@@ -29,7 +29,6 @@ package main
 
 import (
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -37,7 +36,6 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -785,47 +783,7 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 				if self.drop(ev.Key.SrcIP(), ev.Key.SrcPort, ev.Key.DstIP(), ev.Key.DstPort) {
 					continue
 				}
-				// Serialize in dashboard-backend FlowEvent format
-				dashEvent := struct {
-					TimestampNs uint64 `json:"timestamp_ns"`
-					FlowKey     struct {
-						SrcAddr  string `json:"src_addr"`
-						DstAddr  string `json:"dst_addr"`
-						SrcPort  uint16 `json:"src_port"`
-						DstPort  uint16 `json:"dst_port"`
-						Protocol uint8  `json:"protocol"`
-					} `json:"flow_key"`
-					FlowState struct {
-						TraceID    struct{ High, Low uint64 } `json:"trace_id"`
-						StartNs    uint64                     `json:"start_ns"`
-						LastSeenNs uint64                     `json:"last_seen_ns"`
-						PacketsIn  uint64                     `json:"packets_in"`
-						PacketsOut uint64                     `json:"packets_out"`
-						BytesIn    uint64                     `json:"bytes_in"`
-						BytesOut   uint64                     `json:"bytes_out"`
-						State      string                     `json:"state"`
-					} `json:"flow_state"`
-					EventType string `json:"event_type"`
-				}{
-					TimestampNs: ev.TimestampNS,
-					EventType:   ev.EventTypeName(),
-				}
-				dashEvent.FlowKey.SrcAddr = ev.Key.SrcIP().String()
-				dashEvent.FlowKey.DstAddr = ev.Key.DstIP().String()
-				dashEvent.FlowKey.SrcPort = ev.Key.SrcPort
-				dashEvent.FlowKey.DstPort = ev.Key.DstPort
-				dashEvent.FlowKey.Protocol = ev.Key.Protocol
-				dashEvent.FlowState.TraceID.High = binary.BigEndian.Uint64(ev.State.TraceID[0:8])
-				dashEvent.FlowState.TraceID.Low = binary.BigEndian.Uint64(ev.State.TraceID[8:16])
-				dashEvent.FlowState.StartNs = ev.State.StartNS
-				dashEvent.FlowState.LastSeenNs = ev.State.LastSeenNS
-				dashEvent.FlowState.PacketsIn = ev.State.PacketsIn
-				dashEvent.FlowState.PacketsOut = ev.State.PacketsOut
-				dashEvent.FlowState.BytesIn = ev.State.BytesIn
-				dashEvent.FlowState.BytesOut = ev.State.BytesOut
-				dashEvent.FlowState.State = strings.ToLower(ev.State.StateName())
-
-				payload, err := json.Marshal(dashEvent)
+				payload, err := marshalDashboardFlow(ev)
 				if err != nil {
 					log.Error().Err(err).Msg("failed to marshal flow event")
 					continue
