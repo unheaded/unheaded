@@ -49,8 +49,13 @@ func main() {
 	// Subcommands share the server's policy file but do not serve. `confirm`
 	// is the out-of-band approval CLI (Phase 4); `drive` is the Claude driver
 	// (Phase 6). Both are part of the one binary the kill switch owns.
-	if len(os.Args) > 1 && os.Args[1] == "confirm" {
-		os.Exit(confirmMain(os.Args[2:]))
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "confirm":
+			os.Exit(confirmMain(os.Args[2:]))
+		case "drive":
+			os.Exit(driveMain(os.Args[2:]))
+		}
 	}
 
 	cfgPath := flag.String("config", "configs/lich-mcp.yaml", "path to the Lich MCP server policy (scope, limits, kill switch)")
