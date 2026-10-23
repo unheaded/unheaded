@@ -234,10 +234,12 @@ The app subscribes to and publishes on these topics:
 ### Fallback Mode
 
 If Wotan is unavailable:
-- App starts in **standalone mode**
-- Uses hardcoded initial tasks
-- Full API still functional (local state only)
+- App starts in **standalone mode**: tasks come from The Well (Postgres), else SQLite
 - No real-time sync with other services
+
+If neither database opens, the board is **read-only**: reads serve the Genesis seed, and every
+POST/PUT/DELETE answers 503 (`read-only: no database`). Writes used to go to memory, answer
+201/200 and vanish on restart.
 
 ---
 
@@ -472,7 +474,7 @@ task.id contains invalid characters
 
 ## Future Enhancements
 
-- [ ] Task persistence (PostgreSQL/SQLite)
+- [x] Task persistence (PostgreSQL via The Well, SQLite fallback)
 - [ ] Authentication (JWT tokens)
 - [ ] WebSocket (replace SSE)
 - [ ] Task attachments

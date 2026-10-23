@@ -536,8 +536,34 @@ func (w *statusWriter) Flush() {
 	}
 }
 
+// writable: a write lands in a database (The Well or SQLite), directly or
+// through the TaskManager. Without one the board is read-only: writes used
+// to go to memory, answer 201/200, and vanish on restart.
+func (s *Server) writable() bool {
+	return s.store != nil || (s.taskManager != nil && s.taskManager.store != nil)
+}
+
+// refuseIfReadOnly answers 503 to a write when there is no database.
+func (s *Server) refuseIfReadOnly(w http.ResponseWriter, r *http.Request) bool {
+	switch r.Method {
+	case http.MethodPost, http.MethodPut, http.MethodDelete:
+	default:
+		return false // reads, and methods the routers answer 405
+	}
+	if s.writable() {
+		return false
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusServiceUnavailable)
+	json.NewEncoder(w).Encode(map[string]string{"error": "read-only: no database, so writes are refused"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	return true
+}
+
 // handleTasks routes task operations (GET, POST, PUT, DELETE)
 func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
+	if s.refuseIfReadOnly(w, r) {
+		return
+	}
 	switch r.Method {
 	case http.MethodGet:
 		s.handleGetTasks(w, r)
@@ -841,6 +867,10 @@ func (s *Server) handleTaskByID(w http.ResponseWriter, r *http.Request) {
 		return
 	case "completed":
 		s.handleCompletedTasks(w, r)
+		return
+	}
+
+	if s.refuseIfReadOnly(w, r) {
 		return
 	}
 

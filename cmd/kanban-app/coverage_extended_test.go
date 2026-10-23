@@ -756,7 +756,7 @@ func TestHandleGetTaskByID_InMemoryFallback_NotFound(t *testing.T) {
 	}
 }
 
-func TestHandleUpdateTaskByID_InMemoryFallback(t *testing.T) {
+func TestHandleUpdateTaskByID_NoDBIsReadOnly(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	server := &Server{
@@ -776,12 +776,13 @@ func TestHandleUpdateTaskByID_InMemoryFallback(t *testing.T) {
 	w := httptest.NewRecorder()
 	server.handleTaskByID(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
+	// No database: writes are refused, not kept in memory until a restart.
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503, got %d", w.Code)
 	}
 }
 
-func TestHandleUpdateTaskByID_InMemoryFallback_NotFound(t *testing.T) {
+func TestHandleUpdateTaskByID_NoDBIsReadOnly_NotFound(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	server := &Server{
@@ -799,12 +800,13 @@ func TestHandleUpdateTaskByID_InMemoryFallback_NotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	server.handleTaskByID(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
+	// No database: writes are refused, not kept in memory until a restart.
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503, got %d", w.Code)
 	}
 }
 
-func TestHandleDeleteTaskByID_InMemoryFallback(t *testing.T) {
+func TestHandleDeleteTaskByID_NoDBIsReadOnly(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	server := &Server{
@@ -821,12 +823,13 @@ func TestHandleDeleteTaskByID_InMemoryFallback(t *testing.T) {
 	w := httptest.NewRecorder()
 	server.handleTaskByID(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Errorf("expected 200, got %d", w.Code)
+	// No database: writes are refused, not kept in memory until a restart.
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503, got %d", w.Code)
 	}
 }
 
-func TestHandleDeleteTaskByID_InMemoryFallback_NotFound(t *testing.T) {
+func TestHandleDeleteTaskByID_NoDBIsReadOnly_NotFound(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	server := &Server{
@@ -841,8 +844,9 @@ func TestHandleDeleteTaskByID_InMemoryFallback_NotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	server.handleTaskByID(w, req)
 
-	if w.Code != http.StatusNotFound {
-		t.Errorf("expected 404, got %d", w.Code)
+	// No database: writes are refused, not kept in memory until a restart.
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("expected 503, got %d", w.Code)
 	}
 }
 
@@ -2802,6 +2806,7 @@ func TestHandleGetTaskByID_WithTaskManager_NotFound(t *testing.T) {
 
 func TestHandleUpdateTaskByID_WithTaskManager(t *testing.T) {
 	tm, mockClient := createTestTaskManager(t)
+	tm.store = newTestSQLiteStore(t) // writes need a database
 	mockClient.ApproveSubscription(TopicTasks)
 	ctx := context.Background()
 	tm.Initialize(ctx)
@@ -2838,6 +2843,7 @@ func TestHandleUpdateTaskByID_WithTaskManager(t *testing.T) {
 
 func TestHandleUpdateTaskByID_WithTaskManager_NotFound(t *testing.T) {
 	tm, _ := createTestTaskManager(t)
+	tm.store = newTestSQLiteStore(t) // writes need a database
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	server := &Server{
@@ -2861,6 +2867,7 @@ func TestHandleUpdateTaskByID_WithTaskManager_NotFound(t *testing.T) {
 
 func TestHandleDeleteTaskByID_WithTaskManager(t *testing.T) {
 	tm, mockClient := createTestTaskManager(t)
+	tm.store = newTestSQLiteStore(t) // writes need a database
 	mockClient.ApproveSubscription(TopicTasks)
 	ctx := context.Background()
 	tm.Initialize(ctx)
@@ -2895,6 +2902,7 @@ func TestHandleDeleteTaskByID_WithTaskManager(t *testing.T) {
 
 func TestHandleDeleteTaskByID_WithTaskManager_NotFound(t *testing.T) {
 	tm, _ := createTestTaskManager(t)
+	tm.store = newTestSQLiteStore(t) // writes need a database
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	server := &Server{
@@ -3207,5 +3215,47 @@ func TestHandleTasks_Delete_Dispatch(t *testing.T) {
 	// 404 because task doesn't exist, but the dispatch worked
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected 404 (task not found), got %d", w.Code)
+	}
+}
+
+func newTestSQLiteStore(t *testing.T) *Store {
+	t.Helper()
+	st, err := NewStore(filepath.Join(t.TempDir(), "kanban.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { st.Close() })
+	return st
+}
+
+// feedback rule: no database = read-only. Writes used to land in memory,
+// answer 201/200, and disappear on restart.
+func TestHandleTasks_NoDBRefusesWritesKeepsReads(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	server := &Server{sseClients: make(map[chan []byte]bool), ctx: ctx, cancel: cancel,
+		tasks: []Task{{ID: "seed-1", Title: "Seed", Status: "todo"}}}
+
+	body, _ := json.Marshal(Task{ID: "new-1", Title: "New", Status: "todo", Type: "task"})
+	w := httptest.NewRecorder()
+	server.handleTasks(w, httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewReader(body)))
+	if w.Code != http.StatusServiceUnavailable || !strings.Contains(w.Body.String(), "read-only") {
+		t.Errorf("POST without a database: %d %s, want 503 read-only", w.Code, w.Body.String())
+	}
+	if len(server.tasks) != 1 {
+		t.Errorf("POST without a database changed the in-memory board: %d tasks", len(server.tasks))
+	}
+
+	w = httptest.NewRecorder()
+	server.handleTasks(w, httptest.NewRequest(http.MethodGet, "/api/v1/tasks", nil))
+	if w.Code != http.StatusOK {
+		t.Errorf("GET without a database: %d, want 200 (reads stay open)", w.Code)
+	}
+
+	server.store = newTestSQLiteStore(t)
+	w = httptest.NewRecorder()
+	server.handleTasks(w, httptest.NewRequest(http.MethodPost, "/api/v1/tasks", bytes.NewReader(body)))
+	if w.Code != http.StatusCreated {
+		t.Errorf("POST with a database: %d, want 201", w.Code)
 	}
 }
