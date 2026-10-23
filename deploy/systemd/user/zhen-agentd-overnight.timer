@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Starts zhen-agentd's overnight window at 01:00 local time. Not
+# persistent: a night missed while west was off is skipped, not run in
+# the morning when Stevie may be using the GPU. Not enabled by the plan
+# (S-TWO-BRAINS Step 254 is Stevie's decision).
+
+[Unit]
+Description=Zhen: start the overnight card window at 01:00
+
+[Timer]
+OnCalendar=*-*-* 01:00
+Persistent=false
+
+[Install]
+WantedBy=timers.target
