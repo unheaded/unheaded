@@ -8,10 +8,10 @@
 // latency, and identifies anomalous flows.
 //
 // The correlation algorithm:
-// 1. Incoming trace entries are indexed by FiveTuple.
-// 2. For each entry, check if a reverse-direction flow exists.
-// 3. If matched, compute RTT from timestamps and emit a CorrelatedFlow.
-// 4. Stale flows are garbage-collected after a configurable TTL.
+//  1. Incoming trace entries are indexed by FiveTuple.
+//  2. When an entry opens a new direction whose reverse already exists, it
+//     is the first response: compute RTT and emit one CorrelatedFlow.
+//  3. Stale flows are garbage-collected after a configurable TTL.
 package main
 
 import (
@@ -154,54 +154,62 @@ func (pc *PacketCorrelator) Add(entry *TraceEntry) {
 		flow.PacketCount++
 		flow.ByteCount += uint64(entry.PacketLen)
 		flow.LastEntry = entry
-	} else {
-		// Create new flow
-		flow = &TrackedFlow{
-			FiveTuple:   ft,
-			FirstSeen:   entry.TimestampNS,
-			LastSeen:    entry.TimestampNS,
-			PacketCount: 1,
-			ByteCount:   uint64(entry.PacketLen),
-			TraceID:     entry.TraceID,
-			Direction:   FlowForward,
-			LastEntry:   entry,
-		}
-		pc.flows[ft] = flow
-		atomic.AddUint64(&pc.stats.FlowsCreated, 1)
-		correlatorFlowsActive.Set(float64(len(pc.flows)))
+		return
 	}
 
-	// Check for reverse direction flow (bidirectional match)
+	// Create new flow
+	flow = &TrackedFlow{
+		FiveTuple:   ft,
+		FirstSeen:   entry.TimestampNS,
+		LastSeen:    entry.TimestampNS,
+		PacketCount: 1,
+		ByteCount:   uint64(entry.PacketLen),
+		TraceID:     entry.TraceID,
+		Direction:   FlowForward,
+		LastEntry:   entry,
+	}
+	pc.flows[ft] = flow
+	atomic.AddUint64(&pc.stats.FlowsCreated, 1)
+	correlatorFlowsActive.Set(float64(len(pc.flows)))
+
+	// The first packet of a direction whose reverse is already tracked is
+	// the first response (SYN-ACK to the SYN): RTT is its time minus the
+	// request's first packet, and the pair is emitted once, here. It used
+	// to be emitted on every later packet with RTT = now - first request,
+	// i.e. the flow's age: 850 ms "RTTs" on loopback on east, a third of
+	// all traces.* records.
 	reverseFlow, reverseExists := pc.flows[reverseFT]
-	if reverseExists {
-		// Compute RTT: time between first packet in forward direction
-		// and first packet in reverse direction.
-		var rttNS uint64
-		if entry.TimestampNS > reverseFlow.FirstSeen {
-			rttNS = entry.TimestampNS - reverseFlow.FirstSeen
-		} else if reverseFlow.LastSeen > flow.FirstSeen {
-			rttNS = reverseFlow.LastSeen - flow.FirstSeen
-		}
+	if !reverseExists {
+		return
+	}
+	flow.Direction = FlowReverse
+	var rttNS uint64
+	if entry.TimestampNS > reverseFlow.FirstSeen {
+		rttNS = entry.TimestampNS - reverseFlow.FirstSeen
+	}
 
-		correlated := &CorrelatedFlow{
-			Forward:   flow,
-			Reverse:   reverseFlow,
-			RTTNS:     rttNS,
-			Matched:   true,
-			MatchedAt: entry.TimestampNS,
-		}
+	// Copies: later packets update the tracked flows under pc.mu while the
+	// publisher marshals this record without it.
+	request, response := *reverseFlow, *flow
+	request.LastEntry, response.LastEntry = nil, nil
+	correlated := &CorrelatedFlow{
+		Forward:   &request,
+		Reverse:   &response,
+		RTTNS:     rttNS,
+		Matched:   true,
+		MatchedAt: entry.TimestampNS,
+	}
 
-		// Emit correlated flow (non-blocking)
-		select {
-		case pc.out <- correlated:
-			atomic.AddUint64(&pc.stats.FlowsMatched, 1)
-			correlatorFlowsMatched.Inc()
-			if rttNS > 0 {
-				correlatorRTTHistogram.Observe(float64(rttNS) / 1e9)
-			}
-		default:
-			// Output channel full; drop
+	// Emit correlated flow (non-blocking)
+	select {
+	case pc.out <- correlated:
+		atomic.AddUint64(&pc.stats.FlowsMatched, 1)
+		correlatorFlowsMatched.Inc()
+		if rttNS > 0 {
+			correlatorRTTHistogram.Observe(float64(rttNS) / 1e9)
 		}
+	default:
+		// Output channel full; drop
 	}
 }
 

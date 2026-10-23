@@ -285,3 +285,35 @@ func TestCorrelatedFlow_ZeroRTT(t *testing.T) {
 		t.Errorf("RTTDuration = %v, want 0", cf.RTTDuration())
 	}
 }
+
+// A long-lived flow is one request/response pair: one correlated record,
+// RTT = first response - first request. On east every later packet emitted
+// another record with RTT = packet time - first request (the flow's age,
+// 849,639,808 ns on loopback 127.0.0.1:56636 <-> :18001).
+func TestPacketCorrelator_EmitsOncePerPairWithFirstResponseRTT(t *testing.T) {
+	pc := NewPacketCorrelator(DefaultPacketCorrelatorConfig())
+	lo := net.ParseIP("127.0.0.1")
+	const start = 888378126832187 // ktime from east's sample
+	pc.Add(makeTraceEntry(lo, lo, 56636, 18001, 6, start))
+	pc.Add(makeTraceEntry(lo, lo, 18001, 56636, 6, start+508305))
+	for i := uint64(1); i <= 50; i++ {
+		pc.Add(makeTraceEntry(lo, lo, 56636, 18001, 6, start+i*17_000_000))
+		pc.Add(makeTraceEntry(lo, lo, 18001, 56636, 6, start+i*17_000_000+400_000))
+	}
+
+	if n := len(pc.CorrelatedFlows()); n != 1 {
+		t.Fatalf("correlated records = %d, want 1", n)
+	}
+	cf := <-pc.CorrelatedFlows()
+	if cf.RTTNS != 508305 {
+		t.Errorf("RTTNS = %d, want 508305 (first response - first request)", cf.RTTNS)
+	}
+	if cf.Forward.FiveTuple.SrcPort != 56636 || cf.Reverse.FiveTuple.SrcPort != 18001 {
+		t.Errorf("forward/reverse = %d/%d, want request 56636 then response 18001",
+			cf.Forward.FiveTuple.SrcPort, cf.Reverse.FiveTuple.SrcPort)
+	}
+	// The record is a snapshot: later packets must not change it.
+	if cf.Forward.PacketCount != 1 || cf.Reverse.PacketCount != 1 {
+		t.Errorf("packet counts = %d/%d, want 1/1 at match time", cf.Forward.PacketCount, cf.Reverse.PacketCount)
+	}
+}
