@@ -91,3 +91,37 @@ func TestTaskManagerWrites_StoreSuccess(t *testing.T) {
 		t.Errorf("delete: %v", err)
 	}
 }
+
+// A task TaskManager rejects is the client's error. TaskManager wraps
+// ErrInvalidTask with the reason; the handlers compared with ==, so a bad
+// status or progress answered 500 Internal server error.
+func TestTaskManagerWrites_InvalidTaskIs400(t *testing.T) {
+	bad := createTestTask("new-card")
+	bad.Status = "someday"
+	create, _ := json.Marshal(bad)
+	bad.ID = "existing"
+	update, _ := json.Marshal(bad)
+
+	for _, tc := range []struct {
+		name, method, path string
+		body               []byte
+	}{
+		{"create", http.MethodPost, "/api/v1/tasks", create},
+		{"update", http.MethodPut, "/api/v1/tasks", update},
+		{"patch by id", http.MethodPut, "/api/v1/tasks/existing", []byte(`{"progress":250}`)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			s := storeBackedServer(t, &stubStore{})
+			w := httptest.NewRecorder()
+			r := httptest.NewRequest(tc.method, tc.path, bytes.NewReader(tc.body))
+			if tc.path == "/api/v1/tasks" {
+				s.handleTasks(w, r)
+			} else {
+				s.handleTaskByID(w, r)
+			}
+			if w.Code != http.StatusBadRequest {
+				t.Errorf("status = %d, want 400", w.Code)
+			}
+		})
+	}
+}

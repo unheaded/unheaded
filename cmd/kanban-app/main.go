@@ -662,10 +662,12 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		if err := s.taskManager.CreateTask(ctx, &task); err != nil {
 			log.Error().Err(err).Str("task_id", task.ID).Msg("failed to create task")
 
-			switch err {
-			case ErrTaskAlreadyExists:
+			// errors.Is: TaskManager wraps ErrInvalidTask with the reason, so
+			// `switch err` never matched it and a bad status was a 500.
+			switch {
+			case errors.Is(err, ErrTaskAlreadyExists):
 				http.Error(w, err.Error(), http.StatusConflict)
-			case ErrInvalidTask:
+			case errors.Is(err, ErrInvalidTask):
 				http.Error(w, err.Error(), http.StatusBadRequest)
 			default:
 				http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -731,10 +733,10 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		if err := s.taskManager.UpdateTask(ctx, &task); err != nil {
 			log.Error().Err(err).Str("task_id", task.ID).Msg("failed to update task")
 
-			switch err {
-			case ErrTaskNotFound:
+			switch {
+			case errors.Is(err, ErrTaskNotFound):
 				http.Error(w, err.Error(), http.StatusNotFound)
-			case ErrInvalidTask:
+			case errors.Is(err, ErrInvalidTask):
 				http.Error(w, err.Error(), http.StatusBadRequest)
 			default:
 				http.Error(w, "Internal server error", http.StatusInternalServerError)
@@ -1000,7 +1002,11 @@ func (s *Server) handleUpdateTaskByID(w http.ResponseWriter, r *http.Request, ta
 	// Save merged task
 	if s.taskManager != nil {
 		if err := s.taskManager.UpdateTask(r.Context(), task); err != nil {
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			if errors.Is(err, ErrInvalidTask) {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+			} else {
+				http.Error(w, "Internal server error", http.StatusInternalServerError)
+			}
 			return
 		}
 	} else if s.store != nil {
