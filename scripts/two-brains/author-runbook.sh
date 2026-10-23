@@ -8,7 +8,7 @@
 #
 #   1. a fresh agent worktree $AGENT_WT_ROOT/runbook-<name>-<stamp> on branch
 #      zhen/runbook-<name>, holding the brief, docs/runbook-briefs/SCHEMA.md,
-#      two exemplar runbooks and the runbook's test (a stub if not written yet)
+#      one exemplar runbook and the runbook's test (a stub if not written yet)
 #   2. local draft: zhen-claude -route local -family runbook-draft, judged by
 #      run_check runbook-check in the sandbox, up to 2 revisions
 #   3. the harness, not a model, decides: the repo's own checker on the draft
@@ -106,7 +106,8 @@ if [[ -z "$RESUME" ]]; then
 	cp "$BRIEF" "$WT/docs/runbook-briefs/$NAME.md"
 	cp "$R/docs/runbook-briefs/SCHEMA.md" "$WT/docs/runbook-briefs/SCHEMA.md"
 	cp "$R/runbooks/data/postgresql-backup-restore.yaml" "$WT/runbooks/data/"
-	cp "$R/runbooks/deploy/rolling-upgrade.yaml" "$WT/runbooks/deploy/"
+	# One exemplar since R5: with both, a long brief left qwen-coder-14b
+	# (8k context) ~1.5k tokens to answer in, and three 10-minute timeouts.
 	if [[ -f "$R/$TEST" ]]; then cp "$R/$TEST" "$WT/$TEST"; else
 		printf '# dry-run test stub for %s (the executing session writes the real one)\n' "$REL" >"$WT/$TEST"
 	fi
@@ -128,7 +129,7 @@ families:
     local_model: qwen-coder-14b
     local_attempts: 1
     escalate_on: []
-    max_claude_usd: 0.40
+    max_claude_usd: 0.60
 default: {route: claude_direct, max_claude_usd: 0.25}
 EOF
 fi
@@ -161,7 +162,7 @@ local_run() { # $1 = prompt, $2 = log name
 	set +e
 	(cd "$R" && "${ZC[@]}" -route local -family runbook-draft -worktree "$WT" -run-check runbook-check -check-path "$REL" \
 		-routing "$WORK/routing.yaml" -checks "$R/configs/zhen-checks.yaml" -local-url "$LOCAL_URL" \
-		-local-max-tokens 3000 -local-timeout 10m -capture "$CAPTURE" -p "$1") >"$WORK/$2.json" 2>"$WORK/$2.log"
+		-local-max-tokens 3000 -local-timeout 20m -capture "$CAPTURE" -p "$1") >"$WORK/$2.json" 2>"$WORK/$2.log"
 	set -e
 	python3 -c 'import json,sys
 try: print(json.loads(open(sys.argv[1]).read().strip().splitlines()[-1]).get("local_attempts", 0))
