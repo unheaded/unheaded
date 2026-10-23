@@ -24,6 +24,7 @@ func noCredentials(t *testing.T) {
 
 func baseArgs(t *testing.T) []string {
 	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // never read the operator's zhen-claude.conf
+	t.Setenv("ZHEN_SECRET_SCANNER", stubScanner(t))
 	return []string{"-ledger", filepath.Join(t.TempDir(), "spend.json"), "-project-root", t.TempDir()}
 }
 
@@ -83,4 +84,16 @@ func TestUsageErrors(t *testing.T) {
 	if code := run(append(baseArgs(t), "-dry-run", "-daily-cap-usd", "-3", "-p", "x"), strings.NewReader(""), &out, &errb); code != 1 {
 		t.Errorf("negative cap: exit %d", code)
 	}
+}
+
+// stubScanner is a secret scanner that finds nothing, so tests do not
+// depend on gitleaks being installed. The privacy package's own tests use
+// the real one.
+func stubScanner(t *testing.T) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "scanner")
+	if err := os.WriteFile(p, []byte("#!/bin/sh\ncat >/dev/null\necho '[]'\n"), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	return p
 }

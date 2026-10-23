@@ -1,0 +1,13 @@
+diff -ruN a/lib.go b/lib.go
+--- a/lib.go	2026-10-23 10:35:50.991624560 +0000
++++ b/lib.go	2026-10-23 10:35:50.991649120 +0000
+@@ -9,6 +9,9 @@
+ func Retry(ctx context.Context, attempts int, f func() error) error {
+ 	var err error
+ 	for i := 0; i < attempts; i++ {
++		if cerr := ctx.Err(); cerr != nil {
++			return cerr
++		}
+ 		if err = f(); err == nil {
+ 			return nil
+ 		}

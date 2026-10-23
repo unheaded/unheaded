@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: akira-status
+  description: Show Akira's consensus band
+  owner: micromanager
+  risk: low
+  requires_sudo: false
+
+steps:
+  - name: band
+    action: shell
+    command: echo akira status: $(curl -sf http://localhost:19100/health)
+    verify: "curl -sf -o /dev/null http://localhost:19100/health"

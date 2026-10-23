@@ -28,6 +28,7 @@ The UPC is a virtual CPU implemented in the eBPF runtime. Monad packets are the 
 - [[Unheaded Protocol|Unheaded-Protocol]] — Monad + Sophia + Wotan + MBC + Shim + PQC tied together
 - [[Dream Ladder|UPC-Dream-Ladder]] — six-level ascent (L1→L6), per-level status
 - [[Linux on UPC|Linux-on-UPC]] — ASCEND-LINUX: interactive shell + FS reader (Phase 1 complete 2026-07-02), owned kernel (2026-07-07), EVOLUTION-1
+- [[UPC Cartridges|UPC-Cartridges]] — signed MBC network functions run per flow by `cartridge-ebpf` (ADR-108, Proposed): format, signing, registry, load/swap, metrics
 - [[Doom on UPC|Doom-on-UPC]] — L3 computational-completeness proof
 
 ## The Protocol (specifications)
@@ -155,6 +156,10 @@ Full record: [[Timeline]] (`references/timeline.md`).
 ## AI
 
 - [[Zhen AI|Zhen-AI]]
+- [[Zhen Audit|Zhen-Audit]]
+- [[Zhen Confirmation|Zhen-Confirmation]]
+- [[Zhen Privacy Tiers|Zhen-Privacy-Tiers]]
+- [[Zhen Routing|Zhen-Routing]]
 
 ## Lore & Naming
 

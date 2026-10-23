@@ -28,6 +28,58 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 ---
 
+## PHASE 0 FINDINGS (2026-10-23, recorded at Step 23)
+
+**Execution base**: this sprint runs on worktree base `f1d1f412` (sprint lead's explicit
+override of the plan's `443de3f82`). All code prerequisites listed in "Grounded on" are
+present at `f1d1f412`. Branch `sprint/lich-awakens` tracks HEAD and is force-updated after
+every commit. Never pushes; never touches develop/staging/main.
+
+**Preflight hypothesis results:**
+
+| # | Result | Evidence |
+|---|--------|----------|
+| H1 | **TRUE** | All four Sprint-2 legs present at base: `local_llm` (`raft/zhen_mcp_server.py`), `-route auto` (`cmd/zhen-claude/route.go` `runAuto`/`routeAuto`), `IssuePendingConfirmation` (`pkg/champion/confirm.go`), spend `Ledger`/`Reserve` (`pkg/claudebridge/spend.go`). **E0 does NOT fire.** |
+| H2 | **TRUE** | `go build ./pkg/claudebridge/... ./pkg/champion/...` OK; gate tests green. `AcceptToolCall` refuses mutating + untrusted-justification pending-confirmation (Rule 2). |
+| H3 | **NO_KEY** (expected) | `ANTHROPIC_API_KEY` unset. No live API in P0–P3. Claude driver (Phase 6, out of this chunk) defaults `-dry-run`. |
+| H4 | **TRUE** | LXD client+server 5.21.8 reachable. |
+| H5 | **TRUE** | Lich harness 001 clean: ~28K execs/sec, new-interesting 0, **0 crashes**. |
+| H6 | **TRUE** | `monad-mbc` 67 tests pass + 3 fuzz targets (decode/execute/roundtrip); eBPF `monad-cpu-ebpf` path exists → differential oracle feasible (Phase 7, later). |
+| H7 | **TRUE** | `cmd/compliance-evidence findings` → "14 open (2 high, 4 medium, 8 low)". |
+| H8 | **PASS (HARD gate)** | No-egress **proven unprivileged** via `unshare -rn`: inside the netns LOOPBACK_OK, egress route+connect BLOCKED, no default route; host itself reaches 1.1.1.1 (proves the block is the namespace, not a dead host). **No E1.** |
+
+**Step 8 scope note**: NOT taken — H1 is fully TRUE (both `local_llm` and `-route auto`
+already shipped on this base). The Sprint-2 prerequisite is met; Phase 4 wiring (out of
+this chunk's P0–P3 scope) is the lead's.
+
+**Step 22 topology DECISION (recommendation taken, no Stevie override present)**: build a
+**separate `cmd/lich-mcp` server** exposing the Lich tools over **stdio only (no TCP
+port)**, with the tool logic in a reusable **`pkg/lichtools`** implementing
+`zhentools.Provider`. Not folded into `raft/zhen_mcp_server.py` (blast-radius isolation;
+Go reuse of `pkg/champion`/`pkg/claudebridge`; independent start/stop = part of the kill
+switch).
+
+**Step 24 SCOPE LOCK (enforced server-side, never by prompt)**: a valid target is ONLY
+(a) an LXD container whose name starts with `lich-sbx-`, OR (b) a local fuzz harness under
+`tomb/lich/harnesses/`. Nothing else: no network/host target, no path outside
+`$PROJECT_ROOT` or the sandbox. Allowlist lives in `configs/lich-mcp.yaml`, read
+server-side; a driver's prompt can never widen it.
+
+**Confinement substrate decision (H4 TRUE + H8 proven)**: LXD is available, but creating
+LXD containers / nftables rules / persistent host state is an **[ESCALATE]** per the
+sprint lead's SAFETY brief. This build therefore uses the **unprivileged fallback**
+(`unshare` user+net namespace with no egress + rlimits; `bwrap`/`systemd-run --user` where
+useful) as the default `netnsSandbox`, with the `lxdSandbox` path present but gated behind
+operator opt-in. No-egress is proven by a test that tries to reach the network and must
+fail (H8).
+
+**Sprint-2 confirmation flow status**: the out-of-band confirm *redemption* UX is Sprint 2's
+(`sprint/two-brains`, in progress). For P0–P3 the Champion gate's *refusal*
+(`PendingConfirmation=true`) is what we build and test against; wiring the human-approval
+round trip is Phase 4 (NOT started here). Recorded as **pending, not a blocker**.
+
+---
+
 ## LEGEND
 
 ```
@@ -119,10 +171,11 @@ Pre-existing (from next.md S17 + repo state at 443de3f82):
 - ADR-098 register at 443de3f82: run `cmd/compliance-evidence findings` in Step 20 and paste the exact "N open" line here as the baseline count. New findings this sprint files are ADDITIONS, not regressions.
 - LICH-012 is OPEN (config convergence); CTF activation rule is therefore NOT met — Phase 10 stays design-only.
 
-Fill in at Step 3–4 (do not guess):
-- go test ./... baseline: ____ ok / ____ fail   (record failing packages verbatim)
-- $LICH/lich-runner.sh --harness 001 --time 30s: ____ (crashes: ____)
-- cmd/compliance-evidence findings: "____ open (____ high, ____ medium, ____ low)"
+Filled at Step 3–4 (2026-10-23, worktree base f1d1f412 — this execution's base per sprint lead's override of the plan's 443de3f82 reference; all prerequisites present at f1d1f412):
+- go build ./...: exit 0 (clean).
+- go test ./... baseline: 207 ok / 0 fail (19 "no test files"). No failing packages.
+- $LICH/lich-runner.sh --harness 001 --time 30s: ran FuzzMonadWireParse + FuzzMonadWireRoundtrip at ~28K execs/sec, "new interesting: 0", crashes: 0 (crashes/ empty).
+- cmd/compliance-evidence findings: "14 open (2 high, 4 medium, 8 low)", 0 accepted, 0 overdue. New findings this sprint files are ADDITIONS to this count, not regressions.
 ```
 
 ---

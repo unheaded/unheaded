@@ -1075,58 +1075,64 @@ impl Translator {
                     1 | 2 | 3 | 5 | 6 | 7 => {
                         // CSRRW / CSRRS / CSRRC / CSRRWI / CSRRSI / CSRRCI.
                         // Memory-mapped CSR region per ADR-067 Decision 2.
+                        //
+                        // No scratch register (S5, ADR-067 implementation note):
+                        // `map_register` maps all 16 MBC registers to live RV
+                        // registers, so the old r12/r13/r14 scratch clobbered
+                        // a4/a5/ra on every CSR op (the S1.2 sscratch=0x7ff bug).
+                        // Only r0 is free: it is architecturally zero, and the
+                        // translator already writes it transiently (rd=x0 +
+                        // guard_zero_dst). Async interrupts are never delivered
+                        // between the MBC words of one RV instruction in the
+                        // ascend build (the BPF timer is cfg-gated off), and Doom
+                        // has no CSR instructions.
+                        //
+                        // Supported:
+                        //   * read  (CSRRS/CSRRC rs1=x0, CSRRSI/CSRRCI uimm=0):
+                        //     RISC-V says no write happens. Address built in rd
+                        //     itself, then LD rd,[rd]. rd=x0 → no-op.
+                        //   * CSRRW rd, csr, rs1 with rs1≠x0 and mbc(rd)≠mbc(rs1):
+                        //     address in r0, LD rd (if rd≠x0), ST rs1, r0 ← 0.
+                        // Rejected fail-closed (UnsupportedInstruction — a future
+                        // image using them breaks the build, not the boot):
+                        //   * CSRRS/CSRRC with rs1≠x0, CSRRSI/CSRRCI with uimm≠0,
+                        //     CSRRWI, CSRRW with rs1=x0, CSRRW with mbc(rd)==mbc(rs1).
+                        //   None of these occur in any built image (S5 H-S3).
+                        let unsupported = TranslateError::UnsupportedInstruction {
+                            pc,
+                            opcode: opcode as u8,
+                            funct3,
+                            funct7,
+                        };
                         let mbc_rd = self.map_register(rd)?;
                         let csr_addr = imm_bits;
                         let csr_byte_addr = 0x0000_F000u32 + csr_addr * 4;
 
-                        // Scratch reg r12 for the byte address of the CSR.
-                        // (r12-r13 are caller-saved + outside the RV32 a/s alloc set.)
-                        let csr_ptr = 12u8;
-                        self.emit_load32(csr_ptr, csr_byte_addr);
-
-                        // Source value: either rs1 (variants 1/2/3) or 5-bit
-                        // zero-extended immediate from rs1 field (variants 5/6/7).
-                        let imm_variant = funct3 >= 5;
-                        let src_reg = if imm_variant {
-                            // Load rs1 (5-bit) as immediate into r13.
-                            let tmp = 13u8;
-                            self.emit(op::MOVI, tmp, 0, rs1 as u16);
-                            tmp
-                        } else {
-                            self.map_register(rs1)?
-                        };
-
-                        // Read CSR (always; even CSRRW with rd=x0 is harmless).
-                        if mbc_rd != 0 {
-                            self.emit(op::LD, mbc_rd, csr_ptr, 0);
-                        }
-
                         match funct3 {
-                            1 | 5 => {
-                                // CSRRW(I): write src_reg to CSR.
-                                self.emit(op::ST, csr_ptr, src_reg, 0);
+                            2 | 3 | 6 | 7 if rs1 == 0 => {
+                                // Pure read: rs1=x0 / uimm=0 → never writes the CSR.
+                                if mbc_rd != 0 {
+                                    self.emit_load32(mbc_rd, csr_byte_addr);
+                                    self.emit(op::LD, mbc_rd, mbc_rd, 0);
+                                }
                             }
-                            2 | 6 => {
-                                // CSRRS(I): CSR |= src_reg.
-                                let tmp = 13u8;
-                                self.emit(op::LD, tmp, csr_ptr, 0);
-                                self.emit(op::OR, tmp, src_reg, 0);
-                                self.emit(op::ST, csr_ptr, tmp, 0);
+                            1 => {
+                                if rs1 == 0 {
+                                    return Err(unsupported);
+                                }
+                                let mbc_rs1 = self.map_register(rs1)?;
+                                if mbc_rd != 0 && mbc_rd == mbc_rs1 {
+                                    return Err(unsupported);
+                                }
+                                self.emit_load32(0, csr_byte_addr);
+                                if mbc_rd != 0 {
+                                    self.emit(op::LD, mbc_rd, 0, 0);
+                                }
+                                self.emit(op::ST, 0, mbc_rs1, 0);
+                                self.emit(op::MOVI, 0, 0, 0);
                             }
-                            3 | 7 => {
-                                // CSRRC(I): CSR &= ~src_reg.
-                                let tmp = 13u8;
-                                let mask = 14u8;
-                                self.emit(op::MOV, mask, src_reg, 0);
-                                self.emit(op::NOT, mask, 0, 0);
-                                self.emit(op::LD, tmp, csr_ptr, 0);
-                                self.emit(op::AND, tmp, mask, 0);
-                                self.emit(op::ST, csr_ptr, tmp, 0);
-                            }
-                            _ => unreachable!(),
+                            _ => return Err(unsupported),
                         }
-
-                        self.guard_zero_dst(rd);
                     }
                     4 => {
                         return Err(TranslateError::UnsupportedInstruction {
@@ -1974,24 +1980,33 @@ mod tests {
     }
 
     #[test]
-    fn test_translate_csrrs_emits_or_into_csr() {
-        // CSRRS x10, mstatus, x11 — read mstatus → x10, then mstatus |= x11.
-        // Translator emits LOAD_IMM32 + LD + LD + OR + ST sequence for the RMW.
+    fn test_translate_csrrs_with_rs1_is_rejected() {
+        // CSRRS x10, mstatus, x11 (set bits). S5: the RMW needs a scratch
+        // register and every MBC register is a live RV register, so the
+        // translator fails closed. No built image uses this form (H-S3).
         let csrrs = rv32i_csrrs(0x300, 11, 10);
         let result = Translator::translate_program(&[csrrs]);
-        assert!(result.is_ok(), "CSRRS translate: {:?}", result.err());
-        let mbc = result.unwrap();
+        assert!(
+            matches!(
+                result.as_ref().map_err(|e| e.as_slice()),
+                Err([TranslateError::UnsupportedInstruction { .. }])
+            ),
+            "CSRRS rs1!=x0 must be rejected, got {:?}",
+            result
+        );
+    }
+
+    #[test]
+    fn test_translate_csrr_is_load_only() {
+        // csrr a0, mstatus (CSRRS rs1=x0): RISC-V says no CSR write.
+        // Expect MOVI a0,0xFC00 ; LD a0,[a0] — no ST, no scratch.
+        let csrr = rv32i_csrrs(0x300, 0, 10);
+        let mbc = Translator::translate_program(&[csrr]).expect("csrr translates");
         let opcodes: Vec<u8> = mbc.iter().map(|w| MbcInsn(*w).opcode()).collect();
-        assert!(
-            opcodes.contains(&op::OR),
-            "CSRRS should emit OR for the bit-set RMW; got {:?}",
-            opcodes
-        );
-        assert!(
-            opcodes.contains(&op::ST),
-            "CSRRS should emit ST to write back the OR'd value; got {:?}",
-            opcodes
-        );
+        assert_eq!(opcodes, vec![op::MOVI, op::LD], "got {:?}", opcodes);
+        for w in &mbc {
+            assert_eq!(MbcInsn(*w).dst(), 8, "only a0 (r8) is written");
+        }
     }
 
     // ── map_register: ABI mapping + ASCEND-LINUX x16-x31 spill-shadow ────

@@ -303,3 +303,6 @@ db/migrations/init.sh
 *.tfstate.backup
 .terragrunt-cache/
 
+
+# Lich MCP out-of-band confirmation tickets + local runtime state (never committed)
+/var/lich/

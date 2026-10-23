@@ -1,0 +1,12 @@
+diff -ruN a/lib.go b/lib.go
+--- a/lib.go	2026-10-23 10:35:50.989068514 +0000
++++ b/lib.go	2026-10-23 10:35:50.989092344 +0000
+@@ -9,7 +9,7 @@
+ }
+ 
+ // NewRegistry returns an empty registry.
+-func NewRegistry() *Registry { return &Registry{} }
++func NewRegistry() *Registry { return &Registry{ports: map[string]int{}} }
+ 
+ // Add records a service.
+ func (r *Registry) Add(name string, port int) { r.ports[name] = port }

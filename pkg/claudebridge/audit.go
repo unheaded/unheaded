@@ -30,6 +30,13 @@ type RequestRecord struct {
 	Duration        time.Duration
 	Err             string // "" on success; set when refused before sending or failed
 	Sent            bool   // false when refused before anything reached the API
+
+	// Routing context (S-TWO-BRAINS). Zero values keep the old behaviour:
+	// the auditor's own backend, no family, no route reason.
+	Backend     string // "claude" or "local"; "" = the auditor's default
+	TaskFamily  string // eval/routing family, e.g. "repo-task"
+	RouteReason string // llm_requests.route_reason
+	Redactions  int    // values the privacy tier redacted from this request
 }
 
 // ToolRecord summarises one tool call. The input is recorded by size and
@@ -48,6 +55,11 @@ type ToolRecord struct {
 	OutputBytes  int
 	Truncated    bool
 	Duration     time.Duration
+	Model        string // model that asked for the call (actor in audit_events)
+	Backend      string // "claude" or "local"; "" = the auditor's default
+	Redactions   int    // values the privacy tier redacted from the result
+	Tier         string // privacy tier of the result: T0, T1, T2 ("" = no filter)
+	PrivacyMode  string // standard or strict ("" = no filter)
 }
 
 // Auditor receives every request and tool call. Implementations must be
@@ -84,6 +96,7 @@ func (a SlogAuditor) Request(ctx context.Context, r RequestRecord) {
 		slog.Any("unpriced_models", r.UnpricedModels),
 		slog.Duration("duration", r.Duration),
 		slog.Bool("sent", r.Sent),
+		slog.Int("redactions", r.Redactions),
 		slog.String("error", r.Err),
 	)
 }
@@ -107,6 +120,21 @@ func (a SlogAuditor) ToolCall(ctx context.Context, r ToolRecord) {
 		slog.String("input_sha256", r.InputSHA256),
 		slog.Int("output_bytes", r.OutputBytes),
 		slog.Bool("truncated", r.Truncated),
+		slog.Int("redactions", r.Redactions),
+		slog.String("tier", r.Tier),
+		slog.String("privacy_mode", r.PrivacyMode),
 		slog.Duration("duration", r.Duration),
+	)
+}
+
+// Confirmation implements ConfirmAuditor.
+func (a SlogAuditor) Confirmation(ctx context.Context, r ConfirmRecord) {
+	a.Log.LogAttrs(ctx, slog.LevelInfo, "claude_confirmation",
+		slog.String("conversation", r.Conversation),
+		slog.String("tool", r.Tool),
+		slog.String("action", r.Action),
+		slog.String("queue_id", r.QueueID),
+		slog.String("call_sha256", r.CallSHA256),
+		slog.String("decided_by", r.DecidedBy),
 	)
 }

@@ -70,6 +70,10 @@ var MutatingTools = map[string]bool{
 	"runbook_execute": true,
 	"system_command":  true,
 	"model_switch":    true, // ADR-060: kills+respawns llama-server subprocess
+	// Lich MCP (S-LICH-AWAKENS, ADR-098): writes the findings register, so it
+	// is mutating and — with no retrieval justification from a model — always
+	// pending-confirmation (Rule 2). Never auto-publishes.
+	"lich_file_finding": true,
 }
 
 // ReadOnlyTools is the canonical list of read-only tool names. Used to
@@ -88,6 +92,24 @@ var ReadOnlyTools = map[string]bool{
 	// loads go through model_switch and switch-model.sh's fit check),
 	// writes nothing, and its answer goes back to the caller as text.
 	"local_llm": true,
+	// Lich MCP (S-LICH-AWAKENS, ADR-062/063). list/show/read/triage read the
+	// Lich framework and crash artifacts — plainly read-only. lich_run_harness
+	// executes a fuzzer, but ONLY inside a confined, no-egress sandbox with a
+	// server-clamped duration (pkg/lichtools): its control is server-side scope
+	// + confinement, not per-call human confirmation, so the gate treats it as
+	// non-mutating. (lich_file_finding is mutating — see MutatingTools.)
+	"lich_list_campaigns": true,
+	"lich_show_campaign":  true,
+	"lich_read_crash":     true,
+	"lich_triage":         true,
+	"lich_run_harness":    true,
+	// lich_local_llm (S-LICH-AWAKENS Phase 4): one completion from the local
+	// llama-server for MINOR-weight seed/mutation drafting. It loads nothing,
+	// writes nothing, costs no dollars, and stays on the host — read-only.
+	"lich_local_llm": true,
+	// run_check (S-TWO-BRAINS Step 161): runs an allowlisted check in a
+	// sandbox inside an agent worktree; it changes nothing outside it.
+	"run_check": true,
 }
 
 // destructivePattern matches any of the destructive shell-verb forms
@@ -254,8 +276,11 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 		return decision, fmt.Errorf("tool call denied: %s", decision.Reason)
 	}
 
-	// Rule 2: mutating + untrusted justification.
-	if tc.IsMutating() && tc.HasUntrustedJustification() {
+	// Rule 2: mutating + untrusted justification, unless branch-sandbox
+	// mode answers it (branchsandbox.go: write_file/patch_file inside a
+	// zhen/<name> agent worktree; Rules 1 and 3 still apply).
+	sandboxJustification, sandboxed := c.branchSandboxAllows(tc)
+	if tc.IsMutating() && tc.HasUntrustedJustification() && !sandboxed {
 		var reason string
 		if len(tc.Justification) == 0 {
 			reason = fmt.Sprintf("mutating tool %q has empty justification chain; requires out-of-band user confirmation (fail-closed: agent could not produce a retrieval-derived rationale for the call)", tc.Name)
@@ -275,6 +300,9 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 
 	// Rule 1: existing path-allowlist for path-bearing tools.
 	if path, ok := tc.Args["path"].(string); ok {
+		if tc.Name == "run_check" {
+			path = c.runCheckRulePath(path)
+		}
 		if err := c.validatePath(path); err != nil {
 			decision := ToolCallDecision{
 				Allow:  false,
@@ -287,8 +315,12 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 		}
 	}
 
+	accepted := summarizeArgs(tc.Args)
+	if sandboxed {
+		accepted = sandboxJustification + " " + accepted
+	}
 	c.completeAction(ctx, actionID, "accepted",
-		summarizeArgs(tc.Args), "",
+		accepted, "",
 		time.Since(start))
 	return ToolCallDecision{Allow: true}, nil
 }

@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# Lich MCP server policy (S-LICH-AWAKENS). Read server-side at startup; a tool
+# argument a model controls can NEVER override anything here. This is the whole
+# allowlist and the whole resource envelope.
+#
+# NO SECRETS. Credentials are never stored in the repo or its config — they are
+# read from the environment with a fail-loud guard. An api_key/secret/token key
+# here is a hard startup error (lichtools.ErrSecretInConfig).
+
+scope:
+  # A valid sandbox target is an LXD container whose name starts with this
+  # prefix (ephemeral containers the server creates). Nothing else.
+  sandbox_prefix: "lich-sbx-"
+  # A valid harness target is a three-digit harness under this directory,
+  # resolved against the project root. No network or host target, ever.
+  harness_dir: "tomb/lich/harnesses"
+  # Crash artifacts are read only from under this tree.
+  results_dir: "tomb/lich/results"
+  # The local-model driver (Phase 5) writes seeds only under this tree.
+  seeds_dir: "tomb/lich/seeds"
+
+# Out-of-band confirmation tickets (Phase 4). A mutating tool (lich_file_finding)
+# refused pending-confirmation parks a ticket here; an operator approves it with
+# `lich-mcp confirm approve <id>`. This is the operator's own 0700 directory; the
+# approval binds to the exact call and never travels through any model.
+pending_dir: "var/lich/pending"
+
+# The already-running llama-server (OpenAI-compatible) the local_llm tool and the
+# local-model driver ask. It is NEVER started or swapped from here (model loads
+# go through scripts/switch-model.sh's fit check). Free of dollar cost.
+local_llm_url: "http://127.0.0.1:8081"
+local_llm_model: "local"
+
+# Per-sandbox resource envelope. A target with no explicit limit gets these.
+# Swap is never counted (no-OOM-from-UI-actions rule); a fit check runs first.
+limits:
+  cpu: 1.0
+  mem_bytes: 536870912   # 512 MiB
+  pids: 256
+  timeout_seconds: 60
+
+# Network namespace with no egress that every target runs inside.
+netns: "lich-noegress"
+
+# Touch this file (or send SIGTERM/SIGINT) to halt: stop accepting calls, reap
+# every live sandbox, and refuse new spawns.
+kill_switch_file: "/run/lich-mcp.halt"
+
+# Host-resource cap: never more than this many live sandboxes at once, so a
+# driver asking for 100 runs cannot fork-bomb the host.
+max_live_sandboxes: 2
+
+# A driver's requested fuzz duration is clamped into [min, max] seconds
+# server-side. The model cannot ask for an unbounded run.
+min_fuzz_seconds: 5
+max_fuzz_seconds: 300
+
+# Require free RAM >= mem_bytes * this before Spawn, or refuse (ErrWontFit).
+mem_fit_safety: 1.2
+
+# Hard daily spend cap (USD) for the Claude driver (ADR-104). Local-model calls
+# are free and skip this but still count a compute-budget tick.
+daily_cap_usd: 5.0
+
+findings:
+  # Findings are NEVER auto-published. A human confirms, and regeneration of the
+  # ADR-098 register is left to the operator post-signing.
+  auto_publish: false
+  register: "compliance/findings/register.yaml"

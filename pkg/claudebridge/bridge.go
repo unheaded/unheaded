@@ -21,12 +21,17 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
 	"github.com/anthropics/anthropic-sdk-go/shared/constant"
+
+	"unheaded/pkg/champion"
+	"unheaded/pkg/claudebridge/privacy"
+	"unheaded/pkg/zhentools"
 )
 
 // Defaults. The model and effort follow the claude-api skill: Claude Opus
@@ -92,6 +97,19 @@ type Config struct {
 	Prices    *PriceTable
 	Ledger    *Ledger
 	Auditor   Auditor // default: discard
+	// Confirmer decides calls the gate refused pending confirmation
+	// (Champion Rule 2) out of band. nil or DenyConfirmer: refused, as
+	// before Phase 2. See confirm.go.
+	Confirmer Confirmer
+	// Privacy classifies, redacts and (for large ops payloads)
+	// summarises the user prompt and every tool result before they are
+	// sent (S-TWO-BRAINS Phase 3). nil: no filtering (library tests);
+	// zhen-claude always sets it. ProjectRoot is the sandbox it
+	// classifies file reads against.
+	Privacy     *privacy.Filter
+	ProjectRoot string
+	// Warn, if set, receives operator warnings (never content).
+	Warn func(msg string)
 
 	// Credentials reports which credential the client will use and fails
 	// when there is none. Default CredentialSource.
@@ -206,6 +224,17 @@ type Conversation struct {
 	b        *Bridge
 	id       string
 	messages []anthropic.BetaMessageParam
+
+	family      string // task family for the audit (S-TWO-BRAINS routing)
+	routeReason string // llm_requests.route_reason for every request
+
+	redactions atomic.Int64 // since the last request: prompt + tool results
+}
+
+// SetRoute labels every later request of this conversation, in the audit
+// records, with a task family and the reason it reached Claude.
+func (c *Conversation) SetRoute(family, reason string) {
+	c.family, c.routeReason = family, reason
 }
 
 // NewConversation starts an empty conversation.
@@ -225,6 +254,8 @@ type Reply struct {
 	ServedBy   string
 	Requests   int
 	Cost       NanoUSD
+	// Token totals over the turn's requests.
+	InputTokens, OutputTokens int64
 }
 
 // Send adds prompt as a user turn and runs the tool loop until Claude
@@ -233,6 +264,19 @@ type Reply struct {
 func (c *Conversation) Send(ctx context.Context, prompt string) (*Reply, error) {
 	if strings.TrimSpace(prompt) == "" {
 		return nil, errors.New("claudebridge: empty prompt")
+	}
+	if f := c.b.cfg.Privacy; f != nil {
+		red, counts, err := f.Prompt(ctx, prompt)
+		if err != nil {
+			return nil, fmt.Errorf("claudebridge: privacy filter refused the prompt (nothing sent): %w", err)
+		}
+		if n := counts.Total(); n > 0 {
+			c.redactions.Add(int64(n))
+			if c.b.cfg.Warn != nil {
+				c.b.cfg.Warn(fmt.Sprintf("redacted %d value(s) from the prompt before sending (%s)", n, counts))
+			}
+		}
+		prompt = red
 	}
 	start := len(c.messages)
 	c.messages = append(c.messages, anthropic.NewBetaUserMessage(anthropic.NewBetaTextBlock(prompt)))
@@ -370,7 +414,9 @@ func (c *Conversation) loop(ctx context.Context) (*Reply, error) {
 func (c *Conversation) request(ctx context.Context, iter int, reply *Reply) (*anthropic.BetaMessage, error) {
 	b := c.b
 	params := b.params(c.messages)
-	rec := RequestRecord{Conversation: c.id, Iteration: iter, Model: b.cfg.Model}
+	rec := RequestRecord{Conversation: c.id, Iteration: iter, Model: b.cfg.Model,
+		Backend: BackendClaude, TaskFamily: c.family, RouteReason: c.routeReason,
+		Redactions: int(c.redactions.Swap(0))}
 
 	need, err := b.reservation(params)
 	if err != nil {
@@ -404,6 +450,8 @@ func (c *Conversation) request(ctx context.Context, iter int, reply *Reply) (*an
 	rec.Cost, rec.DaySpent = cost, day
 	reply.Cost += cost
 	reply.Requests++
+	reply.InputTokens += msg.Usage.InputTokens + msg.Usage.CacheReadInputTokens + msg.Usage.CacheCreationInputTokens
+	reply.OutputTokens += msg.Usage.OutputTokens
 
 	rec.MessageID = msg.ID
 	rec.ServedBy = string(msg.Model)
@@ -466,7 +514,10 @@ func assistantText(msg *anthropic.BetaMessage) string {
 
 // runTools runs every tool_use block in msg concurrently, each through
 // the gate, and returns one tool_result per call in the order Claude
-// asked. A failure is an is_error result, never a dropped one.
+// asked. A failure is an is_error result, never a dropped one. Calls the
+// gate refused pending confirmation are then put to the Confirmer one at
+// a time, in the order Claude asked, so the human sees one prompt after
+// another.
 func (c *Conversation) runTools(ctx context.Context, msg *anthropic.BetaMessage) []anthropic.BetaContentBlockParamUnion {
 	var uses []anthropic.BetaContentBlockUnion
 	for _, block := range msg.Content {
@@ -475,54 +526,91 @@ func (c *Conversation) runTools(ctx context.Context, msg *anthropic.BetaMessage)
 		}
 	}
 	results := make([]anthropic.BetaContentBlockParamUnion, len(uses))
+	pending := make([]*toolRun, len(uses))
 	var wg sync.WaitGroup
 	for i, u := range uses {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			results[i] = c.runTool(ctx, u.ID, u.Name, u.Input, string(msg.Model))
+			results[i], pending[i] = c.runTool(ctx, u.ID, u.Name, u.Input, string(msg.Model))
 		}()
 	}
 	wg.Wait()
+	for i, run := range pending {
+		if run != nil {
+			results[i] = c.confirm(ctx, run)
+		}
+	}
 	return results
 }
 
-func (c *Conversation) runTool(ctx context.Context, id, name string, input json.RawMessage, model string) anthropic.BetaContentBlockParamUnion {
+// toolRun is one tool call in flight: its audit record and what the
+// Confirmer needs if the gate refused it pending confirmation.
+type toolRun struct {
+	b       *Bridge
+	rec     ToolRecord
+	t0      time.Time
+	id      string
+	input   json.RawMessage
+	owner   owner
+	refused *RefusedError
+	model   string
+}
+
+func (r *toolRun) finish(ctx context.Context, text string, isError bool) anthropic.BetaContentBlockParamUnion {
+	text, r.rec.Truncated = truncateUTF8(text, r.b.cfg.MaxToolResultBytes)
+	if text == "" {
+		text = "(no output)"
+	}
+	r.rec.IsError = isError
+	r.rec.OutputBytes = len(text)
+	r.rec.Duration = time.Since(r.t0)
+	r.b.cfg.Auditor.ToolCall(ctx, r.rec)
+	if r.b.cfg.OnToolResult != nil {
+		r.b.cfg.OnToolResult(ToolTrace{Record: r.rec, Input: r.input, Output: text})
+	}
+	return anthropic.NewBetaToolResultBlock(r.id, text, isError)
+}
+
+// confirmable reports whether a refusal may go to the Confirmer: a
+// Confirmer other than DenyConfirmer is set, and the tool is one of the
+// Champion's own (MCP mutating tools stay refused).
+func (b *Bridge) confirmable(p zhentools.Provider) bool {
+	if b.cfg.Confirmer == nil {
+		return false
+	}
+	if _, deny := b.cfg.Confirmer.(DenyConfirmer); deny {
+		return false
+	}
+	_, ok := p.(*champion.ToolProvider)
+	return ok
+}
+
+// runTool gates and runs one call. It returns either the tool_result or,
+// for a refusal that can be confirmed out of band, a toolRun for confirm.
+func (c *Conversation) runTool(ctx context.Context, id, name string, input json.RawMessage, model string) (anthropic.BetaContentBlockParamUnion, *toolRun) {
 	b := c.b
 	sum := sha256.Sum256(input)
-	rec := ToolRecord{
+	run := &toolRun{b: b, t0: time.Now(), id: id, input: input, model: model, rec: ToolRecord{
 		Conversation: c.id,
 		ToolUseID:    id,
 		Name:         name,
 		InputBytes:   len(input),
 		InputSHA256:  hex.EncodeToString(sum[:]),
-	}
-	t0 := time.Now()
-	finish := func(text string, isError bool) anthropic.BetaContentBlockParamUnion {
-		text, rec.Truncated = truncateUTF8(text, b.cfg.MaxToolResultBytes)
-		if text == "" {
-			text = "(no output)"
-		}
-		rec.IsError = isError
-		rec.OutputBytes = len(text)
-		rec.Duration = time.Since(t0)
-		b.cfg.Auditor.ToolCall(ctx, rec)
-		if b.cfg.OnToolResult != nil {
-			b.cfg.OnToolResult(ToolTrace{Record: rec, Input: input, Output: text})
-		}
-		return anthropic.NewBetaToolResultBlock(id, text, isError)
-	}
+		Model:        model,
+	}}
 
 	own, ok := b.tools.owners[name]
 	if !ok {
-		rec.Decision, rec.Reason = "unknown_tool", "no provider offers this tool"
-		return finish(fmt.Sprintf("unknown tool %q", name), true)
+		run.rec.Decision, run.rec.Reason = "unknown_tool", "no provider offers this tool"
+		return run.finish(ctx, fmt.Sprintf("unknown tool %q", name), true), nil
 	}
-	rec.Provider = own.provider
+	run.owner = own
+	run.rec.Provider = own.provider
 	var obj map[string]json.RawMessage
 	if err := json.Unmarshal(input, &obj); err != nil || obj == nil {
-		rec.Decision, rec.Reason = "bad_input", "input is not a JSON object"
-		return finish("tool input must be a JSON object", true)
+		run.rec.Decision, run.rec.Reason = "bad_input", "input is not a JSON object"
+		return run.finish(ctx, "tool input must be a JSON object", true), nil
 	}
 
 	res, err := b.cfg.Gate.Execute(ctx, ToolCall{
@@ -535,17 +623,109 @@ func (c *Conversation) runTool(ctx context.Context, id, name string, input json.
 	var refused *RefusedError
 	switch {
 	case errors.As(err, &refused):
-		rec.Decision, rec.Reason, rec.Pending = "refused", refused.Reason, refused.PendingConfirmation
-		return finish(refused.Error(), true)
+		run.rec.Decision, run.rec.Reason, run.rec.Pending = "refused", refused.Reason, refused.PendingConfirmation
+		if refused.PendingConfirmation && b.confirmable(own.p) {
+			run.refused = refused
+			return anthropic.BetaContentBlockParamUnion{}, run
+		}
+		return run.finish(ctx, refused.Error(), true), nil
 	case err != nil:
-		rec.Decision, rec.Reason = "error", err.Error()
-		return finish("tool failed: "+err.Error(), true)
+		run.rec.Decision, run.rec.Reason = "error", firstLine(err.Error())
+		text, isErr := c.filter(ctx, run, "tool failed: "+err.Error(), true)
+		return run.finish(ctx, text, isErr), nil
 	case res.IsError:
-		rec.Decision, rec.Reason = "error", firstLine(res.Text)
-		return finish(res.Text, true)
+		run.rec.Decision, run.rec.Reason = "error", firstLine(res.Text)
+		text, isErr := c.filter(ctx, run, res.Text, true)
+		return run.finish(ctx, text, isErr), nil
 	default:
-		rec.Decision = "allowed"
-		return finish(res.Text, false)
+		run.rec.Decision = "allowed"
+		text, isErr := c.filter(ctx, run, res.Text, false)
+		return run.finish(ctx, text, isErr), nil
+	}
+}
+
+// confirm puts a refused-pending call to the Confirmer and records each
+// step. The text Claude gets never carries a code or a token.
+func (c *Conversation) confirm(ctx context.Context, run *toolRun) anthropic.BetaContentBlockParamUnion {
+	var args map[string]any
+	if err := json.Unmarshal(run.input, &args); err != nil {
+		run.rec.Decision = "bad_input"
+		return run.finish(ctx, "tool input must be a JSON object", true)
+	}
+	req := ConfirmRequest{
+		Conversation: c.id, ToolUseID: run.id, Tool: run.rec.Name, Args: args,
+		EmittedBy: "claude-api/" + run.model + "/" + c.id, Model: run.model,
+		Reason: run.refused.Reason, Provider: run.owner.p,
+	}
+	out := c.b.cfg.Confirmer.Confirm(ctx, req)
+	c.auditConfirm(ctx, run, out)
+	run.rec.Decision = out.Decision
+	run.rec.Pending = out.Decision == "queued"
+	if out.Decision != "approved" {
+		run.rec.Reason = firstLine(out.Text)
+	}
+	text := out.Text
+	if text == "" {
+		text = run.refused.Error()
+	}
+	isErr := out.IsError
+	if out.Decision == "approved" {
+		text, isErr = c.filter(ctx, run, text, isErr)
+	}
+	return run.finish(ctx, text, isErr)
+}
+
+// filter passes a tool's output through the privacy tier. Whatever goes
+// wrong, Claude gets an is_error saying the result was withheld, never
+// the raw text.
+func (c *Conversation) filter(ctx context.Context, run *toolRun, text string, isErr bool) (string, bool) {
+	f := c.b.cfg.Privacy
+	if f == nil {
+		return text, isErr
+	}
+	var args map[string]any
+	_ = json.Unmarshal(run.input, &args)
+	out, o, err := f.ToolResult(ctx, run.rec.Name, args, c.b.cfg.ProjectRoot, text)
+	run.rec.Tier, run.rec.PrivacyMode = o.Tier.String(), string(o.Mode)
+	n := o.Counts.Total()
+	run.rec.Redactions = n
+	c.redactions.Add(int64(n))
+	switch {
+	case errors.Is(err, privacy.ErrWithheld):
+		run.rec.Decision, run.rec.Reason = "withheld", "user data"
+		return "withheld: user data (zero user data access); this result never leaves the host", true
+	case errors.Is(err, privacy.ErrStrictWithheld):
+		run.rec.Decision, run.rec.Reason = "withheld", "privacy mode strict"
+		return "withheld: Kingdom ops data is not sent in privacy mode strict", true
+	case err != nil:
+		run.rec.Decision, run.rec.Reason = "withheld", "privacy filter failed"
+		return "withheld: the privacy filter could not check this result, so it was not sent", true
+	}
+	if o.Summarised || o.SummaryUnavailable {
+		run.rec.Truncated = true
+	}
+	return out, isErr
+}
+
+func (c *Conversation) auditConfirm(ctx context.Context, run *toolRun, out ConfirmOutcome) {
+	ca, ok := c.b.cfg.Auditor.(ConfirmAuditor)
+	if !ok {
+		return
+	}
+	base := ConfirmRecord{Conversation: c.id, Model: run.model, Tool: run.rec.Name, QueueID: out.QueueID, CallSHA256: out.SHA256}
+	switch out.Decision {
+	case "queued":
+		base.Action = "confirm_issue"
+		ca.Confirmation(ctx, base)
+	case "approved", "denied", "failed":
+		issue := base
+		issue.Action = "confirm_issue"
+		ca.Confirmation(ctx, issue)
+		base.Action = "confirm_deny"
+		if out.Decision == "approved" {
+			base.Action = "confirm_approve"
+		}
+		ca.Confirmation(ctx, base)
 	}
 }
 

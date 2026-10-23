@@ -1,0 +1,14 @@
+diff -ruN a/lib.go b/lib.go
+--- a/lib.go	2026-10-23 10:35:50.985212511 +0000
++++ b/lib.go	2026-10-23 10:35:50.985239791 +0000
+@@ -11,7 +11,9 @@
+ // WriteReport writes one line per entry to w.
+ func WriteReport(w io.Writer, lines []string) error {
+ 	for _, l := range lines {
+-		fmt.Fprintln(w, l)
++		if _, err := fmt.Fprintln(w, l); err != nil {
++			return err
++		}
+ 	}
+ 	return nil
+ }

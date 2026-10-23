@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"unheaded/pkg/champion"
+	"unheaded/pkg/claudebridge"
 )
 
 // POST /api/v1/tool/exec — direct Champion tool dispatch.
@@ -55,6 +56,15 @@ import (
 //	400     → {"status": "unknown"|"used"|"expired"|"error", "reason": "..."}
 //	403     → {"status": "denied",                "reason": "..."}
 //	403     → {"status": "pending_confirmation",  "pending_token": "...", "reason": "..."}
+//	202     → {"status": "queued",                "queue_id": "<16 hex>", "reason": "..."}
+//
+// A refused-pending call from an agent loop (emitted_by starting with
+// "zhen-agent") never gets a token: the caller is a model, and a token
+// returned to it would let it approve itself. It is queued in the Well
+// instead (-confirm-queue), for Stevie to decide with
+// `zhen-claude confirm approve <id>`; without the queue it is denied.
+// Only direct callers (the web UI, emitted_by "direct" or a UI name) get
+// a pending_token for /api/v1/agent/confirm.
 //
 // Note: this endpoint does NOT auto-redeem its own pending tokens.
 // If Champion's gate refuses with rule-2, the response carries the
@@ -74,7 +84,13 @@ type toolExecResponse struct {
 	Result       any    `json:"result,omitempty"`
 	Reason       string `json:"reason,omitempty"`
 	PendingToken string `json:"pending_token,omitempty"`
+	QueueID      string `json:"queue_id,omitempty"`
 	SessionID    string `json:"session_id,omitempty"`
+}
+
+// isAgentLoop reports whether a /tool/exec caller is a model loop.
+func isAgentLoop(emittedBy string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(emittedBy)), "zhen-agent")
 }
 
 func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
@@ -125,7 +141,20 @@ func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
 	// `source_trust: "direct-user"` as the escape from "untrusted
 	// justification" — see pkg/champion/toolcall.go HasUntrustedJustification.
 	justification := req.Justification
-	if len(justification) == 0 {
+	agentLoop := isAgentLoop(req.EmittedBy)
+	if agentLoop {
+		// A model loop is never the direct user: it gets no default
+		// direct-user trust and cannot assert one (S-TWO-BRAINS Step 86).
+		// Its mutating calls are refused pending confirmation (Rule 2).
+		kept := justification[:0:0]
+		for _, ref := range justification {
+			if ref.SourceTrust != "direct-user" {
+				kept = append(kept, ref)
+			}
+		}
+		justification = kept
+	}
+	if len(justification) == 0 && !agentLoop {
 		justification = []champion.Reference{{
 			Topic:       "tool-exec-direct-user",
 			Category:    "user-action",
@@ -172,6 +201,10 @@ func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
 	// Classify the error: gate refusal vs underlying tool failure.
 	var ge *champion.GateError
 	if errors.As(dispatchErr, &ge) {
+		if ge.PendingConfirmation() && isAgentLoop(emittedBy) {
+			s.queueAgentCall(w, r, champ, tc, req.SessionID, ge)
+			return
+		}
 		if ge.PendingConfirmation() {
 			// Rule 2 untrusted justification → issue a pending token.
 			tok, terr := champ.IssuePendingConfirmation(tc)
@@ -208,4 +241,38 @@ func (s *server) handleToolExec(w http.ResponseWriter, r *http.Request) {
 		Reason:    dispatchErr.Error(),
 		SessionID: req.SessionID,
 	})
+}
+
+// queueAgentCall queues an agent loop's refused-pending call in the Well
+// and answers with its id only.
+func (s *server) queueAgentCall(w http.ResponseWriter, r *http.Request, champ *champion.Champion, tc champion.ToolCall, session string, ge *champion.GateError) {
+	if s.confirmQueue == nil {
+		writeJSON(w, http.StatusForbidden, toolExecResponse{
+			Status:    "denied",
+			Reason:    ge.Error() + "; agent-loop writes are queued for approval only when zhen-agentd runs with -confirm-queue",
+			SessionID: session,
+		})
+		return
+	}
+	cp, err := champion.NewToolProvider(champ, tc.EmittedBy)
+	if err != nil {
+		writeJSONError(w, http.StatusInternalServerError, "champion provider: %v", err)
+		return
+	}
+	qc := &claudebridge.QueueConfirmer{Champion: champ, Queue: s.confirmQueue, Pub: s.confirmPub, Source: "zhen-agentd"}
+	out := qc.Confirm(r.Context(), claudebridge.ConfirmRequest{
+		Conversation: session, Tool: tc.Name, Args: tc.Args, EmittedBy: tc.EmittedBy, Reason: ge.Error(), Provider: cp,
+	})
+	if out.Decision != "queued" {
+		writeJSON(w, http.StatusForbidden, toolExecResponse{Status: "denied", Reason: out.Text, SessionID: session})
+		return
+	}
+	confirmQueued.Inc()
+	if s.confirmAudit != nil {
+		s.confirmAudit.Confirmation(r.Context(), claudebridge.ConfirmRecord{
+			Conversation: session, Model: tc.EmittedBy, Tool: tc.Name, Action: "confirm_issue",
+			QueueID: out.QueueID, CallSHA256: out.SHA256, Source: "zhen-agentd",
+		})
+	}
+	writeJSON(w, http.StatusAccepted, toolExecResponse{Status: "queued", QueueID: out.QueueID, Reason: out.Text, SessionID: session})
 }

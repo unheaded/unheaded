@@ -1,0 +1,56 @@
+{"all_of": [], "any_of": ["xargs", "\\bsed\\b", "\\[\\[:space:\\]\\]", "\\bawk\\b", "##\\*", "%%\\*", "\\bread\\b", "tr -d"], "id": "syntax-bash"}
+{"all_of": ["\\[[^\\]\\n]*\\bfor\\b[^\\]\\n]*\\bin\\b"], "any_of": ["loop", "concise|readab|compact"], "id": "syntax-python"}
+{"all_of": ["if\\s+err\\s*!=\\s*nil"], "any_of": [], "id": "syntax-go"}
+{"all_of": ["\\.parse(::<|\\(\\))"], "any_of": ["Result", "match", "\\?", "unwrap_or", "Err\\("], "id": "syntax-rust"}
+{"all_of": ["<button"], "any_of": [], "id": "syntax-html"}
+{"all_of": ["center"], "any_of": ["display:\\s*flex", "display:\\s*grid", "place-items", "translate\\(\\s*-50%"], "id": "syntax-css"}
+{"all_of": ["\\bfetch\\("], "any_of": ["\\bawait\\b", "\\.then\\("], "id": "syntax-javascript"}
+{"all_of": ["quot"], "any_of": ["set -[a-z]*e", "pipefail", "\\|\\|\\s*(exit|die|\\{)", "error handling|check (the )?(exit|return)"], "id": "review-bash"}
+{"all_of": ["bare\\s*`?except|except\\s*:"], "any_of": ["except Exception", "specific exception", "KeyboardInterrupt", "SystemExit", "JSONDecodeError|ValueError|OSError|FileNotFoundError|IOError"], "id": "review-python"}
+{"all_of": ["ignor|discard|drop|swallow|unchecked|not (being )?(checked|handled)|silently|blank identifier"], "any_of": ["return(s|ing)?\\s+(an?\\s+|the\\s+)?err", "\\berror\\)"], "id": "review-go"}
+{"all_of": ["unwrap", "panic|Result"], "any_of": ["\\?", "ParseIntError", "match", "Result<"], "id": "review-rust"}
+{"all_of": ["\\balt\\b"], "any_of": [], "id": "review-html"}
+{"all_of": ["translate|flex|grid"], "any_of": [], "id": "review-css"}
+{"all_of": ["==="], "any_of": [], "id": "review-javascript"}
+{"all_of": ["/dev/fd|file descriptor|named pipe|fifo|file ?name|as (a|if it were a) file"], "any_of": ["subshell", "\\bdiff\\b", "variable"], "id": "hard-syntax-bash"}
+{"all_of": ["nonlocal", "global", "enclosing|nested|closure|outer"], "any_of": [], "id": "hard-syntax-python"}
+{"all_of": ["select", "default"], "any_of": [], "id": "hard-syntax-go"}
+{"all_of": ["&str", "prefer|idiomatic|accept|flexib"], "any_of": [], "id": "hard-syntax-rust"}
+{"all_of": ["<dialog"], "any_of": ["showModal", "focus", "native|built-in", "accessib", "Escape|Esc\\b", "backdrop", "inert"], "id": "hard-syntax-html"}
+{"all_of": [":has\\("], "any_of": ["parent", "ancestor", "contains"], "id": "hard-syntax-css"}
+{"all_of": ["allSettled", "reject"], "any_of": ["short-circuit", "fail(s)? fast", "first (rejection|reject)", "immediately", "status", "fulfilled"], "id": "hard-syntax-javascript"}
+{"all_of": ["subshell", "pipefail"], "any_of": ["inside", "PIPESTATUS", "propagat", "inherit"], "id": "hard-review-bash"}
+{"all_of": ["mutable default|default (argument|parameter|value)", "None|shared|same list|persist"], "any_of": [], "id": "hard-review-python"}
+{"all_of": ["loop variable|loop var|captur|closure"], "any_of": ["1\\.22", "item := item|shadow", "argument|parameter", "func\\(\\w+ "], "id": "hard-review-go"}
+{"all_of": ["deadlock"], "any_of": ["lock", "guard", "re-?entr", "drop"], "id": "hard-review-rust"}
+{"all_of": ["noopener"], "any_of": [], "id": "hard-review-html"}
+{"all_of": ["position"], "any_of": ["static", "relative", "positioned", "stacking context"], "id": "hard-review-css"}
+{"all_of": ["setTimeout", "race|defer|timing|event loop|not (a )?(real )?fix|fragile|doesn.t (actually )?(fix|synchron)|does not (actually )?(fix|synchron)"], "any_of": ["await", "promise", "event", "callback", "then"], "id": "hard-review-javascript"}
+{"all_of": ["declare -n|nameref"], "any_of": ["reference", "indirect", "by name", "pass"], "id": "expert-syntax-bash"}
+{"all_of": ["__slots__", "memory|__dict__"], "any_of": [], "id": "expert-syntax-python"}
+{"all_of": ["cmp\\.Ordered|constraints\\.Ordered|Ordered interface|~int"], "any_of": ["\\[T\\s+\\w"], "id": "expert-syntax-go"}
+{"all_of": ["associated type", "generic"], "any_of": ["one implementation|once per type|single implementation", "multiple implementations|implement(ed)? (it )?(more than once|multiple times|for (several|many|different))", "Iterator"], "id": "expert-syntax-rust"}
+{"all_of": ["aria-live|live region"], "any_of": ["screen reader", "assistive", "announc"], "id": "expert-syntax-html"}
+{"all_of": ["@container"], "any_of": ["container-type", "container-name"], "id": "expert-syntax-css"}
+{"all_of": ["Symbol\\.iterator"], "any_of": ["next\\(", "function\\*", "\\*\\[Symbol\\.iterator\\]", "yield"], "id": "expert-syntax-javascript"}
+{"all_of": ["race|TOCTOU|time[- ]of[- ]check"], "any_of": ["symlink", "mktemp -d", "mv -T", "atomic"], "id": "expert-review-bash"}
+{"all_of": ["threading\\.Lock|Lock\\(\\)|with .{0,30}lock|mutex"], "any_of": ["race", "not atomic", "compound", "check.{0,40}then"], "id": "expert-review-python"}
+{"all_of": ["concurrent map|map .{0,40}concurren|data race|\\brace\\b"], "any_of": ["sync\\.Mutex", "sync\\.RWMutex", "sync\\.Map", "mutex"], "id": "expert-review-go"}
+{"all_of": ["(across|over|while|through).{0,40}\\.?await|await.{0,40}(guard|lock)"], "any_of": ["tokio::sync::Mutex", "drop", "scope"], "id": "expert-review-rust"}
+{"all_of": ["autocomplete"], "any_of": ["ignor", "new-password", "one-time-code", "password manager"], "id": "expert-review-html"}
+{"all_of": ["100vh"], "any_of": ["dvh", "svh", "lvh", "innerHeight", "URL bar|address bar|toolbar|browser chrome", "dynamic viewport"], "id": "expert-review-css"}
+{"all_of": ["await"], "any_of": ["unhandled", "reject", "before .{0,40}(complete|finish)", "promise"], "id": "expert-review-javascript"}
+{"all_of": ["nohup", "2>&1|&>"], "any_of": ["&\\s*$", "disown", "setsid", " &\\s"], "id": "prod-syntax-bash"}
+{"all_of": ["ContextVar"], "any_of": ["async", "asyncio", "coroutine", "task"], "id": "prod-syntax-python"}
+{"all_of": ["Shutdown\\(", "signal\\.Notify"], "any_of": ["context\\.WithTimeout"], "id": "prod-syntax-go"}
+{"all_of": ["RwLock", "Mutex"], "any_of": ["read-heavy", "many readers", "multiple readers", "concurrent reads", "reads (dominate|outnumber)", "mostly read"], "id": "prod-syntax-rust"}
+{"all_of": ["Content-Security-Policy|\\bCSP\\b"], "any_of": ["default-src\\s+'self'", "default-src\\s+'none'"], "id": "prod-syntax-html"}
+{"all_of": ["prefers-reduced-motion"], "any_of": ["@media"], "id": "prod-syntax-css"}
+{"all_of": ["AbortController", "signal"], "any_of": ["abort\\(\\)", "AbortSignal\\.timeout", "setTimeout"], "id": "prod-syntax-javascript"}
+{"all_of": ["disk full|ENOSPC|no space|partial(ly)? writ|write (error|fail)|truncated"], "any_of": ["atomic", "rename", "\\bmv\\b", "tmp|temp", "check", "sync"], "id": "prod-review-bash"}
+{"all_of": ["timeout"], "any_of": ["forever", "hang", "indefinite", "block"], "id": "prod-review-python"}
+{"all_of": ["r\\.Context\\(\\)|request('s)? context|req\\.Context"], "any_of": ["cancel", "deadline", "disconnect"], "id": "prod-review-go"}
+{"all_of": ["(hold|held|holding).{0,60}(lock|guard)|(lock|guard).{0,60}(across|over|during).{0,20}await"], "any_of": ["drop", "clone", "scope", "granular|per-key"], "id": "prod-review-rust"}
+{"all_of": ["\\bPOST\\b"], "any_of": ["CSRF", "cross-site request", "anti-forgery", "token", "logged", "history", "cache"], "id": "prod-review-html"}
+{"all_of": ["transform"], "any_of": ["layout", "reflow", "repaint", "jank", "composit"], "id": "prod-review-css"}
+{"all_of": ["localStorage"], "any_of": ["XSS", "httpOnly", "cookie", "synchronous", "main thread", "IndexedDB"], "id": "prod-review-javascript"}

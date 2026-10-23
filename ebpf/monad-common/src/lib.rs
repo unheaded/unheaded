@@ -135,6 +135,12 @@ pub mod fdtable;
 /// Pure token-bucket refill step used by `qos-ebpf` (unit-tested off-target).
 pub mod token_bucket;
 
+// ── S5 — MBC cartridges (ADR-108) ───────────────────────────────────────────
+
+/// Cartridge interpreter step, shared by `cartridge-ebpf` and the host
+/// reference so a run replays bit-for-bit (ADR-108).
+pub mod cart;
+
 // ── Monad Flags bitfield ──────────────────────────────────────────────────────
 
 /// Flags bitfield constants for [`Monad::flags`] (offset [`OFF_FLAGS`]).

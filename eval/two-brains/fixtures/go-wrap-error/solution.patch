@@ -1,0 +1,12 @@
+diff -ruN a/lib.go b/lib.go
+--- a/lib.go	2026-10-23 10:35:50.982478005 +0000
++++ b/lib.go	2026-10-23 10:35:50.982505115 +0000
+@@ -12,7 +12,7 @@
+ func LoadConfig(path string) ([]byte, error) {
+ 	b, err := os.ReadFile(path)
+ 	if err != nil {
+-		return nil, fmt.Errorf("load config %s: %v", path, err)
++		return nil, fmt.Errorf("load config %s: %w", path, err)
+ 	}
+ 	return b, nil
+ }

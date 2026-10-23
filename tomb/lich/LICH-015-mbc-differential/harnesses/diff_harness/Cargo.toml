@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# LICH-015 — MBC ISA-v2 differential harness (S-LICH-AWAKENS Phase 7).
+#
+# Drives the same MBC program through two implementations and reports the first
+# divergence:
+#   * reference interpreter   — `monad_mbc::ExecCpu` (crates/monad-mbc, execute.rs)
+#   * shipping-engine model    — `monad_common::cart::step` (ebpf/monad-common),
+#     byte-identical to the monad-cpu-ebpf instruction stream and proven
+#     `BPF == reference` on a live kernel by `pkg/cartridge` (S5 Phase 11).
+#
+# A standalone crate (there is no repo-root workspace). Path deps only; no new
+# third-party crate enters the tree (both are already present and built by
+# crates/upc-cartridge).
+[package]
+name = "lich015-diff-harness"
+version = "0.1.0"
+edition = "2021"
+description = "LICH-015 MBC reference-vs-eBPF differential harness (ADR-062/067/080)"
+license = "GPL-3.0-or-later"
+publish = false
+
+[[bin]]
+name = "diff_harness"
+path = "src/main.rs"
+
+[dependencies]
+monad-common = { path = "../../../../../ebpf/monad-common" }
+monad-mbc = { path = "../../../../../crates/monad-mbc" }

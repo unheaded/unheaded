@@ -77,9 +77,52 @@ func TestHandshake(t *testing.T) {
 	if err := c.Ping(context.Background()); err != nil {
 		t.Fatalf("Ping: %v", err)
 	}
-	// The server saw notifications/initialized before anything else.
-	if !strings.Contains(c.Diagnostics().Stderr, "got initialize\nfake: got notifications/initialized\n") {
+	// The server saw notifications/initialized before anything else. The server
+	// logs to its stderr pipe in stdin order, but that pipe is drained into the
+	// diagnostics tail buffer on a goroutine independent of the stdout response
+	// path, so Ping can return before the "initialized" line has been copied in.
+	// The single-shot read here was the TestHandshake timing flake; poll the
+	// snapshot instead. A genuinely wrong handshake order never appears, so this
+	// waits for the race window without masking a real failure.
+	if !eventuallyContains(c, wantHandshakeOrder, 3*time.Second) {
 		t.Fatalf("handshake order: %q", c.Diagnostics().Stderr)
+	}
+}
+
+// wantHandshakeOrder is the substring proving the server processed
+// notifications/initialized immediately after initialize.
+const wantHandshakeOrder = "got initialize\nfake: got notifications/initialized\n"
+
+// eventuallyContains polls the server-stderr diagnostics snapshot until it
+// contains want or the timeout elapses.
+func eventuallyContains(c *Client, want string, timeout time.Duration) bool {
+	deadline := time.Now().Add(timeout)
+	for {
+		if strings.Contains(c.Diagnostics().Stderr, want) {
+			return true
+		}
+		if time.Now().After(deadline) {
+			return false
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+// TestHandshakeOrderStable proves the fix: without the poll, reading the stderr
+// snapshot the instant Ping returns races the stderr-pipe copy goroutine and
+// fails intermittently. Repeating the full handshake many times would surface
+// that flake quickly on a single-shot read; with the bounded poll every
+// iteration is deterministic. Run with `-race -count=N` to exercise it.
+func TestHandshakeOrderStable(t *testing.T) {
+	for i := 0; i < 20; i++ {
+		c := startFake(t, "ok")
+		if err := c.Ping(context.Background()); err != nil {
+			t.Fatalf("iter %d Ping: %v", i, err)
+		}
+		if !eventuallyContains(c, wantHandshakeOrder, 3*time.Second) {
+			t.Fatalf("iter %d handshake order: %q", i, c.Diagnostics().Stderr)
+		}
+		_ = c.Close()
 	}
 }
 

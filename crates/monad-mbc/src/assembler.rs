@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 //! MBC assembler: converts human-readable assembly text to bytecode.
 //!
 //! Supports standard MBC mnemonics with two-pass assembly:
@@ -144,7 +145,21 @@ fn parse_instruction(line: &str, line_num: usize) -> Result<Option<AsmInsn>, Ass
     // Two-operand register instructions: ADD, SUB, MUL, etc.
     if matches!(
         mnemonic.as_str(),
-        "ADD" | "SUB" | "MUL" | "DIV" | "MOD" | "AND" | "OR" | "XOR" | "MOV" | "CMP"
+        "ADD"
+            | "SUB"
+            | "MUL"
+            | "DIV"
+            | "MOD"
+            | "AND"
+            | "OR"
+            | "XOR"
+            | "MOV"
+            | "CMP"
+            | "SHLR"
+            | "SHRR"
+            | "SARR"
+            | "MULH"
+            | "MULHU"
     ) {
         require_tokens!(2);
         let dst = parse_register(tokens[1].trim_end_matches(','))?;
@@ -161,6 +176,11 @@ fn parse_instruction(line: &str, line_num: usize) -> Result<Option<AsmInsn>, Ass
             "XOR" => op::XOR,
             "MOV" => op::MOV,
             "CMP" => op::CMP,
+            "SHLR" => op::SHLR,
+            "SHRR" => op::SHRR,
+            "SARR" => op::SARR,
+            "MULH" => op::MULH,
+            "MULHU" => op::MULHU,
             _ => unreachable!(),
         };
 
@@ -892,6 +912,21 @@ pub fn assemble(source: &str) -> Result<Vec<u32>, AssembleError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_assemble_register_shifts_and_mulh() {
+        // S5 Phase 10: cartridges use the register-operand shifts and MULH.
+        let words = assemble("SHLR r1, r2\nSHRR r3, r4\nSARR r5, r6\nMULH r7, r8\nMULHU r9, r10")
+            .expect("assembly should succeed");
+        let want = [
+            MbcInsn::encode(op::SHLR, 1, 2, 0).0,
+            MbcInsn::encode(op::SHRR, 3, 4, 0).0,
+            MbcInsn::encode(op::SARR, 5, 6, 0).0,
+            MbcInsn::encode(op::MULH, 7, 8, 0).0,
+            MbcInsn::encode(op::MULHU, 9, 10, 0).0,
+        ];
+        assert_eq!(words, want);
+    }
 
     #[test]
     fn test_assemble_simple() {

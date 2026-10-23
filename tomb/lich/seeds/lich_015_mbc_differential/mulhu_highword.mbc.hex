@@ -1,0 +1,5 @@
+# MULHU r0, r1 (opcode 0x3A). Reference interpreter NOPs this; monad-cpu-ebpf
+# writes the unsigned high word. Canonical reproducer: diff_harness mulhu-probe
+# (operands a=0x12345678 b=0x9ABCDEF0 set by the probe; the corpus arm cannot run
+# MULHU because cart::step faults on it by ADR-108 allowlist design).
+0x3A010000

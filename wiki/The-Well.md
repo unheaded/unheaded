@@ -22,9 +22,11 @@ The Well is Unheaded's PostgreSQL: one Postgres 16 cluster with three databases,
 | Database | Holds | Owner (NOLOGIN) |
 |---|---|---|
 | `unheaded_app` | kanban tasks, timeline milestones, Zhen conversations/memories/actions | `well_app_owner` |
-| `unheaded_ops` | service health, audit events, compliance evidence and findings | `well_ops_owner` |
+| `unheaded_ops` | service health, audit events, compliance evidence and findings, LLM request telemetry (`llm_requests`) | `well_ops_owner` |
 | `unheaded_config` | kingdom_config (+ history), service registry, compliance catalogue | `well_config_owner` |
 | `postgres` | `pg_stat_statements` only | `unheaded` |
+
+`unheaded_ops.llm_requests` (030) holds one append-only row per model request from either Zhen brain: counts, cost and timing, never text; written by `ops_writer` when `zhen-claude`/`zhen-agentd` run with `-audit-well`; no retention yet (small rows; time partitions when it grows). See [[Zhen Audit|Zhen-Audit]].
 
 Each database has its own `well_schema_migrations` ledger. The legacy `unheaded` database was dropped on 2026-10-15; its final dump is archived in `~/backups/well/2026-10-15/`.
 
@@ -33,7 +35,7 @@ Each database has its own `well_schema_migrations` ledger. The legacy `unheaded`
 | Role | Reaches | Used by |
 |---|---|---|
 | `app_kanban`, `app_timeguru`, `app_zhen` | `unheaded_app` (+ read `unheaded_config`) | kanban-app, timeguru, Zhen |
-| `ops_writer`, `ops_reader` | `unheaded_ops` | dashboard-backend, read views |
+| `ops_writer`, `ops_reader` | `unheaded_ops` | dashboard-backend, zhen-claude / zhen-agentd audit sinks (`llm_requests`, `audit_events`), read views |
 | `config_admin`, `config_reader` | `unheaded_config` | unheaded-daemon, services |
 | `huginn_reader` | all three, `pg_monitor`, 3 conns | Huginn |
 | `well_backup` | all, `pg_read_all_data`, 3 conns | backups, restore drill |

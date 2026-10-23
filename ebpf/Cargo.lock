@@ -115,6 +115,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "cartridge-ebpf"
+version = "0.1.0"
+dependencies = [
+ "aya-ebpf",
+ "monad-common",
+]
+
+[[package]]
 name = "compliance-ebpf"
 version = "0.1.0"
 dependencies = [

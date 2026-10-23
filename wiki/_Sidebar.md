@@ -86,6 +86,7 @@
 - [[Unheaded Protocol|Unheaded-Protocol]]
 - [[Dream Ladder|UPC-Dream-Ladder]]
 - [[Linux on UPC|Linux-on-UPC]]
+- [[UPC Cartridges|UPC-Cartridges]]
 - [[Doom on UPC|Doom-on-UPC]]
 - [[Doom over IPv6|Doom-over-IPv6]] *(legacy)*
 - [[Kingdom Mode Math|Kingdom-Mode-Math]]
@@ -103,6 +104,10 @@
 
 **AI**
 - [[Zhen AI|Zhen-AI]]
+- [[Zhen Audit|Zhen-Audit]]
+- [[Zhen Confirmation|Zhen-Confirmation]]
+- [[Zhen Privacy Tiers|Zhen-Privacy-Tiers]]
+- [[Zhen Routing|Zhen-Routing]]
 
 **Lore & Naming**
 - [[Lore Index|Lore-Index]]

@@ -1,0 +1,9 @@
+diff -ruN a/build.sh b/build.sh
+--- a/build.sh	2026-10-23 10:35:51.000501244 +0000
++++ b/build.sh	2026-10-23 10:35:51.000531374 +0000
+@@ -1,4 +1,4 @@
+ #!/usr/bin/env bash
+ dir="${1:-build}"
+-cd "$dir"
++cd "$dir" || exit 1
+ make all

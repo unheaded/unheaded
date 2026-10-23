@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: wotan-health
+  description: Check Wotan answers its health endpoint
+  owner: micromanager
+  risk: low
+  requires_sudo: false
+
+steps:
+  - name: http-health
+    action: shell
+    command: "curl -sf http://localhost:18000/health"
+    verify: "curl -sf -o /dev/null http://localhost:18000/health"
+
+   - name: grpc-port
+    action: shell
+    command: "ss -ltn | grep -q ':18001 '"
+    verify: "ss -ltn | grep ':18001 '"

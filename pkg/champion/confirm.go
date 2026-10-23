@@ -148,22 +148,10 @@ func (c *Champion) ConfirmPendingToolCall(ctx context.Context, token string) (an
 		return nil, err
 	}
 
-	// Run a stripped gate: Rules 3 and 1, but skip Rule 2.
-	if tc.HasDestructiveVerb() {
-		_, _ = c.logAction(ctx, "tool_call_confirmed_destructive_blocked",
-			fmt.Sprintf("ToolCall: %s (destructive arg even after user confirm)", tc.Name),
-			tc.EmittedBy)
-		return nil, fmt.Errorf("destructive shell verbs cannot be confirmed; refused")
-	}
-
-	// Path-allowlist for path-bearing tools.
-	if path, ok := tc.Args["path"].(string); ok {
-		if err := c.validatePath(path); err != nil {
-			_, _ = c.logAction(ctx, "tool_call_confirmed_path_denied",
-				fmt.Sprintf("ToolCall: %s (path denied even after user confirm)", tc.Name),
-				tc.EmittedBy)
-			return nil, fmt.Errorf("path-allowlist (still enforced after confirm): %w", err)
-		}
+	// Run a stripped gate: Rules 3 and 1, but skip Rule 2. Shared with
+	// ConfirmCall (confirmcall.go) so the two paths cannot drift.
+	if err := c.confirmedGate(ctx, tc); err != nil {
+		return nil, err
 	}
 
 	// Log that the user explicitly confirmed an untrusted-justification
