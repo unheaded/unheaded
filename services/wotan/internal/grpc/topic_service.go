@@ -140,6 +140,11 @@ func (s *TopicService) StreamTopics(
 	s.activeStreams.Add(1)
 	defer s.activeStreams.Add(-1)
 
+	// Every message from here on has a higher seq. A topic the watcher finds
+	// later replays its messages above this, which it took before the
+	// watcher subscribed (see watchTopicsForPattern).
+	startSeq := s.roomManager.LastSeq()
+
 	// Get initial list of topics matching the pattern
 	allRooms := s.roomManager.List()
 	var matchingTopics []string
@@ -191,7 +196,7 @@ func (s *TopicService) StreamTopics(
 	workers.Add(1)
 	go func() {
 		defer workers.Done()
-		s.watchTopicsForPattern(ctx, memberID, req.TopicPattern, subscriptions, eventChan, &workers)
+		s.watchTopicsForPattern(ctx, memberID, req.TopicPattern, startSeq, subscriptions, eventChan, &workers)
 	}()
 
 	// Replay historical messages if requested (SinceSeq >= 0 replays from that sequence)
@@ -310,6 +315,18 @@ func (s *TopicService) forwardTopicEvents(
 	sub *wotan.Subscription,
 	eventChan chan<- *topicEvent,
 ) {
+	s.forwardTopicEventsAfter(ctx, topic, sub, eventChan, 0)
+}
+
+// forwardTopicEventsAfter is forwardTopicEvents skipping created messages
+// with seq <= skipThrough: ones already replayed from the ring.
+func (s *TopicService) forwardTopicEventsAfter(
+	ctx context.Context,
+	topic string,
+	sub *wotan.Subscription,
+	eventChan chan<- *topicEvent,
+	skipThrough int64,
+) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -318,6 +335,9 @@ func (s *TopicService) forwardTopicEvents(
 		case event, ok := <-sub.Channel:
 			if !ok {
 				return
+			}
+			if skipThrough > 0 && event.Type == wotan.EventMessageCreated && event.Message.Seq <= skipThrough {
+				continue
 			}
 
 			// The seq the ring buffer assigned. A counter bumped here, once
@@ -360,10 +380,17 @@ func (s *TopicService) forwardTopicEvents(
 // and subscribes to them, sending TOPIC_SUBSCRIPTION_ADDED events. Each
 // forwarder it starts is counted in workers, so StreamTopics can wait for
 // all of them before tearing the subscriptions down.
+//
+// A topic's room is created by its first publish, and found here up to a
+// tick later, so what it took before the subscription (its first message
+// at least) had no subscriber to reach. Those messages, every one above
+// startSeq, are replayed from the ring before its forwarder starts; the
+// forwarder skips them if they also arrive live.
 func (s *TopicService) watchTopicsForPattern(
 	ctx context.Context,
 	memberID uuid.UUID,
 	pattern string,
+	startSeq int64,
 	subscriptions map[string]*wotan.Subscription,
 	eventChan chan<- *topicEvent,
 	workers *sync.WaitGroup,
@@ -414,11 +441,33 @@ func (s *TopicService) watchTopicsForPattern(
 							// Event channel buffer full, skip notification
 						}
 
+						// Replay after subscribing: a message pushed before the
+						// subscription is in the ring; one pushed after it
+						// arrives live (and is skipped if both).
+						var through int64
+						for _, msg := range rm.Buffer.GetAfter(startSeq, 0) {
+							select {
+							case eventChan <- &topicEvent{topic: rm.ID, pbEvent: &chatpb.TopicEvent{
+								Topic:     rm.ID,
+								MessageId: msg.ID.String(),
+								SenderId:  msg.CreatorID.String(),
+								Payload:   []byte(msg.Content),
+								CreatedAt: timestamppb.New(msg.Timestamp),
+								Seq:       msg.Seq,
+								Type:      chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED,
+								NodeId:    s.NodeID,
+							}}:
+							case <-ctx.Done():
+								return
+							}
+							through = msg.Seq
+						}
+
 						// Start forwarding events from this subscription
 						workers.Add(1)
 						go func(topic string) {
 							defer workers.Done()
-							s.forwardTopicEvents(ctx, topic, sub, eventChan)
+							s.forwardTopicEventsAfter(ctx, topic, sub, eventChan, through)
 						}(rm.ID)
 					}
 				}
