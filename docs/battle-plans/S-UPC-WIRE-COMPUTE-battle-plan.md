@@ -1083,52 +1083,79 @@ TDD evidence (red then green) · determinism property holds · fuzz clean · no 
 **Time**: ~5 h
 **Agent**: Coordinator + Developer (verifier iteration needs sudo)
 
-- [ ] **Step 275** [R] ~10m: Verifier lessons to obey (write them as comments at the top of `main.rs`): bounded loop with a const; one variable offset into a map per loop body; no `translate_address`-style helper inside the loop; masks on every map index; explicit field writes (no zero-init padding with BTF); const-gated debug code
-- [ ] **Step 276** [W][CODE] ~30m: `ebpf/cartridge-ebpf` crate skeleton (Cargo.toml, build.rs if `--btf` needed, SPDX), added to `ebpf/Cargo.toml` members; maps: `CART_ROM` Array<u32> (4 slots × 1024), `CART_DATA` Array<u32> (4 × 1024), `CART_SLOT` Array<SlotCfg> (active, stage, max_insn, gen, fault window), `FLOW_STATE` LruHashMap<FlowKey, CartState> (65,536), `SCORE_QUEUE` Queue<ScoreJob> (16,384), `CART_EVENTS` RingBuf 256 KiB, `CART_TRACE` RingBuf 1 MiB, `CART_STATS` PerCpuArray<u64>, `CART_CFG` Array<u64> (trace on/off, N_PKT override ≤ 64)
-- [ ] **Step 277** [W][CODE] ~45m: `cart_xdp`: parse Ethernet/IPv4/IPv6/TCP/UDP headers into the enumerated field table (Appendix C.3; no payload reads); FlowKey = 5-tuple hash; for each active XDP-stage slot (unrolled, ≤ 4): load `CartState` from `FLOW_STATE`, run ≤ N_PKT steps of `cart::step`, store state, apply the most restrictive verdict; fault → PASS + stats + breaker; trace record when `CART_CFG[trace]=1`
-- [ ] **Step 278** [W][CODE] ~30m: `cart_tick`: pop one `ScoreJob` (flow key + feature snapshot) or resume a yielded one; run ≤ N_TICK steps of the tick-stage slot; on VERDICT/EMIT push a score event to `CART_EVENTS`; YIELD → re-queue with state
-- [ ] **Step 279** [B][BUILD] ~3m: Build
+- [x] **Step 275** [R] ~10m: Verifier lessons to obey (write them as comments at the top of `main.rs`): bounded loop with a const; one variable offset into a map per loop body; no `translate_address`-style helper inside the loop; masks on every map index; explicit field writes (no zero-init padding with BTF); const-gated debug code
+  - S5 2026-10-23: Rules written at the top of `ebpf/cartridge-ebpf/src/main.rs` (+ rule 7, faults fail open).
+- [x] **Step 276** [W][CODE] ~30m: `ebpf/cartridge-ebpf` crate skeleton (Cargo.toml, build.rs if `--btf` needed, SPDX), added to `ebpf/Cargo.toml` members; maps: `CART_ROM` Array<u32> (4 slots × 1024), `CART_DATA` Array<u32> (4 × 1024), `CART_SLOT` Array<SlotCfg> (active, stage, max_insn, gen, fault window), `FLOW_STATE` LruHashMap<FlowKey, CartState> (65,536), `SCORE_QUEUE` Queue<ScoreJob> (16,384), `CART_EVENTS` RingBuf 256 KiB, `CART_TRACE` RingBuf 1 MiB, `CART_STATS` PerCpuArray<u64>, `CART_CFG` Array<u64> (trace on/off, N_PKT override ≤ 64)
+  - S5 2026-10-23: Crate + maps as planned, plus FLOW_META (FIELD 7-9), TICK_JOB (resume slot), BREAKER, ZERO_STATE (insert source). build.rs adds --btf (bpf_loop callbacks need BTF func_info).
+- [x] **Step 277** [W][CODE] ~45m: `cart_xdp`: parse Ethernet/IPv4/IPv6/TCP/UDP headers into the enumerated field table (Appendix C.3; no payload reads); FlowKey = 5-tuple hash; for each active XDP-stage slot (unrolled, ≤ 4): load `CartState` from `FLOW_STATE`, run ≤ N_PKT steps of `cart::step`, store state, apply the most restrictive verdict; fault → PASS + stats + breaker; trace record when `CART_CFG[trace]=1`
+  - S5 2026-10-23: cart_xdp as planned. The per-slot run is a global BPF function `cart_run_xdp_slot` and the step runs as a bpf_loop callback (see 283).
+- [x] **Step 278** [W][CODE] ~30m: `cart_tick`: pop one `ScoreJob` (flow key + feature snapshot) or resume a yielded one; run ≤ N_TICK steps of the tick-stage slot; on VERDICT/EMIT push a score event to `CART_EVENTS`; YIELD → re-queue with state
+  - S5 2026-10-23: cart_tick: one in-progress job in TICK_JOB (resumed while yielded, dropped if the slot's gen changed), else pop SCORE_QUEUE.
+- [x] **Step 279** [B][BUILD] ~3m: Build
   ```bash
   (cd "$EBPF" && cargo build --release -p cartridge-ebpf 2>&1 | tail -3)
   ```
-- [ ] **Step 280** [V] ~30s: Object produced
-- [ ] **Step 281** [B][S][TEST] ~5m: Verifier load + processed-insn count per program
+- [x] **Step 280** [V] ~30s: Object produced
+  - S5 2026-10-23: Object produced.
+- [x] **Step 281** [B][S][TEST] ~5m: Verifier load + processed-insn count per program
+  - S5 2026-10-23: bpftool cannot open Aya objects (legacy maps section; Step 144), so the count comes from cilium/ebpf with LogLevelStats: root-gated `TestLoad_VerifierBudget` in pkg/cartridge.
   ```bash
   sudo bpftool -d prog loadall "$EBPF/target/bpfel-unknown-none/release/cartridge-ebpf" /sys/fs/bpf/s5-cart 2>&1 | grep -E 'processed [0-9]+ insns' | tee "$S5/p11-verifier.txt"; sudo rm -rf /sys/fs/bpf/s5-cart
   ```
-- [ ] **Step 282** [V] ~1m: **VERIFIER-BUDGET GATE** — both programs load; each ≤ 500,000 processed insns (50% of the 1M ceiling, headroom for v1 features)
+- [x] **Step 282** [V] ~1m: **VERIFIER-BUDGET GATE** — both programs load; each ≤ 500,000 processed insns (50% of the 1M ceiling, headroom for v1 features)
+  - S5 2026-10-23: PASSED: cart_xdp 14,395, cart_tick 22,575 processed insns (gate 500,000 each).
   - Over → Step 283
-- [ ] **Step 283** [D] ~30m: Budget triage in order: (1) N_PKT 64→32, (2) slots 4→2, (3) move field parsing out of the loop into a fixed struct, (4) split the opcode dispatch into a tail call. Re-measure after each; two rounds, then STUCK with numbers
-- [ ] **Step 284** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 283** [D] ~30m: Budget triage in order: (1) N_PKT 64→32, (2) slots 4→2, (3) move field parsing out of the loop into a fixed struct, (4) split the opcode dispatch into a tail call. Re-measure after each; two rounds, then STUCK with numbers
+  - S5 2026-10-23: Triage done before the gate passed. The inlined loop did not prune: 1,000,001 insns (`max_states_per_insn 124`). N_PKT/slot cuts would not fix non-convergence, so: step as a bpf_loop callback (verified per call site, any N) -> 498,904; then option 4 in spirit, the per-slot run as a GLOBAL function (verified once, independent of the parse paths) -> 14,395. Also fixed: folded range+alignment check on a register copy (mem_index laundering), memset/memcpy calls under --btf (volatile word writes, in-place zeroing, no struct moves), uninitialised enum payload byte across the callback (u32 step codes), variable-offset L4 packet read.
+- [x] **Step 284** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: `6db3ce44`.
   ```bash
   git -C "$PROJECT_ROOT" add ebpf/cartridge-ebpf ebpf/Cargo.toml ebpf/Cargo.lock && commitp -m "feat(cartridge-ebpf): [S5 275-284] cart_xdp + cart_tick under the verifier budget gate"
   ```
-- [ ] **Step 285** [V] ~2m: Doom/xv6 untouched — `monad-cpu-ebpf` sources unchanged since Phase 3 (`git diff --stat HEAD~1 -- ebpf/monad-cpu-ebpf` empty)
-- [ ] **Step 286** [W][CODE] ~20m: Regression harness gains a third variant: build + LOAD `cartridge-ebpf`, print its two insn counts, fail over 500,000 (ADR-080 "load-test every variant")
-- [ ] **Step 287** [B][S][TEST] ~3m: `bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tail -10`
-- [ ] **Step 288** [V] ~30s: `== ALL GREEN ==` with three variants and budgets printed
-- [ ] **Step 289** [W][CODE] ~30m: Minimal Go loader package `pkg/cartridge` (cilium/ebpf): load object, pin maps under `/sys/fs/bpf/unheaded/cart/`, write a slot (ROM, DATA, SlotCfg with `gen` bump LAST so a reader never sees half a slot), attach XDP to an iface or run `cart_tick`/`cart_xdp` via `ebpf.Program.Run` (test_run) with repeat
-- [ ] **Step 290** [W][TEST] ~20m: Go tests for slot encoding and the gen-last write ordering (unit), root-gated load test
-- [ ] **Step 291** [B][S][TEST] ~3m: `cd "$PROJECT_ROOT" && sudo -E go test -race ./pkg/cartridge/... 2>&1 | tail -5`
-- [ ] **Step 292** [V] ~30s: Green
-- [ ] **Step 293** [W] ~15m: Hand-written cartridge `cartridges/pass.s` (VERDICT PASS) and `cartridges/drop-udp-9.s` (drop UDP dport 9, the discard port) for plumbing tests
-- [ ] **Step 294** [B][S][TEST] ~5m: test_run both against crafted packets (UDP/9, UDP/53, TCP/22)
-- [ ] **Step 295** [V] ~1m: `pass` → XDP_PASS everywhere; `drop-udp-9` → DROP only UDP/9; stats count per slot
-- [ ] **Step 296** [B][S][TEST] ~3m: Fault path: a cartridge reading `0x2000` (outside windows)
-- [ ] **Step 297** [V] ~30s: PASS + `cart_faults_total` increments; after 64 faults in 1 s the slot is inactive
-- [ ] **Step 298** [B][S][TEST] ~5m: Bit-exact check — same packets through `cart_xdp` (BPF) and `upc-cartridge` reference; compare final `CartState` hashes read back from `FLOW_STATE`
-- [ ] **Step 299** [V] ~30s: 100% hash agreement
+- [x] **Step 285** [V] ~2m: Doom/xv6 untouched — `monad-cpu-ebpf` sources unchanged since Phase 3 (`git diff --stat HEAD~1 -- ebpf/monad-cpu-ebpf` empty)
+  - S5 2026-10-23: `git diff --stat dcacffb4 -- ebpf/monad-cpu-ebpf` empty.
+- [x] **Step 286** [W][CODE] ~20m: Regression harness gains a third variant: build + LOAD `cartridge-ebpf`, print its two insn counts, fail over 500,000 (ADR-080 "load-test every variant")
+  - S5 2026-10-23: Variant 3 in `scripts/upc-regression.sh`: build cartridge-ebpf + cart CLI, load-test, budget gate, root tests.
+- [x] **Step 287** [B][S][TEST] ~3m: `bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tail -10`
+- [x] **Step 288** [V] ~30s: `== ALL GREEN ==` with three variants and budgets printed
+  - S5 2026-10-23: ALL GREEN: ascend 926,542, Doom 761,580 (unchanged), cart_xdp 14,395, cart_tick 22,575, 12 root tests.
+- [x] **Step 289** [W][CODE] ~30m: Minimal Go loader package `pkg/cartridge` (cilium/ebpf): load object, pin maps under `/sys/fs/bpf/unheaded/cart/`, write a slot (ROM, DATA, SlotCfg with `gen` bump LAST so a reader never sees half a slot), attach XDP to an iface or run `cart_tick`/`cart_xdp` via `ebpf.Program.Run` (test_run) with repeat
+  - S5 2026-10-23: `pkg/cartridge`: pin dir option (0700) under /sys/fs/bpf/unheaded/cart/, writeSlot deactivate -> ROM -> DATA -> config with new gen LAST, test_run/Benchmark, AttachXDP, events, stats.
+- [x] **Step 290** [W][TEST] ~20m: Go tests for slot encoding and the gen-last write ordering (unit), root-gated load test
+  - S5 2026-10-23: Unit tests for slot encoding, flow key, state decode/hash (cross-language vector 0x6da0d6f5), image decode parity + fuzz, and the gen-last write order (fake maps).
+- [x] **Step 291** [B][S][TEST] ~3m: `cd "$PROJECT_ROOT" && sudo -E go test -race ./pkg/cartridge/... 2>&1 | tail -5`
+- [x] **Step 292** [V] ~30s: Green
+  - S5 2026-10-23: Green, `-race` clean as root and as user.
+- [x] **Step 293** [W] ~15m: Hand-written cartridge `cartridges/pass.s` (VERDICT PASS) and `cartridges/drop-udp-9.s` (drop UDP dport 9, the discard port) for plumbing tests
+  - S5 2026-10-23: `cartridges/pass.s`, `cartridges/drop-udp-9.s`; test-only `pkg/cartridge/testdata/{fault,counter}.s`.
+- [x] **Step 294** [B][S][TEST] ~5m: test_run both against crafted packets (UDP/9, UDP/53, TCP/22)
+- [x] **Step 295** [V] ~1m: `pass` → XDP_PASS everywhere; `drop-udp-9` → DROP only UDP/9; stats count per slot
+  - S5 2026-10-23: pass.s: PASS on UDP/9, UDP/53, TCP/22. drop-udp-9.s: DROP only UDP/9. Slot 0 runs=6 pass=5 drop=1, slot 1 untouched.
+- [x] **Step 296** [B][S][TEST] ~3m: Fault path: a cartridge reading `0x2000` (outside windows)
+- [x] **Step 297** [V] ~30s: PASS + `cart_faults_total` increments; after 64 faults in 1 s the slot is inactive
+  - S5 2026-10-23: Every faulting packet PASSes; at the 64th fault in one window the slot goes inactive (faults=64, runs=64 of 70 packets, breaker_trips=1).
+- [x] **Step 298** [B][S][TEST] ~5m: Bit-exact check — same packets through `cart_xdp` (BPF) and `upc-cartridge` reference; compare final `CartState` hashes read back from `FLOW_STATE`
+  - S5 2026-10-23: counter.s, 90 packets over 3 flows with a fixed clock per packet; the Rust reference is `cart run X.cart --inputs LOG` (new subcommand).
+- [x] **Step 299** [V] ~30s: 100% hash agreement
+  - S5 2026-10-23: 100 %: 3/3 flow hashes equal, 21 EMIT events identical in order.
   - Disagreement → Emergency A.7 (BPF vs host divergence)
-- [ ] **Step 300** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 300** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: `efc3a2b5`.
   ```bash
   git -C "$PROJECT_ROOT" add pkg/cartridge cartridges scripts/upc-regression.sh && commitp -m "feat(cartridge): [S5 285-300] Go loader, plumbing cartridges, BPF==host state hashes"
   ```
-- [ ] **Step 301** [B][S] ~5m: Benchmark baseline b0 — `cart_xdp` with zero active slots and with `pass` in one slot (test_run, repeat 1,000,000, 5 runs, median)
-- [ ] **Step 302** [V] ~1m: Record b0_empty and b0_pass ns/pkt in `$S5/bench.csv`
-- [ ] **Step 303** [B][S] ~3m: Same for a trivial native XDP_PASS program and `qos-ebpf` (native token bucket) — the external baselines
-- [ ] **Step 304** [V] ~1m: Baselines recorded; noise (max−min)/median < 10% over 5 runs, else pin the CPU (`taskset -c 2`) and redo
-- [ ] **Step 305** [W][DOC-UPDATE] ~10m: Sprint log: budgets, baselines, any verifier triage done
-- [ ] **Step 306** [V][GATE] ~1m: **PHASE 11 EXIT GATE** — object loads under 500K per program; harness green with three variants; BPF==host hashes; fault breaker works; baselines recorded
+- [x] **Step 301** [B][S] ~5m: Benchmark baseline b0 — `cart_xdp` with zero active slots and with `pass` in one slot (test_run, repeat 1,000,000, 5 runs, median)
+  - S5 2026-10-23: Engine: cilium `Program.Benchmark` (bpftool cannot load the objects). Opt-in `CART_BENCH=1` root test.
+- [x] **Step 302** [V] ~1m: Record b0_empty and b0_pass ns/pkt in `$S5/bench.csv`
+  - S5 2026-10-23: b0_empty 105 ns/pkt, b0_pass 153 ns/pkt (median of 5 x 1,000,000; taskset -c 2).
+- [x] **Step 303** [B][S] ~3m: Same for a trivial native XDP_PASS program and `qos-ebpf` (native token bucket) — the external baselines
+  - S5 2026-10-23: native heimdall Gjallarhorn XDP 21 ns; native qos-ebpf 42 ns (its early-PASS path: the frame has no Monad HbH option, so this is a floor, not its token-bucket path; Phase 13 measures the bucket path).
+- [x] **Step 304** [V] ~1m: Baselines recorded; noise (max−min)/median < 10% over 5 runs, else pin the CPU (`taskset -c 2`) and redo
+  - S5 2026-10-23: Noise <= 4.8 % pinned (first unpinned try was already under 10 %).
+- [x] **Step 305** [W][DOC-UPDATE] ~10m: Sprint log: budgets, baselines, any verifier triage done
+  - S5 2026-10-23: Sprint log Phase 11 section.
+- [x] **Step 306** [V][GATE] ~1m: **PHASE 11 EXIT GATE** — object loads under 500K per program; harness green with three variants; BPF==host hashes; fault breaker works; baselines recorded
+  - S5 2026-10-23: PASSED.
 
 ### Phase 11 Definition of Done
 Verifier gate passed with numbers · Doom/xv6 objects unchanged · load-tested in the harness · `-race` green · benchmarks reproducible (<10% noise).

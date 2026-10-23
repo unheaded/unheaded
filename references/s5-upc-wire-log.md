@@ -243,3 +243,37 @@ depends on them. East was not contacted.
   assertions + overflow checks; libFuzzer binary run directly).
 - No new third-party crate: upc-cartridge's lock adds only itself; sha2 0.10.9 is
   upc-bootctl's.
+
+## Phase 11 — cartridge-ebpf + verifier-budget gate (2026-10-23)
+
+**Verifier gate (≤ 500,000 per program): cart_xdp 14,395, cart_tick 22,575.**
+
+How the budget was won (each measured):
+
+| Shape | cart_xdp processed insns |
+|---|---|
+| `for _ in 0..64` around the inlined step, 4 slots unrolled | 1,000,001 (rejected; `max_states_per_insn 124`: opcode paths never prune at the loop head) |
+| step as a `bpf_loop` callback (needs `--btf` → `build.rs`) | 498,904 (every header-parse path re-verified all 4 slots) |
+| + per-slot run as a **global** BPF function (verified once) | **14,395** |
+
+Verifier traps hit and fixed on the way (all recorded in code comments): LLVM folding
+`addr < 0x100 && aligned` into one mask test on a register copy (`mem_index` launders the
+index); `--btf` turning zero-inits, struct moves, store loops and even adjacent scalar zero
+stores into rejected global `memset`/`memcpy` calls (volatile word writes, in-place zeroing;
+`begin_run`/`begin_job` in the shared step too, same host semantics); an enum's
+uninitialised payload byte stored across the callback (u32 step codes); a variable-offset
+L4 packet read (one bounds check on the exact pointer). The shared driver is now
+`run_one`/`run_out`, so BPF (callback) and host (plain loop) share the loop semantics.
+
+- Regression harness has a third variant (cartridge load + budget + root tests): **ALL
+  GREEN**, ascend 926,542 and Doom 761,580 unchanged, 12 root tests.
+- monad-cpu-ebpf untouched (`git diff dcacffb4 -- ebpf/monad-cpu-ebpf` empty).
+- Root tests through BPF_PROG_TEST_RUN, images from the real `cart` CLI: pass/drop-udp-9
+  verdicts right; fault path passes and the breaker disables the slot at exactly 64 faults;
+  **BPF == reference: 3/3 flow state hashes, 21/21 events in order** (90 packets, `cart run`).
+- Baselines (5 × 1,000,000 test_run, median, `taskset -c 2`, noise ≤ 4.8 %): b0_empty
+  **105 ns**, b0_pass **153 ns**, native heimdall XDP 21 ns, native qos-ebpf 42 ns (its
+  early-PASS path; no Monad HbH in the frame). The empty-slot cost is the parse + FLOW_META
+  LRU update + four slot checks; Phase 13 measures against it.
+- bpftool cannot load Aya 0.1 objects (legacy `maps` section) — every count and benchmark
+  in S5 goes through cilium/ebpf (`pkg/cartridge`).
