@@ -26,11 +26,11 @@ func TestScanConfig_Classification(t *testing.T) {
 		kind   string
 		status string
 	}{
-		{"postgres 16 (one ECDH curve)", "docker-compose.yml", 5, kindPostgresImage, pqClassical},
+		{"postgres 16 (one ECDH curve)", "stack.yml", 5, kindPostgresImage, pqClassical},
 		{"postgres 18 with hybrid ssl_groups", "deploy/pg18/compose.yml", 3, kindPostgresImage, pqHybrid},
-		{"postgresql.conf with TLS on, default groups", "db/postgresql.conf", 3, kindPostgresConf, pqClassical},
+		{"postgresql.conf with TLS on, default groups", "db/the-well-postgresql.conf", 3, kindPostgresConf, pqClassical},
 		{"ssl_groups with a hybrid first", "db/postgresql.pg18.conf.d/10-pq-groups.conf", 2, kindPostgresConf, pqHybrid},
-		{"traefik edge (TLS off by decision)", "docker-compose.yml", 3, kindProxyImage, pqUnknown},
+		{"traefik edge (TLS off by decision)", "stack.yml", 3, kindProxyImage, pqUnknown},
 		{"sshd classical KEX", "runbooks/security/ssh.yaml", 4, kindSSHDKex, pqClassical},
 		{"sshd hybrid first plus classical", "deploy/ssh/sshd_config", 2, kindSSHDKex, pqHybridOpp},
 		{"sshd hybrid only (= form)", "deploy/ssh/sshd_strict.conf", 1, kindSSHDKex, pqHybridStrict},
@@ -63,7 +63,7 @@ func TestScanConfig_PatchRemovedLineAndCommentIgnored(t *testing.T) {
 }
 
 func TestScanConfig_EdgeIsDisabledByConfig(t *testing.T) {
-	a := one(t, scanConfigFixtures(t), "docker-compose.yml", 3, kindProxyImage)
+	a := one(t, scanConfigFixtures(t), "stack.yml", 3, kindProxyImage)
 	if a.LinkState != linkDisabled {
 		t.Errorf("traefik link-state = %q, want %q", a.LinkState, linkDisabled)
 	}
