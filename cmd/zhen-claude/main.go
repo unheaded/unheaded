@@ -241,6 +241,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) > 0 && args[0] == "confirm" {
 		return runConfirmCmd(args[1:], stdout, stderr)
 	}
+	if len(args) > 0 && args[0] == "review" {
+		return runReviewCmd(args[1:], stdout, stderr)
+	}
 	o, err := parseFlags(args, stderr)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
