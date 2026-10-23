@@ -26,13 +26,22 @@ steps:
   - name: deploy-to-east
     action: shell
     command: "ssh govan@east 'sudo apt update -qq && sudo apt install -y unheaded-${SERVICE}'"
-    verify: "ssh govan@east 'systemctl status unheaded-${SERVICE} 2>/dev/null | head -3'"
+    verify: "ssh govan@east 'systemctl is-active --quiet unheaded-${SERVICE}'"
 
   - name: health-check-east
     action: shell
     command: |
-      PORT=$(grep -w ${SERVICE} ~/tmp/unheaded/pkg/ports/ports.go 2>/dev/null | grep -oP '\d{5}' | head -1)
-      ssh govan@east "curl -sf http://localhost:${PORT}/health" 2>/dev/null || echo "Health check failed"
+      # pkg/ports/ports.go names are CamelCase (WotanHTTP, DashboardBackend),
+      # so grepping it for the package name found nothing and curled
+      # localhost:/health. Ports from pkg/ports/ports.go:
+      case "${SERVICE}" in
+        wotan) PORT=18000 ;; unheaded-daemon) PORT=17000 ;;
+        timeguru) PORT=19000 ;; architect) PORT=19001 ;; captain) PORT=19002 ;;
+        micromanager) PORT=19003 ;; akira) PORT=19100 ;;
+        dashboard-backend) PORT=20000 ;; kanban-app) PORT=20001 ;;
+        *) echo "no port known for ${SERVICE}"; exit 1 ;;
+      esac
+      ssh govan@east "curl -sf http://localhost:${PORT}/health" || { echo "Health check failed"; exit 1; }
     timeout: 10
 
   - name: wait-and-monitor
@@ -43,7 +52,7 @@ steps:
   - name: promote-to-west
     action: shell
     command: "sudo apt update -qq && sudo apt install -y unheaded-${SERVICE}"
-    verify: "systemctl status unheaded-${SERVICE} 2>/dev/null | head -3"
+    verify: "systemctl is-active --quiet unheaded-${SERVICE}"
 
 rollback:
   - name: rollback-east

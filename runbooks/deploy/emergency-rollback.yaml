@@ -12,7 +12,7 @@ steps:
   - name: stop-all-services
     action: shell
     command: |
-      for svc in wotan timeguru captain architect micromanager dashboard-backend kanban-app akira; do
+      for svc in wotan unheaded-daemon timeguru captain architect micromanager dashboard-backend kanban-app akira; do
         sudo systemctl stop "unheaded-${svc}" 2>/dev/null
       done
       echo "All services stopped"
@@ -40,10 +40,11 @@ steps:
   - name: restart-services
     action: shell
     command: |
-      for svc in wotan timeguru captain architect micromanager dashboard-backend kanban-app akira; do
+      for svc in wotan unheaded-daemon timeguru captain architect micromanager dashboard-backend kanban-app akira; do
         sudo systemctl start "unheaded-${svc}" 2>/dev/null
       done
 
   - name: verify-health
     action: shell
-    command: "~/tmp/unheaded/cmd/akira/akira --once 2>&1 | tail -5"
+    # cmd/akira/akira is a gitignored build product; build-and-run instead.
+    command: "cd ~/tmp/unheaded && go run ./cmd/akira --once 2>&1 | tail -5"

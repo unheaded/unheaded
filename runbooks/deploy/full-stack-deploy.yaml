@@ -27,8 +27,9 @@ steps:
 
   - name: run-tests
     action: shell
-    command: "cd ${PROJECT_ROOT} && go test ./... -count=1 -race 2>&1 | tail -5"
-    verify: "cd ${PROJECT_ROOT} && go test ./... -count=1 2>&1 | grep -c 'FAIL' | grep -q 0"
+    # pipefail: the step's status is go test's, not tail's. (The old verify ran
+    # the suite a second time and passed on any FAIL count containing a 0.)
+    command: "set -o pipefail; cd ${PROJECT_ROOT} && go test ./... -count=1 -race 2>&1 | tail -5"
     on_fail: "DO NOT DEPLOY — tests are failing. Fix first."
 
   - name: build-all-services
@@ -39,7 +40,7 @@ steps:
 
   - name: build-ebpf
     action: shell
-    command: "cd ${PROJECT_ROOT}/ebpf && cargo build --release 2>&1 | tail -5"
+    command: "set -o pipefail; cd ${PROJECT_ROOT}/ebpf && cargo build --release 2>&1 | tail -5"
     timeout: 300
 
   # --- Phase 2: Stop existing ---
@@ -65,6 +66,8 @@ steps:
     action: shell
     command: |
       cd ${PROJECT_ROOT}
+      # `go build ./...` above writes no binaries; build the one started here.
+      go build -o services/wotan/cmd/wotan/wotan ./services/wotan/cmd/wotan/ || exit 1
       nohup services/wotan/cmd/wotan/wotan --topic-config configs/wotan.yaml > "$(~/tmp/unheaded/scripts/lib/logpath.sh wotan)" 2>&1 &
       sleep 3
     verify: "curl -sf http://localhost:18000/health"
@@ -95,7 +98,7 @@ steps:
       cd ${PROJECT_ROOT}
       go build -o cmd/kanban-app/kanban-app ./cmd/kanban-app/
       nohup cmd/kanban-app/kanban-app > "$(~/tmp/unheaded/scripts/lib/logpath.sh kanban-app)" 2>&1 &
-    verify: "sleep 3 && curl -sf http://localhost:16668/health"
+    verify: "sleep 3 && curl -sf http://localhost:20001/health"
 
   # --- Phase 5: Start AI ---
   - name: start-inference
@@ -123,7 +126,7 @@ steps:
     action: shell
     command: |
       echo "=== Full Health Sweep ==="
-      for entry in wotan:18000 timeguru:19000 captain:19002 dashboard:20000 kanban:16668 zhen:20103 inference:20100; do
+      for entry in wotan:18000 timeguru:19000 captain:19002 dashboard:20000 kanban:20001 zhen:20103 inference:20100; do
         NAME=$(echo $entry | cut -d: -f1)
         PORT=$(echo $entry | cut -d: -f2)
         curl -sf http://localhost:$PORT/health > /dev/null && echo "  $NAME: OK" || echo "  $NAME: FAIL"
