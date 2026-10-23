@@ -5,6 +5,7 @@
 package cmd
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -131,6 +132,20 @@ func cuirassURL(ctx *Context, path string) (string, error) {
 	return serviceURL(c.Endpoint, path)
 }
 
+// cuirassErr adds where the CLI looked when Cuirass does not answer at
+// all: compose publishes it on 19006, the deb on 17000 (the default).
+func cuirassErr(ctx *Context, what string, err error) error {
+	var ae *apiError
+	if errors.As(err, &ae) {
+		return fmt.Errorf("%s: %w", what, err)
+	}
+	endpoint := "?"
+	if c, cerr := ctx.cluster(); cerr == nil {
+		endpoint = c.Endpoint
+	}
+	return fmt.Errorf("%s: %w (Cuirass endpoint %s; change it with: unheaded config set contexts.<context>.endpoint http://host:19006)", what, err, endpoint)
+}
+
 func containerPath(name string) string {
 	return "/api/v1/containers/" + url.PathEscape(name)
 }
@@ -155,7 +170,7 @@ func newContainerListCommand() *Command {
 			}
 			var list []ContainerInfo
 			if err := callJSON(http.MethodGet, target, nil, &list); err != nil {
-				return fmt.Errorf("list containers: %w", err)
+				return cuirassErr(ctx, "list containers", err)
 			}
 			sort.Slice(list, func(i, j int) bool { return list[i].ID < list[j].ID })
 			result := &ContainerListResult{Containers: []ContainerInfo{}}
@@ -222,7 +237,7 @@ func newContainerCreateCommand() *Command {
 				return err
 			}
 			if err := callJSON(http.MethodPut, target, spec, nil); err != nil {
-				return fmt.Errorf("create %s: %w", name, err)
+				return cuirassErr(ctx, "create "+name, err)
 			}
 			ctx.Output.WriteSuccess("Container '%s' added to the desired state; Cuirass reconciles it", name)
 			return nil
@@ -281,7 +296,7 @@ func newContainerInspectCommand() *Command {
 				if isHTTPStatus(err, http.StatusNotFound) {
 					return fmt.Errorf("container %s: not desired and not in LXD", name)
 				}
-				return fmt.Errorf("inspect %s: %w", name, err)
+				return cuirassErr(ctx, "inspect "+name, err)
 			}
 			if ctx.Output.Format() == output.FormatJSON || ctx.Output.Format() == output.FormatYAML {
 				return ctx.Output.Write(c)
