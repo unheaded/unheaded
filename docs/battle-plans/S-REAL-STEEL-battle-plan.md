@@ -516,23 +516,27 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 
 ### Fallback queue
 
-- [ ] **Step 67** [R] ~10m: Read `pkg/wotan-client/client.go` Publish (around line 487), `enqueueFallback` (578), `FlushFallbackQueue` (605) and the S17 Wotan audit commits for context (`git log --oneline -20 -- pkg/wotan-client`).
-- [ ] **Step 68** [DECIDE] ~0m: **D-10 fallback queue: retry, bounded in age, never for control topics.** RECOMMENDATION: keep buffering for telemetry/event topics, flush automatically, drop anything older than 2 min, and refuse to buffer control topics (`chaos.`, `config.`, `deploy.`, `cuirass.` prefixes): `Publish` returns the error for those. Rationale: a late `chaos.abort` or `deploy.*` replayed minutes after the fact is worse than a lost one, while a few minutes of metrics/events surviving a Wotan restart is what the queue was for; today it only fills and drops. Override ONLY if Stevie prefers "stop buffering" outright (then delete the queue and `FlushFallbackQueue`, make Publish return the network error; same tests minus the flush cases).
-- [ ] **Step 69** [CODE][TEST] ~25m: Tests first in `pkg/wotan-client/fallback_test.go` (httptest Wotan that returns 503/connection-refused, then 201):
+- [x] **Step 67** [R] ~10m: Read `pkg/wotan-client/client.go` Publish (around line 487), `enqueueFallback` (578), `FlushFallbackQueue` (605) and the S17 Wotan audit commits for context (`git log --oneline -20 -- pkg/wotan-client`).
+- [x] **Step 68** [DECIDE] ~0m: **D-10 fallback queue: retry, bounded in age, never for control topics.** RECOMMENDATION: keep buffering for telemetry/event topics, flush automatically, drop anything older than 2 min, and refuse to buffer control topics (`chaos.`, `config.`, `deploy.`, `cuirass.` prefixes): `Publish` returns the error for those. Rationale: a late `chaos.abort` or `deploy.*` replayed minutes after the fact is worse than a lost one, while a few minutes of metrics/events surviving a Wotan restart is what the queue was for; today it only fills and drops. Override ONLY if Stevie prefers "stop buffering" outright (then delete the queue and `FlushFallbackQueue`, make Publish return the network error; same tests minus the flush cases).
+  - Done 2026-10-23: recommendation taken (no override: Stevie has not asked for 'stop buffering').
+- [x] **Step 69** [CODE][TEST] ~25m: Tests first in `pkg/wotan-client/fallback_test.go` (httptest Wotan that returns 503/connection-refused, then 201):
+  - Done 2026-10-23: fallback_test.go: the four named tests plus TestFallback_FlushRejoinsAfterWotanRestart (the flush rejoins when Wotan forgot the membership, which is exactly when the queue fills).
   - `TestFallback_FlushesInOrderAfterRecovery`: 3 publishes while down, recovery, all 3 arrive in order without another Publish call (background flush).
   - `TestFallback_ExpiresOlderThanMaxAge`: injected clock; an entry older than 2 min is dropped and counted as expired, not sent.
   - `TestFallback_ControlTopicsAreNotBuffered`: `chaos.abort` publish while down returns an error and the queue stays empty.
   - `TestFallback_CloseStopsFlusher`: no goroutine leak (`goleak` is not a dependency: count with `runtime.NumGoroutine` before/after with a settle loop).
-- [ ] **Step 70** [TEST] ~2m: Red.
+- [x] **Step 70** [TEST] ~2m: Red.
   ```bash
   gotest ./pkg/wotan-client/ -run 'TestFallback_'
   ```
-- [ ] **Step 71** [CODE] ~30m: Implement: `pendingMessage.enqueuedAt`; `maxFallbackAge = 2*time.Minute`; `noBufferPrefixes`; a lazily started flusher goroutine (every 15 s while the queue is non-empty, plus an immediate kick after any successful publish or ProbeGRPC success) that stops on `Close`; counters `fallback{Queued,Flushed,Expired,Dropped}` exposed through the client's existing stats accessor and as `unheaded_wotan_client_fallback_total{result}` where the service registers client metrics.
-- [ ] **Step 72** [TEST][V] ~3m: Green, race-clean, whole package.
+- [x] **Step 71** [CODE] ~30m: Implement: `pendingMessage.enqueuedAt`; `maxFallbackAge = 2*time.Minute`; `noBufferPrefixes`; a lazily started flusher goroutine (every 15 s while the queue is non-empty, plus an immediate kick after any successful publish or ProbeGRPC success) that stops on `Close`; counters `fallback{Queued,Flushed,Expired,Dropped}` exposed through the client's existing stats accessor and as `unheaded_wotan_client_fallback_total{result}` where the service registers client metrics.
+  - Done 2026-10-23: fallback.go; 502/503/504 now count as 'Wotan unreachable' (buffered/retried) like a refused connection; the flush stops at the first network error so order holds; counters via FallbackStats() and unheaded_wotan_client_fallback_total{result=queued|flushed|expired|dropped|refused}. Bite: disabling the flusher, the control-topic guard, the age check or the rejoin each turns its test red.
+- [x] **Step 72** [TEST][V] ~3m: Green, race-clean, whole package.
+  - Done 2026-10-23: green, race-clean (53 s package); golangci-lint 0 issues; gosec clean.
   ```bash
   gotest ./pkg/wotan-client/...
   ```
-- [ ] **Step 73** [C] ~2m: **COMMIT CHECKPOINT**: `fix(wotan-client): flush the fallback queue, expire stale entries, never buffer control topics`.
+- [x] **Step 73** [C] ~2m: **COMMIT CHECKPOINT**: `fix(wotan-client): flush the fallback queue, expire stale entries, never buffer control topics`.
 
 ### ProbeGRPC
 
