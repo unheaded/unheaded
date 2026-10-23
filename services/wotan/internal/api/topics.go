@@ -4,6 +4,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -245,7 +246,12 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 
 	// Persist to store if available (async — non-blocking)
 	if s.Store != nil {
+		// Not r.Context(): the server cancels it when this handler returns,
+		// which is before the write lands, so every ctx-honouring store
+		// failed with "context canceled" after the client got its 201.
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), persistTimeout)
 		go func() {
+			defer cancel()
 			storeMsg := &store.Message{
 				ID:        msg.ID,
 				CreatorID: msg.CreatorID,
@@ -253,7 +259,7 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 				Content:   msg.Content,
 				Timestamp: msg.Timestamp,
 			}
-			if _, _, err := s.Store.Push(r.Context(), storeMsg); err != nil {
+			if _, _, err := s.Store.Push(ctx, storeMsg); err != nil {
 				log.Warn().Err(err).Str("topic", topic).Msg("failed to persist message to store")
 			}
 		}()
@@ -282,6 +288,9 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 		"timestamp":  msg.Timestamp,
 	})
 }
+
+// persistTimeout bounds one background store write for a published message.
+const persistTimeout = 10 * time.Second
 
 // maxTopicMessagesPage caps one GetTopicMessages response.
 const maxTopicMessagesPage = 1000
