@@ -1096,3 +1096,29 @@ func TestIngestorStats_UptimeCoversCounterWindow(t *testing.T) {
 		t.Errorf("uptime_seconds = %v, want ~90", got["uptime_seconds"])
 	}
 }
+
+// An event's envelope time is when it happened, as the flow graph and the
+// latency windows already read it. Packet and flow timestamp_ns is
+// bpf_ktime_get_ns() (time since boot), and the envelope took it as Unix
+// time: /api/v1/ebpf/events and the stream stamped live packets 1970-01-11.
+func TestIngestor_EnvelopeTimeIsObservedTime(t *testing.T) {
+	ing := NewIngestor(DefaultIngestorConfig(), nil, nil)
+	before := time.Now()
+	ing.dispatch("ebpf.packet.events", `[{"timestamp_ns":888379526520896,"trace_id":{"high":0,"low":0},"flow_key":{"src_addr":"127.0.0.1","dst_addr":"127.0.0.1","src_port":56636,"dst_port":18001,"protocol":6},"packet_len":4366,"action":"pass","direction":"ingress"}]`)
+	ing.dispatch("ebpf.flow.events", `[{"timestamp_ns":857754687850080,"flow_key":{"src_addr":"127.0.0.1","dst_addr":"127.0.0.1","src_port":19005,"dst_port":51738,"protocol":6},"flow_state":{"state":"established"},"event_type":"new"}]`)
+	wall := time.Now().Add(-2 * time.Second)
+	ing.dispatch("ebpf.latency.events", fmt.Sprintf(`{"timestamp_ns":%d,"latency_ns":98879,"operation":"tcp_send"}`, wall.UnixNano()))
+
+	evs := ing.RecentEvents(3)
+	if len(evs) != 3 {
+		t.Fatalf("events = %d, want 3", len(evs))
+	}
+	for _, e := range evs[1:] { // packet, flow: boot-relative stamps
+		if e.Timestamp.Before(before) || e.Timestamp.After(time.Now()) {
+			t.Errorf("%s envelope time %v, want arrival time (now)", e.Type, e.Timestamp)
+		}
+	}
+	if !evs[0].Timestamp.Equal(time.Unix(0, wall.UnixNano())) {
+		t.Errorf("latency envelope time %v, want its wall-clock timestamp_ns %v", evs[0].Timestamp, wall)
+	}
+}

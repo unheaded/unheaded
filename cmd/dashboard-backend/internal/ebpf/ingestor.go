@@ -289,7 +289,7 @@ func (ing *Ingestor) dispatchSingle(topic string, data []byte) {
 		ing.emit(EventEnvelope{
 			Topic:     topic,
 			Type:      "packet",
-			Timestamp: e.Time(),
+			Timestamp: observedAt(e.TimestampNs, time.Now()),
 			Data:      e,
 		})
 
@@ -304,7 +304,7 @@ func (ing *Ingestor) dispatchSingle(topic string, data []byte) {
 		ing.emit(EventEnvelope{
 			Topic:     topic,
 			Type:      "flow",
-			Timestamp: e.Time(),
+			Timestamp: observedAt(e.TimestampNs, time.Now()),
 			Data:      e,
 		})
 
@@ -319,7 +319,7 @@ func (ing *Ingestor) dispatchSingle(topic string, data []byte) {
 		ing.emit(EventEnvelope{
 			Topic:     topic,
 			Type:      "latency",
-			Timestamp: e.Time(),
+			Timestamp: observedAt(e.TimestampNs, time.Now()),
 			Data:      e,
 		})
 
@@ -333,7 +333,7 @@ func (ing *Ingestor) dispatchSingle(topic string, data []byte) {
 		ing.emit(EventEnvelope{
 			Topic:     topic,
 			Type:      "syscall",
-			Timestamp: e.Time(),
+			Timestamp: observedAt(e.TimestampNs, time.Now()),
 			Data:      e,
 		})
 
@@ -378,7 +378,7 @@ func (ing *Ingestor) dispatchSingle(topic string, data []byte) {
 		ing.emit(EventEnvelope{
 			Topic:     topic,
 			Type:      "anamnesis",
-			Timestamp: e.Time(),
+			Timestamp: observedAt(e.TimestampNs, time.Now()),
 			Data:      e,
 		})
 
