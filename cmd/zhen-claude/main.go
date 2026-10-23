@@ -48,6 +48,7 @@ import (
 	"unheaded/pkg/claudebridge"
 	"unheaded/pkg/mcpclient"
 	"unheaded/pkg/zhencapture"
+	"unheaded/pkg/zhentools"
 )
 
 type options struct {
@@ -80,6 +81,9 @@ type options struct {
 	captureDir     string
 	localOnly      bool
 	configPath     string
+
+	auditWell  bool
+	auditWotan bool
 }
 
 // Routes.
@@ -125,6 +129,8 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 	fs.DurationVar(&o.localTimeout, "local-timeout", claudebridge.DefaultLocalTimeout, "time limit for the local model's answer")
 	fs.StringVar(&o.captureDir, "capture", os.Getenv("ZHEN_CAPTURE_DIR"), "append each turn, redacted, to <dir>/zhen-capture-YYYY-MM-DD.jsonl; must be outside any repository (env ZHEN_CAPTURE_DIR)")
 	fs.BoolVar(&o.localOnly, "local-only", false, "keep this prompt on this host: ask the local model only, never Claude (implies -route auto without escalation; config local_only)")
+	fs.BoolVar(&o.auditWell, "audit-well", false, "also record every request in the Well's llm_requests and every tool decision in audit_events (DSN from env WELL_OPS_DSN); Well unreachable = read-only run")
+	fs.BoolVar(&o.auditWotan, "audit-wotan", false, "also publish the audit records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
 	fs.StringVar(&o.configPath, "config", "", "config file (default $XDG_CONFIG_HOME/unheaded/zhen-claude.conf; a missing default is fine)")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -178,6 +184,9 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 	if o.localMaxTokens < 1 || o.localTimeout <= 0 || o.checkTimeout <= 0 {
 		return nil, errors.New("-local-max-tokens, -local-timeout and -check-timeout must be positive")
 	}
+	if err := checkAuditEnv(o); err != nil {
+		return nil, err
+	}
 	return o, nil
 }
 
@@ -222,14 +231,16 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			return 2
 		}
 	}
-	if o.route == routeAuto && !o.dryRun {
-		return runAuto(ctx, o, prompt, stdout, stderr, log, capw, tools)
-	}
 	if o.dryRun && o.localOnly {
 		return dryRunLocal(o, prompt, stdout, log)
 	}
+	aud := setupAudit(ctx, o, log, "zhen-claude")
+	defer aud.close()
+	if o.route == routeAuto && !o.dryRun {
+		return runAuto(ctx, o, prompt, stdout, stderr, log, capw, tools, aud)
+	}
 
-	b, closeAll, err := build(ctx, o, log, stdout, tools)
+	b, closeAll, err := build(ctx, o, log, stdout, tools, aud)
 	defer closeAll()
 	if err != nil {
 		log.Error("startup", "error", err.Error())
@@ -259,7 +270,10 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 // build wires providers, the gate, the cap and the client. closeAll is
 // always safe to call.
-func build(ctx context.Context, o *options, log *slog.Logger, stdout io.Writer, tools *toolCollector) (*claudebridge.Bridge, func(), error) {
+func build(ctx context.Context, o *options, log *slog.Logger, stdout io.Writer, tools *toolCollector, aud *auditSetup) (*claudebridge.Bridge, func(), error) {
+	if aud == nil {
+		aud = &auditSetup{auditor: claudebridge.SlogAuditor{Log: log}}
+	}
 	var closers []func()
 	closeAll := func() {
 		for i := len(closers) - 1; i >= 0; i-- {
@@ -294,7 +308,11 @@ func build(ctx context.Context, o *options, log *slog.Logger, stdout io.Writer, 
 			if err != nil {
 				return nil, closeAll, err
 			}
-			providers = append(providers, claudebridge.NamedProvider{Name: "champion", Provider: cp})
+			var p zhentools.Provider = cp
+			if aud.readOnly {
+				p = claudebridge.AllowTools(cp, readOnlyChampionTools...)
+			}
+			providers = append(providers, claudebridge.NamedProvider{Name: "champion", Provider: p})
 		case "mcp":
 			fields := strings.Fields(o.mcpCmd)
 			if len(fields) == 0 {
@@ -306,7 +324,7 @@ func build(ctx context.Context, o *options, log *slog.Logger, stdout io.Writer, 
 			}
 			closers = append(closers, func() { _ = mc.Close() })
 			var p = claudebridge.AllowTools(mc, claudebridge.MCPReadOnlyTools...)
-			if o.mcpMutating {
+			if o.mcpMutating && !aud.readOnly {
 				log.Warn("mcp_mutating_tools_offered", "note", "every MCP tool is offered; each call still goes through the Champion gate")
 				p = mc
 			}
@@ -352,7 +370,7 @@ func build(ctx context.Context, o *options, log *slog.Logger, stdout io.Writer, 
 		Gate:             gate,
 		Prices:           prices,
 		Ledger:           ledger,
-		Auditor:          claudebridge.SlogAuditor{Log: log},
+		Auditor:          aud.auditor,
 		OnText:           func(s string) { _, _ = io.WriteString(stdout, s) },
 	}
 	if tools != nil && tools.on {

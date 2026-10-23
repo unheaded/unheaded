@@ -31,7 +31,7 @@ const (
 // runAuto is -route auto for one prompt: local first, Claude only when
 // the local answer is missing, cut off, or rejected by -check. The
 // Claude side (credentials, MCP server, spend ledger) is built only then.
-func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.Writer, log *slog.Logger, capw *zhencapture.Writer, tools *toolCollector) int {
+func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.Writer, log *slog.Logger, capw *zhencapture.Writer, tools *toolCollector, aud *auditSetup) int {
 	t0 := time.Now()
 	local := &claudebridge.LocalLLM{BaseURL: o.localURL, Model: o.localModel, MaxTokens: o.localMaxTokens, Timeout: o.localTimeout}
 	ans, lerr := local.Complete(ctx, claudebridge.DefaultLocalSystem, prompt)
@@ -71,6 +71,7 @@ func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.W
 		}
 	}
 	attrs = append(attrs, "local_ok", lerr == nil, "why", why)
+	auditLocalLeg(ctx, aud, o, rec.Local, localDur, lerr)
 	if rec.Local.Error != "" {
 		attrs = append(attrs, "local_error", rec.Local.Error)
 	}
@@ -99,7 +100,7 @@ func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.W
 
 	// Escalate. Spend cap, gate and audit apply from here on, as for -route claude.
 	rec.Route = zhencapture.RouteEscalated
-	b, closeAll, err := build(ctx, o, log, stdout, tools)
+	b, closeAll, err := build(ctx, o, log, stdout, tools, aud)
 	defer closeAll()
 	if err != nil {
 		rec.Claude = &zhencapture.Leg{Model: o.model, Error: err.Error()}
@@ -111,7 +112,9 @@ func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.W
 	}
 	rec.System = b.System()
 	c0 := time.Now()
-	reply, err := turn(ctx, b.NewConversation(), prompt, stdout, stderr, log)
+	conv := b.NewConversation()
+	conv.SetRoute("", escalationReason(why))
+	reply, err := turn(ctx, conv, prompt, stdout, stderr, log)
 	fillClaude(rec, b, reply, err, time.Since(c0), tools)
 	rec.LatencyMS = time.Since(t0).Milliseconds()
 	decision := "claude"
@@ -246,4 +249,35 @@ func (c *toolCollector) take() []zhencapture.ToolCall {
 	out := c.calls
 	c.calls = nil
 	return out
+}
+
+// escalationReason maps a -route auto "why" to llm_requests.route_reason.
+func escalationReason(why string) string {
+	switch why {
+	case whyCheckFailed, whyCheckError:
+		return "escalated_check_fail"
+	case whyLocalError, whyLocalTruncated:
+		return "escalated_parse_fail" // the local leg produced no usable answer
+	}
+	return "manual"
+}
+
+// auditLocalLeg records the local model's request like any other: one
+// llm_requests row (backend local, cost 0), no text.
+func auditLocalLeg(ctx context.Context, aud *auditSetup, o *options, leg *zhencapture.Leg, d time.Duration, lerr error) {
+	if aud == nil || aud.auditor == nil || leg == nil {
+		return
+	}
+	reason := "local_first"
+	if o.localOnly {
+		reason = "local_only"
+	}
+	r := claudebridge.RequestRecord{
+		Conversation: claudebridge.NewRecordID(), Model: leg.Model, ServedBy: leg.Model, StopReason: leg.StopReason,
+		Duration: d, Sent: true, Backend: claudebridge.BackendLocal, RouteReason: reason,
+	}
+	if lerr != nil {
+		r.Err = lerr.Error()
+	}
+	aud.auditor.Request(ctx, r)
 }

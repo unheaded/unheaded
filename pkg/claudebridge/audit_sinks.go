@@ -440,6 +440,10 @@ func toolEvent(source, backend string, r ToolRecord) *audit.AuditEvent {
 	}
 }
 
+// NewRecordID is a random 128-bit hex id for audit records and local
+// conversations that have no Claude conversation id.
+func NewRecordID() string { return newEventID() }
+
 func newEventID() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {

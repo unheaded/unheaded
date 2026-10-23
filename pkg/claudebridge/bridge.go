@@ -206,6 +206,15 @@ type Conversation struct {
 	b        *Bridge
 	id       string
 	messages []anthropic.BetaMessageParam
+
+	family      string // task family for the audit (S-TWO-BRAINS routing)
+	routeReason string // llm_requests.route_reason for every request
+}
+
+// SetRoute labels every later request of this conversation, in the audit
+// records, with a task family and the reason it reached Claude.
+func (c *Conversation) SetRoute(family, reason string) {
+	c.family, c.routeReason = family, reason
 }
 
 // NewConversation starts an empty conversation.
@@ -370,7 +379,8 @@ func (c *Conversation) loop(ctx context.Context) (*Reply, error) {
 func (c *Conversation) request(ctx context.Context, iter int, reply *Reply) (*anthropic.BetaMessage, error) {
 	b := c.b
 	params := b.params(c.messages)
-	rec := RequestRecord{Conversation: c.id, Iteration: iter, Model: b.cfg.Model}
+	rec := RequestRecord{Conversation: c.id, Iteration: iter, Model: b.cfg.Model,
+		Backend: BackendClaude, TaskFamily: c.family, RouteReason: c.routeReason}
 
 	need, err := b.reservation(params)
 	if err != nil {
