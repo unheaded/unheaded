@@ -106,6 +106,7 @@
 - [[Zhen Confirmation|Zhen-Confirmation]]
 - [[Zhen Privacy Tiers|Zhen-Privacy-Tiers]]
 - [[Zhen Routing|Zhen-Routing]]
+- [[Zhen Training Data|Zhen-Training-Data]]
 
 **Lore & Naming**
 - [[Lore Index|Lore-Index]]
