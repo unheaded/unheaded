@@ -9,7 +9,7 @@ The Unheaded Kingdom defines three core protocols that work together to provide 
 ## 1. Monad Protocol (Packet Compute)
 
 **Specification:** `docs/protocol/PROTOCOL_FOUNDATION.md`
-**RFC drafts:** `docs/protocol/draft-bellis-unheaded-protocol-foundation-01.md` through `-04.md`
+**RFC drafts:** `docs/protocol/draft-bellis-unheaded-protocol-foundation-01.md` through `-06.md`
 **ISA reference:** `docs/protocol/mbc-isa-reference.md`
 
 ### Purpose
@@ -22,7 +22,7 @@ Monad defines a 20-byte register file carried in IPv6 Hop-by-Hop extension heade
 IPv6 Hop-by-Hop Extension Header:
   Next Header:  (protocol-dependent)
   Hdr Ext Len:  2 (24 bytes total)
-  Option Type:  0x1E (experimental, RFC 4727)
+  Option Type:  0x3E (act 00, chg 1, number 0x1E; IANA code point requested)
   Opt Data Len: 20
   Monad Data:   20 bytes of Sophia-encoded protocol metadata
 ```

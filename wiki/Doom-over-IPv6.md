@@ -40,8 +40,8 @@ Each packet carries a 78-byte header:
 |-----------|------|---------|
 | Ethernet header | 14 bytes | L2 framing |
 | IPv6 header | 40 bytes | L3 addressing, flow label identifies Doom instance |
-| Hop-by-Hop extension | 8 bytes | Option type 0x1E, length, padding |
-| Monad register file | 16 bytes | CPU instance ID, bounce counter, metadata |
+| Hop-by-Hop header + option header | 4 bytes | Next header, ext length, option type 0x3E, option data length 20 |
+| Monad register file | 20 bytes | CPU instance ID, bounce counter, metadata |
 
 The bounce counter in the Hop-by-Hop header tracks how many times the packet has circulated. When it reaches 255, the XDP program returns `XDP_PASS` instead of `XDP_TX`, allowing the packet to exit the ring.
 

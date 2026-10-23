@@ -61,16 +61,18 @@ The Monad protocol extends IPv6 with a Hop-by-Hop extension header carrying a 20
 ### Packet Structure (78 bytes total for Doom ring)
 
 ```
- 0                   14                  54               62         78
- |  Ethernet (14B)  |   IPv6 (40B)     | HbH (8B)      | Monad (16B)
- |                  |                   |                |
- | dst_mac, src_mac | version, flow_label| opt_type=0x1E | instance_id
- | ethertype=0x86DD | payload_len       | opt_len        | bounce_cnt
- |                  | next_hdr=0 (HbH)  | pad            | metadata
- |                  | hop_limit=64      |                |
- |                  | src_addr (fd00::) |                |
- |                  | dst_addr (fd00::) |                |
+ 0                   14                  54                  58          78
+ |  Ethernet (14B)  |   IPv6 (40B)      | HbH hdr + opt (4B) | Monad (20B)
+ |                  |                   |                    |
+ | dst_mac, src_mac | version, flow_label| next_hdr, hdr_len | register file
+ | ethertype=0x86DD | payload_len       | opt_type=0x3E      | (instance, bounce
+ |                  | next_hdr=0 (HbH)  | opt_data_len=20    |  count, metadata)
+ |                  | hop_limit=64      |                    |
+ |                  | src_addr (fd00::) |                    |
+ |                  | dst_addr (fd00::) |                    |
 ```
+
+Option type `0x3E` is action `00` (skip if unknown), change-en-route `1`, number `0x1E` (`ebpf/monad-common/src/lib.rs` `MONAD_OPT_TYPE`). The XDP program passes any packet whose option type or data length differs.
 
 ### IPv6 Flow Label
 
@@ -98,7 +100,7 @@ For the Doom proof of concept, the `monad_cpu` XDP program:
 
 1. Reads the Monad header from the incoming packet
 2. Loads CPU state from `CPU_MAP`
-3. Executes `MAX_INSN_PER_TICK` (128) MBC instructions from `ROM_MAP`
+3. Executes up to `MAX_INSN_PER_TICK` (16) MBC instructions from `ROM_MAP`
 4. Writes updated CPU state back to `CPU_MAP`
 5. Writes screen pixels to `SCREEN_MAP` (on SYSCALL for screen write)
 6. Increments bounce counter in the Monad header
@@ -106,19 +108,13 @@ For the Doom proof of concept, the `monad_cpu` XDP program:
 
 ### Instruction Budget
 
-BPF programs have a verifier instruction limit (historically 1M, now larger). The `monad_cpu` program processes 128 MBC instructions per XDP invocation, keeping well within verifier bounds while maximizing throughput.
+BPF programs have a verifier instruction limit of 1M. `MAX_INSN_PER_TICK` is 16 (`ebpf/monad-cpu-ebpf/src/main.rs`): each loop iteration costs thousands of verifier states, and 256 exceeds the limit. Throughput comes from the tick rate instead: instructions per second = `MAX_INSN_PER_TICK` x packets per second from the injector. A packet leaves the ring after 255 bounces.
 
-| Parameter | Value |
-|-----------|-------|
-| Instructions per XDP call | 128 |
-| Bounces per packet | 255 |
-| Instructions per packet | 32,640 |
-| XDP calls per packet | 255 x 6 namespaces = 1,530 |
-| BPF program size | ~21 KB |
+The ring has `DOOM_RING_HOPS` namespaces (`scripts/doom-ring.sh`, default 2; the script's diagram and the table below show 6).
 
 ### Shared BPF Maps
 
-The BPF program is loaded once on hop0 using the Aya eBPF loader (Rust), then attached to hops 1-5 via `bpftool net attach xdpgeneric`. All 6 hops share the same `prog_id` and the same pinned maps. This means a write to `RAM_MAP` on hop 3 is visible to the program executing on hop 4 -- shared memory across the ring.
+The BPF program is loaded once on hop0 using the Aya eBPF loader (Rust), then attached to the other hops via `bpftool net attach xdpgeneric` (`scripts/doom-xdp-attach.sh`). All 6 hops share the same `prog_id` and the same pinned maps. This means a write to `RAM_MAP` on hop 3 is visible to the program executing on hop 4 -- shared memory across the ring.
 
 Maps are pinned at: `/sys/fs/bpf/unheaded/doom-ring/maps/`
 
@@ -150,10 +146,11 @@ Service A                    Wotan                    Service B
 
 | Topic | Publisher | Subscribers | Purpose |
 |-------|-----------|-------------|---------|
-| `alerts.critical` | Any service | All services | Critical alert broadcast |
-| `timeline.updates` | timeguru | kanban-app, dashboard | Timeline changes |
-| `system.outage.reports` | Any service | dashboard, unheaded-daemon | Health degradation |
-| `metrics.service.*` | Each service | dashboard-backend | Per-service metrics |
+| `alerts.critical` | Any service | Services that wire it (timeguru, captain, micromanager, chaos-controller, …) | Critical alert broadcast |
+| `timeline.updates` | timeguru | kanban-app | Timeline changes |
+| `system.health.reports` | akira | akira (tally), dashboard-backend (into The Well) | Each reporter's checks |
+| `system.health.consensus` | akira | dashboard-backend | Health band changes |
+| `metrics.<service>` | dashboard-backend event helper | dashboard-backend (`metrics.*`) | Per-service metric events |
 
 ### Health Monitoring Protocol
 
@@ -174,15 +171,6 @@ Formula: `failing_reporters / reporters x 100`; each reporter's latest report
 from the last three sweeps is one vote. Remediation (`systemctl restart`, at
 most 3 per outage) is off unless Akira runs with `--remediate`; the compose
 stack runs it for detection only.
-
--------------|----------|--------|
-| 0% - 12.49% | OK | Healthy |
-| 12.50% - 37.49% | WARN | Log, email |
-| 37.50% - 62.49% | ERROR | Log, second email |
-| 62.50% - 87.49% | CRITICAL | Auto-remediate |
-| 87.50% - 100% | PANIC | All hands, PagerDuty |
-
-Formula: `(unique_reporters / total_dependent_services) x 100`
 
 ---
 
@@ -217,7 +205,7 @@ The older LXD design (`lxdbr0`, 10.10.10.0/24) remains in `lxd/`.
 
 ## Container Hardening
 
-Every service container runs with NixOS-enforced hardening:
+In compose every container runs as its own uid (`pkg/uids`) with `read_only`, `cap_drop: ALL` and `no-new-privileges` (`scripts/check-compose-hardening.sh`); systemd units use their own nologin accounts ([[Systemd Units|Systemd-Units]]). The NixOS definitions in `nix/containers/` carry the equivalent systemd settings:
 
 - **Capabilities:** Minimum required only (`CAP_NET_BIND_SERVICE` for most services)
 - **No privilege escalation:** `NoNewPrivileges = true`
