@@ -5,6 +5,9 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"crypto/x509/pkix"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -67,6 +70,32 @@ func TestMTLSValidator_Authenticate(t *testing.T) {
 	}
 	if identity != nil {
 		t.Errorf("MTLSValidator.Authenticate() identity = %v, want nil", identity)
+	}
+}
+
+// TestMTLSValidator_UnverifiedCertRefused: with tls.RequestClientCert or
+// RequireAnyClientCert, crypto/tls fills PeerCertificates with whatever the
+// client sent and leaves VerifiedChains empty. The validator used to read
+// PeerCertificates, so a self-signed certificate naming "wotan" became the
+// wotan service identity.
+func TestMTLSValidator_UnverifiedCertRefused(t *testing.T) {
+	forged := &x509.Certificate{Subject: pkix.Name{CommonName: "wotan"}}
+	validator := &MTLSValidator{ServiceName: "wotan"}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.TLS = &tls.ConnectionState{PeerCertificates: []*x509.Certificate{forged}}
+	if id, err := validator.Authenticate(context.Background(), req); !errors.Is(err, ErrInvalidCert) {
+		t.Fatalf("unverified certificate: identity = %v, err = %v, want ErrInvalidCert", id, err)
+	}
+
+	// The same certificate in a verified chain is accepted.
+	req.TLS.VerifiedChains = [][]*x509.Certificate{{forged}}
+	id, err := validator.Authenticate(context.Background(), req)
+	if err != nil {
+		t.Fatalf("verified certificate refused: %v", err)
+	}
+	if id.Subject != "wotan" || !id.HasRole(RoleService) {
+		t.Errorf("identity = %+v, want subject wotan with the service role", id)
 	}
 }
 

@@ -112,12 +112,18 @@ type MTLSValidator struct {
 }
 
 // Authenticate validates the client certificate from the TLS connection state.
+//
+// Only a certificate that crypto/tls verified against the server's ClientCAs
+// counts (VerifiedChains). PeerCertificates alone is whatever the client
+// sent: with ClientAuth RequestClientCert or RequireAnyClientCert it is
+// filled without verification, so a self-signed certificate could claim
+// any service name.
 func (m *MTLSValidator) Authenticate(_ context.Context, r *http.Request) (*Identity, error) {
-	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+	if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 || len(r.TLS.VerifiedChains[0]) == 0 {
 		return nil, ErrInvalidCert
 	}
 
-	peer := r.TLS.PeerCertificates[0]
+	peer := r.TLS.VerifiedChains[0][0]
 	cn := peer.Subject.CommonName
 	if cn == "" {
 		return nil, ErrInvalidCert
