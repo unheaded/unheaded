@@ -36,7 +36,7 @@ East's account `well-backup-copy` is nologin, key-only and chrooted, and it can 
 
 Each job writes a `.prom` file to `/var/lib/unheaded/textfile` on success only; Huginn forwards it. `monitoring/prometheus/rules/well.yml`: backup late (> 26 h), missing (> 50 h), offsite late (> 26 h), drill late (> 8 days), metrics absent. Each waits 45 min so the boot catch-up does not fire them.
 
-**Today nothing evaluates these rules:** the monitoring stack (VictoriaMetrics, Prometheus/Alertmanager) is not running on west, and Alertmanager's receiver is `null` (finding FND-001). Until it is, check by hand: `journalctl -u unheaded-well-backup` and `curl -s localhost:9110/metrics | grep unheaded_well_`.
+The monitoring Prometheus on west evaluates these rules (FND-001: stack running since 2026-10-20). They are all `urgency: none`, so none mails anyone; what notifies is the `well-backups` SLO, as a ticket in the daily digest, once alert-mailer leaves dry-run ([[Alerting]]). By hand: `journalctl -u unheaded-well-backup` and `curl -s localhost:9110/metrics | grep unheaded_well_`.
 
 ## Commands
 
