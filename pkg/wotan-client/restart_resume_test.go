@@ -395,3 +395,87 @@ func TestTopicStreamClient_LiveStartHTTPFallback(t *testing.T) {
 		t.Errorf("after_seq sequence %v, want [0 8 ...]", afters)
 	}
 }
+
+// One Wotan blip is one failure per stream, not one per client. The
+// failure count was client-wide, so a client with at least maxRetries
+// streams (the dashboard streams 13 topics, maxRetries 10) tripped the
+// circuit on a single Wotan restart; without an HTTP fallback every stream
+// then gave up for good.
+func TestTopicStreamClient_OneBlipDoesNotTripManyStreams(t *testing.T) {
+	srv := newMockServer()
+	srv.killErr = status.Error(codes.Unavailable, "blip")
+	lis := startMockServer(t, srv)
+	client, err := newTopicStreamClientWithDialer(lis, WithRetryPolicy(50*time.Millisecond, time.Second, 3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { client.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	var chans []<-chan *Message
+	for i := 0; i < 4; i++ {
+		topic := fmt.Sprintf("ebpf.t%d", i)
+		client.Subscribe(ctx, topic, "dashboard")
+		ch, err := client.StreamMessages(ctx, topic)
+		if err != nil {
+			t.Fatal(err)
+		}
+		chans = append(chans, ch)
+	}
+	time.Sleep(200 * time.Millisecond) // all four streams up
+	srv.setStreamError(status.Error(codes.Unavailable, "blip"))
+	srv.setStreamError(nil)
+	time.Sleep(500 * time.Millisecond)
+
+	if client.IsCircuitOpen() {
+		t.Fatal("one blip tripped the circuit")
+	}
+	for i, ch := range chans {
+		select {
+		case _, ok := <-ch:
+			if !ok {
+				t.Fatalf("stream %d gave up after one blip", i)
+			}
+		default:
+		}
+	}
+}
+
+// A quiet stream that stays up is healthy: its failures do not carry over
+// to the next blip. Only a delivered message used to reset the count, so a
+// stream on a quiet topic tripped after maxRetries Wotan restarts spread
+// over any length of time.
+func TestTopicStreamClient_QuietHealthyStreamResetsFailures(t *testing.T) {
+	srv := newMockServer()
+	srv.killErr = status.Error(codes.Unavailable, "blip")
+	lis := startMockServer(t, srv)
+	client, err := newTopicStreamClientWithDialer(lis, WithRetryPolicy(20*time.Millisecond, time.Second, 3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.healthyAge = 100 * time.Millisecond
+	t.Cleanup(func() { client.Close() })
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	client.Subscribe(ctx, "tasks.created", "kanban")
+	ch, err := client.StreamMessages(ctx, "tasks.created")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		time.Sleep(200 * time.Millisecond) // up and healthy, nothing delivered
+		srv.setStreamError(status.Error(codes.Unavailable, "blip"))
+		srv.setStreamError(nil)
+	}
+	time.Sleep(200 * time.Millisecond)
+	if client.IsCircuitOpen() {
+		t.Fatal("circuit open after 5 blips of a healthy quiet stream")
+	}
+	select {
+	case _, ok := <-ch:
+		if !ok {
+			t.Fatal("quiet stream gave up")
+		}
+	default:
+	}
+}

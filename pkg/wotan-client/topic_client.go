@@ -49,7 +49,7 @@ type TopicStreamClient struct {
 	// Retry policy
 	initialBackoff time.Duration
 	maxBackoff     time.Duration
-	maxRetries     int // consecutive failures before circuit break (0 = unlimited)
+	maxRetries     int // consecutive failures of one stream before circuit break (0 = unlimited)
 
 	// Circuit breaker state
 	consecutiveFailures atomic.Int64
@@ -58,6 +58,9 @@ type TopicStreamClient struct {
 	// it is back (TopicPing). Before this nothing ever closed the circuit,
 	// so one Wotan outage left every stream polling HTTP until restart.
 	circuitProbe time.Duration
+	// healthyAge: how long a stream must stay up to count as healthy;
+	// 0 means healthyStreamAge.
+	healthyAge time.Duration
 
 	// Subscriber state
 	subscribers map[string]*Subscriber
@@ -93,7 +96,7 @@ func WithTLS(creds credentials.TransportCredentials) TopicStreamOption {
 // WithRetryPolicy configures the reconnection backoff parameters.
 //   - initialBackoff: starting delay after first failure (default 100ms)
 //   - maxBackoff: maximum delay between retries (default 30s)
-//   - maxRetries: consecutive failures before circuit-breaking to HTTP (default 10, 0 = unlimited)
+//   - maxRetries: consecutive failures of one stream before circuit-breaking to HTTP (default 10, 0 = unlimited)
 func WithRetryPolicy(initialBackoff, maxBackoff time.Duration, maxRetries int) TopicStreamOption {
 	return func(c *TopicStreamClient) {
 		if initialBackoff > 0 {
@@ -442,6 +445,17 @@ func (c *TopicStreamClient) streamLoop(ctx context.Context, topicPattern string,
 	}()
 
 	backoff := c.initialBackoff
+	healthyAge := c.healthyAge
+	if healthyAge <= 0 {
+		healthyAge = healthyStreamAge
+	}
+	// This stream's consecutive failures: what trips the circuit. The
+	// client-wide counter is shared by every stream and publish, so one
+	// Wotan restart cost a client with maxRetries streams (the dashboard
+	// streams 13 topics) maxRetries failures at once and tripped it; and
+	// only a delivered message reset it, so a quiet stream carried its
+	// count from one blip to the next until it tripped.
+	failures := 0
 
 	for {
 		select {
@@ -457,6 +471,7 @@ func (c *TopicStreamClient) streamLoop(ctx context.Context, topicPattern string,
 				return
 			}
 			backoff = c.initialBackoff
+			failures = 0
 			continue
 		}
 
@@ -472,14 +487,16 @@ func (c *TopicStreamClient) streamLoop(ctx context.Context, topicPattern string,
 		// the first of a new outage. Otherwise the backoff kept doubling for
 		// the life of the stream and every reconnect after a few Wotan blips
 		// waited maxBackoff (30 s by default).
-		if delivered > 0 || time.Since(start) >= healthyStreamAge {
+		if delivered > 0 || time.Since(start) >= healthyAge {
 			backoff = c.initialBackoff
+			failures = 0
 		}
 
+		failures++
 		c.recordFailure()
 
 		// Check if circuit breaker should trip
-		if c.maxRetries > 0 && c.consecutiveFailures.Load() >= int64(c.maxRetries) {
+		if c.maxRetries > 0 && failures >= c.maxRetries {
 			c.circuitOpen.Store(true)
 
 			// Fall back to HTTP polling if available
@@ -488,6 +505,7 @@ func (c *TopicStreamClient) streamLoop(ctx context.Context, topicPattern string,
 					return
 				}
 				backoff = c.initialBackoff
+				failures = 0
 				continue
 			}
 			// No HTTP fallback — give up
