@@ -238,27 +238,6 @@ findings:
       on websecure (entrypoint http.tls), a file-provider tls.options.default minVersion VersionTLS13, move ping off
       the web entrypoint (the healthcheck probes :80/ping), then redirect web to websecure, then drop api.insecure
 
-  - id: FND-003
-    title: >-
-      13 unit files in deploy/systemd deny syscalls that systemd silently ignores. `SystemCallFilter=~@privileged ~@resources ~@reboot ~@module ~@swap`
-      accepts `~` only as the first character of the list, so the later groups are unknown names (systemd-analyze verify prints "System call ~@resources
-      is not known, ignoring"). Only @privileged is denied. @reboot, @module and @swap are already outside the @system-service allow-list, so the
-      real loss is @resources. huginn.service is installed and enabled on west with this line.
-    verify: systemd-analyze verify deploy/systemd/*.service prints no "System call ... is not known" lines, and each fixed unit starts and serves under the corrected filter
-    host: west
-    severity: low
-    class: service
-    opened: 2026-09-30
-    exposure: the documented seccomp hardening is weaker than written; matters only after code execution inside a service
-    lockout: none
-    step: 7
-    plan: >-
-      Repo side fixed 2026-09-30: all 13 units now read `SystemCallFilter=~@privileged @resources @reboot @module @swap`, after every binary
-      (akira, architect, captain, dashboard-backend, huginn, kanban-app, micromanager, monad, sophia, timeguru, unheaded-daemon, wotan,
-      zhen-agentd) ran identically under the old and corrected filter in transient units on west (timeguru also served /health under both).
-      scripts/check-systemd-units.sh (meta-gate registered) keeps it fixed. Remaining: the installed /etc/systemd/system/huginn.service
-      on west still has the old line; replace it with the repo copy and restart huginn, with Stevie's yes.
-
   - source: "host-sysctl:west:net.ipv6.conf.all.accept_ra=0"
     severity: low
     class: sysctl
