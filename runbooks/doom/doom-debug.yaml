@@ -18,21 +18,27 @@ preconditions:
     description: "Doom ring BPF maps exist (ring is set up)"
 
 steps:
+  # `doom-loader cpu` has no --status flag (it exits 2 on it) and, without
+  # one, it RESETS the CPU. The read-only reader is cmd/doom-cpu-dump.
+  - name: build-cpu-dump
+    action: shell
+    command: "cd ${PROJECT_ROOT} && go build -o bin/doom-cpu-dump ./cmd/doom-cpu-dump/"
+    verify: "test -x ${PROJECT_ROOT}/bin/doom-cpu-dump"
+
   - name: read-cpu-state
     action: shell
     command: |
-      sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader cpu \
-        --instance DE --map ${MAP}/CPU_MAP --status
+      sudo ${PROJECT_ROOT}/bin/doom-cpu-dump dump --instance DE --map ${MAP}/CPU_MAP
     description: "Show PC, registers, halted state, instruction count"
 
   - name: check-halted
     action: shell
     command: |
-      STATE=$(sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader cpu --instance DE --map ${MAP}/CPU_MAP --status 2>/dev/null)
+      STATE=$(sudo ${PROJECT_ROOT}/bin/doom-cpu-dump dump --instance DE --map ${MAP}/CPU_MAP 2>/dev/null)
       echo "$STATE"
-      if echo "$STATE" | grep -q "halted=1"; then
+      if echo "$STATE" | grep -q "Halted: .*YES"; then
         echo "CPU HALTED — hit HALT opcode. Check PC for crash location."
-      elif echo "$STATE" | grep -q "halted=0"; then
+      elif echo "$STATE" | grep -qE "Halted: +no"; then
         echo "CPU RUNNING — normal operation."
       else
         echo "ANOMALOUS STATE — investigate."
@@ -82,9 +88,9 @@ steps:
     action: shell
     command: |
       echo "Reading CPU insn_count at t=0 and t=1..."
-      COUNT1=$(sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader cpu --instance DE --map ${MAP}/CPU_MAP --status 2>/dev/null | grep insn_count | awk '{print $NF}')
+      COUNT1=$(sudo ${PROJECT_ROOT}/bin/doom-cpu-dump dump --instance DE --map ${MAP}/CPU_MAP 2>/dev/null | awk '/Instruction Count:/{print $3}')
       sleep 1
-      COUNT2=$(sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader cpu --instance DE --map ${MAP}/CPU_MAP --status 2>/dev/null | grep insn_count | awk '{print $NF}')
+      COUNT2=$(sudo ${PROJECT_ROOT}/bin/doom-cpu-dump dump --instance DE --map ${MAP}/CPU_MAP 2>/dev/null | awk '/Instruction Count:/{print $3}')
       RATE=$((COUNT2 - COUNT1))
       echo "Instructions/sec: $RATE"
       echo "Estimated FPS: $((RATE / 4000000)) (assuming ~4M insns/frame)"

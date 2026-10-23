@@ -86,12 +86,16 @@ steps:
   - name: init-cpu
     action: shell
     command: "sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader cpu --instance ${CPU_INSTANCE} --map ${MAP}/CPU_MAP"
-    verify: "sudo ${PROJECT_ROOT}/cmd/doom-loader/doom-loader cpu --instance ${CPU_INSTANCE} --map ${MAP}/CPU_MAP --status 2>/dev/null | grep -q 'halted=0' || true"
+    # Read back with doom-cpu-dump: `doom-loader cpu --status` is not a flag,
+    # and the old `|| true` made this verify pass regardless.
+    verify: "cd ${PROJECT_ROOT} && go build -o bin/doom-cpu-dump ./cmd/doom-cpu-dump/ && sudo bin/doom-cpu-dump dump --instance ${CPU_INSTANCE} --map ${MAP}/CPU_MAP | grep -qE 'Halted: +no'"
     description: "Initialize CPU state (instance 0xDE)"
 
   - name: start-injector
     action: shell
     command: |
+      # A gitignored build product that no other step builds.
+      cd ${PROJECT_ROOT} && go build -o cmd/doom-go-injector/doom-go-injector ./cmd/doom-go-injector/ || exit 1
       SRC=$(sudo ip netns exec monad0 cat /sys/class/net/veth01/address)
       DST=$(sudo ip netns exec monad1 cat /sys/class/net/veth01p/address)
       sudo ip netns exec monad0 ${PROJECT_ROOT}/cmd/doom-go-injector/doom-go-injector \

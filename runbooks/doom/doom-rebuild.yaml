@@ -56,12 +56,12 @@ steps:
 
   - name: translate-to-mbc
     action: shell
+    # rv32i-to-mbc takes `-o out.mbc` and writes out.rv2mbc beside it; extra
+    # positional arguments are "unknown option" errors.
     command: |
       ${PROJECT_ROOT}/crates/monad-mbc/target/release/rv32i-to-mbc \
-        ${BUILD_DIR}/doom.elf \
-        ${PROJECT_ROOT}/doom/doom.mbc \
-        ${PROJECT_ROOT}/doom/doom.rv2mbc
-    verify: "test -f ${PROJECT_ROOT}/doom/doom.mbc"
+        ${BUILD_DIR}/doom.elf -o ${PROJECT_ROOT}/doom/doom.mbc
+    verify: "test -f ${PROJECT_ROOT}/doom/doom.mbc && test -f ${PROJECT_ROOT}/doom/doom.rv2mbc"
 
   - name: extract-data-section
     action: shell

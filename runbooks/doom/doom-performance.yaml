@@ -10,25 +10,32 @@ metadata:
 
 env:
   MAP: "/sys/fs/bpf/unheaded/doom-ring/maps"
+  PROJECT_ROOT: "~/tmp/unheaded"
 
 preconditions:
   - check: "test -d ${MAP}"
     description: "Doom ring must be set up"
 
 steps:
+  # `doom-loader cpu` has no --status flag (it exits 2 on it) and, without
+  # one, it RESETS the CPU. The read-only reader is cmd/doom-cpu-dump.
+  - name: build-cpu-dump
+    action: shell
+    command: "cd ${PROJECT_ROOT} && go build -o bin/doom-cpu-dump ./cmd/doom-cpu-dump/"
+    verify: "test -x ${PROJECT_ROOT}/bin/doom-cpu-dump"
+
   - name: check-cpu-state
     action: shell
     command: |
-      sudo ~/tmp/unheaded/cmd/doom-loader/doom-loader cpu \
-        --instance DE --map ${MAP}/CPU_MAP --status 2>/dev/null
+      sudo ${PROJECT_ROOT}/bin/doom-cpu-dump dump --instance DE --map ${MAP}/CPU_MAP 2>/dev/null
 
   - name: measure-throughput
     action: shell
     command: |
       echo "Measuring MBC instructions/sec over 5 seconds..."
-      COUNT1=$(sudo ~/tmp/unheaded/cmd/doom-loader/doom-loader cpu --instance DE --map ${MAP}/CPU_MAP --status 2>/dev/null | grep insn_count | awk '{print $NF}')
+      COUNT1=$(sudo ${PROJECT_ROOT}/bin/doom-cpu-dump dump --instance DE --map ${MAP}/CPU_MAP 2>/dev/null | awk '/Instruction Count:/{print $3}')
       sleep 5
-      COUNT2=$(sudo ~/tmp/unheaded/cmd/doom-loader/doom-loader cpu --instance DE --map ${MAP}/CPU_MAP --status 2>/dev/null | grep insn_count | awk '{print $NF}')
+      COUNT2=$(sudo ${PROJECT_ROOT}/bin/doom-cpu-dump dump --instance DE --map ${MAP}/CPU_MAP 2>/dev/null | awk '/Instruction Count:/{print $3}')
       RATE=$(( (COUNT2 - COUNT1) / 5 ))
       FPS=$(( RATE / 4000000 ))
       echo "  Instructions/sec: $RATE"
