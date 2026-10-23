@@ -244,6 +244,12 @@ func (c *AccessControlChecker) Check(ctx context.Context, control *Control) (*Co
 	findings := []Finding{}
 	compliant := 0
 	total := len(c.policies)
+	if total == 0 {
+		// No policy to check is not a passing check: 0/0 is NaN, and NaN <
+		// 1.0 is false, so this once returned StatusCompliant.
+		return &ControlResult{ControlID: control.ID, Status: StatusNotAssessed, Findings: findings,
+			Notes: "no access control policies to check", TestedAt: time.Now(), TestedBy: "automated"}, nil
+	}
 
 	for _, policy := range c.policies {
 		if policy.Enforced {

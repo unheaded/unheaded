@@ -317,6 +317,20 @@ func TestAccessControlCheckerSupports(t *testing.T) {
 	}
 }
 
+// No policies is nothing checked: it once scored 0/0 = NaN and, NaN not
+// being < 1.0, came out compliant.
+func TestAccessControlCheckerNoPolicies(t *testing.T) {
+	for _, policies := range [][]AccessPolicy{nil, {}} {
+		result, err := NewAccessControlChecker(policies).Check(context.Background(), makeControl("AC-1", CategoryAccessControl))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Status != StatusNotAssessed {
+			t.Errorf("no policies: status %s, want %s", result.Status, StatusNotAssessed)
+		}
+	}
+}
+
 func TestAccessControlCheckerAllEnforced(t *testing.T) {
 	policies := []AccessPolicy{
 		{ID: "p1", Name: "P1", Enforced: true},
