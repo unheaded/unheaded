@@ -57,6 +57,7 @@ type Vision struct {
 	Statement string    `json:"statement"`
 	Goals     []string  `json:"goals"`
 	UpdatedAt time.Time `json:"updated_at"`
+	Source    string    `json:"source"` // "built-in": compiled in, nothing updates it
 }
 
 // Strategy represents the strategic plan
@@ -65,6 +66,7 @@ type Strategy struct {
 	Description string    `json:"description"`
 	Phases      []Phase   `json:"phases"`
 	UpdatedAt   time.Time `json:"updated_at"`
+	Source      string    `json:"source"` // "built-in": compiled in, nothing updates it
 }
 
 // Phase represents a strategy phase
@@ -137,6 +139,14 @@ type Config struct {
 	MetricsCallback func(string, interface{}) // Optional metrics callback
 }
 
+// The vision and strategy are compiled in and nothing changes them. They
+// were stamped time.Now() at every start, so a February 2026 plan read as
+// updated today; UpdatedAt is now when the text was last edited (git).
+var (
+	builtinVisionEdited   = time.Date(2026, 5, 29, 0, 0, 0, 0, time.UTC)
+	builtinStrategyEdited = time.Date(2026, 2, 25, 0, 0, 0, 0, time.UTC)
+)
+
 // NewService creates a new captain service
 func NewService(cfg Config) (*Service, error) {
 	if cfg.Storage == nil {
@@ -154,7 +164,8 @@ func NewService(cfg Config) (*Service, error) {
 			Title:     "Configuration management automation platform",
 			Statement: "Unheaded delivers the complete suit of armor for modern SaaS applications",
 			Goals:     []string{"eBPF observability", "Immutable infrastructure", "Zero customer data access", "Self-hosting proof"},
-			UpdatedAt: time.Now(),
+			UpdatedAt: builtinVisionEdited,
+			Source:    "built-in",
 		},
 		strategy: &Strategy{
 			Title:       "Alpha Execution Plan",
@@ -164,7 +175,8 @@ func NewService(cfg Config) (*Service, error) {
 				{Name: "Microservices", Description: "Core service implementations", Timeline: "Feb 4-5, 2026"},
 				{Name: "Integration", Description: "Full system wiring", Timeline: "Feb 6-8, 2026"},
 			},
-			UpdatedAt: time.Now(),
+			UpdatedAt: builtinStrategyEdited,
+			Source:    "built-in",
 		},
 	}
 

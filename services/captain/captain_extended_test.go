@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // ============================================================================
@@ -917,5 +918,21 @@ func TestSafeFilePath_SpecialIDs(t *testing.T) {
 	_, err = storage.safeFilePath("/")
 	if err == nil {
 		t.Error("expected error for '/'")
+	}
+}
+
+// Built-in vision and strategy said they were updated at every start.
+func TestBuiltinContentCarriesItsRealDate(t *testing.T) {
+	svc, err := NewService(Config{Storage: newMockStorage(), Wotan: newMockWotan()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, _ := svc.GetStrategy(context.Background())
+	v, _ := svc.GetVision(context.Background())
+	if time.Since(st.UpdatedAt) < 24*time.Hour || time.Since(v.UpdatedAt) < 24*time.Hour {
+		t.Errorf("built-in content dated now: strategy %v, vision %v", st.UpdatedAt, v.UpdatedAt)
+	}
+	if st.Source != "built-in" || v.Source != "built-in" {
+		t.Errorf("source = %q / %q, want built-in", st.Source, v.Source)
 	}
 }
