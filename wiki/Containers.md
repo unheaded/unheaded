@@ -25,17 +25,9 @@ Every container, regardless of runtime, MUST enforce:
 
 ## Runtime Selection
 
-The container runtime is a deployment-time choice, not an architectural decision. Unheaded's control plane (unheaded-daemon) abstracts the runtime behind a common interface:
+The runtime is a deployment-time choice. Definitions for each live side by side: `lxd/` and `containers/lxd/`, `containers/containerd/`, `nix/` + `nixos/`, `docker/`, `containers/docker/` and `docker-compose.yml`.
 
-```
-unheaded-daemon
-  ├── runtime: lxd      → LXD REST API
-  ├── runtime: containerd → CRI / containerd API
-  ├── runtime: nixos     → NixOS container definitions
-  └── runtime: docker    → Docker Engine API
-```
-
-Services don't know or care which runtime hosts them. The hardening, networking, and observability layers are identical.
+The control plane (Cuirass, `cmd/unheaded-daemon`) drives one runtime today: LXD, through `LXD_BACKEND` (`mock`, `unix`, `https`; below). There is no containerd, NixOS or Docker backend in the daemon. West runs its services in `docker compose`; east runs them as systemd units ([[Systemd Units|Systemd-Units]]).
 
 ## Reconciliation safe mode
 

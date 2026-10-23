@@ -7,7 +7,7 @@ Every binary under `cmd/`, grouped by role. Ports are in [[Port Registry|Port-Re
 | Binary | What it does | Wiki |
 |--------|--------------|------|
 | `wotan` (`services/wotan`) | Message bus, ring buffer, protocol RAM | [[Service-Wotan]] |
-| `akira` | Health daemon: ping/pong sweep, percentage consensus, reports into The Well | [[Service-Akira]] |
+| `akira` | Health daemon: ping/pong sweep, percentage consensus, reports and bands on Wotan (dashboard-backend writes them to The Well) | [[Service-Akira]] |
 | `kev-poller` | Keeps the CISA KEV catalog current (`:19120`): hourly conditional GET, validated snapshots in `/var/lib/unheaded/threat-feeds/cisa-kev`, deltas on Wotan `threats.cisa-kev.delta` | [[Service-KEV-Poller]] |
 | `dashboard-backend` | Metrics + WebSocket backend for the live dashboard (`:20000`) | [[Service-Dashboard-Backend]] |
 | `kanban-app` | Task board backed by The Well | [[Service-Kanban-App]] |
@@ -21,7 +21,8 @@ Every binary under `cmd/`, grouped by role. Ports are in [[Port Registry|Port-Re
 | `heimdall-daemon` | Userspace control for Mímir's Law / Gleipnir Phase 0 | [[Mimirs-Law]] |
 | `routing-health` | Health endpoint for BIRD + established BGP sessions | [[Load-Balancers]] |
 | `zhen-agentd` | Zhen agent daemon (ReAct loop + Champion gate) | [[Zhen-AI]] |
-| `host-agent` | Small bare-metal host metrics agent (Huginn is the live one) | [[Service-Huginn]] |
+| `host-agent` | Huginn, the host metrics agent (`scripts/build-binaries.sh` builds it as `huginn`) | [[Service-Huginn]] |
+| `alert-mailer` | The only alert mail sender: pages at once, tickets as a daily digest, daily cap, dry-run mode (`:19130`) | [[Alerting]] |
 | `wiki-server` | Renders this wiki locally over HTTP | — |
 
 Timeguru, Captain, Architect and Micromanager build from `services/<name>`: [[Service-Timeguru]], [[Service-Captain]], [[Service-Architect]], [[Service-Micromanager]].
@@ -49,6 +50,7 @@ See [[eBPF Programs|eBPF-Programs]] and [[Observability Backends|Observability-B
 | `compliance-evidence` | Collects evidence for the compliance catalog; `well sync` writes it to The Well | 097 / 098 |
 | `yggdrasil-evidence` | Validates, signs and verifies Yggdrasil evidence | — |
 | `well-migrate` | Applies `db/migrations/MANIFEST` and records each file in the ledger | 101 |
+| `alert-policy` | Renders `observability/alerting/policy.yaml` into Prometheus SLO rules and Alertmanager routing; `--check` in CI | 100 |
 | `cert-gen` | TLS certificates for the service mesh | 034 |
 | `chaos-controller` | Chaos engineering controller | — |
 | `lich-security` | Offensive test suite: campaign modules D1–D6 against the stack | 062 |
@@ -79,4 +81,4 @@ See [[UPC Overview|UPC-Overview]] and [[Doom on UPC|Doom-on-UPC]].
 
 ---
 
-> **Source:** `cmd/*/` package docs (2026-10-16) · [docs/architecture/MICROSERVICES.md](../docs/architecture/MICROSERVICES.md)
+> **Source:** `cmd/*/` package docs · [docs/architecture/MICROSERVICES.md](../docs/architecture/MICROSERVICES.md)

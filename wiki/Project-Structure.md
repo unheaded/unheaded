@@ -1,6 +1,6 @@
 # Project Structure
 
-Top-level layout of the monorepo (`develop`, 2026-10-16). Binaries: [[Microservices]]. Rust crates: [[Rust Components|Rust-Components]].
+Top-level layout of the monorepo (`develop`). Binaries: [[Microservices]]. Rust crates: [[Rust Components|Rust-Components]].
 
 ## Code
 
@@ -9,7 +9,7 @@ Top-level layout of the monorepo (`develop`, 2026-10-16). Binaries: [[Microservi
 | `cmd/` | Every binary's entry point (Go, plus a few Rust/C) |
 | `services/` | Service internals: wotan, timeguru, captain, architect, micromanager, monad, sophia, anamnesis, shield, plus the armor-named components (cuirass, gauntlets, vambraces…) |
 | `pkg/` | Shared Go packages: auth, audit, transport, discovery, logagg, health, ports, wotan-client, compliance, champion, gungnir, gjallarhorn, enkrateia, pqc_policy, … |
-| `internal/` | Repo-private Go helpers (bpfmap, doom, dashboard) |
+| `internal/` | Repo-private Go helpers (bpf, bpfmap, ebpf, doom, dashboard) |
 | `ebpf/` | Rust/Aya eBPF workspace (GPL-2.0-only): XDP/TC programs + shared types |
 | `crates/` | Other Rust crates: monad-mbc, upc-api, upc-bootstub, xv6-mbc, doom-runner, heimdall-bpf, lich-fuzz, zhend, zhenai-forge |
 | `arch/mbc/` | MBC architecture support for the UPC kernel |
@@ -18,7 +18,7 @@ Top-level layout of the monorepo (`develop`, 2026-10-16). Binaries: [[Microservi
 | `dashboard/`, `kanban/` | Vanilla-JS front ends (ADR-006) |
 | `raft/` | Zhen RAFT training scripts, MCP server, scheduler |
 | `eval/` | Zhen coding-gate evaluation set |
-| `tools/` | `mbc-asm` |
+| `tools/` | `mbc-asm`, `gosec` (pinned linter build) |
 
 ## Data and policy
 
@@ -33,7 +33,7 @@ Top-level layout of the monorepo (`develop`, 2026-10-16). Binaries: [[Microservi
 
 | Dir | What |
 |-----|------|
-| `deploy/` | systemd units ([[Systemd-Units]]), east offsite, ansible, argocd, k8s, tofu, nftables |
+| `deploy/` | systemd units ([[Systemd-Units]]), `sysusers.d/` (one account per service), east offsite, ansible, argocd, k8s, tofu, nftables |
 | `docker/`, `docker-compose*.yml` | Compose stack: services, hosts, telemetry, firewall, nginx |
 | `containers/`, `lxd/`, `nix/`, `nixos/` | The four container runtimes + NixOS host config ([[Containers]]) |
 | `kubernetes/`, `helm/` | K8s manifests and chart |
