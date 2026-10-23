@@ -88,3 +88,15 @@ func TestAuditWell_OffKeepsWriteToolsListed(t *testing.T) {
 		t.Errorf("tools = %s", tools)
 	}
 }
+
+func TestRedactDSN(t *testing.T) {
+	for in, want := range map[string]string{
+		`dial postgres://ops_writer:hunter2@west:5432/unheaded_ops: refused`: `dial postgres://[redacted]@west:5432/unheaded_ops: refused`,
+		`a postgresql://u:p@h/x and b postgres://v:q@h/y`:                    `a postgresql://[redacted]@h/x and b postgres://[redacted]@h/y`,
+		`no url here`: `no url here`,
+	} {
+		if got := redactDSN(in); got != want {
+			t.Errorf("redactDSN(%q) = %q, want %q", in, got, want)
+		}
+	}
+}

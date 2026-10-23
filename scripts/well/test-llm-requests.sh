@@ -13,18 +13,23 @@
 #   4. the CHECKs refuse an unknown backend, a negative cost and an unknown
 #      route_reason;
 #   5. ops_reader can read and cannot write.
-#   6. with --go: pkg/claudebridge's Well integration test runs against the
-#      same server as ops_writer (WELL_TEST_DSN, build tag wellint).
+#   6. pkg/claudebridge's Well integration test (build tag wellint) runs
+#      one bridge turn against the fake Claude API with the Well auditor
+#      writing to this server as ops_writer (WELL_TEST_DSN): one row per
+#      request, one audit event per tool decision, a valid hash chain;
+#   7. a pg_dump of unheaded_ops holds no trace of the prompt marker.
 #
-#   scripts/well/test-llm-requests.sh [--go] [image]   # default postgres:16.15-alpine
+#   scripts/well/test-llm-requests.sh [--sql-only] [image]   # default postgres:16.15-alpine
+#
+# --sql-only skips 6 and 7 (no Go toolchain needed).
 #
 # WELL_MIGRATIONS_DIR (default db/migrations) points the bootstrap at
 # another copy of the migrations, so a provocation can be tested.
 # Needs docker (sudo if not in the group).
 set -euo pipefail
 
-GO=0
-if [[ "${1:-}" == --go ]]; then GO=1; shift; fi
+GO=1
+if [[ "${1:-}" == --sql-only ]]; then GO=0; shift; fi
 IMAGE="${1:-postgres:16.15-alpine}"
 R="$(cd "$(dirname "$0")/../.." && pwd)"
 SRC="${WELL_MIGRATIONS_DIR:-$R/db/migrations}"
@@ -109,13 +114,18 @@ refused "ops_reader INSERT" login ops_reader "$RD_PW" "$ROW VALUES (now(), 'zhen
 # 6. Go integration test against this server.
 if ((GO)); then
 	export WELL_TEST_DSN="postgres://ops_writer:$OPS_PW@127.0.0.1:$PORT/unheaded_ops?sslmode=disable"
-	export WELL_TEST_SU_DSN="postgres://unheaded:$PW@127.0.0.1:$PORT/unheaded_ops?sslmode=disable"
 	if (cd "$R" && go test -count=1 -tags wellint ./pkg/claudebridge/ -run Well -v >"$TMP/go.out" 2>&1); then
 		pass "go test -tags wellint ./pkg/claudebridge -run Well"
 	else
 		fail "go integration test"; tail -25 "$TMP/go.out" | sed 's/^/    /'
 	fi
-	unset WELL_TEST_DSN WELL_TEST_SU_DSN
+	unset WELL_TEST_DSN
+	# 7. The marker was in the prompt and in a tool input; neither is stored.
+	"${DOCKER[@]}" exec "$N" pg_dump -U unheaded -d unheaded_ops >"$TMP/dump.sql"
+	n=$(grep -c 'S2B-SECRET-MARKER' "$TMP/dump.sql" || true)
+	rows=$(sq "SELECT count(*) FROM llm_requests")
+	[[ "$n" == 0 && "$rows" -gt 2 ]] && pass "pg_dump: $rows llm_requests rows, 0 hits for the prompt marker" ||
+		fail "pg_dump: $n hit(s) for the marker, $rows rows"
 fi
 
 if ((fails > 0)); then echo "$fails check(s) failed"; exit 1; fi
