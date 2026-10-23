@@ -168,18 +168,20 @@ Wotan is the message bus. Verify topic subscribe/publish/messages work.
 > **Important:** Quote all URLs containing `?` when using zsh (e.g. `'http://...'`).
 
 ```bash
-# Subscribe to a test topic
+# Subscribe to a test topic. Only display names on topics.auto_approve in
+# configs/wotan.yaml are approved; any other name stays "pending" and its
+# publishes get 403 "subscriber not approved". "service" is on the list.
 curl -s -X POST 'http://localhost:18000/api/v1/topics/test.events/subscribe' \
   -H 'Content-Type: application/json' \
-  -d '{"display_name":"smoke-tester"}'
-# → returns {"subscriber_id":"...","status":"subscribed",...}
+  -d '{"display_name":"service"}'
+# → returns {"subscriber_id":"...","topic":"test.events","status":"approved",...}
 
-# Save the subscriber_id, then publish a message
+# Save the subscriber_id, then publish a message (payload is a string)
 SID="<paste subscriber_id from above>"
 curl -s -X POST 'http://localhost:18000/api/v1/topics/test.events/publish' \
   -H 'Content-Type: application/json' \
-  -d "{\"subscriber_id\":\"$SID\",\"payload\":{\"msg\":\"hello kingdom\"}}"
-# → returns {"status":"published","seq":1}
+  -d "{\"subscriber_id\":\"$SID\",\"payload\":\"hello kingdom\"}"
+# → returns {"message_id":"...","topic":"test.events","seq":1,...}
 
 # Read messages back
 curl -s 'http://localhost:18000/api/v1/topics/test.events/messages'
@@ -190,7 +192,7 @@ curl -s 'http://localhost:18000/api/v1/topics'
 ```
 
 **Success criteria:**
-- [ ] Subscribe returns subscriber_id
+- [ ] Subscribe returns subscriber_id with status approved
 - [ ] Publish succeeds (requires subscriber_id in payload)
 - [ ] Messages returns published messages with seq numbers
 - [ ] List topics shows active topics
