@@ -1,0 +1,31 @@
+diff -ruN a/lib.go b/lib.go
+--- a/lib.go	2026-10-23 10:35:50.986524218 +0000
++++ b/lib.go	2026-10-23 10:35:50.986552668 +0000
+@@ -3,13 +3,24 @@
+ 
+ package fixture
+ 
++import "sync"
++
+ // Counter counts events.
+ type Counter struct {
+-	n int
++	mu sync.Mutex
++	n  int
+ }
+ 
+ // Inc adds one.
+-func (c *Counter) Inc() { c.n++ }
++func (c *Counter) Inc() {
++	c.mu.Lock()
++	defer c.mu.Unlock()
++	c.n++
++}
+ 
+ // Value returns the count.
+-func (c *Counter) Value() int { return c.n }
++func (c *Counter) Value() int {
++	c.mu.Lock()
++	defer c.mu.Unlock()
++	return c.n
++}

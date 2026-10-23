@@ -517,6 +517,26 @@ provoke_well_pq_groups() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_llm_requests() {
+    # Contract (S-TWO-BRAINS Step 36): llm_requests is append-only even for
+    # its owner. Drop the UPDATE/DELETE trigger from 030.
+    local f="db/migrations/030_ops_llm_requests.sql"
+    backup "${f}"
+    sed -i '/^CREATE OR REPLACE TRIGGER trg_llm_requests_append_only$/,/EXECUTE FUNCTION well_append_only();$/d' "${REPO_ROOT}/${f}"
+    ! grep -q 'trg_llm_requests_append_only' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_zhen_confirm() {
+    # Contract (S-TWO-BRAINS Step 67): confirmation states move one way.
+    # Drop the transition trigger from 031.
+    local f="db/migrations/031_app_zhen_pending_confirmations.sql"
+    backup "${f}"
+    sed -i '/^CREATE OR REPLACE TRIGGER trg_zhen_confirm_transition/,/EXECUTE FUNCTION zhen_confirm_transition();$/d' "${REPO_ROOT}/${f}"
+    ! grep -q 'TRIGGER trg_zhen_confirm_transition' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_systemd_units() {
     # Contract (ADR-098 FND-003): systemd ignores nothing in deploy/systemd.
     # Restore the original mistake: a `~` on every group, of which systemd
@@ -728,6 +748,8 @@ well/test-backup-restore|provoke_well_backup_restore|slow|db-backup.sh leaving u
 well/test-offsite-check|provoke_well_offsite_check|fast|offsite-check.sh counting a set without SHA256SUMS as good
 well/test-config|provoke_well_config|slow|pg_hba letting service roles in without TLS (needs docker)
 well/test-pq-groups|provoke_well_pq_groups|slow|the hybrid group removed from the PG18 ssl_groups include (needs docker)
+well/test-llm-requests|provoke_well_llm_requests|slow|llm_requests' UPDATE/DELETE trigger removed from 030 (needs docker)
+well/test-zhen-confirm|provoke_well_zhen_confirm|slow|the one-way transition trigger removed from 031 (needs docker)
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)

@@ -1,0 +1,21 @@
+diff -ruN a/lib.go b/lib.go
+--- a/lib.go	2026-10-23 10:35:50.990282202 +0000
++++ b/lib.go	2026-10-23 10:35:50.990311212 +0000
+@@ -3,14 +3,9 @@
+ 
+ package fixture
+ 
++import "strings"
++
+ // JoinFields joins fields with sep.
+ func JoinFields(fields []string, sep string) string {
+-	out := ""
+-	for _, f := range fields {
+-		out += f + sep
+-	}
+-	if out == "" {
+-		return sep
+-	}
+-	return out
++	return strings.Join(fields, sep)
+ }

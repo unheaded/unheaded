@@ -71,6 +71,14 @@ var (
 		},
 	)
 
+	confirmQueued = auto.NewCounter(
+		prom.CounterOpts{
+			Namespace: "zhen_agentd",
+			Name:      "confirm_queued_total",
+			Help:      "Agent-loop writes queued in the Well for out-of-band approval (no token issued).",
+		},
+	)
+
 	confirmTokensRedeemed = auto.NewCounterVec(
 		prom.CounterOpts{
 			Namespace: "zhen_agentd",

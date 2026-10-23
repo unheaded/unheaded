@@ -103,6 +103,15 @@ func (c *Champion) Dispatch(ctx context.Context, tc ToolCall) (any, error) {
 	case "kanban_list":
 		return c.ListKanbanTasks(ctx)
 
+	case "run_check":
+		key, err := requireString(tc.Args, "check")
+		if err != nil {
+			return nil, err
+		}
+		path, _ := tc.Args["path"].(string)
+		crate, _ := tc.Args["crate"].(string)
+		return c.RunCheck(ctx, key, path, crate)
+
 	case "runbook_execute":
 		// WAVE15 Phase 2b: kingdom-altering runbook execution gated by
 		// Champion. Args: {"name": "<runbook-name>"} optional

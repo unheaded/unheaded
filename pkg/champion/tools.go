@@ -63,6 +63,13 @@ func (p *ToolProvider) Tools(_ context.Context) ([]zhentools.Tool, error) {
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"path":{"type":"string"},"old_text":{"type":"string"},"new_text":{"type":"string"}},"required":["path","old_text","new_text"],"additionalProperties":false}`),
 		},
 	}
+	if p.c.runCheck != nil && p.c.runCheck.Checks != nil {
+		tools = append(tools, zhentools.Tool{
+			Name:        "run_check",
+			Description: "Run one allowlisted check (tests, vet, lint) on a path inside this worktree, in a no-network sandbox. You name the check; you cannot give a command. Returns pass, exit code and output.",
+			InputSchema: json.RawMessage(`{"type":"object","properties":{"check":{"type":"string","description":"Check key, e.g. go-test, py-unittest, shellcheck, fixture-check."},"path":{"type":"string","description":"Path relative to the worktree (default .). Go patterns like ./pkg/x/... are allowed."},"crate":{"type":"string","description":"Cargo package, for cargo-test only."}},"required":["check"],"additionalProperties":false}`),
+		})
+	}
 	if p.c.kanbanStore != nil {
 		tools = append(tools,
 			zhentools.Tool{

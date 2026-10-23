@@ -14,6 +14,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"unheaded/pkg/localllm"
 )
 
 func fakeLlama(t *testing.T, status int, body string, delay time.Duration) (*httptest.Server, *[]map[string]any) {
@@ -87,7 +89,7 @@ func TestLocalCompleteFailures(t *testing.T) {
 		{"not json", 200, "nope", "not an OpenAI chat completion"},
 		{"no choices", 200, `{"choices":[]}`, "not an OpenAI chat completion"},
 		{"empty", 200, chatBody("  ", "stop"), "empty answer"},
-		{"too big", 200, strings.Repeat("x", maxLocalBodyBytes+5), "exceeds"},
+		{"too big", 200, strings.Repeat("x", localllm.MaxBodyBytes+5), "exceeds"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {

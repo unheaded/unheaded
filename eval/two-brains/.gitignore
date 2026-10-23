@@ -1,0 +1,4 @@
+# Fixture checks run in copies; these only appear if one is run in place.
+fixtures/*/.gocache/
+fixtures/*/.gopath/
+fixtures/*/__pycache__/

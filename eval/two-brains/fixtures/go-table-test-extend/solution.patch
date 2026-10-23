@@ -1,0 +1,14 @@
+diff -ruN a/lib.go b/lib.go
+--- a/lib.go	2026-10-23 10:35:50.987773226 +0000
++++ b/lib.go	2026-10-23 10:35:50.987796136 +0000
+@@ -10,6 +10,10 @@
+ 		return "ok"
+ 	case code == 404:
+ 		return "not_found"
++	case code == 429:
++		return "rate_limited"
++	case code == 503:
++		return "unavailable"
+ 	case code >= 500:
+ 		return "server_error"
+ 	case code >= 400:

@@ -81,7 +81,9 @@ type Champion struct {
 	store         ActionStore
 	snapshotStore SnapshotStore
 	kanbanStore   KanbanStore
-	confirmStore  *confirmStore // lazy-init via IssuePendingConfirmation
+	confirmStore  *confirmStore   // lazy-init via IssuePendingConfirmation
+	runCheck      *RunCheckConfig // nil: run_check refused (runcheck.go)
+	branchSandbox *branchSandbox  // nil: off (branchsandbox.go)
 }
 
 // New creates a new Champion with the given configuration.
@@ -193,14 +195,67 @@ func (c *Champion) validatePath(path string) error {
 	}
 
 	// Check allowed paths
+	inside := false
 	for _, allowed := range c.config.AllowedPaths {
 		allowedAbs, _ := filepath.Abs(allowed)
 		if strings.HasPrefix(absPath, allowedAbs) {
+			inside = true
+			break
+		}
+	}
+	if !inside {
+		return fmt.Errorf("path outside sandbox: %s (allowed: %v)", absPath, c.config.AllowedPaths)
+	}
+
+	// The same checks on the real path: a symlink inside the sandbox
+	// must not lead a read or write outside it (S-TWO-BRAINS Step 86b).
+	// The deepest existing ancestor is resolved, so a file that does not
+	// exist yet is judged by the directory it would land in.
+	resolved, err := realPath(absPath)
+	if err != nil {
+		return fmt.Errorf("cannot resolve path: %w", err)
+	}
+	for _, denied := range c.config.DeniedPaths {
+		if strings.Contains(resolved, denied) {
+			return fmt.Errorf("path resolves to a denied pattern: %s", denied)
+		}
+	}
+	for _, allowed := range c.config.AllowedPaths {
+		allowedAbs, _ := filepath.Abs(allowed)
+		allowedReal, err := realPath(allowedAbs)
+		if err != nil {
+			continue
+		}
+		if resolved == allowedReal || strings.HasPrefix(resolved, strings.TrimSuffix(allowedReal, string(filepath.Separator))+string(filepath.Separator)) {
 			return nil
 		}
 	}
+	return fmt.Errorf("path resolves outside sandbox: %s -> %s", absPath, resolved)
+}
 
-	return fmt.Errorf("path outside sandbox: %s (allowed: %v)", absPath, c.config.AllowedPaths)
+// realPath resolves symlinks in the deepest existing ancestor of an
+// absolute path and appends the parts that do not exist yet.
+func realPath(abs string) (string, error) {
+	p := filepath.Clean(abs)
+	var rest []string
+	for {
+		if _, err := os.Lstat(p); err == nil {
+			r, err := filepath.EvalSymlinks(p)
+			if err != nil {
+				return "", err
+			}
+			for i := len(rest) - 1; i >= 0; i-- {
+				r = filepath.Join(r, rest[i])
+			}
+			return r, nil
+		}
+		parent := filepath.Dir(p)
+		if parent == p {
+			return filepath.Clean(abs), nil
+		}
+		rest = append(rest, filepath.Base(p))
+		p = parent
+	}
 }
 
 // logAction logs an action intent to The Well.

@@ -1,0 +1,11 @@
+diff -ruN a/sizes.sh b/sizes.sh
+--- a/sizes.sh	2026-10-23 10:35:51.002991140 +0000
++++ b/sizes.sh	2026-10-23 10:35:51.003015100 +0000
+@@ -1,5 +1,6 @@
+ #!/usr/bin/env bash
+ set -euo pipefail
+-for f in $(ls *.log); do
++for f in *.log; do
++  [ -e "$f" ] || continue
+   wc -c "$f"
+ done

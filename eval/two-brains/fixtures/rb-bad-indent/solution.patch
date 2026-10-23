@@ -1,0 +1,12 @@
+diff -ruN a/runbook.yaml b/runbook.yaml
+--- a/runbook.yaml	2026-10-23 10:35:51.005494096 +0000
++++ b/runbook.yaml	2026-10-23 10:35:51.005532086 +0000
+@@ -14,7 +14,7 @@
+     command: "curl -sf http://localhost:18000/health"
+     verify: "curl -sf -o /dev/null http://localhost:18000/health"
+ 
+-   - name: grpc-port
++  - name: grpc-port
+     action: shell
+     command: "ss -ltn | grep -q ':18001 '"
+     verify: "ss -ltn | grep ':18001 '"

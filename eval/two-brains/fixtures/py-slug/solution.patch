@@ -1,0 +1,12 @@
+diff -ruN a/lib.py b/lib.py
+--- a/lib.py	2026-10-23 10:35:50.996720231 +0000
++++ b/lib.py	2026-10-23 10:35:50.996743381 +0000
+@@ -1,4 +1,7 @@
+ # SPDX-License-Identifier: GPL-3.0-or-later
++import re
++
++
+ def slug(title):
+     """URL slug for a title."""
+-    return title.lower().replace(" ", "-")
++    return re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")

@@ -1,0 +1,8 @@
+diff -ruN a/runbook.yaml b/runbook.yaml
+--- a/runbook.yaml	2026-10-23 10:35:51.004232938 +0000
++++ b/runbook.yaml	2026-10-23 10:35:51.004257618 +0000
+@@ -17,3 +17,4 @@
+   - name: largest-dirs
+     action: shell
+     command: "du -sh /var/lib/* 2>/dev/null | sort -h | tail -5"
++    verify: "test -d /var/lib"

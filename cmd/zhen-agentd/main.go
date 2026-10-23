@@ -21,7 +21,6 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -45,6 +44,8 @@ import (
 	"unheaded/pkg/auth"
 	"unheaded/pkg/champion"
 	"unheaded/pkg/champion/pgstore"
+	"unheaded/pkg/claudebridge"
+	"unheaded/pkg/localllm"
 	"unheaded/pkg/metrics/prom"
 )
 
@@ -71,6 +72,9 @@ func main() {
 		kanbanStore  = flag.String("kanban-store", "memory", "kanban-task backend for kanban_create / kanban_update tool calls: memory (in-process, dev) | pg (production via The Well; requires WELL_DSN env). Without this, kanban_* tool calls pass the gate but fail at dispatch.")
 		rateRPS      = flag.Float64("rate-limit", 0, "per-IP requests/sec (0 disables; recommended ~5 for unauthenticated, higher behind auth)")
 		rateBurst    = flag.Int("rate-burst", 10, "per-IP rate-limit burst capacity (only used when -rate-limit > 0)")
+		auditWell    = flag.Bool("audit-well", false, "record one llm_requests row per llama-server call and one audit_events row per Champion gate decision in the Well (DSN from env WELL_OPS_DSN)")
+		confirmQ     = flag.Bool("confirm-queue", false, "queue agent-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with `zhen-claude confirm`")
+		auditWotan   = flag.Bool("audit-wotan", false, "also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
 	)
 	flag.Parse()
 
@@ -117,10 +121,16 @@ func main() {
 		}
 	}
 
+	aud, err := buildAgentdAudit(context.Background(), *auditWell, *auditWotan)
+	if err != nil {
+		fatal("audit init: %v", err)
+	}
+	defer aud.close()
 	rawStore, err := buildActionStore(*actionStore)
 	if err != nil {
 		fatal("action-store init: %v", err)
 	}
+	rawStore = newAuditActionStore(rawStore, aud.auditor)
 	// Wrap with the metrics decorator so every gate decision shows up
 	// in /metrics under zhen_agentd_champion_actions_total.
 	store := newMetricsActionStore(rawStore)
@@ -130,16 +140,31 @@ func main() {
 	}
 	pool := newChampionPool(store, kStore)
 
+	queue, closeQueue, err := buildConfirmQueue(context.Background(), *confirmQ)
+	if err != nil {
+		fatal("confirm-queue init: %v", err)
+	}
+	defer closeQueue()
+
 	httpClient := &http.Client{Timeout: httpTimeout}
 	srv := &server{
 		pool:        pool,
 		defaultRoot: rootAbs,
 		allowed:     allowed,
 		retriever:   &vorRetriever{client: httpClient, baseURL: vorURL, maxChars: defaultMaxChars},
-		llm:         &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName},
+		llm:         &llamaLLM{client: httpClient, baseURL: llamaURL, model: modelName, audit: aud.auditor},
 		vorURL:      vorURL,
 		llamaURL:    llamaURL,
 		ready:       newReadyTracker(httpClient, vorURL, llamaURL),
+	}
+	if queue != nil {
+		srv.confirmQueue = queue
+	}
+	if aud.wotan != nil {
+		srv.confirmPub = aud.wotan
+	}
+	if ca, ok := aud.auditor.(claudebridge.ConfirmAuditor); ok {
+		srv.confirmAudit = ca
 	}
 
 	mux := http.NewServeMux()
@@ -326,9 +351,13 @@ type server struct {
 	allowed     map[string]struct{} // absolute project_root → allowed
 	retriever   agent.Retriever
 	llm         agent.LLM
-	vorURL      string
-	llamaURL    string
-	ready       *readyTracker
+
+	confirmQueue claudebridge.ConfirmQueue   // nil: agent-loop writes are denied
+	confirmPub   claudebridge.JSONPublisher  // zhen.confirm.pending notices
+	confirmAudit claudebridge.ConfirmAuditor // confirm_issue events
+	vorURL       string
+	llamaURL     string
+	ready        *readyTracker
 }
 
 // championPool caches *champion.Champion instances keyed by absolute
@@ -464,7 +493,7 @@ func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
 	}
 	a := agent.New(cfg, champ, s.retriever, s.llm)
 
-	res, err := a.Run(r.Context(), req.Goal)
+	res, err := a.Run(withRunID(r.Context()), req.Goal)
 	if err != nil {
 		agentRunsTotal.WithLabelValues("error").Inc()
 		writeJSONError(w, http.StatusInternalServerError, "agent.Run: %v", err)
@@ -638,7 +667,7 @@ func (s *server) handleAskStream(w http.ResponseWriter, r *http.Request) {
 	}
 	a := agent.New(cfg, champ, s.retriever, s.llm)
 
-	res, err := a.Stream(r.Context(), req.Goal, func(t agent.Turn) bool {
+	res, err := a.Stream(withRunID(r.Context()), req.Goal, func(t agent.Turn) bool {
 		entry := traceEntryFromAgent(t)
 		return emit("turn", entry)
 	})
@@ -1009,53 +1038,48 @@ type llamaLLM struct {
 	client  *http.Client
 	baseURL string
 	model   string
+	audit   claudebridge.Auditor // nil: not audited
 }
 
+// Complete asks llama-server once and, when auditing is on, records the
+// request (tokens, duration, outcome; never the text).
 func (l *llamaLLM) Complete(ctx context.Context, msgs []agent.Message, maxTokens int, temp float64, seed int) (string, error) {
-	cm := make([]map[string]string, len(msgs))
+	t0 := time.Now()
+	text, u, err := l.complete(ctx, msgs, maxTokens, temp, seed)
+	if l.audit != nil {
+		rec := claudebridge.RequestRecord{
+			Conversation: runIDFrom(ctx), Model: l.model, ServedBy: u.Model, StopReason: u.FinishReason,
+			InputTokens: u.PromptTokens, OutputTokens: u.CompletionTokens,
+			Duration: time.Since(t0), Sent: true, Backend: claudebridge.BackendLocal,
+		}
+		if err != nil {
+			rec.Err = err.Error()
+		}
+		l.audit.Request(ctx, rec)
+	}
+	return text, err
+}
+
+// llamaUsage is what an OpenAI-compatible completion reports besides text.
+type llamaUsage struct {
+	Model            string
+	FinishReason     string
+	PromptTokens     int64
+	CompletionTokens int64
+}
+
+func (l *llamaLLM) complete(ctx context.Context, msgs []agent.Message, maxTokens int, temp float64, seed int) (string, llamaUsage, error) {
+	lm := make([]localllm.Message, len(msgs))
 	for i, m := range msgs {
-		cm[i] = map[string]string{"role": m.Role, "content": m.Content}
+		lm[i] = localllm.Message{Role: m.Role, Content: m.Content}
 	}
-	body, err := json.Marshal(map[string]any{
-		"model":       l.model,
-		"messages":    cm,
-		"max_tokens":  maxTokens,
-		"temperature": temp,
-		"seed":        seed,
-		"stream":      false,
-	})
+	c := &localllm.Client{BaseURL: l.baseURL, Model: l.model, HTTP: l.client, Timeout: httpTimeout}
+	a, err := c.Chat(ctx, localllm.Request{Messages: lm, MaxTokens: maxTokens, Temperature: temp, Seed: &seed})
+	u := llamaUsage{Model: a.Model, FinishReason: a.FinishReason, PromptTokens: a.PromptTokens, CompletionTokens: a.CompletionTokens}
 	if err != nil {
-		return "", err
+		return "", u, err
 	}
-	endpoint := strings.TrimRight(l.baseURL, "/") + "/v1/chat/completions"
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := l.client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != 200 {
-		b, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("status %d: %s", resp.StatusCode, b)
-	}
-	var cr struct {
-		Choices []struct {
-			Message struct {
-				Content string `json:"content"`
-			} `json:"message"`
-		} `json:"choices"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&cr); err != nil {
-		return "", fmt.Errorf("decode: %w", err)
-	}
-	if len(cr.Choices) == 0 {
-		return "", fmt.Errorf("empty response")
-	}
-	return cr.Choices[0].Message.Content, nil
+	return a.Text, u, nil
 }
 
 type stderrActionStore struct {

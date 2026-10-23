@@ -1,12 +1,21 @@
 # ADR-053: Hybrid Claude + Local Zhenai Workflow Templates
 
-**Status**: **Pipe Dream / Future Task** (cost-driven; activates if Claude Max becomes economically infeasible)
+**Status**: **Active (2026-10-23; activation criterion 4: Stevie wants it)**. Routing thresholds are measured, not guessed: `eval/two-brains/PREREG.md` (rule, committed before results), `eval/two-brains/RESULTS-2026-10-23.md` (numbers), `configs/zhen-routing.yaml` (generated). Was: Pipe Dream / Future Task.
 **Date**: 2026-04-27
 **Deciders**: Stevie (primary), Captain, Computermancer, Developer
 **Related ADRs**: ADR-017 (Zhen Hybrid Inference), ADR-018 (RAFT Training Pipeline), ADR-019 (Zhen Champion Agent), ADR-027 (Zhenai Conversation Memory), ADR-031 (Hybrid Model Handoff), ADR-036 (Claude Distillation Training), ADR-037 (Zhenai Unified Champion), ADR-051 (WAVE13 generate path)
 **Captures**: Stevie's 2026-04-27 mid-session note — *"if I can not afford full Max plan I'd like to continue using Claude reserving most interaction for heavy task — using local Zhenai RX 7700 hardware installation for minor churn"*
 
 ---
+
+## Activation (2026-10-23, S-TWO-BRAINS Phases 4-5)
+
+What is live now, and what stays future work:
+
+- **Routing layer (§2)**: `claudebridge.ThresholdRouter`, driven by `zhen-claude -route auto|local -family <f>`. Per family: `local_only`, `local_first` (escalate to Claude on the failure kinds in `escalate_on`, within `max_claude_usd` per task) or `claude_direct`. Repo tasks are judged by an allowlisted check in a no-network sandbox (`run_check`).
+- **Thresholds**: from a two-brains eval (56 coding-gate prompts with mechanical keys, 20 repo-task fixtures with checks) on qwen-7b, qwen-coder-14b and Claude Opus 5.5 (effort low), split tune/hold-out by hash. Adopted on hold-out: `expert` local_first, `hard` local_only, `repo-task` local_only (local model qwen-coder-14b). Rejected on hold-out and so `claude_direct`: `prod` (routing saved too little) and `textbook` (local lost passes). Unknown families default to `claude_direct`.
+- **Telemetry (§6)**: one `unheaded_ops.llm_requests` row per request of either brain with `task_family` and `route_reason`; `zhen_route_total`, `zhen_escalations_total`, `zhen_check_runs_total` on `/metrics`. See `wiki/Zhen-Routing.md`, `wiki/Zhen-Audit.md`.
+- **Still future work, parked here**: the workflow template library (§1), the routing classifier trained on telemetry (§6, the ≥ 85 % goal), the RAFT corpus expansion (§3) and the template MCP surface (§5).
 
 ## Context
 

@@ -1,0 +1,12 @@
+diff -ruN a/deploy.sh b/deploy.sh
+--- a/deploy.sh	2026-10-23 10:35:50.999304876 +0000
++++ b/deploy.sh	2026-10-23 10:35:50.999335986 +0000
+@@ -2,6 +2,6 @@
+ set -euo pipefail
+ SRC=$1
+ DEST=$2
+-mkdir -p $DEST
+-cp $SRC $DEST/
++mkdir -p "$DEST"
++cp "$SRC" "$DEST/"
+ echo "copied $SRC to $DEST"

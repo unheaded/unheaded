@@ -103,6 +103,10 @@
 
 **AI**
 - [[Zhen AI|Zhen-AI]]
+- [[Zhen Audit|Zhen-Audit]]
+- [[Zhen Confirmation|Zhen-Confirmation]]
+- [[Zhen Privacy Tiers|Zhen-Privacy-Tiers]]
+- [[Zhen Routing|Zhen-Routing]]
 
 **Lore & Naming**
 - [[Lore Index|Lore-Index]]

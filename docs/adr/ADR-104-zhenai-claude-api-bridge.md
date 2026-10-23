@@ -123,9 +123,31 @@ completion and changes nothing on the host; loading a model stays behind
 `model_switch` and `scripts/switch-model.sh`'s fit check. Rule 3 still
 applies to its prompt, so a prompt quoting `rm -rf` is refused.
 
-The out-of-band confirmation flow the Champion already has
-(`IssuePendingConfirmation`) is not wired to the bridge yet; see open
-questions.
+**Out-of-band confirmation (2026-10-23, S-TWO-BRAINS Phase 2).** A
+call the gate refuses pending confirmation can go to a `Confirmer`
+(`zhen-claude -confirm deny|tty|queue`, default `deny`):
+
+- `deny`: the refusal reaches Claude unchanged (the behaviour above).
+- `tty`: the prompt (tool, sandbox, hash, arguments with secrets
+  redacted, a diff for file writes) and a 4-character code are written
+  to `/dev/tty` only; the human must type the code there. Approved, the
+  call runs in-process through `Champion.ConfirmCall`; Claude is told
+  "approved by the human operator", never the code.
+- `queue`: the call is stored in `unheaded_app.zhen_pending_confirmations`
+  (migration 031) and announced on `zhen.confirm.pending`; Claude is told
+  it is queued as `<id>`. Stevie decides later with
+  `zhen-claude confirm list|show|approve|deny <id>`, a separate process
+  under his own Well login.
+
+The rule: no code, token or approval handle ever enters model-visible
+content. A call is bound by SHA-256 over its canonical JSON (tool,
+arguments, project root): tampered arguments, another root or an expired
+call refuse, and Rules 3 and 1 (symlinks resolved) still run after the
+approval. Only the Champion's own writes (`write_file`, `patch_file`,
+`kanban_create`, `kanban_update`) are confirmable; MCP mutating tools
+stay refused. zhen-agentd queues an agent loop's refused writes the same
+way (`-confirm-queue`) instead of returning a token to the model. How to
+approve: `wiki/Zhen-Confirmation.md`.
 
 ### 4. Why not the Messages API "MCP connector"
 
@@ -187,8 +209,13 @@ day's total, duration. Every tool call: tool, provider, gate decision and
 reason, pending-confirmation flag, `is_error`, input size and SHA-256
 (**not** the input: it can hold file bodies), output size, truncation.
 No prompt or response text is logged. The CLI writes these as JSON lines
-on stderr (`log/slog`); the `Auditor` interface lets a service route them
-to Wotan or the Champion's ActionStore later.
+on stderr (`log/slog`). Since 2026-10-23 (S-TWO-BRAINS Phase 1) the same
+records also go, with `-audit-well` and `-audit-wotan`, to the Well
+(`unheaded_ops.llm_requests`, migration 030, one row per request of
+either brain; `unheaded_ops.audit_events`, the pkg/audit taxonomy, one
+event per tool decision and confirmation step) and to Wotan
+(`zhen.llm.requests`, `zhen.audit.toolcalls`). A Well that cannot be
+reached makes the run read-only. See `wiki/Zhen-Audit.md`.
 
 ### 8. Routing hook (ADR-053), interface only
 
@@ -289,13 +316,14 @@ through the bridge leave the Kingdom.
 1. **Owner sign-off** for the SDK admission (ADR-004 register row), and
    whether the transitive surface is acceptable or a stdlib client (like
    `pkg/mcpclient`) is preferred later.
-2. **Confirmation flow.** Wire `IssuePendingConfirmation` so a person can
-   approve one of Claude's mutating calls out of band, or keep the bridge
-   read-only.
+2. ~~**Confirmation flow.**~~ Answered 2026-10-23 by S-TWO-BRAINS
+   Phase 2 (`docs/battle-plans/S-TWO-BRAINS-battle-plan.md`): §3's
+   `-confirm deny|tty|queue`, default `deny`.
 3. **Default daily cap** ($5) and default `max_tokens` (16000).
 4. **Task budget** default (off) once real turns are measured.
-5. **Where audit goes** for a long-running service: Wotan topic, the
-   Well's `actions` table, or both.
+5. ~~**Where audit goes**~~ Answered 2026-10-23 by S-TWO-BRAINS
+   Phase 1: both. The Well is the record (`llm_requests`, `audit_events`;
+   `zhen_actions` stays the Champion's own log), Wotan the live view (§7).
 6. **Privacy marker for `-route auto`** (§9): the explicit marker
    (`-local-only` / `local_only`) shipped 2026-10-23; still open is
    whether the escalation path should refuse prompts that capture
