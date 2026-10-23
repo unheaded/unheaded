@@ -209,3 +209,20 @@ func RunCheck(ctx context.Context, argv []string, dir, answer string, timeout ti
 	}
 	return res
 }
+
+// LocalCompleter adapts LocalLLM to privacy.Completer (local summaries).
+type LocalCompleter struct{ L *LocalLLM }
+
+// Complete asks the local model once, at temperature 0.
+func (c LocalCompleter) Complete(ctx context.Context, system, prompt string) (string, error) {
+	if c.L == nil {
+		return "", errors.New("claudebridge: no local model")
+	}
+	l := *c.L
+	l.Temperature = 0
+	ans, err := l.Complete(ctx, system, prompt)
+	if err != nil {
+		return "", err
+	}
+	return ans.Text, nil
+}

@@ -46,6 +46,7 @@ import (
 
 	"unheaded/pkg/champion"
 	"unheaded/pkg/claudebridge"
+	"unheaded/pkg/claudebridge/privacy"
 	"unheaded/pkg/mcpclient"
 	"unheaded/pkg/zhencapture"
 	"unheaded/pkg/zhentools"
@@ -86,6 +87,10 @@ type options struct {
 	auditWotan bool
 	confirm    string
 	tty        io.ReadWriteCloser // -confirm tty: the controlling terminal
+
+	privacyMode   string
+	userDataRoots string
+	secretScanner string
 }
 
 // Routes.
@@ -134,6 +139,9 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 	fs.BoolVar(&o.auditWell, "audit-well", false, "also record every request in the Well's llm_requests and every tool decision in audit_events (DSN from env WELL_OPS_DSN); Well unreachable = read-only run")
 	fs.BoolVar(&o.auditWotan, "audit-wotan", false, "also publish the audit records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
 	fs.StringVar(&o.confirm, "confirm", "deny", "what happens to a write the gate refuses pending confirmation: deny (refuse, the default), tty (ask the human on /dev/tty with a code the model never sees), queue (queue it in the Well for `zhen-claude confirm approve <id>`; DSN from env WELL_APP_ZHEN_DSN)")
+	fs.StringVar(&o.privacyMode, "privacy", "standard", "privacy tier for tool results bound for Claude: standard (redact; summarise large ops output locally) or strict (withhold every Kingdom-ops result; overnight mode)")
+	fs.StringVar(&o.userDataRoots, "user-data-roots", os.Getenv("ZHEN_USER_DATA_ROOTS"), "comma-separated paths whose contents never leave the host (T2, withheld; env ZHEN_USER_DATA_ROOTS)")
+	fs.StringVar(&o.secretScanner, "secret-scanner", os.Getenv("ZHEN_SECRET_SCANNER"), "secret scanner binary for the privacy tier (gitleaks 8.19+; default: gitleaks on PATH, then ~/.local/bin/gitleaks; env ZHEN_SECRET_SCANNER). Without one nothing is sent")
 	fs.StringVar(&o.configPath, "config", "", "config file (default $XDG_CONFIG_HOME/unheaded/zhen-claude.conf; a missing default is fine)")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -189,6 +197,11 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 	}
 	if err := checkAuditEnv(o); err != nil {
 		return nil, err
+	}
+	switch o.privacyMode {
+	case "standard", "strict":
+	default:
+		return nil, fmt.Errorf("-privacy %q: want standard or strict", o.privacyMode)
 	}
 	switch o.confirm {
 	case "deny", "tty":
@@ -395,6 +408,13 @@ func build(ctx context.Context, o *options, log *slog.Logger, stdout io.Writer, 
 		return nil, closeAll, err
 	}
 
+	var filter *privacy.Filter
+	if !o.dryRun {
+		if filter, err = buildPrivacy(o, root); err != nil {
+			return nil, closeAll, err
+		}
+	}
+
 	cfg := claudebridge.Config{
 		Model:            o.model,
 		Effort:           o.effort,
@@ -408,6 +428,9 @@ func build(ctx context.Context, o *options, log *slog.Logger, stdout io.Writer, 
 		Ledger:           ledger,
 		Auditor:          aud.auditor,
 		Confirmer:        confirmer,
+		Privacy:          filter,
+		ProjectRoot:      root,
+		Warn:             func(msg string) { log.Warn("privacy", "note", msg) },
 		OnText:           func(s string) { _, _ = io.WriteString(stdout, s) },
 	}
 	if tools != nil && tools.on {
@@ -424,7 +447,7 @@ func build(ctx context.Context, o *options, log *slog.Logger, stdout io.Writer, 
 	spent, _ := ledger.Spent()
 	log.Info("ready",
 		"model", o.model, "effort", o.effort, "max_tokens", o.maxTokens,
-		"credentials", b.CredentialSource(), "tools", b.ToolNames(),
+		"credentials", b.CredentialSource(), "tools", b.ToolNames(), "privacy", o.privacyMode, "confirm", o.confirm,
 		"day_spent_usd", spent.USD(), "daily_cap_usd", ledger.Cap().USD(), "ledger", ledgerPath)
 	return b, closeAll, nil
 }
@@ -511,4 +534,26 @@ func envFloat(key string, def float64) float64 {
 		return -1 // rejected by USDToNano with a clear error
 	}
 	return f
+}
+
+// buildPrivacy is the privacy tier for this run. A scanner that cannot be
+// found is a startup error: there is no mode that sends unscanned text.
+func buildPrivacy(o *options, root string) (*privacy.Filter, error) {
+	r, err := privacy.NewRedactor(privacy.RedactorConfig{Scanner: o.secretScanner})
+	if err != nil {
+		return nil, fmt.Errorf("%w (nothing is sent to Claude without the secret scan; see -secret-scanner)", err)
+	}
+	var uds []string
+	for _, p := range strings.Split(o.userDataRoots, ",") {
+		if p = strings.TrimSpace(p); p != "" {
+			uds = append(uds, p)
+		}
+	}
+	local := &claudebridge.LocalLLM{BaseURL: o.localURL, Model: o.localModel, MaxTokens: privacy.DefaultSummaryTokens, Timeout: o.localTimeout}
+	return &privacy.Filter{
+		Redactor:   r,
+		Classifier: privacy.Classifier{UserDataRoots: uds},
+		Local:      claudebridge.LocalCompleter{L: local},
+		Mode:       privacy.Mode(o.privacyMode),
+	}, nil
 }
