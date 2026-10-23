@@ -1,13 +1,13 @@
 # Architecture Decision Records
 
-**Last synced from canonical:** 2026-10-23 (102 entries)
+**Last synced from canonical:** 2026-10-23 (104 entries)
 
 Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical source. If they diverge, trust the canonical.
 
 | Status | Count |
 |--------|-------|
 | Accepted | 48 |
-| Proposed | 17 |
+| Proposed | 19 |
 | Planned | 14 |
 | In Progress | 5 |
 | Deferred | 5 |
@@ -118,8 +118,10 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [101](../docs/adr/ADR-101-well-migration-ledger.md) | The Well's migrations: `db/migrations/MANIFEST` orders and routes every file, a `well_schema_migrations` ledger per database records each with its sha256, `db/init.sh` and `cmd/well-migrate` (check/status/apply/baseline) share both; drift refuses, lock and statement timeouts per migration | **Proposed** (in use on the live Well since 2026-10-15) | 2026-10-14 |
 | [102](../docs/adr/ADR-102-container-image-versions.md) | Container images use exact version tags (no `latest`, no floating minor), pinned to what runs today; upgrades are their own commits; digests deferred until a bot can bump them; reassess then | **Accepted** | 2026-10-15 |
 | [103](../docs/adr/ADR-103-service-auth-token-distribution.md) | Service auth: Ed25519 JWTs only (shared HMAC key retires); one key pair per service, private key a 0400 file owned by its uid, public keys in trust.d plus a per-service caller allowlist; users via OIDC JWKS with a small built-in issuer as the lab default; browsers hold only session cookies (BFF); hashed `uhk_` API keys for automation; rollout one service at a time, Cuirass first | **Proposed** (design only) | 2026-10-23 |
-| [104](../docs/adr/ADR-104-zhenai-claude-api-bridge.md) | ZhenAI → Claude API bridge: `pkg/claudebridge` + `cmd/zhen-claude`, official Go SDK, claude-opus-5-5 with adaptive thinking, streaming and refusal fallbacks; tools from zhentools Providers, every Claude tool call through the Champion gate (mutating refused pending confirmation; MCP tools read-only by default); hard per-day spend cap from usage and a price table; audit without prompt text; ADR-053 Router interface. Not the API's MCP connector (west is not internet-facing). Reverses ADR-017's "scrapped" | **Proposed** (built, not yet run live) | 2026-10-23 |
+| [104](../docs/adr/ADR-104-zhenai-claude-api-bridge.md) | ZhenAI → Claude API bridge: `pkg/claudebridge` + `cmd/zhen-claude`, official Go SDK, claude-opus-5-5 with adaptive thinking, streaming and refusal fallbacks; tools from zhentools Providers, every Claude tool call through the Champion gate (mutating refused pending confirmation; MCP tools read-only by default); hard per-day spend cap from usage and a price table; audit without prompt text; ADR-053 Router interface. Not the API's MCP connector (west is not internet-facing). Reverses ADR-017's "scrapped" | **Proposed** (built; run live since 2026-10-23) | 2026-10-23 |
 | [105](../docs/adr/ADR-105-pq-hybrid-key-exchange-and-crypto-inventory.md) | Hybrid ML-KEM key exchange on every link we own: Strict (hybrid-only, TLS 1.3) and Preferred (Go default, TLS 1.3 floor) profiles in `pkg/tls`; aws-lc-rs for rustls; a deterministic CycloneDX 1.6 crypto inventory (`compliance/crypto/cbom.cdx.json`) with a stale gate and a shrink-only classical-KEX lint; non-expiring ML-DSA-65 evidence seals; signed `drift.*` Wotan topics; WireGuard PSK rotation; CNSA 2.0 not claimed. Host changes (Well PG 18, strict sshd, PSK rotation, keys) are escalations E1-E5 (implementation decisions recorded 2026-10-23) | **Proposed** | 2026-10-23 |
+| [106](../docs/adr/ADR-106-two-brains-one-gate.md) | Two brains, one gate: out-of-band confirmation (`deny`/`tty`/`queue`, the code never in model context), `zhen/*` branch-sandbox writes, privacy tiers T0/T1/T2, routing from a pre-registered hold-out eval, `run_check` sandbox, Kanban claims, one GPU lease and overnight guards, the flywheel with Claude text excluded by default | Proposed | 2026-10-23 |
+| [108](../docs/adr/ADR-108-mbc-cartridges.md) | MBC cartridges: small signed MBC network functions run per flow by `ebpf/cartridge-ebpf` (own object and verifier budget; monad-cpu-ebpf untouched), shared `no_std` step in `monad_common::cart`, XDP stage (forward-only, <=64 insns) + tick stage (<=256 per call, loop_bound), faults fail open with a per-slot breaker, Sophia registry (provisional `x-cartridge`), Cartridge ABI v0; RFC Editor items open | Proposed | 2026-10-23 |
 
 ---
 

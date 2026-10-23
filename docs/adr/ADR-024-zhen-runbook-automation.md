@@ -151,6 +151,34 @@ Runbooks MUST be detailed enough that Zhen can execute them without human interp
 - **Idempotency**: Running a runbook twice should be safe (guards against re-execution)
 - **Context**: Each runbook documents WHY it exists, not just WHAT it does
 
+### 6. Status, the checker and the baseline (2026-10-23, S-TWO-BRAINS Phases 8-9)
+
+A runbook may carry a lifecycle in `metadata`: `status` (`draft` or
+`approved`), `authored_by` (`zhen-local`, `claude`, `human`),
+`reviewed_by`, `approved_by` and
+`dry_run_test` (the pytest file that exercises it without touching a
+host). Only Stevie sets `status: approved` and `approved_by`.
+
+`scripts/check-runbooks.py` (CI: `scripts/check-runbooks.sh`) checks every
+runbook against `runbook/v1` (required keys, `shell` or `manual` actions,
+hosts, unique step names, `bash -n` on every command, no privacy-tier
+placeholder left in the text) and, strictly, any runbook that has a
+`status`: `set -euo pipefail` in multi-line shell, no `! cmd` before the
+last line of a `set -e` script, a dry-run test that exists, and
+irreversible commands (`git push`, `pg_restore`, `DROP`, `rm -rf`, `reset
+--hard`, ...) only as `manual` steps.
+Existing findings live in `runbooks/.check-baseline`, which may only
+shrink: a new finding fails, and so does a baseline entry that no longer
+fails. The meta-gate proves the checker bites. `scripts/run-runbook.py`
+prints manual steps and never executes them; drafts get their own banner.
+
+Eleven runbooks were drafted by the local model, reviewed and patched by
+Claude, read and fixed by hand, and given dry-run tests
+(`tests/runbooks/`). All eleven are `status: draft` until Stevie approves
+them (ADR-106, open question 3). Corpus: 79 runbooks in 9 categories (data
+9, deploy 7, doom 4, infra 17, network 9, observe 10, pki 4, security 14,
+wotan 5).
+
 ## Consequences
 
 ### Positive

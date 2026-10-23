@@ -2,7 +2,7 @@
 
 **Status:** Accepted — Local optimization complete. Claude API SCRAPPED (2026-04-03), replaced by MCP route via ADR-019 Champion.
 
-**2026-10-23 Update:** The "scrapped" decision below is reversed by ADR-104 (Proposed): Zhen now also calls the Claude API directly through `pkg/claudebridge`, with the Kingdom's tools behind the Champion gate. The MCP direction described below (Claude Code calling Zhen's tools) is unchanged.
+**2026-10-23 Update:** The "scrapped" decision below is reversed by ADR-104 (Proposed): Zhen now also calls the Claude API directly through `pkg/claudebridge`, with the Kingdom's tools behind the Champion gate. The MCP direction described below (Claude Code calling Zhen's tools) is unchanged. How the two brains share one gate, one audit and one privacy tier, and which tasks go where, is ADR-106 (Proposed).
 
 **2026-04-03 Update:** Direct Claude API integration is scrapped. Instead, Zhen communicates with Claude Code via MCP (Model Context Protocol) through the Champion MCP server (ADR-019). This is architecturally cleaner — Zhen is a tool provider, not an API consumer. Claude Code connects to Zhen as an MCP server and uses its tools (corpus_search, file_read, service_health, etc.).
 **Date:** 2026-03-16

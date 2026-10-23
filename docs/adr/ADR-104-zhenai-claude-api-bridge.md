@@ -5,10 +5,10 @@ Copyright (c) 2024-2026 Stevie Bellis.
 
 # ADR-104: ZhenAI → Claude API bridge
 
-**Status:** Proposed (built on `develop`; not yet run against the live API: there are no credentials on west)
+**Status:** Proposed (built on `develop`; run against the live API since 2026-10-23, S-TWO-BRAINS Step 27)
 **Date:** 2026-10-23
 **Supersedes:** ADR-017's "Claude API SCRAPPED (2026-04-03)". Stevie, 2026-10-23: "let's have agents work on mcp to Claude api".
-**Related:** ADR-017 (hybrid inference), ADR-019 / ADR-037 (Champion), ADR-031 (hybrid model handoff), ADR-053 (HEAVY → Claude, MINOR → local), ADR-096 (dependency gate), ADR-004 (exceptions register), `eval/coding-gate/probe-2026-05-02/B2-design-champion-tool-call-gate.md` (the B2 gate), `pkg/zhentools`, `pkg/mcpclient`.
+**Related:** ADR-017 (hybrid inference), ADR-019 / ADR-037 (Champion), ADR-031 (hybrid model handoff), ADR-053 (HEAVY → Claude, MINOR → local), ADR-106 (two brains, one gate), ADR-096 (dependency gate), ADR-004 (exceptions register), `eval/coding-gate/probe-2026-05-02/B2-design-champion-tool-call-gate.md` (the B2 gate), `pkg/zhentools`, `pkg/mcpclient`.
 
 ## Context
 
@@ -217,13 +217,20 @@ event per tool decision and confirmation step) and to Wotan
 (`zhen.llm.requests`, `zhen.audit.toolcalls`). A Well that cannot be
 reached makes the run read-only. See `wiki/Zhen-Audit.md`.
 
-### 8. Routing hook (ADR-053), interface only
+### 8. Routing hook (ADR-053)
 
 `claudebridge.Router` classifies a task as `WeightHeavy` (Claude) or
 `WeightMinor` (local Zhenai). No implementation ships with this ADR. A
 router must not send to Claude data the operator has not cleared for an
 external API: the zero-user-data-access rule applies to what leaves the
 Kingdom as prompt text.
+
+Implemented since (2026-10-23): `claudebridge.ThresholdRouter` routes by
+task family from a pre-registered, hold-out-checked eval
+(`configs/zhen-routing.yaml`, ADR-106 §4-5; `zhen-claude -route
+auto|local -family`), and `claudebridge.AutoRouter` implements `Router`
+for the Lich drivers (S-LICH-AWAKENS). The privacy tier (ADR-106 §3) is
+what enforces the rule above on every path to Claude.
 
 ### 9. `-route auto`: local first, Claude on failure (2026-10-23)
 
@@ -307,9 +314,9 @@ through the bridge leave the Kingdom.
 - The cap estimates input tokens from bytes; it is conservative, not
   exact. Two processes sharing one ledger see each other's committed spend
   but not each other's in-flight reservations.
-- Until a confirmation flow exists, Claude can only read: every mutating
-  call is refused.
-- Not yet run against the live API (no credentials on west).
+- A mutating call runs only after an out-of-band confirmation (§3) or
+  inside a `zhen/*` branch sandbox (ADR-106 §2); `-confirm deny`, the
+  default, refuses it.
 
 ## Open questions
 
