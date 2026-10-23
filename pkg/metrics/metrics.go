@@ -629,9 +629,16 @@ func checkReservedLabel(name, reserved string, constLabels Labels, labelNames []
 }
 
 // histogramCounts holds the atomic counters for a histogram.
+//
+// buckets is NOT cumulative: buckets[i] counts observations in
+// (bounds[i-1], bounds[i]], and the extra last slot those above every bound
+// (and NaN). Write reads each slot once and sums, so a scrape's buckets are
+// cumulative, never exceed +Inf, and +Inf equals _count by construction.
+// Cumulative counters incremented one by one, with the total in a third
+// counter, let a scrape that raced an Observe publish le="0.005" above
+// le="0.01", or a bucket above +Inf.
 type histogramCounts struct {
-	buckets []uint64 // count for each bucket (atomic)
-	count   uint64   // total count (atomic)
+	buckets []uint64 // per-bucket counts, len(bounds)+1 (atomic)
 	sum     uint64   // sum stored as float64 bits (atomic)
 }
 
@@ -653,7 +660,7 @@ func NewHistogram(opts HistogramOpts) *Histogram {
 		labels:       opts.ConstLabels,
 		bucketBounds: sortedBuckets,
 		counts: histogramCounts{
-			buckets: make([]uint64, len(sortedBuckets)),
+			buckets: make([]uint64, len(sortedBuckets)+1),
 		},
 	}
 }
@@ -665,15 +672,10 @@ func (h *Histogram) Describe() *Desc {
 
 // Observe adds a value to the histogram.
 func (h *Histogram) Observe(val float64) {
-	// Increment bucket counters
-	for i, bound := range h.bucketBounds {
-		if val <= bound {
-			atomic.AddUint64(&h.counts.buckets[i], 1)
-		}
-	}
-
-	// Increment total count
-	atomic.AddUint64(&h.counts.count, 1)
+	// The first bound >= val; len(bounds), the +Inf slot, for a value above
+	// every bound or NaN (every comparison with NaN is false).
+	i := sort.SearchFloat64s(h.bucketBounds, val)
+	atomic.AddUint64(&h.counts.buckets[i], 1)
 
 	// Add to sum (using CAS for atomic float addition)
 	for {
@@ -689,13 +691,22 @@ func (h *Histogram) Observe(val float64) {
 func (h *Histogram) Write(w io.Writer) error {
 	baseName := h.desc.Name
 
+	// Read every slot before writing anything, once each, and derive the
+	// cumulative counts and the total from that one reading.
+	cumulative := make([]uint64, len(h.counts.buckets))
+	var running uint64
+	for i := range h.counts.buckets {
+		running += atomic.LoadUint64(&h.counts.buckets[i])
+		cumulative[i] = running
+	}
+	totalCount := running
+
 	// Write bucket values
 	for i, bound := range h.bucketBounds {
 		bucketLabels := h.labels.Clone()
 		bucketLabels["le"] = formatFloat(bound)
 		labelStr := formatLabels(bucketLabels)
-		count := atomic.LoadUint64(&h.counts.buckets[i])
-		if _, err := fmt.Fprintf(w, "%s_bucket%s %d\n", baseName, labelStr, count); err != nil {
+		if _, err := fmt.Fprintf(w, "%s_bucket%s %d\n", baseName, labelStr, cumulative[i]); err != nil {
 			return err
 		}
 	}
@@ -704,7 +715,6 @@ func (h *Histogram) Write(w io.Writer) error {
 	infLabels := h.labels.Clone()
 	infLabels["le"] = "+Inf"
 	labelStr := formatLabels(infLabels)
-	totalCount := atomic.LoadUint64(&h.counts.count)
 	if _, err := fmt.Fprintf(w, "%s_bucket%s %d\n", baseName, labelStr, totalCount); err != nil {
 		return err
 	}
@@ -778,7 +788,7 @@ func (hv *HistogramVec) WithLabels(labels Labels) *Histogram {
 		labels:       hv.desc.ConstLabels.Merge(labels),
 		bucketBounds: hv.opts.Buckets,
 		counts: histogramCounts{
-			buckets: make([]uint64, len(hv.opts.Buckets)),
+			buckets: make([]uint64, len(hv.opts.Buckets)+1),
 		},
 	}
 	hv.histograms[key] = histogram
