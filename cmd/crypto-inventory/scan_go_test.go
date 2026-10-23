@@ -76,6 +76,7 @@ func TestScanGo_Classification(t *testing.T) {
 		{"hybrid first, classical fallback", "pkg/fx/g_strict.go", 14, kindTLSConfig, pqHybrid},
 		{"(i) ML-DSA-65 import", "pkg/fx/i_mldsa.go", 5, kindSigImport, pqSignature},
 		{"(j) Ed25519 import", "pkg/fx/j_ed25519.go", 5, kindSigImport, pqClassicalSig},
+		{"in-tree PQC wrapper, ML-DSA-65", "pkg/fx/l_pqc.go", 5, kindSigImport, pqSignature},
 		{"floor via another struct's MinVersion", "pkg/fx/k_floorfield.go", 15, kindTLSFloor, pqHybridOpp},
 		{"//go:debug kill switch", "cmd/godebugfx/main.go", 3, kindGodebug, pqClassical},
 		{"GODEBUG kill switch in a string", "pkg/fx/k_floorfield.go", 20, kindGodebug, pqClassical},

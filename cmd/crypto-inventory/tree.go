@@ -35,22 +35,32 @@ func excluded(rel string) bool {
 	return strings.HasPrefix(rel, "testdata/") || strings.Contains(rel, "/testdata/")
 }
 
-// gitTree lists the tracked files of the repository containing root. It
-// never globs the filesystem: worktrees and build output must not leak in.
+// gitTree lists the files git knows about in the repository containing
+// root: tracked files plus untracked ones that are not ignored, so a new
+// file is caught before it is committed. It never globs the filesystem:
+// other worktrees and build output must not leak in. Files deleted from
+// the working tree and anything that is not a regular file (symlinks,
+// submodules) are left out.
 func gitTree(root string) (*Tree, error) {
 	top, err := exec.Command("git", "-C", root, "rev-parse", "--show-toplevel").Output()
 	if err != nil {
 		return nil, fmt.Errorf("git rev-parse in %s: %w", root, err)
 	}
 	topDir := strings.TrimSpace(string(top))
-	out, err := exec.Command("git", "-C", topDir, "ls-files", "-z").Output()
+	out, err := exec.Command("git", "-C", topDir, "ls-files", "-z", "--cached", "--others", "--exclude-standard").Output()
 	if err != nil {
 		return nil, fmt.Errorf("git ls-files in %s: %w", topDir, err)
 	}
+	seen := map[string]bool{}
 	var files []string
 	for _, f := range bytes.Split(out, []byte{0}) {
 		rel := string(f)
-		if rel == "" || excluded(rel) {
+		if rel == "" || seen[rel] || excluded(rel) {
+			continue
+		}
+		seen[rel] = true
+		info, err := os.Lstat(filepath.Join(topDir, filepath.FromSlash(rel)))
+		if err != nil || !info.Mode().IsRegular() {
 			continue
 		}
 		files = append(files, rel)

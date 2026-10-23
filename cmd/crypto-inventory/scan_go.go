@@ -31,6 +31,7 @@ const (
 	pkgTLS   = "crypto/tls"
 	pkgCreds = "google.golang.org/grpc/credentials"
 	pkgSSH   = "golang.org/x/crypto/ssh"
+	pkgPQC   = "unheaded/pkg/crypto/pqc"
 )
 
 // Go's TLS key-exchange identifiers (crypto/tls CurveID constants).
@@ -249,6 +250,9 @@ func (g *goFile) imports(f *ast.File) {
 			g.ssh = name
 			g.sshImport(f, imp, name)
 			continue
+		case pkgPQC:
+			g.pqcImport(f, imp, name)
+			continue
 		}
 		spec, ok := goCryptoImports[p]
 		if !ok || spec.kind == "" {
@@ -286,6 +290,43 @@ func (g *goFile) sshImport(f *ast.File, imp *ast.ImportSpec, name string) {
 	if connects {
 		a.PQStatus = pqHybridOpp
 		a.Detail = "library default KEX list offers mlkem768x25519-sha256 first; the server decides"
+	}
+	g.add(a)
+}
+
+// pqcImport records the in-tree PQC wrapper by what the file uses from it.
+func (g *goFile) pqcImport(f *ast.File, imp *ast.ImportSpec, name string) {
+	used := map[string]bool{}
+	ast.Inspect(f, func(n ast.Node) bool {
+		if sel, ok := n.(*ast.SelectorExpr); ok {
+			if x, ok := sel.X.(*ast.Ident); ok && x.Name == name {
+				used[sel.Sel.Name] = true
+			}
+		}
+		return true
+	})
+	a := Asset{
+		Line: g.line(imp.Pos()), Kind: kindSigImport, Name: "PQC helpers (" + pkgPQC + ")",
+		AssetType: assetAlgorithm, Primitive: primSignature, NISTLevel: -1, PQStatus: pqNA,
+		Owner: ownerFirstParty, Detail: "no ML-DSA/ML-KEM/SLH-DSA operation referenced here",
+	}
+	for _, p := range []struct {
+		sel, param string
+		level      int
+		cnsa       bool
+	}{{"MLDSA44", "ML-DSA-44", 2, false}, {"MLDSA65", "ML-DSA-65", 3, false}, {"MLDSA87", "ML-DSA-87", 5, true}} {
+		if used[p.sel] {
+			a.Name, a.ParamSet, a.NISTLevel, a.CNSA2 = p.param+" ("+pkgPQC+")", p.param, p.level, p.cnsa
+			a.PQStatus, a.Detail = pqSignature, "FIPS 204 via the in-tree wrapper"
+			g.add(a)
+			return
+		}
+	}
+	for sel := range used {
+		if strings.HasPrefix(sel, "MLDSA") || strings.HasPrefix(sel, "NewMLDSA") || strings.HasPrefix(sel, "SLHDSA") || strings.HasPrefix(sel, "NewSLHDSA") {
+			a.PQStatus, a.Detail = pqSignature, "post-quantum signatures via the in-tree wrapper; parameter set chosen at run time"
+			break
+		}
 	}
 	g.add(a)
 }
