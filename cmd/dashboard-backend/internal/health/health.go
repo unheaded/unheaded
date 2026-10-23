@@ -859,7 +859,10 @@ var DefaultServiceEndpoints = map[string]string{
 	"architect":    "localhost:19001",
 	"micromanager": "localhost:19003",
 	"wotan":        "localhost:18000", // HTTP: /health, /metrics (18001 is gRPC)
-	"gateway":      "localhost:21000",
+	// No "gateway": nothing serves localhost:21000 in any deployment (the
+	// gateway deb is gone; compose's edge is Traefik on 80/443), so it was
+	// permanently unhealthy and held every dashboard at "unhealthy". A
+	// services file can still name one.
 }
 
 // serviceHealthPaths overrides the default "/health" liveness path for services
