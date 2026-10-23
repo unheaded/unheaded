@@ -163,6 +163,53 @@ func TestRBACMiddleware_PolicyMatching(t *testing.T) {
 	}
 }
 
+// TestRBACMiddleware_PublicPolicyBoundaries: the public policies in
+// DefaultServicePolicies ("/health", "/ready", "/metrics", no role) used to
+// match by bare string prefix, so "/healthz-admin", "/metrics-export" and
+// "/health/../api/v1/admin" needed no identity. And role policies matched
+// the raw path, so "/api/v1/./admin/users" was judged by the GET /api/v1/
+// policy and an observer passed where admin is required.
+func TestRBACMiddleware_PublicPolicyBoundaries(t *testing.T) {
+	handler := RBACMiddleware(DefaultServicePolicies("test"))(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	serve := func(target string, id *Identity) int {
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		if id != nil {
+			req = req.WithContext(context.WithValue(req.Context(), identityKey, id))
+		}
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		return rr.Code
+	}
+
+	for _, target := range []string{
+		"/healthz-admin",
+		"/metrics-export",
+		"/readyset/drop",
+		"/health/../api/v1/admin",
+		"/health/%2e%2e/api/v1/admin",
+		"/api/v1/admin/../../../health",
+	} {
+		if code := serve(target, nil); code != http.StatusUnauthorized {
+			t.Errorf("anonymous GET %s = %d, want 401", target, code)
+		}
+	}
+
+	observer := &Identity{Subject: "observer", Roles: []string{RoleObserver}}
+	for _, target := range []string{"/api/v1/./admin/users", "/api/v1//admin/users", "/api/v1/x/../admin/users"} {
+		if code := serve(target, observer); code != http.StatusForbidden {
+			t.Errorf("observer GET %s = %d, want 403 (admin only)", target, code)
+		}
+	}
+
+	for _, target := range []string{"/health", "/health/", "/health/db", "/ready", "/metrics"} {
+		if code := serve(target, nil); code != http.StatusOK {
+			t.Errorf("anonymous GET %s = %d, want 200", target, code)
+		}
+	}
+}
+
 func TestRequireRole(t *testing.T) {
 	mw := RequireRole(RoleAdmin, RoleOperator)
 	handler := mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

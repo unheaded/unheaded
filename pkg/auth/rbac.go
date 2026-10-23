@@ -6,6 +6,8 @@ package auth
 import (
 	"context"
 	"net/http"
+	"net/url"
+	"path"
 	"strings"
 	"sync"
 )
@@ -150,7 +152,7 @@ func DefaultServicePolicies(serviceName string) RBACConfig {
 
 func findRequiredRoles(cfg RBACConfig, r *http.Request) []string {
 	for _, p := range cfg.Policies {
-		if !strings.HasPrefix(r.URL.Path, p.PathPrefix) {
+		if !policyMatches(p, r.URL) {
 			continue
 		}
 		if len(p.Methods) > 0 && !containsMethod(p.Methods, r.Method) {
@@ -159,6 +161,35 @@ func findRequiredRoles(cfg RBACConfig, r *http.Request) []string {
 		return p.RequiredRoles
 	}
 	return cfg.DefaultPolicy
+}
+
+// policyMatches reports whether p's PathPrefix covers u. Policies match the
+// cleaned path, so "/api/v1/./admin" is judged as "/api/v1/admin", the
+// resource a cleaning router serves for it.
+//
+// A policy that requires a role matches any path starting with its prefix:
+// "/api/v1/deploy" also covers "/api/v1/deployments", which only tightens.
+// A policy that requires none opens its paths to anonymous callers, so it
+// matches only at a segment boundary and only a canonical path: "/health"
+// covers "/health" and "/health/db", but not "/healthz-admin", nor
+// "/api/v1/admin/../../../health", which a router that does not clean
+// (ServeMux for CONNECT) hands to the /api/v1/admin/ handler.
+func policyMatches(p EndpointPolicy, u *url.URL) bool {
+	clean := path.Clean("/" + u.Path)
+	if strings.HasSuffix(u.Path, "/") && clean != "/" {
+		clean += "/"
+	}
+	if !strings.HasPrefix(clean, p.PathPrefix) {
+		return false
+	}
+	if len(p.RequiredRoles) > 0 {
+		return true
+	}
+	if !canonicalPath(u) {
+		return false
+	}
+	rest := clean[len(p.PathPrefix):]
+	return rest == "" || rest[0] == '/' || strings.HasSuffix(p.PathPrefix, "/")
 }
 
 func containsMethod(methods []string, method string) bool {
