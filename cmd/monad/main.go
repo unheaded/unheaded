@@ -655,6 +655,14 @@ func (hs *HTTPServer) executeOperationHandler(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// A name with no handler ran nothing. It used to count toward
+	// monad_operations_executed_total and answer 400 OPERATION_FAILED like an
+	// operation that ran and failed.
+	if errors.Is(opErr, monad.ErrUnknownOperation) {
+		hs.writeError(w, http.StatusNotFound, "UNKNOWN_OPERATION", opErr.Error(), nil)
+		return
+	}
+
 	// Update metrics
 	hs.metrics.mu.Lock()
 	hs.metrics.OperationsExecuted++

@@ -10,6 +10,7 @@ package monad
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sort"
 	"sync"
@@ -391,6 +392,10 @@ func (s *Service) RegisterEffect(name string, handler EffectHandler) {
 	s.log.Info().Str("name", name).Msg("Registered effect handler")
 }
 
+// ErrUnknownOperation is returned (wrapped, as "unknown query: <name>" and
+// so on) for a name no handler is registered under: nothing ran.
+var ErrUnknownOperation = errors.New("unknown")
+
 // Query executes a read-only query.
 func (s *Service) Query(ctx context.Context, name string, input interface{}) Result[interface{}] {
 	s.mu.RLock()
@@ -398,7 +403,7 @@ func (s *Service) Query(ctx context.Context, name string, input interface{}) Res
 	s.mu.RUnlock()
 
 	if !ok {
-		return Err[interface{}](fmt.Errorf("unknown query: %s", name))
+		return Err[interface{}](fmt.Errorf("%w query: %s", ErrUnknownOperation, name))
 	}
 
 	op := s.startOperation(name, OpTypeQuery, input)
@@ -418,7 +423,7 @@ func (s *Service) Mutate(ctx context.Context, name string, input interface{}) Re
 	s.mu.RUnlock()
 
 	if !ok {
-		return Err[interface{}](fmt.Errorf("unknown mutation: %s", name))
+		return Err[interface{}](fmt.Errorf("%w mutation: %s", ErrUnknownOperation, name))
 	}
 
 	op := s.startOperation(name, OpTypeMutation, input)
@@ -459,7 +464,7 @@ func (s *Service) Effect(ctx context.Context, name string, input interface{}) Re
 	s.mu.RUnlock()
 
 	if !ok {
-		return Err[struct{}](fmt.Errorf("unknown effect: %s", name))
+		return Err[struct{}](fmt.Errorf("%w effect: %s", ErrUnknownOperation, name))
 	}
 
 	op := s.startOperation(name, OpTypeEffect, input)

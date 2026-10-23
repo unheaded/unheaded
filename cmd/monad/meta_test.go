@@ -4,9 +4,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -44,6 +47,40 @@ func TestResponseMeta_IsThisRequests(t *testing.T) {
 		}
 		if resp.Meta.DurationMS < 5 {
 			t.Errorf("%s: duration_ms = %v, want >= 5 (the handler slept 5ms)", path, resp.Meta.DurationMS)
+		}
+	}
+}
+
+// A name with no handler ran nothing: 404, and not an executed operation.
+// It used to answer 400 OPERATION_FAILED and add to
+// monad_operations_executed_total.
+func TestExecuteOperation_UnknownNameIsNotExecuted(t *testing.T) {
+	hs := newTestServer(t)
+	hs.service.RegisterQuery("known", func(context.Context, interface{}) (interface{}, error) {
+		return nil, errors.New("ran and failed")
+	})
+	for _, tc := range []struct {
+		body     string
+		code     int
+		executed int64
+	}{
+		{`{"name":"nope","type":"query"}`, http.StatusNotFound, 0},
+		{`{"name":"nope","type":"mutation"}`, http.StatusNotFound, 0},
+		{`{"name":"nope","type":"effect"}`, http.StatusNotFound, 0},
+		{`{"name":"known","type":"query"}`, http.StatusBadRequest, 1},
+	} {
+		r := httptest.NewRequest(http.MethodPost, "/api/v1/operations", strings.NewReader(tc.body))
+		r.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		hs.operationsHandler(w, r)
+		if w.Code != tc.code {
+			t.Errorf("%s: status %d, want %d", tc.body, w.Code, tc.code)
+		}
+		hs.metrics.mu.RLock()
+		got := hs.metrics.OperationsExecuted
+		hs.metrics.mu.RUnlock()
+		if got != tc.executed {
+			t.Errorf("%s: operations executed = %d, want %d", tc.body, got, tc.executed)
 		}
 	}
 }
