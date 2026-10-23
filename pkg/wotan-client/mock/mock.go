@@ -8,6 +8,7 @@ package mock
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -111,8 +112,8 @@ func (m *MockClient) Close() error {
 
 // Subscribe mocks subscribing to a topic
 func (m *MockClient) Subscribe(ctx context.Context, topic, displayName string) (*wotanClient.Subscriber, error) {
-	if m.subscribeErr != nil {
-		return nil, m.subscribeErr
+	if err := m.injected(&m.subscribeErr); err != nil {
+		return nil, err
 	}
 
 	if topic == "" {
@@ -147,8 +148,8 @@ func (m *MockClient) Subscribe(ctx context.Context, topic, displayName string) (
 
 // Publish mocks publishing a message
 func (m *MockClient) Publish(ctx context.Context, topic string, payload []byte) error {
-	if m.publishErr != nil {
-		return m.publishErr
+	if err := m.injected(&m.publishErr); err != nil {
+		return err
 	}
 
 	if topic == "" {
@@ -205,8 +206,8 @@ func (m *MockClient) Publish(ctx context.Context, topic string, payload []byte) 
 
 // GetMessages mocks retrieving messages
 func (m *MockClient) GetMessages(ctx context.Context, topic string, afterSeq int64, limit int) ([]*wotanClient.Message, error) {
-	if m.getMessagesErr != nil {
-		return nil, m.getMessagesErr
+	if err := m.injected(&m.getMessagesErr); err != nil {
+		return nil, err
 	}
 
 	if topic == "" {
@@ -399,6 +400,15 @@ func (m *MockClient) ClearErrors() {
 // INTERNAL
 // ============================================================================
 
+// injected reads an injected error under the lock SetError writes it with:
+// read bare, a test calling SetError while the code under test published
+// was a data race.
+func (m *MockClient) injected(field *error) error {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return *field
+}
+
 func (m *MockClient) simulateLatency() {
 	if m.latency > 0 {
 		time.Sleep(m.latency)
@@ -407,7 +417,10 @@ func (m *MockClient) simulateLatency() {
 
 var idCounter int64
 
+// generateID returns a process-unique ID. It used to be the current second
+// plus one letter of 26, so IDs repeated every 26 calls within a second:
+// message and subscriber IDs a test could not tell apart.
 func generateID() string {
 	return time.Now().Format("20060102150405") + "-" +
-		string(rune('a'+atomic.AddInt64(&idCounter, 1)%26))
+		strconv.FormatInt(atomic.AddInt64(&idCounter, 1), 10)
 }
