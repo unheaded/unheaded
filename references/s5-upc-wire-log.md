@@ -518,3 +518,33 @@ The trace checks cost ~1–5 % with tracing off (rate limiter 343 → 347, sampl
 - **Scorer** is trained on synthetic families only; its accuracy says nothing about
   real traffic, and it ignores the SYN count.
 - Phase 17 (Lich hooks) left to the Lich sprint; Phase 18 (DISTRIBUTED) needs east.
+
+## Rate limiter follows the qos-ebpf remainder fix (2026-10-23, session 4)
+
+The Phase 13 finding (qos-ebpf dropped `elapsed mod 8000` at every refill) was fixed on
+`develop` in `8ab534b3`: the refill step moved to `monad_common::token_bucket::refill`,
+`last_refill_ns` advances by `q * 8000`, and a refill that reaches the capacity sets
+`last = now`. At the lead's request the cartridge and both oracles follow it on this
+branch (develop's qos-ebpf is not merged here; the oracles re-implement its new math).
+
+- `cartridges/ratelimit.s`: `last = now` moved off the shared refill path; the
+  capped/full branch and the idle >= 4.19 s branch keep `last = now`; `add_some` keeps q
+  in r9 and stores `last_lo + q * 8000`. The existing `add >= cap - tokens` compare is
+  already develop's `q > cap / rate || add >= cap - tokens` (add fits 32 bits under the
+  parameter rules). 63 words; longest path **46 of 64** (was 41), checked by a new static
+  longest-path test.
+- Oracles: `QosOracle` (`tests/ratelimit.rs`) and `qosBucket`
+  (`pkg/cartridge/ratelimit_linux_test.go`) now mirror `token_bucket::refill` line for
+  line. Reference: 30,000 packets / 10,623 drops, 0 mismatches. The old cartridge fails
+  the new oracle (mutation check: `ratelimit_matches_qos_ebpf_oracle` and the new
+  remainder test both red).
+- **20 µs spacing now enforces the configured rate**: reference 5,012 / 20,000 passed,
+  99.99 Mbps (was 80); BPF fixed clock 24 µs and 20 µs both **99.99 Mbps**, every verdict
+  == oracle (6,012 and 5,012 passes); the 20 µs case is now gated at ±5 % like 24 µs.
+  Real-clock flood 97.62 Mbps (was 96.0; bound −10 %).
+- BPF == oracle 1,000/1,000, flow hashes == `cart run`; live replay bit-exact
+  (`TestReplay_LiveRunsAreBitExact`, 160 rate-limiter runs). Verifier unchanged (the
+  object did not change): cart_xdp 42,743, cart_tick 146,897.
+- Lich seed `tomb/lich/seeds/cartridge/ratelimit.cart` rebuilt from the new source.
+- Benchmark Gate #1 numbers above were measured on the pre-fix cartridge; the refill
+  path is up to 5 instructions longer (re-bench in the sprint close).

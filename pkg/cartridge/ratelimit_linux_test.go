@@ -48,7 +48,10 @@ func rlImage(t *testing.T, rate, capBytes uint32) []byte {
 }
 
 // qosBucket is qos-ebpf's per-flow token bucket (ebpf/qos-ebpf/src/main.rs,
-// "Token Bucket Rate Limiting"), in its u64 arithmetic.
+// "Token Bucket Rate Limiting"; refill = monad_common::token_bucket::refill
+// since 8ab534b3), in its u64 arithmetic: whole 8,000 ns quanta are credited
+// and last advances by exactly those quanta (the remainder carries); a refill
+// that reaches the capacity sets last = now.
 type qosBucket struct {
 	ok           bool
 	tokens, last uint64
@@ -69,9 +72,13 @@ func (b *qosBucket) packet(rate, capBytes, now, pkt uint64) uint32 {
 	if now > b.last {
 		elapsed = now - b.last
 	}
-	if add := (elapsed / 8000) * rate; add > 0 {
-		b.tokens = min(b.tokens+add, capBytes)
-		b.last = now
+	if q := elapsed / 8000; q > 0 {
+		if q > capBytes/rate || b.tokens >= capBytes || q*rate >= capBytes-b.tokens {
+			b.tokens, b.last = capBytes, now
+		} else {
+			b.tokens += q * rate
+			b.last += q * 8000
+		}
 	}
 	if b.tokens < pkt {
 		return xdpDrop
@@ -206,20 +213,20 @@ func TestRatelimit_BPFvsOracleAndReference(t *testing.T) {
 // TestRatelimit_EnforcedRate (Steps 341-342): offered load above the rate,
 // passed bytes / time within 5 % of the configured rate on a fixed clock.
 //
-// qos-ebpf's refill (and so the cartridge's) discards the remainder of
-// elapsed / 8000 at every refill: at packet spacings that are not a multiple
-// of 8 us the bucket admits less than the configured rate (20 us spacing
-// refills 2 x 8 us of every 2.5). The test checks that the loss is the
-// oracle's, packet for packet, and gates the rate at a quantum-aligned
-// spacing. The real-clock flood (test_run repeat, ~0.5 us apart) carries the
-// same loss plus wall-clock overhead; it is reported with a -10 % bound.
+// Until 8ab534b3 qos-ebpf's refill (and so the cartridge's) discarded the
+// remainder of elapsed / 8000 at every refill, so a 100 Mbps bucket admitted
+// 80 Mbps at 20 us spacing. Both now carry the remainder: the test gates the
+// rate at a quantum-aligned spacing (24 us) and at one that is not (20 us),
+// and checks every verdict against the oracle. The real-clock flood
+// (test_run repeat, ~0.5 us apart) adds wall-clock overhead; it is reported
+// with a -10 % bound.
 func TestRatelimit_EnforcedRate(t *testing.T) {
 	c := loadCart(t)
 	const rate, capB, L = 100, 12_500, 1000 // 100 Mbps = 12.5 bytes/us
 	mustSlot(t, c, 0, rlImage(t, rate, capB), 1)
 
 	// Fixed clock, one fresh flow per spacing: 24 us (quantum-aligned,
-	// offers 333 Mbps) is gated; 20 us shows the oracle's remainder loss.
+	// offers 333 Mbps) and 20 us (not aligned, offers 400 Mbps).
 	const n = 20_000
 	var got float64
 	for k, spacing := range []uint64{24_000, 20_000} {
@@ -248,7 +255,7 @@ func TestRatelimit_EnforcedRate(t *testing.T) {
 		if passed != oracle {
 			t.Errorf("spacing %d: %d passes, qos-ebpf math %d", spacing, passed, oracle)
 		}
-		if spacing == 24_000 && (got < rate*0.95 || got > rate*1.05) {
+		if got < rate*0.95 || got > rate*1.05 {
 			t.Errorf("fixed-clock enforced rate %.2f Mbps, want %d +- 5%%", got, rate)
 		}
 	}

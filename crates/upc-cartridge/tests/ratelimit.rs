@@ -20,7 +20,10 @@ fn image(rate_mbps: u32, cap: u32) -> Image {
 }
 
 /// qos-ebpf's token bucket (ebpf/qos-ebpf/src/main.rs, "Token Bucket Rate
-/// Limiting"), per flow, in its own u64 arithmetic.
+/// Limiting"; refill step = `monad_common::token_bucket::refill` since
+/// 8ab534b3), per flow, in its own u64 arithmetic. The refill credits whole
+/// 8,000 ns quanta and advances `last` by exactly those quanta, so the
+/// remainder carries; a refill that reaches the capacity sets `last = now`.
 #[derive(Default)]
 struct QosOracle {
     bucket: Option<(u64, u64)>, // (tokens, last_refill_ns)
@@ -37,11 +40,15 @@ impl QosOracle {
                 verdict::PASS
             }
             Some((tokens, last)) => {
-                let elapsed = now.saturating_sub(*last);
-                let add = (elapsed / 8_000).wrapping_mul(rate_mbps);
-                if add > 0 {
-                    *tokens = (*tokens + add).min(cap);
-                    *last = now;
+                let q = now.saturating_sub(*last) / 8_000;
+                if q > 0 {
+                    if q > cap / rate_mbps || *tokens >= cap || q * rate_mbps >= cap - *tokens {
+                        *tokens = cap;
+                        *last = now;
+                    } else {
+                        *tokens += q * rate_mbps;
+                        *last += q * 8_000;
+                    }
                 }
                 if *tokens < pkt_bytes {
                     return verdict::DROP;
@@ -93,6 +100,49 @@ fn ratelimit_validates_within_budget() {
         data_words(&std::fs::read(repo("cartridges/ratelimit.data.bin")).unwrap()).unwrap();
     assert_eq!(shipped, vec![100, 12_500, M]);
     assert!(shipped[1] as u64 <= 524_287 * shipped[0] as u64 && shipped[0] <= 8_000);
+}
+
+/// Longest instruction path through a forward-only XDP image, counting the
+/// final VERDICT/HALT: a conditional branch may fall through or jump, JMP
+/// only jumps, VERDICT (SYSCALL 2) and HALT end the run.
+fn longest_path(rom: &[u32]) -> usize {
+    use monad_common::{mbc_opcodes as op, MbcInsn};
+    let n = rom.len();
+    let mut best = vec![0usize; n + 1];
+    for i in (0..n).rev() {
+        let w = MbcInsn(rom[i]);
+        let o = w.opcode();
+        let target = || {
+            let raw = rom[i] & 0x00FF_FFFF;
+            let off = if raw & 0x0080_0000 != 0 {
+                raw | 0xFF00_0000
+            } else {
+                raw
+            };
+            (i as u32 + 1).wrapping_add(off) as usize
+        };
+        best[i] = 1 + if o == op::HALT || (o == op::SYSCALL && w.imm16() == 2) {
+            0
+        } else if o == op::JMP {
+            best[target()]
+        } else if (op::JZ..=op::JNC).contains(&o) {
+            best[i + 1].max(best[target()])
+        } else {
+            best[i + 1]
+        };
+    }
+    best[0]
+}
+
+#[test]
+fn ratelimit_longest_path_fits_the_xdp_budget() {
+    let img = image(100, 12_500);
+    let n = longest_path(&img.rom);
+    eprintln!(
+        "ratelimit: {} words, longest path {n} of 64 instructions",
+        img.rom.len()
+    );
+    assert!(n <= 64, "longest path {n}");
 }
 
 /// elapsed / 8000 == MULH(elapsed >> 6, M) >> 3 for every 32-bit elapsed:
@@ -213,6 +263,39 @@ fn ratelimit_matches_qos_ebpf_oracle() {
         "{drops}/{total}"
     );
     eprintln!("ORACLE ratelimit == qos-ebpf on {total} packets ({drops} drops)");
+}
+
+/// Step 342 (reference side), after the qos-ebpf remainder fix (8ab534b3):
+/// 1,000-byte packets every 20 µs (400 Mbps offered, not a multiple of the
+/// 8 µs quantum) through a 100 Mbps bucket admit the configured rate. Before
+/// the fix both qos-ebpf and the cartridge admitted 80 Mbps here.
+#[test]
+fn ratelimit_carries_the_refill_remainder() {
+    const RATE: u32 = 100;
+    const CAP: u32 = 12_500;
+    const L: u32 = 1_000;
+    const SPACING: u64 = 20_000;
+    let img = image(RATE, CAP);
+    let pkts: Vec<(u64, u32)> = (0..20_000).map(|_| (SPACING, L)).collect();
+    let (got, _) = run_flow(&img, &pkts);
+    let mut o = QosOracle::default();
+    let mut now = 1_000_000_000u64;
+    for (i, &(gap, len)) in pkts.iter().enumerate() {
+        now += gap;
+        assert_eq!(
+            got[i],
+            o.packet(RATE as u64, CAP as u64, now, len as u64),
+            "packet {i}"
+        );
+    }
+    let passed = got.iter().filter(|&&v| v == P).count() as f64;
+    let span_s = (pkts.len() as u64 * SPACING) as f64 / 1e9;
+    let mbps = (passed * L as f64 - CAP as f64) * 8.0 / span_s / 1e6;
+    eprintln!(
+        "RATE 20 us spacing: {passed} of {} passed, enforced {mbps:.2} Mbps (configured {RATE})",
+        pkts.len()
+    );
+    assert!((99.0..=100.5).contains(&mbps), "enforced {mbps:.2} Mbps");
 }
 
 /// Step 344 (reference side): two flows keep independent buckets — one

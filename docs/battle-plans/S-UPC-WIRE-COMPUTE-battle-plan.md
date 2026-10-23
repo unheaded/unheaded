@@ -1260,6 +1260,7 @@ Seal + validator on the same in-memory bytes · `-race` green · permissions che
 - [x] **Step 341** [B][S] ~3m: Flood test_run beyond the rate; confirm DROP ratio matches the configured rate within 5%
 - [x] **Step 342** [V] ~1m: Enforced rate within 5% of configured
   - S5 2026-10-23: Fixed clock, 1,000 B every 24 µs (333 Mbps offered): 99.99 Mbps enforced, 6,012 passes == qos-ebpf math. Finding: at 20 µs spacing qos-ebpf's refill (and so the cartridge, matching it 4,012 == 4,012) enforces 80 Mbps, because each refill drops the remainder of elapsed/8000; logged, oracle not changed. Real-clock flood (2M test_runs): 96.0 Mbps (same remainder loss + wall-clock overhead; bound −10 %).
+  - S5 2026-10-23 (session 4): qos-ebpf fixed on `develop` (`8ab534b3`, remainder carries); the cartridge and both oracles follow it: 20 µs and 24 µs both enforce 99.99 Mbps, 1,000/1,000 BPF verdicts == oracle, longest path 46 of 64, real-clock flood 97.62 Mbps.
 - [x] **Step 343** [SECURITY] ~5m: A flow cannot starve others (per-flow state keyed by 5-tuple; LRU eviction bounded; no shared counter)
   - S5 2026-10-23: State is FLOW_STATE[5-tuple + slot] (LRU, 65,536); the cartridge has no cross-flow memory and no shared counter; FLOW_META is per flow too.
 - [x] **Step 344** [V] ~30s: Two flows rate-limited independently in one run

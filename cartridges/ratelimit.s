@@ -2,10 +2,14 @@
 ; ratelimit.s — per-flow token-bucket rate limiter (S5 Phase 13, ADR-108).
 ;
 ; Correctness oracle: the token bucket in ebpf/qos-ebpf (refill-by-elapsed,
-; fits-check), reproduced exactly:
+; fits-check; refill step in monad_common::token_bucket since 8ab534b3),
+; reproduced exactly:
 ;   first packet of a flow: tokens = sat(cap - len), last = now, PASS
-;   later packets:          add = (elapsed_ns / 8000) * rate_mbps
-;                           if add > 0 { tokens = min(cap, tokens + add); last = now }
+;   later packets:          q = elapsed_ns / 8000, add = q * rate_mbps
+;                           if q > 0:
+;                             add >= cap - tokens: tokens = cap, last = now
+;                             else: tokens += add, last += q * 8000
+;                                   (the elapsed mod 8000 remainder carries)
 ;                           tokens < len ? DROP : (tokens -= len, PASS)
 ; Tokens are bytes (qos-ebpf's unit), not the plan's x256 fixed point, so the
 ; verdicts can match the oracle bit for bit.
@@ -17,7 +21,9 @@
 ;   as cap <= 524287 * rate_mbps (a parameter rule, checked by the tests).
 ; - elapsed / 8000 = MULH(elapsed >> 6, M) >> 3 with M = ceil(2^35 / 125):
 ;   exact for elapsed >> 6 < 2^26 (M*125 - 2^35 = 7 <= 2^9).
-; - add = q * rate fits 32 bits for rate_mbps <= 8000.
+; - add = q * rate and q * 8000 fit 32 bits for rate_mbps <= 8000 (q < 2^32/8000).
+; - last trails now by under 8000 ns plus the gap since the previous packet,
+;   so elapsed stays under 2^32 while iat_bucket < 22.
 ;
 ; DATA (cartridges/ratelimit.data.bin, little-endian words):
 ;   0x1000 rate_mbps   (0 = limiter off, every packet passes)
@@ -70,18 +76,24 @@ refill:
         LD   r2, [r15+0x1008]
         MULH r8, r2
         SHR  r8, 3              ; q = elapsed / 8000
+        MOV  r9, r8             ; keep q
         MUL  r8, r5             ; add = q * rate_mbps
         CMP  r8, r15
-        JZ   check              ; add == 0: no refill, last unchanged
-        ST   [r15+4], r7        ; last = now
+        JZ   check              ; q == 0: no refill, last unchanged
         MOV  r2, r6
         SUB  r2, r3             ; room = cap - tokens
         CMP  r8, r2
         JC   add_some
-        MOV  r3, r6             ; add >= room: full
+        MOV  r3, r6             ; add >= room: full, last = now
+        ST   [r15+4], r7
         JMP  check
 add_some:
         ADD  r3, r8
+        MOVI r2, 8000
+        MUL  r9, r2             ; q * 8000
+        LD   r2, [r15+4]
+        ADD  r2, r9
+        ST   [r15+4], r2        ; last += q * 8000: the remainder carries
 check:
         ST   [r15+0], r3        ; refilled tokens persist even on DROP
         CMP  r3, r4
