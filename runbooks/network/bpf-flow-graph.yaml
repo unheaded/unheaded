@@ -12,7 +12,7 @@ metadata:
 preconditions:
   - check: "which bpftool"
     description: "bpftool installed"
-  - check: "sudo bpftool feature probe kernel | grep -q bpf_jit_enable"
+  - check: "sudo bpftool feature probe kernel | grep -q 'JIT compiler is enabled'"
     description: "BPF JIT enabled"
 
 steps:

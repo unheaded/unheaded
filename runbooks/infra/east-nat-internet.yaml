@@ -36,9 +36,13 @@ steps:
     host: west
     command: |
       WAN_IFACE=$(ip route show default | awk '{print $5}')
+      # The P2P link is whatever carries 192.168.13.0/24 (enp16s0 on west);
+      # there is no p2p0, so FORWARD rules naming it never matched.
+      P2P_IFACE=$(ip -o -4 addr show to 192.168.13.0/24 | awk '{print $2}')
+      [ -n "$P2P_IFACE" ] || { echo "no interface on 192.168.13.0/24"; exit 1; }
       sudo iptables -t nat -A POSTROUTING -s 192.168.13.0/24 -o $WAN_IFACE -j MASQUERADE
-      sudo iptables -A FORWARD -i p2p0 -o $WAN_IFACE -j ACCEPT
-      sudo iptables -A FORWARD -i $WAN_IFACE -o p2p0 -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
+      sudo iptables -A FORWARD -i $P2P_IFACE -o $WAN_IFACE -j ACCEPT
+      sudo iptables -A FORWARD -i $WAN_IFACE -o $P2P_IFACE -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT
     verify: "sudo iptables -t nat -L POSTROUTING -n | grep -q MASQUERADE"
 
   - name: west-save-rules

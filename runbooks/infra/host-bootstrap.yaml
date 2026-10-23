@@ -46,7 +46,8 @@ steps:
         gcc-riscv64-unknown-elf picolibc-riscv64-unknown-elf \
         clang llvm libelf-dev
     timeout: 300
-    verify: "which docker && which bpftool && which go"
+    # go is installed by setup-go (next step), not by apt.
+    verify: "which docker && which bpftool"
 
   - name: configure-docker
     action: shell
@@ -59,7 +60,7 @@ steps:
   - name: setup-go
     action: shell
     command: |
-      GO_VERSION=1.23.0
+      GO_VERSION=1.27.3   # go.mod: toolchain go1.27.3 (1.23 cannot build go 1.26.0 modules)
       curl -sL https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz | sudo tar -C /usr/local -xzf -
       echo 'export PATH=$PATH:/usr/local/go/bin' | sudo tee /etc/profile.d/go.sh
     verify: "/usr/local/go/bin/go version"
@@ -98,7 +99,9 @@ steps:
 
   - name: setup-ssh-hardening
     action: shell
+    # The rollback restores sshd_config.bak; make it before editing.
     command: |
+      sudo cp /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
       sudo sed -i 's/#PasswordAuthentication yes/PasswordAuthentication no/' /etc/ssh/sshd_config
       sudo sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin no/' /etc/ssh/sshd_config
       sudo sshd -t && sudo systemctl restart sshd
@@ -113,7 +116,7 @@ steps:
   - name: verify-bpf-support
     action: shell
     command: "sudo bpftool feature probe kernel | head -20"
-    verify: "sudo bpftool feature probe kernel | grep -q 'bpf_jit_enable is enabled'"
+    verify: "sudo bpftool feature probe kernel | grep -q 'JIT compiler is enabled'"
 
 rollback:
   - name: restore-ssh

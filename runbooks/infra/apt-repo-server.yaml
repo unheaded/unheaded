@@ -78,7 +78,7 @@ steps:
       sudo ln -sf /etc/nginx/sites-available/apt-repo /etc/nginx/sites-enabled/
       # Workers as nginx's own nologin account (deploy/sysusers.d), not the
       # shared www-data.
-      sudo systemd-sysusers deploy/sysusers.d/unheaded.conf
+      sudo systemd-sysusers ~/tmp/unheaded/deploy/sysusers.d/unheaded.conf
       sudo sed -i 's/^user www-data;/user nginx;/' /etc/nginx/nginx.conf
       sudo chown nginx /var/lib/nginx/body /var/lib/nginx/fastcgi /var/lib/nginx/proxy /var/lib/nginx/scgi /var/lib/nginx/uwsgi
       sudo nginx -t && sudo systemctl reload nginx

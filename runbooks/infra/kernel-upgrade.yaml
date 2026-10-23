@@ -16,8 +16,8 @@ preconditions:
 steps:
   - name: record-current-kernel
     action: shell
-    command: "uname -r > /tmp/kernel-before.txt && cat /tmp/kernel-before.txt"
-    description: "Save current kernel for rollback reference"
+    command: "uname -r > /var/tmp/kernel-before.txt && cat /var/tmp/kernel-before.txt"
+    description: "Save current kernel for rollback reference (/var/tmp: /tmp is tmpfs and the reboot below clears it)"
 
   - name: check-available-kernels
     action: shell
@@ -51,8 +51,8 @@ steps:
     action: shell
     command: |
       echo "New kernel: $(uname -r)"
-      echo "Old kernel: $(cat /tmp/kernel-before.txt 2>/dev/null)"
-    verify: "test $(uname -r) != $(cat /tmp/kernel-before.txt 2>/dev/null)"
+      echo "Old kernel: $(cat /var/tmp/kernel-before.txt 2>/dev/null)"
+    verify: "test $(uname -r) != $(cat /var/tmp/kernel-before.txt 2>/dev/null)"
 
   - name: install-kernel-tools
     action: shell
