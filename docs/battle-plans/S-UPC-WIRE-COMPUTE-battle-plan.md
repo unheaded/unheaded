@@ -1458,27 +1458,41 @@ Replay bit-exact · divergence detection proven · determinism contract document
 **Time**: ~2 h
 **Agent**: Developer (BlackMage lens)
 
-- [ ] **Step 419** [R] ~5m: Read the existing fuzz surface and the ADR-062 process; re-read the KF4 banner so the hook is documented as real coverage (host engine), not a simulation
-- [ ] **Step 420** [W][CODE] ~30m: `crates/monad-mbc/fuzz/fuzz_targets/fuzz_cart_differential.rs`: random validated cartridge + random inputs → run on `monad_common::cart::step` and `monad-mbc` `execute.rs`; assert identical register/flag/mem traces; any divergence is a finding
-- [ ] **Step 421** [W][CODE] ~20m: `fuzz_cart_image.rs`: arbitrary bytes → `upc_cartridge::decode`+`validate`; must never panic (Err or Ok, never crash)
-- [ ] **Step 422** [B][TEST] ~6m: Run each 5 minutes
+- [x] **Step 419** [R] ~5m: Read the existing fuzz surface and the ADR-062 process; re-read the KF4 banner so the hook is documented as real coverage (host engine), not a simulation
+  - S5 2026-10-23 (session 4): Read the fuzz surface, ADR-062, KF4 and the Lich sprint's LICH-015 (`sprint/lich-awakens`, read with `git show`, not merged): its `diff_harness` already compares ExecCpu and the shared step on registers/flags/PC for ALU+branch programs (50,000 programs, 0 divergences). The hooks here extend it (memory windows, syscalls, EMIT/VERDICT, the BPF engine) rather than duplicate it.
+- [x] **Step 420** [W][CODE] ~30m: `crates/monad-mbc/fuzz/fuzz_targets/fuzz_cart_differential.rs`: random validated cartridge + random inputs → run on `monad_common::cart::step` and `monad-mbc` `execute.rs`; assert identical register/flag/mem traces; any divergence is a finding
+  - S5 2026-10-23: `upc_cartridge::diff` (generator + lockstep oracle, tests first: red on the missing module, then 6/6 green incl. an injected-bit-flip self-test) and `fuzz_cart_differential` (fuzz bytes = generator entropy). Syscalls are serviced on the host-emulator side from the same input; a cartridge fault ends the comparison (the sandbox refusing). `cart diff` CLI added (exit 3 on divergence).
+- [x] **Step 421** [W][CODE] ~20m: `fuzz_cart_image.rs`: arbitrary bytes → `upc_cartridge::decode`+`validate`; must never panic (Err or Ok, never crash)
+  - S5 2026-10-23: `fuzz_cart_image`: decode, validate, and run an accepted image; decode must be canonical. Second pass re-hashes the input, since the embedded sha256 otherwise rejects almost every mutation at decode.
+- [x] **Step 422** [B][TEST] ~6m: Run each 5 minutes
+  - S5 2026-10-23: cargo-fuzz not installed: built with its RUSTFLAGS (+debug assertions, overflow checks), libFuzzer binaries run directly. `fuzz_cart_differential` 3,046,713 runs / 301 s; `fuzz_cart_image` 95,882,146 runs / 301 s from the 9 seeds, corpus 413 (a first run without the re-hash pass: 526,043,178 runs but corpus stuck at 31).
   ```bash
   cd "$PROJECT_ROOT/crates/monad-mbc" && cargo +nightly fuzz run fuzz_cart_differential -- -max_total_time=300 2>&1 | tail -3
   cargo +nightly fuzz run fuzz_cart_image -- -max_total_time=300 2>&1 | tail -3
   ```
-- [ ] **Step 423** [V] ~1m: Zero crashes, zero differential divergences (or each divergence logged as a finding with the minimized input)
-- [ ] **Step 424** [W][CODE] ~20m: A root-gated BPF leg (optional, documented): `cart_xdp` via test_run on the same random cartridge; compare the read-back `FLOW_STATE` hash to the host engines — the three-way differential the Lich sprint will drive
-- [ ] **Step 425** [B][S][TEST] ~5m: Run the three-way check on 1,000 random cartridges
-- [ ] **Step 426** [V] ~1m: Three engines agree on 1,000/1,000 (or divergences logged)
-- [ ] **Step 427** [W] ~15m: `tomb/lich/` hook doc: how to point the Lich at this surface (targets, corpus seeds from `cartridges/`, the three-engine oracle), referencing the Lich sprint plan if present (Step 26)
-- [ ] **Step 428** [W] ~5m: Seed corpus — copy the three shipped `.cart` images + a few mutated ones into `tomb/lich/seeds/cartridge/`
-- [ ] **Step 429** [SECURITY] ~5m: Confirm the fuzz targets cannot write outside their sandbox (host targets are pure; the BPF leg is test_run only, no attach)
-- [ ] **Step 430** [V] ~30s: Sandboxed
-- [ ] **Step 431** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 423** [V] ~1m: Zero crashes, zero differential divergences (or each divergence logged as a finding with the minimized input)
+  - S5 2026-10-23: 0 crashes, 0 divergences in both runs. Seeded campaign `cart diff --seed 0x17 --count 20000`: 296,740 instructions compared, 0 divergences.
+- [x] **Step 424** [W][CODE] ~20m: A root-gated BPF leg (optional, documented): `cart_xdp` via test_run on the same random cartridge; compare the read-back `FLOW_STATE` hash to the host engines — the three-way differential the Lich sprint will drive
+  - S5 2026-10-23: `pkg/cartridge` `TestDifferential_ThreeEngines` (root-gated): `cart diff --out` writes cases the two host engines agree on; each runs through `cart_xdp` via BPF_PROG_TEST_RUN (no attach), checking verdict, FLOW_STATE hash, generation and EMITs. Deviation from the goal line: the third engine is `cartridge-ebpf` (the shared step compiled to BPF), not `monad-cpu-ebpf`, which cannot run cartridges; its full-engine arm stays LICH-015's east arm.
+- [x] **Step 425** [B][S][TEST] ~5m: Run the three-way check on 1,000 random cartridges
+  - S5 2026-10-23: 1,000 random cartridges, seed 0x17d1ff, 19.5 s.
+- [x] **Step 426** [V] ~1m: Three engines agree on 1,000/1,000 (or divergences logged)
+  - S5 2026-10-23: **1,000/1,000** agree across the three engines (577 halt, 190 verdict, 233 fault endings; 0 breaker trips). Part of the regression harness's cartridge root tests from now on.
+- [x] **Step 427** [W] ~15m: `tomb/lich/` hook doc: how to point the Lich at this surface (targets, corpus seeds from `cartridges/`, the three-engine oracle), referencing the Lich sprint plan if present (Step 26)
+  - S5 2026-10-23: `tomb/lich/UPC-CARTRIDGE-HOOKS.md`: engines, oracle rules, targets, commands, confinement, results, and the LICH-015 integration points for the merge (arm C, MULHU seed closure, run_harness exit codes, ADR-062 rows). LICH-015's own `diff_harness`, built against this branch from a scratch copy: `mulhu-probe` CONVERGED (MULHU arm `4cbef086`), self-test PASS, 50,000 programs 0 divergences.
+- [x] **Step 428** [W] ~5m: Seed corpus — copy the three shipped `.cart` images + a few mutated ones into `tomb/lich/seeds/cartridge/`
+  - S5 2026-10-23: `tomb/lich/seeds/cartridge/`: ratelimit, sampler, scorer + six mutations (stale sha, truncated, bad opcode, XDP back-edge, max_insn 65, re-hashed DATA), each hitting its intended refusal (README).
+- [x] **Step 429** [SECURITY] ~5m: Confirm the fuzz targets cannot write outside their sandbox (host targets are pure; the BPF leg is test_run only, no attach)
+  - S5 2026-10-23: Host targets are pure (no files, network or privileges); the BPF leg is `BPF_PROG_TEST_RUN` only (no attach, maps freed on exit), the path Phases 11-16 already ran on west.
+- [x] **Step 430** [V] ~30s: Sandboxed
+  - S5 2026-10-23: Sandboxed.
+- [x] **Step 431** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: see the Phase 17 commit.
   ```bash
   git -C "$PROJECT_ROOT" add crates/monad-mbc/fuzz tomb/lich && commitp -m "test(lich): [S5 419-431] cartridge differential + image fuzz hooks (three-engine oracle)"
   ```
-- [ ] **Step 432** [V][GATE] ~1m: **PHASE 17 EXIT GATE** — differential + image fuzz targets build and run clean; three-engine oracle wired; seeds + hook doc left for the Lich sprint
+- [x] **Step 432** [V][GATE] ~1m: **PHASE 17 EXIT GATE** — differential + image fuzz targets build and run clean; three-engine oracle wired; seeds + hook doc left for the Lich sprint
+  - S5 2026-10-23: PASSED: both new fuzz targets build and run clean, three-engine oracle real (host + BPF, not a simulation; KF4 addressed for cartridges), seeds + hook doc in place.
 
 ### Phase 17 Definition of Done
 Fuzz targets clean (or findings logged) · three-engine oracle real (host + BPF, not a simulation — KF4 addressed) · seeds + doc for the Lich sprint.

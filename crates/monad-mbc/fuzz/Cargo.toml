@@ -11,6 +11,8 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 monad-mbc = { path = ".." }
 monad-common = { path = "../../../ebpf/monad-common" }
+upc-cartridge = { path = "../../upc-cartridge" }
+sha2 = "0.10"
 
 # Prevent this from interfering with workspaces
 [workspace]
@@ -37,4 +39,14 @@ doc = false
 [[bin]]
 name = "fuzz_cart_step"
 path = "fuzz_targets/fuzz_cart_step.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_cart_differential"
+path = "fuzz_targets/fuzz_cart_differential.rs"
+doc = false
+
+[[bin]]
+name = "fuzz_cart_image"
+path = "fuzz_targets/fuzz_cart_image.rs"
 doc = false

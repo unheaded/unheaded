@@ -19,6 +19,7 @@ use monad_common::cart::{
 use monad_common::{mbc_opcodes as op, MbcInsn};
 use sha2::{Digest, Sha256};
 
+pub mod diff;
 pub mod reference;
 pub mod replay;
 pub mod scorer;

@@ -10,7 +10,16 @@
 //! cart tick X.cart --jobs LOG    # reference run of tick-stage jobs (label f0..f7 per line)
 //! cart replay X.cart TRACE [--slot S] [--run K] [--to N] [--watch rN|mem[A]] [--steps]
 //!                                # Anamnesis replay of recorded runs (exit 3 on divergence)
+//! cart diff [--seed HEX] [--count N] [--out DIR] [--sport-base P] [--now-base NS]
+//!                                # differential: shared step vs host MBC emulator in lockstep
+//!                                # on random cartridges (exit 3 on divergence)
 //! ```
+//!
+//! `diff` without `--out` draws random inputs. With `--out` every case gets
+//! the input `pkg/cartridge`'s three-engine test sends through BPF (case i:
+//! UDP 10.0.0.1:P+i -> 10.0.0.2:53, 80 bytes, first packet of the flow, clock
+//! NS + i*2 s) and writes `case-NNNN.cart` plus `manifest.txt`, one line per
+//! case: `case-NNNN.cart sport=P now=NS end=E verdict=V hash=H emits=K:A:B,..|-`.
 //!
 //! `run` input log: one packet per line, `flow now_ns f0 .. f12` (decimal;
 //! `flow` is any label, state is kept per label). Output: one
@@ -30,7 +39,7 @@ const MAX_INPUT: u64 = 1 << 20; // a .cart is at most 52 + 8 KiB; refuse anythin
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage:\n  cart build --stage xdp|tick --asm X.s [--data W.bin] [--max-insn N] [--loop-bound N] [--entry N] [--fail-closed] -o X.cart\n  cart validate X.cart|-\n  cart info X.cart|-\n  cart run X.cart --inputs LOG\n  cart tick X.cart --jobs LOG\n  cart replay X.cart TRACE [--slot S] [--run K] [--to N] [--watch rN|mem[A]] [--steps]"
+        "usage:\n  cart build --stage xdp|tick --asm X.s [--data W.bin] [--max-insn N] [--loop-bound N] [--entry N] [--fail-closed] -o X.cart\n  cart validate X.cart|-\n  cart info X.cart|-\n  cart run X.cart --inputs LOG\n  cart tick X.cart --jobs LOG\n  cart replay X.cart TRACE [--slot S] [--run K] [--to N] [--watch rN|mem[A]] [--steps]\n  cart diff [--seed HEX] [--count N] [--out DIR] [--sport-base P] [--now-base NS]"
     );
     ExitCode::from(2)
 }
@@ -461,10 +470,114 @@ fn replay_cmd(args: &[String]) -> Result<bool, String> {
     Ok(diverged == 0)
 }
 
+/// `cart diff`: the S5 Phase 17 differential (shared step vs host MBC
+/// emulator, lockstep). Returns Ok(false) on any divergence.
+fn diff_cmd(args: &[String]) -> Result<bool, String> {
+    use upc_cartridge::diff::{bpf_case_input, gen_input, gen_xdp_cartridge, lockstep, XorShift};
+    let (mut seed, mut count, mut out) = (0xC3C3_5EEDu64, 1000u32, None::<String>);
+    let (mut sport_base, mut now_base) = (10_000u32, 7_000_000_000u64);
+    let num = |s: Option<&String>, name: &str| -> Result<u64, String> {
+        let s = s.ok_or_else(|| format!("{name} needs a value"))?;
+        let v = match s.strip_prefix("0x") {
+            Some(h) => u64::from_str_radix(h, 16),
+            None => s.parse(),
+        };
+        v.map_err(|_| format!("{name}: bad number {s:?}"))
+    };
+    let mut it = args.iter();
+    while let Some(a) = it.next() {
+        match a.as_str() {
+            "--seed" => seed = num(it.next(), "--seed")?,
+            "--count" => count = num(it.next(), "--count")?.min(100_000) as u32,
+            "--out" => out = it.next().cloned(),
+            "--sport-base" => sport_base = num(it.next(), "--sport-base")?.min(65_535) as u32,
+            "--now-base" => now_base = num(it.next(), "--now-base")?,
+            other => return Err(format!("unknown argument {other:?}")),
+        }
+    }
+    if out.is_some() && sport_base + count > 65_536 {
+        return Err("--sport-base + --count must stay within the UDP port range".into());
+    }
+    if let Some(dir) = &out {
+        std::fs::create_dir_all(dir).map_err(|e| format!("{dir}: {e}"))?;
+    }
+    let mut e = XorShift::new(seed);
+    let mut manifest = String::new();
+    let (mut steps, mut diverged) = (0usize, 0u32);
+    let mut ends = std::collections::BTreeMap::<String, u32>::new();
+    let o = &mut std::io::stdout().lock();
+    for i in 0..count {
+        let img = gen_xdp_cartridge(&mut e);
+        let (sport, now) = (sport_base + i, now_base + i as u64 * 2_000_000_000);
+        let input = match out {
+            Some(_) => bpf_case_input(sport as u16, now),
+            None => gen_input(&mut e),
+        };
+        validate(&img).map_err(|e| format!("case {i}: generator bug, image rejected: {e}"))?;
+        let raw = img.encode();
+        match lockstep(&img, &input) {
+            Ok(a) => {
+                steps += a.steps;
+                let kind = a.end.to_string();
+                let kind = kind.split(':').next().unwrap_or("").to_string();
+                *ends.entry(kind).or_default() += 1;
+                if let Some(dir) = &out {
+                    let name = format!("case-{i:04}.cart");
+                    std::fs::write(format!("{dir}/{name}"), &raw)
+                        .map_err(|e| format!("{dir}/{name}: {e}"))?;
+                    let emits = if a.emits.is_empty() {
+                        "-".to_string()
+                    } else {
+                        a.emits
+                            .iter()
+                            .map(|(k, x, y)| format!("{k}:{x}:{y}"))
+                            .collect::<Vec<_>>()
+                            .join(",")
+                    };
+                    manifest.push_str(&format!(
+                        "{name} sport={sport} now={now} end={} verdict={} hash={:08x} emits={emits}\n",
+                        a.end,
+                        a.end.xdp_verdict(),
+                        upc_cartridge::state_hash(&a.state)
+                    ));
+                }
+            }
+            Err(d) => {
+                diverged += 1;
+                let _ = writeln!(o, "case {i}: {d}\n  image {}", hex(&raw));
+                if let Some(dir) = &out {
+                    let _ = std::fs::write(format!("{dir}/diverged-{i:04}.cart"), &raw);
+                }
+            }
+        }
+    }
+    if let Some(dir) = &out {
+        std::fs::write(format!("{dir}/manifest.txt"), manifest)
+            .map_err(|e| format!("{dir}/manifest.txt: {e}"))?;
+    }
+    let ends: Vec<String> = ends.iter().map(|(k, v)| format!("{k} {v}")).collect();
+    let _ = writeln!(
+        o,
+        "diff: {count} cartridges (seed {seed:#x}), {steps} instructions compared, {diverged} diverged; ends: {}",
+        ends.join(", ")
+    );
+    Ok(diverged == 0)
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.first().map(String::as_str) == Some("replay") {
         return match replay_cmd(&args[1..]) {
+            Ok(true) => ExitCode::SUCCESS,
+            Ok(false) => ExitCode::from(3),
+            Err(e) => {
+                eprintln!("cart: {e}");
+                ExitCode::from(1)
+            }
+        };
+    }
+    if args.first().map(String::as_str) == Some("diff") {
+        return match diff_cmd(&args[1..]) {
             Ok(true) => ExitCode::SUCCESS,
             Ok(false) => ExitCode::from(3),
             Err(e) => {

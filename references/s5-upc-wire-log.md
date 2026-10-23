@@ -548,3 +548,43 @@ branch (develop's qos-ebpf is not merged here; the oracles re-implement its new 
 - Lich seed `tomb/lich/seeds/cartridge/ratelimit.cart` rebuilt from the new source.
 - Benchmark Gate #1 numbers above were measured on the pre-fix cartridge; the refill
   path is up to 5 instructions longer (re-bench in the sprint close).
+
+## Phase 17 — Lich hooks (2026-10-23, session 4)
+
+Session 4 scope: Phase 17, then Phase 19 close. Phases 6–8 and 18 stay
+`[DEFERRED: east escalation]`. The Lich sprint (`sprint/lich-awakens`) was read with
+`git show`, not merged: its LICH-015 `diff_harness` compares the host emulator and the
+shared step on registers/flags/PC for ALU+branch programs (50,000 programs, 0
+divergences); its one finding, MULHU, was fixed here in `4cbef086`.
+
+- **Oracle** (`crates/upc-cartridge/src/diff.rs`, tests first): random validated
+  XDP-stage cartridges (≤ 48 words, forward branches, register prologue, edge operands,
+  LD/ST/LDB into both windows, FIELD/NOW/EMIT/VERDICT, ~1/16 deliberately out of range)
+  run in lockstep on `monad_common::cart` and `monad-mbc` `ExecCpu`: registers, Z/N/C,
+  PC and the flow window compared after every instruction; EMITs compared at the end.
+  Syscalls are serviced on the host side from the same input; a cartridge fault ends the
+  comparison. Self-test: a one-bit flip in the host arm after instruction 0 is reported
+  at instruction 0 (100+ cases).
+- **Seeded campaign** `cart diff --seed 0x17 --count 20000`: 296,740 instructions,
+  **0 divergences** (11,212 halt, 4,320 verdict, 4,468 fault endings). Test campaign
+  10,000 cartridges: 16,495 in-window memory ops, 15,962 syscalls, 0 divergences.
+- **Three engines** (`TestDifferential_ThreeEngines`, root, test_run only): 1,000
+  cartridges (seed 0x17d1ff) through `cart_xdp`: **1,000/1,000** verdict + FLOW_STATE
+  hash + generation + EMITs equal to the two host engines; 0 breaker trips; 19.5 s. The
+  third engine is `cartridge-ebpf` (the shared step compiled to BPF); `monad-cpu-ebpf`
+  cannot run cartridges and its full-engine arm stays LICH-015's east arm.
+- **Fuzz** (cargo-fuzz RUSTFLAGS, libFuzzer run directly, 300 s each):
+  `fuzz_cart_differential` 3,046,713 runs, 0 crashes; `fuzz_cart_image` 95,882,146
+  runs from 9 seeds, corpus 413, 0 crashes. The first image run (526,043,178 runs)
+  stalled at corpus 31: the embedded sha256 rejects nearly every mutation at decode, so
+  the target now also checks each input with its sha recomputed.
+- **LICH-015 harness against this branch** (scratch copy, path deps pointed at this
+  worktree, no repo change): `mulhu-probe` **CONVERGED** (`r0 = 0x0b00ea4e` both
+  engines), self-test PASS, `run --iters 50000 --seed 0xc3c35eed` 0 divergences. Its
+  `mulhu_highword` seed can close after the merge.
+- Seeds `tomb/lich/seeds/cartridge/` (3 shipped + 6 mutations, each hitting its intended
+  refusal); hook doc `tomb/lich/UPC-CARTRIDGE-HOOKS.md` with the merge integration
+  points. No new third-party crate: the fuzz crate's lock gains upc-cartridge, upc-api
+  and sha2's tree, every crate@version already in `crates/upc-cartridge/Cargo.lock`.
+- gosec (repo-pinned `tools/gosec`): `./pkg/cartridge/...` clean as CI runs it; with
+  `-tests` the new test file adds nothing (its env knobs are parsed as numbers).
