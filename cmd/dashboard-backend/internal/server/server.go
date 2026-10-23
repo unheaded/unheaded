@@ -523,8 +523,9 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 		log.Info().Msg("Postgres connected — health persistence enabled (The Well)")
 	}
 
-	// Seed the log buffer with startup events
-	s.seedLogBuffer()
+	// The log buffer starts empty. It used to be seeded with startup lines
+	// nobody logged and a "health check OK" per service every 15 s that
+	// checked nothing; a Logs page showing those is worse than an empty one.
 
 	// Initialize metrics
 	s.initMetrics()
@@ -560,53 +561,6 @@ func NewServer(config *Config, log *logger.Logger) (*Server, error) {
 	}
 
 	return s, nil
-}
-
-// seedLogBuffer pushes initial startup log entries and starts a background
-// goroutine that periodically logs service health into the ring buffer.
-func (s *Server) seedLogBuffer() {
-	now := time.Now()
-	services := []string{"dashboard-backend", "wotan", "kanban-app", "wiki-server"}
-	messages := []struct {
-		svc, lvl, msg string
-		offset        time.Duration
-	}{
-		{"dashboard-backend", "info", "server starting", 0},
-		{"dashboard-backend", "info", "wotan transport connected", 10 * time.Millisecond},
-		{"dashboard-backend", "info", "metrics scraper initialized", 20 * time.Millisecond},
-		{"dashboard-backend", "info", "websocket server ready", 30 * time.Millisecond},
-		{"dashboard-backend", "info", "log aggregation buffer ready (capacity=10000)", 40 * time.Millisecond},
-		{"dashboard-backend", "info", "listening on " + s.config.ListenAddr, 50 * time.Millisecond},
-	}
-	for _, m := range messages {
-		s.logBuffer.Push(logagg.LogEntry{
-			Timestamp: now.Add(m.offset),
-			Service:   m.svc,
-			Level:     m.lvl,
-			Message:   m.msg,
-		})
-	}
-
-	// Background: periodically push health check results as log entries
-	go func() {
-		ticker := time.NewTicker(15 * time.Second)
-		defer ticker.Stop()
-		for {
-			select {
-			case <-s.shutdown:
-				return
-			case <-ticker.C:
-				for _, svc := range services {
-					s.logBuffer.Push(logagg.LogEntry{
-						Timestamp: time.Now(),
-						Service:   svc,
-						Level:     "info",
-						Message:   "health check OK",
-					})
-				}
-			}
-		}
-	}()
 }
 
 // RegisterCollectors adds collectors owned by other packages to the registry
