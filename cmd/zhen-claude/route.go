@@ -37,7 +37,10 @@ func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.W
 	ans, lerr := local.Complete(ctx, claudebridge.DefaultLocalSystem, prompt)
 	localDur := time.Since(t0)
 
-	rec := &zhencapture.Record{Source: "zhen-claude", Prompt: prompt, LocalOnly: o.localOnly}
+	// One id for the local leg's llm_requests row and the capture; an
+	// escalated turn takes the Claude conversation's id instead, so the
+	// flywheel can join it to the escalated_* rows.
+	rec := &zhencapture.Record{Source: "zhen-claude", Prompt: prompt, LocalOnly: o.localOnly, ConversationID: claudebridge.NewRecordID()}
 	rec.Local = &zhencapture.Leg{Model: ans.Model, System: claudebridge.DefaultLocalSystem, Answer: ans.Text, StopReason: ans.FinishReason, LatencyMS: localDur.Milliseconds()}
 	if rec.Local.Model == "" {
 		rec.Local.Model = o.localModel
@@ -71,7 +74,7 @@ func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.W
 		}
 	}
 	attrs = append(attrs, "local_ok", lerr == nil, "why", why)
-	auditLocalLeg(ctx, aud, o, rec.Local, localDur, lerr)
+	auditLocalLeg(ctx, aud, o, rec.ConversationID, rec.Local, localDur, lerr)
 	if rec.Local.Error != "" {
 		attrs = append(attrs, "local_error", rec.Local.Error)
 	}
@@ -114,6 +117,7 @@ func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.W
 	c0 := time.Now()
 	conv := b.NewConversation()
 	conv.SetRoute("", escalationReason(why))
+	rec.ConversationID = conv.ID()
 	reply, err := turn(ctx, conv, prompt, stdout, stderr, log)
 	fillClaude(rec, b, reply, err, time.Since(c0), tools)
 	rec.LatencyMS = time.Since(t0).Milliseconds()
@@ -188,12 +192,12 @@ func fillClaude(rec *zhencapture.Record, b *claudebridge.Bridge, reply *claudebr
 }
 
 // captureClaudeTurn records a -route claude turn when capture is on.
-func captureClaudeTurn(capw *zhencapture.Writer, b *claudebridge.Bridge, prompt string, reply *claudebridge.Reply, err error, d time.Duration, tools *toolCollector, log *slog.Logger) {
+func captureClaudeTurn(capw *zhencapture.Writer, b *claudebridge.Bridge, conversation, prompt string, reply *claudebridge.Reply, err error, d time.Duration, tools *toolCollector, log *slog.Logger) {
 	if capw == nil {
 		tools.take()
 		return
 	}
-	rec := &zhencapture.Record{Source: "zhen-claude", Route: zhencapture.RouteClaude, System: b.System(), Prompt: prompt}
+	rec := &zhencapture.Record{Source: "zhen-claude", Route: zhencapture.RouteClaude, System: b.System(), Prompt: prompt, ConversationID: conversation}
 	fillClaude(rec, b, reply, err, d, tools)
 	rec.LatencyMS = d.Milliseconds()
 	writeCapture(capw, rec, log)
@@ -264,7 +268,7 @@ func escalationReason(why string) string {
 
 // auditLocalLeg records the local model's request like any other: one
 // llm_requests row (backend local, cost 0), no text.
-func auditLocalLeg(ctx context.Context, aud *auditSetup, o *options, leg *zhencapture.Leg, d time.Duration, lerr error) {
+func auditLocalLeg(ctx context.Context, aud *auditSetup, o *options, conversation string, leg *zhencapture.Leg, d time.Duration, lerr error) {
 	if aud == nil || aud.auditor == nil || leg == nil {
 		return
 	}
@@ -273,7 +277,7 @@ func auditLocalLeg(ctx context.Context, aud *auditSetup, o *options, leg *zhenca
 		reason = "local_only"
 	}
 	r := claudebridge.RequestRecord{
-		Conversation: claudebridge.NewRecordID(), Model: leg.Model, ServedBy: leg.Model, StopReason: leg.StopReason,
+		Conversation: conversation, Model: leg.Model, ServedBy: leg.Model, StopReason: leg.StopReason,
 		Duration: d, Sent: true, Backend: claudebridge.BackendLocal, RouteReason: reason,
 	}
 	if lerr != nil {

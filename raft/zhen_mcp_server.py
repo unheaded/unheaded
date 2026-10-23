@@ -144,6 +144,9 @@ LOCAL_LLM_MAX_ANSWER_CHARS = 32_000     # answer returned to the client
 # pkg/zhencapture; see docs/architecture/zhen-capture.md.
 CAPTURE_DIR_ENV = "ZHEN_CAPTURE_DIR"
 CAPTURE_SCHEMA = "zhen-capture/v1"
+# A routing/eval family name (configs/zhen-routing.yaml); same rule as the
+# Well's zhen_captures.task_family.
+TASK_FAMILY_RE = re.compile(r"[a-z0-9-]{1,64}")
 CAPTURE_MAX_STRING_BYTES = 64 << 10
 CAPTURE_TRUNCATION_MARKER = "\n[truncated by zhencapture]"
 # Located from this file, not ZHEN_MCP_PROJECT_ROOT: the patterns ship with
@@ -292,6 +295,10 @@ def _all_tools() -> list[Tool]:
                         "type": "number",
                         "description": "Sampling temperature 0..2 (default 0.2)",
                         "default": 0.2,
+                    },
+                    "task_family": {
+                        "type": "string",
+                        "description": "Optional task family (lowercase, digits, '-') recorded with a training capture",
                     },
                 },
                 "required": ["prompt"],
@@ -707,7 +714,13 @@ def capture_local_llm(args: dict, leg: dict) -> str:
         # knows whether it was accepted.
         "accepted_by": "",
         "latency_ms": leg["latency_ms"],
+        # Linking fields for the training flywheel (S-TWO-BRAINS Step 351):
+        # each call is its own conversation; the family is the caller's.
+        "conversation_id": secrets.token_hex(16),
     }
+    family = args.get("task_family")
+    if isinstance(family, str) and TASK_FAMILY_RE.fullmatch(family):
+        record["task_family"] = family
     try:
         write_capture(directory, record)
     except (OSError, ValueError) as e:

@@ -328,6 +328,11 @@ func TestCaptureEscalatedTurn(t *testing.T) {
 	if s, _ := r["system"].(string); !strings.Contains(s, "Champion gate") {
 		t.Errorf("top-level system should be Claude's: %v", r["system"])
 	}
+	// The flywheel links an escalated turn to its llm_requests rows (route
+	// reason escalated_*) through the Claude conversation id.
+	if done := logLine(t, errb.String(), "turn_done"); done == nil || r["conversation_id"] == nil || r["conversation_id"] != done["conversation"] {
+		t.Errorf("conversation_id = %v, Claude conversation %v", r["conversation_id"], done)
+	}
 }
 
 func TestCaptureLocalAndClaudeRoutes(t *testing.T) {
@@ -356,6 +361,14 @@ func TestCaptureLocalAndClaudeRoutes(t *testing.T) {
 	}
 	if r := byRoute["claude"]; r == nil || r["final"] != "claude only" || r["local"] != nil || r["cost_usd"] == nil {
 		t.Errorf("claude record = %v", r)
+	}
+	for route, r := range byRoute {
+		if id, _ := r["conversation_id"].(string); id == "" {
+			t.Errorf("%s record has no conversation_id", route)
+		}
+	}
+	if byRoute["local"]["conversation_id"] == byRoute["claude"]["conversation_id"] {
+		t.Error("two separate turns share a conversation_id")
 	}
 }
 

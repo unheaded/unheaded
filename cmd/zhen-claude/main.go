@@ -323,7 +323,7 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	t0 := time.Now()
 	reply, err := turn(ctx, conv, prompt, stdout, stderr, log)
-	captureClaudeTurn(capw, b, prompt, reply, err, time.Since(t0), tools, log)
+	captureClaudeTurn(capw, b, conv.ID(), prompt, reply, err, time.Since(t0), tools, log)
 	if err != nil {
 		return 1
 	}
@@ -527,7 +527,7 @@ func repl(ctx context.Context, b *claudebridge.Bridge, stdin io.Reader, stdout, 
 		}
 		t0 := time.Now()
 		reply, err := turn(ctx, conv, line, stdout, stderr, log)
-		captureClaudeTurn(capw, b, line, reply, err, time.Since(t0), tools, log)
+		captureClaudeTurn(capw, b, conv.ID(), line, reply, err, time.Since(t0), tools, log)
 		if ctx.Err() != nil {
 			return 1
 		}

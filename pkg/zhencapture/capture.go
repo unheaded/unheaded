@@ -59,7 +59,22 @@ type Record struct {
 	Redactions int        `json:"redactions"`           // set by Write
 	Truncated  bool       `json:"truncated"`            // set by Write: some string hit the cap
 	LocalOnly  bool       `json:"local_only,omitempty"` // marked keep-local: never sent to Claude
+
+	// Linking fields for the training flywheel (S-TWO-BRAINS Step 351).
+	// All optional; v1 readers ignore them.
+	ConversationID string `json:"conversation_id,omitempty"` // the llm_requests / zhen_actions conversation this turn belongs to
+	RunID          string `json:"run_id,omitempty"`          // zhen_agent_runs.id when an agent run produced it
+	TaskFamily     string `json:"task_family,omitempty"`     // routing/eval family (configs/zhen-routing.yaml)
+	AuthorKind     string `json:"author_kind,omitempty"`     // AuthorHuman when Final is human-written; legs say local/claude
 }
+
+// Author kinds. A leg's author is implied by the leg (local or claude);
+// AuthorKind on a record is set only for human-written text.
+const (
+	AuthorLocal  = "local"
+	AuthorClaude = "claude"
+	AuthorHuman  = "human"
+)
 
 // Leg is one model's attempt.
 type Leg struct {
