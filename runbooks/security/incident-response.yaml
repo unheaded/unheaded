@@ -86,7 +86,9 @@ steps:
       sudo crontab -l 2>/dev/null
       echo "=== All user crontabs ==="
       for user in $(cut -d: -f1 /etc/passwd); do
-        crontab -l -u $user 2>/dev/null && echo "^^^ $user"
+        # sudo: reading another user's crontab needs root; without it every
+        # other user's crontab silently looked empty.
+        sudo crontab -l -u $user 2>/dev/null && echo "^^^ $user"
       done
       echo "=== /etc/cron.d ==="
       ls -la /etc/cron.d/
@@ -116,6 +118,6 @@ steps:
     action: shell
     command: |
       echo "=== Kingdom service health ==="
-      for port in 16668 17000 18000 19000 20000 20103; do
+      for port in 20001 17000 18000 19000 20000 20103; do   # kanban is 20001 (ports.KanbanApp)
         curl -sf http://localhost:$port/health && echo " :$port OK" || echo " :$port FAIL"
       done

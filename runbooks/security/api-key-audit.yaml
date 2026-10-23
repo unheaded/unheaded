@@ -39,7 +39,9 @@ steps:
       sudo docker ps -q 2>/dev/null | while read cid; do
         NAME=$(sudo docker inspect $cid --format '{{.Name}}')
         echo "  $NAME:"
-        sudo docker inspect $cid --format '{{range .Config.Env}}  {{.}}{{end}}' | grep -iE "password|secret|key" | sed 's/=.*/=***/'
+        # One variable per line: on a single line the sed kept only the first
+        # name and redacted the rest of the environment with it.
+        sudo docker inspect $cid --format '{{range .Config.Env}}{{println .}}{{end}}' | grep -iE "password|secret|key" | sed 's/=.*/=***/; s/^/    /'
       done
 
   - name: check-age-keys

@@ -30,7 +30,10 @@ steps:
 
   - name: generate-ca-key
     action: shell
+    # The skip was only in the description: every rotation replaced the CA
+    # key, orphaning every certificate the old CA had signed.
     command: |
+      if sudo test -f ${CERT_DIR}/ca.key; then echo "CA key exists; keeping it"; exit 0; fi
       sudo openssl ecparam -genkey -name prime256v1 -noout -out ${CERT_DIR}/ca.key
       sudo chmod 600 ${CERT_DIR}/ca.key
     description: "EC P-256 CA key (skip if CA already exists)"
@@ -38,6 +41,7 @@ steps:
   - name: generate-ca-cert
     action: shell
     command: |
+      if sudo test -f ${CERT_DIR}/ca.crt; then echo "CA cert exists; keeping it"; exit 0; fi
       sudo openssl req -x509 -new -key ${CERT_DIR}/ca.key -sha256 -days 3650 \
         -out ${CERT_DIR}/ca.crt -subj "/C=US/ST=TX/O=Unheaded/CN=Unheaded Kingdom CA"
     verify: "openssl x509 -in ${CERT_DIR}/ca.crt -noout -subject"
@@ -67,18 +71,22 @@ steps:
     command: "openssl verify -CAfile ${CERT_DIR}/ca.crt ${CERT_DIR}/server.crt"
     verify: "openssl verify -CAfile ${CERT_DIR}/ca.crt ${CERT_DIR}/server.crt | grep -q 'OK'"
 
-  - name: test-tls-connection
-    action: shell
-    command: "openssl s_client -connect localhost:21443 -servername ${DOMAIN} </dev/null 2>/dev/null | head -5"
-    description: "Test gateway TLS after restart"
-
   - name: reload-gateway
     action: shell
     command: "sudo systemctl reload nginx 2>/dev/null || sudo nginx -s reload 2>/dev/null"
     description: "Reload gateway to pick up new certs"
 
+  # After the reload (it ran before it, testing the old certificate).
+  - name: test-tls-connection
+    action: shell
+    command: "openssl s_client -connect localhost:21443 -servername ${DOMAIN} </dev/null 2>/dev/null | head -5"
+    description: "Test gateway TLS after restart"
+
 rollback:
   - name: restore-certs
     action: shell
-    command: "sudo cp -r ${CERT_DIR}.bak-* ${CERT_DIR}"
+    # `cp -r <backup> <existing dir>` copied the backup INTO the directory
+    # (certs/certs.bak-...) and restored nothing. Copy the newest backup's
+    # contents over it.
+    command: "sudo cp -a \"$(ls -d ${CERT_DIR}.bak-* | tail -1)\"/. ${CERT_DIR}/"
     when: "step.verify-chain.failed"
