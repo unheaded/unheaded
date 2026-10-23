@@ -5,14 +5,17 @@ package grpc
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"unheaded/pkg/crypto/pqc"
 	"unheaded/services/wotan/internal/member"
+	"unheaded/services/wotan/internal/ringbuffer"
 	"unheaded/services/wotan/internal/room"
 	"unheaded/services/wotan/internal/signing"
 	"unheaded/services/wotan/internal/wotan"
@@ -131,4 +134,50 @@ func TestPublishTopic_RoomCap(t *testing.T) {
 	if err := pub("t1"); err != nil {
 		t.Fatalf("existing topic at the cap: %v", err)
 	}
+}
+
+// StreamTopics closed its fan-in channel (the last defer, so the first to
+// run) while the per-topic forwarders were still running: ctx was cancelled
+// only by the first defer, which runs last. A forwarder holding an event then
+// sent on the closed channel and panicked, which no gRPC recovery catches in
+// a goroutine: the whole of Wotan went down. A stream that ends on a failed
+// Send (the client went away mid-write) on a busy topic was enough. Teardown
+// must stop every goroutine before it unsubscribes, and leave no
+// subscription behind.
+func TestStreamTopics_TeardownWhileTopicIsBusy(t *testing.T) {
+	svc := NewTopicService(room.NewManager(100), member.NewManager(), wotan.NewWotan())
+	if _, err := svc.roomManager.Create("busy.topic", "busy.topic"); err != nil {
+		t.Fatal(err)
+	}
+
+	stop := make(chan struct{})
+	publishing := make(chan struct{})
+	go func() {
+		defer close(publishing)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			svc.wotan.PublishMessageCreated(&ringbuffer.Message{
+				ID: uuid.New(), RoomID: "busy.topic", Content: "x", Timestamp: time.Now(),
+			})
+		}
+	}()
+	defer func() { close(stop); <-publishing }()
+
+	for i := 0; i < 200; i++ {
+		stream := newMockTopicStream(context.Background())
+		stream.sendFunc = func(*chatpb.TopicEvent) error { return errors.New("client went away") }
+		err := svc.StreamTopics(&chatpb.TopicStreamRequest{TopicPattern: "busy.*", SinceSeq: -1}, stream)
+		if status.Code(err) != codes.Aborted {
+			t.Fatalf("stream %d: %v, want Aborted", i, err)
+		}
+		if got := svc.wotan.GetTotalSubscriptions(); got != 0 {
+			t.Fatalf("stream %d ended: %d subscriptions left, want 0", i, got)
+		}
+	}
+	// Give any forwarder still running time to touch the closed channel.
+	time.Sleep(50 * time.Millisecond)
 }

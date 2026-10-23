@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -148,10 +149,15 @@ func (s *TopicService) StreamTopics(
 		}
 	}
 
-	// Track active subscriptions per topic
+	// Track active subscriptions per topic. The watcher adds to the map, so
+	// teardown first stops it and every forwarder (cancel, then wait), and
+	// only then unsubscribes. Cleaning up while they ran raced on the map and
+	// left any subscription the watcher made meanwhile in Wotan for good.
 	subscriptions := make(map[string]*wotan.Subscription)
+	var workers sync.WaitGroup
 	defer func() {
-		// Cleanup all subscriptions
+		cancel()
+		workers.Wait()
 		for _, sub := range subscriptions {
 			s.wotan.Unsubscribe(sub)
 		}
@@ -166,17 +172,27 @@ func (s *TopicService) StreamTopics(
 			Msg("subscribed_to_topic")
 	}
 
-	// Create a shared channel for fanning in events from all subscriptions
+	// Create a shared channel for fanning in events from all subscriptions.
+	// It is never closed: closing it here (the last defer, so the first to
+	// run, before cancel) let a forwarder still holding an event send on a
+	// closed channel, a panic that took all of Wotan down.
 	eventChan := make(chan *topicEvent, 100)
-	defer close(eventChan)
 
 	// Start a goroutine for each subscription to forward events to the shared channel
 	for topicName, sub := range subscriptions {
-		go s.forwardTopicEvents(ctx, topicName, sub, eventChan)
+		workers.Add(1)
+		go func() {
+			defer workers.Done()
+			s.forwardTopicEvents(ctx, topicName, sub, eventChan)
+		}()
 	}
 
 	// Start dynamic watcher goroutine to discover new topics matching the pattern
-	go s.watchTopicsForPattern(ctx, memberID, req.TopicPattern, subscriptions, eventChan)
+	workers.Add(1)
+	go func() {
+		defer workers.Done()
+		s.watchTopicsForPattern(ctx, memberID, req.TopicPattern, subscriptions, eventChan, &workers)
+	}()
 
 	// Replay historical messages if requested (SinceSeq >= 0 replays from that sequence)
 	if req.SinceSeq >= 0 {
@@ -337,13 +353,16 @@ func (s *TopicService) forwardTopicEvents(
 }
 
 // watchTopicsForPattern periodically checks for new topics matching the pattern
-// and subscribes to them, sending TOPIC_SUBSCRIPTION_ADDED events.
+// and subscribes to them, sending TOPIC_SUBSCRIPTION_ADDED events. Each
+// forwarder it starts is counted in workers, so StreamTopics can wait for
+// all of them before tearing the subscriptions down.
 func (s *TopicService) watchTopicsForPattern(
 	ctx context.Context,
 	memberID uuid.UUID,
 	pattern string,
 	subscriptions map[string]*wotan.Subscription,
 	eventChan chan<- *topicEvent,
+	workers *sync.WaitGroup,
 ) {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
@@ -392,7 +411,11 @@ func (s *TopicService) watchTopicsForPattern(
 						}
 
 						// Start forwarding events from this subscription
-						go s.forwardTopicEvents(ctx, rm.ID, sub, eventChan)
+						workers.Add(1)
+						go func(topic string) {
+							defer workers.Done()
+							s.forwardTopicEvents(ctx, topic, sub, eventChan)
+						}(rm.ID)
 					}
 				}
 			}
