@@ -598,7 +598,7 @@
               <div class="metric-value" id="p50Latency">--</div>
             </div>
             <div class="stat-item metric-card">
-              <div class="metric-label">p95 latency</div>
+              <div class="metric-label">p90 latency</div>
               <div class="metric-value" id="p95Latency">--</div>
             </div>
             <div class="stat-item metric-card">
@@ -696,26 +696,25 @@
       'use strict';
       const $ = id => document.getElementById(id);
       let ws = null;
-      let ebpfActive = false;
       let traceSkip = 0;
 
       // ── API fetchers ──────────────────────────────────────────────────
       async function api(path) {
         const r = await fetch(path, { signal: AbortSignal.timeout(5000) });
-        if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+        if (!r.ok) {
+          // Keep the backend's reason: /api/v1/flows answers 503 {error, detail}.
+          let why = `${r.status} ${r.statusText}`;
+          try { const b = await r.json(); if (b && b.error) why = b.error + (b.detail ? ' — ' + b.detail : ''); } catch { /* not JSON */ }
+          throw new Error(why);
+        }
         return r.json();
       }
 
-      // ── Hero bar metrics ──────────────────────────────────────────────
-      async function refreshStats() {
-        try {
-          const stats = await api('/api/v1/stats');
-          const h = stats.health || {};
-          const srv = stats.server || {};
-          $('activeFlows').textContent = h.healthy || 0;
-          $('packetRate').textContent = (srv.ws_connections || 0) + ' ws';
-        } catch { /* backend not ready */ }
-      }
+      // The hero bar's "active flows" and "packet rate" come from
+      // /api/v1/flows alone. (They were also written with the healthy
+      // service count, the WebSocket client count, total bytes and the
+      // ingestor's lifetime event total, each under those two labels.)
+      let prevPackets = null; // { ts, total } of the last /flows stats
 
       // ── Known host labels ────────────────────────────────────────────
       const HOST_LABELS = {
@@ -746,44 +745,40 @@
       }
 
       // ── Flows (from eBPF flow-tracker via Wotan) ──────────────────────
-      // Demo flows for when eBPF data is unavailable
-      const DEMO_FLOWS = [
-        { key: { src_addr: '192.168.13.2', dst_addr: '192.168.13.1', src_port: 18001, dst_port: 18001, protocol: 6 }, state: 'established', bytes_in: 1024000, bytes_out: 512000, packets_in: 800, packets_out: 400 },
-        { key: { src_addr: '192.168.13.2', dst_addr: '192.168.13.1', src_port: 17000, dst_port: 17000, protocol: 6 }, state: 'established', bytes_in: 256000, bytes_out: 128000, packets_in: 200, packets_out: 100 },
-        { key: { src_addr: '192.168.13.1', dst_addr: '192.168.13.2', src_port: 22, dst_port: 22, protocol: 6 }, state: 'established', bytes_in: 64000, bytes_out: 32000, packets_in: 50, packets_out: 25 },
-        { key: { src_addr: '127.0.0.1', dst_addr: '127.0.0.1', src_port: 20103, dst_port: 20100, protocol: 6 }, state: 'established', bytes_in: 2048000, bytes_out: 1024000, packets_in: 1500, packets_out: 750 },
-        { key: { src_addr: '127.0.0.1', dst_addr: '127.0.0.1', src_port: 20000, dst_port: 18001, protocol: 6 }, state: 'established', bytes_in: 512000, bytes_out: 256000, packets_in: 400, packets_out: 200 },
-      ];
-
+      // Only what /api/v1/flows returns. With no eBPF ingestor (503) or no
+      // answer, this drew five invented flows between west, east and
+      // localhost as if they were live.
       async function refreshFlows() {
         try {
           const data = await api('/api/v1/flows');
-          let flows = data.active_flows || [];
+          const flows = data.active_flows || [];
           const stats = data.stats || {};
-
-          // Fallback to demo data when no live flows
-          if (flows.length === 0 && !ebpfActive) {
-            flows = DEMO_FLOWS;
-          }
 
           const totalBytes = flows.reduce((s,f) => s + (f.bytes_in||0) + (f.bytes_out||0), 0);
           $('liveFlowCount').textContent = flows.length;
           $('livePacketRate').textContent = fmtBytes(totalBytes);
           $('activeFlows').textContent = flows.length;
-          $('packetRate').textContent = fmtBytes(totalBytes) + 'B';
-          if (data.source === 'ebpf') ebpfActive = true;
+          // Packets/s over real time between polls of the cumulative total.
+          const now = Date.now();
+          if (typeof stats.total_packets === 'number') {
+            if (prevPackets && stats.total_packets >= prevPackets.total && now > prevPackets.ts) {
+              $('packetRate').textContent = Math.round((stats.total_packets - prevPackets.total) / ((now - prevPackets.ts) / 1000)).toLocaleString() + '/s';
+            }
+            prevPackets = { ts: now, total: stats.total_packets };
+          }
 
           renderFlowGraph(flows);
           renderFlowTable(flows);
-        } catch {
-          // API not available — show demo data
-          renderFlowGraph(DEMO_FLOWS);
-          renderFlowTable(DEMO_FLOWS);
+        } catch (err) {
+          prevPackets = null;
+          for (const id of ['liveFlowCount', 'livePacketRate', 'activeFlows', 'packetRate']) $(id).textContent = '--';
+          renderFlowGraph([], 'no flow data: ' + err.message);
+          renderFlowTable([]);
         }
       }
 
       // ── SVG Flow Graph Renderer ─────────────────────────────────────
-      function renderFlowGraph(flows) {
+      function renderFlowGraph(flows, emptyMsg) {
         const edgesG = document.getElementById('flowEdges');
         const nodesG = document.getElementById('flowNodes');
         const labelsG = document.getElementById('flowLabels');
@@ -961,7 +956,7 @@
           msg.setAttribute('font-size', '14');
           msg.setAttribute('font-family', 'var(--font-mono)');
           msg.setAttribute('fill', '#555');
-          msg.textContent = 'waiting for eBPF flow data...';
+          msg.textContent = emptyMsg || 'waiting for eBPF flow data...';
           labelsG.appendChild(msg);
         }
       }
@@ -1078,34 +1073,22 @@
         } catch { /* retry next cycle */ }
       }
 
-      // ── eBPF ingestor stats ───────────────────────────────────────────
-      async function refreshEBPFStats() {
-        try {
-          const data = await api('/api/v1/ebpf/stats');
-          if (!data.active) return;
-          ebpfActive = true;
-          const s = data.stats || {};
-          $('activeFlows').textContent = (s.flow_stats || {}).active_flows || 0;
-          $('packetRate').textContent = ((s.packets_ingested || 0) + (s.flows_ingested || 0)).toLocaleString() + '/s';
-        } catch { /* ingestor not active */ }
-      }
-
       // ── Latency (from latency-probe kprobe via Wotan) ─────────────────
+      // The backend sends p50_ns/p90_ns/p99_ns/max_ns per window, and
+      // "combined" (every operation's samples together) when eBPF runs.
+      // This read p50/p95/p99/max, which no answer has, so the tiles never
+      // left "--"; there is no p95. Without "combined" (latency from
+      // service health checks) there is no all-operations figure to show.
       async function refreshLatency() {
+        const ms = ns => (ns / 1e6).toFixed(2) + ' ms';
         try {
           const data = await api('/api/v1/latency');
-          const pcts = data.percentiles || {};
-          // Iterate operations and show first available
-          for (const [op, windows] of Object.entries(pcts)) {
-            if (!windows || windows.length === 0) continue;
-            const latest = windows[windows.length - 1] || {};
-            const percs = latest.percentiles || latest;
-            if (percs.p50 !== undefined) $('p50Latency').textContent = (percs.p50 / 1000).toFixed(0) + 'us';
-            if (percs.p95 !== undefined) $('p95Latency').textContent = (percs.p95 / 1000).toFixed(0) + 'us';
-            if (percs.p99 !== undefined) $('p99Latency').textContent = (percs.p99 / 1000).toFixed(0) + 'us';
-            if (percs.max !== undefined) $('maxLatency').textContent = (percs.max / 1000).toFixed(0) + 'us';
-            break;
-          }
+          const c = Array.isArray(data.combined) ? data.combined[data.combined.length - 1] : null;
+          const have = c && c.sample_count > 0;
+          $('p50Latency').textContent = have ? ms(c.p50_ns) : '--';
+          $('p95Latency').textContent = have ? ms(c.p90_ns) : '--';
+          $('p99Latency').textContent = have ? ms(c.p99_ns) : '--';
+          $('maxLatency').textContent = have ? ms(c.max_ns) : '--';
         } catch { /* latency-probe not active */ }
       }
 
@@ -1192,7 +1175,12 @@
             card.innerHTML = '<div class="service-header"><div class="service-name">'+m.name+'</div><div style="color:'+sc+';font-size:0.75rem">'+m.status+'</div></div><div class="service-details"><div class="service-detail"><span>throughput</span><span class="service-detail-value">'+(m.throughput||'--')+' tok/s</span></div><div class="service-detail"><span>latency p50</span><span class="service-detail-value">'+(m.latency_p50||'--')+'ms</span></div><div class="service-detail"><span>latency p99</span><span class="service-detail-value">'+(m.latency_p99||'--')+'ms</span></div><div class="service-detail"><span>requests</span><span class="service-detail-value">'+(m.requests||0)+'</span></div></div>';
             grid.appendChild(card);
           });
-        } catch { /* AI services not available */ }
+        } catch (err) {
+          // The placeholder said "awaiting hardware provisioning"; the
+          // dashboard backend has no /api/v1/ai/models route (404).
+          const sub = $('aiInferenceContainer').querySelector('.empty-state__sub');
+          if (sub) sub.textContent = 'no model data: /api/v1/ai/models ' + err.message;
+        }
       }
 
       // ── Logs (live tail via SSE from Wotan log aggregation) ───────────
@@ -1261,13 +1249,16 @@
             const row = document.createElement('tr');
             const d = msg.data || {};
             const ts = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString() : '--';
+            // Same columns as the table header: a trace has no Monad version,
+            // and its topic is traces.<event_type>. (Hop count sat under
+            // "monad ver" and the protocol under "wotan topic".)
             row.innerHTML = `
               <td><code>${d.src || '--'}</code></td>
               <td class="dim">${ts}</td>
               <td>${d.event_type || '--'}</td>
-              <td>${d.hop_count || '--'} hops</td>
+              <td>--</td>
               <td>${d.rtt_ms ? d.rtt_ms.toFixed(1) + 'ms' : '--'}</td>
-              <td><code>${d.protocol || '--'}</code></td>
+              <td><code>${d.event_type ? 'traces.' + d.event_type : '--'}</code></td>
             `;
             tbody.insertBefore(row, tbody.firstChild);
             break;
@@ -1314,10 +1305,8 @@
         setInterval(updateTime, 1000);
 
         // Initial data load from Kingdom APIs
-        refreshStats();
         refreshFlows();
         refreshEBPFEvents();
-        refreshEBPFStats();
         refreshLatency();
         refreshServices();
         refreshInfra();
@@ -1326,9 +1315,7 @@
         // Periodic refresh (every 5s — real data from trace-collector → Wotan → dashboard-backend)
         setInterval(refreshFlows, 5000);
         setInterval(refreshEBPFEvents, 24000);
-        setInterval(refreshEBPFStats, 5000);
         setInterval(refreshLatency, 5000);
-        setInterval(refreshStats, 10000);
         setInterval(refreshServices, 15000);
 
         // Live streams
