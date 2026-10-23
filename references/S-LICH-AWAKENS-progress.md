@@ -218,3 +218,115 @@ is new evidence to re-open against.
 
 **Total live Claude spend this session: $0.000241**, far under the $3 cap. All fake-API
 tests and the dry-run path incur $0.
+
+---
+
+## Sprint 4 chunk (Phases 7-11) — COMPLETE (2026-10-23, third session)
+
+**Base + merge.** Reset to `sprint/lich-awakens` tip `be6282d1` (Phases 0-6). Merged a
+snapshot of the UPC sprint at `d6b3fc1b` (`merge --no-ff --no-gpg-sign`, MBC emulator
+fixes + cartridge ABI) — one conflict, `docs/adr/ADR-INDEX.md` (both sides added ADR-105;
+UPC side added ADR-108). Resolved by keeping HEAD's richer ADR-105 line and adding the
+ADR-108 cartridge line. `sprint/lich-awakens` force-updated after every commit;
+develop/staging/main and other sprint/* branches never touched; nothing pushed. Post-merge:
+`go build ./...` clean, `go test ./...` 286 ok / 0 fail, `cargo test` in monad-mbc 67 pass.
+
+### Phase 7 — LICH-015 MBC reference-vs-eBPF differential
+
+- New campaign `tomb/lich/LICH-015-mbc-differential/` + a standalone Rust harness
+  (`harnesses/diff_harness/`, path deps only, no new third-party crate). Oracle = lockstep
+  register/flag/PC equivalence between `monad_mbc::ExecCpu` (reference interpreter) and
+  `monad_common::cart::step` (the shipping monad-cpu-ebpf semantics, proven BPF==reference
+  on a live kernel by pkg/cartridge, S5 Phase 11).
+- **Oracle self-test PASS** (injected 1-bit fault detected; equal program clean — not
+  vacuous). **50,000 random programs, 0 divergences** over the cart-allowlist opcode set —
+  locks in S5 Phase 10's nine host-emulator opcode fixes.
+- **MULHU 0x3A out-of-allowlist probe: DIVERGENT (expected).** Reference interpreter NOPs
+  MULHU (no arm → default fail-open NOP); monad-cpu-ebpf computes the unsigned high word.
+  This is an **EMULATOR GAP** (reference interpreter incomplete), **not** a bug in the
+  shipping code — monad-cpu-ebpf is correct per ADR-067. Handed to the UPC sprint
+  (ADR-067/080) + Computermancer; NOT filed against shipping code.
+- eBPF full-engine kernel-attached arm deferred to east (ADR-062 LICH-005 lesson). Regression
+  seeds, exit-criteria, status written; ADR-062 inventory += LICH-015/016. No regression to
+  monad-mbc or the Go build. Commit `d012c67a`.
+
+### Also: pkg/mcpclient TestHandshake timing flake — FIXED
+
+- Root cause: the fake server logs to its stderr pipe in stdin order, but that pipe drains
+  into the diagnostics tail buffer on a goroutine independent of the stdout response path,
+  so `Ping` can return before the `notifications/initialized` line is copied in. The
+  single-shot stderr read was the flake. Fix: poll the snapshot with a bounded deadline
+  (`eventuallyContains`); added `TestHandshakeOrderStable` (20x) which is deterministic with
+  the poll and would surface the flake without it. Green under `-race -count=5`. Commit `28f5140e`.
+
+### Phase 8 — lifecycle, dedup & the ADR-098 register
+
+- `pkg/lichtools/lifecycle.go`: `opened->running->triaging->cleared|blocked` state machine
+  with legal-transition enforcement; `NextState()` derives state from a run's crash/
+  divergence count + highest severity (HIGH+ blocks); standardised results-doc writer
+  (`WriteRunSummary` → summary.md + crashes/ dir).
+- Register bridge stays schema-exact (the generator dates due from severity+opened:
+  critical 7/high 30/medium 90/low 180, closes only on passing evidence); dedup collapses
+  duplicates.
+- **Regression-seed discipline**: filing a finding checks in its crashing input under the
+  campaign seed dir (`campaign_id` routes it; `repro_hex` → inert 0600 `.bin`, else a
+  `.seed` pointer); the seed dir cannot escape the seeds tree. Commit `f1e2f1f8`.
+
+### Phase 9 — LICH-016 meta red-team + safety hardening
+
+- `tomb/lich/LICH-016-lich-mcp-self/` + `pkg/lichtools/self_redteam_test.go`: fuzz every
+  tool's JSON input (malformed/oversized/unicode/nested/path-escape/newline) via a table +
+  `FuzzLichToolInputs`; assert **no panic**, **no write escapes the provider's configured
+  trees**, **no oversized field reaches the register**. Four safety invariants proven
+  (token forgery/replay refused; no-auto-publish path — register only, grep + test; kill
+  switch reap; cap-regardless-of-weight). Zero-user-data-access reconfirmed. **No bypass,
+  no E2.** Commit `bea560d4`.
+
+- **PROPOSED FINDING for the lead (not auto-filed; the real register is untouched):**
+  LICH-016's self-fuzz found that `lich_file_finding` did **not bound** its driver-controlled
+  free-text fields — a 64 KiB `summary` was written verbatim into the ADR-098 register. It
+  is **post-confirmation** (a human reviews the ticket), so it is **not** a gate/scope
+  bypass and not an E2 — but the register is a human-reviewed triage file, not a blob store.
+  **Severity: LOW** (hardening / defense-in-depth). **Fixed in this sprint**: `clampField`
+  caps summary/remediation/plan at 2000 runes and class/host/ids at 64–128, with a test.
+  Recorded here per the sprint SAFETY rule's exception (a real defect in Stevie's code may be
+  written up as a proposed finding in the progress file for the lead).
+
+### Phase 10 — CTF mode (ADR-063), designed + hard-gated OFF
+
+- Activation rule verified **UNMET** (LICH-012 is OPEN → LICH-001+LICH-002+one of
+  LICH-012/013 cannot be 7-day-clean). CTF stays design-only.
+- `configs/lich-ctf-eligible.yaml` (every entry `eligible: false`); `cmd/akira/lich_summon.go`
+  — full round mechanics + Marshal HARD-HALT behind `if !activation.Activated(now) { return
+  ErrCTFNotActivated }`, where `Activated` reads campaign clean-soak **data, never a flag**
+  (no flag flip or prompt can activate). No http/net/live-target code in the path (Step 254
+  grep clean). Tests: inert in every unactivated state; activation boundary at exactly 7
+  days; HARD-HALT logic. Journal layout + ADR-063 readiness note (built vs remaining +
+  activation checklist). Commit `a44086fc`.
+
+### Phase 11 — docs / DoD / close
+
+- Full regression sweep: `go build ./...` clean; `go test ./...` 286 ok / 0 fail;
+  `cargo test` monad-mbc 67 pass; vet + gofmt clean on all new Go. **Zero NEW failures vs the
+  Phase-0 baseline.**
+- `go mod tidy -diff` shows PRE-EXISTING drift (kr/text, lib/pq) inherited via the merge base;
+  **go.mod/go.sum untouched by this sprint** and **zero new Go deps added** (the LICH-015
+  Rust harness uses path deps only). Not this sprint's regression; not "fixed" (shared file,
+  other sprints).
+- SPDX headers on every new .go/.yaml/.md; no secrets (the only matches are comments saying
+  "non-secret"). Real ADR-098 register **untouched** (still 14 open, generator runs).
+- Runbook `runbooks/security/lich-mcp-operate.yaml`; README (lifecycle/register/seed
+  sections) finalised; ADR-062 inventory + ADR-063 readiness rippled.
+
+### Spend log (this session)
+
+**$0.00 live Claude spend.** All work was code/tests/docs; no model call was made this
+session (the Phase 6 live smoke was a prior session's $0.000241). Far under the $2 cap.
+
+### STUCK / ESCALATE
+
+- None. E0/E1/E2 did not fire. No scope/gate/cap/kill-switch bypass; confinement + no-egress
+  intact; CTF hard-gated off.
+- **For the lead:** re-sign the unsigned commits before any push; never push. The MULHU
+  reference-interpreter gap (LICH-015) is handed to the UPC sprint. The LICH-016 oversized-
+  field hardening is fixed; review the proposed-finding note above.

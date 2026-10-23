@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: lich-mcp-operate
+  description: Operate the Lich MCP red-team server (S-LICH-AWAKENS) — start, run a campaign, triage, confirm a finding, hit the kill switch
+  owner: blackmage
+  estimated_duration: 20m
+  risk: medium
+  requires_sudo: false
+
+# The Lich MCP server lets a local model and Claude drive the Lich framework,
+# confined to this operator's own sandboxes/harnesses: scope enforced
+# server-side, every call through the Champion gate, findings never
+# auto-published, a hard dollar cap + compute budget, and a kill switch.
+# stdio only — no TCP port. See tomb/lich/LICH-MCP-README.md and ADR-062/098/104.
+
+steps:
+  - name: build
+    action: shell
+    command: |
+      cd ~/tmp/unheaded
+      go build ./cmd/lich-mcp/...
+
+  - name: start
+    description: Start the stdio server (not running it is the strongest off switch)
+    action: shell
+    command: |
+      cd ~/tmp/unheaded
+      go run ./cmd/lich-mcp -config configs/lich-mcp.yaml -project-root "$PWD"
+
+  - name: run-a-local-campaign
+    description: Free, on-host local driver — generate seeds then run a confined bounded harness
+    action: shell
+    optional: true
+    command: |
+      cd ~/tmp/unheaded
+      # The local driver asks the already-running llama-server (never starts/swaps a model).
+      # Seeds land inert under tomb/lich/seeds/<campaign>/; the harness runs no-egress, bounded.
+      echo "drive via the MCP tools: lich_run_harness {campaign_id, harness_id, duration}"
+
+  - name: run-the-mbc-differential (LICH-015)
+    action: shell
+    optional: true
+    command: |
+      cd ~/tmp/unheaded/tomb/lich/LICH-015-mbc-differential/harnesses/diff_harness
+      cargo build --release
+      ./target/release/diff_harness self-test
+      ./target/release/diff_harness run --iters 50000 --out ../../results/$(date +%Y%m%d_%H%M%S)
+      ./target/release/diff_harness mulhu-probe   # documents the known emulator gap
+
+  - name: self-redteam (LICH-016)
+    action: shell
+    optional: true
+    command: |
+      cd ~/tmp/unheaded
+      go test ./pkg/lichtools/ -run 'LICH016|Safety_'
+      go test ./pkg/lichtools/ -fuzz FuzzLichToolInputs -fuzztime 60s
+
+  - name: triage-a-crash
+    description: Run crash-triage.sh in a confined sandbox and get a dedup key (read-only)
+    action: shell
+    optional: true
+    command: |
+      cd ~/tmp/unheaded
+      echo "drive via the MCP tool: lich_triage {results_dir}"
+
+  - name: confirm-a-finding
+    description: A filed finding parks a hash-bound ticket; approve it out of band (never through the model)
+    action: shell
+    command: |
+      cd ~/tmp/unheaded
+      go run ./cmd/lich-mcp confirm list
+      go run ./cmd/lich-mcp confirm show <id>
+      go run ./cmd/lich-mcp confirm approve <id>    # then the driver re-issues the identical call
+      # Findings are never auto-published; a .needs-regen marker is left for post-signing regen.
+
+  - name: kill-switch
+    description: Halt everything — stop accepting calls, reap every live sandbox
+    action: shell
+    command: |
+      touch /run/lich-mcp.halt     # or send SIGTERM/SIGINT to the server
+      # Verify no stray sandboxes/namespaces:
+      ip netns list | grep lich-noegress || echo "no lich netns"
+
+  - name: verify-confinement
+    description: Confirm no-egress still holds (the sprint's precondition)
+    action: shell
+    optional: true
+    command: |
+      # From inside the unprivileged sandbox, egress must FAIL and loopback must pass.
+      unshare -r -n -m --pid --mount-proc --fork -- sh -c \
+        'ip link set lo up; ping -c1 -W2 127.0.0.1 >/dev/null && echo LOOPBACK_OK; \
+         ping -c1 -W2 1.1.1.1 >/dev/null 2>&1 && echo EGRESS_LEAK || echo EGRESS_BLOCKED'
+
+notes: |
+  CTF mode (ADR-063) is DESIGNED and HARD-GATED OFF (LICH-012 is open, so the
+  7-day-clean activation rule is unmet). Nothing in cmd/akira can summon a live
+  CTF round this sprint. The Claude driver defaults to -dry-run; a live send
+  needs a resolved key (loaded per command from ~/.bashrc, never printed) and a
+  dollar cap. Never push; re-sign unsigned commits before push.
