@@ -222,6 +222,11 @@ jobs:
       - name: Crypto inventory matches the tree
         run: ./scripts/check-crypto-inventory.sh --schema
 
+      # ADR-105: no new classical-only key exchange; the baseline
+      # (docs/policy/pq-kex-baseline.txt) may only shrink.
+      - name: No new classical-only key exchange
+        run: ./scripts/check-pq-kex.sh
+
   # ============================================================================
   # Rust Security
   # ============================================================================

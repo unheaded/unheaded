@@ -667,6 +667,16 @@ provoke_crypto_inventory() {
     grep -q 'meta-gate:1:probe' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_pq_kex() {
+    # Contract (ADR-105): no new classical-only key exchange. Plant an
+    # untracked Go file pinning CurvePreferences to X25519 only; the lint sees
+    # untracked files, so it must fail before the file is ever committed.
+    local f="pkg/tls/zz_meta_gate_pq.go"
+    backup "${f}"
+    printf 'package tls\n\nimport stdtls "crypto/tls"\n\nvar metaGateProbe = &stdtls.Config{MinVersion: stdtls.VersionTLS13, CurvePreferences: []stdtls.CurveID{stdtls.X25519}}\n' >"${REPO_ROOT}/${f}"
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -692,6 +702,7 @@ check-dependency-baseline|provoke_dependency_baseline|fast|an unrecorded package
 check-unit-binaries|provoke_unit_binaries|fast|unheaded-akira.service pointed at a binary nothing builds
 check-image-tags|provoke_image_tags|fast|traefik:v3.3.7 floated back to traefik:latest in docker-compose.yml
 check-crypto-inventory|provoke_crypto_inventory|fast|a component the tree does not contain appended to compliance/crypto/cbom.cdx.json
+check-pq-kex|provoke_pq_kex|fast|an untracked Go file pinning CurvePreferences to X25519 only (classical key exchange)
 check-python-audit|provoke_python_audit|fast|jinja2==2.10 (five published advisories) pinned in raft/requirements.txt
 check-js-lint|provoke_js_lint|fast|the first lint run's real bug restored: a call to a function another file's IIFE hides (no-undef)
 check-gitleaks|provoke_gitleaks|fast|an AWS access key ID appended to a tracked doc (downloads the pinned gitleaks once)
