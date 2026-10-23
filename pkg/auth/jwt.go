@@ -196,7 +196,9 @@ func (j *JWTAuthenticator) parseAndVerify(tokenStr string) (*JWTClaims, error) {
 	signingInput := headerB64 + "." + payloadB64
 	expectedSig := computeHMACSHA256(j.signingKey, []byte(signingInput))
 
-	actualSig, err := base64.RawURLEncoding.DecodeString(signatureB64)
+	// Strict: the unstrict decoder ignores the unused low bits of the last
+	// character, so each signature would have several accepted spellings.
+	actualSig, err := base64.RawURLEncoding.Strict().DecodeString(signatureB64)
 	if err != nil {
 		return nil, fmt.Errorf("%w: invalid signature encoding", ErrUnauthenticated)
 	}

@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -320,6 +321,41 @@ func TestJWTAuthenticator_NoExpiration(t *testing.T) {
 
 	if _, err := auth.Authenticate(context.Background(), req); !errors.Is(err, ErrUnauthenticated) {
 		t.Fatalf("token without exp: want ErrUnauthenticated, got %v", err)
+	}
+}
+
+func TestJWTAuthenticator_SignatureSpellingsRefused(t *testing.T) {
+	// A 32-byte HMAC is 43 base64url characters; the last one carries 4 bits
+	// of the MAC and 2 unused bits. The lenient decoder ignores those 2 bits,
+	// so three other spellings of every signature used to verify too: a
+	// token string seen once (logged, revoked, replay-cached) could be sent
+	// again as a different string.
+	auth := newJWTAuth()
+	token := makeTestToken(t, &JWTClaims{
+		Sub: "admin@unheaded.dev",
+		Iss: "https://auth.unheaded.dev",
+		Aud: "unheaded-api",
+		Exp: time.Now().Add(time.Hour).Unix(),
+	})
+	const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_"
+	last := strings.IndexByte(alphabet, token[len(token)-1])
+	if last < 0 {
+		t.Fatalf("token does not end in a base64url character: %q", token)
+	}
+
+	for bits := 1; bits <= 3; bits++ {
+		forged := token[:len(token)-1] + string(alphabet[last^bits])
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		req.Header.Set("Authorization", "Bearer "+forged)
+		if _, err := auth.Authenticate(context.Background(), req); !errors.Is(err, ErrUnauthenticated) {
+			t.Errorf("signature respelt (low bits %d) accepted: err = %v", bits, err)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	if _, err := auth.Authenticate(context.Background(), req); err != nil {
+		t.Fatalf("original token refused: %v", err)
 	}
 }
 
