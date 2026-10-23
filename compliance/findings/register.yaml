@@ -400,22 +400,6 @@ findings:
     step: 3
     plan: parse PEM with rustls-pki-types' pem module (already in the lock graph) and drop the dependency
 
-  - id: FND-023
-    title: >-
-      pkg/wotan-client TestGRPCClient_GetMessages flaked (about 2 in 20 runs): GetMessages reported the query's own
-      timeout as Wotan failing when the server's end of the stream reached Recv before the client's context timer fired
-    verify: >-
-      go test -race -count=200 -run '^TestGRPCClient_GetMessages' ./pkg/wotan-client/ passes and
-      TestQueryEnded_ServerReportsOurDeadlineFirst pins the race window
-    severity: low
-    class: ci
-    opened: 2026-10-23
-    exposure: a flaky gate hides real failures; in production the same race turned a quiet topic into a reported error
-    lockout: none
-    step: 1
-    plan: queryEnded treats DeadlineExceeded or Canceled at or after the query deadline as the normal end
-    resolved: {on: 2026-10-23, evidence: "c2ca5e74 fix(wotan-client) with TestQueryEnded_*; 0 failures in 200 -race runs (8 in 40 before)"}
-
   - source: "gate-script:scripts/compliance/check-service-auth.sh"
     severity: high
     class: app
