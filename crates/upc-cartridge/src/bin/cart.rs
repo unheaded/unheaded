@@ -6,7 +6,14 @@
 //!            [--loop-bound N] [--entry N] [--fail-closed] -o X.cart
 //! cart validate X.cart|-     # "-" reads stdin (the loader pipes its in-memory bytes)
 //! cart info X.cart|-
+//! cart run X.cart --inputs LOG   # reference run of an XDP-stage input log
 //! ```
+//!
+//! `run` input log: one packet per line, `flow now_ns f0 .. f12` (decimal;
+//! `flow` is any label, state is kept per label). Output: one
+//! `pkt flow=L step=S verdict=V hash=H` line per packet, `emit flow=L kind a b`
+//! per EMIT, `queue flow=L f0..f7` per QUEUE, then `final flow=L hash=H` per
+//! flow (sorted). `pkg/cartridge` compares BPF runs against this.
 //!
 //! Exit status: 0 ok, 1 refused (decode or validation error), 2 usage.
 
@@ -20,7 +27,7 @@ const MAX_INPUT: u64 = 1 << 20; // a .cart is at most 52 + 8 KiB; refuse anythin
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage:\n  cart build --stage xdp|tick --asm X.s [--data W.bin] [--max-insn N] [--loop-bound N] [--entry N] [--fail-closed] -o X.cart\n  cart validate X.cart|-\n  cart info X.cart|-"
+        "usage:\n  cart build --stage xdp|tick --asm X.s [--data W.bin] [--max-insn N] [--loop-bound N] [--entry N] [--fail-closed] -o X.cart\n  cart validate X.cart|-\n  cart info X.cart|-\n  cart run X.cart --inputs LOG"
     );
     ExitCode::from(2)
 }
@@ -172,12 +179,78 @@ fn check(path: &str, print_info: bool) -> Result<(), String> {
     Ok(())
 }
 
+fn run_log(img_path: &str, log_path: &str) -> Result<(), String> {
+    use upc_cartridge::reference::{run_packet, xdp_verdict, PacketInput};
+    let img = Image::decode(&read_input(img_path)?).map_err(|e| format!("{img_path}: {e}"))?;
+    validate(&img).map_err(|e| format!("{img_path}: {e}"))?;
+    if img.stage != STAGE_XDP {
+        return Err("run replays XDP-stage cartridges".into());
+    }
+    let text =
+        String::from_utf8(read_input(log_path)?).map_err(|_| format!("{log_path}: not UTF-8"))?;
+    let mut states: std::collections::BTreeMap<String, upc_cartridge::CartState> =
+        Default::default();
+    let mut o = std::io::stdout().lock();
+    for (n, line) in text.lines().enumerate() {
+        let t: Vec<&str> = line.split_whitespace().collect();
+        if t.is_empty() {
+            continue;
+        }
+        if t.len() != 15 {
+            return Err(format!(
+                "{log_path}:{}: want `flow now f0..f12`, got {} fields",
+                n + 1,
+                t.len()
+            ));
+        }
+        let num = |s: &str| {
+            s.parse::<u64>()
+                .map_err(|_| format!("{log_path}:{}: bad number {s:?}", n + 1))
+        };
+        let mut inp = PacketInput {
+            now_ns: num(t[1])?,
+            ..PacketInput::default()
+        };
+        for (i, f) in inp.fields.iter_mut().enumerate() {
+            *f = num(t[2 + i])? as u32;
+        }
+        let st = states
+            .entry(t[0].to_string())
+            .or_insert_with(upc_cartridge::CartState::zeroed);
+        let out = run_packet(&img, st, &inp);
+        let step = out.step.unwrap_or(upc_cartridge::Step::Continue);
+        for (k, a, b) in &out.emits {
+            let _ = writeln!(o, "emit flow={} {k} {a} {b}", t[0]);
+        }
+        for q in &out.queued {
+            let fs: Vec<String> = q.iter().map(|x| x.to_string()).collect();
+            let _ = writeln!(o, "queue flow={} {}", t[0], fs.join(" "));
+        }
+        let _ = writeln!(
+            o,
+            "pkt flow={} step={step:?} verdict={} hash={:08x}",
+            t[0],
+            xdp_verdict(&img, step),
+            upc_cartridge::state_hash(st)
+        );
+    }
+    for (flow, st) in &states {
+        let _ = writeln!(
+            o,
+            "final flow={flow} hash={:08x}",
+            upc_cartridge::state_hash(st)
+        );
+    }
+    Ok(())
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let res = match args.first().map(String::as_str) {
         Some("build") => build(&args[1..]),
         Some("validate") if args.len() == 2 => check(&args[1], false),
         Some("info") if args.len() == 2 => check(&args[1], true),
+        Some("run") if args.len() == 4 && args[2] == "--inputs" => run_log(&args[1], &args[3]),
         _ => return usage(),
     };
     match res {
