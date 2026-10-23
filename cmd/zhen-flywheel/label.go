@@ -203,6 +203,10 @@ func (lb *Labeler) judges(path string, byConv map[string][]Capture, add func(Lab
 	}
 	base := filepath.Base(path)
 	for _, r := range rows {
+		if r.AnswerSHA256 == "" {
+			rep.Unmatched["eval_no_answer"]++
+			continue
+		}
 		n := 0
 		for _, c := range byConv["eval:"+r.Task] {
 			if c.Backend != r.Backend || sha256Hex(c.Response) != r.AnswerSHA256 {
@@ -250,8 +254,9 @@ func readResults(path string) ([]resultRow, error) {
 			if err := json.Unmarshal(line, &row); err != nil {
 				return nil, fmt.Errorf("%s:%d: %w", path, n, err)
 			}
-			if row.Task == "" || row.Backend == "" || len(row.AnswerSHA256) != 64 {
-				return nil, fmt.Errorf("%s:%d: a results row needs task, backend and answer_sha256", path, n)
+			// A row whose brain errored has no answer (and no hash).
+			if row.Task == "" || row.Backend == "" || (row.AnswerSHA256 != "" && !sha256RE.MatchString(row.AnswerSHA256)) {
+				return nil, fmt.Errorf("%s:%d: a results row needs task and backend, and answer_sha256 is 64 hex when present", path, n)
 			}
 			out = append(out, row)
 		}
@@ -261,7 +266,10 @@ func readResults(path string) ([]resultRow, error) {
 	}
 }
 
-var shaRE = regexp.MustCompile(`^[0-9a-f]{40}$`)
+var (
+	shaRE    = regexp.MustCompile(`^[0-9a-f]{40}$`)
+	sha256RE = regexp.MustCompile(`^[0-9a-f]{64}$`)
+)
 
 func (lb *Labeler) git(ctx context.Context, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)

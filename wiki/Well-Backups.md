@@ -19,6 +19,8 @@ The sets are kept on a different physical disk from the data, so one dead disk c
 
 `globals.sql` (roles, **no password hashes**), one `pg_dump -Fc` per database, `cluster.env` (superuser name, server version), `rowcounts.tsv` (exact counts in each dump's snapshot), `SHA256SUMS`. A set appears only when every step passed.
 
+**Training captures are in it.** Once migration 033 is applied, `unheaded_app.zhen_captures` holds the prompts and answers of both brains (Kingdom data, T0/T1, redacted and re-scanned at ingest; only `app_zhen` and the owner can read them) and `zhen_capture_labels` their outcomes. Both are in the nightly `unheaded_app` dump and so in the east offsite copy, for 14 sets. A capture removed by `zhen_captures_purge()` (retention: 180 days unless an export references it; quarantined captures at once) is still in the sets taken before the purge until they rotate out, two weeks later. To get one out of the backups sooner, the set has to be deleted. See [[Zhen Training Data|Zhen-Training-Data]].
+
 ## Schedule
 
 West is not up 24/7. Every timer is `Persistent=`, so a run missed while west was off starts within ~20 min of the next boot.
