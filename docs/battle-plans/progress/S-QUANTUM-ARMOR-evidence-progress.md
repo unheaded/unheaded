@@ -42,3 +42,9 @@ steps are never attempted; they are reported.
 ### Phase 11.1 (Steps 204-208)
 - 204-206: `pack.go` streaming tar.gz reader, in memory only; red then green. Refuses absolute, `..`, unclean (`//`, `./`), backslash/NUL names, symlink, hardlink, char device, fifo, entries outside `manifest/` (incl. `manifestX/`), duplicates, per-file/total/entry caps, non-gzip, gzip of non-tar, truncated, empty. Real caps (64 MiB file, 256 MiB total, 10 000 entries) asserted; a 1 GiB zero bomb (~2 MiB compressed, multi-member gzip) and a 64 MiB+1 file trip at the header. The real 256 MiB total cap is exercised with small limits (tripping it at full size means inflating 192+ MiB per run).
 - 207: `FuzzReadPack` 120 s, 16.2M execs, no crasher (no `testdata/fuzz` corpus written).
+- 208: committed.
+
+### Phase 11.2 (Steps 209-212)
+- 209: `fixture_test.go` (`buildFixturePack`: fake ISO, manifest from `valid/minimal.yaml` with the ISO's real sha/size, sha256sum line, trivy-shaped `cve-scan.json`, SPDX with N packages, CIS/doctor JSON, throwaway 0600 seed in `t.TempDir()`, signed through the CLI itself) + `sign_test.go`. Red = build failure.
+- 210: `sign.go`: `sign` (`--purpose manifest|iso-sha256|custody-entry`, manifest must validate before it is signed, seal JSON 0644), `pubkey` (derive only), `verify-signature` (both seals, purpose-checked), `verify-iso` (seal on image.iso.sha256 first, then streamed ISO hash vs signed line vs manifest, plus iso_path name and iso_size_bytes). `pkg/gungnir` gained `SignEvidenceDetached`/`VerifyEvidenceDetached` (seal with issued_at 0, key id = KeyID(pub)) because `sign --purpose custody-entry` needs it; the custody chain code (`custody.go`) landed here for the same reason, its subcommand in 11.3.
+- 211: green with `-race` (cmd/yggdrasil-evidence, pkg/gungnir). gosec clean. golangci-lint: 2 `unused` (checkCustody, farFuture) that 11.3 consumes.

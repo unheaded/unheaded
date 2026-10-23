@@ -259,6 +259,48 @@ func TestParseEvidenceSeal_Refusals(t *testing.T) {
 	}
 }
 
+func TestEvidenceDetached(t *testing.T) {
+	s := evidenceSigner(t)
+	other := evidenceSigner(t)
+	payload := []byte("custody entry canonical bytes")
+	sig, err := s.SignEvidenceDetached(payload, "custody-entry")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sig) != mldsa65.SignatureSize {
+		t.Fatalf("sig length %d", len(sig))
+	}
+	if err := VerifyEvidenceDetached(payload, sig, s.pub, "custody-entry"); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if err := VerifyEvidenceDetached([]byte("custody entry canonical byteZ"), sig, s.pub, "custody-entry"); !errors.Is(err, ErrBadSignature) {
+		t.Errorf("tampered payload: %v", err)
+	}
+	if err := VerifyEvidenceDetached(payload, sig, s.pub, "manifest"); !errors.Is(err, ErrBadSignature) {
+		t.Errorf("other purpose: %v", err)
+	}
+	if err := VerifyEvidenceDetached(payload, sig, other.pub, "custody-entry"); !errors.Is(err, ErrBadSignature) {
+		t.Errorf("other key: %v", err)
+	}
+	if err := VerifyEvidenceDetached(payload, sig[:100], s.pub, "custody-entry"); !errors.Is(err, ErrBadSignature) {
+		t.Errorf("short sig: %v", err)
+	}
+	if err := VerifyEvidenceDetached(payload, sig, nil, "custody-entry"); err == nil {
+		t.Error("nil key accepted")
+	}
+	// A seal-shaped signature (with a real issue time) is not a detached one.
+	seal, err := s.SignEvidence(payload, "custody-entry")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := VerifyEvidenceDetached(payload, seal.Mldsa65Sig, s.pub, "custody-entry"); !errors.Is(err, ErrBadSignature) {
+		t.Errorf("timed seal accepted as detached: %v", err)
+	}
+	if _, err := s.SignEvidenceDetached(payload, ""); !errors.Is(err, ErrPurpose) {
+		t.Errorf("empty purpose: %v", err)
+	}
+}
+
 func TestPublicKeyFromSeed(t *testing.T) {
 	dir := t.TempDir()
 	seed := make([]byte, mldsa65.SeedSize)

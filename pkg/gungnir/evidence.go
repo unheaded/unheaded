@@ -157,6 +157,35 @@ func VerifyEvidence(payload []byte, seal *EvidenceSeal, pub *mldsa65.PublicKey, 
 	return nil
 }
 
+// SignEvidenceDetached returns only the ML-DSA-65 signature of an evidence
+// seal over payload for purpose, for formats that store signature bytes and
+// nothing else (a Yggdrasil chain_of_custody entry's hex `signature`). The
+// implied seal has IssuedAtUnix 0 and KeyId = KeyID(pub): no time is claimed,
+// so whatever time matters must be inside the payload.
+func (s *Signer) SignEvidenceDetached(payload []byte, purpose string) ([]byte, error) {
+	seal, err := s.signEvidenceAt(payload, purpose, time.Unix(0, 0))
+	if err != nil {
+		return nil, err
+	}
+	return seal.Mldsa65Sig, nil
+}
+
+// VerifyEvidenceDetached checks a SignEvidenceDetached signature.
+func VerifyEvidenceDetached(payload, sig []byte, pub *mldsa65.PublicKey, purpose string) error {
+	if pub == nil {
+		return errors.New("gungnir: nil public key")
+	}
+	return VerifyEvidence(payload, &EvidenceSeal{
+		Format:        EvidenceFormat,
+		Purpose:       purpose,
+		PayloadSha256: sha256Of(payload),
+		KeyId:         KeyID(pub),
+		IssuedAtUnix:  0,
+		Algorithm:     Algorithm,
+		Mldsa65Sig:    sig,
+	}, pub, purpose)
+}
+
 // ParseEvidenceSeal decodes a JSON evidence seal strictly: bounded size, one
 // object, no unknown or duplicate fields, no trailing data. A config seal's
 // JSON (GungnirSeal field names) is refused here, before any crypto.

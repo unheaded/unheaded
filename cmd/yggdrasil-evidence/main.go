@@ -49,6 +49,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return cmdValidate(rest, stdout, stderr)
 	case "sign":
 		return cmdSign(rest, stdout, stderr)
+	case "pubkey":
+		return cmdPubkey(rest, stdout, stderr)
 	case "verify":
 		return cmdVerify(rest, stdout, stderr)
 	case "verify-signature":
@@ -79,7 +81,8 @@ Usage:
 
 Subcommands:
   validate           Validate manifest.yaml against schema
-  sign               Sign manifest.yaml with ML-DSA-65 build key
+  sign               Sign manifest.yaml, image.iso.sha256 or a custody entry (ML-DSA-65 build key)
+  pubkey             Derive build.pubkey from the build key seed (generates nothing)
   verify             Full evidence-pack verification (sig + ISO + gates)
   verify-signature   Just check the manifest signature
   verify-iso         Just check the ISO hash matches the manifest
@@ -169,43 +172,12 @@ func todo(stderr io.Writer, what string) int {
 	return exitFail
 }
 
-func cmdSign(args []string, _, stderr io.Writer) int {
-	fs := newFlags("sign", stderr)
-	key := fs.String("key", "/etc/yggdrasil/build.key", "ML-DSA-65 private key path")
-	in := fs.String("in", "", "Input file to sign")
-	out := fs.String("out", "", "Output signature file")
-	if err := fs.Parse(args); err != nil {
-		return exitUsage
-	}
-	if *in == "" || *out == "" {
-		fmt.Fprintln(stderr, "sign: --in and --out are required")
-		return exitUsage
-	}
-	return todo(stderr, fmt.Sprintf("sign %s with key %s -> %s via pkg/gungnir/", *in, *key, *out))
-}
-
 func cmdVerify(args []string, _, stderr io.Writer) int {
 	if len(args) != 1 {
 		fmt.Fprintln(stderr, "verify: expected one positional arg (evidence-pack tarball)")
 		return exitUsage
 	}
 	return todo(stderr, "full verify "+args[0])
-}
-
-func cmdVerifySignature(args []string, _, stderr io.Writer) int {
-	if len(args) != 1 {
-		fmt.Fprintln(stderr, "verify-signature: expected one positional arg (evidence-pack tarball)")
-		return exitUsage
-	}
-	return todo(stderr, "verify-signature "+args[0])
-}
-
-func cmdVerifyISO(args []string, _, stderr io.Writer) int {
-	if len(args) < 1 {
-		fmt.Fprintln(stderr, "verify-iso: --iso and a positional evidence-pack arg are required")
-		return exitUsage
-	}
-	return todo(stderr, "verify-iso")
 }
 
 func cmdVerifyGates(args []string, _, stderr io.Writer) int {

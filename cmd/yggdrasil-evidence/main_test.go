@@ -24,7 +24,7 @@ func TestUsageHasAllSubcommands(t *testing.T) {
 	usage(&b)
 	out := b.String()
 	for _, sub := range []string{
-		"validate", "sign", "verify",
+		"validate", "sign", "pubkey", "verify",
 		"verify-signature", "verify-iso", "verify-gates", "verify-custody",
 		"diff",
 	} {
@@ -57,7 +57,7 @@ func TestSubcommandRoutingTable(t *testing.T) {
 	// Every subcommand is routed: called without its arguments it reports
 	// usage (exit 2), never "unknown subcommand".
 	for _, sub := range []string{
-		"validate", "sign", "verify",
+		"validate", "sign", "pubkey", "verify",
 		"verify-signature", "verify-iso", "verify-gates", "verify-custody",
 		"diff",
 	} {
