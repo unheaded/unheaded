@@ -316,6 +316,16 @@ func (p *Provider) fileFinding(in fileFindingInput) (zhentools.Result, error) {
 	if sev == "" {
 		return zhentools.Result{IsError: true, Text: fmt.Sprintf("invalid severity %q (want critical|high|medium|low|info)", in.Severity)}, nil
 	}
+	// Defensive bound (LICH-016 self red-team): the register is a human-reviewed
+	// triage file, not a blob store. Cap every free-text field a driver controls
+	// so an oversized summary/plan cannot bloat the register even post-confirmation.
+	in.Summary = clampField(in.Summary, maxFindingField)
+	in.Remediation = clampField(in.Remediation, maxFindingField)
+	in.Plan = clampField(in.Plan, maxFindingField)
+	in.Class = clampField(in.Class, 64)
+	in.Host = clampField(in.Host, 128)
+	in.HarnessID = clampField(in.HarnessID, 128)
+	in.ReproSHA256 = clampField(in.ReproSHA256, 128)
 	registerPath := p.cfg.RegisterAbs()
 	raw, err := os.ReadFile(registerPath) // #nosec G304 -- operator-configured register path
 	if err != nil {
@@ -424,6 +434,19 @@ func campaignSeedSlug(id string) string {
 		}
 	}
 	return b.String()
+}
+
+// maxFindingField bounds a free-text register field (LICH-016 hardening).
+const maxFindingField = 2000
+
+// clampField truncates s to at most n runes, appending an ellipsis marker when
+// it had to cut. Rune-safe so a multibyte field is never split mid-character.
+func clampField(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n]) + "…[truncated]"
 }
 
 // composeFinding builds a strict-schema-valid RegisterEntry block (only known
