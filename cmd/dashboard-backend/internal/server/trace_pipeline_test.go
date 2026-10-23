@@ -705,7 +705,7 @@ func TestTraceRecords_ExpandsCollectorBatches(t *testing.T) {
 	}
 	s := &Server{}
 	te := s.parseTraceTopicEvent(events.Event{Topic: "traces.packet", Data: recs[0]})
-	if te.Src != "127.0.0.1" || te.Dst != "127.0.0.1" || te.Protocol != "TCP" || te.PacketLen != 4792 || te.EventType != "packet" {
+	if te.Src != "127.0.0.1:56636" || te.Dst != "127.0.0.1:18001" || te.Protocol != "TCP" || te.PacketLen != 4792 || te.EventType != "packet" {
 		t.Errorf("parsed batch record = %+v", te)
 	}
 	if got := traceRecords(events.Event{Data: map[string]interface{}{"src_ip": "a"}}); len(got) != 1 {
@@ -714,6 +714,49 @@ func TestTraceRecords_ExpandsCollectorBatches(t *testing.T) {
 	for _, bad := range []string{``, `{`, `[1,2]`, `"x"`} {
 		if got := traceRecords(events.Event{Raw: []byte(bad)}); len(got) != 0 {
 			t.Errorf("payload %q gave %d records, want 0", bad, len(got))
+		}
+	}
+}
+
+// Records as the trace-collector really publishes them (raw payloads from
+// east's /api/v1/events, 2026-10-23). Before: latency rtt_ms 0 (the record
+// has latency_ns, not rtt_ns), flow state "" (flow_state is an object),
+// correlated src/dst "" (five_tuple addresses are byte arrays), packets
+// without ports, and every packet the same trace "000...0".
+func TestParseTraceTopicEvent_CollectorShapes(t *testing.T) {
+	for _, c := range []struct {
+		topic, raw string
+		want       TraceEvent
+	}{
+		{"traces.packet",
+			`{"trace_id":"00000000000000000000000000000000","timestamp_ns":888379526520896,"src_ip":"127.0.0.1","dst_ip":"127.0.0.1","src_port":56636,"dst_port":18001,"protocol":"TCP","flags":0,"packet_len":4366,"hop_count":0}`,
+			TraceEvent{EventType: "packet", Src: "127.0.0.1:56636", Dst: "127.0.0.1:18001", Protocol: "TCP", PacketLen: 4366}},
+		{"traces.flow",
+			`{"timestamp_ns":1792734553447629393,"flow_key":{"src_addr":"127.0.0.1","dst_addr":"127.0.0.1","src_port":19005,"dst_port":51738,"protocol":6},"flow_state":{"trace_id":{"High":0,"Low":0},"start_ns":857754687850080,"last_seen_ns":860868687778555,"packets_in":3,"packets_out":3,"bytes_in":222,"bytes_out":162,"state":"closed"},"event_type":"expired"}`,
+			TraceEvent{EventType: "flow", Src: "127.0.0.1:19005", Dst: "127.0.0.1:51738", Protocol: "TCP", FlowState: "closed"}},
+		{"traces.latency",
+			`{"latency_ns":98879,"max_rtt_ns":5460725,"min_rtt_ns":678,"operation":"tcp_send","pid":0,"samples":607968,"tid":0,"timestamp_ns":1792734554213496086,"trace_id":{"high":0,"low":0}}`,
+			TraceEvent{EventType: "latency", RTTMs: 0.098879}},
+		{"traces.correlated",
+			`{"forward":{"five_tuple":{"SrcIP":[0,0,0,0,0,0,0,0,0,0,255,255,127,0,0,1],"DstIP":[0,0,0,0,0,0,0,0,0,0,255,255,127,0,0,1],"SrcPort":56636,"DstPort":18001,"Protocol":6},"first_seen_ns":888378126832187,"last_seen_ns":888378126832187,"packet_count":1,"byte_count":74,"trace_id":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"direction":0},"reverse":{"five_tuple":{"SrcIP":[0,0,0,0,0,0,0,0,0,0,255,255,127,0,0,1],"DstIP":[0,0,0,0,0,0,0,0,0,0,255,255,127,0,0,1],"SrcPort":18001,"DstPort":56636,"Protocol":6},"first_seen_ns":888378127340492,"last_seen_ns":888378127340492,"packet_count":1,"byte_count":74,"trace_id":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],"direction":1},"rtt_ns":508305,"matched":true,"matched_at_ns":888378127340492}`,
+			TraceEvent{EventType: "correlated", Src: "127.0.0.1:56636", Dst: "127.0.0.1:18001", Protocol: "TCP", RTTMs: 0.508305}},
+	} {
+		recs := traceRecords(events.Event{Topic: c.topic, Raw: []byte("[" + c.raw + "]")})
+		if len(recs) != 1 {
+			t.Fatalf("%s: %d records, want 1", c.topic, len(recs))
+		}
+		ts := time.Unix(1792734553, 0)
+		got := (&Server{}).parseTraceTopicEvent(events.Event{Topic: c.topic, Data: recs[0], Timestamp: ts})
+		if !strings.HasPrefix(got.TraceID, "trace-") {
+			t.Errorf("%s: trace_id %q, want a generated one (the record has none)", c.topic, got.TraceID)
+		}
+		c.want.TraceID, c.want.Timestamp = got.TraceID, ts.UnixMilli()
+		if d := got.RTTMs - c.want.RTTMs; d > 1e-9 || d < -1e-9 {
+			t.Errorf("%s: rtt_ms %v, want %v", c.topic, got.RTTMs, c.want.RTTMs)
+		}
+		got.RTTMs = c.want.RTTMs
+		if got != c.want {
+			t.Errorf("%s:\n got %+v\nwant %+v", c.topic, got, c.want)
 		}
 	}
 }

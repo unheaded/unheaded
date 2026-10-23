@@ -2059,19 +2059,26 @@ func (s *Server) parseTraceTopicEvent(event events.Event) TraceEvent {
 		te.EventType = "unknown"
 	}
 
-	// Extract fields from event data
+	// Extract fields from event data. Each traces.* topic has its own shape
+	// (trace-collector publisher.go / correlator.go / main.go):
+	//   packet:     trace_id hex, src_ip/dst_ip + src_port/dst_port, protocol name
+	//   flow:       flow_key{src_addr,...,protocol number}, flow_state{state,...}
+	//   latency:    latency_ns, flow_key
+	//   correlated: forward.five_tuple{SrcIP:[16]byte,...}, rtt_ns
 	if event.Data != nil {
-		if v, ok := event.Data["trace_id"].(string); ok {
+		// All zeros is "no trace ID" (packet_marker injects none yet), not
+		// one trace every packet belongs to.
+		if v, ok := event.Data["trace_id"].(string); ok && strings.Trim(v, "0") != "" {
 			te.TraceID = v
 		}
 		if v, ok := event.Data["src_ip"].(string); ok {
-			te.Src = v
+			te.Src = hostPort(v, event.Data["src_port"])
 		}
 		if v, ok := event.Data["src"].(string); ok && te.Src == "" {
 			te.Src = v
 		}
 		if v, ok := event.Data["dst_ip"].(string); ok {
-			te.Dst = v
+			te.Dst = hostPort(v, event.Data["dst_port"])
 		}
 		if v, ok := event.Data["dst"].(string); ok && te.Dst == "" {
 			te.Dst = v
@@ -2085,11 +2092,21 @@ func (s *Server) parseTraceTopicEvent(event events.Event) TraceEvent {
 		if v, ok := event.Data["rtt_ms"].(float64); ok {
 			te.RTTMs = v
 		}
+		if v, ok := event.Data["latency_ns"].(float64); ok && te.RTTMs == 0 {
+			te.RTTMs = v / 1e6
+		}
 		if v, ok := event.Data["state"].(string); ok {
 			te.FlowState = v
 		}
-		if v, ok := event.Data["flow_state"].(string); ok && te.FlowState == "" {
-			te.FlowState = v
+		switch fs := event.Data["flow_state"].(type) {
+		case string:
+			if te.FlowState == "" {
+				te.FlowState = fs
+			}
+		case map[string]interface{}:
+			if v, ok := fs["state"].(string); ok && te.FlowState == "" {
+				te.FlowState = v
+			}
 		}
 		if v, ok := event.Data["hop_count"].(float64); ok {
 			te.HopCount = int(v)
@@ -2101,27 +2118,28 @@ func (s *Server) parseTraceTopicEvent(event events.Event) TraceEvent {
 		// Build src/dst from flow key if present
 		if fk, ok := event.Data["flow_key"].(map[string]interface{}); ok {
 			if sa, ok := fk["src_addr"].(string); ok {
-				sp := ""
-				if sp2, ok2 := fk["src_port"].(float64); ok2 {
-					sp = fmt.Sprintf(":%d", int(sp2))
-				}
-				te.Src = sa + sp
+				te.Src = hostPort(sa, fk["src_port"])
 			}
 			if da, ok := fk["dst_addr"].(string); ok {
-				dp := ""
-				if dp2, ok2 := fk["dst_port"].(float64); ok2 {
-					dp = fmt.Sprintf(":%d", int(dp2))
-				}
-				te.Dst = da + dp
+				te.Dst = hostPort(da, fk["dst_port"])
 			}
 			if p, ok := fk["protocol"].(float64); ok {
-				switch int(p) {
-				case 6:
-					te.Protocol = "TCP"
-				case 17:
-					te.Protocol = "UDP"
-				default:
-					te.Protocol = fmt.Sprintf("proto(%d)", int(p))
+				te.Protocol = protocolName(int(p))
+			}
+		}
+
+		// A correlated flow: the request direction's 5-tuple, whose
+		// addresses the collector marshals as 16-byte arrays.
+		if fwd, ok := event.Data["forward"].(map[string]interface{}); ok {
+			if ft, ok := fwd["five_tuple"].(map[string]interface{}); ok {
+				if ip := jsonIP(ft["SrcIP"]); ip != "" {
+					te.Src = hostPort(ip, ft["SrcPort"])
+				}
+				if ip := jsonIP(ft["DstIP"]); ip != "" {
+					te.Dst = hostPort(ip, ft["DstPort"])
+				}
+				if p, ok := ft["Protocol"].(float64); ok {
+					te.Protocol = protocolName(int(p))
 				}
 			}
 		}
@@ -2133,6 +2151,51 @@ func (s *Server) parseTraceTopicEvent(event events.Event) TraceEvent {
 	}
 
 	return te
+}
+
+// hostPort joins an address and a JSON port number as host:port (brackets
+// for IPv6); with no port it is the address alone.
+func hostPort(addr string, port interface{}) string {
+	p, ok := port.(float64)
+	if !ok || p < 0 || p > 65535 {
+		return addr
+	}
+	return net.JoinHostPort(addr, strconv.Itoa(int(p)))
+}
+
+// jsonIP renders a [16]byte address marshalled as a JSON array of numbers
+// (IPv4-mapped addresses come out as dotted quads); "" if it is not one.
+func jsonIP(v interface{}) string {
+	arr, ok := v.([]interface{})
+	if !ok || (len(arr) != net.IPv4len && len(arr) != net.IPv6len) {
+		return ""
+	}
+	ip := make(net.IP, len(arr))
+	for i, b := range arr {
+		f, ok := b.(float64)
+		if !ok || f < 0 || f > 255 {
+			return ""
+		}
+		ip[i] = byte(f)
+	}
+	return ip.String()
+}
+
+// protocolName names an IP protocol number as the collector does
+// (TraceEntry.ProtocolName).
+func protocolName(p int) string {
+	switch p {
+	case 1:
+		return "ICMP"
+	case 6:
+		return "TCP"
+	case 17:
+		return "UDP"
+	case 58:
+		return "ICMPv6"
+	default:
+		return fmt.Sprintf("proto(%d)", p)
+	}
 }
 
 // serviceFlowGenerator polls the Kingdom services' /health every 2 s and
