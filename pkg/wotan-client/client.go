@@ -211,6 +211,12 @@ type Client struct {
 	// now is the clock for queue ages; nil means time.Now.
 	now func() time.Time
 
+	// Stream liveness per topic (stream_health.go), guarded by streamsMu.
+	streams   map[string]*streamState
+	streamsMu sync.Mutex
+	// streamUpAfter: 0 means defaultStreamUpAfter.
+	streamUpAfter time.Duration
+
 	// Flusher lifecycle, guarded by flusherMu.
 	flusherMu     sync.Mutex
 	flusherOn     bool
@@ -774,6 +780,7 @@ func (c *Client) relayGRPC(ctx context.Context, topic string, in <-chan *Message
 			c.endStream(topic, sc)
 			return
 		}
+		c.streamMessage(topic)
 		lastSeq = msg.Seq
 	}
 	select {
@@ -790,14 +797,19 @@ func (c *Client) relayGRPC(ctx context.Context, topic string, in <-chan *Message
 }
 
 // endStream closes sc and removes it from the channels map unless a later
-// StreamMessages on the topic has replaced it there.
+// StreamMessages on the topic has replaced it there. The topic's health
+// entry goes with it: a stream its caller ended is not an outage.
 func (c *Client) endStream(topic string, sc *safeChannel) {
 	sc.closeCh()
 	c.chanMu.Lock()
-	if c.channels[topic] == sc {
+	current := c.channels[topic] == sc
+	if current {
 		delete(c.channels, topic)
 	}
 	c.chanMu.Unlock()
+	if current {
+		c.forgetStream(topic)
+	}
 }
 
 // getOrCreateGRPCClient lazily initializes the gRPC client using true
@@ -828,6 +840,8 @@ func (c *Client) getOrCreateGRPCClient() (*GRPCClient, error) {
 	if err != nil {
 		return nil, fmt.Errorf("create gRPC client: %w", err)
 	}
+	client.onStreamState = c.setStreamUp
+	client.upAfter = c.streamUpAfterOr()
 	c.grpcClient = client
 	return client, nil
 }
@@ -873,11 +887,16 @@ func (c *Client) pollMessagesFrom(ctx context.Context, topic string, sc *safeCha
 		case <-timer.C:
 			msgs, serverLast, err := c.getMessagesPage(ctx, topic, lastSeq, pollPageSize)
 			if err != nil {
+				if ctx.Err() == nil {
+					c.setStreamUp(topic, false)
+				}
 				consecutiveFailures++
 				timer.Reset(backoff(consecutiveFailures))
 				continue
 			}
-			// Success — reset backoff to base interval
+			// Success — reset backoff to base interval. A poll that answers
+			// is a live stream, messages or not.
+			c.setStreamUp(topic, true)
 			consecutiveFailures = 0
 			lastSeq = nextCursor(lastSeq, serverLast)
 			polledFrom := lastSeq
@@ -889,6 +908,7 @@ func (c *Client) pollMessagesFrom(ctx context.Context, topic string, sc *safeCha
 				if !sc.send(ctx, msg) {
 					return
 				}
+				c.streamMessage(topic)
 				lastSeq = msg.Seq
 			}
 			// A full page that moved the cursor: more are waiting. (One

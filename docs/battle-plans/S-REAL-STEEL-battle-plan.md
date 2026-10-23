@@ -556,11 +556,15 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 
 ### Runtime stream health
 
-- [ ] **Step 80** [DECIDE] ~0m: **D-12 stream health = connection state plus stream liveness, not message recency.** RECOMMENDATION: each streaming subscriber records `alive` (its receive goroutine is running and the last Recv did not error) and the client reports `Health() {Transport, GRPCHealthy, Streams map[topic]bool, LastMessageAge map[topic]duration}`; gauge `unheaded_wotan_client_stream_up{topic}`. A service's `/health` includes it as detail and stays 200 (degraded is not dead); `/ready` is unchanged. Rationale: an idle topic is not a dead stream, so message age alone would cry wolf (ADR-100: no noise); a closed stream is the real failure the audit found invisible. Override ONLY if Wotan already sends stream keepalives (check `services/wotan` for a heartbeat on StreamMessages): then a keepalive age over 3x its period also marks the stream down.
-- [ ] **Step 81** [CODE][TEST] ~20m: Tests: `TestStreamHealth_ClosedStreamReportsDown` (server ends the stream; within 1 s `Health().Streams[topic]==false`), `TestStreamHealth_IdleStreamStaysUp`, `TestStreamHealth_FallbackToPollingReportsTransportHTTP`.
-- [ ] **Step 82** [CODE] ~25m: Implement in the stream goroutine (set/clear an atomic flag around Recv; the HTTP-polling fallback path from S17 sets Transport=HTTP and Streams=up while polling succeeds).
-- [ ] **Step 83** [TEST][V] ~3m: Green and race-clean: `gotest ./pkg/wotan-client/...`.
-- [ ] **Step 84** [C] ~2m: **COMMIT CHECKPOINT**: `feat(wotan-client): report stream and transport health at runtime`.
+- [x] **Step 80** [DECIDE] ~0m: **D-12 stream health = connection state plus stream liveness, not message recency.** RECOMMENDATION: each streaming subscriber records `alive` (its receive goroutine is running and the last Recv did not error) and the client reports `Health() {Transport, GRPCHealthy, Streams map[topic]bool, LastMessageAge map[topic]duration}`; gauge `unheaded_wotan_client_stream_up{topic}`. A service's `/health` includes it as detail and stays 200 (degraded is not dead); `/ready` is unchanged. Rationale: an idle topic is not a dead stream, so message age alone would cry wolf (ADR-100: no noise); a closed stream is the real failure the audit found invisible. Override ONLY if Wotan already sends stream keepalives (check `services/wotan` for a heartbeat on StreamMessages): then a keepalive age over 3x its period also marks the stream down.
+  - Done 2026-10-23: recommendation taken: Wotan sends no keepalive on StreamTopics (only unary Ping/TopicPing), so the override does not apply.
+- [x] **Step 81** [CODE][TEST] ~20m: Tests: `TestStreamHealth_ClosedStreamReportsDown` (server ends the stream; within 1 s `Health().Streams[topic]==false`), `TestStreamHealth_IdleStreamStaysUp`, `TestStreamHealth_FallbackToPollingReportsTransportHTTP`.
+  - Done 2026-10-23: stream_health_test.go: the three named tests plus TestStreamHealth_HTTPPollingFollowsWotan (the HTTP-only client timeguru/architect use: down on a failing poll, up again, forgotten when the caller ends the stream).
+- [x] **Step 82** [CODE] ~25m: Implement in the stream goroutine (set/clear an atomic flag around Recv; the HTTP-polling fallback path from S17 sets Transport=HTTP and Streams=up while polling succeeds).
+  - Done 2026-10-23: stream_health.go + hooks: gRPC attempt is up on its first message or after 2 s open without an error, down on a failed open/Recv (never on the caller's own cancel); polling is up while polls answer. Client.Health() {transport, grpc_healthy, streams, last_message_age_seconds}; gauge unheaded_wotan_client_stream_up{topic}. Bite: never reporting down turns two tests red.
+- [x] **Step 83** [TEST][V] ~3m: Green and race-clean: `gotest ./pkg/wotan-client/...`.
+  - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
+- [x] **Step 84** [C] ~2m: **COMMIT CHECKPOINT**: `feat(wotan-client): report stream and transport health at runtime`.
 
 ### timeguru and architect stop giving up
 
