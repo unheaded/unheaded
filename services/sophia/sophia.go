@@ -319,10 +319,15 @@ func (s *Service) Learn(ctx context.Context, k *Knowledge) error {
 		k.ID = fmt.Sprintf("k-%d-%d", time.Now().UnixNano(), s.knowledgeCounter)
 	}
 
-	// Set timestamps
+	prev, replacing := s.knowledge[k.ID]
+
+	// Set timestamps. Relearning an ID keeps when it was first learned.
 	now := time.Now()
 	if k.CreatedAt.IsZero() {
 		k.CreatedAt = now
+		if replacing {
+			k.CreatedAt = prev.CreatedAt
+		}
 	}
 	k.UpdatedAt = now
 
@@ -336,7 +341,6 @@ func (s *Service) Learn(ctx context.Context, k *Knowledge) error {
 
 	// Bounded: a configured limit the store never checked was no limit.
 	size := knowledgeSize(k)
-	prev, replacing := s.knowledge[k.ID]
 	if !replacing && s.config.MaxKnowledge > 0 && len(s.knowledge) >= s.config.MaxKnowledge {
 		return ErrKnowledgeFull
 	}
@@ -352,7 +356,24 @@ func (s *Service) Learn(ctx context.Context, k *Knowledge) error {
 	// Store knowledge
 	s.knowledge[k.ID] = k
 
-	// Update indexes
+	// Update indexes. A replaced entry leaves its old ones first: they used
+	// to stay, so relearning an ID listed it once more in every exact query
+	// on its subject or predicate, and each relearn grew the indexes with
+	// no bound (MaxKnowledge counts entries, not index slots).
+	if replacing {
+		s.subjectIndex[prev.Subject] = removeID(s.subjectIndex[prev.Subject], k.ID)
+		s.predicateIndex[prev.Predicate] = removeID(s.predicateIndex[prev.Predicate], k.ID)
+		s.typeIndex[prev.Type] = removeID(s.typeIndex[prev.Type], k.ID)
+		if len(s.subjectIndex[prev.Subject]) == 0 {
+			delete(s.subjectIndex, prev.Subject)
+		}
+		if len(s.predicateIndex[prev.Predicate]) == 0 {
+			delete(s.predicateIndex, prev.Predicate)
+		}
+		if len(s.typeIndex[prev.Type]) == 0 {
+			delete(s.typeIndex, prev.Type)
+		}
+	}
 	s.subjectIndex[k.Subject] = append(s.subjectIndex[k.Subject], k.ID)
 	s.predicateIndex[k.Predicate] = append(s.predicateIndex[k.Predicate], k.ID)
 	s.typeIndex[k.Type] = append(s.typeIndex[k.Type], k.ID)
@@ -952,6 +973,17 @@ func (s *Service) Stats() map[string]interface{} {
 		"indexed_subjects":   len(s.subjectIndex),
 		"indexed_predicates": len(s.predicateIndex),
 	}
+}
+
+// removeID returns ids without id, reusing its array.
+func removeID(ids []string, id string) []string {
+	out := ids[:0]
+	for _, x := range ids {
+		if x != id {
+			out = append(out, x)
+		}
+	}
+	return out
 }
 
 // ErrKnowledgeFull is returned by Learn past MaxKnowledge or
