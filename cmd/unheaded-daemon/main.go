@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -104,6 +105,10 @@ type Daemon struct {
 
 	// LXD client for container operations
 	lxdClient LXDClient
+
+	// authEnabled: the container write API (PUT/DELETE) answers only behind
+	// auth. Without it anyone who reaches the port could ask for deletes.
+	authEnabled bool
 
 	// eBPF Loader: intentionally disabled in the control plane.
 	// Real eBPF loading requires kernel support (see internal/ebpf/loader.go).
@@ -207,6 +212,7 @@ func (m *MockLXDClient) CreateContainer(ctx context.Context, spec *ContainerSpec
 		Status:   "stopped",
 		Health:   "starting",
 		CPUUsage: 0,
+		Managed:  true, // a real client sets ManagedLabel=true at create
 	}
 
 	m.log.Info().
@@ -295,6 +301,7 @@ func (m *MockLXDClient) GetContainer(name string) (*ContainerState, bool) {
 		IP:       c.IP,
 		CPUUsage: c.CPUUsage,
 		Health:   c.Health,
+		Managed:  c.Managed,
 	}, true
 }
 
@@ -310,6 +317,7 @@ func (m *MockLXDClient) ListContainers() map[string]*ContainerState {
 			IP:       v.IP,
 			CPUUsage: v.CPUUsage,
 			Health:   v.Health,
+			Managed:  v.Managed,
 		}
 	}
 	return result
@@ -330,6 +338,13 @@ type Config struct {
 	WotanGRPCAddr string
 	PollInterval  time.Duration
 	LogLevel      string
+
+	// Enforce lets reconciliation act on LXD. Off (the default), Cuirass
+	// observes: it plans and reports actions and takes none.
+	Enforce bool
+	// Prune lets enforcement delete managed instances nobody desires.
+	// Unmanaged instances are never deleted, pruning or not.
+	Prune bool
 }
 
 // StateManager manages desired vs actual state
@@ -350,6 +365,11 @@ type ContainerSpec struct {
 	Labels map[string]string `json:"labels"`
 }
 
+// ManagedLabel marks an LXD instance as Unheaded's. Cuirass sets it on
+// every instance it creates and never starts, restarts or deletes one
+// without it: west's LXD also runs pihole, which is not ours.
+const ManagedLabel = "user.unheaded.managed"
+
 // ContainerState represents actual container state
 type ContainerState struct {
 	ID       string  `json:"id"`
@@ -357,6 +377,7 @@ type ContainerState struct {
 	IP       string  `json:"ip"`
 	CPUUsage float64 `json:"cpu_usage"`
 	Health   string  `json:"health"`
+	Managed  bool    `json:"managed"` // carries ManagedLabel=true
 }
 
 // DriftReport represents detected drift
@@ -375,6 +396,10 @@ type ReconcileAction struct {
 	Success     bool      `json:"success"`
 	Error       string    `json:"error,omitempty"`
 	Timestamp   time.Time `json:"timestamp"`
+	// Planned: observe mode decided this action and did not take it.
+	Planned bool `json:"planned,omitempty"`
+
+	spec *ContainerSpec // what to create, for "create"
 }
 
 // ============================================================================
@@ -500,7 +525,8 @@ func (d *Daemon) Start() error {
 	}
 
 	// Log LXD client status
-	d.log.Info().Msg("LXD client initialized (mock mode)")
+	d.log.Info().Bool("enforce", d.config.Enforce).Bool("prune", d.config.Prune).
+		Msg("LXD client initialized (mock mode)")
 
 	// Setup HTTP server
 	mux := http.NewServeMux()
@@ -508,6 +534,10 @@ func (d *Daemon) Start() error {
 
 	// Auth middleware (activated via AUTH_ENABLED=true)
 	authCfg := auth.LoadServiceAuthConfig("unheaded-daemon")
+	d.authEnabled = authCfg.Enabled
+	if !d.authEnabled {
+		d.log.Warn().Msg("AUTH_ENABLED is not true: container write API refused (read-only)")
+	}
 	httpHandler := auth.WrapHandler(mux, auth.SetupMiddleware(authCfg))
 	httpHandler = httputil.NewServiceMetrics("cuirass").Instrument(mux, httpHandler)
 
@@ -891,6 +921,14 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if (r.Method == http.MethodPut || r.Method == http.MethodDelete) && !d.authEnabled {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+			"error": "container writes need AUTH_ENABLED=true",
+		})
+		return
+	}
+
 	switch r.Method {
 	case http.MethodGet:
 		d.stateManager.mu.RLock()
@@ -1040,172 +1078,102 @@ func (d *Daemon) reconcile() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	var actions []ReconcileAction
-
-	// Compare desired vs actual and take action
-	for id, desired := range d.stateManager.desired {
-		actual, exists := d.stateManager.actual[id]
-
-		if !exists {
-			// Container should exist but doesn't - create it
-			// DRIFT TYPE: "missing"
-			d.log.Info().Str("id", id).Str("name", desired.Name).Str("image", desired.Image).Msg("Container missing, creating...")
-
-			action := ReconcileAction{
-				ContainerID: id,
-				Action:      "create",
-				Reason:      "container missing from desired state",
-				Timestamp:   time.Now(),
-			}
-
-			// Create the container
-			if err := d.lxdClient.CreateContainer(ctx, desired); err != nil {
-				d.log.Error().Err(err).Str("id", id).Msg("Failed to create container")
-				action.Success = false
-				action.Error = err.Error()
-				actions = append(actions, action)
-				continue
-			}
-
-			// Start the container after creation
-			if err := d.lxdClient.StartContainer(ctx, id); err != nil {
-				d.log.Error().Err(err).Str("id", id).Msg("Failed to start container after creation")
-				action.Success = false
-				action.Error = fmt.Sprintf("created but failed to start: %v", err)
-				actions = append(actions, action)
-				continue
-			}
-
-			d.log.Info().Str("id", id).Msg("Container created and started successfully")
-			action.Success = true
-			actions = append(actions, action)
-
-			// Update actual state with the new container
-			if state, ok := d.lxdClient.GetContainer(id); ok {
-				d.stateManager.actual[id] = state
-			}
-			continue
-		}
-
-		if actual.Status != "running" {
-			// Container should be running but isn't - start it
-			// DRIFT TYPE: "status"
-			d.log.Info().Str("id", id).Str("name", desired.Name).Str("current_status", actual.Status).Msg("Container not running, starting...")
-
-			action := ReconcileAction{
-				ContainerID: id,
-				Action:      "start",
-				Reason:      fmt.Sprintf("container status is '%s', expected 'running'", actual.Status),
-				Timestamp:   time.Now(),
-			}
-
-			if err := d.lxdClient.StartContainer(ctx, id); err != nil {
-				d.log.Error().Err(err).Str("id", id).Msg("Failed to start container")
-				action.Success = false
-				action.Error = err.Error()
-				actions = append(actions, action)
-				continue
-			}
-
-			d.log.Info().Str("id", id).Msg("Container started successfully")
-			action.Success = true
-			actions = append(actions, action)
-
-			// Update actual state
-			if state, ok := d.lxdClient.GetContainer(id); ok {
-				d.stateManager.actual[id] = state
-			}
-			continue
-		}
-
-		if actual.Health == "unhealthy" {
-			// Container is unhealthy - restart it
-			// DRIFT TYPE: "degraded" (health degraded / config mismatch)
-			d.log.Info().Str("id", id).Str("name", desired.Name).Msg("Container unhealthy, restarting...")
-
-			action := ReconcileAction{
-				ContainerID: id,
-				Action:      "restart",
-				Reason:      "container health status is 'unhealthy'",
-				Timestamp:   time.Now(),
-			}
-
-			if err := d.lxdClient.RestartContainer(ctx, id); err != nil {
-				d.log.Error().Err(err).Str("id", id).Msg("Failed to restart container")
-				action.Success = false
-				action.Error = err.Error()
-				actions = append(actions, action)
-				continue
-			}
-
-			d.log.Info().Str("id", id).Msg("Container restarted successfully")
-			action.Success = true
-			actions = append(actions, action)
-
-			// Update actual state
-			if state, ok := d.lxdClient.GetContainer(id); ok {
-				d.stateManager.actual[id] = state
-			}
-			continue
-		}
+	d.syncActualStateFromLXD()
+	actions := d.planReconcile()
+	for i := range actions {
+		d.applyAction(ctx, &actions[i])
 	}
-
-	// Check for orphaned containers (actual but not desired)
-	// DRIFT TYPE: "orphaned"
-	for id := range d.stateManager.actual {
-		if _, exists := d.stateManager.desired[id]; !exists {
-			d.log.Info().Str("id", id).Msg("Container orphaned, deleting...")
-
-			// Safety check: only delete if container is not in desired state
-			// This is an important safety measure to prevent accidental deletion
-			action := ReconcileAction{
-				ContainerID: id,
-				Action:      "delete",
-				Reason:      "container exists but is not in desired state (orphaned)",
-				Timestamp:   time.Now(),
-			}
-
-			// Perform safety check - confirm it's really not in desired state
-			// We need to release and re-acquire the lock for the safety check
-			d.stateManager.mu.Unlock()
-			d.stateManager.mu.RLock()
-			if _, stillDesired := d.stateManager.desired[id]; stillDesired {
-				d.log.Warn().Str("id", id).Msg("Safety check failed: container appeared in desired state during delete")
-				d.stateManager.mu.RUnlock()
-				d.stateManager.mu.Lock()
-				action.Success = false
-				action.Error = "safety check failed: container appeared in desired state"
-				actions = append(actions, action)
-				continue
-			}
-			d.stateManager.mu.RUnlock()
-			d.stateManager.mu.Lock()
-
-			// Delete the orphaned container (force=true to handle any state)
-			if err := d.lxdClient.DeleteContainer(ctx, id, true); err != nil {
-				d.log.Error().Err(err).Str("id", id).Msg("Failed to delete orphaned container")
-				action.Success = false
-				action.Error = err.Error()
-				actions = append(actions, action)
-				continue
-			}
-
-			d.log.Info().Str("id", id).Msg("Orphaned container deleted successfully")
-			action.Success = true
-			actions = append(actions, action)
-
-			// Remove from actual state
-			delete(d.stateManager.actual, id)
-		}
-	}
-
-	// Sync actual state from LXD client to ensure consistency
 	d.syncActualStateFromLXD()
 
-	// Publish reconciliation events if any actions were taken
+	// Publish reconciliation events if any actions were decided
 	if len(actions) > 0 {
 		go d.publishReconcileEvents(actions)
 	}
+}
+
+// planReconcile decides what reconciliation would do; the caller holds
+// stateManager.mu. It never plans to touch an unmanaged instance: one that
+// shares a desired ID is refused, one nobody desires is left alone, and a
+// managed one nobody desires is deleted only when pruning.
+func (d *Daemon) planReconcile() []ReconcileAction {
+	var actions []ReconcileAction
+	plan := func(id, action, reason string) *ReconcileAction {
+		actions = append(actions, ReconcileAction{ContainerID: id, Action: action, Reason: reason, Timestamp: time.Now()})
+		return &actions[len(actions)-1]
+	}
+	ids := make([]string, 0, len(d.stateManager.desired))
+	for id := range d.stateManager.desired {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		desired := d.stateManager.desired[id]
+		actual, exists := d.stateManager.actual[id]
+		switch {
+		case !exists:
+			plan(id, "create", "container missing from actual state").spec = desired
+		case !actual.Managed:
+			a := plan(id, "refuse", "an instance with this name exists and is not Unheaded's (no "+ManagedLabel+"=true)")
+			a.Error = "not managed by Unheaded; not touching it"
+		case actual.Status != "running":
+			plan(id, "start", fmt.Sprintf("container status is '%s', expected 'running'", actual.Status))
+		case actual.Health == "unhealthy":
+			plan(id, "restart", "container health status is 'unhealthy'")
+		}
+	}
+	if !d.config.Prune {
+		return actions
+	}
+	orphans := make([]string, 0)
+	for id, actual := range d.stateManager.actual {
+		if _, desired := d.stateManager.desired[id]; !desired && actual.Managed {
+			orphans = append(orphans, id)
+		}
+	}
+	sort.Strings(orphans)
+	for _, id := range orphans {
+		plan(id, "delete", "managed container is not in desired state (prune)")
+	}
+	return actions
+}
+
+// applyAction takes one planned action, or in observe mode only records
+// that it would have.
+func (d *Daemon) applyAction(ctx context.Context, a *ReconcileAction) {
+	if a.Error != "" { // refused while planning
+		d.log.Warn().Str("id", a.ContainerID).Str("reason", a.Reason).Msg("Reconcile refused")
+		return
+	}
+	if !d.config.Enforce {
+		a.Planned = true
+		d.log.Info().Str("id", a.ContainerID).Str("action", a.Action).Str("reason", a.Reason).
+			Msg("Observe mode: would act (CUIRASS_ENFORCE is not true)")
+		return
+	}
+	var err error
+	switch a.Action {
+	case "create":
+		if err = d.lxdClient.CreateContainer(ctx, a.spec); err == nil {
+			if err = d.lxdClient.StartContainer(ctx, a.ContainerID); err != nil {
+				err = fmt.Errorf("created but failed to start: %w", err)
+			}
+		}
+	case "start":
+		err = d.lxdClient.StartContainer(ctx, a.ContainerID)
+	case "restart":
+		err = d.lxdClient.RestartContainer(ctx, a.ContainerID)
+	case "delete":
+		err = d.lxdClient.DeleteContainer(ctx, a.ContainerID, true)
+	default:
+		err = fmt.Errorf("unknown action %q", a.Action)
+	}
+	if err != nil {
+		d.log.Error().Err(err).Str("id", a.ContainerID).Str("action", a.Action).Msg("Reconcile action failed")
+		a.Error = err.Error()
+		return
+	}
+	d.log.Info().Str("id", a.ContainerID).Str("action", a.Action).Msg("Reconcile action done")
+	a.Success = true
 }
 
 // syncActualStateFromLXD updates the actual state from the LXD client
@@ -1214,10 +1182,9 @@ func (d *Daemon) syncActualStateFromLXD() {
 		return
 	}
 
-	containers := d.lxdClient.ListContainers()
-	for id, state := range containers {
-		d.stateManager.actual[id] = state
-	}
+	// Replace, not merge: an instance deleted outside Cuirass must leave
+	// the actual state too.
+	d.stateManager.actual = d.lxdClient.ListContainers()
 }
 
 // publishReconcileEvents publishes reconciliation action events to Wotan
@@ -1319,9 +1286,10 @@ func (d *Daemon) detectDrift() {
 		}
 	}
 
-	// Check for orphaned containers (actual but not desired)
-	for id := range d.stateManager.actual {
-		if _, exists := d.stateManager.desired[id]; !exists {
+	// Check for orphaned containers (actual but not desired). Only managed
+	// ones: the rest are simply not ours.
+	for id, actual := range d.stateManager.actual {
+		if _, exists := d.stateManager.desired[id]; !exists && actual.Managed {
 			drifts = append(drifts, DriftReport{
 				ContainerID: id,
 				DriftType:   "orphaned",
@@ -1334,6 +1302,15 @@ func (d *Daemon) detectDrift() {
 	// Check for status drift (container exists but not running)
 	for id, actual := range d.stateManager.actual {
 		if _, exists := d.stateManager.desired[id]; exists {
+			if !actual.Managed {
+				drifts = append(drifts, DriftReport{
+					ContainerID: id,
+					DriftType:   "unmanaged",
+					Severity:    "high",
+					DetectedAt:  time.Now(),
+				})
+				continue
+			}
 			if actual.Status != "running" {
 				drifts = append(drifts, DriftReport{
 					ContainerID: id,
@@ -1379,6 +1356,8 @@ type yamlConfig struct {
 	WotanGRPCAddr string `yaml:"wotan_grpc_addr"`
 	PollInterval  string `yaml:"poll_interval"`
 	LogLevel      string `yaml:"log_level"`
+	Enforce       *bool  `yaml:"enforce"`
+	Prune         *bool  `yaml:"prune"`
 }
 
 func loadConfig(path string) *Config {
@@ -1393,6 +1372,8 @@ func loadConfig(path string) *Config {
 		WotanGRPCAddr: getEnvOrDefault("WOTAN_GRPC_ADDR", ""),
 		PollInterval:  30 * time.Second,
 		LogLevel:      getEnvOrDefault("LOG_LEVEL", "info"),
+		Enforce:       os.Getenv("CUIRASS_ENFORCE") == "true",
+		Prune:         os.Getenv("CUIRASS_PRUNE") == "true",
 	}
 
 	// Load from YAML file if path provided, overriding defaults
@@ -1433,6 +1414,12 @@ func loadConfig(path string) *Config {
 		}
 		if yc.LogLevel != "" {
 			cfg.LogLevel = yc.LogLevel
+		}
+		if yc.Enforce != nil {
+			cfg.Enforce = *yc.Enforce
+		}
+		if yc.Prune != nil {
+			cfg.Prune = *yc.Prune
 		}
 		if yc.PollInterval != "" {
 			if d, err := time.ParseDuration(yc.PollInterval); err == nil {

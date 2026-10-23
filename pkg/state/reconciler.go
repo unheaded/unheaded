@@ -222,7 +222,7 @@ type DriftType string
 const (
 	DriftNone           DriftType = "none"
 	DriftMissing        DriftType = "missing"         // Desired but not present
-	DriftOrphaned       DriftType = "orphaned"        // Present but not desired
+	DriftOrphaned       DriftType = "orphaned"        // Managed, present, not desired
 	DriftStatusMismatch DriftType = "status_mismatch" // Wrong status (stopped vs running)
 	DriftConfigMismatch DriftType = "config_mismatch" // Configuration differs
 	DriftHealthDegraded DriftType = "health_degraded" // Unhealthy
@@ -553,7 +553,19 @@ type ReconcilerConfig struct {
 
 	// Logging
 	LogLevel string `json:"log_level" yaml:"log_level"`
+
+	// Prune lets reconciliation delete managed containers nobody desires.
+	// Off by default: orphans are reported, not deleted.
+	Prune bool `json:"prune" yaml:"prune"`
 }
+
+// ManagedLabel marks a container as Unheaded's. Only containers with
+// ManagedLabel=true can be orphans: the rest (west's pihole, say) are not
+// ours and are never deleted.
+const ManagedLabel = "user.unheaded.managed"
+
+// Managed reports whether c carries ManagedLabel=true.
+func (c *ContainerActual) Managed() bool { return c.Labels[ManagedLabel] == "true" }
 
 // DefaultReconcilerConfig returns sensible defaults
 func DefaultReconcilerConfig() ReconcilerConfig {
@@ -938,8 +950,11 @@ func (r *Reconciler) DetectDrift(desired *DesiredState, actual *ActualState) (*D
 		}
 	}
 
-	// Check for orphaned containers
+	// Check for orphaned containers: managed ones only
 	for name, actualContainer := range actual.Containers {
+		if !actualContainer.Managed() {
+			continue
+		}
 		found := false
 		for _, desiredContainer := range desired.Containers {
 			if desiredContainer.Name == name {
@@ -1102,7 +1117,10 @@ func (r *Reconciler) GenerateActions(drift *DriftReport) ([]*ReconciliationActio
 			}
 
 		case DriftOrphaned:
-			// For orphaned containers, we create a delete action but with low priority
+			// Orphans are deleted only when pruning, and with low priority
+			if !r.config.Prune {
+				break
+			}
 			action = &ReconciliationAction{
 				ID:          fmt.Sprintf("action-%d", time.Now().UnixNano()),
 				ContainerID: d.ContainerID,

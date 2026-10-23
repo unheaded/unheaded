@@ -740,7 +740,7 @@ func TestDetectDrift(t *testing.T) {
 			actual: func() *ActualState {
 				as := matchingActualState()
 				as.Containers["orphan"] = &ContainerActual{
-					ID: "c3", Name: "orphan", Status: StatusRunning,
+					ID: "c3", Name: "orphan", Status: StatusRunning, Labels: map[string]string{ManagedLabel: "true"},
 				}
 				return as
 			}(),
@@ -872,7 +872,7 @@ func TestDetectDrift(t *testing.T) {
 						Health: HealthUnhealthy,
 					},
 					// "api" missing
-					"orphan": {ID: "c3", Name: "orphan", Status: StatusRunning},
+					"orphan": {ID: "c3", Name: "orphan", Status: StatusRunning, Labels: map[string]string{ManagedLabel: "true"}},
 				},
 				ObservedAt: time.Now(),
 			},
@@ -1153,8 +1153,22 @@ func TestGenerateActions(t *testing.T) {
 		}
 	})
 
+	t.Run("orphaned without prune creates no action", func(t *testing.T) {
+		r, _, _ := newTestReconciler(t)
+		actions, err := r.GenerateActions(&DriftReport{Drifts: []DriftItem{
+			{ContainerID: "orphan", DriftType: DriftOrphaned, Severity: SeverityLow},
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(actions) != 0 {
+			t.Errorf("got %d actions, want none: pruning is off by default", len(actions))
+		}
+	})
+
 	t.Run("orphaned creates ActionDelete with low priority", func(t *testing.T) {
 		r, _, _ := newTestReconciler(t)
+		r.config.Prune = true
 		report := &DriftReport{
 			Drifts: []DriftItem{
 				{ContainerID: "orphan", DriftType: DriftOrphaned, Severity: SeverityLow},
@@ -1177,6 +1191,7 @@ func TestGenerateActions(t *testing.T) {
 
 	t.Run("actions sorted by priority", func(t *testing.T) {
 		r, _, _ := newTestReconciler(t)
+		r.config.Prune = true
 		report := &DriftReport{
 			Drifts: []DriftItem{
 				{ContainerID: "low", DriftType: DriftOrphaned, Severity: SeverityLow},
@@ -2489,7 +2504,7 @@ func TestPleromaKenoma_KenomaSurplus(t *testing.T) {
 	lxd.containers = []*ContainerActual{
 		{ID: "c1", Name: "web", Status: StatusRunning, Image: "ubuntu:22.04", CPU: 2, Memory: 512, Health: HealthHealthy},
 		{ID: "c2", Name: "api", Status: StatusRunning, Image: "golang:1.21", CPU: 4, Memory: 1024, Health: HealthHealthy},
-		{ID: "c3", Name: "rogue-service", Status: StatusRunning, Health: HealthHealthy},
+		{ID: "c3", Name: "rogue-service", Status: StatusRunning, Health: HealthHealthy, Labels: map[string]string{ManagedLabel: "true"}},
 	}
 
 	err := r.Reconcile(context.Background(), false)
@@ -2507,6 +2522,9 @@ func TestPleromaKenoma_KenomaSurplus(t *testing.T) {
 	}
 	if !foundOrphan {
 		t.Error("expected orphaned drift for surplus Kenoma element")
+	}
+	if len(lxd.deleteCalls) != 0 {
+		t.Errorf("deleted %v although pruning is off", lxd.deleteCalls)
 	}
 }
 
@@ -2761,4 +2779,28 @@ func searchStr(s, sub string) bool {
 		}
 	}
 	return false
+}
+
+// Safe mode (2026-10-22): a container without ManagedLabel is not ours. It is
+// no orphan and is never deleted, even when pruning (west's pihole).
+func TestReconcile_UnmanagedNeverOrphaned(t *testing.T) {
+	r, lxd, _ := newTestReconciler(t)
+	r.config.Prune = true
+	_ = r.SetDesiredState(validDesiredState())
+	lxd.containers = []*ContainerActual{
+		{ID: "c1", Name: "web", Status: StatusRunning, Image: "ubuntu:22.04", CPU: 2, Memory: 512, Health: HealthHealthy},
+		{ID: "c2", Name: "api", Status: StatusRunning, Image: "golang:1.21", CPU: 4, Memory: 1024, Health: HealthHealthy},
+		{ID: "c9", Name: "pihole", Status: StatusRunning, Health: HealthHealthy},
+	}
+	if err := r.Reconcile(context.Background(), false); err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range r.GetLastRun().DriftReport.Drifts {
+		if d.DriftType == DriftOrphaned {
+			t.Errorf("unmanaged pihole reported as orphaned: %+v", d)
+		}
+	}
+	if len(lxd.deleteCalls) != 0 {
+		t.Fatalf("reconcile deleted %v; pihole is not managed", lxd.deleteCalls)
+	}
 }
