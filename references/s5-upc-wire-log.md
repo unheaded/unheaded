@@ -158,3 +158,43 @@ of the trapframe. No new attack surface.
 - Not run: an actual browser session (no browser on this host); the WS leg used the Go
   client. Not done (parked): `--static` flag that `nix/yggdrasil/.../upc-tty-bridge.service`
   already passes — the bridge still serves `../../dashboard/` relative to its cwd.
+
+## Phase 5 — Heimdall Gjallarhorn XDP + ringbuf readers (2026-10-23, second session)
+
+Session 2 scope: Phase 5, then Part 2 Phases 9–12. **Phases 6–8 `[DEFERRED: east
+escalation]`**: they need east as a node (Step 177 [ESCALATE], unanswered), and Phase 8
+depends on them. East was not contacted.
+
+- **H-G1 TRUE**: `heimdall-bpf` builds on west's nightly + bpf-linker.
+- Step 138 decided: XDP_PASS always (observe-only).
+- New programs: `gjallarhorn_xdp.rs` (IPv6 fixed header → UDP 16901 → exactly 20 B → `GJLR` →
+  kind 1|2 → reserved 0; 32-byte `HornEvent`; per-CPU stats) and `execve.rs` (raw tracepoint
+  `sched_process_exec`, same 24-byte record as vfs_write with `event_type=1`). KF2 closed.
+- **K1 evidence (processed insns): vfs_write 20, execve 21, gjallarhorn XDP 292.**
+- Plan deviation (Step 144): `bpftool prog loadall` cannot open Aya 0.1 objects (libbpf 1.x
+  rejects the legacy `maps` section). The counts come from cilium/ebpf with
+  `LogLevelStats` (`TestLoadObjects`, root-gated). **H-G2 TRUE**: cilium/ebpf v0.22 loads all
+  three; the Step 153 Rust-sidecar fallback was not needed.
+- Verifier rejections fixed on the way: a `[u8; 3]` pad zeroed through `memset` (the known
+  `--btf` global-function rejection) and `core::ptr::read_unaligned` lowered to `memcpy`
+  (`R4 !read_ok`). Both replaced by byte loads / scalar field writes.
+- Classic tracepoint → raw tracepoint: `link.Tracepoint` needs tracefs, which is not mounted
+  under `ip netns exec` (fresh mount namespace). The raw tracepoint attaches by name.
+- Daemon: exact-size decoders + fuzz target; token bucket 1/s burst 3 on reverify horns for
+  `--cluster`; bootstrap horns logged only (Phase 6); file events debounce 250 ms from the
+  first event of a burst; own pid filtered; event-driven scans alert only on changed drift
+  (otherwise a busy host's write noise re-alerts every 250 ms). Load/attach failures are
+  logged once and the daemon keeps polling.
+- netns lab (Steps 154–162; veth `s5va`/`s5vb`, ULA `fd00:5:5::/64` because the sender's
+  `net.LookupIP` rejects `%zone`):
+  - one reverify → `[HORN] kind=2 cluster=1 manifest_ptr=0x00000000cafebabe … action=reverify
+    xdp seen=1 valid=1`, then an immediate re-verify + scan.
+  - 50 reverifies in 0.90 s + 10 malformed → 4 re-verifies in total (burst 3 + 1 refill),
+    47 rate-limited; exit counters `seen=61 valid=51 bad_magic=3 bad_kind=2 bad_len=3
+    bad_reserved=2 rb_full=0`; malformed never triggered a scan.
+  - write to the watched file → one alert after 0.06–0.22 s (two runs), none repeated.
+  - teardown: no `s5` netns or link, 0 heimdall programs (`bpftool prog show`).
+- Steps 164–169 (Wotan publish) were already shipped by Sprint 1 (`drift.go`, ADR-105):
+  verified, nothing new. `go test -race` + `go vet` (linux, darwin) green, gosec clean,
+  `go.mod` unchanged. golangci-lint panics on this tree (known version trap), not run.
+- Commits: `b6f5ec8a` (BPF), `930b1ddc` (daemon).

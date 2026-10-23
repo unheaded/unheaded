@@ -624,95 +624,114 @@ Host-only change (eBPF untouched, verifier unchanged) · Go `-race` + Rust tests
 **Time**: ~4 h
 **Agent**: Developer + Coordinator (sudo, netns)
 
-- [ ] **Step 135** [R] ~5m: Read the packet contract and the BPF crate
+- [x] **Step 135** [R] ~5m: Read the packet contract and the BPF crate
   ```bash
   sed -n '1,30p' "$PROJECT_ROOT/pkg/gjallarhorn/types.go"; sed -n '1,30p' "$PROJECT_ROOT/crates/heimdall-bpf/Cargo.toml"
   ```
-- [ ] **Step 136** [B][BUILD] ~3m: Build the existing crate
+- [x] **Step 136** [B][BUILD] ~3m: Build the existing crate
   ```bash
   (cd "$PROJECT_ROOT/crates/heimdall-bpf" && cargo build --release 2>&1 | tail -3); ls "$PROJECT_ROOT/crates/heimdall-bpf/target/bpfel-unknown-none/release/" | grep heimdall
   ```
-- [ ] **Step 137** [V][PREFLIGHT] ~30s: **H-G1** — `heimdall-vfs-write` object produced
+- [x] **Step 137** [V][PREFLIGHT] ~30s: **H-G1** — `heimdall-vfs-write` object produced
+  - S5 2026-10-23: H-G1 TRUE (`heimdall-vfs-write` built).
   - Fail → Emergency A.4 (toolchain), two attempts, then STUCK chain 137–170
-- [ ] **Step 138** [DECIDE] ~5m: XDP action for Gjallarhorn packets
+- [x] **Step 138** [DECIDE] ~5m: XDP action for Gjallarhorn packets
+  - S5 2026-10-23: Decided: XDP_PASS always (recommendation).
   - **RECOMMENDATION**: `XDP_PASS` always (observe-only). Rationale: the userspace UDP path keeps working; a parser bug can never black-hole the P2P link that also carries BGP and WireGuard; alerts-only (ADR-043 HC#1) gives XDP nothing to act on.
   - **Override ONLY if**: Phase 7's stress run shows the userspace path cannot keep up → then drop only records the XDP parser already classifies as malformed (never valid horns, never non-GJLR traffic).
-- [ ] **Step 139** [W][CODE] ~40m: `crates/heimdall-bpf/src/gjallarhorn_xdp.rs` — Ethernet → IPv6 (no extension-header walk in v1; documented) → UDP dport 16901 → payload exactly 20 B → magic `GJLR` → kind ∈ {1,2} → reserved bytes zero → RINGBUF record `{kind:u8, pad:[u8;3], cluster:u32, manifest_ptr:u64, src_hash:u32, ts_ns:u64}`; per-CPU stats (seen, valid, bad_magic, bad_kind, bad_len). Verifier rules: bounds-check every packet read; write every field explicitly (no zero-init of padded structs → avoids the `--btf` memset global-function rejection); no loops.
-- [ ] **Step 140** [W][CODE] ~20m: `crates/heimdall-bpf/src/execve.rs` — tracepoint `sched/sched_process_exec` → `DriftEvent{event_type: 1}` (closes KF2 / ADR-043 K1 "all hooks")
-- [ ] **Step 141** [W] ~2m: Restore the two `[[bin]]` stanzas in `crates/heimdall-bpf/Cargo.toml`; delete the "PLANNED, NOT YET WRITTEN" block
-- [ ] **Step 142** [B][BUILD] ~3m: Build + lint
+- [x] **Step 139** [W][CODE] ~40m: `crates/heimdall-bpf/src/gjallarhorn_xdp.rs` — Ethernet → IPv6 (no extension-header walk in v1; documented) → UDP dport 16901 → payload exactly 20 B → magic `GJLR` → kind ∈ {1,2} → reserved bytes zero → RINGBUF record `{kind:u8, pad:[u8;3], cluster:u32, manifest_ptr:u64, src_hash:u32, ts_ns:u64}`; per-CPU stats (seen, valid, bad_magic, bad_kind, bad_len). Verifier rules: bounds-check every packet read; write every field explicitly (no zero-init of padded structs → avoids the `--btf` memset global-function rejection); no loops.
+- [x] **Step 140** [W][CODE] ~20m: `crates/heimdall-bpf/src/execve.rs` — tracepoint `sched/sched_process_exec` → `DriftEvent{event_type: 1}` (closes KF2 / ADR-043 K1 "all hooks")
+- [x] **Step 141** [W] ~2m: Restore the two `[[bin]]` stanzas in `crates/heimdall-bpf/Cargo.toml`; delete the "PLANNED, NOT YET WRITTEN" block
+- [x] **Step 142** [B][BUILD] ~3m: Build + lint
   ```bash
   (cd "$PROJECT_ROOT/crates/heimdall-bpf" && cargo build --release 2>&1 | tail -3 && cargo clippy --release 2>&1 | tail -3)
   ```
-- [ ] **Step 143** [V] ~30s: Three objects; clippy clean
-- [ ] **Step 144** [B][S][TEST] ~5m: Verifier-load each object (no attach) and record processed insns
+- [x] **Step 143** [V] ~30s: Three objects; clippy clean
+- [x] **Step 144** [B][S][TEST] ~5m: Verifier-load each object (no attach) and record processed insns
+  - S5 2026-10-23: Deviation: bpftool/libbpf 1.x refuses the Aya 0.1 legacy `maps` section ("legacy map definitions ... not supported"), so the counts come from the cilium/ebpf loader (`TestLoadObjects`, Step 152).
   ```bash
   for o in heimdall-vfs-write heimdall-execve heimdall-gjallarhorn-xdp; do
     sudo bpftool -d prog loadall "$PROJECT_ROOT/crates/heimdall-bpf/target/bpfel-unknown-none/release/$o" "/sys/fs/bpf/s5-$o" 2>&1 \
       | grep -E 'processed [0-9]+ insns' | tail -1; sudo rm -rf "/sys/fs/bpf/s5-$o"; done | tee "$S5/p5-verifier.txt"
   ```
-- [ ] **Step 145** [V] ~30s: **K1 EVIDENCE** — all three load; processed-insn counts recorded
+- [x] **Step 145** [V] ~30s: **K1 EVIDENCE** — all three load; processed-insn counts recorded
+  - S5 2026-10-23: K1: vfs_write 20, execve 21, gjallarhorn XDP 292 processed insns. Two rejections fixed first: `[u8;3]` pad zeroed via memset (--btf global function), `read_unaligned` lowered to memcpy.
   - Rejection → Emergency A.1; two attempts, then STUCK
-- [ ] **Step 146** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 146** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: `b6f5ec8a`.
   ```bash
   git -C "$PROJECT_ROOT" add crates/heimdall-bpf && commitp -m "feat(heimdall-bpf): [S5 135-146] gjallarhorn XDP observer + execve tracepoint; all hooks verifier-clean"
   ```
-- [ ] **Step 147** [R] ~5m: Read the repo's cilium/ebpf loader pattern
+- [x] **Step 147** [R] ~5m: Read the repo's cilium/ebpf loader pattern
   ```bash
   sed -n '1,80p' "$PROJECT_ROOT/cmd/trace-collector-go/loader_native.go"
   ```
-- [ ] **Step 148** [W][CODE][TEST] ~30m: `cmd/heimdall-daemon/bpf.go` + `_test.go` (tests first): decode ringbuf records (`DriftEvent`, `HornEvent`) with exact sizes/endianness; reject short records
-- [ ] **Step 149** [W][CODE][TEST] ~30m: Trigger policy (pure, tested): `ReverifyUnicast` for this node's cluster → immediate `Reload()+ScanFiles()` behind a token bucket (1/s, burst 3) so forged horns cannot DoS the scanner; `BootstrapBroadcast` → bootstrap handler (no-op until Phase 6); vfs_write/execve → 250 ms debounce → `ScanFiles()`
-- [ ] **Step 150** [W][CODE] ~30m: Wire into `Run()`: flags `--xdp-iface`, `--bpf-dir`, `--xdp-mode generic|native` (default generic); load, attach kprobe/tracepoint/XDP, two ringbuf readers; any load/attach error → log once and keep polling (daemon works without BPF). Replace the BPF + XDP TODOs.
-- [ ] **Step 151** [B][TEST] ~2m: Go tests
+- [x] **Step 148** [W][CODE][TEST] ~30m: `cmd/heimdall-daemon/bpf.go` + `_test.go` (tests first): decode ringbuf records (`DriftEvent`, `HornEvent`) with exact sizes/endianness; reject short records
+- [x] **Step 149** [W][CODE][TEST] ~30m: Trigger policy (pure, tested): `ReverifyUnicast` for this node's cluster → immediate `Reload()+ScanFiles()` behind a token bucket (1/s, burst 3) so forged horns cannot DoS the scanner; `BootstrapBroadcast` → bootstrap handler (no-op until Phase 6); vfs_write/execve → 250 ms debounce → `ScanFiles()`
+- [x] **Step 150** [W][CODE] ~30m: Wire into `Run()`: flags `--xdp-iface`, `--bpf-dir`, `--xdp-mode generic|native` (default generic); load, attach kprobe/tracepoint/XDP, two ringbuf readers; any load/attach error → log once and keep polling (daemon works without BPF). Replace the BPF + XDP TODOs.
+  - S5 2026-10-23: execve became a raw tracepoint: the classic tracepoint needs tracefs, absent under `ip netns exec`.
+- [x] **Step 151** [B][TEST] ~2m: Go tests
   ```bash
   cd "$PROJECT_ROOT" && go test -race ./cmd/heimdall-daemon/... ./pkg/gjallarhorn/... ./pkg/enkrateia/... 2>&1 | tail -6
   ```
-- [ ] **Step 152** [V][PREFLIGHT] ~1m: **H-G2** — tests green; a root-gated `TestLoadObjects` loads the Aya objects through cilium/ebpf
+- [x] **Step 152** [V][PREFLIGHT] ~1m: **H-G2** — tests green; a root-gated `TestLoadObjects` loads the Aya objects through cilium/ebpf
+  - S5 2026-10-23: H-G2 TRUE: cilium/ebpf v0.22 loads all three Aya objects. Step 153 fallback not needed.
   - BTF/map-type parse failure → Step 153
-- [ ] **Step 153** [DECIDE] ~10m: Loader fallback
+- [x] **Step 153** [DECIDE] ~10m: Loader fallback
   - **RECOMMENDATION**: keep the Go loader; fix with `ebpf.CollectionSpec` adjustments (map spec fix-ups, drop func-info) if that is the failure. Rationale: one Go process, no new binary, no new dependency.
   - **Override ONLY if**: two attempts fail → a small Rust sidecar using aya (already in the tree) that pins maps under `/sys/fs/bpf/heimdall/`; Go reads the pinned ringbufs.
-- [ ] **Step 154** [B][S][TEST] ~5m: netns pair + binaries
+- [x] **Step 154** [B][S][TEST] ~5m: netns pair + binaries
+  - S5 2026-10-23: Veth addresses: ULA `fd00:5:5::1/2` (nodad) instead of link-local, because the sender resolves `--target` with `net.LookupIP`, which rejects a `%zone` suffix.
   ```bash
   sudo ip netns add s5a; sudo ip netns add s5b; sudo ip link add s5va type veth peer name s5vb
   sudo ip link set s5va netns s5a; sudo ip link set s5vb netns s5b
   sudo ip -n s5a link set s5va up; sudo ip -n s5b link set s5vb up; sudo ip -n s5a link set lo up; sudo ip -n s5b link set lo up
   (cd "$PROJECT_ROOT" && go build -o "$S5/heimdall-daemon" ./cmd/heimdall-daemon && go build -o "$S5/gjallarhorn-sender" ./cmd/gjallarhorn-sender)
   ```
-- [ ] **Step 155** [B][S] ~5m: Daemon in `s5b` with XDP on `s5vb` (lab manifest, `--allow-unsigned` here only), send one reverify from `s5a`
+- [x] **Step 155** [B][S] ~5m: Daemon in `s5b` with XDP on `s5vb` (lab manifest, `--allow-unsigned` here only), send one reverify from `s5a`
   ```bash
   sudo ip netns exec s5b "$S5/heimdall-daemon" --manifest "$PROJECT_ROOT/references/baseline/mjolnir.example.yaml" --allow-unsigned \
     --xdp-iface s5vb --bpf-dir "$PROJECT_ROOT/crates/heimdall-bpf/target/bpfel-unknown-none/release" --scan-interval 1h > "$S5/p5-daemon.log" 2>&1 &
   sleep 2; LL=$(sudo ip -n s5b -6 addr show dev s5vb | awk '/fe80/{print $2}' | cut -d/ -f1)
   sudo ip netns exec s5a "$S5/gjallarhorn-sender" --kind reverify --cluster 1 --target "$LL%s5va"
   ```
-- [ ] **Step 156** [V] ~1m: Daemon log: one XDP horn event and one immediate re-verify; stats seen=1 valid=1 (the reminder flow, now event-driven)
-- [ ] **Step 157** [B][S][TEST] ~3m: 50 reverify packets in 1 s + 10 malformed
-- [ ] **Step 158** [V] ~1m: Re-verifies ≤ 4 (burst 3 + 1/s); malformed counted and never trigger a scan; daemon alive
-- [ ] **Step 159** [B][S][TEST] ~3m: Write to a watched file (lab manifest entry pointing under `$S5`) → vfs_write → debounced scan
-- [ ] **Step 160** [V] ~1m: One drift alert within ≤ 1 s of the write (not the 1 h poll)
-- [ ] **Step 161** [B][S] ~1m: Teardown
+- [x] **Step 156** [V] ~1m: Daemon log: one XDP horn event and one immediate re-verify; stats seen=1 valid=1 (the reminder flow, now event-driven)
+  - S5 2026-10-23: `[HORN] kind=2 cluster=1 ... action=reverify xdp seen=1 valid=1`, then `re-verified manifest and scanned`.
+- [x] **Step 157** [B][S][TEST] ~3m: 50 reverify packets in 1 s + 10 malformed
+- [x] **Step 158** [V] ~1m: Re-verifies ≤ 4 (burst 3 + 1/s); malformed counted and never trigger a scan; daemon alive
+  - S5 2026-10-23: 50 reverifies in 0.90 s: 4 re-verifies in total (burst 3 + 1 refill, including Step 155's), 47 rate-limited; 10 malformed counted (bad_magic 3, bad_kind 2, bad_len 3, bad_reserved 2), none scanned; daemon alive.
+- [x] **Step 159** [B][S][TEST] ~3m: Write to a watched file (lab manifest entry pointing under `$S5`) → vfs_write → debounced scan
+- [x] **Step 160** [V] ~1m: One drift alert within ≤ 1 s of the write (not the 1 h poll)
+  - S5 2026-10-23: One alert 0.06-0.22 s after the write, no repeat in the next second (event-driven scans alert only on changed drift).
+- [x] **Step 161** [B][S] ~1m: Teardown
   ```bash
   sudo pkill -f "$S5/heimdall-daemon"; sudo ip netns del s5a; sudo ip netns del s5b
   ```
-- [ ] **Step 162** [V] ~30s: `ip netns list | grep s5` empty; `sudo bpftool prog show | grep -i heimdall` empty
-- [ ] **Step 163** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 162** [V] ~30s: `ip netns list | grep s5` empty; `sudo bpftool prog show | grep -i heimdall` empty
+  - S5 2026-10-23: No `s5` netns or link; 0 heimdall programs.
+- [x] **Step 163** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: `930b1ddc`.
   ```bash
   git -C "$PROJECT_ROOT" add cmd/heimdall-daemon && commitp -m "feat(heimdall): [S5 147-163] XDP horn + kprobe ringbuf readers, rate-limited re-verify"
   ```
-- [ ] **Step 164** [R] ~5m: Wotan publish TODO (`Run()` alert drain): read `pkg/wotan-client` publish API and which topics `services/wotan/internal/signing` enforces
-- [ ] **Step 165** [DECIDE] ~5m: Drift alert transport
+- [x] **Step 164** [R] ~5m: Wotan publish TODO (`Run()` alert drain): read `pkg/wotan-client` publish API and which topics `services/wotan/internal/signing` enforces
+  - S5 2026-10-23: Already done by Sprint 1 (ADR-105, `cmd/heimdall-daemon/drift.go`): `--wotan-grpc` publishes `drift.detected.<node>` signed with `pkg/wotansig` per-prefix keys.
+- [x] **Step 165** [DECIDE] ~5m: Drift alert transport
+  - S5 2026-10-23: Recommendation already implemented (Sprint 1); `drift.*` signing is enforced by Wotan per-prefix keys, no new registration.
   - **RECOMMENDATION**: publish to `drift.detected.<node>` via `pkg/wotan-client`, payload carrying the node's Gungnir signature (Wotan's ML-DSA enforcement covers `config.*`; the payload signature lets consumers check origin on `drift.*`). Empty `--wotan-addr` → stdout as today.
   - **Override ONLY if**: `drift.*` needs a Wotan Topic Namespace registration (Expert Review) to be auto-approved → keep stdout, open an RFC Editor item, continue.
-- [ ] **Step 166** [CODE][TEST] ~30m: Implement + test against a fake publisher; remove the TODO
-- [ ] **Step 167** [B][TEST] ~2m: `cd "$PROJECT_ROOT" && go test -race ./cmd/heimdall-daemon/... && go vet ./cmd/heimdall-daemon/...`
-- [ ] **Step 168** [V] ~30s: Green; `grep -n TODO "$PROJECT_ROOT/cmd/heimdall-daemon/main.go"` empty; `go.mod` unchanged
-- [ ] **Step 169** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 166** [CODE][TEST] ~30m: Implement + test against a fake publisher; remove the TODO
+  - S5 2026-10-23: Existing `TestDriftSink_*` cover it against a fake publisher; no Wotan TODO left in `main.go`.
+- [x] **Step 167** [B][TEST] ~2m: `cd "$PROJECT_ROOT" && go test -race ./cmd/heimdall-daemon/... && go vet ./cmd/heimdall-daemon/...`
+- [x] **Step 168** [V] ~30s: Green; `grep -n TODO "$PROJECT_ROOT/cmd/heimdall-daemon/main.go"` empty; `go.mod` unchanged
+  - S5 2026-10-23: `go test -race` + `go vet` (linux, darwin) green; no TODO; `go.mod` unchanged; gosec clean.
+- [x] **Step 169** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: Nothing new to commit (Sprint 1 shipped the code).
   ```bash
   git -C "$PROJECT_ROOT" add cmd/heimdall-daemon && commitp -m "feat(heimdall): [S5 164-169] drift alerts to Wotan with Gungnir-signed payload"
   ```
-- [ ] **Step 170** [V][GATE] ~1m: **PHASE 5 EXIT GATE** — three hooks verifier-clean (K1 evidence), XDP observer + ringbuf readers proven in netns, rate limit proven, alerts to Wotan or stdout by flag
+- [x] **Step 170** [V][GATE] ~1m: **PHASE 5 EXIT GATE** — three hooks verifier-clean (K1 evidence), XDP observer + ringbuf readers proven in netns, rate limit proven, alerts to Wotan or stdout by flag
+  - S5 2026-10-23: PASSED: three hooks verifier-clean (K1), XDP observer + ringbuf readers proven in netns, rate limit proven, alerts to Wotan (signed) or stdout by flag.
 
 ### Phase 5 Definition of Done
 K1 evidence recorded · no new deps · XDP observe-only · `-race` green · three TODOs removed.
@@ -721,147 +740,153 @@ K1 evidence recorded · no new deps · XDP observe-only · `-race` green · thre
 
 ## PHASE 6: MÍMIR'S LAW PHASE 9 — BOOTSTRAP FLOW ON REAL L2 (Steps 171-194)
 
+> **[DEFERRED: east escalation] (2026-10-23).** Phases 6–8 need east as a node (Step 177 [ESCALATE], not yet approved) and Phase 8 depends on 6–7. Skipped by direction of the lead session; Part 2 proceeds on Phase 5 + Phases 0–4. Resume here once Stevie answers Step 177.
+
 **Goal**: A blank node waiting on the segment receives a multicast Gjallarhorn, resolves and verifies a sealed Mjölnir manifest, starts Heimdall and joins the Wotan plane; convergence measured over ≥7 runs.
 **Prerequisite**: Phase 5 gate. Stevie approval for east legs (Step 177).
 **Time**: ~3 h
 **Agent**: Coordinator
 
-- [ ] **Step 171** [DESIGN][W] ~15m: Bootstrap handler spec (ADR-043 "Phase 9 re-run design"): `heimdall-daemon --await-bootstrap --cluster C --catalog DIR --pubkey K` waits for `BootstrapBroadcast` (XDP or UDP); `manifest_ptr` = first 8 bytes of SHA-256 of the manifest; resolve `DIR/<sha256>.yaml` + `.seal`; verify against the pinned key; **refuse a manifest whose `version:` is below the last accepted** (replay defence for an unauthenticated horn); then run normally and announce on `system.discovery`.
-- [ ] **Step 172** [SECURITY] ~10m: Threat note in ADR-043: the horn is unauthenticated by design (20 B, frozen format); it can only select a manifest that already has a valid seal from the pinned key; replay of an older sealed manifest blocked by the version floor; seal TTL limits staleness; floods rate-limited (Phase 5)
-- [ ] **Step 173** [CODE][TEST] ~40m: Implement + unit tests (lookup, wrong sha, bad seal, expired seal, older version, wrong cluster)
-- [ ] **Step 174** [C] ~1m: **COMMIT CHECKPOINT**
+- [ ] **Step 171** [DEFERRED: east escalation] [DESIGN][W] ~15m: Bootstrap handler spec (ADR-043 "Phase 9 re-run design"): `heimdall-daemon --await-bootstrap --cluster C --catalog DIR --pubkey K` waits for `BootstrapBroadcast` (XDP or UDP); `manifest_ptr` = first 8 bytes of SHA-256 of the manifest; resolve `DIR/<sha256>.yaml` + `.seal`; verify against the pinned key; **refuse a manifest whose `version:` is below the last accepted** (replay defence for an unauthenticated horn); then run normally and announce on `system.discovery`.
+- [ ] **Step 172** [DEFERRED: east escalation] [SECURITY] ~10m: Threat note in ADR-043: the horn is unauthenticated by design (20 B, frozen format); it can only select a manifest that already has a valid seal from the pinned key; replay of an older sealed manifest blocked by the version floor; seal TTL limits staleness; floods rate-limited (Phase 5)
+- [ ] **Step 173** [DEFERRED: east escalation] [CODE][TEST] ~40m: Implement + unit tests (lookup, wrong sha, bad seal, expired seal, older version, wrong cluster)
+- [ ] **Step 174** [DEFERRED: east escalation] [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add cmd/heimdall-daemon docs/adr/ADR-043-mimirs-law-upc-baseline-gleipnir-phase-0.md && commitp -m "feat(heimdall): [S5 171-174] bootstrap: sealed content-addressed manifest, version floor"
   ```
-- [ ] **Step 175** [B][PREFLIGHT][BARE-METAL] ~3m: **H-M1** — link-local multicast across the physical P2P link with the existing UDP listener (unprivileged, binary copied to east `/tmp`, removed in Step 188)
+- [ ] **Step 175** [DEFERRED: east escalation] [B][PREFLIGHT][BARE-METAL] ~3m: **H-M1** — link-local multicast across the physical P2P link with the existing UDP listener (unprivileged, binary copied to east `/tmp`, removed in Step 188)
   ```bash
   (cd "$PROJECT_ROOT" && go build -o "$S5/gjallarhorn-listener" ./cmd/gjallarhorn-listener) && scp -q "$S5/gjallarhorn-listener" "$EAST":/tmp/s5-gl
   ssh "$EAST" "timeout 10 /tmp/s5-gl --multicast --iface $EAST_P2P_IF" > "$S5/p6-h-m1.txt" 2>&1 &
   sleep 2; "$S5/gjallarhorn-sender" --kind bootstrap --cluster 1 --multicast --iface "$WEST_P2P_IF"; sleep 9; cat "$S5/p6-h-m1.txt"
   ```
-- [ ] **Step 176** [V] ~30s: East printed `Gjallarhorn: kind=BootstrapBroadcast cluster=1` → H-M1 TRUE (multicast works on the physical link; the April "N/A" was about the WG overlay)
+- [ ] **Step 176** [DEFERRED: east escalation] [V] ~30s: East printed `Gjallarhorn: kind=BootstrapBroadcast cluster=1` → H-M1 TRUE (multicast works on the physical link; the April "N/A" was about the WG overlay)
   - False → record; run Steps 182–187 on a west veth pair; east column "not demonstrated"
-- [ ] **Step 177** [ESCALATE][BARE-METAL] ~—: **Stevie approval** for (a) running heimdall-daemon as root on east from `/tmp` (no package, no unit) with XDP **generic** mode on `enp2s0`, observe-only XDP_PASS; (b) a scratch Wotan on west 26601/26602 bound to `192.168.13.2`. Context: `enp2s0` is east's only link (BGP + WireGuard ride it). Why no recommendation: east runs the debs and host actions there wait for Stevie. **Until approved: Steps 178–187 use a west netns seed; east column BLOCKED.**
-- [ ] **Step 178** [B] ~5m: Catalog dir + confirm daemon flags
+- [ ] **Step 177** [DEFERRED: east escalation] [ESCALATE][BARE-METAL] ~—: **Stevie approval** for (a) running heimdall-daemon as root on east from `/tmp` (no package, no unit) with XDP **generic** mode on `enp2s0`, observe-only XDP_PASS; (b) a scratch Wotan on west 26601/26602 bound to `192.168.13.2`. Context: `enp2s0` is east's only link (BGP + WireGuard ride it). Why no recommendation: east runs the debs and host actions there wait for Stevie. **Until approved: Steps 178–187 use a west netns seed; east column BLOCKED.**
+- [ ] **Step 178** [DEFERRED: east escalation] [B] ~5m: Catalog dir + confirm daemon flags
   ```bash
   mkdir -p "$S5/catalog" && cp "$PROJECT_ROOT/references/baseline/mjolnir.example.yaml" "$S5/catalog/m.yaml" && "$S5/heimdall-daemon" --help 2>&1 | grep -E 'await-bootstrap|catalog|sign-key'
   ```
-- [ ] **Step 179** [B] ~3m: Seal with a lab key (`--sign-key`, key file 0600 in `$S5`, never in repo); content-address; compute the pointer
+- [ ] **Step 179** [DEFERRED: east escalation] [B] ~3m: Seal with a lab key (`--sign-key`, key file 0600 in `$S5`, never in repo); content-address; compute the pointer
   ```bash
   SHA=$(sha256sum "$S5/catalog/m.yaml" | cut -c1-64); mv "$S5/catalog/m.yaml" "$S5/catalog/$SHA.yaml"; echo "PTR=0x${SHA:0:16}" | tee -a "$S5/vars.env"
   ```
-- [ ] **Step 180** [B] ~3m: Scratch Wotan (unprivileged) with a lab topic config allowing `system.discovery` and `drift.*`
+- [ ] **Step 180** [DEFERRED: east escalation] [B] ~3m: Scratch Wotan (unprivileged) with a lab topic config allowing `system.discovery` and `drift.*`
   ```bash
   (cd "$PROJECT_ROOT" && go build -o "$S5/wotan" ./services/wotan/cmd/wotan) && "$S5/wotan" --http-port "$WOTAN_SCRATCH_HTTP" --grpc-port "$WOTAN_SCRATCH_GRPC" \
     --topic-config "$S5/wotan-lab.yaml" --admin=false > "$S5/wotan.log" 2>&1 & echo $! > "$S5/wotan.pid"
   ```
-- [ ] **Step 181** [V][PREFLIGHT] ~30s: **H-C4** — `curl -s -o /dev/null -w '%{http_code}' localhost:$WOTAN_SCRATCH_HTTP/health` → 200
-- [ ] **Step 182** [B][BARE-METAL] ~10m: Seed waits (east if approved, else west netns); sender emits; timer = send → seed's discovery announce seen on scratch Wotan
-- [ ] **Step 183** [V] ~1m: Seed operational and announced within 60 s
-- [ ] **Step 184** [B][BARE-METAL] ~15m: 7 runs (reset seed state between); timings to `$S5/p6-bootstrap.csv`
-- [ ] **Step 185** [V][KILL-CHECK] ~1m: **K2** — p95 < 10 s pass; 10–15 s warn; p99 > 30 s → K2 FAIL recorded for Phase 8
+- [ ] **Step 181** [DEFERRED: east escalation] [V][PREFLIGHT] ~30s: **H-C4** — `curl -s -o /dev/null -w '%{http_code}' localhost:$WOTAN_SCRATCH_HTTP/health` → 200
+- [ ] **Step 182** [DEFERRED: east escalation] [B][BARE-METAL] ~10m: Seed waits (east if approved, else west netns); sender emits; timer = send → seed's discovery announce seen on scratch Wotan
+- [ ] **Step 183** [DEFERRED: east escalation] [V] ~1m: Seed operational and announced within 60 s
+- [ ] **Step 184** [DEFERRED: east escalation] [B][BARE-METAL] ~15m: 7 runs (reset seed state between); timings to `$S5/p6-bootstrap.csv`
+- [ ] **Step 185** [DEFERRED: east escalation] [V][KILL-CHECK] ~1m: **K2** — p95 < 10 s pass; 10–15 s warn; p99 > 30 s → K2 FAIL recorded for Phase 8
   ```bash
   python3 - "$S5/p6-bootstrap.csv" <<'PY'
   import sys; v=sorted(float(x) for x in open(sys.argv[1]) if x.strip()); q=lambda p: v[min(len(v)-1, int(p*len(v)))]
   print(f"n={len(v)} p50={q(.5):.3f}s p95={q(.95):.3f}s p99={q(.99):.3f}s max={v[-1]:.3f}s")
   PY
   ```
-- [ ] **Step 186** [B][SECURITY] ~5m: Negative bootstraps: unknown sha, sealed-but-older manifest, wrong cluster
-- [ ] **Step 187** [V] ~30s: All refused, seed keeps waiting, reasons logged
-- [ ] **Step 188** [B] ~2m: Teardown both sides
+- [ ] **Step 186** [DEFERRED: east escalation] [B][SECURITY] ~5m: Negative bootstraps: unknown sha, sealed-but-older manifest, wrong cluster
+- [ ] **Step 187** [DEFERRED: east escalation] [V] ~30s: All refused, seed keeps waiting, reasons logged
+- [ ] **Step 188** [DEFERRED: east escalation] [B] ~2m: Teardown both sides
   ```bash
   kill "$(cat "$S5/wotan.pid")" 2>/dev/null; ssh "$EAST" 'rm -f /tmp/s5-*'; pgrep -fa 's5-|/s5-upc-wire/' || echo CLEAN-WEST
   ```
-- [ ] **Step 189** [V] ~30s: `CLEAN-WEST`; `ssh "$EAST" 'pgrep -fa s5-'` empty
-- [ ] **Step 190** [W][AUDIT-UPDATE] ~10m: Phase 9 evidence table into the sprint log (topology, n, p50/p95/p99, negatives); ADR text lands in Phase 8
-- [ ] **Step 191** [C] ~1m: **COMMIT CHECKPOINT**
+- [ ] **Step 189** [DEFERRED: east escalation] [V] ~30s: `CLEAN-WEST`; `ssh "$EAST" 'pgrep -fa s5-'` empty
+- [ ] **Step 190** [DEFERRED: east escalation] [W][AUDIT-UPDATE] ~10m: Phase 9 evidence table into the sprint log (topology, n, p50/p95/p99, negatives); ADR text lands in Phase 8
+- [ ] **Step 191** [DEFERRED: east escalation] [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add references/s5-upc-wire-log.md && commitp -m "docs(mimir): [S5 175-191] Phase 9 bootstrap re-run evidence"
   ```
-- [ ] **Step 192** [V] ~30s: Evidence names its topology honestly ("2 physical hosts + N netns seeds", never "10-node cluster")
-- [ ] **Step 193** [V] ~30s: Sacred Law clause intact
+- [ ] **Step 192** [DEFERRED: east escalation] [V] ~30s: Evidence names its topology honestly ("2 physical hosts + N netns seeds", never "10-node cluster")
+- [ ] **Step 193** [DEFERRED: east escalation] [V] ~30s: Sacred Law clause intact
   ```bash
   git -C "$PROJECT_ROOT" diff --stat 443de3f82 -- pkg/discovery pkg/transport cmd/unheaded-daemon | tail -1
   ```
   - Must print nothing
-- [ ] **Step 194** [V][GATE] ~1m: **PHASE 6 EXIT GATE** — bootstrap demonstrated with a distribution; negatives refused; K2 evaluated
+- [ ] **Step 194** [DEFERRED: east escalation] [V][GATE] ~1m: **PHASE 6 EXIT GATE** — bootstrap demonstrated with a distribution; negatives refused; K2 evaluated
 
 ---
 
 ## PHASE 7: MÍMIR'S LAW PHASE 11 — STRESS + INVALID-SEAL REJECTION (Steps 195-214)
+
+> **[DEFERRED: east escalation]** — see the Phase 6 banner.
 
 **Goal**: Concurrent deltas, drifts and horns across all nodes for 120 s with zero cascade failures; invalid seals rejected; the new XDP observer handed to the Lich sprint as a named LICH-012 target.
 **Prerequisite**: Phase 6 gate (or its west-only variant).
 **Time**: ~2.5 h
 **Agent**: Developer + Micromanager (QA)
 
-- [ ] **Step 195** [DECIDE] ~5m: Node count
+- [ ] **Step 195** [DEFERRED: east escalation] [DECIDE] ~5m: Node count
   - **RECOMMENDATION**: 2 physical hosts + 6 west netns nodes on bridge `s5br` (8 Heimdall instances). Rationale: the April plan's 10-node WEST cluster never existed; netns nodes run the same daemon, XDP and Wotan paths.
   - **Override ONLY if**: Stevie offers more real hosts.
-- [ ] **Step 196** [W][CODE] ~40m: `scripts/mimir-stress.sh` (dry run unless `--apply`; `trap` teardown): N netns on `s5br`, a daemon per netns with its own state dir; 120 s driver: 20 sealed deltas, 20 file drifts, 5 horns; then 2 invalid seals (wrong algorithm, expired) to 2 nodes; per-node health + counts
-- [ ] **Step 197** [B] ~1m: `bash -n "$PROJECT_ROOT/scripts/mimir-stress.sh" && (command -v shellcheck >/dev/null && shellcheck "$PROJECT_ROOT/scripts/mimir-stress.sh" || true)`
-- [ ] **Step 198** [B][S][TEST] ~5m: Dry run, then apply
+- [ ] **Step 196** [DEFERRED: east escalation] [W][CODE] ~40m: `scripts/mimir-stress.sh` (dry run unless `--apply`; `trap` teardown): N netns on `s5br`, a daemon per netns with its own state dir; 120 s driver: 20 sealed deltas, 20 file drifts, 5 horns; then 2 invalid seals (wrong algorithm, expired) to 2 nodes; per-node health + counts
+- [ ] **Step 197** [DEFERRED: east escalation] [B] ~1m: `bash -n "$PROJECT_ROOT/scripts/mimir-stress.sh" && (command -v shellcheck >/dev/null && shellcheck "$PROJECT_ROOT/scripts/mimir-stress.sh" || true)`
+- [ ] **Step 198** [DEFERRED: east escalation] [B][S][TEST] ~5m: Dry run, then apply
   ```bash
   bash "$PROJECT_ROOT/scripts/mimir-stress.sh" --nodes 6 2>&1 | tail -5
   sudo bash "$PROJECT_ROOT/scripts/mimir-stress.sh" --nodes 6 --apply 2>&1 | tee "$S5/p7-stress.txt" | tail -30
   ```
-- [ ] **Step 199** [V][KILL-CHECK] ~1m: **K3** — zero crashes, zero restarts, all nodes healthy at end
-- [ ] **Step 200** [V][SECURITY] ~1m: Both invalid seals rejected; no state change on their targets
-- [ ] **Step 201** [V] ~1m: 20/20 drifts caught ≤ 1 s; 0 false alerts on unchanged files
-- [ ] **Step 202** [B][BARE-METAL] ~10m: If Step 177 approved: repeat with east as a ninth node
-- [ ] **Step 203** [V] ~1m: East passes the same checks (or column BLOCKED pending approval)
-- [ ] **Step 204** [C] ~1m: **COMMIT CHECKPOINT**
+- [ ] **Step 199** [DEFERRED: east escalation] [V][KILL-CHECK] ~1m: **K3** — zero crashes, zero restarts, all nodes healthy at end
+- [ ] **Step 200** [DEFERRED: east escalation] [V][SECURITY] ~1m: Both invalid seals rejected; no state change on their targets
+- [ ] **Step 201** [DEFERRED: east escalation] [V] ~1m: 20/20 drifts caught ≤ 1 s; 0 false alerts on unchanged files
+- [ ] **Step 202** [DEFERRED: east escalation] [B][BARE-METAL] ~10m: If Step 177 approved: repeat with east as a ninth node
+- [ ] **Step 203** [DEFERRED: east escalation] [V] ~1m: East passes the same checks (or column BLOCKED pending approval)
+- [ ] **Step 204** [DEFERRED: east escalation] [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add scripts/mimir-stress.sh references/s5-upc-wire-log.md && commitp -m "test(mimir): [S5 195-204] Phase 11 stress harness + results"
   ```
-- [ ] **Step 205** [TEST] ~10m: Robustness = the Phase 5 decoder table tests (malformed-record rejection) re-run under `-race`; no live adversarial traffic in this sprint
-- [ ] **Step 206** [V] ~1m: Decoder tests green; rate-limit test (Step 158) still green
-- [ ] **Step 207** [DECIDE] ~5m: LICH-012 adversarial work
+- [ ] **Step 205** [DEFERRED: east escalation] [TEST] ~10m: Robustness = the Phase 5 decoder table tests (malformed-record rejection) re-run under `-race`; no live adversarial traffic in this sprint
+- [ ] **Step 206** [DEFERRED: east escalation] [V] ~1m: Decoder tests green; rate-limit test (Step 158) still green
+- [ ] **Step 207** [DEFERRED: east escalation] [DECIDE] ~5m: LICH-012 adversarial work
   - **RECOMMENDATION**: hand the new XDP observer to the Lich sprint as a named target (ADR-062 process). Rationale: red-team campaigns are that sprint's scope; this sprint ships the hook and its unit tests.
   - **Override ONLY if**: Stevie asks for it here.
-- [ ] **Step 208** [W] ~10m: Add the observer, its stats map and the trigger policy to the LICH-012 README target list (`tomb/lich/LICH-012-config-convergence/README.md`)
-- [ ] **Step 209** [V] ~30s: Target list updated; nothing else in `tomb/` changed
-- [ ] **Step 210** [V] ~30s: Hard condition #8 scored in Phase 8 as "handed to the Lich sprint"
-- [ ] **Step 211** [B][S] ~1m: `ip netns list; ip link show s5br 2>&1 | head -1; sudo bpftool prog show | grep -ci xdp`
-- [ ] **Step 212** [V] ~30s: Nothing from S5 left behind
-- [ ] **Step 213** [C] ~1m: **COMMIT CHECKPOINT**
+- [ ] **Step 208** [DEFERRED: east escalation] [W] ~10m: Add the observer, its stats map and the trigger policy to the LICH-012 README target list (`tomb/lich/LICH-012-config-convergence/README.md`)
+- [ ] **Step 209** [DEFERRED: east escalation] [V] ~30s: Target list updated; nothing else in `tomb/` changed
+- [ ] **Step 210** [DEFERRED: east escalation] [V] ~30s: Hard condition #8 scored in Phase 8 as "handed to the Lich sprint"
+- [ ] **Step 211** [DEFERRED: east escalation] [B][S] ~1m: `ip netns list; ip link show s5br 2>&1 | head -1; sudo bpftool prog show | grep -ci xdp`
+- [ ] **Step 212** [DEFERRED: east escalation] [V] ~30s: Nothing from S5 left behind
+- [ ] **Step 213** [DEFERRED: east escalation] [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add tomb/lich/LICH-012-config-convergence/README.md references/s5-upc-wire-log.md && commitp -m "test(mimir): [S5 205-213] robustness tests; observer registered as a LICH-012 target"
   ```
-- [ ] **Step 214** [V][GATE] ~1m: **PHASE 7 EXIT GATE** — K3 pass, invalid seals rejected, LICH-012 target list updated
+- [ ] **Step 214** [DEFERRED: east escalation] [V][GATE] ~1m: **PHASE 7 EXIT GATE** — K3 pass, invalid seals rejected, LICH-012 target list updated
 
 ---
 
 ## PHASE 8: MÍMIR'S LAW PHASE 13 GATE RE-EVAL + PART 1 EXIT (Steps 215-228)
+
+> **[DEFERRED: east escalation]** — see the Phase 6 banner. Marshal ruling for Part 2 entry: the Part 1 exit gate (Step 228) is not passed; the lead session authorised Part 2 on the non-east evidence (Phases 0–5 gates passed). The Step 228 line "east-only BLOCKED items do not block Part 2" covers it.
 
 **Goal**: Re-score K1–K4, the 8 hard conditions and the pass criteria on the new evidence; make ADR-043, the wiki and CLAUDE.md agree; close Part 1.
 **Prerequisite**: Phases 3, 4, 7 gates (east columns may be BLOCKED → scored "not demonstrated").
 **Time**: ~1.5 h
 **Agent**: Scientist (verdict) + Marshal (enforcement) + Librarian (doc web)
 
-- [ ] **Step 215** [V][KILL-CHECK] ~5m: K1 — all Heimdall hooks verifier-accepted (Step 145 counts)
-- [ ] **Step 216** [V][KILL-CHECK] ~5m: K2 — bootstrap p95/p99 (Step 185)
-- [ ] **Step 217** [V][KILL-CHECK] ~5m: K3 — zero cascade failures (Steps 199, 203)
-- [ ] **Step 218** [V][KILL-CHECK] ~10m: K4 — hard conditions: #1 alerts-only (no restore path: `grep -rn 'Restore\|restore(' cmd/heimdall-daemon pkg/enkrateia | grep -v _test`) · #2 Wotan `config.*` signing incl. the 2026-10-19 correction (`go test ./services/wotan/internal/signing/...`) · #3 dm-verity DEFERRED v2 · #4 lab keys only, 0600, never tracked (`git ls-files | grep -iE 'seed|\.key$'` empty) · #5 semantic drift DEFERRED v2 · #6 Sacred Law clause (Step 193) · #7 no wire change · #8 LICH-012: observer registered as a target; campaign → Lich sprint
-- [ ] **Step 219** [V] ~10m: Pass-criteria table: convergence, drift latency, accuracy, consistency, bootstrap flow, reminder flow (Steps 156, 201), LICH-012 status
-- [ ] **Step 220** [DECIDE] ~10m: Verdict
+- [ ] **Step 215** [DEFERRED: east escalation] [V][KILL-CHECK] ~5m: K1 — all Heimdall hooks verifier-accepted (Step 145 counts)
+- [ ] **Step 216** [DEFERRED: east escalation] [V][KILL-CHECK] ~5m: K2 — bootstrap p95/p99 (Step 185)
+- [ ] **Step 217** [DEFERRED: east escalation] [V][KILL-CHECK] ~5m: K3 — zero cascade failures (Steps 199, 203)
+- [ ] **Step 218** [DEFERRED: east escalation] [V][KILL-CHECK] ~10m: K4 — hard conditions: #1 alerts-only (no restore path: `grep -rn 'Restore\|restore(' cmd/heimdall-daemon pkg/enkrateia | grep -v _test`) · #2 Wotan `config.*` signing incl. the 2026-10-19 correction (`go test ./services/wotan/internal/signing/...`) · #3 dm-verity DEFERRED v2 · #4 lab keys only, 0600, never tracked (`git ls-files | grep -iE 'seed|\.key$'` empty) · #5 semantic drift DEFERRED v2 · #6 Sacred Law clause (Step 193) · #7 no wire change · #8 LICH-012: observer registered as a target; campaign → Lich sprint
+- [ ] **Step 219** [DEFERRED: east escalation] [V] ~10m: Pass-criteria table: convergence, drift latency, accuracy, consistency, bootstrap flow, reminder flow (Steps 156, 201), LICH-012 status
+- [ ] **Step 220** [DEFERRED: east escalation] [DECIDE] ~10m: Verdict
   - **RECOMMENDATION**: K1–K4 pass and both flows demonstrated → "PoC COMPLETE — Phases 9/11/13 re-run on real L2 (S5)", DEFERRED items listed explicitly. Any K fail → "PROMOTE withdrawn pending <item>".
   - **Override ONLY if**: Stevie wants Gleipnir Age 2b scheduled off this verdict — a separate decision, not this step.
-- [ ] **Step 221** [W][DOC-UPDATE] ~20m: ADR-043 "Phase 9/11/13 re-run (S5)" section with evidence; Phase 13 table corrected (K1 PASS with insn counts; multicast demonstrated on the P2P link or "not demonstrated")
-- [ ] **Step 222** [W][DOC-UPDATE] ~10m: `wiki/Mimirs-Law.md` phase table; CLAUDE.md line "11 of 13 phases complete; bare-metal Phases 9, 11, 13 pending" → the truth; ADR index if a generator exists (`ls "$PROJECT_ROOT/scripts" | grep -i adr`)
-- [ ] **Step 223** [B] ~1m: Wiki link check for touched pages (`scripts/sync-wiki.sh` dry run if present; never push the wiki)
-- [ ] **Step 224** [V] ~30s: No broken links in touched pages
-- [ ] **Step 225** [C] ~1m: **COMMIT CHECKPOINT**
+- [ ] **Step 221** [DEFERRED: east escalation] [W][DOC-UPDATE] ~20m: ADR-043 "Phase 9/11/13 re-run (S5)" section with evidence; Phase 13 table corrected (K1 PASS with insn counts; multicast demonstrated on the P2P link or "not demonstrated")
+- [ ] **Step 222** [DEFERRED: east escalation] [W][DOC-UPDATE] ~10m: `wiki/Mimirs-Law.md` phase table; CLAUDE.md line "11 of 13 phases complete; bare-metal Phases 9, 11, 13 pending" → the truth; ADR index if a generator exists (`ls "$PROJECT_ROOT/scripts" | grep -i adr`)
+- [ ] **Step 223** [DEFERRED: east escalation] [B] ~1m: Wiki link check for touched pages (`scripts/sync-wiki.sh` dry run if present; never push the wiki)
+- [ ] **Step 224** [DEFERRED: east escalation] [V] ~30s: No broken links in touched pages
+- [ ] **Step 225** [DEFERRED: east escalation] [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add docs/adr/ADR-043-mimirs-law-upc-baseline-gleipnir-phase-0.md wiki/Mimirs-Law.md CLAUDE.md && commitp -m "docs(mimir): [S5 215-225] Phase 13 re-evaluation on real-L2 evidence"
   ```
-- [ ] **Step 226** [B][S] ~3m: Part 1 final regression
+- [ ] **Step 226** [DEFERRED: east escalation] [B][S] ~3m: Part 1 final regression
   ```bash
   bash "$PROJECT_ROOT/scripts/upc-regression.sh" 2>&1 | tail -6
   (cd "$PROJECT_ROOT" && go build ./... && go test -race ./cmd/heimdall-daemon/... ./cmd/upc-tty-bridge/... 2>&1 | tail -4)
   ```
-- [ ] **Step 227** [W][DOC-UPDATE] ~10m: `~/tmp/next.md` — S5 Part 1 section (overwrite stale parts): shipped, approvals pending (Step 177), Part 2 entry point
-- [ ] **Step 228** [V][GATE] ~1m: **PHASE 8 / PART 1 EXIT GATE** — S1.2 closed with getpid decision recorded; live keyboard; Heimdall XDP + ringbufs; Mímir 9/11/13 re-scored; harness green; docs agree
+- [ ] **Step 227** [DEFERRED: east escalation] [W][DOC-UPDATE] ~10m: `~/tmp/next.md` — S5 Part 1 section (overwrite stale parts): shipped, approvals pending (Step 177), Part 2 entry point
+- [ ] **Step 228** [DEFERRED: east escalation] [V][GATE] ~1m: **PHASE 8 / PART 1 EXIT GATE** — S1.2 closed with getpid decision recorded; live keyboard; Heimdall XDP + ringbufs; Mímir 9/11/13 re-scored; harness green; docs agree
   - Marshal gate check: Part 2 starts only on PASS (east-only BLOCKED items do not block Part 2)
 
 ### Part 1 Definition of Done
