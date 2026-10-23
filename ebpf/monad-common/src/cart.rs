@@ -730,14 +730,36 @@ pub fn run<const N: usize, R: CartRom + ?Sized, D: CartData + ?Sized, I: CartIo>
 ) -> Step {
     st.insns = 0;
     for _ in 0..N {
-        if st.insns >= cfg.max_insn as u32 {
-            break;
-        }
-        match step(st, cfg, rom, data, io) {
+        match run_one(st, cfg, rom, data, io) {
             Step::Continue => {}
             done => return done,
         }
     }
+    run_out(st, cfg)
+}
+
+/// One iteration of [`run`]: `Continue` while the cartridge runs and has
+/// budget left, otherwise how it stopped. BPF drives this from a `bpf_loop`
+/// callback (one verified body for any N); [`run`] drives it from a plain
+/// loop. Both then call [`run_out`] if every iteration returned `Continue`.
+#[inline(always)]
+pub fn run_one<R: CartRom + ?Sized, D: CartData + ?Sized, I: CartIo>(
+    st: &mut CartState,
+    cfg: &CartCfg,
+    rom: &R,
+    data: &D,
+    io: &mut I,
+) -> Step {
+    if st.insns >= cfg.max_insn as u32 {
+        return run_out(st, cfg);
+    }
+    step(st, cfg, rom, data, io)
+}
+
+/// How a run ends when its budget is spent: XDP `Fault(Budget)`, tick
+/// implicit `Yield`.
+#[inline(always)]
+pub fn run_out(st: &mut CartState, cfg: &CartCfg) -> Step {
     if cfg.stage == STAGE_TICK {
         st.status = status::YIELDED;
         Step::Yield
@@ -752,14 +774,20 @@ pub fn run<const N: usize, R: CartRom + ?Sized, D: CartData + ?Sized, I: CartIo>
 pub fn begin_run(st: &mut CartState, entry: u16) {
     let mut i = 0;
     while i < 16 {
-        st.regs[i] = 0;
+        // Volatile: a plain store loop becomes a memset call, which BPF with
+        // --btf rejects (S5 Phase 11). Same result on the host.
+        unsafe { core::ptr::write_volatile(&mut st.regs[i], 0) };
         i += 1;
     }
-    st.pc = entry;
-    st.flags = 0;
-    st.status = status::IDLE;
-    st.insns = 0;
-    st.back_edges = 0;
+    // Volatile for the same reason: LLVM merges these adjacent zero stores
+    // into a 10-byte memset otherwise.
+    unsafe {
+        core::ptr::write_volatile(&mut st.pc, entry);
+        core::ptr::write_volatile(&mut st.flags, 0);
+        core::ptr::write_volatile(&mut st.status, status::IDLE);
+        core::ptr::write_volatile(&mut st.insns, 0);
+        core::ptr::write_volatile(&mut st.back_edges, 0);
+    }
 }
 
 /// Reset `st` for a new tick job seeded with `feat` in `mem[0..8]`.
@@ -768,7 +796,8 @@ pub fn begin_job(st: &mut CartState, entry: u16, feat: &[u32; FEAT_WORDS]) {
     begin_run(st, entry);
     let mut i = 0;
     while i < MEM_WORDS {
-        st.mem[i] = if i < FEAT_WORDS { feat[i & 7] } else { 0 };
+        let v = if i < FEAT_WORDS { feat[i & 7] } else { 0 };
+        unsafe { core::ptr::write_volatile(&mut st.mem[i], v) };
         i += 1;
     }
 }
