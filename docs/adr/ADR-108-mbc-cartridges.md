@@ -301,6 +301,15 @@ No Monad wire change. No new MBC opcode (a `DOT4` for the scorer would be a
 full ISA spec gate, a separate sprint, [ESCALATE]). No packet rewrite or
 redirect verdict. No dashboard page. No deb/sysusers packaging.
 
+**DOT4, measured case (S5 Phase 15, deferred, not added).** The scorer built
+from existing opcodes spends 24 of ~41 instructions per hidden row on the
+inner product (`LDB; MUL; ADD` per weight), about 720 instructions per job in
+3 `cart_tick` calls, 251,572 flows/s on west (gate 100,000: met). A `DOT4 rd,
+rs, rt` (rd += the dot product of four u8 lanes) would make each row two word
+loads and two DOT4s: about 420 instructions per job, 2 calls, roughly 1.7x
+the throughput. The gate is met without it, so it stays a proposal for the
+ISA's own spec gate (MBC Opcode Registry, Standards Action).
+
 ## Consequences
 
 - A network function becomes signed data with a replayable execution

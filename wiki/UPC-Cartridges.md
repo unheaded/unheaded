@@ -67,11 +67,44 @@ validator on the exact bytes it then writes.
 | `unheaded_cart_queue_depth`, `unheaded_cart_scores_total`, `unheaded_cart_xdp_packets_total`, `unheaded_cart_breaker_trips_total`, `unheaded_cart_events_dropped_total` | — |
 | `unheaded_cart_slot_info` | slot, name, sha256, gen, lab |
 
-## Budgets (2026-10-23)
+## Cartridges
+
+| Source | Stage | What | Oracle / check |
+|---|---|---|---|
+| `cartridges/ratelimit.s` | xdp | per-flow token bucket; DATA rate_mbps, cap bytes | `ebpf/qos-ebpf` bucket math, verdict for verdict |
+| `cartridges/sampler.s` | xdp | 1:N sampler; EMIT `S`/`F`, QUEUEs an 8-word feature snapshot; always PASS | independent model, exact 1:N |
+| `cartridges/scorer.s` | tick | int8 MLP 8-16-1 over the snapshot; EMIT `A` {score 0..100, model id} | `QModel::score` bit for bit |
+| `cartridges/pass.s`, `drop-udp-9.s` | xdp | plumbing | — |
+
+Rate limiter rule: `cap <= 524287 * rate_mbps`, `rate_mbps <= 8000` (32-bit
+refill math). Scorer model: `cartridges/scorer.model.json` (float weights,
+scales, train/eval metrics); retrain with `trainquant gen` + `trainquant fit`
+(synthetic flows only).
+
+```
+cart build --stage tick --loop-bound 16 --asm cartridges/scorer.s \
+           --data cartridges/scorer.data.bin -o scorer.cart
+cart tick scorer.cart --jobs jobs.log     # reference run, one "label f0..f7" per line
+upc-cartridgectl pump                     # drive cart_tick until SCORE_QUEUE is empty
+```
+
+## Scores to services/anomaly
+
+`cmd/anomaly` runs the anomaly service (`127.0.0.1:19018`,
+`/api/v1/anomalies/top`) and reads score events from the pinned interpreter's
+ring buffer. With `--wotan host:18000` it publishes `anomaly.scores`
+(provisional topic) and the service consumes it; without, it hands the same
+JSON to the service directly. The message is flow key + score + model id;
+unknown fields are refused.
+
+## Budgets and costs (2026-10-23)
 
 | Program | Verifier processed insns | Gate |
 |---|---|---|
-| `cart_xdp` | 14,395 | 500,000 |
-| `cart_tick` | 22,575 | 500,000 |
+| `cart_xdp` | 24,986 | 500,000 |
+| `cart_tick` | 63,906 | 500,000 |
 
 `scripts/upc-regression.sh` load-tests the object as its third variant.
+One interpreted instruction costs about 4-7 ns on west (4 steps per
+`bpf_loop` callback). Measured: rate limiter 343 ns/pkt (native qos-ebpf
+bucket path 299), sampler 360, scorer 251,572 flows/s on one core.

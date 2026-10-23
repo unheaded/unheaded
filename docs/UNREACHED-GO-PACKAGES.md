@@ -141,7 +141,7 @@ Known to fake success, so a future caller would be misled (found 2026-10-23):
 - `scripts/host`
 - `scripts/lib`
 - `services/anamnesis`
-- `services/anomaly`
+- ~~`services/anomaly`~~: reached by `cmd/anomaly` since S5 Phase 15 (2026-10-23)
 - `services/canary`
 - `services/cape`
 - `services/cloak`

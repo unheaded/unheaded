@@ -1331,43 +1331,65 @@ Correctness oracle = qos-ebpf · benchmark gate scored with numbers · per-flow 
 **Time**: ~5 h
 **Agent**: Coordinator + Developer + Scientist (model), Micromanager (the services/anomaly wiring)
 
-- [ ] **Step 367** [R] ~15m: Read `services/anomaly` scoring model (`TreeNode`, `RecordFlowScore`, `handleTopAnomalies`, `anomaly.scores` subscription) and the native `anomaly-ebpf` decision tree — both are oracles; note KF11 (SAMPLED overload + payload entropy) — the cartridge copies neither
-- [ ] **Step 368** [DECIDE][DESIGN] ~15m: **D-C6 — model shape under the tick budget (N_TICK=256)**
+- [x] **Step 367** [R] ~15m: Read `services/anomaly` scoring model (`TreeNode`, `RecordFlowScore`, `handleTopAnomalies`, `anomaly.scores` subscription) and the native `anomaly-ebpf` decision tree — both are oracles; note KF11 (SAMPLED overload + payload entropy) — the cartridge copies neither
+  - S5 2026-10-23 (session 3): services/anomaly subscribes to `anomaly.scores` but never reads it; `RecordFlowScore` keys by 5-tuple and alerts above 80. anomaly-ebpf: i16 depth-12 tree per packet, payload-byte entropy feature, SAMPLED overload (KF11). The cartridge uses neither: header-only features, scores leave by ringbuf.
+- [x] **Step 368** [DECIDE][DESIGN] ~15m: **D-C6 — model shape under the tick budget (N_TICK=256)**
+  - S5 2026-10-23: Decided per recommendation (8→16→1 int8 MLP). Correction to the estimate: a MAC is 3 instructions (`LDB` biased weight, `MUL`, `ADD`), not 1, so a job is ~720 instructions = 3 tick calls (budget-out is an implicit YIELD), not one. Override not needed: the throughput gate is met (Step 378).
   - **RECOMMENDATION**: a 2-layer int8 MLP, input 8 features → hidden 16 (ReLU) → 1 logit, weights as int8 in DATA (8×16 + 16 = 144 B) + int32 biases; MAC via `MUL`+`SAR` accumulate. ~8×16 + 16 MACs ≈ 144 ≤ N_TICK. ~2 KB target met with quantization metadata + a second slot's worth of headroom.
   - Rationale: fits the per-flow tick budget; int8 avoids float (BPF + determinism); 8 features match the sampler snapshot.
   - **Override ONLY if**: 256 insns is too tight → quantized depth-8 decision tree (matches `anomaly-ebpf`, fewer ops), or raise N_TICK (re-run the Phase 11 verifier gate), or (last resort, full ISA spec gate) add a `DOT4` opcode in a follow-on sprint — NOT this one
-- [ ] **Step 369** [W][CODE] ~40m: `crates/upc-cartridge/src/bin/trainquant.rs` (host, std): train/quantize a tiny MLP on a labelled feature CSV (benign vs synthetic-anomalous flows derived from the sampler's feature definition), export int8 weights + scales to `.cart` DATA + a JSON sidecar. No GPU, no new deps (pure-Rust fixed-point)
-- [ ] **Step 370** [W][CODE] ~30m: `cartridges/scorer.s` (tick stage): load features from the ScoreJob into `mem`, run the int8 MLP from DATA, EMIT `{flow_key, score 0..100, model_id}`; declared loop bound = hidden size
-- [ ] **Step 371** [B] ~2m: `cart build --stage tick … -o "$S5/scorer.cart" && cart validate "$S5/scorer.cart"`
-- [ ] **Step 372** [V] ~30s: Validates (tick stage, declared bound, data ≤ 4096 B, total image ~2 KB)
-- [ ] **Step 373** [W][TEST] ~30m: Reference tests: score monotonic in the obvious feature (e.g. extreme packet size → higher score); quantized output within 2 of the float model over 1,000 vectors (the quantization-accuracy gate, mirroring app12's "within 2%")
-- [ ] **Step 374** [V] ~1m: Quantization error ≤ 2 points on ≥ 99% of vectors
-- [ ] **Step 375** [B][S][TEST] ~5m: Load scorer in the tick slot; `upc-cartridgectl pump` drains `SCORE_QUEUE` filled by the sampler; read score events
-- [ ] **Step 376** [V] ~1m: Every sampled flow gets exactly one score event; BPF tick score == reference score (hash agreement)
-- [ ] **Step 377** [B][S] ~5m: **Benchmark** — scorer tick throughput (flows/s) via test_run repeat on `cart_tick`
-- [ ] **Step 378** [V][GATE] ~1m: **BENCHMARK GATE #3** — ≥ 100,000 flows/s scored on one core AND the XDP path (sampler) overhead unchanged from Gate #2 (scoring is off the packet path). Record numbers
+- [x] **Step 369** [W][CODE] ~40m: `crates/upc-cartridge/src/bin/trainquant.rs` (host, std): train/quantize a tiny MLP on a labelled feature CSV (benign vs synthetic-anomalous flows derived from the sampler's feature definition), export int8 weights + scales to `.cart` DATA + a JSON sidecar. No GPU, no new deps (pure-Rust fixed-point)
+  - S5 2026-10-23: `trainquant gen` (ten synthetic families — web client, download, DNS, SSH, QUIC; SYN flood, UDP flood, stealth scan, RST storm, beacon — run through the real sampler cartridge on the reference runner; no capture, no payload), `fit` (f64 MLP + Adam, then int8 quantization; activation shifts calibrated on train only), `control` (shuffled labels). Library: `upc_cartridge::scorer`. Training is f64 on the host; the deployed path is integer only.
+- [x] **Step 370** [W][CODE] ~30m: `cartridges/scorer.s` (tick stage): load features from the ScoreJob into `mem`, run the int8 MLP from DATA, EMIT `{flow_key, score 0..100, model_id}`; declared loop bound = hidden size
+  - S5 2026-10-23: First-layer weights stored +128 (u8) so one LDB reads each, minus a 128·Σx correction per job; per-row requantization shift; rounding offsets folded into the biases (exact); 256-entry sigmoid table. EMIT 'A' {a = score, b = model id}; the flow key rides in the event record.
+- [x] **Step 371** [B] ~2m: `cart build --stage tick … -o "$S5/scorer.cart" && cart validate "$S5/scorer.cart"`
+- [x] **Step 372** [V] ~30s: Validates (tick stage, declared bound, data ≤ 4096 B, total image ~2 KB)
+  - S5 2026-10-23: `stage=tick rom=117 data=133 max_insn=256 back_edges=true syscalls=[3]`, loop bound 16, image 1,052 bytes (DATA 532): about 1 KB, under the ~2 KB target.
+- [x] **Step 373** [W][TEST] ~30m: Reference tests: score monotonic in the obvious feature (e.g. extreme packet size → higher score); quantized output within 2 of the float model over 1,000 vectors (the quantization-accuracy gate, mirroring app12's "within 2%")
+  - S5 2026-10-23: `tests/scorer.rs`. Monotone from three benign windows: the score never falls as the window's largest packet shrinks or its packets arrive faster (web: 1 → 74, SSH iat: 1 → 99). Found: the score ignores the SYN count (flood families are already separated by size, timing and flags) and is not monotone in window bytes far outside the training range; logged.
+- [x] **Step 374** [V] ~1m: Quantization error ≤ 2 points on ≥ 99% of vectors
+  - S5 2026-10-23: **PASS**: within 2 points on 99.83 % of 4,585 held-out vectors (max 5, mean 0.86).
+- [x] **Step 375** [B][S][TEST] ~5m: Load scorer in the tick slot; `upc-cartridgectl pump` drains `SCORE_QUEUE` filled by the sampler; read score events
+- [x] **Step 376** [V] ~1m: Every sampled flow gets exactly one score event; BPF tick score == reference score (hash agreement)
+  - S5 2026-10-23: Sampler-fed BPF run: 18 jobs queued, 18 score events in 55 cart_tick calls, scores and order == `cart tick`, last-job state hash == reference. Reference: cartridge == `QModel::score` on 6,585 vectors (held-out + random/extreme).
+- [x] **Step 377** [B][S] ~5m: **Benchmark** — scorer tick throughput (flows/s) via test_run repeat on `cart_tick`
+- [x] **Step 378** [V][GATE] ~1m: **BENCHMARK GATE #3** — ≥ 100,000 flows/s scored on one core AND the XDP path (sampler) overhead unchanged from Gate #2 (scoring is off the packet path). Record numbers
   - Fail → Step 379
-- [ ] **Step 379** [D] ~20m: If flows/s low: reduce hidden to 8, or batch dequeue in the pump; if XDP overhead moved, the scorer leaked onto the packet path — fix the stage. Two rounds, then record
-- [ ] **Step 380** [V][PREFLIGHT] ~2m: **H-C1 re-check** — confirm `services/anomaly` still has no binary before adding one
-- [ ] **Step 381** [W][CODE] ~30m: `cmd/anomaly` (Go): the first binary for `services/anomaly` (CLAUDE.md service scaffold — health/ready/metrics/Wotan); it reads score events from the cartridge (via `pkg/cartridge` ringbuf reader) and calls `RecordFlowScore`, and/or publishes `anomaly.scores` to Wotan which the service already subscribes to
-- [ ] **Step 382** [W][CODE] ~15m: Bridge path: cartridge score event → `anomaly.scores` Wotan message (scratch Wotan from Phase 6, or in-process for the test) → `services/anomaly` `listenForAlerts`/score intake → `/api/v1/anomalies/top`
-- [ ] **Step 383** [B][TEST] ~3m: `cd "$PROJECT_ROOT" && go test -race ./cmd/anomaly/... ./services/anomaly/... 2>&1 | tail -6`
-- [ ] **Step 384** [V] ~30s: Green; `services/anomaly` now has an importer (KF3 half-closed)
-- [ ] **Step 385** [B][S][TEST] ~8m: End-to-end on west (scratch Wotan): craft a flow with anomalous features → sampler queues → scorer scores → `cmd/anomaly` → `services/anomaly` → `curl -s localhost:19018/api/v1/anomalies/top`
-- [ ] **Step 386** [V] ~1m: The anomalous flow appears in the top list with a score matching the cartridge's emission
-- [ ] **Step 387** [SECURITY] ~5m: The whole path carries flow metadata + a score, never payload (ABI enforces); `services/anomaly` isolation unchanged (ADR CLAUDE.md zero user data)
-- [ ] **Step 388** [V] ~30s: No payload field anywhere on the path
-- [ ] **Step 389** [W][DOC-UPDATE] ~5m: If D-C6 ever points at a DOT4 opcode, write the deferral note (full ISA spec gate, next sprint) — do not add it here
-- [ ] **Step 390** [B][S][TEST] ~2m: Regression harness
-- [ ] **Step 391** [V] ~30s: `== ALL GREEN ==`
-- [ ] **Step 392** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: **PASS**: 251,572 flows/s median (5 runs, 248,942–252,908; 1,325 ns per call, 3 calls per job). Sampler XDP 355 ns with the scorer slot active vs 352 ns without (+0.9 %).
+- [x] **Step 379** [D] ~20m: If flows/s low: reduce hidden to 8, or batch dequeue in the pump; if XDP overhead moved, the scorer leaked onto the packet path — fix the stage. Two rounds, then record
+  - S5 2026-10-23: Not needed.
+- [x] **Step 380** [V][PREFLIGHT] ~2m: **H-C1 re-check** — confirm `services/anomaly` still has no binary before adding one
+  - S5 2026-10-23: `NO IMPORTER`.
+- [x] **Step 381** [W][CODE] ~30m: `cmd/anomaly` (Go): the first binary for `services/anomaly` (CLAUDE.md service scaffold — health/ready/metrics/Wotan); it reads score events from the cartridge (via `pkg/cartridge` ringbuf reader) and calls `RecordFlowScore`, and/or publishes `anomaly.scores` to Wotan which the service already subscribes to
+  - S5 2026-10-23: `cmd/anomaly`: the service (health/ready/metrics, `--listen` default 127.0.0.1:19018) + a bridge from the pinned CART_EVENTS ring. `--wotan` publishes `anomaly.scores`; without it the same JSON goes to the service's intake in-process.
+- [x] **Step 382** [W][CODE] ~15m: Bridge path: cartridge score event → `anomaly.scores` Wotan message (scratch Wotan from Phase 6, or in-process for the test) → `services/anomaly` `listenForAlerts`/score intake → `/api/v1/anomalies/top`
+  - S5 2026-10-23: services/anomaly gains `IngestScore` (4 KiB cap, strict JSON, score 0..100, addresses parsed, ingested/rejected counters) and a `listenForScores` Wotan consumer. Wotan leg not run live (Phase 6 scratch Wotan deferred with the east escalation; stack down, KF5): in-process path used.
+- [x] **Step 383** [B][TEST] ~3m: `cd "$PROJECT_ROOT" && go test -race ./cmd/anomaly/... ./services/anomaly/... 2>&1 | tail -6`
+- [x] **Step 384** [V] ~30s: Green; `services/anomaly` now has an importer (KF3 half-closed)
+  - S5 2026-10-23: Green (red first: intake tests did not compile). KF3 half-closed.
+- [x] **Step 385** [B][S][TEST] ~8m: End-to-end on west (scratch Wotan): craft a flow with anomalous features → sampler queues → scorer scores → `cmd/anomaly` → `services/anomaly` → `curl -s localhost:19018/api/v1/anomalies/top`
+- [x] **Step 386** [V] ~1m: The anomalous flow appears in the top list with a score matching the cartridge's emission
+  - S5 2026-10-23: Real XDP (generic) on a veth whose peer is in netns `s5e`, three signed cartridges loaded through `upc-cartridgectl`: 400 × 1,400 B UDP flood + 16 slow DNS-like packets. Rate limiter dropped 381 flood packets; sampler queued 52 jobs; pump: 156 calls, 52 jobs; `cmd/anomaly` forwarded 52 scores; `/api/v1/anomalies/top`: flood 10.55.0.1:41002→:40000 score **99**, DNS-like flow score **1**; 0 rejected. Teardown verified (no cart programs, links, netns, pins). Script: `$S5/p15-e2e.sh`.
+- [x] **Step 387** [SECURITY] ~5m: The whole path carries flow metadata + a score, never payload (ABI enforces); `services/anomaly` isolation unchanged (ADR CLAUDE.md zero user data)
+- [x] **Step 388** [V] ~30s: No payload field anywhere on the path
+  - S5 2026-10-23: FIELD table → snapshot (8 header-derived words) → CartEvent {flow key, kind, score, model id} → ScoreMessage {flow_key, score, model_id, source, packet_count, timestamp_ms}; IngestScore refuses unknown fields (a `payload` key is a tested rejection).
+- [x] **Step 389** [W][DOC-UPDATE] ~5m: If D-C6 ever points at a DOT4 opcode, write the deferral note (full ISA spec gate, next sprint) — do not add it here
+  - S5 2026-10-23: Note in ADR-108 Non-goals: DOT4 would cut a job from ~720 to ~420 instructions (~1.7×); not needed for the gate; [ESCALATE] to the ISA's own spec gate if ever wanted.
+- [x] **Step 390** [B][S][TEST] ~2m: Regression harness
+- [x] **Step 391** [V] ~30s: `== ALL GREEN ==`
+  - S5 2026-10-23: ALL GREEN: ascend 926,542, Doom 761,580, cart_xdp 24,986, cart_tick 63,906, pkg/cartridge root tests green.
+- [x] **Step 392** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add cartridges crates/upc-cartridge cmd/anomaly services/anomaly references/s5-upc-wire-log.md && commitp -m "feat(cartridge): [S5 367-392] int8 anomaly scorer feeds services/anomaly"
   ```
-- [ ] **Step 393** [SPEC][V] ~5m: Spec gate recheck — `anomaly.scores` / `upc.cart.*` topics still provisional pending RFC Editor (Step 242); no wire change made
-- [ ] **Step 394** [W][DOC-UPDATE] ~5m: `wiki/UPC-Cartridges.md` + `docs/UNREACHED-GO-PACKAGES.md` (services/anomaly now reached)
-- [ ] **Step 395** [V] ~30s: Docs updated
-- [ ] **Step 396** [V][GATE] ~1m: **PHASE 15 EXIT GATE** — every sampled flow scored, BPF==reference, quantization gate met, scores reach services/anomaly's API, benchmark gate scored, Sacred Principle held
+  - S5 2026-10-23: `9404db47` (code) + the Phase 15 gate commit.
+- [x] **Step 393** [SPEC][V] ~5m: Spec gate recheck — `anomaly.scores` / `upc.cart.*` topics still provisional pending RFC Editor (Step 242); no wire change made
+  - S5 2026-10-23: `anomaly.scores` is used under its provisional name (`anomaly.ScoreTopic`), RFC Editor item 3 still open; no Monad byte changed, no opcode added (DOT4 deferred).
+- [x] **Step 394** [W][DOC-UPDATE] ~5m: `wiki/UPC-Cartridges.md` + `docs/UNREACHED-GO-PACKAGES.md` (services/anomaly now reached)
+- [x] **Step 395** [V] ~30s: Docs updated
+  - S5 2026-10-23: wiki page (cartridge table, scores path, costs, budgets), `cartridges/README.md`, UNREACHED list (services/anomaly reached by cmd/anomaly), ADR-108 DOT4 note.
+- [x] **Step 396** [V][GATE] ~1m: **PHASE 15 EXIT GATE** — every sampled flow scored, BPF==reference, quantization gate met, scores reach services/anomaly's API, benchmark gate scored, Sacred Principle held
+  - S5 2026-10-23: PASSED. Gate #3 PASS; quantization gate PASS; end to end on real XDP in a netns lab.
 
 ### Phase 15 Definition of Done
 Quantization gate ≤ 2 points · scoring off the packet path · services/anomaly reached by a real binary · no payload on the path · benchmark scored · no new deps.

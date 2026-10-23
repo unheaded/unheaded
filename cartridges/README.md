@@ -9,6 +9,9 @@ registry. Wiki: [UPC Cartridges](../wiki/UPC-Cartridges.md).
 |---|---|---|
 | `pass.s` | xdp | VERDICT PASS on every packet (plumbing) |
 | `drop-udp-9.s` | xdp | DROP UDP to port 9 (discard), PASS the rest (plumbing) |
+| `ratelimit.s` + `ratelimit.data.bin` | xdp | per-flow token bucket, qos-ebpf semantics (DATA: rate_mbps 100, cap 12,500 B, divide magic) |
+| `sampler.s` + `sampler.data.bin` | xdp | 1:N flow sampler (N = 8), queues an 8-word feature snapshot |
+| `scorer.s` + `scorer.data.bin` | tick | int8 MLP anomaly scorer (`--loop-bound 16`); `scorer.model.json` = float weights, scales, metrics (trainquant, synthetic data) |
 
 ## Build
 

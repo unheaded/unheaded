@@ -390,3 +390,56 @@ limitation (plan rule): roughly 4–7 ns per interpreted instruction on this hos
 - Harness ALL GREEN (19 root tests). Commit `d592f230`.
 - Lead request (LICH-015): host emulator MULHU was a NOP; arm added with a test against
   the engine semantics (`4cbef086`). Cartridge allowlist unchanged.
+
+## Phase 15 — int8 anomaly scorer → services/anomaly (2026-10-23, session 3)
+
+**Model and data (Scientist lens).** int8 MLP 8→16→1 (D-C6), inputs
+`x = min(f >> sh, 255)` over the sampler snapshot. Data: ten synthetic flow families
+(web client, bulk download, DNS, SSH, QUIC; SYN flood, UDP flood, NULL/FIN/XMAS scan,
+RST storm, clockwork beacon), packets drawn as (gap, length, TCP flags) from fixed
+distributions and run through the real sampler cartridge on the reference runner. No
+capture, no payload, nothing personal. Train seed 0x7A11 (400 flows/family, 18,468
+vectors); eval seed 0xE7A1 (100 flows/family, 4,585 vectors, 4,158 of them not present
+verbatim in train). Model id 0xd0ee2b6b, `cartridges/scorer.model.json`.
+
+| | accuracy | TPR | FPR | AUC |
+|---|---|---|---|---|
+| train, float | 0.9997 | 1.0000 | 0.0005 | 1.0000 |
+| eval, float | 0.9996 | 1.0000 | 0.0009 | 1.0000 |
+| eval, int8 | 0.9996 | 1.0000 | 0.0009 | 1.0000 |
+| eval unseen-only, int8 | 0.9995 | 1.0000 | 0.0009 | — |
+| shuffled-label control, eval | 0.4927 | — | — | 0.5000 |
+
+What this does and does not show: the ten families are almost perfectly separable by
+these eight header features, and the model separates held-out flows from the same
+generators; the shuffled-label control falls to chance, so nothing leaks labels. It says
+nothing about real traffic. The model leans on shortcuts the generators allow: it
+ignores the SYN count entirely (floods are already separated by size, timing and flags),
+scores fast arrivals and small maximum lengths high, and is not monotone in window bytes
+far outside the training range. Six of sixteen hidden units died (ReLU + weight decay).
+
+**Quantization**: |int8 − float| ≤ 2 points on **99.83 %** of eval (max 5, mean 0.86):
+gate (≥ 99 %) met. Per-row int8 weights, per-row u8 requantization, rounding folded into
+the biases, 256-entry sigmoid table (bin 0.04 logit).
+
+**Cartridge**: `cartridges/scorer.s`, existing opcodes only, ~720 insns per job (3
+`cart_tick` calls of 256), image 1,052 bytes. Cartridge == `QModel::score` on 6,585
+vectors (held-out + random/extreme); BPF tick == `cart tick` reference on a sampler-fed
+run (18 jobs: scores, order, last-job hash).
+
+**Gate #3: PASS**: 251,572 flows/s on one core (5 runs, 248,942–252,908); sampler XDP
+cost 355 ns with the scorer loaded vs 352 ns without. DOT4 estimate: ~420 insns per job,
+~1.7× (ADR-108 note; not added, [ESCALATE] to an ISA spec gate if ever wanted).
+
+**services/anomaly reached** (KF3 half-closed): `IngestScore` (strict JSON, 4 KiB cap,
+score and address checks, counters) + `anomaly.scores` Wotan consumer + `ListenAddr`;
+`cmd/anomaly` = service + bridge from the pinned CART_EVENTS ring (in-process, or
+`--wotan` publish). Wotan leg not run live (stack down, Phase 6 scratch Wotan deferred).
+
+**End to end on west** (`$S5/p15-e2e.sh`): three signed cartridges loaded through
+`upc-cartridgectl`, cart_xdp attached (generic) to a veth whose peer is in netns `s5e`,
+400 × 1,400 B UDP flood + 16 slow DNS-like packets. Rate limiter dropped 381 flood
+packets; 52 jobs queued and scored; `/api/v1/anomalies/top`: flood score 99, DNS-like
+flow 1; 0 rejected. Teardown verified: no cart programs, s5 links, netns or pins.
+
+- Harness ALL GREEN (ascend 926,542, Doom 761,580). Commit `9404db47`.
