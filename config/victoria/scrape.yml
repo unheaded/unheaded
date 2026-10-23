@@ -65,3 +65,10 @@ scrape_configs:
     static_configs:
       - targets: ["host.docker.internal:20001"]
     metrics_path: /metrics
+
+  # Akira (compose service akira, 19100) serves /metrics (cmd/akira main.go:295).
+  - job_name: "akira"
+    scrape_interval: 10s
+    static_configs:
+      - targets: ["host.docker.internal:19100"]
+    metrics_path: /metrics
