@@ -252,7 +252,12 @@ fragment) but eliminates the window of vulnerability from old keys.
 
 11. Full homomorphic encryption for embeddings (allows De ranking on encrypted embeddings).
 12. Threshold decryption (k-of-n recipients can unseal, single recipient cannot).
-13. Post-quantum TLS in rustls/quinn when upstream ships.
+13. ~~Post-quantum TLS in rustls/quinn when upstream ships.~~ DONE 2026-10-23
+    (S-QUANTUM-ARMOR, ADR-105): zhend QUIC builds both rustls configs on the
+    `aws-lc-rs` provider and negotiates `X25519MLKEM768` (classical X25519 only
+    with a peer that offers nothing else); tests
+    `api::quic::tests::tls_negotiates_x25519mlkem768` and
+    `tls_classical_only_peer_falls_back_to_x25519`.
 
 ---
 

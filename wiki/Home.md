@@ -60,9 +60,11 @@ The UPC is a virtual CPU implemented in the eBPF runtime. Monad packets are the 
 
 ## Architecture Decision Records
 
-Canonical mirror: [[ADR Index|ADR-Index]] (100 entries, synced 2026-10-23).
+Canonical mirror: [[ADR Index|ADR-Index]] (102 entries, synced 2026-10-23).
 
 Recent:
+- ADR-105 — Hybrid ML-KEM key exchange, crypto inventory (CBOM), signed evidence and drift (Proposed, 2026-10-23)
+- ADR-104 — ZhenAI → Claude API bridge (Proposed, built, 2026-10-23)
 - ADR-103 — Service auth: per-service Ed25519 JWTs (Proposed, design only, 2026-10-23)
 - ADR-102 — Container images use exact version tags (Accepted, 2026-10-15)
 - ADR-101 — The Well's migration ledger, `cmd/well-migrate` (Proposed; in use live since 2026-10-15)
@@ -77,6 +79,7 @@ Recent:
 - [[Security Overview|Security]]
 - [[Security Audit|Security-Audit]]
 - [[Security TODOs|Security-TODOs]]
+- [[Post-Quantum Key Exchange|Post-Quantum-Key-Exchange]] — hybrid ML-KEM on every TLS link we own, the CBOM, the PQ-KEX lint, what is still classical (ADR-105)
 - [[LICH Fuzzing Campaigns|LICH-Campaigns]]
 - [[Dark Grimoire|Dark-Grimoire]]
 - [[SBOM]]

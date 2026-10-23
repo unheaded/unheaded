@@ -49,6 +49,7 @@
 - [[Overview|Security]]
 - [[Audit|Security-Audit]]
 - [[Security TODOs|Security-TODOs]]
+- [[Post-Quantum Key Exchange|Post-Quantum-Key-Exchange]]
 - [[LICH Campaigns|LICH-Campaigns]]
 - [[Dark Grimoire|Dark-Grimoire]]
 

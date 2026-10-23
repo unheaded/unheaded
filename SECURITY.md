@@ -138,14 +138,61 @@ Unheaded services implement the following security headers:
 
 ## Cryptography
 
-Unheaded uses the following cryptographic standards:
+Decisions and their reasons: [ADR-105](docs/adr/ADR-105-pq-hybrid-key-exchange-and-crypto-inventory.md).
+Operator guide: [Post-Quantum Key Exchange](wiki/Post-Quantum-Key-Exchange.md).
 
-- **TLS**: Version 1.2 or higher
-- **Cipher Suites**: Modern, secure algorithms (no deprecated ciphers)
-- **Key Exchange**: ECDHE for perfect forward secrecy
-- **Authentication**: X.509 certificates with proper validation
-- **Hash Functions**: SHA-256 or stronger
-- **Symmetric Encryption**: AES-256-GCM
+**Key exchange: hybrid post-quantum on first-party TLS.** Every TLS server
+and first-party mTLS client we build runs TLS 1.3 and negotiates
+`X25519MLKEM768` (ML-KEM-768, FIPS 203, combined with X25519), so a session
+recorded today stays confidential if either half holds. Two profiles in
+`pkg/tls/pq.go`:
+
+| Profile | Groups | Used where | A classical-only peer |
+|---|---|---|---|
+| Strict | `X25519MLKEM768`, `SecP256r1MLKEM768`, `SecP384r1MLKEM1024` only | both ends are ours: Wotan gRPC and wotan-client, `pkg/transport/mtls`, `pkg/mesh`, `pkg/mesh/mtls` | handshake fails |
+| Preferred | Go's default (hybrids first, classical fallback) | servers third-party clients reach: Wotan HTTP and `/metrics`, the dashboard, load-balancer frontends, the WAF, zhend QUIC | gets X25519 |
+
+Rust TLS (the WAF, zhend QUIC) uses rustls on the `aws-lc-rs` provider, which
+offers `X25519MLKEM768` first; the `ring` provider (no ML-KEM) is gone.
+Third-party outbound clients (SMTP relays, the CISA KEV feed, Splunk HEC,
+load-balancer health checks to user backends) keep a TLS 1.2 floor: their
+servers choose, and a modern one negotiates the hybrid. The load balancer's
+`min_version`/`max_version: "1.2"` remain explicit operator opt-ins.
+Handshake tests on every first-party surface assert the negotiated group.
+
+**Signatures.** ML-DSA-65 (FIPS 204) signs Wotan `config.*` and `drift.*`
+topic messages (per-prefix keys, verified by Wotan and re-verifiable by
+subscribers), Gungnir configuration seals, and Yggdrasil evidence packs
+(non-expiring evidence seals plus a signed chain of custody,
+`yggdrasil-evidence verify`).
+
+**Inventory and gates.** `compliance/crypto/cbom.cdx.json` is a CycloneDX 1.6
+cryptographic bill of materials of every TLS, SSH, WireGuard, Postgres and
+signature site, regenerated with
+`go run ./cmd/crypto-inventory scan --out compliance/crypto/cbom.cdx.json`.
+`scripts/check-crypto-inventory.sh` fails when it is stale and
+`scripts/check-pq-kex.sh` fails on any new classical-only key-exchange
+configuration (a shrink-only baseline holds today's exceptions); both run in
+CI and are proven able to fail by the meta-gate.
+
+**Still classical, on purpose or until a decision:**
+- The Well (PostgreSQL 16) negotiates P-256 only, until it moves to
+  PostgreSQL 18 with `ssl_groups` (prepared, awaiting the owner).
+- Host SSH offers `mlkem768x25519-sha256` first, but still accepts classical
+  key exchange; making it hybrid-only is a lockout-relevant owner decision.
+- WireGuard is X25519 plus a pre-shared key; the PSK is the post-quantum
+  part and is only as strong as its secrecy and rotation.
+- Certificates and handshake signatures (ECDSA, RSA, Ed25519): not exposed to
+  harvest-now-decrypt-later; PQ certificates wait for the ecosystem.
+- Links that run without TLS today (Wotan inside the compose stack, the edge
+  in development) are plaintext, not merely classical; turning TLS on makes
+  them hybrid with no further change.
+
+**Not claimed:** CNSA 2.0 (it requires ML-KEM-1024 and ML-DSA-87; we use
+ML-KEM-768 and ML-DSA-65).
+
+Other primitives: TLS 1.3 cipher suites (AES-GCM, ChaCha20-Poly1305), X.509
+certificates validated against configured roots, SHA-256 or stronger.
 
 ## Threat documentation
 

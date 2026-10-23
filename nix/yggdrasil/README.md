@@ -49,7 +49,7 @@ nix/yggdrasil/
 ├── bin/
 │   └── yggdrasil-doctor-upc               ← 8-check preflight (installs at /usr/local/bin/)
 │
-├── evidence-pack/                         ← Task #68 (signed manifest)
+├── evidence-pack/                         ← Task #68 (signed manifest; implemented, see evidence-pack/README.md)
 │   ├── README.md
 │   ├── schema/manifest-v1.yaml            ← JSON Schema draft 2020-12
 │   └── runbooks/
@@ -111,7 +111,7 @@ Output: qcow2 image + signed evidence-pack-<hash>.tar.gz
 |------|-------------|-------------------|
 | #69 OS-FORK-DISCIPLINE doc | ✅ closed 2026-05-10 (4 pillars + Pillar 5 added 2026-05-11) |
 | #65 P1 Debian hardening pipeline | 🟡 Scaffold complete 2026-05-11 (packer + provisioners + scripts + Jenkinsfile + GHA + apt repo + smoke harness). Real builds = Q4 2026 horizon. |
-| #68 P1 signed-manifest evidence pack | 🟡 Scaffold complete 2026-05-11 (schema + 2 runbooks + cmd/yggdrasil-evidence CLI + build-evidence-pack.sh hook). Real signing = with #65. |
+| #68 P1 signed-manifest evidence pack | 🟢 Implemented 2026-10-23 (S-QUANTUM-ARMOR, ADR-105): all `cmd/yggdrasil-evidence` subcommands work (`validate`, `sign`, `pubkey`, `verify-signature`, `verify-iso`, `verify-gates`, `verify-custody`, `verify`, `diff`) with ML-DSA-65 non-expiring evidence seals and a signed chain of custody; the build script signs when `YGGDRASIL_BUILD_KEY` is set; gate `scripts/check-evidence-pack.sh`. Left: the production build key (E4, FND-018) and real builds (with #65). |
 | #71 UPC accessible & present | 🟡 Scaffold complete 2026-05-11 (overlay patches + systemd unit + doctor preflight + apt-list). Real apt-install = with #65. |
 | #66 P2 SELinux policy port | ⏸ Blocked on #65 |
 | #67 P2 cloud image targets | ⏸ Blocked on #65 (template uses qemu source; cloud sources commented out) |
@@ -119,7 +119,7 @@ Output: qcow2 image + signed evidence-pack-<hash>.tar.gz
 ## What this scaffolding does NOT do (yet)
 
 - Build any actual ISO. (Packer template is the contract; runner doesn't yet exist.)
-- Sign anything with the real Yggdrasil ML-DSA-65 key. (Key issuance lights up with task #65.)
+- Sign anything with the real Yggdrasil ML-DSA-65 key. The tooling signs and verifies (#68 above); the production build key's custody is Stevie's decision (E4, FND-018).
 - Run on a real Jenkins or GitHub-actions self-hosted runner. (CI manifests landed; runner provisioning is separate.)
 - Implement SELinux policy. (Task #66, blocked on #65.)
 - Test cloud image variants. (Task #67, blocked on #65.)

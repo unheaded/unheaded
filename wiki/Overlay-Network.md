@@ -19,6 +19,19 @@ Alerting: west's monitoring Prometheus scrapes east's node_exporter at `[fd00:de
 
 BFD: one multihop session (UDP 4784, 300 ms, multiplier 3, so about 0.9 s to detect a dead path) that both BGP sessions are bound to: BIRD `bfd on`, FRR `neighbor ... bfd`. BIRD sends multihop BFD with hop limit 64, so FRR's peer sets `minimum-ttl 64`. Until 2026-10-20 BIRD never asked for a session and FRR only accepted hop limit 254+, so BFD had never come up and a dead tunnel took the 90 s BGP hold time to notice. Previous configs: `/var/lib/unheaded/remediate/*-bfd/` on each host.
 
+## Pre-shared key (the post-quantum part)
+
+wg0 mixes a pre-shared key into every handshake, so recorded tunnel traffic stays confidential even if Curve25519 falls to a quantum computer, as long as the PSK stays secret (ADR-105). One PSK since setup (2026-03-25), never rotated (FND-016).
+
+| | west | east |
+|---|---|---|
+| PSK lives in | inline `PresharedKey =` in `/etc/wireguard/wg0.conf` | `/etc/wireguard/preshared.key` and `wg0.conf` |
+| after the first rotation | also `/etc/wireguard/wg0.psk` (mtime = last rotation) | same |
+
+- **Rotation tool:** `scripts/wireguard/rotate-psk.sh` on west (dry run by default; `--apply` rotates). It refuses unless SSH to east negotiated a post-quantum KEX, moves the PSK through pipes and 0600 files only, waits up to 200 s for a handshake (WireGuard uses a new PSK only at its next handshake, after 120 s) and rolls both hosts back to `<if>.psk.old` on failure. Journal lines: `psk-rotated`, `psk-rotation-rolled-back`. Test harness: `scripts/wireguard/test-rotate-psk.sh` (meta-gate row `wireguard/test-rotate-psk`).
+- **Timer:** `deploy/systemd/unheaded-wg-psk-rotate.timer` (weekly, 1 h random delay) runs `unheaded-wg-psk-rotate.service` → `/usr/local/lib/unheaded/wireguard/rotate-psk.sh --apply`. Shipped, **not installed or enabled**: the first live rotation and enabling it are E3 (`docs/security/pq-host-escalations.md`).
+- **Check:** `sudo wg show wg0 latest-handshakes` (current) and `sudo stat -c %y /etc/wireguard/wg0.psk` (under 8 days once the timer runs).
+
 Check:
 
 ```bash

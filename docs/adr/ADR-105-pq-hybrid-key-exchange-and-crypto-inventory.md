@@ -162,7 +162,8 @@ All nineteen hypotheses held:
    (a dry run unless `--apply`) generates a fresh PSK on west, installs it on east
    over SSH (which negotiates `mlkem768x25519-sha256`, H10, so the PSK never crosses
    a classical-only channel), applies it with `wg set` (no restart), checks for a
-   handshake within 60 s and rolls back on failure. A weekly systemd timer ships but
+   handshake within 200 s and rolls back on failure (amended from 60 s: see
+   "Decisions made during implementation"). A weekly systemd timer ships but
    is not enabled. Rosenpass is parked (C/liboqs dependency, ADR-004).
    *Rationale:* a WireGuard PSK mixed into the Noise handshake gives post-quantum
    confidentiality while the PSK stays secret; rotation bounds the damage of a
@@ -191,6 +192,121 @@ All nineteen hypotheses held:
     *Rationale:* honesty rules (ADR-097 §5); NSM-10 and OMB M-23-02 ask for an
     inventory, which we can give truthfully.
     *Override only if:* Stevie wants a CNSA 2.0 track (a separate sprint).
+
+## Decisions made during implementation (2026-10-23)
+
+The tracks implemented decisions 1-11 as written, plus the choices below. Each
+is recorded in the track's progress file under
+`docs/battle-plans/progress/S-QUANTUM-ARMOR-*.md`; this section is what a reviewer
+accepts with the ADR.
+
+**Evidence seals and packs (decisions 5-7; `evidence` track).**
+- *Seal.* The signed message is length-prefixed `format, purpose, algorithm,
+  key_id, issued_at (int64 big-endian), payload_sha256` under the context
+  `unheaded/gungnir/evidence/v1`. `ParseEvidenceSeal` is strict: 16 KiB cap,
+  unknown or duplicate keys and trailing data refused. gungnir accepts purposes
+  matching `^[a-z0-9][a-z0-9-]{0,63}$`; the CLI allows only `manifest`,
+  `iso-sha256` and `custody-entry`. Signing refuses a signer whose key id is not
+  `KeyID(pub)` (the `dev-spike` placeholder cannot sign evidence).
+- *Detached signatures.* `SignEvidenceDetached` / `VerifyEvidenceDetached`: an
+  evidence seal with `issued_at_unix = 0` and `key_id = KeyID(pub)` whose
+  signature bytes alone are stored. Custody entries use them.
+- *Custody chain.* Each `chain_of_custody` entry's `signature` is the hex detached
+  evidence signature (purpose `custody-entry`) over
+  `lp("yggdrasil/custody/v1") lp(timestamp_utc) lp(actor) lp(action) lp(prev)`,
+  `prev` = SHA-256 of the previous entry's message, 32 zero bytes for the first.
+  The `signature` field is outside the chain. Reordering, removing or rewriting an
+  entry breaks it; `TestCustodyMessageGolden` pins the bytes (cross-checked by an
+  independent Python computation).
+- *Waivers.* Manifest `cve_scan.critical` / `high` are UNWAIVED counts (the schema
+  pins them to 0). A CRITICAL or HIGH finding in `cve-scan.json` is waived only by
+  a `cve_scan.waivers` entry unexpired on the verification date (`expires_date`
+  inclusive) whose CVE ID also appears in a custody `action`, so a waiver is signed
+  by whoever recorded it. MEDIUM and LOW counts must match exactly.
+- *Validator strictness.* The Go validator rejects everything the JSON Schema
+  rejects (a CI differential with Python `jsonschema` agrees on every fixture) and
+  is stricter on: YAML anchors, aliases, tags, duplicate keys and multi-document
+  input; non-decimal integers and `.inf`/`.nan`; `$` before a trailing newline;
+  non-integer `license_summary` values. Scalars are typed with YAML 1.1 resolvers
+  (as PyYAML does), so `yes` and unquoted dates mean what the schema check sees.
+  The differential supplies its own RFC 3339 `date-time` checker because
+  `jsonschema` without `rfc3339-validator` silently skips that format.
+  `validate --schema PATH` refuses to run when that schema differs from the
+  compiled-in rules.
+- *verify-gates* also cross-checks `cis-benchmark.json` `score_percent` (and
+  `lynis_hardening_score` if present), `upc-doctor.json` `exit_code`, and every
+  overlay patch (listed equals present, sha256 matches, nothing unlisted).
+- *Pack reader.* In memory, streaming; names must already be clean (no absolute,
+  `..`, `//`, `./`, backslash or NUL), entries only under `manifest/`, regular
+  files and directories only (no links or devices), no duplicates; caps of 64 MiB
+  per file, 256 MiB total, 10 000 entries.
+- *Exit codes.* A malformed or unsafe pack is a verification failure (1); an
+  unreadable path or missing public key is usage (2); `diff` returns 2 when it
+  cannot read or validate an input and 3 when custody was rewritten.
+- *`pubkey`* is a subcommand (derives `build.pubkey` from a seed; prints nothing secret).
+
+**Signed drift (decision 8; `drift` track).**
+- *Signed sender.* The canonical form covers a sender string. The signed sender
+  is `sender_id` when the publisher gives one, else the display name Wotan
+  authorized (`"service"` by default), and a signed event's `sender_id` is that
+  string, so a subscriber can rebuild exactly what was signed and the signature is
+  bound to the authorized identity. (Before, a publisher authorized by display name
+  was verified against `""` and stored under a server-made UUID; no production
+  `config.*` signer existed, so nothing outside one test changed.)
+- *Prefix rules.* `topics.signed_prefixes` entries are validated at load: a prefix
+  ends in `.`, has no empty segment, wildcard, space or control character, is at
+  most a fixed length and is listed once; `config.` is refused there (its keys stay
+  `signing_keys`); keys must be base64 ML-DSA-65 public keys, listed once; unknown
+  fields fail. `config.` and `drift.` are built in, so `drift.` with `keys: []`
+  (what `configs/wotan.yaml` ships) refuses every drift publish until E5. The
+  longest matching prefix decides; a key trusted for one prefix verifies nothing
+  under another. The HTTP publish path refuses every signed prefix (it carries no
+  signature). Wotan now stores the verified signature on the ring-buffer message
+  and copies it, with `signed_at_unix_ms`, onto every `TopicEvent`, live and
+  replayed; before this, no subscriber ever received a signature.
+- *Heimdall identity.* Heimdall publishes under the constant display name
+  `heimdall` and signs for it; the node is in the topic (`drift.detected.<node_id>`,
+  node IDs normalized to one `[a-z0-9-]` segment) and in its per-node key. The
+  drift key must differ from `--sign-key` and `--pubkey` by gungnir key id
+  (ADR-043 #4); a group- or world-readable key file is refused. Publishing goes
+  through a bounded drop-oldest queue that never blocks detection. A test walks the
+  code and fails on any file write, rename, chmod or remove outside manifest
+  signing (ADR-043 #1, alerts only).
+- *`ErrInvalidSignature`.* A signature or public key of the wrong length now fails
+  as `wotansig.ErrInvalidSignature`, not as pqc's size error: bytes from the network
+  that do not verify are a verification failure, whatever the reason.
+
+**Rust provider (decision 3; `rust` track).** `aws-lc-rs` 1.18.2 / `aws-lc-sys`
+0.46.0 were already compiled (tokio-rustls defaults); they are now the only rustls
+provider, recorded as an ADR-004 admission (ADR-096 §2) whose owner sign-off is
+open. The licence check found no OpenSSL or SSLeay licence in aws-lc-sys (that code
+is under Apache-2.0). The WAF and zhend QUIC are reached by peers we do not build,
+so both use the Preferred shape (X25519MLKEM768 first, classical fallback); the
+WAF's default `min_version` is now 1.3. Dropping tonic's `tls` feature from
+trace-collector would have turned an `https://` endpoint into silent cleartext, so
+it now refuses any scheme but `http://`. The dependency baseline shrank by 17 packages.
+
+**The Well (E1; `well` track).** The upgrade is a dump and restore into a NEW
+volume (`restore-drill.sh --into-volume`, which refuses an existing volume), not
+`pg_upgrade`: the official images carry one major each, the Well is small, the
+Sunday drill already proves this path, and the PG 16 volume is never written, so
+rollback is lossless until it is thawed. Override only if the Well outgrows a
+restore window (the drill's `unheaded_well_drill_restore_seconds` says when).
+`postgres:18.6-alpine` is pinned by digest for the throwaway suite only; compose,
+Kubernetes and CI stay on 16.15 until E1. Clients need no change: libpq 16 and 18
+and the Go services' `lib/pq` already offer X25519MLKEM768 first.
+
+**Load balancer (decision 2).** Unset `min_version` is 1.3 and frontends use
+Preferred. `min_version: "1.2"` (user frontends with old clients) and
+`max_version: "1.2"` stay operator opt-ins, re-applied after `ApplyPreferred`, and
+are the two accepted lines in `docs/policy/pq-kex-baseline.txt`.
+
+**WireGuard (decision 9; `hosts` track).** The rotation tool waits 200 s for a
+handshake, not 60 s: a new PSK is used only at the next handshake, which WireGuard
+starts once the session is 120 s old (REKEY_AFTER_TIME), so a 60 s window would roll
+back healthy rotations. The deployed PSK is inline in `wg0.conf`, so the tool
+persists by rewriting that `PresharedKey` line (the key read from a file, never an
+argument) and keeps `<if>.psk`, whose mtime is the last rotation (FND-016's check).
 
 ## Consequences
 
@@ -239,18 +355,19 @@ tokio-rustls's defaults).
 
 The sprint prepares these and stops; each needs Stevie (plan Appendix B.2):
 
-- **E1**: upgrade the live Well from PG 16 to PG 18 with `ssl_groups` (hybrid TLS).
+- **E1** (FND-015): upgrade the live Well from PG 16 to PG 18 with `ssl_groups` (hybrid TLS).
   Prepared: include file, throwaway-container proof suite, dry-run runbook with a
-  restore drill.
-- **E2**: make sshd on west and east hybrid-only (lockout risk). Prepared: strict
+  restore drill (`runbooks/data/well-pg18-upgrade.yaml`).
+- **E2** (`host-probe:{west,east}:sshd-kex-pq`, control UH-PQC-03): make sshd on west and east hybrid-only (lockout risk). Prepared: strict
   probe, repo configs, procedure (east first, a second session kept open).
-- **E3**: the first live WireGuard PSK rotation, and enabling the weekly timer.
+- **E3** (FND-016): the first live WireGuard PSK rotation, and enabling the weekly timer.
   Prepared: a tested rotation tool (dry run by default), units not enabled.
-- **E4**: the production evidence build key: where the seed lives, who holds it,
+- **E4** (FND-018): the production evidence build key: where the seed lives, who holds it,
   how `build.pubkey` is published, the rotation ceremony. Prepared: `sign`,
   `pubkey` and `verify*` working with ephemeral keys.
-- **E5**: a Heimdall drift key per node, enrolled in live Wotan `signed_prefixes`,
+- **E5** (FND-019): a Heimdall drift key per node, enrolled in live Wotan `signed_prefixes`,
   and a unit to run Heimdall. Prepared: signed publish, scoped verification,
   fail-closed configuration.
 
-Also for Stevie, not blocking: accept this ADR.
+Also for Stevie, not blocking: accept this ADR, and sign off the `aws-lc-rs` /
+`aws-lc-sys` admission recorded in ADR-004 (owner sign-off pending).

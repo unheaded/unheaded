@@ -43,6 +43,7 @@ PUBLIC has no CONNECT or TEMP anywhere: a role reaches only the databases it is 
 
 ## Connecting
 
+- **Key exchange is classical (P-256)** until E1: PostgreSQL 16's `ssl_ecdh_curve` takes one curve. PostgreSQL 18 with `ssl_groups=X25519MLKEM768:X25519:prime256v1` (`db/postgresql.pg18.conf.d/10-pq-groups.conf`) negotiates the hybrid with every client we run; proof suite `scripts/well/test-pq-groups.sh`, upgrade runbook `runbooks/data/well-pg18-upgrade.yaml` (dump and restore into a new volume, the PG 16 volume kept as the rollback). FND-015; see [[Post-Quantum Key Exchange|Post-Quantum-Key-Exchange]].
 - **TLS 1.3 only** for every network connection; anything else is rejected (`db/pg_hba.conf`). Clients use `sslmode=require` (Go clients: `WELL_SSLMODE`, default `require`; `pkg/database` refuses `allow` and `prefer`, and `disable` except to a loopback host or socket); `verify-full` with `sslrootcert=/etc/unheaded/well-tls/ca.crt`.
 - **On Kubernetes** (`kubernetes/manifests/base/the-well/`) the same: the StatefulSet runs `db/postgresql.conf` with `db/pg_hba.k8s.conf` (TLS + SCRAM for pods from private address space to the four Well databases by name, the superuser only inside the pod) and the certificate from the `the-well-tls` secret, made by `make-tls.sh` (`WELL_TLS_EXTRA_DNS=the-well,the-well.unheaded.svc` for `verify-full`). Proved on kind 2026-10-19.
 - From containers: host `postgres:5432` on the `data` network (`172.28.1.0/24`).
