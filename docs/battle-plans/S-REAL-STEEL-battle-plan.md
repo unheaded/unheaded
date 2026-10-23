@@ -909,7 +909,8 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 - [x] **Step 185** [D] ~10m: Existing tests relied on the simulation: rewrite them to pass a test driver (in `_test.go`, a fake is fine; the product path is what must not fake). 2 attempts → STUCK with the failing test names.
   - Done 2026-10-23: the legacy tests that leaned on the simulation now pass the in-test driver (testDriver in driver_test.go): the three *_NoCallbacks became *_WithTestDriver, and the shift/create/unhealthy failure tests also assert what is left running (green or canary deleted, old version still serving).
 - [ ] **Step 186** [C] ~2m: **COMMIT CHECKPOINT**: `fix(deploy): strategies fail without a driver instead of inventing instances`.
-- [ ] **Step 187** [CODE][TEST] ~30m: `pkg/deploy/cuirassdriver` tests first, against an httptest fake Cuirass that keeps desired/actual maps and flips instances to running/healthy after N polls:
+- [x] **Step 187** [CODE][TEST] ~30m: `pkg/deploy/cuirassdriver` tests first, against an httptest fake Cuirass that keeps desired/actual maps and flips instances to running/healthy after N polls:
+  - Done 2026-10-23: fake_test.go (in-memory Cuirass: auth on writes, 409 on a second proxy owner like Cuirass, actual follows desired per tick, healthy after N ticks) + driver_test.go: the seven named tests plus DeleteRefusesAnotherServicesInstance (other service, pihole, path junk: no DELETE reaches Cuirass), DeleteMovesTheProxyFirst, CallbacksNeedAHealthSpec, InstanceName, WriteFailureIsAnError. Amendment: the plan's curl examples send 'Authorization: Bearer'; pkg/auth's API-key authenticator reads X-API-Key, which the driver sends.
   - `TestDriver_CreatePutsVersionedInstanceAndWaitsHealthy` (name `<svc>-<ver>-<n>`, image `<svc>-<ver>`, labels `svc`, `ver`, `deployment`, plus the caller's; Health spec passed through; returns IP).
   - `TestDriver_CreateTimesOutWhenNeverHealthy` (ctx deadline, error names the instance).
   - `TestDriver_DeleteRemovesDesired`.
@@ -917,9 +918,12 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - `TestDriver_TrafficShiftMovesProxyOnce` (old spec PUT without `proxy`, then new spec PUT with it, then one reconcile-now call).
   - `TestDriver_RefusesWithoutAPIKey` (env `CUIRASS_API_KEY` unset → constructor error: credentials fail loud, never a default).
   - `TestDriver_HealthIsCuirassHealth` (the driver does not probe on its own: one source of truth).
-- [ ] **Step 188** [TEST] ~2m: Red: `gotest ./pkg/deploy/cuirassdriver/...`.
-- [ ] **Step 189** [CODE] ~60m: Implement `Driver` returning a `strategy.Callbacks`; HTTP client with timeouts, `pkg/auth`-compatible bearer key, JSON bodies capped, IDs validated with the same rule as Cuirass (`[a-z0-9-]`, LXD name length).
-- [ ] **Step 190** [TEST][V] ~3m: Green, race-clean.
+- [x] **Step 188** [TEST] ~2m: Red: `gotest ./pkg/deploy/cuirassdriver/...`.
+  - Done 2026-10-23: red (compile: containerSpec, Driver undefined).
+- [x] **Step 189** [CODE] ~60m: Implement `Driver` returning a `strategy.Callbacks`; HTTP client with timeouts, `pkg/auth`-compatible bearer key, JSON bodies capped, IDs validated with the same rule as Cuirass (`[a-z0-9-]`, LXD name length).
+  - Done 2026-10-23: driver.go: Driver{New, FromEnv, Instances, Callbacks}; request timeout 10 s, bodies capped 4 MiB, no redirects, no env proxy; names <svc>-<ver>-<n> checked against the LXD rule; a health spec is required (it is how a create is confirmed); the first instance of a service gets the proxy, deleting the holder moves it first (target version preferred), a 100% shift moves it (remove, add, one reconcile, then waits until Cuirass reports it moved); below 100% is a no-op (D-04); a failed create removes its desired spec again.
+- [x] **Step 190** [TEST][V] ~3m: Green, race-clean.
+  - Done 2026-10-23: green, race-clean; golangci-lint 0, gosec clean.
 - [ ] **Step 191** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): Cuirass driver for deploy strategies`.
 - [ ] **Step 192** [CODE][TEST] ~20m: Cuirass `POST /api/v1/reconcile` (auth required like PUT; at most one run per second, extra calls get 429; runs one sync+plan+apply cycle and returns its actions): tests in `cmd/unheaded-daemon/reconcile_now_test.go`. Without it a blue-green cutover waits up to one 30 s sync.
 - [ ] **Step 193** [TEST][V] ~3m: `gotest ./cmd/unheaded-daemon/...` green.
