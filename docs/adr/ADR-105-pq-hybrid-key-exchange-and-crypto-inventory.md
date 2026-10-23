@@ -334,8 +334,15 @@ probes weak TLS on purpose.
   negotiate whatever the far end offers: hybrid with a modern server, classical
   otherwise. They are inventoried as `hybrid-opportunistic` / `third-party-peer`.
 - **Preferred listeners** guarantee a hybrid only against a client that offers one.
-  A client that lists a classical group first may still get it. The observed Go
-  behaviour is recorded here by the red-team step (Phase 14).
+  Observed (Phase 14 red team, OpenSSL 3.5.3 against Wotan HTTP built with Go
+  1.27.3): a client that supports X25519MLKEM768 but lists X25519 or P-256 first,
+  and so sends only that classical key share, still gets `X25519MLKEM768`: Go
+  answers with a HelloRetryRequest rather than accept the classical share. A
+  client that offers no hybrid at all gets X25519 or P-256. So a Preferred link is
+  classical exactly when the client cannot do ML-KEM, and that is not visible to
+  the server's operator: do not read a Preferred link as hybrid-guaranteed. Strict
+  listeners refused every classical-only offer and TLS 1.2
+  (`docs/security/pq-preflight-2026-10-23.md`, "Post-sprint verification").
 - **Certificates and signatures on live sessions** stay classical (ECDSA, RSA,
   Ed25519). They are not exposed to harvest-now-decrypt-later; PQ certificates are
   parked until the ecosystem and NIST IR 8547's timeline call for them.

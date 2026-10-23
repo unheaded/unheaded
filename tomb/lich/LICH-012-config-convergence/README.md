@@ -76,6 +76,17 @@ produce either an exploit (finding) or a signed "no exploit" certification.
 Count against the criteria below: 6 exploitable findings, all fixed on
 develop; L12a key storage and L12d still to run before a verdict.
 
+### S-QUANTUM-ARMOR Phase 14 re-run (2026-10-23, sprint tip)
+
+| Sub | Attack | Verdict | Where |
+|---|---|---|---|
+| L12b | Re-run the signed-drift refusals on the merged tip: forged (attacker key, attacker signature with the trusted key attached, unsigned, config key on drift), replayed, re-topicked, re-dated | No exploit: all refused, subscriber re-verification holds (`go test -race -run 'LICH012\|DriftE2E' ./services/wotan/internal/grpc/`: 3 PASS) | `drift_e2e_test.go` |
+| L12b | Strip a drift signature by having a peer node replicate the event | **FINDING (low, open)**: `replication.proto` carries no signature, key or `signed_at`, so a replicated signed event reaches the peer's subscribers unsigned. A verifying subscriber refuses it (fails closed); nothing replicates drift today. FND-020 | `compliance/findings/register.yaml` |
+| L12b | Exhaust Wotan memory with signed messages the byte budget does not count | **FINDING (low, open)**: the ring budget counts `Content` only; each signed message also holds ~5.3 KB of signature and key. Needs an approved publisher of a signed prefix. FND-021 | `compliance/findings/register.yaml` |
+
+Transport-level downgrade and evidence-pack tamper results for the same pass:
+`docs/security/pq-preflight-2026-10-23.md` ("Post-sprint verification").
+
 ## Success Criteria
 
 | Findings | Verdict |

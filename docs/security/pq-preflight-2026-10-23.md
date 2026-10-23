@@ -38,3 +38,80 @@ No hypothesis is FALSE, so no phase changes scope. Notes carried forward:
 - Phase 5: `pkg/loadbalancer/config.go:745` honours a config `max_version: "1.2"`; a 1.3 floor must reject or ignore that value, and the lint should flag it.
 - Phase 8: use an exact PG 18 tag (local `18-alpine` resolved to 18.3, Alpine 3.23, libssl3 3.5.5).
 - Phase 9: the WireGuard interface is `wg0`; west stores the PSK inline in `wg0.conf`, east in both `preshared.key` and `wg0.conf`. Rotation must update both places on east.
+
+## Post-sprint verification (Phase 14 red team, 2026-10-23)
+
+Run on the Sprint 1 tip (`sprint1/wrap`), west, loopback only, throwaway keys
+(created in a private scratch directory, deleted after use, never printed).
+
+### Step 268: downgrade attempts with an independent client (OpenSSL 3.5.3)
+
+Wotan built from the tip, `-enable-tls` with a throwaway P-256 cert, HTTP on
+127.0.0.1:28000 (Preferred), gRPC on 127.0.0.1:28001 (Strict); stopped by PID
+afterwards. `(HRR)` = the server answered the first ClientHello with a
+HelloRetryRequest (two ClientHellos seen with `-msg`).
+
+```
+port   client offer                                  result
+28001  -groups X25519MLKEM768:X25519                 X25519MLKEM768
+28001  -groups X25519                                refused: alert handshake failure
+28001  -groups P-256                                 refused: alert handshake failure
+28001  -tls1_2                                       refused: alert protocol version
+28001  -groups X25519:X25519MLKEM768 (classical 1st) X25519MLKEM768 (HRR)
+28001  -groups P-256:X25519MLKEM768  (classical 1st) X25519MLKEM768 (HRR)
+28000  -groups X25519MLKEM768:X25519                 X25519MLKEM768
+28000  -groups X25519                                X25519 (Preferred fallback)
+28000  -groups P-256                                 P-256  (Preferred fallback)
+28000  -tls1_2                                       refused: alert protocol version
+28000  -groups X25519:X25519MLKEM768 (classical 1st) X25519MLKEM768 (HRR)
+28000  -groups P-256:X25519MLKEM768  (classical 1st) X25519MLKEM768 (HRR)
+```
+
+Verdict: no downgrade on Strict (classical-only and TLS 1.2 refused). Preferred
+negotiates the hybrid whenever the client supports it, even when the client
+lists a classical group first and sends only that key share: Go 1.27 pays a
+HelloRetryRequest round trip rather than accept X25519. A Preferred link is
+classical only against a client that does not support ML-KEM at all. Recorded
+in ADR-105 Consequences.
+
+### Step 269: evidence-pack tamper sweep beyond the unit tests
+
+A signed fixture pack (custody signed) and its public key were exported from
+the test helpers; `verify` (built from the tip) ran under
+`strace -e openat,open,readlink,stat,newfstatat` on each re-tarred variant.
+
+```
+control (untampered, --iso)                        rc=0
+extra manifest/../evil entry                       rc=1  "'..' component"
+manifest/manifest.yaml -> /etc/passwd (symlink)    rc=1  "not a regular file or directory"
+manifest/manifest.yaml -> /etc/passwd (hardlink)   rc=1  "not a regular file or directory"
+second manifest/manifest.yaml                      rc=1  "duplicate entry"
+/tmp/evil absolute entry                           rc=1  "absolute path"
+manifest.yaml.sig of a pack signed by another key  rc=1  "seal key id does not match the public key"
+manifest.yaml.sig by the SAME key over another
+  (valid) manifest                                 rc=1  "payload hash mismatch"
+```
+
+Every variant exits 1; no syscall in any trace names `/etc/passwd` or an
+`evil` path, and nothing was written outside the scratch directory.
+
+### Step 270: key hygiene
+
+- `git grep 'BEGIN (EC |RSA |OPENSSH )?PRIVATE KEY'` outside testdata: one hit,
+  `pkg/waf/inspection/response_test.go:126`, the bare header string a WAF
+  leak-detection test matches on (no key material; pre-existing).
+- No tracked `*.seed` or `build.key` file.
+- No 44-character base64 value (PSK- or key-shaped) added anywhere in
+  `424edf47..HEAD`, nor in this session's logs.
+- Every new key loader refuses a group-readable file:
+  `heimdall-daemon` drift key (`drift_test.go`, `ErrKeyFilePerms`), manifest
+  key (`main_test.go`), `yggdrasil-evidence sign` (`sign_test.go`),
+  `gungnir.LoadSeedFile` (`evidence_test.go`).
+
+### Findings from this pass
+
+None new at medium or above. Recorded as low findings in
+`compliance/findings/register.yaml`: FND-020 (cluster replication drops
+message signatures, so a replicated signed event arrives unsigned; fails closed
+at a verifying subscriber) and FND-021 (ring byte budget ignores signature and
+key bytes).
