@@ -14,6 +14,7 @@ import (
 	"github.com/rs/zerolog/log"
 	"unheaded/pkg/httputil"
 	"unheaded/services/wotan/internal/member"
+	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/room"
 	"unheaded/services/wotan/internal/signing"
 	"unheaded/services/wotan/internal/store"
@@ -184,6 +185,9 @@ func (s *Server) SendMessage(w http.ResponseWriter, r *http.Request) {
 
 	// Send message
 	msg, overwritten := rm.SendMessage(req.MemberID, req.Content)
+	if m := metrics.Get(); m != nil {
+		m.RecordMessageCreated(req.RoomID, overwritten)
+	}
 
 	// Broadcast to subscribers
 	if s.Wotan != nil {

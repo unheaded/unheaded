@@ -18,6 +18,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"unheaded/pkg/httputil"
+	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/ringbuffer"
 	"unheaded/services/wotan/internal/signing"
 	"unheaded/services/wotan/internal/store"
@@ -242,7 +243,12 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send message to room's ring buffer
-	msg, _ := rm.SendMessage(subscriberUUID, req.Payload)
+	msg, overwritten := rm.SendMessage(subscriberUUID, req.Payload)
+	// Counted here as on the gRPC path: this one is where most topics are
+	// fed (logs.*, system.health.*), and it was never counted.
+	if m := metrics.Get(); m != nil {
+		m.RecordMessageCreated(topic, overwritten)
+	}
 
 	// Persist to store if available (async — non-blocking)
 	if s.Store != nil {

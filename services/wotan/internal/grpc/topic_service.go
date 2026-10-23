@@ -545,7 +545,7 @@ func (s *TopicService) PublishTopic(
 	}
 
 	// Send message to room's ring buffer
-	msg, _ := rm.SendMessage(senderID, string(req.Payload))
+	msg, overwritten := rm.SendMessage(senderID, string(req.Payload))
 
 	// Publish event through wotan pub/sub
 	s.wotan.PublishMessageCreated(msg)
@@ -560,7 +560,9 @@ func (s *TopicService) PublishTopic(
 		Int64("seq", seq).
 		Msg("topic_message_published")
 
-	metrics.MessagesCreated.WithLabelValues(req.Topic).Inc()
+	if m := metrics.Get(); m != nil {
+		m.RecordMessageCreated(req.Topic, overwritten)
+	}
 
 	return &chatpb.TopicPublishResponse{
 		MessageId: msg.ID.String(),
