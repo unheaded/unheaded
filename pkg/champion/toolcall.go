@@ -77,6 +77,7 @@ var MutatingTools = map[string]bool{
 // default.
 var ReadOnlyTools = map[string]bool{
 	"read_file":      true,
+	"file_read":      true, // raft/zhen_mcp_server.py's read; Rule 1 still checks its path
 	"kanban_list":    true,
 	"runbook_show":   true,
 	"runbook_list":   true,
