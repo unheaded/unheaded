@@ -21,7 +21,9 @@ import (
 // printed from the same privileged command, so a sudo or ssh failure is a
 // collection error, never a pass.
 type HostJournal struct {
-	// Wanted maps a host to the fixes its bound profile turns on, and
+	// Wanted maps a host to the fixes its bound profile turns on (a host
+	// with no binding is absent, which fails: nothing says what it should
+	// have applied), and
 	// SHA256 a fix to its current content hash (remediation.Fix.SHA256).
 	Wanted map[string][]string
 	SHA256 map[string]string
@@ -117,12 +119,20 @@ func (h *HostJournal) Collect(ctx context.Context, sources []crosswalk.Source) (
 			continue
 		}
 		host, _, _ := strings.Cut(s.Ref, ":")
+		wanted, bound := h.Wanted[host]
+		if !bound {
+			// No binding read as "the profile turns no fix on", a pass: an
+			// empty bindings table passed every host.
+			recs = append(recs, crosswalk.Record{Source: s, Verdict: crosswalk.VerdictFail, ObservedAt: now().UTC(),
+				Detail: "no profile is bound to " + host + ": what it should have applied is unknown"})
+			continue
+		}
 		out, err := run(ctx, host, journalScript)
 		if err != nil {
 			errs = append(errs, err)
 			continue // NOT_ASSESSED, not a pass
 		}
-		pass, detail, entries := JudgeJournal(out, h.Wanted[host], h.SHA256)
+		pass, detail, entries := JudgeJournal(out, wanted, h.SHA256)
 		if entries != nil {
 			h.Journals[host] = entries
 		}

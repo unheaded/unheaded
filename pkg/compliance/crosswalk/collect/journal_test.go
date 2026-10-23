@@ -108,4 +108,23 @@ func TestHostJournalCollect(t *testing.T) {
 	if len(h.Journals["east"]) != 1 {
 		t.Errorf("parsed journal not kept for ingest: %v", h.Journals)
 	}
+
+	// A host with no profile bound once passed "the profile turns no fix
+	// on"; one bound to a profile with no fixes still does.
+	h.Wanted = map[string][]string{"east": nil}
+	h.Run = func(context.Context, string, string) (string, error) { return "@none\n@ok\n", nil }
+	recs, err = h.Collect(context.Background(), []crosswalk.Source{
+		{Kind: crosswalk.KindHostJournal, Ref: "east:apply-journal"},
+		{Kind: crosswalk.KindHostJournal, Ref: "west:apply-journal"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]crosswalk.Verdict{}
+	for _, r := range recs {
+		got[r.Source.Ref] = r.Verdict
+	}
+	if got["east:apply-journal"] != crosswalk.VerdictPass || got["west:apply-journal"] != crosswalk.VerdictFail {
+		t.Errorf("bound to no fixes / not bound = %v, want east pass, west fail", got)
+	}
 }
