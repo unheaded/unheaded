@@ -108,6 +108,9 @@ type Daemon struct {
 	lxdClient LXDClient
 	lxdUp     atomic.Bool // the last list succeeded
 
+	// store persists the desired state; nil refuses container writes.
+	store *desiredStore
+
 	// authEnabled: the container write API (PUT/DELETE) answers only behind
 	// auth. Without it anyone who reaches the port could ask for deletes.
 	authEnabled bool
@@ -333,6 +336,9 @@ type Config struct {
 	LXDClientCert string
 	LXDClientKey  string
 	LXDServerCert string
+
+	// StateDir holds desired.json, the desired state. Empty refuses writes.
+	StateDir string
 }
 
 // StateManager manages desired vs actual state
@@ -458,6 +464,17 @@ func main() {
 		log.Fatal().Err(err).Str("backend", cfg.LXDBackend).Msg("LXD client configuration")
 	}
 	daemon.lxdClient = lxdClient
+	if cfg.StateDir == "" {
+		log.Warn().Msg("No state dir: container writes are refused (desired state could not survive a restart)")
+	} else {
+		daemon.store = newDesiredStore(cfg.StateDir)
+		desired, err := daemon.store.load()
+		if err != nil {
+			log.Fatal().Err(err).Msg("Desired state unreadable; refusing to start with an empty one")
+		}
+		daemon.stateManager.desired = desired
+		log.Info().Int("containers", len(desired)).Str("path", daemon.store.path).Msg("Desired state loaded")
+	}
 
 	// Setup signal handling
 	sigCh := make(chan os.Signal, 1)
@@ -967,8 +984,14 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 		spec.ID = id
 
 		d.stateManager.mu.Lock()
-		d.stateManager.desired[id] = &spec
+		next := cloneDesired(d.stateManager.desired)
+		next[id] = &spec
+		err := d.commitDesired(next)
 		d.stateManager.mu.Unlock()
+		if err != nil {
+			d.writeStoreError(w, id, err)
+			return
+		}
 
 		d.log.Info().Str("id", id).Str("name", spec.Name).Str("image", spec.Image).Msg("Updated desired state for container")
 		w.WriteHeader(http.StatusOK)
@@ -990,8 +1013,14 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 			})
 			return
 		}
-		delete(d.stateManager.desired, id)
+		next := cloneDesired(d.stateManager.desired)
+		delete(next, id)
+		err := d.commitDesired(next)
 		d.stateManager.mu.Unlock()
+		if err != nil {
+			d.writeStoreError(w, id, err)
+			return
+		}
 
 		d.log.Info().Str("id", id).Msg("Removed container from desired state, reconciliation will clean up")
 		w.WriteHeader(http.StatusOK)
@@ -1006,6 +1035,36 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("method %s not allowed", r.Method),
 		})
 	}
+}
+
+var errNoStateStore = errors.New("no state dir: desired state cannot be persisted, so container writes are refused")
+
+// commitDesired persists next as the desired state, then adopts it; the
+// caller holds stateManager.mu. With no store, or a failed write, the
+// desired state is unchanged.
+func (d *Daemon) commitDesired(next map[string]*ContainerSpec) error {
+	if d.store == nil {
+		return errNoStateStore
+	}
+	if err := d.store.save(next); err != nil {
+		return fmt.Errorf("persist desired state: %w", err)
+	}
+	d.stateManager.desired = next
+	return nil
+}
+
+func cloneDesired(m map[string]*ContainerSpec) map[string]*ContainerSpec {
+	out := make(map[string]*ContainerSpec, len(m)+1)
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+func (d *Daemon) writeStoreError(w http.ResponseWriter, id string, err error) {
+	d.log.Error().Err(err).Str("id", id).Msg("Desired state not changed")
+	w.WriteHeader(http.StatusServiceUnavailable)
+	json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 func (d *Daemon) handleMetrics(w http.ResponseWriter, r *http.Request) {
@@ -1372,6 +1431,7 @@ type yamlConfig struct {
 	LXDClientCert string `yaml:"lxd_client_cert"`
 	LXDClientKey  string `yaml:"lxd_client_key"`
 	LXDServerCert string `yaml:"lxd_server_cert"`
+	StateDir      string `yaml:"state_dir"`
 	WotanAddr     string `yaml:"wotan_addr"`
 	WotanGRPCAddr string `yaml:"wotan_grpc_addr"`
 	PollInterval  string `yaml:"poll_interval"`
@@ -1394,6 +1454,7 @@ func loadConfig(path string) *Config {
 		LXDClientCert: os.Getenv("LXD_CLIENT_CERT"),
 		LXDClientKey:  os.Getenv("LXD_CLIENT_KEY"),
 		LXDServerCert: os.Getenv("LXD_SERVER_CERT"),
+		StateDir:      getEnvOrDefault("CUIRASS_STATE_DIR", "/var/lib/unheaded/cuirass"),
 		WotanAddr:     getEnvOrDefault("WOTAN_ADDR", fmt.Sprintf("localhost:%d", ports.WotanHTTP)), // HTTP; 18001 is gRPC
 		WotanGRPCAddr: getEnvOrDefault("WOTAN_GRPC_ADDR", ""),
 		PollInterval:  30 * time.Second,
@@ -1436,6 +1497,7 @@ func loadConfig(path string) *Config {
 			{&cfg.LXDBackend, yc.LXDBackend}, {&cfg.LXDSocket, yc.LXDSocket}, {&cfg.LXDURL, yc.LXDURL},
 			{&cfg.LXDProject, yc.LXDProject}, {&cfg.LXDClientCert, yc.LXDClientCert},
 			{&cfg.LXDClientKey, yc.LXDClientKey}, {&cfg.LXDServerCert, yc.LXDServerCert},
+			{&cfg.StateDir, yc.StateDir},
 		} {
 			if o.v != "" {
 				*o.dst = o.v

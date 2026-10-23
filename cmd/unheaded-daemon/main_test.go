@@ -18,12 +18,14 @@ import (
 // minus anything that talks to the network.
 func newTestDaemon(t *testing.T) *Daemon {
 	t.Helper()
-	return NewDaemon(
+	d := NewDaemon(
 		&Config{NodeID: "test", NodeName: "test", HTTPAddr: ":0", GRPCAddr: ":0"},
 		logger.New(io.Discard),
 		transport.DefaultConfig(),
 		transport.NewHealthServer("unheaded-daemon-test"),
 	)
+	d.store = newDesiredStore(t.TempDir())
+	return d
 }
 
 // registerHandlers registered /health and /ready twice — once via

@@ -15,6 +15,8 @@ Requires=unheaded-wotan.service
 Type=simple
 Environment=HTTP_ADDR=:17000
 Environment=GRPC_ADDR=:17001
+# desired.json lives in the unit's StateDirectory (ProtectSystem=strict)
+Environment=CUIRASS_STATE_DIR=/var/lib/unheaded/daemon
 EnvironmentFile=-/etc/unheaded/daemon.env
 ExecStart=/usr/local/bin/unheaded-daemon
 WorkingDirectory=/var/lib/unheaded/daemon

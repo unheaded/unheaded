@@ -66,6 +66,8 @@ The same label and prune rule apply to `pkg/state`'s reconciler.
 - **A failed list skips the cycle.** Actual state and drift stay as last seen; an unreachable LXD is not reported as every container missing. `cuirass_lxd_up` is 0 until a list succeeds.
 - Created instances get `user.unheaded.managed=true`, `limits.cpu` (spec `cpu`, cores), `limits.memory` (spec `memory`, bytes) and `user.unheaded.label.<key>` per label. Images are a local alias or `images:<alias>` / `ubuntu:<alias>`. Instance names follow LXD's rule (letter first, letters, digits and hyphens, at most 63); `PUT /api/v1/containers/{id}` rejects others with 400.
 
+**Desired state persists** in `desired.json` under `CUIRASS_STATE_DIR` (`state_dir`; default `/var/lib/unheaded/cuirass`, the compose `cuirass-state` volume; the deb's unit uses its StateDirectory `/var/lib/unheaded/daemon`). It was in memory only: a restart forgot every desired container, and with pruning the next reconcile would have deleted every managed one. Writes are atomic (temp file, fsync, rename, mode 0600); a write that cannot be saved returns 503 and changes nothing; an empty `state_dir` refuses all writes; a damaged file stops Cuirass at startup instead of starting empty.
+
 Not deployed yet. The plan: `lxc project create unheaded`, a restricted trust for that project, then the daemon with `LXD_BACKEND=https` in observe mode, and read the planned actions before enforcing.
 
 ## NixOS Container Definitions
