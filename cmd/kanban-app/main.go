@@ -31,8 +31,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/rs/zerolog"
-
 	"unheaded/pkg/auth"
 	"unheaded/pkg/database"
 	"unheaded/pkg/discovery"
@@ -1573,13 +1571,9 @@ func main() {
 	}
 	logPublisher := logagg.NewPublisher("kanban-app", logConn)
 	if logPublisher.Enabled() {
-		log.AddHook(logger.HookFunc(func(entry *logger.Entry) error {
-			// Adapt custom logger Entry to zerolog hook call.
-			// The Publisher.Run method handles Wotan forwarding on a
-			// best-effort, non-blocking basis.
-			logPublisher.Run(nil, entryLevelToZerolog(entry.Level), entry.Message)
-			return nil
-		}))
+		// LoggerHook forwards the entry's structured fields too; going
+		// through Publisher.Run passed the message alone.
+		log.AddHook(logPublisher.LoggerHook())
 		log.Info().Msg("Log forwarding to Wotan enabled via logagg publisher")
 	}
 
@@ -1823,27 +1817,4 @@ func getEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
-}
-
-// entryLevelToZerolog maps the custom logger.Level to zerolog.Level
-// so the logagg.Publisher can forward entries at the correct severity.
-func entryLevelToZerolog(level logger.Level) zerolog.Level {
-	switch level {
-	case logger.TraceLevel:
-		return zerolog.TraceLevel
-	case logger.DebugLevel:
-		return zerolog.DebugLevel
-	case logger.InfoLevel:
-		return zerolog.InfoLevel
-	case logger.WarnLevel:
-		return zerolog.WarnLevel
-	case logger.ErrorLevel:
-		return zerolog.ErrorLevel
-	case logger.FatalLevel:
-		return zerolog.FatalLevel
-	case logger.PanicLevel:
-		return zerolog.PanicLevel
-	default:
-		return zerolog.InfoLevel
-	}
 }

@@ -81,12 +81,12 @@ func NewPublisherWithQueue(serviceName string, conn transport.Connection, depth 
 // so they are sent from Run itself, after everything queued ahead of them,
 // within flushTimeout.
 func (p *Publisher) Run(e *zerolog.Event, level zerolog.Level, msg string) {
-	p.enqueue(levelString(level), msg)
+	p.enqueueFields(levelString(level), msg, nil)
 }
 
-// enqueue is the logger-agnostic entry point shared by the zerolog and
-// pkg/logger adapters.
-func (p *Publisher) enqueue(level, msg string) {
+// enqueueFields is the logger-agnostic entry point shared by the zerolog
+// and pkg/logger adapters. fields may be nil.
+func (p *Publisher) enqueueFields(level, msg string, fields map[string]interface{}) {
 	if !p.enabled.Load() {
 		return
 	}
@@ -96,6 +96,7 @@ func (p *Publisher) enqueue(level, msg string) {
 		Service:   p.serviceName,
 		Level:     level,
 		Message:   msg,
+		Fields:    fields,
 	}
 
 	if level == "fatal" || level == "panic" {
