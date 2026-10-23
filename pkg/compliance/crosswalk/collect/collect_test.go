@@ -679,6 +679,14 @@ func TestProbeJudges(t *testing.T) {
 		{"firewall-inbound-deny", "-P INPUT ACCEPT\n---\n-P INPUT ACCEPT\n---\n\t\ttype filter hook input priority filter; policy drop;\n", true},
 		{"firewall-inbound-deny", "-P INPUT ACCEPT\n---\n-P INPUT ACCEPT\n---\n\t\ttype filter hook input priority filter; policy accept;\n", false},
 		{"firewall-inbound-deny", "-P INPUT ACCEPT\n---\n-P INPUT ACCEPT\n---\n", false},
+		// A DROP policy behind a rule that accepts everything is allow by default.
+		{"firewall-inbound-deny", "-P INPUT DROP\n-A INPUT -i lo -j ACCEPT\n---\n-P INPUT DROP\n", true},
+		{"firewall-inbound-deny", "-P INPUT DROP\n-A INPUT -j ACCEPT\n---\n-P INPUT DROP\n", false},
+		{"firewall-inbound-deny", "-P INPUT DROP\n---\n-P INPUT DROP\n-A INPUT -j ACCEPT\n", false},
+		{"firewall-inbound-deny", "-P INPUT ACCEPT\n---\n-P INPUT ACCEPT\n---\ntable inet unheaded {\n\tchain input {\n\t\ttype filter hook input priority filter; policy drop;\n" +
+			"\t\tct state established,related accept\n\t\tiif \"lo\" accept\n\t}\n}\n", true},
+		{"firewall-inbound-deny", "-P INPUT ACCEPT\n---\n-P INPUT ACCEPT\n---\ntable inet unheaded {\n\tchain input {\n\t\ttype filter hook input priority filter; policy drop;\n" +
+			"\t\tct state established,related accept\n\t\tcounter packets 12 bytes 840 accept\n\t}\n}\n", false},
 		{"unattended-upgrades-enabled", "APT::Periodic::Unattended-Upgrade \"0\";\n", false},
 		{"unattended-upgrades-enabled", "APT::Periodic::Unattended-Upgrade \"1\";\ninstalled=unattended-upgrades \npresent=unattended-upgrades \ndpkg=installed\ntimer=enabled/active\n", true},
 		// The setting alone once passed: nothing installs updates without the

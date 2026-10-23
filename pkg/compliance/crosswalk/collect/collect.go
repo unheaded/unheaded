@@ -694,29 +694,45 @@ var Probes = map[string]Probe{
 		// Default deny inbound, either as the iptables INPUT policy for both
 		// families or as the package-owned nftables table (ADR-098 step 6,
 		// deploy/nftables), whose input chain drops by policy for IPv4 and
-		// IPv6 at once. A drop policy in any input base chain is final.
+		// IPv6 at once. A drop policy in any input base chain is final. A
+		// rule that accepts everything ahead of the policy (iptables
+		// "-A INPUT -j ACCEPT", a bare nft "accept") makes the default
+		// allow: such a host once passed on its DROP policy alone.
 		Baseline: true,
 		Command: "$UH_PRIV iptables -S INPUT; echo ---; $UH_PRIV ip6tables -S INPUT; echo ---; " +
-			"$UH_PRIV nft list chain inet unheaded input | grep -m1 'hook input'",
+			"$UH_PRIV nft list chain inet unheaded input",
 		Judge: func(out string) (bool, string) {
 			parts := strings.SplitN(out, "---", 3)
 			for len(parts) < 3 {
 				parts = append(parts, "")
 			}
 			pol := func(s string) string {
+				p := "unknown"
 				for _, l := range strings.Split(s, "\n") {
-					if strings.HasPrefix(strings.TrimSpace(l), "-P INPUT ") {
-						return strings.TrimPrefix(strings.TrimSpace(l), "-P INPUT ")
+					l = strings.Join(strings.Fields(l), " ")
+					if v, ok := strings.CutPrefix(l, "-P INPUT "); ok && p == "unknown" {
+						p = v
+					}
+					if l == "-A INPUT -j ACCEPT" && p != "unknown" {
+						return p + " behind -A INPUT -j ACCEPT"
 					}
 				}
-				return "unknown"
+				return p
 			}
 			p4, p6 := pol(parts[0]), pol(parts[1])
 			nft := "absent"
-			if hook := strings.TrimSpace(parts[2]); hook != "" {
-				nft = "policy accept"
-				if strings.Contains(hook, "policy drop") {
-					nft = "policy drop"
+			hooked := false
+			for _, l := range strings.Split(parts[2], "\n") {
+				l = strings.TrimSpace(l)
+				switch {
+				case !hooked && strings.Contains(l, "hook input"):
+					hooked = true
+					nft = "policy accept"
+					if strings.Contains(l, "policy drop") {
+						nft = "policy drop"
+					}
+				case hooked && nftAcceptAllRe.MatchString(l):
+					nft += " behind an unconditional accept rule"
 				}
 			}
 			pass := (p4 == "DROP" && p6 == "DROP") || nft == "policy drop"
@@ -827,6 +843,10 @@ func splitSections(out, tag string) (sections map[string]string, forged map[stri
 	}
 	return sections, forged
 }
+
+// nftAcceptAllRe: an nft rule that accepts every packet, with or without
+// a counter.
+var nftAcceptAllRe = regexp.MustCompile(`^(counter( packets \d+ bytes \d+)? )?accept$`)
 
 // backupLineRe: a db-backup-recent find line, "<YYYY-MM-DD> <what>".
 var backupLineRe = regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \S`)
