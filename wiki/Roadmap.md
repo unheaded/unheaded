@@ -13,7 +13,7 @@ Track C (hybrid) chosen 2026-05-11. Since July the work has been hardening and t
 ### Age 3 — In Progress
 
 **Shipped:**
-- S67 Wire Format FROZEN at v0x01 (12 IANA registries)
+- S67 Wire Format FROZEN at v0x01 (13 IANA registries in Foundation draft-06)
 - S78 LOC audit
 - S-WEST + S-EAST bootstrap
 - ADR Sweep 2026-04-03 (all 27 ADRs resolved)
