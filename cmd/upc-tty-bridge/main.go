@@ -7,13 +7,13 @@
 // Pattern after cmd/doom-bridge/main.go but frames TTY BYTES (xterm.js
 // consumable) instead of framebuffer pixels. Subscribes to the BPF tty
 // output stream + Wotan compute.tty.{instance} topic, ships bytes over
-// WS to browser xterm.js client; captures keystrokes from WS and writes
-// to KBD_MAP.
+// WS to browser xterm.js client; queues keystrokes from WS per instance for
+// `upc-bootctl console` to drain (GET /api/v1/kbd/drain, loopback only) into
+// the guest's KBD ring (kbd.go).
 //
-// Status: skeleton. Real BPF integration pending — same way doom-bridge
-// uses pinned BPF maps, this will after upc-bootctl ships full boot path.
-//
-// Default port: 26100 (UPC user-app band 26000-26666 per pkg/ports).
+// Default listen: 127.0.0.1:26100 (UPC user-app band 26000-26666 per
+// pkg/ports). Typing into the UPC shell is a write path; widen --listen only
+// deliberately.
 
 package main
 
@@ -60,10 +60,14 @@ type Subscriber struct {
 type Hub struct {
 	mu          sync.RWMutex
 	subscribers map[*Subscriber]struct{}
+	kbd         *kbdQueue
 }
 
 func newHub() *Hub {
-	return &Hub{subscribers: make(map[*Subscriber]struct{})}
+	return &Hub{
+		subscribers: make(map[*Subscriber]struct{}),
+		kbd:         newKbdQueue(kbdQueueCap),
+	}
 }
 
 func (h *Hub) add(s *Subscriber) {
@@ -140,15 +144,16 @@ func (h *Hub) handleWs(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// Reader loop — capture browser keystrokes → KBD_MAP.
+	// Reader loop — queue browser keystrokes for the console's drain.
 	for {
 		_, msg, err := conn.ReadMessage()
 		if err != nil {
 			return
 		}
-		// TODO: write each byte of msg to KBD_MAP at the keyboard MMIO.
-		// Placeholder: log it.
-		fmt.Fprintf(os.Stderr, "[upc-tty-bridge] kbd input from instance 0x%02X: %d bytes\n", instance, len(msg))
+		if kept := h.kbd.push(instance, msg); kept < len(msg) {
+			fmt.Fprintf(os.Stderr, "[upc-tty-bridge] kbd queue full for instance 0x%02X: dropped %d bytes\n",
+				instance, len(msg)-kept)
+		}
 	}
 }
 
@@ -216,8 +221,14 @@ func (h *Hub) handleTtyIngest(w http.ResponseWriter, r *http.Request) {
 }
 
 func main() {
-	port := flag.Int("port", defaultPort, "WebSocket listen port")
+	listen := flag.String("listen", fmt.Sprintf("127.0.0.1:%d", defaultPort),
+		"listen address (host:port); loopback by default")
+	port := flag.Int("port", 0, "deprecated: listen on 127.0.0.1:<port> (use --listen)")
 	flag.Parse()
+	addr := *listen
+	if *port != 0 {
+		addr = fmt.Sprintf("127.0.0.1:%d", *port)
+	}
 
 	hub := newHub()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -230,12 +241,13 @@ func main() {
 	mux.HandleFunc("/health", handleHealth)
 	mux.HandleFunc("/console", hub.handleWs)
 	mux.HandleFunc("/api/v1/tty/ingest", hub.handleTtyIngest)
+	mux.HandleFunc("/api/v1/kbd/drain", hub.handleKbdDrain)
+	mux.HandleFunc("/metrics", hub.handleMetrics)
 	// Static asset endpoint for xterm.js page (served from ../../dashboard/).
 	mux.Handle("/", http.FileServer(http.Dir("../../dashboard/")))
 
-	addr := fmt.Sprintf(":%d", *port)
 	fmt.Fprintf(os.Stderr, "[upc-tty-bridge] listening on %s\n", addr)
-	fmt.Fprintf(os.Stderr, "[upc-tty-bridge] connect: ws://localhost:%d/console?instance=222\n", *port)
+	fmt.Fprintf(os.Stderr, "[upc-tty-bridge] connect: ws://%s/console?instance=222\n", addr)
 
 	srv := &http.Server{
 		Addr:              addr,

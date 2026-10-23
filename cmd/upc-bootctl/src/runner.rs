@@ -112,6 +112,60 @@ pub fn xv6_initial_cpu_state() -> MbcCpuState {
     state
 }
 
+/// KBD ring capacity (KBD_MAP has 64 slots; the guest masks with `& 63`).
+pub const KBD_RING_SLOTS: u32 = 64;
+
+/// What `append_kbd` will write: `(slot, encoded)` pairs, the new KBD_HEAD,
+/// and how many of the offered bytes fit.
+#[derive(Debug, PartialEq, Eq)]
+pub struct KbdAppendPlan {
+    pub writes: Vec<(u32, u32)>,
+    pub new_head: u32,
+    pub accepted: usize,
+}
+
+/// Plan a live append to the KBD ring (S5 Phase 4).
+///
+/// Contract (single producer = host, single consumer = guest read(5) drain in
+/// `monad-cpu-ebpf`):
+/// - HEAD and TAIL are free-running u32 indices; the slot is `idx & 63`.
+/// - The guest consumes `KBD_MAP[tail & 63]` while `tail < head`, bumps TAIL,
+///   and blocks (PC rewind) on an empty ring. It never writes HEAD or resets
+///   either index.
+/// - The host writes the slots FIRST and HEAD LAST (separate map updates, so
+///   the guest can never see a HEAD that covers an unwritten slot), and never
+///   writes TAIL after boot.
+/// - Free space is `64 - head.wrapping_sub(tail)`; anything else is refused,
+///   never silently dropped (the caller keeps the rest queued).
+/// - Slot encoding is `(byte << 1) | 1`, the same as `write_kbd`.
+/// - The guest compares `tail < head` without wrapping, so one session is
+///   limited to 2^32 typed bytes. Documented rather than spending verifier
+///   instructions on it.
+pub fn kbd_append_plan(head: u32, tail: u32, bytes: &[u8]) -> KbdAppendPlan {
+    let queued = head.wrapping_sub(tail);
+    let free = KBD_RING_SLOTS.saturating_sub(queued) as usize;
+    let accepted = if queued > KBD_RING_SLOTS {
+        0 // tail ahead of head: corrupt indices, refuse everything
+    } else {
+        bytes.len().min(free)
+    };
+    let writes = bytes[..accepted]
+        .iter()
+        .enumerate()
+        .map(|(i, &b)| {
+            (
+                head.wrapping_add(i as u32) & (KBD_RING_SLOTS - 1),
+                ((b as u32) << 1) | 1,
+            )
+        })
+        .collect();
+    KbdAppendPlan {
+        writes,
+        new_head: head.wrapping_add(accepted as u32),
+        accepted,
+    }
+}
+
 /// BootRunner owns the eBPF object handle and the instance ID; methods
 /// populate maps + attach XDP + drain TTY + cleanup.
 pub struct BootRunner {
@@ -493,6 +547,49 @@ impl BootRunner {
         Ok(())
     }
 
+    /// Current `(KBD_HEAD, KBD_TAIL)`.
+    pub fn kbd_indices(&self) -> Result<(u32, u32)> {
+        let head: Array<_, u32> =
+            Array::try_from(self.ebpf.map("KBD_HEAD").context("KBD_HEAD not found")?)?;
+        let tail: Array<_, u32> =
+            Array::try_from(self.ebpf.map("KBD_TAIL").context("KBD_TAIL not found")?)?;
+        Ok((
+            head.get(&0, 0).context("KBD_HEAD read")?,
+            tail.get(&0, 0).context("KBD_TAIL read")?,
+        ))
+    }
+
+    /// Append typed bytes to the live KBD ring while the guest runs (S5
+    /// Phase 4). Returns how many bytes were accepted; the rest did not fit
+    /// and stay with the caller. See `kbd_append_plan` for the contract.
+    pub fn append_kbd(&mut self, bytes: &[u8]) -> Result<usize> {
+        if bytes.is_empty() {
+            return Ok(0);
+        }
+        let (head, tail) = self.kbd_indices()?;
+        let plan = kbd_append_plan(head, tail, bytes);
+        if plan.accepted == 0 {
+            return Ok(0);
+        }
+        {
+            let mut kbd: Array<_, u32> =
+                Array::try_from(self.ebpf.map_mut("KBD_MAP").context("KBD_MAP not found")?)?;
+            for &(slot, val) in &plan.writes {
+                kbd.set(slot, val, 0)
+                    .with_context(|| format!("KBD_MAP[{slot}] write"))?;
+            }
+        }
+        let mut head_map: Array<_, u32> = Array::try_from(
+            self.ebpf
+                .map_mut("KBD_HEAD")
+                .context("KBD_HEAD not found")?,
+        )?;
+        head_map
+            .set(0, plan.new_head, 0)
+            .context("KBD_HEAD write")?;
+        Ok(plan.accepted)
+    }
+
     /// Insert the initial CPU state for `instance_id` into CPU_MAP.
     pub fn populate_cpu(&mut self, initial_state: MbcCpuState) -> Result<()> {
         let mut cpu: AyaHashMap<_, u32, MbcCpuState> =
@@ -625,6 +722,67 @@ fn _unused_anyhow_keepalive() -> anyhow::Error {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // ── S5 Phase 4: live KBD ring append (Step 113) ─────────────────────────
+
+    #[test]
+    fn kbd_append_empty_ring_accepts_all() {
+        let p = kbd_append_plan(0, 0, b"ls\n");
+        assert_eq!(p.accepted, 3);
+        assert_eq!(p.new_head, 3);
+        assert_eq!(
+            p.writes,
+            vec![
+                (0, ((b'l' as u32) << 1) | 1),
+                (1, ((b's' as u32) << 1) | 1),
+                (2, ((b'\n' as u32) << 1) | 1)
+            ]
+        );
+    }
+
+    #[test]
+    fn kbd_append_full_ring_accepts_zero() {
+        let p = kbd_append_plan(100, 36, b"x");
+        assert_eq!(p.accepted, 0);
+        assert_eq!(p.new_head, 100);
+        assert!(p.writes.is_empty());
+    }
+
+    #[test]
+    fn kbd_append_partial_accepts_free_space() {
+        // 60 queued → 4 free.
+        let p = kbd_append_plan(70, 10, b"abcdefgh");
+        assert_eq!(p.accepted, 4);
+        assert_eq!(p.new_head, 74);
+        assert_eq!(p.writes.len(), 4);
+    }
+
+    #[test]
+    fn kbd_append_slot_index_wraps_63_to_0() {
+        let p = kbd_append_plan(63, 60, b"ab");
+        assert_eq!(p.accepted, 2);
+        assert_eq!(p.writes[0].0, 63);
+        assert_eq!(p.writes[1].0, 0);
+        assert_eq!(p.new_head, 65);
+    }
+
+    #[test]
+    fn kbd_append_head_wraps_u32() {
+        // Free-running indices: head - tail is computed wrapping.
+        let p = kbd_append_plan(1, u32::MAX - 1, b"z");
+        // queued = 1 - (MAX-1) = 3 (wrapping) → 61 free
+        assert_eq!(p.accepted, 1);
+        assert_eq!(p.new_head, 2);
+        assert_eq!(p.writes[0].0, 1);
+    }
+
+    #[test]
+    fn kbd_append_corrupt_indices_accept_nothing() {
+        // tail ahead of head (never produced by a sane guest) → treat as full.
+        let p = kbd_append_plan(5, 10, b"x");
+        assert_eq!(p.accepted, 0);
+        assert!(p.writes.is_empty());
+    }
 
     #[test]
     fn mbc_cpu_state_size_is_144() {
