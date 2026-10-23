@@ -26,4 +26,5 @@ path = "src/bin/cart.rs"
 [dependencies]
 monad-common = { path = "../../ebpf/monad-common" }
 monad-mbc = { path = "../monad-mbc" }
+upc-api = { path = "../upc-api" }
 sha2 = "0.10"

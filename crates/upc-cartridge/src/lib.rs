@@ -21,6 +21,51 @@ use sha2::{Digest, Sha256};
 
 pub mod reference;
 
+/// The cartridge syscall surface (ADR-080 §2.4 descriptor, ADR-106 ABI v0).
+/// It lives here, with the cartridge loader, because upc-api never declares a
+/// guest's surface itself.
+pub static CARTRIDGE_SURFACE: upc_api::SyscallSurface = upc_api::SyscallSurface {
+    name: "cartridge",
+    feature_gate: upc_api::FeatureGate::Cartridge,
+    syscalls: &CARTRIDGE_SYSCALLS,
+};
+
+static CARTRIDGE_SYSCALLS: [upc_api::SyscallDesc; 6] = {
+    use monad_common::cart::sys;
+    [
+        upc_api::SyscallDesc {
+            number: sys::FIELD as u32,
+            name: "FIELD",
+        },
+        upc_api::SyscallDesc {
+            number: sys::NOW_NS_LO as u32,
+            name: "NOW_NS_LO",
+        },
+        upc_api::SyscallDesc {
+            number: sys::VERDICT as u32,
+            name: "VERDICT",
+        },
+        upc_api::SyscallDesc {
+            number: sys::EMIT as u32,
+            name: "EMIT",
+        },
+        upc_api::SyscallDesc {
+            number: sys::QUEUE as u32,
+            name: "QUEUE",
+        },
+        upc_api::SyscallDesc {
+            number: sys::YIELD as u32,
+            name: "YIELD",
+        },
+    ]
+};
+
+/// Register the cartridge surface in a host [`upc_api::SurfaceRegistry`]
+/// (ADR-080 §4), beside "doom" and "xv6".
+pub fn register_surface(r: &mut upc_api::SurfaceRegistry) {
+    r.register(CARTRIDGE_SURFACE);
+}
+
 pub use monad_common::cart::{state_hash, CartState, FaultKind, Step};
 
 /// Image magic.
