@@ -540,15 +540,19 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 
 ### ProbeGRPC
 
-- [ ] **Step 74** [DECIDE] ~0m: **D-11 probe = grpc.health.v1 Check.** RECOMMENDATION: `ProbeGRPC` calls `healthpb.NewHealthClient(conn).Check` with a 2 s deadline and treats anything but SERVING as unhealthy. Rationale: Wotan already registers the health server (H11), the module is already in go.mod, and it is the standard probe. Override ONLY if H11 was FALSE: then call the cheapest existing Wotan RPC with a 2 s deadline.
-- [ ] **Step 75** [CODE][TEST] ~15m: Tests: `TestProbeGRPC_ServingIsHealthy`, `TestProbeGRPC_NotServingIsUnhealthy` (bufconn or 127.0.0.1:0 grpc server with `health.NewServer()` set to NOT_SERVING), `TestProbeGRPC_NothingListeningFailsWithinDeadline` (< 3 s).
-- [ ] **Step 76** [TEST] ~2m: Red (`-run TestProbeGRPC_`).
-- [ ] **Step 77** [CODE] ~15m: Implement; on failure set `grpcHealthy=false`, `transport=HTTP` (existing fields).
-- [ ] **Step 78** [TEST][V] ~3m: Green; `go mod tidy -diff` prints nothing (no new module).
+- [x] **Step 74** [DECIDE] ~0m: **D-11 probe = grpc.health.v1 Check.** RECOMMENDATION: `ProbeGRPC` calls `healthpb.NewHealthClient(conn).Check` with a 2 s deadline and treats anything but SERVING as unhealthy. Rationale: Wotan already registers the health server (H11), the module is already in go.mod, and it is the standard probe. Override ONLY if H11 was FALSE: then call the cheapest existing Wotan RPC with a 2 s deadline.
+  - Done 2026-10-23: recommendation taken (H11 TRUE). Asks the whole-server status (""), which grpc health.NewServer() sets SERVING.
+- [x] **Step 75** [CODE][TEST] ~15m: Tests: `TestProbeGRPC_ServingIsHealthy`, `TestProbeGRPC_NotServingIsUnhealthy` (bufconn or 127.0.0.1:0 grpc server with `health.NewServer()` set to NOT_SERVING), `TestProbeGRPC_NothingListeningFailsWithinDeadline` (< 3 s).
+  - Done 2026-10-23: probe_test.go: the three named tests plus TestProbeGRPC_SilentServerTimesOut (accepts, never answers: cut at 2 s).
+- [x] **Step 76** [TEST] ~2m: Red (`-run TestProbeGRPC_`).
+- [x] **Step 77** [CODE] ~15m: Implement; on failure set `grpcHealthy=false`, `transport=HTTP` (existing fields).
+  - Done 2026-10-23: checkGRPCHealth; a successful probe also kicks the fallback flusher. The TestClient_GRPCStreamFallsBackToHTTP fixture now registers grpc.health.v1 like Wotan does. Bite: removing the Check turns three probe tests red.
+- [x] **Step 78** [TEST][V] ~3m: Green; `go mod tidy -diff` prints nothing (no new module).
+  - Done 2026-10-23: green, race-clean. `go mod tidy -diff` is NOT empty, but pre-existing: go.mod/go.sum are unchanged since f7d730e7 and the diff only drops gopkg.in/check.v1 (indirect) and stale kr/* sums; recorded in KNOWN FAILURES, not touched here (other worktrees edit go.mod).
   ```bash
   gotest ./pkg/wotan-client/... && (cd "$PROJECT_ROOT" && go mod tidy -diff && echo tidy-ok)
   ```
-- [ ] **Step 79** [C] ~2m: **COMMIT CHECKPOINT**: `fix(wotan-client): ProbeGRPC asks grpc.health.v1 instead of assuming`.
+- [x] **Step 79** [C] ~2m: **COMMIT CHECKPOINT**: `fix(wotan-client): ProbeGRPC asks grpc.health.v1 instead of assuming`.
 
 ### Runtime stream health
 

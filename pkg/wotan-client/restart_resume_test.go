@@ -20,6 +20,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/health"
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/grpc/status"
 	"google.golang.org/grpc/test/bufconn"
 
@@ -502,6 +504,8 @@ func TestClient_GRPCStreamFallsBackToHTTP(t *testing.T) {
 	}
 	gs := grpc.NewServer()
 	chatpb.RegisterTopicStreamServer(gs, srv)
+	// Like Wotan: ProbeGRPC asks grpc.health.v1 before choosing gRPC.
+	healthpb.RegisterHealthServer(gs, health.NewServer())
 	go func() { _ = gs.Serve(lis) }()
 	t.Cleanup(gs.Stop)
 

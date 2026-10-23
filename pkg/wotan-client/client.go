@@ -20,6 +20,8 @@ import (
 	"sync"
 	"time"
 
+	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
 	"unheaded/pkg/wotansig"
 )
 
@@ -311,15 +313,25 @@ func NewClientWithGRPC(httpAddr, grpcAddr string) (*Client, error) {
 	return c, nil
 }
 
-// ProbeGRPC tests gRPC connectivity and updates transport state.
-// Returns nil if gRPC is healthy. Callers can use this periodically
-// to re-promote gRPC after a circuit-breaker degradation.
+// grpcProbeTimeout bounds one ProbeGRPC health check.
+const grpcProbeTimeout = 2 * time.Second
+
+// ProbeGRPC asks Wotan's grpc.health.v1 service whether it is SERVING and
+// updates the transport state: gRPC when it is, HTTP polling otherwise.
+// Anything but SERVING within 2 s is unhealthy. Callers can use this
+// periodically to re-promote gRPC after a circuit-breaker degradation.
+//
+// It used to declare gRPC healthy as soon as the client object existed;
+// grpc.NewClient connects lazily, so that was true with nothing listening.
 func (c *Client) ProbeGRPC() error {
 	if c.grpcAddr == "" {
 		return errors.New("no gRPC address configured")
 	}
 
 	grpcCl, err := c.getOrCreateGRPCClient()
+	if err == nil {
+		err = checkGRPCHealth(grpcCl, grpcProbeTimeout)
+	}
 	if err != nil {
 		c.transportMu.Lock()
 		c.grpcHealthy = false
@@ -327,9 +339,6 @@ func (c *Client) ProbeGRPC() error {
 		c.transportMu.Unlock()
 		return fmt.Errorf("gRPC probe failed: %w", err)
 	}
-
-	// Verify the connection is usable by checking the underlying conn state
-	_ = grpcCl // connection was established successfully
 
 	c.transportMu.Lock()
 	wasUnhealthy := !c.grpcHealthy
@@ -340,7 +349,27 @@ func (c *Client) ProbeGRPC() error {
 	if wasUnhealthy {
 		log.Printf("[INFO] wotan_client: gRPC recovered, promoted to primary transport (addr=%s)", c.grpcAddr)
 	}
+	// Wotan answers: give anything buffered meanwhile a chance.
+	c.kickFlusher()
 
+	return nil
+}
+
+// checkGRPCHealth runs one grpc.health.v1 Check for the whole server ("")
+// and fails unless the answer is SERVING.
+func checkGRPCHealth(gc *GRPCClient, timeout time.Duration) error {
+	if gc == nil || gc.conn == nil {
+		return errors.New("no gRPC connection")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	resp, err := healthpb.NewHealthClient(gc.conn).Check(ctx, &healthpb.HealthCheckRequest{})
+	if err != nil {
+		return fmt.Errorf("health check: %w", err)
+	}
+	if st := resp.GetStatus(); st != healthpb.HealthCheckResponse_SERVING {
+		return fmt.Errorf("health check: %s", st)
+	}
 	return nil
 }
 
