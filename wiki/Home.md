@@ -93,6 +93,7 @@ Recent:
 - [[Akira|Service-Akira]] — health checks + percentage consensus (ADR-029)
 - [[Huginn|Service-Huginn]] — host metrics agent on each host (ADR-084)
 - [[kev-poller|Service-KEV-Poller]] — CISA KEV feed, tagged against what we run (ADR-055)
+- [[Sword|Service-Sword]] — deploys through Cuirass: rolling, blue-green, canary with analysis, rollback
 
 ## S36 Four Pillars
 

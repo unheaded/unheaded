@@ -1018,8 +1018,10 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ls scripts/check-*.sh | head -20   # run the compose/units/uids checks that exist, e.g.:
   bash scripts/check-systemd-units.sh 2>&1 | tail -3
   ```
-- [ ] **Step 229** [C] ~2m: **COMMIT CHECKPOINT**: `build(sword): image, compose service, unit, Wotan allowlist, scrape job`.
-- [ ] **Step 230** [W] ~15m: `wiki/Service-Sword.md` (routes, env, state, strategies, how rollback picks the previous version, the SLO guard); link from `_Sidebar` and the services index.
+- [x] **Step 229** [C] ~2m: **COMMIT CHECKPOINT**: `build(sword): image, compose service, unit, Wotan allowlist, scrape job`.
+  - Done 2026-10-23: 0a93d7f4.
+- [x] **Step 230** [W] ~15m: `wiki/Service-Sword.md` (routes, env, state, strategies, how rollback picks the previous version, the SLO guard); link from `_Sidebar` and the services index.
+  - Done 2026-10-23: wiki/Service-Sword.md (routes, env, state, strategies, rollback target, canary analysis and the SLO guard, status: not yet run live); linked from _Sidebar, Home and Microservices; Port-Registry says sword 19011 (was canary).
 - [ ] **Step 231** [C] ~2m: **COMMIT CHECKPOINT**: `docs(wiki): Service-Sword`.
 - [ ] **Step 232** [B] ~2m: `services/sword` and `pkg/deploy/{strategy,rollback,cuirassdriver}` are now reached: rerun Step 5's command; they must be absent from the unreached list.
 - [ ] **Step 233** [AFTER-E1] ~10m: If E1 G3 = Y: `git rm -r services/canary`, fix references (wiki, ports comments), `go build ./...`, commit `chore(sweep): delete services/canary, folded into Sword (E1 G3)`. If N: leave it, add a deprecation line in its package doc pointing to Sword.
