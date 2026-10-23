@@ -39,6 +39,7 @@ func generate(t *Tree) ([]byte, []Asset, error) {
 	if err != nil {
 		return nil, nil, err
 	}
+	assets = withRules(assets) // lint findings show as unheaded:finding
 	b, err := encodeBOM(buildBOM(assets))
 	if err != nil {
 		return nil, nil, err

@@ -469,7 +469,7 @@ func (g *goFile) tlsLiterals(f *ast.File) map[ast.Node]bool {
 		}
 		status := classifyTLS(minV, maxV, grp, dynGroups)
 		g.add(Asset{
-			Line: g.line(cl.Pos()), Kind: kindTLSConfig, Name: role,
+			Line: g.line(cl.Pos()), Kind: kindTLSConfig, Name: role, Floor: floor, Cap: maxV,
 			AssetType: assetProtocol, Protocol: protoTLS, Version: versionRange(floor, maxV),
 			Groups: grp, PQStatus: status, Detail: tlsDetail(minV, maxV, grp, dynGroups),
 		})
@@ -523,7 +523,7 @@ func (g *goFile) tlsSettings(f *ast.File, consumed map[ast.Node]bool) {
 		case "MinVersion":
 			v := g.version(value)
 			g.add(Asset{
-				Line: ln, Kind: kindTLSFloor, Name: "TLS floor setting",
+				Line: ln, Kind: kindTLSFloor, Name: "TLS floor setting", Floor: v,
 				AssetType: assetProtocol, Protocol: protoTLS, Version: versionRange(v, ""),
 				PQStatus: classifyTLS(v, "", nil, false), Detail: "MinVersion set outside a tls.Config literal",
 			})
@@ -533,7 +533,7 @@ func (g *goFile) tlsSettings(f *ast.File, consumed map[ast.Node]bool) {
 				return
 			}
 			g.add(Asset{
-				Line: ln, Kind: kindTLSCap, Name: "TLS version cap",
+				Line: ln, Kind: kindTLSCap, Name: "TLS version cap", Cap: v,
 				AssetType: assetProtocol, Protocol: protoTLS, Version: "-" + v,
 				PQStatus: pqClassical, Detail: "MaxVersion below TLS 1.3: no ML-KEM is possible",
 			})
@@ -595,7 +595,7 @@ func (g *goFile) grpcCreds(f *ast.File) {
 			return true
 		}
 		g.add(Asset{
-			Line: g.line(call.Pos()), Kind: kindGRPCCreds, Name: role,
+			Line: g.line(call.Pos()), Kind: kindGRPCCreds, Name: role, Floor: "1.2",
 			AssetType: assetProtocol, Protocol: protoTLS, Version: "1.2-1.3",
 			PQStatus: pqHybridOpp, Detail: "credentials." + sel.Sel.Name + ": Go defaults (TLS 1.2 floor, default groups)",
 		})

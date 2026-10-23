@@ -293,7 +293,7 @@ func postgresImageAsset(rel string, n int, tag string, pg pgFacts) Asset {
 		}
 	}
 	a := Asset{Path: rel, Line: n, Kind: kindPostgresImage, Name: "PostgreSQL (postgres:" + tag + ")",
-		Protocol: protoTLS, Version: "1.3"}
+		Protocol: protoTLS, Version: "1.3", PGMajor: major}
 	switch {
 	case major == 0:
 		a.PQStatus, a.Detail = pqUnknown, "untagged or non-numeric version"

@@ -576,6 +576,10 @@
           "value": "rustls built with the ring provider only; ring has no ML-KEM (features: ring, std; default-features = false)"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: rust-ring-provider"
+        },
+        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -1039,6 +1043,10 @@
           "value": "ring has no ML-KEM: X25519/P-256/P-384 only"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: rust-ring-provider"
+        },
+        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -1078,6 +1086,10 @@
         {
           "name": "unheaded:detail",
           "value": "ring has no ML-KEM: X25519/P-256/P-384 only"
+        },
+        {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: rust-ring-provider"
         },
         {
           "name": "unheaded:link-state",
@@ -1205,6 +1217,10 @@
           "value": "PostgreSQL <= 17 sets one ECDH curve (ssl_ecdh_curve, default prime256v1); hybrid needs PG 18 ssl_groups"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: postgres-pre18"
+        },
+        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -1289,6 +1305,10 @@
           "value": "PostgreSQL <= 17 sets one ECDH curve (ssl_ecdh_curve, default prime256v1); hybrid needs PG 18 ssl_groups"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: postgres-pre18"
+        },
+        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -1371,6 +1391,10 @@
           "value": "the client's order picks among these; only a hybrid-only list guarantees a hybrid"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: sshd-kex-classical"
+        },
+        {
           "name": "unheaded:kex-groups",
           "value": "curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512"
         },
@@ -1414,6 +1438,10 @@
         {
           "name": "unheaded:detail",
           "value": "the client's order picks among these; only a hybrid-only list guarantees a hybrid"
+        },
+        {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: sshd-kex-classical"
         },
         {
           "name": "unheaded:kex-groups",
@@ -2467,6 +2495,10 @@
           "value": "MinVersion unset (Go default TLS 1.2); Go default groups (X25519MLKEM768 first)"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
+        },
+        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -2509,6 +2541,10 @@
           "value": "MinVersion unset (Go default TLS 1.2); Go default groups (X25519MLKEM768 first)"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
+        },
+        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -2549,6 +2585,10 @@
         {
           "name": "unheaded:detail",
           "value": "Go default groups (X25519MLKEM768 first)"
+        },
+        {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
         },
         {
           "name": "unheaded:link-state",
@@ -2635,6 +2675,10 @@
           "value": "MinVersion set outside a tls.Config literal"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
+        },
+        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -2677,6 +2721,10 @@
           "value": "MaxVersion below TLS 1.3: no ML-KEM is possible"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-max-below-1.3"
+        },
+        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -2717,6 +2765,10 @@
         {
           "name": "unheaded:detail",
           "value": "Go default groups (X25519MLKEM768 first)"
+        },
+        {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
         },
         {
           "name": "unheaded:link-state",
@@ -2803,6 +2855,10 @@
           "value": "Go default groups (X25519MLKEM768 first)"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
+        },
+        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -2843,6 +2899,10 @@
         {
           "name": "unheaded:detail",
           "value": "Go default groups (X25519MLKEM768 first)"
+        },
+        {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
         },
         {
           "name": "unheaded:link-state",
@@ -3010,6 +3070,10 @@
           "value": "MinVersion set outside a tls.Config literal"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
+        },
+        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -3134,6 +3198,10 @@
         {
           "name": "unheaded:detail",
           "value": "MinVersion set outside a tls.Config literal"
+        },
+        {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
         },
         {
           "name": "unheaded:link-state",
@@ -3595,6 +3663,10 @@
           "value": "Go default groups (X25519MLKEM768 first)"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
+        },
+        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -3676,6 +3748,10 @@
           "value": "Go default groups (X25519MLKEM768 first)"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
+        },
+        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -3718,6 +3794,10 @@
           "value": "Go default groups (X25519MLKEM768 first)"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
+        },
+        {
           "name": "unheaded:link-state",
           "value": "enabled"
         },
@@ -3758,6 +3838,10 @@
         {
           "name": "unheaded:detail",
           "value": "Go default groups (X25519MLKEM768 first)"
+        },
+        {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
         },
         {
           "name": "unheaded:link-state",
@@ -4090,6 +4174,10 @@
           "value": "no"
         },
         {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: curve-pin-classical"
+        },
+        {
           "name": "unheaded:kex-groups",
           "value": "X25519,CurveP256"
         },
@@ -4134,6 +4222,10 @@
         {
           "name": "unheaded:detail",
           "value": "credentials.NewServerTLSFromFile: Go defaults (TLS 1.2 floor, default groups)"
+        },
+        {
+          "name": "unheaded:finding",
+          "value": "check-pq-kex: tls-floor-below-1.3"
         },
         {
           "name": "unheaded:link-state",

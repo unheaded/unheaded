@@ -97,6 +97,11 @@ type Asset struct {
 	CNSA2     bool
 	Detail    string
 	Rules     []string // lint rule names this site violates
+
+	// Facts the lint reads; not serialized beyond Version/Detail.
+	Floor   string // TLS floor label ("1.2", "1.3", dyn); "" = not a floor site
+	Cap     string // TLS MaxVersion label when set
+	PGMajor int    // postgres image major version
 }
 
 // Ref is the component's bom-ref: path:line:kind.

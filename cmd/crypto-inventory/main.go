@@ -7,6 +7,9 @@
 //	go run ./cmd/crypto-inventory scan --out compliance/crypto/cbom.cdx.json
 //	go run ./cmd/crypto-inventory check            # exit 1 when the CBOM is stale
 //	go run ./cmd/crypto-inventory summary          # pq-status x count
+//	go run ./cmd/crypto-inventory lint --baseline docs/policy/pq-kex-baseline.txt
+//	go run ./cmd/crypto-inventory lint --print     # today's violations, no baseline
+//	go run ./cmd/crypto-inventory lint --explain services/wotan/cmd/wotan/main.go
 //	go run ./cmd/crypto-inventory collect-host --host east --ssh govan@east --out compliance/crypto/hosts/east.json
 //	go run ./cmd/crypto-inventory collect-host --host west --local --out compliance/crypto/hosts/west.json
 //
@@ -25,7 +28,10 @@ import (
 	"path/filepath"
 )
 
-const defaultCBOM = "compliance/crypto/cbom.cdx.json"
+const (
+	defaultCBOM     = "compliance/crypto/cbom.cdx.json"
+	defaultBaseline = "docs/policy/pq-kex-baseline.txt"
+)
 
 func main() {
 	os.Exit(run(os.Args[1:], os.Stdout, os.Stderr))
@@ -38,6 +44,8 @@ commands:
   check         exit 1 when the checked-in CBOM differs from a regeneration
   summary       count components by pq-status
   collect-host  write one host's read-only crypto facts (--host, --local | --ssh, --out)
+  lint          exit 1 on classical-only key exchange not in the shrink-only baseline
+                (--baseline FILE, --update refuses additions, --print, --explain PATH)
 `
 
 // run dispatches a subcommand; exit codes: 0 ok, 1 finding, 2 usage/error.
@@ -77,6 +85,15 @@ func run(args []string, stdout, stderr io.Writer) int {
 			return 2
 		}
 		return cmdCollectHost(*host, *local, *sshTarget, *out, stdout, stderr)
+	case "lint":
+		baseline := fs.String("baseline", defaultBaseline, "shrink-only baseline, relative to the repository root")
+		update := fs.Bool("update", false, "rewrite the baseline from the tree; refuses additions")
+		print := fs.Bool("print", false, "print today's violations and exit 0")
+		explain := fs.String("explain", "", "show what each scanner recorded for one repo-relative path")
+		if fs.Parse(rest) != nil || fs.NArg() != 0 {
+			return 2
+		}
+		return cmdLint(*root, *baseline, *print, *update, *explain, stdout, stderr)
 	case "-h", "--help", "help":
 		fmt.Fprint(stdout, usage)
 		return 0
