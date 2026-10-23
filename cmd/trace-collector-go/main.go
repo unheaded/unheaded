@@ -738,6 +738,13 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 	state.Programs = programs
 	state.mu.Unlock()
 
+	// Leave out the collector's own connections (to Wotan, mostly): each
+	// batch it publishes would otherwise be traced into the next one.
+	self := newSelfFilter("/proc/self")
+	go self.run(ctx, 5*time.Second, func(err error) {
+		log.Warn().Err(err).Msg("self-traffic filter: could not read /proc/self sockets")
+	})
+
 	// Start the trace reader (packet_marker maps)
 	if *enablePacketMarker {
 		readerConfig := DefaultTraceReaderConfig()
@@ -752,6 +759,9 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 		// Feed trace events into correlator and publisher
 		go func() {
 			for entry := range traceReader.Events() {
+				if self.drop(entry.SrcIPAddr(), entry.SrcPort, entry.DstIPAddr(), entry.DstPort) {
+					continue
+				}
 				state.RecordTrace(entry)
 				correlator.Add(entry)
 				if err := publisher.PublishPacketEvent(entry); err != nil {
@@ -772,6 +782,9 @@ func runUnifiedMode(ctx context.Context, healthSrv *transport.HealthServer, tran
 		// Feed flow events into publisher (dashboard-compatible format)
 		go func() {
 			for ev := range flowReader.Events() {
+				if self.drop(ev.Key.SrcIP(), ev.Key.SrcPort, ev.Key.DstIP(), ev.Key.DstPort) {
+					continue
+				}
 				// Serialize in dashboard-backend FlowEvent format
 				dashEvent := struct {
 					TimestampNs uint64 `json:"timestamp_ns"`
