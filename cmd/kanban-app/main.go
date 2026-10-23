@@ -1115,25 +1115,38 @@ func (s *Server) handleArchivedTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleCompletedTasks returns done tasks (still on board but accessible here too).
+//
+// Done is a status every store has, so this reads whichever holds the board.
+// It used to read Postgres only and answer an empty list otherwise: on east
+// (SQLite) it said 0 completed while the board had 9 done cards.
 func (s *Server) handleCompletedTasks(w http.ResponseWriter, r *http.Request) {
-	if pgStore, ok := s.store.(*PgStore); ok {
-		all, err := pgStore.inner.GetAllTasks(context.Background())
+	var all []Task
+	switch {
+	case s.store != nil:
+		tasks, err := s.store.GetAllTasks()
 		if err != nil {
+			log.Error().Err(err).Msg("completed tasks: store read failed")
 			http.Error(w, "Internal server error", http.StatusInternalServerError)
 			return
 		}
-		var out []Task
-		for _, t := range all {
-			if t.Status == "done" {
-				out = append(out, fromPgTask(t))
-			}
+		all = tasks
+	case s.taskManager != nil:
+		for _, t := range s.taskManager.GetAllTasks() {
+			all = append(all, *t)
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		return
+	default:
+		s.tasksMu.RLock()
+		all = append(all, s.tasks...)
+		s.tasksMu.RUnlock()
+	}
+	out := []Task{}
+	for _, t := range all {
+		if t.Status == "done" {
+			out = append(out, t)
+		}
 	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": []Task{}, "count": 0}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	json.NewEncoder(w).Encode(map[string]interface{}{"tasks": out, "count": len(out)}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 }
 
 // handleRestoreTask un-deletes or un-archives a task.
