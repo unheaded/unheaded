@@ -6,7 +6,9 @@ package auth
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -308,4 +310,53 @@ func (m *mockServerStream) SendMsg(v interface{}) error {
 
 func (m *mockServerStream) RecvMsg(v interface{}) error {
 	return errors.New("EOF")
+}
+
+// TestGRPCUnaryInterceptor_GenericErrors: the interceptor used to return
+// err.Error() to the caller, which names the expected issuer and audience
+// ("audience mismatch: got ..., want ...") and which check failed; and it
+// matched ErrForbidden with ==, so a wrapped one came back Unauthenticated.
+func TestGRPCUnaryInterceptor_GenericErrors(t *testing.T) {
+	jwtAuth := NewJWTAuthenticator(JWTConfig{
+		SigningKey: testSigningKey,
+		Issuer:     "https://auth.unheaded.dev",
+		Audience:   "secret-audience-name",
+	})
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return nil, errors.New("handler should not be called")
+	}
+	info := &grpc.UnaryServerInfo{FullMethod: "/test.Service/Method"}
+
+	wrongAud, err := SignToken(testSigningKey, &JWTClaims{
+		Sub: "svc", Iss: "https://auth.unheaded.dev", Aud: "other",
+		Exp: time.Now().Add(time.Hour).Unix(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name  string
+		token string
+		code  codes.Code
+	}{
+		{"wrong audience", wrongAud, codes.PermissionDenied},
+		{"bad signature", wrongAud[:len(wrongAud)-2] + "AA", codes.Unauthenticated},
+	} {
+		md := metadata.Pairs("authorization", "Bearer "+tc.token)
+		ctx := metadata.NewIncomingContext(context.Background(), md)
+		_, err := GRPCUnaryInterceptor(jwtAuth)(ctx, nil, info, handler)
+		st, ok := status.FromError(err)
+		if !ok {
+			t.Fatalf("%s: not a gRPC status: %v", tc.name, err)
+		}
+		if st.Code() != tc.code {
+			t.Errorf("%s: code = %s, want %s", tc.name, st.Code(), tc.code)
+		}
+		for _, leak := range []string{"secret-audience-name", "auth.unheaded.dev", "mismatch", "signature"} {
+			if strings.Contains(st.Message(), leak) {
+				t.Errorf("%s: message %q reveals %q", tc.name, st.Message(), leak)
+			}
+		}
+	}
 }

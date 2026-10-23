@@ -5,6 +5,7 @@ package auth
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"google.golang.org/grpc"
@@ -38,12 +39,7 @@ func GRPCUnaryInterceptor(auth Authenticator) grpc.UnaryServerInterceptor {
 		identity, err := auth.Authenticate(ctx, fakeReq)
 
 		if err != nil {
-			switch {
-			case isError(err, ErrForbidden):
-				return nil, status.Error(codes.PermissionDenied, err.Error())
-			default:
-				return nil, status.Error(codes.Unauthenticated, err.Error())
-			}
+			return nil, grpcAuthError(err)
 		}
 
 		// Store identity in context for the handler
@@ -72,12 +68,7 @@ func GRPCStreamInterceptor(auth Authenticator) grpc.StreamServerInterceptor {
 		identity, err := auth.Authenticate(ss.Context(), fakeReq)
 
 		if err != nil {
-			switch {
-			case isError(err, ErrForbidden):
-				return status.Error(codes.PermissionDenied, err.Error())
-			default:
-				return status.Error(codes.Unauthenticated, err.Error())
-			}
+			return grpcAuthError(err)
 		}
 
 		// Wrap the stream context with identity
@@ -101,21 +92,17 @@ func (w *wrappedServerStream) Context() context.Context {
 	return w.ctx
 }
 
-// isError checks if an error matches a target error (using errors.Is semantics).
-func isError(err, target error) bool {
-	for err != nil {
-		if err == target {
-			return true
-		}
-		// Simple check for wrapped errors
-		type causer interface {
-			Cause() error
-		}
-		if c, ok := err.(causer); ok {
-			err = c.Cause()
-		} else {
-			break
-		}
+// grpcAuthError maps an authentication failure to a gRPC status, like
+// Middleware does for HTTP: the code and a fixed message, never err's text,
+// which names the expected issuer or audience and the check that failed.
+// Authenticators wrap the sentinels with %w, so errors.Is is required.
+func grpcAuthError(err error) error {
+	switch {
+	case errors.Is(err, ErrRateLimited):
+		return status.Error(codes.ResourceExhausted, "rate limited")
+	case errors.Is(err, ErrForbidden):
+		return status.Error(codes.PermissionDenied, "forbidden")
+	default:
+		return status.Error(codes.Unauthenticated, "unauthenticated")
 	}
-	return false
 }
