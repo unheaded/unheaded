@@ -145,6 +145,14 @@ class TestValidatePath(unittest.TestCase):
 
 
 @unittest.skipUnless(HAVE_MCP, "mcp package not installed")
+class TestUnknownTool(unittest.TestCase):
+    def test_unknown_tool_is_error(self):
+        res = _call("no_such_tool", {})
+        self.assertTrue(res.isError)
+        self.assertIn("Unknown tool: no_such_tool", _text(res))
+
+
+@unittest.skipUnless(HAVE_MCP, "mcp package not installed")
 class TestRunbookNames(unittest.TestCase):
     def setUp(self):
         self._tmp = tempfile.TemporaryDirectory()

@@ -260,7 +260,8 @@ async def call_tool(name: str, arguments: dict):
     elif name == "runbook_execute":
         return await tool_runbook_execute(arguments)
     else:
-        return [TextContent(type="text", text=f"Unknown tool: {name}")]
+        # Raising makes the mcp library return isError=true with this text.
+        raise ValueError(f"Unknown tool: {name}")
 
 
 async def tool_corpus_search(args: dict):

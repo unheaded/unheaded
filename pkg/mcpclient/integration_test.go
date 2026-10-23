@@ -138,8 +138,8 @@ func TestRealZhenMCPServer(t *testing.T) {
 		t.Fatalf("no_such_tool: %v", err)
 	}
 	t.Logf("no_such_tool: %q (isError=%v)", res.Text, res.IsError)
-	if !strings.Contains(res.Text, "Unknown tool") {
-		t.Errorf("no_such_tool = %+v", res)
+	if !res.IsError || !strings.Contains(res.Text, "Unknown tool: no_such_tool") {
+		t.Errorf("no_such_tool = %+v, want isError with \"Unknown tool\"", res)
 	}
 
 	if err := c.Ping(ctx); err != nil {
