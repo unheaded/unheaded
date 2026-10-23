@@ -99,6 +99,39 @@ func TestLoadConfig_InvalidYAMLErrors(t *testing.T) {
 	}
 }
 
+// A target the ballot cannot count is a config error, not a silent gap in
+// /api/v1/status.
+func TestLoadConfig_RejectsTargetsTheBallotCannotCount(t *testing.T) {
+	t.Parallel()
+	for name, body := range map[string]string{
+		"no name":   "targets:\n  - {port: 19000}\n",
+		"misspelt":  "targets:\n  - {nmae: timeguru, port: 19000}\n",
+		"duplicate": "targets:\n  - {name: wotan, port: 18000}\n  - {name: wotan, port: 18001}\n",
+		"no port":   "targets:\n  - {name: wotan}\n",
+		"bad port":  "targets:\n  - {name: wotan, port: 70000}\n",
+	} {
+		cfgPath := filepath.Join(t.TempDir(), "akira.yaml")
+		if err := os.WriteFile(cfgPath, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if targets, err := loadConfig(cfgPath); err == nil {
+			t.Errorf("%s: loadConfig = %+v, nil; want an error", name, targets)
+		}
+	}
+}
+
+// The compose stack's target list passes that validation.
+func TestLoadConfig_ComposeTargets(t *testing.T) {
+	t.Parallel()
+	targets, err := loadConfig("../../config/akira/akira.yaml")
+	if err != nil {
+		t.Fatalf("config/akira/akira.yaml: %v", err)
+	}
+	if len(targets) == 0 {
+		t.Fatal("config/akira/akira.yaml has no targets")
+	}
+}
+
 // ─── findPort ────────────────────────────────────────────────────────────────
 
 func TestFindPort_KnownNameReturnsPort(t *testing.T) {

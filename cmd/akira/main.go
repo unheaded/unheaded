@@ -62,7 +62,22 @@ func loadConfig(path string) ([]health.ServiceTarget, error) {
 		return nil, err
 	}
 	targets := make([]health.ServiceTarget, 0, len(cfg.Targets))
-	for _, t := range cfg.Targets {
+	seen := make(map[string]bool, len(cfg.Targets))
+	for i, t := range cfg.Targets {
+		// A target's name is its service on the ballot. Without one, every
+		// check of it was made and then dropped as anonymous, so it never
+		// appeared in /api/v1/status; two targets with one name were a single
+		// vote, the last check overwriting the other. Neither said so.
+		if t.Name == "" {
+			return nil, fmt.Errorf("target %d: name is required", i+1)
+		}
+		if seen[t.Name] {
+			return nil, fmt.Errorf("target %d: duplicate name %q", i+1, t.Name)
+		}
+		seen[t.Name] = true
+		if t.Port < 1 || t.Port > 65535 {
+			return nil, fmt.Errorf("target %q: port %d is not 1-65535", t.Name, t.Port)
+		}
 		host := t.Host
 		if host == "" {
 			host = "localhost"
