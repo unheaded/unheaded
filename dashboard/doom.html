@@ -481,7 +481,10 @@
 
             ws.onopen = function() {
                 console.log('[DoomViewer] WebSocket connected');
-                setConnectionStatus('connected', 'Streaming');
+                // "Streaming" only once a frame arrives (handleBinaryFrame).
+                // Served by dashboard-backend, this /ws carries events, never
+                // frames, and the page said "Streaming" over a blank canvas.
+                setConnectionStatus('connected', 'Connected, no frames yet');
             };
 
             ws.onmessage = function(event) {
