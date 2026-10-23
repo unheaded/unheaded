@@ -223,7 +223,7 @@ const Board = (function() {
         filteredTasks.sort((a, b) => {
             switch (state.sortBy) {
                 case 'priority':
-                    if (a.priority !== b.priority) return a.priority - b.priority;
+                    if (priorityOf(a) !== priorityOf(b)) return priorityOf(a) - priorityOf(b);
                     return new Date(b.created_at) - new Date(a.created_at);
                 case 'progress':
                     return (b.progress || 0) - (a.progress || 0);
@@ -244,7 +244,7 @@ const Board = (function() {
                 case 'title-reverse':
                     return (b.title || '').localeCompare(a.title || '');
                 default:
-                    return a.priority - b.priority;
+                    return priorityOf(a) - priorityOf(b);
             }
         });
 
@@ -289,6 +289,17 @@ const Board = (function() {
     }
 
     /**
+     * The priority a card's badge shows: the task's own, else its type's
+     * (Cards.normalizeTask). Tasks from the API carry no priority field, so
+     * sorting and filtering on task.priority compared undefined with
+     * undefined: "Sort: Priority" was newest-created first, with P4 cards
+     * above P0 ones.
+     */
+    function priorityOf(task) {
+        return Cards.normalizeTask(task).priority;
+    }
+
+    /**
      * Apply filters to task list
      * @param {Array} tasks - Tasks to filter
      * @returns {Array}
@@ -296,7 +307,7 @@ const Board = (function() {
     function applyFilters(tasks) {
         return tasks.filter(task => {
             // Priority filter
-            if (state.filters.priority !== null && task.priority !== state.filters.priority) {
+            if (state.filters.priority !== null && priorityOf(task) !== state.filters.priority) {
                 return false;
             }
 
