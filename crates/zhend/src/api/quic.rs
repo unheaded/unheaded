@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
 //! QUIC/HTTP3 transport for external Zhen access.
 //!
 //! Uses quinn for QUIC. Benefits over TCP:
@@ -31,8 +32,8 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use aws_lc_rs::signature::KeyPair;
 use quinn::crypto::rustls::QuicServerConfig;
-use ring::signature::KeyPair;
 use rustls::pki_types::{CertificateDer, PrivateKeyDer, PrivatePkcs8KeyDer};
 
 use crate::de::embedder::Embedder;
@@ -212,16 +213,17 @@ async fn write_response(
 /// Generate a self-signed certificate for development/testing.
 /// Returns (certificate chain, private key) suitable for rustls ServerConfig.
 pub fn generate_self_signed_cert() -> (Vec<CertificateDer<'static>>, PrivateKeyDer<'static>) {
-    // Generate an Ed25519 keypair using ring (available via rustls dep).
-    let keypair = ring::signature::Ed25519KeyPair::generate_pkcs8(&ring::rand::SystemRandom::new())
-        .expect("Ed25519 key generation failed");
+    // Generate an Ed25519 keypair with aws-lc-rs (rustls' crypto provider).
+    let keypair =
+        aws_lc_rs::signature::Ed25519KeyPair::generate_pkcs8(&aws_lc_rs::rand::SystemRandom::new())
+            .expect("Ed25519 key generation failed");
 
     let key_der = PrivatePkcs8KeyDer::from(keypair.as_ref().to_vec());
 
     // Build a minimal self-signed X.509 certificate.
     // We construct the DER manually to avoid needing rcgen.
-    let signing_key =
-        ring::signature::Ed25519KeyPair::from_pkcs8(keypair.as_ref()).expect("parse generated key");
+    let signing_key = aws_lc_rs::signature::Ed25519KeyPair::from_pkcs8(keypair.as_ref())
+        .expect("parse generated key");
 
     let public_key = signing_key.public_key().as_ref();
 
@@ -236,7 +238,7 @@ pub fn generate_self_signed_cert() -> (Vec<CertificateDer<'static>>, PrivateKeyD
 /// Build a minimal self-signed X.509v3 DER certificate with Ed25519.
 fn build_self_signed_cert_der(
     public_key: &[u8],
-    signing_key: &ring::signature::Ed25519KeyPair,
+    signing_key: &aws_lc_rs::signature::Ed25519KeyPair,
 ) -> Vec<u8> {
     // We need a valid X.509 cert. Build it from scratch in DER/ASN.1.
     // This is a minimal cert: version 3, serial 1, CN=zhend, validity 10 years,
@@ -405,12 +407,22 @@ fn der_context_tag(tag_num: u8, content: &[u8]) -> Vec<u8> {
     der_tag_len(0x80 | tag_num, content)
 }
 
-/// Build a quinn ServerConfig with a self-signed cert.
-pub fn build_server_config() -> quinn::ServerConfig {
+/// The crypto provider for zhend's QUIC TLS: aws-lc-rs, whose default
+/// key-exchange groups put the hybrid post-quantum X25519MLKEM768 first
+/// (rustls `prefer-post-quantum`), then X25519, P-256 and P-384. QUIC is
+/// zhend's transport for nodes outside the Kingdom, so a peer that offers no
+/// hybrid is still served (ADR-105 "Preferred" profile). Was ring, which has
+/// no ML-KEM: every QUIC session was classical X25519.
+fn zhen_crypto_provider() -> Arc<rustls::crypto::CryptoProvider> {
+    Arc::new(rustls::crypto::aws_lc_rs::default_provider())
+}
+
+/// The rustls server config under zhend's QUIC endpoint: self-signed cert,
+/// TLS 1.3 (QUIC has no other), ALPN `zhen/1`.
+pub fn zhen_tls_server_config() -> rustls::ServerConfig {
     let (certs, key) = generate_self_signed_cert();
 
-    let provider = rustls::crypto::ring::default_provider();
-    let mut tls_config = rustls::ServerConfig::builder_with_provider(Arc::new(provider))
+    let mut tls_config = rustls::ServerConfig::builder_with_provider(zhen_crypto_provider())
         .with_safe_default_protocol_versions()
         .expect("TLS protocol versions")
         .with_no_client_auth()
@@ -418,17 +430,20 @@ pub fn build_server_config() -> quinn::ServerConfig {
         .expect("TLS config with self-signed cert");
 
     tls_config.alpn_protocols = vec![b"zhen/1".to_vec()];
+    tls_config
+}
 
-    let quic_server_config =
-        QuicServerConfig::try_from(tls_config).expect("quinn server config from rustls");
+/// Build a quinn ServerConfig with a self-signed cert.
+pub fn build_server_config() -> quinn::ServerConfig {
+    let quic_server_config = QuicServerConfig::try_from(zhen_tls_server_config())
+        .expect("quinn server config from rustls");
 
     quinn::ServerConfig::with_crypto(Arc::new(quic_server_config))
 }
 
-/// Build a quinn client config that trusts any certificate (for dev/testing).
-pub fn build_client_config_insecure() -> quinn::ClientConfig {
-    let provider = rustls::crypto::ring::default_provider();
-    let mut tls_config = rustls::ClientConfig::builder_with_provider(Arc::new(provider))
+/// The rustls client config for dev/testing: trusts any certificate.
+pub fn zhen_tls_client_config_insecure() -> rustls::ClientConfig {
+    let mut tls_config = rustls::ClientConfig::builder_with_provider(zhen_crypto_provider())
         .with_safe_default_protocol_versions()
         .expect("TLS protocol versions")
         .dangerous()
@@ -436,9 +451,14 @@ pub fn build_client_config_insecure() -> quinn::ClientConfig {
         .with_no_client_auth();
 
     tls_config.alpn_protocols = vec![b"zhen/1".to_vec()];
+    tls_config
+}
 
+/// Build a quinn client config that trusts any certificate (for dev/testing).
+pub fn build_client_config_insecure() -> quinn::ClientConfig {
     let mut client_config = quinn::ClientConfig::new(Arc::new(
-        quinn::crypto::rustls::QuicClientConfig::try_from(tls_config).expect("quinn client config"),
+        quinn::crypto::rustls::QuicClientConfig::try_from(zhen_tls_client_config_insecure())
+            .expect("quinn client config"),
     ));
 
     // Reduce idle timeout for tests.
@@ -645,5 +665,84 @@ mod tests {
             u32::from_be_bytes([header[1], header[2], header[3], header[4]]),
             12 // "test payload".len()
         );
+    }
+
+    // ------------------------------------------------------------------
+    // Post-quantum key exchange (S-QUANTUM-ARMOR Phase 7, ADR-105).
+    //
+    // quinn does not expose the negotiated group, so the rustls configs the
+    // QUIC endpoints are built from are handshaken in memory: QUIC runs the
+    // same TLS 1.3 key exchange, picked by the same provider.
+    // ------------------------------------------------------------------
+
+    use rustls::{ClientConnection, NamedGroup, ServerConnection};
+
+    /// Pump TLS records between the two ends until neither is handshaking;
+    /// return the server's negotiated key-exchange group.
+    fn tls_handshake(
+        server: rustls::ServerConfig,
+        client: rustls::ClientConfig,
+    ) -> Result<NamedGroup, rustls::Error> {
+        let name = rustls::pki_types::ServerName::try_from("localhost").expect("server name");
+        let mut c = ClientConnection::new(Arc::new(client), name)?;
+        let mut s = ServerConnection::new(Arc::new(server))?;
+        for _ in 0..16 {
+            if !c.is_handshaking() && !s.is_handshaking() {
+                break;
+            }
+            let mut buf = Vec::new();
+            c.write_tls(&mut buf).expect("client write_tls");
+            s.read_tls(&mut buf.as_slice()).expect("server read_tls");
+            s.process_new_packets()?;
+            let mut buf = Vec::new();
+            s.write_tls(&mut buf).expect("server write_tls");
+            c.read_tls(&mut buf.as_slice()).expect("client read_tls");
+            c.process_new_packets()?;
+        }
+        assert!(
+            !c.is_handshaking() && !s.is_handshaking(),
+            "handshake did not complete"
+        );
+        let group = s
+            .negotiated_key_exchange_group()
+            .map(|g| g.name())
+            .expect("server reports a key exchange group");
+        assert_eq!(
+            c.negotiated_key_exchange_group().map(|g| g.name()),
+            Some(group),
+            "client and server disagree on the group"
+        );
+        Ok(group)
+    }
+
+    #[test]
+    fn tls_negotiates_x25519mlkem768() {
+        let group = tls_handshake(zhen_tls_server_config(), zhen_tls_client_config_insecure())
+            .expect("handshake");
+        assert_eq!(
+            group,
+            NamedGroup::X25519MLKEM768,
+            "zhend QUIC TLS negotiated a classical key exchange group"
+        );
+    }
+
+    /// QUIC serves peers outside the Kingdom (ADR-105 Preferred profile): a
+    /// peer offering only classical X25519 still connects, with X25519. This
+    /// documents the accepted fallback; it is not the hybrid guarantee.
+    #[test]
+    fn tls_classical_only_peer_falls_back_to_x25519() {
+        let classical = rustls::crypto::CryptoProvider {
+            kx_groups: vec![rustls::crypto::aws_lc_rs::kx_group::X25519],
+            ..rustls::crypto::aws_lc_rs::default_provider()
+        };
+        let mut client = rustls::ClientConfig::builder_with_provider(Arc::new(classical))
+            .with_safe_default_protocol_versions()
+            .expect("TLS protocol versions")
+            .dangerous()
+            .with_custom_certificate_verifier(Arc::new(InsecureCertVerifier))
+            .with_no_client_auth();
+        client.alpn_protocols = vec![b"zhen/1".to_vec()];
+        let group = tls_handshake(zhen_tls_server_config(), client).expect("handshake");
+        assert_eq!(group, NamedGroup::X25519);
     }
 }
