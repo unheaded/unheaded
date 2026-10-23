@@ -258,7 +258,7 @@ The Kanban app is the "meta moment" — Unheaded tracking its own development.
 
 ```bash
 # Kanban-app connects to Timeguru + Wotan
-PORT=20001 TIMEGURU_ADDR=localhost:19000 WOTAN_ADDR=localhost:18001 \
+PORT=20001 TIMEGURU_ADDR=localhost:19000 WOTAN_ADDR=localhost:18000 \
   go run ./cmd/kanban-app/...
 ```
 
@@ -312,7 +312,7 @@ echo
 
 ```bash
 # Start dashboard-backend (separate terminal)
-go run ./cmd/dashboard-backend/... -listen :20000 -wotan localhost:18001
+go run ./cmd/dashboard-backend/... -listen :20000 -wotan localhost:18000
 ```
 
 Open browser: **http://localhost:20000**
@@ -346,19 +346,21 @@ go run ./services/wotan/cmd/wotan/...
 # Defaults: HTTP :18000, gRPC :18001
 
 # Terminal 2: Timeguru (needs Wotan)
-WOTAN_ADDR=localhost:18001 go run ./services/timeguru/cmd/timeguru/...
+WOTAN_ADDR=localhost:18000 go run ./services/timeguru/cmd/timeguru/...
 # Default: :19000
 
 # Terminal 3: Captain
-WOTAN_ADDR=localhost:18001 HTTP_ADDR=:19002 go run ./services/captain/cmd/captain/...
+WOTAN_ADDR=localhost:18000 HTTP_ADDR=:19002 go run ./services/captain/cmd/captain/...
 
 # Terminal 4: Kanban App (needs Timeguru + Wotan)
-TIMEGURU_ADDR=localhost:19000 WOTAN_ADDR=localhost:18001 \
+TIMEGURU_ADDR=localhost:19000 WOTAN_ADDR=localhost:18000 \
   go run ./cmd/kanban-app/...
 ```
 
 > **Note:** All services use Doom Range ports (16666-26666) by default.
 > gRPC transport to Wotan (port 18001) is primary; HTTP (18000) is fallback.
+> `WOTAN_ADDR` is Wotan's HTTP address (18000); the gRPC one is
+> `WOTAN_GRPC_ADDR` (default `localhost:18001`).
 
 Default ports — "The Doom Range" (16666-26666):
 
@@ -383,7 +385,7 @@ Default ports — "The Doom Range" (16666-26666):
 
 ## 11. Production Deployment (Linux + LXD)
 
-Production uses NixOS containers on LXD — **requires a Linux host**.
+LXD deployment — **requires a Linux host**.
 
 ```bash
 # Option A: Full LLM lab server bootstrap (Ubuntu 25.x, AMD GPU, everything)
@@ -394,10 +396,12 @@ sudo reboot
 sudo ./scripts/setup-host.sh
 
 # Then for both options:
-# 2. Build NixOS container images
-cd nix && nix build .#containers
+# 2. (Optional) Build the NixOS container images (nixosConfigurations in
+#    nix/flake.nix). deploy-alpha.sh below does not use them.
+make containers
 
-# 3. Deploy all containers
+# 3. Deploy all containers: ubuntu:24.04 LXD containers, Go binaries built
+#    from source and run as systemd units (see SERVICES in the script)
 sudo ./scripts/deploy-alpha.sh
 
 # 4. Load eBPF programs (packet tracing)
@@ -408,19 +412,22 @@ unheaded-download-model deepseek-ai/DeepSeek-R1-Distill-Qwen-7B deepseek-r1-7b -
 unheaded-vllm-start /models/deepseek-r1-7b
 ```
 
-**Network topology (production):**
+**Network topology** (NixOS definitions in `nix/containers/`; `deploy-alpha.sh`
+uses its own IPs and ports, listed in `SERVICES` at the top of the script):
 
 | Container | IP | Ports |
 |-----------|-----|-------|
-| Cuirass (control plane) | 10.10.10.5 | 17000, 17001 |
+| Cuirass (control plane) | 10.10.10.5 | 19006 |
 | Wotan (message bus) | 10.10.10.10 | 18000, 18001 |
 | Timeguru | 10.10.10.20 | 19000 |
-| Architect | 10.10.10.21 | 19001 |
-| Captain | 10.10.10.22 | 19002 |
-| Micromanager | 10.10.10.23 | 19003 |
-| Gateway (public) | 10.10.10.100 | 21000, 21443 |
-| Dashboard | 10.10.10.200 | 20000 |
-| Kanban | 10.10.10.201 | 20001 |
+| Captain | 10.10.10.21 | 19002 |
+| Micromanager | 10.10.10.22 | 19003 |
+| Architect | 10.10.10.23 | 19001 |
+| Sophia | 10.10.10.26 | 19005 |
+| Monad | 10.10.10.27 | 19004 |
+| Gateway (public) | 10.10.10.100 | 80, 443 |
+| Kanban | 10.10.10.200 | 20001 |
+| Dashboard | 10.10.10.201 | 20000 |
 
 > See `nix/flake.nix` and `nix/containers/` for full configuration.
 
