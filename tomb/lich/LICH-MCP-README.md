@@ -140,6 +140,39 @@ inherit it. The approval code never travels through the model — only the
 filesystem. Findings are still never auto-published; approval only lets the
 staged register write happen.
 
+## Campaign lifecycle & the register (Phase 8)
+
+A campaign moves through the ADR-062 lifecycle
+`opened → running → triaging → cleared | blocked` (`pkg/lichtools/lifecycle.go`):
+
+- **opened** when its code lands; **running** while a harness executes in a
+  sandbox; **triaging** once a crash or divergence is found; **cleared** when a
+  run meets the clean budget (zero net-new for the configured duration/execs);
+  **blocked** when a HIGH+ finding holds it (and gates a UPC release).
+- `NextState(cur, RunOutcome)` derives the next state from a run's crash /
+  divergence count and highest severity. Illegal transitions are refused.
+- Every run writes a standardised results doc (`WriteRunSummary` →
+  `results/<ts>/summary.md` + a `crashes/` dir) carrying the campaign id, HEAD
+  sha, duration, exec count, crash/divergence counts and verdict.
+
+**Dedup.** `lich_triage` returns a stable dedup key (SHA-256 of the normalised
+stack); `lich_file_finding` collapses a second finding with the same key into an
+update rather than a new `FND-NNN`.
+
+**Register bridge (ADR-098).** `lich_file_finding` composes a schema-exact
+register entry (id, title, verify carrying the dedup + repro sha256, host,
+severity, class, opened, lockout, step, plan). The `cmd/compliance-evidence
+findings` generator derives the due date from severity+opened (critical 7d /
+high 30d / medium 90d / low 180d) and a finding **closes only when its evidence
+passes** — the named regression seed re-runs clean. Filing never auto-publishes
+and leaves a `.needs-regen` marker so the operator regenerates after signing.
+
+**Regression-seed discipline.** Filing a finding checks in its crashing input
+under the campaign's seed dir (`campaign_id` routes it; `repro_hex` writes the
+exact bytes as an inert 0600 `.bin`, else a `.seed` pointer records harness +
+repro sha256). The ADR-062 weekly replay re-arms the seed until the finding
+closes on passing evidence.
+
 ## Routing & the two drivers (Phases 4–6)
 
 Work is classified by **weight** (`claudebridge.AutoRouter`, ADR-053): MINOR

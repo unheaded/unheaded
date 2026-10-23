@@ -325,6 +325,11 @@ type fileFindingInput struct {
 	DedupKey    string `json:"dedup_key"`
 	ReproSHA256 string `json:"repro_sha256"`
 	HarnessID   string `json:"harness_id"`
+	// CampaignID (e.g. "LICH-015") routes the regression seed to that
+	// campaign's seed dir on filing. ReproHex, when present, is the crashing
+	// input bytes as hex, checked in verbatim as the reproducer.
+	CampaignID string `json:"campaign_id"`
+	ReproHex   string `json:"repro_hex"`
 }
 
 // decodeInput unmarshals a JSON object into v, rejecting unknown fields

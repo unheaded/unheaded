@@ -347,9 +347,83 @@ func (p *Provider) fileFinding(in fileFindingInput) (zhentools.Result, error) {
 		return zhentools.Result{IsError: true, Text: err.Error()}, nil
 	}
 	p.appendNeedsRegen(registerPath, fmt.Sprintf("%s filed %s; run `go run ./cmd/compliance-evidence findings` after re-signing", fnd, today()))
+	// Regression-seed discipline (ADR-062): filing a finding checks in its
+	// crashing input (or a pointer to it) so the weekly replay re-arms it until
+	// the evidence passes. Best-effort: a seed-write failure never fails the
+	// filing (the register entry is the source of truth).
+	seedNote := ""
+	if seed, err := p.writeRegressionSeed(fnd, dedup, in); err == nil && seed != "" {
+		seedNote = " regression-seed=" + seed
+	}
 	return zhentools.Result{Text: fmt.Sprintf(
 		"filed %s (severity=%s) to the ADR-098 register (pending-confirmation path; NOT auto-published). "+
-			"A needs-regen marker was written; regenerate evidence after signing. dedup=%s", fnd, sev, dedup)}, nil
+			"A needs-regen marker was written; regenerate evidence after signing. dedup=%s%s", fnd, sev, dedup, seedNote)}, nil
+}
+
+// writeRegressionSeed checks in the crashing input for a filed finding under the
+// campaign's seed dir (scope-validated to stay inside the configured seeds
+// tree). When ReproHex is supplied it writes the exact bytes; otherwise it
+// writes a pointer seed recording the harness + repro sha256 so the campaign
+// re-arms. Returns the relative seed path (for the audit line) or "".
+func (p *Provider) writeRegressionSeed(fnd, dedup string, in fileFindingInput) (string, error) {
+	seedsBase := p.cfg.SeedsDirAbs()
+	slug := campaignSeedSlug(in.CampaignID)
+	if slug == "" {
+		slug = "lich_findings"
+	}
+	dir := filepath.Clean(filepath.Join(seedsBase, slug))
+	if !within(seedsBase, dir) {
+		return "", fmt.Errorf("%w: seed dir escapes the seeds tree", ErrOutOfScope)
+	}
+	if err := os.MkdirAll(dir, 0o750); err != nil {
+		return "", err
+	}
+	name := "regression-" + fnd + "-" + dedup
+	var content []byte
+	if in.ReproHex != "" {
+		b, err := hex.DecodeString(strings.TrimSpace(strings.TrimPrefix(in.ReproHex, "0x")))
+		if err != nil {
+			return "", fmt.Errorf("repro_hex is not valid hex: %w", err)
+		}
+		// Inert data: written 0600, a fuzzer reads these as input bytes, never code.
+		content = b
+		name += ".bin"
+	} else {
+		content = []byte(fmt.Sprintf(
+			"# LICH regression pointer for %s (dedup %s)\n# harness=%s repro_sha256=%s filed=%s\n# No raw input was supplied; re-arm by re-running the harness.\n",
+			fnd, dedup, yamlSafe(in.HarnessID), yamlSafe(in.ReproSHA256), today()))
+		name += ".seed"
+	}
+	full := filepath.Join(dir, name)
+	// #nosec G306 -- inert, non-secret regression seed inside the configured seeds tree
+	if err := os.WriteFile(full, content, 0o600); err != nil {
+		return "", err
+	}
+	rel, err := filepath.Rel(p.cfg.ProjectRoot, full)
+	if err != nil {
+		rel = full
+	}
+	return rel, nil
+}
+
+// campaignSeedSlug maps a campaign id like "LICH-015" to a seed-dir slug
+// "lich_015". A non-matching id returns "".
+func campaignSeedSlug(id string) string {
+	id = strings.ToLower(strings.TrimSpace(id))
+	if id == "" {
+		return ""
+	}
+	// Keep only [a-z0-9_]; dashes become underscores.
+	var b strings.Builder
+	for _, r := range id {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-' || r == '_':
+			b.WriteRune('_')
+		}
+	}
+	return b.String()
 }
 
 // composeFinding builds a strict-schema-valid RegisterEntry block (only known
