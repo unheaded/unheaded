@@ -43,6 +43,11 @@ const DefaultQueueSize = 1024
 // the worker (and therefore fill the queue) indefinitely.
 const publishTimeout = 500 * time.Millisecond
 
+// flushTimeout bounds how long a fatal or panic entry, or Close, waits for
+// the queue to be sent. A process that is exiting must still exit when
+// Wotan is unreachable.
+const flushTimeout = 2 * time.Second
+
 // NewPublisher creates a new log publisher hook.
 // If conn is nil, the publisher is disabled (logs are not forwarded).
 func NewPublisher(serviceName string, conn transport.Connection) *Publisher {
@@ -70,6 +75,11 @@ func NewPublisherWithQueue(serviceName string, conn transport.Connection, depth 
 
 // Run implements zerolog.Hook. It enqueues the entry for the worker on a
 // best-effort basis — a full queue drops the entry and bumps Dropped().
+//
+// Fatal and panic entries are the exception: zerolog calls os.Exit (or
+// panics) as soon as the hooks return, before the worker could send them,
+// so they are sent from Run itself, after everything queued ahead of them,
+// within flushTimeout.
 func (p *Publisher) Run(e *zerolog.Event, level zerolog.Level, msg string) {
 	p.enqueue(levelString(level), msg)
 }
@@ -88,10 +98,51 @@ func (p *Publisher) enqueue(level, msg string) {
 		Message:   msg,
 	}
 
+	if level == "fatal" || level == "panic" {
+		p.flush(&entry)
+		return
+	}
+
 	select {
 	case p.queue <- entry:
 	default:
 		p.dropped.Add(1)
+	}
+}
+
+// flush sends everything queued, then last if non-nil, from the caller's
+// goroutine, giving up at flushTimeout. Entries it did not get to stay
+// queued; last, if not sent in time, is counted as dropped.
+//
+// The sends run on a helper goroutine so that a transport ignoring its
+// context cannot hold the caller past the deadline.
+func (p *Publisher) flush(last *LogEntry) {
+	deadline := time.Now().Add(flushTimeout)
+	finished := make(chan struct{})
+	go func() {
+		defer close(finished)
+		for time.Now().Before(deadline) {
+			select {
+			case entry := <-p.queue:
+				p.publish(entry)
+				continue
+			default:
+			}
+			break
+		}
+		if last != nil {
+			if time.Now().Before(deadline) {
+				p.publish(*last)
+			} else {
+				p.dropped.Add(1)
+			}
+		}
+	}()
+	timer := time.NewTimer(time.Until(deadline))
+	defer timer.Stop()
+	select {
+	case <-finished:
+	case <-timer.C:
 	}
 }
 
@@ -126,12 +177,25 @@ func (p *Publisher) publish(entry LogEntry) {
 	p.published.Add(1)
 }
 
-// Close stops the worker. Entries still queued are discarded. Safe to call
-// more than once; Run after Close drops everything.
+// Close stops the worker and sends what is still queued, within
+// flushTimeout; entries it cannot send in time are counted as dropped.
+// Safe to call more than once; Run after Close drops everything.
 func (p *Publisher) Close() {
 	p.closeOnce.Do(func() {
 		p.enabled.Store(false)
 		close(p.done)
+		if p.conn == nil {
+			return
+		}
+		p.flush(nil)
+		for {
+			select {
+			case <-p.queue:
+				p.dropped.Add(1)
+			default:
+				return
+			}
+		}
 	})
 }
 
