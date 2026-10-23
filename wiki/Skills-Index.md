@@ -1,6 +1,6 @@
 # Skills — AI Agent Specializations
 
-Unheaded uses 16 specialized AI agent skills for development, operations, and documentation. Each skill is a focused persona with domain expertise and protocol awareness.
+Unheaded uses specialized AI agent skills for development, operations, and documentation; 16 are described here. Each skill is a focused persona with domain expertise and protocol awareness.
 
 ## Skill Catalog
 
@@ -51,7 +51,7 @@ All skills understand the core protocol stack: Monad wire format (20-byte regist
 
 ## Skill Bundles
 
-Packaged `.skill` bundles for all 16 skills are available in `skills/` for import into new agent sessions.
+Packaged `.skill` bundles are in `skills/` for import into new agent sessions: 18 `unheaded-*.skill` files (the 16 above plus Marshal and Wotan) and `skill-creator.skill`.
 
 ---
 
