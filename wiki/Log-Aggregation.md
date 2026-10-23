@@ -16,6 +16,8 @@ Centralized structured logging via Wotan message bus.
 - `subscriber.go` — Wotan topic listener feeding into ring buffer
 - `query.go` — LogEntry, LogQuery types with filtering (service, level, time range, search)
 - `setup.go` — `SetupServiceLogger()` one-liner for services
+- `loggerhook.go` — adapts a Publisher to `pkg/logger`'s Hook interface
+- `metrics.go` — log-forwarding health counters for `/metrics`
 
 ## Dashboard Endpoints
 
@@ -29,5 +31,4 @@ Centralized structured logging via Wotan message bus.
 
 ## Integration
 
-Services with zerolog: full hook wiring (timeguru, architect, micromanager, trace-collector)
-Services with stdlib logger: publisher created for future upgrade
+Publishing to `logs.<service>.<level>`: timeguru, architect, micromanager, monad, sophia, kanban-app, dashboard-backend, unheaded-daemon, trace-collector-go. Captain has no structured logger yet, so it publishes no logs (`services/captain/cmd/captain/main.go`).

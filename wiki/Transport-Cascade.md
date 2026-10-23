@@ -33,11 +33,20 @@ type Connection interface {
 | State | HTTP Response | Meaning |
 |-------|--------------|---------|
 | HEALTHY | 200 | Service fully operational |
-| DEGRADED | 503 | Partial functionality |
-| DOWN | 503 | Service unavailable |
+| DEGRADED | 200 (body says `DEGRADED`) | Partial functionality |
+| DOWN | 503 | Service unavailable; `/ready` is 503 too |
 
 ## Configuration
 
-Environment variables: `TRANSPORT_TYPE`, `TRANSPORT_GRPC_ADDR`, `TRANSPORT_HTTP_ADDR`, `TRANSPORT_TIMEOUT`, `TRANSPORT_FALLBACK`
+`transport.ConfigFromEnv()` reads:
 
-All 10 services are wired via `transport.ConfigFromEnv()`.
+| Env | Sets |
+|-----|------|
+| `TRANSPORT_TYPE` | `grpc`, `http` or `auto` |
+| `WOTAN_GRPC_ADDR` | Wotan gRPC address |
+| `WOTAN_ADDR`, `WOTAN_HTTP_ADDR` | Wotan HTTP address, `host:port` or URL; `WOTAN_HTTP_ADDR` wins if both are set |
+| `CONNECT_TIMEOUT` | connect timeout (Go duration) |
+
+`transport.RegisterFlags()` defines `--transport`, `--wotan-grpc-addr`, `--wotan-http-addr`, `--connect-timeout` and `--fallback`, but no binary calls it: services take their own `--wotan`-style flags or the environment.
+
+11 binaries call `ConfigFromEnv()`: timeguru, captain, architect, micromanager, monad, sophia, dashboard-backend, kanban-app, unheaded-daemon, trace-collector-go, chaos-controller.
