@@ -425,7 +425,10 @@ RUN mkdir -p /data /var/lib/unheaded /etc/supervisor.d && \
 # cannot parse heredocs, so this Dockerfile was never linted).
 COPY config/supervisor/all-in-one.ini /etc/supervisor.d/unheaded.ini
 
-EXPOSE 5555 8080 8081 8082 8083 8084 8085 8086 8087 9090 20000 20001
+# What the programs in all-in-one.ini listen on at their defaults (pkg/ports):
+# unheaded-daemon 17000, wotan 18000/18001, timeguru..sophia 19000-19005,
+# dashboard 20000, kanban 20001.
+EXPOSE 17000 18000 18001 19000 19001 19002 19003 19004 19005 20000 20001
 
 USER 16759:16759
 
