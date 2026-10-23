@@ -104,6 +104,7 @@ form gets through, which is why the directory rules above exist as well.
 | `accepted_by` | `local`, `claude`, or `""` (nothing accepted, or the MCP tool, which cannot know) |
 | `cost_usd` | Claude spend for the turn, decimal string; absent when no Claude request was sent |
 | `redactions`, `truncated` | set by the writer |
+| `local_only` | present and `true` when the turn was marked keep-local (`-local-only` / `local_only`): it never went to Claude |
 
 Absent legs are omitted, not null. Errors are strings; an empty string means
 none.

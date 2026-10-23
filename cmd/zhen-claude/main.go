@@ -78,6 +78,8 @@ type options struct {
 	localMaxTokens int
 	localTimeout   time.Duration
 	captureDir     string
+	localOnly      bool
+	configPath     string
 }
 
 // Routes.
@@ -122,8 +124,35 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 	fs.IntVar(&o.localMaxTokens, "local-max-tokens", claudebridge.DefaultLocalMaxTokens, "max_tokens for the local model")
 	fs.DurationVar(&o.localTimeout, "local-timeout", claudebridge.DefaultLocalTimeout, "time limit for the local model's answer")
 	fs.StringVar(&o.captureDir, "capture", os.Getenv("ZHEN_CAPTURE_DIR"), "append each turn, redacted, to <dir>/zhen-capture-YYYY-MM-DD.jsonl; must be outside any repository (env ZHEN_CAPTURE_DIR)")
+	fs.BoolVar(&o.localOnly, "local-only", false, "keep this prompt on this host: ask the local model only, never Claude (implies -route auto without escalation; config local_only)")
+	fs.StringVar(&o.configPath, "config", "", "config file (default $XDG_CONFIG_HOME/unheaded/zhen-claude.conf; a missing default is fine)")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
+	}
+	set := map[string]bool{}
+	fs.Visit(func(f *flag.Flag) { set[f.Name] = true })
+	cfgPath, required := o.configPath, o.configPath != ""
+	if !required {
+		var err error
+		if cfgPath, err = defaultConfigPath(); err != nil {
+			return nil, fmt.Errorf("config: %w", err)
+		}
+	}
+	cfg, err := loadConfig(cfgPath, required)
+	if err != nil {
+		return nil, fmt.Errorf("config: %w", err)
+	}
+	if !set["local-only"] {
+		o.localOnly = cfg.LocalOnly
+	}
+	if o.localOnly {
+		if set["route"] && o.route == routeClaude {
+			return nil, errors.New("-local-only keeps the prompt on this host; -route claude would send it to Claude")
+		}
+		if o.repl {
+			return nil, errors.New("-local-only works on one prompt, not -repl (the local model keeps no conversation)")
+		}
+		o.route = routeAuto
 	}
 	if fs.NArg() > 0 {
 		return nil, fmt.Errorf("unexpected arguments %q; pass the prompt with -p", fs.Args())
@@ -195,6 +224,9 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	if o.route == routeAuto && !o.dryRun {
 		return runAuto(ctx, o, prompt, stdout, stderr, log, capw, tools)
+	}
+	if o.dryRun && o.localOnly {
+		return dryRunLocal(o, prompt, stdout, log)
 	}
 
 	b, closeAll, err := build(ctx, o, log, stdout, tools)

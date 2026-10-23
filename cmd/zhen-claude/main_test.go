@@ -23,6 +23,7 @@ func noCredentials(t *testing.T) {
 }
 
 func baseArgs(t *testing.T) []string {
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir()) // never read the operator's zhen-claude.conf
 	return []string{"-ledger", filepath.Join(t.TempDir(), "spend.json"), "-project-root", t.TempDir()}
 }
 

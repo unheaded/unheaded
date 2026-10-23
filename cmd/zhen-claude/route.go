@@ -37,14 +37,14 @@ func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.W
 	ans, lerr := local.Complete(ctx, claudebridge.DefaultLocalSystem, prompt)
 	localDur := time.Since(t0)
 
-	rec := &zhencapture.Record{Source: "zhen-claude", Prompt: prompt}
+	rec := &zhencapture.Record{Source: "zhen-claude", Prompt: prompt, LocalOnly: o.localOnly}
 	rec.Local = &zhencapture.Leg{Model: ans.Model, System: claudebridge.DefaultLocalSystem, Answer: ans.Text, StopReason: ans.FinishReason, LatencyMS: localDur.Milliseconds()}
 	if rec.Local.Model == "" {
 		rec.Local.Model = o.localModel
 	}
 	attrs := []any{
 		"route", routeAuto, "local_tried", true, "local_url", o.localURL, "local_model", rec.Local.Model,
-		"local_latency_ms", localDur.Milliseconds(), "local_answer_bytes", len(ans.Text),
+		"local_latency_ms", localDur.Milliseconds(), "local_answer_bytes", len(ans.Text), "local_only", o.localOnly,
 	}
 
 	var why string
@@ -86,6 +86,14 @@ func runAuto(ctx context.Context, o *options, prompt string, stdout, stderr io.W
 	}
 	if ctx.Err() != nil {
 		log.Warn("route_decision", append(attrs, "escalated", false, "decision", "none", "cancelled", true)...)
+		return 1
+	}
+	if o.localOnly {
+		rec.Route = zhencapture.RouteLocal
+		rec.LatencyMS = time.Since(t0).Milliseconds()
+		log.Warn("route_decision", append(attrs, "escalated", false, "decision", "none", "total_latency_ms", rec.LatencyMS)...)
+		_, _ = fmt.Fprintf(stderr, "zhen-claude: local answer not accepted (%s); -local-only: not sending it to Claude\n", why)
+		writeCapture(capw, rec, log)
 		return 1
 	}
 
@@ -148,7 +156,11 @@ func dryRunLocal(o *options, prompt string, stdout io.Writer, log *slog.Logger) 
 	if len(o.checkArgv) > 0 {
 		check = strings.Join(o.checkArgv, " ")
 	}
-	_, _ = fmt.Fprintf(stdout, "# local first\nPOST %s\n\n%s\n\n# check: %s\n# then, if escalated:\n", endpoint, body, check)
+	then := "# then, if escalated:\n"
+	if o.localOnly {
+		then = "# local-only: never sent to Claude\n"
+	}
+	_, _ = fmt.Fprintf(stdout, "# local first\nPOST %s\n\n%s\n\n# check: %s\n%s", endpoint, body, check, then)
 	return 0
 }
 

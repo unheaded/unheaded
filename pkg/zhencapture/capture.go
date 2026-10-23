@@ -34,7 +34,7 @@ const DefaultMaxStringBytes = 64 << 10
 
 // Routes.
 const (
-	RouteLocal     = "local"     // answered by the local model, accepted
+	RouteLocal     = "local"     // the local model only (AcceptedBy "" when -local-only refused to escalate)
 	RouteClaude    = "claude"    // sent to Claude only
 	RouteEscalated = "escalated" // local tried, then Claude
 )
@@ -56,8 +56,9 @@ type Record struct {
 	AcceptedBy string     `json:"accepted_by"` // "local", "claude" or "" when nothing was accepted
 	LatencyMS  int64      `json:"latency_ms"`
 	CostUSD    string     `json:"cost_usd,omitempty"`
-	Redactions int        `json:"redactions"` // set by Write
-	Truncated  bool       `json:"truncated"`  // set by Write: some string hit the cap
+	Redactions int        `json:"redactions"`           // set by Write
+	Truncated  bool       `json:"truncated"`            // set by Write: some string hit the cap
+	LocalOnly  bool       `json:"local_only,omitempty"` // marked keep-local: never sent to Claude
 }
 
 // Leg is one model's attempt.

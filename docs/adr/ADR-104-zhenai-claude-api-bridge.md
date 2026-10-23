@@ -227,11 +227,15 @@ auto` takes one prompt; it refuses `-repl`, because the local model keeps
 no conversation. A local answer is untrusted text either way: it is
 printed, never executed, and `-check` is the operator's own command.
 
-Not in v1: the local leg is not told anything is private, so nothing stops
-an escalation from sending a prompt to Claude that should have stayed
-local. A per-prompt "local only" marker (or a `Router` that classifies by
-data, not difficulty) is the follow-up before this is used on anything
-sensitive.
+Keep-local marker (2026-10-23): `-local-only`, or `local_only = true` in
+`~/.config/unheaded/zhen-claude.conf` (`$XDG_CONFIG_HOME`; `-config` names
+another file; strict `key = value`, unknown keys and bad values refused;
+a flag on the command line overrides the file). A local-only prompt is
+asked of the local model only: a failed or rejected local answer exits 1
+and is never escalated, `-route claude` with it is a usage error, and
+`-dry-run` shows no Claude request. The `route_decision` line and the
+capture record carry `local_only`. A `Router` that classifies by data, not
+difficulty, is still open (question 6).
 
 ### 10. Training capture, opt-in (2026-10-23)
 
@@ -292,9 +296,10 @@ through the bridge leave the Kingdom.
 4. **Task budget** default (off) once real turns are measured.
 5. **Where audit goes** for a long-running service: Wotan topic, the
    Well's `actions` table, or both.
-6. **Privacy marker for `-route auto`** (§9): how a prompt says "never
-   escalate this", and whether the escalation path should refuse prompts
-   that capture redaction would have touched.
+6. **Privacy marker for `-route auto`** (§9): the explicit marker
+   (`-local-only` / `local_only`) shipped 2026-10-23; still open is
+   whether the escalation path should refuse prompts that capture
+   redaction would have touched.
 7. **`-check` conventions**: whether to ship a few standard checks (Go
    snippet compiles, JSON parses, answer cites a file that exists), or
    leave it to the operator.

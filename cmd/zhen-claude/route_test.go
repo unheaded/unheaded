@@ -380,10 +380,137 @@ func TestRouteUsageErrors(t *testing.T) {
 		{"-check", "true", "-p", "x"},
 		{"-route", "auto", "-repl"},
 		{"-route", "auto", "-local-timeout", "0s", "-p", "x"},
+		{"-local-only", "-route", "claude", "-p", "x"},
+		{"-local-only", "-repl"},
 	} {
 		var out, errb bytes.Buffer
 		if code := run(append(baseArgs(t), args...), strings.NewReader(""), &out, &errb); code != 2 {
 			t.Errorf("%v: exit %d", args, code)
 		}
+	}
+}
+
+func writeConf(t *testing.T, body string) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "zhen-claude.conf")
+	if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return p
+}
+
+// A local-only prompt never reaches Claude, even when the local answer
+// fails or the check rejects it.
+func TestLocalOnlyNeverEscalates(t *testing.T) {
+	claude := newFakeClaude(t, "from claude")
+	withClaude(t, claude)
+	bad := newFakeLocal(t, "nope", "stop")
+	for _, c := range []struct {
+		name string
+		args []string
+	}{
+		{"flag, local down", []string{"-local-only", "-local-url", deadURL(t)}},
+		{"flag, check fails", []string{"-local-only", "-local-url", bad.srv.URL, "-check", "grep -q yes"}},
+		{"config, local down", []string{"-config", writeConf(t, "# keep it here\nlocal_only = true\n"), "-local-url", deadURL(t)}},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var out, errb bytes.Buffer
+			args := append(append(baseArgs(t), "-tools", "none"), append(c.args, "-p", "secret plan")...)
+			if code := run(args, strings.NewReader(""), &out, &errb); code != 1 {
+				t.Fatalf("exit %d %s", code, errb.String())
+			}
+			d := logLine(t, errb.String(), "route_decision")
+			if d["escalated"] != false || d["decision"] != "none" || d["local_only"] != true {
+				t.Errorf("route_decision = %v", d)
+			}
+			if !strings.Contains(errb.String(), "-local-only: not sending it to Claude") || out.Len() != 0 {
+				t.Errorf("stdout %q stderr %s", out.String(), errb.String())
+			}
+		})
+	}
+	if claude.count() != 0 {
+		t.Fatalf("Claude called %d times for a local-only prompt", claude.count())
+	}
+}
+
+func TestLocalOnlyAcceptedLocally(t *testing.T) {
+	noCredentials(t)
+	local := newFakeLocal(t, "kept here", "stop")
+	var out, errb bytes.Buffer
+	args := append(baseArgs(t), "-tools", "none", "-local-only", "-local-url", local.srv.URL, "-p", "q")
+	if code := run(args, strings.NewReader(""), &out, &errb); code != 0 || out.String() != "kept here\n" {
+		t.Fatalf("exit %d out %q %s", code, out.String(), errb.String())
+	}
+	if d := logLine(t, errb.String(), "route_decision"); d["decision"] != "local" || d["local_only"] != true {
+		t.Errorf("route_decision = %v", d)
+	}
+}
+
+func TestLocalOnlyDryRunShowsNoClaudeRequest(t *testing.T) {
+	noCredentials(t)
+	var out, errb bytes.Buffer
+	args := append(baseArgs(t), "-tools", "none", "-local-only", "-dry-run", "-local-url", deadURL(t), "-p", "q")
+	if code := run(args, strings.NewReader(""), &out, &errb); code != 0 {
+		t.Fatalf("exit %d %s", code, errb.String())
+	}
+	if !strings.Contains(out.String(), "local-only: never sent to Claude") || strings.Contains(out.String(), "/v1/messages") {
+		t.Errorf("dry run = %s", out.String())
+	}
+}
+
+// A flag given on the command line beats the config file.
+func TestLocalOnlyFlagOverridesConfig(t *testing.T) {
+	claude := newFakeClaude(t, "from claude")
+	withClaude(t, claude)
+	var out, errb bytes.Buffer
+	args := append(baseArgs(t), "-tools", "none", "-config", writeConf(t, "local_only = true\n"), "-local-only=false", "-p", "q")
+	if code := run(args, strings.NewReader(""), &out, &errb); code != 0 || !strings.Contains(out.String(), "from claude") {
+		t.Fatalf("exit %d out %q %s", code, out.String(), errb.String())
+	}
+}
+
+// The default config file is read when present; a missing one is fine.
+func TestDefaultConfigFile(t *testing.T) {
+	claude := newFakeClaude(t, "from claude")
+	withClaude(t, claude)
+	args := append(baseArgs(t), "-tools", "none", "-local-url", deadURL(t), "-p", "q") // sets XDG_CONFIG_HOME
+	dir := filepath.Join(os.Getenv("XDG_CONFIG_HOME"), "unheaded")
+	if err := os.MkdirAll(dir, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "zhen-claude.conf"), []byte("local_only = yes\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	var out, errb bytes.Buffer
+	if code := run(args, strings.NewReader(""), &out, &errb); code != 2 || !strings.Contains(errb.String(), "local_only") {
+		t.Fatalf("bad value: exit %d %s", code, errb.String())
+	}
+	if err := os.WriteFile(filepath.Join(dir, "zhen-claude.conf"), []byte("local_only = true\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	errb.Reset()
+	if code := run(args, strings.NewReader(""), &out, &errb); code != 1 || claude.count() != 0 {
+		t.Fatalf("default config not applied: exit %d, Claude calls %d", code, claude.count())
+	}
+}
+
+func TestConfigErrors(t *testing.T) {
+	noCredentials(t)
+	for _, body := range []string{
+		"local_only = maybe\n",
+		"local_only = true\nlocal_only = false\n",
+		"model = claude-opus-5-5\n",
+		"local_only\n",
+	} {
+		var out, errb bytes.Buffer
+		args := append(baseArgs(t), "-config", writeConf(t, body), "-p", "x")
+		if code := run(args, strings.NewReader(""), &out, &errb); code != 2 {
+			t.Errorf("%q: exit %d %s", body, code, errb.String())
+		}
+	}
+	var out, errb bytes.Buffer
+	if code := run(append(baseArgs(t), "-config", filepath.Join(t.TempDir(), "missing.conf"), "-p", "x"), strings.NewReader(""), &out, &errb); code != 2 {
+		t.Errorf("missing -config file: exit %d", code)
 	}
 }
