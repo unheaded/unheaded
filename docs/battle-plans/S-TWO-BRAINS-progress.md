@@ -83,6 +83,16 @@ Measured 2026-10-23 on `f7d730e7`, matching the KNOWN FAILURES BASELINE table
 | i | Terminal escape sequences in a prompt | Closed. Every model-supplied string shown on the TTY goes through `safeLine` (control characters replaced) and the redactor. |
 
 Step 89: no human at the terminal during this run, so the interactive live `-confirm tty` run was skipped (not on the critical path). The prompt is exercised by the fake-TTY tests (`TestConfirm_TTYApprove` prints the rendered prompt into the fake terminal: tool, sandbox, hash, redacted args, diff, code line).
+### Step 117 — MoatGhost / BlackMage note on the privacy tier
+
+What still leaves west for the Claude API, after Phase 3:
+
+- **T0 repository text** after the secret scan. ADRs and docs name hosts (west, east), the bridge subnet and the overlay prefix; it is the public repo's own text, accepted.
+- **Redacted T1 text**: tool output with secrets, addresses, MACs, emails, home user names and host names replaced by stable placeholders; or, for payloads over 8 KiB, a local-model summary of the redacted text, redacted again. Structure (service names, ports, states, error messages, counts) still leaves; that is the point of sending it.
+- **Counts** (tokens, cost, redaction counts) in the request itself only as usage; never content.
+- **Stevie's own prompt**, after T1 redaction, with a warning naming the counts. His choice; warned and redacted, not blocked.
+
+Residual risks: (1) the patterns are a deny list — an identifier with no pattern (a project codename, a customer name in a log line) passes in standard mode; `-privacy strict` withholds all T1 for unattended runs. (2) Host names are a configured list (west, east); a new host needs adding (`privacy.RedactorConfig.Hosts`, not yet a flag). (3) Whole-word host redaction also hits the English words "west"/"east" in T1 text; harmless over-redaction. (4) T0 is decided by `git ls-files` at the realpath, so a tracked file is T0 even if its content is sensitive and committed by mistake (that is a repo-hygiene finding, caught by gitleaks in CI). (5) Claude Code sessions use the MCP server directly and are outside this tier (Step 118; listed in `wiki/Zhen-Audit.md`).
 
 ## STUCK
 

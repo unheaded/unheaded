@@ -46,6 +46,18 @@ SELECT occurred_at, actor_id, resource_id, outcome, details->>'reason'
   FROM audit_events WHERE action = 'tool_call' AND outcome <> 'success' ORDER BY occurred_at DESC LIMIT 20;
 ```
 
+## Claude Code sessions are outside the privacy tier
+
+`zhen-claude` filters every tool result through [[Zhen Privacy Tiers|Zhen-Privacy-Tiers]]. A Claude Code session that calls Zhen's MCP server (`.mcp.json`, server `zhen`) does not go through `zhen-claude`: it runs under Stevie's own Claude Code consent and gets the MCP tools' output as is. These MCP tools return Kingdom-ops (T1) data there:
+
+| MCP tool | Why it is T1 |
+|---|---|
+| `service_health` | service names, hosts, ports, states |
+| `local_llm` | the local model's answer; anything the prompt asked about ops comes back unredacted |
+| `file_read` of an untracked or ignored file | logs, `.env`-adjacent files, local notes |
+
+`corpus_search`, `runbook_list`, `runbook_show` and `file_read` of tracked files return repository text (T0).
+
 ## Tests
 
 `scripts/well/test-llm-requests.sh` (throwaway server, never the real Well): grants, append-only triggers (owner included), CHECKs, then one bridge turn against the fake Claude API writing through the real sinks; a `pg_dump` must hold no trace of the prompt marker. Registered in `scripts/check-gates-can-fail.sh`.
