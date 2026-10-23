@@ -11,7 +11,7 @@ How every AI agent session on Unheaded starts and ends, so each one picks up exa
 3. **Check the environment.**
    ```bash
    git status -sb && git log --oneline -5      # matches the handoff? how far ahead of origin?
-   go version                                  # pinned toolchain (go.mod; 1.27.1 as of 2026-09-30)
+   go version                                  # matches the go.mod `toolchain` line (go1.27.3)
    go build ./... && go test -race ./...
    ```
 4. **Confirm goals** with Stevie, then work. Check in before long or expensive runs.

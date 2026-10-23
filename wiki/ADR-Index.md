@@ -1,13 +1,13 @@
 # Architecture Decision Records
 
-**Last synced from canonical:** 2026-10-15 (99 entries)
+**Last synced from canonical:** 2026-10-23 (100 entries)
 
 Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical source. If they diverge, trust the canonical.
 
 | Status | Count |
 |--------|-------|
 | Accepted | 48 |
-| Proposed | 14 |
+| Proposed | 15 |
 | Planned | 14 |
 | In Progress | 5 |
 | Deferred | 5 |
@@ -117,6 +117,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [100](../docs/adr/ADR-100-sre-alongside-compliance.md) | SRE alongside compliance: SLOs as data and as crosswalk evidence, multi-window burn-rate alerts, every alert with a runbook and a firing test, Watchdog, blameless postmortems; first instance a per-service log-volume deviation SLO (spam and silence). Built 2026-10-20: only SLO burn notifies (urgency page/ticket/none), capped alert-mailer in dry-run; log-volume and Watchdog not yet | **Accepted** | 2026-10-01 |
 | [101](../docs/adr/ADR-101-well-migration-ledger.md) | The Well's migrations: `db/migrations/MANIFEST` orders and routes every file, a `well_schema_migrations` ledger per database records each with its sha256, `db/init.sh` and `cmd/well-migrate` (check/status/apply/baseline) share both; drift refuses, lock and statement timeouts per migration | **Proposed** (in use on the live Well since 2026-10-15) | 2026-10-14 |
 | [102](../docs/adr/ADR-102-container-image-versions.md) | Container images use exact version tags (no `latest`, no floating minor), pinned to what runs today; upgrades are their own commits; digests deferred until a bot can bump them; reassess then | **Accepted** | 2026-10-15 |
+| [103](../docs/adr/ADR-103-service-auth-token-distribution.md) | Service auth: Ed25519 JWTs only (shared HMAC key retires); one key pair per service, private key a 0400 file owned by its uid, public keys in trust.d plus a per-service caller allowlist; users via OIDC JWKS with a small built-in issuer as the lab default; browsers hold only session cookies (BFF); hashed `uhk_` API keys for automation; rollout one service at a time, Cuirass first | **Proposed** (design only) | 2026-10-23 |
 
 ---
 
