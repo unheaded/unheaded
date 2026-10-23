@@ -70,6 +70,10 @@ var MutatingTools = map[string]bool{
 	"runbook_execute": true,
 	"system_command":  true,
 	"model_switch":    true, // ADR-060: kills+respawns llama-server subprocess
+	// Lich MCP (S-LICH-AWAKENS, ADR-098): writes the findings register, so it
+	// is mutating and — with no retrieval justification from a model — always
+	// pending-confirmation (Rule 2). Never auto-publishes.
+	"lich_file_finding": true,
 }
 
 // ReadOnlyTools is the canonical list of read-only tool names. Used to
@@ -88,6 +92,17 @@ var ReadOnlyTools = map[string]bool{
 	// loads go through model_switch and switch-model.sh's fit check),
 	// writes nothing, and its answer goes back to the caller as text.
 	"local_llm": true,
+	// Lich MCP (S-LICH-AWAKENS, ADR-062/063). list/show/read/triage read the
+	// Lich framework and crash artifacts — plainly read-only. lich_run_harness
+	// executes a fuzzer, but ONLY inside a confined, no-egress sandbox with a
+	// server-clamped duration (pkg/lichtools): its control is server-side scope
+	// + confinement, not per-call human confirmation, so the gate treats it as
+	// non-mutating. (lich_file_finding is mutating — see MutatingTools.)
+	"lich_list_campaigns": true,
+	"lich_show_campaign":  true,
+	"lich_read_crash":     true,
+	"lich_triage":         true,
+	"lich_run_harness":    true,
 }
 
 // destructivePattern matches any of the destructive shell-verb forms
