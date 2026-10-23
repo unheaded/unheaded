@@ -143,3 +143,32 @@ func TestStart_StopsWithContext(t *testing.T) {
 		t.Errorf("join attempts continued after cancel: %d -> %d", before, after)
 	}
 }
+
+// A new stream starts at seq 0 and replays system.discovery's retained
+// history (up to 10,000 announcements, 100 per poll). Each replayed
+// announcement was stamped LastSeen=now on arrival, so a service that died
+// hours ago resolved as live for as long as the replay took plus the TTL.
+// An announcement older than the TTL by Wotan's timestamp is history, not
+// a sighting.
+func TestStart_ReplayedAnnouncementsAreNotSightings(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	f := &fakeTopics{up: true}
+	reg := New(&wotanTopics{ctx: ctx, c: f})
+	if err := reg.Start(ctx); err != nil {
+		t.Fatal(err)
+	}
+
+	ghost, _ := json.Marshal(ServiceEntry{Name: "ghost", Address: "east", Port: 19002})
+	live, _ := json.Marshal(ServiceEntry{Name: "live", Address: "east", Port: 19003})
+	f.mu.Lock()
+	stream := f.streams[0]
+	f.mu.Unlock()
+	stream <- &wotanClient.Message{Payload: string(ghost), CreatedAt: time.Now().Add(-time.Hour)}
+	stream <- &wotanClient.Message{Payload: string(live), CreatedAt: time.Now()}
+
+	waitFor(t, "the live announcement", func() bool { _, err := reg.Resolve("live"); return err == nil })
+	if e, err := reg.Resolve("ghost"); err == nil {
+		t.Fatalf("an hour-old announcement resolved as live: %+v", e)
+	}
+}

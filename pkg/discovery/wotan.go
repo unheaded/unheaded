@@ -40,12 +40,26 @@ func (w *wotanTopics) Subscribe(topic string, handler func([]byte)) error {
 	}
 	go func() {
 		for m := range ch {
-			if m != nil && !m.Deleted {
+			if m != nil && !m.Deleted && !replayed(m.CreatedAt, time.Now()) {
 				handler([]byte(m.Payload))
 			}
 		}
 	}()
 	return nil
+}
+
+// replayed reports whether a message Wotan stamped at created is history
+// rather than a sighting. A stream starts at seq 0, so it first replays the
+// topic's retained buffer — hours of announcements, from services that may
+// have stopped long ago — and the registry stamps each one LastSeen=now as
+// it arrives. Anything older than the TTL is already stale on arrival and
+// would only resurrect a dead peer until the reaper caught up.
+//
+// created is Wotan's clock and now is ours; a Wotan on another host whose
+// clock runs more than DefaultTTL behind would make every announcement look
+// stale. A zero time (a message without one) is accepted.
+func replayed(created, now time.Time) bool {
+	return !created.IsZero() && now.Sub(created) > DefaultTTL
 }
 
 // Start registers name on Wotan's system.discovery topic and keeps it
