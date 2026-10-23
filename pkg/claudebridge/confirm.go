@@ -230,9 +230,23 @@ func operatorName() string {
 func renderPrompt(c *champion.Champion, req ConfirmRequest, p champion.PendingCall, code string) string {
 	var sb strings.Builder
 	sb.WriteString("\n=== zhen: a model asks to run a mutating tool ===\n")
+	p.EmittedBy = req.EmittedBy
+	sb.WriteString(DescribeCall(c, p))
+	fmt.Fprintf(&sb, "type %s to approve, anything else denies: ", code)
+	return sb.String()
+}
+
+// DescribeCall is the human-readable view of a pending call: tool,
+// sandbox, who asked, hash, arguments with secrets redacted and, for file
+// writes inside the sandbox, a diff against the file as it is now.
+func DescribeCall(c *champion.Champion, p champion.PendingCall) string {
+	var sb strings.Builder
+	if p.SHA256 == "" {
+		_, p.SHA256, _ = champion.CanonicalCall(p.Tool, p.Args, p.ProjectRoot)
+	}
 	fmt.Fprintf(&sb, "tool:     %s (Champion)\n", p.Tool)
 	fmt.Fprintf(&sb, "sandbox:  %s\n", p.ProjectRoot)
-	fmt.Fprintf(&sb, "asked by: %s\n", safeLine(req.EmittedBy))
+	fmt.Fprintf(&sb, "asked by: %s\n", safeLine(p.EmittedBy))
 	fmt.Fprintf(&sb, "sha256:   %s\n", p.SHA256)
 	sb.WriteString("args (secrets redacted):\n")
 	keys := make([]string, 0, len(p.Args))
@@ -246,7 +260,6 @@ func renderPrompt(c *champion.Champion, req ConfirmRequest, p champion.PendingCa
 	if d := proposedDiff(c, p); d != "" {
 		sb.WriteString(d)
 	}
-	fmt.Fprintf(&sb, "type %s to approve, anything else denies: ", code)
 	return sb.String()
 }
 

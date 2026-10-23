@@ -84,6 +84,8 @@ type options struct {
 
 	auditWell  bool
 	auditWotan bool
+	confirm    string
+	tty        io.ReadWriteCloser // -confirm tty: the controlling terminal
 }
 
 // Routes.
@@ -131,6 +133,7 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 	fs.BoolVar(&o.localOnly, "local-only", false, "keep this prompt on this host: ask the local model only, never Claude (implies -route auto without escalation; config local_only)")
 	fs.BoolVar(&o.auditWell, "audit-well", false, "also record every request in the Well's llm_requests and every tool decision in audit_events (DSN from env WELL_OPS_DSN); Well unreachable = read-only run")
 	fs.BoolVar(&o.auditWotan, "audit-wotan", false, "also publish the audit records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
+	fs.StringVar(&o.confirm, "confirm", "deny", "what happens to a write the gate refuses pending confirmation: deny (refuse, the default), tty (ask the human on /dev/tty with a code the model never sees), queue (queue it in the Well for `zhen-claude confirm approve <id>`; DSN from env WELL_APP_ZHEN_DSN)")
 	fs.StringVar(&o.configPath, "config", "", "config file (default $XDG_CONFIG_HOME/unheaded/zhen-claude.conf; a missing default is fine)")
 	if err := fs.Parse(args); err != nil {
 		return nil, err
@@ -187,10 +190,25 @@ func parseFlags(args []string, stderr io.Writer) (*options, error) {
 	if err := checkAuditEnv(o); err != nil {
 		return nil, err
 	}
+	switch o.confirm {
+	case "deny", "tty":
+	case "queue":
+		if strings.TrimSpace(os.Getenv(envAppZhenDSN)) == "" {
+			return nil, fmt.Errorf("-confirm queue needs %s (unheaded_app as app_zhen); it is read from the environment only", envAppZhenDSN)
+		}
+	default:
+		return nil, fmt.Errorf("-confirm %q: want deny, tty or queue", o.confirm)
+	}
+	if o.confirm != "deny" && o.localOnly {
+		return nil, errors.New("-confirm needs Claude's tool calls; -local-only never sends any")
+	}
 	return o, nil
 }
 
 func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if len(args) > 0 && args[0] == "confirm" {
+		return runConfirmCmd(args[1:], stdout, stderr)
+	}
 	o, err := parseFlags(args, stderr)
 	if err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -233,6 +251,15 @@ func run(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	}
 	if o.dryRun && o.localOnly {
 		return dryRunLocal(o, prompt, stdout, log)
+	}
+	if o.confirm == "tty" && !o.dryRun {
+		tty, err := openTTY()
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "zhen-claude: -confirm tty needs a controlling terminal (/dev/tty): %v\n", err)
+			return 2
+		}
+		o.tty = tty
+		defer func() { _ = tty.Close() }()
 	}
 	aud := setupAudit(ctx, o, log, "zhen-claude")
 	defer aud.close()
@@ -297,6 +324,15 @@ func build(ctx context.Context, o *options, log *slog.Logger, stdout io.Writer, 
 	gate, err := claudebridge.NewChampionGate(champ)
 	if err != nil {
 		return nil, closeAll, err
+	}
+	confirmer := claudebridge.Confirmer(claudebridge.DenyConfirmer{})
+	if !o.dryRun && !aud.readOnly {
+		c, closeConfirmer, err := buildConfirmer(ctx, o, champ, aud)
+		closers = append(closers, closeConfirmer)
+		if err != nil {
+			return nil, closeAll, err
+		}
+		confirmer = c
 	}
 
 	var providers []claudebridge.NamedProvider
@@ -371,6 +407,7 @@ func build(ctx context.Context, o *options, log *slog.Logger, stdout io.Writer, 
 		Prices:           prices,
 		Ledger:           ledger,
 		Auditor:          aud.auditor,
+		Confirmer:        confirmer,
 		OnText:           func(s string) { _, _ = io.WriteString(stdout, s) },
 	}
 	if tools != nil && tools.on {

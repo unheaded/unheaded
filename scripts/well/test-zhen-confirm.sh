@@ -16,7 +16,7 @@
 #      relative project root;
 #   6. an approval after expires_at is refused;
 #   7. at most 20 pending rows per source_service.
-#   8. cmd/zhen-claude's queue store (build tag wellint) against the same
+#   8. pkg/claudebridge's queue store (build tag wellint) against the same
 #      server as app_zhen (WELL_TEST_APP_DSN).
 #
 #   scripts/well/test-zhen-confirm.sh [--sql-only] [image]   # default postgres:16.15-alpine
@@ -134,8 +134,8 @@ ok "zhen-claude has its own cap" zh "$(row c000000000000001)"
 # 8. The Go queue store against this server.
 if ((GO)); then
 	export WELL_TEST_APP_DSN="postgres://app_zhen:$ZPW@127.0.0.1:$PORT/unheaded_app?sslmode=disable"
-	if (cd "$R" && go test -count=1 -tags wellint ./cmd/zhen-claude/ -run Well -v >"$TMP/go.out" 2>&1); then
-		pass "go test -tags wellint ./cmd/zhen-claude -run Well"
+	if (cd "$R" && go test -count=1 -tags wellint ./pkg/claudebridge/ -run WellConfirm -v >"$TMP/go.out" 2>&1); then
+		pass "go test -tags wellint ./pkg/claudebridge -run WellConfirm"
 	else
 		fail "go queue-store test"; tail -25 "$TMP/go.out" | sed 's/^/    /'
 	fi

@@ -203,3 +203,29 @@ func gateRecord(act champion.Action, status, result, errMsg string, elapsedMs in
 	}
 	return r
 }
+
+// buildConfirmQueue opens the Well's confirmation queue as app_zhen when
+// -confirm-queue is set. Unlike the audit sink this is not optional once
+// asked for: a queue that cannot be reached would silently turn queued
+// writes into denials, so startup fails instead.
+func buildConfirmQueue(ctx context.Context, want bool) (claudebridge.ConfirmQueue, func(), error) {
+	if !want {
+		return nil, func() {}, nil
+	}
+	dsn := strings.TrimSpace(os.Getenv("WELL_APP_ZHEN_DSN"))
+	if dsn == "" {
+		return nil, func() {}, fmt.Errorf("-confirm-queue needs WELL_APP_ZHEN_DSN (unheaded_app as app_zhen)")
+	}
+	db, err := sql.Open("postgres", dsn)
+	if err != nil {
+		return nil, func() {}, err
+	}
+	db.SetMaxOpenConns(2)
+	pctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	if err := db.PingContext(pctx); err != nil {
+		_ = db.Close()
+		return nil, func() {}, fmt.Errorf("the Well is unreachable: %w", err)
+	}
+	return claudebridge.SQLConfirmQueue{DB: db}, func() { _ = db.Close() }, nil
+}

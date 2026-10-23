@@ -73,6 +73,7 @@ func main() {
 		rateRPS      = flag.Float64("rate-limit", 0, "per-IP requests/sec (0 disables; recommended ~5 for unauthenticated, higher behind auth)")
 		rateBurst    = flag.Int("rate-burst", 10, "per-IP rate-limit burst capacity (only used when -rate-limit > 0)")
 		auditWell    = flag.Bool("audit-well", false, "record one llm_requests row per llama-server call and one audit_events row per Champion gate decision in the Well (DSN from env WELL_OPS_DSN)")
+		confirmQ     = flag.Bool("confirm-queue", false, "queue agent-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with `zhen-claude confirm`")
 		auditWotan   = flag.Bool("audit-wotan", false, "also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
 	)
 	flag.Parse()
@@ -139,6 +140,12 @@ func main() {
 	}
 	pool := newChampionPool(store, kStore)
 
+	queue, closeQueue, err := buildConfirmQueue(context.Background(), *confirmQ)
+	if err != nil {
+		fatal("confirm-queue init: %v", err)
+	}
+	defer closeQueue()
+
 	httpClient := &http.Client{Timeout: httpTimeout}
 	srv := &server{
 		pool:        pool,
@@ -149,6 +156,15 @@ func main() {
 		vorURL:      vorURL,
 		llamaURL:    llamaURL,
 		ready:       newReadyTracker(httpClient, vorURL, llamaURL),
+	}
+	if queue != nil {
+		srv.confirmQueue = queue
+	}
+	if aud.wotan != nil {
+		srv.confirmPub = aud.wotan
+	}
+	if ca, ok := aud.auditor.(claudebridge.ConfirmAuditor); ok {
+		srv.confirmAudit = ca
 	}
 
 	mux := http.NewServeMux()
@@ -335,9 +351,13 @@ type server struct {
 	allowed     map[string]struct{} // absolute project_root → allowed
 	retriever   agent.Retriever
 	llm         agent.LLM
-	vorURL      string
-	llamaURL    string
-	ready       *readyTracker
+
+	confirmQueue claudebridge.ConfirmQueue   // nil: agent-loop writes are denied
+	confirmPub   claudebridge.JSONPublisher  // zhen.confirm.pending notices
+	confirmAudit claudebridge.ConfirmAuditor // confirm_issue events
+	vorURL       string
+	llamaURL     string
+	ready        *readyTracker
 }
 
 // championPool caches *champion.Champion instances keyed by absolute
