@@ -152,9 +152,43 @@ func TestSetupMiddleware_EnabledNoKeys(t *testing.T) {
 		ServiceName: "empty-svc",
 		// No JWTSigningKey, no APIKeys, no APIKeyFile
 	}
-	mw := SetupMiddleware(cfg)
-	if mw != nil {
-		t.Error("expected nil middleware when enabled but no authenticators available")
+	assertEnabledRefuses(t, cfg)
+}
+
+// TestSetupMiddleware_EnabledUnreadableKeyFile: AUTH_ENABLED=true with an
+// API key file that cannot be read (and no JWT key) used to return nil, and
+// WrapHandler then served everything unauthenticated.
+func TestSetupMiddleware_EnabledUnreadableKeyFile(t *testing.T) {
+	cfg := ServiceAuthConfig{
+		Enabled:     true,
+		ServiceName: "cuirass",
+		APIKeyFile:  filepath.Join(t.TempDir(), "missing-keys.txt"),
+	}
+	assertEnabledRefuses(t, cfg)
+}
+
+// assertEnabledRefuses checks that an enabled config with nothing to verify
+// against fails closed: probes still answer, everything else is 401.
+func assertEnabledRefuses(t *testing.T, cfg ServiceAuthConfig) {
+	t.Helper()
+	ok := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	h := WrapHandler(ok, SetupMiddleware(cfg))
+
+	for _, p := range []string{"/health", "/ready", "/metrics"} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest("GET", p, nil))
+		if rec.Code != http.StatusOK {
+			t.Errorf("GET %s = %d, want 200", p, rec.Code)
+		}
+	}
+	for _, m := range []string{"GET", "PUT", "DELETE"} {
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, httptest.NewRequest(m, "/api/v1/containers/web", nil))
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("%s /api/v1/containers/web = %d, want 401 (auth enabled, no keys)", m, rec.Code)
+		}
 	}
 }
 

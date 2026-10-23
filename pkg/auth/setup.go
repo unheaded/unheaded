@@ -6,6 +6,8 @@ package auth
 import (
 	"net/http"
 	"os"
+
+	"github.com/rs/zerolog/log"
 )
 
 // ServiceAuthConfig is the configuration for a service's auth setup.
@@ -60,6 +62,12 @@ func LoadServiceAuthConfig(serviceName string) ServiceAuthConfig {
 // SetupMiddleware creates an auth middleware from the config, or returns nil
 // if auth is disabled. Nil means "no auth middleware needed."
 //
+// Enabled never yields nil: with no usable JWT key or API key the middleware
+// refuses every request outside /health, /ready and /metrics. Returning nil
+// there would serve the service with no auth at all while its operator, and
+// callers keyed on Enabled (Cuirass opens its container write API), take it
+// as protected.
+//
 // When enabled, it creates a MultiAuthenticator that accepts:
 //   - JWT tokens (Authorization: Bearer <token>)
 //   - API keys (X-API-Key header)
@@ -98,13 +106,19 @@ func SetupMiddleware(cfg ServiceAuthConfig) func(http.Handler) http.Handler {
 			Keys:    cfg.APIKeys,
 			KeyFile: cfg.APIKeyFile,
 		}
-		if apiKeyAuth, err := NewAPIKeyAuthenticator(apikeyCfg); err == nil {
+		apiKeyAuth, err := NewAPIKeyAuthenticator(apikeyCfg)
+		if err != nil {
+			log.Error().Err(err).Str("service", cfg.ServiceName).
+				Msg("auth: API keys unusable, API key authentication is off")
+		} else {
 			authenticators = append(authenticators, apiKeyAuth)
 		}
 	}
 
 	if len(authenticators) == 0 {
-		return nil
+		// An empty MultiAuthenticator refuses every request (401).
+		log.Error().Str("service", cfg.ServiceName).
+			Msg("auth: AUTH_ENABLED=true but no AUTH_JWT_KEY or usable API key: refusing every request except /health /ready /metrics")
 	}
 
 	multi := &MultiAuthenticator{Authenticators: authenticators}
