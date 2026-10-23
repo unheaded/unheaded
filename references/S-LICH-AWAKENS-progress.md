@@ -90,4 +90,28 @@ no-egress with a test that must fail to reach the network.
 - Register still strict-parses after a filed finding (mirrors cmd/compliance-evidence's
   strict decode); file_finding is exercised only against temp registers — the REAL
   compliance register is never written during this sprint (no real crash to file).
-- Commits: real tools `b493b822`.
+- Commits: real tools `b493b822`, server hook + hardening `82314b58`.
+
+### Phase 3 EXIT GATE — PASS
+
+All six tools real, confined, audited, gated; file_finding writes a strict-valid register
+entry only via the (post-confirmation) provider path and never auto-publishes; spend hook
+present. `go build ./...` clean; `go test ./...` = 280 ok / 0 fail (zero NEW failures vs the
+Phase-0 baseline); golangci-lint (incl. gosec) 0 issues on the new packages; `go test -race`
+clean; no new go.mod/go.sum deps; the real ADR-098 register is untouched (still 14 open).
+
+## Sprint 4 chunk (Phases 0-3) — COMPLETE
+
+- Branch `sprint/lich-awakens` = HEAD `82314b58`, based on `f1d1f412`; develop/staging/main
+  never touched; nothing pushed. 14 commits (`git commit --no-gpg-sign`).
+- **Phases 4+ NOT started** (they wire into Sprint 2's confirmation flow on
+  `sprint/two-brains`): Phase 4 (gate/confirm/route wiring), 5/6 (local + Claude drivers),
+  7 (differential fuzz), 8 (lifecycle), 9 (meta red-team), 10 (CTF design-only), 11 (docs).
+- **`.mcp.json` deliberately NOT modified**: the Lich MCP server is stdio-only and opt-in
+  (launched manually), kept off the always-on Zhen MCP surface for blast-radius isolation;
+  not auto-registering it is itself part of the kill switch.
+- **Pending (Sprint 2, not a blocker for P0-P3)**: the out-of-band confirmation *redemption*
+  round trip for lich_file_finding (champion.ConfirmPendingToolCall routing for lich tools)
+  belongs to Phase 4 / `sprint/two-brains`. The gate's *refusal* (pending-confirmation) is
+  built and tested here.
+- No STUCK, no ESCALATE: E0 did not fire (H1 TRUE), E1 did not fire (no-egress proven).
