@@ -14,42 +14,32 @@ Post-Quantum Cryptography (PQC) authentication for the Unheaded Protocol, ensuri
 | **ML-KEM** (FIPS 203) | Module-Lattice Key Encapsulation | Key exchange for encrypted control channels |
 | **SLH-DSA** (FIPS 205) | Stateless Hash-Based Digital Signature | Long-term identity keys, firmware signing |
 
-## Integration Points
+## In the code
 
-### Protocol Layer
-- Monad integrity verification using ML-DSA signatures
-- Kingdom Mode authentication for extended register space
-- Per-hop signature validation in eBPF (shield-ebpf)
+| Piece | What it does |
+|-------|--------------|
+| `pkg/crypto/pqc/` | ML-DSA, ML-KEM, SLH-DSA, FN-DSA, HQC and a KEM tunnel on `github.com/cloudflare/circl` |
+| `services/wotan/internal/signing/` | ML-DSA-65 required on `config.*` topics, trusted keys only, replay window ([[Wotan Topic Signing|Wotan-Topic-Signing]]) |
+| `cmd/pqc-verifier` (`:19008`) | `POST /verify` (PQC-authenticated packet), `POST /verify/sovereign` (2-of-3 multi-sig) |
+| `ebpf/shield-ebpf` | Fast path: reads cached verification status from the `PQC_SIG_STATUS` map; eBPF does not verify signatures itself |
+| `services/sophia/kem_registry.go`, `pkg/pqc_policy/` | KEM algorithm registry and NIST-level policy |
 
-### Service Mesh
-- Mutual TLS with ML-KEM key exchange between services
-- Service identity certificates using ML-DSA
-- Certificate rotation with post-quantum key pairs
+## Specified, not built
 
-### Infrastructure
-- SLH-DSA for bare metal firmware attestation (WEST + EAST clusters)
-- Container image signing with post-quantum signatures
-- SBOM attestation signatures
+- Service mTLS (`pkg/transport/mtls`, minimum TLS 1.2) sets no post-quantum policy. Go's TLS 1.3 default key exchange includes X25519MLKEM768 when `CurvePreferences` is unset, so Go-to-Go TLS 1.3 links get hybrid ML-KEM from the standard library, not from Unheaded code.
+- No PQ service certificates, firmware attestation, container image signing or SBOM attestation. Release signing is a placeholder (`release.yml`).
 
-## Test Coverage
+## Tests
 
-**60 tests** covering:
-
-- Key generation and serialization for all three algorithms
-- Signature creation and verification round-trips
-- Cross-implementation compatibility checks
-- Performance benchmarks (latency per operation)
-- Integration tests with eBPF signature verification
-- Negative tests (invalid signatures, expired keys, revoked certificates)
+`go test ./pkg/crypto/pqc/` covers the algorithm registry, parameter sets, signature binding (pass, fail, ML-DSA), constant-time hash-prefix checks, KEM tunnel key derivation, and benchmarks (`pqc_bench_test.go`). Wotan's signing tests cover tamper, untrusted-key and replay rejection.
 
 ## Migration Path
 
 PQC authentication runs in hybrid mode alongside classical cryptography:
 
-1. **Phase 1** (current) — PQC signatures alongside Ed25519
+1. **Phase 1** — PQC signatures alongside classical ones (today: ML-DSA-65 on `config.*` only)
 2. **Phase 2** — PQC-primary with classical fallback
 3. **Phase 3** — PQC-only for all authentication
 
 ---
 
-*Last updated: March 17, 2026*

@@ -6,7 +6,7 @@ Two scripts exist: a 4-minute narrated video walkthrough and a ~20-minute live c
 
 *"Doom in the Data Plane: Observing Every Packet with eBPF".* Setup with `scripts/demo-start.sh` (< 5 min), reset between runs with `scripts/demo-reset.sh`.
 
-**Before you start:** Wotan, dashboard-backend, kanban-app and unheaded-daemon up on west (east too for segment 5); `trace-collector-go` in demo mode on west; dashboard on `http://localhost:20000`; three terminals visible.
+**Before you start:** Wotan, dashboard-backend, kanban-app and unheaded-daemon up on west (east too for segment 5); `trace-collector-go` on west (the script's `--trace-demo` runs `trace-collector-go -demo`, a flag the binary does not have, so start it as the systemd unit instead); dashboard on `http://localhost:20000`; three terminals visible.
 
 | Segment | Time | Shows |
 |---------|------|-------|

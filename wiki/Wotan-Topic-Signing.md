@@ -12,7 +12,7 @@ Implemented as a prerequisite sprint on `main` before the spike branch.
 |---|---|
 | `services/wotan/proto/topic.proto` | Added `signature`, `public_key`, `algorithm` fields to `TopicPublishRequest` and `TopicEvent` |
 | `services/wotan/internal/signing/signing.go` | NEW — `TopicSigner` + `TopicVerifier` wrapping `pkg/crypto/pqc/ml_dsa.go` |
-| `services/wotan/internal/signing/signing_test.go` | NEW — 6 tests covering round-trip, tamper rejection, algorithm rejection, sender rejection, requirement matching |
+| `services/wotan/internal/signing/signing_test.go` | NEW — tests covering round-trip, tamper rejection, algorithm rejection, sender rejection, requirement matching, untrusted keys, replay |
 | `services/wotan/internal/grpc/topic_service.go` | `PublishTopic()` now enforces ML-DSA-65 signature on any topic matching `config.*` |
 | `services/wotan/proto/topic.pb.go` | Regenerated proto bindings |
 
@@ -44,8 +44,11 @@ Blocks downgrade attacks. Testing covers explicit rejection of
 
 ## Reuse
 
-Sits on top of existing `pkg/crypto/pqc/ml_dsa.go` (60+ tests, circl
-v1.6.3 vendored). Zero new external dependencies.
+Sits on top of existing `pkg/crypto/pqc/ml_dsa.go` (`github.com/cloudflare/circl`
+v1.6.5 in `go.mod`; not vendored). Zero new external dependencies.
+
+`configs/wotan.yaml` ships `signing_keys: []`, so out of the box every
+`config.*` publish is refused.
 
 ---
 
