@@ -132,8 +132,25 @@ The escalation prompt is built by `ThresholdRouter.Run` from three parts: the ta
 | Phase 1 (Step 62) | PASS | 030 offline checks + throwaway tests, bite-checked (owner UPDATE/DELETE allowed without the trigger -> 3 FAIL); `go test -race` claudebridge/zhen-claude/zhen-agentd ok; `pg_dump` 0 marker hits; Steps 59/61 escalated |
 | Phase 2 (Step 98) | PASS | self-approval and no-leak tests pass and bite (leaking the code into the result and approving on no answer -> 3 FAIL); 031 throwaway tests pass, bite-checked; default `-confirm deny` |
 | Phase 3 (Step 124) | PASS | no planted value survives (`TestRedact_NoPlantedValueSurvives`); `-tags privacy_bite` -> 12 FAIL; fail-closed paths tested (scanner missing, failing, hung; prompt not sent; tool result withheld); default `-privacy standard`. Step 121 live: `service_health` result tier T1, mode standard, 0 redactions (the payload holds service names and ports only, no addresses); consistent. |
+| Phase 4 (Step 160) | PASS | results for qwen-7b, qwen-coder-14b and Claude Opus 5.5 (low); `configs/zhen-routing.yaml` generated with split/PREREG hashes; hold-out gate evaluated per family (expert, hard, repo-task adopted; prod, textbook rejected -> claude_direct); eval spend $1.31 <= $3 cap; PREREG commit (10:36) older than every results commit (11:06, 11:18, 11:45). Step 142 failed and was debugged (142a; see Decisions). |
+| Phase 5 (Step 196) | PASS | `run_check` sandbox tests pass on west (`-tags usersystemd`: network, home, memory, runtime, output, tasks, Go toolchain); router obeys the config in unit tests, fake end to end and 3 live runs (all `local_only` per config) plus one live forced escalation; every escalation carries a `route_reason`; Step 194 bite fails both escalation tests; spend recorded. |
+
+Final regression (Step 192): `go build ./...` ok; `go test ./...` 281 ok / 0 FAIL (277 baseline + `pkg/localllm`, `pkg/sandbox`, `pkg/claudebridge/privacy`, `cmd/zhen-eval`); `go test -race` on every touched package ok; `-tags usersystemd` ok; pytest `raft/tests` + `scripts/two-brains` 86 passed, 2 skipped; golangci-lint 0 issues and gosec 0 issues on touched packages; both throwaway Well tests pass; no `qa-` container left. `check-gates-can-fail.sh --quick`: the two INCONCLUSIVE gates (`check-ruff`, `check-python-audit`) need `ruff`/`pip-audit` on PATH, pre-existing on this host.
+
+Definition of Done, Phases 0-5: every step run, skipped with a reason, or escalated (below); zero new test failures; migrations 030/031 in ledger order with the k8s render, tested and bite-checked on throwaway servers only; no new third-party dependency (yaml.v3, lib/pq, anthropic-sdk-go were already in go.mod; gitleaks and systemd-run are existing host tools); attack surface reviewed (Steps 54, 86, 117, 169, 184); ADR-019 amendment drafted (Proposed); ADR-104 open questions 2 and 5 answered; ADR-053 active.
 
 ## STUCK
+
+No step was marked STUCK in Phases 0-5. Steps not run as written, with the reason:
+
+- **Step 61** (live check of 030) — not run: depends on Step 59 (ESCALATE, open).
+- **Step 89** (interactive live `-confirm tty`) — skipped: no human at the terminal; the fake-TTY tests cover the prompt.
+- **Step 121** — run; 0 redactions because the `service_health` payload holds names and ports only (consistent).
+- **Step 147** (effort medium) — not needed: Claude low passed every task.
+- **Step 148** — n/a (credential present).
+- **Step 157** (restore qwen-7b) — replaced: qwen-coder-14b (the config's local model) stayed loaded for Phase 5's live runs, then llama-server was stopped, its state before the sprint (H10 down).
+- **Step 168** — n/a (H14 held).
+- **runbook-draft** family (5 tasks) — `[BLOCKED]` on the Phase 8 harness, as the plan says; not scored.
 
 ## ESCALATE answers
 
@@ -148,12 +165,10 @@ All live Claude calls of this run go through `-ledger $SCRATCH/spend.json`
 | Step | What | Cost (USD) | Running total |
 |---|---|---|---|
 | 27 | smoke, `-effort low`, 1 request | 0.001004 | 0.001004 |
-
 | 121 | `-tools mcp`, summarise `service_health`, `-effort low`, 2 requests | 0.010566 | 0.011570 |
-
 | 145 | two-brains eval, Claude Opus 5.5 effort low, 76 tasks, 76 requests (ledger now 79: +1 smoke, +2 Step 121) | 1.312553 | 1.324123 |
-
 | 180 | live routed runs, 3 hold-out repo tasks (local_only per config) | 0.000000 | 1.324123 |
 | 180+ | extra live escalation check, py-slug, scratch routing (separate ledger spend-phase5.json) | 0.025502 | 1.349625 |
-
 | 183 | the same 3 fixtures, `--route local` (comparison) | 0.000000 | 1.349625 |
+
+**Total live Claude spend for this run: $1.349625** (run ledger $1.324123 + Phase 5 ledger $0.025502), under the $5 budget.
