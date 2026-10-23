@@ -187,11 +187,13 @@ const App = (function() {
             updateConnectionStatus(state);
         });
 
-        // Event handlers for tasks
-        WebSocketClient.on('tasks.created', Board.handleTaskCreated);
-        WebSocketClient.on('tasks.updated', Board.handleTaskUpdated);
-        WebSocketClient.on('tasks.completed', Board.handleTaskCompleted);
-        WebSocketClient.on('tasks.deleted', Board.handleTaskDeleted);
+        // Event handlers for tasks: the event types the server's stream
+        // sends (TaskManager.handleMessage, wotan.go), singular "task.".
+        // These listened for the Wotan topic names ("tasks.created"), which
+        // no event carries, so other viewers' changes never showed.
+        WebSocketClient.on('task.created', Board.handleTaskCreated);
+        WebSocketClient.on('task.updated', Board.handleTaskUpdated);
+        WebSocketClient.on('task.deleted', Board.handleTaskDeleted);
 
         // Timeline event handlers - THE META MOMENT
         WebSocketClient.on('timeline.updates', handleTimelineUpdates);
