@@ -355,11 +355,15 @@ func (c *Client) Close() error {
 		delete(c.channels, topic)
 	}
 
-	// Close gRPC client if initialized
+	// Close gRPC client if initialized. Under grpcMu, which every other
+	// access to grpcClient holds: under chanMu alone this raced with
+	// getOrCreateGRPCClient (StreamMessages, ProbeGRPC).
+	c.grpcMu.Lock()
 	if c.grpcClient != nil {
 		_ = c.grpcClient.Close()
 		c.grpcClient = nil
 	}
+	c.grpcMu.Unlock()
 
 	return nil
 }

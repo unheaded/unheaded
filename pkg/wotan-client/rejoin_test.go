@@ -278,6 +278,28 @@ func TestClose_StopsPollers(t *testing.T) {
 	}
 }
 
+// Close and the lazy gRPC client do not race (run with -race): Close
+// cleared grpcClient under chanMu while getOrCreateGRPCClient reads and
+// sets it under grpcMu.
+func TestClose_RacesNothingWithGRPCInit(t *testing.T) {
+	c, err := NewClientWithGRPC("127.0.0.1:1", "127.0.0.1:1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 0; i < 50; i++ {
+			_ = c.ProbeGRPC()
+		}
+	}()
+	for i := 0; i < 50; i++ {
+		_ = c.Close()
+	}
+	<-done
+	_ = c.Close()
+}
+
 // "#" starts a URL fragment: a topic pattern like "logs.#" put into the path
 // unescaped reached Wotan as "/api/v1/topics/logs." with the rest (and the
 // query) cut off. Topics are path-escaped.
