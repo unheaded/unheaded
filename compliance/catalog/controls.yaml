@@ -1326,6 +1326,118 @@ controls:
       nist-csf-2: [PR.DS-11]
       iso27001-2022: [A.8.13]
 
+  # --- Post-quantum key exchange and signed evidence (ADR-105) ---------------
+
+  - id: UH-PQC-01
+    title: The cryptographic inventory (CBOM) is current
+    statement: >-
+      compliance/crypto/cbom.cdx.json, a CycloneDX 1.6 inventory of every
+      TLS, SSH, WireGuard, Postgres and signature site in the tree with its
+      key-exchange status (hybrid, hybrid-opportunistic, classical, ...),
+      equals a fresh regeneration by cmd/crypto-inventory. The gate fails
+      when a crypto site is added, removed or changed without the inventory
+      being regenerated in the same change. It checks that the inventory is
+      current, not that what it lists is post-quantum (UH-PQC-02, UH-PQC-03).
+    rationale: >-
+      A maintained component inventory (CM-8) of cryptographic mechanisms,
+      which is what cryptographic key establishment and use (SC-12, SC-13)
+      are reviewed against; CSF ID.AM-02 inventories of software and
+      services maintained; ISO A.5.9 inventory of information and associated
+      assets and A.8.24 use of cryptography. NSM-10 and OMB M-23-02 ask
+      agencies for exactly this inventory ahead of the NIST IR 8547
+      migration (cited as motivation; neither is a framework here).
+      Host facts come from read-only snapshots (compliance/crypto/hosts),
+      so a host change shows up only when they are re-collected.
+    freshness_days: 7
+    evidence:
+      - {kind: gate-script, ref: scripts/check-crypto-inventory.sh}
+    mappings:
+      nist-800-53r5: [CM-8, SC-12, SC-13]
+      nist-csf-2: [ID.AM-02]
+      iso27001-2022: [A.5.9, A.8.24]
+
+  - id: UH-PQC-02
+    title: First-party key exchange is hybrid post-quantum
+    statement: >-
+      No repository configuration turns hybrid ML-KEM key exchange off: no
+      CurvePreferences list without a hybrid group, no first-party TLS floor
+      below 1.3, no tlsmlkem=0 / tlssecpmlkem=0 kill switch, no go directive
+      below 1.24, no rustls ring provider, no Postgres below 18 serving TLS,
+      no sshd KexAlgorithms list without a hybrid
+      (scripts/check-pq-kex.sh). Today's exceptions sit in a shrink-only
+      baseline (docs/policy/pq-kex-baseline.txt), each with its reason: the
+      Well until E1 (FND-015) and two operator opt-ins in the load balancer.
+      Handshake tests on every first-party Go and Rust TLS surface assert
+      the negotiated group is X25519MLKEM768. Links that run without TLS
+      today (FND-017) are not covered.
+    rationale: >-
+      Cryptographic protection of data in transit (SC-8(1)) with approved
+      key establishment and cryptography (SC-12, SC-13) that resists
+      harvest-now-decrypt-later; 800-171 03.13.08 transmission
+      confidentiality; CSF PR.DS-02 data in transit protected; ISO A.8.24
+      use of cryptography; SOC 2 CC6.7 restricted transmission. Hybrid
+      (FIPS 203 ML-KEM-768 with X25519/P-256) is NIST PQC migration
+      progress; CNSA 2.0 is not claimed (ADR-105 decision 11).
+    freshness_days: 7
+    evidence:
+      - {kind: gate-script, ref: scripts/check-pq-kex.sh}
+    mappings:
+      nist-800-53r5: [SC-8(1), SC-12, SC-13]
+      nist-800-171r3: ["03.13.08"]
+      nist-csf-2: [PR.DS-02]
+      soc2-security: [CC6.7]
+      iso27001-2022: [A.8.24]
+
+  - id: UH-PQC-03
+    title: Host SSH accepts only hybrid post-quantum key exchange
+    statement: >-
+      On west and east, every KexAlgorithms entry in the effective sshd
+      configuration (sshd -T) is a post-quantum hybrid
+      (mlkem768x25519-sha256 or sntrup761x25519-sha512). Fails today on both
+      hosts: ML-KEM is offered first and negotiated by current clients, but
+      classical curve25519 and ECDH are still accepted. Making the lists
+      hybrid-only is Stevie's call (E2, lockout risk).
+    rationale: >-
+      Only a server list without classical entries guarantees a hybrid key
+      exchange for every client (SSH chooses by the client's order):
+      SC-8(1), SC-12, SC-13; 800-171 03.13.08; CSF PR.DS-02; ISO A.8.24.
+      The CIS allowlist check (sshd-kex, UH-SSH-01) stays separate: it
+      permits classical curves.
+    freshness_days: 1
+    evidence:
+      - {kind: host-probe, ref: "west:sshd-kex-pq"}
+      - {kind: host-probe, ref: "east:sshd-kex-pq"}
+    mappings:
+      nist-800-53r5: [SC-8(1), SC-12, SC-13]
+      nist-800-171r3: ["03.13.08"]
+      nist-csf-2: [PR.DS-02]
+      iso27001-2022: [A.8.24]
+
+  - id: UH-EVID-01
+    title: Build evidence is signed and verifiable
+    statement: >-
+      yggdrasil-evidence signs an evidence pack (manifest, ISO checksum and
+      every chain-of-custody entry) with ML-DSA-65 non-expiring evidence
+      seals and refuses, with exit 1, a pack whose manifest fails the schema,
+      whose seals or custody chain do not verify, whose ISO hash differs, or
+      whose tarball is unsafe to read. scripts/check-evidence-pack.sh builds
+      the tool, runs it over valid and tampered fixture packs and fails if
+      any tampered pack verifies. It proves the verifier, not that a
+      production pack exists: the production build key is E4 (FND-018).
+    rationale: >-
+      Integrity verification of software and information (SI-7) with
+      non-repudiation of who built and handled it (AU-10) and supply-chain
+      provenance (SR-4); SSDF PS.2 provide a mechanism for verifying
+      software release integrity; SOC 2 CC8.1 changes are authorized and
+      tested before release.
+    freshness_days: 7
+    evidence:
+      - {kind: gate-script, ref: scripts/check-evidence-pack.sh}
+    mappings:
+      nist-800-53r5: [SI-7, AU-10, SR-4]
+      nist-ssdf: [PS.2]
+      soc2-security: [CC8.1]
+
   # --- Awaiting attestation: these read NOT_ASSESSED until the accountable
   # person commits a signed file under compliance/attestations/ (README there).
 

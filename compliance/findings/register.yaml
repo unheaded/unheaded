@@ -233,6 +233,189 @@ findings:
       With the Well up, at Stevie's yes: SELECT pg_stat_statements_reset(); clear or rotate the old Postgres logs that
       carry ALTER ROLE ... PASSWORD lines; rotate the role passwords with scripts/well/set-role-passwords.sh (fixed:
       it now sets them with logging off). The suites test-backup-restore and test-config check the fix.
+
+  # --- S-QUANTUM-ARMOR (ADR-105): post-quantum gaps left for Stevie (E1-E5) and parked items ---
+  - id: FND-015
+    title: >-
+      The Well's TLS key exchange is classical P-256: PostgreSQL 16's ssl_ecdh_curve takes one curve, so no client
+      can negotiate a hybrid ML-KEM group with it (proved in throwaway containers; PG 18 with ssl_groups negotiates
+      X25519MLKEM768 with every client we run)
+    verify: >-
+      scripts/well/test-pq-groups.sh passes, and on the live port scripts/probe-tls-groups.sh --starttls postgres
+      (or openssl s_client -starttls postgres -groups X25519MLKEM768) negotiates X25519MLKEM768; the
+      docker-compose.yml and the-well statefulset postgres-pre18 lines are gone from docs/policy/pq-kex-baseline.txt
+    host: west
+    severity: medium
+    class: app
+    opened: 2026-10-23
+    exposure: >-
+      Well traffic on loopback, the Docker bridge and the P2P link (backups to east): recordable by anyone on that
+      path today and decryptable later by a quantum adversary (harvest now, decrypt later); lab host, not
+      internet-facing
+    lockout: none
+    step: 7
+    plan: >-
+      E1: runbooks/data/well-pg18-upgrade.yaml (dump/restore into a new volume with restore-drill.sh --into-volume,
+      PG 16 volume kept as the rollback, db/postgresql.pg18.conf.d/10-pq-groups.conf with
+      ssl_groups=X25519MLKEM768:X25519:prime256v1). Clients need no change (libpq 16/18 and lib/pq offer the hybrid)
+    decision: E1, when to take the Well to PostgreSQL 18 (downtime, data-bearing major upgrade)
+
+  - source: "host-probe:west:sshd-kex-pq"
+    severity: low
+    class: sshd
+    opened: 2026-10-23
+    exposure: >-
+      LAN and P2P link only (assumed). mlkem768x25519-sha256 is first in the server list and every client we use
+      negotiates it; a client that offers only curve25519/ECDH still gets a classical session
+    lockout: high
+    step: 7
+    plan: >-
+      E2 (docs/security/pq-host-escalations.md): KexAlgorithms mlkem768x25519-sha256,sntrup761x25519-sha512,
+      sntrup761x25519-sha512@openssh.com in /etc/ssh/sshd_config.d, east first, second session kept open, sshd -t
+      before reload, rollback from the .bak
+    decision: E2, whether to make sshd hybrid-only (lockout risk for any client without ML-KEM or sntrup)
+
+  - source: "host-probe:east:sshd-kex-pq"
+    severity: low
+    class: sshd
+    opened: 2026-10-23
+    exposure: LAN and P2P link only (assumed); hybrid negotiated by current clients, classical still accepted
+    lockout: high
+    step: 7
+    plan: E2, as west (east first)
+    decision: E2
+
+  - id: FND-016
+    title: >-
+      The WireGuard pre-shared key, the post-quantum part of the west-east overlay, has not changed since setup
+      (2026-03-25): one static PSK, never rotated
+    verify: >-
+      wg show wg0 latest-handshakes is current on both hosts after a rotation, and the PSK file
+      (/etc/wireguard/wg0.psk, written by scripts/wireguard/rotate-psk.sh) is less than 8 days old
+    severity: low
+    class: app
+    opened: 2026-10-23
+    exposure: >-
+      the PSK lives in root-only files on west and east; a leaked PSK reduces the overlay to X25519 for every session
+      recorded since setup
+    lockout: low
+    step: 7
+    plan: >-
+      E3: first live rotation with scripts/wireguard/rotate-psk.sh --apply (dry run by default; waits 200 s for a
+      handshake and rolls back), then enable the weekly timer from deploy/systemd/ (docs/security/pq-host-escalations.md)
+    decision: E3, the first live rotation and enabling the weekly timer
+
+  - id: FND-017
+    title: >-
+      Wotan and the internal service links run without TLS in the compose stack (no -enable-tls), so their traffic is
+      plaintext, post-quantum or not
+    verify: >-
+      compose starts Wotan with -enable-tls and the services dial it over TLS; scripts/probe-tls-groups.sh against
+      Wotan's gRPC port negotiates X25519MLKEM768 and refuses an X25519-only offer
+    severity: medium
+    class: app
+    opened: 2026-10-23
+    exposure: readable by anyone on the host, the Docker bridge or a LAN path to published ports; lab host, not internet-facing
+    lockout: none
+    step: 7
+    plan: >-
+      The ADR-034 / ADR-103 sprint (certificates, distribution, service auth). The code is ready: Wotan gRPC,
+      wotan-client, pkg/transport/mtls and pkg/mesh are hybrid-only TLS 1.3 the day TLS is on (S-QUANTUM-ARMOR Phase 5)
+    decision: when to turn TLS on for internal links (accepted as plaintext 2026-09-30 with the edge finding)
+
+  - id: FND-018
+    title: >-
+      No production evidence build key exists, so no Yggdrasil evidence pack can be signed for real; the
+      sign/verify path works with throwaway keys only
+    verify: >-
+      a build.pubkey is published over a trusted channel, and yggdrasil-evidence verify --pubkey build.pubkey passes
+      on a real pack built by nix/yggdrasil/scripts/yggdrasil-build-evidence-pack.sh with YGGDRASIL_BUILD_KEY set
+    severity: low
+    class: app
+    opened: 2026-10-23
+    exposure: no evidence pack is published or relied on today; an unsigned pack fails verify (UNSIGNED PACK banner)
+    lockout: none
+    step: 7
+    plan: >-
+      E4: an ML-DSA-65 seed held under ADR-043 #4 custody (HSM/TPM/sealed, or strict ACL with an audit log),
+      separate from the Heimdall and drift keys; publish build.pubkey; a quarterly rotation ceremony
+    decision: E4, where the build key lives, who holds it, how build.pubkey is published
+
+  - id: FND-019
+    title: >-
+      Heimdall's signed drift alerts reach no one: no node has a drift key, Wotan's drift. prefix trusts no key
+      (fails closed), and no unit runs Heimdall with --wotan-grpc
+    verify: >-
+      a drift key per node (0600, separate from the build and manifest keys), its public key in drift.'s keys in the
+      live Wotan config, and a provoked drift on that node arrives on drift.detected.<node> and re-verifies at a subscriber
+    severity: low
+    class: app
+    opened: 2026-10-23
+    exposure: drift is still detected and logged on the host; only the signed publish to Wotan is off
+    lockout: none
+    step: 7
+    plan: >-
+      E5 (plan Step 246; docs/battle-plans/progress/S-QUANTUM-ARMOR-drift-progress.md): enrol the keys, add heimdall
+      to topics.auto_approve, ship and enable a Heimdall unit
+    decision: E5, key custody per node and running a root-reading daemon on the hosts
+
+  - id: FND-020
+    title: >-
+      Wotan cluster replication drops message signatures: replication.proto carries no signature, key or
+      signed_at, so a signed config. or drift. event replayed from a peer node reaches subscribers unsigned
+    verify: >-
+      a services/wotan test replicates a signed drift. message between two nodes and a subscriber on the receiving
+      node gets a signature that wotansig.VerifyEvent accepts
+    severity: low
+    class: app
+    opened: 2026-10-23
+    exposure: no cluster replication runs today and nothing replicates drift; a subscriber that requires signatures refuses the unsigned copy (fails closed)
+    lockout: none
+    step: 7
+    plan: additive replication.proto fields (signature, public_key, algorithm, signed_at_unix_ms) copied onto the ring-buffer message, as TopicEvent field 12 was
+
+  - id: FND-021
+    title: >-
+      Wotan's ring-buffer byte budget counts message Content only: a signed message also holds about 5.3 KB of
+      ML-DSA-65 signature and public key that the budget does not see
+    verify: a services/wotan ring-buffer test fills a room with signed messages and the accounted bytes include the signature and key
+    severity: low
+    class: app
+    opened: 2026-10-23
+    exposure: signed rooms are few and protected from eviction (SetKeep); an approved publisher of a signed prefix could push memory past the budget
+    lockout: none
+    step: 7
+    plan: count len(signature)+len(public_key) in the ring buffer's size accounting
+
+  - id: FND-022
+    title: >-
+      cmd/waf depends on rustls-pemfile, which is unmaintained (RUSTSEC-2025-0134; cargo audit warning, no
+      vulnerability)
+    verify: cargo audit in cmd/waf reports no RUSTSEC-2025-0134 and cmd/waf/Cargo.lock has no rustls-pemfile
+    severity: low
+    class: package
+    opened: 2026-10-23
+    exposure: PEM parsing of the WAF's own certificate and key files at startup; no known vulnerability
+    lockout: none
+    step: 3
+    plan: parse PEM with rustls-pki-types' pem module (already in the lock graph) and drop the dependency
+
+  - id: FND-023
+    title: >-
+      pkg/wotan-client TestGRPCClient_GetMessages flaked (about 2 in 20 runs): GetMessages reported the query's own
+      timeout as Wotan failing when the server's end of the stream reached Recv before the client's context timer fired
+    verify: >-
+      go test -race -count=200 -run '^TestGRPCClient_GetMessages' ./pkg/wotan-client/ passes and
+      TestQueryEnded_ServerReportsOurDeadlineFirst pins the race window
+    severity: low
+    class: ci
+    opened: 2026-10-23
+    exposure: a flaky gate hides real failures; in production the same race turned a quiet topic into a reported error
+    lockout: none
+    step: 1
+    plan: queryEnded treats DeadlineExceeded or Canceled at or after the query deadline as the normal end
+    resolved: {on: 2026-10-23, evidence: "c2ca5e74 fix(wotan-client) with TestQueryEnded_*; 0 failures in 200 -race runs (8 in 40 before)"}
+
   - source: "gate-script:scripts/compliance/check-service-auth.sh"
     severity: high
     class: app

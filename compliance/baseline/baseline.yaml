@@ -148,6 +148,7 @@ sources:
   - {kind: host-probe, ref: "east:sshd-banner"}
   - {kind: host-probe, ref: "east:sshd-ciphers"}
   - {kind: host-probe, ref: "east:sshd-kex"}
+  - {kind: host-probe, ref: "east:sshd-kex-pq"}
   - {kind: host-probe, ref: "east:sshd-macs"}
   - {kind: host-probe, ref: "east:sshd-maxstartups"}
   - {kind: host-probe, ref: "east:su-restricted"}
@@ -327,6 +328,7 @@ sources:
   - {kind: host-probe, ref: "west:sshd-banner"}
   - {kind: host-probe, ref: "west:sshd-ciphers"}
   - {kind: host-probe, ref: "west:sshd-kex"}
+  - {kind: host-probe, ref: "west:sshd-kex-pq"}
   - {kind: host-probe, ref: "west:sshd-macs"}
   - {kind: host-probe, ref: "west:sshd-maxstartups"}
   - {kind: host-probe, ref: "west:su-restricted"}
