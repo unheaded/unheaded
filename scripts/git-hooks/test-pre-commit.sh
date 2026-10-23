@@ -10,6 +10,8 @@
 #                         rustfmt is not on PATH — soft-required toolchain).
 #   T5: clean Rust file → exit 0 (skipped if rustfmt missing).
 #   T6: SPDX-missing Go → exit non-zero, prints offending file.
+#   T7: unparseable workflow YAML → exit non-zero, names the file (skipped if
+#       python3 + PyYAML are missing).
 #
 # Self-contained: stages temp files inside the repo, runs the hook, then
 # unstages and removes them in a trap. Aborts with PASS/FAIL line.
@@ -28,6 +30,8 @@ CLEAN_FILE="$SCRATCH_DIR/clean_test.go"
 RS_DRIFT_FILE="$SCRATCH_DIR/drift_test.rs"
 RS_CLEAN_FILE="$SCRATCH_DIR/clean_test.rs"
 SPDX_MISSING_FILE="$SCRATCH_DIR/no_spdx_test.go"
+# Must sit in .github/workflows/ for the hook's pathspec; removed by cleanup.
+WF_BROKEN_FILE=".github/workflows/zz-hook-selftest-broken.yml"
 
 cleanup() {
     local rc=$?
@@ -35,6 +39,10 @@ cleanup() {
     if [ -d "$SCRATCH_DIR" ]; then
         git reset -q -- "$SCRATCH_DIR" 2>/dev/null || true
         rm -rf "$SCRATCH_DIR"
+    fi
+    if [ -f "$WF_BROKEN_FILE" ]; then
+        git reset -q -- "$WF_BROKEN_FILE" 2>/dev/null || true
+        rm -f "$WF_BROKEN_FILE"
     fi
     return "$rc"
 }
@@ -188,4 +196,33 @@ if ! echo "$out_t6" | grep -q "no_spdx_test.go"; then
 fi
 
 echo "PASS: T6 spdx-missing=blocked"
+
+# ---------- T7: unparseable workflow → hook exits non-zero, names file ----------
+if python3 -c 'import yaml' 2>/dev/null; then
+    # The 2026-10-23 breakage: an unquoted ": " inside a run: line.
+    cat >"$WF_BROKEN_FILE" <<'YAML'
+on: push
+jobs:
+  x:
+    runs-on: ubuntu-latest
+    steps:
+      - run: pip install --only-binary=:all: -r requirements.txt
+YAML
+    git add -- "$WF_BROKEN_FILE"
+    set +e
+    out_t7="$(bash "$HOOK" 2>&1)"
+    rc_t7=$?
+    set -e
+    git reset -q -- "$WF_BROKEN_FILE"
+    rm -f "$WF_BROKEN_FILE"
+    if [ "$rc_t7" -eq 0 ]; then
+        fail "T7 broken workflow: hook exited 0, expected non-zero. Output: $out_t7"
+    fi
+    if ! echo "$out_t7" | grep -q "zz-hook-selftest-broken.yml"; then
+        fail "T7 broken workflow: expected offending filename in output, got: $out_t7"
+    fi
+    echo "PASS: T7 broken-workflow=blocked"
+else
+    echo "SKIP: T7 (python3 + PyYAML not available)"
+fi
 exit 0

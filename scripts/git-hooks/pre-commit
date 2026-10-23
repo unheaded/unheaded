@@ -7,6 +7,7 @@
 # cargo-fmt gap surfaced in Phase 8 of marshal-shift-2026-05-07 for Rust.
 #
 # Behavior:
+#   - If a staged .github/workflows/*.yml does not parse as YAML: exits 1.
 #   - If no .go and no .rs files staged: exits 0 silently.
 #   - If staged .go files have gofmt drift: prints offending paths, exits 1.
 #   - If `go vet` fails on packages owning staged Go changes: prints output, exits 1.
@@ -23,6 +24,29 @@
 # Install: `make install-hooks` (symlinks this file to .git/hooks/pre-commit).
 
 set -euo pipefail
+
+# ---------- GitHub workflow YAML ----------
+# A workflow that does not parse never runs, so CI cannot report it: on
+# 2026-10-23 security.yml and static-analysis.yml failed to load (0 jobs)
+# for a `run: ... --only-binary=:all: -r ...` line, whose ": " YAML reads
+# as a mapping. Parse every staged workflow file here instead.
+mapfile -d '' STAGED_WF < <(
+    git diff --cached --name-only --diff-filter=ACMR -z -- '.github/workflows/*.yml' '.github/workflows/*.yaml' 2>/dev/null || true
+)
+if [ "${#STAGED_WF[@]}" -gt 0 ]; then
+    if ! python3 -c 'import yaml' 2>/dev/null; then
+        echo "pre-commit: python3 + PyYAML not available — skipping the workflow YAML check" >&2
+    else
+        for f in "${STAGED_WF[@]}"; do
+            [ -f "$f" ] || continue
+            if ! ERR="$(python3 -c 'import sys, yaml; yaml.safe_load(open(sys.argv[1]))' "$f" 2>&1)"; then
+                echo "pre-commit: $f is not valid YAML; GitHub would not run it:" >&2
+                echo "$ERR" | tail -3 | sed 's/^/  /' >&2
+                exit 1
+            fi
+        done
+    fi
+fi
 
 # Collect staged .go files (Added/Copied/Modified/Renamed, NUL-delimited for safety).
 mapfile -d '' STAGED_GO < <(

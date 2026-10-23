@@ -42,7 +42,7 @@ jobs:
       - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
         with:
           python-version: '3.12'
-      - run: pip install --quiet --require-hashes --no-deps --only-binary=:all: -r .github/ci-python/requirements.txt
+      - run: "pip install --quiet --require-hashes --no-deps --only-binary=:all: -r .github/ci-python/requirements.txt"
 
       # Gating from day one — the tree is clean as of 2026-07-29, after fixing
       # deploy/k8s/monitoring/pleg-alerts.yaml, which used an invalid \$ escape
@@ -150,7 +150,7 @@ jobs:
       # Unpinned, every upstream release silently moves the baselines these
       # jobs are measured against — ruff in particular changes its default
       # rule set between minor versions. Bump deliberately, re-measure, commit.
-      - run: pip install --quiet --require-hashes --no-deps --only-binary=:all: -r .github/ci-python/requirements.txt
+      - run: "pip install --quiet --require-hashes --no-deps --only-binary=:all: -r .github/ci-python/requirements.txt"
 
       # GATING, and it caught a real one: scripts/vault-to-runway.py had a
       # SyntaxError at HEAD and could not run at all. ruff does not flag that
@@ -261,7 +261,7 @@ jobs:
       # The same locked tools as the python job: without ruff check-ruff exits 127 on the
       # clean tree, which the meta-gate reads as "already failing" — this job
       # had never passed since it landed (2026-09-09).
-      - run: pip install --quiet --require-hashes --no-deps --only-binary=:all: -r .github/ci-python/requirements.txt
+      - run: "pip install --quiet --require-hashes --no-deps --only-binary=:all: -r .github/ci-python/requirements.txt"
 
       # bpf-verifier-check and check-ebpf-loads build ebpf/ for
       # bpfel-unknown-none: nightly + rust-src (ebpf/rust-toolchain.toml) and
