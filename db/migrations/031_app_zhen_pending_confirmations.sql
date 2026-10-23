@@ -30,6 +30,7 @@
 
 CREATE TABLE zhen_pending_confirmations (
     id             TEXT PRIMARY KEY CHECK (id ~ '^[0-9a-f]{16}$'),
+    -- well:ignore text-surrogate-pk a 16-hex id Stevie types at the CLI (zhen-claude review|confirm), not a join key; Erda accepted it as P3 (S-TWO-BRAINS Steps 198, 202)
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     expires_at     TIMESTAMPTZ NOT NULL,
     source_service TEXT NOT NULL CHECK (source_service IN ('zhen-claude', 'zhen-agentd')),

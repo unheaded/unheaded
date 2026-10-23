@@ -72,8 +72,9 @@ steps:
     command: |
       cd ~/tmp/unheaded
       go run ./cmd/lich-mcp confirm list
-      go run ./cmd/lich-mcp confirm show <id>
-      go run ./cmd/lich-mcp confirm approve <id>    # then the driver re-issues the identical call
+      : "${FINDING_ID:?set FINDING_ID to an id from confirm list}"
+      go run ./cmd/lich-mcp confirm show "${FINDING_ID}"
+      go run ./cmd/lich-mcp confirm approve "${FINDING_ID}"    # then the driver re-issues the identical call
       # Findings are never auto-published; a .needs-regen marker is left for post-signing regen.
 
   - name: kill-switch

@@ -50,6 +50,7 @@
 
 CREATE TABLE zhen_agent_runs (
     id              TEXT PRIMARY KEY CHECK (id ~ '^[0-9a-f]{16}$'),
+    -- well:ignore text-surrogate-pk a 16-hex id Stevie types at the CLI (zhen-claude review|confirm), not a join key; Erda accepted it as P3 (S-TWO-BRAINS Steps 198, 202)
     card_id         TEXT NOT NULL REFERENCES kanban_tasks (id),
     claimed_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
     lease_until     TIMESTAMPTZ NOT NULL,
