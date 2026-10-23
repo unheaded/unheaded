@@ -12,12 +12,12 @@ import (
 	"sort"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog/log"
 	"unheaded/pkg/httputil"
+	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/ringbuffer"
 	"unheaded/services/wotan/internal/signing"
@@ -46,51 +46,6 @@ type TopicMessage struct {
 	Seq       int64     `json:"seq"`
 	Payload   string    `json:"payload"`
 	Deleted   bool      `json:"deleted"`
-}
-
-// topicSubscribers tracks subscribers per topic
-type topicSubscribers struct {
-	mu          sync.RWMutex
-	subscribers map[string]map[string]*TopicSubscriber // topic -> subscriberID -> subscriber
-}
-
-func newTopicSubscribers() *topicSubscribers {
-	return &topicSubscribers{
-		subscribers: make(map[string]map[string]*TopicSubscriber),
-	}
-}
-
-func (ts *topicSubscribers) add(sub *TopicSubscriber) {
-	ts.mu.Lock()
-	defer ts.mu.Unlock()
-
-	if _, ok := ts.subscribers[sub.Topic]; !ok {
-		ts.subscribers[sub.Topic] = make(map[string]*TopicSubscriber)
-	}
-	ts.subscribers[sub.Topic][sub.SubscriberID] = sub
-}
-
-func (ts *topicSubscribers) get(topic, subscriberID string) (*TopicSubscriber, bool) {
-	ts.mu.RLock()
-	defer ts.mu.RUnlock()
-
-	topicSubs, ok := ts.subscribers[topic]
-	if !ok {
-		return nil, false
-	}
-	sub, ok := topicSubs[subscriberID]
-	return sub, ok
-}
-
-func (ts *topicSubscribers) isSubscribed(topic, subscriberID string) bool {
-	_, ok := ts.get(topic, subscriberID)
-	return ok
-}
-
-// InitTopics initializes topic support on the Server.
-// Must be called after NewServer and before serving requests.
-func (s *Server) InitTopics() {
-	s.topicSubs = newTopicSubscribers()
 }
 
 // SubscribeTopic handles POST /api/v1/topics/{topic}/subscribe
@@ -137,23 +92,24 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Create a pending member
-	newMember, err := s.MemberManager.RequestJoin(topic, req.DisplayName, "", s.PendingApprovalTimeout)
+	// An allowlisted name gets the one approved member for (topic, name),
+	// made on first use. A new member per call, never reaped, left one
+	// behind for good each time a client restarted and subscribed again.
+	// Any other name gets a pending member per request, which expires.
+	var newMember *member.Member
+	var err error
+	status := "pending"
+	if s.TopicConfig != nil && s.TopicConfig.IsAutoApproved(req.DisplayName) {
+		newMember, err = s.MemberManager.EnsureApproved(topic, req.DisplayName, "topic-auto-approve")
+		status = "approved"
+	} else {
+		newMember, err = s.MemberManager.RequestJoin(topic, req.DisplayName, "", s.PendingApprovalTimeout)
+	}
 	if err != nil {
 		writeError(w, http.StatusServiceUnavailable, err.Error())
 		return
 	}
-
-	// Auto-approve only if display_name is in the allowlist
-	status := "pending"
-	if s.TopicConfig != nil && s.TopicConfig.IsAutoApproved(req.DisplayName) {
-		if err := s.MemberManager.Approve(newMember.ID, "topic-auto-approve"); err != nil {
-			log.Error().Err(err).Str("topic", topic).Msg("failed to auto-approve topic subscriber")
-			writeError(w, http.StatusInternalServerError, "subscription failed")
-			return
-		}
-		status = "approved"
-	} else {
+	if status == "pending" {
 		log.Info().
 			Str("topic", topic).
 			Str("display_name", req.DisplayName).
@@ -166,11 +122,6 @@ func (s *Server) SubscribeTopic(w http.ResponseWriter, r *http.Request) {
 		DisplayName:  req.DisplayName,
 		Status:       status,
 		RequestedAt:  time.Now(),
-	}
-
-	// Track the subscriber
-	if s.topicSubs != nil {
-		s.topicSubs.add(sub)
 	}
 
 	log.Info().

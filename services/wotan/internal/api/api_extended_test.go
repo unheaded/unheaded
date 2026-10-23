@@ -32,94 +32,7 @@ func setupTestServerWithTopics() *Server {
 	srv.TopicConfig = &TopicConfig{
 		allowSet: map[string]struct{}{"*": {}},
 	}
-	srv.InitTopics()
 	return srv
-}
-
-// ============================================================
-// InitTopics Tests
-// ============================================================
-
-func TestInitTopics(t *testing.T) {
-	srv := setupTestServer()
-	if srv.topicSubs != nil {
-		t.Error("topicSubs should be nil before InitTopics")
-	}
-
-	srv.InitTopics()
-
-	if srv.topicSubs == nil {
-		t.Error("topicSubs should be set after InitTopics")
-	}
-}
-
-// ============================================================
-// topicSubscribers Tests
-// ============================================================
-
-func TestTopicSubscribers_AddAndGet(t *testing.T) {
-	subs := newTopicSubscribers()
-
-	sub := &TopicSubscriber{
-		SubscriberID: "sub-1",
-		Topic:        "alerts",
-		DisplayName:  "test-service",
-		Status:       "approved",
-		RequestedAt:  time.Now(),
-	}
-
-	subs.add(sub)
-
-	got, ok := subs.get("alerts", "sub-1")
-	if !ok {
-		t.Fatal("expected subscriber to be found")
-	}
-	if got.SubscriberID != "sub-1" {
-		t.Errorf("SubscriberID = %s, want sub-1", got.SubscriberID)
-	}
-	if got.DisplayName != "test-service" {
-		t.Errorf("DisplayName = %s, want test-service", got.DisplayName)
-	}
-}
-
-func TestTopicSubscribers_GetNotFound(t *testing.T) {
-	subs := newTopicSubscribers()
-
-	// Non-existent topic
-	_, ok := subs.get("nonexistent", "sub-1")
-	if ok {
-		t.Error("expected not found for non-existent topic")
-	}
-
-	// Existing topic but non-existent subscriber
-	subs.add(&TopicSubscriber{
-		SubscriberID: "sub-1",
-		Topic:        "alerts",
-	})
-
-	_, ok = subs.get("alerts", "sub-999")
-	if ok {
-		t.Error("expected not found for non-existent subscriber")
-	}
-}
-
-func TestTopicSubscribers_IsSubscribed(t *testing.T) {
-	subs := newTopicSubscribers()
-
-	subs.add(&TopicSubscriber{
-		SubscriberID: "sub-1",
-		Topic:        "alerts",
-	})
-
-	if !subs.isSubscribed("alerts", "sub-1") {
-		t.Error("expected isSubscribed to return true")
-	}
-	if subs.isSubscribed("alerts", "sub-999") {
-		t.Error("expected isSubscribed to return false for unknown subscriber")
-	}
-	if subs.isSubscribed("nonexistent", "sub-1") {
-		t.Error("expected isSubscribed to return false for unknown topic")
-	}
 }
 
 // ============================================================
@@ -379,8 +292,7 @@ func TestSubscribeTopic_EmptyTopic(t *testing.T) {
 	}
 }
 
-func TestSubscribeTopic_NilTopicSubs(t *testing.T) {
-	// Server without InitTopics called
+func TestSubscribeTopic_NoTopicConfig(t *testing.T) {
 	srv := setupTestServer()
 
 	body, _ := json.Marshal(map[string]string{"display_name": "svc"})
@@ -391,7 +303,7 @@ func TestSubscribeTopic_NilTopicSubs(t *testing.T) {
 	srv.SubscribeTopic(rec, req)
 
 	if rec.Code != http.StatusCreated {
-		t.Errorf("Status = %d, want %d (should work without topic subs initialized)", rec.Code, http.StatusCreated)
+		t.Errorf("Status = %d, want %d (should work without a topic config)", rec.Code, http.StatusCreated)
 	}
 }
 
@@ -542,7 +454,6 @@ func TestPublishTopic_NilWotan(t *testing.T) {
 	srv := NewServer(roomMgr, memberMgr, nil, 5*time.Minute)
 	srv.AdminAPIKey = testAdminAPIKey
 	srv.TopicConfig = &TopicConfig{allowSet: map[string]struct{}{"*": {}}}
-	srv.InitTopics()
 
 	// Subscribe
 	subBody, _ := json.Marshal(map[string]string{"display_name": "svc"})
@@ -1033,7 +944,6 @@ func TestPublishTopic_SequenceNumbers(t *testing.T) {
 
 func TestGetTopicMessages_Paging(t *testing.T) {
 	srv := NewServer(room.NewManager(2*maxTopicMessagesPage), member.NewManager(), wotan.NewWotan(), 5*time.Minute)
-	srv.InitTopics()
 	rm, _ := srv.RoomManager.Create("pg", "pg")
 	for i := 0; i < maxTopicMessagesPage+5; i++ {
 		rm.SendMessage(uuid.New(), "m")

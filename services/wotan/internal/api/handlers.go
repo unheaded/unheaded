@@ -32,8 +32,6 @@ type Server struct {
 	// Persistent store (optional — nil means memory-only)
 	Store store.MessageStore
 
-	// Topic pub/sub state (initialized by InitTopics)
-	topicSubs   *topicSubscribers
 	TopicConfig *TopicConfig // Auto-approval allowlist for topic subscribers
 }
 

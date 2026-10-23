@@ -222,9 +222,6 @@ func main() {
 	apiServer := api.NewServer(roomManager, memberManager, messageWotan, config.PendingApprovalTimeout)
 	apiServer.TopicConfig = topicCfg
 	apiServer.Store = msgStore // Wire persistent store (nil = memory-only)
-	// InitTopics returns no error today (see services/wotan/internal/
-	// api/topics.go); if a future change makes it fallible, wrap here.
-	apiServer.InitTopics()
 
 	// Setup rate limiter
 	rateLimiter := middleware.NewRateLimiter(
