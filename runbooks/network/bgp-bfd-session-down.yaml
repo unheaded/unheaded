@@ -1,0 +1,189 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: bgp-bfd-session-down
+  description: Diagnose and potentially fix a down or flapping BGP session with BFD
+  owner: architect
+  estimated_duration: 20m
+  risk: medium
+  requires_sudo: true
+  status: draft
+  authored_by: claude
+  reviewed_by: claude-opus-5-5
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_bgp_bfd_session_down.py
+notes: |
+  The BGP session between the two Kingdom routers (west runs FRR, the far side may run FRR or BIRD) is down or flapping, or BFD reports the peer down. Find out why with read-only commands; change nothing without a human.
+  FRR config: nixos/modules/frr.nix (BFD on wg0, detect-multiplier 3, rx/tx 300 ms). Design: routing/README.md, routing/DEPLOYMENT.md.
+  Never run `wg showconf`: it prints keys.
+parameters:
+  - name: PEER
+    default: ""
+    description: BGP peer address; no default, the operator reads it from `vtysh -c 'show bgp summary'`
+preconditions:
+  - check: "systemctl is-active frr || command -v vtysh"
+    description: FRR is running or at least installed
+steps:
+  - name: check-frr-status
+    action: shell
+    command: |
+      set -euo pipefail
+      systemctl is-active frr || command -v vtysh
+    verify: "systemctl is-active frr || command -v vtysh"
+    on_fail: "FRR is neither active nor installed; see stop-if-no-frr"
+    description: Check whether FRR is active, else whether vtysh is installed
+
+  - name: stop-if-no-frr
+    action: manual
+    command: |
+      # If check-frr-status found neither an active frr nor vtysh, FRR is not installed here.
+      # Stop the runbook: there is nothing to diagnose.
+    description: "MANUAL. Stop with a note when FRR is not installed (nothing to diagnose)"
+
+  - name: check-bgp-summary
+    action: shell
+    command: |
+      set -euo pipefail
+      vtysh -c 'show bgp summary'
+    verify: "vtysh -c 'show bgp summary json' | jq -e '[.. | objects | select(has(\"state\")) | .state] | length > 0 and all(. == \"Established\")' >/dev/null"
+    on_fail: "A BGP peer is not Established; continue with the read checks"
+    description: Check BGP summary
+
+  - name: set-peer
+    action: manual
+    command: |
+      # Read the neighbor address from the output of `vtysh -c 'show bgp summary'`, then:
+      export PEER=<peer>
+    description: "MANUAL. The operator reads the peer from show bgp summary and sets PEER"
+
+  - name: check-bfd-peers
+    action: shell
+    command: |
+      set -euo pipefail
+      vtysh -c 'show bfd peers'
+    verify: "vtysh -c 'show bfd peers' | grep -qi 'status: up'"
+    on_fail: "BFD peer is not up"
+    description: Check BFD peers
+
+  - name: check-bgp-neighbor
+    action: shell
+    command: |
+      set -euo pipefail
+      : "${PEER:?set PEER from show bgp summary}"
+      vtysh -c "show bgp neighbor ${PEER}"
+    verify: ": \"${PEER:?set PEER from show bgp summary}\"; vtysh -c \"show bgp neighbor ${PEER}\" | grep -q 'BGP state = Established'"
+    on_fail: "BGP neighbor is not established"
+    description: Check BGP neighbor
+
+  - name: check-wg0-link
+    action: shell
+    command: |
+      set -euo pipefail
+      ip -br link show wg0
+    verify: "ip link show wg0 | grep -q '[<,]UP[,>]'"
+    on_fail: "wg0 is not up; check wg-quick@wg0"
+    description: Check wg0 link status
+
+  - name: check-wg0-handshakes
+    action: shell
+    command: |
+      set -euo pipefail
+      wg show wg0 latest-handshakes
+    verify: "set -euo pipefail; now=$(date +%s); wg show wg0 latest-handshakes | awk -v n=\"$now\" '$2>0 && n-$2<180{ok=1} END{exit !ok}'"
+    on_fail: "No wg0 handshake in the last 180 s; check wg-quick@wg0 on both sides"
+    description: Check wg0 handshakes are recent
+
+  - name: check-ping-to-peer
+    action: shell
+    command: |
+      set -euo pipefail
+      : "${PEER:?set PEER from show bgp summary}"
+      ping -c 3 -I wg0 "${PEER}"
+    verify: ": \"${PEER:?set PEER from show bgp summary}\"; ping -c 3 -I wg0 \"${PEER}\" >/dev/null"
+    on_fail: "Ping to peer over wg0 failed"
+    description: Check ping to peer
+
+  - name: check-mtu-probe
+    action: shell
+    command: |
+      set -euo pipefail
+      : "${PEER:?set PEER from show bgp summary}"
+      ip link show wg0
+      ping -c 3 -M do -s 1372 -I wg0 "${PEER}"
+    verify: ": \"${PEER:?set PEER from show bgp summary}\"; ping -c 3 -M do -s 1372 -I wg0 \"${PEER}\" >/dev/null"
+    on_fail: "Do-not-fragment probe failed; compare the wg0 MTU on both sides"
+    description: Read the wg0 MTU and run a do-not-fragment probe
+
+  - name: check-bfd-timers
+    action: shell
+    command: |
+      set -euo pipefail
+      vtysh -c 'show bfd peers'
+    description: Show local BFD intervals for comparison with the far side
+
+  - name: check-far-side
+    action: manual
+    command: |
+      # On the far-side router:
+      birdc show protocols
+      birdc show bfd sessions
+      # or, if it runs FRR: vtysh -c 'show bfd peers'
+      # Compare with local: detect-multiplier 3, receive/transmit interval 300 ms.
+    description: "MANUAL. Runs on the other host; compare far-side BFD timers with the local ones"
+
+  - name: check-recent-changes
+    action: shell
+    command: |
+      set -euo pipefail
+      git -C ~/tmp/unheaded log --oneline -5 -- nixos/modules/frr.nix
+      journalctl -u frr --since -1h --no-pager | tail -50
+    description: Check recent changes
+
+  - name: escalate
+    action: manual
+    command: |
+      # If both sides show transport healthy (recent wg0 handshake, ping and MTU probe pass)
+      # but the session stays down: collect the outputs of the read steps above and stop.
+    description: "MANUAL. Escalate with the collected read outputs; make no changes"
+
+  - name: clear-bgp-soft
+    action: manual
+    irreversible: true
+    command: |
+      vtysh -c 'clear bgp <peer> soft'
+    description: "MANUAL. Soft reset of the BGP session; needs Stevie's go"
+
+  - name: edit-bfd-timers
+    action: manual
+    irreversible: true
+    command: |
+      # Edit the BFD timers in nixos/modules/frr.nix and rebuild
+    description: "MANUAL. Edit BFD timers in nixos/modules/frr.nix and rebuild; needs Stevie's go"
+
+  - name: restart-frr
+    action: manual
+    irreversible: true
+    command: |
+      sudo systemctl restart frr.service
+    description: "MANUAL. Restart frr.service (loses in-memory state); needs Stevie's go"
+
+  - name: verify-after-changes
+    action: shell
+    command: |
+      set -euo pipefail
+      systemctl is-active frr
+      vtysh -c 'show bgp summary'
+      vtysh -c 'show bfd peers'
+    verify: "vtysh -c 'show bgp summary json' | jq -e '[.. | objects | select(has(\"state\")) | .state] | length > 0 and all(. == \"Established\")' >/dev/null && vtysh -c 'show bfd peers' | grep -qi 'status: up'"
+    on_fail: "Session not Established or BFD not Up after the change; escalate"
+    description: BGP Established and BFD Up after any change
+
+rollback:
+  - name: revert-frr-nix
+    action: manual
+    irreversible: true
+    command: |
+      # Revert the frr.nix commit and rebuild, then:
+      sudo systemctl restart frr
+      # Check: systemctl is-active frr, and vtysh -c 'show bgp summary' shows the peer Established
+    description: "MANUAL. Revert the frr.nix commit and restart frr.service; verify frr active and session Established"
