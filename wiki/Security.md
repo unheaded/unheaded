@@ -37,8 +37,9 @@ hosts).
 
 - **systemd units** (`deploy/systemd`): accounts from `deploy/sysusers.d/unheaded.conf`,
   writable state only in the unit's own `StateDirectory`, `UMask=0077`, no
-  capabilities, `ProtectSystem=strict`, `ProtectProc=invisible`, `@system-service`
-  minus `@privileged @resources`. Details: [[Systemd Units|Systemd-Units]].
+  capabilities unless the unit names the ones it needs (trace-collector, nft,
+  baseline), `ProtectSystem=strict`, `@system-service` minus `@privileged
+  @resources`. Details: [[Systemd Units|Systemd-Units]].
 - **Containers** (`docker-compose.yml`): one numeric uid each from `pkg/uids`
   (Unheaded services 16720-16759, telemetry 16700-16719, infrastructure 16780-16799,
   postgres the image's 70), `read_only`, `cap_drop: ALL`, `no-new-privileges`.
@@ -46,8 +47,9 @@ hosts).
 - **Enforced**: `pkg/uids` tests hold compose, the Dockerfile and the k8s
   manifests to the registry; `scripts/check-compose-hardening.sh` and
   `scripts/check-systemd-units.sh` run in CI.
-- **Not yet** (FND-010): the baseline agent, the Doom units and the Well's
-  backup jobs still start as root; the undeployed alternate compose files
+- **Not yet** (FND-010): the Doom units and the Well's backup jobs still
+  start as root (the baseline agent runs as `unheaded-baseline` since
+  2026-10-22); the undeployed alternate compose files
   (FND-009) are baselined, shrink-only.
 
 ### Secrets Management
@@ -137,19 +139,10 @@ Evidence, not intent (ADR-097): common controls are mapped many-to-many onto eac
 | PCI-DSS, HIPAA, ITAR, GDPR | Not crosswalked |
 
 - **Findings register** (ADR-098): `compliance/findings/register.yaml` triages; evidence decides what is open. It runs in audit mode only.
-- **Remediation as code** (ADR-099): one fix model rendered as `remediate.sh`, `cmd/unheaded-remediate` (backup, undo, hash-chained journal) and Ansible. Profiles: `none` / `lab` / `cis-l1-server` / `all`.
+- **Remediation as code** (ADR-099): one fix model rendered as `remediate.sh`, `cmd/unheaded-remediate` (backup, undo, hash-chained journal) and Ansible. Profiles (`compliance/profiles/profiles.yaml`): `none` / `lab` / `lab-hardened` / `cis-l1-server` / `all`.
 - State lives in The Well (`unheaded_ops.compliance_*`, `unheaded_config.compliance_*`). The dashboard's compliance page (`:20000/compliance.html`) shows each framework against its full denominator.
 
 West and east are a dev/lab environment: lab-only gaps (for example, no disk encryption) are recorded and accepted, not remediated.
-
------------|--------|-------------|
-| SOC 2 Type II | Planned | Access controls, audit logging, encryption |
-| FedRAMP | Planned | FIPS 140-2 crypto, boundary protection |
-| NIST 800-53 | Planned | Continuous monitoring, incident response |
-| PCI-DSS | Planned | Network segmentation, key management |
-| HIPAA | Planned | PHI isolation, audit trails |
-| ITAR | Planned | Data residency, access controls |
-| GDPR | Planned | Data minimization, right to erasure |
 
 The NIST 800-207 Zero Trust Architecture principle provides a strong foundation: if the infrastructure cannot access user data, most data protection requirements are satisfied by architecture.
 
