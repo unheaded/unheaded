@@ -5,6 +5,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -366,7 +367,7 @@ func (s *Server) ApproveMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.MemberManager.Approve(memberID, req.ApprovedBy); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeError(w, memberErrStatus(err), err.Error())
 		return
 	}
 
@@ -403,7 +404,7 @@ func (s *Server) DenyMember(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := s.MemberManager.Deny(memberID); err != nil {
-		writeError(w, http.StatusBadRequest, err.Error())
+		writeError(w, memberErrStatus(err), err.Error())
 		return
 	}
 
@@ -460,6 +461,19 @@ func (s *Server) Health(w http.ResponseWriter, r *http.Request) {
 }
 
 // Helper functions
+
+// memberErrStatus maps an Approve/Deny error to its status. Every error was
+// 400 before, so an unknown member read as a malformed request.
+func memberErrStatus(err error) int {
+	switch {
+	case errors.Is(err, member.ErrMemberNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, member.ErrInvalidStatus):
+		return http.StatusConflict
+	default:
+		return http.StatusBadRequest
+	}
+}
 
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	httputil.WriteJSON(w, status, data)

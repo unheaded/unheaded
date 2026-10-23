@@ -795,8 +795,9 @@ func TestApproveMember_MemberNotFound(t *testing.T) {
 
 	server.ApproveMember(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("Status = %d, want %d", rec.Code, http.StatusBadRequest)
+	// An unknown member is 404; it was 400, as if the request were malformed.
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("Status = %d, want %d", rec.Code, http.StatusNotFound)
 	}
 }
 
@@ -891,8 +892,32 @@ func TestDenyMember_MemberNotFound(t *testing.T) {
 
 	server.DenyMember(rec, req)
 
-	if rec.Code != http.StatusBadRequest {
-		t.Errorf("Status = %d, want %d", rec.Code, http.StatusBadRequest)
+	// An unknown member is 404; it was 400, as if the request were malformed.
+	if rec.Code != http.StatusNotFound {
+		t.Errorf("Status = %d, want %d", rec.Code, http.StatusNotFound)
+	}
+}
+
+// Approving or denying a member that is no longer pending is a conflict with
+// its state (409), not a malformed request (400).
+func TestApproveDeny_NotPendingIsConflict(t *testing.T) {
+	server := setupTestServer()
+	mbr, err := server.MemberManager.RequestJoin("room", "svc", "", time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.MemberManager.Approve(mbr.ID, "admin"); err != nil {
+		t.Fatal(err)
+	}
+	body, _ := json.Marshal(map[string]string{"member_id": mbr.ID.String()})
+	for path, h := range map[string]http.HandlerFunc{"/admin/approve": server.ApproveMember, "/admin/deny": server.DenyMember} {
+		req := httptest.NewRequest(http.MethodPost, path, bytes.NewReader(body))
+		setAdminAuth(req)
+		rec := httptest.NewRecorder()
+		h(rec, req)
+		if rec.Code != http.StatusConflict {
+			t.Errorf("%s on an approved member: status %d, want %d", path, rec.Code, http.StatusConflict)
+		}
 	}
 }
 
