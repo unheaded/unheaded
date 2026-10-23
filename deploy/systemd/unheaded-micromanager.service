@@ -14,6 +14,7 @@ Requires=unheaded-wotan.service
 [Service]
 Type=simple
 EnvironmentFile=-/etc/unheaded/micromanager.env
+Environment=MICROMANAGER_DATA_DIR=/var/lib/unheaded/micromanager
 ExecStart=/usr/local/bin/micromanager --port 19003
 WorkingDirectory=/var/lib/unheaded/micromanager
 Restart=on-failure

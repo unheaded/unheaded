@@ -14,6 +14,7 @@ Requires=unheaded-wotan.service
 [Service]
 Type=simple
 EnvironmentFile=-/etc/unheaded/architect.env
+Environment=ARCHITECT_DATA_DIR=/var/lib/unheaded/architect
 ExecStart=/usr/local/bin/architect --addr :19001
 WorkingDirectory=/var/lib/unheaded/architect
 Restart=on-failure
