@@ -7,6 +7,7 @@
 //! cart validate X.cart|-     # "-" reads stdin (the loader pipes its in-memory bytes)
 //! cart info X.cart|-
 //! cart run X.cart --inputs LOG   # reference run of an XDP-stage input log
+//! cart tick X.cart --jobs LOG    # reference run of tick-stage jobs (label f0..f7 per line)
 //! ```
 //!
 //! `run` input log: one packet per line, `flow now_ns f0 .. f12` (decimal;
@@ -27,7 +28,7 @@ const MAX_INPUT: u64 = 1 << 20; // a .cart is at most 52 + 8 KiB; refuse anythin
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage:\n  cart build --stage xdp|tick --asm X.s [--data W.bin] [--max-insn N] [--loop-bound N] [--entry N] [--fail-closed] -o X.cart\n  cart validate X.cart|-\n  cart info X.cart|-\n  cart run X.cart --inputs LOG"
+        "usage:\n  cart build --stage xdp|tick --asm X.s [--data W.bin] [--max-insn N] [--loop-bound N] [--entry N] [--fail-closed] -o X.cart\n  cart validate X.cart|-\n  cart info X.cart|-\n  cart run X.cart --inputs LOG\n  cart tick X.cart --jobs LOG"
     );
     ExitCode::from(2)
 }
@@ -244,6 +245,56 @@ fn run_log(img_path: &str, log_path: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// Reference run of tick-stage jobs: one job per line, `label f0 .. f7`.
+/// Output per job: `emit job=L kind a b` per EMIT, then
+/// `job job=L step=S calls=C hash=H` (H = state hash after the last call).
+fn tick_log(img_path: &str, log_path: &str) -> Result<(), String> {
+    use upc_cartridge::reference::run_tick_job;
+    let img = Image::decode(&read_input(img_path)?).map_err(|e| format!("{img_path}: {e}"))?;
+    validate(&img).map_err(|e| format!("{img_path}: {e}"))?;
+    if img.stage != STAGE_TICK {
+        return Err("tick replays tick-stage cartridges".into());
+    }
+    let text =
+        String::from_utf8(read_input(log_path)?).map_err(|_| format!("{log_path}: not UTF-8"))?;
+    let mut o = std::io::stdout().lock();
+    for (n, line) in text.lines().enumerate() {
+        let t: Vec<&str> = line.split_whitespace().collect();
+        if t.is_empty() {
+            continue;
+        }
+        if t.len() != 1 + monad_common::cart::FEAT_WORDS {
+            return Err(format!("{log_path}:{}: want `label f0..f7`", n + 1));
+        }
+        let mut feat = [0u32; monad_common::cart::FEAT_WORDS];
+        for (i, f) in feat.iter_mut().enumerate() {
+            *f = t[1 + i]
+                .parse()
+                .map_err(|_| format!("{log_path}:{}: bad number {:?}", n + 1, t[1 + i]))?;
+        }
+        // One call per N_TICK budget; a job that still yields after 64 calls
+        // is reported as such (a tick cartridge's loop_bound bounds it).
+        let (st, calls) = run_tick_job(&img, &feat, 0, 64);
+        for c in &calls {
+            for (k, a, b) in &c.emits {
+                let _ = writeln!(o, "emit job={} {k} {a} {b}", t[0]);
+            }
+        }
+        let step = calls
+            .last()
+            .and_then(|c| c.step)
+            .unwrap_or(upc_cartridge::Step::Continue);
+        let _ = writeln!(
+            o,
+            "job job={} step={step:?} calls={} hash={:08x}",
+            t[0],
+            calls.len(),
+            upc_cartridge::state_hash(&st)
+        );
+    }
+    Ok(())
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let res = match args.first().map(String::as_str) {
@@ -251,6 +302,7 @@ fn main() -> ExitCode {
         Some("validate") if args.len() == 2 => check(&args[1], false),
         Some("info") if args.len() == 2 => check(&args[1], true),
         Some("run") if args.len() == 4 && args[2] == "--inputs" => run_log(&args[1], &args[3]),
+        Some("tick") if args.len() == 4 && args[2] == "--jobs" => tick_log(&args[1], &args[3]),
         _ => return usage(),
     };
     match res {

@@ -21,9 +21,6 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 )
 
-// DefaultPinDir is where Load pins the maps when asked to.
-const DefaultPinDir = "/sys/fs/bpf/unheaded/cart"
-
 // Options configure Load.
 type Options struct {
 	// PinDir pins every map by name under this directory (0700), so another
@@ -286,6 +283,43 @@ func (c *Cart) PopJob() (ScoreJob, bool, error) {
 	}
 	j, err := DecodeScoreJob(b)
 	return j, err == nil, err
+}
+
+// PushJob appends a job to SCORE_QUEUE from user space (tests, benchmarks).
+func (c *Cart) PushJob(j ScoreJob) error {
+	return c.m("SCORE_QUEUE").Update(nil, j.MarshalBinary(), ebpf.UpdateAny)
+}
+
+// TickJob reads the tick stage's job in progress (or the last one finished).
+func (c *Cart) TickJob() (TickJob, error) {
+	var b []byte
+	if err := c.m("TICK_JOB").Lookup(uint32(0), &b); err != nil {
+		return TickJob{}, err
+	}
+	return DecodeTickJob(b)
+}
+
+// Pump drives the tick stage: cart_tick until a call finds no job (the
+// TICK_IDLE counter moves) or maxCalls. It returns the calls made.
+func (c *Cart) Pump(maxCalls int) (int, error) {
+	s, err := c.Stats()
+	if err != nil {
+		return 0, err
+	}
+	idle := s[StatTickIdle]
+	for calls := 0; calls < maxCalls; calls++ {
+		if err := c.Tick(); err != nil {
+			return calls, err
+		}
+		s, err := c.Stats()
+		if err != nil {
+			return calls, err
+		}
+		if s[StatTickIdle] > idle {
+			return calls + 1, nil
+		}
+	}
+	return maxCalls, nil
 }
 
 // AttachXDP attaches cart_xdp to iface ("generic" or "native" mode). The

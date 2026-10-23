@@ -38,6 +38,9 @@ const (
 	CartEventSize = 64
 )
 
+// DefaultPinDir is where Load pins the maps when asked to.
+const DefaultPinDir = "/sys/fs/bpf/unheaded/cart"
+
 // CART_STATS counters (monad_common::cart::stat).
 const (
 	StatRuns         = 0
@@ -317,6 +320,47 @@ func DecodeScoreJob(b []byte) (ScoreJob, error) {
 		j.Feat[i] = le.Uint32(b[40+4*i:])
 	}
 	return j, nil
+}
+
+// MarshalBinary encodes the 80-byte ABI layout.
+func (j ScoreJob) MarshalBinary() []byte {
+	b := make([]byte, ScoreJobSize)
+	copy(b[0:40], j.Flow.MarshalBinary())
+	le := binary.LittleEndian
+	for i, v := range j.Feat {
+		le.PutUint32(b[40+4*i:], v)
+	}
+	b[72] = j.SrcSlot
+	le.PutUint32(b[76:], j.EnqNSLo)
+	return b
+}
+
+// TickJobSize is the TICK_JOB value: active, slot, gen, rsv (u32 each),
+// the ScoreJob, its CartState.
+const TickJobSize = 16 + ScoreJobSize + CartStateSize
+
+// TickJob is the tick stage's job in progress (TICK_JOB[0]).
+type TickJob struct {
+	Active, Slot, Gen uint32
+	Job               ScoreJob
+	State             CartState
+}
+
+// DecodeTickJob decodes a TICK_JOB value.
+func DecodeTickJob(b []byte) (TickJob, error) {
+	if len(b) != TickJobSize {
+		return TickJob{}, fmt.Errorf("cartridge: tick job %d bytes, want %d", len(b), TickJobSize)
+	}
+	le := binary.LittleEndian
+	j, err := DecodeScoreJob(b[16 : 16+ScoreJobSize])
+	if err != nil {
+		return TickJob{}, err
+	}
+	st, err := DecodeState(b[16+ScoreJobSize:])
+	if err != nil {
+		return TickJob{}, err
+	}
+	return TickJob{Active: le.Uint32(b[0:]), Slot: le.Uint32(b[4:]), Gen: le.Uint32(b[8:]), Job: j, State: st}, nil
 }
 
 // slotWriter is the map surface writeSlot needs (fakes in tests).
