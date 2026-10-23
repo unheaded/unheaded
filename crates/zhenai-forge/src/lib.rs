@@ -83,5 +83,6 @@ pub mod hip;
 pub mod hip_kernels;
 pub mod lora;
 pub mod quant;
+pub mod tokdata;
 pub mod tokenizer;
 pub mod train;

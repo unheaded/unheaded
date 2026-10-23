@@ -29,16 +29,30 @@ Usage (from repo root):
         < raft/training/coding-eval.jsonl  > /tmp/coding-eval.jsonl
 
 Sister-script: `scripts/tokenize-kingdom-for-gemma4.py` (Kingdom RAFT path).
+
+--strict (used by `zhen-flywheel export`, S-TWO-BRAINS Step 379): input
+records carry an `id`; every line must parse and have id, question and
+answer; nothing is cut (an example longer than --max-tokens, or one too
+short to train, is reported in --skipped as {"id", "reason"} and left
+out); --ids gets the id of every output line, so the forge file
+({"tokens","answer_start"} only) stays line-aligned with the text export.
+Any other problem exits 1 naming the input line. Without --strict the
+behaviour above is unchanged.
+
+    python scripts/tokenize-coding-for-gemma4.py --strict --max-tokens 384 \
+        --ids train.tok.ids --skipped train.tok.skipped < sft-train.jsonl > train.tok.jsonl
 """
+import argparse
 import json
 import sys
 
 MAX_TOKENS = 384
 MIN_TOKENS = 8
+DEFAULT_TOKENIZER = "/home/govan/tmp/gemma-4-E2B-it"
 
 
-def tokenize_one(tokenizer, question: str, answer: str):
-    """Return (token_ids, answer_start)."""
+def encode_pair(tokenizer, question: str, answer: str):
+    """Return (full_ids, answer_start) without any truncation."""
     if not question.strip() or not answer.strip():
         raise ValueError("empty question or answer")
 
@@ -63,7 +77,12 @@ def tokenize_one(tokenizer, question: str, answer: str):
     if full_ids[: len(prompt_ids)] != prompt_ids:
         raise ValueError("chat template inconsistency: prompt not prefix of full")
 
-    answer_start = len(prompt_ids)
+    return full_ids, len(prompt_ids)
+
+
+def tokenize_one(tokenizer, question: str, answer: str):
+    """Return (token_ids, answer_start), keeping the last MAX_TOKENS tokens."""
+    full_ids, answer_start = encode_pair(tokenizer, question, answer)
 
     if len(full_ids) > MAX_TOKENS:
         drop = len(full_ids) - MAX_TOKENS
@@ -73,12 +92,70 @@ def tokenize_one(tokenizer, question: str, answer: str):
     return full_ids, answer_start
 
 
+class StrictError(Exception):
+    pass
+
+
+def run_strict(tokenizer, lines, out, ids_out, skipped_out, max_tokens: int, min_tokens: int = MIN_TOKENS) -> int:
+    """Tokenize `{id, question, answer, ...}` lines; return lines written.
+    Raises StrictError naming the line on anything but too long/too short."""
+    written = 0
+    for n, line in enumerate(lines, 1):
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            obj = json.loads(line)
+        except json.JSONDecodeError as e:
+            raise StrictError(f"line {n}: not JSON: {e}") from e
+        rid, q, a = (obj.get(k) if isinstance(obj, dict) else None for k in ("id", "question", "answer"))
+        if not all(isinstance(v, str) and v for v in (rid, q, a)):
+            raise StrictError(f"line {n}: needs non-empty string id, question and answer")
+        try:
+            ids, answer_start = encode_pair(tokenizer, q, a)
+        except ValueError as e:
+            raise StrictError(f"line {n} ({rid}): {e}") from e
+        reason = ""
+        if len(ids) > max_tokens:
+            reason = "too_long"
+        elif len(ids) < min_tokens or answer_start >= len(ids) - 1 or answer_start < 1:
+            reason = "too_short"
+        if reason:
+            skipped_out.write(json.dumps({"id": rid, "reason": reason, "tokens": len(ids)}) + "\n")
+            continue
+        out.write(json.dumps({"tokens": ids, "answer_start": answer_start}, separators=(",", ":")) + "\n")
+        ids_out.write(rid + "\n")
+        written += 1
+    return written
+
+
 def main() -> int:
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--strict", action="store_true")
+    ap.add_argument("--max-tokens", type=int, default=MAX_TOKENS)
+    ap.add_argument("--ids", help="with --strict: write the id of each output line here")
+    ap.add_argument("--skipped", help="with --strict: write {id, reason} of each left-out example here")
+    ap.add_argument("--tokenizer", default=DEFAULT_TOKENIZER)
+    args = ap.parse_args()
+
     from transformers import AutoTokenizer
     tok = AutoTokenizer.from_pretrained(
-        "/home/govan/tmp/gemma-4-E2B-it",
+        args.tokenizer,
         trust_remote_code=False,
     )
+
+    if args.strict:
+        if not args.ids or not args.skipped:
+            print("--strict needs --ids and --skipped", file=sys.stderr)
+            return 2
+        with open(args.ids, "x") as ids_out, open(args.skipped, "x") as skipped_out:
+            try:
+                n = run_strict(tok, sys.stdin, sys.stdout, ids_out, skipped_out, args.max_tokens)
+            except StrictError as e:
+                print(f"tokenize --strict: {e}", file=sys.stderr)
+                return 1
+        print(f"tokenized --strict: out={n}", file=sys.stderr)
+        return 0
 
     n_in = 0
     n_out = 0
