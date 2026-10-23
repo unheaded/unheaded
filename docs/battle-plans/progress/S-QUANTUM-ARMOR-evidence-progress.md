@@ -37,3 +37,8 @@ steps are never attempted; they are reported.
 - 197-199: `manifest.go` = Go copy of the schema's rules (type/required/const/enum/min/max/pattern/format per JSON pointer) + a small engine over `yaml.Node`; typed decode with `KnownFields(true)` after it. `main.go` refactored to `run(args, stdout, stderr) int`. `TestSchemaDriftGuard` green and proven to fail on six schema edits. `FuzzValidateManifest` 45 s: no crasher.
 - 200: differential: `AGREE 19/19 (1 documented Go-only rejection)`; a fake always-valid binary makes it `DISAGREE: 17 of 19`, rc=1.
 - 201: `yggdrasil-verify.yml` runs `go test` + the differential (setup-go pinned as in ci.yml); YAML OK, PINNED_OK. Triggers now include `cmd/yggdrasil-evidence/**` and `pkg/gungnir/**` (otherwise a validator change would not run its own gate).
+- 202: committed. 203 PHASE 10 EXIT GATE: `ok pkg/gungnir`, `ok cmd/yggdrasil-evidence` (+ differential AGREE 19/19).
+
+### Phase 11.1 (Steps 204-208)
+- 204-206: `pack.go` streaming tar.gz reader, in memory only; red then green. Refuses absolute, `..`, unclean (`//`, `./`), backslash/NUL names, symlink, hardlink, char device, fifo, entries outside `manifest/` (incl. `manifestX/`), duplicates, per-file/total/entry caps, non-gzip, gzip of non-tar, truncated, empty. Real caps (64 MiB file, 256 MiB total, 10 000 entries) asserted; a 1 GiB zero bomb (~2 MiB compressed, multi-member gzip) and a 64 MiB+1 file trip at the header. The real 256 MiB total cap is exercised with small limits (tripping it at full size means inflating 192+ MiB per run).
+- 207: `FuzzReadPack` 120 s, 16.2M execs, no crasher (no `testdata/fuzz` corpus written).
