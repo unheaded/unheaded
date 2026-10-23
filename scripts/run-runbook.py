@@ -330,7 +330,13 @@ def main():
     print(f"  Risk: {meta.get('risk', 'unknown')} | ETA: {meta.get('estimated_duration', '?')}")
     if args.dry_run:
         print("  MODE: DRY RUN (no commands will be executed)")
-    if meta.get("status") in ("stub", "draft"):
+    if meta.get("status") == "draft":
+        # S-TWO-BRAINS drafts (ADR-024): implemented and tested in dry-run
+        # form, but not yet approved by their owner.
+        print("  STATUS: DRAFT — not yet approved (metadata.approved_by is empty).")
+        print("          Read every step before running it; manual steps")
+        print("          are printed, never executed.")
+    elif meta.get("status") == "stub":
         # `status: stub` was already a convention in the runbooks; nothing read it.
         # A stub's steps are action: manual placeholders, so without this banner the
         # run ends in [SUCCESS] having done almost nothing — which on a risk: high

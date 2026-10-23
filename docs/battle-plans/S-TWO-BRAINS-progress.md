@@ -172,3 +172,31 @@ All live Claude calls of this run go through `-ledger $SCRATCH/spend.json`
 | 183 | the same 3 fixtures, `--route local` (comparison) | 0.000000 | 1.349625 |
 
 **Total live Claude spend for this run: $1.349625** (run ledger $1.324123 + Phase 5 ledger $0.025502), under the $5 budget.
+
+---
+
+# Phases 8-9 (branch `sprint/two-brains-runbooks`, from `14de0842`)
+
+Executed by a separate worktree agent while Phases 6-7 ran on
+`sprint/two-brains`; this block is kept apart from the sections above so the
+two branches merge without conflicts. Unsigned commits, nothing pushed, no
+host touched: every runbook test runs against throwaways (sandbox git
+repositories, a throwaway Wotan on free ports, temp dirs).
+
+## P8/P9 Decisions
+
+- **Step 259** the corpus is 67 runbooks (not 66): all `runbook/v1`; actions `shell` 460, `manual` 40; `host` west 9, east 9, `${HOST}` 3; two carry `status: stub`.
+- **Step 260** [DECIDE] recommendation taken. Additions: `host` may be `${VAR}` for a declared parameter/env key (3 existing steps); `irreversible-manual` is `irreversible: true` or a pattern list (git push, pg_restore, dropdb, DROP, shred, rm -rf, mkfs, wipefs, reflog expire, gc --prune, reset --hard, branch -D) in a shell step of a runbook with a status; strict rules apply to any runbook with `metadata.status`, so the two legacy `stub` runbooks are baselined rather than exempt. A baseline entry that no longer fails is reported as removable and fails the gate (a fix removes its line in the same commit), and `--write-baseline` refuses to grow an existing baseline. The runner's `verification:` gap stays parked.
+- **Step 266** baseline: 24 entries (3 `metadata.name` != file stem in `wotan/`, the 2 stub runbooks' strict-rule gaps, 4 rollback entries without `action`).
+- **Step 271** pytest was not in the CI hash lock: added `pytest==9.1.1` to `.github/ci-python/requirements.in` and its hashed entries (pytest 9.1.1, iniconfig 2.3.1, pluggy 1.7.0; packaging and pygments were already locked) to `requirements.txt` by hand from PyPI's digests, not by re-running `ci-python-lock.sh` (a re-resolve would have moved other transitive pins). All three packages were already in `docs/policy/dependency-baseline.txt` (no new dependency); all older than the 7-day cooldown. The full lock installs with `--require-hashes --no-deps --only-binary=:all:` in a clean venv.
+- **Step 273** the meta-gate only discovers `scripts/*.sh`, so the gate is `scripts/check-runbooks.sh` (a wrapper over the Python checker; CI calls the wrapper). `check-gates-can-fail.sh` had no selector: added `--only NAME` (fails if NAME matches no registered gate).
+- **Step 272** the pre-commit hook's workflow check is a PyYAML parse of staged workflow files; the same parse was run directly (the hook itself could not be invoked from this sandboxed agent).
+- **Finding (pre-existing on the sprint branch, parked):** `scripts/check-manifest-yaml.sh` fails on `eval/two-brains/fixtures/rb-bad-indent/runbook.yaml` and `rb-unquoted-colon/runbook.yaml`, Phase 4's deliberately broken fixtures, so the `manifests` CI job will be red when the sprint is pushed. Fix (for whoever merges): exclude `eval/two-brains/fixtures/` in that script, the way it excludes vendored trees. Not changed here (Phase 4 territory).
+- **Step 277** [DECIDE] recommendation taken, with three recorded changes: Claude review at effort **low** (the run's instruction; the plan says medium); the local model is shown one schema summary `docs/runbook-briefs/SCHEMA.md` plus the two exemplars, and not the checker source (copied into the worktree untracked, so the sandboxed check runs it but the prompt does not carry it, which keeps the prompt inside qwen-coder-14b's 8k context); and the final verdict is always the repo's own `scripts/check-runbooks.py` run by the script on the draft, never the worktree copy a model could have edited. Authorship fields are written by the script, not by either model.
+- **Step 279** `scripts/run-runbook.py` printed "steps are not implemented" for `status: draft`, which was the stub wording; drafts now get their own banner (not approved yet; manual steps printed, never executed).
+
+## P8/P9 Gates
+
+| Gate | Result | Evidence |
+|---|---|---|
+| Phase 8 (Step 276) | PASS | `tests/runbooks` 38 passed (checker rules each red then green; harness self-tests incl. a throwaway Wotan); `check-runbooks.sh` exit 0 with the baseline, exit 1 with one line deleted; `check-gates-can-fail.sh --only check-runbooks`: bites (exit 1); workflow parses |
