@@ -37,8 +37,10 @@ steps:
 
   - name: view-logs
     action: shell
-    command: "sudo docker compose -f ${COMPOSE_FILE} logs --tail=50 -f"
-    description: "Follow logs from all services"
+    # Not -f: following never returns, so the step timed out, counted as a
+    # failure and fired the rollback (compose down).
+    command: "sudo docker compose -f ${COMPOSE_FILE} logs --tail=50"
+    description: "Recent logs from all services (add -f by hand to follow)"
 
   - name: view-service-logs
     action: shell
@@ -57,7 +59,9 @@ steps:
     verify: "sudo docker compose -f ${COMPOSE_FILE} ps | grep -c 'running' | grep -q 0"
 
   - name: stop-and-remove-volumes
-    action: shell
+    # manual: run in sequence this step deleted every named volume, The Well's
+    # data included, as an ordinary step of the lifecycle.
+    action: manual
     command: "sudo docker compose -f ${COMPOSE_FILE} down -v"
     description: "DESTRUCTIVE — stops all containers AND removes volumes (data loss)"
 

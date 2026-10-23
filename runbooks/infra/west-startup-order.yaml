@@ -233,6 +233,8 @@ steps:
     action: shell
     command: |
       cd ~/tmp/unheaded
+      # The binary is a gitignored build product; nothing else builds it.
+      go build -o cmd/doom-go-injector/doom-go-injector ./cmd/doom-go-injector/ || exit 1
       SRC=$(sudo ip netns exec monad0 cat /sys/class/net/veth01/address)
       DST=$(sudo ip netns exec monad1 cat /sys/class/net/veth01p/address)
       sudo ip netns exec monad0 \

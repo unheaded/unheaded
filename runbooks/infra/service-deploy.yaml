@@ -29,56 +29,90 @@ env:
 steps:
   - name: run-tests
     action: shell
+    # Both patterns must match packages, or go test fails before testing:
+    # test whichever tree the service lives in. pipefail: the status is
+    # go test's, not tail's (the old `verify: echo $?` always passed).
     command: |
+      set -o pipefail
       cd ${PROJECT_ROOT}
-      go test ./cmd/${SERVICE}/... ./services/${SERVICE}/... -v -count=1 -race 2>&1 | tail -30
-    verify: "echo $? | grep -q 0"
+      if [ -d cmd/${SERVICE} ]; then PKGS=./cmd/${SERVICE}/...; else PKGS=./services/${SERVICE}/...; fi
+      go test $PKGS -v -count=1 -race 2>&1 | tail -30
     description: "Run service unit tests with race detector"
     on_fail: "Fix failing tests before deploying. Do NOT deploy with red tests."
 
   - name: build
     action: shell
+    # services/<svc> keeps its main in services/<svc>/cmd/<svc>; ./cmd/<svc>
+    # does not exist for timeguru, captain, architect, micromanager or wotan.
     command: |
       cd ${PROJECT_ROOT}
-      go build -o cmd/${SERVICE}/${SERVICE} ./cmd/${SERVICE}/
-    verify: "test -x ${PROJECT_ROOT}/cmd/${SERVICE}/${SERVICE}"
+      if [ -d cmd/${SERVICE} ]; then PKG=./cmd/${SERVICE}/; else PKG=./services/${SERVICE}/cmd/${SERVICE}/; fi
+      go build -o bin/${SERVICE} $PKG
+    verify: "test -x ${PROJECT_ROOT}/bin/${SERVICE}"
     description: "Build service binary"
 
   - name: check-health-before
     action: shell
     command: |
-      PORT=$(grep -w ${SERVICE} ${PROJECT_ROOT}/pkg/ports/ports.go | grep -oP '\d{5}' | head -1)
+      # Ports from pkg/ports/ports.go (its names are CamelCase, so grepping it
+      # for the service name found nothing).
+      case "${SERVICE}" in
+        wotan) PORT=18000 ;; unheaded-daemon) PORT=17000 ;;
+        timeguru) PORT=19000 ;; architect) PORT=19001 ;; captain) PORT=19002 ;;
+        micromanager) PORT=19003 ;; monad) PORT=19004 ;; sophia) PORT=19005 ;;
+        akira) PORT=19100 ;; kev-poller) PORT=19120 ;;
+        dashboard-backend) PORT=20000 ;; kanban-app) PORT=20001 ;;
+        *) echo "no port known for ${SERVICE}"; exit 1 ;;
+      esac
       curl -sf http://localhost:$PORT/health 2>/dev/null && echo "Service running on $PORT" || echo "Service not running"
     description: "Check if service is currently running"
 
   - name: stop-existing
     action: shell
-    command: "pkill -f 'cmd/${SERVICE}/${SERVICE}' || true"
+    command: "pkill -f 'bin/${SERVICE}' || true"
     description: "Stop existing instance (graceful)"
 
   - name: start-service
     action: shell
     command: |
       cd ${PROJECT_ROOT}
-      nohup cmd/${SERVICE}/${SERVICE} > /tmp/${SERVICE}.log 2>&1 &
+      nohup bin/${SERVICE} > "$(scripts/lib/logpath.sh ${SERVICE})" 2>&1 &
       echo "PID: $!"
       sleep 3
     description: "Start new service instance"
 
   - name: health-check
     action: shell
+    # (The old verify used $PORT, which only existed in the command's shell.)
     command: |
-      PORT=$(grep -w ${SERVICE} ${PROJECT_ROOT}/pkg/ports/ports.go | grep -oP '\d{5}' | head -1)
+      # Ports from pkg/ports/ports.go (its names are CamelCase, so grepping it
+      # for the service name found nothing).
+      case "${SERVICE}" in
+        wotan) PORT=18000 ;; unheaded-daemon) PORT=17000 ;;
+        timeguru) PORT=19000 ;; architect) PORT=19001 ;; captain) PORT=19002 ;;
+        micromanager) PORT=19003 ;; monad) PORT=19004 ;; sophia) PORT=19005 ;;
+        akira) PORT=19100 ;; kev-poller) PORT=19120 ;;
+        dashboard-backend) PORT=20000 ;; kanban-app) PORT=20001 ;;
+        *) echo "no port known for ${SERVICE}"; exit 1 ;;
+      esac
       curl -sf http://localhost:$PORT/health
-    verify: "curl -sf http://localhost:$PORT/health | grep -q 'ok\\|healthy\\|running'"
     timeout: 10
     description: "Verify service is healthy after deploy"
-    on_fail: "Check /tmp/${SERVICE}.log for startup errors"
+    on_fail: "Check $(~/tmp/unheaded/scripts/lib/logpath.sh ${SERVICE}) for startup errors"
 
   - name: metrics-check
     action: shell
     command: |
-      PORT=$(grep -w ${SERVICE} ${PROJECT_ROOT}/pkg/ports/ports.go | grep -oP '\d{5}' | head -1)
+      # Ports from pkg/ports/ports.go (its names are CamelCase, so grepping it
+      # for the service name found nothing).
+      case "${SERVICE}" in
+        wotan) PORT=18000 ;; unheaded-daemon) PORT=17000 ;;
+        timeguru) PORT=19000 ;; architect) PORT=19001 ;; captain) PORT=19002 ;;
+        micromanager) PORT=19003 ;; monad) PORT=19004 ;; sophia) PORT=19005 ;;
+        akira) PORT=19100 ;; kev-poller) PORT=19120 ;;
+        dashboard-backend) PORT=20000 ;; kanban-app) PORT=20001 ;;
+        *) echo "no port known for ${SERVICE}"; exit 1 ;;
+      esac
       curl -sf http://localhost:$PORT/metrics | head -5
     description: "Verify metrics endpoint responds"
 
@@ -88,6 +122,6 @@ rollback:
     command: |
       echo "ROLLBACK: Previous binary not preserved. Rebuild from last known-good commit:"
       echo "  git log --oneline -5"
-      echo "  git checkout <good-commit> -- cmd/${SERVICE}/"
-      echo "  go build -o cmd/${SERVICE}/${SERVICE} ./cmd/${SERVICE}/"
+      echo "  git checkout <good-commit> -- <the service's directory>"
+      echo "  then re-run this runbook's build step"
     when: "step.health-check.failed"
