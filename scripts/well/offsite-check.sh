@@ -10,31 +10,32 @@
 # after a long enough power-off.
 # Exit 1 on any bad or missing set, so the unit fails visibly.
 #
-# Run weekly by unheaded-well-offsite-check.service as well-backup-copy.
+# Run daily by unheaded-well-offsite-check.service as well-backup-copy.
 set -euo pipefail
 ROOT="${WELL_OFFSITE_DIR:-/var/backups/unheaded-well-west}/sets"
 KEEP="${WELL_OFFSITE_KEEP:-14}"
 [[ "$KEEP" =~ ^[1-9][0-9]*$ ]] || { echo "[offsite-check] WELL_OFFSITE_KEEP must be a positive integer" >&2; exit 2; }
 MAX_AGE_H="${WELL_OFFSITE_MAX_AGE_H:-36}"
 
+# Newest first. A set counts once it verifies; one without SHA256SUMS (a
+# copy cut short) is BAD, not skipped. Once $KEEP sets have verified, every
+# older one goes, so broken copies never push good sets out.
 mapfile -t SETS < <(find "$ROOT" -mindepth 2 -maxdepth 2 -type d -name 'well-[0-9][0-9][0-9][0-9][0-9][0-9]Z' \
 	-path "$ROOT/[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/*" | sort -r)
-for old in "${SETS[@]:KEEP}"; do
-	rm -rf -- "$old"
-	rmdir --ignore-fail-on-non-empty -- "$(dirname "$old")"
-	echo "[offsite-check] pruned ${old#"$ROOT"/}"
-done
-
 bad=0 n=0
-while IFS= read -r -d '' sums; do
-	set_dir="$(dirname "$sums")"
-	n=$((n + 1))
-	if ! (cd "$set_dir" && sha256sum --quiet --strict -c SHA256SUMS); then
+for set_dir in "${SETS[@]}"; do
+	if ((n >= KEEP)); then
+		rm -rf -- "$set_dir"
+		rmdir --ignore-fail-on-non-empty -- "$(dirname "$set_dir")"
+		echo "[offsite-check] pruned ${set_dir#"$ROOT"/}"
+	elif [[ -f "$set_dir/SHA256SUMS" ]] && (cd "$set_dir" && sha256sum --quiet --strict -c SHA256SUMS); then
+		n=$((n + 1))
+	else
 		echo "[offsite-check] BAD ${set_dir#"$ROOT"/}" >&2
 		bad=$((bad + 1))
 	fi
-done < <(find "$ROOT" -mindepth 3 -maxdepth 3 -name SHA256SUMS -print0)
-((n > 0)) || { echo "[offsite-check] no sets in $ROOT" >&2; exit 1; }
+done
+((n > 0)) || { echo "[offsite-check] no good sets in $ROOT" >&2; exit 1; }
 
 latest="$(cat "$ROOT/LATEST" 2>/dev/null || true)"
 [[ -f "$ROOT/$latest/SHA256SUMS" ]] || { echo "[offsite-check] LATEST ($latest) is not here" >&2; exit 1; }

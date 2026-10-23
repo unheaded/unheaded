@@ -28,7 +28,7 @@ West is not up 24/7. Every timer is `Persistent=`, so a run missed while west wa
 | `unheaded-well-backup.timer` | nightly 03:30 | `db-backup.sh` as `well_backup` |
 | `unheaded-well-offsite.service` | after each good backup | verifies the set, SFTPs it to east |
 | `unheaded-well-drill.timer` | Sundays 05:00 | restores the newest set into a throwaway container, compares every row count |
-| `unheaded-well-offsite-check.timer` (east) | daily 06:00 | verifies every set's SHA256SUMS, newest < 36 h, prunes to 14 |
+| `unheaded-well-offsite-check.timer` (east) | daily 06:00 | verifies every set's SHA256SUMS (a set without one is bad), newest < 36 h, keeps the newest 14 that verify |
 
 East's account `well-backup-copy` is nologin, key-only and chrooted, and it can add files but never delete or rename them. A compromised west cannot wipe east. East's check fails while west has been off for more than 36 h, because the offsite copy really is stale.
 

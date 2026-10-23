@@ -478,6 +478,16 @@ provoke_well_backup_restore() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_offsite_check() {
+    # Contract (ERDA 1.2): a set on east without SHA256SUMS is BAD. Count
+    # it as good again, as the check once did by skipping it.
+    local f="scripts/well/offsite-check.sh"
+    backup "${f}"
+    sed -i 's|elif \[\[ -f "\$set_dir/SHA256SUMS" \]\] && (cd|elif [[ ! -f "$set_dir/SHA256SUMS" ]] \|\| (cd|' "${REPO_ROOT}/${f}"
+    grep -q 'elif \[\[ ! -f "\$set_dir/SHA256SUMS" \]\] || (cd' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_well_lint() {
     # Contract (ERDA 3.5): no new schema finding. Plant service code that
     # runs DDL at startup (ddl-outside-ledger), tracked as new code would be.
@@ -661,6 +671,7 @@ backup/test-git-mirror|provoke_git_mirror|fast|git-mirror.sh switched to push --
 well/test-compliance-schema|provoke_well_compliance_schema|slow|audit_events' TRUNCATE guard removed from 015 (needs docker)
 well/test-migrate|provoke_well_migrate|slow|the runner's drift refusal removed, so apply runs past an edited file (needs docker)
 well/test-backup-restore|provoke_well_backup_restore|slow|db-backup.sh leaving unheaded_ops out of the set (needs docker)
+well/test-offsite-check|provoke_well_offsite_check|fast|offsite-check.sh counting a set without SHA256SUMS as good
 well/test-config|provoke_well_config|slow|pg_hba letting service roles in without TLS (needs docker)
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)

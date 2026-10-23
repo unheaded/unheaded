@@ -504,6 +504,11 @@ jobs:
       - name: Repository mirror keeps what west drops
         run: ./scripts/backup/test-git-mirror.sh
 
+      # ERDA 1.2: east's check of the offsite copies. A copy cut short is
+      # BAD, and pruning never lets broken copies push good sets out.
+      - name: Offsite check fails short copies, prunes by good sets
+        run: ./scripts/well/test-offsite-check.sh
+
       # ADR-085 Phase 2: the .deb maintainer scripts, as dpkg calls them.
       # An upgrade must never stop or disable the service.
       - name: Package maintainer scripts keep services across upgrades
