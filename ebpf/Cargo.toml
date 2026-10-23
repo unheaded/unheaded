@@ -42,7 +42,6 @@ authors = ["Unheaded Contributors"]
 
 [workspace.dependencies]
 aya-ebpf = "0.1"
-aya-log-ebpf = "0.1"
 unheaded-common = { path = "common" }
 monad-common = { path = "monad-common" }
 

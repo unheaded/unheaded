@@ -11,7 +11,6 @@ name = "anomaly-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "monad-common",
 ]
 
@@ -75,48 +74,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "aya-log-common"
-version = "0.1.15"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "befef9fe882e63164a2ba0161874e954648a72b0e1c4b361f532d590638c4eec"
-dependencies = [
- "num_enum",
-]
-
-[[package]]
-name = "aya-log-ebpf"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a10bbadd0829895a91eb1cd2bb02d7af145704087f03812bed60cb9fe65dbb3"
-dependencies = [
- "aya-ebpf",
- "aya-log-common",
- "aya-log-ebpf-macros",
-]
-
-[[package]]
-name = "aya-log-ebpf-macros"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f6d8251a75f56077db51892041aa6b77c70ef2723845d7a210979700b2f01bc4"
-dependencies = [
- "aya-log-common",
- "aya-log-parser",
- "proc-macro2",
- "quote",
- "syn 2.0.119",
-]
-
-[[package]]
-name = "aya-log-parser"
-version = "0.1.13"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14b102eb5c88c9aa0b49102d3fbcee08ecb0dfa81014f39b373311de7a7032cb"
-dependencies = [
- "aya-log-common",
-]
-
-[[package]]
 name = "camino"
 version = "1.2.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -130,7 +87,6 @@ name = "canary-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "monad-common",
 ]
 
@@ -163,7 +119,6 @@ name = "compliance-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "monad-common",
 ]
 
@@ -172,7 +127,6 @@ name = "failover-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "monad-common",
 ]
 
@@ -181,7 +135,6 @@ name = "firewall-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "monad-common",
 ]
 
@@ -190,7 +143,6 @@ name = "flow-tracker"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "unheaded-common",
 ]
 
@@ -199,7 +151,6 @@ name = "hop-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "monad-common",
 ]
 
@@ -214,7 +165,6 @@ name = "latency-probe"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "unheaded-common",
 ]
 
@@ -223,7 +173,6 @@ name = "maglev-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "monad-common",
 ]
 
@@ -242,7 +191,6 @@ name = "monad-cpu-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "monad-common",
 ]
 
@@ -251,29 +199,7 @@ name = "nfv-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "monad-common",
-]
-
-[[package]]
-name = "num_enum"
-version = "0.7.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d0bca838442ec211fa11de3a8b0e0e8f3a4522575b5c4c06ed722e005036f26"
-dependencies = [
- "num_enum_derive",
- "rustversion",
-]
-
-[[package]]
-name = "num_enum_derive"
-version = "0.7.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.119",
 ]
 
 [[package]]
@@ -281,7 +207,6 @@ name = "packet-marker"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "unheaded-common",
 ]
 
@@ -318,7 +243,6 @@ name = "qos-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "monad-common",
 ]
 
@@ -395,7 +319,6 @@ name = "shield-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "monad-common",
  "pqc-common",
 ]
@@ -427,7 +350,6 @@ name = "syscall-tracer"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "unheaded-common",
 ]
 
@@ -466,7 +388,6 @@ name = "version-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "monad-common",
 ]
 
@@ -489,7 +410,6 @@ name = "yaldabaoth-ebpf"
 version = "0.1.0"
 dependencies = [
  "aya-ebpf",
- "aya-log-ebpf",
  "monad-common",
 ]
 

@@ -11,5 +11,4 @@ path              = "src/main.rs"
 
 [dependencies]
 aya-ebpf.workspace     = true
-aya-log-ebpf.workspace = true
 monad-common.workspace = true

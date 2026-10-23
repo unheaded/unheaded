@@ -45,5 +45,4 @@ large-image = []
 
 [dependencies]
 aya-ebpf.workspace     = true
-aya-log-ebpf.workspace = true
 monad-common.workspace = true
