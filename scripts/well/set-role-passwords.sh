@@ -6,7 +6,8 @@
 # on an empty volume (and the superuser's from POSTGRES_PASSWORD): after a restore (backups carry no password hashes,
 # pg_dumpall --no-role-passwords) or to rotate one. Only roles whose
 # variable is set are touched; the value goes to psql through the
-# environment (\getenv), never a command line or SQL text.
+# environment (\getenv), never a command line or SQL text, and the session
+# keeps the statement out of the server log and pg_stat_statements.
 #
 #   APP_KANBAN_PASSWORD=... scripts/well/set-role-passwords.sh   # e.g. with `set -a; . ./.env`
 set -euo pipefail
@@ -18,6 +19,10 @@ while read -r role var; do
 	[[ -n "${!var:-}" ]] || continue
 	"${DOCKER[@]}" exec -i -e "PW=${!var}" "$C" psql -X -q -v ON_ERROR_STOP=1 -v role="$role" -U "$SU" -d postgres <<'SQL'
 \getenv pw PW
+SET log_statement = 'none';
+SET log_min_duration_statement = -1;
+SET log_min_error_statement = 'panic';
+SET pg_stat_statements.track_utility = off;
 ALTER ROLE :"role" PASSWORD :'pw';
 SQL
 	echo "[well] $role: password set from $var"

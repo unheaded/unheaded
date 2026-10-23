@@ -10,7 +10,10 @@
 # count that disagrees (with SHA256SUMS recomputed to match), and an
 # unlisted dump. Retention is checked by taking more sets than --keep.
 # The bootstrap also checks that db/init.sh sets role passwords from the
-# environment (one with a quote in it) and leaves unset ones unable to log in.
+# environment (one with a quote in it) and leaves unset ones unable to log in,
+# and that neither it nor scripts/well/set-role-passwords.sh leaves a
+# password in the server log or pg_stat_statements: the source logs DDL and
+# tracks statements as db/postgresql.conf does.
 #
 #   scripts/well/test-backup-restore.sh [image]   # default postgres:16.15-alpine
 set -euo pipefail
@@ -28,7 +31,7 @@ KANBAN_PW="it's-$RANDOM\$x" HUGINN_PW="h-$RANDOM$RANDOM"
 	-e POSTGRES_USER=unheaded -e POSTGRES_PASSWORD="throwaway-$RANDOM" -e POSTGRES_DB=postgres \
 	-e APP_KANBAN_PASSWORD="$KANBAN_PW" -e HUGINN_READER_PASSWORD="$HUGINN_PW" \
 	-v "$R/db/migrations:/migrations:ro" -v "$R/db/init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro" \
-	"$IMAGE" >/dev/null
+	"$IMAGE" postgres -c log_statement=ddl -c shared_preload_libraries=pg_stat_statements -c pg_stat_statements.track=top >/dev/null
 ready=0
 for _ in $(seq 1 90); do
 	if "${DOCKER[@]}" exec "$N" pg_isready -h 127.0.0.1 -U unheaded -q 2>/dev/null; then ready=1; break; fi
@@ -59,7 +62,20 @@ if login app_kanban kanban_dev unheaded_app; then fail "app_kanban accepts the o
 if login ops_reader ops_reader_dev unheaded_ops || login ops_reader "" unheaded_ops; then
 	fail "ops_reader (variable unset) can log in"
 else pass "ops_reader (variable unset) cannot log in"; fi
-if "${DOCKER[@]}" logs "$N" 2>&1 | grep -qF "$KANBAN_PW"; then fail "a password appears in the init log"; else pass "no password in the init log"; fi
+# A logged literal doubles the quote: look for what follows the last one,
+# which holds the random part.
+in_log() { "${DOCKER[@]}" logs "$N" 2>&1 | grep -qF -- "${1##*\'}"; }
+if in_log "$KANBAN_PW"; then fail "a password appears in the init log"; else pass "no password in the init log"; fi
+# Rotation (and a restore's password step) goes through set-role-passwords.sh.
+NEW_PW="rot'-$RANDOM$RANDOM"
+env -u POSTGRES_PASSWORD WELL_CONTAINER="$N" APP_KANBAN_PASSWORD="$NEW_PW" "$R/scripts/well/set-role-passwords.sh" >/dev/null
+if login app_kanban "$NEW_PW" unheaded_app && ! login app_kanban "$KANBAN_PW" unheaded_app; then
+	pass "set-role-passwords.sh rotates app_kanban"
+else fail "set-role-passwords.sh rotation"; fi
+if in_log "$NEW_PW"; then fail "a rotated password appears in the server log"; else pass "no rotated password in the server log"; fi
+leaked="$("${DOCKER[@]}" exec "$N" psql -X -At -v ON_ERROR_STOP=1 -U unheaded -d postgres \
+	-c "SELECT count(*) FROM pg_stat_statements WHERE query ILIKE '%PASSWORD%'")"
+[[ "$leaked" == 0 ]] && pass "no password statement in pg_stat_statements" || fail "pg_stat_statements holds $leaked password statement(s)"
 export WELL_CONTAINER="$N" WELL_BACKUP_DIR="$TMP/backups"
 
 "$R/scripts/db-backup.sh" --keep 2

@@ -65,6 +65,9 @@ psql_su -d postgres -q -c 'DROP DATABASE unheaded'
 # line nor interpolated into SQL text; :'pw' quotes it as a literal. An unset
 # or empty variable leaves the role without a password: it cannot log in
 # until one is set (ALTER ROLE ... PASSWORD), and there is no default.
+# The server still receives the statement with the password in it: this
+# session neither logs it (log_statement = 'ddl' in db/postgresql.conf) nor
+# keeps it in pg_stat_statements, which pg_monitor (huginn_reader) reads.
 set_password() { # role env-var
   if [ -z "$(printenv "$2" || true)" ]; then
     echo "The Well: $2 unset, role $1 has no password (cannot log in yet)"
@@ -72,6 +75,10 @@ set_password() { # role env-var
   fi
   psql_su -d postgres -q <<SQL
 \\getenv pw $2
+SET log_statement = 'none';
+SET log_min_duration_statement = -1;
+SET log_min_error_statement = 'panic';
+SET pg_stat_statements.track_utility = off;
 ALTER ROLE $1 PASSWORD :'pw';
 SQL
 }
