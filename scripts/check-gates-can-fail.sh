@@ -682,6 +682,7 @@ kanban-git-link|writes kanban links, no verdict
 drift-detect|reports drift; alerts-only by design (pkg/enkrateia contract)
 qa-smoke|prints a score for a human to compare against the previous batch
 ci-fetch-doomgeneric|fetches a pinned checkout the Go jobs need; no verdict of its own
+ci-python-lock|regenerates .github/ci-python/requirements.txt (uv in a throwaway container); no verdict of its own: check-pip-freshness and the --require-hashes installs are the gates
 ci-install-tools|installs pinned syft/grype/helm/kubeconform for CI jobs (lib/tool-pins + lib/fetch-tool, which the check-* scripts also use); no verdict of its own
 lib/logpath|prints the durable log path for a service (ADR-092); no verdict of its own
 lib/deb-maintscripts|generates the .deb maintainer scripts (build-all-debs, Jenkinsfile); proven by test-deb-maintscripts
