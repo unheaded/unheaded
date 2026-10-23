@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Checks the Champion's run_check tool may run (S-TWO-BRAINS Step 161).
+#
+# A model names a key and a path; it never supplies a command. Each entry
+# is an argv template: no shell, and only the placeholders {path} (a path
+# inside the agent worktree, relative to it) and {crate} (a Cargo package
+# name) are substituted, each as exactly one argument. Every check runs in
+# pkg/sandbox: no network, home hidden, private /tmp, only the worktree
+# and the build caches writable, memory/time/task limits.
+version: 1
+checks:
+  go-test:
+    argv: [go, test, -count=1, "{path}"]
+    timeout: 600s
+  go-vet:
+    argv: [go, vet, "{path}"]
+    timeout: 300s
+  gofmt-l:
+    argv: [gofmt, -l, "{path}"]
+    timeout: 60s
+    fail_on_output: true   # gofmt -l exits 0 and lists files that need formatting
+  py-unittest:
+    argv: [python3, -B, -m, unittest, discover, -s, "{path}"]
+    timeout: 300s
+  bash-n:
+    argv: [bash, -n, "{path}"]
+    timeout: 30s
+  shellcheck:
+    argv: [shellcheck, -S, info, "{path}"]
+    timeout: 60s
+  cargo-test:
+    argv: [cargo, test, --offline, -p, "{crate}"]
+    timeout: 900s
+  runbook-check:
+    argv: [python3, -B, scripts/check-runbooks.py, "{path}"]
+    timeout: 120s
+  fixture-check:
+    # The two-brains eval fixtures: their own committed check.sh. The router
+    # refuses the result if check.sh, TASK.md or solution.patch changed.
+    argv: [bash, "{path}/check.sh"]
+    timeout: 600s

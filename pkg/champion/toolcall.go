@@ -88,6 +88,9 @@ var ReadOnlyTools = map[string]bool{
 	// loads go through model_switch and switch-model.sh's fit check),
 	// writes nothing, and its answer goes back to the caller as text.
 	"local_llm": true,
+	// run_check (S-TWO-BRAINS Step 161): runs an allowlisted check in a
+	// sandbox inside an agent worktree; it changes nothing outside it.
+	"run_check": true,
 }
 
 // destructivePattern matches any of the destructive shell-verb forms
@@ -275,6 +278,9 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 
 	// Rule 1: existing path-allowlist for path-bearing tools.
 	if path, ok := tc.Args["path"].(string); ok {
+		if tc.Name == "run_check" {
+			path = c.runCheckRulePath(path)
+		}
 		if err := c.validatePath(path); err != nil {
 			decision := ToolCallDecision{
 				Allow:  false,

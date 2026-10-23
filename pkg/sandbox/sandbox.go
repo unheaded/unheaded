@@ -39,6 +39,9 @@ type Config struct {
 	Dir string
 	// Writable are extra writable paths (build caches). Absolute.
 	Writable []string
+	// ReadOnly are paths made visible read-only (a toolchain or module
+	// cache under the hidden home). Absolute.
+	ReadOnly []string
 	// Env is the environment, KEY=VALUE, passed with --setenv. Nothing
 	// else of the caller's environment reaches the unit.
 	Env []string
@@ -111,6 +114,12 @@ func Args(cfg Config, argv []string) ([]string, error) {
 			return nil, fmt.Errorf("sandbox: writable path %q", w)
 		}
 		args = append(args, "-p", "BindPaths="+w)
+	}
+	for _, r := range cfg.ReadOnly {
+		if !filepath.IsAbs(r) || strings.ContainsAny(r, " \t\n:") {
+			return nil, fmt.Errorf("sandbox: read-only path %q", r)
+		}
+		args = append(args, "-p", "BindReadOnlyPaths="+r)
 	}
 	for _, kv := range cfg.Env {
 		k, _, ok := strings.Cut(kv, "=")

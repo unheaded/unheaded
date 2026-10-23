@@ -12,7 +12,7 @@ import (
 
 func TestArgs_Confinement(t *testing.T) {
 	dir := t.TempDir()
-	args, err := Args(Config{Dir: dir, Writable: []string{"/var/cache/x"}, Env: []string{"GOFLAGS=-mod=mod", "GOPROXY=off"}}, []string{"bash", "check.sh"})
+	args, err := Args(Config{Dir: dir, Writable: []string{"/var/cache/x"}, ReadOnly: []string{"/opt/go"}, Env: []string{"GOFLAGS=-mod=mod", "GOPROXY=off"}}, []string{"bash", "check.sh"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -20,7 +20,7 @@ func TestArgs_Confinement(t *testing.T) {
 	for _, want := range []string{
 		"--user", "--wait", "--pipe", "PrivateNetwork=yes", "ProtectHome=tmpfs", "PrivateTmp=yes",
 		"NoNewPrivileges=yes", "MemoryMax=2G", "MemorySwapMax=0", "RuntimeMaxSec=600", "TasksMax=256",
-		"BindPaths=" + dir, "WorkingDirectory=" + dir, "BindPaths=/var/cache/x",
+		"BindPaths=" + dir, "WorkingDirectory=" + dir, "BindPaths=/var/cache/x", "BindReadOnlyPaths=/opt/go",
 		"--setenv=GOFLAGS=-mod=mod", "--setenv=GOPROXY=off",
 	} {
 		if !strings.Contains(joined, want) {
@@ -43,6 +43,7 @@ func TestArgs_Refuses(t *testing.T) {
 		"env newline":    {Dir: dir, Env: []string{"FOO=a\nb"}},
 		"bad writable":   {Dir: dir, Writable: []string{"rel/path"}},
 		"writable colon": {Dir: dir, Writable: []string{"/a:/b"}},
+		"bad read-only":  {Dir: dir, ReadOnly: []string{"rel"}},
 		"bad memory":     {Dir: dir, MemoryMax: "lots"},
 	} {
 		if _, err := Args(cfg, []string{"true"}); err == nil {
