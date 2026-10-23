@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Copyright (c) 2024-2026 Stevie Bellis.
+#
+# CTF-mode eligibility list (ADR-063). Akira may summon the Lich against a
+# service for a timed CTF round ONLY if that service is listed here with
+# `eligible: true` AND the ADR-063 activation rule is met (LICH-001, LICH-002,
+# and one of LICH-012/013 clean for 7 consecutive days).
+#
+# The activation rule is NOT met today: LICH-012 is OPEN. Every entry is
+# therefore `eligible: false`. This file is design-only until Stevie types the
+# one-sentence activation in a future commit AND the 7-day rule is met. The
+# summon code path is hard-gated on the rule (cmd/akira/lich_summon.go), never
+# on a flag, so a true value here alone does nothing.
+
+ctf:
+  # Default posture for anything not listed: never eligible.
+  default_eligible: false
+
+  services:
+    # ADR-063 initial list. The YES/NO is the *intended* eligibility once the
+    # service proves robust; it stays false until the activation rule is met.
+    - name: zhen-agentd          # /api/v1/tool/exec — the richest target (LICH-013)
+      intended: true
+      eligible: false
+    - name: shield               # eBPF pipeline control surface
+      intended: true
+      eligible: false
+    - name: wotan                # message bus
+      intended: true
+      eligible: false
+    - name: kanban               # user-facing app
+      intended: true
+      eligible: false
+    - name: sophia-bpf           # kernel BPF maps — never a live CTF target
+      intended: false
+      eligible: false
+    - name: postgres             # The Well — never a live CTF target
+      intended: false
+      eligible: false
+    - name: llama-server         # shared local model — never a live CTF target
+      intended: false
+      eligible: false
+
+  # Round mechanics (design-only until activated).
+  round:
+    durations_minutes: [15, 30, 60]
+    opt_out_topic: "lich.ctf.abort"
+    # HARD-HALT conditions (Marshal discipline; reuse the Phase 2 kill switch).
+    hard_halt:
+      health_non_200_seconds: 60
+      lateral_movement: true    # a non-eligible service implicated -> abort
+      abort_topic: "lich.ctf.abort"
+      akira_heartbeat_loss: true
+    # Findings autofile through the Champion gate (Rule 2 pending-confirmation).
+    findings_via_champion: true

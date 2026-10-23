@@ -167,3 +167,46 @@ When Stevie wants to activate this, the trigger is one sentence in a future comm
 - BlackMage skill — Lich pattern + offensive mindset
 - Yaldabaoth (gnostic chaos service) — adjacent: chaos engineering without exploitation intent. This ADR is the *malicious* sibling.
 - Stevie's kanban directive (verbatim): *"ADR - akira scheduler should randomly summon litch to 'play CTF' and try to find exploits"*
+
+---
+
+## Readiness note (S-LICH-AWAKENS Phase 10, 2026-10-23)
+
+CTF mode is now designed to **one-sentence-activation readiness** and left
+**hard-gated OFF**. Nothing in this sprint runs against a live service; the
+activation rule is verified **unmet** (LICH-012 is OPEN).
+
+### Built this sprint
+
+- **Eligibility list** `configs/lich-ctf-eligible.yaml` — the ADR-063 initial
+  list (zhen-agentd, shield, wotan, kanban intended-eligible; sophia-bpf,
+  postgres, llama-server never-eligible), every entry `eligible: false`.
+- **Guarded summon stub** `cmd/akira/lich_summon.go` — the full round mechanics
+  (random eligible target, duration {15,30,60} min, Champion-gated findings) and
+  the Marshal HARD-HALT conditions (`/health` non-200 > 60 s, lateral movement,
+  `lich.ctf.abort`, Akira heartbeat loss), all behind
+  `if !activation.Activated(now) { return ErrCTFNotActivated }`. `Activated`
+  reads campaign **clean-soak data**, never a boolean flag, so no flag flip (and
+  no prompt) can turn it on. Unit-tested: inert in every unactivated state;
+  activation-rule boundary at exactly 7 days; HARD-HALT logic.
+- **Journal layout** `tomb/lich/ctf-rounds/README.md` — `<date>-<service>/{round.json,
+  findings/}`, the Champion-gated autofile path, and the three Wotan topics.
+
+### Remaining to activate (the one-sentence commit)
+
+1. The **7-day-clean condition** must actually hold: LICH-001, LICH-002, and one
+   of LICH-012/013 clean with zero net-new findings for 7 consecutive days.
+   LICH-012 must first close. (Not met today.)
+2. Wire a **real clean-soak source** (the ADR-098 evidence store) into
+   `CTFActivation.CleanSince` — this is the activation commit.
+3. Register `lich.ctf.{summoned,findings,aborted}` for **ML-DSA-65 topic signing**
+   (ADR-043 pattern) before any round fires.
+4. Flip the chosen services to `eligible: true` in the config.
+
+### Activation checklist
+
+- [ ] LICH-012 closed; LICH-001/002 + one of 012/013 clean-soak ≥ 7 days (verified from evidence, not asserted).
+- [ ] `CTFActivation` fed from the live evidence store.
+- [ ] CTF Wotan topics ML-DSA-65-signed.
+- [ ] Eligible services flipped `eligible: true` and proven robust.
+- [ ] Stevie types the activation sentence in a dedicated commit (a separate sprint, not S-LICH-AWAKENS).
