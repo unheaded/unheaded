@@ -5,65 +5,25 @@
 package cmd
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"net/http"
-	"strings"
+	"sort"
 	"time"
 
 	"unheaded/cmd/unheaded-cli/output"
 )
 
-// SystemStatus represents the overall system status.
+// SystemStatus is what status could actually read. A source that did not
+// answer is reported as an error, never filled in.
 type SystemStatus struct {
-	Cluster    ClusterStatus    `json:"cluster"`
-	Services   []ServiceStatus  `json:"services"`
-	Containers []ContainerStats `json:"containers"`
-	Network    NetworkStatus    `json:"network"`
-	Alerts     []Alert          `json:"alerts"`
-}
-
-// ClusterStatus represents cluster health.
-type ClusterStatus struct {
-	Name       string    `json:"name"`
-	Status     string    `json:"status"`
-	Version    string    `json:"version"`
-	Uptime     string    `json:"uptime"`
-	LastUpdate time.Time `json:"last_update"`
-}
-
-// ServiceStatus represents a service's health status.
-type ServiceStatus struct {
-	Name     string `json:"name"`
-	Status   string `json:"status"`
-	Replicas string `json:"replicas"`
-	Healthy  bool   `json:"healthy"`
-	Endpoint string `json:"endpoint"`
-}
-
-// ContainerStats represents container statistics.
-type ContainerStats struct {
-	Running int `json:"running"`
-	Stopped int `json:"stopped"`
-	Frozen  int `json:"frozen"`
-	Total   int `json:"total"`
-}
-
-// NetworkStatus represents network health.
-type NetworkStatus struct {
-	Bridge   string `json:"bridge"`
-	Policies int    `json:"policies"`
-	Routes   int    `json:"routes"`
-	Status   string `json:"status"`
-}
-
-// Alert represents a system alert.
-type Alert struct {
-	Level     string    `json:"level"` // info, warning, error, critical
-	Message   string    `json:"message"`
-	Source    string    `json:"source"`
-	Timestamp time.Time `json:"timestamp"`
+	Context    string         `json:"context"`
+	Version    string         `json:"cli_version"`
+	CheckedAt  time.Time      `json:"checked_at"`
+	Services   []akiraVerdict `json:"services,omitempty"`
+	ServiceErr string         `json:"services_error,omitempty"`
+	Containers map[string]int `json:"containers,omitempty"` // by actual status
+	ContainErr string         `json:"containers_error,omitempty"`
 }
 
 // NewStatusCommand creates the status command.
@@ -82,14 +42,12 @@ func NewStatusCommand() *Command {
 	return &Command{
 		Name:  "status",
 		Short: "Show system status overview",
-		Long: `Display an overview of the Unheaded Kingdom system status.
+		Long: `Overview of the Unheaded Kingdom:
 
-Shows:
-  - Cluster health and version
-  - Service status and health
-  - Container statistics
-  - Network status
-  - Active alerts`,
+  - Service health: Akira's consensus over every reporter's checks
+  - Containers: Cuirass's desired containers, counted by actual status
+
+Each part says so when its service does not answer.`,
 		Usage:   "unheaded status [flags]",
 		Aliases: []string{"stat"},
 		Flags:   flags,
@@ -102,84 +60,71 @@ Shows:
 	}
 }
 
+// showStatus prints what it could read and fails if any part did not answer.
 func showStatus(ctx *Context) error {
-	// Gather status from various components
 	status := gatherSystemStatus(ctx)
-
-	// JSON/YAML output
+	var err error
 	if ctx.Output.Format() == output.FormatJSON || ctx.Output.Format() == output.FormatYAML {
-		return ctx.Output.Write(status)
+		err = ctx.Output.Write(status)
+	} else {
+		err = renderStatus(ctx, status)
 	}
-
-	// Table output
-	return renderStatus(ctx, status)
+	if err != nil {
+		return err
+	}
+	if status.ServiceErr != "" || status.ContainErr != "" {
+		return fmt.Errorf("status incomplete: a source did not answer")
+	}
+	return nil
 }
 
 func watchStatus(ctx *Context, interval int) error {
-	ctx.Output.WriteInfo("Watching status (press Ctrl+C to stop)...")
+	if interval < 1 {
+		return fmt.Errorf("--interval must be at least 1")
+	}
+	ctx.Output.WriteInfo("Watching status (Ctrl+C to stop)...")
 	_ = ctx.Output.WriteStringln("")
 
 	ticker := time.NewTicker(time.Duration(interval) * time.Second)
 	defer ticker.Stop()
 
-	// Show initial status
 	if err := showStatus(ctx); err != nil {
 		return err
 	}
-
 	for range ticker.C {
-		// Clear screen (simple approach)
 		_ = ctx.Output.WriteString("\033[H\033[2J")
 		if err := showStatus(ctx); err != nil {
 			ctx.Output.WriteError("Failed to get status: %v", err)
 		}
 	}
-
 	return nil
 }
 
 func gatherSystemStatus(ctx *Context) *SystemStatus {
-	status := &SystemStatus{
-		Cluster: ClusterStatus{
-			Name:       ctx.Config.CurrentContext,
-			Status:     "Healthy",
-			Version:    version,
-			Uptime:     "2d 5h 30m",
-			LastUpdate: time.Now(),
-		},
-		Services: []ServiceStatus{
-			{Name: "timeguru", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://localhost:19000"},
-			{Name: "captain", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://localhost:19002"},
-			{Name: "micromanager", Status: "Running", Replicas: "2/2", Healthy: true, Endpoint: "http://localhost:19003"},
-			{Name: "architect", Status: "Pending", Replicas: "0/1", Healthy: false, Endpoint: "http://localhost:19001"},
-			{Name: "wotan", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "http://localhost:18000"},
-			{Name: "gateway", Status: "Running", Replicas: "1/1", Healthy: true, Endpoint: "https://localhost:21443"},
-		},
-		Containers: []ContainerStats{
-			{Running: 6, Stopped: 1, Frozen: 0, Total: 7},
-		},
-		Network: NetworkStatus{
-			Bridge:   "lxdbr0",
-			Policies: 4,
-			Routes:   5,
-			Status:   "Healthy",
-		},
-		Alerts: []Alert{
-			{Level: "warning", Message: "Service 'architect' is not ready", Source: "service-monitor", Timestamp: time.Now().Add(-10 * time.Minute)},
-			{Level: "info", Message: "New deployment available for 'micromanager'", Source: "deployment-controller", Timestamp: time.Now().Add(-30 * time.Minute)},
-		},
+	status := &SystemStatus{Context: ctx.Config.CurrentContext, Version: version, CheckedAt: time.Now()}
+	if ctx.Context != "" {
+		status.Context = ctx.Context
 	}
 
-	// Try to do actual health checks
-	for i := range status.Services {
-		svc := &status.Services[i]
-		healthy, _ := checkEndpointHealth(svc.Endpoint)
-		svc.Healthy = healthy
-		if !healthy && svc.Status == "Running" {
-			svc.Status = "Degraded"
+	if v, err := akiraVerdicts(ctx); err != nil {
+		status.ServiceErr = err.Error()
+	} else {
+		status.Services = v
+	}
+
+	target, err := cuirassURL(ctx, "/api/v1/containers")
+	var list []ContainerInfo
+	if err == nil {
+		err = callJSON(http.MethodGet, target, nil, &list)
+	}
+	if err != nil {
+		status.ContainErr = "cuirass: " + err.Error()
+	} else {
+		status.Containers = map[string]int{}
+		for _, c := range list {
+			status.Containers[c.status()]++
 		}
 	}
-
 	return status
 }
 
@@ -187,124 +132,41 @@ func renderStatus(ctx *Context, status *SystemStatus) error {
 	w := ctx.Output
 	color := w.Color()
 
-	// Header
-	banner := fmt.Sprintf("Unheaded Kingdom Status - %s", time.Now().Format("2006-01-02 15:04:05"))
-	_ = w.WriteStringln(output.Banner(banner, color))
+	_ = w.WriteStringln(output.Banner("Unheaded Kingdom Status - "+status.CheckedAt.Format("2006-01-02 15:04:05"), color))
+	kv := output.NewKeyValueTable(w.Out()).SetColor(color).SetIndent(2)
+	kv.Add("Context", status.Context)
+	kv.Add("CLI version", status.Version)
+	kv.Render()
 
-	// Cluster Overview
-	_ = w.WriteStringln(output.Bold("Cluster"))
-	clusterKV := output.NewKeyValueTable(w.Out()).SetColor(color).SetIndent(2)
-	clusterKV.Add("Context", status.Cluster.Name)
-	clusterKV.AddWithStatus("Status", status.Cluster.Status)
-	clusterKV.Add("Version", status.Cluster.Version)
-	clusterKV.Add("Uptime", status.Cluster.Uptime)
-	clusterKV.Render()
-
-	// Container Summary
 	_ = w.WriteStringln("")
-	_ = w.WriteStringln(output.Bold("Containers"))
-	if len(status.Containers) > 0 {
-		stats := status.Containers[0]
-		containerKV := output.NewKeyValueTable(w.Out()).SetColor(color).SetIndent(2)
-		containerKV.Add("Total", fmt.Sprintf("%d", stats.Total))
-		containerKV.Add("Running", fmt.Sprintf("%d", stats.Running))
-		containerKV.Add("Stopped", fmt.Sprintf("%d", stats.Stopped))
-		containerKV.Add("Frozen", fmt.Sprintf("%d", stats.Frozen))
-		containerKV.Render()
+	_ = w.WriteStringln(output.Bold("Services (Akira consensus)"))
+	if status.ServiceErr != "" {
+		w.WriteError("  %s", status.ServiceErr)
+	} else if len(status.Services) == 0 {
+		_ = w.WriteStringln("  Akira reports no services")
+	} else {
+		t := output.NewTable(w.Out()).SetColor(color)
+		(&ServiceListResult{Services: status.Services}).WriteTable(t, false)
+		t.Render()
 	}
 
-	// Services
 	_ = w.WriteStringln("")
-	_ = w.WriteStringln(output.Bold("Services"))
-
-	svcTable := output.NewTable(w.Out()).SetColor(color)
-	svcTable.SetHeaders("NAME", "STATUS", "REPLICAS", "HEALTH", "ENDPOINT")
-
-	for _, svc := range status.Services {
-		statusStr := output.StatusOutput{Status: svc.Status}.Colorize(color)
-		healthStr := "Healthy"
-		if !svc.Healthy {
-			healthStr = "Unhealthy"
+	_ = w.WriteStringln(output.Bold("Containers (Cuirass desired state)"))
+	if status.ContainErr != "" {
+		w.WriteError("  %s", status.ContainErr)
+	} else if len(status.Containers) == 0 {
+		_ = w.WriteStringln("  none desired")
+	} else {
+		keys := make([]string, 0, len(status.Containers))
+		for k := range status.Containers {
+			keys = append(keys, k)
 		}
-		healthStr = output.StatusOutput{Status: healthStr}.Colorize(color)
-		svcTable.AddRow(svc.Name, statusStr, svc.Replicas, healthStr, svc.Endpoint)
-	}
-	svcTable.Render()
-
-	// Network
-	_ = w.WriteStringln("")
-	_ = w.WriteStringln(output.Bold("Network"))
-	netKV := output.NewKeyValueTable(w.Out()).SetColor(color).SetIndent(2)
-	netKV.Add("Bridge", status.Network.Bridge)
-	netKV.Add("Policies", fmt.Sprintf("%d", status.Network.Policies))
-	netKV.Add("Routes", fmt.Sprintf("%d", status.Network.Routes))
-	netKV.AddWithStatus("Status", status.Network.Status)
-	netKV.Render()
-
-	// Alerts
-	if len(status.Alerts) > 0 {
-		_ = w.WriteStringln("")
-		_ = w.WriteStringln(output.Bold("Active Alerts"))
-
-		for _, alert := range status.Alerts {
-			icon := output.IconInfo
-			alertColor := output.ColorCyan
-			switch alert.Level {
-			case "warning":
-				icon = output.IconWarning
-				alertColor = output.ColorYellow
-			case "error", "critical":
-				icon = output.IconError
-				alertColor = output.ColorRed
-			}
-
-			if color {
-				_ = w.WriteStringln(fmt.Sprintf("  %s%s%s %s [%s] %s",
-					alertColor, string(icon), output.ColorReset,
-					alert.Timestamp.Format("15:04"),
-					alert.Source,
-					alert.Message))
-			} else {
-				_ = w.WriteStringln(fmt.Sprintf("  [%s] %s [%s] %s",
-					strings.ToUpper(alert.Level),
-					alert.Timestamp.Format("15:04"),
-					alert.Source,
-					alert.Message))
-			}
+		sort.Strings(keys)
+		ckv := output.NewKeyValueTable(w.Out()).SetColor(color).SetIndent(2)
+		for _, k := range keys {
+			ckv.Add(k, fmt.Sprintf("%d", status.Containers[k]))
 		}
+		ckv.Render()
 	}
-
-	// Quick Commands
-	_ = w.WriteStringln("")
-	_ = w.WriteStringln(output.Dim("Quick Commands:"))
-	_ = w.WriteStringln(output.Dim("  unheaded container list     - List all containers"))
-	_ = w.WriteStringln(output.Dim("  unheaded service status     - Service details"))
-	_ = w.WriteStringln(output.Dim("  unheaded network inspect    - Network details"))
-
 	return nil
-}
-
-// checkEndpointHealth performs a quick health check on an endpoint.
-func checkEndpointHealth(endpoint string) (bool, error) {
-	// Skip check for mock/demo purposes if endpoint is localhost
-	if strings.HasPrefix(endpoint, "http://localhost:") || strings.HasPrefix(endpoint, "https://localhost:") {
-		return true, nil
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, "GET", endpoint+"/health", nil)
-	if err != nil {
-		return false, err
-	}
-
-	client := &http.Client{Timeout: 2 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return false, err
-	}
-	defer resp.Body.Close()
-
-	return resp.StatusCode == http.StatusOK, nil
 }

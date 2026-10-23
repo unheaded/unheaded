@@ -71,7 +71,7 @@ See [[UPC Overview|UPC-Overview]] and [[Doom on UPC|Doom-on-UPC]].
 
 | Binary | What it does |
 |--------|--------------|
-| `unheaded-cli` | The Gauntlets: the Kingdom CLI |
+| `unheaded-cli` | The Gauntlets: the Kingdom CLI. Containers through Cuirass, service health through Akira, logs through dashboard-backend; commands nothing serves (secrets, network, start/stop/exec, deploy/restart/scale) fail instead of printing sample data |
 | `wotan-ctl` | Wotan control CLI |
 | `zhen-cli`, `zhen-agent`, `zhen-rag` | Zhen interactive CLI, one-shot agent, RAG glue |
 | `unheaded` | Placeholder `main` (prints "alive") |

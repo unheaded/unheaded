@@ -70,6 +70,8 @@ type Cluster struct {
 	Name      string `yaml:"name"`
 	Endpoint  string `yaml:"endpoint"`
 	WotanAddr string `yaml:"wotan_addr"`
+	Akira     string `yaml:"akira"`     // health consensus API (cmd/akira)
+	Dashboard string `yaml:"dashboard"` // log buffer API (dashboard-backend)
 	TLSCert   string `yaml:"tls_cert"`
 	TLSKey    string `yaml:"tls_key"`
 	TLSCA     string `yaml:"tls_ca"`
@@ -88,15 +90,15 @@ func NewRootCommand() *Command {
 		Short: "THE GAUNTLETS - Unheaded Kingdom CLI",
 		Long: `THE GAUNTLETS - Command-line interface for the Unheaded Kingdom
 
-The CLI provides commands for managing:
-  - Containers: lifecycle, execution, monitoring
-  - Services: deployment, status, logs
-  - Configuration: get, set, validate settings
-  - Secrets: secure credential management
-  - Network: policies and routing
+  - Containers: desired state through Cuirass (list, create, delete, inspect)
+  - Services: health from Akira's consensus, logs from the dashboard
+  - Status: both of the above in one overview
+  - Configuration: get, set, validate CLI settings and contexts
   - Generate: IaC artifact generation (Ansible, Terraform, K8s, etc.)
   - Observe: observability backend configuration
-  - Status: system-wide overview
+
+Secrets and network commands, and container start/stop/exec and service
+deploy/restart/scale, fail: no Unheaded service provides them yet.
 
 Use "unheaded <command> --help" for more information about a command.`,
 		Usage:       "unheaded [command] [flags]",
@@ -398,6 +400,8 @@ func DefaultConfig() *Config {
 				Name:      "local",
 				Endpoint:  "http://localhost:17000",
 				WotanAddr: "localhost:18001",
+				Akira:     defaultAkira,
+				Dashboard: defaultDashboard,
 			},
 		},
 		Defaults: Defaults{

@@ -13,7 +13,6 @@ import (
 
 	"unheaded/cmd/unheaded-cli/output"
 	"unheaded/pkg/secrets"
-	"unheaded/pkg/secrets/store"
 )
 
 // SecretListResult represents the output for secret list.
@@ -476,22 +475,11 @@ func newSecretGenerateCommand() *Command {
 	}
 }
 
-// getSecretsManager creates a secrets manager instance.
-func getSecretsManager(ctx *Context) (*secrets.Manager, error) {
-	// Create memory store for demo (real impl would use file or Vault)
-	memStore := store.NewMemoryStore(store.MemoryStoreConfig{
-		Logger: ctx.Logger,
-	})
-
-	manager, err := secrets.NewManager(secrets.ManagerConfig{
-		Store:  memStore,
-		Logger: ctx.Logger,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create secrets manager: %w", err)
-	}
-
-	return manager, nil
+// getSecretsManager would open the CLI's secrets store. There is none: it
+// used an in-memory store, so set/generate/rotate reported success and
+// lost the secret on exit, and get/list never found anything.
+func getSecretsManager(*Context) (*secrets.Manager, error) {
+	return nil, errNoAPI("unheaded secret", "the CLI has no persistent secrets store yet")
 }
 
 // parseDuration parses a duration string supporting days (e.g., "7d").

@@ -140,6 +140,8 @@ func newConfigListCommand() *Command {
 				result.Items = append(result.Items,
 					ConfigItem{Key: "context.endpoint", Value: cluster.Endpoint, Source: "file", Description: "API endpoint"},
 					ConfigItem{Key: "context.wotan_addr", Value: cluster.WotanAddr, Source: "file", Description: "Wotan address"},
+					ConfigItem{Key: "context.akira", Value: cluster.Akira, Source: "file", Description: "Akira (health consensus) endpoint"},
+					ConfigItem{Key: "context.dashboard", Value: cluster.Dashboard, Source: "file", Description: "Dashboard (logs) endpoint"},
 				)
 			}
 
@@ -338,6 +340,10 @@ func getConfigValue(config *Config, key string) (string, error) {
 				return ctx.Endpoint, nil
 			case "wotan_addr":
 				return ctx.WotanAddr, nil
+			case "akira":
+				return ctx.Akira, nil
+			case "dashboard":
+				return ctx.Dashboard, nil
 			default:
 				return "", fmt.Errorf("unknown context field: %s", field)
 			}
@@ -382,6 +388,10 @@ func setConfigValue(config *Config, key, value string) error {
 				ctx.Endpoint = value
 			case "wotan_addr":
 				ctx.WotanAddr = value
+			case "akira":
+				ctx.Akira = value
+			case "dashboard":
+				ctx.Dashboard = value
 			default:
 				return fmt.Errorf("unknown context field: %s", field)
 			}
