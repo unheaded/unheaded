@@ -260,16 +260,7 @@ func main() {
 			log.Fatal().Msg("TLS enabled but cert/key files not provided")
 		}
 
-		tlsConfig := &tls.Config{
-			MinVersion: tls.VersionTLS13,
-			// PreferServerCipherSuites was deprecated in Go 1.18; TLS 1.3
-			// no longer honours cipher-suite preferences. Removed.
-			CurvePreferences: []tls.CurveID{
-				tls.X25519,
-				tls.CurveP256,
-			},
-		}
-		httpServer.TLSConfig = tlsConfig
+		httpServer.TLSConfig = httpTLSConfig() // ADR-105 Preferred: hybrid first
 	}
 
 	// Start HTTP server
@@ -335,11 +326,12 @@ func main() {
 
 	var grpcServer *grpc.Server
 	if config.EnableTLS {
-		creds, err := credentials.NewServerTLSFromFile(config.TLSCertFile, config.TLSKeyFile)
+		cert, err := tls.LoadX509KeyPair(config.TLSCertFile, config.TLSKeyFile)
 		if err != nil {
 			log.Fatal().Err(err).Msg("failed_to_load_tls_credentials")
 		}
-		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+		// ADR-105 Strict: TLS 1.3, hybrid ML-KEM groups only.
+		grpcOpts = append(grpcOpts, grpc.Creds(credentials.NewTLS(grpcTLSConfig(cert))))
 	}
 	grpcServer = grpc.NewServer(grpcOpts...)
 

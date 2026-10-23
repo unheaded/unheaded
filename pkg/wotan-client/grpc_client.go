@@ -19,6 +19,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/status"
+	pqtls "unheaded/pkg/tls"
 	chatpb "unheaded/services/wotan/proto"
 )
 
@@ -47,6 +48,13 @@ type GRPCClient struct {
 	healthyAge time.Duration
 }
 
+// TLSConfig is the client TLS for Wotan gRPC (ADR-105 Strict): TLS 1.3 and
+// hybrid ML-KEM groups only, so a classical-only server is refused. Server
+// certificates verify against the system roots.
+func TLSConfig() *tls.Config {
+	return pqtls.ApplyStrict(&tls.Config{MinVersion: tls.VersionTLS13})
+}
+
 // NewGRPCClient creates a new gRPC-based Wotan client.
 // Set UNHEADED_GRPC_TLS=1 to enable TLS 1.3 transport credentials.
 func NewGRPCClient(addr string) (*GRPCClient, error) {
@@ -56,7 +64,7 @@ func NewGRPCClient(addr string) (*GRPCClient, error) {
 
 	var creds credentials.TransportCredentials
 	if os.Getenv("UNHEADED_GRPC_TLS") == "1" {
-		creds = credentials.NewTLS(&tls.Config{MinVersion: tls.VersionTLS13})
+		creds = credentials.NewTLS(TLSConfig())
 	} else {
 		creds = insecure.NewCredentials()
 	}

@@ -57,7 +57,7 @@ func ApplyPreferred(cfg *tls.Config) *tls.Config {
 // (a cap below 1.3 would rule out ML-KEM, or every handshake).
 func floor13(cfg *tls.Config) *tls.Config {
 	if cfg == nil {
-		cfg = &tls.Config{}
+		cfg = &tls.Config{MinVersion: tls.VersionTLS13}
 	}
 	if cfg.MinVersion < tls.VersionTLS13 {
 		cfg.MinVersion = tls.VersionTLS13
