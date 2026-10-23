@@ -13,5 +13,7 @@ targets:
     port: 19003
   - name: dashboard
     port: 20000
+  - name: kanban          # unheaded-kanban-app deb
+    port: 20001
   - name: daemon
     port: 17000
