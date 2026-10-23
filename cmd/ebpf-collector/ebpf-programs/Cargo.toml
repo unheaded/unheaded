@@ -13,7 +13,6 @@ path = "src/tcp_latency.rs"
 
 [dependencies]
 aya-ebpf = "0.1"
-aya-log-ebpf = "0.1"
 ebpf-common = { path = "../common" }
 
 [profile.release]

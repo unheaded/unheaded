@@ -34,10 +34,6 @@ cargo aya-ebpf
 cargo aya-ebpf-bindings
 cargo aya-ebpf-cty
 cargo aya-ebpf-macros
-cargo aya-log-common
-cargo aya-log-ebpf
-cargo aya-log-ebpf-macros
-cargo aya-log-parser
 cargo aya-obj
 cargo base64
 cargo bincode
@@ -199,8 +195,6 @@ cargo multimap
 cargo nix
 cargo nu-ansi-term
 cargo num-traits
-cargo num_enum
-cargo num_enum_derive
 cargo objc2
 cargo objc2-encode
 cargo object

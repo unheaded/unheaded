@@ -28,7 +28,6 @@ path = "src/vfs_write.rs"
 
 [dependencies]
 aya-ebpf = "0.1"
-aya-log-ebpf = "0.1"
 
 # [profile.dev] must exist and must set lto = true.
 #
