@@ -29,7 +29,8 @@ Health state lands in The Well (`unheaded_ops.service_health_current` / `_transi
 
 | | |
 |---|---|
-| `GET /health` | liveness |
+| `GET /health`, `GET /ready` | liveness, readiness |
+| `GET /metrics` | Prometheus metrics |
 | `GET /api/v1/status` | current band per service |
 | `akira --once` | one sweep, print, exit |
 | `--config`, `--node`, `--port`, `--wotan` | config file, node id (default hostname), API port, Wotan HTTP address |

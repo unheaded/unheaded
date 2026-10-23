@@ -13,10 +13,10 @@ The self-hosting proof of concept. Displays Unheaded development progress using 
 
 | Route | What |
 |-------|------|
-| `GET/POST/PUT/DELETE /api/v1/tasks` | List / create / update / delete cards |
+| `GET/POST/PUT/DELETE /api/v1/tasks` | List / create / update / delete cards (`/api/v1/timeline/tasks` is a legacy alias) |
 | `GET/PUT/DELETE /api/v1/tasks/{id}` | One card; `POST …/{id}/restore` brings back a deleted card |
 | `GET /api/v1/tasks/{deleted,archived,completed}` | Filtered views |
-| `GET /api/v1/timeline`, `/timeline/cards`, `/timeline/tasks` | Timeline from Timeguru, as cards |
+| `GET /api/v1/timeline`, `/api/v1/timeline/cards` | Timeline from Timeguru, as cards |
 | `GET /api/v1/stream` (SSE), `/ws` | Live updates to every open board |
 | `/health`, `/ready`, `/metrics`, `/api/v1/health` | Probes, Prometheus |
 

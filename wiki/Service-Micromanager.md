@@ -9,9 +9,9 @@ VP Engineering + CTO + Staff TPM + Senior PM. Hyper detail-oriented. Test EVERYT
 | `GET /health` | Health check |
 | `GET /ready` | Readiness probe |
 | `GET /metrics` | Prometheus metrics |
-| `GET`, `POST /api/v1/tasks` | List or create tasks |
-| `GET`, `PUT /api/v1/tasks/{id}` | Read or update a task |
-| `GET /api/v1/backlog` | Backlog |
+| `POST /api/v1/tasks` | Create a task |
+| `PUT /api/v1/tasks/{id}` | Update a task |
+| `GET /api/v1/backlog` | Backlog (lists tasks) |
 | `GET /api/v1/sprint/status` | Sprint counts by status |
 | Port: 19003 | |
 

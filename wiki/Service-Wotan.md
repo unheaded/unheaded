@@ -39,9 +39,10 @@ DNS-like hierarchy with subscription mirroring:
 | `GET /health`, `GET /ready` | Health and readiness |
 | `GET /metrics` | Prometheus metrics |
 | `POST /api/v1/join` | Register a service |
-| `GET /api/v1/topics`, `/api/v1/topics/<topic>` | Topics and their messages (`after_seq`, wildcards) |
-| `POST /api/v1/messages/send`, `GET /api/v1/messages` | Publish and read |
-| `/api/v1/admin/{pending,approve,approve-all,deny}` | Join approval |
+| `GET /api/v1/topics` | List topics |
+| `POST /api/v1/topics/<topic>/subscribe`, `POST …/publish`, `GET …/messages` | Topic pub/sub; `messages` pages with `after_seq` and takes wildcards |
+| `POST /api/v1/messages/send`, `GET /api/v1/messages`, `POST`/`DELETE /api/v1/messages/delete` | Room (legacy chat) API |
+| `GET /api/v1/admin/pending`, `POST /api/v1/admin/{approve,approve-all,deny}` | Join approval (registered only with `--admin`, default on) |
 | gRPC `:18001` | Streaming publish/subscribe |
 
 ---

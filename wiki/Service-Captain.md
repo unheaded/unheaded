@@ -11,7 +11,8 @@ Elite executive fusion: CEO + CMO + CFO + CHRO + CPO. Translates engineering mil
 | `GET /metrics` | Prometheus metrics |
 | `GET /api/v1/strategy` | Strategy data |
 | `GET /api/v1/vision` | Vision |
-| `GET`, `POST /api/v1/decisions`, `/api/v1/decisions/{id}` | Decisions |
+| `GET`, `POST /api/v1/decisions` | List (`limit`, `offset`) or record decisions |
+| `GET`, `PATCH /api/v1/decisions/{id}` | Read or update one decision |
 | Port: 19002 | |
 
 ## State
