@@ -61,9 +61,10 @@ The UPC is a virtual CPU implemented in the eBPF runtime. Monad packets are the 
 
 ## Architecture Decision Records
 
-Canonical mirror: [[ADR Index|ADR-Index]] (104 entries, synced 2026-10-23).
+Canonical mirror: [[ADR Index|ADR-Index]] (105 entries, synced 2026-10-23).
 
 Recent:
+- ADR-107 — Chaos safety envelope: one engine, blast-radius allowlist, dry run by default (Proposed, 2026-10-23)
 - ADR-106 — Two brains, one gate: Zhen + Claude share one confirmation gate, audit and privacy tier; routing from a pre-registered eval (Proposed, 2026-10-23)
 - ADR-105 — Hybrid ML-KEM key exchange, crypto inventory (CBOM), signed evidence and drift (Proposed, 2026-10-23)
 - ADR-104 — ZhenAI → Claude API bridge (Proposed, built, 2026-10-23)
@@ -98,6 +99,7 @@ Recent:
 - [[Akira|Service-Akira]] — health checks + percentage consensus (ADR-029)
 - [[Huginn|Service-Huginn]] — host metrics agent on each host (ADR-084)
 - [[kev-poller|Service-KEV-Poller]] — CISA KEV feed, tagged against what we run (ADR-055)
+- [[Sword|Service-Sword]] — deploys through Cuirass: rolling, blue-green, canary with analysis, rollback
 
 ## S36 Four Pillars
 

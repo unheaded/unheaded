@@ -4,294 +4,136 @@
 package yaldabaoth
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
 
-func TestNewGameDayScheduler(t *testing.T) {
-	gds := NewGameDayScheduler(testLogger(), nil)
-	if gds == nil {
-		t.Fatal("expected non-nil scheduler")
-	}
-	if gds.state != StateIdle {
-		t.Errorf("expected initial state IDLE, got %s", gds.state)
-	}
+func scheduler(fx *fixture) *GameDayScheduler {
+	return NewGameDayScheduler(nil, fx.s, fx.pub)
 }
 
-func TestGameDaySchedulerScheduleValidation(t *testing.T) {
-	tests := []struct {
-		name     string
-		scenario GameDayScenario
-		wantErr  bool
-	}{
-		{
-			name:     "empty name",
-			scenario: GameDayScenario{Duration: time.Second, Stages: []Stage{{Name: "s1", Rules: []FaultRule{{FaultType: "DROP"}}}}},
-			wantErr:  true,
-		},
-		{
-			name:     "no stages",
-			scenario: GameDayScenario{Name: "test", Duration: time.Second},
-			wantErr:  true,
-		},
-		{
-			name:     "zero duration",
-			scenario: GameDayScenario{Name: "test", Stages: []Stage{{Name: "s1", Rules: []FaultRule{{FaultType: "DROP"}}}}},
-			wantErr:  true,
-		},
-		{
-			name: "empty stage name",
-			scenario: GameDayScenario{
-				Name:     "test",
-				Duration: time.Second,
-				Stages:   []Stage{{Name: "", Rules: []FaultRule{{FaultType: "DROP"}}}},
-			},
-			wantErr: true,
-		},
-		{
-			name: "stage with no rules",
-			scenario: GameDayScenario{
-				Name:     "test",
-				Duration: time.Second,
-				Stages:   []Stage{{Name: "s1"}},
-			},
-			wantErr: true,
-		},
-		{
-			name: "valid scenario",
-			scenario: GameDayScenario{
-				Name:     "test",
-				Duration: 100 * time.Millisecond,
-				Stages: []Stage{
-					{
-						Name:  "stage-1",
-						Rules: []FaultRule{{FaultType: "DROP", SrcServiceID: 1, DstServiceID: 2, Duration: 10 * time.Millisecond}},
-					},
-				},
-			},
-			wantErr: false,
-		},
-	}
+func stageOf(name string, exps ...Experiment) Stage { return Stage{Name: name, Experiments: exps} }
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			// Reset scheduler between tests
-			sched := NewGameDayScheduler(testLogger(), nil)
-			err := sched.Schedule(tt.scenario)
-			if tt.wantErr && err == nil {
-				t.Error("expected error")
-			}
-			if !tt.wantErr && err != nil {
-				t.Errorf("unexpected error: %v", err)
-			}
-			if !tt.wantErr {
-				// Wait for completion
-				time.Sleep(200 * time.Millisecond)
-			}
-		})
-	}
+func waitState(t *testing.T, g *GameDayScheduler, want GameDayState) GameDayStatus {
+	t.Helper()
+	var st GameDayStatus
+	waitFor(t, "game day "+string(want), func() bool {
+		st = g.Status()
+		return st.State == want
+	})
+	return st
 }
 
-func TestGameDaySchedulerAlreadyRunning(t *testing.T) {
-	gds := NewGameDayScheduler(testLogger(), nil)
-
-	scenario := GameDayScenario{
-		Name:     "long-running",
-		Duration: 5 * time.Second,
-		Stages: []Stage{
-			{
-				Name:  "s1",
-				Rules: []FaultRule{{FaultType: "DROP", Duration: 1 * time.Second}},
-			},
-		},
-	}
-
-	err := gds.Schedule(scenario)
+func TestGameDay_RunsStagesAsExperiments(t *testing.T) {
+	fx := newFixture(t)
+	g := scheduler(fx)
+	err := g.Schedule(GameDayScenario{Name: "two", Duration: 10 * time.Second, Stages: []Stage{
+		stageOf("first", *delayExp("steel-echo-v2-0", 50*time.Millisecond)),
+		stageOf("second", *delayExp("steel-echo-v2-1", 50*time.Millisecond)),
+	}})
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// Try scheduling while running
-	err = gds.Schedule(scenario)
-	if err == nil {
-		t.Error("expected error when already running")
+	waitState(t, g, StateCompleted)
+	if fx.inj.injectedCount() != 2 || fx.inj.activeCount() != 0 {
+		t.Fatalf("injected %d, active %d", fx.inj.injectedCount(), fx.inj.activeCount())
 	}
-
-	gds.Stop()
-	time.Sleep(50 * time.Millisecond)
+	if len(fx.s.List()) != 2 {
+		t.Fatal("stages did not run through the Service")
+	}
 }
 
-func TestGameDaySchedulerRunAndComplete(t *testing.T) {
-	gds := NewGameDayScheduler(testLogger(), nil)
-
-	scenario := GameDayScenario{
-		Name:     "quick-test",
-		Duration: 500 * time.Millisecond,
-		Stages: []Stage{
-			{
-				Name:  "stage-1",
-				Rules: []FaultRule{{FaultType: "DROP", Duration: 10 * time.Millisecond}},
-			},
-			{
-				Name:  "stage-2",
-				Rules: []FaultRule{{FaultType: "DELAY", DelayUS: 100, Duration: 10 * time.Millisecond}},
-			},
-		},
-	}
-
-	err := gds.Schedule(scenario)
-	if err != nil {
+func TestGameDay_StageFailureAborts(t *testing.T) {
+	fx := newFixture(t)
+	g := scheduler(fx)
+	if err := g.Schedule(GameDayScenario{Name: "bad", Duration: 10 * time.Second, Stages: []Stage{
+		stageOf("refused", *delayExp("pihole", 50*time.Millisecond)),
+		stageOf("never", *delayExp("steel-echo-v2-1", 50*time.Millisecond)),
+	}}); err != nil {
 		t.Fatal(err)
 	}
-
-	// Wait for completion
-	time.Sleep(600 * time.Millisecond)
-
-	status := gds.Status()
-	if status.State != StateCompleted {
-		t.Errorf("expected state COMPLETED, got %s (error: %s)", status.State, status.Error)
-	}
-	if status.ScenarioName != "quick-test" {
-		t.Errorf("expected scenario name quick-test, got %s", status.ScenarioName)
-	}
-	if status.TotalStages != 2 {
-		t.Errorf("expected 2 total stages, got %d", status.TotalStages)
+	st := waitState(t, g, StateAborted)
+	if !strings.Contains(st.Error, "refused") || fx.inj.injectedCount() != 0 {
+		t.Fatalf("status %+v, injected %d", st, fx.inj.injectedCount())
 	}
 }
 
-func TestGameDaySchedulerStop(t *testing.T) {
-	gds := NewGameDayScheduler(testLogger(), nil)
-
-	scenario := GameDayScenario{
-		Name:     "stoppable",
-		Duration: 10 * time.Second,
-		Stages: []Stage{
-			{
-				Name:  "long-stage",
-				Rules: []FaultRule{{FaultType: "DROP", Duration: 5 * time.Second}},
-			},
-		},
-	}
-
-	_ = gds.Schedule(scenario)
-	time.Sleep(50 * time.Millisecond)
-
-	gds.Stop()
-	time.Sleep(100 * time.Millisecond)
-
-	status := gds.Status()
-	if status.State != StateAborted {
-		t.Errorf("expected state ABORTED, got %s", status.State)
-	}
-}
-
-func TestGameDaySchedulerStopWhenIdle(t *testing.T) {
-	gds := NewGameDayScheduler(testLogger(), nil)
-	// Should not panic
-	gds.Stop()
-
-	status := gds.Status()
-	if status.State != StateIdle {
-		t.Errorf("expected state IDLE, got %s", status.State)
-	}
-}
-
-func TestGameDaySchedulerStatus(t *testing.T) {
-	gds := NewGameDayScheduler(testLogger(), nil)
-
-	t.Run("idle status", func(t *testing.T) {
-		status := gds.Status()
-		if status.State != StateIdle {
-			t.Errorf("expected IDLE, got %s", status.State)
-		}
-		if status.ScenarioName != "" {
-			t.Error("expected empty scenario name when idle")
-		}
-	})
-
-	t.Run("running status", func(t *testing.T) {
-		scenario := GameDayScenario{
-			Name:     "status-test",
-			Duration: 5 * time.Second,
-			Stages: []Stage{
-				{
-					Name:  "s1",
-					Rules: []FaultRule{{FaultType: "DROP", Duration: 1 * time.Second}},
-				},
-			},
-		}
-		_ = gds.Schedule(scenario)
-		time.Sleep(20 * time.Millisecond)
-
-		status := gds.Status()
-		if status.ScenarioName != "status-test" {
-			t.Errorf("expected scenario name status-test, got %s", status.ScenarioName)
-		}
-		if status.StartedAt == nil {
-			t.Error("expected StartedAt to be set")
-		}
-
-		gds.Stop()
-		time.Sleep(50 * time.Millisecond)
-	})
-}
-
-func TestGameDaySchedulerStageWithDelay(t *testing.T) {
-	gds := NewGameDayScheduler(testLogger(), nil)
-
-	scenario := GameDayScenario{
-		Name:     "delayed",
-		Duration: 1 * time.Second,
-		Stages: []Stage{
-			{
-				Name:  "delayed-stage",
-				Delay: 10 * time.Millisecond,
-				Rules: []FaultRule{{FaultType: "DELAY", Duration: 10 * time.Millisecond}},
-			},
-		},
-	}
-
-	err := gds.Schedule(scenario)
-	if err != nil {
+func TestGameDay_StopRevertsTheRunningExperiment(t *testing.T) {
+	fx := newFixture(t)
+	g := scheduler(fx)
+	if err := g.Schedule(GameDayScenario{Name: "long", Duration: time.Minute, Stages: []Stage{
+		stageOf("long", *delayExp("steel-echo-v2-0", 30*time.Second)),
+	}}); err != nil {
 		t.Fatal(err)
 	}
+	waitFor(t, "injection", func() bool { return fx.inj.activeCount() == 1 })
+	g.Stop()
+	waitState(t, g, StateAborted)
+	waitFor(t, "revert", func() bool { return fx.inj.activeCount() == 0 && len(fx.s.JournalEntries()) == 0 })
+}
 
-	time.Sleep(200 * time.Millisecond)
-
-	status := gds.Status()
-	if status.State != StateCompleted {
-		t.Errorf("expected COMPLETED, got %s (error: %s)", status.State, status.Error)
+// The legacy src/dst fault rules name no allowlisted target: they are
+// refused, not published as "injected" while nothing happens.
+func TestGameDay_LegacyRulesAreRefusedNotFaked(t *testing.T) {
+	fx := newFixture(t)
+	g := scheduler(fx)
+	if err := g.Schedule(GameDayScenario{Name: "legacy", Duration: 10 * time.Second, Stages: []Stage{
+		{Name: "rules", Rules: []FaultRule{{SrcServiceID: 1, DstServiceID: 2, FaultType: "DELAY", DelayUS: 50000, Duration: time.Second}}},
+	}}); err != nil {
+		t.Fatal(err)
+	}
+	st := waitState(t, g, StateAborted)
+	if fx.inj.injectedCount() != 0 || fx.pub.count("chaos.injections") != 0 {
+		t.Fatalf("legacy rule: injected %d, injections published %d (%+v)", fx.inj.injectedCount(), fx.pub.count("chaos.injections"), st)
 	}
 }
 
-func TestMaxRuleDuration(t *testing.T) {
-	gds := NewGameDayScheduler(testLogger(), nil)
-
-	t.Run("empty rules", func(t *testing.T) {
-		d := gds.maxRuleDuration(nil)
-		if d != 0 {
-			t.Errorf("expected 0, got %v", d)
-		}
-	})
-
-	t.Run("finds max", func(t *testing.T) {
-		rules := []FaultRule{
-			{Duration: 10 * time.Millisecond},
-			{Duration: 50 * time.Millisecond},
-			{Duration: 30 * time.Millisecond},
-		}
-		d := gds.maxRuleDuration(rules)
-		if d != 50*time.Millisecond {
-			t.Errorf("expected 50ms, got %v", d)
-		}
-	})
+func TestRuleExperiment_Translation(t *testing.T) {
+	e := RuleExperiment(FaultRule{SrcServiceID: 3, DstServiceID: 4, FaultType: "DROP", DropRatePPM: 250000, Duration: 2 * time.Second})
+	if e.Type != ExpTypeNetworkLoss || e.Target.Kind != KindPacket || e.Parameters["loss_percent"] != 25.0 || e.Schedule.Duration != 2*time.Second {
+		t.Fatalf("translated %+v", e)
+	}
+	e = RuleExperiment(FaultRule{FaultType: "DELAY", DelayUS: 150000})
+	if e.Type != ExpTypeNetworkDelay || e.Parameters["delay_ms"] != 150.0 {
+		t.Fatalf("translated %+v", e)
+	}
+	if e := RuleExperiment(FaultRule{FaultType: "CORRUPT"}); e.Type != ExpTypeCustom {
+		t.Fatalf("CORRUPT translated to %s", e.Type)
+	}
 }
 
-func TestGameDayStateConstants(t *testing.T) {
-	states := []GameDayState{StateIdle, StateRunning, StateCompleted, StateAborted}
-	for _, s := range states {
-		if s == "" {
-			t.Error("state constant should not be empty")
+func TestGameDay_Validation(t *testing.T) {
+	fx := newFixture(t)
+	g := scheduler(fx)
+	ok := stageOf("s", *delayExp("steel-echo-v2-0", time.Second))
+	bad := map[string]GameDayScenario{
+		"no name":     {Duration: time.Minute, Stages: []Stage{ok}},
+		"no stages":   {Name: "x", Duration: time.Minute},
+		"no duration": {Name: "x", Stages: []Stage{ok}},
+		"empty stage": {Name: "x", Duration: time.Minute, Stages: []Stage{{Name: "e"}}},
+		"stage name":  {Name: "x", Duration: time.Minute, Stages: []Stage{{Experiments: ok.Experiments}}},
+	}
+	for name, sc := range bad {
+		if err := g.Schedule(sc); err == nil {
+			t.Errorf("%s: accepted", name)
 		}
 	}
+	if st := g.Status(); st.State != StateIdle {
+		t.Fatalf("state %s", st.State)
+	}
+}
+
+func TestGameDay_OneAtATime(t *testing.T) {
+	fx := newFixture(t)
+	g := scheduler(fx)
+	long := GameDayScenario{Name: "a", Duration: time.Minute, Stages: []Stage{stageOf("s", *delayExp("steel-echo-v2-0", 30*time.Second))}}
+	if err := g.Schedule(long); err != nil {
+		t.Fatal(err)
+	}
+	if err := g.Schedule(long); err == nil {
+		t.Fatal("a second game day started")
+	}
+	g.Stop()
+	waitState(t, g, StateAborted)
 }

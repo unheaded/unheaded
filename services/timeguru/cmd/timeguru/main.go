@@ -109,16 +109,17 @@ func main() {
 	}
 	healthSrv := transport.NewHealthServer("timeguru")
 
-	// Initialize wotan client using transport config addresses
+	// Initialize wotan client using transport config addresses. Creating
+	// it does not need Wotan up; the subscriptions start below and keep
+	// retrying in the background.
 	var wotan *wotanClient.Client
 	wotan, err = initWotan(transportCfg.WotanHTTPAddr, transportCfg.WotanGRPCAddr)
 	if err != nil {
-		log.Warn().Err(err).Msg("Fae Chamber connection failed, continuing without Wotan integration")
+		log.Warn().Err(err).Msg("Wotan client could not be created (bad address?), continuing without Wotan integration")
 		wotan = nil
 		healthSrv.SetGRPCStatus(false)
 	} else {
 		defer wotan.Close()
-		log.Info().Msg("Fae Chamber connected (Wotan online)")
 	}
 
 	// Log aggregation publisher — forwards structured logs to Wotan
@@ -136,6 +137,9 @@ func main() {
 
 	// Initialize HTTP handler
 	handler := api.NewHandler(store)
+	if wotan != nil {
+		handler.SetWotanHealth(func() any { return wotan.Health() })
+	}
 
 	// Initialize file syncer if sync directory is configured
 	if config.SyncDir != "" {
@@ -255,19 +259,20 @@ func main() {
 	// This sits AFTER the listener is bound: the first cut announced right
 	// after the Wotan connect, kanban refetched immediately, and hit
 	// connection refused because /timeline was not serving yet.
-	if wotan != nil && timelineLoaded {
-		go publishTimelineUpdate(wotan, "timeline_loaded") // #nosec G118 -- fire-and-forget startup announcement
+	// Wotan subscriptions (alerts.critical, timeline.updates) join in the
+	// background and retry until Wotan answers; the startup announcement
+	// goes out once the timeline topic is joined.
+	if wotan != nil {
+		var onJoined func()
+		if timelineLoaded {
+			onJoined = func() { publishTimelineUpdate(wotan, "timeline_loaded") }
+		}
+		startWotanSubscriptions(ctx, wotan, onJoined)
 	}
 
 	// Start file watcher for timeline.md auto-reload + sync
 	if config.TimelinePath != "" {
 		go watchTimelineFile(ctx, config.TimelinePath, store, wotan, handler)
-	}
-
-	// Start wotan message listener if connected
-	if wotan != nil {
-		go listenForMessages(ctx, wotan)
-		go listenForAlerts(ctx, wotan)
 	}
 
 	// Wait for shutdown signal
@@ -441,8 +446,11 @@ func handleMilestoneRoutes(handler *api.Handler) http.HandlerFunc {
 	}
 }
 
-// initWotan initializes wotan client connection with dual transport
-// HTTP for control plane (subscribe/publish), gRPC for data plane (streaming)
+// initWotan creates the Wotan client: HTTP for the control plane
+// (subscribe/publish), gRPC for streaming when grpcAddr is set. It does not
+// talk to Wotan; startWotanSubscriptions joins the topics. It used to
+// subscribe here once and, when Wotan was not up yet, timeguru ran without
+// Wotan until it was restarted.
 func initWotan(httpAddr, grpcAddr string) (*wotanClient.Client, error) {
 	var client *wotanClient.Client
 	var err error
@@ -460,27 +468,35 @@ func initWotan(httpAddr, grpcAddr string) (*wotanClient.Client, error) {
 		log.Info().Str("http", httpAddr).Msg("Wotan client created (HTTP-only)")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Subscribe to alerts.critical (required by CLAUDE.md)
-	alertSub, err := client.Subscribe(ctx, "alerts.critical", wotanDisplayName)
-	if err != nil {
-		log.Warn().Err(err).Msg("failed to subscribe to alerts.critical")
-	} else {
-		log.Info().Str("status", alertSub.Status).Msg("subscribed to alerts.critical")
-	}
-
-	// Subscribe to timeline updates topic
-	subscriber, err := client.Subscribe(ctx, wotanTopic, wotanDisplayName)
-	if err != nil {
-		client.Close() // #nosec G104 -- close on a read/cleanup path; nothing was buffered that a close error could lose
-		return nil, fmt.Errorf("subscribe to %s: %w", wotanTopic, err)
-	}
-
-	log.Info().Str("topic", wotanTopic).Str("status", subscriber.Status).Msg("subscribed to topic")
-
 	return client, nil
+}
+
+// startWotanSubscriptions joins alerts.critical (required by CLAUDE.md) and
+// the timeline topic in the background, streaming both, and keeps retrying
+// (1 s doubling to 30 s) until ctx ends, so a Wotan that starts after
+// timeguru, or restarts, is picked up without restarting timeguru. onJoined,
+// if not nil, runs once the timeline topic is first joined.
+func startWotanSubscriptions(ctx context.Context, client *wotanClient.Client, onJoined func()) {
+	go func() {
+		_ = client.SubscribeWithRetry(ctx, "alerts.critical", wotanDisplayName, handleAlert)
+	}()
+	go func() {
+		_ = client.SubscribeWithRetry(ctx, wotanTopic, wotanDisplayName, handleTimelineMessage)
+	}()
+	if onJoined != nil {
+		go func() {
+			t := time.NewTicker(250 * time.Millisecond)
+			defer t.Stop()
+			for !client.IsApproved(wotanTopic) {
+				select {
+				case <-ctx.Done():
+					return
+				case <-t.C:
+				}
+			}
+			onJoined()
+		}()
+	}
 }
 
 // publishTimelineUpdate publishes an update event to Wotan with trace_id
@@ -504,62 +520,21 @@ func publishTimelineUpdate(client *wotanClient.Client, eventType string) {
 	log.Info().Str("event", eventType).Str("trace_id", traceID).Msg("published event")
 }
 
-// listenForMessages listens for wotan messages
-func listenForMessages(ctx context.Context, client *wotanClient.Client) {
-	log.Info().Str("topic", wotanTopic).Msg("listening for messages")
-
-	// Stream messages
-	msgCh, err := client.StreamMessages(ctx, wotanTopic)
-	if err != nil {
-		log.Error().Err(err).Msg("failed to stream messages")
-		return
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Info().Msg("message listener stopped")
-			return
-		case msg, ok := <-msgCh:
-			if !ok {
-				log.Info().Msg("message channel closed")
-				return
-			}
-			log.Info().
-				Str("message_id", msg.MessageID).
-				Int64("seq", msg.Seq).
-				Str("topic", msg.Topic).
-				Str("sender", msg.SenderID).
-				Msg("received message (processing deferred)")
-		}
-	}
+// handleTimelineMessage logs a message on the timeline topic.
+func handleTimelineMessage(msg *wotanClient.Message) {
+	log.Info().
+		Str("message_id", msg.MessageID).
+		Int64("seq", msg.Seq).
+		Str("topic", msg.Topic).
+		Str("sender", msg.SenderID).
+		Msg("received message (processing deferred)")
 }
 
-// listenForAlerts listens for critical alerts from Wotan
-func listenForAlerts(ctx context.Context, client *wotanClient.Client) {
-	log.Info().Msg("listening for critical alerts")
-
-	msgCh, err := client.StreamMessages(ctx, "alerts.critical")
-	if err != nil {
-		log.Error().Err(err).Msg("failed to stream alerts")
-		return
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			log.Info().Msg("alert listener stopped")
-			return
-		case msg, ok := <-msgCh:
-			if !ok {
-				log.Info().Msg("alert channel closed")
-				return
-			}
-			log.Warn().
-				Str("message_id", msg.MessageID).
-				Int64("seq", msg.Seq).
-				Str("payload", msg.Payload).
-				Msg("CRITICAL ALERT received")
-		}
-	}
+// handleAlert logs a critical alert from Wotan.
+func handleAlert(msg *wotanClient.Message) {
+	log.Warn().
+		Str("message_id", msg.MessageID).
+		Int64("seq", msg.Seq).
+		Str("payload", msg.Payload).
+		Msg("CRITICAL ALERT received")
 }

@@ -243,53 +243,47 @@ func (s *ArchitectService) SetWotan(wotan *wotanClient.Client) {
 	s.wotan = wotan
 }
 
-// Start initializes Wotan subscriptions and starts listening for alerts
+// Start joins architecture.updates (to publish on it) and alerts.critical
+// (required by CLAUDE.md, streamed to handleCriticalAlert) in the background
+// and returns at once. Both keep retrying until ctx ends, so ctx is the
+// subscriptions' lifetime, not a startup timeout. Start used to subscribe
+// once and return the error: a Wotan that came up after architect, or
+// restarted, left it without Wotan until architect was restarted.
 func (s *ArchitectService) Start(ctx context.Context) error {
 	if s.wotan == nil {
 		log.Println("[WARN] architect: wotan unavailable — subscriptions disabled (degraded mode)")
 		return nil
 	}
-
-	// Subscribe to alerts.critical (required by CLAUDE.md)
-	if _, err := s.wotan.Subscribe(ctx, "alerts.critical", "architect-service"); err != nil {
-		return fmt.Errorf("subscribe to alerts.critical: %w", err)
-	}
-
-	// Subscribe to architecture.updates for own topic
-	if _, err := s.wotan.Subscribe(ctx, "architecture.updates", "architect-service"); err != nil {
-		return fmt.Errorf("subscribe to architecture.updates: %w", err)
-	}
-
-	// Start alert listener
+	go func() {
+		_ = s.wotan.SubscribeWithRetry(ctx, "architecture.updates", "architect-service", nil)
+	}()
 	go s.listenForAlerts(ctx)
-
 	return nil
 }
 
-// listenForAlerts listens for critical alerts from Wotan
+// listenForAlerts joins alerts.critical and handles each alert until ctx
+// ends, rejoining whenever Wotan drops the subscription.
 func (s *ArchitectService) listenForAlerts(ctx context.Context) {
 	if s.wotan == nil {
 		log.Println("[WARN] architect: wotan unavailable — alert listener disabled (degraded mode)")
 		return
 	}
+	_ = s.wotan.SubscribeWithRetry(ctx, "alerts.critical", "architect-service", func(msg *wotanClient.Message) {
+		s.handleCriticalAlert(ctx, msg)
+	})
+}
 
-	msgCh, err := s.wotan.StreamMessages(ctx, "alerts.critical")
-	if err != nil {
-		return
+// WotanHealth is the Wotan client's view (transport, per-topic stream
+// liveness) for /health; nil without a Wotan client.
+func (s *ArchitectService) WotanHealth() *wotanClient.Health {
+	s.mu.RLock()
+	w := s.wotan
+	s.mu.RUnlock()
+	if w == nil {
+		return nil
 	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg, ok := <-msgCh:
-			if !ok {
-				return
-			}
-			// Handle critical alerts - could trigger infrastructure state changes
-			s.handleCriticalAlert(ctx, msg)
-		}
-	}
+	h := w.Health()
+	return &h
 }
 
 // handleCriticalAlert processes critical alerts

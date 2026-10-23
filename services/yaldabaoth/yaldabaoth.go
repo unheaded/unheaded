@@ -5,39 +5,63 @@
 // In Gnostic philosophy, Yaldabaoth is the Demiurge - a false god who created the flawed material world.
 // This service embodies that concept: deliberately introducing chaos, testing resilience,
 // and proving the Kingdom can survive adversity. The adversary that makes us stronger.
+//
+// The Service is the one chaos engine (S-REAL-STEEL D-16) and its safety
+// envelope (ADR-107):
+//
+//   - blast radius: every experiment passes the allowlist file before
+//     anything happens, and its target is checked again right before the
+//     injection (allowlist.go, D-17);
+//   - steady state: real HTTP probes of allowlisted instances plus the
+//     Kingdom SLO guard, before (must hold), during (the guard aborts) and
+//     after (the verdict); no guard, or a guard that cannot read Victoria,
+//     and nothing starts (steadystate.go, D-20);
+//   - revert journal: each fault's revert recipe is written to disk before
+//     the fault exists, and the fault is reverted at the end, on any abort,
+//     by a per-fault TTL, at process start and by `chaos-controller
+//     revert-all`; an entry goes only once the revert is verified
+//     (journal.go, D-19);
+//   - abort: HTTP, Wotan chaos.abort, and the file /run/unheaded/chaos/ABORT,
+//     which also refuses new experiments while it exists (abort.go, D-18).
+//
+// Only registered injectors act. None is built in: an experiment type
+// without an injector is refused, never reported as a success.
+// DryRunMode (the default) runs every check and injects nothing.
 package yaldabaoth
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"math/rand"
+	"net/http"
+	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"unheaded/pkg/logger"
-	wotanClient "unheaded/pkg/wotan-client"
+	"unheaded/pkg/metrics"
+	"unheaded/pkg/sloguard"
 )
 
 // Experiment represents a chaos engineering experiment.
 type Experiment struct {
-	ID           string                 `json:"id"`
-	Name         string                 `json:"name"`
-	Description  string                 `json:"description"`
-	Type         ExperimentType         `json:"type"`
-	Target       Target                 `json:"target"`
-	Parameters   map[string]interface{} `json:"parameters"`
-	Schedule     *Schedule              `json:"schedule,omitempty"`
-	Status       ExperimentStatus       `json:"status"`
-	SteadyState  *SteadyState           `json:"steady_state,omitempty"`
-	SafetyChecks []SafetyCheck          `json:"safety_checks,omitempty"`
-	CreatedAt    time.Time              `json:"created_at"`
-	StartedAt    *time.Time             `json:"started_at,omitempty"`
-	CompletedAt  *time.Time             `json:"completed_at,omitempty"`
-	Results      *ExperimentResult      `json:"results,omitempty"`
-	Rollback     *Rollback              `json:"rollback,omitempty"`
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description,omitempty"`
+	Type        ExperimentType    `json:"type"`
+	Target      Target            `json:"target"`
+	Parameters  Params            `json:"parameters,omitempty"`
+	Schedule    *Schedule         `json:"schedule,omitempty"`
+	Status      ExperimentStatus  `json:"status"`
+	SteadyState *SteadyState      `json:"steady_state,omitempty"`
+	CreatedAt   time.Time         `json:"created_at"`
+	StartedAt   *time.Time        `json:"started_at,omitempty"`
+	CompletedAt *time.Time        `json:"completed_at,omitempty"`
+	Results     *ExperimentResult `json:"results,omitempty"`
+	Resolved    *ResolvedTarget   `json:"resolved,omitempty"`
 }
 
 // ExperimentType defines the kind of chaos experiment.
@@ -61,120 +85,79 @@ const (
 	ExpTypeCustom           ExperimentType = "custom"
 )
 
+var knownTypes = map[ExperimentType]bool{
+	ExpTypeNetworkDelay: true, ExpTypeNetworkLoss: true, ExpTypeNetworkPartition: true, ExpTypeCPUStress: true,
+	ExpTypeMemoryStress: true, ExpTypeDiskStress: true, ExpTypeProcessKill: true, ExpTypeContainerKill: true,
+	ExpTypeNodeDrain: true, ExpTypeDNSFailure: true, ExpTypeTimeSkew: true, ExpTypeHTTPError: true,
+	ExpTypeLatencySpike: true, ExpTypeResourceExhaust: true, ExpTypeCustom: true,
+}
+
 // ExperimentStatus tracks experiment lifecycle.
 type ExperimentStatus string
 
 const (
-	StatusDraft     ExperimentStatus = "draft"
-	StatusScheduled ExperimentStatus = "scheduled"
 	StatusRunning   ExperimentStatus = "running"
-	StatusPaused    ExperimentStatus = "paused"
 	StatusCompleted ExperimentStatus = "completed"
 	StatusAborted   ExperimentStatus = "aborted"
 	StatusFailed    ExperimentStatus = "failed"
 )
 
-// Target defines what the experiment affects.
+// Target names what an experiment affects; the allowlist resolves it.
 type Target struct {
-	Type       TargetType        `json:"type"`
-	Selector   map[string]string `json:"selector"`
-	Namespace  string            `json:"namespace,omitempty"`
-	Percentage int               `json:"percentage,omitempty"` // % of matching targets to affect
+	Kind TargetKind `json:"kind"`
+	ID   string     `json:"id"`
 }
 
-// TargetType defines what kind of resource is targeted.
-type TargetType string
+// Params are an experiment's numeric knobs (delay_ms, jitter_ms,
+// loss_percent), checked against the allowlist limits.
+type Params map[string]any
 
-const (
-	TargetService   TargetType = "service"
-	TargetContainer TargetType = "container"
-	TargetNode      TargetType = "node"
-	TargetNetwork   TargetType = "network"
-	TargetPod       TargetType = "pod"
-)
-
-// Schedule defines when experiments run.
+// Schedule holds the experiment's duration.
 type Schedule struct {
-	Type      ScheduleType  `json:"type"`
-	Cron      string        `json:"cron,omitempty"`
-	Interval  time.Duration `json:"interval,omitempty"`
-	StartTime *time.Time    `json:"start_time,omitempty"`
-	EndTime   *time.Time    `json:"end_time,omitempty"`
-	Duration  time.Duration `json:"duration,omitempty"`
+	Duration time.Duration `json:"duration"`
 }
 
-// ScheduleType defines how experiments are scheduled.
-type ScheduleType string
-
-const (
-	ScheduleOnce       ScheduleType = "once"
-	ScheduleRecurring  ScheduleType = "recurring"
-	ScheduleContinuous ScheduleType = "continuous"
-	ScheduleGameDay    ScheduleType = "game_day"
-)
-
-// SteadyState defines the expected normal state before/after experiment.
-type SteadyState struct {
-	Hypothesis string        `json:"hypothesis"`
-	Probes     []Probe       `json:"probes"`
-	Tolerance  float64       `json:"tolerance"` // Acceptable deviation %
-	Timeout    time.Duration `json:"timeout"`
+// UnmarshalJSON accepts "120s" as well as nanoseconds.
+func (s *Schedule) UnmarshalJSON(b []byte) error {
+	var raw struct {
+		Duration json.RawMessage `json:"duration"`
+	}
+	if err := json.Unmarshal(b, &raw); err != nil {
+		return err
+	}
+	if len(raw.Duration) == 0 {
+		return nil
+	}
+	var str string
+	if err := json.Unmarshal(raw.Duration, &str); err == nil {
+		d, err := time.ParseDuration(str)
+		if err != nil {
+			return fmt.Errorf("schedule.duration %q: %w", str, err)
+		}
+		s.Duration = d
+		return nil
+	}
+	var ns int64
+	if err := json.Unmarshal(raw.Duration, &ns); err != nil {
+		return errors.New("schedule.duration: want \"120s\" or nanoseconds")
+	}
+	s.Duration = time.Duration(ns)
+	return nil
 }
-
-// Probe checks system state.
-type Probe struct {
-	Name     string                 `json:"name"`
-	Type     ProbeType              `json:"type"`
-	Provider string                 `json:"provider"`
-	Config   map[string]interface{} `json:"config"`
-}
-
-// ProbeType defines how state is checked.
-type ProbeType string
-
-const (
-	ProbeHTTP    ProbeType = "http"
-	ProbeMetric  ProbeType = "metric"
-	ProbeProcess ProbeType = "process"
-	ProbeCustom  ProbeType = "custom"
-)
-
-// SafetyCheck defines conditions that abort the experiment.
-type SafetyCheck struct {
-	Name        string       `json:"name"`
-	Description string       `json:"description"`
-	Condition   string       `json:"condition"`
-	Threshold   float64      `json:"threshold"`
-	Action      SafetyAction `json:"action"`
-}
-
-// SafetyAction defines what happens when safety check fails.
-type SafetyAction string
-
-const (
-	ActionAbort    SafetyAction = "abort"
-	ActionPause    SafetyAction = "pause"
-	ActionAlert    SafetyAction = "alert"
-	ActionRollback SafetyAction = "rollback"
-)
 
 // ExperimentResult captures the outcome.
 type ExperimentResult struct {
-	Success           bool                   `json:"success"`
-	HypothesisValid   bool                   `json:"hypothesis_valid"`
-	SteadyStateProbes []ProbeResult          `json:"steady_state_probes,omitempty"`
-	Metrics           map[string]interface{} `json:"metrics,omitempty"`
-	Findings          []Finding              `json:"findings,omitempty"`
-	Duration          time.Duration          `json:"duration"`
-	AbortReason       string                 `json:"abort_reason,omitempty"`
-}
-
-// ProbeResult captures a probe check result.
-type ProbeResult struct {
-	Name    string      `json:"name"`
-	Success bool        `json:"success"`
-	Value   interface{} `json:"value"`
-	Error   string      `json:"error,omitempty"`
+	Success           bool              `json:"success"`
+	HypothesisValid   bool              `json:"hypothesis_valid"`
+	Reverted          bool              `json:"reverted"`
+	DryRun            bool              `json:"dry_run,omitempty"`
+	SteadyStateProbes []ProbeResult     `json:"steady_state_probes,omitempty"`
+	GuardBefore       *sloguard.Verdict `json:"guard_before,omitempty"`
+	GuardAfter        *sloguard.Verdict `json:"guard_after,omitempty"`
+	Findings          []Finding         `json:"findings,omitempty"`
+	Duration          time.Duration     `json:"duration"`
+	AbortReason       string            `json:"abort_reason,omitempty"`
+	Message           string            `json:"message,omitempty"`
 }
 
 // Finding represents a discovery from the experiment.
@@ -196,572 +179,683 @@ const (
 	SeverityInfo     FindingSeverity = "info"
 )
 
-// Rollback defines how to undo the chaos.
-type Rollback struct {
-	Automatic bool                   `json:"automatic"`
-	Steps     []RollbackStep         `json:"steps,omitempty"`
-	State     map[string]interface{} `json:"state,omitempty"` // Captured state to restore
+// Recipe is how to undo one fault; it is journaled before the fault exists.
+type Recipe map[string]string
+
+// Injector injects one kind of fault. Plan describes the revert without
+// acting; Inject acts; Revert undoes; Reverted verifies. An injector must
+// check the target again itself (Allowlist.CheckTarget) and must never run
+// a shell.
+type Injector interface {
+	Plan(ctx context.Context, t ResolvedTarget, p Params) (Recipe, error)
+	Inject(ctx context.Context, t ResolvedTarget, p Params, r Recipe) error
+	Revert(ctx context.Context, r Recipe) error
+	Reverted(ctx context.Context, r Recipe) (bool, error)
 }
 
-// RollbackStep defines a single rollback action.
-type RollbackStep struct {
-	Name       string                 `json:"name"`
-	Action     string                 `json:"action"`
-	Parameters map[string]interface{} `json:"parameters"`
+// SLOChecker is the Kingdom SLO guard (pkg/sloguard).
+type SLOChecker interface {
+	Check(ctx context.Context) (sloguard.Verdict, error)
 }
 
-// FaultInjector is a function that injects a specific fault type.
-type FaultInjector func(ctx context.Context, target Target, params map[string]interface{}) error
-
-// FaultReverser is a function that reverses an injected fault.
-type FaultReverser func(ctx context.Context, target Target, state map[string]interface{}) error
-
-// Service is the main Yaldabaoth service for chaos engineering.
-type Service struct {
-	log    *logger.Logger
-	wotan  *wotanClient.Client
-	config *Config
-	rng    *rand.Rand
-
-	mu          sync.RWMutex
-	experiments map[string]*Experiment
-	injectors   map[ExperimentType]FaultInjector
-	reversers   map[ExperimentType]FaultReverser
-	runningExps map[string]context.CancelFunc // Active experiment cancel functions
-
-	// Counters
-	expCounter int64
-
-	// Degraded mode counter — messages dropped because Wotan is nil
-	wotanDrops int64
+// Publisher sends an event (Wotan); errors are logged, never fatal.
+type Publisher interface {
+	Publish(ctx context.Context, topic string, payload []byte) error
 }
 
-// WotanDrops returns the total number of messages dropped because Wotan was nil.
-func (s *Service) WotanDrops() int64 {
-	return atomic.LoadInt64(&s.wotanDrops)
-}
+// Wotan topics. chaos.* are control topics: never buffered (D-10).
+const (
+	TopicRefused      = "chaos.refused"
+	TopicRevertFailed = "chaos.revert_failed"
+	TopicAbort        = "chaos.abort"
+	TopicStarted      = "chaos.experiment.started"
+	TopicCompleted    = "chaos.experiment.completed"
+)
 
 // Config holds Yaldabaoth service configuration.
 type Config struct {
-	MaxConcurrentExperiments int           `json:"max_concurrent_experiments"`
+	MaxConcurrentExperiments int           `json:"max_concurrent_experiments"` // also capped by the allowlist
 	DefaultDuration          time.Duration `json:"default_duration"`
 	SafetyCheckInterval      time.Duration `json:"safety_check_interval"`
-	EnableAutoRollback       bool          `json:"enable_auto_rollback"`
 	DryRunMode               bool          `json:"dry_run_mode"`
-	WotanTopic               string        `json:"wotan_topic"`
+	// StateDir holds the revert journal; without it nothing runs.
+	StateDir string `json:"state_dir"`
+	// AbortFile, while it exists, aborts everything and refuses new runs.
+	AbortFile string        `json:"abort_file"`
+	AbortPoll time.Duration `json:"abort_poll"`
+	// RevertGrace is added to an experiment's duration to make its fault's
+	// TTL: the latest moment the fault is reverted whatever else happens.
+	RevertGrace time.Duration `json:"revert_grace"`
+	// Hostname tells systemd checks which host this is (os.Hostname).
+	Hostname func() (string, error) `json:"-"`
 }
 
-// DefaultConfig returns sensible defaults.
+// DefaultConfig returns safe defaults: dry run on.
 func DefaultConfig() *Config {
 	return &Config{
-		MaxConcurrentExperiments: 5,
-		DefaultDuration:          5 * time.Minute,
+		MaxConcurrentExperiments: 1,
+		DefaultDuration:          2 * time.Minute,
 		SafetyCheckInterval:      10 * time.Second,
-		EnableAutoRollback:       true,
-		DryRunMode:               false, // DANGER: Set true for testing
-		WotanTopic:               "yaldabaoth.chaos",
+		DryRunMode:               true,
+		AbortFile:                "/run/unheaded/chaos/ABORT",
+		AbortPoll:                time.Second,
+		RevertGrace:              30 * time.Second,
 	}
 }
 
-// NewService creates a new Yaldabaoth service.
-func NewService(log *logger.Logger, wotan *wotanClient.Client, cfg *Config) *Service {
+// Deps are the Service's collaborators.
+type Deps struct {
+	Allowlist  *Allowlist   // nil refuses everything
+	Guard      SLOChecker   // nil refuses everything (D-20)
+	Resolver   Resolver     // Cuirass; nil refuses LXD targets
+	Publisher  Publisher    // nil: no events
+	Subscriber AbortSource  // Wotan chaos.abort; nil: that path is off
+	HTTPClient *http.Client // probes; nil: a no-redirect, no-proxy client
+	Log        *logger.Logger
+}
+
+type running struct {
+	cancel context.CancelCauseFunc
+	done   chan struct{}
+}
+
+// Service is the Yaldabaoth chaos engine.
+type Service struct {
+	log    *logger.Logger
+	config *Config
+	deps   Deps
+	audit  *AuditTrail
+
+	mu          sync.RWMutex
+	experiments map[string]*Experiment
+	order       []string
+	injectors   map[ExperimentType]Injector
+	runs        map[string]*running
+	expCounter  int64
+	stopped     bool
+
+	journal  *journal
+	revertMu sync.Mutex
+	ttlMu    sync.Mutex
+	ttl      map[string]*time.Timer
+
+	abortPresent atomic.Bool
+	startedAt    time.Time
+	seenMu       sync.Mutex
+	seenAborts   map[string]bool
+	seenOrder    []string
+	probeMu      sync.RWMutex
+	probeURLFn   func(info *InstanceInfo, p Probe) (string, error)
+	client       *http.Client
+	refusalLimit *rateLimit
+
+	bg     sync.WaitGroup
+	bgStop context.CancelFunc
+
+	registry   *metrics.Registry
+	expTotal   *metrics.CounterVec
+	activeG    *metrics.Gauge
+	abortTotal *metrics.CounterVec
+	refusals   *metrics.CounterVec
+	abortsMu   sync.Mutex
+	aborts     map[string]int
+
+	// testHoldLoop keeps a run from ending on its own timer (TTL tests).
+	testHoldLoop bool
+}
+
+// NewService builds the engine and loads the revert journal. A damaged
+// journal is an error: reading it as empty would forget faults that are
+// still in place.
+func NewService(cfg *Config, deps Deps) (*Service, error) {
 	if cfg == nil {
 		cfg = DefaultConfig()
 	}
-
-	if log == nil {
-		log = logger.New(io.Discard)
+	if deps.Log == nil {
+		deps.Log = logger.New(io.Discard)
 	}
-
-	return &Service{
-		log:         log,
-		wotan:       wotan,
-		config:      cfg,
-		rng:         rand.New(rand.NewSource(time.Now().UnixNano())), // #nosec G404 -- chaos fault-injection sampling, not security-bearing
-		experiments: make(map[string]*Experiment),
-		injectors:   make(map[ExperimentType]FaultInjector),
-		reversers:   make(map[ExperimentType]FaultReverser),
-		runningExps: make(map[string]context.CancelFunc),
+	if cfg.SafetyCheckInterval <= 0 {
+		cfg.SafetyCheckInterval = 10 * time.Second
 	}
+	if cfg.AbortPoll <= 0 {
+		cfg.AbortPoll = time.Second
+	}
+	if cfg.DefaultDuration <= 0 {
+		cfg.DefaultDuration = 2 * time.Minute
+	}
+	if cfg.MaxConcurrentExperiments <= 0 {
+		cfg.MaxConcurrentExperiments = 1
+	}
+	s := &Service{
+		log:          deps.Log,
+		config:       cfg,
+		deps:         deps,
+		audit:        NewAuditTrail(deps.Log, 10000),
+		experiments:  map[string]*Experiment{},
+		injectors:    map[ExperimentType]Injector{},
+		runs:         map[string]*running{},
+		ttl:          map[string]*time.Timer{},
+		aborts:       map[string]int{},
+		refusalLimit: newRateLimit(refusalPublishBurst, time.Minute),
+		seenAborts:   map[string]bool{},
+		startedAt:    time.Now(),
+	}
+	s.probeURLFn = defaultProbeURL
+	s.client = deps.HTTPClient
+	if s.client == nil {
+		s.client = &http.Client{
+			Transport:     &http.Transport{Proxy: nil},
+			CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
+		}
+	}
+	if cfg.StateDir != "" {
+		j, err := openJournal(cfg.StateDir)
+		if err != nil {
+			return nil, err
+		}
+		s.journal = j
+	}
+	s.registry = metrics.NewRegistry()
+	s.expTotal = metrics.NewCounterVec("chaos_experiments_total", "Finished experiments by type and result", nil, []string{"type", "result"})
+	s.activeG = metrics.NewGauge("chaos_active_injections", "Faults in place now (revert journal entries)", nil)
+	s.abortTotal = metrics.NewCounterVec("chaos_aborts_total", "Aborts by path (http, wotan, file, ttl, guard, probes, gameday)", nil, []string{"path"})
+	s.refusals = metrics.NewCounterVec("chaos_refusals_total", "Experiments refused, by reason", nil, []string{"reason"})
+	for _, c := range []metrics.Collector{s.expTotal, s.activeG, s.abortTotal, s.refusals} {
+		s.registry.MustRegister(c)
+	}
+	s.updateActive()
+	return s, nil
 }
 
-// Start initializes the Yaldabaoth service.
+// Registry holds the chaos metrics.
+func (s *Service) Registry() *metrics.Registry { return s.registry }
+
+// Audit is the audit trail of every start, refusal and revert.
+func (s *Service) Audit() *AuditTrail { return s.audit }
+
+func (s *Service) env() CheckEnv {
+	return CheckEnv{Resolver: s.deps.Resolver, Hostname: s.config.Hostname, DefaultDuration: s.config.DefaultDuration}
+}
+
+// RegisterInjector registers the injector for an experiment type.
+func (s *Service) RegisterInjector(t ExperimentType, inj Injector) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.injectors[t] = inj
+}
+
+// Start reverts whatever a previous controller left in the journal, then
+// watches the abort file and, if configured, Wotan's chaos.abort.
 func (s *Service) Start(ctx context.Context) error {
-	s.log.Info().Msg("Yaldabaoth awakens - chaos shall test the Kingdom's resilience")
-
-	// Register built-in fault injectors
-	s.registerBuiltinInjectors()
-
-	// Subscribe to events
-	if s.wotan != nil {
-		go s.subscribeToEvents(ctx)
+	s.startedAt = time.Now()
+	if left, err := s.RevertAll(ctx); left > 0 {
+		s.log.Error().Int("left", left).Msg("chaos: faults from a previous run could not be reverted; see chaos.revert_failed")
+	} else if err != nil {
+		s.log.Warn().Err(err).Msg("chaos: replaying the journal")
 	}
-
+	bctx, cancel := context.WithCancel(ctx)
+	s.bgStop = cancel
+	s.bg.Add(1)
+	go func() { defer s.bg.Done(); s.watchAbortFile(bctx) }()
+	if s.deps.Subscriber != nil {
+		s.bg.Add(1)
+		go func() { defer s.bg.Done(); s.subscribeAbort(bctx) }()
+	}
 	return nil
 }
 
-// Stop gracefully shuts down the service.
-func (s *Service) Stop() error {
-	s.log.Info().Msg("Yaldabaoth rests - chaos subsides")
-
-	// Cancel all running experiments
+// Stop aborts every running experiment, waits until each has reverted,
+// and stops the watchers.
+func (s *Service) Stop() {
 	s.mu.Lock()
-	for id, cancel := range s.runningExps {
-		s.log.Warn().Str("experiment_id", id).Msg("Cancelling running experiment on shutdown")
-		cancel()
+	s.stopped = true
+	runs := make([]*running, 0, len(s.runs))
+	for _, r := range s.runs {
+		runs = append(runs, r)
 	}
 	s.mu.Unlock()
-
-	return nil
-}
-
-// RegisterInjector registers a fault injector for an experiment type.
-func (s *Service) RegisterInjector(expType ExperimentType, injector FaultInjector, reverser FaultReverser) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.injectors[expType] = injector
-	s.reversers[expType] = reverser
-	s.log.Debug().Str("type", string(expType)).Msg("Fault injector registered")
-}
-
-// CreateExperiment creates a new chaos experiment.
-func (s *Service) CreateExperiment(ctx context.Context, exp *Experiment) (*Experiment, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	// Generate ID if not provided
-	if exp.ID == "" {
-		s.expCounter++
-		exp.ID = fmt.Sprintf("chaos-%d-%d", time.Now().UnixNano(), s.expCounter)
+	for _, r := range runs {
+		r.cancel(errors.New("controller stopping"))
 	}
-
-	// Set defaults
-	exp.CreatedAt = time.Now()
-	exp.Status = StatusDraft
-
-	if exp.Rollback == nil {
-		exp.Rollback = &Rollback{Automatic: s.config.EnableAutoRollback}
+	for _, r := range runs {
+		<-r.done
 	}
-
-	// Store experiment
-	s.experiments[exp.ID] = exp
-
-	s.log.Info().
-		Str("id", exp.ID).
-		Str("name", exp.Name).
-		Str("type", string(exp.Type)).
-		Msg("Experiment created")
-
-	s.publishEvent(ctx, "yaldabaoth.experiment.created", map[string]interface{}{
-		"experiment_id": exp.ID,
-		"name":          exp.Name,
-		"type":          exp.Type,
-	})
-
-	return exp, nil
+	if s.bgStop != nil {
+		s.bgStop()
+	}
+	s.bg.Wait()
+	s.ttlMu.Lock()
+	for id, t := range s.ttl {
+		t.Stop()
+		delete(s.ttl, id)
+	}
+	s.ttlMu.Unlock()
 }
 
-// RunExperiment executes a chaos experiment.
-func (s *Service) RunExperiment(ctx context.Context, experimentID string) error {
-	s.mu.Lock()
-	exp, ok := s.experiments[experimentID]
+func copyExperiment(e *Experiment) *Experiment {
+	b, _ := json.Marshal(e)
+	var out Experiment
+	_ = json.Unmarshal(b, &out)
+	return &out
+}
+
+// Get returns a copy of an experiment.
+func (s *Service) Get(id string) (*Experiment, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	e, ok := s.experiments[id]
 	if !ok {
-		s.mu.Unlock()
-		return fmt.Errorf("experiment not found: %s", experimentID)
+		return nil, false
+	}
+	return copyExperiment(e), true
+}
+
+// List returns copies of every experiment, oldest first.
+func (s *Service) List() []*Experiment {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*Experiment, 0, len(s.order))
+	for _, id := range s.order {
+		out = append(out, copyExperiment(s.experiments[id]))
+	}
+	return out
+}
+
+// Wait blocks until the experiment has finished (and reverted).
+func (s *Service) Wait(ctx context.Context, id string) (*Experiment, error) {
+	s.mu.RLock()
+	r := s.runs[id]
+	_, known := s.experiments[id]
+	s.mu.RUnlock()
+	if !known {
+		return nil, fmt.Errorf("no experiment %s", id)
+	}
+	if r != nil {
+		select {
+		case <-r.done:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+	e, _ := s.Get(id)
+	return e, nil
+}
+
+// RunAndWait starts exp and waits for it; if ctx ends first the
+// experiment is aborted (and reverted) before RunAndWait returns.
+func (s *Service) RunAndWait(ctx context.Context, exp *Experiment) (*Experiment, error) {
+	started, err := s.StartExperiment(ctx, exp)
+	if err != nil {
+		return nil, err
+	}
+	e, err := s.Wait(ctx, started.ID)
+	if err != nil {
+		s.abortOne(started.ID, "gameday", "game day stopped")
+		return s.Wait(context.Background(), started.ID)
+	}
+	return e, nil
+}
+
+const (
+	maxNameLen = 128
+	// maxProbes bounds the probe traffic one request can cause.
+	maxProbes = 10
+	// maxHistory bounds the finished experiments kept in memory.
+	maxHistory = 500
+)
+
+// StartExperiment checks exp against the whole envelope and, if every
+// check passes, starts it. A refusal is a *Refusal, audited and counted.
+func (s *Service) StartExperiment(ctx context.Context, exp *Experiment) (*Experiment, error) {
+	if exp == nil {
+		return nil, s.refused(nil, refuse(RefuseInvalid, "no experiment"))
+	}
+	e := copyExperiment(exp)
+	e.Status, e.Results, e.StartedAt, e.CompletedAt, e.Resolved = "", nil, nil, nil, nil
+	switch {
+	case len(e.Name) > maxNameLen:
+		return nil, s.refused(e, refuse(RefuseInvalid, "name longer than %d", maxNameLen))
+	case !knownTypes[e.Type]:
+		return nil, s.refused(e, refuse(RefuseInvalid, "unknown experiment type %q", e.Type))
+	case e.Target.Kind == "" || e.Target.ID == "":
+		return nil, s.refused(e, refuse(RefuseInvalid, "target kind and id are required"))
+	case e.SteadyState != nil && len(e.SteadyState.Probes) > maxProbes:
+		return nil, s.refused(e, refuse(RefuseInvalid, "at most %d probes", maxProbes))
+	}
+	if s.abortPresent.Load() || s.abortFileExists() {
+		return nil, s.refused(e, refuse(RefuseAbortFile, "%s exists: remove it to allow experiments", s.config.AbortFile))
+	}
+	if s.journal == nil {
+		return nil, s.refused(e, refuse(RefuseNoJournal, "no state dir: a fault could not be journaled before it lands"))
+	}
+	if s.deps.Guard == nil {
+		return nil, s.refused(e, refuse(RefuseNoGuard, "no Kingdom SLO guard (VM_URL): no experiment starts without one"))
+	}
+	s.mu.RLock()
+	inj := s.injectors[e.Type]
+	stopped := s.stopped
+	s.mu.RUnlock()
+	if stopped {
+		return nil, s.refused(e, refuse(RefuseStopped, "the controller is stopping"))
+	}
+	if inj == nil {
+		return nil, s.refused(e, refuse(RefuseNoInjector, "%s is not implemented: no injector", e.Type))
+	}
+	limit := s.config.MaxConcurrentExperiments
+	if s.deps.Allowlist != nil && s.deps.Allowlist.Limits.MaxConcurrent < limit {
+		limit = s.deps.Allowlist.Limits.MaxConcurrent
+	}
+	rt, err := s.deps.Allowlist.Check(ctx, e, s.env())
+	if err != nil {
+		var r *Refusal
+		if !errors.As(err, &r) {
+			r = refuse(RefuseAllowlist, "%v", err)
+		}
+		return nil, s.refused(e, r)
+	}
+	e.Resolved = &rt
+
+	// Steady state must hold before anything is injected.
+	before, gerr := s.deps.Guard.Check(ctx)
+	if gerr != nil {
+		return nil, s.refused(e, refuse(RefuseSteadyState, "Kingdom SLO guard cannot read Victoria: %v", gerr))
+	}
+	if !before.OK {
+		return nil, s.refused(e, refuse(RefuseSteadyState, "Kingdom SLO guard: %s", before.Reason))
+	}
+	probes, ratio := s.checkProbes(ctx, e)
+	if e.SteadyState != nil && len(e.SteadyState.Probes) > 0 && ratio < e.SteadyState.minRatio() {
+		return nil, s.refused(e, refuse(RefuseSteadyState, "probes %.0f%% healthy before injection, need %.0f%%", ratio*100, e.SteadyState.minRatio()*100))
 	}
 
-	// Check if already running
-	if _, running := s.runningExps[experimentID]; running {
+	s.mu.Lock()
+	if s.stopped {
 		s.mu.Unlock()
-		return fmt.Errorf("experiment already running: %s", experimentID)
+		return nil, s.refused(e, refuse(RefuseStopped, "the controller is stopping"))
 	}
-
-	// Check concurrent limit
-	if len(s.runningExps) >= s.config.MaxConcurrentExperiments {
+	if n := len(s.runs); n >= limit {
 		s.mu.Unlock()
-		return fmt.Errorf("max concurrent experiments reached: %d", s.config.MaxConcurrentExperiments)
+		return nil, s.refused(e, refuse(RefuseConcurrency, "%d experiment(s) running, the limit is %d", n, limit))
 	}
-
-	// Get injector
-	injector, ok := s.injectors[exp.Type]
-	if !ok {
-		s.mu.Unlock()
-		return fmt.Errorf("no injector registered for type: %s", exp.Type)
-	}
-
-	// Create cancellable context
-	expCtx, cancel := context.WithCancel(ctx) // #nosec G118 -- cancel stored in s.runningExps and invoked at yaldabaoth.go:309
-	s.runningExps[experimentID] = cancel
-
-	now := time.Now()
-	exp.StartedAt = &now
-	exp.Status = StatusRunning
+	s.expCounter++
+	e.ID = fmt.Sprintf("chaos-%d-%d", time.Now().UnixNano(), s.expCounter)
+	now := time.Now().UTC()
+	e.CreatedAt, e.StartedAt, e.Status = now, &now, StatusRunning
+	e.Results = &ExperimentResult{GuardBefore: &before, SteadyStateProbes: probes, DryRun: s.config.DryRunMode}
+	rctx, cancel := context.WithCancelCause(context.WithoutCancel(ctx)) // #nosec G118 -- cancel kept in s.runs; Stop, Abort and the run itself call it
+	r := &running{cancel: cancel, done: make(chan struct{})}
+	s.experiments[e.ID] = e
+	s.order = append(s.order, e.ID)
+	s.runs[e.ID] = r
+	s.pruneLocked()
+	out := copyExperiment(e) // e belongs to the run from here on
 	s.mu.Unlock()
 
-	s.log.Info().
-		Str("id", experimentID).
-		Str("name", exp.Name).
-		Bool("dry_run", s.config.DryRunMode).
-		Msg("Starting chaos experiment")
-
-	s.publishEvent(ctx, "yaldabaoth.experiment.started", map[string]interface{}{
-		"experiment_id": experimentID,
-		"name":          exp.Name,
-		"dry_run":       s.config.DryRunMode,
-	})
-
-	// Run experiment in goroutine
-	go s.executeExperiment(expCtx, exp, injector)
-
-	return nil
+	s.audit.Record(AuditEntry{Timestamp: now, Action: "start", RuleID: out.ID, RuleSpec: describe(out), Result: "running"})
+	s.publish(TopicStarted, map[string]any{"experiment_id": out.ID, "type": out.Type, "target": out.Target, "dry_run": s.config.DryRunMode})
+	go s.run(rctx, out.ID, rt, inj, r)
+	return out, nil
 }
 
-// executeExperiment runs the experiment lifecycle.
-func (s *Service) executeExperiment(ctx context.Context, exp *Experiment, injector FaultInjector) {
-	result := &ExperimentResult{
-		Metrics: make(map[string]interface{}),
+// pruneLocked drops the oldest finished experiments beyond maxHistory;
+// the caller holds mu.
+func (s *Service) pruneLocked() {
+	for len(s.order) > maxHistory {
+		dropped := false
+		for i, id := range s.order {
+			if _, running := s.runs[id]; running {
+				continue
+			}
+			delete(s.experiments, id)
+			s.order = append(s.order[:i:i], s.order[i+1:]...)
+			dropped = true
+			break
+		}
+		if !dropped {
+			return
+		}
 	}
+}
 
-	startTime := time.Now()
+func describe(e *Experiment) string {
+	if e == nil {
+		return ""
+	}
+	d := time.Duration(0)
+	if e.Schedule != nil {
+		d = e.Schedule.Duration
+	}
+	return fmt.Sprintf("type=%s target=%s/%s duration=%v params=%v", e.Type, e.Target.Kind, e.Target.ID, d, e.Parameters)
+}
+
+// refused audits, counts and (at a bounded rate) publishes a refusal.
+func (s *Service) refused(e *Experiment, r *Refusal) error {
+	s.refusals.WithLabelValues(string(r.Reason)).Inc()
+	s.audit.Record(AuditEntry{Timestamp: time.Now().UTC(), Action: "refuse", RuleSpec: describe(e), Result: r.Error()})
+	s.log.Warn().Str("reason", string(r.Reason)).Str("detail", r.Detail).Msg("chaos: experiment refused")
+	if s.refusalLimit.allow() {
+		var target Target
+		if e != nil {
+			target = e.Target
+		}
+		s.publish(TopicRefused, map[string]any{"reason": r.Reason, "detail": r.Detail, "target": target})
+	}
+	return r
+}
+
+func (s *Service) duration(e *Experiment) time.Duration {
+	if e.Schedule != nil && e.Schedule.Duration > 0 {
+		return e.Schedule.Duration
+	}
+	return s.config.DefaultDuration
+}
+
+func (s *Service) update(id string, f func(e *Experiment)) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if e, ok := s.experiments[id]; ok {
+		f(e)
+	}
+}
+
+// run is one experiment's life: journal, inject, watch, revert, verdict.
+func (s *Service) run(ctx context.Context, id string, rt ResolvedTarget, inj Injector, r *running) {
+	start := time.Now()
+	e, _ := s.Get(id)
+	status, abortReason, message := StatusCompleted, "", ""
+	reverted, injected := false, false
+	var findings []Finding
 
 	defer func() {
-		// Cleanup
+		r.cancel(nil)
 		s.mu.Lock()
-		delete(s.runningExps, exp.ID)
-		now := time.Now()
-		exp.CompletedAt = &now
-		result.Duration = now.Sub(startTime)
-		exp.Results = result
+		delete(s.runs, id)
 		s.mu.Unlock()
-
-		s.publishEvent(context.Background(), "yaldabaoth.experiment.completed", map[string]interface{}{
-			"experiment_id": exp.ID,
-			"success":       result.Success,
-			"duration_ms":   result.Duration.Milliseconds(),
-		})
+		close(r.done)
 	}()
 
-	// 1. Check steady state before
-	if exp.SteadyState != nil {
-		s.log.Debug().Str("id", exp.ID).Msg("Checking initial steady state")
-		if !s.checkSteadyState(ctx, exp.SteadyState, result) {
-			s.log.Warn().Str("id", exp.ID).Msg("Initial steady state check failed")
-			exp.Status = StatusAborted
-			result.AbortReason = "initial steady state check failed"
-			return
+	finish := func() {
+		// Steady state after the revert: the verdict.
+		after, gerr := s.deps.Guard.Check(context.Background())
+		if gerr != nil {
+			after = sloguard.Verdict{Reason: "cannot read Victoria: " + gerr.Error()}
 		}
+		probes, ratio := s.checkProbes(context.Background(), e)
+		hyp := after.OK && (e.SteadyState == nil || len(e.SteadyState.Probes) == 0 || ratio >= e.SteadyState.minRatio())
+		done := time.Now().UTC()
+		dry := s.config.DryRunMode
+		s.update(id, func(x *Experiment) {
+			x.Status, x.CompletedAt = status, &done
+			res := x.Results
+			res.Duration = time.Since(start)
+			res.GuardAfter = &after
+			res.SteadyStateProbes = append(res.SteadyStateProbes, probes...)
+			res.HypothesisValid = hyp
+			res.Reverted = reverted || (dry && !injected)
+			res.AbortReason, res.Message = abortReason, message
+			res.Findings = append(res.Findings, findings...)
+			res.Success = !dry && status == StatusCompleted && reverted && hyp
+		})
+		result := string(status)
+		if dry {
+			result = "dry_run"
+		}
+		s.expTotal.WithLabelValues(string(e.Type), result).Inc()
+		s.audit.Record(AuditEntry{Timestamp: done, Action: "finish", RuleID: id, Result: result + " " + abortReason})
+		s.publish(TopicCompleted, map[string]any{"experiment_id": id, "status": status, "reverted": reverted,
+			"hypothesis_valid": hyp, "abort_reason": abortReason, "dry_run": dry})
 	}
+	defer finish()
 
-	// 2. Inject fault (or simulate in dry run mode)
 	if s.config.DryRunMode {
-		s.log.Info().Str("id", exp.ID).Msg("DRY RUN: Simulating fault injection")
-	} else {
-		if err := injector(ctx, exp.Target, exp.Parameters); err != nil {
-			s.log.Error().Err(err).Str("id", exp.ID).Msg("Fault injection failed")
-			exp.Status = StatusFailed
-			result.AbortReason = fmt.Sprintf("injection failed: %v", err)
-			return
+		message = "dry run: allowlist and steady state passed; nothing was injected"
+		return
+	}
+
+	recipe, err := inj.Plan(ctx, rt, e.Parameters)
+	if err != nil {
+		status, message = StatusFailed, "plan: "+err.Error()
+		return
+	}
+	d := s.duration(e)
+	entry := &JournalEntry{ID: id, Type: e.Type, Target: rt, Recipe: recipe,
+		Created: time.Now().UTC(), Expires: time.Now().UTC().Add(d + s.config.RevertGrace)}
+	if err := s.journal.add(entry); err != nil {
+		status, message = StatusFailed, "journal write failed, nothing injected: "+err.Error()
+		return
+	}
+	s.updateActive()
+	s.armTTL(entry)
+
+	revert := func(why string) {
+		ok, f := s.revertEntry(id, why)
+		reverted = ok
+		if f != nil {
+			findings = append(findings, *f)
 		}
 	}
 
-	// 3. Wait for duration while monitoring safety
-	duration := s.config.DefaultDuration
-	if exp.Schedule != nil && exp.Schedule.Duration > 0 {
-		duration = exp.Schedule.Duration
+	// The second, independent target check, right before acting.
+	if _, err := s.deps.Allowlist.CheckTarget(ctx, e.Target, s.env()); err != nil {
+		status, message = StatusFailed, "target no longer allowed: "+err.Error()
+		revert("target check failed")
+		return
+	}
+	injected = true
+	if err := inj.Inject(ctx, rt, e.Parameters, recipe); err != nil {
+		status, message = StatusFailed, "inject: "+err.Error()
+		revert("inject failed")
+		return
 	}
 
-	ticker := time.NewTicker(s.config.SafetyCheckInterval)
-	defer ticker.Stop()
-
-	timer := time.NewTimer(duration)
+	timer := time.NewTimer(d)
 	defer timer.Stop()
-
-experimentLoop:
+	if s.testHoldLoop {
+		timer.Stop()
+	}
+	tick := time.NewTicker(s.config.SafetyCheckInterval)
+	defer tick.Stop()
+loop:
 	for {
 		select {
 		case <-ctx.Done():
-			s.log.Info().Str("id", exp.ID).Msg("Experiment cancelled")
-			exp.Status = StatusAborted
-			result.AbortReason = "cancelled"
-			break experimentLoop
-
+			status, abortReason = StatusAborted, context.Cause(ctx).Error()
+			break loop
 		case <-timer.C:
-			s.log.Info().Str("id", exp.ID).Msg("Experiment duration completed")
-			break experimentLoop
-
-		case <-ticker.C:
-			// Run safety checks
-			if s.shouldAbort(ctx, exp) {
-				s.log.Warn().Str("id", exp.ID).Msg("Safety check triggered abort")
-				exp.Status = StatusAborted
-				result.AbortReason = "safety check failed"
-				break experimentLoop
+			break loop
+		case <-tick.C:
+			if path, why := s.shouldAbort(ctx, e); why != "" {
+				s.countAbort(path)
+				status, abortReason = StatusAborted, why
+				break loop
 			}
 		}
 	}
-
-	// 4. Rollback/reverse fault
-	if exp.Rollback != nil && exp.Rollback.Automatic {
-		s.log.Debug().Str("id", exp.ID).Msg("Executing automatic rollback")
-		if reverser, ok := s.reversers[exp.Type]; ok {
-			if err := reverser(ctx, exp.Target, exp.Rollback.State); err != nil {
-				s.log.Error().Err(err).Str("id", exp.ID).Msg("Rollback failed")
-				result.Findings = append(result.Findings, Finding{
-					Severity:    SeverityHigh,
-					Title:       "Rollback Failed",
-					Description: err.Error(),
-				})
-			}
-		}
-	}
-
-	// 5. Check steady state after
-	if exp.SteadyState != nil {
-		s.log.Debug().Str("id", exp.ID).Msg("Checking final steady state")
-		result.HypothesisValid = s.checkSteadyState(ctx, exp.SteadyState, result)
-	} else {
-		result.HypothesisValid = true
-	}
-
-	// 6. Determine success
-	if exp.Status != StatusAborted {
-		exp.Status = StatusCompleted
-		result.Success = result.HypothesisValid
-	}
-
-	s.log.Info().
-		Str("id", exp.ID).
-		Bool("success", result.Success).
-		Bool("hypothesis_valid", result.HypothesisValid).
-		Int("findings", len(result.Findings)).
-		Msg("Experiment completed")
-}
-
-// checkSteadyState verifies the system is in expected state.
-func (s *Service) checkSteadyState(ctx context.Context, ss *SteadyState, result *ExperimentResult) bool {
-	allPassed := true
-	for _, probe := range ss.Probes {
-		probeResult := s.runProbe(ctx, probe)
-		result.SteadyStateProbes = append(result.SteadyStateProbes, probeResult)
-		if !probeResult.Success {
-			allPassed = false
-		}
-	}
-	return allPassed
-}
-
-// runProbe executes a single probe.
-func (s *Service) runProbe(ctx context.Context, probe Probe) ProbeResult {
-	// Simplified probe execution
-	return ProbeResult{
-		Name:    probe.Name,
-		Success: true, // In real implementation, would actually check
-		Value:   "ok",
+	revert(string(status))
+	if !reverted && message == "" {
+		message = "the fault could not be verified as reverted; its journal entry stays"
 	}
 }
 
-// shouldAbort checks if safety conditions require abort.
-func (s *Service) shouldAbort(ctx context.Context, exp *Experiment) bool {
-	for _, check := range exp.SafetyChecks {
-		// In real implementation, would evaluate condition
-		_ = check
-	}
-	return false
-}
-
-// StopExperiment stops a running experiment.
-func (s *Service) StopExperiment(ctx context.Context, experimentID string) error {
-	s.mu.Lock()
-	cancel, ok := s.runningExps[experimentID]
-	if !ok {
-		s.mu.Unlock()
-		return fmt.Errorf("experiment not running: %s", experimentID)
-	}
-	s.mu.Unlock()
-
-	s.log.Info().Str("id", experimentID).Msg("Stopping experiment")
-	cancel()
-	return nil
-}
-
-// GetExperiment retrieves an experiment by ID.
-func (s *Service) GetExperiment(experimentID string) (*Experiment, bool) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	exp, ok := s.experiments[experimentID]
-	return exp, ok
-}
-
-// ListExperiments returns all experiments.
-func (s *Service) ListExperiments(status ExperimentStatus) []*Experiment {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	var results []*Experiment
-	for _, exp := range s.experiments {
-		if status == "" || exp.Status == status {
-			results = append(results, exp)
-		}
-	}
-	return results
-}
-
-// registerBuiltinInjectors adds default fault injectors.
-func (s *Service) registerBuiltinInjectors() {
-	// Network delay injector (simulated)
-	s.RegisterInjector(ExpTypeNetworkDelay,
-		func(ctx context.Context, target Target, params map[string]interface{}) error {
-			delay, _ := params["delay_ms"].(int)
-			s.log.Info().Int("delay_ms", delay).Msg("Injecting network delay")
-			return nil
-		},
-		func(ctx context.Context, target Target, state map[string]interface{}) error {
-			s.log.Info().Msg("Removing network delay")
-			return nil
-		},
-	)
-
-	// Process kill injector (simulated)
-	s.RegisterInjector(ExpTypeProcessKill,
-		func(ctx context.Context, target Target, params map[string]interface{}) error {
-			process, _ := params["process"].(string)
-			s.log.Info().Str("process", process).Msg("Simulating process kill")
-			return nil
-		},
-		func(ctx context.Context, target Target, state map[string]interface{}) error {
-			s.log.Info().Msg("Process would be restarted by supervisor")
-			return nil
-		},
-	)
-
-	// HTTP error injector (simulated)
-	s.RegisterInjector(ExpTypeHTTPError,
-		func(ctx context.Context, target Target, params map[string]interface{}) error {
-			errorCode, _ := params["error_code"].(int)
-			percentage, _ := params["percentage"].(int)
-			s.log.Info().Int("error_code", errorCode).Int("percentage", percentage).Msg("Injecting HTTP errors")
-			return nil
-		},
-		func(ctx context.Context, target Target, state map[string]interface{}) error {
-			s.log.Info().Msg("Removing HTTP error injection")
-			return nil
-		},
-	)
-
-	// Latency spike injector (simulated)
-	s.RegisterInjector(ExpTypeLatencySpike,
-		func(ctx context.Context, target Target, params map[string]interface{}) error {
-			latencyMs, _ := params["latency_ms"].(int)
-			s.log.Info().Int("latency_ms", latencyMs).Msg("Injecting latency spike")
-			return nil
-		},
-		func(ctx context.Context, target Target, state map[string]interface{}) error {
-			s.log.Info().Msg("Removing latency spike")
-			return nil
-		},
-	)
-}
-
-// subscribeToEvents listens for chaos-related events.
-func (s *Service) subscribeToEvents(ctx context.Context) {
-	if s.wotan == nil {
-		s.log.Warn().Msg("wotan unavailable — event subscription disabled (degraded mode)")
+func (s *Service) updateActive() {
+	if s.journal == nil {
+		s.activeG.Set(0)
 		return
 	}
+	s.activeG.Set(float64(len(s.journal.list())))
+}
 
-	_, err := s.wotan.Subscribe(ctx, "chaos.trigger", "yaldabaoth-service")
+func (s *Service) publish(topic string, data map[string]any) {
+	if s.deps.Publisher == nil {
+		return
+	}
+	data["timestamp"] = time.Now().UnixMilli()
+	payload, err := json.Marshal(data)
 	if err != nil {
-		s.log.Warn().Err(err).Msg("Failed to subscribe to chaos events")
 		return
 	}
-
-	s.log.Info().Msg("Subscribed to chaos events")
-}
-
-// publishEvent sends an event to Wotan.
-func (s *Service) publishEvent(ctx context.Context, eventType string, data map[string]interface{}) {
-	if s.wotan == nil {
-		atomic.AddInt64(&s.wotanDrops, 1)
-		s.log.Warn().Str("event_type", eventType).Msg("wotan unavailable — event dropped (degraded mode)")
-		return
-	}
-
-	event := map[string]interface{}{
-		"event_type": eventType,
-		"timestamp":  time.Now().Unix(),
-		"data":       data,
-	}
-
-	payload, err := json.Marshal(event)
-	if err != nil {
-		s.log.Warn().Err(err).Msg("Failed to marshal event")
-		return
-	}
-
-	if err := s.wotan.Publish(ctx, s.config.WotanTopic, payload); err != nil {
-		s.log.Warn().Err(err).Msg("Failed to publish event")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := s.deps.Publisher.Publish(ctx, topic, payload); err != nil {
+		s.log.Warn().Err(err).Str("topic", topic).Msg("chaos: event not published")
 	}
 }
 
 // Stats returns service statistics.
-func (s *Service) Stats() map[string]interface{} {
+func (s *Service) Stats() map[string]any {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-
-	// Count by status
-	statusCounts := make(map[string]int)
-	typeCounts := make(map[string]int)
-	successCount := 0
-	failCount := 0
-
-	for _, exp := range s.experiments {
-		statusCounts[string(exp.Status)]++
-		typeCounts[string(exp.Type)]++
-		if exp.Results != nil {
-			if exp.Results.Success {
-				successCount++
-			} else {
-				failCount++
-			}
-		}
+	byStatus := map[string]int{}
+	for _, e := range s.experiments {
+		byStatus[string(e.Status)]++
 	}
-
-	return map[string]interface{}{
-		"total_experiments":    len(s.experiments),
-		"running_experiments":  len(s.runningExps),
-		"by_status":            statusCounts,
-		"by_type":              typeCounts,
-		"successful":           successCount,
-		"failed":               failCount,
-		"registered_injectors": len(s.injectors),
-		"dry_run_mode":         s.config.DryRunMode,
+	types := make([]string, 0, len(s.injectors))
+	for t := range s.injectors {
+		types = append(types, string(t))
+	}
+	sort.Strings(types)
+	active := 0
+	if s.journal != nil {
+		active = len(s.journal.list())
+	}
+	return map[string]any{
+		"total_experiments":   len(s.experiments),
+		"running_experiments": len(s.runs),
+		"by_status":           byStatus,
+		"injectors":           types,
+		"active_injections":   active,
+		"dry_run_mode":        s.config.DryRunMode,
 	}
 }
 
-// GameDay represents a coordinated chaos exercise.
-type GameDay struct {
-	ID          string        `json:"id"`
-	Name        string        `json:"name"`
-	Description string        `json:"description"`
-	Experiments []string      `json:"experiments"` // Experiment IDs
-	Schedule    time.Time     `json:"schedule"`
-	Duration    time.Duration `json:"duration"`
-	Status      string        `json:"status"`
+// --- refusal publishing rate ---
+
+// refusalPublishBurst bounds chaos.refused events per minute: refusals are
+// all audited and counted, but a flood of bad requests cannot flood Wotan.
+const refusalPublishBurst = 10
+
+type rateLimit struct {
+	mu     sync.Mutex
+	max    int
+	window time.Duration
+	start  time.Time
+	n      int
 }
 
-// CreateGameDay creates a coordinated chaos exercise.
-func (s *Service) CreateGameDay(ctx context.Context, gd *GameDay) (*GameDay, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func newRateLimit(max int, window time.Duration) *rateLimit {
+	return &rateLimit{max: max, window: window}
+}
 
-	gd.ID = fmt.Sprintf("gameday-%d", time.Now().UnixNano())
-	gd.Status = "scheduled"
-
-	s.log.Info().
-		Str("id", gd.ID).
-		Str("name", gd.Name).
-		Int("experiments", len(gd.Experiments)).
-		Msg("Game day scheduled")
-
-	return gd, nil
+func (r *rateLimit) allow() bool {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	now := time.Now()
+	if now.Sub(r.start) > r.window {
+		r.start, r.n = now, 0
+	}
+	if r.n >= r.max {
+		return false
+	}
+	r.n++
+	return true
 }

@@ -51,6 +51,17 @@ var (
 		[]string{"topic"},
 	)
 
+	// wotanClientFallbackTotal: what happened to publishes that could not
+	// reach Wotan. result: queued, flushed, expired, dropped, refused
+	// (control topic, never buffered).
+	wotanClientFallbackTotal = auto.NewCounterVec(
+		prom.CounterOpts{
+			Name: "unheaded_wotan_client_fallback_total",
+			Help: "Wotan client fallback queue outcomes by result",
+		},
+		[]string{"result"},
+	)
+
 	wotanPublishAckTotal = auto.NewCounterVec(
 		prom.CounterOpts{
 			Name: "wotan_publish_ack_total",

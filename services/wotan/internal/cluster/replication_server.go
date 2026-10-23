@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/rs/zerolog/log"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"unheaded/pkg/storage/wal"
 	chatpb "unheaded/services/wotan/proto"
@@ -96,21 +98,16 @@ func (s *ReplicationServer) ReplicationPing(ctx context.Context, req *chatpb.Rep
 	}, nil
 }
 
-// TransferSnapshot streams a full state snapshot (for initial sync or large gaps).
-func (s *ReplicationServer) TransferSnapshot(req *chatpb.SnapshotRequest, stream chatpb.WotanReplication_TransferSnapshotServer) error {
+// TransferSnapshot answers Unimplemented: snapshot transfer is ADR-064 Phase 1
+// work, and a standby catches up with CatchUp from seq 0 meanwhile. It used
+// to send one empty chunk marked Final with LastSeq = the primary's current
+// sequence, which a caller would read as "you are up to date" and so skip
+// every message (no caller existed; S-REAL-STEEL D-13).
+func (s *ReplicationServer) TransferSnapshot(req *chatpb.SnapshotRequest, _ chatpb.WotanReplication_TransferSnapshotServer) error {
 	log.Info().
-		Str("peer", req.NodeId).
-		Msg("replication: snapshot transfer requested (not yet implemented)")
-
-	// TODO: implement full snapshot transfer
-	// For now, return empty — standby should use CatchUp from seq 0
-	return stream.Send(&chatpb.SnapshotChunk{
-		Offset:    0,
-		Data:      nil,
-		Final:     true,
-		TotalSize: 0,
-		LastSeq:   s.lastSeq.Load(),
-	})
+		Str("peer", req.GetNodeId()).
+		Msg("replication: snapshot transfer requested; answering Unimplemented (catch up from seq 0)")
+	return status.Error(codes.Unimplemented, "snapshot transfer not implemented; catch up from seq 0 (ADR-064)")
 }
 
 // UpdateLastSeq notifies the server of a new WAL write (called from publish path).

@@ -214,11 +214,17 @@ func TestArchitectService_Start_SubscribeError(t *testing.T) {
 	defer client.Close()
 
 	svc := NewWithWotan(client)
-	ctx := context.Background()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	err := svc.Start(ctx)
-	if err == nil {
-		t.Error("Start() should return error when subscribe fails")
+	// A refused join no longer fails Start: the subscriptions retry in the
+	// background (TestArchitect_SubscribesWhenWotanStartsLater) and the
+	// service runs degraded meanwhile.
+	if err := svc.Start(ctx); err != nil {
+		t.Errorf("Start() = %v, want nil while the joins retry", err)
+	}
+	if svc.WotanHealth() == nil {
+		t.Error("no Wotan detail for /health while the joins retry")
 	}
 }
 

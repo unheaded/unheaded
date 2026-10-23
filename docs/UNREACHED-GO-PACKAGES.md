@@ -17,6 +17,12 @@ mains=$(go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./...)
 comm -23 <(go list ./... | sort -u) <(go list -deps $mains | grep '^unheaded/' | sort -u)
 ```
 
+Classified for a decision (S-REAL-STEEL Phase 0, 2026-10-23): every package
+below, plus 23 unloaded dashboard scripts and the parked `.go.dev` files, has a
+group and a recommendation in [sweeps/REAL-STEEL-DECISIONS.md](sweeps/REAL-STEEL-DECISIONS.md),
+with per-package evidence in [sweeps/REAL-STEEL-UNREACHED.tsv](sweeps/REAL-STEEL-UNREACHED.tsv)
+(`scripts/sweep/unreached-evidence.sh`). Nothing is deleted until Stevie answers it.
+
 Known to fake success, so a future caller would be misled (found 2026-10-23):
 
 - `pkg/lxd`: `RealClient` returns successful Operations without talking to LXD.
@@ -71,8 +77,8 @@ Known to fake success, so a future caller would be misled (found 2026-10-23):
 - `pkg/deploy`
 - `pkg/deploy/artifact`
 - `pkg/deploy/pipeline`
-- `pkg/deploy/rollback`
-- `pkg/deploy/strategy`
+- `pkg/deploy/rollback` (reached since S-REAL-STEEL Phase 8: cmd/sword imports it)
+- `pkg/deploy/strategy` (reached since S-REAL-STEEL Phase 8: cmd/sword imports it)
 - `pkg/dns`
 - `pkg/ebpf/maploader`
 - `pkg/eventbus`
@@ -142,7 +148,7 @@ Known to fake success, so a future caller would be misled (found 2026-10-23):
 - `scripts/lib`
 - `services/anamnesis`
 - `services/anomaly`
-- `services/canary`
+- `services/canary` (folded into Sword in S-REAL-STEEL Phase 8; deletion pending E1 G3)
 - `services/cape`
 - `services/cloak`
 - `services/compliance`
@@ -162,7 +168,7 @@ Known to fake success, so a future caller would be misled (found 2026-10-23):
 - `services/qos`
 - `services/sabatons`
 - `services/selfheal`
-- `services/sword`
+- `services/sword` (reached since S-REAL-STEEL Phase 8: cmd/sword)
 - `services/tassets`
 - `services/telemetry`
 - `services/vambraces`

@@ -13,8 +13,10 @@ import (
 )
 
 // BlueGreenStrategy implements a blue-green deployment strategy.
-// It deploys a complete parallel environment (green) and then switches traffic
-// from the existing environment (blue) to the new one instantly.
+// It deploys a complete parallel environment (green), waits until every
+// green instance is healthy, switches traffic once, and only then deletes
+// the old environment (blue). A green environment that never becomes
+// healthy is deleted and blue keeps serving.
 type BlueGreenStrategy struct {
 	mu sync.RWMutex
 
@@ -59,38 +61,57 @@ func (s *BlueGreenStrategy) Validate(config *Config) error {
 	return nil
 }
 
+// deleteAll deletes insts through the driver, best effort, and returns how
+// many deletions failed.
+func deleteAll(ctx context.Context, cb *Callbacks, insts []Instance, m *ResultMetrics, who string) int {
+	failed := 0
+	for _, inst := range insts {
+		if err := cb.OnInstanceDelete(ctx, inst.ID); err != nil {
+			failed++
+			m.InstancesFailed++
+			fmt.Fprintf(os.Stderr, "%s: delete %s: %v\n", who, inst.ID, err)
+			continue
+		}
+		m.InstancesDeleted++
+	}
+	return failed
+}
+
 // Execute executes the blue-green deployment strategy.
 func (s *BlueGreenStrategy) Execute(ctx context.Context, params *ExecuteParams) (*Result, error) {
+	if params == nil {
+		return nil, ErrInvalidConfig
+	}
 	if err := s.Validate(params.Config); err != nil {
 		return nil, err
 	}
+	if err := requireDriver(TypeBlueGreen, params.Callbacks, true, false); err != nil {
+		return nil, err
+	}
+	if params.Replicas < 1 {
+		return nil, fmt.Errorf("%w: replicas must be at least 1", ErrInvalidConfig)
+	}
+	cb := params.Callbacks
 
-	// Create cancellable context
-	ctx, cancel := context.WithCancel(ctx)
+	ctx, cancel := context.WithTimeout(ctx, progressDeadline(params.Config))
+	defer cancel()
 
-	// Create deployment tracking
 	deployment := &blueGreenDeployment{
 		params: params,
 		progress: &Progress{
 			Phase:          "initializing",
 			Message:        "Starting blue-green deployment",
-			Percentage:     0,
 			TotalInstances: params.Replicas,
 		},
-		result: &Result{
-			Metrics: &ResultMetrics{},
-		},
-		blueInstances:  params.Instances, // Current instances are "blue"
-		greenInstances: []Instance{},
-		cancel:         cancel,
-		done:           make(chan struct{}),
-		trafficState:   "blue",
+		result:        &Result{Metrics: &ResultMetrics{}},
+		blueInstances: params.Instances,
+		cancel:        cancel,
+		done:          make(chan struct{}),
+		trafficState:  "blue",
 	}
-
 	s.mu.Lock()
 	s.deployments[params.DeploymentID] = deployment
 	s.mu.Unlock()
-
 	defer func() {
 		close(deployment.done)
 		s.mu.Lock()
@@ -99,276 +120,137 @@ func (s *BlueGreenStrategy) Execute(ctx context.Context, params *ExecuteParams) 
 	}()
 
 	startTime := time.Now()
-
-	// Phase 1: Deploy green environment
-	deployment.progress.Phase = "deploying_green"
-	deployment.progress.Message = "Deploying green environment"
-
-	if params.Callbacks != nil && params.Callbacks.OnProgress != nil {
-		params.Callbacks.OnProgress(ctx, deployment.progress)
+	res := deployment.result
+	progress := func(phase, msg string, pct int) {
+		deployment.progress.Phase = phase
+		deployment.progress.Message = msg
+		deployment.progress.Percentage = pct
+		if cb.OnProgress != nil {
+			cb.OnProgress(ctx, deployment.progress)
+		}
+	}
+	// abandonGreen deletes green (blue still serves) and fails the result.
+	abandonGreen := func(msg string, err error) (*Result, error) {
+		// A cancelled ctx must not stop the cleanup.
+		deleteAll(context.WithoutCancel(ctx), cb, deployment.greenInstances, res.Metrics, "bluegreen")
+		res.Success = false
+		res.Message = msg
+		res.Duration = time.Since(startTime)
+		res.Instances = nil
+		deployment.progress.Phase = "failed"
+		return res, err
 	}
 
+	// Phase 1: deploy green.
+	progress("deploying_green", "Deploying green environment", 0)
 	for i := 0; i < params.Replicas; i++ {
-		select {
-		case <-ctx.Done():
-			return s.buildCancelledResult(deployment, startTime), ctx.Err()
-		default:
+		if err := ctx.Err(); err != nil {
+			return abandonGreen("Deployment cancelled", err)
 		}
-
-		var inst *Instance
-		if params.Callbacks != nil && params.Callbacks.OnInstanceCreate != nil {
-			var err error
-			inst, err = params.Callbacks.OnInstanceCreate(ctx, &InstanceParams{
-				ServiceName: params.ServiceName,
-				Version:     params.TargetVersion,
-				Labels: map[string]string{
-					"deployment":  params.DeploymentID,
-					"version":     params.TargetVersion,
-					"environment": "green",
-				},
-			})
-			if err != nil {
-				deployment.result.Metrics.InstancesFailed++
-				// For blue-green, a failed instance creation is critical
-				deployment.result.Success = false
-				deployment.result.Message = fmt.Sprintf("Failed to create green instance: %v", err)
-				deployment.result.Duration = time.Since(startTime)
-				return deployment.result, ErrInstanceUpdateFailed
-			}
-		} else {
-			// Simulate instance creation
-			inst = &Instance{
-				ID:      fmt.Sprintf("green-%s-%d", params.TargetVersion, i),
-				Version: params.TargetVersion,
-				State:   InstanceRunning,
-				Healthy: false,
-				Labels: map[string]string{
-					"environment": "green",
-				},
-			}
-		}
-
-		deployment.greenInstances = append(deployment.greenInstances, *inst)
-		deployment.result.Metrics.InstancesCreated++
-
-		deployment.progress.UpdatedInstances = len(deployment.greenInstances)
-		deployment.progress.Percentage = (len(deployment.greenInstances) * 30) / params.Replicas
-	}
-
-	// Phase 2: Wait for green instances to become healthy
-	deployment.progress.Phase = "health_check"
-	deployment.progress.Message = "Waiting for green instances to become healthy"
-	deployment.progress.Percentage = 30
-
-	if params.Callbacks != nil && params.Callbacks.OnProgress != nil {
-		params.Callbacks.OnProgress(ctx, deployment.progress)
-	}
-
-	healthyCount := 0
-	maxRetries := 30 // Wait up to 30 iterations
-	for attempt := 0; attempt < maxRetries; attempt++ {
-		select {
-		case <-ctx.Done():
-			return s.buildCancelledResult(deployment, startTime), ctx.Err()
-		default:
-		}
-
-		healthyCount = 0
-		for i := range deployment.greenInstances {
-			if deployment.greenInstances[i].Healthy {
-				healthyCount++
-				continue
-			}
-
-			healthy := true
-			if params.Callbacks != nil && params.Callbacks.OnHealthCheck != nil {
-				var err error
-				healthy, err = params.Callbacks.OnHealthCheck(ctx, deployment.greenInstances[i].ID)
-				if err != nil {
-					healthy = false
-				}
-			}
-			deployment.greenInstances[i].Healthy = healthy
-			deployment.result.Metrics.HealthChecks++
-
-			if healthy {
-				healthyCount++
-			}
-		}
-
-		deployment.progress.Percentage = 30 + (healthyCount * 30 / params.Replicas)
-		deployment.progress.Message = fmt.Sprintf("Green instances healthy: %d/%d", healthyCount, params.Replicas)
-
-		if params.Callbacks != nil && params.Callbacks.OnProgress != nil {
-			params.Callbacks.OnProgress(ctx, deployment.progress)
-		}
-
-		if healthyCount == params.Replicas {
-			break
-		}
-
-		time.Sleep(1 * time.Second)
-	}
-
-	if healthyCount < params.Replicas {
-		deployment.result.Success = false
-		deployment.result.Message = fmt.Sprintf("Green environment not healthy: %d/%d healthy", healthyCount, params.Replicas)
-		deployment.result.Duration = time.Since(startTime)
-		deployment.result.Instances = deployment.greenInstances
-		return deployment.result, ErrHealthCheckTimeout
-	}
-
-	// Phase 3: Test green environment (optional)
-	if params.Config.TestDuration > 0 {
-		deployment.progress.Phase = "testing"
-		deployment.progress.Message = "Testing green environment"
-		deployment.progress.Percentage = 60
-
-		if params.Callbacks != nil && params.Callbacks.OnProgress != nil {
-			params.Callbacks.OnProgress(ctx, deployment.progress)
-		}
-
-		select {
-		case <-ctx.Done():
-			return s.buildCancelledResult(deployment, startTime), ctx.Err()
-		case <-time.After(params.Config.TestDuration):
-		}
-	}
-
-	// Phase 4: Switch traffic to green
-	deployment.progress.Phase = "switching"
-	deployment.progress.Message = "Switching traffic to green environment"
-	deployment.progress.Percentage = 70
-
-	if params.Callbacks != nil && params.Callbacks.OnProgress != nil {
-		params.Callbacks.OnProgress(ctx, deployment.progress)
-	}
-
-	if params.Callbacks != nil && params.Callbacks.OnTrafficShift != nil {
-		err := params.Callbacks.OnTrafficShift(ctx, &TrafficShiftParams{
-			OldVersion: params.CurrentVersion,
-			NewVersion: params.TargetVersion,
-			Weight:     100, // Full traffic to green
+		inst, err := cb.OnInstanceCreate(ctx, &InstanceParams{
+			ServiceName: params.ServiceName,
+			Version:     params.TargetVersion,
+			Labels: map[string]string{
+				"deployment":  params.DeploymentID,
+				"version":     params.TargetVersion,
+				"environment": "green",
+			},
 		})
-		if err != nil {
-			deployment.result.Success = false
-			deployment.result.Message = fmt.Sprintf("Failed to switch traffic: %v", err)
-			deployment.result.Duration = time.Since(startTime)
-			deployment.result.Instances = deployment.greenInstances
-			return deployment.result, ErrTrafficShiftFailed
+		if err != nil || inst == nil {
+			res.Metrics.InstancesFailed++
+			return abandonGreen(fmt.Sprintf("Failed to create green instance: %v", err), ErrInstanceUpdateFailed)
+		}
+		inst.Healthy = false // green proves its health below, whatever the driver said
+		deployment.greenInstances = append(deployment.greenInstances, *inst)
+		res.Metrics.InstancesCreated++
+		deployment.progress.UpdatedInstances = len(deployment.greenInstances)
+	}
+
+	// Phase 2: every green instance healthy.
+	progress("health_check", "Waiting for green instances to become healthy", 30)
+	if err := waitHealthy(ctx, cb, deployment.greenInstances, pollInterval(params.Config), &res.Metrics.HealthChecks); err != nil {
+		return abandonGreen(fmt.Sprintf("Green environment not healthy: %v", err), ErrHealthCheckTimeout)
+	}
+
+	// Phase 3: optional soak.
+	if params.Config.TestDuration > 0 {
+		progress("testing", "Testing green environment", 60)
+		if err := sleepCtx(ctx, params.Config.TestDuration); err != nil {
+			return abandonGreen("Deployment cancelled during test", err)
 		}
 	}
 
+	// Phase 4: switch traffic, once.
+	progress("switching", "Switching traffic to green environment", 70)
+	if err := cb.OnTrafficShift(ctx, &TrafficShiftParams{
+		OldVersion: params.CurrentVersion,
+		NewVersion: params.TargetVersion,
+		Weight:     100,
+	}); err != nil {
+		return abandonGreen(fmt.Sprintf("Failed to switch traffic: %v", err), ErrTrafficShiftFailed)
+	}
+	s.mu.Lock()
 	deployment.trafficState = "green"
-	deployment.result.Metrics.TrafficShifts++
-	deployment.progress.Percentage = 80
+	s.mu.Unlock()
+	res.Metrics.TrafficShifts++
 
-	// Phase 5: Terminate blue environment
-	deployment.progress.Phase = "terminating_blue"
-	deployment.progress.Message = "Terminating blue environment"
-
-	if params.Callbacks != nil && params.Callbacks.OnProgress != nil {
-		params.Callbacks.OnProgress(ctx, deployment.progress)
-	}
-
-	for _, inst := range deployment.blueInstances {
-		select {
-		case <-ctx.Done():
-			// Even if cancelled, traffic is on green - continue cleanup
-		default:
-		}
-
-		if params.Callbacks != nil && params.Callbacks.OnInstanceDelete != nil {
-			if err := params.Callbacks.OnInstanceDelete(ctx, inst.ID); err != nil {
-				// Log but continue - blue instances are no longer serving traffic
-				continue
-			}
-		}
-		deployment.result.Metrics.InstancesDeleted++
-	}
-
+	// Phase 5: delete blue (traffic is on green, so finish even if ctx ends).
+	progress("terminating_blue", "Terminating blue environment", 80)
+	failed := deleteAll(context.WithoutCancel(ctx), cb, deployment.blueInstances, res.Metrics, "bluegreen")
 	deployment.blueInstances = nil
 
-	// Build final result
-	deployment.result.Success = true
-	deployment.result.Message = fmt.Sprintf("Blue-green deployment completed: %d instances deployed", len(deployment.greenInstances))
-	deployment.result.Duration = time.Since(startTime)
-	deployment.result.Instances = deployment.greenInstances
-
-	deployment.progress.Phase = "completed"
-	deployment.progress.Percentage = 100
-	deployment.progress.Message = "Deployment completed successfully"
-
-	if params.Callbacks != nil && params.Callbacks.OnProgress != nil {
-		params.Callbacks.OnProgress(ctx, deployment.progress)
+	res.Success = true
+	res.Message = fmt.Sprintf("Blue-green deployment completed: %d instances deployed", len(deployment.greenInstances))
+	if failed > 0 {
+		res.Message += fmt.Sprintf(" (%d blue instances could not be deleted)", failed)
 	}
-
-	return deployment.result, nil
+	res.Duration = time.Since(startTime)
+	res.Instances = deployment.greenInstances
+	progress("completed", "Deployment completed successfully", 100)
+	return res, nil
 }
 
-// Rollback performs a rollback of the blue-green deployment.
+// Rollback performs a rollback of the blue-green deployment: a fresh
+// blue-green deployment of the target version.
 func (s *BlueGreenStrategy) Rollback(ctx context.Context, params *RollbackParams) error {
+	if params == nil {
+		return ErrInvalidConfig
+	}
+	svc, err := rollbackServiceName(params)
+	if err != nil {
+		return err
+	}
+	replicas, err := rollbackReplicas(params)
+	if err != nil {
+		return err
+	}
 	s.mu.RLock()
 	deployment, exists := s.deployments[params.DeploymentID]
 	s.mu.RUnlock()
-
-	if exists {
-		// If deployment is still in progress and blue is available
-		if len(deployment.blueInstances) > 0 && deployment.trafficState == "green" {
-			// Switch traffic back to blue
-			if params.Callbacks != nil && params.Callbacks.OnTrafficShift != nil {
-				err := params.Callbacks.OnTrafficShift(ctx, &TrafficShiftParams{
-					OldVersion: deployment.params.TargetVersion,
-					NewVersion: deployment.params.CurrentVersion,
-					Weight:     100,
-				})
-				if err != nil {
-					return fmt.Errorf("failed to rollback traffic: %w", err)
-				}
-			}
-			deployment.trafficState = "blue"
-
-			// Terminate green instances. We surface any callback errors to
-			// stderr but don't fail rollback — the user's callback may
-			// legitimately report partial failure (some instances already
-			// gone) and we want to keep tearing down the rest.
-			for _, inst := range deployment.greenInstances {
-				if params.Callbacks != nil && params.Callbacks.OnInstanceDelete != nil {
-					if err := params.Callbacks.OnInstanceDelete(ctx, inst.ID); err != nil {
-						fmt.Fprintf(os.Stderr, "bluegreen: rollback delete %s: %v\n", inst.ID, err)
-					}
-				}
-			}
-
-			// Cancel deployment
-			if deployment.cancel != nil {
-				deployment.cancel()
-			}
-
-			return nil
-		}
+	if exists && deployment.cancel != nil {
+		// In flight: cancelling abandons green (blue was never deleted).
+		deployment.cancel()
+		<-deployment.done
 	}
 
-	// If no in-progress deployment or blue not available, do a new blue-green deployment
-	executeParams := &ExecuteParams{
+	cfg := DefaultConfig(TypeBlueGreen)
+	cfg.TestDuration = 0
+	result, err := s.Execute(ctx, &ExecuteParams{
 		DeploymentID:   params.DeploymentID + "-rollback",
-		ServiceName:    params.Instances[0].Labels["service"],
-		CurrentVersion: params.Instances[0].Version,
+		ServiceName:    svc,
+		CurrentVersion: currentVersionOf(params.Instances, params.TargetVersion),
 		TargetVersion:  params.TargetVersion,
-		Replicas:       len(params.Instances),
-		Config:         DefaultConfig(TypeBlueGreen),
+		Replicas:       replicas,
+		Config:         cfg,
 		Instances:      params.Instances,
 		Callbacks:      params.Callbacks,
-	}
-
-	result, err := s.Execute(ctx, executeParams)
+	})
 	if err != nil {
 		return fmt.Errorf("rollback deployment failed: %w", err)
 	}
 	if !result.Success {
 		return fmt.Errorf("rollback deployment failed: %s", result.Message)
 	}
-
 	return nil
 }
 
@@ -376,23 +258,21 @@ func (s *BlueGreenStrategy) Rollback(ctx context.Context, params *RollbackParams
 func (s *BlueGreenStrategy) Status(ctx context.Context, deploymentID string) (*Status, error) {
 	s.mu.RLock()
 	deployment, exists := s.deployments[deploymentID]
-	s.mu.RUnlock()
-
 	if !exists {
+		s.mu.RUnlock()
 		return nil, ErrStrategyNotFound
 	}
+	state := deployment.trafficState
+	s.mu.RUnlock()
 
 	status := &Status{
 		Phase:    deployment.progress.Phase,
 		Progress: deployment.progress,
 	}
-
-	// Count healthy/unhealthy in active environment
 	activeInstances := deployment.greenInstances
-	if deployment.trafficState == "blue" {
+	if state == "blue" {
 		activeInstances = deployment.blueInstances
 	}
-
 	for _, inst := range activeInstances {
 		if inst.Healthy {
 			status.Healthy++
@@ -401,17 +281,7 @@ func (s *BlueGreenStrategy) Status(ctx context.Context, deploymentID string) (*S
 		}
 	}
 	status.Instances = activeInstances
-
 	return status, nil
-}
-
-// buildCancelledResult builds a result for a cancelled deployment.
-func (s *BlueGreenStrategy) buildCancelledResult(deployment *blueGreenDeployment, startTime time.Time) *Result {
-	deployment.result.Success = false
-	deployment.result.Message = "Deployment cancelled"
-	deployment.result.Duration = time.Since(startTime)
-	deployment.result.Instances = deployment.greenInstances
-	return deployment.result
 }
 
 func init() {

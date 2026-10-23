@@ -1,13 +1,13 @@
 # Architecture Decision Records
 
-**Last synced from canonical:** 2026-10-23 (104 entries)
+**Last synced from canonical:** 2026-10-23 (105 entries)
 
 Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical source. If they diverge, trust the canonical.
 
 | Status | Count |
 |--------|-------|
 | Accepted | 48 |
-| Proposed | 19 |
+| Proposed | 20 |
 | Planned | 14 |
 | In Progress | 5 |
 | Deferred | 5 |
@@ -121,6 +121,7 @@ Mirror of [docs/adr/ADR-INDEX.md](../docs/adr/ADR-INDEX.md) — the canonical so
 | [104](../docs/adr/ADR-104-zhenai-claude-api-bridge.md) | ZhenAI → Claude API bridge: `pkg/claudebridge` + `cmd/zhen-claude`, official Go SDK, claude-opus-5-5 with adaptive thinking, streaming and refusal fallbacks; tools from zhentools Providers, every Claude tool call through the Champion gate (mutating refused pending confirmation; MCP tools read-only by default); hard per-day spend cap from usage and a price table; audit without prompt text; ADR-053 Router interface. Not the API's MCP connector (west is not internet-facing). Reverses ADR-017's "scrapped" | **Proposed** (built; run live since 2026-10-23) | 2026-10-23 |
 | [105](../docs/adr/ADR-105-pq-hybrid-key-exchange-and-crypto-inventory.md) | Hybrid ML-KEM key exchange on every link we own: Strict (hybrid-only, TLS 1.3) and Preferred (Go default, TLS 1.3 floor) profiles in `pkg/tls`; aws-lc-rs for rustls; a deterministic CycloneDX 1.6 crypto inventory (`compliance/crypto/cbom.cdx.json`) with a stale gate and a shrink-only classical-KEX lint; non-expiring ML-DSA-65 evidence seals; signed `drift.*` Wotan topics; WireGuard PSK rotation; CNSA 2.0 not claimed. Host changes (Well PG 18, strict sshd, PSK rotation, keys) are escalations E1-E5 (implementation decisions recorded 2026-10-23) | **Proposed** | 2026-10-23 |
 | [106](../docs/adr/ADR-106-two-brains-one-gate.md) | Two brains, one gate: out-of-band confirmation (`deny`/`tty`/`queue`, the code never in model context), `zhen/*` branch-sandbox writes, privacy tiers T0/T1/T2, routing from a pre-registered hold-out eval, `run_check` sandbox, Kanban claims, one GPU lease and overnight guards, the flywheel with Claude text excluded by default | Proposed | 2026-10-23 |
+| [107](../docs/adr/ADR-107-chaos-safety-envelope.md) | Chaos safety envelope: one engine (`yaldabaoth.Service` in chaos-controller, no built-in injectors, dry run by default), a blast-radius allowlist file (resolved targets only, hard denies, limits), three abort paths (HTTP, Wotan `chaos.abort`, `/run/unheaded/chaos/ABORT`), a revert journal written before every fault (TTL, start replay, `revert-all` in ExecStopPost, removed only when verified) and an ADR-100 steady state (real probes plus the Kingdom fast-burn guard) | **Proposed** | 2026-10-23 |
 | [108](../docs/adr/ADR-108-mbc-cartridges.md) | MBC cartridges: small signed MBC network functions run per flow by `ebpf/cartridge-ebpf` (own object and verifier budget; monad-cpu-ebpf untouched), shared `no_std` step in `monad_common::cart`, XDP stage (forward-only, <=64 insns) + tick stage (<=256 per call, loop_bound), faults fail open with a per-slot breaker, Sophia registry (provisional `x-cartridge`), Cartridge ABI v0; RFC Editor items open | Proposed | 2026-10-23 |
 
 ---

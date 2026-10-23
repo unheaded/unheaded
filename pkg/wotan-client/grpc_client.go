@@ -46,6 +46,18 @@ type GRPCClient struct {
 	// healthyAge is how long a stream must stay up, delivering or not, to
 	// count as healthy and reset the retry budget; 0 means 30s.
 	healthyAge time.Duration
+
+	// onStreamState, when set (by Client), hears each topic stream go up
+	// (first message, or upAfter without an error) and down (a failed open
+	// or Recv). upAfter 0 means defaultStreamUpAfter.
+	onStreamState func(topic string, up bool)
+	upAfter       time.Duration
+}
+
+func (gc *GRPCClient) reportStream(topic string, up bool) {
+	if gc.onStreamState != nil {
+		gc.onStreamState(topic, up)
+	}
 }
 
 // TLSConfig is the client TLS for Wotan gRPC (ADR-105 Strict): TLS 1.3 and
@@ -351,15 +363,47 @@ func (gc *GRPCClient) streamMessagesSingle(ctx context.Context, topic string, su
 
 	stream, err := gc.client.StreamTopics(ctx, req)
 	if err != nil {
+		if ctx.Err() == nil {
+			gc.reportStream(topic, false)
+		}
 		return 0, fmt.Errorf("stream topics: %w", err)
+	}
+
+	// Liveness for Client.Health: up on the first message, or once the
+	// stream has stayed open upAfter without an error (an idle topic is not
+	// a dead stream); down when Recv fails. The caller ending the stream
+	// (ctx) is not reported.
+	att := &attemptState{report: func(up bool) { gc.reportStream(topic, up) }}
+	if gc.onStreamState != nil {
+		done := make(chan struct{})
+		defer close(done)
+		upAfter := gc.upAfter
+		if upAfter <= 0 {
+			upAfter = defaultStreamUpAfter
+		}
+		go func() {
+			t := time.NewTimer(upAfter)
+			defer t.Stop()
+			select {
+			case <-t.C:
+				att.up()
+			case <-done:
+			}
+		}()
 	}
 
 	delivered := 0
 	for {
 		event, err := stream.Recv()
 		if err != nil {
+			if ctx.Err() == nil {
+				att.down()
+			} else {
+				att.end()
+			}
 			return delivered, fmt.Errorf("receive from stream: %w", err)
 		}
+		att.up()
 
 		msg := topicEventToMessage(event)
 		if msg == nil {

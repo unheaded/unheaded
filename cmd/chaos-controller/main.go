@@ -1,602 +1,431 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
-// chaos-controller — Chaos engineering controller for the Unheaded Kingdom.
+// chaos-controller runs Yaldabaoth, the Kingdom's one chaos engine, behind
+// its safety envelope (S-REAL-STEEL Phase 10, ADR-107): the blast-radius
+// allowlist, the Kingdom SLO guard, the revert journal and three abort
+// paths. Every fault goes through yaldabaoth.Service, the older fault-rule
+// API and GameDay stages included.
 //
-// Yaldabaoth, the Demiurge of chaos, injects controlled faults into the
-// service mesh to validate resilience. Supports fault rules (DROP, DELAY,
-// CORRUPT, DUPLICATE), GameDay scenarios with staged fault injection, and
-// a full audit trail for compliance.
+//	chaos-controller              serve on :19012 (ports.Chaos)
+//	chaos-controller revert-all   revert every journaled fault; exit 0 only
+//	                              when the journal is empty afterwards (the
+//	                              unit's ExecStopPost)
 //
-// Port: 19012 (ports.Chaos)
+// Environment:
+//
+//	CHAOS_ALLOWLIST    allowlist file (default /etc/unheaded/chaos/allowlist.yaml); required
+//	CHAOS_STATE_DIR    revert journal (default /var/lib/unheaded-chaos)
+//	CHAOS_ABORT_FILE   abort file (default /run/unheaded/chaos/ABORT)
+//	CHAOS_DRY_RUN      "false" turns dry run off (a game-day window); anything else keeps it on
+//	CUIRASS_URL        resolves LXD targets (default http://127.0.0.1:19006)
+//	VM_URL, CHAOS_SLO_POLICY  the Kingdom SLO guard; without VM_URL nothing starts
+//	WOTAN_ADDR, WOTAN_GRPC_ADDR  events, and the chaos.abort path
+//	AUTH_ENABLED=true, AUTH_API_KEYS  pkg/auth; without AUTH_ENABLED every POST answers 403
 package main
 
 import (
 	"context"
-	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
-	"sync/atomic"
 	"syscall"
 	"time"
 
+	"unheaded/pkg/auth"
 	"unheaded/pkg/discovery"
+	"unheaded/pkg/httputil"
 	"unheaded/pkg/logger"
+	"unheaded/pkg/metrics"
 	"unheaded/pkg/ports"
+	"unheaded/pkg/sloguard"
 	"unheaded/pkg/transport"
 	wotanClient "unheaded/pkg/wotan-client"
 	"unheaded/services/yaldabaoth"
 )
 
-// ── Fault types ──────────────────────────────────────────────────────────
+const serviceName = "chaos-controller"
 
-// FaultType defines the kind of chaos fault to inject.
-type FaultType string
-
-const (
-	FaultDrop      FaultType = "DROP"
-	FaultDelay     FaultType = "DELAY"
-	FaultCorrupt   FaultType = "CORRUPT"
-	FaultDuplicate FaultType = "DUPLICATE"
-)
-
-// ── ChaosFaultRule ───────────────────────────────────────────────────────
-
-// ChaosFaultRule defines a single chaos injection rule.
-type ChaosFaultRule struct {
-	ID           string        `json:"id"`
-	SrcServiceID uint8         `json:"src_service_id"`
-	DstServiceID uint8         `json:"dst_service_id"`
-	FaultType    FaultType     `json:"fault_type"`
-	DropRatePPM  uint32        `json:"drop_rate_ppm"` // parts per million
-	DelayUS      uint64        `json:"delay_us"`      // microseconds
-	Duration     time.Duration `json:"duration_ns"`
-	CreatedAt    time.Time     `json:"created_at"`
-	CreatedBy    string        `json:"created_by"`
-	ExpiresAt    time.Time     `json:"expires_at"`
-	Active       bool          `json:"active"`
+type config struct {
+	addr       string
+	allowlist  string
+	stateDir   string
+	abortFile  string
+	dryRun     bool
+	cuirassURL string
+	vmURL      string
+	policy     string
+	wotanHTTP  string
+	wotanGRPC  string
 }
 
-// ChaosEvent records a chaos injection event for the event log.
-type ChaosEvent struct {
-	Timestamp time.Time `json:"timestamp"`
-	RuleID    string    `json:"rule_id"`
-	Action    string    `json:"action"` // "injected", "removed", "expired"
-	Details   string    `json:"details,omitempty"`
+func envOr(getenv func(string) string, k, def string) string {
+	if v := getenv(k); v != "" {
+		return v
+	}
+	return def
 }
 
-// ── ChaosController ──────────────────────────────────────────────────────
-
-// ChaosController manages chaos fault injection rules and GameDay scenarios.
-type ChaosController struct {
-	log          *logger.Logger
-	wotan        *wotanClient.Client
-	rules        map[string]*ChaosFaultRule
-	mu           sync.RWMutex
-	events       []ChaosEvent
-	eventsMu     sync.RWMutex
-	maxEvents    int
-	ruleCounter  int64
-	gameDaySched *yaldabaoth.GameDayScheduler
-	audit        *yaldabaoth.AuditTrail
+func loadConfig(getenv func(string) string) config {
+	return config{
+		addr:       envOr(getenv, "HTTP_ADDR", ports.DefaultAddr(ports.Chaos)),
+		allowlist:  envOr(getenv, "CHAOS_ALLOWLIST", "/etc/unheaded/chaos/allowlist.yaml"),
+		stateDir:   envOr(getenv, "CHAOS_STATE_DIR", "/var/lib/unheaded-chaos"),
+		abortFile:  envOr(getenv, "CHAOS_ABORT_FILE", "/run/unheaded/chaos/ABORT"),
+		dryRun:     getenv("CHAOS_DRY_RUN") != "false",
+		cuirassURL: envOr(getenv, "CUIRASS_URL", fmt.Sprintf("http://127.0.0.1:%d", ports.Cuirass)),
+		vmURL:      getenv("VM_URL"),
+		policy:     envOr(getenv, "CHAOS_SLO_POLICY", "/etc/unheaded/chaos/policy.yaml"),
+		wotanHTTP:  getenv("WOTAN_ADDR"),
+		wotanGRPC:  getenv("WOTAN_GRPC_ADDR"),
+	}
 }
 
-// NewChaosController creates a new ChaosController.
-func NewChaosController(log *logger.Logger, wotan *wotanClient.Client) *ChaosController {
-	cc := &ChaosController{
-		log:       log,
-		wotan:     wotan,
-		rules:     make(map[string]*ChaosFaultRule),
-		events:    make([]ChaosEvent, 0, 1000),
-		maxEvents: 10000,
-		audit:     yaldabaoth.NewAuditTrail(log, 10000),
-	}
-	if wotan != nil {
-		cc.gameDaySched = yaldabaoth.NewGameDayScheduler(log, wotan)
-	}
-	return cc
+// registerInjectors adds the real injectors. There are none yet: Phase 11
+// brings netem and container kill. Every type is refused until then.
+var registerInjectors = func(*yaldabaoth.Service) {}
+
+// wotanPublisher joins each topic as chaos-controller before publishing.
+type wotanPublisher struct {
+	c      *wotanClient.Client
+	mu     sync.Mutex
+	joined map[string]bool
 }
 
-// Start initializes Wotan subscriptions and begins listening for alerts.
-func (cc *ChaosController) Start(ctx context.Context) error {
-	cc.log.Info().Str("service", "chaos-controller").Msg("starting chaos controller")
-
-	if cc.wotan == nil {
-		cc.log.Warn().Msg("Wotan not configured, skipping subscriptions")
-		return nil
-	}
-
-	// Subscribe to alerts.critical (required by CLAUDE.md)
-	if _, err := cc.wotan.Subscribe(ctx, "alerts.critical", "chaos-controller"); err != nil {
-		cc.log.Warn().Err(err).Msg("failed to subscribe to alerts.critical")
-	}
-
-	// Subscribe to chaos topics
-	topics := []string{"chaos.injections", "chaos.events", "chaos.schedules"}
-	for _, topic := range topics {
-		if _, err := cc.wotan.Subscribe(ctx, topic, "chaos-controller"); err != nil {
-			cc.log.Warn().Err(err).Str("topic", topic).Msg("failed to subscribe")
+func (p *wotanPublisher) Publish(ctx context.Context, topic string, payload []byte) error {
+	p.mu.Lock()
+	joined := p.joined[topic]
+	p.mu.Unlock()
+	if !joined {
+		jctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		err := p.c.SubscribeWithRetry(jctx, topic, yaldabaoth.WotanName, nil)
+		cancel()
+		if err != nil {
+			return err
 		}
+		p.mu.Lock()
+		p.joined[topic] = true
+		p.mu.Unlock()
 	}
-
-	// Start alert listener
-	go cc.listenForAlerts(ctx)
-
-	// Start rule expiry goroutine
-	go cc.expireRules(ctx)
-
-	return nil
+	return p.c.Publish(ctx, topic, payload)
 }
 
-// Stop gracefully shuts down the controller.
-func (cc *ChaosController) Stop() error {
-	cc.log.Info().Msg("chaos controller stopping")
-	if cc.gameDaySched != nil {
-		cc.gameDaySched.Stop()
-	}
-	return nil
-}
-
-// listenForAlerts listens for critical alerts and auto-removes rules if needed.
-func (cc *ChaosController) listenForAlerts(ctx context.Context) {
-	if cc.wotan == nil {
-		return
-	}
-
-	msgCh, err := cc.wotan.StreamMessages(ctx, "alerts.critical")
+// build makes the engine. A missing allowlist or a damaged journal is
+// fatal: the controller must not run without its fence or its memory.
+func build(c config, log *logger.Logger) (*yaldabaoth.Service, error) {
+	allow, err := yaldabaoth.LoadAllowlist(c.allowlist)
 	if err != nil {
-		cc.log.Warn().Err(err).Msg("failed to stream alerts.critical")
-		return
+		return nil, err
 	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg, ok := <-msgCh:
-			if !ok {
-				return
-			}
-			cc.log.Warn().
-				Str("message_id", msg.MessageID).
-				Str("topic", msg.Topic).
-				Msg("received critical alert — evaluating rule safety")
+	res, err := yaldabaoth.NewCuirassResolver(c.cuirassURL)
+	if err != nil {
+		return nil, err
+	}
+	deps := yaldabaoth.Deps{Allowlist: allow, Resolver: res, Log: log}
+	if c.vmURL != "" {
+		g, err := sloguard.New(c.vmURL, c.policy)
+		if err != nil {
+			return nil, fmt.Errorf("SLO guard: %w", err)
+		}
+		deps.Guard = g
+	} else {
+		log.Warn().Msg("VM_URL is not set: no SLO guard, so every experiment is refused")
+	}
+	if c.wotanHTTP != "" {
+		var wc *wotanClient.Client
+		if c.wotanGRPC != "" {
+			wc, err = wotanClient.NewClientWithGRPC(c.wotanHTTP, c.wotanGRPC)
+		} else {
+			wc, err = wotanClient.NewClient(c.wotanHTTP)
+		}
+		if err != nil {
+			log.Warn().Err(err).Msg("Wotan client: events and the chaos.abort path are off")
+		} else {
+			deps.Publisher = &wotanPublisher{c: wc, joined: map[string]bool{}}
+			deps.Subscriber = wc
 		}
 	}
+	cfg := yaldabaoth.DefaultConfig()
+	cfg.StateDir = c.stateDir
+	cfg.AbortFile = c.abortFile
+	cfg.DryRunMode = c.dryRun
+	cfg.Hostname = os.Hostname
+	s, err := yaldabaoth.NewService(cfg, deps)
+	if err != nil {
+		return nil, err
+	}
+	registerInjectors(s)
+	return s, nil
 }
 
-// expireRules periodically checks for and removes expired rules.
-func (cc *ChaosController) expireRules(ctx context.Context) {
-	ticker := time.NewTicker(5 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			cc.mu.Lock()
-			now := time.Now()
-			for id, rule := range cc.rules {
-				if rule.Active && !rule.ExpiresAt.IsZero() && now.After(rule.ExpiresAt) {
-					rule.Active = false
-					cc.recordEvent(ChaosEvent{
-						Timestamp: now,
-						RuleID:    id,
-						Action:    "expired",
-						Details:   fmt.Sprintf("rule expired after %s", rule.Duration),
-					})
-					cc.log.Info().Str("rule_id", id).Msg("chaos rule expired")
-					delete(cc.rules, id)
-				}
-			}
-			cc.mu.Unlock()
-		}
+// revertAll is `chaos-controller revert-all`. It needs only the journal
+// and the injectors: a controller whose allowlist, Cuirass or Victoria is
+// gone must still take its faults back (it runs as ExecStopPost).
+func revertAll(c config, out io.Writer) int {
+	cfg := yaldabaoth.DefaultConfig()
+	cfg.StateDir = c.stateDir
+	cfg.AbortFile = ""
+	s, err := yaldabaoth.NewService(cfg, yaldabaoth.Deps{Log: logger.New(io.Discard)})
+	if err == nil {
+		registerInjectors(s)
 	}
+	if err != nil {
+		fmt.Fprintf(out, "revert-all: %v\n", err)
+		return 2
+	}
+	left, err := s.RevertAll(context.Background())
+	if err != nil {
+		fmt.Fprintf(out, "revert-all: %v\n", err)
+	}
+	if left > 0 {
+		fmt.Fprintf(out, "revert-all: %d fault(s) still in place, see %s\n", left, c.stateDir)
+		return 1
+	}
+	fmt.Fprintln(out, "revert-all: journal empty")
+	return 0
 }
 
-// ── Rule management ──────────────────────────────────────────────────────
+// --- HTTP ---
 
-// InjectRule creates and activates a new chaos fault rule.
-func (cc *ChaosController) InjectRule(rule *ChaosFaultRule) error {
-	if rule.FaultType == "" {
-		return fmt.Errorf("fault_type is required")
+type api struct {
+	s           *yaldabaoth.Service
+	gameday     *yaldabaoth.GameDayScheduler
+	authEnabled bool
+}
+
+const maxBody = 64 << 10
+
+func refusalStatus(err error) int {
+	var r *yaldabaoth.Refusal
+	if !errors.As(err, &r) {
+		return http.StatusBadRequest
 	}
-	switch rule.FaultType {
-	case FaultDrop, FaultDelay, FaultCorrupt, FaultDuplicate:
-		// Valid fault type.
+	switch r.Reason {
+	case yaldabaoth.RefuseInvalid:
+		return http.StatusBadRequest
+	case yaldabaoth.RefuseAllowlist, yaldabaoth.RefuseLimits:
+		return http.StatusForbidden
+	case yaldabaoth.RefuseConcurrency, yaldabaoth.RefuseAbortFile:
+		return http.StatusConflict
+	case yaldabaoth.RefuseNoInjector:
+		return http.StatusNotImplemented
 	default:
-		return fmt.Errorf("unknown fault_type: %s", rule.FaultType)
-	}
-	if rule.Duration <= 0 {
-		return fmt.Errorf("duration must be positive")
-	}
-
-	id := fmt.Sprintf("chaos-%d-%d", time.Now().UnixNano(), atomic.AddInt64(&cc.ruleCounter, 1))
-	rule.ID = id
-	rule.CreatedAt = time.Now()
-	rule.ExpiresAt = rule.CreatedAt.Add(rule.Duration)
-	rule.Active = true
-
-	cc.mu.Lock()
-	cc.rules[id] = rule
-	cc.mu.Unlock()
-
-	cc.recordEvent(ChaosEvent{
-		Timestamp: rule.CreatedAt,
-		RuleID:    id,
-		Action:    "injected",
-		Details: fmt.Sprintf("type=%s src=%d dst=%d drop_ppm=%d delay_us=%d",
-			rule.FaultType, rule.SrcServiceID, rule.DstServiceID, rule.DropRatePPM, rule.DelayUS),
-	})
-
-	cc.audit.Record(yaldabaoth.AuditEntry{
-		Timestamp: rule.CreatedAt,
-		UserID:    rule.CreatedBy,
-		Action:    "inject_rule",
-		RuleID:    id,
-		RuleSpec:  fmt.Sprintf("%+v", rule),
-		Result:    "success",
-	})
-
-	// Publish to Wotan
-	cc.publishEvent(context.Background(), "chaos.injections", map[string]interface{}{
-		"event_type": "chaos.rule.injected",
-		"rule_id":    id,
-		"rule":       rule,
-		"timestamp":  time.Now().UnixMilli(),
-	})
-
-	cc.log.Info().
-		Str("rule_id", id).
-		Str("fault_type", string(rule.FaultType)).
-		Uint8("src_svc", rule.SrcServiceID).
-		Uint8("dst_svc", rule.DstServiceID).
-		Msg("chaos rule injected")
-
-	return nil
-}
-
-// RemoveRule deactivates and removes a chaos rule by ID.
-func (cc *ChaosController) RemoveRule(id string) error {
-	cc.mu.Lock()
-	rule, ok := cc.rules[id]
-	if !ok {
-		cc.mu.Unlock()
-		return fmt.Errorf("rule not found: %s", id)
-	}
-	rule.Active = false
-	delete(cc.rules, id)
-	cc.mu.Unlock()
-
-	cc.recordEvent(ChaosEvent{
-		Timestamp: time.Now(),
-		RuleID:    id,
-		Action:    "removed",
-	})
-
-	cc.audit.Record(yaldabaoth.AuditEntry{
-		Timestamp: time.Now(),
-		Action:    "remove_rule",
-		RuleID:    id,
-		Result:    "success",
-	})
-
-	cc.publishEvent(context.Background(), "chaos.events", map[string]interface{}{
-		"event_type": "chaos.rule.removed",
-		"rule_id":    id,
-		"timestamp":  time.Now().UnixMilli(),
-	})
-
-	cc.log.Info().Str("rule_id", id).Msg("chaos rule removed")
-	return nil
-}
-
-// ListRules returns all active chaos rules.
-func (cc *ChaosController) ListRules() []*ChaosFaultRule {
-	cc.mu.RLock()
-	defer cc.mu.RUnlock()
-
-	rules := make([]*ChaosFaultRule, 0, len(cc.rules))
-	for _, rule := range cc.rules {
-		rules = append(rules, rule)
-	}
-	return rules
-}
-
-// RecentEvents returns the most recent chaos events.
-func (cc *ChaosController) RecentEvents(limit int) []ChaosEvent {
-	cc.eventsMu.RLock()
-	defer cc.eventsMu.RUnlock()
-
-	if limit <= 0 || limit > len(cc.events) {
-		limit = len(cc.events)
-	}
-
-	start := len(cc.events) - limit
-	if start < 0 {
-		start = 0
-	}
-
-	result := make([]ChaosEvent, limit)
-	copy(result, cc.events[start:])
-	return result
-}
-
-// recordEvent appends an event to the event log with capacity limit.
-func (cc *ChaosController) recordEvent(event ChaosEvent) {
-	cc.eventsMu.Lock()
-	defer cc.eventsMu.Unlock()
-
-	cc.events = append(cc.events, event)
-	if len(cc.events) > cc.maxEvents {
-		// Trim oldest quarter when we exceed the limit.
-		trim := cc.maxEvents / 4
-		cc.events = cc.events[trim:]
+		return http.StatusServiceUnavailable
 	}
 }
 
-// publishEvent publishes an event to a Wotan topic.
-func (cc *ChaosController) publishEvent(ctx context.Context, topic string, event interface{}) {
-	if cc.wotan == nil {
-		return
-	}
+func writeErr(w http.ResponseWriter, code int, err error) {
+	httputil.WriteJSON(w, code, map[string]string{"error": err.Error()})
+}
 
-	payload, err := json.Marshal(event)
+func (a *api) mustAuth(w http.ResponseWriter) bool {
+	if !a.authEnabled {
+		writeErr(w, http.StatusForbidden, errors.New("chaos writes need AUTH_ENABLED=true"))
+		return false
+	}
+	return true
+}
+
+func (a *api) routes(reg *metrics.Registry) *http.ServeMux {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/chaos/experiments", a.handleExperiments)
+	mux.HandleFunc("/api/v1/chaos/experiments/", a.handleExperiment)
+	mux.HandleFunc("/api/v1/chaos/abort", a.handleAbort)
+	mux.HandleFunc("/api/v1/chaos/inject", a.handleInject)
+	mux.HandleFunc("/api/v1/chaos/gameday", a.handleGameDay)
+	mux.HandleFunc("/api/v1/chaos/gameday/status", func(w http.ResponseWriter, r *http.Request) {
+		httputil.WriteJSON(w, http.StatusOK, a.gameday.Status())
+	})
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+		httputil.WriteJSON(w, http.StatusOK, map[string]any{"status": "ok", "service": serviceName, "stats": a.s.Stats()})
+	})
+	mux.HandleFunc("/ready", func(w http.ResponseWriter, _ *http.Request) {
+		httputil.WriteJSON(w, http.StatusOK, map[string]any{"ready": true})
+	})
+	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_ = metrics.GatherAll(w, reg, metrics.DefaultRegistry)
+	})
+	return mux
+}
+
+func (a *api) start(w http.ResponseWriter, r *http.Request, exp *yaldabaoth.Experiment) {
+	got, err := a.s.StartExperiment(r.Context(), exp)
 	if err != nil {
-		cc.log.Warn().Err(err).Msg("failed to marshal chaos event")
+		writeErr(w, refusalStatus(err), err)
 		return
 	}
+	httputil.WriteJSON(w, http.StatusCreated, got)
+}
 
-	pubCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
-	defer cancel()
-
-	if err := cc.wotan.Publish(pubCtx, topic, payload); err != nil {
-		cc.log.Warn().Err(err).Str("topic", topic).Msg("failed to publish chaos event")
+func (a *api) handleExperiments(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		httputil.WriteJSON(w, http.StatusOK, a.s.List())
+	case http.MethodPost:
+		if !a.mustAuth(w) {
+			return
+		}
+		var exp yaldabaoth.Experiment
+		if err := httputil.DecodeJSONBody(r, maxBody, &exp); err != nil {
+			httputil.HandleRequestError(w, err)
+			return
+		}
+		a.start(w, r, &exp)
+	default:
+		w.Header().Set("Allow", "GET, POST")
+		writeErr(w, http.StatusMethodNotAllowed, errors.New("GET or POST"))
 	}
 }
 
-// ── HTTP Handlers ────────────────────────────────────────────────────────
-
-func (cc *ChaosController) registerRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("POST /api/v1/chaos/inject", cc.handleInjectRule)
-	mux.HandleFunc("GET /api/v1/chaos/rules", cc.handleListRules)
-	mux.HandleFunc("DELETE /api/v1/chaos/rules/", cc.handleRemoveRule)
-	mux.HandleFunc("GET /api/v1/chaos/events", cc.handleListEvents)
-	mux.HandleFunc("POST /api/v1/chaos/gameday", cc.handleStartGameDay)
-	mux.HandleFunc("GET /api/v1/chaos/gameday/status", cc.handleGameDayStatus)
-	mux.HandleFunc("GET /health", cc.handleHealth)
-	mux.HandleFunc("GET /ready", cc.handleReady)
-	mux.HandleFunc("GET /metrics", cc.handleMetrics)
+func (a *api) handleExperiment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.Header().Set("Allow", "GET")
+		writeErr(w, http.StatusMethodNotAllowed, errors.New("GET only"))
+		return
+	}
+	id := strings.TrimPrefix(r.URL.Path, "/api/v1/chaos/experiments/")
+	e, ok := a.s.Get(id)
+	if !ok {
+		writeErr(w, http.StatusNotFound, fmt.Errorf("no experiment %q", id))
+		return
+	}
+	httputil.WriteJSON(w, http.StatusOK, e)
 }
 
-func (cc *ChaosController) handleInjectRule(w http.ResponseWriter, r *http.Request) {
+func (a *api) handleAbort(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		writeErr(w, http.StatusMethodNotAllowed, errors.New("POST only"))
+		return
+	}
+	if !a.mustAuth(w) {
+		return
+	}
+	n := a.s.Abort("http", "POST /api/v1/chaos/abort")
+	a.gameday.Stop()
+	httputil.WriteJSON(w, http.StatusOK, map[string]int{"aborted": n})
+}
+
+// handleInject is the older fault-rule API: the rule runs as an
+// experiment (and, naming no allowlisted target, is refused).
+func (a *api) handleInject(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		writeErr(w, http.StatusMethodNotAllowed, errors.New("POST only"))
+		return
+	}
+	if !a.mustAuth(w) {
+		return
+	}
 	var req struct {
-		SrcServiceID uint8     `json:"src_svc"`
-		DstServiceID uint8     `json:"dst_svc"`
-		FaultType    FaultType `json:"fault_type"`
-		DropRatePPM  uint32    `json:"drop_rate"`
-		DelayUS      uint64    `json:"delay_us"`
-		DurationSec  int64     `json:"duration"`
-		CreatedBy    string    `json:"created_by"`
+		SrcServiceID uint8  `json:"src_svc"`
+		DstServiceID uint8  `json:"dst_svc"`
+		FaultType    string `json:"fault_type"`
+		DropRatePPM  uint32 `json:"drop_rate"`
+		DelayUS      uint64 `json:"delay_us"`
+		DurationSec  int64  `json:"duration"`
 	}
-
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+	if err := httputil.DecodeJSONBody(r, maxBody, &req); err != nil {
+		httputil.HandleRequestError(w, err)
 		return
 	}
-
-	rule := &ChaosFaultRule{
-		SrcServiceID: req.SrcServiceID,
-		DstServiceID: req.DstServiceID,
-		FaultType:    req.FaultType,
-		DropRatePPM:  req.DropRatePPM,
-		DelayUS:      req.DelayUS,
-		Duration:     time.Duration(req.DurationSec) * time.Second,
-		CreatedBy:    req.CreatedBy,
-	}
-
-	if err := cc.InjectRule(rule); err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
+	if req.DurationSec < 0 || req.DurationSec > 86400 {
+		writeErr(w, http.StatusBadRequest, errors.New("duration out of range"))
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(rule) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+	a.start(w, r, yaldabaoth.RuleExperiment(yaldabaoth.FaultRule{
+		SrcServiceID: req.SrcServiceID, DstServiceID: req.DstServiceID, FaultType: req.FaultType,
+		DropRatePPM: req.DropRatePPM, DelayUS: req.DelayUS, Duration: time.Duration(req.DurationSec) * time.Second,
+	}))
 }
 
-func (cc *ChaosController) handleListRules(w http.ResponseWriter, _ *http.Request) {
-	rules := cc.ListRules()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		"rules": rules,
-		"count": len(rules),
-	})
-}
-
-func (cc *ChaosController) handleRemoveRule(w http.ResponseWriter, r *http.Request) {
-	// Extract rule ID from path: /api/v1/chaos/rules/{id}
-	id := r.URL.Path[len("/api/v1/chaos/rules/"):]
-	if id == "" {
-		http.Error(w, `{"error":"rule ID required"}`, http.StatusBadRequest)
+func (a *api) handleGameDay(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", "POST")
+		writeErr(w, http.StatusMethodNotAllowed, errors.New("POST only"))
 		return
 	}
-
-	if err := cc.RemoveRule(id); err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusNotFound)
+	if !a.mustAuth(w) {
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "removed", "rule_id": id}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-}
-
-func (cc *ChaosController) handleListEvents(w http.ResponseWriter, _ *http.Request) {
-	events := cc.RecentEvents(100)
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		"events": events,
-		"count":  len(events),
-	})
-}
-
-func (cc *ChaosController) handleStartGameDay(w http.ResponseWriter, r *http.Request) {
-	if cc.gameDaySched == nil {
-		http.Error(w, `{"error":"GameDay scheduler not available (Wotan not configured)"}`, http.StatusServiceUnavailable)
+	var sc yaldabaoth.GameDayScenario
+	if err := httputil.DecodeJSONBody(r, maxBody, &sc); err != nil {
+		httputil.HandleRequestError(w, err)
 		return
 	}
-
-	var scenario yaldabaoth.GameDayScenario
-	if err := json.NewDecoder(r.Body).Decode(&scenario); err != nil {
-		http.Error(w, `{"error":"invalid request body"}`, http.StatusBadRequest)
+	if err := a.gameday.Schedule(sc); err != nil {
+		writeErr(w, http.StatusBadRequest, err)
 		return
 	}
-
-	if err := cc.gameDaySched.Schedule(scenario); err != nil {
-		http.Error(w, fmt.Sprintf(`{"error":"%s"}`, err.Error()), http.StatusBadRequest)
-		return
-	}
-
-	cc.audit.Record(yaldabaoth.AuditEntry{
-		Timestamp: time.Now(),
-		Action:    "start_gameday",
-		RuleSpec:  scenario.Name,
-		Result:    "scheduled",
-	})
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		"status":   "scheduled",
-		"scenario": scenario.Name,
-	})
+	httputil.WriteJSON(w, http.StatusAccepted, map[string]string{"status": "scheduled", "scenario": sc.Name})
 }
 
-func (cc *ChaosController) handleGameDayStatus(w http.ResponseWriter, _ *http.Request) {
-	if cc.gameDaySched == nil {
-		http.Error(w, `{"error":"GameDay scheduler not available"}`, http.StatusServiceUnavailable)
-		return
-	}
-
-	status := cc.gameDaySched.Status()
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(status) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+func newAPI(s *yaldabaoth.Service, pub yaldabaoth.Publisher, authEnabled bool) *api {
+	return &api{s: s, gameday: yaldabaoth.NewGameDayScheduler(nil, s, pub), authEnabled: authEnabled}
 }
 
-func (cc *ChaosController) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ok"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+func handler(a *api) http.Handler {
+	mux := a.routes(a.s.Registry())
+	h := auth.WrapHandler(mux, auth.SetupMiddleware(auth.LoadServiceAuthConfig(serviceName)))
+	return httputil.NewServiceMetrics(serviceName).Instrument(mux, h)
 }
-
-func (cc *ChaosController) handleReady(w http.ResponseWriter, _ *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{"status": "ready"}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-}
-
-func (cc *ChaosController) handleMetrics(w http.ResponseWriter, _ *http.Request) {
-	cc.mu.RLock()
-	ruleCount := len(cc.rules)
-	cc.mu.RUnlock()
-
-	cc.eventsMu.RLock()
-	eventCount := len(cc.events)
-	cc.eventsMu.RUnlock()
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		"active_rules":  ruleCount,
-		"total_events":  eventCount,
-		"audit_entries": cc.audit.Len(),
-	})
-}
-
-// ── Main ─────────────────────────────────────────────────────────────────
 
 func main() {
+	c := loadConfig(os.Getenv)
+	if len(os.Args) > 1 && os.Args[1] == "revert-all" {
+		os.Exit(revertAll(c, os.Stdout))
+	}
 	log := logger.New(os.Stderr)
-
-	log.Info().
-		Str("service", "chaos-controller").
-		Int("port", ports.Chaos).
-		Msg("chaos-controller starting")
-
-	// Connect to Wotan (best-effort)
-	var wotan *wotanClient.Client
-	wotanAddr := os.Getenv("WOTAN_ADDR")
-	if wotanAddr == "" {
-		wotanAddr = fmt.Sprintf("localhost:%d", ports.WotanHTTP)
-	}
-	wc, err := wotanClient.NewClient(wotanAddr)
+	s, err := build(c, log)
 	if err != nil {
-		log.Warn().Err(err).Msg("Wotan client creation failed, running in degraded mode")
-	} else {
-		wotan = wc
+		log.Fatal().Err(err).Msg("chaos-controller cannot start")
 	}
-
-	// Create controller
-	controller := NewChaosController(log, wotan)
-
-	// Create context with signal handling
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
-	// Start controller (Wotan subscriptions)
-	if err := controller.Start(ctx); err != nil {
-		log.Error().Err(err).Msg("failed to start controller")
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
+	if err := s.Start(ctx); err != nil {
+		log.Fatal().Err(err).Msg("chaos-controller cannot start")
 	}
+	authEnabled := auth.LoadServiceAuthConfig(serviceName).Enabled
+	if !authEnabled {
+		log.Warn().Msg("AUTH_ENABLED is not true: every chaos write answers 403")
+	}
+	a := newAPI(s, nil, authEnabled)
 
-	// Service discovery: announced on Wotan's system.discovery topic (best-effort)
 	transportCfg := transport.DefaultConfig()
 	transport.ConfigFromEnv(&transportCfg)
-	discovery.Start(ctx, transportCfg, "chaos-controller", ports.Chaos)
+	discovery.Start(ctx, transportCfg, serviceName, ports.PortOf(c.addr, ports.Chaos))
 
-	// Set up HTTP server
-	mux := http.NewServeMux()
-	controller.registerRoutes(mux)
-
-	addr := ports.DefaultAddr(ports.Chaos)
-	httpServer := &http.Server{
-		Addr:           addr,
-		Handler:        mux,
-		ReadTimeout:    10 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		MaxHeaderBytes: 1 << 20,
+	srv := &http.Server{
+		Addr:              c.addr,
+		Handler:           handler(a),
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		MaxHeaderBytes:    1 << 20,
 	}
-
-	// Start HTTP server
+	errc := make(chan error, 1)
 	go func() {
-		log.Info().Str("addr", addr).Msg("HTTP server starting")
-		if err := httpServer.ListenAndServe(); err != http.ErrServerClosed {
-			log.Error().Err(err).Msg("HTTP server error")
-		}
+		log.Info().Str("addr", c.addr).Bool("dry_run", c.dryRun).Msg("chaos-controller listening")
+		errc <- srv.ListenAndServe()
 	}()
-
-	// Signal handling
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-
-	sig := <-sigCh
-	log.Info().Str("signal", sig.String()).Msg("shutdown signal received")
-	cancel()
-
-	// Graceful shutdown
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-
-	if err := httpServer.Shutdown(shutdownCtx); err != nil {
-		log.Error().Err(err).Msg("HTTP server shutdown error")
+	select {
+	case err := <-errc:
+		if !errors.Is(err, http.ErrServerClosed) {
+			log.Error().Err(err).Msg("HTTP server")
+		}
+	case <-ctx.Done():
 	}
-
-	if err := controller.Stop(); err != nil {
-		log.Error().Err(err).Msg("controller stop error")
-	}
-
+	sctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	_ = srv.Shutdown(sctx)
+	a.gameday.Stop()
+	s.Stop() // aborts and reverts whatever runs
 	log.Info().Msg("chaos-controller stopped")
 }

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strconv"
+	"strings"
 	"testing"
 )
 
@@ -107,6 +108,15 @@ var helmOnly = map[string]bool{
 	"unheaded-daemon": true,
 }
 
+// hostOnly lists services that run only as host systemd units, under a
+// sysusers account whose ID is pinned to the registry's UID
+// (TestHostOnlySysusersPinned checks the pin).
+var hostOnly = map[string]string{
+	// Faults need CAP_NET_ADMIN (and CAP_BPF on west) on the host itself:
+	// S-REAL-STEEL Phase 10, deploy/systemd/unheaded-chaos-controller.service.
+	"chaos-controller": "unheaded-chaos",
+}
+
 // composeOnly lists services that exist only in compose files (or as the
 // Dockerfile's default stage). TestComposeMatchesRegistry and
 // TestAltComposeMatchesRegistry check them instead.
@@ -188,7 +198,7 @@ func TestManifestsMatchRegistry(t *testing.T) {
 		paths := findManifests(service)
 
 		if len(paths) == 0 {
-			if !helmOnly[service] && !composeOnly[service] {
+			if _, host := hostOnly[service]; !helmOnly[service] && !composeOnly[service] && !host {
 				t.Errorf("%s: registry assigns UID %d but no manifest declares it, "+
 					"and it is not listed as Helm-only — the registry is asserting "+
 					"hardening that may never have been applied", service, want)
@@ -246,6 +256,35 @@ func TestManifestsMatchRegistry(t *testing.T) {
 						service, rel, fg, want)
 				}
 			}
+		}
+	}
+}
+
+// TestHostOnlySysusersPinned: a host-only service's sysusers line carries
+// the registry UID, so the registry asserts what the host really runs.
+func TestHostOnlySysusersPinned(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "deploy", "sysusers.d", "unheaded.conf"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for service, account := range hostOnly {
+		want, ok := Registry[service]
+		if !ok {
+			t.Errorf("%s: host-only but not in the registry", service)
+			continue
+		}
+		found := false
+		for _, line := range strings.Split(string(data), "\n") {
+			f := strings.Fields(line)
+			if len(f) >= 3 && f[0] == "u" && f[1] == account {
+				found = true
+				if f[2] != strconv.Itoa(want) {
+					t.Errorf("%s: sysusers %s has ID %s, registry says %d", service, account, f[2], want)
+				}
+			}
+		}
+		if !found {
+			t.Errorf("%s: no sysusers line for %s", service, account)
 		}
 	}
 }

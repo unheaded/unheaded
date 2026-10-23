@@ -162,25 +162,25 @@ gotest() { (cd "$PROJECT_ROOT" && go test -race -count=1 "$@" 2>&1 | tail -25); 
 
 Verified in Phase 0 Steps 4-20. A FALSE hypothesis is not a failure: it amends the plan (note it here, then follow the "If false" column).
 
-| # | Hypothesis | Verify via (step) | If false |
-|---|---|---|---|
-| H1 | HEAD contains `443de3f82` and the S17 Cuirass commits | Step 4 | Rebase/branch from develop; STOP if those commits are gone |
-| H2 | 148 of 300 packages are still unreached | Step 5 | Use the new count everywhere; the table is generated, not typed |
-| H3 | Every deploy path simulates when its driver is nil (sites in SITUATION) | Step 6 | Drop the sites that are already real from Phase 7 |
-| H4 | Yaldabaoth injectors only log; `runProbe` is always true; `shouldAbort` always false | Step 7 | Keep whatever is real; Phase 10/11 shrink |
-| H5 | `chaos-controller` never constructs `yaldabaoth.Service` | Step 7 | Phase 10 wires the existing one instead of adding it |
-| H6 | No userspace writes `CHAOS_TARGETS` | Step 8 | Reuse that loader in Phase 13 |
-| H7 | West LXD has an HTTPS listener and no `unheaded` project yet (trust script not applied) | Step 9 [LIVE-RO] | If the project exists, E2 shrinks to "confirm it is ours" |
-| H8 | West main stack (wotan, victoria, cuirass) is down | Step 10 [LIVE-RO] | If up, E2 drops the compose-up ask |
-| H9 | East answers read-only; unheaded-* units active list known | Step 11 [LIVE-RO] | Phase 12 waits for east; nothing else does |
-| H10 | `sch_netem` and `tc` exist on west and east kernels | Step 12 | Phase 11 netem STUCK on that host; container kill still runs |
-| H11 | Wotan registers `grpc.health.v1` (services/wotan/cmd/wotan/main.go:343) | Step 13 | ProbeGRPC uses a cheap Wotan RPC instead (D-11) |
-| H12 | `TransferSnapshot` has no client caller | Step 13 | Phase 3 must fix the caller too |
-| H13 | Spec EVENT_CHAOS 0x04 vs code 0x05 mismatch is real | Step 14 | Drop E4's first question |
-| H14 | `services/loadbalancer` (xdpsync) is unreached, so its Wotan bug is in dead code | Step 5 | Phase 2 fixes xdpsync's join instead of routing it to E1 |
-| H15 | `go test ./...` is green at HEAD (S17: 267 ok / 0 fail) | Step 16 | Record failures in KNOWN FAILURES BASELINE; they are not this sprint's |
-| H16 | A restricted LXD client in a project with `features.images=false` cannot import images | Step 145 (after E2) | If it can, the image build runs as Cuirass's identity, not govan |
-| H17 | A compose container can reach lxdbr0 instance IPs (Cuirass's and Sword's probes) | Step 174 | D-09 fallback: Sword runs as a host systemd unit; Cuirass probe moves to the host side (STUCK until decided) |
+| # | Hypothesis | Verify via (step) | If false | Result (Phase 0, 2026-10-23) |
+|---|---|---|---|---|
+| H1 | HEAD contains `443de3f82` and the S17 Cuirass commits | Step 4 | Rebase/branch from develop; STOP if those commits are gone | **TRUE (amendment: the cited hashes were rewritten when unpushed commits were re-signed; the same commits are present by subject: `37f1c6c0` LXD REST client, `b04336e3` safe mode, `1883f910` desired store, `2a2f4e62` trust script, `c8d42b7f`/`e3769107` cli via Cuirass, `a7eeacf8` UNREACHED list; executed on `f7d730e7`)** |
+| H2 | 148 of 300 packages are still unreached | Step 5 | Use the new count everywhere; the table is generated, not typed | **TRUE: 148 unreached of 307 packages (7 new packages since the doc, all reached); the list is identical to the doc's** |
+| H3 | Every deploy path simulates when its driver is nil (sites in SITUATION) | Step 6 | Drop the sites that are already real from Phase 7 | **TRUE (rolling.go:209, bluegreen.go:139, canary.go invents instances when `OnInstanceCreate` is nil at :157/:297 without a 'simulate' comment; stage.go x5; deploy.go:955; sword.go:267; canary service :591)** |
+| H4 | Yaldabaoth injectors only log; `runProbe` is always true; `shouldAbort` always false | Step 7 | Keep whatever is real; Phase 10/11 shrink | **TRUE** |
+| H5 | `chaos-controller` never constructs `yaldabaoth.Service` | Step 7 | Phase 10 wires the existing one instead of adding it | **TRUE (only `NewAuditTrail`, `NewGameDayScheduler`)** |
+| H6 | No userspace writes `CHAOS_TARGETS` | Step 8 | Reuse that loader in Phase 13 | **TRUE (zero hits outside the eBPF program, not even bpfschema)** |
+| H7 | West LXD has an HTTPS listener and no `unheaded` project yet (trust script not applied) | Step 9 [LIVE-RO] | If the project exists, E2 shrinks to "confirm it is ours" | **TRUE (`[::]:8443`, projects: default only, `pihole,RUNNING`)** |
+| H8 | West main stack (wotan, victoria, cuirass) is down | Step 10 [LIVE-RO] | If up, E2 drops the compose-up ask | **TRUE (VM, Cuirass, Wotan all refuse connections)** |
+| H9 | East answers read-only; unheaded-* units active list known | Step 11 [LIVE-RO] | Phase 12 waits for east; nothing else does | **TRUE (12 units + 2 timers + 1 path active, incl. wotan, timeguru, architect, unheaded-daemon; list in `$SCRATCH/east-units.txt`)** |
+| H10 | `sch_netem` and `tc` exist on west and east kernels | Step 12 | Phase 11 netem STUCK on that host; container kill still runs | **TRUE (both hosts: `sch_netem.ko.zst` on 6.17.0-41, iproute2-6.16.0)** |
+| H11 | Wotan registers `grpc.health.v1` (services/wotan/cmd/wotan/main.go:343) | Step 13 | ProbeGRPC uses a cheap Wotan RPC instead (D-11) | **TRUE (line 352 now, not 343)** |
+| H12 | `TransferSnapshot` has no client caller | Step 13 | Phase 3 must fix the caller too | **TRUE (zero callers)** |
+| H13 | Spec EVENT_CHAOS 0x04 vs code 0x05 mismatch is real | Step 14 | Drop E4's first question | **TRUE (spec 0x04/0x08; code Anomaly 0x04, Chaos 0x05 in monad-common and bpfschema)** |
+| H14 | `services/loadbalancer` (xdpsync) is unreached, so its Wotan bug is in dead code | Step 5 | Phase 2 fixes xdpsync's join instead of routing it to E1 | **TRUE** |
+| H15 | `go test ./...` is green at HEAD (S17: 267 ok / 0 fail) | Step 16 | Record failures in KNOWN FAILURES BASELINE; they are not this sprint's | **TRUE: 277 ok / 0 FAIL (`go test -count=1 ./...` at f7d730e7)** |
+| H16 | A restricted LXD client in a project with `features.images=false` cannot import images | Step 145 (after E2) | If it can, the image build runs as Cuirass's identity, not govan | open (after E2) |
+| H17 | A compose container can reach lxdbr0 instance IPs (Cuirass's and Sword's probes) | Step 174 | D-09 fallback: Sword runs as a host systemd unit; Cuirass probe moves to the host side (STUCK until decided) | open (Step 174) |
 
 ## KNOWN FAILURES BASELINE
 
@@ -194,6 +194,10 @@ Pre-existing, not regressions (from next.md S17). Step 16 re-records the live li
 | GitHub `ci.yml`, `docker.yml`, `ebpf.yml`, `release.yml` are `disabled_manually` | S17 (Stevie's setting; do not touch) |
 | alert-mailer in `mode: dry-run`; no Watchdog | ADR-100 Implementation |
 | East runs pre-S17 binaries (logs-oldest, gateway, uptime, blank-trace bugs visible there) | S17 deploy note |
+| `go mod tidy -diff` not empty (drops indirect `gopkg.in/check.v1` and stale `kr/*` sums); go.mod/go.sum unchanged by this sprint | Step 78 (2026-10-23) |
+| `cargo test -p monad-common` inside `ebpf/` fails to compile (the workspace config forces bpfel + build-std); use `make test-rust-ebpf-common` | Step 17 (2026-10-23) |
+
+Step 16 at `f7d730e7` (2026-10-23): `go build ./...` clean, `go test -count=1 ./...` 277 ok / 0 FAIL.
 
 ---
 
@@ -206,16 +210,16 @@ Pre-existing, not regressions (from next.md S17). Step 16 re-records the live li
 
 ### Environment and branch
 
-- [ ] **Step 1** [ENV] ~2m: Set VARIABLES (block above) in the shell; confirm.
+- [x] **Step 1** [ENV] ~2m: Set VARIABLES (block above) in the shell; confirm.
   ```bash
   echo "$PROJECT_ROOT $SIGN"; test -f "$PLAN" && echo plan-ok
   ```
-- [ ] **Step 2** [B] ~1m: Confirm the branch is not develop/staging/main.
+- [x] **Step 2** [B] ~1m: Confirm the branch is not develop/staging/main.
   ```bash
   git -C "$PROJECT_ROOT" branch --show-current
   ```
-- [ ] **Step 3** [V] ~30s: Branch name is a sprint/worktree branch. If it is `develop`, `staging` or `main` → `git -C "$PROJECT_ROOT" switch -c real-steel` and repeat Step 2.
-- [ ] **Step 4** [PREFLIGHT] ~1m: **H1**.
+- [x] **Step 3** [V] ~30s: Branch name is a sprint/worktree branch. If it is `develop`, `staging` or `main` → `git -C "$PROJECT_ROOT" switch -c real-steel` and repeat Step 2.
+- [x] **Step 4** [PREFLIGHT] ~1m: **H1**.
   ```bash
   for c in 443de3f82 b49e3f16 04c34ed0 5b490383 22e9aa54 f95b0764 416eeef7; do
     git -C "$PROJECT_ROOT" merge-base --is-ancestor "$c" HEAD && echo "ok $c" || echo "MISSING $c"; done
@@ -224,7 +228,8 @@ Pre-existing, not regressions (from next.md S17). Step 16 re-records the live li
 
 ### Hypotheses
 
-- [ ] **Step 5** [PREFLIGHT] ~3m: **H2, H14**: regenerate the unreached list exactly as the doc says.
+- [x] **Step 5** [PREFLIGHT] ~3m: **H2, H14**: regenerate the unreached list exactly as the doc says.
+  - Done 2026-10-23: 148 / 307; services/loadbalancer unreached (1).
   ```bash
   cd "$PROJECT_ROOT"
   mains=$(go list -f '{{if eq .Name "main"}}{{.ImportPath}}{{end}}' ./...)
@@ -234,73 +239,75 @@ Pre-existing, not regressions (from next.md S17). Step 16 re-records the live li
   ```
   - Note: uutils `comm` fails on two pipes (memory: reference_west_tool_gotchas). Process substitution of one side each is fine; if comm errors → `go list ./... | sort -u > $SCRATCH/all.txt` and `... > $SCRATCH/reached.txt`, then `comm -23 $SCRATCH/all.txt $SCRATCH/reached.txt`.
   - Record the count in PREFLIGHT H2's row (edit this file).
-- [ ] **Step 6** [PREFLIGHT] ~2m: **H3**.
+- [x] **Step 6** [PREFLIGHT] ~2m: **H3**.
   ```bash
   grep -n -i 'simulat' "$PROJECT_ROOT"/pkg/deploy/{deploy.go,pipeline/stage.go,strategy/*.go} "$PROJECT_ROOT"/services/{sword/sword.go,canary/canary.go} | grep -v _test
   ```
-- [ ] **Step 7** [PREFLIGHT] ~2m: **H4, H5**.
+- [x] **Step 7** [PREFLIGHT] ~2m: **H4, H5**.
   ```bash
   sed -n '/func (s \*Service) runProbe/,/^}/p;/func (s \*Service) shouldAbort/,/^}/p' "$PROJECT_ROOT/services/yaldabaoth/yaldabaoth.go"
   grep -n 'yaldabaoth\.New' "$PROJECT_ROOT/cmd/chaos-controller/main.go"
   ```
   - Expect `NewAuditTrail` and `NewGameDayScheduler` only, no `NewService`.
-- [ ] **Step 8** [PREFLIGHT] ~2m: **H6**.
+- [x] **Step 8** [PREFLIGHT] ~2m: **H6**.
   ```bash
   grep -rn 'CHAOS_TARGETS' "$PROJECT_ROOT" --include=*.go --include=*.rs | grep -v 'ebpf/yaldabaoth-ebpf/src/main.rs' | grep -v /target/
   ```
   - Only `pkg/protocol/bpfschema` doc/struct hits expected (no `ebpf.LoadPinnedMap` of it).
-- [ ] **Step 9** [PREFLIGHT][LIVE-RO][BARE-METAL] ~2m: **H7** on west.
+- [x] **Step 9** [PREFLIGHT][LIVE-RO][BARE-METAL] ~2m: **H7** on west.
   ```bash
   lxc version; lxc config get core.https_address; lxc project list --format csv | cut -d, -f1
   lxc list --project default --format csv -c ns
   ```
   - Expect a listener (non-empty), no `unheaded` project, `pihole,RUNNING`.
-- [ ] **Step 10** [PREFLIGHT][LIVE-RO] ~1m: **H8**.
+- [x] **Step 10** [PREFLIGHT][LIVE-RO] ~1m: **H8**.
   ```bash
   curl -fsS --max-time 3 "$VM/health" && echo VM-UP || echo VM-DOWN
   curl -fsS --max-time 3 "$CUIRASS/health" && echo CUIRASS-UP || echo CUIRASS-DOWN
   curl -fsS --max-time 3 http://127.0.0.1:18000/health && echo WOTAN-UP || echo WOTAN-DOWN
   ```
-- [ ] **Step 11** [PREFLIGHT][LIVE-RO] ~2m: **H9**.
+- [x] **Step 11** [PREFLIGHT][LIVE-RO] ~2m: **H9**.
   ```bash
   ssh -o BatchMode=yes -o ConnectTimeout=5 "$EAST" 'systemctl list-units "unheaded-*" --no-legend --plain | awk "{print \$1, \$3, \$4}"'
   ```
   - Record the active list in `$SCRATCH/east-units.txt` (Phase 12 picks its allowlist from it).
-- [ ] **Step 12** [PREFLIGHT][LIVE-RO] ~1m: **H10**.
+- [x] **Step 12** [PREFLIGHT][LIVE-RO] ~1m: **H10**.
   ```bash
   modinfo -F filename sch_netem; tc -V
   ssh -o BatchMode=yes "$EAST" 'modinfo -F filename sch_netem; tc -V'
   ```
-- [ ] **Step 13** [PREFLIGHT] ~2m: **H11, H12**.
+- [x] **Step 13** [PREFLIGHT] ~2m: **H11, H12**.
   ```bash
   grep -n 'RegisterHealthServer' "$PROJECT_ROOT/services/wotan/cmd/wotan/main.go"
   grep -rn 'TransferSnapshot(' "$PROJECT_ROOT" --include=*.go | grep -v -E '_test|\.pb\.go|replication_server.go'
   ```
   - Expect one hit for health, zero for snapshot callers.
-- [ ] **Step 14** [PREFLIGHT] ~2m: **H13**.
+- [x] **Step 14** [PREFLIGHT] ~2m: **H13**.
   ```bash
   grep -n 'EVENT_CHAOS\|EVENT_ANOMALY' "$PROJECT_ROOT/docs/protocol/draft-bellis-unheaded-protocol-foundation-06.md"
   grep -n 'Chaos = \|Anomaly = ' "$PROJECT_ROOT/ebpf/monad-common/src/lib.rs"
   grep -n 'EventChaos\|EventAnomaly' "$PROJECT_ROOT/pkg/protocol/bpfschema/core_maps.go"
   ```
-- [ ] **Step 15** [V] ~2m: **PREFLIGHT TABLE UPDATED**: every H1-H15 row in this file carries `TRUE`/`FALSE (amendment: ...)`. H16/H17 stay open until Steps 145/151.
+- [x] **Step 15** [V] ~2m: **PREFLIGHT TABLE UPDATED**: every H1-H15 row in this file carries `TRUE`/`FALSE (amendment: ...)`. H16/H17 stay open until Steps 145/151.
 
 ### Test baseline
 
-- [ ] **Step 16** [TEST] ~15m: **H15**, full baseline (not -race: the race tier runs per touched package).
+- [x] **Step 16** [TEST] ~15m: **H15**, full baseline (not -race: the race tier runs per touched package).
   ```bash
   cd "$PROJECT_ROOT" && go build ./... && go test -count=1 ./... 2>&1 | grep -E '^(ok|FAIL|---)' > "$SCRATCH/baseline-tests.txt"; \
   grep -c '^ok' "$SCRATCH/baseline-tests.txt"; grep '^FAIL' "$SCRATCH/baseline-tests.txt" || echo "no FAIL"
   ```
-- [ ] **Step 17** [B] ~3m: Rust/eBPF baseline for the two crates this sprint touches.
+- [x] **Step 17** [B] ~3m: Rust/eBPF baseline for the two crates this sprint touches.
+  - Done 2026-10-23: the Step 17 cargo line fails as written (ebpf/.cargo/config.toml forces bpfel + build-std: E0463/E0152). Used the Makefile recipe `test-rust-ebpf-common` (CARGO_TARGET_DIR outside ebpf/, --manifest-path ebpf/monad-common/Cargo.toml): 91 + 1 passed. `make ebpf-yaldabaoth` built; yaldabaoth-ebpf = 18080 bytes.
   ```bash
   cd "$PROJECT_ROOT/ebpf" && cargo test -p monad-common 2>&1 | tail -3
   cd "$PROJECT_ROOT" && make ebpf-yaldabaoth 2>&1 | tail -3 && ls -l ebpf/target/bpfel-unknown-none/release/yaldabaoth-ebpf
   ```
   - Record the object's byte size in `$SCRATCH/yald-size.txt` (Phase 13 compares).
-- [ ] **Step 18** [D] ~5m: Only if Step 17 build fails: `rustup show` in `ebpf/` (rust-toolchain.toml pins nightly + `-Z build-std`); `cargo +nightly --version`. 2 attempts, then STUCK Step 17 (blocks Phase 13 only).
-- [ ] **Step 19** [V] ~1m: **BASELINE RECORDED**: `$SCRATCH/baseline-tests.txt` exists, FAIL lines (if any) copied into KNOWN FAILURES BASELINE in this file.
-- [ ] **Step 20** [C] ~2m: **COMMIT CHECKPOINT** (preflight results in the plan).
+- [x] **Step 18** [D] ~5m: Only if Step 17 build fails: `rustup show` in `ebpf/` (rust-toolchain.toml pins nightly + `-Z build-std`); `cargo +nightly --version`. 2 attempts, then STUCK Step 17 (blocks Phase 13 only).
+  - Done 2026-10-23: attempt 1 (host target) still hit build-std; attempt 2 = the Makefile recipe, green. Environment: go.mod's replace needs `../projects/doomgeneric/unheaded`; in a worktree that is `.claude/worktrees/projects`, so a symlink to ~/tmp/projects was added there (outside the repo).
+- [x] **Step 19** [V] ~1m: **BASELINE RECORDED**: `$SCRATCH/baseline-tests.txt` exists, FAIL lines (if any) copied into KNOWN FAILURES BASELINE in this file.
+- [x] **Step 20** [C] ~2m: **COMMIT CHECKPOINT** (preflight results in the plan).
   ```bash
   commit "docs(battle-plan): S-REAL-STEEL preflight results" "1-20" "$PLAN"
   ```
@@ -309,7 +316,7 @@ Pre-existing, not regressions (from next.md S17). Step 16 re-records the live li
 
 `[DECIDE] D-01 (ledger shape)`: RECOMMENDATION: a **package-level** ledger `docs/sweeps/REAL-STEEL-UNREACHED.tsv` (`package <TAB> group <TAB> evidence <TAB> recommendation <TAB> verdict <TAB> commit <TAB> notes`), not ADR-090's 1,836-row file ledger. Rationale: ADR-090 is still Proposed and its ledger is per file; this sprint's question is per package (is anything going to call it). The TSV's columns map onto ADR-090's (`verdict` uses DELETED / FLAGGED / CLEAN, plus WIRE and PARK), so the file ledger can import it later. Override ONLY if Stevie has accepted ADR-090 by execution time: then also create the file ledger and mark these packages' files.
 
-- [ ] **Step 21** [W][P] ~10m: Write `scripts/sweep/unreached-evidence.sh` (new; dry, read-only): for each package in `$SCRATCH/unreached.txt` print one TSV row with
+- [x] **Step 21** [W][P] ~10m: Write `scripts/sweep/unreached-evidence.sh` (new; dry, read-only): for each package in `$SCRATCH/unreached.txt` print one TSV row with
   - `test_importers`: count of `_test.go` files outside the package that import it (`grep -rl --include=*_test.go "\"$pkg\""`);
   - `prod_importers`: non-test importers (should be other unreached packages only);
   - `fake_markers`: count of `simulat|placeholder|in (a )?real implementation|would (be|actually)|not yet implemented` in its non-test files;
@@ -319,32 +326,37 @@ Pre-existing, not regressions (from next.md S17). Step 16 re-records the live li
   ```bash
   bash "$PROJECT_ROOT/scripts/sweep/unreached-evidence.sh" "$SCRATCH/unreached.txt" > "$SCRATCH/evidence.tsv"; wc -l < "$SCRATCH/evidence.tsv"
   ```
-- [ ] **Step 22** [V] ~1m: Row count equals Step 5's count. Mismatch → Step 23.
-- [ ] **Step 23** [D] ~5m: Diff `cut -f1 evidence.tsv` against `unreached.txt`; usual cause is a package dir with only `_test.go` or a build-tagged file (`//go:build`); give those rows `fake_markers=n/a` rather than skipping. 2 attempts → STUCK (blocks Steps 30-38).
-- [ ] **Step 24** [B][P] ~3m: Non-Go dead code evidence: the 23 orphan dashboard scripts.
+- [x] **Step 22** [V] ~1m: Row count equals Step 5's count. Mismatch → Step 23.
+- [x] **Step 23** [D] ~5m: Diff `cut -f1 evidence.tsv` against `unreached.txt`; usual cause is a package dir with only `_test.go` or a build-tagged file (`//go:build`); give those rows `fake_markers=n/a` rather than skipping. 2 attempts → STUCK (blocks Steps 30-38).
+  - Done 2026-10-23: not needed (148 rows = Step 5); test-only/build-tagged dirs carry fake_markers=n/a.
+- [x] **Step 24** [B][P] ~3m: Non-Go dead code evidence: the 23 orphan dashboard scripts.
+  - Done 2026-10-23: 23 orphans incl. monad-decode.js (Math.random registers, fake CRC, random 5% checksum_valid=false).
   ```bash
   cd "$PROJECT_ROOT/dashboard" && for f in js/*.js; do b=$(basename "$f"); \
     grep -rqs --include=*.html --include=*.js -F "$b" . --exclude="$b" || echo "$b"; done > "$SCRATCH/js-orphans.txt"; wc -l < "$SCRATCH/js-orphans.txt"
   grep -n -i -E 'Math\.random|crc|checksum' js/monad-decode.js | head
   ```
   - Expect 23, including monad-decode.js (invents register values, CRC and a random 5% "checksum invalid").
-- [ ] **Step 25** [B][P] ~2m: Parked `.go.dev` files (never compiled, so invisible to the list).
+- [x] **Step 25** [B][P] ~2m: Parked `.go.dev` files (never compiled, so invisible to the list).
+  - Done 2026-10-23: 5 files: pkg/lxd/real_client.go.dev, pkg/container/{lxd/lxd,image/image,network/network,storage/storage}.go.dev.
   ```bash
   cd "$PROJECT_ROOT" && git ls-files '*.go.dev' | xargs -r wc -l
   ```
   - Expect at least `pkg/lxd/real_client.go.dev` (1648 lines, client_golang + zerolog) and `pkg/container/lxd/lxd.go.dev`.
-- [ ] **Step 26** [B][P] ~2m: Dead-in-a-live-package evidence (unreached by symbol, not by package): `transport.Connect`, `yaldabaoth.Service` (wired by this sprint, so WIRE), `FlushFallbackQueue` (wired by Phase 2), `pkg/health/aggregator.go` (S17 Agent 2: used by no binary).
+- [x] **Step 26** [B][P] ~2m: Dead-in-a-live-package evidence (unreached by symbol, not by package): `transport.Connect`, `yaldabaoth.Service` (wired by this sprint, so WIRE), `FlushFallbackQueue` (wired by Phase 2), `pkg/health/aggregator.go` (S17 Agent 2: used by no binary).
+  - Done 2026-10-23: transport.Connect has zero callers (two comments only). pkg/health/aggregator.go has no binary caller, but response.go (also uncalled) uses its HealthStatus constants.
   ```bash
   cd "$PROJECT_ROOT" && grep -rn 'transport\.Connect(' --include=*.go . | grep -v _test
   grep -rln 'NewAggregator\|aggregator\.' --include=*.go cmd services | head
   ```
-- [ ] **Step 27** [R][P] ~10m: For each of the three S17 "fake success" items, read the whole file (ADR-090 per-file procedure step 1, not a grep) and note one line of evidence each in `$SCRATCH/fakes.md`: `pkg/lxd/client.go` RealClient, `pkg/certs/acme/acme.go`, `cmd/unheaded-daemon/internal/lxd/client.go`.
-- [ ] **Step 28** [B][P] ~3m: Which unreached packages only exist to serve another unreached package (delete together): build the reverse-import edges among the unreached set.
+- [x] **Step 27** [R][P] ~10m: For each of the three S17 "fake success" items, read the whole file (ADR-090 per-file procedure step 1, not a grep) and note one line of evidence each in `$SCRATCH/fakes.md`: `pkg/lxd/client.go` RealClient, `pkg/certs/acme/acme.go`, `cmd/unheaded-daemon/internal/lxd/client.go`.
+- [x] **Step 28** [B][P] ~3m: Which unreached packages only exist to serve another unreached package (delete together): build the reverse-import edges among the unreached set.
+  - Done 2026-10-23: 149 prod edges among the unreached set. Also: 16 tests of REACHED packages import unreached ones (pkg/audit, pkg/secrets, pkg/storage tests import their sub-packages; kanban-app/monad/sophia/captain/metrics tests import mock/metricstest; pkg/crypto/pqc tests import pkg/monad).
   ```bash
   cd "$PROJECT_ROOT" && while read -r p; do go list -f '{{.ImportPath}} {{join .Imports " "}}' "./${p#unheaded/}" 2>/dev/null; done < "$SCRATCH/unreached.txt" \
     | awk '{for(i=2;i<=NF;i++) if ($i ~ /^unheaded\//) print $1, "->", $i}' > "$SCRATCH/unreached-edges.txt"; wc -l < "$SCRATCH/unreached-edges.txt"
   ```
-- [ ] **Step 29** [C] ~2m: **COMMIT CHECKPOINT**.
+- [x] **Step 29** [C] ~2m: **COMMIT CHECKPOINT**.
   ```bash
   commit "chore(sweep): unreached-package evidence script" "21-29" scripts/sweep/unreached-evidence.sh
   ```
@@ -367,20 +379,26 @@ Pre-existing, not regressions (from next.md S17). Step 16 re-records the live li
 
 Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 are the cases where the proof is weakest or the call is a standing Stevie/RFC decision, so they default to keep. Override ONLY if a row's evidence contradicts its rule (e.g. R9 package with `exported_refl > 0` → FLAGGED, ask in the table).
 
-- [ ] **Step 30** [W] ~20m: Write `$VERDICTS` (`docs/sweeps/REAL-STEEL-UNREACHED.tsv`): one row per package from `$SCRATCH/evidence.tsv`, plus non-Go rows (`dashboard/js/<file>` x23, `*.go.dev` files, `transport.Connect`, `pkg/health/aggregator.go`), each with group, evidence summary and recommendation from D-02. `verdict`, `commit` empty.
-- [ ] **Step 31** [V] ~2m: Every row has a group and a recommendation; no G10 row has `exported_refl > 0` without FLAGGED.
+- [x] **Step 30** [W] ~20m: Write `$VERDICTS` (`docs/sweeps/REAL-STEEL-UNREACHED.tsv`): one row per package from `$SCRATCH/evidence.tsv`, plus non-Go rows (`dashboard/js/<file>` x23, `*.go.dev` files, `transport.Connect`, `pkg/health/aggregator.go`), each with group, evidence summary and recommendation from D-02. `verdict`, `commit` empty.
+  - Done 2026-10-23: 178 rows (148 packages, 22+1 dashboard scripts, 5 .go.dev, transport.Connect, pkg/health/aggregator.go). D-02 applied with two readings recorded in the decision doc: R2 covers packages with test files only (they cannot have importers), and G10 is split into eight families (G10a-h) so Stevie can keep a family without row-by-row answers. Rule R8 beat the template's G5 for services/loadbalancer (maglev-ebpf), so it is FLAGGED (F6).
+- [x] **Step 31** [V] ~2m: Every row has a group and a recommendation; no G10 row has `exported_refl > 0` without FLAGGED.
+  - Done 2026-10-23: no row without group/recommendation; the three reflect rows (pkg/config, pkg/testing, services/kenoma) are FLAGGED (F4).
   ```bash
   awk -F'\t' 'NR>1 && ($2=="" || $4=="")' "$VERDICTS" | head; awk -F'\t' 'NR>1{print $2}' "$VERDICTS" | sort | uniq -c
   ```
-- [ ] **Step 32** [D] ~5m: Rows missing a group → re-read that package's doc comment and apply D-02 by hand. 2 attempts → mark the row FLAGGED (Stevie answers it in the table).
-- [ ] **Step 33** [R] ~10m: Cross-edge check: a DELETE row must not be imported by a KEEP/WIRE/PARK row (`$SCRATCH/unreached-edges.txt`) or by any test of a kept package. Any conflict → demote the DELETE to FLAGGED with "imported by <x>".
-- [ ] **Step 34** [B] ~2m: Non-compiler references for every DELETE row (ADR-090 "build passes is not sufficient"): BPF map names, `go:embed`, scripts, Makefile, Dockerfile, compose, systemd, Nix, Helm, docs that name the path.
+- [x] **Step 32** [D] ~5m: Rows missing a group → re-read that package's doc comment and apply D-02 by hand. 2 attempts → mark the row FLAGGED (Stevie answers it in the table).
+  - Done 2026-10-23: not needed.
+- [x] **Step 33** [R] ~10m: Cross-edge check: a DELETE row must not be imported by a KEEP/WIRE/PARK row (`$SCRATCH/unreached-edges.txt`) or by any test of a kept package. Any conflict → demote the DELETE to FLAGGED with "imported by <x>".
+  - Done 2026-10-23: 16 DELETE rows demoted to FLAGGED: imported by tests of live pkg/audit, pkg/secrets, pkg/storage (F1), by tests/e2e (F2), by tests/pqc (F3). Sub-packages imported only by a flagged parent go with its answer (G10f).
+- [x] **Step 34** [B] ~2m: Non-compiler references for every DELETE row (ADR-090 "build passes is not sufficient"): BPF map names, `go:embed`, scripts, Makefile, Dockerfile, compose, systemd, Nix, Helm, docs that name the path.
+  - Done 2026-10-23: 93 of 100 DELETE/MERGE rows have non-Go references; listed per row in the TSV notes.
   ```bash
   cd "$PROJECT_ROOT" && awk -F'\t' '$4=="DELETE"{print $1}' "$VERDICTS" | while read -r p; do d=${p#unheaded/}; \
     n=$(git grep -n -F "$d" -- ':!*.go' ':!docs/sweeps/*' ':!docs/UNREACHED-GO-PACKAGES.md' | wc -l); echo "$n $d"; done | sort -rn | head -30
   ```
   - Non-zero rows: add "references: <files>" to notes; the Phase 1 deletion of that row must edit those files in the same commit.
-- [ ] **Step 35** [W] ~15m: Write `docs/sweeps/REAL-STEEL-DECISIONS.md`: the one-pass decision table for Stevie (template below). One row per GROUP with the package list collapsed, counts, the recommendation, and an "answer" column; FLAGGED rows listed individually underneath. Link it from `docs/UNREACHED-GO-PACKAGES.md` and ADR-090's "Input gathered since" line.
+- [x] **Step 35** [W] ~15m: Write `docs/sweeps/REAL-STEEL-DECISIONS.md`: the one-pass decision table for Stevie (template below). One row per GROUP with the package list collapsed, counts, the recommendation, and an "answer" column; FLAGGED rows listed individually underneath. Link it from `docs/UNREACHED-GO-PACKAGES.md` and ADR-090's "Input gathered since" line.
+  - Done 2026-10-23: docs/sweeps/REAL-STEEL-DECISIONS.md: 16 group rows (G10 split a-h) + 26 FLAGGED rows, Default column on every row, ADR-090 status question; linked from UNREACHED-GO-PACKAGES.md and ADR-090.
 
   Template:
   ```markdown
@@ -398,11 +416,12 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   | G10 | Unused libraries/services | (generated) | Step 21 | DELETE | |
   | F* | FLAGGED rows | one per row | | ask | |
   ```
-- [ ] **Step 36** [V] ~2m: Every TSV row appears in exactly one table group or FLAGGED line.
+- [x] **Step 36** [V] ~2m: Every TSV row appears in exactly one table group or FLAGGED line.
+  - Done 2026-10-23: 178 unique rows, each in exactly one group or F line.
   ```bash
   awk -F'\t' 'NR>1{print $1}' "$VERDICTS" | sort -u | wc -l
   ```
-- [ ] **Step 37** [C] ~2m: **COMMIT CHECKPOINT**.
+- [x] **Step 37** [C] ~2m: **COMMIT CHECKPOINT**.
   ```bash
   commit "docs(sweep): REAL-STEEL unreached ledger and one-pass decision table" "30-37" \
     docs/sweeps/REAL-STEEL-UNREACHED.tsv docs/sweeps/REAL-STEEL-DECISIONS.md docs/UNREACHED-GO-PACKAGES.md docs/adr/ADR-090-total-source-sweep-slop-removal.md
@@ -411,28 +430,30 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 ### E1
 
 - [ ] **Step 38** [ESCALATE] ~0m agent / one pass for Stevie: **E1, ADR-090 delete decisions.**
+  - Done 2026-10-23: E1 posted, waiting on Stevie (docs/sweeps/REAL-STEEL-DECISIONS.md). Phase 1, Steps 91-92 and 233 wait; everything else continues.
   - **Context**: `docs/sweeps/REAL-STEEL-DECISIONS.md`, one table, about 12 group rows plus FLAGGED rows. Each group has a recommendation; "Y" on a row takes it.
   - **Questions**: (1) Answer column per group (Y/N/P/W). (2) FLAGGED rows individually. (3) ADR-090 status: accept it now (then D-01's override applies), or keep Proposed?
   - **Why Stevie**: deletions are his call (standing rule, and ADR-090 "re-decide documented retentions with Stevie"). The recommendations are pre-seeded, so this is one pass, not 148 questions.
   - **What stops**: Phase 1 only. Phases 2-16 do not depend on E1, except: Phase 2 Step 91 (transport.Connect) and Step 92 (xdpsync) read E1's G5 answer, and Phase 8 Step 233 reads G3 (canary delete after merge). Until E1 lands, those steps are [AFTER-E1] and skipped.
-- [ ] **Step 39** [B] ~2m: Post E1 to the handoff so it survives a session end.
+- [x] **Step 39** [B] ~2m: Post E1 to the handoff so it survives a session end.
   ```bash
   printf '\n## S-REAL-STEEL E1 (waiting on Stevie)\nAnswer the table in docs/sweeps/REAL-STEEL-DECISIONS.md (one pass).\n' >> ~/tmp/next.md
   ```
-- [ ] **Step 40** [V] ~1m: `grep -n 'S-REAL-STEEL E1' ~/tmp/next.md` returns one line.
+- [x] **Step 40** [V] ~1m: `grep -n 'S-REAL-STEEL E1' ~/tmp/next.md` returns one line.
 
 ### Exit
 
-- [ ] **Step 41** [B] ~2m: `go build ./... && go vet ./scripts/... 2>&1 | tail -3` (nothing deleted yet, so this must equal baseline).
-- [ ] **Step 42** [V] ~1m: Tree clean except this plan's STUCK/H-row edits.
+- [x] **Step 41** [B] ~2m: `go build ./... && go vet ./scripts/... 2>&1 | tail -3` (nothing deleted yet, so this must equal baseline).
+- [x] **Step 42** [V] ~1m: Tree clean except this plan's STUCK/H-row edits.
   ```bash
   git -C "$PROJECT_ROOT" status --short
   ```
-- [ ] **Step 43** [C] ~1m: **COMMIT CHECKPOINT** (any remaining plan edits).
+- [x] **Step 43** [C] ~1m: **COMMIT CHECKPOINT** (any remaining plan edits).
   ```bash
   git -C "$PROJECT_ROOT" diff --quiet -- "$PLAN" || commit "docs(battle-plan): S-REAL-STEEL phase 0 notes" "38-43" "$PLAN"
   ```
-- [ ] **Step 44** [V] ~2m: **PHASE 0 EXIT GATE**: H1-H15 resolved in the table; `$VERDICTS` and the decision table committed; E1 posted; baseline recorded.
+- [x] **Step 44** [V] ~2m: **PHASE 0 EXIT GATE**: H1-H15 resolved in the table; `$VERDICTS` and the decision table committed; E1 posted; baseline recorded.
+  - Done 2026-10-23: PASS. H1-H15 resolved (all TRUE, H1 with the re-sign hash amendment); ledger + decision table committed (d1bd3dc7); E1 posted to ~/tmp/next.md; baseline 277 ok / 0 FAIL. Next: Phases 2, 3, 4.
   - Pass → Phase 1 when E1 is answered; meanwhile Phase 2 (and Phase 4 in parallel).
   - Fail → do not proceed; finish the missing artifact.
 
@@ -496,70 +517,91 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 
 ### Fallback queue
 
-- [ ] **Step 67** [R] ~10m: Read `pkg/wotan-client/client.go` Publish (around line 487), `enqueueFallback` (578), `FlushFallbackQueue` (605) and the S17 Wotan audit commits for context (`git log --oneline -20 -- pkg/wotan-client`).
-- [ ] **Step 68** [DECIDE] ~0m: **D-10 fallback queue: retry, bounded in age, never for control topics.** RECOMMENDATION: keep buffering for telemetry/event topics, flush automatically, drop anything older than 2 min, and refuse to buffer control topics (`chaos.`, `config.`, `deploy.`, `cuirass.` prefixes): `Publish` returns the error for those. Rationale: a late `chaos.abort` or `deploy.*` replayed minutes after the fact is worse than a lost one, while a few minutes of metrics/events surviving a Wotan restart is what the queue was for; today it only fills and drops. Override ONLY if Stevie prefers "stop buffering" outright (then delete the queue and `FlushFallbackQueue`, make Publish return the network error; same tests minus the flush cases).
-- [ ] **Step 69** [CODE][TEST] ~25m: Tests first in `pkg/wotan-client/fallback_test.go` (httptest Wotan that returns 503/connection-refused, then 201):
+- [x] **Step 67** [R] ~10m: Read `pkg/wotan-client/client.go` Publish (around line 487), `enqueueFallback` (578), `FlushFallbackQueue` (605) and the S17 Wotan audit commits for context (`git log --oneline -20 -- pkg/wotan-client`).
+- [x] **Step 68** [DECIDE] ~0m: **D-10 fallback queue: retry, bounded in age, never for control topics.** RECOMMENDATION: keep buffering for telemetry/event topics, flush automatically, drop anything older than 2 min, and refuse to buffer control topics (`chaos.`, `config.`, `deploy.`, `cuirass.` prefixes): `Publish` returns the error for those. Rationale: a late `chaos.abort` or `deploy.*` replayed minutes after the fact is worse than a lost one, while a few minutes of metrics/events surviving a Wotan restart is what the queue was for; today it only fills and drops. Override ONLY if Stevie prefers "stop buffering" outright (then delete the queue and `FlushFallbackQueue`, make Publish return the network error; same tests minus the flush cases).
+  - Done 2026-10-23: recommendation taken (no override: Stevie has not asked for 'stop buffering').
+- [x] **Step 69** [CODE][TEST] ~25m: Tests first in `pkg/wotan-client/fallback_test.go` (httptest Wotan that returns 503/connection-refused, then 201):
+  - Done 2026-10-23: fallback_test.go: the four named tests plus TestFallback_FlushRejoinsAfterWotanRestart (the flush rejoins when Wotan forgot the membership, which is exactly when the queue fills).
   - `TestFallback_FlushesInOrderAfterRecovery`: 3 publishes while down, recovery, all 3 arrive in order without another Publish call (background flush).
   - `TestFallback_ExpiresOlderThanMaxAge`: injected clock; an entry older than 2 min is dropped and counted as expired, not sent.
   - `TestFallback_ControlTopicsAreNotBuffered`: `chaos.abort` publish while down returns an error and the queue stays empty.
   - `TestFallback_CloseStopsFlusher`: no goroutine leak (`goleak` is not a dependency: count with `runtime.NumGoroutine` before/after with a settle loop).
-- [ ] **Step 70** [TEST] ~2m: Red.
+- [x] **Step 70** [TEST] ~2m: Red.
   ```bash
   gotest ./pkg/wotan-client/ -run 'TestFallback_'
   ```
-- [ ] **Step 71** [CODE] ~30m: Implement: `pendingMessage.enqueuedAt`; `maxFallbackAge = 2*time.Minute`; `noBufferPrefixes`; a lazily started flusher goroutine (every 15 s while the queue is non-empty, plus an immediate kick after any successful publish or ProbeGRPC success) that stops on `Close`; counters `fallback{Queued,Flushed,Expired,Dropped}` exposed through the client's existing stats accessor and as `unheaded_wotan_client_fallback_total{result}` where the service registers client metrics.
-- [ ] **Step 72** [TEST][V] ~3m: Green, race-clean, whole package.
+- [x] **Step 71** [CODE] ~30m: Implement: `pendingMessage.enqueuedAt`; `maxFallbackAge = 2*time.Minute`; `noBufferPrefixes`; a lazily started flusher goroutine (every 15 s while the queue is non-empty, plus an immediate kick after any successful publish or ProbeGRPC success) that stops on `Close`; counters `fallback{Queued,Flushed,Expired,Dropped}` exposed through the client's existing stats accessor and as `unheaded_wotan_client_fallback_total{result}` where the service registers client metrics.
+  - Done 2026-10-23: fallback.go; 502/503/504 now count as 'Wotan unreachable' (buffered/retried) like a refused connection; the flush stops at the first network error so order holds; counters via FallbackStats() and unheaded_wotan_client_fallback_total{result=queued|flushed|expired|dropped|refused}. Bite: disabling the flusher, the control-topic guard, the age check or the rejoin each turns its test red.
+- [x] **Step 72** [TEST][V] ~3m: Green, race-clean, whole package.
+  - Done 2026-10-23: green, race-clean (53 s package); golangci-lint 0 issues; gosec clean.
   ```bash
   gotest ./pkg/wotan-client/...
   ```
-- [ ] **Step 73** [C] ~2m: **COMMIT CHECKPOINT**: `fix(wotan-client): flush the fallback queue, expire stale entries, never buffer control topics`.
+- [x] **Step 73** [C] ~2m: **COMMIT CHECKPOINT**: `fix(wotan-client): flush the fallback queue, expire stale entries, never buffer control topics`.
 
 ### ProbeGRPC
 
-- [ ] **Step 74** [DECIDE] ~0m: **D-11 probe = grpc.health.v1 Check.** RECOMMENDATION: `ProbeGRPC` calls `healthpb.NewHealthClient(conn).Check` with a 2 s deadline and treats anything but SERVING as unhealthy. Rationale: Wotan already registers the health server (H11), the module is already in go.mod, and it is the standard probe. Override ONLY if H11 was FALSE: then call the cheapest existing Wotan RPC with a 2 s deadline.
-- [ ] **Step 75** [CODE][TEST] ~15m: Tests: `TestProbeGRPC_ServingIsHealthy`, `TestProbeGRPC_NotServingIsUnhealthy` (bufconn or 127.0.0.1:0 grpc server with `health.NewServer()` set to NOT_SERVING), `TestProbeGRPC_NothingListeningFailsWithinDeadline` (< 3 s).
-- [ ] **Step 76** [TEST] ~2m: Red (`-run TestProbeGRPC_`).
-- [ ] **Step 77** [CODE] ~15m: Implement; on failure set `grpcHealthy=false`, `transport=HTTP` (existing fields).
-- [ ] **Step 78** [TEST][V] ~3m: Green; `go mod tidy -diff` prints nothing (no new module).
+- [x] **Step 74** [DECIDE] ~0m: **D-11 probe = grpc.health.v1 Check.** RECOMMENDATION: `ProbeGRPC` calls `healthpb.NewHealthClient(conn).Check` with a 2 s deadline and treats anything but SERVING as unhealthy. Rationale: Wotan already registers the health server (H11), the module is already in go.mod, and it is the standard probe. Override ONLY if H11 was FALSE: then call the cheapest existing Wotan RPC with a 2 s deadline.
+  - Done 2026-10-23: recommendation taken (H11 TRUE). Asks the whole-server status (""), which grpc health.NewServer() sets SERVING.
+- [x] **Step 75** [CODE][TEST] ~15m: Tests: `TestProbeGRPC_ServingIsHealthy`, `TestProbeGRPC_NotServingIsUnhealthy` (bufconn or 127.0.0.1:0 grpc server with `health.NewServer()` set to NOT_SERVING), `TestProbeGRPC_NothingListeningFailsWithinDeadline` (< 3 s).
+  - Done 2026-10-23: probe_test.go: the three named tests plus TestProbeGRPC_SilentServerTimesOut (accepts, never answers: cut at 2 s).
+- [x] **Step 76** [TEST] ~2m: Red (`-run TestProbeGRPC_`).
+- [x] **Step 77** [CODE] ~15m: Implement; on failure set `grpcHealthy=false`, `transport=HTTP` (existing fields).
+  - Done 2026-10-23: checkGRPCHealth; a successful probe also kicks the fallback flusher. The TestClient_GRPCStreamFallsBackToHTTP fixture now registers grpc.health.v1 like Wotan does. Bite: removing the Check turns three probe tests red.
+- [x] **Step 78** [TEST][V] ~3m: Green; `go mod tidy -diff` prints nothing (no new module).
+  - Done 2026-10-23: green, race-clean. `go mod tidy -diff` is NOT empty, but pre-existing: go.mod/go.sum are unchanged since f7d730e7 and the diff only drops gopkg.in/check.v1 (indirect) and stale kr/* sums; recorded in KNOWN FAILURES, not touched here (other worktrees edit go.mod).
   ```bash
   gotest ./pkg/wotan-client/... && (cd "$PROJECT_ROOT" && go mod tidy -diff && echo tidy-ok)
   ```
-- [ ] **Step 79** [C] ~2m: **COMMIT CHECKPOINT**: `fix(wotan-client): ProbeGRPC asks grpc.health.v1 instead of assuming`.
+- [x] **Step 79** [C] ~2m: **COMMIT CHECKPOINT**: `fix(wotan-client): ProbeGRPC asks grpc.health.v1 instead of assuming`.
 
 ### Runtime stream health
 
-- [ ] **Step 80** [DECIDE] ~0m: **D-12 stream health = connection state plus stream liveness, not message recency.** RECOMMENDATION: each streaming subscriber records `alive` (its receive goroutine is running and the last Recv did not error) and the client reports `Health() {Transport, GRPCHealthy, Streams map[topic]bool, LastMessageAge map[topic]duration}`; gauge `unheaded_wotan_client_stream_up{topic}`. A service's `/health` includes it as detail and stays 200 (degraded is not dead); `/ready` is unchanged. Rationale: an idle topic is not a dead stream, so message age alone would cry wolf (ADR-100: no noise); a closed stream is the real failure the audit found invisible. Override ONLY if Wotan already sends stream keepalives (check `services/wotan` for a heartbeat on StreamMessages): then a keepalive age over 3x its period also marks the stream down.
-- [ ] **Step 81** [CODE][TEST] ~20m: Tests: `TestStreamHealth_ClosedStreamReportsDown` (server ends the stream; within 1 s `Health().Streams[topic]==false`), `TestStreamHealth_IdleStreamStaysUp`, `TestStreamHealth_FallbackToPollingReportsTransportHTTP`.
-- [ ] **Step 82** [CODE] ~25m: Implement in the stream goroutine (set/clear an atomic flag around Recv; the HTTP-polling fallback path from S17 sets Transport=HTTP and Streams=up while polling succeeds).
-- [ ] **Step 83** [TEST][V] ~3m: Green and race-clean: `gotest ./pkg/wotan-client/...`.
-- [ ] **Step 84** [C] ~2m: **COMMIT CHECKPOINT**: `feat(wotan-client): report stream and transport health at runtime`.
+- [x] **Step 80** [DECIDE] ~0m: **D-12 stream health = connection state plus stream liveness, not message recency.** RECOMMENDATION: each streaming subscriber records `alive` (its receive goroutine is running and the last Recv did not error) and the client reports `Health() {Transport, GRPCHealthy, Streams map[topic]bool, LastMessageAge map[topic]duration}`; gauge `unheaded_wotan_client_stream_up{topic}`. A service's `/health` includes it as detail and stays 200 (degraded is not dead); `/ready` is unchanged. Rationale: an idle topic is not a dead stream, so message age alone would cry wolf (ADR-100: no noise); a closed stream is the real failure the audit found invisible. Override ONLY if Wotan already sends stream keepalives (check `services/wotan` for a heartbeat on StreamMessages): then a keepalive age over 3x its period also marks the stream down.
+  - Done 2026-10-23: recommendation taken: Wotan sends no keepalive on StreamTopics (only unary Ping/TopicPing), so the override does not apply.
+- [x] **Step 81** [CODE][TEST] ~20m: Tests: `TestStreamHealth_ClosedStreamReportsDown` (server ends the stream; within 1 s `Health().Streams[topic]==false`), `TestStreamHealth_IdleStreamStaysUp`, `TestStreamHealth_FallbackToPollingReportsTransportHTTP`.
+  - Done 2026-10-23: stream_health_test.go: the three named tests plus TestStreamHealth_HTTPPollingFollowsWotan (the HTTP-only client timeguru/architect use: down on a failing poll, up again, forgotten when the caller ends the stream).
+- [x] **Step 82** [CODE] ~25m: Implement in the stream goroutine (set/clear an atomic flag around Recv; the HTTP-polling fallback path from S17 sets Transport=HTTP and Streams=up while polling succeeds).
+  - Done 2026-10-23: stream_health.go + hooks: gRPC attempt is up on its first message or after 2 s open without an error, down on a failed open/Recv (never on the caller's own cancel); polling is up while polls answer. Client.Health() {transport, grpc_healthy, streams, last_message_age_seconds}; gauge unheaded_wotan_client_stream_up{topic}. Bite: never reporting down turns two tests red.
+- [x] **Step 83** [TEST][V] ~3m: Green and race-clean: `gotest ./pkg/wotan-client/...`.
+  - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
+- [x] **Step 84** [C] ~2m: **COMMIT CHECKPOINT**: `feat(wotan-client): report stream and transport health at runtime`.
 
 ### timeguru and architect stop giving up
 
-- [ ] **Step 85** [R] ~10m: Read `services/timeguru/main.go:64-75` and `services/architect/core.go:240-310`: list each one-shot Subscribe/Join that logs "disabled (degraded mode)" and never retries.
-- [ ] **Step 86** [CODE][TEST] ~20m: Tests: `TestTimeguru_SubscribesWhenWotanStartsLater` and `TestArchitect_SubscribesWhenWotanStartsLater`: start the service's subscription routine against a closed port, then bring up an httptest Wotan; assert a Join/Subscribe arrives within 5 s.
-- [ ] **Step 87** [CODE] ~25m: Implement one helper in `pkg/wotan-client` (`SubscribeWithRetry(ctx, topic, name, onMsg)`: 1 s → 30 s exponential backoff with jitter, stops on ctx) and use it at every site from Step 85. Keep the degraded-mode log, once, at the first failure.
-- [ ] **Step 88** [TEST][V] ~3m: Green.
+- [x] **Step 85** [R] ~10m: Read `services/timeguru/main.go:64-75` and `services/architect/core.go:240-310`: list each one-shot Subscribe/Join that logs "disabled (degraded mode)" and never retries.
+  - Done 2026-10-23: the deployed timeguru is services/timeguru/cmd/timeguru (Dockerfile, debs); its initWotan subscribed once with a 10 s ctx and on failure returned nil, so timeguru ran without Wotan for good. services/timeguru/main.go (the Nix build) did the same for timeline.updates. architect's Start subscribed once and returned the error; and cmd/architect called Start with a 10 s ctx it cancelled right after, which also killed the alerts.critical listener Start had just launched (a second bug, found here).
+- [x] **Step 86** [CODE][TEST] ~20m: Tests: `TestTimeguru_SubscribesWhenWotanStartsLater` and `TestArchitect_SubscribesWhenWotanStartsLater`: start the service's subscription routine against a closed port, then bring up an httptest Wotan; assert a Join/Subscribe arrives within 5 s.
+  - Done 2026-10-23: services/timeguru/cmd/timeguru/wotan_test.go, services/architect/wotan_retry_test.go (+ TestArchitect_HealthIncludesWotanDetail, TestHandleHealth_IncludesWotanDetail for the D-12 /health detail). Red first (compile), then bite: a one-shot SubscribeWithRetry turns both red.
+- [x] **Step 87** [CODE] ~25m: Implement one helper in `pkg/wotan-client` (`SubscribeWithRetry(ctx, topic, name, onMsg)`: 1 s → 30 s exponential backoff with jitter, stops on ctx) and use it at every site from Step 85. Keep the degraded-mode log, once, at the first failure.
+  - Done 2026-10-23: pkg/wotan-client/subscribe_retry.go (onMsg nil = join only); timeguru (both mains) and architect use it; architect main passes its long-lived ctx; /health of both carries the client's Health() as 'wotan' and stays 200. TestArchitectService_Start_SubscribeError now asserts the new contract (nil, retrying).
+- [x] **Step 88** [TEST][V] ~3m: Green.
+  - Done 2026-10-23: green; the two remaining 'disabled (degraded mode)' lines in architect fire only when there is no Wotan client at all (mock mode), not on a failed join; lint 0, gosec clean.
   ```bash
   gotest ./services/timeguru/... ./services/architect/... ./pkg/wotan-client/...
   grep -n 'disabled (degraded mode)' "$PROJECT_ROOT"/services/{timeguru,architect}/*.go
   ```
   - The grep may still print the log line, but every hit must sit in a retry loop (read them).
-- [ ] **Step 89** [C] ~2m: **COMMIT CHECKPOINT**: `fix(timeguru,architect): keep retrying Wotan subscriptions instead of giving up at start`.
-- [ ] **Step 90** [B] ~3m: Same pattern anywhere else? `grep -rn 'wotan unavailable' --include=*.go "$PROJECT_ROOT"/services "$PROJECT_ROOT"/cmd | grep -v _test`. Record the remaining sites in next.md as a follow-on list (Marshal: do not widen this phase to all services).
+- [x] **Step 89** [C] ~2m: **COMMIT CHECKPOINT**: `fix(timeguru,architect): keep retrying Wotan subscriptions instead of giving up at start`.
+- [x] **Step 90** [B] ~3m: Same pattern anywhere else? `grep -rn 'wotan unavailable' --include=*.go "$PROJECT_ROOT"/services "$PROJECT_ROOT"/cmd | grep -v _test`. Record the remaining sites in next.md as a follow-on list (Marshal: do not widen this phase to all services).
+  - Done 2026-10-23: remaining live sites (micromanager, monad, sophia, gateway; yaldabaoth for Phase 10) listed in ~/tmp/next.md; not widened here.
 
 ### E1-dependent items
 
 - [ ] **Step 91** [AFTER-E1] ~5m: `transport.Connect`: if E1 G5 = Y it was deleted in Phase 1 (nothing to do). If N (keep), write one line in next.md ("transport.Connect kept by Stevie; unused; finish when a caller appears") and move on: no phase needs it.
+  - Done 2026-10-23: [AFTER-E1] skipped: waits on E1 G5.
 - [ ] **Step 92** [AFTER-E1] ~20m: xdpsync (`services/loadbalancer/xdpsync.go:102`): if deleted in Phase 1, nothing to do. If kept/parked: test `TestXDPSync_JoinsBeforePublish` (publishes `lb.rebalance` only after Join as `loadbalancer`), fix the name (`xdpsync-service` → `loadbalancer`), add `loadbalancer` to `configs/wotan.yaml` `auto_approve`, `gotest ./services/loadbalancer/...`.
+  - Done 2026-10-23: [AFTER-E1] skipped: waits on E1 (services/loadbalancer is F6, suggested P).
 
 ### Live proof on a scratch Wotan (no host change)
 
-- [ ] **Step 93** [BUILD] ~3m: Build a scratch Wotan and timeguru.
+- [x] **Step 93** [BUILD] ~3m: Build a scratch Wotan and timeguru.
+  - Done 2026-10-23: built ./services/timeguru/cmd/timeguru (the binary the Dockerfile and debs ship), not ./services/timeguru (the Nix-only main), plus the scratch Wotan.
   ```bash
   cd "$PROJECT_ROOT" && go build -o "$SCRATCH/wotan" ./services/wotan/cmd/wotan && go build -o "$SCRATCH/timeguru" ./services/timeguru
   ```
-- [ ] **Step 94** [LIVE-RO] ~10m: Start timeguru first, pointed at a Wotan that is not running yet (ports 28000/28001, user space, high ports, no root), wait 10 s, then start the scratch Wotan with a temp config whose `auto_approve` holds `timeguru`. Within 40 s Wotan's membership/stats endpoint lists timeguru's subscription.
+- [x] **Step 94** [LIVE-RO] ~10m: Start timeguru first, pointed at a Wotan that is not running yet (ports 28000/28001, user space, high ports, no root), wait 10 s, then start the scratch Wotan with a temp config whose `auto_approve` holds `timeguru`. Within 40 s Wotan's membership/stats endpoint lists timeguru's subscription.
+  - Done 2026-10-23: env is WOTAN_ADDR/WOTAN_GRPC_ADDR/PORT/DB_PATH (scratch DB), Wotan flags --http-port/--grpc-port/--topic-config, memory store (no disk). Wotan has no stats/members endpoint; proof = Wotan's topic_subscriber_created log + timeguru's new /health detail.
   ```bash
   cp "$PROJECT_ROOT/configs/wotan.yaml" "$SCRATCH/wotan.yaml"
   WOTAN_ADDR=127.0.0.1:28000 WOTAN_GRPC_ADDR=127.0.0.1:28001 PORT=29000 "$SCRATCH/timeguru" >"$SCRATCH/tg.log" 2>&1 & echo $! > "$SCRATCH/tg.pid"
@@ -567,13 +609,16 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   sleep 40; curl -fsS 127.0.0.1:28000/api/v1/stats | jq '.'
   ```
   - Flag names are from the binaries' `--help`; check them first (`"$SCRATCH/wotan" --help | head -30`), they are not guessed here.
-- [ ] **Step 95** [V] ~1m: timeguru appears as a member/subscriber; its log shows one degraded line and then a success line. Fail → Step 96.
+- [x] **Step 95** [V] ~1m: timeguru appears as a member/subscriber; its log shows one degraded line and then a success line. Fail → Step 96.
+  - Done 2026-10-23: PASS. Wotan down: timeguru /health 200 with streams {}; one WARN per topic. Wotan up 10 s later: within 5 s Wotan logged topic_subscriber_created for timeline.updates and alerts.critical as timeguru (approved), /health streams {alerts.critical:true, timeline.updates:true}, and the startup timeline_loaded announcement reached Wotan (message_count 1). Found: the recovery INFO line only printed when a stream ended; fixed in the same commit (logged on join).
 - [ ] **Step 96** [D] ~5m: Check timeguru's env names (`grep -n Getenv services/timeguru/main.go`) and Wotan's allowlist rejection in `w.log`. 2 attempts → STUCK (unit tests from Step 86 still stand; the live proof moves to Phase 5 Step 151).
-- [ ] **Step 97** [B][V] ~2m: **PHASE 2 EXIT GATE**: stop the scratch processes; all four sub-sections green; no new test failures.
+  - Done 2026-10-23: not needed.
+- [x] **Step 97** [B][V] ~2m: **PHASE 2 EXIT GATE**: stop the scratch processes; all four sub-sections green; no new test failures.
+  - Done 2026-10-23: PASS: scratch processes stopped; all four sub-sections green and race-clean; no new failures.
   ```bash
   kill "$(cat "$SCRATCH/tg.pid")" "$(cat "$SCRATCH/w.pid")" 2>/dev/null; gotest ./pkg/wotan-client/... ./services/timeguru/... ./services/architect/...
   ```
-- [ ] **Step 98** [C] ~2m: **COMMIT CHECKPOINT** (plan ticks + next.md follow-on list).
+- [x] **Step 98** [C] ~2m: **COMMIT CHECKPOINT** (plan ticks + next.md follow-on list).
 
 **DoD (Phase 2)**: DoD-STD + each fix has a test that fails when the fix is reverted (bite-test one of them: revert the ProbeGRPC change locally, see red, restore).
 
@@ -586,16 +631,23 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 45 min
 **Agent**: Agent [P:2]
 
-- [ ] **Step 99** [R] ~10m: Read `services/wotan/internal/cluster/replication_server.go` and `replication_client.go`: confirm the standby catches up with `CatchUp` from a sequence and never asks for a snapshot (H12).
-- [ ] **Step 100** [DECIDE] ~0m: **D-13 snapshot = honest Unimplemented.** RECOMMENDATION: return `status.Error(codes.Unimplemented, "snapshot transfer not implemented; catch up from seq 0 (ADR-064)")`. Rationale: ADR-064 is Proposed and nobody calls the RPC; the only harm today is that the stub answers `Final: true, TotalSize: 0, LastSeq: <current>`, which a future caller would read as "you are up to date". Implementing transfer belongs to ADR-064 Phase 1 once Stevie starts it. Override ONLY if H12 was FALSE (a caller exists): then implement chunked transfer of the WAL from its first retained sequence, with a test that a fresh standby reaches the primary's `lastSeq` and identical message bodies.
-- [ ] **Step 101** [CODE][TEST] ~10m: `TestTransferSnapshot_IsUnimplemented` (status code Unimplemented, no chunk sent) and keep/extend the existing catch-up test so it starts from seq 0.
-- [ ] **Step 102** [TEST] ~2m: Red: `gotest ./services/wotan/internal/cluster/ -run TestTransferSnapshot`.
-- [ ] **Step 103** [CODE] ~5m: Implement (remove the TODO; the log line stays at Info with the peer).
-- [ ] **Step 104** [TEST][V] ~3m: Green: `gotest ./services/wotan/internal/cluster/...`.
-- [ ] **Step 105** [W] ~5m: ADR-064: under its phase list, one line: "Snapshot transfer: RPC answers Unimplemented since S-REAL-STEEL (was an empty Final chunk); implementing it is a Phase 1 prerequisite."
-- [ ] **Step 106** [C] ~2m: **COMMIT CHECKPOINT**: `fix(wotan): TransferSnapshot answers Unimplemented instead of an empty final snapshot`.
-- [ ] **Step 107** [V] ~1m: **PHASE 3 EXIT GATE**: test green; ADR-064 line present (`grep -n 'Unimplemented since S-REAL-STEEL' docs/adr/ADR-064-*.md`).
-- [ ] **Step 108** [AUDIT-UPDATE] ~2m: next.md Wotan open list: mark the snapshot TODO as "answered honestly, implementation waits on ADR-064".
+- [x] **Step 99** [R] ~10m: Read `services/wotan/internal/cluster/replication_server.go` and `replication_client.go`: confirm the standby catches up with `CatchUp` from a sequence and never asks for a snapshot (H12).
+  - Done 2026-10-23: H12 holds: replication_client.go only calls CatchUp(since lastApplied) and Ping; nothing calls TransferSnapshot.
+- [x] **Step 100** [DECIDE] ~0m: **D-13 snapshot = honest Unimplemented.** RECOMMENDATION: return `status.Error(codes.Unimplemented, "snapshot transfer not implemented; catch up from seq 0 (ADR-064)")`. Rationale: ADR-064 is Proposed and nobody calls the RPC; the only harm today is that the stub answers `Final: true, TotalSize: 0, LastSeq: <current>`, which a future caller would read as "you are up to date". Implementing transfer belongs to ADR-064 Phase 1 once Stevie starts it. Override ONLY if H12 was FALSE (a caller exists): then implement chunked transfer of the WAL from its first retained sequence, with a test that a fresh standby reaches the primary's `lastSeq` and identical message bodies.
+  - Done 2026-10-23: recommendation taken (H12 TRUE).
+- [x] **Step 101** [CODE][TEST] ~10m: `TestTransferSnapshot_IsUnimplemented` (status code Unimplemented, no chunk sent) and keep/extend the existing catch-up test so it starts from seq 0.
+  - Done 2026-10-23: replication_server_test.go (bufconn gRPC over a real WAL in a temp dir): TestTransferSnapshot_IsUnimplemented and TestCatchUp_FromZeroDeliversEverything (there was no catch-up test to extend; the package had none for the server).
+- [x] **Step 102** [TEST] ~2m: Red: `gotest ./services/wotan/internal/cluster/ -run TestTransferSnapshot`.
+  - Done 2026-10-23: red: the stub sent final:true last_seq:3.
+- [x] **Step 103** [CODE] ~5m: Implement (remove the TODO; the log line stays at Info with the peer).
+- [x] **Step 104** [TEST][V] ~3m: Green: `gotest ./services/wotan/internal/cluster/...`.
+  - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
+- [x] **Step 105** [W] ~5m: ADR-064: under its phase list, one line: "Snapshot transfer: RPC answers Unimplemented since S-REAL-STEEL (was an empty Final chunk); implementing it is a Phase 1 prerequisite."
+- [x] **Step 106** [C] ~2m: **COMMIT CHECKPOINT**: `fix(wotan): TransferSnapshot answers Unimplemented instead of an empty final snapshot`.
+- [x] **Step 107** [V] ~1m: **PHASE 3 EXIT GATE**: test green; ADR-064 line present (`grep -n 'Unimplemented since S-REAL-STEEL' docs/adr/ADR-064-*.md`).
+  - Done 2026-10-23: PASS (tests green; ADR-064 line at :259).
+- [x] **Step 108** [AUDIT-UPDATE] ~2m: next.md Wotan open list: mark the snapshot TODO as "answered honestly, implementation waits on ADR-064".
+  - Done 2026-10-23: next.md had no snapshot line in its Wotan list; added one under the S-REAL-STEEL Phase 2 follow-ons.
 
 **DoD (Phase 3)**: DoD-STD.
 
@@ -608,47 +660,67 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 4-5 h
 **Agent**: Agent [P:2] [P:6]
 
-- [ ] **Step 109** [R] ~15m: Read `cmd/unheaded-daemon/lxd_rest.go` (client, `requireManaged`, `CreateContainer`), `lxd_rest_test.go` (fake LXD server pattern), `main.go` `planReconcile`/`applyAction`/`handleContainer`, `desired_store.go`, and wiki/Containers.md "Cuirass LXD backend".
-- [ ] **Step 110** [DECIDE] ~0m: **D-03 immutable, versioned instances.** RECOMMENDATION: a deployed instance is named `<svc>-<ver>-<n>` (e.g. `steel-echo-v2-0`, versions sanitized to `[a-z0-9-]`, validated by `validLXDName`) and never updated in place. Rolling = create new, wait healthy, delete old, one at a time; rollback = the same in reverse. `OnInstanceUpdate` is implemented as create+delete. Rationale: Cuirass already knows create/start/delete safely; in-place image swaps need an "image drift" action Cuirass does not have and LXD rebuilds that lose the old instance (no cheap rollback). Override ONLY if LXD storage on west is too small for two copies of the workload (check `lxc storage info default` in Step 140).
-- [ ] **Step 111** [DECIDE] ~0m: **D-04 traffic switch = a Cuirass-managed LXD proxy device; canary split is client-side.** RECOMMENDATION: `ContainerSpec.Proxy {Listen, Connect}` becomes device `unheaded-proxy` on exactly one instance per service (the "active" one). Blue-green cutover = move the device from blue to green (remove, then add; the gap is measured in Phase 9). Canary = stable and canary instances both run; the game-day load generator splits requests by weight and canary analysis reads each instance's own `/metrics`. Rationale: lxdbr0 is a plain bridge, so LXD network load-balancers (OVN only) are unavailable; HAProxy/pkg/loadbalancer would be a second sprint. Override ONLY if Stevie asks for server-side weighted split: then add a follow-on (HAProxy runtime API weights) to next.md; nothing in this phase changes.
-- [ ] **Step 112** [CODE][TEST] ~20m: Health spec tests (`cmd/unheaded-daemon/health_probe_test.go`): `ContainerSpec.Health {Port int, Path string}` validation refuses port 0/65536, a path not starting with `/`, containing `..`, `?`-less absolute URLs (`http://`), or longer than 256; probe uses only the instance IP Cuirass read from LXD (never a caller-supplied host), 2 s timeout, no redirects followed, body discarded after 4 KiB; `TestReconcile_ThreeFailedProbesMarkUnhealthyAndPlanRestart`; `TestReconcile_NoHealthSpecStaysUnknown`.
-- [ ] **Step 113** [TEST] ~2m: Red: `gotest ./cmd/unheaded-daemon/ -run 'Health|Probe'`.
-- [ ] **Step 114** [CODE] ~40m: Implement: a prober (injectable for tests) run per sync for running managed instances with a Health spec; 3 consecutive failures → `Health="unhealthy"` (the existing plan then restarts it, enforce mode only); 1 success → `healthy`. Metric `cuirass_container_health{id}` (1/0/-1 unknown).
-- [ ] **Step 115** [TEST][V] ~3m: Green, race-clean: `gotest ./cmd/unheaded-daemon/...`.
-- [ ] **Step 116** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): HTTP health probe for managed instances (instance IP only, no redirects)`.
-- [ ] **Step 117** [CODE][TEST] ~25m: Proxy device tests (`proxy_device_test.go`): `Listen` must be `tcp:127.0.0.1:<port>` or `tcp:<west lab addr>:<port>` with port in the user-apps band 26000-26666 (`pkg/ports`), `Connect` must be `tcp:127.0.0.1:<1-65535>`; two desired specs with the same Listen are refused at PUT (409); `TestReconcile_ProxyDriftPlansUpdate` (actual device differs → action `update-proxy`); `TestLXDREST_UpdateProxyTouchesOnlyOurDevice` (fake LXD instance with an unrelated `eth0` device and a user device keeps both; read-modify-write with the instance ETag in `If-Match`; 412 → retry once, then error); refused on an unmanaged instance.
-- [ ] **Step 118** [TEST] ~2m: Red: `gotest ./cmd/unheaded-daemon/ -run 'Proxy'`.
-- [ ] **Step 119** [CODE] ~45m: Implement: parse `devices` in `lxdInstance` (only `unheaded-proxy` is surfaced into `ContainerState.Proxy`), `UpdateProxy(ctx, name, *ProxySpec)` via GET (+ETag) then PUT, new plan action `update-proxy` applied only in enforce mode, observe mode logs `planned: true` like the others.
-- [ ] **Step 120** [TEST][V] ~3m: Green: `gotest ./cmd/unheaded-daemon/...`.
-- [ ] **Step 121** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): managed proxy device as the service's stable endpoint`.
-- [ ] **Step 122** [CODE][TEST] ~25m: Chaos action tests (`chaos_action_test.go`), endpoint `POST /api/v1/containers/{id}/chaos` body `{"action":"stop"|"kill","reason":"..."}`:
+- [x] **Step 109** [R] ~15m: Read `cmd/unheaded-daemon/lxd_rest.go` (client, `requireManaged`, `CreateContainer`), `lxd_rest_test.go` (fake LXD server pattern), `main.go` `planReconcile`/`applyAction`/`handleContainer`, `desired_store.go`, and wiki/Containers.md "Cuirass LXD backend".
+  - Done 2026-10-23: read lxd_rest.go, lxd_rest_test.go (fakeLXD), main.go (plan/apply/handleContainer), desired_store.go, reconcile_test.go.
+- [x] **Step 110** [DECIDE] ~0m: **D-03 immutable, versioned instances.** RECOMMENDATION: a deployed instance is named `<svc>-<ver>-<n>` (e.g. `steel-echo-v2-0`, versions sanitized to `[a-z0-9-]`, validated by `validLXDName`) and never updated in place. Rolling = create new, wait healthy, delete old, one at a time; rollback = the same in reverse. `OnInstanceUpdate` is implemented as create+delete. Rationale: Cuirass already knows create/start/delete safely; in-place image swaps need an "image drift" action Cuirass does not have and LXD rebuilds that lose the old instance (no cheap rollback). Override ONLY if LXD storage on west is too small for two copies of the workload (check `lxc storage info default` in Step 140).
+  - Done 2026-10-23: recommendation taken. The override check (storage room for two copies) is Step 140, live; nothing in this phase depends on it.
+- [x] **Step 111** [DECIDE] ~0m: **D-04 traffic switch = a Cuirass-managed LXD proxy device; canary split is client-side.** RECOMMENDATION: `ContainerSpec.Proxy {Listen, Connect}` becomes device `unheaded-proxy` on exactly one instance per service (the "active" one). Blue-green cutover = move the device from blue to green (remove, then add; the gap is measured in Phase 9). Canary = stable and canary instances both run; the game-day load generator splits requests by weight and canary analysis reads each instance's own `/metrics`. Rationale: lxdbr0 is a plain bridge, so LXD network load-balancers (OVN only) are unavailable; HAProxy/pkg/loadbalancer would be a second sprint. Override ONLY if Stevie asks for server-side weighted split: then add a follow-on (HAProxy runtime API weights) to next.md; nothing in this phase changes.
+  - Done 2026-10-23: recommendation taken (no server-side split asked for).
+- [x] **Step 112** [CODE][TEST] ~20m: Health spec tests (`cmd/unheaded-daemon/health_probe_test.go`): `ContainerSpec.Health {Port int, Path string}` validation refuses port 0/65536, a path not starting with `/`, containing `..`, `?`-less absolute URLs (`http://`), or longer than 256; probe uses only the instance IP Cuirass read from LXD (never a caller-supplied host), 2 s timeout, no redirects followed, body discarded after 4 KiB; `TestReconcile_ThreeFailedProbesMarkUnhealthyAndPlanRestart`; `TestReconcile_NoHealthSpecStaysUnknown`.
+  - Done 2026-10-23: health_probe_test.go: spec validation table (also refuses scheme-relative //, query, fragment, CR/LF), PUT 400, probe goes to the LXD-reported IP, three failures -> unhealthy -> restart planned, one pass -> healthy, observe mode never restarts, no spec -> unknown and no probe, refusal to probe loopback/link-local/unspecified/multicast/garbage addresses, and the real prober (2xx only, no redirect follow, HTTP_PROXY ignored, timeout, 10 MiB body not read to the end).
+- [x] **Step 113** [TEST] ~2m: Red: `gotest ./cmd/unheaded-daemon/ -run 'Health|Probe'`.
+- [x] **Step 114** [CODE] ~40m: Implement: a prober (injectable for tests) run per sync for running managed instances with a Health spec; 3 consecutive failures → `Health="unhealthy"` (the existing plan then restarts it, enforce mode only); 1 success → `healthy`. Metric `cuirass_container_health{id}` (1/0/-1 unknown).
+  - Done 2026-10-23: health_probe.go; verdicts survive the LXD re-list (overlay in syncActualStateFromLXD) and reset after Cuirass creates/restarts/deletes the instance; gauge cuirass_container_health{id}. Probing runs serially under the reconcile lock (2 s cap per instance): fine for a handful of instances, revisit if Cuirass ever manages dozens.
+- [x] **Step 115** [TEST][V] ~3m: Green, race-clean: `gotest ./cmd/unheaded-daemon/...`.
+  - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
+- [x] **Step 116** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): HTTP health probe for managed instances (instance IP only, no redirects)`.
+- [x] **Step 117** [CODE][TEST] ~25m: Proxy device tests (`proxy_device_test.go`): `Listen` must be `tcp:127.0.0.1:<port>` or `tcp:<west lab addr>:<port>` with port in the user-apps band 26000-26666 (`pkg/ports`), `Connect` must be `tcp:127.0.0.1:<1-65535>`; two desired specs with the same Listen are refused at PUT (409); `TestReconcile_ProxyDriftPlansUpdate` (actual device differs → action `update-proxy`); `TestLXDREST_UpdateProxyTouchesOnlyOurDevice` (fake LXD instance with an unrelated `eth0` device and a user device keeps both; read-modify-write with the instance ETag in `If-Match`; 412 → retry once, then error); refused on an unmanaged instance.
+  - Done 2026-10-23: proxy_device_test.go: validation table (0.0.0.0, [::], unlisted address, low/out-of-band ports, udp/unix, connect off-container or by name, port ranges), lab address only when configured, PUT 409 on a second owner (owner may re-PUT), drift -> update-proxy (incl. removal), observe only plans, enforce applies and never on unmanaged, read-modify-write keeps eth0 + a user device + other fields and drops read-only ones, If-Match = GET's ETag, 412 retried once then error, unmanaged refused with GETs only, create carries the device, listing shows only our device.
+- [x] **Step 118** [TEST] ~2m: Red: `gotest ./cmd/unheaded-daemon/ -run 'Proxy'`.
+- [x] **Step 119** [CODE] ~45m: Implement: parse `devices` in `lxdInstance` (only `unheaded-proxy` is surfaced into `ContainerState.Proxy`), `UpdateProxy(ctx, name, *ProxySpec)` via GET (+ETag) then PUT, new plan action `update-proxy` applied only in enforce mode, observe mode logs `planned: true` like the others.
+  - Done 2026-10-23: proxy_device.go + doH (headers, 412 = errLXDPrecondition); device bind=host; the lab-address allowlist is CUIRASS_PROXY_LISTEN_ADDRS (specific IPs only), checked at PUT and again inside the LXD client. ContainerState now also carries labels (user.unheaded.label.*), needed by the chaos check and by Phase 6's discover mode.
+- [x] **Step 120** [TEST][V] ~3m: Green: `gotest ./cmd/unheaded-daemon/...`.
+  - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
+- [x] **Step 121** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): managed proxy device as the service's stable endpoint`.
+- [x] **Step 122** [CODE][TEST] ~25m: Chaos action tests (`chaos_action_test.go`), endpoint `POST /api/v1/containers/{id}/chaos` body `{"action":"stop"|"kill","reason":"..."}`:
+  - Done 2026-10-23: chaos_action_test.go: 403 without auth, 403 with chaos off, 409 unmanaged (pihole) and unlabelled, 404 unknown, the LXD client refusing both on its own with GETs only, stop=force false / kill=force true, 400/413/415/405 on bad requests, one cuirass.chaos event per call incl. refusals (with the asked action and reason), enforce-mode reconcile restarts a killed instance.
   - 403 unless `AUTH_ENABLED=true` (same rule as PUT/DELETE, `04c34ed0`);
   - 403 unless `CUIRASS_CHAOS=true` (off by default; switched on only for game-day windows);
   - 409 on an unmanaged instance, and 409 unless the instance carries label `chaos=allowed` (`user.unheaded.label.chaos`, set through the desired spec's Labels);
   - `stop` = state stop with `force:false`, `kill` = `force:true`;
   - every call (allowed or refused) publishes `cuirass.chaos` and logs one line with id, action, reason, caller subject;
   - the reconciler is not told: in enforce mode it sees `status != running` on the next sync and starts the instance again (that is the auto-revert, proven live in Phase 11).
-- [ ] **Step 123** [TEST] ~2m: Red: `gotest ./cmd/unheaded-daemon/ -run 'Chaos'`.
-- [ ] **Step 124** [CODE] ~30m: Implement the handler + `lxdREST.ChaosStop(ctx, name, force)` (calls `requireManaged` and checks the label itself: two independent checks, the S17 pattern).
-- [ ] **Step 125** [TEST][V] ~3m: Green: `gotest ./cmd/unheaded-daemon/...`.
-- [ ] **Step 126** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): allowlisted chaos stop/kill, off unless CUIRASS_CHAOS=true`.
-- [ ] **Step 127** [CODE][TEST] ~15m: Metric `cuirass_reconcile_actions_total{action,result}` (result = done|failed|planned|refused) with a test reading `/metrics`; `/api/v1/info` gains `lxd_backend`, `lxd_project`, `enforce`, `prune`, `chaos` (today it reports none of them, so nobody can tell mock from real without reading the env). Chaos injectors (Phase 11) refuse to start unless `enforce` is true.
-- [ ] **Step 128** [TEST][V] ~2m: Green.
-- [ ] **Step 129** [SECURITY] ~20m: BlackMage pass on the three additions; write findings into the phase notes (this file):
+- [x] **Step 123** [TEST] ~2m: Red: `gotest ./cmd/unheaded-daemon/ -run 'Chaos'`.
+- [x] **Step 124** [CODE] ~30m: Implement the handler + `lxdREST.ChaosStop(ctx, name, force)` (calls `requireManaged` and checks the label itself: two independent checks, the S17 pattern).
+  - Done 2026-10-23: chaos_action.go; the body is read (4 KiB cap) before the 403 checks so refusals record what was asked; the Wotan client now also joins cuirass.chaos (as cuirass). Results done|refused|failed (LXD errors 502).
+- [x] **Step 125** [TEST][V] ~3m: Green: `gotest ./cmd/unheaded-daemon/...`.
+  - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
+- [x] **Step 126** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): allowlisted chaos stop/kill, off unless CUIRASS_CHAOS=true`.
+- [x] **Step 127** [CODE][TEST] ~15m: Metric `cuirass_reconcile_actions_total{action,result}` (result = done|failed|planned|refused) with a test reading `/metrics`; `/api/v1/info` gains `lxd_backend`, `lxd_project`, `enforce`, `prune`, `chaos` (today it reports none of them, so nobody can tell mock from real without reading the env). Chaos injectors (Phase 11) refuse to start unless `enforce` is true.
+  - Done 2026-10-23: observability_test.go: cuirass_reconcile_actions_total{action,result} with done/failed/planned/refused read from /metrics; /api/v1/info lxd_backend (mock when unset), lxd_project, enforce, prune, chaos.
+- [x] **Step 128** [TEST][V] ~2m: Green.
+  - Done 2026-10-23: green (red first: both tests failed before the change).
+- [x] **Step 129** [SECURITY] ~20m: BlackMage pass on the three additions; write findings into the phase notes (this file):
+  - Done 2026-10-23: BlackMage pass, findings: (1) SSRF: no spec field names a host and the probe URL is built structurally from the LXD-reported IP; but a container chooses its own interface addresses, so a compromised one could point the probe elsewhere. FIXED for loopback/link-local/unspecified/multicast (refused, counted as a failed check, bite-tested). RESIDUAL (low, open): it could still advertise another host's routable address (e.g. east 192.168.13.1); the probe is a GET to the operator's port/path and only a healthy/unhealthy bit comes back. Follow-on: a CUIRASS_PROBE_NETS allowlist (lxdbr0 subnet). (2) Device injection: the spec has no devices field (unknown JSON keys are dropped); only unheaded-proxy is ever written; listen 127.0.0.1/configured lab IP in 26000-26666, connect 127.0.0.1, bind=host fixed; checked at PUT and again in the client. No finding. (3) Chaos: pihole lives in project default (invisible to a restricted cert) and is refused anyway (409, both checks, bite-tested each); refusals are logged and published. FIXED: chaos also required CUIRASS_ENFORCE (in observe mode nothing restarts a killed instance, so a kill would stick); now 403 without it (bite-tested). (4) Body limits: chaos uses httputil.DecodeJSONBody (4 KiB, 413, 415 on wrong content type). Pre-existing, not new: the container PUT decodes with LimitReader+json.Decoder (trailing bytes tolerated). (5) FOUND+FIXED: probes run serially under the 30 s reconcile deadline; past it every remaining probe failed and counted, so enough health specs would mark the tail unhealthy and restart it. Probing now stops at the deadline without counting (TestReconcile_ExpiredSyncCountsNoFailures).
   - SSRF: can any input steer the probe off the instance IP? (desired spec has no host field; IP comes from LXD state only.)
   - Device injection: can a desired spec add any device other than `unheaded-proxy`, or a proxy listening on 0.0.0.0 / a low port / outside the band? Can `Connect` point outside the container?
   - Chaos endpoint: can it reach pihole (unmanaged, other project), or any instance without the label? Is the refusal logged?
   - Body limits: `pkg/auth` DecodeJSONBody 413 path is used for the new handler.
-- [ ] **Step 130** [B] ~5m: gosec on the package (the house ratchet: rule exclusions, never severity filters).
+- [x] **Step 130** [B] ~5m: gosec on the package (the house ratchet: rule exclusions, never severity filters).
+  - Done 2026-10-23: gosec ./cmd/unheaded-daemon/...: Issues 0 (30 pre-existing #nosec, none added). The other touched packages (wotan-client, timeguru, architect, wotan cluster): Issues 0; one #nosec added, G404 on the retry jitter in subscribe_retry.go, leading the comment.
   ```bash
   cd "$PROJECT_ROOT" && gosec -quiet ./cmd/unheaded-daemon/... 2>&1 | tail -15
   ```
-- [ ] **Step 131** [V] ~1m: No new gosec findings versus `git stash`-free comparison: run the same command at `HEAD~6` in a temporary worktree (`git worktree add "$SCRATCH/wt-base" HEAD~6`), diff the rule IDs, remove the worktree.
+- [x] **Step 131** [V] ~1m: No new gosec findings versus `git stash`-free comparison: run the same command at `HEAD~6` in a temporary worktree (`git worktree add "$SCRATCH/wt-base" HEAD~6`), diff the rule IDs, remove the worktree.
+  - Done 2026-10-23: no temp worktree needed: zero findings now means no new rule IDs versus any base.
 - [ ] **Step 132** [D] ~10m: New finding → fix it (preferred) or justify with a leading `#nosec G<id> -- reason` (memory: reference_gosec_nosec_directive: `#nosec` must lead the comment). 2 attempts → STUCK.
-- [ ] **Step 133** [W] ~10m: wiki/Containers.md: Health, Proxy, Chaos fields; env `CUIRASS_CHAOS`; the two independent managed checks; how a game-day window turns chaos on and off.
+  - Done 2026-10-23: not needed.
+- [x] **Step 133** [W] ~10m: wiki/Containers.md: Health, Proxy, Chaos fields; env `CUIRASS_CHAOS`; the two independent managed checks; how a game-day window turns chaos on and off.
+  - Done 2026-10-23: wiki/Containers.md 'Health, proxy and chaos' under the Cuirass LXD backend section (fields, env CUIRASS_CHAOS / CUIRASS_PROXY_LISTEN_ADDRS, the two independent checks, the game-day window, the new metric and info fields).
 - [ ] **Step 134** [C] ~2m: **COMMIT CHECKPOINT**: `docs(wiki): Cuirass health, proxy and chaos actions`.
-- [ ] **Step 135** [V] ~3m: **PHASE 4 EXIT GATE**: `gotest ./cmd/unheaded-daemon/...` green; the safe-mode tests from `04c34ed0` still green (run the names `grep -ln -i pihole cmd/unheaded-daemon/*_test.go` points at, with `-run` on their `func Test...` names); default `LXD_BACKEND` still `mock`, `CUIRASS_CHAOS` default off (`grep -n 'CUIRASS_CHAOS\|"LXD_BACKEND", "mock"' cmd/unheaded-daemon/main.go`).
-- [ ] **Step 136** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks + Step 129 notes).
+- [x] **Step 135** [V] ~3m: **PHASE 4 EXIT GATE**: `gotest ./cmd/unheaded-daemon/...` green; the safe-mode tests from `04c34ed0` still green (run the names `grep -ln -i pihole cmd/unheaded-daemon/*_test.go` points at, with `-run` on their `func Test...` names); default `LXD_BACKEND` still `mock`, `CUIRASS_CHAOS` default off (`grep -n 'CUIRASS_CHAOS\|"LXD_BACKEND", "mock"' cmd/unheaded-daemon/main.go`).
+  - Done 2026-10-23: PASS. gotest ./cmd/unheaded-daemon/... green; the safe-mode tests (TestReconcile_*, TestLXDREST_*, TestContainerWrites_NeedAuth: 31) green; LXD_BACKEND still defaults to mock (main.go getEnvOrDefault("LXD_BACKEND", "mock")), CUIRASS_CHAOS off unless exactly "true". Bite tests (remove the guard, test red, restore) for all three refusals: probe address guard, proxy validation + only-our-device, chaos flag/enforce/handler check/client label check. Whole-repo run after Phases 2-4: go build clean, 276 ok + 1 FAIL in pkg/wotan-client: TestGRPCClient_GetMessages_AfterSeq, a pre-existing race (8 of 20 runs) where Wotan's copy of the query deadline fires first; fixed in the same commit (DeadlineExceeded ends the query), 0 of 40 since.
+- [x] **Step 136** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks + Step 129 notes).
 
 **DoD (Phase 4)**: DoD-STD + the three new safety refusals each have a bite test (remove the guard, test goes red, restore).
 
@@ -751,33 +823,44 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 3 h
 **Agent**: Agent [P:4] (code), Coordinator (Steps 170-176)
 
-- [ ] **Step 161** [DECIDE] ~0m: **D-14 image base = Alpine 3.22 + OpenRC + the static binary.** RECOMMENDATION: build each image from `images:alpine/3.22`: push the binary, an OpenRC service file and `/etc/conf.d/steel-echo` (version-specific fault knobs), `rc-update add`, then `lxc publish` to an alias. Rationale: Alpine brings the DHCP client and init the container needs on lxdbr0, and it stays small; a bare rootfs with the binary as `/sbin/init` would need its own network setup. Override ONLY if west cannot reach the simplestreams server: then build a rootfs tarball (binary as init, IPv6 SLAAC only) and `lxc image import` it, and record H17 against IPv6.
-- [ ] **Step 162** [CODE][TEST] ~40m: `cmd/steel-echo` tests first (`main_test.go`):
+- [x] **Step 161** [DECIDE] ~0m: **D-14 image base = Alpine 3.22 + OpenRC + the static binary.** RECOMMENDATION: build each image from `images:alpine/3.22`: push the binary, an OpenRC service file and `/etc/conf.d/steel-echo` (version-specific fault knobs), `rc-update add`, then `lxc publish` to an alias. Rationale: Alpine brings the DHCP client and init the container needs on lxdbr0, and it stays small; a bare rootfs with the binary as `/sbin/init` would need its own network setup. Override ONLY if west cannot reach the simplestreams server: then build a rootfs tarball (binary as init, IPv6 SLAAC only) and `lxc image import` it, and record H17 against IPv6.
+  - Done 2026-10-23: recommendation recorded (Alpine 3.22 + OpenRC). The override test (west reaching simplestreams) is live and waits on E2; this session builds the four payloads locally only, nothing is imported into LXD.
+- [x] **Step 162** [CODE][TEST] ~40m: `cmd/steel-echo` tests first (`main_test.go`):
+  - Done 2026-10-23: cmd/steel-echo/main_test.go: knob bounds (NaN/Inf/garbage refused, not clamped), health/version/root, root never echoes path/query/headers/body (and 404s with a fixed body), POST / 405, error rate 0.30 +/- 5% over 10k with a fixed seed while /health stays 200, latency knob on / only, house metrics, clean shutdown on context end, SIGTERM/SIGINT/SIGPWR, load flag validation, discover (healthy+running+managed+svc label only; loopback/garbage IPs refused; GET /api/v1/state/actual only), removed instance dropped within one period, failed refresh keeps targets, CSV columns/percentiles/version sanitising, a run against a 50% bad build, connection errors.
   - `serve` (default): `GET /health` 200 `ok`; `GET /version` the ldflags `-X main.version`; `GET /` returns hostname and version only (never echoes request data: zero user data access); `GET /metrics` exposes `unheaded_http_requests_total` / `unheaded_http_request_duration_seconds` through `pkg/httputil` middleware (the house metrics, Session 4); fault knobs `STEEL_ERROR_RATE` (0-1, fraction of `/` answered 500) and `STEEL_LATENCY_MS`; SIGTERM and SIGPWR shut down cleanly (LXD stop sends SIGPWR to init's children via OpenRC).
   - `load`: `--target URL` (fixed) or `--discover $CUIRASS --svc NAME` (every 2 s, the healthy managed instances whose label `svc=NAME`, round-robin, so traffic share = replica share); `--rps`, `--duration`, `--out CSV` with one line per second: `ts,sent,ok,err5xx,errconn,p50_ms,p99_ms,versions_seen`. Discover mode reads only `/api/v1/state/actual` (GET, no key needed).
   - Tests: knob parsing bounds, error-rate within ±5% over 10k requests (fixed seed), discover refresh drops a removed instance within one period, CSV columns.
-- [ ] **Step 163** [TEST] ~2m: Red: `gotest ./cmd/steel-echo/...`.
-- [ ] **Step 164** [CODE] ~45m: Implement (stdlib + existing `pkg/httputil`/`pkg/metrics` only; no new module).
-- [ ] **Step 165** [TEST][V] ~3m: Green; static build works.
+- [x] **Step 163** [TEST] ~2m: Red: `gotest ./cmd/steel-echo/...`.
+  - Done 2026-10-23: red (compile: parseKnobs, server, newServer undefined).
+- [x] **Step 164** [CODE] ~45m: Implement (stdlib + existing `pkg/httputil`/`pkg/metrics` only; no new module).
+  - Done 2026-10-23: main.go (serve|load), serve.go, load.go; stdlib + pkg/httputil + pkg/metrics only. A 3xx/4xx answer counts in sent only (availability stays ok/sent); a tick with no healthy target counts as errconn. API keys are not needed: discover reads the public actual-state GET.
+- [x] **Step 165** [TEST][V] ~3m: Green; static build works.
+  - Done 2026-10-23: green, race-clean; CGO_ENABLED=0 build is statically linked; golangci-lint 0 issues; gosec clean.
   ```bash
   gotest ./cmd/steel-echo/... && (cd "$PROJECT_ROOT" && CGO_ENABLED=0 go build -ldflags "-s -w -X main.version=v1" -o "$SCRATCH/steel-echo" ./cmd/steel-echo && file "$SCRATCH/steel-echo")
   ```
   - `statically linked`.
 - [ ] **Step 166** [C] ~2m: **COMMIT CHECKPOINT**: `feat(steel-echo): game-day workload with fault knobs and a client-side availability meter`.
-- [ ] **Step 167** [W] ~30m: `scripts/steel-echo-image.sh` (dry run unless `--apply`, the house pattern): for `v1 v2 v3` (error rate 0, latency 0) and `v4` (`STEEL_ERROR_RATE=0.3`): build the binary with its version, `lxc launch images:alpine/3.22 steel-build-<ver>` (project from D-15), `lxc file push`, write the OpenRC service and conf.d, `rc-update add steel-echo default`, `lxc stop`, `lxc publish steel-build-<ver> --alias steel-echo-<ver>`, `lxc delete steel-build-<ver>`. Refuses to run if any alias already exists unless `--replace`. Never touches an instance not named `steel-build-*`.
-- [ ] **Step 168** [B][V] ~3m: shellcheck clean; dry run prints the exact command list.
+- [x] **Step 167** [W] ~30m: `scripts/steel-echo-image.sh` (dry run unless `--apply`, the house pattern): for `v1 v2 v3` (error rate 0, latency 0) and `v4` (`STEEL_ERROR_RATE=0.3`): build the binary with its version, `lxc launch images:alpine/3.22 steel-build-<ver>` (project from D-15), `lxc file push`, write the OpenRC service and conf.d, `rc-update add steel-echo default`, `lxc stop`, `lxc publish steel-build-<ver> --alias steel-echo-<ver>`, `lxc delete steel-build-<ver>`. Refuses to run if any alias already exists unless `--replace`. Never touches an instance not named `steel-build-*`.
+  - Done 2026-10-23: scripts/steel-echo-image.sh has three modes: dry run (default, prints every command, no LXD contact at all, not even reads), --stage DIR (builds the four payloads locally: static binary, OpenRC service under supervise-daemon as user steel, conf.d knobs; no LXD contact), --apply (needs E2.4). --apply refuses on an existing alias without --replace and on any leftover steel-build-* instance; builder names are fixed to steel-build-v<n> and checked before use.
+- [x] **Step 168** [B][V] ~3m: shellcheck clean; dry run prints the exact command list.
+  - Done 2026-10-23: shellcheck clean; dry run prints the command list. Built locally (--stage) into the session scratch: v1..v4 statically linked; local smoke of the staged v4 on 127.0.0.1:28611 with the staged meter: /version = v4, 200 requests, 69 x 500 (34.5%, STEEL_ERROR_RATE=0.3), CSV one line per second. Nothing imported into LXD.
   ```bash
   shellcheck "$PROJECT_ROOT/scripts/steel-echo-image.sh" && "$PROJECT_ROOT/scripts/steel-echo-image.sh" | head -40
   ```
 - [ ] **Step 169** [C] ~2m: **COMMIT CHECKPOINT**: `feat(scripts): steel-echo LXD image builder (dry run by default)`.
 - [ ] **Step 170** [DECIDE] ~0m: **D-15 who imports images** (reads H16, Step 145). RECOMMENDATION: if the restricted Cuirass identity cannot import, govan builds in the `default` project (the `unheaded` project shares the default project's images: trust script step 1), with builder names prefixed `steel-build-` so pihole is never in scope. Rationale: keeps Cuirass's identity read/run-only for images. Override ONLY if H16 showed the project has its own image store (`features.images=true`): then build with `--project unheaded`.
+  - [DEFERRED: E2 window] D-15 reads H16 (Step 145, live). Recommendation stands (govan builds in project default, builders steel-build-*); the script defaults --project default and takes --project unheaded for the override.
 - [ ] **Step 171** [LIVE-RW][BARE-METAL] ~15m: (E2.4) `scripts/steel-echo-image.sh --apply 2>&1 | tee "$SCRATCH/images.txt"`.
+  - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
 - [ ] **Step 172** [V][LIVE-RO] ~2m: Four aliases, no builders left, pihole untouched.
+  - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
   ```bash
   lxc image list --format csv -c lf | grep steel-echo; lxc list --all-projects --format csv -c n | grep steel-build || echo "no builders"
   lxc list --project default --format csv -c ns | grep pihole
   ```
 - [ ] **Step 173** [LIVE-RW] ~5m: Window open (stack + override, Phase 5 Step 143 command). Desire one instance through Cuirass with health, proxy and the chaos label.
+  - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
   ```bash
   curl -fsS -X PUT -H "Authorization: Bearer $CUIRASS_API_KEY" -H 'Content-Type: application/json' "$CUIRASS/api/v1/containers/steel-echo-v1-0" -d '{
     "id":"steel-echo-v1-0","name":"steel-echo-v1-0","image":"steel-echo-v1",
@@ -787,9 +870,13 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   sleep 70; curl -fsS "$CUIRASS/api/v1/state/actual" | jq '."steel-echo-v1-0"'; curl -fsS 127.0.0.1:26601/version
   ```
 - [ ] **Step 174** [PREFLIGHT][V][LIVE-RO] ~2m: **H17**: `health: "healthy"` in Cuirass's actual state proves a compose container (Cuirass) reached the instance IP on lxdbr0; `/version` through the proxy says `v1`. Fail on health with the proxy working → H17 FALSE → Step 175.
+  - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
 - [ ] **Step 175** [D] ~10m: From the host `curl http://<ip>:8080/health` works but Cuirass's probe does not: docker's FORWARD chain or the compose network cannot route to lxdbr0. Inspect (`sudo iptables -S DOCKER-USER`, `ip route` inside the container via `docker exec unheaded-cuirass ip route` if present). Do not edit host firewall rules (not in E2). Record H17 FALSE, apply D-09's fallback for Sword, and STUCK the Cuirass probe item for Stevie (blocks Phase 9 health gating). 2 attempts max.
+  - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
 - [ ] **Step 176** [V][LIVE-RO] ~2m: Instance metrics are real: `curl -fsS http://<ip>:8080/metrics | grep unheaded_http_requests_total | head -3` after a few `/` requests.
+  - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
 - [ ] **Step 177** [V] ~1m: **PHASE 6 EXIT GATE**: four images; one healthy managed instance serving through its proxy; load generator CSV works against it for 30 s (`steel-echo load --target http://127.0.0.1:26601/ --rps 10 --duration 30s --out "$SCRATCH/smoke.csv"`, 300 ok).
+  - Code half PASS 2026-10-23 (Steps 162-168: tests green, static build, script shellcheck-clean, four payloads staged and v4 smoke-tested locally). Live half [DEFERRED: E2 window]: four images in LXD, a healthy managed instance behind its proxy, the 30 s CSV against it.
 - [ ] **Step 178** [C] ~2m: **COMMIT CHECKPOINT** (plan ticks; H17 row). Leave `steel-echo-v1-0` desired for Phase 9 or close the window per E2.1.
 
 **DoD (Phase 6)**: DoD-STD + the workload never echoes request content (test in Step 162).
@@ -803,19 +890,27 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 5-6 h
 **Agent**: Agent
 
-- [ ] **Step 179** [R] ~20m: Read `pkg/deploy/strategy/{strategy,rolling,bluegreen,canary}.go` (Callbacks at strategy.go:198) and `pkg/deploy/rollback/rollback.go` (interfaces at :154-186).
-- [ ] **Step 180** [DECIDE] ~0m: **D-05 one deploy core.** RECOMMENDATION: `pkg/deploy/strategy` (+ `pkg/deploy/rollback`) is the core; `strategy.Callbacks` is the driver contract; `pkg/deploy` Engine, `pkg/deploy/pipeline` and `pkg/deploy/artifact` are not used (they are E1 group G3). Rationale: the strategy package already has the right seam and real control flow; the other two are parallel abstractions over a mock runtime, and building a third would be the "second system" the Marshal cites. Override ONLY if E1 answered G3 = W (wire): then still build on `strategy`, and adapt `pipeline.InstanceManager` to the same driver in a follow-on.
-- [ ] **Step 181** [CODE][TEST] ~20m: `TestStrategies_NilDriverFails` (table over rolling, blue-green, canary, recreate: nil `OnInstanceCreate`/`OnInstanceDelete`/`OnHealthCheck` → `ErrNoDriver`, no `Instance` invented, metrics show 0 created); `TestBlueGreen_RequiresTrafficShift`; `TestCanary_RequiresAnalysis`.
-- [ ] **Step 182** [TEST] ~2m: Red: `gotest ./pkg/deploy/strategy/ -run 'NilDriver|Requires'`.
-- [ ] **Step 183** [CODE] ~40m: `Validate`/`Execute` require the callbacks each strategy needs; delete every "Simulate instance creation" / invented-instance branch.
-- [ ] **Step 184** [TEST][V] ~3m: Green, and no simulation left.
+- [x] **Step 179** [R] ~20m: Read `pkg/deploy/strategy/{strategy,rolling,bluegreen,canary}.go` (Callbacks at strategy.go:198) and `pkg/deploy/rollback/rollback.go` (interfaces at :154-186).
+  - Done 2026-10-23: read. Found beyond the plan's list: no recreate strategy existed (Phase 9 Step 239 uses it), every health wait defaulted to healthy without OnHealthCheck, canary assumed a pass without OnAnalysis and kept its canary instances after a failed analysis, waits used time.Sleep (not ctx-aware), Rollback indexed Instances[0] (panic on empty) and read a 'service' label nothing sets.
+- [x] **Step 180** [DECIDE] ~0m: **D-05 one deploy core.** RECOMMENDATION: `pkg/deploy/strategy` (+ `pkg/deploy/rollback`) is the core; `strategy.Callbacks` is the driver contract; `pkg/deploy` Engine, `pkg/deploy/pipeline` and `pkg/deploy/artifact` are not used (they are E1 group G3). Rationale: the strategy package already has the right seam and real control flow; the other two are parallel abstractions over a mock runtime, and building a third would be the "second system" the Marshal cites. Override ONLY if E1 answered G3 = W (wire): then still build on `strategy`, and adapt `pipeline.InstanceManager` to the same driver in a follow-on.
+  - Done 2026-10-23: recommendation taken (E1 not answered, so the override does not apply; pkg/deploy Engine/pipeline/artifact untouched).
+- [x] **Step 181** [CODE][TEST] ~20m: `TestStrategies_NilDriverFails` (table over rolling, blue-green, canary, recreate: nil `OnInstanceCreate`/`OnInstanceDelete`/`OnHealthCheck` → `ErrNoDriver`, no `Instance` invented, metrics show 0 created); `TestBlueGreen_RequiresTrafficShift`; `TestCanary_RequiresAnalysis`.
+  - Done 2026-10-23: driver_test.go: TestStrategies_NilDriverFails (rolling, blue-green, canary, recreate x nil callbacks / no create / no delete / no health: ErrNoDriver, nothing invented, nothing created), TestBlueGreen_RequiresTrafficShift, TestCanary_RequiresAnalysis, TestStrategies_NeverHealthyFails, TestNoSimulationInDeployCore (the Phase 7 DoD grep as a test over strategy, rollback, cuirassdriver sources).
+- [x] **Step 182** [TEST] ~2m: Red: `gotest ./pkg/deploy/strategy/ -run 'NilDriver|Requires'`.
+  - Done 2026-10-23: red (compile: NewRecreateStrategy, AnalysisRequest).
+- [x] **Step 183** [CODE] ~40m: `Validate`/`Execute` require the callbacks each strategy needs; delete every "Simulate instance creation" / invented-instance branch.
+  - Done 2026-10-23: requireDriver in every Execute; every invented-instance branch deleted; health only from OnHealthCheck (waitHealthy, ctx-aware poll at the health-check interval capped 10 s, ProgressDeadline default 10 m); canary needs OnAnalysis, which now gets an AnalysisRequest naming the canary and stable instances; a failed analysis puts traffic on stable, deletes the canary and sets Result.RolledBack; blue-green deletes green when it fails before the switch; new recreate.go; RollbackParams gained ServiceName and Replicas.
+- [x] **Step 184** [TEST][V] ~3m: Green, and no simulation left.
+  - Done 2026-10-23: green and race-clean (strategy, rollback, pkg/deploy); grep prints none; no time.Sleep left in strategy. Bite: removing recreate's requireDriver turns TestStrategies_NilDriverFails red (nil dereference), restored. golangci-lint 0, gosec clean.
   ```bash
   gotest ./pkg/deploy/strategy/... ./pkg/deploy/rollback/...
   grep -n -i 'simulat' "$PROJECT_ROOT"/pkg/deploy/strategy/*.go "$PROJECT_ROOT"/pkg/deploy/rollback/*.go | grep -v _test || echo "none"
   ```
-- [ ] **Step 185** [D] ~10m: Existing tests relied on the simulation: rewrite them to pass a test driver (in `_test.go`, a fake is fine; the product path is what must not fake). 2 attempts → STUCK with the failing test names.
+- [x] **Step 185** [D] ~10m: Existing tests relied on the simulation: rewrite them to pass a test driver (in `_test.go`, a fake is fine; the product path is what must not fake). 2 attempts → STUCK with the failing test names.
+  - Done 2026-10-23: the legacy tests that leaned on the simulation now pass the in-test driver (testDriver in driver_test.go): the three *_NoCallbacks became *_WithTestDriver, and the shift/create/unhealthy failure tests also assert what is left running (green or canary deleted, old version still serving).
 - [ ] **Step 186** [C] ~2m: **COMMIT CHECKPOINT**: `fix(deploy): strategies fail without a driver instead of inventing instances`.
-- [ ] **Step 187** [CODE][TEST] ~30m: `pkg/deploy/cuirassdriver` tests first, against an httptest fake Cuirass that keeps desired/actual maps and flips instances to running/healthy after N polls:
+- [x] **Step 187** [CODE][TEST] ~30m: `pkg/deploy/cuirassdriver` tests first, against an httptest fake Cuirass that keeps desired/actual maps and flips instances to running/healthy after N polls:
+  - Done 2026-10-23: fake_test.go (in-memory Cuirass: auth on writes, 409 on a second proxy owner like Cuirass, actual follows desired per tick, healthy after N ticks) + driver_test.go: the seven named tests plus DeleteRefusesAnotherServicesInstance (other service, pihole, path junk: no DELETE reaches Cuirass), DeleteMovesTheProxyFirst, CallbacksNeedAHealthSpec, InstanceName, WriteFailureIsAnError. Amendment: the plan's curl examples send 'Authorization: Bearer'; pkg/auth's API-key authenticator reads X-API-Key, which the driver sends.
   - `TestDriver_CreatePutsVersionedInstanceAndWaitsHealthy` (name `<svc>-<ver>-<n>`, image `<svc>-<ver>`, labels `svc`, `ver`, `deployment`, plus the caller's; Health spec passed through; returns IP).
   - `TestDriver_CreateTimesOutWhenNeverHealthy` (ctx deadline, error names the instance).
   - `TestDriver_DeleteRemovesDesired`.
@@ -823,30 +918,48 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - `TestDriver_TrafficShiftMovesProxyOnce` (old spec PUT without `proxy`, then new spec PUT with it, then one reconcile-now call).
   - `TestDriver_RefusesWithoutAPIKey` (env `CUIRASS_API_KEY` unset → constructor error: credentials fail loud, never a default).
   - `TestDriver_HealthIsCuirassHealth` (the driver does not probe on its own: one source of truth).
-- [ ] **Step 188** [TEST] ~2m: Red: `gotest ./pkg/deploy/cuirassdriver/...`.
-- [ ] **Step 189** [CODE] ~60m: Implement `Driver` returning a `strategy.Callbacks`; HTTP client with timeouts, `pkg/auth`-compatible bearer key, JSON bodies capped, IDs validated with the same rule as Cuirass (`[a-z0-9-]`, LXD name length).
-- [ ] **Step 190** [TEST][V] ~3m: Green, race-clean.
+- [x] **Step 188** [TEST] ~2m: Red: `gotest ./pkg/deploy/cuirassdriver/...`.
+  - Done 2026-10-23: red (compile: containerSpec, Driver undefined).
+- [x] **Step 189** [CODE] ~60m: Implement `Driver` returning a `strategy.Callbacks`; HTTP client with timeouts, `pkg/auth`-compatible bearer key, JSON bodies capped, IDs validated with the same rule as Cuirass (`[a-z0-9-]`, LXD name length).
+  - Done 2026-10-23: driver.go: Driver{New, FromEnv, Instances, Callbacks}; request timeout 10 s, bodies capped 4 MiB, no redirects, no env proxy; names <svc>-<ver>-<n> checked against the LXD rule; a health spec is required (it is how a create is confirmed); the first instance of a service gets the proxy, deleting the holder moves it first (target version preferred), a 100% shift moves it (remove, add, one reconcile, then waits until Cuirass reports it moved); below 100% is a no-op (D-04); a failed create removes its desired spec again.
+- [x] **Step 190** [TEST][V] ~3m: Green, race-clean.
+  - Done 2026-10-23: green, race-clean; golangci-lint 0, gosec clean.
 - [ ] **Step 191** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): Cuirass driver for deploy strategies`.
-- [ ] **Step 192** [CODE][TEST] ~20m: Cuirass `POST /api/v1/reconcile` (auth required like PUT; at most one run per second, extra calls get 429; runs one sync+plan+apply cycle and returns its actions): tests in `cmd/unheaded-daemon/reconcile_now_test.go`. Without it a blue-green cutover waits up to one 30 s sync.
-- [ ] **Step 193** [TEST][V] ~3m: `gotest ./cmd/unheaded-daemon/...` green.
+- [x] **Step 192** [CODE][TEST] ~20m: Cuirass `POST /api/v1/reconcile` (auth required like PUT; at most one run per second, extra calls get 429; runs one sync+plan+apply cycle and returns its actions): tests in `cmd/unheaded-daemon/reconcile_now_test.go`. Without it a blue-green cutover waits up to one 30 s sync.
+  - Done 2026-10-23: reconcile_now.go + reconcile_now_test.go: 403 without AUTH_ENABLED, one sync+plan+apply returning its actions, observe mode only plans, 429 + Retry-After within a second, POST only, 502 when the LXD list fails. Also found and fixed while wiring the driver: within one reconcile, update-proxy actions apply in name order, so moving the endpoint to an instance that sorts first (a rollback v3 to v2) would add before removing and LXD cannot bind the address twice; removals now apply first (TestReconcile_ProxyRemovalsApplyFirst). Bites: dropping the auth check or the ordering turns its test red.
+- [x] **Step 193** [TEST][V] ~3m: `gotest ./cmd/unheaded-daemon/...` green.
+  - Done 2026-10-23: gotest ./cmd/unheaded-daemon/... green, race-clean; lint 0; gosec clean.
 - [ ] **Step 194** [C] ~2m: **COMMIT CHECKPOINT**: `feat(cuirass): reconcile-now endpoint for deploy cutovers`.
-- [ ] **Step 195** [CODE][TEST] ~25m: Rollback wiring tests: `rollback.Manager` with a `DeploymentLookup` backed by a history store (interface only here; Sword provides the file-backed one in Phase 8), `InstanceUpdater` and `TrafficShifter` adapters over the driver. `TestRollback_RestoresPreviousVersionThroughDriver` (fake Cuirass ends with only the previous version's instances desired and the proxy on them), `TestRollback_NoPreviousVersionIsAnError`, `TestAutoRollbackMonitor_TriggersOnFailedHealth`.
-- [ ] **Step 196** [TEST] ~2m: Red.
-- [ ] **Step 197** [CODE] ~40m: Implement the adapters (`pkg/deploy/cuirassdriver/rollback.go`).
-- [ ] **Step 198** [TEST][V] ~3m: Green.
+- [x] **Step 195** [CODE][TEST] ~25m: Rollback wiring tests: `rollback.Manager` with a `DeploymentLookup` backed by a history store (interface only here; Sword provides the file-backed one in Phase 8), `InstanceUpdater` and `TrafficShifter` adapters over the driver. `TestRollback_RestoresPreviousVersionThroughDriver` (fake Cuirass ends with only the previous version's instances desired and the proxy on them), `TestRollback_NoPreviousVersionIsAnError`, `TestAutoRollbackMonitor_TriggersOnFailedHealth`.
+  - Done 2026-10-23: cuirassdriver/rollback_test.go: the three named tests (in-memory DeploymentLookup; Manager over the driver's Updater and Shifter) plus TestRollback_ManagerWithoutUpdaterFails.
+- [x] **Step 196** [TEST] ~2m: Red.
+  - Done 2026-10-23: red (compile: Updater, Shifter, Manager.Wait undefined).
+- [x] **Step 197** [CODE] ~40m: Implement the adapters (`pkg/deploy/cuirassdriver/rollback.go`).
+  - Done 2026-10-23: cuirassdriver/rollback.go: Updater = rolling update (surge 1, none unavailable) to the version through the driver; Shifter moves the endpoint when a healthy target exists, else leaves it to the Updater (deleting the old holder moves it). pkg/deploy/rollback: Manager.Wait; a Manager with no updater now fails the rollback (it used to dereference nil); AutoRollbackMonitor read startedAt outside its lock and printed with fmt.Printf (now OnError hook).
+- [x] **Step 198** [TEST][V] ~3m: Green.
+  - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
 - [ ] **Step 199** [C] ~2m: **COMMIT CHECKPOINT**: `feat(deploy): rollback manager drives the Cuirass driver`.
-- [ ] **Step 200** [TEST][CODE] ~30m: End-to-end strategy tests against the fake Cuirass (`pkg/deploy/cuirassdriver/e2e_test.go`):
+- [x] **Step 200** [TEST][CODE] ~30m: End-to-end strategy tests against the fake Cuirass (`pkg/deploy/cuirassdriver/e2e_test.go`):
+  - Done 2026-10-23: cuirassdriver/e2e_test.go: rolling v1 to v2 (surge 1, unavailable 0): the fake's per-tick healthy count never drops below 3 (bite: unavailable 1 drops it to 2, red); blue-green v2 to v3: exactly one proxy move, every blue delete after it; canary v3 to v4 with a failing analysis: ErrRollbackRequired, RolledBack, only v3 left with the endpoint, the analysis saw 1 canary and 3 stable.
   - rolling 3 replicas v1→v2 with `max_unavailable=0`: at every fake tick, healthy count ≥ 3;
   - blue-green v2→v3: exactly one proxy move, old instances deleted only after the move;
   - canary v3→v4 with analysis returning fail: ends with only v3 desired, canary deleted, result `rolled_back`.
-- [ ] **Step 201** [TEST] ~3m: Run: `gotest ./pkg/deploy/...`.
-- [ ] **Step 202** [V] ~1m: All green; no `time.Sleep` in the product code paths of strategy/driver except bounded poll intervals (`grep -n 'time.Sleep' pkg/deploy/strategy/*.go pkg/deploy/cuirassdriver/*.go | grep -v _test`).
-- [ ] **Step 203** [C] ~2m: **COMMIT CHECKPOINT**: `test(deploy): end-to-end strategy runs against a fake Cuirass`.
-- [ ] **Step 204** [B] ~2m: Untouched leftovers are what E1 says they are: if G3 was answered, `pkg/deploy` Engine/pipeline/artifact are gone (Phase 1); if not answered yet, they stay unreached and unmodified (no half-edits).
-- [ ] **Step 205** [B] ~3m: gosec on the new/changed packages: `gosec -quiet ./pkg/deploy/strategy/... ./pkg/deploy/rollback/... ./pkg/deploy/cuirassdriver/... | tail`.
-- [ ] **Step 206** [V] ~2m: **PHASE 7 EXIT GATE**: Steps 184, 190, 198, 202 green; zero gosec findings in new code.
-- [ ] **Step 207** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks).
-- [ ] **Step 208** [AUDIT-UPDATE] ~2m: `docs/UNREACHED-GO-PACKAGES.md`: `pkg/deploy/strategy`, `pkg/deploy/rollback` marked "wired in Phase 8 (Sword)" (they become reached when cmd/sword lands).
+- [x] **Step 201** [TEST] ~3m: Run: `gotest ./pkg/deploy/...`.
+  - Done 2026-10-23: gotest ./pkg/deploy/... green (strategy, rollback, cuirassdriver, and the untouched Engine/pipeline/artifact).
+- [x] **Step 202** [V] ~1m: All green; no `time.Sleep` in the product code paths of strategy/driver except bounded poll intervals (`grep -n 'time.Sleep' pkg/deploy/strategy/*.go pkg/deploy/cuirassdriver/*.go | grep -v _test`).
+  - Done 2026-10-23: no time.Sleep in strategy or cuirassdriver product code at all (every wait is a ctx-aware timer).
+- [x] **Step 203** [C] ~2m: **COMMIT CHECKPOINT**: `test(deploy): end-to-end strategy runs against a fake Cuirass`.
+  - Done 2026-10-23: 23fe85d4.
+- [x] **Step 204** [B] ~2m: Untouched leftovers are what E1 says they are: if G3 was answered, `pkg/deploy` Engine/pipeline/artifact are gone (Phase 1); if not answered yet, they stay unreached and unmodified (no half-edits).
+  - Done 2026-10-23: E1 not answered: pkg/deploy Engine, pipeline, artifact, pkg/container and services/canary are untouched (no diff against b199a8fc).
+- [x] **Step 205** [B] ~3m: gosec on the new/changed packages: `gosec -quiet ./pkg/deploy/strategy/... ./pkg/deploy/rollback/... ./pkg/deploy/cuirassdriver/... | tail`.
+  - Done 2026-10-23: gosec on strategy, rollback, cuirassdriver: no issues.
+- [x] **Step 206** [V] ~2m: **PHASE 7 EXIT GATE**: Steps 184, 190, 198, 202 green; zero gosec findings in new code.
+  - Done 2026-10-23: PASS: Steps 184, 190, 198, 202 green; zero gosec findings; the DoD grep is TestNoSimulationInDeployCore.
+- [x] **Step 207** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks).
+  - Done 2026-10-23: 8c15eb42.
+- [x] **Step 208** [AUDIT-UPDATE] ~2m: `docs/UNREACHED-GO-PACKAGES.md`: `pkg/deploy/strategy`, `pkg/deploy/rollback` marked "wired in Phase 8 (Sword)" (they become reached when cmd/sword lands).
+  - Done 2026-10-23: docs/UNREACHED-GO-PACKAGES.md marks pkg/deploy/strategy and pkg/deploy/rollback as wired in Phase 8 (cmd/sword).
 
 **DoD (Phase 7)**: DoD-STD + the "no simulate" grep is a test (`TestNoSimulationInDeployCore` reading the package sources) so it cannot regress.
 
@@ -859,40 +972,68 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 5-6 h
 **Agent**: Agent
 
-- [ ] **Step 209** [R] ~15m: Read `services/sword/sword.go` (types, routes, `Rollback` at :250) and `services/canary/canary.go` (SLOThreshold, routes, `evaluateCanary` at :583, `checkSLO` at :686).
-- [ ] **Step 210** [DECIDE] ~0m: **D-08 Sword is the binary; Canary folds in; Sword takes port 19011.** RECOMMENDATION: new `cmd/sword` hosting `services/sword`; canary analysis becomes a Sword strategy input; `pkg/ports.Canary` (19011) is renamed `Sword` (no duplicate ports, `TestNoDuplicatePorts`); uid `pkg/uids.Sword` (16746) already exists. Rationale: one deploy service, one port, no third copy of canary logic. Override ONLY if Stevie wants Canary as a separate service: then Sword takes the next free port in 19020-19099 after `grep -n '= 190[2-9][0-9]' pkg/ports/ports.go`.
-- [ ] **Step 211** [DECIDE] ~0m: **D-06 canary analysis reads the instances, guarded by the Kingdom SLOs.** RECOMMENDATION: every analysis interval Sword scrapes each canary and stable instance's `/metrics` (IP from Cuirass actual state, port from the Health spec; same SSRF rules as Cuirass) and computes error ratio and p99 from counter/histogram deltas; fewer than `min_samples` requests = inconclusive (hold, never promote; three inconclusive intervals = rollback); separately, if any `page: true` SLO's `slo:error_ratio:5m` exceeds `14.4 × (1 − objective)` (ADR-100 fast tier) or its series is missing, analysis fails. Rationale: Victoria's scrape config does not know dynamic LXD instances, so the instance is the source of truth for the canary; the SLO guard keeps a deploy from burning real budget elsewhere. Override ONLY if Victoria gains LXD service discovery in this sprint (it should not: scope).
-- [ ] **Step 212** [DECIDE] ~0m: **D-07 Sword state = `pkg/statefile` under `SWORD_DATA_DIR`.** RECOMMENDATION: the S17 pattern (4affa68e): no data dir → mutating routes answer 503; damaged file → fatal at start; failed save → 503 and the in-memory change undone. Rationale: rollback needs the previous version after a restart; ADR-099's Well migration is a follow-on. Override ONLY if the Well is up and Stevie asks for it there now.
+- [x] **Step 209** [R] ~15m: Read `services/sword/sword.go` (types, routes, `Rollback` at :250) and `services/canary/canary.go` (SLOThreshold, routes, `evaluateCanary` at :583, `checkSLO` at :686).
+  - Done 2026-10-23: read. Sword: every strategy only advanced a progress counter with sleeps, Rollback slept 100 ms and reported rolled_back, /health and /ready were constant. Canary: evaluateCanary hardcodes both metric sets, so checkSLO can never fail.
+- [x] **Step 210** [DECIDE] ~0m: **D-08 Sword is the binary; Canary folds in; Sword takes port 19011.** RECOMMENDATION: new `cmd/sword` hosting `services/sword`; canary analysis becomes a Sword strategy input; `pkg/ports.Canary` (19011) is renamed `Sword` (no duplicate ports, `TestNoDuplicatePorts`); uid `pkg/uids.Sword` (16746) already exists. Rationale: one deploy service, one port, no third copy of canary logic. Override ONLY if Stevie wants Canary as a separate service: then Sword takes the next free port in 19020-19099 after `grep -n '= 190[2-9][0-9]' pkg/ports/ports.go`.
+  - Done 2026-10-23: recommendation taken (no request for a separate Canary). pkg/ports.Canary becomes Sword at Step 224.
+- [x] **Step 211** [DECIDE] ~0m: **D-06 canary analysis reads the instances, guarded by the Kingdom SLOs.** RECOMMENDATION: every analysis interval Sword scrapes each canary and stable instance's `/metrics` (IP from Cuirass actual state, port from the Health spec; same SSRF rules as Cuirass) and computes error ratio and p99 from counter/histogram deltas; fewer than `min_samples` requests = inconclusive (hold, never promote; three inconclusive intervals = rollback); separately, if any `page: true` SLO's `slo:error_ratio:5m` exceeds `14.4 × (1 − objective)` (ADR-100 fast tier) or its series is missing, analysis fails. Rationale: Victoria's scrape config does not know dynamic LXD instances, so the instance is the source of truth for the canary; the SLO guard keeps a deploy from burning real budget elsewhere. Override ONLY if Victoria gains LXD service discovery in this sprint (it should not: scope).
+  - Done 2026-10-23: recommendation taken (Victoria gains no LXD discovery). The Kingdom SLO guard is a new shared package, pkg/sloguard (policy.yaml page: true SLOs, slo:error_ratio:5m against 14.4 x (1 - objective), missing series = bad, Victoria down = error), because Phase 10's D-20 needs the same guard.
+- [x] **Step 212** [DECIDE] ~0m: **D-07 Sword state = `pkg/statefile` under `SWORD_DATA_DIR`.** RECOMMENDATION: the S17 pattern (4affa68e): no data dir → mutating routes answer 503; damaged file → fatal at start; failed save → 503 and the in-memory change undone. Rationale: rollback needs the previous version after a restart; ADR-099's Well migration is a follow-on. Override ONLY if the Well is up and Stevie asks for it there now.
+  - Done 2026-10-23: recommendation taken (the Well is not up).
 - [ ] **Step 213** [DECIDE] ~0m: **D-09 Sword runs as a compose service on west.** RECOMMENDATION: compose service `sword` (uid 16746, `read_only`, `cap_drop: ALL`, `no-new-privileges`, named volume `sword-data`, `env_file` on the host for `CUIRASS_API_KEY`, networks `control` + `data`). Rationale: it talks to Cuirass and Victoria (compose) and instance IPs (H17, Step 174). Override ONLY if H17 was FALSE: then a host unit `deploy/systemd/unheaded-sword.service` with its own sysusers account `unheaded-sword`, same sandbox block as the other units.
-- [ ] **Step 214** [CODE][TEST] ~30m: `services/sword` tests: `TestSword_DeployRunsStrategyThroughDriver` (no sleep path), `TestSword_RollbackRestoresPreviousVersion` (through `rollback.Manager`), `TestSword_FailedDeployRollsBackAutomatically`, `TestSword_HistorySurvivesRestart` (statefile), `TestSword_NoDataDirIsReadOnly` (503), `TestSword_PublishesDeployEvents` (topics `deploy.started|progress|succeeded|failed|rolled_back`, joined as `sword` before publishing: the S17 "published without joining" bug).
-- [ ] **Step 215** [TEST] ~2m: Red: `gotest ./services/sword/...`.
-- [ ] **Step 216** [CODE] ~60m: Rewrite `services/sword` around `strategy.Registry` + driver + `rollback.Manager` + statefile; delete the simulated `Rollback`; routes `POST /api/v1/deployments`, `GET /api/v1/deployments[/{id}]`, `POST /api/v1/deployments/{id}/rollback`, `/health`, `/ready` (ready = data dir writable + Cuirass reachable), `/metrics`.
-- [ ] **Step 217** [TEST][V] ~3m: Green, race-clean.
-- [ ] **Step 218** [C] ~2m: **COMMIT CHECKPOINT**: `feat(sword): deployments and rollbacks through the real deploy core, persisted`.
-- [ ] **Step 219** [CODE][TEST] ~25m: `services/sword/analysis_test.go`: `TestAnalysis_ErrorRatioFromCounterDeltas` (two fake scrapes), `TestAnalysis_P99FromHistogramDeltas`, `TestAnalysis_TooFewSamplesIsInconclusive`, `TestAnalysis_ThreeInconclusiveRollsBack`, `TestAnalysis_KingdomFastBurnFails` (fake Victoria above 14.4× budget rate), `TestAnalysis_MissingSLOSeriesFails`.
-- [ ] **Step 220** [TEST] ~2m: Red.
-- [ ] **Step 221** [CODE] ~45m: Implement `services/sword/analysis.go` (port `SLOThreshold` from canary; drop its hardcoded metrics) and wire it as the canary strategy's `OnAnalysis`.
-- [ ] **Step 222** [TEST][V] ~3m: Green.
-- [ ] **Step 223** [C] ~2m: **COMMIT CHECKPOINT**: `feat(sword): canary analysis from real instance metrics with an SLO burn guard`.
-- [ ] **Step 224** [CODE] ~30m: `cmd/sword/main.go`: env `HTTP_ADDR` (default `:19011` from `pkg/ports`), `CUIRASS_URL`, `CUIRASS_API_KEY` (fail loud), `VM_URL`, `SWORD_DATA_DIR`, `WOTAN_ADDR`/`WOTAN_GRPC_ADDR`; `pkg/auth` middleware (mutating routes 403 unless `AUTH_ENABLED`, the Cuirass rule); `discovery.Start(..., "sword", ...)`; `unheaded_http_*` + `sword_deployments_total{strategy,result}`, `sword_rollbacks_total{reason}`; graceful shutdown.
-- [ ] **Step 225** [BUILD][TEST] ~5m: `cd "$PROJECT_ROOT" && go build ./cmd/sword && gotest ./cmd/sword/... ./pkg/ports/...`.
-- [ ] **Step 226** [C] ~2m: **COMMIT CHECKPOINT**: `feat(sword): cmd/sword on 19011 (was Canary's port)`.
-- [ ] **Step 227** [W] ~30m: Packaging: Dockerfile target `sword` (numeric USER 16746, the house pattern); compose service per D-09; `configs/wotan.yaml` `auto_approve` += `sword`; Victoria `scrape.yml` job `sword`; `deploy/systemd/unheaded-sword.service` + sysusers line (for the deb/host path, same sandbox block as the others, not installed anywhere in this sprint).
-- [ ] **Step 228** [V] ~5m: Packaging checks.
+  - [DEFERRED: E2 window] D-09 waits on H17 (Step 174, live). Packaging at Step 227 ships both the compose service (the recommendation) and the host unit (the fallback), so either answer is covered.
+- [x] **Step 214** [CODE][TEST] ~30m: `services/sword` tests: `TestSword_DeployRunsStrategyThroughDriver` (no sleep path), `TestSword_RollbackRestoresPreviousVersion` (through `rollback.Manager`), `TestSword_FailedDeployRollsBackAutomatically`, `TestSword_HistorySurvivesRestart` (statefile), `TestSword_NoDataDirIsReadOnly` (503), `TestSword_PublishesDeployEvents` (topics `deploy.started|progress|succeeded|failed|rolled_back`, joined as `sword` before publishing: the S17 "published without joining" bug).
+  - Done 2026-10-23: services/sword/sword_test.go replaces the tests of the simulated service: the six named tests plus NeverSucceedsWithoutCuirassHealthy (DoD), CanaryAnalysisFailureRollsBack, CanaryWithoutAnalysisIsRefused, InterruptedDeployIsFailedAfterRestart, DamagedStateIsFatal, FailedSaveIsUndone, MutatingRoutesNeedAuth, RefusesBadRequests, OneOperationPerService, GetAndList, ReadyNeedsCuirassAndDataDir. Every outcome is asserted on the fake Cuirass (pkg/deploy/cuirassdriver/cuirasstest, new test helper), not on Sword's records.
+- [x] **Step 215** [TEST] ~2m: Red: `gotest ./services/sword/...`.
+  - Done 2026-10-23: red (compile: Config fields, Service, Wait undefined).
+- [x] **Step 216** [CODE] ~60m: Rewrite `services/sword` around `strategy.Registry` + driver + `rollback.Manager` + statefile; delete the simulated `Rollback`; routes `POST /api/v1/deployments`, `GET /api/v1/deployments[/{id}]`, `POST /api/v1/deployments/{id}/rollback`, `/health`, `/ready` (ready = data dir writable + Cuirass reachable), `/metrics`.
+  - Done 2026-10-23: sword.go rewritten (strategy registry + Cuirass driver + rollback.Manager + statefile), events.go (WotanPublisher joins each deploy.* topic as sword before its first publish). The simulated Rollback and the sleep-only strategies are gone; the unused pipeline bookkeeping went with them. A record left in progress by a restart is marked failed with that reason; a failed deploy rolls back to the previous success unless NoAutoRollback; driver.Ping added for /ready.
+- [x] **Step 217** [TEST][V] ~3m: Green, race-clean.
+  - Done 2026-10-23: green, race-clean (4 repeated runs); lint 0, gosec clean. Bite: disabling the automatic rollback turns TestSword_FailedDeployRollsBackAutomatically red.
+- [x] **Step 218** [C] ~2m: **COMMIT CHECKPOINT**: `feat(sword): deployments and rollbacks through the real deploy core, persisted`.
+  - Done 2026-10-23: c07ca333.
+- [x] **Step 219** [CODE][TEST] ~25m: `services/sword/analysis_test.go`: `TestAnalysis_ErrorRatioFromCounterDeltas` (two fake scrapes), `TestAnalysis_P99FromHistogramDeltas`, `TestAnalysis_TooFewSamplesIsInconclusive`, `TestAnalysis_ThreeInconclusiveRollsBack`, `TestAnalysis_KingdomFastBurnFails` (fake Victoria above 14.4× budget rate), `TestAnalysis_MissingSLOSeriesFails`.
+  - Done 2026-10-23: services/sword/analysis_test.go: the six named tests (fake instance /metrics servers whose lifetime totals differ from the interval delta; a stub guard) plus UnreadableCanaryIsInconclusive, DefaultMetricsURLRefusesOddAddresses (loopback, ::1, 0.0.0.0, 169.254.169.254, multicast, names, host:port), ParseHTTPMetrics_Hostile and FuzzParseHTTPMetrics.
+- [x] **Step 220** [TEST] ~2m: Red.
+  - Done 2026-10-23: red (compile: NewAnalyzer, parseHTTPMetrics undefined).
+- [x] **Step 221** [CODE] ~45m: Implement `services/sword/analysis.go` (port `SLOThreshold` from canary; drop its hardcoded metrics) and wire it as the canary strategy's `OnAnalysis`.
+  - Done 2026-10-23: analysis.go: two scrapes an interval apart, deltas of the house series with /health, /ready and /metrics left out (Cuirass's probes and Sword's own scrapes), counter reset handled, p99 from bucket deltas (conservative upper bound), under min_sample_size = inconclusive, three in a row = fail; the Kingdom guard (pkg/sloguard) before and after each measurement, nil guard or Victoria down fails closed. Wired as the canary's OnAnalysis in Sword. services/canary's SLOThreshold is mapped in the package doc rather than copied (error ppm / 1e6 = error_rate_threshold, p99 ms = latency_p99_threshold, throughput floor x interval = min_sample_size).
+- [x] **Step 222** [TEST][V] ~3m: Green.
+  - Done 2026-10-23: green, race-clean; fuzz 20 s (325k execs) clean; lint 0, gosec clean. Bite: a guard check that always passes turns KingdomFastBurnFails and MissingSLOSeriesFails red.
+- [x] **Step 223** [C] ~2m: **COMMIT CHECKPOINT**: `feat(sword): canary analysis from real instance metrics with an SLO burn guard`.
+  - Done 2026-10-23: 29790053.
+- [x] **Step 224** [CODE] ~30m: `cmd/sword/main.go`: env `HTTP_ADDR` (default `:19011` from `pkg/ports`), `CUIRASS_URL`, `CUIRASS_API_KEY` (fail loud), `VM_URL`, `SWORD_DATA_DIR`, `WOTAN_ADDR`/`WOTAN_GRPC_ADDR`; `pkg/auth` middleware (mutating routes 403 unless `AUTH_ENABLED`, the Cuirass rule); `discovery.Start(..., "sword", ...)`; `unheaded_http_*` + `sword_deployments_total{strategy,result}`, `sword_rollbacks_total{reason}`; graceful shutdown.
+  - Done 2026-10-23: cmd/sword/main.go (+ main_test.go): env as listed plus SWORD_SLO_POLICY (default /etc/unheaded/sword/policy.yaml); refuses to start without CUIRASS_API_KEY, or with VM_URL and an unreadable policy; no VM_URL = no guard = canary refused; pkg/auth in front (POST without a key 401), house unheaded_http_* plus sword_deployments_total{strategy,result} and sword_rollbacks_total{reason}; discovery.Start as sword; graceful shutdown. pkg/ports.Canary renamed Sword (19011); services/canary's two references now read ports.Sword (the package stays: deletion pending E1 G3).
+- [x] **Step 225** [BUILD][TEST] ~5m: `cd "$PROJECT_ROOT" && go build ./cmd/sword && gotest ./cmd/sword/... ./pkg/ports/...`.
+  - Done 2026-10-23: go build ./cmd/sword clean; cmd/sword and pkg/ports tests green, race-clean (TestNoDuplicatePorts included); lint 0; gosec clean.
+- [x] **Step 226** [C] ~2m: **COMMIT CHECKPOINT**: `feat(sword): cmd/sword on 19011 (was Canary's port)`.
+  - Done 2026-10-23: 86a78162.
+- [x] **Step 227** [W] ~30m: Packaging: Dockerfile target `sword` (numeric USER 16746, the house pattern); compose service per D-09; `configs/wotan.yaml` `auto_approve` += `sword`; Victoria `scrape.yml` job `sword`; `deploy/systemd/unheaded-sword.service` + sysusers line (for the deb/host path, same sandbox block as the others, not installed anywhere in this sprint).
+  - Done 2026-10-23: Dockerfile builder line + target sword (USER 16746, /data owned 16746, healthcheck); compose service sword under profile deploy (off by default: it needs CUIRASS_API_KEY from /etc/unheaded/sword/sword.env, env_file required:false so the stack still parses without it; read_only, cap_drop ALL, no-new-privileges, volume sword-data, policy.yaml mounted ro, networks control/data/observe); configs/wotan.yaml auto_approve += sword; config/victoria/scrape.yml job sword; deploy/systemd/unheaded-sword.service (D-09 fallback path, full sandbox block) + sysusers unheaded-sword; scripts/build-binaries.sh builds sword. Nothing installed.
+- [x] **Step 228** [V] ~5m: Packaging checks.
+  - Done 2026-10-23: docker compose config -q (with the deploy profile; dummy values for the five secrets compose requires from .env) rc 0, without sudo; systemd-analyze verify only reports the binary not installed; check-systemd-units PASS (33 units), check-compose-hardening PASS, check-compose-log-caps PASS, check-unit-binaries PASS after adding sword to build-binaries.sh; pkg/uids and Wotan allowlist tests green. The image build itself is [DEFERRED: E2 window] (Step 237 builds it).
   ```bash
   cd "$PROJECT_ROOT" && sudo docker compose -f docker-compose.yml config -q && echo compose-ok
   systemd-analyze verify deploy/systemd/unheaded-sword.service 2>&1 | tail -3
   ls scripts/check-*.sh | head -20   # run the compose/units/uids checks that exist, e.g.:
   bash scripts/check-systemd-units.sh 2>&1 | tail -3
   ```
-- [ ] **Step 229** [C] ~2m: **COMMIT CHECKPOINT**: `build(sword): image, compose service, unit, Wotan allowlist, scrape job`.
-- [ ] **Step 230** [W] ~15m: `wiki/Service-Sword.md` (routes, env, state, strategies, how rollback picks the previous version, the SLO guard); link from `_Sidebar` and the services index.
-- [ ] **Step 231** [C] ~2m: **COMMIT CHECKPOINT**: `docs(wiki): Service-Sword`.
-- [ ] **Step 232** [B] ~2m: `services/sword` and `pkg/deploy/{strategy,rollback,cuirassdriver}` are now reached: rerun Step 5's command; they must be absent from the unreached list.
+- [x] **Step 229** [C] ~2m: **COMMIT CHECKPOINT**: `build(sword): image, compose service, unit, Wotan allowlist, scrape job`.
+  - Done 2026-10-23: 0a93d7f4.
+- [x] **Step 230** [W] ~15m: `wiki/Service-Sword.md` (routes, env, state, strategies, how rollback picks the previous version, the SLO guard); link from `_Sidebar` and the services index.
+  - Done 2026-10-23: wiki/Service-Sword.md (routes, env, state, strategies, rollback target, canary analysis and the SLO guard, status: not yet run live); linked from _Sidebar, Home and Microservices; Port-Registry says sword 19011 (was canary).
+- [x] **Step 231** [C] ~2m: **COMMIT CHECKPOINT**: `docs(wiki): Service-Sword`.
+  - Done 2026-10-23: d3945965.
+- [x] **Step 232** [B] ~2m: `services/sword` and `pkg/deploy/{strategy,rollback,cuirassdriver}` are now reached: rerun Step 5's command; they must be absent from the unreached list.
+  - Done 2026-10-23: unreached list regenerated: 146 of 312 (was 148). services/sword, pkg/deploy/strategy, pkg/deploy/rollback are reached; new and reached: pkg/deploy/cuirassdriver, pkg/sloguard, cmd/steel-echo, cmd/sword; new and unreached by design: pkg/deploy/cuirassdriver/cuirasstest (test helper). docs/UNREACHED-GO-PACKAGES.md annotated (full regeneration stays Phase 1/16).
 - [ ] **Step 233** [AFTER-E1] ~10m: If E1 G3 = Y: `git rm -r services/canary`, fix references (wiki, ports comments), `go build ./...`, commit `chore(sweep): delete services/canary, folded into Sword (E1 G3)`. If N: leave it, add a deprecation line in its package doc pointing to Sword.
-- [ ] **Step 234** [V] ~2m: **PHASE 8 EXIT GATE**: Steps 217, 222, 225, 228 green; Step 232 shows Sword reached.
-- [ ] **Step 235** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks).
-- [ ] **Step 236** [AUDIT-UPDATE] ~2m: ADR-088: one line under the substrate ladder: "LXD substrate: Sword deploys into LXD through Cuirass (S-REAL-STEEL)".
+  - [AFTER-E1] skipped: G3 not answered. services/canary stays in place, folded into Sword in code (analysis.go maps its SLOThreshold); only its port reference changed (ports.Sword). Deletion pending E1 G3, noted in UNREACHED-GO-PACKAGES.md.
+- [x] **Step 234** [V] ~2m: **PHASE 8 EXIT GATE**: Steps 217, 222, 225, 228 green; Step 232 shows Sword reached.
+  - Done 2026-10-23: PASS (code half): Steps 217, 222, 225, 228 green; Step 232 shows Sword reached. The live run of Sword is Phase 9 [DEFERRED: E2 window].
+- [x] **Step 235** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks).
+  - Done 2026-10-23: 8643c5a1.
+- [x] **Step 236** [AUDIT-UPDATE] ~2m: ADR-088: one line under the substrate ladder: "LXD substrate: Sword deploys into LXD through Cuirass (S-REAL-STEEL)".
+  - Done 2026-10-23: ADR-088 line under the substrate ladder (LXD substrate: Sword through Cuirass; live proof waits on E2).
 
 **DoD (Phase 8)**: DoD-STD + Sword never reports success without a Cuirass-confirmed healthy instance (test asserts on the fake's state, not on Sword's own bookkeeping).
 
@@ -956,9 +1097,12 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 6-7 h
 **Agent**: Agent (Steps 259-282), Coordinator (283-288)
 
-- [ ] **Step 259** [R] ~20m: Read `services/yaldabaoth/yaldabaoth.go` (Experiment, Target, SteadyState, Probe, SafetyCheck, Rollback; executeExperiment at :420), `gameday.go` (:165-300), `audit.go`, and `cmd/chaos-controller/main.go`.
-- [ ] **Step 260** [DECIDE] ~0m: **D-16 one engine.** RECOMMENDATION: `chaos-controller` constructs `yaldabaoth.Service` and every fault, including the existing `ChaosFaultRule` API (DROP/DELAY/CORRUPT/DUPLICATE) and GameDay stages, runs as an `Experiment` through it; the controller's own rule map and the scheduler's "would undo here" path go away. Rationale: one safety envelope; today there are two engines and neither touches anything. Override ONLY if a GameDay stage needs an experiment type the Service cannot express: add the type, do not bypass the Service.
-- [ ] **Step 261** [DECIDE] ~0m: **D-17 blast-radius allowlist.** RECOMMENDATION: `/etc/unheaded/chaos/allowlist.yaml` (repo seed `configs/chaos/allowlist.yaml`), checked before injection and again by the injector itself:
+- [x] **Step 259** [R] ~20m: Read `services/yaldabaoth/yaldabaoth.go` (Experiment, Target, SteadyState, Probe, SafetyCheck, Rollback; executeExperiment at :420), `gameday.go` (:165-300), `audit.go`, and `cmd/chaos-controller/main.go`.
+  - Done 2026-10-23: read yaldabaoth.go, gameday.go, audit.go, cmd/chaos-controller/main.go. Beyond H4/H5: DryRunMode defaulted to false; the four built-in injectors (network_delay, process_kill, http_error, latency_spike) only logged and returned nil, so a real run reported success with nothing injected; the controller published chaos.rule.injected for rules that reached nothing; Yaldabaoth subscribed to chaos.trigger.
+- [x] **Step 260** [DECIDE] ~0m: **D-16 one engine.** RECOMMENDATION: `chaos-controller` constructs `yaldabaoth.Service` and every fault, including the existing `ChaosFaultRule` API (DROP/DELAY/CORRUPT/DUPLICATE) and GameDay stages, runs as an `Experiment` through it; the controller's own rule map and the scheduler's "would undo here" path go away. Rationale: one safety envelope; today there are two engines and neither touches anything. Override ONLY if a GameDay stage needs an experiment type the Service cannot express: add the type, do not bypass the Service.
+  - Done 2026-10-23: recommendation taken. The legacy rules and GameDay stages run as experiments through the Service (RuleExperiment); their src/dst service pairs name no allowlisted target, so they are refused rather than faked.
+- [x] **Step 261** [DECIDE] ~0m: **D-17 blast-radius allowlist.** RECOMMENDATION: `/etc/unheaded/chaos/allowlist.yaml` (repo seed `configs/chaos/allowlist.yaml`), checked before injection and again by the injector itself:
+  - Done 2026-10-23: recommendation taken: configs/chaos/allowlist.yaml (seed; KnownFields, so a typo is an error); patterns must be anchored and may not match a host interface name; pihole and *.target/ssh*/systemd-*/dbus* are refused even if listed; unknown parameters are refused.
   - `lxd`: instances in project `unheaded` carrying label `chaos=allowed` (Cuirass checks this too);
   - `veth`: only the host-side veth of an allowlisted LXD instance, resolved from Cuirass's actual state (`host_veth`, Phase 11), never a name taken from the request;
   - `netns`: names matching `^steel[0-9]+$` only (the Phase 11/13 lab);
@@ -966,40 +1110,67 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - `packet`: flow labels on lab interfaces `^steel[0-9]+-h$` only;
   - limits: 1 concurrent experiment, 10 min max duration, 50% max loss, 2 s max added delay.
   Refusals are audited (`AuditTrail`) and published on `chaos.refused`. Rationale: a chaos engine is a weapon (BlackMage); the default answer is no. Override ONLY by editing the allowlist file on the host (never by request fields).
-- [ ] **Step 262** [DECIDE] ~0m: **D-18 abort switch, three independent paths.** RECOMMENDATION: (1) `POST /api/v1/chaos/abort` (auth), (2) Wotan `chaos.abort` from an allowlisted publisher, (3) the file `/run/unheaded/chaos/ABORT` (works with Wotan and HTTP auth both down: `touch` as root or `unheaded-chaos`). Any path cancels every running experiment and reverts. The file also refuses new experiments until removed. Rationale: the abort must survive the failure it is aborting. Override ONLY if a path cannot be made reliable: then document it as best-effort, never remove the file path.
-- [ ] **Step 263** [DECIDE] ~0m: **D-19 auto-revert journal.** RECOMMENDATION: before acting, each injector writes a journal entry (`pkg/statefile`, `CHAOS_STATE_DIR`, 0600) with its revert recipe; revert runs at experiment end, on abort, on a per-injection TTL timer, at process start (replay leftovers), and from the unit's `ExecStopPost=/usr/local/bin/chaos-controller revert-all` (runs after crashes and SIGKILL). An entry is removed only after the revert is verified (e.g. `tc -j qdisc show` no longer lists handle `c4a0:`). A revert that cannot be verified raises `chaos.revert_failed` and keeps the entry. Rationale: a fault that outlives its controller is the worst outcome of chaos engineering. Override ONLY never.
-- [ ] **Step 264** [DECIDE] ~0m: **D-20 steady state from ADR-100.** RECOMMENDATION: the hypothesis has two parts:
+- [x] **Step 262** [DECIDE] ~0m: **D-18 abort switch, three independent paths.** RECOMMENDATION: (1) `POST /api/v1/chaos/abort` (auth), (2) Wotan `chaos.abort` from an allowlisted publisher, (3) the file `/run/unheaded/chaos/ABORT` (works with Wotan and HTTP auth both down: `touch` as root or `unheaded-chaos`). Any path cancels every running experiment and reverts. The file also refuses new experiments until removed. Rationale: the abort must survive the failure it is aborting. Override ONLY if a path cannot be made reliable: then document it as best-effort, never remove the file path.
+  - Done 2026-10-23: recommendation taken; the Wotan path accepts whoever Wotan lets join chaos.abort, and an unparsable message still aborts (an abort only removes chaos); a stat error on the abort file counts as present (fails safe).
+- [x] **Step 263** [DECIDE] ~0m: **D-19 auto-revert journal.** RECOMMENDATION: before acting, each injector writes a journal entry (`pkg/statefile`, `CHAOS_STATE_DIR`, 0600) with its revert recipe; revert runs at experiment end, on abort, on a per-injection TTL timer, at process start (replay leftovers), and from the unit's `ExecStopPost=/usr/local/bin/chaos-controller revert-all` (runs after crashes and SIGKILL). An entry is removed only after the revert is verified (e.g. `tc -j qdisc show` no longer lists handle `c4a0:`). A revert that cannot be verified raises `chaos.revert_failed` and keeps the entry. Rationale: a fault that outlives its controller is the worst outcome of chaos engineering. Override ONLY never.
+  - Done 2026-10-23: recommendation taken (no override exists).
+- [x] **Step 264** [DECIDE] ~0m: **D-20 steady state from ADR-100.** RECOMMENDATION: the hypothesis has two parts:
+  - Done 2026-10-23: recommendation taken; the guard is pkg/sloguard (shared with Sword).
   - **Target probes** (real HTTP GETs to allowlist-resolved addresses only, expected status, timeout): success ratio ≥ the experiment's threshold before injection; during the experiment they measure impact rather than trigger abort, unless the experiment sets `abort_below`.
   - **Kingdom SLO guard**: for every `page: true` SLO in `observability/alerting/policy.yaml`, `slo:error_ratio:5m` below `14.4 × (1 − objective)`. Exceeding it aborts. A missing series before start refuses to start (ADR-100: missing counts as bad).
 
   Checked before injection (must hold), every `SafetyCheckInterval` during (abort on the guard), and after revert (the verdict). `runProbe`'s hardcoded `Success: true` and `shouldAbort`'s `return false` are deleted. Rationale: "we broke the target on purpose" is fine; "we started burning a real SLO" is the line. Override ONLY if Victoria is down: then no experiment starts (not "skip the guard").
-- [ ] **Step 265** [CODE][TEST] ~20m: Probe tests: `TestRunProbe_RealHTTPStatus` (httptest 200 vs 500 vs timeout), `TestRunProbe_RefusesNonAllowlistedTarget`, `TestRunProbe_NoRedirects`.
-- [ ] **Step 266** [CODE][TEST] ~20m: Guard tests (fake Victoria): `TestShouldAbort_KingdomFastBurn`, `TestShouldAbort_MissingSeriesRefusesStart`, `TestShouldAbort_AbortFile`, `TestShouldAbort_HealthyGuardContinues`.
-- [ ] **Step 267** [CODE][TEST] ~25m: Allowlist tests: refuses `pihole` by name, an unmanaged instance, another project, a unit not listed, a systemd target on a host that is not east, a veth name from the request, a netns not `steel*`, duration/loss/delay over the limits, a second concurrent experiment; every refusal audited.
-- [ ] **Step 268** [CODE][TEST] ~25m: Journal tests: `TestJournal_WrittenBeforeInject` (injector fails after the write → entry reverted and removed), `TestJournal_RevertOnStart`, `TestJournal_TTLReverts`, `TestJournal_UnverifiedRevertKeepsEntryAndAlerts`, `TestAbort_AllThreePathsRevert`.
-- [ ] **Step 269** [TEST] ~2m: Red: `gotest ./services/yaldabaoth/...`.
-- [ ] **Step 270** [CODE] ~40m: `services/yaldabaoth/allowlist.go` (YAML via the yaml module already in go.mod), wired into `StartExperiment` and passed to injectors.
-- [ ] **Step 271** [CODE] ~40m: `steadystate.go`: Victoria client (`VM_URL`, query API, 5 s timeout), policy reader for `page: true` SLOs, real `runProbe`, real `shouldAbort`.
-- [ ] **Step 272** [CODE] ~45m: `journal.go` (statefile; entry = id, injector, target, revert recipe, created, ttl) + TTL timers + `RevertAll(ctx)`.
-- [ ] **Step 273** [CODE] ~30m: `abort.go`: HTTP hook, Wotan subscription via `SubscribeWithRetry` (Phase 2), file watch (poll 1 s; no inotify dependency).
-- [ ] **Step 274** [TEST][V] ~5m: Green, race-clean; `DryRunMode` default stays true (a window turns it off by env).
+- [x] **Step 265** [CODE][TEST] ~20m: Probe tests: `TestRunProbe_RealHTTPStatus` (httptest 200 vs 500 vs timeout), `TestRunProbe_RefusesNonAllowlistedTarget`, `TestRunProbe_NoRedirects`.
+  - Done 2026-10-23: steadystate_test.go: the three named probe tests (200/500/404/timeout; pihole, unlabelled, unmanaged, other project, unknown, raw IP and bad paths refused with no request made; redirect not followed).
+- [x] **Step 266** [CODE][TEST] ~20m: Guard tests (fake Victoria): `TestShouldAbort_KingdomFastBurn`, `TestShouldAbort_MissingSeriesRefusesStart`, `TestShouldAbort_AbortFile`, `TestShouldAbort_HealthyGuardContinues`.
+  - Done 2026-10-23: the four named guard tests plus SteadyState_ProbesGateStartAndAbortBelow (a failing probe refuses the start; probes abort only with abort_below).
+- [x] **Step 267** [CODE][TEST] ~25m: Allowlist tests: refuses `pihole` by name, an unmanaged instance, another project, a unit not listed, a systemd target on a host that is not east, a veth name from the request, a netns not `steel*`, duration/loss/delay over the limits, a second concurrent experiment; every refusal audited.
+  - Done 2026-10-23: allowlist_test.go: every refusal listed (pihole, unmanaged, another project, unit not listed, systemd off east, veth named, netns not steel*, limits on duration/loss/delay, second concurrent experiment) plus the hard deny beating the file, file validation (unanchored or match-all patterns, default project, unknown fields), and TestRefusals_AreAudited (audited in full, published at most 10 a minute).
+- [x] **Step 268** [CODE][TEST] ~25m: Journal tests: `TestJournal_WrittenBeforeInject` (injector fails after the write → entry reverted and removed), `TestJournal_RevertOnStart`, `TestJournal_TTLReverts`, `TestJournal_UnverifiedRevertKeepsEntryAndAlerts`, `TestAbort_AllThreePathsRevert`.
+  - Done 2026-10-23: journal_test.go: the five named tests plus DamagedIsFatal, WotanJunkIsStillAnAbort, NoStateDirRefusesEverything; yaldabaoth_test.go: dry run by default, no type without an injector succeeds (none is built in), a source scan for fake markers, dry run injects nothing, full cycle, Stop reverts, metrics.
+- [x] **Step 269** [TEST] ~2m: Red: `gotest ./services/yaldabaoth/...`.
+  - Done 2026-10-23: red (compile: InstanceInfo, ResolvedTarget, Params, Recipe undefined).
+- [x] **Step 270** [CODE] ~40m: `services/yaldabaoth/allowlist.go` (YAML via the yaml module already in go.mod), wired into `StartExperiment` and passed to injectors.
+  - Done 2026-10-23: allowlist.go (Check before, CheckTarget again right before Inject).
+- [x] **Step 271** [CODE] ~40m: `steadystate.go`: Victoria client (`VM_URL`, query API, 5 s timeout), policy reader for `page: true` SLOs, real `runProbe`, real `shouldAbort`.
+  - Done 2026-10-23: steadystate.go (real probes at the Cuirass-reported address, no redirects/proxy, timeout; the guard before, every SafetyCheckInterval, after); the guard client is pkg/sloguard, built by the controller from VM_URL and the policy. The probe/abort stubs are deleted.
+- [x] **Step 272** [CODE] ~45m: `journal.go` (statefile; entry = id, injector, target, revert recipe, created, ttl) + TTL timers + `RevertAll(ctx)`.
+  - Done 2026-10-23: journal.go (statefile, 0600; entry before inject; revert at end, abort, TTL = duration + RevertGrace, start, RevertAll; removed only after Reverted() says gone, else chaos.revert_failed + High finding).
+- [x] **Step 273** [CODE] ~30m: `abort.go`: HTTP hook, Wotan subscription via `SubscribeWithRetry` (Phase 2), file watch (poll 1 s; no inotify dependency).
+  - Done 2026-10-23: abort.go (HTTP via Abort, Wotan via HandleAbortMessage/SubscribeWithRetry, file polled every AbortPoll; the file also refuses starts). Also resolver.go (CuirassResolver over GET /api/v1/info and /api/v1/state/actual) and gameday.go rewritten around a Runner (the Service).
+- [x] **Step 274** [TEST][V] ~5m: Green, race-clean; `DryRunMode` default stays true (a window turns it off by env).
+  - Done 2026-10-23: green, race-clean (5 repeated runs); DryRunMode defaults to true; lint 0; gosec clean. Bites (scratch bite.py): removing each of 20 guards turns its test red: allowlist check, abort-file refusal, no-journal, no-guard, guard pre-check, no-injector, concurrency, journal-before-inject, guard during the run, TTL, verify-before-remove, revert-on-start, damaged-journal-fatal, refusal publish rate, pihole hard deny, unit hard deny, limits, probe address check, probe redirects, Wotan abort path.
   ```bash
   gotest ./services/yaldabaoth/... && grep -n 'DryRunMode' "$PROJECT_ROOT/services/yaldabaoth/yaldabaoth.go" | head -5
   ```
-- [ ] **Step 275** [C] ~2m: **COMMIT CHECKPOINT**: `feat(yaldabaoth): allowlist, abort paths, revert journal and an SLO-based steady state`.
-- [ ] **Step 276** [CODE][TEST] ~45m: `cmd/chaos-controller`: build `yaldabaoth.Service`; route `InjectRule` and GameDay stages through experiments (D-16); `revert-all` subcommand (exit 0 only when the journal is empty afterwards); routes `POST /api/v1/chaos/experiments`, `GET .../experiments[/{id}]`, `POST /api/v1/chaos/abort`; mutating routes 403 unless `AUTH_ENABLED`; metrics `chaos_experiments_total{type,result}`, `chaos_active_injections`, `chaos_aborts_total{path}`, `chaos_refusals_total{reason}`. Tests for each route and for `revert-all` on a seeded journal.
-- [ ] **Step 277** [TEST][V] ~3m: Green: `gotest ./cmd/chaos-controller/... ./services/yaldabaoth/...`.
-- [ ] **Step 278** [C] ~2m: **COMMIT CHECKPOINT**: `feat(chaos-controller): run every fault through the Yaldabaoth safety envelope`.
-- [ ] **Step 279** [W] ~25m: Host packaging (not installed yet): `pkg/uids` `Yaldabaoth` = next free in the Gnostic tier (`grep -n '= 1676[0-9]' pkg/uids/uids.go`; expect 16763), sysusers line `unheaded-chaos`; `deploy/systemd/unheaded-chaos-controller.service`: `User=unheaded-chaos`, `AmbientCapabilities=CAP_NET_ADMIN` (west variant adds `CAP_BPF` for Phase 13 via a drop-in, `deploy/systemd/unheaded-chaos-controller.service.d/west-packet-lab.conf`), matching `CapabilityBoundingSet`, `NoNewPrivileges=yes`, `ProtectSystem=strict`, `StateDirectory=unheaded-chaos` (0700), `RuntimeDirectory=unheaded/chaos`, `EnvironmentFile=/etc/unheaded/chaos/chaos.env`, `ExecStopPost=/usr/local/bin/chaos-controller revert-all`, `Restart=on-failure`; the full sandbox block used by the other units.
-- [ ] **Step 280** [V] ~3m: `systemd-analyze verify deploy/systemd/unheaded-chaos-controller.service` clean; `bash scripts/check-systemd-units.sh` green; `gotest ./pkg/uids/...`.
-- [ ] **Step 281** [C] ~2m: **COMMIT CHECKPOINT**: `build(chaos): unit, sysusers account and uid for chaos-controller`.
-- [ ] **Step 282** [W] ~30m: ADR `docs/adr/ADR-<N>-chaos-safety-envelope.md` (Proposed), N = next free number at execution time (`ls docs/adr | grep -o 'ADR-[0-9]*' | sort -t- -k2 -n | tail -1`; sibling sprints may have taken 105). Content: D-16..D-20, the D-17 allowlist schema, the revert guarantees, and what Stevie accepts by accepting it. Add it to `docs/adr/ADR-INDEX.md`.
-- [ ] **Step 283** [C] ~2m: **COMMIT CHECKPOINT**: `docs(adr): ADR-<N> chaos safety envelope (Proposed)`.
-- [ ] **Step 284** [SECURITY] ~25m: BlackMage on the controller: can any request field widen the allowlist; is the journal dir writable by anyone but `unheaded-chaos`; does abort work with Wotan down and auth misconfigured (file path); can a replayed `chaos.trigger` start an experiment (control topics are never buffered: Phase 2 D-10); are refusals rate-limited so they cannot flood Wotan. Findings fixed now or registered (ADR-098).
-- [ ] **Step 285** [TEST] ~5m: Bite test: comment out the allowlist check in `StartExperiment`, `gotest ./services/yaldabaoth/ -run Allowlist` goes red, restore.
-- [ ] **Step 286** [V] ~2m: **PHASE 10 EXIT GATE**: Steps 274, 277, 280 green; Step 285 bit; ADR committed; no injector does anything yet beyond the D-19 journal (the four built-in injectors still log only: Phase 11 replaces them).
-- [ ] **Step 287** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks + Step 284 notes).
-- [ ] **Step 288** [AUDIT-UPDATE] ~2m: next.md: ADR-<N> waiting for Stevie's accept (not blocking).
+- [x] **Step 275** [C] ~2m: **COMMIT CHECKPOINT**: `feat(yaldabaoth): allowlist, abort paths, revert journal and an SLO-based steady state`.
+  - Done 2026-10-23: landed together with Steps 276-278 in one commit (the engine's new API breaks the old controller, so the two cannot be separate green commits).
+- [x] **Step 276** [CODE][TEST] ~45m: `cmd/chaos-controller`: build `yaldabaoth.Service`; route `InjectRule` and GameDay stages through experiments (D-16); `revert-all` subcommand (exit 0 only when the journal is empty afterwards); routes `POST /api/v1/chaos/experiments`, `GET .../experiments[/{id}]`, `POST /api/v1/chaos/abort`; mutating routes 403 unless `AUTH_ENABLED`; metrics `chaos_experiments_total{type,result}`, `chaos_active_injections`, `chaos_aborts_total{path}`, `chaos_refusals_total{reason}`. Tests for each route and for `revert-all` on a seeded journal.
+  - Done 2026-10-23: cmd/chaos-controller rewritten: builds yaldabaoth.Service (allowlist required, damaged journal fatal, Cuirass resolver, sloguard from VM_URL, Wotan publisher + chaos.abort subscription); revert-all subcommand (exit 0 only with an empty journal; idempotent); routes POST/GET /api/v1/chaos/experiments[/{id}], POST /api/v1/chaos/abort, legacy POST /inject (runs as an experiment, refused) and the GameDay routes through the Service; POSTs 403 without AUTH_ENABLED; refusals map to 400/403/409/501/503; metrics chaos_experiments_total, chaos_active_injections, chaos_aborts_total, chaos_refusals_total; CHAOS_DRY_RUN=false is the only way out of dry run. The controller's own rule map, events log and the old /rules routes are gone. Tests for each route and revert-all on a seeded journal.
+- [x] **Step 277** [TEST][V] ~3m: Green: `gotest ./cmd/chaos-controller/... ./services/yaldabaoth/...`.
+  - Done 2026-10-23: green, race-clean; go build ./cmd/... ./services/... clean; lint 0; gosec clean.
+- [x] **Step 278** [C] ~2m: **COMMIT CHECKPOINT**: `feat(chaos-controller): run every fault through the Yaldabaoth safety envelope`.
+  - Done 2026-10-23: ed9d34a5 (Steps 259-278 in one green commit).
+- [x] **Step 279** [W] ~25m: Host packaging (not installed yet): `pkg/uids` `Yaldabaoth` = next free in the Gnostic tier (`grep -n '= 1676[0-9]' pkg/uids/uids.go`; expect 16763), sysusers line `unheaded-chaos`; `deploy/systemd/unheaded-chaos-controller.service`: `User=unheaded-chaos`, `AmbientCapabilities=CAP_NET_ADMIN` (west variant adds `CAP_BPF` for Phase 13 via a drop-in, `deploy/systemd/unheaded-chaos-controller.service.d/west-packet-lab.conf`), matching `CapabilityBoundingSet`, `NoNewPrivileges=yes`, `ProtectSystem=strict`, `StateDirectory=unheaded-chaos` (0700), `RuntimeDirectory=unheaded/chaos`, `EnvironmentFile=/etc/unheaded/chaos/chaos.env`, `ExecStopPost=/usr/local/bin/chaos-controller revert-all`, `Restart=on-failure`; the full sandbox block used by the other units.
+  - Done 2026-10-23: pkg/uids.Yaldabaoth = 16763 (registry key chaos-controller); sysusers unheaded-chaos pinned to 16763; a new hostOnly exemption in pkg/uids tests plus TestHostOnlySysusersPinned (the registry asserts the host account's real ID); deploy/systemd/unheaded-chaos-controller.service (CAP_NET_ADMIN only, AF_NETLINK for tc, StateDirectory 0700, RuntimeDirectory with RuntimeDirectoryPreserve=yes so an ABORT file survives a restart, ExecStopPost revert-all, full sandbox) and the west drop-in adding CAP_BPF; build-binaries.sh builds chaos-controller. Nothing installed.
+- [x] **Step 280** [V] ~3m: `systemd-analyze verify deploy/systemd/unheaded-chaos-controller.service` clean; `bash scripts/check-systemd-units.sh` green; `gotest ./pkg/uids/...`.
+  - Done 2026-10-23: systemd-analyze verify reports only the uninstalled binary; check-systemd-units PASS (34 units, 21 own accounts); check-unit-binaries PASS; pkg/uids green.
+- [x] **Step 281** [C] ~2m: **COMMIT CHECKPOINT**: `build(chaos): unit, sysusers account and uid for chaos-controller`.
+  - Done 2026-10-23: 0d52985b.
+- [x] **Step 282** [W] ~30m: ADR `docs/adr/ADR-<N>-chaos-safety-envelope.md` (Proposed), N = next free number at execution time (`ls docs/adr | grep -o 'ADR-[0-9]*' | sort -t- -k2 -n | tail -1`; sibling sprints may have taken 105). Content: D-16..D-20, the D-17 allowlist schema, the revert guarantees, and what Stevie accepts by accepting it. Add it to `docs/adr/ADR-INDEX.md`.
+  - Done 2026-10-23: docs/adr/ADR-107-chaos-safety-envelope.md (Proposed): D-16..D-20, the allowlist schema, the revert guarantees, what accepting it means; ADR-106 is taken on sprint/upc-wire-compute, so 107. Added to ADR-INDEX (count line notes the gap).
+- [x] **Step 283** [C] ~2m: **COMMIT CHECKPOINT**: `docs(adr): ADR-<N> chaos safety envelope (Proposed)`.
+  - Done 2026-10-23: 8118b83a.
+- [x] **Step 284** [SECURITY] ~25m: BlackMage on the controller: can any request field widen the allowlist; is the journal dir writable by anyone but `unheaded-chaos`; does abort work with Wotan down and auth misconfigured (file path); can a replayed `chaos.trigger` start an experiment (control topics are never buffered: Phase 2 D-10); are refusals rate-limited so they cannot flood Wotan. Findings fixed now or registered (ADR-098).
+  - Done 2026-10-23 (5d2763ef): BlackMage pass. (1) Can a request widen the allowlist? No: it comes only from the file (KnownFields); request targets are resolved through it, unknown parameters refused, probe targets pass the same check. FOUND+FIXED: a request could carry any number of probes (each a GET per safety tick): capped at 10 (TestReview_ProbeCountIsBounded). FOUND+FIXED: finished experiments accumulated in memory without bound: kept to 500 (TestReview_HistoryIsBounded). (2) Journal dir: StateDirectory 0700 for unheaded-chaos, file 0600 (statefile), asserted in TestJournal_WrittenBeforeInject. (3) Abort with Wotan down and auth broken: the file path needs neither, works with a stat error too (fails safe), and survives a restart (RuntimeDirectoryPreserve). FOUND+FIXED: revert-all built the full controller, so a missing allowlist or policy would have stopped ExecStopPost from reverting; it now needs only the journal and the injectors (TestReview_RevertNeedsNoAllowlist). (4) Replayed chaos.trigger: nothing subscribes to it any more; experiments start only through authenticated HTTP. FOUND+FIXED: Wotan's HTTP polling starts at seq 0, so every resubscribe replayed chaos.abort history and an old abort would stop runs in progress: handled IDs are remembered (10000) and aborts created over 10 min before the controller started are history; a message with no ID and no time still aborts (TestReview_WotanAbortReplayIgnored). (5) Refusal flood: audited in full (bounded trail), counted with a bounded reason label, published at most 10 a minute. FOUND+FIXED while testing: StartExperiment copied the experiment after unlocking, racing the run (fixed, race-clean). RESIDUAL (low, open, same as Phase 4 finding 1): an instance chooses its own address, so a compromised allowlisted instance could point probes at another routable host; only a status bit comes back. Follow-on: restrict probe/instance addresses to the lxdbr0 subnet.
+- [x] **Step 285** [TEST] ~5m: Bite test: comment out the allowlist check in `StartExperiment`, `gotest ./services/yaldabaoth/ -run Allowlist` goes red, restore.
+  - Done 2026-10-23: bite: with the allowlist check in StartExperiment replaced, TestRefusals_AreAudited and TestRunProbe_RefusesNonAllowlistedTarget go red; restored. 22 bites in all (Step 274 list plus abort replay dedupe and the probe cap).
+- [x] **Step 286** [V] ~2m: **PHASE 10 EXIT GATE**: Steps 274, 277, 280 green; Step 285 bit; ADR committed; no injector does anything yet beyond the D-19 journal (the four built-in injectors still log only: Phase 11 replaces them).
+  - Done 2026-10-23: PASS: Steps 274, 277, 280 green; Step 285 bit; ADR-107 committed (8118b83a); no injector exists yet (none built in, none registered by chaos-controller: registerInjectors is empty until Phase 11), so every experiment type is refused and the journal is only exercised by test injectors. DoD: no probe can succeed without its GET (the old Success:true stub is gone; TestNoFakeInjectorSourcesLeft scans for it); revert-all is idempotent (TestRevertAll, TestJournal_UnverifiedRevertKeepsEntryAndAlerts).
+- [x] **Step 287** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks + Step 284 notes).
+  - Done 2026-10-23: 3aa314ac. Whole-repo regression after Phases 6-10: go build ./... clean, go test -count=1 ./... 281 ok / 0 FAIL (baseline 277 + 4 new packages); go.mod/go.sum unchanged; lint 0 on every touched package.
+- [x] **Step 288** [AUDIT-UPDATE] ~2m: next.md: ADR-<N> waiting for Stevie's accept (not blocking).
+  - Done 2026-10-23: ~/tmp/next.md section 'S-REAL-STEEL Phases 6, 7, 8, 10': ADR-107 waits on Stevie's accept (not blocking), plus what is real, what is deferred to E2, and the probe-address follow-on.
 
 **DoD (Phase 10)**: DoD-STD + no code path can mark a probe successful without performing it (test), and `revert-all` is idempotent (run twice, second is a no-op).
 

@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# Yaldabaoth blast-radius allowlist (S-REAL-STEEL D-17, ADR-107).
+# Repo seed for /etc/unheaded/chaos/allowlist.yaml. chaos-controller reads
+# it at start and checks every experiment against it before injecting, and
+# each injector checks again. Nothing a request says can widen it: to
+# allow more, edit the file on the host and restart the controller.
+#
+# Targets are resolved, never named: an LXD instance by its name in
+# Cuirass's project, never an interface; a host veth is looked up from the
+# instance (Phase 11), never taken from a request.
+
+lxd:
+  # Instances Cuirass manages in this project, carrying this label
+  # (user.unheaded.label.chaos=allowed, set through the desired spec).
+  # pihole lives in project default and is refused by name as well.
+  project: unheaded
+  label: chaos=allowed
+
+# Lab network namespaces (Phases 11 and 13), anchored regexps.
+netns: '^steel[0-9]+$'
+
+# Interfaces packet faults may attach to (Phase 13), anchored regexps.
+packet_interfaces: '^steel[0-9]+-h$'
+
+systemd:
+  # systemd faults run only on this host, on these units (Phase 12, E3).
+  # *.target, ssh*, systemd-* and dbus* are refused even if listed.
+  host: east
+  units:
+    - unheaded-timeguru.service
+
+limits:
+  max_concurrent: 1
+  max_duration: 10m
+  max_loss_percent: 50
+  max_delay: 2s

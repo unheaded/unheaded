@@ -64,6 +64,7 @@
 - [[Akira|Service-Akira]]
 - [[Huginn|Service-Huginn]]
 - [[kev-poller|Service-KEV-Poller]]
+- [[Sword|Service-Sword]]
 
 **S36 Four Pillars**
 - [[Port Registry|Port-Registry]]

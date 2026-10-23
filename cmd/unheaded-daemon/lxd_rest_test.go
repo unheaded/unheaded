@@ -35,6 +35,13 @@ type fakeLXD struct {
 	created   map[string]any
 	opErr     string // when set, every operation fails with it
 	project   string // the only project that exists
+
+	// PUT /1.0/instances/{name}: the ETag GET hands out, every PUT body and
+	// If-Match seen, and how many PUTs to answer 412 before accepting.
+	etag        string
+	puts        []map[string]any
+	ifMatch     []string
+	precondFail int
 }
 
 func newFakeLXD() *fakeLXD {
@@ -85,7 +92,30 @@ func (f *fakeLXD) handler() http.Handler {
 			fail(w, 404, "Instance not found")
 			return
 		}
+		if f.etag != "" {
+			w.Header().Set("ETag", f.etag)
+		}
 		sync(w, in)
+	})
+	mux.HandleFunc("PUT /1.0/instances/{name}", func(w http.ResponseWriter, r *http.Request) {
+		in, ok := f.instances[r.PathValue("name")]
+		if !ok {
+			fail(w, 404, "Instance not found")
+			return
+		}
+		f.ifMatch = append(f.ifMatch, r.Header.Get("If-Match"))
+		if f.precondFail > 0 {
+			f.precondFail--
+			fail(w, http.StatusPreconditionFailed, "ETag doesn't match")
+			return
+		}
+		var body map[string]any
+		json.NewDecoder(r.Body).Decode(&body)
+		f.puts = append(f.puts, body)
+		if devs, ok := body["devices"]; ok {
+			in["devices"] = devs
+		}
+		async(w)
 	})
 	mux.HandleFunc("POST /1.0/instances", func(w http.ResponseWriter, r *http.Request) {
 		var body map[string]any
@@ -95,7 +125,11 @@ func (f *fakeLXD) handler() http.Handler {
 		for k, v := range body["config"].(map[string]any) {
 			cfg[k] = v.(string)
 		}
-		f.instances[body["name"].(string)] = instance(body["name"].(string), "Stopped", cfg)
+		in := instance(body["name"].(string), "Stopped", cfg)
+		if devs, ok := body["devices"]; ok {
+			in["devices"] = devs
+		}
+		f.instances[body["name"].(string)] = in
 		async(w)
 	})
 	mux.HandleFunc("PUT /1.0/instances/{name}/state", func(w http.ResponseWriter, r *http.Request) {

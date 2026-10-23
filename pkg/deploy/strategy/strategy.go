@@ -8,6 +8,8 @@ package strategy
 import (
 	"context"
 	"errors"
+	"fmt"
+	"strings"
 	"time"
 )
 
@@ -19,6 +21,11 @@ var (
 	ErrRollbackRequired     = errors.New("rollback required")
 	ErrTrafficShiftFailed   = errors.New("traffic shift failed")
 	ErrHealthCheckTimeout   = errors.New("health check timeout")
+
+	// ErrNoDriver: the strategy was asked to run without the callbacks it
+	// needs to act on real instances. Strategies never invent instances,
+	// assume health or assume an analysis passed (S-REAL-STEEL Phase 7).
+	ErrNoDriver = errors.New("no deploy driver")
 )
 
 // Type represents the type of deployment strategy.
@@ -214,8 +221,156 @@ type Callbacks struct {
 	// OnProgress is called to report progress
 	OnProgress func(ctx context.Context, progress *Progress)
 
-	// OnAnalysis is called during canary analysis
-	OnAnalysis func(ctx context.Context, metrics *AnalysisMetrics) (*AnalysisResult, error)
+	// OnAnalysis is called during canary analysis. It measures the canary
+	// against the stable instances named in the request.
+	OnAnalysis func(ctx context.Context, req *AnalysisRequest) (*AnalysisResult, error)
+}
+
+// AnalysisRequest tells OnAnalysis what to compare.
+type AnalysisRequest struct {
+	DeploymentID  string
+	ServiceName   string
+	StableVersion string
+	CanaryVersion string
+	Step          int // 1-based canary step
+	Weight        int // the step's traffic weight
+	Canary        []Instance
+	Stable        []Instance
+	Config        *AnalysisConfig
+}
+
+// requireDriver checks that cb carries every callback a strategy needs.
+func requireDriver(t Type, cb *Callbacks, traffic, analysis bool) error {
+	var missing []string
+	if cb == nil {
+		cb = &Callbacks{}
+	}
+	if cb.OnInstanceCreate == nil {
+		missing = append(missing, "OnInstanceCreate")
+	}
+	if cb.OnInstanceDelete == nil {
+		missing = append(missing, "OnInstanceDelete")
+	}
+	if cb.OnHealthCheck == nil {
+		missing = append(missing, "OnHealthCheck")
+	}
+	if traffic && cb.OnTrafficShift == nil {
+		missing = append(missing, "OnTrafficShift")
+	}
+	if analysis && cb.OnAnalysis == nil {
+		missing = append(missing, "OnAnalysis")
+	}
+	if len(missing) > 0 {
+		return fmt.Errorf("%w: %s strategy needs %s", ErrNoDriver, t, strings.Join(missing, ", "))
+	}
+	return nil
+}
+
+const (
+	defaultPollInterval     = time.Second
+	maxPollInterval         = 10 * time.Second
+	defaultProgressDeadline = 10 * time.Minute
+)
+
+// pollInterval is how often a strategy re-asks OnHealthCheck while waiting.
+func pollInterval(c *Config) time.Duration {
+	if c != nil && c.HealthCheck != nil && c.HealthCheck.Interval > 0 {
+		return min(c.HealthCheck.Interval, maxPollInterval)
+	}
+	return defaultPollInterval
+}
+
+func progressDeadline(c *Config) time.Duration {
+	if c != nil && c.ProgressDeadline > 0 {
+		return c.ProgressDeadline
+	}
+	return defaultProgressDeadline
+}
+
+// sleepCtx waits d or until ctx ends.
+func sleepCtx(ctx context.Context, d time.Duration) error {
+	t := time.NewTimer(d)
+	defer t.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-t.C:
+		return nil
+	}
+}
+
+// waitHealthy asks OnHealthCheck about every instance in insts until all
+// report healthy, polling at interval, or until ctx ends. Instances already
+// marked healthy are not asked again. An error from the callback counts as
+// not healthy (the next poll asks again).
+func waitHealthy(ctx context.Context, cb *Callbacks, insts []Instance, interval time.Duration, checks *int) error {
+	for {
+		healthy := 0
+		for i := range insts {
+			if insts[i].Healthy {
+				healthy++
+				continue
+			}
+			ok, err := cb.OnHealthCheck(ctx, insts[i].ID)
+			*checks++
+			if err == nil && ok {
+				insts[i].Healthy = true
+				healthy++
+			}
+		}
+		if healthy == len(insts) {
+			return nil
+		}
+		if err := sleepCtx(ctx, interval); err != nil {
+			return fmt.Errorf("%w: %d/%d healthy", ErrHealthCheckTimeout, healthy, len(insts))
+		}
+	}
+}
+
+// rollbackServiceName finds the service a RollbackParams is about.
+func rollbackServiceName(p *RollbackParams) (string, error) {
+	if p == nil {
+		return "", ErrInvalidConfig
+	}
+	if p.ServiceName != "" {
+		return p.ServiceName, nil
+	}
+	for _, inst := range p.Instances {
+		for _, k := range []string{"svc", "service"} {
+			if v := inst.Labels[k]; v != "" {
+				return v, nil
+			}
+		}
+	}
+	return "", fmt.Errorf("%w: rollback needs a service name", ErrInvalidConfig)
+}
+
+// rollbackReplicas is how many target-version instances a rollback ends with.
+func rollbackReplicas(p *RollbackParams) (int, error) {
+	n := p.Replicas
+	if n == 0 {
+		n = len(p.Instances)
+	}
+	if n < 1 {
+		return 0, fmt.Errorf("%w: rollback needs a replica count", ErrInvalidConfig)
+	}
+	return n, nil
+}
+
+// currentVersionOf is the version most of insts run, or "".
+func currentVersionOf(insts []Instance, exclude string) string {
+	count := map[string]int{}
+	best := ""
+	for _, inst := range insts {
+		if inst.Version == exclude {
+			continue
+		}
+		count[inst.Version]++
+		if count[inst.Version] > count[best] || best == "" {
+			best = inst.Version
+		}
+	}
+	return best
 }
 
 // InstanceParams contains parameters for creating an instance.
@@ -299,6 +454,14 @@ type RollbackParams struct {
 	// DeploymentID is the deployment to rollback
 	DeploymentID string
 
+	// ServiceName is the service being rolled back (falls back to an
+	// instance's svc/service label).
+	ServiceName string
+
+	// Replicas is how many target-version instances to end with (falls
+	// back to len(Instances)).
+	Replicas int
+
 	// TargetVersion is the version to rollback to
 	TargetVersion string
 
@@ -325,6 +488,13 @@ type Result struct {
 
 	// Duration is the total deployment duration
 	Duration time.Duration `json:"duration"`
+
+	// RolledBack: the strategy undid its own change (a canary that failed
+	// analysis: traffic back on stable, canary instances deleted).
+	RolledBack bool `json:"rolled_back,omitempty"`
+
+	// Analysis is the last canary analysis, if any ran.
+	Analysis *AnalysisResult `json:"analysis,omitempty"`
 }
 
 // ResultMetrics contains deployment result metrics.

@@ -87,12 +87,18 @@ func (h *HTTPHandler) Health(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httputil.WriteJSON(w, http.StatusOK, map[string]interface{}{
+	body := map[string]interface{}{
 		"service":   "architect",
 		"status":    "healthy",
 		"version":   "0.1.0",
 		"timestamp": time.Now().UTC(),
-	})
+	}
+	// The Wotan client's view rides along as detail; a stream that is down
+	// does not change the 200 (degraded is not dead).
+	if wh := h.service.WotanHealth(); wh != nil {
+		body["wotan"] = wh
+	}
+	httputil.WriteJSON(w, http.StatusOK, body)
 }
 
 // ============================================================================

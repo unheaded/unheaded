@@ -53,6 +53,10 @@ must survive dozens of sessions, context resets, and interruptions.
 
 Input gathered since (2026-10-23): [UNREACHED-GO-PACKAGES.md](../UNREACHED-GO-PACKAGES.md),
 148 of 300 Go packages that no binary imports, three of them known to fake success.
+The first tranche, scoped to those packages, is classified in
+[REAL-STEEL-DECISIONS.md](../sweeps/REAL-STEEL-DECISIONS.md) (one-pass table for
+Stevie, S-REAL-STEEL E1) with a package-level ledger in
+[REAL-STEEL-UNREACHED.tsv](../sweeps/REAL-STEEL-UNREACHED.tsv).
 
 ## Decision
 

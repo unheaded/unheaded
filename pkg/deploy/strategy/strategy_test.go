@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -241,7 +242,7 @@ func TestRegistry_GetNotFound(t *testing.T) {
 
 func TestDefaultRegistry_InitRegistered(t *testing.T) {
 	// init() in rolling.go, canary.go, bluegreen.go register strategies
-	for _, typ := range []Type{TypeRolling, TypeBlueGreen, TypeCanary} {
+	for _, typ := range []Type{TypeRolling, TypeBlueGreen, TypeCanary, TypeRecreate} {
 		s, err := GetStrategy(typ)
 		if err != nil {
 			t.Errorf("expected default registry to have %q, got error %v", typ, err)
@@ -253,7 +254,7 @@ func TestDefaultRegistry_InitRegistered(t *testing.T) {
 }
 
 func TestGetStrategy_NotFound(t *testing.T) {
-	_, err := GetStrategy(TypeRecreate)
+	_, err := GetStrategy(Type("no-such-strategy"))
 	if err == nil {
 		t.Fatal("expected error for unregistered strategy type")
 	}
@@ -302,7 +303,7 @@ func TestRollingStrategy_Validate(t *testing.T) {
 	}
 }
 
-func TestRollingStrategy_Execute_NoCallbacks(t *testing.T) {
+func TestRollingStrategy_Execute_WithTestDriver(t *testing.T) {
 	s := NewRollingStrategy()
 	cfg := DefaultConfig(TypeRolling)
 
@@ -319,6 +320,7 @@ func TestRollingStrategy_Execute_NoCallbacks(t *testing.T) {
 			{ID: "i-3", Version: "v1", State: InstanceRunning, Healthy: true},
 		},
 	}
+	params.Callbacks = newTestDriver(params.Instances...).callbacks()
 
 	ctx := context.Background()
 	result, err := s.Execute(ctx, params)
@@ -479,14 +481,23 @@ func TestRollingStrategy_Execute_UnhealthyInstances(t *testing.T) {
 		},
 		Callbacks: callbacks,
 	}
+	d := newTestDriver(params.Instances...)
+	d.healthy = func(id string) bool { return !strings.Contains(id, "-v2-") }
+	params.Callbacks = d.callbacks()
+	params.Config.ProgressDeadline = 200 * time.Millisecond
+	params.Config.HealthCheck.Interval = 5 * time.Millisecond
 
 	result, err := s.Execute(context.Background(), params)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+	if err == nil {
+		t.Fatal("expected an error when new instances never become healthy")
 	}
 	// When health checks fail, result should be unsuccessful
 	if result.Success {
 		t.Error("expected unsuccessful result for unhealthy instances")
+	}
+	// max_unavailable 0: the old version keeps serving.
+	if n := len(d.versions()) - len(d.created); n != 2 {
+		t.Errorf("old instances left = %d, want 2", n)
 	}
 }
 
@@ -526,7 +537,7 @@ func TestBlueGreenStrategy_Validate(t *testing.T) {
 	}
 }
 
-func TestBlueGreenStrategy_Execute_NoCallbacks(t *testing.T) {
+func TestBlueGreenStrategy_Execute_WithTestDriver(t *testing.T) {
 	s := NewBlueGreenStrategy()
 	cfg := DefaultConfig(TypeBlueGreen)
 	cfg.TestDuration = 0 // skip test phase to keep test fast
@@ -543,6 +554,7 @@ func TestBlueGreenStrategy_Execute_NoCallbacks(t *testing.T) {
 			{ID: "blue-2", Version: "v1", State: InstanceRunning, Healthy: true},
 		},
 	}
+	params.Callbacks = newTestDriver(params.Instances...).callbacks()
 
 	result, err := s.Execute(context.Background(), params)
 	if err != nil {
@@ -666,6 +678,9 @@ func TestBlueGreenStrategy_Execute_TrafficShiftFailure(t *testing.T) {
 		},
 		Callbacks: callbacks,
 	}
+	d := newTestDriver(params.Instances...)
+	d.shiftErr = errors.New("switch failed")
+	params.Callbacks = d.callbacks()
 
 	result, err := s.Execute(context.Background(), params)
 	if !errors.Is(err, ErrTrafficShiftFailed) {
@@ -673,6 +688,10 @@ func TestBlueGreenStrategy_Execute_TrafficShiftFailure(t *testing.T) {
 	}
 	if result.Success {
 		t.Error("expected unsuccessful result")
+	}
+	// Green is deleted, blue keeps serving.
+	if got := d.versions(); len(got) != 1 || got[0] != "v1" {
+		t.Errorf("live versions = %v, want [v1]", got)
 	}
 }
 
@@ -698,6 +717,9 @@ func TestBlueGreenStrategy_Execute_InstanceCreateFailure(t *testing.T) {
 		Instances:      []Instance{{ID: "blue-1", Version: "v1", State: InstanceRunning, Healthy: true}},
 		Callbacks:      callbacks,
 	}
+	d := newTestDriver(params.Instances...)
+	d.createErr = func(int) error { return errors.New("create failed") }
+	params.Callbacks = d.callbacks()
 
 	result, err := s.Execute(context.Background(), params)
 	if !errors.Is(err, ErrInstanceUpdateFailed) {
@@ -796,7 +818,7 @@ func TestCanaryStrategy_Validate(t *testing.T) {
 	}
 }
 
-func TestCanaryStrategy_Execute_NoCallbacks(t *testing.T) {
+func TestCanaryStrategy_Execute_WithTestDriver(t *testing.T) {
 	s := NewCanaryStrategy()
 	cfg := &Config{
 		Type: TypeCanary,
@@ -818,6 +840,7 @@ func TestCanaryStrategy_Execute_NoCallbacks(t *testing.T) {
 			{ID: "stable-2", Version: "v1", State: InstanceRunning, Healthy: true},
 		},
 	}
+	params.Callbacks = newTestDriver(params.Instances...).callbacks()
 
 	result, err := s.Execute(context.Background(), params)
 	if err != nil {
@@ -881,6 +904,9 @@ func TestCanaryStrategy_Execute_WithCallbacks(t *testing.T) {
 		},
 		Callbacks: callbacks,
 	}
+	params.Callbacks.OnAnalysis = func(context.Context, *AnalysisRequest) (*AnalysisResult, error) {
+		return &AnalysisResult{Pass: true}, nil
+	}
 
 	result, err := s.Execute(context.Background(), params)
 	if err != nil {
@@ -937,6 +963,9 @@ func TestCanaryStrategy_Execute_TrafficShiftFailure(t *testing.T) {
 		},
 		Callbacks: callbacks,
 	}
+	d := newTestDriver(params.Instances...)
+	d.shiftErr = errors.New("traffic shift failed")
+	params.Callbacks = d.callbacks()
 
 	result, err := s.Execute(context.Background(), params)
 	if !errors.Is(err, ErrTrafficShiftFailed) {
@@ -944,6 +973,9 @@ func TestCanaryStrategy_Execute_TrafficShiftFailure(t *testing.T) {
 	}
 	if result.Success {
 		t.Error("expected unsuccessful result")
+	}
+	if got := d.versions(); len(got) != 1 || got[0] != "v1" {
+		t.Errorf("live versions = %v, want [v1] (canary deleted)", got)
 	}
 }
 
@@ -974,6 +1006,9 @@ func TestCanaryStrategy_Execute_InstanceCreateFailure(t *testing.T) {
 		Instances:      []Instance{{ID: "s-1", Version: "v1", State: InstanceRunning, Healthy: true}},
 		Callbacks:      callbacks,
 	}
+	d := newTestDriver(params.Instances...)
+	d.createErr = func(int) error { return errors.New("create failed") }
+	params.Callbacks = d.callbacks()
 
 	result, err := s.Execute(context.Background(), params)
 	if !errors.Is(err, ErrInstanceUpdateFailed) {
@@ -999,34 +1034,20 @@ func TestCanaryStrategy_Execute_AnalysisFailure(t *testing.T) {
 		},
 	}
 
-	callbacks := &Callbacks{
-		OnInstanceCreate: func(ctx context.Context, p *InstanceParams) (*Instance, error) {
-			return &Instance{
-				ID:      "canary-inst",
-				Version: p.Version,
-				State:   InstanceRunning,
-				Healthy: true,
-			}, nil
-		},
-		OnHealthCheck: func(ctx context.Context, id string) (bool, error) {
-			return true, nil
-		},
-		OnTrafficShift: func(ctx context.Context, p *TrafficShiftParams) error {
-			return nil
-		},
-		OnAnalysis: func(ctx context.Context, metrics *AnalysisMetrics) (*AnalysisResult, error) {
-			return &AnalysisResult{
-				Pass:           false,
-				ShouldRollback: true,
-				Message:        "error rate too high",
-				Metrics: &AnalysisMetrics{
-					ErrorRate:   0.10, // 10% error rate exceeds 1% threshold
-					SuccessRate: 0.90,
-				},
-			}, nil
-		},
-		OnProgress: func(ctx context.Context, p *Progress) {},
+	stable := Instance{ID: "s-1", Version: "v1", State: InstanceRunning, Healthy: true}
+	d := newTestDriver(stable)
+	d.analysis = func(*AnalysisRequest) (*AnalysisResult, error) {
+		return &AnalysisResult{
+			Pass:           false,
+			ShouldRollback: true,
+			Message:        "error rate too high",
+			Metrics: &AnalysisMetrics{
+				ErrorRate:   0.10, // 10% error rate exceeds 1% threshold
+				SuccessRate: 0.90,
+			},
+		}, nil
 	}
+	callbacks := d.callbacks()
 
 	params := &ExecuteParams{
 		DeploymentID:   "canary-analysis-fail",
@@ -1043,8 +1064,18 @@ func TestCanaryStrategy_Execute_AnalysisFailure(t *testing.T) {
 	if !errors.Is(err, ErrRollbackRequired) {
 		t.Fatalf("expected ErrRollbackRequired, got %v", err)
 	}
-	if result.Success {
-		t.Error("expected unsuccessful result")
+	if result.Success || !result.RolledBack {
+		t.Errorf("result = %+v, want unsuccessful and rolled back", result)
+	}
+	// The canary is gone, stable is untouched, traffic ended on stable.
+	if got := d.versions(); len(got) != 1 || got[0] != "v1" {
+		t.Errorf("live versions after rollback = %v, want [v1]", got)
+	}
+	if last := d.shifts[len(d.shifts)-1]; last.NewVersion != "v1" || last.Weight != 100 {
+		t.Errorf("last traffic shift = %+v, want all traffic to v1", last)
+	}
+	if len(d.analyses) != 1 || len(d.analyses[0].Canary) != 1 || len(d.analyses[0].Stable) != 1 {
+		t.Errorf("analysis request did not name canary and stable: %+v", d.analyses)
 	}
 }
 

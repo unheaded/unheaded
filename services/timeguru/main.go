@@ -102,15 +102,12 @@ func main() {
 		}
 	}()
 
-	// Subscribe to timeline updates via Wotan (if connected)
+	// Subscribe to timeline updates via Wotan, retrying in the background
+	// until Wotan answers (it used to try once and give up for good).
+	subCtx, subCancel := context.WithCancel(context.Background())
+	defer subCancel()
 	if client != nil {
-		ctx := context.Background()
-		_, subErr := client.Subscribe(ctx, "timeline.updates", "timeguru")
-		if subErr != nil {
-			log.Warn().Err(subErr).Msg("failed to subscribe to timeline.updates")
-		} else {
-			go streamTimelineUpdates(ctx, client)
-		}
+		go streamTimelineUpdates(subCtx, client)
 	}
 
 	// Handle graceful shutdown
@@ -145,23 +142,9 @@ func loadTimeline(path string) error {
 }
 
 func streamTimelineUpdates(ctx context.Context, client *wotanClient.Client) {
-	ch, err := client.StreamMessages(ctx, "timeline.updates")
-	if err != nil {
-		log.Error().Err(err).Msg("failed to stream timeline updates")
-		return
-	}
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case msg, ok := <-ch:
-			if !ok {
-				return
-			}
-			updateTimeline([]byte(msg.Payload))
-		}
-	}
+	_ = client.SubscribeWithRetry(ctx, "timeline.updates", "timeguru", func(msg *wotanClient.Message) {
+		updateTimeline([]byte(msg.Payload))
+	})
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {

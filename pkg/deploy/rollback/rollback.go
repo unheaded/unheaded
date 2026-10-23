@@ -297,7 +297,12 @@ func (m *Manager) executeRollback(ctx context.Context, rollback *Rollback, targe
 		m.mu.Unlock()
 	}
 
-	// Step 2: Update instances
+	// Step 2: Update instances. Without an updater nothing can change, so
+	// the rollback fails rather than reporting a rollback that never ran.
+	if m.instanceUpdater == nil {
+		m.failRollback(rollback, errors.New("no instance updater: nothing can bring the previous version back"))
+		return
+	}
 	m.mu.Lock()
 	rollback.Message = "Updating instances to previous version"
 	m.mu.Unlock()
@@ -399,6 +404,28 @@ func (m *Manager) Status(ctx context.Context, rollbackID string) (*Rollback, err
 	return &cp, nil
 }
 
+// Wait blocks until the rollback reaches a final state (completed, failed
+// or cancelled) or ctx ends, and returns its last snapshot.
+func (m *Manager) Wait(ctx context.Context, rollbackID string) (*Rollback, error) {
+	t := time.NewTicker(50 * time.Millisecond)
+	defer t.Stop()
+	for {
+		rb, err := m.Status(ctx, rollbackID)
+		if err != nil {
+			return nil, err
+		}
+		switch rb.State {
+		case RollbackStateCompleted, RollbackStateFailed, RollbackStateCancelled:
+			return rb, nil
+		}
+		select {
+		case <-ctx.Done():
+			return rb, ctx.Err()
+		case <-t.C:
+		}
+	}
+}
+
 // GetByService returns rollbacks for a service.
 func (m *Manager) GetByService(ctx context.Context, serviceName string) ([]*Rollback, error) {
 	return m.history.GetByService(serviceName)
@@ -448,6 +475,10 @@ func DefaultAutoRollbackConfig() *AutoRollbackConfig {
 
 // AutoRollbackMonitor monitors deployments for auto-rollback triggers.
 type AutoRollbackMonitor struct {
+	// OnError, when set, hears about an automatic rollback that could not
+	// start (no previous version, one already running).
+	OnError func(deploymentID string, err error)
+
 	manager *Manager
 	config  *AutoRollbackConfig
 	mu      sync.RWMutex
@@ -509,29 +540,19 @@ func (m *AutoRollbackMonitor) RecordHealthCheckFailure(ctx context.Context, depl
 	}
 	watch.failures++
 	failures := watch.failures
-	serviceName := watch.serviceName
+	startedAt := watch.startedAt
 	m.mu.Unlock()
 
-	// Check if we should trigger rollback
-	if failures >= m.config.HealthCheckFailures {
-		// Check grace period
-		if time.Since(watch.startedAt) < m.config.GracePeriod {
-			return
-		}
-
-		// Trigger rollback
-		_, _ = m.manager.Rollback(ctx, &RollbackRequest{
-			DeploymentID: deploymentID,
-			Reason:       RollbackReasonHealthCheck,
-			InitiatedBy:  "auto-rollback-monitor",
-		})
-
-		// Remove watch
-		m.Unwatch(deploymentID)
-
-		// Log (would use logger in production)
-		fmt.Printf("Auto-rollback triggered for deployment %s (service: %s) after %d health check failures\n",
-			deploymentID, serviceName, failures)
+	if failures < m.config.HealthCheckFailures || time.Since(startedAt) < m.config.GracePeriod {
+		return
+	}
+	m.Unwatch(deploymentID)
+	if _, err := m.manager.Rollback(ctx, &RollbackRequest{
+		DeploymentID: deploymentID,
+		Reason:       RollbackReasonHealthCheck,
+		InitiatedBy:  "auto-rollback-monitor",
+	}); err != nil && m.OnError != nil {
+		m.OnError(deploymentID, err)
 	}
 }
 

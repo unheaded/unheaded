@@ -38,6 +38,9 @@ type lxdREST struct {
 	http    *http.Client
 	base    string // "http://lxd" over the socket
 	project string // "" = the server's default project
+	// proxyListen: lab addresses a proxy device may listen on besides
+	// 127.0.0.1 (checked here too, not only at PUT).
+	proxyListen []string
 }
 
 // LXDRESTConfig selects and authenticates the connection. Socket and URL
@@ -49,11 +52,15 @@ type LXDRESTConfig struct {
 	ClientKey  string
 	ServerCert string // pinned: the connection fails unless it is this exact certificate
 	Project    string
+	// ProxyListenAddrs: lab addresses a proxy device may listen on besides 127.0.0.1.
+	ProxyListenAddrs []string
 }
 
 const (
 	lxdMaxResponse = 32 << 20
 	lxdWaitSlice   = 30 * time.Second
+	// lxdLabelPrefix: a desired label <k> is the instance config key user.unheaded.label.<k>.
+	lxdLabelPrefix = "user.unheaded.label."
 )
 
 var (
@@ -97,7 +104,7 @@ func newLXDREST(cfg LXDRESTConfig) (*lxdREST, error) {
 				return d.DialContext(ctx, "unix", socket)
 			},
 		}
-		return &lxdREST{http: &http.Client{Transport: tr}, base: "http://lxd", project: cfg.Project}, nil
+		return &lxdREST{http: &http.Client{Transport: tr}, base: "http://lxd", project: cfg.Project, proxyListen: cfg.ProxyListenAddrs}, nil
 	case cfg.URL != "":
 		u, err := url.Parse(cfg.URL)
 		if err != nil || u.Scheme != "https" || u.Host == "" || (u.Path != "" && u.Path != "/") {
@@ -128,7 +135,7 @@ func newLXDREST(cfg LXDRESTConfig) (*lxdREST, error) {
 				return nil
 			},
 		})}
-		return &lxdREST{http: &http.Client{Transport: tr}, base: "https://" + u.Host, project: cfg.Project}, nil
+		return &lxdREST{http: &http.Client{Transport: tr}, base: "https://" + u.Host, project: cfg.Project, proxyListen: cfg.ProxyListenAddrs}, nil
 	default:
 		return nil, errors.New("lxd: no socket or URL")
 	}
@@ -158,6 +165,13 @@ type lxdResponse struct {
 // do sends one request. The project goes on every request, so a project
 // that does not exist fails loudly instead of falling back to default.
 func (c *lxdREST) do(ctx context.Context, method, path string, query url.Values, body any) (*lxdResponse, error) {
+	r, _, err := c.doH(ctx, method, path, query, body, nil)
+	return r, err
+}
+
+// doH is do with extra request headers, returning the response headers
+// (ETag for read-modify-write). A 412 is errLXDPrecondition.
+func (c *lxdREST) doH(ctx context.Context, method, path string, query url.Values, body any, hdr http.Header) (*lxdResponse, http.Header, error) {
 	if query == nil {
 		query = url.Values{}
 	}
@@ -172,40 +186,48 @@ func (c *lxdREST) do(ctx context.Context, method, path string, query url.Values,
 	if body != nil {
 		b, err := json.Marshal(body)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		rd = bytes.NewReader(b)
 	}
 	req, err := http.NewRequestWithContext(ctx, method, target, rd)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
+	}
+	for k, vs := range hdr {
+		for _, v := range vs {
+			req.Header.Add(k, v)
+		}
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
 	resp, err := c.http.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("lxd %s %s: %w", method, path, err)
+		return nil, nil, fmt.Errorf("lxd %s %s: %w", method, path, err)
 	}
 	defer resp.Body.Close()
 	data, err := io.ReadAll(io.LimitReader(resp.Body, lxdMaxResponse+1))
 	if err != nil {
-		return nil, fmt.Errorf("lxd %s %s: %w", method, path, err)
+		return nil, nil, fmt.Errorf("lxd %s %s: %w", method, path, err)
 	}
 	if len(data) > lxdMaxResponse {
-		return nil, fmt.Errorf("lxd %s %s: response over %d bytes", method, path, lxdMaxResponse)
+		return nil, nil, fmt.Errorf("lxd %s %s: response over %d bytes", method, path, lxdMaxResponse)
 	}
 	var r lxdResponse
 	if err := json.Unmarshal(data, &r); err != nil {
-		return nil, fmt.Errorf("lxd %s %s: HTTP %d, not an LXD response: %w", method, path, resp.StatusCode, err)
+		return nil, nil, fmt.Errorf("lxd %s %s: HTTP %d, not an LXD response: %w", method, path, resp.StatusCode, err)
 	}
 	if r.Type == "error" || resp.StatusCode >= 400 {
-		if resp.StatusCode == http.StatusNotFound || r.ErrorCode == http.StatusNotFound {
-			return nil, fmt.Errorf("lxd %s %s: %w: %s", method, path, errLXDNotFound, r.Error)
+		switch {
+		case resp.StatusCode == http.StatusNotFound || r.ErrorCode == http.StatusNotFound:
+			return nil, nil, fmt.Errorf("lxd %s %s: %w: %s", method, path, errLXDNotFound, r.Error)
+		case resp.StatusCode == http.StatusPreconditionFailed || r.ErrorCode == http.StatusPreconditionFailed:
+			return nil, nil, fmt.Errorf("lxd %s %s: %w: %s", method, path, errLXDPrecondition, r.Error)
 		}
-		return nil, fmt.Errorf("lxd %s %s: HTTP %d: %s", method, path, resp.StatusCode, r.Error)
+		return nil, nil, fmt.Errorf("lxd %s %s: HTTP %d: %s", method, path, resp.StatusCode, r.Error)
 	}
-	return &r, nil
+	return &r, resp.Header, nil
 }
 
 // wait blocks until an async operation finishes, in slices so ctx is
@@ -249,10 +271,11 @@ func (c *lxdREST) wait(ctx context.Context, r *lxdResponse) error {
 }
 
 type lxdInstance struct {
-	Name   string            `json:"name"`
-	Status string            `json:"status"`
-	Config map[string]string `json:"config"`
-	State  *struct {
+	Name    string                       `json:"name"`
+	Status  string                       `json:"status"`
+	Config  map[string]string            `json:"config"`
+	Devices map[string]map[string]string `json:"devices"`
+	State   *struct {
 		Network map[string]struct {
 			Addresses []struct {
 				Family  string `json:"family"`
@@ -269,7 +292,16 @@ func (in *lxdInstance) managed() bool { return in.Config[ManagedLabel] == "true"
 // health is "unknown"; the address is the first global IPv4, else IPv6,
 // in interface-name order.
 func (in *lxdInstance) toState() *ContainerState {
-	s := &ContainerState{ID: in.Name, Status: strings.ToLower(in.Status), Health: "unknown", Managed: in.managed()}
+	s := &ContainerState{ID: in.Name, Status: strings.ToLower(in.Status), Health: "unknown", Managed: in.managed(),
+		Proxy: proxyFromDevices(in.Devices)}
+	for k, v := range in.Config {
+		if label, ok := strings.CutPrefix(k, lxdLabelPrefix); ok {
+			if s.Labels == nil {
+				s.Labels = map[string]string{}
+			}
+			s.Labels[label] = v
+		}
+	}
 	if in.State == nil {
 		return s
 	}
@@ -371,7 +403,7 @@ func (c *lxdREST) CreateContainer(ctx context.Context, spec *ContainerSpec) erro
 		if !lxdLabelKeyRe.MatchString(k) {
 			return fmt.Errorf("lxd: invalid label key %q", k)
 		}
-		config["user.unheaded.label."+k] = v
+		config[lxdLabelPrefix+k] = v
 	}
 	config[ManagedLabel] = "true"
 	if spec.CPU > 0 {
@@ -380,9 +412,14 @@ func (c *lxdREST) CreateContainer(ctx context.Context, spec *ContainerSpec) erro
 	if spec.Memory > 0 {
 		config["limits.memory"] = strconv.FormatInt(spec.Memory, 10) + "B"
 	}
-	r, err := c.do(ctx, http.MethodPost, "/1.0/instances", nil, map[string]any{
-		"name": spec.ID, "type": "container", "source": src, "config": config,
-	})
+	req := map[string]any{"name": spec.ID, "type": "container", "source": src, "config": config}
+	if spec.Proxy != nil {
+		if err := spec.Proxy.validate(c.proxyListen); err != nil {
+			return err
+		}
+		req["devices"] = map[string]any{proxyDeviceName: spec.Proxy.device()}
+	}
+	r, err := c.do(ctx, http.MethodPost, "/1.0/instances", nil, req)
 	if err != nil {
 		return err
 	}
@@ -468,7 +505,7 @@ func (c *lxdREST) serverInfo(ctx context.Context) (*lxdServerInfo, error) {
 // once that LXD answers and trusts this client; a failure is logged, not
 // fatal: reconcile skips cycles (cuirass_lxd_up 0) until LXD answers.
 func newLXDClient(cfg *Config, log *logger.Logger) (LXDClient, error) {
-	rc := LXDRESTConfig{Project: cfg.LXDProject}
+	rc := LXDRESTConfig{Project: cfg.LXDProject, ProxyListenAddrs: cfg.ProxyListenAddrs}
 	switch cfg.LXDBackend {
 	case "", "mock":
 		return NewMockLXDClient(log), nil
