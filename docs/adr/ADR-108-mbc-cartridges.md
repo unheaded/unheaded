@@ -240,6 +240,21 @@ SlotCfg (CART_SLOT, 20 B):
 
 Four slots; `CART_ROM` and `CART_DATA` hold 1024 words per slot.
 
+Trace records (S5 Phase 16, `CART_TRACE` ringbuf 1 MiB; `CART_CFG[0]` = trace
+one run in N, 0 = off, the default), all `EVENT_COMPUTED (0x01)` + sub-kind
+`0x43`, octets 0–2 = event, sub-kind, record type (0 head, 1 step, 2 end):
+
+```
+TraceHead (464 B): stage u8 @3 | slot u8 @4 | gen u32 @8 | run_id u64 @16 | now u64 @24
+  | flow FlowKey @32 | fields [u32;13] @72 | state CartState @128 (at run start)
+TraceStep (32 B):  idx u32 @4 | run_id u64 @8 | pc u32 @16 | insn u32 @20 | code u32 @24
+  | state_hash u32 @28 (after the instruction)
+TraceEnd  (32 B):  insns u32 @4 | run_id u64 @8 | code u32 @16 | state_hash u32 @20
+```
+
+`code`: 0 continue, 0x100|v verdict, 0x200 yield, 0x300 halt, 0x400|k fault k.
+Replay contract: `docs/architecture/cartridge-replay.md`.
+
 ## Gates
 
 | Gate | Bar |

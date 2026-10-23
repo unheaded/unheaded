@@ -97,12 +97,28 @@ ring buffer. With `--wotan host:18000` it publishes `anomaly.scores`
 JSON to the service directly. The message is flow key + score + model id;
 unknown fields are refused.
 
+## Replay (time travel)
+
+```
+upc-cartridgectl record --out run.anam --every 1000 --duration 10s   # trace 1 run in 1000
+upc-cartridgectl replay run.anam --slot 0                            # every run, every state hash
+upc-cartridgectl replay run.anam --slot 2 --run 4 --watch r1 --to 120
+cart replay scorer.cart run.anam --steps                             # same, image given directly
+```
+
+Tracing is off by default. A traced run is a head (state + FIELD table +
+clock), one record per instruction (pc, word, step code, state hash) and an
+end record; replay re-executes with the same step function and reports
+BIT-EXACT or the first divergent instruction. Traces carry header fields and
+state, never payload (files 0600). Contract:
+[`docs/architecture/cartridge-replay.md`](../docs/architecture/cartridge-replay.md).
+
 ## Budgets and costs (2026-10-23)
 
 | Program | Verifier processed insns | Gate |
 |---|---|---|
-| `cart_xdp` | 24,986 | 500,000 |
-| `cart_tick` | 63,906 | 500,000 |
+| `cart_xdp` | 42,743 | 500,000 |
+| `cart_tick` | 146,897 | 500,000 |
 
 `scripts/upc-regression.sh` load-tests the object as its third variant.
 One interpreted instruction costs about 4-7 ns on west (4 steps per

@@ -416,7 +416,8 @@ generators; the shuffled-label control falls to chance, so nothing leaks labels.
 nothing about real traffic. The model leans on shortcuts the generators allow: it
 ignores the SYN count entirely (floods are already separated by size, timing and flags),
 scores fast arrivals and small maximum lengths high, and is not monotone in window bytes
-far outside the training range. Six of sixteen hidden units died (ReLU + weight decay).
+far outside the training range. Seven of sixteen hidden units carry no signal (ReLU +
+weight decay drove w1 or w2 to ~0).
 
 **Quantization**: |int8 − float| ≤ 2 points on **99.83 %** of eval (max 5, mean 0.86):
 gate (≥ 99 %) met. Per-row int8 weights, per-row u8 requantization, rounding folded into
@@ -443,3 +444,77 @@ packets; 52 jobs queued and scored; `/api/v1/anomalies/top`: flood score 99, DNS
 flow 1; 0 rejected. Teardown verified: no cart programs, s5 links, netns or pins.
 
 - Harness ALL GREEN (ascend 926,542, Doom 761,580). Commit `9404db47`.
+
+## Phase 16 — Anamnesis replay (2026-10-23, session 3)
+
+**What replay proves.** A cartridge run is a pure function of its image, its starting
+state and its inputs (the FIELD table and the clock). cartridge-ebpf records exactly
+those (TraceHead) plus the pc, instruction word, step code and state hash after every
+instruction (TraceStep) and the outcome (TraceEnd); `cart replay` re-executes with the
+same `run_one` and checks every hash. A match means the live run is reproduced
+instruction by instruction off-line, so a verdict, an emitted score or a fault can be
+explained after the fact from the trace alone, and nothing else (no payload, no helper
+state) influenced it. A mismatch names the first divergent instruction.
+
+- Records: `EVENT_COMPUTED 0x01` + sub-kind `0x43`; head 464 B, step and end 32 B;
+  CART_TRACE 1 MiB ring; off by default, `CART_CFG[0]` = one run in N per CPU; drops
+  counted. Layout in ADR-108, contract `docs/architecture/cartridge-replay.md`.
+- Verifier traps on the way (all fixed, recorded in code): 3-byte zero store and the
+  tick stage's all-zero FIELD loop → rejected `memset` under `--btf`; a 6-argument
+  function (BPF passes 5); cart_xdp → slot → callback chain over the 512-byte combined
+  stack (cart_xdp's SlotArgs moved to a per-CPU map); the state hash inlined at every
+  site took cart_tick to 328,144 processed insns. `cart_state_hash` and
+  `cart_trace_step` are now global BPF functions: **cart_xdp 42,743, cart_tick 146,897**
+  (gate 500,000; were 24,986 / 63,906 before tracing).
+- Host (`tests/replay.rs`): 200 rate-limiter runs / 7,806 steps bit-exact through the
+  file format; a flipped pkt_len bit diverges at step 2 (the FIELD read); another image
+  at step 0 (`insn`); a corrupted step hash at that step; scorer job time travel
+  (goto/back/regs; score in r2 at the EMIT); 5,000 hostile byte strings never panic.
+- Live (`TestReplay_LiveRunsAreBitExact`, test_run, every run traced): 160 rate-limiter,
+  160 sampler and 66 scorer tick runs **bit-exact**; replayed verdicts == the 160 live
+  XDP returns; `--watch r1` shows the MLP row accumulator through a tick call;
+  `--to 188` stops before `SYSCALL 3 (EMIT)` with r2 = 99. One flipped input bit in the
+  file: `run 9 … DIVERGED at step 2 (hash): recorded 0x72d236c4, replayed 0xb33fc8f4`,
+  159 others bit-exact, exit 3. Off by default (0 records); 1-in-10 traced 20/200 runs.
+- Through the CLI on the real clock: `upc-cartridgectl record --every 2000 --duration 3s`
+  during a 3M-run test_run flood → 52,537 records, 1,499 runs, 0 dropped, 2.5 MB;
+  `upc-cartridgectl replay run.anam --slot 0` (image fetched from the registry blob the
+  trace names, sha-checked) → **1,499 bit-exact**.
+- Harness ALL GREEN (21 cartridge root tests); goldens **12/12 SAME**; Doom translation
+  byte-identical (`dcded746…` / `e7ab7b67…` / `e1191add…`). (`xv6-mbc.mbc` is
+  `f5bf2003…` in this worktree, not the Phase 2 `109da1b3…`: Phase 3's `2308c3d7`
+  changed the kernel after that value was taken; no kernel or translator source changed
+  in Phases 13–16, and the goldens match.)
+- Commit `4634796c`.
+
+## Session 3 close — final benchmarks with the trace-capable object (tracing off)
+
+5 × 1,000,000 test_run, median, `taskset -c 5`, noise ≤ 3.2 % except b0_empty 11 %:
+
+| Case | ns/pkt | vs. | Gate |
+|---|---|---|---|
+| b0_pass (IPv4 / IPv6 / TCP frame) | 150 / 155 / 149 | — | — |
+| ratelimit, pass / drop regime (IPv6 Monad frame) | 347 / 341 | native qos-ebpf bucket 283 / 317 | #1(a) +192 / +186 ns: **FAIL** (150); #1(b) 1.23× / 1.08×: **PASS** (3×) |
+| sampler (TCP frame) | 377 | b0 149 | #2 +228 ns: **FAIL** (120) |
+| ratelimit + sampler | 642 | sum of overheads 429 | +493 ns, +15 %: **FAIL** (+10 %) |
+| scorer | 230,521 flows/s | — | #3 **PASS** (100,000); XDP sampler 368 ns with or without the scorer slot |
+| interpreter, per instruction | NOP 3.3, MOV 5.1, SYSCALL 5.5, LD 6.6 | — | — |
+
+The trace checks cost ~1–5 % with tracing off (rate limiter 343 → 347, sampler
+360 → 377, scorer 251,572 → 230,521 flows/s).
+
+### Open after session 3
+
+- **Gates #1(a) and #2 FAIL** on this host: ~3–7 ns per interpreted instruction. Not
+  blockers (plan rule). Options for a later sprint: fewer instructions per cartridge,
+  more steps per callback (8: −15 % per instruction for twice the verified callback),
+  or a superinstruction/DOT4 ISA change ([ESCALATE], ISA spec gate).
+- **qos-ebpf refill remainder** (finding, oracle not changed): admits 80 Mbps of 100 at
+  20 µs spacing.
+- **Wotan leg of anomaly.scores** not run live (stack down; Phase 6 scratch Wotan
+  deferred with the east escalation). In-process path proven end to end.
+- **RFC Editor items 1–3** still open (`x-cartridge`, sub-kind `0x43`,
+  `anomaly.scores`); ADR-108 stays Proposed.
+- **Scorer** is trained on synthetic families only; its accuracy says nothing about
+  real traffic, and it ignores the SYN count.
+- Phase 17 (Lich hooks) left to the Lich sprint; Phase 18 (DISTRIBUTED) needs east.

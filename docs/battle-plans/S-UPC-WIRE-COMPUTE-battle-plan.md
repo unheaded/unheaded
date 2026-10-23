@@ -1403,31 +1403,47 @@ Quantization gate ≤ 2 points · scoring off the packet path · services/anomal
 **Time**: ~3.5 h
 **Agent**: Developer (Scientist lens on determinism)
 
-- [ ] **Step 397** [R] ~10m: Read `services/anamnesis` event model + the Anamnesis Event Type registry (EVENT_COMPUTED 0x01); confirm the Phase 9 decision to reuse 0x01 with a cartridge sub-kind
-- [ ] **Step 398** [DESIGN][W] ~15m: Trace record (Appendix C.4): per recorded step, `{slot, gen, flow_key, pc, insn, input_fields, event_out?}`; plus one BORN record per run header with image sha, DATA sha, N, stage. Determinism contract: `state_{n+1} = step(state_n, input_n)` with inputs captured → replay needs only the image + the input log
-- [ ] **Step 399** [W][CODE] ~20m: `CART_CFG[trace]=1` makes `cart_xdp`/`cart_tick` emit a compact trace record per step to `CART_TRACE` (fields only, no payload); `upc-cartridgectl record --slot N --out run.anam` drains `CART_TRACE` to a file
-- [ ] **Step 400** [V][PREFLIGHT] ~2m: Trace volume bounded — tracing is sampled (`CART_CFG[trace_1_in]`) so a flood cannot overrun the ringbuf; default off
-- [ ] **Step 401** [W][CODE][TEST] ~40m: `crates/upc-cartridge` replay engine: load `run.anam` + the image; re-execute via `monad_common::cart::step`; after each step assert the replayed `state_hash` equals the recorded one; API `step()/back()/goto(n)/regs()/mem()/inspect()`
-- [ ] **Step 402** [V] ~1m: Replay of a recorded ratelimit run reproduces every state hash
-- [ ] **Step 403** [W][CODE] ~20m: `upc-cartridgectl replay run.anam [--step|--to N|--watch mem[addr]]` — a CLI time-travel debugger (prints the divergence step if an image/trace mismatch, the actual debugging value)
-- [ ] **Step 404** [B][TEST] ~3m: `cargo test --manifest-path "$PROJECT_ROOT/crates/upc-cartridge/Cargo.toml" replay 2>&1 | tail -6`
-- [ ] **Step 405** [V] ~30s: Green
-- [ ] **Step 406** [B][S][TEST] ~8m: Record a live ratelimit run (test_run with trace on), replay off-line
-- [ ] **Step 407** [V] ~1m: Final state + every verdict identical between live run and replay
-- [ ] **Step 408** [B][S][TEST] ~5m: Record a scorer tick run; replay; inspect the MLP accumulator at the step before EMIT
-- [ ] **Step 409** [V] ~1m: Replay reproduces the score; `--watch` shows the accumulator evolving (the "time-travel" payoff)
-- [ ] **Step 410** [B][TEST] ~5m: Negative — corrupt one byte of the recorded input log; replay must flag the exact divergent step
-- [ ] **Step 411** [V] ~1m: Divergence reported at the right step with recorded-vs-replayed hashes
-- [ ] **Step 412** [SECURITY] ~5m: Trace records carry fields + state, never payload; a trace file is as sensitive as flow metadata, documented
-- [ ] **Step 413** [V] ~30s: No payload in the trace schema
-- [ ] **Step 414** [B][S][TEST] ~2m: Regression harness
-- [ ] **Step 415** [V] ~30s: `== ALL GREEN ==`
-- [ ] **Step 416** [W][DOC-UPDATE] ~10m: `wiki/UPC-Cartridges.md` replay section + a short `docs/` note on the determinism contract
-- [ ] **Step 417** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 397** [R] ~10m: Read `services/anamnesis` event model + the Anamnesis Event Type registry (EVENT_COMPUTED 0x01); confirm the Phase 9 decision to reuse 0x01 with a cartridge sub-kind
+  - S5 2026-10-23 (session 3): `services/anamnesis` is a Go event store with string types (created/updated/…), no importer (KF3); the numeric registry is the foundation draft's. Decision stands: every trace record starts `0x01 0x43` (EVENT_COMPUTED + provisional cartridge sub-kind, RFC Editor item 2).
+- [x] **Step 398** [DESIGN][W] ~15m: Trace record (Appendix C.4): per recorded step, `{slot, gen, flow_key, pc, insn, input_fields, event_out?}`; plus one BORN record per run header with image sha, DATA sha, N, stage. Determinism contract: `state_{n+1} = step(state_n, input_n)` with inputs captured → replay needs only the image + the input log
+  - S5 2026-10-23: Inputs are constant per run, so they live once in the head: TraceHead 464 B {stage, slot, gen, run_id, clock, flow, FIELD table, starting CartState}; TraceStep 32 B {idx, pc, insn, step code, state_hash after}; TraceEnd 32 B {insns, code, final hash}. The image sha (whole .cart file, covering ROM + DATA) is per slot in the file header. Layout in ADR-108 §Records; contract `docs/architecture/cartridge-replay.md`.
+- [x] **Step 399** [W][CODE] ~20m: `CART_CFG[trace]=1` makes `cart_xdp`/`cart_tick` emit a compact trace record per step to `CART_TRACE` (fields only, no payload); `upc-cartridgectl record --slot N --out run.anam` drains `CART_TRACE` to a file
+  - S5 2026-10-23: CART_TRACE (1 MiB ringbuf), TRACE_SEQ (per-CPU), `cart_trace_step` and `cart_state_hash` as global BPF functions, records dropped on a full ring are counted (stat 39). Verifier traps on the way: a 3-byte zero store and an all-zero FIELD loop lowered to rejected `memset` calls (`--btf`); a 6-argument helper (BPF passes 5); the cart_xdp → slot → callback chain hit the 512-byte combined stack (cart_xdp's SlotArgs moved to a per-CPU map); hashing inlined at every site took cart_tick to 328,144 insns (global functions: 146,897). `record` traces all slots and writes each slot's .cart sha from slots.json; `--slot` belongs to `replay`.
+- [x] **Step 400** [V][PREFLIGHT] ~2m: Trace volume bounded — tracing is sampled (`CART_CFG[trace_1_in]`) so a flood cannot overrun the ringbuf; default off
+  - S5 2026-10-23: Off by default (20 packets, 0 records); `CART_CFG[TRACE] = 10` traced 20 of 200 runs; a 3M-packet test_run flood at 1-in-2000 recorded 1,499 runs with 0 drops.
+- [x] **Step 401** [W][CODE][TEST] ~40m: `crates/upc-cartridge` replay engine: load `run.anam` + the image; re-execute via `monad_common::cart::step`; after each step assert the replayed `state_hash` equals the recorded one; API `step()/back()/goto(n)/regs()/mem()/inspect()`
+  - S5 2026-10-23: `upc_cartridge::replay`: hostile-input UCTR parser, `replay()` mirrors `drive` (`run_one` × N then `run_out`) and checks pc, word, code and hash per step plus the end record; `Replayer` step/back/goto/regs/mem/inspect; host `record()` for tests.
+- [x] **Step 402** [V] ~1m: Replay of a recorded ratelimit run reproduces every state hash
+  - S5 2026-10-23: Host: 200 runs, 7,806 steps, every hash (98 drops among them).
+- [x] **Step 403** [W][CODE] ~20m: `upc-cartridgectl replay run.anam [--step|--to N|--watch mem[addr]]` — a CLI time-travel debugger (prints the divergence step if an image/trace mismatch, the actual debugging value)
+  - S5 2026-10-23: `cart replay X.cart TRACE [--slot] [--run] [--to N] [--watch rN|mem[A]] [--steps]` (exit 3 on divergence); `upc-cartridgectl replay TRACE --slot N` fetches the recorded image from the registry blobs (sha-checked) and runs it.
+- [x] **Step 404** [B][TEST] ~3m: `cargo test --manifest-path "$PROJECT_ROOT/crates/upc-cartridge/Cargo.toml" replay 2>&1 | tail -6`
+- [x] **Step 405** [V] ~30s: Green
+  - S5 2026-10-23: `tests/replay.rs` 5/5 (bit-exact, corrupted input, other image, corrupted hash, scorer time travel, hostile bytes ×5,000).
+- [x] **Step 406** [B][S][TEST] ~8m: Record a live ratelimit run (test_run with trace on), replay off-line
+- [x] **Step 407** [V] ~1m: Final state + every verdict identical between live run and replay
+  - S5 2026-10-23: `TestReplay_LiveRunsAreBitExact`: rate limiter + sampler + scorer, every run traced: 160 + 160 rate-limiter/sampler runs bit-exact, replayed verdicts == the 160 live XDP returns. Through the ctl on the real clock: `record --every 2000` during a 3M test_run flood → 1,499 runs, `replay --slot 0` → 1,499 bit-exact.
+- [x] **Step 408** [B][S][TEST] ~5m: Record a scorer tick run; replay; inspect the MLP accumulator at the step before EMIT
+- [x] **Step 409** [V] ~1m: Replay reproduces the score; `--watch` shows the accumulator evolving (the "time-travel" payoff)
+  - S5 2026-10-23: 66 scorer tick calls bit-exact; `--run 1 --watch r1` shows the row accumulator through the second call of a job (40+ changes), `--run 2 --to 188` stops before `SYSCALL 3 (EMIT)` with r2 = 0x63 (score 99) and r3 = the model id.
+- [x] **Step 410** [B][TEST] ~5m: Negative — corrupt one byte of the recorded input log; replay must flag the exact divergent step
+- [x] **Step 411** [V] ~1m: Divergence reported at the right step with recorded-vs-replayed hashes
+  - S5 2026-10-23: One bit of run 9's recorded pkt_len flipped in the file: `DIVERGED at step 2 (hash): recorded 0x72d236c4, replayed 0xb33fc8f4` (step 2 is the `SYSCALL 0` that reads it), the other 159 runs bit-exact, exit 3. A different image diverges at step 0 (`insn`).
+- [x] **Step 412** [SECURITY] ~5m: Trace records carry fields + state, never payload; a trace file is as sensitive as flow metadata, documented
+- [x] **Step 413** [V] ~30s: No payload in the trace schema
+  - S5 2026-10-23: Head = FIELD table + flow key + CartState (whose window holds only what the cartridge stored from FIELD values and the clock); steps/ends = pc, word, codes, hashes. Files 0600; documented in the contract note and the wiki.
+- [x] **Step 414** [B][S][TEST] ~2m: Regression harness
+- [x] **Step 415** [V] ~30s: `== ALL GREEN ==`
+  - S5 2026-10-23: ALL GREEN: ascend 926,542 and Doom 761,580 (unchanged since Phase 0), cart_xdp 42,743, cart_tick 146,897, 21 cartridge root tests. Goldens 12/12 SAME (TTY + stats). Doom translation byte-identical (`dcded746…`, rv2mbc `e7ab7b67…`, data `e1191add…`).
+- [x] **Step 416** [W][DOC-UPDATE] ~10m: `wiki/UPC-Cartridges.md` replay section + a short `docs/` note on the determinism contract
+  - S5 2026-10-23: wiki Replay section; `docs/architecture/cartridge-replay.md`; ADR-108 §Records gains the trace layout.
+- [x] **Step 417** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add crates/upc-cartridge cmd/upc-cartridgectl ebpf/cartridge-ebpf wiki/UPC-Cartridges.md && commitp -m "feat(cartridge): [S5 397-417] Anamnesis replay — bit-exact time-travel debug"
   ```
-- [ ] **Step 418** [V][GATE] ~1m: **PHASE 16 EXIT GATE** — record→replay bit-exact for both stages; divergence detection works; step/rewind/inspect usable; no payload in traces
+  - S5 2026-10-23: `4634796c` (code) + the Phase 16 gate commit.
+- [x] **Step 418** [V][GATE] ~1m: **PHASE 16 EXIT GATE** — record→replay bit-exact for both stages; divergence detection works; step/rewind/inspect usable; no payload in traces
+  - S5 2026-10-23: PASSED. Cost of the trace-capable object with tracing off (re-benched): rate limiter 347 ns (was 343), sampler 377 (was 360), scorer 230,521 flows/s (was 251,572); gate verdicts unchanged.
 
 ### Phase 16 Definition of Done
 Replay bit-exact · divergence detection proven · determinism contract documented · no payload in traces.
