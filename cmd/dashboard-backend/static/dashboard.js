@@ -254,7 +254,12 @@
             var type = msg.type || '';
             var data = msg.data || msg;
             // Map backend WS message types to handlers
-            if (type === 'health' || type === 'health_update') updateHealthData(data);
+            if (type === 'health') updateHealthData(data);
+            // health_update carries one service's status change
+            // ({service, old_status, new_status}), not the system counts: read
+            // as counts it set Total/Healthy/Degraded/Unhealthy to 0 until the
+            // next poll. Fetch the server's counts instead.
+            else if (type === 'health_update') { refreshHealth(); refreshServices(); }
             else if (type === 'services') updateServicesData(data);
             else if (type === 'metrics') updateMetricsData(data);
             else if (type === 'stats') updateStatsData(data);
