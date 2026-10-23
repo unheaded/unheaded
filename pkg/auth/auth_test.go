@@ -433,6 +433,46 @@ func TestMultiAuthenticator_AllFail(t *testing.T) {
 
 // --- SkipAuthPaths Tests ---
 
+// TestSkipAuthPaths_NonCanonicalNotSkipped: a path that begins with a
+// skipped prefix but climbs out of it (dot segments, or the same encoded)
+// used to bypass auth; a router that cleans or decodes the path afterwards
+// then serves an authenticated resource to an anonymous caller.
+func TestSkipAuthPaths_NonCanonicalNotSkipped(t *testing.T) {
+	authMiddleware := Middleware(&mockAuthenticator{err: ErrUnauthenticated})
+	inner := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	handler := SkipAuthPaths(authMiddleware, "/health", "/ready", "/metrics")(inner)
+
+	for _, target := range []string{
+		"/health/../api/v1/admin",
+		"/health/%2e%2e/api/v1/admin",
+		"/health%2F..%2Fapi%2Fv1%2Fadmin",
+		"/metrics/./../api/v1/admin",
+		"/ready//../api/v1/admin",
+		"/h%65alth",
+	} {
+		for _, method := range []string{http.MethodGet, http.MethodConnect} {
+			req := httptest.NewRequest(method, target, nil)
+			rec := httptest.NewRecorder()
+			handler.ServeHTTP(rec, req)
+			if rec.Code != http.StatusUnauthorized {
+				t.Errorf("%s %s: status = %d, want 401", method, target, rec.Code)
+			}
+		}
+	}
+
+	// Canonical probe paths still skip auth, with or without a trailing slash.
+	for _, target := range []string{"/health", "/health/", "/health/db", "/ready", "/metrics"} {
+		req := httptest.NewRequest(http.MethodGet, target, nil)
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("GET %s: status = %d, want 200", target, rec.Code)
+		}
+	}
+}
+
 func TestSkipAuthPaths_HealthSkipped(t *testing.T) {
 	authMiddleware := Middleware(&mockAuthenticator{
 		identity: nil,

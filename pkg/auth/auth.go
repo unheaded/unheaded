@@ -18,6 +18,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
+	"path"
 	"strings"
 )
 
@@ -199,19 +201,38 @@ func (m *MultiAuthenticator) Authenticate(ctx context.Context, r *http.Request) 
 
 // SkipAuthPaths returns a middleware that skips auth for the given path prefixes.
 // Used to keep /health, /ready, and /metrics unauthenticated for Prometheus scraping.
+//
+// Only a canonical path is skipped. "/health/../api/v1/x", or the same with
+// %2e or %2F, starts with "/health/" but names another resource to any
+// router or file server that cleans or decodes the path after this check;
+// such a request goes through auth instead.
 func SkipAuthPaths(authMiddleware func(http.Handler) http.Handler, skipPrefixes ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		authed := authMiddleware(next)
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			for _, prefix := range skipPrefixes {
-				if r.URL.Path == prefix || strings.HasPrefix(r.URL.Path, prefix+"/") {
-					next.ServeHTTP(w, r)
-					return
+			if canonicalPath(r.URL) {
+				for _, prefix := range skipPrefixes {
+					if r.URL.Path == prefix || strings.HasPrefix(r.URL.Path, prefix+"/") {
+						next.ServeHTTP(w, r)
+						return
+					}
 				}
 			}
 			authed.ServeHTTP(w, r)
 		})
 	}
+}
+
+// canonicalPath reports whether u's path has no dot segments, no empty
+// segments and no non-default escaping (RawPath is set only then, e.g. for
+// %2F or %2e). A trailing slash is allowed.
+func canonicalPath(u *url.URL) bool {
+	if u.RawPath != "" {
+		return false
+	}
+	p := u.Path
+	c := path.Clean(p)
+	return p == c || p == c+"/"
 }
 
 // identityKeyType is an unexported type for the context key, preventing collisions.
