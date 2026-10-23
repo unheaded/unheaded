@@ -311,6 +311,52 @@ func (c *Cart) DrainEvents(rd *ringbuf.Reader) ([]Event, error) {
 	}
 }
 
+// IPv6MonadPacket builds Ethernet/IPv6/Hop-by-Hop(Monad)/UDP of total length
+// n (>= 86): the HbH header carries one Monad option (0x3E, 20 bytes, version
+// 1, valid CRC-16/CCITT) with qos_class qos and flags fl. This is the frame
+// shape qos-ebpf's token-bucket path needs, so benchmarks compare the native
+// and cartridge rate limiters on the same bytes.
+func IPv6MonadPacket(flowLabel uint32, sport, dport uint16, qos, fl uint8, n int) []byte {
+	const hdr = 14 + 40 + 24 + 8
+	if n < hdr {
+		n = hdr
+	}
+	p := make([]byte, n)
+	binary.BigEndian.PutUint16(p[12:], 0x86DD)
+	ip := p[14:]
+	binary.BigEndian.PutUint32(ip[0:], 6<<28|flowLabel&0xFFFFF)
+	binary.BigEndian.PutUint16(ip[4:], uint16(n-54)) // #nosec G115 -- small test frames
+	ip[6], ip[7] = 0, 64                             // next header HbH, hop limit
+	ip[8], ip[23] = 0xfd, 1                          // fd00::1
+	ip[24], ip[39] = 0xfd, 2                         // fd00::2
+	hbh := ip[40:]
+	hbh[0], hbh[1], hbh[2], hbh[3] = 17, 2, 0x3E, 20 // UDP next, (2+1)*8 = 24 bytes
+	m := hbh[4:24]
+	m[0], m[8], m[11] = 1, qos, fl
+	binary.BigEndian.PutUint16(m[18:], crc16CCITT(m[:18]))
+	udp := hbh[24:]
+	binary.BigEndian.PutUint16(udp[0:], sport)
+	binary.BigEndian.PutUint16(udp[2:], dport)
+	binary.BigEndian.PutUint16(udp[4:], uint16(n-78)) // #nosec G115 -- small test frames
+	return p
+}
+
+// crc16CCITT is CRC-16/CCITT-FALSE (poly 0x1021, init 0xFFFF), the Monad checksum.
+func crc16CCITT(b []byte) uint16 {
+	crc := uint16(0xFFFF)
+	for _, x := range b {
+		crc ^= uint16(x) << 8
+		for i := 0; i < 8; i++ {
+			if crc&0x8000 != 0 {
+				crc = crc<<1 ^ 0x1021
+			} else {
+				crc <<= 1
+			}
+		}
+	}
+	return crc
+}
+
 // Packet builders for tests and benchmarks (Ethernet + IPv4 + UDP/TCP).
 
 // IPv4Packet builds a minimal Ethernet/IPv4/L4 frame of total length n (>= 42 for UDP).

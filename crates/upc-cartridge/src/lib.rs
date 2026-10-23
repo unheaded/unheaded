@@ -460,3 +460,47 @@ pub fn validate(img: &Image) -> Result<Report, ValidateError> {
         syscalls,
     })
 }
+
+/// Assemble MBC source into a validated image, as `cart build` does.
+/// `max_insn` defaults to the stage cap (`N_PKT` / `N_TICK`).
+pub fn build_image(
+    stage: u8,
+    src: &str,
+    data: Vec<u32>,
+    max_insn: Option<u16>,
+    loop_bound: u16,
+) -> Result<Image, String> {
+    let rom = monad_mbc::assembler::assemble(src).map_err(|e| e.to_string())?;
+    if rom.is_empty() || rom.len() > ROM_WORDS_MAX as usize || data.len() > DATA_WORDS_MAX as usize
+    {
+        return Err(format!(
+            "rom {} words (1..={ROM_WORDS_MAX}), data {} words (<={DATA_WORDS_MAX})",
+            rom.len(),
+            data.len()
+        ));
+    }
+    let cap = if stage == STAGE_XDP { N_PKT } else { N_TICK } as u16;
+    let img = Image {
+        stage,
+        max_insn: max_insn.unwrap_or(cap),
+        entry: 0,
+        loop_bound,
+        flags: 0,
+        rom,
+        data,
+    };
+    validate(&img).map_err(|e| e.to_string())?;
+    Ok(img)
+}
+
+/// Little-endian words of a DATA blob (a whole number of words).
+pub fn data_words(b: &[u8]) -> Result<Vec<u32>, String> {
+    if !b.len().is_multiple_of(4) {
+        return Err(format!("{} bytes is not a whole number of words", b.len()));
+    }
+    Ok(b.as_chunks::<4>()
+        .0
+        .iter()
+        .map(|c| u32::from_le_bytes(*c))
+        .collect())
+}

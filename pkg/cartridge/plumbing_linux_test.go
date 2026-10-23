@@ -39,11 +39,13 @@ func cartBin(t *testing.T) string {
 	return p
 }
 
-// buildCart assembles asm with `cart build` and returns the image bytes.
-func buildCart(t *testing.T, asm, stage string) []byte {
+// buildCart assembles asm with `cart build` and returns the image bytes;
+// extra is passed through (e.g. "--data", path).
+func buildCart(t *testing.T, asm, stage string, extra ...string) []byte {
 	t.Helper()
 	out := filepath.Join(t.TempDir(), "x.cart")
-	cmd := exec.Command(cartBin(t), "build", "--stage", stage, "--asm", asm, "-o", out) // #nosec G204 -- test-only, fixed binary
+	args := append([]string{"build", "--stage", stage, "--asm", asm, "-o", out}, extra...)
+	cmd := exec.Command(cartBin(t), args...) // #nosec G204 -- test-only, fixed binary
 	if b, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("cart build %s: %v\n%s", asm, err, b)
 	}

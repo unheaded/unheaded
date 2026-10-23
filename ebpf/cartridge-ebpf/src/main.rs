@@ -319,17 +319,31 @@ fn code_step(c: u32) -> Step {
     }
 }
 
+/// Instructions per bpf_loop iteration. The per-iteration callback cost was
+/// the largest share of an interpreted instruction (S5 Phase 13 Step 340:
+/// 8.1 ns for a NOP with one step per callback; 4.3 ns with 4; 3.7 ns with 8,
+/// which doubles the verified callback for little), so each iteration runs up
+/// to STEPS_PER_CB steps. N_PKT and N_TICK are multiples of it, and `run_one`
+/// enforces `max_insn` itself, so the instruction budget is unchanged.
+const STEPS_PER_CB: u32 = 4;
+const _: () = assert!(N_PKT as u32 % STEPS_PER_CB == 0 && N_TICK as u32 % STEPS_PER_CB == 0);
+
 #[inline(never)]
 extern "C" fn cart_loop_cb(_index: u64, ctx: *mut core::ffi::c_void) -> i64 {
     let c = unsafe { &mut *(ctx as *mut LoopCtx) };
     let st = unsafe { &mut *c.st };
-    match run_one(st, &c.cfg, &c.rom, &c.data, &mut c.io) {
-        Step::Continue => 0,
-        done => {
-            c.result = step_code(done);
-            1
+    let mut k = 0;
+    while k < STEPS_PER_CB {
+        match run_one(st, &c.cfg, &c.rom, &c.data, &mut c.io) {
+            Step::Continue => {}
+            done => {
+                c.result = step_code(done);
+                return 1;
+            }
         }
+        k += 1;
     }
+    0
 }
 
 /// Run a slot for at most `n` instructions (`N_PKT` or `N_TICK`).
@@ -346,7 +360,7 @@ fn drive(st: &mut CartState, cfg: &CartCfg, rom: SlotRom, data: SlotData, io: Io
     };
     let rc = unsafe {
         aya_ebpf::helpers::gen::bpf_loop(
-            n,
+            n / STEPS_PER_CB,
             cart_loop_cb as *mut core::ffi::c_void,
             &mut c as *mut LoopCtx as *mut core::ffi::c_void,
             0,
