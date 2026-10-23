@@ -567,6 +567,18 @@ func (s *Server) refuseIfReadOnly(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
+// storeReadFailed answers a failed store lookup: 404 when the task is not
+// there, 500 when the store could not say. Every lookup error used to be a
+// 404, so a database that was down reported each task as missing.
+func storeReadFailed(w http.ResponseWriter, taskID string, err error) {
+	if errors.Is(err, ErrStoreNotFound) {
+		http.Error(w, "Task not found", http.StatusNotFound)
+		return
+	}
+	log.Error().Err(err).Str("task_id", taskID).Msg("task store read failed")
+	http.Error(w, "Internal server error", http.StatusInternalServerError)
+}
+
 // handleTasks routes task operations (GET, POST, PUT, DELETE)
 func (s *Server) handleTasks(w http.ResponseWriter, r *http.Request) {
 	if s.refuseIfReadOnly(w, r) {
@@ -617,9 +629,16 @@ func (s *Server) handleGetTasks(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Next: SQLite/Postgres store (L1 persistence)
+	// Next: SQLite/Postgres store (L1 persistence). A read error used to be
+	// skipped like an empty store, and the board answered 200 with no tasks.
 	if count == 0 && s.store != nil {
-		if storeTasks, err := s.store.GetAllTasks(); err == nil && len(storeTasks) > 0 {
+		storeTasks, err := s.store.GetAllTasks()
+		if err != nil {
+			log.Error().Err(err).Msg("task store read failed")
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
+		if len(storeTasks) > 0 {
 			tasks = storeTasks
 			count = len(storeTasks)
 		}
@@ -687,7 +706,14 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		now := time.Now()
 		task.CreatedAt = now
 		task.UpdatedAt = now
-		if existing, _ := s.store.GetTask(task.ID); existing != nil {
+		// SaveTask upserts: a lookup error taken for "absent" let a create
+		// overwrite an existing task.
+		existing, err := s.store.GetTask(task.ID)
+		if err != nil && !errors.Is(err, ErrStoreNotFound) {
+			storeReadFailed(w, task.ID, err)
+			return
+		}
+		if existing != nil {
 			http.Error(w, "task already exists", http.StatusConflict)
 			return
 		}
@@ -755,7 +781,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		// Standalone + SQLite persistence
 		existing, err := s.store.GetTask(task.ID)
 		if err != nil {
-			http.Error(w, "task not found", http.StatusNotFound)
+			storeReadFailed(w, task.ID, err)
 			return
 		}
 		task.CreatedAt = existing.CreatedAt
@@ -924,7 +950,7 @@ func (s *Server) handleGetTaskByID(w http.ResponseWriter, r *http.Request, taskI
 	if s.store != nil {
 		task, err := s.store.GetTask(taskID)
 		if err != nil {
-			http.Error(w, "Task not found", http.StatusNotFound)
+			storeReadFailed(w, taskID, err)
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -966,7 +992,7 @@ func (s *Server) handleUpdateTaskByID(w http.ResponseWriter, r *http.Request, ta
 	} else if s.store != nil {
 		t, err := s.store.GetTask(taskID)
 		if err != nil {
-			http.Error(w, "Task not found", http.StatusNotFound)
+			storeReadFailed(w, taskID, err)
 			return
 		}
 		task = t
