@@ -9,6 +9,8 @@ import (
 	"sync"
 
 	"github.com/cilium/ebpf"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // Backend abstracts BPF map operations so services can run against
@@ -214,4 +216,11 @@ func IsMockMode() bool {
 		return true // safe default: mock
 	}
 	return globalBackend.Mode() == "mock"
+}
+
+// errBPFNotImplemented answers a gRPC call --mode=bpf cannot serve yet.
+// Until 2026-10-23 these calls returned the mock data while /mode said
+// "bpf".
+func errBPFNotImplemented(op string) error {
+	return status.Errorf(codes.Unimplemented, "%s: not implemented in bpf mode; --mode=mock serves sample data", op)
 }

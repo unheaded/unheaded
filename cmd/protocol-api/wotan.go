@@ -74,9 +74,7 @@ func (s *wotanServer) readBPF(req *pb.ReadRequest) (*pb.ReadResponse, error) {
 	// 2. Read the 40-byte value
 	// 3. Parse into MemorySlot proto
 	// 4. Return with found=true/false
-
-	// For now, fall back to mock
-	return s.readMock(req)
+	return nil, errBPFNotImplemented("wotan read")
 }
 
 // Write stores the 40-byte memory slot for a flow
@@ -134,9 +132,7 @@ func (s *wotanServer) writeBPF(req *pb.WriteRequest) (*pb.WriteResponse, error) 
 	// 3. Open or create pinned BPF map at /sys/fs/bpf/unheaded/wotan/[flow_label]
 	// 4. Write with atomic guarantees
 	// 5. Return written_at timestamp
-
-	// For now, fall back to mock
-	return s.writeMock(req)
+	return nil, errBPFNotImplemented("wotan write")
 }
 
 // Delete removes a memory slot (development/testing only)

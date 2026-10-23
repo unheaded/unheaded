@@ -215,9 +215,7 @@ func (s *sophiaServer) listBPF(req *pb.DictionaryListRequest) (*pb.DictionaryLis
 	// 2. Iterate through all keys (dictionary IDs)
 	// 3. Deserialize the DictionaryEntry values from BPF
 	// 4. Return paginated results
-
-	// For now, return mock data to indicate BPF mode is active
-	return s.listMock(req)
+	return nil, errBPFNotImplemented("sophia list")
 }
 
 // Get retrieves a specific dictionary by ID with all its entries
@@ -255,9 +253,7 @@ func (s *sophiaServer) getBPF(req *pb.DictionaryGetRequest) (*pb.DictionaryGetRe
 	// 2. Lookup the dictionary by ID
 	// 3. Deserialize the value
 	// 4. Return with found=true/false
-
-	// For now, fall back to mock
-	return s.getMock(req)
+	return nil, errBPFNotImplemented("sophia get")
 }
 
 // UpdateDictionary updates an entry in a dictionary (for development/testing)

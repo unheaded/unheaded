@@ -17,6 +17,8 @@ import (
 	pb "unheaded/proto/unheaded/v1"
 
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 // ---------------------------------------------------------------------------
@@ -1378,6 +1380,7 @@ func TestAnamnesisPublishEventBroadcast(t *testing.T) {
 }
 
 func TestAnamnesisQueryPagination(t *testing.T) {
+	ensureMockMode(t) // the mock answers only in mock mode
 	as := &anamnesisServer{
 		mockEventLog: make([]*pb.Event, 0),
 		subscribers:  make([]chan *pb.Event, 0),
@@ -1438,6 +1441,7 @@ func TestAnamnesisQueryPagination(t *testing.T) {
 }
 
 func TestAnamnesisQueryTimeRange(t *testing.T) {
+	ensureMockMode(t) // the mock answers only in mock mode
 	as := &anamnesisServer{
 		mockEventLog: make([]*pb.Event, 0),
 		subscribers:  make([]chan *pb.Event, 0),
@@ -1839,122 +1843,40 @@ func TestFullMiddlewareChain(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// Wotan readBPF/writeBPF paths (fall back to mock)
+// BPF mode: not implemented, and says so (it used to serve the mock data)
 // ---------------------------------------------------------------------------
 
-func TestWotanBPFModeFallback(t *testing.T) {
-	ensureMockMode(t)
-	globalMockMode = false // trigger BPF path, which falls back to mock
-	ctx := context.Background()
-
-	ws := &wotanServer{mockStorage: make(map[uint32]*pb.MemorySlot)}
-
-	// Read via BPF path
-	readResp, err := ws.Read(ctx, &pb.ReadRequest{FlowLabel: 42})
-	if err != nil {
-		t.Fatalf("Read (BPF fallback) error: %v", err)
-	}
-	if readResp.Found {
-		t.Error("Read (BPF fallback) should return found=false for empty storage")
-	}
-
-	// Write via BPF path
-	state := make([]byte, 32)
-	writeResp, err := ws.Write(ctx, &pb.WriteRequest{
-		FlowLabel:      42,
-		StateData:      state,
-		SequenceNumber: 1,
-	})
-	if err != nil {
-		t.Fatalf("Write (BPF fallback) error: %v", err)
-	}
-	if !writeResp.Success {
-		t.Error("Write (BPF fallback) should succeed")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Sophia BPF mode fallback
-// ---------------------------------------------------------------------------
-
-func TestSophiaBPFModeFallback(t *testing.T) {
-	ensureMockMode(t)
-	globalMockMode = false
-	ctx := context.Background()
-
-	ss := &sophiaServer{mockDictionaries: initializeMockDictionaries()}
-
-	listResp, err := ss.List(ctx, &pb.DictionaryListRequest{Limit: 100})
-	if err != nil {
-		t.Fatalf("List (BPF fallback) error: %v", err)
-	}
-	if listResp.Total != 3 {
-		t.Errorf("total = %d, want 3", listResp.Total)
-	}
-
-	getResp, err := ss.Get(ctx, &pb.DictionaryGetRequest{DictionaryId: 1})
-	if err != nil {
-		t.Fatalf("Get (BPF fallback) error: %v", err)
-	}
-	if !getResp.Found {
-		t.Error("Get (BPF fallback) should find dict 1")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Flow BPF mode fallback
-// ---------------------------------------------------------------------------
-
-func TestFlowBPFModeFallback(t *testing.T) {
+func TestBPFModeIsUnimplemented(t *testing.T) {
 	ensureMockMode(t)
 	resetSingletons(t)
 	globalMockMode = false
 	ctx := context.Background()
 
+	ws := &wotanServer{mockStorage: make(map[uint32]*pb.MemorySlot)}
+	ss := &sophiaServer{mockDictionaries: initializeMockDictionaries()}
 	fs := &flowServer{mockFlows: make(map[uint32]*pb.FlowState)}
+	as := &anamnesisServer{mockEventLog: make([]*pb.Event, 0), subscribers: make([]chan *pb.Event, 0)}
 
-	// List via BPF path (falls back to mock)
-	listResp, err := fs.List(ctx, nil)
-	if err != nil {
-		t.Fatalf("List (BPF fallback) error: %v", err)
+	calls := map[string]func() error{
+		"wotan read": func() error { _, err := ws.Read(ctx, &pb.ReadRequest{FlowLabel: 42}); return err },
+		"wotan write": func() error {
+			_, err := ws.Write(ctx, &pb.WriteRequest{FlowLabel: 42, StateData: make([]byte, 32)})
+			return err
+		},
+		"sophia list": func() error { _, err := ss.List(ctx, &pb.DictionaryListRequest{Limit: 100}); return err },
+		"sophia get":  func() error { _, err := ss.Get(ctx, &pb.DictionaryGetRequest{DictionaryId: 1}); return err },
+		"flow list":   func() error { _, err := fs.List(ctx, nil); return err },
+		"flow get":    func() error { _, err := fs.GetState(ctx, &pb.ReadRequest{FlowLabel: 42}); return err },
+		"flow inject": func() error {
+			_, err := fs.Inject(ctx, &pb.InjectRequest{FlowLabel: 42, Payload: []byte("x")})
+			return err
+		},
+		"anamnesis query": func() error { _, err := as.Query(ctx, &pb.EventQuery{Limit: 100}); return err },
 	}
-	if listResp.Total != 0 {
-		t.Errorf("total = %d, want 0", listResp.Total)
-	}
-
-	// Inject via BPF path (falls back to mock)
-	injectResp, err := fs.Inject(ctx, &pb.InjectRequest{
-		FlowLabel: 42,
-		Payload:   []byte("test"),
-	})
-	if err != nil {
-		t.Fatalf("Inject (BPF fallback) error: %v", err)
-	}
-	if !injectResp.Success {
-		t.Error("Inject (BPF fallback) should succeed")
-	}
-}
-
-// ---------------------------------------------------------------------------
-// Anamnesis BPF mode fallback
-// ---------------------------------------------------------------------------
-
-func TestAnamnesisBPFModeFallback(t *testing.T) {
-	ensureMockMode(t)
-	globalMockMode = false
-	ctx := context.Background()
-
-	as := &anamnesisServer{
-		mockEventLog: make([]*pb.Event, 0),
-		subscribers:  make([]chan *pb.Event, 0),
-	}
-
-	resp, err := as.Query(ctx, &pb.EventQuery{Limit: 100})
-	if err != nil {
-		t.Fatalf("Query (BPF fallback) error: %v", err)
-	}
-	if resp.TotalCount != 0 {
-		t.Errorf("total_count = %d, want 0", resp.TotalCount)
+	for name, call := range calls {
+		if err := call(); status.Code(err) != codes.Unimplemented {
+			t.Errorf("%s in bpf mode: err = %v, want Unimplemented", name, err)
+		}
 	}
 }
 

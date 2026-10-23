@@ -186,9 +186,7 @@ func (s *anamnesisServer) queryBPF(req *pb.EventQuery) (*pb.EventQueryResponse, 
 	// 2. Parse protobuf-encoded events
 	// 3. Apply filters (time range, flow labels, event types)
 	// 4. Return paginated results
-
-	// For now, fall back to mock
-	return s.queryMock(req)
+	return nil, errBPFNotImplemented("anamnesis query")
 }
 
 // Stream returns a continuous stream of events
@@ -297,9 +295,7 @@ func (s *anamnesisServer) streamBPF(req *pb.StreamRequest, stream grpc.ServerStr
 	// 2. Read protobuf-encoded events as they arrive
 	// 3. Apply filters
 	// 4. Send via gRPC stream
-
-	// For now, fall back to mock
-	return s.streamMock(req, stream)
+	return errBPFNotImplemented("anamnesis stream")
 }
 
 // PublishEvent adds a new event to the log and broadcasts to subscribers (development)

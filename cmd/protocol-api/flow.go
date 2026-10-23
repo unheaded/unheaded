@@ -69,13 +69,14 @@ func (s *flowServer) listBPF() (*pb.FlowListResponse, error) {
 	// 1. Open the pinned BPF map for flows
 	// 2. Iterate through all entries
 	// 3. Return paginated results
-
-	// For now, fall back to mock
-	return s.listMock()
+	return nil, errBPFNotImplemented("flow list")
 }
 
 // GetState retrieves the state of a specific flow
 func (s *flowServer) GetState(ctx context.Context, req *pb.ReadRequest) (*pb.FlowState, error) {
+	if !globalMockMode {
+		return nil, errBPFNotImplemented("flow get")
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -158,9 +159,7 @@ func (s *flowServer) injectBPF(req *pb.InjectRequest) (*pb.InjectResponse, error
 	// 1. Create or lookup the flow in BPF maps
 	// 2. Queue the packet for transmission
 	// 3. Return packet ID and injection timestamp
-
-	// For now, fall back to mock
-	return s.injectMock(req)
+	return nil, errBPFNotImplemented("flow inject")
 }
 
 // CreateFlow creates a new flow with given parameters
