@@ -505,8 +505,14 @@ const defaultQueryTimeout = 10 * time.Second
 // queryEnded reports whether a GetMessages stream's Recv error is the normal
 // end of the query (the stream ended, the query timeout expired, or the
 // caller cancelled) rather than Wotan failing it.
+//
+// The query timeout travels to Wotan as the RPC deadline, and Wotan may hit
+// it first: it resets the stream and the client sees DeadlineExceeded while
+// its own queryCtx has not fired yet. That is the same normal end, not a
+// failure (TestGRPCClient_GetMessages_AfterSeq failed 8 runs in 20 on it).
 func queryEnded(ctx, queryCtx context.Context, err error) bool {
-	return errors.Is(err, io.EOF) || queryCtx.Err() != nil || ctx.Err() != nil
+	return errors.Is(err, io.EOF) || queryCtx.Err() != nil || ctx.Err() != nil ||
+		status.Code(err) == codes.DeadlineExceeded
 }
 
 func queryTimeoutOr(d time.Duration) time.Duration {
