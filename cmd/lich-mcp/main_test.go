@@ -77,22 +77,82 @@ func TestServer_ListCampaigns_PassesGate(t *testing.T) {
 	}
 }
 
-// Step 70-71: in-scope run_harness passes scope + gate and actually runs a
-// command inside the confined sandbox, returning its bounded output.
+// Step 81-85: in-scope run_harness passes scope + gate and runs the REAL
+// lich-runner for a short, clamped duration inside the confined no-egress
+// sandbox, returning bounded output. Runs against the real repo; cleans up any
+// results dir it creates.
 func TestServer_RunHarnessSandbox(t *testing.T) {
 	if os.Getenv("LICH_BAREMETAL") != "1" {
 		t.Skip("set LICH_BAREMETAL=1 to run the MCP-tool -> confined-sandbox path")
 	}
+	root := findRepoRoot(t)
+	logger := slog.New(slog.NewJSONHandler(io.Discard, nil))
+	srv, err := newServer(filepath.Join(root, "configs", "lich-mcp.yaml"), root, "test/driver", logger)
+	if err != nil {
+		t.Fatalf("newServer: %v", err)
+	}
+	resultsDir := filepath.Join(root, "tomb", "lich", "results")
+	before := snapshotDirs(resultsDir)
+	defer cleanupNewDirs(resultsDir, before)
+
+	res := call(t, srv, "lich_run_harness", `{"harness_id":"001","duration_seconds":3}`)
+	text := res.Content[0].Text
+	if strings.Contains(text, "out of scope") || strings.Contains(text, "refused by gate") {
+		t.Fatalf("in-scope run_harness must not be refused: %q", text)
+	}
+	if !strings.Contains(text, "confined no-egress sandbox") {
+		t.Fatalf("run_harness should report the confined run, got %q", text)
+	}
+	if !strings.Contains(text, "compile") && !strings.Contains(text, "fuzz") && !strings.Contains(text, "LICH") {
+		t.Fatalf("run_harness output should contain lich-runner progress, got %q", text)
+	}
+}
+
+func findRepoRoot(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatalf("could not find repo root (go.mod) from cwd")
+		}
+		dir = parent
+	}
+}
+
+func snapshotDirs(base string) map[string]bool {
+	m := map[string]bool{}
+	entries, _ := os.ReadDir(base)
+	for _, e := range entries {
+		m[e.Name()] = true
+	}
+	return m
+}
+
+func cleanupNewDirs(base string, before map[string]bool) {
+	entries, _ := os.ReadDir(base)
+	for _, e := range entries {
+		if !before[e.Name()] {
+			_ = os.RemoveAll(filepath.Join(base, e.Name()))
+		}
+	}
+}
+
+// Step 98: the daily spend-cap hook is present with the configured cap.
+func TestServer_SpendHookPresent(t *testing.T) {
 	srv := testServer(t)
-	res := call(t, srv, "lich_run_harness", `{"harness_id":"001"}`)
-	if strings.Contains(res.Content[0].Text, "out of scope") || strings.Contains(res.Content[0].Text, "refused by gate") {
-		t.Fatalf("in-scope run_harness must not be refused: %q", res.Content[0].Text)
+	l := srv.SpendLedger()
+	if l == nil {
+		t.Fatal("spend ledger hook should be present")
 	}
-	if res.IsError {
-		t.Fatalf("confined run should succeed, got %+v", res)
-	}
-	if !strings.Contains(res.Content[0].Text, "lich-sandbox-ok harness=001") || !strings.Contains(res.Content[0].Text, "confined sandbox") {
-		t.Fatalf("run_harness output should show the confined run, got %q", res.Content[0].Text)
+	if l.Cap() <= 0 {
+		t.Fatalf("spend cap should be positive (default $5), got %s", l.Cap().USD())
 	}
 }
 

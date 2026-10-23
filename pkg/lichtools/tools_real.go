@@ -384,7 +384,7 @@ func appendToRegister(path, body, entry string) error {
 	if !strings.HasSuffix(body, "\n") {
 		body += "\n"
 	}
-	// #nosec G306 -- register is a tracked, non-secret triage file
+	// #nosec G703 G306 -- path is the operator-configured register (cfg.RegisterAbs), never model-controlled; it is a tracked, non-secret triage file
 	return os.WriteFile(path, []byte(body+entry), 0o644)
 }
 

@@ -77,10 +77,10 @@ func main() {
 
 	logger.Info("lich-mcp ready", "transport", "stdio", "config", *cfgPath, "scope_prefix", srv.provider.Scope().SandboxPrefix())
 	err = srv.serve(ctx, os.Stdin, os.Stdout)
-	// On any shutdown (EOF, signal), trip the kill switch so no sandbox is left
-	// running.
+	// On any shutdown (clean EOF, signal, error), trip the kill switch so no
+	// sandbox is left running.
 	srv.killSwitch.Trip("server shutdown")
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
+	if err != nil && !errors.Is(err, context.Canceled) {
 		logger.Error("lich-mcp serve", "err", err)
 		os.Exit(1)
 	}
@@ -93,9 +93,14 @@ type server struct {
 	gate       claudebridge.Gate
 	auditor    claudebridge.Auditor
 	killSwitch *lichtools.KillSwitch
+	spend      *claudebridge.Ledger // daily $ cap hook for the Claude driver (later phase)
 	emittedBy  string
 	log        *slog.Logger
 }
+
+// SpendLedger exposes the daily spend cap so the Claude driver (a later phase)
+// can reserve against it before each model call.
+func (s *server) SpendLedger() *claudebridge.Ledger { return s.spend }
 
 func newServer(cfgPath, projectRoot, emittedBy string, logger *slog.Logger) (*server, error) {
 	cfg, err := lichtools.LoadConfig(cfgPath, projectRoot)
@@ -134,11 +139,25 @@ func newServer(cfgPath, projectRoot, emittedBy string, logger *slog.Logger) (*se
 	})
 	provider.WithConfinement(sandbox, sem, ks)
 
+	// Spend-cap hook (ADR-104): the daily dollar cap the Claude driver (a later
+	// phase) reserves against before each model call. It is in-memory here (no
+	// model calls happen in this server); the driver phase wires a persistent
+	// ledger path. Local-model calls are free and skip it. Not reached in P0–P3.
+	capNano, cerr := claudebridge.USDToNano(cfg.DailyCapUSD)
+	if cerr != nil {
+		return nil, fmt.Errorf("lich-mcp: daily cap: %w", cerr)
+	}
+	spend, serr := claudebridge.NewLedger("", capNano)
+	if serr != nil {
+		return nil, fmt.Errorf("lich-mcp: spend ledger: %w", serr)
+	}
+
 	return &server{
 		provider:   provider,
 		gate:       gate,
 		auditor:    claudebridge.SlogAuditor{Log: logger},
 		killSwitch: ks,
+		spend:      spend,
 		emittedBy:  emittedBy,
 		log:        logger,
 	}, nil
@@ -191,6 +210,9 @@ func (s *server) serve(ctx context.Context, r io.Reader, w io.Writer) error {
 		}
 		line, err := readLine(br, maxMessageBytes)
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				return nil // clean shutdown: the client closed stdin
+			}
 			return err
 		}
 		if len(line) == 0 {

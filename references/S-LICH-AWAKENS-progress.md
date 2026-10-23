@@ -70,4 +70,24 @@ no-egress with a test that must fail to reach the network.
 - Commits: sandbox `b1fa760f`, killswitch `7addd661`, semaphore `e7de6656`, red-team
   `ba5b3ccb`, run_harness-confined `cdd19d9b`.
 
-## Phase 3 — Lich tools: real behaviour through the gate — (in progress)
+## Phase 3 — Lich tools: real behaviour through the gate — COMPLETE (2026-10-23)
+
+- All six tools filled with real behaviour (`pkg/lichtools/tools_real.go`):
+  list/show read campaigns from tomb/lich (harnesses + LICH-* dirs, cite ADR-062);
+  run_harness runs the REAL lich-runner.sh confined + clamped + budgeted (offline go
+  build: GOCACHE→tmpfs, module cache RO, GOPROXY=off; RLIMIT_AS skipped for the go
+  toolchain, bounded by fit+wall+pids+cpu+semaphore); read_crash returns hex+size+sha256
+  and never executes; triage wraps crash-triage.sh in-sandbox → severity + dedup key;
+  file_finding writes a strict-schema-valid ADR-098 entry (dedup/repro in verify text),
+  dedups (update-not-duplicate), needs-regen marker, NEVER auto-publishes, YAML-injection-safe.
+- Bare-metal: run_harness compiled + fuzzed harness 001 confined (exit 0, no egress).
+  (The fuzzer surfaced a crash in the monad-wire harness — pre-existing harness behaviour,
+  recorded as baseline, NOT filed: findings are never auto-published.)
+- Per-call audit (ADR-104 shape) at the server; daily spend-cap hook (`claudebridge.Ledger`)
+  present for the Claude driver (later phase; no model calls here).
+- BlackMage tool-surface review: read_crash path-escape, triage out-of-tree dir, file_finding
+  YAML injection + out-of-register writes — all refused/contained (tests).
+- Register still strict-parses after a filed finding (mirrors cmd/compliance-evidence's
+  strict decode); file_finding is exercised only against temp registers — the REAL
+  compliance register is never written during this sprint (no real crash to file).
+- Commits: real tools `b493b822`.
