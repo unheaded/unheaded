@@ -287,7 +287,7 @@ func (c *TopicStreamClient) Publish(ctx context.Context, topic string, payload [
 	req := &chatpb.TopicPublishRequest{
 		Topic:    topic,
 		Payload:  payload,
-		Metadata: c.metadata,
+		Metadata: publishMetadata(c.metadata, sub.DisplayName),
 	}
 
 	_, err := c.client.PublishTopic(ctx, req)
@@ -306,6 +306,25 @@ func (c *TopicStreamClient) Publish(ctx context.Context, topic string, payload [
 
 	c.recordSuccess()
 	return nil
+}
+
+// publishMetadata is the metadata for a publish by a subscriber that joined
+// as displayName. Wotan authorizes a gRPC publish without a sender_id by
+// metadata display_name against topics.auto_approve, defaulting to
+// "service" when it is absent; it was always absent, so every service
+// published as "service" whatever name it had joined under, and the
+// allowlist entry for its own name played no part. A display_name set by
+// WithMetadata is kept.
+func publishMetadata(md map[string]string, displayName string) map[string]string {
+	if displayName == "" || md["display_name"] != "" {
+		return md
+	}
+	out := make(map[string]string, len(md)+1)
+	for k, v := range md {
+		out[k] = v
+	}
+	out["display_name"] = displayName
+	return out
 }
 
 // fallbackPublish publishes over the HTTP fallback. The HTTP client keeps

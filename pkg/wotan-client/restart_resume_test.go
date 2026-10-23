@@ -728,6 +728,68 @@ func TestTopicStreamClient_WithTLSUsesTLS(t *testing.T) {
 	}
 }
 
+// allowlistServer authorizes publishes the way Wotan does for a request
+// without sender_id: metadata display_name (default "service") must be on
+// its allowlist.
+type allowlistServer struct {
+	chatpb.UnimplementedTopicStreamServer
+	allow map[string]bool
+	mu    sync.Mutex
+	names []string
+}
+
+func (s *allowlistServer) PublishTopic(_ context.Context, req *chatpb.TopicPublishRequest) (*chatpb.TopicPublishResponse, error) {
+	name := req.Metadata["display_name"]
+	if name == "" {
+		name = "service"
+	}
+	s.mu.Lock()
+	s.names = append(s.names, name)
+	s.mu.Unlock()
+	if !s.allow[name] {
+		return nil, status.Error(codes.PermissionDenied, "publisher not approved")
+	}
+	return &chatpb.TopicPublishResponse{}, nil
+}
+
+// A gRPC publish carries the name the client joined under. It carried no
+// display_name, so Wotan authorized every TopicStreamClient publish as
+// "service": the allowlist entry for "trace-collector" played no part, and
+// taking the catch-all "service" off the list would have refused every
+// gRPC publish.
+func TestTopicStreamClient_PublishCarriesDisplayName(t *testing.T) {
+	srv := &allowlistServer{allow: map[string]bool{"trace-collector": true, "custom": true}}
+	lis := bufconn.Listen(1024 * 1024)
+	gs := grpc.NewServer()
+	chatpb.RegisterTopicStreamServer(gs, srv)
+	go func() { _ = gs.Serve(lis) }()
+	t.Cleanup(gs.Stop)
+	client, err := newTopicStreamClientWithDialer(lis)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { client.Close() })
+	ctx := context.Background()
+	client.Subscribe(ctx, "traces.flow", "trace-collector")
+	if err := client.Publish(ctx, "traces.flow", []byte("x")); err != nil {
+		t.Fatalf("publish as trace-collector: %v", err)
+	}
+	if len(client.metadata) != 0 {
+		t.Errorf("publish wrote into the client's shared metadata: %v", client.metadata)
+	}
+
+	// An explicit display_name (WithMetadata) wins.
+	client.metadata["display_name"] = "custom"
+	if err := client.Publish(ctx, "traces.flow", []byte("y")); err != nil {
+		t.Fatalf("publish with explicit display_name: %v", err)
+	}
+	srv.mu.Lock()
+	defer srv.mu.Unlock()
+	if fmt.Sprint(srv.names) != "[trace-collector custom]" {
+		t.Errorf("publishers %v, want [trace-collector custom]", srv.names)
+	}
+}
+
 // A quiet stream that stays up is healthy: its failures do not carry over
 // to the next blip. Only a delivered message used to reset the count, so a
 // stream on a quiet topic tripped after maxRetries Wotan restarts spread
