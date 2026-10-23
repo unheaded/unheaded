@@ -1272,6 +1272,52 @@
     },
     {
       "type": "cryptographic-asset",
+      "bom-ref": "db/postgresql.pg18.conf.d/10-pq-groups.conf:19:postgres-tls",
+      "name": "PostgreSQL TLS settings",
+      "cryptoProperties": {
+        "assetType": "protocol",
+        "protocolProperties": {
+          "type": "tls",
+          "version": "1.3"
+        }
+      },
+      "properties": [
+        {
+          "name": "unheaded:cnsa2",
+          "value": "no"
+        },
+        {
+          "name": "unheaded:detail",
+          "value": "group list for PG 18 ssl_groups (or PG <= 17 ssl_ecdh_curve, one curve)"
+        },
+        {
+          "name": "unheaded:kex-groups",
+          "value": "X25519MLKEM768,X25519,prime256v1"
+        },
+        {
+          "name": "unheaded:link-state",
+          "value": "enabled"
+        },
+        {
+          "name": "unheaded:owner",
+          "value": "first-party"
+        },
+        {
+          "name": "unheaded:pq-status",
+          "value": "hybrid"
+        },
+        {
+          "name": "unheaded:scanner",
+          "value": "config"
+        },
+        {
+          "name": "unheaded:source",
+          "value": "db/postgresql.pg18.conf.d/10-pq-groups.conf:19"
+        }
+      ]
+    },
+    {
+      "type": "cryptographic-asset",
       "bom-ref": "docker-compose.yml:132:proxy-image",
       "name": "Traefik edge (traefik:v3.3.7)",
       "cryptoProperties": {
