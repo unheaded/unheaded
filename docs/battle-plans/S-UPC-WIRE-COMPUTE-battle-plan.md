@@ -724,7 +724,7 @@ Host-only change (eBPF untouched, verifier unchanged) · Go `-race` + Rust tests
   - S5 2026-10-23: Existing `TestDriftSink_*` cover it against a fake publisher; no Wotan TODO left in `main.go`.
 - [x] **Step 167** [B][TEST] ~2m: `cd "$PROJECT_ROOT" && go test -race ./cmd/heimdall-daemon/... && go vet ./cmd/heimdall-daemon/...`
 - [x] **Step 168** [V] ~30s: Green; `grep -n TODO "$PROJECT_ROOT/cmd/heimdall-daemon/main.go"` empty; `go.mod` unchanged
-  - S5 2026-10-23: `go test -race` + `go vet` (linux, darwin) green; no TODO; `go.mod` unchanged; gosec clean.
+  - S5 2026-10-23: `go test -race` + `go vet` (linux, darwin) green; no TODO; `go.mod` unchanged; gosec clean (pinned `tools/gosec` build, re-checked in Phase 12).
 - [x] **Step 169** [C] ~1m: **COMMIT CHECKPOINT**
   - S5 2026-10-23: Nothing new to commit (Sprint 1 shipped the code).
   ```bash
@@ -1169,36 +1169,57 @@ Verifier gate passed with numbers · Doom/xv6 objects unchanged · load-tested i
 **Time**: ~3 h
 **Agent**: Developer
 
-- [ ] **Step 307** [R] ~10m: Sophia service API for storing/reading knowledge entries (`Learn`/`Query`) and how other code writes Sophia BPF maps (`services/sophia/policy_map.go`)
-- [ ] **Step 308** [DECIDE] ~5m: Registry backing for this sprint
+- [x] **Step 307** [R] ~10m: Sophia service API for storing/reading knowledge entries (`Learn`/`Query`) and how other code writes Sophia BPF maps (`services/sophia/policy_map.go`)
+  - S5 2026-10-23: Sophia stores knowledge entries via `POST/GET /api/v1/knowledge` (subject/predicate/object + metadata map, `{success,data:{knowledge}}` envelope, service auth); `policy_map.go` is the BPF-map side, not needed here. Gungnir: `SignFor`, `Verify`, `LoadSeedFile`, `LoadPublicKeyFile`, `KeyID`.
+- [x] **Step 308** [DECIDE] ~5m: Registry backing for this sprint
+  - S5 2026-10-23: Decided per recommendation: Sophia knowledge entries (subject `x-cartridge/<name>`, predicate `cartridge.record`, object = sha256, record in metadata) when `--sophia` is given, else `--registry-dir` with the same schema. Image bytes content-addressed on disk either way (the seal makes storage untrusted). Sophia path tested against a fake of its real envelope; not run live (stack down, KF5).
   - **RECOMMENDATION**: registry records as Sophia knowledge entries (namespace `x-cartridge`, D-C4) via the Sophia service API when it is reachable, with a file-backed fallback `--registry-dir` (JSON per cartridge) for lab runs while the stack is down (KF5). Same record schema both ways.
   - **Override ONLY if**: the Sophia API cannot store structured records → file-backed only, Sophia integration becomes a follow-on card.
-- [ ] **Step 309** [W][CODE][TEST] ~45m: `cmd/upc-cartridgectl` (Go): `register <name> <file.cart> <file.seal>`, `load <name> --slot N`, `unload --slot N`, `list`, `stats`, `bench`, `pump` (tick driver), `record` (Phase 16). `load` reads the image ONCE into memory, verifies the Gungnir seal on those bytes against the pinned key (`pkg/gungnir.Verify`), runs `cart validate` (Rust CLI) on the same bytes via stdin, then writes the slot from the same buffer — no re-read (TOCTOU-safe)
-- [ ] **Step 310** [W][TEST] ~20m: Tests: unsigned → refused; seal for other bytes → refused; expired seal → refused; validator reject → refused; `--lab` allows unsigned with a loud warning and a `lab=1` label on every metric
-- [ ] **Step 311** [B][TEST] ~2m: `cd "$PROJECT_ROOT" && go test -race ./cmd/upc-cartridgectl/... 2>&1 | tail -5`
-- [ ] **Step 312** [V] ~30s: Green
-- [ ] **Step 313** [W][CODE] ~20m: Atomic swap: write the new image to the spare slot, flip `CART_SLOT.active` of new then old in one ctl command; in-flight flows keep their `CartState` only if `gen` matches, else reset (documented)
-- [ ] **Step 314** [B][S][TEST] ~5m: Swap `pass` → `drop-udp-9` while test_run loops in another shell; no packet sees a half-written slot (verdicts are only PASS or the new DROP rule)
-- [ ] **Step 315** [V] ~1m: Zero faults during the swap; verdict set correct before and after
-- [ ] **Step 316** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 309** [W][CODE][TEST] ~45m: `cmd/upc-cartridgectl` (Go): `register <name> <file.cart> <file.seal>`, `load <name> --slot N`, `unload --slot N`, `list`, `stats`, `bench`, `pump` (tick driver), `record` (Phase 16). `load` reads the image ONCE into memory, verifies the Gungnir seal on those bytes against the pinned key (`pkg/gungnir.Verify`), runs `cart validate` (Rust CLI) on the same bytes via stdin, then writes the slot from the same buffer — no re-read (TOCTOU-safe)
+  - S5 2026-10-23: `cmd/upc-cartridgectl`: up/down/sign/register/load/unload/swap/list/stats/bench/pump/serve (`record` belongs to Phase 16). `up` pins maps AND programs so later invocations share one interpreter. Load = read once -> seal verify (pinned key) -> `cart validate -` on stdin -> decode -> registry sha match -> write; same bytes throughout.
+- [x] **Step 310** [W][TEST] ~20m: Tests: unsigned → refused; seal for other bytes → refused; expired seal → refused; validator reject → refused; `--lab` allows unsigned with a loud warning and a `lab=1` label on every metric
+  - S5 2026-10-23: Tests: unsigned, seal over other bytes, wrong key, no pinned key, garbage seal, expired/tampered seal, validator reject, non-image bytes all refused; `--lab` loads unsigned with a warning, still validated, slot marked lab.
+- [x] **Step 311** [B][TEST] ~2m: `cd "$PROJECT_ROOT" && go test -race ./cmd/upc-cartridgectl/... 2>&1 | tail -5`
+- [x] **Step 312** [V] ~30s: Green
+  - S5 2026-10-23: Green, `-race`.
+- [x] **Step 313** [W][CODE] ~20m: Atomic swap: write the new image to the spare slot, flip `CART_SLOT.active` of new then old in one ctl command; in-flight flows keep their `CartState` only if `gen` matches, else reset (documented)
+  - S5 2026-10-23: `swap NAME --from A --to B`: write the spare slot (deactivate, ROM, DATA, config+gen last), then deactivate the old one. Flows start fresh in the new slot; a flow's state in a reloaded slot resets on generation mismatch (BPF side, Phase 11).
+- [x] **Step 314** [B][S][TEST] ~5m: Swap `pass` → `drop-udp-9` while test_run loops in another shell; no packet sees a half-written slot (verdicts are only PASS or the new DROP rule)
+  - S5 2026-10-23: Live: 400 `bench` invocations (200 test_runs each, UDP/9) racing a pass -> drop-udp-9 swap.
+- [x] **Step 315** [V] ~1m: Zero faults during the swap; verdict set correct before and after
+  - S5 2026-10-23: Verdicts seen: 47 x PASS then 353 x DROP, no interleaving, nothing else; 0 faults.
+- [x] **Step 316** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: `40a01890`.
   ```bash
   git -C "$PROJECT_ROOT" add cmd/upc-cartridgectl crates/upc-cartridge && commitp -m "feat(upc-cartridgectl): [S5 307-316] signed + validated load, Sophia registry, atomic swap"
   ```
-- [ ] **Step 317** [W][CODE] ~20m: Metrics on `--metrics-addr` (default `127.0.0.1:26610`): `unheaded_cart_packets_total{slot,verdict}`, `unheaded_cart_faults_total{slot}`, `unheaded_cart_insns_total{slot}`, `unheaded_cart_queue_depth`, `unheaded_cart_scores_total`; `/health`, `/ready`
-- [ ] **Step 318** [B][TEST] ~2m: Metrics endpoint test
-- [ ] **Step 319** [V] ~30s: Counters move with test traffic; endpoint loopback by default
-- [ ] **Step 320** [W] ~15m: Lab signing recipe in the ADR + `cartridges/README.md`: generate a lab key (0600, under `$S5`, never committed), `heimdall-daemon --sign-key`-style seal command for `.cart` (or a `sign` subcommand in ctl using `pkg/gungnir.SignFor`)
-- [ ] **Step 321** [SECURITY] ~10m: Review: who can call `load`? (root only — map writes need CAP_BPF); pinned map permissions 0600; registry dir 0700; ctl never logs data blobs
-- [ ] **Step 322** [V] ~30s: Pinned maps 0600, registry 0700 (`stat -c '%a %n'`)
-- [ ] **Step 323** [B][S] ~3m: Register + load `pass` through the registry path (file-backed), list, unload
-- [ ] **Step 324** [V] ~30s: Round trip works; `list` shows sha, key id, stage, slot
-- [ ] **Step 325** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 317** [W][CODE] ~20m: Metrics on `--metrics-addr` (default `127.0.0.1:26610`): `unheaded_cart_packets_total{slot,verdict}`, `unheaded_cart_faults_total{slot}`, `unheaded_cart_insns_total{slot}`, `unheaded_cart_queue_depth`, `unheaded_cart_scores_total`; `/health`, `/ready`
+  - S5 2026-10-23: `serve` (default `127.0.0.1:26610`): the plan's five metrics plus runs/emits/queue_drops, breaker trips, events dropped, slot_info; `/health`, `/ready`. queue_depth is queued - done - stale (a BPF queue has no length).
+- [x] **Step 318** [B][TEST] ~2m: Metrics endpoint test
+  - S5 2026-10-23: `TestRenderMetrics`, `TestLoopbackOnly`.
+- [x] **Step 319** [V] ~30s: Counters move with test traffic; endpoint loopback by default
+  - S5 2026-10-23: Live: counters moved with test traffic (slot 0 pass 109,400, slot 1 drop 70,600); listener `127.0.0.1:26610`.
+- [x] **Step 320** [W] ~15m: Lab signing recipe in the ADR + `cartridges/README.md`: generate a lab key (0600, under `$S5`, never committed), `heimdall-daemon --sign-key`-style seal command for `.cart` (or a `sign` subcommand in ctl using `pkg/gungnir.SignFor`)
+  - S5 2026-10-23: Recipe in ADR-108 §Signing and loading and `cartridges/README.md`: seed 0600 outside the repo, `yggdrasil-evidence pubkey`, `upc-cartridgectl sign`.
+- [x] **Step 321** [SECURITY] ~10m: Review: who can call `load`? (root only — map writes need CAP_BPF); pinned map permissions 0600; registry dir 0700; ctl never logs data blobs
+  - S5 2026-10-23: Root only (CAP_BPF for map writes); pins 0600; registry 0700; ctl prints names/shas/key ids, never DATA blobs.
+- [x] **Step 322** [V] ~30s: Pinned maps 0600, registry 0700 (`stat -c '%a %n'`)
+  - S5 2026-10-23: Live `stat`: pin dir 700, pins 600 (maps and programs), registry/blobs/records 700, record and slots files 600.
+- [x] **Step 323** [B][S] ~3m: Register + load `pass` through the registry path (file-backed), list, unload
+  - S5 2026-10-23: Live: register pass + drop9 (signed), load pass into slot 0, list, unload, down.
+- [x] **Step 324** [V] ~30s: Round trip works; `list` shows sha, key id, stage, slot
+  - S5 2026-10-23: `list` shows sha, key id, stage, size per record and active/gen/name/sha/key per slot. (First run hit `slots.json` being read as a record; records moved to `records/`, regression test added.)
+- [x] **Step 325** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: `c4f6a6d3`.
   ```bash
   git -C "$PROJECT_ROOT" add cmd/upc-cartridgectl cartridges/README.md docs/adr && commitp -m "feat(upc-cartridgectl): [S5 317-325] metrics, lab signing recipe, permissions"
   ```
-- [ ] **Step 326** [W][DOC-UPDATE] ~10m: `wiki/` page `UPC-Cartridges.md` (terse, haproxy-style: what, build, sign, register, load, metrics) + `_Sidebar` link
-- [ ] **Step 327** [V] ~30s: Wiki page links resolve
-- [ ] **Step 328** [V][GATE] ~1m: **PHASE 12 EXIT GATE** — only signed + validated cartridges load; registry round trip; atomic swap proven; metrics live
+- [x] **Step 326** [W][DOC-UPDATE] ~10m: `wiki/` page `UPC-Cartridges.md` (terse, haproxy-style: what, build, sign, register, load, metrics) + `_Sidebar` link
+  - S5 2026-10-23: `wiki/UPC-Cartridges.md`, linked from `Home.md` and `_Sidebar.md`.
+- [x] **Step 327** [V] ~30s: Wiki page links resolve
+  - S5 2026-10-23: Links resolve (ADR-108, cartridges/README.md, UPC-Overview); `scripts/sync-wiki.sh --dry-run` adds the page, no orphan.
+- [x] **Step 328** [V][GATE] ~1m: **PHASE 12 EXIT GATE** — only signed + validated cartridges load; registry round trip; atomic swap proven; metrics live
+  - S5 2026-10-23: PASSED: only signed + validated cartridges load; registry round trip; atomic swap proven; metrics live.
 
 ### Phase 12 Definition of Done
 Seal + validator on the same in-memory bytes · `-race` green · permissions checked · wiki page · no new deps.

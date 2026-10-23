@@ -195,7 +195,7 @@ depends on them. East was not contacted.
   - write to the watched file → one alert after 0.06–0.22 s (two runs), none repeated.
   - teardown: no `s5` netns or link, 0 heimdall programs (`bpftool prog show`).
 - Steps 164–169 (Wotan publish) were already shipped by Sprint 1 (`drift.go`, ADR-105):
-  verified, nothing new. `go test -race` + `go vet` (linux, darwin) green, gosec clean,
+  verified, nothing new. `go test -race` + `go vet` (linux, darwin) green, gosec clean (re-run with the repo-pinned `tools/gosec` build in Phase 12; the `~/go/bin` gosec cannot read Go 1.27 export data and checks nothing),
   `go.mod` unchanged. golangci-lint panics on this tree (known version trap), not run.
 - Commits: `b6f5ec8a` (BPF), `930b1ddc` (daemon).
 
@@ -277,3 +277,52 @@ L4 packet read (one bounds check on the exact pointer). The shared driver is now
   LRU update + four slot checks; Phase 13 measures against it.
 - bpftool cannot load Aya 0.1 objects (legacy `maps` section) — every count and benchmark
   in S5 goes through cilium/ebpf (`pkg/cartridge`).
+
+## Phase 12 — Sophia registry + signed loader (2026-10-23)
+
+- `cmd/upc-cartridgectl` (`40a01890`, `c4f6a6d3`). Step 308 decision taken: Sophia knowledge
+  entries (`x-cartridge/<name>`, provisional) when `--sophia` is set, else a file-backed
+  registry with the same schema; image bytes content-addressed on disk either way. Sophia
+  backend tested against a fake of its real `/api/v1/knowledge` envelope; not run live (stack
+  down, KF5).
+- **Load check (one read, same bytes throughout):** Gungnir ML-DSA-65 seal against the pinned
+  `--pubkey` (expiry included) → `cart validate -` on stdin → ABI v0 decode → registry
+  sha256 match → slot write (config + gen last). Live refusals: unsigned, seal over other
+  bytes (`payload hash mismatch`), other key (`signature verification failed`), validator
+  reject (`opcode 0x04 not allowed`). `--lab` loads unsigned, warns, marks `lab="1"`.
+- **Atomic swap** (pass → drop-udp-9, spare slot, then deactivate old): 400 racing bench
+  invocations saw 47 PASS then 353 DROP, nothing else, 0 faults.
+- Metrics on `127.0.0.1:26610` moved with traffic; pins 0600 in a 0700 dir, registry
+  0700/0600. Live-lab bug found and fixed: `slots.json` was read as a record by `list`
+  (records now live in `records/`, regression test added).
+- Lab key recipe: ADR-108 §Signing and loading, `cartridges/README.md`; wiki page
+  `UPC-Cartridges`.
+- gosec: the `~/go/bin/gosec` on west cannot read Go 1.27 export data and silently checks
+  nothing; the repo-pinned `tools/gosec` build is clean on `cmd/upc-cartridgectl`,
+  `pkg/cartridge`, `cmd/heimdall-daemon` (two findings fixed on the way).
+
+## Session 2 close — regression (2026-10-23)
+
+- Harness **ALL GREEN** (three variants): ascend **926,542**, Doom **761,580** (both unchanged
+  from Phase 0), cart_xdp **14,395**, cart_tick **22,575**, 12 cartridge root tests.
+- **12/12 goldens SAME** (8 corpus + uinit_echo, multi, nosuch, blank).
+- **Doom translation byte-identical**: `doom.elf` → `dcded746…` / rv2mbc `e7ab7b67…` (Phase 2
+  values). monad-cpu-ebpf instruction stream unchanged (no source diff since the base).
+- `go build ./...` clean; `go test -race` green on every touched Go package; Rust suites
+  green (monad-common 108, monad-mbc 268 + integration, upc-cartridge, upc-api 25).
+- West left clean: no netns, no `s5` links, no XDP/cart/heimdall programs, no pins. East
+  never contacted.
+
+### Open / escalations
+
+- **[ESCALATE] Step 177** (east as a node) — Phases 6–8 `[DEFERRED: east escalation]`; Part 1
+  exit (Step 228) therefore not passed; Part 2 proceeded on the lead's direction.
+- **RFC Editor items 1–5** open (`docs/protocol/RFC-EDITOR-REQUESTS-S5.md`); ADR-108 stays
+  Proposed. The Anamnesis sub-kind, if ruled to need its own type, is [ESCALATE]
+  (Specification Required).
+- **Host emulator gap:** monad-mbc execute.rs has no MULHU arm (translator emits MULHU);
+  outside the cartridge allowlist, logged for the Lich sprint.
+- **Not run:** Sophia registry against a live Sophia (stack down); XDP attach of cart_xdp to
+  a real or veth interface (`serve --xdp-iface` exists; this session used test_run only).
+- Next: Phase 13 (rate limiter vs qos-ebpf), 14 (sampler), 15 (scorer → services/anomaly),
+  16 (replay), 17 (Lich hooks). Benchmarks start from b0_pass 153 ns.

@@ -117,9 +117,10 @@ run per flow by `ebpf/cartridge-ebpf` (its own object and verifier budget; monad
 untouched).
 - [x] **1.5.1** ADR-108 + Cartridge ABI v0 + spec gate; RFC Editor requests open
       (`docs/protocol/RFC-EDITOR-REQUESTS-S5.md`).
-- [ ] **1.5.2** Shared `no_std` step function + host reference (`crates/upc-cartridge`).
-- [ ] **1.5.3** `cartridge-ebpf` under its verifier-budget gate; harness third variant.
-- [ ] **1.5.4** Sophia registry + signed loader (`upc-cartridgectl`).
+- [x] **1.5.2** Shared `no_std` step function + host reference (`crates/upc-cartridge`).
+- [x] **1.5.3** `cartridge-ebpf` under its verifier-budget gate; harness third variant
+      (cart_xdp 14,395 / cart_tick 22,575 of 500,000).
+- [x] **1.5.4** Sophia registry + signed loader (`upc-cartridgectl`).
 - [ ] **1.5.5** Rate limiter, sampler, int8 scorer → `services/anomaly`; Anamnesis replay; Lich hooks.
 
 ---
