@@ -11,7 +11,7 @@ West and east talk over WireGuard (`wg0`) on the direct P2P Ethernet link, with 
 
 Everything that names a host on the overlay uses these: Prometheus targets and remote_write in `monitoring/prometheus/prometheus.yml`, Grafana's VictoriaMetrics datasource, the validation scripts. SSH to east (`ssh east`) goes over the IPv4 P2P link, so overlay changes cannot cut it.
 
-LLDP on the P2P link: east runs lldpd (installed 2026-10-23, user `_lldpd`), announcing only on `enp2s0` as `east` (`/etc/lldpd.d/unheaded.conf`: `interface pattern enp2s0`, `system hostname east`; widen the pattern to announce on more links). West does not announce yet; orb's links page on west hears east (and the home router, which speaks LLDP on Wi-Fi) with its own listener.
+LLDP on the P2P link: both hosts run lldpd (installed 2026-10-23, user `_lldpd`), announcing only on the P2P interface: east on `enp2s0`, west on `enp16s0` (`/etc/lldpd.d/unheaded.conf`: `interface pattern <if>`, `system hostname <host>`; widen the pattern to announce on more links). `sudo lldpcli show neighbors` on either shows the other; orb's links page hears it too (and the home router, which speaks LLDP on Wi-Fi) with its own listener.
 
 **2026-10-20:** the hosts ran the mirror image of this (west `::2`/`:2::/64`, east `::1`/`:1::/64`), so every `::1` in the repo reached east. Both hosts were re-addressed to the table above; backups of the previous wg0, FRR and BIRD configs are in `/var/lib/unheaded/remediate/20261020T145144Z-overlay-flip/` on each host. Verified: ping both ways, BGP Established with both prefixes exchanged.
 
