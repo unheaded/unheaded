@@ -96,3 +96,5 @@ $ grep -c 'TODO(task #65)' cmd/yggdrasil-evidence/main.go; grep -rc 'gungnir-sig
 GATE11_OK
 ```
 DoD: race green on gungnir + every importer (heimdall-daemon, compliance-evidence, unheaded-remediate, compliance/snapshot, yggdrasil-evidence); go vet, gofmt, golangci-lint (0 issues), gosec, govulncheck (no vulnerabilities) clean on touched packages; go.mod/go.sum unchanged (no new dependency); no listener; throwaway keys only, never printed or committed; E4 logged.
+
+Re-run on 8a3a90a0 (clean clone): `check-evidence-pack` and `check-well-lint` both "OK — bites when provoked"; remaining INCONCLUSIVE = `check-python-audit`, `check-ruff` (tools absent on west), `live-path-inventory` (pre-existing `cmd/zhen-claude`). None introduced by this track.
