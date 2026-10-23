@@ -43,7 +43,7 @@ generated findings section.
 | 8-9 | done | P8/P9 Gates PASS; Step 337 (approve 11 runbooks) ESCALATE |
 | 10, 11, 13 | done | P10-13 Gates PASS |
 | 12 (LoRA learning loop) | blocked | 0 SFT train examples (needs >= 300) and Step 400 ESCALATE |
-| 14 (docs, regression, handoff) | not started | ADR-106 does not exist anywhere (Step 435); ADR-INDEX says it is "allocated"; no Phase 14 commits |
+| 14 (docs, regression, handoff) | done (after this audit) | was not started at audit time; ran the same day: ADR-106 Proposed, ripples, regression 290 ok / 0 FAIL, decisions table (S-TWO-BRAINS-progress.md "Phase 14") |
 
 Blocked on Stevie: live apply of migrations 030-034 as one batch; Step 254;
 Step 337; Step 340 (Anthropic's written answer, flag stays off); Step 400;
@@ -113,7 +113,7 @@ Nothing claimed done lacked evidence, apart from item 2.
 
 ## Next, in plan order
 
-1. Sprint 2 Phase 14: ADR-106, the ADR ripples, regression, handoff.
+1. ~~Sprint 2 Phase 14: ADR-106, the ADR ripples, regression, handoff.~~ Done (Steps 435-451).
 2. Merge `sprint/real-steel` (3 conflicts: lxd_rest.go, ADR-INDEX,
    wotan-client grpc_client.go), clean-clone meta-gate.
 3. Merge `sprint/upc-wire-compute` (5 doc conflicts), clean-clone
