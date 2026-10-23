@@ -23,4 +23,7 @@ kanban=172.28.1.1:20001
 host-agent=172.28.1.1:9110
 llama-server=172.28.1.1:8081
 vor=172.28.1.1:9876
-gateway=172.28.1.1:21000
+# Traefik's dashboard entrypoint: compose publishes 21000 on the host's
+# loopback only, so 172.28.1.1:21000 is refused; reach the container directly
+# on the shared data network.
+gateway=traefik:21000
