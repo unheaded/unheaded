@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func testProvider(t *testing.T) *Provider {
@@ -87,16 +88,49 @@ func TestProvider_Call_RunHarness_ScopeRefusesEvilTarget(t *testing.T) {
 	}
 }
 
-func TestProvider_Call_RunHarness_InScopeFailsClosed(t *testing.T) {
-	p := testProvider(t)
-	// 001 exists in scope → passes scope, but no confinement substrate is wired
-	// in Phase 1, so it must fail closed (never run unconfined).
+func TestProvider_Call_RunHarness_FailsClosedWithoutConfinement(t *testing.T) {
+	p := testProvider(t) // no WithConfinement → no sandbox
+	// 001 passes scope, but with no confinement substrate wired it must fail
+	// closed (never run unconfined).
 	res, err := p.Call(context.Background(), ToolRunHarness, json.RawMessage(`{"harness_id":"001"}`))
 	if err != nil {
 		t.Fatalf("Call err: %v", err)
 	}
-	if !res.IsError || !strings.Contains(res.Text, "not wired") {
-		t.Fatalf("in-scope run_harness should fail closed in Phase 1, got %+v", res)
+	if !res.IsError || !strings.Contains(res.Text, "no confinement substrate") {
+		t.Fatalf("in-scope run_harness with no confinement should fail closed, got %+v", res)
+	}
+}
+
+func TestProvider_RunHarness_WithSandbox(t *testing.T) {
+	p := testProvider(t).WithConfinement(&fakeSandbox{}, NewSemaphore(2), NewKillSwitch("", time.Millisecond, &fakeSandbox{}, nil))
+	res, err := p.Call(context.Background(), ToolRunHarness, json.RawMessage(`{"harness_id":"001"}`))
+	if err != nil {
+		t.Fatalf("Call err: %v", err)
+	}
+	if res.IsError || !strings.Contains(res.Text, "confined sandbox") {
+		t.Fatalf("run_harness via sandbox should succeed, got %+v", res)
+	}
+}
+
+func TestProvider_RunHarness_HaltedRefuses(t *testing.T) {
+	ks := NewKillSwitch("", time.Millisecond, &fakeSandbox{}, nil)
+	ks.Trip("test")
+	p := testProvider(t).WithConfinement(&fakeSandbox{}, NewSemaphore(2), ks)
+	res, _ := p.Call(context.Background(), ToolRunHarness, json.RawMessage(`{"harness_id":"001"}`))
+	if !res.IsError || !strings.Contains(res.Text, "halted") {
+		t.Fatalf("run_harness under a tripped kill switch must refuse, got %+v", res)
+	}
+}
+
+func TestProvider_RunHarness_AtCapacityRefuses(t *testing.T) {
+	sem := NewSemaphore(1)
+	if _, err := sem.TryAcquire(); err != nil { // occupy the only slot
+		t.Fatalf("pre-acquire: %v", err)
+	}
+	p := testProvider(t).WithConfinement(&fakeSandbox{}, sem, NewKillSwitch("", time.Millisecond, &fakeSandbox{}, nil))
+	res, _ := p.Call(context.Background(), ToolRunHarness, json.RawMessage(`{"harness_id":"001"}`))
+	if !res.IsError || !strings.Contains(res.Text, "capacity") {
+		t.Fatalf("run_harness at capacity must refuse, got %+v", res)
 	}
 }
 

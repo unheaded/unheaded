@@ -8,6 +8,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"unheaded/pkg/zhentools"
 )
@@ -30,6 +31,12 @@ const (
 type Provider struct {
 	scope *Scope
 	cfg   *Config
+
+	// Confinement (wired by WithConfinement). When sandbox is nil, run_harness
+	// fails closed rather than running anything unconfined.
+	sandbox Sandbox
+	sem     *Semaphore
+	ks      *KillSwitch
 }
 
 // NewProvider builds a Provider from a loaded Config.
@@ -50,6 +57,16 @@ func (p *Provider) Scope() *Scope { return p.scope }
 
 // Config exposes the server-side policy (read-only).
 func (p *Provider) Config() *Config { return p.cfg }
+
+// WithConfinement wires the sandbox substrate, the host-resource semaphore, and
+// the kill switch into run_harness. Any may be nil; a nil sandbox makes
+// run_harness fail closed.
+func (p *Provider) WithConfinement(sb Sandbox, sem *Semaphore, ks *KillSwitch) *Provider {
+	p.sandbox = sb
+	p.sem = sem
+	p.ks = ks
+	return p
+}
 
 // TargetFor returns the scope Target a tool acts on, if any, so the server can
 // validate scope before the gate. The Kind is chosen here, never from input.
@@ -160,14 +177,58 @@ func (p *Provider) Call(ctx context.Context, name string, input json.RawMessage)
 	}
 }
 
-// runHarness (Phase 1) proves the scope-validated path and fails closed: with
-// no confinement substrate wired yet (Phase 2, Step 70), it refuses to run
-// anything unconfined rather than execute on the host.
-func (p *Provider) runHarness(_ context.Context, _ runHarnessInput) (zhentools.Result, error) {
-	return zhentools.Result{
-		IsError: true,
-		Text:    "lich_run_harness: scope OK, but the confinement substrate is not wired yet (fail-closed; no unconfined execution)",
-	}, nil
+// runHarness runs a harness inside the confined sandbox. Phase 2 proves the
+// MCP-tool → sandbox path with a trivial no-op; Phase 3 (Step 81) swaps the
+// no-op for the real lich-runner.sh invocation. It fails closed if no
+// confinement substrate is wired or the kill switch has tripped, and respects
+// the host-resource cap.
+func (p *Provider) runHarness(ctx context.Context, in runHarnessInput) (zhentools.Result, error) {
+	if p.sandbox == nil {
+		return zhentools.Result{
+			IsError: true,
+			Text:    "lich_run_harness: scope OK, but no confinement substrate is available (fail-closed; no unconfined execution)",
+		}, nil
+	}
+	if p.ks != nil && p.ks.Tripped() {
+		return zhentools.Result{IsError: true, Text: ErrHalted.Error()}, nil
+	}
+	if p.sem != nil {
+		release, err := p.sem.TryAcquire()
+		if err != nil {
+			return zhentools.Result{IsError: true, Text: err.Error()}, nil
+		}
+		defer release()
+	}
+
+	target := Target{Kind: KindHarness, Name: in.HarnessID}
+	// Defense in depth: Call already validated scope, but re-check at the point
+	// of execution so this method is safe for any caller.
+	if err := p.scope.Validate(target); err != nil {
+		return refused(err), nil
+	}
+
+	h, err := p.sandbox.Spawn(ctx, target, p.cfg.Limits)
+	if err != nil {
+		return zhentools.Result{IsError: true, Text: "lich_run_harness: " + err.Error()}, nil
+	}
+	if p.ks != nil {
+		p.ks.Register(h)
+	}
+	defer func() {
+		if p.ks != nil {
+			p.ks.Unregister(h)
+		}
+		_ = p.sandbox.Destroy(h)
+	}()
+
+	// Phase 2 no-op: prove the MCP-tool → confined-sandbox path end to end.
+	res, err := p.sandbox.Exec(ctx, h, []string{"echo", "lich-sandbox-ok harness=" + in.HarnessID})
+	if err != nil {
+		return zhentools.Result{IsError: true, Text: "lich_run_harness confined exec: " + err.Error()}, nil
+	}
+	text := fmt.Sprintf("ran harness %s in confined sandbox %s: exit=%d timed_out=%v output=%q",
+		in.HarnessID, h.ID, res.ExitCode, res.TimedOut, strings.TrimSpace(res.Stdout))
+	return zhentools.Result{Text: text, IsError: res.ExitCode != 0 || res.TimedOut}, nil
 }
 
 // --- input types (additionalProperties:false enforced by decodeInput) ---

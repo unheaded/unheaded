@@ -77,16 +77,22 @@ func TestServer_ListCampaigns_PassesGate(t *testing.T) {
 	}
 }
 
-// In-scope run_harness passes scope + gate, then fails closed (no substrate).
-func TestServer_RunHarness_InScope_PassesGate_FailsClosed(t *testing.T) {
+// Step 70-71: in-scope run_harness passes scope + gate and actually runs a
+// command inside the confined sandbox, returning its bounded output.
+func TestServer_RunHarnessSandbox(t *testing.T) {
+	if os.Getenv("LICH_BAREMETAL") != "1" {
+		t.Skip("set LICH_BAREMETAL=1 to run the MCP-tool -> confined-sandbox path")
+	}
 	srv := testServer(t)
 	res := call(t, srv, "lich_run_harness", `{"harness_id":"001"}`)
-	if !res.IsError || !strings.Contains(res.Content[0].Text, "not wired") {
-		t.Fatalf("in-scope run_harness should pass gate then fail closed, got %+v", res)
-	}
-	// It must NOT have been refused by scope or gate.
 	if strings.Contains(res.Content[0].Text, "out of scope") || strings.Contains(res.Content[0].Text, "refused by gate") {
 		t.Fatalf("in-scope run_harness must not be refused: %q", res.Content[0].Text)
+	}
+	if res.IsError {
+		t.Fatalf("confined run should succeed, got %+v", res)
+	}
+	if !strings.Contains(res.Content[0].Text, "lich-sandbox-ok harness=001") || !strings.Contains(res.Content[0].Text, "confined sandbox") {
+		t.Fatalf("run_harness output should show the confined run, got %q", res.Content[0].Text)
 	}
 }
 

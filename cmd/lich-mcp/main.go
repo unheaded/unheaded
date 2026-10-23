@@ -72,8 +72,15 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	// Watch the halt file; SIGTERM/SIGINT cancel ctx (below) and also trip.
+	go srv.killSwitch.Watch(ctx)
+
 	logger.Info("lich-mcp ready", "transport", "stdio", "config", *cfgPath, "scope_prefix", srv.provider.Scope().SandboxPrefix())
-	if err := srv.serve(ctx, os.Stdin, os.Stdout); err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
+	err = srv.serve(ctx, os.Stdin, os.Stdout)
+	// On any shutdown (EOF, signal), trip the kill switch so no sandbox is left
+	// running.
+	srv.killSwitch.Trip("server shutdown")
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, context.Canceled) {
 		logger.Error("lich-mcp serve", "err", err)
 		os.Exit(1)
 	}
@@ -82,11 +89,12 @@ func main() {
 // server holds the gated tool surface. The provider, gate and scope are fixed
 // after construction; a model's input never mutates them.
 type server struct {
-	provider  *lichtools.Provider
-	gate      claudebridge.Gate
-	auditor   claudebridge.Auditor
-	emittedBy string
-	log       *slog.Logger
+	provider   *lichtools.Provider
+	gate       claudebridge.Gate
+	auditor    claudebridge.Auditor
+	killSwitch *lichtools.KillSwitch
+	emittedBy  string
+	log        *slog.Logger
 }
 
 func newServer(cfgPath, projectRoot, emittedBy string, logger *slog.Logger) (*server, error) {
@@ -109,12 +117,30 @@ func newServer(cfgPath, projectRoot, emittedBy string, logger *slog.Logger) (*se
 	if err != nil {
 		return nil, err
 	}
+
+	// Confinement: the unprivileged netns sandbox (LXD is an [ESCALATE], not
+	// used). The results tree is the only writable path; everything else is
+	// read-only inside the sandbox. If confinement is unavailable, run_harness
+	// fails closed — the server still serves the read-only tools.
+	sem := lichtools.NewSemaphore(cfg.MaxLiveSandboxes)
+	var sandbox lichtools.Sandbox
+	if sb, serr := lichtools.NewNetnsSandbox(cfg.MemFitSafety, cfg.ResultsDirAbs()); serr != nil {
+		logger.Warn("confinement unavailable; run_harness will fail closed", "err", serr)
+	} else {
+		sandbox = sb
+	}
+	ks := lichtools.NewKillSwitch(cfg.KillSwitchFile, lichtools.DefaultHaltGrace, sandbox, func(reason string) {
+		logger.Warn("lich-mcp HALTED", "reason", reason)
+	})
+	provider.WithConfinement(sandbox, sem, ks)
+
 	return &server{
-		provider:  provider,
-		gate:      gate,
-		auditor:   claudebridge.SlogAuditor{Log: logger},
-		emittedBy: emittedBy,
-		log:       logger,
+		provider:   provider,
+		gate:       gate,
+		auditor:    claudebridge.SlogAuditor{Log: logger},
+		killSwitch: ks,
+		emittedBy:  emittedBy,
+		log:        logger,
 	}, nil
 }
 
