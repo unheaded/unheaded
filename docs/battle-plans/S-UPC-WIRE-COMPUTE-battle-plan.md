@@ -1287,27 +1287,37 @@ Correctness oracle = qos-ebpf · benchmark gate scored with numbers · per-flow 
 **Time**: ~2 h
 **Agent**: Developer [P]
 
-- [ ] **Step 349** [DESIGN][W] ~10m: `cartridges/sampler.s` spec: per-flow counter in `mem`; every Nth packet (N in DATA) → EMIT a sample event (flow key + packet count + byte count + first-seen) to `CART_EVENTS` and push a `ScoreJob` (features: pkt_len, iat_bucket, flags, counts) to `SCORE_QUEUE`; VERDICT always PASS; **never writes the Monad header** (contrast KF11)
-- [ ] **Step 350** [W][CODE] ~25m: Write `cartridges/sampler.s` + DATA (N, feature field ids); ≤ 64 insns
-- [ ] **Step 351** [B] ~2m: `cart build … -o "$S5/sampler.cart" && cart validate "$S5/sampler.cart"`
-- [ ] **Step 352** [V] ~30s: Validates (XDP stage, ≤ 64 insns, only EMIT/QUEUE syscalls)
-- [ ] **Step 353** [W][TEST] ~20m: Reference tests: exactly every Nth packet emits; counts correct; queue job carries the right feature snapshot; determinism (same trace → same emit set)
-- [ ] **Step 354** [V] ~1m: 1:N exact; feature snapshot matches
-- [ ] **Step 355** [B][S][TEST] ~5m: Load slot 1 (alongside ratelimit slot 0); test_run a mixed trace; read events + queue depth
-- [ ] **Step 356** [V] ~1m: Sample events at 1:N; `SCORE_QUEUE` depth grows; ratelimit in slot 0 still correct (slots independent)
-- [ ] **Step 357** [V] ~30s: BPF emit set == reference emit set (deterministic)
-- [ ] **Step 358** [B][S] ~5m: **Benchmark** — ns/pkt with sampler active (and with both slots active), 5 × 1,000,000, median
-- [ ] **Step 359** [V][GATE] ~1m: **BENCHMARK GATE #2** — sampler overhead over b0_pass ≤ 120 ns/pkt; two slots active ≤ sum of each + 10%. Record numbers
-- [ ] **Step 360** [SECURITY] ~5m: The event carries flow metadata only (5-tuple, counts, timestamps) — no payload bytes; confirm against the ABI field list (Sacred Principle)
-- [ ] **Step 361** [V] ~30s: Event layout has no payload field
-- [ ] **Step 362** [B][S][TEST] ~2m: Queue overflow — flood so `SCORE_QUEUE` fills
-- [ ] **Step 363** [V] ~30s: Overflow drops counted (`cart_queue_drops_total`), no fault, XDP still PASS
-- [ ] **Step 364** [B][S][TEST] ~2m: Regression harness
-- [ ] **Step 365** [V] ~30s: `== ALL GREEN ==`
-- [ ] **Step 366** [C][GATE] ~1m: **PHASE 14 EXIT GATE / COMMIT** — 1:N exact, metadata-only events, benchmark gate scored, queue feeds the scorer
+- [x] **Step 349** [DESIGN][W] ~10m: `cartridges/sampler.s` spec: per-flow counter in `mem`; every Nth packet (N in DATA) → EMIT a sample event (flow key + packet count + byte count + first-seen) to `CART_EVENTS` and push a `ScoreJob` (features: pkt_len, iat_bucket, flags, counts) to `SCORE_QUEUE`; VERDICT always PASS; **never writes the Monad header** (contrast KF11)
+  - S5 2026-10-23 (session 3): A CartEvent has two value words, so first-seen is its own event ('F', once per flow, its 64-bit `ts_ns` is the first-seen time); the sample event is 'S' {a = flow_pkt_count, b = flow_byte_count}. Snapshot = window features: f0 bytes, f1 iat_bucket sum, f2 SYN count, f3 max length, f4 flow_pkts, f5 l4_proto, f6 dst_port, f7 OR of TCP flags.
+- [x] **Step 350** [W][CODE] ~25m: Write `cartridges/sampler.s` + DATA (N, feature field ids); ≤ 64 insns
+  - S5 2026-10-23: DATA = N only (shipped 8; the feature set is fixed in code). Longest path 67 at first draft (Budget fault in the test), cut to 62 of 64 (`SHL 30; SHR 31` for the SYN bit, the first-seen flag reuses the kind register, window counter reset by `ST r15`).
+- [x] **Step 351** [B] ~2m: `cart build … -o "$S5/sampler.cart" && cart validate "$S5/sampler.cart"`
+- [x] **Step 352** [V] ~30s: Validates (XDP stage, ≤ 64 insns, only EMIT/QUEUE syscalls)
+  - S5 2026-10-23: `syscalls=[0, 2, 3, 4]` (FIELD, VERDICT, EMIT, QUEUE), no back-edges, 324 bytes.
+- [x] **Step 353** [W][TEST] ~20m: Reference tests: exactly every Nth packet emits; counts correct; queue job carries the right feature snapshot; determinism (same trace → same emit set)
+- [x] **Step 354** [V] ~1m: 1:N exact; feature snapshot matches
+  - S5 2026-10-23: `tests/sampler.rs`: N = 1, 2, 5, 8, 100 over 1,000 packets, every emit and snapshot equal to an independent model of the contract; same trace twice → same events and hashes; longest path measured at 62.
+- [x] **Step 355** [B][S][TEST] ~5m: Load slot 1 (alongside ratelimit slot 0); test_run a mixed trace; read events + queue depth
+- [x] **Step 356** [V] ~1m: Sample events at 1:N; `SCORE_QUEUE` depth grows; ratelimit in slot 0 still correct (slots independent)
+- [x] **Step 357** [V] ~30s: BPF emit set == reference emit set (deterministic)
+  - S5 2026-10-23: 600 packets over three flows: 77 events, 74 queued snapshots (`queue_ok` 74) and 3/3 flow hashes equal `cart run`; the rate limiter beside it 600/600 verdicts == qos-ebpf math.
+- [x] **Step 358** [B][S] ~5m: **Benchmark** — ns/pkt with sampler active (and with both slots active), 5 × 1,000,000, median
+- [x] **Step 359** [V][GATE] ~1m: **BENCHMARK GATE #2** — sampler overhead over b0_pass ≤ 120 ns/pkt; two slots active ≤ sum of each + 10%. Record numbers
+  - S5 2026-10-23: Clean run (noise ≤ 2.7 %, IPv4 TCP frame): b0_pass 147, sampler 360 (37.9 insns/pkt), ratelimit 342, both 617 ns. Sampler overhead **213 ns: FAIL** (gate 120). Two slots: 470 ns vs 408 ns sum (+10 % = 448): **FAIL by 5 %**. Same cause as Gate #1 (≈ 5 ns per interpreted instruction, Step 340); earlier runs under heavy host load (load average up to 41) gave 288–348 ns. Queue and event ring are full in steady state (nothing drains them during the run), so this is the counted-drop path.
+- [x] **Step 360** [SECURITY] ~5m: The event carries flow metadata only (5-tuple, counts, timestamps) — no payload bytes; confirm against the ABI field list (Sacred Principle)
+- [x] **Step 361** [V] ~30s: Event layout has no payload field
+  - S5 2026-10-23: CartEvent = {ts_ns, FlowKey, kind, a, b, slot, stage}; ScoreJob = {FlowKey, 8 feature words from FIELD 1/3/4/6/7/8/9 only, src_slot, enq_ns_lo}. No FIELD id or syscall reads payload.
+- [x] **Step 362** [B][S][TEST] ~2m: Queue overflow — flood so `SCORE_QUEUE` fills
+- [x] **Step 363** [V] ~30s: Overflow drops counted (`cart_queue_drops_total`), no fault, XDP still PASS
+  - S5 2026-10-23: N = 1, 20,000 packets: queue_ok 16,384, queue_drops 3,616, events_dropped 16,361 (ring full, counted), faults 0, 20,000 PASS; 16,384 jobs popped after.
+- [x] **Step 364** [B][S][TEST] ~2m: Regression harness
+- [x] **Step 365** [V] ~30s: `== ALL GREEN ==`
+  - S5 2026-10-23: ALL GREEN (ascend 926,542, Doom 761,580, cart_xdp 24,986, cart_tick 63,906, 19 root tests).
+- [x] **Step 366** [C][GATE] ~1m: **PHASE 14 EXIT GATE / COMMIT** — 1:N exact, metadata-only events, benchmark gate scored, queue feeds the scorer
   ```bash
   git -C "$PROJECT_ROOT" add cartridges crates/upc-cartridge references/s5-upc-wire-log.md && commitp -m "feat(cartridge): [S5 349-366] flow sampler + score queue + benchmark gate"
   ```
+  - S5 2026-10-23: PASSED with Gate #2 scored FAIL (interpreter limitation, as Gate #1). Code `d592f230`.
 
 ### Phase 14 Definition of Done
 1:N deterministic · events metadata-only · benchmark gate scored · queue bounded · harness green.

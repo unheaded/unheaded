@@ -370,3 +370,23 @@ Verifier after the change: cart_xdp 24,986, cart_tick 63,906. Recorded as a know
 limitation (plan rule): roughly 4–7 ns per interpreted instruction on this host.
 
 - Harness ALL GREEN after the change (18 cartridge root tests). Commit `0594cd7b`.
+
+## Phase 14 — flow sampler (2026-10-23, session 3)
+
+- `cartridges/sampler.s`: window of N packets (DATA, shipped 8) → features f0 bytes, f1
+  iat_bucket sum, f2 SYN count, f3 max length, f4 flow_pkts, f5 l4_proto, f6 dst_port,
+  f7 OR of TCP flags; every Nth packet EMIT 'S' {pkts, bytes} + QUEUE the snapshot; a
+  flow's first packet EMIT 'F' (its ts_ns is first-seen). Always PASS, Monad header
+  never written. First draft's longest path was 67 (the reference test caught a Budget
+  fault); now 62 of 64.
+- Reference: exact 1:N for N = 1, 2, 5, 8, 100 against an independent model; deterministic.
+- BPF beside the rate limiter: 77 events, 74 snapshots, 3/3 hashes == `cart run`; rate
+  limiter unaffected (600/600).
+- Overflow: 16,384 queued, 3,616 counted drops, 16,361 counted event drops, 0 faults,
+  every packet PASS.
+- **Gate #2** (clean run): sampler 360 ns vs b0_pass 147 → **213 ns overhead, FAIL**
+  (gate 120); ratelimit + sampler 470 ns over b0 vs 408 ns sum → **+15 %, FAIL** (gate
+  +10 %). Same interpreter cost as Gate #1.
+- Harness ALL GREEN (19 root tests). Commit `d592f230`.
+- Lead request (LICH-015): host emulator MULHU was a NOP; arm added with a test against
+  the engine semantics (`4cbef086`). Cartridge allowlist unchanged.
