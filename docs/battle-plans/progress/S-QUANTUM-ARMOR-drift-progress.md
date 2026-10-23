@@ -104,3 +104,34 @@ STUCK/ESCALATE report ordered by how many steps each item unblocks.
   expected hash.
 - **241 [TEST]** heimdall-daemon + wotan-client green with -race;
   `FuzzNormalizeNodeID` 30 s clean; golangci-lint 0 issues.
+- **242 [C]** `bbdf7559`.
+- **243 [TEST]** `services/wotan/internal/grpc/drift_e2e_test.go`. Deviation:
+  a loopback `127.0.0.1:0` listener inside the test process, not
+  `bufconn`, because `wotanClient.NewGRPCClient` dials an address and
+  takes no dialer (adding a test-only constructor to the client API was
+  not worth it). The L12b refusals also assert the error names the
+  signature check, so an allowlist refusal cannot make them pass.
+- **244 [TEST]** `TestDriftE2E_SubscriberReverifies`,
+  `TestLICH012_L12b_ForgedDriftRefused`,
+  `TestLICH012_L12b_ReplayedDriftRefused`: PASS with -race.
+- **245 [DOC-UPDATE]** LICH-012 results row for signed drift;
+  `wiki/Wotan-Topic-Signing.md` (signed prefixes, scoped keys, sender rule,
+  subscriber verification, Heimdall flags).
+- **246 [ESCALATE] E5 — not attempted.** Enrol a drift key per node (0600
+  seed, separate from the E4 build key and the manifest key), add its
+  public key to `drift.`'s `keys` in the live Wotan config, add
+  `heimdall` to `topics.auto_approve`, ship a unit for Heimdall (ORPHAN in
+  `docs/LIVE-PATHS.md`). Key custody (ADR-043 #4) and a new root-reading
+  daemon on the hosts are Stevie's calls. Until then `drift.*` is closed.
+
+## Parked (seen, not done here)
+
+- Cluster replication (`replication.proto`) does not carry message
+  signatures, so an event replayed from a peer node arrives unsigned.
+  Additive later; nothing replicates drift today.
+- The ring buffer's byte budget counts `Content` only; a signed message
+  also holds ~5.3 KB of signature and key. Signed rooms are rare and
+  protected from eviction (`SetKeep`).
+- Heimdall's counters are not scraped: it has no HTTP listener, and adding
+  one is out of this phase.
+- `TopicStreamClient` has no `PublishSigned` (Heimdall uses `GRPCClient`).
