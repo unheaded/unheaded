@@ -49,7 +49,9 @@ let routes = {};
 global.fetch = url => { fetched.push(url);
   const key = Object.keys(routes).find(k => url.startsWith(k));
   const body = key ? routes[key](url) : {};
-  return Promise.resolve({ ok: true, status: 200, json: () => Promise.resolve(body) }); };
+  // A route answers non-2xx with { __status: 503, ...body }.
+  const status = (body && body.__status) || 200;
+  return Promise.resolve({ ok: status < 300, status, json: () => Promise.resolve(body) }); };
 const tick = () => new Promise(r => setImmediate(r));
 async function settle() { for (let i = 0; i < 5; i++) await tick(); }
 const text = id => (els[id] ? String(els[id].textContent) : '(none)');

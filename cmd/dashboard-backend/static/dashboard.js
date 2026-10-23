@@ -282,17 +282,22 @@
     // ======================================================================
     // API Fetching
     // ======================================================================
-    function fetchJSON(url, callback) {
+    // onFail(status, body) hears a non-2xx answer (body is its JSON, or
+    // null); without it the failure is dropped and the last values stay.
+    function fetchJSON(url, callback, onFail) {
         fetch(url).then(function(r) {
-            if (!r.ok) throw new Error(r.status);
-            return r.json();
-        }).then(callback).catch(function() {});
+            if (!r.ok) {
+                if (onFail) r.json().then(function(b) { onFail(r.status, b); }, function() { onFail(r.status, null); });
+                return;
+            }
+            return r.json().then(callback);
+        }).catch(function() {});
     }
 
     function refreshHealth()     { fetchJSON(CONFIG.api.health,     updateHealthData); }
     function refreshServices()   { fetchJSON(CONFIG.api.services,   updateServicesData); }
     function refreshStats()      { fetchJSON(CONFIG.api.stats,      updateStatsData); }
-    function refreshFlows()      { fetchJSON(CONFIG.api.flows,      updateFlowsData); }
+    function refreshFlows()      { fetchJSON(CONFIG.api.flows,      updateFlowsData, flowsUnavailable); }
     function refreshLatency()    { fetchJSON(CONFIG.api.latency,    updateLatencyData); }
     function refreshEBPFStats()  { fetchJSON(CONFIG.api.ebpfStats,  updateEBPFStats); }
     // limit=1000 (the server's cap): at ~70 events/s a 2 s poll is ~140 new
@@ -469,6 +474,10 @@
         var flows = data.active_flows || data.flows || data;
         if (!Array.isArray(flows)) flows = [];
         state.flows = flows;
+        if (state.flowError) {
+            state.flowError = null;
+            ['flowGraphCount', 'activeFlowsCount', 'flowBytesSec', 'flowPktsSec'].forEach(function(k) { if (el[k]) el[k].title = ''; });
+        }
         state.flowSource = data.source || 'unknown';
         var stats = data.stats || {};
         // The backend exposes cumulative counters (total_packets/total_bytes) but
@@ -502,6 +511,23 @@
             renderFlowGraph();
             renderFlowTable(flows);
         }
+    }
+
+    // /api/v1/flows answers 503 when no eBPF ingestor runs. The page showed
+    // 0 flows, 0 B/s and "Waiting for eBPF flow data", as if eBPF were up
+    // and idle; say there is no flow source instead.
+    function flowsUnavailable(status, body) {
+        state.flows = [];
+        state.flowSource = 'unavailable';
+        state.flowError = (body && body.error) ? body.error + (body.detail ? ' — ' + body.detail : '') : 'flows unavailable (HTTP ' + status + ')';
+        state.prevFlowTotals = null; state.flowBytesRate = null; state.flowPktsRate = null;
+        ['flowGraphCount', 'activeFlowsCount', 'flowBytesSec', 'flowPktsSec'].forEach(function(k) {
+            setText(el[k], '--');
+            if (el[k]) el[k].title = state.flowError;
+        });
+        buildFlowNodes([]);
+        updateGauges();
+        if (state.activePage === 'flows') { renderFlowGraph(); renderFlowTable([]); }
     }
 
     function updateLatencyData(data) {
@@ -550,8 +576,24 @@
         }
     }
 
+    var EBPF_COUNTERS = ['statPackets', 'statFlows', 'statLatencySamples', 'statErrors', 'statCompute',
+        'statAnamnesis', 'statEps', 'statUptime', 'ebpfEventsCount', 'eventStreamTotal', 'eventStreamRate'];
+
     function updateEBPFStats(data) {
         // Backend returns {active: bool, stats: {...}} or {active: false, message: "..."}
+        // Inactive is no eBPF data at all, not zero events: show "--" and
+        // the backend's reason, not a row of 0s.
+        if (data.active === false) {
+            state.ebpfActive = false;
+            state.ebpfStats = {};
+            state.ebpfTotalPrev = null; state.ebpfEps = null;
+            EBPF_COUNTERS.forEach(function(k) {
+                setText(el[k], '--');
+                if (el[k]) el[k].title = data.message || 'eBPF ingestor not active';
+            });
+            return;
+        }
+        EBPF_COUNTERS.forEach(function(k) { if (el[k]) el[k].title = ''; });
         var stats = data.stats || data;
         state.ebpfStats = stats;
         setText(el.statPackets, formatNumber(stats.packets_ingested || 0));
@@ -782,7 +824,7 @@
         { id: 'cpu',      label: 'CPU',        f: function (h) { return (h.cpu_percent || 0) / 100; },    t: function (h) { return Math.round(h.cpu_percent || 0) + '%'; },    c: function (h) { return gaugeColor(h.cpu_percent || 0); } },
         { id: 'mem',      label: 'Memory',     f: function (h) { return (h.memory_percent || 0) / 100; }, t: function (h) { return Math.round(h.memory_percent || 0) + '%'; }, c: function (h) { return gaugeColor(h.memory_percent || 0); } },
         { id: 'swap',     label: 'Swap',       f: function (h) { return (h.swap_percent || 0) / 100; },   t: function (h) { return h.swap_total ? Math.round(h.swap_percent || 0) + '%' : '—'; }, c: function (h) { return h.swap_total ? gaugeColor(h.swap_percent || 0) : '#30363d'; } },
-        { id: 'flows',    label: 'Active Flows', f: function () { return Math.min((state.flows || []).length / 200, 1); }, t: function () { return formatNumber((state.flows || []).length); }, c: function () { return '#4a9eff'; } },
+        { id: 'flows',    label: 'Active Flows', f: function () { return Math.min((state.flows || []).length / 200, 1); }, t: function () { return state.flowError ? '--' : formatNumber((state.flows || []).length); }, c: function () { return '#4a9eff'; } },
         { id: 'services', label: 'Services Up',   f: function () { var v = svcCounts(); return v.total ? v.up / v.total : 0; }, t: function () { var v = svcCounts(); return v.up + '/' + v.total; }, c: function () { var v = svcCounts(); return v.total === 0 ? '#30363d' : v.up === v.total ? '#00d26a' : (v.up / v.total) >= 0.75 ? '#ffd700' : '#ff4757'; } },
         { id: 'storage',  label: 'Storage',       f: function (h) { var t = diskAgg(h); return t.total ? t.used / t.total : 0; }, t: function (h) { var t = diskAgg(h); return t.total ? Math.round(t.used / t.total * 100) + '%' : '--'; }, c: function (h) { var t = diskAgg(h); return gaugeColor(t.total ? t.used / t.total * 100 : 0); } },
         { id: 'diskroot', label: 'Disk /',     f: function (h) { return rootDiskPct(h) / 100; },          t: function (h) { return Math.round(rootDiskPct(h)) + '%'; },        c: function (h) { return gaugeColor(rootDiskPct(h)); } },
@@ -942,7 +984,7 @@
         if (nodes.length === 0) {
             ctx.fillStyle = '#6c757d'; ctx.font = '14px monospace';
             ctx.textAlign = 'center';
-            ctx.fillText('Waiting for eBPF flow data...', W / 2, H / 2);
+            ctx.fillText(state.flowError || 'Waiting for eBPF flow data...', W / 2, H / 2);
             ctx.font = '11px monospace'; ctx.fillStyle = '#555';
             ctx.fillText('trace-collector -> wotan -> dashboard-backend', W / 2, H / 2 + 24);
             return;
