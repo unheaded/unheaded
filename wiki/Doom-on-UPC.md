@@ -120,11 +120,20 @@ make    # builds doom.elf → doom.mbc + doom.rv2mbc + doom.data
 cd ../../crates/doom-runner
 cargo build --release
 
-# Launches doom-runner, attaches XDP, serves WebSocket on port 16666:
-./target/release/doom-runner \
-    --mbc ../../demos/doom/doom.mbc \
-    --wad ~/tmp/projects/doom-related/DOOM.WAD
+# Sets up the ring, loads the XDP program and serves WebSocket on port 16666
+# (needs root for BPF). It does not attach XDP to the ring interfaces:
+# scripts/doom-xdp-attach.sh does that once the program is loaded.
+cd ../..
+sudo crates/doom-runner/target/release/doom-runner run \
+    --doom-mbc demos/doom/doom.mbc \
+    --doom-elf demos/doom/doom.elf \
+    --rv2mbc   demos/doom/doom.rv2mbc \
+    --wad      ~/tmp/projects/doom-related/DOOM.WAD \
+    --hops 2
+sudo scripts/doom-xdp-attach.sh 20   # in a second shell, while doom-runner runs
 ```
+
+The same pipeline as systemd units: `unheaded-doom.target` (`unheaded-doom-ring`, `-doom-runner`, `-doom-injector`; [[Systemd Units|Systemd-Units]]).
 
 Then open `http://localhost:16666/` for the browser canvas + keyboard relay.
 
@@ -134,7 +143,7 @@ Doom-on-Monad is documented as a formal proof of computational generality in [`d
 
 - Doom uses dynamic dispatch (function pointers through the BSP traversal), unbounded recursion (via tail-call elimination + heap allocation), arbitrary memory R/W (the Z_Malloc heap), and conditional branches (the entire FSM-driven enemy AI).
 - Every one of those compiles to MBC and dispatches through the XDP program.
-- The XDP program is purely a function from `(MBC bytecode, packet input)` to `(MBC bytecode state after 256 insns, packet output)`. No external state, no out-of-band side channels.
+- The XDP program is purely a function from `(MBC bytecode, packet input)` to `(MBC bytecode state after up to 256 insns, packet output)`. No external state, no out-of-band side channels.
 
 ## Cross-references
 

@@ -100,7 +100,7 @@ For the Doom proof of concept, the `monad_cpu` XDP program:
 
 1. Reads the Monad header from the incoming packet
 2. Loads CPU state from `CPU_MAP`
-3. Executes up to `MAX_INSN_PER_TICK` (16) MBC instructions from `ROM_MAP`
+3. Executes up to `MAX_INSN_PER_TICK` (16) MBC instructions from `ROM_MAP` per round, and tail-calls itself for `--chain-depth` rounds (default 16, `crates/doom-runner`): up to 256 per packet
 4. Writes updated CPU state back to `CPU_MAP`
 5. Writes screen pixels to `SCREEN_MAP` (on SYSCALL for screen write)
 6. Increments bounce counter in the Monad header
@@ -108,7 +108,7 @@ For the Doom proof of concept, the `monad_cpu` XDP program:
 
 ### Instruction Budget
 
-BPF programs have a verifier instruction limit of 1M. `MAX_INSN_PER_TICK` is 16 (`ebpf/monad-cpu-ebpf/src/main.rs`): each loop iteration costs thousands of verifier states, and 256 exceeds the limit. Throughput comes from the tick rate instead: instructions per second = `MAX_INSN_PER_TICK` x packets per second from the injector. A packet leaves the ring after 255 bounces.
+BPF programs have a verifier instruction limit of 1M. `MAX_INSN_PER_TICK` is 16 (`ebpf/monad-cpu-ebpf/src/main.rs`): each loop iteration costs thousands of verifier states, and 256 exceeds the limit. Each tail call gets a fresh verifier budget, so throughput comes from chaining (16 x 16 = 256 per packet) and from the packet rate of the injector. A packet leaves the ring after 255 bounces.
 
 The ring has `DOOM_RING_HOPS` namespaces (`scripts/doom-ring.sh`, default 2; the script's diagram and the table below show 6).
 

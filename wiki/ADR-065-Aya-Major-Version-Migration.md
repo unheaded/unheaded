@@ -21,7 +21,7 @@ Always sample the upstream design intent before assuming "same crate name = same
 ## See also
 
 - `docs/adr/ADR-065-aya-major-version-migration.md` — full ADR with addendum
-- `references/marshal-shift-2026-05-08-drain.md` — Phase A discovery
+- `references/marshal-shift-2026-05-08.md` (the drain shift log) — Phase A discovery
 - ADR-003 — eBPF Rust + Aya framework choice (the original adoption decision)
 
 ## Canonical
