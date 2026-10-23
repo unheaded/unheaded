@@ -31,7 +31,22 @@ no-egress with a test that must fail to reach the network.
 - Scope lock: targets = LXD name prefix `lich-sbx-` OR harness under `tomb/lich/harnesses/`.
 - Findings block + KNOWN FAILURES BASELINE recorded in the plan file.
 
-## Phase 1 — Lich MCP server skeleton + server-side scope — (in progress)
+## Phase 1 — Lich MCP server skeleton + server-side scope — COMPLETE (2026-10-23)
+
+- `pkg/lichtools`: `config.go` (yaml.v3, no new dep; fails loud on any credential
+  field), `scope.go` (server-side allowlist; sandbox-prefix or three-digit harness
+  only; Kind is server-chosen, never a model arg), `provider.go` (6 tools, typed
+  inputs `additionalProperties:false`, scope-validated before work).
+- `cmd/lich-mcp/main.go`: MCP stdio server (no TCP port) → scope pre-check → Champion
+  gate (`claudebridge.ChampionGate`) → provider, each call audited (ADR-104 shape).
+- `pkg/champion/toolcall.go`: 6 lich tools classified — list/show/read/triage/run_harness
+  read-only-to-gate (run_harness confined by scope+sandbox), file_finding mutating
+  (always pending-confirmation).
+- Gate seam proven: off-allowlist refused BEFORE gate; file_finding pending-confirmation;
+  read-only passes; in-scope run_harness passes gate then FAILS CLOSED (no substrate yet).
+- Hardened vs symlink-escape, homoglyph, embedded newline/NUL/tab, absolute path, `..`,
+  over-long. No new dep (go.mod/go.sum unchanged since base). Tests + -race GREEN; vet/fmt clean.
+- Commits: scope `2c4cf6b5`, skeleton `3fc8f3fb`, test `eae55da7`, hardening `b3563f88`.
 
 ## Phase 2 — Sandbox substrate: confinement + kill switch — (pending)
 
