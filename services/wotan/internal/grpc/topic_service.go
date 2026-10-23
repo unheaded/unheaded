@@ -344,6 +344,13 @@ func (s *TopicService) forwardTopicEventsAfter(
 			// per forwarding subscriber, gave each subscriber different seqs.
 			seq := event.Message.Seq
 
+			// A deletion carries only the message ID; it was sent as a
+			// PUBLISHED event, a phantom empty message with seq 0.
+			eventType := chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED
+			if event.Type == wotan.EventMessageDeleted {
+				eventType = chatpb.TopicEventType_TOPIC_MESSAGE_DELETED
+			}
+
 			pbEvent := &chatpb.TopicEvent{
 				Topic:     topic,
 				MessageId: event.Message.ID.String(),
@@ -351,7 +358,7 @@ func (s *TopicService) forwardTopicEventsAfter(
 				Payload:   []byte(event.Message.Content),
 				CreatedAt: timestamppb.New(event.Timestamp),
 				Seq:       seq,
-				Type:      chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED,
+				Type:      eventType,
 				NodeId:    s.NodeID,
 			}
 

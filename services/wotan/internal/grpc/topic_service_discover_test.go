@@ -9,11 +9,37 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/room"
 	"unheaded/services/wotan/internal/wotan"
 	chatpb "unheaded/services/wotan/proto"
 )
+
+// A message deleted from a topic (HTTP /api/v1/messages/delete works on any
+// room, and topics are rooms) reached gRPC topic streams as a
+// TOPIC_MESSAGE_PUBLISHED event with an empty payload and seq 0: a phantom
+// new message, while TOPIC_MESSAGE_DELETED went unused.
+func TestForwardTopicEvents_DeletionIsADeletedEvent(t *testing.T) {
+	svc := NewTopicService(room.NewManager(100), member.NewManager(), wotan.NewWotan())
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sub := svc.wotan.Subscribe("del.topic", uuid.New(), 10)
+	defer svc.wotan.Unsubscribe(sub)
+	out := make(chan *topicEvent, 10)
+	go svc.forwardTopicEvents(ctx, "del.topic", sub, out)
+
+	id := uuid.New()
+	svc.wotan.PublishMessageDeleted("del.topic", id)
+	select {
+	case ev := <-out:
+		if ev.pbEvent.Type != chatpb.TopicEventType_TOPIC_MESSAGE_DELETED || ev.pbEvent.MessageId != id.String() {
+			t.Fatalf("got %v for message %s, want TOPIC_MESSAGE_DELETED for %s", ev.pbEvent.Type, ev.pbEvent.MessageId, id)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("no event forwarded")
+	}
+}
 
 // A topic's room is created by its first publish. A pattern stream finds
 // the new room on its next watcher tick (up to 1 s later) and only then
