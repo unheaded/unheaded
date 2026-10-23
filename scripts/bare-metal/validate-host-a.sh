@@ -57,14 +57,14 @@ print_check() {
 }
 
 pass() {
-  ((checks_passed++))
+  checks_passed=$((checks_passed + 1))
   if [[ -z "$output_json" ]]; then
     echo -e "${GREEN}PASS${NC}"
   fi
 }
 
 fail() {
-  ((checks_failed++))
+  checks_failed=$((checks_failed + 1))
   if [[ -z "$output_json" ]]; then
     echo -e "${RED}FAIL${NC}"
   fi
@@ -417,7 +417,7 @@ print_check "Ping service subnet IPs (10.10.10.1-10)"
 ping_success=0
 for i in {1..10}; do
   if timeout 1 ping -c 1 "10.10.10.$i" >/dev/null 2>&1; then
-    ((ping_success++))
+    ping_success=$((ping_success + 1))
   fi
 done
 if [[ $ping_success -ge 5 ]]; then

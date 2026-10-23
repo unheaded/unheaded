@@ -26,8 +26,8 @@ FAIL=0
 
 mkdir -p "$TMPDIR"
 
-log_pass() { echo -e "${GREEN}[PASS]${NC} $1"; ((PASS++)); }
-log_fail() { echo -e "${RED}[FAIL]${NC} $1"; ((FAIL++)); }
+log_pass() { echo -e "${GREEN}[PASS]${NC} $1"; PASS=$((PASS + 1)); }
+log_fail() { echo -e "${RED}[FAIL]${NC} $1"; FAIL=$((FAIL + 1)); }
 log_info() { echo -e "${YELLOW}[INFO]${NC} $1"; }
 
 # Assemble, load, reset, inject, return CPU state

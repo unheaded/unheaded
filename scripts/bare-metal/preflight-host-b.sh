@@ -39,12 +39,12 @@ print_check() {
 
 pass() {
   echo -e "${GREEN}PASS${NC}"
-  ((checks_passed++))
+  checks_passed=$((checks_passed + 1))
 }
 
 fail() {
   echo -e "${RED}FAIL${NC}"
-  ((checks_failed++))
+  checks_failed=$((checks_failed + 1))
 }
 
 warn() {

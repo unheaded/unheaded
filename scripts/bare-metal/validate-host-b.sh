@@ -48,14 +48,14 @@ print_check() {
 }
 
 pass() {
-  ((checks_passed++))
+  checks_passed=$((checks_passed + 1))
   if [[ -z "$output_json" ]]; then
     echo -e "${GREEN}PASS${NC}"
   fi
 }
 
 fail() {
-  ((checks_failed++))
+  checks_failed=$((checks_failed + 1))
   if [[ -z "$output_json" ]]; then
     echo -e "${RED}FAIL${NC}"
   fi

@@ -90,7 +90,7 @@ echo ""
 
 attempt=0
 while (( attempt < MAX_RETRIES )); do
-    ((attempt++))
+    attempt=$((attempt + 1))   # not ((attempt++)): it returns 1 at 0 and set -e exits
     all_healthy=true
     healthy_count=0
     total_count=${#SERVICES[@]}
@@ -98,7 +98,7 @@ while (( attempt < MAX_RETRIES )); do
     for entry in "${SERVICES[@]}"; do
         IFS='|' read -r name host port path <<< "$entry"
         if check_service "$name" "$host" "$port" "$path"; then
-            ((healthy_count++))
+            healthy_count=$((healthy_count + 1))
         else
             all_healthy=false
         fi
@@ -131,7 +131,7 @@ for entry in "${SERVICES[@]}"; do
     IFS='|' read -r name host port path <<< "$entry"
     if check_service "$name" "$host" "$port" "$path"; then
         printf "%-20s ${GREEN}%-10s${NC} %-30s\n" "$name" "HEALTHY" "http://${host}:${port}/${path}"
-        ((final_healthy++))
+        final_healthy=$((final_healthy + 1))
     else
         printf "%-20s ${RED}%-10s${NC} %-30s\n" "$name" "UNHEALTHY" "http://${host}:${port}/${path}"
     fi

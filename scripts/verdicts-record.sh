@@ -118,7 +118,7 @@ incomplete=0
 for h in H1 H2 H3 H4 H5 H6 H7 H8; do
     if [[ -z "${verdicts[$h]:-}" ]]; then
         echo -e "${RED}[FAIL]${NC} $h not specified"
-        ((incomplete++))
+        incomplete=$((incomplete + 1))
     else
         echo -e "${GREEN}[PASS]${NC} $h = ${verdicts[$h]}"
         if [[ -n "${verdict_values[$h]:-}" ]]; then
@@ -203,7 +203,7 @@ log_section "Verdict Summary"
 passed=0
 for h in H1 H2 H3 H4 H5 H6 H7 H8; do
     if [[ "${verdicts[$h]}" == "PASS" ]]; then
-        ((passed++))
+        passed=$((passed + 1))
         echo -e "${GREEN}[✓]${NC} $h — PASS"
     else
         echo -e "${RED}[✗]${NC} $h — FAIL"

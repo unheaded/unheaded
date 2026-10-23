@@ -122,54 +122,54 @@ build_all_go_binaries() {
 
     # Core daemon
     if ! build_binary "unheaded-daemon" "${PROJECT_ROOT}/cmd/unheaded-daemon"; then
-        ((build_errors++))
+        build_errors=$((build_errors + 1))
     fi
 
     # CLI
     if ! build_binary "unheaded-cli" "${PROJECT_ROOT}/cmd/unheaded-cli"; then
-        ((build_errors++))
+        build_errors=$((build_errors + 1))
     fi
 
     # Application binaries
     if ! build_binary "kanban-app" "${PROJECT_ROOT}/cmd/kanban-app"; then
-        ((build_errors++))
+        build_errors=$((build_errors + 1))
     fi
 
     if ! build_binary "dashboard-backend" "${PROJECT_ROOT}/cmd/dashboard-backend"; then
-        ((build_errors++))
+        build_errors=$((build_errors + 1))
     fi
 
     if ! build_binary "monad" "${PROJECT_ROOT}/cmd/monad"; then
-        ((build_errors++))
+        build_errors=$((build_errors + 1))
     fi
 
     if ! build_binary "sophia" "${PROJECT_ROOT}/cmd/sophia"; then
-        ((build_errors++))
+        build_errors=$((build_errors + 1))
     fi
 
     # Service binaries
     if ! build_binary "wotan" "${PROJECT_ROOT}/services/wotan/cmd/wotan"; then
-        ((build_errors++))
+        build_errors=$((build_errors + 1))
     fi
 
     if ! build_binary "timeguru" "${PROJECT_ROOT}/services/timeguru/cmd/timeguru"; then
-        ((build_errors++))
+        build_errors=$((build_errors + 1))
     fi
 
     if ! build_binary "captain" "${PROJECT_ROOT}/services/captain/cmd/captain"; then
-        ((build_errors++))
+        build_errors=$((build_errors + 1))
     fi
 
     if ! build_binary "architect" "${PROJECT_ROOT}/services/architect/cmd/architect"; then
-        ((build_errors++))
+        build_errors=$((build_errors + 1))
     fi
 
     if ! build_binary "micromanager" "${PROJECT_ROOT}/services/micromanager/cmd/micromanager"; then
-        ((build_errors++))
+        build_errors=$((build_errors + 1))
     fi
 
     if ! build_binary "gateway" "${PROJECT_ROOT}/services/gateway/cmd"; then
-        ((build_errors++))
+        build_errors=$((build_errors + 1))
     fi
 
     return $build_errors
@@ -202,11 +202,11 @@ build_rust_binaries() {
                 log_success "trace-collector built successfully"
             else
                 log_error "Failed to copy trace-collector binary"
-                ((build_errors++))
+                build_errors=$((build_errors + 1))
             fi
         else
             log_error "Failed to build trace-collector"
-            ((build_errors++))
+            build_errors=$((build_errors + 1))
         fi
     fi
 
@@ -232,12 +232,12 @@ main() {
 
     # Build Go binaries
     if ! build_all_go_binaries; then
-        ((total_errors++))
+        total_errors=$((total_errors + 1))
     fi
 
     # Build Rust binaries (optional)
     if ! build_rust_binaries; then
-        ((total_errors++))
+        total_errors=$((total_errors + 1))
     fi
 
     # Summary
