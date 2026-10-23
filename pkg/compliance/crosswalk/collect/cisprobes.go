@@ -708,7 +708,11 @@ func apparmorProfilesProbe() Probe {
 // ComplianceAsCode defines them: not root, UID below UID_MIN, shell not
 // nologin, /bin/sync, /sbin/shutdown, /sbin/halt or false.
 func init() {
-	hashed := `$2~/^\$/`
+	// Inside the $UH_PRIV sh -c "..." double quotes: the outer shell must
+	// leave awk "$2~/^\$/" (field 2 starts with a literal $, a real hash).
+	// Unescaped, $2 expanded to nothing, awk failed on "~/^$/", and the
+	// existing-account half of pw-max-days and pw-inactive never ran.
+	hashed := `\$2~/^\\\$/`
 	Probes["pw-max-days"] = defsProbe(`echo "defs=$(awk '/^[[:space:]]*PASS_MAX_DAYS/{print $2}' /etc/login.defs)"; `+
 		`$UH_PRIV sh -c "awk -F: '(`+hashed+` && (\$5==\"\" || \$5>365)){print \"user \" \$1}' /etc/shadow; echo @ok"`,
 		func(v string) bool { n, err := strconv.Atoi(v); return err == nil && n >= 1 && n <= 365 }, "PASS_MAX_DAYS 1-365")

@@ -1269,9 +1269,18 @@ func privRefusedFacts(t *testing.T) string {
 // does, with $UH_PRIV set to priv, and judges it. Commands only read.
 func runProbeCommand(t *testing.T, name, priv, facts string) (bool, string) {
 	t.Helper()
+	return Probes[name].Judge(probeSection(t, name, priv, facts))
+}
+
+// probeSection runs one probe's command as HostProbes does and returns its
+// section; env is added to the environment.
+func probeSection(t *testing.T, name, priv, facts string, env ...string) string {
+	t.Helper()
 	script := probePath + "UH_PRIV=" + priv + "\nUH_ROOT_FACTS=" + shQuote(facts) + "\n" +
 		fmt.Sprintf("echo @@%s; { %s; } 2>/dev/null\nexit 0\n", name, Probes[name].Command)
-	out, err := exec.Command("sh", "-c", script).Output() // #nosec G204 -- the constant probe table
+	cmd := exec.Command("sh", "-c", script) // #nosec G204 -- the constant probe table
+	cmd.Env = append(os.Environ(), env...)
+	out, err := cmd.Output()
 	if err != nil {
 		t.Fatalf("%s: %v", name, err)
 	}
@@ -1279,7 +1288,83 @@ func runProbeCommand(t *testing.T, name, priv, facts string) (bool, string) {
 	if !ok {
 		t.Fatalf("%s: no section in %q", name, out)
 	}
-	return Probes[name].Judge(sec)
+	return sec
+}
+
+// fixturePriv writes a stand-in for "sudo -n" that runs its command with
+// every "/etc/shadow" in its arguments replaced by $UH_TEST_SHADOW, so the
+// shadow-reading probes run their real commands against a fixture.
+func fixturePriv(t *testing.T) string {
+	t.Helper()
+	p := filepath.Join(t.TempDir(), "priv")
+	script := "#!/bin/sh\nfor a; do shift; set -- \"$@\" \"$(printf '%s' \"$a\" | sed \"s#/etc/shadow#$UH_TEST_SHADOW#g\")\"; done\nexec \"$@\"\n"
+	if err := os.WriteFile(p, []byte(script), 0o700); err != nil { // #nosec G306 -- an executable test helper in a temp dir
+		t.Fatal(err)
+	}
+	return p
+}
+
+// TestShadowProbesReadAccounts runs the /etc/shadow probes' real commands
+// on a fixture. pw-max-days and pw-inactive once never listed an account:
+// "$2" in their awk program was expanded by the outer shell, awk failed on
+// "~/^$/", and the account half of both checks passed unchecked.
+func TestShadowProbesReadAccounts(t *testing.T) {
+	probeTools(t)
+	if _, err := exec.LookPath("sed"); err != nil {
+		t.Skip("no sed")
+	}
+	shadow := filepath.Join(t.TempDir(), "shadow")
+	fixture := "root:!:19000:0:99999:7:::\n" +
+		"alice:$y$j9T$salt$hash:19000:0:99999:7:::\n" + // hashed, never expires, no inactivity limit
+		"bob:$6$salt$hash:19000:0:90:7:30::\n" + // hashed, compliant
+		"svc:!*:19000::::::\n" + // locked: not judged
+		"empty::19000:0:90:7:30::\n" + // no password at all
+		"later:$y$x$y:999999:0:90:7:30::\n" // changed in the future
+	if err := os.WriteFile(shadow, []byte(fixture), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	priv, env := fixturePriv(t), "UH_TEST_SHADOW="+shadow
+	for _, tc := range []struct {
+		probe string
+		want  []string // offender lines the command must print
+		not   []string
+	}{
+		{"pw-max-days", []string{"user alice"}, []string{"user bob", "user root", "user svc", "user empty"}},
+		{"pw-inactive", []string{"user alice"}, []string{"user bob", "user root", "user svc"}},
+		{"pw-change-past", []string{"later"}, []string{"alice", "bob"}},
+		{"acct-shadow-no-empty", []string{"empty"}, []string{"alice", "svc"}},
+		{"root-access-controlled", []string{"status L"}, nil},
+	} {
+		sec := probeSection(t, tc.probe, priv, "", env)
+		lines := strings.Split(sec, "\n")
+		has := func(s string) bool {
+			for _, l := range lines {
+				if strings.TrimSpace(l) == s {
+					return true
+				}
+			}
+			return false
+		}
+		if !has("@ok") {
+			t.Errorf("%s did not complete: %q", tc.probe, sec)
+		}
+		for _, w := range tc.want {
+			if !has(w) {
+				t.Errorf("%s: no %q in %q", tc.probe, w, sec)
+			}
+		}
+		for _, n := range tc.not {
+			if has(n) {
+				t.Errorf("%s: unexpected %q in %q", tc.probe, n, sec)
+			}
+		}
+		if tc.probe == "root-access-controlled" {
+			continue
+		}
+		if pass, detail := Probes[tc.probe].Judge(sec); pass {
+			t.Errorf("%s passes with an offending account: %s", tc.probe, detail)
+		}
+	}
 }
 
 // probeTools skips a test that runs probe commands where they cannot run.
