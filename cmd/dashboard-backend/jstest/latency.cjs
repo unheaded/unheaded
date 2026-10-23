@@ -9,7 +9,7 @@ let latency = {
 };
 h.run({
   routes: { '/api/v1/latency': () => latency },
-  steps: async ({ intervals, check, settle, clickTab, html }) => {
+  steps: async ({ intervals, check, settle, clickTab, html, text }) => {
     clickTab('latency');
     intervals.refreshLatency[0](); await settle();
     const tile = label => { const m = html('latency-summary-grid').match(new RegExp(label + '</div><div class="lat-kpi-value"[^>]*>([^<]*)<')); return m ? m[1] : '(missing)'; };
@@ -23,5 +23,13 @@ h.run({
     latency = { percentiles: { tcp_send: win(0, 0, 0), tcp_recv: win(0, 0, 0) }, combined: [] };
     intervals.refreshLatency[0](); await settle();
     check('no samples anywhere says so', /No latency data yet/.test(html('latency-hero')), true); // was "0.00 ms"
+
+    // No eBPF ingestor: the backend's health-check timings (east :20000,
+    // 2026-10-23), one entry per service and no window.
+    latency = { source: 'service_health_checks', percentiles: { http_health_architect: [{ max_ns: 9534830, mean_ns: 672934.422, min_ns: 287937, p50_ns: 529342, p90_ns: 1017900, p99_ns: 2763174, sample_count: 500 }] } };
+    intervals.refreshLatency[0](); await settle();
+    check('health-check samples are not called 60s', /Samples \(recent checks\)/.test(html('latency-summary-grid')), true); // was "Samples (60s)"
+    check('source is named', text('latency-fresh'), 'source: service health checks (no eBPF ingestor)'); // was "--"
+    check('hero is the health check op', /http_health_architect/.test(html('latency-hero')), true);
   }
 });

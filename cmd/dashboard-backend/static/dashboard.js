@@ -1172,6 +1172,15 @@
     function renderLatencySummary(data) {
         var heroEl = document.getElementById('latency-hero');
         if (!el.latencySummaryGrid) return;
+        // Without an eBPF ingestor the backend times its own service health
+        // checks (source "service_health_checks", the last 500 per service,
+        // no 60 s window). Say so: the page called them eBPF samples (60s).
+        var fromChecks = data.source === 'service_health_checks';
+        var freshEl = document.getElementById('latency-fresh');
+        if (freshEl) {
+            freshEl.textContent = fromChecks ? 'source: service health checks (no eBPF ingestor)'
+                : (data.operations || data.percentiles) ? 'source: eBPF, 60s window' : '--';
+        }
         var setHeroMsg = function(msg) {
             if (heroEl) heroEl.innerHTML = '<div class="latency-hero-empty">' + esc(msg) + '</div>';
             el.latencySummaryGrid.innerHTML = '';
@@ -1207,7 +1216,7 @@
             kpiTile('Ops over SLO', over + ' / ' + keys.length, over > 0 ? '#ff4757' : '#00d26a') +
             kpiTile('Global p50', g ? g.p50.toFixed(2) + ' ms' : '--', '') +
             kpiTile('Global p99', g ? g.p99.toFixed(2) + ' ms' : '--', g ? latencyHealthColor(g.p99) : '') +
-            kpiTile('Samples (60s)', formatNumber(samples), '') +
+            kpiTile(fromChecks ? 'Samples (recent checks)' : 'Samples (60s)', formatNumber(samples), '') +
             kpiTile('Active ops', '' + keys.length, '');
     }
 
