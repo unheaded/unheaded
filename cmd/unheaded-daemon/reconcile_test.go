@@ -31,7 +31,7 @@ func TestReconcile_ObserveModeChangesNothing(t *testing.T) {
 	d.stateManager.desired["web"] = &ContainerSpec{ID: "web", Name: "web", Image: "nixos"}
 	m.containers["old"] = &ContainerState{ID: "old", Status: "stopped", Managed: true}
 
-	d.syncActualStateFromLXD()
+	d.syncActualStateFromLXD(t.Context())
 	actions := d.planReconcile()
 	d.reconcile()
 
@@ -49,7 +49,7 @@ func TestReconcile_ObserveModeChangesNothing(t *testing.T) {
 func TestReconcile_ObserveModeMarksActionsPlanned(t *testing.T) {
 	d, _ := safeDaemon(t, false, false)
 	d.stateManager.desired["web"] = &ContainerSpec{ID: "web"}
-	d.syncActualStateFromLXD()
+	d.syncActualStateFromLXD(t.Context())
 	actions := d.planReconcile()
 	for i := range actions {
 		d.applyAction(t.Context(), &actions[i])
@@ -89,7 +89,7 @@ func TestReconcile_RefusesUnmanagedWithDesiredName(t *testing.T) {
 	d, m := safeDaemon(t, true, true)
 	m.containers["pihole"].Status = "stopped"
 	d.stateManager.desired["pihole"] = &ContainerSpec{ID: "pihole"}
-	d.syncActualStateFromLXD()
+	d.syncActualStateFromLXD(t.Context())
 	actions := d.planReconcile()
 	if len(actions) != 1 || actions[0].Action != "refuse" {
 		t.Fatalf("want one refusal, got %+v", actions)
@@ -118,9 +118,9 @@ func TestReconcile_PruneGatesManagedOrphans(t *testing.T) {
 
 func TestReconcile_ActualFollowsDeletesOutsideCuirass(t *testing.T) {
 	d, m := safeDaemon(t, false, false)
-	d.syncActualStateFromLXD()
+	d.syncActualStateFromLXD(t.Context())
 	delete(m.containers, "pihole")
-	d.syncActualStateFromLXD()
+	d.syncActualStateFromLXD(t.Context())
 	if _, ok := d.stateManager.actual["pihole"]; ok {
 		t.Error("actual state still lists an instance LXD no longer has")
 	}

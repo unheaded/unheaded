@@ -22,6 +22,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -105,6 +106,7 @@ type Daemon struct {
 
 	// LXD client for container operations
 	lxdClient LXDClient
+	lxdUp     atomic.Bool // the last list succeeded
 
 	// authEnabled: the container write API (PUT/DELETE) answers only behind
 	// auth. Without it anyone who reaches the port could ask for deletes.
@@ -150,6 +152,12 @@ func (d *Daemon) initMetrics() {
 	gauge("cuirass_containers_desired", "Number of desired containers", func() int { return len(d.stateManager.desired) })
 	gauge("cuirass_containers_actual", "Number of actual containers", func() int { return len(d.stateManager.actual) })
 	gauge("cuirass_drift_count", "Number of detected drifts", func() int { return len(d.stateManager.drifts) })
+	gauge("cuirass_lxd_up", "1 if the last LXD instance list succeeded", func() int {
+		if d.lxdUp.Load() {
+			return 1
+		}
+		return 0
+	})
 }
 
 // ============================================================================
@@ -168,22 +176,13 @@ type LXDClient interface {
 	RestartContainer(ctx context.Context, name string) error
 	// DeleteContainer removes a container
 	DeleteContainer(ctx context.Context, name string, force bool) error
-	// GetContainer returns a container's state
-	GetContainer(name string) (*ContainerState, bool)
-	// ListContainers returns all containers
-	ListContainers() map[string]*ContainerState
+	// ListContainers returns all containers. An error means actual state
+	// is unknown, never that it is empty.
+	ListContainers(ctx context.Context) (map[string]*ContainerState, error)
 }
 
-// MockLXDClient is a development-mode implementation of LXDClient.
-//
-// All container operations are tracked in memory only (no persistence).
-// Production deployments should use the real LXD client from pkg/lxd,
-// which connects to the actual LXD socket and manages real containers.
-//
-// To enable real LXD in production:
-//  1. Import: unheaded/pkg/lxd
-//  2. Initialize: lxdClient, err := lxd.NewClient(cfg.LXDSocket)
-//  3. Replace NewMockLXDClient() with the real client
+// MockLXDClient is the default LXDClient (LXD_BACKEND unset or "mock"):
+// container operations are tracked in memory only. lxdREST is the real one.
 type MockLXDClient struct {
 	mu         sync.RWMutex
 	containers map[string]*ContainerState
@@ -285,28 +284,8 @@ func (m *MockLXDClient) DeleteContainer(ctx context.Context, name string, force 
 	return nil
 }
 
-// GetContainer returns a container's state
-func (m *MockLXDClient) GetContainer(name string) (*ContainerState, bool) {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	c, exists := m.containers[name]
-	if !exists {
-		return nil, false
-	}
-	// Return a copy
-	return &ContainerState{
-		ID:       c.ID,
-		Status:   c.Status,
-		IP:       c.IP,
-		CPUUsage: c.CPUUsage,
-		Health:   c.Health,
-		Managed:  c.Managed,
-	}, true
-}
-
 // ListContainers returns all containers
-func (m *MockLXDClient) ListContainers() map[string]*ContainerState {
+func (m *MockLXDClient) ListContainers(context.Context) (map[string]*ContainerState, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	result := make(map[string]*ContainerState)
@@ -320,7 +299,7 @@ func (m *MockLXDClient) ListContainers() map[string]*ContainerState {
 			Managed:  v.Managed,
 		}
 	}
-	return result
+	return result, nil
 }
 
 // ============================================================================
@@ -333,7 +312,6 @@ type Config struct {
 	NodeName      string
 	HTTPAddr      string
 	GRPCAddr      string
-	LXDSocket     string
 	WotanAddr     string
 	WotanGRPCAddr string
 	PollInterval  time.Duration
@@ -345,6 +323,16 @@ type Config struct {
 	// Prune lets enforcement delete managed instances nobody desires.
 	// Unmanaged instances are never deleted, pruning or not.
 	Prune bool
+
+	// LXDBackend is "mock" (the default), "unix" (LXDSocket) or "https"
+	// (LXDURL with a client certificate and the pinned server certificate).
+	LXDBackend    string
+	LXDSocket     string
+	LXDURL        string
+	LXDProject    string
+	LXDClientCert string
+	LXDClientKey  string
+	LXDServerCert string
 }
 
 // StateManager manages desired vs actual state
@@ -465,6 +453,11 @@ func main() {
 	// Create daemon
 	daemon := NewDaemon(cfg, log, transportCfg, healthSrv)
 	daemon.logPublisher.Store(logPublisher)
+	lxdClient, err := newLXDClient(cfg, log)
+	if err != nil {
+		log.Fatal().Err(err).Str("backend", cfg.LXDBackend).Msg("LXD client configuration")
+	}
+	daemon.lxdClient = lxdClient
 
 	// Setup signal handling
 	sigCh := make(chan os.Signal, 1)
@@ -507,7 +500,7 @@ func NewDaemon(cfg *Config, log *logger.Logger, transportCfg transport.Config, h
 			actual:  make(map[string]*ContainerState),
 			drifts:  make([]DriftReport, 0),
 		},
-		lxdClient:    NewMockLXDClient(log), // Use mock client for now
+		lxdClient:    NewMockLXDClient(log), // main swaps in newLXDClient's choice
 		transportCfg: transportCfg,
 		healthSrv:    healthSrv,
 		shutdown:     make(chan struct{}),
@@ -524,9 +517,9 @@ func (d *Daemon) Start() error {
 		d.healthSrv.SetGRPCStatus(false)
 	}
 
-	// Log LXD client status
-	d.log.Info().Bool("enforce", d.config.Enforce).Bool("prune", d.config.Prune).
-		Msg("LXD client initialized (mock mode)")
+	d.log.Info().Str("backend", d.config.LXDBackend).Str("project", d.config.LXDProject).
+		Bool("enforce", d.config.Enforce).Bool("prune", d.config.Prune).
+		Msg("LXD client initialized")
 
 	// Setup HTTP server
 	mux := http.NewServeMux()
@@ -964,7 +957,13 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		// Ensure the spec ID matches the URL path ID
+		// Ensure the spec ID matches the URL path ID; it becomes the LXD
+		// instance name.
+		if err := validLXDName(id); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+			return
+		}
 		spec.ID = id
 
 		d.stateManager.mu.Lock()
@@ -1078,12 +1077,17 @@ func (d *Daemon) reconcile() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	d.syncActualStateFromLXD()
+	if err := d.syncActualStateFromLXD(ctx); err != nil {
+		d.log.Error().Err(err).Msg("LXD list failed; skipping reconcile (actual state unknown)")
+		return
+	}
 	actions := d.planReconcile()
 	for i := range actions {
 		d.applyAction(ctx, &actions[i])
 	}
-	d.syncActualStateFromLXD()
+	if err := d.syncActualStateFromLXD(ctx); err != nil {
+		d.log.Error().Err(err).Msg("LXD list after reconcile failed")
+	}
 
 	// Publish reconciliation events if any actions were decided
 	if len(actions) > 0 {
@@ -1176,15 +1180,21 @@ func (d *Daemon) applyAction(ctx context.Context, a *ReconcileAction) {
 	a.Success = true
 }
 
-// syncActualStateFromLXD updates the actual state from the LXD client
-func (d *Daemon) syncActualStateFromLXD() {
+// syncActualStateFromLXD updates the actual state from the LXD client. On
+// error it keeps the previous state: an unreachable LXD is not an empty one.
+func (d *Daemon) syncActualStateFromLXD(ctx context.Context) error {
 	if d.lxdClient == nil {
-		return
+		return errors.New("no LXD client")
 	}
-
+	actual, err := d.lxdClient.ListContainers(ctx)
+	d.lxdUp.Store(err == nil)
+	if err != nil {
+		return err
+	}
 	// Replace, not merge: an instance deleted outside Cuirass must leave
 	// the actual state too.
-	d.stateManager.actual = d.lxdClient.ListContainers()
+	d.stateManager.actual = actual
+	return nil
 }
 
 // publishReconcileEvents publishes reconciliation action events to Wotan
@@ -1269,8 +1279,12 @@ func (d *Daemon) detectDrift() {
 	d.stateManager.mu.Lock()
 	defer d.stateManager.mu.Unlock()
 
-	// Sync actual state from LXD before detecting drift
-	d.syncActualStateFromLXD()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := d.syncActualStateFromLXD(ctx); err != nil {
+		d.log.Error().Err(err).Msg("LXD list failed; drift not re-evaluated")
+		return
+	}
 
 	drifts := make([]DriftReport, 0)
 
@@ -1351,7 +1365,13 @@ type yamlConfig struct {
 	NodeName      string `yaml:"node_name"`
 	HTTPAddr      string `yaml:"http_addr"`
 	GRPCAddr      string `yaml:"grpc_addr"`
+	LXDBackend    string `yaml:"lxd_backend"`
 	LXDSocket     string `yaml:"lxd_socket"`
+	LXDURL        string `yaml:"lxd_url"`
+	LXDProject    string `yaml:"lxd_project"`
+	LXDClientCert string `yaml:"lxd_client_cert"`
+	LXDClientKey  string `yaml:"lxd_client_key"`
+	LXDServerCert string `yaml:"lxd_server_cert"`
 	WotanAddr     string `yaml:"wotan_addr"`
 	WotanGRPCAddr string `yaml:"wotan_grpc_addr"`
 	PollInterval  string `yaml:"poll_interval"`
@@ -1367,7 +1387,13 @@ func loadConfig(path string) *Config {
 		NodeName:      getEnvOrDefault("UNHEADED_NODE_NAME", getHostname()),
 		HTTPAddr:      getEnvOrDefault("HTTP_ADDR", ports.DefaultAddr(ports.DaemonHTTP)),
 		GRPCAddr:      getEnvOrDefault("GRPC_ADDR", ports.DefaultAddr(ports.DaemonGRPC)),
-		LXDSocket:     getEnvOrDefault("LXD_SOCKET", "/var/lib/lxd/unix.socket"),
+		LXDBackend:    getEnvOrDefault("LXD_BACKEND", "mock"),
+		LXDSocket:     getEnvOrDefault("LXD_SOCKET", "/var/snap/lxd/common/lxd/unix.socket"),
+		LXDURL:        os.Getenv("LXD_URL"),
+		LXDProject:    os.Getenv("LXD_PROJECT"),
+		LXDClientCert: os.Getenv("LXD_CLIENT_CERT"),
+		LXDClientKey:  os.Getenv("LXD_CLIENT_KEY"),
+		LXDServerCert: os.Getenv("LXD_SERVER_CERT"),
 		WotanAddr:     getEnvOrDefault("WOTAN_ADDR", fmt.Sprintf("localhost:%d", ports.WotanHTTP)), // HTTP; 18001 is gRPC
 		WotanGRPCAddr: getEnvOrDefault("WOTAN_GRPC_ADDR", ""),
 		PollInterval:  30 * time.Second,
@@ -1403,8 +1429,17 @@ func loadConfig(path string) *Config {
 		if yc.GRPCAddr != "" {
 			cfg.GRPCAddr = yc.GRPCAddr
 		}
-		if yc.LXDSocket != "" {
-			cfg.LXDSocket = yc.LXDSocket
+		for _, o := range []struct {
+			dst *string
+			v   string
+		}{
+			{&cfg.LXDBackend, yc.LXDBackend}, {&cfg.LXDSocket, yc.LXDSocket}, {&cfg.LXDURL, yc.LXDURL},
+			{&cfg.LXDProject, yc.LXDProject}, {&cfg.LXDClientCert, yc.LXDClientCert},
+			{&cfg.LXDClientKey, yc.LXDClientKey}, {&cfg.LXDServerCert, yc.LXDServerCert},
+		} {
+			if o.v != "" {
+				*o.dst = o.v
+			}
 		}
 		if yc.WotanAddr != "" {
 			cfg.WotanAddr = yc.WotanAddr

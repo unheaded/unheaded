@@ -46,7 +46,27 @@ Cuirass (unheaded-daemon) shares hosts with things it did not create: west's LXD
 - **No pruning by default.** A managed instance nobody desires is reported as orphaned and deleted only with `CUIRASS_PRUNE=true` (`prune: true`).
 - **Writes need auth.** `PUT`/`DELETE /api/v1/containers/{id}` answer 403 unless `AUTH_ENABLED=true`; reads stay open.
 
-The same label and prune rule apply to `pkg/state`'s reconciler. The daemon still runs the mock LXD client: no real LXD connection exists yet. LXD socket access is root-equivalent. A real client should use LXD's HTTPS API with a restricted client certificate, limited to an `unheaded` project, so pihole is not even visible to it.
+The same label and prune rule apply to `pkg/state`'s reconciler.
+
+## Cuirass LXD backend
+
+`LXD_BACKEND` picks the client (`cmd/unheaded-daemon/lxd_rest.go`, standard library only):
+
+| `LXD_BACKEND` | Connects with | Settings |
+|---|---|---|
+| `mock` (default) | in-memory, no LXD | — |
+| `unix` | LXD's unix socket | `LXD_SOCKET` (default `/var/snap/lxd/common/lxd/unix.socket`) |
+| `https` | LXD's HTTPS API, client certificate, pinned server certificate | `LXD_URL` (`https://host:8443`), `LXD_CLIENT_CERT`, `LXD_CLIENT_KEY`, `LXD_SERVER_CERT` |
+
+`LXD_PROJECT` applies to both real backends; a project that does not exist is an error, never a fallback to `default`. The YAML config takes the same settings as `lxd_backend`, `lxd_socket`, `lxd_url`, `lxd_project`, `lxd_client_cert`, `lxd_client_key`, `lxd_server_cert`.
+
+- **Use `https`.** The unix socket is root-equivalent and sees every project; the daemon logs a warning when it uses it. A certificate added with `lxc config trust add --restricted --projects unheaded` sees only that project, so pihole is not even visible to it.
+- **The server certificate is pinned.** The connection fails unless LXD presents exactly the certificate in `LXD_SERVER_CERT` (`lxc info | sed -n '/BEGIN CERT/,/END CERT/p'`, or `/var/snap/lxd/common/lxd/server.crt`).
+- **The client re-checks the label.** Start, stop, restart and delete each re-read the instance and refuse it without `user.unheaded.managed=true`, whatever the reconciler planned.
+- **A failed list skips the cycle.** Actual state and drift stay as last seen; an unreachable LXD is not reported as every container missing. `cuirass_lxd_up` is 0 until a list succeeds.
+- Created instances get `user.unheaded.managed=true`, `limits.cpu` (spec `cpu`, cores), `limits.memory` (spec `memory`, bytes) and `user.unheaded.label.<key>` per label. Images are a local alias or `images:<alias>` / `ubuntu:<alias>`. Instance names follow LXD's rule (letter first, letters, digits and hyphens, at most 63); `PUT /api/v1/containers/{id}` rejects others with 400.
+
+Not deployed yet. The plan: `lxc project create unheaded`, a restricted trust for that project, then the daemon with `LXD_BACKEND=https` in observe mode, and read the planned actions before enforcing.
 
 ## NixOS Container Definitions
 
