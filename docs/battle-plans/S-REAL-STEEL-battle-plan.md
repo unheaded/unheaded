@@ -1022,12 +1022,17 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-23: 0a93d7f4.
 - [x] **Step 230** [W] ~15m: `wiki/Service-Sword.md` (routes, env, state, strategies, how rollback picks the previous version, the SLO guard); link from `_Sidebar` and the services index.
   - Done 2026-10-23: wiki/Service-Sword.md (routes, env, state, strategies, rollback target, canary analysis and the SLO guard, status: not yet run live); linked from _Sidebar, Home and Microservices; Port-Registry says sword 19011 (was canary).
-- [ ] **Step 231** [C] ~2m: **COMMIT CHECKPOINT**: `docs(wiki): Service-Sword`.
-- [ ] **Step 232** [B] ~2m: `services/sword` and `pkg/deploy/{strategy,rollback,cuirassdriver}` are now reached: rerun Step 5's command; they must be absent from the unreached list.
+- [x] **Step 231** [C] ~2m: **COMMIT CHECKPOINT**: `docs(wiki): Service-Sword`.
+  - Done 2026-10-23: d3945965.
+- [x] **Step 232** [B] ~2m: `services/sword` and `pkg/deploy/{strategy,rollback,cuirassdriver}` are now reached: rerun Step 5's command; they must be absent from the unreached list.
+  - Done 2026-10-23: unreached list regenerated: 146 of 312 (was 148). services/sword, pkg/deploy/strategy, pkg/deploy/rollback are reached; new and reached: pkg/deploy/cuirassdriver, pkg/sloguard, cmd/steel-echo, cmd/sword; new and unreached by design: pkg/deploy/cuirassdriver/cuirasstest (test helper). docs/UNREACHED-GO-PACKAGES.md annotated (full regeneration stays Phase 1/16).
 - [ ] **Step 233** [AFTER-E1] ~10m: If E1 G3 = Y: `git rm -r services/canary`, fix references (wiki, ports comments), `go build ./...`, commit `chore(sweep): delete services/canary, folded into Sword (E1 G3)`. If N: leave it, add a deprecation line in its package doc pointing to Sword.
-- [ ] **Step 234** [V] ~2m: **PHASE 8 EXIT GATE**: Steps 217, 222, 225, 228 green; Step 232 shows Sword reached.
+  - [AFTER-E1] skipped: G3 not answered. services/canary stays in place, folded into Sword in code (analysis.go maps its SLOThreshold); only its port reference changed (ports.Sword). Deletion pending E1 G3, noted in UNREACHED-GO-PACKAGES.md.
+- [x] **Step 234** [V] ~2m: **PHASE 8 EXIT GATE**: Steps 217, 222, 225, 228 green; Step 232 shows Sword reached.
+  - Done 2026-10-23: PASS (code half): Steps 217, 222, 225, 228 green; Step 232 shows Sword reached. The live run of Sword is Phase 9 [DEFERRED: E2 window].
 - [ ] **Step 235** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks).
-- [ ] **Step 236** [AUDIT-UPDATE] ~2m: ADR-088: one line under the substrate ladder: "LXD substrate: Sword deploys into LXD through Cuirass (S-REAL-STEEL)".
+- [x] **Step 236** [AUDIT-UPDATE] ~2m: ADR-088: one line under the substrate ladder: "LXD substrate: Sword deploys into LXD through Cuirass (S-REAL-STEEL)".
+  - Done 2026-10-23: ADR-088 line under the substrate ladder (LXD substrate: Sword through Cuirass; live proof waits on E2).
 
 **DoD (Phase 8)**: DoD-STD + Sword never reports success without a Cuirass-confirmed healthy instance (test asserts on the fake's state, not on Sword's own bookkeeping).
 

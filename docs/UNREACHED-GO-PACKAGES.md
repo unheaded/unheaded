@@ -77,8 +77,8 @@ Known to fake success, so a future caller would be misled (found 2026-10-23):
 - `pkg/deploy`
 - `pkg/deploy/artifact`
 - `pkg/deploy/pipeline`
-- `pkg/deploy/rollback` (wired in Phase 8: cmd/sword, S-REAL-STEEL)
-- `pkg/deploy/strategy` (wired in Phase 8: cmd/sword, S-REAL-STEEL)
+- `pkg/deploy/rollback` (reached since S-REAL-STEEL Phase 8: cmd/sword imports it)
+- `pkg/deploy/strategy` (reached since S-REAL-STEEL Phase 8: cmd/sword imports it)
 - `pkg/dns`
 - `pkg/ebpf/maploader`
 - `pkg/eventbus`
@@ -148,7 +148,7 @@ Known to fake success, so a future caller would be misled (found 2026-10-23):
 - `scripts/lib`
 - `services/anamnesis`
 - `services/anomaly`
-- `services/canary`
+- `services/canary` (folded into Sword in S-REAL-STEEL Phase 8; deletion pending E1 G3)
 - `services/cape`
 - `services/cloak`
 - `services/compliance`
@@ -168,7 +168,7 @@ Known to fake success, so a future caller would be misled (found 2026-10-23):
 - `services/qos`
 - `services/sabatons`
 - `services/selfheal`
-- `services/sword`
+- `services/sword` (reached since S-REAL-STEEL Phase 8: cmd/sword)
 - `services/tassets`
 - `services/telemetry`
 - `services/vambraces`
