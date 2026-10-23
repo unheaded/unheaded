@@ -40,7 +40,9 @@ cd "${REPO_ROOT}" || exit 1
 
 # Workspace ROOTS only. A Cargo.lock marks a root; members carry only a
 # Cargo.toml. Do not "simplify" this back to Cargo.toml.
-WORKSPACES="$(git ls-files '*/Cargo.lock' | xargs -n1 dirname | sort -u)"
+# A Cargo.lock under testdata/ is a scanner fixture, not a workspace
+# (cmd/crypto-inventory/testdata/rust has a lockfile and no Cargo.toml).
+WORKSPACES="$(git ls-files '*/Cargo.lock' | grep -v '/testdata/' | xargs -n1 dirname | sort -u)"
 
 # crates/zhenai-forge's build.rs compiles HIP kernels with hipcc (ROCm), which
 # CI runners do not have; without this its build script panics and the
