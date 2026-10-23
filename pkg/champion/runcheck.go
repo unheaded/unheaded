@@ -236,12 +236,16 @@ func (c *Champion) RunCheck(ctx context.Context, key, path, crate string) (RunCh
 		return fail(fmt.Errorf("check could not run: %w", err))
 	}
 	res.Pass = sr.Exit == 0 && (!spec.FailOnOutput || strings.TrimSpace(sr.Output) == "")
-	status, result := "completed", "pass"
+	result := "pass"
 	if !res.Pass {
-		status, result = "check_failed", "fail"
+		result = "fail"
 	}
 	checkRunsTotal.WithLabelValues(label, result).Inc()
-	c.completeAction(ctx, actionID, status, fmt.Sprintf("exit=%d pass=%v", res.Exit, res.Pass), "", time.Since(start))
+	// The check ran to completion either way; the verdict is the summary
+	// (zhen-flywheel label reads it). zhen_actions.status allows only
+	// planned/executing/completed/failed/reverted (009), and "failed" is
+	// for a check that could not run.
+	c.completeAction(ctx, actionID, "completed", fmt.Sprintf("exit=%d pass=%v", res.Exit, res.Pass), "", time.Since(start))
 	return res, nil
 }
 

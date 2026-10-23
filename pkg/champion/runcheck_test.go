@@ -125,8 +125,12 @@ func TestRunCheck_FailAndFailOnOutput(t *testing.T) {
 	if res, err := c.RunCheck(context.Background(), "go-test", ".", ""); err != nil || res.Pass || res.Exit != 1 {
 		t.Errorf("failing check: %+v %v", res, err)
 	}
-	if store.actions[0].Status != "check_failed" {
-		t.Errorf("status = %s", store.actions[0].Status)
+	// A failing check ran to completion: the verdict is in the summary.
+	// The status must be one zhen_actions accepts (009's CHECK); the
+	// earlier "check_failed" was refused by the Well, so the row stayed
+	// 'planned' and the failure was never recorded.
+	if a := store.actions[0]; a.Status != "completed" || a.ResultSummary != "exit=1 pass=false" || a.Error != "" {
+		t.Errorf("action = status %q summary %q error %q", a.Status, a.ResultSummary, a.Error)
 	}
 	fs.res = sandbox.Result{Exit: 0, Output: "pkg/x/a.go\n"}
 	if res, _ := c.RunCheck(context.Background(), "gofmt-l", "./pkg/x", ""); res.Pass {
