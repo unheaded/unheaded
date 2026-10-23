@@ -63,6 +63,17 @@ func TestJudgeAgentReport(t *testing.T) {
 		{"other baseline", agentOut(t, func(m map[string]any) { m["baseline_sha256"] = "def456" }), centralRecs(crosswalk.VerdictPass), false, "ran baseline def456"},
 		{"enforcing asked", agentOut(t, func(m map[string]any) { m["mode_config"] = "enforcing" }), centralRecs(crosswalk.VerdictPass), false, "config=enforcing effective=audit"},
 		{"nothing compared", agentOut(t, nil), nil, false, "no check evaluated by both"},
+		// The agent skipped a check the central pull judged: not agreement.
+		{"agent unevaluated", agentOut(t, nil), append(centralRecs(crosswalk.VerdictPass),
+			crosswalk.Record{Source: crosswalk.Source{Kind: crosswalk.KindHostProbe, Ref: "east:aide-timer"}, Verdict: crosswalk.VerdictFail, ObservedAt: now}),
+			false, "host-probe:east:aide-timer (agent unevaluated, central fail)"},
+		{"agent dropped a check", agentOut(t, nil), append(centralRecs(crosswalk.VerdictPass),
+			crosswalk.Record{Source: crosswalk.Source{Kind: crosswalk.KindHostProbe, Ref: "east:auditd-running"}, Verdict: crosswalk.VerdictFail, ObservedAt: now}),
+			false, "host-probe:east:auditd-running (agent missing, central fail)"},
+		// Central-only operational probes are not in the agent's baseline.
+		{"central-only probe", agentOut(t, nil), append(centralRecs(crosswalk.VerdictPass),
+			crosswalk.Record{Source: crosswalk.Source{Kind: crosswalk.KindHostProbe, Ref: "east:db-backup-recent"}, Verdict: crosswalk.VerdictFail, ObservedAt: now}),
+			true, "2 checks agree"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			pass, detail := JudgeAgentReport(tc.out, "east", tc.central, "abc123", now, 3*time.Hour)

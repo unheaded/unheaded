@@ -85,19 +85,32 @@ func JudgeAgentReport(out, host string, central []crosswalk.Record, baselineSHA 
 			latest[k] = c
 		}
 	}
+	agent := make(map[string]string, len(r.Checks))
+	for _, c := range r.Checks {
+		agent[c.Key] = c.Verdict
+	}
+	// Every baseline check the central pull judged must have been judged
+	// by the agent too: an agent that left checks unevaluated, or dropped
+	// them from its report, once passed on the few it did evaluate.
 	var differ []string
 	compared := 0
-	for _, c := range r.Checks {
-		if c.Verdict != "pass" && c.Verdict != "fail" {
+	for k, cr := range latest {
+		if cr.Verdict != crosswalk.VerdictPass && cr.Verdict != crosswalk.VerdictFail {
 			continue
 		}
-		cr, ok := latest[c.Key]
-		if !ok || (cr.Verdict != crosswalk.VerdictPass && cr.Verdict != crosswalk.VerdictFail) {
+		av, inReport := agent[k]
+		if av != "pass" && av != "fail" {
+			if isBaselineSource(cr.Source) {
+				if !inReport {
+					av = "missing"
+				}
+				differ = append(differ, fmt.Sprintf("%s (agent %s, central %s)", k, av, cr.Verdict))
+			}
 			continue
 		}
 		compared++
-		if string(cr.Verdict) != c.Verdict {
-			differ = append(differ, fmt.Sprintf("%s (agent %s, central %s)", c.Key, c.Verdict, cr.Verdict))
+		if string(cr.Verdict) != av {
+			differ = append(differ, fmt.Sprintf("%s (agent %s, central %s)", k, av, cr.Verdict))
 		}
 	}
 	if len(differ) > 0 {
