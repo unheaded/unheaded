@@ -429,28 +429,30 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 ### E1
 
 - [ ] **Step 38** [ESCALATE] ~0m agent / one pass for Stevie: **E1, ADR-090 delete decisions.**
+  - Done 2026-10-23: E1 posted, waiting on Stevie (docs/sweeps/REAL-STEEL-DECISIONS.md). Phase 1, Steps 91-92 and 233 wait; everything else continues.
   - **Context**: `docs/sweeps/REAL-STEEL-DECISIONS.md`, one table, about 12 group rows plus FLAGGED rows. Each group has a recommendation; "Y" on a row takes it.
   - **Questions**: (1) Answer column per group (Y/N/P/W). (2) FLAGGED rows individually. (3) ADR-090 status: accept it now (then D-01's override applies), or keep Proposed?
   - **Why Stevie**: deletions are his call (standing rule, and ADR-090 "re-decide documented retentions with Stevie"). The recommendations are pre-seeded, so this is one pass, not 148 questions.
   - **What stops**: Phase 1 only. Phases 2-16 do not depend on E1, except: Phase 2 Step 91 (transport.Connect) and Step 92 (xdpsync) read E1's G5 answer, and Phase 8 Step 233 reads G3 (canary delete after merge). Until E1 lands, those steps are [AFTER-E1] and skipped.
-- [ ] **Step 39** [B] ~2m: Post E1 to the handoff so it survives a session end.
+- [x] **Step 39** [B] ~2m: Post E1 to the handoff so it survives a session end.
   ```bash
   printf '\n## S-REAL-STEEL E1 (waiting on Stevie)\nAnswer the table in docs/sweeps/REAL-STEEL-DECISIONS.md (one pass).\n' >> ~/tmp/next.md
   ```
-- [ ] **Step 40** [V] ~1m: `grep -n 'S-REAL-STEEL E1' ~/tmp/next.md` returns one line.
+- [x] **Step 40** [V] ~1m: `grep -n 'S-REAL-STEEL E1' ~/tmp/next.md` returns one line.
 
 ### Exit
 
-- [ ] **Step 41** [B] ~2m: `go build ./... && go vet ./scripts/... 2>&1 | tail -3` (nothing deleted yet, so this must equal baseline).
-- [ ] **Step 42** [V] ~1m: Tree clean except this plan's STUCK/H-row edits.
+- [x] **Step 41** [B] ~2m: `go build ./... && go vet ./scripts/... 2>&1 | tail -3` (nothing deleted yet, so this must equal baseline).
+- [x] **Step 42** [V] ~1m: Tree clean except this plan's STUCK/H-row edits.
   ```bash
   git -C "$PROJECT_ROOT" status --short
   ```
-- [ ] **Step 43** [C] ~1m: **COMMIT CHECKPOINT** (any remaining plan edits).
+- [x] **Step 43** [C] ~1m: **COMMIT CHECKPOINT** (any remaining plan edits).
   ```bash
   git -C "$PROJECT_ROOT" diff --quiet -- "$PLAN" || commit "docs(battle-plan): S-REAL-STEEL phase 0 notes" "38-43" "$PLAN"
   ```
-- [ ] **Step 44** [V] ~2m: **PHASE 0 EXIT GATE**: H1-H15 resolved in the table; `$VERDICTS` and the decision table committed; E1 posted; baseline recorded.
+- [x] **Step 44** [V] ~2m: **PHASE 0 EXIT GATE**: H1-H15 resolved in the table; `$VERDICTS` and the decision table committed; E1 posted; baseline recorded.
+  - Done 2026-10-23: PASS. H1-H15 resolved (all TRUE, H1 with the re-sign hash amendment); ledger + decision table committed (d1bd3dc7); E1 posted to ~/tmp/next.md; baseline 277 ok / 0 FAIL. Next: Phases 2, 3, 4.
   - Pass → Phase 1 when E1 is answered; meanwhile Phase 2 (and Phase 4 in parallel).
   - Fail → do not proceed; finish the missing artifact.
 
