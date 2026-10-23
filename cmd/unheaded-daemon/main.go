@@ -26,6 +26,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -188,6 +189,9 @@ type LXDClient interface {
 	RestartContainer(ctx context.Context, name string) error
 	// DeleteContainer removes a container
 	DeleteContainer(ctx context.Context, name string, force bool) error
+	// UpdateProxy sets (or, with nil, removes) the unheaded-proxy device of a
+	// managed instance, leaving every other device alone.
+	UpdateProxy(ctx context.Context, name string, p *ProxySpec) error
 	// ListContainers returns all containers. An error means actual state
 	// is unknown, never that it is empty.
 	ListContainers(ctx context.Context) (map[string]*ContainerState, error)
@@ -224,6 +228,8 @@ func (m *MockLXDClient) CreateContainer(ctx context.Context, spec *ContainerSpec
 		Health:   "starting",
 		CPUUsage: 0,
 		Managed:  true, // a real client sets ManagedLabel=true at create
+		Proxy:    copyProxy(spec.Proxy),
+		Labels:   copyLabels(spec.Labels),
 	}
 
 	m.log.Info().
@@ -296,6 +302,22 @@ func (m *MockLXDClient) DeleteContainer(ctx context.Context, name string, force 
 	return nil
 }
 
+// UpdateProxy sets or removes a mock container's proxy; like the real client
+// it refuses an instance that is not Unheaded's.
+func (m *MockLXDClient) UpdateProxy(_ context.Context, name string, p *ProxySpec) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	c, ok := m.containers[name]
+	if !ok {
+		return fmt.Errorf("container %s not found", name)
+	}
+	if !c.Managed {
+		return fmt.Errorf("%s: %w", name, errLXDNotManaged)
+	}
+	c.Proxy = copyProxy(p)
+	return nil
+}
+
 // ListContainers returns all containers
 func (m *MockLXDClient) ListContainers(context.Context) (map[string]*ContainerState, error) {
 	m.mu.RLock()
@@ -309,9 +331,30 @@ func (m *MockLXDClient) ListContainers(context.Context) (map[string]*ContainerSt
 			CPUUsage: v.CPUUsage,
 			Health:   v.Health,
 			Managed:  v.Managed,
+			Proxy:    copyProxy(v.Proxy),
+			Labels:   copyLabels(v.Labels),
 		}
 	}
 	return result, nil
+}
+
+func copyProxy(p *ProxySpec) *ProxySpec {
+	if p == nil {
+		return nil
+	}
+	c := *p
+	return &c
+}
+
+func copyLabels(l map[string]string) map[string]string {
+	if l == nil {
+		return nil
+	}
+	c := make(map[string]string, len(l))
+	for k, v := range l {
+		c[k] = v
+	}
+	return c
 }
 
 // ============================================================================
@@ -348,6 +391,10 @@ type Config struct {
 
 	// StateDir holds desired.json, the desired state. Empty refuses writes.
 	StateDir string
+
+	// ProxyListenAddrs: lab addresses a proxy device may listen on besides
+	// 127.0.0.1 (CUIRASS_PROXY_LISTEN_ADDRS, comma separated IPs).
+	ProxyListenAddrs []string
 }
 
 // StateManager manages desired vs actual state
@@ -368,12 +415,20 @@ type ContainerSpec struct {
 	Labels map[string]string `json:"labels"`
 	// Health, when set, is probed on the instance each sync (health_probe.go).
 	Health *HealthSpec `json:"health,omitempty"`
+	// Proxy, when set, is the instance's unheaded-proxy device, the
+	// service's stable endpoint (proxy_device.go).
+	Proxy *ProxySpec `json:"proxy,omitempty"`
 }
 
 // validate checks the parts of a spec that are checked before it is stored.
-func (s *ContainerSpec) validate() error {
+func (s *ContainerSpec) validate(proxyListen []string) error {
 	if s.Health != nil {
 		if err := s.Health.validate(); err != nil {
+			return err
+		}
+	}
+	if s.Proxy != nil {
+		if err := s.Proxy.validate(proxyListen); err != nil {
 			return err
 		}
 	}
@@ -393,6 +448,11 @@ type ContainerState struct {
 	CPUUsage float64 `json:"cpu_usage"`
 	Health   string  `json:"health"`
 	Managed  bool    `json:"managed"` // carries ManagedLabel=true
+	// Proxy is the instance's unheaded-proxy device, if any; other devices
+	// are not reported.
+	Proxy *ProxySpec `json:"proxy,omitempty"`
+	// Labels are the instance's user.unheaded.label.* config keys.
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 // DriftReport represents detected drift
@@ -1003,13 +1063,21 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		spec.ID = id
-		if err := spec.validate(); err != nil {
+		if err := spec.validate(d.config.ProxyListenAddrs); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
 			return
 		}
 
 		d.stateManager.mu.Lock()
+		if owner := d.proxyListenOwner(id, spec.Proxy); owner != "" {
+			d.stateManager.mu.Unlock()
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]string{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+				"error": fmt.Sprintf("proxy listen %s is already %s's", spec.Proxy.Listen, owner),
+			})
+			return
+		}
 		next := cloneDesired(d.stateManager.desired)
 		next[id] = &spec
 		err := d.commitDesired(next)
@@ -1061,6 +1129,20 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 			"error": fmt.Sprintf("method %s not allowed", r.Method),
 		})
 	}
+}
+
+// proxyListenOwner returns the other desired container whose proxy already
+// listens where p would, or ""; the caller holds stateManager.mu.
+func (d *Daemon) proxyListenOwner(id string, p *ProxySpec) string {
+	if p == nil {
+		return ""
+	}
+	for other, spec := range d.stateManager.desired {
+		if other != id && spec.Proxy != nil && spec.Proxy.Listen == p.Listen {
+			return other
+		}
+	}
+	return ""
 }
 
 var errNoStateStore = errors.New("no state dir: desired state cannot be persisted, so container writes are refused")
@@ -1210,6 +1292,9 @@ func (d *Daemon) planReconcile() []ReconcileAction {
 		case actual.Health == "unhealthy":
 			plan(id, "restart", "container health status is 'unhealthy'")
 		}
+		if exists && actual.Managed && !proxyEqual(desired.Proxy, actual.Proxy) {
+			plan(id, "update-proxy", "unheaded-proxy device differs from the desired one").spec = desired
+		}
 	}
 	if !d.config.Prune {
 		return actions
@@ -1254,6 +1339,12 @@ func (d *Daemon) applyAction(ctx context.Context, a *ReconcileAction) {
 		err = d.lxdClient.RestartContainer(ctx, a.ContainerID)
 	case "delete":
 		err = d.lxdClient.DeleteContainer(ctx, a.ContainerID, true)
+	case "update-proxy":
+		if a.spec == nil {
+			err = errors.New("update-proxy without a spec")
+		} else {
+			err = d.lxdClient.UpdateProxy(ctx, a.ContainerID, a.spec.Proxy)
+		}
 	default:
 		err = fmt.Errorf("unknown action %q", a.Action)
 	}
@@ -1479,24 +1570,25 @@ type yamlConfig struct {
 func loadConfig(path string) *Config {
 	// Start with defaults from environment variables
 	cfg := &Config{
-		NodeID:        getEnvOrDefault("UNHEADED_NODE_ID", fmt.Sprintf("citadel-%s", getHostname())),
-		NodeName:      getEnvOrDefault("UNHEADED_NODE_NAME", getHostname()),
-		HTTPAddr:      getEnvOrDefault("HTTP_ADDR", ports.DefaultAddr(ports.DaemonHTTP)),
-		GRPCAddr:      getEnvOrDefault("GRPC_ADDR", ports.DefaultAddr(ports.DaemonGRPC)),
-		LXDBackend:    getEnvOrDefault("LXD_BACKEND", "mock"),
-		LXDSocket:     getEnvOrDefault("LXD_SOCKET", "/var/snap/lxd/common/lxd/unix.socket"),
-		LXDURL:        os.Getenv("LXD_URL"),
-		LXDProject:    os.Getenv("LXD_PROJECT"),
-		LXDClientCert: os.Getenv("LXD_CLIENT_CERT"),
-		LXDClientKey:  os.Getenv("LXD_CLIENT_KEY"),
-		LXDServerCert: os.Getenv("LXD_SERVER_CERT"),
-		StateDir:      getEnvOrDefault("CUIRASS_STATE_DIR", "/var/lib/unheaded/cuirass"),
-		WotanAddr:     getEnvOrDefault("WOTAN_ADDR", fmt.Sprintf("localhost:%d", ports.WotanHTTP)), // HTTP; 18001 is gRPC
-		WotanGRPCAddr: getEnvOrDefault("WOTAN_GRPC_ADDR", ""),
-		PollInterval:  30 * time.Second,
-		LogLevel:      getEnvOrDefault("LOG_LEVEL", "info"),
-		Enforce:       os.Getenv("CUIRASS_ENFORCE") == "true",
-		Prune:         os.Getenv("CUIRASS_PRUNE") == "true",
+		NodeID:           getEnvOrDefault("UNHEADED_NODE_ID", fmt.Sprintf("citadel-%s", getHostname())),
+		NodeName:         getEnvOrDefault("UNHEADED_NODE_NAME", getHostname()),
+		HTTPAddr:         getEnvOrDefault("HTTP_ADDR", ports.DefaultAddr(ports.DaemonHTTP)),
+		GRPCAddr:         getEnvOrDefault("GRPC_ADDR", ports.DefaultAddr(ports.DaemonGRPC)),
+		LXDBackend:       getEnvOrDefault("LXD_BACKEND", "mock"),
+		LXDSocket:        getEnvOrDefault("LXD_SOCKET", "/var/snap/lxd/common/lxd/unix.socket"),
+		LXDURL:           os.Getenv("LXD_URL"),
+		LXDProject:       os.Getenv("LXD_PROJECT"),
+		LXDClientCert:    os.Getenv("LXD_CLIENT_CERT"),
+		LXDClientKey:     os.Getenv("LXD_CLIENT_KEY"),
+		LXDServerCert:    os.Getenv("LXD_SERVER_CERT"),
+		StateDir:         getEnvOrDefault("CUIRASS_STATE_DIR", "/var/lib/unheaded/cuirass"),
+		WotanAddr:        getEnvOrDefault("WOTAN_ADDR", fmt.Sprintf("localhost:%d", ports.WotanHTTP)), // HTTP; 18001 is gRPC
+		WotanGRPCAddr:    getEnvOrDefault("WOTAN_GRPC_ADDR", ""),
+		PollInterval:     30 * time.Second,
+		LogLevel:         getEnvOrDefault("LOG_LEVEL", "info"),
+		Enforce:          os.Getenv("CUIRASS_ENFORCE") == "true",
+		Prune:            os.Getenv("CUIRASS_PRUNE") == "true",
+		ProxyListenAddrs: parseIPList(os.Getenv("CUIRASS_PROXY_LISTEN_ADDRS")),
 	}
 
 	// Load from YAML file if path provided, overriding defaults
@@ -1566,6 +1658,22 @@ func loadConfig(path string) *Config {
 	}
 
 	return cfg
+}
+
+// parseIPList keeps the comma-separated entries that are specific IP
+// literals; names, wildcards and garbage are dropped (a proxy must never
+// listen on every interface).
+func parseIPList(s string) []string {
+	var out []string
+	for _, f := range strings.Split(s, ",") {
+		f = strings.TrimSpace(f)
+		if ip := net.ParseIP(f); ip != nil && !ip.IsUnspecified() {
+			out = append(out, ip.String())
+		} else if f != "" {
+			fmt.Fprintf(os.Stderr, "Warning: CUIRASS_PROXY_LISTEN_ADDRS entry %q is not a specific IP; ignored\n", f)
+		}
+	}
+	return out
 }
 
 func getEnvOrDefault(key, defaultValue string) string {
