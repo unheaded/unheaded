@@ -631,14 +631,19 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
 **Time**: 45 min
 **Agent**: Agent [P:2]
 
-- [ ] **Step 99** [R] ~10m: Read `services/wotan/internal/cluster/replication_server.go` and `replication_client.go`: confirm the standby catches up with `CatchUp` from a sequence and never asks for a snapshot (H12).
-- [ ] **Step 100** [DECIDE] ~0m: **D-13 snapshot = honest Unimplemented.** RECOMMENDATION: return `status.Error(codes.Unimplemented, "snapshot transfer not implemented; catch up from seq 0 (ADR-064)")`. Rationale: ADR-064 is Proposed and nobody calls the RPC; the only harm today is that the stub answers `Final: true, TotalSize: 0, LastSeq: <current>`, which a future caller would read as "you are up to date". Implementing transfer belongs to ADR-064 Phase 1 once Stevie starts it. Override ONLY if H12 was FALSE (a caller exists): then implement chunked transfer of the WAL from its first retained sequence, with a test that a fresh standby reaches the primary's `lastSeq` and identical message bodies.
-- [ ] **Step 101** [CODE][TEST] ~10m: `TestTransferSnapshot_IsUnimplemented` (status code Unimplemented, no chunk sent) and keep/extend the existing catch-up test so it starts from seq 0.
-- [ ] **Step 102** [TEST] ~2m: Red: `gotest ./services/wotan/internal/cluster/ -run TestTransferSnapshot`.
-- [ ] **Step 103** [CODE] ~5m: Implement (remove the TODO; the log line stays at Info with the peer).
-- [ ] **Step 104** [TEST][V] ~3m: Green: `gotest ./services/wotan/internal/cluster/...`.
-- [ ] **Step 105** [W] ~5m: ADR-064: under its phase list, one line: "Snapshot transfer: RPC answers Unimplemented since S-REAL-STEEL (was an empty Final chunk); implementing it is a Phase 1 prerequisite."
-- [ ] **Step 106** [C] ~2m: **COMMIT CHECKPOINT**: `fix(wotan): TransferSnapshot answers Unimplemented instead of an empty final snapshot`.
+- [x] **Step 99** [R] ~10m: Read `services/wotan/internal/cluster/replication_server.go` and `replication_client.go`: confirm the standby catches up with `CatchUp` from a sequence and never asks for a snapshot (H12).
+  - Done 2026-10-23: H12 holds: replication_client.go only calls CatchUp(since lastApplied) and Ping; nothing calls TransferSnapshot.
+- [x] **Step 100** [DECIDE] ~0m: **D-13 snapshot = honest Unimplemented.** RECOMMENDATION: return `status.Error(codes.Unimplemented, "snapshot transfer not implemented; catch up from seq 0 (ADR-064)")`. Rationale: ADR-064 is Proposed and nobody calls the RPC; the only harm today is that the stub answers `Final: true, TotalSize: 0, LastSeq: <current>`, which a future caller would read as "you are up to date". Implementing transfer belongs to ADR-064 Phase 1 once Stevie starts it. Override ONLY if H12 was FALSE (a caller exists): then implement chunked transfer of the WAL from its first retained sequence, with a test that a fresh standby reaches the primary's `lastSeq` and identical message bodies.
+  - Done 2026-10-23: recommendation taken (H12 TRUE).
+- [x] **Step 101** [CODE][TEST] ~10m: `TestTransferSnapshot_IsUnimplemented` (status code Unimplemented, no chunk sent) and keep/extend the existing catch-up test so it starts from seq 0.
+  - Done 2026-10-23: replication_server_test.go (bufconn gRPC over a real WAL in a temp dir): TestTransferSnapshot_IsUnimplemented and TestCatchUp_FromZeroDeliversEverything (there was no catch-up test to extend; the package had none for the server).
+- [x] **Step 102** [TEST] ~2m: Red: `gotest ./services/wotan/internal/cluster/ -run TestTransferSnapshot`.
+  - Done 2026-10-23: red: the stub sent final:true last_seq:3.
+- [x] **Step 103** [CODE] ~5m: Implement (remove the TODO; the log line stays at Info with the peer).
+- [x] **Step 104** [TEST][V] ~3m: Green: `gotest ./services/wotan/internal/cluster/...`.
+  - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
+- [x] **Step 105** [W] ~5m: ADR-064: under its phase list, one line: "Snapshot transfer: RPC answers Unimplemented since S-REAL-STEEL (was an empty Final chunk); implementing it is a Phase 1 prerequisite."
+- [x] **Step 106** [C] ~2m: **COMMIT CHECKPOINT**: `fix(wotan): TransferSnapshot answers Unimplemented instead of an empty final snapshot`.
 - [ ] **Step 107** [V] ~1m: **PHASE 3 EXIT GATE**: test green; ADR-064 line present (`grep -n 'Unimplemented since S-REAL-STEEL' docs/adr/ADR-064-*.md`).
 - [ ] **Step 108** [AUDIT-UPDATE] ~2m: next.md Wotan open list: mark the snapshot TODO as "answered honestly, implementation waits on ADR-064".
 

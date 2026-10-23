@@ -256,6 +256,8 @@ Each campaign gets a `tomb/lich/LICH-NNN-<name>/` skeleton when this ADR's Phase
 
 This is a 4-phase rollout. **No phase ships without H0 coding-gate clean across the change**.
 
+Snapshot transfer: RPC answers Unimplemented since S-REAL-STEEL (was an empty Final chunk); implementing it is a Phase 1 prerequisite. Until then a standby catches up with `CatchUp` from seq 0 (`services/wotan/internal/cluster/replication_server_test.go`).
+
 ### Phase 0 — Spec + bench harness (this ADR + a 3-pod kind cluster)
 
 - This ADR lands and gets reviewed (Stevie + crew)
