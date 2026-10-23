@@ -88,9 +88,26 @@ func (l Labels) Clone() Labels {
 }
 
 // escapeLabel escapes a label value for Prometheus exposition format.
+//
+// Invalid UTF-8 is replaced with U+FFFD first: Prometheus rejects a scrape
+// containing a label value that is not valid UTF-8, which loses every series
+// on the page, not only the one carrying the bad bytes. client_golang
+// refuses such values; replacing them keeps the page and the series.
 func escapeLabel(s string) string {
+	s = strings.ToValidUTF8(s, "\uFFFD")
 	s = strings.ReplaceAll(s, "\\", "\\\\")
 	s = strings.ReplaceAll(s, "\"", "\\\"")
+	s = strings.ReplaceAll(s, "\n", "\\n")
+	return s
+}
+
+// escapeHelp escapes help text for a # HELP line. The text format requires
+// backslash and newline escaped there (quotes are not): an unescaped newline
+// ends the line early and the rest of the help is parsed as a sample, which
+// fails the whole scrape.
+func escapeHelp(s string) string {
+	s = strings.ToValidUTF8(s, "\uFFFD")
+	s = strings.ReplaceAll(s, "\\", "\\\\")
 	s = strings.ReplaceAll(s, "\n", "\\n")
 	return s
 }
@@ -1159,7 +1176,7 @@ func writeFamilies(w io.Writer, collectors map[string][]Collector) error {
 		}
 
 		if desc.Help != "" {
-			if _, err := fmt.Fprintf(w, "# HELP %s %s\n", desc.Name, desc.Help); err != nil {
+			if _, err := fmt.Fprintf(w, "# HELP %s %s\n", desc.Name, escapeHelp(desc.Help)); err != nil {
 				return err
 			}
 		}
