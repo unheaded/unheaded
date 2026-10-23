@@ -194,6 +194,28 @@ jobs:
           bandit -r . -x ./llama.cpp,./target,./node_modules
           --skip B603,B607,B404,B311,B605,B101
 
+  # runbook/v1 (ADR-024): every runbook parses and follows the schema, ratcheted
+  # by runbooks/.check-baseline (may only shrink), and every runbook test passes
+  # in dry-run form (S-TWO-BRAINS Phase 8). Live-marked tests need a lab host
+  # and are deselected here. Go builds the throwaway Wotan some tests start.
+  runbooks:
+    name: Runbooks (schema + dry-run tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6.5.0
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6
+        with:
+          python-version: '3.12'
+      - run: "pip install --quiet --require-hashes --no-deps --only-binary=:all: -r .github/ci-python/requirements.txt"
+      - name: runbook/v1 schema (GATING, ratcheted)
+        run: ./scripts/check-runbooks.sh
+      - name: runbook dry-run tests (GATING)
+        run: python3 -m pytest tests/runbooks -q -m "not live"
+
   javascript:
     name: JavaScript (oxlint)
     runs-on: ubuntu-latest
