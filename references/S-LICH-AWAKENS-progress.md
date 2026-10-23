@@ -115,3 +115,106 @@ clean; no new go.mod/go.sum deps; the real ADR-098 register is untouched (still 
   belongs to Phase 4 / `sprint/two-brains`. The gate's *refusal* (pending-confirmation) is
   built and tested here.
 - No STUCK, no ESCALATE: E0 did not fire (H1 TRUE), E1 did not fire (no-egress proven).
+
+---
+
+## Sprint 4 chunk (Phases 4-6) — COMPLETE (2026-10-23, second session)
+
+**Base + merge.** Reset to `sprint/lich-awakens` tip `e9d5d0ff` (Phases 0-3), then
+`git merge --no-ff --no-gpg-sign sprint/two-brains`. One conflict, in
+`pkg/champion/toolcall.go` `ReadOnlyTools` — both sides added map entries (the lich
+read-only tools vs. two-brains' `run_check`). Resolved by keeping both. Tests green;
+merge commit `a90b017c`. `sprint/lich-awakens` force-updated to HEAD after every commit;
+develop/staging/main and the two-brains* branches never touched; nothing pushed.
+
+**Reconciliation note (DECIDE).** The plan predates two-brains' `-route`. Two-brains
+shipped a *task-family* `ThresholdRouter` and a `zhen-claude -route auto|claude|local`;
+the ADR-104 `claudebridge.Router` (Weight classifier) was still unimplemented. So the
+plan's Step 109 `autoRouter` is genuinely needed and non-conflicting. The Step 110
+`-route auto|heavy|minor` CLI lives on the NEW Lich driver (`cmd/lich-mcp drive`), not on
+`zhen-claude`, to avoid clobbering two-brains' flow. `confirm`/`drive` are subcommands of
+the one `cmd/lich-mcp` binary (the kill-switch owner).
+
+## Phase 4 — gate, confirmation flow & routing — COMPLETE
+
+- **Out-of-band confirmation** (`pkg/lichtools/confirm.go` + `cmd/lich-mcp/confirmgate.go`
+  + `confirm_cmd.go`): a refused-pending `lich_file_finding` parks a hash-bound ticket under
+  `var/lich/pending/` (0700, gitignored). `CallHash` = sha256 over {tool, project root,
+  canonical args}. `lich-mcp confirm {list|show|approve <id>}`. `confirmGate` wraps the
+  Champion gate: on an operator-approved ticket it redeems the call once (past Rule 2 only,
+  for the one server-fixed-path mutating tool), else parks/returns pending. Re-issue of the
+  identical call proceeds once; a different call does not inherit approval; used tickets
+  cannot replay; expired tickets swept. Reused by the server and the Phase-6 driver.
+- **AutoRouter** (`pkg/claudebridge/autoroute.go`): implements the ADR-104 `Router`
+  interface. MINOR (seed/mutation/variant, status/lookup) local; HEAVY (triage, synthesis,
+  novel-harness, multi-crash) Claude; hint wins; default MINOR. `ModelForWeight` →
+  Haiku/Opus. Classification cannot bypass gate/cap/filter (boundary tests).
+- **local_llm tool** (`pkg/lichtools/localllm.go`): `lich_local_llm`, read-only in the gate,
+  free, on-host, offered only when an endpoint is wired; charges a daily compute budget.
+- Commits: confirm `87bee3e6`, router `c2bb83c7`, local_llm `990a9b08` (bundles the routing
+  boundary tests).
+
+## Phase 5 — local-model driver — COMPLETE
+
+- `pkg/lichtools/seedgen.go`: `GenerateSeeds` asks the free local model for candidate
+  inputs (monad-wire/mbc/bytes), parses hex byte lines, drops malformed, dedups by content,
+  writes inert 0600 files named by content hash under the campaign seed dir only
+  (slug-validated + `within()` scope check; `#nosec G703` justified). Mutation strategies
+  are prompt scaffolds. `GenerateRunCollect` chains to a confined bounded run (no model call
+  on the run side). Compute budget resets per UTC day.
+- **Seeds are inert data** (Step 137): a line that is a shell command is not hex → dropped;
+  hex bytes that spell a command are stored as literal data, never executed (test).
+- **Live e2e DEFERRED** (not STUCK): the shared llama-server (qwen-coder-14b, `--parallel 1`)
+  was saturated by the runbooks agent — `/v1/models` answered instantly but
+  `/v1/chat/completions` timed out at 60-90s. Per resource-awareness I did not start a second
+  server or disrupt the shared one. The opt-in `LICH_E2E` test is skipped by default; the
+  mock-based unit tests fully cover the driver logic.
+- Commit: `9f2a65a9`.
+
+## Phase 6 — Claude driver — COMPLETE
+
+- `cmd/lich-mcp/drive.go` (`lich-mcp drive`): a `claudebridge.Bridge` over the Lich provider
+  behind the confirmGate. Weight picks the model (Haiku MINOR / Opus HEAVY, effort
+  low/medium), overridable; hard daily dollar cap (`-daily-cap-usd`, default $3) reserves
+  worst-case before each send, fail-closed; `-dry-run` default; strict external-data
+  (privacy) filter required for a live send; audit records only sizes + SHA-256.
+  `claude-haiku-5-5` added to `prices.json` ($0.10/$0.50; verified against the claude-api
+  skill table). Fake-API tests: triage turn reads a crash then parks a finding (with dedup
+  key + repro sha256); cap refuses before any API call; refusal terminal across a re-ask;
+  no prompt/response text in the audit.
+- **Live smoke DONE (Step 158 override: sprint lead authorized up to $3).** One Haiku request
+  via `lich-mcp drive -route minor -max-tokens 256 -daily-cap-usd 0.50`, run-private ledger:
+  replied `OK`, **cost $0.000241**, stop_reason end_turn, 1 request. Audit had no prompt text
+  and no key. Key loaded per-command from `~/.bashrc`, never printed.
+- Commit: `ed905253`.
+
+## Monad-wire fuzz crash — VERDICT: NOT A BUG (closed with evidence)
+
+The Phases 0-3 note recorded a "crash" surfaced in the monad-wire harness; the lead ran
+5.2M execs and could not reproduce. Triaged properly:
+
+1. **Code is crash-free.** `ParseMonadWire`/`EncodeMonadWire` (harness) + `CRC16CCITT` and
+   `DecodeExponent` (`pkg/protocol/encoding`) are total: no panics, no index-out-of-range,
+   no division; `DecodeExponent` returns `ErrExponentOverflow` instead of overflowing.
+2. **Roundtrip cannot fail.** `EncodeMonadWire` recomputes the CRC over the first 18 bytes,
+   so `ParseMonadWire`'s CRC check on the re-encoded frame always passes — the `t.Fatalf`
+   path is unreachable.
+3. **No persisted reproducer.** `tomb/lich/harnesses/testdata/fuzz/` has NO `FuzzMonadWire*`
+   crash corpus; the only committed crash artifacts are `lich_010_FuzzWALSequenceGaps` (a
+   different, pre-existing campaign) — a likely mis-attribution.
+4. **Independent re-run.** FuzzMonadWireParse (~650K execs) + FuzzMonadWireRoundtrip (~556K
+   execs), 15s each: both PASS, 0 crashes, new-interesting 0. With the lead's 5.2M that is
+   ~6.4M execs, zero reproduction.
+
+Conclusion: no defect in the monad-wire parse or roundtrip path. Not filed (and would not
+be auto-published regardless). If a future run persists a `FuzzMonadWire*` reproducer, that
+is new evidence to re-open against.
+
+## Spend log (this session)
+
+| What | Model | Cost (USD) |
+|---|---|---|
+| Phase 6 live smoke (`drive -route minor`, 1 request) | claude-haiku-5-5 | 0.000241 |
+
+**Total live Claude spend this session: $0.000241**, far under the $3 cap. All fake-API
+tests and the dry-run path incur $0.

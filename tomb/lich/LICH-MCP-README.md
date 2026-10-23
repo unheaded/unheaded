@@ -119,3 +119,58 @@ applies the prelude above and attempts each escape.
 Every call is audited (tool, decision + reason, pending flag, input size +
 SHA-256 — never the input bytes, output size, duration) via the ADR-104
 `Auditor` shape, as JSON lines on stderr.
+
+## Out-of-band confirmation (Phase 4)
+
+`lich_file_finding` is the one mutating tool. The Champion gate refuses it
+pending-confirmation (a model's call carries no justification — ADR-104 Rule 2).
+The server does not then run it: it parks a **ticket** under `var/lich/pending/`
+(a 0700 directory the operator owns) bound to a `CallHash` over `{tool, project
+root, canonical args}`. An operator approves out of band:
+
+```
+lich-mcp confirm list                 # pending tickets
+lich-mcp confirm show <id>            # tool, input hash, args
+lich-mcp confirm approve <id>         # authorises exactly that one call
+```
+
+The approval is single-use and bound to the exact call: re-issuing the identical
+call proceeds once; any different call (different args, tool, or root) does not
+inherit it. The approval code never travels through the model — only the
+filesystem. Findings are still never auto-published; approval only lets the
+staged register write happen.
+
+## Routing & the two drivers (Phases 4–6)
+
+Work is classified by **weight** (`claudebridge.AutoRouter`, ADR-053): MINOR
+churn — seed/mutation/variant generation, status/lookup — stays **local and
+free**; HEAVY work — crash triage, finding synthesis, novel-harness authoring,
+multi-crash correlation — goes to **Claude**. A hint wins over prompt
+heuristics; an ambiguous task defaults MINOR. Classification never bypasses the
+gate, the dollar cap, or the external-data filter.
+
+**Local driver (free, on-host).** `lich_local_llm` asks the already-running
+llama-server (never starts/swaps a model). `pkg/lichtools` `GenerateSeeds`
+drafts candidate inputs in a campaign's wire format, validates each as hex
+bytes, dedups, and writes them as **inert** 0600 data files under the campaign's
+seed dir only — a seed is bytes a fuzzer reads, never code. `GenerateRunCollect`
+then runs a confined, bounded, no-egress harness over the corpus (no model call
+on the run side). Each generation charges a daily compute budget (resets per UTC
+day).
+
+**Claude driver.** `lich-mcp drive -p <prompt>`:
+
+```
+lich-mcp drive -route auto -p "triage this crash and draft a finding"   # -> Opus
+lich-mcp drive -route minor -p "draft monad-wire seed variants"         # -> Haiku
+```
+
+Haiku for MINOR volume, Opus for HEAVY triage (effort low/medium); the tools are
+the Lich tools behind the same gate and confirmation flow, so a drafted finding
+parks a ticket. **`-dry-run` is the default** (prints the request, sends
+nothing). A hard **daily dollar cap** (`-daily-cap-usd`, default $3) reserves
+worst-case before every send and fails closed. The **external-data (privacy)
+filter** is required for a live send and redacts the prompt and every tool
+result. The audit records only sizes and SHA-256 — never prompt or response
+text; a gate refusal stays terminal (the system prompt forbids rephrasing around
+it).
