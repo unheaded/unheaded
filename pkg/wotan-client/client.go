@@ -753,7 +753,12 @@ func (c *Client) StreamMessages(ctx context.Context, topic string) (<-chan *Mess
 			_, _ = grpcCl.Subscribe(ctx, topic, sub.DisplayName)
 			ch, err := grpcCl.StreamMessages(ctx, topic)
 			if err == nil {
-				return ch, nil
+				sc := newSafeChannel(100)
+				c.chanMu.Lock()
+				c.channels[topic] = sc
+				c.chanMu.Unlock()
+				go c.relayGRPC(ctx, topic, ch, sc)
+				return sc.ch, nil
 			}
 		}
 		// gRPC failed at runtime — trip circuit breaker, degrade to HTTP
@@ -769,6 +774,50 @@ func (c *Client) StreamMessages(ctx context.Context, topic string) (<-chan *Mess
 
 	go c.pollMessages(ctx, topic, sc)
 	return sc.ch, nil
+}
+
+// relayGRPC forwards a gRPC stream to sc and, when the gRPC client gives up
+// on it, carries on by HTTP polling from the last seq delivered.
+//
+// The gRPC client ends a stream after maxRetries reconnects within one
+// outage (about 11 s of backoff) or on any non-transient error, and the
+// caller's channel used to close with it: a Wotan restart longer than that
+// ended a service's subscription for good (timeguru's listeners log
+// "channel closed" and return).
+func (c *Client) relayGRPC(ctx context.Context, topic string, in <-chan *Message, sc *safeChannel) {
+	var lastSeq int64
+	for msg := range in {
+		if msg == nil {
+			continue
+		}
+		if !sc.send(ctx, msg) {
+			c.endStream(topic, sc)
+			return
+		}
+		lastSeq = msg.Seq
+	}
+	select {
+	case <-ctx.Done():
+		c.endStream(topic, sc)
+		return
+	case <-sc.done:
+		c.endStream(topic, sc) // Close
+		return
+	default:
+	}
+	c.degradeToHTTP()
+	c.pollMessagesFrom(ctx, topic, sc, lastSeq)
+}
+
+// endStream closes sc and removes it from the channels map unless a later
+// StreamMessages on the topic has replaced it there.
+func (c *Client) endStream(topic string, sc *safeChannel) {
+	sc.closeCh()
+	c.chanMu.Lock()
+	if c.channels[topic] == sc {
+		delete(c.channels, topic)
+	}
+	c.chanMu.Unlock()
 }
 
 // getOrCreateGRPCClient lazily initializes the gRPC client using true
@@ -819,19 +868,14 @@ func backoff(failures int) time.Duration {
 // pollMessages polls for new messages (fallback when gRPC not available).
 // Uses exponential backoff on errors: 500ms -> 1s -> 2s -> ... -> 30s max.
 func (c *Client) pollMessages(ctx context.Context, topic string, sc *safeChannel) {
-	defer func() {
-		sc.closeCh()
+	c.pollMessagesFrom(ctx, topic, sc, 0)
+}
 
-		// Remove from the channels map so Close() won't try again, unless a
-		// later StreamMessages on the topic has replaced it there.
-		c.chanMu.Lock()
-		if c.channels[topic] == sc {
-			delete(c.channels, topic)
-		}
-		c.chanMu.Unlock()
-	}()
+// pollMessagesFrom is pollMessages resuming after seq lastSeq.
+func (c *Client) pollMessagesFrom(ctx context.Context, topic string, sc *safeChannel, lastSeq int64) {
+	// Remove from the channels map so Close() won't try again.
+	defer c.endStream(topic, sc)
 
-	var lastSeq int64 = 0
 	var consecutiveFailures int
 
 	timer := time.NewTimer(pollBackoffMin)

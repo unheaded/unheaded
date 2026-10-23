@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -481,6 +482,75 @@ func TestTopicStreamClient_CloseEndsEveryStream(t *testing.T) {
 	}
 	if _, err := client.StreamMessages(ctx, "tasks.*"); err == nil {
 		t.Error("StreamMessages after Close started a stream")
+	}
+}
+
+// When the gRPC client gives up on a stream (maxRetries reconnects in one
+// outage, or a non-transient error), Client.StreamMessages carries on by
+// HTTP polling from the last seq delivered. The caller's channel used to
+// close with the gRPC stream: a Wotan restart longer than ~11 s ended
+// timeguru's alerts.critical listener for good.
+func TestClient_GRPCStreamFallsBackToHTTP(t *testing.T) {
+	srv := newMockServer()
+	srv.addMessage("alerts.critical", 3, "over gRPC")
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gs := grpc.NewServer()
+	chatpb.RegisterTopicStreamServer(gs, srv)
+	go func() { _ = gs.Serve(lis) }()
+	t.Cleanup(gs.Stop)
+
+	var mu sync.Mutex
+	var afters []string
+	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		after := r.URL.Query().Get("after_seq")
+		mu.Lock()
+		afters = append(afters, after)
+		mu.Unlock()
+		msgs := []map[string]any{}
+		if after == "3" {
+			msgs = append(msgs, map[string]any{"seq": 4, "topic": "alerts.critical", "payload": "over HTTP"})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"messages": msgs, "last_seq": 4})
+	}))
+	t.Cleanup(hs.Close)
+
+	c, err := NewClientWithGRPC(strings.TrimPrefix(hs.URL, "http://"), lis.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { c.Close() })
+	c.subscribers["alerts.critical"] = &Subscriber{SubscriberID: "s", DisplayName: "timeguru", Status: "approved"}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	ch, err := c.StreamMessages(ctx, "alerts.critical")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if m := <-ch; m == nil || m.Seq != 3 {
+		t.Fatalf("first message %+v, want seq 3 over gRPC", m)
+	}
+	srv.setStreamError(status.Error(codes.PermissionDenied, "gone")) // the gRPC client gives up
+	select {
+	case m, ok := <-ch:
+		if !ok {
+			t.Fatal("channel closed when the gRPC stream ended")
+		}
+		if m.Seq != 4 {
+			t.Fatalf("got seq %d, want 4 over HTTP", m.Seq)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("nothing over HTTP after the gRPC stream ended")
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if afters[0] != "3" {
+		t.Errorf("first HTTP poll after_seq=%s, want 3 (resume, no replay)", afters[0])
+	}
+	if c.Transport() != TransportHTTP {
+		t.Errorf("transport %v, want HTTP", c.Transport())
 	}
 }
 
