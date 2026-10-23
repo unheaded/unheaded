@@ -733,11 +733,30 @@ var Probes = map[string]Probe{
 		},
 	},
 	"unattended-upgrades-enabled": {
+		// UH-PATCH-01 claims updates install without a person: the apt
+		// setting alone once passed with the unattended-upgrades package
+		// removed or apt-daily-upgrade.timer, which runs it, masked.
 		Baseline: true,
-		Command:  "apt-config dump APT::Periodic::Unattended-Upgrade",
+		Command: "apt-config dump APT::Periodic::Unattended-Upgrade; " + dpkgInstalled([]string{"unattended-upgrades"}) +
+			`; echo "timer=$(systemctl is-enabled apt-daily-upgrade.timer 2>/dev/null || true)/$(systemctl is-active apt-daily-upgrade.timer 2>/dev/null || true)"`,
 		Judge: func(out string) (bool, string) {
-			v := strings.TrimSpace(out)
-			return strings.Contains(v, `"1"`), strings.TrimSpace(strings.TrimSuffix(v, ";"))
+			f := parseKV(out)
+			setting := "not set"
+			for _, l := range strings.Split(out, "\n") {
+				if v, ok := strings.CutPrefix(strings.TrimSpace(l), "APT::Periodic::Unattended-Upgrade "); ok {
+					setting = strings.Trim(strings.TrimSuffix(v, ";"), `"`)
+				}
+			}
+			n, err := strconv.Atoi(setting)
+			switch {
+			case err != nil || n < 1:
+				return false, "APT::Periodic::Unattended-Upgrade " + setting + " (want 1 or more)"
+			case !strings.Contains(" "+f["installed"]+" ", " unattended-upgrades "):
+				return false, "APT::Periodic::Unattended-Upgrade " + setting + ", but unattended-upgrades is not installed"
+			case f["timer"] != "enabled/active":
+				return false, "APT::Periodic::Unattended-Upgrade " + setting + ", but apt-daily-upgrade.timer is " + f["timer"] + " (want enabled/active)"
+			}
+			return true, "APT::Periodic::Unattended-Upgrade " + setting + ", unattended-upgrades installed, apt-daily-upgrade.timer enabled/active"
 		},
 	},
 	"db-backup-recent": {

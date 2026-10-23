@@ -252,7 +252,7 @@ var probeActions = map[string]string{
 	"firewall-inbound-deny":       "load nft table inet unheaded (last operator-confirmed ruleset)",
 	"auditd-running":              "systemctl unmask auditd; systemctl enable --now auditd",
 	"ntp-synchronized":            "systemctl enable --now systemd-timesyncd",
-	"unattended-upgrades-enabled": `set APT::Periodic::Unattended-Upgrade "1" in apt.conf.d`,
+	"unattended-upgrades-enabled": `set APT::Periodic::Unattended-Upgrade "1" in apt.conf.d; systemctl enable --now apt-daily-upgrade.timer (installing unattended-upgrades is the operator's)`,
 	"apparmor-enabled":            "none: needs a reboot with apparmor=1 (alert only)",
 }
 

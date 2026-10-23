@@ -530,7 +530,7 @@ func TestHostProbes(t *testing.T) {
 		// west: firewall open, NTP synced, no auditd, updates on, AppArmor on
 		"west": "@@firewall-inbound-deny\n-P INPUT ACCEPT\n---\n-P INPUT ACCEPT\n" +
 			"@@ntp-synchronized\nyes\n@@auditd-running\ninactive\n" +
-			"@@unattended-upgrades-enabled\nAPT::Periodic::Unattended-Upgrade \"1\";\n@@apparmor-enabled\nY\n",
+			"@@unattended-upgrades-enabled\nAPT::Periodic::Unattended-Upgrade \"1\";\ninstalled=unattended-upgrades \ntimer=enabled/active\n@@apparmor-enabled\nY\n",
 		// east: firewall v4 drop but v6 accept -> still fails
 		"east": "@@firewall-inbound-deny\n-P INPUT DROP\n---\n-P INPUT ACCEPT\n@@auditd-running\nactive\n",
 	}
@@ -671,6 +671,13 @@ func TestProbeJudges(t *testing.T) {
 		{"firewall-inbound-deny", "-P INPUT ACCEPT\n---\n-P INPUT ACCEPT\n---\n\t\ttype filter hook input priority filter; policy accept;\n", false},
 		{"firewall-inbound-deny", "-P INPUT ACCEPT\n---\n-P INPUT ACCEPT\n---\n", false},
 		{"unattended-upgrades-enabled", "APT::Periodic::Unattended-Upgrade \"0\";\n", false},
+		{"unattended-upgrades-enabled", "APT::Periodic::Unattended-Upgrade \"1\";\ninstalled=unattended-upgrades \npresent=unattended-upgrades \ndpkg=installed\ntimer=enabled/active\n", true},
+		// The setting alone once passed: nothing installs updates without the
+		// package or with the timer that runs it masked.
+		{"unattended-upgrades-enabled", "APT::Periodic::Unattended-Upgrade \"1\";\ninstalled=\npresent=\ndpkg=installed\ntimer=enabled/active\n", false},
+		{"unattended-upgrades-enabled", "APT::Periodic::Unattended-Upgrade \"1\";\ninstalled=unattended-upgrades \npresent=unattended-upgrades \ndpkg=installed\ntimer=masked/inactive\n", false},
+		{"unattended-upgrades-enabled", "APT::Periodic::Unattended-Upgrade \"1\";\ninstalled=unattended-upgrades \ntimer=/\n", false}, // systemctl did not answer
+		{"unattended-upgrades-enabled", "APT::Periodic::Unattended-Upgrade \"0\";\nAPT::Periodic::Unattended-Upgrade::Note \"1\";\ninstalled=unattended-upgrades \ntimer=enabled/active\n", false},
 		{"apparmor-enabled", "N\n", false},
 		{"ntp-synchronized", "no\n", false},
 	} {
