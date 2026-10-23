@@ -606,7 +606,12 @@ func (s *Service) applyRules(q *Query) []*Knowledge {
 	var inferred []*Knowledge
 
 	for _, rule := range s.rules {
-		if !rule.Enabled {
+		// A rule with no conditions has nothing to infer from. The two
+		// built-in rules have none, and "all of no conditions met" made
+		// them fire on every infer query: each answer carried two invented
+		// facts ("transitive_relation_derived", "type_inherited"), even
+		// with an empty knowledge base.
+		if !rule.Enabled || len(rule.Conditions) == 0 {
 			continue
 		}
 
