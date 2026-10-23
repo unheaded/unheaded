@@ -830,7 +830,7 @@ Keep commit messages tight and technical. The git log is a working tool, not a m
 - ADR Sweep (2026-04-03): All 27 ADRs resolved (19 accepted, 4 deferred, 1 in-progress, 1 pipe dream)
 - Zhen Champion (pkg/champion/): Trust Level 1+2, sandboxed file R/W, Kanban CRUD, action logging, snapshots (18 tests)
 - Zhen MCP Server (raft/zhen_mcp_server.py): 8 tools for Claude Code integration. Read-only, always on: corpus_search, file_read, service_health, runbook_list, runbook_show. Off unless the server env opts in: file_write, file_patch (`ZHEN_MCP_ALLOW_WRITE=1`), runbook_execute (`ZHEN_MCP_ALLOW_EXEC=1`). Repo root from the script path (`ZHEN_MCP_PROJECT_ROOT` overrides); tests in raft/tests/test_zhen_mcp_server.py
-- 31 Operational Runbooks (runbooks/): 7 categories (infra, network, security, data, observe, doom, deploy)
+- 66 Operational Runbooks (runbooks/): 9 categories (infra, network, security, data, observe, doom, deploy, pki, wotan)
 - Service Template (pkg/service/): Standardized scaffold with health/ready/auth/Wotan (7 tests)
 - BPF CI Gate (scripts/bpf-verifier-check.sh): Instruction budget tracking, static analysis
 - Sealed Cask (scripts/build-sealed-cask.sh + verify-binding-rune.sh): Deterministic image builder with SHA256 integrity

@@ -219,7 +219,7 @@ def _all_tools() -> list[Tool]:
         ),
         Tool(
             name="runbook_list",
-            description="List all available operational runbooks across 7 categories (infra, network, security, data, observe, doom, deploy).",
+            description="List all available operational runbooks, grouped by category.",
             inputSchema={"type": "object", "properties": {}},
         ),
         Tool(
