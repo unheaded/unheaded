@@ -326,3 +326,47 @@ L4 packet read (one bounds check on the exact pointer). The shared driver is now
   a real or veth interface (`serve --xdp-iface` exists; this session used test_run only).
 - Next: Phase 13 (rate limiter vs qos-ebpf), 14 (sampler), 15 (scorer → services/anomaly),
   16 (replay), 17 (Lich hooks). Benchmarks start from b0_pass 153 ns.
+
+## Phase 13 — token-bucket rate limiter (2026-10-23, session 3)
+
+Session 3 scope: Phases 13–16 (Phase 17 belongs with the Lich sprint, Phase 18 needs east).
+Fresh worktree: every object rebuilt; harness baseline ALL GREEN (ascend 926,542, Doom
+761,580). Host shared with other sessions (llama-server ~340 % CPU): benchmarks pinned
+with `taskset -c 5`, noise reported per line.
+
+- `cartridges/ratelimit.s` reproduces qos-ebpf's bucket exactly (bytes; first packet
+  passes; add = elapsed/8000 × rate, refill only when add > 0; DROP if tokens < len).
+  No DIV: `elapsed/8000 = MULH(elapsed>>6, 274877907) >> 3`, checked over all 2^26
+  inputs. 32-bit clock: `iat_bucket >= 22` = full bucket (rule: cap ≤ 524,287 × rate).
+  41 of 64 insns on the longest path.
+- **Correctness**: reference runner 30,000 packets / 10,625 drops, 0 mismatches against
+  a u64 re-implementation of the qos-ebpf math; two cartridge mutations caught. BPF
+  test_run 1,000/1,000 verdicts == Go qos-ebpf math, flow hashes == `cart run`.
+- **Enforced rate**: 99.99 Mbps of 100 at a quantum-aligned spacing; real-clock flood
+  96.0 Mbps.
+- **Finding (oracle, not fixed)**: qos-ebpf discards the remainder of `elapsed / 8000`
+  at every refill. At 20 µs packet spacing a 100 Mbps bucket admits 80 Mbps. The
+  cartridge matches it (4,012 == 4,012 passes) because the oracle wins; a fix belongs
+  to qos-ebpf (carry the remainder: `last += q * 8000` instead of `last = now`).
+- **Isolation**: flood 790 drops, interleaved quiet flow 0; per-flow state only.
+
+**Benchmark gate #1** (same IPv6 + Monad HbH frame for both engines, 5 × 1,000,000,
+median):
+
+| Case | ns/pkt | insns/pkt |
+|---|---|---|
+| b0_pass (IPv6 frame) | 154 | 2 |
+| ratelimit, pass regime | 343 | 35.3 |
+| ratelimit, drop regime | 334 | 33.3 |
+| native qos-ebpf bucket path, pass | 299 | — |
+| native qos-ebpf bucket path, drop | 325 | — |
+
+(a) overhead ≤ 150 ns: **FAIL** (189 / 180 ns). (b) ≤ 3× native: **PASS** (1.15× /
+1.03×). Step 340 profile: the interpreter, not the refill math. A 60-instruction
+straight-line cartridge measured 8.1 ns per NOP, mostly the per-step `bpf_loop`
+callback; `cart_loop_cb` now runs 4 steps per callback (NOP 3.5–4.3, MOV 4.7, LD 6.2,
+SYSCALL 6.6 ns; 8 per callback gave 3.7 ns/NOP for twice the verified body, not kept).
+Verifier after the change: cart_xdp 24,986, cart_tick 63,906. Recorded as a known
+limitation (plan rule): roughly 4–7 ns per interpreted instruction on this host.
+
+- Harness ALL GREEN after the change (18 cartridge root tests). Commit `0594cd7b`.

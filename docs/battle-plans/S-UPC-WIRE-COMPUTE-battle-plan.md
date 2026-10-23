@@ -1233,31 +1233,47 @@ Seal + validator on the same in-memory bytes · `-race` green · permissions che
 **Time**: ~2.5 h
 **Agent**: Developer [P]
 
-- [ ] **Step 329** [R] ~10m: Read the native token bucket in `ebpf/qos-ebpf/src/main.rs` (refill-by-elapsed, fits-check) — the correctness oracle
-- [ ] **Step 330** [DESIGN][W] ~10m: `cartridges/ratelimit.s` spec: flow state in `mem` = {tokens:u32 (fixed-point ×256), last_ns:u32}; syscalls: `now_ns_lo`, `field(LEN)`; refill = min(burst, tokens + (now−last)×rate>>K); if tokens ≥ cost → tokens−=cost, VERDICT PASS; else VERDICT DROP; params (rate, burst, cost) in DATA
-- [ ] **Step 331** [W][CODE] ~30m: Write `cartridges/ratelimit.s` (hand MBC asm) + `cartridges/ratelimit.data.bin` (rate/burst/cost); keep ≤ 64 instructions, forward-only branches
-- [ ] **Step 332** [B] ~2m: `cart build --stage xdp --asm cartridges/ratelimit.s --data cartridges/ratelimit.data.bin -o "$S5/ratelimit.cart" && cart validate "$S5/ratelimit.cart"`
-- [ ] **Step 333** [V] ~30s: Validates; `max_insn` reported ≤ 64; no back-edges
-- [ ] **Step 334** [W][TEST] ~25m: Reference-runner tests: 0 tokens → DROP; full bucket → N passes then DROP; refill after a time gap → passes resume; identical verdicts to a tiny Go re-implementation of the `qos-ebpf` math on the same input trace
-- [ ] **Step 335** [V] ~1m: Verdict sequence matches the qos-ebpf math exactly over a 1,000-packet trace
+- [x] **Step 329** [R] ~10m: Read the native token bucket in `ebpf/qos-ebpf/src/main.rs` (refill-by-elapsed, fits-check) — the correctness oracle
+  - S5 2026-10-23 (session 3): Oracle read: first packet of a flow passes with tokens = sat(cap − len); later, add = (elapsed_ns / 8000) × rate_mbps, refill only when add > 0 (then `last = now`), DROP if tokens < len. Unit: bytes, u64.
+- [x] **Step 330** [DESIGN][W] ~10m: `cartridges/ratelimit.s` spec: flow state in `mem` = {tokens:u32 (fixed-point ×256), last_ns:u32}; syscalls: `now_ns_lo`, `field(LEN)`; refill = min(burst, tokens + (now−last)×rate>>K); if tokens ≥ cost → tokens−=cost, VERDICT PASS; else VERDICT DROP; params (rate, burst, cost) in DATA
+  - S5 2026-10-23: Deviation (oracle wins): tokens in bytes, cost = FIELD pkt_len, refill = qos-ebpf's /8000 exactly, so verdicts can match bit for bit. No DIV: elapsed/8000 = MULH(elapsed>>6, ceil(2^35/125))>>3 (exhaustive over 2^26). The 32-bit clock wraps at 4.29 s: FIELD iat_bucket ≥ 22 (idle ≥ 4.19 s) = full bucket, exact when cap ≤ 524,287 × rate_mbps (rate ≤ 8,000). DATA = {rate_mbps, cap, M}; mem = {tokens, last_lo, init}.
+- [x] **Step 331** [W][CODE] ~30m: Write `cartridges/ratelimit.s` (hand MBC asm) + `cartridges/ratelimit.data.bin` (rate/burst/cost); keep ≤ 64 instructions, forward-only branches
+  - S5 2026-10-23: Written; 57 words, longest path 41 instructions. DATA default 100 Mbps, cap 12,500 B (qos-ebpf's 1 ms default burst).
+- [x] **Step 332** [B] ~2m: `cart build --stage xdp --asm cartridges/ratelimit.s --data cartridges/ratelimit.data.bin -o "$S5/ratelimit.cart" && cart validate "$S5/ratelimit.cart"`
+- [x] **Step 333** [V] ~30s: Validates; `max_insn` reported ≤ 64; no back-edges
+  - S5 2026-10-23: `OK stage=xdp max_insn=64 back_edges=false syscalls=[0, 1, 2]`, 292 bytes.
+- [x] **Step 334** [W][TEST] ~25m: Reference-runner tests: 0 tokens → DROP; full bucket → N passes then DROP; refill after a time gap → passes resume; identical verdicts to a tiny Go re-implementation of the `qos-ebpf` math on the same input trace
+  - S5 2026-10-23: `crates/upc-cartridge/tests/ratelimit.rs` (Rust u64 re-implementation of the qos-ebpf bucket) + `pkg/cartridge/ratelimit_linux_test.go` (Go re-implementation, BPF side). `FlowMetaSim` models FIELD 7–9 host-side.
+- [x] **Step 335** [V] ~1m: Verdict sequence matches the qos-ebpf math exactly over a 1,000-packet trace
   - Mismatch → fix the cartridge (the native engine is the oracle); record the delta
-- [ ] **Step 336** [B][S][TEST] ~5m: Load in slot 0; test_run a crafted flow (same 5-tuple) at a controlled rate; read verdict counts
-- [ ] **Step 337** [V] ~1m: BPF verdicts == reference verdicts for the same trace (state hashes agree)
-- [ ] **Step 338** [B][S] ~5m: **Benchmark** — ns/pkt with ratelimit active, test_run repeat 1,000,000 × 5, median → `$S5/bench.csv`
-- [ ] **Step 339** [V][GATE] ~1m: **BENCHMARK GATE #1** — (a) overhead over b0_pass ≤ 150 ns/pkt; (b) within 3× of native `qos-ebpf` ns/pkt (a cartridge is interpreted — a fixed multiple, not parity, is the honest bar). Record pass/fail with numbers
+  - S5 2026-10-23: 30,000 packets (six rate/cap settings × five 1,000-packet traces with bursts, idles past the clock wrap, caps below one packet), 10,625 drops, 0 mismatches. Mutation check: changing the wrap threshold 22→31 or skipping the add==0 rule fails the test.
+- [x] **Step 336** [B][S][TEST] ~5m: Load in slot 0; test_run a crafted flow (same 5-tuple) at a controlled rate; read verdict counts
+- [x] **Step 337** [V] ~1m: BPF verdicts == reference verdicts for the same trace (state hashes agree)
+  - S5 2026-10-23: 1,000/1,000 BPF verdicts == Go qos-ebpf math (flood + quiet flow, fixed clock, gaps past the wrap); both flow hashes == `cart run`.
+- [x] **Step 338** [B][S] ~5m: **Benchmark** — ns/pkt with ratelimit active, test_run repeat 1,000,000 × 5, median → `$S5/bench.csv`
+  - S5 2026-10-23: Same IPv6 + Monad HbH frame for cartridge and native (`IPv6MonadPacket`, valid CRC), taskset -c 5, host loaded by other sessions (llama-server). Final: b0_pass_v6 154 ns; ratelimit 343 ns (pass regime) / 334 ns (drop regime), 35.3 / 33.3 insns per packet; native qos-ebpf bucket path 299 / 325 ns. `$S5/p13-bench-final.txt`.
+- [x] **Step 339** [V][GATE] ~1m: **BENCHMARK GATE #1** — (a) overhead over b0_pass ≤ 150 ns/pkt; (b) within 3× of native `qos-ebpf` ns/pkt (a cartridge is interpreted — a fixed multiple, not parity, is the honest bar). Record pass/fail with numbers
   - Fail → Step 340
-- [ ] **Step 340** [D] ~20m: Profile: instruction count per packet (`cart_insns_total`/packets); if dominated by refill divide, switch to a shift-rate (power-of-two) param; re-bench. Two rounds, then record as a known limitation, not a blocker
-- [ ] **Step 341** [B][S] ~3m: Flood test_run beyond the rate; confirm DROP ratio matches the configured rate within 5%
-- [ ] **Step 342** [V] ~1m: Enforced rate within 5% of configured
-- [ ] **Step 343** [SECURITY] ~5m: A flow cannot starve others (per-flow state keyed by 5-tuple; LRU eviction bounded; no shared counter)
-- [ ] **Step 344** [V] ~30s: Two flows rate-limited independently in one run
-- [ ] **Step 345** [B][S][TEST] ~2m: Regression harness (object/loader may have changed)
-- [ ] **Step 346** [V] ~30s: `== ALL GREEN ==`
-- [ ] **Step 347** [C] ~1m: **COMMIT CHECKPOINT**
+  - S5 2026-10-23: (a) **FAIL**: 189 ns (pass) / 180 ns (drop) over b0_pass (first measurement 357 ns, before Step 340). (b) **PASS**: 1.15× / 1.03× native qos-ebpf's token-bucket path.
+- [x] **Step 340** [D] ~20m: Profile: instruction count per packet (`cart_insns_total`/packets); if dominated by refill divide, switch to a shift-rate (power-of-two) param; re-bench. Two rounds, then record as a known limitation, not a blocker
+  - S5 2026-10-23: Not divide-bound (the /8000 is 4 cheap insns of 35). The cost is the interpreter: a 60×NOP cartridge measured 8.1 ns per instruction, mostly the per-step bpf_loop callback. Round 1: `cart_loop_cb` runs 4 steps per iteration → 4.3 ns/NOP (verifier 24,986 / 63,906). Round 2: 8 per iteration → 3.7 ns/NOP for 2× the verified callback; kept 4. **Known limitation**: ~4–7 ns per interpreted instruction; a 35-instruction cartridge cannot meet a 150 ns overhead bar on this host. Not a blocker (plan rule).
+- [x] **Step 341** [B][S] ~3m: Flood test_run beyond the rate; confirm DROP ratio matches the configured rate within 5%
+- [x] **Step 342** [V] ~1m: Enforced rate within 5% of configured
+  - S5 2026-10-23: Fixed clock, 1,000 B every 24 µs (333 Mbps offered): 99.99 Mbps enforced, 6,012 passes == qos-ebpf math. Finding: at 20 µs spacing qos-ebpf's refill (and so the cartridge, matching it 4,012 == 4,012) enforces 80 Mbps, because each refill drops the remainder of elapsed/8000; logged, oracle not changed. Real-clock flood (2M test_runs): 96.0 Mbps (same remainder loss + wall-clock overhead; bound −10 %).
+- [x] **Step 343** [SECURITY] ~5m: A flow cannot starve others (per-flow state keyed by 5-tuple; LRU eviction bounded; no shared counter)
+  - S5 2026-10-23: State is FLOW_STATE[5-tuple + slot] (LRU, 65,536); the cartridge has no cross-flow memory and no shared counter; FLOW_META is per flow too.
+- [x] **Step 344** [V] ~30s: Two flows rate-limited independently in one run
+  - S5 2026-10-23: BPF: flood dropped 790 of its packets, the interleaved quiet flow 0. Reference: a quiet flow's verdicts are identical with and without an interleaved flood.
+- [x] **Step 345** [B][S][TEST] ~2m: Regression harness (object/loader may have changed)
+- [x] **Step 346** [V] ~30s: `== ALL GREEN ==`
+  - S5 2026-10-23: ALL GREEN: ascend 926,542 and Doom 761,580 (unchanged), cart_xdp 24,986, cart_tick 63,906, 18 root tests. (A first harness run in the fresh worktree, before any object existed, failed every xv6/Doom boot; the rerun on the same tree passed. Not reproduced since.)
+- [x] **Step 347** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add cartridges crates/upc-cartridge "$PROJECT_ROOT/references/s5-upc-wire-log.md" && commitp -m "feat(cartridge): [S5 329-347] token-bucket rate limiter + benchmark gate"
   ```
-- [ ] **Step 348** [V][GATE] ~1m: **PHASE 13 EXIT GATE** — correct vs qos-ebpf, BPF==reference, benchmark gate scored, independent per-flow, harness green
+  - S5 2026-10-23: `0594cd7b` (code) + the Phase 13 gate commit.
+- [x] **Step 348** [V][GATE] ~1m: **PHASE 13 EXIT GATE** — correct vs qos-ebpf, BPF==reference, benchmark gate scored, independent per-flow, harness green
+  - S5 2026-10-23: PASSED with Gate #1(a) recorded as a known limitation (Step 340).
 
 ### Phase 13 Definition of Done
 Correctness oracle = qos-ebpf · benchmark gate scored with numbers · per-flow isolation proven · harness green.
