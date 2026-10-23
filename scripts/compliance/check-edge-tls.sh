@@ -25,13 +25,31 @@ if not svc:
     print("check-edge-tls: no traefik service; nothing terminates TLS")
     sys.exit(1)
 cmd = [str(c) for c in (svc.get("command") or [])]
-flags = {c.split("=", 1)[0]: (c.split("=", 1)[1] if "=" in c else "true") for c in cmd}
+# traefik's flag names are case-insensitive (--entryPoints and --entrypoints
+# are one flag) and its booleans are Go's strconv.ParseBool, so
+# --api.insecure=True or =1 is as insecure as =true.
+flags = {c.split("=", 1)[0].lower(): (c.split("=", 1)[1] if "=" in c else "true") for c in cmd}
+GO_TRUE = {"1", "t", "T", "TRUE", "true", "True"}
 problems = []
 
 if flags.get("--entrypoints.web.http.redirections.entrypoint.to") != "websecure":
     problems.append("HTTP entrypoint 'web' is not redirected to 'websecure'")
-if flags.get("--api.insecure") == "true":
-    problems.append("--api.insecure=true serves the API/dashboard without TLS or auth")
+if flags.get("--api.insecure") in GO_TRUE:
+    problems.append("--api.insecure serves the API/dashboard without TLS or auth")
+
+# traefik reads one static configuration source, and a configuration file
+# (--configfile, or traefik.yml/.yaml/.toml in /etc/traefik or /) wins over
+# the command line: the flags judged here would not be what it runs.
+STATIC = ("traefik.yml", "traefik.yaml", "traefik.toml")
+if "--configfile" in flags:
+    problems.append("--configfile: static configuration comes from a file this check does not read")
+for v in svc.get("volumes") or []:
+    parts = str(v).split(":")
+    if len(parts) < 2:
+        continue
+    src, dst = os.path.join(os.path.dirname(os.path.abspath(compose)), parts[0]), parts[1].rstrip("/") or "/"
+    if os.path.basename(dst) in STATIC or (dst in ("/etc/traefik", "/") and any(os.path.isfile(os.path.join(src, n)) for n in STATIC)):
+        problems.append(f"static configuration file mounted ({v}): traefik ignores the command flags this check reads")
 
 min_tls = None
 base = os.path.dirname(os.path.abspath(compose))

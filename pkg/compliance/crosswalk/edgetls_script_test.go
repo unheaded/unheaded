@@ -72,4 +72,26 @@ func TestEdgeTLSCheck(t *testing.T) {
 		}
 		write("traefik/dynamic.yml", "tls:\n  options:\n    default:\n      minVersion: VersionTLS13\n")
 	}
+
+	// These once passed: traefik reads --api.insecure with Go's ParseBool
+	// and flag names without case, and a mounted static configuration file
+	// replaces the command line this check reads.
+	body, _ := os.ReadFile(good)
+	for _, flag := range []string{"--api.insecure=True", "--api.insecure=1", "--API.insecure=true", "--api.insecure", "--configFile=/etc/traefik/static.yml"} {
+		p := write("bad.yml", strings.Replace(string(body), "    command:\n", "    command:\n      - \""+flag+"\"\n", 1))
+		if out, err := run(p); err == nil {
+			t.Errorf("%s: accepted\n%s", flag, out)
+		}
+	}
+	static := write("traefik/traefik.yml", "api:\n  insecure: true\n")
+	if out, err := run(good); err == nil {
+		t.Errorf("static traefik.yml in the mounted directory: accepted\n%s", out)
+	}
+	if err := os.Remove(static); err != nil {
+		t.Fatal(err)
+	}
+	camel := write("camel.yml", strings.Replace(string(body), "--entrypoints.web.http.redirections.entrypoint.to", "--entryPoints.web.http.redirections.entryPoint.to", 1))
+	if out, err := run(camel); err != nil {
+		t.Errorf("--entryPoints spelling (same traefik flag) rejected: %v\n%s", err, out)
+	}
 }
