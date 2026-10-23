@@ -512,70 +512,10 @@
 
     var refreshTimer = null;
 
-    // ---------------------------------------------------------
-    // Demo / fallback data
-    // ---------------------------------------------------------
-
-    var DEMO_MODELS = [
-      {
-        name: 'llama-3.3-70b',
-        status: 'online',
-        throughput: 142.7,
-        latency: { p50: 28, p95: 67, p99: 134 },
-        vram_percent: 72,
-        vram_used: '23.4 GB',
-        vram_total: '32 GB',
-        requests: 48210,
-        error_rate: 0.12
-      },
-      {
-        name: 'qwen-2.5-coder-32b',
-        status: 'online',
-        throughput: 89.3,
-        latency: { p50: 41, p95: 98, p99: 203 },
-        vram_percent: 58,
-        vram_used: '18.6 GB',
-        vram_total: '32 GB',
-        requests: 15840,
-        error_rate: 0.04
-      },
-      {
-        name: 'nomic-embed-text-v1.5',
-        status: 'online',
-        throughput: 1240.0,
-        latency: { p50: 3, p95: 8, p99: 14 },
-        vram_percent: 12,
-        vram_used: '1.9 GB',
-        vram_total: '16 GB',
-        requests: 231400,
-        error_rate: 0.01
-      },
-      {
-        name: 'whisper-large-v3',
-        status: 'loading',
-        throughput: 0,
-        latency: { p50: 0, p95: 0, p99: 0 },
-        vram_percent: 0,
-        vram_used: '0 GB',
-        vram_total: '16 GB',
-        requests: 0,
-        error_rate: 0
-      }
-    ];
-
-    var DEMO_METRICS = {
-      total_requests_24h: 295450,
-      avg_latency_ms: 34.2,
-      active_models: 3,
-      gpu_utilization: 64.8
-    };
-
-    var DEMO_QDRANT = {
-      collections: 7,
-      total_vectors: 2847103,
-      search_latency_ms: 4.7,
-      storage_used: '12.3 GB'
-    };
+    // No demo data: when an endpoint fails the panel says so. It used to
+    // render invented models (llama-3.3-70b at 142.7 tok/s, ...), request
+    // counts and a 2.8M-vector Qdrant as if they were live, and the
+    // dashboard backend serves none of these endpoints.
 
     // ---------------------------------------------------------
     // Initialization
@@ -627,10 +567,10 @@
         .then(function(data) {
           showContent();
           renderModels(data.models || data || []);
+          renderUpdatedAt(); // when data arrived, not when we asked
         })
         .catch(function() {
-          showContent();
-          renderModels(DEMO_MODELS);
+          showEmptyState();
         })
         .finally(function() {
           modelsDone = true;
@@ -647,7 +587,7 @@
           renderSummary(data);
         })
         .catch(function() {
-          renderSummary(DEMO_METRICS);
+          ['ai-total-requests', 'ai-avg-latency', 'ai-active-models', 'ai-gpu-util'].forEach(function(id) { setText(id, '--'); });
         })
         .finally(function() {
           metricsDone = true;
@@ -664,14 +604,12 @@
           renderQdrant(data);
         })
         .catch(function() {
-          renderQdrant(DEMO_QDRANT);
+          ['qdrant-collections', 'qdrant-vectors', 'qdrant-latency', 'qdrant-storage'].forEach(function(id) { setText(id, '--'); });
         })
         .finally(function() {
           qdrantDone = true;
           checkDone();
         });
-
-      renderUpdatedAt();
     }
 
     // ---------------------------------------------------------
