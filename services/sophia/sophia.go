@@ -151,6 +151,7 @@ type Service struct {
 	// the oldest can go past MaxDecisions.
 	knowledgeBytes int
 	decisionOrder  []string
+	insightOrder   []string // insights oldest first, so the expired can go
 
 	// Counters
 	knowledgeCounter int64
@@ -787,12 +788,23 @@ func (s *Service) GenerateInsight(ctx context.Context, insightType string, evide
 		CreatedAt:   time.Now(),
 	}
 
-	// Set expiration
-	expiry := time.Now().Add(s.config.InsightTTL)
-	insight.ExpiresAt = &expiry
+	// Set expiration (none for a TTL of 0)
+	if s.config.InsightTTL > 0 {
+		expiry := insight.CreatedAt.Add(s.config.InsightTTL)
+		insight.ExpiresAt = &expiry
+	}
 
+	// Expired insights go. They used to be kept forever (one per
+	// alerts.critical message), still served by GetInsight and counted in
+	// total_insights: ExpiresAt was set and never read. With one TTL,
+	// insightOrder is also expiry order, so the expired are at its front.
 	s.mu.Lock()
+	for len(s.insightOrder) > 0 && s.insights[s.insightOrder[0]].expired(insight.CreatedAt) {
+		delete(s.insights, s.insightOrder[0])
+		s.insightOrder = s.insightOrder[1:]
+	}
 	s.insights[insightID] = insight
+	s.insightOrder = append(s.insightOrder, insightID)
 	s.mu.Unlock()
 
 	s.log.Info().
@@ -942,12 +954,20 @@ func (s *Service) GetKnowledge(id string) (*Knowledge, bool) {
 	return k, ok
 }
 
-// GetInsight retrieves an insight by ID.
+// GetInsight retrieves an insight by ID, unless it has expired.
 func (s *Service) GetInsight(id string) (*Insight, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	i, ok := s.insights[id]
-	return i, ok
+	if !ok || i.expired(time.Now()) {
+		return nil, false
+	}
+	return i, true
+}
+
+// expired reports whether the insight's ExpiresAt has passed at now.
+func (i *Insight) expired(now time.Time) bool {
+	return i != nil && i.ExpiresAt != nil && now.After(*i.ExpiresAt)
 }
 
 // GetDecision retrieves a decision by ID.
@@ -969,9 +989,18 @@ func (s *Service) Stats() map[string]interface{} {
 		typeCounts[string(k.Type)]++
 	}
 
+	// Live insights only: the expired wait for the next GenerateInsight.
+	now := time.Now()
+	insights := 0
+	for _, i := range s.insights {
+		if !i.expired(now) {
+			insights++
+		}
+	}
+
 	return map[string]interface{}{
 		"total_knowledge":    len(s.knowledge),
-		"total_insights":     len(s.insights),
+		"total_insights":     insights,
 		"total_decisions":    len(s.decisions),
 		"total_rules":        len(s.rules),
 		"knowledge_by_type":  typeCounts,
