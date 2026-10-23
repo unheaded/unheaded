@@ -17,7 +17,18 @@ COMPOSE_FILE="${1:-${REPO_ROOT}/docker-compose.yml}"
 python3 - "$COMPOSE_FILE" <<'PY'
 import sys, yaml
 
-services = (yaml.safe_load(open(sys.argv[1])) or {}).get("services") or {}
+# pkg/auth enables authentication only for the exact string "true". Read
+# scalars as written: safe_load turns yes, on, True and TRUE into a boolean,
+# and str() of it read as "true" here while the service, given "yes" or a
+# quoted "TRUE", ran unauthenticated.
+class Loader(yaml.SafeLoader):
+    pass
+Loader.yaml_implicit_resolvers = {
+    k: [r for r in v if r[0] != "tag:yaml.org,2002:bool"]
+    for k, v in yaml.SafeLoader.yaml_implicit_resolvers.items()
+}
+
+services = (yaml.load(open(sys.argv[1]), Loader=Loader) or {}).get("services") or {}
 first_party = {n: s or {} for n, s in services.items() if (s or {}).get("build")}
 if not first_party:
     print("check-service-auth: no first-party (build:) services; refusing to pass vacuously")
@@ -29,7 +40,7 @@ def env(spec):
         e = dict(x.split("=", 1) if "=" in x else (x, "") for x in e)
     return {k: str(v) for k, v in e.items()}
 
-open_ = sorted(n for n, s in first_party.items() if env(s).get("AUTH_ENABLED", "").lower() != "true")
+open_ = sorted(n for n, s in first_party.items() if env(s).get("AUTH_ENABLED", "") != "true")
 if open_:
     print(f"[FAIL] {len(open_)} of {len(first_party)} first-party services accept unauthenticated requests (no AUTH_ENABLED=true):")
     for n in open_:

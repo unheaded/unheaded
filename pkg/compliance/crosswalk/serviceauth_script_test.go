@@ -36,4 +36,18 @@ func TestServiceAuthCheck(t *testing.T) {
 	if err := run("services:\n  postgres:\n    image: postgres\n"); err == nil {
 		t.Error("no first-party services passed vacuously")
 	}
+	// pkg/auth enables authentication for the exact string "true" only.
+	// These once passed: the check lowercased, and YAML 1.1 read yes/on/True
+	// as a boolean that printed as "True".
+	if err := run("services:\n  api:\n    build: .\n    environment:\n      AUTH_ENABLED: true\n"); err != nil {
+		t.Errorf("unquoted true (compose passes \"true\") rejected: %v", err)
+	}
+	for _, v := range []string{`"TRUE"`, `"True"`, `yes`, `on`, `"1"`} {
+		if err := run("services:\n  api:\n    build: .\n    environment:\n      AUTH_ENABLED: " + v + "\n"); err == nil {
+			t.Errorf("AUTH_ENABLED: %s accepted; the service would run unauthenticated", v)
+		}
+	}
+	if err := run("services:\n  api:\n    build: .\n    environment: [\"AUTH_ENABLED=True\"]\n"); err == nil {
+		t.Error("AUTH_ENABLED=True accepted; the service would run unauthenticated")
+	}
 }
