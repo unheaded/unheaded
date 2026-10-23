@@ -1024,6 +1024,59 @@ func TestSSHDCryptoProbes(t *testing.T) {
 	}
 }
 
+// sshd-kex-pq is the strict post-quantum target (ADR-105): every KEX entry
+// sshd will accept is a hybrid, so no client can negotiate a classical one.
+func TestSSHDKexPQProbe(t *testing.T) {
+	const port = "port 22\n"
+	p, ok := Probes["sshd-kex-pq"]
+	if !ok || !p.Baseline {
+		t.Fatal("sshd-kex-pq missing or not a baseline probe")
+	}
+	if p.Command != Probes["sshd-kex"].Command {
+		t.Errorf("sshd-kex-pq reads %q, want the same sshd -T read as sshd-kex (%q)", p.Command, Probes["sshd-kex"].Command)
+	}
+	for _, tc := range []struct {
+		name, out  string
+		pass       bool
+		wantDetail string
+	}{
+		{"hybrid only", port + "kexalgorithms mlkem768x25519-sha256,sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com\n", true, "every KexAlgorithms entry is a post-quantum hybrid"},
+		{"one hybrid", port + "kexalgorithms mlkem768x25519-sha256\n", true, ""},
+		{"hybrid offered, classical allowed", port + "kexalgorithms mlkem768x25519-sha256,curve25519-sha256\n", false, "classical KEX allowed: curve25519-sha256"},
+		{"several classical named", port + "kexalgorithms mlkem768x25519-sha256,curve25519-sha256,ecdh-sha2-nistp256\n", false, "classical KEX allowed: curve25519-sha256, ecdh-sha2-nistp256"},
+		{"classical only", port + "kexalgorithms curve25519-sha256\n", false, "classical KEX allowed: curve25519-sha256"},
+		{"hybrid lookalike", port + "kexalgorithms mlkem768x25519-sha256-evil\n", false, "classical KEX allowed: mlkem768x25519-sha256-evil"},
+		{"empty list", port + "kexalgorithms \n", false, "KexAlgorithms not reported"},
+		{"key missing", port, false, "KexAlgorithms not reported"},
+		{"only commas", port + "kexalgorithms ,,\n", false, "KexAlgorithms not reported"},
+		{"no sshd -T output", "", false, "no sshd -T output"},
+	} {
+		pass, detail := p.Judge(tc.out)
+		if pass != tc.pass {
+			t.Errorf("%s: sshd-kex-pq(%q) = %v (%s), want %v", tc.name, tc.out, pass, detail, tc.pass)
+		}
+		if tc.wantDetail != "" && detail != tc.wantDetail {
+			t.Errorf("%s: detail %q, want %q", tc.name, detail, tc.wantDetail)
+		}
+	}
+}
+
+// Today's west/east list (read 2026-10-23) passes the allowlist probe and
+// fails the strict one: hybrid first, classical still accepted (E2).
+func TestSSHDKexPQProbeOnTodaysHosts(t *testing.T) {
+	const live = "port 22\nkexalgorithms mlkem768x25519-sha256,sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521\n"
+	if pass, d := Probes["sshd-kex"].Judge(live); !pass {
+		t.Errorf("sshd-kex on today's list = fail (%s), want pass", d)
+	}
+	pass, d := Probes["sshd-kex-pq"].Judge(live)
+	if pass {
+		t.Fatal("sshd-kex-pq on today's list = pass, want fail (classical still allowed)")
+	}
+	if !strings.HasPrefix(d, "classical KEX allowed: curve25519-sha256, curve25519-sha256@libssh.org") {
+		t.Errorf("detail %q does not name the classical entries in order", d)
+	}
+}
+
 func TestBannerRadioProbes(t *testing.T) {
 	for _, tc := range []struct {
 		probe, out string

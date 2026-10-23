@@ -16,7 +16,7 @@
 
 --- a/etc/ssh/sshd_config.d/99-yggdrasil-hardening.conf
 +++ b/etc/ssh/sshd_config.d/99-yggdrasil-hardening.conf
-@@ -0,0 +1,30 @@
+@@ -0,0 +1,32 @@
 +# Yggdrasil sshd hardening — CIS Debian 12 §5.2 baseline.
 +# Loaded after the default sshd_config; later directives win.
 +
@@ -36,7 +36,9 @@
 +# CIS §5.2.13 — constrained algorithm list (FIPS 140-3 alignment).
 +Ciphers chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes128-gcm@openssh.com
 +MACs hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com,umac-128-etm@openssh.com
-+KexAlgorithms curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
++# Post-quantum hybrid KEX first (ADR-105). Bookworm's OpenSSH 9.2 has no
++# ML-KEM: switch the first entry to mlkem768x25519-sha256 at the trixie bump.
++KexAlgorithms sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512
 +
 +# CIS §5.2.20 — disable X11 forwarding (we don't run X on Yggdrasil servers).
 +X11Forwarding no

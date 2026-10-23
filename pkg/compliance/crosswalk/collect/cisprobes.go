@@ -897,10 +897,48 @@ var (
 	sshdStrongMACs = []string{"hmac-sha2-512-etm@openssh.com", "hmac-sha2-256-etm@openssh.com", "hmac-sha2-512", "hmac-sha2-256"}
 )
 
+// sshdHybridKex is the strict post-quantum KEX target (ADR-105): ML-KEM and
+// Streamlined NTRU Prime hybrids with X25519. SSH KEX is picked by the
+// client's preference order, so offering a hybrid first does not stop a
+// client from choosing a classical entry the server also lists; only a
+// server list made entirely of hybrids guarantees one. sshd-kex stays the
+// CIS allowlist; sshd-kex-pq is the stricter target.
+var sshdHybridKex = []string{"mlkem768x25519-sha256", "sntrup761x25519-sha512", "sntrup761x25519-sha512@openssh.com"}
+
+// hybridOnly judges a comma-separated KexAlgorithms list: every entry must
+// be on sshdHybridKex. The failure names each classical entry in list order.
+func hybridOnly(list string) (bool, string) {
+	hybrid := map[string]bool{}
+	for _, h := range sshdHybridKex {
+		hybrid[h] = true
+	}
+	var classical []string
+	n := 0
+	for _, x := range strings.Split(list, ",") {
+		if x = strings.TrimSpace(x); x == "" {
+			continue
+		}
+		n++
+		if !hybrid[x] {
+			classical = append(classical, x)
+		}
+	}
+	if n == 0 {
+		return false, "KexAlgorithms not reported"
+	}
+	if len(classical) > 0 {
+		return false, "classical KEX allowed: " + strings.Join(classical, ", ")
+	}
+	return true, "every KexAlgorithms entry is a post-quantum hybrid"
+}
+
 func init() {
 	Probes["sshd-ciphers"] = sshdProbe("ciphers", func(v map[string]string) (bool, string) { return subsetOf(v["ciphers"], sshdStrongCiphers, "ciphers") })
 	Probes["sshd-kex"] = sshdProbe("kexalgorithms", func(v map[string]string) (bool, string) {
 		return subsetOf(v["kexalgorithms"], sshdStrongKex, "KexAlgorithms")
+	})
+	Probes["sshd-kex-pq"] = sshdProbe("kexalgorithms", func(v map[string]string) (bool, string) {
+		return hybridOnly(v["kexalgorithms"])
 	})
 	Probes["sshd-macs"] = sshdProbe("macs", func(v map[string]string) (bool, string) { return subsetOf(v["macs"], sshdStrongMACs, "MACs") })
 	Probes["sshd-banner"] = sshdProbe("banner", func(v map[string]string) (bool, string) {
