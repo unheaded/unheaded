@@ -4,6 +4,7 @@
 package logagg
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -139,4 +140,23 @@ func TestPublisher_CloseCountsWhatItCouldNotSend(t *testing.T) {
 	if lost := p.Dropped() + p.Failed(); lost < 2 {
 		t.Fatalf("dropped %d + failed %d after Close; 3 entries never arrived", p.Dropped(), p.Failed())
 	}
+}
+
+// panickingConnection panics in Publish, as a transport with a nil
+// client inside would.
+type panickingConnection struct{ mockConnection }
+
+func (*panickingConnection) Publish(context.Context, string, []byte) error {
+	panic("transport bug")
+}
+
+// The worker recovers a panicking transport so logging cannot crash the
+// service, but the entry it was sending is lost and used to vanish from
+// every counter.
+func TestPublisher_TransportPanicCountsAsFailed(t *testing.T) {
+	p := NewPublisher("svc", &panickingConnection{})
+	defer p.Close()
+
+	p.Run(nil, zerolog.ErrorLevel, "x")
+	waitFor(t, func() bool { return p.Failed() == 1 })
 }

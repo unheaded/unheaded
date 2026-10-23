@@ -161,10 +161,17 @@ func (p *Publisher) worker() {
 }
 
 func (p *Publisher) publish(entry LogEntry) {
-	defer func() { _ = recover() }() // guard against panics in the transport
+	// Guard against panics in the transport. The entry is lost either way;
+	// count it, or a broken transport reads as a quiet one.
+	defer func() {
+		if recover() != nil {
+			p.failed.Add(1)
+		}
+	}()
 
 	data, err := json.Marshal(entry)
 	if err != nil {
+		p.failed.Add(1)
 		return
 	}
 	topic := fmt.Sprintf("logs.%s.%s", p.serviceName, strings.ToLower(entry.Level))
@@ -210,7 +217,8 @@ func (p *Publisher) Published() uint64 {
 	return p.published.Load()
 }
 
-// Failed returns how many publishes the transport rejected. These are not
+// Failed returns how many publishes the transport rejected (or panicked
+// on, or that could not be encoded). These are not
 // drops — the entry left the queue — but the log never arrived, so a link
 // that is down cannot hide behind a zero drop count.
 func (p *Publisher) Failed() uint64 {
