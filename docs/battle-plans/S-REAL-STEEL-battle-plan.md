@@ -315,7 +315,7 @@ Step 16 at `f7d730e7` (2026-10-23): `go build ./...` clean, `go test -count=1 ./
 
 `[DECIDE] D-01 (ledger shape)`: RECOMMENDATION: a **package-level** ledger `docs/sweeps/REAL-STEEL-UNREACHED.tsv` (`package <TAB> group <TAB> evidence <TAB> recommendation <TAB> verdict <TAB> commit <TAB> notes`), not ADR-090's 1,836-row file ledger. Rationale: ADR-090 is still Proposed and its ledger is per file; this sprint's question is per package (is anything going to call it). The TSV's columns map onto ADR-090's (`verdict` uses DELETED / FLAGGED / CLEAN, plus WIRE and PARK), so the file ledger can import it later. Override ONLY if Stevie has accepted ADR-090 by execution time: then also create the file ledger and mark these packages' files.
 
-- [ ] **Step 21** [W][P] ~10m: Write `scripts/sweep/unreached-evidence.sh` (new; dry, read-only): for each package in `$SCRATCH/unreached.txt` print one TSV row with
+- [x] **Step 21** [W][P] ~10m: Write `scripts/sweep/unreached-evidence.sh` (new; dry, read-only): for each package in `$SCRATCH/unreached.txt` print one TSV row with
   - `test_importers`: count of `_test.go` files outside the package that import it (`grep -rl --include=*_test.go "\"$pkg\""`);
   - `prod_importers`: non-test importers (should be other unreached packages only);
   - `fake_markers`: count of `simulat|placeholder|in (a )?real implementation|would (be|actually)|not yet implemented` in its non-test files;
@@ -325,32 +325,37 @@ Step 16 at `f7d730e7` (2026-10-23): `go build ./...` clean, `go test -count=1 ./
   ```bash
   bash "$PROJECT_ROOT/scripts/sweep/unreached-evidence.sh" "$SCRATCH/unreached.txt" > "$SCRATCH/evidence.tsv"; wc -l < "$SCRATCH/evidence.tsv"
   ```
-- [ ] **Step 22** [V] ~1m: Row count equals Step 5's count. Mismatch → Step 23.
-- [ ] **Step 23** [D] ~5m: Diff `cut -f1 evidence.tsv` against `unreached.txt`; usual cause is a package dir with only `_test.go` or a build-tagged file (`//go:build`); give those rows `fake_markers=n/a` rather than skipping. 2 attempts → STUCK (blocks Steps 30-38).
-- [ ] **Step 24** [B][P] ~3m: Non-Go dead code evidence: the 23 orphan dashboard scripts.
+- [x] **Step 22** [V] ~1m: Row count equals Step 5's count. Mismatch → Step 23.
+- [x] **Step 23** [D] ~5m: Diff `cut -f1 evidence.tsv` against `unreached.txt`; usual cause is a package dir with only `_test.go` or a build-tagged file (`//go:build`); give those rows `fake_markers=n/a` rather than skipping. 2 attempts → STUCK (blocks Steps 30-38).
+  - Done 2026-10-23: not needed (148 rows = Step 5); test-only/build-tagged dirs carry fake_markers=n/a.
+- [x] **Step 24** [B][P] ~3m: Non-Go dead code evidence: the 23 orphan dashboard scripts.
+  - Done 2026-10-23: 23 orphans incl. monad-decode.js (Math.random registers, fake CRC, random 5% checksum_valid=false).
   ```bash
   cd "$PROJECT_ROOT/dashboard" && for f in js/*.js; do b=$(basename "$f"); \
     grep -rqs --include=*.html --include=*.js -F "$b" . --exclude="$b" || echo "$b"; done > "$SCRATCH/js-orphans.txt"; wc -l < "$SCRATCH/js-orphans.txt"
   grep -n -i -E 'Math\.random|crc|checksum' js/monad-decode.js | head
   ```
   - Expect 23, including monad-decode.js (invents register values, CRC and a random 5% "checksum invalid").
-- [ ] **Step 25** [B][P] ~2m: Parked `.go.dev` files (never compiled, so invisible to the list).
+- [x] **Step 25** [B][P] ~2m: Parked `.go.dev` files (never compiled, so invisible to the list).
+  - Done 2026-10-23: 5 files: pkg/lxd/real_client.go.dev, pkg/container/{lxd/lxd,image/image,network/network,storage/storage}.go.dev.
   ```bash
   cd "$PROJECT_ROOT" && git ls-files '*.go.dev' | xargs -r wc -l
   ```
   - Expect at least `pkg/lxd/real_client.go.dev` (1648 lines, client_golang + zerolog) and `pkg/container/lxd/lxd.go.dev`.
-- [ ] **Step 26** [B][P] ~2m: Dead-in-a-live-package evidence (unreached by symbol, not by package): `transport.Connect`, `yaldabaoth.Service` (wired by this sprint, so WIRE), `FlushFallbackQueue` (wired by Phase 2), `pkg/health/aggregator.go` (S17 Agent 2: used by no binary).
+- [x] **Step 26** [B][P] ~2m: Dead-in-a-live-package evidence (unreached by symbol, not by package): `transport.Connect`, `yaldabaoth.Service` (wired by this sprint, so WIRE), `FlushFallbackQueue` (wired by Phase 2), `pkg/health/aggregator.go` (S17 Agent 2: used by no binary).
+  - Done 2026-10-23: transport.Connect has zero callers (two comments only). pkg/health/aggregator.go has no binary caller, but response.go (also uncalled) uses its HealthStatus constants.
   ```bash
   cd "$PROJECT_ROOT" && grep -rn 'transport\.Connect(' --include=*.go . | grep -v _test
   grep -rln 'NewAggregator\|aggregator\.' --include=*.go cmd services | head
   ```
-- [ ] **Step 27** [R][P] ~10m: For each of the three S17 "fake success" items, read the whole file (ADR-090 per-file procedure step 1, not a grep) and note one line of evidence each in `$SCRATCH/fakes.md`: `pkg/lxd/client.go` RealClient, `pkg/certs/acme/acme.go`, `cmd/unheaded-daemon/internal/lxd/client.go`.
-- [ ] **Step 28** [B][P] ~3m: Which unreached packages only exist to serve another unreached package (delete together): build the reverse-import edges among the unreached set.
+- [x] **Step 27** [R][P] ~10m: For each of the three S17 "fake success" items, read the whole file (ADR-090 per-file procedure step 1, not a grep) and note one line of evidence each in `$SCRATCH/fakes.md`: `pkg/lxd/client.go` RealClient, `pkg/certs/acme/acme.go`, `cmd/unheaded-daemon/internal/lxd/client.go`.
+- [x] **Step 28** [B][P] ~3m: Which unreached packages only exist to serve another unreached package (delete together): build the reverse-import edges among the unreached set.
+  - Done 2026-10-23: 149 prod edges among the unreached set. Also: 16 tests of REACHED packages import unreached ones (pkg/audit, pkg/secrets, pkg/storage tests import their sub-packages; kanban-app/monad/sophia/captain/metrics tests import mock/metricstest; pkg/crypto/pqc tests import pkg/monad).
   ```bash
   cd "$PROJECT_ROOT" && while read -r p; do go list -f '{{.ImportPath}} {{join .Imports " "}}' "./${p#unheaded/}" 2>/dev/null; done < "$SCRATCH/unreached.txt" \
     | awk '{for(i=2;i<=NF;i++) if ($i ~ /^unheaded\//) print $1, "->", $i}' > "$SCRATCH/unreached-edges.txt"; wc -l < "$SCRATCH/unreached-edges.txt"
   ```
-- [ ] **Step 29** [C] ~2m: **COMMIT CHECKPOINT**.
+- [x] **Step 29** [C] ~2m: **COMMIT CHECKPOINT**.
   ```bash
   commit "chore(sweep): unreached-package evidence script" "21-29" scripts/sweep/unreached-evidence.sh
   ```
