@@ -2,7 +2,7 @@ apiVersion: runbook/v1
 kind: Runbook
 metadata:
   name: service-health-sweep
-  description: Health check all 34 Kingdom services and report status
+  description: Health check every Kingdom HTTP service and report status
   owner: micromanager
   estimated_duration: 2m
   risk: low
@@ -19,27 +19,28 @@ steps:
       UNHEALTHY=0
       TOTAL=0
 
+      # HTTP /health ports from pkg/ports/ports.go. gRPC ports (17001,
+      # 18001) and TLS ports cannot answer a plain-HTTP /health and are not
+      # listed. trace-collector-go --unified serves /health on 16671.
       SERVICES="
-        protocol-api:16666
-        dashboard-backend:16667
-        kanban-app:16668
-        trace-collector-grpc:16670
-        trace-collector-http:16671
-        unheaded-daemon-http:17000
-        unheaded-daemon-grpc:17001
-        wotan-http:18000
-        wotan-grpc:18001
+        trace-collector:16671
+        unheaded-daemon:17000
+        protocol-api:17100
+        wotan:18000
         timeguru:19000
         architect:19001
         captain:19002
         micromanager:19003
         monad:19004
         sophia:19005
-        dashboard:20000
+        cuirass:19006
+        akira:19100
+        kev-poller:19120
+        dashboard-backend:20000
+        kanban-app:20001
         zhen-inference:20100
         zhen-web-ui:20103
         gateway-http:21000
-        gateway-https:21443
       "
 
       for entry in $SERVICES; do

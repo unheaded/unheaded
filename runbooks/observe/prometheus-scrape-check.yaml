@@ -13,7 +13,7 @@ steps:
   - name: check-all-metrics-endpoints
     action: shell
     command: |
-      SERVICES="wotan:18000 timeguru:19000 architect:19001 captain:19002 micromanager:19003 monad:19004 sophia:19005 dashboard:20000 kanban:16668 zhen:20103"
+      SERVICES="wotan:18000 timeguru:19000 architect:19001 captain:19002 micromanager:19003 monad:19004 sophia:19005 dashboard:20000 kanban:20001 zhen:20103"
       echo "=== Metrics Endpoint Check ==="
       for svc in $SERVICES; do
         NAME=$(echo $svc | cut -d: -f1)
@@ -32,7 +32,7 @@ steps:
     command: |
       echo "=== Key Metrics Sample ==="
       for port in 18000 19000 20000; do
-        curl -sf http://localhost:$port/metrics 2>/dev/null | grep -E "^(go_goroutines|process_resident_memory|http_requests_total)" | head -3
+        curl -sf http://localhost:$port/metrics 2>/dev/null | grep -E "^(go_goroutines|process_resident_memory|unheaded_http_requests_total)" | head -3
         echo "---"
       done
     description: "Spot-check goroutines, memory, and request counts"
@@ -44,6 +44,6 @@ steps:
       import sys,json
       try:
         d=json.load(sys.stdin)
-        print(f'Scraper: {len(d.get(\"metrics\",[]))} metric series')
+        print(f'Scraper: {d.get(\"total_series\", 0)} metric series')
       except: print('Dashboard metrics API not available')
       " 2>/dev/null

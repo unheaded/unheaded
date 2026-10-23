@@ -39,9 +39,12 @@ steps:
     action: shell
     command: |
       # The dashboard reads as ops_reader and config_reader; no default
-      # password exists (FND-007). Print only whether each is set.
+      # password exists (FND-007). Print only whether each is set in the
+      # dashboard container (names only, never values). Testing this shell's
+      # own environment said nothing about the dashboard's.
+      ENVNAMES=$(sudo docker inspect unheaded-dashboard --format '{{range .Config.Env}}{{println .}}{{end}}' | cut -d= -f1)
       for v in WELL_OPS_PASSWORD WELL_CONFIG_PASSWORD; do
-        if [ -n "${!v}" ]; then echo "$v set"; else echo "$v NOT set"; fi
+        if echo "$ENVNAMES" | grep -qx "$v"; then echo "$v set"; else echo "$v NOT set"; fi
       done
 
   - name: start-the-well
