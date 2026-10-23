@@ -32,6 +32,8 @@ import (
 	"slices"
 	"time"
 
+	"github.com/cloudflare/circl/sign/mldsa/mldsa65"
+
 	"unheaded/pkg/crypto/pqc"
 )
 
@@ -166,4 +168,14 @@ func VerifyEvent(topic, senderID string, payload []byte, sg Signed, trusted [][]
 		return err
 	}
 	return VerifySignature(topic, senderID, payload, sg)
+}
+
+// ValidPublicKey reports whether b is a packed ML-DSA-65 public key, for
+// checking configured trusted keys before they are relied on.
+func ValidPublicKey(b []byte) bool {
+	if len(b) != mldsa65.PublicKeySize {
+		return false
+	}
+	var pk mldsa65.PublicKey
+	return pk.UnmarshalBinary(b) == nil
 }

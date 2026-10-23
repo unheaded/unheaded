@@ -76,7 +76,7 @@ func TestRequiresSignature(t *testing.T) {
 	}{
 		{"config.baseline", true},
 		{"config.deltas.node-01", true},
-		{"drift.detected.node-01", false},
+		{"drift.detected.node-01", true}, // ADR-105: drift.* is signed too
 		{"logs.wotan.info", false},
 		{"alerts.critical", false},
 	}

@@ -20,7 +20,6 @@ import (
 	"unheaded/services/wotan/internal/member"
 	"unheaded/services/wotan/internal/metrics"
 	"unheaded/services/wotan/internal/ringbuffer"
-	"unheaded/services/wotan/internal/signing"
 	"unheaded/services/wotan/internal/store"
 	"unheaded/services/wotan/internal/topicpattern"
 )
@@ -154,8 +153,8 @@ func (s *Server) PublishTopic(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "cannot publish to a topic pattern")
 		return
 	}
-	if signing.RequiresSignature(topic) {
-		writeError(w, http.StatusForbidden, "config.* topics are published over gRPC with an ML-DSA-65 signature")
+	if s.TopicConfig.RequiresSignature(topic) {
+		writeError(w, http.StatusForbidden, "signed topics (config.*, drift.*) are published over gRPC with an ML-DSA-65 signature")
 		return
 	}
 

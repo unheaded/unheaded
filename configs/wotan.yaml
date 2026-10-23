@@ -47,6 +47,20 @@ topics:
   # trusted on its own. Empty: every config.* publish is refused.
   signing_keys: []
 
+  # Further signed topic prefixes, each with the ML-DSA-65 public keys
+  # (base64) trusted for that prefix only (ADR-105). A key here signs
+  # nothing outside its prefix, and config.* keys stay in signing_keys.
+  # drift.* (Heimdall drift alerts, drift.detected.<node_id>) is signed
+  # whether or not it is listed; with no keys every drift.* publish is
+  # refused. Enrolling a Heimdall node's drift key is Stevie's call
+  # (S-QUANTUM-ARMOR E5): its public key goes in drift.'s keys, e.g.
+  #   - prefix: "drift."
+  #     keys: ["<base64 ML-DSA-65 public key of heimdall on east>"]
+  # Prefixes end in "."; the longest matching prefix decides.
+  signed_prefixes:
+    - prefix: "drift."
+      keys: []
+
 # Persistent store configuration (Wave 9)
 # Options: memory (default), wal, postgres, hybrid
 # Hybrid = WAL write-ahead + PostgreSQL durable (recommended for production)

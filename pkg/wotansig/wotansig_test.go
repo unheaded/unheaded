@@ -159,6 +159,17 @@ func TestCheckKey(t *testing.T) {
 	}
 }
 
+func TestValidPublicKey(t *testing.T) {
+	if !ValidPublicKey(newSigner(t).PublicKey()) {
+		t.Fatal("a real key is not valid")
+	}
+	for _, b := range [][]byte{nil, {}, []byte("short"), make([]byte, 1953)} {
+		if ValidPublicKey(b) {
+			t.Errorf("accepted %d bytes", len(b))
+		}
+	}
+}
+
 func TestTopicSigner_Nil(t *testing.T) {
 	var ts *TopicSigner
 	if _, err := ts.Sign("drift.x", "s", []byte("p")); !errors.Is(err, ErrNoSigner) {

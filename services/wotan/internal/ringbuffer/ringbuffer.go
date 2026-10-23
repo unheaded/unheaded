@@ -23,6 +23,23 @@ type Message struct {
 	// with ("everything after seq N"); a position in the buffer cannot be,
 	// because once the buffer is full every position is always occupied.
 	Seq int64 `json:"seq"`
+	// Signed is a signed topic message's signature (config.*, drift.*;
+	// ADR-105), kept so the events Wotan sends carry what a subscriber needs
+	// to re-verify the message. Nil for unsigned messages. Set before Push
+	// and never changed after.
+	Signed *Signature `json:"signed,omitempty"`
+}
+
+// Signature is what a signed message's signature covers beyond its topic
+// and content, and the signature itself.
+type Signature struct {
+	// Sender is the sender the signature covers: the publish request's
+	// sender_id, or the display name it was authorized under.
+	Sender         string `json:"sender"`
+	Signature      []byte `json:"signature"`
+	PublicKey      []byte `json:"public_key"`
+	Algorithm      string `json:"algorithm"`
+	SignedAtUnixMs int64  `json:"signed_at_unix_ms"`
 }
 
 // RingBuffer is a fixed-size circular buffer for messages

@@ -8,7 +8,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"errors"
-	"strings"
 	"sync"
 	"time"
 
@@ -148,10 +147,12 @@ func (tv *TopicVerifier) forget(now int64) {
 	}
 }
 
-// RequiresSignature returns true if the given topic requires ML-DSA-65 signing.
-// Per ADR-043: all config.* topics must be signed.
+// RequiresSignature reports whether topic falls under a built-in signed
+// prefix (config.*, drift.*: ADR-043 #2, ADR-105). Prefixes added in config
+// are known only to a Policy; use Policy.RequiresSignature where one exists.
 func RequiresSignature(topic string) bool {
-	return strings.HasPrefix(topic, "config.")
+	var none *Policy
+	return none.RequiresSignature(topic)
 }
 
 // canonicalize is what a signature covers; see wotansig.Canonicalize.

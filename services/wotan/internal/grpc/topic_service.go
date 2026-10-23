@@ -4,6 +4,7 @@
 package grpc
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"sort"
@@ -40,8 +41,10 @@ type TopicService struct {
 	// Track active streams for metrics/TopicPing
 	activeStreams atomic.Int64
 
-	// ML-DSA-65 verifier for config.* topic signing (ADR-043 hard condition #2)
-	topicVerifier *signing.TopicVerifier
+	// Signing policy: which topic prefixes take only ML-DSA-65 signed
+	// messages and which keys are trusted for each (ADR-043 #2, ADR-105).
+	// Nil still refuses unsigned config.*/drift.* and verifies nothing.
+	policy *signing.Policy
 
 	// AutoApprove gates anonymous publishers the same way the HTTP path gates
 	// subscribers (configs/wotan.yaml -> topics.auto_approve). Nil means "no
@@ -67,20 +70,53 @@ type AutoApprover interface {
 
 // NewTopicService creates a new TopicService. signingKeys are the ML-DSA-65
 // public keys trusted to sign config.* messages; with none, every config.*
-// publish is refused.
+// publish is refused. drift.* trusts no key until SetSigningPolicy names
+// some, so every drift.* publish is refused.
 func NewTopicService(
 	roomManager *room.Manager,
 	memberManager *member.Manager,
 	msgWotan *wotan.Wotan,
 	signingKeys ...[]byte,
 ) *TopicService {
-	verifier, _ := signing.NewTopicVerifier(signingKeys...) // nil-safe: PublishTopic checks before use
+	policy, _ := signing.NewPolicy(signingKeys) // cannot fail without configured prefixes; a nil policy fails closed anyway
 	return &TopicService{
 		roomManager:   roomManager,
 		memberManager: memberManager,
 		wotan:         msgWotan,
-		topicVerifier: verifier,
+		policy:        policy,
 	}
+}
+
+// SetSigningPolicy replaces the signing policy (built from configs/wotan.yaml
+// topics.signing_keys and topics.signed_prefixes). Call it before serving.
+func (s *TopicService) SetSigningPolicy(p *signing.Policy) {
+	s.policy = p
+}
+
+// messageEvent is the TopicEvent for a stored message. A signed message
+// carries its signature, key, algorithm and signing time, and its sender_id
+// is the sender the signature covers, so a subscriber can re-verify it with
+// wotansig.VerifyEvent (ADR-105). Before, the signature was checked and
+// dropped: no subscriber ever received one.
+func (s *TopicService) messageEvent(topic string, msg *ringbuffer.Message, createdAt time.Time, typ chatpb.TopicEventType) *chatpb.TopicEvent {
+	ev := &chatpb.TopicEvent{
+		Topic:     topic,
+		MessageId: msg.ID.String(),
+		SenderId:  msg.CreatorID.String(),
+		Payload:   []byte(msg.Content),
+		CreatedAt: timestamppb.New(createdAt),
+		Seq:       msg.Seq,
+		Type:      typ,
+		NodeId:    s.NodeID,
+	}
+	if sg := msg.Signed; sg != nil && typ == chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED {
+		ev.SenderId = sg.Sender
+		ev.Signature = sg.Signature
+		ev.PublicKey = sg.PublicKey
+		ev.Algorithm = sg.Algorithm
+		ev.SignedAtUnixMs = sg.SignedAtUnixMs
+	}
+	return ev
 }
 
 // StreamTopics implements the gRPC StreamTopics method for topic-based streaming.
@@ -237,16 +273,7 @@ func (s *TopicService) StreamTopics(
 
 		for _, h := range replay {
 			topicName, msg := h.topic, h.msg
-			event := &chatpb.TopicEvent{
-				Topic:     topicName,
-				MessageId: msg.ID.String(),
-				SenderId:  msg.CreatorID.String(),
-				Payload:   []byte(msg.Content),
-				CreatedAt: timestamppb.New(msg.Timestamp),
-				Seq:       msg.Seq,
-				Type:      chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED,
-				NodeId:    s.NodeID,
-			}
+			event := s.messageEvent(topicName, msg, msg.Timestamp, chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED)
 
 			if err := stream.Send(event); err != nil {
 				logger.FromContext(ctx).Error().
@@ -351,16 +378,8 @@ func (s *TopicService) forwardTopicEventsAfter(
 				eventType = chatpb.TopicEventType_TOPIC_MESSAGE_DELETED
 			}
 
-			pbEvent := &chatpb.TopicEvent{
-				Topic:     topic,
-				MessageId: event.Message.ID.String(),
-				SenderId:  event.Message.CreatorID.String(),
-				Payload:   []byte(event.Message.Content),
-				CreatedAt: timestamppb.New(event.Timestamp),
-				Seq:       seq,
-				Type:      eventType,
-				NodeId:    s.NodeID,
-			}
+			pbEvent := s.messageEvent(topic, event.Message, event.Timestamp, eventType)
+			pbEvent.Seq = seq
 
 			// Non-blocking send to event channel
 			select {
@@ -454,16 +473,7 @@ func (s *TopicService) watchTopicsForPattern(
 						var through int64
 						for _, msg := range rm.Buffer.GetAfter(startSeq, 0) {
 							select {
-							case eventChan <- &topicEvent{topic: rm.ID, pbEvent: &chatpb.TopicEvent{
-								Topic:     rm.ID,
-								MessageId: msg.ID.String(),
-								SenderId:  msg.CreatorID.String(),
-								Payload:   []byte(msg.Content),
-								CreatedAt: timestamppb.New(msg.Timestamp),
-								Seq:       msg.Seq,
-								Type:      chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED,
-								NodeId:    s.NodeID,
-							}}:
+							case eventChan <- &topicEvent{topic: rm.ID, pbEvent: s.messageEvent(rm.ID, msg, msg.Timestamp, chatpb.TopicEventType_TOPIC_MESSAGE_PUBLISHED)}:
 							case <-ctx.Done():
 								return
 							}
@@ -545,35 +555,49 @@ func (s *TopicService) PublishTopic(
 		autoPublisher = displayName
 	}
 
-	// ADR-043 hard condition #2: config.* topics require ML-DSA-65 signature.
-	// Checked only after the sender is authorized, so a caller the allowlist
-	// refuses never costs an ML-DSA verify (LICH-012 L12b: trusted keys are
-	// public, so anyone can make a request reach it). The signature is
-	// recorded as used (Accept) only once the message is taken, below.
+	// ADR-043 #2 / ADR-105: config.* and drift.* (and any configured signed
+	// prefix) take only ML-DSA-65 signed messages, each prefix from its own
+	// keys. Checked only after the sender is authorized, so a caller the
+	// allowlist refuses never costs an ML-DSA verify (LICH-012 L12b: trusted
+	// keys are public, so anyone can make a request reach it). The
+	// signature is recorded as used (Accept) only once the message is taken,
+	// below.
+	//
+	// The sender a signature covers is the request's sender_id or, for a
+	// publisher authorized by display_name, that name: the signature binds
+	// the identity Wotan authorized, and subscribers get it back as the
+	// event's sender_id to re-verify against.
 	var signed *signing.Signed
-	if signing.RequiresSignature(req.Topic) {
+	var verifier *signing.TopicVerifier
+	signedSender := req.SenderId
+	if signedSender == "" {
+		signedSender = autoPublisher
+	}
+	if prefix := s.policy.PrefixFor(req.Topic); prefix != "" {
 		if len(req.Signature) == 0 || len(req.PublicKey) == 0 {
 			logger.FromContext(ctx).Warn().
 				Str("topic", req.Topic).
-				Msg("config_topic_unsigned")
-			return nil, status.Error(codes.InvalidArgument, "config.* topics require ML-DSA-65 signature")
+				Msg("signed_topic_unsigned")
+			return nil, status.Error(codes.InvalidArgument, prefix+"* topics require ML-DSA-65 signature")
 		}
-		// Fail closed. A verifier that could not be constructed must reject
-		// config.* publishes, never wave them through unchecked.
-		if s.topicVerifier == nil {
+		// Fail closed. No verifier (no policy) refuses signed-prefix
+		// publishes, never waves them through unchecked.
+		var ok bool
+		verifier, ok = s.policy.VerifierFor(req.Topic)
+		if !ok {
 			logger.FromContext(ctx).Error().
 				Str("topic", req.Topic).
-				Msg("config_topic_verifier_unavailable")
+				Msg("signed_topic_verifier_unavailable")
 			return nil, status.Error(codes.PermissionDenied, "signature verification unavailable")
 		}
 		signed = &signing.Signed{
 			Signature: req.Signature, PublicKey: req.PublicKey, Algorithm: req.Algorithm, SignedAtUnixMs: req.SignedAtUnixMs,
 		}
-		if err := s.topicVerifier.Verify(req.Topic, req.SenderId, req.Payload, *signed); err != nil {
+		if err := verifier.Verify(req.Topic, signedSender, req.Payload, *signed); err != nil {
 			logger.FromContext(ctx).Warn().
 				Err(err).
 				Str("topic", req.Topic).
-				Msg("config_topic_signature_invalid")
+				Msg("signed_topic_signature_invalid")
 			return nil, status.Error(codes.PermissionDenied, "signature verification failed: "+err.Error())
 		}
 	}
@@ -590,8 +614,8 @@ func (s *TopicService) PublishTopic(
 	}
 
 	if signed != nil {
-		if err := s.topicVerifier.Accept(*signed); err != nil {
-			logger.FromContext(ctx).Warn().Err(err).Str("topic", req.Topic).Msg("config_topic_replay")
+		if err := verifier.Accept(*signed); err != nil {
+			logger.FromContext(ctx).Warn().Err(err).Str("topic", req.Topic).Msg("signed_topic_replay")
 			return nil, status.Error(codes.PermissionDenied, "signature verification failed: "+err.Error())
 		}
 	}
@@ -604,8 +628,20 @@ func (s *TopicService) PublishTopic(
 		return nil, status.Error(codes.ResourceExhausted, err.Error())
 	}
 
-	// Send message to room's ring buffer
-	msg, overwritten := rm.SendMessage(senderID, string(req.Payload))
+	// Send message to room's ring buffer, with its signature if it has one.
+	var msg *ringbuffer.Message
+	var overwritten bool
+	if signed != nil {
+		msg, overwritten = rm.SendSignedMessage(senderID, string(req.Payload), &ringbuffer.Signature{
+			Sender:         signedSender,
+			Signature:      bytes.Clone(signed.Signature),
+			PublicKey:      bytes.Clone(signed.PublicKey),
+			Algorithm:      signed.Algorithm,
+			SignedAtUnixMs: signed.SignedAtUnixMs,
+		})
+	} else {
+		msg, overwritten = rm.SendMessage(senderID, string(req.Payload))
+	}
 
 	// Publish event through wotan pub/sub
 	s.wotan.PublishMessageCreated(msg)

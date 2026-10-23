@@ -300,6 +300,14 @@ func main() {
 	}
 	log.Info().Int("trusted_signing_keys", len(signingKeys)).Msg("config.* publishes need a signature from one of these keys")
 	topicService := grpcservice.NewTopicService(roomManager, memberManager, messageWotan, signingKeys...)
+	// drift.* (and any topics.signed_prefixes entry) is signed by its own
+	// keys only (ADR-105); with none configured, drift.* is closed.
+	signingPolicy, err := topicCfg.SigningPolicy()
+	if err != nil {
+		log.Fatal().Err(err).Str("path", topicConfigPath).Msg("topic_config_signed_prefixes_invalid")
+	}
+	topicService.SetSigningPolicy(signingPolicy)
+	log.Info().Int("signed_prefixes", len(topicCfg.Topics.SignedPrefixes)).Msg("config.* and drift.* take only signed publishes")
 	// Same allowlist the HTTP path applies, so a publisher cannot dodge the
 	// approval gate simply by using gRPC (configs/wotan.yaml topics.auto_approve).
 	topicService.AutoApprove = topicCfg

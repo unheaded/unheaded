@@ -39,6 +39,13 @@ message TopicEvent {
   bytes signature = 9;
   bytes public_key = 10;
   string algorithm = 11;
+  // When the publisher signed, in Unix milliseconds (ADR-105). With
+  // signature, public_key, algorithm, topic, sender_id and payload it is
+  // everything a subscriber needs to re-verify a signed message
+  // (pkg/wotansig.VerifyEvent); on a signed message sender_id is the sender
+  // the signature covers. Additive Wotan gRPC field, not the Monad wire
+  // format.
+  int64 signed_at_unix_ms = 12;
 }
 
 enum TopicEventType {

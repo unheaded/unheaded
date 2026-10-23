@@ -167,11 +167,18 @@ type TopicEvent struct {
 	Type      TopicEventType         `protobuf:"varint,7,opt,name=type,proto3,enum=chat.TopicEventType" json:"type,omitempty"`
 	NodeId    string                 `protobuf:"bytes,8,opt,name=node_id,json=nodeId,proto3" json:"node_id,omitempty"`
 	// ML-DSA-65 signature fields (ADR-043 hard condition #2)
-	Signature     []byte `protobuf:"bytes,9,opt,name=signature,proto3" json:"signature,omitempty"`
-	PublicKey     []byte `protobuf:"bytes,10,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	Algorithm     string `protobuf:"bytes,11,opt,name=algorithm,proto3" json:"algorithm,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	Signature []byte `protobuf:"bytes,9,opt,name=signature,proto3" json:"signature,omitempty"`
+	PublicKey []byte `protobuf:"bytes,10,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
+	Algorithm string `protobuf:"bytes,11,opt,name=algorithm,proto3" json:"algorithm,omitempty"`
+	// When the publisher signed, in Unix milliseconds (ADR-105). With
+	// signature, public_key, algorithm, topic, sender_id and payload it is
+	// everything a subscriber needs to re-verify a signed message
+	// (pkg/wotansig.VerifyEvent); on a signed message sender_id is the sender
+	// the signature covers. Additive Wotan gRPC field, not the Monad wire
+	// format.
+	SignedAtUnixMs int64 `protobuf:"varint,12,opt,name=signed_at_unix_ms,json=signedAtUnixMs,proto3" json:"signed_at_unix_ms,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *TopicEvent) Reset() {
@@ -279,6 +286,13 @@ func (x *TopicEvent) GetAlgorithm() string {
 		return x.Algorithm
 	}
 	return ""
+}
+
+func (x *TopicEvent) GetSignedAtUnixMs() int64 {
+	if x != nil {
+		return x.SignedAtUnixMs
+	}
+	return 0
 }
 
 type TopicPublishRequest struct {
@@ -579,7 +593,7 @@ const file_topic_proto_rawDesc = "" +
 	"\bmetadata\x18\x06 \x03(\v2&.chat.TopicStreamRequest.MetadataEntryR\bmetadata\x1a;\n" +
 	"\rMetadataEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe3\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\x8e\x03\n" +
 	"\n" +
 	"TopicEvent\x12\x1d\n" +
 	"\n" +
@@ -596,7 +610,8 @@ const file_topic_proto_rawDesc = "" +
 	"\n" +
 	"public_key\x18\n" +
 	" \x01(\fR\tpublicKey\x12\x1c\n" +
-	"\talgorithm\x18\v \x01(\tR\talgorithm\"\xea\x02\n" +
+	"\talgorithm\x18\v \x01(\tR\talgorithm\x12)\n" +
+	"\x11signed_at_unix_ms\x18\f \x01(\x03R\x0esignedAtUnixMs\"\xea\x02\n" +
 	"\x13TopicPublishRequest\x12\x14\n" +
 	"\x05topic\x18\x01 \x01(\tR\x05topic\x12\x1b\n" +
 	"\tsender_id\x18\x02 \x01(\tR\bsenderId\x12\x18\n" +

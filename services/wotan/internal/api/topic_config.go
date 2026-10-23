@@ -10,6 +10,9 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"unheaded/pkg/wotansig"
+	"unheaded/services/wotan/internal/signing"
 )
 
 // TopicConfig holds topic-level configuration for Wotan.
@@ -23,6 +26,11 @@ type TopicConfig struct {
 		// SigningKeys are the base64 ML-DSA-65 public keys trusted to sign
 		// config.* messages (ADR-043 #2). None: config.* is closed.
 		SigningKeys []string `yaml:"signing_keys"`
+		// SignedPrefixes are further signed topic prefixes, each with the
+		// keys trusted for it alone (ADR-105). drift. is signed whether or
+		// not it is listed; listed with no keys, or not listed, every
+		// drift.* publish is refused.
+		SignedPrefixes []SignedPrefix `yaml:"signed_prefixes"`
 	} `yaml:"topics"`
 
 	// allowSet is built from AutoApprove for O(1) lookups
@@ -44,6 +52,11 @@ func LoadTopicConfig(path string) (*TopicConfig, error) {
 	var cfg TopicConfig
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, fmt.Errorf("parse topic config: %w", err)
+	}
+	// Refuse a config whose signing policy is broken here, at load, so
+	// Wotan never starts with a prefix unsigned or a key silently dropped.
+	if _, err := cfg.SigningPolicy(); err != nil {
+		return nil, err
 	}
 
 	// Build lookup set
@@ -87,4 +100,82 @@ func (c *TopicConfig) TrustedSigningKeys() ([][]byte, error) {
 		keys = append(keys, b)
 	}
 	return keys, nil
+}
+
+// SignedPrefix is one topics.signed_prefixes entry.
+type SignedPrefix struct {
+	Prefix string   `yaml:"prefix"`
+	Keys   []string `yaml:"keys"`
+}
+
+// UnmarshalYAML refuses unknown fields: a misspelt "keys" would otherwise
+// leave the prefix with no trusted key and no error.
+func (sp *SignedPrefix) UnmarshalYAML(n *yaml.Node) error {
+	if n.Kind != yaml.MappingNode {
+		return fmt.Errorf("line %d: a signed_prefixes entry is a mapping {prefix, keys}", n.Line)
+	}
+	for i := 0; i+1 < len(n.Content); i += 2 {
+		switch k := n.Content[i].Value; k {
+		case "prefix", "keys":
+		default:
+			return fmt.Errorf("line %d: unknown field %q in a signed_prefixes entry", n.Content[i].Line, k)
+		}
+	}
+	type plain SignedPrefix
+	return n.Decode((*plain)(sp))
+}
+
+// RequiresSignature reports whether topic falls under a built-in or
+// configured signed prefix; HTTP refuses every such topic. A nil config
+// knows only the built-in prefixes.
+func (c *TopicConfig) RequiresSignature(topic string) bool {
+	if signing.RequiresSignature(topic) {
+		return true
+	}
+	if c == nil {
+		return false
+	}
+	for _, sp := range c.Topics.SignedPrefixes {
+		if sp.Prefix != "" && strings.HasPrefix(topic, sp.Prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// SigningPolicy builds the publish-time signing policy: config. trusts
+// topics.signing_keys; each signed_prefixes entry trusts its own keys,
+// which must be valid ML-DSA-65 public keys.
+func (c *TopicConfig) SigningPolicy() (*signing.Policy, error) {
+	cfgKeys, err := c.TrustedSigningKeys()
+	if err != nil {
+		return nil, err
+	}
+	var entries []signing.PrefixKeys
+	if c != nil {
+		for i, sp := range c.Topics.SignedPrefixes {
+			if err := signing.ValidatePrefix(sp.Prefix); err != nil {
+				return nil, fmt.Errorf("topics.signed_prefixes[%d]: %w", i, err)
+			}
+			keys := make([][]byte, 0, len(sp.Keys))
+			seen := make(map[string]bool, len(sp.Keys))
+			for j, k := range sp.Keys {
+				b, err := base64.StdEncoding.DecodeString(strings.TrimSpace(k))
+				if err != nil || !wotansig.ValidPublicKey(b) {
+					return nil, fmt.Errorf("topics.signed_prefixes[%d].keys[%d]: not a base64 ML-DSA-65 public key", i, j)
+				}
+				if seen[string(b)] {
+					return nil, fmt.Errorf("topics.signed_prefixes[%d].keys[%d]: listed twice", i, j)
+				}
+				seen[string(b)] = true
+				keys = append(keys, b)
+			}
+			entries = append(entries, signing.PrefixKeys{Prefix: sp.Prefix, Keys: keys})
+		}
+	}
+	p, err := signing.NewPolicy(cfgKeys, entries...)
+	if err != nil {
+		return nil, fmt.Errorf("topics.signed_prefixes: %w", err)
+	}
+	return p, nil
 }

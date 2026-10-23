@@ -254,6 +254,22 @@ func (r *Room) SendMessage(creatorID uuid.UUID, content string) (*ringbuffer.Mes
 	return msg, overwritten
 }
 
+// SendSignedMessage is SendMessage for a message whose signature was
+// verified: the signature is stored with it and sent with every event for
+// it (ADR-105).
+func (r *Room) SendSignedMessage(creatorID uuid.UUID, content string, sig *ringbuffer.Signature) (*ringbuffer.Message, bool) {
+	msg := &ringbuffer.Message{
+		ID:        uuid.New(),
+		CreatorID: creatorID,
+		RoomID:    r.ID,
+		Content:   content,
+		Timestamp: time.Now(),
+		Signed:    sig,
+	}
+	_, overwritten := r.Buffer.Push(msg)
+	return msg, overwritten
+}
+
 // GetMessages retrieves all messages from the room
 func (r *Room) GetMessages() []*ringbuffer.Message {
 	return r.Buffer.Get()

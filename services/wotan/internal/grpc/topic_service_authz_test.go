@@ -36,8 +36,8 @@ func productionTopicService() *TopicService {
 func TestPublishTopic_ConfigTopicSignatureIsActuallyVerified(t *testing.T) {
 	svc := productionTopicService()
 
-	if svc.topicVerifier == nil {
-		t.Error("production constructor leaves topicVerifier nil: config.* signatures are never verified")
+	if v, ok := svc.policy.VerifierFor("config.kingdom"); !ok || v == nil {
+		t.Error("production constructor has no config.* verifier: config.* signatures are never verified")
 	}
 
 	_, err := svc.PublishTopic(context.Background(), &chatpb.TopicPublishRequest{
@@ -113,7 +113,9 @@ func TestPublishTopic_SelfSignedConfigRefused(t *testing.T) {
 		t.Fatal(err)
 	}
 	ts := signing.NewTopicSigner(signer)
-	sg, err := ts.Sign("config.kingdom", "", []byte(`{"evil":true}`))
+	// No sender_id and no display_name: Wotan authorizes the publisher as
+	// "service", and since ADR-105 the signature covers that name.
+	sg, err := ts.Sign("config.kingdom", "service", []byte(`{"evil":true}`))
 	if err != nil {
 		t.Fatal(err)
 	}
