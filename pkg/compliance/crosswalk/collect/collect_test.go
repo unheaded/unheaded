@@ -806,14 +806,19 @@ func TestServiceClientCronProbes(t *testing.T) {
 		probe, out string
 		pass       bool
 	}{
-		{"svc-web-server-not-in-use", "installed=\nnginx.service=not-found/inactive\napache2.service=not-found/inactive\n", true},
-		{"svc-web-server-not-in-use", "installed=nginx\nnginx.service=enabled/active\napache2.service=not-found/inactive\n", false},
-		{"svc-web-server-not-in-use", "installed=nginx\nnginx.service=masked/inactive\napache2.service=not-found/inactive\n", true},  // installed as a dependency, masked
-		{"svc-web-server-not-in-use", "installed=nginx\nnginx.service=disabled/active\napache2.service=not-found/inactive\n", false}, // running now
-		{"svc-rsync-not-in-use", "installed=rsync\nrsync.service=disabled/inactive\n", true},
+		{"svc-web-server-not-in-use", "installed=\npresent=\ndpkg=installed\nnginx.service=not-found/inactive\napache2.service=not-found/inactive\n", true},
+		{"svc-web-server-not-in-use", "installed=nginx\npresent=nginx\ndpkg=installed\nnginx.service=enabled/active\napache2.service=not-found/inactive\n", false},
+		{"svc-web-server-not-in-use", "installed=nginx\npresent=nginx\ndpkg=installed\nnginx.service=masked/inactive\napache2.service=not-found/inactive\n", true},  // installed as a dependency, masked
+		{"svc-web-server-not-in-use", "installed=nginx\npresent=nginx\ndpkg=installed\nnginx.service=disabled/active\napache2.service=not-found/inactive\n", false}, // running now
+		{"svc-rsync-not-in-use", "installed=rsync\npresent=rsync\ndpkg=installed\nrsync.service=disabled/inactive\n", true},
 		{"svc-rsync-not-in-use", "", false},
-		{"pkg-telnet-client-absent", "installed=inetutils-telnet telnet\n", false},
-		{"pkg-telnet-client-absent", "installed=\n", true},
+		{"pkg-telnet-client-absent", "installed=inetutils-telnet telnet\npresent=inetutils-telnet telnet\ndpkg=installed\n", false},
+		{"pkg-telnet-client-absent", "installed=\npresent=\ndpkg=installed\n", true},
+		{"pkg-telnet-client-absent", "installed=\npresent=telnet\ndpkg=installed\n", false}, // held or unpacked
+		{"pkg-telnet-client-absent", "installed=\npresent=\n", false},                       // dpkg's database not read
+		{"pkg-telnet-client-absent", "installed=\npresent=\ndpkg=\n", false},
+		{"svc-rsync-not-in-use", "installed=\npresent=\ndpkg=\n", false},
+		{"at-restricted", "installed=\npresent=\ndpkg=\n", false},
 		{"pkg-telnet-client-absent", "", false},
 		{"cron-active", "installed=cron\nenabled=enabled\nactive=active\n", true},
 		{"cron-active", "installed=cron\nenabled=enabled\nactive=inactive\n", false},
@@ -822,9 +827,9 @@ func TestServiceClientCronProbes(t *testing.T) {
 		{"cron-allow-restricted", "allow=ABSENT\ndeny=ABSENT\n", false},
 		{"cron-allow-restricted", "allow=/etc/cron.allow 640 0 crontab\ndeny=/etc/cron.deny 640 0 root\n", false},
 		{"cron-allow-restricted", "allow=/etc/cron.allow 644 0 crontab\ndeny=ABSENT\n", false},
-		{"at-restricted", "installed=\n", true}, // at not installed: nothing to restrict
-		{"at-restricted", "installed=at\nallow=ABSENT\ndeny=ABSENT\n", false},
-		{"at-restricted", "installed=at\nallow=/etc/at.allow 640 0 root\ndeny=/etc/at.deny 640 0 root\n", true},
+		{"at-restricted", "installed=\npresent=\ndpkg=installed\n", true}, // at not installed: nothing to restrict
+		{"at-restricted", "installed=at\npresent=at\ndpkg=installed\nallow=ABSENT\ndeny=ABSENT\n", false},
+		{"at-restricted", "installed=at\npresent=at\ndpkg=installed\nallow=/etc/at.allow 640 0 root\ndeny=/etc/at.deny 640 0 root\n", true},
 		{"mta-local-only", "@ok\n", true}, // nothing listening on 25/465/587
 		{"mta-local-only", "@ok\n127.0.0.1:25\n[::1]:25\n", true},
 		{"mta-local-only", "@ok\n0.0.0.0:25\n", false},
@@ -868,8 +873,8 @@ func TestAccountSudoBootProbes(t *testing.T) {
 		{"grub-password", "@ok\n", false},
 		{"perm-boot-grub-cfg", "/boot/grub/grub.cfg 400 0 root\n", true},
 		{"perm-boot-grub-cfg", "/boot/grub/grub.cfg 444 0 root\n", false},
-		{"pkg-prelink-absent", "installed=\n", true},
-		{"svc-apport-not-in-use", "installed=apport\napport.service=enabled/active\n", false},
+		{"pkg-prelink-absent", "installed=\npresent=\ndpkg=installed\n", true},
+		{"svc-apport-not-in-use", "installed=apport\npresent=apport\ndpkg=installed\napport.service=enabled/active\n", false},
 		{"sudo-installed", "installed=sudo\n", true},
 		{"sudo-use-pty", "Defaults use_pty\n@ok\n", true},
 		{"sudo-use-pty", "Defaults env_reset,use_pty,mail_badpass\n@ok\n", true},
@@ -998,7 +1003,7 @@ func TestBannerRadioProbes(t *testing.T) {
 		{"banner-motd", "os=Ubuntu\nABSENT\n@ok\n", true}, // motd is optional
 		{"banner-motd", "os=Ubuntu\nubuntu news here\n@ok\n", false},
 		{"banner-issue-net", "os=Ubuntu\nAuthorized users only.\n", false}, // no completion marker
-		{"svc-bluetooth-not-in-use", "installed=\n", true},
+		{"svc-bluetooth-not-in-use", "installed=\npresent=\ndpkg=installed\n", true},
 		{"radio-wireless-down", "@ok\n", true},
 		{"radio-wireless-down", "wlp17s0 up\n@ok\n", false},
 		{"perm-etc-issue", "/etc/issue 644 0 root\n", true},
@@ -1183,8 +1188,8 @@ func TestTimeSyncProbes(t *testing.T) {
 		{"chrony-user", "@ok\n", false},
 		{"chrony-active", "enabled=enabled\nactive=active\n", true},
 		{"chrony-active", "enabled=disabled\nactive=active\n", false},
-		{"pkg-gdm-absent", "installed=\n", true},
-		{"pkg-gdm-absent", "installed=gdm3\n", false},
+		{"pkg-gdm-absent", "installed=\npresent=\ndpkg=installed\n", true},
+		{"pkg-gdm-absent", "installed=gdm3\npresent=gdm3\ndpkg=installed\n", false},
 	} {
 		p, ok := Probes[tc.probe]
 		if !ok || !p.Baseline {
@@ -1511,6 +1516,50 @@ func TestProbeCommandsFailUnprivileged(t *testing.T) {
 		}
 		if pass, detail := runProbeCommand(t, name, "", facts); pass {
 			t.Errorf("%s passes without privilege: %s", name, detail)
+		}
+	}
+}
+
+// TestPackageProbesReadDpkgStates runs the package probes' real commands
+// against a stand-in dpkg-query. A held package ("hold ok installed") once
+// read as absent, as did everything when dpkg-query could not run.
+func TestPackageProbesReadDpkgStates(t *testing.T) {
+	probeTools(t)
+	dir := t.TempDir()
+	db := filepath.Join(dir, "db")
+	fake := "#!/bin/sh\n" +
+		"case \"$*\" in *'-f=${Status} dpkg') [ -n \"$UH_TEST_NODPKG\" ] && exit 2; printf 'install ok installed'; exit 0;; esac\n" +
+		"[ -n \"$UH_TEST_NODPKG\" ] && exit 2\ncat \"$UH_TEST_DPKG\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "dpkg-query"), []byte(fake), 0o700); err != nil { // #nosec G306 -- an executable test helper in a temp dir
+		t.Fatal(err)
+	}
+	path := "PATH=" + dir + ":" + os.Getenv("PATH")
+	for _, tc := range []struct {
+		name, db, probe string
+		nodpkg          bool
+		pass            bool
+	}{
+		{"held", "telnet hold ok installed\n", "pkg-telnet-client-absent", false, false},
+		{"unpacked", "ftp install ok unpacked\n", "pkg-ftp-client-absent", false, false},
+		{"config files only", "ftp deinstall ok config-files\ntnftp unknown ok not-installed\n", "pkg-ftp-client-absent", false, true},
+		{"absent", "", "pkg-telnet-client-absent", false, true},
+		{"dpkg-query fails", "", "pkg-telnet-client-absent", true, false},
+		{"service held, enabled", "rsync hold ok installed\n", "svc-rsync-not-in-use", false, false},
+		{"held but installed", "sudo hold ok installed\n", "sudo-installed", false, true},
+	} {
+		if err := os.WriteFile(db, []byte(tc.db), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		env := []string{path, "UH_TEST_DPKG=" + db}
+		if tc.nodpkg {
+			env = append(env, "UH_TEST_NODPKG=1")
+		}
+		sec := probeSection(t, tc.probe, "false", "", env...)
+		if tc.probe == "svc-rsync-not-in-use" {
+			sec += "rsync.service=enabled/active\n" // the unit half, as on a host running it
+		}
+		if pass, detail := Probes[tc.probe].Judge(sec); pass != tc.pass {
+			t.Errorf("%s: %s = %v (%s), want %v; output %q", tc.name, tc.probe, pass, detail, tc.pass, sec)
 		}
 	}
 }

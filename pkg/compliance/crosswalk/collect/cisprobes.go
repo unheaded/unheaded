@@ -316,9 +316,26 @@ func init() {
 	Probes["mta-local-only"] = mtaLocalOnlyProbe()
 }
 
+// dpkgInstalled prints three lines from dpkg's database: installed= the
+// packages of pkgs whose state is "installed", whatever their selection (a
+// held package, "hold ok installed", is installed); present= those in any
+// state but not-installed and config-files (an unpacked or half-configured
+// package has its files on disk); dpkg= the state of dpkg itself, which
+// proves the database was read. A missing or failing dpkg-query lists
+// nothing, and nothing listed is not "not installed".
 func dpkgInstalled(pkgs []string) string {
-	return fmt.Sprintf(`echo "installed=$(dpkg-query -W -f='${Package} ${Status}\n' %s 2>/dev/null | awk '/ install ok installed$/{print $1}' | tr '\n' ' ')"`,
+	return fmt.Sprintf(`uh_dpkg=$(dpkg-query -W -f='${Package} ${Status}\n' %s 2>/dev/null); `+
+		`echo "installed=$(printf '%%s\n' "$uh_dpkg" | awk '$NF == "installed" {print $1}' | tr '\n' ' ')"; `+
+		`echo "present=$(printf '%%s\n' "$uh_dpkg" | awk 'NF >= 4 && $NF != "not-installed" && $NF != "config-files" {print $1}' | tr '\n' ' ')"; `+
+		`echo "dpkg=$(dpkg-query -W -f='${Status}' dpkg 2>/dev/null | awk '{print $NF}')"`,
 		strings.Join(pkgs, " "))
+}
+
+// dpkgPresent returns the present= packages, and false when the output
+// does not show dpkg's database was read.
+func dpkgPresent(f map[string]string) (string, bool) {
+	present, ok := f["present"]
+	return present, ok && f["dpkg"] == "installed"
 }
 
 func parseKV(out string) map[string]string {
@@ -343,9 +360,9 @@ func serviceProbe(pkgs, units []string) Probe {
 		Command:  b.String(),
 		Judge: func(out string) (bool, string) {
 			f := parseKV(out)
-			inst, ok := f["installed"]
+			inst, ok := dpkgPresent(f)
 			if !ok {
-				return false, name + ": no output"
+				return false, name + ": dpkg database not read"
 			}
 			if inst == "" {
 				return true, name + " not installed"
@@ -375,9 +392,9 @@ func packageAbsentProbe(pkgs []string) Probe {
 		Command:  dpkgInstalled(pkgs),
 		Judge: func(out string) (bool, string) {
 			f := parseKV(out)
-			inst, ok := f["installed"]
+			inst, ok := dpkgPresent(f)
 			if !ok {
-				return false, name + ": no output"
+				return false, name + ": dpkg database not read"
 			}
 			if inst != "" {
 				return false, "installed: " + inst
@@ -443,9 +460,9 @@ func allowDenyProbe(allow, pkg, group string, denyAllowed bool) Probe {
 		Judge: func(out string) (bool, string) {
 			f := parseKV(out)
 			if pkg != "" {
-				inst, ok := f["installed"]
+				inst, ok := dpkgPresent(f)
 				if !ok {
-					return false, pkg + ": no output"
+					return false, pkg + ": dpkg database not read"
 				}
 				if inst == "" {
 					return true, pkg + " not installed"
