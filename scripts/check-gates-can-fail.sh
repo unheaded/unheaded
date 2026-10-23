@@ -537,6 +537,16 @@ provoke_well_zhen_confirm() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_well_zhen_captures() {
+    # Contract (S-TWO-BRAINS Step 346): re-labelling is idempotent, one
+    # label per (capture, kind, source row). Turn the UNIQUE into a no-op.
+    local f="db/migrations/033_app_zhen_captures.sql"
+    backup "${f}"
+    sed -i 's/CONSTRAINT zhen_capture_labels_once UNIQUE (capture_id, kind, source_ref)/CONSTRAINT zhen_capture_labels_once CHECK (true)/' "${REPO_ROOT}/${f}"
+    grep -q 'zhen_capture_labels_once CHECK (true)' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_systemd_units() {
     # Contract (ADR-098 FND-003): systemd ignores nothing in deploy/systemd.
     # Restore the original mistake: a `~` on every group, of which systemd
@@ -750,6 +760,7 @@ well/test-config|provoke_well_config|slow|pg_hba letting service roles in withou
 well/test-pq-groups|provoke_well_pq_groups|slow|the hybrid group removed from the PG18 ssl_groups include (needs docker)
 well/test-llm-requests|provoke_well_llm_requests|slow|llm_requests' UPDATE/DELETE trigger removed from 030 (needs docker)
 well/test-zhen-confirm|provoke_well_zhen_confirm|slow|the one-way transition trigger removed from 031 (needs docker)
+well/test-zhen-captures|provoke_well_zhen_captures|slow|the one-label-per-source UNIQUE on zhen_capture_labels turned into CHECK (true) in 033 (needs docker)
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
