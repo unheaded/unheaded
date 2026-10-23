@@ -1,4 +1,4 @@
-.PHONY: all build test clean ebpf containers dev deploy docs help binaries install alerts \
+.PHONY: all build test clean ebpf containers dev deploy help binaries install alerts \
        ebpf-shield ebpf-hop ebpf-yaldabaoth ebpf-monad-cpu \
        build-monad-mbc pin-ebpf unpin-ebpf test-ebpf-compat \
        test-e2e-bpf deploy-down deploy-status deploy-lxd deploy-logs \
@@ -11,7 +11,6 @@
 BINARY_DIR := bin
 EBPF_DIR := ebpf
 NIX_DIR := nix
-DOCS_DIR := docs
 
 # Go build flags
 GO_BUILD_FLAGS := -v -trimpath
@@ -299,16 +298,23 @@ doom-build-check: ## Verify DOOM build artifacts for known bug regressions
 
 ##@ Containers
 
+# The flake exposes the containers as nixosConfigurations.<name> (and the
+# same toplevels under hydraJobs.containers); there is no top-level
+# `containers` output, so `.#containers` does not resolve.
+NIX_CONTAINERS := wotan timeguru captain micromanager architect monad sophia gateway kanban dashboard cuirass
+
 containers: ## Build all NixOS container images
 	@echo "Building NixOS containers..."
-	cd $(NIX_DIR) && nix build .#containers --out-link result-containers
+	cd $(NIX_DIR) && for c in $(NIX_CONTAINERS); do \
+		nix build .#nixosConfigurations.$$c.config.system.build.toplevel --out-link result-$$c || exit 1; \
+	done
 	@echo "✓ Containers built"
 
 container-wotan: ## Build Wotan container
-	cd $(NIX_DIR) && nix build .#containers.wotan
+	cd $(NIX_DIR) && nix build .#nixosConfigurations.wotan.config.system.build.toplevel --out-link result-wotan
 
 container-gateway: ## Build Gateway container
-	cd $(NIX_DIR) && nix build .#containers.gateway
+	cd $(NIX_DIR) && nix build .#nixosConfigurations.gateway.config.system.build.toplevel --out-link result-gateway
 
 ##@ Development
 
@@ -384,10 +390,12 @@ deploy-restart: ## Restart all deployed services
 
 deploy-health: ## Verify all deployed services are healthy
 	@echo "Checking service health..."
-	@for svc in wotan timeguru captain architect micromanager monad sophia cuirass; do \
+	@# `docker compose port` needs the container port; without it the URL had no port.
+	@rc=0; for pair in wotan:18000 timeguru:19000 captain:19002 architect:19001 micromanager:19003 monad:19004 sophia:19005 cuirass:19006; do \
+		svc=$${pair%%:*}; port=$${pair#*:}; \
 		printf "%-16s " "$$svc:"; \
-		curl -sf http://localhost:$$(docker compose port $$svc 2>/dev/null | cut -d: -f2)/health > /dev/null 2>&1 && echo "healthy" || echo "UNHEALTHY"; \
-	done
+		curl -sf http://localhost:$$(docker compose port $$svc $$port 2>/dev/null | cut -d: -f2)/health > /dev/null 2>&1 && echo "healthy" || { echo "UNHEALTHY"; rc=1; }; \
+	done; exit $$rc
 
 deploy-rollback: ## Rollback to previous Docker image versions
 	@echo "Rolling back to previous deployment..."
@@ -428,15 +436,6 @@ setup-host: ## Setup host environment (LXD, networking, etc)
 load-ebpf: ## Load eBPF programs
 	@echo "Loading eBPF programs..."
 	sudo ./scripts/load-ebpf.sh
-
-##@ Documentation
-
-docs: ## Generate documentation
-	@echo "Generating documentation..."
-	cd $(DOCS_DIR) && make
-
-docs-serve: ## Serve documentation locally
-	cd $(DOCS_DIR) && make serve
 
 ##@ Cleanup
 
