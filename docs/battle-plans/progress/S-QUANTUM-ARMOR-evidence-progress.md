@@ -48,3 +48,10 @@ steps are never attempted; they are reported.
 - 209: `fixture_test.go` (`buildFixturePack`: fake ISO, manifest from `valid/minimal.yaml` with the ISO's real sha/size, sha256sum line, trivy-shaped `cve-scan.json`, SPDX with N packages, CIS/doctor JSON, throwaway 0600 seed in `t.TempDir()`, signed through the CLI itself) + `sign_test.go`. Red = build failure.
 - 210: `sign.go`: `sign` (`--purpose manifest|iso-sha256|custody-entry`, manifest must validate before it is signed, seal JSON 0644), `pubkey` (derive only), `verify-signature` (both seals, purpose-checked), `verify-iso` (seal on image.iso.sha256 first, then streamed ISO hash vs signed line vs manifest, plus iso_path name and iso_size_bytes). `pkg/gungnir` gained `SignEvidenceDetached`/`VerifyEvidenceDetached` (seal with issued_at 0, key id = KeyID(pub)) because `sign --purpose custody-entry` needs it; the custody chain code (`custody.go`) landed here for the same reason, its subcommand in 11.3.
 - 211: green with `-race` (cmd/yggdrasil-evidence, pkg/gungnir). gosec clean. golangci-lint: 2 `unused` (checkCustody, farFuture) that 11.3 consumes.
+- 212: committed.
+
+### Phase 11.3 (Steps 213-218)
+- 213 [DECIDE] custody signatures: RECOMMENDATION taken. Override condition ("a pack with signed custody already exists in another format") does not hold: H12, nothing implemented before. Implemented as: hex of a detached gungnir evidence signature (context `unheaded/gungnir/evidence/v1`, purpose `custody-entry`, implied issued_at 0, key id KeyID(pub)) over `lp("yggdrasil/custody/v1") lp(timestamp_utc) lp(actor) lp(action) lp(prev)`, prev = SHA-256 of the previous entry's message, 32 zero bytes for entry 0. Golden vector pinned and cross-checked with an independent Python computation.
+- 214: `verify_test.go` red (7 tests failing on the stubs).
+- 215: `gates.go` (verify-gates, verify-custody), `verify.go` (verify, diff), stubs removed from `main.go`.
+- 216: green with `-race`; vet, gofmt, golangci-lint (0 issues), gosec clean. [D] 217 not needed.

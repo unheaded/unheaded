@@ -171,14 +171,14 @@ func verifySeal(p *Pack, payloadName, sigName, purpose string, pub *mldsa65.Publ
 	return nil
 }
 
-// packArgs parses `[--pubkey P] PACK` (plus extra flags registered by the
-// caller) and loads both. ok=false means rc is the exit code to return.
+// packCmd is a loaded pack and the public key to verify it with.
 type packCmd struct {
 	pub  *mldsa65.PublicKey
 	pack *Pack
 	path string
 }
 
+// loadPackAndKey loads both; a nil result means the int is the exit code.
 func loadPackAndKey(name, pubkeyPath, packPath string, stderr io.Writer) (*packCmd, int) {
 	pub, err := gungnir.LoadPublicKeyFile(pubkeyPath)
 	if err != nil {
