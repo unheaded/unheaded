@@ -1667,7 +1667,10 @@ func TestReadFilesReportUnreadable(t *testing.T) {
 // once passed usb-storage, an MTA check and the backup check.
 func TestProbesFailClosed(t *testing.T) {
 	for name, p := range Probes {
-		for _, out := range []string{"", "sh: 1: modprobe: not found\n", "sudo: a password is required\n"} {
+		for _, out := range []string{"", "sh: 1: modprobe: not found\n", "sudo: a password is required\n",
+			"Failed to connect to system scope bus via local transport: No such file or directory\n",
+			"dpkg-query: no packages found matching x\n", "cat: /etc/shadow: Permission denied\n",
+			"timeout: sending signal TERM to command\n", "@unreadable /etc/x\n@ok\n"} {
 			if pass, detail := p.Judge(out); pass {
 				t.Errorf("%s passes on %q: %s", name, out, detail)
 			}
