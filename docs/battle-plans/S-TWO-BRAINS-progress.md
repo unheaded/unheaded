@@ -200,3 +200,58 @@ repositories, a throwaway Wotan on free ports, temp dirs).
 | Gate | Result | Evidence |
 |---|---|---|
 | Phase 8 (Step 276) | PASS | `tests/runbooks` 38 passed (checker rules each red then green; harness self-tests incl. a throwaway Wotan); `check-runbooks.sh` exit 0 with the baseline, exit 1 with one line deleted; `check-gates-can-fail.sh --only check-runbooks`: bites (exit 1); workflow parses |
+| Phase 9 (Step 338) | PASS | 11 runbooks pass `scripts/check-runbooks.py` (corpus: 78 runbooks, 0 new findings, baseline still 24); `pytest tests/runbooks -m "not live"`: 100 passed (with `-m` dropped, the 2 live tests skip with their reasons: FRR_LAB, WELL_LIVE_TESTS); `scripts/two-brains` 18 passed; `check-gates-can-fail.sh --only check-runbooks` bites; all 11 `status: draft`, `approved_by: ""`; every push, force-push, restart, key handling and Console/GitHub action is `action: manual` |
+
+## P9 pipeline amendments (all recorded in their commits)
+
+- **280a** (R1): qwen-coder-14b answered the review with the reviewed file unchanged and the harness still passed, so nothing would have fixed 9 high/medium findings. **280b** (R2): a changed file is no evidence either (R2's revision left most high findings open). Rule now: Claude's patch leg runs whenever a high or medium finding was raised (or the harness fails); it checks which are still open and applies those. `--resume-patch` reruns only that leg (used for R1-R3, which were drafted under the earlier rule).
+- **280a**: the privacy tier redacts host names in prompts (`west` -> `[REDACTED:host#1]`) and one placeholder came back into R1. New checker rule `redaction-placeholder`; the patch prompt says so.
+- **280c** (R4, R5): the `runbook-patch` task budget ($0.40) ran out mid-edit on R4 and left a truncated file (raised to $0.60); with two exemplars R5's prompt reached ~6.7k of the local model's 8k context and three attempts hit the 10-minute timeout (one exemplar from R5 on, timeout 20 min).
+- **309a** (R6): `run-runbook.py` left `$HOME`/`~` literal in parameter defaults; expanded now.
+- **329a** (R5, R6, R10): checker rule `negated-command`: `! cmd` before the last line of a set -e script never fails.
+- **336a**: the meta-gate classifies `scripts/zhen-mcp.sh` (named by R10) as not a gate.
+- R9: the local model gave no applicable draft in 3 attempts (answers had no usable file block, most likely cut at the 3000-token answer limit). The Step 277 override (3 failures in a row -> `claude_direct`) did not trigger (R8 and R10 around it succeeded); R9 alone was written by Claude through the patch leg.
+- **Plan amendment, R2 (H12):** the plan's test had the pending subscriber "appear in /api/v1/admin/pending"; that endpoint answers 401 by construction today. The test pins the 401 and detects the pending member by the subscribe answer, the log line and the `unheaded_chat_members_pending` gauge.
+- Every final runbook was read by this session; where a patched draft was still wrong, it was fixed here (R1 placeholder; R3 detection moved out of preconditions, which the runner never prints; R4 finished after the budget-cut patch; R5 rewritten: cert-gen run per service mints a new CA each time, a `-service` flag that does not exist, an invented port; R6-R8, R10, R11 smaller fixes, each named in its commit). `authored_by` is `claude` for all eleven: in every case Claude's patch or this session wrote the final text.
+
+## P9 runbooks
+
+Local = qwen-coder-14b via `zhen-claude -route local -family runbook-draft` (routed loop, `run_check runbook-check` in the sandbox). "Local draft" is whether its first draft (after up to 2 revisions) passed the harness; "revisions" counts every local attempt after the first, review apply included.
+
+| # | Runbook | Local draft | Revisions | Review findings | Local applied review? | Claude patched | Fixed in session | Test (not live) | Claude $ |
+|---|---|---|---|---|---|---|---|---|---|
+| R1 | network/bgp-bfd-session-down | pass | 4 | 12 | no (unchanged) | yes | placeholder | 7 pass, 1 live skip | 0.225 |
+| R2 | wotan/pending-subscription-approval | pass | 1 | 10 | partly | yes | - | 6 pass (throwaway Wotan) | 0.202 |
+| R3 | wotan/oom-state-recovery | pass | 3 | 10 | partly | yes | detection steps | 3 pass (throwaway Wotan, kill -9) | 0.216 |
+| R4 | data/well-restore-from-east-offsite | pass | 3 | 12 | partly | yes, cut by budget | finished, host guards | 6 pass, 1 live skip | 0.239 |
+| R5 | pki/ca-compromise-root-rotation | fail (timeouts), then pass | 3 | 12 | partly | yes | rewritten | 6 pass (openssl sandbox, s_server) | 0.199 |
+| R6 | security/git-history-secret-purge | fail, then pass | 4 | 12 | partly | yes | scan-before, negation, PATH | 5 pass (filter-repo + gitleaks sandbox) | 0.322 |
+| R7 | deploy/resign-unpushed-commits | pass | 4 | 10 | partly | yes | base check, probe step | 4 pass (ephemeral gpg key) | 0.186 |
+| R8 | deploy/branch-promotion-develop-staging-main | pass | 1 | 12 | partly | yes | verify-push manual | 4 pass (signed sandbox) | 0.220 |
+| R9 | security/claude-api-key-rotation-spend-breach | fail (no file) | 2 | - | - | wrote it | - | 5 pass (cap refuses before send) | 0.128 |
+| R10 | security/mcp-write-exec-enablement | pass | 2 | 12 | partly | yes | `! grep` verify (test caught it) | 5 pass (real MCP server, gate flips) | 0.188 |
+| R11 | observe/chaos-game-day | pass | 3 | 12 | no (unchanged) | yes | steady/observe steps (test caught it) | 8 pass | 0.242 |
+
+`runbook-draft` family, first real data (Phase 4): the local model produced a schema-valid draft for 10 of 11 briefs (R5 needed the smaller prompt), but applied review findings fully in 0 of 10 cases; Claude's patch was needed every time, and the session still found a defect in 9 of 11 patched files, 2 of them caught by the dry-run tests. The schema harness alone would have passed every one of those defects.
+
+## P9 findings (not fixed here)
+
+- **llama-server prompt cache vs the never-OOM rule.** llama.cpp's default `--cache-ram 8192` (MiB) is outside `scripts/switch-model.sh`'s fit check. After ~2.5 h of pipeline traffic llama-server's RSS was 9.4 GiB, MemAvailable 3.7 GiB, and the server wedged in `prompt_save` (requests queued, none processed; `/health` still ok). Restarted with `LLAMA_ARG_CACHE_RAM=0` (environment only, no script change). For Stevie: put `--cache-ram` into `MODEL_FLAGS` or the fit math.
+- The routed local path (`-route local -family ... -worktree`) does not write `zhen-capture/v1` records for the local drafts (only the Claude legs were captured); the drafts survive in each agent worktree's git history under `~/.cache/unheaded/zhen-worktrees/runbook-*`. Phase 10 should capture routed local turns.
+- The privacy tier's host-name redaction applies to Claude's T0 brief text too when it is part of the prompt (residual risk 3 above, observed).
+- `git-filter-repo` 2.47.0 (MIT) installed into `~/.venv/zhen` for R6's test: an operator tool, not a shipped dependency, already in `docs/policy/dependency-baseline.txt` (Barrister note).
+
+## P9 STUCK / ESCALATE
+
+- No step STUCK.
+- **Step 337 [ESCALATE] — OPEN.** Stevie approves runbooks (human sign-off by definition, ADR-024 owner). For each approved one: `metadata.status: approved`, `approved_by: stevie`, one commit per batch. Briefs in `docs/runbook-briefs/`, review records in each agent worktree (`findings.json`, `review.txt`, history). Non-blocking for Phases 10-14.
+
+## P9 spend log
+
+Run-private ledger `$SCRATCH/s2rb/spend.json`, `-effort low`; cost per runbook from each leg's own audit lines (review + patch).
+
+| What | Cost (USD) |
+|---|---|
+| R1-R11 review legs (10) | 0.556 |
+| R1-R11 patch legs (11, R9's wrote the file) | 1.811 |
+| **Total Phases 8-9** | **2.367316** (cap $5) |
