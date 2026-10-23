@@ -1167,8 +1167,10 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-23: bite: with the allowlist check in StartExperiment replaced, TestRefusals_AreAudited and TestRunProbe_RefusesNonAllowlistedTarget go red; restored. 22 bites in all (Step 274 list plus abort replay dedupe and the probe cap).
 - [x] **Step 286** [V] ~2m: **PHASE 10 EXIT GATE**: Steps 274, 277, 280 green; Step 285 bit; ADR committed; no injector does anything yet beyond the D-19 journal (the four built-in injectors still log only: Phase 11 replaces them).
   - Done 2026-10-23: PASS: Steps 274, 277, 280 green; Step 285 bit; ADR-107 committed (8118b83a); no injector exists yet (none built in, none registered by chaos-controller: registerInjectors is empty until Phase 11), so every experiment type is refused and the journal is only exercised by test injectors. DoD: no probe can succeed without its GET (the old Success:true stub is gone; TestNoFakeInjectorSourcesLeft scans for it); revert-all is idempotent (TestRevertAll, TestJournal_UnverifiedRevertKeepsEntryAndAlerts).
-- [ ] **Step 287** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks + Step 284 notes).
-- [ ] **Step 288** [AUDIT-UPDATE] ~2m: next.md: ADR-<N> waiting for Stevie's accept (not blocking).
+- [x] **Step 287** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks + Step 284 notes).
+  - Done 2026-10-23: 3aa314ac. Whole-repo regression after Phases 6-10: go build ./... clean, go test -count=1 ./... 281 ok / 0 FAIL (baseline 277 + 4 new packages); go.mod/go.sum unchanged; lint 0 on every touched package.
+- [x] **Step 288** [AUDIT-UPDATE] ~2m: next.md: ADR-<N> waiting for Stevie's accept (not blocking).
+  - Done 2026-10-23: ~/tmp/next.md section 'S-REAL-STEEL Phases 6, 7, 8, 10': ADR-107 waits on Stevie's accept (not blocking), plus what is real, what is deferred to E2, and the probe-address follow-on.
 
 **DoD (Phase 10)**: DoD-STD + no code path can mark a probe successful without performing it (test), and `revert-all` is idempotent (run twice, second is a no-op).
 
