@@ -2591,30 +2591,9 @@ func (s *Server) handleServiceConfig(w http.ResponseWriter, r *http.Request) {
 		_, _ = w.Write(yamlBytes) // #nosec G705 -- response is application/x-yaml and X-Content-Type-Options: nosniff is set globally (server.go:362)
 
 	case http.MethodPut:
-		body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20)) // 1 MB limit
-		if err != nil {
-			http.Error(w, "failed to read body", http.StatusBadRequest)
-			return
-		}
-
-		cfg, err := discovery.LoadServiceConfigFromBytes(body)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("invalid config: %v", err), http.StatusUnprocessableEntity)
-			return
-		}
-
-		if cfg.Service.Name != name {
-			http.Error(w, "service name in config must match URL", http.StatusBadRequest)
-			return
-		}
-
-		s.configLoader.UpdateConfig(name, cfg)
-
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-			"service": name,
-			"status":  "config_updated",
-		})
+		// This replaced the dashboard's in-memory copy and answered
+		// "config_updated": nothing persisted it and no service read it.
+		http.Error(w, "read-only: service configs come from their files; the dashboard only shows them", http.StatusMethodNotAllowed)
 
 	default:
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
@@ -2628,35 +2607,10 @@ func (s *Server) handleServiceRestart(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-
-	name := strings.TrimPrefix(r.URL.Path, "/api/v1/services/restart/")
-	name = strings.TrimSuffix(name, "/")
-	if name == "" {
-		http.Error(w, "service name required", http.StatusBadRequest)
-		return
-	}
-
-	// Verify the service exists in health or config
-	_, healthErr := s.healthMonitor.GetServiceHealth(name)
-	cfg := s.configLoader.GetConfig(name)
-	if healthErr != nil && cfg == nil {
-		http.Error(w, "service not found", http.StatusNotFound)
-		return
-	}
-
-	s.log.Info().
-		Str("service", name).
-		Str("remote_addr", r.RemoteAddr).
-		Msg("service restart requested")
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusAccepted)
-	json.NewEncoder(w).Encode(map[string]interface{}{ // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
-		"service": name,
-		"action":  "restart",
-		"status":  "queued",
-		"message": "restart signal sent to daemon",
-	})
+	// This answered 202 "restart signal sent to daemon", status "queued",
+	// and sent nothing anywhere. The dashboard is a view; restarts are
+	// Akira's (--remediate) or the operator's.
+	http.Error(w, "not implemented: the dashboard does not restart services (Akira --remediate, or systemctl / docker compose restart)", http.StatusNotImplemented)
 }
 
 // handleInfrastructure handles GET /api/v1/infrastructure
