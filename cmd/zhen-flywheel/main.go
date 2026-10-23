@@ -55,6 +55,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 		code, err = cmdIngest(ctx, args[1:], stdout, stderr)
 	case "label":
 		code, err = cmdLabel(ctx, args[1:], stdout, stderr)
+	case "export":
+		code, err = cmdExport(ctx, args[1:], stdout, stderr)
 	case "import-eval":
 		code, err = cmdImportEval(ctx, args[1:], stdout, stderr)
 	case "scan":
