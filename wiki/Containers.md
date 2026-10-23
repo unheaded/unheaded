@@ -68,7 +68,7 @@ The same label and prune rule apply to `pkg/state`'s reconciler.
 
 **Desired state persists** in `desired.json` under `CUIRASS_STATE_DIR` (`state_dir`; default `/var/lib/unheaded/cuirass`, the compose `cuirass-state` volume; the deb's unit uses its StateDirectory `/var/lib/unheaded/daemon`). It was in memory only: a restart forgot every desired container, and with pruning the next reconcile would have deleted every managed one. Writes are atomic (temp file, fsync, rename, mode 0600); a write that cannot be saved returns 503 and changes nothing; an empty `state_dir` refuses all writes; a damaged file stops Cuirass at startup instead of starting empty.
 
-Not deployed yet. The plan: `lxc project create unheaded`, a restricted trust for that project, then the daemon with `LXD_BACKEND=https` in observe mode, and read the planned actions before enforcing.
+Not deployed yet. `scripts/cuirass-lxd-trust.sh` (dry run unless `--apply`) does the LXD side: project `unheaded` (`restricted=true`, sharing the default project's images and profiles), a P-384 client certificate in `/etc/unheaded/cuirass` owned by Cuirass's uid, a trust restricted to that project, and the server certificate to pin; then it prints the daemon settings. West's LXD already listens on `[::]:8443` with no trusted certificates. Checked 2026-10-23 with an untrusted scratch certificate (opt-in `TestLXDREST_LiveHTTPS`): TLS 1.3 and the pin work, a wrong pin is refused, and LXD answers `untrusted`. After that: the daemon with `LXD_BACKEND=https` in observe mode, and read the planned actions before enforcing.
 
 ## NixOS Container Definitions
 

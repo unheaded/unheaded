@@ -446,3 +446,39 @@ func TestLXDREST_LiveReadOnly(t *testing.T) {
 	}
 	t.Logf("LXD %s, project %s, %d instances", info.Environment.ServerVersion, info.Environment.Project, len(list))
 }
+
+// Opt-in, read-only: CUIRASS_LIVE_LXD_URL=https://127.0.0.1:8443 plus
+// CUIRASS_LIVE_LXD_{CLIENT_CERT,CLIENT_KEY,SERVER_CERT}. Proves the TLS
+// and pin path against a real LXD. An untrusted client certificate still
+// completes the handshake and is told it is untrusted, so this needs no
+// change on the LXD side.
+func TestLXDREST_LiveHTTPS(t *testing.T) {
+	u := os.Getenv("CUIRASS_LIVE_LXD_URL")
+	if u == "" {
+		t.Skip("CUIRASS_LIVE_LXD_URL not set")
+	}
+	cfg := LXDRESTConfig{URL: u, ClientCert: os.Getenv("CUIRASS_LIVE_LXD_CLIENT_CERT"),
+		ClientKey: os.Getenv("CUIRASS_LIVE_LXD_CLIENT_KEY"), ServerCert: os.Getenv("CUIRASS_LIVE_LXD_SERVER_CERT")}
+	c, err := newLXDREST(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	info, err := c.serverInfo(t.Context())
+	switch {
+	case err == nil:
+		t.Logf("trusted; LXD %s", info.Environment.ServerVersion)
+	case info != nil:
+		t.Logf("TLS and pin ok; LXD says: %v", err)
+	default:
+		t.Fatalf("handshake or pin failed: %v", err)
+	}
+
+	cfg.ServerCert = cfg.ClientCert // any other certificate
+	wrong, err := newLXDREST(cfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := wrong.serverInfo(t.Context()); err == nil || !strings.Contains(err.Error(), "pinned") {
+		t.Fatalf("wrong pin accepted: %v", err)
+	}
+}
