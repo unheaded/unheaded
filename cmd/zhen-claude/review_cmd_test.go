@@ -102,7 +102,12 @@ func TestReview_AcceptBeforeMergeRefusedWithTheCommand(t *testing.T) {
 }
 
 func TestReview_AcceptAfterMerge(t *testing.T) {
-	repo, _, m, r, evs := reviewFixture(t)
+	repo, wt, m, r, evs := reviewFixture(t)
+	t.Cleanup(func() {
+		if _, err := os.Stat(wt); err == nil {
+			t.Error("an accepted run's worktree was kept")
+		}
+	})
 	if out, err := exec.Command("git", "-C", repo, "merge", "-q", "--no-ff", "--no-edit", "zhen/card-1").CombinedOutput(); err != nil {
 		t.Fatalf("merge: %v %s", err, out)
 	}

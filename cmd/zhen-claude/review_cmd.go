@@ -203,16 +203,18 @@ func runReviewCmd(args []string, stdout, stderr io.Writer) int {
 	if err := store.MoveCard(ctx, run.CardID, cardTo, progress, nil); err != nil {
 		_, _ = fmt.Fprintln(stderr, "zhen-claude review: card move:", err)
 	}
-	if verb == "reject" {
-		if wt := worktreeOf(ctx, repoAbs, run.Branch); wt != "" {
-			if out, err := reviewGit(ctx, repoAbs, "worktree", "remove", "--", wt); err != nil {
-				_, _ = fmt.Fprintf(stderr, "zhen-claude review: worktree %s kept: %v %s\n", wt, err, strings.TrimSpace(string(out)))
-			}
+	// The worktree has done its job either way; the branch stays (merged,
+	// or kept for the training-data flywheel).
+	if wt := worktreeOf(ctx, repoAbs, run.Branch); wt != "" {
+		if out, err := reviewGit(ctx, repoAbs, "worktree", "remove", "--", wt); err != nil {
+			_, _ = fmt.Fprintf(stderr, "zhen-claude review: worktree %s kept: %v %s\n", wt, err, strings.TrimSpace(string(out)))
 		}
+	}
+	if verb == "reject" {
 		_, _ = fmt.Fprintf(stdout, "rejected %s; card %s back to todo; branch %s kept for the training-data flywheel\n", id, run.CardID, run.Branch)
 		return 0
 	}
-	_, _ = fmt.Fprintf(stdout, "accepted %s; card %s done\n", id, run.CardID)
+	_, _ = fmt.Fprintf(stdout, "accepted %s; card %s done; worktree removed\n", id, run.CardID)
 	return 0
 }
 

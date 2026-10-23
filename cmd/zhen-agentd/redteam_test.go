@@ -393,6 +393,7 @@ func TestRedTeam_TokenScoping_CrossProjectRedemptionFails(t *testing.T) {
 		llamaURL:    "http://127.0.0.1:1",
 		ready:       newReadyTracker(&http.Client{}, "http://127.0.0.1:1", "http://127.0.0.1:1"),
 	}
+	legacyAskTokens(srv)
 	mux := http.NewServeMux()
 	mux.Handle("/api/v1/agent/ask", instrument("/api/v1/agent/ask", http.HandlerFunc(srv.handleAsk)))
 	mux.Handle("/api/v1/agent/confirm", instrument("/api/v1/agent/confirm", http.HandlerFunc(srv.handleConfirm)))

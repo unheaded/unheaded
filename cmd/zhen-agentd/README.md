@@ -80,7 +80,7 @@ When the gate refuses a tool call:
       "args": {"path": "..."},
       "refused": true,
       "pending_confirmation": true,
-      "pending_token": "<32-hex-char single-use token>",
+      "queue_id": "<16 hex, only with -confirm-queue>",
       "observation": "tool REFUSED (pending user confirmation — write_file): ..."
     },
     ...
@@ -88,7 +88,7 @@ When the gate refuses a tool call:
 }
 ```
 
-The `pending_token` can be redeemed via `champion.ConfirmPendingToolCall(token)` (no HTTP endpoint for that yet — direct programmatic call).
+No approval token is returned (S-TWO-BRAINS Step 222): the loop is a model and so may be the HTTP caller, and a token would let it approve its own write through `/confirm`. A write the gate refuses pending confirmation is queued in the Well with `-confirm-queue` (`queue_id`; Stevie decides with `zhen-claude confirm approve <id>`), otherwise denied. `-ask-tokens` restores the old `pending_token` field for a listener no model can reach.
 
 **Error responses**:
 
@@ -168,7 +168,7 @@ curl -sN -X POST http://127.0.0.1:20105/api/v1/agent/ask/stream \
 
 ### `POST /api/v1/agent/confirm`
 
-Redeems a single-use pending-confirmation token from a prior `/api/v1/agent/ask` response (look for `Trace[i].pending_token`). The bound tool call is re-run with Rule 2 (untrusted justification) suppressed; Rules 1 (path-allowlist) and 3 (destructive verb) still fire — users can authorize an external source, they cannot authorize destruction.
+Redeems a single-use pending-confirmation token from a prior `/api/v1/tool/exec` response from the direct-user UI, or from `/api/v1/agent/ask` under `-ask-tokens` (look for `Trace[i].pending_token`). The bound tool call is re-run with Rule 2 (untrusted justification) suppressed; Rules 1 (path-allowlist) and 3 (destructive verb) still fire — users can authorize an external source, they cannot authorize destruction.
 
 **Request body**:
 
@@ -201,6 +201,9 @@ Redeems a single-use pending-confirmation token from a prior `/api/v1/agent/ask`
 | `-kanban-store <kind>` | `memory` | kanban-task backend for `kanban_create` / `kanban_update`: `memory` (no persistence — these calls fail at dispatch with "no kanban store configured") or `pg` (persists to The Well's `kanban_tasks` table; requires `WELL_DSN`) |
 | `-rate-limit <rps>` | 0 | per-IP requests/sec; 0 disables. Recommended ~5 unauthenticated, higher behind auth |
 | `-rate-burst <n>` | 10 | per-IP burst capacity (only used when `-rate-limit > 0`) |
+| `-confirm-queue` | off | queue agent-loop writes refused pending confirmation in the Well (`WELL_APP_ZHEN_DSN`) instead of denying them |
+| `-ask-tokens` | off | legacy: put `pending_token` in `/ask` traces (only for a listener no model can reach) |
+| `-worker` | off | work eligible Kanban cards from the Well into local `zhen/<card>` branches ([wiki/Zhen-Agents.md](../../wiki/Zhen-Agents.md)); `-once`, `-poll`, `-base`, `-agent-root`, `-review-dir`, `-routing`, `-checks`, `-claude fake\|live`, `-ledger`, `-daily-cap-usd`, `-privacy` |
 
 Env: `VOR_URL` (default `http://127.0.0.1:9876`), `LLAMA_URL` (default `http://127.0.0.1:8081`), `RAG_MODEL` (default `qwen2.5-coder-7b-instruct`).
 

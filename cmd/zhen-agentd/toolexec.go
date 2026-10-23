@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -254,25 +255,55 @@ func (s *server) queueAgentCall(w http.ResponseWriter, r *http.Request, champ *c
 		})
 		return
 	}
-	cp, err := champion.NewToolProvider(champ, tc.EmittedBy)
+	out, err := s.enqueue(r.Context(), champ, tc, session, ge.Error())
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "champion provider: %v", err)
 		return
 	}
-	qc := &claudebridge.QueueConfirmer{Champion: champ, Queue: s.confirmQueue, Pub: s.confirmPub, Source: "zhen-agentd"}
-	out := qc.Confirm(r.Context(), claudebridge.ConfirmRequest{
-		Conversation: session, Tool: tc.Name, Args: tc.Args, EmittedBy: tc.EmittedBy, Reason: ge.Error(), Provider: cp,
-	})
 	if out.Decision != "queued" {
 		writeJSON(w, http.StatusForbidden, toolExecResponse{Status: "denied", Reason: out.Text, SessionID: session})
 		return
 	}
+	writeJSON(w, http.StatusAccepted, toolExecResponse{Status: "queued", QueueID: out.QueueID, Reason: out.Text, SessionID: session})
+}
+
+// enqueue puts a model's refused-pending call in the Well's queue
+// (QueueConfirmer: cap, hash, Wotan notice) and audits the issue. No
+// token is made.
+func (s *server) enqueue(ctx context.Context, champ *champion.Champion, tc champion.ToolCall, session, reason string) (claudebridge.ConfirmOutcome, error) {
+	cp, err := champion.NewToolProvider(champ, tc.EmittedBy)
+	if err != nil {
+		return claudebridge.ConfirmOutcome{}, err
+	}
+	qc := &claudebridge.QueueConfirmer{Champion: champ, Queue: s.confirmQueue, Pub: s.confirmPub, Source: "zhen-agentd"}
+	out := qc.Confirm(ctx, claudebridge.ConfirmRequest{
+		Conversation: session, Tool: tc.Name, Args: tc.Args, EmittedBy: tc.EmittedBy, Reason: reason, Provider: cp,
+	})
+	if out.Decision != "queued" {
+		return out, nil
+	}
 	confirmQueued.Inc()
 	if s.confirmAudit != nil {
-		s.confirmAudit.Confirmation(r.Context(), claudebridge.ConfirmRecord{
+		s.confirmAudit.Confirmation(ctx, claudebridge.ConfirmRecord{
 			Conversation: session, Model: tc.EmittedBy, Tool: tc.Name, Action: "confirm_issue",
 			QueueID: out.QueueID, CallSHA256: out.SHA256, Source: "zhen-agentd",
 		})
 	}
-	writeJSON(w, http.StatusAccepted, toolExecResponse{Status: "queued", QueueID: out.QueueID, Reason: out.Text, SessionID: session})
+	return out, nil
+}
+
+// askPending is /ask's OnPending: the agent loop is a model, so its
+// refused-pending writes are queued (or denied); a token never reaches
+// the HTTP caller, which may be a model too.
+func (s *server) askPending(champ *champion.Champion, session string) func(ctx context.Context, tc champion.ToolCall, reason string) string {
+	return func(ctx context.Context, tc champion.ToolCall, reason string) string {
+		if s.confirmQueue == nil {
+			return ""
+		}
+		out, err := s.enqueue(ctx, champ, tc, session, reason)
+		if err != nil || out.Decision != "queued" {
+			return ""
+		}
+		return out.QueueID
+	}
 }

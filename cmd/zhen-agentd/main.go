@@ -76,6 +76,7 @@ func main() {
 		auditWell    = flag.Bool("audit-well", false, "record one llm_requests row per llama-server call and one audit_events row per Champion gate decision in the Well (DSN from env WELL_OPS_DSN)")
 		confirmQ     = flag.Bool("confirm-queue", false, "queue agent-loop writes the gate refuses pending confirmation in the Well (unheaded_app.zhen_pending_confirmations, DSN from env WELL_APP_ZHEN_DSN) instead of denying them; Stevie decides with `zhen-claude confirm`")
 		auditWotan   = flag.Bool("audit-wotan", false, "also publish those records on Wotan (zhen.llm.requests, zhen.audit.toolcalls; HTTP host:port from env WOTAN_ADDR)")
+		askTokens    = flag.Bool("ask-tokens", false, "legacy: return pending-confirmation tokens in /api/v1/agent/ask traces. Only for a listener no model can reach; by default /ask queues (-confirm-queue) or denies such writes and returns no token")
 	)
 	var wf workerFlags
 	registerWorkerFlags(flag.CommandLine, &wf)
@@ -187,6 +188,7 @@ func main() {
 		vorURL:      vorURL,
 		llamaURL:    llamaURL,
 		ready:       newReadyTracker(httpClient, vorURL, llamaURL),
+		askTokens:   *askTokens,
 	}
 	if queue != nil {
 		srv.confirmQueue = queue
@@ -393,9 +395,11 @@ type server struct {
 	confirmQueue claudebridge.ConfirmQueue   // nil: agent-loop writes are denied
 	confirmPub   claudebridge.JSONPublisher  // zhen.confirm.pending notices
 	confirmAudit claudebridge.ConfirmAuditor // confirm_issue events
-	vorURL       string
-	llamaURL     string
-	ready        *readyTracker
+	// askTokens restores the legacy /ask behaviour (tokens in the trace).
+	askTokens bool
+	vorURL    string
+	llamaURL  string
+	ready     *readyTracker
 }
 
 // championPool caches *champion.Champion instances keyed by absolute
@@ -468,6 +472,7 @@ type traceEntry struct {
 	Refused      bool   `json:"refused,omitempty"`
 	Pending      bool   `json:"pending_confirmation,omitempty"`
 	PendingToken string `json:"pending_token,omitempty"`
+	QueueID      string `json:"queue_id,omitempty"`
 }
 
 func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
@@ -529,6 +534,9 @@ func (s *server) handleAsk(w http.ResponseWriter, r *http.Request) {
 		Temperature:   pickFloat(req.Temperature, 0.4),
 		Seed:          req.Seed,
 	}
+	if !s.askTokens {
+		cfg.OnPending = s.askPending(champ, req.SessionID)
+	}
 	a := agent.New(cfg, champ, s.retriever, s.llm)
 
 	res, err := a.Run(withRunID(r.Context()), req.Goal)
@@ -572,6 +580,7 @@ func traceFor(turns []agent.Turn) []traceEntry {
 			Refused:      t.Refused,
 			Pending:      t.Pending,
 			PendingToken: t.PendingToken,
+			QueueID:      t.QueueID,
 		}
 		if t.ToolCall != nil {
 			e.Tool = t.ToolCall.Name
@@ -703,6 +712,9 @@ func (s *server) handleAskStream(w http.ResponseWriter, r *http.Request) {
 		Temperature:   pickFloat(req.Temperature, 0.4),
 		Seed:          req.Seed,
 	}
+	if !s.askTokens {
+		cfg.OnPending = s.askPending(champ, req.SessionID)
+	}
 	a := agent.New(cfg, champ, s.retriever, s.llm)
 
 	res, err := a.Stream(withRunID(r.Context()), req.Goal, func(t agent.Turn) bool {
@@ -747,6 +759,7 @@ func traceEntryFromAgent(t agent.Turn) traceEntry {
 		Refused:      t.Refused,
 		Pending:      t.Pending,
 		PendingToken: t.PendingToken,
+		QueueID:      t.QueueID,
 	}
 	if t.ToolCall != nil {
 		e.Tool = t.ToolCall.Name

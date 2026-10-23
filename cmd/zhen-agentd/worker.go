@@ -113,8 +113,9 @@ type workerConfig struct {
 }
 
 type worker struct {
-	cfg workerConfig
-	mu  sync.Mutex // WIP limit 1
+	cfg       workerConfig
+	mu        sync.Mutex // WIP limit 1
+	lastPrune time.Time  // under mu
 }
 
 // skipNote is a card looked at and left alone, and why.
@@ -310,6 +311,12 @@ func (w *worker) runOnce(ctx context.Context) (cardResult, error) {
 	defer w.mu.Unlock()
 	if err := w.expire(ctx); err != nil {
 		return cardResult{Outcome: outcomeFailed, Infra: true, Reason: err.Error()}, err
+	}
+	if now := w.cfg.Now(); now.Sub(w.lastPrune) >= time.Hour {
+		w.lastPrune = now
+		if _, err := w.prune(ctx); err != nil {
+			w.cfg.Log.Warn("worker_prune", "error", err.Error())
+		}
 	}
 	c, spec, branch, skipped, err := w.pick(ctx)
 	if err != nil {
@@ -515,6 +522,52 @@ func (w *worker) work(ctx context.Context, c zhenagent.Card, spec zhenagent.Spec
 		return end(zhenagent.StatusFailed, "rev-parse: "+err.Error(), true, o, "", changed)
 	}
 	return end(zhenagent.StatusSucceeded, "", false, o, strings.TrimSpace(string(head)), changed)
+}
+
+// keepEndedWorktrees is how long the worktree of a run that ended without
+// a branch to review (abandoned, failed, cancelled) is kept for
+// inspection (Step 224).
+const keepEndedWorktrees = 7 * 24 * time.Hour
+
+// prune removes the worktrees of such runs once they are older than
+// keepEndedWorktrees; the branches stay (the training-data flywheel wants
+// failed and rejected diffs). Succeeded runs wait for review; accepted
+// and rejected ones lose theirs in `zhen-claude review`.
+func (w *worker) prune(ctx context.Context) (int, error) {
+	runs, err := w.cfg.Store.List(ctx, 500)
+	if err != nil {
+		return 0, err
+	}
+	n := 0
+	for _, r := range runs {
+		switch r.Status {
+		case zhenagent.StatusAbandoned, zhenagent.StatusFailed, zhenagent.StatusCancelled:
+		default:
+			continue
+		}
+		if w.cfg.Now().Sub(r.ClaimedAt) < keepEndedWorktrees || !zhenagent.ValidRunID(r.ID) {
+			continue
+		}
+		p := w.worktreePath(r.Branch)
+		if filepath.Dir(p) != w.cfg.AgentRoot {
+			continue
+		}
+		if _, err := os.Stat(p); err != nil {
+			continue
+		}
+		if _, err := w.cfg.Git(ctx, w.cfg.Repo, "worktree", "remove", "--force", "--", p); err != nil {
+			w.cfg.Log.Warn("worker_prune", "run", r.ID, "worktree", p, "error", err.Error())
+			continue
+		}
+		n++
+		w.cfg.Log.Info("worker_pruned", "run", r.ID, "worktree", p, "status", r.Status)
+	}
+	if n > 0 {
+		if _, err := w.cfg.Git(ctx, w.cfg.Repo, "worktree", "prune"); err != nil {
+			w.cfg.Log.Warn("worker_prune", "error", err.Error())
+		}
+	}
+	return n, nil
 }
 
 // maxCommitPaths bounds what one agent commit may touch.

@@ -119,3 +119,26 @@ func TestNewRunID(t *testing.T) {
 		t.Error("ValidRunID accepts garbage")
 	}
 }
+
+// A billion-laughs block fits in 16 KiB; it must be refused, not expanded.
+func TestParseSpec_AliasBombRefused(t *testing.T) {
+	var b strings.Builder
+	b.WriteString("a: &a [x,x,x,x,x,x,x,x,x,x]\n")
+	prev := "a"
+	for i := range 8 {
+		n := string(rune('b' + i))
+		b.WriteString(n + ": &" + n + " [")
+		for j := range 10 {
+			if j > 0 {
+				b.WriteString(",")
+			}
+			b.WriteString("*" + prev)
+		}
+		b.WriteString("]\n")
+		prev = n
+	}
+	b.WriteString("family: repo-task\ncheck: go-test\npath: .\n")
+	if _, err := ParseSpec(block(b.String()), knownChecks); !errors.Is(err, ErrBadSpec) {
+		t.Errorf("alias bomb: %v", err)
+	}
+}
