@@ -1,0 +1,87 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# chaos-controller: Yaldabaoth, the chaos engine, behind its safety envelope
+# (S-REAL-STEEL Phase 10, ADR-107): allowlist, Kingdom SLO guard, revert
+# journal, abort paths. Not installed anywhere yet (E2.5 / E3).
+#
+# Install (users first: deploy/sysusers.d/unheaded.conf, see its header):
+#   sudo install -m 0755 -o root -g root chaos-controller /usr/local/bin/
+#   sudo install -d -m 0750 -o root -g unheaded-chaos /etc/unheaded/chaos
+#   sudo install -m 0640 -o root -g unheaded-chaos configs/chaos/allowlist.yaml /etc/unheaded/chaos/allowlist.yaml
+#   sudo install -m 0640 -o root -g unheaded-chaos observability/alerting/policy.yaml /etc/unheaded/chaos/policy.yaml
+#   # /etc/unheaded/chaos/chaos.env (0640 root:unheaded-chaos): AUTH_API_KEYS,
+#   # CUIRASS_URL, VM_URL, WOTAN_ADDR; CHAOS_DRY_RUN=false only for a game-day window.
+#   sudo cp deploy/systemd/unheaded-chaos-controller.service /etc/systemd/system/
+#   sudo systemctl daemon-reload && sudo systemctl enable --now unheaded-chaos-controller
+#
+# Abort without HTTP or Wotan: sudo touch /run/unheaded/chaos/ABORT
+# (it also refuses new experiments until removed; it survives a restart).
+# The west packet lab adds CAP_BPF: unheaded-chaos-controller.service.d/west-packet-lab.conf.
+
+[Unit]
+Description=Unheaded chaos-controller — Yaldabaoth inside its safety envelope
+After=network-online.target
+Wants=network-online.target
+After=unheaded-wotan.service unheaded-daemon.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/unheaded/chaos/chaos.env
+Environment=HTTP_ADDR=:19012
+Environment=AUTH_ENABLED=true
+Environment=CHAOS_ALLOWLIST=/etc/unheaded/chaos/allowlist.yaml
+Environment=CHAOS_SLO_POLICY=/etc/unheaded/chaos/policy.yaml
+Environment=CHAOS_STATE_DIR=/var/lib/unheaded-chaos
+Environment=CHAOS_ABORT_FILE=/run/unheaded/chaos/ABORT
+ExecStart=/usr/local/bin/chaos-controller
+# Runs after every stop, a crash or SIGKILL included: no fault outlives
+# its controller (D-19). It exits non-zero while any fault is still in place.
+ExecStopPost=/usr/local/bin/chaos-controller revert-all
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=60s
+
+LimitNOFILE=1024
+MemoryMax=128M
+
+User=unheaded-chaos
+Group=unheaded-chaos
+StateDirectory=unheaded-chaos
+StateDirectoryMode=0700
+RuntimeDirectory=unheaded/chaos
+RuntimeDirectoryMode=0750
+# Keep /run/unheaded/chaos (and an ABORT file in it) across restarts.
+RuntimeDirectoryPreserve=yes
+UMask=0077
+
+# Only what tc needs; the west drop-in adds CAP_BPF for the packet lab.
+AmbientCapabilities=CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_ADMIN
+
+# Sandbox (deploy/systemd/README.md#isolation). The user comes from
+# deploy/sysusers.d/unheaded.conf: system account, /usr/sbin/nologin.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources @reboot @module @swap
+SystemCallErrorNumber=EPERM
+
+[Install]
+WantedBy=multi-user.target

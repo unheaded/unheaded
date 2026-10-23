@@ -118,9 +118,10 @@ const (
 
 // Gnostic tier (16760-16779). State and history services.
 const (
-	Anamnesis = 16760
-	Kenoma    = 16761
-	Pleroma   = 16762
+	Anamnesis  = 16760
+	Kenoma     = 16761
+	Pleroma    = 16762
+	Yaldabaoth = 16763 // chaos-controller (host account unheaded-chaos)
 )
 
 // Infrastructure tier (16780-16799). Workloads that hold host-level access —
@@ -208,9 +209,10 @@ var Registry = map[string]int{
 	"nginx-kanban":     NginxKanban,
 	"nginx-gateway":    NginxGateway,
 
-	"anamnesis": Anamnesis,
-	"kenoma":    Kenoma,
-	"pleroma":   Pleroma,
+	"anamnesis":        Anamnesis,
+	"kenoma":           Kenoma,
+	"pleroma":          Pleroma,
+	"chaos-controller": Yaldabaoth,
 
 	"void-collector":    VoidCollector,
 	"vllm":              VLLM,
