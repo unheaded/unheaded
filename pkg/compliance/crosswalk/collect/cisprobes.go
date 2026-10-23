@@ -151,12 +151,51 @@ func installsNothing(load string) bool {
 	return false
 }
 
+// unlistedDirs prints "@unreadable <dir>" for the directory of each glob
+// in paths that exists but cannot be listed: the glob then stays
+// unexpanded, which reads exactly like "no such files".
+func unlistedDirs(paths []string) string {
+	var b strings.Builder
+	for _, p := range paths {
+		if i := strings.LastIndex(p, "/"); i > 0 && strings.ContainsAny(p[i:], "*?[") {
+			d := p[:i]
+			fmt.Fprintf(&b, `if [ -d %s ] && ! ls %s >/dev/null 2>&1; then echo "@unreadable %s"; fi; `, d, d, d)
+		}
+	}
+	return b.String()
+}
+
+// readFiles cats each existing file of paths (globs allowed) and prints
+// "@unreadable <path>" for a file or glob directory it cannot read. The
+// central pull reads these unprivileged: an unreadable file once read as
+// an empty one (rsyslog-no-listen: "no network input modules").
+func readFiles(paths ...string) string {
+	return unlistedDirs(paths) + fmt.Sprintf(`for f in %s; do [ -e "$f" ] || continue; cat "$f" || echo "@unreadable $f"; done`, strings.Join(paths, " "))
+}
+
+// grepFiles is readFiles for `grep -H -E pattern`: grep's exit 2 (an
+// error, not "no match") prints "@unreadable <path>".
+func grepFiles(pattern string, paths ...string) string {
+	return unlistedDirs(paths) + fmt.Sprintf(`for f in %s; do [ -e "$f" ] || continue; grep -H -E '%s' "$f"; [ $? -le 1 ] || echo "@unreadable $f"; done`, strings.Join(paths, " "), pattern)
+}
+
+// unreadable returns the first "@unreadable <path>" line's path.
+func unreadable(lines []string) (string, bool) {
+	for _, l := range lines {
+		if p, ok := strings.CutPrefix(strings.TrimSpace(l), "@unreadable "); ok {
+			return p, true
+		}
+	}
+	return "", false
+}
+
 // filePermProbe prints "path mode uid group" per matching file, or
 // "pattern ABSENT" when nothing matches.
 func filePermProbe(r fileRule) Probe {
 	var b strings.Builder
 	for _, t := range r.targets {
-		fmt.Fprintf(&b, `for f in %s; do if [ -e "$f" ]; then stat -c '%%n %%a %%u %%G' "$f"; else echo "$f ABSENT"; fi; done; `, t.glob)
+		b.WriteString(unlistedDirs([]string{t.glob}))
+		fmt.Fprintf(&b, `for f in %s; do if [ -e "$f" ]; then stat -c '%%n %%a %%u %%G' "$f" || echo "@unreadable $f"; else echo "$f ABSENT"; fi; done; `, t.glob)
 	}
 	missingOK := map[string]bool{}
 	for _, t := range r.targets {
@@ -174,6 +213,10 @@ func filePermProbe(r fileRule) Probe {
 					continue
 				}
 				n++
+				if len(fs) == 2 && fs[0] == "@unreadable" {
+					bad = append(bad, fs[1]+" could not be read")
+					continue
+				}
 				if len(fs) == 2 && fs[1] == "ABSENT" {
 					if !missingOK[fs[0]] {
 						bad = append(bad, fs[0]+" missing")
@@ -640,6 +683,9 @@ func markerLinesProbe(cmd string, judge func(lines []string) (bool, string)) Pro
 			if !done {
 				return false, "check did not complete"
 			}
+			if p, ok := unreadable(lines); ok {
+				return false, p + " could not be read: not checked"
+			}
 			return judge(lines)
 		},
 	}
@@ -965,7 +1011,7 @@ func init() {
 }
 
 func bannerProbe(file string, required bool) Probe {
-	return markerLinesProbe(fmt.Sprintf(`echo "os=$(. /etc/os-release 2>/dev/null; echo "$NAME")"; if [ -e %s ]; then cat %s; else echo ABSENT; fi; echo @ok`, file, file),
+	return markerLinesProbe(fmt.Sprintf(`echo "os=$(. /etc/os-release 2>/dev/null; echo "$NAME")"; if [ -e %s ]; then cat %s || echo "@unreadable %s"; else echo ABSENT; fi; echo @ok`, file, file, file),
 		func(lines []string) (bool, string) {
 			var osName string
 			var body []string
@@ -1075,7 +1121,7 @@ func init() {
 			}
 			return v == "yes", "ForwardToSyslog=" + v
 		})
-	Probes["rsyslog-filecreatemode"] = markerLinesProbe(`cat /etc/rsyslog.conf /etc/rsyslog.d/*.conf 2>/dev/null | grep -E '^[[:space:]]*\$FileCreateMode'; echo @ok`,
+	Probes["rsyslog-filecreatemode"] = markerLinesProbe(`{ `+readFiles("/etc/rsyslog.conf", "/etc/rsyslog.d/*.conf")+`; } | grep -E '^[[:space:]]*\$FileCreateMode|^@unreadable '; echo @ok`,
 		func(lines []string) (bool, string) {
 			v := ""
 			for _, l := range lines {
@@ -1092,7 +1138,7 @@ func init() {
 			}
 			return true, "$FileCreateMode " + v
 		})
-	Probes["rsyslog-no-listen"] = markerLinesProbe(`cat /etc/rsyslog.conf /etc/rsyslog.d/*.conf 2>/dev/null | grep -Ev '^[[:space:]]*#' | grep -E 'imtcp|imudp|InputTCPServerRun|UDPServerRun'; echo @ok`,
+	Probes["rsyslog-no-listen"] = markerLinesProbe(`{ `+readFiles("/etc/rsyslog.conf", "/etc/rsyslog.d/*.conf")+`; } | grep -Ev '^[[:space:]]*#' | grep -E 'imtcp|imudp|InputTCPServerRun|UDPServerRun|^@unreadable '; echo @ok`,
 		func(lines []string) (bool, string) {
 			if len(lines) > 0 {
 				return false, "rsyslog accepts remote logs: " + strings.TrimSpace(lines[0])
@@ -1271,9 +1317,9 @@ func init() {
 			}
 			return true, "no umask looser than 0027 in root's shell files"
 		})
-	Probes["default-umask"] = markerLinesProbe(`grep -Hs -E '^[[:space:]]*UMASK' /etc/login.defs; `+
-		`grep -Hs -E '^[[:space:]]*umask' /etc/profile /etc/profile.d/*.sh /etc/bash.bashrc; `+
-		`grep -Hs -E '^[^#]*pam_umask\.so.*umask=' /etc/pam.d/common-session /etc/pam.d/common-session-noninteractive; echo @ok`,
+	Probes["default-umask"] = markerLinesProbe(grepFiles(`^[[:space:]]*UMASK`, "/etc/login.defs")+"; "+
+		grepFiles(`^[[:space:]]*umask`, "/etc/profile", "/etc/profile.d/*.sh", "/etc/bash.bashrc")+"; "+
+		grepFiles(`^[^#]*pam_umask\.so.*umask=`, "/etc/pam.d/common-session", "/etc/pam.d/common-session-noninteractive")+"; echo @ok",
 		func(lines []string) (bool, string) {
 			if len(lines) == 0 {
 				return false, "no default umask set (the system default is 022)"
@@ -1540,10 +1586,10 @@ func init() {
 // Section markers are "%%", never "@@": HostProbes once split a host's
 // script output on every line starting "@@", so "@@pam" ended this probe's
 // section (it now splits only on its per-run tagged headers).
-const pamDump = `echo %%pam; cat /etc/pam.d/common-auth /etc/pam.d/common-account /etc/pam.d/common-password /etc/pam.d/common-session 2>/dev/null; ` +
-	`echo %%pwq; cat /etc/security/pwquality.conf /etc/security/pwquality.conf.d/*.conf 2>/dev/null; ` +
-	`echo %%fl; cat /etc/security/faillock.conf 2>/dev/null; ` +
-	`echo %%ph; cat /etc/security/pwhistory.conf 2>/dev/null; echo @ok`
+var pamDump = `echo %%pam; ` + readFiles("/etc/pam.d/common-auth", "/etc/pam.d/common-account", "/etc/pam.d/common-password", "/etc/pam.d/common-session") + `; ` +
+	`echo %%pwq; ` + readFiles("/etc/security/pwquality.conf", "/etc/security/pwquality.conf.d/*.conf") + `; ` +
+	`echo %%fl; ` + readFiles("/etc/security/faillock.conf") + `; ` +
+	`echo %%ph; ` + readFiles("/etc/security/pwhistory.conf") + `; echo @ok`
 
 type pamLine struct {
 	typ, module string
@@ -1551,8 +1597,9 @@ type pamLine struct {
 }
 
 type pamConfig struct {
-	lines []pamLine
-	conf  map[string]map[string]string // section -> key -> value ("" for a bare flag)
+	lines      []pamLine
+	conf       map[string]map[string]string // section -> key -> value ("" for a bare flag)
+	unreadable string                       // a file that could not be read
 }
 
 func parsePAM(out string) (*pamConfig, bool) {
@@ -1568,6 +1615,9 @@ func parsePAM(out string) (*pamConfig, bool) {
 			continue
 		case l == "@ok":
 			done = true
+			continue
+		case strings.HasPrefix(l, "@unreadable "):
+			c.unreadable = strings.TrimPrefix(l, "@unreadable ")
 			continue
 		case strings.HasPrefix(l, "%%"):
 			section = l[2:]
@@ -1631,6 +1681,9 @@ func pamProbe(judge func(c *pamConfig) (bool, string)) Probe {
 		c, done := parsePAM(out)
 		if !done {
 			return false, "check did not complete"
+		}
+		if c.unreadable != "" {
+			return false, c.unreadable + " could not be read: not checked"
 		}
 		return judge(c)
 	}}

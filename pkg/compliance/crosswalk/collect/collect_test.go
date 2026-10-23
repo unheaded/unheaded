@@ -14,6 +14,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -748,6 +749,9 @@ func TestFilePermissionProbes(t *testing.T) {
 		{"perm-sshd-config", "/etc/ssh/sshd_config 600 0 root\n/etc/ssh/sshd_config.d/50-cloud-init.conf 600 0 root\n", true},
 		{"perm-sshd-config", "/etc/ssh/sshd_config 644 0 root\n/etc/ssh/sshd_config.d/* ABSENT\n", false},
 		{"perm-sshd-config", "/etc/ssh/sshd_config 600 0 root\n/etc/ssh/sshd_config.d/* ABSENT\n", true},
+		// sshd_config.d could not be listed: its glob stayed unexpanded and
+		// once read as "no drop-ins".
+		{"perm-sshd-config", "/etc/ssh/sshd_config 600 0 root\n@unreadable /etc/ssh/sshd_config.d\n/etc/ssh/sshd_config.d/* ABSENT\n", false},
 		{"perm-ssh-host-private-keys", "/etc/ssh/ssh_host_ed25519_key 600 0 root\n/etc/ssh/ssh_host_rsa_key 640 0 root\n", false},
 		{"perm-ssh-host-public-keys", "/etc/ssh/ssh_host_ed25519_key.pub 644 0 root\n", true},
 	} {
@@ -1016,6 +1020,7 @@ func TestBannerRadioProbes(t *testing.T) {
 		{"banner-issue", "os=Ubuntu\nABSENT\n@ok\n", false},
 		{"banner-motd", "os=Ubuntu\nABSENT\n@ok\n", true}, // motd is optional
 		{"banner-motd", "os=Ubuntu\nubuntu news here\n@ok\n", false},
+		{"banner-motd", "os=Ubuntu\n@unreadable /etc/motd\n@ok\n", false},  // once "states no OS details"
 		{"banner-issue-net", "os=Ubuntu\nAuthorized users only.\n", false}, // no completion marker
 		{"svc-bluetooth-not-in-use", "installed=\npresent=\ndpkg=installed\n", true},
 		{"radio-wireless-down", "@ok\n", true},
@@ -1079,6 +1084,7 @@ func TestLoggingProbes(t *testing.T) {
 		{"rsyslog-no-listen", "module(load=\"imtcp\")\n@ok\n", false},
 		{"rsyslog-no-listen", "$ModLoad imudp\n@ok\n", false},
 		{"rsyslog-no-listen", "", false},
+		{"rsyslog-no-listen", "@unreadable /etc/rsyslog.d/50-remote.conf\n@ok\n", false},
 		{"journald-file-access", "@ok\n", true},
 		{"journald-file-access", "/var/log/journal/x/system.journal\n@ok\n", false},
 		{"journald-file-access", "", false},
@@ -1163,6 +1169,10 @@ func TestPAMProbes(t *testing.T) {
 		{"pam-unix-authtok", stock, false},
 		{"pam-unix-authtok", hardened, true},
 		{"pam-pwq-minlen", "%%pam\n", false}, // incomplete
+		// common-auth (where nullok lives) unread: the rest of the stack once
+		// passed no-nullok and no-remember.
+		{"pam-unix-no-nullok", strings.Replace(hardened, "%%pam\n", "%%pam\n@unreadable /etc/pam.d/common-auth\n", 1), false},
+		{"pam-unix-no-remember", strings.Replace(stock, "%%pam\n", "%%pam\n@unreadable /etc/pam.d/common-auth\n", 1), false},
 		// an argument on the PAM line overrides the conf file
 		{"pam-pwq-minlen", strings.Replace(hardened, "pam_pwquality.so retry=3", "pam_pwquality.so retry=3 minlen=8", 1), false},
 	} {
@@ -1277,6 +1287,8 @@ func TestRootAndUserEnvironmentProbes(t *testing.T) {
 		// A refused sudo once listed nothing and passed: every home unread.
 		{"dot-files", "unreadable root /root\nunreadable govan /home/govan\n@ok\n", false},
 		{"dot-files", "dot govan govan 644 /home/govan/.profile\nunreadable root /root\n@ok\n", false},
+		// A file the prober could not read is not a file with nothing in it.
+		{"default-umask", "/etc/login.defs:UMASK 027\n@unreadable /etc/profile.d/x.sh\n@ok\n", false},
 	} {
 		p, ok := Probes[tc.probe]
 		if !ok || !p.Baseline {
@@ -1576,6 +1588,68 @@ func TestPackageProbesReadDpkgStates(t *testing.T) {
 		}
 		if pass, detail := Probes[tc.probe].Judge(sec); pass != tc.pass {
 			t.Errorf("%s: %s = %v (%s), want %v; output %q", tc.name, tc.probe, pass, detail, tc.pass, sec)
+		}
+	}
+}
+
+// TestReadFilesReportUnreadable: the central pull reads config files
+// unprivileged. A file it cannot read, or a directory whose glob it cannot
+// expand, once read as empty: rsyslog-no-listen passed with an unreadable
+// rsyslog.d file. Now each prints "@unreadable".
+func TestReadFilesReportUnreadable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("running as root: nothing is unreadable")
+	}
+	probeTools(t)
+	dir := t.TempDir()
+	write := func(name, body string, mode os.FileMode) string {
+		p := filepath.Join(dir, name)
+		if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o600); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Chmod(p, mode); err != nil {
+			t.Fatal(err)
+		}
+		return p
+	}
+	main := write("rsyslog.conf", "module(load=\"imuxsock\")\n", 0o600)
+	hidden := write("rsyslog.d/50-remote.conf", "module(load=\"imtcp\")\n", 0o600)
+	locked := write("locked/60-x.conf", "umask 022\n", 0o600)
+	if err := os.Chmod(hidden, 0); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chmod(filepath.Dir(locked), 0); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(filepath.Dir(locked), 0o700) })
+	for _, tc := range []struct {
+		name, script string
+		want         []string
+	}{
+		{"cat", readFiles(main, filepath.Join(dir, "rsyslog.d/*.conf"), filepath.Join(dir, "locked/*.conf")),
+			[]string{"module(load=\"imuxsock\")", "@unreadable " + hidden, "@unreadable " + filepath.Dir(locked)}},
+		{"grep", grepFiles(`^[[:space:]]*umask`, main, hidden, filepath.Join(dir, "locked/*.conf")),
+			[]string{"@unreadable " + hidden, "@unreadable " + filepath.Dir(locked)}},
+		{"absent files are not unreadable", readFiles(filepath.Join(dir, "none.conf"), filepath.Join(dir, "nodir/*.conf")), nil},
+	} {
+		out, err := exec.Command("sh", "-c", "{ "+tc.script+"; } 2>/dev/null").Output() // #nosec G204 -- test scripts from the helpers
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		got := strings.Split(strings.TrimSpace(string(out)), "\n")
+		if len(tc.want) == 0 {
+			if strings.TrimSpace(string(out)) != "" {
+				t.Errorf("%s: %q, want nothing", tc.name, out)
+			}
+			continue
+		}
+		for _, w := range tc.want {
+			if !slices.Contains(got, w) {
+				t.Errorf("%s: no %q in %q", tc.name, w, out)
+			}
 		}
 	}
 }
