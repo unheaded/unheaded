@@ -126,3 +126,7 @@ of the trapframe. No new attack surface.
   exact state.
 - Plan text drift: Step 103 names "Epic 1.2" of the master plan, which is the
   programmatic-API epic; the note went under Epic 1.3 (syscalls) as item 1.3.5.
+- Step 106–108: goldens unchanged and valid for `2308c3d7` (12/12 SAME on the final Phase 3
+  state; no recapture). **L5 gate**: round trip proven, L5 regression green, verifier
+  headroom 8.9% with the flag ON / 7.3% OFF; the flip itself is held on pid identity.
+  Phase 3 DoD met.
