@@ -51,6 +51,9 @@ must survive dozens of sessions, context resets, and interruptions.
 
 ---
 
+Input gathered since (2026-10-23): [UNREACHED-GO-PACKAGES.md](../UNREACHED-GO-PACKAGES.md),
+148 of 300 Go packages that no binary imports, three of them known to fake success.
+
 ## Decision
 
 Sweep **every** source file exactly once, in a fixed order, recording a verdict per file
