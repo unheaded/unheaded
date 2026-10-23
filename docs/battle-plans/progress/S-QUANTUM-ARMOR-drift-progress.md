@@ -74,3 +74,33 @@ STUCK/ESCALATE report ordered by how many steps each item unblocks.
 - **235 [TEST]** All `services/wotan`, `pkg/wotan-client`, `pkg/wotansig`
   packages ok with -race (19 ok, 0 FAIL; baseline 0 FAIL).
   `FuzzLoadTopicConfig` 45 s: no crasher. golangci-lint: 0 issues.
+- **236 [C]** `50a425cc`.
+- **237-238** `PublishSigned` on `GRPCClient` (the gRPC transport) and on
+  `Client` (returns `ErrSignedTopicNeedsGRPC` in HTTP-only mode, never
+  queues or falls back to HTTP). Put in a new file
+  `pkg/wotan-client/publish_signed.go`, not `grpc_client.go`, to stay
+  clear of Phase 5's edit at `grpc_client.go:59`; `grpc_client.go` only
+  gains one line in `topicEventToMessage`. It publishes under the joined
+  display name and signs for it (the S17 d80139c6 rule). Also: `Message`
+  carries `Signed` and `VerifySignature(trusted)`, so a subscriber reading
+  through wotan-client can re-verify (the phase goal; not a listed step).
+- **239-240** Heimdall: `--wotan-grpc`, `--drift-sign-key`,
+  `--publish-queue` (256). Body `{node_id, path, kind, expected_sha256,
+  actual_sha256, detected_at, manifest_name, manifest_version}`; node IDs
+  normalized to `[a-z0-9-]` (fuzzed: always exactly one topic segment);
+  bounded drop-oldest queue, `Enqueue` never blocks; counters
+  `heimdall_drift_{published,publish_failed,publish_dropped}_total`
+  (pkg/metrics counters; Heimdall has no listener, and adding one is out
+  of scope, so they are not scraped yet); key separation against
+  `--sign-key` and `--pubkey` by gungnir key ID (checked before the
+  `--sign-key` branch too); a group-readable key is refused
+  (`ErrKeyFilePerms`); `TestNoRestorePath` (go/ast) fails on any
+  os write/rename/chmod/remove outside `signManifest`, provoked once with
+  a throwaway `os.Rename` file to prove it can fail. Without
+  `--wotan-grpc` behaviour is unchanged plus a startup line saying drift
+  is not published; `--wotan-grpc` without `--drift-sign-key` is refused.
+  Signed sender is the constant display name `heimdall`; the node is in
+  the topic and the per-node key. Missing-file alerts now carry the
+  expected hash.
+- **241 [TEST]** heimdall-daemon + wotan-client green with -race;
+  `FuzzNormalizeNodeID` 30 s clean; golangci-lint 0 issues.

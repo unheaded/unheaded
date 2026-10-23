@@ -20,6 +20,8 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"unheaded/pkg/wotansig"
 )
 
 // Backoff constants for pollMessages exponential backoff.
@@ -86,6 +88,10 @@ type Message struct {
 	Seq       int64     `json:"seq"`
 	Payload   string    `json:"payload"`
 	Deleted   bool      `json:"deleted"`
+	// Signed is the ML-DSA-65 signature a signed topic message (config.*,
+	// drift.*) arrived with over gRPC, nil otherwise; check it with
+	// VerifySignature (ADR-105).
+	Signed *wotansig.Signed `json:"signed,omitempty"`
 }
 
 // Subscriber represents a topic subscriber

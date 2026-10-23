@@ -71,6 +71,12 @@ type Heimdall struct {
 	manifest     *MjolnirManifest
 	aggregator   *enkrateia.Aggregator
 	mu           sync.RWMutex
+
+	// drift publishes each alert to Wotan, signed (ADR-105); nil prints
+	// alerts to stdout only.
+	drift *driftSink
+	// printAlert writes an alert line; nil means stdout.
+	printAlert func(string)
 }
 
 // Trust says how a manifest is checked before Heimdall believes it.
@@ -139,10 +145,11 @@ func (h *Heimdall) ScanFiles() {
 		if err != nil {
 			// File missing → drift
 			h.aggregator.HandleDrift(enkrateia.DriftEvent{
-				NodeID:     h.nodeID,
-				Path:       f.Path,
-				Severity:   "alert",
-				DetectedAt: time.Now(),
+				NodeID:       h.nodeID,
+				Path:         f.Path,
+				HashExpected: []byte(f.SHA256),
+				Severity:     "alert",
+				DetectedAt:   time.Now(),
 			})
 			continue
 		}
@@ -187,15 +194,26 @@ func (h *Heimdall) Reload() error {
 // Run starts the daemon loop. It returns an error when the manifest stops
 // verifying (Reload).
 func (h *Heimdall) Run(ctx context.Context, scanInterval time.Duration) error {
-	// Alert drain goroutine — publishes to Wotan drift.detected.<node_id>
-	// TODO: wire to actual Wotan client with ML-DSA-65 signing
+	// Alert drain goroutine: prints every alert and, with a drift sink,
+	// queues it for a signed publish to Wotan drift.detected.<node_id>
+	// (ADR-105). Enqueue never blocks, so a slow Wotan cannot stall this.
+	printAlert := h.printAlert
+	if printAlert == nil {
+		printAlert = func(msg string) { fmt.Printf("[ALERT] %s\n", msg) }
+	}
+	if h.drift != nil {
+		go h.drift.run(ctx)
+	}
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case alert := <-h.aggregator.Alerts():
-				fmt.Printf("[ALERT] %s\n", alert.Message)
+				printAlert(alert.Message)
+				if h.drift != nil {
+					h.drift.Enqueue(h.driftRecord(alert))
+				}
 			}
 		}
 	}()
@@ -255,8 +273,20 @@ func main() {
 		allowUnsigned = flag.Bool("allow-unsigned", false, "load a manifest without verifying a seal (lab runs only)")
 		signKey       = flag.String("sign-key", "", "sign --manifest with this private key seed, write <manifest>.seal, exit")
 		signTTL       = flag.Duration("sign-ttl", 30*24*time.Hour, "how long a seal written by --sign-key stays valid")
+		wotanGRPC     = flag.String("wotan-grpc", "", "Wotan gRPC address: publish each drift alert to drift.detected.<node-id>, signed (UNHEADED_GRPC_TLS=1 for TLS)")
+		driftSignKey  = flag.String("drift-sign-key", "", "ML-DSA-65 seed (0600) that signs drift events; must not be the --sign-key or --pubkey key")
+		publishQueue  = flag.Int("publish-queue", 256, "drift events held for Wotan before the oldest is dropped")
 	)
 	flag.Parse()
+
+	// ADR-043 #4: the drift key is never the manifest key, whichever mode
+	// this run is in.
+	if *driftSignKey != "" && *signKey != "" {
+		if _, err := loadDriftSigner(*driftSignKey, *signKey, nil); err != nil {
+			fmt.Fprintf(os.Stderr, "drift key: %v\n", err)
+			os.Exit(1)
+		}
+	}
 
 	if *signKey != "" {
 		if err := signManifest(*manifestPath, *signKey, *signTTL); err != nil {
@@ -271,6 +301,14 @@ func main() {
 		hostname, _ := os.Hostname()
 		*nodeID = hostname
 	}
+	// The node ID names a topic segment: normalize it so a hostname with
+	// dots or wildcards cannot address another topic.
+	normalized, err := NormalizeNodeID(*nodeID)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "node id %q: %v\n", *nodeID, err)
+		os.Exit(1)
+	}
+	*nodeID = normalized
 
 	fmt.Printf("Heimdall Daemon starting (node=%s)\n", *nodeID)
 	fmt.Printf("ADR-043 hard condition #1: alerts only, no auto-restore\n")
@@ -305,6 +343,13 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	sink, err := setupDriftPublishing(ctx, *wotanGRPC, *driftSignKey, *signKey, trust.PubKey, *nodeID, *publishQueue)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "drift publishing: %v\n", err)
+		os.Exit(1)
+	}
+	h.drift = sink
 
 	// Graceful shutdown
 	sigCh := make(chan os.Signal, 1)

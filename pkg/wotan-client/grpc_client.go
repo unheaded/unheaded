@@ -424,6 +424,7 @@ func topicEventToMessage(event *chatpb.TopicEvent) *Message {
 		Seq:       event.Seq,
 		Payload:   string(event.Payload),
 		Deleted:   event.Type == chatpb.TopicEventType_TOPIC_MESSAGE_DELETED,
+		Signed:    eventSignature(event),
 	}
 }
 
