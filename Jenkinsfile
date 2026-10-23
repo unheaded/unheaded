@@ -235,6 +235,9 @@ pipeline {
         script {
           echo "=== Creating .deb packages ==="
           sh '''
+            # Modes in the package must not depend on the agent's umask
+            # (0002 makes unit files 0664), as in scripts/build-all-debs.sh.
+            umask 022
             mkdir -p build/deb
             SERVICES="unheaded-daemon dashboard-backend kanban-app"
 
@@ -246,11 +249,11 @@ pipeline {
               mkdir -p ${PKG_DIR}/opt/unheaded/bin
               mkdir -p ${PKG_DIR}/etc/systemd/system
 
-              # Copy binary
-              if [ -f "bin/${svc_bin}" ]; then
-                cp "bin/${svc_bin}" ${PKG_DIR}/opt/unheaded/bin/
-                chmod 755 ${PKG_DIR}/opt/unheaded/bin/${svc_bin}
-              fi
+              # Copy binary. A missing one fails the stage: packaging on
+              # without it published a deb whose unit execs nothing.
+              test -f "bin/${svc_bin}" || { echo "FAIL: bin/${svc_bin} not built" >&2; exit 1; }
+              cp "bin/${svc_bin}" ${PKG_DIR}/opt/unheaded/bin/
+              chmod 755 ${PKG_DIR}/opt/unheaded/bin/${svc_bin}
 
               # Control file
               cat > ${PKG_DIR}/DEBIAN/control <<EOF
@@ -288,7 +291,8 @@ EOF
               chmod 755 ${PKG_DIR}/DEBIAN/postinst ${PKG_DIR}/DEBIAN/prerm
               deb_conffiles ${svc_bin} ${PKG_DIR} .
 
-              dpkg-deb --build ${PKG_DIR}
+              # root:root inside the package, not the Jenkins agent's uid.
+              dpkg-deb --root-owner-group --build ${PKG_DIR}
               echo "  Built: ${PKG_NAME}_${VERSION}.deb"
             done
 
