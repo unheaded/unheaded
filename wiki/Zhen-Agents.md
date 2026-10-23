@@ -74,7 +74,55 @@ The bridge reserves every request's worst case before sending it (input estimate
 
 ## Stopping it
 
-Stop the process (SIGTERM: the card in flight is cancelled, nothing partial is committed, the card goes back to `todo`). Overnight mode adds a stop file; see Phase 7 of `docs/battle-plans/S-TWO-BRAINS-battle-plan.md`.
+Stop the process (SIGTERM: the card in flight is cancelled, nothing partial is committed, the card goes back to `todo`). In overnight mode, `touch ~/.local/state/unheaded/zhen-agentd.stop` does the same at the next check (remove the file before the next night).
+
+## Overnight mode
+
+`zhen-agentd -worker -overnight` works cards inside a window, writes a morning report and exits. The user units `deploy/systemd/user/zhen-agentd-overnight.{service,timer}` start it at 01:00 for the window 01:00-07:00. They are **not enabled**: whether and when is Stevie's decision.
+
+```bash
+# enable (the env file is yours, 0600, outside the repo: ANTHROPIC_API_KEY, WELL_APP_ZHEN_DSN, WELL_OPS_DSN, LLAMA_URL)
+make build-zhen-agentd
+systemctl --user link ~/tmp/unheaded/deploy/systemd/user/zhen-agentd-overnight.{service,timer}
+systemctl --user daemon-reload && systemctl --user enable --now zhen-agentd-overnight.timer
+systemctl --user list-timers | grep zhen
+# disable
+systemctl --user disable --now zhen-agentd-overnight.timer
+# stop tonight's run now
+touch ~/.local/state/unheaded/zhen-agentd.stop
+```
+
+Before every card the night checks, in order, and stops with a typed reason written into the report:
+
+| Check | Default | Stop reason |
+|---|---|---|
+| stop file | `~/.local/state/unheaded/zhen-agentd.stop` | `stop_file` |
+| window | `-window 01:00-07:00` (local time; may cross midnight) | `window_end` (`outside_window` if started outside it) |
+| cards per night | `-max-cards 5` | `max_cards` |
+| Claude spend | its own ledger `~/.local/state/unheaded/zhen-claude/spend-overnight.json`, `-daily-cap-usd 3` (never the interactive ledger) | `spend_cap` |
+| infrastructure failures | 2 in a row (a failing check is the model's failure and does not count) | `infra_failures` |
+| SIGTERM / SIGINT | | `signal` |
+
+Two conditions defer a card to the next poll instead of stopping the night:
+
+- **memory floor**: `MemAvailable` (from `/proc/meminfo`) must be at least 2 GiB plus one check's `MemoryMax` (2G), 4 GiB in all. Swap is never counted: fitting in swap is how this box livelocks. `ZHEN_MEM_FLOOR_BYTES` can raise the floor, never lower it.
+- **GPU lease** (below) held exclusively.
+
+Privacy is forced to `strict` (no Kingdom-ops tool result leaves the host while nobody watches).
+
+The morning report is `~/.local/state/unheaded/zhen-reports/<date>.md` (0600): the stop reason, cards tried, succeeded, failed, cancelled and deferred (by reason), Claude spend against the cap, escalations, every run's branch and note, and the review commands. A counts-only summary goes to Wotan `zhen.agent.report`.
+
+## One GPU: forge training and the worker
+
+The RX 7700 XT (12 GB) cannot hold a served model and a Gemma-4 training run at once. One lease decides who has it: an `flock` on `$GPU_LOCK` (default `$XDG_RUNTIME_DIR/unheaded/gpu.lock`), `scripts/lib/gpu-lease.sh` in shell and `pkg/gpulease` in Go.
+
+| Who | Lease |
+|---|---|
+| each llama-server request (`pkg/localllm`: worker, `/ask`, summariser) | shared, for the call (waits up to 10-30 s) |
+| `scripts/switch-model.sh` | exclusive, for the whole swap |
+| `scripts/forge-train.sh` | exclusive, for the whole run: stops llama-server first and loads `FORGE_RESTART_MODEL` (default `qwen-7b`) after, through `switch-model.sh` and its fit check |
+
+The worker never starts, stops or swaps a model. Finding the lease held, it defers the card (no claim); a lease taken mid-card cancels that run (no attempt used, nothing committed) and the card waits for the next poll. It never escalates to Claude because the GPU is busy. A stuck lease is a stuck process: `fuser -v "$GPU_LOCK"` names it; stopping it frees the lease. Never delete the lock file.
 
 ## /api/v1/agent/ask and approval tokens
 

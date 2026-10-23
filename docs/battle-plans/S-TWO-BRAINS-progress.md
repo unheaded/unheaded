@@ -268,6 +268,33 @@ Same throwaway Well, demo clone and fake local model as Phase 6; three new repo-
 - **Step 249-250**: `ZHEN_MEM_FLOOR_BYTES=999999999999`, one fresh eligible card (`live-night-floor`): three `night_defer reason=mem_floor` ("MemAvailable 6257430528 B < floor 999999999999 B (swap not counted)"), tried 0, no claim, no local request (the fake server's request count unchanged); stop file -> `stop_file`, report `2026-10-23-130502.md` (deferrals `mem_floor: 3`).
 - The llama-server the other agent started was not used by this run (no live local demo was needed; all local legs used the fake server), and was neither stopped nor swapped.
 
+## Phase 7 review, escalation, gate (Steps 252-258)
+
+### Step 252 — overnight review
+
+| # | Item | Result |
+|---|---|---|
+| a | The env file holds the Claude key | Stevie's file `~/.config/unheaded/zhen-agentd.env`, outside the repo; **added** an `ExecStartPre` that refuses to start unless it is the operator's own and mode 0600/0400 (logic exercised: 600/400 start, 644/660 refuse). The key never reaches a check: `run_check` units get only the configured environment (Phase 5 `TestSystemd_EnvIsOnlyWhatIsPassed`), `/etc/unheaded` is hidden from them. |
+| b | Capabilities | none: no `AmbientCapabilities`/`CapabilityBoundingSet` grants, `NoNewPrivileges=yes`, `UMask=0077`, a user unit (the operator's uid, never root). |
+| c | Wotan payloads | `zhen.agent.report`: counts only (test asserts no card, branch or path). `zhen.agent.runs`: ids and labels (run id, card id, branch, family, route reason, check verdict, cost), never card or model text; card ids are board identifiers (kanban-app allows `[A-Za-z0-9_-]`), like the tool names Phase 1 already publishes. Both under 4 KiB (the auditor drops larger). |
+| d | Stop file mid-card | honoured: the card in flight finishes its check, nothing is committed, the run is `cancelled`, its untouched branch dropped, the card back to `todo` (`TestWorker_StopMidCardCommitsNothing`, `TestNight_StopFile`; live 13:03:25 -> stopped 13:03:27). |
+| e | Unattended spend | its own ledger and cap, checked before every card and enforced per request by the bridge; privacy forced strict; `max_tokens` sized to the task budget (Step 219a). |
+| f | Unattended memory | MemAvailable floor, swap never counted, bitten twice (floor off; swap read as memory). |
+
+### Step 253
+
+`wiki/Zhen-Agents.md` "Overnight mode" (enable/disable/stop commands, the checks and their stop reasons, deferrals, the report) and "One GPU" (who takes which lease, forge's handoff, what to do with a stuck lease); `cmd/zhen-agentd/README.md` flags.
+
+### Step 254 [ESCALATE] — OPEN
+
+**First real unattended night.** Everything is tested supervised (Steps 247-250); a real night spends real money (up to the overnight cap, default $3) and holds the GPU lease for up to six hours, beside forge training and the other agents' llama-server use. Whether and when to enable `zhen-agentd-overnight.timer`, the cap amount, and the env file are Stevie's. Prerequisites before a yes: migrations 030/031/032 applied to the live Well (Steps 59/94/205, open), `make build-zhen-agentd`, the env file (0600), a model loaded by `switch-model.sh`, and some cards handed to Zhen. **Steps 255 (enable the timer) and 257 (check the first real night) are not run; they wait on this answer.**
+
+### Step 258 — PHASE 7 EXIT GATE: PASS (real night waiting on Step 254, logged)
+
+- Lease, cap, floor and stop file each proven by a test seen failing: GPU lease (`TestWorker_DefersWhenGPUBusy`/`TestNight_GPUBusyDefers` with the check off; `TestSwitchModel_WaitsForTheLease` with switch-model's lease line removed), spend cap (`TestNight_SpendCap`), memory floor (`TestNight_MemFloorSwapNotCounted`, and with swap read as memory also `TestMemAvailable_NeverCountsSwap`), stop file (`TestNight_StopFile`), plus the infra-failure stop.
+- Supervised night clean: deferral by lease, resume, stop file, report, exit 0; no OOM in the window (swap: see Step 248 note).
+- No unit enabled. Never-OOM rule tested with swap present (fake meminfo 1 GiB available / 30 GiB swap free -> refused).
+
 ## Phase 6-7 spend log
 
 Run-private ledger `$SCRATCH/spend-phase6.json` (cap $0.50 for Phase 6), `-effort low`.
@@ -277,3 +304,17 @@ Run-private ledger `$SCRATCH/spend-phase6.json` (cap $0.50 for Phase 6), `-effor
 | 219 | live-docs-usage-b run 1: refused before sending (219a) | 0.000000 | 0.000000 |
 | 219 | live-docs-usage-b run 2: 1 request sent, 1 refused (219b) | 0.016716 | 0.016716 |
 | 219 | live-docs-usage-c: 1 request sent, 1 refused, check passed | 0.016656 | 0.033372 |
+| 247-249 | compressed night and floor bite (`-claude fake`; the overnight ledger was never written) | 0.000000 | 0.033372 |
+
+**Total live Claude spend for Phases 6-7: $0.033372** (ledger `spend-phase6.json`: 2 requests sent), under this run's $2 cap. Sprint total with Phases 0-5: $1.382997.
+
+## ESCALATE answers (Phases 6-7)
+
+- **Step 205 [ESCALATE] — OPEN.** Apply 032 (`unheaded_app.zhen_agent_runs` + app_zhen's column UPDATE on `kanban_tasks`) to the live Well, batched with 030/031 (Steps 59/94). Additive; tested and bite-checked on throwaway servers only. Until applied, `zhen-agentd -worker` cannot run against the live Well.
+- **Step 254 [ESCALATE] — OPEN.** First real unattended night (above). Steps 255 and 257 wait on it.
+
+## Open items for Stevie (Phases 6-7, not ESCALATE steps)
+
+- Routing caps vs worst-case reservation (Step 219b): the generated family caps ($0.05-$0.07) leave a Claude leg one request; re-derive caps with headroom, or let the bridge shrink `max_tokens` per request to what is left.
+- Kanban card modal: show the `branch` / `review_note` of agent commit entries (Step 227; a card to file in the Well when it is up).
+- `-ask-tokens` exists for a human-only listener; the default `/ask` no longer returns tokens. Any UI that relied on `/ask` tokens should use `/tool/exec` or `zhen-claude confirm`.
