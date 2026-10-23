@@ -53,6 +53,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	switch args[0] {
 	case "ingest":
 		code, err = cmdIngest(ctx, args[1:], stdout, stderr)
+	case "label":
+		code, err = cmdLabel(ctx, args[1:], stdout, stderr)
 	case "scan":
 		code, err = cmdScan(ctx, args[1:], stdout, stderr)
 	case "quarantine":
