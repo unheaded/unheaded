@@ -93,7 +93,9 @@
         ebpfTotalPrev: null,
         ebpfEps: null,
         // Backend start, from the ingestor's uptime_seconds; null until known.
-        backendStartMs: null
+        backendStartMs: null,
+        // When the backend last answered with data; null until it has.
+        lastDataMs: null
     };
 
     // ======================================================================
@@ -249,6 +251,7 @@
 
     function handleWebSocketMessage(event) {
         state.lastHeartbeat = Date.now();
+        state.lastDataMs = state.lastHeartbeat;
         try {
             var msg = JSON.parse(event.data);
             var type = msg.type || '';
@@ -290,7 +293,7 @@
                 if (onFail) r.json().then(function(b) { onFail(r.status, b); }, function() { onFail(r.status, null); });
                 return;
             }
-            return r.json().then(callback);
+            return r.json().then(function(d) { state.lastDataMs = Date.now(); callback(d); });
         }).catch(function() {});
     }
 
@@ -1511,8 +1514,17 @@
     }
 
 
+    // The header time is when the backend last answered (a poll or a WS
+    // message). It used to be set to the browser's clock every second, so
+    // a backend answering nothing but errors still looked current.
+    var STALE_MS = 20000;
     function updateTimestamp() {
-        if (el.lastUpdate) el.lastUpdate.textContent = new Date().toLocaleTimeString();
+        if (el.lastUpdate) {
+            var t = state.lastDataMs;
+            el.lastUpdate.textContent = t == null ? '--:--:--'
+                : new Date(t).toLocaleTimeString() + (Date.now() - t > STALE_MS ? ' (stale)' : '');
+            el.lastUpdate.title = 'Last data from the backend';
+        }
         // The browser's clock; nothing here reads the server's.
         if (el.serverTime) el.serverTime.textContent = 'Local: ' + new Date().toLocaleTimeString();
         if (el.uptime) el.uptime.textContent = 'Uptime: ' + (state.backendStartMs == null ? '--' : formatUptime(Date.now() - state.backendStartMs));
