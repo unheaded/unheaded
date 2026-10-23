@@ -239,7 +239,11 @@ If Wotan is unavailable:
 
 If neither database opens, the board is **read-only**: reads serve the Genesis seed, and every
 POST/PUT/DELETE answers 503 (`read-only: no database`). Writes used to go to memory, answer
-201/200 and vanish on restart.
+201/200 and vanish on restart. The same holds when the database opens but cannot be seeded or
+read at startup.
+
+A write the database refuses later answers 500 and leaves the board as it was; a database that
+cannot be read answers 500, not 404 or an empty board.
 
 ---
 
