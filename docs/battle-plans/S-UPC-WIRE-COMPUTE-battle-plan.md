@@ -907,70 +907,87 @@ A **cartridge** is a small MBC program plus a read-only data blob (e.g. model we
 **Time**: ~3 h
 **Agent**: Coordinator (Architect + Computermancer + Scientist lenses), RFC Editor review requested
 
-- [ ] **Step 229** [R] ~15m: Re-read the contract and the native baselines
+- [x] **Step 229** [R] ~15m: Re-read the contract and the native baselines
   ```bash
   sed -n '/## 2. The contract/,/## 5. Status/p' "$PROJECT_ROOT/docs/adr/ADR-080-upc-programmatic-api.md"
   sed -n '1,40p' "$EBPF/qos-ebpf/src/main.rs" | grep '//'; sed -n '1,40p' "$EBPF/anomaly-ebpf/src/main.rs" | grep '//'; sed -n '1,30p' "$EBPF/nfv-ebpf/src/main.rs" | grep '//'
   ```
-- [ ] **Step 230** [R] ~10m: Registries the design may touch
+- [x] **Step 230** [R] ~10m: Registries the design may touch
   ```bash
   grep -n 'Registry Name' "$PROJECT_ROOT"/ietf-submission/*.md | cut -c1-160
   ```
-- [ ] **Step 231** [DECIDE][DESIGN] ~15m: **D-C1 — where the cartridge interpreter lives**
+- [x] **Step 231** [DECIDE][DESIGN] ~15m: **D-C1 — where the cartridge interpreter lives**
+  - S5 2026-10-23: Decided D-C1 per recommendation: `ebpf/cartridge-ebpf` + `monad_common::cart`; monad-cpu-ebpf untouched.
   - **RECOMMENDATION**: new crate `ebpf/cartridge-ebpf` whose interpreter step is a `no_std` function in `ebpf/monad-common/src/cart.rs`, compiled into BOTH the BPF object and the host tools. `monad-cpu-ebpf` is not touched.
   - Rationale: (1) Doom/xv6 objects stay byte-identical — the non-negotiable from ADR-080; (2) one source for BPF and host execution gives replay determinism by construction (Phase 16); (3) the per-packet hook model differs from the trigger-tick model of `monad-cpu-ebpf`; (4) its own build = its own 1M budget (ADR-080 §3).
   - **Override ONLY if**: Stevie wants a single object → a `cartridge` cargo feature in `monad-cpu-ebpf` with its own DCE partition, and the regression harness gains a third variant before any code lands.
-- [ ] **Step 232** [DECIDE][DESIGN] ~15m: **D-C2 — two execution stages**
+- [x] **Step 232** [DECIDE][DESIGN] ~15m: **D-C2 — two execution stages**
+  - S5 2026-10-23: Decided D-C2 per recommendation (N_PKT 64, N_TICK 256). Tick termination made concrete: `loop_bound` = max taken back-edges per job, so a job is bounded by rom_words x (loop_bound+1) instructions; per-call budget-out in the tick stage is an implicit YIELD.
   - **RECOMMENDATION**: (a) **XDP stage** `cart_xdp`: per packet, per active slot, at most `N_PKT = 64` MBC instructions (bounded loop), forward-only branches (the validator rejects back-edges in XDP-stage cartridges), ends in VERDICT or budget-out (= PASS). Rate limiter, sampler and the scorer's feature accumulator run here. (b) **Tick stage** `cart_tick`: a program run by the host pump through `BPF_PROG_TEST_RUN` (the Doom injector model, no live packets), pops flows from `SCORE_QUEUE`, runs up to `N_TICK = 256` instructions per call with resumable state (YIELD), loops allowed with a declared bound. The ~2 KB scorer runs here.
   - Rationale: an int8 MLP over every packet cannot fit an XDP budget; scoring once per flow off the packet path keeps XDP cost flat and still "scores every flow".
   - **Override ONLY if**: Phase 11 measures `N_PKT=64` above the verifier gate → lower N_PKT; if Phase 15 cannot meet its rate gate in the tick stage → consider the DOT4 opcode (Step 389, full spec gate).
-- [ ] **Step 233** [V][PREFLIGHT] ~5m: **H-C1** — `services/anomaly` has no binary and does not consume `anomaly.scores`
+- [x] **Step 233** [V][PREFLIGHT] ~5m: **H-C1** — `services/anomaly` has no binary and does not consume `anomaly.scores`
+  - S5 2026-10-23: H-C1 TRUE: `NO IMPORTER`; `anomaly.scores` subscribed at `services/anomaly/anomaly.go:165`.
   ```bash
   grep -rln 'services/anomaly"' --include=*.go "$PROJECT_ROOT/cmd" "$PROJECT_ROOT/services" | grep -v '^.*services/anomaly/' || echo "NO IMPORTER"
   grep -n 'anomaly.scores' "$PROJECT_ROOT/services/anomaly/anomaly.go"
   ```
   - Expected: `NO IMPORTER`; the topic is subscribed but the returned handle is unused → Phase 15 adds `cmd/anomaly` and a consumer
-- [ ] **Step 234** [DECIDE][DESIGN] ~10m: **D-C3 — fault policy**
+- [x] **Step 234** [DECIDE][DESIGN] ~10m: **D-C3 — fault policy**
+  - S5 2026-10-23: Decided D-C3 per recommendation; `fail_closed` is header flag bit 0.
   - **RECOMMENDATION**: any fault (bad opcode, out-of-window memory, budget-out in XDP stage) → `XDP_PASS`, `cart_faults_total{slot}` += 1, and the slot auto-disables after 64 faults per second (circuit breaker; re-enable is an explicit ctl command). Rationale: a buggy rate limiter must never black-hole traffic; failures are loud in metrics.
   - **Override ONLY if**: a cartridge declares `fail_closed: true` in its signed manifest (opt-in, only for policy cartridges, logged at load).
-- [ ] **Step 235** [DECIDE][DESIGN] ~10m: **D-C4 — Sophia's role**
+- [x] **Step 235** [DECIDE][DESIGN] ~10m: **D-C4 — Sophia's role**
+  - S5 2026-10-23: Decided D-C4 per recommendation; provisional namespace `x-cartridge`.
   - **RECOMMENDATION**: Sophia holds the **cartridge registry**: name → {sha256, manifest, seal key id, stage, surface version, max_insn, slot}. The loader resolves a cartridge by name through Sophia, verifies the seal on the exact bytes it loads, then writes `CART_ROM`/`CART_DATA` for the slot (the "Sophia = microcode ROM" mapping). Registry entries live under a dictionary namespace requested from the Sophia Root Dictionary Keys registry (0x10–0xFE, First Come First Served) — **RFC Editor item, non-blocking**; until assigned, a lab-local namespace string `x-cartridge` is used and documented as provisional.
   - **Override ONLY if**: RFC Editor says the namespace must be Specification Required → stays provisional this sprint.
-- [ ] **Step 236** [DECIDE][DESIGN] ~10m: **D-C5 — Anamnesis + wire**
+- [x] **Step 236** [DECIDE][DESIGN] ~10m: **D-C5 — Anamnesis + wire**
+  - S5 2026-10-23: Decided D-C5 per recommendation; provisional sub-kind 0x43 under EVENT_COMPUTED.
   - **RECOMMENDATION**: trace records reuse **EVENT_COMPUTED (0x01)** ("Shim executed") with a cartridge sub-kind in the payload — no new Anamnesis Event Type registration. Cartridges **never write the Monad header** in v0 (no `SAMPLED`-as-suspicious overload like KF11); scores travel over ringbuf → Wotan.
   - **Override ONLY if**: RFC Editor rules the sub-kind needs its own type → file the registration (Specification Required), keep 0x01 meanwhile.
-- [ ] **Step 237** [DESIGN][W] ~20m: Cartridge ABI v0 (Appendix C.3) — syscall numbers, field ids, memory windows, verdict codes, event record layouts, image format `.cart` (header magic `MBCC`, version, stage, max_insn, rom_words, data_words, entry, sha256 of the rest)
-- [ ] **Step 238** [W][SPEC] ~40m: Draft `docs/adr/${ADR_CART}-mbc-cartridges.md` (Status: Proposed): context (ADR-080 third client), D-C1…D-C5, ABI v0, verifier/benchmark gates, determinism contract, Sacred Principle argument, non-goals (no wire change, no new opcode in v0)
-- [ ] **Step 239** [B] ~1m: Confirm the ADR number is still free on `develop`
+- [x] **Step 237** [DESIGN][W] ~20m: Cartridge ABI v0 (Appendix C.3) — syscall numbers, field ids, memory windows, verdict codes, event record layouts, image format `.cart` (header magic `MBCC`, version, stage, max_insn, rom_words, data_words, entry, sha256 of the rest)
+  - S5 2026-10-23: ABI v0 in ADR-106 §Cartridge ABI v0, adapted to the shipping engine's real semantics: 24-bit branch offsets relative to pc+1, MOVI zero-extend, set_flags rules; little-endian 52-byte header (adds loop_bound, flags, reserved; sha256 covers header[0..20) + ROM + DATA); CartState 336 B with explicit status/back_edges/gen.
+- [x] **Step 238** [W][SPEC] ~40m: Draft `docs/adr/${ADR_CART}-mbc-cartridges.md` (Status: Proposed): context (ADR-080 third client), D-C1…D-C5, ABI v0, verifier/benchmark gates, determinism contract, Sacred Principle argument, non-goals (no wire change, no new opcode in v0)
+  - S5 2026-10-23: `docs/adr/ADR-106-mbc-cartridges.md` (Proposed). ADR_CART = ADR-106 (105 taken, Phase 0).
+- [x] **Step 239** [B] ~1m: Confirm the ADR number is still free on `develop`
+  - S5 2026-10-23: ADR-106 absent on `develop`, `sprint/two-brains`, `sprint/real-steel`, `sprint/lich-awakens` (local refs; no fetch). Parallel branches could still claim it before merge.
   ```bash
   git -C "$PROJECT_ROOT" fetch -q origin develop 2>/dev/null; git -C "$PROJECT_ROOT" ls-tree --name-only origin/develop docs/adr/ 2>/dev/null | grep -c "${ADR_CART}" || true
   ```
-- [ ] **Step 240** [B][S][PREFLIGHT] ~10m: **H-C2** — `BPF_PROG_TEST_RUN` with repeat works for XDP and reports duration (use an existing tiny XDP object as the probe)
+- [x] **Step 240** [B][S][PREFLIGHT] ~10m: **H-C2** — `BPF_PROG_TEST_RUN` with repeat works for XDP and reports duration (use an existing tiny XDP object as the probe)
+  - S5 2026-10-23: Deviation: bpftool cannot load Aya objects (legacy `maps` section, see Step 144), so the probe used cilium/ebpf `Program.Benchmark` on `heimdall-gjallarhorn-xdp`: `ret=2 (XDP_PASS) per-run=24ns`, repeat 100000.
   ```bash
   sudo bpftool prog loadall "$EBPF/target/bpfel-unknown-none/release/qos-ebpf" /sys/fs/bpf/s5-probe 2>&1 | tail -2
   python3 -c "import sys; sys.stdout.buffer.write(bytes(14)+bytes([0x60])+bytes(39)+bytes(8))" > "$S5/pkt-min.bin"
   sudo bpftool prog run pinned "$(ls -d /sys/fs/bpf/s5-probe/* | head -1)" data_in "$S5/pkt-min.bin" repeat 100000 2>&1 | tail -3
   sudo rm -rf /sys/fs/bpf/s5-probe
   ```
-- [ ] **Step 241** [V] ~1m: Output contains `duration` (ns per run) → test_run is the benchmark engine
+- [x] **Step 241** [V] ~1m: Output contains `duration` (ns per run) → test_run is the benchmark engine
+  - S5 2026-10-23: H-C2 TRUE: test_run with repeat reports ns/run on 6.17. The benchmark engine is `pkg/cartridge` over `ebpf.Program.Benchmark`, not `bpftool prog run`.
   - No → benchmarks use a veth pair + userspace sender in netns (Emergency A.8); gates still apply, wider tolerance
-- [ ] **Step 242** [V][SPEC] ~10m: **SPEC COMPLIANCE GATE (Part 2 design)**
+- [x] **Step 242** [V][SPEC] ~10m: **SPEC COMPLIANCE GATE (Part 2 design)**
+  - S5 2026-10-23: Spec gate recorded in ADR-106 + request note: v0x01 untouched; extension (new surface + new program, no opcode); RFC Editor requested for the namespace, sub-kind, topics; backward compatible; IANA: new registrations requested, none modified.
   - Wire format version: v0x01 (FROZEN) — untouched (cartridges read the Monad option, never write it)
   - Change type: **extension** — a new UPC syscall surface (cartridge ABI v0) and a new BPF program; no MBC opcode added
   - RFC Editor reviewed: **requested** for (a) Sophia namespace (D-C4), (b) EVENT_COMPUTED sub-kind (D-C5), (c) Wotan topics `anomaly.scores`, `upc.cart.*` (Wotan Topic Namespace, Expert Review) — **must be Y before Phase 19 marks the ADR Accepted**; implementation proceeds behind provisional names
   - Backward compatible: Y — old parsers never see cartridge state; no existing map/object changes
   - IANA impact: New registrations requested (namespace, topics); none modified
-- [ ] **Step 243** [W] ~10m: RFC Editor request note `docs/protocol/RFC-EDITOR-REQUESTS-S5.md` listing (a)–(c) + KF10 + the ADR-067 CSR amendment (Step 72)
-- [ ] **Step 244** [SECURITY][DESIGN] ~20m: Threat model section in the ADR: cartridge = untrusted code from the interpreter's view → bounded loop, windowed memory, allowlisted opcodes/syscalls, signed images, per-slot fault breaker, no payload access, no helper calls from MBC; host tools refuse unsigned cartridges outside `--lab`
-- [ ] **Step 245** [COMPLIANCE] ~10m: Dependency plan: no new crates/modules expected (aya, cilium/ebpf, pkg/gungnir, wotan-client already present). Any later addition goes through the Barrister review + `scripts/check-*` dependency gates (ADR-096)
-- [ ] **Step 246** [V] ~1m: ADR draft covers D-C1…D-C5, ABI, gates, threat model; RFC request note lists every registry touch
-- [ ] **Step 247** [W][DOC-UPDATE] ~10m: `docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md` Track 1: new Epic 1.5 "Cartridges (third ADR-080 client)" pointing at this plan
-- [ ] **Step 248** [C] ~1m: **COMMIT CHECKPOINT**
+- [x] **Step 243** [W] ~10m: RFC Editor request note `docs/protocol/RFC-EDITOR-REQUESTS-S5.md` listing (a)–(c) + KF10 + the ADR-067 CSR amendment (Step 72)
+  - S5 2026-10-23: `docs/protocol/RFC-EDITOR-REQUESTS-S5.md`: items 1-3 (namespace, sub-kind, topics) + 4 (ADR-067 CSR range) + 5 (KF10), with draft text, none self-approved.
+- [x] **Step 244** [SECURITY][DESIGN] ~20m: Threat model section in the ADR: cartridge = untrusted code from the interpreter's view → bounded loop, windowed memory, allowlisted opcodes/syscalls, signed images, per-slot fault breaker, no payload access, no helper calls from MBC; host tools refuse unsigned cartridges outside `--lab`
+- [x] **Step 245** [COMPLIANCE] ~10m: Dependency plan: no new crates/modules expected (aya, cilium/ebpf, pkg/gungnir, wotan-client already present). Any later addition goes through the Barrister review + `scripts/check-*` dependency gates (ADR-096)
+  - S5 2026-10-23: No new crates/modules planned. aya-ebpf, cilium/ebpf, pkg/gungnir, and `sha2` for the host image hash (already a dependency of `cmd/upc-bootctl`, same version) only.
+- [x] **Step 246** [V] ~1m: ADR draft covers D-C1…D-C5, ABI, gates, threat model; RFC request note lists every registry touch
+- [x] **Step 247** [W][DOC-UPDATE] ~10m: `docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md` Track 1: new Epic 1.5 "Cartridges (third ADR-080 client)" pointing at this plan
+  - S5 2026-10-23: Epic 1.5 added to Track 1 of the master plan.
+- [x] **Step 248** [C] ~1m: **COMMIT CHECKPOINT**
   ```bash
   git -C "$PROJECT_ROOT" add docs/adr docs/protocol/RFC-EDITOR-REQUESTS-S5.md docs/battle-plans/UPC-LINUX-MASTER-BATTLE-PLAN.md && commitp -m "docs(adr): [S5 229-248] MBC cartridges (Proposed) + RFC Editor requests"
   ```
-- [ ] **Step 249** [V] ~1m: Marshal scope check: Part 2 builds exactly three cartridges + replay + Lich hooks (+ stretch); anything else → parking lot in the sprint log
-- [ ] **Step 250** [V][GATE] ~1m: **PHASE 9 EXIT GATE** — ADR Proposed and committed; spec gate recorded with RFC Editor requests open; H-C1/H-C2 known
+- [x] **Step 249** [V] ~1m: Marshal scope check: Part 2 builds exactly three cartridges + replay + Lich hooks (+ stretch); anything else → parking lot in the sprint log
+  - S5 2026-10-23: Marshal: Part 2 = three cartridges + replay + Lich hooks (+ stretch). This session's scope is Phases 9-12; 13-19 are not started.
+- [x] **Step 250** [V][GATE] ~1m: **PHASE 9 EXIT GATE** — ADR Proposed and committed; spec gate recorded with RFC Editor requests open; H-C1/H-C2 known
+  - S5 2026-10-23: PASSED.
 
 ### Phase 9 Definition of Done
 Decisions recorded with overrides · spec gate run · threat model written · no code · no new deps.

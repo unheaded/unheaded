@@ -198,3 +198,23 @@ depends on them. East was not contacted.
   verified, nothing new. `go test -race` + `go vet` (linux, darwin) green, gosec clean,
   `go.mod` unchanged. golangci-lint panics on this tree (known version trap), not run.
 - Commits: `b6f5ec8a` (BPF), `930b1ddc` (daemon).
+
+## Phase 9 — cartridge ADR + spec gate (2026-10-23)
+
+- Marshal entry ruling: Part 1 exit (Step 228) is not passed because Phases 6–8 are
+  deferred; the lead session authorised Part 2 on the Phases 0–5 evidence, and Step 228
+  itself says east-only items do not block Part 2.
+- D-C1…D-C5 taken as recommended. ADR-106 (Proposed) carries the Cartridge ABI v0, grounded
+  in the shipping engine's semantics (24-bit branch offsets from pc+1, MOVI zero-extend,
+  `set_flags` rules). Additions to the forged C.3: `loop_bound` (taken back-edges per tick
+  job) so every job is provably bounded; tick per-call budget-out = implicit YIELD;
+  misaligned `LD`/`ST` and stores to DATA fault; header sha256 covers header[0..20) + ROM +
+  DATA.
+- **H-C1 TRUE** (`services/anomaly` has no importer). **H-C2 TRUE** via cilium/ebpf
+  `Program.Benchmark` (`ret=2 per-run=24ns`, 100,000 repeats on the heimdall XDP object);
+  bpftool cannot load Aya objects, so all S5 benchmarks run through `pkg/cartridge`.
+- RFC Editor requests: `docs/protocol/RFC-EDITOR-REQUESTS-S5.md` (Sophia root key, the
+  EVENT_COMPUTED sub-kind, Wotan topics, ADR-067 CSR range, KF10). Draft text only; none
+  self-approved.
+- ADR-106 number: free on every local sprint branch at forge time; a parallel branch could
+  still claim it before merge.
