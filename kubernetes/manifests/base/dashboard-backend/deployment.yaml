@@ -47,7 +47,9 @@ spec:
           # args, not command: `command` replaces the image ENTRYPOINT, so these
           # flags became the program name (exec "--listen": not found), and the
           # ENTRYPOINT's own `--viz-dir /app/viz` was dropped. args appends.
-          args: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001", "--ws-allowed-origins", "*"]
+          # No --ws-allowed-origins: the list is exact-match, so "*" allowed no
+          # browser origin at all; unset, the WS server checks same-origin.
+          args: ["--listen", ":20000", "--wotan", "wotan:18000", "--wotan-grpc-addr", "wotan:18001"]
           ports:
             - { name: http, containerPort: 20000 }
           envFrom:

@@ -49,6 +49,10 @@ spec:
             - configMapRef: { name: unheaded-shared }
           env:
             - { name: PORT, value: "19000" }
+            # The default is ./data/timeguru.db under WORKDIR /app, which the
+            # read-only root cannot create: storage init is fatal. /data is
+            # the mounted volume, as in docker-compose.
+            - { name: DB_PATH, value: "/data/timeguru.db" }
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
