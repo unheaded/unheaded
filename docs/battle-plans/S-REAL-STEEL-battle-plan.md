@@ -644,8 +644,10 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Done 2026-10-23: green, race-clean; lint 0; gosec clean.
 - [x] **Step 105** [W] ~5m: ADR-064: under its phase list, one line: "Snapshot transfer: RPC answers Unimplemented since S-REAL-STEEL (was an empty Final chunk); implementing it is a Phase 1 prerequisite."
 - [x] **Step 106** [C] ~2m: **COMMIT CHECKPOINT**: `fix(wotan): TransferSnapshot answers Unimplemented instead of an empty final snapshot`.
-- [ ] **Step 107** [V] ~1m: **PHASE 3 EXIT GATE**: test green; ADR-064 line present (`grep -n 'Unimplemented since S-REAL-STEEL' docs/adr/ADR-064-*.md`).
-- [ ] **Step 108** [AUDIT-UPDATE] ~2m: next.md Wotan open list: mark the snapshot TODO as "answered honestly, implementation waits on ADR-064".
+- [x] **Step 107** [V] ~1m: **PHASE 3 EXIT GATE**: test green; ADR-064 line present (`grep -n 'Unimplemented since S-REAL-STEEL' docs/adr/ADR-064-*.md`).
+  - Done 2026-10-23: PASS (tests green; ADR-064 line at :259).
+- [x] **Step 108** [AUDIT-UPDATE] ~2m: next.md Wotan open list: mark the snapshot TODO as "answered honestly, implementation waits on ADR-064".
+  - Done 2026-10-23: next.md had no snapshot line in its Wotan list; added one under the S-REAL-STEEL Phase 2 follow-ons.
 
 **DoD (Phase 3)**: DoD-STD.
 
