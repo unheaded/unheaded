@@ -117,8 +117,16 @@ func main() {
 		err = cmdPump(g, args[1:])
 	case "serve":
 		err = cmdServe(g, args[1:])
+	case "record":
+		err = cmdRecord(g, args[1:])
+	case "replay":
+		err = cmdReplay(g, args[1:])
 	default:
 		err = fmt.Errorf("unknown command %q", args[0])
+	}
+	var ee *exitError
+	if errors.As(err, &ee) {
+		os.Exit(ee.code) // cart replay already reported
 	}
 	if err != nil {
 		fatal("%s: %v", args[0], err)

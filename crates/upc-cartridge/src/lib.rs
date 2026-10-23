@@ -20,6 +20,7 @@ use monad_common::{mbc_opcodes as op, MbcInsn};
 use sha2::{Digest, Sha256};
 
 pub mod reference;
+pub mod replay;
 pub mod scorer;
 
 /// The cartridge syscall surface (ADR-080 §2.4 descriptor, ADR-108 ABI v0).

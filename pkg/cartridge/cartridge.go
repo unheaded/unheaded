@@ -58,6 +58,7 @@ const (
 	StatTickIdle     = 36
 	StatBreakerTrips = 37
 	StatTickStale    = 38
+	StatTraceDropped = 39
 	StatCount        = 40
 )
 
@@ -361,6 +362,50 @@ func DecodeTickJob(b []byte) (TickJob, error) {
 		return TickJob{}, err
 	}
 	return TickJob{Active: le.Uint32(b[0:]), Slot: le.Uint32(b[4:]), Gen: le.Uint32(b[8:]), Job: j, State: st}, nil
+}
+
+// Anamnesis trace (S5 Phase 16): CART_TRACE records are EVENT_COMPUTED (0x01)
+// with the cartridge sub-kind 0x43: a 464-byte head, 32-byte steps and ends
+// (monad_common::cart::{TraceHead, TraceStep, TraceEnd}).
+const (
+	TraceEventComputed = 0x01
+	TraceSubkind       = 0x43
+	TraceHeadSize      = 464
+	TraceStepSize      = 32
+	traceVersion       = 1
+)
+
+// IsTraceRecord reports whether b is a cartridge trace record.
+func IsTraceRecord(b []byte) bool {
+	return (len(b) == TraceHeadSize || len(b) == TraceStepSize) && b[0] == TraceEventComputed && b[1] == TraceSubkind && b[2] <= 2
+}
+
+// TraceRecordSlot is the slot of a head record, or -1 for another record.
+func TraceRecordSlot(b []byte) int {
+	if len(b) == TraceHeadSize && IsTraceRecord(b) && b[2] == 0 {
+		return int(b[4])
+	}
+	return -1
+}
+
+// EncodeTrace builds a UCTR v1 trace file (the format `cart replay` reads):
+// "UCTR" | u32 version | sha256 of the .cart file per slot (zero = unknown)
+// | { u32 len | record }*. Records that are not cartridge trace records are
+// skipped.
+func EncodeTrace(slotSHA [Slots][32]byte, records [][]byte) []byte {
+	b := []byte("UCTR")
+	b = binary.LittleEndian.AppendUint32(b, traceVersion)
+	for _, s := range slotSHA {
+		b = append(b, s[:]...)
+	}
+	for _, r := range records {
+		if !IsTraceRecord(r) {
+			continue
+		}
+		b = binary.LittleEndian.AppendUint32(b, uint32(len(r))) // #nosec G115 -- 32 or 464
+		b = append(b, r...)
+	}
+	return b
 }
 
 // slotWriter is the map surface writeSlot needs (fakes in tests).

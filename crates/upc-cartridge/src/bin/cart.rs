@@ -8,6 +8,8 @@
 //! cart info X.cart|-
 //! cart run X.cart --inputs LOG   # reference run of an XDP-stage input log
 //! cart tick X.cart --jobs LOG    # reference run of tick-stage jobs (label f0..f7 per line)
+//! cart replay X.cart TRACE [--slot S] [--run K] [--to N] [--watch rN|mem[A]] [--steps]
+//!                                # Anamnesis replay of recorded runs (exit 3 on divergence)
 //! ```
 //!
 //! `run` input log: one packet per line, `flow now_ns f0 .. f12` (decimal;
@@ -28,7 +30,7 @@ const MAX_INPUT: u64 = 1 << 20; // a .cart is at most 52 + 8 KiB; refuse anythin
 
 fn usage() -> ExitCode {
     eprintln!(
-        "usage:\n  cart build --stage xdp|tick --asm X.s [--data W.bin] [--max-insn N] [--loop-bound N] [--entry N] [--fail-closed] -o X.cart\n  cart validate X.cart|-\n  cart info X.cart|-\n  cart run X.cart --inputs LOG\n  cart tick X.cart --jobs LOG"
+        "usage:\n  cart build --stage xdp|tick --asm X.s [--data W.bin] [--max-insn N] [--loop-bound N] [--entry N] [--fail-closed] -o X.cart\n  cart validate X.cart|-\n  cart info X.cart|-\n  cart run X.cart --inputs LOG\n  cart tick X.cart --jobs LOG\n  cart replay X.cart TRACE [--slot S] [--run K] [--to N] [--watch rN|mem[A]] [--steps]"
     );
     ExitCode::from(2)
 }
@@ -295,8 +297,182 @@ fn tick_log(img_path: &str, log_path: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// What `--watch` follows.
+enum Watch {
+    Reg(usize),
+    Mem(usize),
+}
+
+fn parse_watch(s: &str) -> Result<Watch, String> {
+    if let Some(r) = s.strip_prefix('r') {
+        let n: usize = r
+            .parse()
+            .map_err(|_| format!("--watch {s}: want rN or mem[ADDR]"))?;
+        if n < 16 {
+            return Ok(Watch::Reg(n));
+        }
+    }
+    if let Some(a) = s.strip_prefix("mem[").and_then(|x| x.strip_suffix(']')) {
+        let addr = if let Some(h) = a.strip_prefix("0x") {
+            usize::from_str_radix(h, 16)
+        } else {
+            a.parse()
+        }
+        .map_err(|_| format!("--watch {s}: bad address"))?;
+        if addr < 0x100 && addr % 4 == 0 {
+            return Ok(Watch::Mem(addr / 4));
+        }
+    }
+    Err(format!(
+        "--watch {s}: want r0..r15 or mem[ADDR] (ADDR < 0x100, 4-aligned)"
+    ))
+}
+
+/// Anamnesis replay (S5 Phase 16): re-execute recorded runs of the slot that
+/// ran `img_path` and check every state hash.
+///
+/// `cart replay X.cart TRACE [--slot S] [--run K] [--to N] [--watch rN|mem[A]] [--steps]`
+/// Exit status: 0 every complete run bit-exact, 3 a divergence, 1/2 errors.
+fn replay_cmd(args: &[String]) -> Result<bool, String> {
+    use sha2::{Digest, Sha256};
+    use upc_cartridge::replay::{disasm, replay, Trace};
+    let (img_path, trace_path) = match args {
+        [a, b, ..] => (a.as_str(), b.as_str()),
+        _ => return Err("replay needs X.cart and a trace".into()),
+    };
+    let (mut slot, mut only, mut to, mut watch, mut steps) = (None, None, None, None, false);
+    let mut it = args[2..].iter();
+    while let Some(a) = it.next() {
+        let mut val = || it.next().ok_or_else(|| format!("{a} needs a value"));
+        match a.as_str() {
+            "--slot" => slot = Some(parse_u16(Some(val()?), "--slot")? as u8),
+            "--run" => only = Some(parse_u16(Some(val()?), "--run")? as usize),
+            "--to" => to = Some(parse_u16(Some(val()?), "--to")? as usize),
+            "--watch" => watch = Some(parse_watch(val()?)?),
+            "--steps" => steps = true,
+            other => return Err(format!("unknown argument {other:?}")),
+        }
+    }
+    let raw = read_input(img_path)?;
+    let img = Image::decode(&raw).map_err(|e| format!("{img_path}: {e}"))?;
+    validate(&img).map_err(|e| format!("{img_path}: {e}"))?;
+    let file_sha: [u8; 32] = Sha256::digest(&raw).into();
+    let trace = {
+        let f = std::fs::File::open(trace_path).map_err(|e| format!("{trace_path}: {e}"))?;
+        let mut b = Vec::new();
+        std::io::Read::take(f, upc_cartridge::replay::MAX_TRACE as u64 + 1)
+            .read_to_end(&mut b)
+            .map_err(|e| format!("{trace_path}: {e}"))?;
+        Trace::parse(&b).map_err(|e| format!("{trace_path}: {e}"))?
+    };
+    let slot =
+        match slot {
+            Some(s) if (s as usize) < 4 => s,
+            Some(s) => return Err(format!("--slot {s} outside 0..3")),
+            None => trace.slot_sha.iter().position(|s| *s == file_sha).ok_or(
+                "this image is not the one any slot ran in the trace (use --slot to force)",
+            )? as u8,
+        };
+    let rec_sha = trace.slot_sha[slot as usize];
+    if rec_sha != [0u8; 32] && rec_sha != file_sha {
+        eprintln!(
+            "cart: warning: slot {slot} recorded image sha256 {} differs from {img_path}",
+            hex(&rec_sha)
+        );
+    }
+    let mut o = std::io::stdout().lock();
+    let (mut exact, mut diverged, mut incomplete) = (0, 0, 0);
+    let runs: Vec<_> = trace.runs.iter().filter(|r| r.head.slot == slot).collect();
+    for (k, run) in runs.iter().enumerate() {
+        if only.is_some_and(|n| n != k) {
+            continue;
+        }
+        let mut r = replay(&img, run);
+        let stage = if run.head.stage == STAGE_XDP {
+            "xdp"
+        } else {
+            "tick"
+        };
+        let verdict = if run.end.is_none() {
+            incomplete += 1;
+            "INCOMPLETE (records dropped)".to_string()
+        } else {
+            match &r.divergence {
+                None => {
+                    exact += 1;
+                    "BIT-EXACT".to_string()
+                }
+                Some(d) => {
+                    diverged += 1;
+                    format!(
+                        "DIVERGED at step {} ({}): recorded {:#010x}, replayed {:#010x}",
+                        d.idx, d.what, d.recorded, d.replayed
+                    )
+                }
+            }
+        };
+        let _ = writeln!(
+            o,
+            "run {k} id={:#x} stage={stage} slot={} gen={} steps={} outcome={:?} emits={:?} {verdict}",
+            run.head.run_id,
+            run.head.slot,
+            run.head.gen,
+            r.len(),
+            r.outcome,
+            r.emits
+        );
+        if steps {
+            for (i, s) in r.steps.iter().enumerate() {
+                let _ = writeln!(
+                    o,
+                    "  {i:>4} pc {:>3} {:<28} -> {:?} hash {:08x}",
+                    s.pc,
+                    disasm(s.insn, s.pc),
+                    monad_common::cart::code_step(s.code),
+                    s.hash
+                );
+            }
+        }
+        if let Some(w) = &watch {
+            let mut last = None;
+            for i in 0..=r.len() {
+                r.goto(i);
+                let (name, v) = match w {
+                    Watch::Reg(n) => (format!("r{n}"), r.regs()[*n]),
+                    Watch::Mem(n) => (format!("mem[{:#04x}]", n * 4), r.mem()[*n]),
+                };
+                if last != Some(v) {
+                    let _ = writeln!(o, "  @{i:<4} {name} = {v:#x} ({v})");
+                    last = Some(v);
+                }
+            }
+        }
+        if let Some(n) = to {
+            r.goto(n);
+            let _ = writeln!(o, "{}", r.inspect());
+        }
+    }
+    let _ = writeln!(
+        o,
+        "replayed {} runs of slot {slot}: {exact} bit-exact, {diverged} diverged, {incomplete} incomplete ({} orphan records)",
+        exact + diverged + incomplete,
+        trace.orphans
+    );
+    Ok(diverged == 0)
+}
+
 fn main() -> ExitCode {
     let args: Vec<String> = std::env::args().skip(1).collect();
+    if args.first().map(String::as_str) == Some("replay") {
+        return match replay_cmd(&args[1..]) {
+            Ok(true) => ExitCode::SUCCESS,
+            Ok(false) => ExitCode::from(3),
+            Err(e) => {
+                eprintln!("cart: {e}");
+                ExitCode::from(1)
+            }
+        };
+    }
     let res = match args.first().map(String::as_str) {
         Some("build") => build(&args[1..]),
         Some("validate") if args.len() == 2 => check(&args[1], false),

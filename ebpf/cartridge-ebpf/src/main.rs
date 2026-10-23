@@ -37,10 +37,10 @@ use aya_ebpf::{
     programs::XdpContext,
 };
 use monad_common::cart::{
-    begin_job, begin_run, cfgkey, field, iat_bucket, run_one, run_out, stat, status, verdict,
-    CartCfg, CartData, CartEvent, CartIo, CartRom, CartState, FlowKey, FlowMeta, ScoreJob, SlotCfg,
-    Step, BREAKER_LIMIT, FEAT_WORDS, FIELD_COUNT, MEM_WORDS, META_SLOT, N_PKT, N_TICK, SLOTS,
-    STAGE_TICK, STAGE_XDP,
+    begin_job, begin_run, cfgkey, code_step, field, iat_bucket, run_one, run_out, stat, state_hash,
+    status, step_code, trace, verdict, CartCfg, CartData, CartEvent, CartIo, CartRom, CartState,
+    FlowKey, FlowMeta, ScoreJob, SlotCfg, Step, TraceEnd, TraceHead, TraceStep, BREAKER_LIMIT,
+    FEAT_WORDS, FIELD_COUNT, MEM_WORDS, META_SLOT, N_PKT, N_TICK, SLOTS, STAGE_TICK, STAGE_XDP,
 };
 
 const SLOT_WORDS: u32 = 1024;
@@ -81,6 +81,15 @@ static CART_CFG: Array<u64> = Array::with_max_entries(cfgkey::COUNT, 0);
 /// Fault breaker windows, one per slot.
 #[map]
 static BREAKER: Array<Breaker> = Array::with_max_entries(SLOTS as u32, 0);
+/// Anamnesis trace records of sampled runs (CART_CFG[TRACE] = 1 in N; off by default).
+#[map]
+static CART_TRACE: RingBuf = RingBuf::with_byte_size(1024 * 1024, 0);
+/// Per-CPU scratch for cart_xdp's per-packet inputs (keeps them off the stack).
+#[map]
+static SLOT_ARGS: PerCpuArray<SlotArgs> = PerCpuArray::with_max_entries(1, 0);
+/// Per-CPU run counter for the trace sampling decision.
+#[map]
+static TRACE_SEQ: PerCpuArray<u64> = PerCpuArray::with_max_entries(1, 0);
 /// An all-zero CartState: the insert source for a new flow. Never written.
 #[map]
 static ZERO_STATE: Array<CartState> = Array::with_max_entries(1, 0);
@@ -285,37 +294,149 @@ struct LoopCtx<'a> {
     /// not the `Step` enum: storing an enum writes its payload byte even for
     /// unit variants, and that byte is uninitialised (verifier: "!read_ok").
     result: u32,
+    /// Non-zero: this run is traced into CART_TRACE under this id.
+    run_id: u64,
 }
 
+// ── Anamnesis trace (S5 Phase 16) ───────────────────────────────────────────
+//
+// CART_CFG[TRACE] = N traces one run in N (per CPU); 0 (the default) is off
+// and costs one map lookup per run. A traced run writes a TraceHead (state +
+// FIELD table + clock: every input), one TraceStep per executed instruction
+// and a TraceEnd. A full ring drops records and counts them; replay then
+// reports the run incomplete instead of guessing.
+
+/// Decide whether this run is traced; its run id, or 0.
 #[inline(always)]
-fn step_code(s: Step) -> u32 {
-    match s {
-        Step::Continue => 0,
-        Step::Verdict(v) => 0x100 | v as u32,
-        Step::Yield => 0x200,
-        Step::Halt => 0x300,
-        Step::Fault(k) => 0x400 | k as u32,
+fn trace_decide() -> u64 {
+    let every = match CART_CFG.get(cfgkey::TRACE) {
+        Some(&n) if n != 0 => n,
+        _ => return 0,
+    };
+    let seq = match TRACE_SEQ.get_ptr_mut(0) {
+        Some(p) => p,
+        None => return 0,
+    };
+    unsafe {
+        *seq += 1;
+        if *seq % every != 0 {
+            return 0;
+        }
+        let cpu = aya_ebpf::helpers::bpf_get_smp_processor_id() as u64;
+        (bpf_ktime_get_ns() ^ (cpu << 56)) | 1
     }
 }
 
 #[inline(always)]
-fn code_step(c: u32) -> Step {
-    use monad_common::cart::FaultKind as F;
-    match c >> 8 {
-        1 => Step::Verdict(c as u8),
-        2 => Step::Yield,
-        3 => Step::Halt,
-        4 => Step::Fault(match c & 0xFF {
-            1 => F::BadOpcode,
-            2 => F::Mem,
-            3 => F::Pc,
-            4 => F::Syscall,
-            5 => F::Field,
-            6 => F::Verdict,
-            7 => F::Budget,
-            _ => F::LoopBound,
-        }),
-        _ => Step::Continue,
+fn trace_head(run_id: u64, gen: u32, io: &Io, st: &CartState) {
+    match CART_TRACE.reserve::<TraceHead>(0) {
+        Some(mut e) => {
+            let p = e.as_mut_ptr();
+            unsafe {
+                (*p).event = trace::EVENT_COMPUTED;
+                (*p).subkind = trace::SUBKIND;
+                (*p).rec = trace::REC_HEAD;
+                (*p).stage = io.stage;
+                // slot (byte 4) and rsv (5..8) as one word: three zero byte
+                // stores lower to a memset call, rejected under --btf.
+                core::ptr::write_volatile((p as *mut u8).add(4) as *mut u32, io.slot as u32);
+                (*p).gen = gen;
+                (*p).rsv2 = 0;
+                (*p).run_id = run_id;
+                (*p).now = io.now;
+                copy_into(&mut (*p).flow, io.flow);
+                let mut i = 0;
+                while i < FIELD_COUNT as usize {
+                    // Volatile: the tick stage's all-zero fields would
+                    // otherwise become a memset call (rejected under --btf).
+                    let v = match io.fields {
+                        Some(f) => f[i],
+                        None => 0,
+                    };
+                    core::ptr::write_volatile(&mut (*p).fields[i], v);
+                    i += 1;
+                }
+                (*p).pad = 0;
+                copy_into(&mut (*p).state, st);
+            }
+            e.submit(0);
+        }
+        None => bump(stat::TRACE_DROPPED, 1),
+    }
+}
+
+/// `state_hash` as a GLOBAL BPF function: the verifier checks it once. Inlined
+/// at every trace site, its 80-word loop was re-verified per call site and
+/// path (cart_tick reached 328,144 processed insns).
+#[no_mangle]
+#[inline(never)]
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // null-checked; the kernel checks the BTF size
+pub extern "C" fn cart_state_hash(st: *const CartState) -> u32 {
+    if st.is_null() {
+        return 0;
+    }
+    state_hash(unsafe { &*st })
+}
+
+/// One TraceStep, as a GLOBAL BPF function (verified once; out of the
+/// callback, which keeps the cart_xdp -> cart_run_xdp_slot -> callback stack
+/// chain under 512 bytes). Five arguments at most: `idx_pc` = idx << 32 | pc.
+#[no_mangle]
+#[inline(never)]
+#[allow(clippy::not_unsafe_ptr_arg_deref)] // null-checked; the kernel checks the BTF size
+pub extern "C" fn cart_trace_step(
+    st: *const CartState,
+    run_id: u64,
+    idx_pc: u64,
+    insn: u32,
+    code: u32,
+) -> u32 {
+    if st.is_null() {
+        return 0;
+    }
+    let hash = cart_state_hash(st);
+    match CART_TRACE.reserve::<TraceStep>(0) {
+        Some(mut e) => {
+            let p = e.as_mut_ptr();
+            unsafe {
+                (*p).event = trace::EVENT_COMPUTED;
+                (*p).subkind = trace::SUBKIND;
+                (*p).rec = trace::REC_STEP;
+                (*p).rsv = 0;
+                (*p).idx = (idx_pc >> 32) as u32;
+                (*p).run_id = run_id;
+                (*p).pc = idx_pc as u32;
+                (*p).insn = insn;
+                (*p).code = code;
+                (*p).hash = hash;
+            }
+            e.submit(0);
+        }
+        None => bump(stat::TRACE_DROPPED, 1),
+    }
+    0
+}
+
+#[inline(always)]
+fn trace_end(run_id: u64, st: &CartState, r: Step) {
+    let hash = cart_state_hash(st as *const CartState);
+    match CART_TRACE.reserve::<TraceEnd>(0) {
+        Some(mut e) => {
+            let p = e.as_mut_ptr();
+            unsafe {
+                (*p).event = trace::EVENT_COMPUTED;
+                (*p).subkind = trace::SUBKIND;
+                (*p).rec = trace::REC_END;
+                (*p).rsv = 0;
+                (*p).insns = st.insns;
+                (*p).run_id = run_id;
+                (*p).code = step_code(r);
+                (*p).hash = hash;
+                (*p).rsv2 = 0;
+            }
+            e.submit(0);
+        }
+        None => bump(stat::TRACE_DROPPED, 1),
     }
 }
 
@@ -334,7 +455,20 @@ extern "C" fn cart_loop_cb(_index: u64, ctx: *mut core::ffi::c_void) -> i64 {
     let st = unsafe { &mut *c.st };
     let mut k = 0;
     while k < STEPS_PER_CB {
-        match run_one(st, &c.cfg, &c.rom, &c.data, &mut c.io) {
+        let before = st.insns;
+        let pc = st.pc as u32;
+        let r = run_one(st, &c.cfg, &c.rom, &c.data, &mut c.io);
+        if c.run_id != 0 && st.insns != before {
+            let insn = c.rom.word(pc).unwrap_or(0);
+            cart_trace_step(
+                c.st,
+                c.run_id,
+                ((before as u64) << 32) | pc as u64,
+                insn,
+                step_code(r),
+            );
+        }
+        match r {
             Step::Continue => {}
             done => {
                 c.result = step_code(done);
@@ -346,10 +480,40 @@ extern "C" fn cart_loop_cb(_index: u64, ctx: *mut core::ffi::c_void) -> i64 {
     0
 }
 
-/// Run a slot for at most `n` instructions (`N_PKT` or `N_TICK`).
+/// Run a slot for at most `n` instructions (`N_PKT` or `N_TICK`); `run_id`
+/// non-zero traces the run.
 #[inline(always)]
-fn drive(st: &mut CartState, cfg: &CartCfg, rom: SlotRom, data: SlotData, io: Io, n: u32) -> Step {
+fn drive(
+    st: &mut CartState,
+    cfg: &CartCfg,
+    rom: SlotRom,
+    data: SlotData,
+    io: Io,
+    n: u32,
+    gen: u32,
+    run_id: u64,
+) -> Step {
     st.insns = 0;
+    if run_id != 0 {
+        trace_head(run_id, gen, &io, st);
+    }
+    let r = drive_loop(st, cfg, rom, data, io, n, run_id);
+    if run_id != 0 {
+        trace_end(run_id, st, r);
+    }
+    r
+}
+
+#[inline(always)]
+fn drive_loop(
+    st: &mut CartState,
+    cfg: &CartCfg,
+    rom: SlotRom,
+    data: SlotData,
+    io: Io,
+    n: u32,
+    run_id: u64,
+) -> Step {
     let mut c = LoopCtx {
         st: st as *mut CartState,
         cfg: *cfg,
@@ -357,6 +521,7 @@ fn drive(st: &mut CartState, cfg: &CartCfg, rom: SlotRom, data: SlotData, io: Io
         data,
         io,
         result: 0,
+        run_id,
     };
     let rc = unsafe {
         aya_ebpf::helpers::gen::bpf_loop(
@@ -544,9 +709,15 @@ fn flow_state(key: &FlowKey, gen: u32) -> Option<*mut CartState> {
 #[xdp]
 pub fn cart_xdp(ctx: XdpContext) -> u32 {
     bump(stat::XDP_PACKETS, 1);
-    let mut args_m = core::mem::MaybeUninit::<SlotArgs>::uninit();
-    zero_at(args_m.as_mut_ptr());
-    let args = unsafe { &mut *args_m.as_mut_ptr() };
+    // Per-CPU scratch, not the stack: cart_xdp -> cart_run_xdp_slot ->
+    // bpf_loop callback -> trace_step must fit 512 bytes of combined stack
+    // (S5 Phase 16 added the trace frame).
+    let argp = match SLOT_ARGS.get_ptr_mut(0) {
+        Some(p) => p,
+        None => return xdp_action::XDP_PASS,
+    };
+    zero_at(argp);
+    let args = unsafe { &mut *argp };
     let key = &mut args.key;
     let f = &mut args.f;
     if !parse(&ctx, key, f) {
@@ -636,7 +807,16 @@ fn run_xdp_slot(slot: u32, key: &mut FlowKey, f: &[u32; FIELD_COUNT as usize], n
         stage: STAGE_XDP,
     };
     begin_run(st, sc.entry);
-    let r = drive(st, &cfg, rom, data, io, N_PKT as u32);
+    let r = drive(
+        st,
+        &cfg,
+        rom,
+        data,
+        io,
+        N_PKT as u32,
+        sc.gen,
+        trace_decide(),
+    );
     let base = slot * 8;
     bump(base + stat::RUNS, 1);
     bump(base + stat::INSNS, st.insns as u64);
@@ -718,7 +898,16 @@ pub fn cart_tick(_ctx: XdpContext) -> u32 {
         slot: slot as u8,
         stage: STAGE_TICK,
     };
-    let r = drive(&mut tj.state, &cfg, rom, data, io, N_TICK as u32);
+    let r = drive(
+        &mut tj.state,
+        &cfg,
+        rom,
+        data,
+        io,
+        N_TICK as u32,
+        tj.gen,
+        trace_decide(),
+    );
     let base = slot * 8;
     bump(base + stat::RUNS, 1);
     bump(base + stat::INSNS, tj.state.insns as u64);

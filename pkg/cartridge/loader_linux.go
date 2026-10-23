@@ -94,7 +94,7 @@ func Load(objPath string, opts Options) (*Cart, error) {
 
 // Map and program names in the object (and under a pin directory).
 var (
-	MapNames     = []string{"CART_ROM", "CART_DATA", "CART_SLOT", "FLOW_STATE", "FLOW_META", "SCORE_QUEUE", "TICK_JOB", "CART_EVENTS", "CART_STATS", "CART_CFG", "BREAKER", "ZERO_STATE"}
+	MapNames     = []string{"CART_ROM", "CART_DATA", "CART_SLOT", "FLOW_STATE", "FLOW_META", "SCORE_QUEUE", "TICK_JOB", "CART_EVENTS", "CART_STATS", "CART_CFG", "BREAKER", "ZERO_STATE", "CART_TRACE", "TRACE_SEQ"}
 	ProgramNames = []string{"cart_xdp", "cart_tick"}
 )
 
@@ -269,6 +269,25 @@ func (c *Cart) Stats() ([StatCount]uint64, error) {
 func (c *Cart) QueueNonEmpty() bool {
 	var b []byte
 	return c.m("SCORE_QUEUE").Lookup(nil, &b) == nil
+}
+
+// Trace opens a reader on CART_TRACE (records of traced runs).
+func (c *Cart) Trace() (*ringbuf.Reader, error) { return ringbuf.NewReader(c.m("CART_TRACE")) }
+
+// DrainTrace reads every record currently in CART_TRACE (non-blocking).
+func (c *Cart) DrainTrace(rd *ringbuf.Reader) ([][]byte, error) {
+	var out [][]byte
+	rd.SetDeadline(time.Now().Add(20 * time.Millisecond))
+	for {
+		rec, err := rd.Read()
+		if err != nil {
+			if errors.Is(err, os.ErrDeadlineExceeded) {
+				return out, nil
+			}
+			return out, err
+		}
+		out = append(out, append([]byte(nil), rec.RawSample...))
+	}
 }
 
 // PopJob removes the oldest SCORE_QUEUE entry (ok = false when empty).
