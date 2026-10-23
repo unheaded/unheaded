@@ -166,10 +166,11 @@ func (l *Limits) applyDefaults() {
 	if l.PidsMax <= 0 {
 		l.PidsMax = DefaultPidsMax
 	}
-	if l.WallSeconds <= 0 {
-		l.WallTimeout = DefaultWallTimeout
-	} else {
+	if l.WallSeconds > 0 {
 		l.WallTimeout = time.Duration(l.WallSeconds) * time.Second
+	}
+	if l.WallTimeout <= 0 {
+		l.WallTimeout = DefaultWallTimeout
 	}
 }
 
