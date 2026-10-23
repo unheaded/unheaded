@@ -118,7 +118,7 @@ HEALTH_ENDPOINTS=(
     "sophia:19005"
     "dashboard-backend:20000"
     "kanban-app:20001"
-    "protocol-api:16666"
+    "protocol-api:17100"
 )
 
 # ── Phase 0: Silence alert mail during warm-up (ADR-100) ─────────────
@@ -295,9 +295,10 @@ echo ""
 if [[ "$START_EAST" == "true" ]]; then
     log_info "Starting EAST server services..."
     if [[ "$DRY_RUN" == "true" ]]; then
-        echo "  [dry-run] ssh govan@east 'sudo systemctl start kingdom-startup wotan unheaded-daemon'"
+        echo "  [dry-run] ssh govan@east 'sudo systemctl start kingdom-startup unheaded-wotan unheaded-unheaded-daemon'"
     else
-        ssh govan@east "sudo systemctl start kingdom-startup wotan unheaded-daemon" 2>/dev/null \
+        # .deb unit names: unheaded-<binary> (scripts/build-all-debs.sh)
+        ssh govan@east "sudo systemctl start kingdom-startup unheaded-wotan unheaded-unheaded-daemon" 2>/dev/null \
             && log_success "  EAST services started" \
             || log_warn "  EAST not reachable or services failed to start"
     fi

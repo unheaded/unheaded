@@ -22,7 +22,9 @@ echo "=== Resetting Unheaded Demo State ==="
 
 # 1. Reset Wotan topics (clear event counts)
 echo "1. Resetting Wotan topics..."
-curl -sf -X POST http://localhost:18000/reset-topics > /dev/null 2>&1 && echo "   Wotan topics reset" || echo "   Wotan not responding (skip)"
+# Wotan has no reset endpoint (services/wotan/cmd/wotan/main.go routes only
+# /health, /ready, /metrics and /api/v1/*); its buffers clear on restart.
+echo "   Wotan has no topic reset; restart it (or use --full) to clear topics"
 
 # 2. Clear BPF maps if they exist
 echo "2. Clearing BPF maps..."
@@ -43,7 +45,8 @@ fi
 # 4. Reset EAST if requested
 if [[ "$RESET_EAST" == "true" ]]; then
     echo "4. Resetting EAST services..."
-    ssh govan@east "sudo systemctl restart wotan unheaded-daemon timeguru dashboard-backend kanban-app" 2>/dev/null && echo "   EAST services restarted" || echo "   EAST not reachable"
+    # .deb unit names: unheaded-<binary> (scripts/build-all-debs.sh)
+    ssh govan@east "sudo systemctl restart unheaded-wotan unheaded-unheaded-daemon unheaded-timeguru unheaded-dashboard-backend unheaded-kanban-app" 2>/dev/null && echo "   EAST services restarted" || echo "   EAST not reachable"
 fi
 
 echo ""

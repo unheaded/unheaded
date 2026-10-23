@@ -78,11 +78,13 @@ fi
 # 7. Start EAST services (optional)
 if [[ "$START_EAST" == "true" ]]; then
     echo "7. Starting EAST services..."
-    ssh "$EAST_HOST" "sudo systemctl start wotan unheaded-daemon timeguru dashboard-backend kanban-app" 2>/dev/null || true
+    # East runs the .deb units, named after the package: unheaded-<binary>
+    # (scripts/build-all-debs.sh), e.g. unheaded-unheaded-daemon.service.
+    ssh "$EAST_HOST" "sudo systemctl start unheaded-wotan unheaded-unheaded-daemon unheaded-timeguru unheaded-dashboard-backend unheaded-kanban-app" 2>/dev/null || true
     sleep 3
 
     echo "   EAST service health:"
-    for svc in wotan unheaded-daemon timeguru dashboard-backend kanban-app; do
+    for svc in unheaded-wotan unheaded-unheaded-daemon unheaded-timeguru unheaded-dashboard-backend unheaded-kanban-app; do
         STATUS=$(ssh "$EAST_HOST" "systemctl is-active $svc" 2>/dev/null || echo "unknown")
         echo "   - $svc: $STATUS"
     done
@@ -116,5 +118,5 @@ fi
 
 echo ""
 echo "Dashboard: http://localhost:20000"
-echo "Wotan:     http://localhost:18000/stats"
+echo "Wotan:     http://localhost:18000/api/v1/topics"
 echo "Kanban:    http://localhost:20001"
