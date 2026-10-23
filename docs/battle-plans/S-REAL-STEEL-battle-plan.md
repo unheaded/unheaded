@@ -841,20 +841,26 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   ```
   - `statically linked`.
 - [ ] **Step 166** [C] ~2m: **COMMIT CHECKPOINT**: `feat(steel-echo): game-day workload with fault knobs and a client-side availability meter`.
-- [ ] **Step 167** [W] ~30m: `scripts/steel-echo-image.sh` (dry run unless `--apply`, the house pattern): for `v1 v2 v3` (error rate 0, latency 0) and `v4` (`STEEL_ERROR_RATE=0.3`): build the binary with its version, `lxc launch images:alpine/3.22 steel-build-<ver>` (project from D-15), `lxc file push`, write the OpenRC service and conf.d, `rc-update add steel-echo default`, `lxc stop`, `lxc publish steel-build-<ver> --alias steel-echo-<ver>`, `lxc delete steel-build-<ver>`. Refuses to run if any alias already exists unless `--replace`. Never touches an instance not named `steel-build-*`.
-- [ ] **Step 168** [B][V] ~3m: shellcheck clean; dry run prints the exact command list.
+- [x] **Step 167** [W] ~30m: `scripts/steel-echo-image.sh` (dry run unless `--apply`, the house pattern): for `v1 v2 v3` (error rate 0, latency 0) and `v4` (`STEEL_ERROR_RATE=0.3`): build the binary with its version, `lxc launch images:alpine/3.22 steel-build-<ver>` (project from D-15), `lxc file push`, write the OpenRC service and conf.d, `rc-update add steel-echo default`, `lxc stop`, `lxc publish steel-build-<ver> --alias steel-echo-<ver>`, `lxc delete steel-build-<ver>`. Refuses to run if any alias already exists unless `--replace`. Never touches an instance not named `steel-build-*`.
+  - Done 2026-10-23: scripts/steel-echo-image.sh has three modes: dry run (default, prints every command, no LXD contact at all, not even reads), --stage DIR (builds the four payloads locally: static binary, OpenRC service under supervise-daemon as user steel, conf.d knobs; no LXD contact), --apply (needs E2.4). --apply refuses on an existing alias without --replace and on any leftover steel-build-* instance; builder names are fixed to steel-build-v<n> and checked before use.
+- [x] **Step 168** [B][V] ~3m: shellcheck clean; dry run prints the exact command list.
+  - Done 2026-10-23: shellcheck clean; dry run prints the command list. Built locally (--stage) into the session scratch: v1..v4 statically linked; local smoke of the staged v4 on 127.0.0.1:28611 with the staged meter: /version = v4, 200 requests, 69 x 500 (34.5%, STEEL_ERROR_RATE=0.3), CSV one line per second. Nothing imported into LXD.
   ```bash
   shellcheck "$PROJECT_ROOT/scripts/steel-echo-image.sh" && "$PROJECT_ROOT/scripts/steel-echo-image.sh" | head -40
   ```
 - [ ] **Step 169** [C] ~2m: **COMMIT CHECKPOINT**: `feat(scripts): steel-echo LXD image builder (dry run by default)`.
 - [ ] **Step 170** [DECIDE] ~0m: **D-15 who imports images** (reads H16, Step 145). RECOMMENDATION: if the restricted Cuirass identity cannot import, govan builds in the `default` project (the `unheaded` project shares the default project's images: trust script step 1), with builder names prefixed `steel-build-` so pihole is never in scope. Rationale: keeps Cuirass's identity read/run-only for images. Override ONLY if H16 showed the project has its own image store (`features.images=true`): then build with `--project unheaded`.
+  - [DEFERRED: E2 window] D-15 reads H16 (Step 145, live). Recommendation stands (govan builds in project default, builders steel-build-*); the script defaults --project default and takes --project unheaded for the override.
 - [ ] **Step 171** [LIVE-RW][BARE-METAL] ~15m: (E2.4) `scripts/steel-echo-image.sh --apply 2>&1 | tee "$SCRATCH/images.txt"`.
+  - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
 - [ ] **Step 172** [V][LIVE-RO] ~2m: Four aliases, no builders left, pihole untouched.
+  - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
   ```bash
   lxc image list --format csv -c lf | grep steel-echo; lxc list --all-projects --format csv -c n | grep steel-build || echo "no builders"
   lxc list --project default --format csv -c ns | grep pihole
   ```
 - [ ] **Step 173** [LIVE-RW] ~5m: Window open (stack + override, Phase 5 Step 143 command). Desire one instance through Cuirass with health, proxy and the chaos label.
+  - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
   ```bash
   curl -fsS -X PUT -H "Authorization: Bearer $CUIRASS_API_KEY" -H 'Content-Type: application/json' "$CUIRASS/api/v1/containers/steel-echo-v1-0" -d '{
     "id":"steel-echo-v1-0","name":"steel-echo-v1-0","image":"steel-echo-v1",
@@ -864,9 +870,13 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   sleep 70; curl -fsS "$CUIRASS/api/v1/state/actual" | jq '."steel-echo-v1-0"'; curl -fsS 127.0.0.1:26601/version
   ```
 - [ ] **Step 174** [PREFLIGHT][V][LIVE-RO] ~2m: **H17**: `health: "healthy"` in Cuirass's actual state proves a compose container (Cuirass) reached the instance IP on lxdbr0; `/version` through the proxy says `v1`. Fail on health with the proxy working → H17 FALSE → Step 175.
+  - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
 - [ ] **Step 175** [D] ~10m: From the host `curl http://<ip>:8080/health` works but Cuirass's probe does not: docker's FORWARD chain or the compose network cannot route to lxdbr0. Inspect (`sudo iptables -S DOCKER-USER`, `ip route` inside the container via `docker exec unheaded-cuirass ip route` if present). Do not edit host firewall rules (not in E2). Record H17 FALSE, apply D-09's fallback for Sword, and STUCK the Cuirass probe item for Stevie (blocks Phase 9 health gating). 2 attempts max.
+  - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
 - [ ] **Step 176** [V][LIVE-RO] ~2m: Instance metrics are real: `curl -fsS http://<ip>:8080/metrics | grep unheaded_http_requests_total | head -3` after a few `/` requests.
+  - [DEFERRED: E2 window] live LXD (E2.4 image import, Cuirass on https). Not run: this session builds locally only and imports nothing.
 - [ ] **Step 177** [V] ~1m: **PHASE 6 EXIT GATE**: four images; one healthy managed instance serving through its proxy; load generator CSV works against it for 30 s (`steel-echo load --target http://127.0.0.1:26601/ --rps 10 --duration 30s --out "$SCRATCH/smoke.csv"`, 300 ok).
+  - Code half PASS 2026-10-23 (Steps 162-168: tests green, static build, script shellcheck-clean, four payloads staged and v4 smoke-tested locally). Live half [DEFERRED: E2 window]: four images in LXD, a healthy managed instance behind its proxy, the 30 s CSV against it.
 - [ ] **Step 178** [C] ~2m: **COMMIT CHECKPOINT** (plan ticks; H17 row). Leave `steel-echo-v1-0` desired for Phase 9 or close the window per E2.1.
 
 **DoD (Phase 6)**: DoD-STD + the workload never echoes request content (test in Step 162).
