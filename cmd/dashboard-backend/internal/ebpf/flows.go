@@ -102,6 +102,15 @@ func (fg *FlowGraph) IngestFlow(e *FlowEvent) {
 	fg.mu.Lock()
 	defer fg.mu.Unlock()
 
+	// The collector expires a flow that left the BPF map or went idle
+	// (StaleTTL). Only a closed one used to be removed: an expired
+	// established flow stayed, its LastSeen just refreshed by the expiry
+	// itself, for another TTL.
+	if e.EventType == FlowExpired {
+		delete(fg.flows, key)
+		return
+	}
+
 	flow, exists := fg.flows[key]
 	if !exists {
 		fg.totalFlowsSeen++

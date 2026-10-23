@@ -166,6 +166,24 @@ func TestFlowGraph_IngestFlow(t *testing.T) {
 	}
 }
 
+// An expired flow leaves the graph whatever its last TCP state: the
+// collector expires flows that went idle or left the BPF map, and on east
+// the expired events carried "established" as well as "closed".
+func TestFlowGraph_ExpiredFlowRemovedInAnyState(t *testing.T) {
+	fg := NewFlowGraph(FlowGraphConfig{})
+	key := FlowKey{SrcAddr: "127.0.0.1", DstAddr: "127.0.0.1", SrcPort: 19005, DstPort: 51738, Protocol: 6}
+	fg.IngestFlow(&FlowEvent{TimestampNs: 857754687850080, FlowKey: key, FlowState: FlowState{State: StateEstablished}, EventType: FlowNew})
+	fg.IngestFlow(&FlowEvent{TimestampNs: 860868687778555, FlowKey: key, FlowState: FlowState{State: StateEstablished, PacketsIn: 3}, EventType: FlowExpired})
+	if n := fg.ActiveFlowCount(); n != 0 {
+		t.Errorf("active flows = %d after expiry, want 0", n)
+	}
+	// An expiry for a flow never seen adds nothing.
+	fg.IngestFlow(&FlowEvent{FlowKey: FlowKey{SrcAddr: "10.0.0.1", DstAddr: "10.0.0.2", SrcPort: 1, DstPort: 2, Protocol: 6}, FlowState: FlowState{State: StateEstablished}, EventType: FlowExpired})
+	if s := fg.Stats(); s.ActiveFlows != 0 || s.TotalFlowsSeen != 1 {
+		t.Errorf("stats = %+v, want 0 active, 1 seen", s)
+	}
+}
+
 func TestFlowGraph_Expire(t *testing.T) {
 	fg := NewFlowGraph(FlowGraphConfig{TTL: 10 * time.Millisecond})
 
