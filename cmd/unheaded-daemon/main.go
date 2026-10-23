@@ -139,6 +139,11 @@ type Daemon struct {
 	// logPublisher, when set, contributes log-forwarding counters. Atomic
 	// because handleMetrics reads it while stateManager's lock is held.
 	logPublisher atomic.Pointer[logagg.Publisher]
+
+	// Health probing (health_probe.go); health is guarded by stateManager.mu.
+	prober      healthProber
+	health      map[string]*healthRecord
+	healthGauge *metrics.GaugeVec
 }
 
 // initMetrics registers every series this daemon publishes. Each reads the
@@ -161,6 +166,10 @@ func (d *Daemon) initMetrics() {
 		}
 		return 0
 	})
+	d.healthGauge = metrics.NewGaugeVec("cuirass_container_health",
+		"Health probe verdict per managed instance with a health spec: 1 healthy, 0 unhealthy, -1 not yet known",
+		nil, []string{"id"})
+	d.registry.MustRegister(d.healthGauge)
 }
 
 // ============================================================================
@@ -357,6 +366,18 @@ type ContainerSpec struct {
 	CPU    int               `json:"cpu"`
 	Memory int64             `json:"memory"`
 	Labels map[string]string `json:"labels"`
+	// Health, when set, is probed on the instance each sync (health_probe.go).
+	Health *HealthSpec `json:"health,omitempty"`
+}
+
+// validate checks the parts of a spec that are checked before it is stored.
+func (s *ContainerSpec) validate() error {
+	if s.Health != nil {
+		if err := s.Health.validate(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // ManagedLabel marks an LXD instance as Unheaded's. Cuirass sets it on
@@ -982,6 +1003,11 @@ func (d *Daemon) handleContainer(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		spec.ID = id
+		if err := spec.validate(); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(map[string]string{"error": err.Error()}) // #nosec G104 -- response already committed; an encode failure here means the client went away and nothing further can be sent
+			return
+		}
 
 		d.stateManager.mu.Lock()
 		next := cloneDesired(d.stateManager.desired)
@@ -1140,6 +1166,7 @@ func (d *Daemon) reconcile() {
 		d.log.Error().Err(err).Msg("LXD list failed; skipping reconcile (actual state unknown)")
 		return
 	}
+	d.probeHealth(ctx)
 	actions := d.planReconcile()
 	for i := range actions {
 		d.applyAction(ctx, &actions[i])
@@ -1237,6 +1264,9 @@ func (d *Daemon) applyAction(ctx context.Context, a *ReconcileAction) {
 	}
 	d.log.Info().Str("id", a.ContainerID).Str("action", a.Action).Msg("Reconcile action done")
 	a.Success = true
+	if a.Action == "create" || a.Action == "restart" || a.Action == "delete" {
+		d.resetHealth(a.ContainerID)
+	}
 }
 
 // syncActualStateFromLXD updates the actual state from the LXD client. On
@@ -1253,6 +1283,12 @@ func (d *Daemon) syncActualStateFromLXD(ctx context.Context) error {
 	// Replace, not merge: an instance deleted outside Cuirass must leave
 	// the actual state too.
 	d.stateManager.actual = actual
+	// LXD reports no health; carry over the probe verdicts.
+	for id, rec := range d.health {
+		if a, ok := actual[id]; ok && rec.status != "" {
+			a.Health = rec.status
+		}
+	}
 	return nil
 }
 
