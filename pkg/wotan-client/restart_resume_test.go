@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -552,6 +553,107 @@ func TestClient_GRPCStreamFallsBackToHTTP(t *testing.T) {
 	if c.Transport() != TransportHTTP {
 		t.Errorf("transport %v, want HTTP", c.Transport())
 	}
+}
+
+// pagingWotan serves n messages on topic over HTTP, honouring after_seq and
+// limit like Wotan.
+func pagingWotan(t *testing.T, topic string, n int) string {
+	t.Helper()
+	hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var after, limit int
+		_, _ = fmt.Sscan(r.URL.Query().Get("after_seq"), &after)
+		_, _ = fmt.Sscan(r.URL.Query().Get("limit"), &limit)
+		msgs := []map[string]any{}
+		for s := after + 1; s <= n && len(msgs) < limit; s++ {
+			msgs = append(msgs, map[string]any{"seq": s, "topic": topic, "payload": "x"})
+		}
+		_ = json.NewEncoder(w).Encode(map[string]any{"messages": msgs, "last_seq": n})
+	}))
+	t.Cleanup(hs.Close)
+	return strings.TrimPrefix(hs.URL, "http://")
+}
+
+// receiveN reads n messages in seq order from ch within d.
+func receiveN(t *testing.T, ch <-chan *Message, n int, d time.Duration) {
+	t.Helper()
+	deadline := time.After(d)
+	for i := 1; i <= n; i++ {
+		select {
+		case m, ok := <-ch:
+			if !ok {
+				t.Fatalf("channel closed at %d", i)
+			}
+			if m.Seq != int64(i) {
+				t.Fatalf("got seq %d, want %d", m.Seq, i)
+			}
+		case <-deadline:
+			t.Fatalf("%d of %d messages within %v", i-1, n, d)
+		}
+	}
+}
+
+// An HTTP poller that gets a full page fetches the next at once. It used to
+// take one page (100) per 500 ms interval, a ceiling of 200 messages/s: on a
+// busier topic it fell further behind until Wotan's ring evicted what it had
+// not read, and a backlog of a few thousand took tens of seconds to drain.
+func TestHTTPPollers_FullPageFetchesOnAtOnce(t *testing.T) {
+	const n = 350 // four pages: 2 s at one page per interval
+	t.Run("Client", func(t *testing.T) {
+		c, _ := NewClient(pagingWotan(t, "traces.packet", n))
+		t.Cleanup(func() { c.Close() })
+		c.subscribers["traces.packet"] = &Subscriber{SubscriberID: "s", Status: "approved"}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		ch, err := c.StreamMessages(ctx, "traces.packet")
+		if err != nil {
+			t.Fatal(err)
+		}
+		receiveN(t, ch, n, 1200*time.Millisecond)
+	})
+	t.Run("TopicStreamClient fallback", func(t *testing.T) {
+		httpc, _ := NewClient(pagingWotan(t, "traces.packet", n))
+		lis := startMockServer(t, newMockServer())
+		client, err := newTopicStreamClientWithDialer(lis, WithHTTPFallback(httpc))
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { client.Close() })
+		client.circuitOpen.Store(true) // already degraded to HTTP
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		client.Subscribe(ctx, "traces.packet", "dashboard")
+		ch, err := client.StreamMessages(ctx, "traces.packet")
+		if err != nil {
+			t.Fatal(err)
+		}
+		receiveN(t, ch, n, 1200*time.Millisecond)
+	})
+	t.Run("a server ignoring after_seq is not hammered", func(t *testing.T) {
+		var polls atomic.Int64
+		hs := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			polls.Add(1)
+			msgs := []map[string]any{}
+			for s := 1; s <= pollPageSize; s++ {
+				msgs = append(msgs, map[string]any{"seq": s, "topic": "t", "payload": "x"})
+			}
+			_ = json.NewEncoder(w).Encode(map[string]any{"messages": msgs, "last_seq": pollPageSize})
+		}))
+		t.Cleanup(hs.Close)
+		c, _ := NewClient(strings.TrimPrefix(hs.URL, "http://"))
+		t.Cleanup(func() { c.Close() })
+		c.subscribers["t"] = &Subscriber{SubscriberID: "s", Status: "approved"}
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+		ch, _ := c.StreamMessages(ctx, "t")
+		go func() {
+			for range ch {
+			}
+		}()
+		time.Sleep(1200 * time.Millisecond)
+		if p := polls.Load(); p > 4 {
+			t.Errorf("%d polls in 1.2 s", p)
+		}
+	})
 }
 
 // A quiet stream that stays up is healthy: its failures do not carry over

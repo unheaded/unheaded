@@ -28,6 +28,12 @@ const (
 	pollBackoffMax = 30 * time.Second       // maximum backoff on consecutive errors
 )
 
+// pollPageSize is how many messages one HTTP poll asks for. A full page is
+// followed by the next poll at once: at one page per interval a poller
+// topped out at 200 messages/s and, on a topic busier than that, fell
+// further behind until Wotan's ring evicted what it had not read.
+const pollPageSize = 100
+
 // Timeout constants for split HTTP clients.
 const (
 	controlPlaneTimeout = 5 * time.Second  // Subscribe, Publish
@@ -891,7 +897,7 @@ func (c *Client) pollMessagesFrom(ctx context.Context, topic string, sc *safeCha
 			// polling Wotan every 500 ms for as long as its ctx lived.
 			return
 		case <-timer.C:
-			msgs, serverLast, err := c.getMessagesPage(ctx, topic, lastSeq, 100)
+			msgs, serverLast, err := c.getMessagesPage(ctx, topic, lastSeq, pollPageSize)
 			if err != nil {
 				consecutiveFailures++
 				timer.Reset(backoff(consecutiveFailures))
@@ -900,6 +906,7 @@ func (c *Client) pollMessagesFrom(ctx context.Context, topic string, sc *safeCha
 			// Success — reset backoff to base interval
 			consecutiveFailures = 0
 			lastSeq = nextCursor(lastSeq, serverLast)
+			polledFrom := lastSeq
 			for _, msg := range msgs {
 				// Never deliver at or below the cursor, whatever the server sent.
 				if msg == nil || msg.Seq <= lastSeq {
@@ -910,7 +917,13 @@ func (c *Client) pollMessagesFrom(ctx context.Context, topic string, sc *safeCha
 				}
 				lastSeq = msg.Seq
 			}
-			timer.Reset(pollBackoffMin)
+			// A full page that moved the cursor: more are waiting. (One
+			// that did not is a server ignoring after_seq; no tight loop.)
+			if len(msgs) >= pollPageSize && lastSeq > polledFrom {
+				timer.Reset(0)
+			} else {
+				timer.Reset(pollBackoffMin)
+			}
 		}
 	}
 }

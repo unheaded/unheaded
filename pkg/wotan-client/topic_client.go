@@ -642,49 +642,70 @@ func (c *TopicStreamClient) pollHTTPFallback(ctx context.Context, topicPattern s
 				return true
 			}
 		case <-ticker.C:
-			lastSeq := as.lastSeq.Load()
-			if lastSeq < 0 {
-				// Live start (WithLiveStart): take the server's last_seq as
-				// the cursor and deliver nothing older. Wotan rejects a
-				// negative after_seq.
-				_, serverLast, err := c.httpClient.getMessagesPage(ctx, topicPattern, 0, 1)
-				if err != nil {
-					continue
-				}
-				var start int64
-				if serverLast != nil {
-					start = *serverLast
-				}
-				as.lastSeq.Store(start)
-				continue
-			}
-			msgs, serverLast, err := c.httpClient.getMessagesPage(ctx, topicPattern, lastSeq, 100)
-			if err != nil {
-				continue
-			}
-			if next := nextCursor(lastSeq, serverLast); next != lastSeq {
-				as.lastSeq.Store(next)
-				lastSeq = next
-			}
-			for _, msg := range msgs {
-				// Never deliver at or below the cursor, whatever the server sent.
-				if msg == nil || msg.Seq <= lastSeq {
-					continue
-				}
-				// Advance past it even if the pattern filter drops it, or the
-				// next poll fetches it again.
-				as.lastSeq.Store(msg.Seq)
-				lastSeq = msg.Seq
-				// Client-side pattern filter
-				if !MatchTopic(topicPattern, msg.Topic) {
-					continue
-				}
-				if !as.sc.send(ctx, msg) {
+			// A full page means more are waiting: fetch on at once rather
+			// than one page per tick (see pollPageSize).
+			for {
+				full, ok := c.pollFallbackPage(ctx, topicPattern, as)
+				if !ok {
 					return false
+				}
+				if !full || ctx.Err() != nil {
+					break
 				}
 			}
 		}
 	}
+}
+
+// pollFallbackPage fetches and delivers one page for pollHTTPFallback. It
+// reports whether the page was full, and false for ok when the consumer
+// went away.
+func (c *TopicStreamClient) pollFallbackPage(ctx context.Context, topicPattern string, as *activeStream) (full, ok bool) {
+	lastSeq := as.lastSeq.Load()
+	if lastSeq < 0 {
+		// Live start (WithLiveStart): take the server's last_seq as
+		// the cursor and deliver nothing older. Wotan rejects a
+		// negative after_seq.
+		_, serverLast, err := c.httpClient.getMessagesPage(ctx, topicPattern, 0, 1)
+		if err != nil {
+			return false, true
+		}
+		var start int64
+		if serverLast != nil {
+			start = *serverLast
+		}
+		as.lastSeq.Store(start)
+		return false, true
+	}
+	msgs, serverLast, err := c.httpClient.getMessagesPage(ctx, topicPattern, lastSeq, pollPageSize)
+	if err != nil {
+		return false, true
+	}
+	if next := nextCursor(lastSeq, serverLast); next != lastSeq {
+		as.lastSeq.Store(next)
+		lastSeq = next
+	}
+	polledFrom := lastSeq
+	for _, msg := range msgs {
+		// Never deliver at or below the cursor, whatever the server sent.
+		if msg == nil || msg.Seq <= lastSeq {
+			continue
+		}
+		// Advance past it even if the pattern filter drops it, or the
+		// next poll fetches it again.
+		as.lastSeq.Store(msg.Seq)
+		lastSeq = msg.Seq
+		// Client-side pattern filter
+		if !MatchTopic(topicPattern, msg.Topic) {
+			continue
+		}
+		if !as.sc.send(ctx, msg) {
+			return false, false
+		}
+	}
+	// Full only if it moved the cursor: a server that ignores after_seq
+	// would otherwise be re-polled in a tight loop.
+	return len(msgs) >= pollPageSize && lastSeq > polledFrom, true
 }
 
 // Ping calls the TopicPing RPC for health checking.
