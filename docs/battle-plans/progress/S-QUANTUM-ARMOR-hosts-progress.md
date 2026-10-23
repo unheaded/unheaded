@@ -14,7 +14,8 @@ with the next independent step.
 |---|---|---|
 | OpenSSH | 10.0p2 (Ubuntu 5ubuntu5.4), OpenSSL 3.5.3 | 10.0p2 (Ubuntu 5ubuntu5.4), OpenSSL 3.5.3 |
 | `sshd -T` kexalgorithms | `mlkem768x25519-sha256,sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521` | identical |
-| KEX negotiated by west's client | n/a: `ssh localhost` refused (no sshd answering on 127.0.0.1:22) | `kex: algorithm: mlkem768x25519-sha256` |
+| sshd port | 7375 (`ssh localhost` on 22 is refused) | 22 |
+| KEX negotiated by west's client | `kex: algorithm: mlkem768x25519-sha256` (`localhost -p 7375`) | `kex: algorithm: mlkem768x25519-sha256` |
 | `sshd-kex` (CIS allowlist) | pass | pass |
 | `sshd-kex-pq` (strict) | FAIL: classical KEX allowed: curve25519-sha256, curve25519-sha256@libssh.org, ecdh-sha2-nistp256, ecdh-sha2-nistp384, ecdh-sha2-nistp521 | same FAIL |
 | WireGuard | `wg0` up, PSK set (inline `PresharedKey` in `/etc/wireguard/wg0.conf`), handshake current | `wg0` up, PSK set; `/etc/wireguard/preshared.key` dated 2026-03-25 |
@@ -32,4 +33,24 @@ Deployed overlay differs from `setup-wireguard.sh`: `Address` is a /128 per host
 | 175 | done | `go test -race ./pkg/compliance/...` all ok; golangci-lint 0 issues; gosec clean |
 | 176 | done | runbook mlkem first (strict variant commented, E2); Yggdrasil provisioner + overlay patch sntrup first (bookworm 9.2) |
 | 177 | partial | overlay verify PASSED, patch applies in a scratch dir, `bash -n` + shellcheck OK. `scripts/check-pq-kex.sh` and `docs/policy/pq-kex-baseline.txt` are not on this base: [DEFERRED: lead regenerates after Phase 4 merges] (remove the two Yggdrasil sshd lines from the baseline then) |
-| 178 | done | commit |
+| 178 | done | commit `740d5dc1` |
+| 179 | done | read-only: east and west both negotiate `mlkem768x25519-sha256`; strict probe verdict FAIL on both (classical still allowed), as expected |
+| 180 | ESCALATE E2 | procedure with rollback and open-second-session guard: `docs/security/pq-host-escalations.md` |
+| 181 | done | `scripts/wireguard/rotate-psk.sh` + `scripts/wireguard/test-rotate-psk.sh` (stubs, throwaway keys) |
+| 182 | done | harness all PASS; registered `wireguard/test-rotate-psk` (fast) with `provoke_rotate_psk`; provocation verified by hand: 2 FAIL, rc=1. Real read-only dry run against west/east: preflight passed, rc=0 |
+| 183 | done | units in `deploy/systemd/` (not `systemd/`: the units gate and every script-backed unit live there); check-systemd-units PASS (32), check-unit-binaries PASS |
+| 184 | done | S77 docs corrected (PSK on, registry/ADR-049 removed, PQ section); also `docs/sprints/S77-WIREGUARD-DESIGN.md`, which repeated the same claims |
+| 185 | done | commit |
+
+### Plan amendments (Marshal Pattern 6)
+
+- Step 181: handshake wait is 200 s, not 60 s. Setting a PSK does not end the current
+  WireGuard session; the new PSK is used at the next handshake, started only once the
+  session is 120 s old (REKEY_AFTER_TIME). A 60 s window would roll back healthy rotations.
+- Step 181: the deployed PSK lives inline in `wg0.conf` (`PresharedKey =`), not in a PSK
+  file, so the tool persists by rewriting that line (key read from a file by awk, never an
+  argument) and also keeps `<if>.psk` (mtime = last rotation, for the FND-016 check).
+- Step 181: ssh `-vv` debug lines end in CR LF; caught by the read-only dry run against the
+  real hosts, fixed, and the stub now emits CR LF.
+- Step 183: unit path `deploy/systemd/` (see above).
+- Step 184: third doc corrected (`docs/sprints/S77-WIREGUARD-DESIGN.md`).

@@ -528,6 +528,16 @@ provoke_git_mirror() {
 }
 
 # shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_rotate_psk() {
+    # Contract (ADR-105): a rotation that gets no handshake puts both hosts
+    # back on the old PSK. Make the rollback a no-op.
+    local f="scripts/wireguard/rotate-psk.sh"
+    backup "${f}"
+    sed -i 's/^rollback() {$/rollback() { return 0/' "${REPO_ROOT}/${f}"
+    grep -q '^rollback() { return 0$' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
+}
+
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
 provoke_hadolint() {
     # Contract: no new Dockerfile finding lands unrecorded. A RUN that cd's
     # instead of using WORKDIR (DL3003) in the root Dockerfile.
@@ -679,6 +689,7 @@ check-tool-freshness|provoke_tool_freshness|fast|oxlint pinned back to 1.0.0, lo
 check-hadolint|provoke_hadolint|slow|a RUN that cd's (DL3003) appended to the root Dockerfile (needs docker)
 test-deb-maintscripts|provoke_deb_maintscripts|fast|prerm disabling the service on every call, upgrades included
 backup/test-git-mirror|provoke_git_mirror|fast|git-mirror.sh switched to push --mirror, which prunes refs east must keep
+wireguard/test-rotate-psk|provoke_rotate_psk|fast|the rollback branch of rotate-psk.sh made a no-op
 well/test-compliance-schema|provoke_well_compliance_schema|slow|audit_events' TRUNCATE guard removed from 015 (needs docker)
 well/test-migrate|provoke_well_migrate|slow|the runner's drift refusal removed, so apply runs past an edited file (needs docker)
 well/test-backup-restore|provoke_well_backup_restore|slow|db-backup.sh leaving unheaded_ops out of the set (needs docker)
@@ -715,6 +726,7 @@ db-backup|writes a backup set (runbooks/data/postgresql-backup-restore.yaml); it
 well/restore-drill|needs a backup set to run; its refusals are provoked by well/test-backup-restore (flipped byte, wrong count, unlisted dump)
 monitoring/maintenance|creates or ends an Alertmanager silence for planned work (ADR-100); no verdict of its own
 build-binaries|builds the unit binaries (make binaries, build-all-debs); its --check-units verdict is check-unit-binaries
+wireguard/rotate-psk|rotates the WireGuard PSK on west/east (dry run unless --apply); its rollback and refusals are proven by wireguard/test-rotate-psk
 well/test-converge-live-app|compares the live Well (or a restored set) with a fresh bootstrap; needs that Well, runbook verify step
 "
 

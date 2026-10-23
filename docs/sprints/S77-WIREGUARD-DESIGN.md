@@ -50,11 +50,14 @@ Service-mesh `/64 = 00ff` is shared across hosts so floating service IPs
 ## Authentication
 
 S77 uses WireGuard's native static-public-key authentication. Each peer
-holds its own Curve25519 keypair; peer public keys are catalogued in
-`pkg/auth/wg-peer-registry.json` and **signed with ML-DSA-65 per
-ADR-049** so a future PQC migration does not require regenerating the
-WG keys themselves. The PSK layer is left available for future
-federation between Kingdom instances and other Unheaded deployments.
+holds its own Curve25519 keypair; peer public keys live only in each
+host's `/etc/wireguard/wg0.conf` (there is no signed peer registry; the
+`pkg/auth/wg-peer-registry.json` and ADR-049 citations here were wrong,
+corrected 2026-10-23). A preshared key is ON: `setup-wireguard.sh`
+generates one PSK and sets it on both peers. It is what protects
+recorded traffic against a future quantum attacker; rotation is
+`scripts/wireguard/rotate-psk.sh` (ADR-105, see
+[`docs/WIREGUARD-DESIGN-S77.md`](../WIREGUARD-DESIGN-S77.md) "Post-quantum").
 
 ChaCha20-Poly1305 is built into WireGuard — there is no negotiated
 ciphersuite to downgrade. Curve25519 / BLAKE2s round out the cryptobox.
@@ -64,8 +67,8 @@ TLS-style cipher agility.
 ## Routing
 
 WireGuard's `AllowedIPs` configuration is the routing table. Each peer
-declares the `/64`s it owns; userspace pre-populates these from
-`pkg/auth/wg-peer-registry.json` at `setup-wireguard.sh` time. There is
+declares the addresses it owns; `setup-wireguard.sh` writes them into
+each host's `wg0.conf` (deployed: one `/128` per host). There is
 no dynamic routing protocol — adds and removes are config commits.
 
 ## MTU

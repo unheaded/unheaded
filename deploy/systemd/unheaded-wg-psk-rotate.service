@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# West: rotate the WireGuard preshared key shared with east (ADR-105). The
+# PSK is what keeps recorded overlay traffic safe from a future quantum
+# attacker; rotating it bounds a leak. Shipped, NOT enabled: the first live
+# rotation and enabling the timer are ESCALATE E3
+# (docs/security/pq-host-escalations.md).
+#
+# Install (west):
+#   sudo install -D -m 0755 scripts/wireguard/rotate-psk.sh /usr/local/lib/unheaded/wireguard/rotate-psk.sh
+#   sudo cp deploy/systemd/unheaded-wg-psk-rotate.{service,timer} /etc/systemd/system/ && sudo systemctl daemon-reload
+# Runs as root: wg set needs CAP_NET_ADMIN and /etc/wireguard is root's.
+# root's ssh key must reach east (set WG_PSK_SSH_OPTS for a dedicated key)
+# and east must already be in root's known_hosts (the home is read-only).
+
+[Unit]
+Description=WireGuard: rotate the west-east preshared key (ADR-105)
+Documentation=https://github.com/unheaded/unheaded/blob/develop/docs/security/pq-host-escalations.md
+Wants=network-online.target
+After=network-online.target wg-quick@wg0.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/lib/unheaded/wireguard/rotate-psk.sh --apply
+TimeoutStartSec=10min
+
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/wireguard
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectHostname=yes
+ProtectClock=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+SystemCallArchitectures=native
+SystemCallFilter=@system-service

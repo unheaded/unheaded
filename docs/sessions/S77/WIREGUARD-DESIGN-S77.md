@@ -5,6 +5,13 @@
 **Author:** Unheaded Team
 **Date:** 2026-03-05
 
+> **Corrected 2026-10-23 (S-QUANTUM-ARMOR, ADR-105).** This is the S77 session
+> record; `docs/WIREGUARD-DESIGN-S77.md` is the current design. Deployed
+> addresses are WEST `fd00:dead:beef::1/128`, EAST `fd00:dead:beef::2/128`
+> (the tables below have them swapped). The PSK is on (one static key since
+> setup) and is now rotated by `scripts/wireguard/rotate-psk.sh`, not by
+> re-running setup: see "Post-Quantum" and "Key Rotation" below.
+
 ---
 
 ## Overview
@@ -183,8 +190,20 @@ Both hosts must have:
 
 - **Algorithm:** ChaCha20-Poly1305 (AEAD)
 - **Key exchange:** Curve25519 ECDH
-- **Additional:** Preshared key for post-quantum resistance
+- **Additional:** Preshared key (on; one static key since setup) for post-quantum resistance
 - **Perfect forward secrecy:** Yes (new session keys per handshake)
+
+### Post-Quantum
+
+Curve25519 alone does not survive a future quantum attacker who recorded the
+tunnel. The PSK is hashed into every handshake (Noise_IKpsk2), so recorded
+traffic stays confidential while the PSK stays secret. `scripts/wireguard/rotate-psk.sh`
+rotates it (dry run by default; `--apply` sends the new key to east only over
+an SSH session that negotiated `mlkem768x25519-sha256` or `sntrup761x25519-sha512`,
+and rolls both hosts back if no handshake follows). A weekly timer
+(`deploy/systemd/unheaded-wg-psk-rotate.timer`) ships disabled; the first live
+rotation is ESCALATE E3 (`docs/security/pq-host-escalations.md`). Rosenpass is
+parked (C/liboqs dependency, ADR-004).
 
 ### Key Management
 
@@ -204,7 +223,7 @@ Both hosts must have:
 | Threat | Mitigation |
 |--------|-----------|
 | P2P link eavesdropping | WireGuard encryption (ChaCha20-Poly1305) |
-| Key compromise | Preshared key adds second factor; key rotation via re-run |
+| Key compromise | Preshared key adds second factor; PSK rotation via `scripts/wireguard/rotate-psk.sh` |
 | Replay attacks | WireGuard nonce-based replay protection |
 | Denial of service | Rate limiting at kernel level; P2P link is isolated |
 | Extension header injection | HbH options validated by Monad parser; invalid types rejected |
@@ -225,11 +244,12 @@ Both hosts must have:
 
 ### Key Rotation
 
-Re-run the setup script to generate new keys and redeploy:
+Re-running the setup script does not rotate anything while the overlay is up
+(it exits "nothing to do"). Rotate the PSK with:
 
 ```bash
-# Tears down existing config and deploys fresh keys
-./scripts/wireguard/setup-wireguard.sh
+sudo scripts/wireguard/rotate-psk.sh           # dry run: preflight + plan
+sudo scripts/wireguard/rotate-psk.sh --apply   # rotate (ESCALATE E3 for the first live run)
 ```
 
 ### Troubleshooting
@@ -258,7 +278,7 @@ sudo tcpdump -i wg0 -n ip6
 ## Future Work
 
 - **Multi-host expansion:** Add more peers to the fd00:dead:beef::/48 network
-- **Automated key rotation:** Scheduled cron job with age-encrypted key backup
+- **Automated key rotation:** PSK rotation tool and weekly timer shipped 2026-10-23 (not enabled: E3); static keypair rotation still manual
 - **WireGuard monitoring:** Export wg show metrics to Prometheus
 - **MTU optimization:** Test jumbo frames on P2P link for higher throughput
 - **IPv6-native services:** Bind Unheaded services directly to WireGuard IPv6 addresses

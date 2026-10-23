@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Weekly WireGuard PSK rotation on west. NOT enabled by default: ESCALATE E3.
+[Unit]
+Description=WireGuard: weekly west-east preshared key rotation (ADR-105)
+
+[Timer]
+OnCalendar=weekly
+RandomizedDelaySec=1h
+Persistent=true
+
+[Install]
+WantedBy=timers.target
