@@ -78,6 +78,7 @@ Measured 2026-10-23 on `f7d730e7`, matching the KNOWN FAILURES BASELINE table
 - **Step 161** [DECIDE] recommendation taken (`run_check` with `configs/zhen-checks.yaml`). Additions: `fixture-check` (a fixture's own `check.sh`; the router refuses the result if `check.sh`/`TASK.md`/`solution.patch` changed), `py-unittest` instead of `pytest` (not installed in the system Python the sandbox sees), `shellcheck -S info`, runtime capped at 600 s for every key.
 - **Step 171** [DECIDE] H3 holds: `-route auto` (and new `-route local`) with `-family` switches to the threshold router; without `-family` the old `-route auto` behaviour is unchanged. The router type is `ThresholdRouter` (`claudebridge.Router` is ADR-104's interface name).
 - **Step 175** [DECIDE] recommendation taken (branch-sandbox mode), with two hardenings found while writing it: no write under `.git` (a hook would run on Stevie's review) and the branch re-checked on every call. Written up in ADR-019 as a Proposed amendment.
+- **Step 183** comparison row: `--route local` on the same three hold-out fixtures gives the same outcome as `--route auto` (pass, pass, pass; 1 local attempt each; 12.8 s, 7.0 s, 14.3 s; $0), because the generated config already routes repo-task `local_only`. llama-server stopped afterwards (VRAM back to 0.18 GiB, the Step 18 level).
 
 ## Reviews
 
@@ -154,3 +155,5 @@ All live Claude calls of this run go through `-ledger $SCRATCH/spend.json`
 
 | 180 | live routed runs, 3 hold-out repo tasks (local_only per config) | 0.000000 | 1.324123 |
 | 180+ | extra live escalation check, py-slug, scratch routing (separate ledger spend-phase5.json) | 0.025502 | 1.349625 |
+
+| 183 | the same 3 fixtures, `--route local` (comparison) | 0.000000 | 1.349625 |
