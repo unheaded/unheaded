@@ -14,7 +14,7 @@ Three-layer load balancing protecting every shoulder of the Kingdom.
 
 ## Deployment Targets
 
-All services are documented for 4 deployment methods:
+Deployment methods:
 
 | Target | Method | Config Source |
 |--------|--------|--------------|
@@ -22,7 +22,7 @@ All services are documented for 4 deployment methods:
 | Bare Metal | systemd units + apt packages | Manual install |
 | LXD | System containers with proxy devices | `lxc launch` |
 | containerd | OCI containers with `ctr run` | `ctr` CLI |
-| NixOS | Declarative modules | `nix/modules/haproxy-*.nix`, `nix/modules/nginx-sidecar.nix` |
+| NixOS | Not written: no HAProxy or Nginx module under `nix/modules/`; `nix/containers/gateway.nix` defines the nginx gateway only | — |
 
 ## Telemetry
 

@@ -20,7 +20,7 @@ Every alert carries `urgency`:
 |---|---|
 | `page` | Mailed within about 2 minutes. One mail per incident, plus one when everything is clear, plus a reminder after 12 h if it is still burning. |
 | `ticket` | Collected, then one digest mail at 09:00, only if something is open, resolved since the last digest, or held back by the cap. |
-| `none` | Nobody. All 44 hand-written rules (disk, logs, compliance, Well backups, KEV, …). |
+| `none` | Nobody. All 43 hand-written rules in `monitoring/prometheus/rules/` (disk, logs, compliance, Well backups, KEV, …). |
 
 `severity` (warning/critical) still describes how bad a cause is. It no longer decides who hears about it.
 
