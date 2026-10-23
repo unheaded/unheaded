@@ -1,0 +1,155 @@
+apiVersion: runbook/v1
+kind: Runbook
+metadata:
+  name: branch-promotion-develop-staging-main
+  description: Promote a reviewed batch from develop to staging, then staging to main
+  owner: micromanager
+  estimated_duration: 45m
+  risk: high
+  requires_sudo: false
+  status: draft
+  authored_by: claude
+  reviewed_by: claude-opus-5-5
+  approved_by: ""
+  dry_run_test: tests/runbooks/test_branch_promotion.py
+notes: |
+  Promotes a reviewed batch from FROM to TO (defaults: develop -> staging), ADR-089
+  (docs/adr/ADR-089-dev-staging-main-promotion-workflow.md). It checks that CI is
+  green on the FROM head, that every commit is signed and that the quick meta-gate
+  passes in a clean clone, then merges locally and logs the promotion.
+  main is promoted by rerunning with FROM=staging TO=main, on Stevie's word only.
+  Every push is Stevie's.
+
+parameters:
+  - name: REPO
+    default: "$HOME/tmp/unheaded"
+    description: The path to the repository
+  - name: FROM
+    default: "develop"
+    description: The source branch
+  - name: TO
+    default: "staging"
+    description: The target branch
+  - name: METAGATE
+    default: "$HOME/.cache/unheaded-metagate"
+    description: The path to the meta-gate directory
+
+preconditions:
+  - check: "git -C \"$REPO\" rev-parse --is-inside-work-tree"
+    description: Ensure the repository is a valid git worktree
+
+steps:
+  - name: confirm-promotion
+    action: manual
+    command: |
+      Get Stevie's explicit word that he asked for this promotion of FROM into TO.
+      If TO is main, stop unless Stevie himself is promoting it.
+    description: "MANUAL. Only Stevie decides a promotion; main is promoted by Stevie only."
+
+  - name: check-ci-status
+    action: shell
+    command: |
+      set -euo pipefail
+      git -C "$REPO" fetch origin
+      FROM_SHA=$(git -C "$REPO" rev-parse "origin/$FROM")
+      RUNS=$(curl -s "https://api.github.com/repos/unheaded/unheaded/actions/runs?branch=$FROM&per_page=50")
+      WORKFLOWS=$(curl -s https://api.github.com/repos/unheaded/unheaded/actions/workflows)
+      ACTIVE=$(printf '%s' "$WORKFLOWS" | jq -r '.workflows[] | select(.state != "disabled_manually") | .id')
+      test -n "$ACTIVE"
+      for id in $ACTIVE; do
+        c=$(printf '%s' "$RUNS" | jq -r --arg sha "$FROM_SHA" --argjson id "$id" '[.workflow_runs[] | select(.workflow_id == $id and .head_sha == $sha)] | sort_by(.created_at) | last | .conclusion // "missing"')
+        if [ "$c" != "success" ]; then
+          echo "workflow $id on $FROM_SHA: $c" >&2
+          exit 1
+        fi
+      done
+    on_fail: "A workflow's latest run on the FROM head is not success (or missing); fix CI before promoting."
+    description: "Every active workflow's latest run on the FROM head is success"
+
+  - name: check-signed-commits
+    action: shell
+    command: |
+      set -euo pipefail
+      ! git -C "$REPO" log --format=%G? "$TO..$FROM" | grep -qv '^G$'
+    on_fail: "Unsigned commits in the batch: run runbooks/deploy/resign-unpushed-commits.yaml first."
+    description: "Check that all commits in the batch are signed"
+
+  - name: quick-meta-gate
+    action: shell
+    command: |
+      set -euo pipefail
+      mkdir -p "$METAGATE"
+      METAGATE_DIR="$METAGATE/run-$(date +%s)"
+      git clone -q "$REPO" "$METAGATE_DIR"
+      cd "$METAGATE_DIR"
+      scripts/check-gates-can-fail.sh --quick
+    description: "Perform a quick meta-gate check in a clean clone"
+
+  - name: merge-branches
+    action: shell
+    command: |
+      set -euo pipefail
+      git -C "$REPO" switch "$TO"
+      git -C "$REPO" merge --no-ff --no-edit "$FROM"
+    verify: "test \"$(git -C \"$REPO\" rev-parse \"$TO^2\")\" = \"$(git -C \"$REPO\" rev-parse \"$FROM\")\""
+    description: "Merge FROM into TO; the merge's second parent is the old FROM head"
+
+  - name: log-promotion
+    action: shell
+    command: |
+      set -euo pipefail
+      # Taken from the merge itself: second parent is the FROM head, count is what the merge brought in.
+      FROM_SHA=$(git -C "$REPO" rev-parse --short "$TO^2")
+      COMMIT_COUNT=$(git -C "$REPO" rev-list --count "$TO^1..$TO^2")
+      LOG_ENTRY="- $(date +%Y-%m-%d): $FROM $FROM_SHA -> $TO ($COMMIT_COUNT commits), CI green, meta-gate quick pass"
+      echo "$LOG_ENTRY" >> "$REPO/docs/battle-plans/STAGING-PROMOTION-LOG.md"
+      git -C "$REPO" add docs/battle-plans/STAGING-PROMOTION-LOG.md
+      git -C "$REPO" commit -m "Log $FROM to $TO promotion"
+    verify: |
+      set -euo pipefail
+      tail -n 1 "$REPO/docs/battle-plans/STAGING-PROMOTION-LOG.md" | grep -q "^- $(date +%Y-%m-%d): $FROM .* -> $TO (.* commits), CI green, meta-gate quick pass$"
+      test "$(git -C "$REPO" log -1 --format=%s "$TO")" = "Log $FROM to $TO promotion"
+      test "$(git -C "$REPO" rev-parse --abbrev-ref HEAD)" = "$TO"
+    description: "Append and commit the dated line in docs/battle-plans/STAGING-PROMOTION-LOG.md"
+
+  - name: push-to-staging
+    action: manual
+    irreversible: true
+    command: |
+      git -C "$REPO" push origin "$TO"
+    description: "MANUAL. Stevie performs the push of TO; it leaves the machine."
+
+  - name: verify-push
+    action: manual
+    command: |
+      # After Stevie's push:
+      git -C "$REPO" fetch origin
+      test "$(git -C "$REPO" rev-parse "origin/$TO")" = "$(git -C "$REPO" rev-parse "$TO")" && echo pushed
+    description: "MANUAL. After the push, confirm origin has the promotion (the runner cannot wait for a human push)"
+
+  - name: switch-back-to-develop
+    action: shell
+    command: |
+      set -euo pipefail
+      git -C "$REPO" switch "$FROM"
+    verify: "test \"$(git -C \"$REPO\" rev-parse --abbrev-ref HEAD)\" = \"$FROM\""
+    description: "Switch back to the FROM branch"
+
+rollback:
+  - name: reset-staging
+    action: manual
+    irreversible: true
+    command: |
+      # Before the push only.
+      git -C "$REPO" switch "$TO"
+      git -C "$REPO" reset --hard "origin/$TO"
+    description: "MANUAL. Reset the TO branch to the origin state (irreversible locally)"
+
+  - name: revert-merge
+    action: manual
+    command: |
+      # After the push: <merge-sha> is the promotion merge commit on TO.
+      git -C "$REPO" switch "$TO"
+      git -C "$REPO" revert -m 1 <merge-sha>
+      # Then write down what the gate missed (ADR-089).
+    description: "MANUAL. Revert the promotion merge on TO and record what the gate missed"
