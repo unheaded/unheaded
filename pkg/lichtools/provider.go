@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
+	"time"
 
 	"unheaded/pkg/zhentools"
 )
@@ -37,6 +39,18 @@ type Provider struct {
 	sandbox Sandbox
 	sem     *Semaphore
 	ks      *KillSwitch
+
+	// Daily compute budget for fuzz runs (a control parallel to the dollar cap).
+	budgetMu   sync.Mutex
+	budgetDay  string
+	budgetUsed int
+
+	// goEnv is the resolved, read-only go environment for offline in-sandbox
+	// builds (GOMODCACHE/GOPATH); lazily populated once.
+	goEnvMu   sync.Mutex
+	goEnvDone bool
+	goModDir  string
+	goPathDir string
 }
 
 // NewProvider builds a Provider from a loaded Config.
@@ -128,7 +142,7 @@ func (p *Provider) Call(ctx context.Context, name string, input json.RawMessage)
 		if err := decodeInput(input, &in); err != nil {
 			return badInput(err)
 		}
-		return stub(ToolListCampaigns), nil
+		return p.listCampaigns()
 
 	case ToolShowCampaign:
 		var in showCampaignInput
@@ -138,7 +152,7 @@ func (p *Provider) Call(ctx context.Context, name string, input json.RawMessage)
 		if in.CampaignID == "" {
 			return badInput(fmt.Errorf("campaign_id is required"))
 		}
-		return stub(ToolShowCampaign), nil
+		return p.showCampaign(in.CampaignID)
 
 	case ToolRunHarness:
 		var in runHarnessInput
@@ -156,21 +170,21 @@ func (p *Provider) Call(ctx context.Context, name string, input json.RawMessage)
 		if err := decodeInput(input, &in); err != nil {
 			return badInput(err)
 		}
-		return stub(ToolReadCrash), nil
+		return p.readCrash(in)
 
 	case ToolTriage:
 		var in triageInput
 		if err := decodeInput(input, &in); err != nil {
 			return badInput(err)
 		}
-		return stub(ToolTriage), nil
+		return p.triage(ctx, in)
 
 	case ToolFileFinding:
 		var in fileFindingInput
 		if err := decodeInput(input, &in); err != nil {
 			return badInput(err)
 		}
-		return stub(ToolFileFinding), nil
+		return p.fileFinding(in)
 
 	default:
 		return zhentools.Result{IsError: true, Text: fmt.Sprintf("lichtools: unknown tool %q", name)}, nil
@@ -207,10 +221,24 @@ func (p *Provider) runHarness(ctx context.Context, in runHarnessInput) (zhentool
 		return refused(err), nil
 	}
 
-	h, err := p.sandbox.Spawn(ctx, target, p.cfg.Limits)
+	// Clamp the model-requested duration into [min,max] server-side — the model
+	// cannot ask for an unbounded run — and charge it against the daily compute
+	// budget.
+	dur := p.clampDuration(in.DurationSeconds)
+	if err := p.reserveFuzzBudget(dur); err != nil {
+		return zhentools.Result{IsError: true, Text: err.Error()}, nil
+	}
+
+	// The sandbox wall timeout covers the fuzz duration plus a compile/report
+	// overhead budget; a run that hits it is killed (bounded by design).
+	lim := p.cfg.Limits
+	lim.WallTimeout = time.Duration(dur+harnessOverheadSeconds) * time.Second
+	lim.ASBytes = -1 // skip RLIMIT_AS: the Go toolchain needs a large virtual arena
+	h, err := p.sandbox.Spawn(ctx, target, lim)
 	if err != nil {
 		return zhentools.Result{IsError: true, Text: "lich_run_harness: " + err.Error()}, nil
 	}
+	h.WorkDir = p.cfg.ProjectRoot
 	if p.ks != nil {
 		p.ks.Register(h)
 	}
@@ -221,14 +249,20 @@ func (p *Provider) runHarness(ctx context.Context, in runHarnessInput) (zhentool
 		_ = p.sandbox.Destroy(h)
 	}()
 
-	// Phase 2 no-op: prove the MCP-tool → confined-sandbox path end to end.
-	res, err := p.sandbox.Exec(ctx, h, []string{"echo", "lich-sandbox-ok harness=" + in.HarnessID})
+	argv := p.harnessArgv(in.HarnessID, dur)
+	res, err := p.sandbox.Exec(ctx, h, argv)
 	if err != nil {
 		return zhentools.Result{IsError: true, Text: "lich_run_harness confined exec: " + err.Error()}, nil
 	}
-	text := fmt.Sprintf("ran harness %s in confined sandbox %s: exit=%d timed_out=%v output=%q",
-		in.HarnessID, h.ID, res.ExitCode, res.TimedOut, strings.TrimSpace(res.Stdout))
-	return zhentools.Result{Text: text, IsError: res.ExitCode != 0 || res.TimedOut}, nil
+	out := tailLines(res.Stdout, 40)
+	text := fmt.Sprintf("ran harness %s for %ds in confined no-egress sandbox %s (exit=%d timed_out=%v truncated=%v)\n--- output ---\n%s",
+		in.HarnessID, dur, h.ID, res.ExitCode, res.TimedOut, res.Truncated, out)
+	if res.ExitCode != 0 && strings.TrimSpace(res.Stderr) != "" {
+		text += "\n--- stderr ---\n" + tailLines(res.Stderr, 20)
+	}
+	// A fuzz run that hit the wall timeout is normal (bounded by design), not a
+	// tool error; only a start/confinement failure is.
+	return zhentools.Result{Text: text}, nil
 }
 
 // --- input types (additionalProperties:false enforced by decodeInput) ---
@@ -277,10 +311,6 @@ func decodeInput(input json.RawMessage, v any) error {
 		return fmt.Errorf("invalid tool input: %w", err)
 	}
 	return nil
-}
-
-func stub(name string) zhentools.Result {
-	return zhentools.Result{Text: fmt.Sprintf("%s: stub OK (scope validated; behaviour lands in a later phase)", name)}
 }
 
 func refused(err error) zhentools.Result {

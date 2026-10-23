@@ -58,9 +58,10 @@ type ExecResult struct {
 // Handle is one live sandbox. A netns sandbox holds the currently running
 // process (if any) so Destroy and the kill switch can reap it.
 type Handle struct {
-	ID     string
-	Target Target
-	Limits Limits
+	ID      string
+	Target  Target
+	Limits  Limits
+	WorkDir string // cwd for Exec (optional; e.g. the project root for lich-runner)
 
 	mu   sync.Mutex
 	proc *os.Process // the Exec process-group leader, if running
@@ -169,6 +170,9 @@ func (s *netnsSandbox) Exec(ctx context.Context, h *Handle, argv []string) (Exec
 
 	full := s.confineArgv(h.Limits, argv)
 	cmd := exec.CommandContext(cctx, full[0], full[1:]...) // #nosec G204 -- argv is server-built: unshare wrapper + a fixed bootstrap; the only variable tail is the scope-gated caller argv
+	if h.WorkDir != "" {
+		cmd.Dir = h.WorkDir
+	}
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Cancel = func() error {
 		if cmd.Process != nil {
@@ -232,19 +236,25 @@ func (s *netnsSandbox) Exec(ctx context.Context, h *Handle, argv []string) (Exec
 // The prelude (runs as mapped-root inside the namespaces) remounts / read-only,
 // gives a private tmpfs /tmp, and rebinds the configured writable paths rw.
 func (s *netnsSandbox) confineArgv(lim Limits, argv []string) []string {
-	inner := make([]string, 0, len(argv)+5)
+	inner := make([]string, 0, len(argv)+6)
 	if s.prlimitBin != "" {
 		cpuSecs := int(lim.WallTimeout/time.Second) + 5 // CPU-seconds backstop beyond the wall timeout
 		if cpuSecs < 5 {
 			cpuSecs = 5
 		}
-		inner = append(inner,
+		pl := []string{
 			s.prlimitBin,
-			"--nproc="+strconv.Itoa(lim.PidsMax),
-			"--as="+strconv.FormatInt(lim.MemBytes, 10),
-			"--cpu="+strconv.Itoa(cpuSecs),
-			"--",
-		)
+			"--nproc=" + strconv.Itoa(lim.PidsMax),
+			"--cpu=" + strconv.Itoa(cpuSecs),
+		}
+		// RLIMIT_AS only when set (>0). The Go toolchain reserves a large
+		// virtual arena, so run_harness passes ASBytes<=0 to skip it and relies
+		// on the fit preflight + wall timeout + pids cap + semaphore instead.
+		if lim.ASBytes > 0 {
+			pl = append(pl, "--as="+strconv.FormatInt(lim.ASBytes, 10))
+		}
+		pl = append(pl, "--")
+		inner = append(inner, pl...)
 	}
 	inner = append(inner, argv...)
 

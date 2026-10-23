@@ -44,7 +44,7 @@ func TestNetnsSandbox_Spawn_RefusesWhenWontFit(t *testing.T) {
 
 func TestNetnsSandbox_ConfineArgv(t *testing.T) {
 	s := &netnsSandbox{unshareBin: "/usr/bin/unshare", prlimitBin: "/usr/bin/prlimit", shBin: "/bin/sh"}
-	lim := Limits{PidsMax: 128, MemBytes: 256 << 20, WallTimeout: 30 * time.Second}
+	lim := Limits{PidsMax: 128, MemBytes: 256 << 20, ASBytes: 256 << 20, WallTimeout: 30 * time.Second}
 	got := strings.Join(s.confineArgv(lim, []string{"echo", "hi"}), " ")
 	for _, want := range []string{"unshare", "-r", "-n", "-m", "--pid", "--mount-proc", "--fork", "/bin/sh -c", "remount,ro,bind /", "tmpfs /tmp", "prlimit", "--nproc=128", "--as=268435456", "echo hi"} {
 		if !strings.Contains(got, want) {
@@ -128,7 +128,7 @@ func TestNetnsSandbox_RlimitsApplied(t *testing.T) {
 		t.Skip("prlimit unavailable; rlimit proof needs it")
 	}
 	const memBytes = 512 << 20 // comfortable AS for the shell; 512 MiB
-	h, err := s.Spawn(context.Background(), Target{Kind: KindHarness, Name: "001"}, Limits{PidsMax: 123, MemBytes: memBytes})
+	h, err := s.Spawn(context.Background(), Target{Kind: KindHarness, Name: "001"}, Limits{PidsMax: 123, MemBytes: memBytes, ASBytes: memBytes})
 	if err != nil {
 		t.Fatalf("Spawn: %v", err)
 	}

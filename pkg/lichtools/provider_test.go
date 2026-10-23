@@ -26,6 +26,9 @@ func testProvider(t *testing.T) *Provider {
 	cfg := &Config{ProjectRoot: root}
 	cfg.Scope.SandboxPrefix = "lich-sbx-"
 	cfg.Scope.HarnessDir = "harnesses"
+	if err := cfg.applyDefaultsAndValidate(); err != nil {
+		t.Fatalf("config defaults: %v", err)
+	}
 	p, err := NewProvider(cfg)
 	if err != nil {
 		t.Fatalf("NewProvider: %v", err)
@@ -107,7 +110,7 @@ func TestProvider_RunHarness_WithSandbox(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Call err: %v", err)
 	}
-	if res.IsError || !strings.Contains(res.Text, "confined sandbox") {
+	if res.IsError || !strings.Contains(res.Text, "confined no-egress sandbox") {
 		t.Fatalf("run_harness via sandbox should succeed, got %+v", res)
 	}
 }

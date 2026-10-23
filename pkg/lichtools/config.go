@@ -24,21 +24,24 @@ import (
 // Default confinement limits — deliberately conservative. A target with no
 // explicit limit gets these (never unbounded).
 const (
-	DefaultCPUQuota        = 1.0              // 1 CPU
-	DefaultMemBytes        = 512 << 20        // 512 MiB
-	DefaultPidsMax         = 256              // fork-bomb ceiling
-	DefaultWallTimeout     = 60 * time.Second // per-exec wall clock
-	DefaultMaxLiveSandbox  = 2                // host-resource cap
-	DefaultMinFuzzSeconds  = 5
-	DefaultMaxFuzzSeconds  = 300 // server clamps a driver's requested duration into [min,max]
-	DefaultMemFitSafety    = 1.2 // require free RAM >= MemBytes*safety before Spawn
-	DefaultDailyCapUSD     = 5.0
-	DefaultSandboxPrefix   = "lich-sbx-"
-	DefaultHarnessDir      = "tomb/lich/harnesses"
-	DefaultKillSwitchFile  = "/run/lich-mcp.halt"
-	DefaultNetNS           = "lich-noegress"
-	DefaultResultsDir      = "tomb/lich/results"
-	DefaultRegisterRelPath = "compliance/findings/register.yaml"
+	DefaultCPUQuota       = 1.0              // 1 CPU
+	DefaultMemBytes       = 512 << 20        // 512 MiB
+	DefaultPidsMax        = 256              // fork-bomb ceiling
+	DefaultWallTimeout    = 60 * time.Second // per-exec wall clock
+	DefaultMaxLiveSandbox = 2                // host-resource cap
+	DefaultMinFuzzSeconds = 5
+	DefaultMaxFuzzSeconds = 300 // server clamps a driver's requested duration into [min,max]
+	// DefaultMaxDailyFuzzSeconds caps total fuzz seconds a driver can spend per
+	// day — a compute-budget control parallel to the dollar cap.
+	DefaultMaxDailyFuzzSeconds = 3600
+	DefaultMemFitSafety        = 1.2 // require free RAM >= MemBytes*safety before Spawn
+	DefaultDailyCapUSD         = 5.0
+	DefaultSandboxPrefix       = "lich-sbx-"
+	DefaultHarnessDir          = "tomb/lich/harnesses"
+	DefaultKillSwitchFile      = "/run/lich-mcp.halt"
+	DefaultNetNS               = "lich-noegress"
+	DefaultResultsDir          = "tomb/lich/results"
+	DefaultRegisterRelPath     = "compliance/findings/register.yaml"
 )
 
 // ErrSecretInConfig is returned when the config references a credential. Per
@@ -52,6 +55,10 @@ type Limits struct {
 	PidsMax     int           `yaml:"pids"`
 	WallTimeout time.Duration `yaml:"-"`
 	WallSeconds int           `yaml:"timeout_seconds"`
+	// ASBytes is the RLIMIT_AS (virtual address space) cap. >0 enforces it;
+	// <=0 skips it. It defaults to MemBytes, but run_harness skips it because
+	// the Go runtime reserves a large virtual arena that a tight AS cap kills.
+	ASBytes int64 `yaml:"-"`
 }
 
 // Config is the server-side policy for the Lich MCP server. Everything that
@@ -70,13 +77,15 @@ type Config struct {
 
 	Limits Limits `yaml:"limits"`
 
-	NetNS            string  `yaml:"netns"`
-	KillSwitchFile   string  `yaml:"kill_switch_file"`
-	MaxLiveSandboxes int     `yaml:"max_live_sandboxes"`
-	MinFuzzSeconds   int     `yaml:"min_fuzz_seconds"`
-	MaxFuzzSeconds   int     `yaml:"max_fuzz_seconds"`
-	MemFitSafety     float64 `yaml:"mem_fit_safety"`
-	DailyCapUSD      float64 `yaml:"daily_cap_usd"`
+	NetNS               string `yaml:"netns"`
+	KillSwitchFile      string `yaml:"kill_switch_file"`
+	MaxLiveSandboxes    int    `yaml:"max_live_sandboxes"`
+	MinFuzzSeconds      int    `yaml:"min_fuzz_seconds"`
+	MaxFuzzSeconds      int    `yaml:"max_fuzz_seconds"`
+	MaxDailyFuzzSeconds int    `yaml:"max_daily_fuzz_seconds"`
+
+	MemFitSafety float64 `yaml:"mem_fit_safety"`
+	DailyCapUSD  float64 `yaml:"daily_cap_usd"`
 
 	Findings struct {
 		AutoPublish bool   `yaml:"auto_publish"`
@@ -143,6 +152,9 @@ func (c *Config) applyDefaultsAndValidate() error {
 	if c.MinFuzzSeconds > c.MaxFuzzSeconds {
 		return fmt.Errorf("lichtools: min_fuzz_seconds (%d) > max_fuzz_seconds (%d)", c.MinFuzzSeconds, c.MaxFuzzSeconds)
 	}
+	if c.MaxDailyFuzzSeconds <= 0 {
+		c.MaxDailyFuzzSeconds = DefaultMaxDailyFuzzSeconds
+	}
 	if c.MemFitSafety < 1.0 {
 		c.MemFitSafety = DefaultMemFitSafety
 	}
@@ -165,6 +177,9 @@ func (l *Limits) applyDefaults() {
 	}
 	if l.PidsMax <= 0 {
 		l.PidsMax = DefaultPidsMax
+	}
+	if l.ASBytes == 0 {
+		l.ASBytes = l.MemBytes
 	}
 	if l.WallSeconds > 0 {
 		l.WallTimeout = time.Duration(l.WallSeconds) * time.Second
