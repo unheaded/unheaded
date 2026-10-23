@@ -636,6 +636,17 @@ provoke_image_tags() {
     grep -q 'image: traefik:latest' "${REPO_ROOT}/${f}" || { echo "provocation anchor missing in ${f}" >&2; return 1; }
 }
 
+# shellcheck disable=SC2317  # invoked indirectly via REGISTRY dispatch
+provoke_evidence_pack() {
+    # Contract (ADR-105, UH-EVID-01): a manifest reporting a CRITICAL CVE never
+    # validates, is never signed, and never verifies. Flip the valid fixture
+    # every E2E pack is built from.
+    local f="cmd/yggdrasil-evidence/testdata/manifests/valid/minimal.yaml"
+    backup "${f}"
+    sed -i 's/^  critical: 0$/  critical: 1/' "${REPO_ROOT}/${f}"
+    grep -q '^  critical: 1$' "${REPO_ROOT}/${f}"
+}
+
 REGISTRY="
 check-gosec-ratchet|provoke_gosec_ratchet|fast|an un-baselined rule appended to the workflow exclusion list
 check-manifest-yaml|provoke_manifest_yaml|fast|a tracked manifest that does not parse
@@ -676,6 +687,7 @@ well/test-config|provoke_well_config|slow|pg_hba letting service roles in withou
 check-ebpf-loads|provoke_ebpf_loads|slow|canary-ebpf with its bounds-check black_box removed, a real verifier rejection (needs sudo)
 check-prometheus-rules|provoke_prometheus_rules|slow|HostDiskAlmostFull's threshold edited so its tested case no longer fires (needs docker)
 monitoring/test-alert-path|provoke_alert_path|slow|Alertmanager's default route (urgency none) sent to the page receiver (needs docker)
+check-evidence-pack|provoke_evidence_pack|fast|a valid fixture manifest edited to report one CRITICAL CVE
 check-gates-can-fail|SELF|self|this script — see the self-exemption note
 "
 

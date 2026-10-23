@@ -2,22 +2,27 @@
 // Copyright (c) 2024-2026 Stevie Bellis. All rights reserved.
 
 // Command yggdrasil-evidence validates, signs, and verifies Yggdrasil
-// signed-manifest evidence packs (task #68).
+// signed-manifest evidence packs (task #68, ADR-105 decisions 5-7).
 //
 // Subcommands:
 //
-//	validate  — validate manifest.yaml against schema v1
-//	            (nix/yggdrasil/evidence-pack/schema/manifest-v1.yaml)
-//	sign      — produce manifest.yaml.sig via cloudflare/circl ML-DSA-65
-//	verify    — full evidence-pack verification (signature + ISO hash +
-//	            CI gates per the manifest)
-//	diff      — diff two evidence packs (e.g. quarterly compliance review)
+//	validate          manifest.yaml against schema v1 (rules mirrored in Go,
+//	                  drift-guarded against nix/yggdrasil/evidence-pack/schema/)
+//	sign              gungnir evidence seal over manifest.yaml or
+//	                  image.iso.sha256, or a hex custody-entry signature
+//	pubkey            derive build.pubkey from the build key seed
+//	verify-signature  both seals against build.pubkey
+//	verify-iso        an ISO against the signed image.iso.sha256 and manifest
+//	verify-gates      CI gates, recomputed from the pack's attachments
+//	verify-custody    hash-chained, signed, monotonic chain_of_custody
+//	verify            all of the above, each stage reported
+//	diff              two packs; exit 3 if custody history was rewritten
 //
-// Scaffold only — implementation lights up at task #65 (packer pipeline).
-// The CLI surface is the contract; runbooks at
-// nix/yggdrasil/evidence-pack/runbooks/ reference these subcommands.
+// Packs are read in memory with size caps and no extraction (pack.go). Runbooks
+// at nix/yggdrasil/evidence-pack/runbooks/ use these subcommands.
 //
-// Exit codes: 0 ok, 1 verification failed, 2 usage or unreadable input.
+// Exit codes: 0 ok, 1 verification failed, 2 usage or unreadable input,
+// 3 (diff) custody rewritten.
 package main
 
 import (

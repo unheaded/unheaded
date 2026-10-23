@@ -8,11 +8,11 @@
 ## Prerequisites
 
 - Yggdrasil ISO has been built by packer (`build/yggdrasil-<version>.iso` exists).
-- Build kernel signing key is available at `/etc/yggdrasil/build.key` (ML-DSA-65 private, 0600).
+- The build key seed is available at `/etc/yggdrasil/build.key` (32-byte ML-DSA-65 seed, mode 0600; `yggdrasil-evidence sign` refuses anything group- or world-readable). Where that seed lives, who holds it, how `build.pubkey` is published and how it rotates is ADR-105 open question **E4** (Stevie's custody decision). Until E4 is settled there is no production key: packs are signed only with throwaway test keys, and nothing in the repo generates or commits a key.
 - Trivy ≥ 0.50 installed.
 - Lynis ≥ 3.1 installed.
-- yamllint installed.
-- `pkg/gungnir/` Go binary (`gungnir-sign`) built and on PATH.
+- yamllint installed (optional; `yggdrasil-evidence validate` is the gate).
+- `yggdrasil-evidence` built from `cmd/yggdrasil-evidence/` and on PATH.
 
 ## Steps
 
@@ -104,29 +104,39 @@ fi
 
 Use a templating tool (yq, gomplate, or a small Go program in `cmd/yggdrasil-evidence/`) to populate `$WORK/manifest/manifest.yaml` per the `schema/manifest-v1.yaml` schema.
 
-### 9. Validate manifest.yaml against schema
+### 9. Sign the new chain_of_custody entry, then validate
+
+Every custody entry is signed (hash-chained to the entry before it). The build's own entry is the last one, so its `signature` line is appended at the end of the file:
 
 ```bash
-yamllint -d relaxed "$WORK/manifest/manifest.yaml"
+N=$(( $(grep -c '^  - timestamp_utc:' "$WORK/manifest/manifest.yaml") - 1 ))
+yggdrasil-evidence sign --key /etc/yggdrasil/build.key --purpose custody-entry \
+  --custody-index "$N" --in "$WORK/manifest/manifest.yaml" --out "$WORK/custody.sig"
+printf '    signature: "%s"\n' "$(cat "$WORK/custody.sig")" >> "$WORK/manifest/manifest.yaml"
+
+yamllint -d relaxed "$WORK/manifest/manifest.yaml"   # optional
+# --schema makes validate refuse to run if this checkout's schema differs from the rules built into the binary
 yggdrasil-evidence validate --schema nix/yggdrasil/evidence-pack/schema/manifest-v1.yaml "$WORK/manifest/manifest.yaml"
 ```
 
-### 10. Sign manifest.yaml + iso.sha256
+### 10. Sign manifest.yaml + image.iso.sha256
+
+Signatures are gungnir evidence seals (JSON). `sign --purpose manifest` refuses a manifest that does not validate.
 
 ```bash
-gungnir-sign --key /etc/yggdrasil/build.key \
-             --in "$WORK/manifest/manifest.yaml" \
-             --out "$WORK/manifest/manifest.yaml.sig"
-echo "$ISO_SHA  $ISO_PATH" > "$WORK/manifest/image.iso.sha256"
-gungnir-sign --key /etc/yggdrasil/build.key \
-             --in "$WORK/manifest/image.iso.sha256" \
-             --out "$WORK/manifest/image.iso.sha256.sig"
+yggdrasil-evidence sign --key /etc/yggdrasil/build.key --purpose manifest \
+  --in "$WORK/manifest/manifest.yaml" --out "$WORK/manifest/manifest.yaml.sig"
+echo "$ISO_SHA  $(basename "$ISO_PATH")" > "$WORK/manifest/image.iso.sha256"
+yggdrasil-evidence sign --key /etc/yggdrasil/build.key --purpose iso-sha256 \
+  --in "$WORK/manifest/image.iso.sha256" --out "$WORK/manifest/image.iso.sha256.sig"
 ```
 
-### 11. Tarball + emit
+### 11. Tarball, self-check, emit
 
 ```bash
 tar -czf "build/evidence-pack-${ISO_SHA}.tar.gz" -C "$WORK" manifest/
+yggdrasil-evidence pubkey --key /etc/yggdrasil/build.key --out "$WORK/build.pubkey"
+yggdrasil-evidence verify --pubkey "$WORK/build.pubkey" --iso "$ISO_PATH" "build/evidence-pack-${ISO_SHA}.tar.gz"
 echo "Evidence pack: build/evidence-pack-${ISO_SHA}.tar.gz"
 ```
 

@@ -3,20 +3,35 @@
 # (task #68). Called as a packer post-processor after the ISO is built.
 #
 # Implementation follows nix/yggdrasil/evidence-pack/runbooks/build-evidence-pack.md
-# step-by-step. This is the SCAFFOLD — the real implementation lights up at
-# task #65 + task #68 in tandem.
+# step-by-step. SBOM/CVE/CIS/doctor capture is still scaffold (task #65).
+#
+# Signing: set YGGDRASIL_BUILD_KEY to the build key seed (32 bytes, mode 0600)
+# and the pack is signed with `yggdrasil-evidence sign` (custody entry,
+# manifest.yaml, image.iso.sha256). Unset, the pack keeps .todo markers and the
+# script says loudly that it is UNSIGNED: not evidence. Where the production
+# seed lives is ADR-105 open question E4; never commit or print one.
+# `sign --purpose manifest` refuses a manifest that does not validate, so while
+# the scaffold fields below are "TBD", a signing run fails loudly rather than
+# producing a signed bad pack.
 #
 # Free to use. Free to share.
 set -euo pipefail
 
 SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-1746921600}"
 YGGDRASIL_VERSION="${YGGDRASIL_VERSION:-0.0.0-scaffold}"
-GPG_KEY_ID="${GPG_KEY_ID:-yggdrasil-build-key}"
+YGGDRASIL_BUILD_KEY="${YGGDRASIL_BUILD_KEY:-}"
+YGGDRASIL_EVIDENCE="${YGGDRASIL_EVIDENCE:-yggdrasil-evidence}"
+if [ -n "$YGGDRASIL_BUILD_KEY" ] && ! command -v "$YGGDRASIL_EVIDENCE" >/dev/null 2>&1; then
+    echo "FAIL: YGGDRASIL_BUILD_KEY is set but $YGGDRASIL_EVIDENCE is not on PATH (go build ./cmd/yggdrasil-evidence)" >&2
+    exit 1
+fi
 
 ISO_PATH="build/yggdrasil-amd64/yggdrasil-${YGGDRASIL_VERSION}-amd64"
 if [ ! -f "$ISO_PATH" ]; then
     # Try common alternatives
-    ISO_PATH=$(ls build/yggdrasil-amd64/*.qcow2 build/yggdrasil-amd64/*.iso 2>/dev/null | head -1)
+    # Not `ls a/*.qcow2 a/*.iso`: ls exits 2 when either glob is empty, and
+    # under pipefail + set -e that killed the script silently with only an ISO.
+    ISO_PATH=$(find build/yggdrasil-amd64 -maxdepth 1 -type f \( -name '*.qcow2' -o -name '*.iso' \) 2>/dev/null | sort | head -1 || true)
     if [ -z "$ISO_PATH" ]; then
         echo "FAIL: cannot locate built image artifact in build/yggdrasil-amd64/"
         exit 1
@@ -109,17 +124,37 @@ chain_of_custody:
     action: "Initial image build (scaffold — task #65 fills real measurements)"
 YAML
 
-# Step 9: sign (would call gungnir-sign in production)
-echo "TODO(task #65): sign manifest.yaml via gungnir-sign --key /etc/yggdrasil/build.key" > "$WORK/manifest/manifest.yaml.sig.todo"
-
-# Step 10: ISO hash + sig
+# Step 9-10: ISO hash line, then sign (custody entry, manifest, ISO hash)
 echo "$ISO_SHA  $(basename "$ISO_PATH")" > "$WORK/manifest/image.iso.sha256"
-echo "TODO(task #65): sign image.iso.sha256 via gungnir-sign" > "$WORK/manifest/image.iso.sha256.sig.todo"
+if [ -n "$YGGDRASIL_BUILD_KEY" ]; then
+    # The build's custody entry is the last one: sign it, append its signature.
+    N=$(( $(grep -c '^  - timestamp_utc:' "$WORK/manifest/manifest.yaml") - 1 ))
+    "$YGGDRASIL_EVIDENCE" sign --key "$YGGDRASIL_BUILD_KEY" --purpose custody-entry \
+        --custody-index "$N" --in "$WORK/manifest/manifest.yaml" --out "$WORK/custody.sig"
+    printf '    signature: "%s"\n' "$(tr -d '\n' < "$WORK/custody.sig")" >> "$WORK/manifest/manifest.yaml"
+    "$YGGDRASIL_EVIDENCE" sign --key "$YGGDRASIL_BUILD_KEY" --purpose manifest \
+        --in "$WORK/manifest/manifest.yaml" --out "$WORK/manifest/manifest.yaml.sig"
+    "$YGGDRASIL_EVIDENCE" sign --key "$YGGDRASIL_BUILD_KEY" --purpose iso-sha256 \
+        --in "$WORK/manifest/image.iso.sha256" --out "$WORK/manifest/image.iso.sha256.sig"
+    SIGNED=1
+else
+    echo "UNSIGNED: set YGGDRASIL_BUILD_KEY to sign (yggdrasil-evidence sign --purpose manifest)" > "$WORK/manifest/manifest.yaml.sig.todo"
+    echo "UNSIGNED: set YGGDRASIL_BUILD_KEY to sign (yggdrasil-evidence sign --purpose iso-sha256)" > "$WORK/manifest/image.iso.sha256.sig.todo"
+    SIGNED=0
+fi
 
 # Step 11: tarball
 mkdir -p build
 tar -czf "build/evidence-pack-${ISO_SHA}.tar.gz" -C "$WORK" manifest/
 echo "Evidence pack: build/evidence-pack-${ISO_SHA}.tar.gz"
+
+if [ "$SIGNED" -ne 1 ]; then
+    echo
+    echo "############################################################" >&2
+    echo "## UNSIGNED PACK: not evidence. YGGDRASIL_BUILD_KEY unset. ##" >&2
+    echo "## yggdrasil-evidence verify will (correctly) reject it.   ##" >&2
+    echo "############################################################" >&2
+fi
 
 # Print scaffold notice
 echo

@@ -55,3 +55,10 @@ steps are never attempted; they are reported.
 - 214: `verify_test.go` red (7 tests failing on the stubs).
 - 215: `gates.go` (verify-gates, verify-custody), `verify.go` (verify, diff), stubs removed from `main.go`.
 - 216: green with `-race`; vet, gofmt, golangci-lint (0 issues), gosec clean. [D] 217 not needed.
+- 218: committed.
+
+### Phase 11.4 (Steps 219-224)
+- 219: evidence-pack README (status implemented; `manifest/` layout; `build.pubkey` sole anchor; seal/custody/waiver semantics; subcommand + exit-code table; the Go-stricter-than-schema list), build runbook (`gungnir-sign` -> `yggdrasil-evidence sign --purpose ...`, custody-entry signing, key custody = E4, self-verify before emitting), verify runbook (`root.pubkey` -> `build.pubkey`, exit codes incl. `diff` 3, custody/attachment rows). `main.go` doc comment: "Scaffold only" removed.
+- 220: build script signs custody entry + manifest + image.iso.sha256 when `YGGDRASIL_BUILD_KEY` is set (binary from PATH or `YGGDRASIL_EVIDENCE`), else keeps `.todo` markers and prints an "UNSIGNED PACK: not evidence" banner; `GPG_KEY_ID` dropped. Also fixed a pre-existing silent exit: `ls a/*.qcow2 a/*.iso` exits 2 when either glob is empty, which under `set -e -o pipefail` killed the script with no output when only an ISO existed (now `find`). Ran it: unsigned run rc=0 with banner, and `verify` rejects that pack (4/4 stages FAIL); with a throwaway key the scaffold manifest's `TBD` fields make `sign` refuse loudly (rc=1), as intended. The signing block itself was run verbatim against a valid manifest in a scratch harness: GNU `tar -czf ... manifest/` pack, verify-signature OK, verify-custody OK.
+- 221: `scripts/check-evidence-pack.sh` (build, fixtures vs built binary, E2E test must actually run and pass); `provoke_evidence_pack` + REGISTRY row appended in `check-gates-can-fail.sh`.
+- 222: gate green locally (rc=0).

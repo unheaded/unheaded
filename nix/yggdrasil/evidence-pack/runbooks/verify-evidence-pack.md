@@ -5,24 +5,34 @@
 
 ---
 
+## Trust anchor
+
+`/etc/yggdrasil/build.pubkey` is the one trust anchor (`--pubkey` overrides it on every verify subcommand). Get it from the build key's owner over a channel you already trust, never from inside the pack you are checking. How it is published and rotated is ADR-105 open question E4.
+
 ## Quick verify (5 minutes)
 
 ```bash
-# 1. Verify the manifest signature against the kingdom root key
-yggdrasil-evidence verify-signature \
-  --pubkey /etc/yggdrasil/root.pubkey \
-  evidence-pack-<sha>.tar.gz
-
-# 2. Verify the ISO hash matches the manifest
-yggdrasil-evidence verify-iso \
+# Everything in one go: schema, both signatures, CI gates, custody chain, ISO.
+yggdrasil-evidence verify \
+  --pubkey /etc/yggdrasil/build.pubkey \
   --iso /path/to/yggdrasil.iso \
   evidence-pack-<sha>.tar.gz
-
-# 3. Run all CI gates from the manifest
-yggdrasil-evidence verify-gates evidence-pack-<sha>.tar.gz
-
-# Exit 0 = all green. Exit 1 = something failed.
 ```
+
+Or stage by stage:
+
+```bash
+# 1. manifest.yaml.sig and image.iso.sha256.sig against the build key
+yggdrasil-evidence verify-signature --pubkey /etc/yggdrasil/build.pubkey evidence-pack-<sha>.tar.gz
+
+# 2. The ISO's SHA-256 matches the signed image.iso.sha256 and the manifest
+yggdrasil-evidence verify-iso --iso /path/to/yggdrasil.iso --pubkey /etc/yggdrasil/build.pubkey evidence-pack-<sha>.tar.gz
+
+# 3. The CI gates, recomputed from the pack's own attachments
+yggdrasil-evidence verify-gates evidence-pack-<sha>.tar.gz
+```
+
+Exit codes: **0** all green, **1** verification failed (including a pack that is malformed or unsafe to read), **2** usage error or unreadable input. Treat anything but 0 as a failure.
 
 If any step fails — **DO NOT DEPLOY**. Page the security oncall and quarantine the ISO until reissued.
 
@@ -44,19 +54,24 @@ yggdrasil-evidence diff \
   q3-baseline.tar.gz \
   evidence-pack-<sha>.tar.gz \
   > diff-q3-to-current.txt
+# Exit 3 = the old pack's chain_of_custody is not a prefix of the new one:
+# history was rewritten. Do not accept the new pack; escalate.
 
-# 4. Confirm chain of custody is monotonic + signed
-yggdrasil-evidence verify-custody evidence-pack-<sha>.tar.gz
+# 4. Confirm chain of custody is monotonic, hash-chained and every entry signed
+yggdrasil-evidence verify-custody --pubkey /etc/yggdrasil/build.pubkey evidence-pack-<sha>.tar.gz
+# A legacy pack with unsigned entries: --allow-unsigned-entries lists them (still exits 1).
 ```
 
 ## What the verifier checks (per gate)
 
 | Gate | What it checks | Build-time enforced? | Verify-time enforced? |
 |------|---------------|----------------------|----------------------|
-| Signature | manifest.yaml.sig validates against build.pubkey | Yes (step 10) | Yes |
-| ISO hash | iso_sha256 matches actual ISO file | Yes (step 11) | Yes |
-| CRITICAL CVEs | == 0 | Yes (step 5) | Yes |
-| HIGH CVEs | == 0 unless waiver in chain_of_custody | Yes (step 5) | Yes |
+| Signature | manifest.yaml.sig and image.iso.sha256.sig validate against build.pubkey (purpose-bound evidence seals) | Yes (step 10) | Yes |
+| ISO hash | ISO's SHA-256 == signed image.iso.sha256 == manifest iso_sha256 (and size, name) | Yes (step 11) | Yes |
+| CRITICAL CVEs | == 0 unwaived, recomputed from cve-scan.json | Yes (step 5) | Yes |
+| HIGH CVEs | == 0 unless an unexpired waiver is listed and logged in chain_of_custody | Yes (step 5) | Yes |
+| Attachments | SBOM package count, CIS/Lynis/doctor values, overlay patch hashes agree with the manifest | — | Yes |
+| Custody | timestamps monotonic, every entry signed, hash chain intact | Yes (step 9) | Yes |
 | CIS score | >= 95% | Yes (step 6) | Yes |
 | Lynis hardening | >= 90 | Yes (step 6) | Yes |
 | upc-doctor | exit_code == 0 | Yes (step 7) | Yes |
