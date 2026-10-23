@@ -257,8 +257,11 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 		return decision, fmt.Errorf("tool call denied: %s", decision.Reason)
 	}
 
-	// Rule 2: mutating + untrusted justification.
-	if tc.IsMutating() && tc.HasUntrustedJustification() {
+	// Rule 2: mutating + untrusted justification, unless branch-sandbox
+	// mode answers it (branchsandbox.go: write_file/patch_file inside a
+	// zhen/<name> agent worktree; Rules 1 and 3 still apply).
+	sandboxJustification, sandboxed := c.branchSandboxAllows(tc)
+	if tc.IsMutating() && tc.HasUntrustedJustification() && !sandboxed {
 		var reason string
 		if len(tc.Justification) == 0 {
 			reason = fmt.Sprintf("mutating tool %q has empty justification chain; requires out-of-band user confirmation (fail-closed: agent could not produce a retrieval-derived rationale for the call)", tc.Name)
@@ -293,8 +296,12 @@ func (c *Champion) AcceptToolCall(ctx context.Context, tc ToolCall) (ToolCallDec
 		}
 	}
 
+	accepted := summarizeArgs(tc.Args)
+	if sandboxed {
+		accepted = sandboxJustification + " " + accepted
+	}
 	c.completeAction(ctx, actionID, "accepted",
-		summarizeArgs(tc.Args), "",
+		accepted, "",
 		time.Since(start))
 	return ToolCallDecision{Allow: true}, nil
 }

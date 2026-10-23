@@ -83,6 +83,7 @@ type Champion struct {
 	kanbanStore   KanbanStore
 	confirmStore  *confirmStore   // lazy-init via IssuePendingConfirmation
 	runCheck      *RunCheckConfig // nil: run_check refused (runcheck.go)
+	branchSandbox *branchSandbox  // nil: off (branchsandbox.go)
 }
 
 // New creates a new Champion with the given configuration.
