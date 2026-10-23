@@ -13,6 +13,7 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -1940,35 +1941,69 @@ func (s *Server) broadcastTraceEvents(ctx context.Context) {
 			return
 		}
 
-		if (event.Topic == "traces.packet" || event.Topic == "traces.flow") && s.isViewerTraceEvent(event.Data) {
-			s.viewerPacketsDropped.Add(1)
-			return
+		for _, d := range traceRecords(event) {
+			if (event.Topic == "traces.packet" || event.Topic == "traces.flow") && s.isViewerTraceEvent(d) {
+				s.viewerPacketsDropped.Add(1)
+				continue
+			}
+			one := event
+			one.Data = d
+			s.publishTrace(s.parseTraceTopicEvent(one))
 		}
-		traceEvt := s.parseTraceTopicEvent(event)
-		s.traceBuffer.Add(traceEvt)
-
-		// Broadcast to main WebSocket as "trace" type
-		data, err := json.Marshal(map[string]interface{}{
-			"type": "trace",
-			"data": traceEvt,
-		})
-		if err != nil {
-			s.log.Error().Err(err).Msg("marshal trace event failed")
-			return
-		}
-		s.wsServer.Broadcast(data)
-
-		// Also broadcast to stream subscribers
-		streamMsg := &StreamMessage{
-			Type:      "trace",
-			Service:   "trace-collector",
-			Timestamp: time.Unix(0, traceEvt.Timestamp*int64(time.Millisecond)),
-			Data:      traceEvt,
-		}
-		s.broadcastToStream(streamMsg)
 	})
 
 	<-ctx.Done()
+}
+
+// traceRecords returns the records one traces.* message carries. The
+// trace-collector publishes a JSON array (a batch of packets); only
+// objects used to be read, so each batch became one trace with every field
+// empty, and its packets skipped the viewer filter. Live on east
+// 2026-10-23: 1000 of 1000 buffered traces were blank.
+func traceRecords(event events.Event) []map[string]interface{} {
+	if event.Data != nil {
+		return []map[string]interface{}{event.Data}
+	}
+	raw := bytes.TrimSpace(event.Raw)
+	if len(raw) == 0 || raw[0] != '[' {
+		return nil
+	}
+	var batch []map[string]interface{}
+	if err := json.Unmarshal(raw, &batch); err != nil {
+		return nil
+	}
+	out := batch[:0]
+	for _, d := range batch {
+		if d != nil {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// publishTrace buffers one trace and sends it to WebSocket and stream clients.
+func (s *Server) publishTrace(traceEvt TraceEvent) {
+	s.traceBuffer.Add(traceEvt)
+
+	// Broadcast to main WebSocket as "trace" type
+	data, err := json.Marshal(map[string]interface{}{
+		"type": "trace",
+		"data": traceEvt,
+	})
+	if err != nil {
+		s.log.Error().Err(err).Msg("marshal trace event failed")
+		return
+	}
+	s.wsServer.Broadcast(data)
+
+	// Also broadcast to stream subscribers
+	streamMsg := &StreamMessage{
+		Type:      "trace",
+		Service:   "trace-collector",
+		Timestamp: time.Unix(0, traceEvt.Timestamp*int64(time.Millisecond)),
+		Data:      traceEvt,
+	}
+	s.broadcastToStream(streamMsg)
 }
 
 // isViewerFlow reports whether a packet or flow belongs to one of this dashboard's

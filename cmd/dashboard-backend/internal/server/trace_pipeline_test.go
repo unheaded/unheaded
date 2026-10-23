@@ -692,3 +692,28 @@ func TestViewerOwnPacketsLeftOut(t *testing.T) {
 		t.Error("unrelated traces.packet event treated as viewer traffic")
 	}
 }
+
+// The trace-collector publishes traces.* as a JSON array; the dashboard
+// read only objects, so every batch became one blank trace (east,
+// 2026-10-23: 1000 of 1000 blank).
+func TestTraceRecords_ExpandsCollectorBatches(t *testing.T) {
+	raw := []byte(`[{"trace_id":"00","src_ip":"127.0.0.1","dst_ip":"127.0.0.1","src_port":56636,"dst_port":18001,"protocol":"TCP","packet_len":4792,"hop_count":0},
+		{"src_ip":"10.0.0.1","dst_ip":"10.0.0.2","protocol":"UDP","packet_len":96}]`)
+	recs := traceRecords(events.Event{Topic: "traces.packet", Raw: raw})
+	if len(recs) != 2 {
+		t.Fatalf("records = %d, want 2", len(recs))
+	}
+	s := &Server{}
+	te := s.parseTraceTopicEvent(events.Event{Topic: "traces.packet", Data: recs[0]})
+	if te.Src != "127.0.0.1" || te.Dst != "127.0.0.1" || te.Protocol != "TCP" || te.PacketLen != 4792 || te.EventType != "packet" {
+		t.Errorf("parsed batch record = %+v", te)
+	}
+	if got := traceRecords(events.Event{Data: map[string]interface{}{"src_ip": "a"}}); len(got) != 1 {
+		t.Errorf("object payload: %d records, want 1", len(got))
+	}
+	for _, bad := range []string{``, `{`, `[1,2]`, `"x"`} {
+		if got := traceRecords(events.Event{Raw: []byte(bad)}); len(got) != 0 {
+			t.Errorf("payload %q gave %d records, want 0", bad, len(got))
+		}
+	}
+}
