@@ -710,7 +710,7 @@ func schemaDrift(schemaYAML []byte) []string {
 		gv, ok := fromGo[p]
 		switch {
 		case !ok:
-			drift = append(drift, fmt.Sprintf("%s: in schema (%v), missing from the Go rule table", p, sv))
+			drift = append(drift, fmt.Sprintf("%s: in schema (%v), but not in the Go rule table", p, sv))
 		case !reflect.DeepEqual(sv, gv):
 			drift = append(drift, fmt.Sprintf("%s: schema %v, Go %v", p, sv, gv))
 		}
