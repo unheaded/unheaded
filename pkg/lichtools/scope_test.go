@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 )
 
@@ -122,6 +123,36 @@ func TestScope_Validate_UnknownKind(t *testing.T) {
 	s, _ := newTestScope(t)
 	if err := s.Validate(Target{Kind: KindUnknown, Name: "lich-sbx-x"}); !errors.Is(err, ErrOutOfScope) {
 		t.Fatalf("unknown kind must be ErrOutOfScope, got %v", err)
+	}
+}
+
+// TestScope_Hardening — additional BlackMage self-review cases (Step 43):
+// absolute path, whitespace, NUL byte, over-long name, tab, and a full-prefix
+// homoglyph must all be refused.
+func TestScope_Hardening(t *testing.T) {
+	s, _ := newTestScope(t)
+	cases := []struct {
+		name string
+		kind TargetKind
+		val  string
+	}{
+		{"absolute sandbox path", KindSandbox, "/lich-sbx-x"},
+		{"sandbox with space", KindSandbox, "lich-sbx-a b"},
+		{"sandbox with NUL", KindSandbox, "lich-sbx-a\x00b"},
+		{"sandbox with tab", KindSandbox, "lich-sbx-a\tb"},
+		{"over-long sandbox", KindSandbox, "lich-sbx-" + strings.Repeat("a", 300)},
+		{"sandbox dot segment", KindSandbox, "lich-sbx-../x"},
+		{"harness absolute", KindHarness, "/001"},
+		{"harness with NUL", KindHarness, "0\x0001"},
+		{"harness dotdot", KindHarness, "001/../002"},
+		{"harness whitespace", KindHarness, "0 1"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if err := s.Validate(Target{Kind: c.kind, Name: c.val}); !errors.Is(err, ErrOutOfScope) {
+				t.Fatalf("%q must be ErrOutOfScope, got %v", c.val, err)
+			}
+		})
 	}
 }
 
