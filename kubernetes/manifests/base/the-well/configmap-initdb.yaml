@@ -157,6 +157,7 @@ data:
     unheaded_config  026_owner_takes_objects.sql  superuser
     postgres         027_stats_and_backup_settings.sql
     unheaded_config  028_config_change_reason_required.sql
+    postgres         029_template1_no_public_connect.sql
 
     # The pre-split single-database schema, superseded by 003/004/005: applying
     # it would put a fourth copy of kanban_tasks, timeline_milestones and
@@ -1674,3 +1675,16 @@ data:
         RETURN OLD;
     END;
     $$ LANGUAGE plpgsql;
+  029_template1_no_public_connect.sql: |
+    -- SPDX-License-Identifier: GPL-3.0-or-later
+    -- The Well — PUBLIC connects nowhere, template1 included (ERDA 2.2, W-02),
+    -- cluster-level.
+    --
+    -- 025 revoked CONNECT and TEMPORARY from PUBLIC on every database that
+    -- accepts connections, but skipped templates: template1 kept the default
+    -- grants, and db/pg_hba.conf admits every database from the data network,
+    -- so any service role could log in to template1 and make temporary tables
+    -- there. Nothing needs to: CREATE DATABASE copies template1 without
+    -- connecting to it, and the superuser needs no grant.
+
+    REVOKE CONNECT, TEMPORARY ON DATABASE template1 FROM PUBLIC;

@@ -116,6 +116,8 @@ done
 reach=$(sq postgres "SELECT string_agg(r || '>' || d, ' ' ORDER BY r, d) FROM unnest(ARRAY['app_kanban','ops_writer','config_admin','huginn_reader','well_backup']) r, unnest(ARRAY['postgres','unheaded_app','unheaded_ops','unheaded_config']) d WHERE has_database_privilege(r, d, 'CONNECT')")
 want_reach="app_kanban>unheaded_app app_kanban>unheaded_config config_admin>unheaded_config huginn_reader>unheaded_app huginn_reader>unheaded_config huginn_reader>unheaded_ops ops_writer>unheaded_ops well_backup>postgres well_backup>unheaded_app well_backup>unheaded_config well_backup>unheaded_ops"
 [[ "$reach" == "$want_reach" ]] && pass "service roles connect only where granted" || fail "CONNECT map: $reach"
+[[ "$(sq postgres "SELECT has_database_privilege('public', 'template1', 'CONNECT') OR has_database_privilege('public', 'template1', 'TEMPORARY') OR has_database_privilege('app_kanban', 'template1', 'CONNECT')")" == f ]] &&
+	pass "template1: PUBLIC has no CONNECT/TEMPORARY" || fail "template1: PUBLIC can connect"
 
 # 028: a kingdom_config change without a reason is refused; with one, history keeps it.
 if sq unheaded_config "UPDATE kingdom_config SET value = '\"x\"' WHERE key = 'kingdom.mode'" >/dev/null 2>&1; then
