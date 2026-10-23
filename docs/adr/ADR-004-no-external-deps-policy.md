@@ -102,6 +102,7 @@ Dependencies from established organizations, approved by owner on a case-by-case
 | `cloudflare/circl` | Cloudflare | PQ cryptography: ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205). Scope widened to record actual use, audit 2026-09-24 | 2026-03-15 |
 | `lib/pq` | Go community (widely used) | Pure Go PostgreSQL driver | 2026-03-15 |
 | `github.com/anthropics/anthropic-sdk-go` | Anthropic | Official Claude API client for `pkg/claudebridge` (ADR-104). MIT. Review below | 2026-10-23, **owner sign-off pending** |
+| `aws-lc-rs` (+ `aws-lc-sys`), Rust | AWS (`aws` org) | rustls' crypto provider in `cmd/waf` and `crates/zhend`: the only rustls provider with hybrid ML-KEM key exchange (ADR-105). Replaces `ring` there. Review below | 2026-10-23, **owner sign-off pending** |
 
 **Approval process:** New exceptions require owner sign-off. Target: Kanban board approval workflow (see ADR-025).
 
@@ -205,6 +206,29 @@ Recorded in the commit that adds it to the root module, with its
 | Compiled-in transitive modules (18) | `bahlo/generic-list-go` (BSD-3), `buger/jsonparser` (MIT), `cespare/xxhash/v2`, `go-logr/logr`, `go-logr/stdr`, `invopop/jsonschema` (MIT, file `COPYING`), `pb33f/ordered-map/v2` (Apache-2.0), `standard-webhooks/.../libraries` (MIT), `tidwall/gjson`, `match`, `pretty`, `sjson` (MIT), `go.opentelemetry.io/otel`, `/metric`, `/trace`, `/auto/sdk` (Apache-2.0), `go.yaml.in/yaml/v4` **v4.0.0-rc.2, a release candidate** (MIT + Apache-2.0), `golang.org/x/sync` (licences of `xxhash`, `logr`, `stdr`, `x/sync` not re-checked here). All were already in the baseline through `tools/gosec`; none is new to the build list. |
 | New baseline lines (22) | `go.sum` checksum entries `go mod tidy` records for the tests of the SDK's packages: the AWS SDK v2 family and `smithy-go` (Bedrock), `golang.org/x/oauth2` and `cloud.google.com/go/auth/oauth2adapt` (Vertex), `modelcontextprotocol/go-sdk`, `google/jsonschema-go`, `segmentio/asm`, `segmentio/encoding`, `yosida95/uritemplate/v3`, `otelgrpc`. `go list -deps -test ./...` loads none of them: no binary or test in this repository compiles them. |
 | govulncheck | Clean for the new code paths; the one module-level finding (GO-2026-5932, `x/crypto/openpgp`, not called) predates this change. |
+
+### Admission — `aws-lc-rs` 1.18.2 / `aws-lc-sys` 0.46.0 as rustls' crypto provider (2026-10-23, ADR-096 §2)
+
+S-QUANTUM-ARMOR Phase 7 (ADR-105). Recorded in the commits that switch
+`cmd/waf` and `crates/zhend` to it. Neither package is new to the build list:
+both were already in both lockfiles at these versions, pulled in by
+`tokio-rustls` and `rustls` default features, unreviewed. What changes is that
+they are now chosen on purpose, as the only TLS provider, and `crates/zhend`
+depends on `aws-lc-rs` directly (Ed25519 for its self-signed QUIC certificate,
+replacing a direct `ring` dependency). Signals not checked are marked *not
+assessed*.
+
+| step | finding |
+|---|---|
+| 1. Minimise | `ring`, the provider it replaces, has no ML-KEM, so it cannot negotiate the hybrid `X25519MLKEM768` group; rustls ships no other provider that can. Writing ML-KEM ourselves is out of the question. The change removes more than it adds: `ring` is no longer built for the WAF or zhend, zhend loses quinn's unused platform verifier (16 packages), and the unused TLS stacks of `cmd/trace-collector` (tonic `tls`) and `cmd/upc-bootctl` (reqwest `rustls-tls`) are gone. `docs/policy/dependency-baseline.txt`: 17 lines removed, none added. |
+| 2. Named and confirmed | Named in the plan's pre-seeded decision (S-QUANTUM-ARMOR Step 38, ADR-105), by a person, before this work. crates.io: `aws-lc-rs` created 2023-04-11, repository `github.com/aws/aws-lc-rs`; 1.18.2 published 2026-10-12T15:05Z, `aws-lc-sys` 0.46.0 published 2026-10-12T15:02Z, same publisher (`justsmth`); neither yanked. Lockfile checksums unchanged. |
+| 3. Cheap signals | Owner is the `aws` GitHub organisation; release history 3.5 years (ADR-096 §4 proposes 3); releases every few weeks; not archived. Recent change of control: not assessed. |
+| 4. Anchored signals / depth | rustls (the TLS library this repository already uses) makes it its default provider. Distribution packaging, CVE-handling process: not assessed. Read: the `aws-lc-rs` functions we call directly (`ed25519.rs`: `generate_pkcs8`, which ignores the passed RNG and uses AWS-LC's own; `from_pkcs8`, which validates the key and checks a v2 document's public key; `sign` / `try_sign`) and rustls' `crypto/aws_lc_rs/mod.rs` `DEFAULT_KX_GROUPS` (`X25519MLKEM768` first under `prefer-post-quantum`). Not read: the AWS-LC C library itself (BoringSSL/OpenSSL lineage; ML-KEM from mlkem-native), which parses peers' key shares. Far too large to read in full: the admission rests on the anchored signal and on ring being the same class of dependency (C and assembly under a Rust API). |
+| 5. Efficiency | Not benchmarked. Handshake-only cost: an `X25519MLKEM768` key share is 1216 bytes from the client and 1120 from the server; bulk encryption is unchanged. |
+| 6. Pin | `Cargo.lock` checksums. Cooldown: 1.18.2 / 0.46.0 were 11 days old on 2026-10-23 (7-day rule). No version changed in this sprint. |
+| Build | `aws-lc-sys` compiles C with the `cc` crate (no cmake needed on Linux x86-64); built on west with the system gcc. The Rust CI jobs run on `ubuntu-latest`, which has a C compiler. |
+| Licence | `aws-lc-rs`: `ISC AND (Apache-2.0 OR ISC)`. `aws-lc-sys`: `ISC AND (Apache-2.0 OR ISC) AND Apache-2.0 AND MIT AND BSD-3-Clause AND (Apache-2.0 OR ISC OR MIT) AND (Apache-2.0 OR ISC OR MIT-0)`. Its `aws-lc/LICENSE` places the OpenSSL- and SSLeay-derived code under Apache-2.0: no OpenSSL or SSLeay licence. All GPL-3.0 compatible; `scripts/verify-gpl-boundary.sh` passes. |
+| cargo audit | 0 vulnerabilities, 0 yanked in the four changed lockfiles (advisory DB of 2026-10-23). Pre-existing "unmaintained" warnings unchanged except that `cmd/trace-collector` loses `rustls-pemfile` (RUSTSEC-2025-0134). |
 
 ## Long-Term Replacement Strategy
 

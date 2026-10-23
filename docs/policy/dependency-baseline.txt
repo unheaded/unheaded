@@ -68,10 +68,8 @@ cargo clap_derive
 cargo clap_lex
 cargo cmake
 cargo colorchoice
-cargo combine
 cargo constant_time_eq
 cargo core-error
-cargo core-foundation
 cargo core-foundation-sys
 cargo core_detect
 cargo cpufeatures
@@ -143,7 +141,6 @@ cargo http-body-util
 cargo httparse
 cargo httpdate
 cargo hyper
-cargo hyper-rustls
 cargo hyper-timeout
 cargo hyper-util
 cargo iana-time-zone
@@ -168,10 +165,6 @@ cargo itoa
 cargo jiff
 cargo jiff-core
 cargo jiff-static
-cargo jni
-cargo jni-macros
-cargo jni-sys
-cargo jni-sys-macros
 cargo jobserver
 cargo js-sys
 cargo lazy_static
@@ -202,7 +195,6 @@ cargo once_cell
 cargo once_cell_polyfill
 cargo oorandom
 cargo opaque-debug
-cargo openssl-probe
 cargo parking_lot
 cargo parking_lot_core
 cargo paste
@@ -260,22 +252,16 @@ cargo rustc-hash
 cargo rustc_version
 cargo rustix
 cargo rustls
-cargo rustls-native-certs
 cargo rustls-pemfile
 cargo rustls-pki-types
-cargo rustls-platform-verifier
-cargo rustls-platform-verifier-android
 cargo rustls-webpki
 cargo rustversion
 cargo rusty-fork
 cargo ryu
 cargo same-file
-cargo schannel
 cargo scopeguard
 cargo scroll
 cargo scroll_derive
-cargo security-framework
-cargo security-framework-sys
 cargo semver
 cargo serde
 cargo serde_core
@@ -290,8 +276,6 @@ cargo sharded-slab
 cargo shlex
 cargo signal-hook-registry
 cargo simd-adler32
-cargo simd_cesu8
-cargo simdutf8
 cargo siphasher
 cargo slab
 cargo sled
@@ -363,7 +347,6 @@ cargo wasm-bindgen-macro-support
 cargo wasm-bindgen-shared
 cargo web-sys
 cargo web-time
-cargo webpki-root-certs
 cargo webpki-roots
 cargo winapi
 cargo winapi-i686-pc-windows-gnu

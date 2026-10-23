@@ -28,7 +28,9 @@ upc-api = { path = "../../crates/upc-api" }
 # Phase 2 — live BPF integration
 aya = "0.13"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "signal", "time", "sync"] }
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls", "blocking"] }
+# No `rustls-tls`: the only request is a POST to http://<host>:<port> on the
+# local tty-bridge (src/tty_bridge.rs). ADR-105.
+reqwest = { version = "0.12", default-features = false, features = ["json", "blocking"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"

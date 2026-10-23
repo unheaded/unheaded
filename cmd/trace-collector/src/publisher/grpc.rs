@@ -1,3 +1,5 @@
+// SPDX-License-Identifier: GPL-3.0-or-later
+// Copyright (c) 2025-2026 Stevie Bellis. All rights reserved.
 //! gRPC client for Wotan integration.
 //!
 //! THE WHISPERING VOID speaks to Wotan, the realm's message courier,
@@ -33,6 +35,21 @@ const BASE_RETRY_BACKOFF: Duration = Duration::from_millis(100);
 
 /// Maximum retry backoff
 const MAX_RETRY_BACKOFF: Duration = Duration::from_secs(30);
+
+/// trace-collector speaks plaintext gRPC only: it is built without tonic's
+/// `tls` feature, which it never configured (ADR-105, S-QUANTUM-ARMOR Step
+/// 152). Without that feature tonic dials an `https://` URI as cleartext h2,
+/// so refuse anything but `http://` rather than send traces unencrypted to
+/// an endpoint that looks encrypted.
+fn require_plaintext_scheme(endpoint: &Endpoint) -> Result<()> {
+    match endpoint.uri().scheme_str() {
+        Some(s) if s.eq_ignore_ascii_case("http") => Ok(()),
+        other => Err(anyhow::anyhow!(
+            "endpoint scheme {:?} refused: trace-collector has no TLS, use http://",
+            other.unwrap_or("")
+        )),
+    }
+}
 
 /// gRPC client state
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -108,8 +125,14 @@ impl WotanClient {
 
         info!(endpoint = self.endpoint, "Connecting to Wotan");
 
-        let endpoint = Endpoint::from_shared(self.endpoint.clone())
-            .context("Invalid endpoint URL")?
+        let endpoint =
+            Endpoint::from_shared(self.endpoint.clone()).context("Invalid endpoint URL")?;
+        if let Err(e) = require_plaintext_scheme(&endpoint) {
+            *self.state.write() = ClientState::Failed;
+            metrics::set_connection_state(&self.endpoint, false);
+            return Err(e);
+        }
+        let endpoint = endpoint
             .connect_timeout(CONNECT_TIMEOUT)
             .timeout(REQUEST_TIMEOUT)
             .tcp_keepalive(Some(Duration::from_secs(30)))
@@ -400,5 +423,37 @@ mod tests {
 
         let err = anyhow::anyhow!("parse error");
         assert!(!WotanClient::is_connection_error(&err));
+    }
+
+    fn endpoint(uri: &'static str) -> Endpoint {
+        Endpoint::from_static(uri)
+    }
+
+    #[test]
+    fn test_plaintext_scheme_accepted() {
+        assert!(require_plaintext_scheme(&endpoint("http://localhost:50051")).is_ok());
+        assert!(require_plaintext_scheme(&endpoint("HTTP://127.0.0.1:50051")).is_ok());
+    }
+
+    /// Built without tonic's `tls` feature, tonic would dial an https://
+    /// URI as cleartext h2. The guard must refuse it instead.
+    #[test]
+    fn test_https_scheme_refused() {
+        for uri in [
+            "https://wotan.internal:18001",
+            "HTTPS://wotan.internal:18001",
+        ] {
+            let err = require_plaintext_scheme(&endpoint(uri)).expect_err(uri);
+            assert!(err.to_string().contains("no TLS"), "{uri}: {err}");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_https_endpoint_fails_before_connecting() {
+        let err = WotanClient::new("https://127.0.0.1:1")
+            .await
+            .err()
+            .expect("https endpoint must be refused");
+        assert!(err.to_string().contains("no TLS"), "{err}");
     }
 }

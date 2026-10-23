@@ -12,7 +12,9 @@ tokio = { version = "1.35", features = ["full", "rt-multi-thread", "sync", "time
 
 # gRPC
 # ADR-066 (2026-05-08): tonic 0.10 → 0.12 closes RUSTSEC-2026-0098/0099/0104 + RUSTSEC-2024-0437.
-tonic = { version = "0.12", features = ["gzip", "tls"] }
+# No `tls` feature: no TLS config was ever built (ADR-105). The publisher
+# refuses https:// endpoints instead (src/publisher/grpc.rs).
+tonic = { version = "0.12", features = ["gzip"] }
 prost = "0.13"
 
 # Logging and tracing
