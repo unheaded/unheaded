@@ -34,6 +34,19 @@ def _run(coro):
     return asyncio.run(coro)
 
 
+def _call(name, arguments=None):
+    """tools/call through the library handler; returns the CallToolResult."""
+    req = types.CallToolRequest(
+        method="tools/call",
+        params=types.CallToolRequestParams(name=name, arguments=arguments),
+    )
+    return _run(zms.app.request_handlers[types.CallToolRequest](req)).root
+
+
+def _text(result):
+    return "".join(c.text for c in result.content if c.type == "text")
+
+
 @unittest.skipUnless(HAVE_MCP, "mcp package not installed")
 class TestProjectRootAndVersion(unittest.TestCase):
     def test_project_root_derived_from_file(self):
@@ -129,6 +142,75 @@ class TestValidatePath(unittest.TestCase):
     def test_empty_and_nul_denied(self):
         self.assertDenied("")
         self.assertDenied(f"{self.root}/README.md\x00.txt")
+
+
+@unittest.skipUnless(HAVE_MCP, "mcp package not installed")
+class TestRunbookNames(unittest.TestCase):
+    def setUp(self):
+        self._tmp = tempfile.TemporaryDirectory()
+        base = Path(os.path.realpath(self._tmp.name))
+        self.rb = base / "runbooks"
+        (self.rb / "infra").mkdir(parents=True)
+        (self.rb / "infra" / "good-one.yaml").write_text("name: good-one\n")
+        (base / "evil.yaml").write_text("name: evil\n")
+        os.symlink(base / "evil.yaml", self.rb / "infra" / "linked.yaml")
+        self._patches = [
+            mock.patch.object(zms, "RUNBOOKS_DIR", self.rb),
+            mock.patch.dict(os.environ, {"ZHEN_MCP_ALLOW_EXEC": "1"}),
+        ]
+        for p in self._patches:
+            p.start()
+
+    def tearDown(self):
+        for p in reversed(self._patches):
+            p.stop()
+        self._tmp.cleanup()
+
+    def test_real_runbook_names_match_pattern(self):
+        names = [p.stem for p in (REPO_ROOT / "runbooks").rglob("*.yaml")]
+        self.assertTrue(names)
+        for n in names:
+            self.assertTrue(zms.RUNBOOK_NAME_RE.fullmatch(n), n)
+
+    def test_show_valid(self):
+        res = _call("runbook_show", {"name": "good-one"})
+        self.assertFalse(res.isError, _text(res))
+        self.assertIn("name: good-one", _text(res))
+
+    def test_show_not_found_is_error(self):
+        res = _call("runbook_show", {"name": "nope"})
+        self.assertTrue(res.isError)
+
+    BAD_NAMES = ["*", "../evil", "infra/good-one", "Good-One", "-x", "", "a" * 65,
+                 "good-one\n", "good*", "[g]ood-one"]
+
+    def test_show_rejects_bad_names(self):
+        for name in self.BAD_NAMES:
+            res = _call("runbook_show", {"name": name})
+            self.assertTrue(res.isError, f"{name!r}: {_text(res)[:80]}")
+            self.assertNotIn("name: evil", _text(res))
+            self.assertNotIn("name: good-one", _text(res))
+
+    def test_show_rejects_symlink_out_of_runbooks(self):
+        res = _call("runbook_show", {"name": "linked"})
+        self.assertTrue(res.isError)
+        self.assertNotIn("name: evil", _text(res))
+
+    def test_execute_rejects_bad_names_without_running(self):
+        with mock.patch("subprocess.run") as run:
+            for name in self.BAD_NAMES + ["linked"]:
+                res = _call("runbook_execute", {"name": name, "dry_run": True})
+                self.assertTrue(res.isError, f"{name!r}: {_text(res)[:80]}")
+            run.assert_not_called()
+
+    def test_execute_valid_runs_resolved_path(self):
+        with mock.patch("subprocess.run") as run:
+            run.return_value = mock.Mock(returncode=0, stdout="ok", stderr="")
+            res = _call("runbook_execute", {"name": "good-one", "dry_run": True})
+        self.assertFalse(res.isError, _text(res))
+        cmd = run.call_args.args[0]
+        self.assertEqual(cmd[-1], str(self.rb / "infra" / "good-one.yaml"))
+        self.assertIn("--dry-run", cmd)
 
 
 if __name__ == "__main__":

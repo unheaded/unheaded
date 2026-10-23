@@ -46,6 +46,7 @@ Usage:
 import glob
 import json
 import os
+import re
 import urllib.request
 from pathlib import Path
 
@@ -73,6 +74,9 @@ ALLOWED_PATHS = [
     str(PROJECT_ROOT),
     "/var/zhen/",
 ]
+# Runbook names are file stems under runbooks/<category>/. Anything else
+# (glob metacharacters, separators, "..") never reaches glob().
+RUNBOOK_NAME_RE = re.compile(r"[a-z0-9][a-z0-9_-]{0,63}")
 DENIED_PATTERNS = [".ssh", ".env", "credentials", "secrets", "shadow", "id_rsa", "id_ed25519"]
 
 SERVICES = {
@@ -130,6 +134,20 @@ def validate_path(path: str) -> tuple[str | None, str | None]:
             return None, f"Path contains denied component: {denied}"
         return real, None
     return None, "Path outside sandbox"
+
+
+def resolve_runbook(name) -> str:
+    """Real path of runbooks/**/<name>.yaml. Raises ValueError if the name
+    is malformed, the match resolves outside runbooks/, or none exists."""
+    if not isinstance(name, str) or not RUNBOOK_NAME_RE.fullmatch(name):
+        raise ValueError(f"Invalid runbook name {name!r}: must match {RUNBOOK_NAME_RE.pattern}")
+    root = os.path.realpath(RUNBOOKS_DIR)
+    matches = sorted(glob.glob(os.path.join(root, "**", f"{name}.yaml"), recursive=True))
+    for match in matches:
+        real = os.path.realpath(match)
+        if _within(real, root) and os.path.isfile(real):
+            return real
+    raise ValueError(f"Runbook not found: {name}")
 
 
 # --- MCP Server ---
@@ -320,12 +338,10 @@ async def tool_runbook_list(args: dict):
 
 async def tool_runbook_show(args: dict):
     name = args.get("name", "")
-    matches = glob.glob(str(RUNBOOKS_DIR / "**" / f"{name}.yaml"), recursive=True)
-    if not matches:
-        return [TextContent(type="text", text=f"Runbook not found: {name}")]
-    with open(matches[0], "r") as f:
+    path = resolve_runbook(name)
+    with open(path, "r") as f:
         content = f.read()
-    return [TextContent(type="text", text=f"Runbook: {name}\nPath: {matches[0]}\n\n{content}")]
+    return [TextContent(type="text", text=f"Runbook: {name}\nPath: {path}\n\n{content}")]
 
 
 async def tool_file_write(args: dict):
@@ -369,13 +385,11 @@ async def tool_runbook_execute(args: dict):
     import subprocess as sp
     name = args.get("name", "")
     dry_run = args.get("dry_run", False)
-    matches = glob.glob(str(RUNBOOKS_DIR / "**" / f"{name}.yaml"), recursive=True)
-    if not matches:
-        return [TextContent(type="text", text=f"Runbook not found: {name}")]
+    path = resolve_runbook(name)
     cmd = ["python3", str(PROJECT_ROOT / "scripts" / "run-runbook.py")]
     if dry_run:
         cmd.append("--dry-run")
-    cmd.append(matches[0])
+    cmd.append(path)
     try:
         result = sp.run(cmd, capture_output=True, text=True, timeout=600, check=False)
         output = result.stdout + ("\n" + result.stderr if result.stderr else "")
