@@ -62,6 +62,24 @@ The same label and prune rule apply to `pkg/state`'s reconciler.
 
 Not deployed yet. `scripts/cuirass-lxd-trust.sh` (dry run unless `--apply`) does the LXD side: project `unheaded` (`restricted=true`, sharing the default project's images and profiles), a P-384 client certificate in `/etc/unheaded/cuirass` owned by Cuirass's uid, a trust restricted to that project, and the server certificate to pin; then it prints the daemon settings. West's LXD already listens on `[::]:8443` with no trusted certificates. Checked 2026-10-23 with an untrusted scratch certificate (opt-in `TestLXDREST_LiveHTTPS`): TLS 1.3 and the pin work, a wrong pin is refused, and LXD answers `untrusted`. After that: the daemon with `LXD_BACKEND=https` in observe mode, and read the planned actions before enforcing.
 
+### Health, proxy and chaos (S-REAL-STEEL Phase 4)
+
+A desired container (`PUT /api/v1/containers/{id}`) may also carry:
+
+| Field | Shape | What Cuirass does |
+|---|---|---|
+| `health` | `{"port": 8080, "path": "/health"}` | Each sync, `GET http://<IP LXD reports>:<port><path>`: 2 s timeout, redirects not followed, no proxy from the environment, body dropped after 4 KiB. One pass = `healthy`, three failures in a row = `unhealthy` (enforce mode then restarts it); without `health` it stays `unknown`. The path is a plain path (letters, digits, `._~/-`, no `..`, query or `//`); an instance reporting a loopback, link-local, unspecified or multicast address is not probed and counts as failing. Gauge `cuirass_container_health{id}` (1, 0, -1 unknown). |
+| `proxy` | `{"listen": "tcp:127.0.0.1:26601", "connect": "tcp:127.0.0.1:8080"}` | Keeps one LXD proxy device, `unheaded-proxy`, on the instance: the service's stable endpoint (blue-green moves it). `listen` is `127.0.0.1` or an address in `CUIRASS_PROXY_LISTEN_ADDRS` (comma-separated IPs), port 26000-26666; `connect` is `127.0.0.1` inside the container. Two containers cannot claim one `listen` (409). Drift plans `update-proxy`: a read-modify-write with the instance ETag in `If-Match` (412 retried once) that sends every other device and field back unchanged. |
+| `labels.chaos` | `"allowed"` | Opts the instance into the chaos endpoint below. |
+
+Actual state (`/api/v1/state/actual`) reports each instance's `proxy` (ours only) and `labels`.
+
+**Chaos stop/kill**: `POST /api/v1/containers/{id}/chaos` with `{"action":"stop"|"kill","reason":"..."}` (stop = clean, kill = forced). 403 unless `AUTH_ENABLED=true`, `CUIRASS_CHAOS=true` and `CUIRASS_ENFORCE=true` (without enforce nothing starts the instance again); 409 unless the instance is managed and labelled `chaos=allowed`. Those two are checked twice, independently: by the handler against the reconciler's view, and by the LXD client against a fresh read. The reconciler is not told, so its next sync (30 s) starts the instance again: that is the revert. Every request, refused or not, is logged once and published on `cuirass.chaos` (action, reason, caller, result).
+
+A game-day window turns chaos on with `CUIRASS_CHAOS=true` in the Cuirass environment and off again by removing it (restart Cuirass both times); outside a window the endpoint always answers 403.
+
+`/api/v1/info` reports `lxd_backend`, `lxd_project`, `enforce`, `prune` and `chaos`; `cuirass_reconcile_actions_total{action,result}` counts actions as `done`, `failed`, `planned` (observe mode) or `refused`.
+
 ## NixOS Container Definitions
 
 For NixOS-based deployments, declarative container definitions live in `nix/containers/`. These are the reference implementations — other runtimes map to equivalent security postures.

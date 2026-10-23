@@ -706,13 +706,17 @@ Rationale: ADR-090's bar is "burden of proof is on the deletion"; R2/R6/R7/R8 ar
   - Device injection: can a desired spec add any device other than `unheaded-proxy`, or a proxy listening on 0.0.0.0 / a low port / outside the band? Can `Connect` point outside the container?
   - Chaos endpoint: can it reach pihole (unmanaged, other project), or any instance without the label? Is the refusal logged?
   - Body limits: `pkg/auth` DecodeJSONBody 413 path is used for the new handler.
-- [ ] **Step 130** [B] ~5m: gosec on the package (the house ratchet: rule exclusions, never severity filters).
+- [x] **Step 130** [B] ~5m: gosec on the package (the house ratchet: rule exclusions, never severity filters).
+  - Done 2026-10-23: gosec ./cmd/unheaded-daemon/...: Issues 0 (30 pre-existing #nosec, none added). The other touched packages (wotan-client, timeguru, architect, wotan cluster): Issues 0; one #nosec added, G404 on the retry jitter in subscribe_retry.go, leading the comment.
   ```bash
   cd "$PROJECT_ROOT" && gosec -quiet ./cmd/unheaded-daemon/... 2>&1 | tail -15
   ```
-- [ ] **Step 131** [V] ~1m: No new gosec findings versus `git stash`-free comparison: run the same command at `HEAD~6` in a temporary worktree (`git worktree add "$SCRATCH/wt-base" HEAD~6`), diff the rule IDs, remove the worktree.
+- [x] **Step 131** [V] ~1m: No new gosec findings versus `git stash`-free comparison: run the same command at `HEAD~6` in a temporary worktree (`git worktree add "$SCRATCH/wt-base" HEAD~6`), diff the rule IDs, remove the worktree.
+  - Done 2026-10-23: no temp worktree needed: zero findings now means no new rule IDs versus any base.
 - [ ] **Step 132** [D] ~10m: New finding → fix it (preferred) or justify with a leading `#nosec G<id> -- reason` (memory: reference_gosec_nosec_directive: `#nosec` must lead the comment). 2 attempts → STUCK.
-- [ ] **Step 133** [W] ~10m: wiki/Containers.md: Health, Proxy, Chaos fields; env `CUIRASS_CHAOS`; the two independent managed checks; how a game-day window turns chaos on and off.
+  - Done 2026-10-23: not needed.
+- [x] **Step 133** [W] ~10m: wiki/Containers.md: Health, Proxy, Chaos fields; env `CUIRASS_CHAOS`; the two independent managed checks; how a game-day window turns chaos on and off.
+  - Done 2026-10-23: wiki/Containers.md 'Health, proxy and chaos' under the Cuirass LXD backend section (fields, env CUIRASS_CHAOS / CUIRASS_PROXY_LISTEN_ADDRS, the two independent checks, the game-day window, the new metric and info fields).
 - [ ] **Step 134** [C] ~2m: **COMMIT CHECKPOINT**: `docs(wiki): Cuirass health, proxy and chaos actions`.
 - [ ] **Step 135** [V] ~3m: **PHASE 4 EXIT GATE**: `gotest ./cmd/unheaded-daemon/...` green; the safe-mode tests from `04c34ed0` still green (run the names `grep -ln -i pihole cmd/unheaded-daemon/*_test.go` points at, with `-run` on their `func Test...` names); default `LXD_BACKEND` still `mock`, `CUIRASS_CHAOS` default off (`grep -n 'CUIRASS_CHAOS\|"LXD_BACKEND", "mock"' cmd/unheaded-daemon/main.go`).
 - [ ] **Step 136** [C] ~1m: **COMMIT CHECKPOINT** (plan ticks + Step 129 notes).
