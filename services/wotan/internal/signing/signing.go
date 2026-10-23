@@ -7,22 +7,26 @@ package signing
 import (
 	"bytes"
 	"crypto/sha256"
-	"encoding/binary"
 	"errors"
-	"slices"
 	"strings"
 	"sync"
 	"time"
 
 	"unheaded/pkg/crypto/pqc"
+	"unheaded/pkg/wotansig"
 )
 
-const Algorithm = "ml-dsa-65"
+// Algorithm is the only signature algorithm accepted.
+const Algorithm = wotansig.Algorithm
 
+// The canonical form, signer and stateless checks live in pkg/wotansig
+// (ADR-105) so publishers and subscribers outside Wotan can use them; this
+// package keeps Wotan's publish-time policy: trusted keys per prefix, the
+// clock-skew window and the replay cache.
 var (
 	ErrUnsignedConfigTopic = errors.New("signing: config.* topics require ML-DSA-65 signature")
-	ErrInvalidSignature    = errors.New("signing: signature verification failed")
-	ErrWrongAlgorithm      = errors.New("signing: only ml-dsa-65 accepted (no algorithm agility)")
+	ErrInvalidSignature    = wotansig.ErrInvalidSignature
+	ErrWrongAlgorithm      = wotansig.ErrWrongAlgorithm
 	ErrStale               = errors.New("signing: signed_at is outside the accepted window")
 	ErrReplay              = errors.New("signing: this signed message was already accepted (replay)")
 )
@@ -35,40 +39,28 @@ var (
 const MaxSkew = 5 * time.Minute
 
 // Signed is a topic message's signature and what a verifier needs with it.
-type Signed struct {
-	Signature      []byte
-	PublicKey      []byte
-	Algorithm      string
-	SignedAtUnixMs int64
-}
+type Signed = wotansig.Signed
 
 // TopicSigner signs Wotan topic messages with ML-DSA-65.
 type TopicSigner struct {
-	signer *pqc.MLDSASigner
+	inner  *wotansig.TopicSigner
 	pubKey []byte
 }
 
 // NewTopicSigner creates a signer from an ML-DSA-65 key pair.
 func NewTopicSigner(signer *pqc.MLDSASigner) *TopicSigner {
-	return &TopicSigner{
-		signer: signer,
-		pubKey: signer.PublicKey(),
-	}
+	inner := wotansig.NewTopicSigner(signer)
+	return &TopicSigner{inner: inner, pubKey: inner.PublicKey()}
 }
 
 // Sign signs a topic message now.
 func (ts *TopicSigner) Sign(topic, senderID string, payload []byte) (Signed, error) {
-	return ts.SignAt(topic, senderID, payload, time.Now())
+	return ts.inner.Sign(topic, senderID, payload)
 }
 
 // SignAt signs a topic message as of at.
 func (ts *TopicSigner) SignAt(topic, senderID string, payload []byte, at time.Time) (Signed, error) {
-	ms := at.UnixMilli()
-	sig, err := ts.signer.Sign(canonicalize(topic, senderID, ms, payload))
-	if err != nil {
-		return Signed{}, err
-	}
-	return Signed{Signature: sig, PublicKey: ts.pubKey, Algorithm: Algorithm, SignedAtUnixMs: ms}, nil
+	return ts.inner.SignAt(topic, senderID, payload, at)
 }
 
 // TopicVerifier verifies ML-DSA-65 signatures on Wotan topic messages
@@ -81,31 +73,26 @@ func (ts *TopicSigner) SignAt(topic, senderID string, payload []byte, at time.Ti
 // keys the operator configured (configs/wotan.yaml topics.signing_keys).
 // With none configured, every signed publish is refused.
 type TopicVerifier struct {
-	verifier *pqc.MLDSAVerifier
-	trusted  [][]byte
-	now      func() time.Time
+	trusted [][]byte
+	now     func() time.Time
 
 	mu   sync.Mutex
 	seen map[[sha256.Size]byte]int64 // accepted signature -> forget after (Unix ms)
 }
 
 // ErrNoTrustedKeys refuses signed publishes when no signing key is trusted.
-var ErrNoTrustedKeys = errors.New("signing: no trusted signing keys configured (topics.signing_keys)")
+var ErrNoTrustedKeys = wotansig.ErrNoTrustedKeys
 
 // ErrUntrustedKey refuses a signature made with a key Wotan does not trust.
-var ErrUntrustedKey = errors.New("signing: public key is not a trusted signing key")
+var ErrUntrustedKey = wotansig.ErrUntrustedKey
 
 // NewTopicVerifier creates a verifier for ML-DSA-65.
 func NewTopicVerifier(trusted ...[]byte) (*TopicVerifier, error) {
-	v, err := pqc.NewMLDSAVerifier(pqc.MLDSA65)
-	if err != nil {
-		return nil, err
-	}
 	keys := make([][]byte, 0, len(trusted))
 	for _, k := range trusted {
 		keys = append(keys, bytes.Clone(k))
 	}
-	return &TopicVerifier{verifier: v, trusted: keys, now: time.Now, seen: map[[sha256.Size]byte]int64{}}, nil
+	return &TopicVerifier{trusted: keys, now: time.Now, seen: map[[sha256.Size]byte]int64{}}, nil
 }
 
 // Verify checks a topic message signature: algorithm, a trusted key, the
@@ -115,14 +102,8 @@ func NewTopicVerifier(trusted ...[]byte) (*TopicVerifier, error) {
 // actually taken, so a publish refused for another reason (sender not
 // approved yet) can be retried with the same signature.
 func (tv *TopicVerifier) Verify(topic, senderID string, payload []byte, sg Signed) error {
-	if sg.Algorithm != Algorithm {
-		return ErrWrongAlgorithm
-	}
-	if len(tv.trusted) == 0 {
-		return ErrNoTrustedKeys
-	}
-	if !slices.ContainsFunc(tv.trusted, func(k []byte) bool { return bytes.Equal(k, sg.PublicKey) }) {
-		return ErrUntrustedKey
+	if err := wotansig.CheckKey(sg, tv.trusted); err != nil {
+		return err
 	}
 	now := tv.now().UnixMilli()
 	skew := MaxSkew.Milliseconds()
@@ -130,12 +111,8 @@ func (tv *TopicVerifier) Verify(topic, senderID string, payload []byte, sg Signe
 	if sg.SignedAtUnixMs < now-skew || sg.SignedAtUnixMs > now+skew {
 		return ErrStale
 	}
-	ok, err := tv.verifier.Verify(canonicalize(topic, senderID, sg.SignedAtUnixMs, payload), sg.Signature, sg.PublicKey)
-	if err != nil {
+	if err := wotansig.VerifySignature(topic, senderID, payload, sg); err != nil {
 		return err
-	}
-	if !ok {
-		return ErrInvalidSignature
 	}
 	tv.mu.Lock()
 	defer tv.mu.Unlock()
@@ -177,18 +154,7 @@ func RequiresSignature(topic string) bool {
 	return strings.HasPrefix(topic, "config.")
 }
 
-// canonicalize is what a signature covers: SHA-256("wotan/topic-sig/v2" ||
-// 0 || topic || 0 || sender_id || 0 || signed_at (8 bytes, big-endian, Unix
-// ms) || payload). v1 had no time, so a signed message could be replayed.
+// canonicalize is what a signature covers; see wotansig.Canonicalize.
 func canonicalize(topic, senderID string, signedAtMs int64, payload []byte) []byte {
-	h := sha256.New()
-	h.Write([]byte("wotan/topic-sig/v2"))
-	h.Write([]byte{0})
-	h.Write([]byte(topic))
-	h.Write([]byte{0})
-	h.Write([]byte(senderID))
-	h.Write([]byte{0})
-	_ = binary.Write(h, binary.BigEndian, signedAtMs)
-	h.Write(payload)
-	return h.Sum(nil)
+	return wotansig.Canonicalize(topic, senderID, signedAtMs, payload)
 }

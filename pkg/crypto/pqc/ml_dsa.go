@@ -4,6 +4,7 @@
 package pqc
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/cloudflare/circl/sign/mldsa/mldsa44"
@@ -199,4 +200,22 @@ func GenerateMLDSAKeyPair(params ParameterSet) (*KeyPair, *MLDSASigner, error) {
 	default:
 		return nil, nil, ErrInvalidParameterSet
 	}
+}
+
+// ErrNilPrivateKey refuses to build a signer around no key.
+var ErrNilPrivateKey = errors.New("pqc: nil private key")
+
+// NewMLDSASignerFromPrivateKey wraps an existing ML-DSA-65 private key (for
+// example one gungnir.LoadSeedFile read from a 0600 seed file) as a signer,
+// so a long-lived key can sign where GenerateMLDSAKeyPair would make a new
+// one. The public key is derived from the private key.
+func NewMLDSASignerFromPrivateKey(sk *mldsa65.PrivateKey) (*MLDSASigner, error) {
+	if sk == nil {
+		return nil, ErrNilPrivateKey
+	}
+	pk, ok := sk.Public().(*mldsa65.PublicKey)
+	if !ok || pk == nil {
+		return nil, ErrNilPrivateKey
+	}
+	return &MLDSASigner{params: MLDSA65, sk65: sk, pk65: pk}, nil
 }
