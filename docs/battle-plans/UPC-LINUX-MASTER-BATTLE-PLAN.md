@@ -92,6 +92,11 @@ budget-aware handler with a green gate. Pick off as budget/interest allows.*
       FS path (needs a block-alloc story; scope carefully vs verifier budget).
 - [ ] **1.3.3** Pipes (`|`) + a couple more shell builtins.
 - [ ] **1.3.4 GATE (per item):** new capability works; regression sweep (1.1.3) green.
+- [~] **1.3.5** EVOLUTION-1 Stage 1 (getpid trap flip). S5 2026-10-23: S1.2 closed (translator
+      CSR scratch aliasing fixed; `userret` restores from sscratch); the injected getpid round
+      trip works, but the kernel answers pid 1 where BPF answers 0, so `GETPID_INJECT` stays
+      `false`. REMAINS: pid identity / proc[] reconciliation before the flag flips. Detail:
+      `EVOLUTION-1-TRAP-FLIP.md` §Stage 1 status.
 
 ### Epic 1.4 — Code-store readiness (only when an image needs it)
 - [x] **1.4.1** Option A `large-image` feature (ROM_MAP 4×, RV2MBC 8×) — DONE + validated

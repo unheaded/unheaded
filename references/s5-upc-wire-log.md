@@ -98,3 +98,31 @@ in kernel code, and no asynchronous trap is taken between the MBC words of one R
 instruction in the ascend build. A side effect of the old bug is also closed:
 `prepare_return` wrote kernel_satp/kernel_sp/kernel_trap/hartid to address 0x7ff instead
 of the trapframe. No new attack surface.
+
+## Phase 3 — getpid flip, Dream Ladder L5 (2026-10-23)
+
+- L5 regression (Steps 83–86): harness green at Step 71, nothing changed since. `echo hello`
+  insn_count 5,357,897 (Phase 0) → 5,086,757 (−5.1%, lower as expected: `csrr` no longer
+  re-stores the CSR).
+- Step 87–89: `userret` now `csrr a0, sscratch` (was `mv a0, a1`). Kernel 11665 MBC.
+  Sweep with flag OFF: **8/8 SAME** — the forkret return that broke the boot in July now
+  works from sscratch. Specials 4/4 SAME; harness ALL GREEN (926,542 / 761,580).
+- Step 92–96 (`getpidprobe`, 2,000,000 triggers):
+  - flag OFF: `GP: probe-start`, `GP: getpid-returned`, `GP: pid=0`; insn_count 5,084,518.
+  - flag ON: `GP: probe-start`, `GP: getpid-returned`, **`GP: pid=1`**; insn_count
+    5,085,866; ends priv=3, PC 0x4179 (same exit PC as OFF), rom_fault=0, no DEAD sentinel.
+    The SRET path re-arms the existing PC tracer, so extra `S4209 …` hex appears in the TTY.
+  - **Round trip proven (Step 93), Step 96 FAILED**: ON and OFF disagree on the pid. The
+    kernel returns xv6's `p->pid` (init = 1); BPF returns its slot index (init = 0).
+- Step 97/98 verifier with the fixed path: flag ON **911,319** (91.1%) vs OFF 926,542
+  (−15,223; July measured +5,409). ≤ 950,000 with ≥ 5% headroom: yes.
+- Step 99/100 flag ON: sweep 8/8 SAME, harness ALL GREEN, Doom loads (761,580).
+- Step 101: one getpid round trip through the kernel = +1,348 MBC instructions.
+- **Step 102 [DECIDE]: `GETPID_INJECT = false`.** The recommendation was conditional on
+  Steps 93/96/98/100 all passing; 96 failed (pid identity). Evidence kept; flipping needs a
+  pid-numbering / proc[] reconciliation decision (out of S5 scope).
+- Tree state (Step 104): flag `false` in `main.rs` (unchanged from base), `userret` uses
+  sscratch; Step 88 sweep, Phase 3 specials and the flag-OFF harness were all run on this
+  exact state.
+- Plan text drift: Step 103 names "Epic 1.2" of the master plan, which is the
+  programmatic-API epic; the note went under Epic 1.3 (syscalls) as item 1.3.5.
