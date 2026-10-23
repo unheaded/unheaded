@@ -181,6 +181,12 @@ type Client struct {
 	// Subscriber state (per-topic)
 	subscribers map[string]*Subscriber
 	mu          sync.RWMutex
+	// pendingChecked: when Publish last asked Wotan about a pending
+	// subscription, per topic (guarded by mu). See pendingRecheckDue.
+	pendingChecked map[string]time.Time
+	// pendingRecheck: how often a publish on a pending subscription asks
+	// Wotan again; 0 means defaultPendingRecheck.
+	pendingRecheck time.Duration
 
 	// Message channels for subscriptions
 	channels map[string]*safeChannel
@@ -395,9 +401,71 @@ func (c *Client) Subscribe(ctx context.Context, topic, displayName string) (*Sub
 
 	c.mu.Lock()
 	c.subscribers[topic] = result.Subscriber
+	if result.Subscriber.Status == "approved" {
+		delete(c.pendingChecked, topic)
+	} else {
+		c.setPendingChecked(topic, time.Now())
+	}
 	c.mu.Unlock()
 
 	return result.Subscriber, nil
+}
+
+// defaultPendingRecheck is how often Publish asks Wotan again about a
+// subscription it last saw pending.
+const defaultPendingRecheck = 5 * time.Minute
+
+// setPendingChecked records when a pending subscription on topic was last
+// put to Wotan. Must be called with mu held.
+func (c *Client) setPendingChecked(topic string, at time.Time) {
+	if c.pendingChecked == nil {
+		c.pendingChecked = make(map[string]time.Time)
+	}
+	c.pendingChecked[topic] = at
+}
+
+// pendingRecheckDue reports whether a publish on the pending subscription
+// sub should go to Wotan rather than fail locally, and if so claims the
+// check so concurrent publishes do not all make it.
+//
+// A pending status used to be final: Publish refused every message locally
+// and never asked again, so a subscription approved later stayed refused
+// until the process restarted. On east kev-poller joined while Wotan's
+// allowlist lacked it; Wotan restarted with it on the list at 18:17 on
+// 2026-10-20, and kev-poller's hourly publishes still failed "subscription
+// pending approval" until it was restarted 17 hours later.
+func (c *Client) pendingRecheckDue(topic string, sub *Subscriber) bool {
+	every := c.pendingRecheck
+	if every <= 0 {
+		every = defaultPendingRecheck
+	}
+	now := time.Now()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.subscribers[topic] != sub {
+		return false // re-subscribed meanwhile; the caller retries with that
+	}
+	last, ok := c.pendingChecked[topic]
+	if ok && now.Sub(last) < every {
+		return false
+	}
+	c.setPendingChecked(topic, now)
+	// The first sight of a pending subscription only starts the clock.
+	return ok
+}
+
+// markApproved records that Wotan accepted a publish from sub, so its
+// pending status is out of date.
+func (c *Client) markApproved(topic string, sub *Subscriber) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.subscribers[topic] != sub {
+		return
+	}
+	approved := *sub
+	approved.Status = "approved"
+	c.subscribers[topic] = &approved
+	delete(c.pendingChecked, topic)
 }
 
 // Publish sends a message to a topic.
@@ -419,11 +487,18 @@ func (c *Client) Publish(ctx context.Context, topic string, payload []byte) erro
 	if !ok {
 		return fmt.Errorf("not subscribed to topic %s", topic)
 	}
-	if sub.Status != "approved" {
+	pending := sub.Status != "approved"
+	// Now and then a pending subscription is put to Wotan again: by
+	// publishing with it (an admin may have approved it) and, if refused,
+	// by joining again (Wotan may have restarted with the name allowlisted).
+	if pending && !c.pendingRecheckDue(topic, sub) {
 		return ErrSubscriptionPending
 	}
 
 	networkErr, appErr := c.doPublish(ctx, topic, sub.SubscriberID, payload)
+	if pending && networkErr == nil && appErr == nil {
+		c.markApproved(topic, sub)
+	}
 	if errors.Is(appErr, ErrSubscriberNotApproved) {
 		// Wotan keeps memberships in memory, so after it restarts the ID it
 		// issued is unknown and every publish is refused until this process

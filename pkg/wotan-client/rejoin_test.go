@@ -23,6 +23,7 @@ type fakeWotan struct {
 	next      int
 	status    string // status given to new members
 	published []string
+	attempts  int // publish requests, refused or not
 }
 
 func newFakeWotan(t *testing.T) (*fakeWotan, string) {
@@ -59,6 +60,7 @@ func (fw *fakeWotan) serve(w http.ResponseWriter, r *http.Request) {
 			Payload      string `json:"payload"`
 		}
 		_ = json.NewDecoder(r.Body).Decode(&req)
+		fw.attempts++
 		if !fw.approved[req.SubscriberID] {
 			w.WriteHeader(http.StatusForbidden)
 			_, _ = w.Write([]byte(`{"success":false,"error":{"code":"Forbidden","message":"subscriber not approved"}}`))
@@ -136,6 +138,83 @@ func TestPublish_RejoinNotApproved(t *testing.T) {
 	if fw.next != 2 || len(fw.published) != 0 {
 		t.Errorf("subscribes=%d published=%v, want one rejoin and nothing published", fw.next, fw.published)
 	}
+}
+
+// A pending subscription is put to Wotan again now and then. It used to be
+// final: kev-poller on east joined while Wotan's allowlist lacked it, and
+// kept failing "subscription pending approval" for 17 hours after Wotan
+// restarted with it on the list, until kev-poller itself was restarted.
+func TestPublish_PendingIsRechecked(t *testing.T) {
+	newPending := func(t *testing.T) (*fakeWotan, *Client) {
+		fw, addr := newFakeWotan(t)
+		fw.status = "pending"
+		c, _ := NewClient(addr)
+		if sub, err := c.Subscribe(context.Background(), "threats.kev", "kev"); err != nil || sub.Status != "pending" {
+			t.Fatalf("subscribe: %v %v", sub, err)
+		}
+		return fw, c
+	}
+	ctx := context.Background()
+
+	t.Run("Wotan restarted with the name allowlisted", func(t *testing.T) {
+		fw, c := newPending(t)
+		c.pendingRecheck = 10 * time.Millisecond
+		if err := c.Publish(ctx, "threats.kev", []byte("early")); !errors.Is(err, ErrSubscriptionPending) {
+			t.Fatalf("publish while pending: %v", err)
+		}
+		fw.restart()
+		fw.mu.Lock()
+		fw.status = "approved"
+		fw.mu.Unlock()
+		time.Sleep(20 * time.Millisecond)
+		if err := c.Publish(ctx, "threats.kev", []byte("late")); err != nil {
+			t.Fatalf("publish after approval: %v", err)
+		}
+		if !c.IsApproved("threats.kev") {
+			t.Error("subscription still recorded pending")
+		}
+		fw.mu.Lock()
+		defer fw.mu.Unlock()
+		if len(fw.published) != 1 || !strings.HasSuffix(fw.published[0], ":late") {
+			t.Errorf("published %v, want [late]", fw.published)
+		}
+	})
+
+	t.Run("an admin approved the pending member", func(t *testing.T) {
+		fw, c := newPending(t)
+		c.pendingRecheck = 10 * time.Millisecond
+		_ = c.Publish(ctx, "threats.kev", []byte("early"))
+		sub, _ := c.GetSubscriber("threats.kev")
+		fw.mu.Lock()
+		fw.approved[sub.SubscriberID] = true
+		fw.mu.Unlock()
+		time.Sleep(20 * time.Millisecond)
+		for _, p := range []string{"a", "b"} {
+			if err := c.Publish(ctx, "threats.kev", []byte(p)); err != nil {
+				t.Fatalf("publish %s: %v", p, err)
+			}
+		}
+		fw.mu.Lock()
+		defer fw.mu.Unlock()
+		if fw.next != 1 {
+			t.Errorf("%d subscribes, want the approved member kept", fw.next)
+		}
+	})
+
+	t.Run("still pending: asked at most once per interval", func(t *testing.T) {
+		fw, c := newPending(t)
+		c.pendingRecheck = time.Hour
+		for i := 0; i < 5; i++ {
+			if err := c.Publish(ctx, "threats.kev", []byte("x")); !errors.Is(err, ErrSubscriptionPending) {
+				t.Fatalf("publish %d: %v", i, err)
+			}
+		}
+		fw.mu.Lock()
+		defer fw.mu.Unlock()
+		if fw.attempts != 0 || fw.next != 1 {
+			t.Errorf("attempts=%d subscribes=%d, want 0 and 1", fw.attempts, fw.next)
+		}
+	})
 }
 
 // "#" starts a URL fragment: a topic pattern like "logs.#" put into the path
