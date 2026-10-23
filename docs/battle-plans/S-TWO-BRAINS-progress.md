@@ -59,6 +59,30 @@ Measured 2026-10-23 on `f7d730e7`, matching the KNOWN FAILURES BASELINE table
 - **Step 46-47** `configs/wotan.yaml` is the only `auto_approve` copy in the tree (helm/k8s/nix have none). `WOTAN_ADDR` is Wotan's HTTP `host:port` (repo convention; the plan's `127.0.0.1:18001` is gRPC and `pkg/wotan-client` publishes over HTTP).
 - **Step 52** the fake-API turn is 2 requests (tool_use, then end_turn) and 2 tool calls, so the check is 2 `llm_requests` rows, 2 `audit_events` (1 success, 1 pending), chain valid, 0 marker hits in `pg_dump`.
 - **Step 56** agentd: one `llm_requests` row per llama-server call through `llamaLLM` (usage parsed from the OpenAI block; every call of one agent run shares a run id as `conversation_id`); one `audit_events` row per gate decision through an `ActionStore` decorator over `tool_call_attempt` actions (the argument summary is hashed, not stored). `-audit-well` with the Well down warns and continues (zhen_actions still records); `zhen-claude` goes read-only instead (Step 48).
+- **Step 63** [DECIDE] recommendation taken (DenyConfirmer default, TTYConfirmer, QueueConfirmer; only the Champion's own write tools confirmable). Override (read-only bridge) not taken: no word from Stevie asking for it.
+- **Step 64** Erda additions to the plan's SQL: plain `CREATE TABLE`; every column but `status`/`decided_*` immutable (owner included); approval after `expires_at` refused in the trigger; insert must be `pending`; `(status = 'pending') = (decided_at IS NULL)`; 20-pending cap per `source_service` in an insert trigger (defense in depth with the code cap); DELETE/TRUNCATE refused by `well_append_only()`. Lint P3 `text-surrogate-pk` accepted: the 16-hex id is the handle Stevie types (`confirm approve <id>`), low volume.
+- **Step 71-73** the hash covers `{tool, args, project_root}` (canonical JSON, encoding/json sorts keys at every depth), so (d) "approved for root A, executed under B" fails the hash, not only the allowlist. `confirmedGate` is the one stripped gate for `ConfirmPendingToolCall` and `ConfirmCall`.
+- **Step 76-78** refused-pending calls are confirmed after the turn's parallel tool runs, one at a time in `tool_use` order (test 6). The TTY reads `/dev/tty` with plain line reads (`golang.org/x/term` is not in go.mod; no new dependency). Approval codes: 4 chars from a 31-char alphabet without look-alikes, printed on the terminal only.
+- **Step 81** `confirm approve` takes `-allowed-roots` (default: cwd). Kanban confirmations run with no KanbanStore in the CLI, so a queued `kanban_*` call ends `failed` until the subcommand gets a Kanban store (Phase 6 territory; noted, not built).
+- **Step 83** "direct" = any `/tool/exec` caller whose `emitted_by` does not start with `zhen-agent`; the web UI path (tokens) is unchanged.
+
+## Reviews
+
+### Step 86 — BlackMage review of the approval path (2026-10-23)
+
+| # | Attack | Result |
+|---|---|---|
+| a | TOCTOU between `show` and `approve` | Closed. The hash binds tool, args and root; `approve` re-reads the row, re-hashes, and prints the diff it is about to run (recomputed, not trusted from `show`). |
+| b | Path swap via symlink after approval | **Was open, fixed** (76e7aa89). `validatePath` only used `filepath.Abs`, so a symlink inside the sandbox let a read or write land outside it, approved or not. It now also resolves the deepest existing ancestor (`EvalSymlinks`) and checks the real path against the real allowed roots with a separator boundary. Residual: a swap between the check and `os.WriteFile` is still a race (needs `openat2(RESOLVE_BENEATH)`); recorded, not fixed here. |
+| c | Queue flooding | Closed. 20 pending per `source_service`, refused in code (`QueueConfirmer`, test `TestConfirm_QueueCap`) and in 031's insert trigger. |
+| d | Approval for root A executed under root B | Closed twice: `-allowed-roots` and the hash (root is hashed). Tests `TestConfirmCall_RefusesOtherRoot`, `TestConfirmCmd_RootSwapRefused`. |
+| e | Replay of an old approval | Closed. One-way states in 031's trigger and `Decide`/`Finish` (exactly one row moved or `ErrNotPending`); second `approve` refused (test). |
+| f | Agent loop claiming the user's trust on `/tool/exec` | **Was open, fixed** (360aed91). The endpoint defaulted every caller without a justification to `direct-user`, so an agent loop's writes passed Rule 2 outright; an agent loop could also assert `direct-user`. Agent-loop callers now get neither. |
+| g | Model self-approval through content | Closed. The TTY code is printed on `/dev/tty` only and read from it only; test with the model writing "approve", codes and "yes" in text and tool input; no request body ever carries the code (test). |
+| h | Token to the model through `/api/v1/agent/ask` | Open, out of this step's scope: `/ask`'s trace still returns a `pending_token` to its HTTP caller. That caller is the web UI today; a model loop calling `/ask` over HTTP would receive one. Candidate for Phase 6 (worker calls agent code in-process, not over HTTP). |
+| i | Terminal escape sequences in a prompt | Closed. Every model-supplied string shown on the TTY goes through `safeLine` (control characters replaced) and the redactor. |
+
+Step 89: no human at the terminal during this run, so the interactive live `-confirm tty` run was skipped (not on the critical path). The prompt is exercised by the fake-TTY tests (`TestConfirm_TTYApprove` prints the rendered prompt into the fake terminal: tool, sandbox, hash, redacted args, diff, code line).
 
 ## STUCK
 
