@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "zhen": {
+      "type": "stdio",
+      "command": "${CLAUDE_PROJECT_DIR:-.}/scripts/zhen-mcp.sh",
+      "args": [],
+      "env": {}
+    }
+  }
+}

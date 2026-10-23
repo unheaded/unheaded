@@ -37,10 +37,23 @@ Zhen is Unheaded's AI-assisted development system. It combines retrieval-augment
 | Champion (gated actions: kanban, files, runbooks, model switch) | `pkg/champion/` (ADR-019) |
 | Agent daemon | `cmd/zhen-agentd` (actions + kanban in The Well as `app_zhen`) |
 | CLI | `cmd/zhen-cli` (ADR-059) |
-| MCP server for Claude Code | `raft/zhen_mcp_server.py` |
+| MCP server for Claude Code | `raft/zhen_mcp_server.py`, registered in `.mcp.json` (server `zhen`, launched by `scripts/zhen-mcp.sh`) |
 | Forge (training) | `crates/zhenai-forge/` (ADR-048 backend trait) |
 
 **On west today (2026-10-15):** none of these is running. Zhen is started on demand.
+
+### Using the MCP server from Claude Code
+
+The repo's `.mcp.json` registers the server as `zhen`. Claude Code asks once
+whether to trust project servers; after that the tools appear as
+`mcp__zhen__<tool>`. It runs read-only: `file_write`, `file_patch` and
+`runbook_execute` stay hidden unless the server's environment sets
+`ZHEN_MCP_ALLOW_WRITE=1` / `ZHEN_MCP_ALLOW_EXEC=1`, which `.mcp.json` does not.
+
+`scripts/zhen-mcp.sh` picks the interpreter: `$ZHEN_MCP_PYTHON`, then
+`~/.venv/zhen/bin/python`, then `python3`. If none can import `mcp` it exits
+non-zero and says what it tried (`/mcp` in Claude Code shows the server as
+failed).
 
 ## Vision
 
@@ -59,7 +72,7 @@ Zhen is designed to progressively build itself and Unheaded:
 
 ---
 
-*Last updated: 2026-10-15*
+*Last updated: 2026-10-23*
 
 ---
 
